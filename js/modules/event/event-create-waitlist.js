@@ -163,6 +163,9 @@ Object.assign(App, {
           batch.update(db.collection('events').doc(event._docId), {
             current: occupancy.current, waitlist: occupancy.waitlist,
             participants: occupancy.participants, waitlistNames: occupancy.waitlistNames,
+            participantsWithUid: occupancy.participantsWithUid,
+            waitlistWithUid: occupancy.waitlistWithUid,
+            schemaVersion: 2,
             status: occupancy.status,
           });
         }
@@ -261,6 +264,9 @@ Object.assign(App, {
           batch.update(db.collection('events').doc(event._docId), {
             current: occupancy.current, waitlist: occupancy.waitlist,
             participants: occupancy.participants, waitlistNames: occupancy.waitlistNames,
+            participantsWithUid: occupancy.participantsWithUid,
+            waitlistWithUid: occupancy.waitlistWithUid,
+            schemaVersion: 2,
             status: occupancy.status,
           });
         }

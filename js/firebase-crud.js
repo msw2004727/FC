@@ -622,6 +622,23 @@ Object.assign(FirebaseService, {
         : String(r.userName || '').trim()
     ).filter(Boolean);
 
+    // ⚠️ 雙端同步：此函式與 functions/index.js rebuildOccupancy 必須邏輯一致
+    //    修改任一端時必須手動 review 另一端
+    //    Phase 1（2026-04-19）新增 participantsWithUid / waitlistWithUid 擴充回傳
+    const _buildWuEntry = (r) => {
+      const isComp = r.participantType === 'companion';
+      const uid = isComp
+        ? String(r.companionId || (r.userId ? `${r.userId}_${r.companionName || ''}` : '')).trim()
+        : String(r.userId || '').trim();
+      const name = isComp
+        ? String(r.companionName || r.userName || '').trim()
+        : String(r.userName || '').trim();
+      return { uid, name, teamKey: r.teamKey || null };
+    };
+    const _isValidWu = (x) => x.uid && x.name && !x.uid.endsWith('_');
+    const participantsWithUid = confirmed.map(_buildWuEntry).filter(_isValidWu);
+    const waitlistWithUid = waitlisted.map(_buildWuEntry).filter(_isValidWu);
+
     const current = participants.length;
     const waitlist = waitlistNames.length;
 
@@ -631,7 +648,10 @@ Object.assign(FirebaseService, {
       status = current >= (event.max || 0) ? 'full' : 'open';
     }
 
-    return { participants, waitlistNames, current, waitlist, status };
+    return {
+      participants, waitlistNames, current, waitlist, status,
+      participantsWithUid, waitlistWithUid,
+    };
   },
 
   /**
@@ -640,6 +660,8 @@ Object.assign(FirebaseService, {
   _applyRebuildOccupancy(event, occupancy) {
     event.participants = occupancy.participants;
     event.waitlistNames = occupancy.waitlistNames;
+    event.participantsWithUid = occupancy.participantsWithUid;
+    event.waitlistWithUid = occupancy.waitlistWithUid;
     event.current = occupancy.current;
     event.waitlist = occupancy.waitlist;
     event.status = occupancy.status;
@@ -896,6 +918,9 @@ Object.assign(FirebaseService, {
         waitlist: occupancy.waitlist,
         participants: occupancy.participants,
         waitlistNames: occupancy.waitlistNames,
+        participantsWithUid: occupancy.participantsWithUid,
+        waitlistWithUid: occupancy.waitlistWithUid,
+        schemaVersion: 2,
         status: occupancy.status,
       });
 
@@ -1080,6 +1105,9 @@ Object.assign(FirebaseService, {
         waitlist: occupancy.waitlist,
         participants: occupancy.participants,
         waitlistNames: occupancy.waitlistNames,
+        participantsWithUid: occupancy.participantsWithUid,
+        waitlistWithUid: occupancy.waitlistWithUid,
+        schemaVersion: 2,
         status: occupancy.status,
       });
     }
@@ -2190,6 +2218,9 @@ Object.assign(FirebaseService, {
         waitlist: occupancy.waitlist,
         participants: occupancy.participants,
         waitlistNames: occupancy.waitlistNames,
+        participantsWithUid: occupancy.participantsWithUid,
+        waitlistWithUid: occupancy.waitlistWithUid,
+        schemaVersion: 2,
         status: occupancy.status,
       });
 
@@ -2416,6 +2447,9 @@ Object.assign(FirebaseService, {
         batch.update(db.collection('events').doc(event._docId), {
           current: occupancy.current, waitlist: occupancy.waitlist,
           participants: occupancy.participants, waitlistNames: occupancy.waitlistNames,
+          participantsWithUid: occupancy.participantsWithUid,
+          waitlistWithUid: occupancy.waitlistWithUid,
+          schemaVersion: 2,
           status: occupancy.status,
         });
       }

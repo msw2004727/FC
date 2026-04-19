@@ -233,6 +233,9 @@ Object.assign(App, {
         waitlist: occupancy.waitlist,
         participants: occupancy.participants,
         waitlistNames: occupancy.waitlistNames,
+        participantsWithUid: occupancy.participantsWithUid,
+        waitlistWithUid: occupancy.waitlistWithUid,
+        schemaVersion: 2,
         status: occupancy.status,
       });
       await batch.commit();
@@ -363,6 +366,9 @@ Object.assign(App, {
         waitlist: occupancy.waitlist,
         participants: occupancy.participants,
         waitlistNames: occupancy.waitlistNames,
+        participantsWithUid: occupancy.participantsWithUid,
+        waitlistWithUid: occupancy.waitlistWithUid,
+        schemaVersion: 2,
         status: occupancy.status,
       });
       await batch.commit();

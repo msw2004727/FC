@@ -4421,6 +4421,22 @@ function rebuildOccupancy(event, registrations) {
     )
     .filter(Boolean);
 
+  // ⚠️ 雙端同步：此函式與 js/firebase-crud.js _rebuildOccupancy 必須邏輯一致
+  //    Phase 1（2026-04-19）新增 participantsWithUid / waitlistWithUid 擴充回傳
+  const buildWuEntry = (r) => {
+    const isComp = r.participantType === "companion";
+    const uid = isComp
+      ? String(r.companionId || (r.userId ? `${r.userId}_${r.companionName || ""}` : "")).trim()
+      : String(r.userId || "").trim();
+    const name = isComp
+      ? String(r.companionName || r.userName || "").trim()
+      : String(r.userName || "").trim();
+    return { uid, name, teamKey: r.teamKey || null };
+  };
+  const isValidWu = (x) => x.uid && x.name && !x.uid.endsWith("_");
+  const participantsWithUid = confirmed.map(buildWuEntry).filter(isValidWu);
+  const waitlistWithUid = waitlisted.map(buildWuEntry).filter(isValidWu);
+
   const current = participants.length;
   const waitlist = waitlistNames.length;
 
@@ -4429,7 +4445,10 @@ function rebuildOccupancy(event, registrations) {
     status = current >= (event.max || 0) ? "full" : "open";
   }
 
-  return { participants, waitlistNames, current, waitlist, status };
+  return {
+    participants, waitlistNames, current, waitlist, status,
+    participantsWithUid, waitlistWithUid,
+  };
 }
 
 // ── 內部用 adjustExp（同進程直接呼叫，不走 onCall） ──
@@ -4857,6 +4876,9 @@ exports.registerForEvent = onCall(
         waitlist: occupancy.waitlist,
         participants: occupancy.participants,
         waitlistNames: occupancy.waitlistNames,
+        participantsWithUid: occupancy.participantsWithUid,
+        waitlistWithUid: occupancy.waitlistWithUid,
+        schemaVersion: 2,
         status: occupancy.status,
       });
 
@@ -5133,6 +5155,9 @@ exports.cancelRegistration = onCall(
         waitlist: occupancy.waitlist,
         participants: occupancy.participants,
         waitlistNames: occupancy.waitlistNames,
+        participantsWithUid: occupancy.participantsWithUid,
+        waitlistWithUid: occupancy.waitlistWithUid,
+        schemaVersion: 2,
         status: occupancy.status,
       });
 

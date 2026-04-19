@@ -56,6 +56,21 @@ function _rebuildOccupancy(event, registrations) {
       : String(r.userName || '').trim()
   ).filter(Boolean);
 
+  // Phase 1: participantsWithUid / waitlistWithUid (sync with firebase-crud.js)
+  const _buildWuEntry = (r) => {
+    const isComp = r.participantType === 'companion';
+    const uid = isComp
+      ? String(r.companionId || (r.userId ? `${r.userId}_${r.companionName || ''}` : '')).trim()
+      : String(r.userId || '').trim();
+    const name = isComp
+      ? String(r.companionName || r.userName || '').trim()
+      : String(r.userName || '').trim();
+    return { uid, name, teamKey: r.teamKey || null };
+  };
+  const _isValidWu = (x) => x.uid && x.name && !x.uid.endsWith('_');
+  const participantsWithUid = confirmed.map(_buildWuEntry).filter(_isValidWu);
+  const waitlistWithUid = waitlisted.map(_buildWuEntry).filter(_isValidWu);
+
   const current = participants.length;
   const waitlist = waitlistNames.length;
 
@@ -64,7 +79,10 @@ function _rebuildOccupancy(event, registrations) {
     status = current >= (event.max || 0) ? 'full' : 'open';
   }
 
-  return { participants, waitlistNames, current, waitlist, status };
+  return {
+    participants, waitlistNames, current, waitlist, status,
+    participantsWithUid, waitlistWithUid,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -243,7 +261,7 @@ describe('_rebuildOccupancy (js/firebase-crud.js:514-558)', () => {
 
   // ----------------------------------------------------------------
   // Phase 0 (2026-04-19): participantsWithUid 遷移前置—同暱稱、排序、去重覆蓋
-  // 鎖定 _rebuildOccupancy 現有行為，作�a Phase 1 安全網
+  // 鎖定 _rebuildOccupancy 現有行為，作�a Phase 1 安全網
   // ----------------------------------------------------------------
 
   test('same userName with different userId -> both included (confirmed)', () => {
@@ -346,6 +364,90 @@ describe('_rebuildOccupancy (js/firebase-crud.js:514-558)', () => {
     ];
     const result = _rebuildOccupancy({ max: 10, status: 'open' }, regs);
     expect(result.participants).toEqual(['Earlier', 'Later']);
+  });
+
+  // ----------------------------------------------------------------
+  // Phase 1 (2026-04-19): participantsWithUid / waitlistWithUid field verification
+  // ----------------------------------------------------------------
+
+  test('participantsWithUid: self users have LINE UID as uid', () => {
+    const regs = [
+      { status: 'confirmed', userName: 'A', userId: 'U1111', participantType: 'self' },
+      { status: 'confirmed', userName: 'B', userId: 'U2222', participantType: 'self' },
+    ];
+    const result = _rebuildOccupancy({ max: 10, status: 'open' }, regs);
+    expect(result.participantsWithUid).toEqual([
+      { uid: 'U1111', name: 'A', teamKey: null },
+      { uid: 'U2222', name: 'B', teamKey: null },
+    ]);
+  });
+
+  test('participantsWithUid: companions have synthetic uid', () => {
+    const regs = [
+      { status: 'confirmed', userName: 'Main', userId: 'U1111', participantType: 'self' },
+      { status: 'confirmed', userName: 'Main', userId: 'U1111', participantType: 'companion',
+        companionId: 'U1111_Buddy', companionName: 'Buddy' },
+    ];
+    const result = _rebuildOccupancy({ max: 10, status: 'open' }, regs);
+    expect(result.participantsWithUid).toHaveLength(2);
+    expect(result.participantsWithUid[0]).toEqual({ uid: 'U1111', name: 'Main', teamKey: null });
+    expect(result.participantsWithUid[1]).toEqual({ uid: 'U1111_Buddy', name: 'Buddy', teamKey: null });
+  });
+
+  test('participantsWithUid: same userName distinct userId produces distinct uids (core bug fix)', () => {
+    const regs = [
+      { status: 'confirmed', userName: 'Aming', userId: 'U1111', participantType: 'self' },
+      { status: 'confirmed', userName: 'Aming', userId: 'U2222', participantType: 'self' },
+    ];
+    const result = _rebuildOccupancy({ max: 10, status: 'open' }, regs);
+    expect(result.participantsWithUid).toHaveLength(2);
+    expect(result.participantsWithUid[0].uid).toBe('U1111');
+    expect(result.participantsWithUid[1].uid).toBe('U2222');
+    expect(result.participantsWithUid[0].name).toBe('Aming');
+    expect(result.participantsWithUid[1].name).toBe('Aming');
+  });
+
+  test('participantsWithUid: teamKey propagated from registration', () => {
+    const regs = [
+      { status: 'confirmed', userName: 'A', userId: 'U1', participantType: 'self', teamKey: 'A' },
+      { status: 'confirmed', userName: 'B', userId: 'U2', participantType: 'self', teamKey: 'B' },
+      { status: 'confirmed', userName: 'C', userId: 'U3', participantType: 'self' },
+    ];
+    const result = _rebuildOccupancy({ max: 10, status: 'open' }, regs);
+    expect(result.participantsWithUid[0].teamKey).toBe('A');
+    expect(result.participantsWithUid[1].teamKey).toBe('B');
+    expect(result.participantsWithUid[2].teamKey).toBe(null);
+  });
+
+  test('waitlistWithUid: waitlisted users populated separately', () => {
+    const regs = [
+      { status: 'confirmed', userName: 'A', userId: 'U1', participantType: 'self' },
+      { status: 'waitlisted', userName: 'B', userId: 'U2', participantType: 'self' },
+    ];
+    const result = _rebuildOccupancy({ max: 1, status: 'full' }, regs);
+    expect(result.participantsWithUid).toEqual([{ uid: 'U1', name: 'A', teamKey: null }]);
+    expect(result.waitlistWithUid).toEqual([{ uid: 'U2', name: 'B', teamKey: null }]);
+  });
+
+  test('participantsWithUid: empty userId filtered out (safety)', () => {
+    const regs = [
+      { status: 'confirmed', userName: 'NoUid', userId: '', participantType: 'self' },
+      { status: 'confirmed', userName: 'Valid', userId: 'U1', participantType: 'self' },
+    ];
+    const result = _rebuildOccupancy({ max: 10, status: 'open' }, regs);
+    expect(result.participantsWithUid).toHaveLength(1);
+    expect(result.participantsWithUid[0].uid).toBe('U1');
+  });
+
+  test('participantsWithUid: companion with empty companionName filtered out', () => {
+    const regs = [
+      { status: 'confirmed', userName: 'Main', userId: 'U1', participantType: 'companion',
+        companionId: '', companionName: '' },
+      { status: 'confirmed', userName: 'Valid', userId: 'U2', participantType: 'self' },
+    ];
+    const result = _rebuildOccupancy({ max: 10, status: 'open' }, regs);
+    expect(result.participantsWithUid).toHaveLength(1);
+    expect(result.participantsWithUid[0].uid).toBe('U2');
   });
 
 });

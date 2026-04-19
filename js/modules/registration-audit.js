@@ -145,6 +145,9 @@ Object.assign(App, {
               waitlist: occupancy.waitlist,
               participants: occupancy.participants,
               waitlistNames: occupancy.waitlistNames,
+              participantsWithUid: occupancy.participantsWithUid,
+              waitlistWithUid: occupancy.waitlistWithUid,
+              schemaVersion: 2,
               status: occupancy.status,
             });
             repair.status = 'fixed';
@@ -293,6 +296,9 @@ Object.assign(App, {
             waitlist: occupancy.waitlist,
             participants: occupancy.participants,
             waitlistNames: occupancy.waitlistNames,
+            participantsWithUid: occupancy.participantsWithUid,
+            waitlistWithUid: occupancy.waitlistWithUid,
+            schemaVersion: 2,
             status: occupancy.status,
           });
         }
