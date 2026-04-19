@@ -526,6 +526,18 @@
           </div>
         </div>
         <div class="form-card" style="margin-bottom:.6rem">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:.82rem">⑩ participantsWithUid 資料遷移 <span style="font-size:.68rem;color:#d97706;font-weight:500">（寫入）</span></div>
+              <div style="font-size:.72rem;color:var(--text-muted);line-height:1.5;margin-top:.15rem">
+                為所有 events 從 registrations 重建 participantsWithUid / waitlistWithUid 欄位。<br>
+                已升級者（schemaVersion=2）會跳過。根治同暱稱用戶互相干擾的 bug（Phase 2）。
+              </div>
+            </div>
+            <button class="outline-btn" style="flex-shrink:0;font-size:.75rem" onclick="App.runDataSyncOp('backfillPU')">執行</button>
+          </div>
+        </div>
+        <div class="form-card" style="margin-bottom:.6rem">
           <button id="data-sync-full-btn" class="primary-btn full-width" onclick="App.runDataSyncOp('all')">一鍵同步 ①②③</button>
         </div>
         <div class="form-card">

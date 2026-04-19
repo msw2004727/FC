@@ -54,6 +54,10 @@ Object.assign(App, {
       return this._checkUidFallbackSafety();
     }
 
+    if (op === 'backfillPU') {
+      return this._backfillParticipantsWithUid();
+    }
+
     const opMap = {
       teamMembers: { label: '俱樂部成員數重算', fn: '_syncTeamMembers' },
       userTeam: { label: '用戶俱樂部欄位驗證', fn: '_syncUserTeamFields' },
@@ -774,6 +778,124 @@ Object.assign(App, {
       ui.log('錯誤：' + (err.message || err));
       console.error('[_checkUidFallbackSafety]', err);
       this.showToast('同暱稱檢查失敗');
+    } finally {
+      this._dataSyncRunning = false;
+    }
+  },
+
+  // ── ⑩ participantsWithUid 資料遷移（Phase 2）──
+  // 為所有現存 events 補齊 participantsWithUid / waitlistWithUid 欄位
+  // 策略：從 registrations 子集合重建（不從 participants[] 字串反查 UID，避免同名挑錯）
+  // Race 緩解：double-check schemaVersion 避免 overwrite Phase 1 路徑的新寫入
+  async _backfillParticipantsWithUid() {
+    if (this._dataSyncRunning) { this.showToast('同步作業正在執行中'); return; }
+    if (!this.hasPermission?.('admin.repair.data_sync')) { this.showToast('權限不足'); return; }
+
+    var events = FirebaseService._cache.events || [];
+    var est = {
+      reads: events.length * 3 + 100,  // 每個 event: 2 reads(event) + 1 query(registrations) + safety buffer
+      writes: events.length,
+    };
+    var cost = ((est.reads * 0.06 / 100000) + (est.writes * 0.18 / 100000)).toFixed(4);
+    var ok = await this.appConfirm(
+      '確定執行 participantsWithUid 遷移嗎？\n\n' +
+      '總 events: ' + events.length + '\n' +
+      '預估讀取：~' + est.reads.toLocaleString() + ' 次\n' +
+      '預估寫入：至多 ~' + est.writes.toLocaleString() + ' 次\n' +
+      '預估費用：~$' + cost + ' USD\n\n' +
+      '說明：從每個 event 的 registrations 子集合重建 UID 欄位。\n' +
+      '已升級（schemaVersion=2）者會跳過。請勿關閉頁面。'
+    );
+    if (!ok) return;
+
+    this._dataSyncRunning = true;
+    var ui = this._dataSyncUI();
+    ui.show();
+    var startTime = Date.now();
+    var migrated = 0, skipped = 0, failed = 0;
+
+    try {
+      ui.log('=== participantsWithUid 資料遷移 ===');
+      ui.log('總 events: ' + events.length);
+
+      for (var i = 0; i < events.length; i++) {
+        var event = events[i];
+        var docId = event._docId;
+        if (!docId) {
+          ui.log('[skip] no _docId: ' + (event.title || '?'));
+          skipped++;
+          continue;
+        }
+
+        try {
+          // Step 1: Read event（server fresh）
+          var eventDoc = await db.collection('events').doc(docId).get({ source: 'server' });
+          var ed = eventDoc.data();
+
+          // Step 2: 跳過已升級者
+          if (ed.schemaVersion === 2
+            && Array.isArray(ed.participantsWithUid)
+            && ed.participantsWithUid.length === (ed.current || 0)) {
+            ui.log('[pwu] skip (migrated): ' + (ed.title || docId));
+            skipped++;
+            ui.setProgress(i + 1, events.length);
+            continue;
+          }
+
+          // Step 3: 讀 registrations 子集合
+          var regsSnap = await db.collection('events').doc(docId)
+            .collection('registrations').get();
+          var allRegs = regsSnap.docs.map(function (d) {
+            var data = d.data();
+            // Timestamp 轉 ISO（避免排序問題）
+            if (data.registeredAt && typeof data.registeredAt.toDate === 'function') {
+              data.registeredAt = data.registeredAt.toDate().toISOString();
+            }
+            return Object.assign({}, data, { _docId: d.id });
+          });
+
+          // Step 4: 第二次 read 減少 race 窗口
+          var verify = await db.collection('events').doc(docId).get({ source: 'server' });
+          if (verify.data().schemaVersion === 2
+            && Array.isArray(verify.data().participantsWithUid)) {
+            ui.log('[pwu] skip (race detected): ' + (ed.title || docId));
+            skipped++;
+            ui.setProgress(i + 1, events.length);
+            continue;
+          }
+
+          // Step 5: 重算並 update
+          var occupancy = FirebaseService._rebuildOccupancy(ed, allRegs);
+          await db.collection('events').doc(docId).update({
+            participantsWithUid: occupancy.participantsWithUid,
+            waitlistWithUid: occupancy.waitlistWithUid,
+            schemaVersion: 2,
+          });
+          ui.log('[pwu] migrated: ' + (ed.title || docId)
+            + ' (p=' + occupancy.participantsWithUid.length
+            + ', w=' + occupancy.waitlistWithUid.length + ')');
+          migrated++;
+        } catch (err) {
+          ui.log('[ERROR] ' + (event.title || docId) + ': ' + (err.message || err));
+          console.error('[_backfillParticipantsWithUid]', docId, err);
+          failed++;
+        }
+
+        ui.setProgress(i + 1, events.length);
+        // 避免 Firestore 併發過多
+        await new Promise(function (r) { setTimeout(r, 50); });
+      }
+
+      var elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      ui.log('\n=== 遷移完成（' + elapsed + ' 秒）===');
+      ui.log('已遷移: ' + migrated + ' / 跳過: ' + skipped + ' / 失敗: ' + failed);
+      this.showToast('遷移完成：' + migrated + ' 筆');
+      ApiService._writeOpLog?.('data_sync', 'participantsWithUid 遷移',
+        '遷移 ' + migrated + '/' + events.length + '，跳過 ' + skipped + '，失敗 ' + failed);
+    } catch (err) {
+      ui.log('致命錯誤：' + (err.message || err));
+      console.error('[_backfillParticipantsWithUid]', err);
+      this.showToast('遷移失敗');
     } finally {
       this._dataSyncRunning = false;
     }

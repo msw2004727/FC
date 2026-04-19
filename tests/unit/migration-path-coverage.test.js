@@ -45,6 +45,7 @@ const KNOWN_REFERENCES = {
   'js/modules/event/event-team-split.js': { registrations: 4, attendanceRecords: 0, activityRecords: 0 }, // Phase 4b: 寫入改子集合
   'js/modules/event/event-host-list.js': { registrations: 0, attendanceRecords: 0, activityRecords: 0 },
   'js/modules/registration-audit.js': { registrations: 2, attendanceRecords: 0, activityRecords: 0 }, // Phase 4b: 寫入改子集合
+  'js/modules/data-sync.js': { registrations: 1, attendanceRecords: 0, activityRecords: 0 }, // Phase 2: _backfillParticipantsWithUid 讀 registrations 子集合
   'js/modules/attendance-notify.js': { registrations: 0, attendanceRecords: 0, activityRecords: 0 },
   'app.js': { registrations: 0, attendanceRecords: 0, activityRecords: 1 }, // Phase 4b: 寫入改子集合
 };
