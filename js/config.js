@@ -651,6 +651,7 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
     { code: 'admin.repair.team_join_repair', name: '歷史入隊補正' },
     { code: 'admin.repair.no_show_adjust', name: '放鴿子修改' },
     { code: 'admin.repair.data_sync', name: '系統資料同步' },
+    { code: 'admin.repair.event_blocklist', name: '活動黑名單' },
   ],
   'page-admin-logs': [
     { code: 'admin.logs.error_read', name: '錯誤日誌讀取' },
@@ -670,6 +671,7 @@ const INHERENT_ROLE_PERMISSIONS = Object.freeze({
   coach:       ['activity.manage.entry', 'admin.tournaments.entry'],
   captain:     ['activity.manage.entry', 'admin.tournaments.entry', 'team.manage.entry'],
   venue_owner: ['activity.manage.entry', 'admin.tournaments.entry', 'team.manage.entry'],
+  super_admin: ['admin.repair.event_blocklist'],
 });
 
 function getInherentRolePermissions(roleKey) {

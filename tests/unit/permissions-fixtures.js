@@ -19,6 +19,7 @@ const INHERENT_ROLE_PERMISSIONS = Object.freeze({
   coach:       ['activity.manage.entry', 'admin.tournaments.entry'],
   captain:     ['activity.manage.entry', 'admin.tournaments.entry'],
   venue_owner: ['activity.manage.entry', 'admin.tournaments.entry'],
+  super_admin: ['admin.repair.event_blocklist'],
 });
 
 const DISABLED_PERMISSION_CODES = new Set(['admin.roles.entry']);

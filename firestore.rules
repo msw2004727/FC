@@ -99,6 +99,10 @@ service cloud.firestore {
       return isSuperAdmin() || hasPerm('admin.repair.no_show_adjust');
     }
 
+    function canManageEventBlocklist() {
+      return isSuperAdmin() || hasPerm('admin.repair.event_blocklist');
+    }
+
     function notificationToggleAllowedKeys() {
       return [
         'category_activity',
@@ -439,11 +443,21 @@ service cloud.firestore {
         ]);
       }
 
+      function isBlocklistFieldsOnly() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return changed.hasOnly(['blockedUids', 'blockedUidsLog']);
+      }
+
       allow read: if true;
       allow create: if isAuth()
         && hasString('title');
       allow update: if isAuth()
-        && (isEventOwner() || hasPerm('event.edit_all') || isSignupFieldsOnly());
+        && (
+          isEventOwner()
+          || hasPerm('event.edit_all')
+          || isSignupFieldsOnly()
+          || (isBlocklistFieldsOnly() && canManageEventBlocklist())
+        );
       allow delete: if isAdmin() || hasPerm('event.delete');
     }
 

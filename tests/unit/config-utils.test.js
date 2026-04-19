@@ -128,6 +128,7 @@ const INHERENT_ROLE_PERMISSIONS = Object.freeze({
   coach:       ['activity.manage.entry', 'admin.tournaments.entry'],
   captain:     ['activity.manage.entry', 'admin.tournaments.entry', 'team.manage.entry'],
   venue_owner: ['activity.manage.entry', 'admin.tournaments.entry', 'team.manage.entry'],
+  super_admin: ['admin.repair.event_blocklist'],
 });
 
 // =========================================================================
@@ -640,8 +641,9 @@ describe('Permission System', () => {
       expect(getInherentRolePermissions('admin')).toEqual([]);
     });
 
-    test('returns empty array for super_admin role', () => {
-      expect(getInherentRolePermissions('super_admin')).toEqual([]);
+    test('super_admin has INHERENT admin.repair.event_blocklist (added 2026-04-20)', () => {
+      // super_admin is INHERENT for event blocklist to prevent accidental permission removal
+      expect(getInherentRolePermissions('super_admin')).toEqual(['admin.repair.event_blocklist']);
     });
 
     test('returns empty array for unknown role', () => {

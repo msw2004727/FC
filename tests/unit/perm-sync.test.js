@@ -176,15 +176,23 @@ describe('INHERENT_ROLE_PERMISSIONS cross-system sync (CRITICAL)', () => {
   });
 
   test('specific known permissions are present for each role', () => {
-    // Based on current source: activity.manage.entry, admin.tournaments.entry
-    const expectedPerms = ['activity.manage.entry', 'admin.tournaments.entry'];
-    const roles = Object.keys(configPerms.parsed);
+    // Activity-core roles must have activity.manage.entry + admin.tournaments.entry
+    // super_admin is INHERENT for admin.repair.event_blocklist only
+    // (added 2026-04-20 for event blocklist feature)
+    const ACTIVITY_CORE_ROLES = ['coach', 'captain', 'venue_owner'];
+    const ACTIVITY_CORE_PERMS = ['activity.manage.entry', 'admin.tournaments.entry'];
 
-    for (const role of roles) {
-      for (const perm of expectedPerms) {
+    for (const role of ACTIVITY_CORE_ROLES) {
+      for (const perm of ACTIVITY_CORE_PERMS) {
         expect(configPerms.parsed[role]).toContain(perm);
         expect(functionsPerms.parsed[role]).toContain(perm);
       }
+    }
+
+    // super_admin INHERENT scoped to admin.repair.event_blocklist
+    if (configPerms.parsed.super_admin) {
+      expect(configPerms.parsed.super_admin).toContain('admin.repair.event_blocklist');
+      expect(functionsPerms.parsed.super_admin).toContain('admin.repair.event_blocklist');
     }
   });
 

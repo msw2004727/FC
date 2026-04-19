@@ -113,10 +113,13 @@ describe('inherent permissions', () => {
     });
   });
 
-  test('user/admin/super_admin have no inherent permissions', () => {
-    ['user', 'admin', 'super_admin'].forEach(role => {
+  test('user/admin have no inherent permissions; super_admin has event_blocklist only', () => {
+    // 2026-04-20: super_admin gained INHERENT admin.repair.event_blocklist
+    // to prevent accidental removal of blocklist management capability
+    ['user', 'admin'].forEach(role => {
       expect(getInherentRolePermissions(role)).toEqual([]);
     });
+    expect(getInherentRolePermissions('super_admin')).toEqual(['admin.repair.event_blocklist']);
   });
 
   test('inherent permissions survive even with empty stored permissions', () => {
