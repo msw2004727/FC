@@ -240,6 +240,114 @@ describe('_rebuildOccupancy (js/firebase-crud.js:514-558)', () => {
     expect(result2.status).toBe('full');
     expect(result2.current).toBe(1);
   });
+
+  // ----------------------------------------------------------------
+  // Phase 0 (2026-04-19): participantsWithUid 遷移前置—同暱稱、排序、去重覆蓋
+  // 鎖定 _rebuildOccupancy 現有行為，作�a Phase 1 安全網
+  // ----------------------------------------------------------------
+
+  test('same userName with different userId -> both included (confirmed)', () => {
+    const regs = [
+      { status: 'confirmed', userName: 'Aming', userId: 'U1111',
+        participantType: 'self', registeredAt: '2024-01-01T00:00:00Z' },
+      { status: 'confirmed', userName: 'Aming', userId: 'U2222',
+        participantType: 'self', registeredAt: '2024-01-01T00:01:00Z' },
+    ];
+    const result = _rebuildOccupancy({ max: 10, status: 'open' }, regs);
+    expect(result.current).toBe(2);
+    expect(result.participants).toEqual(['Aming', 'Aming']);
+  });
+
+  test('same userName: confirmed + waitlisted keeps both buckets', () => {
+    const regs = [
+      { status: 'confirmed', userName: 'Aming', userId: 'U1111',
+        participantType: 'self', registeredAt: '2024-01-01T00:00:00Z' },
+      { status: 'waitlisted', userName: 'Aming', userId: 'U2222',
+        participantType: 'self', registeredAt: '2024-01-01T00:01:00Z' },
+    ];
+    const result = _rebuildOccupancy({ max: 1, status: 'full' }, regs);
+    expect(result.participants).toEqual(['Aming']);
+    expect(result.waitlistNames).toEqual(['Aming']);
+    expect(result.current).toBe(1);
+    expect(result.waitlist).toBe(1);
+  });
+
+  test('same userName: self + companion with same name both counted', () => {
+    const regs = [
+      { status: 'confirmed', userName: 'Aming', userId: 'U1111',
+        participantType: 'self', registeredAt: '2024-01-01T00:00:00Z' },
+      { status: 'confirmed', userName: 'Xiaohua', userId: 'U2222',
+        participantType: 'companion', companionId: 'U2222_Aming', companionName: 'Aming',
+        registeredAt: '2024-01-01T00:01:00Z' },
+    ];
+    const result = _rebuildOccupancy({ max: 10, status: 'open' }, regs);
+    expect(result.current).toBe(2);
+    expect(result.participants).toEqual(['Aming', 'Aming']);
+  });
+
+  test('registeredAt ASC sort -> participants order follows registration time', () => {
+    const regs = [
+      { status: 'confirmed', userName: 'Late', userId: 'U3',
+        participantType: 'self', registeredAt: '2024-01-03T00:00:00Z' },
+      { status: 'confirmed', userName: 'Early', userId: 'U1',
+        participantType: 'self', registeredAt: '2024-01-01T00:00:00Z' },
+      { status: 'confirmed', userName: 'Mid', userId: 'U2',
+        participantType: 'self', registeredAt: '2024-01-02T00:00:00Z' },
+    ];
+    const result = _rebuildOccupancy({ max: 10, status: 'open' }, regs);
+    expect(result.participants).toEqual(['Early', 'Mid', 'Late']);
+  });
+
+  test('dedup: same userId + same type (self) -> only earliest kept', () => {
+    const regs = [
+      { status: 'confirmed', userName: 'A', userId: 'U1', participantType: 'self',
+        registeredAt: '2024-01-01T00:00:00Z' },
+      { status: 'confirmed', userName: 'A-DUP', userId: 'U1', participantType: 'self',
+        registeredAt: '2024-01-02T00:00:00Z' },
+    ];
+    const result = _rebuildOccupancy({ max: 10, status: 'open' }, regs);
+    expect(result.current).toBe(1);
+    expect(result.participants).toEqual(['A']);
+  });
+
+  test('dedup: same userId with different companionIds -> each companion kept', () => {
+    const regs = [
+      { status: 'confirmed', userName: 'Main', userId: 'U1', participantType: 'self',
+        registeredAt: '2024-01-01T00:00:00Z' },
+      { status: 'confirmed', userName: 'Main', userId: 'U1', participantType: 'companion',
+        companionId: 'c1', companionName: 'Buddy1',
+        registeredAt: '2024-01-01T00:01:00Z' },
+      { status: 'confirmed', userName: 'Main', userId: 'U1', participantType: 'companion',
+        companionId: 'c2', companionName: 'Buddy2',
+        registeredAt: '2024-01-01T00:02:00Z' },
+    ];
+    const result = _rebuildOccupancy({ max: 10, status: 'open' }, regs);
+    expect(result.current).toBe(3);
+    expect(result.participants).toEqual(['Main', 'Buddy1', 'Buddy2']);
+  });
+
+  test('registeredAt tie-break by docId', () => {
+    const regs = [
+      { status: 'confirmed', userName: 'B', userId: 'U2', _docId: 'docB',
+        participantType: 'self', registeredAt: '2024-01-01T00:00:00Z' },
+      { status: 'confirmed', userName: 'A', userId: 'U1', _docId: 'docA',
+        participantType: 'self', registeredAt: '2024-01-01T00:00:00Z' },
+    ];
+    const result = _rebuildOccupancy({ max: 10, status: 'open' }, regs);
+    expect(result.participants).toEqual(['A', 'B']);
+  });
+
+  test('Firestore Timestamp object (seconds) -> sorted correctly', () => {
+    const regs = [
+      { status: 'confirmed', userName: 'Later', userId: 'U2', participantType: 'self',
+        registeredAt: { seconds: 2000, nanoseconds: 0 } },
+      { status: 'confirmed', userName: 'Earlier', userId: 'U1', participantType: 'self',
+        registeredAt: { seconds: 1000, nanoseconds: 0 } },
+    ];
+    const result = _rebuildOccupancy({ max: 10, status: 'open' }, regs);
+    expect(result.participants).toEqual(['Earlier', 'Later']);
+  });
+
 });
 
 describe('_isEventDelegate (js/modules/event-list.js:377-381)', () => {
