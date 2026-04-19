@@ -58,6 +58,14 @@ Object.assign(App, {
       return this._backfillParticipantsWithUid();
     }
 
+    if (op === 'checkPU') {
+      return this._checkParticipantsConsistency();
+    }
+
+    if (op === 'forceRebuildPU') {
+      return this._forceRebuildParticipantsWithUid();
+    }
+
     const opMap = {
       teamMembers: { label: '俱樂部成員數重算', fn: '_syncTeamMembers' },
       userTeam: { label: '用戶俱樂部欄位驗證', fn: '_syncUserTeamFields' },
@@ -896,6 +904,190 @@ Object.assign(App, {
       ui.log('致命錯誤：' + (err.message || err));
       console.error('[_backfillParticipantsWithUid]', err);
       this.showToast('遷移失敗');
+    } finally {
+      this._dataSyncRunning = false;
+    }
+  },
+
+  // ── ⑪ participantsWithUid 一致性檢查（Phase 4，唯讀）──
+  // 比對每個 event 的 participantsWithUid 與從 registrations 重算結果
+  async _checkParticipantsConsistency() {
+    if (this._dataSyncRunning) { this.showToast('同步作業正在執行中'); return; }
+    if (!this.hasPermission?.('admin.repair.data_sync')) { this.showToast('權限不足'); return; }
+
+    this._dataSyncRunning = true;
+    var ui = this._dataSyncUI();
+    ui.show();
+    var startTime = Date.now();
+    var events = FirebaseService._cache.events || [];
+    var inconsistent = [];
+    var checked = 0;
+
+    try {
+      ui.log('=== participantsWithUid 一致性檢查 ===');
+      ui.log('總 events: ' + events.length);
+
+      for (var i = 0; i < events.length; i++) {
+        var event = events[i];
+        var docId = event._docId;
+        if (!docId) continue;
+
+        try {
+          var regsSnap = await db.collection('events').doc(docId)
+            .collection('registrations').get();
+          var allRegs = regsSnap.docs.map(function (d) {
+            var data = d.data();
+            if (data.registeredAt && typeof data.registeredAt.toDate === 'function') {
+              data.registeredAt = data.registeredAt.toDate().toISOString();
+            }
+            return Object.assign({}, data, { _docId: d.id });
+          });
+          var expected = FirebaseService._rebuildOccupancy(event, allRegs);
+          var actualP = Array.isArray(event.participantsWithUid) ? event.participantsWithUid : [];
+          var actualW = Array.isArray(event.waitlistWithUid) ? event.waitlistWithUid : [];
+
+          var issue = null;
+          if (actualP.length !== expected.participantsWithUid.length) {
+            issue = 'p 長度差 (expected=' + expected.participantsWithUid.length + ', actual=' + actualP.length + ')';
+          } else if (actualW.length !== expected.waitlistWithUid.length) {
+            issue = 'w 長度差 (expected=' + expected.waitlistWithUid.length + ', actual=' + actualW.length + ')';
+          } else {
+            // 逐筆 uid 比對
+            for (var j = 0; j < expected.participantsWithUid.length; j++) {
+              if (actualP[j]?.uid !== expected.participantsWithUid[j].uid) {
+                issue = 'p[' + j + '] uid 不符';
+                break;
+              }
+            }
+          }
+          if (event.schemaVersion !== 2 && !issue) {
+            issue = 'schemaVersion 未升級';
+          }
+
+          checked++;
+          if (issue) {
+            inconsistent.push({ docId: docId, title: event.title || docId, issue: issue });
+            ui.log('[INCONSISTENT] ' + (event.title || docId) + ': ' + issue);
+          }
+        } catch (err) {
+          ui.log('[ERROR] ' + (event.title || docId) + ': ' + (err.message || err));
+        }
+
+        ui.setProgress(i + 1, events.length);
+        await new Promise(function (r) { setTimeout(r, 30); });
+      }
+
+      var elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      ui.log('\n=== 檢查完成（' + elapsed + ' 秒）===');
+      ui.log('檢查 ' + checked + ' 筆 / 不一致 ' + inconsistent.length + ' 筆');
+      if (inconsistent.length > 0) {
+        ui.log('\n⚠️ 不一致清單（複製 docId 至 ⑫ 強制重算）：');
+        inconsistent.slice(0, 20).forEach(function (x) {
+          ui.log('  - ' + x.docId + ' | ' + x.title + ' | ' + x.issue);
+        });
+        if (inconsistent.length > 20) ui.log('  ...還有 ' + (inconsistent.length - 20) + ' 筆');
+      } else {
+        ui.log('✅ 所有 events 一致');
+      }
+      this.showToast('檢查完成：' + inconsistent.length + ' 筆不一致');
+    } catch (err) {
+      ui.log('致命錯誤：' + (err.message || err));
+      console.error('[_checkParticipantsConsistency]', err);
+      this.showToast('檢查失敗');
+    } finally {
+      this._dataSyncRunning = false;
+    }
+  },
+
+  // ── ⑫ participantsWithUid 強制重算（Phase 4，寫入，含權限守衛）──
+  async _forceRebuildParticipantsWithUid() {
+    if (this._dataSyncRunning) { this.showToast('同步作業正在執行中'); return; }
+    if (!this.hasPermission?.('admin.repair.data_sync')) { this.showToast('權限不足'); return; }
+
+    var events = FirebaseService._cache.events || [];
+    var ok = await this.appConfirm(
+      '確定強制重算所有 events 的 participantsWithUid 嗎？\n\n' +
+      '⚠️ 此操作會 overwrite 現有 participantsWithUid / waitlistWithUid 欄位。\n' +
+      '已一致者會自動跳過（double-check 機制）。\n\n' +
+      '總 events: ' + events.length + '\n' +
+      '用於修復 Phase 2 遷移後仍不一致的活動（含已結束活動）。\n' +
+      '請勿關閉頁面。'
+    );
+    if (!ok) return;
+
+    this._dataSyncRunning = true;
+    var ui = this._dataSyncUI();
+    ui.show();
+    var startTime = Date.now();
+    var rebuilt = 0, skipped = 0, failed = 0;
+
+    try {
+      ui.log('=== participantsWithUid 強制重算 ===');
+
+      for (var i = 0; i < events.length; i++) {
+        var event = events[i];
+        var docId = event._docId;
+        if (!docId) continue;
+
+        try {
+          // Read 1: event server fresh
+          var beforeDoc = await db.collection('events').doc(docId).get({ source: 'server' });
+          var ed = beforeDoc.data();
+
+          // Read 2: registrations
+          var regsSnap = await db.collection('events').doc(docId)
+            .collection('registrations').get();
+          var allRegs = regsSnap.docs.map(function (d) {
+            var data = d.data();
+            if (data.registeredAt && typeof data.registeredAt.toDate === 'function') {
+              data.registeredAt = data.registeredAt.toDate().toISOString();
+            }
+            return Object.assign({}, data, { _docId: d.id });
+          });
+
+          // Read 3: verify event 仍不一致（double-check）
+          var verifyDoc = await db.collection('events').doc(docId).get({ source: 'server' });
+          var expected = FirebaseService._rebuildOccupancy(verifyDoc.data(), allRegs);
+          var actualP = verifyDoc.data().participantsWithUid || [];
+
+          var matchLen = actualP.length === expected.participantsWithUid.length;
+          var matchUids = matchLen && JSON.stringify(actualP.map(function (x) { return x.uid; }))
+                       === JSON.stringify(expected.participantsWithUid.map(function (x) { return x.uid; }));
+          if (matchUids && verifyDoc.data().schemaVersion === 2) {
+            ui.log('[pwu] skip (already healed): ' + (ed.title || docId));
+            skipped++;
+            ui.setProgress(i + 1, events.length);
+            continue;
+          }
+
+          // 寫入
+          await db.collection('events').doc(docId).update({
+            participantsWithUid: expected.participantsWithUid,
+            waitlistWithUid: expected.waitlistWithUid,
+            schemaVersion: 2,
+          });
+          ui.log('[pwu] force rebuilt: ' + (ed.title || docId)
+            + ' (p=' + expected.participantsWithUid.length + ')');
+          rebuilt++;
+        } catch (err) {
+          ui.log('[ERROR] ' + (event.title || docId) + ': ' + (err.message || err));
+          failed++;
+        }
+
+        ui.setProgress(i + 1, events.length);
+        await new Promise(function (r) { setTimeout(r, 50); });
+      }
+
+      var elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      ui.log('\n=== 強制重算完成（' + elapsed + ' 秒）===');
+      ui.log('重算 ' + rebuilt + ' / 跳過 ' + skipped + ' / 失敗 ' + failed);
+      this.showToast('強制重算完成：' + rebuilt + ' 筆');
+      ApiService._writeOpLog?.('data_sync', 'participantsWithUid 強制重算',
+        '重算 ' + rebuilt + '，跳過 ' + skipped + '，失敗 ' + failed);
+    } catch (err) {
+      ui.log('致命錯誤：' + (err.message || err));
+      console.error('[_forceRebuildParticipantsWithUid]', err);
+      this.showToast('強制重算失敗');
     } finally {
       this._dataSyncRunning = false;
     }

@@ -538,6 +538,30 @@
           </div>
         </div>
         <div class="form-card" style="margin-bottom:.6rem">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:.82rem">⑪ participantsWithUid 一致性檢查 <span style="font-size:.68rem;color:#16a34a;font-weight:500">（唯讀）</span></div>
+              <div style="font-size:.72rem;color:var(--text-muted);line-height:1.5;margin-top:.15rem">
+                逐 event 比對 participantsWithUid 與 registrations 重算結果，列出不一致項目。<br>
+                Phase 3 上線首週每日執行；穩定後每週一次作為健康檢查。
+              </div>
+            </div>
+            <button class="outline-btn" style="flex-shrink:0;font-size:.75rem" onclick="App.runDataSyncOp('checkPU')">執行</button>
+          </div>
+        </div>
+        <div class="form-card" style="margin-bottom:.6rem">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:.82rem">⑫ participantsWithUid 強制重算 <span style="font-size:.68rem;color:#dc2626;font-weight:500">（寫入）</span></div>
+              <div style="font-size:.72rem;color:var(--text-muted);line-height:1.5;margin-top:.15rem">
+                對所有 events 強制從 registrations 重算 participantsWithUid，含 double-check 跳過已一致者。<br>
+                用於修復 Phase 2 遷移後仍不一致的活動（含已結束活動）。
+              </div>
+            </div>
+            <button class="outline-btn" style="flex-shrink:0;font-size:.75rem;color:var(--warning);border-color:var(--warning)" onclick="App.runDataSyncOp('forceRebuildPU')">執行</button>
+          </div>
+        </div>
+        <div class="form-card" style="margin-bottom:.6rem">
           <button id="data-sync-full-btn" class="primary-btn full-width" onclick="App.runDataSyncOp('all')">一鍵同步 ①②③</button>
         </div>
         <div class="form-card">

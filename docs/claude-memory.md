@@ -10,6 +10,35 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-19 — events.participantsWithUid 導入（Phase 0-4 完成） [永久]
+- **問題**：14 組同暱稱用戶（含「勝」「Ivan」各 1 次放鴿子被隱身），根因是
+  `_buildConfirmedParticipantSummary` / `_buildGuestEventPeople` 等 fallback 路徑
+  用 `_userByName.set(name, user)` 反查 UID，同名被後者覆蓋
+- **修復**：events 新增 `participantsWithUid: [{uid, name, teamKey}]` / `waitlistWithUid` /
+  `schemaVersion: 2`。由 `_rebuildOccupancy`（前端 + CF 雙端同步）統一產出。
+  讀取端（6 處 fallback）優先使用新欄位，fallback 回舊 participants[] 保持相容
+- **分 Phase 實施**（單日全部完成）：
+  - Phase 0：pure-functions.test.js 補 8 個測試（同暱稱/排序/去重）鎖定既有行為
+  - Phase 1a：firestore.rules whitelist 加 3 欄位，已 deploy
+  - Phase 1：`_rebuildOccupancy` + `_applyRebuildOccupancy` + 13 處 `db.update()` 擴充
+    CF registerForEvent + cancelRegistration 已 deploy
+  - Phase 2：data-sync ⑩ 遷移工具（從 registrations 子集合重算，double-check 避 race）
+  - Phase 3：6 處讀取端優先 participantsWithUid（_buildConfirmedParticipantSummary /
+    _confirmAllAttendance 鎖定函式 fallback / _initInstantSave / _buildGuestEventPeople /
+    guest view count / event-create.js uid 反查）
+  - Phase 4：data-sync ⑪ 一致性檢查（唯讀）+ ⑫ 強制重算（寫入 + 權限守衛 + double-check）
+- **Commits**：78e81034 / e93e7fab / 5bb799d0 / ea6894a1 / 237ace45 / (Phase 4 本次)
+- **教訓**：
+  - **禁止用 name 反查 uid 做身分識別**。公開副本欄位必須帶 UID 結構
+  - 舊資料 fallback 必須偵測同名衝突並警告（console.warn('[pwu] ...')）
+  - Firestore transaction **不支援 collection query**，race 緩解依賴 double-check + 自我修復
+  - CF / 前端純函式雙端同步規則：註解交叉引用 + 手動 review + grep 腳本
+  - additive 欄位策略零風險：舊 client 不認識新欄位但不 break
+- **後續（Phase 5，2-4 週後評估）**：廢除舊 `participants[]` / 移除 `scan-process.js:59`
+  `event-manage-attendance.js:51` userName fallback / 擴充 CHANGE_WATCH / 隱私方案 B
+- **使用操作**：用戶登入後台 → 用戶補正管理 → 系統資料同步 →
+  先跑 ⑩ 遷移（首次）→ ⑪ 檢查是否一致 → ⑫ 強制重算（若有不一致）
+
 ### 2026-04-19 — 活動詳情頁跳頂老問題修復（visibilitychange + RC1 revalidate 全頁重繪）
 - **問題**：用戶回報「活動詳細報名頁面因為加載渲染畫面常常跑回頂部」，是長期老問題
 - **根因**：`js/firebase-service.js` 兩處違反 CLAUDE.md「活動詳情頁局部更新規則」：
