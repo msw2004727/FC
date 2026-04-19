@@ -27,9 +27,18 @@
     _confirmAllAttendance 鎖定函式 fallback / _initInstantSave / _buildGuestEventPeople /
     guest view count / event-create.js uid 反查）
   - Phase 4：data-sync ⑪ 一致性檢查（唯讀）+ ⑫ 強制重算（寫入 + 權限守衛 + double-check）
-- **Commits**：78e81034 / e93e7fab / 5bb799d0 / ea6894a1 / 237ace45 / (Phase 4 本次)
+  - **Phase 3 補強**（事後修復）：用戶回報「兩個同暱稱 Ivan 點名字都跳同一位」。
+    根因是 Phase 3 只改了**資料層** 6 處，但**渲染層** 8 處 `_userTag(name)` 沒傳 uid
+    → HTML onclick 變成 `showUserProfile('Ivan')` 沒 uid
+    → fallback 到 `_findUserByName` 挑第一個。
+    補修 event-detail.js (4 處) / event-manage-attendance.js / event-manage-waitlist.js /
+    user-admin-list.js / leaderboard.js 共 8 處 `_userTag` 呼叫傳入 uid
+- **Commits**：78e81034 / e93e7fab / 5bb799d0 / ea6894a1 / 237ace45 / 7ddbbbd2 / 521602fd
 - **教訓**：
   - **禁止用 name 反查 uid 做身分識別**。公開副本欄位必須帶 UID 結構
+  - **修復資料層不夠，必須同時檢查渲染層**：`_userTag(name)` 類 HTML 產生器若 onclick
+    沒帶 uid，即使底層 people 物件有 uid 也會在 UI 點擊時遺失。未來類似 bug
+    必須 grep 所有 `_userTag`、`onclick`、`showUserProfile` 呼叫點
   - 舊資料 fallback 必須偵測同名衝突並警告（console.warn('[pwu] ...')）
   - Firestore transaction **不支援 collection query**，race 緩解依賴 double-check + 自我修復
   - CF / 前端純函式雙端同步規則：註解交叉引用 + 手動 review + grep 腳本
