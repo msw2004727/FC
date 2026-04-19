@@ -106,24 +106,38 @@ Object.assign(App, {
         });
       });
     }
-    // 與 _buildConfirmedParticipantSummary 一致：從 users 集合查找正確 uid
-    // Phase 1a fix: 未能解析 UID 時跳過，不再用 displayName 作為 uid 寫入
-    // 效能優化：先建 displayName → user Map，避免 O(n×m) 線性搜尋
-    var _allUsers = ApiService.getAdminUsers() || [];
-    var _userByName = new Map();
-    _allUsers.forEach(function (u) { var n = u.displayName || u.name; if (n) _userByName.set(n, u); });
-    (e.participants || []).forEach(p => {
-      if (!addedNames.has(p)) {
-        const userDoc = _userByName.get(p) || null;
-        const resolvedUid = (userDoc && (userDoc.uid || userDoc.lineUserId)) || null;
-        if (!resolvedUid) {
-          console.warn('[_confirmAllAttendance] 無法解析 UID，跳過:', p);
-          return;
-        }
-        people.push({ name: p, uid: resolvedUid, isCompanion: false });
-        addedNames.add(p);
+    // Phase 3 (2026-04-19): 優先讀 participantsWithUid 物件陣列（含真 UID，消除同暱稱挑錯）
+    // 若無 / 長度不符則 fallback 到舊路徑（從 users 集合 name 反查 uid）
+    var wu = Array.isArray(e.participantsWithUid) ? e.participantsWithUid : [];
+    var wuValid = wu.length > 0 && wu.length === Number(e.current || 0);
+    if (wuValid) {
+      wu.forEach(function (entry) {
+        if (!entry || !entry.uid || !entry.name) return;
+        if (addedNames.has(entry.name)) return;  // 已存在於 registrations 路徑者跳過
+        people.push({ name: entry.name, uid: entry.uid, isCompanion: false });
+        addedNames.add(entry.name);
+      });
+    } else {
+      if (wu.length > 0) {
+        console.warn('[pwu] _confirmAllAttendance inconsistent participantsWithUid', e.id);
       }
-    });
+      // Fallback：從 users 集合 name 反查（Phase 1a fix: 未能解析跳過）
+      var _allUsers = ApiService.getAdminUsers() || [];
+      var _userByName = new Map();
+      _allUsers.forEach(function (u) { var n = u.displayName || u.name; if (n) _userByName.set(n, u); });
+      (e.participants || []).forEach(p => {
+        if (!addedNames.has(p)) {
+          const userDoc = _userByName.get(p) || null;
+          const resolvedUid = (userDoc && (userDoc.uid || userDoc.lineUserId)) || null;
+          if (!resolvedUid) {
+            console.warn('[_confirmAllAttendance] 無法解析 UID，跳過:', p);
+            return;
+          }
+          people.push({ name: p, uid: resolvedUid, isCompanion: false });
+          addedNames.add(p);
+        }
+      });
+    }
 
     const desiredStateByUid = Object.create(null);
     for (const p of people) {

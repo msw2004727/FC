@@ -237,6 +237,16 @@ Object.assign(App, {
         : (() => {
           const set = new Set((ApiService.getRegistrationsByEvent(this._editEventId) || []).map(r => r.userId).filter(Boolean));
           if (set.size || !existingEvent) return set;
+          // Phase 3 (2026-04-19): 優先從 participantsWithUid / waitlistWithUid 取真 UID（無歧義）
+          const wuP = Array.isArray(existingEvent.participantsWithUid) ? existingEvent.participantsWithUid : [];
+          const wuW = Array.isArray(existingEvent.waitlistWithUid) ? existingEvent.waitlistWithUid : [];
+          if (wuP.length > 0 || wuW.length > 0) {
+            [...wuP, ...wuW].forEach(entry => {
+              if (entry && entry.uid) set.add(entry.uid);
+            });
+            return set;
+          }
+          // Fallback：舊字串陣列 + name 反查（同暱稱會挑錯）
           const nameToUid = new Map();
           (ApiService.getAdminUsers() || []).forEach(u => {
             if (!u?.name || !u?.uid) return;

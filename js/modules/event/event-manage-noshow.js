@@ -57,23 +57,46 @@ Object.assign(App, {
       });
     }
 
-    // fallback：從 event.participants 字串陣列補齊（非管理員只有自己的 registrations）
-    // Phase 1b fix: 標記 uidResolved 以區分 UID 是否成功解析
-    // 效能優化：先建 displayName → user Map，避免對每位參加者做 O(n) 線性搜尋
-    const _allUsers = ApiService.getAdminUsers() || [];
-    const _userByName = new Map();
-    _allUsers.forEach(function (u) { var n = u.displayName || u.name; if (n) _userByName.set(n, u); });
+    // fallback（Phase 3 2026-04-19）：優先用 event.participantsWithUid 物件陣列（含真 UID）
+    // 若無 / 長度不一致，才 fallback 回舊 participants[] 字串反查（同暱稱會挑錯）
     const badgeCache = this._eventBadgeCache?.[eventId] || {};
-    (e.participants || []).forEach(p => {
-      if (addedNames.has(p)) return;
-      const userDoc = _userByName.get(p) || null;
-      const resolvedUid = (userDoc && (userDoc.uid || userDoc.lineUserId)) || p;
-      if (addedUids.has(resolvedUid)) return;
-      const uidResolved = resolvedUid !== p;
-      people.push({ name: p, uid: resolvedUid, isCompanion: false, displayName: p, hasSelfReg: true, proxyOnly: false, uidResolved, displayBadges: badgeCache[resolvedUid] || [] });
-      addedUids.add(resolvedUid);
-      addedNames.add(p);
-    });
+    const wu = Array.isArray(e.participantsWithUid) ? e.participantsWithUid : [];
+    const expectedLen = Number(e.current || 0);
+    const wuValid = wu.length > 0 && wu.length === expectedLen;
+
+    if (wuValid) {
+      // 新路徑：直接用 participantsWithUid 的真 UID（消除同暱稱挑錯問題）
+      wu.forEach(function (entry) {
+        if (!entry || !entry.uid || !entry.name) return;
+        if (addedUids.has(entry.uid) || addedNames.has(entry.name)) return;
+        people.push({
+          name: entry.name, uid: entry.uid, isCompanion: false, displayName: entry.name,
+          hasSelfReg: true, proxyOnly: false, uidResolved: true,
+          teamKey: entry.teamKey || null, displayBadges: badgeCache[entry.uid] || [],
+        });
+        addedUids.add(entry.uid);
+        addedNames.add(entry.name);
+      });
+    } else {
+      if (wu.length > 0) {
+        console.warn('[pwu] inconsistent participantsWithUid', e.id, 'wu=', wu.length, 'current=', expectedLen);
+      }
+      // 舊 fallback：從 event.participants 字串陣列補齊（同暱稱會挑錯 UID，本計劃 Phase 3 已最小化此路徑）
+      // 效能優化：先建 displayName → user Map，避免對每位參加者做 O(n) 線性搜尋
+      const _allUsers = ApiService.getAdminUsers() || [];
+      const _userByName = new Map();
+      _allUsers.forEach(function (u) { var n = u.displayName || u.name; if (n) _userByName.set(n, u); });
+      (e.participants || []).forEach(p => {
+        if (addedNames.has(p)) return;
+        const userDoc = _userByName.get(p) || null;
+        const resolvedUid = (userDoc && (userDoc.uid || userDoc.lineUserId)) || p;
+        if (addedUids.has(resolvedUid)) return;
+        const uidResolved = resolvedUid !== p;
+        people.push({ name: p, uid: resolvedUid, isCompanion: false, displayName: p, hasSelfReg: true, proxyOnly: false, uidResolved, displayBadges: badgeCache[resolvedUid] || [] });
+        addedUids.add(resolvedUid);
+        addedNames.add(p);
+      });
+    }
 
     return { people, count: people.length };
   },

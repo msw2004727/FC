@@ -143,6 +143,25 @@ Object.assign(App, {
   },
 
   _buildGuestEventPeople(eventRecord, fieldName) {
+    // Phase 3 (2026-04-19): 優先從 participantsWithUid / waitlistWithUid 物件陣列取真 UID
+    // fieldName='participants' → 對應 participantsWithUid
+    // fieldName='waitlistNames' → 對應 waitlistWithUid
+    const wuField = fieldName === 'participants' ? 'participantsWithUid' : 'waitlistWithUid';
+    const wu = Array.isArray(eventRecord?.[wuField]) ? eventRecord[wuField] : [];
+    if (wu.length > 0) {
+      return wu
+        .filter(x => x && x.uid && x.name)
+        .map(({ uid, name, teamKey }) => ({
+          name,
+          uid,  // 真實 UID，訪客點名字不再跳錯人
+          isCompanion: false,
+          displayName: name,
+          hasSelfReg: true,
+          proxyOnly: false,
+          teamKey: teamKey || null,
+        }));
+    }
+    // Fallback：舊字串陣列（uid=name 的歷史 bug 行為，participantsWithUid 未遷移前）
     const names = Array.isArray(eventRecord?.[fieldName]) ? eventRecord[fieldName] : [];
     return names
       .filter(name => typeof name === 'string' && name.trim())
@@ -280,7 +299,10 @@ Object.assign(App, {
 
     const confirmedSummary = isGuestView
       ? {
-          count: Number(e.current || (Array.isArray(e.participants) ? e.participants.length : 0)),
+          // Phase 3：count 優先取 e.current，次序 participantsWithUid.length，最後 participants[].length
+          count: Number(e.current
+            || (Array.isArray(e.participantsWithUid) ? e.participantsWithUid.length : 0)
+            || (Array.isArray(e.participants) ? e.participants.length : 0)),
           people: this._buildGuestEventPeople(e, 'participants'),
         }
       : (typeof this._buildConfirmedParticipantSummary === 'function'

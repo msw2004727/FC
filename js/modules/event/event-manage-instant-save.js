@@ -25,16 +25,27 @@ Object.assign(App, {
     const summary = this._buildConfirmedParticipantSummary(eventId);
     const map = new Map();
     summary.people.forEach(p => map.set(String(p.uid), p));
-    // 補齊 event.participants fallback（與 _confirmAllAttendance 一致）
+    // Phase 3 (2026-04-19): 優先從 participantsWithUid 補齊（消除同暱稱挑錯），不足再 fallback
     const e = ApiService.getEvent(eventId);
     const addedNames = new Set(summary.people.map(p => p.name));
-    (e?.participants || []).forEach(pName => {
-      if (addedNames.has(pName)) return;
-      const userDoc = (ApiService.getAdminUsers() || []).find(u => (u.displayName || u.name) === pName);
-      const resolvedUid = (userDoc && (userDoc.uid || userDoc.lineUserId)) || null;
-      if (!resolvedUid || map.has(resolvedUid)) return;
-      map.set(resolvedUid, { name: pName, uid: resolvedUid, isCompanion: false });
-    });
+    const wu = Array.isArray(e?.participantsWithUid) ? e.participantsWithUid : [];
+    if (wu.length > 0) {
+      wu.forEach(entry => {
+        if (!entry || !entry.uid || !entry.name) return;
+        if (addedNames.has(entry.name) || map.has(String(entry.uid))) return;
+        map.set(String(entry.uid), { name: entry.name, uid: entry.uid, isCompanion: false });
+        addedNames.add(entry.name);
+      });
+    } else {
+      // Fallback：從 event.participants 字串陣列 + users 反查（同暱稱會挑錯，Phase 3 後應少發生）
+      (e?.participants || []).forEach(pName => {
+        if (addedNames.has(pName)) return;
+        const userDoc = (ApiService.getAdminUsers() || []).find(u => (u.displayName || u.name) === pName);
+        const resolvedUid = (userDoc && (userDoc.uid || userDoc.lineUserId)) || null;
+        if (!resolvedUid || map.has(resolvedUid)) return;
+        map.set(resolvedUid, { name: pName, uid: resolvedUid, isCompanion: false });
+      });
+    }
     this._iSavePeople = map;
     this._iSaveTimers = Object.create(null);
     this._iSaveInFlight = Object.create(null);
