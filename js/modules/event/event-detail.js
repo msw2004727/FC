@@ -539,9 +539,33 @@ Object.assign(App, {
       if (requestSeq !== this._eventDetailRequestSeq || this.currentPage !== 'page-activity-detail') {
         return { ok: false, reason: 'stale' };
       }
+      // 2026-04-19 UX：切換到不同活動時立即清空 attendance-table 並顯示 loading skeleton
+      // 避免 await _renderAttendanceTable 期間用戶看到前一個活動的殘留名單（誤以為「被拉回 A」）
+      if (!isGuestView && !_isReRender) {
+        const _attSkel = document.getElementById('detail-attendance-table');
+        if (_attSkel) {
+          const _expected = Number(e.current || 0)
+            || (Array.isArray(e.participantsWithUid) ? e.participantsWithUid.length : 0)
+            || (Array.isArray(e.participants) ? e.participants.length : 0);
+          if (_expected > 0) {
+            const _rowCount = Math.min(3, _expected);
+            const _rows = Array(_rowCount).fill('<div class="reg-loading-skeleton-row"></div>').join('');
+            _attSkel.innerHTML = '<div class="reg-loading">報名名單載入中...</div>'
+              + '<div class="reg-loading-skeleton">' + _rows + '</div>';
+          } else {
+            _attSkel.innerHTML = '';
+          }
+        }
+      }
       // ── 頁面可見後，背景載入簽到表格（不阻塞頁面顯示）──
       if (!isGuestView) {
         await this._renderAttendanceTable(id, 'detail-attendance-table');
+        // 2026-04-19：await 期間用戶可能切到別的活動，需再次 stale check 避免覆蓋新內容
+        if (requestSeq !== this._eventDetailRequestSeq
+          || this.currentPage !== 'page-activity-detail'
+          || this._currentDetailEventId !== id) {
+          return { ok: false, reason: 'stale' };
+        }
         this._refreshRegistrationBadges?.(id, 'detail-attendance-table')?.catch?.(() => {});
       }
       const attTable = document.getElementById('detail-attendance-table');
