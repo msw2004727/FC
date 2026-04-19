@@ -50,6 +50,10 @@ Object.assign(App, {
       return this._syncNoShowCount();
     }
 
+    if (op === 'uidFallbackCheck') {
+      return this._checkUidFallbackSafety();
+    }
+
     const opMap = {
       teamMembers: { label: '俱樂部成員數重算', fn: '_syncTeamMembers' },
       userTeam: { label: '用戶俱樂部欄位驗證', fn: '_syncUserTeamFields' },
@@ -664,6 +668,130 @@ Object.assign(App, {
       ui.log('錯誤：' + (err.message || err));
       console.error('[_syncNoShowCount]', err);
       this.showToast('放鴿子重算失敗');
+    } finally {
+      this._dataSyncRunning = false;
+    }
+  },
+
+  // ── ⑨ UID 比對完整性檢查（唯讀，無寫入）──
+  // 驗證是否可安全移除 scan-process.js / event-manage-attendance.js / event-manage-noshow.js
+  // 的 userName fallback（同暱稱互相干擾的根因）
+  async _checkUidFallbackSafety() {
+    if (this._dataSyncRunning) { this.showToast('同步作業正在執行中'); return; }
+    if (!this.hasPermission?.('admin.repair.data_sync')) { this.showToast('權限不足'); return; }
+
+    this._dataSyncRunning = true;
+    var ui = this._dataSyncUI();
+    ui.show();
+    var startTime = Date.now();
+
+    async function loadSub(name) {
+      var snap = await db.collectionGroup(name).get();
+      return snap.docs
+        .filter(function (d) { return d.ref.parent.parent !== null; })
+        .map(function (d) { return Object.assign({}, d.data(), { _docId: d.id, _path: d.ref.path }); });
+    }
+
+    try {
+      ui.log('=== UID Fallback 移除安全檢查 ===');
+
+      // 1. registrations.userId
+      ui.log('\n[1] registrations.userId 完整性');
+      ui.setProgress(1, 5);
+      var regs = await loadSub('registrations');
+      var regsMiss = regs.filter(function (r) { return !r.userId; });
+      ui.log('  total: ' + regs.length + ', missing userId: ' + regsMiss.length);
+      if (regsMiss.length > 0) {
+        regsMiss.slice(0, 5).forEach(function (r) {
+          ui.log('  樣本: userName=' + (r.userName || '?') + ', status=' + r.status + ', eventId=' + r.eventId);
+        });
+      } else {
+        ui.log('  OK: 所有 registrations 都有 userId');
+      }
+
+      // 2. attendanceRecords.uid
+      ui.log('\n[2] attendanceRecords.uid 完整性');
+      ui.setProgress(2, 5);
+      var atts = await loadSub('attendanceRecords');
+      var attsMiss = atts.filter(function (a) { return !a.uid; });
+      ui.log('  total: ' + atts.length + ', missing uid: ' + attsMiss.length);
+      if (attsMiss.length > 0) {
+        attsMiss.slice(0, 5).forEach(function (a) {
+          ui.log('  樣本: userName=' + (a.userName || '?') + ', type=' + a.type + ', eventId=' + a.eventId);
+        });
+      } else {
+        ui.log('  OK: 所有 attendanceRecords 都有 uid');
+      }
+
+      // 3. activityRecords.uid
+      ui.log('\n[3] activityRecords.uid 完整性');
+      ui.setProgress(3, 5);
+      var acts = await loadSub('activityRecords');
+      var actsMiss = acts.filter(function (a) { return !a.uid; });
+      ui.log('  total: ' + acts.length + ', missing uid: ' + actsMiss.length);
+      if (actsMiss.length > 0) {
+        actsMiss.slice(0, 5).forEach(function (a) {
+          ui.log('  樣本: userName=' + (a.userName || '?') + ', type=' + a.type + ', eventId=' + a.eventId);
+        });
+      } else {
+        ui.log('  OK: 所有 activityRecords 都有 uid');
+      }
+
+      // 4. 同活動同 userName 不同 userId（同暱稱干擾樣本）
+      ui.log('\n[4] 同活動同 userName 不同 userId（同暱稱干擾樣本）');
+      ui.setProgress(4, 5);
+      var dupByEvent = {};
+      regs.forEach(function (r) {
+        if (!r.userId || !r.userName || r.status === 'cancelled' || r.status === 'removed') return;
+        if (r.participantType === 'companion') return;
+        var key = r.eventId + '|' + r.userName;
+        if (!dupByEvent[key]) dupByEvent[key] = new Set();
+        dupByEvent[key].add(r.userId);
+      });
+      var dupCount = 0;
+      Object.keys(dupByEvent).forEach(function (key) {
+        if (dupByEvent[key].size > 1) {
+          dupCount++;
+          if (dupCount <= 10) {
+            var parts = key.split('|');
+            ui.log('  eventId=' + parts[0] + ', userName=' + parts[1] + ', UIDs=' + Array.from(dupByEvent[key]).join(', '));
+          }
+        }
+      });
+      ui.log('  同活動同暱稱不同 UID 案例數: ' + dupCount);
+
+      // 5. event.participants[] 使用狀況
+      ui.log('\n[5] event.participants[] 字串陣列使用狀況');
+      ui.setProgress(5, 5);
+      var events = FirebaseService._cache.events || [];
+      var eventsWithParticipants = events.filter(function (e) {
+        return Array.isArray(e.participants) && e.participants.length > 0;
+      });
+      ui.log('  events 總數: ' + events.length + ', 含 participants[] 的活動: ' + eventsWithParticipants.length);
+      if (eventsWithParticipants.length > 0) {
+        eventsWithParticipants.slice(0, 5).forEach(function (e) {
+          ui.log('  樣本: ' + (e.title || '?') + ' (status=' + e.status + ', count=' + e.participants.length + ')');
+        });
+      } else {
+        ui.log('  OK: event.participants[] 已無活躍活動使用');
+      }
+
+      // 決策輸出
+      ui.log('\n=== 決策 ===');
+      var scanSafe = regsMiss.length === 0;
+      var attSafe = regsMiss.length === 0 && attsMiss.length === 0;
+      var sumSafe = eventsWithParticipants.length === 0;
+      ui.log('  scan-process.js:59 fallback 可移除: ' + (scanSafe ? 'YES' : 'NO'));
+      ui.log('  event-manage-attendance.js:51 fallback 可移除: ' + (attSafe ? 'YES' : 'NO'));
+      ui.log('  event-manage-noshow.js:64-70 fallback 可移除: ' + (sumSafe ? 'YES' : 'NO'));
+
+      var elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      ui.log('\n=== 檢查完成（' + elapsed + ' 秒）===');
+      this.showToast('UID 完整性檢查完成');
+    } catch (err) {
+      ui.log('錯誤：' + (err.message || err));
+      console.error('[_checkUidFallbackSafety]', err);
+      this.showToast('UID 檢查失敗');
     } finally {
       this._dataSyncRunning = false;
     }
