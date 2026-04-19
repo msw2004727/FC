@@ -133,7 +133,20 @@ Object.assign(App, {
     const noShowCountByUid = showNoShowColumn ? this._buildNoShowCountByUid() : null;
 
     if (people.length === 0) {
-      container.innerHTML = '<div style="font-size:.8rem;color:var(--text-muted);padding:.3rem 0">尚無報名</div>';
+      // 若 event.current > 0 或 participantsWithUid / participants 有人 → 視為「資料還在加載」
+      // 顯示 spinner + skeleton，避免用戶誤以為沒人報名（2026-04-19 UX 改善）
+      const expectedCount = Number(e.current || 0)
+        || (Array.isArray(e.participantsWithUid) ? e.participantsWithUid.length : 0)
+        || (Array.isArray(e.participants) ? e.participants.length : 0);
+      if (expectedCount > 0) {
+        // 根據預期人數產出 1-3 個 skeleton row（最多 3 個避免佔太大）
+        const rowCount = Math.min(3, expectedCount);
+        const skeletonRows = Array(rowCount).fill('<div class="reg-loading-skeleton-row"></div>').join('');
+        container.innerHTML = '<div class="reg-loading">報名名單載入中...</div>'
+          + '<div class="reg-loading-skeleton">' + skeletonRows + '</div>';
+      } else {
+        container.innerHTML = '<div style="font-size:.8rem;color:var(--text-muted);padding:.3rem 0">尚無報名</div>';
+      }
       _scrollEl.scrollTop = _savedScrollY;
       return;
     }

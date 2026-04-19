@@ -1274,3 +1274,12 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
 .hl-avatar-fallback{width:32px;height:32px;min-width:32px;min-height:32px;border-radius:50%;background:var(--bg-elevated);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:.75rem;cursor:pointer;aspect-ratio:1/1}
 .host-subscribe-btn{font-size:.68rem;padding:.2rem .45rem;border-radius:6px;border:1px solid var(--accent);color:var(--accent);background:transparent;cursor:pointer;font-weight:600;white-space:nowrap}
 .host-subscribe-btn:hover{background:var(--accent);color:#fff}
+
+/* 報名名單載入中動畫（2026-04-19 新增；避免空白 → 誤以為沒人報名） */
+.reg-loading{display:flex;align-items:center;gap:.5rem;padding:.6rem .3rem;font-size:.8rem;color:var(--text-muted)}
+.reg-loading::before{content:'';width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:reg-loading-spin .8s linear infinite;display:inline-block;flex-shrink:0}
+@keyframes reg-loading-spin{to{transform:rotate(360deg)}}
+/* Skeleton rows — 更明顯的「名單即將出現」視覺提示 */
+.reg-loading-skeleton{padding:.3rem 0;display:flex;flex-direction:column;gap:.4rem}
+.reg-loading-skeleton-row{height:1.4rem;border-radius:6px;background:linear-gradient(90deg,var(--bg-elevated) 0%,var(--border) 50%,var(--bg-elevated) 100%);background-size:200% 100%;animation:reg-loading-shimmer 1.2s ease-in-out infinite}
+@keyframes reg-loading-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
