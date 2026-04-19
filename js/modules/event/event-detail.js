@@ -251,6 +251,14 @@ Object.assign(App, {
         this.showToast('\u60a8\u6c92\u6709\u67e5\u770b\u6b64\u6d3b\u52d5\u7684\u6b0a\u9650');
         return { ok: false, reason: 'forbidden' };
       }
+      // 2026-04-20：活動黑名單守衛（偽裝「找不到此活動」，不透露被擋事實）
+      if (!isGuestView && typeof this._isEventVisibleToUser === 'function') {
+        const _uid = ApiService.getCurrentUser?.()?.uid || null;
+        if (!this._isEventVisibleToUser(e, _uid)) {
+          this.showToast('\u627e\u4e0d\u5230\u6b64\u6d3b\u52d5');  // 找不到此活動
+          return { ok: false, reason: 'missing' };
+        }
+      }
 
       const requestSeq = ++this._eventDetailRequestSeq;
       // Pre-warm Firebase Auth（fire-and-forget），讓後續報名/取消寫入時免等 auth

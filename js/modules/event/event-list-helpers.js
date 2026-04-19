@@ -257,12 +257,16 @@ Object.assign(App, {
     return this._isEventOwner(e) || this._isEventDelegate(e);
   },
 
-  /** 取得當前用戶可見的活動列表（過濾俱樂部限定 + 私密活動） */
+  /** 取得當前用戶可見的活動列表（過濾俱樂部限定 + 私密活動 + 黑名單） */
   _getVisibleEvents() {
     const all = ApiService.getEvents();
+    // 2026-04-20：新增黑名單過濾（單一資料來源原則——所有列表渲染共用此函式）
+    const uid = ApiService.getCurrentUser?.()?.uid || null;
     return all.filter(e => {
       if (!this._canViewEventByTeamScope(e)) return false;
       if (e.privateEvent && !this._canManageEvent(e)) return false;
+      if (typeof this._isEventVisibleToUser === 'function'
+        && !this._isEventVisibleToUser(e, uid)) return false;
       return true;
     });
   },

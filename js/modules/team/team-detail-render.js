@@ -14,11 +14,15 @@ Object.assign(App, {
 
   _renderTeamEvents(teamId) {
     const allEvents = ApiService.getEvents() || [];
+    // 2026-04-20：活動黑名單過濾（俱樂部活動列表也要擋被擋用戶）
+    const _uid = ApiService.getCurrentUser?.()?.uid || null;
     const teamIdStr = String(teamId || '');
-    const teamEvents = allEvents.filter(e =>
-      e.teamOnly && ((Array.isArray(e.creatorTeamIds) && e.creatorTeamIds.map(v => String(v)).includes(teamIdStr)) || String(e.creatorTeamId || '') === teamIdStr) &&
-      e.status !== 'ended' && e.status !== 'cancelled'
-    ).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const teamEvents = allEvents.filter(e => {
+      if (typeof this._isEventVisibleToUser === 'function'
+        && !this._isEventVisibleToUser(e, _uid)) return false;
+      return e.teamOnly && ((Array.isArray(e.creatorTeamIds) && e.creatorTeamIds.map(v => String(v)).includes(teamIdStr)) || String(e.creatorTeamId || '') === teamIdStr) &&
+        e.status !== 'ended' && e.status !== 'cancelled';
+    }).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
     if (!teamEvents.length) return '';
 
