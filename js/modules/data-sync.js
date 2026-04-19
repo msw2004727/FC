@@ -673,9 +673,9 @@ Object.assign(App, {
     }
   },
 
-  // ── ⑨ UID 比對完整性檢查（唯讀，無寫入）──
-  // 驗證是否可安全移除 scan-process.js / event-manage-attendance.js / event-manage-noshow.js
-  // 的 userName fallback（同暱稱互相干擾的根因）
+  // ── ⑨ 同暱稱用戶偵測（唯讀，無寫入）──
+  // 列出 users 集合中同名用戶組，標記 _userByName.set() 的「勝者 UID」，
+  // 並對每組同名顯示：活動 participants[] 受污染範圍、各 UID 報名數、放鴿子次數。
   async _checkUidFallbackSafety() {
     if (this._dataSyncRunning) { this.showToast('同步作業正在執行中'); return; }
     if (!this.hasPermission?.('admin.repair.data_sync')) { this.showToast('權限不足'); return; }
@@ -685,113 +685,95 @@ Object.assign(App, {
     ui.show();
     var startTime = Date.now();
 
-    async function loadSub(name) {
-      var snap = await db.collectionGroup(name).get();
-      return snap.docs
-        .filter(function (d) { return d.ref.parent.parent !== null; })
-        .map(function (d) { return Object.assign({}, d.data(), { _docId: d.id, _path: d.ref.path }); });
-    }
-
     try {
-      ui.log('=== UID Fallback 移除安全檢查 ===');
+      ui.log('=== 同暱稱用戶偵測 ===');
 
-      // 1. registrations.userId
-      ui.log('\n[1] registrations.userId 完整性');
-      ui.setProgress(1, 5);
-      var regs = await loadSub('registrations');
-      var regsMiss = regs.filter(function (r) { return !r.userId; });
-      ui.log('  total: ' + regs.length + ', missing userId: ' + regsMiss.length);
-      if (regsMiss.length > 0) {
-        regsMiss.slice(0, 5).forEach(function (r) {
-          ui.log('  樣本: userName=' + (r.userName || '?') + ', status=' + r.status + ', eventId=' + r.eventId);
-        });
-      } else {
-        ui.log('  OK: 所有 registrations 都有 userId');
-      }
-
-      // 2. attendanceRecords.uid
-      ui.log('\n[2] attendanceRecords.uid 完整性');
-      ui.setProgress(2, 5);
-      var atts = await loadSub('attendanceRecords');
-      var attsMiss = atts.filter(function (a) { return !a.uid; });
-      ui.log('  total: ' + atts.length + ', missing uid: ' + attsMiss.length);
-      if (attsMiss.length > 0) {
-        attsMiss.slice(0, 5).forEach(function (a) {
-          ui.log('  樣本: userName=' + (a.userName || '?') + ', type=' + a.type + ', eventId=' + a.eventId);
-        });
-      } else {
-        ui.log('  OK: 所有 attendanceRecords 都有 uid');
-      }
-
-      // 3. activityRecords.uid
-      ui.log('\n[3] activityRecords.uid 完整性');
-      ui.setProgress(3, 5);
-      var acts = await loadSub('activityRecords');
-      var actsMiss = acts.filter(function (a) { return !a.uid; });
-      ui.log('  total: ' + acts.length + ', missing uid: ' + actsMiss.length);
-      if (actsMiss.length > 0) {
-        actsMiss.slice(0, 5).forEach(function (a) {
-          ui.log('  樣本: userName=' + (a.userName || '?') + ', type=' + a.type + ', eventId=' + a.eventId);
-        });
-      } else {
-        ui.log('  OK: 所有 activityRecords 都有 uid');
-      }
-
-      // 4. 同活動同 userName 不同 userId（同暱稱干擾樣本）
-      ui.log('\n[4] 同活動同 userName 不同 userId（同暱稱干擾樣本）');
-      ui.setProgress(4, 5);
-      var dupByEvent = {};
-      regs.forEach(function (r) {
-        if (!r.userId || !r.userName || r.status === 'cancelled' || r.status === 'removed') return;
-        if (r.participantType === 'companion') return;
-        var key = r.eventId + '|' + r.userName;
-        if (!dupByEvent[key]) dupByEvent[key] = new Set();
-        dupByEvent[key].add(r.userId);
+      // Step 1：從 adminUsers 找同名組（模擬 _userByName.set() 的覆蓋行為）
+      ui.log('\n[1] 掃描 users 集合尋找同名組');
+      ui.setProgress(1, 4);
+      var users = ApiService.getAdminUsers() || [];
+      var byName = new Map();
+      users.forEach(function (u) {
+        var n = String(u.displayName || u.name || '').trim();
+        if (!n) return;
+        if (!byName.has(n)) byName.set(n, []);
+        byName.get(n).push(u);
       });
-      var dupCount = 0;
-      Object.keys(dupByEvent).forEach(function (key) {
-        if (dupByEvent[key].size > 1) {
-          dupCount++;
-          if (dupCount <= 10) {
-            var parts = key.split('|');
-            ui.log('  eventId=' + parts[0] + ', userName=' + parts[1] + ', UIDs=' + Array.from(dupByEvent[key]).join(', '));
-          }
+      var dupGroups = [];
+      byName.forEach(function (arr, name) {
+        if (arr.length > 1) dupGroups.push({ name: name, members: arr });
+      });
+      ui.log('  users 總數: ' + users.length + ', 同名組數: ' + dupGroups.length);
+      if (dupGroups.length === 0) {
+        ui.log('  OK: 沒有同暱稱用戶，_buildConfirmedParticipantSummary fallback 不會誤配');
+        var elapsed0 = ((Date.now() - startTime) / 1000).toFixed(1);
+        ui.log('\n=== 檢查完成（' + elapsed0 + ' 秒）===');
+        this.showToast('同暱稱檢查完成：無同名組');
+        return;
+      }
+
+      // Step 2：載入 registrations 計算各 UID 活躍度
+      ui.log('\n[2] 載入 registrations 計算各 UID 報名數');
+      ui.setProgress(2, 4);
+      var regSnap = await db.collectionGroup('registrations').get();
+      var regDocs = regSnap.docs.filter(function (d) { return d.ref.parent.parent !== null; });
+      var regCountByUid = {};
+      regDocs.forEach(function (d) {
+        var uid = String(d.data().userId || '').trim();
+        if (!uid) return;
+        regCountByUid[uid] = (regCountByUid[uid] || 0) + 1;
+      });
+      ui.log('  registrations 總數: ' + regDocs.length);
+
+      // Step 3：對每組同名，分析污染範圍
+      ui.log('\n[3] 每組同名的污染分析');
+      ui.setProgress(3, 4);
+      var events = FirebaseService._cache.events || [];
+      dupGroups.forEach(function (group, idx) {
+        ui.log('\n  === 第 ' + (idx + 1) + ' 組：「' + group.name + '」 (' + group.members.length + ' 人) ===');
+        // _userByName.set() 的覆蓋勝者 = members 陣列最後一個
+        var winner = group.members[group.members.length - 1];
+        var winnerUid = String(winner.uid || winner.lineUserId || '').trim();
+        // 掃描 events.participants[] 包含此 name 的活動
+        var affectedEvents = events.filter(function (e) {
+          return Array.isArray(e.participants) && e.participants.indexOf(group.name) >= 0;
+        });
+        ui.log('  受影響活動數（participants[] 含此暱稱）: ' + affectedEvents.length);
+        if (affectedEvents.length > 0) {
+          affectedEvents.slice(0, 5).forEach(function (e) {
+            ui.log('    - ' + (e.title || '?') + ' (status=' + e.status + ')');
+          });
+          if (affectedEvents.length > 5) ui.log('    ...還有 ' + (affectedEvents.length - 5) + ' 個活動');
+        }
+        ui.log('  成員列表（勝者標示 [WIN]，受害者標示 [LOSE]）:');
+        group.members.forEach(function (u) {
+          var uid = String(u.uid || u.lineUserId || '').trim();
+          var isWin = uid === winnerUid;
+          var regCount = regCountByUid[uid] || 0;
+          var noShow = Number(u.noShowCount || 0);
+          var lastLogin = u.lastLogin || u.lastActive || '';
+          var lastStr = lastLogin ? (' lastActive=' + String(lastLogin).slice(0, 10)) : '';
+          ui.log('    ' + (isWin ? '[WIN] ' : '[LOSE]') + ' uid=' + uid + ' | 報名=' + regCount + ' 次 | 放鴿子=' + noShow + ' 次' + lastStr);
+        });
+        if (affectedEvents.length > 0) {
+          ui.log('  ⚠️ bug 行為：顯示「' + group.name + '」的放鴿子次數時，全部會顯示為 [WIN] uid=' + winnerUid + ' 的值（' + (Number(winner.noShowCount || 0)) + ' 次）');
         }
       });
-      ui.log('  同活動同暱稱不同 UID 案例數: ' + dupCount);
 
-      // 5. event.participants[] 使用狀況
-      ui.log('\n[5] event.participants[] 字串陣列使用狀況');
-      ui.setProgress(5, 5);
-      var events = FirebaseService._cache.events || [];
-      var eventsWithParticipants = events.filter(function (e) {
-        return Array.isArray(e.participants) && e.participants.length > 0;
-      });
-      ui.log('  events 總數: ' + events.length + ', 含 participants[] 的活動: ' + eventsWithParticipants.length);
-      if (eventsWithParticipants.length > 0) {
-        eventsWithParticipants.slice(0, 5).forEach(function (e) {
-          ui.log('  樣本: ' + (e.title || '?') + ' (status=' + e.status + ', count=' + e.participants.length + ')');
-        });
-      } else {
-        ui.log('  OK: event.participants[] 已無活躍活動使用');
-      }
-
-      // 決策輸出
-      ui.log('\n=== 決策 ===');
-      var scanSafe = regsMiss.length === 0;
-      var attSafe = regsMiss.length === 0 && attsMiss.length === 0;
-      var sumSafe = eventsWithParticipants.length === 0;
-      ui.log('  scan-process.js:59 fallback 可移除: ' + (scanSafe ? 'YES' : 'NO'));
-      ui.log('  event-manage-attendance.js:51 fallback 可移除: ' + (attSafe ? 'YES' : 'NO'));
-      ui.log('  event-manage-noshow.js:64-70 fallback 可移除: ' + (sumSafe ? 'YES' : 'NO'));
+      // Step 4：建議
+      ui.log('\n[4] 建議');
+      ui.setProgress(4, 4);
+      ui.log('  根本解法（推薦）：改用 event.participantsWithUid[] 物件陣列（{uid, name}），消除 name 反查');
+      ui.log('  快速解法：請同名組中的「受害者」改暱稱（至少一位改名即可破解衝突）');
+      ui.log('  Patch 解法：在 _buildConfirmedParticipantSummary fallback 偵測同名時跳過該 participant（顯示但不發 uid）');
 
       var elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
       ui.log('\n=== 檢查完成（' + elapsed + ' 秒）===');
-      this.showToast('UID 完整性檢查完成');
+      this.showToast('同暱稱檢查完成：' + dupGroups.length + ' 組');
     } catch (err) {
       ui.log('錯誤：' + (err.message || err));
       console.error('[_checkUidFallbackSafety]', err);
-      this.showToast('UID 檢查失敗');
+      this.showToast('同暱稱檢查失敗');
     } finally {
       this._dataSyncRunning = false;
     }

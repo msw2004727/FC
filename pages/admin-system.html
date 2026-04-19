@@ -516,10 +516,10 @@
         <div class="form-card" style="margin-bottom:.6rem">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
             <div style="flex:1;min-width:0">
-              <div style="font-weight:600;font-size:.82rem">⑨ UID 比對完整性檢查 <span style="font-size:.68rem;color:#16a34a;font-weight:500">（唯讀）</span></div>
+              <div style="font-weight:600;font-size:.82rem">⑨ 同暱稱用戶偵測 <span style="font-size:.68rem;color:#16a34a;font-weight:500">（唯讀）</span></div>
               <div style="font-size:.72rem;color:var(--text-muted);line-height:1.5;margin-top:.15rem">
-                檢查 registrations / attendanceRecords / activityRecords 的 UID 欄位完整性。<br>
-                列出同活動同暱稱不同 UID 的實際案例，用於評估是否可移除 userName fallback。
+                列出 users 集合中同暱稱的用戶組，標示 _userByName.set() 的「勝者 UID」。<br>
+                顯示每組同名的污染活動數、各 UID 報名/放鴿子次數，找出受害者與污染源。
               </div>
             </div>
             <button class="outline-btn" style="flex-shrink:0;font-size:.75rem" onclick="App.runDataSyncOp('uidFallbackCheck')">執行</button>
