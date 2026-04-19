@@ -1737,6 +1737,18 @@ const App = {
           }
         }
 
+        // 2026-04-19 補強：await cloud init / _startAuthDependentWork 期間可能耗數秒
+        // 用戶可能已從首頁主動導航到活動詳情頁等。最後一次檢查 currentPage，
+        // 若已離開 home 且不是 pending 目標頁，取消 showPage 避免把用戶拉走
+        if (this.currentPage
+          && this.currentPage !== 'page-home'
+          && this.currentPage !== pageId) {
+          console.log('[Boot] user navigated to', this.currentPage,
+            'during flush await — cancelling showPage to', pageId);
+          this._clearPendingProtectedBootRoute();
+          return false;
+        }
+
         const result = await this.showPage(pageId, {
           resetHistory: true,
           suppressAccessDeniedToast: true,
@@ -1748,6 +1760,15 @@ const App = {
           return true;
         }
 
+        // 2026-04-19 補強：flush 失敗時，若用戶已主動導航到其他活躍頁面，
+        // 不再強制拉回 home（例如詳情頁）。僅清 hash，保留用戶當前頁
+        if (this.currentPage
+          && this.currentPage !== 'page-home'
+          && this.currentPage !== pageId) {
+          console.log('[Boot] flush failed but user on', this.currentPage, '— keeping current page');
+          this._clearPendingProtectedBootRoute();
+          return false;
+        }
         this._replaceRouteHash('page-home');
         if (this.currentPage !== 'page-home') {
           await this.showPage('page-home', {
