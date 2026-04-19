@@ -116,6 +116,15 @@ Object.assign(App, {
     if (this._requireProfileComplete()) return;
     let e = ApiService.getEvent(id);
     if (!e) return;
+    // 2026-04-20：活動黑名單寫入守衛（未登入先入頁→登入後報名的繞過路徑）
+    // 被擋且未報名用戶嘗試報名時擋下。已報名用戶因 _isEventVisibleToUser 尊重歷史，自動放行
+    if (typeof this._isEventVisibleToUser === 'function') {
+      const _uid = ApiService.getCurrentUser?.()?.uid || null;
+      if (!this._isEventVisibleToUser(e, _uid)) {
+        this.showToast('\u6b64\u6d3b\u52d5\u76ee\u524d\u7121\u6cd5\u5831\u540d');  // 此活動目前無法報名
+        return;
+      }
+    }
     e = this._syncEventEffectiveStatus?.(e) || e;
     if (e.status === 'ended' || e.status === 'cancelled') {
       this.showToast('\u6d3b\u52d5\u5df2\u958b\u59cb\uff0c\u5831\u540d\u5df2\u7d50\u675f');

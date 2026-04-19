@@ -294,6 +294,7 @@ https://miniapp.line.me/2009525300-AuPGQ0sh?{deepLinkParam}={id}
 4. **活動詳情頁直接進入守衛**：`showEventDetail` 已加守衛，偽裝顯示「找不到此活動」，不透露被擋事實。
 5. **Cloud Function 端不需過濾**：CF 事件通知僅發給「已報名用戶」，已報名者按規格保留可見性，自然不會產生不一致。未來若有 CF 端主動發送給「非已報名用戶」的路徑，必須同步實作 `isEventVisibleToUser()` 於 `functions/index.js`。
 6. **Favorites / Scan / Dashboard 豁免**：Favorites 是用戶自己收藏（保留）；Scan / Dashboard 為 admin 用途（保留）。
+7. **寫入類動作守衛（2026-04-20 補強）**：`handleSignup` / `_confirmCompanionRegister` 等寫入入口也呼叫 `_isEventVisibleToUser`，防止「未登入先進詳情頁 → 登入後按報名」的繞過路徑。Companion 情境只擋主報名人（operator），不擋同行者中的被擋用戶。被擋用戶嘗試寫入時顯示「此活動目前無法報名」（非「找不到此活動」，因他已看到）。
 
 ### 寫入路徑規範
 - `blockedUids`：字串陣列，存 LINE userId（= Firebase Auth UID）

@@ -111,6 +111,16 @@ Object.assign(App, {
     }
     let e = ApiService.getEvent(eventId);
     if (!e) return;
+    // 2026-04-20：活動黑名單寫入守衛（主報名人被擋則整批報名攔下）
+    // 不擋同行者被擋的情境——companion 是被動由 operator 操作
+    if (typeof this._isEventVisibleToUser === 'function') {
+      const _uid = ApiService.getCurrentUser?.()?.uid || null;
+      if (!this._isEventVisibleToUser(e, _uid)) {
+        this._closeCompanionSelectModal?.();
+        this.showToast('\u6b64\u6d3b\u52d5\u76ee\u524d\u7121\u6cd5\u5831\u540d');  // 此活動目前無法報名
+        return;
+      }
+    }
     e = this._syncEventEffectiveStatus?.(e) || e;
     if (e.status === 'ended' || e.status === 'cancelled') {
       this._closeCompanionSelectModal();
