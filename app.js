@@ -1690,15 +1690,16 @@ const App = {
 
   async _flushPendingProtectedBootRoute(options = {}) {
     const pending = this._pendingProtectedBootRoute;
+    console.log('[Boot] flushPendingProtectedBootRoute called, pending=',
+      pending?.pageId || '(none)', 'currentPage=', this.currentPage);
     if (!pending?.pageId) return false;
     if (this._pendingProtectedBootRoutePromise) {
+      console.log('[Boot] flush already in progress, returning existing promise');
       return await this._pendingProtectedBootRoutePromise;
     }
 
     // 2026-04-19 fix: 若用戶在 boot 期間已主動導航到非首頁、且當前頁 ≠ pending 目標頁，
     // 取消 pending route 避免把用戶從他正在瀏覽的頁面強制拉走。
-    // 典型情境：用戶在行事曆點活動進詳情頁，幾秒後 Auth ready 觸發 flush，
-    // 原本會被拉回 pending 頁面（例如 page-activities），體驗是「被拉回行事曆」。
     if (this.currentPage
       && this.currentPage !== 'page-home'
       && this.currentPage !== pending.pageId) {
@@ -1740,6 +1741,7 @@ const App = {
         // 2026-04-19 補強：await cloud init / _startAuthDependentWork 期間可能耗數秒
         // 用戶可能已從首頁主動導航到活動詳情頁等。最後一次檢查 currentPage，
         // 若已離開 home 且不是 pending 目標頁，取消 showPage 避免把用戶拉走
+        console.log('[Boot] flush after await, currentPage=', this.currentPage, 'target=', pageId);
         if (this.currentPage
           && this.currentPage !== 'page-home'
           && this.currentPage !== pageId) {
@@ -1749,6 +1751,7 @@ const App = {
           return false;
         }
 
+        console.log('[Boot] flush proceeding to showPage(', pageId, ')');
         const result = await this.showPage(pageId, {
           resetHistory: true,
           suppressAccessDeniedToast: true,
@@ -2082,7 +2085,7 @@ async function _loadCDNScripts() {
 // Init on DOM Ready ──
 document.addEventListener('DOMContentLoaded', async () => {
   window._appInitializing = true;
-  console.log('[Boot] DOMContentLoaded fired');
+  console.log('[Boot] DOMContentLoaded fired, CACHE_VERSION=' + (typeof CACHE_VERSION !== 'undefined' ? CACHE_VERSION : '(未定義)'));
 
   // 先解析 deep link，避免先看到首頁再跳轉
   try {
