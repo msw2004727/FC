@@ -2758,13 +2758,17 @@ const FirebaseService = {
       if (oldCount !== fresh.length) {
         console.log(`[FirebaseService] RC1 stale-while-revalidate: registrations ${oldCount} → ${fresh.length}`);
       }
-      // 若用戶正在活動相關頁面，觸發 UI 更新（保留捲動位置）
+      // 若用戶正在活動相關頁面，觸發 UI 更新
+      // 活動詳情頁改走局部更新（_debouncedSnapshotRender），避免 showEventDetail 全頁重繪造成跳頂
       if (typeof App !== 'undefined') {
-        var _s2 = window.scrollY || window.pageYOffset || 0;
-        if (App.currentPage === 'page-activity-detail') App.showEventDetail?.(App._currentDetailEventId);
-        if (App.currentPage === 'page-activities') App.renderActivityList?.();
-        if (App.currentPage === 'page-my-activities') App.renderMyActivities?.();
-        if (_s2 > 0) requestAnimationFrame(function() { window.scrollTo(0, _s2); });
+        if (App.currentPage === 'page-activity-detail') {
+          this._debouncedSnapshotRender('registrations');
+        } else {
+          var _s2 = window.scrollY || window.pageYOffset || 0;
+          if (App.currentPage === 'page-activities') App.renderActivityList?.();
+          if (App.currentPage === 'page-my-activities') App.renderMyActivities?.();
+          if (_s2 > 0) requestAnimationFrame(function() { window.scrollTo(0, _s2); });
+        }
       }
     }).catch(err => {
       this._registrationsRevalidating = false;
@@ -2865,13 +2869,17 @@ const FirebaseService = {
       if (fresh.length !== oldLen) {
         console.log(`[FirebaseService] registrations 刷新: ${oldLen} → ${fresh.length}`);
       }
-      // 觸發當前頁面 UI 更新（保留捲動位置）
+      // 觸發當前頁面 UI 更新
+      // 活動詳情頁改走局部更新（_debouncedSnapshotRender），避免 showEventDetail 全頁重繪造成跳頂
       if (typeof App !== 'undefined') {
-        var _s3 = window.scrollY || window.pageYOffset || 0;
-        if (App.currentPage === 'page-activity-detail') App.showEventDetail?.(App._currentDetailEventId);
-        if (App.currentPage === 'page-activities') App.renderActivityList?.();
-        if (App.currentPage === 'page-my-activities') App.renderMyActivities?.();
-        if (_s3 > 0) requestAnimationFrame(function() { window.scrollTo(0, _s3); });
+        if (App.currentPage === 'page-activity-detail') {
+          this._debouncedSnapshotRender('registrations');
+        } else {
+          var _s3 = window.scrollY || window.pageYOffset || 0;
+          if (App.currentPage === 'page-activities') App.renderActivityList?.();
+          if (App.currentPage === 'page-my-activities') App.renderMyActivities?.();
+          if (_s3 > 0) requestAnimationFrame(function() { window.scrollTo(0, _s3); });
+        }
       }
     }).catch(err => {
       this._registrationsRevalidating = false;

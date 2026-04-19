@@ -10,6 +10,24 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-19 — 活動詳情頁跳頂老問題修復（visibilitychange + RC1 revalidate 全頁重繪）
+- **問題**：用戶回報「活動詳細報名頁面因為加載渲染畫面常常跑回頂部」，是長期老問題
+- **根因**：`js/firebase-service.js` 兩處違反 CLAUDE.md「活動詳情頁局部更新規則」：
+  - L2764 `_staleWhileRevalidateRegistrations`（Auth ready 後 RC1 背景刷新）→ 直接呼叫 `App.showEventDetail` 全頁重繪
+  - L2871 `_handleVisibilityResume`（visibilitychange 切回前景 1s 後觸發）→ 同樣 `showEventDetail`
+  - `showEventDetail` 是 async 含 `await _renderAttendanceTable`（100ms debounce + Firestore fetch），子流程替換 DOM 時文件高度塌縮，外層的單次 `requestAnimationFrame(scrollTo)` 趕不上 → scroll 被 clamp 跳頂
+- **為什麼「老問題一直無法修正」**：2026-04-13 已建立活動詳情頁局部更新規則（`_refreshSignupButton` / `_patchDetailCount` / `_patchDetailTables`），但只覆蓋「報名/取消/候補操作後」路徑，漏掉 revalidate + visibility resume 兩條高頻刷新路徑
+- **修復**：兩處改走 `this._debouncedSnapshotRender('registrations')`（已驗證的標準局部更新路徑，內建 scroll 保護）。保留 activities / my-activities 的 render + scroll restore（這些頁面沒有局部更新路徑，維持原邏輯）
+- **版號**：20260419（config.js + index.html var V + sw.js CACHE_NAME + 68 處 ?v=）
+- **審計通過**：
+  - `npm run test:unit` 全過（51 suites / 2169 tests）
+  - 局部更新分支（firebase-service.js:144-161）原本就處理 `_flipAnimating` 鎖、null eventId gracefully 退出、5 項局部更新（按鈕 + 人數 + 正取/未報名/候補名單）
+  - 不動鎖定函式（firebase-service.js 鎖定的是 `ensureUserStatsLoaded` 等統計系統，兩處修改位於 RC1 / RC3 UI 刷新路徑，不觸及統計）
+- **[永久] 教訓**：
+  - 建立局部更新規則時，必須全檔掃描所有 `showEventDetail` 呼叫，區分「用戶操作」與「自動刷新」，兩類都要規範
+  - `showEventDetail` async 流程內的 scroll 保護（setTimeout 50/150ms 恢復）對外層非 await 的呼叫者而言**不可靠**，因為 `await _renderAttendanceTable` 會延遲到 150ms 之後才完成 DOM 替換
+  - 已知限制：局部更新不覆蓋標題/圖片/地點/時間等「活動主體資訊」欄位變更（events listener 本來就不更新這些），若用戶在背景時活動被編輯，切回後需重新導航才能看到新值——這是 events 路徑設計缺口，不屬於本次修復範圍
+
 ### 2026-04-17 — 多分頁權限加載衝突修復（Firestore 單 tab + BroadcastChannel 警告）
 - **問題**：PWA / 多瀏覽器分頁場景下權限加載卡住、LIFF session 錯亂。根因是 Firestore `enablePersistence({ synchronizeTabs: true })` 的多 tab IndexedDB leader election 競爭
 - **修復（commit 6e0daede，版號 20260417e）**：
