@@ -168,7 +168,8 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 
 | 檔案 | 說明 |
 |------|------|
-| `event-list-helpers.js` | 活動列表共用工具函式（建立者、俱樂部、性別、歸屬判斷） |
+| `event-blocklist.js` | 活動黑名單可見性守衛（`_isEventVisibleToUser` / `_userHasRegistrationForEvent` / `_filterVisibleEvents`）— 2026-04-20 導入 |
+| `event-list-helpers.js` | 活動列表共用工具函式（建立者、俱樂部、性別、歸屬判斷、`_getVisibleEvents` 整合黑名單）|
 | `event-list-stats.js` | 活動列表統計渲染（徽章、日期解析、狀態、倒數計時） |
 | `event-list-home.js` | 首頁活動區塊、運動捷徑、熱門活動渲染 |
 | `event-list-timeline.js` | 時間軸卡片載入與活動列表渲染 |

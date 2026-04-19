@@ -10,6 +10,37 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-20 — 活動黑名單功能（Phase 1-6 完成） [永久]
+- **需求**：管理員可將特定用戶加入活動黑名單，使其看不到該活動（僅擋尚未報名的，已報名的保留可見以尊重歷史）
+- **核心設計決策**：
+  - 黑名單只擋「尚未報名」的活動，曾有任一 registration 紀錄（含 cancelled/removed）→ 保留可見
+  - 被擋用戶看到活動的偽裝訊息：「找不到此活動」（不透露被擋事實，避免人際摩擦）
+  - UI 僅位於「用戶補正管理 > 活動黑名單」（不在活動管理面板）
+  - super_admin INHERENT 鎖定權限，user 絕對無權限
+- **資料結構**（events 文件新增 2 欄位）：
+  - `blockedUids: string[]` — 被擋用戶 UID 列表
+  - `blockedUidsLog: [{uid, by, action, at, reason}]` — 審計軌跡（永久保留）
+- **實作 Phase**：
+  - Phase 1（0.5 天）：Firestore Rules + 權限碼 + INHERENT 兩端同步
+  - Phase 2（0.5 天）：共用 helper `_isEventVisibleToUser` + 23 個單元測試
+  - Phase 3（1 天）：後台 UI（模糊搜尋活動/用戶、新增/移除、列表依活動分組）
+  - Phase 4（0.5 天）：全站過濾入口 — 利用既有 `_getVisibleEvents` 單一 choke-point
+  - Phase 5（無程式碼變更）：CF 稽核結論 = 不需改（通知僅發給已報名用戶）
+  - Phase 6（0.5 天）：CLAUDE.md 永久條目 + 修復日誌
+- **關鍵 helper（禁止重寫）**：
+  - `_isEventVisibleToUser(e, uid)` 於 `js/modules/event/event-blocklist.js`
+  - 四狀態邏輯：訪客→可見、未擋→可見、擋+有歷史→可見、擋+無歷史→不可見
+- **過濾入口清單**：
+  - 首頁輪播 / 行事曆 / 搜尋 → 經 `_getVisibleEvents` 統一處理
+  - 俱樂部內嵌活動 → `_renderTeamEvents` 明確 filter
+  - 活動詳情直接 URL（QR/分享/訊息連結）→ `showEventDetail` 守衛
+  - 豁免：Favorites（用戶資料）、Scan/Dashboard（admin 用途）、Tournament（無內嵌列表）
+- **教訓**：
+  - **單一 choke-point 設計省力氣**：既有 `_getVisibleEvents` 已整合 teamOnly + privateEvent，黑名單只需 +1 行就覆蓋首頁+行事曆+搜尋三個關鍵入口
+  - **「尊重歷史」解決強制退報的複雜性**：保留曾報名用戶可見 = 避免資料狀態機、自動退費、通知誤發等棘手邊界
+  - **CF 端自然不需過濾**：因通知只發給已報名用戶，我們的豁免規則自動對齊
+  - **永久條目強制共用 helper**：防止日後新入口漏過濾（已在 CLAUDE.md 建立「活動可見性規則」章節）
+
 ### 2026-04-19 — 首次登入 UX 改為「可瀏覽、寫入才擋」
 - **問題/目標**：原設計強制首次登入用戶填完基本資料才能操作任何功能，包括瀏覽。
   對新用戶造成 onboarding 摩擦，無法先看看內容再決定是否加入

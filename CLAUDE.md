@@ -274,6 +274,42 @@ https://miniapp.line.me/2009525300-AuPGQ0sh?{deepLinkParam}={id}
 
 ---
 
+## 活動可見性規則（強制，2026-04-20 [永久]）
+
+活動黑名單功能導入後，所有活動列表渲染與詳情入口**一律通過**共用 helper 判斷可見性：
+
+### 核心 helper
+- `App._isEventVisibleToUser(event, uid)` — 位於 `js/modules/event/event-blocklist.js`
+- 四狀態邏輯：
+  1. 訪客（無 uid）→ 可見
+  2. 未在 `blockedUids` → 可見
+  3. 被擋但曾有任一報名紀錄（含 cancelled/removed）→ 可見（尊重歷史）
+  4. 被擋且無任何報名紀錄 → 不可見
+
+### 強制規則
+
+1. **禁止在模組內重寫黑名單判斷邏輯**。任何新活動列表入口必須呼叫 `_isEventVisibleToUser` 或透過 `_getVisibleEvents`（它內部已整合）。
+2. **列表渲染優先走 `_getVisibleEvents`**：既有入口（首頁輪播 / 行事曆 / 搜尋）都已經過，新增入口時繼續沿用。
+3. **獨立列表（如俱樂部內嵌、賽事內嵌）**需明確呼叫 `_isEventVisibleToUser(e, currentUid)` 在 filter 內。
+4. **活動詳情頁直接進入守衛**：`showEventDetail` 已加守衛，偽裝顯示「找不到此活動」，不透露被擋事實。
+5. **Cloud Function 端不需過濾**：CF 事件通知僅發給「已報名用戶」，已報名者按規格保留可見性，自然不會產生不一致。未來若有 CF 端主動發送給「非已報名用戶」的路徑，必須同步實作 `isEventVisibleToUser()` 於 `functions/index.js`。
+6. **Favorites / Scan / Dashboard 豁免**：Favorites 是用戶自己收藏（保留）；Scan / Dashboard 為 admin 用途（保留）。
+
+### 寫入路徑規範
+- `blockedUids`：字串陣列，存 LINE userId（= Firebase Auth UID）
+- `blockedUidsLog`：物件陣列，每筆 `{ uid, by, action: 'add'|'remove', at, reason }`（審計軌跡必填）
+- 寫入時**僅改這兩個欄位**（對應 Rules `isBlocklistFieldsOnly`），不得順便改 `updatedAt` 或其他欄位
+- 使用 `FieldValue.arrayUnion/arrayRemove` 確保原子性
+
+### 權限
+- 權限碼：`admin.repair.event_blocklist`
+- `super_admin` INHERENT 鎖定（兩端同步：`js/config.js` + `functions/index.js`）
+- `user` 絕對無（預設 `[]`、UI 不顯示 toggle）
+- 其他角色透過權限管理調整
+- Rules 層：`canManageEventBlocklist()` = `isSuperAdmin() || hasPerm(...)`
+
+---
+
 ## 報名系統保護規則（核心模組鎖定）
 
 報名系統是最核心的業務邏輯，歷史上多次因修改引發嚴重 bug（人數覆蓋、候補未遞補、超收）。以下規則**強制適用**：
