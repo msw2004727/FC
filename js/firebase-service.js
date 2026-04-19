@@ -738,6 +738,13 @@ const FirebaseService = {
   },
 
   _startPageScopedRealtimeForPage(pageId) {
+    // 2026-04-19 fix: db 尚未初始化（Firebase SDK 還沒 ready）時直接 skip，
+    // 避免 Uncaught TypeError: Cannot read properties of undefined (reading 'collection')
+    // 典型情境：boot 期間某頁 schedule realtime listener，350ms 延遲 fire 時 db 仍 undefined
+    if (typeof db === 'undefined' || !db) {
+      console.warn('[FirebaseService] db not ready, skip _startPageScopedRealtimeForPage:', pageId);
+      return;
+    }
     const needed = new Set(this._getPageScopedRealtimeCollections(pageId));
     if (needed.has('registrations')) this._startRegistrationsListener();
     if (needed.has('attendanceRecords')) this._startAttendanceRecordsListener();
