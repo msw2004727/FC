@@ -187,6 +187,20 @@ Object.assign(App, {
     return `${detailText}，目前無法報名`;
   },
 
+  /**
+   * 2026-04-19 UX：性別限定按鈕點擊處理
+   * - 永遠顯示 Toast（限女性/限男性訊息）
+   * - 若用戶個人資料不完整（_pendingFirstLogin=true）→ 同時彈出首次登入 modal
+   *   讓用戶可直接填寫性別/生日/地區（missing_gender 常見情境）
+   * - 若個人資料已完整但性別不符（gender_mismatch）→ 僅 Toast（modal 無法解決）
+   */
+  _handleGenderRestrictedClick(toastMsg) {
+    this.showToast(toastMsg);
+    if (this._pendingFirstLogin && typeof this._tryShowFirstLoginModal === 'function') {
+      this._tryShowFirstLoginModal();
+    }
+  },
+
   _getCompanionGenderRestrictionMessage(e, companionName = '') {
     const allowedGender = this._getEventAllowedGender(e);
     if (!allowedGender) return '';
