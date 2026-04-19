@@ -23,6 +23,7 @@ Object.assign(App, {
       teamJoins: !!this.hasPermission?.('admin.repair.team_join_repair'),
       noShow: !!this.hasPermission?.('admin.repair.no_show_adjust'),
       dataSync: !!this.hasPermission?.('admin.repair.data_sync'),
+      eventBlocklist: !!this.hasPermission?.('admin.repair.event_blocklist'),
     };
   },
   renderUserCorrectionManager() {
@@ -32,26 +33,31 @@ Object.assign(App, {
     const teamTab = tabsEl?.querySelector('[data-repair-tab="team-joins"]');
     const noShowTab = tabsEl?.querySelector('[data-repair-tab="no-show"]');
     const dataSyncTab = tabsEl?.querySelector('[data-repair-tab="data-sync"]');
+    const blocklistTab = tabsEl?.querySelector('[data-repair-tab="event-blocklist"]');
     const teamPane = document.getElementById('repair-pane-team-joins');
     const noShowPane = document.getElementById('repair-pane-no-show');
     const dataSyncPane = document.getElementById('repair-pane-data-sync');
+    const blocklistPane = document.getElementById('repair-pane-event-blocklist');
 
     if (!tabsEl || !emptyCard || !teamTab || !noShowTab || !teamPane || !noShowPane) return;
 
     teamTab.style.display = access.teamJoins ? '' : 'none';
     noShowTab.style.display = access.noShow ? '' : 'none';
     if (dataSyncTab) dataSyncTab.style.display = access.dataSync ? '' : 'none';
+    if (blocklistTab) blocklistTab.style.display = access.eventBlocklist ? '' : 'none';
 
     const availableTabs = [];
     if (access.teamJoins) availableTabs.push('team-joins');
     if (access.noShow) availableTabs.push('no-show');
     if (access.dataSync) availableTabs.push('data-sync');
+    if (access.eventBlocklist) availableTabs.push('event-blocklist');
 
     if (!availableTabs.length) {
       tabsEl.style.display = 'none';
       teamPane.style.display = 'none';
       noShowPane.style.display = 'none';
       if (dataSyncPane) dataSyncPane.style.display = 'none';
+      if (blocklistPane) blocklistPane.style.display = 'none';
       emptyCard.style.display = '';
       emptyCard.innerHTML = '<div style="font-weight:600;margin-bottom:.35rem">目前沒有可用權限</div><div style="font-size:.8rem;color:var(--text-muted);line-height:1.7">請先在權限管理中開啟「用戶補正管理」下的子功能。</div>';
       return;
@@ -70,9 +76,13 @@ Object.assign(App, {
     teamPane.style.display = this._adminRepairActiveTab === 'team-joins' ? '' : 'none';
     noShowPane.style.display = this._adminRepairActiveTab === 'no-show' ? '' : 'none';
     if (dataSyncPane) dataSyncPane.style.display = this._adminRepairActiveTab === 'data-sync' ? '' : 'none';
+    if (blocklistPane) blocklistPane.style.display = this._adminRepairActiveTab === 'event-blocklist' ? '' : 'none';
 
     if (this._adminRepairActiveTab === 'no-show') {
       this._renderSelectedUserNoShowSummary();
+    }
+    if (this._adminRepairActiveTab === 'event-blocklist') {
+      this._renderExistingEventBlocklist?.();
     }
   },
   switchUserCorrectionTab(tab) {
@@ -80,7 +90,8 @@ Object.assign(App, {
     if (tab === 'team-joins' && !access.teamJoins) return;
     if (tab === 'no-show' && !access.noShow) return;
     if (tab === 'data-sync' && !access.dataSync) return;
-    const validTabs = ['team-joins', 'no-show', 'data-sync'];
+    if (tab === 'event-blocklist' && !access.eventBlocklist) return;
+    const validTabs = ['team-joins', 'no-show', 'data-sync', 'event-blocklist'];
     this._adminRepairActiveTab = validTabs.includes(tab) ? tab : 'team-joins';
     this.renderUserCorrectionManager();
   },

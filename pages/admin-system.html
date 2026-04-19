@@ -358,6 +358,7 @@
         <button class="tab active" data-repair-tab="team-joins" onclick="App.switchUserCorrectionTab('team-joins')">歷史入隊補正</button>
         <button class="tab" data-repair-tab="no-show" onclick="App.switchUserCorrectionTab('no-show')">放鴿子系統</button>
         <button class="tab" data-repair-tab="data-sync" onclick="App.switchUserCorrectionTab('data-sync')">系統資料同步</button>
+        <button class="tab" data-repair-tab="event-blocklist" onclick="App.switchUserCorrectionTab('event-blocklist')">活動黑名單</button>
       </div>
       <div class="form-card" id="admin-repair-empty" style="display:none"></div>
       <div id="repair-pane-team-joins">
@@ -572,6 +573,37 @@
             <div id="data-sync-percent" style="font-size:.72rem;color:var(--text-muted);text-align:center;margin-top:.2rem">0%</div>
           </div>
           <div id="data-sync-log" style="display:none;margin-top:.6rem;font-size:.75rem;color:var(--text-secondary);line-height:1.7;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.5rem .6rem;max-height:400px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;font-family:monospace"></div>
+        </div>
+      </div>
+      <div id="repair-pane-event-blocklist" style="display:none">
+        <div class="form-card" style="margin-bottom:.8rem">
+          <div style="font-weight:600;font-size:.9rem;margin-bottom:.3rem">活動黑名單</div>
+          <div style="font-size:.78rem;color:var(--text-muted);line-height:1.7">
+            將特定用戶加入活動黑名單後，他將看不到該活動（僅擋尚未報名的，已報名的保留可見以尊重歷史）。<br>
+            被擋用戶無法從首頁、行事曆、搜尋、分享連結等任何入口看到該活動。<br>
+            所有操作皆記錄審計軌跡（誰加的、何時、原因）。
+          </div>
+        </div>
+        <div class="form-card" style="margin-bottom:.8rem;position:relative">
+          <div style="font-weight:600;font-size:.9rem;margin-bottom:.45rem">① 搜尋活動</div>
+          <input type="text" id="eb-event-search" placeholder="輸入標題、日期、主辦人、地點..." oninput="App.searchEventForBlocklist()" autocomplete="off">
+          <div class="ce-delegate-dropdown" id="eb-event-dropdown"></div>
+          <div id="eb-event-selected" style="margin-top:.5rem;font-size:.78rem;color:var(--text-muted)">尚未選擇活動</div>
+        </div>
+        <div class="form-card" style="margin-bottom:.8rem;position:relative">
+          <div style="font-weight:600;font-size:.9rem;margin-bottom:.45rem">② 搜尋用戶</div>
+          <input type="text" id="eb-user-search" placeholder="輸入名字、UID、LINE ID、地區..." oninput="App.searchUserForBlocklist()" autocomplete="off">
+          <div class="ce-delegate-dropdown" id="eb-user-dropdown"></div>
+          <div id="eb-user-selected" style="margin-top:.5rem;font-size:.78rem;color:var(--text-muted)">尚未選擇用戶</div>
+        </div>
+        <div class="form-card" style="margin-bottom:.8rem">
+          <div style="font-weight:600;font-size:.9rem;margin-bottom:.45rem">③ 理由（可選）</div>
+          <input type="text" id="eb-reason" placeholder="例：反覆放鴿子、違反規則..." maxlength="80" autocomplete="off">
+          <button class="primary-btn full-width" style="margin-top:.6rem" onclick="App.addEventBlocklistEntry()">加入黑名單</button>
+        </div>
+        <div class="form-card">
+          <div style="font-weight:600;font-size:.9rem;margin-bottom:.5rem">現有黑名單（依活動分組）</div>
+          <div id="eb-existing-list" style="font-size:.8rem;color:var(--text-secondary);line-height:1.6">載入中...</div>
         </div>
       </div>
     </section>

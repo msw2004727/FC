@@ -294,6 +294,7 @@ const ScriptLoader = {
       'js/modules/user-admin/user-admin-roles.js',
       'js/modules/user-admin/user-admin-perm-info.js',
       'js/modules/user-admin/user-admin-corrections.js',
+      'js/modules/user-admin/user-admin-event-blocklist.js',
       'js/modules/achievement-batch.js',
       'js/modules/data-sync.js',
     ],
