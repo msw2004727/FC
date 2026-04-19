@@ -10,6 +10,52 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-19 — 活動詳情頁「幾秒後被拉回行事曆」連續修復 [永久]
+- **問題**：用戶回報「首頁／行事曆點活動卡進詳情頁，幾秒後被拉回行事曆」，
+  剛刷新/剛開啟網站時最常發生
+- **追查過程**：
+  - 用 `?debug=1` 內建 debug console 收集完整 log
+  - `_activatePage` 加 stack trace log 定位出真兇：`_showPageFreshFirst`
+  - 真實時序：
+    1. URL hash 是 `#page-activities`（殘留）
+    2. Boot 解析 hash → `App.showPage('page-activities')` 走 `_showPageFreshFirst`
+    3. 卡在 `await ensureCloudReady`（Firebase init）數秒
+    4. 用戶在首頁點活動卡 → `showPage('page-activity-detail')` 走 `_showPageStale`（cache 有）→ 快速進詳情頁
+    5. cloud ready → boot 的 `_showPageFreshFirst` 復活 → `_activatePage('page-activities')` 把用戶拉走
+  - 既有 `transitionSeq` 守衛（L539）沒擋住這個 race
+- **修復（commit 96458bb6 + 調整版 [pending]）**：
+  `_showPageFreshFirst` / `_showPagePrepareFirst` 在 `_activatePage` 前新增 `_startingPage` 比對守衛：
+  - 記錄函式進入時的 `this.currentPage`（_startingPage）
+  - await 完成後檢查 `this.currentPage !== _startingPage && !== pageId` → 放棄本次切頁
+  - **關鍵**：比對變化量（不能只用 `!== 'page-home'`），否則會誤擋正常頁面切換
+    （例如用戶從 page-activities 切到 page-teams 且無 cache 時）
+- **連鎖副作用修復**：
+  - **commit f03a42ed**：拉回問題修好後，更早走到 `_startEventsRealtimeListener`，
+    暴露 `db undefined` TypeError（setTimeout 350ms 延遲啟動 listener 時 Firebase 可能還沒 init）。
+    `_startPageScopedRealtimeForPage` 加 `typeof db === 'undefined'` 守衛。
+    Listener 會在 `ensureCollectionsForPage` 路徑重新觸發，不會永久中斷
+  - **commit 6a13cbab**：切換活動時 `detail-attendance-table` 殘留前一活動名單，
+    顯示「B 標題 + A 名單」造成「被拉回 A」錯覺。showEventDetail 切換時立即清空
+    attendance-table 並顯示 loading skeleton；await `_renderAttendanceTable` 後補 stale check
+  - **commits 56f31c55 / 5d0909d0 / 9f4a214b**：同模式守衛套用到
+    `_flushPendingProtectedBootRoute` / `_completeDeepLinkFallback` / `_tryOpenPendingDeepLink`
+    （但這些都在 boot / deep-link 流程，不影響正常切頁）
+- **Debug 工具加強（commit 11073947）**：`?debug=1` 浮動 console 加 📋 複製 / 🗑️ 清 / ✕ 隱藏
+  按鈕，手機 LIFF 也能匯出 log
+- **教訓**：
+  - `showPage` 的 async await 內，一切「等 cloud / 等 auth」都可能數秒，
+    await 後若不以**起始 currentPage** 比對，會在用戶已主動導航後強制拉走
+  - **守衛不能用 `currentPage !== 'page-home'`**（會誤擋正常切頁）；
+    必須用 `_startingPage` 變化量比對
+  - Boot 期間的自動 navigate（`_flushPendingProtectedBootRoute` / deep-link poller /
+    fallback）必須全部加「尊重用戶主動導航」守衛
+  - 修好一個層級可能暴露下一層級的潛伏 bug（例如 db undefined），要持續監控
+- **診斷基礎設施**（永久保留）：
+  - `index.html` 的 `?debug=1` 浮動 console（手機可用）
+  - `app.js` DOMContentLoaded 印 CACHE_VERSION
+  - `navigation.js _activatePage` 印 stack trace（切頁來源）
+  - `app.js _flushPendingProtectedBootRoute` 多處診斷 log
+
 ### 2026-04-19 — events.participantsWithUid 導入（Phase 0-4 完成） [永久]
 - **問題**：14 組同暱稱用戶（含「勝」「Ivan」各 1 次放鴿子被隱身），根因是
   `_buildConfirmedParticipantSummary` / `_buildGuestEventPeople` 等 fallback 路徑

@@ -489,6 +489,8 @@ Object.assign(App, {
   },
 
   async _showPagePrepareFirst(pageId, transitionSeq, options) {
+    // 2026-04-19 safeguard: 同 _showPageFreshFirst 策略
+    const _startingPage = this.currentPage;
     try {
       // 準備 HTML + Script
       await this._awaitRouteStep(this._ensurePageHtmlReady(pageId), pageId, 'page');
@@ -516,9 +518,10 @@ Object.assign(App, {
       return { ok: false, reason: 'load_failed', step: 'page', error: err };
     }
 
-    // 2026-04-19 safeguard: 與 _showPageFreshFirst 同邏輯
-    if (this.currentPage && this.currentPage !== 'page-home' && this.currentPage !== pageId) {
-      console.log('[Nav] _showPagePrepareFirst user navigated to', this.currentPage, '— aborting show', pageId);
+    // await 期間 currentPage 變化 = 用戶主動導航到其他頁面，放棄本次切頁
+    if (this.currentPage !== _startingPage && this.currentPage !== pageId) {
+      console.log('[Nav] _showPagePrepareFirst currentPage changed during await:',
+        _startingPage, '→', this.currentPage, '— aborting show', pageId);
       return { ok: false, reason: 'user_navigated' };
     }
     this._cleanupBeforePageSwitch(pageId);
@@ -529,6 +532,11 @@ Object.assign(App, {
   },
 
   async _showPageFreshFirst(pageId, transitionSeq, options) {
+    // 2026-04-19 safeguard: 記錄 await 開始時的 currentPage，await 完成後比對。
+    // 只有「currentPage 在 await 期間實際變化且變到 pageId 以外」才視為用戶主動導航，
+    // 避免誤擋正常的頁面切換（例如從 page-activities 切到 page-teams，
+    // await 前 currentPage='page-activities'，結束後仍是 'page-activities'，不該擋）
+    const _startingPage = this.currentPage;
     try {
       await this._awaitRouteStep(
         this._ensurePageEntryReady(pageId),
@@ -543,13 +551,11 @@ Object.assign(App, {
     }
 
     if (transitionSeq !== this._pageTransitionSeq) return { ok: false, reason: 'stale_transition' };
-    // 2026-04-19 safeguard: 若 await 期間用戶已主動導航到非首頁、非目標頁，
-    // 代表 boot 時的 showPage 已被用戶後續操作取代，放棄本次切頁避免把用戶拉走。
-    // 典型情境：boot 時 hash=#page-activities 觸發 showPage('page-activities') 卡在
-    // await ensureCloudReady 期間，用戶點首頁的近期活動進 detail 頁。cloud ready
-    // 後本函式恢復若不擋，會把用戶從詳情頁拉回行事曆。
-    if (this.currentPage && this.currentPage !== 'page-home' && this.currentPage !== pageId) {
-      console.log('[Nav] _showPageFreshFirst user navigated to', this.currentPage, '— aborting show', pageId);
+    // await 期間 currentPage 變化 = 用戶主動導航到其他頁面（例如 boot 時 showPage
+    // 被用戶點擊搶先完成），放棄本次切頁。
+    if (this.currentPage !== _startingPage && this.currentPage !== pageId) {
+      console.log('[Nav] _showPageFreshFirst currentPage changed during await:',
+        _startingPage, '→', this.currentPage, '— aborting show', pageId);
       return { ok: false, reason: 'user_navigated' };
     }
     this._cleanupBeforePageSwitch(pageId);
