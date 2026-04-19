@@ -16,6 +16,8 @@ Object.assign(App, {
   },
 
   async handleSaveTeam() {
+    // 2026-04-19 UX：寫入類動作必須先補齊個人資料（建立/編輯俱樂部屬於寫入行為）
+    if (this._requireProfileComplete()) return;
     const vals = this._extractTeamFormValues();
     if (!vals) return;
 

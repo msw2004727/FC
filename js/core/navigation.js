@@ -275,6 +275,19 @@ Object.assign(App, {
     return this._requireLogin();
   },
 
+  /**
+   * 2026-04-19 UX: 需要個人資料完整才能執行「寫入類」操作（報名/候補/加入俱樂部/
+   * 建立活動/賽事報名等）。首次登入流程改為「可自由瀏覽、寫入才擋」：
+   *  - _pendingFirstLogin 未設置 → 回傳 false 放行
+   *  - 已設置 → 彈出首次登入 modal 並回傳 true，讓呼叫者中止本次動作
+   * 用法：`if (this._requireProfileComplete()) return;`（在需要寫入的函式入口）
+   */
+  _requireProfileComplete() {
+    if (!this._pendingFirstLogin) return false;
+    this._tryShowFirstLoginModal();
+    return true;
+  },
+
   _isLoginRequired() {
     if (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) return false;
     return true;
@@ -446,11 +459,9 @@ Object.assign(App, {
       }
       if (guardedPages.includes(pageId) && this._requireLogin()) return { ok: false, reason: 'login_required' };
 
-      // ── 首次登入守衛：缺少必填資料時攔截導航，強制彈出首次登入 modal ──
-      if (this._pendingFirstLogin && !options.bypassFirstLoginGuard) {
-        this._tryShowFirstLoginModal();
-        return { ok: false, reason: 'first_login_pending' };
-      }
+      // 2026-04-19 UX 調整：移除「_pendingFirstLogin 攔截導航」守衛。
+      // 首次登入後允許用戶自由瀏覽，只在執行寫入類動作（報名/加入俱樂部/建立活動等）
+      // 時由對應函式呼叫 _requireProfileComplete() 攔截。
 
       if (typeof this._canAccessPage === 'function' && !this._canAccessPage(pageId)) {
         if (options.suppressAccessDeniedToast) return { ok: false, reason: 'forbidden' };
@@ -699,11 +710,8 @@ Object.assign(App, {
       this._handleRestrictedStateChange();
       return;
     }
-    // 首次登入守衛：缺少必填資料時攔截返回導航
-    if (this._pendingFirstLogin) {
-      this._tryShowFirstLoginModal();
-      return;
-    }
+    // 2026-04-19 UX 調整：移除返回導航的 _pendingFirstLogin 守衛，允許自由瀏覽。
+    // 寫入類動作由對應函式的 _requireProfileComplete() 守衛負責攔截。
     if (this.pageHistory.length > 0) {
       const prev = this.pageHistory.pop();
       // 清理當前頁面的資源（監聽器、動畫等）

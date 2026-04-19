@@ -5,6 +5,8 @@ Object.assign(App, {
   // _applyRoleChange → 已搬至 team-list-helpers.js
 
   handleJoinTeam(teamId) {
+    // 2026-04-19 UX：寫入類動作必須先補齊個人資料（地區等會影響俱樂部判定）
+    if (this._requireProfileComplete()) return;
     // 1. Already in this team -> no need to re-apply.
     const user = ApiService.getCurrentUser();
     const alreadyInTeam = user && (

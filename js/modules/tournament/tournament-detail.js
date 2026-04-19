@@ -146,6 +146,8 @@ Object.assign(App, {
   },
 
   registerTournament(id) {
+    // 2026-04-19 UX：寫入類動作必須先補齊個人資料
+    if (this._requireProfileComplete()) return;
     const t = ApiService.getTournament(id);
     if (!t) return;
 

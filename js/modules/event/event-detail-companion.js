@@ -102,6 +102,8 @@ Object.assign(App, {
   async _confirmCompanionRegister() {
     const eventId = this._companionSelectEventId;
     if (!eventId) return;
+    // 2026-04-19 UX：寫入類動作必須先補齊個人資料
+    if (this._requireProfileComplete()) { this._closeCompanionSelectModal?.(); return; }
     if (!this._cloudReady) {
       this.showToast('系統載入中，請稍候再試');
       void this.ensureCloudReady?.({ reason: 'companion-signup' });

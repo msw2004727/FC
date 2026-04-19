@@ -2279,11 +2279,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         && (document.getElementById(pageId)
           || (typeof PageLoader !== 'undefined' && PageLoader._pageFileMap && PageLoader._pageFileMap[pageId]));
       if (canResolvePage && pageId !== App.currentPage) {
-        // 首次登入守衛：缺少必填資料時攔截 hash 導航
-        if (App._pendingFirstLogin) {
-          App._tryShowFirstLoginModal?.();
-          return;
-        }
+        // 2026-04-19 UX 調整：移除 hash 導航的 _pendingFirstLogin 守衛，允許自由瀏覽。
+        // 寫入類動作由對應函式的 _requireProfileComplete() 守衛負責攔截。
         App.showPage(pageId);
       }
     });

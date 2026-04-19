@@ -76,6 +76,8 @@ Object.assign(App, {
   },
 
   async registerTournament(id) {
+    // 2026-04-19 UX：寫入類動作必須先補齊個人資料
+    if (this._requireProfileComplete()) return;
     const tournament = ApiService.getFriendlyTournamentRecord?.(id) || ApiService.getTournament?.(id);
     if (!tournament || !this._isFriendlyTournamentRecord(tournament)) {
       return _tournamentFriendlyDetailLegacy.registerTournament.call(this, id);

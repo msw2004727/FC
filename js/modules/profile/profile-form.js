@@ -136,30 +136,10 @@ Object.assign(App, {
     this._handleRestrictedStateChange?.();
     this.renderProfileData?.();
     this.renderProfileFavorites?.();
-    // Plan B：首登表單已內聯到 index.html，不再依賴 ScriptLoader（48 script）
-    if (this._pendingFirstLogin && !this._isCurrentUserRestricted?.() && !this._firstLoginShowing) {
-      this._firstLoginShowing = true;
-      var self = this;
-      // 等 modal-overlay 載入（PageLoader 會載入 modals.html 中的 overlay）
-      (async function() {
-        try {
-          if (typeof PageLoader !== 'undefined' && PageLoader._loadAllPromise) {
-            await PageLoader._loadAllPromise;
-          }
-        } catch (_) {}
-        var modal = document.getElementById('first-login-modal');
-        if (!modal) { self._firstLoginShowing = false; return; }
-        try {
-          self.initFirstLoginRegionPicker?.();
-          self._populateBirthdaySelects?.('fl-birthday-y', 'fl-birthday-m', 'fl-birthday-d');
-        } catch (initErr) {
-          console.warn('[bindLineLogin] first-login init error:', initErr);
-        }
-        self.showModal('first-login-modal');
-        var overlay = document.getElementById('modal-overlay');
-        if (overlay) overlay.dataset.locked = '1';
-      })();
-    }
+    // 2026-04-19 UX 調整：移除登入後自動彈首次登入 modal 的邏輯。
+    // 改為「可自由瀏覽、寫入才擋」：用戶執行報名/加入俱樂部/建立活動等寫入動作時，
+    // 對應函式會呼叫 _requireProfileComplete() 彈出 modal。
+    // _pendingFirstLogin 仍維持設置（用於寫入守衛判斷），只是不再自動彈窗。
   },
 
   renderLoginUI() {
@@ -415,6 +395,19 @@ Object.assign(App, {
     this.closeModal();
     if (typeof this.renderProfileData === 'function') this.renderProfileData();
     this.showToast('個人資料已儲存');
+  },
+
+  /**
+   * 2026-04-19 UX：首次登入 modal 關閉（「稍後填寫」按鈕）
+   * 用戶可先關閉繼續瀏覽，但 _pendingFirstLogin 保留，下次寫入類動作仍會彈出
+   */
+  dismissFirstLoginModal() {
+    this._firstLoginShowing = false;
+    var overlay = document.getElementById('modal-overlay');
+    if (overlay) delete overlay.dataset.locked;
+    var errMsg = document.getElementById('fl-error-msg');
+    if (errMsg) { errMsg.style.display = 'none'; errMsg.textContent = ''; }
+    this.closeModal();
   },
 
 });

@@ -154,6 +154,8 @@ Object.assign(App, {
     if (!this.hasPermission('event.create') && !this.hasPermission('activity.manage.entry')) {
       this.showToast('權限不足'); return;
     }
+    // 2026-04-19 UX：寫入類動作必須先補齊個人資料（主辦人資料會寫入活動文件）
+    if (this._requireProfileComplete()) return;
     const title = document.getElementById('ce-title').value.trim();
     const type = document.getElementById('ce-type').value;
     const location = document.getElementById('ce-location').value.trim();

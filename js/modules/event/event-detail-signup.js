@@ -112,6 +112,8 @@ Object.assign(App, {
     if (this._requireProtectedActionLogin({ type: 'eventSignup', eventId: id }, { suppressToast: true })) {
       return;
     }
+    // 2026-04-19 UX：寫入類動作必須先補齊個人資料（地區/性別/生日）
+    if (this._requireProfileComplete()) return;
     let e = ApiService.getEvent(id);
     if (!e) return;
     e = this._syncEventEffectiveStatus?.(e) || e;

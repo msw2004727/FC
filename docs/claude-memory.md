@@ -10,6 +10,39 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-19 — 首次登入 UX 改為「可瀏覽、寫入才擋」
+- **問題/目標**：原設計強制首次登入用戶填完基本資料才能操作任何功能，包括瀏覽。
+  對新用戶造成 onboarding 摩擦，無法先看看內容再決定是否加入
+- **改動**：
+  - **移除**三處「_pendingFirstLogin 攔截導航」守衛：
+    1. `navigation.js showPage`（L449-453 舊守衛）
+    2. `navigation.js goBack`（L702-706 舊守衛）
+    3. `app.js hashchange`（L2282-2286 舊守衛）
+  - **移除** `profile-form.js` 登入後自動彈 modal 的邏輯（L140-162）
+  - **新增** `_requireProfileComplete()` helper（`navigation.js`）
+    - `_pendingFirstLogin` 為 true 時彈 modal + return true（呼叫者中止動作）
+    - false 時直接放行
+  - **7 個寫入入口加守衛**：
+    - `handleSignup`（活動報名）
+    - `_confirmCompanionRegister`（同行者報名，附帶關閉 companion modal）
+    - `handleJoinTeam`（加入俱樂部）
+    - `handleSaveTeam`（建立/編輯俱樂部）
+    - `handleCreateEvent`（建立活動）
+    - `registerTournament` × 2（賽事報名 + 友誼賽報名）
+  - **Modal 內容更新**（`index.html`）：
+    - 加紅字提醒「※ 下列資料將作為地區歸屬及活動參與資格的判定依據,請務必如實填寫」
+    - 加「稍後填寫」按鈕（`App.dismissFirstLoginModal`），允許用戶先關閉繼續瀏覽
+    - `_pendingFirstLogin` 保留，下次寫入類動作仍會彈出
+- **保留的行為**：
+  - `_pendingFirstLogin` 仍在 3 處設置（登入時、CF PROFILE_INCOMPLETE 錯誤時）
+  - Modal 的 `overlay.dataset.locked = '1'` 保留，避免用戶點外層意外關閉
+  - 用戶必須透過「稍後填寫」或「確認送出」才能離開 modal
+- **教訓**：
+  - 「守衛一律擋」的 UX 容易讓新用戶流失；改用「可瀏覽 + 寫入才擋」的層次化守衛
+    對 onboarding 友善很多
+  - Helper function（`_requireProfileComplete`）比每個入口手寫判斷更易維護
+  - 寫入守衛需覆蓋所有可能的入口（7 處），漏一個就會讓用戶繞過
+
 ### 2026-04-19 — 活動詳情頁 attendance-table「名單 → 空白 → 名單」生硬閃爍修復
 - **問題**：進入活動詳情頁時，先顯示快取名單，然後快取名單閃消失變空白，幾秒後才補上最新資料，轉場生硬
 - **根因**：`showEventDetail()` 被多個路徑重複呼叫（`_regsLoadingRetryTimer` 3 秒重試 /
