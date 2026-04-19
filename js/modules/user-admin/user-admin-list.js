@@ -143,7 +143,7 @@ Object.assign(App, {
           ${avatar}
           <div class="admin-user-body">
             <div class="admin-user-info">
-              <div class="admin-user-name">${this._userTag(u.name, u.role)}</div>
+              <div class="admin-user-name">${this._userTag(u.name, u.role, { uid: u.uid || '' })}</div>
               <div class="admin-user-meta">${escapeHTML(u.uid)} ・${ROLES[u.role]?.label || u.role} ・Lv.${App._calcLevelFromExp(u.exp || 0).level} ・${escapeHTML(u.region || '—')}${genderIcon ? ' ' + genderIcon : ''}${teamInfo}</div>
               <div class="admin-user-meta">${escapeHTML(u.sports || '—')} ・EXP ${(u.exp || 0).toLocaleString()}</div>
               <div class="admin-user-meta">限制狀態：${isRestricted ? '限制中' : '正常'}</div>

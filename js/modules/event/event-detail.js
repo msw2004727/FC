@@ -470,8 +470,8 @@ Object.assign(App, {
       <div class="detail-row detail-row-wide"><span class="detail-label">\u6642\u9593</span>${escapeHTML(e.date)}</div>
       ${regOpenHtml ? regOpenHtml.replace('detail-row"', 'detail-row detail-row-wide"') : ''}
       <div class="detail-grid">${_shortCells.join('')}</div>
-      <div class="detail-row detail-row-wide"><span class="detail-label">\u4E3B\u8FA6</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${this._userTag(e.creator)}</span></div>
-      ${(e.delegates && e.delegates.length) ? `<div class="detail-row detail-row-wide"><span class="detail-label">\u59D4\u8A17</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${e.delegates.map(d => this._userTag(d.name)).join('')}</span></div>` : ''}
+      <div class="detail-row detail-row-wide"><span class="detail-label">\u4E3B\u8FA6</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${this._userTag(e.creator, null, { uid: e.creatorUid || '' })}</span></div>
+      ${(e.delegates && e.delegates.length) ? `<div class="detail-row detail-row-wide"><span class="detail-label">\u59D4\u8A17</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${e.delegates.map(d => this._userTag(d.name, null, { uid: d.uid || '' })).join('')}</span></div>` : ''}
       ${e.contact ? `<div class="detail-row detail-row-wide"><span class="detail-label">\u806F\u7E6B</span>${escapeHTML(e.contact)}</div>` : ''}
       ${teamTag ? teamTag.replace('detail-row"', 'detail-row detail-row-wide"') : ''}
       ${privateTag ? privateTag.replace('detail-row"', 'detail-row detail-row-wide"') : ''}
@@ -663,7 +663,7 @@ Object.assign(App, {
           : '';
         rows += `<tr style="border-bottom:1px solid var(--border)">
           <td style="padding:.35rem .3rem;text-align:center;width:2rem"><span class="wl-pos">${idx + 1}</span></td>
-          <td style="padding:.35rem .3rem;text-align:left">${this._userTag(item.name)}</td>
+          <td style="padding:.35rem .3rem;text-align:left">${this._userTag(item.name, null, { uid: item.userId || '' })}</td>
           <td style="padding:.35rem .3rem;text-align:center;width:3rem">${promoteBtn}</td>
         </tr>`;
         item.companions.forEach(c => {
@@ -698,7 +698,7 @@ Object.assign(App, {
     const gridId = 'wl-grid-' + eventId;
     const renderItem = (item, idx) => {
       let h = `<div style="padding:.35rem 0"><div style="display:flex;align-items:center;gap:.3rem">
-        <span class="wl-pos">${idx + 1}</span>${this._userTag(item.name)}</div>`;
+        <span class="wl-pos">${idx + 1}</span>${this._userTag(item.name, null, { uid: item.userId || '' })}</div>`;
       if (item.selfOrphanInfo) {
         h += `<div style="padding:.1rem 0 0 1.8rem;font-size:.72rem;color:var(--text-muted)" data-no-translate>↳ 報名人：${escapeHTML(item.selfOrphanInfo)}（<span style="color:var(--success)">已正取</span>）</div>`;
       }

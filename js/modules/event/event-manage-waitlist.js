@@ -109,7 +109,7 @@ Object.assign(App, {
       rows += `<tr style="border-bottom:1px solid var(--border)">
         ${promoteTd}
         <td style="padding:.35rem .3rem;text-align:center;width:2rem"><span class="wl-pos">${idx + 1}</span></td>
-        <td style="padding:.35rem .3rem;text-align:left">${this._userTag(item.name)}</td>
+        <td style="padding:.35rem .3rem;text-align:left">${this._userTag(item.name, null, { uid: item.userId || '' })}</td>
       </tr>`;
       if (item.selfOrphanInfo) {
         rows += `<tr><td colspan="${colCount - 1}"></td><td style="padding:.1rem .3rem;padding-left:1.2rem;font-size:.72rem;color:var(--text-muted)" data-no-translate>↳ 報名人：${escapeHTML(item.selfOrphanInfo)}（<span style="color:var(--success)">已正取</span>）</td></tr>`;

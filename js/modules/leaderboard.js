@@ -14,7 +14,7 @@ Object.assign(App, {
           <div class="lb-rank ${rankClass}">${i + 1}</div>
           <div class="lb-avatar">${escapeHTML(p.avatar)}</div>
           <div class="lb-info">
-            <div class="lb-name">${this._userTag(p.name)}</div>
+            <div class="lb-name">${this._userTag(p.name, null, { uid: p.uid || '' })}</div>
             <div class="lb-sub">Lv.${App._calcLevelFromExp(p.exp || 0).level}</div>
           </div>
           <div class="lb-exp">${p.exp.toLocaleString()}</div>
