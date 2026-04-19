@@ -459,6 +459,7 @@ Object.assign(App, {
       }
 
       const transitionSeq = ++this._pageTransitionSeq;
+      console.log('[Nav] showPage:', pageId, 'seq=', transitionSeq, 'currentPage=', this.currentPage, 'canUseStale=', canUseStale, 'strategy=', strategy);
 
       // 策略分派
       if (canUseStale) {
@@ -515,6 +516,11 @@ Object.assign(App, {
       return { ok: false, reason: 'load_failed', step: 'page', error: err };
     }
 
+    // 2026-04-19 safeguard: 與 _showPageFreshFirst 同邏輯
+    if (this.currentPage && this.currentPage !== 'page-home' && this.currentPage !== pageId) {
+      console.log('[Nav] _showPagePrepareFirst user navigated to', this.currentPage, '— aborting show', pageId);
+      return { ok: false, reason: 'user_navigated' };
+    }
     this._cleanupBeforePageSwitch(pageId);
     this._pushPageHistory(pageId, options);
     const activated = this._activatePage(pageId, options);
@@ -537,6 +543,15 @@ Object.assign(App, {
     }
 
     if (transitionSeq !== this._pageTransitionSeq) return { ok: false, reason: 'stale_transition' };
+    // 2026-04-19 safeguard: 若 await 期間用戶已主動導航到非首頁、非目標頁，
+    // 代表 boot 時的 showPage 已被用戶後續操作取代，放棄本次切頁避免把用戶拉走。
+    // 典型情境：boot 時 hash=#page-activities 觸發 showPage('page-activities') 卡在
+    // await ensureCloudReady 期間，用戶點首頁的近期活動進 detail 頁。cloud ready
+    // 後本函式恢復若不擋，會把用戶從詳情頁拉回行事曆。
+    if (this.currentPage && this.currentPage !== 'page-home' && this.currentPage !== pageId) {
+      console.log('[Nav] _showPageFreshFirst user navigated to', this.currentPage, '— aborting show', pageId);
+      return { ok: false, reason: 'user_navigated' };
+    }
     this._cleanupBeforePageSwitch(pageId);
     this._pushPageHistory(pageId, options);
     const activated = this._activatePage(pageId, options);
