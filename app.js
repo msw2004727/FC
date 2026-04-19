@@ -954,6 +954,17 @@ const App = {
     this._pendingDeepLinkOpenPromise = null;
     const canOpenProtected = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
     const fallbackPage = (!canOpenProtected && targetPage !== 'page-home') ? 'page-home' : targetPage;
+    // 2026-04-19 fix: 若用戶在 deep-link poller timeout 前已主動導航到其他頁面（例如
+    // 點擊行事曆活動進入詳情頁），不再強制切到 fallbackPage，避免把用戶從正在瀏覽的
+    // 頁面拉走。用戶回報「剛開啟網站快速點活動進詳情頁，幾秒後被拉回行事曆」即此根因。
+    const isUserOnActivePage = this.currentPage
+      && this.currentPage !== 'page-home'
+      && this.currentPage !== fallbackPage;
+    if (isUserOnActivePage) {
+      console.log('[DeepLink] user navigated to', this.currentPage, '— skipping fallback to', fallbackPage);
+      if (message) this.showToast(message);
+      return;
+    }
     if (fallbackPage && this.currentPage !== fallbackPage) this.showPage(fallbackPage);
     if (message) this.showToast(message);
   },
@@ -1447,6 +1458,21 @@ const App = {
 
       const pending = this._getPendingDeepLink();
       if (!pending) return true;
+
+      // 2026-04-19 fix: 用戶在 deep-link poller 跑期間已主動進入其他活動詳情頁
+      // → 放棄 pending，停止 poller，避免把用戶從自己選的活動拉到 deep-link 指定活動
+      if (pending.type === 'event'
+        && this.currentPage === 'page-activity-detail'
+        && this._currentDetailEventId
+        && this._currentDetailEventId !== pending.id) {
+        console.log('[DeepLink] user opened different event (', this._currentDetailEventId,
+          ') — cancelling pending deep link to', pending.id);
+        this._clearPendingDeepLink();
+        this._stopDeepLinkGuard();
+        this._clearDeepLinkQueryParams();
+        this._hideDeepLinkOverlay();
+        return true;
+      }
 
       const key = `${pending.type}:${pending.id}`;
       if (this._pendingDeepLinkOpenPromise && this._pendingDeepLinkOpenKey === key) {
