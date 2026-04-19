@@ -434,7 +434,8 @@ service cloud.firestore {
       function isSignupFieldsOnly() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
         return changed.hasOnly([
-          'current', 'waitlist', 'participants', 'waitlistNames', 'status', 'updatedAt'
+          'current', 'waitlist', 'participants', 'waitlistNames', 'status', 'updatedAt',
+          'participantsWithUid', 'waitlistWithUid', 'schemaVersion'
         ]);
       }
 
