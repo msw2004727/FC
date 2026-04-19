@@ -98,6 +98,13 @@ Object.assign(App, {
     const target = document.getElementById(pageId);
     if (!target) return null;
 
+    // 2026-04-19 diag: 抓出誰呼叫 _activatePage → this.currentPage = X
+    const _prevPage = this.currentPage;
+    if (_prevPage && _prevPage !== pageId) {
+      const _stack = (new Error().stack || '').split('\n').slice(2, 6).map(function(s){return s.trim()}).join(' | ');
+      console.log('[Nav] _activatePage:', _prevPage, '→', pageId, '| caller stack:', _stack);
+    }
+
     // 如果目標頁面已經 active，跳過 class toggle 避免 display:none→block 瞬間丟失捲動位置
     if (!target.classList.contains('active')) {
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
