@@ -10,6 +10,37 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-20 — Firebase Callable Function 呼叫雙陷阱（一天內犯兩次） [永久]
+- **陷阱 1：前端呼叫 CF 漏指定 region 導致 CORS 失敗**
+  - 錯誤訊息：`Access to fetch at 'https://us-central1-.../recordUserLoginIp' ... blocked by CORS policy`
+  - 根因：`firebase.functions().httpsCallable(...)` 預設連 `us-central1`，但本專案所有 CF 部署在 `asia-east1`
+  - 修正：必須用 `firebase.app().functions('asia-east1').httpsCallable(...)`（與專案既有所有 CF 呼叫一致）
+- **陷阱 2：CF 內用 `admin.firestore()` 但專案實際是 modular `db = getFirestore()`**
+  - 錯誤訊息：`ReferenceError: admin is not defined at /workspace/index.js:XXXX`
+  - 根因：`functions/index.js` 頂部已有 `const { getFirestore } = require("firebase-admin/firestore")` + `const db = getFirestore()`（modular v10+ 寫法）；套用標準 `admin.firestore()` 會找不到 `admin` 變數
+  - 修正：CF 內 Firestore 操作一律用 `db.collection(...)`，禁用 `admin.firestore()`
+- **共通教訓**：
+  - 寫新 CF 前**必須**先看 `functions/index.js` 現有一個 onCall 函式的寫法當範本（命名空間、region、Firestore API）
+  - 寫前端呼叫 CF 前**必須**先搜 `httpsCallable` 看既有怎麼寫（`firebase.app().functions('asia-east1')`）
+  - 不要套用 Firebase 官方文件的「標準寫法」—— 本專案有自己的 convention
+- **預防規則**：新增/修改 CF 時必檢查：①`region: "asia-east1"`設定 ②CF 內用 `db`（不是 `admin.firestore()`）③前端呼叫用 `firebase.app().functions('asia-east1').httpsCallable(...)`
+
+### 2026-04-20 — Super_admin 隱身從「本地開關」升級為「目標用戶屬性」 [永久]
+- **問題**：`super_admin` 的「隱身模式」只有「自己看自己的 3 個路徑」有效；其他用戶看你、你自己的「我的名片」頁、分享 Flex 卡片都仍顯示「總管」紅色膠囊
+- **根因**：`_stealthRole(name, role)` 原邏輯讀「當前登入用戶自己的」`user.stealth`，別人的 stealth 永遠是 undefined → 別人看你時不套用
+- **修復（架構升級）**：
+  - `_stealthRole` 改為接受 `userOrUid` 參數，讀「**目標用戶**的 stealth」
+  - `_userTag` L78 改為傳 `options?.uid` 讓 `_stealthRole` 優先 O(1) 查找
+  - 短路優化：`role !== 'admin' && role !== 'super_admin'` 直接返回，避免 100 人名單中 99 次無謂查找
+  - 補 2 個洩漏洞：`profile-card.js renderUserCard`、`profile-share.js _buildProfileFlexMessage`
+- **連帶修復 Firestore Rules 持久化 bug**：`isSafeSelfProfileUpdate()` 白名單漏了 `stealth` 欄位 → 切換隱身時 Firestore 寫入被 Rules 靜默拒絕（`.catch(err => console.error)` 吞掉），只存 localStorage → 清快取/換裝置狀態丟失
+  - 解法：白名單補 `stealth` + `bool` 型別檢查
+- **drawer 身分膠囊刻意保留真實身分**：同時是開關（點擊切換），讓自己知道隱身狀態
+- **教訓**：
+  - 「隱身/偽裝」類功能的本質是「讓別人看你顯示為另一身分」，所以判斷依據必須是**目標用戶**屬性而非當前用戶屬性
+  - 任何用戶屬性寫入路徑都要同步檢查 Rules 白名單是否允許（否則會靜默失敗）
+  - `.catch(err => console.error)` 容易掩蓋 Rules 拒絕的 bug，必要時應改為 `console.warn` 並給出更明確訊息
+
 ### 2026-04-20 — 活動詳情頁「加載後跳回頂部」經典 async stale closure 陷阱（6 輪修復） [永久]
 - **問題**：用戶進活動詳情頁幾秒後、滑到中間瀏覽名單時，畫面會被突然打回頂部；連續修 5 輪都沒根治，第 6 輪靠診斷 log 精準抓到真兇
 - **真兇（Round 6 發現）**：`_doRenderAttendanceTable` 是 async 函式，流程：
