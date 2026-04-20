@@ -339,3 +339,56 @@ a.social-btn { text-decoration: none; }
   .uc-blur-overlay { background: rgba(0, 0, 0, 0.72); }
   .uc-blur-overlay:hover { background: rgba(0, 0, 0, 0.8); }
 }
+
+/* ── 用戶資料卡片 右側三功能按鈕（反灰預留）+ 裝飾線條 ── */
+.uc-header { position: relative; }
+.uc-action-panel {
+  position: absolute;
+  right: .5rem;
+  top: .3rem;
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+  width: 80px;
+  z-index: 1;
+}
+.uc-action-lines {
+  position: absolute;
+  left: -58px;
+  top: 8px;
+  width: 58px;
+  height: calc(100% - 16px);
+  pointer-events: none;
+  stroke: rgba(128, 128, 128, .35);
+  stroke-width: 1.2;
+  fill: none;
+}
+.uc-action-btn {
+  padding: .32rem .55rem;
+  font-size: .7rem;
+  font-weight: 500;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  cursor: default;
+  opacity: .65;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+}
+.uc-action-btn:disabled { cursor: default; }
+
+/* 窄版 < 480px：改為頭像下方橫排，隱藏裝飾線 */
+@media (max-width: 480px) {
+  .uc-action-panel {
+    position: static;
+    flex-direction: row;
+    justify-content: center;
+    width: auto;
+    margin: .5rem 0 .25rem;
+    gap: .4rem;
+  }
+  .uc-action-lines { display: none; }
+  .uc-action-btn { flex: 0 1 30%; font-size: .68rem; padding: .3rem .4rem; }
+}

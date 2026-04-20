@@ -201,6 +201,7 @@ Object.assign(App, {
     document.getElementById('user-card-full').innerHTML = `
       <div class="uc-header">
         <div class="uc-avatar-circle" style="margin:0 auto .6rem">${avatarHtml}</div>
+        ${!isSelf ? this._buildUserCardActionPanel() : ''}
         <div class="profile-title" data-no-translate>${titleHtml}</div>
         <div style="margin-top:.3rem"><span class="uc-role-tag" style="background:${roleInfo.color}22;color:${roleInfo.color}">${roleInfo.label}</span></div>
         <div class="profile-level">
@@ -365,6 +366,20 @@ Object.assign(App, {
     } else {
       await doCopy();
     }
+  },
+
+  // 用戶資料卡片右側三功能按鈕（純裝飾，功能未啟用）
+  _buildUserCardActionPanel() {
+    return `<div class="uc-action-panel" aria-hidden="true">
+      <svg class="uc-action-lines" viewBox="0 0 100 120" preserveAspectRatio="none">
+        <path d="M 0 60 Q 50 20 100 20" />
+        <path d="M 0 60 L 100 60" />
+        <path d="M 0 60 Q 50 100 100 100" />
+      </svg>
+      <button type="button" class="uc-action-btn" disabled>加好友</button>
+      <button type="button" class="uc-action-btn" disabled>私訊</button>
+      <button type="button" class="uc-action-btn" disabled>關注</button>
+    </div>`;
   },
 
 });
