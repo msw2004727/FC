@@ -298,6 +298,12 @@ Object.assign(App, {
       }
 
       this._currentDetailEventId = id;
+    // ── 瀏覽數：顯示當前值 + 觸發 +1（登入用戶同日去重，僅正式詳情頁，不含 guest）──
+    if (!isGuestView) {
+      const _vcSpan = document.getElementById('detail-view-count-num');
+      if (_vcSpan) _vcSpan.textContent = (e.viewCount || 0).toLocaleString();
+      this._incrementEventViewCount?.(id);
+    }
     this._renderEventPublicToggle(isGuestView ? null : e);
     this._renderEventRefreshButton(isGuestView ? null : e);
     this._renderEventLogButton(isGuestView ? null : e);
@@ -861,6 +867,33 @@ Object.assign(App, {
       this.showToast?.('刷新失敗，請稍後再試');
     } finally {
       if (btn) { btn.disabled = false; btn.classList.remove('spinning'); }
+    }
+  },
+
+  // ── 瀏覽數 +1（登入用戶同日去重，localStorage 擋住重複）──
+  async _incrementEventViewCount(eventId) {
+    try {
+      if (!eventId) return;
+      if (typeof firebase === 'undefined' || !firebase.firestore || !firebase.auth) return;
+      if (!firebase.auth().currentUser) return;
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+      const lsKey = `view_${eventId}_${today}`;
+      if (localStorage.getItem(lsKey)) return;
+      localStorage.setItem(lsKey, '1');
+
+      const ev = (typeof ApiService !== 'undefined' && ApiService.getEvent) ? ApiService.getEvent(eventId) : null;
+      const docId = ev?._docId;
+      if (!docId) return;
+
+      await firebase.firestore().collection('events').doc(docId).update({
+        viewCount: firebase.firestore.FieldValue.increment(1)
+      });
+      if (ev) ev.viewCount = (ev.viewCount || 0) + 1;
+      const span = document.getElementById('detail-view-count-num');
+      if (span && ev) span.textContent = (ev.viewCount || 0).toLocaleString();
+    } catch (err) {
+      console.warn('[viewCount] increment failed:', err);
     }
   },
 

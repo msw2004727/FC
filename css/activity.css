@@ -559,6 +559,16 @@
 .event-detail-refresh-btn:active { transform: rotate(180deg); }
 .event-detail-refresh-btn.spinning svg { animation: detail-refresh-spin .6s linear infinite; }
 @keyframes detail-refresh-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.event-view-count {
+  display: inline-flex; align-items: center; gap: .25rem;
+  padding: .15rem .45rem;
+  background: rgba(128,128,128,.15);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  font-size: .7rem; font-weight: 500; line-height: 1.2;
+  user-select: none;
+}
+.event-view-count svg { flex-shrink: 0; opacity: .7; }
 .event-reg-log-btn {
   padding: .3rem .6rem; border-radius: var(--radius-sm);
   border: 1px solid var(--border); background: var(--bg-elevated);
