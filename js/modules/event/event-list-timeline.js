@@ -62,31 +62,47 @@ Object.assign(App, {
   },
 
   _clearTlCardPending(cardEl, minVisibleMs) {
+    // 修復：不依賴 state.eventId（可能被後點擊的卡片覆蓋）
+    // 優先用傳入的 cardEl 直接清自己，state 只用來 clearInterval
     var state = this._tlCardLoadingState;
-    if (!state) return;
-    clearInterval(state.interval);
-    state.interval = null;
-    var elapsed = Date.now() - state.startedAt;
+    var stateEventId = state ? state.eventId : null;
+    var clickedEventId = null;
+    if (cardEl) {
+      var onclick = cardEl.getAttribute ? (cardEl.getAttribute('onclick') || '') : '';
+      var m = onclick.match(/openTimelineEventDetail\(['"]([^'"]+)['"]/);
+      if (m) clickedEventId = m[1];
+    }
+    // 若本次 clear 的 card 正好是 state 對應的 card（最新點擊），clearInterval
+    if (state && (!clickedEventId || clickedEventId === stateEventId)) {
+      clearInterval(state.interval);
+      state.interval = null;
+    }
+    var elapsed = state ? (Date.now() - state.startedAt) : 0;
     var waitMs = Math.max(0, (minVisibleMs || 0) - elapsed);
-    var eventId = state.eventId;
     var self = this;
     setTimeout(function() {
-      var card = self._tlFindCardByEventId(eventId) || cardEl;
-      if (!card) { self._tlCardLoadingState = null; return; }
+      // 優先清 cardEl 自己；若 cardEl 不在 DOM，fallback 用 eventId 找
+      var card = (cardEl && cardEl.isConnected) ? cardEl
+               : (clickedEventId ? self._tlFindCardByEventId(clickedEventId) : null)
+               || (stateEventId ? self._tlFindCardByEventId(stateEventId) : null);
+      if (!card) {
+        // 新 DOM 中找不到：僅重置 state（若本次是最新點擊）
+        if (state && clickedEventId === stateEventId) self._tlCardLoadingState = null;
+        return;
+      }
       var fill = card.querySelector('.tl-loading-fill');
       if (fill) fill.style.width = '100%';
       setTimeout(function() {
-        var card2 = self._tlFindCardByEventId(eventId) || card;
-        if (card2) card2.classList.add('tl-loaded');
+        if (card.isConnected) card.classList.add('tl-loaded');
         setTimeout(function() {
-          var card3 = self._tlFindCardByEventId(eventId) || card2;
-          if (card3) {
-            card3.classList.remove('tl-pending', 'tl-loaded');
-            card3.removeAttribute('aria-busy');
-            var bar = card3.querySelector('.tl-loading-bar');
+          if (card.isConnected) {
+            card.classList.remove('tl-pending', 'tl-loaded');
+            card.removeAttribute('aria-busy');
+            var bar = card.querySelector('.tl-loading-bar');
             if (bar) bar.remove();
           }
-          self._tlCardLoadingState = null;
+          // 只在本次清理的是最新 state 時才重置
+          if (state && self._tlCardLoadingState === state) self._tlCardLoadingState = null;
         }, 400);
       }, 350);
     }, waitMs);
