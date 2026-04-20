@@ -6161,20 +6161,24 @@ exports.recordUserLoginIp = onCall(
       return { ok: true, skipped: "same_ip" };
     }
 
-    // GeoIP 查詢（AbortController 3s timeout，失敗靜默）
+    // GeoIP 查詢（ipwho.is 免費無 key、支援 IPv6、不擋 Node UA）
+    // AbortController 3s timeout，失敗靜默
     let region = null;
     let isp = null;
     try {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 3000);
-      const res = await fetch(`https://ipapi.co/${ip}/json/`, { signal: ctrl.signal });
+      const res = await fetch(`https://ipwho.is/${encodeURIComponent(ip)}`, { signal: ctrl.signal });
       clearTimeout(timer);
       if (res.ok) {
         const d = await res.json();
-        const city = typeof d.city === "string" ? d.city.slice(0, 50) : "";
-        const country = typeof d.country_name === "string" ? d.country_name.slice(0, 50) : "";
-        region = [city, country].filter(Boolean).join(", ") || null;
-        isp = typeof d.org === "string" ? d.org.slice(0, 100) : null;
+        if (d && d.success !== false) {
+          const city = typeof d.city === "string" ? d.city.slice(0, 50) : "";
+          const country = typeof d.country === "string" ? d.country.slice(0, 50) : "";
+          region = [city, country].filter(Boolean).join(", ") || null;
+          const ispRaw = d.connection?.isp || d.connection?.org || "";
+          isp = typeof ispRaw === "string" && ispRaw ? ispRaw.slice(0, 100) : null;
+        }
       }
     } catch (err) {
       console.warn("[recordUserLoginIp] GeoIP lookup failed:", err?.message);
