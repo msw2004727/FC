@@ -2202,24 +2202,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       // 熱啟動：swr-bar 維持低調（2px 淡色），不打擾已看到內容的用戶
       var _swrBar = document.getElementById('swr-bar');
       if (_swrBar) _swrBar.classList.add('active');
+      // 2026-04-20：熱啟動隱藏「冷啟動載入指示器」（用戶看快取資料，不需提示）
+      try {
+        var _loadingEl = document.getElementById('hot-events-loading');
+        if (_loadingEl) _loadingEl.style.display = 'none';
+      } catch (_) {}
     } else {
       // 快取未命中：顯示骨架佔位取代阻塞式 overlay
       _dismissBootOverlay('Phase 3 骨架模式');
       // 冷啟動：swr-bar 強化顯示（3px + 微光），讓用戶明確感知背景仍在載入
       var _swrBar2 = document.getElementById('swr-bar');
       if (_swrBar2) _swrBar2.classList.add('active', 'cold-boot');
-      // 在首頁活動列表區域注入骨架佔位 + 提示文字
-      try {
-        var _hotEl = document.getElementById('hot-events');
-        if (_hotEl && !_hotEl.children.length) {
-          _hotEl.innerHTML =
-            '<div class="skel-hint">\uD83D\uDCE1 \u9996\u6B21\u8F09\u5165\u8F03\u6162\uFF0C\u8ACB\u7A0D\u5019...</div>' +
-            '<div class="skel-card"></div>' +
-            '<div class="skel-card"></div>' +
-            '<div class="skel-card"></div>';
-        }
-      } catch (_) {}
-      console.log('[Boot] 快取未命中，顯示骨架佔位 + 冷啟動強化進度條');
+      // 2026-04-20：冷啟動載入指示器 (#hot-events-loading) 由 home.html 預設提供
+      //             水平捲動骨架 (.skeleton.skeleton-card) 也由 home.html 預設提供
+      //             此處不需注入 DOM
+      console.log('[Boot] 快取未命中，冷啟動載入指示器 + swr-bar 強化');
     }
     console.log('[Boot] Phase 3 完成');
   } catch (e) {

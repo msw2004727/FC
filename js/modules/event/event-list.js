@@ -76,6 +76,10 @@ Object.assign(App, {
     this.renderHomeGameShortcut();
     const container = document.getElementById('hot-events');
     if (!container) return;
+    // 2026-04-20：冷啟動載入指示器（skel-hint + progress-bar），cloud ready 後隱藏
+    const _loadingIndicator = document.getElementById('hot-events-loading');
+    const _hideLoading = () => { if (_loadingIndicator) _loadingIndicator.style.display = 'none'; };
+    const _showLoading = () => { if (_loadingIndicator) _loadingIndicator.style.display = ''; };
     // 顯示最近 10 場未結束活動（依日期排序）
     const visible = this._filterBySportTag(this._filterByRegionTab(this._getVisibleEvents()))
       .filter(e => e.status !== 'ended' && e.status !== 'cancelled')
@@ -96,26 +100,25 @@ Object.assign(App, {
     if (visible.length === 0) {
       this._hotEventsLastFp = '';
       if (!this._cloudReady) {
+        // 冷啟動：保留 home.html 預設的骨架 + loading indicator（不動）
         this._setHomeSectionVisibility(container, true);
-        // 2026-04-20：冷啟動直接顯示 skel-hint（提示「📡 首次載入較慢…」）+ 骨架佔位
-        // 不再用單調的「載入中…」文字。若已有 skel-hint 就不重複覆寫（避免動畫重啟）
-        if (!container.querySelector('.skel-hint')) {
-          container.innerHTML =
-            '<div class="skel-hint">\uD83D\uDCE1 \u9996\u6B21\u8F09\u5165\u8F03\u6162\uFF0C\u8ACB\u7A0D\u5019...</div>' +
-            '<div class="skel-card"></div>' +
-            '<div class="skel-card"></div>' +
-            '<div class="skel-card"></div>';
-        }
+        _showLoading();
       } else if (App._activeSport && App._activeSport !== 'all') {
+        // Cloud ready 但無資料：隱藏 loading indicator
+        _hideLoading();
         const sportLabel = (typeof EVENT_SPORT_OPTIONS !== 'undefined' ? EVENT_SPORT_OPTIONS : []).find(o => o.key === App._activeSport)?.label || App._activeSport;
         this._setHomeSectionVisibility(container, true);
         container.innerHTML = `<div style="text-align:center;padding:1.5rem 0;color:var(--text-secondary);font-size:.82rem">目前沒有${escapeHTML(sportLabel)}相關活動</div>`;
       } else {
+        // Cloud ready 無資料無 filter：隱藏 loading indicator + 隱藏整個 section
+        _hideLoading();
         this._setHomeSectionVisibility(container, false);
         container.textContent = '';
       }
       return;
     }
+    // 有資料：隱藏 loading indicator，顯示活動卡
+    _hideLoading();
     this._setHomeSectionVisibility(container, true);
 
     const cards = visible.map(e => {

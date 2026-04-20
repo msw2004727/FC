@@ -1156,12 +1156,46 @@ body.modal-open { overflow: hidden; }
   font-size: .8rem;
   color: var(--text-muted);
   text-align: center;
-  padding: .5rem 0 .8rem;
-  animation: skel-hint-fade 1.5s ease-in-out infinite;
+  padding: .3rem 0;
+  animation: skel-hint-fade 1.8s ease-in-out infinite;
 }
 @keyframes skel-hint-fade {
-  0%, 100% { opacity: .5; }
+  0%, 100% { opacity: .55; }
   50% { opacity: 1; }
+}
+
+/* 冷啟動載入指示器（skel-hint + 進度條）容器 */
+.skel-loading {
+  padding: .3rem .5rem .1rem;
+  text-align: center;
+  margin-bottom: .25rem;
+}
+
+/* CSS 進度條（向右跑動畫） */
+.skel-progress-bar {
+  width: 100%;
+  max-width: 240px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: .35rem auto 0;
+  position: relative;
+}
+.skel-progress-bar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 30%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+  border-radius: 3px;
+  animation: skel-progress-slide 1.6s ease-in-out infinite;
+}
+@keyframes skel-progress-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(370%); }
 }
 
 /* ─── Multi-Tab Guard Overlay（偵測多分頁時顯示警告） ─── */
