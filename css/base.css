@@ -1136,6 +1136,12 @@ body.modal-open { overflow: hidden; }
   opacity: 0; transition: opacity .3s; pointer-events: none;
 }
 .swr-bar.active { opacity: 1; }
+/* 2026-04-20：冷啟動（無快取）強化顯示，讓用戶感知背景仍在載入；熱啟動維持低調不打擾 */
+.swr-bar.cold-boot {
+  height: 3px;
+  box-shadow: 0 1px 4px rgba(13, 148, 136, 0.35);
+  animation-duration: 1.2s;
+}
 @keyframes swr-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
 
 .skel-card {
@@ -1144,6 +1150,19 @@ body.modal-open { overflow: hidden; }
   background-size: 200% 100%; animation: skel-shimmer 1.5s ease-in-out infinite;
 }
 @keyframes skel-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* 冷啟動時首頁骨架上方提示文字 */
+.skel-hint {
+  font-size: .8rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: .5rem 0 .8rem;
+  animation: skel-hint-fade 1.5s ease-in-out infinite;
+}
+@keyframes skel-hint-fade {
+  0%, 100% { opacity: .5; }
+  50% { opacity: 1; }
+}
 
 /* ─── Multi-Tab Guard Overlay（偵測多分頁時顯示警告） ─── */
 .multi-tab-overlay {
