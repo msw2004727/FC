@@ -113,9 +113,6 @@ Object.assign(App, {
     if (!container) return;
     // 2026-04-20：鎖容器高度，防 innerHTML 替換期間頁面縮短導致 scrollTop 被瀏覽器 clamp
     App._lockContainerHeight?.(container);
-    // 保存捲動位置（避免 innerHTML 替換後跳頂）
-    const _scrollEl = document.scrollingElement || document.documentElement;
-    const _savedScrollY = _scrollEl.scrollTop;
     // 記住 containerId，供編輯流程重新渲染用
     this._manualEditingContainerId = cId;
     const e = ApiService.getEvent(eventId);
@@ -149,7 +146,9 @@ Object.assign(App, {
       } else {
         container.innerHTML = '<div style="font-size:.8rem;color:var(--text-muted);padding:.3rem 0">尚無報名</div>';
       }
-      _scrollEl.scrollTop = _savedScrollY;
+      // 2026-04-20：移除「_scrollEl.scrollTop = _savedScrollY」還原邏輯
+      // 原因：入口記錄的 _savedScrollY 在 await 期間若用戶主動滑動，會被此行覆蓋拉回舊位
+      // 現有 _lockContainerHeight 已保護 innerHTML 替換期間的 clamp，無需再強制還原
       return;
     }
 
@@ -294,7 +293,8 @@ Object.assign(App, {
         <tbody>${rows}</tbody>
       </table>
     </div>`;
-    _scrollEl.scrollTop = _savedScrollY;
+    // 2026-04-20：移除「_scrollEl.scrollTop = _savedScrollY」還原
+    // （await 期間用戶滑走會被拉回的 bug）。_lockContainerHeight 已負責防 clamp
     this._bindAttendanceCheckboxLink(container, 'manual-checkin-', 'manual-checkout-');
     if (tableEditing && typeof this._bindInstantSaveHandler === 'function') {
       this._bindInstantSaveHandler(container, eventId, 'reg');
