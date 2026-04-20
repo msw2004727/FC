@@ -31,6 +31,17 @@ Object.assign(App, {
   },
 
   _runPageScrollReset(targetPage) {
+    // 2026-04-20 診斷：記錄 scroll reset 的來源 stack trace，追查「詳情頁資料更新後跳頂」的真兇
+    // 加 log 用意是下次用戶再遇到跳頂時，從 log 直接抓到呼叫者
+    try {
+      var _prevScroll = window.scrollY || window.pageYOffset || 0;
+      if (_prevScroll > 50) {
+        var _stack = (new Error().stack || '').split('\n').slice(2, 7).map(function(s){return s.trim()}).join(' | ');
+        console.log('[Nav] _runPageScrollReset', (targetPage && targetPage.id) || '(no-target)',
+          '| prevScroll:', _prevScroll, '| currentPage:', this.currentPage, '| caller:', _stack);
+      }
+    } catch (_) {}
+
     const html = document.documentElement;
     const body = document.body;
     const mainContent = document.getElementById('main-content');
