@@ -147,6 +147,16 @@ Object.assign(App, {
     // 2026-04-20：同頁重新 activate（例如 Background reload 完成觸發的 showPage(currentPage)）
     //             不該 reset scroll — 否則會把用戶滑到中間的位置強制拉回頂，造成畫面跳動
     if (options.resetScroll !== false && _prevPage !== pageId) this._resetPageScroll(pageId);
+
+    // 2026-04-20：Page Lock — 進 detail 類頁設 10 秒鎖，離開則解鎖
+    // 擋下「進頁後被自動機制拉走」的老 bug（深層次 showPage / pending route / poller）
+    const _DETAIL_LOCK_PAGES = ['page-activity-detail', 'page-team-detail',
+      'page-tournament-detail', 'page-user-card'];
+    if (_DETAIL_LOCK_PAGES.indexOf(pageId) !== -1) {
+      this._pageLockUntil = Date.now() + 10000;
+    } else if (_prevPage !== pageId) {
+      this._pageLockUntil = 0;
+    }
     if (pageId !== 'page-scan' && this._stopCamera) this._stopCamera();
     return target;
   },
@@ -326,6 +336,13 @@ Object.assign(App, {
         tab.classList.add('active');
       });
     });
+
+    // 2026-04-20：全域記錄用戶主動操作時間戳，供 Page Lock 判斷是否用戶主動導航
+    // touchstart + click 雙監聽（某些 WebView 不觸發 click 但有 touchstart）
+    const _this = this;
+    const _markTouched = function () { _this._userTouchedAt = Date.now(); };
+    document.addEventListener('touchstart', _markTouched, { passive: true, capture: true });
+    document.addEventListener('click', _markTouched, { passive: true, capture: true });
   },
 
   async _ensurePageEntryReady(pageId) {
@@ -412,6 +429,23 @@ Object.assign(App, {
   async showPage(pageId, options = {}) {
     const normalizedRoute = this._normalizeAdminLogRoute(pageId, options);
     pageId = normalizedRoute.pageId;
+
+    // 2026-04-20：Page Lock — 防止用戶進 detail 類頁後被自動機制拉走
+    // 規則：用戶近期 800ms 內有 touch/click → 視為主動導航，放行
+    //       否則在鎖期間（10s），非同頁的 showPage 一律擋下
+    //       顯式繞過可傳 options.bypassPageLock = true
+    if (this._pageLockUntil && Date.now() < this._pageLockUntil
+      && pageId !== this.currentPage
+      && !options.bypassPageLock) {
+      const recentlyTouched = this._userTouchedAt
+        && (Date.now() - this._userTouchedAt < 800);
+      if (!recentlyTouched) {
+        console.log('[Nav] showPage blocked by page lock:', pageId,
+          '| currentPage:', this.currentPage,
+          '| lockExpires in:', Math.ceil((this._pageLockUntil - Date.now()) / 1000), 's');
+        return { ok: false, reason: 'page_locked' };
+      }
+    }
 
     if (!options.bypassRestrictionGuard && this._isCurrentUserRestricted() && pageId !== 'page-home') {
       this._showRestrictedToast();

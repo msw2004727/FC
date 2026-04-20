@@ -111,6 +111,8 @@ Object.assign(App, {
     const cId = containerId || 'attendance-table-container';
     const container = document.getElementById(cId);
     if (!container) return;
+    // 2026-04-20：鎖容器高度，防 innerHTML 替換期間頁面縮短導致 scrollTop 被瀏覽器 clamp
+    App._lockContainerHeight?.(container);
     // 保存捲動位置（避免 innerHTML 替換後跳頂）
     const _scrollEl = document.scrollingElement || document.documentElement;
     const _savedScrollY = _scrollEl.scrollTop;
@@ -343,6 +345,8 @@ Object.assign(App, {
     const cId = containerId || 'detail-unreg-table';
     const container = document.getElementById(cId);
     if (!container) return;
+    // 2026-04-20：鎖容器高度，防 innerHTML='' 後頁面縮短導致 scrollTop 被 clamp
+    App._lockContainerHeight?.(container);
     const _scrollEl = document.scrollingElement || document.documentElement;
     const _savedScrollY = _scrollEl.scrollTop;
     const e = ApiService.getEvent(eventId);

@@ -629,6 +629,8 @@ Object.assign(App, {
   _renderGroupedWaitlistSection(eventId, containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
+    // 2026-04-20：鎖容器高度，防 innerHTML 替換期間頁面縮短導致 scrollTop 被 clamp
+    App._lockContainerHeight?.(container);
     var _wlScrollEl = document.scrollingElement || document.documentElement;
     var _wlSavedScroll = _wlScrollEl.scrollTop;
     const e = ApiService.getEvent(eventId);

@@ -638,6 +638,39 @@ const App = {
     }, { passive: true });
   },
 
+  /**
+   * 2026-04-20：容器高度鎖（fire-and-forget 模式）。防止 innerHTML 替換期間
+   * 頁面總高度瞬間縮短，導致瀏覽器自動 clamp scrollTop 造成「跳回頂部」。
+   *
+   * 用法：在要做 innerHTML 替換的函式入口呼叫：
+   *   App._lockContainerHeight(container);  // 自動鎖 1 frame 後解鎖
+   *
+   * 三端相容（Chrome / Safari / LINE WebView）：
+   *   - getBoundingClientRect / style.minHeight / requestAnimationFrame 皆成熟 API
+   *   - setTimeout(300) 兜底防 rAF 被背景分頁凍結
+   *   - 返回 release 函式供呼叫者手動提前解鎖（可選）
+   *
+   * @param {Element} container 要鎖高度的容器
+   * @returns {Function} release 函式（可選呼叫提前解鎖；通常自動解鎖就夠）
+   */
+  _lockContainerHeight(container) {
+    var noop = function () {};
+    if (!container || typeof container.getBoundingClientRect !== 'function') return noop;
+    var rect = container.getBoundingClientRect();
+    if (!rect || rect.height <= 0) return noop;
+    container.style.minHeight = Math.ceil(rect.height) + 'px';
+    var released = false;
+    var release = function () {
+      if (released) return;
+      released = true;
+      container.style.minHeight = '';
+    };
+    requestAnimationFrame(release);
+    // 兜底：rAF 若被背景分頁凍結，300ms 後強制解鎖
+    setTimeout(release, 300);
+    return release;
+  },
+
   showToast(msg, duration) {
     const toast = document.getElementById('toast');
     toast.textContent = msg;
