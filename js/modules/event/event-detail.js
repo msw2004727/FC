@@ -617,6 +617,10 @@ Object.assign(App, {
       const attTable = document.getElementById('detail-attendance-table');
       this._markBadgeRowOverflow?.(attTable);
       this._markPageSnapshotReady?.('page-activity-detail');
+      // 2026-04-20：綁定右滑返回手勢（dataset 去重，只會綁一次）
+      if (typeof this._bindEdgeSwipeBack === 'function') {
+        this._bindEdgeSwipeBack('page-activity-detail', function () { App.goBack(); });
+      }
       return { ok: true, reason: 'ok' };
     } catch (err) {
       console.error('[EventDetail] showEventDetail failed:', err);

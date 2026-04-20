@@ -638,6 +638,133 @@ const App = {
     }, { passive: true });
   },
 
+  /**
+   * 2026-04-20：詳情頁右滑返回手勢（淡出 + 右移，絲滑切換）
+   * @param {string} pageId 綁定的頁面 DOM id（例如 'page-activity-detail'）
+   * @param {Function} onBack 觸發返回時呼叫（通常傳 App.goBack）
+   *
+   * 觸發條件：
+   *   - target 非互動元素（button/a/input/tab/table 等）
+   *   - 縱向滑動 → lock（不影響頁面滾動）
+   *   - 往左滑 → lock（只處理右滑）
+   *   - dx ≥ 70px 或（dx ≥ 40px 且速度 > 0.3 px/ms）→ 觸發返回
+   */
+  _bindEdgeSwipeBack(pageId, onBack) {
+    var page = document.getElementById(pageId);
+    if (!page || page.dataset.swipeBackBound) return;
+    page.dataset.swipeBackBound = '1';
+
+    var startX = 0, startY = 0, startTime = 0;
+    var swiping = false, locked = false, animating = false;
+    var pageW = 0;
+
+    function _reset() {
+      page.style.transition = '';
+      page.style.transform = '';
+      page.style.opacity = '';
+      page.style.willChange = '';
+    }
+
+    function _isInteractive(target) {
+      if (!target || !target.closest) return false;
+      return !!target.closest(
+        'button, a, input, textarea, select, label,' +
+        '[role="button"], [onclick], [contenteditable],' +
+        '.ce-delegate-item, .tab-bar, .bot-tab, .tab,' +
+        'table, img[src]'
+      );
+    }
+
+    page.addEventListener('touchstart', function (e) {
+      if (animating) return;
+      // 翻牌動畫中不干擾
+      if (App._flipAnimating) return;
+      if (_isInteractive(e.target)) return;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      startTime = Date.now();
+      swiping = false;
+      locked = false;
+      pageW = page.offsetWidth;
+      page.style.transition = 'none';
+      page.style.willChange = 'transform, opacity';
+    }, { passive: true });
+
+    page.addEventListener('touchmove', function (e) {
+      if (locked || animating) return;
+      if (!startX && !startY) return;
+      var dx = e.touches[0].clientX - startX;
+      var dy = e.touches[0].clientY - startY;
+
+      if (!swiping) {
+        if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) { locked = true; return; }
+        if (dx < 0) { locked = true; return; }
+        if (Math.abs(dx) > 10) { swiping = true; } else { return; }
+      }
+
+      if (dx < 0) dx = 0;
+      if (e.cancelable) e.preventDefault();
+
+      var ratio = dx / (pageW || 1);
+      page.style.transform = 'translateX(' + (ratio * 100) + '%)';
+      page.style.opacity = String(Math.max(1 - Math.abs(ratio) * 0.4, 0.5));
+    }, { passive: false });
+
+    page.addEventListener('touchend', function (e) {
+      page.style.willChange = '';
+
+      if (!swiping || locked || animating) {
+        _reset();
+        startX = 0; startY = 0;
+        return;
+      }
+
+      var dx = e.changedTouches[0].clientX - startX;
+      var elapsed = Date.now() - startTime;
+      var velocity = Math.abs(dx) / (elapsed || 1);
+
+      // 閾值：70px 距離 或 速度 > 0.3 px/ms 且至少 40px
+      var shouldBack = dx >= 70 || (dx >= 40 && velocity > 0.3);
+
+      if (!shouldBack) {
+        // 彈回原位
+        page.style.transition = 'transform .25s cubic-bezier(.2,.9,.3,1), opacity .25s ease';
+        page.style.transform = 'translateX(0)';
+        page.style.opacity = '1';
+        var fallback1 = setTimeout(function () { _reset(); }, 350);
+        page.addEventListener('transitionend', function _once1() {
+          page.removeEventListener('transitionend', _once1);
+          clearTimeout(fallback1);
+          _reset();
+        });
+        startX = 0; startY = 0;
+        return;
+      }
+
+      // 觸發返回動畫
+      animating = true;
+      page.style.transition = 'transform .27s cubic-bezier(.4,0,1,1), opacity .22s ease';
+      page.style.transform = 'translateX(100%)';
+      page.style.opacity = '0';
+
+      var fired = false;
+      function _fire() {
+        if (fired) return;
+        fired = true;
+        _reset();
+        animating = false;
+        try { onBack.call(App); } catch (_err) {}
+      }
+      var fallback2 = setTimeout(_fire, 400);
+      page.addEventListener('transitionend', function _once2() {
+        page.removeEventListener('transitionend', _once2);
+        clearTimeout(fallback2);
+        _fire();
+      });
+      startX = 0; startY = 0;
+    }, { passive: true });
+  },
+
   showToast(msg, duration) {
     const toast = document.getElementById('toast');
     toast.textContent = msg;
