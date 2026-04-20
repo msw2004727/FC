@@ -2008,8 +2008,8 @@ const FirebaseService = {
 
       // fire-and-forget：記錄登入 IP + 地區（供用戶管理後台稽核）
       try {
-        if (typeof firebase !== 'undefined' && typeof firebase.functions === 'function') {
-          firebase.functions().httpsCallable('recordUserLoginIp')().catch((err) => {
+        if (typeof firebase !== 'undefined' && firebase.app) {
+          firebase.app().functions('asia-east1').httpsCallable('recordUserLoginIp')().catch((err) => {
             console.warn('[FirebaseService] recordUserLoginIp failed:', err?.message);
           });
         }
