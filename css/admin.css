@@ -789,3 +789,85 @@
   text-align: center; color: var(--text-muted);
   padding: .8rem; font-size: .82rem;
 }
+
+/* ═══════════════════════════════════════════════════
+   Dashboard 說明按鈕 + 說明彈窗
+   ═══════════════════════════════════════════════════ */
+
+/* 說明按鈕（圓形 ? 圖示；參考 edu-info-btn） */
+.dash-info-btn {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: .75rem; font-weight: 700;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  padding: 0; line-height: 1;
+  transition: background .15s, color .15s;
+}
+.dash-info-btn:hover { background: var(--accent); color: #fff; }
+
+/* drill 彈窗 header 右側動作區（info + close） */
+.dash-drill-header-actions {
+  display: inline-flex; align-items: center; gap: .4rem;
+  flex-shrink: 0;
+}
+
+/* 說明彈窗 overlay（層級最高 2200，蓋過 drill secondary） */
+.dash-info-overlay {
+  position: fixed; inset: 0; z-index: 2200;
+  background: rgba(0,0,0,.35);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+}
+.dash-info-dialog {
+  background: var(--bg-card);
+  border-radius: 16px;
+  padding: 1.2rem 1.4rem;
+  max-width: 420px; width: 100%;
+  max-height: calc(100vh - 2rem);
+  display: flex; flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0,0,0,.15);
+}
+.dash-info-dialog-title {
+  font-size: 1rem; font-weight: 700;
+  margin-bottom: .6rem; text-align: center;
+  flex-shrink: 0;
+  color: var(--text-primary);
+}
+.dash-info-dialog-body {
+  font-size: .84rem; line-height: 1.65;
+  color: var(--text-secondary);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1; min-height: 0;
+}
+.dash-info-section {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm, 6px);
+  padding: .6rem .75rem;
+  margin-bottom: .5rem;
+}
+.dash-info-section:last-child { margin-bottom: 0; }
+.dash-info-section b {
+  display: block; font-size: .85rem;
+  color: var(--text-primary); font-weight: 600;
+  margin-bottom: .25rem;
+}
+.dash-info-section p {
+  margin: 0; font-size: .78rem; line-height: 1.6;
+}
+.dash-info-close-btn {
+  margin-top: .9rem;
+  width: 100%; padding: .55rem;
+  background: var(--accent); color: #fff;
+  border: none; border-radius: var(--radius-sm, 6px);
+  font-weight: 600; font-size: .88rem;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.dash-info-close-btn:hover { opacity: .9; }

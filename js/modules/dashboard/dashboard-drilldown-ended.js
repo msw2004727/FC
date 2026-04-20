@@ -162,6 +162,7 @@ Object.assign(App, {
 
     this._renderDashDrillShell({
       title: '已結束活動詳情',
+      infoKey: 'endedEvents',
       tabs: [
         { key: 'overview', label: '概覽', render: renderOverview },
         { key: 'detail',   label: '詳情', render: renderDetail },

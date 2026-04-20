@@ -282,6 +282,7 @@ const ScriptLoader = {
       'js/modules/dashboard/dashboard-data-fetcher.js',
       'js/modules/dashboard/dashboard-snapshot.js',
       'js/modules/dashboard/dashboard-progress-modal.js',
+      'js/modules/dashboard/dashboard-info-modal.js',
       'js/modules/dashboard/dashboard-drilldown-core.js',
       'js/modules/dashboard/dashboard-drilldown-users.js',
       'js/modules/dashboard/dashboard-drilldown-events.js',

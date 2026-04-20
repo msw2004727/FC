@@ -52,11 +52,19 @@ Object.assign(App, {
       `<button class="dash-drill-tab ${i === 0 ? 'active' : ''}" data-tab="${escapeHTML(t.key)}" type="button">${escapeHTML(t.label)}</button>`
     ).join('');
 
+    // 說明按鈕（若提供 infoKey）
+    const infoBtnHtml = config.infoKey
+      ? `<button class="dash-info-btn" id="dash-drill-info-btn" type="button" title="說明" aria-label="指標說明" data-info-key="${escapeHTML(config.infoKey)}">?</button>`
+      : '';
+
     overlay.innerHTML = `
       <div class="dash-drill-box">
         <div class="dash-drill-header">
           <h3 data-no-translate>${escapeHTML(config.title || '')}</h3>
-          <button class="dash-drill-close" id="dash-drill-close-btn" type="button" aria-label="關閉">✕</button>
+          <div class="dash-drill-header-actions">
+            ${infoBtnHtml}
+            <button class="dash-drill-close" id="dash-drill-close-btn" type="button" aria-label="關閉">✕</button>
+          </div>
         </div>
         <div class="dash-drill-tabs">${tabButtons}</div>
         <div class="dash-drill-body" id="dash-drill-body"></div>
@@ -69,6 +77,13 @@ Object.assign(App, {
       if (e.target === overlay) this._closeDashDrilldown();
     });
     overlay.querySelector('#dash-drill-close-btn')?.addEventListener('click', () => this._closeDashDrilldown());
+
+    // 說明按鈕事件
+    overlay.querySelector('#dash-drill-info-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const key = e.currentTarget.dataset.infoKey;
+      if (key) this._showDashInfo?.(key);
+    });
 
     // touchmove 穿透保護（允許 box 內部滾動）
     overlay.addEventListener('touchmove', (e) => {

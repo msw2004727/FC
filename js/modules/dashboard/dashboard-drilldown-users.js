@@ -208,6 +208,7 @@ Object.assign(App, {
     // 建立彈窗
     this._renderDashDrillShell({
       title: '註冊用戶詳情',
+      infoKey: 'users',
       tabs: [
         { key: 'overview', label: '概覽', render: renderOverview },
         { key: 'detail',   label: '詳情', render: renderDetail },

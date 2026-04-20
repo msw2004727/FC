@@ -59,6 +59,7 @@ Object.assign(App, {
           <option value="12">近 12 個月</option>
         </select>
         <button class="primary-btn" type="button" onclick="App._startDashboardRefresh?.()">🔄 重新整理完整資料</button>
+        <button class="dash-info-btn" type="button" onclick="App._showDashInfo?.('refresh')" title="說明" aria-label="撈取資料說明">?</button>
       </div>
       <div class="dash-summary">
         <div class="dash-card" data-drill-key="users" onclick="App._openDashDrilldown?.('users')"><div class="dash-num">${totalUsers}</div><div class="dash-label">${t('dash.totalUsers')}</div></div>
