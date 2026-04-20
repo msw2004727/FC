@@ -62,15 +62,15 @@ Object.assign(App, {
       </div>
       <div class="dash-summary">
         <div class="dash-card" data-drill-key="users" onclick="App._openDashDrilldown?.('users')"><div class="dash-num">${totalUsers}</div><div class="dash-label">${t('dash.totalUsers')}</div></div>
-        <div class="dash-card"><div class="dash-num">${totalEvents}</div><div class="dash-label">${t('dash.totalEvents')}</div></div>
-        <div class="dash-card"><div class="dash-num">${activeTeams}</div><div class="dash-label">${t('dash.activeTeams')}</div></div>
-        <div class="dash-card"><div class="dash-num">${ongoingTourn}</div><div class="dash-label">${t('dash.ongoingTourn')}</div></div>
+        <div class="dash-card" data-drill-key="events" onclick="App._openDashDrilldown?.('events')"><div class="dash-num">${totalEvents}</div><div class="dash-label">${t('dash.totalEvents')}</div></div>
+        <div class="dash-card" data-drill-key="teams" onclick="App._openDashDrilldown?.('teams')"><div class="dash-num">${activeTeams}</div><div class="dash-label">${t('dash.activeTeams')}</div></div>
+        <div class="dash-card" data-drill-key="tournaments" onclick="App._openDashDrilldown?.('tournaments')"><div class="dash-num">${ongoingTourn}</div><div class="dash-label">${t('dash.ongoingTourn')}</div></div>
       </div>
       <div class="dash-summary">
-        <div class="dash-card"><div class="dash-num">${openEvents}</div><div class="dash-label">${t('dash.openEvents')}</div></div>
-        <div class="dash-card"><div class="dash-num">${endedEvents}</div><div class="dash-label">${t('dash.endedEvents')}</div></div>
-        <div class="dash-card"><div class="dash-num">${totalRecords}</div><div class="dash-label">${t('dash.totalRecords')}</div></div>
-        <div class="dash-card"><div class="dash-num">${attendRate}%</div><div class="dash-label">${t('dash.attendRate')}</div></div>
+        <div class="dash-card" data-drill-key="openEvents" onclick="App._openDashDrilldown?.('openEvents')"><div class="dash-num">${openEvents}</div><div class="dash-label">${t('dash.openEvents')}</div></div>
+        <div class="dash-card" data-drill-key="endedEvents" onclick="App._openDashDrilldown?.('endedEvents')"><div class="dash-num">${endedEvents}</div><div class="dash-label">${t('dash.endedEvents')}</div></div>
+        <div class="dash-card" data-drill-key="records" onclick="App._openDashDrilldown?.('records')"><div class="dash-num">${totalRecords}</div><div class="dash-label">${t('dash.totalRecords')}</div></div>
+        <div class="dash-card" data-drill-key="attendance" onclick="App._openDashDrilldown?.('attendance')"><div class="dash-num">${attendRate}%</div><div class="dash-label">${t('dash.attendRate')}</div></div>
       </div>
 
       <div class="info-card">

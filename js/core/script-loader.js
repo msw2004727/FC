@@ -284,6 +284,13 @@ const ScriptLoader = {
       'js/modules/dashboard/dashboard-progress-modal.js',
       'js/modules/dashboard/dashboard-drilldown-core.js',
       'js/modules/dashboard/dashboard-drilldown-users.js',
+      'js/modules/dashboard/dashboard-drilldown-events.js',
+      'js/modules/dashboard/dashboard-drilldown-teams.js',
+      'js/modules/dashboard/dashboard-drilldown-tourns.js',
+      'js/modules/dashboard/dashboard-drilldown-open.js',
+      'js/modules/dashboard/dashboard-drilldown-ended.js',
+      'js/modules/dashboard/dashboard-drilldown-records.js',
+      'js/modules/dashboard/dashboard-drilldown-attend.js',
     ],
     personalDashboard: [
       'js/modules/dashboard/dashboard-widgets.js',
