@@ -50,8 +50,18 @@ Object.assign(App, {
 
     // Build HTML
     container.innerHTML = `
+      <div class="dash-refresh-bar">
+        <span class="dash-refresh-info" id="dash-refresh-info">尚未撈取完整資料（點擊卡片前請先撈取）</span>
+        <select id="dash-months-range" onchange="App._onDashMonthsRangeChange?.()">
+          <option value="1">近 1 個月</option>
+          <option value="3">近 3 個月</option>
+          <option value="6" selected>近 6 個月</option>
+          <option value="12">近 12 個月</option>
+        </select>
+        <button class="primary-btn" type="button" onclick="App._startDashboardRefresh?.()">🔄 重新整理完整資料</button>
+      </div>
       <div class="dash-summary">
-        <div class="dash-card"><div class="dash-num">${totalUsers}</div><div class="dash-label">${t('dash.totalUsers')}</div></div>
+        <div class="dash-card" data-drill-key="users" onclick="App._openDashDrilldown?.('users')"><div class="dash-num">${totalUsers}</div><div class="dash-label">${t('dash.totalUsers')}</div></div>
         <div class="dash-card"><div class="dash-num">${totalEvents}</div><div class="dash-label">${t('dash.totalEvents')}</div></div>
         <div class="dash-card"><div class="dash-num">${activeTeams}</div><div class="dash-label">${t('dash.activeTeams')}</div></div>
         <div class="dash-card"><div class="dash-num">${ongoingTourn}</div><div class="dash-label">${t('dash.ongoingTourn')}</div></div>
@@ -152,6 +162,10 @@ Object.assign(App, {
     }
 
     this._markPageSnapshotReady?.('page-admin-dashboard');
+
+    // 更新「最後撈取」資訊列 + 進入時自動提示（Q3=B）
+    this._updateDashRefreshInfo?.();
+    this._maybePromptDashRefresh?.();
   },
 
   async clearAllData() {
