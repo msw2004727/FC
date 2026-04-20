@@ -34,13 +34,27 @@ Object.assign(App, {
     if (user.stealth === true) localStorage.setItem('admin_stealth', '1');
     else localStorage.removeItem('admin_stealth');
   },
-  /** 若隱身模式啟用且 name 是自己，回傳 'user'；否則回傳原 role */
-  _stealthRole(name, role) {
-    if (!this._isAdminStealth()) return role;
+  /**
+   * 全站隱身：讀取「目標用戶」的 stealth 欄位決定是否降為 user
+   * @param {string} name - 用戶顯示名稱（fallback 查找用）
+   * @param {string} role - 原始角色
+   * @param {Object|string} [userOrUid] - 目標用戶物件或 uid（O(1) 優先）
+   */
+  _stealthRole(name, role, userOrUid) {
+    // 短路：非管理角色不需要判斷 stealth
     if (role !== 'admin' && role !== 'super_admin') return role;
-    const cu = ApiService.getCurrentUser();
-    const myName = (cu && (cu.displayName || cu.name)) || '';
-    return (name === myName) ? 'user' : role;
+    // 已傳入 user 物件 → 直接讀
+    if (userOrUid && typeof userOrUid === 'object') {
+      return userOrUid.stealth === true ? 'user' : role;
+    }
+    // 傳入 uid 字串 → O(1) 查找
+    if (typeof userOrUid === 'string' && userOrUid) {
+      const user = this._findUserByUid(userOrUid);
+      return user?.stealth === true ? 'user' : role;
+    }
+    // fallback：用 name 查找
+    const user = this._findUserByName(name);
+    return user?.stealth === true ? 'user' : role;
   },
 
   /**
@@ -75,7 +89,7 @@ Object.assign(App, {
 
   _userTag(name, forceRole, options) {
     const rawRole = forceRole || ApiService.getUserRole(name);
-    const role = this._stealthRole(name, rawRole);
+    const role = this._stealthRole(name, rawRole, options?.uid);
     const user = this._findUserByName(name);
     const lvl = this._calcLevelFromExp((user && user.exp) || 0).level;
     // team-split: 右上角色衣 badge（可選，_tsJerseySvg 由動態模組提供）

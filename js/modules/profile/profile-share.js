@@ -40,10 +40,15 @@ Object.assign(App, {
     var brandColor = '#6366f1';
     var bodyContents = [];
 
-    // Role capsule
+    // Role capsule（套用隱身：若目標用戶 stealth=true 則降為 user label）
     var roleLabel = '\u7528\u6236';
-    if (user && user.role && typeof ROLES !== 'undefined' && ROLES[user.role]) {
-      roleLabel = ROLES[user.role].label || roleLabel;
+    if (user && user.role && typeof ROLES !== 'undefined') {
+      var effectiveRole = (typeof App !== 'undefined' && typeof App._stealthRole === 'function')
+        ? App._stealthRole(name, user.role, user)
+        : user.role;
+      if (ROLES[effectiveRole]) {
+        roleLabel = ROLES[effectiveRole].label || roleLabel;
+      }
     }
     bodyContents.push({
       type: 'box', layout: 'horizontal', contents: [

@@ -504,9 +504,14 @@ service cloud.firestore {
             'titleBig', 'titleNormal',
             'lineNotify',
             'companions',
-            'eduChildren'
+            'eduChildren',
+            'stealth'
           ])
           && !changed.hasAny(['uid', 'lineUserId', 'role', 'claims', 'isAdmin', 'exp', 'level', 'createdAt', 'manualRole'])
+          && (!changed.hasAny(['stealth']) || (
+              request.resource.data.stealth == null
+              || request.resource.data.stealth is bool
+          ))
           && (!changed.hasAny(['displayName']) || (
               request.resource.data.displayName is string
               && request.resource.data.displayName.size() > 0

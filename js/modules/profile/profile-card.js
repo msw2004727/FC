@@ -18,7 +18,8 @@ Object.assign(App, {
       : escapeHTML(displayName);
     const avatarCandidates = this._getAvatarCandidateUrls(lineProfile && lineProfile.pictureUrl, user && user.pictureUrl);
     const pic = avatarCandidates[0] || null;
-    const role = (user && user.role) || 'user';
+    const rawRole = (user && user.role) || 'user';
+    const role = (typeof App._stealthRole === 'function') ? App._stealthRole(displayName, rawRole, user) : rawRole;
     const roleInfo = ROLES[role] || ROLES.user;
 
     const totalExp = user ? (user.exp || 0) : 0;
