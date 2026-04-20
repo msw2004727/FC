@@ -97,7 +97,11 @@ Object.assign(App, {
       this._hotEventsLastFp = '';
       if (!this._cloudReady) {
         this._setHomeSectionVisibility(container, true);
-        container.innerHTML = '<div style="text-align:center;padding:1.5rem 0;color:var(--text-secondary);font-size:.8rem">載入中…</div>';
+        // 2026-04-20：若容器已有 Phase 3 注入的骨架（skel-hint / skel-card）→ 不覆蓋
+        // 避免冷啟動時「📡 首次載入較慢…」提示被「載入中…」簡單文字覆蓋
+        if (!container.querySelector('.skel-hint') && !container.querySelector('.skel-card')) {
+          container.innerHTML = '<div style="text-align:center;padding:1.5rem 0;color:var(--text-secondary);font-size:.8rem">載入中…</div>';
+        }
       } else if (App._activeSport && App._activeSport !== 'all') {
         const sportLabel = (typeof EVENT_SPORT_OPTIONS !== 'undefined' ? EVENT_SPORT_OPTIONS : []).find(o => o.key === App._activeSport)?.label || App._activeSport;
         this._setHomeSectionVisibility(container, true);
