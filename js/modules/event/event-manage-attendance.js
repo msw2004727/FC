@@ -128,7 +128,11 @@ Object.assign(App, {
     const records = ApiService.getAttendanceRecords(eventId);
     const summary = this._buildConfirmedParticipantSummary(eventId);
     const people = summary.people;
-    const showNoShowColumn = cId === 'detail-attendance-table';
+    // 放鴿子 🕊 欄位查看權：admin(event.edit_all) / 主辦人 / 委託人 / 查看權持有者 / 放鴿子修改權持有者
+    const canViewNoShow = canManage
+      || (typeof this.hasPermission === 'function' && this.hasPermission('activity.view_noshow'))
+      || (typeof this.hasPermission === 'function' && this.hasPermission('admin.repair.no_show_adjust'));
+    const showNoShowColumn = cId === 'detail-attendance-table' && canViewNoShow;
     const noShowCountByUid = showNoShowColumn ? this._buildNoShowCountByUid() : null;
 
     if (people.length === 0) {

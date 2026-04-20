@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '20260420r';
+const CACHE_VERSION = '20260420s';
 
 // ─── 即時監聽 limit 預設值（可在儀表板動態調整，存於 siteConfig/realtimeConfig）───
 const REALTIME_LIMIT_DEFAULTS = {
@@ -652,6 +652,7 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
     { code: 'admin.repair.no_show_adjust', name: '放鴿子修改' },
     { code: 'admin.repair.data_sync', name: '系統資料同步' },
     { code: 'admin.repair.event_blocklist', name: '活動黑名單' },
+    { code: 'activity.view_noshow', name: '查看放鴿子次數' },
   ],
   'page-admin-logs': [
     { code: 'admin.logs.error_read', name: '錯誤日誌讀取' },
@@ -757,6 +758,10 @@ function getDefaultRolePermissions(roleKey) {
       defaults.push(def.entryCode);
     }
   });
+
+  if (roleLevel >= getRuntimeRoleLevel('coach')) {
+    defaults.push('activity.view_noshow');
+  }
 
   if (roleLevel >= getRuntimeRoleLevel('admin')) {
     defaults.push('team.create', 'team.manage_all', 'event.edit_all',
