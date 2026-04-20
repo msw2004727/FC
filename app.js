@@ -172,6 +172,9 @@ const App = {
   _scriptLoadTimeoutMs: 18000,
   _pendingProtectedBootRoute: null,
   _pendingProtectedBootRoutePromise: null,
+  // 2026-04-20: 用戶「意圖頁面」— showPage 入口立刻更新（不等 _activatePage async 完成）
+  // 用於 flush pending boot route 時判斷用戶是否已主動導航到其他頁面
+  _userIntendedPage: null,
   _pendingAuthAction: null,
   _pendingAuthActionPromise: null,
   _pendingAuthActionStorageKey: '_pendingAuthAction',
@@ -1731,12 +1734,13 @@ const App = {
       return await this._pendingProtectedBootRoutePromise;
     }
 
-    // 2026-04-19 fix: 若用戶在 boot 期間已主動導航到非首頁、且當前頁 ≠ pending 目標頁，
-    // 取消 pending route 避免把用戶從他正在瀏覽的頁面強制拉走。
-    if (this.currentPage
-      && this.currentPage !== 'page-home'
-      && this.currentPage !== pending.pageId) {
-      console.log('[Boot] user navigated to', this.currentPage, '— cancelling pending boot route:', pending.pageId);
+    // 2026-04-19 fix + 2026-04-20 強化：若用戶已主動導航到其他頁面，取消 pending
+    // 優先檢查 _userIntendedPage（showPage 入口立刻更新），解決 _activatePage async 尚未完成的 race condition
+    const effectivePage = this._userIntendedPage || this.currentPage;
+    if (effectivePage
+      && effectivePage !== 'page-home'
+      && effectivePage !== pending.pageId) {
+      console.log('[Boot] user intended page =', effectivePage, '— cancelling pending boot route:', pending.pageId);
       this._clearPendingProtectedBootRoute();
       return false;
     }
@@ -1771,14 +1775,15 @@ const App = {
           }
         }
 
-        // 2026-04-19 補強：await cloud init / _startAuthDependentWork 期間可能耗數秒
-        // 用戶可能已從首頁主動導航到活動詳情頁等。最後一次檢查 currentPage，
-        // 若已離開 home 且不是 pending 目標頁，取消 showPage 避免把用戶拉走
-        console.log('[Boot] flush after await, currentPage=', this.currentPage, 'target=', pageId);
-        if (this.currentPage
-          && this.currentPage !== 'page-home'
-          && this.currentPage !== pageId) {
-          console.log('[Boot] user navigated to', this.currentPage,
+        // 2026-04-19 補強 + 2026-04-20 強化：await 期間用戶可能已點其他頁
+        // 優先檢查 _userIntendedPage（showPage 入口立刻設，不等 _activatePage）
+        const effectivePageAfter = this._userIntendedPage || this.currentPage;
+        console.log('[Boot] flush after await, intended=', this._userIntendedPage,
+          'currentPage=', this.currentPage, 'target=', pageId);
+        if (effectivePageAfter
+          && effectivePageAfter !== 'page-home'
+          && effectivePageAfter !== pageId) {
+          console.log('[Boot] user intended', effectivePageAfter,
             'during flush await — cancelling showPage to', pageId);
           this._clearPendingProtectedBootRoute();
           return false;
@@ -1789,6 +1794,7 @@ const App = {
           resetHistory: true,
           suppressAccessDeniedToast: true,
           suppressLoginToast: true,
+          fromBootFlush: true,
         });
 
         if (result?.ok) {

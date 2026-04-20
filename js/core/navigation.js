@@ -430,6 +430,12 @@ Object.assign(App, {
     const normalizedRoute = this._normalizeAdminLogRoute(pageId, options);
     pageId = normalizedRoute.pageId;
 
+    // 2026-04-20: 用戶意圖頁面追蹤（修正「刷新後被拉回上次頁」的 race condition）
+    // 非 boot flush 自身呼叫才更新（避免 flush 的 showPage 反向設為自己的目標頁）
+    if (!options.fromBootFlush && pageId) {
+      this._userIntendedPage = pageId;
+    }
+
     // 2026-04-20：Page Lock — 防止用戶進 detail 類頁後被自動機制拉走
     // 規則：用戶近期 800ms 內有 touch/click → 視為主動導航，放行
     //       否則在鎖期間（10s），非同頁的 showPage 一律擋下
