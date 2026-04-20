@@ -10,7 +10,7 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
-### 2026-04-20 — 活動黑名單功能（Phase 1-6 完成） [永久]
+### 2026-04-20 — 活動黑名單功能（Phase 1-6 + 二次審計 + 選項 B 完成） [永久]
 - **需求**：管理員可將特定用戶加入活動黑名單，使其看不到該活動（僅擋尚未報名的，已報名的保留可見以尊重歷史）
 - **核心設計決策**：
   - 黑名單只擋「尚未報名」的活動，曾有任一 registration 紀錄（含 cancelled/removed）→ 保留可見
@@ -35,11 +35,39 @@
   - 俱樂部內嵌活動 → `_renderTeamEvents` 明確 filter
   - 活動詳情直接 URL（QR/分享/訊息連結）→ `showEventDetail` 守衛
   - 豁免：Favorites（用戶資料）、Scan/Dashboard（admin 用途）、Tournament（無內嵌列表）
+- **5 層防禦架構**（commit 順序）：
+  1. **列表層** — `_getVisibleEvents` / `_renderTeamEvents` 過濾（commit 491379de）
+  2. **詳情入口** — `showEventDetail` 第一檢查點（commit 491379de）
+  3. **詳情重取後** — `showEventDetail` 第二檢查點（第一次審計發現，commit e8d9a9b7）
+  4. **寫入守衛** — `handleSignup` / `_confirmCompanionRegister`（第二次審計 + 選項 B，commit 965ebcbe）
+  5. **Firestore Rules** — `canManageEventBlocklist()` 寫入規則（已手動部署至 fc-football-6c8dc）
+- **Companion 守衛範圍**：只擋主報名人（operator）被擋，不擋同行者中的被擋用戶
+- **部署狀態**：
+  - 前端：Cloudflare Pages 自動（main branch push）
+  - Firestore Rules：**已手動 `firebase deploy --only firestore:rules` 部署**
+  - Cloud Functions：**無需部署**（CF 本次未實質引用新權限碼，INHERENT 同步是為未來一致性）
+- **Commit 歷程**（共 7 個）：
+  - `e4fbc08e` Phase 1、`dec72e86` Phase 2、`c3eab11f` Phase 3
+  - `491379de` Phase 4、`df5cd9e6` Phase 5+6
+  - `e8d9a9b7` 審計修復 #1（第二檢查點）
+  - `965ebcbe` 選項 B（寫入守衛）
+- **二次審計發現（全部已處理）**：
+  - 🔴 Rules 手動部署疏忽 → 已提醒並部署
+  - 🔴 第二檢查點漏守衛 → 已補（commit e8d9a9b7）
+  - 🔴 未登入先進頁 → 登入後報名繞過 → 已補（commit 965ebcbe）
+- **接受的已知限制（未處理）**：
+  - event owner rules 允許改 blockedUids（UI 不給入口）
+  - admin 預設無此權限（與 admin.repair.* 家族一致）
+  - `_renderExistingEventBlocklist` 排序用字串比較（僅顯示順序，不影響功能）
+  - 加黑名單後當下頁面不自動刷新（Firestore 單向推播常態）
+  - event-blocklist.js 載入失敗時 fail-open（UX 優先）
 - **教訓**：
   - **單一 choke-point 設計省力氣**：既有 `_getVisibleEvents` 已整合 teamOnly + privateEvent，黑名單只需 +1 行就覆蓋首頁+行事曆+搜尋三個關鍵入口
   - **「尊重歷史」解決強制退報的複雜性**：保留曾報名用戶可見 = 避免資料狀態機、自動退費、通知誤發等棘手邊界
   - **CF 端自然不需過濾**：因通知只發給已報名用戶，我們的豁免規則自動對齊
   - **永久條目強制共用 helper**：防止日後新入口漏過濾（已在 CLAUDE.md 建立「活動可見性規則」章節）
+  - **一次性規劃 ≠ 一次做對**：Phase 1-6 完成後仍經 2 次審計才補齊漏洞（第二檢查點、bypass 繞過）。中大型功能上線前必須至少做一次獨立審計
+  - **Firestore Rules 部署不在 git push 範圍內**：必須明確紀錄手動部署步驟到 commit message / 日誌，避免「程式碼上了、功能沒上」的狀態
 
 ### 2026-04-19 — 首次登入 UX 改為「可瀏覽、寫入才擋」
 - **問題/目標**：原設計強制首次登入用戶填完基本資料才能操作任何功能，包括瀏覽。
