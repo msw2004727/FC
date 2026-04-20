@@ -147,6 +147,7 @@ Object.assign(App, {
               <div class="admin-user-meta">${escapeHTML(u.uid)} ・${ROLES[u.role]?.label || u.role} ・Lv.${App._calcLevelFromExp(u.exp || 0).level} ・${escapeHTML(u.region || '—')}${genderIcon ? ' ' + genderIcon : ''}${teamInfo}</div>
               <div class="admin-user-meta">${escapeHTML(u.sports || '—')} ・EXP ${(u.exp || 0).toLocaleString()}</div>
               <div class="admin-user-meta">限制狀態：${isRestricted ? '限制中' : '正常'}</div>
+              <div class="admin-user-meta" style="word-break:break-all">最後登入：${this._formatLastLoginMeta(u)}</div>
             </div>
             <div class="admin-user-actions">
               ${u.role !== 'super_admin' ? `<button class="au-btn au-btn-edit" onclick="App.showUserEditModal('${safeName}')">編輯</button>` : ''}
@@ -536,6 +537,25 @@ Object.assign(App, {
     } finally {
       if (btn) btn.disabled = false;
     }
+  },
+
+  // 格式化「最後登入」meta 顯示（時間 + IP + 地區 / ISP）
+  _formatLastLoginMeta(u) {
+    const ts = u.lastLogin || u.lastActive;
+    let timeStr = '尚無紀錄';
+    if (ts) {
+      try {
+        const d = ts.toDate ? ts.toDate() : (ts.seconds ? new Date(ts.seconds * 1000) : new Date(ts));
+        if (!isNaN(d)) {
+          timeStr = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        }
+      } catch (_) {}
+    }
+    const parts = [timeStr];
+    if (u.lastLoginIp) parts.push(escapeHTML(u.lastLoginIp));
+    const regionIsp = [u.lastLoginRegion, u.lastLoginIsp].filter(Boolean).join(' / ');
+    if (regionIsp) parts.push(escapeHTML(regionIsp));
+    return parts.join(' ・ ');
   },
 
 });

@@ -2005,6 +2005,15 @@ const FirebaseService = {
 
       this._persistCache();
       console.log('[FirebaseService] Auth-dependent init complete.');
+
+      // fire-and-forget：記錄登入 IP + 地區（供用戶管理後台稽核）
+      try {
+        if (typeof firebase !== 'undefined' && typeof firebase.functions === 'function') {
+          firebase.functions().httpsCallable('recordUserLoginIp')().catch((err) => {
+            console.warn('[FirebaseService] recordUserLoginIp failed:', err?.message);
+          });
+        }
+      } catch (_) {}
     })();
 
     this._authDependentWorkUid = currentUid;

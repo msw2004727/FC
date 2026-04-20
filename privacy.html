@@ -69,7 +69,7 @@
 </tr>
 <tr>
   <td>裝置與技術資訊</td>
-  <td>瀏覽器類型、Service Worker 快取資料、本機 localStorage / IndexedDB 暫存</td>
+  <td>瀏覽器類型、Service Worker 快取資料、本機 localStorage / IndexedDB 暫存、登入 IP 位址、依 IP 推定之地理位置（城市 / 國家）及網路服務業者</td>
   <td>自動蒐集</td>
 </tr>
 <tr>
@@ -89,6 +89,7 @@
   <li><strong>統計分析</strong>：計算個人活動統計、排行榜、成就系統等功能</li>
   <li><strong>服務改善</strong>：分析使用模式以改善平台功能與使用者體驗</li>
   <li><strong>系統安全</strong>：記錄管理操作日誌以維護系統完整性與稽核需求</li>
+  <li><strong>帳號稽核</strong>：記錄登入 IP 位址與推定地理位置，用於偵測異常登入與帳號盜用風險（僅限管理員查閱）</li>
 </ul>
 
 <h2>四、資料利用方式與範圍</h2>
@@ -120,6 +121,11 @@
   <td>Cloudflare Pages</td>
   <td>網站託管與內容傳遞</td>
   <td>全球 CDN 節點</td>
+</tr>
+<tr>
+  <td>ipapi.co</td>
+  <td>依 IP 查詢推定地理位置（城市 / 國家 / 網路服務業者），僅於您登入時觸發一次查詢</td>
+  <td>美國雲端服務（僅傳送 IP 位址，不傳送其他個人資料）</td>
 </tr>
 </tbody>
 </table>

@@ -6129,3 +6129,62 @@ exports.calcNoShowCountsManual = onCall(
     return { success: true, ...result };
   },
 );
+
+// ═══════════════════════════════════════════
+//  記錄用戶最後登入的 IP + 地區（供用戶管理後台稽核）
+//  Rate limit：同 IP 不重複寫（只在 IP 變化時更新）
+// ═══════════════════════════════════════════
+exports.recordUserLoginIp = onCall(
+  { region: "asia-east1", timeoutSeconds: 10 },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "auth required");
+    }
+    const uid = request.auth.uid;
+
+    // 取 IP（x-forwarded-for 第一個；fallback rawRequest.ip）
+    const xff = request.rawRequest?.headers?.["x-forwarded-for"];
+    const rawIp = (typeof xff === "string" ? xff.split(",")[0] : "").trim()
+               || request.rawRequest?.ip || "";
+    // IPv4/IPv6 格式驗證
+    const isValidIp = /^(\d{1,3}\.){3}\d{1,3}$/.test(rawIp)
+                   || /^[0-9a-fA-F:]+$/.test(rawIp);
+    if (!isValidIp || !rawIp) {
+      return { ok: false, reason: "no_valid_ip" };
+    }
+    const ip = rawIp;
+
+    // Rate limit：IP 相同則跳過（避免同 IP 反覆寫入）
+    const userRef = admin.firestore().collection("users").doc(uid);
+    const snap = await userRef.get();
+    if (snap.exists && snap.data()?.lastLoginIp === ip) {
+      return { ok: true, skipped: "same_ip" };
+    }
+
+    // GeoIP 查詢（AbortController 3s timeout，失敗靜默）
+    let region = null;
+    let isp = null;
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 3000);
+      const res = await fetch(`https://ipapi.co/${ip}/json/`, { signal: ctrl.signal });
+      clearTimeout(timer);
+      if (res.ok) {
+        const d = await res.json();
+        const city = typeof d.city === "string" ? d.city.slice(0, 50) : "";
+        const country = typeof d.country_name === "string" ? d.country_name.slice(0, 50) : "";
+        region = [city, country].filter(Boolean).join(", ") || null;
+        isp = typeof d.org === "string" ? d.org.slice(0, 100) : null;
+      }
+    } catch (err) {
+      console.warn("[recordUserLoginIp] GeoIP lookup failed:", err?.message);
+    }
+
+    await userRef.update({
+      lastLoginIp: ip,
+      lastLoginRegion: region,
+      lastLoginIsp: isp,
+    });
+    return { ok: true, ip, region };
+  },
+);
