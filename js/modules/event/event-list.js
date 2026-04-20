@@ -97,10 +97,14 @@ Object.assign(App, {
       this._hotEventsLastFp = '';
       if (!this._cloudReady) {
         this._setHomeSectionVisibility(container, true);
-        // 2026-04-20：若容器已有 Phase 3 注入的骨架（skel-hint / skel-card）→ 不覆蓋
-        // 避免冷啟動時「📡 首次載入較慢…」提示被「載入中…」簡單文字覆蓋
-        if (!container.querySelector('.skel-hint') && !container.querySelector('.skel-card')) {
-          container.innerHTML = '<div style="text-align:center;padding:1.5rem 0;color:var(--text-secondary);font-size:.8rem">載入中…</div>';
+        // 2026-04-20：冷啟動直接顯示 skel-hint（提示「📡 首次載入較慢…」）+ 骨架佔位
+        // 不再用單調的「載入中…」文字。若已有 skel-hint 就不重複覆寫（避免動畫重啟）
+        if (!container.querySelector('.skel-hint')) {
+          container.innerHTML =
+            '<div class="skel-hint">\uD83D\uDCE1 \u9996\u6B21\u8F09\u5165\u8F03\u6162\uFF0C\u8ACB\u7A0D\u5019...</div>' +
+            '<div class="skel-card"></div>' +
+            '<div class="skel-card"></div>' +
+            '<div class="skel-card"></div>';
         }
       } else if (App._activeSport && App._activeSport !== 'all') {
         const sportLabel = (typeof EVENT_SPORT_OPTIONS !== 'undefined' ? EVENT_SPORT_OPTIONS : []).find(o => o.key === App._activeSport)?.label || App._activeSport;
