@@ -348,7 +348,15 @@ Object.assign(App, {
           && this._currentDetailEventId === retryEventId
           && !this._flipAnimating) {
           this._regsLoadingRetryCount++;
-          this.showEventDetail(retryEventId);
+          // 2026-04-20：snapshot 已到才用局部 patch（避免整頁重繪造成畫面跳動）；
+          //             還沒到則維持原 showEventDetail 路徑（保證「載入中」按鈕邏輯正確）
+          if (typeof FirebaseService !== 'undefined'
+            && FirebaseService._registrationsFirstSnapshotReceived) {
+            this._refreshSignupButton?.(retryEventId);
+            this._patchDetailTables?.(retryEventId);
+          } else {
+            this.showEventDetail(retryEventId);
+          }
         }
       }, 3000);
     } else {
@@ -378,7 +386,7 @@ Object.assign(App, {
               && _self.currentPage === 'page-activity-detail'
               && _self._currentDetailEventId === _safetyEventId
               && !_self._flipAnimating) {
-              // 快取確實落後 — 補入快取並重新渲染
+              // 快取確實落後 — 補入快取
               active.forEach(function(d) {
                 var reg = Object.assign({}, d.data(), { _docId: d.id });
                 if (reg.userId && !reg.uid) reg.uid = reg.userId;
@@ -387,7 +395,10 @@ Object.assign(App, {
                   cache.push(reg);
                 }
               });
-              _self.showEventDetail(_safetyEventId);
+              // 2026-04-20：改用局部 patch 避免整頁重繪造成畫面跳動。
+              // 快取已補齊，_refreshSignupButton 會正確顯示「取消報名」按鈕
+              _self._refreshSignupButton?.(_safetyEventId);
+              _self._patchDetailTables?.(_safetyEventId);
             }
           })
           .catch(function() { /* 查詢失敗不影響主流程 */ });
