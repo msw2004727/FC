@@ -200,12 +200,10 @@ Object.assign(App, {
 
     document.getElementById('user-card-full').innerHTML = `
       <div class="uc-header">
-        <div class="uc-avatar-wrap">
-          <div class="uc-avatar-circle">${avatarHtml}</div>
-          ${!isSelf ? this._buildUserCardActionPanel() : ''}
-        </div>
+        <div class="uc-avatar-circle" style="margin:0 auto .6rem">${avatarHtml}</div>
         <div class="profile-title" data-no-translate>${titleHtml}</div>
         <div style="margin-top:.3rem"><span class="uc-role-tag" style="background:${roleInfo.color}22;color:${roleInfo.color}">${roleInfo.label}</span></div>
+        ${!isSelf ? this._buildUserCardActionPanel() : ''}
         <div class="profile-level">
           <span>Lv.${level}</span>
           <div class="exp-bar"><div class="exp-fill" style="width:${expPct}%"></div></div>
@@ -370,14 +368,9 @@ Object.assign(App, {
     }
   },
 
-  // 用戶資料卡片右側三功能按鈕（純裝飾，功能未啟用）
+  // 用戶資料卡片三功能按鈕（純裝飾，功能未啟用；身分膠囊下方橫排）
   _buildUserCardActionPanel() {
     return `<div class="uc-action-panel" aria-hidden="true">
-      <svg class="uc-action-lines" viewBox="0 0 30 120" preserveAspectRatio="none">
-        <path d="M 0 60 Q 15 25 30 15" />
-        <path d="M 0 60 L 30 60" />
-        <path d="M 0 60 Q 15 95 30 105" />
-      </svg>
       <button type="button" class="uc-action-btn" disabled>加好友</button>
       <button type="button" class="uc-action-btn" disabled>私訊</button>
       <button type="button" class="uc-action-btn" disabled>關注</button>
