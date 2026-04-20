@@ -133,7 +133,9 @@ Object.assign(App, {
         FirebaseService.schedulePageScopedRealtimeForPage(pageId);
       }
     }
-    if (options.resetScroll !== false) this._resetPageScroll(pageId);
+    // 2026-04-20：同頁重新 activate（例如 Background reload 完成觸發的 showPage(currentPage)）
+    //             不該 reset scroll — 否則會把用戶滑到中間的位置強制拉回頂，造成畫面跳動
+    if (options.resetScroll !== false && _prevPage !== pageId) this._resetPageScroll(pageId);
     if (pageId !== 'page-scan' && this._stopCamera) this._stopCamera();
     return target;
   },
