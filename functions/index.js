@@ -6155,7 +6155,7 @@ exports.recordUserLoginIp = onCall(
     const ip = rawIp;
 
     // Rate limit：IP 相同則跳過（避免同 IP 反覆寫入）
-    const userRef = admin.firestore().collection("users").doc(uid);
+    const userRef = db.collection("users").doc(uid);
     const snap = await userRef.get();
     if (snap.exists && snap.data()?.lastLoginIp === ip) {
       return { ok: true, skipped: "same_ip" };
