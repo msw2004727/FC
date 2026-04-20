@@ -431,6 +431,11 @@ Object.assign(App, {
         })
       : 0;
 
+    // 2026-04-20：記錄進入 showPage 時的 currentPage，供 await 後比對。
+    // 若 await ensureCloudReady 期間用戶主動導航（例如 boot hash 卡住時用戶點其他頁），
+    // 需放棄本次切頁，不可強制拉回。
+    const _showPageStartingPage = this.currentPage;
+
     try {
       // 非 stale 路徑：需要雲端 + 登入 + 權限檢查
       if (!canUseStale
@@ -452,6 +457,13 @@ Object.assign(App, {
             step: 'cloud',
             error: err,
           };
+        }
+        // 2026-04-20：cloud init 期間用戶可能已主動導航到其他頁面，
+        // 若 currentPage 已變且不是本次目標 → 放棄，避免把用戶拉走
+        if (this.currentPage !== _showPageStartingPage && this.currentPage !== pageId) {
+          console.log('[Nav] showPage aborted after cloud init:',
+            _showPageStartingPage, '→', this.currentPage, '— skip', pageId);
+          return { ok: false, reason: 'user_navigated' };
         }
       }
       if (guardedPages.includes(pageId) && options.suppressLoginToast && this._isLoginRequired()) {
