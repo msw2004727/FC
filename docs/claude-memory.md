@@ -10,6 +10,46 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-20 — 活動詳情頁「加載後跳回頂部」經典 async stale closure 陷阱（6 輪修復） [永久]
+- **問題**：用戶進活動詳情頁幾秒後、滑到中間瀏覽名單時，畫面會被突然打回頂部；連續修 5 輪都沒根治，第 6 輪靠診斷 log 精準抓到真兇
+- **真兇（Round 6 發現）**：`_doRenderAttendanceTable` 是 async 函式，流程：
+  1. 函式入口記錄 `_savedScrollY = _scrollEl.scrollTop`（用戶剛進頁 = 0）
+  2. `await Promise.all([fetchAttendanceIfMissing, fetchRegistrationsIfMissing])` 期間用戶滑到 490px
+  3. render 完成後 `_scrollEl.scrollTop = _savedScrollY` = 0 → 把用戶從 490 打回 0
+  - **這是經典 stale closure 陷阱**：async 函式入口記錄的 state，在 await 後已過時但被用來覆寫當前狀態
+- **修復歷程（6 輪，每一輪都看似命中但都不徹底）**：
+  - Round 1 (`20260420f`, commit c367d17b)：retry/safety net 改走局部 patch（不整頁重繪）
+  - Round 2 (`20260420g`, commit 26031601)：`_activatePage` 同頁 activate 時不 reset scroll
+  - Round 3-4 (`20260420j/k`, commit 5e6f8a51 / 29e6ec52)：加診斷 log（`_runPageScrollReset` stack trace + window.scrollTo / Element.scrollTop setter monkey-patch，僅 `?debug=1` 啟用）
+  - Round 5 (`20260420l`, commit 4449a138)：
+    - **Height Lock**：新增 `App._lockContainerHeight(container)` helper，3 個 render 函式入口加 1 行防 DOM 替換造成 scrollHeight 縮短 clamp
+    - **Page Lock**：進 detail 類頁設 10s 鎖，非用戶近期（800ms）touch/click 的 showPage 擋下（保留 `bypassPageLock` 逃生口；goBack 不走 showPage 不受影響）
+  - Round 6 (`20260420m`, commit a4eedeb9)：**移除 `_doRenderAttendanceTable` 的 scrollTop 還原陷阱**（L152 + L297），信任 Height Lock 防 clamp
+- **最終四層防護網**：
+  1. Height Lock — 防瀏覽器 DOM 替換 clamp scrollTop
+  2. **移除 scrollTop 還原**（Round 6，真正根治）— 防 async stale closure
+  3. Page Lock — 防自動機制拉走用戶（deep link poller / pending route 等）
+  4. `_activatePage` 同頁不 reset — 防同頁 showPage 觸發 reset
+- **同步函式 vs async 函式**：
+  - `_renderUnregTable` / `_renderGroupedWaitlistSection` 是**同步**（無 await）→ 無 stale closure 問題 → scroll 還原保留作為 Height Lock 失效時的 fallback
+  - `_doRenderAttendanceTable` 是 async（有 `await Promise.all([...])`）→ 有 stale closure 問題 → 還原必須移除
+- **關鍵教訓**：
+  - **async 函式中記錄 state 再於 await 後覆寫，必定是 bug**（stale closure）。若真需要還原，要在 await 後**重新讀取當前值**或加條件判斷（例如「只在縮小時還原」）
+  - **診斷 log 的戰略價值**：5 輪盲修無效，Round 3-4 加 scroll monkey-patch（`?debug=1`）後 Round 6 一擊即中。**複雜的 scroll / 導航 bug 第一步就該加診斷工具**
+  - **為什麼反覆修不乾淨**：每輪都只看到「症狀」（整頁重繪、Background reload、同頁 reset 等），沒看到真正的「async state 污染」源頭。每修一層都讓 bug 表象減少但殘餘
+  - **Height Lock 的戰略地位**：Round 6 敢移除 scrollTop 還原，是因為 Round 5 的 Height Lock 先做好了 clamp 保護。**兩個修法必須成對存在**（移除還原 depends on Height Lock）
+  - **防禦性設計模式**：Height Lock（DOM 層）+ Page Lock（導航層）+ Scroll-trace 診斷（debug 層）+ 主動 touch 感知（UX 層）= 完整保護
+- **反覆提到的「被拉回」老 bug**：
+  - 多次修復紀錄分別見 commits ce987791 / 96458bb6 / aca6a444（showPage 守衛）
+  - Page Lock 是最新的統一防線（10 秒鎖 + 用戶主動感知）
+- **部署狀態**：
+  - 前端：Cloudflare Pages 自動（main branch push）
+  - 診斷 log 保留在生產（Round 3-4），供未來偶發問題再診斷；`?debug=1` 才啟用 monkey-patch，一般用戶零影響
+- **回退安全性**：
+  - Round 6 可獨立 revert（只回到 async bug 狀態）
+  - Round 5 Height Lock 不可單獨 revert（會讓 Round 6 失去保護）
+  - 其餘修法皆可獨立 revert
+
 ### 2026-04-20 — 活動黑名單功能（Phase 1-6 + 二次審計 + 選項 B 完成） [永久]
 - **需求**：管理員可將特定用戶加入活動黑名單，使其看不到該活動（僅擋尚未報名的，已報名的保留可見以尊重歷史）
 - **核心設計決策**：
