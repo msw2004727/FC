@@ -128,12 +128,19 @@ function initFirebaseApp() {
     // Firestore 離線持久化（IndexedDB）
     // 已知問題：Firebase 10.14.1 compat 在 LINE WebView 中可能觸發
     // "INTERNAL ASSERTION FAILED" — 用 try-catch 包裹防止影響啟動流程
-    // synchronizeTabs: false — 單分頁模式，避免多 tab leader election 競爭造成權限加載卡住
-    // 第一個 tab 拿 IndexedDB 快取，後續 tab 自動走 memory（SDK 自動降級，有 catch handle）
+    //
+    // synchronizeTabs: true — 多分頁共享 IndexedDB 快取，大幅減少 Firestore 讀取量
+    // 歷史決策（詳見 docs/claude-memory.md 2026-04-21 條目）：
+    //   - 4/17 曾改為 false 消除「多 tab 權限加載卡住」bug（commit 6e0daede）
+    //   - 但 4/18 讀取量爆增至 468 萬/天（+50%），月費上升至 NT$753（4 月 21 天實績）
+    //   - 4/21 回滾為 true；原 bug 防護改由 multi-tab-guard.js 警告 + 關閉分頁按鈕承擔
+    //   - 禁止再改回 false（除非找到完整替代方案，參考 modular SDK 的 persistentMultipleTabManager）
     try {
-      db.enablePersistence({ synchronizeTabs: false }).catch(err => {
+      db.enablePersistence({ synchronizeTabs: true }).catch(err => {
         if (err.code === 'failed-precondition') {
-          console.warn('[Firestore] 多個分頁開啟，此分頁無離線快取（設計如此，不影響線上功能）');
+          // 極少數情況：多 tab leader election 競爭失敗 → 此 tab 降級為 memory cache
+          // 若此時原「權限加載卡住」bug 復發，請回報並考慮改回 synchronizeTabs: false
+          console.warn('[Firestore] 多 tab leader 競爭失敗，此分頁降級為 memory cache（不影響線上功能；若遇權限加載卡住請回報）');
         } else if (err.code === 'unimplemented') {
           console.warn('[Firestore] 此瀏覽器不支援離線持久化');
         } else {

@@ -10,6 +10,28 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-21 — Firestore `synchronizeTabs` 回滾：false → true（費用優化） [永久]
+- **時間軸**：
+  - 4/17 改為 `false`（commit 6e0daede）— 消除「多 tab 權限加載卡住」bug
+  - 4/18 Firestore 讀取量爆增至 **468 萬/天**（+50%）→ 全月最高峰
+  - 4/21 回滾為 `true`（本條目）— 搭配既有 multi-tab-guard 警告承擔原 bug 防護
+- **根因**：`synchronizeTabs: false` 時第 2+ tab 無 IndexedDB 快取，每次 onSnapshot 重連（切 tab / 背景喚醒 / 網路波動）都從 Firestore 全量重抓（events+registrations+attendanceRecords ≈ 4,600 reads/reconnect/user）
+- **費用影響**：4 月 21 天 Firestore Read Ops **4,029 萬次 / NT$753**（含所有其他 Firestore SKU 共 ~NT$790）
+- **回滾決策**：
+  - 回到 `synchronizeTabs: true`（多 tab 共享 IndexedDB，省 reads）
+  - 保留 `multi-tab-guard.js`（警告彈窗 + 關閉分頁按鈕）擔任原 bug 防護
+  - 不強化 guard（BroadcastChannel 在 PWA + LIFF 多 context 有偵測盲區，強化也擋不住）
+- **禁止再改回 `false`**：
+  - 除非找到完整替代方案（例如全量遷移 modular SDK + `persistentMultipleTabManager`）
+  - 但全量遷移違反 CLAUDE.md 鎖定函式保護規則（會動到 `firebase-crud.js` 的報名/候補/簽到核心），不值得
+- **監控**：
+  - 部署後第 1/3/7 天跑 BigQuery 查 Firestore Read Ops 趨勢
+  - 預期每日讀取量降至 **< 100 萬/天**（原 ~192 萬/天）
+- **回退條件（若原 bug 復發）**：
+  - 🔴 立刻回退：console 出現「權限加載卡住」相關錯誤、或用戶回報 LIFF session 錯亂
+  - 🟡 一週內評估：讀取量仍 > 150 萬/天（表示還有其他元凶，需進一步調查）
+- **不動範圍**：multi-tab-guard.js / base.css / 鎖定函式 / 報名邏輯 / 統計系統 / LIFF / Service Worker 全部不動
+
 ### 2026-04-20 — GCP 帳單「App Engine」分類實為 Firestore Read Ops（認知陷阱，勿再誤判） [永久]
 - **現象**：GCP Billing Console / Firebase 儀表板（dashboard-usage.js）顯示專案有「**App Engine**」費用
   - 3 月 NT$245.99，4 月 21 天即 NT$789.88（佔總費用 54%）
