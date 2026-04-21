@@ -10,6 +10,43 @@
 > - 純功能新增（可從 git log 得知）不記錄
 > - 總行數超過 500 行時觸發清理
 
+### 2026-04-20 — GCP 帳單「App Engine」分類實為 Firestore Read Ops（認知陷阱，勿再誤判） [永久]
+- **現象**：GCP Billing Console / Firebase 儀表板（dashboard-usage.js）顯示專案有「**App Engine**」費用
+  - 3 月 NT$245.99，4 月 21 天即 NT$789.88（佔總費用 54%）
+  - 會讓人以為有 App Engine 實例、Gen 1 舊函式殘留、或神秘扣款
+- **事實**：專案**完全沒有 App Engine 應用實例**，所有 34 個 Firebase Functions **全部都是 Gen 2**
+  - `gcloud app describe --project=fc-football-6c8dc` 回 `Apps instance not found`
+  - `gcloud app services list` 同樣 not found
+  - `firebase functions:list` 輸出全部標記 `v2`
+- **真兇**：GCP Billing Export 的 `service.description = "App Engine"` **包含所有 Firestore SKU**（歷史分類殘留——Firestore 原名 Cloud Datastore，是 App Engine 的一部分，升級為獨立產品後帳單分類名稱未更新）
+- **驗證方法**（以後遇到此類疑問必用）：
+  ```sql
+  bq query --project_id=fc-football-6c8dc --use_legacy_sql=false --nouse_cache <<'EOF'
+  SELECT invoice.month AS month, sku.description AS sku_name,
+    ROUND(SUM(cost), 2) AS cost_twd,
+    ROUND(SUM(usage.amount_in_pricing_units), 0) AS usage_amount, usage.unit AS unit
+  FROM `fc-football-6c8dc.billing_export.gcp_billing_export_v1_017F3E_4F4035_320E24`
+  WHERE project.id = 'fc-football-6c8dc' AND service.description = 'App Engine'
+  GROUP BY month, sku_name, unit HAVING cost_twd > 0
+  ORDER BY month DESC, cost_twd DESC
+  EOF
+  ```
+  結果全部 SKU 都叫 `Cloud Firestore Read Ops` / `Cloud Firestore Internet Data Transfer` / `Cloud Firestore Zonal Backup Storage` / `Cloud Firestore Point-in-time Recovery Storage`
+- **其他相關事實（調查時順便確認）**：
+  - Firestore 資料庫位於 **`us-central1`**（美國愛荷華；建立時預設，無法遷移；所有讀取跨洋 150-200ms 延遲）
+  - Firebase Functions / Storage 在 `asia-east1`（台灣）
+  - Cloud Scheduler 4 個排程全是 HTTP target（不經 App Engine）
+  - BigQuery Billing Export 是 2026-03 才啟用，2 月以前只能在 Billing Console 網頁查
+- **費用成長趨勢（至 2026-04-20）**：
+  - 3 月全月：Firestore Read Ops 796 萬次 → NT$141
+  - 4 月 21 天：**4,029 萬次 → NT$753（月增 5 倍）**
+  - 爆量月實為 4 月，不是 3 月（3 月只是從 2 月低點起漲的過渡）
+- **教訓與規則**：
+  - **禁止直接信任** GCP / Firebase 儀表板的 `service.description` 分類（歷史名稱會誤導）
+  - 看到「App Engine 費用異常」先假設是 **Firestore 讀取爆量**，不要先懷疑 App Engine / Gen 1 殘留
+  - 要精準分析費用**只能**查 SKU 層級（BigQuery Billing Export 或 GCP Billing Console 的 Group by SKU）
+  - dashboard-usage.js 的 `costByService` 欄位同樣是 GCP 原始 `service.description`，不要直接當成功能分類（例如「App Engine」那格就是 Firestore）
+
 ### 2026-04-20 — Firebase Callable Function 呼叫雙陷阱（一天內犯兩次） [永久]
 - **陷阱 1：前端呼叫 CF 漏指定 region 導致 CORS 失敗**
   - 錯誤訊息：`Access to fetch at 'https://us-central1-.../recordUserLoginIp' ... blocked by CORS policy`
