@@ -3,7 +3,6 @@
   - docs/architecture.md       ← 完整架構圖 + 模組清單 + Mermaid 圖
   - docs/structure-guide.md    ← 本檔案（中文功能導覽圖，附功能解釋）
   - CLAUDE.md                  ← 目錄結構概覽（§ 目錄結構）
-  - AGENTS.md                  ← 目錄結構指引（§ 目錄結構）
 -->
 
 # 系統功能導覽（中文版）

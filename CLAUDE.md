@@ -1,12 +1,41 @@
 # ToosterX — Claude Code 專案指引
 
+> **Last Reviewed: 2026-04-21**（每 2 個月審閱一次，或重大架構重構時立即審閱）
+
 <!--
   結構文件交叉引用（任一檔案的結構描述更新時，必須同步更新以下所有檔案）：
   - docs/architecture.md       ← 完整架構圖 + 模組清單 + Mermaid 圖
   - docs/structure-guide.md    ← 中文功能導覽圖（給人看的，附功能解釋）
-  - CLAUDE.md                  ← 目錄結構概覽（§ 目錄結構）
-  - AGENTS.md                  ← 目錄結構指引（§ 目錄結構）
+  - CLAUDE.md                  ← 目錄結構概覽(§ 目錄結構)
 -->
+
+## 目錄
+
+| 類別 | 章節 |
+|------|------|
+| 📖 **背景** | 專案概述 · 技術架構 · 目錄結構 · 架構文件 |
+| ⚠️ **永久地雷** | 見下方「永久地雷清單」 |
+| 🔧 **日常規範** | 快取版本號 · Service Worker 策略 · 模組建立 · 模組化演進 · 新增功能 · 測試與 CI |
+| ⛓️ **開發守則** | 除錯規則 · 開發守則（4 子節：編碼風格 / 實作前思考 / 程式碼精簡 / 外科手術式修改） |
+| 🔒 **鎖定保護** | 報名系統 · 統計系統 · Firestore Rules · Cloud Functions |
+| 🌐 **業務規範** | 分享功能 · 活動可見性 |
+| 📝 **流程** | 修復日誌 · SEO 日誌 · 自動部署 · 計劃與建議回覆 · 回覆結尾白話總結 |
+| 🛠️ **編碼** | 編碼與亂碼規範 |
+
+## 永久地雷清單（讀前必看）
+
+歷史上**重複踩過**的坑，修改相關檔案前必須先查閱對應章節或歷史紀錄：
+
+| 地雷 | 症狀 | 詳情位置 |
+|------|------|---------|
+| **活動 ID 雙軌制**（`doc.id` vs `data.id`） | 統計歸零、跨集合 join 失敗 | §程式碼規範 最末條 |
+| **UID 欄位對照差異** | 統計歸零、身份誤判 | §統計系統保護規則 背景知識 |
+| **`INHERENT_ROLE_PERMISSIONS` 兩地同步** | 前後端權限靜默分歧 | §每次新增功能時的規範 第 8 條 |
+| **報名系統原子操作** | 人數覆蓋、超收、候補漏遞補 | §報名系統保護規則 |
+| **Firestore 初始化參數變更** | 費用爆量、多 tab 衝突 | `docs/claude-memory.md` 搜 `synchronizeTabs` |
+| **Callable Function region/CORS** | 一天內連犯兩次 | `docs/claude-memory.md` 搜 `Callable` |
+| **`hasPermission` 守衛無 fallback** | 看得到按鈕但點不動 | §每次新增功能時的規範 第 8 條子項 |
+| **`attendanceRecords.uid` 欄位誤用** | 出席統計誤判 | §統計系統保護規則 背景知識 |
 
 ## 專案概述
 
@@ -30,6 +59,11 @@
 
 **無 npm / webpack / build**：前端為純靜態，直接以 `<script>` 載入，無需編譯。
 **API Keys 直接硬編碼**：Firebase 設定在 `js/firebase-config.js`，LINE / 模式密碼在 `js/config.js`，參考 `.env.example` 對照。
+
+**執行環境**：
+- **僅有 Production 環境**（Demo 模式已於 2026-04 移除，`ModeManager.getMode()` 硬編碼返回 `'production'`）
+- 用戶回報的所有問題與需求一律以正式版為前提
+- 不存在 Demo 分支邏輯，`ApiService` 直接讀取 `FirebaseService._cache`
 
 ---
 
@@ -77,35 +111,65 @@ FC-github/
 
 ## 快取版本號規則（每次修改必做）
 
-當你修改了任何 JS 或 HTML 檔案後，**必須**同步更新以下 **四個位置**的版本號（缺一不可，否則用戶端無法正確更新）：
+### 更新方式（強制使用腳本）
+
+```bash
+node scripts/bump-version.js           # 自動遞增後綴（a→b→z→za→zz→zza）
+node scripts/bump-version.js 20260430a # 指定版號
+```
+
+此腳本**一次同步更新 4 處**版號，禁止手動逐檔修改（容易漏改 `var V`）。
+
+### 4 個版號位置（原理說明，不需手動改）
 
 | # | 檔案 | 位置 | 說明 |
 |---|------|------|------|
 | 1 | `js/config.js` | `CACHE_VERSION` 常數 | 動態載入的 pages/*.html 和 js 模組用此值做 cache busting |
-| 2 | `index.html` | 所有 `?v=` 參數（約 66 處） | CSS + JS 靜態資源的 cache busting |
-| 3 | `index.html` | 第 235 行 `var V='...'` | **快取自動清除觸發器**——版本號變更時自動清除所有 SW 快取並重新下載 |
-| 4 | `sw.js` | 第 9 行 `CACHE_NAME` | Service Worker 快取群組名稱，必須與 `var V` 同步，否則舊快取不會被清除 |
+| 2 | `index.html` | 所有 `?v=` 參數 | CSS + JS 靜態資源的 cache busting |
+| 3 | `index.html` | `var V='...'`（inline `<script>` 內，與 `CACHE_VERSION` 共用版號字串） | **快取自動清除觸發器**——版本號變更時自動清除所有 SW 快取並重新下載 |
+| 4 | `sw.js` | `CACHE_NAME` | Service Worker 快取群組名稱，必須與 `var V` 同步，否則舊快取不會被清除 |
 
-**四個值必須完全一致**（同一個版本號字串）。
-
-版本號格式：`YYYYMMDD`，同天多次部署加後綴 `a`, `b`, `c`...
-
-範例：`20260211` → `20260211a` → `20260211b` → `20260212`
+**四個值必須完全一致**（`bump-version.js` 會保證這點）。版本號格式：`YYYYMMDD`，同天多次部署加後綴 `a`, `b`, `c`...（例：`20260211` → `20260211a` → `20260211b` → `20260212`）。
 
 > `page-loader.js` 的 fetch 會自動讀取 `CACHE_VERSION`，不需額外改。
 
-**快速更新指令**（假設舊版號 `OLD`，新版號 `NEW`）：
+### 腳本失效時的緊急備援（不推薦）
+
+若 `bump-version.js` 壞掉無法執行，才手動改 — 必須 4 處全改並**跑 grep 驗證一致**：
+
 ```bash
-# 1. config.js — 手動改 CACHE_VERSION
-# 2. sw.js — 手動改 CACHE_NAME
-# 3+4. index.html — var V + 全部 ?v= 一次替換：
-sed -i "s/?v=OLD/?v=NEW/g" index.html
-# 然後手動改 var V='NEW'（sed 可能漏改，建議用 Edit 工具）
+grep -rn "CACHE_VERSION\|CACHE_NAME\|var V='" js/config.js sw.js index.html
 ```
 
-**注意**：`game-lab.html`、`GrowthGames.html`、`inventory/index.html` 是獨立頁面，使用各自的版號系統，**只在修改它們自己的 JS/CSS 時才需要更新**，不需要跟主站同步。
+### 獨立頁面不需同步
 
-**版號更新時機（強制）**：每次 commit 包含 JS、HTML 或 CSS 的修改，都**必須在同一個 commit 內**同步更新版號。禁止先 commit 程式碼再另開 commit 補版號——這會導致用戶端在兩個 commit 之間跑舊快取的 JS 搭配新的 HTML（或反過來），造成功能異常。
+`game-lab.html`、`GrowthGames.html`、`inventory/index.html` 使用各自的版號系統，**只在修改它們自己的 JS/CSS 時才需要更新**，不需要跟主站同步。
+
+### 版號更新時機（強制）
+
+每次 commit 包含 JS、HTML 或 CSS 的修改，都**必須在同一個 commit 內**同步更新版號。禁止先 commit 程式碼再另開 commit 補版號——會導致用戶端在兩個 commit 之間跑舊快取的 JS 搭配新的 HTML（或反過來），造成功能異常。
+
+---
+
+## Service Worker 策略規範
+
+`sw.js` 已採用分級快取策略，**修改時必須保持這個架構**，錯誤的策略會導致用戶永遠拿不到新版。
+
+### 當前策略（不得更動）
+
+| 資源類型 | 策略 | 理由 |
+|----------|------|------|
+| HTML（`index.html`、`privacy.html` 等） | **network-first** | 版本更新後用戶立即拿到新版，失敗才走快取 |
+| 版本化 JS/CSS（帶 `?v=` 參數） | **cache-first** | 版本號變就 URL 變，天然 cache busting |
+| Firebase Storage 圖片 | **stale-while-revalidate** | 優先顯示舊圖再背景更新（上限 150 張、7 天過期） |
+
+### 禁止事項
+
+1. **禁止把 HTML 改成 cache-first**：用戶會卡在舊版永遠無法更新。
+2. **禁止加入未被 `bump-version.js` 管理的資源到 `STATIC_ASSETS`**：版本號變更時不會失效，導致舊資源永久殘留。
+3. **禁止在 `STATIC_ASSETS` 引用外部 CDN**：SW 無法保證 CORS，可能導致整個 PWA 冷啟動失敗。
+4. **禁止直接編輯 `CACHE_NAME`**：必須透過 `bump-version.js`（見 §快取版本號規則）。
+5. **禁止加入 `/sw.js` 自己到快取清單**：會造成 SW 無法更新的 deadlock。
 
 ---
 
@@ -123,7 +187,7 @@ sed -i "s/?v=OLD/?v=NEW/g" index.html
 - **單一檔案不得超過 300 行**，超過則拆分（新模組放入對應功能子資料夾（如 js/modules/event/、js/modules/team/），參考既有資料夾結構）
 - **相同類型的模組必須放在同一個資料夾內**：新增模組時，若已有對應的功能子資料夾（如 event/、team/、profile/ 等），**禁止**將同類型模組放在 `js/modules/` 扁平目錄下，必須放入對應子資料夾。若新功能不屬於任何既有子資料夾，且預期會有 2 個以上相關檔案，應優先建立新的功能子資料夾
 
-## 模組化演進目標（新增）
+## 模組化演進目標
 
 - 專案長期目標是逐步走向**功能模組化、資料夾化、責任邊界清楚**的架構；對於已明顯跨頁、跨責任、跨資料來源的功能，不應長期維持在單一大檔案中持續堆疊。
 - 重構既有功能時，預設採用「**保留舊入口、內部邏輯逐步抽離到新資料夾**」的方式進行；除非使用者明確要求，否則不要直接做一次性大搬家。
@@ -158,6 +222,47 @@ sed -i "s/?v=OLD/?v=NEW/g" index.html
 
 ---
 
+## 測試與 CI 規範（強制）
+
+### CI 自動驗證
+
+本專案已設定 GitHub Actions（`.github/workflows/test.yml`），在 push 或 PR 到 `main` 時自動跑兩組測試：
+- `npm run test:unit` — 純函式單元測試（~550 個）
+- `npm run test:rules` — Firestore 規則測試（~110 個，需 Java 21 + Firebase Emulator）
+
+**CI 失敗時 GitHub 會顯示紅色錯誤**（本專案直推 `main`，無分支保護，不會擋 push，但代表回歸失敗必須立即修復）。push 前應本地先跑，避免出錯後才來回補救。
+
+### 測試指令清單
+
+| 指令 | 用途 |
+|------|------|
+| `npm run test:unit` | 純函式單元測試（Jest，無需 emulator） |
+| `npm run test:rules` | Firestore 規則測試（自動啟 emulator） |
+| `npm run test:e2e` | Playwright E2E（需本地 `npx serve . -l 3000`） |
+| `npm run test:unit:coverage` | 單元測試 + 覆蓋率報告 |
+
+完整測試清單與對應來源檔案：見 `docs/test-coverage.md`。
+
+### 何時必須跑測試（強制）
+
+| 修改範圍 | 必跑指令 | 理由 |
+|----------|----------|------|
+| `firestore.rules` | `npm run test:rules` | CI 會失敗，且 Rules 錯誤會直接破壞 prod 權限 |
+| `js/firebase-crud.js`（報名/取消/遞補鎖定函式，清單見 §報名系統保護規則） | `npm run test:unit` | 歷史多次回歸 bug，測試是最後防線 |
+| `js/modules/achievement/stats.js`（統計鎖定函式，清單見 §統計系統保護規則） | `npm run test:unit` | 同上 |
+| `js/modules/**` 其他模組 | `npm run test:unit` | CI 會失敗，本地先驗省來回補救 |
+| `functions/index.js`（Cloud Functions） | 手動測 + `firebase functions:log` 驗證 | 目前無 CF 自動化測試 |
+| 純文件變更（`*.md`、`docs/**`） | 無 | 不觸發測試 |
+
+### 測試失敗的處理規則
+
+1. **禁止用 `xdescribe` / `xtest` / `--testPathIgnorePatterns` 繞過失敗的測試**。任何跳過都必須在 commit 訊息中記錄原因與恢復時機。
+2. 若測試失敗源自「測試本身過時」（例如鎖定函式已正當升級），先修測試、再修程式碼，並在 commit 訊息標註「測試同步更新」。
+3. 若測試失敗源自「程式碼真的壞掉」，先修程式碼，保留測試。
+4. **鎖定函式範圍內新增函式必須補單元測試**（清單見 §報名系統保護規則、§統計系統保護規則）；非鎖定範圍不強制但鼓勵。
+
+---
+
 ## 除錯規則
 
 - 修復任何錯誤前，必須先閱讀所有相關聯的檔案（import、呼叫方、被呼叫方）
@@ -167,7 +272,11 @@ sed -i "s/?v=OLD/?v=NEW/g" index.html
 
 ---
 
-## 程式碼規範
+## 開發守則
+
+本章包含 4 個層次的守則：**編碼風格 → 動手前思考 → 程式碼精簡 → 外科手術式修改**。動手前依序檢視這 4 個子節。
+
+### 編碼風格與一般規範
 
 - 統一使用 `async/await`，不使用 `.then()` 鏈式呼叫
 - 所有使用者輸入必須經過 `escapeHTML()` 處理，防止 XSS
@@ -188,7 +297,7 @@ sed -i "s/?v=OLD/?v=NEW/g" index.html
 
 ---
 
-## 實作前思考規則（每次動手前必做）
+### 實作前思考（動手前釐清假設）
 
 - 開始寫程式碼前，必須先表述你的核心假設（例如「我假設這個欄位必定存在」「我假設呼叫者已驗證過輸入」）。若有任何假設無法從既有程式碼確認，必須先向用戶釐清，禁止靜默猜測。
 - 若用戶需求有多種合理解讀（例如「修這個 bug」可能對應 A / B / C 三種改法），必須把所有解讀列出讓用戶選,禁止自行挑一個就動手。
@@ -197,7 +306,7 @@ sed -i "s/?v=OLD/?v=NEW/g" index.html
 
 ---
 
-## 程式碼精簡規則（寫最少的程式碼解決問題）
+### 程式碼精簡（寫最少的程式碼）
 
 - 以能正確解決問題的**最少程式碼**為目標，不加任何未被要求的功能、選項、參數、抽象層。
 - 禁止為「未來可能會用到」做預留設計；禁止為單次使用的邏輯包一層抽象；禁止為不可能發生的情境（例如前端已驗證過的欄位、鎖定函式內已保證的前置條件）加 error handling。
@@ -207,7 +316,7 @@ sed -i "s/?v=OLD/?v=NEW/g" index.html
 
 ---
 
-## 外科手術式修改規則（強制，鎖定函式區域加倍嚴格）
+### 外科手術式修改（只改必要的，鎖定函式區域加倍嚴格）
 
 - 修改既有程式碼時，**只動必須動的部分**。禁止順手優化相鄰程式碼、重排註解、調整格式、重命名無關變數、改寫既有寫法風格。
 - 若發現既有程式碼風格與你個人偏好不同（縮排、命名、`var` vs `const`、箭頭函式 vs `function` 等），**必須沿用既有風格**，禁止自作主張改寫；風格統一若要進行，必須另開單獨的結構整理 commit，不得混在功能變更中。
@@ -405,6 +514,60 @@ https://miniapp.line.me/2009525300-AuPGQ0sh?{deepLinkParam}={id}
 
 ---
 
+## Firestore Rules 修改規則（強制）
+
+`firestore.rules` 約 1500 行，近 2 個月被修改 80 次，是 CI 會擋的檔案。修改前必讀：
+
+### 強制規則
+
+1. **閱讀前**：修改任何 helper 函式前，必須先掃過哪些 rule 呼叫它（用 grep），避免誤刪他人依賴。
+2. **刪除保守**：禁止刪除既有 helper 函式（如 `isSuperAdmin()`、`hasPerm()`、`isBlocklistFieldsOnly()`）。若確定不再使用，須獨立 commit 並在 message 明確標示「確認無呼叫端」。
+3. **欄位白名單完整性**：新增或擴充 `isSafeSelfProfileUpdate()` 之類的白名單時，必須**同步更新對應測試**（`tests/firestore*.test.js`），否則新欄位會被 Rules 靜默拒絕（參考 stealth 欄位漏白名單的歷史案例）。
+4. **修改後必跑**：`npm run test:rules` 本地通過才可 push。失敗必須先修通，禁止用 skip 繞過。
+5. **部署驗證**：`firebase deploy --only firestore:rules` 後，在 Prod 跑一輪代表性寫入測試（建立活動、報名、取消等）確認無回歸。
+
+### 歷史教訓（修改前查閱）
+
+- `isSafeSelfProfileUpdate()` 白名單漏 stealth 欄位 → 潛行開關 Firestore 寫入被靜默拒絕（`docs/claude-memory.md` 搜 `stealth`）
+- 詳細 Rules 相關教訓見 `docs/claude-memory.md` 搜 `Rules`
+
+---
+
+## Cloud Functions 修改規則（強制）
+
+`functions/index.js` 約 6200 行、36 個 exports，近 2 個月被修改 90 次，**目前無自動化測試**，出錯直接影響 prod。
+
+### 強制規則
+
+1. **Callable Function 檢查項目**（歷史雙陷阱）：
+   - 必須指定 `region`（本專案用 `asia-east1`）
+   - 前端 `firebase.functions().httpsCallable()` 的 region 必須對應
+   - region 不匹配會產生 CORS 錯誤假象，但根因不是 CORS
+2. **禁止吞錯**：所有 `.catch()` 必須 log 清楚上下文或重新拋出。
+
+   ```javascript
+   // ❌ 禁止
+   .catch(err => {})
+   .catch(err => console.log(err))  // log 太弱，無法定位
+
+   // ✅ 正確
+   .catch(err => {
+     console.error('[funcName] 具體上下文:', err);
+     throw err;  // 或回傳 HttpsError
+   })
+   ```
+3. **`INHERENT_ROLE_PERMISSIONS` 兩地同步**（已規範於 §每次新增功能時的規範 第 8 條）
+4. **Transaction 必須處理 contention**：Firestore transaction 會因併發拋 `ABORTED`，必須允許 SDK 的自動重試或自行 retry。
+5. **部署後驗證**：`firebase deploy --only functions:xxx` 後必看 `firebase functions:log` 至少 5 分鐘，確認無 unhandled exception。
+
+### 歷史教訓（修改前查閱）
+
+- 一天內連犯兩次的 region/CORS 陷阱（`docs/claude-memory.md` 搜 `Callable`）
+- `.catch()` 靜默吞錯（`docs/claude-memory.md` 搜 `靜默`）
+- `recordUserLoginIp` region 不匹配 + `admin is not defined` 變數未宣告（近期修復）
+
+---
+
 ## 修復日誌規則（每次解決問題後必做）
 
 每次解決一個 bug 或完成一項功能後，**必須**在 `docs/claude-memory.md` 新增一筆記錄：
@@ -420,6 +583,11 @@ https://miniapp.line.me/2009525300-AuPGQ0sh?{deepLinkParam}={id}
 > 這個檔案隨 git 走，換設備或跨會話都能參考歷史修復經驗。
 > `docs/claude-memory.md` 是唯一指定的修復 / 功能歷史紀錄檔，禁止另建 `memory.md`、`fix-log.md`、`handoff-log.md` 或其他平行日誌檔分流紀錄。
 > 若 `docs/claude-memory.md` 出現亂碼、混合編碼或非 UTF-8 狀態，必須先修復並標準化回 UTF-8，再繼續追加到同一檔案。
+
+**格式注意事項**：
+- `[永久]` 標記**統一放在標題末尾**（如 `### YYYY-MM-DD — 標題 [永久]`），不得放在標題前（既有歷史條目保留原狀，不追溯修正）。
+- 日期格式一律 `YYYY-MM-DD`，不得用 `YYYY/MM/DD` 或其他變體。
+- 同一天多筆記錄依時間先後排序，後寫的在下面。
 
 ### 修復日誌維護規則（定期清理）
 
@@ -440,51 +608,6 @@ https://miniapp.line.me/2009525300-AuPGQ0sh?{deepLinkParam}={id}
 5. 新條目預設為「一般」；只有符合永久條件的才標記 `[永久]`
 
 ---
-
-## 環境說明
-
-- **僅有 Production 環境**（Demo 模式已於 2026-04 移除，`ModeManager.getMode()` 硬編碼返回 `'production'`）
-- 用戶回報的所有問題與需求一律以正式版為前提
-- 不存在 Demo 分支邏輯，`ApiService` 直接讀取 `FirebaseService._cache`
-
-## 完成後自動部署規範
-
-每次完成一項任務（功能開發、bug 修復、文件更新等）後，**必須**主動評估是否需要部署：
-
-1. **評估條件**：若本次變更涉及任何 JS、HTML、CSS 或設定檔的修改，即視為需要部署
-2. **主動執行**：確認需要部署時，主動執行 `git add` → `git commit` → `git push origin main`，不需等待用戶指示
-3. **Commit 訊息**：遵循既有 commit 規範（中文描述、列出關鍵改動）
-4. **若僅修改文件檔案**（如 `CLAUDE.md`、`AGENTS.md`、`docs/*.md`），也應主動 commit + push 以保持 repo 同步
-5. **例外**：僅當用戶明確表示「先不要 push」或「等我確認」時，才暫緩部署
-
-## 計劃與建議回覆規範
-
-### 規劃類回覆（「先計劃、不實作」）
-- 回覆中必須同時提供：
-  - 風險評估（列出主要風險、影響範圍、可能後果）
-  - 工作量評估（拆分步驟並給出粗略工時或複雜度等級）
-
-### 任何建議或優化提案（強制）
-- 每當向用戶提出修改建議、優化方案、架構調整或任何技術提案時，**必須附上白話易懂的優劣與風險評估報告**，格式如下：
-
-| 評估項目 | 內容 |
-|----------|------|
-| **做了會怎樣（好處）** | 用大白話說明用戶/開發者能感受到的改善 |
-| **不做會怎樣** | 說明維持現狀的代價或沒影響 |
-| **最壞情況** | 如果實作出問題，最嚴重會發生什麼事 |
-| **影響範圍** | 會動到哪些檔案、哪些功能、哪些用戶流程 |
-| **回退難度** | 出問題時能不能輕鬆改回來（秒回退 / 需手動還原 / 不可逆） |
-| **歷史教訓** | 過去有沒有做過類似的事？結果如何？（查 `docs/claude-memory.md`） |
-
-- 此規範適用於：效能優化、架構重構、新功能設計、CSS/JS/HTML 變更建議、部署策略調整等所有非 trivial 的提案
-- 不適用於：純 bug 修復（已確認根因的直接修復）、用戶明確指示的精確操作、版本號更新等機械性操作
-- **禁止只列好處不列風險**：若某項建議看起來「零風險」，必須明確寫出「最壞情況：無，純增量變更不影響既有邏輯」，而非省略不提
-
-## 實作亂碼檢查規則（新增）
-- 實作時（新增或修改任何檔案），必須檢查是否出現無法判讀的亂碼（mojibake / encoding corruption）。
-- 若發現亂碼且可安全修復，必須在同一次變更中優先即時修復，不得延後。
-- 若無法安全修復（例如來源不明或風險過高），必須在回覆中明確標註檔案與區段、說明風險，並提出可執行的修復方案。
-- 若需修復歷史紀錄檔的編碼，必須以 `docs/claude-memory.md` 為唯一目標檔，先標準化為 UTF-8，再沿用原檔續寫，不得改寫到其他替代檔案。
 
 ## SEO 日誌規則（每次 SEO 相關變更必做）
 
@@ -514,16 +637,73 @@ https://miniapp.line.me/2009525300-AuPGQ0sh?{deepLinkParam}={id}
 
 ---
 
-## 防亂碼編碼規範（新增）
+## 完成後自動部署規範
+
+每次完成一項任務（功能開發、bug 修復、文件更新等）後，**必須**主動評估是否需要部署：
+
+1. **評估條件**：若本次變更涉及任何 JS、HTML、CSS 或設定檔的修改，即視為需要部署
+2. **主動執行順序**：
+   1. 依 §測試與 CI 規範「何時必須跑測試」對照表，**先跑相關測試本地通過**
+   2. `git add` → `git commit`
+   3. 確認無回歸後 `git push origin main`
+   4. 若測試失敗，先修測試或程式碼，通過後才 push
+3. **Commit 訊息**：遵循既有 commit 規範（中文描述、列出關鍵改動）
+4. **若僅修改文件檔案**（如 `CLAUDE.md`、`docs/*.md`），不觸發測試，可直接 commit + push
+5. **例外**：僅當用戶明確表示「先不要 push」或「等我確認」時，才暫緩部署
+
+## 計劃與建議回覆規範
+
+### 規劃類回覆（「先計劃、不實作」）
+- 回覆中必須同時提供：
+  - 風險評估（列出主要風險、影響範圍、可能後果）
+  - 工作量評估（拆分步驟並給出粗略工時或複雜度等級）
+
+### 任何建議或優化提案（強制）
+- 每當向用戶提出修改建議、優化方案、架構調整或任何技術提案時，**必須附上白話易懂的優劣與風險評估報告**，格式如下：
+
+| 評估項目 | 內容 |
+|----------|------|
+| **做了會怎樣（好處）** | 用大白話說明用戶/開發者能感受到的改善 |
+| **不做會怎樣** | 說明維持現狀的代價或沒影響 |
+| **最壞情況** | 如果實作出問題，最嚴重會發生什麼事 |
+| **影響範圍** | 會動到哪些檔案、哪些功能、哪些用戶流程 |
+| **回退難度** | 出問題時能不能輕鬆改回來（秒回退 / 需手動還原 / 不可逆） |
+| **歷史教訓** | 過去有沒有做過類似的事？結果如何？（查 `docs/claude-memory.md`） |
+
+- 此規範適用於：效能優化、架構重構、新功能設計、CSS/JS/HTML 變更建議、部署策略調整等所有非 trivial 的提案
+- 不適用於：純 bug 修復（已確認根因的直接修復）、用戶明確指示的精確操作、版本號更新等機械性操作
+- **禁止只列好處不列風險**：若某項建議看起來「零風險」，必須明確寫出「最壞情況：無，純增量變更不影響既有邏輯」，而非省略不提
+
+## 編碼與亂碼規範
+
+### 檔案編碼原則
+
 - 所有新增與修改的 repo 檔案一律以 UTF-8 保存；不得混用 ANSI、Big5、CP950、UTF-8 BOM 或其他不一致編碼。
+
+### 修改方式
+
 - 只要檔案含中文內容，預設優先使用 diff-based 修補（如 Edit / apply_patch）修改；除非有明確必要，禁止以 Write 整檔覆寫或以 shell 讀出整檔再整段覆寫回 repo 檔案。
 - 禁止使用未明確指定 UTF-8 的 shell 寫檔方式修改 repo 檔案，包括但不限於 `Out-File`、`Set-Content`、`Add-Content`、未指定 encoding 的 `WriteAllText` / `WriteAllLines`。
 - 若不得不用 shell 寫回 repo 檔案，必須明確指定 UTF-8（無 BOM）或等效安全設定，並在同次變更中重新讀檢查結果。
+
+### 檢查時機（強制）
+
+- **實作時**（新增或修改任何檔案），必須檢查是否出現無法判讀的亂碼（mojibake / encoding corruption）。
+- **提交前**修改 `index.html`、`docs/claude-memory.md`、以及任何含中文 UI 文案的 `js/modules/*.js` 後，必須重新檢查是否出現 `�`、`Ã`、`å`、`æ`、連續 `???`（0x3F 替換）、PUA 字元（U+E000–U+F8FF）、殘缺標籤、殘缺引號或其他典型 mojibake 痕跡。
+- 若只是批次更新版本號、快取參數、meta 標籤或文件文字，也同樣適用，不得因為是小改動而省略檢查。
+
+### 終端 vs 檔案亂碼
+
 - 若終端顯示為亂碼，必須先區分「終端顯示解碼錯誤」與「檔案實際內容已損壞」；禁止直接依據終端中的亂碼文字做 patch 或 replace。
+
+### 受損處理
+
+- 若發現亂碼且可安全修復，必須在同一次變更中優先即時修復，不得延後。
 - 若檔案已出現 mojibake、混合編碼、殘缺 HTML 標籤、字串引號不閉合等情況，必須先整體修復編碼與結構，再繼續做功能修改；不得在受損區塊上直接疊加新需求。
-- 修改 `index.html`、`docs/claude-memory.md`、以及任何含中文 UI 文案的 `js/modules/*.js` 後，提交前必須重新檢查是否出現 `�`、`Ã`、`å`、`æ`、連續 `???`（0x3F 替換）、PUA 字元（U+E000–U+F8FF）、殘缺標籤、殘缺引號或其他典型 mojibake 痕跡。
-- 若只是批次更新版本號、快取參數、meta 標籤或文件文字，也同樣適用上述編碼規範，不得因為是小改動而省略檢查。
-- 若發現亂碼無法安全修復，必須在回覆中明確標註受影響檔案、區段、風險與建議處理方式；不得在未說明風險的情況下直接提交。
+- 若無法安全修復（例如來源不明或風險過高），必須在回覆中明確標註受影響檔案、區段、風險與建議處理方式，並提出可執行的修復方案；不得在未說明風險的情況下直接提交。
+- 若需修復歷史紀錄檔的編碼，必須以 `docs/claude-memory.md` 為唯一目標檔，先標準化為 UTF-8，再沿用原檔續寫，不得改寫到其他替代檔案。
+
+---
 
 ## 回覆結尾白話總結規則（強制）
 

@@ -3,7 +3,6 @@
   - docs/architecture.md       ← 本檔案（完整架構圖 + 模組清單 + Mermaid 圖）
   - docs/structure-guide.md    ← 中文功能導覽圖（給人看的，附功能解釋）
   - CLAUDE.md                  ← 目錄結構概覽（§ 目錄結構）
-  - AGENTS.md                  ← 目錄結構指引（§ 目錄結構）
 -->
 
 # ToosterX — 模組架構圖
@@ -732,11 +731,10 @@ flowchart LR
 | `docs/architecture.md` | Mermaid 圖 MODS 子圖 + 功能子資料夾模組清單 + 獨立模組清單 + ScriptLoader 群組表 + 鎖定函式路徑表 | 完整架構圖與模組清單 |
 | `docs/structure-guide.md` | 中文功能導覽圖 | 給人看的功能導覽（附功能解釋） |
 | `CLAUDE.md` | `§ 目錄結構（概覽）` | 目錄樹與模組數量 |
-| `AGENTS.md` | `§ 目錄結構指引` | Agent 用目錄結構指引 |
 
 ### 同步規則
 
-1. **新增模組**：在上述四個檔案中加入新模組的路徑與說明
+1. **新增模組**：在上述三個檔案中加入新模組的路徑與說明
 2. **搬移模組**：更新所有出現舊路徑的地方為新路徑（包含鎖定函式路徑表）
 3. **刪除模組**：從所有檔案中移除對應條目
 4. **子資料夾新增/合併**：更新 Mermaid 圖的 MODS 子圖、模組清單表、ScriptLoader 群組表
