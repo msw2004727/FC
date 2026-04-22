@@ -44,20 +44,32 @@
 }
 .seo-empty h3 { margin-bottom: .8rem; color: var(--text-primary); }
 
-/* Meta bar — 頂部資訊列，透明無框 */
+/* Meta bar — 頂部資訊列，上下排列（不同行） */
 .seo-meta-bar {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 1rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .3rem;
   padding: .4rem 0;
   background: transparent;
   margin-bottom: 1rem;
   font-size: .8rem;
   color: var(--text-muted);
   border-bottom: 0;
+  position: relative;
+}
+.seo-meta-bar > span {
+  display: block;
+  line-height: 1.5;
 }
 .seo-meta-bar strong { color: var(--accent); font-weight: 600; }
+/* Meta bar 的說明按鈕定位到右上角 */
+.seo-meta-bar > .seo-info-btn {
+  position: absolute;
+  top: .2rem;
+  right: 0;
+  margin-left: 0;
+}
 
 /* Section — 完全透明、無 border、無分隔線，只用 margin 分隔 */
 .seo-section {

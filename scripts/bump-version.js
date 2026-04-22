@@ -2,15 +2,19 @@
 /**
  * bump-version.js — 一行指令同步更新全部 4 個版號位置
  *
+ * 版號格式：0.YYYYMMDD{suffix}
+ *   例：0.20260422 → 0.20260422a → 0.20260422b → ...
+ *   跨日會自動重置為今天無後綴（0.新日期）
+ *
  * 用法：
- *   node scripts/bump-version.js          → 自動遞增後綴 (a→b, z→za, zz→zza)
- *   node scripts/bump-version.js 20260403a → 指定版號
+ *   node scripts/bump-version.js            → 自動遞增（跨日重置、同日遞增後綴）
+ *   node scripts/bump-version.js 0.20260422a → 指定版號
  *
  * 更新位置：
  *   1. js/config.js        — CACHE_VERSION
  *   2. sw.js               — CACHE_NAME
- *   3. index.html           — var V='...'
- *   4. index.html           — 所有 ?v=... 參數
+ *   3. index.html          — var V='...'
+ *   4. index.html          — 所有 ?v=... 參數
  */
 
 const fs = require('fs');
@@ -45,24 +49,33 @@ function getTodayTaipei() {
   return y + m + d;
 }
 
-// 遞增版號：若今天 > existing 日期 → 重置為今天（無後綴）
-//          若同天 → 遞增後綴（a→b, z→za, zz→zza）
+// 版號格式：0.YYYYMMDD{suffix}
+//   例：0.20260422 → 0.20260422a → 0.20260422b → ... → 0.20260422z → 0.20260422za
+// 規則：
+//   1. 若 existing 非此格式（舊格式 YYYYMMDDx）→ 重置為今天無後綴（0.YYYYMMDD）
+//   2. 若 existing 日期 < 今天 → 重置為今天無後綴
+//   3. 若 existing 日期 == 今天 → 遞增後綴
 function incrementVersion(ver) {
-  const m = ver.match(/^(\d{8})(.*)$/);
-  if (!m) throw new Error('Invalid version format: ' + ver);
+  const today = getTodayTaipei();
+  const m = ver.match(/^0\.(\d{8})([a-z]*)$/);
+
+  // 不符新格式 → 升級為新格式（重置為今天無後綴）
+  if (!m) {
+    console.log(`  ℹ 舊版號格式 "${ver}" 升級為新格式 0.YYYYMMDD`);
+    return `0.${today}`;
+  }
+
   const date = m[1];
   const suffix = m[2];
-  const today = getTodayTaipei();
 
   // 今天 > existing 日期 → 重置為今天無後綴
-  if (today > date) return today;
-  // 今天 < existing 日期（異常，但保守處理）→ 沿用 existing 日期遞增
+  if (today > date) return `0.${today}`;
   if (today < date) {
     console.warn(`⚠ 今天 ${today} 比版號日期 ${date} 還舊（時區或系統時間異常？），沿用舊日期遞增`);
   }
 
   // 同天 → 遞增後綴
-  if (!suffix) return date + 'a';
+  if (!suffix) return `0.${date}a`;
 
   // 遞增：a→b, y→z, z→za, zz→zza（全 z 時延伸一位）
   const chars = suffix.split('');
@@ -73,10 +86,10 @@ function incrementVersion(ver) {
     // 找到非 z 字元，遞增它，後面的 z 全變 a
     chars[i] = String.fromCharCode(chars[i].charCodeAt(0) + 1);
     for (let j = i + 1; j < chars.length; j++) chars[j] = 'a';
-    return date + chars.join('');
+    return `0.${date}${chars.join('')}`;
   }
   // 全部是 z → 延伸一位：z→za, zz→zza
-  return date + suffix + 'a';
+  return `0.${date}${suffix}a`;
 }
 
 // 主流程

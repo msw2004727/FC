@@ -111,11 +111,26 @@ FC-github/
 
 ## 快取版本號規則（每次修改必做）
 
+### 版號格式（強制）
+
+**格式：`0.YYYYMMDD{suffix}`**
+
+例：
+- `0.20260422`（當天第一次部署，無後綴）
+- `0.20260422a`（當天第二次部署）
+- `0.20260422b`（當天第三次部署）
+- ...
+- `0.20260422z`
+- `0.20260422za`（第 27 次部署）
+- `0.20260423`（隔天第一次部署，**重置無後綴**）
+
+**跨日自動重置**：`bump-version.js` 會取台北時間今天日期，若與 existing 版號日期不同（隔天）則重置為今天無後綴，不會沿用舊日期一直遞增後綴。
+
 ### 更新方式（強制使用腳本）
 
 ```bash
-node scripts/bump-version.js           # 自動遞增後綴（a→b→z→za→zz→zza）
-node scripts/bump-version.js 20260430a # 指定版號
+node scripts/bump-version.js              # 自動遞增（跨日重置、同日遞增後綴）
+node scripts/bump-version.js 0.20260430a  # 指定版號（必須符合新格式）
 ```
 
 此腳本**一次同步更新 4 處**版號，禁止手動逐檔修改（容易漏改 `var V`）。
@@ -129,7 +144,7 @@ node scripts/bump-version.js 20260430a # 指定版號
 | 3 | `index.html` | `var V='...'`（inline `<script>` 內，與 `CACHE_VERSION` 共用版號字串） | **快取自動清除觸發器**——版本號變更時自動清除所有 SW 快取並重新下載 |
 | 4 | `sw.js` | `CACHE_NAME` | Service Worker 快取群組名稱，必須與 `var V` 同步，否則舊快取不會被清除 |
 
-**四個值必須完全一致**（`bump-version.js` 會保證這點）。版本號格式：`YYYYMMDD`，同天多次部署加後綴 `a`, `b`, `c`...（例：`20260211` → `20260211a` → `20260211b` → `20260212`）。
+**四個值必須完全一致**（`bump-version.js` 會保證這點）。版號格式見上方「版號格式」章節。
 
 > `page-loader.js` 的 fetch 會自動讀取 `CACHE_VERSION`，不需額外改。
 
