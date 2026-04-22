@@ -26,12 +26,18 @@
 | 頁面 | Schema 類型 |
 |------|-------------|
 | index.html | `WebApplication` + `Organization` + `FAQPage`（8 組 Q&A） |
+| privacy.html | `BreadcrumbList`（2 層） |
+| terms.html | `BreadcrumbList`（2 層） |
 | seo/football.html | `BreadcrumbList`（2 層）+ `WebPage` + `FAQPage` |
-| seo/football-taichung.html | `BreadcrumbList`（3 層）+ `WebPage` + `FAQPage` |
-| seo/nantun-football-park.html | `BreadcrumbList`（4 層）+ `Article` + `SportsActivityLocation` + `FAQPage` |
+| seo/basketball.html | `BreadcrumbList`（2 層）+ `WebPage` + `FAQPage`（6 組） |
+| seo/pickleball.html | `BreadcrumbList`（2 層）+ `WebPage` + `FAQPage` |
+| seo/dodgeball.html | `BreadcrumbList`（2 層）+ `WebPage` + `FAQPage`（6 組） |
 | seo/running.html | `BreadcrumbList`（2 層）+ `WebPage` + `FAQPage` |
 | seo/hiking.html | `BreadcrumbList`（2 層）+ `WebPage` + `FAQPage` |
-| seo/pickleball.html | `BreadcrumbList`（2 層）+ `WebPage` + `FAQPage` |
+| seo/football-taichung.html | `BreadcrumbList`（3 層）+ `WebPage` + `FAQPage` |
+| seo/nantun-football-park.html | `BreadcrumbList`（4 層）+ `Article` + `SportsActivityLocation` + `FAQPage` |
+| seo/sports-changhua.html | `BreadcrumbList`（2 層）+ `WebPage` + `FAQPage`（6 組） |
+| seo/sports-nantou.html | `BreadcrumbList`（2 層）+ `WebPage` + `FAQPage`（6 組） |
 
 ### Meta 標籤配置
 | 標籤 | 首頁 | SEO 著陸頁 | privacy/terms |
@@ -78,26 +84,38 @@ Sitemap: https://toosterx.com/sitemap.xml
 ### sitemap.xml 收錄頁面
 | URL | priority | lastmod |
 |-----|----------|---------|
-| `/` | 1.0 | 2026-04-02 |
-| `/roles/` | 0.7 | 2026-03-19 |
-| `/privacy.html` | 0.3 | 2026-03-19 |
-| `/terms.html` | 0.3 | 2026-03-19 |
-| `/seo/football.html` | 0.8 | 2026-04-02 |
-| `/seo/running.html` | 0.8 | 2026-04-02 |
-| `/seo/hiking.html` | 0.8 | 2026-04-02 |
-| `/seo/pickleball.html` | 0.8 | 2026-04-02 |
-| `/seo/football-taichung.html` | 0.8 | 2026-04-02 |
-| `/seo/nantun-football-park.html` | 0.8 | 2026-04-02 |
+| `/` | 1.0 | 2026-04-22 |
+| `/roles/` | 0.7 | 2026-04-22 |
+| `/privacy.html` | 0.3 | 2026-04-22 |
+| `/terms.html` | 0.3 | 2026-04-22 |
+| `/seo/football.html` | 0.8 | 2026-04-22 |
+| `/seo/basketball.html` | 0.8 | 2026-04-22 |
+| `/seo/pickleball.html` | 0.8 | 2026-04-22 |
+| `/seo/dodgeball.html` | 0.8 | 2026-04-22 |
+| `/seo/running.html` | 0.8 | 2026-04-22 |
+| `/seo/hiking.html` | 0.8 | 2026-04-22 |
+| `/seo/football-taichung.html` | 0.8 | 2026-04-22 |
+| `/seo/nantun-football-park.html` | 0.8 | 2026-04-22 |
+| `/seo/sports-changhua.html` | 0.8 | 2026-04-22 |
+| `/seo/sports-nantou.html` | 0.8 | 2026-04-22 |
+
+sitemap.xml 首頁條目新增 `<image:image>` 標記 og.png。
 
 ### 內部連結架構
 ```
 index.html (noscript)
-  ├── seo/football.html
-  │     └── seo/football-taichung.html
-  │           └── seo/nantun-football-park.html
-  ├── seo/running.html
-  ├── seo/hiking.html
-  └── seo/pickleball.html
+  ├── 依運動項目揪團
+  │     ├── seo/football.html
+  │     ├── seo/basketball.html
+  │     ├── seo/pickleball.html
+  │     ├── seo/dodgeball.html
+  │     ├── seo/running.html
+  │     └── seo/hiking.html
+  └── 依地區揪團
+        ├── seo/football-taichung.html
+        │     └── seo/nantun-football-park.html
+        ├── seo/sports-changhua.html
+        └── seo/sports-nantou.html
 
 各 SEO 頁面互相交叉連結（每頁連到其他頁面，不連自己）
 ```
@@ -114,6 +132,49 @@ index.html (noscript)
 ---
 
 ## SEO 優化歷史紀錄
+
+### 2026-04-22 — 階段 1：內容覆蓋擴充（4 新著陸頁 + 全面 SEO 補強）
+
+**問題 / 目標**：
+SEO 基礎架構完善但內容覆蓋度不足。專案支援 10+ 種運動僅 4 種有著陸頁、地區只涵蓋台中。sitemap lastmod 停在 4/2 已近 3 週未更新，Google 判斷內容不新鮮。privacy/terms 缺 BreadcrumbList、robots.txt 未明確對 AI 爬蟲聲明、首頁 noscript 未涵蓋新運動。
+
+**執行項目**：
+
+1. **新增 4 個 SEO 著陸頁**（約 2000 字 / 頁）
+   - `seo/basketball.html`（橘色主色系）：籃球揪團、5v5/3x3/半場、新手入門、場地推薦、裝備指南、40+ 關鍵詞
+   - `seo/dodgeball.html`（靛藍主色系）：美式躲避球、泡棉球、6v6 社交運動、公司團建、新手常見擔心對照表
+   - `seo/sports-changhua.html`（青藍主色系）：彰化縣各鄉鎮運動分區、八卦山自行車、員林/鹿港/和美/溪湖/北斗
+   - `seo/sports-nantou.html`（綠色主色系）：南投山城運動、合歡武嶺、日月潭環湖、百岳/自行車/路跑路線表
+
+2. **sitemap.xml 全面更新**
+   - 新增 4 個著陸頁 URL
+   - 所有 lastmod 更新為 2026-04-22（Google 判斷內容新鮮）
+   - 首頁條目新增 `<image:image>` 圖片標記（讓 og.png 被 Google Images 收錄）
+   - 加入 `xmlns:image` 命名空間宣告
+
+3. **robots.txt 加 AI 爬蟲規則**
+   - 新增 `GPTBot`、`ClaudeBot`、`PerplexityBot`、`Google-Extended` 的明確聲明
+   - 允許公開內容供 AI 訓練，排除 `/pages/`、`/inventory/`、`/permissions/`
+   - 解讀：主動參與 AI 生態有助於品牌曝光，且本平台的內容非敏感商業機密
+
+4. **privacy.html / terms.html 補 BreadcrumbList**
+   - 2 層 BreadcrumbList：ToosterX → 隱私權政策 / 服務條款
+   - 讓 Google SERP 正確顯示麵包屑
+
+5. **index.html noscript 區塊重構**
+   - 分成「依運動項目揪團」與「依地區揪團」兩個 H2 區塊
+   - 新增 basketball/dodgeball/sports-changhua/sports-nantou 四個連結
+   - 每個連結帶語義化描述文字
+
+**關鍵決策**：
+- **為什麼沒做地區獨立下拉、而是整體新增著陸頁**：著陸頁 SEO 效益大於 UI 功能，先把內容量鋪滿才有後續的篩選必要
+- **為什麼地區選彰化/南投先於台北/高雄**：用戶明確指定優先順序；另 seo-log.md 4/2 紀錄顯示「地區專頁 >> 通用頁」的 SEO 效益（台中足球專頁 1800 字效果優於通用足球頁）
+- **為什麼每頁獨立主色系**：Google 會爬視覺重點，每頁識別度高；用戶從 SERP 點進不同運動頁體驗鮮明
+- **賽事著陸頁暫緩**：賽事 document 無獨立 sportTag 欄位、內容量也不足以支撐獨立著陸頁，先由運動/地區頁覆蓋
+
+**改動統計**：新增 4 檔、修改 5 檔（sitemap/robots/index/privacy/terms）、共約 +1200 行
+
+---
 
 ### 2026-04-02 — SEO 全面審計與優化（初始建設）
 

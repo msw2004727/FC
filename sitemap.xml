@@ -1,19 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <!-- 最後更新：2026-04-02 -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <!-- 最後更新：2026-04-22 -->
 
   <!-- 首頁（主入口） -->
   <url>
     <loc>https://toosterx.com/</loc>
-    <lastmod>2026-04-02</lastmod>
+    <lastmod>2026-04-22</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://toosterx.com/og.png</image:loc>
+      <image:title>ToosterX — 台灣運動揪團報名平台</image:title>
+    </image:image>
   </url>
 
   <!-- 身分方案介紹 -->
   <url>
     <loc>https://toosterx.com/roles/</loc>
-    <lastmod>2026-03-19</lastmod>
+    <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -21,7 +26,7 @@
   <!-- 隱私權政策 -->
   <url>
     <loc>https://toosterx.com/privacy.html</loc>
-    <lastmod>2026-03-19</lastmod>
+    <lastmod>2026-04-22</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
@@ -29,7 +34,7 @@
   <!-- 服務條款 -->
   <url>
     <loc>https://toosterx.com/terms.html</loc>
-    <lastmod>2026-03-19</lastmod>
+    <lastmod>2026-04-22</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
@@ -37,42 +42,65 @@
   <!-- SEO 著陸頁 — 運動項目 -->
   <url>
     <loc>https://toosterx.com/seo/football.html</loc>
-    <lastmod>2026-04-02</lastmod>
+    <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://toosterx.com/seo/running.html</loc>
-    <lastmod>2026-04-02</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://toosterx.com/seo/hiking.html</loc>
-    <lastmod>2026-04-02</lastmod>
+    <loc>https://toosterx.com/seo/basketball.html</loc>
+    <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://toosterx.com/seo/pickleball.html</loc>
-    <lastmod>2026-04-02</lastmod>
+    <lastmod>2026-04-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://toosterx.com/seo/dodgeball.html</loc>
+    <lastmod>2026-04-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://toosterx.com/seo/running.html</loc>
+    <lastmod>2026-04-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://toosterx.com/seo/hiking.html</loc>
+    <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
 
+  <!-- SEO 著陸頁 — 地區 -->
   <url>
     <loc>https://toosterx.com/seo/football-taichung.html</loc>
-    <lastmod>2026-04-02</lastmod>
+    <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
-
   <url>
     <loc>https://toosterx.com/seo/nantun-football-park.html</loc>
-    <lastmod>2026-04-02</lastmod>
+    <lastmod>2026-04-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://toosterx.com/seo/sports-changhua.html</loc>
+    <lastmod>2026-04-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://toosterx.com/seo/sports-nantou.html</loc>
+    <lastmod>2026-04-22</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
 
 </urlset>
-

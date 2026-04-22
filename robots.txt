@@ -20,5 +20,30 @@ Disallow: /GrowthGames.html
 Disallow: /game-lab.html
 Disallow: /docs/
 
+# AI 爬蟲（大型語言模型）— 允許抓取公開內容供訓練
+User-agent: GPTBot
+Allow: /
+Disallow: /pages/
+Disallow: /inventory/
+Disallow: /permissions/
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /pages/
+Disallow: /inventory/
+Disallow: /permissions/
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /pages/
+Disallow: /inventory/
+Disallow: /permissions/
+
+User-agent: Google-Extended
+Allow: /
+Disallow: /pages/
+Disallow: /inventory/
+Disallow: /permissions/
+
 # Sitemap
 Sitemap: https://toosterx.com/sitemap.xml
