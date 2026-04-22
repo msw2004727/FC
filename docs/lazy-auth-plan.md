@@ -1,10 +1,10 @@
 # 延遲登入（Lazy Auth）實作計畫書
 
-**狀態**：2026-04-23 **v5 最終版** — Round 1 派 8 Agent + Round 2 派 4 Agent 共 12 個並行審計、發現 v4 的嚴重邏輯錯誤（Blocker 2 條件寫反）、並補齊所有細節
-**預估工期**：MVP Blocker-only 2.0 天、MVP 全包 **2.4 天**、完整版 3-4 天
-**版號影響**：會 bump 2-3 次（Phase 間分批）
-**預計動到檔案**：MVP **13 個**（v4 低估 8 個、Round 2 補 5 個）
-**⚠️ 鎖定函式動到**：`firebase-crud.js _doRegisterForEvent`、`event-detail-signup.js handleSignup/handleCancelSignup`——**需用戶明確授權**
+**狀態**：2026-04-23 **v6** — Round 1/2/3 共 **16 Agent 並行審計**、Round 3 Agent C 揭露「v5 的 Blocker 2 Part 2 條件**第二次寫反**」+ 5 個 snippet 實作缺陷 + 1 個 chaos 情境漏洞。v6 **全面修正** + 補齊所有 snippet
+**預估工期**：MVP Blocker-only 2.4 天、MVP 全包 **2.8-3.5 天**（v5 低估併發 UX 補丁 0.3-0.5 天）
+**版號影響**：會 bump 2-3 次（**Round 3 要求分 4 批**而非 3 批）
+**預計動到檔案**：MVP **14 個**（v6 新增 batchRegisterForEvent / cancelRegistration UID assert）
+**⚠️ 鎖定函式動到**：`firebase-crud.js` 的 `_doRegisterForEvent` / `batchRegisterForEvent` / `cancelRegistration` + `event-detail-signup.js` 的 `handleSignup/handleCancelSignup`——**需用戶明確授權**
 
 ---
 
@@ -625,7 +625,321 @@ git push origin HEAD:main
 
 ---
 
-**計畫書版本**：2026-04-23 v5 最終版
+**計畫書版本**：2026-04-23 v5 → **v6 附錄**（見下）
 **維護者**：Claude
-**審計總 Agent 數**：12（Round 1：8 + Round 2：4）
-**總結**：登入功能是重大、v5 值得的謹慎等級。若用戶需要 Round 3、我建議專攻「v5 的三層防線是否存在新的繞過路徑」+「上線 runbook 在 LINE Mini App Console 的實際操作步驟」。
+**審計總 Agent 數**：**16**（Round 1：8 + Round 2：4 + Round 3：4）
+
+---
+
+# 附錄 v6 — Round 3 修正（4 Agent 並行）
+
+Round 3 派 4 個全新角度 Agent：**A 併發/race、B 安全滲透、C snippet 實作驗證、D chaos + runbook 實戰**。
+
+Agent B 確認三層防線 + Firestore Rules = **4 道防線、資料層絕對安全**。
+Agent A/C/D 找出 v5 **10 個必須修正**的問題，分 5 類：
+
+---
+
+## R3.1 🔴 Blocker 2 Part 2 條件**第二次**寫反（Agent C）
+
+**v5 錯誤**（§2 Blocker 2 Part 2 的 snippet）：
+```javascript
+// ❌ v5
+if (LineAuth._profile && !LineAuth._isActiveAuthUidConsistent()) {
+```
+
+**為什麼仍錯**：換帳號情境 = LIFF 已登出、`restoreCachedProfile()` 才是 Tier 2 的來源。若 `this._profile` 尚未經 `restoreCachedProfile()` 恢復（例如剛 boot），條件 `LineAuth._profile &&` = false、整個 if 不進入、**仍然放行污染寫入**。
+
+**v6 正確寫法**：
+```javascript
+// ✅ v6
+const cachedOrLive = LineAuth._profile || LineAuth.restoreCachedProfile?.();
+if (cachedOrLive
+  && typeof auth !== 'undefined'
+  && auth?.currentUser
+  && cachedOrLive.userId !== auth.currentUser.uid) {
+  this.showToast('登入狀態異常、請重新登入');
+  if (action) this._setPendingAuthAction(action);
+  LineAuth.login();
+  return true;
+}
+```
+
+**記取教訓**：這是 v4→v5→v6 **同個位置第三次修正**、每次都是條件邏輯誤寫。v6 新增測試要求：**必須寫單元測試覆蓋「Tier 2 換帳號」情境才能 merge**。
+
+---
+
+## R3.2 🔴 Blocker 1 resume 不該綁死在 `ensureCloudReady`（Agent D）
+
+**v5 問題**：`ensureCloudReady` 內部包含 Firestore `onSnapshot` 首次 resolve。Firestore 斷線時 `ensureCloudReady` 永遠 pending → Blocker 1 的 resume 永不觸發 → 登入後用戶看到什麼都沒發生。
+
+**v6 補救**：resume 獨立觸發、不依賴 Firestore：
+
+```javascript
+// app.js 新增
+_onFirebaseAuthReady() {
+  // 由 auth.onAuthStateChanged 或 _signInWithAppropriateMethod 完成時觸發
+  if (LineAuth.isLoggedIn() && this._getPendingAuthAction()) {
+    void this._resumePendingAuthAction();
+  }
+}
+
+// ensureCloudReady 內仍保留第二觸發點（彌補 auth state 未變化情境）
+// 但兩處都會跑、有 _pendingAuthActionPromise guard 防止 double-fire
+```
+
+---
+
+## R3.3 🔴 M2 `_getPendingAuthAction` 中段缺失 sanitize 寫回（Agent C）
+
+**v5 snippet 結尾「// ... 後續 sanitize 與 cache 邏輯」沒給具體 code**、若直接貼上 tabId 檢查通過後會直接落 `return null`、pending action 永遠讀不回。
+
+**v6 完整 snippet**：
+```javascript
+_getPendingAuthAction() {
+  if (this._pendingAuthAction) return this._pendingAuthAction;
+  try {
+    const redirectFlag = localStorage.getItem(this._liffRedirectFlagKey);
+    if (!redirectFlag) return null;
+
+    const raw = localStorage.getItem(this._pendingAuthActionStorageKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+
+    // TTL 5 分鐘
+    if (parsed._ts && Date.now() - parsed._ts > 5 * 60 * 1000) {
+      this._clearPendingAuthAction();
+      return null;
+    }
+
+    // 跨 tab 保護
+    const currentTabId = this._getOrCreateTabId();
+    if (parsed._originTabId && parsed._originTabId !== currentTabId) {
+      console.log('[AuthAction] pending from different tab、skipping');
+      return null;
+    }
+
+    // ★ v6 補：sanitize + 寫回 cache（v5 省略的部分）
+    const sanitized = this._sanitizePendingAuthAction(parsed);
+    if (!sanitized) {
+      this._clearPendingAuthAction();
+      return null;
+    }
+    this._pendingAuthAction = sanitized;
+    return sanitized;
+  } catch (_) {}
+  return null;
+}
+```
+
+---
+
+## R3.4 🟡 `_getOrCreateTabId` 缺 `crypto.randomUUID` fallback（Agent C）
+
+**v6 正確寫法**：
+```javascript
+_getOrCreateTabId() {
+  if (!this._tabId) {
+    let id = null;
+    try { id = sessionStorage.getItem('_tabId'); } catch (_) {}
+    if (!id) {
+      id = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : (Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10));
+    }
+    this._tabId = id;
+    try { sessionStorage.setItem('_tabId', this._tabId); } catch (_) {}
+  }
+  return this._tabId;
+}
+```
+
+---
+
+## R3.5 🟡 `_sanitizePendingAuthAction` 需保留 `_ts` / `_originTabId` + 補 createEvent/createTeam case（Agent C）
+
+**v6 補正**：
+- `_sanitizePendingAuthAction` 的 sanitize 結果統一**不含** `_ts` / `_originTabId`（meta 欄位不進入業務邏輯）
+- 檢查時機：`_getPendingAuthAction` 在 parsed 階段檢查 TTL/tabId（R3.3 已示範）、sanitize 之後只留純業務欄位
+- 補 case：
+```javascript
+case 'createEvent':
+case 'createTeam':
+  return { type };  // 無 payload、登入後只回對應頁
+case 'joinTeam':
+  if (!action.teamId || !/^tm_/.test(action.teamId)) return null;
+  return { type, teamId: action.teamId };
+case 'applyTournament':
+  if (!action.tournamentId || !/^ct_/.test(action.tournamentId)) return null;
+  return { type, tournamentId: action.tournamentId };
+```
+
+---
+
+## R3.6 🟡 Blocker 2 Part 3 需同步動 `batchRegisterForEvent` + `cancelRegistration`（Agent B）
+
+**v5 只列 `_doRegisterForEvent`、但同行者報名走 `batchRegisterForEvent`、取消走 `cancelRegistration`**——都是鎖定函式、Firestore Rules 會擋（第 4 道防線）但前端對稱性缺失。
+
+**v6 補**：
+```javascript
+// firebase-crud.js batchRegisterForEvent L1938 附近
+const authed = await this._ensureAuth(operatorUid);  // ★ v6 新增
+if (!authed) throw new Error('身分驗證失敗');
+if (auth.currentUser.uid !== operatorUid) {
+  throw new Error('身分不一致');  // ★ v6 新增
+}
+
+// firebase-crud.js cancelRegistration L952 附近
+const reg = this._cache.registrations.find(r => r.id === registrationId);
+if (!reg) throw new Error('報名記錄不存在');
+const authed = await this._ensureAuth(reg.userId);  // ★ v6 新增
+if (!authed) throw new Error('身分驗證失敗');
+if (auth.currentUser.uid !== reg.userId) {
+  throw new Error('身分不一致、無法取消他人報名');  // ★ v6 新增
+}
+```
+
+---
+
+## R3.7 🟡 新 action type 的 `_resumePendingAuthAction` switch case 完整 snippet（Agent C 要求補）
+
+```javascript
+case 'createEvent':
+  await this.showPage('page-activities', { resetHistory: true });
+  this.showToast?.('登入成功、請再點一次「＋ 新增活動」');
+  return true;
+case 'createTeam':
+  await this.showPage('page-teams', { resetHistory: true });
+  this.showToast?.('登入成功、請再點一次建立俱樂部');
+  return true;
+case 'joinTeam':
+  await this.showTeamDetail?.(action.teamId, { allowGuest: false });
+  await this.handleJoinTeam?.(action.teamId);
+  return true;
+case 'applyTournament':
+  await this.showTournamentDetail?.(action.tournamentId);
+  return true;
+```
+
+---
+
+## R3.8 🟡 Navigate-away guard + user-friendly error（Agent A）
+
+**v6 補救**：
+```javascript
+// _resumePendingAuthAction await 後、switch 前
+const _startPage = this.currentPage;
+// ... switch 執行前
+if (this.currentPage !== 'page-home' && this.currentPage !== _startPage && ...) {
+  console.log('[AuthAction] user navigated away, skipping resume');
+  return false;
+}
+
+// switch case 的 try/catch 補 user-friendly toast
+try {
+  // ... case execution
+} catch (err) {
+  if (String(err?.message).includes('已報名')) {
+    this.showToast('您已經報名此活動了');
+  } else {
+    this.showToast('操作失敗、請重新嘗試');
+  }
+  console.warn('[AuthAction] resume failed:', err);
+}
+```
+
+---
+
+## R3.9 🟡 Runbook 指標可觀測化（Agent D）
+
+**v5 §8 的問題**：前端 `console.error` 無法被 server log 彙總。
+
+**v6 決議**：
+- **接受現實**：ToosterX 目前無 Sentry、前端指標**靠用戶回報 LINE**
+- Runbook §8 改寫指標表、加「觀測可行性」欄：
+  - ✅ Firestore permission-denied：Firebase Console > Cloud Logging > filter `resource.type="firestore"` `severity>=WARNING`
+  - ✅ CF error：`firebase functions:log --only=createCustomToken --follow`
+  - ⚠️ 前端 error（UID 不一致 throw）：**本期不可觀測**、建議後續接 Firebase Analytics SDK
+- **On-call 單人務實化**：
+  - 推送後本人保持 LINE 在線 2 小時
+  - 手機 LINE 接用戶回報（現行客服管道）
+  - 同時開 Firebase Console（Cloud Logging + Firestore usage）、Cloudflare Pages dashboard
+  - 層級 1 觸發時立即 revert、不與當下會議協商
+
+---
+
+## R3.10 🟡 Commit 分 4 批（非 3 批）+ 順序重排（Agent C）
+
+**v5 的 3 批順序會打架**（Blocker 1 用新 localStorage 格式、但 M2 機制還沒部署）。
+
+**v6 正確分批**：
+| Batch | 內容 | 理由 |
+|-------|------|------|
+| 1 | M2（pending action 機制）+ M3 + M4 + M5 + Blocker 3（LIFF 守衛） | 基礎設施、不暴露新能力 |
+| 2 | Blocker 1（resume 觸發點）+ M1（新 action type 與守衛位置） | 依賴 Batch 1 的 M2 機制 |
+| 3 | Blocker 2（三層防線、**含鎖定函式修改**）| 最後防線、單一回退單位 |
+| 4 | guardedPages 精簡 | 最後才真正開放訪客瀏覽 |
+
+---
+
+## R3.11 🟢 其他 Round 3 發現（低風險、可記錄不必立即修）
+
+- 跨 tab localStorage 覆蓋 → 可在 `_setPendingAuthAction` 覆蓋前顯示 toast（後續擴充）
+- LIFF OAuth 5xx 連續失敗降級（後續擴充）
+- createCustomToken 死循環告警（後續擴充）
+- LIFF SDK 行為變化 defensive parsing（後續擴充）
+- Firestore Rules `isSubWaitlistPromotion` 允許任何登入者觸發遞補（設計如此、合理）
+
+---
+
+## v6 最終檔案清單（14 個）
+
+| # | 檔案 | 改動 | 來源 |
+|---|------|------|------|
+| 1 | `js/config.js` | 新增 `AUTH_REQUIRED_PAGES` | v4 |
+| 2 | `js/core/navigation.js` | 4 處 guardedPages + UID 一致性檢查（條件**修正為 v6**）| v4+v5+**R3.1** |
+| 3 | `js/modules/role.js` | guardedPages | v4 |
+| 4 | `app.js` ensureCloudReady | Blocker 1 觸發點 | v4 |
+| 5 | `app.js` `_onFirebaseAuthReady` 新增 + auth listener | **R3.2 解耦 Firestore** | v6 |
+| 6 | `app.js` pending action 機制 | localStorage + TTL + tabId + **R3.3 完整 snippet + R3.4 fallback + R3.5 保留 meta + R3.7 新 case** | v4+v5+R3 |
+| 7 | `js/line-auth.js` | `_isActiveAuthUidConsistent` + login 守衛 | v5 |
+| 8 | `js/firebase-crud.js` `_doRegisterForEvent` | UID assert（鎖定）| v5 |
+| 9 | **`js/firebase-crud.js` `batchRegisterForEvent`** | **R3.6 UID assert（鎖定）**| v6 |
+| 10 | **`js/firebase-crud.js` `cancelRegistration`** | **R3.6 UID assert（鎖定）**| v6 |
+| 11 | `js/modules/event/event-detail-signup.js` | handleSignup/Cancel 加 liveness check（鎖定） | v5 |
+| 12 | `js/firebase-service.js` | ensureCloudReady 無 LIFF 設 `_initError` + `_fetchSingleDoc` 短路 | v5 |
+| 13 | `js/modules/event/event-detail.js` | viewCount 守衛 + teamOnly 訊息 | v5 |
+| 14 | 4 個寫入入口（event-create / team-form / team-form-join / tournament-*） | 守衛位置改開 modal/sheet 前 | v5 |
+
+---
+
+## v6 工期（Blocker-only 2.4 天、全包 3.0 天）
+
+- Phase 0 Pre-flight：0.3 天
+- Phase 1 Blocker（含 **R3.1 修正、R3.2 解耦、R3.6 雙補**）：**1.2 天**（v5 1.0 天 + R3 補 0.2 天）
+- Phase 1.5 併發 UX 補丁（**R3.8 navigate-away / R3.9 error toast**）：**0.3 天**（v6 新增）
+- Phase 2 中風險（含 **R3.3/R3.4/R3.5/R3.7 snippet 補齊**）：0.5 天
+- Phase 3 guardedPages：0.3 天
+- Phase 4 整合 QA：0.5 天
+- Phase 5 部署 + runbook：0.3 天
+- **合計：3.4 天全包、Blocker-only 2.9 天**
+
+---
+
+## v6 收斂判定
+
+Round 1/2/3 共 16 Agent 審計發現：
+- **資料層絕對安全**（Firestore Rules 第 4 道防線、Agent B 明確驗證）
+- **Blocker 2 歷經 3 次修正**、v6 是第一個條件寫對的版本
+- **8 個 snippet 缺陷**全部在 v6 補齊 code
+- **併發 UX 漏洞**（跨 tab / navigate-away / resume 靜默失敗）有補救方案
+- **Chaos 漏洞**（Firestore 斷線、OAuth 5xx）v6 已解耦或列為後續擴充
+- **Runbook 實戰化**：接受單人 on-call + 靠用戶回報
+
+建議：**Round 4 聚焦「v6 的 snippet 是否 100% 可貼上、Blocker 2 條件這次真的寫對」**、不找新問題。
+
+---
+
+**v6 版本**：2026-04-23
+**審計總 Agent 數**：16（1:8 + 2:4 + 3:4）
+**下一步**：Round 4 派 2-4 Agent 最終驗證 v6、產 v7 最終定版 or 收斂
