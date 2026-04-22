@@ -2,6 +2,35 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-22 — 版號格式升級為 0.YYYYMMDD{suffix} + app.js 硬編碼 v0. bug [永久]
+- **變更**：版號格式從 `YYYYMMDD{suffix}` 升級為 `0.YYYYMMDD{suffix}`（用戶要求）
+- **bump-version.js 改動**：
+  - regex `/^(\d{8})(.*)$/` → `/^0\.(\d{8})([a-z]*)$/`
+  - 不符新格式時自動升級（舊版號視為需重置為今天）
+  - 跨日重置邏輯保留：`today > date` → `0.今天無後綴`
+- **關聯 bug**：`app.js` L378 硬編碼 `'v0.' + ver` 用於首頁底部版號顯示
+  - 舊版號 `20260422a` 加 `'v0.'` 剛好是 `v0.20260422a`（合理）
+  - 新版號 `0.20260422a` 加 `'v0.'` 變 `v0.0.20260422a`（多一個 `0.`）
+  - 修復：`'v' + ver`（`kickball-game-page.js` L248 早就這樣寫是對的）
+- **教訓**：任何硬編碼的版號前綴 / 格式字串都是未來 bug 源。若需顯示格式，讓版號自己包含完整形式，顯示端只加最簡單的 `v`
+
+### 2026-04-22 — Drawer 分區機制：super_admin vs admin 項目會被自動 divider 分開 [永久]
+- **機制**（`js/modules/role.js` L249-256 `renderDrawerMenu`）：
+  - `drawer-role-super`（super_admin，level ≥ 5 **或** `highlight='red'`）→ 粉紅底
+  - `drawer-role-admin`（admin，level 4）→ 藍底
+  - 相鄰項目 role 不同且兩者都 ≥ admin → 自動插 `<div class="drawer-divider">`
+  - 例外：兩者 bgClass 都是 `drawer-role-super`（bothRed）跳過 divider
+- **應用**：若希望 admin 項目與 super_admin 項目在 drawer 中同區顯示（無分隔），給 admin 項目加 `highlight: 'red'`
+- **首案例**：SEO 儀表板（minRole: 'admin'）加 `highlight: 'red'` 與數據儀表板（minRole: 'super_admin'）合併同區
+- **不影響權限**：highlight 只影響視覺，minRole / permissionCode 仍是真正的權限控制
+
+### 2026-04-22 — DRAWER_MENUS i18nKey 未翻譯會直接顯示 key 字串
+- **現象**：新增 DRAWER_MENUS 項目時若 `i18nKey` 指向不存在的 key（例：`'admin.seo'`），UI 會顯示 `admin.seo` 字面字串
+- **教訓**：新增 drawer 項目時必須在 `js/i18n.js` **6 個語言**（zh-TW/en/ja/ko/th/vi）全部新增對應翻譯
+- **驗證指令**：`grep -nE "'i18nKey值':" js/i18n.js | wc -l` 應 = 6
+
+---
+
 > **維護規則**：
 > - 新紀錄一律寫在檔案前方，採新到舊排序
 > - `[永久]` 標記的條目為系統性教訓，永不過期

@@ -133,6 +133,54 @@ index.html (noscript)
 
 ## SEO 優化歷史紀錄
 
+### 2026-04-22 — 階段 3.1：/admin/seo Dashboard UI 改版 + 4 項問題修復
+
+**問題 / 目標**：
+階段 3 完成後用戶實測發現 4 個 UI 問題需修復。
+
+**執行項目**：
+
+1. **i18n 缺 admin.seo 翻譯（drawer 顯示 "admin.seo" 字串）**
+   - 根因：`DRAWER_MENUS` 設 `i18nKey: 'admin.seo'` 但 `js/i18n.js` 未新增對應翻譯
+   - UI 行為：未翻譯 key 直接顯示 key 本身
+   - 修復：6 語言（zh-TW/en/ja/ko/th/vi）同步新增 `admin.seo` 翻譯
+
+2. **Drawer 選單「SEO 儀表板」與「數據儀表板」被分成不同區（粉紅色不同組）**
+   - 根因：`role.js` L252 的 divider 邏輯
+     ```js
+     if (lastMinRole !== role && minLevel >= 4) {
+       var bothRed = bgClass === 'drawer-role-super' && lastBgClass === 'drawer-role-super';
+       if (lastMinRole && !bothRed) html += '<div class="drawer-divider"></div>';
+     }
+     ```
+   - 數據儀表板 `super_admin` → `drawer-role-super`（粉紅）vs SEO `admin` → `drawer-role-admin`（藍）→ `bothRed=false` → 插 divider
+   - 修復：給 SEO 儀表板加 `highlight: 'red'` 強制 `drawer-role-super` → `bothRed=true` → 跳過 divider
+   - 權限不變：minRole 仍 `'admin'`、super_admin INHERENT 鎖定
+
+3. **Dashboard 內視覺不統一（獨立卡片風）**
+   - 根因：原實作每個 `.seo-section` 各有 `background: var(--bg-card)` + border + margin → 獨立卡片堆疊
+   - 修復：整個 `#seo-dashboard-content` 改為單一 `bg-card` 大容器，內部 section 完全透明、無 border、無分隔線
+   - 結果：整個 dashboard 視覺一體
+
+4. **Refresh 按鈕用 emoji 而非 SVG**
+   - 修復：複用活動詳情頁 `.event-detail-refresh-btn` class + 相同 SVG icon（雙箭頭 refresh）
+
+5. **Meta bar 三項資訊（資料日期/產出時間/站點）同行**
+   - 修復：CSS `flex-direction: column`，垂直堆疊；說明按鈕 `position: absolute` 到右上角
+
+6. **欄位說明彈窗新增（參考教學俱樂部 _showEduInfoPopup）**
+   - 10 個 `seo-info-btn`（? 圖示）對應 10 個 section
+   - `_showSeoInfoPopup(type)` 函式含 10 種說明文案
+   - 樣式：`edu-info-overlay` + `edu-info-dialog`（獨立複製到 admin-seo.css，不依賴 education.css）
+
+**關鍵決策**：
+- **highlight 欄位的意外用途**：原本 `highlight: 'red'` 是給「用戶補正管理」(repair) 做警告紅色，現用來讓 SEO 儀表板與數據儀表板在 drawer 合併顯示同區，**不是視覺警告而是群組歸類工具**
+- **單一 bg-card 容器 vs 多張卡片**：數據儀表板的 `.dash-card` 其實也是獨立卡片，但尺寸小密集所以不感覺分離。SEO 儀表板 section 較大所以分離感強烈。改為單一容器是設計上最符合用戶直覺的選擇
+
+**改動統計**：6 檔、136/-96 行（commit `103292e3`）
+
+---
+
 ### 2026-04-22 — 階段 3：/admin/seo Dashboard 建置完成（自動化 GSC 資料）
 
 **目標**：super_admin + admin 可見的內部 SEO 儀表板，每日自動從 GSC 抓資料。
