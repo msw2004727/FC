@@ -74,6 +74,8 @@ Object.assign(App, {
           var _s2 = _tlScrollEl.scrollTop;
           let ts = ApiService.getActiveTeams();
           if (typeTab) ts = ts.filter(t => (t.type || 'general') === typeTab);
+          // [修復] 背景重繪必須延用 sport filter，否則會把頂部切分類後的篩選結果蓋掉
+          if (activeGlobalSport) ts = ts.filter(t => t.sportTag === activeGlobalSport);
           // 強制清除指紋，讓教育俱樂部學員數更新後能重繪
           this._teamListLastFp = '';
           c.innerHTML = this._sortTeams(ts).map(t => this._teamCardHTML(t)).join('') || c.innerHTML;

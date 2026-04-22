@@ -97,6 +97,15 @@ Object.assign(App, {
       tournaments = tournaments.filter(t => t.region === regionFilter);
     }
 
+    // Sport filter（透過 hostTeam.sportTag 反查；賽事 document 沒有獨立 sportTag 欄位）
+    const activeSport = (typeof App !== 'undefined' && App._activeSport && App._activeSport !== 'all') ? App._activeSport : '';
+    if (activeSport) {
+      tournaments = tournaments.filter(t => {
+        const hostTeam = ApiService.getTeam?.(t.hostTeamId);
+        return hostTeam?.sportTag === activeSport;
+      });
+    }
+
     tournaments.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
     if (tournaments.length === 0) {
