@@ -1,0 +1,217 @@
+/* ================================================
+   SEO Dashboard Styles
+   依循專案的 CSS 變數系統（--accent, --text-muted 等）
+   ================================================ */
+
+#page-admin-seo #seo-dashboard-content {
+  padding: 1rem;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.seo-refresh-btn {
+  background: transparent;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  font-size: 1rem;
+  cursor: pointer;
+  margin-left: auto;
+  color: var(--accent, #0d9488);
+  transition: all .2s;
+}
+.seo-refresh-btn:hover { background: var(--accent-bg, #ccfbf1); transform: rotate(90deg); }
+
+.seo-loading, .seo-empty {
+  padding: 3rem;
+  text-align: center;
+  color: var(--text-muted, #6b7280);
+}
+.seo-empty h3 { margin-bottom: .8rem; color: var(--text, #1a1a1a); }
+
+.seo-meta-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.2rem;
+  padding: .8rem 1rem;
+  background: var(--surface-muted, #f8fafc);
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  font-size: .85rem;
+  color: var(--text-muted, #6b7280);
+}
+.seo-meta-bar strong { color: var(--accent, #0d9488); font-weight: 600; }
+
+.seo-section {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  padding: 1.2rem;
+  margin-bottom: 1rem;
+}
+.seo-section > h3 {
+  font-size: 1rem;
+  color: var(--accent, #0d9488);
+  margin-bottom: 1rem;
+  padding-bottom: .5rem;
+  border-bottom: 2px solid var(--accent-bg, #ccfbf1);
+}
+
+.seo-grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+.seo-grid-2 .seo-section { margin-bottom: 0; }
+
+.seo-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+.seo-overview-card {
+  background: linear-gradient(135deg, var(--accent-bg, #ccfbf1), var(--surface, #fff));
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  padding: 1rem;
+}
+.seo-overview-label {
+  font-size: .85rem;
+  color: var(--text-muted, #6b7280);
+  margin-bottom: .5rem;
+  font-weight: 600;
+}
+.seo-overview-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .6rem;
+}
+.seo-overview-metrics > div {
+  display: flex;
+  flex-direction: column;
+  font-size: .75rem;
+  color: var(--text-muted, #6b7280);
+}
+.seo-overview-metrics strong {
+  font-size: 1.1rem;
+  color: var(--text, #1a1a1a);
+  font-weight: 700;
+  margin-top: .1rem;
+}
+
+/* Bar chart */
+.seo-bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 160px;
+  padding: 0 .3rem;
+  overflow-x: auto;
+}
+.seo-bar-col {
+  flex: 0 0 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+}
+.seo-bar {
+  width: 18px;
+  background: linear-gradient(180deg, var(--accent, #0d9488), var(--accent-dim, #5eead4));
+  border-radius: 3px 3px 0 0;
+  min-height: 2px;
+  position: relative;
+  transition: background .15s;
+}
+.seo-bar:hover { background: var(--accent-dark, #0f766e); }
+.seo-bar-click {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: .65rem;
+  font-weight: 700;
+  color: var(--accent, #0d9488);
+}
+.seo-bar-label {
+  font-size: .6rem;
+  color: var(--text-muted, #6b7280);
+  margin-top: 4px;
+  white-space: nowrap;
+}
+
+/* Tables */
+.seo-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .85rem;
+}
+.seo-table th, .seo-table td {
+  padding: .5rem .7rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+.seo-table th {
+  background: var(--surface-muted, #f8fafc);
+  color: var(--accent, #0d9488);
+  font-weight: 600;
+  font-size: .8rem;
+}
+.seo-table td { color: var(--text, #1a1a1a); }
+.seo-url-cell {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: -apple-system, BlinkMacSystemFont, 'SFMono-Regular', Consolas, monospace;
+  font-size: .75rem;
+}
+
+/* Sitemap */
+.seo-sitemap-item {
+  padding: .8rem;
+  background: var(--surface-muted, #f8fafc);
+  border-radius: 8px;
+  margin-bottom: .5rem;
+}
+.seo-sitemap-path {
+  font-family: -apple-system, BlinkMacSystemFont, 'SFMono-Regular', Consolas, monospace;
+  font-size: .8rem;
+  color: var(--accent, #0d9488);
+  font-weight: 600;
+  margin-bottom: .3rem;
+}
+.seo-sitemap-info, .seo-sitemap-contents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: .75rem;
+  color: var(--text-muted, #6b7280);
+}
+.seo-sitemap-contents { margin-top: .3rem; }
+
+.seo-empty-note {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-muted, #6b7280);
+  font-size: .85rem;
+}
+
+.seo-footer-note {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: var(--surface-muted, #f8fafc);
+  border-radius: 8px;
+  font-size: .8rem;
+  color: var(--text-muted, #6b7280);
+}
+.seo-footer-note p { margin: .2rem 0; }
+
+@media (max-width: 640px) {
+  #page-admin-seo #seo-dashboard-content { padding: .6rem; }
+  .seo-section { padding: .8rem; }
+  .seo-overview-metrics strong { font-size: .95rem; }
+  .seo-bar-col { flex: 0 0 18px; }
+  .seo-bar { width: 14px; }
+  .seo-table { font-size: .75rem; }
+  .seo-table th, .seo-table td { padding: .4rem .4rem; }
+  .seo-url-cell { max-width: 140px; }
+}

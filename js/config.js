@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '20260420ak';
+const CACHE_VERSION = '20260420al';
 
 // ─── 即時監聽 limit 預設值（可在儀表板動態調整，存於 siteConfig/realtimeConfig）───
 const REALTIME_LIMIT_DEFAULTS = {
@@ -582,6 +582,7 @@ const DRAWER_MENUS = [
   { icon: '', label: '二手商品管理', i18nKey: 'admin.shopManage', page: 'page-admin-shop', minRole: 'admin', permissionCode: 'admin.shop.entry' },
   { icon: '', label: '站內信管理', i18nKey: 'admin.messageManage', page: 'page-admin-messages', minRole: 'admin', permissionCode: 'admin.messages.entry' },
   { icon: '', label: '數據儀表板', i18nKey: 'admin.dashboard', page: 'page-admin-dashboard', minRole: 'super_admin', permissionCode: 'admin.dashboard.entry' },
+  { icon: '', label: 'SEO 儀表板', i18nKey: 'admin.seo', page: 'page-admin-seo', minRole: 'admin', permissionCode: 'admin.seo.entry' },
   { icon: '', label: '佈景主題', i18nKey: 'admin.themes', page: 'page-admin-themes', minRole: 'super_admin', permissionCode: 'admin.themes.entry' },
   { icon: '', label: '手動 EXP 管理', i18nKey: 'admin.expManage', page: 'page-admin-exp', minRole: 'super_admin', permissionCode: 'admin.exp.entry' },
   { icon: '', label: '自動 EXP 管理', i18nKey: 'drawer.autoExpManage', page: 'page-admin-auto-exp', minRole: 'super_admin', permissionCode: 'admin.auto_exp.entry' },
@@ -594,7 +595,7 @@ const DRAWER_MENUS = [
   { icon: '', label: '無效資料查詢', i18nKey: 'admin.inactive', page: 'page-admin-inactive', minRole: 'super_admin', permissionCode: 'admin.inactive.entry' },
 ];
 
-const ROLE_PERMISSION_CATALOG_VERSION = '20260331e';
+const ROLE_PERMISSION_CATALOG_VERSION = '20260422a';
 const DISABLED_PERMISSION_CODES = new Set(['admin.roles.entry']);
 
 function isPermissionCodeEnabled(code) {
@@ -672,7 +673,7 @@ const INHERENT_ROLE_PERMISSIONS = Object.freeze({
   coach:       ['activity.manage.entry', 'admin.tournaments.entry'],
   captain:     ['activity.manage.entry', 'admin.tournaments.entry', 'team.manage.entry'],
   venue_owner: ['activity.manage.entry', 'admin.tournaments.entry', 'team.manage.entry'],
-  super_admin: ['admin.repair.event_blocklist'],
+  super_admin: ['admin.repair.event_blocklist', 'admin.seo.entry'],
 });
 
 function getInherentRolePermissions(roleKey) {

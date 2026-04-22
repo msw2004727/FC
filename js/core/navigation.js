@@ -704,6 +704,7 @@ Object.assign(App, {
     if (pageId === 'page-my-activities') this.renderMyActivities?.();
     if (pageId === 'page-team-manage') this.renderTeamManage();
     if (pageId === 'page-admin-dashboard') this.renderDashboard();
+    if (pageId === 'page-admin-seo') this.renderSeoDashboard?.();
     if (pageId === 'page-temp-participant-report' && this.renderParticipantQuerySharePage) {
       this.renderParticipantQuerySharePage();
     }

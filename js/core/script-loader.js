@@ -298,6 +298,10 @@ const ScriptLoader = {
       'js/modules/dashboard/dashboard.js',
       'js/modules/dashboard/personal-dashboard.js',
     ],
+    adminSeo: [
+      'js/modules/admin-seo/seo-data-loader.js',
+      'js/modules/admin-seo/seo-dashboard.js',
+    ],
     adminUsers: [
       'js/modules/auto-exp.js',
       'js/modules/auto-exp-rules.js',
@@ -376,6 +380,7 @@ const ScriptLoader = {
     'page-kick-game':          ['kickball'],
     'page-personal-dashboard': ['achievement', 'personalDashboard'],
     'page-admin-dashboard':    ['adminDashboard'],
+    'page-admin-seo':          ['adminSeo'],
     'page-temp-participant-report': ['adminDashboard'],
     'page-admin-users':        ['adminUsers'],
     'page-admin-exp':          ['adminUsers'],

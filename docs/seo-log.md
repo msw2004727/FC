@@ -133,6 +133,65 @@ index.html (noscript)
 
 ## SEO 優化歷史紀錄
 
+### 2026-04-22 — 階段 3：/admin/seo Dashboard 建置完成（自動化 GSC 資料）
+
+**目標**：super_admin + admin 可見的內部 SEO 儀表板，每日自動從 GSC 抓資料。
+
+**執行項目**：
+
+1. **權限系統擴充**
+   - 新增權限碼 `admin.seo.entry`（js/config.js DRAWER_MENUS）
+   - INHERENT 鎖定到 super_admin（config.js + functions/index.js 兩地同步）
+   - 補 _PERM_INFO 說明（標註「商業敏感資訊，勿對外分享」）
+   - config-utils.test.js 同步更新
+
+2. **Firestore Rules + 測試**
+   - 新增 `seoSnapshots` collection rules
+     - read: admin/super_admin/hasPerm('admin.seo.entry')
+     - write: false（僅 Admin SDK 透過 Service Account 寫）
+   - 新增 6 個 rules 測試（admin/super_admin/coach+perm/coach-perm/user/write-blocked）
+   - 437 個 rules 測試全過
+
+3. **自動化 Workflow**
+   - `scripts/gsc-snapshot.js`（389 行）抓 GSC 資料寫 Firestore
+     - 總覽（7/28/90 天）
+     - 每日時序（30 天）
+     - 按頁面 / 裝置 / 國家 / 查詢 / 搜尋外觀分布
+     - 搜尋類型分布（web/image/video/news/discover）
+     - Sitemap 狀態
+     - 14 個 URL Inspection（含 Rich Results）
+   - `.github/workflows/gsc-snapshot.yml` 每日 03:00 UTC 自動跑
+   - 使用 Firestore REST API（零外部套件依賴）
+   - Service Account 跨 project 授權：`sitemap-submitter@toosterx-seo` 加 `roles/datastore.user` @ fc-football-6c8dc
+
+4. **前端 Dashboard**
+   - `pages/admin-seo.html` — noindex 靜態頁
+   - `js/modules/admin-seo/seo-data-loader.js` — Firestore 讀取 + 30 秒快取
+   - `js/modules/admin-seo/seo-dashboard.js` — 主渲染
+   - `css/admin-seo.css` — 樣式
+   - 功能：總覽卡片 / 30 天柱狀圖 / 頁面表 / 裝置/國家分布 / 類型分布 / 查詢詞 / Sitemap / URL 索引狀態 / Rich Results
+
+5. **路由與載入**
+   - page-loader / script-loader / navigation 全部註冊
+   - Lazy load（非 admin 用戶不下載 dashboard 程式碼）
+
+**安全保障**：
+- Hash route 天然對 Google 隱形
+- `<meta robots="noindex, nofollow">` 雙重保險
+- Firestore Rules 保護讀取
+- super_admin INHERENT 鎖定入口權限
+- Service Account 的 datastore.user 角色 + Rules write:false 雙重阻擋寫入其他 collection
+
+**首次觸發結果（2026-04-22 04:55 UTC）**：
+- SA 認證成功
+- 14 個 URL 全部 inspect 完成（2 indexed / 12 discovered）
+- Firestore 寫入 seoSnapshots/2026-04-22 成功
+- 28 天曝光 63 / 點擊 23 / CTR 36.5% / 排名 4.3
+
+**版號**：20260420ak → 20260420al
+
+---
+
 ### 2026-04-22 — 階段 2 延伸：GSC API 接入 + 修復 Redirect error（重大 SEO 根因修復）
 
 **問題 / 目標**：

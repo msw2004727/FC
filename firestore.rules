@@ -1326,6 +1326,16 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════
+    //  SEO Snapshots — 每日 Google Search Console 快照
+    //  由 GitHub Actions (scripts/gsc-snapshot.js) 透過 Admin SDK 寫入
+    //  admin / super_admin / 持有 admin.seo.entry 權限者可讀
+    // ═══════════════════════════════════════════
+    match /seoSnapshots/{dateId} {
+      allow read: if isAuth() && (isAdmin() || isSuperAdmin() || hasPerm('admin.seo.entry'));
+      allow write: if false;
+    }
+
+    // ═══════════════════════════════════════════
     //  Inventory System（庫存管理系統，inv_ 前綴）
     //  獨立於 SportHub，共用 Firebase 專案
     // ═══════════════════════════════════════════

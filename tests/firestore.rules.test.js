@@ -2068,6 +2068,42 @@ describe("Phase 4: hasPerm() permission-grant access control", () => {
       await assertFails(getDoc(doc(venueOwner(), "errorLogs", "log1")));
     });
   });
+
+  // --- seoSnapshots: requires isAdmin || isSuperAdmin || admin.seo.entry ---
+  describe("seoSnapshots — admin/super_admin or admin.seo.entry", () => {
+    test("admin can read seoSnapshots (via isAdmin)", async () => {
+      await seedDoc("seoSnapshots", "2026-04-22", { impressions: 100, clicks: 25 });
+      await assertSucceeds(getDoc(doc(admin(), "seoSnapshots", "2026-04-22")));
+    });
+
+    test("super_admin can read seoSnapshots (via isSuperAdmin)", async () => {
+      await assertSucceeds(getDoc(doc(superAdmin(), "seoSnapshots", "2026-04-22")));
+    });
+
+    test("coach with admin.seo.entry can read seoSnapshots", async () => {
+      await seedRolePermissions("coach", ["admin.seo.entry"]);
+      await assertSucceeds(getDoc(doc(coach(), "seoSnapshots", "2026-04-22")));
+    });
+
+    test("coach without admin.seo.entry cannot read seoSnapshots", async () => {
+      await seedRolePermissions("coach", []);
+      await assertFails(getDoc(doc(coach(), "seoSnapshots", "2026-04-22")));
+    });
+
+    test("user cannot read seoSnapshots even with permission in doc", async () => {
+      await seedRolePermissions("user", ["admin.seo.entry"]);
+      await assertFails(getDoc(doc(user(), "seoSnapshots", "2026-04-22")));
+    });
+
+    test("no one can write seoSnapshots via client SDK (write=false)", async () => {
+      await assertFails(
+        setDoc(doc(superAdmin(), "seoSnapshots", "2026-04-23"), { impressions: 0 })
+      );
+      await assertFails(
+        setDoc(doc(admin(), "seoSnapshots", "2026-04-23"), { impressions: 0 })
+      );
+    });
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════

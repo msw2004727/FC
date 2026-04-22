@@ -230,6 +230,11 @@ Object.assign(App, {
       title: '數據儀表板',
       body: '允許進入數據儀表板，可查看活動統計、用戶數據、報名趨勢等分析報表。',
     },
+    'admin.seo.entry': {
+      title: 'SEO 儀表板',
+      body: '允許進入 SEO 儀表板，可查看 Google Search Console 同步的搜尋流量、關鍵字表現、頁面索引狀態、Rich Results 驗證等資料。'
+        + '<p style="color:var(--text-muted);font-size:.78rem;margin-top:.4rem">資料為商業敏感資訊（競品會關注），請勿對外截圖分享。super_admin 已 INHERENT 鎖定此權限。</p>',
+    },
     'admin.themes.entry': {
       title: '佈景主題',
       body: '允許進入佈景主題管理，可切換或自訂系統的視覺主題配色。',
