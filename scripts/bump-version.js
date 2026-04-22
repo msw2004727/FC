@@ -33,13 +33,35 @@ function getCurrentVersion() {
   return m[1];
 }
 
-// 遞增後綴：a→b, z→za, zz→zza, 無後綴→a
+// 取得今天的台北日期（YYYYMMDD 格式）
+function getTodayTaipei() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(new Date());
+  const y = parts.find(p => p.type === 'year').value;
+  const m = parts.find(p => p.type === 'month').value;
+  const d = parts.find(p => p.type === 'day').value;
+  return y + m + d;
+}
+
+// 遞增版號：若今天 > existing 日期 → 重置為今天（無後綴）
+//          若同天 → 遞增後綴（a→b, z→za, zz→zza）
 function incrementVersion(ver) {
   const m = ver.match(/^(\d{8})(.*)$/);
   if (!m) throw new Error('Invalid version format: ' + ver);
   const date = m[1];
   const suffix = m[2];
+  const today = getTodayTaipei();
 
+  // 今天 > existing 日期 → 重置為今天無後綴
+  if (today > date) return today;
+  // 今天 < existing 日期（異常，但保守處理）→ 沿用 existing 日期遞增
+  if (today < date) {
+    console.warn(`⚠ 今天 ${today} 比版號日期 ${date} 還舊（時區或系統時間異常？），沿用舊日期遞增`);
+  }
+
+  // 同天 → 遞增後綴
   if (!suffix) return date + 'a';
 
   // 遞增：a→b, y→z, z→za, zz→zza（全 z 時延伸一位）

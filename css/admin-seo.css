@@ -1,29 +1,29 @@
 /* ================================================
-   SEO Dashboard Styles — 底色與數據儀表板統一
-   依循專案 CSS 變數系統（--bg-card, --bg-main, --accent 等）
+   SEO Dashboard — 單一區域大容器（與數據儀表板統一）
+   ================================================
+   整個 dashboard 包在一個 bg-card 大容器內，
+   內部 section 完全透明、無 border、無分隔線
+   僅靠 margin 和 h3 做視覺區分
    ================================================ */
 
 #page-admin-seo {
   background: var(--bg-main);
 }
 
+/* ★ 關鍵：單一大容器 bg-card，整個 dashboard 放入同一區域 */
 #page-admin-seo #seo-dashboard-content {
-  padding: .5rem;
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin: .5rem;
   max-width: 1280px;
-  margin: 0 auto;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-/* 重新整理按鈕 — 參考活動詳情頁 .event-detail-refresh-btn */
-.seo-refresh-btn {
-  width: 28px; height: 28px; border-radius: 50%;
-  border: 1px solid var(--border); background: var(--bg-elevated);
-  color: var(--text-primary); font-size: .85rem; line-height: 1;
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-  padding: 0; margin-left: auto; transition: transform .3s;
-}
-.seo-refresh-btn:active { transform: rotate(180deg); }
+/* Header 重新整理按鈕：參考活動詳情頁 .event-detail-refresh-btn（class 已沿用）*/
 
-/* 說明按鈕（? icon）— 仿 dash-info-btn */
+/* 說明按鈕（? icon） */
 .seo-info-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 20px; height: 20px; border-radius: 50%;
@@ -44,35 +44,36 @@
 }
 .seo-empty h3 { margin-bottom: .8rem; color: var(--text-primary); }
 
-/* Meta bar — 使用統一 card 底色 */
+/* Meta bar — 頂部資訊列，透明無框 */
 .seo-meta-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 1rem;
-  padding: .7rem .9rem;
-  background: var(--bg-card);
-  border-radius: var(--radius);
-  margin-bottom: .5rem;
+  padding: .4rem 0;
+  background: transparent;
+  margin-bottom: 1rem;
   font-size: .8rem;
   color: var(--text-muted);
+  border-bottom: 0;
 }
 .seo-meta-bar strong { color: var(--accent); font-weight: 600; }
 
-/* Section — 統一 bg-card、無 border（去分隔線）*/
+/* Section — 完全透明、無 border、無分隔線，只用 margin 分隔 */
 .seo-section {
-  background: var(--bg-card);
+  background: transparent;
   border: none;
-  border-radius: var(--radius);
-  padding: 1rem;
-  margin-bottom: .5rem;
-}
-.seo-section > h3 {
-  font-size: 1rem;
-  color: var(--accent);
-  margin-bottom: .8rem;
+  border-radius: 0;
   padding: 0;
-  border: none; /* 去除原本的 border-bottom 分隔線 */
+  margin: 0 0 1.5rem 0;
+}
+.seo-section:last-child { margin-bottom: 0; }
+.seo-section > h3 {
+  font-size: .95rem;
+  color: var(--accent);
+  margin: 0 0 .6rem 0;
+  padding: 0;
+  border: none;
   display: flex;
   align-items: center;
   gap: .3rem;
@@ -81,25 +82,25 @@
 
 .seo-grid-2 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: .5rem;
-  margin-bottom: .5rem;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+  margin: 0 0 1.5rem 0;
 }
 .seo-grid-2 .seo-section { margin-bottom: 0; }
 
-/* Overview cards */
+/* Overview cards — 小卡片組（用 bg-elevated 區分於主容器 bg-card） */
 .seo-overview-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: .6rem;
+  gap: .5rem;
 }
 .seo-overview-card {
-  background: var(--bg-elevated, var(--bg-main));
-  border-radius: var(--radius);
-  padding: .8rem .9rem;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm, 10px);
+  padding: .75rem .85rem;
 }
 .seo-overview-label {
-  font-size: .78rem;
+  font-size: .75rem;
   color: var(--text-muted);
   margin-bottom: .4rem;
   font-weight: 600;
@@ -107,30 +108,33 @@
 .seo-overview-metrics {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: .5rem;
+  gap: .4rem;
 }
 .seo-overview-metrics > div {
   display: flex;
   flex-direction: column;
-  font-size: .7rem;
+  font-size: .68rem;
   color: var(--text-muted);
 }
 .seo-overview-metrics strong {
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   color: var(--text-primary);
   font-weight: 700;
   margin-top: .1rem;
   font-family: var(--font-display, inherit);
 }
 
-/* Bar chart — 數據儀表板風格 */
+/* Bar chart */
 .seo-bar-chart {
   display: flex;
   align-items: flex-end;
   gap: 2px;
-  height: 140px;
-  padding: 0 .3rem .2rem;
+  height: 130px;
+  padding: 0 .2rem .2rem;
   overflow-x: auto;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm, 10px);
+  padding-top: .3rem;
 }
 .seo-bar-col {
   flex: 0 0 22px;
@@ -165,14 +169,14 @@
   white-space: nowrap;
 }
 
-/* Tables — 底色統一為透明（繼承 section 的 bg-card） */
+/* Tables — 行底細線為唯一分隔 */
 .seo-table {
   width: 100%;
   border-collapse: collapse;
   font-size: .82rem;
 }
 .seo-table th, .seo-table td {
-  padding: .5rem .6rem;
+  padding: .5rem .55rem;
   text-align: left;
   border-bottom: 1px solid var(--border);
 }
@@ -180,7 +184,7 @@
   background: transparent;
   color: var(--text-muted);
   font-weight: 600;
-  font-size: .75rem;
+  font-size: .72rem;
   text-transform: uppercase;
   letter-spacing: .02em;
 }
@@ -198,8 +202,8 @@
 /* Sitemap items */
 .seo-sitemap-item {
   padding: .7rem .8rem;
-  background: var(--bg-elevated, var(--bg-main));
-  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm, 10px);
   margin-bottom: .4rem;
 }
 .seo-sitemap-item:last-child { margin-bottom: 0; }
@@ -221,23 +225,22 @@
 .seo-sitemap-contents { margin-top: .3rem; }
 
 .seo-empty-note {
-  padding: 1rem;
+  padding: .8rem 0;
   text-align: center;
   color: var(--text-muted);
   font-size: .82rem;
 }
 
 .seo-footer-note {
-  padding: .8rem 1rem;
-  background: var(--bg-card);
-  border-radius: var(--radius);
+  padding: .8rem 0 0 0;
+  margin-top: .5rem;
   font-size: .75rem;
   color: var(--text-muted);
+  border-top: 1px solid var(--border);
 }
 .seo-footer-note p { margin: .2rem 0; }
 
-/* 說明彈窗樣式（獨立於 education.css，避免跨模組依賴） */
-#page-admin-seo ~ .edu-info-overlay,
+/* 說明彈窗（獨立複製，不依賴 education.css） */
 .edu-info-overlay {
   position: fixed; inset: 0; z-index: 1200;
   background: rgba(0,0,0,.35);
@@ -263,8 +266,7 @@
 .edu-info-dialog-body p { margin: .3rem 0; }
 
 @media (max-width: 640px) {
-  #page-admin-seo #seo-dashboard-content { padding: .4rem; }
-  .seo-section { padding: .7rem; }
+  #page-admin-seo #seo-dashboard-content { margin: .3rem; padding: .7rem; }
   .seo-overview-metrics strong { font-size: .95rem; }
   .seo-bar-col { flex: 0 0 18px; }
   .seo-bar { width: 14px; }
@@ -272,4 +274,5 @@
   .seo-table th, .seo-table td { padding: .4rem .4rem; }
   .seo-url-cell { max-width: 140px; }
   .seo-meta-bar { gap: .6rem; font-size: .75rem; }
+  .seo-section { margin-bottom: 1.2rem; }
 }
