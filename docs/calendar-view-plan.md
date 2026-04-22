@@ -4,7 +4,7 @@
 **預估工期**：7.5 個工作日（可拆分 2-3 個 commit 批次）
 **版號影響**：會 bump 1-3 次（視批次拆分）
 **預計動到檔案**：11 個（含 3 新建）
-**狀態**：2026-04-22 v6 — 回歸風險審計（對照既有程式碼、Firestore Rules、Cloud Functions、onSnapshot 路徑），發現 11 項**首次實作必須修正**的對接錯誤與規範缺失
+**狀態**：2026-04-22 v7 — 收斂審計（繼續挖 middle/high 瑕疵直到無剩餘），發現 v6 漏掉的 8 項對接與規格瑕疵：返回頁 tab 記憶、日期格式 normalize、filter-bar 互動、CSS 命名空間、cancelled 活動處理、狀態標記規格、my-section 顯示、多日活動資料結構
 
 ---
 
@@ -815,24 +815,27 @@ App._calendarCache = {
   - `calendar.css` 用 `<link rel="preload" as="style" onload="this.rel='stylesheet'">` 或在切 tab 時動態注入
 - 首次切 tab 多 50-100ms loading（可接受、顯示 skeleton）
 
-### 修改（12 個 — v6 新增 4 個必改檔案）
+### 修改（13 個檔案、14 個改動點 — v7 新增 navigation.js + theme.js filter 處）
 
-> ⚠️ **v6 新增 4 個**（#9 ~ #12）：v5 列為「不改動」的檔案實際必須小改，否則會有功能斷鏈（見 §15 回歸風險 C/D/E）。
+> ⚠️ **版本演進**：v5 列 8 個 → v6 列 12 個（+4：firebase-service / theme / event-list-helpers-switchRegion / event-manage）→ **v7 再加 navigation.js（§12.M）+ theme.js filter-bar 處（§12.O）**，若不改會有「返回頁 tab 資料不刷新」與「切 tab 後改 filter 月曆不更新」兩個功能斷鏈。
+>
+> 既有檔案修改點統計：firebase-service ×1、theme ×4（setActiveSport + filter-type + filter-btn + filter-keyword）、event-list-helpers switchRegionTab ×1、event-manage toggleMyActivityPin ×1、navigation ×1 = **既有模組共 5 檔 / 8 處改動**。
 
 | # | 檔案 | 改動範圍 | 鎖定狀態 |
 |---|------|---------|---------|
 | 1 | `pages/activity.html` | 新增 `[月曆]` tab button（`data-atab="calendar"`）+ `#activity-calendar` 容器 | 一般 |
-| 2 | `js/modules/event/event-list-timeline.js` | 加 `data-date-anchor` 到日期分組元素（Q10）**— 僅加屬性、不動邏輯** | ⚠️ **鎖定區、小心** |
+| 2 | `js/modules/event/event-list-timeline.js` | 加 `data-date-anchor`（padded `YYYY-MM-DD`）到日期分組元素（Q10）**— 僅加屬性、不動邏輯** | ⚠️ **鎖定區、小心** |
 | 3 | `js/modules/event/event-list.js` | `_setActivityTab` 擴充處理第 3 種 `'calendar'`（隱藏 `#activity-list`、顯示 `#activity-calendar`、呼叫 render）| ⚠️ **鎖定區、小心** |
-| 4 | `js/modules/event/event-list-helpers.js` | 加 `_groupEventsByDate` 輔助函式 | ⚠️ **鎖定區、小心** |
+| 4 | `js/modules/event/event-list-helpers.js` | 加 `_groupEventsByDate` 輔助函式 + `_toDateKey()` padded 日期 key | ⚠️ **鎖定區、小心** |
 | 5 | `js/core/script-loader.js` | 註冊新群組 `activityCalendar`（支援 tab 級延遲載入，見「lazy-load 實作方案」） | 一般 |
 | 6 | `index.html` | `<link>` 載入 `calendar.css` | 一般（改 HTML 要 bump version）|
 | 7 | `docs/architecture.md` | 模組清單加 `event-list-calendar` | 一般 |
 | 8 | `docs/structure-guide.md` | 中文功能導覽同步 | 一般 |
-| **9** | **`js/firebase-service.js`** | **L196-202 snapshot render dispatch 加月曆分支**（Realtime 更新時月曆會重 render） | ⚠️ **鎖定檔、僅加 1 行** |
-| **10** | **`js/core/theme.js`** | **`setActiveSport` 的 render 鏈 L186-189 末尾加 `App._renderActivityCalendar?.()`**（切運動分類時月曆會重 render） | 一般（只加 1 行）|
-| **11** | **`js/modules/event/event-list-helpers.js`** | **`switchRegionTab` L307-308 加呼叫 `App._renderActivityCalendar?.()`**（切地區時月曆會重 render） | ⚠️ 鎖定區 |
-| **12** | **`js/modules/event/event-manage.js`** | **`toggleMyActivityPin` L444-446 加呼叫 `this._renderActivityCalendar?.()`**（置頂 toggle 後月曆會重 render） | 一般（只加 1 行）|
+| 9 | `js/firebase-service.js` | L196-202 snapshot render dispatch 加月曆分支（見 §12.C） | ⚠️ **鎖定檔、僅加 1 行** |
+| 10 | `js/core/theme.js`（**2 處改動**）| (a) `setActiveSport` L186-189 末尾加 `_renderActivityCalendar?.()`（§12.D）<br>(b) filter-bar 的 3 個 handler L70-78 加同樣分支（§12.O）| 一般（共 4 行）|
+| 11 | `js/modules/event/event-list-helpers.js` | `switchRegionTab` L307-308 加 `_renderActivityCalendar?.()`（§12.D） | ⚠️ 鎖定區 |
+| 12 | `js/modules/event/event-manage.js` | `toggleMyActivityPin` L444-446 加 `_renderActivityCalendar?.()`（§12.E） | 一般（只加 1 行）|
+| **13** | **`js/core/navigation.js`** | **`_renderPageContent('page-activities')` L698-701 加月曆分支**（返回頁時重 render、§12.M） | 一般（只加 1 行）|
 
 ### lazy-load 實作方案（v6 明確化）
 
@@ -1026,8 +1029,10 @@ git push origin HEAD:main
 | 同上 | `_groupEventsByDate([events])` 按 date key 正確分組 |
 | 同上 | `_getSportColor('football')` → 正確 CSS 變數 |
 | 同上 | `_getSportColor('未啟用運動')` → fallback `--sport-other` |
-| 同上 | 跨月活動（4/30 到 5/2）只在 4/30 顯示 |
-| 同上 | `event.pinned === true` 才視為置頂（undefined/false/null 皆非）|
+| 同上 | 多日活動（multiDate、5 天）在月曆 5 個日期格各自顯示（每天一獨立 event、不合併）|
+| 同上 | `event.pinned` truthy 即視為置頂（沿用全站既有風格、v7 §12.F 決議）|
+| 同上 | `_toDateKey('2026/5/1 19:30~21:00')` → `'2026-05-01'`（padded、與 data-date-anchor 一致）|
+| 同上 | cancelled 活動在月曆有刪除線 + opacity 0.35（§12.Q）|
 | 同上 | `_filterEventsForCalendar` 必先呼叫 `_isEventVisibleToUser` |
 | 同上 | 黑名單用戶的活動不顯示月曆 |
 | 同上 | 私人活動（privateEvent=true）不顯示給未報名用戶 |
@@ -1127,7 +1132,7 @@ git push origin HEAD:main
 
 > 🔴 **動手前必須逐項確認本章**。v6 審計發現 11 項計畫書原本未涵蓋的對接錯誤與規範缺失；若直接照 v5 實作會產生中到高度回歸。
 
-### 15.A 🔴 DOM 屬性名錯誤（高風險，直接 break tab）
+### 12.A 🔴 DOM 屬性名錯誤（高風險，直接 break tab）
 
 **現況**：`pages/activity.html` L28-31 使用 `data-atab`（非 `data-tab`），tab 值為 `'normal'` / `'ended'`（非 `'active'`）。
 
@@ -1135,7 +1140,7 @@ git push origin HEAD:main
 
 **驗收**：新 tab button 必須用 `data-atab="calendar"` + `onclick="App.switchActivityTab('calendar')"`，與既有兩個 tab 風格一致。
 
-### 15.B 🔴 scroll-snap × _bindSwipeTabs 手勢衝突
+### 12.B 🔴 scroll-snap × _bindSwipeTabs 手勢衝突
 
 **現況**：`event-list-timeline.js` L338-341 綁定左右滑動切 tab（`_bindSwipeTabs('activity-list', 'activity-tabs', ...)`）。月曆 scroll-snap-y 是上下方向，**理論上不衝突**但需驗證：
 
@@ -1148,7 +1153,7 @@ git push origin HEAD:main
 - [ ] LINE WebView 實測同上
 - [ ] 若失效，在 `#activity-calendar` 上也綁 `_bindSwipeTabs`（比照 timeline）
 
-### 15.C 🔴 onSnapshot 不會觸發月曆 render（Realtime 失效）
+### 12.C 🔴 onSnapshot 不會觸發月曆 render（Realtime 失效）
 
 **現況**：`firebase-service.js` L196-202 的 snapshot render dispatch：
 
@@ -1174,7 +1179,7 @@ if (p === 'page-activities') {
 - [ ] 月曆 tab 下別人取消活動，月曆即時消失
 - [ ] 既有 timeline 行為不變
 
-### 15.D 🔴 切運動/地區分類不重 render 月曆（篩選失效）
+### 12.D 🔴 切運動/地區分類不重 render 月曆（篩選失效）
 
 **現況**：
 - `theme.js` L186-189 `setActiveSport` 只呼叫 `renderHotEvents/renderActivityList/renderTeamList/renderTournamentTimeline`
@@ -1196,7 +1201,7 @@ try { this._renderActivityCalendar?.(); } catch (_) {}
 - [ ] 月曆下切「籃球」→ 只剩籃球活動
 - [ ] 月曆下切「北部」→ 只剩北部活動
 
-### 15.E 🟡 置頂 toggle 後月曆未重 render（視覺不同步）
+### 12.E 🟡 置頂 toggle 後月曆未重 render（視覺不同步）
 
 **現況**：`event-manage.js` `toggleMyActivityPin` L444-446：
 
@@ -1214,7 +1219,7 @@ this.renderHotEvents();
 this._renderActivityCalendar?.();
 ```
 
-### 15.F 🟡 pinned 比對風格一致性（`=== true` vs truthy）
+### 12.F 🟡 pinned 比對風格一致性（`=== true` vs truthy）
 
 **現況**：既有模組（`event-list.js` L87-94、`event-list-timeline.js` L223-231、`event-list-home.js`、`event-manage.js`）**全部用 `e?.pinned ? 1 : 0` truthy** 風格，**不是** `=== true` 嚴格比對。
 
@@ -1243,7 +1248,7 @@ function _sortEventsForCell(a, b) {
 }
 ```
 
-### 15.G 🟡 lazy-load 路徑缺明確實作
+### 12.G 🟡 lazy-load 路徑缺明確實作
 
 **現況**：`script-loader.js` 是頁面級載入（`_pageGroups['page-activities']` 一次載全部）。v5 計畫書只寫「必做 lazy load」沒說怎麼做。
 
@@ -1254,7 +1259,7 @@ function _sortEventsForCell(a, b) {
 - [ ] 切月曆 tab 時 50-200ms 內完成載入 + render
 - [ ] 載入失敗顯示 toast「月曆載入失敗，請重試」
 
-### 15.H 🟢 首次切 tab 的 100ms 防抖會產生視覺延遲
+### 12.H 🟢 首次切 tab 的 100ms 防抖會產生視覺延遲
 
 **現況**：`renderActivityList` L155-157 有 100ms 防抖（避免多路徑觸發連續 re-render）。
 
@@ -1265,7 +1270,7 @@ function _sortEventsForCell(a, b) {
 - **後續**的 realtime 更新可走防抖（避免連續 snapshot 觸發）
 - 用獨立 timer `_activityCalendarRenderTimer` 不共用
 
-### 15.I 🟢 _autoEndExpiredEvents 副作用需對齊
+### 12.I 🟢 _autoEndExpiredEvents 副作用需對齊
 
 **現況**：`_doRenderActivityList` L160 呼叫 `_autoEndExpiredEvents()`，把超時活動自動改 `ended`。
 
@@ -1273,7 +1278,7 @@ function _sortEventsForCell(a, b) {
 
 **v6 決議**：月曆 render 開頭也呼叫 `this._autoEndExpiredEvents()`，與 timeline 對齊。此函式是冪等的（已結束的不會再改）、無重複寫入風險。
 
-### 15.J 🟢 冷啟動骨架
+### 12.J 🟢 冷啟動骨架
 
 **現況**：`#activity-list` 的 HTML 骨架（activity.html L40-44）有 skeleton-line。
 
@@ -1289,7 +1294,7 @@ function _sortEventsForCell(a, b) {
 
 首次 `_renderActivityCalendar` 成功後移除骨架。
 
-### 15.K 🔴 規範層：鎖定清單需更新
+### 12.K 🔴 規範層：鎖定清單需更新
 
 **CLAUDE.md §外科手術式修改**提到 `js/firebase-service.js` 是「鎖定函式所在檔案」。本次為加月曆 render 分支必須動此檔，**即使只加 1 行**，也需：
 
@@ -1304,7 +1309,7 @@ function _sortEventsForCell(a, b) {
 
 ---
 
-### 15.L 資料庫 / Rules / CF 對接最終確認
+### 12.L 資料庫 / Rules / CF 對接最終確認
 
 | 層級 | 改動? | 驗證 |
 |------|-------|------|
@@ -1317,6 +1322,216 @@ function _sortEventsForCell(a, b) {
 | Service Worker | ✅ 透過 `bump-version.js` 自動 | 新增 `event-list-calendar.js`、`calendar.css` 透過 `?v=` 參數自動 cache bust |
 
 **結論**：月曆功能對資料庫 / Rules / CF **零影響**，僅前端視圖層變更。最大風險集中在既有前端模組的**渲染流程對接**（A-K 11 項）。
+
+---
+
+### 12.M 🔴 返回頁面時月曆未重 render（v7 新發現）
+
+**現況**：`js/core/navigation.js` `_renderPageContent()` L698-701：
+
+```javascript
+if (pageId === 'page-activities') {
+  // 不重設頁籤 — 保留用戶離開前的 _activityActiveTab（如「已結束」）
+  this.renderActivityList?.();  // ← 只 render timeline
+}
+```
+
+**行為**：用戶在月曆 → 點活動 → 進詳情 → 按返回 → `_renderPageContent('page-activities')` 只呼叫 `renderActivityList()`，**月曆資料不刷新**。若此時有 realtime 變動，月曆會看到舊資料。
+
+**必改**：L700 後加月曆分支：
+
+```javascript
+if (pageId === 'page-activities') {
+  this.renderActivityList?.();
+  if (this._activityActiveTab === 'calendar') this._renderActivityCalendar?.();
+}
+```
+
+> ⚠️ **這是繼 §12.C 之後第二個既有核心模組必改處**（`navigation.js`），`navigation.js` 不是鎖定檔但仍屬核心。
+
+**驗收**：
+- [ ] 月曆 tab → 進活動詳情 → 返回 → 月曆資料已更新（若有人中途新增活動）
+- [ ] timeline tab → 進詳情 → 返回 → timeline 維持既有行為
+
+### 12.N 🔴 event.date 格式是 `YYYY/MM/DD`（非 `YYYY-MM-DD`）
+
+**現況**：`event.date` 實際格式為 **`YYYY/MM/DD HH:mm~HH:mm`**（斜線分隔、月日可個位數），見 `_parseEventStartDate` L152-166。
+
+**v6 計畫書混用 `YYYY-MM-DD` vs `YYYY/MM/DD`**：
+- `data-date-anchor="YYYY-MM-DD"`（Q10）
+- `_groupEventsByDate` 按 `YYYY-MM-DD` group
+
+**風險**：若月曆 group key 用 `e.date.split(' ')[0]`，會得到 `'2026/5/1'`（未補零），無法與 `'2026-05-01'` 錨點對上。
+
+**v7 決議 — 統一規範**：
+
+```javascript
+// 月曆內部 group key 統一用 YYYY-MM-DD padded（與 data-date-anchor 一致）
+function _toDateKey(eventDate) {
+  const parts = eventDate.split(' ')[0].split('/');
+  const y = String(parseInt(parts[0])).padStart(4, '0');
+  const m = String(parseInt(parts[1])).padStart(2, '0');
+  const d = String(parseInt(parts[2])).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+// timeline 的 data-date-anchor 也用此函式產生（確保一致）
+// "2026/5/1" → "2026-05-01"
+// "2026/12/31" → "2026-12-31"
+```
+
+**驗收**：
+- [ ] 活動日期 `2026/5/1` 在月曆 5 月 1 日格顯示
+- [ ] 點 +N more 能跳回 timeline 對應 `data-date-anchor="2026-05-01"`
+- [ ] `_parseEventStartDate` 既有 UTC vs 本地時區行為不動（月曆用本地時區顯示）
+
+### 12.O 🟡 filter-bar（類別 / 關鍵字）在月曆 tab 下的行為未規範
+
+**現況**：`pages/activity.html` L11-23 有 `#filter-bar`（類別 select + 關鍵字 input + 搜尋 btn）。這 3 個元件都綁定 `renderActivityList()`（見 `theme.js` L70-78），**月曆不會重 render**。
+
+**v7 決議**：月曆 tab 下的 filter 互動採**方案 B（保留但同步）**：
+
+1. **保留 filter-bar 顯示**（不隱藏）— 避免用戶切 tab 時 UI 跳動
+2. **類別 change / 關鍵字 Enter / 搜尋 btn click** 時，若 `_activityActiveTab === 'calendar'`，同步呼叫 `_renderActivityCalendar()`
+3. **必改**：`theme.js` L70-78 的 3 個 handler 末尾加：
+
+```javascript
+document.getElementById('activity-filter-type')?.addEventListener('change', () => {
+  this.renderActivityList();
+  if (this._activityActiveTab === 'calendar') this._renderActivityCalendar?.();
+});
+// 另外兩個 handler 同樣加分支
+```
+
+> ⚠️ **這是第 3 個既有核心模組必改處**（`theme.js` 除了 §12.D 的 setActiveSport 外、filter-bar handler 也要改）。總計既有模組改動點變為：firebase-service / theme（兩處） / event-list-helpers / event-manage / navigation = 5 個檔案共 6 個改動點。
+
+**驗收**：
+- [ ] 月曆下選「類別 = PLAY」→ 月曆只剩 PLAY 活動
+- [ ] 月曆下搜尋「台北」→ 月曆只剩標題/地點含「台北」的活動
+- [ ] 切回 timeline tab，filter 值仍保留
+
+### 12.P 🟡 CSS 命名空間污染風險
+
+**現況**：既有 CSS 命名：
+- `.timeline-calendar`（`css/activity.css` L7）— 用於直瀑 timeline 容器
+- `.edu-monthly-calendar` / `.edu-cal-*`（`css/education.css` L547+）— 教育模組月曆
+- `.calendar-*` — **尚未使用、屬全域命名空間**
+
+**v5 計畫書用 `.calendar-container` / `.calendar-day` / `.calendar-event-item` / `.calendar-more`** — 佔據全域 `.calendar-*` 命名空間。
+
+**風險**：未來若有其他月曆功能（如 dashboard 月曆、admin 報表月曆）也用 `.calendar-*`，會互相污染。
+
+**v7 決議 — 改用 `.evt-cal-*` 命名空間**（比照 `.edu-cal-*` 模式、跟 event 綁定）：
+
+| v5/v6 名稱 | v7 名稱 |
+|-----------|--------|
+| `.calendar-container` | `.evt-cal-container` |
+| `.calendar-month` | `.evt-cal-month` |
+| `.calendar-day` | `.evt-cal-day` |
+| `.calendar-day-number` | `.evt-cal-day-num` |
+| `.calendar-event-item` | `.evt-cal-event` |
+| `.calendar-more` | `.evt-cal-more` |
+| `.event-emoji` / `.event-time` / `.event-title-short` | `.evt-cal-emoji` / `.evt-cal-time` / `.evt-cal-title` |
+| `.no-event-mark` | `.evt-cal-empty-mark` |
+| `.is-pinned` | `.evt-cal-is-pinned`（局部作用域）|
+| `.pin-sparkle` | `.evt-cal-sparkle` |
+
+**CSS 檔名保持 `calendar.css`**（檔案路徑不污染、class 才是關鍵）。
+
+**驗收**：
+- [ ] grep `\.calendar-` 全專案 CSS、月曆外檔案無新增
+- [ ] grep `\.evt-cal-` 只在 `calendar.css` 和 `event-list-calendar.js`
+
+### 12.Q 🟡 cancelled（已取消）活動的月曆處理未規範
+
+**現況**：
+- timeline tab 「一般」排除 `ended + cancelled`
+- timeline tab 「已結束」包含 `ended + cancelled`
+- **月曆 v5 只說「已結束 opacity 50%」，沒說 cancelled**
+
+**v7 決議**：
+
+| 狀態 | 月曆顯示 | opacity | 視覺 |
+|------|---------|---------|------|
+| `open` / `upcoming` / `full` | ✅ 正常 | 1.0 | 運動色 + 標題 |
+| `ended` | ✅ 顯示 | 0.5 | 標題灰階、運動色也降飽和 |
+| `cancelled` | ✅ 顯示 | 0.35 | **加刪除線** + 標題旁貼「已取消」小標 |
+
+CSS：
+```css
+.evt-cal-event[data-status="ended"] { opacity: 0.5; filter: grayscale(0.3); }
+.evt-cal-event[data-status="cancelled"] { opacity: 0.35; text-decoration: line-through; }
+.evt-cal-event[data-status="cancelled"] .evt-cal-title::after {
+  content: "已取消"; font-size: .6em; color: var(--danger); margin-left: .3em;
+}
+```
+
+`aria-label` 也要含狀態：`aria-label="已取消活動：雙連網球場雙打揪團，足球"`
+
+**驗收**：
+- [ ] cancelled 活動在月曆顯示、有刪除線
+- [ ] 點 cancelled 活動仍可進詳情看過往資訊（與 timeline 一致）
+
+### 12.R 🟡 月曆格狀態標記規格未定（收藏 / 正取 / 候補 / 私密 / 俱樂部限定 / 性別）
+
+**現況**：timeline 每個 event row 顯示這些狀態標記（`event-list-timeline.js` L260-277）：
+- `_favHeartHtml` 收藏愛心
+- `regStamp` 正取/候補戳記
+- `privateStamp` 不公開戳記
+- `genderRibbon` 性別限定彩帶
+- `teamBadge` 俱樂部限定章
+
+**v5 月曆 §4.8 只提：運動 emoji + 時間 + 標題**，**這 5 種狀態全部沒規範**。
+
+**v7 決議 — 採極簡主義**（月曆格只 45x80~150x120px、塞不下全部）：
+
+| 狀態 | 月曆處理 | 理由 |
+|------|---------|------|
+| 收藏 (favorited) | ❌ 不顯示 | 用戶自行點擊後得知 |
+| 已報名正取 | ✅ 格邊框加 2px 綠色（`.is-signed-up`）| 用戶關心自己有沒有報 |
+| 已報名候補 | ✅ 格邊框加 2px 橘色虛線（`.is-waitlisted`）| 同上 |
+| 私密活動 | ❌ 不顯示（能被用戶看到時已通過 `privateEvent` 守衛）| 無資訊價值 |
+| 性別限定 | ❌ 不顯示 | 進詳情頁才看、月曆塞不下 |
+| 俱樂部限定 | ❌ 不顯示 | 同上 |
+| 置頂 | ✅ ✨ 動畫 + 金色邊框（v5 §4.8） | 產品強調功能 |
+
+CSS：
+```css
+.evt-cal-event.is-signed-up { box-shadow: 0 0 0 2px #22c55e inset; }
+.evt-cal-event.is-waitlisted { box-shadow: 0 0 0 2px #f59e0b inset; outline: 1px dashed #f59e0b; }
+.evt-cal-event.evt-cal-is-pinned { /* 見 §4.8 */ }
+```
+
+**驗收**：
+- [ ] 已報名活動在月曆格有綠色邊框
+- [ ] 候補活動有橘色虛線邊框
+- [ ] 置頂活動與狀態邊框可疊加（三層邊框不互相覆蓋）
+
+### 12.S 🟢 my-section coach+ 按鈕在月曆 tab 下仍顯示
+
+**現況**：`pages/activity.html` L24-27：
+
+```html
+<div class="my-section" data-min-role="coach">
+  <button class="action-btn" onclick="App.showPage('page-my-activities')">活動管理</button>
+</div>
+```
+
+**v7 決議**：**維持現狀**。這是全局頁面層級入口、不隨 tab 切換、與月曆無衝突。**無需修改**，只是明確記錄不動。
+
+### 12.T 🟢 多日活動（multiDate）資料結構釐清
+
+**現況**：看 `event-create-multidate.js` L192-217，多日活動建立時**每個日期都是一個獨立 event 文件**（各自 id + date + `batchGroupId` 分組）。**不存在「一個活動跨多日」的資料結構**。
+
+**v7 決議 — 修正計畫書誤解**：
+- ~~§10 測試第 11 項「跨月活動（4/30 到 5/2）只在 4/30 顯示」❌ 刪除~~（資料結構不存在）
+- 改為：「batch 活動（多日同批）在月曆每天各自顯示、不合併、不特殊處理 batchGroupId」
+- 本期不做 batch 視覺分組（後續擴充點）
+
+**驗收**：
+- [ ] 多日活動（5 天）在月曆 5 個日期格各自顯示
+- [ ] 每個格可獨立點擊進詳情
+- [ ] 不會誤顯示 batchGroupId 或其他批次資訊
 
 ---
 
@@ -1355,7 +1570,7 @@ touch css/calendar.css
 # 編輯（參考 §3 運動色系統、§4.2 月份 Intl 用法）
 ```
 
-### 13.4 常見踩坑（v6 擴充）
+### 13.4 常見踩坑（v7 擴充）
 
 | 情境 | 注意 |
 |------|------|
@@ -1364,19 +1579,25 @@ touch css/calendar.css
 | 改動 `js/modules/event/event-list-timeline.js` | 屬鎖定區、僅加 `data-date-anchor`、不動邏輯 |
 | 改動 `firestore.rules` | **本期不需改**（月曆只讀既有 events）|
 | 改動 `js/firebase-crud.js` / `stats.js` | **本期不需改** |
-| **改動 `js/firebase-service.js`** | **必須加 1 行月曆 render 分支**（見 §12.C，L198 附近）|
-| **改動 `js/core/theme.js`** | **必須加 1 行 `_renderActivityCalendar?.()`**（見 §12.D）|
-| **改動 `event-list-helpers.js` switchRegionTab** | **必須加 1 行**（見 §12.D）|
-| **改動 `event-manage.js` toggleMyActivityPin** | **必須加 1 行**（見 §12.E）|
+| 改動 `js/firebase-service.js` | **必須加 1 行月曆 render 分支**（見 §12.C，L198 附近）|
+| 改動 `js/core/theme.js` | **2 處都要改**：setActiveSport（§12.D）+ filter-bar 3 handler（§12.O）|
+| 改動 `event-list-helpers.js` switchRegionTab | 必須加 1 行（見 §12.D）|
+| 改動 `event-manage.js` toggleMyActivityPin | 必須加 1 行（見 §12.E）|
+| **改動 `js/core/navigation.js`** | **必須加 1 行**（`_renderPageContent`、返回頁時 rerender、§12.M）|
 | 月曆 render 過濾 | 直接用 `App._getVisibleEvents()`，**不需再呼叫 `_isEventVisibleToUser`**（已內建） |
 | 運動色 | 用 `SPORT_COLORS[sportTag]`、未註冊運動自動 fallback `--sport-other` |
 | 月份名 | 用 `Intl.DateTimeFormat`、不 hardcode |
 | 事件 cell | 用 `data-id` + event delegation、不用 inline onclick |
-| pinned 判斷 | **用 truthy `e?.pinned`**，不用 `=== true`（與既有全站一致，見 §12.F）|
-| 排序 | 必加 `pinOrder` 次序（與 timeline 一致，見 §12.F）|
-| 防抖 | **首次切 tab 不走防抖**、同步 render 一次（見 §12.H）|
-| `_autoEndExpiredEvents` | render 前呼叫一次、與 timeline 對齊（見 §12.I）|
-| lazy-load | 用獨立群組 `activityCalendar` + `_setActivityTab('calendar')` 動態觸發（見 §5）|
+| pinned 判斷 | 用 truthy `e?.pinned`、不用 `=== true`（與既有全站一致，§12.F）|
+| 排序 | 必加 `pinOrder` 次序（與 timeline 一致，§12.F）|
+| 防抖 | 首次切 tab 不走防抖、同步 render 一次（§12.H）|
+| `_autoEndExpiredEvents` | render 前呼叫一次、與 timeline 對齊（§12.I）|
+| lazy-load | 用獨立群組 `activityCalendar` + `_setActivityTab('calendar')` 動態觸發 |
+| **CSS 命名空間** | **用 `.evt-cal-*` 前綴、不用 `.calendar-*`**（避免全域污染，§12.P）|
+| **日期格式** | **統一 padded `YYYY-MM-DD`（透過 `_toDateKey()`）、event.date 實際是 `YYYY/MM/DD`**（§12.N）|
+| **cancelled 活動** | 月曆顯示刪除線 + opacity 0.35（§12.Q）|
+| **已報名邊框** | 正取綠色、候補橘色虛線（§12.R）|
+| **多日活動** | 每個日期為獨立 event、不合併、不特殊處理 batchGroupId（§12.T）|
 
 ### 13.5 測試 checklist
 
@@ -1418,6 +1639,13 @@ touch css/calendar.css
 - [x] **v6 新增：首次實作零 regression 驗證** — §12.A-K 11 項全部 PASS 才算完工
 - [x] **v6 新增：pinned 風格一致** — 全站 truthy 比對，月曆沿用 `e?.pinned`（不改為 `=== true`）
 - [x] **v6 新增：Rules / CF 零改動** — Firestore Rules `events` read 本就 `if true`、CF 不依賴前端 tab、月曆 Database 層零影響
+- [x] **v7 新增：返回頁 tab 記憶** — `navigation.js` `_renderPageContent` 必須含月曆分支（§12.M）
+- [x] **v7 新增：日期 key normalize** — 統一用 `_toDateKey()` 產 padded `YYYY-MM-DD`（§12.N）
+- [x] **v7 新增：filter-bar 同步** — `theme.js` filter-bar 3 handler 必須呼叫月曆 render（§12.O）
+- [x] **v7 新增：CSS 命名空間** — 用 `.evt-cal-*` 前綴（§12.P）
+- [x] **v7 新增：cancelled 規格** — 刪除線 + opacity 0.35（§12.Q）
+- [x] **v7 新增：狀態標記極簡原則** — 只保留「已報名邊框」+「置頂高光」，其餘（收藏/私密/性別/俱樂部）不進月曆格（§12.R）
+- [x] **v7 新增：多日活動理解** — 每個日期是獨立 event、不合併（§12.T）
 
 ---
 
