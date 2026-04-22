@@ -4,7 +4,7 @@
 **預估工期**：7.5 個工作日（可拆分 2-3 個 commit 批次）
 **版號影響**：會 bump 1-3 次（視批次拆分）
 **預計動到檔案**：11 個（含 3 新建）
-**狀態**：2026-04-22 v7 — 收斂審計（繼續挖 middle/high 瑕疵直到無剩餘），發現 v6 漏掉的 8 項對接與規格瑕疵：返回頁 tab 記憶、日期格式 normalize、filter-bar 互動、CSS 命名空間、cancelled 活動處理、狀態標記規格、my-section 顯示、多日活動資料結構
+**狀態**：2026-04-22 v8 — 收斂第二輪審計，再挖出 4 項 🟡 中等瑕疵：Tab 記憶、DOM 回收策略、Focus trap、觸控目標尺寸。至此**所有 🔴 高風險已清零**（v6 的 A-E, K, M, N 共 8 項 + v7 的 8 項）；🟡 中等剩餘僅屬「UX 打磨」層級，可選不做但計畫書都標註清楚
 
 ---
 
@@ -1535,6 +1535,168 @@ CSS：
 
 ---
 
+### 12.U 🟡 _activityActiveTab 未寫入 localStorage（重新整理丟失）
+
+**現況**：`js/modules/event/event-list.js` L10：
+
+```javascript
+_activityActiveTab: 'normal',  // 硬編碼初值、重整即重置
+```
+
+對比 `_activeSport`（`theme.js` L119, 139）寫入 `localStorage.sporthub_active_sport`、重整後自動還原。
+
+**行為**：用戶習慣用月曆 → 每次重新整理頁面或關閉重開 → 自動回「一般」tab，要手動切回月曆。月曆越常用、這個 UX 成本越高。
+
+**v8 決議 — 採用最小改動**：
+
+```javascript
+// event-list.js 初值讀 localStorage（若有效則用、否則 'normal'）
+_activityActiveTab: (() => {
+  try {
+    const saved = localStorage.getItem('sporthub_activity_tab');
+    return (saved === 'normal' || saved === 'ended' || saved === 'calendar') ? saved : 'normal';
+  } catch (_) { return 'normal'; }
+})(),
+
+// _setActivityTab 寫入
+_setActivityTab(tab, options = {}) {
+  const { render = true } = options;
+  this._activityActiveTab = tab;
+  try { localStorage.setItem('sporthub_activity_tab', tab); } catch (_) {}
+  // 既有邏輯...
+}
+```
+
+> ⚠️ **跟「計畫書 v5 只新增月曆」定位不符**：這是改 `_activityActiveTab` 初值讀寫行為。v8 決議本期**不做此功能**，標為後續擴充。若本期做，必須：
+> 1. 測試既有 'normal'/'ended' tab 也能被記住（不只月曆）
+> 2. 用戶裝置若 localStorage 被禁用（LINE WebView incognito）走 try/catch fallback
+> 3. 不同 LINE 帳號切換時的 localStorage key 應隔離（考量同裝置多帳號）
+
+**驗收（若本期納入）**：
+- [ ] 切到月曆 → 重新整理 → 仍在月曆 tab
+- [ ] localStorage 禁用時 fallback 正確
+- [ ] 既有 normal/ended 切換也被記住
+
+### 12.V 🟡 Scroll-snap 3 個月預載後的 DOM 回收策略未定
+
+**現況**：v5 §4.11 規範當月 ±1 月預載、未來無限、過去 3 個月上限。但沒規範**用戶往未來連續滑 12 個月後 DOM 是否回收**。
+
+**風險**：
+- 手機 WebView 可用記憶體有限（iOS Safari 單頁約 256-512MB、LINE WebView 更嚴格）
+- 每個月 DOM 約 42 格 × 3-5 個活動 × DOM 節點 ~ 數千個節點
+- 連續滑 12 個月 ~ 數萬節點、可能觸發 OOM
+
+**v8 決議 — DOM 窗口化**（virtual scroll 輕量版）：
+
+```javascript
+// event-list-calendar.js 常數
+const VISIBLE_MONTH_WINDOW = 3;   // 當月 ±1 月實際渲染
+const DOM_RECYCLE_THRESHOLD = 5;  // 超過則回收最遠月
+
+// 每次切月後檢查
+_pruneCalendarDOM(currentMonthKey) {
+  const monthsInDOM = this._loadedMonthElements;  // Map<monthKey, Element>
+  if (monthsInDOM.size <= DOM_RECYCLE_THRESHOLD) return;
+
+  // 找離當月最遠的月、移除 DOM（但保留資料 cache）
+  const sorted = [...monthsInDOM.keys()].sort((a, b) =>
+    Math.abs(_monthDiff(b, currentMonthKey)) - Math.abs(_monthDiff(a, currentMonthKey))
+  );
+  const toRemove = sorted[0];
+  monthsInDOM.get(toRemove)?.remove();
+  monthsInDOM.delete(toRemove);
+}
+```
+
+**驗收**：
+- [ ] 連續滑 12 個月、DevTools Memory heap size 不持續增長（回升到基線）
+- [ ] 滑回已回收的月、DOM 重建（從資料 cache 快速重建、< 50ms）
+
+### 12.W 🟡 鍵盤 Focus trap / Tab 出入邏輯
+
+**現況**：v5 §4.10 ARIA 結構加了 `role="grid"` + `tabindex="0"`。但用戶按 Tab 鍵進月曆後，**沒規範怎麼跳出月曆**。
+
+**WCAG 2.1 Level AA（2.1.1 Keyboard）要求**：所有功能可純鍵盤操作、**不得有 keyboard trap**（Success Criterion 2.1.2）。
+
+**風險**：若月曆吃掉所有 Tab 鍵，用戶無法跳到下一個元素（如 bot-tab 底部選單）。
+
+**v8 決議**：
+
+```javascript
+// event-list-calendar.js 鍵盤處理
+_handleCalendarKeydown(event) {
+  const { key, target } = event;
+  // 方向鍵只在月曆格內有效
+  if (!target.matches('[role="gridcell"], .evt-cal-event')) return;
+
+  switch (key) {
+    case 'ArrowUp': case 'ArrowDown': case 'ArrowLeft': case 'ArrowRight':
+    case 'PageUp': case 'PageDown': case 'Home': case 'End':
+      // 月曆內導航
+      this._navigateCalendarCell(key, target);
+      event.preventDefault();
+      break;
+    case 'Escape':
+      // 跳出月曆、focus tab button
+      document.querySelector('[data-atab="calendar"]')?.focus();
+      event.preventDefault();
+      break;
+    // Tab 不 preventDefault、讓瀏覽器自然跳到下一個元素（bot-tab）
+  }
+}
+```
+
+**驗收**：
+- [ ] Tab 進月曆 → ↓↑←→ 切日期 → Tab 離開月曆到 bot-tab（不 trap）
+- [ ] Escape 從月曆格跳回 tab button
+- [ ] axe DevTools 跑無 keyboard-trap warning
+
+### 12.X 🟡 窄版觸控目標 < 44x44px（WCAG 違規風險）
+
+**現況**：v5 §4.2 規範「窄版每格 45x80px」。WCAG 2.1 Level AAA（2.5.5 Target Size）建議最小 44x44，Level AA 無強制但 Apple HIG / Google Material 都建議。
+
+**風險**：
+- 窄版 45x80 — 寬度只多 1px 達標、實務點擊失誤率高
+- 格內子元素（「還有 N 場」、✨ icon）可能 < 44x44
+- 尤其大拇指操作時、邊緣格易誤觸相鄰格
+
+**v8 決議**：
+
+```css
+/* 日期格最小觸控目標 */
+.evt-cal-day {
+  min-width: 44px;
+  min-height: 44px;
+  /* 窄版用 45x80 視覺、但整格可點擊 */
+}
+
+/* 「還有 N 場」觸發區全格寬 */
+.evt-cal-more {
+  display: block;
+  width: 100%;
+  min-height: 28px;  /* 剩餘空間內最大化 */
+  padding: .3rem 0;
+  cursor: pointer;
+}
+
+/* 活動格點擊區包含 padding */
+.evt-cal-event {
+  padding: .3rem .25rem;  /* 隱藏的 hit area 擴大 */
+}
+```
+
+**特殊考量**：
+- 3 場活動時格內各活動高度 ~26px、< 44px 是**不可避免**（因為格高限制）
+- 取 trade-off：格內活動互相間距加 2px、用戶能辨識邊界
+- 改善（後續擴充）：窄版改成 1 欄 list 模式
+
+**驗收**：
+- [ ] Chrome DevTools → Lighthouse → Accessibility audit score ≥ 90
+- [ ] 實機 iPhone SE（最小螢幕 4.7"）點擊邊緣格誤觸率 < 10%
+- [ ] axe DevTools 跑無 target-size warning（Level AAA 除外）
+
+---
+
 ## 13. How to start coding（新進工程師指引）
 
 此章為新加入此工程的開發者提供上手指引。
@@ -1598,6 +1760,10 @@ touch css/calendar.css
 | **cancelled 活動** | 月曆顯示刪除線 + opacity 0.35（§12.Q）|
 | **已報名邊框** | 正取綠色、候補橘色虛線（§12.R）|
 | **多日活動** | 每個日期為獨立 event、不合併、不特殊處理 batchGroupId（§12.T）|
+| **DOM 回收** | 超過 5 個月在 DOM 中時、最遠月自動回收（§12.V）|
+| **鍵盤 Escape** | 從月曆格跳回 tab button、Tab 鍵不 trap（§12.W）|
+| **觸控目標** | 日期格 `min-width/height: 44px`（§12.X）|
+| **Tab 記憶** | `_activityActiveTab` 本期不進 localStorage（§12.U）|
 
 ### 13.5 測試 checklist
 
@@ -1646,6 +1812,10 @@ touch css/calendar.css
 - [x] **v7 新增：cancelled 規格** — 刪除線 + opacity 0.35（§12.Q）
 - [x] **v7 新增：狀態標記極簡原則** — 只保留「已報名邊框」+「置頂高光」，其餘（收藏/私密/性別/俱樂部）不進月曆格（§12.R）
 - [x] **v7 新增：多日活動理解** — 每個日期是獨立 event、不合併（§12.T）
+- [x] **v8 新增：Tab 記憶屬擴充、非 blocker** — `_activityActiveTab` 本期不存 localStorage（§12.U）
+- [x] **v8 新增：DOM 回收** — 超過 5 個月時回收最遠月（§12.V）
+- [x] **v8 新增：無 keyboard trap** — Tab 可跳出月曆、Escape 回 tab button（§12.W, WCAG 2.1.2）
+- [x] **v8 新增：觸控目標** — 日期格 44×44 以上（§12.X、Google Material + Apple HIG 建議）
 
 ---
 
