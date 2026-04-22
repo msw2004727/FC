@@ -8,7 +8,7 @@ Object.assign(App, {
 
   _calendarCurrentMonthKey: null,   // "YYYY-MM"（當前可視月）
   _calendarRenderedMonths: new Set(),
-  _calendarScrollObserver: null,
+  _calendarScrollHandler: null,     // scroll 事件 handler（_bindCalendarScrollObserver 維護）
 
   /**
    * 月曆主 render 入口
@@ -106,6 +106,56 @@ Object.assign(App, {
 
   _calMonthKeyFromDate(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  },
+
+  _calAddMonthKey(monthKey, delta) {
+    const [y, m] = monthKey.split('-').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    return this._calMonthKeyFromDate(d);
+  },
+
+  /**
+   * 邊界 buffer：當前月為 DOM 最前/最後時自動追加相鄰月、讓用戶能持續下滑
+   * 見 2026-04-22 用戶回報「手勢拖曳只能到下個月份」bug
+   */
+  _ensureCalendarBuffer(scrollEl) {
+    if (!scrollEl) return;
+    const months = Array.from(scrollEl.querySelectorAll('.evt-cal-month'));
+    if (months.length === 0) return;
+    const firstMk = months[0].dataset.month;
+    const lastMk = months[months.length - 1].dataset.month;
+    const current = this._calendarCurrentMonthKey;
+
+    // 下邊界：當前 = 最後一個 → 追加下個月（未來無限）
+    if (current === lastMk) {
+      const nextKey = this._calAddMonthKey(current, 1);
+      if (!this._calendarRenderedMonths.has(nextKey)) {
+        const section = this._buildMonthSection(nextKey);
+        scrollEl.appendChild(section);
+        this._calendarRenderedMonths.add(nextKey);
+      }
+    }
+
+    // 上邊界：當前 = 第一個、且未超過 MAX_PAST_MONTHS → 前面追加上個月
+    if (current === firstMk) {
+      const prevKey = this._calAddMonthKey(current, -1);
+      if (!this._calendarRenderedMonths.has(prevKey)) {
+        const [py, pm] = prevKey.split('-').map(Number);
+        const d = new Date(py, pm - 1, 1);
+        const now = new Date();
+        const minDate = new Date(now.getFullYear(), now.getMonth() - MAX_PAST_MONTHS, 1);
+        if (d >= minDate) {
+          const prevScrollTop = scrollEl.scrollTop;
+          const section = this._buildMonthSection(prevKey);
+          scrollEl.insertBefore(section, scrollEl.firstChild);
+          this._calendarRenderedMonths.add(prevKey);
+          // 調整 scrollTop 保持視覺位置（防止視覺跳動）
+          requestAnimationFrame(() => {
+            scrollEl.scrollTop = prevScrollTop + section.offsetHeight;
+          });
+        }
+      }
+    }
   },
 
 });

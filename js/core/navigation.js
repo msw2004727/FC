@@ -698,8 +698,10 @@ Object.assign(App, {
     if (pageId === 'page-activities') {
       // 不重設頁籤 — 保留用戶離開前的 _activityActiveTab（如「已結束」/「月曆」）
       this.renderActivityList?.();
-      // 月曆 tab 下返回頁面時也要重 render（見 calendar-view-plan §12.M）
+      // 月曆 tab 下返回頁面時重設到今日（用戶要求 2026-04-22、見 calendar-view-plan §12.M）
       if (this._activityActiveTab === 'calendar') {
+        this._calendarCurrentMonthKey = null;
+        this._calendarRenderedMonths?.clear?.();
         if (typeof this._renderActivityCalendar === 'function') {
           this._renderActivityCalendar();
         } else if (typeof this._loadAndRenderCalendar === 'function') {

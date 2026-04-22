@@ -47,12 +47,12 @@
   position: relative;
   width: 100%;
   padding: .3rem 0 1rem;
-  /* scroll-snap（上下滑切月）*/
-  scroll-snap-type: y mandatory;
+  /* 普通捲動（不 scroll-snap）— 避免月份高度 > 容器時最後幾週被吸附切掉、
+     且能讓用戶看到跨月銜接處。label 由 scroll 事件 + rAF 追蹤視窗中心月份 */
   overflow-y: auto;
   overscroll-behavior-y: contain;
   touch-action: pan-y;  /* 橫向留給左右滑切 tab */
-  max-height: calc(100vh - 220px);  /* 留頭部 + tab + filter + bot-tab 空間 */
+  max-height: calc(100vh - 220px);
 }
 
 /* ── 月份導覽列 ── */

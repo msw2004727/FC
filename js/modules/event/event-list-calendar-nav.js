@@ -43,32 +43,46 @@ Object.assign(App, {
   },
 
   // ══════════════════════════════════
-  //  IntersectionObserver（scroll-snap 切月時同步 label）
+  //  scroll 事件觀察（切月時同步 label）
+  //  改用 scroll + rAF throttle（原 IntersectionObserver threshold 跨越機制
+  //  無法處理「拖到下月又回到本月但 ratio 沒跨 threshold」的情況，
+  //  導致 label 卡在錯誤月份。見 2026-04-22 bug 修復）
   // ══════════════════════════════════
 
   _bindCalendarScrollObserver(scrollEl) {
-    if (typeof IntersectionObserver === 'undefined') return;
-    // 清除舊 observer
-    try { this._calendarScrollObserver?.disconnect?.(); } catch (_) {}
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.intersectionRatio >= 0.5) {
-          const mk = entry.target.dataset.month;
-          if (mk && mk !== this._calendarCurrentMonthKey) {
-            this._calendarCurrentMonthKey = mk;
-            this._updateCalendarLabel(mk);
-          }
-        }
+    // 清除舊 listener
+    if (this._calendarScrollHandler) {
+      try { scrollEl.removeEventListener('scroll', this._calendarScrollHandler); } catch (_) {}
+    }
+    let ticking = false;
+    const update = () => {
+      ticking = false;
+      if (!scrollEl.isConnected) return;
+      const viewCenter = scrollEl.scrollTop + scrollEl.clientHeight / 2;
+      const months = scrollEl.querySelectorAll('.evt-cal-month');
+      let best = null, bestDist = Infinity;
+      months.forEach(m => {
+        const center = m.offsetTop + m.offsetHeight / 2;
+        const dist = Math.abs(center - viewCenter);
+        if (dist < bestDist) { bestDist = dist; best = m; }
       });
-    }, { root: scrollEl, threshold: [0.5] });
-    this._calendarScrollObserver = io;
-    scrollEl.querySelectorAll('.evt-cal-month').forEach(el => io.observe(el));
-    // 觀察後續動態新增的月份
-    new MutationObserver((muts) => {
-      muts.forEach(mu => mu.addedNodes.forEach(n => {
-        if (n.classList?.contains('evt-cal-month')) io.observe(n);
-      }));
-    }).observe(scrollEl, { childList: true });
+      if (!best) return;
+      const mk = best.dataset.month;
+      if (mk && mk !== this._calendarCurrentMonthKey) {
+        this._calendarCurrentMonthKey = mk;
+        this._updateCalendarLabel(mk);
+        // 邊界 buffer：當前月變動後檢查是否需要追加相鄰月
+        try { this._ensureCalendarBuffer?.(scrollEl); } catch (_) {}
+      }
+    };
+    this._calendarScrollHandler = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(update);
+    };
+    scrollEl.addEventListener('scroll', this._calendarScrollHandler, { passive: true });
+    // 初次執行一次（等 render 完成後的 scrollTop 已到位）
+    requestAnimationFrame(update);
   },
 
   // ══════════════════════════════════
