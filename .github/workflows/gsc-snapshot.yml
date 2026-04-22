@@ -1,0 +1,30 @@
+name: GSC Daily Snapshot
+
+# 每日抓 Google Search Console 資料寫入 Firestore seoSnapshots
+# - 自動：每日 03:00 UTC（台北 11:00）
+# - 手動：Actions 頁面可隨時觸發
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * *'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Run GSC snapshot
+        env:
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$GCP_SERVICE_ACCOUNT_JSON" ]; then
+            echo "✗ GCP_SERVICE_ACCOUNT_JSON secret 未設定"
+            exit 1
+          fi
+          node scripts/gsc-snapshot.js
