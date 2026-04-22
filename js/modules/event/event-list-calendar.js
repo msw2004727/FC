@@ -9,6 +9,18 @@ Object.assign(App, {
   _calendarCurrentMonthKey: null,   // "YYYY-MM"（當前可視月）
   _calendarRenderedMonths: new Set(),
   _calendarScrollHandler: null,     // scroll 事件 handler（_bindCalendarScrollObserver 維護）
+  _calendarProgrammaticScroll: false,  // 程式化捲動 guard（避免 scroll event race condition）
+  _calScrollGuardTimer: null,
+
+  /** 程式化設定 scrollTop + 短暫停用 scroll event update（避免 race） */
+  _calSetScrollTopGuarded(scrollEl, newTop) {
+    this._calendarProgrammaticScroll = true;
+    scrollEl.scrollTop = newTop;
+    clearTimeout(this._calScrollGuardTimer);
+    this._calScrollGuardTimer = setTimeout(() => {
+      this._calendarProgrammaticScroll = false;
+    }, 250);
+  },
 
   /**
    * 月曆主 render 入口
@@ -70,11 +82,10 @@ Object.assign(App, {
     requestAnimationFrame(() => {
       const current = scrollEl.querySelector(`[data-month="${centerMonthKey}"]`);
       if (current) {
-        // 只捲動月曆內層容器、不使用 scrollIntoView（避免連帶捲到整個 page-activities 外層，
-        // 導致頁首 tab / region-tabs / filter-bar 被推出視窗 — bug 見 2026-04-22）
-        const scrollRect = scrollEl.getBoundingClientRect();
-        const currentRect = current.getBoundingClientRect();
-        scrollEl.scrollTop += currentRect.top - scrollRect.top;
+        // 用 offsetTop 直接設 scrollTop（比 getBoundingClientRect 可靠）
+        // 加 guard 防 scroll event race：innerHTML='' 會觸發 scroll event、若它的
+        // rAF 比本 rAF 先跑，會以 scrollTop=0 誤判為最前月、把 current 改回去
+        this._calSetScrollTopGuarded(scrollEl, current.offsetTop);
       }
       this._updateCalendarLabel(centerMonthKey);
     });
@@ -149,9 +160,9 @@ Object.assign(App, {
           const section = this._buildMonthSection(prevKey);
           scrollEl.insertBefore(section, scrollEl.firstChild);
           this._calendarRenderedMonths.add(prevKey);
-          // 調整 scrollTop 保持視覺位置（防止視覺跳動）
+          // 調整 scrollTop 保持視覺位置（防止視覺跳動）+ guard 避免 scroll event race
           requestAnimationFrame(() => {
-            scrollEl.scrollTop = prevScrollTop + section.offsetHeight;
+            this._calSetScrollTopGuarded(scrollEl, prevScrollTop + section.offsetHeight);
           });
         }
       }

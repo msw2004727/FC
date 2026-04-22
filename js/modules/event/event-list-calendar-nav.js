@@ -58,6 +58,9 @@ Object.assign(App, {
     const update = () => {
       ticking = false;
       if (!scrollEl.isConnected) return;
+      // guard：程式化捲動期間（_renderCalendarMonths / _ensureCalendarBuffer）
+      // 暫停 label 追蹤，避免 innerHTML='' 的 scrollTop=0 把 current 誤推到最前月
+      if (this._calendarProgrammaticScroll) return;
       const viewCenter = scrollEl.scrollTop + scrollEl.clientHeight / 2;
       const months = scrollEl.querySelectorAll('.evt-cal-month');
       let best = null, bestDist = Infinity;

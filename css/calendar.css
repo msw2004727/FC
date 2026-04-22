@@ -251,14 +251,51 @@
   text-decoration: line-through;
 }
 
-/* 已報名邊框（正取綠、候補橘虛線）*/
-.evt-cal-event.is-signed-up {
-  box-shadow: 0 0 0 2px #22c55e inset;
-}
+/* 已報名狀態：正取打勾 ✓（簽到式）、候補問號 ？（橘虛線）*/
+.evt-cal-event.is-signed-up,
 .evt-cal-event.is-waitlisted {
-  box-shadow: 0 0 0 2px #f59e0b inset;
-  outline: 1px dashed #f59e0b !important;
-  outline-offset: -3px;
+  /* 左側讓出打勾空間 */
+  padding-left: 1.3em;
+}
+.evt-cal-event.is-signed-up::before {
+  content: "✓";
+  position: absolute;
+  left: .2em;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1em;
+  height: 1em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .95em;
+  font-weight: 900;
+  color: #fff;
+  background: #22c55e;
+  border-radius: 2px;
+  line-height: 1;
+  z-index: 1;
+  pointer-events: none;
+}
+.evt-cal-event.is-waitlisted::before {
+  content: "…";
+  position: absolute;
+  left: .2em;
+  top: 50%;
+  transform: translateY(-60%);
+  width: 1em;
+  height: 1em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .95em;
+  font-weight: 900;
+  color: #fff;
+  background: #f59e0b;
+  border-radius: 2px;
+  line-height: 1;
+  z-index: 1;
+  pointer-events: none;
 }
 
 /* 置頂高光（✨ 動畫 + 金色邊框）*/
