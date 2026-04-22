@@ -164,6 +164,18 @@ Object.assign(App, {
       e.stopPropagation();
 
       const sportKey = item.dataset.sport;
+
+      // 詳情頁切分類時退回對應列表頁（活動/賽事/俱樂部）
+      const DETAIL_TO_LIST_MAP = {
+        'page-activity-detail': 'page-activities',
+        'page-tournament-detail': 'page-tournaments',
+        'page-team-detail': 'page-teams',
+      };
+      const backTo = DETAIL_TO_LIST_MAP[this.currentPage];
+      if (backTo) {
+        try { this.showPage(backTo); } catch (_) {}
+      }
+
       setActiveSport(sportKey);
       btn.classList.remove('open');
       dropdown.classList.remove('open');
