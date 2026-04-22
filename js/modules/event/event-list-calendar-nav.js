@@ -55,25 +55,13 @@ Object.assign(App, {
       try { scrollEl.removeEventListener('scroll', this._calendarScrollHandler); } catch (_) {}
     }
     let ticking = false;
-    // 方向偵測基準（初值 = 當前位置，避免 render 完畢第一次 scroll 被誤判）
-    let lastScrollTop = scrollEl.scrollTop;
-    const DIR_THRESHOLD = 6;     // 小於此 delta 視為抖動、不觸發
-    const container = document.getElementById('activity-calendar');
-    const headEl = container?.querySelector('.evt-cal-head');
-
     const update = () => {
       ticking = false;
       if (!scrollEl.isConnected) return;
       // guard：程式化捲動期間（_renderCalendarMonths / _ensureCalendarBuffer）
-      // 不更新 label，也同步更新 lastScrollTop 避免結束後誤判方向
-      if (this._calendarProgrammaticScroll) {
-        lastScrollTop = scrollEl.scrollTop;
-        return;
-      }
-
-      // label 追蹤：視窗中心對應的月份
-      const st = scrollEl.scrollTop;
-      const viewCenter = st + scrollEl.clientHeight / 2;
+      // 暫停 label 追蹤，避免 innerHTML='' 的 scrollTop=0 把 current 誤推到最前月
+      if (this._calendarProgrammaticScroll) return;
+      const viewCenter = scrollEl.scrollTop + scrollEl.clientHeight / 2;
       const months = scrollEl.querySelectorAll('.evt-cal-month');
       let best = null, bestDist = Infinity;
       months.forEach(m => {
@@ -81,44 +69,23 @@ Object.assign(App, {
         const dist = Math.abs(center - viewCenter);
         if (dist < bestDist) { bestDist = dist; best = m; }
       });
-      if (best) {
-        const mk = best.dataset.month;
-        if (mk && mk !== this._calendarCurrentMonthKey) {
-          this._calendarCurrentMonthKey = mk;
-          this._updateCalendarLabel(mk);
-          try { this._ensureCalendarBuffer?.(scrollEl); } catch (_) {}
-        }
+      if (!best) return;
+      const mk = best.dataset.month;
+      if (mk && mk !== this._calendarCurrentMonthKey) {
+        this._calendarCurrentMonthKey = mk;
+        this._updateCalendarLabel(mk);
+        // 邊界 buffer：當前月變動後檢查是否需要追加相鄰月
+        try { this._ensureCalendarBuffer?.(scrollEl); } catch (_) {}
       }
-
-      // smart hide-on-scroll：往上滑（scrollTop 變大）隱藏頭部、往下滑顯示
-      if (headEl) {
-        const delta = st - lastScrollTop;
-        if (st <= 4) {
-          // 接近最頂強制顯示（避免卡在 hidden 狀態）
-          headEl.classList.remove('is-hidden');
-        } else if (Math.abs(delta) > DIR_THRESHOLD) {
-          if (delta > 0) headEl.classList.add('is-hidden');    // 往上滑 → 隱藏
-          else           headEl.classList.remove('is-hidden'); // 往下滑 → 顯示
-        }
-      }
-      lastScrollTop = st;
     };
-
     this._calendarScrollHandler = () => {
       if (ticking) return;
       ticking = true;
       requestAnimationFrame(update);
     };
     scrollEl.addEventListener('scroll', this._calendarScrollHandler, { passive: true });
-
-    // 初次：量實際 head 高度、更新 CSS 變數（供 is-hidden 的 margin-bottom 計算用）
-    requestAnimationFrame(() => {
-      if (headEl && container) {
-        const h = headEl.offsetHeight;
-        if (h > 0) container.style.setProperty('--evt-cal-head-h', h + 'px');
-      }
-      update();
-    });
+    // 初次執行一次（等 render 完成後的 scrollTop 已到位）
+    requestAnimationFrame(update);
   },
 
   // ══════════════════════════════════
