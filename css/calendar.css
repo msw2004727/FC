@@ -55,7 +55,16 @@
   max-height: calc(100vh - 220px);
 }
 
-/* ── 月份導覽列 ── */
+/* ── 月份導覽列 + 週標題列（sticky 合一、在月曆捲動容器外、滑動時凍結）── */
+.evt-cal-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--bg-card);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding-top: .3rem;
+}
 .evt-cal-nav {
   display: flex;
   align-items: center;
@@ -63,12 +72,7 @@
   padding: .45rem .8rem;
   background: var(--bg-elevated, var(--bg-card));
   border-radius: var(--radius-sm, 6px);
-  margin: 0 .6rem .5rem;
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  margin: 0 .6rem .4rem;
 }
 .evt-cal-nav-btn {
   background: none;
@@ -90,28 +94,43 @@
   text-align: center;
 }
 
-/* ── 單月（scroll-snap 單位）── */
+/* ── 單月 ── */
 .evt-cal-month {
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
   padding: 0 .4rem;
   margin-bottom: .8rem;
 }
 
-/* ── 週天標題列 ── */
+/* ── 週天標題列（凍結在 head 底部、月曆捲動時不動）── */
 .evt-cal-weekhead {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 2px;
+  padding: 0 .4rem;
   margin-bottom: 2px;
 }
 .evt-cal-weekhead-cell {
   text-align: center;
-  font-size: .68rem;
+  font-size: .72rem;
   font-weight: 600;
   color: var(--text-muted);
-  padding: .25rem 0;
+  padding: .3rem 0;
+  border-radius: 3px;
 }
+/* 週六綠底 */
+.evt-cal-weekhead-sat {
+  background: color-mix(in srgb, #22c55e 18%, transparent);
+  color: #16a34a;
+  font-weight: 700;
+}
+/* 週日紅底 */
+.evt-cal-weekhead-sun {
+  background: color-mix(in srgb, #ef4444 18%, transparent);
+  color: #dc2626;
+  font-weight: 700;
+}
+/* dark mode 飽和度微調 */
+[data-theme="dark"] .evt-cal-weekhead-sat { color: #4ade80; }
+[data-theme="dark"] .evt-cal-weekhead-sun { color: #f87171; }
 
 /* ── 日期格網格 ── */
 .evt-cal-grid {

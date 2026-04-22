@@ -8,11 +8,11 @@
  * 未來啟用某個預留運動：改 css/calendar.css 的 CSS 變數即可，不需動 JS
  */
 const SPORT_COLORS = Object.freeze({
-  // 啟用運動（8）
+  // 啟用運動（8）— emoji 與 config.js SPORT_ICON_EMOJI 對齊
   football:     { var: '--sport-football',     emoji: '⚽', label: '足球',     enabled: true },
   basketball:   { var: '--sport-basketball',   emoji: '🏀', label: '籃球',     enabled: true },
-  pickleball:   { var: '--sport-pickleball',   emoji: '🎾', label: '匹克球',   enabled: true },
-  dodgeball:    { var: '--sport-dodgeball',    emoji: '🎯', label: '美式躲避球', enabled: true },
+  pickleball:   { var: '--sport-pickleball',   emoji: '🏓', label: '匹克球',   enabled: true },
+  dodgeball:    { var: '--sport-dodgeball',    emoji: '🤾', label: '美式躲避球', enabled: true },
   running:      { var: '--sport-running',      emoji: '🏃', label: '跑步',     enabled: true },
   hiking:       { var: '--sport-hiking',       emoji: '🥾', label: '登山健行',  enabled: true },
   badminton:    { var: '--sport-badminton',    emoji: '🏸', label: '羽球',     enabled: true },

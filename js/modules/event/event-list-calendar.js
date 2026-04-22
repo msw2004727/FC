@@ -38,18 +38,27 @@ Object.assign(App, {
       const now = new Date();
       this._calendarCurrentMonthKey = this._calMonthKeyFromDate(now);
       this._buildCalendarShell(container);
-      this._renderCalendarMonths(container, this._calendarCurrentMonthKey);
+      // 首次進入：當日置中（切 tab / 返回頁都會走此路徑、因為前置邏輯會清 state）
+      this._renderCalendarMonths(container, this._calendarCurrentMonthKey, { centerToday: true });
       return;
     }
     this._updateCalendarMonthsContent(container);
   },
 
   _buildCalendarShell(container) {
+    const weekHeadCells = WEEK_DAY_NAMES.map((d, i) => {
+      const extra = i === 5 ? ' evt-cal-weekhead-sat'
+        : i === 6 ? ' evt-cal-weekhead-sun' : '';
+      return `<div class="evt-cal-weekhead-cell${extra}" aria-hidden="true">${d}</div>`;
+    }).join('');
     container.innerHTML = `
-      <div class="evt-cal-nav" role="toolbar" aria-label="月曆月份導覽">
-        <button class="evt-cal-nav-btn" id="evt-cal-prev" aria-label="上個月" onclick="App._calendarGoPrev()">‹</button>
-        <span class="evt-cal-nav-label" id="evt-cal-label" aria-live="polite"></span>
-        <button class="evt-cal-nav-btn" id="evt-cal-next" aria-label="下個月" onclick="App._calendarGoNext()">›</button>
+      <div class="evt-cal-head">
+        <div class="evt-cal-nav" role="toolbar" aria-label="月曆月份導覽">
+          <button class="evt-cal-nav-btn" id="evt-cal-prev" aria-label="上個月" onclick="App._calendarGoPrev()">‹</button>
+          <span class="evt-cal-nav-label" id="evt-cal-label" aria-live="polite"></span>
+          <button class="evt-cal-nav-btn" id="evt-cal-next" aria-label="下個月" onclick="App._calendarGoNext()">›</button>
+        </div>
+        <div class="evt-cal-weekhead" role="presentation">${weekHeadCells}</div>
       </div>
       <div class="evt-cal-container" id="evt-cal-scroll" role="grid" aria-label="活動月曆"></div>
     `;
@@ -66,7 +75,7 @@ Object.assign(App, {
     if (eventEl) this.showEventDetail(eventEl.dataset.id);
   },
 
-  _renderCalendarMonths(container, centerMonthKey) {
+  _renderCalendarMonths(container, centerMonthKey, options = {}) {
     const scrollEl = container.querySelector('#evt-cal-scroll');
     if (!scrollEl) return;
     scrollEl.innerHTML = '';
@@ -79,15 +88,26 @@ Object.assign(App, {
       this._calendarRenderedMonths.add(mk);
     });
 
+    // 雙 rAF：第一次讓瀏覽器處理 append、第二次讀 offsetTop / clientHeight 才穩定
     requestAnimationFrame(() => {
-      const current = scrollEl.querySelector(`[data-month="${centerMonthKey}"]`);
-      if (current) {
-        // 用 offsetTop 直接設 scrollTop（比 getBoundingClientRect 可靠）
-        // 加 guard 防 scroll event race：innerHTML='' 會觸發 scroll event、若它的
-        // rAF 比本 rAF 先跑，會以 scrollTop=0 誤判為最前月、把 current 改回去
-        this._calSetScrollTopGuarded(scrollEl, current.offsetTop);
-      }
-      this._updateCalendarLabel(centerMonthKey);
+      requestAnimationFrame(() => {
+        let scrollTo = null;
+        if (options.centerToday) {
+          // 當日 cell 置中於可視區（用戶要求 2026-04-22）
+          const todayEl = scrollEl.querySelector('[data-today="1"]');
+          if (todayEl) {
+            scrollTo = todayEl.offsetTop + todayEl.offsetHeight / 2 - scrollEl.clientHeight / 2;
+          }
+        }
+        if (scrollTo === null) {
+          const current = scrollEl.querySelector(`[data-month="${centerMonthKey}"]`);
+          if (current) scrollTo = current.offsetTop;
+        }
+        if (scrollTo !== null) {
+          this._calSetScrollTopGuarded(scrollEl, Math.max(0, scrollTo));
+        }
+        this._updateCalendarLabel(centerMonthKey);
+      });
     });
   },
 

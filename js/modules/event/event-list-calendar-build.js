@@ -15,13 +15,8 @@ Object.assign(App, {
     section.className = 'evt-cal-month';
     section.dataset.month = monthKey;
     section.setAttribute('aria-label', this._calMonthLabelText(monthKey));
-
-    const weekHead = WEEK_DAY_NAMES.map(
-      (d, i) => `<div class="evt-cal-weekhead-cell" role="columnheader" aria-colindex="${i + 1}">${d}</div>`
-    ).join('');
-
+    // 週標題已移到 shell（.evt-cal-head/.evt-cal-weekhead）、每月只放 grid
     section.innerHTML = `
-      <div class="evt-cal-weekhead" role="row">${weekHead}</div>
       <div class="evt-cal-grid" role="rowgroup">${this._buildMonthGridInnerHTML(monthKey)}</div>
     `;
     return section;
