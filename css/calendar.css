@@ -150,13 +150,20 @@
   gap: .2rem;
 }
 
-/* 今天 */
+/* 今天（明顯外框 + 日期數字圓形 badge）*/
 .evt-cal-day[data-today="1"] {
-  background: color-mix(in srgb, var(--accent, #0d9488) 12%, var(--bg-card));
+  background: color-mix(in srgb, var(--accent, #0d9488) 15%, var(--bg-card));
+  box-shadow: inset 0 0 0 2px var(--accent, #0d9488);
+  z-index: 1;
 }
 .evt-cal-day[data-today="1"] .evt-cal-day-num {
   font-weight: 800;
-  color: var(--accent, #0d9488);
+  color: #fff;
+  background: var(--accent, #0d9488);
+  border-radius: 999px;
+  padding: .1rem .4rem;
+  line-height: 1.2;
+  align-self: flex-start;  /* 縮到最小寬度、不撐滿 */
 }
 
 /* 跨月（上下月灰化）*/
@@ -173,11 +180,15 @@
   margin-top: .25rem;
 }
 
-/* 置頂 📌 icon（在日期數字旁）*/
-.evt-cal-day[data-has-pinned="1"] .evt-cal-day-num::after {
+/* 置頂 📌 icon（日期格右上角絕對定位，避免與今日 badge 重疊）*/
+.evt-cal-day[data-has-pinned="1"]::before {
   content: "📌";
-  font-size: .65rem;
-  margin-left: .15rem;
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: .7rem;
+  z-index: 2;
+  pointer-events: none;
 }
 
 /* ── 活動格 ── */
