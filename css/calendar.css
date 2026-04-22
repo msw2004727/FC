@@ -38,13 +38,14 @@
 }
 
 /* ── 容器：外層 flex、內層 scroll ── */
-/* 讓 .evt-cal-head 天然凍結在月曆頂部（不依賴 sticky、外層不捲） */
+/* .evt-cal-head 預設在頂部顯示；往上滑時隱藏、往下滑時滑出（smart hide） */
 #activity-calendar {
   display: flex;
   flex-direction: column;
   max-height: calc(100vh - 220px);
   max-height: calc(100dvh - 220px);
   overflow: hidden;  /* 外層不捲、內層 container 才捲 */
+  --evt-cal-head-h: 76px;  /* 預估頭部高度、JS 會實測更新 */
 }
 #activity-calendar[hidden] { display: none !important; }
 
@@ -59,13 +60,27 @@
   touch-action: pan-y;  /* 橫向留給左右滑切 tab */
 }
 
-/* ── 月份導覽列 + 週標題列（flex 布局下天然凍結在月曆頂部、不捲動）── */
+/* ── 月份導覽列 + 週標題列（smart hide-on-scroll）──
+   預設在月曆頂部顯示；當 container 往上捲（看未來）加 .is-hidden 收起、
+   往下捲（看過去）移除 .is-hidden 再度展開。transform + margin-bottom
+   負值同時做到「視覺收起 + 釋放 flex 空間」 */
 .evt-cal-head {
   flex-shrink: 0;
   z-index: 3;
   background: var(--bg-card);
   padding-top: .3rem;
   box-shadow: 0 1px 0 var(--border);
+  transition: transform .22s ease, margin-bottom .22s ease;
+  will-change: transform;
+}
+.evt-cal-head.is-hidden {
+  transform: translateY(-100%);
+  margin-bottom: calc(-1 * var(--evt-cal-head-h, 76px));
+  box-shadow: none;
+}
+/* 低動畫偏好：不動畫、瞬間切換（WCAG） */
+@media (prefers-reduced-motion: reduce) {
+  .evt-cal-head { transition: none; }
 }
 .evt-cal-nav {
   display: flex;
