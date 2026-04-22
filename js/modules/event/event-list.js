@@ -33,6 +33,10 @@ Object.assign(App, {
     if (tab === 'calendar') {
       if (listEl) listEl.hidden = true;
       if (calEl) calEl.hidden = false;
+      // 重設外層 window 捲動，確保頁首（tabs / region-tabs / filter）保持可見
+      // 避免 2026-04-22 回報的「刷新後切月曆看不到頁籤」bug
+      // （.page 不是 scroll container、body/window 才是）
+      try { window.scrollTo(0, 0); } catch (_) {}
       if (render) this._loadAndRenderCalendar();
       return;
     }

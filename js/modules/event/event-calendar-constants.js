@@ -11,7 +11,7 @@ const SPORT_COLORS = Object.freeze({
   // 啟用運動（8）
   football:     { var: '--sport-football',     emoji: '⚽', label: '足球',     enabled: true },
   basketball:   { var: '--sport-basketball',   emoji: '🏀', label: '籃球',     enabled: true },
-  pickleball:   { var: '--sport-pickleball',   emoji: '🥒', label: '匹克球',   enabled: true },
+  pickleball:   { var: '--sport-pickleball',   emoji: '🎾', label: '匹克球',   enabled: true },
   dodgeball:    { var: '--sport-dodgeball',    emoji: '🎯', label: '美式躲避球', enabled: true },
   running:      { var: '--sport-running',      emoji: '🏃', label: '跑步',     enabled: true },
   hiking:       { var: '--sport-hiking',       emoji: '🥾', label: '登山健行',  enabled: true },

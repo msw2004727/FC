@@ -69,7 +69,13 @@ Object.assign(App, {
 
     requestAnimationFrame(() => {
       const current = scrollEl.querySelector(`[data-month="${centerMonthKey}"]`);
-      if (current) current.scrollIntoView({ block: 'start', behavior: 'auto' });
+      if (current) {
+        // 只捲動月曆內層容器、不使用 scrollIntoView（避免連帶捲到整個 page-activities 外層，
+        // 導致頁首 tab / region-tabs / filter-bar 被推出視窗 — bug 見 2026-04-22）
+        const scrollRect = scrollEl.getBoundingClientRect();
+        const currentRect = current.getBoundingClientRect();
+        scrollEl.scrollTop += currentRect.top - scrollRect.top;
+      }
       this._updateCalendarLabel(centerMonthKey);
     });
   },
