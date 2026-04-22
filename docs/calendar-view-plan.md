@@ -4,9 +4,14 @@
 **預估工期**：7.5 個工作日（可拆分 2-3 個 commit 批次）
 **版號影響**：會 bump 1-3 次（視批次拆分）
 **預計動到檔案**：11 個（含 3 新建）
-**狀態**：2026-04-22 v3 — 經 10 位專家視角交叉審計（前端/UX/行動/效能/資安/QA/無障礙/PM/資料/SEO），10 項共識調整已納入
+**狀態**：2026-04-22 v4 — 再經 10 位商業 / 人文 / 特殊用戶視角審計（財務/法遵/BD/競品/CSM/社群/遊戲化/中文排版/家長/長者），新增 8 項共識調整
 
 **啟動時機建議**（PM 角度）：可等 SEO 優化開始帶來曝光成長（約 2 週後）再啟動本功能，讓資源不分散；但用戶已要此功能，尊重決策
+
+**月曆視圖定位**（產品 + 競品審計澄清）：
+- 顯示「**所有公開活動**」（不是個人已報名清單）— 定位為瀏覽型視圖，比照 Facebook Events、Google Calendar 公開日曆
+- 台灣競品（Fiveply / Sportalker / Ballgame 等）均**無月曆視圖**，此為 ToosterX 差異化功能
+- 「個人活動月曆」（只顯示我報名的）規劃在 §11 後續擴充
 
 ---
 
@@ -254,13 +259,15 @@ Tab 切換用現有 JS 邏輯擴充，`data-tab="calendar"` 時：
 └────────────┘
 ```
 
-**字體階層（CSS `:has` 或 JS 動態 class 實作）**：
+**字體階層（CSS 動態 class 實作）** — v4 字體調整：
+
+中文排版 + 長者用戶審計要求最小字體 12px（Apple HIG 建議最小 13pt、Google Material 建議最小 12sp）：
 
 ```css
-.calendar-day[data-event-count="1"] .event-item { font-size: 13px; line-height: 1.5; }
-.calendar-day[data-event-count="2"] .event-item { font-size: 12px; line-height: 1.4; }
+.calendar-day[data-event-count="1"] .event-item { font-size: 14px; line-height: 1.55; }
+.calendar-day[data-event-count="2"] .event-item { font-size: 13px; line-height: 1.5; }
 .calendar-day[data-event-count="3"] .event-item,
-.calendar-day[data-event-count="4+"] .event-item { font-size: 11px; line-height: 1.3; }
+.calendar-day[data-event-count="4+"] .event-item { font-size: 12px; line-height: 1.45; }
 
 .no-event-mark {
   color: var(--text-muted);
@@ -272,7 +279,57 @@ Tab 切換用現有 JS 邏輯擴充，`data-tab="calendar"` 時：
 }
 ```
 
-render 時 `data-event-count` 設為實際活動數（1/2/3/4+），CSS 自動套對應字體。
+**標題不截固定字數、改用 CSS ellipsis**（中文排版審計要求，避免「內湖國民運」斷詞失義）：
+
+```css
+.event-title-short {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+```
+
+顯示效果：
+- 短標題（≤ 可用寬度）：完整顯示「雙連網球場」
+- 長標題（> 可用寬度）：自然省略「內湖國民運動…」
+- `title="完整標題"` 屬性提供 tooltip
+
+**行高規範**（中英混排）：line-height 1.45-1.55（中文較高字形需要略多垂直空間、避免壓字）
+
+#### render 邏輯（v4 修正）
+
+```javascript
+function _buildEventHTML(event) {
+  const sportKey = event.sportTag || 'other';
+  const sportDef = SPORT_COLORS[sportKey] || SPORT_COLORS.other;
+  const isPinned = event.pinned === true;
+  const pinnedClass = isPinned ? ' is-pinned' : '';
+  // ★ v4:不再 slice(0,5)，改用完整 title + CSS ellipsis
+  return `<div class="calendar-event-item${pinnedClass}"
+            style="--sport-color: var(${sportDef.var})"
+            onclick="App.showEventDetail('${event.id}')"
+            title="${isPinned ? '置頂活動：' : ''}${escapeHTML(event.title)}">
+    <span class="event-emoji">${sportDef.emoji}</span>
+    <span class="event-time">${formatTime(event.date)}</span>
+    <span class="event-title-short">${escapeHTML(event.title)}</span>
+  </div>`;
+}
+```
+
+#### 「+N」文字（v4 改親切中文）
+
+CSM 審計建議 + UX 無方向暗示：
+
+```javascript
+// 舊：+2 more（英文不親切、箭頭誤導方向）
+// 新：還有 2 場（中文親切、無方向暗示）
+const moreText = extraCount > 0
+  ? `<div class="calendar-more" onclick="_jumpToTimelineDate('${dateKey}')">還有 ${extraCount} 場</div>`
+  : '';
+```
 
 #### 動態 5/6 週月曆（QA 審計要求）
 
@@ -328,6 +385,28 @@ if (!supportsScrollSnap) {
 **iOS edge swipe（返回上頁）衝突避免**：
 - 月曆容器 `touch-action: pan-y`（僅允許縱向捲動、不處理橫向，橫向留給系統）
 - 橫向邊緣手勢被 iOS 原生攔截，不會誤觸
+
+#### ←→ 月份按鈕（長者 + 無障礙審計：44x44 tap area）
+
+Apple HIG 建議最小 tap target 44x44pt、WCAG 2.5.5 建議 44x44 CSS pixels：
+
+```css
+.calendar-nav-btn {
+  /* 視覺尺寸可小 */
+  width: 32px; height: 32px;
+  /* 但透過 ::before 擴大實際 tap area */
+  position: relative;
+}
+.calendar-nav-btn::before {
+  content: '';
+  position: absolute;
+  inset: -6px;  /* 32 + 6*2 = 44px tap area */
+  min-width: 44px; min-height: 44px;
+  /* 不可見、只擴大點擊範圍 */
+}
+```
+
+確保長者用戶、帶手套、粗手指用戶都能正確點擊。
 
 ### 4.5 篩選整合 + Realtime incremental update
 
@@ -639,6 +718,13 @@ App._calendarCache = {
 | `js/modules/event/event-list-calendar.js` | ~350 | 月曆 render、月份切換、活動 group by date |
 | `js/modules/event/event-calendar-constants.js` | ~80 | SPORT_COLORS 映射表、月份名稱、週天名稱 |
 
+**Bundle size 影響**（財務審計）：
+- 新增 code ~630 行、gzipped **~10-15 KB**
+- **必做 lazy load**（僅切到 calendar tab 時才載入）：
+  - `script-loader.js` 把 `event-list-calendar.js` + `event-calendar-constants.js` 放在 `page-activities` 的**延遲載入群組**、非 boot 群組
+  - `calendar.css` 用 `<link rel="preload" as="style" onload="this.rel='stylesheet'">` 或在切 tab 時動態注入
+- 首次切 tab 多 50-100ms loading（可接受、顯示 skeleton）
+
 ### 修改（8 個）
 
 | 檔案 | 改動範圍 | 鎖定狀態 |
@@ -848,11 +934,25 @@ git push origin HEAD:main
 - [ ] 週視圖（更極簡）
 - [ ] 日視圖（單日完整列表）
 - [ ] 「+N more」彈窗替代方案（UX 審計建議）— 當日活動浮層代替切 tab
-- [ ] 匯出月曆到 Google Calendar / iCal
-- [ ] 月曆訂閱功能
+- [ ] **個人月曆視圖**（家長審計需求：只顯示我報名的 / 我發起的 / 我家人報名的活動）
+- [ ] 匯出月曆到 Google Calendar / iCal（BD 審計：業界標配）
+- [ ] 月曆訂閱功能（BD 審計）
 - [ ] 拖拉活動改日（需要管理權限）
 - [ ] 統計圖表（當月活動密度 heatmap）
 - [ ] 個人化：隱藏不感興趣的運動
+- [ ] **首次使用 onboarding tooltip**（CSM 審計：新用戶引導切月手勢、+N 解釋）
+
+### 商業與合規擴充（BD + 法遵審計）
+- [ ] **付費置頂機制 + `sponsored` 強制標示**（公平交易法 + Google SEO 規範，禁止未標示付費內容）
+- [ ] **付費置頂數量限制**（防止 admin 濫用、保持 UX 品質）
+- [ ] 場地業主展示頁（venue 動態頁 — 見 SEO P1 #6 計畫）
+- [ ] 活動贊助（運動品牌置入、強制揭露）
+
+### 用戶參與度擴充（遊戲化審計）
+- [ ] **本月報名數 badge**（月曆頁頂顯示「本月已報名 5 場」）
+- [ ] **連續報名 streak**（類似 Duolingo 連續天數）
+- [ ] 熱門活動標記（報名率 > 80% 的活動顯示 🔥）
+- [ ] 智能推薦置頂（依用戶運動偏好推薦、而非 admin 手動）
 
 ### 效能擴充
 - [ ] `_filterEventsForCalendar` memoize（cache key = `month-key-sportFilter`），events > 500 時啟用（效能工程師審計）
@@ -862,6 +962,11 @@ git push origin HEAD:main
 ### 無障礙擴充
 - [ ] 手機長按顯示完整標題 toast
 - [ ] 高對比度模式（Windows High Contrast Mode 支援）
+
+### 產品監測（CSM + 數據分析）
+- [ ] 月曆 tab 切換率 A/B test（上線 2 週後評估使用率）
+- [ ] 「+N more」點擊率（判斷是否需要改設計）
+- [ ] 月份切換行為（用戶最常看哪個月 — 本月 / 下月 / 過去月）
 
 ---
 
