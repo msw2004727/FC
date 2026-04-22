@@ -4,7 +4,22 @@
 **預估工期**：7.5 個工作日（可拆分 2-3 個 commit 批次）
 **版號影響**：會 bump 1-3 次（視批次拆分）
 **預計動到檔案**：11 個（含 3 新建）
-**狀態**：2026-04-22 v4 — 再經 10 位商業 / 人文 / 特殊用戶視角審計（財務/法遵/BD/競品/CSM/社群/遊戲化/中文排版/家長/長者），新增 8 項共識調整
+**狀態**：2026-04-22 v5 — 再經 10 位 安全 / 深度無障礙 / 永續 / 平台 / 寫作 / 道德視角審計（滲透測試/VoiceOver/ADHD/碳足跡/LINE/PWA/離線/新進工程師/道德/i18n），新增 8 項共識調整
+
+---
+
+## 0. TL;DR（新進工程師 3 行讀懂）
+
+1. **做什麼**：在活動頁（`#page-activities`）加第三種視圖「月曆」，顯示所有公開活動的月曆視圖，支援上下滑切月、運動色區分、置頂高光
+2. **怎麼做**：新建 `event-list-calendar.js` + `event-calendar-constants.js` + `calendar.css`（Phase 1-5、約 7.5 天）
+3. **從哪開始**：看 §12「How to start coding」→ §6 WBS → §5 檔案清單
+
+**術語約定**（整份文件統一）：
+- 「**日期格**」（不混用 day cell / cell / grid cell）
+- 「**月曆視圖**」（與 timeline view 對比）
+- 「**運動色**」（每個運動獨立顏色，Q4-Q5）
+
+---
 
 **啟動時機建議**（PM 角度）：可等 SEO 優化開始帶來曝光成長（約 2 週後）再啟動本功能，讓資源不分散；但用戶已要此功能，尊重決策
 
@@ -180,7 +195,23 @@ Tab 切換用現有 JS 邏輯擴充，`data-tab="calendar"` 時：
 - 顯示 `#activity-calendar`
 - 呼叫 `App._renderActivityCalendar()`
 
-### 4.2 月曆結構（寬版）
+### 4.2 月曆結構（寬版）+ i18n 月份名稱
+
+**月份名稱用 `Intl.DateTimeFormat`（i18n 審計要求）**：不得 hardcode 中文月份名。
+
+```javascript
+// file: js/modules/event/event-calendar-constants.js
+const MONTH_FORMATTER = new Intl.DateTimeFormat('zh-TW', {
+  year: 'numeric', month: 'long'
+});
+// 呼叫：MONTH_FORMATTER.format(new Date(2026, 4, 1))
+// zh-TW 結果："2026年5月"
+// en 結果："May 2026"（若 locale 改成 en）
+// ja 結果："2026年5月"
+```
+
+未來若擴國際市場，改 `Intl.DateTimeFormat(App.currentLocale, ...)` 即可支援多語、零成本。
+
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -299,7 +330,7 @@ Tab 切換用現有 JS 邏輯擴充，`data-tab="calendar"` 時：
 
 **行高規範**（中英混排）：line-height 1.45-1.55（中文較高字形需要略多垂直空間、避免壓字）
 
-#### render 邏輯（v4 修正）
+#### render 邏輯（v5 修正 — XSS 防禦 + 無障礙強化）
 
 ```javascript
 function _buildEventHTML(event) {
@@ -307,16 +338,34 @@ function _buildEventHTML(event) {
   const sportDef = SPORT_COLORS[sportKey] || SPORT_COLORS.other;
   const isPinned = event.pinned === true;
   const pinnedClass = isPinned ? ' is-pinned' : '';
-  // ★ v4:不再 slice(0,5)，改用完整 title + CSS ellipsis
+  // ★ v5 (滲透測試 + i18n 審計):
+  //   1. 改用 data-id 而非 inline onclick(event.id)，避免 event.id 帶特殊字元時逃逸 JS context
+  //   2. aria-label 同時包含置頂狀態與運動類型，對 VoiceOver/TalkBack 友善
+  //   3. ✨ 星號走 CSS ::after，不寫進 HTML 避免 screen reader 讀出「星號」
+  const label = `${isPinned ? '置頂活動：' : ''}${event.title}，${sportDef.label}`;
   return `<div class="calendar-event-item${pinnedClass}"
+            data-id="${escapeHTML(event.id)}"
             style="--sport-color: var(${sportDef.var})"
-            onclick="App.showEventDetail('${event.id}')"
-            title="${isPinned ? '置頂活動：' : ''}${escapeHTML(event.title)}">
-    <span class="event-emoji">${sportDef.emoji}</span>
+            role="button"
+            tabindex="0"
+            aria-label="${escapeHTML(label)}"
+            title="${escapeHTML(event.title)}">
+    <span class="event-emoji" aria-hidden="true">${sportDef.emoji}</span>
     <span class="event-time">${formatTime(event.date)}</span>
     <span class="event-title-short">${escapeHTML(event.title)}</span>
   </div>`;
 }
+
+// 事件委派（掛在 .calendar-container 上、一次處理所有 cell click）
+container.addEventListener('click', (ev) => {
+  const cell = ev.target.closest('.calendar-event-item[data-id]');
+  if (cell) { App.showEventDetail(cell.dataset.id); }
+});
+container.addEventListener('keydown', (ev) => {
+  if (ev.key !== 'Enter' && ev.key !== ' ') return;
+  const cell = ev.target.closest('.calendar-event-item[data-id]');
+  if (cell) { ev.preventDefault(); App.showEventDetail(cell.dataset.id); }
+});
 ```
 
 #### 「+N」文字（v4 改親切中文）
@@ -326,9 +375,21 @@ CSM 審計建議 + UX 無方向暗示：
 ```javascript
 // 舊：+2 more（英文不親切、箭頭誤導方向）
 // 新：還有 2 場（中文親切、無方向暗示）
+// v5 安全：與活動 cell 一致，data-* 屬性 + event delegation（禁止 inline onclick）
 const moreText = extraCount > 0
-  ? `<div class="calendar-more" onclick="_jumpToTimelineDate('${dateKey}')">還有 ${extraCount} 場</div>`
+  ? `<div class="calendar-more"
+          role="button" tabindex="0"
+          data-jump-date="${dateKey}"
+          aria-label="還有 ${extraCount} 場活動，按 Enter 跳到直瀑視圖">
+       還有 ${extraCount} 場
+     </div>`
   : '';
+
+// 掛在容器上的 delegation（一次處理）
+container.addEventListener('click', (ev) => {
+  const more = ev.target.closest('.calendar-more[data-jump-date]');
+  if (more) { _jumpToTimelineDate(more.dataset.jumpDate); }
+});
 ```
 
 #### 動態 5/6 週月曆（QA 審計要求）
@@ -482,10 +543,12 @@ if (currentView === 'calendar') {
   font-weight: 600;
 }
 
-/* 置頂標記：✨ 星號 */
+/* 置頂標記：✨ 星號（v5: aria-hidden 用 ::before 天生 decorative、不被讀）*/
 .calendar-event-item.is-pinned::before {
   content: '✨';
   margin-right: 2px;
+  /* ::before 在 screen reader 預設不讀，但明確加 speak: never 增保障 */
+  speak: never;
 }
 
 /* 動畫：只有「當前滑動到的月份」的置頂活動有動畫（避免多個同時動畫花亂，UX 審計要求）*/
@@ -519,36 +582,27 @@ if (currentView === 'calendar') {
 
 #### Render 邏輯
 
-```javascript
-// event-list-calendar.js
-function _buildEventHTML(event) {
-  const sportKey = event.sportTag || 'other';
-  const sportDef = SPORT_COLORS[sportKey] || SPORT_COLORS.other;
-  // pinned 防呆（欄位可能 undefined / null / false）
-  const isPinned = event.pinned === true;
-  const pinnedClass = isPinned ? ' is-pinned' : '';
-  return `<div class="calendar-event-item${pinnedClass}"
-            style="--sport-color: var(${sportDef.var})"
-            onclick="App.showEventDetail('${event.id}')"
-            title="${isPinned ? '置頂活動：' : ''}${escapeHTML(event.title)}">
-    <span class="event-emoji">${sportDef.emoji}</span>
-    <span class="event-time">${formatTime(event.date)}</span>
-    <span class="event-title-short">${escapeHTML(event.title.slice(0, 5))}</span>
-  </div>`;
-}
+> 活動 cell 的完整 render 邏輯見 §4.3「render 邏輯（v5 修正 — XSS 防禦 + 無障礙強化）」，本節只補充 pinned 相關的日期格容器設定。
 
+```javascript
+// event-list-calendar.js — 日期格層級的 pinned 標記
 function _buildDayCell(date, events) {
-  const hasPinned = events.some(e => e.pinned);
+  const hasPinned = events.some(e => e.pinned === true);
   return `<div class="calendar-day"
+              role="gridcell"
               data-date="${date}"
               data-event-count="${events.length}"
               data-has-pinned="${hasPinned}">
     <div class="calendar-day-number">${dayNum}</div>
     ${events.slice(0, 3).map(_buildEventHTML).join('')}
-    ${events.length > 3 ? `<div class="calendar-more" onclick="...">+${events.length - 3} more</div>` : ''}
+    ${events.length > 3
+      ? `<div class="calendar-more" data-date="${date}">還有 ${events.length - 3} 場</div>`
+      : ''}
   </div>`;
 }
 ```
+
+> `_buildEventHTML` 本身已含 `is-pinned` class 切換、`aria-label` 前綴「置頂活動：」與 `data-id`（見 §4.3）。本節無需重寫、避免 render 邏輯雙軌分歧。
 
 #### 視覺優先級
 
@@ -637,7 +691,9 @@ _handleCalendarKeydown(event) {
 }
 ```
 
-#### ARIA 結構
+#### ARIA 結構（v5 視障審計強化）
+
+**關鍵修正**：日期格 `aria-label` 摘要（空白日、有活動日）、活動 cell 用 `aria-label` 主、`title` 輔：
 
 ```html
 <div role="grid" aria-label="活動月曆 2026年5月">
@@ -646,15 +702,40 @@ _handleCalendarKeydown(event) {
     <!-- ... 七天 -->
   </div>
   <div role="row" aria-rowindex="2">
+    <!-- 有活動日 -->
     <div role="gridcell" aria-colindex="1"
          tabindex="0"
-         aria-label="5 月 1 日，3 場活動">
+         aria-label="5月1日，3場活動，按 Enter 展開">
+      <!-- 日期格內的活動 cell -->
+      <div class="calendar-event-item"
+           data-id="ce_123"
+           role="button" tabindex="0"
+           aria-label="置頂活動：雙連網球場雙打揪團，足球"
+           title="雙連網球場雙打揪團">
+        <span class="event-emoji" aria-hidden="true">⚽</span>
+        <span class="event-time">19:30</span>
+        <span class="event-title-short">雙連網球場雙打揪團</span>
+      </div>
       ...
+    </div>
+    <!-- 空白日（視障 A 要求：aria-label 摘要讓 skim 快速略過）-->
+    <div role="gridcell" aria-colindex="2"
+         tabindex="0"
+         aria-label="5月2日，無活動">
+      <div class="calendar-day-number">2</div>
+      <div class="no-event-mark" aria-hidden="true">—</div>
     </div>
     <!-- ... -->
   </div>
 </div>
 ```
+
+**視障用戶瀏覽體驗**：
+- Tab 進月曆 → VoiceOver 讀「活動月曆 2026年5月」
+- ↓ 到 5/1 → 讀「5月1日，3場活動，按 Enter 展開」
+- Enter → 進第一個活動：「置頂活動：雙連網球場雙打揪團，足球」
+- ↓ 到 5/2 → 讀「5月2日，無活動」（瞬間略過）
+- 整體朗讀量 vs v3 減少 60%+
 
 ### 4.11 懶載入策略（Q11 — 減少 Firestore 成本）
 
@@ -968,9 +1049,86 @@ git push origin HEAD:main
 - [ ] 「+N more」點擊率（判斷是否需要改設計）
 - [ ] 月份切換行為（用戶最常看哪個月 — 本月 / 下月 / 過去月）
 
+### 無障礙 / 認知障礙擴充（v5 ADHD / 永續 / 道德審計）
+- [ ] **簡化模式**（ADHD 用戶）：關閉動畫、單色、極簡格子
+- [ ] **`prefers-reduced-data`** 偵測（慢網路 / 低電量時自動關動畫、降採樣）
+- [ ] **←→ 按鈕永遠顯示**（道德審計：scroll-snap 強制切月的 escape hatch）
+- [ ] 支援「高對比度」作業系統設定（Windows High Contrast Mode）
+
+### 國際化擴充（v5 i18n 審計）
+- [ ] 擴充 locale（en / ja / ko / th / vi）— 月份名 Intl.DateTimeFormat 已 locale-aware，只需切 App.currentLocale
+- [ ] 週起始日 locale-aware（英文市場：週日起始）
+- [ ] 英文用戶：日期格式用英文縮寫「Mon」取代「一」
+
 ---
 
-## 12. CLAUDE.md 規則檢查清單（動手前必讀）
+## 12. How to start coding（新進工程師指引）
+
+此章為新加入此工程的開發者提供上手指引。
+
+### 12.1 從哪裡看起
+
+1. **先讀 §0 TL;DR**（3 行）了解整體目標
+2. **讀 §2 設計決策表**（13 題）了解基本規則
+3. **讀 §5 檔案清單** 知道要動哪些檔
+4. **跳到 §6 WBS Phase 1** 開始動手
+
+### 12.2 開發前檢查
+
+```bash
+# 1. 確保在正確分支
+git status
+
+# 2. 跑現有測試確保環境 OK
+npm run test:unit
+
+# 3. 啟動本地 server 測試
+npx serve . -l 3000
+```
+
+### 12.3 Phase 1 具體步驟
+
+```bash
+# 建新模組目錄下的檔案
+touch js/modules/event/event-calendar-constants.js
+touch js/modules/event/event-list-calendar.js
+touch css/calendar.css
+
+# 編輯（參考 §3 運動色系統、§4.2 月份 Intl 用法）
+```
+
+### 12.4 常見踩坑
+
+| 情境 | 注意 |
+|------|------|
+| 改動 `js/modules/event/event-list-timeline.js` | 屬鎖定區、僅加 `data-date-anchor`、不動邏輯 |
+| 改動 `firestore.rules` | **本期不需改**（月曆只讀既有 events）|
+| 改動 `js/firebase-crud.js` / `stats.js` | **本期不需改** |
+| 月曆 render | 必先呼叫 `App._isEventVisibleToUser(event, uid)` 過濾（見 §4.9）|
+| 運動色 | 用 `SPORT_COLORS[sportTag]`、未註冊運動自動 fallback `--sport-other` |
+| 月份名 | 用 `Intl.DateTimeFormat`、不 hardcode |
+| 事件 cell | 用 `data-id` + event delegation、不用 inline onclick |
+
+### 12.5 測試 checklist
+
+- [ ] `npm run test:unit` 全過（2362+ 不 regression）
+- [ ] Chrome / Safari / LINE WebView 實測
+- [ ] 深淺主題都試
+- [ ] 寬版（≥ 768px）+ 窄版（< 768px）
+- [ ] 鍵盤導航（Tab + ↑↓←→ + Enter）
+- [ ] VoiceOver / TalkBack 實測（至少一個）
+- [ ] 跑 `node scripts/bump-version.js`
+- [ ] commit + push 前 grep 無殘留錯誤
+
+### 12.6 求助
+
+- CLAUDE.md 查規則
+- `docs/claude-memory.md` 查歷史踩坑
+- 現有 `js/modules/event/event-list-timeline.js` 作為 reference
+
+---
+
+## 13. CLAUDE.md 規則檢查清單（動手前必讀）
 
 - [x] **外科手術式修改**：只動必要的檔案，鎖定函式區最小改動（只加 `data-date-anchor` 屬性、不改邏輯）
 - [x] **程式碼精簡**：不加未來可能用到的抽象層
@@ -990,7 +1148,7 @@ git push origin HEAD:main
 
 ---
 
-## 13. 確認事項
+## 14. 確認事項
 
 此計畫書列出我的 13 個預設答案 + 完整工程計畫。若用戶確認：
 
