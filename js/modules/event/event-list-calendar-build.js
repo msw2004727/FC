@@ -40,6 +40,7 @@ Object.assign(App, {
     const eventsByDate = this._groupEventsByDateForMonth(y, m - 1);
     const today = new Date();
     const todayKey = dateObjToKey(today);
+    const todayTs = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
 
     let html = '';
     for (let i = 0; i < totalCells; i++) {
@@ -57,10 +58,12 @@ Object.assign(App, {
         dayNum = dayOffset + 1;
       }
       const dateKey = dateObjToKey(cellDateObj);
+      const isPast = cellDateObj.getTime() < todayTs;  // 嚴格小於今天 00:00
       const events = eventsByDate.get(dateKey) || [];
       html += this._buildDayCellHTML({
         dateKey, dayNum, isOutside,
         isToday: dateKey === todayKey,
+        isPast,
         events, weekRow, weekCol,
       });
     }
@@ -71,7 +74,7 @@ Object.assign(App, {
   //  日期格 HTML
   // ══════════════════════════════════
 
-  _buildDayCellHTML({ dateKey, dayNum, isOutside, isToday, events, weekRow, weekCol }) {
+  _buildDayCellHTML({ dateKey, dayNum, isOutside, isToday, isPast, events, weekRow, weekCol }) {
     const sorted = this._sortEventsForCalendarCell(events);
     const shown = sorted.slice(0, 3);
     const extra = sorted.length - shown.length;
@@ -98,6 +101,7 @@ Object.assign(App, {
           data-has-pinned="${hasPinned ? '1' : '0'}"
           data-today="${isToday ? '1' : '0'}"
           data-outside="${isOutside ? '1' : '0'}"
+          data-past="${isPast ? '1' : '0'}"
           aria-rowindex="${weekRow}"
           aria-colindex="${weekCol}"
           aria-label="${escapeHTML(summary)}">

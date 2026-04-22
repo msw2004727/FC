@@ -170,6 +170,16 @@
 .evt-cal-day[data-outside="1"] { opacity: .45; }
 .evt-cal-day[data-outside="1"] .evt-cal-day-num { color: var(--text-muted); }
 
+/* 本月內已過期（今天之前、跨月另由 data-outside 處理；今日以 data-today 優先）*/
+.evt-cal-day[data-past="1"]:not([data-outside="1"]):not([data-today="1"]) {
+  opacity: .6;
+  filter: grayscale(.6);
+  background: color-mix(in srgb, var(--text-muted) 10%, var(--bg-card));
+}
+.evt-cal-day[data-past="1"]:not([data-outside="1"]):not([data-today="1"]) .evt-cal-day-num {
+  color: var(--text-muted);
+}
+
 /* 空白日「—」符號 */
 .evt-cal-empty-mark {
   color: var(--text-muted);
