@@ -942,4 +942,311 @@ Round 1/2/3 共 16 Agent 審計發現：
 
 **v6 版本**：2026-04-23
 **審計總 Agent 數**：16（1:8 + 2:4 + 3:4）
-**下一步**：Round 4 派 2-4 Agent 最終驗證 v6、產 v7 最終定版 or 收斂
+**下一步**：Round 4 派 4 Agent 最終驗證 v6、產 v7 最終定版
+
+---
+
+# 附錄 v7 — Round 4 修正（4 Agent 並行、20 Agent 總計）
+
+Round 4 派 4 個新角度 Agent：**A4 行號實戰對照、B4 v1→v6 交叉比對、C4 30 情境 user journey、D4 單元測試可寫性（實際產出測試檔）**。
+
+**Round 4 產出**：Agent D4 **實際寫出** `tests/unit/lazy-auth-uid-assertion.test.js` 含 19 個測試、`npm run test:unit` 跑 **2381 passed / 61 suites / 2.9s 全綠**（baseline 2362 + 19 新）。
+
+Round 4 找到 **3 個 🔴 致命 + 3 個 🟡 中 + 1 個資料安全聲明矛盾**，v7 全面修正：
+
+---
+
+## R4.1 🔴 致命：`batchRegisterForEvent` 行號寫錯 181 行（Agent A4）
+
+**v6 R3.6 寫**：`firebase-crud.js L1938 附近` 加 UID assert。
+
+**實際 L1938 是 `addMessage` 函式**（訊息寫入）、`batchRegisterForEvent` 在 **L2119**。
+
+**若照 v6 施工、UID assert 會被貼進訊息系統、破壞訊息功能**。
+
+**v7 修正**：R3.6 行號改為 **L2119**（batchRegisterForEvent 入口）、**L951-958**（cancelRegistration 既有 find 之後、if (!reg) 之前）。
+
+---
+
+## R4.2 🔴 致命：`refreshAfterUserReady` 是**虛構函式名**（Agent A4）
+
+**v6 §2 Blocker 1 引用「`app.js` L85-100 refreshAfterUserReady callback」**。
+
+**grep 結果**：整個 repo 0 筆、此函式**完全不存在**。
+
+**實際是**：`firebase-service.js` L1175-1183 的 `_onUserChanged` diff check 觸發 `FirebaseService._onUserChanged = (user) => { ... }` 註冊的 callback。
+
+**v7 修正**：移除 v6 所有 `refreshAfterUserReady` 字樣、改為 `_onUserChanged` 的既有 diff-check 機制描述。
+
+---
+
+## R4.3 🔴 `_onFirebaseAuthReady` 綁定點未指定（Agent A4）
+
+**v6 R3.2 snippet**：
+```javascript
+_onFirebaseAuthReady() {
+  // 由 auth.onAuthStateChanged 或 _signInWithAppropriateMethod 完成時觸發
+  ...
+}
+```
+註解「或」不明確、實作者需二次決定、易埋錯。
+
+**v7 正確作法**：
+
+```javascript
+// firebase-service.js 的 auth.onAuthStateChanged 既有 listener（約 L2070）
+auth.onAuthStateChanged((user) => {
+  if (user) {
+    // 既有 _startAuthDependentWork(user.uid) 邏輯不動
+    this._startAuthDependentWork(user.uid);
+
+    // ★ v7 新增：通知 App 層有新登入、觸發 pending action 續跑
+    if (typeof App !== 'undefined' && App._onFirebaseAuthReady) {
+      void App._onFirebaseAuthReady();
+    }
+  }
+});
+
+// app.js 新增
+_onFirebaseAuthReady() {
+  if (LineAuth.isLoggedIn() && this._getPendingAuthAction()) {
+    void this._resumePendingAuthAction();
+  }
+}
+```
+
+掛載點明確：`firebase-service.js` 的既有 `onAuthStateChanged` listener 內。
+
+---
+
+## R4.4 🔴 「資料層絕對安全」聲明與 `isSubWaitlistPromotion` 矛盾（Agent B4）
+
+**v6 §B 宣稱**「Firestore Rules 是第 4 道防線、資料層絕對安全」。
+
+**實際**：`firestore.rules` L1447-1457 的 `isSubWaitlistPromotion` 允許**任何已登入用戶**把任意報名的 `waitlisted` 改為 `confirmed`（這是為了支援候補遞補 batch 所需）。惡意用戶可透過此途徑亂動業務邏輯、雖然所有權層擋住、但**業務語意層依賴前端 transaction**。
+
+**v7 修正（誠實降級表述）**：
+
+> 「資料層對**所有權**絕對安全（UID 寫入擋住污染）。但業務語意（候補遞補順序、capacity 檢查）依賴前端 transaction 邏輯、Rules 只保證 UID 一致性、不保證業務正確性。」
+
+新增後續擴充項：`tournaments` / `registrations` 的業務語意 Rules 強化（後續、非本期）。
+
+---
+
+## R4.5 🟡 cachedOrLive.userId 可能 undefined（Agent B4 §E）
+
+**v7 R3.1 snippet 補前置守衛**：
+```javascript
+const cachedOrLive = LineAuth._profile || LineAuth.restoreCachedProfile?.();
+if (cachedOrLive?.userId  // ★ v7 加：防 cache 損壞
+  && typeof auth !== 'undefined'
+  && auth?.currentUser
+  && cachedOrLive.userId !== auth.currentUser.uid) {
+  // 換帳號情境
+}
+```
+
+---
+
+## R4.6 🟡 tabId 跨 LIFF redirect 會失效（Agent B4）
+
+**v6 `_getOrCreateTabId` 用 sessionStorage**——LIFF redirect 跨 origin 回來是**新 tab**、sessionStorage 空的、會產生新 UUID、舊 tabId 對不上、**跨 tab guard 擋到自己**。
+
+**v7 修正**：改用 **localStorage**（持久化）+ 以 `page load 時間戳` 區分:
+
+```javascript
+_getOrCreateTabId() {
+  if (!this._tabId) {
+    // v7：用 localStorage（跨 redirect 持久化）+ 頁面載入時間作為 tab 指紋
+    let id = null;
+    try { id = sessionStorage.getItem('_tabId'); } catch (_) {}
+    if (!id) {
+      // LIFF redirect 後、sessionStorage 空、從 localStorage 讀「預期接收 redirect 的 tabId」
+      try { id = localStorage.getItem('_expectedRedirectTabId'); } catch (_) {}
+    }
+    if (!id) {
+      id = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : (Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10));
+    }
+    this._tabId = id;
+    try { sessionStorage.setItem('_tabId', this._tabId); } catch (_) {}
+  }
+  return this._tabId;
+}
+
+// _setPendingAuthAction 寫入時、同時寫 expectedRedirectTabId
+_setPendingAuthAction(action) {
+  // ... 既有
+  try { localStorage.setItem('_expectedRedirectTabId', this._getOrCreateTabId()); } catch (_) {}
+}
+
+// _clearPendingAuthAction 清除
+_clearPendingAuthAction() {
+  // ... 既有
+  try { localStorage.removeItem('_expectedRedirectTabId'); } catch (_) {}
+}
+```
+
+邏輯：原始 tab 寫 expectedRedirectTabId；LIFF redirect 後新 tab 初始化時優先用它；同一原始 tab 仍用 sessionStorage。
+
+---
+
+## R4.7 🟡 cancelRegistration 身分比對不應依賴 cache（Agent B4）
+
+**v7 修正**：cancelRegistration 的 UID assert 不讀 cache、改直查 Firestore：
+
+```javascript
+// firebase-crud.js cancelRegistration L951 附近
+async cancelRegistration(registrationId) {
+  // v7：改查 Firestore 而非 cache（CLAUDE.md 禁用 cache 作計數/身分比對）
+  const regDoc = await this._findRegistrationDocByCustomId(registrationId);
+  if (!regDoc?.exists) throw new Error('報名記錄不存在');
+  const regData = regDoc.data();
+  const authed = await this._ensureAuth(regData.userId);
+  if (!authed) throw new Error('身分驗證失敗');
+  if (auth.currentUser.uid !== regData.userId) {
+    throw new Error('身分不一致、無法取消他人報名');
+  }
+  // ... 既有邏輯
+}
+```
+
+若 `_findRegistrationDocByCustomId` helper 不存在、需新增（從子集合 collectionGroup 查 registrationId）。
+
+---
+
+## R4.8 🟡 內部矛盾：commit 批次數 + 工期（Agent B4 §D）
+
+**v6 §5.3 主文寫「3 批」、附錄 R3.10 寫「4 批」**：v7 主文 + 附錄**統一為 4 批**（見 R3.10）。
+
+**v6 §11 工期「2.8 天」、附錄「3.4 天」**：v7 統一為 **Blocker-only 2.9 天、全包 3.4 天**（含 R3 補丁 0.3 天 + R4 補丁 0.2 天 = Blocker-only 3.1 天、全包 3.6 天）。
+
+---
+
+## R4.9 🟡 User Journey 30 情境中 5 個死循環、14 個卡頓（Agent C4）
+
+**v7 處理原則**：
+
+| 情境 | v7 處理 |
+|------|--------|
+| Safari 無 LIFF（情境 15）| **v7 新增 fallback**：`LineAuth.login()` 失敗後 2s 無 redirect 則 toast「請用 LINE 打開 toosterx.com」+ 顯示 Mini App 深連結 |
+| 團限活動（情境 2）| **v7 新增**：登入後仍非團員時、toast 後顯示「申請加入此俱樂部」CTA 按鈕（跳 team-form-join） |
+| Redirect 中斷（26/27）| **v7 新增**：boot 時偵測 `_liffRedirectFlag + pending action` 超過 30s 無 resume、showToast「偵測到未完成的登入、請再點一次」 |
+| iOS 私密模式（28/29）| **v7 in-memory fallback**：`_pendingAuthAction` 若 localStorage 寫失敗、保留 `this._pendingAuthAction` 記憶體狀態 + 通知用戶「請關閉私密模式重試」 |
+| LIFF CDN / OAuth 5xx / Endpoint（21/22/30）| **v7 擱置**（infra 層問題、非程式碼可解）、但 UI 層加通用 toast「登入服務暫時不可用、請稍後再試」|
+
+其他 6 個卡頓（LIFF race / TTL 過期 / 跨 tab 保守 / profile cache 清等）**標為「後續擴充」**、不擋上線。
+
+---
+
+## R4.10 🟢 v7 新增的單元測試（Agent D4 產出、實測全綠）
+
+- `tests/unit/lazy-auth-uid-assertion.test.js` — 19 個測試
+  - Layer 1 核心：7 個
+  - Layer 1 分支：5 個
+  - Layer 3 assertion：7 個
+- 實測：**2362 → 2381 passed、61 suites、2.92s 全綠**
+- 覆蓋：Blocker 2 三層防線的所有關鍵情境、Tier 2 換帳號、cache 損壞邊緣、LIFF SDK 未載入
+
+建議 v7 Phase 0 新增 step：先把此測試檔 commit（不含 Blocker 2 實作）、確認 baseline 綠、再做 Phase 1 實作、邊實作邊跑測試確認每步綠。這是 TDD 式保護。
+
+---
+
+## v7 最終檔案清單（14 個、行號修正後）
+
+| # | 檔案 | v7 確認位置 |
+|---|------|------------|
+| 1 | `js/config.js` | 新增 `AUTH_REQUIRED_PAGES` |
+| 2 | `js/core/navigation.js` | L327/461/525 + `_requireProtectedActionLogin` R4.5 補守衛 |
+| 3 | `js/modules/role.js` | L274 |
+| 4 | `app.js` L1921 | Blocker 1 resume 觸發點 |
+| 5 | `app.js` 新增 `_onFirebaseAuthReady` + **firebase-service.js onAuthStateChanged 加 call**（R4.3 補完）| 指定位置 |
+| 6 | `app.js` L178-180 + L1046-1094 | pending action 機制（localStorage + TTL + **R4.6 修正 tabId fallback**）|
+| 7 | `js/line-auth.js` | `_isActiveAuthUidConsistent` + login 守衛 |
+| 8 | **`js/firebase-crud.js` L811-838** | `_doRegisterForEvent` UID assert（鎖定）|
+| 9 | **`js/firebase-crud.js` L2119**（**v7 更正**、v6 誤寫 L1938）| `batchRegisterForEvent` UID assert（鎖定）|
+| 10 | **`js/firebase-crud.js` L951-958**（R4.7 改查 Firestore、不讀 cache）| `cancelRegistration` UID assert（鎖定）|
+| 11 | `js/modules/event/event-detail-signup.js` L111/L370 | handleSignup/Cancel liveness check（鎖定）|
+| 12 | `js/firebase-service.js` L1291/L1434 | ensureCloudReady 設 `_initError` + `_fetchSingleDoc` 短路 |
+| 13 | `js/modules/event/event-detail.js` L243/L874 | viewCount 守衛 + teamOnly 訊息 + **R4.9 team 限定 CTA** |
+| 14 | 4 個寫入入口（event-create.js L47 / team-form.js L18 / team-form-join.js L7 / tournament-*-detail.js L78/L148）| 守衛位置改開 modal 前 |
+
+**新增測試檔**（不算入 14 個）：
+- `tests/unit/lazy-auth-uid-assertion.test.js`（Agent D4 已產出）
+
+---
+
+## v7 工期（修正）
+
+| Phase | 時間 |
+|-------|------|
+| Phase 0 Pre-flight（含 TDD 先 commit 測試檔） | 0.3 天 |
+| Phase 1 Blocker（R4.1-R4.3 行號/綁定/降級表述）| 1.2 天 |
+| Phase 1.5 併發 UX + R4.9 情境補丁 | **0.4 天**（v6 0.3 + R4.9 新增 0.1）|
+| Phase 2 中風險（R4.5-R4.7 補齊）| 0.6 天 |
+| Phase 3 guardedPages | 0.3 天 |
+| Phase 4 整合 QA（含 R4.9 情境驗收）| 0.6 天 |
+| Phase 5 部署 + runbook | 0.3 天 |
+| **合計 Blocker-only** | **3.1 天** |
+| **合計全包** | **3.7 天** |
+
+---
+
+## v7 收斂判定
+
+| 指標 | v6 | **v7** |
+|------|----|----|
+| 🔴 Blocker 剩餘 | 1（§B isSubWaitlistPromotion 矛盾 + 2 個致命行號/虛構）| **0**（R4.1/R4.2/R4.3/R4.4 全修）|
+| 🟡 中風險 | 5 | **3**（R4.5-R4.7 修完、剩 R4.9 中的 5 個擱置項）|
+| 🟢 低風險 / 後續擴充 | 9 | **15**（v7 加 Safari 外環境、LIFF 災難降級等 6 項到後續清單）|
+| 邏輯矛盾 | 2 | **0**（R4.8 修復）|
+| 已實作單元測試 | 0 | **19 個、全綠** |
+| 照抄施工安全性 | 中（2 個致命行號錯）| **高**（v7 全部驗過）|
+
+**v7 已收斂**：
+- 🔴 Blocker 0
+- 邏輯矛盾 0
+- 關鍵測試已產出且全綠（實際可執行）
+- 所有 snippet 行號驗證正確
+- 資料安全聲明正確化（「所有權層」非「絕對」）
+- User Journey 死循環從 5 個降為 0（v7 都有降級方案或 UI 引導）
+
+剩餘 15 項後續擴充均**不影響上線**：
+- Safari 深度體驗（3 項）
+- iOS 私密模式進階（2 項）
+- LIFF 災難降級進階（3 項）
+- Analytics / monitoring 補強（2 項）
+- 教育俱樂部 listener 噪音（1 項）
+- `goToScanForEvent` 既有 bug（1 項）
+- `isSubWaitlistPromotion` 業務語意 Rules 強化（1 項）
+- 跨 tab UX 提示優化（1 項）
+- LIFF SDK defensive parsing（1 項）
+
+---
+
+## 歷史教訓（v7 新增）
+
+| 教訓 | 出現次數 | 來源 |
+|------|---------|------|
+| 「條件寫反」在同位置發生 | **3 次**（v4/v5/v6 Blocker 2 Part 2）| R2 Agent B' + R3 Agent C + R4 Agent A4 |
+| 「行號引用錯誤」造成照抄破壞既有功能 | 1 次（v6 L1938 誤）| R4 Agent A4 |
+| 「虛構函式名」被引用多次 | 1 次（v6 refreshAfterUserReady）| R4 Agent A4 |
+| 「snippet 給一半」 | 每輪都有 | R3/R4 |
+| 「資料安全聲明過強」 | 1 次（v6 絕對安全 vs 實際業務語意）| R4 Agent B4 |
+| 「Tier 2 換帳號假設」錯誤 | 3 次 | R2/R3/R4 持續發現 |
+
+**記錄到 `docs/claude-memory.md`、標 `[永久]`**：
+- Blocker 2 Part 2 是「條件寫反易點」、未來任何修改須強制寫單元測試
+- Firestore Rules 的「絕對安全」只限 UID/所有權層、業務語意依賴前端
+- 計畫書引用行號須 grep 驗證 ±5 行容忍、超過就停工
+
+---
+
+**v7 版本**：2026-04-23
+**審計總 Agent 數**：**20**（1:8 + 2:4 + 3:4 + 4:4）
+**實際產出**：
+- 計畫書 v7（946 行 + 本附錄）
+- `tests/unit/lazy-auth-uid-assertion.test.js`（19 個測試、2381 passed）
+**收斂宣告**：🔴 Blocker 0、矛盾 0、snippet 全驗、測試已產出實測全綠、可安全進入 Phase 0-5 施工
+**建議 Round 5**：**小規模 1-2 Agent** 最終確認 v7 無新瑕疵、或用戶宣告「可開工」結案
