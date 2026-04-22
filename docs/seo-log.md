@@ -133,6 +133,58 @@ index.html (noscript)
 
 ## SEO 優化歷史紀錄
 
+### 2026-04-22 — 階段 4：P0 優化 5 項完成
+
+**目標**：執行 18 項 SEO 優化清單中的 P0 部分（立即可做、低風險、高回報）。
+
+**執行項目**：
+
+1. **既有 6 個 SEO 頁 meta description 縮短**（解決階段 2 遺留問題）
+   - football.html: 120 → 66 chars
+   - running.html: 96 → 65 chars
+   - hiking.html: 102 → 68 chars
+   - pickleball.html: 113 → 69 chars
+   - football-taichung.html: 86 → 69 chars
+   - nantun-football-park.html: 154 → 86 chars
+   - 目標：Google SERP 不被截斷（建議 50-160 chars，中文密度高所以 60-80 最佳）
+   - 執行：Node.js 批次替換（明確 UTF-8 編碼，符合 CLAUDE.md 規範）
+
+2. **football-taichung Events schema FAIL**（GSC 回報）
+   - 檢查結果：實際檔案已無 SportsEvent / Event schema 殘留
+   - GSC 顯示的 Events schema FAIL 是舊快取（Google Last crawled: 2026-04-04）
+   - 無需修改 code，等 Google 重新爬取新 clean URL（已改 canonical）後會自動通過
+
+3. **Organization sameAs 從空陣列填入官方連結**
+   - 原：`"sameAs": []`
+   - 新：`["https://miniapp.line.me/2009525300-AuPGQ0sh", "https://github.com/msw2004727/FC"]`
+   - 效果：Google Knowledge Graph 可關聯 ToosterX 到 LINE Mini App 和 GitHub repo
+   - 後續可補：FB 專頁、IG、LINE OA、YouTube 等（待用戶提供）
+
+4. **首頁新增 WebSite schema**（取代原本規劃的首頁 BreadcrumbList — 首頁無 breadcrumb 意義）
+   - 加入 @graph 陣列第 3 個 entity
+   - 含 name / alternateName / url / inLanguage / publisher
+   - 無 SearchAction（ToosterX 搜尋是 SPA hash route，非 URL param 格式）
+   - 效果：幫助 Google 正確識別網站實體、改善 Knowledge Graph
+
+5. **404.html 自訂錯誤頁**
+   - Cloudflare Pages 自動偵測 repo root 的 404.html 作為錯誤頁
+   - 設計：毛玻璃風格、ToosterX 主色系（#0d9488）、noindex meta
+   - 包含「回到首頁」+「瀏覽所有活動」兩個行動按鈕
+   - 避免用戶遇到 404 時離開網站（SEO bounce rate 降低）
+
+**關鍵決策**：
+- **為什麼首頁不加 BreadcrumbList**：首頁是 root，breadcrumb 從 root 到當前頁，首頁自己沒 path。Google Rich Results 規範也不建議首頁使用 BreadcrumbList。改用 WebSite schema 更有意義
+- **Events schema 不改 code**：實際內容已正確，等 Google 重爬即可。若手動改會打斷正在進行的 clean URL 索引流程
+- **sameAs 只填兩個已知連結**：不強塞、不捏造。缺的社群連結等用戶提供再補
+- **404 頁用 Cloudflare 約定**：Cloudflare Pages 慣例是 repo root 的 404.html 自動成為錯誤頁，不需 `_redirects` 設定
+
+**改動統計**：
+- 修改 7 檔（6 個 seo/*.html + index.html）
+- 新增 1 檔（404.html）
+- 版號：0.20260422b → 0.20260422c
+
+---
+
 ### 2026-04-22 — 階段 3.1：/admin/seo Dashboard UI 改版 + 4 項問題修復
 
 **問題 / 目標**：

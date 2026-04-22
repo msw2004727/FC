@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>找不到頁面 404 — ToosterX</title>
+  <meta name="description" content="找不到你想要的頁面。返回 ToosterX 首頁繼續瀏覽運動活動。">
+  <link rel="icon" href="/assets/icons/icon-192x192.png" type="image/png">
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,'Noto Sans TC','Helvetica Neue',Arial,sans-serif;
+      background:linear-gradient(135deg,#0d9488,#065f46);
+      color:#fff;
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:1.5rem;
+      line-height:1.6;
+    }
+    .container{
+      max-width:440px;
+      width:100%;
+      text-align:center;
+      background:rgba(255,255,255,.08);
+      backdrop-filter:blur(14px);
+      -webkit-backdrop-filter:blur(14px);
+      border-radius:20px;
+      padding:2.5rem 1.8rem;
+      box-shadow:0 16px 40px rgba(0,0,0,.2);
+    }
+    .code{
+      font-size:4.5rem;
+      font-weight:900;
+      letter-spacing:-.04em;
+      margin-bottom:.3rem;
+      line-height:1;
+    }
+    h1{
+      font-size:1.2rem;
+      font-weight:700;
+      margin-bottom:1rem;
+    }
+    p{
+      font-size:.95rem;
+      opacity:.92;
+      margin-bottom:.6rem;
+    }
+    .actions{
+      margin-top:1.8rem;
+      display:flex;
+      flex-direction:column;
+      gap:.7rem;
+    }
+    a.btn{
+      display:block;
+      padding:.85rem 1.2rem;
+      border-radius:12px;
+      text-decoration:none;
+      font-weight:600;
+      font-size:.95rem;
+      transition:transform .15s, box-shadow .15s;
+    }
+    a.btn-primary{
+      background:#fff;
+      color:#0d9488;
+    }
+    a.btn-primary:hover{
+      transform:translateY(-2px);
+      box-shadow:0 8px 20px rgba(0,0,0,.15);
+    }
+    a.btn-ghost{
+      border:1px solid rgba(255,255,255,.45);
+      color:#fff;
+    }
+    a.btn-ghost:hover{
+      background:rgba(255,255,255,.1);
+    }
+    .logo{
+      font-size:1.1rem;
+      font-weight:800;
+      letter-spacing:.02em;
+      margin-bottom:1.8rem;
+      opacity:.85;
+    }
+    @media(max-width:480px){
+      .code{font-size:3.6rem}
+      h1{font-size:1.05rem}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">ToosterX</div>
+    <div class="code">404</div>
+    <h1>找不到這個頁面</h1>
+    <p>你找的內容可能已被移除，或者網址輸入錯誤。</p>
+    <p>別擔心，從首頁繼續瀏覽最新的運動活動吧！</p>
+    <div class="actions">
+      <a href="/" class="btn btn-primary">回到首頁</a>
+      <a href="/#page-activities" class="btn btn-ghost">瀏覽所有活動</a>
+    </div>
+  </div>
+</body>
+</html>
