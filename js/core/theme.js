@@ -182,15 +182,10 @@ Object.assign(App, {
       const label = item.querySelector('span:nth-child(2)')?.textContent || '全部運動';
       this.showToast(`已切換為 ${label}`);
 
-      // 觸發列表重繪
+      // 觸發列表重繪（俱樂部頁的 team-sport-filter 下拉選單會在 _doFilterTeams 重繪時自動從 App._activeSport 同步，不需額外處理）
       try { this.renderHotEvents(); } catch (_) {}
       try { this.renderActivityList(); } catch (_) {}
       try { this.renderTeamList?.(); } catch (_) {}
-      // 同步俱樂部頁的運動下拉選單
-      try {
-        const tSel = document.getElementById('team-sport-filter');
-        if (tSel) tSel.value = safeKey === 'all' ? '' : safeKey;
-      } catch (_) {}
     });
 
     document.addEventListener('click', (e) => {
