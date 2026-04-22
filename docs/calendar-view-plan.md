@@ -4,7 +4,7 @@
 **預估工期**：7.5 個工作日（可拆分 2-3 個 commit 批次）
 **版號影響**：會 bump 1-3 次（視批次拆分）
 **預計動到檔案**：11 個（含 3 新建）
-**狀態**：2026-04-22 v5 — 再經 10 位 安全 / 深度無障礙 / 永續 / 平台 / 寫作 / 道德視角審計（滲透測試/VoiceOver/ADHD/碳足跡/LINE/PWA/離線/新進工程師/道德/i18n），新增 8 項共識調整
+**狀態**：2026-04-22 v6 — 回歸風險審計（對照既有程式碼、Firestore Rules、Cloud Functions、onSnapshot 路徑），發現 11 項**首次實作必須修正**的對接錯誤與規範缺失
 
 ---
 
@@ -12,7 +12,7 @@
 
 1. **做什麼**：在活動頁（`#page-activities`）加第三種視圖「月曆」，顯示所有公開活動的月曆視圖，支援上下滑切月、運動色區分、置頂高光
 2. **怎麼做**：新建 `event-list-calendar.js` + `event-calendar-constants.js` + `calendar.css`（Phase 1-5、約 7.5 天）
-3. **從哪開始**：看 §12「How to start coding」→ §6 WBS → §5 檔案清單
+3. **從哪開始**：看 §12「回歸風險與對接驗證」（🔴 必讀）→ §13「How to start coding」→ §6 WBS → §5 檔案清單
 
 **術語約定**（整份文件統一）：
 - 「**日期格**」（不混用 day cell / cell / grid cell）
@@ -174,26 +174,35 @@ const SPORT_COLORS = Object.freeze({
 
 ## 4. UI 設計規格
 
-### 4.1 Tab 切換區（現況擴充）
+### 4.1 Tab 切換區（現況擴充 — v6 對照既有程式碼修正）
+
+> ⚠️ **v6 修正**：現有 `pages/activity.html` 的屬性名為 `data-atab`（非 `data-tab`），初始 tab 值為 `'normal'`（非 `'active'`），標籤是「一般」（非「進行中」）。必須沿用既有命名，避免 `_setActivityTab` 無法比對。
 
 ```html
-<!-- pages/activity.html 現有結構（簡化示意）-->
-<div class="tab-bar">
-  <button class="tab active" data-tab="active">進行中</button>
-  <button class="tab" data-tab="ended">已結束</button>
-  <!-- ★ 新增 -->
-  <button class="tab" data-tab="calendar">月曆</button>
+<!-- pages/activity.html 現有結構（真實）-->
+<div class="tab-bar" id="activity-tabs">
+  <button class="tab active" data-atab="normal"
+          onclick="App.switchActivityTab('normal')">一般</button>
+  <button class="tab" data-atab="ended"
+          onclick="App.switchActivityTab('ended')">已結束</button>
+  <!-- ★ 新增（注意：屬性名 data-atab、值 calendar）-->
+  <button class="tab" data-atab="calendar"
+          onclick="App.switchActivityTab('calendar')">月曆</button>
 </div>
 
-<div id="activity-timeline">...（現有直瀑）</div>
-<!-- ★ 新增 -->
-<div id="activity-calendar" hidden>...（月曆）</div>
+<!-- 既有容器（直瀑）-->
+<div class="timeline-calendar" id="activity-list">...</div>
+<!-- ★ 新增容器（月曆）-->
+<div id="activity-calendar" hidden>...</div>
 ```
 
-Tab 切換用現有 JS 邏輯擴充，`data-tab="calendar"` 時：
-- 隱藏 `#activity-timeline`
+Tab 切換用現有 JS 邏輯擴充，`_setActivityTab('calendar')` 時：
+- 隱藏 `#activity-list`（既有容器，不是 `#activity-timeline`）
 - 顯示 `#activity-calendar`
 - 呼叫 `App._renderActivityCalendar()`
+- **首次進月曆不跑 100ms 防抖**（`renderActivityList` 有防抖、月曆第一次同步 render 減少空白感）
+
+> ⚠️ **不要改現有 tab 的 label**：計畫書 Q3 確認「進行中」保留，但**實際 DOM 是「一般」**；維持「一般 / 已結束 / 月曆」三 tab，不動前兩個文字。
 
 ### 4.2 月曆結構（寬版）+ i18n 月份名稱
 
@@ -806,24 +815,76 @@ App._calendarCache = {
   - `calendar.css` 用 `<link rel="preload" as="style" onload="this.rel='stylesheet'">` 或在切 tab 時動態注入
 - 首次切 tab 多 50-100ms loading（可接受、顯示 skeleton）
 
-### 修改（8 個）
+### 修改（12 個 — v6 新增 4 個必改檔案）
 
-| 檔案 | 改動範圍 | 鎖定狀態 |
-|------|---------|---------|
-| `pages/activity.html` | 新增 `[月曆]` tab button + `#activity-calendar` 容器 | 一般 |
-| `js/modules/event/event-list-timeline.js` | 加 `data-date-anchor` 到日期分組元素（Q10） | ⚠️ **鎖定區、小心** |
-| `js/modules/event/event-list.js` | 擴充 `_activeTab` 處理第 3 種 'calendar' | ⚠️ **鎖定區、小心** |
-| `js/modules/event/event-list-helpers.js` | 加 `_groupEventsByDate` 輔助函式 | ⚠️ **鎖定區、小心** |
-| `js/core/script-loader.js` | 註冊 `event-list-calendar.js` | 一般 |
-| `index.html` | `<link>` 載入 `calendar.css` | 一般（改 HTML 要 bump version）|
-| `docs/architecture.md` | 模組清單加 `event-list-calendar` | 一般 |
-| `docs/structure-guide.md` | 中文功能導覽同步 | 一般 |
+> ⚠️ **v6 新增 4 個**（#9 ~ #12）：v5 列為「不改動」的檔案實際必須小改，否則會有功能斷鏈（見 §15 回歸風險 C/D/E）。
 
-### 不改動
+| # | 檔案 | 改動範圍 | 鎖定狀態 |
+|---|------|---------|---------|
+| 1 | `pages/activity.html` | 新增 `[月曆]` tab button（`data-atab="calendar"`）+ `#activity-calendar` 容器 | 一般 |
+| 2 | `js/modules/event/event-list-timeline.js` | 加 `data-date-anchor` 到日期分組元素（Q10）**— 僅加屬性、不動邏輯** | ⚠️ **鎖定區、小心** |
+| 3 | `js/modules/event/event-list.js` | `_setActivityTab` 擴充處理第 3 種 `'calendar'`（隱藏 `#activity-list`、顯示 `#activity-calendar`、呼叫 render）| ⚠️ **鎖定區、小心** |
+| 4 | `js/modules/event/event-list-helpers.js` | 加 `_groupEventsByDate` 輔助函式 | ⚠️ **鎖定區、小心** |
+| 5 | `js/core/script-loader.js` | 註冊新群組 `activityCalendar`（支援 tab 級延遲載入，見「lazy-load 實作方案」） | 一般 |
+| 6 | `index.html` | `<link>` 載入 `calendar.css` | 一般（改 HTML 要 bump version）|
+| 7 | `docs/architecture.md` | 模組清單加 `event-list-calendar` | 一般 |
+| 8 | `docs/structure-guide.md` | 中文功能導覽同步 | 一般 |
+| **9** | **`js/firebase-service.js`** | **L196-202 snapshot render dispatch 加月曆分支**（Realtime 更新時月曆會重 render） | ⚠️ **鎖定檔、僅加 1 行** |
+| **10** | **`js/core/theme.js`** | **`setActiveSport` 的 render 鏈 L186-189 末尾加 `App._renderActivityCalendar?.()`**（切運動分類時月曆會重 render） | 一般（只加 1 行）|
+| **11** | **`js/modules/event/event-list-helpers.js`** | **`switchRegionTab` L307-308 加呼叫 `App._renderActivityCalendar?.()`**（切地區時月曆會重 render） | ⚠️ 鎖定區 |
+| **12** | **`js/modules/event/event-manage.js`** | **`toggleMyActivityPin` L444-446 加呼叫 `this._renderActivityCalendar?.()`**（置頂 toggle 後月曆會重 render） | 一般（只加 1 行）|
 
-- Firestore Rules（月曆只讀現有 events）
-- `js/firebase-service.js`、`js/firebase-crud.js`（鎖定函式區不動）
-- `js/api-service.js`（ApiService.getEvents 已夠用）
+### lazy-load 實作方案（v6 明確化）
+
+`script-loader.js` 既有設計是**頁面級**載入（`_pageGroups['page-activities']`）。要實現「只在切到月曆 tab 時才載入」，採用：
+
+**方案 A（採用）：獨立群組 + 動態觸發**
+
+```javascript
+// script-loader.js 新增群組
+_groups: {
+  activityCalendar: [
+    'js/modules/event/event-calendar-constants.js',
+    'js/modules/event/event-list-calendar.js',
+  ],
+  // ... 既有群組不動
+}
+// ⚠️ 不要加到 _pageGroups['page-activities']，避免 boot 時即載入
+
+// event-list.js — _setActivityTab 擴充
+_setActivityTab(tab, options = {}) {
+  // 既有邏輯不動 ...
+  if (tab === 'calendar') {
+    ScriptLoader.loadGroup(ScriptLoader._groups.activityCalendar)
+      .then(() => this._renderActivityCalendar?.())
+      .catch(err => { console.error('[Calendar] load failed:', err); this.showToast('月曆載入失敗，請重試'); });
+  }
+  // ... 既有 render 分支
+}
+```
+
+**為什麼選方案 A**：不動 `_pageGroups`、不增加 boot 時 bundle、失敗有 toast 降級。
+
+### 不改動（v6 終版）
+
+- **Firestore Rules** — `events` read 為 `if true`、update 有白名單、無 `pinned` 特殊規則，月曆只讀不寫
+- **Cloud Functions** — 既有 CF 完全不依賴前端 tab 狀態、月曆無新 CF 呼叫
+- `js/firebase-crud.js`（報名鎖定函式不動）
+- `js/api-service.js`（`getEvents()` 已夠用）
+- `js/modules/achievement/stats.js`、`js/modules/leaderboard.js`（統計鎖定函式）
+
+### 資料層使用的既有 API（v6 確認）
+
+| 需求 | 用法 | 風險 |
+|------|------|------|
+| 取所有活動 | `ApiService.getEvents()` 或 `App._getVisibleEvents()` | 無 |
+| 過濾黑名單 + 私密 + 俱樂部限定 | `App._getVisibleEvents()`（已整合 `_isEventVisibleToUser` + `_canViewEventByTeamScope` + `privateEvent`）| 無 |
+| 過濾地區 | `App._filterByRegionTab(events)` | 無 |
+| 過濾運動 | `App._filterBySportTag(events)` | 無 |
+| 取活動詳情 | `App.showEventDetail(id)`（既有）| 無 |
+| 置頂狀態 | `event.pinned`（truthy）+ `event.pinOrder`（數字）| 見 §15 F |
+
+> ⚠️ **計畫書 v5 §4.9「必須先呼叫 `_isEventVisibleToUser`」多餘**：`_getVisibleEvents()` 已內建三層過濾（`_canViewEventByTeamScope` + `privateEvent` + `_isEventVisibleToUser`），月曆直接用 `_getVisibleEvents()` 即完成全部可見性判斷，**不需再手動呼叫 `_isEventVisibleToUser`**。
 
 ---
 
@@ -1062,18 +1123,215 @@ git push origin HEAD:main
 
 ---
 
-## 12. How to start coding（新進工程師指引）
+## 12. 回歸風險與對接驗證（v6 新增 — 首次實作必讀）
+
+> 🔴 **動手前必須逐項確認本章**。v6 審計發現 11 項計畫書原本未涵蓋的對接錯誤與規範缺失；若直接照 v5 實作會產生中到高度回歸。
+
+### 15.A 🔴 DOM 屬性名錯誤（高風險，直接 break tab）
+
+**現況**：`pages/activity.html` L28-31 使用 `data-atab`（非 `data-tab`），tab 值為 `'normal'` / `'ended'`（非 `'active'`）。
+
+**行為**：`event-list.js` L28 以 `btn.dataset.atab === tab` 比對。若用 `data-tab` 新屬性，三個 tab 全失效。
+
+**驗收**：新 tab button 必須用 `data-atab="calendar"` + `onclick="App.switchActivityTab('calendar')"`，與既有兩個 tab 風格一致。
+
+### 15.B 🔴 scroll-snap × _bindSwipeTabs 手勢衝突
+
+**現況**：`event-list-timeline.js` L338-341 綁定左右滑動切 tab（`_bindSwipeTabs('activity-list', 'activity-tabs', ...)`）。月曆 scroll-snap-y 是上下方向，**理論上不衝突**但需驗證：
+
+1. 月曆容器是 `#activity-calendar`（與 `#activity-list` 不同元素），`_bindSwipeTabs` 不會綁到月曆
+2. 月曆容器加 `touch-action: pan-y` 僅攔截縱向、橫向留給瀏覽器/系統
+3. **風險**：若用戶剛切到月曆、馬上左右滑（試圖切 tab），會不會因為月曆容器吃掉事件而失效？
+
+**驗收**：
+- [ ] iOS Safari 實測：月曆 tab 下左右滑能否切回一般 tab
+- [ ] LINE WebView 實測同上
+- [ ] 若失效，在 `#activity-calendar` 上也綁 `_bindSwipeTabs`（比照 timeline）
+
+### 15.C 🔴 onSnapshot 不會觸發月曆 render（Realtime 失效）
+
+**現況**：`firebase-service.js` L196-202 的 snapshot render dispatch：
+
+```javascript
+if (p === 'page-home') App.renderHotEvents?.();
+if (p === 'page-activities') App.renderActivityList?.();  // ← 只呼叫 timeline
+if (p === 'page-my-activities') App.renderMyActivities?.();
+```
+
+**行為**：若月曆 tab 開啟時別人新增/更新活動，月曆**不會自動重 render**，違反計畫書 §測試計畫第 13 項。
+
+**必改**：`firebase-service.js` L198 加月曆分支：
+
+```javascript
+if (p === 'page-activities') {
+  App.renderActivityList?.();
+  if (App._activityActiveTab === 'calendar') App._renderActivityCalendar?.();
+}
+```
+
+**驗收**：
+- [ ] 月曆 tab 下另一裝置新增活動，5 秒內月曆出現新活動
+- [ ] 月曆 tab 下別人取消活動，月曆即時消失
+- [ ] 既有 timeline 行為不變
+
+### 15.D 🔴 切運動/地區分類不重 render 月曆（篩選失效）
+
+**現況**：
+- `theme.js` L186-189 `setActiveSport` 只呼叫 `renderHotEvents/renderActivityList/renderTeamList/renderTournamentTimeline`
+- `event-list-helpers.js` L307-308 `switchRegionTab` 只呼叫 `renderHotEvents/renderActivityList`
+
+**行為**：用戶在月曆 tab 切「籃球」→ 月曆不變（仍顯示所有運動）；切「北部」→ 月曆不過濾。**違反 §3.7「`_activeSport` 仍有效」宣稱**。
+
+**必改**（兩處各加一行）：
+
+```javascript
+// theme.js L189 末尾
+try { this._renderActivityCalendar?.(); } catch (_) {}
+
+// event-list-helpers.js L309 末尾
+try { this._renderActivityCalendar?.(); } catch (_) {}
+```
+
+**驗收**：
+- [ ] 月曆下切「籃球」→ 只剩籃球活動
+- [ ] 月曆下切「北部」→ 只剩北部活動
+
+### 15.E 🟡 置頂 toggle 後月曆未重 render（視覺不同步）
+
+**現況**：`event-manage.js` `toggleMyActivityPin` L444-446：
+
+```javascript
+this.renderMyActivities();
+this.renderActivityList();
+this.renderHotEvents();
+```
+
+**行為**：後台點「置頂」→ 切回月曆 → 置頂高光未出現，要手動重開 tab。
+
+**必改**：L446 後加：
+
+```javascript
+this._renderActivityCalendar?.();
+```
+
+### 15.F 🟡 pinned 比對風格一致性（`=== true` vs truthy）
+
+**現況**：既有模組（`event-list.js` L87-94、`event-list-timeline.js` L223-231、`event-list-home.js`、`event-manage.js`）**全部用 `e?.pinned ? 1 : 0` truthy** 風格，**不是** `=== true` 嚴格比對。
+
+**v5 計畫書要求**：§4.8 / §測試第 10 項要求 `event.pinned === true` 嚴格比對，避免 `undefined/null/0/""` 被誤判。
+
+**衝突**：若月曆用 `=== true`、其他地方用 truthy，資料寫入 `pinned: 1`（數字而非 bool）時，timeline 顯示置頂但月曆**不顯示**，造成資料不一致假象。
+
+**v6 決議**：**沿用既有 truthy 風格** `e?.pinned` 以保持全站一致。若要改嚴格，**全站一起改**不得只改月曆。
+
+**排序同步**：月曆排序必須包含 `pinOrder` 次序：
+
+```javascript
+function _sortEventsForCell(a, b) {
+  const ap = a?.pinned ? 1 : 0;
+  const bp = b?.pinned ? 1 : 0;
+  if (ap !== bp) return bp - ap;  // pinned 先
+  if (ap && bp) {
+    const ao = Number(a?.pinOrder) || 0;
+    const bo = Number(b?.pinOrder) || 0;
+    if (ao !== bo) return ao - bo;  // pinOrder 小的先（最早置頂）
+  }
+  // 同優先級按開始時間
+  const ta = (a.date || '').split(' ')[1] || '';
+  const tb = (b.date || '').split(' ')[1] || '';
+  return ta.localeCompare(tb);
+}
+```
+
+### 15.G 🟡 lazy-load 路徑缺明確實作
+
+**現況**：`script-loader.js` 是頁面級載入（`_pageGroups['page-activities']` 一次載全部）。v5 計畫書只寫「必做 lazy load」沒說怎麼做。
+
+**v6 決議**：見 §5「lazy-load 實作方案」方案 A（獨立群組 `activityCalendar` + `_setActivityTab('calendar')` 動態觸發）。
+
+**驗收**：
+- [ ] 未切月曆 tab 時 devtools Network 不顯示 `event-list-calendar.js` 下載
+- [ ] 切月曆 tab 時 50-200ms 內完成載入 + render
+- [ ] 載入失敗顯示 toast「月曆載入失敗，請重試」
+
+### 15.H 🟢 首次切 tab 的 100ms 防抖會產生視覺延遲
+
+**現況**：`renderActivityList` L155-157 有 100ms 防抖（避免多路徑觸發連續 re-render）。
+
+**風險**：若月曆 render 也複製這個防抖、或依賴 `renderActivityList`，首次切 tab 會有 100ms 空白。
+
+**v6 決議**：
+- 月曆**首次**切 tab **不走防抖**，同步 render 一次
+- **後續**的 realtime 更新可走防抖（避免連續 snapshot 觸發）
+- 用獨立 timer `_activityCalendarRenderTimer` 不共用
+
+### 15.I 🟢 _autoEndExpiredEvents 副作用需對齊
+
+**現況**：`_doRenderActivityList` L160 呼叫 `_autoEndExpiredEvents()`，把超時活動自動改 `ended`。
+
+**行為**：月曆若不呼叫此函式，會顯示「已結束但狀態未變」的活動為進行中，與 timeline 不一致。
+
+**v6 決議**：月曆 render 開頭也呼叫 `this._autoEndExpiredEvents()`，與 timeline 對齊。此函式是冪等的（已結束的不會再改）、無重複寫入風險。
+
+### 15.J 🟢 冷啟動骨架
+
+**現況**：`#activity-list` 的 HTML 骨架（activity.html L40-44）有 skeleton-line。
+
+**v6 決議**：`#activity-calendar` 也加骨架，避免首次切 tab 時短暫空白：
+
+```html
+<div id="activity-calendar" hidden>
+  <div class="calendar-skeleton" aria-hidden="true">
+    <!-- 7x5 灰格骨架 -->
+  </div>
+</div>
+```
+
+首次 `_renderActivityCalendar` 成功後移除骨架。
+
+### 15.K 🔴 規範層：鎖定清單需更新
+
+**CLAUDE.md §外科手術式修改**提到 `js/firebase-service.js` 是「鎖定函式所在檔案」。本次為加月曆 render 分支必須動此檔，**即使只加 1 行**，也需：
+
+1. 單獨 commit：`refactor(snapshot): firebase-service dispatch 加月曆 render 分支`
+2. commit message 明確標示「非鎖定函式區的新增、與報名/統計無關」
+3. push 後跑 `npm run test:unit` 驗證無 regression
+4. 在 `docs/claude-memory.md` 記錄此例外，標記為「合理例外」
+
+**驗收**：
+- [ ] firebase-service.js diff 只有 L198 附近 1-2 行改動
+- [ ] 不動 `ensureUserStatsLoaded`、`_mapUserDoc`、`onSnapshot` 邏輯本體
+
+---
+
+### 15.L 資料庫 / Rules / CF 對接最終確認
+
+| 層級 | 改動? | 驗證 |
+|------|-------|------|
+| Firestore Rules | ❌ 不改 | `events` read 為 `allow read: if true`；update 走既有白名單；`pinned`/`pinOrder` 寫入走 `isEventOwner() || hasPerm('event.edit_all')`（後台現有路徑）|
+| Firestore 結構 | ❌ 不改 | 無新集合、無新欄位（`pinned`/`pinOrder` 既有，Phase 4b 後子集合路徑亦無涉及）|
+| Cloud Functions | ❌ 不改 | 所有 CF 均不依賴前端 tab 狀態、無新 callable |
+| 客戶端 onSnapshot | ✅ 加 1 行 | `firebase-service.js` L198 分支補月曆 render（見 §15.C）|
+| 讀取路徑 | ❌ 不改 | `ApiService.getEvents()` + `_getVisibleEvents()` 已夠用 |
+| 寫入路徑 | ❌ 不改 | 月曆純讀取視圖，無任何寫入 |
+| Service Worker | ✅ 透過 `bump-version.js` 自動 | 新增 `event-list-calendar.js`、`calendar.css` 透過 `?v=` 參數自動 cache bust |
+
+**結論**：月曆功能對資料庫 / Rules / CF **零影響**，僅前端視圖層變更。最大風險集中在既有前端模組的**渲染流程對接**（A-K 11 項）。
+
+---
+
+## 13. How to start coding（新進工程師指引）
 
 此章為新加入此工程的開發者提供上手指引。
 
-### 12.1 從哪裡看起
+### 13.1 從哪裡看起
 
 1. **先讀 §0 TL;DR**（3 行）了解整體目標
 2. **讀 §2 設計決策表**（13 題）了解基本規則
 3. **讀 §5 檔案清單** 知道要動哪些檔
 4. **跳到 §6 WBS Phase 1** 開始動手
 
-### 12.2 開發前檢查
+### 13.2 開發前檢查
 
 ```bash
 # 1. 確保在正確分支
@@ -1086,7 +1344,7 @@ npm run test:unit
 npx serve . -l 3000
 ```
 
-### 12.3 Phase 1 具體步驟
+### 13.3 Phase 1 具體步驟
 
 ```bash
 # 建新模組目錄下的檔案
@@ -1097,19 +1355,30 @@ touch css/calendar.css
 # 編輯（參考 §3 運動色系統、§4.2 月份 Intl 用法）
 ```
 
-### 12.4 常見踩坑
+### 13.4 常見踩坑（v6 擴充）
 
 | 情境 | 注意 |
 |------|------|
+| tab 屬性名 | **用 `data-atab="calendar"`、不是 `data-tab`**（見 §12.A）|
+| tab 值 | **用 `'calendar'`，既有兩 tab 是 `'normal'` / `'ended'`**（不是 `'active'`）|
 | 改動 `js/modules/event/event-list-timeline.js` | 屬鎖定區、僅加 `data-date-anchor`、不動邏輯 |
 | 改動 `firestore.rules` | **本期不需改**（月曆只讀既有 events）|
 | 改動 `js/firebase-crud.js` / `stats.js` | **本期不需改** |
-| 月曆 render | 必先呼叫 `App._isEventVisibleToUser(event, uid)` 過濾（見 §4.9）|
+| **改動 `js/firebase-service.js`** | **必須加 1 行月曆 render 分支**（見 §12.C，L198 附近）|
+| **改動 `js/core/theme.js`** | **必須加 1 行 `_renderActivityCalendar?.()`**（見 §12.D）|
+| **改動 `event-list-helpers.js` switchRegionTab** | **必須加 1 行**（見 §12.D）|
+| **改動 `event-manage.js` toggleMyActivityPin** | **必須加 1 行**（見 §12.E）|
+| 月曆 render 過濾 | 直接用 `App._getVisibleEvents()`，**不需再呼叫 `_isEventVisibleToUser`**（已內建） |
 | 運動色 | 用 `SPORT_COLORS[sportTag]`、未註冊運動自動 fallback `--sport-other` |
 | 月份名 | 用 `Intl.DateTimeFormat`、不 hardcode |
 | 事件 cell | 用 `data-id` + event delegation、不用 inline onclick |
+| pinned 判斷 | **用 truthy `e?.pinned`**，不用 `=== true`（與既有全站一致，見 §12.F）|
+| 排序 | 必加 `pinOrder` 次序（與 timeline 一致，見 §12.F）|
+| 防抖 | **首次切 tab 不走防抖**、同步 render 一次（見 §12.H）|
+| `_autoEndExpiredEvents` | render 前呼叫一次、與 timeline 對齊（見 §12.I）|
+| lazy-load | 用獨立群組 `activityCalendar` + `_setActivityTab('calendar')` 動態觸發（見 §5）|
 
-### 12.5 測試 checklist
+### 13.5 測試 checklist
 
 - [ ] `npm run test:unit` 全過（2362+ 不 regression）
 - [ ] Chrome / Safari / LINE WebView 實測
@@ -1120,7 +1389,7 @@ touch css/calendar.css
 - [ ] 跑 `node scripts/bump-version.js`
 - [ ] commit + push 前 grep 無殘留錯誤
 
-### 12.6 求助
+### 13.6 求助
 
 - CLAUDE.md 查規則
 - `docs/claude-memory.md` 查歷史踩坑
@@ -1128,7 +1397,7 @@ touch css/calendar.css
 
 ---
 
-## 13. CLAUDE.md 規則檢查清單（動手前必讀）
+## 14. CLAUDE.md 規則檢查清單（動手前必讀 — v6 更新）
 
 - [x] **外科手術式修改**：只動必要的檔案，鎖定函式區最小改動（只加 `data-date-anchor` 屬性、不改邏輯）
 - [x] **程式碼精簡**：不加未來可能用到的抽象層
@@ -1139,16 +1408,20 @@ touch css/calendar.css
 - [x] **版號更新**：改 HTML/JS/CSS 必須 `bump-version.js`
 - [x] **文件同步**：新模組要更新 `architecture.md` + `structure-guide.md`
 - [x] **開發守則**：新模組放入 `js/modules/event/` 對應資料夾（不扁平化）
-- [x] **⚠️ 活動可見性規則**：**必須**呼叫 `_isEventVisibleToUser(event, uid)` 過濾（§4.9）
+- [x] **⚠️ 活動可見性規則**：直接用 `App._getVisibleEvents()`（內建 `_isEventVisibleToUser` + `privateEvent` + `_canViewEventByTeamScope`）
 - [x] **黑名單機制整合**：`blockedUids`、`privateEvent` 透過上述 helper 處理
 - [x] **報名系統保護規則**：月曆是**讀取**視圖，不動 registration 邏輯，無鎖定風險
 - [x] **統計系統保護規則**：月曆不涉及 UID 比對、統計計算，無鎖定風險
 - [x] **無障礙 WCAG 2.1 AA**：色盲 emoji 備援、鍵盤導航、ARIA（§4.10）
 - [x] **跨時區**：event.date 視為台灣時間字串處理（與現有一致）
+- [x] **v6 新增：鎖定檔例外記錄** — `js/firebase-service.js` L198 加 1 行 render 分支（非鎖定函式區、單獨 commit、標記「合理例外」於 `docs/claude-memory.md`）
+- [x] **v6 新增：首次實作零 regression 驗證** — §12.A-K 11 項全部 PASS 才算完工
+- [x] **v6 新增：pinned 風格一致** — 全站 truthy 比對，月曆沿用 `e?.pinned`（不改為 `=== true`）
+- [x] **v6 新增：Rules / CF 零改動** — Firestore Rules `events` read 本就 `if true`、CF 不依賴前端 tab、月曆 Database 層零影響
 
 ---
 
-## 14. 確認事項
+## 15. 確認事項
 
 此計畫書列出我的 13 個預設答案 + 完整工程計畫。若用戶確認：
 
