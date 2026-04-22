@@ -133,6 +133,68 @@ index.html (noscript)
 
 ## SEO 優化歷史紀錄
 
+### 2026-04-22 — 階段 5：P1 優化 #7-10（sitemap + llms.txt + Lighthouse 基準）
+
+**目標**：執行 P1 清單第 7-10 項，取得 Lighthouse 基準數據。
+
+**執行項目**：
+
+1. **#10 sitemap priority 精細化**
+   - 原：所有 URL 統一 priority 0.8
+   - 新：按流量潛力分層（1.0 → 0.9 → 0.8 → 0.75 → 0.7 → 0.6 → 0.3）
+   - 幫助 Google 判斷優先爬取順序
+
+2. **#9 llms.txt 擴充**（34 → 143 行）
+   - 新增「主要內容頁」13 個 URL 給 AI 爬蟲導航
+   - 擴充運動項目（10 → 20+ 種，含匹克球、美式躲避球、自行車等）
+   - 新增地區覆蓋清單（北中南東 + 具體鄉鎮）
+   - 新增中英文關鍵字列表
+   - 新增「AI 爬蟲備註」鼓勵 ChatGPT/Claude/Perplexity 引用
+   - 補 GitHub repo、LINE Mini App 完整 URL
+
+3. **#8 image sitemap 擴充**
+   - 首頁新增第二個 image:image（icon-512x512.png ToosterX Logo）
+   - og.png 加 image:caption 增強語意
+   - 其他 SEO 頁無獨特圖片素材（純 CSS hero），暫不加
+
+4. **#7 Lighthouse CI 基準數據（首次跑）**
+
+   **SEO 著陸頁成績（頂尖）**：
+   | 頁面 | Performance | A11y | BP | SEO |
+   | --- | --- | --- | --- | --- |
+   | basketball | 100 | 82 | 96 | 100 |
+   | pickleball | 100 | 82 | 96 | 100 |
+   | dodgeball | 100 | 89 | 96 | 100 |
+   | running | 100 | 80 | 96 | 100 |
+   | hiking | 100 | 80 | 96 | 100 |
+   | football-taichung | 100 | 80 | 96 | 100 |
+   | sports-changhua | 100 | 82 | 96 | 100 |
+   | sports-nantou | 100 | 82 | 96 | 100 |
+   | football | 99 | 80 | 96 | 100 |
+
+   **首頁異常**：測得 53/85/75/54 分數 — 實際是 LINE login 頁分數
+   - 根因：Lighthouse 的 headless Chrome 進首頁後，LIFF SDK 判定非 LINE 環境、強制 OAuth
+   - 實際 URL：`https://access.line.me/oauth2/v2.1/login?...`
+   - 不是首頁本身的 SEO 問題（GSC 顯示首頁 indexed 排名 2.3 CTR 44.7%）
+   - Googlebot 有機制繞過（檢測到 bot UA 會跳過 OAuth）
+   - 若要精確測首頁 Lighthouse，需修 workflow（加 UA 或 skip LIFF redirect）
+
+**關鍵決策**：
+- **sitemap priority 分層原則**：熱門運動 > 次熱門 > 地區 × 運動 > 地區綜合 > 政策頁
+- **llms.txt 定位**：不只是 AI 爬蟲指引，也是「網站核心內容索引」— 讓 ChatGPT/Claude 能正確引用
+- **首頁 Lighthouse 問題不修 code**：LIFF OAuth 是 LINE Mini App 正常設計；要修應修 workflow 不是首頁
+
+**改進方向（未來可做）**：
+- Accessibility 80 → 95：補 aria-label、色彩對比度、h2/h3 階層修正
+- 首頁 Lighthouse：workflow 加 chromeFlags UA 模擬 Googlebot
+
+**改動統計**：
+- 修改 2 檔（sitemap.xml 重寫分層、llms.txt 重寫擴充）
+- 產出 10 份 Lighthouse 基準報告（temporary storage 可查）
+- Commit `58cc0c56`
+
+---
+
 ### 2026-04-22 — 階段 4：P0 優化 5 項完成
 
 **目標**：執行 18 項 SEO 優化清單中的 P0 部分（立即可做、低風險、高回報）。
