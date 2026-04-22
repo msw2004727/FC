@@ -93,10 +93,10 @@ Object.assign(App, {
       requestAnimationFrame(() => {
         let scrollTo = null;
         if (options.centerToday) {
-          // 當日 cell 置中於可視區（用戶要求 2026-04-22）
+          // 當日 cell 放在可視區「上 1/4」位置（用戶要求偏上、能看到更多後續日期）
           const todayEl = scrollEl.querySelector('[data-today="1"]');
           if (todayEl) {
-            scrollTo = todayEl.offsetTop + todayEl.offsetHeight / 2 - scrollEl.clientHeight / 2;
+            scrollTo = todayEl.offsetTop - scrollEl.clientHeight * 0.2;
           }
         }
         if (scrollTo === null) {
