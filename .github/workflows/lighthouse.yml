@@ -1,0 +1,37 @@
+name: Lighthouse CI
+
+# 何時跑：
+# - 手動觸發（隨時想檢查）
+# - 每週一早上 02:00 UTC（台北時間 10:00）自動跑，追蹤長期趨勢
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * 1'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Lighthouse on key pages
+        uses: treosh/lighthouse-ci-action@v12
+        with:
+          urls: |
+            https://toosterx.com/
+            https://toosterx.com/seo/football.html
+            https://toosterx.com/seo/basketball.html
+            https://toosterx.com/seo/pickleball.html
+            https://toosterx.com/seo/dodgeball.html
+            https://toosterx.com/seo/running.html
+            https://toosterx.com/seo/hiking.html
+            https://toosterx.com/seo/football-taichung.html
+            https://toosterx.com/seo/sports-changhua.html
+            https://toosterx.com/seo/sports-nantou.html
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+          # 不設 assertions，只收集報告（先觀察基準再訂閾值）
+          runs: 1
