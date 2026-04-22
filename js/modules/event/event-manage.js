@@ -444,6 +444,8 @@ Object.assign(App, {
     this.renderMyActivities();
     this.renderActivityList();
     this.renderHotEvents();
+    // 月曆 tab 下同步更新置頂高光（見 calendar-view-plan §12.E）
+    if (this._activityActiveTab === 'calendar') { try { this._renderActivityCalendar?.(); } catch (_) {} }
     this.showToast(nextPinned ? `已置頂「${e.title}」` : `已取消置頂「${e.title}」`);
   },
 

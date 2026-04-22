@@ -39,7 +39,7 @@ flowchart TD
         THEME["core/theme.js\n深色 / 淺色主題"]
 
         subgraph MODS["modules/ — 14 功能子資料夾 + 24 獨立模組"]
-            EVT["event/ (30)\n活動系統"]
+            EVT["event/ (34)\n活動系統"]
             TEAM["team/ (16)\n俱樂部系統"]
             TOUR["tournament/ (15)\n賽事系統"]
             PROF["profile/ (9)\n個人資料"]
@@ -163,7 +163,7 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 
 ## 功能子資料夾模組清單
 
-### event/ — 活動系統（30 個模組）
+### event/ — 活動系統（34 個模組）
 
 | 檔案 | 說明 |
 |------|------|
@@ -171,8 +171,12 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 | `event-list-helpers.js` | 活動列表共用工具函式（建立者、俱樂部、性別、歸屬判斷、`_getVisibleEvents` 整合黑名單）|
 | `event-list-stats.js` | 活動列表統計渲染（徽章、日期解析、狀態、倒數計時） |
 | `event-list-home.js` | 首頁活動區塊、運動捷徑、熱門活動渲染 |
-| `event-list-timeline.js` | 時間軸卡片載入與活動列表渲染 |
-| `event-list.js` | 活動列表主模組（整合上述 helper） |
+| `event-list-timeline.js` | 時間軸卡片載入與活動列表渲染（含月曆 `data-date-anchor` 支援）|
+| `event-list.js` | 活動列表主模組（整合上述 helper、含月曆 tab 切換 `_setActivityTab` + lazy-load `_loadAndRenderCalendar`）|
+| `event-calendar-constants.js` | 月曆視圖常數：`SPORT_COLORS` × 16、`WEEK_DAY_NAMES`、`MONTH_FORMATTER`、`toDateKey()`、`dateObjToKey()`、`getMonthGridShape()`（2026-04-22 新增）|
+| `event-list-calendar.js` | 月曆視圖主入口：`_renderActivityCalendar` lifecycle + shell + 月份視窗管理（2026-04-22 新增）|
+| `event-list-calendar-build.js` | 月曆 DOM 建構：月份 section / 日期格 / 活動格 / group by date（2026-04-22 新增）|
+| `event-list-calendar-nav.js` | 月曆導航：月份切換、IntersectionObserver、鍵盤導航、+N 跳 timeline（2026-04-22 新增）|
 | `event-share-builders.js` | 分享訊息建構工具（純函式，建構 Flex Message 內容） |
 | `event-share.js` | 活動分享（LINE shareTargetPicker + 底部選單 + 建立後分享提示） |
 | `event-detail.js` | 活動詳情頁主模組 |

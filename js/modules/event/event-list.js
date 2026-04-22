@@ -27,7 +27,39 @@ Object.assign(App, {
     document.querySelectorAll('#activity-tabs .tab').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.atab === tab);
     });
+    // 容器顯示切換（timeline 與月曆互斥）
+    const listEl = document.getElementById('activity-list');
+    const calEl = document.getElementById('activity-calendar');
+    if (tab === 'calendar') {
+      if (listEl) listEl.hidden = true;
+      if (calEl) calEl.hidden = false;
+      if (render) this._loadAndRenderCalendar();
+      return;
+    }
+    if (listEl) listEl.hidden = false;
+    if (calEl) calEl.hidden = true;
     if (render) this.renderActivityList();
+  },
+
+  /** 月曆 tab lazy-load：首次切才載入對應 scripts（見 calendar-view-plan §5 方案 A） */
+  _loadAndRenderCalendar() {
+    // 若模組已載入，直接 render（同步、不走防抖）
+    if (typeof App._renderActivityCalendar === 'function') {
+      try { App._renderActivityCalendar(); } catch (err) { console.error('[Calendar] render failed:', err); }
+      return;
+    }
+    // 尚未載入：動態載入群組
+    if (typeof ScriptLoader === 'undefined' || !ScriptLoader._groups?.activityCalendar) {
+      console.error('[Calendar] script-loader unavailable');
+      this.showToast?.('月曆載入失敗，請重試');
+      return;
+    }
+    ScriptLoader.loadGroup(ScriptLoader._groups.activityCalendar)
+      .then(() => { try { App._renderActivityCalendar?.(); } catch (e) { console.error('[Calendar] render failed:', e); } })
+      .catch(err => {
+        console.error('[Calendar] load failed:', err);
+        this.showToast?.('月曆載入失敗，請重試');
+      });
   },
 
   switchActivityTab(tab) {

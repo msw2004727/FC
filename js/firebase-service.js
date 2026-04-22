@@ -195,7 +195,11 @@ const FirebaseService = {
       var _s = window.scrollY || window.pageYOffset || 0;
       var p = App.currentPage;
       if (p === 'page-home') App.renderHotEvents?.();
-      if (p === 'page-activities') App.renderActivityList?.();
+      if (p === 'page-activities') {
+        App.renderActivityList?.();
+        // 月曆 tab 下也要跟著 realtime 更新（見 calendar-view-plan §12.C）
+        if (App._activityActiveTab === 'calendar') App._renderActivityCalendar?.();
+      }
       if (p === 'page-my-activities') App.renderMyActivities?.();
       App._refreshSportPickerGlow?.();
       if (_s > 0) requestAnimationFrame(function() { window.scrollTo(0, _s); });

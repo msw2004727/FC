@@ -67,14 +67,15 @@ Object.assign(App, {
     toggle.addEventListener('click', () => {
       document.getElementById('filter-bar').classList.toggle('visible');
     });
-    document.getElementById('activity-filter-type')?.addEventListener('change', () => {
+    // filter 變化時 timeline + 月曆都要同步重 render（見 calendar-view-plan §12.O）
+    const _rerenderBoth = () => {
       this.renderActivityList();
-    });
-    document.getElementById('activity-filter-search-btn')?.addEventListener('click', () => {
-      this.renderActivityList();
-    });
+      if (this._activityActiveTab === 'calendar') this._renderActivityCalendar?.();
+    };
+    document.getElementById('activity-filter-type')?.addEventListener('change', _rerenderBoth);
+    document.getElementById('activity-filter-search-btn')?.addEventListener('click', _rerenderBoth);
     document.getElementById('activity-filter-keyword')?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') this.renderActivityList();
+      if (e.key === 'Enter') _rerenderBoth();
     });
   },
 
@@ -185,6 +186,8 @@ Object.assign(App, {
       // 觸發列表重繪（各頁面內部會讀取 App._activeSport 進行篩選）
       try { this.renderHotEvents(); } catch (_) {}
       try { this.renderActivityList(); } catch (_) {}
+      // 月曆 tab 下也要同步重 render（見 calendar-view-plan §12.D）
+      try { if (this._activityActiveTab === 'calendar') this._renderActivityCalendar?.(); } catch (_) {}
       try { this.renderTeamList?.(); } catch (_) {}
       try { this.renderTournamentTimeline?.(); } catch (_) {}
     });

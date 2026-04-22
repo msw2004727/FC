@@ -302,6 +302,13 @@ const ScriptLoader = {
       'js/modules/admin-seo/seo-data-loader.js',
       'js/modules/admin-seo/seo-dashboard.js',
     ],
+    // 月曆視圖：切到月曆 tab 時才動態載入（見 calendar-view-plan §5 lazy-load 方案 A）
+    activityCalendar: [
+      'js/modules/event/event-calendar-constants.js',
+      'js/modules/event/event-list-calendar.js',
+      'js/modules/event/event-list-calendar-build.js',
+      'js/modules/event/event-list-calendar-nav.js',
+    ],
     adminUsers: [
       'js/modules/auto-exp.js',
       'js/modules/auto-exp-rules.js',

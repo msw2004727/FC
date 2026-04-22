@@ -28,6 +28,7 @@
       <div class="tab-bar" id="activity-tabs">
         <button class="tab active" data-atab="normal" onclick="App.switchActivityTab('normal')">一般</button>
         <button class="tab" data-atab="ended" onclick="App.switchActivityTab('ended')">已結束</button>
+        <button class="tab" data-atab="calendar" onclick="App.switchActivityTab('calendar')">月曆</button>
       </div>
       <div class="region-tabs" id="activity-region-tabs">
         <button class="region-tab active" data-region="中部" onclick="App.switchRegionTab('中部')">中部</button>
@@ -41,6 +42,18 @@
         <div class="skeleton skeleton-line"></div>
         <div class="skeleton skeleton-line"></div>
         <div class="skeleton skeleton-line"></div>
+      </div>
+      <!-- 月曆視圖容器（tab 'calendar' 時顯示；見 calendar-view-plan §4.1、§12.J 骨架）-->
+      <div id="activity-calendar" hidden>
+        <div class="evt-cal-skeleton" aria-hidden="true">
+          <div class="evt-cal-skeleton-cell"></div>
+          <div class="evt-cal-skeleton-cell"></div>
+          <div class="evt-cal-skeleton-cell"></div>
+          <div class="evt-cal-skeleton-cell"></div>
+          <div class="evt-cal-skeleton-cell"></div>
+          <div class="evt-cal-skeleton-cell"></div>
+          <div class="evt-cal-skeleton-cell"></div>
+        </div>
       </div>
     </section>
 

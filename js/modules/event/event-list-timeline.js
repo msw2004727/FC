@@ -212,7 +212,9 @@ Object.assign(App, {
       const days = Object.values(monthGroups[monthKey]).sort((a, b) => isEndedTab ? b.day - a.day : a.day - b.day);
       days.forEach(dayInfo => {
         const isToday = todayStr === `${y}/${parseInt(m)}/${dayInfo.day}`;
-        html += `<div class="tl-day-group">`;
+        // 月曆 +N more 錨點用（padded YYYY-MM-DD、見 calendar-view-plan §12.N）
+        const anchorKey = `${y}-${String(parseInt(m)).padStart(2, '0')}-${String(dayInfo.day).padStart(2, '0')}`;
+        html += `<div class="tl-day-group" data-date-anchor="${anchorKey}">`;
         html += `<div class="tl-date-col${isToday ? ' today' : ''}">
           <div class="tl-day-num">${dayInfo.day}</div>
           <div class="tl-day-name">週${dayInfo.dayName}</div>

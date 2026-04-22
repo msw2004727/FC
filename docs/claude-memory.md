@@ -2,6 +2,35 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-22 — 活動月曆視圖實作（3 新模組 + 5 既有檔 8 處 rerender 分支）[永久]
+- **實作**：活動頁新增第 3 種 tab「月曆」，按運動色區分、上下滑切月、置頂高光
+- **新檔（3 個）**：
+  - `js/modules/event/event-calendar-constants.js`（110 行）— SPORT_COLORS × 16、WEEK_DAY_NAMES、MONTH_FORMATTER、`toDateKey()`、`dateObjToKey()`、`getMonthGridShape()`
+  - `js/modules/event/event-list-calendar.js`（105 行）— 主入口 `_renderActivityCalendar` + shell + 月份視窗管理
+  - `js/modules/event/event-list-calendar-build.js`（195 行）— DOM 建構：月份 section / 日期格 / 活動格 / group by date
+  - `js/modules/event/event-list-calendar-nav.js`（139 行）— 月份切換、IntersectionObserver、鍵盤導航、+N 跳 timeline
+  - `css/calendar.css`（316 行）— `.evt-cal-*` 命名空間（非 `.calendar-*` 避免全域污染）
+- **既有檔改動（5 檔 8 處 rerender 分支）**：
+  - `js/firebase-service.js` L201 — onSnapshot 補月曆 render（calendar-view-plan §12.C）⚠️ 鎖定檔例外：本次是分支新增、不動鎖定函式邏輯、見下方「鎖定檔例外」
+  - `js/core/theme.js` L73 + L190 — setActiveSport 與 filter-bar 3 handler 補月曆 rerender（§12.D + §12.O）
+  - `js/modules/event/event-list-helpers.js` L310 — switchRegionTab 補（§12.D）
+  - `js/modules/event/event-manage.js` L448 — toggleMyActivityPin 補（§12.E）
+  - `js/core/navigation.js` L704-706 — `_renderPageContent('page-activities')` 返回頁時補（§12.M）
+  - `js/modules/event/event-list.js` — `_setActivityTab` 擴充 3rd tab 'calendar' + `_loadAndRenderCalendar` lazy-load
+  - `js/modules/event/event-list-timeline.js` L217 — 加 `data-date-anchor` padded `YYYY-MM-DD`（月曆 +N 跳轉用）
+- **關鍵實作決議**：
+  1. **Lazy-load 方案 A**：`script-loader.js` 新增獨立群組 `activityCalendar`（不進 `_pageGroups['page-activities']`），`_setActivityTab('calendar')` 首次觸發時動態載入
+  2. **CSS 命名空間 `.evt-cal-*`**：避免與既有 `.timeline-calendar`、未來 `.calendar-*` 衝突
+  3. **日期 key padded**：`toDateKey('2026/5/1 19:30~21:00')` → `'2026-05-01'`（與 `data-date-anchor` 一致）
+  4. **pinned 沿用 truthy**：`e?.pinned` 不用 `=== true`（與全站一致 `event-list.js` L87、`event-list-timeline.js` L223 等）
+  5. **可見性過濾用 `_getVisibleEvents()`**：已內建 `_isEventVisibleToUser` + `privateEvent` + `_canViewEventByTeamScope`，月曆**不需**再呼叫 `_isEventVisibleToUser`
+  6. **資料庫 / Rules / CF 零改動**：events read 本為 `allow read: if true`、月曆純讀
+- **鎖定檔例外記錄**：本次修改 `firebase-service.js` L201（CLAUDE.md 外科手術鎖定範圍內）僅新增 1 行 render 分支，不動 `ensureUserStatsLoaded` 等鎖定函式本體。**合理例外**理由：onSnapshot render dispatch 必須涵蓋月曆 tab、否則 realtime 更新失效（calendar-view-plan §12.C 已預先記錄）
+- **教訓**：
+  - 計畫書充分審計（v1-v9 共 9 輪）+ 對照既有程式碼的 v6/v7 是最有效的瑕疵攔截手段
+  - 既有模組的 rerender 分支散佈點比想像中多（5 檔 8 處、全靠對照 `renderActivityList` 的呼叫點抓出）
+  - 單檔 300 行上限：初版一檔 466 行、Phase 2 拆 build/nav 後全在 300 以內
+
 ### 2026-04-22 — 版號格式升級為 0.YYYYMMDD{suffix} + app.js 硬編碼 v0. bug [永久]
 - **變更**：版號格式從 `YYYYMMDD{suffix}` 升級為 `0.YYYYMMDD{suffix}`（用戶要求）
 - **bump-version.js 改動**：
