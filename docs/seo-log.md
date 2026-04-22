@@ -133,6 +133,68 @@ index.html (noscript)
 
 ## SEO 優化歷史紀錄
 
+### 2026-04-22 — 階段 2 延伸：GSC API 接入 + 修復 Redirect error（重大 SEO 根因修復）
+
+**問題 / 目標**：
+用戶給了 GSC 授權後（加 `webmasters.readonly` scope 到 ADC），透過 GSC API 做即時審計，發現**重大未知問題**：Cloudflare Pages 的自動 308 redirect 與 sitemap / canonical 不一致，造成 Google 實際上無法正確索引。
+
+**GSC API 審計結果（2026-04-22 截取）**：
+
+基本數據（90 天）：
+- 總曝光 64、點擊 22、CTR 34.38%、平均排名 3.7
+- 手機佔 40 曝光（62.5%）、桌機 24 曝光（37.5%）
+- 國家：台灣 63、泰國 1
+- 表現最好：首頁（曝 47、點 21、CTR 44.7%、排名 2.3）
+- 次優：football-taichung（曝 12-14、點 1）
+
+**重大發現**：
+- `seo/football.html` 在 URL Inspection API 顯示 **Coverage: Redirect error**
+- 實測：所有 10 個 `seo/*.html` 被 Cloudflare 308 redirect 到 `seo/*`（clean URL）
+- 但 sitemap.xml / canonical / hreflang / og:url / JSON-LD 全指向 `.html` 版本
+- Google 抓 sitemap 拿 `.html` URL → 被 308 → 到 clean URL → canonical 卻回指 `.html` → 判定 Redirect error
+
+**執行項目**：
+
+1. **GSC API 接入**（在本機 ADC）
+   - `gcloud auth application-default login --scopes=...webmasters.readonly,...`
+   - `gcloud auth application-default set-quota-project toosterx-seo`
+   - 驗證：列出 11 個 sites，`sc-domain:toosterx.com` siteOwner 權限
+
+2. **修復所有 `.html` URL 引用為 clean URL**（129 處替換，用 Node.js inline 批次處理）
+   - sitemap.xml：10 個 URL 去 .html
+   - index.html：noscript 10 個連結去 .html
+   - 10 個 seo/*.html 的 canonical / hreflang / og:url / JSON-LD / 互連連結
+
+3. **驗證**
+   - grep 無殘留 `.html` 引用
+   - UTF-8 驗證：全無 FFFD 亂碼
+   - canonical 與 sitemap 一致
+
+**關鍵決策**：
+- **Clean URL vs .html URL**：Cloudflare Pages 預設走 clean URL，這是業界標準且 SEO 友好。既然 Cloudflare 會強制 redirect，乾脆把所有引用統一成 clean URL，避免 canonical 混亂
+- **為什麼用 Node.js 批次而非逐個 Edit**：129 處替換逐個 Edit 太繁瑣；Node.js `fs.writeFileSync(f, content, 'utf8')` 明確指定編碼，符合 CLAUDE.md 的 UTF-8 規範
+- **ADC 授權方案（非 Service Account）**：用戶本機 gcloud 登入的 Google 帳號本來就是 toosterx.com 的 GSC owner，加 scope 最便捷。webmasters.readonly 純唯讀，安全
+
+**GSC 狀態數據（修復前）**：
+- sitemap.xml 最後下載 2026-04-22T03:48:29Z
+- Contents: web=14 提交 / 0 已索引
+- 首頁 indexed（Verdict PASS）、football-taichung.html indexed
+- football.html **Redirect error**（今天才爬到）
+- 其他 SEO 頁 "Discovered - currently not indexed"（排程中）
+
+**預期效果（修復後）**：
+- GitHub Actions submit-sitemap 自動觸發重送 sitemap
+- Google 重新爬取 clean URL 版本的 sitemap
+- 1-7 天內新 URL 進入索引
+- football.html 的 Redirect error 消失
+- 所有 SEO 頁面能正確累積排名
+
+**改動統計**：
+- 12 檔修改、129 處 URL 替換
+- Commit: cdb97587
+
+---
+
 ### 2026-04-22 — 階段 2：audit 執行 + meta description 縮短 + Lighthouse CI 建設
 
 **問題 / 目標**：
