@@ -1,0 +1,28 @@
+name: Verify GSC Read Permission
+
+# 一次性驗證 Service Account 是否有 GSC 讀取權限
+# 成功後此 workflow 可以留著當健康檢查，或刪除
+
+on:
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify GSC read permissions
+        env:
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$GCP_SERVICE_ACCOUNT_JSON" ]; then
+            echo "✗ GCP_SERVICE_ACCOUNT_JSON secret 未設定"
+            exit 1
+          fi
+          node scripts/verify-gsc-read.js
