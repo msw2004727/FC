@@ -133,6 +133,47 @@ index.html (noscript)
 
 ## SEO 優化歷史紀錄
 
+### 2026-04-22 — 階段 2：audit 執行 + meta description 縮短 + Lighthouse CI 建設
+
+**問題 / 目標**：
+階段 1 新增 4 個 SEO 著陸頁後，執行 audit 確認品質並建立長期監控機制。
+
+**執行項目**：
+
+1. **靜態 SEO audit（通過項目）**
+   - 新 4 頁部署驗證：HTTP 200 全過（toosterx.com/seo/basketball|dodgeball|sports-changhua|sports-nantou）
+   - 圖片 `alt`：全過（SEO 頁不依賴圖片素材）
+   - H1 單一性：全過
+   - `lang="zh-Hant"`：全過
+   - sitemap.xml 可訪問性：200 OK
+
+2. **靜態 SEO audit（發現並修正）**
+   - meta description 全部過長（新 4 頁 240-275 字元，建議 160 以下）
+   - 縮短新 4 頁 meta description 到 95-110 字元
+   - 既有 SEO 頁（football/running/hiking/pickleball 等）亦有類似問題，本次不主動修改以避免干擾既有排名
+
+3. **新增 Lighthouse CI workflow**（`.github/workflows/lighthouse.yml`）
+   - 觸發：手動（workflow_dispatch）+ 每週一 02:00 UTC（台北 10:00）
+   - 涵蓋 10 個代表頁面：首頁 + 6 運動頁 + 3 地區頁
+   - 使用 treosh/lighthouse-ci-action@v12
+   - 報告上傳 temporaryPublicStorage（公開暫存、有效期數月）
+   - 初期不設 assertions 閾值，先收集基準再訂規則
+
+4. **PSI API 備援策略**
+   - Google PageSpeed Insights API 無 key 時共享配額容易被鎖（本次實測遇到）
+   - 改走：(a) 本地靜態分析立即可修的問題 (b) GitHub Actions 的 Lighthouse CI 做長期監控
+   - 若未來需精確 Core Web Vitals 數據，可申請個人 PSI API Key
+
+**關鍵決策**：
+- **為什麼不設 Lighthouse CI 閾值 assertions**：首次執行還沒有基準，過嚴會一直 fail workflow，過鬆失去意義。先收集 4-8 週報告，訂出合理閾值再加
+- **為什麼每週跑而非每次 push**：push 觸發會讓本專案高頻的 commit 節奏被 Lighthouse CI queueing 塞滿；每週定期 + 手動即可滿足監控需求
+- **為什麼不動既有 SEO 頁 meta description**：既有頁面已在 Google SERP 有排名，meta description 重寫會觸發重新評估，短期有排名波動風險。按 CLAUDE.md「外科手術式修改規則」只動新頁
+- **為什麼暫緩擴充著陸頁（階段 1 D 選項）**：先確認階段 1 的 4 頁效果（Google 索引狀態、排名趨勢）再決定是否擴充，避免內容稀釋
+
+**改動統計**：修改 4 檔（meta description）、新增 1 檔（lighthouse.yml workflow）
+
+---
+
 ### 2026-04-22 — 階段 1：內容覆蓋擴充（4 新著陸頁 + 全面 SEO 補強）
 
 **問題 / 目標**：
