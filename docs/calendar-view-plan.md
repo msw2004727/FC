@@ -4,7 +4,8 @@
 **預估工期**：7.5 個工作日（可拆分 2-3 個 commit 批次）
 **版號影響**：會 bump 1-3 次（視批次拆分）
 **預計動到檔案**：11 個（含 3 新建）
-**狀態**：2026-04-22 v8 — 收斂第二輪審計，再挖出 4 項 🟡 中等瑕疵：Tab 記憶、DOM 回收策略、Focus trap、觸控目標尺寸。至此**所有 🔴 高風險已清零**（v6 的 A-E, K, M, N 共 8 項 + v7 的 8 項）；🟡 中等剩餘僅屬「UX 打磨」層級，可選不做但計畫書都標註清楚
+**狀態**：2026-04-22 v9 — **審計收斂宣告**。經 v1→v9 共 9 輪審計、每輪切換視角：v1 初版、v2 用戶確認、v3 10 位技術專家、v4 10 位商業/人文、v5 10 位安全/無障礙/永續、v6 對照既有程式碼（11 項）、v7 收斂第一輪（8 項）、v8 收斂第二輪（4 項 UX 打磨）、v9 最終剩餘項確認。總計 24 項 A-X 全部有決議、零未決**中/重大瑕疵**。
+**收斂定義**：🔴 高風險全解（16 項）、🟡 中等全記錄且有明確決議與驗收（12 項）、🟢 低風險合理留白（6 項）
 
 ---
 
@@ -1694,6 +1695,32 @@ _handleCalendarKeydown(event) {
 - [ ] Chrome DevTools → Lighthouse → Accessibility audit score ≥ 90
 - [ ] 實機 iPhone SE（最小螢幕 4.7"）點擊邊緣格誤觸率 < 10%
 - [ ] axe DevTools 跑無 target-size warning（Level AAA 除外）
+
+---
+
+### 12.Y 審計收斂確認（v9 — 剩餘候選已掃、確認無 middle/high 瑕疵）
+
+v9 再掃 5 個潛在疑點，**確認都屬「既有問題」或「合理留白」，不影響本期收斂**：
+
+| 候選瑕疵 | 分類 | 結論 | 處理方式 |
+|---------|------|------|---------|
+| **時區處理** — `_parseEventStartDate` 用 `new Date(y,m,d,hh,mm)` 本地時區建構子、若裝置非 UTC+8 會錯位 | 既有問題（非月曆引入） | timeline 已有此行為、全站共用此函式 | 月曆沿用既有函式、不在本期修 |
+| **Service Worker cache 對 calendar.css** | 無問題 | 版本化 CSS 走既有 `?v=` + cache-first、透過 `bump-version.js` 自動失效 | 無需特殊處理 |
+| **深連結** `#page-activities?tab=calendar&month=2026-05` | 後續擴充 | 既有 hash 路由只支援 `#page-xxx`、無 query param 解析 | §11 後續擴充點（SEO 有幫助） |
+| **500ms snapshot 防抖影響月曆即時性** | 可接受 | 500ms 延遲對瀏覽場景不影響（與 timeline 一致）、自動跟隨 | 沿用、無需獨立 timer |
+| **events filter 性能 O(N)** | 可接受 | 現場 events < 500、每次 filter < 10ms、切月仍順暢 | 待 events > 500 時才做 memoize（§11） |
+
+### 收斂理由
+
+1. **所有 🔴 高風險已有「確定修法」的 1 對 1 對映**：A（data-atab）、B（實測即可）、C/D/E/K/M（各加 1 行）、N（`_toDateKey` 函式）
+2. **所有 🟡 中等風險已有「採用 / 不採用」的明確決議**：F（沿用 truthy）、G（方案 A）、O（同步 render）、P（`.evt-cal-*`）、Q（刪除線 opacity 0.35）、R（極簡原則）、U（後續擴充）、V（5 月 threshold）、W（Escape 回 tab）、X（min 44px）
+3. **所有 🟢 低風險已標為「接受」或「後續擴充」**：H/I/J/S/T
+4. **資料庫 / Rules / CF 對接零改動已確認**（§12.L）
+5. **既有模組改動點完整列出**：共 5 檔 8 處（firebase-service 1 / theme 4 / event-list-helpers switchRegion 1 / event-manage toggleMyActivityPin 1 / navigation 1）
+
+### 宣告
+
+**無剩餘 middle/high 瑕疵**。若後續在實作中發現新瑕疵，應記錄於 `docs/claude-memory.md` 並回寫本計畫書 v10+。
 
 ---
 
