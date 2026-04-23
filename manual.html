@@ -15,6 +15,7 @@
     --sub: #6b7280;
     --line: #e5e7eb;
     --bg: #f9fafb;
+    --panel: #ffffff;
     --warn: #f59e0b;
     --warn-bg: #fef3c7;
     --info: #3b82f6;
@@ -22,6 +23,28 @@
     --danger: #ef4444;
     --danger-bg: #fee2e2;
     --radius: 10px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.05);
+    --shadow-md: 0 4px 12px rgba(0,0,0,.08);
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    --teal: #2dd4bf;
+    --teal-light: #115e59;
+    --teal-lighter: #134e4a;
+    --ink: #e5e7eb;
+    --sub: #9ca3af;
+    --line: #374151;
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --warn: #fbbf24;
+    --warn-bg: #422006;
+    --info: #60a5fa;
+    --info-bg: #1e3a5f;
+    --danger: #f87171;
+    --danger-bg: #450a0a;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.3);
+    --shadow-md: 0 4px 12px rgba(0,0,0,.4);
+    color-scheme: dark;
   }
   html { scroll-behavior: smooth; }
   body {
@@ -30,6 +53,7 @@
     color: var(--ink);
     line-height: 1.75;
     font-size: 15px;
+    transition: background .2s, color .2s;
   }
 
   /* ===== SVG icon base ===== */
@@ -55,27 +79,48 @@
     top: 0;
     height: 100vh;
     padding: 1.5rem 1rem;
-    background: white;
+    background: var(--panel);
     border-right: 1px solid var(--line);
     overflow-y: auto;
+    transition: background .2s, border-color .2s;
   }
   .content { flex: 1; padding: 2.5rem 3rem; max-width: 840px; }
 
   /* ===== Sidebar ===== */
   .brand {
-    display: flex; align-items: center; gap: .5rem;
-    padding: .25rem .5rem .75rem;
+    display: flex; align-items: center; gap: .6rem;
+    padding: .25rem .5rem .85rem;
     border-bottom: 1px solid var(--line);
     margin-bottom: 1rem;
   }
-  .brand-icon {
-    width: 32px; height: 32px; border-radius: 8px;
-    background: linear-gradient(135deg, #0d9488, #14b8a6);
-    display: grid; place-items: center;
-    color: white; font-weight: 800; font-size: 1rem;
+  .brand-logo {
+    height: 32px;
+    width: auto;
+    object-fit: contain;
+    flex-shrink: 0;
   }
-  .brand-text { font-size: 1rem; font-weight: 700; color: var(--ink); }
-  .brand-sub { font-size: .72rem; color: var(--sub); }
+  .brand-logo--dark { display: none; }
+  :root[data-theme="dark"] .brand-logo--light { display: none; }
+  :root[data-theme="dark"] .brand-logo--dark { display: inline-block; }
+  .brand-text-wrap { flex: 1; min-width: 0; }
+  .brand-text { font-size: .95rem; font-weight: 700; color: var(--ink); letter-spacing: .02em; }
+  .brand-sub { font-size: .7rem; color: var(--sub); }
+  .theme-toggle {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--sub);
+    cursor: pointer;
+    display: grid; place-items: center;
+    flex-shrink: 0;
+    transition: background .15s, color .15s, border-color .15s;
+  }
+  .theme-toggle:hover { background: var(--teal-lighter); color: var(--teal); border-color: var(--teal); }
+  .theme-toggle .ic { width: 16px; height: 16px; }
+  .theme-toggle .ic-moon { display: none; }
+  :root[data-theme="dark"] .theme-toggle .ic-sun { display: none; }
+  :root[data-theme="dark"] .theme-toggle .ic-moon { display: inline-block; }
 
   .sidebar nav ul { list-style: none; }
   .sidebar nav li a {
@@ -151,20 +196,26 @@
   }
   p { margin-bottom: .75rem; }
 
-  /* ===== Illustration ===== */
+  /* ===== Illustration (always light panel for SVG legibility) ===== */
   .illus {
-    background: white;
-    border: 1px solid var(--line);
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
     border-radius: var(--radius);
     padding: 1.5rem;
     margin: 1.25rem 0;
     text-align: center;
+    color: #1f2937;
+  }
+  :root[data-theme="dark"] .illus {
+    background: #f8fafc;
+    border-color: #334155;
+    box-shadow: 0 0 0 1px rgba(255,255,255,.05);
   }
   .illus svg { max-width: 100%; height: auto; }
   .illus-caption {
     margin-top: .75rem;
     font-size: .78rem;
-    color: var(--sub);
+    color: #6b7280;
   }
 
   /* ===== Boxes ===== */
@@ -192,10 +243,11 @@
     margin: 1rem 0;
   }
   .card {
-    background: white;
+    background: var(--panel);
     border: 1px solid var(--line);
     border-radius: 8px;
     padding: 1rem;
+    transition: background .2s, border-color .2s;
   }
   .card-icon {
     display: inline-grid;
@@ -264,8 +316,9 @@
   .color-chip {
     display: inline-flex; align-items: center; gap: .35rem;
     padding: .25rem .6rem; border-radius: 999px;
-    background: white; border: 1px solid var(--line);
+    background: var(--panel); border: 1px solid var(--line);
     font-size: .82rem;
+    color: var(--ink);
   }
   .color-dot { width: 10px; height: 10px; border-radius: 50%; }
 
@@ -273,12 +326,13 @@
   table {
     width: 100%;
     border-collapse: collapse;
-    background: white;
+    background: var(--panel);
     border: 1px solid var(--line);
     border-radius: 8px;
     overflow: hidden;
     margin: 1rem 0;
     font-size: .9rem;
+    transition: background .2s, border-color .2s;
   }
   th, td { padding: .6rem .85rem; text-align: left; border-bottom: 1px solid var(--line); }
   th { background: var(--teal-lighter); color: var(--teal); font-weight: 600; }
@@ -382,6 +436,8 @@
     <symbol id="ic-arrow-right" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></symbol>
     <symbol id="ic-mail" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></symbol>
     <symbol id="ic-question" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+    <symbol id="ic-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+    <symbol id="ic-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></symbol>
   </defs>
 </svg>
 
@@ -390,11 +446,16 @@
   <!-- ========== SIDEBAR ========== -->
   <aside class="sidebar" id="sidebar">
     <div class="brand">
-      <div class="brand-icon">T</div>
-      <div>
-        <div class="brand-text">ToosterX</div>
-        <div class="brand-sub">使用手冊 · v1</div>
+      <img src="assets/logo-black.png" alt="ToosterX" class="brand-logo brand-logo--light">
+      <img src="assets/logo-white.png" alt="ToosterX" class="brand-logo brand-logo--dark">
+      <div class="brand-text-wrap">
+        <div class="brand-text">使用手冊</div>
+        <div class="brand-sub">v1</div>
       </div>
+      <button class="theme-toggle" id="theme-toggle" aria-label="切換深淺色主題" title="切換主題">
+        <svg class="ic ic-sun"><use href="#ic-sun"/></svg>
+        <svg class="ic ic-moon"><use href="#ic-moon"/></svg>
+      </button>
     </div>
     <button class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('collapsed')">
       <span style="display:flex;align-items:center;gap:.4rem"><svg class="ic"><use href="#ic-bookmark"/></svg>目錄</span>
@@ -420,7 +481,7 @@
     </nav>
     <div class="sidebar-footer">
       有問題嗎？<br>
-      在 APP 內點選「個人」→「意見回饋」聯繫我們
+      在 APP 內點選「我的」→「意見回饋」聯繫我們
     </div>
   </aside>
 
@@ -548,14 +609,14 @@
         <div class="illus-caption">首頁排版示意圖</div>
       </div>
 
-      <h3>底部 5 個按鈕</h3>
+      <h3>底部導覽列（由左至右）</h3>
       <table>
-        <tr><th width="100">按鈕</th><th>功能</th></tr>
-        <tr><td><svg class="ic"><use href="#ic-home"/></svg>首頁</td><td>最新活動、banner、熱門卡片</td></tr>
-        <tr><td><svg class="ic"><use href="#ic-calendar"/></svg>活動</td><td>月曆 / 進行中 / 已結束 三分頁</td></tr>
-        <tr><td><svg class="ic"><use href="#ic-users"/></svg>俱樂部</td><td>加入或建立運動俱樂部</td></tr>
+        <tr><th width="120">按鈕</th><th>功能</th></tr>
         <tr><td><svg class="ic"><use href="#ic-trophy"/></svg>賽事</td><td>公開賽、友誼賽、報名賽事</td></tr>
-        <tr><td><svg class="ic"><use href="#ic-user"/></svg>個人</td><td>名片、EXP、成就、設定</td></tr>
+        <tr><td><svg class="ic"><use href="#ic-users"/></svg>俱樂部</td><td>加入或建立運動俱樂部</td></tr>
+        <tr><td style="background:var(--teal-lighter);color:var(--teal);font-weight:600"><svg class="ic"><use href="#ic-home"/></svg>首頁（中央）</td><td>最新活動、banner、熱門卡片；上方有 <strong>QR 小按鈕</strong>，點一下跳出你自己的 QR Code 給主辦人掃</td></tr>
+        <tr><td><svg class="ic"><use href="#ic-calendar"/></svg>活動</td><td>月曆 / 進行中 / 已結束 三分頁</td></tr>
+        <tr><td><svg class="ic"><use href="#ic-user"/></svg>我的</td><td>名片、EXP、成就、設定</td></tr>
       </table>
 
       <div class="tip"><svg class="ic"><use href="#ic-bulb"/></svg><span>左上角有個<strong>選單圖示（≡）</strong>，點開會看到更多入口：小遊戲、訊息、掃碼、管理後台（如果你有權限的話）。</span></div>
@@ -604,7 +665,7 @@
         <div class="card">
           <span class="card-icon emoji" aria-hidden="true">⚽</span>
           <div class="card-title">依運動項目</div>
-          <div class="card-desc">足球、籃球、羽球、網球…16 種運動</div>
+          <div class="card-desc">足球、籃球、羽球、網球…十多種運動任選</div>
         </div>
         <div class="card">
           <span class="card-icon c-blue"><svg class="ic"><use href="#ic-location"/></svg></span>
@@ -621,7 +682,7 @@
       <h3>用搜尋最快</h3>
       <p>活動頁頂端有<strong>搜尋框</strong>，輸入活動名、地點、主辦人都能搜。</p>
 
-      <div class="tip"><svg class="ic"><use href="#ic-bulb"/></svg><span>看到喜歡的活動想先留住？按活動右上角的<strong>星星收藏</strong>，之後在「個人」→「我的收藏」找回來。</span></div>
+      <div class="tip"><svg class="ic"><use href="#ic-bulb"/></svg><span>看到喜歡的活動想先留住？按活動右上角的<strong>星星收藏</strong>，之後在「我的」→「我的收藏」找回來。</span></div>
     </section>
 
     <!-- ========== §4 月曆視圖 ========== -->
@@ -1223,13 +1284,14 @@
 
       <h3>EXP 怎麼拿？</h3>
       <table>
-        <tr><th>行為</th><th>EXP</th></tr>
-        <tr><td>首次報名活動</td><td>+5</td></tr>
-        <tr><td>簽到簽退完成一場活動</td><td>+10 ~ +30（依運動與時長）</td></tr>
-        <tr><td>連續 3 天有活動</td><td>+15（連擊 bonus）</td></tr>
-        <tr><td>觸發特定成就</td><td>+50 ~ +200</td></tr>
-        <tr><td>未到場（放鴿子）</td><td>−20（每場）</td></tr>
+        <tr><th>行為</th><th>效果</th></tr>
+        <tr><td>報名活動</td><td>+ 初始 EXP</td></tr>
+        <tr><td>完整簽到 + 簽退（完成一場）</td><td>+ 活動 EXP（主辦人可調整）</td></tr>
+        <tr><td>解鎖成就徽章</td><td>+ 成就 EXP</td></tr>
+        <tr><td>小遊戲高分</td><td>+ 遊戲 EXP</td></tr>
+        <tr><td>未到場（放鴿子、主辦人標記）</td><td>− EXP（扣分）</td></tr>
       </table>
+      <div class="note"><svg class="ic"><use href="#ic-info"/></svg><span>實際 EXP 值可能隨版本或活動類型不同調整，詳細數值以 APP 內「我的」→「EXP 紀錄」顯示為準。</span></div>
     </section>
 
     <!-- ========== §12 小遊戲 ========== -->
@@ -1341,7 +1403,7 @@
         <tr><td>系統公告</td><td>站內訊息</td></tr>
       </table>
 
-      <div class="note"><svg class="ic"><use href="#ic-info"/></svg><span>不想收 LINE 推播？在「個人」→「設定」→「通知偏好」裡可以關。</span></div>
+      <div class="note"><svg class="ic"><use href="#ic-info"/></svg><span>不想收 LINE 推播？在「我的」→「設定」→「通知偏好」裡可以關。</span></div>
     </section>
 
     <!-- ========== §14 小技巧 / FAQ ========== -->
@@ -1359,7 +1421,7 @@
         <div class="card">
           <span class="card-icon c-gray"><svg class="ic"><use href="#ic-gear"/></svg></span>
           <div class="card-title">切主題顏色</div>
-          <div class="card-desc">個人 → 設定 → 主題，深色 / 淺色 / 跟隨系統自由切。</div>
+          <div class="card-desc">我的 → 設定 → 主題，深色 / 淺色 / 跟隨系統自由切。</div>
         </div>
         <div class="card">
           <span class="card-icon"><svg class="ic"><use href="#ic-search"/></svg></span>
@@ -1381,12 +1443,12 @@
 
       <div class="note"><svg class="ic"><use href="#ic-question"/></svg><span><strong>Q：看不到某個活動？</strong><br>A：可能原因：(1) 俱樂部限定你還不是成員；(2) 私密活動你不在邀請名單；(3) 活動主辦人把你加入黑名單。前兩個有解、第三個要跟主辦人溝通。</span></div>
 
-      <div class="note"><svg class="ic"><use href="#ic-question"/></svg><span><strong>Q：EXP 突然少了？</strong><br>A：放鴿子會扣分。在「個人」→「EXP 紀錄」可以看每筆變動原因。</span></div>
+      <div class="note"><svg class="ic"><use href="#ic-question"/></svg><span><strong>Q：EXP 突然少了？</strong><br>A：放鴿子會扣分。在「我的」→「EXP 紀錄」可以看每筆變動原因。</span></div>
 
       <div class="note"><svg class="ic"><use href="#ic-question"/></svg><span><strong>Q：APP 更新後功能卡住？</strong><br>A：右下角選單找「清除快取」按下去，或關掉整個瀏覽器 tab 重開（Mini App 則重開一次 LINE）。</span></div>
 
       <h3>聯絡與建議</h3>
-      <p>在 APP 內點「個人」→「意見回饋」發訊息給我們。或在 LINE 官方帳號直接傳訊。</p>
+      <p>在 APP 內點「我的」→「意見回饋」發訊息給我們。或在 LINE 官方帳號直接傳訊。</p>
 
       <div class="tip"><svg class="ic"><use href="#ic-bulb"/></svg><span>找到 BUG 或有功能建議？截圖 + 簡短描述最有效。我們團隊人數不多但回覆很快</span></div>
     </section>
@@ -1401,6 +1463,45 @@
 </div>
 
 <script>
+// ========== Theme toggle (localStorage + system preference) ==========
+(function() {
+  var STORAGE_KEY = 'toosterx-manual-theme';
+  var root = document.documentElement;
+
+  function applyTheme(t) {
+    if (t === 'dark') root.setAttribute('data-theme', 'dark');
+    else root.removeAttribute('data-theme');
+  }
+
+  // Initial: localStorage > system preference > light
+  var saved = null;
+  try { saved = localStorage.getItem(STORAGE_KEY); } catch (_) {}
+  if (saved === 'dark' || saved === 'light') {
+    applyTheme(saved);
+  } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    applyTheme('dark');
+  }
+
+  var btn = document.getElementById('theme-toggle');
+  if (btn) {
+    btn.addEventListener('click', function() {
+      var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      applyTheme(next);
+      try { localStorage.setItem(STORAGE_KEY, next); } catch (_) {}
+    });
+  }
+
+  // Follow system changes only if user hasn't explicitly picked
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) mq.addEventListener('change', function(e) {
+      var cur = null;
+      try { cur = localStorage.getItem(STORAGE_KEY); } catch (_) {}
+      if (cur !== 'dark' && cur !== 'light') applyTheme(e.matches ? 'dark' : 'light');
+    });
+  }
+})();
+
 // ========== Smooth scroll active-link highlight ==========
 (function() {
   var links = document.querySelectorAll('.sidebar nav a');
