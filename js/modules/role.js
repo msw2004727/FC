@@ -240,7 +240,7 @@ Object.assign(App, {
           : item.action === 'share'
           ? `App._copyShareUrl()`
           : item.action === 'apply-role'
-          ? `window.open('https://toosterx.com/roles/','_blank');App.closeDrawer()`
+          ? `App._handleApplyRoleClick()`
           : item.action === 'manual'
           ? `window.open('https://toosterx.com/manual.html','_blank');App.closeDrawer()`
           : item.action === 'coming-soon'
@@ -292,6 +292,27 @@ Object.assign(App, {
       ? await this._copyToClipboard(url)
       : false;
     this.showToast(ok ? '已複製分享連結！' : '複製失敗，請手動複製');
+    this.closeDrawer();
+  },
+
+  /**
+   * 抽屜「申請（俱樂部/場主/教練）」點擊處理
+   * - 先送站內信通知所有 admin + super_admin（範本 role_application）
+   * - 再開啟 roles 頁（新分頁）
+   * - 關閉抽屜
+   * 用戶未登入或通知寫入失敗都不阻擋開啟 roles 頁（降級處理）
+   */
+  _handleApplyRoleClick() {
+    try {
+      var u = ApiService.getCurrentUser?.();
+      var userName = (u && (u.displayName || u.name)) || '訪客';
+      if (u && typeof this._notifyAdminsFromTemplate === 'function') {
+        this._notifyAdminsFromTemplate('role_application', { userName: userName }, 'system');
+      }
+    } catch (err) {
+      console.warn('[applyRole] notify admins failed:', err);
+    }
+    window.open('https://toosterx.com/roles/', '_blank');
     this.closeDrawer();
   },
 

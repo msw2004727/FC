@@ -147,6 +147,10 @@ Object.assign(App, {
         title: '身份變更通知',
         body: '恭喜 {userName}！您的身份已變更為「{roleName}」。\n\n新身份可能帶來新的權限與功能，請至個人資料頁面查看詳情。\n感謝您對社群的貢獻！',
       },
+      role_application: {
+        title: '有用戶欲申請身分權限',
+        body: '通知有用戶 {userName} 欲申請相關權限，請至官方 LINE@ 確認訊息。',
+      },
       event_changed: {
         title: '活動變更通知',
         body: '您報名的活動資訊有所變更，請留意：\n\n活動名稱：{eventName}\n活動時間：{date}\n活動地點：{location}\n\n如因變更需要取消報名，請至活動頁面操作。',
@@ -225,6 +229,32 @@ Object.assign(App, {
     );
   },
 
+  /**
+   * 以範本發送站內信給所有管理員（admin + super_admin）
+   * @param {string} key - 範本 key（對應 notifTemplates 與 _getDefaultNotifTemplates）
+   * @param {Object} vars - 範本變數（如 {userName}）
+   * @param {string} [category='system'] - 訊息分類
+   */
+  _notifyAdminsFromTemplate(key, vars, category) {
+    const fallbackTemplates = this._getDefaultNotifTemplates();
+    const customTpl = ApiService.getNotifTemplate(key);
+    const tpl = (customTpl && customTpl.title && customTpl.body) ? customTpl : fallbackTemplates[key];
+    if (!tpl) { console.warn('[Notif:admins] 找不到範本:', key); return; }
+    const title = this._renderTemplate(tpl.title, vars);
+    const body = this._renderTemplate(tpl.body, vars);
+    const cat = category || 'system';
+    this._deliverMessageToInbox(
+      title, body, cat, '系統', null, '系統',
+      { targetType: 'role', targetRoles: ['admin', 'super_admin'] }
+    );
+    // LINE 推播（依 targetType='admin' 路由到 admin + super_admin 角色）
+    if (typeof this._queueLinePushByTarget === 'function') {
+      this._queueLinePushByTarget('admin', null, cat, title, body, null, {
+        source: `template:${key}:admins`,
+      });
+    }
+  },
+
   _sendNotifFromTemplate(key, vars, targetUid, category, categoryName, extra = null, options = {}) {
     const fallbackTemplates = {
       ...this._getDefaultNotifTemplates(),
@@ -295,6 +325,7 @@ Object.assign(App, {
       waitlist_demoted: '{eventName} {date} {location}',
       event_cancelled: '{eventName} {date} {location}',
       role_upgrade: '{userName} {roleName}',
+      role_application: '{userName}',
       event_changed: '{eventName} {date} {location}',
       event_relisted: '{eventName} {date} {location}',
     };
