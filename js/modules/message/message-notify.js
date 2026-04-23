@@ -234,6 +234,9 @@ Object.assign(App, {
    * @param {string} key - 範本 key（對應 notifTemplates 與 _getDefaultNotifTemplates）
    * @param {Object} vars - 範本變數（如 {userName}）
    * @param {string} [category='system'] - 訊息分類
+   *
+   * 每次呼叫生成唯一 dedupeKey、確保不被 5 秒重複投遞守衛吞掉
+   * （此 helper 專用於用戶主動觸發的通知、必須允許多次申請）
    */
   _notifyAdminsFromTemplate(key, vars, category) {
     const fallbackTemplates = this._getDefaultNotifTemplates();
@@ -243,14 +246,20 @@ Object.assign(App, {
     const title = this._renderTemplate(tpl.title, vars);
     const body = this._renderTemplate(tpl.body, vars);
     const cat = category || 'system';
+    const uniqueDedupe = `notify-admins:${key}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
     this._deliverMessageToInbox(
       title, body, cat, '系統', null, '系統',
-      { targetType: 'role', targetRoles: ['admin', 'super_admin'] }
+      {
+        targetType: 'role',
+        targetRoles: ['admin', 'super_admin'],
+        dedupeKey: uniqueDedupe,
+      }
     );
     // LINE 推播（依 targetType='admin' 路由到 admin + super_admin 角色）
     if (typeof this._queueLinePushByTarget === 'function') {
       this._queueLinePushByTarget('admin', null, cat, title, body, null, {
         source: `template:${key}:admins`,
+        dedupeKey: uniqueDedupe,
       });
     }
   },
