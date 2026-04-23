@@ -223,7 +223,7 @@ tr:last-child td{border-bottom:none}
       <li>學員分組與訓練進度追蹤</li>
       <li>含一般用戶所有功能</li>
     </ul>
-    <a class="btn btn-outline" href="https://line.me/R/ti/p/%40830utvza" target="_blank">申請成為教練</a>
+    <button type="button" class="btn btn-outline" onclick="showApplyGuide('教練')">申請成為教練</button>
   </div>
 
   <!-- 領隊 / 球經 -->
@@ -249,7 +249,7 @@ tr:last-child td{border-bottom:none}
       <li>俱樂部動態牆與成員溝通</li>
       <li>含教練所有功能</li>
     </ul>
-    <a class="btn btn-primary" href="https://line.me/R/ti/p/%40830utvza" target="_blank">立即申請</a>
+    <button type="button" class="btn btn-primary" onclick="showApplyGuide('俱樂部')">立即申請</button>
   </div>
 
   <!-- 場主 -->
@@ -276,7 +276,7 @@ tr:last-child td{border-bottom:none}
       <li>代表俱樂部參與各級賽事</li>
       <li>場地活動優先曝光（規劃中）</li>
     </ul>
-    <a class="btn btn-primary" href="https://line.me/R/ti/p/%40830utvza" target="_blank">立即申請</a>
+    <button type="button" class="btn btn-primary" onclick="showApplyGuide('場主')">立即申請</button>
   </div>
 
 </div>
@@ -344,6 +344,28 @@ tr:last-child td{border-bottom:none}
     <h3>即將開放</h3>
     <p>身分申請功能目前尚未開放，我們正在加緊準備中。<br>請關注 ToosterX 官方帳號，第一時間獲得開放通知！</p>
     <button class="btn btn-primary" onclick="closePop()">我知道了</button>
+  </div>
+</div>
+
+<!-- ════ Apply Guide Popup（前往 LINE@ 前提示）════ -->
+<div class="overlay" id="apply-guide-overlay" onclick="if(event.target===this)closeApplyGuide()">
+  <div class="dialog" style="max-width:400px">
+    <h3>前往官方 LINE@ 申請</h3>
+    <p style="margin-bottom:.8rem">您正在申請：<strong id="apply-guide-role" style="color:var(--accent);font-size:1rem">教練</strong></p>
+    <div style="background:rgba(251,191,36,.12);border-left:3px solid #f59e0b;border-radius:8px;padding:.85rem 1rem;text-align:left;font-size:.85rem;line-height:1.75;color:var(--t1);margin-bottom:.9rem">
+      <strong style="color:#b45309">請務必主動在 LINE@ 留言</strong>告知：<br>
+      1. 您要申請的身分（教練 / 俱樂部 / 場主）<br>
+      2. 您的暱稱、地區、主要運動項目<br>
+      <br>
+      專人會依訊息順序盡快為您接洽回覆。
+    </div>
+    <p style="font-size:.78rem;color:var(--t3);margin-bottom:1.2rem;line-height:1.6">
+      ※ LINE@ 採被動回覆機制，必須您主動傳訊才能收到回應。
+    </p>
+    <div style="display:flex;gap:.6rem;justify-content:center;flex-wrap:wrap">
+      <button type="button" class="btn btn-outline" onclick="closeApplyGuide()" style="width:auto;padding:.55rem 1.5rem;flex:1;min-width:120px">稍後再說</button>
+      <button type="button" class="btn btn-primary" onclick="goLineAt()" style="width:auto;padding:.55rem 1.5rem;flex:1;min-width:120px">前往 LINE@</button>
+    </div>
   </div>
 </div>
 
@@ -440,6 +462,27 @@ function showComingSoon(){
   },{passive:false});
 }
 function closePop(){document.getElementById('coming-soon-overlay').classList.remove('open');}
+
+/* Apply Guide 彈窗——前往 LINE@ 前的提示 */
+var LINE_AT_URL='https://line.me/R/ti/p/%40830utvza';
+function showApplyGuide(role){
+  var roleEl=document.getElementById('apply-guide-role');
+  if(roleEl) roleEl.textContent=role||'教練';
+  var o=document.getElementById('apply-guide-overlay');
+  if(!o) return;
+  o.classList.add('open');
+  o.addEventListener('touchmove',function(e){
+    if(!e.target.closest('.dialog')){e.preventDefault();e.stopPropagation();}
+  },{passive:false});
+}
+function closeApplyGuide(){
+  var o=document.getElementById('apply-guide-overlay');
+  if(o) o.classList.remove('open');
+}
+function goLineAt(){
+  window.open(LINE_AT_URL,'_blank');
+  closeApplyGuide();
+}
 </script>
 </body>
 </html>
