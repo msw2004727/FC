@@ -4,6 +4,61 @@
    ================================================ */
 Object.assign(App, {
 
+  /**
+   * 顯示「重新登入」彈窗（用於 auth uid mismatch 等 session 異常）
+   * - 複用 app-confirm-modal、暫時覆寫按鈕文字為「稍後再說」/「重新登入」
+   * - 關閉時恢復預設「取消」/「確定」文字、避免污染其他呼叫 appConfirm 的地方
+   * @param {'session_expired'|'sdk_error'} reason
+   */
+  _showReLoginPrompt(reason) {
+    const modal = document.getElementById('app-confirm-modal');
+    const msgEl = document.getElementById('app-confirm-msg');
+    const okBtn = document.getElementById('app-confirm-ok');
+    const cancelBtn = document.getElementById('app-confirm-cancel');
+    if (!modal || !msgEl || !okBtn || !cancelBtn) {
+      // 兜底：modal DOM 尚未載入時改用 toast
+      this.showToast('登入狀態異常，請重整頁面後再試');
+      return;
+    }
+    // 防止多次疊開
+    if (modal.dataset.relogin === '1') return;
+    modal.dataset.relogin = '1';
+
+    const bodyHtml = (reason === 'sdk_error')
+      ? '<div class="app-confirm-warning">⚠ 登入異常</div>'
+        + '瀏覽器儲存空間異常，建議重新登入。<br>'
+        + '若持續發生，請關閉所有分頁後重新開啟 APP。'
+      : '<div class="app-confirm-warning">⚠ 登入狀態異常</div>'
+        + '您的登入 session 已過期或不同步，請重新登入以繼續使用報名、發文、收藏等功能。<br><br>'
+        + '點「稍後再說」仍可瀏覽公開內容。';
+    msgEl.innerHTML = bodyHtml;
+    // 覆寫按鈕文字
+    const originalOkText = okBtn.textContent;
+    const originalCancelText = cancelBtn.textContent;
+    okBtn.textContent = '重新登入';
+    cancelBtn.textContent = '稍後再說';
+
+    modal.classList.add('open');
+    document.body.classList.add('modal-open');
+
+    const cleanup = (shouldLogin) => {
+      modal.classList.remove('open');
+      document.body.classList.remove('modal-open');
+      msgEl.innerHTML = '';
+      okBtn.textContent = originalOkText || '確定';
+      cancelBtn.textContent = originalCancelText || '取消';
+      delete modal.dataset.relogin;
+      // replaceWith 方式清除 listener（比照 appConfirm）
+      okBtn.replaceWith(okBtn.cloneNode(true));
+      cancelBtn.replaceWith(cancelBtn.cloneNode(true));
+      if (shouldLogin && typeof LineAuth !== 'undefined' && typeof LineAuth.login === 'function') {
+        try { LineAuth.login(); } catch (err) { console.error('[reLogin] LineAuth.login failed:', err); }
+      }
+    };
+    okBtn.addEventListener('click', () => cleanup(true), { once: true });
+    cancelBtn.addEventListener('click', () => cleanup(false), { once: true });
+  },
+
   async bindLineLogin() {
     if (typeof LineAuth !== 'undefined') {
       // LIFF SDK 尚未載入（CDN 背景載入中）→ 跳過，等背景載入完成後再呼叫
@@ -106,12 +161,15 @@ Object.assign(App, {
           } else {
             const code = err?.code || '';
             const msg = (err?.message || '').toLowerCase();
-            if (code === 'permission-denied') {
+            // auth uid mismatch / session 失效 → 顯示「重新登入」彈窗取代 toast
+            if (code === 'permission-denied' && msg.includes('uid mismatch')) {
+              this._showReLoginPrompt('session_expired');
+            } else if (code === 'permission-denied') {
               this.showToast('登入失敗：資料庫權限不足，請聯繫管理員更新 Firestore 規則');
             } else if (msg.includes('assertion') || msg.includes('internal')) {
-              // Firebase SDK 內部錯誤（IndexedDB 損壞等）→ 建議清快取重試
+              // Firebase SDK 內部錯誤（IndexedDB 損壞等）→ 顯示「重新登入」彈窗
               console.error('[App] Firebase SDK internal error during login:', err);
-              this.showToast('登入異常，請關閉所有分頁後重新開啟');
+              this._showReLoginPrompt('sdk_error');
             } else {
               this.showToast('登入失敗：' + (err?.message || '資料同步異常'));
             }
