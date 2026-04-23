@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260423g';
+const CACHE_VERSION = '0.20260423h';
 
 // ─── 即時監聽 limit 預設值（可在儀表板動態調整，存於 siteConfig/realtimeConfig）───
 const REALTIME_LIMIT_DEFAULTS = {
@@ -579,6 +579,7 @@ const DRAWER_MENUS = [
   { icon: '', label: '個人數據', i18nKey: 'drawer.personalData', page: 'page-personal-dashboard', minRole: 'user', locked: true },
   { icon: '', label: '二手商品區', i18nKey: 'drawer.shop', page: 'page-shop', minRole: 'user', locked: true },
   { icon: '', label: '排行榜', i18nKey: 'drawer.leaderboard', action: 'coming-soon', minRole: 'user', locked: true },
+  { icon: '', label: '使用手冊', i18nKey: 'drawer.manual', action: 'manual', minRole: 'user' },
   { icon: '', label: '分享網頁', i18nKey: 'drawer.share', action: 'share', minRole: 'user' },
   { icon: '', label: '申請（俱樂部/場主/教練）', i18nKey: 'drawer.applyRole', action: 'apply-role', minRole: 'user' },
   { divider: true },

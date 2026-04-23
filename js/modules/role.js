@@ -241,6 +241,8 @@ Object.assign(App, {
           ? `App._copyShareUrl()`
           : item.action === 'apply-role'
           ? `window.open('https://toosterx.com/roles/','_blank');App.closeDrawer()`
+          : item.action === 'manual'
+          ? `window.open('https://toosterx.com/manual.html','_blank');App.closeDrawer()`
           : item.action === 'coming-soon'
           ? `App.showToast('功能尚未開放'); App.closeDrawer()`
           : `App.openDrawerPage('${item.page}')`;
