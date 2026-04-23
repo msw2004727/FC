@@ -57,7 +57,11 @@ a{color:var(--accent);text-decoration:none}
 .wrap{max-width:1120px;margin:0 auto;padding:0 1.2rem}
 
 /* Hero */
-.hero{text-align:center;padding:4rem 1rem 2.5rem}
+.hero{position:relative;text-align:center;padding:4rem 1rem 2.5rem}
+/* 瀏覽人數（右上角 pill、沿用活動詳細頁風格） */
+.roles-view-count{position:absolute;top:1rem;right:1rem;display:inline-flex;align-items:center;gap:.25rem;padding:.2rem .55rem;background:rgba(128,128,128,.15);color:var(--t2);border-radius:999px;font-size:.72rem;font-weight:500;line-height:1.2;user-select:none;z-index:5}
+.roles-view-count svg{flex-shrink:0;opacity:.7}
+@media(max-width:640px){.roles-view-count{top:.6rem;right:.6rem;font-size:.68rem}}
 .hero h1{font-family:var(--font-d);font-size:clamp(1.8rem,5vw,2.8rem);font-weight:900;letter-spacing:-.03em;line-height:1.2;margin-bottom:.6rem}
 .hero h1 span{color:var(--accent)}
 .hero p{color:var(--t2);font-size:1rem;max-width:520px;margin:0 auto .8rem}
@@ -169,6 +173,10 @@ tr:last-child td{border-bottom:none}
 <body>
 
 <header class="hero">
+  <div id="roles-view-count-wrap" class="roles-view-count" aria-label="瀏覽人數" title="瀏覽人數">
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+    <span id="roles-view-count-num">—</span>
+  </div>
   <h1>選擇你的<span>運動身分</span></h1>
   <p>從球場到雲端，ToosterX 為每一種運動角色打造專屬工具。找到最適合你的方案，開始你的運動旅程。</p>
   <div class="hero-sub">費用方案未來可能調整 · 所有方案均含基礎功能</div>
@@ -462,6 +470,27 @@ function showComingSoon(){
   },{passive:false});
 }
 function closePop(){document.getElementById('coming-soon-overlay').classList.remove('open');}
+
+/* 瀏覽人數——呼叫 CF trackPageView、每次訪問 +1 */
+(function(){
+  var el=document.getElementById('roles-view-count-num');
+  if(!el) return;
+  try{
+    fetch('https://asia-east1-fc-football-6c8dc.cloudfunctions.net/trackPageView',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({page:'roles'}),
+      keepalive:true
+    })
+    .then(function(r){return r.ok?r.json():null;})
+    .then(function(data){
+      if(data&&typeof data.count==='number'){
+        el.textContent=data.count.toLocaleString();
+      }
+    })
+    .catch(function(){});
+  }catch(_){}
+})();
 
 /* Apply Guide 彈窗——前往 LINE@ 前的提示 */
 var LINE_AT_URL='https://line.me/R/ti/p/%40830utvza';

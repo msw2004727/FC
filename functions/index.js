@@ -3056,6 +3056,67 @@ async function getEventById(eventId) {
   return null;
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  trackPageView — 獨立靜態頁瀏覽數計數（roles / manual 等）
+//  每次訪問 +1、不做身分驗證（"不需要太嚴謹"）、CORS 開放公用
+//  首次訪問會 seed 初始值（如 roles 從 500 起算）
+// ═══════════════════════════════════════════════════════════════
+const PAGE_VIEW_SEEDS = Object.freeze({
+  roles: 500,
+});
+const PAGE_VIEW_ID_RE = /^[a-z0-9_-]{1,32}$/;
+
+exports.trackPageView = onRequest(
+  { region: "asia-east1", timeoutSeconds: 10, cors: true },
+  async (req, res) => {
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+    if (!["POST", "GET"].includes(req.method)) {
+      res.set("Allow", "GET, POST, OPTIONS");
+      res.status(405).json({ error: "Method Not Allowed" });
+      return;
+    }
+    try {
+      const rawPage = (req.body && req.body.page)
+        || (req.query && req.query.page)
+        || "";
+      const page = String(rawPage).trim().toLowerCase();
+      if (!page || !PAGE_VIEW_ID_RE.test(page)) {
+        res.status(400).json({ error: "Invalid page id" });
+        return;
+      }
+      const ref = db.collection("siteStats").doc(`pageView_${page}`);
+      const newCount = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists) {
+          const seed = PAGE_VIEW_SEEDS[page] || 0;
+          const count = seed + 1;
+          tx.set(ref, {
+            count,
+            page,
+            seedValue: seed,
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+          return count;
+        }
+        const count = Number(snap.data().count || 0) + 1;
+        tx.update(ref, {
+          count,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        return count;
+      });
+      res.status(200).json({ count: newCount });
+    } catch (err) {
+      console.error("[trackPageView]", err);
+      res.status(500).json({ error: "Internal error" });
+    }
+  }
+);
+
 exports.eventShareOg = onRequest(
   { region: "asia-east1", timeoutSeconds: 15 },
   async (req, res) => {
