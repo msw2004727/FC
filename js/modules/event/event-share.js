@@ -54,7 +54,7 @@ Object.assign(App, {
         '<button class="share-action-sheet-btn" data-choice="copy">' +
           '<span class="share-action-sheet-btn-icon">\uD83D\uDCCB</span>' +
           '<span class="share-action-sheet-btn-label">\u8907\u88FD\u9023\u7D50' +
-            '<span class="share-action-sheet-btn-sub">toosterx \u539F\u57DF\u540D\u30FB\u8CBC\u793E\u7FA4\u986F\u793A\u5C01\u9762</span>' +
+            '<span class="share-action-sheet-btn-sub">toosterx \u539F\u57DF\u540D</span>' +
           '</span>' +
         '</button>';
 
