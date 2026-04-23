@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>ToosterX 使用手冊</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --teal: #0d9488;
+    --teal-light: #ccfbf1;
+    --teal-lighter: #f0fdfa;
+    --ink: #1f2937;
+    --sub: #6b7280;
+    --line: #e5e7eb;
+    --bg: #f9fafb;
+    --warn: #f59e0b;
+    --warn-bg: #fef3c7;
+    --info: #3b82f6;
+    --info-bg: #dbeafe;
+    --danger: #ef4444;
+    --danger-bg: #fee2e2;
+    --radius: 10px;
+  }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans TC', 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.75;
+    font-size: 15px;
+  }
+
+  /* ===== Layout ===== */
+  .layout { display: flex; min-height: 100vh; max-width: 1280px; margin: 0 auto; }
+  .sidebar {
+    width: 260px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    padding: 1.5rem 1rem;
+    background: white;
+    border-right: 1px solid var(--line);
+    overflow-y: auto;
+  }
+  .content { flex: 1; padding: 2.5rem 3rem; max-width: 840px; }
+
+  /* ===== Sidebar ===== */
+  .brand {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .25rem .5rem .75rem;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 1rem;
+  }
+  .brand-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: linear-gradient(135deg, #0d9488, #14b8a6);
+    display: grid; place-items: center;
+    color: white; font-weight: 800; font-size: 1rem;
+  }
+  .brand-text { font-size: 1rem; font-weight: 700; color: var(--ink); }
+  .brand-sub { font-size: .72rem; color: var(--sub); }
+
+  .sidebar nav ul { list-style: none; }
+  .sidebar nav li a {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .45rem .65rem;
+    color: var(--sub);
+    text-decoration: none;
+    border-radius: 6px;
+    margin-bottom: 2px;
+    font-size: .9rem;
+    transition: background .15s, color .15s;
+  }
+  .sidebar nav li a:hover { background: var(--teal-lighter); color: var(--teal); }
+  .sidebar nav li a.active {
+    background: var(--teal-light);
+    color: var(--teal);
+    font-weight: 600;
+  }
+  .nav-emoji { font-size: 1rem; }
+  .sidebar-footer {
+    margin-top: 1.5rem;
+    padding: .75rem;
+    background: var(--teal-lighter);
+    border-radius: 8px;
+    font-size: .72rem;
+    color: var(--sub);
+    line-height: 1.5;
+  }
+
+  /* ===== Content ===== */
+  .hero {
+    background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%);
+    color: white;
+    padding: 2.5rem 2rem;
+    border-radius: 14px;
+    margin-bottom: 3rem;
+  }
+  .hero h1 { font-size: 2rem; margin-bottom: .5rem; }
+  .hero p { font-size: 1rem; opacity: .92; }
+  .hero-tag {
+    display: inline-block; margin-top: 1rem;
+    background: rgba(255,255,255,.2);
+    padding: .3rem .75rem; border-radius: 999px;
+    font-size: .78rem;
+  }
+
+  section {
+    margin-bottom: 4rem;
+    scroll-margin-top: 1rem;
+  }
+  section > h2 {
+    font-size: 1.6rem;
+    color: var(--ink);
+    margin-bottom: .4rem;
+    display: flex; align-items: center; gap: .5rem;
+  }
+  section > h2 .anchor {
+    width: 6px; height: 28px;
+    background: var(--teal); border-radius: 3px;
+  }
+  section > .lead {
+    color: var(--sub);
+    margin-bottom: 1.5rem;
+    font-size: .95rem;
+  }
+  h3 {
+    font-size: 1.1rem;
+    margin: 1.75rem 0 .5rem;
+    color: var(--ink);
+  }
+  p { margin-bottom: .75rem; }
+
+  /* ===== Illustration ===== */
+  .illus {
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    margin: 1.25rem 0;
+    text-align: center;
+  }
+  .illus svg { max-width: 100%; height: auto; }
+  .illus-caption {
+    margin-top: .75rem;
+    font-size: .78rem;
+    color: var(--sub);
+  }
+
+  /* ===== Boxes ===== */
+  .tip, .note, .warn {
+    padding: .85rem 1rem;
+    border-radius: 8px;
+    margin: 1rem 0;
+    font-size: .92rem;
+    display: flex;
+    gap: .65rem;
+    align-items: flex-start;
+  }
+  .tip { background: var(--warn-bg); border-left: 4px solid var(--warn); }
+  .note { background: var(--teal-lighter); border-left: 4px solid var(--teal); }
+  .warn { background: var(--danger-bg); border-left: 4px solid var(--danger); }
+  .tip::before, .note::before, .warn::before {
+    flex-shrink: 0;
+    font-size: 1.1rem;
+    line-height: 1.3;
+  }
+  .tip::before { content: '💡'; }
+  .note::before { content: 'ℹ️'; }
+  .warn::before { content: '⚠️'; }
+
+  /* ===== Cards grid ===== */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: .75rem;
+    margin: 1rem 0;
+  }
+  .card {
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 1rem;
+  }
+  .card-icon {
+    font-size: 1.75rem;
+    margin-bottom: .5rem;
+    display: block;
+  }
+  .card-title {
+    font-weight: 600;
+    margin-bottom: .35rem;
+    color: var(--ink);
+  }
+  .card-desc {
+    font-size: .82rem;
+    color: var(--sub);
+    line-height: 1.55;
+  }
+
+  /* ===== Steps ===== */
+  .steps { counter-reset: step; padding-left: 0; list-style: none; margin: 1rem 0; }
+  .steps li {
+    counter-increment: step;
+    position: relative;
+    padding: .5rem 0 .5rem 2.5rem;
+    margin-bottom: .25rem;
+  }
+  .steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: .55rem;
+    width: 1.75rem; height: 1.75rem;
+    background: var(--teal);
+    color: white;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-weight: 700;
+    font-size: .82rem;
+  }
+
+  /* ===== Badges ===== */
+  .badge {
+    display: inline-block;
+    padding: .15rem .55rem;
+    border-radius: 999px;
+    font-size: .72rem;
+    font-weight: 600;
+    vertical-align: middle;
+  }
+  .badge-teal { background: var(--teal-light); color: var(--teal); }
+  .badge-warn { background: var(--warn-bg); color: #b45309; }
+  .badge-gray { background: #f3f4f6; color: var(--sub); }
+
+  /* ===== Colored squares for sport ===== */
+  .color-legend { display: flex; flex-wrap: wrap; gap: .5rem; margin: .75rem 0; }
+  .color-chip {
+    display: inline-flex; align-items: center; gap: .35rem;
+    padding: .25rem .6rem; border-radius: 999px;
+    background: white; border: 1px solid var(--line);
+    font-size: .82rem;
+  }
+  .color-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  /* ===== Table ===== */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 1rem 0;
+    font-size: .9rem;
+  }
+  th, td { padding: .6rem .85rem; text-align: left; border-bottom: 1px solid var(--line); }
+  th { background: var(--teal-lighter); color: var(--teal); font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+
+  /* ===== Mobile ===== */
+  .menu-toggle { display: none; }
+  @media (max-width: 900px) {
+    .layout { flex-direction: column; }
+    .sidebar {
+      width: 100%;
+      position: sticky;
+      top: 0;
+      max-height: 60vh;
+      height: auto;
+      border-right: none;
+      border-bottom: 1px solid var(--line);
+      z-index: 10;
+    }
+    .sidebar.collapsed nav,
+    .sidebar.collapsed .sidebar-footer { display: none; }
+    .menu-toggle {
+      display: flex; align-items: center; justify-content: space-between;
+      width: 100%;
+      padding: .5rem 0 0;
+      background: none; border: none;
+      font-family: inherit; font-size: 1rem;
+      cursor: pointer;
+      color: var(--teal);
+    }
+    .content { padding: 1.5rem 1.25rem; }
+    .hero { padding: 1.75rem 1.25rem; }
+    .hero h1 { font-size: 1.5rem; }
+  }
+
+  /* ===== Print ===== */
+  @media print {
+    .sidebar, .menu-toggle { display: none; }
+    .layout { display: block; }
+    .content { padding: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ========== SIDEBAR ========== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-icon">T</div>
+      <div>
+        <div class="brand-text">ToosterX</div>
+        <div class="brand-sub">使用手冊 · v1</div>
+      </div>
+    </div>
+    <button class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('collapsed')">
+      <span>📑 目錄</span><span>▾</span>
+    </button>
+    <nav>
+      <ul>
+        <li><a href="#welcome"><span class="nav-emoji">👋</span>歡迎使用</a></li>
+        <li><a href="#home"><span class="nav-emoji">🏠</span>首頁導覽</a></li>
+        <li><a href="#find"><span class="nav-emoji">🔍</span>找活動</a></li>
+        <li><a href="#calendar"><span class="nav-emoji">📅</span>月曆視圖</a></li>
+        <li><a href="#signup"><span class="nav-emoji">📝</span>報名活動</a></li>
+        <li><a href="#waitlist"><span class="nav-emoji">⏳</span>候補名單</a></li>
+        <li><a href="#share"><span class="nav-emoji">📤</span>分享活動</a></li>
+        <li><a href="#checkin"><span class="nav-emoji">✅</span>簽到簽退</a></li>
+        <li><a href="#team"><span class="nav-emoji">👥</span>俱樂部</a></li>
+        <li><a href="#tournament"><span class="nav-emoji">🏆</span>賽事</a></li>
+        <li><a href="#profile"><span class="nav-emoji">👤</span>個人中心</a></li>
+        <li><a href="#games"><span class="nav-emoji">🎮</span>小遊戲</a></li>
+        <li><a href="#notify"><span class="nav-emoji">🔔</span>通知</a></li>
+        <li><a href="#tips"><span class="nav-emoji">💡</span>小技巧 / FAQ</a></li>
+      </ul>
+    </nav>
+    <div class="sidebar-footer">
+      有問題嗎？<br>
+      在 APP 內點選「個人」→「意見回饋」聯繫我們 🙌
+    </div>
+  </aside>
+
+  <!-- ========== CONTENT ========== -->
+  <main class="content">
+
+    <!-- Hero -->
+    <div class="hero">
+      <h1>ToosterX 使用手冊</h1>
+      <p>30 秒讀懂所有功能，從報名到簽到、從俱樂部到賽事，一次搞定 🚀</p>
+      <span class="hero-tag">適用對象：所有用戶 · 不需技術背景</span>
+    </div>
+
+    <!-- ========== §1 歡迎使用 ========== -->
+    <section id="welcome">
+      <h2><span class="anchor"></span>👋 歡迎使用 ToosterX</h2>
+      <p class="lead">運動揪團、報名、管理一站搞定。不用學就會用。</p>
+
+      <p>ToosterX 是一個用 LINE 登入的運動活動平台，幫你做三件事：</p>
+      <div class="cards">
+        <div class="card">
+          <span class="card-icon">🎯</span>
+          <div class="card-title">找到想參加的活動</div>
+          <div class="card-desc">足球、籃球、羽球…按地區按運動篩選</div>
+        </div>
+        <div class="card">
+          <span class="card-icon">👥</span>
+          <div class="card-title">跟朋友一起揪</div>
+          <div class="card-desc">俱樂部、同行者、私密活動都支援</div>
+        </div>
+        <div class="card">
+          <span class="card-icon">🏅</span>
+          <div class="card-title">累積運動成就</div>
+          <div class="card-desc">EXP 升等、成就徽章、個人運動數據</div>
+        </div>
+      </div>
+
+      <h3>登入超簡單</h3>
+      <p>用你平常在用的 <strong>LINE 帳號</strong>一鍵登入，不用註冊、不用記密碼、不用填 email。</p>
+
+      <div class="illus">
+        <svg viewBox="0 0 440 130" width="440">
+          <!-- LINE box -->
+          <rect x="20" y="30" width="110" height="70" rx="14" fill="#06C755"/>
+          <text x="75" y="72" fill="white" text-anchor="middle" font-weight="800" font-size="22" font-family="sans-serif">LINE</text>
+
+          <!-- arrow -->
+          <path d="M 145 65 L 195 65" stroke="#9ca3af" stroke-width="3" stroke-linecap="round"/>
+          <path d="M 188 58 L 198 65 L 188 72" stroke="#9ca3af" stroke-width="3" stroke-linecap="round" fill="none"/>
+
+          <!-- 1 click box -->
+          <rect x="210" y="45" width="80" height="40" rx="8" fill="#fff" stroke="#d1d5db" stroke-width="1.5"/>
+          <text x="250" y="70" fill="#6b7280" text-anchor="middle" font-size="13" font-family="sans-serif">1 click</text>
+
+          <!-- arrow -->
+          <path d="M 305 65 L 355 65" stroke="#9ca3af" stroke-width="3" stroke-linecap="round"/>
+          <path d="M 348 58 L 358 65 L 348 72" stroke="#9ca3af" stroke-width="3" stroke-linecap="round" fill="none"/>
+
+          <!-- ToosterX box -->
+          <rect x="370" y="30" width="50" height="70" rx="14" fill="#0d9488"/>
+          <text x="395" y="72" fill="white" text-anchor="middle" font-weight="800" font-size="22" font-family="sans-serif">T</text>
+        </svg>
+        <div class="illus-caption">LINE 帳號登入，一鍵進入 ToosterX</div>
+      </div>
+
+      <div class="note">沒登入也能<strong>瀏覽活動</strong>！只有「報名」「收藏」「發文」這類需要身分的動作才會跳 LINE 登入。</div>
+    </section>
+
+    <!-- ========== §2 首頁導覽 ========== -->
+    <section id="home">
+      <h2><span class="anchor"></span>🏠 首頁導覽</h2>
+      <p class="lead">打開 APP 看到什麼？各個位置負責什麼？</p>
+
+      <div class="illus">
+        <svg viewBox="0 0 240 440" width="240">
+          <!-- Phone frame -->
+          <rect x="10" y="10" width="220" height="420" rx="22" fill="#fff" stroke="#1f2937" stroke-width="2"/>
+          <!-- Notch -->
+          <rect x="90" y="10" width="60" height="12" rx="6" fill="#1f2937"/>
+
+          <!-- Top bar -->
+          <rect x="22" y="32" width="196" height="36" rx="4" fill="#0d9488"/>
+          <text x="120" y="56" fill="white" text-anchor="middle" font-weight="700" font-size="13" font-family="sans-serif">ToosterX</text>
+
+          <!-- Banner carousel -->
+          <rect x="22" y="76" width="196" height="70" rx="8" fill="#f0fdfa" stroke="#ccfbf1"/>
+          <text x="120" y="118" fill="#0d9488" text-anchor="middle" font-size="12" font-family="sans-serif">🎆 Banner 輪播</text>
+
+          <!-- Hot events -->
+          <rect x="22" y="156" width="196" height="90" rx="8" fill="#fef3c7" stroke="#fde68a"/>
+          <text x="120" y="203" fill="#92400e" text-anchor="middle" font-size="12" font-family="sans-serif">🔥 熱門活動</text>
+
+          <!-- Ad card -->
+          <rect x="22" y="256" width="196" height="60" rx="8" fill="#ede9fe" stroke="#ddd6fe"/>
+          <text x="120" y="289" fill="#6d28d9" text-anchor="middle" font-size="12" font-family="sans-serif">🎯 贊助活動</text>
+
+          <!-- Activity list -->
+          <rect x="22" y="326" width="196" height="40" rx="6" fill="#fff" stroke="#e5e7eb"/>
+          <text x="40" y="351" fill="#1f2937" font-size="11" font-family="sans-serif">⚽ 活動項目...</text>
+
+          <!-- Bottom nav -->
+          <rect x="22" y="380" width="196" height="42" rx="8" fill="#1f2937"/>
+          <text x="40" y="406" fill="#0d9488" text-anchor="middle" font-size="11" font-family="sans-serif">🏠</text>
+          <text x="76" y="406" fill="#9ca3af" text-anchor="middle" font-size="11" font-family="sans-serif">📅</text>
+          <text x="120" y="406" fill="#9ca3af" text-anchor="middle" font-size="11" font-family="sans-serif">👥</text>
+          <text x="164" y="406" fill="#9ca3af" text-anchor="middle" font-size="11" font-family="sans-serif">🏆</text>
+          <text x="200" y="406" fill="#9ca3af" text-anchor="middle" font-size="11" font-family="sans-serif">👤</text>
+        </svg>
+        <div class="illus-caption">首頁排版示意圖</div>
+      </div>
+
+      <h3>底部 5 個按鈕</h3>
+      <table>
+        <tr><th width="80">按鈕</th><th>功能</th></tr>
+        <tr><td>🏠 首頁</td><td>最新活動、banner、熱門卡片</td></tr>
+        <tr><td>📅 活動</td><td>月曆 / 進行中 / 已結束 三分頁</td></tr>
+        <tr><td>👥 俱樂部</td><td>加入或建立運動俱樂部</td></tr>
+        <tr><td>🏆 賽事</td><td>公開賽、友誼賽、報名賽事</td></tr>
+        <tr><td>👤 個人</td><td>名片、EXP、成就、設定</td></tr>
+      </table>
+
+      <div class="tip">左上角有個 <strong>選單圖示（≡）</strong>，點開會看到更多入口：小遊戲、訊息、掃碼、管理後台（如果你有權限的話）。</div>
+    </section>
+
+    <!-- ========== §3 找活動 ========== -->
+    <section id="find">
+      <h2><span class="anchor"></span>🔍 找活動</h2>
+      <p class="lead">三種瀏覽方式，任你挑。</p>
+
+      <div class="illus">
+        <svg viewBox="0 0 440 100" width="440">
+          <!-- Tab 1 -->
+          <rect x="10" y="20" width="130" height="60" rx="10" fill="#0d9488"/>
+          <text x="75" y="47" fill="white" text-anchor="middle" font-weight="700" font-size="14" font-family="sans-serif">📅 月曆</text>
+          <text x="75" y="68" fill="#ccfbf1" text-anchor="middle" font-size="10" font-family="sans-serif">依日期瀏覽</text>
+
+          <!-- Tab 2 -->
+          <rect x="155" y="20" width="130" height="60" rx="10" fill="#fff" stroke="#d1d5db" stroke-width="2"/>
+          <text x="220" y="47" fill="#1f2937" text-anchor="middle" font-weight="700" font-size="14" font-family="sans-serif">▶ 進行中</text>
+          <text x="220" y="68" fill="#6b7280" text-anchor="middle" font-size="10" font-family="sans-serif">即將開放 / 報名中</text>
+
+          <!-- Tab 3 -->
+          <rect x="300" y="20" width="130" height="60" rx="10" fill="#fff" stroke="#d1d5db" stroke-width="2"/>
+          <text x="365" y="47" fill="#1f2937" text-anchor="middle" font-weight="700" font-size="14" font-family="sans-serif">✓ 已結束</text>
+          <text x="365" y="68" fill="#6b7280" text-anchor="middle" font-size="10" font-family="sans-serif">過去的活動</text>
+        </svg>
+        <div class="illus-caption">活動頁的三個分頁</div>
+      </div>
+
+      <h3>進階篩選</h3>
+      <p>活動頁右上角的<strong>漏斗圖示</strong>可以篩選：</p>
+      <div class="cards">
+        <div class="card">
+          <span class="card-icon">⚽</span>
+          <div class="card-title">依運動項目</div>
+          <div class="card-desc">足球、籃球、羽球、網球…16 種運動</div>
+        </div>
+        <div class="card">
+          <span class="card-icon">📍</span>
+          <div class="card-title">依地區</div>
+          <div class="card-desc">全台縣市 / 鄉鎮區</div>
+        </div>
+        <div class="card">
+          <span class="card-icon">🎭</span>
+          <div class="card-title">依類型</div>
+          <div class="card-desc">PLAY / 友誼賽 / 教學 / 觀賽</div>
+        </div>
+      </div>
+
+      <h3>用搜尋最快</h3>
+      <p>活動頁頂端有<strong>搜尋框</strong>，輸入活動名、地點、主辦人都能搜。</p>
+
+      <div class="tip">看到喜歡的活動想先留住？按活動右上角的 <strong>⭐ 收藏</strong>，之後在「個人」→「我的收藏」找回來。</div>
+    </section>
+
+    <!-- ========== §4 月曆視圖 ========== -->
+    <section id="calendar">
+      <h2><span class="anchor"></span>📅 月曆視圖</h2>
+      <p class="lead">一眼看整個月有哪些活動，顏色一看就懂是什麼運動。</p>
+
+      <div class="illus">
+        <svg viewBox="0 0 340 220" width="340">
+          <!-- Header -->
+          <text x="170" y="20" fill="#0d9488" text-anchor="middle" font-weight="700" font-size="14" font-family="sans-serif">2026 年 4 月</text>
+          <!-- Week days -->
+          <g font-family="sans-serif" font-size="10" fill="#6b7280" text-anchor="middle">
+            <text x="30" y="40">日</text><text x="75" y="40">一</text><text x="120" y="40">二</text>
+            <text x="165" y="40">三</text><text x="210" y="40">四</text><text x="255" y="40">五</text><text x="300" y="40">六</text>
+          </g>
+          <!-- Grid (5 rows × 7 cols) -->
+          <g fill="none" stroke="#e5e7eb">
+            <!-- Row 1 -->
+            <rect x="10" y="48" width="40" height="32" rx="4"/>
+            <rect x="55" y="48" width="40" height="32" rx="4"/>
+            <rect x="100" y="48" width="40" height="32" rx="4"/>
+            <rect x="145" y="48" width="40" height="32" rx="4"/>
+            <rect x="190" y="48" width="40" height="32" rx="4"/>
+            <rect x="235" y="48" width="40" height="32" rx="4"/>
+            <rect x="280" y="48" width="40" height="32" rx="4"/>
+          </g>
+          <!-- Highlighted today -->
+          <rect x="145" y="86" width="40" height="32" rx="4" fill="#ccfbf1" stroke="#0d9488" stroke-width="2"/>
+          <!-- Other rows -->
+          <g fill="none" stroke="#e5e7eb">
+            <rect x="10" y="86" width="40" height="32" rx="4"/>
+            <rect x="55" y="86" width="40" height="32" rx="4"/>
+            <rect x="100" y="86" width="40" height="32" rx="4"/>
+            <rect x="190" y="86" width="40" height="32" rx="4"/>
+            <rect x="235" y="86" width="40" height="32" rx="4"/>
+            <rect x="280" y="86" width="40" height="32" rx="4"/>
+            <rect x="10" y="124" width="40" height="32" rx="4"/>
+            <rect x="55" y="124" width="40" height="32" rx="4"/>
+            <rect x="100" y="124" width="40" height="32" rx="4"/>
+            <rect x="145" y="124" width="40" height="32" rx="4"/>
+            <rect x="190" y="124" width="40" height="32" rx="4"/>
+            <rect x="235" y="124" width="40" height="32" rx="4"/>
+            <rect x="280" y="124" width="40" height="32" rx="4"/>
+          </g>
+          <!-- Event dots -->
+          <circle cx="30" cy="70" r="4" fill="#10b981"/>
+          <circle cx="75" cy="70" r="4" fill="#3b82f6"/>
+          <circle cx="210" cy="70" r="4" fill="#f59e0b"/>
+          <circle cx="300" cy="108" r="4" fill="#ef4444"/>
+          <circle cx="255" cy="108" r="4" fill="#10b981"/>
+          <circle cx="165" cy="108" r="4" fill="#8b5cf6"/>
+          <circle cx="120" cy="146" r="4" fill="#10b981"/>
+          <circle cx="235" cy="146" r="4" fill="#f59e0b"/>
+
+          <!-- Arrow up -->
+          <g transform="translate(170, 180)">
+            <path d="M 0 0 L 0 20 M -6 6 L 0 0 L 6 6" stroke="#0d9488" stroke-width="2" fill="none" stroke-linecap="round"/>
+            <text x="15" y="15" fill="#0d9488" font-size="10" font-family="sans-serif">上滑切下個月</text>
+          </g>
+        </svg>
+        <div class="illus-caption">月曆視圖示意（綠底粗框是「今天」、彩色圓點是活動）</div>
+      </div>
+
+      <h3>顏色代表什麼運動？</h3>
+      <div class="color-legend">
+        <span class="color-chip"><span class="color-dot" style="background:#10b981"></span>⚽ 足球</span>
+        <span class="color-chip"><span class="color-dot" style="background:#f59e0b"></span>🏀 籃球</span>
+        <span class="color-chip"><span class="color-dot" style="background:#8b5cf6"></span>🏸 羽球</span>
+        <span class="color-chip"><span class="color-dot" style="background:#3b82f6"></span>🎾 網球</span>
+        <span class="color-chip"><span class="color-dot" style="background:#ef4444"></span>🏓 桌球</span>
+        <span class="color-chip"><span class="color-dot" style="background:#6b7280"></span>…其他</span>
+      </div>
+
+      <h3>操作手勢</h3>
+      <ul class="steps">
+        <li><strong>向下滑 / 向上滑</strong>：切換上/下個月</li>
+        <li><strong>點日期格</strong>：如果格子裡有活動，跳到列表對應日期</li>
+        <li><strong>點右下角 🔴 按鈕</strong>：回到「今天」</li>
+      </ul>
+    </section>
+
+    <!-- ========== §5 報名活動 ========== -->
+    <section id="signup">
+      <h2><span class="anchor"></span>📝 報名活動</h2>
+      <p class="lead">點進活動詳情 → 按「我要報名」→ 完成。就這樣。</p>
+
+      <div class="illus">
+        <svg viewBox="0 0 440 120" width="440">
+          <!-- Step 1 -->
+          <rect x="10" y="25" width="110" height="70" rx="10" fill="#f0fdfa" stroke="#ccfbf1" stroke-width="2"/>
+          <text x="65" y="55" text-anchor="middle" font-size="20">📋</text>
+          <text x="65" y="80" fill="#0d9488" text-anchor="middle" font-weight="600" font-size="12" font-family="sans-serif">點選活動</text>
+
+          <path d="M 130 60 L 160 60" stroke="#9ca3af" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M 154 54 L 162 60 L 154 66" stroke="#9ca3af" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+
+          <!-- Step 2 -->
+          <rect x="170" y="25" width="110" height="70" rx="10" fill="#f0fdfa" stroke="#ccfbf1" stroke-width="2"/>
+          <text x="225" y="55" text-anchor="middle" font-size="20">✍️</text>
+          <text x="225" y="80" fill="#0d9488" text-anchor="middle" font-weight="600" font-size="12" font-family="sans-serif">看詳情 + 報名</text>
+
+          <path d="M 290 60 L 320 60" stroke="#9ca3af" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M 314 54 L 322 60 L 314 66" stroke="#9ca3af" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+
+          <!-- Step 3 -->
+          <rect x="330" y="25" width="100" height="70" rx="10" fill="#0d9488"/>
+          <text x="380" y="55" text-anchor="middle" font-size="20">✅</text>
+          <text x="380" y="80" fill="white" text-anchor="middle" font-weight="600" font-size="12" font-family="sans-serif">完成</text>
+        </svg>
+        <div class="illus-caption">三步驟報名流程</div>
+      </div>
+
+      <h3>按鈕會變色告訴你狀態</h3>
+      <div class="color-legend">
+        <span class="badge badge-teal">我要報名</span>
+        <span class="badge" style="background:#fef3c7;color:#92400e">候補中</span>
+        <span class="badge" style="background:#fee2e2;color:#991b1b">已額滿</span>
+        <span class="badge badge-gray">已報名</span>
+      </div>
+
+      <h3>同行者（代朋友報名）</h3>
+      <p>報名時可勾<strong>「攜帶同行者」</strong>，最多帶 N 位朋友（由活動主辦人設定）。</p>
+      <p>好處：朋友不用自己下載 APP，你幫他報就行。壞處：人頭歸你、朋友缺席扣你分。</p>
+
+      <div class="warn">報名有費用的活動要先跟主辦人確認付款方式（LINE Pay、現場收等）。ToosterX 本身<strong>不處理金流</strong>。</div>
+
+      <h3>取消報名</h3>
+      <p>在活動詳情頁按「取消報名」。如果名單已滿，候補者會<strong>自動遞補</strong>到你的位子。</p>
+    </section>
+
+    <!-- ========== §6 候補名單 ========== -->
+    <section id="waitlist">
+      <h2><span class="anchor"></span>⏳ 候補名單怎麼運作？</h2>
+      <p class="lead">活動滿了不代表沒機會，系統會幫你排隊。</p>
+
+      <div class="illus">
+        <svg viewBox="0 0 460 220" width="460">
+          <!-- Title: Confirmed list -->
+          <text x="90" y="20" fill="#0d9488" font-weight="700" font-size="13" text-anchor="middle" font-family="sans-serif">✓ 正取名單（滿 8/8）</text>
+          <rect x="20" y="30" width="140" height="140" rx="8" fill="#f0fdfa" stroke="#0d9488"/>
+          <g font-family="sans-serif" font-size="11" fill="#0d9488">
+            <text x="35" y="50">1. 阿明</text>
+            <text x="35" y="68">2. 小華</text>
+            <text x="35" y="86">3. 大雄</text>
+            <text x="35" y="104">4. 花子</text>
+            <text x="35" y="122">5. 小剛</text>
+            <text x="35" y="140">6. 志玲</text>
+            <text x="35" y="158">7. 阿強</text>
+          </g>
+          <!-- Empty slot (someone cancelled) -->
+          <rect x="30" y="162" width="120" height="16" fill="#fef3c7" stroke="#f59e0b" stroke-dasharray="3 2"/>
+          <text x="90" y="174" fill="#92400e" font-size="10" text-anchor="middle" font-family="sans-serif">8. (空位)</text>
+
+          <!-- Arrow with 「自動遞補」 -->
+          <path d="M 175 100 L 270 100" stroke="#0d9488" stroke-width="3" stroke-linecap="round"/>
+          <path d="M 262 93 L 272 100 L 262 107" stroke="#0d9488" stroke-width="3" fill="none" stroke-linecap="round"/>
+          <text x="220" y="90" fill="#0d9488" text-anchor="middle" font-weight="700" font-size="11" font-family="sans-serif">自動遞補</text>
+          <text x="220" y="122" fill="#6b7280" text-anchor="middle" font-size="10" font-family="sans-serif">先報名的先升</text>
+
+          <!-- Waitlist -->
+          <text x="370" y="20" fill="#f59e0b" font-weight="700" font-size="13" text-anchor="middle" font-family="sans-serif">⏳ 候補名單</text>
+          <rect x="285" y="30" width="170" height="140" rx="8" fill="#fef3c7" stroke="#f59e0b"/>
+          <g font-family="sans-serif" font-size="11" fill="#92400e">
+            <text x="300" y="50" fill="#0d9488" font-weight="700">1. 小美 ⭐ 即將遞補</text>
+            <text x="300" y="68">2. 阿傑</text>
+            <text x="300" y="86">3. 小緯</text>
+            <text x="300" y="104">4. 建國</text>
+          </g>
+        </svg>
+        <div class="illus-caption">正取有人取消 → 候補第一位自動補上</div>
+      </div>
+
+      <h3>遞補規則</h3>
+      <ul class="steps">
+        <li><strong>先來先補</strong>：候補順序依你按「候補」的<strong>時間</strong>，早報名的先遞補</li>
+        <li><strong>有人走才補</strong>：正取有人取消、或活動主辦人擴充名額時觸發</li>
+        <li><strong>遞補通知</strong>：一旦補上，系統會 LINE 推播 + 站內訊息通知你</li>
+        <li><strong>同行者連動</strong>：如果你帶同行者候補、遞補時是「一起上去」（名額夠的話）</li>
+      </ul>
+
+      <div class="note">不想等了？在候補狀態下一樣可以按「取消候補」，釋出空位給後面的人。</div>
+    </section>
+
+    <!-- ========== §7 分享活動 ========== -->
+    <section id="share">
+      <h2><span class="anchor"></span>📤 分享活動</h2>
+      <p class="lead">看到好活動，分享給隊友用最順手的方式。</p>
+
+      <div class="illus">
+        <svg viewBox="0 0 480 170" width="480">
+          <!-- Box 1 LINE 好友 -->
+          <rect x="10" y="20" width="150" height="130" rx="12" fill="#fff" stroke="#e5e7eb" stroke-width="2"/>
+          <text x="85" y="60" text-anchor="middle" font-size="36">💚</text>
+          <text x="85" y="95" fill="#1f2937" text-anchor="middle" font-weight="700" font-size="14" font-family="sans-serif">LINE 好友</text>
+          <text x="85" y="115" fill="#6b7280" text-anchor="middle" font-size="10" font-family="sans-serif">精美卡片</text>
+          <text x="85" y="130" fill="#6b7280" text-anchor="middle" font-size="10" font-family="sans-serif">直傳好友 / 群組</text>
+
+          <!-- Box 2 LINE 社群 -->
+          <rect x="170" y="20" width="150" height="130" rx="12" fill="#fff" stroke="#e5e7eb" stroke-width="2"/>
+          <text x="245" y="60" text-anchor="middle" font-size="36">💬</text>
+          <text x="245" y="95" fill="#1f2937" text-anchor="middle" font-weight="700" font-size="14" font-family="sans-serif">LINE 社群</text>
+          <text x="245" y="115" fill="#6b7280" text-anchor="middle" font-size="10" font-family="sans-serif">純文字連結</text>
+          <text x="245" y="130" fill="#6b7280" text-anchor="middle" font-size="10" font-family="sans-serif">支援 OpenChat</text>
+
+          <!-- Box 3 複製連結 -->
+          <rect x="330" y="20" width="150" height="130" rx="12" fill="#fff" stroke="#0d9488" stroke-width="2"/>
+          <text x="405" y="60" text-anchor="middle" font-size="36">📋</text>
+          <text x="405" y="95" fill="#1f2937" text-anchor="middle" font-weight="700" font-size="14" font-family="sans-serif">複製連結</text>
+          <text x="405" y="115" fill="#0d9488" text-anchor="middle" font-size="10" font-family="sans-serif">toosterx 原域名</text>
+          <text x="405" y="130" fill="#6b7280" text-anchor="middle" font-size="10" font-family="sans-serif">貼社群有封面卡</text>
+        </svg>
+        <div class="illus-caption">活動底部選單的三種分享選項</div>
+      </div>
+
+      <h3>什麼時候用哪個？</h3>
+      <table>
+        <tr><th>場景</th><th>建議用</th></tr>
+        <tr><td>傳給單一 LINE 好友或群組</td><td>💚 LINE 好友（Flex 卡片最美）</td></tr>
+        <tr><td>貼在 OpenChat / LINE 社群</td><td>💬 LINE 社群（OpenChat 不吃 Flex）</td></tr>
+        <tr><td>貼 FB / IG / Twitter / Telegram</td><td>📋 複製連結（社群會顯示封面 OG 卡）</td></tr>
+        <tr><td>傳 email / 手寫</td><td>📋 複製連結</td></tr>
+      </table>
+
+      <div class="tip">不管用哪個方式分享，收到的人<strong>不需要下載 APP</strong>，點連結就能在 LINE 內直接開啟活動。</div>
+    </section>
+
+    <!-- ========== §8 簽到簽退 ========== -->
+    <section id="checkin">
+      <h2><span class="anchor"></span>✅ 簽到簽退</h2>
+      <p class="lead">活動當天，主辦人出 QR Code、你掃一下，兩秒搞定。</p>
+
+      <div class="illus">
+        <svg viewBox="0 0 440 180" width="440">
+          <!-- QR code -->
+          <rect x="30" y="20" width="140" height="140" rx="12" fill="white" stroke="#1f2937" stroke-width="2"/>
+          <g fill="#1f2937">
+            <!-- Corner squares -->
+            <rect x="45" y="35" width="24" height="24"/>
+            <rect x="131" y="35" width="24" height="24"/>
+            <rect x="45" y="121" width="24" height="24"/>
+            <rect x="51" y="41" width="12" height="12" fill="white"/>
+            <rect x="137" y="41" width="12" height="12" fill="white"/>
+            <rect x="51" y="127" width="12" height="12" fill="white"/>
+            <!-- Random dots to look like QR -->
+            <rect x="80" y="40" width="6" height="6"/><rect x="92" y="40" width="6" height="6"/>
+            <rect x="110" y="40" width="6" height="6"/><rect x="80" y="52" width="6" height="6"/>
+            <rect x="104" y="52" width="6" height="6"/><rect x="116" y="52" width="6" height="6"/>
+            <rect x="86" y="64" width="6" height="6"/><rect x="98" y="64" width="6" height="6"/>
+            <rect x="116" y="64" width="6" height="6"/><rect x="45" y="72" width="6" height="6"/>
+            <rect x="60" y="72" width="6" height="6"/><rect x="78" y="72" width="6" height="6"/>
+            <rect x="98" y="72" width="6" height="6"/><rect x="116" y="72" width="6" height="6"/>
+            <rect x="140" y="72" width="6" height="6"/><rect x="72" y="84" width="6" height="6"/>
+            <rect x="90" y="84" width="6" height="6"/><rect x="104" y="84" width="6" height="6"/>
+            <rect x="128" y="84" width="6" height="6"/><rect x="146" y="84" width="6" height="6"/>
+            <rect x="60" y="96" width="6" height="6"/><rect x="80" y="96" width="6" height="6"/>
+            <rect x="110" y="96" width="6" height="6"/><rect x="134" y="96" width="6" height="6"/>
+            <rect x="150" y="96" width="6" height="6"/><rect x="72" y="108" width="6" height="6"/>
+            <rect x="96" y="108" width="6" height="6"/><rect x="116" y="108" width="6" height="6"/>
+            <rect x="134" y="108" width="6" height="6"/><rect x="72" y="124" width="6" height="6"/>
+            <rect x="90" y="124" width="6" height="6"/><rect x="110" y="124" width="6" height="6"/>
+            <rect x="130" y="124" width="6" height="6"/><rect x="144" y="124" width="6" height="6"/>
+            <rect x="80" y="140" width="6" height="6"/><rect x="100" y="140" width="6" height="6"/>
+            <rect x="120" y="140" width="6" height="6"/>
+          </g>
+          <text x="100" y="176" fill="#1f2937" text-anchor="middle" font-weight="700" font-size="11" font-family="sans-serif">主辦人 QR Code</text>
+
+          <!-- Arrow -->
+          <path d="M 185 90 L 230 90" stroke="#0d9488" stroke-width="3" stroke-linecap="round"/>
+          <path d="M 222 82 L 232 90 L 222 98" stroke="#0d9488" stroke-width="3" fill="none" stroke-linecap="round"/>
+          <text x="208" y="78" fill="#0d9488" text-anchor="middle" font-weight="700" font-size="10" font-family="sans-serif">掃一下</text>
+
+          <!-- Phone with ✓ -->
+          <rect x="250" y="15" width="110" height="150" rx="14" fill="#fff" stroke="#1f2937" stroke-width="2"/>
+          <rect x="290" y="15" width="30" height="8" rx="4" fill="#1f2937"/>
+          <circle cx="305" cy="80" r="30" fill="#ccfbf1"/>
+          <path d="M 290 80 L 303 94 L 320 70" stroke="#0d9488" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <text x="305" y="135" fill="#0d9488" text-anchor="middle" font-weight="700" font-size="12" font-family="sans-serif">簽到成功！</text>
+          <text x="305" y="152" fill="#6b7280" text-anchor="middle" font-size="9" font-family="sans-serif">+10 EXP</text>
+
+          <!-- Confetti -->
+          <text x="400" y="40" font-size="20">🎉</text>
+          <text x="385" y="80" font-size="16">✨</text>
+          <text x="405" y="120" font-size="16">🎊</text>
+        </svg>
+        <div class="illus-caption">主辦人出 QR → 你掃 → 簽到完成 + 拿 EXP</div>
+      </div>
+
+      <h3>兩種簽到方式</h3>
+      <div class="cards">
+        <div class="card">
+          <span class="card-icon">📷</span>
+          <div class="card-title">QR 掃碼（推薦）</div>
+          <div class="card-desc">主辦人在現場出示 QR，所有參加者用 APP 掃一下，快、不會漏。</div>
+        </div>
+        <div class="card">
+          <span class="card-icon">✍️</span>
+          <div class="card-title">主辦人手動勾選</div>
+          <div class="card-desc">主辦人在活動詳情頁按「編輯」，對著名單打勾。適合人少的小活動。</div>
+        </div>
+      </div>
+
+      <h3>簽退呢？</h3>
+      <p>活動結束前，主辦人會再出一張 QR（或自動轉切）給大家掃簽退。有簽到＋有簽退＝完成場次，列入你的運動統計。</p>
+
+      <div class="note">沒簽到（主辦人確認後）會被記為「未到場」，累積多次可能影響之後的活動報名資格。</div>
+    </section>
+
+    <!-- ========== §9 俱樂部 ========== -->
+    <section id="team">
+      <h2><span class="anchor"></span>👥 俱樂部</h2>
+      <p class="lead">揪一群人長期一起玩，不是一次性活動。</p>
+
+      <div class="illus">
+        <svg viewBox="0 0 460 180" width="460">
+          <!-- Building/club icon -->
+          <rect x="30" y="60" width="100" height="90" rx="8" fill="#0d9488"/>
+          <rect x="45" y="75" width="20" height="25" fill="white"/>
+          <rect x="70" y="75" width="20" height="25" fill="white"/>
+          <rect x="95" y="75" width="20" height="25" fill="white"/>
+          <rect x="45" y="110" width="20" height="25" fill="white"/>
+          <rect x="70" y="110" width="30" height="40" fill="#fff3e0"/>
+          <rect x="95" y="110" width="20" height="25" fill="white"/>
+          <text x="80" y="50" fill="#0d9488" text-anchor="middle" font-weight="800" font-size="13" font-family="sans-serif">🏠 俱樂部</text>
+
+          <!-- Members -->
+          <circle cx="175" cy="80" r="18" fill="#fbbf24"/>
+          <text x="175" y="86" text-anchor="middle" font-size="18">😀</text>
+          <circle cx="215" cy="110" r="18" fill="#f472b6"/>
+          <text x="215" y="116" text-anchor="middle" font-size="18">🙂</text>
+          <circle cx="175" cy="140" r="18" fill="#60a5fa"/>
+          <text x="175" y="146" text-anchor="middle" font-size="18">😎</text>
+
+          <!-- Features -->
+          <g font-family="sans-serif" font-size="11" fill="#1f2937">
+            <rect x="265" y="30" width="180" height="35" rx="6" fill="#f0fdfa" stroke="#ccfbf1"/>
+            <text x="275" y="52">📅 內建活動系統</text>
+            <rect x="265" y="75" width="180" height="35" rx="6" fill="#fef3c7" stroke="#fde68a"/>
+            <text x="275" y="97">💬 俱樂部動態牆</text>
+            <rect x="265" y="120" width="180" height="35" rx="6" fill="#ede9fe" stroke="#ddd6fe"/>
+            <text x="275" y="142">🏆 賽事 / 戰績統計</text>
+          </g>
+        </svg>
+        <div class="illus-caption">俱樂部 = 小社群 + 活動管理工具</div>
+      </div>
+
+      <h3>加入 vs 建立</h3>
+      <div class="cards">
+        <div class="card">
+          <span class="card-icon">🚪</span>
+          <div class="card-title">加入既有俱樂部</div>
+          <div class="card-desc">在「俱樂部」頁瀏覽，點「加入」或用邀請連結進入。</div>
+        </div>
+        <div class="card">
+          <span class="card-icon">🏗️</span>
+          <div class="card-title">自己建立</div>
+          <div class="card-desc">右下角 + 號 → 填基本資料 → 招兵買馬。你就是隊長。</div>
+        </div>
+      </div>
+
+      <h3>俱樂部能做什麼？</h3>
+      <ul class="steps">
+        <li><strong>發佈限定活動</strong>：只給俱樂部成員看得到、報得到</li>
+        <li><strong>動態牆</strong>：發文、留言、按讚，分享比賽心得 / 約球貼文</li>
+        <li><strong>戰績排行</strong>：俱樂部內的出席王、MVP、勤勉指數</li>
+        <li><strong>賽事報名</strong>：俱樂部可以整隊報賽事</li>
+      </ul>
+
+      <h3>教育型俱樂部</h3>
+      <p>如果你是<strong>教練 / 社團老師</strong>，可以把俱樂部設為「教育型」，會多出這些功能：</p>
+      <ul>
+        <li>學員分組 / 課程表 / 行事曆</li>
+        <li>個別學員進度追蹤</li>
+        <li>簽到紀錄簿（給家長看）</li>
+      </ul>
+    </section>
+
+    <!-- ========== §10 賽事 ========== -->
+    <section id="tournament">
+      <h2><span class="anchor"></span>🏆 賽事</h2>
+      <p class="lead">比較正式的競賽活動，有淘汰賽程、有獎項、有戰績累積。</p>
+
+      <div class="illus">
+        <svg viewBox="0 0 460 200" width="460">
+          <!-- Trophy -->
+          <g transform="translate(40, 30)">
+            <rect x="25" y="85" width="40" height="12" fill="#f59e0b"/>
+            <rect x="35" y="97" width="20" height="8" fill="#d97706"/>
+            <path d="M 15 20 Q 15 0 45 0 Q 75 0 75 20 L 75 65 Q 75 85 45 85 Q 15 85 15 65 Z" fill="#fbbf24"/>
+            <path d="M 0 25 Q 0 15 15 15 L 15 40 Q 0 40 0 25 Z" fill="#f59e0b"/>
+            <path d="M 75 15 Q 90 15 90 25 Q 90 40 75 40 Z" fill="#f59e0b"/>
+            <text x="45" y="50" text-anchor="middle" font-weight="800" font-size="18" fill="white" font-family="sans-serif">1</text>
+          </g>
+
+          <!-- Bracket -->
+          <g stroke="#0d9488" stroke-width="2" fill="none">
+            <rect x="200" y="30" width="60" height="25" rx="4" fill="white"/>
+            <rect x="200" y="65" width="60" height="25" rx="4" fill="white"/>
+            <rect x="200" y="110" width="60" height="25" rx="4" fill="white"/>
+            <rect x="200" y="145" width="60" height="25" rx="4" fill="white"/>
+
+            <path d="M 260 42 L 285 42 L 285 78 L 310 78"/>
+            <path d="M 260 77 L 285 77"/>
+            <path d="M 260 122 L 285 122 L 285 158 L 310 158"/>
+            <path d="M 260 157 L 285 157"/>
+
+            <rect x="310" y="65" width="60" height="25" rx="4" fill="#ccfbf1"/>
+            <rect x="310" y="145" width="60" height="25" rx="4" fill="#ccfbf1"/>
+
+            <path d="M 370 78 L 395 78 L 395 118 L 420 118"/>
+            <path d="M 370 158 L 395 158"/>
+
+            <rect x="420" y="105" width="40" height="25" rx="4" fill="#fbbf24"/>
+          </g>
+          <text x="440" y="122" text-anchor="middle" font-weight="700" font-size="12" fill="white" font-family="sans-serif">🏆</text>
+          <g font-family="sans-serif" font-size="10" fill="#1f2937">
+            <text x="230" y="47" text-anchor="middle">A 隊</text>
+            <text x="230" y="82" text-anchor="middle">B 隊</text>
+            <text x="230" y="127" text-anchor="middle">C 隊</text>
+            <text x="230" y="162" text-anchor="middle">D 隊</text>
+          </g>
+        </svg>
+        <div class="illus-caption">賽事有淘汰賽程（示意圖）</div>
+      </div>
+
+      <h3>兩種參加方式</h3>
+      <div class="cards">
+        <div class="card">
+          <span class="card-icon">📝</span>
+          <div class="card-title">報名公開賽</div>
+          <div class="card-desc">「賽事」頁瀏覽公開賽、點進去按「報名」。隊伍或個人都行（看主辦規定）。</div>
+        </div>
+        <div class="card">
+          <span class="card-icon">⚔️</span>
+          <div class="card-title">約友誼賽</div>
+          <div class="card-desc">跟另一支隊伍一對一約打。時間、地點、比分由雙方協調。</div>
+        </div>
+      </div>
+
+      <h3>自己辦賽事</h3>
+      <p>在賽事頁右下角 +，可建立自己的賽事。需要填：</p>
+      <ul>
+        <li>賽事名稱、運動項目、日期範圍</li>
+        <li>賽制（單淘汰 / 雙淘汰 / 循環）</li>
+        <li>報名條件（人數、地區、俱樂部限定等）</li>
+        <li>獎項</li>
+      </ul>
+
+      <div class="note">賽事結束後系統會把戰績同步到參加者的個人檔案，累積成終身運動履歷。</div>
+    </section>
+
+    <!-- ========== §11 個人中心 ========== -->
+    <section id="profile">
+      <h2><span class="anchor"></span>👤 個人中心</h2>
+      <p class="lead">你的運動檔案都在這。</p>
+
+      <div class="illus">
+        <svg viewBox="0 0 400 280" width="400">
+          <!-- Card -->
+          <rect x="10" y="10" width="380" height="260" rx="14" fill="white" stroke="#e5e7eb" stroke-width="2"/>
+
+          <!-- Background gradient -->
+          <defs>
+            <linearGradient id="cardBg" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stop-color="#0d9488"/>
+              <stop offset="1" stop-color="#14b8a6"/>
+            </linearGradient>
+          </defs>
+          <rect x="10" y="10" width="380" height="90" rx="14" fill="url(#cardBg)"/>
+
+          <!-- Avatar circle -->
+          <circle cx="70" cy="100" r="36" fill="white" stroke="#0d9488" stroke-width="3"/>
+          <text x="70" y="110" text-anchor="middle" font-size="30">🏃</text>
+
+          <!-- Name & lvl -->
+          <text x="120" y="60" fill="white" font-weight="800" font-size="18" font-family="sans-serif">阿明 Ming</text>
+          <text x="120" y="82" fill="#ccfbf1" font-size="12" font-family="sans-serif">⚽ 足球迷 · 新竹市</text>
+
+          <rect x="120" y="95" width="250" height="18" rx="9" fill="rgba(255,255,255,0.3)"/>
+          <rect x="120" y="95" width="180" height="18" rx="9" fill="#fbbf24"/>
+          <text x="245" y="108" text-anchor="middle" fill="white" font-weight="700" font-size="10" font-family="sans-serif">Lv.12 · 1820 / 2500 EXP</text>
+
+          <!-- Stats grid -->
+          <g font-family="sans-serif">
+            <rect x="30" y="150" width="105" height="55" rx="8" fill="#f0fdfa"/>
+            <text x="82" y="170" text-anchor="middle" fill="#0d9488" font-weight="800" font-size="20">47</text>
+            <text x="82" y="192" text-anchor="middle" fill="#6b7280" font-size="10">完成場次</text>
+
+            <rect x="145" y="150" width="105" height="55" rx="8" fill="#fef3c7"/>
+            <text x="197" y="170" text-anchor="middle" fill="#b45309" font-weight="800" font-size="20">96%</text>
+            <text x="197" y="192" text-anchor="middle" fill="#6b7280" font-size="10">出席率</text>
+
+            <rect x="260" y="150" width="105" height="55" rx="8" fill="#ede9fe"/>
+            <text x="312" y="170" text-anchor="middle" fill="#6d28d9" font-weight="800" font-size="20">23</text>
+            <text x="312" y="192" text-anchor="middle" fill="#6b7280" font-size="10">成就徽章</text>
+
+            <!-- Badges row -->
+            <text x="30" y="225" fill="#1f2937" font-weight="700" font-size="11">🎖️ 最新成就</text>
+            <circle cx="50" cy="248" r="13" fill="#fbbf24"/>
+            <text x="50" y="253" text-anchor="middle" font-size="14">🥇</text>
+            <circle cx="80" cy="248" r="13" fill="#8b5cf6"/>
+            <text x="80" y="253" text-anchor="middle" font-size="14">⚡</text>
+            <circle cx="110" cy="248" r="13" fill="#0d9488"/>
+            <text x="110" y="253" text-anchor="middle" font-size="14">🎯</text>
+            <circle cx="140" cy="248" r="13" fill="#ef4444"/>
+            <text x="140" y="253" text-anchor="middle" font-size="14">🔥</text>
+            <circle cx="170" cy="248" r="13" fill="#3b82f6"/>
+            <text x="170" y="253" text-anchor="middle" font-size="14">⭐</text>
+          </g>
+        </svg>
+        <div class="illus-caption">個人名片預覽</div>
+      </div>
+
+      <h3>個人中心有什麼？</h3>
+      <div class="cards">
+        <div class="card">
+          <span class="card-icon">📇</span>
+          <div class="card-title">名片</div>
+          <div class="card-desc">個人資料 + 運動數據，可分享給朋友（Mini App 連結）</div>
+        </div>
+        <div class="card">
+          <span class="card-icon">🎖️</span>
+          <div class="card-title">成就</div>
+          <div class="card-desc">累積參加、連勝、首次達成…數十種徽章等你收集</div>
+        </div>
+        <div class="card">
+          <span class="card-icon">⭐</span>
+          <div class="card-title">收藏</div>
+          <div class="card-desc">你按過星星的活動、俱樂部都在這</div>
+        </div>
+        <div class="card">
+          <span class="card-icon">⚙️</span>
+          <div class="card-title">設定</div>
+          <div class="card-desc">暱稱、頭像、通知偏好、主題切換</div>
+        </div>
+      </div>
+
+      <h3>EXP 怎麼拿？</h3>
+      <table>
+        <tr><th>行為</th><th>EXP</th></tr>
+        <tr><td>首次報名活動</td><td>+5</td></tr>
+        <tr><td>簽到簽退完成一場活動</td><td>+10 ~ +30（依運動與時長）</td></tr>
+        <tr><td>連續 3 天有活動</td><td>+15（連擊 bonus）</td></tr>
+        <tr><td>觸發特定成就</td><td>+50 ~ +200</td></tr>
+        <tr><td>未到場（放鴿子）</td><td>−20（每場）</td></tr>
+      </table>
+    </section>
+
+    <!-- ========== §12 小遊戲 ========== -->
+    <section id="games">
+      <h2><span class="anchor"></span>🎮 小遊戲</h2>
+      <p class="lead">等報名截止的時候玩一下、累積 EXP、挑戰排行榜。</p>
+
+      <div class="cards">
+        <div class="card">
+          <span class="card-icon">⚽</span>
+          <div class="card-title">Shot Game（射門）</div>
+          <div class="card-desc">拖曳瞄準、放手射門、進球得分。手感遊戲、3 分鐘挑戰一局。</div>
+        </div>
+        <div class="card">
+          <span class="card-icon">🦵</span>
+          <div class="card-title">Kickball（踢球）</div>
+          <div class="card-desc">踢球穿關、物理彈跳、閃避障礙。排行榜看誰最會踢。</div>
+        </div>
+        <div class="card">
+          <span class="card-icon">🐱</span>
+          <div class="card-title">Color Cat（養成）</div>
+          <div class="card-desc">收集角色、探索場景、戰鬥敵人。每隻角色有自己的個性與技能。</div>
+        </div>
+      </div>
+
+      <div class="illus">
+        <svg viewBox="0 0 460 120" width="460">
+          <!-- Podium -->
+          <rect x="50" y="60" width="100" height="50" fill="#cbd5e1"/>
+          <text x="100" y="92" text-anchor="middle" font-weight="800" fill="#1f2937" font-size="22" font-family="sans-serif">2</text>
+          <rect x="170" y="30" width="100" height="80" fill="#fbbf24"/>
+          <text x="220" y="80" text-anchor="middle" font-weight="800" fill="#78350f" font-size="28" font-family="sans-serif">1</text>
+          <rect x="290" y="75" width="100" height="35" fill="#d97706"/>
+          <text x="340" y="100" text-anchor="middle" font-weight="800" fill="white" font-size="18" font-family="sans-serif">3</text>
+
+          <text x="100" y="50" text-anchor="middle" font-size="20">🥈</text>
+          <text x="220" y="22" text-anchor="middle" font-size="24">🥇</text>
+          <text x="340" y="67" text-anchor="middle" font-size="18">🥉</text>
+        </svg>
+        <div class="illus-caption">每週 / 每月排行榜，高分有獎</div>
+      </div>
+
+      <div class="tip">在小遊戲拿到的 EXP 跟運動 EXP 合併計算，練等速度更快。</div>
+    </section>
+
+    <!-- ========== §13 通知 ========== -->
+    <section id="notify">
+      <h2><span class="anchor"></span>🔔 通知</h2>
+      <p class="lead">重要事情不會錯過，但也不會被吵到。</p>
+
+      <div class="illus">
+        <svg viewBox="0 0 460 140" width="460">
+          <!-- Bell -->
+          <g transform="translate(40, 30)">
+            <path d="M 40 5 L 40 0 L 50 0 L 50 5 Q 75 12 75 45 L 80 65 L 10 65 L 15 45 Q 15 12 40 5 Z" fill="#fbbf24" stroke="#d97706" stroke-width="2"/>
+            <circle cx="45" cy="80" r="10" fill="#fbbf24" stroke="#d97706" stroke-width="2"/>
+            <!-- Red dot -->
+            <circle cx="70" cy="15" r="10" fill="#ef4444" stroke="white" stroke-width="2"/>
+            <text x="70" y="20" text-anchor="middle" fill="white" font-weight="800" font-size="11" font-family="sans-serif">3</text>
+          </g>
+
+          <!-- Notifications list -->
+          <g font-family="sans-serif" font-size="11">
+            <rect x="160" y="10" width="290" height="30" rx="6" fill="#f0fdfa" stroke="#ccfbf1"/>
+            <text x="170" y="29" fill="#0d9488">🏀 你候補的籃球賽已自動遞補為正取！</text>
+            <rect x="160" y="50" width="290" height="30" rx="6" fill="#fef3c7" stroke="#fde68a"/>
+            <text x="170" y="69" fill="#92400e">⏰ 明天 19:00 的足球賽記得到場</text>
+            <rect x="160" y="90" width="290" height="30" rx="6" fill="#ede9fe" stroke="#ddd6fe"/>
+            <text x="170" y="109" fill="#6d28d9">🎖️ 恭喜解鎖「連勝 5 場」成就</text>
+          </g>
+        </svg>
+        <div class="illus-caption">站內訊息會聚合在「訊息」頁</div>
+      </div>
+
+      <h3>你會收到哪些通知？</h3>
+      <table>
+        <tr><th>類型</th><th>管道</th></tr>
+        <tr><td>你候補的活動遞補成功</td><td>LINE 推播 + 站內訊息</td></tr>
+        <tr><td>報名的活動時間異動 / 取消</td><td>LINE 推播 + 站內訊息</td></tr>
+        <tr><td>活動提醒（前一天）</td><td>站內訊息</td></tr>
+        <tr><td>解鎖成就 / 升等</td><td>站內訊息</td></tr>
+        <tr><td>俱樂部邀請 / 動態留言</td><td>站內訊息</td></tr>
+        <tr><td>系統公告</td><td>站內訊息</td></tr>
+      </table>
+
+      <div class="note">不想收 LINE 推播？在「個人」→「設定」→「通知偏好」裡可以關。</div>
+    </section>
+
+    <!-- ========== §14 小技巧 / FAQ ========== -->
+    <section id="tips">
+      <h2><span class="anchor"></span>💡 小技巧 & FAQ</h2>
+      <p class="lead">老手都知道的隱藏招式。</p>
+
+      <h3>⚡ 快速技巧</h3>
+      <div class="cards">
+        <div class="card">
+          <span class="card-icon">📱</span>
+          <div class="card-title">加入主畫面（PWA）</div>
+          <div class="card-desc">瀏覽器選單 → 「加到主畫面」，之後像 APP 一樣啟動、離線也能看快取。</div>
+        </div>
+        <div class="card">
+          <span class="card-icon">⚙️</span>
+          <div class="card-title">切主題顏色</div>
+          <div class="card-desc">個人 → 設定 → 主題，深色 / 淺色 / 跟隨系統自由切。</div>
+        </div>
+        <div class="card">
+          <span class="card-icon">🔍</span>
+          <div class="card-title">搜尋快捷</div>
+          <div class="card-desc">首頁搜尋框同時搜活動、俱樂部、賽事三種。</div>
+        </div>
+        <div class="card">
+          <span class="card-icon">⌚</span>
+          <div class="card-title">一鍵重複報名</div>
+          <div class="card-desc">定期活動（每週球敘）開放後第一時間上架，手速快就搶得到。</div>
+        </div>
+      </div>
+
+      <h3>❓ 常見問題</h3>
+
+      <div class="note"><strong>Q：LINE 登入失敗 / 跳不回來？</strong><br>A：清一下瀏覽器資料（Cookie）或改用 LINE 內建瀏覽器開啟。若還是不行，換 WiFi 再試一次（公司 / 學校防火牆可能擋）。</div>
+
+      <div class="note"><strong>Q：報名後人不能到怎麼辦？</strong><br>A：盡早在活動詳情頁按「取消報名」釋出名額。開賽前取消不會扣 EXP，當天放鴿子才會。</div>
+
+      <div class="note"><strong>Q：看不到某個活動？</strong><br>A：可能原因：(1) 俱樂部限定你還不是成員；(2) 私密活動你不在邀請名單；(3) 活動主辦人把你加入黑名單。前兩個有解、第三個要跟主辦人溝通。</div>
+
+      <div class="note"><strong>Q：EXP 突然少了？</strong><br>A：放鴿子會扣分。在「個人」→「EXP 紀錄」可以看每筆變動原因。</div>
+
+      <div class="note"><strong>Q：APP 更新後功能卡住？</strong><br>A：右下角選單找「清除快取」按下去，或關掉整個瀏覽器 tab 重開（Mini App 則重開一次 LINE）。</div>
+
+      <h3>📮 聯絡與建議</h3>
+      <p>在 APP 內點「個人」→「意見回饋」發訊息給我們。或在 LINE 官方帳號直接傳訊。</p>
+
+      <div class="tip">找到 BUG 或有功能建議？截圖 + 簡短描述最有效。我們團隊人數不多但回覆很快 🙌</div>
+    </section>
+
+    <!-- ========== Footer ========== -->
+    <div style="padding: 2rem 0; border-top: 1px solid var(--line); margin-top: 2rem; text-align: center; color: var(--sub); font-size: .82rem;">
+      ToosterX 使用手冊 · 感謝你耐心看完 🙏<br>
+      <span style="font-size: .72rem;">本手冊會隨功能更新調整，建議儲存書籤定期回來看新招</span>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ========== Smooth scroll active-link highlight ==========
+(function() {
+  var links = document.querySelectorAll('.sidebar nav a');
+  var sections = Array.prototype.map.call(links, function(a) {
+    var id = a.getAttribute('href').slice(1);
+    return { link: a, el: document.getElementById(id) };
+  });
+
+  function update() {
+    var scrollPos = window.scrollY + 100;
+    var active = sections[0];
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].el && sections[i].el.offsetTop <= scrollPos) active = sections[i];
+    }
+    sections.forEach(function(s) { s.link.classList.remove('active'); });
+    if (active) active.link.classList.add('active');
+  }
+
+  window.addEventListener('scroll', update, { passive: true });
+  update();
+
+  // Click: if mobile, close sidebar after navigation
+  links.forEach(function(a) {
+    a.addEventListener('click', function() {
+      if (window.innerWidth < 900) {
+        document.getElementById('sidebar').classList.add('collapsed');
+      }
+    });
+  });
+
+  // Mobile: start collapsed
+  if (window.innerWidth < 900) {
+    document.getElementById('sidebar').classList.add('collapsed');
+  }
+})();
+</script>
+
+</body>
+</html>
