@@ -301,6 +301,7 @@ Object.assign(App, {
    * - 再開啟 roles 頁（新分頁）
    * - 關閉抽屜
    * 用戶未登入或通知寫入失敗都不阻擋開啟 roles 頁（降級處理）
+   * 不加冷卻、允許用戶重複申請、admins 會多次收到通知（依用戶決議）
    */
   _handleApplyRoleClick() {
     try {

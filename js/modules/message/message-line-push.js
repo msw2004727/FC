@@ -9,6 +9,9 @@ Object.assign(App, {
     'template:waitlist_promoted',
     'template:event_cancelled',
     'template:event_changed',
+    // 角色申請通知：用戶主動觸發、管理員需即時回應
+    // 雖站主可能關掉 category_system、但此商業重要通知應繞過 toggle
+    'template:role_application',
   ],
 
   _isForcedLinePushSource(source) {

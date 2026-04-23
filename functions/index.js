@@ -205,6 +205,8 @@ const LINE_NOTIFICATION_FORCED_SOURCES = Object.freeze([
   "template:waitlist_promoted",
   "template:event_cancelled",
   "template:event_changed",
+  // 角色申請通知：用戶主動觸發、管理員需即時處理、繞過 category toggle
+  "template:role_application",
 ]);
 const LINE_NOTIFICATION_TOGGLE_ALLOWED_KEYS = new Set([
   "category_activity",
