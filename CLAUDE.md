@@ -373,21 +373,23 @@ https://miniapp.line.me/2009525300-AuPGQ0sh?{deepLinkParam}={id}
 
 ### 強制規則
 
-1. **所有面向用戶的分享 URL 必須使用 Mini App URL**：禁止使用 `liff.line.me` 或 `toosterx.com` 作為新分享連結。
+1. **面向用戶的分享 URL 原則使用 Mini App URL**：`liff.line.me` 已淘汰禁用。`toosterx.com/event-share/{id}`（OG 中繼頁）作為「複製連結」專用例外（2026-04-23 用戶決議），`LINE 好友` / `LINE 群組` / `shareTargetPicker` / QR Code 仍一律用 Mini App URL。
+   - 「複製連結」例外理由：貼到 FB / IG / Twitter / Telegram 時顯示活動封面 OG 卡片（Mini App URL 無法被社群平台爬蟲解析）；Cloud Function 處理 OG 後 redirect 到 Mini App URL，LINE 內點擊仍會進 Mini App
+   - 實作：活動類複用既有 `_buildEventShareOgUrl(eventId)`；其他實體（team / tournament / profile）若要啟用同樣例外，需比照新增對應 OG URL 建構器 + Cloud Function OG 路由
 2. **分享功能的優先實作順序**：
    - 首選：`liff.shareTargetPicker()`（Flex Message 卡片）— 需 LIFF session + LINE Developers Console 啟用
-   - 次選：底部選單提供「複製分享連結」（複製 Mini App URL 純文字）
+   - 次選：底部選單提供「複製分享連結」（活動類複製 `toosterx.com/event-share/{id}` OG URL；其他實體仍為 Mini App URL）
    - 兜底：`navigator.share()` / `_copyToClipboard()` fallback
 3. **新增分享功能時必須比照 `event-share.js` 的模式**：底部選單（Action Sheet）+ Flex Message + 防連點 + altText 截斷（400 字）+ 各級 fallback。
 4. **QR Code 內容也必須使用 Mini App URL**：QR Code 掃描後在 LINE 開啟 Mini App。
-5. **Cloud Function OG 頁面為例外**：`/team-share/{id}` 等 OG 預覽用的中繼頁需保留直連 URL（社群平台爬蟲無法解析 Mini App URL），但最終 redirect 目標應改為 Mini App URL。
+5. **Cloud Function OG 頁面**：`/event-share/{id}` / `/team-share/{id}` 等 OG 預覽用的中繼頁直連 URL（社群平台爬蟲無法解析 Mini App URL），最終 redirect 目標為 Mini App URL。
 6. **LINE Developers Console 設定**：任何使用 `shareTargetPicker` 的 LIFF App，必須確認 Console 中 Share Target Picker 開關為 ON。
 
 ### 分享功能遷移狀態
 
 | 功能 | 狀態 |
 |------|------|
-| 活動分享 | ✅ Mini App URL + Flex Message |
+| 活動分享 | ✅ Mini App URL + Flex Message（「複製連結」走 OG URL） |
 | 俱樂部邀請 | ✅ Mini App URL + Flex Message |
 | 賽事分享 | ✅ Mini App URL + Flex Message |
 | 個人名片分享 | ✅ Mini App URL |

@@ -152,7 +152,10 @@ Object.assign(App, {
       }
 
       if (choice === 'copy') {
-        const ok = await this._copyToClipboard(altText);
+        // 複製連結走 toosterx.com OG 中繼頁（貼 FB / IG 顯示封面卡片），CF 再 redirect 到 Mini App
+        const copyUrl = this._buildEventShareOgUrl(eventId);
+        const copyText = this._buildEventShareAltText(e, copyUrl);
+        const ok = await this._copyToClipboard(copyText);
         this.showToast(ok ? '\u9023\u7D50\u5DF2\u8907\u88FD' : '\u8907\u88FD\u5931\u6557');
         return;
       }
@@ -236,7 +239,10 @@ Object.assign(App, {
       }
 
       if (choice === 'copy') {
-        var ok = await this._copyToClipboard(altText);
+        // 複製連結走 toosterx.com OG 中繼頁（貼 FB / IG 顯示封面卡片），CF 再 redirect 到 Mini App
+        var copyUrl = this._buildEventShareOgUrl(eventId);
+        var copyText = this._buildExternalEventShareAltText(e, copyUrl);
+        var ok = await this._copyToClipboard(copyText);
         this.showToast(ok ? '\u9023\u7D50\u5DF2\u8907\u88FD' : '\u8907\u88FD\u5931\u6557');
         return;
       }

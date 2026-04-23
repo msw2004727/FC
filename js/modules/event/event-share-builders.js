@@ -19,7 +19,13 @@ Object.assign(App, {
     return MINI_APP_BASE_URL + '?' + paramKey + '=' + encodeURIComponent(String(paramValue || '').trim());
   },
 
-  /** 活動專用社群分享 URL（經由 OG 中繼頁，讓連結預覽顯示活動封面圖） */
+  /**
+   * 活動專用社群分享 URL（toosterx.com/event-share/{id} OG 中繼頁）
+   * - 貼到 FB / IG / Twitter / Telegram 等會顯示活動封面卡片
+   * - Cloud Function 渲染 OG 標籤後 redirect 到 Mini App URL
+   * - 「複製連結」選項使用此 URL（CLAUDE.md §分享功能設計規範 例外）
+   * - LINE 好友 / LINE 群組 仍走 Mini App URL（由 `_buildEventLiffUrl` 提供）
+   */
   _buildEventShareOgUrl(eventId) {
     return 'https://toosterx.com/event-share/' + encodeURIComponent(String(eventId || '').trim());
   },
@@ -178,7 +184,11 @@ Object.assign(App, {
   //  External Event: Alt Text Builder
   // ══════════════════════════════════
 
-  _buildExternalEventShareAltText(event) {
+  /**
+   * @param {Object} event
+   * @param {string} [urlOverride] - 可選 URL 覆寫（用於複製連結場景，改走 toosterx.com 域名）
+   */
+  _buildExternalEventShareAltText(event, urlOverride) {
     var lines = [
       '\uFF1C' + (event.title || '') + '\uFF1E',
       '\u65E5\u671F\uFF1A' + (event.date || ''),
@@ -186,7 +196,8 @@ Object.assign(App, {
     if (event.location) {
       lines.push('\u5730\u9EDE\uFF1A' + event.location);
     }
-    var shareUrl = event.id ? (MINI_APP_BASE_URL + '?event=' + event.id) : (event.externalUrl || '');
+    var shareUrl = urlOverride
+      || (event.id ? (MINI_APP_BASE_URL + '?event=' + event.id) : (event.externalUrl || ''));
     lines.push('\u9023\u7D50\uFF1A' + shareUrl);
     var text = lines.join('\n');
     if (text.length > 400) {

@@ -2,6 +2,16 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-23 — 活動分享「複製連結」改走 toosterx.com OG URL [永久]
+- **變更**：活動分享底部選單的「複製連結」選項改為複製 `https://toosterx.com/event-share/{id}`（OG 中繼頁），`LINE 好友` / `LINE 群組` 仍維持 Mini App URL
+- **理由**：用戶 UX 決議 — 貼到 FB / IG / Twitter / Telegram 時顯示活動封面 OG 卡片；Mini App URL 被社群平台爬蟲視為 redirect 無法解析 OG tags
+- **實作**：
+  - `js/modules/event/event-share.js`：`_doShareEvent` / `_doShareExternalEvent` 的 `choice === 'copy'` 分支用 `_buildEventShareOgUrl(eventId)` + `_buildEventShareAltText(e, copyUrl)` 組新 altText
+  - `js/modules/event/event-share-builders.js`：`_buildExternalEventShareAltText` 新增 optional `urlOverride` 參數（backward compat）
+  - `_buildEventShareOgUrl` 早已存在、直接重用
+- **CLAUDE.md 規範更新**：§分享功能設計規範第 1 條鬆綁「複製連結」例外、其他實體若要同例外需各自新增 OG URL 建構器 + CF OG 路由
+- **教訓**：實作前先搜既有 helper（`_buildEventShareOgUrl` 已存在、原本白走一圈多寫 `_buildEventCopyUrl`）
+
 ### 2026-04-23 — 活動詳細頁：離開時自動退出編輯模式
 - **問題**：管理員在活動詳細頁按「編輯」後切分頁（或 browser back）再回來，仍停在編輯模式，需手動按「完成」才能退出
 - **修復**：
