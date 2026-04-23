@@ -623,4 +623,49 @@ Object.assign(App, {
     }
   },
 
+  /**
+   * 離開活動詳細頁時自動退出所有編輯模式（報名 / 候補 / 未報名掃碼）
+   * - 正取 / 未報名：flush 剩餘 debounce timer（instant save 每次勾選 300ms 自動寫入、
+   *   這裡補上最後一次點擊尚未觸發的 debounce）+ 清狀態
+   * - 候補：僅清狀態（候補編輯模式沒有待儲存資料、每個升級/下放都是 immediate write）
+   *
+   * Fire-and-forget：`_flush*InstantSaves` 內部的 DOM 讀取發生在第一個 await 前（同步），
+   * 此時 DOM 仍掛在文件樹中（`_activatePage` 只 toggle `.active` class、不移除節點），
+   * 實際 Firestore 寫入 Promise 在背景完成、不阻塞導航
+   */
+  _autoExitDetailEdits() {
+    // 正取名單
+    if (this._attendanceEditingEventId) {
+      var _aEid = this._attendanceEditingEventId;
+      try {
+        var _aPromise = typeof this._flushInstantSaves === 'function'
+          ? this._flushInstantSaves(_aEid) : null;
+        if (_aPromise && typeof _aPromise.catch === 'function') {
+          _aPromise.catch(function (err) { console.warn('[autoExit] attendance flush failed:', err); });
+        }
+      } catch (err) { console.warn('[autoExit] attendance flush threw:', err); }
+      this._attendancePendingStateByUid = null;
+      this._attendanceEditingEventId = null;
+      if (typeof this._cleanupInstantSave === 'function') this._cleanupInstantSave();
+    }
+    // 未報名掃碼
+    if (this._unregEditingEventId) {
+      var _uEid = this._unregEditingEventId;
+      try {
+        var _uPromise = typeof this._flushUnregInstantSaves === 'function'
+          ? this._flushUnregInstantSaves(_uEid) : null;
+        if (_uPromise && typeof _uPromise.catch === 'function') {
+          _uPromise.catch(function (err) { console.warn('[autoExit] unreg flush failed:', err); });
+        }
+      } catch (err) { console.warn('[autoExit] unreg flush threw:', err); }
+      this._unregPendingStateByUid = null;
+      this._unregEditingEventId = null;
+      if (typeof this._cleanupUnregInstantSave === 'function') this._cleanupUnregInstantSave();
+    }
+    // 候補名單（無 instant save、無待存資料、僅關閉編輯狀態）
+    if (this._waitlistEditingEventId) {
+      this._waitlistEditingEventId = null;
+    }
+  },
+
 });

@@ -673,6 +673,9 @@ Object.assign(App, {
     if (this.currentPage === 'page-activity-detail' && pageId !== 'page-activity-detail') {
       this._flipAnimating = false;
       this._flipAnimatingAt = 0;
+      // 離開活動詳細頁 → 自動退出編輯模式（報名 / 候補 / 未報名掃碼）
+      // instant save 已逐筆寫入、flush 處理剩餘 debounce、候補無待存資料
+      if (typeof this._autoExitDetailEdits === 'function') this._autoExitDetailEdits();
     }
     if (this.currentPage === 'page-game' && pageId !== 'page-game' && this.destroyShotGamePage) {
       this.destroyShotGamePage();

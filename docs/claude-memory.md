@@ -2,6 +2,21 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-23 — 活動詳細頁：離開時自動退出編輯模式
+- **問題**：管理員在活動詳細頁按「編輯」後切分頁（或 browser back）再回來，仍停在編輯模式，需手動按「完成」才能退出
+- **修復**：
+  - `js/modules/event/event-manage.js` 新增 `_autoExitDetailEdits()` — 清三種編輯狀態 + flush 剩餘 debounce：
+    - 正取名單（`_attendanceEditingEventId`）：`_flushInstantSaves` fire-and-forget + 清狀態 + `_cleanupInstantSave`
+    - 未報名掃碼（`_unregEditingEventId`）：同上 with unreg 變體
+    - 候補名單（`_waitlistEditingEventId`）：僅清狀態（候補編輯無待存資料、升級/下放都是 immediate write）
+  - `js/core/navigation.js` `_cleanupBeforePageSwitch` 離開 `page-activity-detail` 分支呼叫此 helper
+- **設計要點**：
+  - Fire-and-forget：`_flushInstantSaves` 內的 DOM 讀取發生在第一個 await 前（同步），`_activatePage` 只 toggle `.active` class 不移除節點，DOM 在 cleanup 當下仍可讀
+  - 不動 CLAUDE.md 鎖定檔 `event-manage-confirm.js`（`_confirmAllAttendance` 是鎖定函式）
+  - 靜默儲存、不顯示 toast（切頁中跳 toast 體驗怪）
+  - `goBack()` 也走 `_cleanupBeforePageSwitch`，browser back 同樣覆蓋
+- **教訓**：instant save（每次勾選 300ms debounce 自動寫入）已讓「完成」變成幾乎沒東西要存的收尾動作、天然適合做 auto-exit
+
 ### 2026-04-23 — 正取名單兩段式 render 回滾（效益誤判）[永久]
 - **背景**：d07e43d3 將 `_doRenderAttendanceTable` 改為兩段式 render，預期把 330-990ms 首見時間壓到 < 50ms
 - **回滾原因（實際效益遠小於原分析）**：
