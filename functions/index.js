@@ -5687,6 +5687,21 @@ exports.deliverToInbox = onCall(
           if (!myTeams.includes(targetTeamId)) {
             throw new HttpsError("permission-denied", "You can only broadcast to your own team");
           }
+        } else if (
+          Array.isArray(targetRoles)
+          && targetRoles.length > 0
+          && targetRoles.every((r) => r === "admin" || r === "super_admin")
+          && targetType !== "all"
+        ) {
+          // 用戶 → 管理員廣播（如：角色申請通知）
+          // 僅限目標純粹是 admin / super_admin、避免用戶濫用廣播到其他角色
+          console.log("[deliverToInbox] user-to-admin broadcast permitted:", {
+            callerUid,
+            callerRole,
+            targetRoles,
+            messageType: safeMessage.type,
+            messageTitle: safeMessage.title,
+          });
         } else {
           throw new HttpsError("permission-denied", "Only admins can broadcast to roles or all users");
         }
