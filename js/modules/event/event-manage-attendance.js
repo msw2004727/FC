@@ -107,22 +107,55 @@ Object.assign(App, {
     });
   },
 
+  // 2026-04-23 v1：拆為兩段式 render（見 docs/attendance-two-stage-plan.md）
+  // - Stage 1（立即、純 cache）：先顯示名字 + 已知簽到狀態、跳過放鴿子統計（快）
+  // - Stage 2（await fetch 後）：補齊完整簽到 + 放鴿子 badge、原子替換
+  // 目的：候補名單 < 10ms 顯示、正取原本 330-990ms、縮為 < 50ms 首見 + 背景補齊
   async _doRenderAttendanceTable(eventId, containerId) {
     const cId = containerId || 'attendance-table-container';
     const container = document.getElementById(cId);
     if (!container) return;
-    // 2026-04-20：鎖容器高度，防 innerHTML 替換期間頁面縮短導致 scrollTop 被瀏覽器 clamp
     App._lockContainerHeight?.(container);
-    // 記住 containerId，供編輯流程重新渲染用
     this._manualEditingContainerId = cId;
     const e = ApiService.getEvent(eventId);
     if (!e) return;
 
-    // 舊活動可能超出全站監聽器 limit → 一次性從子集合補查
-    await Promise.all([
-      ApiService.fetchAttendanceIfMissing(eventId),
-      ApiService.fetchRegistrationsIfMissing(eventId),
-    ]);
+    // Stage 1：立即用 cache 呈現（無 await、skipNoShow=true 跳過昂貴的跨活動放鴿子 scan）
+    this._renderAttendanceTableSync(eventId, cId, { skipNoShow: true });
+
+    // Stage 2：背景 fetch Firestore 補齊後、完整 render
+    try {
+      await Promise.all([
+        ApiService.fetchAttendanceIfMissing(eventId),
+        ApiService.fetchRegistrationsIfMissing(eventId),
+      ]);
+    } catch (err) {
+      console.warn('[AttendanceTable] Stage 2 fetch failed:', err);
+      return;  // Stage 1 已顯示、降級體驗可接受
+    }
+
+    // 防 race：await 期間 container 被清空（用戶切頁）
+    const container2 = document.getElementById(cId);
+    if (!container2) return;
+    // 防 race：用戶已進入編輯模式（避免覆蓋編輯 DOM state、見 attendance-two-stage-plan §4 BUG 1）
+    if (this._attendanceEditingEventId === eventId) return;
+
+    // 🔒 QA 修補：Stage 2 替換前重新鎖高度、避免 row 數變動觸發瀏覽器 scrollTop clamp（跳頂）
+    // 原因：_lockContainerHeight 只鎖 16ms + 300ms 兜底、Stage 2 在 200-800ms 後抵達時 lock 已失效
+    App._lockContainerHeight?.(container2);
+
+    // Stage 2 完整 render（含放鴿子統計、分隊顏色等）
+    this._renderAttendanceTableSync(eventId, cId, { skipNoShow: false });
+  },
+
+  // 純 render 函式（被 Stage 1/2 共用）
+  _renderAttendanceTableSync(eventId, containerId, options = {}) {
+    const { skipNoShow = false } = options;
+    const cId = containerId || 'attendance-table-container';
+    const container = document.getElementById(cId);
+    if (!container) return;
+    const e = ApiService.getEvent(eventId);
+    if (!e) return;
 
     const canManage = this._canManageEvent(e);
     const records = ApiService.getAttendanceRecords(eventId);
@@ -132,7 +165,8 @@ Object.assign(App, {
     const canViewNoShow = canManage
       || (typeof this.hasPermission === 'function' && this.hasPermission('activity.view_noshow'))
       || (typeof this.hasPermission === 'function' && this.hasPermission('admin.repair.no_show_adjust'));
-    const showNoShowColumn = cId === 'detail-attendance-table' && canViewNoShow;
+    // Stage 1（skipNoShow=true）：跳過放鴿子欄位避免跨活動 scan 耗時
+    const showNoShowColumn = !skipNoShow && cId === 'detail-attendance-table' && canViewNoShow;
     const noShowCountByUid = showNoShowColumn ? this._buildNoShowCountByUid() : null;
 
     if (people.length === 0) {
