@@ -341,11 +341,35 @@ const LineAuth = {
     return h === 'localhost' || h === '127.0.0.1' || h.startsWith('192.168.');
   },
 
+  /**
+   * v8 Blocker 2 Part 1：檢查當前 LIFF profile 與 Firebase Auth uid 是否一致。
+   * Tier 2 換帳號污染防線第一層——若不一致、代表 Firebase Auth 殘留舊帳號。
+   * 詳見 docs/lazy-auth-plan.md §2 Blocker 2 + §R5.1 修正後版本。
+   */
+  _isActiveAuthUidConsistent() {
+    if (typeof auth === 'undefined' || !auth?.currentUser) return false;
+    // v7 R3.1 + v8 R5 修正：從 _profile 或 cache 讀、加 ?.userId 防 undefined
+    const cachedOrLive = this._profile || this.restoreCachedProfile();
+    if (!cachedOrLive?.userId) return false;
+    return cachedOrLive.userId === auth.currentUser.uid;
+  },
+
   login() {
+    // v8 Blocker 3：LIFF SDK 未載入時的明確 toast（不死循環）
+    if (typeof liff === 'undefined') {
+      App.showToast('LIFF SDK 載入失敗、請重新整理頁面');
+      return;
+    }
+    if (this._initError) {
+      App.showToast('LINE 登入初始化失敗、請關閉 APP 重開');
+      return;
+    }
     if (!this._ready) {
       App.showToast('LINE 登入服務尚未準備完成');
       return;
     }
+    // v7 R3.4：login 時重設 _pendingStartTime（避免進 APP 30s 後按報名觸發 isPendingLogin 誤判）
+    this._pendingStartTime = Date.now();
     // 只在有 deep link 參數時才帶 redirectUri，否則讓 SDK 使用 Endpoint URL（外部 Safari 相容）
     const base = this._getBaseUrl();
     const current = new URL(window.location.href);

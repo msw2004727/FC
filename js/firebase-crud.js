@@ -831,10 +831,14 @@ Object.assign(FirebaseService, {
   },
 
   async _doRegisterForEvent(eventId, userId, userName, teamKey) {
-    // 確保 Firebase Auth 已登入
-    const authed = await this._ensureAuth();
+    // v8 Blocker 2 Part 3：身分一致性最後防線（寫入層、Tier 2 換帳號防污染）
+    // 傳 expectedUid 讓 _ensureAuth 比對、並在 transaction 前再 assert 一次
+    const authed = await this._ensureAuth(userId);
     if (!authed) {
       throw new Error('Firebase 登入失敗\n請清除瀏覽器緩存後重新登入\n若仍異常請聯繫管理員');
+    }
+    if (auth.currentUser.uid !== userId) {
+      throw new Error('身分不一致、請重新登入');
     }
     console.log('[registerForEvent] auth OK, uid:', auth.currentUser?.uid, 'userId:', userId);
 
@@ -949,12 +953,16 @@ Object.assign(FirebaseService, {
    * @param {string} registrationId - registration doc ID
    */
   async cancelRegistration(registrationId) {
-    const authed = await this._ensureAuth();
+    // v8 Blocker 2 Part 3：身分一致性（取消只能取消自己的報名、Tier 2 換帳號防污染）
+    const reg = this._cache.registrations.find(r => r.id === registrationId);
+    if (!reg) throw new Error('報名記錄不存在');
+    const authed = await this._ensureAuth(reg.userId);
     if (!authed) {
       throw new Error('Firebase 登入失敗\n請清除瀏覽器緩存後重新登入\n若仍異常請聯繫管理員');
     }
-    const reg = this._cache.registrations.find(r => r.id === registrationId);
-    if (!reg) throw new Error('報名記錄不存在');
+    if (auth.currentUser?.uid !== reg.userId) {
+      throw new Error('身分不一致、無法取消他人報名');
+    }
 
     const wasPreviouslyConfirmed = reg.status === 'confirmed';
     const event = this._cache.events.find(e => e.id === reg.eventId);
@@ -2129,6 +2137,10 @@ Object.assign(FirebaseService, {
     }
     const mainUserId = entries[0]?.userId;
     if (!mainUserId || mainUserId === 'unknown') throw new Error('用戶資料載入中，請稍候再試');
+    // v8 Blocker 2 Part 3：身分一致性最後防線（同行者報名同樣擋 Tier 2 污染）
+    if (auth.currentUser?.uid !== mainUserId) {
+      throw new Error('身分不一致、請重新登入');
+    }
     const event = this._cache.events.find(e => e.id === eventId);
     if (!event || !event._docId) throw new Error('活動不存在');
 

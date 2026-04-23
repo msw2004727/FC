@@ -248,7 +248,13 @@ Object.assign(App, {
         return { ok: true };
       }
       if (!isGuestView && typeof this._canViewEventByTeamScope === 'function' && !this._canViewEventByTeamScope(e)) {
-        this.showToast('\u60a8\u6c92\u6709\u67e5\u770b\u6b64\u6d3b\u52d5\u7684\u6b0a\u9650');
+        // v8 M5：訪客情境改為友善提示 + 觸發登入（而非「沒有權限」）
+        if (typeof LineAuth !== 'undefined' && !LineAuth.isLoggedIn?.()) {
+          this.showToast('此活動限俱樂部成員、請先登入');
+          this._requestLoginForAction?.({ type: 'showEventDetail', eventId: id });
+        } else {
+          this.showToast('\u60a8\u6c92\u6709\u67e5\u770b\u6b64\u6d3b\u52d5\u7684\u6b0a\u9650');
+        }
         return { ok: false, reason: 'forbidden' };
       }
       // 2026-04-20：活動黑名單守衛（偽裝「找不到此活動」，不透露被擋事實）

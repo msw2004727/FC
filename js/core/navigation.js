@@ -290,6 +290,26 @@ Object.assign(App, {
   },
 
   _requireProtectedActionLogin(action, options = {}) {
+    // v8 Blocker 2 Part 2：Tier 2 換帳號污染檢查（UI 層第一道）
+    // 已登入但 LIFF profile 與 Firebase Auth uid 不一致（A 登出 LIFF 保留 Firebase Auth、B 換帳號）
+    // 此時必須強制重登、避免 B 帶 A 的 uid 寫入
+    // QA B1 修復：`auth?.currentUser` 前置守衛——Firebase Auth 尚未完成時（boot 瞬間）
+    //            不跑此分支、避免誤觸「登入狀態異常」toast；由 _ensureAuth 後端層處理
+    if (!this._isLoginRequired()
+      && typeof LineAuth !== 'undefined'
+      && typeof auth !== 'undefined'
+      && auth?.currentUser
+      && typeof LineAuth._isActiveAuthUidConsistent === 'function'
+      && LineAuth._profile
+      && !LineAuth._isActiveAuthUidConsistent()) {
+      this.showToast('登入狀態異常、請重新登入');
+      // 用 LIFF re-login 而非 logout+reload、避免打斷 in-flight writes
+      if (action && typeof this._setPendingAuthAction === 'function') {
+        this._setPendingAuthAction(action);
+      }
+      if (typeof LineAuth.login === 'function') LineAuth.login();
+      return true;
+    }
     if (!this._isLoginRequired()) return false;
     if (typeof this._requestLoginForAction === 'function' && action) {
       this._requestLoginForAction(action, options);
@@ -324,7 +344,8 @@ Object.assign(App, {
           this._showRestrictedToast();
           return;
         }
-        const guardedPages = ['page-profile', 'page-teams', 'page-tournaments', 'page-messages', 'page-activities'];
+        // v8：延遲登入——活動/俱樂部/賽事改為訪客可瀏覽、只個人/訊息仍擋（見 js/config.js AUTH_REQUIRED_PAGES）
+        const guardedPages = AUTH_REQUIRED_PAGES;
         if (guardedPages.includes(page) && this._requireProtectedActionLogin({ type: 'showPage', pageId: page }, {
           suppressToast: true,
         })) {
@@ -458,7 +479,8 @@ Object.assign(App, {
       return { ok: false, reason: 'restricted' };
     }
 
-    const guardedPages = ['page-profile', 'page-teams', 'page-tournaments', 'page-messages', 'page-activities'];
+    // v8：延遲登入——見 js/config.js AUTH_REQUIRED_PAGES
+    const guardedPages = AUTH_REQUIRED_PAGES;
     const authPending = typeof LineAuth !== 'undefined'
       && (
         (typeof LineAuth.isPendingLogin === 'function' && LineAuth.isPendingLogin())

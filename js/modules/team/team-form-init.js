@@ -102,6 +102,8 @@ Object.assign(App, {
   // _initTeamListSportFilter → 已搬至 team-list-render.js
 
   showTeamForm(id) {
+    // v8 M1：建立俱樂部前先擋未登入（避免用戶填完表單才被踢）
+    if (!id && this._requireProtectedActionLogin?.({ type: 'createTeam' }, { suppressToast: true })) return;
     if (!id && typeof this._canCreateTeamByPermission === 'function' && !this._canCreateTeamByPermission()) {
       this.showToast('目前未開啟建立俱樂部權限');
       return;

@@ -74,7 +74,7 @@ function _sortTeams(teams) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/modules/team/team-form-join.js:73-79
+// Extracted from js/modules/team/team-form-join.js:57-65
 // _parseTimeStr — parse "YYYY/MM/DD HH:MM" → ms timestamp
 // ---------------------------------------------------------------------------
 function _parseTimeStr(str) {

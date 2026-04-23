@@ -146,6 +146,8 @@ Object.assign(App, {
   },
 
   registerTournament(id) {
+    // v8 M1：申請賽事前先擋未登入（寫入動作）
+    if (this._requireProtectedActionLogin?.({ type: 'applyTournament', tournamentId: id }, { suppressToast: true })) return;
     // 2026-04-19 UX：寫入類動作必須先補齊個人資料
     if (this._requireProfileComplete()) return;
     const t = ApiService.getTournament(id);

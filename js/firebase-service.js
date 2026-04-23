@@ -1432,6 +1432,11 @@ const FirebaseService = {
    * @param {string} docId
    */
   async _fetchSingleDoc(collection, docId) {
+    // v8 M3：訪客模式下需登入的集合短路、避免 console noise（permission-denied）
+    const AUTH_REQUIRED_COLLECTIONS = ['siteConfig', 'customRoles', 'rolePermissions', 'permissions'];
+    if (AUTH_REQUIRED_COLLECTIONS.includes(collection) && !auth?.currentUser) {
+      return;
+    }
     try {
       const snap = await db.collection(collection).doc(docId).get();
       if (snap.exists) {
@@ -2075,6 +2080,13 @@ const FirebaseService = {
         Promise.resolve(this._startAuthDependentWork()).catch(err => {
           console.warn('[FirebaseService] start auth-dependent work after auth state changed failed:', err);
         });
+        // v8 Blocker 1：auth 就緒時通知 App 層檢查有無 pending action 要續跑
+        // 解耦 ensureCloudReady（Firestore 斷線時 ensureCloudReady 會 pending、避免 resume 卡死）
+        if (typeof App !== 'undefined' && typeof App._onFirebaseAuthReady === 'function') {
+          try { App._onFirebaseAuthReady(); } catch (err) {
+            console.warn('[FirebaseService] App._onFirebaseAuthReady failed:', err);
+          }
+        }
       });
       this._listeners.push(unsubAuthObserver);
     }

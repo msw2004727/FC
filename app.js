@@ -1038,6 +1038,20 @@ const App = {
         const name = normalizeName(action.name);
         return name ? { type, name } : null;
       }
+      // v8 M1：延遲登入新增的 4 種寫入類 action type
+      case 'createEvent':
+      case 'createTeam':
+        return { type };  // 無 payload、登入後只回對應頁
+      case 'joinTeam': {
+        const teamId = normalizeId(action.teamId);
+        if (!teamId || !/^tm_/.test(teamId)) return null;
+        return { type, teamId };
+      }
+      case 'applyTournament': {
+        const tournamentId = normalizeId(action.tournamentId);
+        if (!tournamentId || !/^ct_/.test(tournamentId)) return null;
+        return { type, tournamentId };
+      }
       default:
         return null;
     }
@@ -1048,7 +1062,13 @@ const App = {
     try {
       const raw = sessionStorage.getItem(this._pendingAuthActionStorageKey);
       if (!raw) return null;
-      const sanitized = this._sanitizePendingAuthAction(JSON.parse(raw));
+      const parsed = JSON.parse(raw);
+      // v8 M2：TTL 5 分鐘（LIFF redirect 正常 < 30s、5 分鐘足夠防 stale 殘留）
+      if (parsed._ts && Date.now() - parsed._ts > 5 * 60 * 1000) {
+        sessionStorage.removeItem(this._pendingAuthActionStorageKey);
+        return null;
+      }
+      const sanitized = this._sanitizePendingAuthAction(parsed);
       if (!sanitized) {
         sessionStorage.removeItem(this._pendingAuthActionStorageKey);
         return null;
@@ -1066,7 +1086,8 @@ const App = {
     if (!sanitized) return null;
     this._pendingAuthAction = sanitized;
     try {
-      sessionStorage.setItem(this._pendingAuthActionStorageKey, JSON.stringify(sanitized));
+      // v8 M2：payload 帶 _ts timestamp 支援 TTL 檢查
+      sessionStorage.setItem(this._pendingAuthActionStorageKey, JSON.stringify({ ...sanitized, _ts: Date.now() }));
     } catch (_) {}
     return sanitized;
   },
@@ -1096,6 +1117,19 @@ const App = {
 
   _isAuthenticatedForProtectedAction() {
     return typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn();
+  },
+
+  /**
+   * v8 Blocker 1：登入狀態就緒時、檢查有無 pending action 要續跑。
+   * 由 firebase-service.js 的 auth.onAuthStateChanged listener 呼叫。
+   * 配合 ensureCloudReady 內部也會呼叫、雙重觸發由 _pendingAuthActionPromise guard 防 double-fire。
+   */
+  _onFirebaseAuthReady() {
+    if (typeof LineAuth !== 'undefined'
+      && LineAuth.isLoggedIn()
+      && this._getPendingAuthAction()) {
+      void this._resumePendingAuthAction();
+    }
   },
 
   _requestLoginForAction(action, options = {}) {
@@ -1211,6 +1245,29 @@ const App = {
             return true;
           case 'showUserProfile':
             this.showUserProfile?.(action.name);
+            return true;
+          // v8 M1：延遲登入新增的 4 種寫入 action type
+          case 'createEvent':
+            // 只回活動頁、不自動開 modal（避免用戶填一半表單遺失）
+            await this.showPage?.('page-activities', { resetHistory: true });
+            this.showToast?.('登入成功、請再點一次「＋ 新增活動」');
+            return true;
+          case 'createTeam':
+            await this.showPage?.('page-teams', { resetHistory: true });
+            this.showToast?.('登入成功、請再點一次建立俱樂部');
+            return true;
+          case 'joinTeam':
+            if (action.teamId) {
+              await this.showTeamDetail?.(action.teamId);
+              await this.handleJoinTeam?.(action.teamId);
+            }
+            return true;
+          case 'applyTournament':
+            if (action.tournamentId) {
+              await this.showTournamentDetail?.(action.tournamentId);
+              // QA B2 修復：與 joinTeam 一致、登入後自動續跑申請（不讓用戶再按一次）
+              await this.registerTournament?.(action.tournamentId);
+            }
             return true;
           default:
             return false;
@@ -1871,7 +1928,12 @@ const App = {
           }).catch(err => {
             console.warn('[Cloud] LIFF init failed (non-blocking):', err);
           })
-        : Promise.resolve();
+        // v8 Blocker 3：若 LIFF SDK 從未載入（CDN 封鎖 / adblock）、標記 ready + _initError
+        // 讓 LineAuth.login() 能顯示「SDK 載入失敗」toast 而非死循環「尚未準備完成」
+        : Promise.resolve().then(() => {
+            LineAuth._ready = true;
+            LineAuth._initError = new Error('LIFF SDK not loaded');
+          });
 
       await Promise.all([liffReadyPromise, FirebaseService.init()]);
 
@@ -1919,7 +1981,12 @@ const App = {
         try { this.showToast('LINE login init failed.'); } catch (_) {}
       }
       void this._flushPendingProtectedBootRoute({ skipEnsureCloudReady: true });
-      void this._tryOpenPendingDeepLink();
+      // v8 Blocker 1：pending action 優先於 deep link（避免雙開 showEventDetail）
+      if (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn() && this._getPendingAuthAction()) {
+        void this._resumePendingAuthAction();
+      } else {
+        void this._tryOpenPendingDeepLink();
+      }
 
       // instant deep link 已渲染 → SDK ready 後背景載入完整集合 + 重新渲染
       if (this._instantDeepLinkEventId && this.currentPage === 'page-activity-detail') {
@@ -2005,7 +2072,12 @@ const App = {
         }
       } catch (_) {}
       void this._flushPendingProtectedBootRoute({ skipEnsureCloudReady: true });
-      void this._tryOpenPendingDeepLink();
+      // v8 Blocker 1：pending action 優先於 deep link（避免雙開 showEventDetail）
+      if (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn() && this._getPendingAuthAction()) {
+        void this._resumePendingAuthAction();
+      } else {
+        void this._tryOpenPendingDeepLink();
+      }
       throw err;
     } finally {
       if (!this._cloudReady) {

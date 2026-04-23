@@ -271,7 +271,8 @@ Object.assign(App, {
   openDrawerPage(pageId) {
     const safePageId = String(pageId || '').trim();
     if (!safePageId) return;
-    const guardedPages = ['page-profile', 'page-teams', 'page-tournaments', 'page-messages', 'page-activities'];
+    // v8：延遲登入——見 js/config.js AUTH_REQUIRED_PAGES
+    const guardedPages = AUTH_REQUIRED_PAGES;
     if (guardedPages.includes(safePageId) && this._requireProtectedActionLogin({ type: 'showPage', pageId: safePageId }, {
       suppressToast: true,
     })) {

@@ -65,7 +65,7 @@ function _getRouteFailureToast(pageId, step, err) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/core/navigation.js:617-623
+// Extracted from js/core/navigation.js:704-710
 // _pushPageHistory — manages page history stack
 // ---------------------------------------------------------------------------
 function _pushPageHistory(pageId, options, currentPage, pageHistory) {

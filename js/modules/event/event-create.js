@@ -43,6 +43,8 @@ Object.assign(App, {
   },
 
   openCreateEventModal() {
+    // v8 M1：開 sheet 前先擋未登入（避免用戶填表單後才被踢）
+    if (this._requireProtectedActionLogin?.({ type: 'createEvent' }, { suppressToast: true })) return;
     // 彈底部 Action Sheet：選擇建立自訂活動或活動連結
     this._showCreateEventTypeSheet();
   },
