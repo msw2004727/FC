@@ -2,6 +2,23 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-23 — 正取名單兩段式 render 回滾（效益誤判）[永久]
+- **背景**：d07e43d3 將 `_doRenderAttendanceTable` 改為兩段式 render，預期把 330-990ms 首見時間壓到 < 50ms
+- **回滾原因（實際效益遠小於原分析）**：
+  - `_buildRawNoShowCountByUid` **不是**即時跨活動 scan、而是讀 `users.noShowCount` 欄位（排程 CF `calcNoShowCounts` 預先計算並寫入）— 零 I/O
+  - `fetchAttendanceIfMissing` / `fetchRegistrationsIfMissing` 有 `if (cached.length > 0) return` 短路、只有超過 listener 限制（500 筆外的老活動）才真的 fetch
+  - 正取與候補實際差距只有 ~100-200ms、主要來自 100ms 防抖 + HTML 複雜度（打勾 / 未到圖示），不是當初宣稱的 330-990ms
+- **取捨**：
+  - 99% 情境（現役活動快取命中）→ 兩段 render 幾乎零收益、多一次 DOM 替換的微小成本
+  - 1% 情境（超過 listener 限制的老活動）→ 有收益、但使用頻率低
+  - 複雜度代價：`_doRenderAttendanceTable` 變 dispatcher + `_renderAttendanceTableSync` 兩層、QA 已抓到 `_lockContainerHeight` 過期的 race（已修但代表這種改法容易出錯）
+- **教訓（最重要）**：
+  - **優化前必須先實測 bottleneck 位置、不能只靠程式碼閱讀推論**。我把「await Promise.all 看起來很慢」直接當成慢因，沒注意 `fetchIfMissing` 的短路、也沒注意 `calcNoShowCounts` 是排程 CF
+  - **預計算欄位的存在**：`users.noShowCount`、`users.*Count` 都是 CF 預計算、不要當作即時查詢
+  - **cache-first 的 API 層通常不慢**：`ApiService.fetch*IfMissing` 系列都有快取短路、await 它們不會真的 I/O
+  - 下次類似觀察（「A 比 B 快」）時、先加 `performance.mark` 實測、再動手優化
+- **回滾動作**：`git revert d07e43d3` + 版號 0.20260423b → 0.20260423c（舊版號已發佈、回滾必須換新版號以觸發 SW 更新）
+
 ### 2026-04-22 — 活動月曆視圖實作（3 新模組 + 5 既有檔 8 處 rerender 分支）[永久]
 - **實作**：活動頁新增第 3 種 tab「月曆」，按運動色區分、上下滑切月、置頂高光
 - **新檔（3 個）**：
