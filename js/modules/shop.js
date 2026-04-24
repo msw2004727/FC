@@ -4,6 +4,8 @@
 
 Object.assign(App, {
 
+  _shopDetailRequestSeq: 0,
+
   // ══════════════════════════════════
   //  Render: Shop Grid (Front-end)
   // ══════════════════════════════════
@@ -40,7 +42,14 @@ Object.assign(App, {
   async showShopDetail(id) {
     const s = ApiService.getShopItem(id);
     if (!s) return;
+    const requestSeq = ++this._shopDetailRequestSeq;
     await this.showPage('page-shop-detail');
+    if (requestSeq !== this._shopDetailRequestSeq || this.currentPage !== 'page-shop-detail') {
+      if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
+        console.log('[race-skip]', { fn: 'showShopDetail', seq: requestSeq, latest: this._shopDetailRequestSeq, currentPage: this.currentPage });
+      }
+      return { ok: false, reason: 'stale' };
+    }
     if (!document.getElementById('shop-detail-title')) return;
     document.getElementById('shop-detail-title').textContent = s.name;
     const imgs = s.images && s.images.length > 0 ? s.images : [];
