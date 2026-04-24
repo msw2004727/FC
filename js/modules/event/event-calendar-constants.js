@@ -31,11 +31,23 @@ const SPORT_COLORS = Object.freeze({
 
 /**
  * 取得運動色定義（含 fallback 保險）
+ * - emoji：優先從平台統一的 SPORT_ICON_EMOJI（js/config.js）取、對齊運動分類圖示
+ *          SPORT_COLORS 內的 emoji 僅作為 SPORT_ICON_EMOJI 沒有該 key 時的備援
+ * - var / label / enabled：用 SPORT_COLORS 的月曆自訂配色
  * @param {string} sportTag - event.sportTag
  * @returns {{var: string, emoji: string, label: string, enabled: boolean}}
  */
 function getSportDef(sportTag) {
-  return SPORT_COLORS[sportTag] || SPORT_COLORS.other;
+  const def = SPORT_COLORS[sportTag] || SPORT_COLORS.other;
+  const platformEmoji = (typeof SPORT_ICON_EMOJI !== 'undefined')
+    ? SPORT_ICON_EMOJI[sportTag]
+    : null;
+  return {
+    var: def.var,
+    label: def.label,
+    enabled: def.enabled,
+    emoji: platformEmoji || def.emoji,
+  };
 }
 
 /**
