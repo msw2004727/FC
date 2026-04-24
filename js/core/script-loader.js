@@ -130,6 +130,7 @@ const ScriptLoader = {
       'js/modules/event/event-manage-lifecycle.js',
       'js/modules/event/event-manage-badges.js',
       'js/modules/event/event-manage-waitlist.js',
+      'js/modules/event/event-manage-visibility.js',
       'js/modules/event/event-manage.js',
       'js/modules/registration-audit.js',
     ],

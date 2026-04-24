@@ -201,6 +201,7 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 | `event-manage-lifecycle.js` | 活動 CRUD 操作（複製、刪除、狀態切換） |
 | `event-manage-badges.js` | 活動管理徽章刷新 |
 | `event-manage-waitlist.js` | 候補名單管理表格 |
+| `event-manage-visibility.js` | 編輯模式下離開瀏覽器 ≥ 3 秒自動退出編輯（visibilitychange + pagehide 掛載） |
 | `event-manage.js` | 活動管理主模組（共用 helper） |
 | `event-external-transit.js` | 外部活動中繼卡片（YouTube 嵌入、連結跳轉、分享） |
 

@@ -2,6 +2,35 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-25 — LINE WebView 編輯模式「勾選消失」bug + 離開瀏覽器自動退出編輯
+- **問題**：管理員在活動詳情按「編輯」勾選部分成員簽到後，切離 LINE 瀏覽器一段時間再回來按「完成」，**原本勾選的狀態全部消失**
+- **根因（深度審計後確認）**：並非寫入失敗而是「UI 重繪時機 + 快取同步空窗」
+  1. Instant-save 於勾選後 300ms debounce 寫 Firestore，但 `visibilitychange=hidden` 時 `_suspendListeners` 停掉 attendanceRecords listener
+  2. 若 300ms 內切走、WebView 凍結 setTimeout → debounce 永遠不 fire → Firestore 根本沒紀錄
+  3. 即便寫入成功，回前景時 `_handleVisibilityResume` 只刷新 events + registrations、**沒刷新 attendanceRecords**
+  4. `_debouncedSnapshotRender('registrations')` 的 `else` 分支會連帶重繪 attendance table、**且該分支無編輯模式守衛**（`source='attendance'` 才有守衛）→ 用過時快取重繪 → checkbox 全部變 unchecked → 用戶看到「勾選消失」
+- **方案取捨**：
+  - 方案 A（改 `_debouncedSnapshotRender` 加編輯守衛）：1 行修復，但要動核心渲染邏輯
+  - 方案 B（離開 ≥ 3 秒自動退編輯 + flush）：新增獨立模組，不動核心邏輯、附帶解決「主辦人忘記關編輯」與「多人編輯衝突」
+  - 最終採用 B，因為 instant-save 已保證寫入，退出編輯對用戶體驗無實質損失，且方案邊界更清晰
+- **修復**：
+  - 新增 `js/modules/event/event-manage-visibility.js`：
+    - `visibilitychange=hidden` → flush pending debounce + 記時間戳
+    - `visibilitychange=visible` 且離開 ≥ 3 秒 → 呼叫 `_autoExitDetailEdits()`（重用 2026-04-23 切頁 helper）+ 重繪表格 + toast 提示
+    - `pagehide` 兜底（iOS / LINE WebView 有時跳過 hidden 直接 pagehide）
+  - `js/core/script-loader.js`：event-manage-waitlist 後註冊新模組
+  - `docs/architecture.md`：event/ 模組清單更新
+- **關鍵設計決策（審計結果）**：
+  1. **禁用 setTimeout(3000)**：Chrome/Safari/LINE WebView 背景時行為不一致（凍結 / throttle / suspend），回前景可能瞬間補 fire 造成瞬退。改用 hidden 記時間戳、visible 判斷差值
+  2. **提交中不退出**：`_attendanceSubmittingEventId` 不為 null 時 skip，避免打亂 `_confirmAllAttendance` 原子寫入
+  3. **3 種編輯狀態一起處理**：正取 + 未報名 + 候補（重用 `_autoExitDetailEdits`）
+  4. **退出後必須重繪**：只清 `_attendanceEditingEventId` 不會重繪，會造成 UI 停留在編輯樣式但內部狀態已清
+  5. **3 秒閾值**：擋掉 iOS Face ID / 下拉通知中心等誤觸發（< 3 秒），接電話 / 回 LINE 訊息超過 3 秒會退出（可接受，因資料已 instant-save 無損失）
+- **教訓**：
+  - 用戶報修 bug 時「勾選消失」這個詞是精準線索，不要套用自己的推論（我第一輪審計誤判為「寫入失敗」浪費分析時間）
+  - `setTimeout` 跨越 hidden/visible 邊界在不同瀏覽器不一致，儘量改用時間戳比較
+  - 既有 `_autoExitDetailEdits`（2026-04-23 切頁情境）的設計可直接重用，不要重複實作
+
 ### 2026-04-24 — 俱樂部列表切換運動仍顯示足球俱樂部
 - **問題**：頂部 sport picker 已切到其他運動時，俱樂部列表仍可能被頁內 `team-sport-filter` 的舊值（常見為 `football`）拉回足球俱樂部。
 - **原因**：`renderTeamList()` 使用 `App._activeSport`，但搜尋/類型 tab 會走 `_doFilterTeams()`，後者優先讀頁內 select；全域切換時沒有同步這個 select，造成兩套 sport state 分裂。
