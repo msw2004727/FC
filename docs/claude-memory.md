@@ -7,14 +7,20 @@
 - **根因**：`fetchAttendanceIfMissing` / `fetchRegistrationsIfMissing` 的 short-circuit 條件寫錯
   - 原邏輯：`if (cached.length > 0) return;` 只有「該活動有紀錄」才短路
   - Bug：對「未開始活動」（必無簽到）或「熱門活動不在 onSnapshot limit 前 500 筆」的情境，cached 永遠是 0 → **每次進頁都觸發真 Firestore query**（即使是同一活動連續 3 次）
-- **修復（方案 D）**：
+- **修復（方案 D）**（commit `c4a62dc3`、版號 `0.20260425b`）：
   - `fetchAttendanceIfMissing`：加 `_fetchedAttendanceIds` Set 去重 + 未結束活動（`status !== 'ended' && status !== 'cancelled'`）**直接信任快取空值不 fetch**（因簽到記錄必然少於 500 limit）
   - `fetchRegistrationsIfMissing`：**只用 Set 去重**（不看 status，因 registrations 熱門活動可能超 limit）
-  - 兩者都加 `_docId` 缺失的 warn log（P13 審計建議）
-  - 新增 19 個單元測試（`tests/unit/api-fetch-if-missing.test.js`）涵蓋 Set 去重 / status 條件 / cached 短路 / _docId 缺失 / mergeDedupByDocId 等路徑
+  - 兩者 `_docId` 缺失加 warn log（P13 審計建議）
+  - `catch` 分支：`err.code === 'permission-denied' / 'unauthenticated'` 時**標記 Set 避免無限重試**（QA BLOCKER 修正；網路錯誤保留不標記、允許重試）
+  - 新增 19 個單元測試（`tests/unit/api-fetch-if-missing.test.js`）涵蓋 `decideAttendanceFetch` / `decideRegistrationsFetch` 決策樹 + `mergeDedupByDocId` 邏輯
+- **審計流程**（3 輪）：
+  1. 計畫書草稿（`docs/fetch-if-missing-fix-plan.md` v1）列出 10 項自我瑕疵
+  2. 第三方 agent 審計找出 5 項新瑕疵（P11-P15），經驗證 4 項為誤判（Firestore docId 固定機制、CF schedule 5 分鐘實測誤讀），僅 P13 採納
+  3. 實作後 QA agent 給 CONDITIONAL GO，2 項必修採納後 commit：catch 錯誤處理 + status 判斷邊界註解
 - **更新 2026-04-23 教訓**：當時標記「fetchIfMissing 有短路、通常不慢」的結論是基於「活動已有紀錄」的假設，不適用於未開始活動（cached 永遠 0）。本次透過實測 log 打破假設 → **「先實測再優化」的教訓再次驗證，但也要注意實測條件要完整涵蓋各 status 的活動**
 - **預期效果**：未結束活動（絕大多數情境）載入從 500-4000ms → < 50ms；已結束活動第一次進頁仍需 fetch、但後續進頁 Set 去重後 < 50ms
-- **回退**：git revert 秒回退（單檔 2 函式）
+- **驗證方式**：`localStorage.setItem('_perfAttLog','1')` 啟用效能 log、進活動頁看 Console `[att-perf]` 輸出 `fetch_ms`
+- **回退**：git revert 秒回退（單檔 2 函式、無 Rules / CF 變更、無持久化狀態殘留）
 
 ### 2026-04-25 — LINE WebView 編輯模式「勾選消失」bug + 離開瀏覽器自動退出編輯
 - **問題**：管理員在活動詳情按「編輯」勾選部分成員簽到後，切離 LINE 瀏覽器一段時間再回來按「完成」，**原本勾選的狀態全部消失**
