@@ -585,6 +585,66 @@ https://miniapp.line.me/2009525300-AuPGQ0sh?{deepLinkParam}={id}
 
 ---
 
+## 新增 async `show*` 函式 Checklist（race condition 防禦、強制）
+
+每次新增 `async showXxxDetail` / `showXxxList` / `showXxxForm` 類函式時、**必須**照以下清單檢查、避免「用戶離開頁面後被 async await 完成強制拉回」的 race bug 復發。
+
+### 標準模板
+
+```javascript
+// 1. 在同檔 Object.assign(App, {...}) 最上方加 counter
+_xxxRequestSeq: 0,
+
+// 2. 函式開頭分配 seq
+async showXxx(args) {
+  if (this._requireLogin()) return;
+  const requestSeq = ++this._xxxRequestSeq;
+
+  // 3. 每個 await 後檢查 seq
+  const data = await loadSomething();
+  if (requestSeq !== this._xxxRequestSeq) {
+    if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
+      console.log('[race-skip]', { fn: 'showXxx', seq: requestSeq, latest: this._xxxRequestSeq, stage: 'after-load' });
+    }
+    return { ok: false, reason: 'stale' };
+  }
+
+  // 4. showPage 後必用雙重檢查（seq + currentPage）
+  await this.showPage('page-xxx');
+  if (requestSeq !== this._xxxRequestSeq || this.currentPage !== 'page-xxx') {
+    return { ok: false, reason: 'stale' };
+  }
+
+  renderDom();
+  return { ok: true };
+}
+```
+
+### Checklist
+
+- [ ] 在同檔 `Object.assign(App, {...})` 最上方加 `_xxxRequestSeq: 0,`
+- [ ] 函式開頭分配 `const requestSeq = ++this._xxxRequestSeq;`
+- [ ] 每個 `await` 後做 seq check（若 race 則 `return { ok: false, reason: 'stale' };`）
+- [ ] `showPage` 後必用**雙重檢查**：`requestSeq !== this._xxxRequestSeq || this.currentPage !== 'page-xxx'`
+- [ ] Stale return 前加 debug log（`window._raceDebug` 或 `localStorage._raceLog` 觸發）
+- [ ] 若 helper 內部有 `await` + DOM write、helper 必須接受 `requestSeq` 參數、內部用 `if (requestSeq != null && requestSeq !== this._xxxRequestSeq) return;` 檢查
+- [ ] 若 `.then()` chain 會寫 DOM、callback 開頭加 seq check
+- [ ] 若持有資源（相機 / timer / listener）、stale 時必清理（如 `try { this._stopXxx(); } catch(_) {}`）
+- [ ] 若同一個 page 有多個入口（例：`page-edu-checkin` 有 batch + scan）、**入口間共用同一 counter**（避免雙重檢查失效）
+- [ ] State mutation（`this.currentXxx = id`）依情境判斷：
+  - 若被 `navigation.js._renderPageContent` 同步 hook 讀取 → **進入時先清 null、stale check 後寫新值**
+  - 若被外部 stale 檢查（如 `app.js:1678` deep link）→ **延後到 stale check 之後**
+  - 其他情況 → 保留在函式開頭（避免閃現舊資料）
+
+### 參考實作
+
+- 完整範例：`js/modules/event/event-detail.js:219` `showEventDetail`
+- Helper + counter 共用：`js/modules/education/edu-checkin.js` + `edu-checkin-scan.js`
+- State 清 null 模式：`js/modules/education/edu-student-list.js:27` `showEduStudentList`
+- 計畫書：`docs/page-race-fix-plan.md`
+
+---
+
 ## 修復日誌規則（每次解決問題後必做）
 
 每次解決一個 bug 或完成一項功能後，**必須**在 `docs/claude-memory.md` 新增一筆記錄：

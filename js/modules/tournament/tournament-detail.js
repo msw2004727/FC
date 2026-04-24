@@ -3,16 +3,31 @@
    ============================================ */
 Object.assign(App, {
 
+  _tournamentDetailRequestSeq: 0,
+
   async showTournamentDetail(id, options) {
     if (!(options && options.allowGuest) && this._requireLogin()) return;
-    this.currentTournament = id;
+    const requestSeq = ++this._tournamentDetailRequestSeq;
     let t = ApiService.getTournament(id);
     if (!t) {
       // 快取 miss → 單筆查詢 Firestore（Phase 2A §7.4）
       t = await ApiService.getTournamentAsync(id);
+      if (requestSeq !== this._tournamentDetailRequestSeq) {
+        if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
+          console.log('[race-skip]', { fn: 'showTournamentDetail', seq: requestSeq, latest: this._tournamentDetailRequestSeq, stage: 'after-getTournamentAsync' });
+        }
+        return { ok: false, reason: 'stale' };
+      }
       if (!t) return;
     }
     await this.showPage('page-tournament-detail');
+    if (requestSeq !== this._tournamentDetailRequestSeq || this.currentPage !== 'page-tournament-detail') {
+      if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
+        console.log('[race-skip]', { fn: 'showTournamentDetail', seq: requestSeq, latest: this._tournamentDetailRequestSeq, currentPage: this.currentPage });
+      }
+      return { ok: false, reason: 'stale' };
+    }
+    this.currentTournament = id;
     if (!document.getElementById('td-title')) return;
 
     // 圖片渲染
@@ -47,6 +62,7 @@ Object.assign(App, {
     // 預設為「說明」頁簽
     document.querySelectorAll('#td-tabs .tab').forEach(x => x.classList.toggle('active', x.dataset.ttab === 'info'));
     this.renderTournamentTab('info');
+    return { ok: true };
   },
 
   _renderTournamentDetailToolbar(tournament) {

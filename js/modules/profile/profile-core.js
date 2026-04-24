@@ -7,6 +7,7 @@
 Object.assign(App, {
 
   _pendingFirstLogin: false,
+  _userProfileRequestSeq: 0,
 
   /* ── Admin Stealth Mode ── */
   /** 讀取隱身狀態：優先從 user doc（Firestore source of truth），fallback localStorage */
@@ -139,11 +140,18 @@ Object.assign(App, {
     if (!options.allowGuest && this._requireProtectedActionLogin({ type: 'showUserProfile', name }, { suppressToast: true })) {
       return;
     }
+    const requestSeq = ++this._userProfileRequestSeq;
     // UID 優先查找：options.uid 存在時先用 UID 查找，找不到再 fallback 到 name
     const uidHint = options.uid || null;
 
     // 確保 profile 群組（profile-data-render / profile-data-stats / profile-card 等）已載入
     await ScriptLoader.ensureForPage('page-user-card');
+    if (requestSeq !== this._userProfileRequestSeq) {
+      if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
+        console.log('[race-skip]', { fn: 'showUserProfile', seq: requestSeq, latest: this._userProfileRequestSeq, stage: 'after-ScriptLoader' });
+      }
+      return { ok: false, reason: 'stale' };
+    }
     // 判斷是否為當前用戶（比對 UID / displayName / name）
     const isLoggedIn = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
     const currentUser = isLoggedIn ? ApiService.getCurrentUser() : null;
@@ -265,9 +273,22 @@ Object.assign(App, {
     `;
     this._bindAvatarFallbacks(document.getElementById('user-card-full'));
 
+    // 切頁前檢查 seq（避免已 stale 還硬把用戶拉回 user-card）
+    if (requestSeq !== this._userProfileRequestSeq) {
+      if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
+        console.log('[race-skip]', { fn: 'showUserProfile', seq: requestSeq, latest: this._userProfileRequestSeq, stage: 'before-showPage' });
+      }
+      return { ok: false, reason: 'stale' };
+    }
     // 顯示頁面（若 cache 命中則直接渲染；否則由毛玻璃遮蔽提示用戶點擊載入）
     this._ucRecordUid = targetUid || null;
-    this.showPage('page-user-card');
+    await this.showPage('page-user-card');
+    if (requestSeq !== this._userProfileRequestSeq || this.currentPage !== 'page-user-card') {
+      if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
+        console.log('[race-skip]', { fn: 'showUserProfile', seq: requestSeq, latest: this._userProfileRequestSeq, currentPage: this.currentPage });
+      }
+      return { ok: false, reason: 'stale' };
+    }
 
     // 徽章異步載入：只在 cache 命中時才跑（避免自動讀取 Firestore）
     // 非 self 且 cache 未命中時，等用戶點擊遮蔽觸發 _loadUserCardUncovered
@@ -277,6 +298,7 @@ Object.assign(App, {
         emptyText: '尚未獲得徽章',
         targetUser: user,
       }).then(asyncBadgeHtml => {
+        if (requestSeq !== this._userProfileRequestSeq) return;
         const badgeContainer = document.getElementById('uc-badge-container');
         if (badgeContainer) badgeContainer.innerHTML = asyncBadgeHtml;
       }).catch(() => { /* keep sync result */ });
@@ -286,6 +308,7 @@ Object.assign(App, {
     if (targetUid && _statsCacheHit) {
       this.renderUserCardRecords('all', 1);
     }
+    return { ok: true };
   },
 
   async refreshUserCardRecords() {
