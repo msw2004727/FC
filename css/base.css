@@ -89,7 +89,7 @@ body {
   overscroll-behavior: none;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  padding-top: var(--topbar-h);
+  padding-top: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
   padding-bottom: calc(var(--bottombar-h) + 55px + env(safe-area-inset-bottom, 0));
   transition: background var(--transition), color var(--transition);
 }
