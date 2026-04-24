@@ -178,6 +178,8 @@ Object.assign(App, {
         try { this.showPage(backTo); } catch (_) {}
       }
 
+      const _perfSportLog = typeof window !== 'undefined' && (window._sportDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_sportDebug')));
+      const _prevSport = App._activeSport;
       setActiveSport(sportKey);
       btn.classList.remove('open');
       dropdown.classList.remove('open');
@@ -191,6 +193,11 @@ Object.assign(App, {
       try { if (this._activityActiveTab === 'calendar') this._renderActivityCalendar?.(); } catch (_) {}
       try { this.renderTeamList?.(); } catch (_) {}
       try { this.renderTournamentTimeline?.(); } catch (_) {}
+      if (_perfSportLog) {
+        const _selVal = document.getElementById('team-sport-filter')?.value;
+        const _teamCount = document.getElementById('team-list')?.children?.length;
+        console.log('[sport-switch]', { from: _prevSport, to: sportKey, activeSport: App._activeSport, selValue: _selVal, teamDomCount: _teamCount, currentPage: this.currentPage });
+      }
     });
 
     document.addEventListener('click', (e) => {
