@@ -123,15 +123,69 @@ index.html (noscript)
 ### 自動化機制
 | 機制 | 說明 | 狀態 |
 |------|------|------|
-| Cloudflare Crawler Hints | 自動通知 Bing/Yandex 內容變更（IndexNow） | 已開啟 |
-| GitHub Actions sitemap 提交 | push 含 SEO 檔案變更時自動提交 sitemap 給 Google | 已建立，待設定 GCP Service Account |
-| 觸發條件 | `sitemap.xml`、`seo/**`、`index.html` 變更時觸發 | 已設定 |
-| 腳本位置 | `scripts/submit-sitemap.js` | 已部署 |
-| 設定指南 | `scripts/SETUP-GSC-API.md` | 已建立 |
+| Cloudflare Crawler Hints | 自動通知 Bing/Yandex 內容變更（IndexNow） | ✅ 已開啟 |
+| GitHub Actions sitemap 提交 | push 含 SEO 檔案變更時自動提交 sitemap 給 Google | ✅ 已設定、自動運轉中（見下方） |
+| GCP Service Account | `sitemap-submitter@toosterx-seo.iam.gserviceaccount.com` | ✅ 已設定、JSON 金鑰存 GitHub Secret `GCP_SERVICE_ACCOUNT_JSON` |
+| 觸發條件 | `sitemap.xml`、`seo/**`、`index.html` 變更時觸發 | ✅ 已設定 |
+| 腳本位置 | `scripts/submit-sitemap.js`（純 Node.js 內建模組、零依賴） | ✅ 已部署 |
+| Workflow 成功率 | 近 10 次 push 皆 success、平均執行 8-12 秒 | ✅ 100%（2026-04-24 最後確認） |
+| 設定指南 | `scripts/SETUP-GSC-API.md` | ✅ 已建立 |
 
 ---
 
 ## SEO 優化歷史紀錄
+
+### 2026-04-24 — 追認：GCP Service Account 已設定完成、sitemap 自動提交全自動運轉中
+
+**問題 / 背景**：
+2026-04-02 的「自動化建設」紀錄中 sitemap 自動提交狀態寫「待使用者設定 GCP Service Account」、歷次 SEO log 更新也延續此記載。2026-04-24 階段 B push 後、檢查 GitHub Actions `submit-sitemap.yml` workflow 發現：
+
+**實際狀況**：✅ **早就設好了、而且每次 push 都自動提交成功**
+
+**佐證**：
+- GitHub Actions 執行紀錄近 10 次（2026-04-23 起）全部 `success`、平均執行 8-12 秒
+- 最新一次執行（2026-04-24 05:58:48 UTC、對應 commit `e93b167c` 階段 B SEO 優化）log 顯示：
+  ```
+  ✓ 從環境變數讀取 Service Account
+    Email: sitemap-submitter@toosterx-seo.iam.gserviceaccount.com
+    Site:  sc-domain:toosterx.com
+    Map:   https://toosterx.com/sitemap.xml
+  → 取得 OAuth Access Token...
+  ✓ Token 取得成功
+  → 提交 sitemap 給 Google Search Console...
+  ✓ Sitemap 提交成功！Google 將重新爬取 sitemap.xml
+  ```
+
+**完整自動化流程（已運作）**：
+```
+push commit（含 seo/** 或 sitemap.xml 變更）
+  ↓
+GitHub Actions: .github/workflows/submit-sitemap.yml 觸發
+  ↓
+env: GCP_SERVICE_ACCOUNT_JSON ← GitHub Secret 注入
+  ↓
+node scripts/submit-sitemap.js
+  ↓
+Service Account JWT → OAuth 2.0 Token（scope: webmasters）
+  ↓
+PUT https://www.googleapis.com/webmasters/v3/sites/sc-domain%3Atoosterx.com/sitemaps/...
+  ↓
+Google Search Console 收到更新通知、排隊重爬 sitemap.xml ✅
+```
+
+**更新項目**：
+- §目前 SEO 架構總覽「自動化機制」表格：狀態改 ✅ + 新增 Service Account email 列 + 新增成功率列
+- §2026-04-02 SEO 自動化建設段落：狀態「待使用者設定」→「✅ 已設定完成並運作中」
+- §待辦 / 未來優化方向：勾選掉「GCP Service Account 設定完成」與「GSC 手動提交新 URL 索引」兩項（後者於 2026-04-24 由用戶手動戳完）
+
+**意義**：
+- 不用再跟用戶說「需要手動去 GSC 按要求索引」——sitemap 提交已自動化
+- 之後每次 SEO 變更 push 出去、Google 會被自動通知
+- 唯一還需要「手動戳」的場景是：某頁內容有重大變更、想跳過 sitemap 隊列直接要求索引優先處理（URL Inspection → Request Indexing）
+
+**教訓**：
+- 舊紀錄狀態若非最新、不會自己更新——定期審閱時應交叉驗證實際運作狀況（GitHub Actions run list、CF dashboard）
+- 「待辦事項」可能實際早已完成、但因未主動追認而停留在「待辦」狀態
 
 ### 2026-04-23 — 階段 B：「南屯足球場」口語詞密度強化（對應既有 nantun-football-park.html）
 
@@ -667,7 +721,11 @@ SEO 基礎架構完善但內容覆蓋度不足。專案支援 10+ 種運動僅 4
    - Workflow：`.github/workflows/submit-sitemap.yml`
    - 觸發條件：push 到 main 且變更 `sitemap.xml`、`seo/**`、`index.html`
    - 設定指南：`scripts/SETUP-GSC-API.md`
-   - 狀態：待使用者設定 GCP Service Account
+   - 狀態：✅ 已設定完成並運作中（2026-04-24 追認）
+     · Service Account: `sitemap-submitter@toosterx-seo.iam.gserviceaccount.com`
+     · GitHub Secret `GCP_SERVICE_ACCOUNT_JSON` 已注入
+     · 每次符合條件的 push 自動觸發、近 10 次全 success、執行時間 8-12 秒
+     · 詳見 2026-04-24 紀錄
 
 3. **Google Indexing API 評估結果：不可用**
    - 原因：僅支援 `JobPosting` 和 `BroadcastEvent` 類型
@@ -678,12 +736,12 @@ SEO 基礎架構完善但內容覆蓋度不足。專案支援 10+ 種運動僅 4
 
 ## 待辦 / 未來優化方向
 
-- [ ] GCP Service Account 設定完成，啟動 sitemap 自動提交
-- [ ] GSC 手動提交新 URL 索引（football-taichung、nantun-football-park）
-- [ ] 觀察 GSC 數據，確認「台中踢球」等關鍵字開始有曝光
+- [x] ✅ GCP Service Account 設定完成、sitemap 自動提交運作中（2026-04-24 追認、每次 push 全 success）
+- [x] ✅ GSC 手動提交新 URL 索引（football-taichung、nantun-football-park — 2026-04-24 完成）
+- [x] ✅ 建立 404.html 友善錯誤頁面（已完成）
+- [ ] 觀察 GSC 數據，確認「台中踢球」、「南屯足球場」等關鍵字開始有曝光（1-2 週後檢視）
 - [ ] 為 SEO 著陸頁製作專屬 OG 分享圖（目前都用 app icon）
 - [ ] 考慮擴增更多運動著陸頁（籃球、羽球、排球）
 - [ ] 考慮更多城市專頁（台北足球、高雄足球）
-- [ ] 建立外部反向連結（足球社群、場地方網站）
+- [ ] 建立外部反向連結（足球社群、場地方網站）— 階段 B 後排名關鍵
 - [ ] 評估是否需要 Dynamic Rendering 讓 SPA 內容可被爬取
-- [ ] 建立 404.html 友善錯誤頁面
