@@ -898,14 +898,26 @@ const ApiService = {
 
   /**
    * 快取中找不到該活動的報名紀錄時，從子集合一次性補查。
-   * 用於管理員查看舊活動超出全站監聽器 limit 範圍的情境。
+   * 2026-04-25：加 `_fetchedRegistrationIds` Set 去重，避免熱門活動（超 onSnapshot
+   * limit 前 500 筆）每次進頁都重打 Firestore query。
    */
   async fetchRegistrationsIfMissing(eventId) {
     if (!eventId || typeof db === 'undefined') return;
+
+    this._fetchedRegistrationIds = this._fetchedRegistrationIds || new Set();
+    if (this._fetchedRegistrationIds.has(eventId)) return;
+
     var cached = this.getRegistrationsByEvent(eventId);
-    if (cached.length > 0) return;
+    if (cached.length > 0) {
+      this._fetchedRegistrationIds.add(eventId);
+      return;
+    }
+
     var ev = this._findById('events', eventId);
-    if (!ev || !ev._docId) return;
+    if (!ev || !ev._docId) {
+      if (ev) console.warn('[fetchRegistrationsIfMissing] missing _docId:', eventId);
+      return;
+    }
     try {
       var snap = await db.collection('events').doc(ev._docId)
         .collection('registrations').get();
@@ -913,8 +925,12 @@ const ApiService = {
       var source = FirebaseService._cache.registrations || [];
       var existing = new Set(source.map(function(r) { return r._docId; }));
       records.forEach(function(r) { if (!existing.has(r._docId)) source.push(r); });
+      this._fetchedRegistrationIds.add(eventId);
     } catch (err) {
       console.warn('[fetchRegistrationsIfMissing]', err);
+      if (err && (err.code === 'permission-denied' || err.code === 'unauthenticated')) {
+        this._fetchedRegistrationIds.add(eventId);
+      }
     }
   },
 
@@ -985,14 +1001,30 @@ const ApiService = {
 
   /**
    * 快取中找不到該活動的簽到紀錄時，從子集合一次性補查。
-   * 用於舊活動超出全站監聽器 limit 範圍的情境。
+   * 2026-04-25：加 `_fetchedAttendanceIds` Set 去重；未結束活動（status !== 'ended'/'cancelled'）
+   * 直接信任快取空值不觸發 fetch，因簽到記錄必然少於 onSnapshot limit。
    */
   async fetchAttendanceIfMissing(eventId) {
     if (!eventId || typeof db === 'undefined') return;
+
+    this._fetchedAttendanceIds = this._fetchedAttendanceIds || new Set();
+    if (this._fetchedAttendanceIds.has(eventId)) return;
+
     var cached = this.getAttendanceRecords(eventId);
-    if (cached.length > 0) return; // 快取已有，不需補查
+    if (cached.length > 0) {
+      this._fetchedAttendanceIds.add(eventId);
+      return;
+    }
+
     var ev = this._findById('events', eventId);
-    if (!ev || !ev._docId) return;
+    // 未結束活動（status in [upcoming, open, full]）不可能累積超過 onSnapshot
+    // attendance limit（500 筆）的簽到記錄，信任快取空值。新增活動狀態時需同步評估此行。
+    if (ev && ev.status !== 'ended' && ev.status !== 'cancelled') return;
+
+    if (!ev || !ev._docId) {
+      if (ev) console.warn('[fetchAttendanceIfMissing] missing _docId:', eventId);
+      return;
+    }
     try {
       var snap = await db.collection('events').doc(ev._docId)
         .collection('attendanceRecords').get();
@@ -1000,8 +1032,13 @@ const ApiService = {
       var source = FirebaseService._cache.attendanceRecords || [];
       var existing = new Set(source.map(function(r) { return r._docId; }));
       records.forEach(function(r) { if (!existing.has(r._docId)) source.push(r); });
+      this._fetchedAttendanceIds.add(eventId);
     } catch (err) {
       console.warn('[fetchAttendanceIfMissing]', err);
+      // 權限/認證錯誤無法自行恢復，標記 Set 避免每次進頁都重試浪費
+      if (err && (err.code === 'permission-denied' || err.code === 'unauthenticated')) {
+        this._fetchedAttendanceIds.add(eventId);
+      }
     }
   },
 

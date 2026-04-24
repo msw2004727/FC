@@ -2,6 +2,20 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-25 — fetchIfMissing short-circuit 缺陷修復（活動名單載入 500-4000ms → < 50ms）[永久]
+- **問題**：用戶透過 `localStorage._perfAttLog='1'` 實測活動詳情頁報名名單、15 次進頁數據顯示 `fetch_ms` 佔總延遲 99%（500-4000ms 不等），其他段（summary/noshow/rows/html_bind）全部 < 3ms
+- **根因**：`fetchAttendanceIfMissing` / `fetchRegistrationsIfMissing` 的 short-circuit 條件寫錯
+  - 原邏輯：`if (cached.length > 0) return;` 只有「該活動有紀錄」才短路
+  - Bug：對「未開始活動」（必無簽到）或「熱門活動不在 onSnapshot limit 前 500 筆」的情境，cached 永遠是 0 → **每次進頁都觸發真 Firestore query**（即使是同一活動連續 3 次）
+- **修復（方案 D）**：
+  - `fetchAttendanceIfMissing`：加 `_fetchedAttendanceIds` Set 去重 + 未結束活動（`status !== 'ended' && status !== 'cancelled'`）**直接信任快取空值不 fetch**（因簽到記錄必然少於 500 limit）
+  - `fetchRegistrationsIfMissing`：**只用 Set 去重**（不看 status，因 registrations 熱門活動可能超 limit）
+  - 兩者都加 `_docId` 缺失的 warn log（P13 審計建議）
+  - 新增 19 個單元測試（`tests/unit/api-fetch-if-missing.test.js`）涵蓋 Set 去重 / status 條件 / cached 短路 / _docId 缺失 / mergeDedupByDocId 等路徑
+- **更新 2026-04-23 教訓**：當時標記「fetchIfMissing 有短路、通常不慢」的結論是基於「活動已有紀錄」的假設，不適用於未開始活動（cached 永遠 0）。本次透過實測 log 打破假設 → **「先實測再優化」的教訓再次驗證，但也要注意實測條件要完整涵蓋各 status 的活動**
+- **預期效果**：未結束活動（絕大多數情境）載入從 500-4000ms → < 50ms；已結束活動第一次進頁仍需 fetch、但後續進頁 Set 去重後 < 50ms
+- **回退**：git revert 秒回退（單檔 2 函式）
+
 ### 2026-04-25 — LINE WebView 編輯模式「勾選消失」bug + 離開瀏覽器自動退出編輯
 - **問題**：管理員在活動詳情按「編輯」勾選部分成員簽到後，切離 LINE 瀏覽器一段時間再回來按「完成」，**原本勾選的狀態全部消失**
 - **根因（深度審計後確認）**：並非寫入失敗而是「UI 重繪時機 + 快取同步空窗」
