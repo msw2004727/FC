@@ -99,18 +99,22 @@ Object.assign(App, {
     // 不同 containerId 的呼叫互不影響（waitlist 操作後需同時更新兩個容器）
     var self = this;
     var key = containerId || 'attendance-table-container';
+    // 啟用：window._perfAttLog = 1 或 localStorage.setItem('_perfAttLog','1')
+    var _perfCallTs = (typeof window !== 'undefined' && (window._perfAttLog || (typeof localStorage !== 'undefined' && localStorage.getItem('_perfAttLog')))) ? performance.now() : 0;
     return new Promise(function (resolve) {
       clearTimeout(self._attRenderTimers[key]);
       self._attRenderTimers[key] = setTimeout(function () {
-        self._doRenderAttendanceTable(eventId, key).then(resolve);
+        self._doRenderAttendanceTable(eventId, key, _perfCallTs).then(resolve);
       }, 100);
     });
   },
 
-  async _doRenderAttendanceTable(eventId, containerId) {
+  async _doRenderAttendanceTable(eventId, containerId, _perfCallTs) {
     const cId = containerId || 'attendance-table-container';
     const container = document.getElementById(cId);
     if (!container) return;
+    const _perfLog = _perfCallTs > 0;
+    const _t0 = _perfLog ? performance.now() : 0;
     // 2026-04-20：鎖容器高度，防 innerHTML 替換期間頁面縮短導致 scrollTop 被瀏覽器 clamp
     App._lockContainerHeight?.(container);
     // 記住 containerId，供編輯流程重新渲染用
@@ -123,17 +127,20 @@ Object.assign(App, {
       ApiService.fetchAttendanceIfMissing(eventId),
       ApiService.fetchRegistrationsIfMissing(eventId),
     ]);
+    const _t1 = _perfLog ? performance.now() : 0;
 
     const canManage = this._canManageEvent(e);
     const records = ApiService.getAttendanceRecords(eventId);
     const summary = this._buildConfirmedParticipantSummary(eventId);
     const people = summary.people;
+    const _t2 = _perfLog ? performance.now() : 0;
     // 放鴿子 🕊 欄位查看權：admin(event.edit_all) / 主辦人 / 委託人 / 查看權持有者 / 放鴿子修改權持有者
     const canViewNoShow = canManage
       || (typeof this.hasPermission === 'function' && this.hasPermission('activity.view_noshow'))
       || (typeof this.hasPermission === 'function' && this.hasPermission('admin.repair.no_show_adjust'));
     const showNoShowColumn = cId === 'detail-attendance-table' && canViewNoShow;
     const noShowCountByUid = showNoShowColumn ? this._buildNoShowCountByUid() : null;
+    const _t3 = _perfLog ? performance.now() : 0;
 
     if (people.length === 0) {
       // 若 event.current > 0 或 participantsWithUid / participants 有人 → 視為「資料還在加載」
@@ -254,6 +261,7 @@ Object.assign(App, {
         <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">${escapeHTML(combinedNote)}</td>
       </tr>`;
     }).join('');
+    const _t4 = _perfLog ? performance.now() : 0;
 
     // 編輯 / 完成 按鈕（右上角，僅管理員）
     const topBtn = canManage ? (tableEditing
@@ -305,6 +313,23 @@ Object.assign(App, {
     }
     this._bindBadgeRowSnapBack(container);
     this._markBadgeRowOverflow(container);
+    if (_perfLog) {
+      const _t5 = performance.now();
+      console.log('[att-perf]', {
+        event: eventId,
+        cid: cId,
+        people: people.length,
+        edit: tableEditing,
+        debounce_ms: +(_t0 - _perfCallTs).toFixed(1),
+        fetch_ms: +(_t1 - _t0).toFixed(1),
+        summary_ms: +(_t2 - _t1).toFixed(1),
+        noshow_ms: +(_t3 - _t2).toFixed(1),
+        rows_ms: +(_t4 - _t3).toFixed(1),
+        html_bind_ms: +(_t5 - _t4).toFixed(1),
+        total_render_ms: +(_t5 - _t0).toFixed(1),
+        total_with_debounce_ms: +(_t5 - _perfCallTs).toFixed(1),
+      });
+    }
   },
 
   // ── 分隊排序 toggle ──
