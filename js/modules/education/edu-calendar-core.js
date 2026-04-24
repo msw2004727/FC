@@ -11,11 +11,13 @@ Object.assign(App, {
   _eduCalendarStudentId: null,
   _eduCalendarMonth: null,
   _eduAttendanceCache: {},
+  _eduCalendarRequestSeq: 0,
 
   /**
    * 顯示出席紀錄（多方案堆疊）
    */
   async showEduCalendar(teamId, studentId) {
+    const requestSeq = ++this._eduCalendarRequestSeq;
     this._eduCalendarTeamId = teamId;
 
     // 自動判斷學員
@@ -23,6 +25,12 @@ Object.assign(App, {
       const curUser = ApiService.getCurrentUser();
       if (curUser) {
         const students = await this._loadEduStudents(teamId);
+        if (requestSeq !== this._eduCalendarRequestSeq) {
+          if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
+            console.log('[race-skip]', { fn: 'showEduCalendar', seq: requestSeq, latest: this._eduCalendarRequestSeq, stage: 'after-loadEduStudents' });
+          }
+          return { ok: false, reason: 'stale' };
+        }
         const myStudent = students.find(s =>
           s.enrollStatus === 'active' &&
           ((s.selfUid && s.selfUid === curUser.uid) || (s.parentUid && s.parentUid === curUser.uid))
@@ -33,6 +41,12 @@ Object.assign(App, {
 
     this._eduCalendarStudentId = studentId;
     await this.showPage('page-edu-calendar');
+    if (requestSeq !== this._eduCalendarRequestSeq || this.currentPage !== 'page-edu-calendar') {
+      if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
+        console.log('[race-skip]', { fn: 'showEduCalendar', seq: requestSeq, latest: this._eduCalendarRequestSeq, currentPage: this.currentPage });
+      }
+      return { ok: false, reason: 'stale' };
+    }
 
     // 設定月份
     const now = new Date();
@@ -52,9 +66,16 @@ Object.assign(App, {
 
     // 載入出席資料
     await this._loadEduAttendanceForCalendar(teamId, studentId);
+    if (requestSeq !== this._eduCalendarRequestSeq) {
+      if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
+        console.log('[race-skip]', { fn: 'showEduCalendar', seq: requestSeq, latest: this._eduCalendarRequestSeq, stage: 'after-loadEduAttendance' });
+      }
+      return { ok: false, reason: 'stale' };
+    }
 
     // 渲染所有方案
     this._renderEduCalendarAll();
+    return { ok: true };
   },
 
   async _loadEduAttendanceForCalendar(teamId, studentId) {

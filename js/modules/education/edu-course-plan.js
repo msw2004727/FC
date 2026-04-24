@@ -10,6 +10,7 @@ Object.assign(App, {
   _eduCoursePlansCache: {},
   _eduCoursePlanEditTeamId: null,
   _eduCoursePlanEditId: null,
+  _eduCoursePlanRequestSeq: 0,
 
   async _loadEduCoursePlans(teamId) {
     if (!teamId) return [];
@@ -30,16 +31,29 @@ Object.assign(App, {
   // renderEduCoursePlanList → edu-course-plan-render.js
 
   async showEduCoursePlanForm(teamId, planId) {
+    const requestSeq = ++this._eduCoursePlanRequestSeq;
     this._eduCoursePlanEditTeamId = teamId;
     this._eduCoursePlanEditId = planId || null;
 
     // 確保頁面已載入
     await this.showPage('page-edu-course-plan');
+    if (requestSeq !== this._eduCoursePlanRequestSeq || this.currentPage !== 'page-edu-course-plan') {
+      if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
+        console.log('[race-skip]', { fn: 'showEduCoursePlanForm', seq: requestSeq, latest: this._eduCoursePlanRequestSeq, currentPage: this.currentPage });
+      }
+      return { ok: false, reason: 'stale' };
+    }
 
     const container = document.getElementById('edu-course-plan-page');
     if (!container) return;
 
     const groups = await this._loadEduGroups(teamId);
+    if (requestSeq !== this._eduCoursePlanRequestSeq) {
+      if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
+        console.log('[race-skip]', { fn: 'showEduCoursePlanForm', seq: requestSeq, latest: this._eduCoursePlanRequestSeq, stage: 'after-loadEduGroups' });
+      }
+      return { ok: false, reason: 'stale' };
+    }
     const plan = planId ? (this.getEduCoursePlans(teamId).find(p => p.id === planId) || null) : null;
 
     const groupOptions = groups.filter(g => g.active !== false)
@@ -103,6 +117,7 @@ Object.assign(App, {
         '<button class="primary-btn" id="edu-cp-save-btn" onclick="App.handleSaveEduCoursePlan()">' + (planId ? '儲存變更' : '建立方案') + '</button>' +
       '</div>' +
     '</div>';
+    return { ok: true };
   },
 
   _eduCpCoverDataUrl: null,

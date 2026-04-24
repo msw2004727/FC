@@ -6,17 +6,27 @@
 
 Object.assign(App, {
 
+  _eduCourseEnrollmentRequestSeq: 0,
+
   // ══════════════════════════════════
   //  名單頁
   // ══════════════════════════════════
 
   async showCourseEnrollmentList(teamId, planId) {
+    const requestSeq = ++this._eduCourseEnrollmentRequestSeq;
     this._ceTeamId = teamId;
     this._cePlanId = planId;
     // Fix 3: 立即清空舊名單，避免一瞬間看到其他課程的學員
     const listEl = document.getElementById('edu-ce-list');
     if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:1rem;color:var(--text-muted)">載入中...</div>';
     await this.showPage('page-edu-course-enrollment');
+    if (requestSeq !== this._eduCourseEnrollmentRequestSeq || this.currentPage !== 'page-edu-course-enrollment') {
+      // v4: 不清空 DOM、保留「載入中」避免空白永停
+      if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
+        console.log('[race-skip]', { fn: 'showCourseEnrollmentList', seq: requestSeq, latest: this._eduCourseEnrollmentRequestSeq, currentPage: this.currentPage });
+      }
+      return { ok: false, reason: 'stale' };
+    }
 
     const plan = this.getEduCoursePlans(teamId).find(p => p.id === planId);
     const titleEl = document.getElementById('edu-ce-title');
@@ -27,14 +37,16 @@ Object.assign(App, {
       this._updateEnrollSubtitle(subtitleEl, plan, teamId, planId);
     }
 
-    await this._renderCourseEnrollmentList(teamId, planId);
+    await this._renderCourseEnrollmentList(teamId, planId, requestSeq);
+    return { ok: true };
   },
 
-  async _renderCourseEnrollmentList(teamId, planId) {
+  async _renderCourseEnrollmentList(teamId, planId, requestSeq) {
     const container = document.getElementById('edu-ce-list');
     if (!container) return;
 
     const enrollments = await this._loadCourseEnrollments(teamId, planId);
+    if (requestSeq != null && requestSeq !== this._eduCourseEnrollmentRequestSeq) return;
     const plan = this.getEduCoursePlans(teamId).find(p => p.id === planId);
     const allStudents = this.getEduStudents(teamId);
     const students = allStudents;
@@ -59,6 +71,7 @@ Object.assign(App, {
     this._courseAttendanceCount = {};
     try {
       const attendRecords = await FirebaseService.queryEduAttendance({ teamId, coursePlanId: planId });
+      if (requestSeq != null && requestSeq !== this._eduCourseEnrollmentRequestSeq) return;
       attendRecords.forEach(r => {
         this._courseAttendanceCount[r.studentId] = (this._courseAttendanceCount[r.studentId] || 0) + 1;
       });

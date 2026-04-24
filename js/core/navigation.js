@@ -781,7 +781,8 @@ Object.assign(App, {
     if (pageId === 'page-edu-groups' && this._eduCurrentTeamId) this.renderEduGroupList?.(this._eduCurrentTeamId);
     if (pageId === 'page-edu-students' && this._eduCurrentTeamId) {
       const gid = this._eduCurrentGroupId;
-      if (gid) this.renderEduStudentList?.(this._eduCurrentTeamId, gid);
+      // v4: 改用純同步 cache render、避免與 showEduStudentList 的 async race
+      if (gid) this._renderEduStudentListFromCache?.(this._eduCurrentTeamId, gid);
     }
     if (pageId === 'page-admin-logs' && this.renderAdminLogCenter) {
       this.renderAdminLogCenter(this._pendingAdminLogTab || this._adminLogActiveTab || 'operation');

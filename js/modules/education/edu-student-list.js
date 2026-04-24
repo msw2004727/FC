@@ -7,6 +7,7 @@ Object.assign(App, {
   _eduStudentsCache: {},
   _eduCurrentGroupId: null,
   _eduCurrentTeamId: null,
+  _eduStudentListRequestSeq: 0,
 
   async _loadEduStudents(teamId) {
     if (!teamId) return [];
@@ -25,27 +26,41 @@ Object.assign(App, {
   },
 
   async showEduStudentList(teamId, groupId) {
+    const requestSeq = ++this._eduStudentListRequestSeq;
+    // ★ v4: 進入時先清 null、避免 navigation.js _renderPageContent hook
+    //   同步讀到上次的舊 teamId/groupId 觸發錯誤 rerender（B-A1）
+    this._eduCurrentTeamId = null;
+    this._eduCurrentGroupId = null;
+    await this.showPage('page-edu-students');
+    if (requestSeq !== this._eduStudentListRequestSeq || this.currentPage !== 'page-edu-students') {
+      if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
+        console.log('[race-skip]', { fn: 'showEduStudentList', seq: requestSeq, latest: this._eduStudentListRequestSeq, currentPage: this.currentPage });
+      }
+      return { ok: false, reason: 'stale' };
+    }
+    // stale check 通過後才寫新值（navigation hook 之後讀到會是新值）
     this._eduCurrentGroupId = groupId;
     this._eduCurrentTeamId = teamId;
-    await this.showPage('page-edu-students');
 
     const titleEl = document.getElementById('edu-students-title');
     if (groupId === '__unmatched__') {
       if (titleEl) titleEl.textContent = '待審核名單';
       this._renderUnmatchedStudentList(teamId);
-      return;
+      return { ok: true };
     }
     const groups = this.getEduGroups(teamId);
     const group = groups.find(g => g.id === groupId);
     if (titleEl) titleEl.textContent = group ? group.name + ' — 學員' : '學員列表';
 
-    await this.renderEduStudentList(teamId, groupId);
+    await this.renderEduStudentList(teamId, groupId, requestSeq);
+    return { ok: true };
   },
 
-  async renderEduStudentList(teamId, groupId) {
+  async renderEduStudentList(teamId, groupId, requestSeq) {
     // 虛擬分組：委託專用渲染器
     if (groupId === '__unmatched__') {
       await this._loadEduStudents(teamId);
+      if (requestSeq != null && requestSeq !== this._eduStudentListRequestSeq) return;
       this._renderUnmatchedStudentList(teamId);
       return;
     }
@@ -54,6 +69,7 @@ Object.assign(App, {
 
     const isStaff = this.isEduClubStaff(teamId);
     const allStudents = await this._loadEduStudents(teamId);
+    if (requestSeq != null && requestSeq !== this._eduStudentListRequestSeq) return;
 
     const inGroup = groupId
       ? allStudents.filter(s => s.enrollStatus !== 'inactive' && (s.groupIds || []).includes(groupId))

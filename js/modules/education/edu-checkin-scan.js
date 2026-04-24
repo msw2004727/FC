@@ -12,10 +12,24 @@ Object.assign(App, {
 
   /**
    * 顯示掃碼簽到頁面
+   * v4: 與 showEduCheckin 共用 _eduCheckinPageRequestSeq counter
    */
   async showEduCheckinScan(teamId) {
+    const requestSeq = ++this._eduCheckinPageRequestSeq;
+    // 進入時若已有 scanner、先停掉（避免 orphan 相機）
+    if (this._eduScanner) {
+      try { this._stopEduScan(); } catch (_) {}
+    }
     this._eduScanTeamId = teamId;
     await this.showPage('page-edu-checkin');
+    if (requestSeq !== this._eduCheckinPageRequestSeq || this.currentPage !== 'page-edu-checkin') {
+      // Stale 時若已開啟 scanner、再次停掉
+      if (this._eduScanner) { try { this._stopEduScan(); } catch (_) {} }
+      if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
+        console.log('[race-skip]', { fn: 'showEduCheckinScan', seq: requestSeq, latest: this._eduCheckinPageRequestSeq, currentPage: this.currentPage });
+      }
+      return { ok: false, reason: 'stale' };
+    }
 
     const container = document.getElementById('edu-checkin-container');
     if (!container) return;
@@ -33,6 +47,7 @@ Object.assign(App, {
     '</div>';
 
     this._startEduScan(teamId);
+    return { ok: true };
   },
 
   /**

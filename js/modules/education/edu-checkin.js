@@ -9,6 +9,9 @@ Object.assign(App, {
   _eduCheckinTeamId: null,
   _eduCheckinGroupId: null,
   _ciDebounce: null, _ciCache: {},
+  // v4: batch (showEduCheckin) 與 scan (showEduCheckinScan) 共用此 counter、
+  // 快速切換時互相 invalidate、避免雙重檢查對兩者都 pass 造成 DOM 互蓋
+  _eduCheckinPageRequestSeq: 0,
   _debouncedCheckinLoad() { clearTimeout(this._ciDebounce); this._ciDebounce = setTimeout(() => this._loadPlanCheckinStudents(), 300); },
   _debouncedCheckinGroup() { clearTimeout(this._ciDebounce); this._ciDebounce = setTimeout(() => this._onEduCheckinGroupChange(), 300); },
   _getCheckinCache(k) { const c = this._ciCache[k]; if (!c || Date.now() - c.t > 30000) { if (c) delete this._ciCache[k]; return null; } return c.d; },
@@ -16,14 +19,22 @@ Object.assign(App, {
   _invalidateCheckinCache(teamId, idPart, date) { delete this._ciCache['ci:' + teamId + ':' + (idPart || '') + ':' + date]; },
 
   async showEduCheckin(teamId, planId) {
+    const requestSeq = ++this._eduCheckinPageRequestSeq;
     this._eduCheckinTeamId = teamId;
     this._eduCheckinGroupId = null;
     this._eduCheckinPlanId = planId || null;
     await this.showPage('page-edu-checkin');
-    this._renderEduCheckinForm(teamId, planId);
+    if (requestSeq !== this._eduCheckinPageRequestSeq || this.currentPage !== 'page-edu-checkin') {
+      if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
+        console.log('[race-skip]', { fn: 'showEduCheckin', seq: requestSeq, latest: this._eduCheckinPageRequestSeq, currentPage: this.currentPage });
+      }
+      return { ok: false, reason: 'stale' };
+    }
+    await this._renderEduCheckinForm(teamId, planId, requestSeq);
+    return { ok: true };
   },
 
-  async _renderEduCheckinForm(teamId, planId) {
+  async _renderEduCheckinForm(teamId, planId, requestSeq) {
     const container = document.getElementById('edu-checkin-container');
     if (!container) return;
 
@@ -41,10 +52,12 @@ Object.assign(App, {
         + '<button class="primary-btn" style="width:100%" id="edu-ci-confirm-btn" onclick="App.confirmEduCheckin()">確認簽到</button>'
         + '</div></div>';
       // 自動載入學員
-      await this._loadPlanCheckinStudents();
+      await this._loadPlanCheckinStudents(requestSeq);
+      if (requestSeq != null && requestSeq !== this._eduCheckinPageRequestSeq) return;
     } else {
       // 舊流程：選分組
       const groups = await this._loadEduGroups(teamId);
+      if (requestSeq != null && requestSeq !== this._eduCheckinPageRequestSeq) return;
       if (!groups.length) {
         container.innerHTML = '<div class="edu-empty-state">請先建立分組</div>';
         return;
@@ -66,7 +79,7 @@ Object.assign(App, {
     }
   },
 
-  async _loadPlanCheckinStudents() {
+  async _loadPlanCheckinStudents(requestSeq) {
     const teamId = this._eduCheckinTeamId;
     const planId = this._eduCheckinPlanId;
     const plan = this.getEduCoursePlans(teamId).find(p => p.id === planId);
@@ -77,6 +90,7 @@ Object.assign(App, {
     if (actionsEl) actionsEl.style.display = 'none';
 
     const allStudents = await this._loadEduStudents(teamId);
+    if (requestSeq != null && requestSeq !== this._eduCheckinPageRequestSeq) return;
     // 方案學員 = 分組內 active 學員 + enrollment approved 學員
     const studentIds = new Set();
     if (plan?.groupId) {
@@ -85,6 +99,7 @@ Object.assign(App, {
     }
     try {
       const enrollments = await this._loadCourseEnrollments(teamId, planId);
+      if (requestSeq != null && requestSeq !== this._eduCheckinPageRequestSeq) return;
       enrollments.filter(e => e.status === 'approved').forEach(e => studentIds.add(e.studentId));
     } catch (_) {}
 
@@ -102,6 +117,7 @@ Object.assign(App, {
     try {
       const cached = this._getCheckinCache(cacheKey);
       const existing = cached || await FirebaseService.queryEduAttendance({ teamId, coursePlanId: planId, date });
+      if (requestSeq != null && requestSeq !== this._eduCheckinPageRequestSeq) return;
       if (!cached) this._setCheckinCache(cacheKey, existing);
       existing.forEach(r => checkedIds.add(r.studentId));
     } catch (_) {}
@@ -138,6 +154,8 @@ Object.assign(App, {
   },
 
   async _onEduCheckinGroupChange() {
+    // v4: onchange 觸發、快照當下 seq、await 後檢查避免 stale write
+    const requestSeq = this._eduCheckinPageRequestSeq;
     const groupId = document.getElementById('edu-ci-group').value;
     this._eduCheckinGroupId = groupId;
     const listEl = document.getElementById('edu-ci-student-list');
@@ -168,6 +186,7 @@ Object.assign(App, {
 
     // 載入學員
     const students = await this._loadEduStudents(teamId);
+    if (requestSeq !== this._eduCheckinPageRequestSeq) return;
     const groupStudents = students.filter(s =>
       s.enrollStatus === 'active' && (s.groupIds || []).includes(groupId)
     );
@@ -187,6 +206,7 @@ Object.assign(App, {
     try {
       const cached = this._getCheckinCache(cacheKey);
       const existing = cached || await FirebaseService.queryEduAttendance({ teamId, groupId, date });
+      if (requestSeq !== this._eduCheckinPageRequestSeq) return;
       if (!cached) this._setCheckinCache(cacheKey, existing);
       existing.forEach(r => checkedIds.add(r.studentId));
     } catch (_) {}

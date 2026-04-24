@@ -7,12 +7,20 @@
 Object.assign(App, {
 
   _eduApplySubmitting: false,
+  _eduStudentApplyRequestSeq: 0,
 
   /**
    * 顯示學員申請頁面（本人或代理）
    */
   async showEduStudentApply(teamId) {
+    const requestSeq = ++this._eduStudentApplyRequestSeq;
     await this.showPage('page-edu-student-apply');
+    if (requestSeq !== this._eduStudentApplyRequestSeq || this.currentPage !== 'page-edu-student-apply') {
+      if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
+        console.log('[race-skip]', { fn: 'showEduStudentApply', seq: requestSeq, latest: this._eduStudentApplyRequestSeq, currentPage: this.currentPage });
+      }
+      return { ok: false, reason: 'stale' };
+    }
 
     const team = ApiService.getTeam(teamId);
     const titleEl = document.getElementById('edu-apply-title');
@@ -23,6 +31,12 @@ Object.assign(App, {
     // 檢查此俱樂部是否已有「本人」紀錄
     const curUser = ApiService.getCurrentUser();
     const students = await this._loadEduStudents(teamId);
+    if (requestSeq !== this._eduStudentApplyRequestSeq) {
+      if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
+        console.log('[race-skip]', { fn: 'showEduStudentApply', seq: requestSeq, latest: this._eduStudentApplyRequestSeq, stage: 'after-loadEduStudents' });
+      }
+      return { ok: false, reason: 'stale' };
+    }
     const hasSelf = curUser && students.some(s =>
       s.enrollStatus !== 'inactive' && s.selfUid === curUser.uid
     );
@@ -39,6 +53,7 @@ Object.assign(App, {
 
     // 觸發身份聯動（帶入/清空欄位）
     this._onEduApplyRelationChange();
+    return { ok: true };
   },
 
   /**
