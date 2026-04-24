@@ -43,15 +43,15 @@ Object.assign(App, {
     if (typeTab) {
       teams = teams.filter(t => (t.type || 'general') === typeTab);
     }
-    const activeGlobalSport = (typeof App !== 'undefined' && App._activeSport && App._activeSport !== 'all') ? App._activeSport : '';
-    if (activeGlobalSport) {
-      teams = teams.filter(t => t.sportTag === activeGlobalSport);
+    const activeTeamSport = this._syncTeamSportFilterWithGlobal?.() || this._getActiveTeamGlobalSport?.() || '';
+    if (activeTeamSport) {
+      teams = teams.filter(t => t.sportTag === activeTeamSport);
     }
     const sorted = this._sortTeams(teams);
 
     // Phase 2B §8.2B：指紋跳過重繪
     var fp = sorted.map(function(t) {
-      return t.id + '|' + (t.name || '') + '|' + (t.active ? 1 : 0) + '|' + (t.pinned ? 1 : 0) + '|' + (t.teamExp || 0);
+      return t.id + '|' + (t.name || '') + '|' + (t.sportTag || '') + '|' + (t.active ? 1 : 0) + '|' + (t.pinned ? 1 : 0) + '|' + (t.teamExp || 0);
     }).join(',');
     if (this._teamListLastFp === fp && container.children.length > 0) return;
     this._teamListLastFp = fp;
@@ -75,7 +75,7 @@ Object.assign(App, {
           let ts = ApiService.getActiveTeams();
           if (typeTab) ts = ts.filter(t => (t.type || 'general') === typeTab);
           // [修復] 背景重繪必須延用 sport filter，否則會把頂部切分類後的篩選結果蓋掉
-          if (activeGlobalSport) ts = ts.filter(t => t.sportTag === activeGlobalSport);
+          if (activeTeamSport) ts = ts.filter(t => t.sportTag === activeTeamSport);
           // 強制清除指紋，讓教育俱樂部學員數更新後能重繪
           this._teamListLastFp = '';
           c.innerHTML = this._sortTeams(ts).map(t => this._teamCardHTML(t)).join('') || c.innerHTML;

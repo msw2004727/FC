@@ -27,6 +27,24 @@ function _getUserTeamIds(user) {
 }
 
 // ---------------------------------------------------------------------------
+// Extracted from js/modules/team/team-list.js:8-20
+// _resolveTeamSportFilterSync keeps the page-level sport filter aligned with
+// the global sport picker unless the user intentionally chose a local override.
+// ---------------------------------------------------------------------------
+function _resolveTeamSportFilterSync(currentValue, lastSyncedGlobalSport, globalSport, forceSync) {
+  const current = String(currentValue || '');
+  const lastSynced = String(lastSyncedGlobalSport || '');
+  const globalValue = String(globalSport || '');
+  const shouldSync = !!forceSync || current === '' || current === lastSynced;
+  const value = shouldSync ? globalValue : current;
+  return {
+    value,
+    syncedGlobalSport: shouldSync ? globalValue : lastSynced,
+    effectiveSport: value || globalValue,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Extracted from js/modules/team/team-list-helpers.js:11-13
 // _normalizeIdentityValue
 // ---------------------------------------------------------------------------
@@ -133,6 +151,40 @@ describe('_getUserTeamIds (team-list.js:8-21)', () => {
   test('duplicate values in teamIds are deduplicated', () => {
     const user = { teamIds: ['t1', 't1', 't2'] };
     expect(_getUserTeamIds(user)).toEqual(['t1', 't2']);
+  });
+});
+
+describe('_resolveTeamSportFilterSync (team-list.js:8-20)', () => {
+  test('syncs an empty page filter to the active global sport', () => {
+    expect(_resolveTeamSportFilterSync('', '', 'basketball', false)).toEqual({
+      value: 'basketball',
+      syncedGlobalSport: 'basketball',
+      effectiveSport: 'basketball',
+    });
+  });
+
+  test('force sync replaces a stale football filter after global sport changes', () => {
+    expect(_resolveTeamSportFilterSync('football', 'football', 'basketball', true)).toEqual({
+      value: 'basketball',
+      syncedGlobalSport: 'basketball',
+      effectiveSport: 'basketball',
+    });
+  });
+
+  test('force sync clears the page filter when global sport is all', () => {
+    expect(_resolveTeamSportFilterSync('football', 'football', '', true)).toEqual({
+      value: '',
+      syncedGlobalSport: '',
+      effectiveSport: '',
+    });
+  });
+
+  test('preserves a deliberate local override while global sport is unchanged', () => {
+    expect(_resolveTeamSportFilterSync('basketball', 'football', 'football', false)).toEqual({
+      value: 'basketball',
+      syncedGlobalSport: 'football',
+      effectiveSport: 'basketball',
+    });
   });
 });
 

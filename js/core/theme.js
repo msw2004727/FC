@@ -145,6 +145,7 @@ Object.assign(App, {
       document.querySelectorAll('.cat-item[data-sport]').forEach(item => {
         item.classList.toggle('active', item.dataset.sport === safeKey);
       });
+      try { App._syncTeamSportFilterWithGlobal?.({ force: true }); } catch (_) {}
     };
 
     setActiveSport(initialSport);

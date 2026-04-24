@@ -2,6 +2,12 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-24 — 俱樂部列表切換運動仍顯示足球俱樂部
+- **問題**：頂部 sport picker 已切到其他運動時，俱樂部列表仍可能被頁內 `team-sport-filter` 的舊值（常見為 `football`）拉回足球俱樂部。
+- **原因**：`renderTeamList()` 使用 `App._activeSport`，但搜尋/類型 tab 會走 `_doFilterTeams()`，後者優先讀頁內 select；全域切換時沒有同步這個 select，造成兩套 sport state 分裂。
+- **修復**：新增 `_syncTeamSportFilterWithGlobal()` / `_resolveTeamSportFilterSync()`，全域切換時強制同步頁內 sport filter；`renderTeamList()` 與 `_doFilterTeams()` 改用同一套 effective sport，並把 `sportTag` 納入列表指紋。
+- **教訓**：同一頁若同時有全域 filter 與頁內 filter，必須明確定義同步/覆寫規則，否則任一 debounced filter 或 realtime re-render 都會把 UI 拉回舊狀態。
+
 ### 2026-04-23 — 活動分享「複製連結」改走 toosterx.com OG URL [永久]
 - **變更**：活動分享底部選單的「複製連結」選項改為複製 `https://toosterx.com/event-share/{id}`（OG 中繼頁），`LINE 好友` / `LINE 群組` 仍維持 Mini App URL
 - **理由**：用戶 UX 決議 — 貼到 FB / IG / Twitter / Telegram 時顯示活動封面 OG 卡片；Mini App URL 被社群平台爬蟲視為 redirect 無法解析 OG tags

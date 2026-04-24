@@ -5,6 +5,19 @@
    依賴：team-list-helpers.js, team-list-stats.js, api-service.js
    ================================================ */
 
+function _resolveTeamSportFilterSync(currentValue, lastSyncedGlobalSport, globalSport, forceSync) {
+  const current = String(currentValue || '');
+  const lastSynced = String(lastSyncedGlobalSport || '');
+  const globalValue = String(globalSport || '');
+  const shouldSync = !!forceSync || current === '' || current === lastSynced;
+  const value = shouldSync ? globalValue : current;
+  return {
+    value,
+    syncedGlobalSport: shouldSync ? globalValue : lastSynced,
+    effectiveSport: value || globalValue,
+  };
+}
+
 Object.assign(App, {
 
   _getUserTeamIds(user) {
@@ -57,17 +70,33 @@ Object.assign(App, {
     this._teamFilterTimer = setTimeout(() => this._doFilterTeams(), 300);
   },
 
+  _getActiveTeamGlobalSport() {
+    return (typeof App !== 'undefined' && App._activeSport && App._activeSport !== 'all') ? App._activeSport : '';
+  },
+
+  _syncTeamSportFilterWithGlobal(options = {}) {
+    this._initTeamListSportFilter?.();
+    const sportSel = document.getElementById('team-sport-filter');
+    const globalSport = this._getActiveTeamGlobalSport();
+    if (!sportSel) return globalSport;
+
+    const resolved = _resolveTeamSportFilterSync(
+      sportSel.value,
+      sportSel.dataset.syncedGlobalSport,
+      globalSport,
+      options.force === true
+    );
+    if (sportSel.value !== resolved.value) sportSel.value = resolved.value;
+    sportSel.dataset.syncedGlobalSport = resolved.syncedGlobalSport;
+    return resolved.effectiveSport;
+  },
+
   _doFilterTeams() {
     const query = (document.getElementById('team-search')?.value || '').trim().toLowerCase();
     const region = document.getElementById('team-region-filter')?.value || '';
-    const sport = document.getElementById('team-sport-filter')?.value || '';
+    const sport = this._syncTeamSportFilterWithGlobal?.() || '';
     const typeTab = this._currentTeamTypeTab || '';
     const container = document.getElementById('team-list');
-
-    this._initTeamListSportFilter?.();
-    const sportSel = document.getElementById('team-sport-filter');
-    const globalSportSync = (typeof App !== 'undefined' && App._activeSport && App._activeSport !== 'all') ? App._activeSport : '';
-    if (sportSel && globalSportSync && !sport) sportSel.value = globalSportSync;
 
     let filtered = ApiService.getActiveTeams();
     if (query) {
@@ -81,10 +110,8 @@ Object.assign(App, {
     if (region) {
       filtered = filtered.filter(t => t.region === region);
     }
-    const globalSport = (typeof App !== 'undefined' && App._activeSport && App._activeSport !== 'all') ? App._activeSport : '';
-    const effectiveSport = sport || globalSport;
-    if (effectiveSport) {
-      filtered = filtered.filter(t => t.sportTag === effectiveSport);
+    if (sport) {
+      filtered = filtered.filter(t => t.sportTag === sport);
     }
     if (typeTab) {
       filtered = filtered.filter(t => {
