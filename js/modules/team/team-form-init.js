@@ -10,7 +10,7 @@ Object.assign(App, {
     document.getElementById('ct-team-nationality').value = '台灣';
     document.getElementById('ct-team-region').value = '';
     const _regSug = document.getElementById('ct-team-region-suggest');
-    if (_regSug) { _regSug.innerHTML = ''; _regSug.style.display = 'none'; }
+    if (_regSug) { _regSug.innerHTML = ''; _regSug.classList.remove('show'); }
     document.getElementById('ct-team-founded').value = '';
     document.getElementById('ct-leader-search').value = '';
     document.getElementById('ct-leaders-tags').innerHTML = '';
@@ -117,7 +117,7 @@ Object.assign(App, {
     // 延遲關閉、讓 onmousedown 來得及觸發 _selectTeamRegion
     setTimeout(() => {
       const sug = document.getElementById('ct-team-region-suggest');
-      if (sug) sug.style.display = 'none';
+      if (sug) sug.classList.remove('show');
     }, 200);
   },
 
@@ -128,20 +128,20 @@ Object.assign(App, {
     const q = (query || '').trim().toLowerCase();
     const matches = q ? regions.filter(r => r.toLowerCase().includes(q)) : regions.slice();
     if (matches.length === 0) {
-      sug.style.display = 'none';
+      sug.classList.remove('show');
       return;
     }
     sug.innerHTML = matches.map(r =>
-      `<div class="team-user-suggest-item" style="padding:.45rem .6rem;cursor:pointer" onmousedown="event.preventDefault();App._selectTeamRegion('${escapeHTML(r)}')">${escapeHTML(r)}</div>`
+      `<div class="team-user-suggest-item" onmousedown="event.preventDefault();App._selectTeamRegion('${escapeHTML(r)}')"><span class="tus-name">${escapeHTML(r)}</span></div>`
     ).join('');
-    sug.style.display = '';
+    sug.classList.add('show');
   },
 
   _selectTeamRegion(region) {
     const input = document.getElementById('ct-team-region');
     if (input) input.value = region;
     const sug = document.getElementById('ct-team-region-suggest');
-    if (sug) sug.style.display = 'none';
+    if (sug) sug.classList.remove('show');
   },
 
   showTeamForm(id) {
