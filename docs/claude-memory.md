@@ -2,6 +2,27 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-25 — 俱樂部 / 賽事 sport filter 切換不生效修復（3 個 bug 一併處理）[永久]
+- **問題**：用戶切頂部全域 sport picker 後、列表沒過濾、仍顯示其他運動的俱樂部
+- **實測證據**（用戶開 `localStorage._sportDebug='1'` 後切換 picker）：
+  ```
+  all → football:    teamDomCount 6 → 5 ✅
+  football → pickleball: teamDomCount 5 → 5 ❌（應該 0、資料只有 5 football + 1 dodgeball）
+  ```
+- **3 個 bug**：
+  1. **Promise.all closure stale value**（主因）— `team-list-render.js` 的 `renderTeamList` 在背景載入教育俱樂部學員數的 `Promise.all().then()` 內、用閉包過時的 `activeTeamSport` / `typeTab` 重繪 DOM。race 流程：切 football → 啟動 Promise → 切 pickleball → render 寫 0 個 → football 那輪 Promise resolve 用閉包 'football' 覆寫成 5 個足球 → 看起來像「沒過濾」
+  2. **`renderAdminTeams` / `renderTeamManage` 缺 sport filter**（次要）— 管理頁不尊重全域 picker
+  3. **`tournament-render.js` 的 sport filter 依賴 `hostTeam` 反查**（次要）— 若 hostTeam 快取未載入會誤隱藏（不是「顯示錯」、是「該顯示沒顯示」）
+- **修復**（commit TBD、版號 TBD）：
+  1. `Promise.all().then()` 內**重新讀取「當下」的 sport / typeTab**（用 `_getActiveTeamGlobalSport()` 直接取，不呼叫會改 DOM 的 `_syncTeamSportFilterWithGlobal`、避免背景 callback 副作用 — QA agent 建議）
+  2. `renderAdminTeams` / `renderTeamManage` 加 `_getActiveTeamGlobalSport()` filter；`theme.js` 切 sport 時觸發這兩頁的重繪
+  3. `tournament-render.js` 加 `t.sportTag` 優先讀（為未來資料結構升級鋪路）+ `hostTeam` 不存在時**保留賽事**（保守、寧可誤顯示也不誤隱藏；補註解說明）
+- **教訓**：
+  - **背景 Promise 的 `.then()` callback 不能用閉包擷取的「外部狀態」做關鍵決策**（render filter / 寫 DOM），必須在 callback 內重新讀取「當下狀態」
+  - 用戶實測 log（`_sportDebug` localStorage flag）是定位 race condition 的關鍵 — 否則純讀程式碼推論不出來
+  - QA agent 對「Promise.then 內 DOM 副作用」的指正是必要的（雖然當前情境風險低、但代碼意圖更清晰）
+- **3 輪審計流程**：自我審計 → Explore agent 找 3 個 bug 候選 → 用戶實測 picker 確認真因 → 修 → QA agent CONDITIONAL GO + 2 項採納
+
 ### 2026-04-25 — fetchIfMissing short-circuit 缺陷修復（活動名單載入 500-4000ms → < 50ms）[永久]
 - **問題**：用戶透過 `localStorage._perfAttLog='1'` 實測活動詳情頁報名名單、15 次進頁數據顯示 `fetch_ms` 佔總延遲 99%（500-4000ms 不等），其他段（summary/noshow/rows/html_bind）全部 < 3ms
 - **根因**：`fetchAttendanceIfMissing` / `fetchRegistrationsIfMissing` 的 short-circuit 條件寫錯

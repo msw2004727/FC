@@ -193,6 +193,14 @@ Object.assign(App, {
       try { if (this._activityActiveTab === 'calendar') this._renderActivityCalendar?.(); } catch (_) {}
       try { this.renderTeamList?.(); } catch (_) {}
       try { this.renderTournamentTimeline?.(); } catch (_) {}
+      // 2026-04-25：管理頁也要同步重繪（用全域 sport 過濾、與普通俱樂部頁一致）
+      try {
+        if (this.currentPage === 'page-admin-teams') {
+          const q = (document.getElementById('team-search-input')?.value || '').trim().toLowerCase();
+          this.renderAdminTeams?.(q);
+        }
+      } catch (_) {}
+      try { if (this.currentPage === 'page-team-manage') this.renderTeamManage?.(); } catch (_) {}
       if (_perfSportLog) {
         const _selVal = document.getElementById('team-sport-filter')?.value;
         const _teamCount = document.getElementById('team-list')?.children?.length;

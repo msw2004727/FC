@@ -68,19 +68,22 @@ Object.assign(App, {
     const eduTeams = sorted.filter(t => t.type === 'education');
     if (eduTeams.length) {
       Promise.all(eduTeams.map(t => this._loadEduStudents?.(t.id).catch(() => {}))).then(() => {
-        if (this.currentPage === 'page-teams') {
-          const c = document.getElementById('team-list');
-          if (!c) return;
-          var _s2 = _tlScrollEl.scrollTop;
-          let ts = ApiService.getActiveTeams();
-          if (typeTab) ts = ts.filter(t => (t.type || 'general') === typeTab);
-          // [修復] 背景重繪必須延用 sport filter，否則會把頂部切分類後的篩選結果蓋掉
-          if (activeTeamSport) ts = ts.filter(t => t.sportTag === activeTeamSport);
-          // 強制清除指紋，讓教育俱樂部學員數更新後能重繪
-          this._teamListLastFp = '';
-          c.innerHTML = this._sortTeams(ts).map(t => this._teamCardHTML(t)).join('') || c.innerHTML;
-          _tlScrollEl.scrollTop = _s2;
-        }
+        if (this.currentPage !== 'page-teams') return;
+        const c = document.getElementById('team-list');
+        if (!c) return;
+        // 2026-04-25：重新讀取「當下」的 sport / typeTab，避免用閉包過時值覆寫使用者
+        // 切換後的列表（race：切 football → 觸發此 Promise → 切 pickleball →
+        // Promise resolve 用閉包 'football' 覆寫成 5 個足球、看起來像「沒過濾」）
+        // 只讀「當下狀態」，不呼叫 _syncTeamSportFilterWithGlobal（避免在背景 callback 改 DOM）
+        const _curSport = this._getActiveTeamGlobalSport?.() || '';
+        const _curTypeTab = this._currentTeamTypeTab || '';
+        var _s2 = _tlScrollEl.scrollTop;
+        let ts = ApiService.getActiveTeams();
+        if (_curTypeTab) ts = ts.filter(t => (t.type || 'general') === _curTypeTab);
+        if (_curSport) ts = ts.filter(t => t.sportTag === _curSport);
+        this._teamListLastFp = '';
+        c.innerHTML = this._sortTeams(ts).map(t => this._teamCardHTML(t)).join('') || c.innerHTML;
+        _tlScrollEl.scrollTop = _s2;
       });
     }
   },
@@ -102,6 +105,10 @@ Object.assign(App, {
     } else {
       teams = ApiService.getTeams().filter(t => this._isTeamOwner(t));
     }
+
+    // 2026-04-25：管理頁尊重全域 sport picker（與 renderTeamList 一致）
+    const manageSport = this._getActiveTeamGlobalSport?.() || '';
+    if (manageSport) teams = teams.filter(t => t.sportTag === manageSport);
 
     if (!teams.length) {
       container.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--text-muted);font-size:.85rem">尚無俱樂部資料</div>';
@@ -163,6 +170,9 @@ Object.assign(App, {
       (t.leader || '').toLowerCase().includes(q) ||
       (t.region || '').toLowerCase().includes(q)
     );
+    // 2026-04-25：管理頁尊重全域 sport picker（與 renderTeamList 一致）
+    const adminSport = this._getActiveTeamGlobalSport?.() || '';
+    if (adminSport) teams = teams.filter(t => t.sportTag === adminSport);
     if (!teams.length) {
       container.innerHTML = '<div style="padding:1rem;font-size:.82rem;color:var(--text-muted);text-align:center">未找到符合條件的俱樂部</div>';
       return;

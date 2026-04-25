@@ -97,12 +97,17 @@ Object.assign(App, {
       tournaments = tournaments.filter(t => t.region === regionFilter);
     }
 
-    // Sport filter（透過 hostTeam.sportTag 反查；賽事 document 沒有獨立 sportTag 欄位）
+    // Sport filter（優先讀賽事自己的 sportTag、退而求其次讀 hostTeam.sportTag）
+    // 2026-04-25：hostTeam 找不到時保留賽事（避免快取未載入時誤隱藏）
     const activeSport = (typeof App !== 'undefined' && App._activeSport && App._activeSport !== 'all') ? App._activeSport : '';
     if (activeSport) {
       tournaments = tournaments.filter(t => {
+        if (t.sportTag) return t.sportTag === activeSport;
         const hostTeam = ApiService.getTeam?.(t.hostTeamId);
-        return hostTeam?.sportTag === activeSport;
+        // hostTeam 資料未載入時保留賽事，避免快取延遲期誤隱藏已發佈的賽事
+        // 寧可短暫誤顯示、也不誤隱藏（onSnapshot 載入後下次切換會正確過濾）
+        if (!hostTeam) return true;
+        return hostTeam.sportTag === activeSport;
       });
     }
 
