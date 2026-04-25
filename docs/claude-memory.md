@@ -2,6 +2,32 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-25 — Reload 時 boot overlay 延後隱藏，消除「閃首頁→跳回」瑕疵
+- **問題**：用戶在「活動詳情」「俱樂部詳情」「賽事詳情」「個人名片」等帶 `?event=` / `?team=` / `?tournament=` / `?profile=` query 的頁面按 F5 reload 時，APP 會先閃一下首頁再跳回原頁面，視覺感受不順
+- **根因**：reload 時 boot overlay 隱藏的時機是「內容渲染完成」（`_contentReady = true` 時），但此時 deep link guard 還在解析 URL 並準備跳轉。順序：
+  1. boot overlay 顯示（含開機品牌圖 + 進度條）
+  2. 預設 `currentPage = 'page-home'` → 首頁渲染完成
+  3. `_contentReady = true` → boot overlay 隱藏 ← **此時 deep link 還在處理**
+  4. 用戶看到首頁 0.5 秒
+  5. Deep link guard 完成解析 → 跳轉到原頁面
+  6. 用戶看到「跳回」動作
+- **方案取捨**：
+  - 方案 A（清掉 deep link query）：1 行修復，但會破壞所有 LINE 分享連結，**致命副作用，否決**
+  - 方案 B（路由提前到「跳過首頁直接 render 原頁面」）：要動 `App.init()` 流程，動到全域狀態初始化來源，風險中
+  - **方案 C（重用既有 boot overlay，延後隱藏時機）**：純利用既有資產，視覺效果跟「第一次進入 APP」完全一致，最終採用
+- **修復**：3 處改動，全在 `app.js`：
+  1. `_dismissBootOverlay()`（[L80-99](app.js:80)）：偵測到 `_hasPendingDeepLink()` 且未強制觸發時，延後隱藏 + 啟動 5 秒安全超時（避免 deep link 卡住永遠遮罩）
+  2. 新增 `_hasPendingDeepLink()` helper：判斷 sessionStorage 4 個 `_pendingDeepXxx` key 任一存在
+  3. 新增 `_dismissBootOverlayAfterDeepLink()`：清 timeout + 設 force flag + 觸發隱藏
+  4. `_clearPendingDeepLink()`（[L898](app.js:898)）：sessionStorage 清完後若 boot overlay 處於延後狀態，立即強制隱藏（涵蓋成功跳轉、fallback、主動清除三種路徑）
+- **關鍵設計**：
+  - **時間戳/flag 雙保險**：`_bootOverlayDeferredHide`（避免重複設 timeout）+ `_bootOverlayForceDismiss`（避免無限遞迴）+ `_bootOverlayDeferredTimeout`（5 秒兜底）
+  - **5 秒超時**：比看門狗 8 秒短（[index.html:931](index.html:931)），確保 deep link 失敗時還是會顯示首頁，看門狗才不會誤觸發
+  - **集中於 `_clearPendingDeepLink`**：所有清 sessionStorage 的路徑（`_completeDeepLinkSuccess` / `_completeDeepLinkFallback` / 主動 clear）都會經過它，hook 一處 cover 全部
+- **教訓**：
+  - 用戶的「重新整理閃首頁」瑕疵感本質是「boot overlay 隱藏太早」+「deep link 解析延遲」的時序不同步，不是路由邏輯本身有錯
+  - 重用既有 UI 元件（boot overlay 進度條、開機品牌圖）比新做一個成本更低、UX 更一致
+
 ### 2026-04-25 — 全站「地區」picker 統一資料源 + UI 邏輯（4 表單共用 fuzzy match + 23 項含「其他」）
 - **變更**：個人資料初次登入 / 個人資料編輯 / 俱樂部新增 / 賽事新增 4 個地區 picker 統一使用同一套資料 + 模糊搜尋
 - **動機**：用戶要求「都統一個人資料那一套」、4 個地方各自實作不同（清單長度、排序、匹配演算法、UI 不一）

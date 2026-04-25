@@ -77,11 +77,59 @@ function _withSportHubTimeout(promise, ms, code, message) {
   });
 }
 
+/**
+ * 判斷是否有 pending deep link（reload 後 URL 帶 ?event= / ?team= 等，
+ * 已被 DOMContentLoaded 階段寫入 sessionStorage）。
+ * 2026-04-25：用於 reload 時延後隱藏 boot overlay，避免「閃首頁→跳回原頁」瑕疵。
+ */
+function _hasPendingDeepLink() {
+  try {
+    return !!(
+      sessionStorage.getItem('_pendingDeepEvent') ||
+      sessionStorage.getItem('_pendingDeepTeam') ||
+      sessionStorage.getItem('_pendingDeepTournament') ||
+      sessionStorage.getItem('_pendingDeepProfile')
+    );
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * Deep link 跳轉完成（或 fallback / sessionStorage 清除）後呼叫，
+ * 強制觸發 boot overlay 隱藏（解除 _hasPendingDeepLink 守衛）。
+ */
+function _dismissBootOverlayAfterDeepLink(reason) {
+  if (window._bootOverlayDeferredTimeout) {
+    clearTimeout(window._bootOverlayDeferredTimeout);
+    window._bootOverlayDeferredTimeout = null;
+  }
+  window._bootOverlayForceDismiss = true;
+  _dismissBootOverlay(reason || 'deep-link-done');
+}
+
 /** 隱藏啟動 loading overlay（進度條跳 100% → 150ms 後淡出） */
 function _dismissBootOverlay(reason) {
   try {
     var _ov = document.getElementById('loading-overlay');
     if (!_ov || _ov.style.display === 'none') return;
+
+    // 2026-04-25：reload 帶 ?event= 等 deep link 時延後隱藏，避免「閃首頁→跳回」
+    // 等 deep link 跳轉完成由 _dismissBootOverlayAfterDeepLink() 強制觸發
+    // 5 秒安全超時：即使 deep link 卡住也不會永遠遮罩（看門狗 8 秒兜底之前）
+    if (_hasPendingDeepLink() && !window._bootOverlayForceDismiss) {
+      if (!window._bootOverlayDeferredHide) {
+        window._bootOverlayDeferredHide = true;
+        console.log('[Boot] pending deep link 偵測到，延後隱藏 boot overlay (' + (reason || '') + ')');
+        window._bootOverlayDeferredTimeout = setTimeout(function() {
+          console.warn('[Boot] deep link 5 秒未完成，強制隱藏 boot overlay');
+          window._bootOverlayForceDismiss = true;
+          _dismissBootOverlay('deep-link-timeout');
+        }, 5000);
+      }
+      return;
+    }
+
     if (window._bootLoadingAnim) window._bootLoadingAnim.stop();
     var _pct = _ov.querySelector('.boot-loading__pct');
     var _fill = _ov.querySelector('.boot-loading__fill');
@@ -902,6 +950,11 @@ const App = {
       sessionStorage.removeItem('_pendingDeepTournament');
       sessionStorage.removeItem('_pendingDeepProfile');
     } catch (_) {}
+    // 2026-04-25：若 boot overlay 因 pending deep link 延後隱藏，強制觸發隱藏
+    // 涵蓋所有路徑：成功跳轉完成、fallback、主動清除
+    if (typeof _dismissBootOverlayAfterDeepLink === 'function' && window._bootOverlayDeferredHide) {
+      _dismissBootOverlayAfterDeepLink('pending-cleared');
+    }
   },
 
   _clearDeepLinkQueryParams() {
