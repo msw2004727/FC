@@ -157,6 +157,42 @@ Object.assign(App, {
 
   // ══════════════════════════════════
   //  Create Tournament
+  // ── 地區 typeahead（2026-04-25：與俱樂部 / 個人資料統一、含「其他」）──
+  _onTournamentRegionFocus() { this._renderTournamentRegionSuggest(''); },
+
+  _onTournamentRegionInput() {
+    const val = (document.getElementById('tf-region')?.value || '').trim();
+    this._renderTournamentRegionSuggest(val);
+  },
+
+  _onTournamentRegionBlur() {
+    setTimeout(() => {
+      const sug = document.getElementById('tf-region-suggest');
+      if (sug) sug.classList.remove('show');
+    }, 200);
+  },
+
+  _renderTournamentRegionSuggest(query) {
+    const sug = document.getElementById('tf-region-suggest');
+    if (!sug) return;
+    const matches = (typeof filterTwRegions === 'function') ? filterTwRegions(query, true) : [];
+    if (matches.length === 0) {
+      sug.classList.remove('show');
+      return;
+    }
+    sug.innerHTML = matches.map(r =>
+      `<div class="team-user-suggest-item" onmousedown="event.preventDefault();App._selectTournamentRegion('${escapeHTML(r)}')"><span class="tus-name">${escapeHTML(r)}</span></div>`
+    ).join('');
+    sug.classList.add('show');
+  },
+
+  _selectTournamentRegion(region) {
+    const input = document.getElementById('tf-region');
+    if (input) input.value = region;
+    const sug = document.getElementById('tf-region-suggest');
+    if (sug) sug.classList.remove('show');
+  },
+
   // ══════════════════════════════════
   openCreateTournamentModal() {
     if (!this._canCreateFriendlyTournament()) {
@@ -224,6 +260,11 @@ Object.assign(App, {
       this._tfSetError('tf-teams', '參賽隊伍數需介於 2 到 4 隊。'); hasError = true;
     }
     if (!createRegEnd) { this._tfSetError('tf-reg-end', '請填寫報名截止時間。'); hasError = true; }
+    // 2026-04-25：地區必填、必須在清單內（22 縣市 + 「其他」）
+    if (!createRegion) { this._tfSetError('tf-region', '請選擇舉辦地區。'); hasError = true; }
+    else if (typeof TW_REGIONS_WITH_OTHER !== 'undefined' && !TW_REGIONS_WITH_OTHER.includes(createRegion)) {
+      this._tfSetError('tf-region', '舉辦地區必須從清單選擇。'); hasError = true;
+    }
     if (hasError) { this.showToast('請修正標記欄位。'); return; }
     const createRegStart = this._getTournamentImmediateRegStartValue(createRegStartInput);
     if (new Date(createRegStart) >= new Date(createRegEnd)) {

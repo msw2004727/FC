@@ -95,6 +95,11 @@ Object.assign(App, {
     if (!editRegEnd) {
       this._tfSetError('tf-reg-end', '請填寫報名截止時間。'); hasError = true;
     }
+    // 2026-04-25：地區必填、必須在清單內（22 縣市 + 「其他」）
+    if (!editRegion) { this._tfSetError('tf-region', '請選擇舉辦地區。'); hasError = true; }
+    else if (typeof TW_REGIONS_WITH_OTHER !== 'undefined' && !TW_REGIONS_WITH_OTHER.includes(editRegion)) {
+      this._tfSetError('tf-region', '舉辦地區必須從清單選擇。'); hasError = true;
+    }
     if (hasError) { this.showToast('請修正標記欄位。'); return; }
 
     const editRegStart = this._getTournamentImmediateRegStartValue(editRegStartInput);

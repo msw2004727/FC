@@ -8,6 +8,7 @@
     <input type="text" id="tc-search" placeholder="搜尋賽事名稱..." oninput="App.filterTournamentCenter()">
     <select id="tc-region-filter" onchange="App.filterTournamentCenter()">
       <option value="">全部地區</option>
+      <!-- 2026-04-25：順序統一為 6 都優先（與表單 picker 一致） -->
       <option value="台北市">台北市</option>
       <option value="新北市">新北市</option>
       <option value="桃園市">桃園市</option>
@@ -104,15 +105,11 @@
         <div id="tf-match-dates-wrap" style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.3rem"></div>
         <input type="date" id="tf-match-date-picker" onchange="App.addMatchDate(this.value)">
       </div>
-      <div class="ce-row">
+      <div class="ce-row" style="position:relative">
         <label>舉辦地區 <span class="required">*必填</span></label>
-        <input type="text" id="tf-region" list="tf-region-list" placeholder="輸入或選擇縣市..." autocomplete="off">
-        <datalist id="tf-region-list">
-          <option value="台北市"><option value="新北市"><option value="桃園市"><option value="台中市"><option value="台南市"><option value="高雄市">
-          <option value="基隆市"><option value="新竹市"><option value="嘉義市"><option value="新竹縣"><option value="苗栗縣"><option value="彰化縣">
-          <option value="南投縣"><option value="雲林縣"><option value="嘉義縣"><option value="屏東縣"><option value="宜蘭縣"><option value="花蓮縣">
-          <option value="台東縣"><option value="澎湖縣"><option value="金門縣"><option value="連江縣">
-        </datalist>
+        <input type="text" id="tf-region" placeholder="輸入或選擇縣市..." autocomplete="off"
+               oninput="App._onTournamentRegionInput()" onfocus="App._onTournamentRegionFocus()" onblur="App._onTournamentRegionBlur()">
+        <div id="tf-region-suggest" class="team-user-suggest"></div>
       </div>
       <div class="ce-row">
         <label>場地（可新增多個）</label>

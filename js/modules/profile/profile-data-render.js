@@ -187,9 +187,7 @@ Object.assign(App, {
     var list = document.getElementById('profile-region-list');
     if (!list) return;
     var q = String(keyword || '').trim().replace(/\u81FA/g, '\u53F0');
-    var regions = typeof TW_REGIONS !== 'undefined' ? TW_REGIONS : [];
-    if (!q) { list.style.display = 'none'; list.innerHTML = ''; return; }
-    var matched = regions.filter(function(r) { return r.indexOf(q) !== -1; });
+    var matched = (typeof filterTwRegions === 'function') ? filterTwRegions(keyword, true) : [];
     list.innerHTML = '';
     if (!matched.length) {
       list.style.display = 'none';

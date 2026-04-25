@@ -21,11 +21,11 @@ Object.assign(App, {
 
     if (!name) { this.showToast('請輸入俱樂部名稱'); return null; }
     if (!document.getElementById('ct-team-sport-tag')?.value) { this.showToast('請選擇運動類型'); return null; }
-    // 2026-04-25：地區必填、且必須在 TW_REGIONS 22 縣市清單內（強制下拉選單）
+    // 2026-04-25：地區必填、且必須在清單內（22 縣市 + 「其他」、強制下拉選單）
     if (!region) { this.showToast('請選擇地區'); return null; }
-    const _validRegions = (typeof TW_REGIONS !== 'undefined' && Array.isArray(TW_REGIONS)) ? TW_REGIONS : [];
+    const _validRegions = (typeof TW_REGIONS_WITH_OTHER !== 'undefined' && Array.isArray(TW_REGIONS_WITH_OTHER)) ? TW_REGIONS_WITH_OTHER : [];
     if (_validRegions.length > 0 && !_validRegions.includes(region)) {
-      this.showToast('地區必須從清單選擇（22 縣市）');
+      this.showToast('地區必須從清單選擇');
       return null;
     }
 

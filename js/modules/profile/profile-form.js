@@ -272,44 +272,12 @@ Object.assign(App, {
   },
 
   // ── 首次登入：地區模糊搜尋 + 儲存（eagerly loaded，不依賴 profile-data.js）──
-
-  _FL_REGIONS: [
-    '台北市','新北市','桃園市','台中市','台南市','高雄市',
-    '基隆市','新竹市','嘉義市',
-    '新竹縣','苗栗縣','彰化縣','南投縣','雲林縣','嘉義縣',
-    '屏東縣','宜蘭縣','花蓮縣','台東縣',
-    '澎湖縣','金門縣','連江縣',
-    '其他'
-  ],
-
-  _flNormalize: function(v) {
-    return String(v || '').trim().toLowerCase().replace(/臺/g, '台').replace(/\s+/g, '');
-  },
-
-  _flFuzzy: function(text, query) {
-    var ti = 0;
-    for (var qi = 0; qi < query.length; qi++) {
-      var found = false;
-      while (ti < text.length) {
-        if (text[ti] === query[qi]) { ti++; found = true; break; }
-        ti++;
-      }
-      if (!found) return false;
-    }
-    return true;
-  },
+  // 2026-04-25：資料源 / fuzzy match 已移到 config.js 變共用 filterTwRegions，此處只剩 DOM 渲染
 
   flRenderList: function(keyword) {
     var list = document.getElementById('fl-region-list');
     if (!list) return;
-    var q = this._flNormalize(keyword);
-    var matched = this._FL_REGIONS;
-    if (q) {
-      var self = this;
-      matched = this._FL_REGIONS.filter(function(name) {
-        return self._flFuzzy(self._flNormalize(name), q);
-      });
-    }
+    var matched = (typeof filterTwRegions === 'function') ? filterTwRegions(keyword, true) : [];
     list.innerHTML = '';
     if (matched.length === 0) {
       list.innerHTML = '<div style="padding:8px 12px;color:#999;font-size:13px">無匹配結果</div>';

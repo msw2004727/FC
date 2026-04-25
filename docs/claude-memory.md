@@ -2,6 +2,25 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-25 — 全站「地區」picker 統一資料源 + UI 邏輯（4 表單共用 fuzzy match + 23 項含「其他」）
+- **變更**：個人資料初次登入 / 個人資料編輯 / 俱樂部新增 / 賽事新增 4 個地區 picker 統一使用同一套資料 + 模糊搜尋
+- **動機**：用戶要求「都統一個人資料那一套」、4 個地方各自實作不同（清單長度、排序、匹配演算法、UI 不一）
+- **實作**：
+  - `config.js`：
+    - `TW_REGIONS` 順序改為 6 都優先（與 first-login 一致）
+    - 新增 `TW_REGIONS_WITH_OTHER = [...TW_REGIONS, '其他']`（給 4 個表單使用）
+    - 新增 `filterTwRegions(keyword, includeOther)` 共用函式（fuzzy match + 臺/台互通）
+  - `profile-form.js`：移除 `_FL_REGIONS` / `_flNormalize` / `_flFuzzy`（消除重複定義），`flRenderList` 改呼叫 `filterTwRegions(keyword, true)`
+  - `profile-data-render.js`：`_filterProfileRegion` 改呼叫 `filterTwRegions(keyword, true)`、改回包含「其他」（之前不含、現在統一）
+  - `team-form-init.js`：`_renderTeamRegionSuggest` 改呼叫 `filterTwRegions`、含「其他」
+  - `team-form-validate.js`：驗證改用 `TW_REGIONS_WITH_OTHER`
+  - `tournament-manage.js`：新增 `_onTournamentRegionFocus/Input/Blur` + `_renderTournamentRegionSuggest` + `_selectTournamentRegion`、加驗證
+  - `tournament-manage-edit.js`：加同樣驗證
+  - `pages/tournament.html`：`tf-region` 從 native datalist 改為 typeahead（仿俱樂部 pattern）
+  - `pages/team.html` / `pages/tournament.html`：篩選器排序統一為 6 都優先（不含「其他」、22 項）
+- **副作用**：俱樂部、賽事的「地區」也能填「其他」（用戶要求彈性）— 業務語意可能怪、但用戶決策
+- **遺留**：`profile-data-render.js:189` 的 `var q = String(...).replace(/臺/g, '台')` dead code 因 Edit tool 對「臺」字編碼處理 bug 未清除、待獨立 PR 處理（無功能影響、每次呼叫多 < 1ms）
+
 ### 2026-04-25 — 建立流程的 modal 禁用「點外圍空白關閉」（避免誤觸丟失資料）
 - **變更**：活動 / 外部活動 / 俱樂部 / 賽事 4 個建立 modal 加 `data-no-backdrop-close="1"`，點外圍空白處不會關閉、必須按表單內的「取消」/「儲存」按鈕
 - **影響的 modal**：`create-event-modal` / `create-external-event-modal` / `create-team-modal` / `tournament-form-modal`

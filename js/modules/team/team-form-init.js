@@ -124,9 +124,8 @@ Object.assign(App, {
   _renderTeamRegionSuggest(query) {
     const sug = document.getElementById('ct-team-region-suggest');
     if (!sug) return;
-    const regions = (typeof TW_REGIONS !== 'undefined' && Array.isArray(TW_REGIONS)) ? TW_REGIONS : [];
-    const q = (query || '').trim().toLowerCase();
-    const matches = q ? regions.filter(r => r.toLowerCase().includes(q)) : regions.slice();
+    // 2026-04-25：改用共用 filterTwRegions（fuzzy match + 含「其他」、與 first-login / 個人資料一致）
+    const matches = (typeof filterTwRegions === 'function') ? filterTwRegions(query, true) : [];
     if (matches.length === 0) {
       sug.classList.remove('show');
       return;

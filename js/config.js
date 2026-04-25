@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260425g';
+const CACHE_VERSION = '0.20260425h';
 
 // ─── 即時監聽 limit 預設值（可在儀表板動態調整，存於 siteConfig/realtimeConfig）───
 const REALTIME_LIMIT_DEFAULTS = {
@@ -545,12 +545,37 @@ const HOME_GAME_PRESETS = [
 ];
 
 // ─── 台灣 22 縣市（地區鎖 + 個人資料地區選擇）───
+// 2026-04-25：順序改為 6 都優先（與 first-login picker 一致）
 const TW_REGIONS = [
-  '台北市','新北市','基隆市','桃園市','新竹市','新竹縣',
-  '苗栗縣','台中市','彰化縣','南投縣','雲林縣',
-  '嘉義市','嘉義縣','台南市','高雄市','屏東縣',
-  '宜蘭縣','花蓮縣','台東縣','澎湖縣','金門縣','連江縣',
+  '台北市','新北市','桃園市','台中市','台南市','高雄市',  // 6 都
+  '基隆市','新竹市','嘉義市',                              // 縣轄市
+  '新竹縣','苗栗縣','彰化縣','南投縣','雲林縣','嘉義縣',
+  '屏東縣','宜蘭縣','花蓮縣','台東縣',
+  '澎湖縣','金門縣','連江縣',
 ];
+
+// 表單填寫用（含「其他」、給彈性使用）
+const TW_REGIONS_WITH_OTHER = TW_REGIONS.concat(['其他']);
+
+// 共用地區模糊搜尋（fuzzy match：字符依序出現、不需連續；臺/台互通）
+function filterTwRegions(keyword, includeOther) {
+  const list = (includeOther === false) ? TW_REGIONS : TW_REGIONS_WITH_OTHER;
+  const q = String(keyword || '').trim().replace(/臺/g, '台').toLowerCase();
+  if (!q) return list.slice();
+  return list.filter(function(name) {
+    const text = name.replace(/臺/g, '台').toLowerCase();
+    let ti = 0;
+    for (let qi = 0; qi < q.length; qi++) {
+      let found = false;
+      while (ti < text.length) {
+        if (text[ti] === q[qi]) { ti++; found = true; break; }
+        ti++;
+      }
+      if (!found) return false;
+    }
+    return true;
+  });
+}
 
 // ─── 活動地區分區定義 ───
 const REGION_MAP = {
