@@ -3,7 +3,7 @@
 > 專案內所有可調設定（timing / limit / threshold）+ 關鍵流程的順序效果總覽。
 > **強制維護規則（CLAUDE.md §設定追蹤規範）**：修改檔案時若涉及任何可調設定 / 加載順序 / timing / 閾值，必須同步更新本檔對應條目；新增任何可調常數，必須在本檔登記。
 
-**Last Updated: 2026-04-25**
+**Last Updated: 2026-04-25**（boot overlay MIN_VISIBLE_MS 1500 → 2500）
 
 ## 目錄
 
@@ -24,7 +24,7 @@
 <a id="boot-overlay-min-visible"></a>
 | 名稱 | 值 | 檔案位置 | 用途 |
 |------|---|---------|------|
-| **MIN_VISIBLE_MS** | `1500` ms | `app.js` `_dismissBootOverlay` | 最短顯示時間。Phase 3 快取命中(~200ms)會立刻觸發 dismiss、進度條才到 ~10% 就被強制跳 100%。此守衛確保用戶看到完整動畫流程 |
+| **MIN_VISIBLE_MS** | `2500` ms | `app.js` `_dismissBootOverlay` | 最短顯示時間。Phase 3 快取命中(~200ms)會立刻觸發 dismiss、進度條才到 ~10% 就被強制跳 100%。此守衛確保用戶看到完整動畫流程（從 0% → ~92% 動畫約需 2.7 秒，2500ms 可看到 ~83% 進度，視覺感受完整） |
 | Deep link 延後安全 timeout | `5000` ms | `app.js` `_dismissBootOverlay` | reload 帶 `?event=` 等 query 時，等 deep link 跳轉完成才隱藏。此 timeout 是兜底（避免 deep link 卡住永遠遮罩）。**必須 < 開機看門狗 8000 ms** |
 | 開機看門狗 timeout | `8000` ms | `index.html:940` | 清快取後 8 秒內未完成初始化則自動 reload（最多 2 次） |
 | Loading overlay safety timeout | `20000` ms | `index.html:820` | 終極兜底：若 boot overlay 超過 20 秒仍未消失強制隱藏 |
@@ -305,3 +305,4 @@ finally: _completeDeepLinkSuccess / _completeDeepLinkFallback
 ## 變更歷史
 
 - **2026-04-25**：建立檔案。初始登錄 Boot Overlay / Route Loading / Visibility / LIFF / Instant Save / SW / Limit / Threshold / Load Order / Sequence Effects / Versioning 共 11 大類。
+- **2026-04-25**：boot overlay `MIN_VISIBLE_MS` 1500 → 2500（用戶反映 1.5 秒仍偏短，調至 2.5 秒看到更完整的進度條動畫）。

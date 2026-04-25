@@ -116,10 +116,10 @@ function _dismissBootOverlay(reason) {
 
     // 2026-04-25：最短顯示時間守衛（避免 cache 命中時進度條一閃即逝）
     // Phase 3 快取命中(~200ms)會立刻觸發 _dismissBootOverlay，進度條才跑到 ~10% 就被
-    // 強制跳到 100%，總顯示 < 500ms。加 1500ms 守衛確保用戶看到完整動畫流程。
+    // 強制跳到 100%，總顯示 < 500ms。加 2500ms 守衛確保用戶看到完整動畫流程。
     // 與下方「pending deep link 守衛」串聯：先滿足 minVisible，再判斷 deep link。
     // 詳見 docs/tunables.md #boot-overlay-min-visible
-    var MIN_VISIBLE_MS = 1500;
+    var MIN_VISIBLE_MS = 2500;
     var shownAt = window._bootOverlayShownAt || 0;
     var elapsed = shownAt ? (Date.now() - shownAt) : MIN_VISIBLE_MS;
     if (elapsed < MIN_VISIBLE_MS) {

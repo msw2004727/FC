@@ -2,6 +2,12 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-25 — Boot overlay MIN_VISIBLE_MS 調整 1500 → 2500
+- **原因**：用戶反映 1.5 秒仍偏短，未能完整看到進度條動畫流程（0% → ~92% 動畫約需 2.7 秒，1500ms 只能看到 ~50% 進度）
+- **調整**：`app.js` `MIN_VISIBLE_MS = 1500 → 2500`（同步更新註解 + `docs/tunables.md` 對應條目 + Last Updated）
+- **影響**：cache 命中場景會多等 1 秒（總共 2.5 秒），看到 ~83% 進度條，視覺感受更完整。第一次進入無快取場景仍不受影響（Cloud ready 約 2-3 秒，剛好覆蓋）
+- **依規 §每次新增功能時的規範 第 8 條**：tunables.md 已同步更新
+
 ### 2026-04-25 — Boot overlay 一閃即逝修復（最短顯示 1500ms）+ 建立 docs/tunables.md
 - **問題**：用戶反映 reload 後開機進度條「一閃就消失」，沒有完整流程。診斷後發現 `_dismissBootOverlay` 有 4 個觸發點，其中 `Phase 3 快取命中`（[app.js:2351](app.js:2351)）會在 cache 命中時 ~200ms 內觸發，進度條才從 0% 動畫到 ~10% 就被強制跳 100% → 150ms 後 fade out → **總顯示時間 < 500ms**
 - **根因**：boot overlay 的「準備就緒」訊號（Phase 3 快取命中 / Cloud ready / 骨架模式）來得太快，沒有最短顯示時間保護。前次 deep link 修復路徑只覆蓋「reload 帶 query」，沒涵蓋此既有 UX 瑕疵
