@@ -176,13 +176,24 @@ function getSportLabelByKey(key) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/config.js:421-426 — getSportIconSvg
-// Gets emoji HTML span for sport key
+// Extracted from js/config.js — SPORT_ICON_SVG_HTML (2026-04-25 added)
+// 自製 SVG 圖示對照表（優先於 emoji）
+// ---------------------------------------------------------------------------
+const SPORT_ICON_SVG_HTML = {
+  pickleball: '<svg viewBox="0 0 100 100" width="1em" height="1em" style="vertical-align:-0.1em" xmlns="http://www.w3.org/2000/svg"><g transform="rotate(-30 50 50)"><rect x="32" y="62" width="14" height="30" rx="3" fill="#0f172a"/><rect x="34" y="64" width="10" height="26" rx="2" fill="#334155"/><rect x="14" y="6" width="52" height="58" rx="13" fill="#dc2626" stroke="#7f1d1d" stroke-width="2.5"/></g><circle cx="78" cy="22" r="11" fill="#fde047" stroke="#713f12" stroke-width="2"/><g fill="#713f12"><circle cx="74" cy="18" r="1.3"/><circle cx="82" cy="18" r="1.3"/><circle cx="78" cy="22" r="1.3"/><circle cx="74" cy="26" r="1.3"/><circle cx="82" cy="26" r="1.3"/></g><path d="M 60 24 L 67 22 M 58 30 L 65 30 M 60 36 L 67 36" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg>',
+};
+
+// ---------------------------------------------------------------------------
+// Extracted from js/config.js — getSportIconSvg
+// 優先使用 SPORT_ICON_SVG_HTML(自製 SVG),否則 fallback 到 emoji span
 // ---------------------------------------------------------------------------
 function getSportIconSvg(key, className = '') {
   const safeKey = getSportKeySafe(key) || 'football';
-  const emoji = SPORT_ICON_EMOJI[safeKey] || SPORT_ICON_EMOJI.football;
   const klass = className ? ` ${className}` : '';
+  if (SPORT_ICON_SVG_HTML[safeKey]) {
+    return `<span class="sport-emoji${klass}" aria-hidden="true">${SPORT_ICON_SVG_HTML[safeKey]}</span>`;
+  }
+  const emoji = SPORT_ICON_EMOJI[safeKey] || SPORT_ICON_EMOJI.football;
   return `<span class="sport-emoji${klass}" aria-hidden="true">${emoji}</span>`;
 }
 
@@ -544,6 +555,21 @@ describe('Sport Config Lookup', () => {
     test('returns correct emoji for each sport', () => {
       expect(getSportIconSvg('tennis')).toContain('\ud83c\udfbe');
       expect(getSportIconSvg('yoga')).toContain('\ud83e\uddd8');
+    });
+
+    // 2026-04-25\uff1a\u5339\u514b\u7403\u6539\u7528\u81ea\u88fd SVG (Unicode \u7121\u5c08\u5c6c emoji)
+    test('returns SVG markup for pickleball (not emoji fallback)', () => {
+      const result = getSportIconSvg('pickleball');
+      expect(result).toContain('<svg');
+      expect(result).toContain('viewBox="0 0 100 100"');
+      expect(result).toContain('rotate(-30 50 50)');  // V4 \u52d5\u611f\u659c\u653e\u6a19\u8a18
+      expect(result).not.toContain('\ud83c\udfd3');  // \u4e0d\u61c9 fallback \u5230\u684c\u7403 emoji \ud83c\udfd3
+    });
+
+    test('SVG icon respects className parameter', () => {
+      const result = getSportIconSvg('pickleball', 'large');
+      expect(result).toContain('class="sport-emoji large"');
+      expect(result).toContain('<svg');
     });
   });
 });

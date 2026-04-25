@@ -3,7 +3,7 @@
 > 專案內所有可調設定（timing / limit / threshold）+ 關鍵流程的順序效果總覽。
 > **強制維護規則（CLAUDE.md §設定追蹤規範）**：修改檔案時若涉及任何可調設定 / 加載順序 / timing / 閾值，必須同步更新本檔對應條目；新增任何可調常數，必須在本檔登記。
 
-**Last Updated: 2026-04-25**（boot overlay MIN_VISIBLE_MS 1500 → 2500）
+**Last Updated: 2026-04-25**（新增 SPORT_ICON_SVG_HTML 對照表 — 匹克球用自製 V4 SVG）
 
 ## 目錄
 
@@ -66,6 +66,22 @@
 | Flush in-flight 等待 | `5000` ms | `event-manage-instant-save.js:168` | `_flushInstantSaves` 等待 in-flight 完成最多 5 秒 |
 | Row saved 動畫 | `600` ms | `event-manage-instant-save.js:122` | 寫入成功後 row 高亮 600ms |
 | Row failed 動畫 | `1200` ms | `event-manage-instant-save.js:134` | 寫入失敗後 row 高亮 1200ms |
+
+<a id="sport-icon-svg"></a>
+### Sport Icon（運動圖示對照）
+
+| 名稱 | 值 / 內容 | 檔案位置 | 用途 |
+|------|----------|---------|------|
+| `SPORT_ICON_EMOJI` | 18 個運動 → emoji 字符對照表 | `js/config.js:437` | LINE Flex Message / textContent 等不支援 HTML 的場景使用 |
+| `SPORT_ICON_SVG_HTML` | 自製 SVG 圖示對照（目前 1 項：pickleball）| `js/config.js:458` | 網頁 UI 渲染時優先使用，否則 fallback 到 emoji |
+| `getSportIconSvg(key, className)` | 渲染 `<span class="sport-emoji">` 包裹的圖示 | `js/config.js:481` | 統一入口：先查 SVG_HTML，否則用 EMOJI |
+| 匹克球 SVG 設計 | V4 動感版（圓角方形拍 + 飛球 + 速度線）| `js/config.js:461` | 因 Unicode 無匹克球專屬 emoji，且 🏓（桌球橢圓拍）會誤導視覺 |
+
+**新增自製 SVG 圖示流程**：
+1. 在 `SPORT_ICON_SVG_HTML` 加 `<key>: '<svg ...>...</svg>'`
+2. SVG 必須含 `width="1em" height="1em" style="vertical-align:-0.1em"`（適配 `.sport-emoji` font-size）
+3. `SPORT_ICON_EMOJI` 對應 key 仍要保留 emoji 作為「不支援 HTML 場景」的 fallback
+4. 同步更新 `tests/unit/config-utils.test.js` 加新測試
 
 ### Service Worker / 快取
 
@@ -306,3 +322,4 @@ finally: _completeDeepLinkSuccess / _completeDeepLinkFallback
 
 - **2026-04-25**：建立檔案。初始登錄 Boot Overlay / Route Loading / Visibility / LIFF / Instant Save / SW / Limit / Threshold / Load Order / Sequence Effects / Versioning 共 11 大類。
 - **2026-04-25**：boot overlay `MIN_VISIBLE_MS` 1500 → 2500（用戶反映 1.5 秒仍偏短，調至 2.5 秒看到更完整的進度條動畫）。
+- **2026-04-25**：新增 `SPORT_ICON_SVG_HTML` 對照表 + 匹克球 V4 SVG 圖示（紅色圓角方形拍斜放 + 黃球飛 + 速度線）。Unicode 無匹克球專屬 emoji、🏓 桌球拍視覺誤導，改用自製 SVG。

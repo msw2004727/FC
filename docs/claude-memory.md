@@ -2,6 +2,20 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-25 — 匹克球改用自製 V4 SVG 圖示（圓角方形拍 + 飛球 + 速度線）
+- **動機**：用戶反映 `SPORT_ICON_EMOJI.pickleball = '🏓'` 跟桌球視覺易混淆。Unicode 無匹克球專屬 emoji，建議用自製 SVG。經設計 4 個版本後用戶選 V4（動感斜放紅色圓角方形拍 + 黃球飛 + 速度線）
+- **實作**：
+  - `js/config.js`：新增 `SPORT_ICON_SVG_HTML` 對照表（目前僅匹克球一項），修改 `getSportIconSvg(key, className)` helper：優先查 `SPORT_ICON_SVG_HTML`，命中則回傳 SVG span，否則 fallback 到 `SPORT_ICON_EMOJI`
+  - `SPORT_ICON_EMOJI.pickleball = '🏓'` 保留不動（作為 LINE Flex Message / textContent 等不支援 HTML 場景的 fallback）
+  - SVG 用 `width="1em" height="1em" style="vertical-align:-0.1em"` 適配 `.sport-emoji` 既有 font-size styling，所有消費點（picker / theme / list card）零改動
+  - `tests/unit/config-utils.test.js`：同步 SPORT_ICON_SVG_HTML 定義 + 加 2 個新測試（pickleball 走 SVG path、className 處理）
+- **架構優勢**：透過修改 helper 一次到位，不動任何消費點（`event-create-sport-picker.js` / `theme.js` / 月曆 / 卡片 等所有 `getSportIconSvg(...)` 呼叫者自動切換）
+- **未涵蓋場景**（仍使用 emoji `🏓`）：
+  - `js/modules/news.js:136` 直接讀 `SPORT_ICON_EMOJI[sportTag]` — LINE 推播訊息 / Flex Message 必須用 emoji 字符
+  - `js/modules/event/event-calendar-constants.js:42` `getSportDef` 回傳的 `emoji` 欄位 — 月曆顯示位置目前無 SVG 支援
+- **遵循規則**：依 §每次新增功能時的規範第 8 條（可調設定 / Timing 同步維護），同步更新 `docs/tunables.md` 新增 #sport-icon-svg 條目 + 變更歷史
+- **教訓**：原 helper 名稱 `getSportIconSvg` 暗示原本就有 SVG 化的設計意圖，順勢實作；架構良好的 helper（單一入口、消費點走 helper 而非直接讀常數）讓擴充零成本
+
 ### 2026-04-25 — Boot overlay MIN_VISIBLE_MS 調整 1500 → 2500
 - **原因**：用戶反映 1.5 秒仍偏短，未能完整看到進度條動畫流程（0% → ~92% 動畫約需 2.7 秒，1500ms 只能看到 ~50% 進度）
 - **調整**：`app.js` `MIN_VISIBLE_MS = 1500 → 2500`（同步更新註解 + `docs/tunables.md` 對應條目 + Last Updated）
