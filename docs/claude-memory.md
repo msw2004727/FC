@@ -2,6 +2,18 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-25 — 建立流程的 modal 禁用「點外圍空白關閉」（避免誤觸丟失資料）
+- **變更**：活動 / 外部活動 / 俱樂部 / 賽事 4 個建立 modal 加 `data-no-backdrop-close="1"`，點外圍空白處不會關閉、必須按表單內的「取消」/「儲存」按鈕
+- **影響的 modal**：`create-event-modal` / `create-external-event-modal` / `create-team-modal` / `tournament-form-modal`
+- **實作**：
+  - `pages/modals.html` 的 `#modal-overlay` onclick 改為呼叫 `App._handleModalBackdropClick(event)` helper
+  - `js/core/navigation.js` 新增 helper：檢查當前開啟的 modal 是否有 `data-no-backdrop-close="1"`、有就跳過 closeModal
+  - 4 個 modal 元素加屬性
+- **設計考量**：
+  - 不影響現有「按 X / 取消 / 儲存」按鈕的關閉路徑（這些直接呼叫 closeModal、不走 backdrop click）
+  - 不影響其他 modal（如分享面板、確認彈窗）的「點外圍關閉」UX 慣例
+  - 沒動鎖定機制（first-login-modal 的 `dataset.locked` 仍獨立運作）
+
 ### 2026-04-25 — 俱樂部表單地區改為 typeahead 下拉（強制 22 縣市格式）
 - **變更**：`ct-team-region` input 改為「點擊展開 / 輸入模糊查找」的 combobox、必須從 TW_REGIONS 22 縣市選擇
 - **實作**：

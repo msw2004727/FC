@@ -95,7 +95,8 @@
 <!-- first-login-modal 已內聯到 index.html（Plan B），此處不再重複 -->
 
 <!-- ============ MODAL OVERLAY ============ -->
-<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)App.closeModal()"></div>
+<!-- 2026-04-25：建立流程的 modal 加 data-no-backdrop-close="1"，避免誤觸關閉填到一半的表單 -->
+<div class="modal-overlay" id="modal-overlay" onclick="App._handleModalBackdropClick(event)"></div>
 
 <!-- ============ 同行者選擇報名 Modal ============ -->
 <div class="modal-overlay" id="companion-select-overlay" style="display:none;align-items:center;justify-content:center" onclick="if(event.target===this){App._closeCompanionSelectModal()}">

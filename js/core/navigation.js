@@ -905,6 +905,18 @@ Object.assign(App, {
     overlay.classList.remove('open');
   },
 
+  /**
+   * Modal 外圍空白處點擊 handler。
+   * 2026-04-25：若當前開啟的 modal 有 data-no-backdrop-close="1"（建立流程），
+   * 不關閉 modal、避免誤觸關閉填到一半的表單。其他 modal 維持原本「點外圍關閉」。
+   */
+  _handleModalBackdropClick(event) {
+    if (event.target !== event.currentTarget) return;
+    const openModal = document.querySelector('.modal.open[data-no-backdrop-close="1"]');
+    if (openModal) return;
+    this.closeModal();
+  },
+
   // ── Language Switcher ──
   initLangSwitcher() {
     const sel = document.getElementById('lang-select');
