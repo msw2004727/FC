@@ -14,13 +14,20 @@ Object.assign(App, {
     const name = document.getElementById('ct-team-name').value.trim();
     const nameEn = document.getElementById('ct-team-name-en').value.trim();
     const nationality = document.getElementById('ct-team-nationality').value;
-    const region = document.getElementById('ct-team-region').value;
+    const region = document.getElementById('ct-team-region').value.trim();
     const founded = document.getElementById('ct-team-founded').value;
     const contact = document.getElementById('ct-team-contact').value.trim();
     const bio = document.getElementById('ct-team-bio').value.trim();
 
     if (!name) { this.showToast('請輸入俱樂部名稱'); return null; }
     if (!document.getElementById('ct-team-sport-tag')?.value) { this.showToast('請選擇運動類型'); return null; }
+    // 2026-04-25：地區必填、且必須在 TW_REGIONS 22 縣市清單內（強制下拉選單）
+    if (!region) { this.showToast('請選擇地區'); return null; }
+    const _validRegions = (typeof TW_REGIONS !== 'undefined' && Array.isArray(TW_REGIONS)) ? TW_REGIONS : [];
+    if (_validRegions.length > 0 && !_validRegions.includes(region)) {
+      this.showToast('地區必須從清單選擇（22 縣市）');
+      return null;
+    }
 
     // ── 記錄舊職位（編輯模式用於降級檢查）──
     let oldCaptainUid = null;

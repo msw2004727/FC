@@ -2,6 +2,18 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-25 — 俱樂部表單地區改為 typeahead 下拉（強制 22 縣市格式）
+- **變更**：`ct-team-region` input 改為「點擊展開 / 輸入模糊查找」的 combobox、必須從 TW_REGIONS 22 縣市選擇
+- **實作**：
+  - `pages/team.html`：region input 加 `position:relative` wrapper + `#ct-team-region-suggest` dropdown；同步擴充 `team-region-filter` 篩選器為 22 縣市
+  - `team-form-init.js`：加 5 個 handler（`_onTeamRegionFocus/Input/Blur` + `_renderTeamRegionSuggest` + `_selectTeamRegion`）；`_resetTeamForm` 重置 suggest
+  - `team-form-validate.js`：region 必填 + 必須在 TW_REGIONS 內（防止舊版自由文字格式不一致）
+- **設計細節**：
+  - 用 `onmousedown="event.preventDefault();App._selectTeamRegion(...)"` 而非 `onclick`，避免 input blur 在 click 之前關閉 dropdown
+  - blur 後 setTimeout 200ms 才隱藏（fallback 雙保險）
+  - `escapeHTML` 處理選項顯示文字（雖然 TW_REGIONS 是常數、防禦性習慣）
+- **副作用**：歷史資料 region 若不在 22 縣市內（例：「台中」缺「市」），編輯模式儲存時會被驗證擋住、提示用戶重選 — 視為資料規範化的合理代價
+
 ### 2026-04-25 — 俱樂部 / 賽事 sport filter 切換不生效修復（3 個 bug 一併處理）[永久]
 - **問題**：用戶切頂部全域 sport picker 後、列表沒過濾、仍顯示其他運動的俱樂部
 - **實測證據**（用戶開 `localStorage._sportDebug='1'` 後切換 picker）：

@@ -9,6 +9,8 @@ Object.assign(App, {
     document.getElementById('ct-team-name-en').value = '';
     document.getElementById('ct-team-nationality').value = '台灣';
     document.getElementById('ct-team-region').value = '';
+    const _regSug = document.getElementById('ct-team-region-suggest');
+    if (_regSug) { _regSug.innerHTML = ''; _regSug.style.display = 'none'; }
     document.getElementById('ct-team-founded').value = '';
     document.getElementById('ct-leader-search').value = '';
     document.getElementById('ct-leaders-tags').innerHTML = '';
@@ -100,6 +102,47 @@ Object.assign(App, {
   },
 
   // _initTeamListSportFilter → 已搬至 team-list-render.js
+
+  // ── 地區 typeahead（必填、限定 TW_REGIONS 22 縣市）──
+  _onTeamRegionFocus() {
+    this._renderTeamRegionSuggest('');
+  },
+
+  _onTeamRegionInput() {
+    const val = (document.getElementById('ct-team-region')?.value || '').trim();
+    this._renderTeamRegionSuggest(val);
+  },
+
+  _onTeamRegionBlur() {
+    // 延遲關閉、讓 onmousedown 來得及觸發 _selectTeamRegion
+    setTimeout(() => {
+      const sug = document.getElementById('ct-team-region-suggest');
+      if (sug) sug.style.display = 'none';
+    }, 200);
+  },
+
+  _renderTeamRegionSuggest(query) {
+    const sug = document.getElementById('ct-team-region-suggest');
+    if (!sug) return;
+    const regions = (typeof TW_REGIONS !== 'undefined' && Array.isArray(TW_REGIONS)) ? TW_REGIONS : [];
+    const q = (query || '').trim().toLowerCase();
+    const matches = q ? regions.filter(r => r.toLowerCase().includes(q)) : regions.slice();
+    if (matches.length === 0) {
+      sug.style.display = 'none';
+      return;
+    }
+    sug.innerHTML = matches.map(r =>
+      `<div class="team-user-suggest-item" style="padding:.45rem .6rem;cursor:pointer" onmousedown="event.preventDefault();App._selectTeamRegion('${escapeHTML(r)}')">${escapeHTML(r)}</div>`
+    ).join('');
+    sug.style.display = '';
+  },
+
+  _selectTeamRegion(region) {
+    const input = document.getElementById('ct-team-region');
+    if (input) input.value = region;
+    const sug = document.getElementById('ct-team-region-suggest');
+    if (sug) sug.style.display = 'none';
+  },
 
   showTeamForm(id) {
     // v8 M1：建立俱樂部前先擋未登入（避免用戶填完表單才被踢）
