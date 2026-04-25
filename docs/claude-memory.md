@@ -2,6 +2,39 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-25 — Boot overlay 一閃即逝修復（最短顯示 1500ms）+ 建立 docs/tunables.md
+- **問題**：用戶反映 reload 後開機進度條「一閃就消失」，沒有完整流程。診斷後發現 `_dismissBootOverlay` 有 4 個觸發點，其中 `Phase 3 快取命中`（[app.js:2351](app.js:2351)）會在 cache 命中時 ~200ms 內觸發，進度條才從 0% 動畫到 ~10% 就被強制跳 100% → 150ms 後 fade out → **總顯示時間 < 500ms**
+- **根因**：boot overlay 的「準備就緒」訊號（Phase 3 快取命中 / Cloud ready / 骨架模式）來得太快，沒有最短顯示時間保護。前次 deep link 修復路徑只覆蓋「reload 帶 query」，沒涵蓋此既有 UX 瑕疵
+- **修復**：
+  - `app.js` `_dismissBootOverlay()`：在 pending deep link 守衛之前加入 `MIN_VISIBLE_MS = 1500ms` 守衛 — 若距離顯示時間不足 1500ms，setTimeout 補足差額再隱藏
+  - `index.html` L815：boot overlay `display=''` 之後立即記錄 `window._bootOverlayShownAt = Date.now()`
+  - 用 `_bootOverlayMinVisibleTimer` 確保多次呼叫不會堆疊 setTimeout（race-safe）
+- **設計要點**：
+  - **守衛串聯順序**：minVisible → pending deep link → 正常隱藏。確保 cache 命中 + reload deep link 的場景都被正確處理
+  - **第一次進入無快取場景不受影響**：Cloud ready 本來就要 2-3 秒，已超過 1500ms
+  - **可調**：`MIN_VISIBLE_MS` 常數可調，建議 1200~2000ms 範圍（已登錄到 docs/tunables.md）
+
+### 2026-04-25 — 建立 docs/tunables.md 設定總覽 + CLAUDE.md 維護規則 [永久]
+- **動機**：專案內可調設定（timing / debounce / interval / limit / threshold）+ 加載順序 + 流程順序效果分散在多個檔案，沒有統一參考。修復或調參時容易遺漏依賴關係（如「A timeout 必須 < B timeout」）
+- **新增檔案**：`docs/tunables.md`（11 大類初始登錄）
+  - ⏱️ Timing：boot overlay (5 項) / route loading (2 項) / visibility (3 項) / LIFF (6 項) / instant save (5 項) / SW (1 項) / Firebase Auth (2 項)
+  - 📦 Limit：image cache 150、realtime listener 500、blocklist log
+  - 🚦 Threshold：profile 完整度 / 候補排序 / 統計判定 / claude-memory 清理閾值
+  - 📚 Load Order：App.init Phase 0-3、script defer 順序、各 page 預載清單
+  - 🔀 Sequence Effects：boot overlay 隱藏、visibility change、_confirmAllAttendance、registerForEvent、deep link 解析
+  - 🏷️ Versioning：0.YYYYMMDD{suffix} 格式、4 處同步、獨立頁面例外
+- **CLAUDE.md 同步更新**：
+  - §架構文件：新增 docs/tunables.md 引用
+  - §每次新增功能時的規範 第 8 條：新增「可調設定 / Timing / 順序變更同步維護」強制規則（修改 timing 常數、limit、threshold、加載順序、sequence effect 都必須同步更新 tunables.md）
+  - 原第 8 條「權限系統同步維護」順延為第 9 條
+- **維護規則**（寫在 tunables.md 末尾）：
+  - 何時必須更新：新增/修改/刪除 timing 常數、改變流程順序、新增 page 載入清單、變更 timing 互相依賴
+  - 何時不需要：純 bug 修復（不動 timing/順序）、文件拼字、模組搬移（檔案位置變更要同步「檔案位置」欄）
+  - 同步義務：程式碼註解引用 tunables.md anchor 時必須確認 anchor 存在
+- **教訓**：
+  - 用戶這次抓到的「一閃即逝」其實是長期既有 UX 瑕疵，前次 deep link 修復後用戶才注意到。**修復不能孤立思考**，相關 timing 應該一起檢查
+  - 散落的可調常數（如 `MIN_VISIBLE_MS = 1500`、`IDLE_EXIT_MS = 3000`、`5000` deep link timeout、`8000` 看門狗）有隱性依賴，集中文件化才能避免互相破壞
+
 ### 2026-04-25 — Reload 時 boot overlay 延後隱藏，消除「閃首頁→跳回」瑕疵
 - **問題**：用戶在「活動詳情」「俱樂部詳情」「賽事詳情」「個人名片」等帶 `?event=` / `?team=` / `?tournament=` / `?profile=` query 的頁面按 F5 reload 時，APP 會先閃一下首頁再跳回原頁面，視覺感受不順
 - **根因**：reload 時 boot overlay 隱藏的時機是「內容渲染完成」（`_contentReady = true` 時），但此時 deep link guard 還在解析 URL 並準備跳轉。順序：

@@ -190,7 +190,8 @@ grep -rn "CACHE_VERSION\|CACHE_NAME\|var V='" js/config.js sw.js index.html
 
 ## 架構文件
 
-模組依賴關係圖與各層說明：[docs/architecture.md](docs/architecture.md)
+- 模組依賴關係圖與各層說明：[docs/architecture.md](docs/architecture.md)
+- **可調設定 / Timing / 流程順序總覽：[docs/tunables.md](docs/tunables.md)** — 記錄專案內所有可調常數（timeout、debounce、interval、limit、threshold）+ 加載順序 + 關鍵流程的 sequence effect。修改檔案時若涉及任何上述項目，必須同步更新此檔對應條目（規則見 §每次新增功能時的規範 第 9 條）
 
 ---
 
@@ -222,7 +223,14 @@ grep -rn "CACHE_VERSION\|CACHE_NAME\|var V='" js/config.js sw.js index.html
 5. 若功能已明顯超出單檔可維護範圍，優先建立功能資料夾，不要繼續把新責任疊加在既有大檔上
 6. 功能搬移若涉及既有頁面入口，預設先保留舊入口檔案作為相容層，再逐步轉接到新資料夾
 7. 若變更涉及模組新增、搬移或刪除，必須同步更新結構文件（見檔案頂部交叉引用清單）
-8. **權限系統同步維護（強制）**：當新增或變更任何後台功能時，必須同步評估並執行以下事項：
+8. **可調設定 / Timing / 順序變更同步維護（強制）**：修改檔案過程中若涉及以下任一項目，**必須同步更新 [docs/tunables.md](docs/tunables.md) 對應條目**：
+   - 新增 / 修改 / 刪除任何 timing 常數（timeout、debounce、interval、`setTimeout` / `setInterval` 數值）
+   - 新增 / 修改 / 刪除任何 limit 容量上限、threshold 閾值
+   - 變更模組加載順序（`script-loader.js` 各 page 清單、`index.html` script 順序、init Phase 順序）
+   - 變更關鍵流程的 sequence effect（boot overlay 隱藏流程、visibility change 流程、報名/簽到流程、deep link 解析流程等）
+   - 新增 / 移除 timing 之間的依賴關係（例如「A timeout 必須 < B timeout」）
+   - 程式碼註解若引用 tunables.md 的 anchor（如 `// 詳見 docs/tunables.md #boot-overlay-min-visible`），必須確認該 anchor 在 tunables.md 內存在
+9. **權限系統同步維護（強制）**：當新增或變更任何後台功能時，必須同步評估並執行以下事項：
    - **新增權限開關**：若該功能需要依層級控制存取，必須在 `js/config.js` 的 `ADMIN_PAGE_EXTRA_PERMISSION_ITEMS` 或 `DRAWER_MENUS` 中新增對應的權限碼（permission code），並在 `getDefaultRolePermissions()` 中設定各層級的預設值。
    - **新增或更新權限說明**：必須在 `js/modules/user-admin/user-admin-perm-info.js` 的 `_PERM_INFO` 對照表中，為新權限碼新增 `{ title, body }` 說明內容，或更新既有權限的說明文字以反映功能變更。說明內容應以白話描述該權限的用途與影響範圍。
    - **不確定是否需要新增權限時**：應先向用戶說明該功能的存取需求，並建議適合的權限碼命名與層級配置，由用戶決定是否新增。

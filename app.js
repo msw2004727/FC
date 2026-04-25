@@ -114,6 +114,25 @@ function _dismissBootOverlay(reason) {
     var _ov = document.getElementById('loading-overlay');
     if (!_ov || _ov.style.display === 'none') return;
 
+    // 2026-04-25：最短顯示時間守衛（避免 cache 命中時進度條一閃即逝）
+    // Phase 3 快取命中(~200ms)會立刻觸發 _dismissBootOverlay，進度條才跑到 ~10% 就被
+    // 強制跳到 100%，總顯示 < 500ms。加 1500ms 守衛確保用戶看到完整動畫流程。
+    // 與下方「pending deep link 守衛」串聯：先滿足 minVisible，再判斷 deep link。
+    // 詳見 docs/tunables.md #boot-overlay-min-visible
+    var MIN_VISIBLE_MS = 1500;
+    var shownAt = window._bootOverlayShownAt || 0;
+    var elapsed = shownAt ? (Date.now() - shownAt) : MIN_VISIBLE_MS;
+    if (elapsed < MIN_VISIBLE_MS) {
+      if (window._bootOverlayMinVisibleTimer) return; // 已有 pending timer 不重設
+      var wait = MIN_VISIBLE_MS - elapsed;
+      console.log('[Boot] 等 ' + wait + 'ms 達到最短顯示時間 (reason: ' + (reason || '') + ')');
+      window._bootOverlayMinVisibleTimer = setTimeout(function() {
+        window._bootOverlayMinVisibleTimer = null;
+        _dismissBootOverlay(reason);
+      }, wait);
+      return;
+    }
+
     // 2026-04-25：reload 帶 ?event= 等 deep link 時延後隱藏，避免「閃首頁→跳回」
     // 等 deep link 跳轉完成由 _dismissBootOverlayAfterDeepLink() 強制觸發
     // 5 秒安全超時：即使 deep link 卡住也不會永遠遮罩（看門狗 8 秒兜底之前）
