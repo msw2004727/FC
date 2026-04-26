@@ -2582,7 +2582,34 @@ document.addEventListener('DOMContentLoaded', async () => {
           };
           App._canAccessDebugHooked = true;
         }
-        _trace('hooks installed (URL ?roleDebug=1)');
+        // 抓 reload / 跳轉觸發點（用戶看到的「跳回首頁」可能是這些）
+        if (!window._reloadDebugHooked) {
+          window.addEventListener('beforeunload', function(e) {
+            _trace('!!! beforeunload triggered, currentPage=' + App.currentPage + ' URL=' + location.href);
+            try { _trace('  stack: ' + (new Error().stack || '').split('\n').slice(1, 6).join(' | ')); } catch(_){}
+          });
+          window.addEventListener('pagehide', function(e) {
+            _trace('!!! pagehide triggered, persisted=' + e.persisted + ' currentPage=' + App.currentPage);
+          });
+          window.addEventListener('error', function(e) {
+            _trace('!!! window.error: ' + (e.message || '?') + ' at ' + (e.filename || '') + ':' + (e.lineno || '') + ':' + (e.colno || ''));
+          });
+          window.addEventListener('unhandledrejection', function(e) {
+            const reason = e.reason && (e.reason.message || e.reason.toString()) || '?';
+            _trace('!!! unhandledrejection: ' + reason);
+          });
+          // hook location.reload / location.href 賦值
+          try {
+            const _origReload = location.reload.bind(location);
+            location.reload = function() {
+              _trace('!!! location.reload() CALLED, currentPage=' + App.currentPage);
+              try { _trace('  stack: ' + (new Error().stack || '').split('\n').slice(1, 8).join(' | ')); } catch(_){}
+              return _origReload.apply(this, arguments);
+            };
+          } catch(e) { _trace('hook location.reload failed: ' + e.message); }
+          window._reloadDebugHooked = true;
+        }
+        _trace('hooks installed (URL ?roleDebug=1) — beforeunload/pagehide/error/reload also hooked');
       }, 1500);
     }
   } catch (e) {}
