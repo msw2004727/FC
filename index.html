@@ -901,47 +901,12 @@
   <script defer src="js/modules/translate.js?v=0.20260426i"></script>
 
   <!-- Service Worker Registration + 版本更新 -->
-  <!-- 2026-04-26：controllerchange reload 改為「延後到 page-home 時才 reload」、 -->
-  <!-- 避免打斷用戶在內頁的操作（特別是進 admin-users 後被 SW update 強制重整） -->
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('controllerchange', function() {
-        try {
-          // 寫 trace（如果 roleDebug 啟用）
-          if (typeof localStorage !== 'undefined' && localStorage.getItem('_roleDebug')) {
-            try {
-              var arr = JSON.parse(localStorage.getItem('_roleTraceLog') || '[]');
-              var ts = new Date().toISOString().substr(11, 12);
-              var page = (typeof App !== 'undefined' ? App.currentPage : '?');
-              arr.push(ts + ' !!! SW controllerchange triggered, page=' + page + ' init=' + window._appInitializing);
-              localStorage.setItem('_roleTraceLog', JSON.stringify(arr));
-            } catch(_){}
-          }
-        } catch(_){}
-        if (window._swReloading || window._appInitializing || window._swJustCleared) return;
-        // 不立即 reload、改成標記「等回首頁時才 reload」
-        window._swPendingReload = true;
-        // 顯示溫和提示（不打擾、用戶看到自然會回首頁）
-        try {
-          var el = document.getElementById('_sw_pending_hint');
-          if (!el) {
-            el = document.createElement('div');
-            el.id = '_sw_pending_hint';
-            el.style.cssText = 'position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:rgba(13,148,136,.95);color:#fff;padding:10px 18px;border-radius:20px;font-size:13px;z-index:9998;box-shadow:0 4px 12px rgba(0,0,0,.2)';
-            el.textContent = '🔄 已有新版本、回首頁後自動更新';
-            document.body.appendChild(el);
-            setTimeout(function(){ try{ el.style.opacity='0'; el.style.transition='opacity 0.5s'; setTimeout(function(){ el.remove(); },500); }catch(_){} }, 4000);
-          }
-        } catch(_){}
-      });
-      // 回首頁時若有 pending reload、執行
-      window.addEventListener('hashchange', function() {
-        try {
-          if (window._swPendingReload && (location.hash === '' || location.hash === '#page-home')) {
-            window._swReloading = true;
-            location.reload();
-          }
-        } catch(_){}
+        if (!window._swReloading && !window._appInitializing && !window._swJustCleared) {
+          window._swReloading = true; location.reload();
+        }
       });
       window.addEventListener('load', function() {
         navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch(function(){});
