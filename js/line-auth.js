@@ -354,6 +354,51 @@ const LineAuth = {
     return cachedOrLive.userId === auth.currentUser.uid;
   },
 
+  /**
+   * 2026-04-25：偵測手機外部瀏覽器（非 LINE 內建）— 此情境 LINE 登入會被 OS
+   * 攔截到 LINE app 內、無法正確帶 token 回 Safari/Chrome、需先提示用戶。
+   */
+  _isMobileExternalBrowser() {
+    if (typeof liff === 'undefined') return false;
+    try { if (liff.isInClient && liff.isInClient()) return false; } catch (_) {}
+    const ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
+    return /Android|iPhone|iPad|iPod/i.test(ua);
+  },
+
+  /** modal「繼續登入」按鈕 → 設旗標、關閉、再次呼叫 login（這次跳過 hint） */
+  _mobileHintContinue() {
+    this._mobileHintAcknowledged = true;
+    if (typeof App !== 'undefined' && typeof App.closeModal === 'function') App.closeModal();
+    this.login();
+  },
+
+  /** modal「複製連結」按鈕 → 複製 Mini App URL（LINE 內可開、避開 OAuth 跨 app 問題） */
+  _copyAppUrlForLine() {
+    const url = (typeof MINI_APP_BASE_URL !== 'undefined' && MINI_APP_BASE_URL)
+      ? MINI_APP_BASE_URL
+      : window.location.origin;
+    const fallbackToast = (msg) => {
+      if (typeof App !== 'undefined' && typeof App.showToast === 'function') App.showToast(msg);
+    };
+    const showOk = () => fallbackToast('連結已複製、請貼到 LINE 內開啟');
+    const showFail = () => fallbackToast('複製失敗、請手動複製：' + url);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(showOk, showFail);
+      return;
+    }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      ta.setAttribute('readonly', 'readonly');
+      ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (ok) showOk(); else showFail();
+    } catch (_) { showFail(); }
+  },
+
   login() {
     // v8 Blocker 3：LIFF SDK 未載入時的明確 toast（不死循環）
     if (typeof liff === 'undefined') {
@@ -367,6 +412,14 @@ const LineAuth = {
     if (!this._ready) {
       App.showToast('LINE 登入服務尚未準備完成');
       return;
+    }
+    // 2026-04-25：手機外部瀏覽器 → 先提示再登入（避免 OS 攔截到 LINE app 後失敗）
+    if (this._isMobileExternalBrowser() && !this._mobileHintAcknowledged) {
+      if (typeof App !== 'undefined' && typeof App.showModal === 'function') {
+        App._pendingLineLoginAfterHint = true;
+        App.showModal('mobile-line-login-hint-modal');
+        return;
+      }
     }
     // v7 R3.4：login 時重設 _pendingStartTime（避免進 APP 30s 後按報名觸發 isPendingLogin 誤判）
     this._pendingStartTime = Date.now();

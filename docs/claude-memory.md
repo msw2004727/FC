@@ -2,6 +2,18 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-26 — 手機外部瀏覽器 LINE 登入加 UX 提示（OS 跨 app 攔截 token 流失問題）
+- **問題**：手機 Safari / Chrome 點 LINE 登入 → OS 提示「是否在 LINE 中打開」→ 用戶點「打開」→ LINE app 接管 OAuth 完成 → redirect 回 Safari/Chrome 但 token 沒帶回 → **登入失敗**
+- **根因**：手機 OS（iOS / Android）的 universal link / intent 機制把 `access.line.me` URL 攔截到 LINE app；LINE app 完成 OAuth 後 token 留在 LINE 內、跨 app redirect 不會帶 `code` & `state` 回外部瀏覽器。桌面 / LINE 內無此問題（沒跨 app 跳轉）
+- **解決方案 A**（UX 引導、本次採用）：
+  - 偵測：`LineAuth._isMobileExternalBrowser()` 用 `liff.isInClient()` + UA 判斷
+  - 提示 modal（`mobile-line-login-hint-modal`）：明確告知「跳出『是否在 LINE 中打開』時請選『取消』或『在瀏覽器中繼續』」+ 提供「複製連結用 LINE 開啟」備案
+  - 用戶點「繼續登入」→ 設 `_mobileHintAcknowledged` 旗標、再次呼叫 `login()` 跳過 hint
+  - modal 加 `data-no-backdrop-close="1"` 避免誤觸關閉
+- **限制**：方案 A 是 UX 引導、無法 100% 解決（用戶仍可能誤點「在 LINE 打開」）；但解決率 70-80%、LINE 平台限制下最佳折衷
+- **影響檔案**：`js/line-auth.js`（加 _isMobileExternalBrowser / _mobileHintContinue / _copyAppUrlForLine）+ `pages/modals.html`（加 hint modal）
+
+
 ### 2026-04-25 — 匹克球改用自製 V4 SVG 圖示（圓角方形拍 + 飛球 + 速度線）
 - **動機**：用戶反映 `SPORT_ICON_EMOJI.pickleball = '🏓'` 跟桌球視覺易混淆。Unicode 無匹克球專屬 emoji，建議用自製 SVG。經設計 4 個版本後用戶選 V4（動感斜放紅色圓角方形拍 + 黃球飛 + 速度線）
 - **實作**：
