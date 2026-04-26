@@ -2481,18 +2481,42 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 2026-04-26：role 診斷模式（hook applyRole + showPage(page-home) 印 stack）
   // 啟用：URL 加 ?roleDebug=1 或 localStorage.setItem('_roleDebug','1')
   // 配合 ?debug=1 看底部 _dbg console、按 [複製] 取得 log
+  // 持久化：所有 [role-trace] log 同步寫到 localStorage._roleTraceLog
+  // boot 時自動印出上次的 log、避免被踢後 reload 失去資料
   try {
     const _roleDebug = (typeof location !== 'undefined' && /[?&]roleDebug=1\b/.test(location.search))
       || (typeof localStorage !== 'undefined' && localStorage.getItem('_roleDebug'));
     if (_roleDebug) {
+      // 共用 trace log：印 console + 寫 localStorage
+      const _trace = function(msg) {
+        try { console.log('[role-trace] ' + msg); } catch(_) {}
+        try {
+          const ts = new Date().toISOString().substr(11, 12);
+          const arr = JSON.parse(localStorage.getItem('_roleTraceLog') || '[]');
+          arr.push(ts + ' ' + msg);
+          if (arr.length > 300) arr.shift();
+          localStorage.setItem('_roleTraceLog', JSON.stringify(arr));
+        } catch(_) {}
+      };
+      // boot 時印出上次測試的 log（從 localStorage 載入）
+      try {
+        const prev = JSON.parse(localStorage.getItem('_roleTraceLog') || '[]');
+        if (prev.length > 0) {
+          console.log('[role-trace] === 上次測試 log (' + prev.length + ' 行、from localStorage) ===');
+          prev.forEach(function(line) { console.log('[role-trace-prev] ' + line); });
+          console.log('[role-trace] === 結束 prev、清空準備新測試 ===');
+          localStorage.removeItem('_roleTraceLog');
+        }
+      } catch(_) {}
+
       setTimeout(() => {
         if (!App._roleDebugHooked && typeof App.applyRole === 'function') {
           const _origApplyRole = App.applyRole.bind(App);
           App.applyRole = function(role, silent) {
+            _trace('applyRole role=' + role + ' currentRole=' + App.currentRole + ' page=' + App.currentPage);
             try {
-              console.log('[role-trace] applyRole role=' + role + ' currentRole=' + App.currentRole + ' page=' + App.currentPage);
               const stack = (new Error().stack || '').split('\n').slice(1, 6).join(' | ');
-              console.log('[role-trace]   stack: ' + stack);
+              _trace('  stack: ' + stack);
             } catch(_) {}
             return _origApplyRole(role, silent);
           };
@@ -2502,47 +2526,45 @@ document.addEventListener('DOMContentLoaded', async () => {
           const _origShowPage = App.showPage.bind(App);
           App.showPage = function(pageId, options) {
             if (pageId === 'page-home' && App.currentPage && App.currentPage !== 'page-home') {
+              _trace('showPage(page-home) FROM ' + App.currentPage + ' opts=' + JSON.stringify(options || {}));
               try {
-                console.log('[role-trace] showPage(page-home) FROM ' + App.currentPage + ' opts=' + JSON.stringify(options || {}));
                 const stack = (new Error().stack || '').split('\n').slice(1, 8).join(' | ');
-                console.log('[role-trace]   stack: ' + stack);
+                _trace('  stack: ' + stack);
               } catch(_) {}
             }
             return _origShowPage(pageId, options);
           };
           App._showPageDebugHooked = true;
         }
-        // hook FirebaseService 兩個關鍵 onSnapshot callback 直接抓觸發點
         if (typeof FirebaseService !== 'undefined') {
           if (!FirebaseService._roleDebugHooked && typeof FirebaseService._syncCurrentUserFromUsersSnapshot === 'function') {
             const _orig1 = FirebaseService._syncCurrentUserFromUsersSnapshot.bind(FirebaseService);
             FirebaseService._syncCurrentUserFromUsersSnapshot = function() {
-              console.log('[role-trace] _syncCurrentUserFromUsersSnapshot CALLED, currentRole=' + App.currentRole + ' page=' + App.currentPage);
+              _trace('_syncCurrentUserFromUsersSnapshot CALLED, currentRole=' + App.currentRole + ' page=' + App.currentPage);
               return _orig1();
             };
           }
           if (!FirebaseService._roleDebugHooked && typeof FirebaseService._onRolePermissionsUpdated === 'function') {
             const _orig2 = FirebaseService._onRolePermissionsUpdated.bind(FirebaseService);
             FirebaseService._onRolePermissionsUpdated = function() {
-              console.log('[role-trace] _onRolePermissionsUpdated CALLED, currentRole=' + App.currentRole + ' page=' + App.currentPage);
+              _trace('_onRolePermissionsUpdated CALLED, currentRole=' + App.currentRole + ' page=' + App.currentPage);
               return _orig2();
             };
           }
           FirebaseService._roleDebugHooked = true;
         }
-        // 額外：hook _canAccessPage 看每次檢查的結果
         if (!App._canAccessDebugHooked && typeof App._canAccessPage === 'function') {
           const _origCAP = App._canAccessPage.bind(App);
           App._canAccessPage = function(pageId, role) {
             const result = _origCAP(pageId, role);
             if (!result && pageId && pageId.startsWith('page-admin')) {
-              console.log('[role-trace] _canAccessPage(' + pageId + ', ' + (role || App.currentRole) + ') = false');
+              _trace('_canAccessPage(' + pageId + ', ' + (role || App.currentRole) + ') = false');
             }
             return result;
           };
           App._canAccessDebugHooked = true;
         }
-        console.log('[role-trace] hooks installed (URL ?roleDebug=1)');
+        _trace('hooks installed (URL ?roleDebug=1)');
       }, 1500);
     }
   } catch (e) {}
