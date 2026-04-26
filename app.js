@@ -2477,6 +2477,46 @@ document.addEventListener('DOMContentLoaded', async () => {
   setInterval(() => { try { Promise.resolve(App._processScheduledMessages()).catch(() => {}); } catch (e) {} }, 60000);
   try { App._processEventReminders(); } catch (e) {}
   setInterval(() => { try { App._processEventReminders(); } catch (e) {} }, 300000);
+
+  // 2026-04-26：role 診斷模式（hook applyRole + showPage(page-home) 印 stack）
+  // 啟用：URL 加 ?roleDebug=1 或 localStorage.setItem('_roleDebug','1')
+  // 配合 ?debug=1 看底部 _dbg console、按 [複製] 取得 log
+  try {
+    const _roleDebug = (typeof location !== 'undefined' && /[?&]roleDebug=1\b/.test(location.search))
+      || (typeof localStorage !== 'undefined' && localStorage.getItem('_roleDebug'));
+    if (_roleDebug) {
+      setTimeout(() => {
+        if (!App._roleDebugHooked && typeof App.applyRole === 'function') {
+          const _origApplyRole = App.applyRole.bind(App);
+          App.applyRole = function(role, silent) {
+            try {
+              console.log('[role-trace] applyRole role=' + role + ' currentRole=' + App.currentRole + ' page=' + App.currentPage);
+              const stack = (new Error().stack || '').split('\n').slice(1, 6).join(' | ');
+              console.log('[role-trace]   stack: ' + stack);
+            } catch(_) {}
+            return _origApplyRole(role, silent);
+          };
+          App._roleDebugHooked = true;
+        }
+        if (!App._showPageDebugHooked && typeof App.showPage === 'function') {
+          const _origShowPage = App.showPage.bind(App);
+          App.showPage = function(pageId, options) {
+            if (pageId === 'page-home' && App.currentPage && App.currentPage !== 'page-home') {
+              try {
+                console.log('[role-trace] showPage(page-home) FROM ' + App.currentPage + ' opts=' + JSON.stringify(options || {}));
+                const stack = (new Error().stack || '').split('\n').slice(1, 8).join(' | ');
+                console.log('[role-trace]   stack: ' + stack);
+              } catch(_) {}
+            }
+            return _origShowPage(pageId, options);
+          };
+          App._showPageDebugHooked = true;
+        }
+        console.log('[role-trace] hooks installed (URL ?roleDebug=1)');
+      }, 1500);
+    }
+  } catch (e) {}
+
   window._appInitializing = false;
   console.log('[Boot] 初始化流程結束');
 });
