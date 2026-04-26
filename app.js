@@ -2525,14 +2525,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!App._showPageDebugHooked && typeof App.showPage === 'function') {
           const _origShowPage = App.showPage.bind(App);
           App.showPage = function(pageId, options) {
-            if (pageId === 'page-home' && App.currentPage && App.currentPage !== 'page-home') {
-              _trace('showPage(page-home) FROM ' + App.currentPage + ' opts=' + JSON.stringify(options || {}));
-              try {
-                const stack = (new Error().stack || '').split('\n').slice(1, 8).join(' | ');
-                _trace('  stack: ' + stack);
-              } catch(_) {}
+            // 攔截所有 showPage 調用（非首頁 / admin-* / 任何頁面切換）
+            if (pageId !== App.currentPage) {
+              _trace('showPage(' + pageId + ') FROM ' + (App.currentPage || '(none)') + ' opts=' + JSON.stringify(options || {}));
+              if (pageId === 'page-home' && App.currentPage && App.currentPage !== 'page-home') {
+                try {
+                  const stack = (new Error().stack || '').split('\n').slice(1, 8).join(' | ');
+                  _trace('  REDIRECT-stack: ' + stack);
+                } catch(_) {}
+              }
+              if (pageId.startsWith('page-admin')) {
+                try {
+                  const stack = (new Error().stack || '').split('\n').slice(1, 6).join(' | ');
+                  _trace('  ADMIN-NAV-stack: ' + stack);
+                } catch(_) {}
+              }
             }
-            return _origShowPage(pageId, options);
+            const result = _origShowPage(pageId, options);
+            // 抓 promise 結果（showPage 是 async）
+            if (result && typeof result.then === 'function') {
+              result.then(function(r) {
+                if (r && r.ok === false && pageId !== App.currentPage) {
+                  _trace('showPage(' + pageId + ') REJECTED reason=' + (r.reason || '?'));
+                }
+              }).catch(function(){});
+            }
+            return result;
           };
           App._showPageDebugHooked = true;
         }
