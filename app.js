@@ -2614,6 +2614,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   } catch (e) {}
 
+  // 2026-04-26：boot 完成、主動清 boot watchdog（避免 8 秒後誤觸 reload）
+  try {
+    if (window._bootWatchdogTimer) {
+      clearTimeout(window._bootWatchdogTimer);
+      window._bootWatchdogTimer = null;
+    }
+    sessionStorage.removeItem('_bootWatchdog');
+  } catch (e) {}
+
   window._appInitializing = false;
   console.log('[Boot] 初始化流程結束');
 });
