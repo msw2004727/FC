@@ -2512,6 +2512,36 @@ document.addEventListener('DOMContentLoaded', async () => {
           };
           App._showPageDebugHooked = true;
         }
+        // hook FirebaseService 兩個關鍵 onSnapshot callback 直接抓觸發點
+        if (typeof FirebaseService !== 'undefined') {
+          if (!FirebaseService._roleDebugHooked && typeof FirebaseService._syncCurrentUserFromUsersSnapshot === 'function') {
+            const _orig1 = FirebaseService._syncCurrentUserFromUsersSnapshot.bind(FirebaseService);
+            FirebaseService._syncCurrentUserFromUsersSnapshot = function() {
+              console.log('[role-trace] _syncCurrentUserFromUsersSnapshot CALLED, currentRole=' + App.currentRole + ' page=' + App.currentPage);
+              return _orig1();
+            };
+          }
+          if (!FirebaseService._roleDebugHooked && typeof FirebaseService._onRolePermissionsUpdated === 'function') {
+            const _orig2 = FirebaseService._onRolePermissionsUpdated.bind(FirebaseService);
+            FirebaseService._onRolePermissionsUpdated = function() {
+              console.log('[role-trace] _onRolePermissionsUpdated CALLED, currentRole=' + App.currentRole + ' page=' + App.currentPage);
+              return _orig2();
+            };
+          }
+          FirebaseService._roleDebugHooked = true;
+        }
+        // 額外：hook _canAccessPage 看每次檢查的結果
+        if (!App._canAccessDebugHooked && typeof App._canAccessPage === 'function') {
+          const _origCAP = App._canAccessPage.bind(App);
+          App._canAccessPage = function(pageId, role) {
+            const result = _origCAP(pageId, role);
+            if (!result && pageId && pageId.startsWith('page-admin')) {
+              console.log('[role-trace] _canAccessPage(' + pageId + ', ' + (role || App.currentRole) + ') = false');
+            }
+            return result;
+          };
+          App._canAccessDebugHooked = true;
+        }
         console.log('[role-trace] hooks installed (URL ?roleDebug=1)');
       }, 1500);
     }
