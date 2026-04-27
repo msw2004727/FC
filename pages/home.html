@@ -38,6 +38,14 @@
     <button class="region-tab" data-region="南部" onclick="App.switchRegionTab('南部')">南部</button>
     <button class="region-tab" data-region="東部&外島" onclick="App.switchRegionTab('東部&amp;外島')">東部&amp;外島</button>
     <button class="region-tab" data-region="全部" onclick="App.switchRegionTab('全部')">全部</button>
+    <button class="region-tab region-tab-disabled" id="region-tab-nearby" aria-disabled="true" title="附近活動（即將推出）" onclick="App.showToast('尚未開放此功能')">
+      <svg class="region-tab-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 7l5-2 5 2 5-2v12l-5 2-5-2-5 2z" opacity="0.55"/>
+        <line x1="8" y1="5" x2="8" y2="19" opacity="0.55"/>
+        <line x1="13" y1="7" x2="13" y2="21" opacity="0.55"/>
+        <path d="M12 8c-1.5 0-2.7 1.2-2.7 2.7 0 1.8 2.7 4 2.7 4s2.7-2.2 2.7-4c0-1.5-1.2-2.7-2.7-2.7z" fill="currentColor" stroke="none"/>
+        <circle cx="12" cy="10.7" r="0.8" fill="#fff" stroke="none"/>
+      </svg>附近活動</button>
   </div>
 
   <!-- Hot Events -->

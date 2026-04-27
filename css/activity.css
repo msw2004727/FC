@@ -1261,8 +1261,12 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
 /* ─── Region Tabs ─── */
 .region-tabs{display:flex;justify-content:center;gap:0;padding:0 1rem;margin:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .region-tabs::-webkit-scrollbar{display:none}
-.region-tab{flex-shrink:0;padding:.45rem .8rem;font-size:.8rem;font-weight:500;color:var(--text-secondary);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;transition:color .2s,border-color .2s}
+.region-tab{flex-shrink:0;padding:.45rem .8rem;font-size:.8rem;font-weight:500;color:var(--text-secondary);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;transition:color .2s,border-color .2s;display:inline-flex;align-items:center;gap:.25rem}
 .region-tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:700}
+/* 2026-04-27：反灰按鈕（如「附近活動」尚未開放）— 點擊不變色、顯示「尚未開放」toast */
+.region-tab-disabled{opacity:.45;cursor:not-allowed}
+.region-tab-disabled:hover{color:var(--text-secondary)}
+.region-tab-icon{display:inline-block;vertical-align:middle;flex-shrink:0}
 @keyframes region-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}40%{transform:translateX(4px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
 
 /* ─── Host List Modal ─── */
