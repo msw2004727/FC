@@ -13,6 +13,39 @@
 - **若仍 flash**：表示 navigation 真的需要 7+ 秒，需要優化 cloud init / ensureCollectionsForPage 速度，而不是繼續拉 timeout（看門狗 8 秒上限）
 - **教訓**：「機制設計沒問題、實際運行時間不夠」是常見的 timing race。修復前要實測「目標流程實際耗時」對比「timeout 上限」，避免設計時樂觀估計
 
+### 2026-04-27 — Navigation 低風險加速方案調查(規劃中,未實作)
+- **背景**:用戶 reload `#page-activities` 等 hash nav 場景需 5-7 秒(手機/慢網路),即使「跳過首頁渲染」修法後仍能再優化
+- **Navigation 9 步驟瓶頸排序**:
+  1. 🥇 Firestore 載入 events(100+ 筆)~1-3s(40%)
+  2. 🥈 Firebase Auth + Firestore 連線 ~1-4s(30%)
+  3. 🥉 動態載入 page-activities.html ~300ms-1s(15%)
+- **既有優化盤點**:
+  - ✅ Preconnect: Firebase + LINE CDN(`index.html:175-180`)
+  - ✅ Preload: Firebase SDK 4 個 modules(L183-186)
+  - ✅ Inline events:F 方案 commit `0273ad05` 已實作(events 6 筆 inline 到 `<script id="boot-events-data">`)
+  - ✅ Skeleton CSS:`css/base.css:1023` `.skeleton` + `activity.css:1293` `.reg-loading-skeleton` 已有定義
+  - ✅ Stale-first:`_staleWhileRevalidate*` + `_canUseStaleNavigation` 已實作
+  - ✅ 動態載入分組:`script-loader.js` 按 page 群組載入
+- **低風險加速方案 ranking**(僅討論,未動手):
+  - 🥇 **擴大 F 方案 inline 範圍**(banners + announcements + sponsors)
+    - 工時 4-6 hrs / 預期砍 1-1.5 秒 / 風險 🟢 極低(已驗證模式擴展)
+  - 🥈 **Skeleton screen for page-activities**(用既有 .skeleton CSS)
+    - 工時 2-4 hrs / **體感**砍 50%(實際時間不變)/ 風險 🟢 低
+  - 🥉 **Critical CSS inline**
+    - 工時 6-8 hrs / 砍 100-300ms / 風險 🟡 低-中(可能漏 critical 導致 FOUC)
+  - 4️⃣ **events 分頁載入**(首屏 20 筆,scroll 載更多)
+    - 工時 8-12 hrs / 砍 500ms-1s / 風險 🟡 中(動 stale-first 邏輯)
+- **不推薦的高風險方案**:
+  - SW 進階預快取(SW 機制複雜)
+  - Listener 預啟動(浪費頻寬,用戶可能不去那頁)
+  - Cloudflare Workers SSR(架構級重構,40-80 hrs)
+  - WASM(技術棧轉換)
+- **建議組合**(最低風險 + 最高 ROI):
+  - 擴大 F 方案 + Skeleton screen
+  - 預估 navigation 從 5-7 秒 → 2-3 秒(實際)/ 體感更快
+  - 總工時 6-10 hrs
+- **狀態**:待用戶決策是否動手。如要做應**先寫計劃書 + 多輪 QA 審計**(同 boot-skip-home-downgrade-plan 流程)
+
 ### 2026-04-27 — Boot 階段 hash nav / deep link 跳過首頁渲染(降階方案,8 輪自審 + 2 輪 QA 後執行)
 - **問題**:用戶 reload `#page-activities` 等帶 hash 場景時,boot overlay 隱藏後**先看到完整首頁(banner+熱門活動)→ 過幾秒才跳目標頁**。前次 5→7 秒 timeout 修法只是「用 overlay 蓋更久」,沒治本
 - **根因**:`app.js renderAll()` **無條件**呼叫 `renderHomeCritical()`,不管 URL hash 是什麼一律渲染首頁。boot overlay 隱藏後用戶必然看到首頁
