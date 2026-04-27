@@ -16,17 +16,19 @@ Object.assign(App, {
                     || window.navigator.standalone === true;
     if (isStandalone) { btn.style.display = 'none'; return; }
 
-    // 功能暫停中（LIFF + PWA 登入流程規劃中）— 反灰顯示，點擊提示
-    // 原安裝流程（_handlePwaInstallClick / _showPwaSystemPicker 等）保留，待登入整合完成後恢復
+    // 2026-04-27：重新啟用「下載 APP」入口
     btn.style.display = '';
-    btn.style.opacity = '0.45';
-    btn.style.filter = 'grayscale(1)';
-    btn.style.cursor = 'not-allowed';
-    btn.setAttribute('aria-disabled', 'true');
+    btn.removeAttribute('aria-disabled');
     btn.addEventListener('click', function (e) {
       e.preventDefault();
       e.stopPropagation();
-      if (typeof App !== 'undefined' && App.showToast) App.showToast('功能準備中');
+      App._handlePwaInstallClick();
+    });
+
+    // 捕捉 Android Chrome 原生安裝提示（之後點擊可直接觸發 prompt() 跳系統安裝視窗）
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      App._deferredInstallPrompt = e;
     });
   },
 
