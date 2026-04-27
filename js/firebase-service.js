@@ -362,6 +362,9 @@ const FirebaseService = {
 
   /** 從 localStorage 恢復快取（回傳是否成功） */
   _restoreCache() {
+    // 2026-04-27：防止 Phase 2（app.js:2344）+ init() 重複跑（log 顯示同秒內被叫兩次、解 6 個 collection JSON 浪費 50-150ms）
+    // 只在曾經成功恢復後 skip；若上次返回 false（cache miss），保留重試空間（init() 階段可能網路條件不同）
+    if (this._cacheRestored === true) return true;
     // RC8：嘗試從 legacy key 中恢復 currentUser 以取得 UID 前綴
     // （此時 auth 尚未就緒，無法直接取得 UID）
     if (!this._lsUidPrefix) {
@@ -427,7 +430,9 @@ const FirebaseService = {
       console.log('[FirebaseService] currentUser 從 localStorage 恢復:', savedUser.displayName);
     }
     console.log(`[FirebaseService] localStorage 快取恢復: ${restored} 個集合 (${Math.round((Date.now() - ts) / 1000)}s ago)`);
-    return restored > 3; // 至少恢復 3 個集合才算有效
+    const success = restored > 3; // 至少恢復 3 個集合才算有效
+    if (success) this._cacheRestored = true; // 2026-04-27：標記已成功恢復，避免 init() 內第二次重複跑
+    return success;
   },
 
   // ════════════════════════════════
@@ -1921,7 +1926,20 @@ const FirebaseService = {
     }
 
     const currentUid = auth?.currentUser?.uid || '__pending__';
+
+    // 2026-04-27：防止「cache 命中先用 __pending__ 呼叫一次、onAuthStateChanged 又用真 uid 呼叫一次」的雙重 seed
+    // 已成功完成過此 uid 的 seed → 直接 return（避免重複寫 notifTemplates / 權限預設值）
+    if (this._authSeedCompletedForUid && currentUid !== '__pending__'
+        && this._authSeedCompletedForUid === currentUid) {
+      return;
+    }
+    // 已有同 uid 的 in-flight work → 重用
     if (this._authDependentWorkPromise && this._authDependentWorkUid === currentUid) {
+      return this._authDependentWorkPromise;
+    }
+    // in-flight 是 '__pending__' 但本次是真 uid → 等它完成（內部會在真 uid 上跑 seed）
+    if (this._authDependentWorkPromise && this._authDependentWorkUid === '__pending__'
+        && currentUid !== '__pending__') {
       return this._authDependentWorkPromise;
     }
 
@@ -2013,6 +2031,8 @@ const FirebaseService = {
       this._loadCurrentUserAchievementProgress(authUid);
 
       this._persistCache();
+      // 2026-04-27：標記此 uid 的 seed 已完成、阻止 onAuthStateChanged 二度觸發 seed tasks
+      this._authSeedCompletedForUid = authUid;
       console.log('[FirebaseService] Auth-dependent init complete.');
 
       // fire-and-forget：記錄登入 IP + 地區（供用戶管理後台稽核）

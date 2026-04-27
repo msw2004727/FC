@@ -1886,9 +1886,10 @@ const App = {
 
   async _flushPendingProtectedBootRoute(options = {}) {
     const pending = this._pendingProtectedBootRoute;
-    console.log('[Boot] flushPendingProtectedBootRoute called, pending=',
-      pending?.pageId || '(none)', 'currentPage=', this.currentPage);
+    // 2026-04-27：no-pending 早退（避免印 15+ 次無意義 log，每次 ~5-20ms console.log overhead）
     if (!pending?.pageId) return false;
+    console.log('[Boot] flushPendingProtectedBootRoute called, pending=',
+      pending.pageId, 'currentPage=', this.currentPage);
     if (this._pendingProtectedBootRoutePromise) {
       console.log('[Boot] flush already in progress, returning existing promise');
       return await this._pendingProtectedBootRoutePromise;
