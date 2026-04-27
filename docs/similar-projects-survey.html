@@ -248,6 +248,42 @@
   .claude-disagree { color: var(--red); }
   .claude-partial { color: var(--accent-warm); }
 
+  /* Live demo 狀態標籤(每個 repo 後面顯示首頁是否還活著)*/
+  .live-status {
+    display: inline-block;
+    font-size: .73rem;
+    margin-left: .3rem;
+    padding: .12rem .5rem;
+    border-radius: 4px;
+    text-decoration: none;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+  .live-status.alive {
+    background: #d1fae5;
+    color: #059669;
+    border: 1px solid #a7f3d0;
+  }
+  .live-status.alive:hover {
+    background: #a7f3d0;
+  }
+  .live-status.dead {
+    background: #fee2e2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+  }
+  .live-status.none {
+    background: #f3f4f6;
+    color: #6b7280;
+    border: 1px solid #d1d5db;
+  }
+  .live-status .url-text {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: .92em;
+    margin-left: .25rem;
+    word-break: break-all;
+  }
+
   /* 共識更新標記:黃色 highlighter + 徽章標籤(GPT vs Claude vs 證據定案後的正文修正)*/
   mark.consensus {
     background: linear-gradient(180deg, transparent 55%, #fef08a 55%);
@@ -435,6 +471,15 @@
     .claude-label { font-size: .66rem; }
     /* 共識標記手機縮小 */
     .consensus-mark { font-size: .62rem; padding: .06rem .32rem; margin: 0 .12rem; }
+    /* Live status 手機:換行顯示 + 縮小 */
+    .live-status {
+      display: inline-block;
+      font-size: .68rem;
+      padding: .1rem .4rem;
+      margin-left: 0;
+      margin-top: .25rem;
+    }
+    .live-status .url-text { font-size: .9em; }
 
     /* ⭐ 表格手機重新設計:每列變獨立卡片(card-style stack)*/
     section table {
@@ -1118,37 +1163,44 @@
   <h2>🥎 Taiwan 運動 GitHub OSS(按運動別)</h2>
   <p>35+ 個台灣運動相關 GitHub 開源專案,按運動別分類。展開可見完整清單。</p>
 
+  <p style="font-size:.88rem;color:var(--text-muted);background:var(--bg-elev);padding:.6rem .8rem;border-radius:6px;margin-bottom:1rem;">
+    <strong>📍 首頁狀態圖例</strong>:
+    <span class="live-status alive">🌐 Live</span> = 已驗證可訪問 ·
+    <span class="live-status dead">🚫 已下線</span> = 連結 404 或無回應 ·
+    <span class="live-status none">— 無公開首頁</span> = 僅原始碼可讀
+  </p>
+
   <details open>
-    <summary>🏸 羽球(Taiwan OSS 最熱垂直,11 個 repo)</summary>
+    <summary>🏸 羽球(Taiwan OSS 最熱垂直,13 個 repo)</summary>
     <div>
     <ul>
-      <li><a href="https://github.com/Jiong1203/shuttleHub" target="_blank">Jiong1203/shuttleHub</a> ⭐ Vue+Express+PG,有 demo</li>
-      <li><a href="https://github.com/d336643/NTU_badminton_system" target="_blank">d336643/NTU_badminton_system</a> ⭐ 9★ NTU,2026-04-23 active</li>
-      <li><a href="https://github.com/subcer/badminton_lineup" target="_blank">subcer/badminton_lineup</a> ⭐ Vanilla+Firebase 同棧</li>
-      <li><a href="https://github.com/Jiong1203/badmintonBot" target="_blank">Jiong1203/badmintonBot</a> 真實營運羽球 LINE Bot</li>
-      <li><a href="https://github.com/Jiong1203/joinOrder" target="_blank">Jiong1203/joinOrder</a> 運動開團 Python 雛型</li>
-      <li><a href="https://github.com/jun12079/shuttler-backend" target="_blank">jun12079/shuttler-backend</a> Express+PG+JWT+S3+藍新金流(MIT)</li>
-      <li><a href="https://github.com/joni20011105/warriors-cup-2026" target="_blank">joni20011105/warriors-cup-2026</a> 2026 武士盃全國羽球錦標賽</li>
-      <li><a href="https://github.com/tim841206/NTUcup" target="_blank">tim841206/NTUcup</a> + <a href="https://github.com/tim841206/NEWcup" target="_blank">NEWcup</a> 台大盃 + 新生盃 PHP</li>
-      <li><a href="https://github.com/dancemi-beep/EMBA_Badminton" target="_blank">dancemi-beep/EMBA_Badminton</a> EMBA 新生盃(2026-04 active)</li>
-      <li><a href="https://github.com/YFCKevin/badmintonPairing" target="_blank">YFCKevin/badmintonPairing</a> 北北基桃羽球團找尋(Java,曾有網站 gurula.cc/badminton ✗ 已 404)</li>
-      <li><a href="https://github.com/Hsuanwen/badminton-signup" target="_blank">Hsuanwen/badminton-signup</a> 純 HTML 單檔</li>
-      <li><a href="https://github.com/cckawaii0808/Badminton-Booking-System" target="_blank">cckawaii0808/Badminton-Booking-System</a> Vue,無 README</li>
-      <li><a href="https://github.com/bensonyang0217/badmintonbookingsystem" target="_blank">bensonyang0217/badmintonbookingsystem</a> 羽球零打 Java(已停)</li>
+      <li><a href="https://github.com/Jiong1203/shuttleHub" target="_blank">Jiong1203/shuttleHub</a> ⭐ Vue+Express+PG <a class="live-status alive" href="https://shuttle-hub.vercel.app" target="_blank">🌐 Live<span class="url-text">shuttle-hub.vercel.app</span></a></li>
+      <li><a href="https://github.com/d336643/NTU_badminton_system" target="_blank">d336643/NTU_badminton_system</a> ⭐ 9★ NTU,2026-04-23 active <span class="live-status none">— 無公開首頁</span></li>
+      <li><a href="https://github.com/subcer/badminton_lineup" target="_blank">subcer/badminton_lineup</a> ⭐ Vanilla+Firebase 同棧 <a class="live-status alive" href="https://subcer.github.io/badminton_lineup/" target="_blank">🌐 Live<span class="url-text">subcer.github.io/badminton_lineup</span></a></li>
+      <li><a href="https://github.com/Jiong1203/badmintonBot" target="_blank">Jiong1203/badmintonBot</a> 真實營運羽球 LINE Bot <span class="live-status dead">🚫 demo 404<span class="url-text">badminton-bot-one.vercel.app</span></span></li>
+      <li><a href="https://github.com/Jiong1203/joinOrder" target="_blank">Jiong1203/joinOrder</a> 運動開團 Python 雛型 <span class="live-status none">— 無公開首頁</span></li>
+      <li><a href="https://github.com/jun12079/shuttler-backend" target="_blank">jun12079/shuttler-backend</a> Express+PG+JWT+S3+藍新金流(MIT)<span class="live-status none">— 無公開首頁(後端 only)</span></li>
+      <li><a href="https://github.com/joni20011105/warriors-cup-2026" target="_blank">joni20011105/warriors-cup-2026</a> 2026 武士盃全國羽球錦標賽 <a class="live-status alive" href="https://joni20011105.github.io/warriors-cup-2026/" target="_blank">🌐 Live<span class="url-text">joni20011105.github.io/warriors-cup-2026</span></a></li>
+      <li><a href="https://github.com/tim841206/NTUcup" target="_blank">tim841206/NTUcup</a> + <a href="https://github.com/tim841206/NEWcup" target="_blank">NEWcup</a> 台大盃 + 新生盃 PHP <span class="live-status none">— 無公開首頁(2 repo 皆無)</span></li>
+      <li><a href="https://github.com/dancemi-beep/EMBA_Badminton" target="_blank">dancemi-beep/EMBA_Badminton</a> EMBA 新生盃(2026-04 active)<a class="live-status alive" href="https://dancemi-beep.github.io/EMBA_Badminton/" target="_blank">🌐 Live<span class="url-text">dancemi-beep.github.io/EMBA_Badminton</span></a></li>
+      <li><a href="https://github.com/YFCKevin/badmintonPairing" target="_blank">YFCKevin/badmintonPairing</a> 北北基桃羽球團找尋(Java)<span class="live-status dead">🚫 已下線<span class="url-text">gurula.cc/badminton/index</span></span></li>
+      <li><a href="https://github.com/Hsuanwen/badminton-signup" target="_blank">Hsuanwen/badminton-signup</a> 純 HTML 單檔 <a class="live-status alive" href="https://Hsuanwen.github.io/badminton-signup/" target="_blank">🌐 Live<span class="url-text">Hsuanwen.github.io/badminton-signup</span></a></li>
+      <li><a href="https://github.com/cckawaii0808/Badminton-Booking-System" target="_blank">cckawaii0808/Badminton-Booking-System</a> Vue,無 README <a class="live-status alive" href="https://cckawaii0808.github.io/Badminton-Booking-System/" target="_blank">🌐 Live<span class="url-text">cckawaii0808.github.io/Badminton-Booking-System</span></a></li>
+      <li><a href="https://github.com/bensonyang0217/badmintonbookingsystem" target="_blank">bensonyang0217/badmintonbookingsystem</a> 羽球零打 Java(已停)<span class="live-status none">— 無公開首頁</span></li>
     </ul>
     </div>
   </details>
 
   <details>
-    <summary>⚾ 棒球(4 個 repo)</summary>
+    <summary>⚾ 棒球(6 個 repo)</summary>
     <div>
     <ul>
-      <li><a href="https://github.com/ncyubaseball1919/ncyubaseball1919.github.io" target="_blank">ncyubaseball1919</a> ⭐ NEW Vanilla JS 嘉義大學棒球隊(同 ToosterX 棧)</li>
-      <li><a href="https://github.com/bulywang-01/SX" target="_blank">bulywang-01/SX</a> ⭐ 三峽社區棒球隊全套營運(2026-04-15 active)</li>
-      <li><a href="https://github.com/CBL7192868286/TaiwanCBL7192868286" target="_blank">CBL7192868286/TaiwanCBL7192868286</a> NEW 台中 CBL 企業棒球聯盟靜態頁</li>
-      <li><a href="https://github.com/Herli7/baseball1" target="_blank">Herli7/baseball1</a> NEW 大衛兒子棒球隊頁(MIT)</li>
-      <li><a href="https://github.com/111306084/baseball-player-management" target="_blank">111306084/baseball-player-management</a> MLB 標準棒球統計(SQL VIEW 設計)</li>
-      <li><a href="https://github.com/lemon7831/baseball-frontend" target="_blank">lemon7831/baseball-frontend</a> + backend CV 分析(非管理)</li>
+      <li><a href="https://github.com/ncyubaseball1919/ncyubaseball1919.github.io" target="_blank">ncyubaseball1919</a> ⭐ NEW Vanilla JS 嘉義大學棒球隊(同 ToosterX 棧)<a class="live-status alive" href="https://ncyubaseball1919.github.io/" target="_blank">🌐 Live<span class="url-text">ncyubaseball1919.github.io</span></a></li>
+      <li><a href="https://github.com/bulywang-01/SX" target="_blank">bulywang-01/SX</a> ⭐ 三峽社區棒球隊全套營運(2026-04-15 active)<a class="live-status alive" href="https://bulywang-01.github.io/SX/" target="_blank">🌐 Live<span class="url-text">bulywang-01.github.io/SX</span></a></li>
+      <li><a href="https://github.com/CBL7192868286/TaiwanCBL7192868286" target="_blank">CBL7192868286/TaiwanCBL7192868286</a> NEW 台中 CBL 企業棒球聯盟靜態頁 <a class="live-status alive" href="https://CBL7192868286.github.io/TaiwanCBL7192868286/" target="_blank">🌐 Live<span class="url-text">CBL7192868286.github.io/TaiwanCBL7192868286</span></a></li>
+      <li><a href="https://github.com/Herli7/baseball1" target="_blank">Herli7/baseball1</a> NEW 大衛兒子棒球隊頁(MIT)<a class="live-status alive" href="https://Herli7.github.io/baseball1/" target="_blank">🌐 Live<span class="url-text">Herli7.github.io/baseball1</span></a></li>
+      <li><a href="https://github.com/111306084/baseball-player-management" target="_blank">111306084/baseball-player-management</a> MLB 標準棒球統計(SQL VIEW 設計)<span class="live-status none">— 無公開首頁</span></li>
+      <li><a href="https://github.com/lemon7831/baseball-frontend" target="_blank">lemon7831/baseball-frontend</a> + backend CV 分析(非管理)<span class="live-status none">— 無公開首頁</span></li>
     </ul>
     </div>
   </details>
@@ -1157,9 +1209,9 @@
     <summary>⚽ 足球 / 五人制(3 個 repo)</summary>
     <div>
     <ul>
-      <li><a href="https://github.com/TJay666/tyfc-team-manus" target="_blank">TJay666/tyfc-team-manus</a> 桃園獵鷹足球(Django 多角色)</li>
-      <li><a href="https://github.com/tyfutsal/trfc" target="_blank">tyfutsal/trfc</a> NEW 桃園市五人制足球協會(2016 停更)</li>
-      <li><a href="https://github.com/omm0102/Premier-League-Dashboard" target="_blank">omm0102/Premier-League-Dashboard</a> NEW 范家銘 Vanilla JS + APIFootball(英超,但台灣寫)</li>
+      <li><a href="https://github.com/TJay666/tyfc-team-manus" target="_blank">TJay666/tyfc-team-manus</a> 桃園獵鷹足球(Django 多角色)<span class="live-status none">— 無公開首頁</span></li>
+      <li><a href="https://github.com/tyfutsal/trfc" target="_blank">tyfutsal/trfc</a> NEW 桃園市五人制足球協會(2016 停更)<a class="live-status alive" href="https://tyfutsal.github.io/trfc/" target="_blank">🌐 Live<span class="url-text">tyfutsal.github.io/trfc</span></a></li>
+      <li><a href="https://github.com/omm0102/Premier-League-Dashboard" target="_blank">omm0102/Premier-League-Dashboard</a> NEW 范家銘 Vanilla JS + APIFootball(英超,但台灣寫)<a class="live-status alive" href="https://omm0102.github.io/Premier-League-Dashboard/" target="_blank">🌐 Live<span class="url-text">omm0102.github.io/Premier-League-Dashboard</span></a></li>
     </ul>
     </div>
   </details>
@@ -1168,8 +1220,8 @@
     <summary>🏐 排球(3 個 repo)</summary>
     <div>
     <ul>
-      <li><a href="https://github.com/xu3cl40122/go-court-service" target="_blank">xu3cl40122/go-court-service</a> + <a href="https://github.com/xu3cl40122/go-court-vue" target="_blank">go-court-vue</a> ⭐ 台灣最成熟運動後端(NestJS+Redis+全國場館 API)</li>
-      <li><a href="https://github.com/ArthurArthurArthur0817/Database-Theory" target="_blank">ArthurArthurArthur0817/Database-Theory</a> 排球統計(PHP+MySQL)</li>
+      <li><a href="https://github.com/xu3cl40122/go-court-service" target="_blank">xu3cl40122/go-court-service</a> + <a href="https://github.com/xu3cl40122/go-court-vue" target="_blank">go-court-vue</a> ⭐ 台灣最成熟運動後端(NestJS+Redis+全國場館 API)<span class="live-status none">— 無公開首頁(2 repo 皆無)</span></li>
+      <li><a href="https://github.com/ArthurArthurArthur0817/Database-Theory" target="_blank">ArthurArthurArthur0817/Database-Theory</a> 排球統計(PHP+MySQL)<span class="live-status none">— 無公開首頁</span></li>
     </ul>
     </div>
   </details>
@@ -1178,8 +1230,8 @@
     <summary>🏀 籃球(2 個 repo)</summary>
     <div>
     <ul>
-      <li><a href="https://github.com/yochienoffice/team-management" target="_blank">yochienoffice/team-management</a> 球隊每週數據(Next.js)</li>
-      <li><a href="https://github.com/toy9986619/BasketballRecord" target="_blank">toy9986619/BasketballRecord</a> NEW 籃球比賽記錄 Android(2018)</li>
+      <li><a href="https://github.com/yochienoffice/team-management" target="_blank">yochienoffice/team-management</a> 球隊每週數據(Next.js)<span class="live-status dead">🚫 demo 404<span class="url-text">team-management-gamma.vercel.app</span></span></li>
+      <li><a href="https://github.com/toy9986619/BasketballRecord" target="_blank">toy9986619/BasketballRecord</a> NEW 籃球比賽記錄 Android(2018)<span class="live-status none">— 無公開首頁(Android app)</span></li>
     </ul>
     </div>
   </details>
@@ -1188,7 +1240,7 @@
     <summary>🏌️ 高爾夫(1 個 repo)</summary>
     <div>
     <ul>
-      <li><a href="https://github.com/marmotkit/golf_mgmt_1" target="_blank">marmotkit/golf_mgmt_1</a> NTHU 高爾夫:差點 + 桿數 + 年度積分</li>
+      <li><a href="https://github.com/marmotkit/golf_mgmt_1" target="_blank">marmotkit/golf_mgmt_1</a> NTHU 高爾夫:差點 + 桿數 + 年度積分 <span class="live-status dead">🚫 demo 404<span class="url-text">golf-mgmt-1.vercel.app</span></span></li>
     </ul>
     </div>
   </details>
@@ -1197,24 +1249,25 @@
     <summary>🏃 路跑 / AI 教練(2 個 repo)</summary>
     <div>
     <ul>
-      <li><a href="https://github.com/liao-guan-cheng/runner_ai" target="_blank">liao-guan-cheng/runner_ai</a> NEW AI 教練 800m/1500m 備戰全大運(Flutter+C++)</li>
-      <li><a href="https://github.com/0-kaiiix/movesafe-ai" target="_blank">0-kaiiix/movesafe-ai</a> NEW AI 動作分析在台北公園健身器材(2025-11)</li>
+      <li><a href="https://github.com/liao-guan-cheng/runner_ai" target="_blank">liao-guan-cheng/runner_ai</a> NEW AI 教練 800m/1500m 備戰全大運(Flutter+C++)<span class="live-status none">— 無公開首頁(Flutter app)</span></li>
+      <li><a href="https://github.com/0-kaiiix/movesafe-ai" target="_blank">0-kaiiix/movesafe-ai</a> NEW AI 動作分析在台北公園健身器材(2025-11)<span class="live-status none">— 無公開首頁</span></li>
     </ul>
     </div>
   </details>
 
   <details>
-    <summary>🎓 校盃 / 系盃 / 校際運動會(8 個 repo)</summary>
+    <summary>🎓 校盃 / 系盃 / 校際運動會(9 個 repo)</summary>
     <div>
     <ul>
-      <li><a href="https://github.com/Marling1212/ntu-sports" target="_blank">Marling1212/ntu-sports</a> 💎 NEW 8 種運動賽程系統(Next.js+Supabase,2026-04 super active)</li>
-      <li><a href="https://github.com/j-wty/2025_IHBIT" target="_blank">j-wty/2025_IHBIT</a> NEW NTU 國際手球邀請賽(MIT)</li>
-      <li><a href="https://github.com/wiiu1234th/NTUE_Sport1229" target="_blank">wiiu1234th/NTUE_Sport1229</a> NEW 北教大隊伍頁(2025-12 active)</li>
-      <li><a href="https://github.com/daniel0076/windstring2016" target="_blank">daniel0076/windstring2016</a> NEW NCTU 風弦盃(Django)+ <a href="https://github.com/daniel0076/WindString-Vote" target="_blank">WindString-Vote</a> 投票系統</li>
-      <li><a href="https://github.com/yjchen0228/NTU_Sport_Center" target="_blank">yjchen0228/NTU_Sport_Center</a> NEW NTU 體育館人潮爬蟲(Python)</li>
-      <li><a href="https://github.com/m-yuhas/ntu-sports-booking" target="_blank">m-yuhas/ntu-sports-booking</a> NEW NTU 場地預約自動化(MIT)</li>
-      <li><a href="https://github.com/TuYi0521/NTU-Sports-Facility-Book" target="_blank">TuYi0521/NTU-Sports-Facility-Book</a> NEW(2018 老 repo)</li>
-      <li><a href="https://github.com/nthspace/universiade" target="_blank">nthspace/universiade</a> NEW 2017 世大運 React+Firebase(MIT)</li>
+      <li><a href="https://github.com/Marling1212/ntu-sports" target="_blank">Marling1212/ntu-sports</a> 💎 NEW 8 種運動賽程系統(Next.js+Supabase,2026-04 super active)<a class="live-status alive" href="https://ntu-sports.vercel.app" target="_blank">🌐 Live<span class="url-text">ntu-sports.vercel.app</span></a></li>
+      <li><a href="https://github.com/j-wty/2025_IHBIT" target="_blank">j-wty/2025_IHBIT</a> NEW NTU 國際手球邀請賽(MIT)<a class="live-status alive" href="https://j-wty.github.io/2025_IHBIT/" target="_blank">🌐 Live<span class="url-text">j-wty.github.io/2025_IHBIT</span></a></li>
+      <li><a href="https://github.com/wiiu1234th/NTUE_Sport1229" target="_blank">wiiu1234th/NTUE_Sport1229</a> NEW 北教大隊伍頁(2025-12 active)<a class="live-status alive" href="https://ntue-sport.vercel.app" target="_blank">🌐 Live<span class="url-text">ntue-sport.vercel.app</span></a></li>
+      <li><a href="https://github.com/daniel0076/windstring2016" target="_blank">daniel0076/windstring2016</a> NEW NCTU 風弦盃(Django)<span class="live-status dead">🚫 已下線<span class="url-text">guitar.nctucs.net</span></span></li>
+      <li><a href="https://github.com/daniel0076/WindString-Vote" target="_blank">daniel0076/WindString-Vote</a> 風弦盃投票系統 <span class="live-status none">— 無公開首頁</span></li>
+      <li><a href="https://github.com/yjchen0228/NTU_Sport_Center" target="_blank">yjchen0228/NTU_Sport_Center</a> NEW NTU 體育館人潮爬蟲(Python)<span class="live-status none">— 無公開首頁(爬蟲腳本)</span></li>
+      <li><a href="https://github.com/m-yuhas/ntu-sports-booking" target="_blank">m-yuhas/ntu-sports-booking</a> NEW NTU 場地預約自動化(MIT)<span class="live-status none">— 無公開首頁(CLI tool)</span></li>
+      <li><a href="https://github.com/TuYi0521/NTU-Sports-Facility-Book" target="_blank">TuYi0521/NTU-Sports-Facility-Book</a> NEW(2018 老 repo)<span class="live-status none">— 無公開首頁</span></li>
+      <li><a href="https://github.com/nthspace/universiade" target="_blank">nthspace/universiade</a> NEW 2017 世大運 React+Firebase(MIT)<a class="live-status alive" href="https://nthspace.github.io/universiade/" target="_blank">🌐 Live<span class="url-text">nthspace.github.io/universiade</span></a></li>
     </ul>
     </div>
   </details>
@@ -1223,8 +1276,8 @@
     <summary>🤖 LINE Bot 運動工具(2 個 repo)</summary>
     <div>
     <ul>
-      <li><a href="https://github.com/louis70109/Taiwan-ABL-games" target="_blank">louis70109/Taiwan-ABL-games</a> NEW LINE 台灣官方佈道師寫的 ABL 賽事 LINE Bot(Bottender)</li>
-      <li><a href="https://github.com/asdasdasd80/line-court-bot" target="_blank">asdasdasd80/line-court-bot</a> 群組揪團報名小幫手(Python+Redis+Flex Message)</li>
+      <li><a href="https://github.com/louis70109/Taiwan-ABL-games" target="_blank">louis70109/Taiwan-ABL-games</a> NEW LINE 台灣官方佈道師寫的 ABL 賽事 LINE Bot(Bottender)<span class="live-status none">— 無公開首頁(LINE Bot 需綁帳號)</span></li>
+      <li><a href="https://github.com/asdasdasd80/line-court-bot" target="_blank">asdasdasd80/line-court-bot</a> 群組揪團報名小幫手(Python+Redis+Flex Message)<span class="live-status none">— 無公開首頁(LINE Bot)</span></li>
     </ul>
     </div>
   </details>
@@ -1233,8 +1286,8 @@
     <summary>🎫 通用揪運動 / 多項運動平台(2 個 repo)</summary>
     <div>
     <ul>
-      <li><a href="https://github.com/HouShengHong/fun20_join" target="_blank">HouShengHong/fun20_join</a> NEW 資展國際「揪運動」交流平台</li>
-      <li><a href="https://github.com/Hung-Jia-Jun/line-activity-helper-liff" target="_blank">Hung-Jia-Jun/line-activity-helper-liff</a> ToosterX 概念雛型(2023 停更)</li>
+      <li><a href="https://github.com/HouShengHong/fun20_join" target="_blank">HouShengHong/fun20_join</a> NEW 資展國際「揪運動」交流平台 <span class="live-status none">— 無公開首頁(資策會結業專題,需 clone 本機跑)</span></li>
+      <li><a href="https://github.com/Hung-Jia-Jun/line-activity-helper-liff" target="_blank">Hung-Jia-Jun/line-activity-helper-liff</a> ToosterX 概念雛型(2022-10 停更)<span class="live-status none">— 無公開首頁(LIFF app 未綁 Channel)</span></li>
     </ul>
     </div>
   </details>
