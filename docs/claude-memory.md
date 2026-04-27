@@ -2,6 +2,60 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-27 — 補完 CLAUDE.md 同類型模組聚集規則（3 檔搬入子資料夾）
+- **問題**：CLAUDE.md 規則「同類型模組必須放在同一資料夾」明文違規 3 件
+- **修復**：
+  - `js/modules/achievement-batch.js` → `js/modules/achievement/batch.js`
+  - `js/modules/auto-exp.js` → `js/modules/auto-exp/index.js`（新建子資料夾）
+  - `js/modules/auto-exp-rules.js` → `js/modules/auto-exp/rules.js`
+  - 同步更新 `js/core/script-loader.js`（12 處）、`tests/unit/migration-path-coverage.test.js` 的 KNOWN_REFERENCES key、`docs/architecture.md`
+- **驗收**：2406 unit tests 全綠、migration-path-coverage 7/7 通過（含 "actual scanned total matches allowlist total"）、grep 確認舊路徑零殘留
+- **教訓**：用 `git mv` 搬移可保 100% history；migration-path-coverage 是這類重構的最佳保險（會自動偵測檔案路徑漂移 + 引用計數不一致）
+
+### 2026-04-27 — 抽屜「下載 APP」按鈕重新啟用
+- **改動**：`js/modules/pwa-install.js` `initPwaInstall()` 移除「功能準備中」反灰狀態 + toast，接回原 `_handlePwaInstallClick`（Android Chrome 原生 prompt 或跨平台 Android/iOS 引導 picker）
+- **新增**：`beforeinstallprompt` listener 捕捉 Android Chrome 原生安裝提示
+- **行為**：已 standalone 模式運行的用戶按鈕仍自動隱藏
+
+### 2026-04-27 — 數據儀表板 3 件深色主題視覺修補
+- **問題**：
+  1. `dash-query-details` 綠色漸層在深色主題太暗看不出
+  2. 雲端用量 Blaze 卡片在深色主題下白底白格、淺灰文字看不到
+  3. 儀表板第一欄「重新整理列」沒有獨立色系與下方視覺區隔
+- **真兇（#2 是大魚）**：`.dash-usage-card` / `.dash-cost-row.dash-cost-detail` 用錯變數名 `--card-bg` / `--border-color`（專案沒這變數）→ fallback 到 `#fff`/`#e2e8f0` 硬色
+- **修復**：
+  - `dash-query-details` 加 `[data-theme="dark"]` override（更亮的 `#34d399` + 提高不透明度）
+  - `.dash-usage-card` / 相關元素改用專案標準變數 `--bg-card` / `--border` / `--text-primary` / `--bg-elevated` / `--text-muted`
+  - `dash-usage-alert` 新增 class（半透明紅、雙主題可讀，取代硬編 `#fef2f2`/`#991b1b`）
+  - `dash-refresh-bar` 加 amber 漸層 + border（與 teal 「活動參與查詢」做色系區隔）
+- **教訓**：CSS 變數名拼錯時 fallback 機制會「靜默生效」、深色主題才會曝光問題；以後修 dark mode bug 第一步檢查變數名是否與專案命名一致（`--bg-card` 不是 `--card-bg`）
+
+### 2026-04-27 — 首頁贊助商整區隱藏（沒有贊助商時不再顯示 6 個空格）[永久]
+- **問題**：原本 `renderSponsors()` 永遠渲染 6 格、沒贊助商時顯示 6 個寫著「贊助商」的空格框
+- **修復**：`js/modules/banner.js` 改為 filter `status === 'active' && image`，0 筆時整區（含上方 `<hr>` 分隔線）隱藏；N 筆時只渲染 N 格、不再補佔位
+- **附加**：`pages/home.html` 上方 `<hr>` 加 `id="sponsor-divider"` 以便同步隱藏
+
+### 2026-04-27 — 活動參與查詢 UI 4 件修補
+- **問題**：
+  1. 點「產生臨時網址」會被自動跳到新分頁（用戶不要主動跳轉）
+  2. 開始/結束日期欄位在 iOS Safari 撐爆 grid 1fr 邊界
+  3. 開始日期預設硬編 `2026-02-01`、應改當月 1 號
+  4. 「儀表板詳情功能需先撈取完整資料」Toast 重複提示煩人
+- **修復**：
+  - `dashboard-participant-share.js` 移除 `window.open`/`popup.location.replace`、純建連結讓用戶手動點「開新頁查看」
+  - CSS `.dash-query-field` 加 `overflow: hidden` + input 加 `-webkit-appearance: none / appearance: none / font-size: 16px / padding/border/radius/background/color`（沿用 `.ce-row-half` 成功模式）
+  - `dashboard-participant-query.js` `_getDashboardParticipantSearchDefaultState` 改用 `new Date(y, m, 1)` 動態取當月 1 號
+  - `dashboard-snapshot.js` `_maybePromptDashRefresh` 移除無資料時的 Toast 提示
+
+### 2026-04-27 — 臨時參與報表 `?rid=` 殘留導致 refresh 被拉回 [永久]
+- **問題**：建立臨時報表後 URL 帶 `?rid=xxx`，用戶導航到其他頁面後 hash 變了但 `?rid=` 仍殘留；按 F5 → boot 邏輯（`app.js:2471`）看到 `?rid=` 就強制路由到 `page-temp-participant-report` → 用戶被「強制拉回」
+- **修復（雙重防禦）**：
+  - **app.js boot 邏輯**：改為「`?rid=` + (`hash` 為空 or 是 `page-temp-participant-report`)」才強制路由（不再單看 `?rid=` 就動）
+  - **navigation.js `_activatePage`**：離開 `page-temp-participant-report` 時自動清掉 `?rid=`（放在所有 showPage 路徑共用入口、stale + fresh 都涵蓋）
+  - 第一版只放在 `_showPageFreshFirst`，stale path 沒蓋到，用戶從首頁返回時仍殘留 — 第二版才搬到 `_activatePage`
+  - `_clearDeepLinkQueryParams` 陣列也補上 `'rid'`
+- **教訓**：showPage 有 stale 與 fresh 兩條路徑，hook 要放在共用入口（`_activatePage`）才完整；分散在各路徑會漏
+
 ### 2026-04-27 — iOS PWA 進「用戶管理」自動重整（DOM 過大、WKWebView memory pressure 觸發 OS kill）[永久]
 - **症狀**：iOS Safari/Chrome/Edge（任何瀏覽器）以管理員身份進入 page-admin-users → 1-2 秒後**被 OS 強制重整**（真實 reload、JS hooks 全沒機會跑），伴隨：
   - 登入後**被強制深色主題**
