@@ -2,7 +2,12 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#2563eb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="format-detection" content="telephone=no">
+<meta name="description" content="ToosterX 台灣運動同類專案調查報告 — 130+ 個台灣運動相關專案、35+ GitHub OSS、60+ 商業 SaaS 完整盤點">
 <title>ToosterX 台灣運動同類專案調查報告 v2 (2026-04-27)</title>
 <style>
   :root {
@@ -186,12 +191,186 @@
   .key-finding-num { font-size: 1.4rem; font-weight: 700; color: var(--accent); flex-shrink: 0; min-width: 2rem; text-align: center; }
   .key-finding-content { flex: 1; }
   .key-finding-content strong { color: var(--text); }
-  @media (max-width: 600px) {
-    header h1 { font-size: 1.4rem; }
-    section { padding: 1.3rem; }
-    .grid { grid-template-columns: 1fr; }
-    nav.toc ul { grid-template-columns: 1fr; }
-    table { font-size: .82rem; }
+  /* ═══════ 響應式設計:三層 breakpoint(平板 / 手機 / 小手機)═══════ */
+
+  /* 平板與小筆電(≤ 1024px)— 微調間距,維持兩欄 */
+  @media (max-width: 1024px) {
+    main { padding: 1.2rem; }
+    section { padding: 1.5rem 1.6rem; }
+    .grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+  }
+
+  /* 手機(≤ 768px)— 主要重排:卡片堆疊、TOC 單欄、表格縮小 */
+  @media (max-width: 768px) {
+    /* Header 緊湊化 */
+    header { padding: 1.8rem 1.2rem; }
+    header h1 { font-size: 1.4rem; line-height: 1.3; }
+    header .subtitle { font-size: .85rem; }
+
+    /* Stats 改 2 欄 grid */
+    .stats {
+      gap: .6rem;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .stat { padding: .7rem .9rem; }
+    .stat-num { font-size: 1.4rem; }
+    .stat-label { font-size: .73rem; }
+
+    /* Main padding 收縮 */
+    main { padding: 1rem .8rem; }
+
+    /* TOC 單欄 + 收緊 */
+    nav.toc { padding: 1rem 1.2rem; margin-bottom: 1.2rem; }
+    nav.toc h3 { font-size: .82rem; margin-bottom: .6rem; }
+    nav.toc ul { grid-template-columns: 1fr; gap: .25rem; }
+    nav.toc a { padding: .4rem .5rem; font-size: .9rem; }
+
+    /* Section 收縮 */
+    section {
+      padding: 1.2rem 1.1rem;
+      border-radius: 10px;
+      margin-bottom: 1rem;
+    }
+    section > h2 {
+      font-size: 1.2rem;
+      padding-bottom: .55rem;
+      gap: .4rem;
+    }
+    section > h3 { font-size: 1.05rem; margin: 1.1rem 0 .65rem; }
+    section > h4 { font-size: .95rem; margin: .9rem 0 .5rem; }
+    section p { font-size: .92rem; }
+
+    /* 卡片 grid 改單欄 */
+    .grid { grid-template-columns: 1fr; gap: .8rem; }
+    .card { padding: 1rem; gap: .5rem; }
+    .card .repo-name { font-size: 1rem; }
+    .card .desc { font-size: .9rem; line-height: 1.5; }
+    .card .why { font-size: .82rem; line-height: 1.5; }
+
+    /* Priority row 收緊 */
+    .priority-row {
+      grid-template-columns: 42px 1fr;
+      gap: .7rem;
+      padding: .8rem;
+    }
+    .priority-num { font-size: 1.6rem; }
+    .priority-content h4 { font-size: .95rem; }
+    .priority-content p { font-size: .85rem; }
+
+    /* Key finding 收緊 */
+    .key-finding { padding: .75rem .9rem; gap: .55rem; }
+    .key-finding-num { font-size: 1.2rem; min-width: 1.6rem; }
+    .key-finding-content { font-size: .88rem; line-height: 1.5; }
+
+    /* Callout 收緊 */
+    .callout { padding: .75rem .9rem; }
+    .callout strong { display: inline-block; }
+
+    /* 表格手機優化:橫向可滾動(必要時)+ 縮小字 */
+    section table {
+      display: block;
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      font-size: .82rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    section table th, section table td {
+      padding: .5rem .55rem;
+      word-break: break-word;
+      vertical-align: top;
+    }
+    section table th { font-size: .8rem; }
+
+    /* Details / 收合區塊 */
+    details { margin: .5rem 0; }
+    details summary { padding: .75rem .9rem; font-size: .92rem; }
+    details > div, details > ul { padding: .8rem 1rem; font-size: .88rem; }
+    details ul { padding-left: 1.3rem; }
+
+    /* Tag 縮小 */
+    .meta-row { gap: .25rem; }
+    .tag { font-size: .68rem; padding: .12rem .42rem; }
+
+    /* Demo link 縮小 */
+    .demo-link { font-size: .76rem; padding: .3rem .6rem; }
+
+    /* Filter bar 完整收緊 */
+    .filter-bar { padding: .7rem; gap: .4rem; }
+    .filter-input { min-width: 100%; flex: 1 1 100%; padding: .45rem .7rem; font-size: .85rem; }
+    .filter-btn { padding: .35rem .7rem; font-size: .75rem; }
+
+    /* Footer 收緊 */
+    .footer { padding: 1.5rem 1rem; font-size: .8rem; line-height: 1.7; }
+
+    /* List 縮排 */
+    ul, ol { padding-left: 1.2rem; }
+    ul li, ol li { font-size: .92rem; }
+  }
+
+  /* 小手機(≤ 480px)— 極窄螢幕進一步收縮 */
+  @media (max-width: 480px) {
+    header { padding: 1.5rem 1rem; }
+    header h1 { font-size: 1.2rem; }
+    header .subtitle { font-size: .8rem; }
+
+    .stats { gap: .5rem; }
+    .stat { padding: .55rem .7rem; }
+    .stat-num { font-size: 1.2rem; }
+    .stat-label { font-size: .68rem; }
+
+    main { padding: .8rem .6rem; }
+
+    nav.toc { padding: .9rem 1rem; }
+    nav.toc a { font-size: .87rem; }
+
+    section { padding: 1rem .85rem; border-radius: 8px; }
+    section > h2 { font-size: 1.1rem; padding-bottom: .5rem; }
+    section > h3 { font-size: 1rem; }
+
+    .priority-row {
+      grid-template-columns: 36px 1fr;
+      padding: .7rem;
+      gap: .55rem;
+    }
+    .priority-num { font-size: 1.4rem; }
+    .priority-content h4 { font-size: .9rem; }
+    .priority-content p { font-size: .82rem; }
+
+    .key-finding-num { font-size: 1.1rem; min-width: 1.4rem; }
+
+    .callout { padding: .65rem .8rem; font-size: .87rem; }
+
+    /* 表格極窄優化:更小字 + tablet 樣式禁用 fixed layout */
+    section table { font-size: .76rem; }
+    section table th { font-size: .74rem; }
+    section table th, section table td { padding: .4rem .45rem; }
+
+    .card { padding: .85rem; }
+    .card .repo-name { font-size: .95rem; }
+    .card .desc { font-size: .85rem; }
+    .card .why { font-size: .78rem; }
+
+    .tag { font-size: .65rem; padding: .1rem .38rem; }
+    .demo-link { font-size: .72rem; padding: .28rem .55rem; }
+  }
+
+  /* 觸控裝置:加大可點區域 */
+  @media (hover: none) and (pointer: coarse) {
+    nav.toc a { padding: .5rem .6rem; }
+    .filter-btn { padding: .5rem .9rem; }
+    summary { padding: .9rem 1rem; }
+    a { -webkit-tap-highlight-color: rgba(37, 99, 235, 0.15); }
+  }
+
+  /* 列印優化(可選,bonus)*/
+  @media print {
+    body { background: white; color: black; }
+    header, nav.toc, .filter-bar { display: none; }
+    section { box-shadow: none; border: 1px solid #ccc; page-break-inside: avoid; }
+    a { color: black; text-decoration: underline; }
   }
 </style>
 </head>
