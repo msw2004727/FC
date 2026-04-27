@@ -134,110 +134,98 @@
   .callout-warn strong { color: var(--accent-warm); }
   .callout-danger strong { color: var(--red); }
   .callout-treasure strong { color: var(--purple); }
-  /* ⛩️ 「金小麥」作者印章 — 傳統中式朱紅篆印風 */
-  .author-stamp {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    width: 68px;
-    height: 68px;
-    background: #c1272d;
-    color: #fff;
-    border: 3px solid #fff;
-    outline: 2px solid #c1272d;
-    outline-offset: 0;
-    border-radius: 4px;
-    font-family: "標楷體", "DFKai-SB", "BiauKai", "PMingLiU", "Microsoft JhengHei", serif;
-    font-weight: 700;
-    font-size: 1.05rem;
-    line-height: 1;
-    letter-spacing: 0;
-    transform: rotate(-5deg);
-    box-shadow: 0 3px 10px rgba(193, 39, 45, 0.35), inset 0 0 0 1px rgba(255,255,255,0.2);
-    text-align: center;
-    user-select: none;
-    flex-shrink: 0;
-    position: relative;
-  }
-  .author-stamp::before {
-    content: '';
-    position: absolute;
-    inset: 4px;
-    border: 1.5px solid rgba(255,255,255,0.6);
-    border-radius: 2px;
-    pointer-events: none;
-  }
-  .author-stamp span {
-    display: block;
-    padding: 0.05em 0;
-  }
-  .author-stamp.small {
-    width: 48px;
-    height: 48px;
-    font-size: .78rem;
-  }
-  .author-stamp.large {
-    width: 88px;
-    height: 88px;
-    font-size: 1.3rem;
-  }
-  /* Header 角落印章定位 */
-  header { position: relative; }
-  .author-stamp-corner {
-    position: absolute;
-    top: 1.4rem;
-    right: 1.5rem;
-    z-index: 5;
-  }
-  /* 標題下方作者署名行 */
-  .author-credit-line {
+  /* 作者署名 — 極簡專業款(取代舊印章設計)*/
+  .research-credit {
     display: inline-flex;
     align-items: center;
-    gap: .5rem;
-    background: rgba(193, 39, 45, 0.06);
-    border: 1px solid rgba(193, 39, 45, 0.25);
-    color: #9a1f23;
-    padding: .25rem .7rem .25rem .55rem;
-    border-radius: 999px;
+    flex-wrap: wrap;
+    gap: .35rem;
+    margin-top: .85rem;
+    padding: .4rem .8rem;
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 6px;
     font-size: .85rem;
-    font-weight: 500;
-    margin-top: .5rem;
+    color: var(--text-muted);
+    letter-spacing: .01em;
   }
-  .author-credit-line::before {
-    content: '⛩';
-    font-size: 1rem;
-  }
-  /* Footer 印章排版 */
-  .footer-stamp-row {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 1rem;
-    padding: 1.2rem 0;
-    border-top: 1px solid var(--border);
-    margin-bottom: 1rem;
-  }
-  .footer-stamp-row .credit-text {
+  .research-credit .lead {
     color: var(--text);
-    font-size: .92rem;
-    line-height: 1.5;
-  }
-  .footer-stamp-row .credit-text strong {
-    color: #c1272d;
     font-weight: 700;
+    font-size: .95rem;
+    letter-spacing: .03em;
+  }
+  .research-credit .sep {
+    color: var(--text-soft);
+    margin: 0 .15rem;
+  }
+  .research-credit .ai-tag {
+    display: inline-block;
+    padding: .1rem .45rem;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 4px;
+    font-size: .76rem;
+    font-weight: 600;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    letter-spacing: .02em;
+  }
+  /* Footer 署名 */
+  .footer-credit {
+    text-align: center;
+    padding: 1.4rem 1rem;
+    margin-bottom: 1rem;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .footer-credit-line {
+    font-size: 1rem;
+    color: var(--text);
+    margin-bottom: .35rem;
+    letter-spacing: .01em;
+  }
+  .footer-credit-line .lead {
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 1.08rem;
+    letter-spacing: .04em;
+    margin: 0 .15rem;
+  }
+  .footer-credit-line .sep {
+    color: var(--text-soft);
+    margin: 0 .35rem;
+  }
+  .footer-credit-line .ai-tag {
+    display: inline-block;
+    padding: .1rem .5rem;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 4px;
+    font-size: .82rem;
+    font-weight: 600;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    margin: 0 .12rem;
+  }
+  .footer-credit-sub {
+    font-size: .82rem;
+    color: var(--text-muted);
+    line-height: 1.6;
   }
 
   /* Live demo 狀態標籤(每個 repo 後面顯示首頁是否還活著)*/
   .live-status {
     display: inline-block;
+    max-width: 100%;
+    box-sizing: border-box;
     font-size: .73rem;
     margin-left: .3rem;
     padding: .12rem .5rem;
     border-radius: 4px;
     text-decoration: none;
-    white-space: nowrap;
+    white-space: normal;
     font-weight: 500;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
   .live-status.alive {
     background: #d1fae5;
@@ -448,14 +436,14 @@
       margin-top: .25rem;
     }
     .live-status .url-text { font-size: .9em; }
-    /* 印章手機尺寸 */
-    .author-stamp { width: 54px; height: 54px; font-size: .85rem; }
-    .author-stamp.large { width: 68px; height: 68px; font-size: 1.05rem; }
-    .author-stamp.small { width: 42px; height: 42px; font-size: .68rem; }
-    .author-stamp-corner { top: 1rem; right: 1rem; }
-    .author-credit-line { font-size: .78rem; padding: .2rem .6rem .2rem .5rem; gap: .35rem; }
-    .footer-stamp-row { flex-direction: column; gap: .6rem; padding: 1rem 0; }
-    .footer-stamp-row .credit-text { font-size: .85rem; text-align: center; }
+    /* 作者署名手機自適應 */
+    .research-credit { font-size: .78rem; padding: .35rem .65rem; gap: .25rem; }
+    .research-credit .lead { font-size: .85rem; }
+    .research-credit .ai-tag { font-size: .7rem; padding: .08rem .38rem; }
+    .footer-credit { padding: 1rem .8rem; }
+    .footer-credit-line { font-size: .9rem; line-height: 1.6; }
+    .footer-credit-line .lead { font-size: .98rem; }
+    .footer-credit-sub { font-size: .76rem; }
 
     /* ⭐ 表格手機重新設計:每列變獨立卡片(card-style stack)*/
     section table {
@@ -616,14 +604,14 @@
 <body>
 
 <header>
-  <div class="author-stamp-corner" title="本作品由 金小麥 製作">
-    <div class="author-stamp" aria-label="金小麥 印章">
-      <span>金</span><span>小</span><span>麥</span>
-    </div>
-  </div>
   <h1>ToosterX 台灣運動同類專案調查報告 v2</h1>
   <div class="subtitle">12 個 AI agent · 範圍 = 台灣運動類 · 2026-04-27 更新</div>
-  <div class="author-credit-line"><strong>金小麥</strong> 整理製作</div>
+  <div class="research-credit">
+    <strong class="lead">Mai</strong> 主導
+    <span class="sep">·</span>
+    <span class="ai-tag">Claude</span><span class="ai-tag">GPT</span>
+    協作研究
+  </div>
   <div class="stats">
     <div class="stat"><span class="stat-num">130+</span><span class="stat-label">台灣運動專案</span></div>
     <div class="stat"><span class="stat-num">35</span><span class="stat-label">GitHub OSS</span></div>
@@ -641,6 +629,7 @@
     <li><a href="#summary">📊 執行摘要</a></li>
     <li><a href="#pickleball">🏓 匹克球真空(寶藏)</a></li>
     <li><a href="#opportunities">🎯 5 個明確機會</a></li>
+    <li><a href="#ball-sports-expansion">⚾ 球類市場補強</a></li>
     <li><a href="#tier-s">🥇 Tier S - 必看 GitHub OSS</a></li>
     <li><a href="#leaders">🏆 台灣運動 SaaS / App 領導者</a></li>
     <li><a href="#oss-by-sport">🥎 GitHub OSS(按運動別)</a></li>
@@ -763,6 +752,152 @@
       <strong>高爾夫教練媒合 / 揪團</strong> — Golface 主導預約 + 計分,但<strong>不做教練媒合 + 揪團</strong>(碎片化由各教練個人經營)。<br>
       <span style="color: var(--text-muted); font-size: .9rem;">建議:套教育型俱樂部 + 教練評價 + EXP / 成就(Birdie 累積等)。</span>
     </div>
+  </div>
+</section>
+
+<!-- ═══════ 球類市場補強 ═══════ -->
+<section id="ball-sports-expansion">
+  <h2>⚾ 球類市場補強:來源版補充(2026-04-27)</h2>
+
+  <div class="gpt-audit">
+    <h3>GPT 補充註記:本節採用方式</h3>
+    <p><strong>新增資料只分兩種</strong>:一是能從政府、協會、職業聯賽、產品官網或 App 商店公開頁面交叉引用；二是公開查不到,直接標成「未公開 / 未佐證」。下表的「ToosterX 機會」是 GPT 依來源做的產品推論,不當作市場事實。</p>
+    <ul>
+      <li><strong>A 級來源</strong>:運動部全民運動署、各球類協會、職業聯賽官方頁。</li>
+      <li><strong>B 級來源</strong>:產品官網、Google Play / App Store、公開報名或賽事頁。</li>
+      <li><strong>C 級來源</strong>:具名媒體或整理型資料,僅用於補充趨勢,不單獨當定論。</li>
+      <li><strong>未公開</strong>:公開搜尋未見可驗證數字,例如用戶數、營收、留存、轉換率、私人 LINE 社群規模。</li>
+    </ul>
+  </div>
+
+  <div class="callout callout-treasure">
+    <strong>球類總體事實</strong>:全民運動署 114 年運動現況調查顯示,國人參與運動人口比例為 <strong>83.3%</strong>,規律運動人口比例為 <strong>35.6%</strong>,球類運動占 <strong>20.2%</strong>,且男性球類運動比例 <strong>22.9%</strong>、女性 <strong>17.4%</strong>；報告也點名主要球類運動為籃球及羽球,羽球比例為 <strong>9.4%</strong>,較 105 年增加 <strong>4.2%</strong>。來源:<a href="https://www.sa.gov.tw/News_Content/362/20136" target="_blank">全民運動署 114 年運動現況調查成果</a>、<a href="https://isports.sa.gov.tw/apps/Download.aspx?ITEM_CD=T01&ITEM_PRG_CD=2&MENU_CD=M07&MENU_PRG_CD=4&SYS=TIS" target="_blank">i運動平台歷年運動現況調查下載區</a>。
+  </div>
+
+  <h3>球類垂直補強表</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>球類</th>
+        <th>可驗證資料</th>
+        <th>產品與營運缺口</th>
+        <th>ToosterX 補強判斷</th>
+        <th>來源狀態</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>羽球</strong></td>
+        <td>羽球在 114 年運動現況調查中占 <strong>9.4%</strong>,較 105 年增加 <strong>4.2%</strong>；中華民國羽球協會官網列有國內賽事、國際賽事、名單查詢與講習；PlayOne 官網主打羽球零打查詢,提供地區、星期、時段、程度與球場篩選。</td>
+        <td>PlayOne 可解決「找零打」,但公開頁未見完整的會員留存、付款轉換、隊長 CRM、出席率與跨場館 SaaS 數據；羽球 GO、揪波等用戶數本輪未找到可公開驗證來源。</td>
+        <td><strong>最高優先球類</strong>:既有需求被政府調查支持,又有現成零打查詢產品證明使用情境。ToosterX 可補「隊長後台、候補、簽到、分帳、EXP、LINE 通知」,不要只做搜尋。</td>
+        <td>A:<a href="https://www.sa.gov.tw/News_Content/362/20136" target="_blank">全民運動署 114 調查</a>、<a href="https://www.ctb.org.tw/" target="_blank">中華民國羽球協會</a>；B:<a href="https://www.playone.tw/" target="_blank">PlayOne</a>。未公開:PlayOne / 羽球 GO / 揪波活躍用戶與營收。</td>
+      </tr>
+      <tr>
+        <td><strong>籃球</strong></td>
+        <td>全民運動署 114 調查把籃球列為主要球類運動之一；TPBL 官網列出 7 支球隊、賽程、比賽數據、球隊數據、球員數據、數據排行與 Fantasy 入口；中華民國籃球協會有官方網站。</td>
+        <td>職業端資料完整,但公開頁較偏觀賽與聯賽；業餘端常見痛點如場地湊人、3v3/5v5 分隊、出缺席、費用、戰績與 MVP 記錄,公開市場未見一個被廣泛引用的台灣本土 LIFF 管理工具。</td>
+        <td><strong>適合做活動型 MVP</strong>:從「每週固定場 + 自動分隊 + 戰績 + LINE 提醒」切入,比做完整職業賽事數據平台更合理。</td>
+        <td>A:<a href="https://www.sa.gov.tw/News_Content/362/20136" target="_blank">全民運動署 114 調查</a>、<a href="https://tpbl.basketball/" target="_blank">TPBL 官方站</a>、<a href="https://ctba.meetagile.com/" target="_blank">中華民國籃球協會</a>。未公開:業餘籃球 LINE 群規模與付費意願。</td>
+      </tr>
+      <tr>
+        <td><strong>棒球 / 壘球</strong></td>
+        <td>CPBL 官方頁列出聯盟組織、賽程與球隊資訊；中央社報導 2025 年中華職棒平均每場觀眾突破萬人,大巨蛋例行賽場次第 2 年平均觀眾維持 2 萬人以上；中華民國棒球協會官網與賽事頁可查國內賽事。</td>
+        <td>職棒觀賽紅利明顯,但草根棒壘球偏隊務、紀錄、保險、裝備、場地與裁判排班。公開頁未見單一主導的業餘隊務 SaaS。</td>
+        <td><strong>不要碰職棒媒體紅海</strong>:ToosterX 比較適合「企業/校友/社團棒壘球隊管理」,功能重點是球員名單、出缺席、打序、守位、費用、賽後紀錄。</td>
+        <td>A:<a href="https://www.cpbl.com.tw/about/structure" target="_blank">CPBL 聯盟組織</a>、<a href="https://cpbl.com.tw/schedule" target="_blank">CPBL 賽程</a>、<a href="https://www.ctba.org.tw/" target="_blank">中華民國棒球協會</a>；C:<a href="https://project.cna.com.tw/cards/20251008-cpblspectators/" target="_blank">中央社中職觀眾專題</a>。未公開:業餘棒壘球隊數與軟體付費率。</td>
+      </tr>
+      <tr>
+        <td><strong>足球 / 五人制</strong></td>
+        <td>中華民國足球協會官網列有台灣企業甲級足球聯賽、台灣木蘭足球聯賽、台灣五人制足球聯賽、台灣乙級足球聯賽、青年足球聯賽與註冊系統；官網首頁可見 2025/26 企業甲級、乙級賽程與戰績資訊。</td>
+        <td>協會賽務與註冊系統存在,但草根球隊日常管理仍可能落在 LINE、Google 表單與試算表。公開搜尋未見台灣本土足球社團管理工具具有明確市場領導地位。</td>
+        <td><strong>適合青年隊與社會人隊</strong>:切入「隊員註冊、練球報到、家長通知、比賽名單、罰牌/出席紀錄」,比單純揪團更有管理價值。</td>
+        <td>A:<a href="https://www.ctfa.com.tw/" target="_blank">中華民國足球協會</a>。未公開:草根足球隊使用軟體比例、LINE 群數、付費意願。</td>
+      </tr>
+      <tr>
+        <td><strong>排球</strong></td>
+        <td>TVL 企業排球聯賽官方站列出男子組、女子組、球隊陣容、賽事列表、戰績、統計排行、球員數據與球隊數據；官網顯示主辦單位包含中華民國排球協會與地方政府。</td>
+        <td>職業/半職業聯賽資料完整,但一般校隊、系隊、社會人球隊需要的是輪轉、位置、攻守數據、候補與練習出席。公開頁未見本土大眾化排球隊務 SaaS。</td>
+        <td><strong>可做賽務模組模板</strong>:ToosterX 的 tournament / team 模組可加入排球特有輪轉、先發陣容、局數與位置紀錄。</td>
+        <td>A:<a href="https://tvl.ctvba.org.tw/" target="_blank">TVL 企業排球聯賽</a>。未公開:一般排球社群規模與工具使用率。</td>
+      </tr>
+      <tr>
+        <td><strong>桌球</strong></td>
+        <td>中華民國桌球協會官網可查協會公告與檔案；公開搜尋可見中華桌球排名賽競賽規程與排名資格賽文件。</td>
+        <td>桌球館、社團與長青賽事多,但公開頁多偏公告與 PDF；本輪未找到台灣本土大眾化桌球揪團/排名/館務 SaaS 的可驗證市占資料。</td>
+        <td><strong>小而密的社群型機會</strong>:可從「球館會員、桌次預約、勝負積分、升降級、月賽報名」切入,資料結構比籃球/棒球簡單。</td>
+        <td>A:<a href="https://www.cttta.org.tw/" target="_blank">中華民國桌球協會</a>、<a href="https://www.cttta.org.tw/files/News/2023112323170.pdf" target="_blank">中華桌球排名賽規程 PDF</a>。未公開:桌球館 SaaS 市占與會員量。</td>
+      </tr>
+      <tr>
+        <td><strong>網球</strong></td>
+        <td>中華民國網球協會官網提供全國排名賽、青少年排名賽、壯年排名賽、乙組排名賽、線上報名系統與最新排名；全國排名賽頁面列出報名、排名分配、會內/會外賽與保險等賽務細節。</td>
+        <td>協會賽事制度較完整,商業機會不在重做官方排名,而在俱樂部、教練、場地與小型循環賽。公開頁未見台灣網球俱樂部 SaaS 的用戶數。</td>
+        <td><strong>可借鏡排名制</strong>:ToosterX 可把「月例賽積分、候補、外卡、會內/會外賽」做成通用模板,再套到網球、桌球、羽球、匹克球。</td>
+        <td>A:<a href="https://www.tennis.org.tw/web/event_information.asp?msg_id=7698&s=1" target="_blank">中華民國網球協會全國排名賽</a>、<a href="https://www.tennis.org.tw/web/ranking.asp?s=1" target="_blank">中華民國網球協會全國排名</a>。未公開:網球俱樂部軟體採用率。</td>
+      </tr>
+      <tr>
+        <td><strong>高爾夫</strong></td>
+        <td>Golface 官網列出 tee time 預約、20+ 合作球場、GPS、教學影片、個人成績、球隊管理與智慧球車；Google Play 顯示 Golface App 下載量為 <strong>1 萬+</strong>,並列出 GPS、球隊管理、分組繳交成績、賽事排名等功能。</td>
+        <td>高爾夫已有成熟垂直產品,正面競爭成本高；公開頁未見 Golface 付費轉換率、活躍用戶與球場覆蓋率明細。</td>
+        <td><strong>只做周邊,不硬打正面</strong>:ToosterX 可做企業盃、球隊月例賽、LINE 報名與簡易排行榜,避免複製 Golface GPS / 球場預約核心。</td>
+        <td>B:<a href="https://www.golface.com.tw/" target="_blank">Golface 官網</a>、<a href="https://play.google.com/store/apps/details?id=tw.com.golface.android&hl=zh_TW" target="_blank">Golface Google Play</a>。未公開:Golface 活躍用戶、營收、球場合約數明細。</td>
+      </tr>
+      <tr>
+        <td><strong>匹克球</strong></td>
+        <td>中華民國匹克球協會官網顯示協會於 2016 年 11 月成立,並提供活動、國內外賽事、找球場、教練與裁判資訊；中華民國匹克球總會官網列有 115 年度全國中正盃、港都盃、教練講習與賽事成績；Reclub 官方頁提供 RSVP、自動候補、依程度排序、場地分配、簽到/付款標記、循環賽、DUPR 整合與聯賽功能。</td>
+        <td>原文「100% 空白」應繼續軟化:台灣有協會與總會,也有國際產品 Reclub 覆蓋匹克球工具情境；但本輪仍未找到台灣本土、以 LINE/LIFF 為核心的匹克球俱樂部 SaaS。</td>
+        <td><strong>仍是寶藏,但不是空無一物</strong>:最佳切入是「台灣語境 + LINE + 場地/講習/賽事/教練裁判」,並吸收 Reclub 的自動候補、程度分組與 DUPR 思路。</td>
+        <td>A:<a href="https://pickleball.org.tw" target="_blank">中華民國匹克球協會</a>、<a href="https://www.ctpf.org.tw" target="_blank">中華民國匹克球總會</a>；B:<a href="https://pickleball.reclub.co/" target="_blank">Reclub Pickleball</a>。未公開:台灣匹克球參與人口、球會數、付費軟體採用率。</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>共通功能地圖:球類不該每項重做</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>共通模組</th>
+        <th>適用球類</th>
+        <th>公開依據</th>
+        <th>ToosterX 實作方向</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>報名 / 候補 / 簽到</strong></td>
+        <td>羽球、籃球、足球、排球、桌球、網球、匹克球</td>
+        <td>PlayOne 有零打缺額與隊長登錄情境；Reclub 明確列 RSVP、自動候補、簽到與付款標記；網球協會排名賽頁列報名、候補、會外賽與退賽流程。</td>
+        <td>做成通用 registration pipeline:名額、候補、取消、簽到、付款狀態、LINE 通知。</td>
+      </tr>
+      <tr>
+        <td><strong>排名 / 積分 / 戰績</strong></td>
+        <td>網球、桌球、羽球、排球、籃球、匹克球</td>
+        <td>TPBL、TVL、CTFA、網球協會都有官方戰績/排名/排行頁；Reclub 有 player-to-player rankings、leaderboards 與 DUPR 整合。</td>
+        <td>抽象為 season standings + player ratings,不要把每種球的規則寫死在 UI。</td>
+      </tr>
+      <tr>
+        <td><strong>隊伍 / 球員名單 / 角色</strong></td>
+        <td>棒壘球、籃球、足球、排球、高爾夫、羽球社團</td>
+        <td>TPBL、TVL、CPBL、CTFA 官方頁都把球隊與球員/數據作為核心入口；Golface 官網與 Google Play 都列有球隊管理。</td>
+        <td>沿用 ToosterX team 模組,補隊長、副隊長、教練、裁判、出納、場地管理員等角色。</td>
+      </tr>
+      <tr>
+        <td><strong>場地 / 時段 / 桌次或場次</strong></td>
+        <td>羽球、桌球、網球、匹克球、籃球、足球、排球、高爾夫</td>
+        <td>PlayOne 以地區、星期、時段、程度篩選；中華民國匹克球協會有找球場入口；Golface 主打 tee time 預約；CTFA/TVL/CPBL 官方賽程皆綁定場地。</td>
+        <td>建立 venue + court + slot 模型,先支援手動排程,後續再接場館 API。</td>
+      </tr>
+      <tr>
+        <td><strong>賽事模板</strong></td>
+        <td>網球、羽球、桌球、匹克球、排球、籃球、棒壘球</td>
+        <td>網球協會全國排名賽清楚區分報名、會前賽、會外賽、會內賽；Reclub 提供 round robin、league；TVL/TPBL/CTFA 都公開戰績與賽程。</td>
+        <td>優先做 round robin、單淘汰、雙淘汰、小組循環加淘汰,並保留球類規則插件。</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-warn">
+    <strong>打臉與補充</strong>:原文件把「球類」很多機會寫成商業真空,這只適合描述「本輪未找到本土 LIFF / 開源工具」,不適合描述整體市場。羽球已有 PlayOne 這類零打查詢產品,高爾夫已有 Golface,籃球/棒球/排球/足球都有職業或協會端官方資料系統,匹克球也有協會、總會與 Reclub 這種國際工具。更準確的說法是:<strong>台灣球類不缺賽事與社群,缺的是貼近日常隊務、可在 LINE 裡低摩擦使用、跨球類複用的輕量管理工具。</strong>
   </div>
 </section>
 
@@ -1426,18 +1561,18 @@
 </main>
 
 <div class="footer">
-  <div class="footer-stamp-row">
-    <div class="author-stamp large" aria-label="金小麥 印章" title="本作品由 金小麥 製作">
-      <span>金</span><span>小</span><span>麥</span>
+  <div class="footer-credit">
+    <div class="footer-credit-line">
+      Lead Researcher <strong class="lead">Mai</strong>
+      <span class="sep">·</span>
+      Co-researched with <span class="ai-tag">Claude</span><span class="ai-tag">GPT</span>
     </div>
-    <div class="credit-text">
-      本作品由 <strong>金小麥</strong> 整理製作<br>
-      <span style="font-size:.82rem;color:var(--text-muted);">2026-04-27 · 12 個 AI agent 並行調查 · GPT × Claude 三方查核</span>
+    <div class="footer-credit-sub">
+      2026-04-27 · 12 個 AI agent 並行調查 · GPT × Claude 三方獨立查核驗證
     </div>
   </div>
-  ToosterX 台灣運動同類專案調查報告 v2.0 · 12 個 AI agent 並行調查 · 2026-04-27 產出<br>
-  涵蓋:11 個運動垂直 / 35+ GitHub OSS / 60+ 商業 SaaS / 8 個 B2B 對象 / 5 個明確市場機會<br>
-  **範圍限定:台灣運動類**(已剃除國際對標、LIFF 工具、教育/餐廳等非運動內容)
+  ToosterX 台灣運動同類專案調查報告 v2.0 · 範圍限定:台灣運動類<br>
+  涵蓋:11 個運動垂直 / 35+ GitHub OSS / 60+ 商業 SaaS / 8 個 B2B 對象 / 5 個明確市場機會
 </div>
 
 <script>
