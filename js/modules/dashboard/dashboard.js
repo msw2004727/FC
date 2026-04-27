@@ -154,6 +154,13 @@ Object.assign(App, {
       });
     }
 
+    // ── GitHub Actions CI 用量（非同步、admin 以上才會渲染）──
+    if (typeof this.renderCiUsage === 'function') {
+      this.renderCiUsage(container).catch(err => {
+        console.warn('[dashboard] renderCiUsage 失敗:', err);
+      });
+    }
+
     // ── 即時監聽範圍設定（admin 以上） ──
     if (typeof this._renderRealtimeLimitCard === 'function'
         && (ROLE_LEVEL_MAP[this.currentRole] || 0) >= ROLE_LEVEL_MAP.admin) {

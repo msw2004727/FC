@@ -1336,6 +1336,16 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════
+    //  CI Usage Snapshots（GitHub Actions 用量統計）
+    //  由 GitHub Actions (scripts/snapshot-ci-usage.js) 透過 Service Account 寫入
+    //  admin / super_admin 可讀（顯示在數據儀表板）
+    // ═══════════════════════════════════════════
+    match /ciUsageSnapshots/{dateId} {
+      allow read: if isAuth() && (isAdmin() || isSuperAdmin());
+      allow write: if false;
+    }
+
+    // ═══════════════════════════════════════════
     //  Inventory System（庫存管理系統，inv_ 前綴）
     //  獨立於 SportHub，共用 Firebase 專案
     // ═══════════════════════════════════════════

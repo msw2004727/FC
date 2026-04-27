@@ -1,0 +1,36 @@
+name: CI Usage Snapshot
+
+# 何時跑：
+#   - schedule: 每天 06:00 UTC（台北 14:00）抓 GitHub Actions runs 統計、寫 Firestore
+#   - workflow_dispatch: 允許手動觸發
+on:
+  schedule:
+    - cron: '0 6 * * *'    # 每天 1 次（台北 14:00）
+  workflow_dispatch:
+
+# 並發保護
+concurrency:
+  group: ci-usage-snapshot
+  cancel-in-progress: false
+
+# 讀 actions runs 列表 + 寫 Firestore
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Take CI usage snapshot
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+        run: node scripts/snapshot-ci-usage.js
+        continue-on-error: true   # 失敗不阻塞 CI

@@ -278,6 +278,7 @@ const ScriptLoader = {
       'js/modules/dashboard/dashboard-widgets.js',
       'js/modules/dashboard/dashboard.js',
       'js/modules/dashboard/dashboard-usage.js',
+      'js/modules/dashboard/dashboard-ci-usage.js',
       'js/modules/dashboard/dashboard-participant-query.js',
       'js/modules/dashboard/dashboard-participant-share.js',
       'js/modules/dashboard/dashboard-data-fetcher.js',
