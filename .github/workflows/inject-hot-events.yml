@@ -1,0 +1,56 @@
+name: Inject Hot Events to index.html
+
+# 何時跑：
+#   - schedule: 每 3 小時整點（UTC）跑一次、把 Firestore 最近 6 場活動 inline 到 index.html
+#   - workflow_dispatch: 允許手動觸發（首次部署 / debug / 緊急更新）
+on:
+  schedule:
+    - cron: '0 */3 * * *'   # 0:00, 3:00, 6:00, 9:00, 12:00, 15:00, 18:00, 21:00 UTC
+  workflow_dispatch:
+
+# 並發保護：上次還沒結束時，本次自動跳過（避免 push 競爭）
+concurrency:
+  group: inject-hot-events
+  cancel-in-progress: false
+
+# 需要 commit + push 權限
+permissions:
+  contents: write
+
+jobs:
+  inject:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # fetch 全部 history 以利後續 pull --rebase
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Inject hot events
+        env:
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+        run: node scripts/inject-hot-events.js
+        continue-on-error: true   # 失敗（API quota / Firestore down）不阻塞 workflow
+
+      - name: Commit if changed
+        run: |
+          set -e
+          if git diff --quiet index.html; then
+            echo "[inject-bot] index.html 內容未變、跳過 commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          # commit message 含 [skip ci] tag、防 test.yml 等被觸發（雙保險：
+          # test.yml 也用 paths-ignore: index.html 過濾）
+          git commit -m "chore(perf): 自動 inline 首頁活動 (UTC $(date -u +%Y-%m-%dT%H:%M)) [skip ci]"
+          # 推前先 rebase，處理可能的並發 push（極少見，但安全）
+          git pull --rebase origin main || (echo "[inject-bot] rebase 失敗、放棄本次 commit"; exit 1)
+          git push origin HEAD:main
+          echo "[inject-bot] 已 push"

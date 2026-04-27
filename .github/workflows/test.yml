@@ -3,6 +3,11 @@ name: Test Suite
 on:
   push:
     branches: [main]
+    # 2026-04-27 F 方案：inject-hot-events.yml 每 3 小時自動 commit 只改 index.html
+    # 這種「純 inline 資料更新」commit 不需要重跑測試（單元/規則測試不依賴 index.html 內容）
+    # 用 paths-ignore 過濾、節省 CI 配額（每月省約 700-1300 分鐘 GitHub Actions 用量）
+    paths-ignore:
+      - 'index.html'
   pull_request:
     branches: [main]
 
