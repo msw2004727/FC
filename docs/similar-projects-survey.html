@@ -212,6 +212,23 @@
     line-height: 1.6;
   }
 
+  /* ✏️ 共識徽章 — 三方驗證標記(去除黃色螢光底,僅保留徽章 + tooltip)*/
+  .consensus-mark {
+    display: inline-block;
+    font-size: .68rem;
+    font-weight: 700;
+    color: #92400e;
+    background: #fef3c7;
+    border: 1px solid #fcd34d;
+    border-radius: 4px;
+    padding: .08rem .4rem;
+    margin: 0 .2rem;
+    vertical-align: 1px;
+    white-space: nowrap;
+    letter-spacing: .02em;
+    cursor: help;
+  }
+
   /* Live demo 狀態標籤(每個 repo 後面顯示首頁是否還活著)*/
   .live-status {
     display: inline-block;
@@ -250,30 +267,6 @@
     font-size: .92em;
     margin-left: .25rem;
     word-break: break-all;
-  }
-
-  /* 共識更新標記:黃色 highlighter + 徽章標籤(GPT vs Claude vs 證據定案後的正文修正)*/
-  mark.consensus {
-    background: linear-gradient(180deg, transparent 55%, #fef08a 55%);
-    color: inherit;
-    padding: 0 .15rem;
-    font-weight: 500;
-    border-radius: 2px;
-  }
-  .consensus-mark {
-    display: inline-block;
-    font-size: .68rem;
-    font-weight: 700;
-    color: #92400e;
-    background: #fef3c7;
-    border: 1px solid #fcd34d;
-    border-radius: 4px;
-    padding: .08rem .4rem;
-    margin: 0 .2rem;
-    vertical-align: 1px;
-    white-space: nowrap;
-    letter-spacing: .02em;
-    cursor: help;
   }
 
   p, li, td, th, .card, .callout, .key-finding-content {
@@ -425,8 +418,6 @@
 
     /* Callout 收緊 */
     .callout { padding: .75rem .9rem; font-size: .92rem; }
-    /* 共識標記手機縮小 */
-    .consensus-mark { font-size: .62rem; padding: .06rem .32rem; margin: 0 .12rem; }
     /* Live status 手機:換行顯示 + 縮小 */
     .live-status {
       display: inline-block;
@@ -436,6 +427,8 @@
       margin-top: .25rem;
     }
     .live-status .url-text { font-size: .9em; }
+    /* 共識徽章手機縮小 */
+    .consensus-mark { font-size: .62rem; padding: .06rem .32rem; margin: 0 .12rem; }
     /* 作者署名手機自適應 */
     .research-credit { font-size: .78rem; padding: .35rem .65rem; gap: .25rem; }
     .research-credit .lead { font-size: .85rem; }
@@ -627,7 +620,7 @@
   <h3>📑 目錄</h3>
   <ul>
     <li><a href="#summary">📊 執行摘要</a></li>
-    <li><a href="#pickleball">🏓 匹克球真空(寶藏)</a></li>
+    <li><a href="#pickleball">🏓 匹克球本土工具缺口(寶藏)</a></li>
     <li><a href="#opportunities">🎯 5 個明確機會</a></li>
     <li><a href="#ball-sports-expansion">⚾ 球類市場補強</a></li>
     <li><a href="#tier-s">🥇 Tier S - 必看 GitHub OSS</a></li>
@@ -646,53 +639,53 @@
   <h2>📊 執行摘要(Taiwan Sports Edition)</h2>
 
   <div class="callout callout-success">
-    <strong>核心發現</strong>:台灣運動軟體生態 <strong>商業競品密度高(60+ 家)、GitHub 開源稀少(35 個)、5 個垂直<mark class="consensus">本輪未查到本土產品</mark><span class="consensus-mark" title="共識:從「完全空白」軟化為「本輪未查到」">✏️ 共識</span></strong>。ToosterX 在「LIFF + 俱樂部 + 活動報名 + 簽到 + EXP」整合上,<mark class="consensus">本輪公開搜尋未找到台灣同類開源專案</mark>,但商業 SaaS 圈有 18+ 家專業競品(Sporetrofit、Gymomo、Hikingbook、Velodash、Golface 等)規模都比 ToosterX 大。
+    <strong>核心發現</strong>:台灣運動軟體生態 <strong>商業競品密度高(60+ 家)、GitHub 開源稀少(35 個)、5 個垂直本輪未查到本土產品</strong>。ToosterX 在「LIFF + 俱樂部 + 活動報名 + 簽到 + EXP」整合上,本輪公開搜尋未找到台灣同類開源專案,但商業 SaaS 圈有 18+ 家專業競品(Sporetrofit、Gymomo、Hikingbook、Velodash、Golface 等)規模都比 ToosterX 大。
   </div>
 
   <div class="callout" style="border-left-color:#fcd34d;background:#fef3c7;">
-    <strong style="color:#92400e;">📝 共識標記說明</strong>:本檔正文中標<mark class="consensus">黃色螢光底</mark> + <span class="consensus-mark">✏️ 共識</span>徽章的內容,代表已通過 <strong>GPT vs Claude 三方查核驗證</strong>後的修正版本。共修正 <strong>9 處</strong>:Hikingbook 用戶數(30 萬→ 65 萬下載 / 30 萬活躍)、Velodash 年份(公司 2017 / app 2018)、Golface「最大」軟化、Sporetrofit 2016 加證據、Gymomo 80% 標「業者自述」、Reclub「香港團隊」改「國際性平台」、95.2% 修正為 89.13%、匹克球「100% 沒有」軟化為「本輪未查到」、CTPA 補加 CTPF 雙協會。<br>
-    <span style="font-size:.88rem;color:var(--text-muted);">驗證來源:GitHub API(46 repos)+ WebFetch 6 個爭議來源 + GPT Codex 反查。每個 ✏️ 共識徽章滑鼠懸停可看具體依據。</span>
+    <strong style="color:#92400e;">📝 三方驗證紀錄</strong>:本檔正文中標<span class="consensus-mark">✏️ 共識</span>徽章的句子,代表已經 <strong>Mai × Claude × GPT 三方獨立查核驗證</strong>後修正過的版本。共修正 <strong>9 處重要主張</strong>:Hikingbook 用戶數(30 萬→ 65 萬下載 / 30 萬活躍)、Hikingbook ≠ 健行筆記(完全不同公司)、Velodash 年份(公司 2017 / app 2018)、Sporetrofit 2016 加 twincn 公司登記證據、Gymomo 80% 標「業者自述」、Reclub「香港團隊」改「國際性平台」、95.2% 修正為 89.13%、匹克球「100% 沒有」軟化為「本輪未查到」、CTPA 補加 CTPF 雙協會。<br>
+    <span style="font-size:.88rem;color:var(--text-muted);">驗證來源:GitHub API(46 repos)+ WebFetch 6 個第一手來源(twincn 公司登記、Crunchbase、bnext / Meet 創業小聚、官方網站 等)+ GPT 反查 + Claude 反駁。每個 ✏️ 共識徽章滑鼠懸停可看具體依據。</span>
   </div>
 
   <h3>11 個運動垂直密度排名</h3>
   <ol>
     <li>🔴 <strong>路跑 / 馬拉松</strong> — <strong>紅海</strong>(8+ 本土平台 + 計時硬體 + 物流綁定)</li>
     <li>🟡 <strong>羽球</strong> — 商業 3 家(羽球GO / PlayOne / 揪波)+ GitHub OSS 8+ 個(全台灣最熱垂直)</li>
-    <li>🟡 <strong>高爾夫</strong> — Golface 一家獨大,週邊揪團 / 教練媒合空白</li>
-    <li>🟡 <strong>登山</strong> — <mark class="consensus">Hikingbook 累計 65 萬下載 / 30 萬活躍用戶</mark><span class="consensus-mark" title="GPT vs Claude 共識版:雙方原數字皆過時,以官網最新為準">✏️ 共識</span> 主導,但**山屋預約 / 高山協作隊伍管理**空白</li>
-    <li>🟡 <strong>自行車</strong> — Velodash + Giant + 政府平台,**LIFF 完全空白**</li>
+    <li>🟡 <strong>高爾夫</strong> — Golface 一家獨大,週邊揪團 / 教練媒合仍是缺口</li>
+    <li>🟡 <strong>登山</strong> — Hikingbook 累計 65 萬下載 / 30 萬活躍用戶 主導,但**山屋預約 / 高山協作隊伍管理**仍有缺口</li>
+    <li>🟡 <strong>自行車</strong> — Velodash + Giant + 政府平台,本輪未找到成熟 LIFF 型車隊工具</li>
     <li>🟡 <strong>棒球</strong> — 商業 0 家,GitHub OSS 4 個(學校 / 業餘聯盟為主)</li>
-    <li>🟢 <strong>籃球</strong> — 大型商業真空,只有零碎 OSS</li>
-    <li>🟢 <strong>足球 / 排球</strong> — 商業近真空,OSS 各 2-3 個</li>
+    <li>🟢 <strong>籃球</strong> — 本土日常隊務工具稀少,目前多為零碎 OSS / 社群方式</li>
+    <li>🟢 <strong>足球 / 排球</strong> — 本土日常隊務工具稀少,OSS 各 2-3 個</li>
     <li>🟢 <strong>三鐵</strong> — <strong>本土報名平台 0 個</strong>(只有國際 IP 自營),業餘隊伍管理零工具</li>
-    <li>💎 <strong>匹克球</strong> — <strong>100% 空白</strong>(GitHub 0 repos,本土 app 0 個,9 個球會用 LINE 群)</li>
+    <li>💎 <strong>匹克球</strong> — 本輪未找到台灣本土成熟工具(GitHub 0 repos,本土 LIFF / app 未見,球會多用 LINE 群)</li>
     <li>🟢 <strong>校際 / 系盃</strong> — GitHub OSS 13+ 個(NTU 學生主力),但每年重做</li>
   </ol>
 
   <h3>3 個必認識的台灣運動 SaaS 龍頭</h3>
   <ul>
-    <li><strong>Hikingbook(登山書 Inc.,非健行筆記)</strong><span class="consensus-mark" title="GPT vs Claude 共識:Hikingbook 是登山書 Inc.;健行筆記是 H2U 永悅旗下,完全不同公司">✏️ 共識</span> — Taiwan 新創 2019,<mark class="consensus">累計 650K+ 下載 / 約 30 萬活躍用戶</mark>,主市場台灣、次要海外為香港,12,000+ 行程資料庫</li>
+    <li><strong>Hikingbook(登山書 Inc.,非健行筆記)</strong> — Taiwan 新創 2019,累計 650K+ 下載 / 約 30 萬活躍用戶,主市場台灣、次要海外為香港,12,000+ 行程資料庫</li>
     <li><strong>Velodash 飛騎(自行車)</strong> — Taiwan 新創 2017,團騎定位 / 路線 / 群組聊天 / 藍牙裝置整合</li>
-    <li><strong>Golface(高爾夫)</strong> — Taiwan 新竹新創,<strong>台灣最大高爾夫 app</strong>,30 秒訂位,20+ 球場合作,計分 / 攻略 / 社群一站式</li>
+    <li><strong>Golface(高爾夫)</strong> — Taiwan 新竹新創,台灣高爾夫預約 / 智慧球車重要 App,30 秒訂位,20+ 球場合作,計分 / 攻略 / 社群一站式</li>
   </ul>
 </section>
 
 <section id="pickleball">
-  <h2>🏓 匹克球市場真相(寶藏級空白)</h2>
+  <h2>🏓 匹克球市場真相(寶藏級缺口)</h2>
 
   <div class="callout callout-treasure">
-    <strong><mark class="consensus">結論:截至本輪公開搜尋(2026-04-27),未找到以台灣本土匹克球社群為核心、同時具備揪局 / 候補 / 積分 / DUPR 整合的成熟產品</mark></strong><span class="consensus-mark" title="共識:從「100% 沒有」改為「本輪未查到」,符合可驗證的搜尋結論">✏️ 共識</span>
-    <p style="margin-top:.6rem;">這是這次調查最有商業價值的單一發現 — 競爭真空 + 政府背景場館擴張 + 國際賽事熱潮三重利多。</p>
+    <strong>結論:截至本輪公開搜尋(2026-04-27),未找到以台灣本土匹克球社群為核心、同時具備揪局 / 候補 / 積分 / DUPR 整合的成熟產品</strong><span class="consensus-mark" title="三方驗證共識:從原文「100% 沒有」軟化為「本輪未查到」,符合可驗證的搜尋結論。CTPA + CTPF 雙協會皆無自建系統 / 球會多用 LINE 群為事實依據">✏️ 共識</span>
+    <p style="margin-top:.6rem;">這是這次調查最有商業價值的單一發現 — 本土工具缺口明確 + 政府背景場館擴張 + 國際賽事熱潮三重利多。</p>
   </div>
 
   <h3>驗證證據(8 條)</h3>
   <ol>
-    <li><strong>GitHub `pickleball+taiwan`</strong>:<strong>0 個 repo</strong>(完全真空)</li>
-    <li><mark class="consensus">台灣現有<strong>兩個並存組織</strong>:<strong>CTPA 中華民國匹克球協會</strong>(<a href="https://pickleball.org.tw" target="_blank">pickleball.org.tw</a>,台北,2016 成立)+ <strong>CTPF 中華民國匹克球總會</strong>(<a href="https://www.ctpf.org.tw" target="_blank">ctpf.org.tw</a>,高雄,自稱 Global Pickleball Federation 會員)— 兩者為平行組織,皆無自建報名系統 / App</mark><span class="consensus-mark" title="共識:不只 CTPA,還有 CTPF 並存,反映台灣匹克球社群的組織分裂">✏️ 共識</span></li>
+    <li><strong>GitHub `pickleball+taiwan`</strong>:<strong>0 個 repo</strong>(本輪公開搜尋未找到)</li>
+    <li>台灣現有<strong>兩個並存組織</strong>:<strong>CTPA 中華民國匹克球協會</strong>(<a href="https://pickleball.org.tw" target="_blank">pickleball.org.tw</a>,台北,2016 成立)+ <strong>CTPF 中華民國匹克球總會</strong>(<a href="https://www.ctpf.org.tw" target="_blank">ctpf.org.tw</a>,高雄,自稱 Global Pickleball Federation 會員)— 兩者為平行組織,皆無自建報名系統 / App<span class="consensus-mark" title="三方驗證共識:GPT 抓到原文只提 CTPA 不完整,實際還有 CTPF 並存,反映台灣匹克球社群的組織分裂。WebFetch 兩官網確認">✏️ 共識</span></li>
     <li><strong>TPEPA 臺北市匹克球協會</strong>:只有 FB 社團,無 App</li>
-    <li><strong>大家以為的「Reclub」</strong>(<a href="https://reclub.co" target="_blank">reclub.co</a>)<span class="consensus-mark" title="共識:Reclub 為國際性平台、非台灣本土產品。共同創辦人公開資料顯示有美國關聯,但需公司登記再確認總部">✏️ 共識</span>:<mark class="consensus">是非台灣、非香港本土的國際性平台,服務全球 35+ 國家(共同創辦人公開資料顯示有美國關聯)</mark>,<strong>非台灣產品</strong></li>
+    <li><strong>大家以為的「Reclub」</strong>(<a href="https://reclub.co" target="_blank">reclub.co</a>)<span class="consensus-mark" title="三方驗證共識:文件原誤稱「香港團隊」,實際 Crunchbase 顯示共同創辦人 Tuan Ho 在舊金山,公司支援 35+ 國家。修正為「國際性平台,非台灣本土產品」">✏️ 共識</span>:是非台灣、非香港本土的國際性平台,服務全球 35+ 國家(共同創辦人公開資料顯示有美國關聯),<strong>非台灣產品</strong></li>
     <li><strong>9 個台灣匹克球俱樂部</strong>:Pickle Day / Pickle Side / Banger / Ahhh / Lunar / 樓下 / 寰宇 / 樂活浮州 / 紫陽公園 — 全部用 LINE 群 / Google Form / TinyBot</li>
-    <li><strong>2025-09 新北河岸 8 個匹克球場開幕</strong>(全 first-come-first-served,<strong>線上預約完全真空</strong>)</li>
+    <li><strong>2025-09 新北河岸 8 個匹克球場開幕</strong>(全 first-come-first-served,公開頁未見本土專屬預約工具)</li>
     <li><strong>2024 亞洲匹克球賽(台中)+ 2025 CAPA Taiwan Open</strong>:都用 ACCUPASS / BeClass 通用平台,沒有匹克球專屬工具</li>
     <li><strong>ipickleball.tw</strong>(<a href="https://ipickleball.tw" target="_blank">匹克球中毒社群</a>):是 WordPress 部落格(資訊整理),非報名系統</li>
   </ol>
@@ -702,22 +695,22 @@
     <li>CTPA 列了 <strong>全台 100+ 球場</strong></li>
     <li>FB 社團「Taiwan International Pickleball」+「Taiwan Pickleball Forum」總成員<strong>上萬人</strong></li>
     <li>媒體:<a href="https://focustaiwan.tw/sports/202509190021" target="_blank">Focus Taiwan</a>、<a href="https://freeshiuan.com/pickleball-court-taiwan/" target="_blank">freeshiuan 攻略</a> 持續報導</li>
-    <li><strong>0 個本地工具去服務這個用戶池</strong></li>
+    <li><strong>本輪未找到本地專屬工具去完整服務這個用戶池</strong></li>
   </ul>
 
   <div class="callout callout-success">
-    <strong>對 ToosterX 的意義</strong>:這是「<strong>護城河大、競爭真空、用戶痛點明確</strong>」的垂直市場。玩家當前 friction 是「LINE 群接龍」,ToosterX 只要在 Mini App 內做「匹克球揪局 + DUPR 整合 + 球場預約」就立刻把 Reclub 在地化體驗超車。<strong>唯一要警戒的對手是 Reclub(港團隊)</strong>,但非本地化就是優勢。
+    <strong>對 ToosterX 的意義</strong>:這是「<strong>場景清晰、本土工具缺口明確、用戶痛點明確</strong>」的垂直市場。玩家當前 friction 是「LINE 群接龍」,ToosterX 只要在 Mini App 內做「匹克球揪局 + DUPR 整合 + 球場預約」,就能用在地化體驗避開 Reclub 這類國際性平台的落差。<strong>主要要警戒的對手是 Reclub(國際性平台)</strong>。
   </div>
 </section>
 
 <!-- ═══════ 5 個明確機會 ═══════ -->
 <section id="opportunities">
-  <h2>🎯 5 個明確市場機會(空白垂直 + 用戶痛點明確)</h2>
+  <h2>🎯 5 個明確市場機會(工具缺口 + 用戶痛點明確)</h2>
 
   <div class="key-finding">
     <div class="key-finding-num">1</div>
     <div class="key-finding-content">
-      <strong>匹克球專屬 App / 揪局工具</strong> — 100% 競爭真空,2025 新北 8 個新球場,CTPA 協會 + 9 個球會都缺工具。<br>
+      <strong>匹克球專屬 App / 揪局工具</strong> — 本輪未找到台灣本土成熟工具,2025 新北 8 個新球場,CTPA / CTPF 協會體系與民間球會都缺日常管理工具。<br>
       <span style="color: var(--text-muted); font-size: .9rem;">建議:Mini App 內做匹克球揪局 + DUPR 整合 + 球場預約。預估投入 1-2 個月可發布 MVP。</span>
     </div>
   </div>
@@ -733,7 +726,7 @@
   <div class="key-finding">
     <div class="key-finding-num">3</div>
     <div class="key-finding-content">
-      <strong>自行車車隊 LIFF Mini App</strong> — Velodash 是 native app(Taiwan 龍頭),Giant / Bryton / Xplova 各自做硬體 app,<strong>LINE 內車隊管理完全空白</strong>。<br>
+      <strong>自行車車隊 LIFF Mini App</strong> — Velodash 是 native app(Taiwan 龍頭),Giant / Bryton / Xplova 各自做硬體 app,<strong>本輪未找到成熟 LINE 內車隊管理工具</strong>。<br>
       <span style="color: var(--text-muted); font-size: .9rem;">建議:套俱樂部 + 揪團 + 路線記錄,搭配自行車新文化基金會的環島認證。</span>
     </div>
   </div>
@@ -759,9 +752,9 @@
 <section id="ball-sports-expansion">
   <h2>⚾ 球類市場補強:來源版補充(2026-04-27)</h2>
 
-  <div class="gpt-audit">
-    <h3>GPT 補充註記:本節採用方式</h3>
-    <p><strong>新增資料只分兩種</strong>:一是能從政府、協會、職業聯賽、產品官網或 App 商店公開頁面交叉引用；二是公開查不到,直接標成「未公開 / 未佐證」。下表的「ToosterX 機會」是 GPT 依來源做的產品推論,不當作市場事實。</p>
+  <div class="callout">
+    <h3>資料採用原則</h3>
+    <p><strong>新增資料只分兩種</strong>:一是能從政府、協會、職業聯賽、產品官網或 App 商店公開頁面交叉引用；二是公開查不到,直接標成「未公開 / 未佐證」。下表的「ToosterX 機會」是依來源做的產品推論,不當作市場事實。</p>
     <ul>
       <li><strong>A 級來源</strong>:運動部全民運動署、各球類協會、職業聯賽官方頁。</li>
       <li><strong>B 級來源</strong>:產品官網、Google Play / App Store、公開報名或賽事頁。</li>
@@ -845,7 +838,7 @@
       <tr>
         <td><strong>匹克球</strong></td>
         <td>中華民國匹克球協會官網顯示協會於 2016 年 11 月成立,並提供活動、國內外賽事、找球場、教練與裁判資訊；中華民國匹克球總會官網列有 115 年度全國中正盃、港都盃、教練講習與賽事成績；Reclub 官方頁提供 RSVP、自動候補、依程度排序、場地分配、簽到/付款標記、循環賽、DUPR 整合與聯賽功能。</td>
-        <td>原文「100% 空白」應繼續軟化:台灣有協會與總會,也有國際產品 Reclub 覆蓋匹克球工具情境；但本輪仍未找到台灣本土、以 LINE/LIFF 為核心的匹克球俱樂部 SaaS。</td>
+        <td>台灣已有協會與總會,也有國際產品 Reclub 覆蓋匹克球工具情境；但本輪仍未找到台灣本土、以 LINE/LIFF 為核心的匹克球俱樂部 SaaS。</td>
         <td><strong>仍是寶藏,但不是空無一物</strong>:最佳切入是「台灣語境 + LINE + 場地/講習/賽事/教練裁判」,並吸收 Reclub 的自動候補、程度分組與 DUPR 思路。</td>
         <td>A:<a href="https://pickleball.org.tw" target="_blank">中華民國匹克球協會</a>、<a href="https://www.ctpf.org.tw" target="_blank">中華民國匹克球總會</a>；B:<a href="https://pickleball.reclub.co/" target="_blank">Reclub Pickleball</a>。未公開:台灣匹克球參與人口、球會數、付費軟體採用率。</td>
       </tr>
@@ -897,7 +890,7 @@
   </table>
 
   <div class="callout callout-warn">
-    <strong>打臉與補充</strong>:原文件把「球類」很多機會寫成商業真空,這只適合描述「本輪未找到本土 LIFF / 開源工具」,不適合描述整體市場。羽球已有 PlayOne 這類零打查詢產品,高爾夫已有 Golface,籃球/棒球/排球/足球都有職業或協會端官方資料系統,匹克球也有協會、總會與 Reclub 這種國際工具。更準確的說法是:<strong>台灣球類不缺賽事與社群,缺的是貼近日常隊務、可在 LINE 裡低摩擦使用、跨球類複用的輕量管理工具。</strong>
+    <strong>最終修正版結論</strong>:球類市場已有多種既有工具、官方資料系統與社群營運方式；更精準的描述是「本輪未找到成熟本土 LIFF / 開源型日常隊務工具」。羽球已有 PlayOne 這類零打查詢產品,高爾夫已有 Golface,籃球/棒球/排球/足球都有職業或協會端官方資料系統,匹克球也有協會、總會與 Reclub 這種國際工具。台灣球類不缺賽事與社群,缺的是貼近日常隊務、可在 LINE 裡低摩擦使用、跨球類複用的輕量管理工具。
   </div>
 </section>
 
@@ -1065,57 +1058,57 @@
   <div class="grid">
 
     <div class="card">
-      <div class="repo-name"><a href="https://www.hikingbook.net" target="_blank">Hikingbook(登山書 Inc.)</a><span class="consensus-mark" title="GPT vs Claude 共識:Hikingbook ≠ 健行筆記,前者是登山書 Inc. 獨立新創,後者是 H2U 永悅旗下">✏️ 共識</span></div>
+      <div class="repo-name"><a href="https://www.hikingbook.net" target="_blank">Hikingbook(登山書 Inc.)</a><span class="consensus-mark" title="三方驗證共識:Hikingbook 是登山書 Inc. 獨立新創,跟 H2U 永悅旗下的「健行筆記」是完全不同公司,不可混淆">✏️ 共識</span></div>
       <div class="meta-row">
         <span class="tag tag-tw">Taiwan 新創 2019</span>
         <span class="tag tag-stars">650K+ 下載 / 30 萬活躍</span>
         <span class="tag tag-sport-hiking">登山</span>
       </div>
-      <div class="desc">12,000+ 登山行程資料庫、離線地圖、GPX 軌跡、Garmin / COROS / Fitbit / Apple Health 整合。<mark class="consensus">主市場台灣,次要海外為香港(依官方數據與 UDN 報導)</mark>。</div>
-      <div class="why"><strong>意義</strong>:**台灣運動 vertical SaaS 訂閱可行的標竿**(<mark class="consensus">65 萬下載 / 30 萬活躍用戶證明</mark>)。**留白**:山屋預約 / 高山協作隊伍管理。</div>
+      <div class="desc">12,000+ 登山行程資料庫、離線地圖、GPX 軌跡、Garmin / COROS / Fitbit / Apple Health 整合。主市場台灣,次要海外為香港(依官方數據與 UDN 報導)。<span class="consensus-mark" title="三方驗證共識:雙方原數字皆過時(原 30萬下載 / GPT 引 57萬),以官網最新 650K+ 下載 / 300K+ 活躍為準">✏️ 共識</span></div>
+      <div class="why"><strong>意義</strong>:**台灣運動 vertical SaaS 訂閱可行的標竿**(65 萬下載 / 30 萬活躍用戶證明)。**留白**:山屋預約 / 高山協作隊伍管理。</div>
     </div>
 
     <div class="card">
-      <div class="repo-name"><a href="https://www.velodash.co" target="_blank">Velodash 飛騎</a><span class="consensus-mark" title="共識:沛司科技 2017/11 成立、Velodash app 2018/5/1 上線">✏️ 共識</span></div>
+      <div class="repo-name"><a href="https://www.velodash.co" target="_blank">Velodash 飛騎</a><span class="consensus-mark" title="三方驗證共識:沛司科技 2017/11 成立、Velodash app 2018/5/1 上線(雙方原各對一半,Meet bnext 來源確認)">✏️ 共識</span></div>
       <div class="meta-row">
-        <span class="tag tag-tw"><mark class="consensus">沛司科技 2017 成立 / app 2018 上線</mark></span>
+        <span class="tag tag-tw">沛司科技 2017 成立 / app 2018 上線</span>
         <span class="tag tag-stack">native app</span>
         <span class="tag tag-sport-cycling">自行車</span>
       </div>
       <div class="desc">團騎定位、路線規劃、坡段分析、群組聊天、Bluetooth 裝置整合、遠端觀賽。LINE OA 每週天氣推播。</div>
-      <div class="why"><strong>意義</strong>:Taiwan 自行車車隊主導者。**留白**:**LIFF Mini App 完全空白**,native app 限制 LINE 內生態。</div>
+      <div class="why"><strong>意義</strong>:Taiwan 自行車車隊重要玩家。**留白**:本輪未找到成熟 LIFF Mini App 直接對標,native app 限制 LINE 內生態。</div>
     </div>
 
     <div class="card">
-      <div class="repo-name"><a href="https://www.golface.com.tw" target="_blank">Golface</a><span class="consensus-mark" title="共識:「最大」改為「重要業者」,因無第三方驗證">✏️ 共識</span></div>
+      <div class="repo-name"><a href="https://www.golface.com.tw" target="_blank">Golface</a><span class="consensus-mark" title="三方驗證共識:原「台灣最大高爾夫 app」軟化為「重要業者」,因無第三方驗證(合作球場 / 累積成績為業者自述)">✏️ 共識</span></div>
       <div class="meta-row">
         <span class="tag tag-tw">Taiwan 新竹新創</span>
         <span class="tag tag-stars">30 秒訂位</span>
         <span class="tag tag-sport-golf">高爾夫</span>
       </div>
-      <div class="desc"><mark class="consensus">**台灣高爾夫預約 / 智慧球車重要業者之一**(自述合作球場 20+ 家、累積成績 130 萬+ 筆)</mark>:訂組、下場、球道攻略、計分、結帳、揮桿動作分析、訓練影片。</div>
+      <div class="desc">**台灣高爾夫預約 / 智慧球車重要業者之一**(自述合作球場 20+ 家、累積成績 130 萬+ 筆):訂組、下場、球道攻略、計分、結帳、揮桿動作分析、訓練影片。</div>
       <div class="why"><strong>意義</strong>:高爾夫 vertical 主導者(球場預約 + 計分 + 社群)。**留白**:**揪團 + 教練媒合 + 差點官方認證系統**。</div>
     </div>
 
     <div class="card">
-      <div class="repo-name"><a href="https://www.sporetrofit.com" target="_blank">Sporetrofit 智聯運動科技</a><span class="consensus-mark" title="共識:智聯運動科技股份有限公司 2016/12/27 成立(twincn 公司登記可查證);創辦團隊有鴻海集團背景">✏️ 共識</span></div>
+      <div class="repo-name"><a href="https://www.sporetrofit.com" target="_blank">Sporetrofit 智聯運動科技</a><span class="consensus-mark" title="三方驗證共識:智聯運動科技 2016/12/27 公司登記成立(twincn 公開可查),Claude 反駁 GPT 質疑成功;團隊有鴻海集團背景(bnext 報導)">✏️ 共識</span></div>
       <div class="meta-row">
-        <span class="tag tag-tw"><mark class="consensus">2016/12/27 成立(公司登記可查)</mark></span>
+        <span class="tag tag-tw">2016/12/27 成立(公司登記可查)</span>
         <span class="tag tag-stars">B2G 等級</span>
         <span class="tag tag-domain">場館 SaaS</span>
       </div>
-      <div class="desc"><mark class="consensus">創辦團隊有鴻海集團背景</mark>、北市 12 個運動中心後台、KIOSK + IoT 數據擷取 + APP / Web 預約 + 會員管理。</div>
+      <div class="desc">創辦團隊有鴻海集團背景、北市 12 個運動中心後台、KIOSK + IoT 數據擷取 + APP / Web 預約 + 會員管理。</div>
       <div class="why"><strong>意義</strong>:**B2G 等級的對手**,拿下台北市運動中心。對 ToosterX 不是直接對手,但場館預約功能可借鏡。</div>
     </div>
 
     <div class="card">
-      <div class="repo-name"><a href="https://www.gymomo.com" target="_blank">運動歐巴 Gymomo / WishMobile 璿恩</a><span class="consensus-mark" title="共識:80% 為業者自述,無第三方驗證">✏️ 共識</span></div>
+      <div class="repo-name"><a href="https://www.gymomo.com" target="_blank">運動歐巴 Gymomo / WishMobile 璿恩</a><span class="consensus-mark" title="三方驗證共識:80% 為業者自述(MarsGo 平台頁支撐),無第三方獨立驗證,標註「自述」確保透明">✏️ 共識</span></div>
       <div class="meta-row">
         <span class="tag tag-tw">Taiwan</span>
-        <span class="tag tag-stars"><mark class="consensus">自稱 80% 國民運動中心市佔(業者自述)</mark></span>
+        <span class="tag tag-stars">自稱 80% 國民運動中心市佔(業者自述)</span>
         <span class="tag tag-domain">場館 SaaS</span>
       </div>
-      <div class="desc"><mark class="consensus">**業者自述 80% 國民運動中心(OT 案)市佔率最高**</mark>、客戶 100+。LINE CRM 整合 + KIOSK + POS + APP + Digital Signage。</div>
+      <div class="desc">**業者自述 80% 國民運動中心(OT 案)市佔率最高**、客戶 100+。LINE CRM 整合 + KIOSK + POS + APP + Digital Signage。</div>
       <div class="why"><strong>意義</strong>:**有 LINE 強整合的 B2G 龍頭**,跟 ToosterX 走 B2C 路線剛好錯開,但若做 B2B 是直接對手。</div>
     </div>
   </div>
@@ -1333,7 +1326,7 @@
   <h3>⛰️ 登山(8 家)</h3>
   <table>
     <tbody>
-      <tr><td><a href="https://www.hikingbook.net" target="_blank">Hikingbook</a><span class="consensus-mark" title="共識:登山書 Inc.,非健行筆記">✏️ 共識</span></td><td><mark class="consensus">650K+ 下載 / 30 萬活躍</mark></td><td>**vertical SaaS 標竿**</td></tr>
+      <tr><td><a href="https://www.hikingbook.net" target="_blank">Hikingbook</a></td><td>650K+ 下載 / 30 萬活躍</td><td>**vertical SaaS 標竿**</td></tr>
       <tr><td><a href="https://hiking.biji.co" target="_blank">健行筆記</a></td><td>運動筆記集團</td><td>1680+ 步道 / 38000+ GPX</td></tr>
       <tr><td><a href="https://hike.taiwan.gov.tw" target="_blank">臺灣登山申請一站式服務網</a></td><td>政府唯一入口</td><td>玉山 / 雪霸 / 太魯閣 / 林務署</td></tr>
       <tr><td><a href="https://www.ysnp.gov.tw/ReservationQuery" target="_blank">玉山排雲山莊抽籤</a></td><td>政府</td><td>116 床位抽籤系統</td></tr>
@@ -1347,7 +1340,7 @@
   <h3>🏌️ 高爾夫(7 家)</h3>
   <table>
     <tbody>
-      <tr><td><a href="https://www.golface.com.tw" target="_blank">Golface</a></td><td>**台灣最大**</td><td>30 秒訂位 / 計分 / 攻略</td></tr>
+      <tr><td><a href="https://www.golface.com.tw" target="_blank">Golface</a></td><td>**台灣重要高爾夫 App / 服務**</td><td>30 秒訂位 / 計分 / 攻略</td></tr>
       <tr><td><a href="https://www.garoc.org" target="_blank">中華民國高爾夫協會 GAROC</a></td><td>政府社團</td><td>差點認證權威</td></tr>
       <tr><td><a href="https://www.golfshop.com.tw" target="_blank">Golfshop.com.tw</a></td><td>華人最大高球網站</td><td>球場代訂 / 差點記錄</td></tr>
       <tr><td><a href="https://www.golfertour.com.tw" target="_blank">高富網</a></td><td>中型</td><td>球場代訂 / 借票</td></tr>
@@ -1370,7 +1363,7 @@
   <table>
     <tbody>
       <tr><td><a href="https://www.sporetrofit.com" target="_blank">Sporetrofit 智聯運動</a></td><td>北市 12 個運動中心</td><td>**B2G 等級**</td></tr>
-      <tr><td><a href="https://www.gymomo.com" target="_blank">Gymomo / WishMobile</a><span class="consensus-mark" title="共識:80% 為業者自述,無第三方驗證">✏️ 共識</span></td><td><mark class="consensus">自述 80% 市佔(業者自述,無第三方數據)</mark></td><td>**B2G 等級 + LINE 整合**</td></tr>
+      <tr><td><a href="https://www.gymomo.com" target="_blank">Gymomo / WishMobile</a></td><td>自述 80% 市佔(業者自述,無第三方數據)</td><td>**B2G 等級 + LINE 整合**</td></tr>
       <tr><td><a href="https://17fit.com" target="_blank">17FIT</a></td><td>900+ 商家</td><td>boutique 主</td></tr>
       <tr><td><a href="https://tinybook.cc" target="_blank">TinyBook / TinyBot</a></td><td>訂閱制</td><td>LINE 預約 + 一頁商店</td></tr>
       <tr><td><a href="https://bookfastpos.com" target="_blank">BookFast</a></td><td>類 17FIT</td><td>**臺北市網球中心**用此</td></tr>
@@ -1406,7 +1399,7 @@
   <h3>🏓 匹克球(0 家本土,1 家境外)</h3>
   <table>
     <tbody>
-      <tr><td><a href="https://reclub.co" target="_blank">Reclub</a><span class="consensus-mark" title="共識:國際性平台,非台灣本土">✏️ 共識</span></td><td><mark class="consensus">**國際性平台**(35+ 國家;非台灣亦非香港本土)</mark></td><td>**唯一要警戒對手**(球會 / 球局 + DUPR + RSVP + waitlist)</td></tr>
+      <tr><td><a href="https://reclub.co" target="_blank">Reclub</a></td><td>**國際性平台**(35+ 國家;非台灣亦非香港本土)</td><td>**主要警戒對手**(球會 / 球局 + DUPR + RSVP + waitlist)</td></tr>
       <tr><td><a href="https://pickleball.org.tw" target="_blank">CTPA 中華民國匹克球協會</a></td><td>協會官網</td><td>**無 App / 無報名系統**</td></tr>
       <tr><td><a href="https://ipickleball.tw" target="_blank">ipickleball.tw</a></td><td>WordPress 部落格</td><td>純資訊整理</td></tr>
     </tbody>
@@ -1440,15 +1433,15 @@
   <h3>🟢 該做(優先序)</h3>
 
   <div class="callout callout-success">
-    <strong>1. 鎖定匹克球賽道(最高商業價值,真空市場)</strong>
-    <p>2024 亞洲匹克球賽剛在台中辦完、2025 CAPA Taiwan Open、2025-09 新北河岸 8 個球場開幕、<mark class="consensus">本輪公開搜尋未找到台灣本土匹克球專屬 App</mark><span class="consensus-mark" title="共識:從「完全沒」軟化為「本輪未查到」">✏️ 共識</span>、CTPA / CTPF 雙協會皆無自建系統、9 個球會用 LINE 群。**先佔位先贏,唯一警戒<mark class="consensus">國際平台 Reclub</mark>**。</p>
+    <strong>1. 鎖定匹克球賽道(高商業價值,本土工具缺口明確)</strong>
+    <p>2024 亞洲匹克球賽剛在台中辦完、2025 CAPA Taiwan Open、2025-09 新北河岸 8 個球場開幕、本輪公開搜尋未找到台灣本土匹克球專屬 App、CTPA / CTPF 雙協會皆無自建系統、9 個球會用 LINE 群。**先佔位先贏,主要警戒國際平台 Reclub**。</p>
   </div>
 
   <div class="callout callout-success">
-    <strong>2. 切入 4 個明確空白垂直</strong>
+    <strong>2. 切入 4 個明確工具缺口垂直</strong>
     <ul style="margin-top:.6rem;">
       <li>業餘三鐵社團 / 隊伍管理(0 個本土平台)</li>
-      <li>自行車車隊 LIFF Mini App(Velodash 是 native,LINE 內真空)</li>
+      <li>自行車車隊 LIFF Mini App(Velodash 是 native,LINE 內工具缺口明確)</li>
       <li>高山協作隊伍管理(用 Google Sites + Excel)</li>
       <li>高爾夫教練媒合 / 揪團(Golface 不做這塊)</li>
     </ul>
@@ -1535,7 +1528,7 @@
   <h2>📜 授權狀態(精簡版)</h2>
 
   <div class="callout">
-    <mark class="consensus"><strong>實測 89.13% 台灣運動 repo 沒寫 LICENSE</strong>(46 個 repo 中 5 個 MIT、41 個無宣告)</mark><span class="consensus-mark" title="共識:原 95.2% 為前次抽 21 個 repo 的舊數據,v2 改寫後本檔 46 個 repo 實際比例 89.13%(GPT 88.9% / Claude 89.13% 結論一致)">✏️ 共識</span> = 保留所有權。可<strong>讀、學、自己重寫</strong>(著作權法第 10-1 條保護「概念不保護表達」),**不能直接 copy code**(商業 copy 觸第 91 條,最高 5 年徒刑 + 500 萬罰金)。
+    <strong>實測 89.13% 台灣運動 repo 沒寫 LICENSE</strong>(46 個 repo 中 5 個 MIT、41 個無宣告)<span class="consensus-mark" title="三方驗證共識:原文 95.2% 為前次 21 個 repo 抽樣的舊數據(包含已剃除的 GPL-3.0 repo),v2 改寫後本檔 46 個 repo 實際 89.13%。GPT 抽 45 個算 88.9%、Claude 抽全 46 個算 89.13%,結論一致">✏️ 共識</span> = 保留所有權。可<strong>讀、學、自己重寫</strong>(著作權法第 10-1 條保護「概念不保護表達」),**不能直接 copy code**(商業 copy 觸第 91 條,最高 5 年徒刑 + 500 萬罰金)。
   </div>
 
   <h3>✅ 安全可參考(MIT / Apache)</h3>
@@ -1547,7 +1540,7 @@
     <li><a href="https://github.com/nthspace/universiade" target="_blank">nthspace/universiade</a> — MIT,2017 世大運</li>
   </ul>
 
-  <h3>⚠️ <mark class="consensus">89.13% 沒寫 license 名單(41 / 46)</mark><span class="consensus-mark" title="共識:從 95.2% 修正為 89.13%(三輪驗證實測)">✏️ 共識</span></h3>
+  <h3>⚠️ 89.13% 沒寫 license 名單(41 / 46)</h3>
   <p>包含本報告大多數 repo。**只能讀、學、自己重寫**,絕對不要 copy paste code。</p>
 
   <h3>📌 ToosterX 自己的立場</h3>
@@ -1568,7 +1561,7 @@
       Co-researched with <span class="ai-tag">Claude</span><span class="ai-tag">GPT</span>
     </div>
     <div class="footer-credit-sub">
-      2026-04-27 · 12 個 AI agent 並行調查 · GPT × Claude 三方獨立查核驗證
+      2026-04-27 · 12 個 AI agent 並行調查 · <strong>Mai 主導</strong> · Claude × GPT 三方獨立互查驗證
     </div>
   </div>
   ToosterX 台灣運動同類專案調查報告 v2.0 · 範圍限定:台灣運動類<br>
