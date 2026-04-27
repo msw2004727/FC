@@ -1263,9 +1263,20 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
 .region-tabs::-webkit-scrollbar{display:none}
 .region-tab{flex-shrink:0;padding:.45rem .8rem;font-size:.8rem;font-weight:500;color:var(--text-secondary);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;transition:color .2s,border-color .2s;display:inline-flex;align-items:center;gap:.25rem}
 .region-tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:700}
-/* 2026-04-27：反灰按鈕（如「附近活動」尚未開放）— 點擊不變色、顯示「尚未開放」toast */
-.region-tab-disabled{opacity:.45;cursor:not-allowed}
-.region-tab-disabled:hover{color:var(--text-secondary)}
+/* 2026-04-27：反灰按鈕（如「附近活動」尚未開放）— 加按鈕框 + 底色與 tab 視覺區隔 */
+.region-tab-disabled{
+  opacity:.6;
+  cursor:not-allowed;
+  margin-left:.45rem;
+  padding:.32rem .65rem;
+  background:var(--bg-elevated);
+  border:1px solid var(--border) !important;       /* 覆蓋 .region-tab 的 border:none */
+  border-bottom:1px solid var(--border) !important;/* 覆蓋 .region-tab 的 border-bottom:2px transparent */
+  border-radius:999px;
+  font-size:.75rem;
+}
+.region-tab-disabled:hover{color:var(--text-secondary);background:var(--bg-elevated)}
+[data-theme="dark"] .region-tab-disabled{background:rgba(255,255,255,.04)}
 .region-tab-icon{display:inline-block;vertical-align:middle;flex-shrink:0}
 @keyframes region-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}40%{transform:translateX(4px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
 
