@@ -191,104 +191,155 @@
   .key-finding-num { font-size: 1.4rem; font-weight: 700; color: var(--accent); flex-shrink: 0; min-width: 2rem; text-align: center; }
   .key-finding-content { flex: 1; }
   .key-finding-content strong { color: var(--text); }
-  /* ═══════ 響應式設計:三層 breakpoint(平板 / 手機 / 小手機)═══════ */
+  /* ═══════ 響應式設計 v2:重新設計手機版(card-style 表格 + flex stats)═══════ */
 
-  /* 平板與小筆電(≤ 1024px)— 微調間距,維持兩欄 */
+  /* 平板(≤ 1024px)— 微調 */
   @media (max-width: 1024px) {
     main { padding: 1.2rem; }
     section { padding: 1.5rem 1.6rem; }
     .grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
   }
 
-  /* 手機(≤ 768px)— 主要重排:卡片堆疊、TOC 單欄、表格縮小 */
+  /* 手機(≤ 768px)— 完整重排 */
   @media (max-width: 768px) {
     /* Header 緊湊化 */
-    header { padding: 1.8rem 1.2rem; }
-    header h1 { font-size: 1.4rem; line-height: 1.3; }
-    header .subtitle { font-size: .85rem; }
+    header { padding: 1.5rem 1rem; }
+    header h1 { font-size: 1.35rem; line-height: 1.3; }
+    header .subtitle { font-size: .82rem; }
 
-    /* Stats 改 2 欄 grid */
+    /* ⭐ Stats 改 flex 置中(避免 5 個 stat 孤兒問題) */
     .stats {
-      gap: .6rem;
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: .5rem;
+      margin-top: 1rem;
     }
-    .stat { padding: .7rem .9rem; }
-    .stat-num { font-size: 1.4rem; }
-    .stat-label { font-size: .73rem; }
+    .stat {
+      flex: 1 1 calc(33.333% - .35rem);
+      min-width: 95px;
+      padding: .65rem .55rem;
+      text-align: center;
+    }
+    .stat-num { font-size: 1.35rem; }
+    .stat-label { font-size: .7rem; margin-top: .1rem; }
 
     /* Main padding 收縮 */
-    main { padding: 1rem .8rem; }
+    main { padding: .9rem .7rem; }
 
     /* TOC 單欄 + 收緊 */
-    nav.toc { padding: 1rem 1.2rem; margin-bottom: 1.2rem; }
-    nav.toc h3 { font-size: .82rem; margin-bottom: .6rem; }
-    nav.toc ul { grid-template-columns: 1fr; gap: .25rem; }
-    nav.toc a { padding: .4rem .5rem; font-size: .9rem; }
+    nav.toc { padding: .9rem 1rem; margin-bottom: 1rem; }
+    nav.toc h3 { font-size: .78rem; margin-bottom: .55rem; }
+    nav.toc ul { grid-template-columns: 1fr; gap: .15rem; }
+    nav.toc a { padding: .55rem .6rem; font-size: .92rem; }
 
     /* Section 收縮 */
     section {
-      padding: 1.2rem 1.1rem;
+      padding: 1.1rem 1rem;
       border-radius: 10px;
       margin-bottom: 1rem;
     }
     section > h2 {
-      font-size: 1.2rem;
+      font-size: 1.18rem;
       padding-bottom: .55rem;
-      gap: .4rem;
+      gap: .35rem;
+      line-height: 1.4;
     }
-    section > h3 { font-size: 1.05rem; margin: 1.1rem 0 .65rem; }
-    section > h4 { font-size: .95rem; margin: .9rem 0 .5rem; }
+    section > h3 { font-size: 1.02rem; margin: 1rem 0 .6rem; }
+    section > h4 { font-size: .94rem; margin: .85rem 0 .5rem; }
     section p { font-size: .92rem; }
 
     /* 卡片 grid 改單欄 */
     .grid { grid-template-columns: 1fr; gap: .8rem; }
-    .card { padding: 1rem; gap: .5rem; }
-    .card .repo-name { font-size: 1rem; }
-    .card .desc { font-size: .9rem; line-height: 1.5; }
-    .card .why { font-size: .82rem; line-height: 1.5; }
+    .card { padding: .95rem; gap: .5rem; }
+    .card .repo-name { font-size: 1rem; line-height: 1.4; }
+    .card .desc { font-size: .9rem; line-height: 1.55; }
+    .card .why { font-size: .82rem; line-height: 1.55; }
 
     /* Priority row 收緊 */
     .priority-row {
-      grid-template-columns: 42px 1fr;
-      gap: .7rem;
+      grid-template-columns: 38px 1fr;
+      gap: .65rem;
       padding: .8rem;
     }
-    .priority-num { font-size: 1.6rem; }
+    .priority-num { font-size: 1.5rem; }
     .priority-content h4 { font-size: .95rem; }
-    .priority-content p { font-size: .85rem; }
+    .priority-content p { font-size: .85rem; line-height: 1.5; }
 
     /* Key finding 收緊 */
-    .key-finding { padding: .75rem .9rem; gap: .55rem; }
-    .key-finding-num { font-size: 1.2rem; min-width: 1.6rem; }
-    .key-finding-content { font-size: .88rem; line-height: 1.5; }
+    .key-finding { padding: .75rem .85rem; gap: .55rem; }
+    .key-finding-num { font-size: 1.15rem; min-width: 1.6rem; }
+    .key-finding-content { font-size: .88rem; line-height: 1.55; }
 
     /* Callout 收緊 */
-    .callout { padding: .75rem .9rem; }
-    .callout strong { display: inline-block; }
+    .callout { padding: .75rem .9rem; font-size: .92rem; }
 
-    /* 表格手機優化:橫向可滾動(必要時)+ 縮小字 */
+    /* ⭐ 表格手機重新設計:每列變獨立卡片(card-style stack)*/
     section table {
       display: block;
       width: 100%;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      font-size: .82rem;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      overflow: visible;
+      margin: .8rem 0;
+    }
+    section table thead {
+      display: none; /* 手機隱藏表頭(空間優先)*/
+    }
+    section table tbody {
+      display: block;
+    }
+    section table tr {
+      display: block;
+      background: var(--bg-card);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 10px;
+      padding: .85rem 1rem;
+      margin-bottom: .6rem;
+      box-shadow: var(--shadow-sm);
     }
-    section table th, section table td {
-      padding: .5rem .55rem;
+    section table tr:hover td { background: transparent; }
+    section table td {
+      display: block;
+      padding: .25rem 0;
+      border: none;
+      font-size: .9rem;
+      line-height: 1.55;
       word-break: break-word;
-      vertical-align: top;
+      color: var(--text);
     }
-    section table th { font-size: .8rem; }
+    /* 第一欄(通常是名稱 / 標題)樣式特別 */
+    section table td:first-child {
+      font-weight: 600;
+      font-size: 1rem;
+      color: var(--text);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: .5rem;
+      margin-bottom: .45rem;
+    }
+    section table td:first-child a {
+      font-weight: 600;
+      color: var(--accent);
+    }
+    /* 後續欄位用淺色提示文字(若是描述性內容)*/
+    section table td:not(:first-child) {
+      color: var(--text-muted);
+    }
+    section table td:not(:first-child) a {
+      color: var(--accent);
+      font-weight: 500;
+    }
+    section table td:not(:first-child) strong {
+      color: var(--text);
+    }
 
     /* Details / 收合區塊 */
     details { margin: .5rem 0; }
-    details summary { padding: .75rem .9rem; font-size: .92rem; }
+    details summary { padding: .8rem .9rem; font-size: .92rem; }
     details > div, details > ul { padding: .8rem 1rem; font-size: .88rem; }
     details ul { padding-left: 1.3rem; }
+    details ul li { margin-bottom: .55rem; line-height: 1.55; }
 
     /* Tag 縮小 */
     .meta-row { gap: .25rem; }
@@ -297,56 +348,55 @@
     /* Demo link 縮小 */
     .demo-link { font-size: .76rem; padding: .3rem .6rem; }
 
-    /* Filter bar 完整收緊 */
-    .filter-bar { padding: .7rem; gap: .4rem; }
-    .filter-input { min-width: 100%; flex: 1 1 100%; padding: .45rem .7rem; font-size: .85rem; }
-    .filter-btn { padding: .35rem .7rem; font-size: .75rem; }
-
     /* Footer 收緊 */
-    .footer { padding: 1.5rem 1rem; font-size: .8rem; line-height: 1.7; }
+    .footer { padding: 1.4rem 1rem; font-size: .8rem; line-height: 1.7; }
 
     /* List 縮排 */
     ul, ol { padding-left: 1.2rem; }
-    ul li, ol li { font-size: .92rem; }
+    ul li, ol li { font-size: .92rem; line-height: 1.55; }
   }
 
-  /* 小手機(≤ 480px)— 極窄螢幕進一步收縮 */
+  /* 小手機(≤ 480px)— 極窄優化 */
   @media (max-width: 480px) {
-    header { padding: 1.5rem 1rem; }
-    header h1 { font-size: 1.2rem; }
-    header .subtitle { font-size: .8rem; }
+    header { padding: 1.3rem .9rem; }
+    header h1 { font-size: 1.18rem; }
+    header .subtitle { font-size: .78rem; }
 
-    .stats { gap: .5rem; }
-    .stat { padding: .55rem .7rem; }
+    .stats { gap: .4rem; margin-top: .85rem; }
+    .stat {
+      flex: 1 1 calc(50% - .2rem);
+      min-width: 0;
+      padding: .55rem .45rem;
+    }
     .stat-num { font-size: 1.2rem; }
-    .stat-label { font-size: .68rem; }
+    .stat-label { font-size: .65rem; }
 
-    main { padding: .8rem .6rem; }
+    main { padding: .7rem .5rem; }
 
-    nav.toc { padding: .9rem 1rem; }
-    nav.toc a { font-size: .87rem; }
+    nav.toc { padding: .8rem .9rem; }
+    nav.toc a { font-size: .87rem; padding: .5rem .55rem; }
 
-    section { padding: 1rem .85rem; border-radius: 8px; }
-    section > h2 { font-size: 1.1rem; padding-bottom: .5rem; }
-    section > h3 { font-size: 1rem; }
+    section { padding: .9rem .8rem; border-radius: 8px; }
+    section > h2 { font-size: 1.05rem; padding-bottom: .45rem; }
+    section > h3 { font-size: .98rem; }
 
     .priority-row {
-      grid-template-columns: 36px 1fr;
+      grid-template-columns: 34px 1fr;
       padding: .7rem;
       gap: .55rem;
     }
-    .priority-num { font-size: 1.4rem; }
+    .priority-num { font-size: 1.35rem; }
     .priority-content h4 { font-size: .9rem; }
     .priority-content p { font-size: .82rem; }
 
-    .key-finding-num { font-size: 1.1rem; min-width: 1.4rem; }
+    .key-finding-num { font-size: 1.1rem; min-width: 1.5rem; }
 
     .callout { padding: .65rem .8rem; font-size: .87rem; }
 
-    /* 表格極窄優化:更小字 + tablet 樣式禁用 fixed layout */
-    section table { font-size: .76rem; }
-    section table th { font-size: .74rem; }
-    section table th, section table td { padding: .4rem .45rem; }
+    /* 卡片表格進一步收緊 */
+    section table tr { padding: .75rem .85rem; margin-bottom: .55rem; }
+    section table td { font-size: .85rem; }
+    section table td:first-child { font-size: .94rem; padding-bottom: .4rem; margin-bottom: .4rem; }
 
     .card { padding: .85rem; }
     .card .repo-name { font-size: .95rem; }
@@ -359,18 +409,24 @@
 
   /* 觸控裝置:加大可點區域 */
   @media (hover: none) and (pointer: coarse) {
-    nav.toc a { padding: .5rem .6rem; }
-    .filter-btn { padding: .5rem .9rem; }
+    nav.toc a { padding: .55rem .6rem; }
     summary { padding: .9rem 1rem; }
     a { -webkit-tap-highlight-color: rgba(37, 99, 235, 0.15); }
   }
 
-  /* 列印優化(可選,bonus)*/
+  /* 列印優化 */
   @media print {
     body { background: white; color: black; }
-    header, nav.toc, .filter-bar { display: none; }
+    header, nav.toc { display: none; }
     section { box-shadow: none; border: 1px solid #ccc; page-break-inside: avoid; }
     a { color: black; text-decoration: underline; }
+    /* 列印時表格回復標準格式 */
+    section table { display: table; }
+    section table thead { display: table-header-group; }
+    section table tbody { display: table-row-group; }
+    section table tr { display: table-row; background: transparent; border: none; box-shadow: none; padding: 0; margin: 0; }
+    section table th, section table td { display: table-cell; padding: .5rem; border-bottom: 1px solid #ddd; }
+    section table td:first-child { font-weight: 600; border-bottom: 1px solid #ddd; padding-bottom: .5rem; margin-bottom: 0; }
   }
 </style>
 </head>
