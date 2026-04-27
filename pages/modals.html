@@ -153,25 +153,27 @@
 <!-- 2026-04-25：手機外部瀏覽器 LINE 登入提示 modal -->
 <div class="modal" id="mobile-line-login-hint-modal" data-no-backdrop-close="1">
   <div class="modal-header">
-    <h3>📱 LINE 登入提示</h3>
+    <h3>📱 LINE 登入步驟</h3>
     <button class="modal-close" onclick="App.closeModal()">✕</button>
   </div>
   <div class="modal-body">
-    <div style="font-size:.85rem;line-height:1.6;color:var(--text-primary)">
-      偵測到你在手機 Safari / Chrome 開啟。<br><br>
-      <strong style="color:var(--danger)">⚠️ 點下方「繼續登入」後</strong>，若手機跳出「是否在 LINE 中打開」提示：
-      <div style="margin:.6rem 0;padding:.6rem .8rem;background:rgba(34,197,94,.08);border-left:3px solid #22c55e;border-radius:4px">
-        ✅ 請選擇 <strong>「取消」</strong> 或 <strong>「在瀏覽器中繼續」</strong>
+    <div style="font-size:.88rem;line-height:1.65;color:var(--text-primary)">
+      點下方「繼續登入」進入 LINE 登入頁後：
+      <div style="margin:.8rem 0;padding:.85rem 1rem;background:rgba(34,197,94,.1);border:2px solid #22c55e;border-radius:8px">
+        <div style="font-weight:700;font-size:1.02rem;margin-bottom:.35rem;color:#15803d">⭐ 長按「使用 LINE 應用程式登入」</div>
+        <div style="font-size:.8rem;color:var(--text-muted)">手指按住不放、約 1 秒</div>
       </div>
-      <div style="margin:.6rem 0;padding:.6rem .8rem;background:rgba(239,68,68,.08);border-left:3px solid #ef4444;border-radius:4px">
-        ❌ 不要選「在 LINE 打開」（會導致登入失敗）
+      <div style="margin:.6rem 0;padding:.7rem 1rem;background:rgba(59,130,246,.1);border-left:4px solid #3b82f6;border-radius:6px">
+        <div style="font-weight:600">→ 跳出選單後選「<strong>在 LINE 中打開</strong>」</div>
       </div>
-      或者、你也可以直接複製連結、用 LINE 內建瀏覽器開啟：
+      <div style="font-size:.76rem;color:var(--text-muted);margin-top:.7rem;padding:.4rem .6rem;background:rgba(239,68,68,.06);border-radius:4px">
+        💡 直接「輕點」按鈕可能無反應（iOS 系統限制）、必須「<strong>長按</strong>」才會跳選單
+      </div>
     </div>
   </div>
   <div class="modal-actions" style="flex-direction:column;gap:.5rem">
-    <button class="primary-btn" style="width:100%" onclick="LineAuth._mobileHintContinue()">繼續登入（記得選「在瀏覽器中繼續」）</button>
-    <button class="outline-btn" style="width:100%" onclick="LineAuth._copyAppUrlForLine()">複製連結、改用 LINE 開啟</button>
+    <button class="primary-btn" style="width:100%" onclick="LineAuth._mobileHintContinue()">繼續登入</button>
+    <button class="outline-btn" style="width:100%;color:#0d9488;border-color:#0d9488" onclick="LineAuth._copyAppUrlForLine()">複製連結用 LINE 開啟（最快）</button>
     <button class="outline-btn" style="width:100%;color:var(--text-muted);border-color:var(--border)" onclick="App.closeModal()">取消</button>
   </div>
 </div>
