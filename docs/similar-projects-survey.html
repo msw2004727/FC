@@ -3,74 +3,91 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ToosterX 同類專案調查報告 (2026-04-27)</title>
+<title>ToosterX 台灣運動同類專案調查報告 v2 (2026-04-27)</title>
 <style>
   :root {
-    --bg: #0f1419;
-    --bg-card: #1a1f2e;
-    --bg-elev: #232a3d;
-    --border: #2d3548;
-    --text: #e6edf3;
-    --text-muted: #8b96a8;
-    --accent: #58a6ff;
-    --accent-warm: #f0b95d;
-    --green: #3fb950;
-    --yellow: #d29922;
-    --red: #f85149;
-    --purple: #bc8cff;
-    --cyan: #56d4dd;
-    --shadow: 0 4px 12px rgba(0,0,0,.3);
+    --bg: #ffffff;
+    --bg-soft: #f9fafb;
+    --bg-card: #ffffff;
+    --bg-elev: #f3f4f6;
+    --bg-row-hover: #eff6ff;
+    --border: #e5e7eb;
+    --border-strong: #d1d5db;
+    --text: #1f2937;
+    --text-muted: #6b7280;
+    --text-soft: #9ca3af;
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --accent-soft: #dbeafe;
+    --accent-warm: #d97706;
+    --accent-warm-soft: #fef3c7;
+    --green: #059669;
+    --green-soft: #d1fae5;
+    --yellow: #ca8a04;
+    --yellow-soft: #fef9c3;
+    --red: #dc2626;
+    --red-soft: #fee2e2;
+    --purple: #7c3aed;
+    --purple-soft: #ede9fe;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.04);
+    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+    --shadow-lg: 0 4px 6px -1px rgba(0,0,0,.06), 0 2px 4px -1px rgba(0,0,0,.04);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
-    background: var(--bg); color: var(--text); line-height: 1.6;
+    background: var(--bg-soft); color: var(--text); line-height: 1.65;
     padding: 0; max-width: 100vw; overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
   }
   header {
-    background: linear-gradient(135deg, #1a1f2e 0%, #232a3d 100%);
+    background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
     padding: 2.5rem 1.5rem; border-bottom: 1px solid var(--border);
-    position: sticky; top: 0; z-index: 10; backdrop-filter: blur(10px);
+    box-shadow: var(--shadow-sm);
   }
-  header h1 { font-size: 1.7rem; margin-bottom: .4rem; }
+  header h1 { font-size: 1.8rem; margin-bottom: .4rem; color: var(--text); font-weight: 700; }
   header .subtitle { color: var(--text-muted); font-size: .95rem; }
   .stats {
-    display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: 1rem;
-    font-size: .9rem;
+    display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: 1.2rem;
   }
-  .stat { display: flex; flex-direction: column; }
-  .stat-num { font-size: 1.5rem; font-weight: 600; color: var(--accent); }
-  .stat-label { color: var(--text-muted); font-size: .8rem; }
-  main { max-width: 1400px; margin: 0 auto; padding: 1.5rem; }
+  .stat { display: flex; flex-direction: column; padding: .8rem 1.2rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow-sm); }
+  .stat-num { font-size: 1.8rem; font-weight: 700; color: var(--accent); }
+  .stat-label { color: var(--text-muted); font-size: .8rem; margin-top: .15rem; }
+  main { max-width: 1300px; margin: 0 auto; padding: 1.5rem; }
   nav.toc {
     background: var(--bg-card); border: 1px solid var(--border);
-    border-radius: 12px; padding: 1rem 1.5rem; margin-bottom: 2rem;
+    border-radius: 12px; padding: 1.2rem 1.5rem; margin-bottom: 2rem;
+    box-shadow: var(--shadow);
   }
-  nav.toc h3 { font-size: 1rem; margin-bottom: .8rem; color: var(--text-muted); }
+  nav.toc h3 { font-size: .9rem; margin-bottom: .8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
   nav.toc ul { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .4rem .8rem; }
-  nav.toc a { color: var(--accent); text-decoration: none; font-size: .9rem; }
-  nav.toc a:hover { text-decoration: underline; }
+  nav.toc a { color: var(--accent); text-decoration: none; font-size: .92rem; padding: .25rem .4rem; border-radius: 4px; transition: background .15s; display: block; }
+  nav.toc a:hover { background: var(--accent-soft); }
   section {
     background: var(--bg-card); border: 1px solid var(--border);
-    border-radius: 12px; padding: 1.5rem 1.8rem; margin-bottom: 1.5rem;
+    border-radius: 12px; padding: 1.8rem 2rem; margin-bottom: 1.5rem;
+    box-shadow: var(--shadow);
   }
   section > h2 {
-    font-size: 1.4rem; margin-bottom: 1.2rem; padding-bottom: .6rem;
-    border-bottom: 2px solid var(--accent); display: flex; align-items: center; gap: .5rem;
+    font-size: 1.5rem; margin-bottom: 1.2rem; padding-bottom: .7rem;
+    border-bottom: 2px solid var(--accent); display: flex; align-items: center; gap: .5rem; color: var(--text);
+    font-weight: 700;
   }
-  section > h3 { font-size: 1.1rem; margin: 1.2rem 0 .8rem; color: var(--accent-warm); }
+  section > h3 { font-size: 1.15rem; margin: 1.4rem 0 .8rem; color: var(--accent); font-weight: 600; }
+  section > h4 { font-size: 1rem; margin: 1rem 0 .6rem; color: var(--text); font-weight: 600; }
   section p { margin-bottom: .8rem; color: var(--text); }
   .grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); }
   .card {
-    background: var(--bg-elev); border: 1px solid var(--border);
-    border-radius: 10px; padding: 1.2rem; transition: border-color .2s, transform .2s;
+    background: var(--bg-soft); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1.2rem; transition: all .2s ease;
     display: flex; flex-direction: column; gap: .6rem;
   }
-  .card:hover { border-color: var(--accent); transform: translateY(-2px); }
-  .card .repo-name { font-weight: 600; font-size: 1.05rem; }
+  .card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+  .card .repo-name { font-weight: 600; font-size: 1.05rem; color: var(--text); }
   .card .repo-name a { color: var(--accent); text-decoration: none; }
   .card .repo-name a:hover { text-decoration: underline; }
-  .card .desc { color: var(--text); font-size: .92rem; line-height: 1.5; }
+  .card .desc { color: var(--text); font-size: .92rem; line-height: 1.55; }
   .card .why { color: var(--text-muted); font-size: .85rem; padding-top: .5rem; border-top: 1px dashed var(--border); }
   .card .why strong { color: var(--accent-warm); }
   .meta-row { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .3rem; }
@@ -78,106 +95,117 @@
     display: inline-block; padding: .15rem .55rem; border-radius: 4px;
     font-size: .73rem; font-weight: 500; white-space: nowrap;
   }
-  .tag-tw { background: rgba(63,185,80,.15); color: var(--green); border: 1px solid rgba(63,185,80,.3); }
-  .tag-jp { background: rgba(188,140,255,.15); color: var(--purple); border: 1px solid rgba(188,140,255,.3); }
-  .tag-intl { background: rgba(86,212,221,.15); color: var(--cyan); border: 1px solid rgba(86,212,221,.3); }
-  .tag-active { background: rgba(63,185,80,.15); color: var(--green); }
-  .tag-stale { background: rgba(139,150,168,.15); color: var(--text-muted); }
-  .tag-mit { background: rgba(240,185,93,.15); color: var(--accent-warm); border: 1px solid rgba(240,185,93,.3); }
-  .tag-nolic { background: rgba(248,81,73,.15); color: var(--red); border: 1px solid rgba(248,81,73,.3); }
-  .tag-stack { background: rgba(88,166,255,.15); color: var(--accent); }
-  .tag-domain { background: rgba(217,153,34,.15); color: var(--yellow); }
-  .tag-stars { background: rgba(255,255,255,.05); color: var(--text-muted); }
+  .tag-tw { background: var(--green-soft); color: var(--green); border: 1px solid #a7f3d0; }
+  .tag-active { background: var(--green-soft); color: var(--green); }
+  .tag-stale { background: #f3f4f6; color: var(--text-muted); border: 1px solid var(--border); }
+  .tag-mit { background: var(--accent-warm-soft); color: var(--accent-warm); border: 1px solid #fde68a; }
+  .tag-nolic { background: var(--red-soft); color: var(--red); border: 1px solid #fecaca; }
+  .tag-stack { background: var(--accent-soft); color: var(--accent); }
+  .tag-domain { background: var(--purple-soft); color: var(--purple); }
+  .tag-stars { background: #f3f4f6; color: var(--text-muted); border: 1px solid var(--border); }
+  .tag-sport-badminton { background: #fef3c7; color: #92400e; }
+  .tag-sport-baseball { background: #dbeafe; color: #1e40af; }
+  .tag-sport-basketball { background: #fed7aa; color: #9a3412; }
+  .tag-sport-soccer { background: #d1fae5; color: #065f46; }
+  .tag-sport-volleyball { background: #ddd6fe; color: #5b21b6; }
+  .tag-sport-running { background: #fee2e2; color: #991b1b; }
+  .tag-sport-cycling { background: #e0f2fe; color: #075985; }
+  .tag-sport-hiking { background: #d1fae5; color: #14532d; }
+  .tag-sport-golf { background: #f3e8ff; color: #6b21a8; }
+  .tag-sport-pickleball { background: #fef9c3; color: #854d0e; }
+  .tag-sport-tri { background: #fce7f3; color: #9d174d; }
+  .tag-sport-multi { background: #f3f4f6; color: var(--text); }
   .callout {
-    border-left: 4px solid var(--accent); background: rgba(88,166,255,.06);
-    padding: .9rem 1.2rem; border-radius: 0 8px 8px 0; margin: .8rem 0;
+    border-left: 4px solid var(--accent); background: var(--accent-soft);
+    padding: 1rem 1.3rem; border-radius: 0 8px 8px 0; margin: .9rem 0;
+    color: var(--text);
   }
-  .callout-warn { border-left-color: var(--red); background: rgba(248,81,73,.08); }
-  .callout-success { border-left-color: var(--green); background: rgba(63,185,80,.06); }
-  .callout-tool { border-left-color: var(--accent-warm); background: rgba(240,185,93,.06); }
+  .callout-warn { border-left-color: var(--accent-warm); background: var(--accent-warm-soft); }
+  .callout-success { border-left-color: var(--green); background: var(--green-soft); }
+  .callout-danger { border-left-color: var(--red); background: var(--red-soft); }
+  .callout-treasure { border-left-color: var(--purple); background: var(--purple-soft); }
   .callout strong { color: var(--accent-warm); }
-  table { width: 100%; border-collapse: collapse; margin: .8rem 0; font-size: .9rem; }
-  th { background: var(--bg-elev); padding: .7rem; text-align: left; border-bottom: 2px solid var(--border); font-weight: 600; }
-  td { padding: .7rem; border-bottom: 1px solid var(--border); vertical-align: top; }
-  tr:hover td { background: rgba(88,166,255,.04); }
+  .callout-success strong { color: var(--green); }
+  .callout-warn strong { color: var(--accent-warm); }
+  .callout-danger strong { color: var(--red); }
+  .callout-treasure strong { color: var(--purple); }
+  table { width: 100%; border-collapse: collapse; margin: .8rem 0; font-size: .9rem; background: var(--bg-card); border-radius: 8px; overflow: hidden; }
+  th { background: var(--bg-elev); padding: .8rem; text-align: left; border-bottom: 2px solid var(--border-strong); font-weight: 600; color: var(--text); }
+  td { padding: .8rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:hover td { background: var(--bg-row-hover); }
   ul, ol { padding-left: 1.5rem; margin-bottom: .8rem; }
   ul li, ol li { margin-bottom: .35rem; }
-  code { background: var(--bg-elev); padding: .1rem .4rem; border-radius: 3px; font-size: .88em; color: var(--accent-warm); }
-  pre { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; overflow-x: auto; font-size: .85rem; }
-  .filter-bar { display: flex; gap: .6rem; flex-wrap: wrap; margin-bottom: 1rem; align-items: center; }
+  code { background: var(--bg-elev); padding: .1rem .4rem; border-radius: 3px; font-size: .88em; color: var(--accent-warm); border: 1px solid var(--border); }
+  a { color: var(--accent); }
+  a:hover { color: var(--accent-hover); }
+  .filter-bar {
+    display: flex; gap: .6rem; flex-wrap: wrap; margin-bottom: 1.2rem; align-items: center;
+    padding: .8rem; background: var(--bg-elev); border-radius: 8px;
+  }
   .filter-input {
-    background: var(--bg-elev); border: 1px solid var(--border);
-    color: var(--text); padding: .5rem .8rem; border-radius: 6px;
+    background: var(--bg-card); border: 1px solid var(--border-strong);
+    color: var(--text); padding: .5rem .9rem; border-radius: 6px;
     font-size: .9rem; flex: 1; min-width: 200px;
   }
+  .filter-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   .filter-btn {
-    background: var(--bg-elev); border: 1px solid var(--border); color: var(--text);
+    background: var(--bg-card); border: 1px solid var(--border-strong); color: var(--text);
     padding: .4rem .8rem; border-radius: 16px; font-size: .8rem; cursor: pointer;
     transition: all .15s;
   }
-  .filter-btn:hover { border-color: var(--accent); }
-  .filter-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .filter-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .filter-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
   .priority-row {
     display: grid; grid-template-columns: 50px 1fr; gap: 1rem; margin-bottom: 1rem;
-    padding: .8rem; background: var(--bg-elev); border-radius: 8px; align-items: start;
+    padding: .9rem; background: var(--bg-soft); border: 1px solid var(--border); border-radius: 8px; align-items: start;
   }
   .priority-num {
     font-size: 2rem; font-weight: 700; color: var(--accent);
     text-align: center; line-height: 1;
   }
-  .priority-content h4 { font-size: 1rem; margin-bottom: .3rem; }
+  .priority-content h4 { font-size: 1rem; margin-bottom: .3rem; color: var(--text); }
   .priority-content p { font-size: .9rem; color: var(--text-muted); margin: 0; }
-  .person-card {
-    display: grid; grid-template-columns: 1fr; gap: .8rem;
-    background: var(--bg-elev); border: 1px solid var(--border);
-    border-radius: 10px; padding: 1rem;
-  }
-  .person-name { font-weight: 600; color: var(--accent); }
-  .person-role { color: var(--accent-warm); font-size: .85rem; margin-bottom: .3rem; }
-  .person-stats { color: var(--text-muted); font-size: .8rem; }
-  .person-why { font-size: .9rem; line-height: 1.5; padding-top: .5rem; border-top: 1px dashed var(--border); }
-  .demo-link {
-    display: inline-flex; align-items: center; gap: .35rem;
-    background: rgba(63,185,80,.08); border: 1px solid rgba(63,185,80,.25);
-    color: var(--green); padding: .35rem .7rem; border-radius: 6px;
-    font-size: .82rem; text-decoration: none; font-weight: 500;
-    transition: all .15s; margin-top: .2rem;
-  }
-  .demo-link:hover { background: rgba(63,185,80,.18); border-color: var(--green); }
-  .demo-link.dead { background: rgba(248,81,73,.06); border-color: rgba(248,81,73,.25); color: var(--text-muted); cursor: not-allowed; text-decoration: line-through; }
-  .demo-link.unverified { background: rgba(217,153,34,.06); border-color: rgba(217,153,34,.25); color: var(--accent-warm); }
-  .blog-link {
-    display: inline-flex; align-items: center; gap: .35rem;
-    background: rgba(88,166,255,.08); border: 1px solid rgba(88,166,255,.25);
-    color: var(--accent); padding: .3rem .6rem; border-radius: 6px;
-    font-size: .8rem; text-decoration: none; margin-top: .3rem;
-  }
-  .blog-link:hover { background: rgba(88,166,255,.18); }
-  details { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; margin: .6rem 0; }
-  summary { padding: .8rem 1rem; cursor: pointer; font-weight: 500; user-select: none; }
+  details { background: var(--bg-soft); border: 1px solid var(--border); border-radius: 8px; margin: .6rem 0; }
+  summary { padding: .9rem 1.1rem; cursor: pointer; font-weight: 500; user-select: none; color: var(--text); }
   summary:hover { color: var(--accent); }
   details[open] summary { border-bottom: 1px solid var(--border); }
-  details > div { padding: .8rem 1rem; }
-  .footer { text-align: center; color: var(--text-muted); padding: 2rem 1rem; font-size: .85rem; border-top: 1px solid var(--border); margin-top: 2rem; }
+  details > div, details > ul { padding: 1rem 1.2rem; }
+  .demo-link {
+    display: inline-flex; align-items: center; gap: .35rem;
+    background: var(--green-soft); border: 1px solid #a7f3d0;
+    color: var(--green); padding: .35rem .7rem; border-radius: 6px;
+    font-size: .82rem; text-decoration: none; font-weight: 500;
+    transition: all .15s; margin-top: .2rem; align-self: flex-start;
+  }
+  .demo-link:hover { background: #a7f3d0; }
+  .demo-link.dead { background: var(--red-soft); border-color: #fecaca; color: var(--text-muted); cursor: not-allowed; text-decoration: line-through; }
+  .demo-link.unverified { background: var(--accent-warm-soft); border-color: #fde68a; color: var(--accent-warm); }
+  .footer { text-align: center; color: var(--text-muted); padding: 2rem 1rem; font-size: .85rem; border-top: 1px solid var(--border); margin-top: 2rem; background: var(--bg-card); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+  .key-finding { display: flex; gap: .8rem; padding: .9rem; background: var(--accent-soft); border-radius: 8px; margin-bottom: .6rem; }
+  .key-finding-num { font-size: 1.4rem; font-weight: 700; color: var(--accent); flex-shrink: 0; min-width: 2rem; text-align: center; }
+  .key-finding-content { flex: 1; }
+  .key-finding-content strong { color: var(--text); }
   @media (max-width: 600px) {
-    header h1 { font-size: 1.3rem; }
-    section { padding: 1.2rem; }
+    header h1 { font-size: 1.4rem; }
+    section { padding: 1.3rem; }
     .grid { grid-template-columns: 1fr; }
     nav.toc ul { grid-template-columns: 1fr; }
+    table { font-size: .82rem; }
   }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>ToosterX 同類專案調查報告</h1>
-  <div class="subtitle">9 個 AI agent 全網 GitHub 深度調查 · 產出日期 2026-04-27</div>
+  <h1>ToosterX 台灣運動同類專案調查報告 v2</h1>
+  <div class="subtitle">12 個 AI agent · 範圍 = 台灣運動類 · 2026-04-27 更新</div>
   <div class="stats">
-    <div class="stat"><span class="stat-num">100+</span><span class="stat-label">獨立專案</span></div>
-    <div class="stat"><span class="stat-num">~50</span><span class="stat-label">台灣作者</span></div>
-    <div class="stat"><span class="stat-num">18</span><span class="stat-label">商業競品</span></div>
-    <div class="stat"><span class="stat-num">9</span><span class="stat-label">調查 agent</span></div>
-    <div class="stat"><span class="stat-num">0</span><span class="stat-label">真正同類(全包)</span></div>
+    <div class="stat"><span class="stat-num">130+</span><span class="stat-label">台灣運動專案</span></div>
+    <div class="stat"><span class="stat-num">35</span><span class="stat-label">GitHub OSS</span></div>
+    <div class="stat"><span class="stat-num">60+</span><span class="stat-label">商業 SaaS / App</span></div>
+    <div class="stat"><span class="stat-num">11</span><span class="stat-label">運動垂直</span></div>
+    <div class="stat"><span class="stat-num">5</span><span class="stat-label">明確市場機會</span></div>
   </div>
 </header>
 
@@ -186,302 +214,161 @@
 <nav class="toc">
   <h3>📑 目錄</h3>
   <ul>
-    <li><a href="#executive">📊 執行摘要</a></li>
-    <li><a href="#live-demos">🌐 公開網站總覽</a></li>
-    <li><a href="#warnings">🚨 關鍵警告</a></li>
-    <li><a href="#actions">🎯 立刻可做 5 件事</a></li>
-    <li><a href="#tier-s">🟢 Tier S - 最值得看的 TW 同類</a></li>
-    <li><a href="#tier-a">🟡 Tier A - TW 架構同類</a></li>
-    <li><a href="#tier-b">⚪ Tier B - TW 其他相關</a></li>
-    <li><a href="#people">👥 LINE 台灣關鍵人物</a></li>
-    <li><a href="#international">🌍 國際對標</a></li>
-    <li><a href="#commercial">💼 商業競品 (18 家)</a></li>
-    <li><a href="#tools">🛠️ 立刻可裝的工具</a></li>
-    <li><a href="#license">📜 授權地雷分析</a></li>
+    <li><a href="#summary">📊 執行摘要</a></li>
+    <li><a href="#pickleball">🏓 匹克球真空(寶藏)</a></li>
+    <li><a href="#opportunities">🎯 5 個明確機會</a></li>
+    <li><a href="#tier-s">🥇 Tier S - 必看 GitHub OSS</a></li>
+    <li><a href="#leaders">🏆 台灣運動 SaaS / App 領導者</a></li>
+    <li><a href="#oss-by-sport">🥎 GitHub OSS(按運動別)</a></li>
+    <li><a href="#commercial">💼 商業競品 (60+ 家)</a></li>
+    <li><a href="#b2b">🤝 B2B 大客戶對象</a></li>
     <li><a href="#strategy">🎯 戰略建議</a></li>
+    <li><a href="#license">📜 授權狀態(精簡)</a></li>
+    <li><a href="#avoid">🔴 不該打的戰場</a></li>
   </ul>
 </nav>
 
 <!-- ═══════ 執行摘要 ═══════ -->
-<section id="executive">
-  <h2>📊 執行摘要 (Executive Summary)</h2>
+<section id="summary">
+  <h2>📊 執行摘要(Taiwan Sports Edition)</h2>
 
   <div class="callout callout-success">
-    <strong>核心發現:ToosterX 在台灣 OSS 圈是孤狼。</strong>9 個 agent 跨 8 個維度搜尋,**沒有任何台灣專案同時做到「LIFF + Firebase + 運動 + 報名 + 候補 + 簽到 + 成就 + 賽事」**。最像的對手不是少了 LIFF、就是少了 Firebase、就是少了運動垂直。
+    <strong>核心發現</strong>:台灣運動軟體生態 <strong>商業競品密度高(60+ 家)、GitHub 開源稀少(35 個)、5 個垂直完全空白</strong>。ToosterX 在「LIFF + 俱樂部 + 活動報名 + 簽到 + EXP」整合上仍是台灣 OSS 唯一,但商業 SaaS 圈有 18+ 家專業競品(Sporetrofit、Gymomo、Hikingbook、Velodash、Golface 等)規模都比 ToosterX 大。
   </div>
 
-  <h3>3 個層次的分布</h3>
-  <ul>
-    <li><strong>同領域(運動報名)</strong>:台灣有 ~10 個專案,但都是單一運動(羽球居多)、單一功能(只報名 OR 只簽到 OR 只排點),**沒人做整合套件**。</li>
-    <li><strong>同技術棧(LIFF + Firebase)</strong>:台灣有 ~15 個專案,但都是教學範例 / 個人小工具 / 業務名片 / 教學機器人,**沒人做大型業務系統**。</li>
-    <li><strong>同架構模式(Vanilla JS + 無 build + Cloudflare Pages)</strong>:全網 + 台灣加起來 < 5 個專案,**ToosterX 是這個交叉口最大的一個**。</li>
-  </ul>
+  <h3>11 個運動垂直密度排名</h3>
+  <ol>
+    <li>🔴 <strong>路跑 / 馬拉松</strong> — <strong>紅海</strong>(8+ 本土平台 + 計時硬體 + 物流綁定)</li>
+    <li>🟡 <strong>羽球</strong> — 商業 3 家(羽球GO / PlayOne / 揪波)+ GitHub OSS 8+ 個(全台灣最熱垂直)</li>
+    <li>🟡 <strong>高爾夫</strong> — Golface 一家獨大,週邊揪團 / 教練媒合空白</li>
+    <li>🟡 <strong>登山</strong> — Hikingbook 30 萬用戶主導,但**山屋預約 / 高山協作隊伍管理**空白</li>
+    <li>🟡 <strong>自行車</strong> — Velodash + Giant + 政府平台,**LIFF 完全空白**</li>
+    <li>🟡 <strong>棒球</strong> — 商業 0 家,GitHub OSS 4 個(學校 / 業餘聯盟為主)</li>
+    <li>🟢 <strong>籃球</strong> — 大型商業真空,只有零碎 OSS</li>
+    <li>🟢 <strong>足球 / 排球</strong> — 商業近真空,OSS 各 2-3 個</li>
+    <li>🟢 <strong>三鐵</strong> — <strong>本土報名平台 0 個</strong>(只有國際 IP 自營),業餘隊伍管理零工具</li>
+    <li>💎 <strong>匹克球</strong> — <strong>100% 空白</strong>(GitHub 0 repos,本土 app 0 個,9 個球會用 LINE 群)</li>
+    <li>🟢 <strong>校際 / 系盃</strong> — GitHub OSS 13+ 個(NTU 學生主力),但每年重做</li>
+  </ol>
 
-  <h3>意外的「市場空白」</h3>
+  <h3>3 個必認識的台灣運動 SaaS 龍頭</h3>
   <ul>
-    <li>2024 亞洲匹克球賽剛在台中辦完、2025 CAPA Open 即將舉行,**台灣完全沒有匹克球專屬 App**(羽球反而有 3 個:羽球GO / PlayOne / 揪波)。</li>
-    <li>台灣 LINE 開發圈雖然活躍(LINE 台灣有官方 evangelist + GDE + API Expert),但**運動垂直完全沒人開源做**。</li>
-    <li>台灣 dev 普遍**不愛開源** — `awesome-tw-foss` 全清單只有 ~50 個專案。</li>
+    <li><strong>Hikingbook(登山)</strong> — Taiwan 新創 2019,<strong>30 萬用戶</strong>,海外 3 萬主香港,12,000+ 行程資料庫</li>
+    <li><strong>Velodash 飛騎(自行車)</strong> — Taiwan 新創 2017,團騎定位 / 路線 / 群組聊天 / 藍牙裝置整合</li>
+    <li><strong>Golface(高爾夫)</strong> — Taiwan 新竹新創,<strong>台灣最大高爾夫 app</strong>,30 秒訂位,20+ 球場合作,計分 / 攻略 / 社群一站式</li>
   </ul>
-
-  <h3>調查方法</h3>
-  <p>9 個 AI agent 並行跑,各負責不同維度:LIFF 深度 / 運動 zh-TW / Firebase Vanilla / QR 簽到 / 成就 EXP / Awesome+閉源 / 國際同類 / Cloudflare 架構 / 缺口補搜。每個 agent 各自做 1500-2500 字深度報告,最後合併去重。</p>
 </section>
 
-<!-- ═══════ Live Demos 總覽 ═══════ -->
-<section id="live-demos">
-  <h2>🌐 Live Demos / 公開網站總覽(已驗證)</h2>
-  <p>2026-04-27 用 WebFetch 即時驗證,確認哪些站還活著、哪些死了。直接點進去看實際成品比讀 README 快很多。</p>
+<!-- ═══════ 匹克球真空(寶藏級獨立區塊) ═══════ -->
+<section id="pickleball">
+  <h2>🏓 匹克球市場真相(寶藏級空白)</h2>
 
-  <h3>✅ 已驗證仍在運作</h3>
-  <table>
-    <thead>
-      <tr><th>專案</th><th>網站</th><th>分類</th><th>備註</th></tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td><a href="https://github.com/Jiong1203/shuttleHub" target="_blank">Jiong1203/shuttleHub</a></td>
-        <td><a href="https://shuttle-hub.vercel.app" target="_blank" style="color:var(--green);">shuttle-hub.vercel.app</a></td>
-        <td>🏸 羽球揪團</td><td>「羽球揪團平台」標題確認</td>
-      </tr>
-      <tr>
-        <td><a href="https://github.com/HackerSir/CheckIn" target="_blank">HackerSir/CheckIn</a> 💎</td>
-        <td><a href="https://checkin.hackersir.org" target="_blank" style="color:var(--green);">checkin.hackersir.org</a></td>
-        <td>🎓 社團活動 簽到</td><td>「逢甲社博集點」©2017-2026 仍維護</td>
-      </tr>
-      <tr>
-        <td><a href="https://github.com/roger7904/simba" target="_blank">roger7904/simba</a></td>
-        <td><a href="https://simba.baleinway.com" target="_blank" style="color:var(--green);">simba.baleinway.com</a></td>
-        <td>🌏 旅遊 SPA</td><td>「小辛巴旅遊台灣趣」標題確認</td>
-      </tr>
-      <tr>
-        <td><a href="https://github.com/Queenie0814/gamified-peer" target="_blank">Queenie0814/gamified-peer</a></td>
-        <td><a href="https://gamified-peer.vercel.app" target="_blank" style="color:var(--green);">gamified-peer.vercel.app</a></td>
-        <td>🎮 遊戲化教育</td><td>VR 學生互評 + 排行榜系統可運作</td>
-      </tr>
-      <tr>
-        <td><a href="https://github.com/mukiwu/cword" target="_blank">mukiwu/cword</a></td>
-        <td><a href="https://mukiwu.github.io/cword/" target="_blank" style="color:var(--green);">mukiwu.github.io/cword/</a></td>
-        <td>📚 兒童學習 PWA</td><td>「生字冒險島」標題確認</td>
-      </tr>
-      <tr>
-        <td><a href="https://github.com/HiEventsDev/Hi.Events" target="_blank">HiEventsDev/Hi.Events</a></td>
-        <td><a href="https://hi.events" target="_blank" style="color:var(--green);">hi.events</a></td>
-        <td>🌍 國際活動票務</td><td>Hi.Events Ltd. 2026 官網</td>
-      </tr>
-      <tr>
-        <td><a href="https://github.com/hitobito/hitobito" target="_blank">hitobito/hitobito</a></td>
-        <td><a href="https://hitobito.com" target="_blank" style="color:var(--green);">hitobito.com</a></td>
-        <td>🌍 瑞士社團管理</td><td>Hitobito AG 公司官網</td>
-      </tr>
-      <tr>
-        <td><a href="https://github.com/CourtHive/TMX" target="_blank">CourtHive/TMX</a></td>
-        <td><a href="https://courthive.com" target="_blank" style="color:var(--green);">courthive.com</a></td>
-        <td>🎾 球拍運動賽事</td><td>Multi-Sport Competition Management</td>
-      </tr>
-      <tr>
-        <td><a href="https://github.com/louis70109" target="_blank">louis70109</a>(LINE TW Evangelist)</td>
-        <td><a href="https://nijialin.com" target="_blank" style="color:var(--green);">nijialin.com</a></td>
-        <td>👤 個人技術部落格</td><td>「忍者工坊」250+ 篇文章</td>
-      </tr>
-      <tr>
-        <td><a href="https://github.com/doggy8088" target="_blank">doggy8088</a>(保哥)</td>
-        <td><a href="https://blog.miniasp.com" target="_blank" style="color:var(--green);">blog.miniasp.com</a></td>
-        <td>👤 個人技術部落格</td><td>「The Will Will Web」MVP / GDE</td>
-      </tr>
-      <tr>
-        <td><a href="https://github.com/taichunmin" target="_blank">taichunmin</a>(戴均民)</td>
-        <td><a href="https://taichunmin.idv.tw" target="_blank" style="color:var(--green);">taichunmin.idv.tw</a></td>
-        <td>👤 個人站</td><td>「筆記國度」</td>
-      </tr>
-    </tbody>
-  </table>
-
-  <h3>⚠️ 已驗證但已下線 / 部署不完整</h3>
-  <table>
-    <thead><tr><th>專案</th><th>原網站</th><th>狀況</th></tr></thead>
-    <tbody>
-      <tr>
-        <td><a href="https://github.com/Dannyisadog/undou" target="_blank">Dannyisadog/undou</a></td>
-        <td><s style="color:var(--text-muted);">undou.dannyisadog.com</s></td>
-        <td>ECONNREFUSED — 已下線</td>
-      </tr>
-      <tr>
-        <td><a href="https://github.com/YFCKevin/badmintonPairing" target="_blank">YFCKevin/badmintonPairing</a></td>
-        <td><s style="color:var(--text-muted);">gurula.cc/badminton/index</s></td>
-        <td>404 — 路徑改了或下線</td>
-      </tr>
-      <tr>
-        <td><a href="https://github.com/foylaou/checkinflow" target="_blank">foylaou/checkinflow</a></td>
-        <td><a href="https://checkinflow.isafe.org.tw" target="_blank" style="color:var(--accent-warm);">checkinflow.isafe.org.tw</a></td>
-        <td>nginx default page — 網域有但尚未部署應用</td>
-      </tr>
-      <tr>
-        <td><a href="https://github.com/gnehs/Justin-Ramen" target="_blank">gnehs/Justin-Ramen</a></td>
-        <td><s style="color:var(--text-muted);">ramen.justinlin.tw</s></td>
-        <td>ECONNREFUSED — 已下線(可能合作中止)</td>
-      </tr>
-    </tbody>
-  </table>
-
-  <h3>🟡 未能驗證(Cloudflare bot block / 暫時無回應)</h3>
-  <table>
-    <thead><tr><th>專案</th><th>網站</th><th>備註</th></tr></thead>
-    <tbody>
-      <tr>
-        <td><a href="https://github.com/sendou-ink/sendou.ink" target="_blank">sendou-ink/sendou.ink</a></td>
-        <td><a href="https://sendou.ink" target="_blank" style="color:var(--accent-warm);">sendou.ink</a></td>
-        <td>Splatoon 競技社群,網域長期存在,fetch 暫無回應</td>
-      </tr>
-      <tr>
-        <td><a href="https://github.com/colinjen88/MentalMath" target="_blank">colinjen88/MentalMath</a></td>
-        <td><a href="https://gowork.run/MentalMath" target="_blank" style="color:var(--accent-warm);">gowork.run/MentalMath</a></td>
-        <td>Cloudflare 403 — 人工點看可用</td>
-      </tr>
-      <tr>
-        <td><a href="https://github.com/letswritetw/letswrite-liff-init" target="_blank">letswritetw August</a></td>
-        <td><a href="https://letswrite.tw" target="_blank" style="color:var(--accent-warm);">letswrite.tw</a></td>
-        <td>Cloudflare 403 — 人工點看可用</td>
-      </tr>
-      <tr>
-        <td><a href="https://github.com/mukiwu" target="_blank">MUKi 個人站</a></td>
-        <td><a href="https://muki.tw" target="_blank" style="color:var(--accent-warm);">muki.tw</a></td>
-        <td>Cloudflare 403 — 人工點看可用</td>
-      </tr>
-    </tbody>
-  </table>
-
-  <div class="callout">
-    <strong>說明</strong>:綠色 = 2026-04-27 用 WebFetch 確認可正常回應;紅色刪除線 = 確認已下線;橙色 = 網站可能有 Cloudflare bot 防護所以 fetch 失敗,但人工點擊應可看到內容。商業競品(Accupass / KKTIX 等 18 家)的 URL 在「商業競品」區塊內,均為長期穩定營運的商業網站,未額外驗證。
+  <div class="callout callout-treasure">
+    <strong>結論:台灣 100% 沒有自製匹克球 App / SaaS / GitHub repo</strong>
+    <p style="margin-top:.6rem;">這是這次調查最有商業價值的單一發現 — 競爭真空 + 政府背景場館擴張 + 國際賽事熱潮三重利多。</p>
   </div>
 
-  <h3>💼 商業競品官網(在「商業競品」區塊另列)</h3>
-  <p>18 家台灣運動 / 活動 SaaS 商業網站均長期穩定運作,完整列表 → <a href="#commercial" style="color:var(--accent);">跳到商業競品 →</a></p>
-</section>
+  <h3>驗證證據(8 條)</h3>
+  <ol>
+    <li><strong>GitHub `pickleball+taiwan`</strong>:<strong>0 個 repo</strong>(完全真空)</li>
+    <li><strong>CTPA 中華民國匹克球協會</strong>(<a href="https://pickleball.org.tw" target="_blank">pickleball.org.tw</a>):無報名系統,只有靜態球場列表 + FB 公告</li>
+    <li><strong>TPEPA 臺北市匹克球協會</strong>:只有 FB 社團,無 App</li>
+    <li><strong>大家以為的「Reclub」</strong>(<a href="https://reclub.co" target="_blank">reclub.co</a>):是<strong>香港團隊</strong>做的跨國 App,服務港台越,<strong>非台灣產品</strong></li>
+    <li><strong>9 個台灣匹克球俱樂部</strong>:Pickle Day / Pickle Side / Banger / Ahhh / Lunar / 樓下 / 寰宇 / 樂活浮州 / 紫陽公園 — 全部用 LINE 群 / Google Form / TinyBot</li>
+    <li><strong>2025-09 新北河岸 8 個匹克球場開幕</strong>(全 first-come-first-served,<strong>線上預約完全真空</strong>)</li>
+    <li><strong>2024 亞洲匹克球賽(台中)+ 2025 CAPA Taiwan Open</strong>:都用 ACCUPASS / BeClass 通用平台,沒有匹克球專屬工具</li>
+    <li><strong>ipickleball.tw</strong>(<a href="https://ipickleball.tw" target="_blank">匹克球中毒社群</a>):是 WordPress 部落格(資訊整理),非報名系統</li>
+  </ol>
 
-<!-- ═══════ 關鍵警告 ═══════ -->
-<section id="warnings">
-  <h2>🚨 關鍵警告 (已重新驗證,2026-04-27 更新)</h2>
+  <h3>市場規模指標</h3>
+  <ul>
+    <li>CTPA 列了 <strong>全台 100+ 球場</strong></li>
+    <li>FB 社團「Taiwan International Pickleball」+「Taiwan Pickleball Forum」總成員<strong>上萬人</strong></li>
+    <li>媒體:<a href="https://focustaiwan.tw/sports/202509190021" target="_blank">Focus Taiwan</a>、<a href="https://freeshiuan.com/pickleball-court-taiwan/" target="_blank">freeshiuan 攻略</a> 持續報導</li>
+    <li><strong>0 個本地工具去服務這個用戶池</strong></li>
+  </ul>
 
   <div class="callout callout-success">
-    <strong>✅ 已澄清 - LIFF QR 掃描 API「過時」是誤報</strong>
-    <p>原本警告 <code>liff.scanCodeV2()</code> 已被 LINE deprecated。<strong>經第二輪深度查證(LINE 官方 LIFF API 參考、release notes、deprecation 公告頁)確認此說法錯誤</strong>。</p>
-    <p><strong>真相</strong>:被 deprecated 的是更舊的 <code>liff.scanCode()</code>(V1)。<code>scanCodeV2()</code>(V2)是 LINE 為了修復 V1 在 iOS 失效而推出的「修復方案」,**截至 LIFF v2.28.0(2026-03-24)仍是現役推薦方法**,LINE 官方 demo `line/liff-playground` 自己也用它。</p>
-    <p><strong>ToosterX 額外確認</strong>:即使該警告屬實,ToosterX 也根本沒用 LIFF 內建掃描 — <code>js/modules/scan/scan-camera.js</code> 使用 <strong><code>html5-qrcode 2.3.8</code></strong>(跨瀏覽器標準),零相關。</p>
-    <p><strong>結論</strong>:不需要任何修改。原警告來自 AI agent 幻覺,**警告涉及 production code 修改前必須驗證第一手來源**。</p>
-  </div>
-
-  <div class="callout callout-warn">
-    <strong>⚠️ 嚴重(實測比想像更高) - 多數台灣 repo 沒授權,商業 copy 是刑事責任</strong>
-    <p>原本估計 80%,**實測 21 個調查到的台灣 repo,95.2%(20/21)沒 LICENSE**。GitHub 官方 + 台灣著作權法雙重確認:沒 LICENSE = 保留所有權。</p>
-    <p><strong>台灣著作權法量級</strong>:逐字 copy 是 <strong>重製權侵害</strong>(著作權法第 22 條)。<strong>商業重製最高 5 年徒刑 + 500 萬罰金</strong>(著作權法第 91 條)。第 37(1)條:「約定不明之部分,推定為**未授權**」。</p>
-    <p><strong>但好消息</strong>:著作權法第 10-1 條明文「思想、概念、原理、操作方法、系統」**不受著作權保護**。所以「**讀別人 repo 學 idea → 自己重寫**」完全合法。ToosterX 既有開發模式不需改變。</p>
-    <p><strong>唯一例外要小心</strong>:`CXPhoenix/roll-call-remote-class` 是調查到唯一有 LICENSE 的台灣 repo,但是 <strong>GPL-3.0(copyleft 強傳染)</strong> — 一沾到你 ToosterX 整個都要被迫開源 GPL。**商業化路線絕對不要 copy 任何 GPL 程式碼**。</p>
-  </div>
-
-  <div class="callout">
-    <strong>📌 關於 ToosterX 自己的 LICENSE 狀態</strong>
-    <p>ToosterX 目前**也沒寫 LICENSE**(同 95% 台灣 repo)。**用戶決策:走商業化路線,維持「source-available, all rights reserved」狀態**(見 README.md)。這代表:</p>
-    <ul>
-      <li>✅ 別人不能合法 copy / fork / 商用你的 code(商業護城河)</li>
-      <li>✅ 你保留所有商業選項(將來可改 license / 賣授權 / 拿投資)</li>
-      <li>⚠️ 不能上 awesome-tw-foss 等開源清單(因為法律上不算開源)</li>
-      <li>⚠️ 不會吸引外部 contributor(這對商業化反而是好事)</li>
-    </ul>
+    <strong>對 ToosterX 的意義</strong>:這是「<strong>護城河大、競爭真空、用戶痛點明確</strong>」的垂直市場。玩家當前 friction 是「LINE 群接龍」,ToosterX 只要在 Mini App 內做「匹克球揪局 + DUPR 整合 + 球場預約」就立刻把 Reclub 在地化體驗超車。<strong>唯一要警戒的對手是 Reclub(港團隊)</strong>,但非本地化就是優勢。
   </div>
 </section>
 
-<!-- ═══════ 立刻可做 ═══════ -->
-<section id="actions">
-  <h2>🎯 立刻可做的 5 件事(2026-04-27 更新版,符合「走商業化路線」)</h2>
+<!-- ═══════ 5 個明確機會 ═══════ -->
+<section id="opportunities">
+  <h2>🎯 5 個明確市場機會(空白垂直 + 用戶痛點明確)</h2>
 
-  <div class="priority-row">
-    <div class="priority-num">1</div>
-    <div class="priority-content">
-      <h4>加 README.md 註明「Source-available, All Rights Reserved」</h4>
-      <p>目前 repo 沒 README + 沒 LICENSE,觀者會誤以為是「忘記 / 不在意」。**走商業化路線**就要明確聲明保留所有權,擋下「以為是開源」的 fork 嘗試。已在用戶要求下產出:見 <code>README.md</code>。</p>
+  <div class="key-finding">
+    <div class="key-finding-num">1</div>
+    <div class="key-finding-content">
+      <strong>匹克球專屬 App / 揪局工具</strong> — 100% 競爭真空,2025 新北 8 個新球場,CTPA 協會 + 9 個球會都缺工具。<br>
+      <span style="color: var(--text-muted); font-size: .9rem;">建議:Mini App 內做匹克球揪局 + DUPR 整合 + 球場預約。預估投入 1-2 個月可發布 MVP。</span>
     </div>
   </div>
 
-  <div class="priority-row">
-    <div class="priority-num">2</div>
-    <div class="priority-content">
-      <h4>裝 line/liff-inspector 工具</h4>
-      <p>LINE 官方 DevTools,可以直接在 LINE 內建瀏覽器抓 bug。72 stars,2025-11 active。<a href="https://github.com/line/liff-inspector" target="_blank" style="color:var(--accent);">GitHub →</a></p>
+  <div class="key-finding">
+    <div class="key-finding-num">2</div>
+    <div class="key-finding-content">
+      <strong>業餘三鐵社團 / 隊伍管理</strong> — 台灣本土三鐵報名平台 0 家,只有國際 IP(IRONMAN、Challenge Taiwan)自營。業餘隊伍靠 FB 群組。<br>
+      <span style="color: var(--text-muted); font-size: .9rem;">建議:套既有俱樂部 + 報名模組,加「游 / 騎 / 跑」三段練習紀錄。</span>
     </div>
   </div>
 
-  <div class="priority-row">
-    <div class="priority-num">3</div>
-    <div class="priority-content">
-      <h4>讀 5 個關鍵專案找靈感(各 30-60 分鐘,合法 — 概念不受著作權保護)</h4>
-      <p>① CourtHive/TMX(架構最像)② evroon/bracket(賽事 1.7k★)③ sendou.ink(功能最像)④ HiEventsDev/Hi.Events(QR + 角色)⑤ Kanonphatchada/line-auth-server(LINE→Firebase 標準範本)。**讀完關掉視窗自己重寫即可,不要照抄 code**。</p>
+  <div class="key-finding">
+    <div class="key-finding-num">3</div>
+    <div class="key-finding-content">
+      <strong>自行車車隊 LIFF Mini App</strong> — Velodash 是 native app(Taiwan 龍頭),Giant / Bryton / Xplova 各自做硬體 app,<strong>LINE 內車隊管理完全空白</strong>。<br>
+      <span style="color: var(--text-muted); font-size: .9rem;">建議:套俱樂部 + 揪團 + 路線記錄,搭配自行車新文化基金會的環島認證。</span>
     </div>
   </div>
 
-  <div class="priority-row">
-    <div class="priority-num">4</div>
-    <div class="priority-content">
-      <h4>裝 tommyboy326/line-dev (繁中 Claude Code skill for LINE)</h4>
-      <p>你既然用 Claude Code 開發,這個 skill 可讓 Claude 對 LINE 平台理解更深。<a href="https://github.com/tommyboy326/line-dev" target="_blank" style="color:var(--accent);">GitHub →</a></p>
+  <div class="key-finding">
+    <div class="key-finding-num">4</div>
+    <div class="key-finding-content">
+      <strong>高山協作隊伍管理 / 山屋預約一鍵</strong> — Hikingbook 主資料庫,但<strong>高山協作隊伍靠 Google Sites + Excel</strong>。山屋預約政府網站(<a href="https://hike.taiwan.gov.tw" target="_blank">hike.taiwan.gov.tw</a>)UX 老舊。<br>
+      <span style="color: var(--text-muted); font-size: .9rem;">建議:套主辦人 / 委託人 / 簽到模組,參考愛陌生留守平台「24 小時待命 + 自動通知」設計。</span>
     </div>
   </div>
 
-  <div class="priority-row">
-    <div class="priority-num">5</div>
-    <div class="priority-content">
-      <h4>觀察台灣同類「即時對手」的進度</h4>
-      <p>3 個值得每月看一次:**kent0925/Activity**(兄弟會活動報名,2026-04-27 push)、**d336643/NTU_badminton_system**(NTU 9★,2026-04-23 active)、**subcer/badminton_lineup**(台中 Vanilla+Firebase,2026-04-27 active)。看他們做了什麼新功能,提早決策要不要跟。</p>
+  <div class="key-finding">
+    <div class="key-finding-num">5</div>
+    <div class="key-finding-content">
+      <strong>高爾夫教練媒合 / 揪團</strong> — Golface 主導預約 + 計分,但<strong>不做教練媒合 + 揪團</strong>(碎片化由各教練個人經營)。<br>
+      <span style="color: var(--text-muted); font-size: .9rem;">建議:套教育型俱樂部 + 教練評價 + EXP / 成就(Birdie 累積等)。</span>
     </div>
-  </div>
-
-  <div class="callout">
-    <strong>原本第 1 項「檢查 LIFF QR 掃描」已移除</strong> — 經查證 ToosterX 自己用 html5-qrcode,沒問題。<br>
-    <strong>原本第 3 項「上 awesome 清單」已移除</strong> — 與「商業化、保留所有權」目標衝突,清單需要真正開源才能上。
   </div>
 </section>
 
-<!-- ═══════ Tier S - 最值得看的 TW 同類 ═══════ -->
+<!-- ═══════ Tier S - 必看 GitHub OSS ═══════ -->
 <section id="tier-s">
-  <h2>🟢 Tier S - 最值得看的台灣同類專案</h2>
-  <p>跨領域 + 同技術棧 + 活躍維護的台灣同類。每個都建議你親自點進去看。</p>
+  <h2>🥇 Tier S - 必看的台灣運動 GitHub OSS</h2>
+  <p>跨領域 + 活躍維護 + 真實用戶或可借鏡的對標。每個都建議親自點進去看。</p>
 
   <div class="grid">
 
     <div class="card">
-      <div class="repo-name"><a href="https://github.com/kent0925/Activity" target="_blank">kent0925/Activity</a></div>
+      <div class="repo-name"><a href="https://github.com/Marling1212/ntu-sports" target="_blank">Marling1212/ntu-sports</a> 💎 NEW</div>
       <div class="meta-row">
-        <span class="tag tag-tw">台灣</span>
-        <span class="tag tag-active">2026-04-27 push 今天!</span>
-        <span class="tag tag-stack">HTML</span>
-        <span class="tag tag-stars">0★</span>
+        <span class="tag tag-tw">NTU 台大學生</span>
+        <span class="tag tag-active">2026-04-22 active(651 commits)</span>
+        <span class="tag tag-stack">Next.js 15 + Supabase + Vercel</span>
+        <span class="tag tag-sport-multi">8 種運動</span>
       </div>
-      <div class="desc">「兄弟會活動報名系統」— 純 HTML / Vanilla JS,功能定位跟 ToosterX 同領域(社團 + 活動報名)。</div>
-      <div class="why"><strong>為什麼看</strong>:<strong>今天才 push</strong>,literal 就叫「Activity 活動報名系統」,屬於最即時的台灣同類。可以看小團體版本怎麼做。</div>
+      <a class="demo-link" href="https://ntu-sports.vercel.app" target="_blank" rel="noopener">🌐 Live · ntu-sports.vercel.app</a>
+      <div class="desc">8 種運動 + 球員 CSV 匯入 + 自動產生賽程 + 即時計分 + 自動晉級 + Excel 匯出 + Email 提醒 + 25 個 DB migration。<strong>單人 NTU 學生開發中,功能比 ToosterX 還齊。</strong></div>
+      <div class="why"><strong>必讀</strong>:<strong>本次調查最直接的 ToosterX 對標</strong>。同樣的 primitives(events / brackets / bulk import / real-time)但用現代棧。可學他的賽程演算法 + Excel 匯出 + Email 提醒設計。</div>
     </div>
 
     <div class="card">
       <div class="repo-name"><a href="https://github.com/d336643/NTU_badminton_system" target="_blank">d336643/NTU_badminton_system</a></div>
       <div class="meta-row">
-        <span class="tag tag-tw">台灣 NTU</span>
+        <span class="tag tag-tw">NTU 台大</span>
         <span class="tag tag-active">2026-04-23 active</span>
-        <span class="tag tag-stack">React + Java Spring</span>
-        <span class="tag tag-stars">9★</span>
+        <span class="tag tag-stack">React + Java Spring + Maven</span>
+        <span class="tag tag-stars">9★(全台同領域最高)</span>
+        <span class="tag tag-sport-badminton">羽球</span>
       </div>
-      <div class="desc">台大羽球場地預約 + 比賽管理系統,3 天前才 push,9 顆星(全台灣同領域最高 star)。</div>
-      <div class="why"><strong>為什麼看</strong>:**全台灣最像 ToosterX 的學校級系統**,功能涵蓋場地預約 + 比賽管理。前作者還做了 LINE bot 版本(`badminton-linebot`)。</div>
-    </div>
-
-    <div class="card">
-      <div class="repo-name"><a href="https://github.com/subcer/badminton_lineup" target="_blank">subcer/badminton_lineup</a></div>
-      <div class="meta-row">
-        <span class="tag tag-tw">台中 台灣</span>
-        <span class="tag tag-active">2026-04-27 active 昨天</span>
-        <span class="tag tag-stack">Vanilla + Firebase</span>
-        <span class="tag tag-domain">羽球排點</span>
-      </div>
-      <div class="desc">「酷酷的羽球排點系統」— Glassmorphism UI + Firebase Realtime Database,即時多裝置同步。</div>
-      <div class="why"><strong>為什麼看</strong>:**跟你完全同棧(Vanilla + Firebase)** 的台灣兄弟。功能互補(他做排點 / 場上輪轉,你做報名),可借鏡他的 lineup.html / checkin.html 設計。</div>
+      <div class="desc">台大羽球場地預約 + 比賽管理。學生作品但 9 stars 是調查到全台灣同領域最高,有持續維護。</div>
+      <div class="why"><strong>為什麼看</strong>:**最完整的台灣大學運動系統**,場地預約 + 比賽管理 + 多角色權限。前作者還做了 LINE bot 版本(`badminton-linebot`)。</div>
     </div>
 
     <div class="card">
@@ -489,12 +376,48 @@
       <div class="meta-row">
         <span class="tag tag-tw">台灣</span>
         <span class="tag tag-active">2025-12-04</span>
-        <span class="tag tag-stack">Vue 3 + Express + PG</span>
-        <span class="tag tag-domain">羽球報名</span>
+        <span class="tag tag-stack">Vue 3 + Express + PostgreSQL</span>
+        <span class="tag tag-sport-badminton">羽球</span>
       </div>
-      <a class="demo-link" href="https://shuttle-hub.vercel.app" target="_blank" rel="noopener">🌐 Live Demo · shuttle-hub.vercel.app ✓ 已驗證</a>
-      <div class="desc">「羽球開團與報名平台」— 角色階層(MEMBER/ORGANIZER/ADMIN)+ 自動候補遞補 + 多人報名,有 live demo。</div>
-      <div class="why"><strong>為什麼看</strong>:**跟 ToosterX 報名核心邏輯最像**。有 dev/architecture 文件可讀。同作者 Jiong1203 還有 `badmintonBot` + `joinOrder` + `shuttlecockTracker` 共 4 個羽球工具。</div>
+      <a class="demo-link" href="https://shuttle-hub.vercel.app" target="_blank" rel="noopener">🌐 Live · shuttle-hub.vercel.app ✓</a>
+      <div class="desc">「羽球開團與報名平台」— 角色階層 + 自動候補遞補 + 多人報名,有 dev/architecture 文件。</div>
+      <div class="why"><strong>為什麼看</strong>:跟 ToosterX 報名核心邏輯最像。同作者 Jiong1203 還有 `badmintonBot` + `joinOrder` + `shuttlecockTracker` 共 4 個羽球工具。</div>
+    </div>
+
+    <div class="card">
+      <div class="repo-name"><a href="https://github.com/subcer/badminton_lineup" target="_blank">subcer/badminton_lineup</a></div>
+      <div class="meta-row">
+        <span class="tag tag-tw">台中 台灣</span>
+        <span class="tag tag-active">2026-04-27 active</span>
+        <span class="tag tag-stack">Vanilla JS + Firebase RTDB</span>
+        <span class="tag tag-sport-badminton">羽球排點</span>
+      </div>
+      <div class="desc">「酷酷的羽球排點系統」— Glassmorphism UI + Firebase 即時多裝置同步。</div>
+      <div class="why"><strong>為什麼看</strong>:**跟你完全同棧(Vanilla + Firebase)的台灣兄弟**。功能互補(他做排點 / 場上輪轉,你做報名),可借鏡他的 lineup.html / checkin.html。</div>
+    </div>
+
+    <div class="card">
+      <div class="repo-name"><a href="https://github.com/ncyubaseball1919/ncyubaseball1919.github.io" target="_blank">ncyubaseball1919/ncyubaseball1919.github.io</a> NEW</div>
+      <div class="meta-row">
+        <span class="tag tag-tw">嘉義大學棒球隊</span>
+        <span class="tag tag-active">2025-09 active</span>
+        <span class="tag tag-stack">Vanilla JS(同棧!)</span>
+        <span class="tag tag-sport-baseball">棒球</span>
+      </div>
+      <div class="desc">球員 profile + 教練 directory + 賽程 + 比分 JSON + 重訓紀錄 + 校友 / OB 統計。</div>
+      <div class="why"><strong>為什麼看</strong>:**這次調查唯一寫法跟 ToosterX 完全一致的「樸實派」隊伍**(Vanilla JS + JSON,無框架),同精神。可借鏡 player profile 設計。</div>
+    </div>
+
+    <div class="card">
+      <div class="repo-name"><a href="https://github.com/marmotkit/event-registration" target="_blank">marmotkit cluster</a>(3 個迭代版本)</div>
+      <div class="meta-row">
+        <span class="tag tag-tw">NTHU 清大 EMBA24</span>
+        <span class="tag tag-active">2025-07-21</span>
+        <span class="tag tag-stack">Flask + MongoDB + LINE Bot SDK</span>
+        <span class="tag tag-sport-multi">通用活動</span>
+      </div>
+      <div class="desc">同一作者 marmotkit 連續做 3 次「LINE 活動報名系統」迭代:Flask(2025-07)、Express+LIFF、Next.js。還做了 `golf_mgmt_1`(高爾夫差點+年度積分)。</div>
+      <div class="why"><strong>為什麼看</strong>:**功能 70-80% 像 ToosterX**,連繳費狀態通知群組都做了。看作者 3 次重做的演進,等於免費獲得「同問題的不同解法」對比。</div>
     </div>
 
     <div class="card">
@@ -503,57 +426,10 @@
         <span class="tag tag-tw">台北 台灣</span>
         <span class="tag tag-stale">2023 停更</span>
         <span class="tag tag-stack">Vue + LIFF v2</span>
+        <span class="tag tag-sport-multi">通用</span>
       </div>
-      <div class="desc">「Line 群組報名活動小幫手」— 跟你最像的概念雛型(LIFF 群組活動報名),repo 內含 UI 草圖 .drawio 檔案。</div>
-      <div class="why"><strong>為什麼看</strong>:**ToosterX 的 2023 概念祖先版**。同根目錄結構(index.html + line-sdk.js),雖然停更但**思路與檔案配置幾乎完全相同**。</div>
-    </div>
-
-    <div class="card">
-      <div class="repo-name"><a href="https://github.com/marmotkit/event-registration" target="_blank">marmotkit/event-registration</a></div>
-      <div class="meta-row">
-        <span class="tag tag-tw">台灣 NTHU</span>
-        <span class="tag tag-active">2025-07-21</span>
-        <span class="tag tag-stack">Flask + MongoDB + LINE Bot SDK</span>
-      </div>
-      <div class="desc">「Line 活動報名系統」— Flask 3.0 + MongoDB Atlas + LINE Bot SDK 3.5 + Bootstrap 5,自動群組訊息回報。</div>
-      <div class="why"><strong>為什麼看</strong>:**功能 70-80% 像 ToosterX**,連繳費狀態通知群組都做了。同作者 marmotkit 還有 `golf_mgmt_1`(高爾夫差點 + 年度積分)+ `line-event-reg` + `line-event-registration`(三度迭代)。</div>
-    </div>
-
-    <div class="card">
-      <div class="repo-name"><a href="https://github.com/blueskycm/what-to-eat-now" target="_blank">blueskycm/what-to-eat-now</a></div>
-      <div class="meta-row">
-        <span class="tag tag-tw">台灣 陳宗葆</span>
-        <span class="tag tag-active">2025-11-02</span>
-        <span class="tag tag-stack">LIFF + Firebase 全家桶</span>
-      </div>
-      <div class="desc">餐廳推薦 LINE 機器人 + 後台。Firebase Functions + Firestore + Hosting + Auth + Storage。</div>
-      <div class="why"><strong>為什麼看</strong>:**後台 pages/*.html 切法跟你 87% 像**,Functions 用 Python(你用 Node.js)。整體架構模式最像 ToosterX 的台灣專案。</div>
-    </div>
-
-    <div class="card">
-      <div class="repo-name"><a href="https://github.com/HackerSir/CheckIn" target="_blank">HackerSir/CheckIn</a> 💎</div>
-      <div class="meta-row">
-        <span class="tag tag-tw">台中 逢甲</span>
-        <span class="tag tag-stale">2021-10</span>
-        <span class="tag tag-mit">MIT</span>
-        <span class="tag tag-stack">Laravel</span>
-        <span class="tag tag-stars">6★</span>
-      </div>
-      <a class="demo-link" href="https://checkin.hackersir.org" target="_blank" rel="noopener">🌐 production · checkin.hackersir.org ✓ 已驗證(逢甲社博集點)</a>
-      <div class="desc">「學生社團博覽會打卡集點抽獎」— 逢甲大學黑客社真實營運的活動 check-in + 抽獎系統。</div>
-      <div class="why"><strong>💎 為什麼是寶藏</strong>:**全台灣 OSS 圈內,跟你功能最重疊 + 唯一 MIT 授權可商用**。如果你哪天要加「活動抽獎 / 集點換禮」,直接借鏡這個。</div>
-    </div>
-
-    <div class="card">
-      <div class="repo-name"><a href="https://github.com/Dannyisadog/undou" target="_blank">Dannyisadog/undou</a></div>
-      <div class="meta-row">
-        <span class="tag tag-tw">台灣</span>
-        <span class="tag tag-active">2024-09-17</span>
-        <span class="tag tag-stack">TypeScript Next.js</span>
-      </div>
-      <a class="demo-link dead" href="https://undou.dannyisadog.com" target="_blank" rel="noopener">🌐 undou.dannyisadog.com ✗ 已驗證已下線(2026-04 ECONNREFUSED)</a>
-      <div class="desc">「運動火腿」— 找運動夥伴、共享健身、揪團活動的平台。原 Live demo: undou.dannyisadog.com 目前無法連線。</div>
-      <div class="why"><strong>為什麼看</strong>:**跟你完全同 mission**(運動社群 + 揪團),但**沒有徽章 / EXP / 賽事**。等於是純社群版的 ToosterX。</div>
+      <div class="desc">「Line 群組報名活動小幫手」— ToosterX 的 2023 概念雛型版,repo 內含 UI 草圖 .drawio。</div>
+      <div class="why"><strong>為什麼看</strong>:**同根目錄結構(index.html + line-sdk.js)**,雖然停更但思路與檔案配置幾乎完全相同,等於是 ToosterX 的祖先版。</div>
     </div>
 
     <div class="card">
@@ -561,11 +437,11 @@
       <div class="meta-row">
         <span class="tag tag-tw">台灣</span>
         <span class="tag tag-active">2026-02-11</span>
-        <span class="tag tag-stack">Google Apps Script</span>
-        <span class="tag tag-stars">1★</span>
+        <span class="tag tag-stack">Google Apps Script + Sheets</span>
+        <span class="tag tag-sport-badminton">羽球</span>
       </div>
-      <div class="desc">「羽球人 LINE BOT」— 真實營運中的羽球場揪團 LINE Bot,每週循環開團、容量上限、多級管理員。</div>
-      <div class="why"><strong>為什麼看</strong>:**真實營運的台灣羽球揪團 bot**。命令詞彙(開團 / 報名 / 修改報名 / 取消報名 / 查詢報名)是台灣羽球圈標準慣例,可作為 ToosterX UX 對照。</div>
+      <div class="desc">「羽球人 LINE BOT」— 真實營運中,每週循環開團、容量上限、多級管理員。</div>
+      <div class="why"><strong>為什麼看</strong>:命令詞彙(開團 / 報名 / 修改報名 / 取消報名 / 查詢報名)是台灣羽球圈標準慣例,可作為 UX 對照。</div>
     </div>
 
     <div class="card">
@@ -574,112 +450,10 @@
         <span class="tag tag-tw">台灣 三峽</span>
         <span class="tag tag-active">2026-04-15</span>
         <span class="tag tag-stack">Google Apps Script</span>
+        <span class="tag tag-sport-baseball">棒球</span>
       </div>
       <div class="desc">「三峽社區棒球隊營運管理系統」— 入隊報名 / 出勤 / 編隊 / 賽事 / 費用 / 帳單 / 角色權限。</div>
-      <div class="why"><strong>為什麼看</strong>:**最完整的台灣社團營運 schema**(registrations / players / attendance / 費用 enum 分離)。雖然用 GAS 不可移植,但設計值得學習。</div>
-    </div>
-
-    <div class="card">
-      <div class="repo-name"><a href="https://github.com/dayuanjci1027/jci-checkin" target="_blank">dayuanjci1027/jci-checkin</a></div>
-      <div class="meta-row">
-        <span class="tag tag-tw">大園青商會</span>
-        <span class="tag tag-active">2026-04-11</span>
-        <span class="tag tag-stack">Vanilla JS + Firebase RTDB</span>
-      </div>
-      <div class="desc">JCI 大園青商會活動 QR 簽到 + 手動補登。Vanilla + Firebase,行動端優先。</div>
-      <div class="why"><strong>為什麼看</strong>:**跟你完全同棧 + 同領域**(社團活動 + 簽到 + Firebase + Vanilla),只是規模較小(單一分會)。可看小規模版本怎麼簡化。</div>
-    </div>
-
-  </div>
-</section>
-
-<!-- ═══════ Tier A - TW 架構同類 ═══════ -->
-<section id="tier-a">
-  <h2>🟡 Tier A - 台灣 LIFF / Firebase 架構同類</h2>
-  <p>不是同領域,但技術棧或架構模式高度重疊,值得參考。</p>
-
-  <div class="grid">
-
-    <div class="card">
-      <div class="repo-name"><a href="https://github.com/dlackty/line-liff-firebase-starter" target="_blank">dlackty/line-liff-firebase-starter</a> 💎</div>
-      <div class="meta-row">
-        <span class="tag tag-tw">台北</span>
-        <span class="tag tag-mit">MIT</span>
-        <span class="tag tag-stars">4★</span>
-        <span class="tag tag-stack">LIFF v2 + Firebase</span>
-      </div>
-      <div class="desc">作者 Richard Lee 是 **Firebase GDE + LINE API Expert 雙認證**。展示 LINE LIFF → Firebase Custom Auth 標準寫法。</div>
-      <div class="why"><strong>必讀</strong>:**全台灣最有資格做 LIFF + Firebase 的人**寫的範本。雖然小,但 firestore.rules 模式 + Custom Auth 流程值得對照 ToosterX 的實作。</div>
-    </div>
-
-    <div class="card">
-      <div class="repo-name"><a href="https://github.com/roger7904/simba" target="_blank">roger7904/simba</a></div>
-      <div class="meta-row">
-        <span class="tag tag-tw">台北</span>
-        <span class="tag tag-active">2026-04-27 active 昨天</span>
-        <span class="tag tag-stack">React + Vite + Cloudflare</span>
-      </div>
-      <a class="demo-link" href="https://simba.baleinway.com" target="_blank" rel="noopener">🌐 Live · simba.baleinway.com ✓ 已驗證(「小辛巴旅遊台灣趣」)</a>
-      <div class="desc">「小辛巴旅遊」— Cloudflare Pages 部署 + CLAUDE.md / AGENT.md / docs/runbook 完整 Claude Code 工作流。</div>
-      <div class="why"><strong>為什麼看</strong>:**全台灣唯一同樣用 Claude Code + Cloudflare Pages 流程的 dev**。雖然 stack 不同(React 不是 Vanilla),但 deploy / runbook / CLAUDE.md 紀律可學。</div>
-    </div>
-
-    <div class="card">
-      <div class="repo-name"><a href="https://github.com/foylaou/checkinflow" target="_blank">foylaou/checkinflow</a></div>
-      <div class="meta-row">
-        <span class="tag tag-tw">台灣</span>
-        <span class="tag tag-active">2025-09-17</span>
-        <span class="tag tag-stack">Next.js 15 + LINE Login + MsSQL</span>
-        <span class="tag tag-stars">1★</span>
-      </div>
-      <a class="demo-link dead" href="https://checkinflow.isafe.org.tw" target="_blank" rel="noopener">🌐 checkinflow.isafe.org.tw ⚠ 已驗證網站存在但只有 nginx default page,可能尚未部署</a>
-      <div class="desc">活動 QR 簽到 + 時間窗驗證 + 後台。LINE OAuth(非 LIFF)+ qrcode.react。</div>
-      <div class="why"><strong>為什麼看</strong>:**最深 LINE 棧整合的台灣 QR 簽到專案**。可對照 LINE Login 與 LIFF 兩種認證選擇的差異。</div>
-    </div>
-
-    <div class="card">
-      <div class="repo-name"><a href="https://github.com/tbdavid2019/qr-checkin-system" target="_blank">tbdavid2019/qr-checkin-system</a> + staff-pwa</div>
-      <div class="meta-row">
-        <span class="tag tag-tw">台灣</span>
-        <span class="tag tag-active">2026-04-02</span>
-        <span class="tag tag-stack">FastAPI + PostgreSQL</span>
-      </div>
-      <div class="desc">**多租戶**票券 / 活動 check-in 系統,主辦端 + 工作人員 PWA 兩端分離。JWT 動態 QR token。</div>
-      <div class="why"><strong>為什麼看</strong>:**最值得參考的「主辦人後台 + 工作人員掃碼端」架構分離**。ToosterX 未來想做工作人員 App 的對照範本。</div>
-    </div>
-
-    <div class="card">
-      <div class="repo-name"><a href="https://github.com/poterpan/ntutbox-checkin" target="_blank">poterpan/ntutbox-checkin</a></div>
-      <div class="meta-row">
-        <span class="tag tag-tw">台中 北科大</span>
-        <span class="tag tag-active">2026-04-21</span>
-        <span class="tag tag-stack">Next.js 16 + Cloudflare D1</span>
-      </div>
-      <div class="desc">北科大教室點名 — **30 秒輪轉動態 QR + FingerprintJS 設備指紋防代簽**。</div>
-      <div class="why"><strong>為什麼看</strong>:**動態 QR + 防代簽最佳台灣範本**。如果你以後遇到「代簽」問題,這個技術直接借鏡就能解。</div>
-    </div>
-
-    <div class="card">
-      <div class="repo-name"><a href="https://github.com/jx06T/time-and-attendance-system" target="_blank">jx06T/time-and-attendance-system</a></div>
-      <div class="meta-row">
-        <span class="tag tag-tw">建中</span>
-        <span class="tag tag-active">2025-10-04</span>
-        <span class="tag tag-mit">MIT</span>
-        <span class="tag tag-stack">React + Firestore + Auth</span>
-      </div>
-      <div class="desc">職場打卡系統 — Firestore + 角色分級 + QR 打卡 + CSV 匯入。</div>
-      <div class="why"><strong>為什麼看</strong>:**Firestore + role-based + QR 完整實作的台灣中學生作品**,MIT 授權可參考。</div>
-    </div>
-
-    <div class="card">
-      <div class="repo-name"><a href="https://github.com/CXPhoenix/roll-call-remote-class" target="_blank">CXPhoenix/roll-call-remote-class</a></div>
-      <div class="meta-row">
-        <span class="tag tag-tw">台北高中老師</span>
-        <span class="tag tag-stale">2021-06</span>
-        <span class="tag tag-stack">Firebase + Firestore</span>
-      </div>
-      <div class="desc">遠距課程點名系統。Firebase + Firestore + Google Auth + Webpack。</div>
-      <div class="why"><strong>為什麼看</strong>:**最近 Firebase 同棧台灣專案**(雖 4 年沒 commit)。ToosterX 早期版本的概念對照。</div>
+      <div class="why"><strong>為什麼看</strong>:**最完整的台灣社團營運 schema**(registrations / players / attendance / 費用 enum 分離),設計值得學習。</div>
     </div>
 
     <div class="card">
@@ -688,548 +462,541 @@
         <span class="tag tag-tw">台灣</span>
         <span class="tag tag-active">2025-07-08</span>
         <span class="tag tag-stack">Vanilla JS + Firebase</span>
+        <span class="tag tag-sport-multi">賽事</span>
       </div>
       <div class="desc">四人單挑循環賽系統 — 即時記錄 + 統計 + Firebase 同步。</div>
-      <div class="why"><strong>為什麼看</strong>:**Firebase + Vanilla + 賽事 + 排行榜 — 跟 ToosterX `tournament/` 模組最像的台灣專案**。作者標「有 bug」,當參考但別 copy。</div>
+      <div class="why"><strong>為什麼看</strong>:Firebase + Vanilla + 賽事 + 排行榜 — 跟 ToosterX `tournament/` 模組最像的台灣專案。作者標「有 bug」,當參考但別 copy。</div>
     </div>
 
     <div class="card">
-      <div class="repo-name"><a href="https://github.com/ceparadise168/one-team" target="_blank">ceparadise168/one-team</a></div>
+      <div class="repo-name"><a href="https://github.com/HouShengHong/fun20_join" target="_blank">HouShengHong/fun20_join</a> NEW</div>
+      <div class="meta-row">
+        <span class="tag tag-tw">資展國際 III</span>
+        <span class="tag tag-stale">2022 停更</span>
+        <span class="tag tag-stack">HTML + CSS + JS + SCSS</span>
+        <span class="tag tag-sport-multi">揪運動</span>
+      </div>
+      <div class="desc">資策會 full-stack class final project — 揪運動交流平台。多步驟 signup + email validation + 用戶 profile + RWD。</div>
+      <div class="why"><strong>為什麼看</strong>:**功能命名跟 ToosterX 概念最像**(揪運動 + 多人運動社交),可看資策會學員怎麼設計這類問題。</div>
+    </div>
+
+    <div class="card">
+      <div class="repo-name"><a href="https://github.com/liao-guan-cheng/runner_ai" target="_blank">liao-guan-cheng/runner_ai</a> NEW</div>
       <div class="meta-row">
         <span class="tag tag-tw">台灣</span>
-        <span class="tag tag-active">2026-03-19</span>
-        <span class="tag tag-stack">LIFF + AWS CDK + DynamoDB</span>
+        <span class="tag tag-active">2026-01 active</span>
+        <span class="tag tag-stack">Flutter + C++</span>
+        <span class="tag tag-sport-running">路跑 AI</span>
       </div>
-      <div class="desc">企業級 LIFF 範本 — 員工身份 / 數位 ID / 福利平台。Monorepo + pnpm + AWS CDK。</div>
-      <div class="why"><strong>為什麼看</strong>:**企業級 LIFF 範本**(雖然用 AWS 不是 Firebase),CLAUDE.md 工作流 + monorepo 設計值得對照。</div>
+      <div class="desc">「AI 教練 for 800m / 1500m 選手備戰青年盃 + 全大運」— AI 訓練輔助。</div>
+      <div class="why"><strong>為什麼看</strong>:**鎖定全大運 / 青年盃選手**,跟 ToosterX 用戶群部分重疊(校隊),教練模組可參考。</div>
     </div>
-
-    <div class="card">
-      <div class="repo-name"><a href="https://github.com/CodingNoob1224/qbeep_final" target="_blank">CodingNoob1224/qbeep_final</a></div>
-      <div class="meta-row">
-        <span class="tag tag-tw">淡江資工</span>
-        <span class="tag tag-active">2025-06</span>
-        <span class="tag tag-stack">Django + SQLite</span>
-      </div>
-      <div class="desc">QBeep — 淡江系友會活動管理 + 簽到簽退 + 後台分析。</div>
-      <div class="why"><strong>為什麼看</strong>:Django stack 對照,規模類似 ToosterX 但走完全不同技術選擇。</div>
-    </div>
-
-    <div class="card">
-      <div class="repo-name"><a href="https://github.com/PinAntw/termproject-Distributed_System-NTU" target="_blank">PinAntw/termproject-Distributed_System-NTU</a></div>
-      <div class="meta-row">
-        <span class="tag tag-tw">NTU 期末</span>
-        <span class="tag tag-active">2025-01-02</span>
-        <span class="tag tag-stack">FastAPI + GCP Cloud Run</span>
-      </div>
-      <div class="desc">NTU 分散式系統期末:用戶管理 + 活動組別 + 打卡 + 排行榜。</div>
-      <div class="why"><strong>為什麼看</strong>:**功能跟 ToosterX 後端骨幹幾乎完全平行**。如果哪天想把 Cloud Functions 改 FastAPI,這是現成範本。</div>
-    </div>
-
-    <div class="card">
-      <div class="repo-name"><a href="https://github.com/sitcon-tw/tickets" target="_blank">sitcon-tw/tickets</a></div>
-      <div class="meta-row">
-        <span class="tag tag-tw">SITCON 學生會議</span>
-        <span class="tag tag-stack">TypeScript pnpm monorepo</span>
-      </div>
-      <div class="desc">SITCON(學生計算機年會)票券預約系統。前後端分離 Dockerfile。</div>
-      <div class="why"><strong>為什麼看</strong>:台灣最大學生科技社群活動的票務系統,規模 / 架構參考。</div>
-    </div>
-
   </div>
 </section>
 
-<!-- ═══════ Tier B ═══════ -->
-<section id="tier-b">
-  <h2>⚪ Tier B - 其他台灣相關專案</h2>
-  <p>有部分重疊但不是首選。展開查看完整清單。</p>
-
-  <details>
-    <summary>📋 羽球專屬報名 / 訂場系統(8 個)</summary>
-    <div>
-    <ul>
-      <li><a href="https://github.com/jun12079/shuttler-backend" target="_blank">jun12079/shuttler-backend</a> — Express + PG + JWT + S3 + 藍新金流(MIT)</li>
-      <li><a href="https://github.com/Hsuanwen/badminton-signup" target="_blank">Hsuanwen/badminton-signup</a> — 純 HTML 單檔</li>
-      <li><a href="https://github.com/cckawaii0808/Badminton-Booking-System" target="_blank">cckawaii0808/Badminton-Booking-System</a> — Vue,無 README</li>
-      <li><a href="https://github.com/joni20011105/warriors-cup-2026" target="_blank">joni20011105/warriors-cup-2026</a> — 2026 武士盃全國羽球錦標賽(2026-04-27 push)</li>
-      <li><a href="https://github.com/tim841206/NTUcup" target="_blank">tim841206/NTUcup</a> + NEWcup — 國立臺灣大學台大盃 PHP 系統</li>
-      <li><a href="https://github.com/bensonyang0217/badmintonbookingsystem" target="_blank">bensonyang0217/badmintonbookingsystem</a> — 羽球零打 Java(已停)</li>
-      <li><a href="https://github.com/YFCKevin/badmintonPairing" target="_blank">YFCKevin/badmintonPairing</a> — 北北基桃羽球團找尋(Java),曾有網站 <s>gurula.cc/badminton</s> ✗ 2026-04 驗證已 404</li>
-      <li><a href="https://github.com/Jiong1203/joinOrder" target="_blank">Jiong1203/joinOrder</a> — 運動開團 Python 雛型</li>
-    </ul>
-    </div>
-  </details>
-
-  <details>
-    <summary>🎓 學校 / 補習班 / 會議簽到系統(6 個)</summary>
-    <div>
-    <ul>
-      <li><a href="https://github.com/Ivy-cc515/java-project-with-GAI" target="_blank">Ivy-cc515/java-project-with-GAI</a> — 嘉義大學,10s Hovercode 動態 QR + GPS + IP</li>
-      <li><a href="https://github.com/sonewang168/attendance-line-bot" target="_blank">sonewang168/attendance-line-bot</a> — LINE Bot + Sheets + GPS(MIT)</li>
-      <li><a href="https://github.com/keek34578-spec/amc-checkin-server" target="_blank">keek34578-spec/amc-checkin-server</a> — 空中美語名間分校(2026-04-27 active)</li>
-      <li><a href="https://github.com/burkaslarry/bni-anchor-checkin" target="_blank">burkaslarry/bni-anchor-checkin</a> — BNI 商會 React PWA(MIT)</li>
-      <li><a href="https://github.com/blueforster/qr-checkin-system" target="_blank">blueforster/qr-checkin-system</a> — Express + SQLite + Sheets(MIT)</li>
-      <li><a href="https://github.com/byross/rsvp" target="_blank">byross/rsvp</a> — Cloudflare Workers + Hono + D1 RSVP</li>
-    </ul>
-    </div>
-  </details>
-
-  <details>
-    <summary>👤 LIFF 名片 / 個人應用(6 個)</summary>
-    <div>
-    <ul>
-      <li><a href="https://github.com/taichunmin/liff-businesscard" target="_blank">taichunmin/liff-businesscard</a> — **70★ 全台灣最高 star LIFF 專案** · 🌐 作者站 <a href="https://taichunmin.idv.tw" target="_blank" style="color:var(--green);">taichunmin.idv.tw</a> ✓</li>
-      <li><a href="https://github.com/FooJiaYin/line-namecard" target="_blank">FooJiaYin/line-namecard</a> — NTHU 學生 LIFF 名片(3★)</li>
-      <li><a href="https://github.com/letswritetw/letswrite-liff-init" target="_blank">letswritetw/letswrite-liff-init</a> — 繁中最完整 LIFF v2 教學(7★)· 🌐 作者站 <a href="https://letswrite.tw" target="_blank" style="color:var(--accent-warm);">letswrite.tw</a></li>
-      <li><a href="https://github.com/jschang19/xipeng-liff-app" target="_blank">jschang19/xipeng-liff-app</a> — NTU 學生「攜澎引盼 2024」</li>
-      <li><a href="https://github.com/Xanonymous-GitHub/MrCoding" target="_blank">Xanonymous-GitHub/MrCoding</a> — LINE 員工的 LIFF 線上問答系統</li>
-      <li><a href="https://github.com/supra126/line-liff-invoai-sheet" target="_blank">supra126/line-liff-invoai-sheet</a> — LIFF 發票辨識 → Sheets</li>
-    </ul>
-    </div>
-  </details>
-
-  <details>
-    <summary>🎮 遊戲化 / 成就 / 排行榜(7 個)</summary>
-    <div>
-    <ul>
-      <li><a href="https://github.com/Queenie0814/gamified-peer" target="_blank">Queenie0814/gamified-peer</a> — VR 教育即時排行榜 + 徽章 · 🌐 <a href="https://gamified-peer.vercel.app" target="_blank" style="color:var(--green);">gamified-peer.vercel.app</a> ✓ 已驗證</li>
-      <li><a href="https://github.com/nope61/student-points-system" target="_blank">nope61/student-points-system</a> — 學生積分 + Gacha + 兌換</li>
-      <li><a href="https://github.com/mukiwu/cword" target="_blank">mukiwu/cword</a> — MUKi 中文學習 AI 任務(4★, 2026-04 active)· 🌐 <a href="https://mukiwu.github.io/cword/" target="_blank" style="color:var(--green);">mukiwu.github.io/cword/</a> ✓ 已驗證(生字冒險島)</li>
-      <li><a href="https://github.com/colinjen88/MentalMath" target="_blank">colinjen88/MentalMath</a> — 兒童珠心算 PWA · 🌐 <a href="https://gowork.run/MentalMath" target="_blank" style="color:var(--accent-warm);">gowork.run/MentalMath</a>(已 fetch 但被 Cloudflare 擋,人工點看可用)</li>
-      <li><a href="https://github.com/cyclone-tw/adventurer-learning-system" target="_blank">cyclone-tw/adventurer-learning-system</a> — 冒險式教育平台</li>
-      <li><a href="https://github.com/kennyyytu0328/Vocabularies-Learning-App" target="_blank">kennyyytu0328/Vocabularies-Learning-App</a> — 高中英單(MIT)</li>
-      <li><a href="https://github.com/gnehs/Justin-Ramen" target="_blank">gnehs/Justin-Ramen</a> + telegram-bot — **麵屋雞金 YouTuber 真實餐廳集點**(11★ + 12★)· 🌐 <s>ramen.justinlin.tw</s> ✗ 2026-04 驗證已下線</li>
-    </ul>
-    </div>
-  </details>
-
-  <details>
-    <summary>🏀 其他球類 / 球隊 / 賽事系統(7 個)</summary>
-    <div>
-    <ul>
-      <li><a href="https://github.com/marmotkit/golf_mgmt_1" target="_blank">marmotkit/golf_mgmt_1</a> — NTHU 高爾夫:差點 / 桿數 / 年度積分</li>
-      <li><a href="https://github.com/111306084/baseball-player-management" target="_blank">111306084/baseball-player-management</a> — MLB 標準棒球統計(SQL VIEW 設計值得借鏡)</li>
-      <li><a href="https://github.com/yochienoffice/team-management" target="_blank">yochienoffice/team-management</a> — 球隊每週數據</li>
-      <li><a href="https://github.com/TJay666/tyfc-team-manus" target="_blank">TJay666/tyfc-team-manus</a> — 桃園獵鷹足球(Django)</li>
-      <li><a href="https://github.com/ArthurArthurArthur0817/Database-Theory" target="_blank">ArthurArthurArthur0817/Database-Theory</a> — 排球統計(PHP+MySQL)</li>
-      <li><a href="https://github.com/xu3cl40122/go-court-service" target="_blank">xu3cl40122/go-court-service</a> + go-court-vue + comment-service — 排球揪團(NestJS+全國場館 API)</li>
-      <li><a href="https://github.com/Nocab7714/HealthGlow-sports-coach-reservation-platform" target="_blank">Nocab7714/HealthGlow-sports-coach-reservation-platform</a> — 六角學院運動教練預約</li>
-    </ul>
-    </div>
-  </details>
-
-  <details>
-    <summary>🌐 LINE Bot / LINE Login 應用(8 個)</summary>
-    <div>
-    <ul>
-      <li><a href="https://github.com/marmotkit/line-event-reg" target="_blank">marmotkit/line-event-reg</a> — Express + LINE Bot + LIFF</li>
-      <li><a href="https://github.com/marmotkit/line-event-registration" target="_blank">marmotkit/line-event-registration</a> — Next.js 版</li>
-      <li><a href="https://github.com/asdasdasd80/line-court-bot" target="_blank">asdasdasd80/line-court-bot</a> — LINE 群組揪團報名小幫手(Python+Redis+Flex Message)</li>
-      <li><a href="https://github.com/as983056/line-bot-registration" target="_blank">as983056/line-bot-registration</a> — LINE Bot 報名 → Sheets</li>
-      <li><a href="https://github.com/ChuEating1005/2024-LINE-FRESH" target="_blank">ChuEating1005/2024-LINE-FRESH</a> — LINE FRESH 2024 校園競賽</li>
-      <li><a href="https://github.com/MikeTaiwan/line-bot-legal" target="_blank">MikeTaiwan/line-bot-legal</a> — LINE 簽到機器人(極小)</li>
-      <li><a href="https://github.com/as183789043/Line-Bot-Tech-Portal" target="_blank">as183789043/Line-Bot-Tech-Portal</a> — Rick Hsu 技術 Portal</li>
-      <li><a href="https://github.com/As9873021/line-liff-beauty-shop" target="_blank">As9873021/line-liff-beauty-shop</a> — Vue 3 + LIFF + Firebase 美妝</li>
-    </ul>
-    </div>
-  </details>
-
-</section>
-
-<!-- ═══════ LINE 台灣關鍵人物 ═══════ -->
-<section id="people">
-  <h2>👥 LINE 台灣關鍵人物 (值得 Follow)</h2>
-  <p>這 4 位是台灣 LINE / LIFF 開發圈的權威。Follow 他們的 GitHub,新範例第一手知道。</p>
-
-  <div class="grid">
-
-    <div class="person-card">
-      <div>
-        <div class="person-name"><a href="https://github.com/kkdai" target="_blank" style="color:var(--accent);text-decoration:none;">kkdai (Evan Lin)</a></div>
-        <div class="person-role">LINE 台灣官方員工 · 296 repos · 1666 followers</div>
-        <div class="person-stats">代表作:LineBotTemplate (201★)、linebot-langchain (46★)、linebot-receipt-gemini (39★)</div>
-      </div>
-      <div class="person-why">**全台灣 LINE bot 圈鼻祖**。LineBotTemplate 是 Heroku LINE Bot 教學標準範本。最近主力做 AI + LINE Bot 整合(LangChain / Gemini / OpenAI)。</div>
-    </div>
-
-    <div class="person-card">
-      <div>
-        <div class="person-name"><a href="https://github.com/louis70109" target="_blank" style="color:var(--accent);text-decoration:none;">louis70109 (NiJia Lin)</a></div>
-        <div class="person-role">LINE 台灣官方技術佈道師 · 190 repos</div>
-        <div class="person-stats">代表作:vue-liff-shareTargetPicker (3★)、Announcer、BookingStep、calendar-linebot (15★)</div>
-      </div>
-      <div class="person-why">**官方佈道師,寫的範例就是「官方推薦寫法」**。`vue-liff-shareTargetPicker` 直接對應 ToosterX 分享功能,可直接對照寫法。</div>
-      <a class="blog-link" href="https://nijialin.com" target="_blank" rel="noopener">📝 部落格 · nijialin.com ✓ 已驗證(忍者工坊,250+ 篇技術文)</a>
-    </div>
-
-    <div class="person-card">
-      <div>
-        <div class="person-name"><a href="https://github.com/dlackty" target="_blank" style="color:var(--accent);text-decoration:none;">dlackty (Richard Lee)</a></div>
-        <div class="person-role">Firebase GDE + LINE API Expert 雙認證 · 376 followers · 台北</div>
-        <div class="person-stats">代表作:line-liff-firebase-starter、LineKit (156★)、zhtw-mcp</div>
-      </div>
-      <div class="person-why">**全台灣同時持有 Firebase GDE + LINE API Expert 兩個認證的人**。他的 starter repo 跟 ToosterX 同棧 — 是技術上對你最對等的人。</div>
-    </div>
-
-    <div class="person-card">
-      <div>
-        <div class="person-name"><a href="https://github.com/taichunmin" target="_blank" style="color:var(--accent);text-decoration:none;">taichunmin (戴均民)</a></div>
-        <div class="person-role">10+ 年資深後端 · 215 repos · 229 followers</div>
-        <div class="person-stats">代表作:liff-businesscard (70★ - 全台灣最高 star LIFF 專案)</div>
-      </div>
-      <div class="person-why">**台灣 LIFF 圈 star 最高紀錄保持者**。Pug 模板 + LIFF 整合,程式碼乾淨成熟。</div>
-      <a class="blog-link" href="https://taichunmin.idv.tw" target="_blank" rel="noopener">📝 個人站 · taichunmin.idv.tw ✓ 已驗證(筆記國度)</a>
-    </div>
-
-    <div class="person-card">
-      <div>
-        <div class="person-name"><a href="https://github.com/appleboy" target="_blank" style="color:var(--accent);text-decoration:none;">appleboy (Bo-Yi Wu)</a></div>
-        <div class="person-role">Mediatek 工程師 · 606 repos · 7433 followers · 新竹</div>
-        <div class="person-stats">代表作:gin-jwt、drone-ssh、line-action(GitHub Action 發 LINE 通知)</div>
-      </div>
-      <div class="person-why">**全台灣最高 followers 工程師之一**。雖然不主做 LIFF,但 line-action 的 GitHub Actions 整合 LINE 訊息可以借鏡。</div>
-    </div>
-
-    <div class="person-card">
-      <div>
-        <div class="person-name"><a href="https://github.com/doggy8088" target="_blank" style="color:var(--accent);text-decoration:none;">doggy8088 (保哥 / Will)</a></div>
-        <div class="person-role">Angular GDE · Microsoft RD · 18× MVP · 4372 followers</div>
-        <div class="person-stats">代表作:liff-v2-snippets (VS Code snippet 套件)</div>
-      </div>
-      <div class="person-why">**台灣最知名前端佈道師**。寫了 LIFF v2 的 VS Code 程式碼片段套件,開發 LIFF 時可以裝來用。</div>
-      <a class="blog-link" href="https://blog.miniasp.com" target="_blank" rel="noopener">📝 部落格 · blog.miniasp.com ✓ 已驗證(The Will Will Web)</a>
-    </div>
-
-  </div>
-</section>
-
-<!-- ═══════ 國際對標 ═══════ -->
-<section id="international">
-  <h2>🌍 國際對標(必讀的全球參考)</h2>
-  <p>台灣同類沒人做到 ToosterX 規模,世界級對標都在國外。這 7 個是必讀。</p>
+<!-- ═══════ 台灣運動 SaaS / App 領導者 ═══════ -->
+<section id="leaders">
+  <h2>🏆 台灣運動 SaaS / App 領導者(必認識)</h2>
+  <p>這 5 家不是同類但是<strong>必須認識</strong>的市場領導者 — 他們各自統治了一個運動垂直,你做這個垂直時要對標他們的功能或避開他們的領域。</p>
 
   <div class="grid">
 
     <div class="card">
-      <div class="repo-name"><a href="https://github.com/CourtHive/TMX" target="_blank">CourtHive/TMX</a> + competition-factory 💎</div>
+      <div class="repo-name"><a href="https://www.hikingbook.net" target="_blank">Hikingbook 健行筆記(無關)</a></div>
       <div class="meta-row">
-        <span class="tag tag-intl">國際</span>
-        <span class="tag tag-mit">MIT</span>
-        <span class="tag tag-stars">23+28★</span>
-        <span class="tag tag-stack">Vanilla TS + PWA</span>
+        <span class="tag tag-tw">Taiwan 新創 2019</span>
+        <span class="tag tag-stars">30 萬用戶</span>
+        <span class="tag tag-sport-hiking">登山</span>
       </div>
-      <a class="demo-link" href="https://courthive.com" target="_blank" rel="noopener">🌐 官網 · courthive.com ✓ 已驗證(Multi-Sport Competition Management)</a>
-      <div class="desc">網球 / 匹克球 / 羽球賽事系統,TODS(Tennis Open Data Standards)合規,Vite + 純 TS + 離線 PWA。</div>
-      <div class="why"><strong>必讀</strong>:**架構最像 ToosterX 的全球專案** — Vanilla TS + PWA + 球拍運動。**引擎(competition-factory)/ UI(TMX)分離模式值得學習**,你 `app.js` 將來重構時可參考。</div>
+      <div class="desc">12,000+ 登山行程資料庫、離線地圖、GPX 軌跡、Garmin / COROS / Fitbit / Apple Health 整合。海外用戶 3 萬主香港。</div>
+      <div class="why"><strong>意義</strong>:**台灣運動 vertical SaaS 訂閱可行的標竿**(30 萬用戶證明)。**留白**:山屋預約 / 高山協作隊伍管理。</div>
     </div>
 
     <div class="card">
-      <div class="repo-name"><a href="https://github.com/evroon/bracket" target="_blank">evroon/bracket</a></div>
+      <div class="repo-name"><a href="https://www.velodash.co" target="_blank">Velodash 飛騎</a></div>
       <div class="meta-row">
-        <span class="tag tag-intl">國際</span>
-        <span class="tag tag-stars">1.7k★</span>
-        <span class="tag tag-stack">FastAPI + React + PG</span>
+        <span class="tag tag-tw">Taiwan 新創 2017</span>
+        <span class="tag tag-stack">native app</span>
+        <span class="tag tag-sport-cycling">自行車</span>
       </div>
-      <div class="desc">賽事管理系統開源王者。單淘汰 / 循環賽 / Swiss、拖拉排程、公開儀表板、多俱樂部隊伍。</div>
-      <div class="why"><strong>必讀</strong>:**全球賽事管理開源最高 star**。你 `tournament/` 模組要強化時,這是對照標竿。</div>
+      <div class="desc">團騎定位、路線規劃、坡段分析、群組聊天、Bluetooth 裝置整合、遠端觀賽。LINE OA 每週天氣推播。</div>
+      <div class="why"><strong>意義</strong>:Taiwan 自行車車隊主導者。**留白**:**LIFF Mini App 完全空白**,native app 限制 LINE 內生態。</div>
     </div>
 
     <div class="card">
-      <div class="repo-name"><a href="https://github.com/sendou-ink/sendou.ink" target="_blank">sendou-ink/sendou.ink</a></div>
+      <div class="repo-name"><a href="https://www.golface.com.tw" target="_blank">Golface</a></div>
       <div class="meta-row">
-        <span class="tag tag-intl">國際</span>
-        <span class="tag tag-stars">287★</span>
-        <span class="tag tag-stack">Remix + SQLite</span>
+        <span class="tag tag-tw">Taiwan 新竹新創</span>
+        <span class="tag tag-stars">30 秒訂位</span>
+        <span class="tag tag-sport-golf">高爾夫</span>
       </div>
-      <a class="demo-link unverified" href="https://sendou.ink" target="_blank" rel="noopener">🌐 sendou.ink(Splatoon 競技社群,fetch 暫無回應但網域長期存在,值得直接點看)</a>
-      <div class="desc">Splatoon 賽事系統 — 賽事 + 團隊 + LFG + 行事曆 + Profile + Build 分析。</div>
-      <div class="why"><strong>必讀</strong>:**功能組合最像 ToosterX**。賽事 + 團隊 + 行事曆 + profile = ToosterX 模組 1:1 對應。Playwright + Vitest 測試成熟,值得借鏡。</div>
+      <div class="desc">**台灣最大高爾夫 app**:訂組、下場、球道攻略、計分、結帳、揮桿動作分析、訓練影片、20+ 球場合作。</div>
+      <div class="why"><strong>意義</strong>:高爾夫 vertical 主導者(球場預約 + 計分 + 社群)。**留白**:**揪團 + 教練媒合 + 差點官方認證系統**。</div>
     </div>
 
     <div class="card">
-      <div class="repo-name"><a href="https://github.com/HiEventsDev/Hi.Events" target="_blank">HiEventsDev/Hi.Events</a></div>
+      <div class="repo-name"><a href="https://www.sporetrofit.com" target="_blank">Sporetrofit 智聯運動科技</a></div>
       <div class="meta-row">
-        <span class="tag tag-intl">愛爾蘭</span>
-        <span class="tag tag-stars">3.7k★</span>
-        <span class="tag tag-stack">Laravel + TypeScript</span>
+        <span class="tag tag-tw">Taiwan 新創 2016</span>
+        <span class="tag tag-stars">B2G 等級</span>
+        <span class="tag tag-domain">場館 SaaS</span>
       </div>
-      <a class="demo-link" href="https://hi.events" target="_blank" rel="noopener">🌐 官網 · hi.events ✓ 已驗證(Hi.Events Ltd. 2026)</a>
-      <div class="desc">現代版 Eventbrite 開源替代。票務 + QR check-in + 即時分析 + Webhook + 多用戶角色。</div>
-      <div class="why"><strong>必讀</strong>:**QR 簽到 + 多角色權限**功能對標。你的 `scan/` 模組 + `INHERENT_ROLE_PERMISSIONS` 對照 Hi.Events 的實作。</div>
+      <div class="desc">鴻海離職創業、北市 12 個運動中心後台、KIOSK + IoT 數據擷取 + APP / Web 預約 + 會員管理。</div>
+      <div class="why"><strong>意義</strong>:**B2G 等級的對手**,拿下台北市運動中心。對 ToosterX 不是直接對手,但場館預約功能可借鏡。</div>
     </div>
 
     <div class="card">
-      <div class="repo-name"><a href="https://github.com/hitobito/hitobito" target="_blank">hitobito/hitobito</a></div>
+      <div class="repo-name"><a href="https://www.gymomo.com" target="_blank">運動歐巴 Gymomo / WishMobile 璿恩</a></div>
       <div class="meta-row">
-        <span class="tag tag-intl">瑞士</span>
-        <span class="tag tag-stars">465★</span>
-        <span class="tag tag-stack">Ruby on Rails</span>
+        <span class="tag tag-tw">Taiwan</span>
+        <span class="tag tag-stars">80% 國民運動中心市佔</span>
+        <span class="tag tag-domain">場館 SaaS</span>
       </div>
-      <a class="demo-link" href="https://hitobito.com" target="_blank" rel="noopener">🌐 官網 · hitobito.com ✓ 已驗證(Hitobito AG, Bern Switzerland)</a>
-      <div class="desc">瑞士社團階層管理 — 成員 / 活動 / 課程 / Mailing。Plugin 架構「Wagons」。</div>
-      <div class="why"><strong>必讀</strong>:**社團 + 課程 + 活動的層級權限模型參考**。你 `team/` + `education/` 模組的進階版。比 ToosterX 平面 `INHERENT_ROLE_PERMISSIONS` 更成熟。</div>
+      <div class="desc">**自稱 80% 國民運動中心市佔**、客戶 100+。LINE CRM 整合 + KIOSK + POS + APP + Digital Signage。</div>
+      <div class="why"><strong>意義</strong>:**有 LINE 強整合的 B2G 龍頭**,跟 ToosterX 走 B2C 路線剛好錯開,但若做 B2B 是直接對手。</div>
     </div>
-
-    <div class="card">
-      <div class="repo-name"><a href="https://github.com/Kanonphatchada/line-auth-server" target="_blank">Kanonphatchada/line-auth-server</a> 💎</div>
-      <div class="meta-row">
-        <span class="tag tag-intl">泰國</span>
-        <span class="tag tag-active">2026-04-01</span>
-        <span class="tag tag-stack">Express + firebase-admin</span>
-      </div>
-      <div class="desc">**LIFF → Firebase Auth 標準範本實作** — OAuth 2.1 完整流程 + customToken 簽發。</div>
-      <div class="why"><strong>必讀</strong>:**全網路 LINE→Firebase Auth 換 token 最標準的後端範本**。如果哪天 ToosterX 後端要做完整版本,直接照他寫。</div>
-    </div>
-
-    <div class="card">
-      <div class="repo-name"><a href="https://github.com/LuckDragonAsgard/wps-athletics-2026" target="_blank">LuckDragonAsgard/wps-athletics-2026</a></div>
-      <div class="meta-row">
-        <span class="tag tag-intl">澳洲</span>
-        <span class="tag tag-active">2026-04-25</span>
-        <span class="tag tag-stack">Vanilla + Firebase + Cloudflare</span>
-      </div>
-      <div class="desc">澳洲學校運動會即時計分工具。70KB 單檔 + Firebase + Vanilla JS + Cloudflare Pages。</div>
-      <div class="why"><strong>有趣</strong>:**全球架構幾乎一模一樣的兄弟**(Firebase + Vanilla + Cloudflare)。是 ToosterX 早期版本的小規模實作,確認此模式可行。</div>
-    </div>
-
-    <div class="card">
-      <div class="repo-name"><a href="https://github.com/Badminton-Apps/badman" target="_blank">Badminton-Apps/badman</a></div>
-      <div class="meta-row">
-        <span class="tag tag-intl">比利時</span>
-        <span class="tag tag-stars">12★</span>
-        <span class="tag tag-stack">NestJS + PG + Auth0</span>
-      </div>
-      <div class="desc">羽球管理 + 整合 Toernooi.nl(比利時/荷蘭羽球聯盟)。Nx monorepo + Sequelize。</div>
-      <div class="why"><strong>有趣</strong>:**全球 OSS 最完整羽球垂直**。如果你想做「同步官方排名」可參考它的聯盟整合模式。</div>
-    </div>
-
-    <div class="card">
-      <div class="repo-name"><a href="https://github.com/ActiDoo/gamification-engine" target="_blank">ActiDoo/gamification-engine</a></div>
-      <div class="meta-row">
-        <span class="tag tag-intl">德國</span>
-        <span class="tag tag-mit">MIT</span>
-        <span class="tag tag-stars">461★</span>
-        <span class="tag tag-stack">Python + SQLAlchemy</span>
-      </div>
-      <div class="desc">10 年成熟的遊戲化規則引擎 — 成就 / 等級 / 屬性 / 條件 / 獎勵。</div>
-      <div class="why"><strong>有趣</strong>:**未來重構成就引擎時的對照標竿**。把成就條件當「資料」定義不寫 if-else,你 `achievement/registry.js` 進階版的 DSL 設計參考。</div>
-    </div>
-
   </div>
+
+  <h3>其他重要 Taiwan 運動 SaaS / App(精簡版)</h3>
+  <table>
+    <thead>
+      <tr><th>名稱</th><th>領域</th><th>規模 / 重點</th><th>網址</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Trainge</strong></td><td>多運動媒合 + SaaS</td><td>媒合層+SaaS 雙做、QR 簽到</td><td><a href="https://trainge.com" target="_blank">trainge.com</a></td></tr>
+      <tr><td><strong>樂活報名網 LohasNet</strong></td><td>路跑</td><td>中大型,自建晶片計時 + 賽道丈量 + 物流</td><td><a href="https://lohasnet.tw" target="_blank">lohasnet.tw</a></td></tr>
+      <tr><td><strong>JoinNow 一起報名</strong></td><td>多運動報名</td><td>瀚世比集團,LINE Pay 收款,支援多種運動</td><td><a href="https://joinnow.com.tw" target="_blank">joinnow.com.tw</a></td></tr>
+      <tr><td><strong>17run 瀚世比運動行銷</strong></td><td>路跑</td><td>2014 起做 IPICO 晶片計時</td><td><a href="https://17run.com.tw" target="_blank">17run.com.tw</a></td></tr>
+      <tr><td><strong>全統運動報名網 ctrun</strong></td><td>多運動</td><td>1994 成立,2018 轉型賽事行銷</td><td><a href="https://ctruntw.com" target="_blank">ctruntw.com</a></td></tr>
+      <tr><td><strong>17FIT</strong></td><td>健身 / 瑜珈場館</td><td>900+ 商家(2015 起)</td><td><a href="https://17fit.com" target="_blank">17fit.com</a></td></tr>
+      <tr><td><strong>TinyBook / TinyBot</strong></td><td>LINE 場館預約</td><td>運動學院 / 籃球場 / 模擬器主用</td><td><a href="https://tinybook.cc" target="_blank">tinybook.cc</a></td></tr>
+      <tr><td><strong>BookFast</strong></td><td>LINE 預約</td><td>類似 17FIT,規模較小;**臺北市網球中心**用此</td><td><a href="https://bookfastpos.com" target="_blank">bookfastpos.com</a></td></tr>
+      <tr><td><strong>MoHot</strong></td><td>健身房 ERP</td><td>POS、會員卡、教練課管理</td><td><a href="https://pos.mohot.com" target="_blank">pos.mohot.com</a></td></tr>
+      <tr><td><strong>9FPOS</strong></td><td>健身房 ERP</td><td>儲值 / 分鐘計費</td><td><a href="https://www.9fpos.com" target="_blank">9fpos.com</a></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════ GitHub OSS 按運動別 ═══════ -->
+<section id="oss-by-sport">
+  <h2>🥎 Taiwan 運動 GitHub OSS(按運動別)</h2>
+  <p>35+ 個台灣運動相關 GitHub 開源專案,按運動別分類。展開可見完整清單。</p>
+
+  <details open>
+    <summary>🏸 羽球(Taiwan OSS 最熱垂直,11 個 repo)</summary>
+    <div>
+    <ul>
+      <li><a href="https://github.com/Jiong1203/shuttleHub" target="_blank">Jiong1203/shuttleHub</a> ⭐ Vue+Express+PG,有 demo</li>
+      <li><a href="https://github.com/d336643/NTU_badminton_system" target="_blank">d336643/NTU_badminton_system</a> ⭐ 9★ NTU,2026-04-23 active</li>
+      <li><a href="https://github.com/subcer/badminton_lineup" target="_blank">subcer/badminton_lineup</a> ⭐ Vanilla+Firebase 同棧</li>
+      <li><a href="https://github.com/Jiong1203/badmintonBot" target="_blank">Jiong1203/badmintonBot</a> 真實營運羽球 LINE Bot</li>
+      <li><a href="https://github.com/Jiong1203/joinOrder" target="_blank">Jiong1203/joinOrder</a> 運動開團 Python 雛型</li>
+      <li><a href="https://github.com/jun12079/shuttler-backend" target="_blank">jun12079/shuttler-backend</a> Express+PG+JWT+S3+藍新金流(MIT)</li>
+      <li><a href="https://github.com/joni20011105/warriors-cup-2026" target="_blank">joni20011105/warriors-cup-2026</a> 2026 武士盃全國羽球錦標賽</li>
+      <li><a href="https://github.com/tim841206/NTUcup" target="_blank">tim841206/NTUcup</a> + <a href="https://github.com/tim841206/NEWcup" target="_blank">NEWcup</a> 台大盃 + 新生盃 PHP</li>
+      <li><a href="https://github.com/dancemi-beep/EMBA_Badminton" target="_blank">dancemi-beep/EMBA_Badminton</a> EMBA 新生盃(2026-04 active)</li>
+      <li><a href="https://github.com/YFCKevin/badmintonPairing" target="_blank">YFCKevin/badmintonPairing</a> 北北基桃羽球團找尋(Java,曾有網站 gurula.cc/badminton ✗ 已 404)</li>
+      <li><a href="https://github.com/Hsuanwen/badminton-signup" target="_blank">Hsuanwen/badminton-signup</a> 純 HTML 單檔</li>
+      <li><a href="https://github.com/cckawaii0808/Badminton-Booking-System" target="_blank">cckawaii0808/Badminton-Booking-System</a> Vue,無 README</li>
+      <li><a href="https://github.com/bensonyang0217/badmintonbookingsystem" target="_blank">bensonyang0217/badmintonbookingsystem</a> 羽球零打 Java(已停)</li>
+    </ul>
+    </div>
+  </details>
+
+  <details>
+    <summary>⚾ 棒球(4 個 repo)</summary>
+    <div>
+    <ul>
+      <li><a href="https://github.com/ncyubaseball1919/ncyubaseball1919.github.io" target="_blank">ncyubaseball1919</a> ⭐ NEW Vanilla JS 嘉義大學棒球隊(同 ToosterX 棧)</li>
+      <li><a href="https://github.com/bulywang-01/SX" target="_blank">bulywang-01/SX</a> ⭐ 三峽社區棒球隊全套營運(2026-04-15 active)</li>
+      <li><a href="https://github.com/CBL7192868286/TaiwanCBL7192868286" target="_blank">CBL7192868286/TaiwanCBL7192868286</a> NEW 台中 CBL 企業棒球聯盟靜態頁</li>
+      <li><a href="https://github.com/Herli7/baseball1" target="_blank">Herli7/baseball1</a> NEW 大衛兒子棒球隊頁(MIT)</li>
+      <li><a href="https://github.com/111306084/baseball-player-management" target="_blank">111306084/baseball-player-management</a> MLB 標準棒球統計(SQL VIEW 設計)</li>
+      <li><a href="https://github.com/lemon7831/baseball-frontend" target="_blank">lemon7831/baseball-frontend</a> + backend CV 分析(非管理)</li>
+    </ul>
+    </div>
+  </details>
+
+  <details>
+    <summary>⚽ 足球 / 五人制(3 個 repo)</summary>
+    <div>
+    <ul>
+      <li><a href="https://github.com/TJay666/tyfc-team-manus" target="_blank">TJay666/tyfc-team-manus</a> 桃園獵鷹足球(Django 多角色)</li>
+      <li><a href="https://github.com/tyfutsal/trfc" target="_blank">tyfutsal/trfc</a> NEW 桃園市五人制足球協會(2016 停更)</li>
+      <li><a href="https://github.com/omm0102/Premier-League-Dashboard" target="_blank">omm0102/Premier-League-Dashboard</a> NEW 范家銘 Vanilla JS + APIFootball(英超,但台灣寫)</li>
+    </ul>
+    </div>
+  </details>
+
+  <details>
+    <summary>🏐 排球(3 個 repo)</summary>
+    <div>
+    <ul>
+      <li><a href="https://github.com/xu3cl40122/go-court-service" target="_blank">xu3cl40122/go-court-service</a> + <a href="https://github.com/xu3cl40122/go-court-vue" target="_blank">go-court-vue</a> ⭐ 台灣最成熟運動後端(NestJS+Redis+全國場館 API)</li>
+      <li><a href="https://github.com/ArthurArthurArthur0817/Database-Theory" target="_blank">ArthurArthurArthur0817/Database-Theory</a> 排球統計(PHP+MySQL)</li>
+    </ul>
+    </div>
+  </details>
+
+  <details>
+    <summary>🏀 籃球(2 個 repo)</summary>
+    <div>
+    <ul>
+      <li><a href="https://github.com/yochienoffice/team-management" target="_blank">yochienoffice/team-management</a> 球隊每週數據(Next.js)</li>
+      <li><a href="https://github.com/toy9986619/BasketballRecord" target="_blank">toy9986619/BasketballRecord</a> NEW 籃球比賽記錄 Android(2018)</li>
+    </ul>
+    </div>
+  </details>
+
+  <details>
+    <summary>🏌️ 高爾夫(1 個 repo)</summary>
+    <div>
+    <ul>
+      <li><a href="https://github.com/marmotkit/golf_mgmt_1" target="_blank">marmotkit/golf_mgmt_1</a> NTHU 高爾夫:差點 + 桿數 + 年度積分</li>
+    </ul>
+    </div>
+  </details>
+
+  <details>
+    <summary>🏃 路跑 / AI 教練(2 個 repo)</summary>
+    <div>
+    <ul>
+      <li><a href="https://github.com/liao-guan-cheng/runner_ai" target="_blank">liao-guan-cheng/runner_ai</a> NEW AI 教練 800m/1500m 備戰全大運(Flutter+C++)</li>
+      <li><a href="https://github.com/0-kaiiix/movesafe-ai" target="_blank">0-kaiiix/movesafe-ai</a> NEW AI 動作分析在台北公園健身器材(2025-11)</li>
+    </ul>
+    </div>
+  </details>
+
+  <details>
+    <summary>🎓 校盃 / 系盃 / 校際運動會(8 個 repo)</summary>
+    <div>
+    <ul>
+      <li><a href="https://github.com/Marling1212/ntu-sports" target="_blank">Marling1212/ntu-sports</a> 💎 NEW 8 種運動賽程系統(Next.js+Supabase,2026-04 super active)</li>
+      <li><a href="https://github.com/j-wty/2025_IHBIT" target="_blank">j-wty/2025_IHBIT</a> NEW NTU 國際手球邀請賽(MIT)</li>
+      <li><a href="https://github.com/wiiu1234th/NTUE_Sport1229" target="_blank">wiiu1234th/NTUE_Sport1229</a> NEW 北教大隊伍頁(2025-12 active)</li>
+      <li><a href="https://github.com/daniel0076/windstring2016" target="_blank">daniel0076/windstring2016</a> NEW NCTU 風弦盃(Django)+ <a href="https://github.com/daniel0076/WindString-Vote" target="_blank">WindString-Vote</a> 投票系統</li>
+      <li><a href="https://github.com/yjchen0228/NTU_Sport_Center" target="_blank">yjchen0228/NTU_Sport_Center</a> NEW NTU 體育館人潮爬蟲(Python)</li>
+      <li><a href="https://github.com/m-yuhas/ntu-sports-booking" target="_blank">m-yuhas/ntu-sports-booking</a> NEW NTU 場地預約自動化(MIT)</li>
+      <li><a href="https://github.com/TuYi0521/NTU-Sports-Facility-Book" target="_blank">TuYi0521/NTU-Sports-Facility-Book</a> NEW(2018 老 repo)</li>
+      <li><a href="https://github.com/nthspace/universiade" target="_blank">nthspace/universiade</a> NEW 2017 世大運 React+Firebase(MIT)</li>
+    </ul>
+    </div>
+  </details>
+
+  <details>
+    <summary>🤖 LINE Bot 運動工具(2 個 repo)</summary>
+    <div>
+    <ul>
+      <li><a href="https://github.com/louis70109/Taiwan-ABL-games" target="_blank">louis70109/Taiwan-ABL-games</a> NEW LINE 台灣官方佈道師寫的 ABL 賽事 LINE Bot(Bottender)</li>
+      <li><a href="https://github.com/asdasdasd80/line-court-bot" target="_blank">asdasdasd80/line-court-bot</a> 群組揪團報名小幫手(Python+Redis+Flex Message)</li>
+    </ul>
+    </div>
+  </details>
+
+  <details>
+    <summary>🎫 通用揪運動 / 多項運動平台(2 個 repo)</summary>
+    <div>
+    <ul>
+      <li><a href="https://github.com/HouShengHong/fun20_join" target="_blank">HouShengHong/fun20_join</a> NEW 資展國際「揪運動」交流平台</li>
+      <li><a href="https://github.com/Hung-Jia-Jun/line-activity-helper-liff" target="_blank">Hung-Jia-Jun/line-activity-helper-liff</a> ToosterX 概念雛型(2023 停更)</li>
+    </ul>
+    </div>
+  </details>
+
 </section>
 
 <!-- ═══════ 商業競品 ═══════ -->
 <section id="commercial">
-  <h2>💼 商業競品(18 家,閉源 SaaS)</h2>
-  <p>這些不是開源,是市場上的真正競爭者。沒一家做齊「俱樂部+同行者+活動+簽到+EXP」整套。</p>
+  <h2>💼 商業競品(60+ 家,完整版)</h2>
+  <p>按運動別分類。閉源不可 fork,但需了解市場格局。</p>
 
+  <h3>🎫 通用活動 / 票券平台</h3>
   <table>
-    <thead>
-      <tr>
-        <th>名稱</th>
-        <th>領域</th>
-        <th>規模</th>
-        <th>vs ToosterX</th>
-      </tr>
-    </thead>
+    <thead><tr><th>名稱</th><th>規模</th><th>vs ToosterX</th></tr></thead>
     <tbody>
-      <tr><td><strong>ACCUPASS 活動通</strong></td><td>通用活動票券</td><td>大規模</td><td>無運動垂直 UX,你贏在「同行者 / 候補 / 角色」</td></tr>
-      <tr><td><strong>KKTIX</strong></td><td>票券(KKBOX 旗下)</td><td>5 萬活動以下免費</td><td>演唱會 / 講座導向,無俱樂部 / 隊伍</td></tr>
-      <tr><td><strong>BeClass</strong></td><td>DIY 報名表</td><td>8 萬活動/年</td><td>**草根羽球 / 籃球社團大量在用,你的真正對手**;無 LIFF / 俱樂部管理</td></tr>
-      <tr><td><strong>應援科技 (Oen)</strong></td><td>報名 + CRM</td><td>3000+ 組織</td><td>CRM 為主,公益 / 募款導向</td></tr>
-      <tr><td><strong>iSport</strong></td><td>運動賽事報名</td><td>長青網站</td><td>馬拉松 / 聯賽導向,非 LIFF</td></tr>
-      <tr><td><strong>i 運動資訊平台</strong></td><td>政府運動入口</td><td>政府營運</td><td>只有發現,無報名流程,可整合內容</td></tr>
-      <tr><td><strong>iRunner / 運動筆記</strong></td><td>路跑報名 + 計時</td><td>路跑王者</td><td>計時 / 獎牌導向,跟你不同 vertical</td></tr>
-      <tr><td><strong>EventPal 活動咖</strong></td><td>馬拉松 / 健身</td><td>單場收費</td><td>路跑型,鄰近領域</td></tr>
-      <tr><td><strong>U-Pro</strong></td><td>線上路跑 + 排行榜 + 商城</td><td>混合電商</td><td>路跑訓練 / 商城導向</td></tr>
-      <tr><td><strong>17FIT</strong></td><td>健身 / 瑜珈場館 SaaS</td><td>900+ 商家(2015 起)</td><td>**最像 ToosterX 的閉源版本**,但收費場館 ERP 路線</td></tr>
-      <tr><td><strong>TinyBook / TinyBot</strong> (凌典科技)</td><td>LINE 預約 + 一頁商店</td><td>訂閱制</td><td>場館預約 SaaS,LINE 直接競品</td></tr>
-      <tr><td><strong>BookFast</strong></td><td>LINE 預約</td><td>訂閱制</td><td>類似 17FIT,規模較小</td></tr>
-      <tr><td><strong>FunNow</strong></td><td>隨需健身 / 美容預約</td><td>每筆抽成</td><td>B2C marketplace,鄰近</td></tr>
-      <tr><td><strong>羽球GO</strong></td><td>羽球臨打媒合</td><td>~5000 用戶 (2023)</td><td>**單一運動 App 直接競爭**,規模較小</td></tr>
-      <tr><td><strong>PlayOne 羽球零打</strong></td><td>羽球揪團聚合</td><td>~7000 用戶</td><td>靠 FB 社團聚合,沒第一方 LIFF</td></tr>
-      <tr><td><strong>揪波 Jo Ball</strong></td><td>羽球 + 場地</td><td>新近設計獎</td><td>單一運動新進競爭者</td></tr>
-      <tr><td><strong>MySports</strong> (台灣大哥大)</td><td>運動追蹤 + 社群</td><td>電信綁定</td><td>追蹤導向,弱在報名</td></tr>
-      <tr><td><strong>臺北市運動中心</strong></td><td>政府場館預約</td><td>政府營運</td><td>政府專用,可互補</td></tr>
+      <tr><td><a href="https://www.accupass.com" target="_blank">ACCUPASS 活動通</a></td><td>大規模通用</td><td>無運動垂直 UX</td></tr>
+      <tr><td><a href="https://kktix.com" target="_blank">KKTIX</a></td><td>KKBOX 旗下</td><td>演唱會 / 講座導向</td></tr>
+      <tr><td><a href="https://www.beclass.com" target="_blank">BeClass</a></td><td>8 萬活動/年</td><td>**草根羽球 / 籃球社團大量在用,你的真正對手**</td></tr>
+      <tr><td><a href="https://oen.tw" target="_blank">應援科技 Oen</a></td><td>3000+ 組織</td><td>CRM 為主 / 公益導向</td></tr>
     </tbody>
   </table>
 
-  <div class="callout">
-    <strong>市場觀察</strong>:台灣運動科技市場「沿運動別碎片化」 — 羽球已有 3 個 App,匹克球完全沒有,路跑由 iRunner / EventPal 統治。**通用平台(Accupass / BeClass / KKTIX)主導「任何活動」報名,但完全沒有運動垂直 UX**。**ToosterX 結合俱樂部角色 + LIFF deep link + 同行者報名 + EXP / 成就的組合,沒有任何閉源競品做到**。
-  </div>
-</section>
-
-<!-- ═══════ 工具 ═══════ -->
-<section id="tools">
-  <h2>🛠️ 立刻可裝的工具</h2>
-
-  <div class="callout callout-tool">
-    <strong>① line/liff-inspector(LINE 官方,72★)</strong>
-    <p>直接在 LINE 內建瀏覽器抓 bug 的官方 DevTools。**強烈建議立刻裝**,以後 LINE 環境出問題不用瞎猜。</p>
-    <p>👉 <a href="https://github.com/line/liff-inspector" target="_blank" style="color:var(--accent);">https://github.com/line/liff-inspector</a></p>
-  </div>
-
-  <div class="callout callout-tool">
-    <strong>② tommyboy326/line-dev(繁中 Claude Code skill)</strong>
-    <p>專門做 LINE 平台開發的 Claude Code skill 套件。你既然用 Claude Code 開發,裝這個讓 Claude 對 LINE 平台理解更深。</p>
-    <p>👉 <a href="https://github.com/tommyboy326/line-dev" target="_blank" style="color:var(--accent);">https://github.com/tommyboy326/line-dev</a></p>
-  </div>
-
-  <div class="callout callout-tool">
-    <strong>③ doggy8088/liff-v2-snippets(VS Code snippet)</strong>
-    <p>保哥(Will, Angular GDE / 18× MVP)寫的 LIFF v2 VS Code 程式碼片段。打 `liff-` 就會跳出常用 API。</p>
-    <p>👉 <a href="https://github.com/doggy8088/liff-v2-snippets" target="_blank" style="color:var(--accent);">https://github.com/doggy8088/liff-v2-snippets</a></p>
-  </div>
-
-  <div class="callout callout-tool">
-    <strong>④ line/liff-mock(LINE 官方,44★)</strong>
-    <p>單元測試 LIFF 不需真實 LINE session。如果想加 LIFF auth 測試覆蓋,就用這個。</p>
-    <p>👉 <a href="https://github.com/line/liff-mock" target="_blank" style="color:var(--accent);">https://github.com/line/liff-mock</a></p>
-  </div>
-
-  <div class="callout callout-tool">
-    <strong>⑤ tbdavid2019/line-docs-skill(台灣 dev 寫的 Claude Skill)</strong>
-    <p>把 LINE LIFF/Bot 開發知識打包給 LLM 用。和 #2 互補。</p>
-    <p>👉 <a href="https://github.com/tbdavid2019/line-docs-skill" target="_blank" style="color:var(--accent);">https://github.com/tbdavid2019/line-docs-skill</a></p>
-  </div>
-</section>
-
-<!-- ═══════ 授權地雷 ═══════ -->
-<section id="license">
-  <h2>📜 授權地雷分析</h2>
-
-  <div class="callout callout-warn">
-    <strong>規則</strong>:GitHub repo **沒寫 license = 預設保留所有權**,直接 copy code = 侵權。可以「讀、學、寫自己版本」,但不能複製貼上。
-  </div>
-
-  <h3>✅ 安全可商用 / 可參考(MIT 或同等寬鬆)</h3>
+  <h3>🏃 路跑 / 馬拉松(8 家本土平台)</h3>
   <table>
-    <thead><tr><th>專案</th><th>授權</th><th>用途</th></tr></thead>
     <tbody>
-      <tr><td><strong>HackerSir/CheckIn</strong>(逢甲)</td><td>MIT</td><td>**全台灣唯一同領域 + MIT 的專案**,可直接借 code</td></tr>
-      <tr><td>jun12079/shuttler-backend</td><td>MIT</td><td>羽球報名後端 + 藍新金流範例</td></tr>
-      <tr><td>dlackty/line-liff-firebase-starter</td><td>MIT</td><td>LIFF + Firebase auth 範例</td></tr>
-      <tr><td>jx06T/time-and-attendance-system</td><td>MIT</td><td>Firestore + QR + 角色分級</td></tr>
-      <tr><td>kennyyytu0328/Vocabularies-Learning-App</td><td>MIT</td><td>遊戲化學習</td></tr>
-      <tr><td>burkaslarry/bni-anchor-checkin</td><td>MIT</td><td>BNI 商會 React PWA</td></tr>
-      <tr><td>blueforster/qr-checkin-system</td><td>MIT</td><td>Express + SQLite + Sheets</td></tr>
-      <tr><td>sonewang168/attendance-line-bot</td><td>MIT</td><td>LINE Bot + GPS 點名</td></tr>
-      <tr><td>liaojason2/justin-ramen-telegram-bot</td><td>MIT</td><td>麵屋雞金集點</td></tr>
-      <tr><td>HiEventsDev/Hi.Events</td><td>AGPL-3.0(商用 license 另購)</td><td>QR + 角色票務</td></tr>
-      <tr><td>ActiDoo/gamification-engine(德國)</td><td>MIT</td><td>遊戲化規則引擎</td></tr>
-      <tr><td>CourtHive/TMX</td><td>MIT</td><td>球拍運動賽事系統</td></tr>
+      <tr><td><a href="https://lohasnet.tw" target="_blank">樂活報名網 LohasNet</a></td><td>大型</td><td>晶片計時 + 物流</td></tr>
+      <tr><td><a href="https://17run.com.tw" target="_blank">瀚世比 17run</a></td><td>中型</td><td>IPICO 計時 + 報名</td></tr>
+      <tr><td><a href="https://joinnow.com.tw" target="_blank">JoinNow 一起報名</a></td><td>中型</td><td>多運動報名 + LINE Pay</td></tr>
+      <tr><td><a href="https://www.ctruntw.com" target="_blank">全統運動報名網</a></td><td>中型</td><td>1994 成立,IP 主題跑</td></tr>
+      <tr><td><a href="https://irunner.biji.co" target="_blank">iRunner / 運動筆記</a></td><td>大型</td><td>路跑王者</td></tr>
+      <tr><td><a href="https://www.eventpal.com.tw" target="_blank">EventPal 活動咖</a></td><td>中型</td><td>馬拉松 / 健身導向</td></tr>
+      <tr><td><a href="https://www.u-pro.tw" target="_blank">U-Pro</a></td><td>中型</td><td>線上路跑 + 商城</td></tr>
+      <tr><td><a href="https://www.sportsnet.org.tw" target="_blank">中華民國路跑協會</a></td><td>政府社團</td><td>賽事認證 + 成績紀錄</td></tr>
     </tbody>
   </table>
 
-  <h3>⚠️ AGPL 警告(商用要小心)</h3>
-  <p><strong>AGPL-3.0 強傳染性 copyleft</strong> — 如果你 copy AGPL code 到 ToosterX,**你的整個 ToosterX 就會被迫變成 AGPL 開源**。考慮商業化要避免。AGPL 專案如:</p>
-  <ul>
-    <li>tbdavid2019/qr-checkin-system(多租戶簽到)</li>
-    <li>yanchengxuanc/SmartSport(中國多運動 App)</li>
-    <li>evroon/bracket(賽事管理)</li>
-    <li>sendou-ink/sendou.ink</li>
-    <li>HiEventsDev/Hi.Events</li>
-  </ul>
-  <p>這幾個只能讀、學設計、不能直接 copy。</p>
+  <h3>🚴 三鐵 / 鐵人三項(5 家)</h3>
+  <table>
+    <tbody>
+      <tr><td><a href="https://www.challenge-taiwan.com" target="_blank">Challenge Taiwan</a></td><td>大型國際品牌</td><td>226km / 113km 報名</td></tr>
+      <tr><td><a href="https://www.ironmanstoretw.com" target="_blank">IRONMAN Taiwan</a></td><td>大型國際品牌</td><td>嚴格報名流程</td></tr>
+      <tr><td><a href="https://www.ctta.org.tw" target="_blank">全國鐵人三項協會 CTTA</a></td><td>政府社團</td><td>三鐵賽事認證</td></tr>
+      <tr><td><a href="http://www.turaa.tw" target="_blank">城鄉生活運動協會 turaa</a></td><td>NPO</td><td>業餘三鐵推廣</td></tr>
+      <tr><td><a href="https://atsport.com.tw" target="_blank">ATSport 運計科技</a></td><td>中型</td><td>計時 / 賽務商</td></tr>
+    </tbody>
+  </table>
 
-  <h3>❌ 沒寫 license(無法商用,只能讀)— 實測 95.2%(2026-04-27 二輪驗證)</h3>
-  <p>第二輪 agent 實際用 GitHub API 查 21 個調查到的台灣同類 repo,**20/21 = 95.2% 沒 LICENSE**(原本估 80% 算保守)。完整名單:</p>
-  <p style="font-size:.85rem;color:var(--text-muted);">Hung-Jia-Jun/line-activity-helper-liff、Jiong1203/shuttleHub、marmotkit/event-registration、subcer/badminton_lineup、blueskycm/what-to-eat-now、Dannyisadog/undou、yanchen184/sgame-tournament、kent0925/Activity、d336643/NTU_badminton_system、bulywang-01/SX、CodingNoob1224/qbeep_final、PinAntw/termproject-Distributed_System-NTU、Hsuanwen/badminton-signup、cckawaii0808/Badminton-Booking-System、joni20011105/warriors-cup-2026、tim841206/NTUcup、yochienoffice/team-management、TJay666/tyfc-team-manus、ArthurArthurArthur0817/Database-Theory、xu3cl40122/go-court-service。</p>
+  <h3>🚲 自行車(7 家)</h3>
+  <table>
+    <tbody>
+      <tr><td><a href="https://www.velodash.co" target="_blank">Velodash 飛騎</a></td><td>Taiwan 新創 2017</td><td>**車隊主導者**</td></tr>
+      <tr><td><a href="https://taiwanbike.tw" target="_blank">台灣騎跡</a></td><td>政府觀光署</td><td>全國路線總入口</td></tr>
+      <tr><td><a href="https://www.giant-bicycles.com/us/ridelink-app" target="_blank">Giant RideLink / RideLife</a></td><td>品牌 app</td><td>騎乘紀錄 + Strava 匯出</td></tr>
+      <tr><td><a href="https://www.cycling-lifestyle.org.tw" target="_blank">自行車新文化基金會</a></td><td>NPO 巨大集團背景</td><td>**環台認證系統**</td></tr>
+      <tr><td><a href="https://www.xplova.com" target="_blank">Xplova</a> (Acer)</td><td>Taiwan 硬體品牌</td><td>觸控 GPS 碼錶</td></tr>
+      <tr><td><a href="https://www.brytonsport.com.tw" target="_blank">Bryton</a></td><td>Taiwan 硬體品牌</td><td>GPS 碼錶 + Bryton Active app</td></tr>
+      <tr><td><a href="https://taiwanbike.org" target="_blank">中華民國自行車協會</a></td><td>政府社團</td><td>運動推廣</td></tr>
+    </tbody>
+  </table>
 
-  <div class="callout callout-warn">
-    <strong>⚠️ 唯一一個有 LICENSE 反而是最危險的</strong>
-    <p><strong>CXPhoenix/roll-call-remote-class</strong> 是 95.2% 名單裡唯一有 LICENSE 的,但**是 GPL-3.0(copyleft 強傳染)**。意思是:<strong>只要你 ToosterX 引用任何一行它的 code,你整個 ToosterX 都被迫變成 GPL-3.0 開源</strong>(包括 Firebase Rules、Cloud Functions、所有商業邏輯)。</p>
-    <p><strong>商業化路線絕對不能 copy 任何 GPL 程式碼</strong> — 連看似無害的 utility 函式都不行。要學 idea 就只看設計、自己重寫。</p>
-  </div>
+  <h3>⛰️ 登山(8 家)</h3>
+  <table>
+    <tbody>
+      <tr><td><a href="https://www.hikingbook.net" target="_blank">Hikingbook</a></td><td>**30 萬用戶**</td><td>**vertical SaaS 標竿**</td></tr>
+      <tr><td><a href="https://hiking.biji.co" target="_blank">健行筆記</a></td><td>運動筆記集團</td><td>1680+ 步道 / 38000+ GPX</td></tr>
+      <tr><td><a href="https://hike.taiwan.gov.tw" target="_blank">臺灣登山申請一站式服務網</a></td><td>政府唯一入口</td><td>玉山 / 雪霸 / 太魯閣 / 林務署</td></tr>
+      <tr><td><a href="https://www.ysnp.gov.tw/ReservationQuery" target="_blank">玉山排雲山莊抽籤</a></td><td>政府</td><td>116 床位抽籤系統</td></tr>
+      <tr><td><a href="https://page.line.me/kbg4559u" target="_blank">林業及自然保育署 LINE OA</a></td><td>政府 LINE</td><td>山屋通知</td></tr>
+      <tr><td><a href="https://hiking-guard.web.app" target="_blank">愛陌生留守平台</a></td><td>NPO + LINE OA</td><td>**24 小時待命 / 緊急通知**</td></tr>
+      <tr><td><a href="https://www.sunriver.com.tw" target="_blank">上河文化</a></td><td>商業地圖出版</td><td>百岳地圖 app</td></tr>
+      <tr><td><a href="https://learn.100mountain.com" target="_blank">100mountain</a></td><td>商業 + 內容</td><td>登山課程</td></tr>
+    </tbody>
+  </table>
 
-  <h3>📌 ToosterX 自己的授權狀態(用戶決策:商業化路線)</h3>
-  <p>ToosterX 目前**也屬於 95.2% 沒 LICENSE 的那群**。經用戶決策走商業化路線,**維持「source-available, all rights reserved」狀態,但補上 README.md 明確聲明保留所有權**。原因:</p>
-  <ul>
-    <li>✅ 維持商業護城河 — 別人不能合法 fork 拿去做商業競品</li>
-    <li>✅ 保留所有未來選項 — 將來可選擇開源 / 賣授權 / 拿投資</li>
-    <li>✅ 寫明聲明擋下「以為是開源」的 fork 嘗試,避免社群誤解</li>
-    <li>⚠️ 不能上 awesome-tw-foss 之類開源清單(法律上不算開源)</li>
-    <li>⚠️ 不會吸引外部 contributor(對商業化反而是好事)</li>
-  </ul>
+  <h3>🏌️ 高爾夫(7 家)</h3>
+  <table>
+    <tbody>
+      <tr><td><a href="https://www.golface.com.tw" target="_blank">Golface</a></td><td>**台灣最大**</td><td>30 秒訂位 / 計分 / 攻略</td></tr>
+      <tr><td><a href="https://www.garoc.org" target="_blank">中華民國高爾夫協會 GAROC</a></td><td>政府社團</td><td>差點認證權威</td></tr>
+      <tr><td><a href="https://www.golfshop.com.tw" target="_blank">Golfshop.com.tw</a></td><td>華人最大高球網站</td><td>球場代訂 / 差點記錄</td></tr>
+      <tr><td><a href="https://www.golfertour.com.tw" target="_blank">高富網</a></td><td>中型</td><td>球場代訂 / 借票</td></tr>
+      <tr><td><a href="https://17-golf.com" target="_blank">17 高爾夫教學</a></td><td>中型</td><td>一對多團班</td></tr>
+      <tr><td><a href="https://hopegolf.com.tw" target="_blank">HOPE 高球學院</a></td><td>單一學院</td><td>1 對 1 + 設備</td></tr>
+      <tr><td><a href="https://newexperience.blog/tee-time" target="_blank">Tee Time Indoor Golf Club</a></td><td>單店 Taipei</td><td>Golfzon 模擬器</td></tr>
+    </tbody>
+  </table>
+
+  <h3>🏸 羽球(3 家專屬)</h3>
+  <table>
+    <tbody>
+      <tr><td>**羽球GO**(久奈司 + 鍹鋐國際)</td><td>~5,000 用戶 (2023)</td><td>單一運動 App 直接競爭</td></tr>
+      <tr><td><a href="https://www.playone.tw" target="_blank">PlayOne 羽球零打</a></td><td>~7,000 用戶</td><td>FB 社團聚合,沒第一方 LIFF</td></tr>
+      <tr><td>**揪波 Jo Ball**</td><td>新近設計獎</td><td>單一運動新進競爭者</td></tr>
+    </tbody>
+  </table>
+
+  <h3>🏟️ 場館 / 健身房 SaaS(11 家)</h3>
+  <table>
+    <tbody>
+      <tr><td><a href="https://www.sporetrofit.com" target="_blank">Sporetrofit 智聯運動</a></td><td>北市 12 個運動中心</td><td>**B2G 等級**</td></tr>
+      <tr><td><a href="https://www.gymomo.com" target="_blank">Gymomo / WishMobile</a></td><td>80% 國民運動中心市佔</td><td>**B2G 等級 + LINE 整合**</td></tr>
+      <tr><td><a href="https://17fit.com" target="_blank">17FIT</a></td><td>900+ 商家</td><td>boutique 主</td></tr>
+      <tr><td><a href="https://tinybook.cc" target="_blank">TinyBook / TinyBot</a></td><td>訂閱制</td><td>LINE 預約 + 一頁商店</td></tr>
+      <tr><td><a href="https://bookfastpos.com" target="_blank">BookFast</a></td><td>類 17FIT</td><td>**臺北市網球中心**用此</td></tr>
+      <tr><td><a href="https://pos.mohot.com" target="_blank">MoHot</a></td><td>中小型</td><td>POS + 教練課</td></tr>
+      <tr><td><a href="https://www.9fpos.com" target="_blank">9FPOS</a></td><td>中小型</td><td>儲值 / 分鐘計費</td></tr>
+      <tr><td><a href="https://trainge.com" target="_blank">Trainge</a></td><td>媒合 + SaaS 雙做</td><td>QR 簽到 + 訓練紀錄</td></tr>
+      <tr><td><a href="https://www.gymnomadtw.com" target="_blank">健身遊牧 Gymnomad</a></td><td>中型</td><td>私教媒合</td></tr>
+      <tr><td><a href="https://www.pro360.com.tw" target="_blank">PRO360 達人網</a></td><td>大型</td><td>通用達人媒合</td></tr>
+    </tbody>
+  </table>
+
+  <h3>💪 健身房連鎖(5 家)</h3>
+  <table>
+    <tbody>
+      <tr><td>World Gym Taiwan</td><td>大型連鎖</td><td>自有 App</td></tr>
+      <tr><td>My Fitness Factory(健身工廠)</td><td>大型連鎖</td><td>自有 App</td></tr>
+      <tr><td><a href="https://hypercore.com.tw" target="_blank">Hypercore Fitness 超核心</a></td><td>boutique</td><td>自建 App + 金流</td></tr>
+      <tr><td><a href="https://www.tmma.com.tw" target="_blank">TMMA 台北格鬥運動館</a></td><td>多分館連鎖</td><td>**B2B 對象**(吃過排課痛苦)</td></tr>
+      <tr><td><a href="https://scfitness.tw" target="_blank">4SC CrossFit</a></td><td>多家 boutique</td><td>**B2B 對象**(用 Mindbody 太貴)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>🏛️ 政府 / 公辦運動平台(4 個)</h3>
+  <table>
+    <tbody>
+      <tr><td><a href="https://isports.sa.gov.tw" target="_blank">i 運動資訊平台</a></td><td>體育署</td><td>運動發現入口</td></tr>
+      <tr><td><a href="https://booking-tpsc.sporetrofit.com" target="_blank">臺北市運動中心預約</a></td><td>北市府</td><td>用 Sporetrofit</td></tr>
+      <tr><td><a href="https://www.tsc.taipei" target="_blank">臺北市網球中心 App</a></td><td>北市公辦民營</td><td>用 BookFast</td></tr>
+      <tr><td>長佳智慧運動中心 App</td><td>新店/新莊</td><td>14 天內預約</td></tr>
+    </tbody>
+  </table>
+
+  <h3>🏓 匹克球(0 家本土,1 家境外)</h3>
+  <table>
+    <tbody>
+      <tr><td><a href="https://reclub.co" target="_blank">Reclub</a></td><td>**香港團隊 跨國**</td><td>**唯一要警戒對手**(球會 / 球局 + DUPR)</td></tr>
+      <tr><td><a href="https://pickleball.org.tw" target="_blank">CTPA 中華民國匹克球協會</a></td><td>協會官網</td><td>**無 App / 無報名系統**</td></tr>
+      <tr><td><a href="https://ipickleball.tw" target="_blank">ipickleball.tw</a></td><td>WordPress 部落格</td><td>純資訊整理</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════ B2B 對象 ═══════ -->
+<section id="b2b">
+  <h2>🤝 B2B 大客戶對象(運動行銷 / 經紀 / 媒體 / 品牌)</h2>
+  <p>商業化路線下,這些是把 ToosterX 當白牌系統授權出去的潛在大客戶。</p>
+
+  <table>
+    <thead><tr><th>名稱</th><th>規模</th><th>合作方向</th></tr></thead>
+    <tbody>
+      <tr><td><strong>寶悍運動平台</strong>(寶成集團子公司)</td><td>**全台最大**運動行銷,資本 6000 萬,2001 起承辦數千場賽事</td><td>**B2B 最大魚** — 把 ToosterX 當白牌報名系統</td></tr>
+      <tr><td><a href="https://www.fltmkt.com.tw" target="_blank">展逸國際 Be Heroes</a></td><td>中型</td><td>運動員經紀 + 品牌行銷</td></tr>
+      <tr><td>躍樂運動行銷</td><td>嘉義 / 2021 創立</td><td>CPBL 球員經紀</td></tr>
+      <tr><td><a href="https://herosport.com.tw" target="_blank">英雄育樂 Hero Sport</a></td><td>中小型</td><td>FIBA 認證籃球經紀</td></tr>
+      <tr><td><a href="https://tsna.com" target="_blank">TSNA 體育新聞</a></td><td>媒體 + 整合行銷</td><td>賽事公關 / 品牌活動</td></tr>
+      <tr><td><a href="https://www.sportsv.net" target="_blank">運動視界 Sports Vision</a></td><td>TNL Mediagene 旗下,FB 15.7 萬</td><td>**內容置入 / 聯合活動推廣管道**</td></tr>
+      <tr><td><a href="https://alliance.niceplay.space" target="_blank">運動經紀聯盟 Niceplay</a></td><td>3 家公司聯合</td><td>經紀人聯盟</td></tr>
+      <tr><td>Victor / 寶原興業 YYSPORTS</td><td>**Taiwan 1968 創立 + 上市櫃零售**</td><td>**球具品牌大機會**(無 LIFF / Mini App)</td></tr>
+    </tbody>
+  </table>
 </section>
 
 <!-- ═══════ 戰略建議 ═══════ -->
 <section id="strategy">
-  <h2>🎯 戰略建議(基於 9 輪調查的綜合判斷)</h2>
+  <h2>🎯 戰略建議(基於本次台灣運動深掘)</h2>
 
-  <h3>🟢 「該做」清單(已根據商業化路線重新排序)</h3>
-
-  <div class="callout callout-success">
-    <strong>1. 鎖定匹克球賽道(最高商業價值)</strong>
-    <p>2024 亞洲匹克球賽剛在台中辦完、2025 CAPA Open、**台灣完全沒匹克球專屬 App**(羽球已有 3 個競品)。先佔位先贏。商業化路線下這是最值得做的差異化。</p>
-  </div>
+  <h3>🟢 該做(優先序)</h3>
 
   <div class="callout callout-success">
-    <strong>2. 維持「source-available, all rights reserved」狀態</strong>
-    <p>已加 README.md 明確聲明保留所有權。這是**商業化路線下對 license 的正確選擇**(等同 Sentry / PlanetScale / Cal.com 早期策略)。將來確定商業模式後再決定是否轉「open core」(核心開源 + Pro 收費)。</p>
+    <strong>1. 鎖定匹克球賽道(最高商業價值,真空市場)</strong>
+    <p>2024 亞洲匹克球賽剛在台中辦完、2025 CAPA Taiwan Open、2025-09 新北河岸 8 個球場開幕、台灣完全沒匹克球專屬 App、CTPA 協會無系統、9 個球會用 LINE 群。**先佔位先贏,唯一警戒港團隊 Reclub**。</p>
   </div>
 
   <div class="callout callout-success">
-    <strong>3. 觀察 3 個台灣即時對手</strong>
-    <p>每月看一次:kent0925/Activity(2026-04-27 push)、d336643/NTU_badminton_system(NTU 9★)、subcer/badminton_lineup(Vanilla+Firebase 同棧)。看他們動什麼,提早決策要不要跟。</p>
+    <strong>2. 切入 4 個明確空白垂直</strong>
+    <ul style="margin-top:.6rem;">
+      <li>業餘三鐵社團 / 隊伍管理(0 個本土平台)</li>
+      <li>自行車車隊 LIFF Mini App(Velodash 是 native,LINE 內真空)</li>
+      <li>高山協作隊伍管理(用 Google Sites + Excel)</li>
+      <li>高爾夫教練媒合 / 揪團(Golface 不做這塊)</li>
+    </ul>
+    <p style="margin-top:.6rem;">這 4 個都有「小團體頻繁聚會」共通需求,ToosterX 既有功能直接可套。</p>
   </div>
 
   <div class="callout callout-success">
-    <strong>4. 寫一篇 Medium 長文(技術角度,不開源)</strong>
-    <p>「用 Firebase + LIFF 從零打造運動社群」 — **同領域沒人寫過產品級實作**,搜尋紅利能吃 1-2 年。寫**架構決策 + 踩雷分享**而不秀整套 code,既能拿 dev 圈名聲又不洩漏商業 know-how。比 iThome 鐵人賽好(後者要 30 篇,長文 1 篇就夠)。</p>
+    <strong>3. 大學運動社 / 系隊作為早期推廣切入點</strong>
+    <p>GitHub 上 Taiwan 運動 OSS 主力是大學學生(NTU 5+、NCTU/NYCU 2、NTUE 2、NCYU 1),這群人最懂工程、最常自己造輪子,**理解 developer-friendly 平台價值**。系隊每年換主辦人重做工具是結構性痛點。</p>
   </div>
 
-  <h3>🔴 「不該做」清單</h3>
-
-  <div class="callout callout-warn">
-    <strong>1. 不要上 awesome-tw-foss / AwesomeChatbots(與商業化衝突)</strong>
-    <p>原本第 1 項建議已撤銷。**這些清單明確要求 OSS license**,你維持「source-available, all rights reserved」狀態無法上(法律上不算開源),硬要上會被視為「假開源」傷品牌。</p>
+  <div class="callout callout-success">
+    <strong>4. 維持 source-available + README 聲明保留所有權</strong>
+    <p>已加 README.md 做這件事。商業化路線下這是正確選擇,等同 Sentry / PlanetScale / Cal.com 早期策略。</p>
   </div>
 
-  <div class="callout callout-warn">
-    <strong>2. 不要 copy 任何沒 LICENSE 的台灣 repo 程式碼</strong>
-    <p>實測 95.2% 沒 license = 保留所有權,**商業 copy 觸著作權法第 91 條,最高 5 年徒刑 + 500 萬罰金**。可以「讀別人 repo 學 idea → 自己重寫」(著作權法第 10-1 條保護「概念不保護表達」),但不能直接複製。</p>
+  <h3>📋 ToosterX 既有功能 → 5 個垂直橫向複用對照</h3>
+  <table>
+    <thead>
+      <tr><th>ToosterX 既有功能</th><th>可複用到的垂直</th><th>改造重點</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>活動報名 + 候補 + 同行者</td>
+        <td>三鐵賽 / 車隊團騎 / 登山隊 / 高爾夫揪團 / 匹克球揪局</td>
+        <td>候補對應「下次團騎」、同行者改「組員配對」</td>
+      </tr>
+      <tr>
+        <td>QR 簽到簽退</td>
+        <td>路跑簽到 / 登山「報到 + 安全留守」/ 高爾夫到場 / 匹克球場地驗證</td>
+        <td>結合 LIFF 不必另發 app</td>
+      </tr>
+      <tr>
+        <td>俱樂部模組(隊伍 + 幹部 + 動態牆)</td>
+        <td>跑團 / 車隊 / 登山社 / 業餘三鐵隊 / 高爾夫球友會 / 匹克球俱樂部</td>
+        <td>角色擴充(隊長 / 教練 / 協作)</td>
+      </tr>
+      <tr>
+        <td>EXP / 成就徽章</td>
+        <td>登山「百岳完攻」/ 自行車「環島認證」/ 路跑「累積 km」/ 高爾夫「Birdie 累積」/ 匹克球 DUPR</td>
+        <td>對標自行車新文化基金會的環台認證</td>
+      </tr>
+      <tr>
+        <td>教育型俱樂部(分組 / 學員 / 課程 / 簽到)</td>
+        <td>高爾夫教學 / 登山課程 / 跑步訓練營 / 匹克球教練班</td>
+        <td>直接對標 17 高爾夫、HOPE、100mountain</td>
+      </tr>
+      <tr>
+        <td>LINE LIFF + Mini App URL</td>
+        <td><strong>所有垂直</strong></td>
+        <td>**5 個垂直競品都沒真正用 LIFF**,native app / PWA / native web 為主</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════ 不該打的戰場 ═══════ -->
+<section id="avoid">
+  <h2>🔴 不該打的戰場</h2>
+
+  <div class="callout callout-danger">
+    <strong>1. 路跑賽事報名(8 家紅海 + 計時硬體 + 物流綁定)</strong>
+    <p>樂活、瀚世比、JoinNow、全統、iRunner、EventPal、U-Pro、馬拉松世界 — 從報名到計時到物流到 LINE Pay 全套完整,正面打很難贏。可走差異化(跑團週訓管理),但別碰賽事報名。</p>
   </div>
 
-  <div class="callout callout-warn">
-    <strong>3. 絕對不要 copy 那個唯一有 LICENSE 的 GPL-3.0 repo</strong>
-    <p>`CXPhoenix/roll-call-remote-class` 是調查到唯一有授權的台灣 repo,但 GPL-3.0 是**強傳染 copyleft**。一沾上整個 ToosterX 都要被迫開源 GPL,商業化路線等於自殺。</p>
+  <div class="callout callout-danger">
+    <strong>2. 通用活動票券(ACCUPASS / KKTIX 已大)</strong>
+    <p>不要試圖做通用平台。守住「運動 vertical」這個定位才有護城河。</p>
   </div>
 
-  <div class="callout callout-warn">
-    <strong>4. 不要立刻轉框架(React / Vue / Next.js)</strong>
-    <p>你的「Vanilla + 無 build」是**少數人才能做到的紀律**,商業上有差異化價值。除非你要從個人開發轉為 4-5 人團隊,否則保持現狀。</p>
+  <div class="callout callout-danger">
+    <strong>3. 國民運動中心 SaaS(Sporetrofit / Gymomo 主導 B2G)</strong>
+    <p>這兩家都是鴻海背景或拿下 80% 市佔,需要政府關係 + IoT 硬體整合,不是純軟體可贏。</p>
   </div>
 
-  <h3>📈 中長期觀察建議</h3>
+  <div class="callout callout-danger">
+    <strong>4. 大型連鎖健身房自有 App(World Gym / 健身工廠都有)</strong>
+    <p>連鎖品牌會自己做(門禁卡 + 課表 + 會員費),你介入沒空間。</p>
+  </div>
+</section>
+
+<!-- ═══════ 授權狀態(精簡) ═══════ -->
+<section id="license">
+  <h2>📜 授權狀態(精簡版)</h2>
+
+  <div class="callout">
+    <strong>實測 95.2% 台灣運動 repo 沒寫 LICENSE</strong> = 保留所有權。可<strong>讀、學、自己重寫</strong>(著作權法第 10-1 條保護「概念不保護表達」),**不能直接 copy code**(商業 copy 觸第 91 條,最高 5 年徒刑 + 500 萬罰金)。
+  </div>
+
+  <h3>✅ 安全可參考(MIT / Apache)</h3>
   <ul>
-    <li>**Follow 台灣 4 位關鍵人物**(kkdai / louis70109 / dlackty / taichunmin)的 GitHub,新範例第一手知道</li>
-    <li>**追蹤台灣兩位活躍 dev**:Jiong1203(羽球工具叢集 4 repo)、marmotkit(LINE 報名 + 高爾夫 4 repo)</li>
-    <li>**留意 subcer/badminton_lineup**(2026-04-27 active)— 台中,跟你完全同棧,可能會擴大,可考慮合作</li>
-    <li>**留意 d336643/NTU_badminton_system**(2026-04-23 active)— 9 stars 是台灣同領域最高,有觀察價值</li>
-    <li>**留意 kent0925/Activity**(今天 push)— 台灣最即時的同類,值得追看做到什麼</li>
+    <li><a href="https://github.com/jun12079/shuttler-backend" target="_blank">jun12079/shuttler-backend</a> — MIT,羽球 + 藍新金流</li>
+    <li><a href="https://github.com/Herli7/baseball1" target="_blank">Herli7/baseball1</a> — MIT,小型棒球隊頁</li>
+    <li><a href="https://github.com/m-yuhas/ntu-sports-booking" target="_blank">m-yuhas/ntu-sports-booking</a> — MIT,NTU 場地預約自動化</li>
+    <li><a href="https://github.com/j-wty/2025_IHBIT" target="_blank">j-wty/2025_IHBIT</a> — MIT,NTU 國際手球邀請賽</li>
+    <li><a href="https://github.com/nthspace/universiade" target="_blank">nthspace/universiade</a> — MIT,2017 世大運</li>
   </ul>
 
-  <h3>🤝 可考慮的合作方向(商業化路線下重新調整)</h3>
+  <h3>⚠️ 95.2% 沒寫 license 名單</h3>
+  <p>包含本報告大多數 repo。**只能讀、學、自己重寫**,絕對不要 copy paste code。</p>
+
+  <h3>📌 ToosterX 自己的立場</h3>
   <ul>
-    <li>**LINE Developers Taiwan FB 社群** — louis70109 主持,寫純技術文章可投稿(不洩漏商業邏輯,只談架構決策)</li>
-    <li>**dlackty(Richard Lee)** — Firebase GDE + LINE API Expert,可技術交流但不需 PR(避開「假開源」誤會)</li>
-    <li>**台灣運動產業商業合作** — 17FIT、TinyBook、PlayOne 等 SaaS 競品**反而是潛在 B2B 客戶**(他們需要 LIFF 整合服務)</li>
-    <li>**匹克球協會 / 台中匹克球俱樂部** — 2024 亞洲賽辦完台灣有持續活動,先佔位拿到「官方推薦工具」名分</li>
+    <li>**Source-available, All Rights Reserved**(已寫進 README.md)</li>
+    <li>商業護城河 + 保留所有未來選項(可改 license / 賣授權 / 拿投資)</li>
+    <li>**不上 awesome-tw-foss 等開源清單**(會被視為「假開源」傷品牌)</li>
   </ul>
-  <p style="font-size:.85rem;color:var(--text-muted);margin-top:.8rem;">原本「g0v 公民科技合作」、「iThome 鐵人賽 30 篇」已移除 — 兩者都是開源生態活動,商業化路線下時間投入產出比不高,Medium 1 篇長文已是上限。</p>
 </section>
 
 </main>
 
 <div class="footer">
-  ToosterX 同類專案調查報告 v1.0 · 9 個 AI agent 並行調查 · 2026-04-27 產出<br>
-  涵蓋:8 個維度搜尋 + 1 個缺口補搜 · ~150 個 repo 調查 · ~100 個獨立專案 · 18 家商業競品<br>
-  資料來源:GitHub API、WebSearch、awesome-list 爬取、台灣 dev 社群追蹤
+  ToosterX 台灣運動同類專案調查報告 v2.0 · 12 個 AI agent 並行調查 · 2026-04-27 產出<br>
+  涵蓋:11 個運動垂直 / 35+ GitHub OSS / 60+ 商業 SaaS / 8 個 B2B 對象 / 5 個明確市場機會<br>
+  **範圍限定:台灣運動類**(已剃除國際對標、LIFF 工具、教育/餐廳等非運動內容)
 </div>
 
 <script>
-  // 簡單的「點 toc 平滑捲動」
+  // 平滑捲動 + 點擊 toc 高亮目標
   document.querySelectorAll('nav.toc a').forEach(a => {
     a.addEventListener('click', e => {
       e.preventDefault();

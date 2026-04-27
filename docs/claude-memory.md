@@ -2,6 +2,20 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-27 — 安裝 tommyboy326/line-dev Claude Code skill bundle(全域,5 個 LINE 專業 skill)
+- **背景**:同類專案調查中發現 `tommyboy326/line-dev` 是台灣 dev 寫的 Claude Code skill bundle,提供 LINE Messaging API / LINE Login / LIFF / Mini App / Notification Messages 5 個專業 skill,雙語(英 + 繁中)
+- **安裝路徑**:`C:\Users\msw74\.claude\skills\`(全域,所有 Claude Code 專案可用)
+  - line-liff/SKILL.md(LIFF SDK 開發)
+  - line-login/SKILL.md(OAuth 2.1 + PKCE)
+  - line-mini-app/SKILL.md(Mini App 平台)
+  - line-notification-message/SKILL.md(通知訊息 API)
+  - messaging-api/SKILL.md(Messaging API + Flex Message + webhook)
+- **總大小**:88 KB(5 檔)
+- **安裝方法決策**:repo 含 `.claude-plugin/plugin.json` 是正式 Claude Code plugin,但走 `/plugin` GUI 流程需要 marketplace 註冊較複雜。直接 cp 5 個 SKILL.md 到 `~/.claude/skills/` 是更乾淨的「standalone skills」用法,Claude Code 啟動會自動偵測
+- **觸發方式**:每個 SKILL.md 有 frontmatter 定義 trigger keywords(英文 + 繁中),Claude 偵測對話內出現相關關鍵字時自動讀取 skill 內容
+- **生效條件**:**新對話才生效**(現有對話 context 不會 retro-load)。`/clear` 開新對話後,問 LINE 平台問題 Claude 會引用 LINE 官方 API 文件回答
+- **教訓**:Claude Code 的 plugin / skill 雙系統,plugin 走 marketplace 走複雜註冊流程,skill 是 standalone SKILL.md 直接放進 `~/.claude/skills/<name>/SKILL.md` 就生效,對開發者使用情境後者更簡單
+
 ### 2026-04-27 — 整合 LIFF Inspector(LINE 內建瀏覽器遠端 DevTools,dev 模式 only)
 - **背景**：LINE 內建瀏覽器(WebView)沒有 F12,以前用戶在 LINE 內回報 bug 只能瞎猜。LINE 官方出品的 `@line/liff-inspector`(72★, MIT)可讓電腦端開 https://liff-inspector.line.me 與手機 LINE 內 ToosterX 配對,即時看 console / network / DOM,等同 Chrome DevTools
 - **設計**：
