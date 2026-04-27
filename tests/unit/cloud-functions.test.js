@@ -434,3 +434,483 @@ describe('registerForEvent CF logic', () => {
     expect(cfAssignStatus(6, 5)).toBe('waitlisted');
   });
 });
+
+// ═══════════════════════════════════════════════════════════════
+//  adminManageUser — extracted helpers (index.js:1103-1222)
+//  2026-04-27 補強：之前完全沒有此函式的測試
+// ═══════════════════════════════════════════════════════════════
+
+const ADMIN_USER_EDIT_PROFILE_PERMISSION = 'admin.users.edit_profile';
+const ADMIN_USER_CHANGE_ROLE_PERMISSION = 'admin.users.change_role';
+const ADMIN_USER_RESTRICT_PERMISSION = 'admin.users.restrict';
+const ADMIN_MANAGED_USER_PROFILE_FIELDS = ['region', 'gender', 'birthday', 'sports', 'phone'];
+
+/** Mirror of sanitizeAdminManagedProfileUpdates (index.js:318-341) */
+function sanitizeAdminManagedProfileUpdates(rawUpdates) {
+  if (!rawUpdates || typeof rawUpdates !== 'object' || Array.isArray(rawUpdates)) {
+    return {};
+  }
+  const next = {};
+  ADMIN_MANAGED_USER_PROFILE_FIELDS.forEach((field) => {
+    if (!Object.prototype.hasOwnProperty.call(rawUpdates, field)) return;
+    const value = rawUpdates[field];
+    if (value == null) {
+      next[field] = null;
+      return;
+    }
+    if (typeof value !== 'string') return;
+    const trimmed = value.trim();
+    if (field === 'birthday') {
+      next[field] = trimmed ? trimmed.replace(/-/g, '/') : null;
+      return;
+    }
+    next[field] = trimmed;
+  });
+  return next;
+}
+
+/**
+ * Mirror of adminManageUser auth + permission flow (index.js:1106-1204).
+ * Returns null on success, or { error, msg } on rejection.
+ */
+function validateAdminManageUser({ auth, data, access, callerUid, targetUserExists, targetRole }) {
+  if (!auth) return { error: 'unauthenticated', msg: 'Authentication required' };
+  const targetUid = data?.targetUid;
+  if (!targetUid || typeof targetUid !== 'string') {
+    return { error: 'invalid-argument', msg: 'targetUid is required' };
+  }
+  if (!targetUserExists) return { error: 'not-found', msg: 'Target user not found' };
+
+  const isTargetSuperAdmin = targetRole === 'super_admin';
+  if (!access.isSuperAdmin && isTargetSuperAdmin) {
+    return { error: 'permission-denied', msg: 'Cannot manage super admin' };
+  }
+
+  const sanitized = sanitizeAdminManagedProfileUpdates(data?.profileUpdates);
+  const hasProfile = Object.keys(sanitized).length > 0;
+  if (hasProfile && !access.permissions.includes(ADMIN_USER_EDIT_PROFILE_PERMISSION)) {
+    return { error: 'permission-denied', msg: 'Missing profile edit permission' };
+  }
+
+  if (data?.restrictionUpdate != null) {
+    if (!access.permissions.includes(ADMIN_USER_RESTRICT_PERMISSION)) {
+      return { error: 'permission-denied', msg: 'Missing restriction permission' };
+    }
+    if (targetUid === callerUid) {
+      return { error: 'failed-precondition', msg: 'Cannot restrict yourself' };
+    }
+  }
+
+  if (data?.roleChange && typeof data.roleChange === 'object') {
+    if (!access.permissions.includes(ADMIN_USER_CHANGE_ROLE_PERMISSION)) {
+      return { error: 'permission-denied', msg: 'Missing role-change permission' };
+    }
+    const callerLevel = ROLE_LEVELS[access.role] ?? 0;
+    if (callerLevel < ROLE_LEVELS.admin) {
+      return { error: 'permission-denied', msg: 'Only admin or above can change roles' };
+    }
+    const nextRole = data.roleChange.role;
+    if (!VALID_ROLES.has(nextRole)) {
+      return { error: 'invalid-argument', msg: 'Target role does not exist' };
+    }
+    if (!access.isSuperAdmin && (ROLE_LEVELS[nextRole] ?? 0) >= ROLE_LEVELS.admin) {
+      return { error: 'permission-denied', msg: 'Only super_admin can assign admin-level roles' };
+    }
+    const targetLevel = ROLE_LEVELS[targetRole] ?? 0;
+    if (!access.isSuperAdmin && targetLevel >= callerLevel) {
+      return { error: 'permission-denied', msg: 'Cannot modify user with equal or higher role' };
+    }
+  }
+
+  const hasRestriction = data?.restrictionUpdate != null;
+  const hasRoleChange = !!(data?.roleChange && typeof data.roleChange === 'object');
+  if (!hasProfile && !hasRestriction && !hasRoleChange) {
+    return { error: 'invalid-argument', msg: 'No supported updates requested' };
+  }
+  return null;
+}
+
+/** Mirror of restriction value normalization (index.js:1160-1162) */
+function normalizeRestrictionValue(restrictionUpdate) {
+  return restrictionUpdate === true
+    || restrictionUpdate?.restricted === true
+    || restrictionUpdate?.isRestricted === true;
+}
+
+describe('sanitizeAdminManagedProfileUpdates', () => {
+  test('returns empty object for non-object input', () => {
+    expect(sanitizeAdminManagedProfileUpdates(null)).toEqual({});
+    expect(sanitizeAdminManagedProfileUpdates(undefined)).toEqual({});
+    expect(sanitizeAdminManagedProfileUpdates('str')).toEqual({});
+    expect(sanitizeAdminManagedProfileUpdates([])).toEqual({});
+  });
+
+  test('drops unknown fields', () => {
+    const result = sanitizeAdminManagedProfileUpdates({
+      region: '台北', name: 'malicious', isAdmin: true, role: 'super_admin',
+    });
+    expect(result).toEqual({ region: '台北' });
+  });
+
+  test('trims string values', () => {
+    const result = sanitizeAdminManagedProfileUpdates({ region: '  台北  ', phone: ' 0912345678 ' });
+    expect(result.region).toBe('台北');
+    expect(result.phone).toBe('0912345678');
+  });
+
+  test('normalizes birthday format (- → /)', () => {
+    expect(sanitizeAdminManagedProfileUpdates({ birthday: '1990-01-15' }).birthday).toBe('1990/01/15');
+    expect(sanitizeAdminManagedProfileUpdates({ birthday: '1990/01/15' }).birthday).toBe('1990/01/15');
+  });
+
+  test('null value sets field to null (allows clearing)', () => {
+    expect(sanitizeAdminManagedProfileUpdates({ region: null }).region).toBeNull();
+  });
+
+  test('non-string non-null value silently dropped', () => {
+    const result = sanitizeAdminManagedProfileUpdates({ region: 123, gender: true, phone: {} });
+    expect(result).toEqual({});
+  });
+
+  test('empty birthday string sets null', () => {
+    expect(sanitizeAdminManagedProfileUpdates({ birthday: '   ' }).birthday).toBeNull();
+  });
+});
+
+describe('adminManageUser auth + permission flow', () => {
+  const baseAccess = {
+    role: 'admin',
+    isSuperAdmin: false,
+    permissions: [
+      ADMIN_USER_EDIT_PROFILE_PERMISSION,
+      ADMIN_USER_RESTRICT_PERMISSION,
+      ADMIN_USER_CHANGE_ROLE_PERMISSION,
+    ],
+  };
+
+  test('rejects unauthenticated request', () => {
+    const result = validateAdminManageUser({
+      auth: null, data: { targetUid: 'u1', profileUpdates: { region: 'X' } },
+      access: baseAccess, callerUid: 'caller', targetUserExists: true, targetRole: 'user',
+    });
+    expect(result.error).toBe('unauthenticated');
+  });
+
+  test('rejects missing targetUid', () => {
+    const result = validateAdminManageUser({
+      auth: { uid: 'caller' }, data: { profileUpdates: { region: 'X' } },
+      access: baseAccess, callerUid: 'caller', targetUserExists: true, targetRole: 'user',
+    });
+    expect(result.error).toBe('invalid-argument');
+  });
+
+  test('rejects when target user not found', () => {
+    const result = validateAdminManageUser({
+      auth: { uid: 'caller' }, data: { targetUid: 'ghost', profileUpdates: { region: 'X' } },
+      access: baseAccess, callerUid: 'caller', targetUserExists: false, targetRole: null,
+    });
+    expect(result.error).toBe('not-found');
+  });
+
+  test('non-super_admin cannot manage super_admin target', () => {
+    const result = validateAdminManageUser({
+      auth: { uid: 'caller' }, data: { targetUid: 'sa1', profileUpdates: { region: 'X' } },
+      access: baseAccess, callerUid: 'caller', targetUserExists: true, targetRole: 'super_admin',
+    });
+    expect(result.error).toBe('permission-denied');
+    expect(result.msg).toMatch(/super admin/i);
+  });
+
+  test('super_admin can manage super_admin target', () => {
+    const access = { ...baseAccess, role: 'super_admin', isSuperAdmin: true };
+    const result = validateAdminManageUser({
+      auth: { uid: 'sa-caller' }, data: { targetUid: 'sa1', profileUpdates: { region: 'X' } },
+      access, callerUid: 'sa-caller', targetUserExists: true, targetRole: 'super_admin',
+    });
+    expect(result).toBeNull();
+  });
+
+  test('profile update without permission rejected', () => {
+    const access = { ...baseAccess, permissions: [] };
+    const result = validateAdminManageUser({
+      auth: { uid: 'caller' }, data: { targetUid: 'u1', profileUpdates: { region: 'X' } },
+      access, callerUid: 'caller', targetUserExists: true, targetRole: 'user',
+    });
+    expect(result.error).toBe('permission-denied');
+    expect(result.msg).toMatch(/profile/i);
+  });
+
+  test('restriction update without permission rejected', () => {
+    const access = { ...baseAccess, permissions: [] };
+    const result = validateAdminManageUser({
+      auth: { uid: 'caller' }, data: { targetUid: 'u1', restrictionUpdate: true },
+      access, callerUid: 'caller', targetUserExists: true, targetRole: 'user',
+    });
+    expect(result.error).toBe('permission-denied');
+    expect(result.msg).toMatch(/restriction/i);
+  });
+
+  test('cannot restrict yourself', () => {
+    const result = validateAdminManageUser({
+      auth: { uid: 'caller' }, data: { targetUid: 'caller', restrictionUpdate: true },
+      access: baseAccess, callerUid: 'caller', targetUserExists: true, targetRole: 'user',
+    });
+    expect(result.error).toBe('failed-precondition');
+  });
+
+  test('role change without permission rejected', () => {
+    const access = { ...baseAccess, permissions: [] };
+    const result = validateAdminManageUser({
+      auth: { uid: 'caller' }, data: { targetUid: 'u1', roleChange: { role: 'coach' } },
+      access, callerUid: 'caller', targetUserExists: true, targetRole: 'user',
+    });
+    expect(result.error).toBe('permission-denied');
+  });
+
+  test('coach cannot change roles (callerLevel < admin)', () => {
+    const access = { ...baseAccess, role: 'coach', permissions: [ADMIN_USER_CHANGE_ROLE_PERMISSION] };
+    const result = validateAdminManageUser({
+      auth: { uid: 'caller' }, data: { targetUid: 'u1', roleChange: { role: 'user' } },
+      access, callerUid: 'caller', targetUserExists: true, targetRole: 'user',
+    });
+    expect(result.error).toBe('permission-denied');
+    expect(result.msg).toMatch(/admin or above/i);
+  });
+
+  test('admin cannot assign admin-level role (only super_admin can)', () => {
+    const result = validateAdminManageUser({
+      auth: { uid: 'caller' }, data: { targetUid: 'u1', roleChange: { role: 'admin' } },
+      access: baseAccess, callerUid: 'caller', targetUserExists: true, targetRole: 'user',
+    });
+    expect(result.error).toBe('permission-denied');
+    expect(result.msg).toMatch(/super_admin/i);
+  });
+
+  test('admin cannot modify user with equal level (another admin)', () => {
+    const result = validateAdminManageUser({
+      auth: { uid: 'caller' }, data: { targetUid: 'u1', roleChange: { role: 'coach' } },
+      access: baseAccess, callerUid: 'caller', targetUserExists: true, targetRole: 'admin',
+    });
+    expect(result.error).toBe('permission-denied');
+    expect(result.msg).toMatch(/equal or higher/i);
+  });
+
+  test('super_admin can assign admin role', () => {
+    const access = { ...baseAccess, role: 'super_admin', isSuperAdmin: true };
+    const result = validateAdminManageUser({
+      auth: { uid: 'sa' }, data: { targetUid: 'u1', roleChange: { role: 'admin' } },
+      access, callerUid: 'sa', targetUserExists: true, targetRole: 'user',
+    });
+    expect(result).toBeNull();
+  });
+
+  test('admin can assign captain to user (lower level)', () => {
+    const result = validateAdminManageUser({
+      auth: { uid: 'caller' }, data: { targetUid: 'u1', roleChange: { role: 'captain' } },
+      access: baseAccess, callerUid: 'caller', targetUserExists: true, targetRole: 'user',
+    });
+    expect(result).toBeNull();
+  });
+
+  test('rejects empty updates (no profile, no restriction, no role)', () => {
+    const result = validateAdminManageUser({
+      auth: { uid: 'caller' }, data: { targetUid: 'u1' },
+      access: baseAccess, callerUid: 'caller', targetUserExists: true, targetRole: 'user',
+    });
+    expect(result.error).toBe('invalid-argument');
+    expect(result.msg).toMatch(/no supported updates/i);
+  });
+
+  test('accepts profile update only', () => {
+    const result = validateAdminManageUser({
+      auth: { uid: 'caller' }, data: { targetUid: 'u1', profileUpdates: { region: '台北' } },
+      access: baseAccess, callerUid: 'caller', targetUserExists: true, targetRole: 'user',
+    });
+    expect(result).toBeNull();
+  });
+});
+
+describe('adminManageUser restriction value normalization', () => {
+  test('boolean true → restricted', () => {
+    expect(normalizeRestrictionValue(true)).toBe(true);
+  });
+
+  test('boolean false → not restricted', () => {
+    expect(normalizeRestrictionValue(false)).toBe(false);
+  });
+
+  test('object { restricted: true } → restricted', () => {
+    expect(normalizeRestrictionValue({ restricted: true })).toBe(true);
+  });
+
+  test('object { isRestricted: true } → restricted (legacy field name)', () => {
+    expect(normalizeRestrictionValue({ isRestricted: true })).toBe(true);
+  });
+
+  test('object with neither key → not restricted', () => {
+    expect(normalizeRestrictionValue({})).toBe(false);
+    expect(normalizeRestrictionValue({ other: true })).toBe(false);
+  });
+
+  test('object with explicit false → not restricted', () => {
+    expect(normalizeRestrictionValue({ restricted: false })).toBe(false);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  adjustExp — edge cases (index.js:1230-1390)
+//  2026-04-27 補強：原本只測 4 個基本驗證，補上 mode/clamp/limit
+// ═══════════════════════════════════════════════════════════════
+
+const VALID_EXP_MODES = ['auto', 'manual', 'batch', 'team', 'teamExp'];
+
+/** Mirror of adjustExp mode validation (index.js:1261-1264) */
+function validateExpMode(mode) {
+  if (!VALID_EXP_MODES.includes(mode)) return { error: 'invalid-argument', msg: `Invalid mode: ${mode}` };
+  return null;
+}
+
+/** Mirror of adjustExp auto-mode amount limit (index.js:1267-1271) */
+function validateAutoModeAmount(amount) {
+  if (amount < -100 || amount > 100) {
+    return { error: 'invalid-argument', msg: 'Auto mode amount must be between -100 and +100' };
+  }
+  return null;
+}
+
+/** Mirror of teamExp clamp (index.js:1299) */
+function clampTeamExp(oldExp, amount) {
+  return Math.min(10000, Math.max(0, oldExp + amount));
+}
+
+/** Mirror of batch/team target count limit (index.js:1333) */
+function validateBatchTargets(targets) {
+  if (!Array.isArray(targets) || targets.length === 0) {
+    return { error: 'invalid-argument', msg: 'targets array is required' };
+  }
+  if (targets.length > 50) return { error: 'invalid-argument', msg: 'Maximum 50 targets per batch' };
+  return null;
+}
+
+/** Mirror of operator label sanitization (index.js:1281-1283) */
+function safeOperatorLabel(operatorLabel) {
+  return (typeof operatorLabel === 'string' && operatorLabel.trim())
+    ? operatorLabel.trim().slice(0, 50)
+    : '管理員';
+}
+
+/** Mirror of reason sanitization (index.js:1280) */
+function safeReason(reason) {
+  return reason.trim().slice(0, 200);
+}
+
+describe('adjustExp mode validation', () => {
+  test('accepts all 5 valid modes', () => {
+    VALID_EXP_MODES.forEach(mode => {
+      expect(validateExpMode(mode)).toBeNull();
+    });
+  });
+
+  test('rejects unknown mode', () => {
+    expect(validateExpMode('hack').error).toBe('invalid-argument');
+    expect(validateExpMode('').error).toBe('invalid-argument');
+    expect(validateExpMode(null).error).toBe('invalid-argument');
+    expect(validateExpMode(undefined).error).toBe('invalid-argument');
+  });
+});
+
+describe('adjustExp auto-mode amount limit (±100)', () => {
+  test('accepts boundary +100', () => {
+    expect(validateAutoModeAmount(100)).toBeNull();
+  });
+
+  test('accepts boundary -100', () => {
+    expect(validateAutoModeAmount(-100)).toBeNull();
+  });
+
+  test('rejects +101', () => {
+    expect(validateAutoModeAmount(101).error).toBe('invalid-argument');
+  });
+
+  test('rejects -101', () => {
+    expect(validateAutoModeAmount(-101).error).toBe('invalid-argument');
+  });
+
+  test('accepts middle values', () => {
+    expect(validateAutoModeAmount(50)).toBeNull();
+    expect(validateAutoModeAmount(-50)).toBeNull();
+  });
+});
+
+describe('adjustExp teamExp clamp [0, 10000]', () => {
+  test('clamp negative result to 0 (over-deduct)', () => {
+    expect(clampTeamExp(50, -100)).toBe(0);
+  });
+
+  test('clamp over-cap result to 10000', () => {
+    expect(clampTeamExp(9000, 5000)).toBe(10000);
+  });
+
+  test('normal addition', () => {
+    expect(clampTeamExp(500, 200)).toBe(700);
+  });
+
+  test('normal deduction', () => {
+    expect(clampTeamExp(500, -200)).toBe(300);
+  });
+
+  test('exactly 0 stays 0', () => {
+    expect(clampTeamExp(0, 0)).toBe(0);
+  });
+
+  test('exactly 10000 stays 10000', () => {
+    expect(clampTeamExp(10000, 0)).toBe(10000);
+  });
+});
+
+describe('adjustExp batch/team target count limit', () => {
+  test('rejects empty targets', () => {
+    expect(validateBatchTargets([]).error).toBe('invalid-argument');
+    expect(validateBatchTargets(null).error).toBe('invalid-argument');
+    expect(validateBatchTargets(undefined).error).toBe('invalid-argument');
+  });
+
+  test('accepts boundary 50 targets', () => {
+    const arr = Array(50).fill('uid');
+    expect(validateBatchTargets(arr)).toBeNull();
+  });
+
+  test('rejects 51 targets', () => {
+    const arr = Array(51).fill('uid');
+    expect(validateBatchTargets(arr).error).toBe('invalid-argument');
+  });
+
+  test('accepts 1 target', () => {
+    expect(validateBatchTargets(['uid'])).toBeNull();
+  });
+});
+
+describe('adjustExp operator label + reason sanitization', () => {
+  test('operator label trims whitespace', () => {
+    expect(safeOperatorLabel('  Alice  ')).toBe('Alice');
+  });
+
+  test('operator label caps at 50 chars', () => {
+    const longLabel = 'A'.repeat(100);
+    expect(safeOperatorLabel(longLabel).length).toBe(50);
+  });
+
+  test('operator label defaults to 管理員 when empty/non-string', () => {
+    expect(safeOperatorLabel('')).toBe('管理員');
+    expect(safeOperatorLabel('   ')).toBe('管理員');
+    expect(safeOperatorLabel(null)).toBe('管理員');
+    expect(safeOperatorLabel(undefined)).toBe('管理員');
+    expect(safeOperatorLabel(123)).toBe('管理員');
+  });
+
+  test('reason trims and caps at 200 chars', () => {
+    expect(safeReason('  test  ')).toBe('test');
+    const longReason = 'X'.repeat(500);
+    expect(safeReason(longReason).length).toBe(200);
+  });
+});
