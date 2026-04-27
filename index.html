@@ -253,7 +253,7 @@
   <!-- 偵測 clear=1 參數時清除 SW cache 與 LINE 登入狀態 -->
   <script>
   (function(){
-    var V='0.20260427t';
+    var V='0.20260427u';
     if(location.search.indexOf('clear=1')!==-1){
       if('caches' in window) caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});
       if('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(w){w.unregister()})});
@@ -324,35 +324,35 @@
   })();
   </script>
   <!-- CSS 載入：首屏必要樣式（render-blocking） -->
-  <link rel="stylesheet" href="css/base.css?v=0.20260427t">
-  <link rel="stylesheet" href="css/layout.css?v=0.20260427t">
-  <link rel="stylesheet" href="css/home.css?v=0.20260427t">
-  <link rel="stylesheet" href="css/activity.css?v=0.20260427t">
-  <link rel="stylesheet" href="css/calendar.css?v=0.20260427t" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/base.css?v=0.20260427u">
+  <link rel="stylesheet" href="css/layout.css?v=0.20260427u">
+  <link rel="stylesheet" href="css/home.css?v=0.20260427u">
+  <link rel="stylesheet" href="css/activity.css?v=0.20260427u">
+  <link rel="stylesheet" href="css/calendar.css?v=0.20260427u" media="print" onload="this.media='all'">
   <!-- 非首屏樣式（非同步載入，不阻塞首次渲染） -->
-  <link rel="stylesheet" href="css/team.css?v=0.20260427t" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/profile.css?v=0.20260427t" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/message.css?v=0.20260427t" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/tournament.css?v=0.20260427t" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/shop.css?v=0.20260427t" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/scan.css?v=0.20260427t" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/admin.css?v=0.20260427t" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/admin-seo.css?v=0.20260427t" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/game.css?v=0.20260427t" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/image-cropper.css?v=0.20260427t" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/education.css?v=0.20260427t" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/team.css?v=0.20260427u" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/profile.css?v=0.20260427u" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/message.css?v=0.20260427u" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/tournament.css?v=0.20260427u" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/shop.css?v=0.20260427u" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/scan.css?v=0.20260427u" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/admin.css?v=0.20260427u" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/admin-seo.css?v=0.20260427u" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/game.css?v=0.20260427u" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/image-cropper.css?v=0.20260427u" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/education.css?v=0.20260427u" media="print" onload="this.media='all'">
   <noscript>
-    <link rel="stylesheet" href="css/team.css?v=0.20260427t">
-    <link rel="stylesheet" href="css/profile.css?v=0.20260427t">
-    <link rel="stylesheet" href="css/message.css?v=0.20260427t">
-    <link rel="stylesheet" href="css/tournament.css?v=0.20260427t">
-    <link rel="stylesheet" href="css/shop.css?v=0.20260427t">
-    <link rel="stylesheet" href="css/scan.css?v=0.20260427t">
-    <link rel="stylesheet" href="css/admin.css?v=0.20260427t">
-    <link rel="stylesheet" href="css/admin-seo.css?v=0.20260427t">
-    <link rel="stylesheet" href="css/game.css?v=0.20260427t">
-    <link rel="stylesheet" href="css/image-cropper.css?v=0.20260427t">
-    <link rel="stylesheet" href="css/education.css?v=0.20260427t">
+    <link rel="stylesheet" href="css/team.css?v=0.20260427u">
+    <link rel="stylesheet" href="css/profile.css?v=0.20260427u">
+    <link rel="stylesheet" href="css/message.css?v=0.20260427u">
+    <link rel="stylesheet" href="css/tournament.css?v=0.20260427u">
+    <link rel="stylesheet" href="css/shop.css?v=0.20260427u">
+    <link rel="stylesheet" href="css/scan.css?v=0.20260427u">
+    <link rel="stylesheet" href="css/admin.css?v=0.20260427u">
+    <link rel="stylesheet" href="css/admin-seo.css?v=0.20260427u">
+    <link rel="stylesheet" href="css/game.css?v=0.20260427u">
+    <link rel="stylesheet" href="css/image-cropper.css?v=0.20260427u">
+    <link rel="stylesheet" href="css/education.css?v=0.20260427u">
   </noscript>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -810,13 +810,51 @@
       }
 
       if (subEl) {
+        // ─── Tier 1：即刻顯示瀏覽器 connection 估算（< 1ms）───
+        // 僅顯示 type + Mbps（不標 4G/5G、避免誤判）
+        // navigator.connection 在 iOS Safari / Firefox 不支援 → 退到「偵測中」、後續 Tier 2 補上
         var networkLabel = '偵測中';
-        if (navigator.connection && typeof navigator.connection.effectiveType === 'string' && navigator.connection.effectiveType) {
-          networkLabel = navigator.connection.effectiveType;
-        } else if (navigator.onLine === false) {
+        var conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+        if (navigator.onLine === false) {
           networkLabel = '離線';
+          subEl.textContent = '網路環境（離線）等待重連..';
+        } else {
+          if (conn) {
+            var t = conn.type;
+            var dl = conn.downlink; // Mbps（瀏覽器估算）
+            if (t === 'wifi') networkLabel = 'Wi-Fi';
+            else if (t === 'cellular') networkLabel = '行動';
+            else if (t === 'ethernet') networkLabel = '有線';
+            else if (conn.effectiveType) networkLabel = String(conn.effectiveType).toUpperCase();
+            if (dl && isFinite(dl) && dl > 0) {
+              networkLabel += ' · ' + (dl >= 10 ? Math.round(dl) : (Math.round(dl * 10) / 10)) + 'Mbps';
+            }
+          }
+          subEl.textContent = '網路環境（' + networkLabel + '）載入資料中..';
+
+          // ─── Tier 2：實測 RTT（並行 fetch favicon、~50-500ms 回應後更新）───
+          // ?probe=<random> + cache:'no-store' 雙保險避開 SW / browser cache 命中
+          var _probeStart = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+          try {
+            fetch('/favicon.ico?probe=' + Date.now(), { cache: 'no-store' })
+              .then(function () {
+                var _now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+                var rtt = Math.round(_now - _probeStart);
+                var speed;
+                if (rtt < 100) speed = '極快';
+                else if (rtt < 300) speed = '快速';
+                else if (rtt < 800) speed = '一般';
+                else if (rtt < 2000) speed = '慢';
+                else speed = '極慢';
+                // Race condition guard：boot 結束後 subEl 可能仍在 DOM 但 overlay 已隱藏
+                var ov = document.getElementById('loading-overlay');
+                if (subEl.parentElement && ov && ov.style.display !== 'none') {
+                  subEl.textContent = '網路（' + networkLabel + ' · ' + speed + ' ' + rtt + 'ms）載入中..';
+                }
+              })
+              .catch(function () { /* 失敗保留 Tier 1 顯示 */ });
+          } catch (_) { /* 不支援 fetch 或同步錯誤、無視 */ }
         }
-        subEl.textContent = '偵測網路環境（' + networkLabel + '）載入資料中..';
       }
 
       render();
@@ -851,62 +889,62 @@
   <!-- 由 scan.js 動態載入相關依賴 -->
 
   <!-- 多語系模組 -->
-  <script defer src="js/i18n.js?v=0.20260427t"></script>
+  <script defer src="js/i18n.js?v=0.20260427u"></script>
 
   <!-- 核心 -->
-  <script defer src="js/config.js?v=0.20260427t"></script>
-  <script defer src="js/firebase-config.js?v=0.20260427t"></script>
-  <script defer src="js/firebase-service.js?v=0.20260427t"></script>
-  <script defer src="js/firebase-crud.js?v=0.20260427t"></script>
-  <script defer src="js/api-service.js?v=0.20260427t"></script>
-  <script defer src="js/line-auth.js?v=0.20260427t"></script>
+  <script defer src="js/config.js?v=0.20260427u"></script>
+  <script defer src="js/firebase-config.js?v=0.20260427u"></script>
+  <script defer src="js/firebase-service.js?v=0.20260427u"></script>
+  <script defer src="js/firebase-crud.js?v=0.20260427u"></script>
+  <script defer src="js/api-service.js?v=0.20260427u"></script>
+  <script defer src="js/line-auth.js?v=0.20260427u"></script>
 
   <!-- 頁面載入器 + 腳本載入器（動態依頁面載入對應 App 模組） -->
-  <script defer src="js/core/page-loader.js?v=0.20260427t"></script>
-  <script defer src="js/core/script-loader.js?v=0.20260427t"></script>
+  <script defer src="js/core/page-loader.js?v=0.20260427u"></script>
+  <script defer src="js/core/script-loader.js?v=0.20260427u"></script>
 
   <!-- 主程式 App 進入點 + init/renderAll/showToast -->
-  <script defer src="app.js?v=0.20260427t"></script>
+  <script defer src="app.js?v=0.20260427u"></script>
 
   <!-- 導覽與主題 -->
-  <script defer src="js/core/navigation.js?v=0.20260427t"></script>
-  <script defer src="js/core/theme.js?v=0.20260427t"></script>
-  <script defer src="js/modules/pwa-install.js?v=0.20260427t"></script>
-  <script defer src="js/modules/multi-tab-guard.js?v=0.20260427t"></script>
+  <script defer src="js/core/navigation.js?v=0.20260427u"></script>
+  <script defer src="js/core/theme.js?v=0.20260427u"></script>
+  <script defer src="js/modules/pwa-install.js?v=0.20260427u"></script>
+  <script defer src="js/modules/multi-tab-guard.js?v=0.20260427u"></script>
 
   <!-- 功能模組（核心 + 首頁必需） -->
-  <script defer src="js/modules/image-cropper.js?v=0.20260427t"></script>
-  <script defer src="js/modules/image-upload.js?v=0.20260427t"></script>
-  <script defer src="js/modules/sync-status.js?v=0.20260427t"></script>
-  <script defer src="js/modules/role.js?v=0.20260427t"></script>
-  <script defer src="js/modules/profile/profile-avatar.js?v=0.20260427t"></script>
-  <script defer src="js/modules/profile/profile-core.js?v=0.20260427t"></script>
-  <script defer src="js/modules/profile/profile-data-stats.js?v=0.20260427t"></script>
-  <script defer src="js/modules/profile/profile-form.js?v=0.20260427t"></script>
-  <script defer src="js/modules/banner.js?v=0.20260427t"></script>
-  <script defer src="js/modules/popup-ad.js?v=0.20260427t"></script>
-  <script defer src="js/modules/announcement.js?v=0.20260427t"></script>
-  <script defer src="js/modules/site-theme.js?v=0.20260427t"></script>
-  <script defer src="js/modules/event/event-external-transit.js?v=0.20260427t"></script>
-  <script defer src="js/modules/event/event-blocklist.js?v=0.20260427t"></script>
-  <script defer src="js/modules/event/event-list-helpers.js?v=0.20260427t"></script>
-  <script defer src="js/modules/event/event-list-stats.js?v=0.20260427t"></script>
-  <script defer src="js/modules/event/event-list-home.js?v=0.20260427t"></script>
-  <script defer src="js/modules/event/event-list-timeline.js?v=0.20260427t"></script>
-  <script defer src="js/modules/event/event-list.js?v=0.20260427t"></script>
-  <script defer src="js/modules/event/event-host-list.js?v=0.20260427t"></script>
-  <script defer src="js/modules/tournament/tournament-helpers.js?v=0.20260427t"></script>
-  <script defer src="js/modules/tournament/tournament-core.js?v=0.20260427t"></script>
-  <script defer src="js/modules/tournament/tournament-render.js?v=0.20260427t"></script>
-  <script defer src="js/modules/message/message-render.js?v=0.20260427t"></script>
-  <script defer src="js/modules/message/message-inbox.js?v=0.20260427t"></script>
-  <script defer src="js/modules/message/message-line-push.js?v=0.20260427t"></script>
-  <script defer src="js/modules/message/message-notify.js?v=0.20260427t"></script>
-  <script defer src="js/modules/message/notif-settings.js?v=0.20260427t"></script>
-  <script defer src="js/modules/favorites.js?v=0.20260427t"></script>
-  <script defer src="js/modules/news.js?v=0.20260427t"></script>
+  <script defer src="js/modules/image-cropper.js?v=0.20260427u"></script>
+  <script defer src="js/modules/image-upload.js?v=0.20260427u"></script>
+  <script defer src="js/modules/sync-status.js?v=0.20260427u"></script>
+  <script defer src="js/modules/role.js?v=0.20260427u"></script>
+  <script defer src="js/modules/profile/profile-avatar.js?v=0.20260427u"></script>
+  <script defer src="js/modules/profile/profile-core.js?v=0.20260427u"></script>
+  <script defer src="js/modules/profile/profile-data-stats.js?v=0.20260427u"></script>
+  <script defer src="js/modules/profile/profile-form.js?v=0.20260427u"></script>
+  <script defer src="js/modules/banner.js?v=0.20260427u"></script>
+  <script defer src="js/modules/popup-ad.js?v=0.20260427u"></script>
+  <script defer src="js/modules/announcement.js?v=0.20260427u"></script>
+  <script defer src="js/modules/site-theme.js?v=0.20260427u"></script>
+  <script defer src="js/modules/event/event-external-transit.js?v=0.20260427u"></script>
+  <script defer src="js/modules/event/event-blocklist.js?v=0.20260427u"></script>
+  <script defer src="js/modules/event/event-list-helpers.js?v=0.20260427u"></script>
+  <script defer src="js/modules/event/event-list-stats.js?v=0.20260427u"></script>
+  <script defer src="js/modules/event/event-list-home.js?v=0.20260427u"></script>
+  <script defer src="js/modules/event/event-list-timeline.js?v=0.20260427u"></script>
+  <script defer src="js/modules/event/event-list.js?v=0.20260427u"></script>
+  <script defer src="js/modules/event/event-host-list.js?v=0.20260427u"></script>
+  <script defer src="js/modules/tournament/tournament-helpers.js?v=0.20260427u"></script>
+  <script defer src="js/modules/tournament/tournament-core.js?v=0.20260427u"></script>
+  <script defer src="js/modules/tournament/tournament-render.js?v=0.20260427u"></script>
+  <script defer src="js/modules/message/message-render.js?v=0.20260427u"></script>
+  <script defer src="js/modules/message/message-inbox.js?v=0.20260427u"></script>
+  <script defer src="js/modules/message/message-line-push.js?v=0.20260427u"></script>
+  <script defer src="js/modules/message/message-notify.js?v=0.20260427u"></script>
+  <script defer src="js/modules/message/notif-settings.js?v=0.20260427u"></script>
+  <script defer src="js/modules/favorites.js?v=0.20260427u"></script>
+  <script defer src="js/modules/news.js?v=0.20260427u"></script>
   <!-- 原地翻譯（移除此行即完全關閉翻譯功能） -->
-  <script defer src="js/modules/translate.js?v=0.20260427t"></script>
+  <script defer src="js/modules/translate.js?v=0.20260427u"></script>
 
   <!-- Service Worker Registration + 版本更新 -->
   <script>
