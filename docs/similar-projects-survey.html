@@ -216,40 +216,6 @@
     line-height: 1.6;
   }
 
-  /* 🟢 版號徽章 — 強制 cache 驗證,讓讀者確認看到最新版 */
-  header { position: relative; }
-  .version-badge {
-    position: absolute;
-    top: 1rem;
-    right: 1.2rem;
-    z-index: 5;
-    display: inline-flex;
-    align-items: center;
-    gap: .35rem;
-    padding: .25rem .55rem .25rem .5rem;
-    background: #ecfdf5;
-    border: 1px solid #6ee7b7;
-    border-radius: 6px;
-    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    font-size: .75rem;
-    color: #047857;
-    cursor: help;
-    box-shadow: 0 1px 2px rgba(0,0,0,.04);
-  }
-  .version-badge .version-label {
-    background: #047857;
-    color: #fff;
-    padding: .05rem .35rem;
-    border-radius: 3px;
-    font-size: .68rem;
-    font-weight: 700;
-    letter-spacing: .04em;
-  }
-  .version-badge .version-num {
-    font-weight: 600;
-    letter-spacing: .02em;
-  }
-
   /* ✏️ 共識徽章 — 三方驗證標記(去除黃色螢光底,僅保留徽章 + tooltip)*/
   .consensus-mark {
     display: inline-block;
@@ -467,9 +433,6 @@
     .live-status .url-text { font-size: .9em; }
     /* 共識徽章手機縮小 */
     .consensus-mark { font-size: .62rem; padding: .06rem .32rem; margin: 0 .12rem; }
-    /* 版號徽章手機縮小 */
-    .version-badge { top: .75rem; right: .85rem; padding: .2rem .45rem .2rem .4rem; gap: .25rem; font-size: .68rem; }
-    .version-badge .version-label { font-size: .6rem; padding: .04rem .3rem; }
     /* 作者署名手機自適應 */
     .research-credit { font-size: .78rem; padding: .35rem .65rem; gap: .25rem; }
     .research-credit .lead { font-size: .85rem; }
@@ -638,17 +601,13 @@
 <body>
 
 <header>
-  <div class="version-badge" id="version-badge" title="若版號不對請按 Ctrl+Shift+R 強制重新整理">
-    <span class="version-label">VER</span>
-    <span class="version-num">2026-04-28.0118</span>
-  </div>
   <h1>ToosterX 台灣運動同類專案調查報告 v2</h1>
   <div class="subtitle">12 個 AI agent · 範圍 = 台灣運動類 · 2026-04-28 更新</div>
   <div class="research-credit">
     <strong class="lead">Mai</strong> 主導
     <span class="sep">·</span>
     <span class="ai-tag">Claude</span><span class="ai-tag">GPT</span>
-    協作研究
+    獨立互查驗證
   </div>
   <div class="stats">
     <div class="stat"><span class="stat-num">130+</span><span class="stat-label">台灣運動專案</span></div>
