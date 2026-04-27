@@ -47,6 +47,8 @@ Object.assign(App, {
     `;
   },
 
+  // ⚠️ 禁止在這個函式內呼叫 window.open / location.href / location.replace
+  // 用戶要求：產生臨時網址 = 純建立連結，不主動跳轉，跳轉只能由「開新頁查看」按鈕觸發。
   async createDashboardParticipantQueryShare() {
     const state = this._ensureDashboardParticipantSearchState?.();
     if (!state?.result || Number(state.result.matchedEventCount || 0) <= 0) {
@@ -65,7 +67,7 @@ Object.assign(App, {
       state.shareUrl = String(share?.url || '').trim();
       state.shareExpiresAt = String(share?.expiresAt || '').trim();
       this.renderDashboard?.();
-      this.showToast('已產生 7 天臨時網址');
+      this.showToast('已產生 7 天臨時網址，請點「開新頁查看」或「複製連結」');
     } catch (err) {
       state.shareError = err?.message || '建立臨時網址失敗';
       this.renderDashboard?.();
