@@ -40,6 +40,11 @@
 /terms.html
   Cache-Control: public, max-age=86400
 
+# Docs (內部報告類,強制每次 revalidate 確保看到最新)
+/docs/*
+  Cache-Control: public, max-age=0, must-revalidate
+  X-Robots-Tag: noindex, nofollow
+
 # Service Worker
 /sw.js
   Cache-Control: public, max-age=0, must-revalidate
