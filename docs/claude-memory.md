@@ -2,6 +2,30 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-27 — Firestore synchronizeTabs 在 iOS WKWebView 復發、改為 iOS-only false [永久]
+- **症狀**：iOS Safari/Chrome/Edge（任何瀏覽器、用戶確認）以管理員身份進入 page-admin-users → 1-2 秒後**被 native 強制 reload**（不是 SPA 跳頁），伴隨：
+  - 登入後**被強制深色主題**（不是用戶選的）
+  - 明明只開一個分頁、Firestore 卻提示「多分頁」警告
+- **桌機 Chrome / Edge / Safari、Android Chrome 全部正常**
+- **根因**：4/21 回滾的 `synchronizeTabs: true` 在 iOS WKWebView 上時序競爭嚴重
+  - iOS WKWebView 用 SQLite backend、IndexedDB 初始化比桌機慢 100-800ms
+  - rolePermissions listener 第一次觸發時 cache 仍為 []、`_canAccessPage('page-admin-users')` 失敗
+  - Firestore SDK 內部某條 retry / cleanup 路徑觸發 native navigation（繞過 JS hooks、所有 hooks 都沒抓到）
+  - BroadcastChannel pool 殘留訊號導致 multi-tab-guard 誤判 + 觸發 page rebuild
+  - rebuild 時 `prefers-color-scheme` 重新偵測 → 套用 OS dark mode
+- **8 輪診斷未果**：之前 hooks 全部沒抓到（applyRole / showPage(home) / location.reload / beforeunload / pagehide 都沒 trace）、因為觸發點在 SDK 層、繞過 JS
+- **最終定位**：agent 從架構視角檢查 `firebase-config.js` 的 synchronizeTabs 歷史 + iOS WKWebView 特性才找到
+- **修復**：iOS-only `synchronizeTabs: false`、桌機/Android 保留 true（保留 50% reads 節省）
+  ```javascript
+  const _isIOSWebKit = /iPad|iPhone|iPod/.test(navigator.userAgent || '');
+  db.enablePersistence({ synchronizeTabs: !_isIOSWebKit })
+  ```
+- **教訓**：
+  - **4/21 回滾 commit 已預警「iOS 上可能有時序問題、若復發請回報」**、但後續沒人查到 → 應該加更積極的 monitoring
+  - 「3 個看似無關的症狀（reload + 深色 + 多分頁）」可能是同一根因 — 不要把症狀分頭追、要看共同點
+  - SDK 層 bug 用 JS hook 抓不到、要從架構 / 設定面切入
+- **副作用**：iOS 用戶失去離線快取（reload 後 cache 失效）— 是合理代價
+
 ### 2026-04-26 — 手機外部瀏覽器 LINE 登入加 UX 提示（OS 跨 app 攔截 token 流失問題）
 - **問題**：手機 Safari / Chrome 點 LINE 登入 → OS 提示「是否在 LINE 中打開」→ 用戶點「打開」→ LINE app 接管 OAuth 完成 → redirect 回 Safari/Chrome 但 token 沒帶回 → **登入失敗**
 - **根因**：手機 OS（iOS / Android）的 universal link / intent 機制把 `access.line.me` URL 攔截到 LINE app；LINE app 完成 OAuth 後 token 留在 LINE 內、跨 app redirect 不會帶 `code` & `state` 回外部瀏覽器。桌面 / LINE 內無此問題（沒跨 app 跳轉）

@@ -130,13 +130,18 @@ function initFirebaseApp() {
     // "INTERNAL ASSERTION FAILED" — 用 try-catch 包裹防止影響啟動流程
     //
     // synchronizeTabs: true — 多分頁共享 IndexedDB 快取，大幅減少 Firestore 讀取量
-    // 歷史決策（詳見 docs/claude-memory.md 2026-04-21 條目）：
+    // 歷史決策（詳見 docs/claude-memory.md 2026-04-21 / 2026-04-27 條目）：
     //   - 4/17 曾改為 false 消除「多 tab 權限加載卡住」bug（commit 6e0daede）
     //   - 但 4/18 讀取量爆增至 468 萬/天（+50%），月費上升至 NT$753（4 月 21 天實績）
     //   - 4/21 回滾為 true；原 bug 防護改由 multi-tab-guard.js 警告 + 關閉分頁按鈕承擔
-    //   - 禁止再改回 false（除非找到完整替代方案，參考 modular SDK 的 persistentMultipleTabManager）
+    //   - 4/27 復發：iOS WKWebView 進 page-admin-users 後 1-2 秒被 native 強制 reload、
+    //     伴隨強制深色主題 + 多分頁警告（IndexedDB 慢 + leader election 不穩）
+    //   - 改為 iOS-only false：iOS 改用 memory cache（無離線快取代價）、桌機/Android 保留
+    //     synchronizeTabs: true（保留 50% reads 節省）
+    const _isIOSWebKit = typeof navigator !== 'undefined'
+      && /iPad|iPhone|iPod/.test(navigator.userAgent || '');
     try {
-      db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+      db.enablePersistence({ synchronizeTabs: !_isIOSWebKit }).catch(err => {
         if (err.code === 'failed-precondition') {
           // 極少數情況：多 tab leader election 競爭失敗 → 此 tab 降級為 memory cache
           // 若此時原「權限加載卡住」bug 復發，請回報並考慮改回 synchronizeTabs: false
