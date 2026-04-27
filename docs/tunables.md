@@ -3,7 +3,7 @@
 > 專案內所有可調設定（timing / limit / threshold）+ 關鍵流程的順序效果總覽。
 > **強制維護規則（CLAUDE.md §設定追蹤規範）**：修改檔案時若涉及任何可調設定 / 加載順序 / timing / 閾值，必須同步更新本檔對應條目；新增任何可調常數，必須在本檔登記。
 
-**Last Updated: 2026-04-25**（新增 SPORT_ICON_SVG_HTML 對照表 — 匹克球用自製 V4 SVG）
+**Last Updated: 2026-04-27**（新增 renderAll boot 守衛 — hash nav / deep link 場景跳過首頁渲染）
 
 ## 目錄
 

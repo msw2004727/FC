@@ -13,7 +13,34 @@
 - **若仍 flash**：表示 navigation 真的需要 7+ 秒，需要優化 cloud init / ensureCollectionsForPage 速度，而不是繼續拉 timeout（看門狗 8 秒上限）
 - **教訓**：「機制設計沒問題、實際運行時間不夠」是常見的 timing race。修復前要實測「目標流程實際耗時」對比「timeout 上限」，避免設計時樂觀估計
 
-### 2026-04-27 — 重新加回匹克球 V4 SVG 圖示（被 dcb2c0ea 意外移除）[永久]
+### 2026-04-27 — Boot 階段 hash nav / deep link 跳過首頁渲染(降階方案,8 輪自審 + 2 輪 QA 後執行)
+- **問題**:用戶 reload `#page-activities` 等帶 hash 場景時,boot overlay 隱藏後**先看到完整首頁(banner+熱門活動)→ 過幾秒才跳目標頁**。前次 5→7 秒 timeout 修法只是「用 overlay 蓋更久」,沒治本
+- **根因**:`app.js renderAll()` **無條件**呼叫 `renderHomeCritical()`,不管 URL hash 是什麼一律渲染首頁。boot overlay 隱藏後用戶必然看到首頁
+- **方案取捨**(8 輪自審 + 2 輪 QA 後決策):
+  - 完整方案(動 currentPage 預設 + HTML class swap + 重設計階段 2):4 小時、🟠 中風險,QA 抓到 2 BLOCKER(PageLoader 未完成 DOM 不存在、_activatePage 不變式破壞)
+  - **降階方案(僅動 renderAll 加守衛)**:30-45 分鐘、🟢 極低風險,**最終採用**
+- **修復**:`app.js renderAll()` 新增 19 行守衛:
+  - 偵測 URL hash 為有效 page-xxx(非 page-home)→ `isHashNav = true`
+  - 偵測 sessionStorage 有 `_pendingDeepXxx` → `isDeepLink = true`
+  - 任一為 true → `console.log` + `ScriptLoader.preloadCorePages()` 保留全域副作用 + early return
+  - 不影響:無 hash / `#page-home` / 非 boot 場景的 renderAll 呼叫
+- **審計覆蓋**:
+  - 8 輪自審(語法/邊界/race/非 boot 場景/跨瀏覽器/hash 變動/異常路徑/回歸測試)
+  - 2 輪 QA agent(原計劃抓 2 BLOCKER + 最終批准 review 條件批准)
+  - 涵蓋 9 種 URL 邊界、4 處 non-boot caller、3 端瀏覽器、popstate / unicode / iOS Private Mode 等
+- **可接受 trade-off**(計劃書 §三):
+  - B1:`_markPageSnapshotReady('page-home')` 不 mark → 首次返首頁稍慢(走 fresh-first)
+  - B2:`showPopupAdsOnLoad` 不觸發(設計上 popup 就是「進首頁時彈」,reload 進其他頁等於沒進首頁)
+  - B3:極端 PageLoader 10s timeout 時退化為「全空畫面」(看門狗 8s reload 兜底)
+- **保留**:`ScriptLoader.preloadCorePages()` 保留全域必要副作用(避免後續 page 切換變慢)
+- **依規 §每次新增功能時的規範第 8 條**:`docs/tunables.md` 同步更新 Last Updated
+- **完整計劃書**:`docs/boot-skip-home-downgrade-plan.md`(243 行,含 11 個測試 checkpoint)
+- **教訓**:
+  - **動手前先審計救了 2 個 BLOCKER**:原計劃 4 階段方案的階段 2(手動 swap class)會踩到「PageLoader 未完成 DOM 不存在」+「破壞 _activatePage 不變式」雙雷
+  - **跟 F 方案(用戶推的 inline events)互補**:用戶修法加速首頁渲染,我修法跳過 hash nav 場景的渲染,結合效果比單做更好
+  - **計劃書反覆審計的價值**:第 6+ 輪審計仍找到 W3(deep link 守衛漏)、preloadCorePages 全域必要等實質問題
+
+### 2026-04-27 — 重新加回匹克球 V4 SVG 圖示(被 dcb2c0ea 意外移除)[永久]
 - **問題**：用戶反映匹克球圖示又變回 🏓 桌球 emoji,**先前明明改成 V4 SVG 過**
 - **根因追查**：
   - `git log -S "SPORT_ICON_SVG_HTML"` 查全 history → 找到只有 2 個 commit 動過此字串：`e8c03442`(引入)和 `dcb2c0ea`(移除)

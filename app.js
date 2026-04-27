@@ -427,6 +427,33 @@ const App = {
 
   renderAll() {
     this.renderGlobalShell();
+
+    // 2026-04-27：boot 階段 hash navigation 或 deep link 時跳過首頁渲染
+    // 解決:用戶 reload `#page-activities` 等帶 hash 場景時,boot overlay 隱藏後
+    // 用戶會先看到「banner + 熱門活動」的完整首頁,過幾秒才跳目標頁的瑕疵。
+    // 守衛邏輯:URL 有 hash navigation 或 sessionStorage 有 deep link → 跳過首頁渲染
+    // 設計依據:docs/boot-skip-home-downgrade-plan.md(8 輪自審 + 2 輪 QA 審計)
+    // 注意:仍呼叫 ScriptLoader.preloadCorePages() 保留全域必要副作用(預載 core pages)
+    const bootHash = (location.hash || '').replace(/^#/, '').trim();
+    const isHashNav = bootHash && /^page-[\w-]+$/.test(bootHash) && bootHash !== 'page-home';
+    let isDeepLink = false;
+    try {
+      isDeepLink = !!(
+        sessionStorage.getItem('_pendingDeepEvent') ||
+        sessionStorage.getItem('_pendingDeepTeam') ||
+        sessionStorage.getItem('_pendingDeepTournament') ||
+        sessionStorage.getItem('_pendingDeepProfile')
+      );
+    } catch (_) {}
+    if (isHashNav || isDeepLink) {
+      console.log('[Boot] 跳過首頁初始渲染 (hash=' + bootHash + ', deepLink=' + isDeepLink + ')');
+      // 仍呼叫 preloadCorePages 保留全域必要副作用
+      if (typeof ScriptLoader !== 'undefined' && ScriptLoader.preloadCorePages) {
+        try { ScriptLoader.preloadCorePages(); } catch (_) {}
+      }
+      return;
+    }
+
     if (!this._isHomePageActive()) return;
     this.renderHomeCritical();
     this._scheduleHomeDeferredRender();
