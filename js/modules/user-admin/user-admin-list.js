@@ -6,6 +6,8 @@ Object.assign(App, {
 
   // ─── 用戶列表: 當前篩選狀態 ───
   _userEditTarget: null,
+  // 2026-04-27：分頁渲染（避免 iOS PWA 模式 WKWebView memory pressure 觸發 OS kill webview）
+  _adminUserPageSize: 30,
 
   _hasUserAdminCapability(code) {
     return !!this.hasPermission?.(code);
@@ -104,6 +106,25 @@ Object.assign(App, {
       users = users.filter(u => u.role === roleFilter);
     }
 
+    // 篩選/搜尋時 reset 分頁、避免「載入更多到 90 個 → 篩選後仍渲染 90 個」誤判
+    this._adminUserPageSize = 30;
+    this.renderAdminUsers(users);
+  },
+
+  /** 2026-04-27：載入更多用戶（分頁機制、避免 iOS PWA memory pressure） */
+  _loadMoreAdminUsers() {
+    this._adminUserPageSize = (this._adminUserPageSize || 30) + 30;
+    // 重新讀篩選後的結果但**不**走 filterAdminUsers（避免 reset pageSize）
+    const keyword = (document.getElementById('admin-user-search')?.value || '').trim().toLowerCase();
+    const roleFilter = document.getElementById('admin-user-role-filter')?.value || '';
+    let users = ApiService.getAdminUsers();
+    if (keyword) {
+      users = users.filter(u =>
+        u.name.toLowerCase().includes(keyword) ||
+        u.uid.toLowerCase().includes(keyword)
+      );
+    }
+    if (roleFilter) users = users.filter(u => u.role === roleFilter);
     this.renderAdminUsers(users);
   },
 
@@ -120,13 +141,19 @@ Object.assign(App, {
       return;
     }
 
-    container.innerHTML = users.map(u => {
+    // 2026-04-27：分頁渲染避免 iOS PWA WKWebView memory pressure 觸發 OS kill webview
+    const totalCount = users.length;
+    const pageSize = this._adminUserPageSize || 30;
+    const visibleUsers = users.slice(0, pageSize);
+    const hasMore = totalCount > pageSize;
+
+    const cardsHtml = visibleUsers.map(u => {
       const avatar = this._buildAvatarImageMarkup(
         u.pictureUrl,
         u.name || '?',
         'au-avatar',
         'au-avatar au-avatar-fallback',
-        'style="object-fit:cover"'
+        'loading="lazy" decoding="async" style="object-fit:cover"'
       );
 
       const teamInfo = u.teamName ? ` ・${escapeHTML(u.teamName)}` : '';
@@ -158,13 +185,20 @@ Object.assign(App, {
         </div>
       `;
     }).join('');
+
+    // 2026-04-27：「載入更多」按鈕（仍有未渲染的用戶時顯示）
+    const loadMoreHtml = hasMore
+      ? `<div style="padding:1rem 0;text-align:center"><button class="outline-btn" style="font-size:.85rem;padding:.55rem 1.5rem" onclick="App._loadMoreAdminUsers()">載入更多（已顯示 ${pageSize} / ${totalCount}）</button></div>`
+      : '';
+
+    container.innerHTML = cardsHtml + loadMoreHtml;
     this._bindAvatarFallbacks(container);
     container.querySelectorAll('button[onclick*="showUserEditModal"]').forEach(btn => {
       const handler = btn.getAttribute('onclick') || '';
       const match = handler.match(/showUserEditModal\('(.+)'\)/);
       if (!match) return;
       const userName = match[1].replace(/\\'/g, "'");
-      const user = (users || []).find(entry => entry.name === userName);
+      const user = (visibleUsers || []).find(entry => entry.name === userName);
       if (!this._canOpenUserEditor(user)) {
         btn.remove();
       }
