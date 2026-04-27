@@ -54,14 +54,6 @@ Object.assign(App, {
       return;
     }
 
-    let popup = null;
-    try {
-      popup = window.open('about:blank', 'sporthub_report');
-      if (popup) popup.opener = null;
-    } catch (_) {
-      popup = null;
-    }
-
     state.shareLoading = true;
     state.shareError = '';
     state.shareUrl = '';
@@ -73,18 +65,8 @@ Object.assign(App, {
       state.shareUrl = String(share?.url || '').trim();
       state.shareExpiresAt = String(share?.expiresAt || '').trim();
       this.renderDashboard?.();
-
-      try {
-        if (popup) popup.location.replace(state.shareUrl);
-      } catch (_) {}
-
-      if (popup && !popup.closed) {
-        this.showToast('已產生 7 天臨時網址，並開啟新頁');
-      } else {
-        this.showToast('已產生 7 天臨時網址');
-      }
+      this.showToast('已產生 7 天臨時網址');
     } catch (err) {
-      if (popup && !popup.closed) popup.close();
       state.shareError = err?.message || '建立臨時網址失敗';
       this.renderDashboard?.();
       this.showToast(state.shareError);

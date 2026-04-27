@@ -8,9 +8,11 @@ Object.assign(App, {
       const d = String(date.getDate()).padStart(2, '0');
       return `${y}-${m}-${d}`;
     };
+    // 開始日期預設為當月 1 號
+    const start = new Date(end.getFullYear(), end.getMonth(), 1);
     return {
       keyword: '',
-      startDate: '2026-02-01',
+      startDate: fmt(start),
       endDate: fmt(end),
       loading: false,
       error: '',

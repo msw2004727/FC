@@ -463,8 +463,8 @@
 .dash-query-body { padding: .8rem .9rem .9rem; }
 .dash-query-help { font-size: .75rem; color: var(--text-muted); line-height: 1.6; margin-bottom: .75rem; }
 .dash-query-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .6rem; margin-bottom: .75rem; }
-.dash-query-field { display: flex; flex-direction: column; gap: .28rem; font-size: .76rem; color: var(--text-secondary); }
-.dash-query-field input { width: 100%; }
+.dash-query-field { display: flex; flex-direction: column; gap: .28rem; font-size: .76rem; color: var(--text-secondary); min-width: 0; }
+.dash-query-field input { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; }
 .dash-query-actions { display: flex; gap: .45rem; flex-wrap: wrap; margin-bottom: .8rem; }
 .dash-query-state { padding: .75rem .85rem; border-radius: var(--radius-sm); background: var(--bg-elevated); color: var(--text-secondary); font-size: .78rem; }
 .dash-query-state.muted { color: var(--text-muted); }

@@ -145,7 +145,6 @@ Object.assign(App, {
   /** 進入儀表板時的自動提示（Q3=B） */
   _maybePromptDashRefresh() {
     if (!this._hasDashboardSnapshot()) {
-      this.showToast?.('📊 儀表板詳情功能需先撈取完整資料');
       return;
     }
     const age = this._dashboardSnapshotAgeMinutes();
