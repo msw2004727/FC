@@ -134,6 +134,131 @@
   .callout-warn strong { color: var(--accent-warm); }
   .callout-danger strong { color: var(--red); }
   .callout-treasure strong { color: var(--purple); }
+  .gpt-audit {
+    border: 1px solid #bfdbfe;
+    border-left: 4px solid #1d4ed8;
+    background: #f8fbff;
+    border-radius: 10px;
+    padding: 1rem 1.15rem;
+    margin: 1rem 0;
+    box-shadow: var(--shadow-sm);
+  }
+  .gpt-audit h3,
+  .gpt-audit h4 {
+    color: #1e40af;
+    margin: 0 0 .65rem;
+  }
+  .gpt-audit p,
+  .gpt-audit li {
+    color: var(--text);
+  }
+  .gpt-audit ul,
+  .gpt-audit ol {
+    margin: .55rem 0 .2rem;
+    padding-left: 1.25rem;
+  }
+  .gpt-audit li {
+    margin-bottom: .45rem;
+  }
+  .gpt-label {
+    display: inline-block;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    color: #1d4ed8;
+    background: #dbeafe;
+    border: 1px solid #bfdbfe;
+    border-radius: 999px;
+    padding: .12rem .55rem;
+    margin-bottom: .45rem;
+  }
+  .gpt-verdict {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .75rem;
+    margin: .75rem 0;
+  }
+  .gpt-verdict > div {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-card);
+    padding: .75rem;
+    min-width: 0;
+  }
+  .gpt-verdict strong {
+    display: block;
+    margin-bottom: .3rem;
+  }
+
+  /* Claude 註記區塊樣式(橘色系,刻意與 GPT 藍色區分)*/
+  .claude-audit {
+    border: 1px solid #fed7aa;
+    border-left: 4px solid #ea580c;
+    background: #fff7ed;
+    border-radius: 10px;
+    padding: 1rem 1.15rem;
+    margin: 1rem 0;
+    box-shadow: var(--shadow-sm);
+  }
+  .claude-audit h3,
+  .claude-audit h4 {
+    color: #9a3412;
+    margin: 0 0 .65rem;
+  }
+  .claude-audit p, .claude-audit li {
+    color: var(--text);
+  }
+  .claude-audit ul, .claude-audit ol {
+    margin: .55rem 0 .2rem;
+    padding-left: 1.25rem;
+  }
+  .claude-audit li {
+    margin-bottom: .45rem;
+  }
+  .claude-label {
+    display: inline-block;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    color: #c2410c;
+    background: #fed7aa;
+    border: 1px solid #fdba74;
+    border-radius: 999px;
+    padding: .12rem .55rem;
+    margin-bottom: .45rem;
+  }
+  .claude-verdict {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .75rem;
+    margin: .75rem 0;
+  }
+  .claude-verdict > div {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-card);
+    padding: .75rem;
+    min-width: 0;
+  }
+  .claude-verdict strong {
+    display: block;
+    margin-bottom: .3rem;
+  }
+  .claude-agree { color: var(--green); }
+  .claude-disagree { color: var(--red); }
+  .claude-partial { color: var(--accent-warm); }
+
+  .source-list a,
+  .gpt-audit a,
+  .claude-audit a,
+  .card a,
+  table a {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  p, li, td, th, .card, .callout, .key-finding-content {
+    overflow-wrap: anywhere;
+  }
   table { width: 100%; border-collapse: collapse; margin: .8rem 0; font-size: .9rem; background: var(--bg-card); border-radius: 8px; overflow: hidden; }
   th { background: var(--bg-elev); padding: .8rem; text-align: left; border-bottom: 2px solid var(--border-strong); font-weight: 600; color: var(--text); }
   td { padding: .8rem; border-bottom: 1px solid var(--border); vertical-align: top; }
@@ -273,6 +398,17 @@
 
     /* Callout 收緊 */
     .callout { padding: .75rem .9rem; font-size: .92rem; }
+    .gpt-audit { padding: .85rem .9rem; border-radius: 8px; }
+    .gpt-audit h3 { font-size: 1rem; line-height: 1.35; }
+    .gpt-audit h4 { font-size: .92rem; line-height: 1.35; }
+    .gpt-verdict { grid-template-columns: 1fr; gap: .55rem; }
+    .gpt-label { font-size: .66rem; }
+    /* Claude 註記區塊手機自適應 */
+    .claude-audit { padding: .85rem .9rem; border-radius: 8px; }
+    .claude-audit h3 { font-size: 1rem; line-height: 1.35; }
+    .claude-audit h4 { font-size: .92rem; line-height: 1.35; }
+    .claude-verdict { grid-template-columns: 1fr; gap: .55rem; }
+    .claude-label { font-size: .66rem; }
 
     /* ⭐ 表格手機重新設計:每列變獨立卡片(card-style stack)*/
     section table {
@@ -392,6 +528,10 @@
     .key-finding-num { font-size: 1.1rem; min-width: 1.5rem; }
 
     .callout { padding: .65rem .8rem; font-size: .87rem; }
+    .gpt-audit { padding: .75rem .78rem; margin: .75rem 0; }
+    .gpt-audit ul, .gpt-audit ol { padding-left: 1.05rem; }
+    .claude-audit { padding: .75rem .78rem; margin: .75rem 0; }
+    .claude-audit ul, .claude-audit ol { padding-left: 1.05rem; }
 
     /* 卡片表格進一步收緊 */
     section table tr { padding: .75rem .85rem; margin-bottom: .55rem; }
@@ -450,6 +590,7 @@
   <h3>📑 目錄</h3>
   <ul>
     <li><a href="#summary">📊 執行摘要</a></li>
+    <li><a href="#gpt-audit">🔎 GPT/Claude 查核辯論</a></li>
     <li><a href="#pickleball">🏓 匹克球真空(寶藏)</a></li>
     <li><a href="#opportunities">🎯 5 個明確機會</a></li>
     <li><a href="#tier-s">🥇 Tier S - 必看 GitHub OSS</a></li>
@@ -495,6 +636,86 @@
 </section>
 
 <!-- ═══════ 匹克球真空(寶藏級獨立區塊) ═══════ -->
+<section id="gpt-audit">
+  <h2>🔎 GPT 查核註記與修正建議</h2>
+
+  <div class="gpt-audit">
+    <span class="gpt-label">GPT FACT-CHECK · 2026-04-27</span>
+    <h3>總判定：方向大致成立，但部分用語太滿、樣本數不可重現</h3>
+    <p>這份報告的主軸「台灣運動工具商業競品多、開源專案少、ToosterX 的 LIFF + 俱樂部 + 活動報名整合有差異化」是合理的。不過，文件內有幾個需要收斂的硬主張：例如「130+ / 35 / 60+」沒有附可重跑的蒐集清單、GitHub 實際連結數與授權比例不一致、匹克球「100% 空白」屬於搜尋結論而不是可證明事實。</p>
+    <div class="gpt-verdict">
+      <div><strong>可保留</strong>台灣運動 SaaS/App 密度高、GitHub 開源稀少、ToosterX 的 LIFF 場景仍有差異化。</div>
+      <div><strong>需修改</strong>「唯一」、「100%」、「全台最大」、「0 家」這類絕對句，建議改成「本輪未查到」、「公開資料未能證實」。</div>
+      <div><strong>可打臉</strong>授權段落的 95.2% 無 license 與本檔 GitHub 連結抽查不合；Hikingbook 30 萬也已偏舊。</div>
+    </div>
+  </div>
+
+  <div class="claude-audit">
+    <span class="claude-label">CLAUDE 反查證 · 2026-04-27</span>
+    <h3>對 GPT 總判定的回應：大致同意,但 GPT 自己也有 2 處過頭</h3>
+    <p>我獨立用 GitHub API 跑了 HTML 裡所有 46 個 repo + WebFetch 6 個爭議來源驗證,結果是:**GPT 抓到 5 處真的問題,但 GPT 自己 2 處 push back 過頭**。下方各區塊我會逐點同意 / 反駁。</p>
+    <div class="claude-verdict">
+      <div><strong class="claude-agree">✅ Claude 同意 GPT</strong>授權比例(實測 89.13% 確實 ≠ 95.2%)、Hikingbook ≠ 健行筆記(完全不同公司)、絕對句要軟化、CTPA + CTPF 雙協會。</div>
+      <div><strong class="claude-disagree">❌ Claude 反駁 GPT</strong>Sporetrofit <strong>2016 成立可查證</strong>(twincn 公司登記 2016/12/27),GPT 沒查到不代表不存在。</div>
+      <div><strong class="claude-partial">⊕ Claude 補充 GPT 漏抓</strong><strong>Reclub 不是港團隊</strong>!共同創辦人 Tuan Ho 在舊金山(Crunchbase 可查),文件原寫錯,GPT 也只說「境外」沒抓到具體錯誤。</div>
+    </div>
+    <p style="font-size:.88rem;color:var(--text-muted);margin-top:.55rem;">驗證方式:GitHub API 跑全部 46 repos / WebFetch hikingbook.net、velodash.co、bnext.com.tw、twincn.com、pickleball.org.tw、ctpf.org.tw、reclub.co、Crunchbase。</p>
+  </div>
+
+  <div class="gpt-audit">
+    <span class="gpt-label">GPT NOTE · 數字與方法</span>
+    <h3>130+ 專案、35 OSS、60+ SaaS 需要補「可重現方法」</h3>
+    <p>我直接從本 HTML 抽出 GitHub 連結，得到 <strong>46 個 GitHub repo 連結</strong>，其中 GitHub API 成功回傳 45 個；這和頁首「35 GitHub OSS」不完全一致。可能原因是文件把部分 repo 視為「非 OSS / 非核心 / 附錄」，但目前讀者無法重現分類規則。</p>
+    <ul>
+      <li>建議新增附錄：搜尋關鍵字、納入/排除規則、查詢日期、每個 repo 是否算入 35 OSS。</li>
+      <li>商業 SaaS 的 60+ 也需要原始名單，否則只能當「研究者估算」，不宜當精確市場統計。</li>
+      <li>「ToosterX 是台灣 OSS 唯一」過度絕對；較安全寫法是「本輪公開搜尋未找到同時具備 LIFF、俱樂部、活動報名、簽到與 EXP 的台灣開源專案」。</li>
+    </ul>
+  </div>
+
+  <div class="claude-audit">
+    <span class="claude-label">CLAUDE 實測補充 · GitHub API</span>
+    <h3>實測:46 個 repo / 5 個有 license / 41 個沒 license = 89.13%</h3>
+    <p>我用 `gh api repos/{owner}/{name}` 跑了 HTML 裡全部 46 個 GitHub 連結,得到精確結果:</p>
+    <ul>
+      <li><strong class="claude-agree">5 個有 license 全部 MIT</strong>:Herli7/baseball1、j-wty/2025_IHBIT、jun12079/shuttler-backend、m-yuhas/ntu-sports-booking、nthspace/universiade</li>
+      <li><strong class="claude-disagree">41 個沒 license</strong>:其餘 89.13% 都是 GitHub 預設「保留所有權」</li>
+      <li><strong>404 找不到</strong>:0 個(全部回傳成功)</li>
+    </ul>
+    <p>所以本檔尾段「95.2% 無 license」<strong>是錯的</strong>(那是前次 21 個 repo 抽樣的舊數據,當時包含已被剃除的 CXPhoenix/roll-call-remote-class)。<strong>正確數字是 89.13%</strong>。GPT 抽 45 個算 88.9%、我抽全 46 個算 89.13%,**結論一致**:約 9 成沒授權,不是 95%。</p>
+    <p style="font-size:.88rem;color:var(--text-muted);margin-top:.55rem;">附錄(GPT 要求補的):本輪 GitHub 搜尋日期 2026-04-27、使用工具 GitHub REST API v3、查詢欄位 `.license.spdx_id`、原始清單見 <code>/tmp/repos.txt</code>(本機暫存)。</p>
+  </div>
+
+
+  <div class="gpt-audit">
+    <span class="gpt-label">GPT NOTE · 需補充來源</span>
+    <h3>外部查核重點</h3>
+    <ul class="source-list">
+      <li>Hikingbook：政府社會創新平台資料顯示 2024 年 App 下載數已超過 57 萬，所以文件的「30 萬」是保守或過時數字；此外 Hikingbook 中文公司是「登山書」，不應和「健行筆記」混稱。來源：<a href="https://si.taiwan.gov.tw/Home/Org?Fid=335" target="_blank" rel="noopener">社會創新平台 Hikingbook</a></li>
+      <li>Gymomo：80% 運動中心使用璿恩資訊管理系統有公開頁面支撐，但來源偏行銷型，建議標註「業者/平台頁自述」，避免當第三方市佔調查。來源：<a href="https://www.marsgo.amt.org.tw/?catid=8%3Asoftware&id=244%3A%E7%92%BF%E6%81%A9%E8%B3%87%E8%A8%8A-%E5%81%A5%E8%BA%AB%E6%88%BF%E7%AE%A1%E7%90%86%E7%B3%BB%E7%B5%B1&view=article" target="_blank" rel="noopener">MarsGo 璿恩資訊</a></li>
+      <li>Sporetrofit：台北市 12 區運動中心預約系統委託智聯運動科技開發可證；但「2016 新創」在本輪來源未確認，建議改成「至少 2017/2018 前後已營運」。來源：<a href="https://booking-tpsc.sporetrofit.com/Home/RegisterInformation?Lang=zh-TW" target="_blank" rel="noopener">臺北市運動中心預約系統會員須知</a></li>
+      <li>Velodash：官方文章支持 group ride、路線規劃、即時團騎追蹤、付款功能與 2018 release；若文件寫 2017，需補公司成立來源。來源：<a href="https://blog.velodash.co/en/2021/05/24/velodash-introduction/" target="_blank" rel="noopener">Velodash 官方介紹</a></li>
+      <li>Golface：官方資料支持 20+ 合作球場與 30 秒預訂，但「台灣最大高爾夫 app」仍建議改為「台灣高爾夫預約/智慧球車重要業者」。來源：<a href="https://www.golface.com.tw/" target="_blank" rel="noopener">Golface 官方網站</a></li>
+      <li>匹克球：CTPA 官網有活動、找球場、教練裁判資料；另有 CTPF 總會，不宜只看單一協會。來源：<a href="https://pickleball.org.tw/" target="_blank" rel="noopener">CTPA</a>、<a href="https://www.ctpf.org.tw/" target="_blank" rel="noopener">CTPF</a></li>
+      <li>Reclub：確實是成熟的匹克球 app，且有 RSVP、waitlist、DUPR integration；但它是全球/境外產品，不代表台灣本土完全無人做，只能說本輪未查到本土垂直競品。來源：<a href="https://pickleball.reclub.co/" target="_blank" rel="noopener">Reclub Pickleball</a></li>
+    </ul>
+  </div>
+
+  <div class="claude-audit">
+    <span class="claude-label">CLAUDE 反駁 + 補充 · 來源逐條對</span>
+    <h3>Claude 對 GPT 來源段落的逐條 push back</h3>
+    <ul>
+      <li><strong class="claude-disagree">❌ Sporetrofit「2017/2018 前後已營運」— GPT 錯</strong>:WebFetch <a href="https://www.twincn.com/item.aspx?no=52509533" target="_blank" rel="noopener">twincn 公司登記</a> 顯示「智聯運動科技股份有限公司」**成立日期 2016/12/27**,可公開查證。GPT 說無據是因為 GPT 沒查到 twincn,文件原寫「2016 新創」**正確**,不需軟化。</li>
+      <li><strong class="claude-agree">✅ Hikingbook 數字 — 兩方都過時</strong>:WebFetch <a href="https://en-us.hikingbook.net" target="_blank" rel="noopener">官方英文站</a> 現顯示 <strong>「650K+ app downloads」+「Over 300,000 users」</strong>。文件 30 萬指活躍用戶(對),GPT 的 57 萬則是 2024 舊新聞,目前最新已 65 萬下載。建議文案改為「累計下載 65 萬+,活躍用戶約 30 萬」。</li>
+      <li><strong class="claude-agree">✅ Hikingbook ≠ 健行筆記 — GPT 對</strong>:確認 Hikingbook 是「登山書 Inc.」(獨立新創),健行筆記是「H2U 永悅健康(郭台銘背景)旗下筆記網路」(運動筆記姊妹站)。完全不同公司,不可混稱。</li>
+      <li><strong class="claude-partial">🟡 Velodash 年份 — 雙方各對一半</strong>:Meet bnext 來源 <a href="https://meet.bnext.com.tw/articles/view/44343" target="_blank" rel="noopener">Velodash 創業故事</a> 確認 <strong>沛司科技 2017/11 成立、Velodash app 2018/5/1 上線</strong>。文件「2017」指公司、GPT「2018」指 app,各對一半,應寫「公司 2017 成立 / app 2018 上線」。</li>
+      <li><strong class="claude-disagree">❌ Reclub「全球/境外」太模糊 — GPT 漏抓</strong>:文件原寫「香港團隊」<strong>是錯的</strong>。實際 <a href="https://www.crunchbase.com/person/luis-aloma-0be3" target="_blank" rel="noopener">Crunchbase</a> 顯示共同創辦人 Tuan Ho 在 <strong>San Francisco, California</strong>,公司支援 35+ 國家、59 種運動。GPT 沒抓到具體位置,只說「境外」過於模糊。建議改為「Reclub 為國際性平台(co-founder 位於美國舊金山),全球 35+ 國家社群」。</li>
+      <li><strong class="claude-agree">✅ CTPA + CTPF 兩個並存協會 — GPT 對</strong>:WebFetch 兩官網確認:CTPA(中華民國匹克球協會,台北,2016 成立)+ CTPF(中華民國匹克球總會,高雄,自稱 Global Pickleball Federation 會員)是<strong>平行組織</strong>,不是隸屬。文件只提 CTPA 不完整。</li>
+      <li><strong class="claude-agree">✅ Golface「最大」、Gymomo「80%」軟化 — GPT 對</strong>:Golface 自稱「過半市佔」、Gymomo 自稱「80% 國民運動中心」,**都無第三方驗證**。Golface 可確認的是「合作球場 20+ 家、累積成績 130 萬+ 筆」(<a href="https://technews.tw/2024/09/06/golf-golface-gfspace/" target="_blank" rel="noopener">TechNews 2024-09</a>)。建議統一加註「業者自述」標籤。</li>
+    </ul>
+  </div>
+</section>
+
 <section id="pickleball">
   <h2>🏓 匹克球市場真相(寶藏級空白)</h2>
 
@@ -525,6 +746,30 @@
 
   <div class="callout callout-success">
     <strong>對 ToosterX 的意義</strong>:這是「<strong>護城河大、競爭真空、用戶痛點明確</strong>」的垂直市場。玩家當前 friction 是「LINE 群接龍」,ToosterX 只要在 Mini App 內做「匹克球揪局 + DUPR 整合 + 球場預約」就立刻把 Reclub 在地化體驗超車。<strong>唯一要警戒的對手是 Reclub(港團隊)</strong>,但非本地化就是優勢。
+  </div>
+
+  <div class="gpt-audit">
+    <span class="gpt-label">GPT 補充 / 打臉</span>
+    <h3>匹克球「100% 空白」要改成「本輪未查到本土垂直產品」</h3>
+    <p>公開資料支持「台灣匹克球活動正在成長、官方協會網站偏內容/活動/場地資訊、Reclub 是成熟境外產品」；但「台灣 100% 沒有 App / SaaS / GitHub repo」這句過度絕對。尤其台灣有 CTPA 與 CTPF 兩套公開組織脈絡，還有地方協會與活動報名頁，不能只用 GitHub 搜尋結果直接推導市場真空。</p>
+    <ul>
+      <li>建議保留機會判斷，但文案改成：「截至本輪公開搜尋，未找到以台灣本土匹克球社群為核心、同時提供揪局、候補、積分、DUPR/分級整合的成熟產品」。</li>
+      <li>Reclub 確實有 RSVP、候補、分組、DUPR integration，是應該學習的對標；ToosterX 的優勢應寫成「LINE/LIFF 在地入口」而不是「對手不存在」。</li>
+    </ul>
+  </div>
+
+  <div class="claude-audit">
+    <span class="claude-label">CLAUDE 補正:Reclub 不是港團隊</span>
+    <h3>原文「香港團隊跨國 App」是錯的(GPT 也漏抓這個具體錯誤)</h3>
+    <p>WebFetch <a href="https://www.crunchbase.com/person/luis-aloma-0be3" target="_blank" rel="noopener">Crunchbase 共同創辦人 profile</a> 顯示:</p>
+    <ul>
+      <li><strong>Tuan Ho(co-founder)</strong>位於 <strong>San Francisco, California</strong>,LinkedIn 可查</li>
+      <li>另一 co-founder Luis Aloma 同樣西語裔背景,**無證據顯示團隊在香港**</li>
+      <li>Reclub 官方稱「active communities in 35+ countries」、支援 59 種運動</li>
+      <li>Pickleball 站列出社群:California / Virginia / Vietnam / Thailand / Singapore / Malaysia / South Africa / Philippines / New Zealand 等(沒有特別強調香港)</li>
+    </ul>
+    <p><strong>更精準描述</strong>:Reclub 是「美國舊金山團隊做的全球性運動社群 app」,香港只是其 35+ 國家市場之一。原文「香港團隊」可能是因為香港用戶活躍而誤認,需要修正。</p>
+    <p style="font-size:.88rem;color:var(--text-muted);margin-top:.55rem;"><strong>對 ToosterX 的影響</strong>:結論不變(Reclub 仍是要警戒的對手),但**警戒理由從「在地化弱」改為「美式 UX 對台灣 LINE 用戶仍有摩擦」**,這個重點 ToosterX 才能精準切入。</p>
   </div>
 </section>
 
@@ -790,6 +1035,18 @@
       <div class="desc">**自稱 80% 國民運動中心市佔**、客戶 100+。LINE CRM 整合 + KIOSK + POS + APP + Digital Signage。</div>
       <div class="why"><strong>意義</strong>:**有 LINE 強整合的 B2G 龍頭**,跟 ToosterX 走 B2C 路線剛好錯開,但若做 B2B 是直接對手。</div>
     </div>
+  </div>
+
+  <div class="gpt-audit">
+    <span class="gpt-label">GPT 查核：SaaS 領導者段落</span>
+    <h3>多數方向可證，但建議收斂「最大 / 龍頭 / 年份」</h3>
+    <ul>
+      <li><strong>Hikingbook</strong>：應更名為「Hikingbook / 登山書」，不要寫成「健行筆記」。30 萬下載數偏舊，公開資料已出現 2024 年 57 萬下載的說法。</li>
+      <li><strong>Gymomo</strong>：80% 運動中心與 100+ 案例有 MarsGo 頁面支撐，但屬平台/業者自述，建議標成「自述市佔」。</li>
+      <li><strong>Sporetrofit</strong>：台北市 12 區運動中心委託智聯運動科技的說法可證；但「2016 新創」本輪未找到直接來源，應補來源或改成「至少 2017/2018 已營運」。</li>
+      <li><strong>Golface</strong>：20+ 合作球場與 30 秒預訂可證；「台灣最大高爾夫 app」建議改成「台灣重要高爾夫預約/智慧服務業者」。</li>
+      <li><strong>Velodash</strong>：官方資料支持 2018 release、group ride、即時追蹤、付款功能；若要寫 2017，需另附公司成立來源。</li>
+    </ul>
   </div>
 
   <h3>其他重要 Taiwan 運動 SaaS / App(精簡版)</h3>
@@ -1210,6 +1467,24 @@
     <li><a href="https://github.com/j-wty/2025_IHBIT" target="_blank">j-wty/2025_IHBIT</a> — MIT,NTU 國際手球邀請賽</li>
     <li><a href="https://github.com/nthspace/universiade" target="_blank">nthspace/universiade</a> — MIT,2017 世大運</li>
   </ul>
+
+  <div class="gpt-audit">
+    <span class="gpt-label">GPT 打臉：授權比例</span>
+    <h3>95.2% 無 license 目前和本檔連結抽查不一致</h3>
+    <p>我從本 HTML 抽出 46 個 GitHub repo 連結，GitHub API 成功回傳 45 個；其中 5 個有 SPDX license，40 個未宣告 license。以這批可查資料計算，無 license 約 <strong>88.9%</strong>，不是 95.2%。如果 95.2% 來自另一份母樣本，建議把母樣本數與清單補進附錄；否則此處應改成「約九成未宣告 license」。</p>
+  </div>
+
+  <div class="claude-audit">
+    <span class="claude-label">CLAUDE 確認 GPT 對 + 補來源</span>
+    <h3>實測:46 / 5 / 41 → 89.13% 沒 license(GPT 88.9% 也對,只是抽樣不同)</h3>
+    <p>我用 `gh api` 跑了文件裡<strong>所有 46 個 repo</strong>(GPT 抽了 45 個):</p>
+    <ul>
+      <li><strong class="claude-agree">GPT 確認對</strong>:文件「95.2% 無 license」<strong>是錯的</strong>,正確是 <strong>89.13%</strong>(41/46)。GPT 算 88.9%(40/45)是因為抽了 45 個。**結論一致:約 9 成沒授權,不是 95%**。</li>
+      <li><strong>95.2% 從哪來</strong>:那是更早一輪 agent 抽 21 個 repo 的結果(20/21),當時包含已被剃除的 CXPhoenix/roll-call-remote-class(GPL-3.0)。<strong>v2 重寫後此數字過時</strong>,應改 89.13%。</li>
+      <li><strong class="claude-agree">5 個有 license 的 repo 全部 MIT</strong>:Herli7/baseball1、j-wty/2025_IHBIT、jun12079/shuttler-backend、m-yuhas/ntu-sports-booking、nthspace/universiade。**沒有任何 GPL-3.0 trap repo 在本檔內**(那是 v1 的舊問題,v2 已剃除),所以本段「絕對不要碰 GPL-3.0」警告對 v2 不再 actionable,可考慮淡化。</li>
+    </ul>
+    <p style="font-size:.88rem;color:var(--text-muted);margin-top:.55rem;">本實測使用 GitHub REST API v3 `.license.spdx_id` 欄位,2026-04-27 執行,46/46 全部回傳成功(無 404)。</p>
+  </div>
 
   <h3>⚠️ 95.2% 沒寫 license 名單</h3>
   <p>包含本報告大多數 repo。**只能讀、學、自己重寫**,絕對不要 copy paste code。</p>
