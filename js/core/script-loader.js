@@ -83,8 +83,8 @@ const ScriptLoader = {
 
   _groups: {
     achievement: [
-      'js/modules/auto-exp.js',
-      'js/modules/auto-exp-rules.js',
+      'js/modules/auto-exp/index.js',
+      'js/modules/auto-exp/rules.js',
       'js/modules/achievement/index.js',
       'js/modules/achievement/registry.js',
       'js/modules/achievement/shared.js',
@@ -98,8 +98,8 @@ const ScriptLoader = {
       'js/modules/achievement.js',
     ],
     activity: [
-      'js/modules/auto-exp.js',
-      'js/modules/auto-exp-rules.js',
+      'js/modules/auto-exp/index.js',
+      'js/modules/auto-exp/rules.js',
       'js/modules/event/event-list-helpers.js',
       'js/modules/event/event-list-stats.js',
       'js/modules/event/event-list-home.js',
@@ -135,7 +135,7 @@ const ScriptLoader = {
       'js/modules/registration-audit.js',
     ],
     team: [
-      'js/modules/auto-exp.js',
+      'js/modules/auto-exp/index.js',
       'js/modules/event/event-share-builders.js',
       'js/modules/event/event-share.js',
       'js/modules/team/team-list-helpers.js',
@@ -156,8 +156,8 @@ const ScriptLoader = {
       'js/modules/team/team-form.js',
     ],
     profile: [
-      'js/modules/auto-exp.js',
-      'js/modules/auto-exp-rules.js',
+      'js/modules/auto-exp/index.js',
+      'js/modules/auto-exp/rules.js',
       'js/modules/event/event-share-builders.js',
       'js/modules/event/event-share.js',
       'js/modules/profile/profile-avatar.js',
@@ -221,7 +221,7 @@ const ScriptLoader = {
       'js/modules/leaderboard.js',
     ],
     scan: [
-      'js/modules/auto-exp.js',
+      'js/modules/auto-exp/index.js',
       'js/modules/scan/scan.js',
       'js/modules/scan/scan-ui.js',
       'js/modules/scan/scan-camera.js',
@@ -311,8 +311,8 @@ const ScriptLoader = {
       'js/modules/event/event-list-calendar-nav.js',
     ],
     adminUsers: [
-      'js/modules/auto-exp.js',
-      'js/modules/auto-exp-rules.js',
+      'js/modules/auto-exp/index.js',
+      'js/modules/auto-exp/rules.js',
       'js/modules/event/event-manage-noshow.js',
       'js/modules/user-admin/user-admin-list.js',
       'js/modules/user-admin/user-admin-exp.js',
@@ -320,7 +320,7 @@ const ScriptLoader = {
       'js/modules/user-admin/user-admin-perm-info.js',
       'js/modules/user-admin/user-admin-corrections.js',
       'js/modules/user-admin/user-admin-event-blocklist.js',
-      'js/modules/achievement-batch.js',
+      'js/modules/achievement/batch.js',
       'js/modules/data-sync.js',
     ],
     adminContent: [
@@ -332,7 +332,7 @@ const ScriptLoader = {
       'js/modules/ad-manage/boot-brand-manage.js',
     ],
     adminSystem: [
-      'js/modules/auto-exp.js',
+      'js/modules/auto-exp/index.js',
       'js/modules/game-manage.js',
       'js/modules/game-log-viewer.js',
       'js/modules/admin-log-tabs.js',

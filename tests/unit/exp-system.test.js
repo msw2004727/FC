@@ -4,12 +4,12 @@
  *         requestId generation, rollback logic, fallback chain
  *
  * Source files:
- *   js/modules/auto-exp.js
+ *   js/modules/auto-exp/index.js
  *   js/api-service.js (adjustUserExp / adjustUserExpAsync)
  */
 
 // =========================================================================
-// Constants (from js/modules/auto-exp.js lines 16-21)
+// Constants (from js/modules/auto-exp/index.js lines 16-21)
 // =========================================================================
 
 const _AUTO_EXP_DEFAULTS = [

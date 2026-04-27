@@ -44,7 +44,7 @@ flowchart TD
             TOUR["tournament/ (15)\n賽事系統"]
             PROF["profile/ (9)\n個人資料"]
             MSG["message/ (9)\n訊息系統"]
-            ACH["achievement/ (10)\n成就系統"]
+            ACH["achievement/ (11)\n成就系統"]
             SHOT["shot-game/ (10)\n射門遊戲"]
             KICK["kickball/ (6)\n踢球遊戲"]
             SCAN["scan/ (5)\nQR Code 掃描"]
@@ -53,7 +53,8 @@ flowchart TD
             EDU["education/ (21)\n教育型俱樂部"]
             CCAT["color-cat/ (45)\n養成角色系統"]
             UADM["user-admin/ (5)\n用戶管理後台"]
-            STANDALONE["24 個獨立模組\nbanner / shop / role / leaderboard\nachievement facade / news / favorites\nannouncement / popup-ad / auto-exp\nsite-theme / game-manage / data-sync\nimage-cropper / image-upload / pwa-install\nattendance-notify / registration-audit\nachievement-batch / admin-log-tabs\naudit-log / error-log / game-log-viewer"]
+            AUTOEXP["auto-exp/ (2)\n自動 EXP 系統"]
+            STANDALONE["22 個獨立模組\nbanner / shop / role / leaderboard\nachievement facade / news / favorites\nannouncement / popup-ad\nsite-theme / game-manage / data-sync\nimage-cropper / image-upload / pwa-install\nattendance-notify / registration-audit\nadmin-log-tabs\naudit-log / error-log / game-log-viewer"]
         end
     end
 
@@ -275,7 +276,7 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 | `message-admin-compose.js` | 管理員站內信撰寫 |
 | `message-admin.js` | 管理員訊息主模組 |
 
-### achievement/ — 成就系統（10 個模組）
+### achievement/ — 成就系統（11 個模組）
 
 | 檔案 | 說明 |
 |------|------|
@@ -289,6 +290,14 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 | `profile.js` | 成就個人頁 bridge（profile-facing API，供多模組共用） |
 | `view.js` | 成就頁 view helper（公開成就頁卡片與徽章展示） |
 | `admin.js` | 成就後台 helper（列表、表單、上傳、cleanup、手動授予面板） |
+| `batch.js` | 成就批次更新（一鍵為全員重新計算成就進度，2026-04-27 從 root 搬入） |
+
+### auto-exp/ — 自動 EXP 系統（2 個模組）
+
+| 檔案 | 說明 |
+|------|------|
+| `index.js` | 自動 EXP 規則設定（依行為觸發、Firestore 持久化 + localStorage fallback） |
+| `rules.js` | 自動 EXP 對帳規則（放鴿子扣分 / LINE 綁定獎勵 / 徽章獎勵，reconciliation model） |
 
 ### shot-game/ — 射門遊戲（10 個模組）
 
@@ -437,20 +446,17 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 
 ---
 
-## 獨立模組清單（24 個）
+## 獨立模組清單（22 個）
 
 以下模組位於 `js/modules/` 根目錄，不屬於任何子資料夾：
 
 | 檔案 | 說明 |
 |------|------|
 | `achievement.js` | 成就領域 facade（保留舊入口方法名稱，逐步轉接到 `achievement/` 子模組） |
-| `achievement-batch.js` | 成就批次更新（一鍵為全員重新計算成就進度） |
 | `admin-log-tabs.js` | 管理員日誌中心（操作日誌 + 審計日誌 + 錯誤日誌頁籤介面） |
 | `announcement.js` | 系統公告管理與顯示 |
 | `attendance-notify.js` | 被掃方即時通知（Production: Firestore onSnapshot / Demo: 直接觸發） |
 | `audit-log.js` | `super_admin` 審計日誌查詢（單日查詢、時間/UID/動作篩選） |
-| `auto-exp.js` | 自動 EXP 規則設定（依行為觸發） |
-| `auto-exp-rules.js` | 自動 EXP 對帳規則（放鴿子扣分 / LINE 綁定獎勵 / 徽章獎勵，reconciliation model） |
 | `banner.js` | 首頁輪播 Banner 渲染 |
 | `data-sync.js` | 系統資料同步（俱樂部成員數重算、用戶俱樂部欄位驗證、孤兒記錄清理），含費用預估 |
 | `error-log.js` | 錯誤日誌查詢與嚴重度分類顯示 |
@@ -518,7 +524,7 @@ ScriptLoader（`js/core/script-loader.js`）定義了以下頁面群組，按需
 
 | 群組名稱 | 載入模組 | 觸發頁面 |
 |----------|----------|----------|
-| `achievement` | `image-cropper` + `image-upload` + `achievement/*` (10) + `achievement.js` | 成就頁、個人資料、排行榜 |
+| `achievement` | `image-cropper` + `image-upload` + `achievement/*` (11) + `achievement.js` | 成就頁、個人資料、排行榜 |
 | `activity` | `event/*` (27) + `registration-audit.js` | 活動列表、詳情、我的活動 |
 | `team` | `event/event-share-builders` + `event/event-share` + `team/*` (10) | 俱樂部列表、詳情、管理 |
 | `profile` | `event/event-share-builders` + `event/event-share` + `profile/*` (9) | 個人資料、名片、稱號 |
@@ -530,10 +536,10 @@ ScriptLoader（`js/core/script-loader.js`）定義了以下頁面群組，按需
 | `messageAdmin` | `message/message-admin-*` (3) | 管理員訊息 |
 | `adminDashboard` | `dashboard/*` (5，不含 personal-dashboard) | 管理員儀表板 |
 | `personalDashboard` | `dashboard/dashboard-widgets` + `dashboard/dashboard` + `dashboard/personal-dashboard` | 個人儀表板 |
-| `adminUsers` | `user-admin/*` (5) + `achievement-batch` + `data-sync` | 用戶管理 |
+| `adminUsers` | `user-admin/*` (5) + `achievement/batch` + `data-sync` | 用戶管理 |
 | `education` | `education/*` (21) | 教育型俱樂部（分組、學員、課程、報名、簽到、行事曆） |
 | `adminContent` | `ad-manage/*` (6) | 廣告管理 |
-| `adminSystem` | `auto-exp` + `game-manage` + `admin-log-tabs` + `error-log` + `audit-log` | 系統管理 |
+| `adminSystem` | `auto-exp/*` (2) + `game-manage` + `admin-log-tabs` + `error-log` + `audit-log` | 系統管理 |
 
 ---
 
