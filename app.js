@@ -165,17 +165,20 @@ function _dismissBootOverlay(reason) {
     // 2026-04-25：reload 帶 ?event= 等 deep link 時延後隱藏，避免「閃首頁→跳回」
     // 2026-04-27：擴充涵蓋 hash navigation（用戶帶 #page-xxx 進來）、避免「先閃首頁→才跳目標頁」
     // 等 navigation 完成由 _dismissBootOverlayAfterDeepLink() / _dismissBootOverlayAfterHashNav() 強制觸發
-    // 5 秒安全超時：即使 navigation 卡住也不會永遠遮罩（看門狗 8 秒兜底之前）
+    // 7 秒安全超時：即使 navigation 卡住也不會永遠遮罩（看門狗 8 秒兜底之前）
+    // 2026-04-27 調整：5000 → 7000ms。用戶實測 mobile/慢網路下 page-activities 等
+    // hash nav 經常需要 5+ 秒（cloud ready + ensureCollectionsForPage），5 秒不夠導致
+    // overlay 提早隱藏 → 看到首頁閃過 → 1-2 秒後 nav 完成才跳目標頁。詳見 docs/tunables.md
     if ((_hasPendingDeepLink() || _hasPendingHashNav()) && !window._bootOverlayForceDismiss) {
       if (!window._bootOverlayDeferredHide) {
         window._bootOverlayDeferredHide = true;
         const _navType = _hasPendingDeepLink() ? 'deep link' : 'hash navigation';
         console.log('[Boot] pending ' + _navType + ' 偵測到，延後隱藏 boot overlay (' + (reason || '') + ')');
         window._bootOverlayDeferredTimeout = setTimeout(function() {
-          console.warn('[Boot] ' + _navType + ' 5 秒未完成，強制隱藏 boot overlay');
+          console.warn('[Boot] ' + _navType + ' 7 秒未完成，強制隱藏 boot overlay');
           window._bootOverlayForceDismiss = true;
           _dismissBootOverlay('nav-timeout');
-        }, 5000);
+        }, 7000);
       }
       return;
     }

@@ -2,6 +2,17 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-27 — Hash navigation 延後安全 timeout 5000 → 7000ms（消除「先閃首頁→才跳目標頁」殘留瑕疵）
+- **問題**：用戶反映即使 4/27 加了 hash navigation 守衛（commit 121a6c52），實測仍出現「reload `#page-activities` → 先閃真首頁 → 過幾秒才跳活動列表」
+- **根因**：`_dismissBootOverlay` 的 hash nav 守衛雖然會延後隱藏，但設了 **5 秒安全 timeout** 避免 navigation 卡住永遠遮罩。Mobile / 慢網路下 `showPage('page-activities')` 經常需要 5+ 秒（`ensureCloudReady` + `ensureCollectionsForPage` + `_renderPageContent`），5 秒到達時 navigation 還沒完成 → timeout fire → 強制 dismiss overlay → 用戶看到首頁渲染 → 1-2 秒後 nav 完成才跳目標頁
+- **修復**：`app.js` `_dismissBootOverlay` 的 hash/deep link 守衛 timeout 從 `5000` ms → `7000` ms
+- **設計約束**：必須 < 開機看門狗 `8000` ms（避免看門狗先 reload），7 秒給 1 秒緩衝
+- **依規 §每次新增功能時的規範第 8 條**：
+  - `docs/tunables.md` 同步更新「Navigation 延後安全 timeout」條目（5000 → 7000）+ 名稱從「Deep link」擴充為「Navigation」（涵蓋 hash nav）
+- **預期效果**：mobile reload `#page-xxx` → 7 秒內 navigation 完成 → 直接跳目標頁、無首頁 flash
+- **若仍 flash**：表示 navigation 真的需要 7+ 秒，需要優化 cloud init / ensureCollectionsForPage 速度，而不是繼續拉 timeout（看門狗 8 秒上限）
+- **教訓**：「機制設計沒問題、實際運行時間不夠」是常見的 timing race。修復前要實測「目標流程實際耗時」對比「timeout 上限」，避免設計時樂觀估計
+
 ### 2026-04-27 — 重新加回匹克球 V4 SVG 圖示（被 dcb2c0ea 意外移除）[永久]
 - **問題**：用戶反映匹克球圖示又變回 🏓 桌球 emoji,**先前明明改成 V4 SVG 過**
 - **根因追查**：

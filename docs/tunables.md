@@ -25,7 +25,7 @@
 | 名稱 | 值 | 檔案位置 | 用途 |
 |------|---|---------|------|
 | **MIN_VISIBLE_MS** | `2500` ms | `app.js` `_dismissBootOverlay` | 最短顯示時間。Phase 3 快取命中(~200ms)會立刻觸發 dismiss、進度條才到 ~10% 就被強制跳 100%。此守衛確保用戶看到完整動畫流程（從 0% → ~92% 動畫約需 2.7 秒，2500ms 可看到 ~83% 進度，視覺感受完整） |
-| Deep link 延後安全 timeout | `5000` ms | `app.js` `_dismissBootOverlay` | reload 帶 `?event=` 等 query 時，等 deep link 跳轉完成才隱藏。此 timeout 是兜底（避免 deep link 卡住永遠遮罩）。**必須 < 開機看門狗 8000 ms** |
+| Navigation 延後安全 timeout | `7000` ms | `app.js` `_dismissBootOverlay` | reload 帶 `?event=` deep link 或 `#page-xxx` hash navigation 時，等 navigation 跳轉完成才隱藏。此 timeout 是兜底（避免 navigation 卡住永遠遮罩）。**必須 < 開機看門狗 8000 ms**。2026-04-27 由 5000 調整為 7000，因 mobile/慢網路下 hash nav 經常需要 5+ 秒（cloud ready + ensureCollectionsForPage） |
 | 開機看門狗 timeout | `8000` ms | `index.html:940` | 清快取後 8 秒內未完成初始化則自動 reload（最多 2 次） |
 | Loading overlay safety timeout | `20000` ms | `index.html:820` | 終極兜底：若 boot overlay 超過 20 秒仍未消失強制隱藏 |
 | 進度條 tick interval | `180` ms | `index.html:789` | 進度條動畫每 180ms 跑一次，從 0% → 92% 約 2.7 秒 |
