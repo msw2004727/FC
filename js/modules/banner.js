@@ -251,29 +251,33 @@ Object.assign(App, {
   renderSponsors() {
     const grid = document.getElementById('sponsor-grid');
     if (!grid) return;
-    const sponsorMap = {};
-    ApiService.getSponsors().forEach(sp => { sponsorMap[sp.slot] = sp; });
-    // 永遠渲染 6 格，即使 Firestore 資料為空也保持 UI 完整
-    const html = [];
-    for (let i = 1; i <= 6; i++) {
-      const sp = sponsorMap[i];
-      if (sp) {
-        const isActive = sp.status === 'active' && sp.image;
-        const hasLink = isActive && sp.linkUrl;
-        const safeUrl = (hasLink && /^https?:\/\//.test(sp.linkUrl)) ? escapeHTML(sp.linkUrl) : '';
-        const clickHandler = safeUrl
-          ? `onclick="App.trackAdClick('sponsor','${escapeHTML(sp.id)}');window.open('${safeUrl}','sporthub_ad')"`
-          : '';
-        if (isActive) {
-          html.push(`<div class="sponsor-slot${hasLink ? ' has-link' : ''}" title="${escapeHTML(sp.title || '贊助商')}" ${clickHandler}>
-            <img src="${sp.image}" alt="${escapeHTML(sp.title || '')}" loading="lazy" decoding="async">
-          </div>`);
-          continue;
-        }
-      }
-      html.push(`<div class="sponsor-slot">贊助商</div>`);
+    const divider = document.getElementById('sponsor-divider');
+    // 2026-04-27：只渲染 active + 有圖片的贊助商，沒有則整區（含上方分隔線）隱藏；不再保留空格
+    const activeSponsors = ApiService.getSponsors()
+      .filter(sp => sp && sp.status === 'active' && sp.image)
+      .sort((a, b) => Number(a.slot || 0) - Number(b.slot || 0));
+
+    if (activeSponsors.length === 0) {
+      grid.innerHTML = '';
+      grid.style.display = 'none';
+      if (divider) divider.style.display = 'none';
+      return;
     }
+
+    const html = activeSponsors.map(sp => {
+      const hasLink = !!sp.linkUrl && /^https?:\/\//.test(sp.linkUrl);
+      const safeUrl = hasLink ? escapeHTML(sp.linkUrl) : '';
+      const clickHandler = hasLink
+        ? `onclick="App.trackAdClick('sponsor','${escapeHTML(sp.id)}');window.open('${safeUrl}','sporthub_ad')"`
+        : '';
+      return `<div class="sponsor-slot${hasLink ? ' has-link' : ''}" title="${escapeHTML(sp.title || '贊助商')}" ${clickHandler}>
+        <img src="${sp.image}" alt="${escapeHTML(sp.title || '')}" loading="lazy" decoding="async">
+      </div>`;
+    });
+
     grid.innerHTML = html.join('');
+    grid.style.display = '';
+    if (divider) divider.style.display = '';
   },
 
   _floatAdOffset: 0,
