@@ -661,6 +661,16 @@ Object.assign(App, {
     const activated = this._activatePage(pageId, options);
     if (activated) {
       if (!options.suppressHashSync && location.hash !== '#' + pageId) location.hash = pageId;
+      // 2026-04-25：離開臨時參與報表頁時清掉 ?rid=、避免 refresh 又被拉回
+      if (pageId !== 'page-temp-participant-report') {
+        try {
+          const _u = new URL(window.location.href);
+          if (_u.searchParams.has('rid')) {
+            _u.searchParams.delete('rid');
+            history.replaceState(null, '', _u.pathname + (_u.search || '') + (_u.hash || ''));
+          }
+        } catch (_) {}
+      }
       return { ok: true, pageId };
     }
     return { ok: false, reason: 'missing_target' };

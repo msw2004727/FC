@@ -1011,7 +1011,7 @@ const App = {
     try {
       const url = new URL(window.location.href);
       let changed = false;
-      ['event', 'team', 'tournament', 'profile'].forEach((key) => {
+      ['event', 'team', 'tournament', 'profile', 'rid'].forEach((key) => {
         if (!url.searchParams.has(key)) return;
         url.searchParams.delete(key);
         changed = true;
@@ -2468,9 +2468,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     if (!App._getPendingDeepLink()) {
       const bootUrl = new URL(window.location.href);
-      const rawPageId = bootUrl.searchParams.get('rid')
+      // 2026-04-25 Bug fix：?rid= 只在 hash 為空或本來就是 temp report 時才強制路由
+      // 防止「進 temp report 後導航到其他頁 → refresh 又被 ?rid 拉回 temp report」
+      const _hashOnUrl = location.hash.replace(/^#/, '');
+      const _ridParam = bootUrl.searchParams.get('rid');
+      const rawPageId = (_ridParam && (!_hashOnUrl || _hashOnUrl === 'page-temp-participant-report'))
         ? 'page-temp-participant-report'
-        : location.hash.replace(/^#/, '');
+        : _hashOnUrl;
       const bootPageId = App._resolveBootPageId(rawPageId);
       if (bootPageId && bootPageId !== App.currentPage) {
         // 2026-04-27：navigation 完成後 dismiss boot overlay、解除「先閃首頁」
