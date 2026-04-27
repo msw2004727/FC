@@ -134,6 +134,100 @@
   .callout-warn strong { color: var(--accent-warm); }
   .callout-danger strong { color: var(--red); }
   .callout-treasure strong { color: var(--purple); }
+  /* ⛩️ 「金小麥」作者印章 — 傳統中式朱紅篆印風 */
+  .author-stamp {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 68px;
+    height: 68px;
+    background: #c1272d;
+    color: #fff;
+    border: 3px solid #fff;
+    outline: 2px solid #c1272d;
+    outline-offset: 0;
+    border-radius: 4px;
+    font-family: "標楷體", "DFKai-SB", "BiauKai", "PMingLiU", "Microsoft JhengHei", serif;
+    font-weight: 700;
+    font-size: 1.05rem;
+    line-height: 1;
+    letter-spacing: 0;
+    transform: rotate(-5deg);
+    box-shadow: 0 3px 10px rgba(193, 39, 45, 0.35), inset 0 0 0 1px rgba(255,255,255,0.2);
+    text-align: center;
+    user-select: none;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .author-stamp::before {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border: 1.5px solid rgba(255,255,255,0.6);
+    border-radius: 2px;
+    pointer-events: none;
+  }
+  .author-stamp span {
+    display: block;
+    padding: 0.05em 0;
+  }
+  .author-stamp.small {
+    width: 48px;
+    height: 48px;
+    font-size: .78rem;
+  }
+  .author-stamp.large {
+    width: 88px;
+    height: 88px;
+    font-size: 1.3rem;
+  }
+  /* Header 角落印章定位 */
+  header { position: relative; }
+  .author-stamp-corner {
+    position: absolute;
+    top: 1.4rem;
+    right: 1.5rem;
+    z-index: 5;
+  }
+  /* 標題下方作者署名行 */
+  .author-credit-line {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    background: rgba(193, 39, 45, 0.06);
+    border: 1px solid rgba(193, 39, 45, 0.25);
+    color: #9a1f23;
+    padding: .25rem .7rem .25rem .55rem;
+    border-radius: 999px;
+    font-size: .85rem;
+    font-weight: 500;
+    margin-top: .5rem;
+  }
+  .author-credit-line::before {
+    content: '⛩';
+    font-size: 1rem;
+  }
+  /* Footer 印章排版 */
+  .footer-stamp-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 1.2rem 0;
+    border-top: 1px solid var(--border);
+    margin-bottom: 1rem;
+  }
+  .footer-stamp-row .credit-text {
+    color: var(--text);
+    font-size: .92rem;
+    line-height: 1.5;
+  }
+  .footer-stamp-row .credit-text strong {
+    color: #c1272d;
+    font-weight: 700;
+  }
+
   /* Live demo 狀態標籤(每個 repo 後面顯示首頁是否還活著)*/
   .live-status {
     display: inline-block;
@@ -354,6 +448,14 @@
       margin-top: .25rem;
     }
     .live-status .url-text { font-size: .9em; }
+    /* 印章手機尺寸 */
+    .author-stamp { width: 54px; height: 54px; font-size: .85rem; }
+    .author-stamp.large { width: 68px; height: 68px; font-size: 1.05rem; }
+    .author-stamp.small { width: 42px; height: 42px; font-size: .68rem; }
+    .author-stamp-corner { top: 1rem; right: 1rem; }
+    .author-credit-line { font-size: .78rem; padding: .2rem .6rem .2rem .5rem; gap: .35rem; }
+    .footer-stamp-row { flex-direction: column; gap: .6rem; padding: 1rem 0; }
+    .footer-stamp-row .credit-text { font-size: .85rem; text-align: center; }
 
     /* ⭐ 表格手機重新設計:每列變獨立卡片(card-style stack)*/
     section table {
@@ -514,8 +616,14 @@
 <body>
 
 <header>
+  <div class="author-stamp-corner" title="本作品由 金小麥 製作">
+    <div class="author-stamp" aria-label="金小麥 印章">
+      <span>金</span><span>小</span><span>麥</span>
+    </div>
+  </div>
   <h1>ToosterX 台灣運動同類專案調查報告 v2</h1>
   <div class="subtitle">12 個 AI agent · 範圍 = 台灣運動類 · 2026-04-27 更新</div>
+  <div class="author-credit-line"><strong>金小麥</strong> 整理製作</div>
   <div class="stats">
     <div class="stat"><span class="stat-num">130+</span><span class="stat-label">台灣運動專案</span></div>
     <div class="stat"><span class="stat-num">35</span><span class="stat-label">GitHub OSS</span></div>
@@ -1318,6 +1426,15 @@
 </main>
 
 <div class="footer">
+  <div class="footer-stamp-row">
+    <div class="author-stamp large" aria-label="金小麥 印章" title="本作品由 金小麥 製作">
+      <span>金</span><span>小</span><span>麥</span>
+    </div>
+    <div class="credit-text">
+      本作品由 <strong>金小麥</strong> 整理製作<br>
+      <span style="font-size:.82rem;color:var(--text-muted);">2026-04-27 · 12 個 AI agent 並行調查 · GPT × Claude 三方查核</span>
+    </div>
+  </div>
   ToosterX 台灣運動同類專案調查報告 v2.0 · 12 個 AI agent 並行調查 · 2026-04-27 產出<br>
   涵蓋:11 個運動垂直 / 35+ GitHub OSS / 60+ 商業 SaaS / 8 個 B2B 對象 / 5 個明確市場機會<br>
   **範圍限定:台灣運動類**(已剃除國際對標、LIFF 工具、教育/餐廳等非運動內容)
