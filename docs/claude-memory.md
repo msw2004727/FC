@@ -2,6 +2,27 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-27 — 重新加回匹克球 V4 SVG 圖示（被 dcb2c0ea 意外移除）[永久]
+- **問題**：用戶反映匹克球圖示又變回 🏓 桌球 emoji,**先前明明改成 V4 SVG 過**
+- **根因追查**：
+  - `git log -S "SPORT_ICON_SVG_HTML"` 查全 history → 找到只有 2 個 commit 動過此字串：`e8c03442`(引入)和 `dcb2c0ea`(移除)
+  - `git show dcb2c0ea` 看 diff → **整個 `SPORT_ICON_SVG_HTML` 對照表 + helper SVG 邏輯被刪除**
+  - 但 `dcb2c0ea` 的 commit message 是「feat(auth): 手機外部瀏覽器 LINE 登入加 UX 提示」,跟匹克球完全無關
+  - 推測:該 commit 作者基於更早版本(force push 之前的 e8c03442 之前狀態)工作,推上來時把更新覆蓋掉
+- **修復**：
+  - `js/config.js`：重新加入 `SPORT_ICON_SVG_HTML` 對照表 + 修改 `getSportIconSvg` 加 SVG 優先邏輯
+  - `js/config.js` 的 SVG 區塊上方加**警告註解**:「修改 config.js 時請務必檢查 SPORT_ICON_SVG_HTML 是否仍存在,避免再次被合併衝突覆蓋」
+  - `tests/unit/config-utils.test.js`:既有測試保留,跑測 2456 PASS(test 檔在 dcb2c0ea 沒被覆蓋)
+  - `docs/tunables.md`:`#sport-icon-svg` 條目本來就在(dcb2c0ea 沒覆蓋),不需動
+- **教訓（永久）**：
+  - **合併衝突沒處理好可能讓修改靜默消失**:dcb2c0ea 的 author 工作在更早版本(force push 之前),推上來時應該先 rebase 到最新 main,而不是直接 push 蓋掉
+  - **重要區塊加警告註解**:像 `SPORT_ICON_SVG_HTML` 這種容易被誤刪的對照表,加註解標明「曾被誤刪,修改時請檢查」
+  - **未來修改 `js/config.js` 流程**:
+    1. 修改前 grep `SPORT_ICON_SVG_HTML` 確認還在
+    2. 修改後 git diff 檢查是否誤刪此區塊
+    3. 推 push 前 fetch + rebase origin/main 避免覆蓋他人修改
+  - **防禦工具建議**:可以加個 unit test 確保 `SPORT_ICON_SVG_HTML.pickleball` 含 'svg' 字串,任何刪除會被測試擋下(目前測試已有 `expect(result).toContain('<svg')`)
+
 ### 2026-04-27 — 補完 CLAUDE.md 同類型模組聚集規則（3 檔搬入子資料夾）
 - **問題**：CLAUDE.md 規則「同類型模組必須放在同一資料夾」明文違規 3 件
 - **修復**：
