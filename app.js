@@ -96,6 +96,21 @@ function _hasPendingDeepLink() {
 }
 
 /**
+ * 2026-04-27：偵測「URL 帶 hash 進來、navigation 尚未完成」
+ * 用戶帶 #page-xxx 進來時、boot 過程中應該蓋住首頁、避免「先閃首頁」。
+ * navigation 完成時呼叫 _dismissBootOverlayAfterHashNav() 解除守衛。
+ */
+function _hasPendingHashNav() {
+  try {
+    if (window._bootHashNavCompleted) return false;
+    const h = (location.hash || '').replace(/^#/, '');
+    return !!(h && h !== 'page-home' && /^page-[\w-]+$/.test(h));
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
  * Deep link 跳轉完成（或 fallback / sessionStorage 清除）後呼叫，
  * 強制觸發 boot overlay 隱藏（解除 _hasPendingDeepLink 守衛）。
  */
@@ -106,6 +121,20 @@ function _dismissBootOverlayAfterDeepLink(reason) {
   }
   window._bootOverlayForceDismiss = true;
   _dismissBootOverlay(reason || 'deep-link-done');
+}
+
+/**
+ * 2026-04-27：hash navigation 完成後呼叫、強制觸發 boot overlay 隱藏。
+ * 解除 _hasPendingHashNav 守衛。
+ */
+function _dismissBootOverlayAfterHashNav(reason) {
+  window._bootHashNavCompleted = true;
+  if (window._bootOverlayDeferredTimeout) {
+    clearTimeout(window._bootOverlayDeferredTimeout);
+    window._bootOverlayDeferredTimeout = null;
+  }
+  window._bootOverlayForceDismiss = true;
+  _dismissBootOverlay(reason || 'hash-nav-done');
 }
 
 /** 隱藏啟動 loading overlay（進度條跳 100% → 150ms 後淡出） */
@@ -134,16 +163,18 @@ function _dismissBootOverlay(reason) {
     }
 
     // 2026-04-25：reload 帶 ?event= 等 deep link 時延後隱藏，避免「閃首頁→跳回」
-    // 等 deep link 跳轉完成由 _dismissBootOverlayAfterDeepLink() 強制觸發
-    // 5 秒安全超時：即使 deep link 卡住也不會永遠遮罩（看門狗 8 秒兜底之前）
-    if (_hasPendingDeepLink() && !window._bootOverlayForceDismiss) {
+    // 2026-04-27：擴充涵蓋 hash navigation（用戶帶 #page-xxx 進來）、避免「先閃首頁→才跳目標頁」
+    // 等 navigation 完成由 _dismissBootOverlayAfterDeepLink() / _dismissBootOverlayAfterHashNav() 強制觸發
+    // 5 秒安全超時：即使 navigation 卡住也不會永遠遮罩（看門狗 8 秒兜底之前）
+    if ((_hasPendingDeepLink() || _hasPendingHashNav()) && !window._bootOverlayForceDismiss) {
       if (!window._bootOverlayDeferredHide) {
         window._bootOverlayDeferredHide = true;
-        console.log('[Boot] pending deep link 偵測到，延後隱藏 boot overlay (' + (reason || '') + ')');
+        const _navType = _hasPendingDeepLink() ? 'deep link' : 'hash navigation';
+        console.log('[Boot] pending ' + _navType + ' 偵測到，延後隱藏 boot overlay (' + (reason || '') + ')');
         window._bootOverlayDeferredTimeout = setTimeout(function() {
-          console.warn('[Boot] deep link 5 秒未完成，強制隱藏 boot overlay');
+          console.warn('[Boot] ' + _navType + ' 5 秒未完成，強制隱藏 boot overlay');
           window._bootOverlayForceDismiss = true;
-          _dismissBootOverlay('deep-link-timeout');
+          _dismissBootOverlay('nav-timeout');
         }, 5000);
       }
       return;
@@ -2442,15 +2473,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         : location.hash.replace(/^#/, '');
       const bootPageId = App._resolveBootPageId(rawPageId);
       if (bootPageId && bootPageId !== App.currentPage) {
+        // 2026-04-27：navigation 完成後 dismiss boot overlay、解除「先閃首頁」
         if (App._isProtectedBootRestoreRoute(bootPageId)) {
           App._deferProtectedBootRoute(bootPageId);
-          void App._flushPendingProtectedBootRoute();
+          App._flushPendingProtectedBootRoute().finally(() => {
+            try { _dismissBootOverlayAfterHashNav('protected-flush-done'); } catch (_) {}
+          });
         } else {
-          void App.showPage(bootPageId);
+          App.showPage(bootPageId).finally(() => {
+            try { _dismissBootOverlayAfterHashNav('hash-show-done'); } catch (_) {}
+          });
         }
+      } else {
+        // 沒有 navigation 需要、清除 hash nav 守衛（避免 overlay 永遠卡住）
+        window._bootHashNavCompleted = true;
       }
+    } else {
+      // 有 deep link 待處理、由 _clearPendingDeepLink 觸發 dismiss
+      window._bootHashNavCompleted = true;
     }
-  } catch (_) {}
+  } catch (_) {
+    // boot 流程出錯、清除守衛避免 overlay 卡住
+    window._bootHashNavCompleted = true;
+  }
 
   // 定時任務（全部 try-catch 保護）
   // Hash 路由：瀏覽器返回/前進鍵同步頁面
