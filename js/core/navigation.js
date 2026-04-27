@@ -132,6 +132,18 @@ Object.assign(App, {
       location.hash = pageId;
     }
 
+    // 2026-04-25：離開臨時參與報表頁時清掉 ?rid=、避免 refresh 又被拉回
+    // 放在 _activatePage（所有 showPage 路徑共用入口）才能蓋到 stale + fresh 兩條路徑
+    if (pageId !== 'page-temp-participant-report') {
+      try {
+        const _u = new URL(window.location.href);
+        if (_u.searchParams.has('rid')) {
+          _u.searchParams.delete('rid');
+          history.replaceState(null, '', _u.pathname + (_u.search || '') + (_u.hash || ''));
+        }
+      } catch (_) {}
+    }
+
     this._floatAdOffset = 0;
     this._floatAdTarget = 0;
     requestAnimationFrame(() => { if (this._positionFloatingAds) this._positionFloatingAds(); });
@@ -661,16 +673,6 @@ Object.assign(App, {
     const activated = this._activatePage(pageId, options);
     if (activated) {
       if (!options.suppressHashSync && location.hash !== '#' + pageId) location.hash = pageId;
-      // 2026-04-25：離開臨時參與報表頁時清掉 ?rid=、避免 refresh 又被拉回
-      if (pageId !== 'page-temp-participant-report') {
-        try {
-          const _u = new URL(window.location.href);
-          if (_u.searchParams.has('rid')) {
-            _u.searchParams.delete('rid');
-            history.replaceState(null, '', _u.pathname + (_u.search || '') + (_u.hash || ''));
-          }
-        } catch (_) {}
-      }
       return { ok: true, pageId };
     }
     return { ok: false, reason: 'missing_target' };

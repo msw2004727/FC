@@ -1886,13 +1886,6 @@ const ApiService = {
   },
 
   _collectEventParticipantStats({ keyword, startDate, endDate, events, attendanceRecords }) {
-    console.log('[ParticipantQuery] _collectEventParticipantStats input:', {
-      keyword,
-      startDate,
-      endDate,
-      eventsLength: (events || []).length,
-      attendanceRecordsLength: (attendanceRecords || []).length,
-    });
     const normalizedKeyword = this._normalizeEventParticipantKeyword(keyword);
     const matchedEvents = (events || [])
       .map(event => {
@@ -1986,7 +1979,7 @@ const ApiService = {
       })
       .map(({ latestAtMs, ...item }) => item);
 
-    const _result = {
+    return {
       keyword,
       startDate,
       endDate,
@@ -1995,15 +1988,6 @@ const ApiService = {
       totalParticipationCount: items.reduce((sum, item) => sum + item.count, 0),
       items,
     };
-    console.log('[ParticipantQuery] _collectEventParticipantStats output:', {
-      matchedEventCount: _result.matchedEventCount,
-      matchedUserCount: _result.matchedUserCount,
-      totalParticipationCount: _result.totalParticipationCount,
-      itemsLength: _result.items.length,
-      userMapSize: userMap.size,
-      seenSize: seen.size,
-    });
-    return _result;
   },
 
   async queryEventParticipantStats(options = {}) {
@@ -2137,13 +2121,6 @@ const ApiService = {
   async createParticipantQueryShare(result, options = {}) {
     this._assertAdminParticipantQueryShareAccess();
     const normalized = this._normalizeParticipantQueryShareResult(result);
-    console.log('[ParticipantQuery] createParticipantQueryShare normalized:', {
-      keyword: normalized.keyword,
-      matchedEventCount: normalized.matchedEventCount,
-      matchedUserCount: normalized.matchedUserCount,
-      itemsLength: normalized.items.length,
-      inputItemsLength: Array.isArray(result?.items) ? result.items.length : -1,
-    });
     if (!normalized.keyword || !normalized.startDate || !normalized.endDate) {
       throw new Error('查詢條件不完整，無法建立臨時報表');
     }
@@ -2170,12 +2147,9 @@ const ApiService = {
     await shareRef.set(baseData);
 
     try {
-      let _writtenItems = 0;
-      let _batchCount = 0;
       for (let i = 0; i < normalized.items.length; i += 350) {
         const batch = db.batch();
-        const _slice = normalized.items.slice(i, i + 350);
-        _slice.forEach(item => {
+        normalized.items.slice(i, i + 350).forEach(item => {
           const itemRef = shareRef.collection('shareItems').doc(String(item.sortIndex).padStart(4, '0'));
           batch.set(itemRef, {
             sortIndex: item.sortIndex,
@@ -2188,14 +2162,7 @@ const ApiService = {
           });
         });
         await batch.commit();
-        _writtenItems += _slice.length;
-        _batchCount += 1;
       }
-      console.log('[ParticipantQuery] createParticipantQueryShare wrote:', {
-        shareId: shareRef.id,
-        writtenItems: _writtenItems,
-        batchCount: _batchCount,
-      });
 
       await shareRef.update({
         status: 'ready',
@@ -2261,12 +2228,6 @@ const ApiService = {
       }
       throw err;
     }
-    console.log('[ParticipantQuery] getParticipantQueryShare read:', {
-      shareId: safeShareId,
-      itemSnapDocsLength: itemSnap.docs.length,
-      shareItemCount: Number(share.itemCount || 0),
-      shareMatchedUserCount: Number(share.matchedUserCount || 0),
-    });
 
     return {
       shareId: safeShareId,
