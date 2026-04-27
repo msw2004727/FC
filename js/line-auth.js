@@ -262,6 +262,10 @@ const LineAuth = {
     this._initError = null;
     this._pendingStartTime = Date.now();
     try {
+      // 2026-04-27：dev 模式註冊 LIFF Inspector plugin(必須在 init 前)
+      if (window.__LIFF_INSPECTOR_ENABLED__ && typeof window.LIFFInspectorPlugin === 'function') {
+        try { liff.use(new window.LIFFInspectorPlugin()); } catch(e) { console.warn('[LineAuth] LIFF Inspector plugin 註冊失敗:', e); }
+      }
       await this._withTimeout(
         liff.init({ liffId: LINE_CONFIG.LIFF_ID }),
         8000,
@@ -314,6 +318,10 @@ const LineAuth = {
     this._pendingStartTime = Date.now();
 
     try {
+      // 2026-04-27：dev 模式註冊 LIFF Inspector plugin(必須在 init 前)
+      if (window.__LIFF_INSPECTOR_ENABLED__ && typeof window.LIFFInspectorPlugin === 'function') {
+        try { liff.use(new window.LIFFInspectorPlugin()); } catch(e) { console.warn('[LineAuth] LIFF Inspector plugin 註冊失敗:', e); }
+      }
       await this._withTimeout(
         liff.init({ liffId: LINE_CONFIG.LIFF_ID }),
         8000,

@@ -2,6 +2,34 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-27 — 整合 LIFF Inspector(LINE 內建瀏覽器遠端 DevTools,dev 模式 only)
+- **背景**：LINE 內建瀏覽器(WebView)沒有 F12,以前用戶在 LINE 內回報 bug 只能瞎猜。LINE 官方出品的 `@line/liff-inspector`(72★, MIT)可讓電腦端開 https://liff-inspector.line.me 與手機 LINE 內 ToosterX 配對,即時看 console / network / DOM,等同 Chrome DevTools
+- **設計**：
+  - `index.html`：插入 dev 模式自動載入器(L252 後),piggyback 既有 `__SPORTHUB_CONSOLE_POLICY__` 的 `isProdHost / isLocal / debugEnabled` 判斷,僅在 **非 PROD_HOSTS / localhost / `?debug=1`** 時載入 UMD bundle
+  - 設 `window.__LIFF_INSPECTOR_ENABLED__` global flag 給 `line-auth.js` 讀
+  - UMD CDN:`https://cdn.jsdelivr.net/npm/@line/liff-inspector@1.0.3/dist/umd/liff-inspector.js`(曝露 `window.LIFFInspectorPlugin`)
+  - `s.async = false` 確保在 `liff.use()` 前已載入
+- **`js/line-auth.js`**：在 `initSDK()`(L266 前)+ `init()`(L323 前)兩個 `liff.init()` 路徑前加 plugin 註冊。double try/catch 確保 plugin 載入失敗不影響 production
+  ```javascript
+  if (window.__LIFF_INSPECTOR_ENABLED__ && typeof window.LIFFInspectorPlugin === 'function') {
+    try { liff.use(new window.LIFFInspectorPlugin()); } catch(e) { ... }
+  }
+  ```
+- **觸發條件**:
+  - ✅ localhost / 127.0.0.1 / 192.168.* (本機開發)
+  - ✅ Cloudflare branch preview (非 `fc-3g8.pages.dev` 主域)
+  - ✅ 任何 URL 帶 `?debug=1` (production 也可一次性 enable 抓 bug)
+  - ❌ toosterx.com / www.toosterx.com / msw2004727.github.io / fc-3g8.pages.dev (production 完全靜默)
+- **使用方式**:
+  1. 手機:LINE 內開 ToosterX (dev 環境) → 右下角會出現 floating debug 按鈕
+  2. 按按鈕 → 顯示短碼 (例:`xj3p9k`)
+  3. 電腦:開 https://liff-inspector.line.me → 輸入短碼配對
+  4. 手機操作 → 電腦即時看 console / network / DOM
+- **教訓**:
+  - LIFF plugin 必須在 `liff.init()` **前**註冊,順序錯就 silent fail。`s.async = false` 是關鍵
+  - `__SPORTHUB_CONSOLE_POLICY__` 既有 prod / dev 判斷可重用,不必另寫一套邏輯,DRY 設計勝出
+  - 第一輪 agent 報「scanCodeV2 deprecated」是錯的(實測屬 V1 / V2 混淆 + ToosterX 自己用 html5-qrcode 沒 LIFF 內建),警告涉及 production 修改前必驗證
+
 ### 2026-04-27 — Hash navigation 延後安全 timeout 5000 → 7000ms（消除「先閃首頁→才跳目標頁」殘留瑕疵）
 - **問題**：用戶反映即使 4/27 加了 hash navigation 守衛（commit 121a6c52），實測仍出現「reload `#page-activities` → 先閃真首頁 → 過幾秒才跳活動列表」
 - **根因**：`_dismissBootOverlay` 的 hash nav 守衛雖然會延後隱藏，但設了 **5 秒安全 timeout** 避免 navigation 卡住永遠遮罩。Mobile / 慢網路下 `showPage('page-activities')` 經常需要 5+ 秒（`ensureCloudReady` + `ensureCollectionsForPage` + `_renderPageContent`），5 秒到達時 navigation 還沒完成 → timeout fire → 強制 dismiss overlay → 用戶看到首頁渲染 → 1-2 秒後 nav 完成才跳目標頁
