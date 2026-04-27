@@ -2,29 +2,46 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
-### 2026-04-27 — Firestore synchronizeTabs 在 iOS WKWebView 復發、改為 iOS-only false [永久]
-- **症狀**：iOS Safari/Chrome/Edge（任何瀏覽器、用戶確認）以管理員身份進入 page-admin-users → 1-2 秒後**被 native 強制 reload**（不是 SPA 跳頁），伴隨：
-  - 登入後**被強制深色主題**（不是用戶選的）
-  - 明明只開一個分頁、Firestore 卻提示「多分頁」警告
+### 2026-04-27 — iOS PWA 進「用戶管理」自動重整（DOM 過大、WKWebView memory pressure 觸發 OS kill）[永久]
+- **症狀**：iOS Safari/Chrome/Edge（任何瀏覽器）以管理員身份進入 page-admin-users → 1-2 秒後**被 OS 強制重整**（真實 reload、JS hooks 全沒機會跑），伴隨：
+  - 登入後**被強制深色主題**
+  - 明明只開一個分頁、卻提示「多分頁」警告
+  - 反覆 reload 後 iOS Safari 顯示「重複發生問題」OS 級錯誤頁
 - **桌機 Chrome / Edge / Safari、Android Chrome 全部正常**
-- **根因**：4/21 回滾的 `synchronizeTabs: true` 在 iOS WKWebView 上時序競爭嚴重
-  - iOS WKWebView 用 SQLite backend、IndexedDB 初始化比桌機慢 100-800ms
-  - rolePermissions listener 第一次觸發時 cache 仍為 []、`_canAccessPage('page-admin-users')` 失敗
-  - Firestore SDK 內部某條 retry / cleanup 路徑觸發 native navigation（繞過 JS hooks、所有 hooks 都沒抓到）
-  - BroadcastChannel pool 殘留訊號導致 multi-tab-guard 誤判 + 觸發 page rebuild
-  - rebuild 時 `prefers-color-scheme` 重新偵測 → 套用 OS dark mode
-- **8 輪診斷未果**：之前 hooks 全部沒抓到（applyRole / showPage(home) / location.reload / beforeunload / pagehide 都沒 trace）、因為觸發點在 SDK 層、繞過 JS
-- **最終定位**：agent 從架構視角檢查 `firebase-config.js` 的 synchronizeTabs 歷史 + iOS WKWebView 特性才找到
-- **修復**：iOS-only `synchronizeTabs: false`、桌機/Android 保留 true（保留 50% reads 節省）
-  ```javascript
-  const _isIOSWebKit = /iPad|iPhone|iPod/.test(navigator.userAgent || '');
-  db.enablePersistence({ synchronizeTabs: !_isIOSWebKit })
-  ```
+- **真兇**：iOS PWA standalone mode + 用戶管理頁渲染所有用戶卡片
+  - manifest.json `display: standalone` + apple meta tags 啟用 PWA 模式
+  - iOS PWA WKWebView 記憶體限制嚴格（~40-100MB、比一般 Safari tab 小很多）
+  - `renderAdminUsers` 一次渲染全部用戶（100+ 卡片、每卡含 1 個 avatar img + 5 行 meta + 多按鈕）
+  - 每個 avatar img 還會 fetch 真實圖片、image buffer 累積 5-20MB
+  - 加上 DOM tree、layout、Firebase SDK state、總記憶體用量接近 / 超過 iOS 上限
+  - **OS 強制 kill webview process** → 重新載入 → 看起來像 reload
+  - 關鍵：**OS 層 kill、JS 完全沒機會跑任何 lifecycle handler**（解釋為何 9 輪 hooks 都抓不到）
+  - 強制深色 = webview kill 後重啟、localStorage 讀失敗、fallback prefers-color-scheme
+  - 假多分頁 = WKWebView pool 殘留 BroadcastChannel 訊號
+- **9 輪診斷歷程**（記錄供後人警示）：
+  1. onSnapshot 推送觸發 applyRole 跳 home — hooks 沒抓到
+  2. _canAccessPage 失敗 — hooks 沒抓到
+  3. user doc role 不一致 — currentRole 一直對
+  4. **Boot watchdog 8 秒 reload — 修了仍重現**（修復本身有效、保留）
+  5. **SW controllerchange — revert（跨平台不該 iOS-only）**
+  6. SPA showPage(home) — hooks 沒抓到
+  7. **synchronizeTabs iOS-only false — 用戶實測無效（agent 誤判）**
+  8. iOS PWA 排除 / 其他 admin 頁 A/B 測試 — **用戶實測「有 PWA + 唯獨用戶管理頁」**
+  9. **真兇定位：DOM 渲染量過大 + iOS PWA memory limit**
+- **修復**（commit `f5563cc4`）：
+  - 預設只渲染前 30 個用戶（`_adminUserPageSize = 30`）
+  - avatar 加 `loading="lazy" decoding="async"`、image fetch 延遲到滑入 viewport
+  - 底部加「載入更多（已顯示 X / Y）」按鈕、點擊 += 30
+  - filterAdminUsers 篩選/搜尋時 reset pageSize（避免「載入到 90 後篩選仍 90」誤判）
+  - _loadMoreAdminUsers 不走 filterAdminUsers（避免 reset 衝突）
+- **副作用**：桌機 / Android 也預設 30、要點「載入更多」（UX 微小變化、實際上 100+ 用戶時桌機渲染也卡頓、分頁是 net positive）
 - **教訓**：
-  - **4/21 回滾 commit 已預警「iOS 上可能有時序問題、若復發請回報」**、但後續沒人查到 → 應該加更積極的 monitoring
-  - 「3 個看似無關的症狀（reload + 深色 + 多分頁）」可能是同一根因 — 不要把症狀分頭追、要看共同點
-  - SDK 層 bug 用 JS hook 抓不到、要從架構 / 設定面切入
-- **副作用**：iOS 用戶失去離線快取（reload 後 cache 失效）— 是合理代價
+  - **症狀組合是線索**：3 個現象（reload + 強制深色 + 假多分頁）都源自「webview 被 kill 重啟」這同一機制、不要分頭追
+  - **JS hooks 抓不到 = 觸發點在 OS / SDK native 層**：不要再加 hook、要從外部現象（哪些頁面才中、平台特性）反推
+  - **iOS PWA 記憶體限制比一般 Safari 嚴格**：開發 admin 後台類「列出大量資料」頁面時必須分頁 / 虛擬滾動
+  - **A/B 測試是定位 iOS-only bug 的關鍵**：「PWA 移除是否消失」+「其他類似頁面是否中」兩問題快速縮小範圍
+  - 不要被 agent 引用過時 memory log 誤導（agent 看到我寫的 synchronizeTabs 假設、直接複述）— 需要明確告訴 agent 哪些已驗證無效
+- **原本以為的「synchronizeTabs」假設已驗證為假兇**：iOS-only false 用戶實測仍重現、改回 true 不影響 bug 也不影響 fix
 
 ### 2026-04-26 — 手機外部瀏覽器 LINE 登入加 UX 提示（OS 跨 app 攔截 token 流失問題）
 - **問題**：手機 Safari / Chrome 點 LINE 登入 → OS 提示「是否在 LINE 中打開」→ 用戶點「打開」→ LINE app 接管 OAuth 完成 → redirect 回 Safari/Chrome 但 token 沒帶回 → **登入失敗**
