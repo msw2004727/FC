@@ -60,6 +60,20 @@ Object.assign(App, {
     };
   },
 
+  // 2026-04-27（方案 A）：stats 計算結果 cache
+  // cache key 包含 event 投影欄位（current/waitlist/max/status）、變動自動 invalidate
+  // 對首頁 10 張卡片場景：第 1 張算完後、其餘 9 張直接命中 cache、快 10 倍
+  _eventStatsCache: null,
+
+  _getEventStatsCacheMap() {
+    if (!this._eventStatsCache) this._eventStatsCache = new Map();
+    return this._eventStatsCache;
+  },
+
+  _clearEventStatsCache() {
+    if (this._eventStatsCache) this._eventStatsCache.clear();
+  },
+
   _getEventParticipantStats(eventInput) {
     const event = typeof eventInput === 'string' ? ApiService.getEvent(eventInput) : eventInput;
     if (!event) {
@@ -74,36 +88,49 @@ Object.assign(App, {
       };
     }
 
-    const registrations = ApiService.getRegistrationsByEvent?.(event.id) || [];
-    const confirmedSummary = this._buildEventPeopleSummaryByStatus(
-      event,
-      registrations,
-      'confirmed',
-      Array.isArray(event.participants) ? event.participants : []
-    );
-    const waitlistSummary = this._buildEventPeopleSummaryByStatus(
-      event,
-      registrations,
-      'waitlisted',
-      Array.isArray(event.waitlistNames) ? event.waitlistNames : []
-    );
+    // 2026-04-27 方案 A：cache 命中直接返回（cache key 含投影欄位、event 變動自動失效）
+    const _cache = this._getEventStatsCacheMap();
+    const _cacheKey = event.id + '|' + (event.current || 0) + '|' + (event.waitlist || 0)
+      + '|' + (event.max || 0) + '|' + (event.status || '');
+    if (_cache.has(_cacheKey)) return _cache.get(_cacheKey);
 
     const fallbackConfirmed = Math.max(0, Number(event.current || 0));
     const fallbackWaitlist = Math.max(0, Number(event.waitlist || 0));
+    let confirmedCount = fallbackConfirmed;
+    let waitlistCount = fallbackWaitlist;
 
-    // 只有在 registrations 監聽器存活 且 取得全量資料（admin）時，才信任 registration 計數；
-    // 否則使用 event 投影欄位（由 _rebuildOccupancy 保證正確，且透過 events listener 即時更新）。
+    // 2026-04-27 方案 B：_hasCompleteRegs = false 時跳過 _buildEventPeopleSummaryByStatus
+    // 直接用 event.current（由 _rebuildOccupancy 保證、透過 events listener 即時推送）
+    // 大幅減少 O(N×M) 遍歷成本（首頁 10 卡 × 平均 20 reg = 200+ 次操作 → 0）
     const _hasCompleteRegs = typeof FirebaseService !== 'undefined'
       && FirebaseService._realtimeListenerStarted?.registrations
       && FirebaseService._registrationListenerKey === 'all';
-    const confirmedCount = (confirmedSummary.hasSource && _hasCompleteRegs) ? confirmedSummary.count : fallbackConfirmed;
-    const waitlistCount = (waitlistSummary.hasSource && _hasCompleteRegs) ? waitlistSummary.count : fallbackWaitlist;
+
+    if (_hasCompleteRegs) {
+      // admin 全量 listener 啟動時、走精算路徑（不變）
+      const registrations = ApiService.getRegistrationsByEvent?.(event.id) || [];
+      const confirmedSummary = this._buildEventPeopleSummaryByStatus(
+        event,
+        registrations,
+        'confirmed',
+        Array.isArray(event.participants) ? event.participants : []
+      );
+      const waitlistSummary = this._buildEventPeopleSummaryByStatus(
+        event,
+        registrations,
+        'waitlisted',
+        Array.isArray(event.waitlistNames) ? event.waitlistNames : []
+      );
+      if (confirmedSummary.hasSource) confirmedCount = confirmedSummary.count;
+      if (waitlistSummary.hasSource) waitlistCount = waitlistSummary.count;
+    }
+
     const maxCount = Math.max(0, Number(event.max || 0));
     const remainingCount = maxCount > 0 ? Math.max(0, maxCount - confirmedCount) : 0;
     const isCapacityFull = maxCount > 0 && confirmedCount >= maxCount;
     const isTerminal = event.status === 'ended' || event.status === 'cancelled';
 
-    return {
+    const _result = {
       confirmedCount,
       waitlistCount,
       maxCount,
@@ -116,6 +143,14 @@ Object.assign(App, {
         && confirmedCount < maxCount
         && (remainingCount / maxCount) < 0.2,
     };
+
+    // 寫入 cache（LRU 限制 200 條、避免無限增長）
+    _cache.set(_cacheKey, _result);
+    if (_cache.size > 200) {
+      const _firstKey = _cache.keys().next().value;
+      _cache.delete(_firstKey);
+    }
+    return _result;
   },
 
   _renderEventCapacityBadge(event, stats = this._getEventParticipantStats(event)) {
