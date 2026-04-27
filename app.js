@@ -2351,6 +2351,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.warn('[Boot] Phase 2 快取恢復失敗:', e && e.message || e);
   }
 
+  // ── Phase 2.5: 注入 inline events（deploy 時預先嵌入的活動資料、F 方案 commit #2/4）──
+  // 用戶開首頁時不必等 Firebase SDK 載入 + Firestore 查詢、可立刻渲染近期活動卡
+  // 來源：scripts/inject-hot-events.js 寫入的 <script id="boot-events-data"> tag
+  // 失敗（無 tag / 解析錯）→ 跳過、回到原本流程，不影響任何功能
+  try {
+    const _bootEventsEl = document.getElementById('boot-events-data');
+    if (_bootEventsEl && _bootEventsEl.textContent) {
+      const _inlineEvents = JSON.parse(_bootEventsEl.textContent);
+      if (Array.isArray(_inlineEvents) && _inlineEvents.length > 0) {
+        const _inlineTs = parseInt(_bootEventsEl.dataset.ts || '0', 10) || Date.now();
+        const _cacheTs = (FirebaseService._collectionLoadedAt && FirebaseService._collectionLoadedAt.events) || 0;
+        // 只在 cache 為空 OR inline 資料較新時注入（避免覆蓋更新的 localStorage 快取）
+        if (!FirebaseService._cache.events || FirebaseService._cache.events.length === 0 || _inlineTs > _cacheTs) {
+          FirebaseService._cache.events = _inlineEvents;
+          if (FirebaseService._collectionLoadedAt) {
+            FirebaseService._collectionLoadedAt.events = _inlineTs;
+          }
+          console.log(`[Boot] Phase 2.5: inline events 注入 ${_inlineEvents.length} 筆 (ts=${new Date(_inlineTs).toISOString()})`);
+        } else {
+          console.log(`[Boot] Phase 2.5: localStorage cache 較新，跳過 inline 注入`);
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[Boot] Phase 2.5 inline events 解析失敗（不影響後續流程）:', e && e.message || e);
+  }
+
   // ── Phase 3: 立即顯示頁面（不等 HTML / CDN / Firebase）──
   try {
     console.log('[Boot] Phase 3: App.init() 開始');
