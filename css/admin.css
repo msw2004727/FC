@@ -449,6 +449,8 @@
 .dash-query-card { overflow: hidden; padding: 0; }
 /* 2026-04-27：活動參與度調查獨立底色 — 與上下卡片視覺區分 */
 .dash-query-details { background: linear-gradient(180deg, rgba(13,148,136,.10), rgba(13,148,136,.04)); border: 1px solid rgba(13,148,136,.22); }
+/* 深色主題用更亮的 teal #34d399 + 提高不透明度，避免在 #181d27 底上消失 */
+[data-theme="dark"] .dash-query-details { background: linear-gradient(180deg, rgba(52,211,153,.16), rgba(52,211,153,.06)); border: 1px solid rgba(52,211,153,.36); }
 .dash-query-panel-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .16rem .65rem; align-items: center; padding: .75rem .85rem; cursor: pointer; list-style: none; user-select: none; }
 .dash-query-panel-summary::-webkit-details-marker { display: none; }
 .dash-query-panel-title { font-size: .85rem; font-weight: 700; color: var(--text-primary); }
@@ -527,26 +529,37 @@
   .dash-usage-grid .dash-usage-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
 }
 .dash-usage-card {
-  background: var(--card-bg, #fff);
-  border: 1px solid var(--border, #e2e8f0);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: .5rem .6rem;
   text-align: center;
 }
+/* 2026-04-27：警示橫幅 — 半透明紅、深淺主題皆可讀 */
+.dash-usage-alert {
+  background: rgba(239, 68, 68, .12);
+  border: 1px solid rgba(239, 68, 68, .35);
+  color: #dc2626;
+  border-radius: 8px;
+  padding: .5rem .75rem;
+  margin-bottom: .75rem;
+  font-size: .78rem;
+}
+[data-theme="dark"] .dash-usage-alert { color: #fca5a5; background: rgba(239, 68, 68, .16); border-color: rgba(239, 68, 68, .45); }
 .dash-usage-label {
   font-size: .72rem;
-  color: var(--text-secondary, #64748b);
+  color: var(--text-secondary);
   margin-bottom: .2rem;
 }
 .dash-usage-num {
   font-size: 1.1rem;
   font-weight: 700;
-  color: var(--text-primary, #1e293b);
+  color: var(--text-primary);
   margin-bottom: .3rem;
 }
 .dash-usage-bar-track {
   height: 6px;
-  background: var(--border, #e2e8f0);
+  background: var(--bg-elevated);
   border-radius: 3px;
   overflow: hidden;
   margin-bottom: .2rem;
@@ -558,7 +571,7 @@
 }
 .dash-usage-sub {
   font-size: .65rem;
-  color: var(--text-secondary, #94a3b8);
+  color: var(--text-muted);
 }
 
 /* ─── Dashboard Cost Rows ─── */
@@ -572,7 +585,7 @@
 .dash-cost-row.dash-cost-detail {
   padding-left: .75rem;
   font-size: .72rem;
-  color: var(--text-secondary, #64748b);
+  color: var(--text-secondary);
 }
 .dash-cost-label { flex: 1; }
 .dash-cost-val { font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -582,14 +595,18 @@
    ═══════════════════════════════════════════════════ */
 
 /* ── 重新整理資料條（儀表板最上方） ── */
+/* 2026-04-27：用 amber 漸層 + border 與「活動參與查詢」（teal）做視覺區隔 */
 .dash-refresh-bar {
   display: flex; align-items: center; gap: .5rem;
   padding: .6rem .8rem;
-  background: var(--bg-card); border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(245,158,11,.10), rgba(245,158,11,.04));
+  border: 1px solid rgba(245,158,11,.26);
   border-radius: var(--radius-md, 12px);
   margin-bottom: .8rem;
   flex-wrap: wrap;
 }
+/* 深色主題下用更亮的 amber 提高識別度 */
+[data-theme="dark"] .dash-refresh-bar { background: linear-gradient(180deg, rgba(251,191,36,.14), rgba(251,191,36,.05)); border-color: rgba(251,191,36,.38); }
 .dash-refresh-bar select {
   padding: .3rem .5rem;
   border-radius: var(--radius-sm, 6px);

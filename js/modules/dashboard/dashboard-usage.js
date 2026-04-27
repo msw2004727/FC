@@ -149,7 +149,8 @@ Object.assign(App, {
       checkAlert('functionsInvocations', 'Functions 呼叫');
 
       if (alertItems.length > 0) {
-        html += `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:.5rem .75rem;margin-bottom:.75rem;font-size:.78rem;color:#991b1b">
+        // 2026-04-27：用半透明紅在淺/深色主題都可讀
+        html += `<div class="dash-usage-alert">
           ⚠ 今日接近免費額度上限，超過將產生費用：${escapeHTML(alertItems.join('、'))}
         </div>`;
       }
@@ -270,7 +271,7 @@ Object.assign(App, {
     const estimated = latest.estimated;
     if (!billing && !estimated) return '';
 
-    let html = `<div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border-color,#e2e8f0)">
+    let html = `<div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border)">
       <div style="font-size:.82rem;font-weight:600;margin-bottom:.5rem">費用</div>`;
 
     // 實際費用（Billing API）
@@ -601,7 +602,7 @@ Object.assign(App, {
 
     var esc = escapeHTML;
     var inputStyle = 'width:80px;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;'
-      + 'font-size:14px;font-weight:600;text-align:center;background:var(--bg-input,var(--card-bg,#fff));'
+      + 'font-size:14px;font-weight:600;text-align:center;background:var(--bg-card);'
       + 'color:var(--text-primary);outline:none';
 
     var html = '<div class="info-card" id="realtime-limit-card">'
