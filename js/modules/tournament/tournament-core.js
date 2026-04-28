@@ -225,7 +225,33 @@ Object.assign(App, {
     };
   },
 
-  // 賽事中心「建立賽事」按鈕（需在 eager 模組，不能放 tournamentAdmin 群組）
+  // Shared lazy-load guard for edit buttons rendered before admin scripts are ready.
+  async openEditTournamentSafe(id) {
+    const safeId = String(id || '').trim();
+    if (!safeId) return;
+
+    if (typeof this.showEditTournament !== 'function') {
+      try {
+        if (typeof ScriptLoader !== 'undefined' && typeof ScriptLoader.ensureForPage === 'function') {
+          await ScriptLoader.ensureForPage('page-admin-tournaments');
+        } else if (typeof ScriptLoader !== 'undefined' && typeof ScriptLoader.loadGroup === 'function') {
+          const scripts = ScriptLoader._groups?.tournamentAdmin || [];
+          if (scripts.length) await ScriptLoader.loadGroup(scripts);
+        }
+      } catch (err) {
+        console.error('[Tournament:openEditTournamentSafe] failed to load editor scripts', err);
+      }
+    }
+
+    if (typeof this.showEditTournament !== 'function') {
+      this.showToast?.('\u7de8\u8f2f\u529f\u80fd\u8f09\u5165\u5931\u6557\uff0c\u8acb\u91cd\u65b0\u6574\u7406\u5f8c\u518d\u8a66');
+      return;
+    }
+
+    return this.showEditTournament(safeId);
+  },
+
+  // Tournament center create button lives in the eager module, then loads admin scripts on demand.
   _refreshTournamentCenterCreateButton() {
     const header = document.querySelector('#page-tournaments .page-header');
     if (!header) return;

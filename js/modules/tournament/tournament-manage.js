@@ -82,7 +82,7 @@ Object.assign(App, {
               ${isAdmin ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;background:#10b981;color:#fff;border-color:#10b981" onclick="App.handleReopenTournament('${t.id}')">重新開啟</button>` : ''}
               ${isAdmin ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.handleDeleteTournament('${t.id}')">刪除賽事</button>` : ''}
             ` : `
-              ${canManage ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;background:#10b981;color:#fff;border-color:#10b981" onclick="App.showEditTournament('${t.id}')">編輯賽事</button>` : ''}
+              ${canManage ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;background:#10b981;color:#fff;border-color:#10b981" onclick="App.openEditTournamentSafe('${escapeHTML(t.id)}')">編輯賽事</button>` : ''}
               <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.showTournamentDetail('${t.id}')">查看詳情</button>
               ${isAdmin ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.handleEndTournament('${t.id}')">結束賽事</button>` : ''}
             `}

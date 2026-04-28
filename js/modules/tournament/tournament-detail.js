@@ -77,7 +77,7 @@ Object.assign(App, {
     }
 
     // Safety: tournament.id is escaped
-    toolbar.innerHTML = `<button class="td-edit-btn" onclick="App.showEditTournament('${escapeHTML(tournament.id)}')">編輯賽事</button>`;
+    toolbar.innerHTML = `<button class="td-edit-btn" onclick="App.openEditTournamentSafe('${escapeHTML(tournament.id)}')">編輯賽事</button>`;
     toolbar.style.display = 'flex';
   },
 
