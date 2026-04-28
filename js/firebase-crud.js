@@ -1198,6 +1198,7 @@ Object.assign(FirebaseService, {
     await docRef.set({
       ..._stripDocId(data),
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
     data._docId = tournamentId;  // 單軌：data.id === data._docId
     return data;

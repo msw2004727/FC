@@ -2,6 +2,15 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-28 — 修復新建賽事立刻從列表消失 [永久]
+- **問題**：用戶建立新賽事後 toast 顯示成功，但賽事中心、首頁、管理列表都看不到剛建立的賽事；重新整理頁面有時會出現、有時又消失
+- **原因**：`firebase-crud.js` 的 `addTournament()` 寫入時只設定 `createdAt` 沒設定 `updatedAt`，但 `firebase-service.js` 的 `_startTournamentsRealtimeListener()` 用 `db.collection('tournaments').orderBy('updatedAt', 'desc')` 監聽。Firestore 的 `orderBy` 會**排除該欄位不存在的文件**，所以新建賽事不會出現在 onSnapshot 結果 → `_tournamentSlices.active` 不包含 → `_mergeTournamentSlices` 後 cache 不包含 → 列表渲染看不到
+- **修復**：`addTournament()` 加上 `updatedAt: firebase.firestore.FieldValue.serverTimestamp()`（與 `addTeam()` 一致的寫法）
+- **教訓**：
+  - 凡是 onSnapshot 用 `orderBy(X)`，對應 CRUD 寫入時**必須**確保 X 欄位存在，否則文件會「隱形」
+  - `addTeam()` 寫了 `createdAt` + `updatedAt` 兩者，`addTournament()` 只寫 `createdAt`——這種「同類函式不對齊」就是地雷源頭
+  - 未來新增任何 collection 的 CRUD 時，先檢查對應 onSnapshot 的 `orderBy` 欄位有無在寫入路徑出現
+
 ### 2026-04-27 — 安裝 tommyboy326/line-dev Claude Code skill bundle(全域,5 個 LINE 專業 skill)
 - **背景**:同類專案調查中發現 `tommyboy326/line-dev` 是台灣 dev 寫的 Claude Code skill bundle,提供 LINE Messaging API / LINE Login / LIFF / Mini App / Notification Messages 5 個專業 skill,雙語(英 + 繁中)
 - **安裝路徑**:`C:\Users\msw74\.claude\skills\`(全域,所有 Claude Code 專案可用)
