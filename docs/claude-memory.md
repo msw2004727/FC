@@ -2,6 +2,20 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-28 — 找出歷史 silent fail 的真正根因:this 指錯物件 [永久]
+- **問題**:用戶按下「編輯賽事」按鈕後跳 toast「找不到此賽事(快取不一致, …17955_jn6d66)」。Console: `tournament not found {id: 'ct_1777349317955_jn6d66', cacheSize: 2, fetchedFromServer: false, fetchError: null}` — `fetchedFromServer: false` 證明根本沒進 fallback fetch
+- **真正根因**:`tournament-manage-edit.js:25` `const editRecord = this.getFriendlyTournamentRecord?.(rawRecord)` — 這函式定義在 **`ApiService`** 不是 **`App`** 上!`App.getFriendlyTournamentRecord` 永遠是 undefined → optional chaining `?.()` 直接回 undefined → `editRecord` falsy → silent fail(舊版)/ 跳 toast(我前面加的版本)
+- **歷史教訓**:這 bug 一直存在(line 89 `handleSaveEditTournament` 也有同 pattern),只是過去 silent return 不會被用戶看到。前面 5-6 筆修復都圍繞權限守衛/Rules/cache fallback 在繞圈,**真正根因從第一筆就在,只是被 silent fail + toast 文案誤導**
+- **對照組**:其他正確用法(`tournament-render.js:77`、`tournament-detail.js:253` 等)都用 `this.getFriendlyTournamentRecord?.(t) || t` — `|| t` fallback 即使 undefined 還能繼續 → 不會炸。`tournament-friendly-detail.js:81` 直接 `ApiService.getFriendlyTournamentRecord?.(...)` → 正確
+- **修復**:兩處都改:
+  - `showEditTournament` line 25:`this.xxx` → `ApiService.xxx + || rawRecord` fallback
+  - `handleSaveEditTournament` line 89:同上,且把 silent return 改 toast「找不到此賽事,請重新整理後再試」
+- **教訓**:
+  - **`?.()` optional chaining 對 undefined function 不會報錯,但會回 undefined 導致 silent failure** — debug 時最容易忽略的陷阱
+  - 跨檔呼叫 helper 時必須確認**定義在哪個物件**(`App` vs `ApiService`),不能假設都掛在 `App`
+  - 加 console trace 找根因的方法是對的,但問題隱藏在「沒有進 fallback 路徑」這個事實裡 — `fetchedFromServer: false` 才是真正關鍵 signal
+  - 過去多次「修了又沒解決」就是因為**繞著 toast 文案打轉,沒看 stack trace 找真實 fail 點**
+
 ### 2026-04-28 — 修復後台「賽事管理」卡片「編輯賽事」按鈕 silent fail [永久]
 - **問題**:後台 `page-admin-tournaments` 列表卡片上「編輯賽事」綠色按鈕點下去完全沒反應(無 toast、無 console error、無 modal),即使前面 4 筆 fix 已修權限、Rules、entry 通行證等問題
 - **根因**:`tournament-manage-edit.js:7` `if (!editRecord) return;` **靜默 return 完全沒 toast**。當 `ApiService.getTournament(id)` cache miss 時(深層連結直接進入、SW 過期、limit 截斷未涵蓋這筆、首次進入該頁時 _tournamentSlices 仍未填入)→ `editRecord = null` → silent return → 用戶看到「點了沒反應」

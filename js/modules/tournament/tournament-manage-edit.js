@@ -22,7 +22,9 @@ Object.assign(App, {
         console.error('[showEditTournament] getTournamentAsync threw:', err);
       }
     }
-    const editRecord = this.getFriendlyTournamentRecord?.(rawRecord);
+    // 注意:getFriendlyTournamentRecord 定義在 ApiService 不是 App,
+    // 用 this.xxx 永遠 undefined。歷史 bug 的根因。
+    const editRecord = ApiService.getFriendlyTournamentRecord?.(rawRecord) || rawRecord;
     if (!editRecord) {
       const cacheCount = (ApiService.getTournaments?.() || []).length;
       const shortId = safeId.length > 12 ? safeId.slice(-12) : safeId;
@@ -86,8 +88,12 @@ Object.assign(App, {
 
   async handleSaveEditTournament() {
     const editId = this._editTournamentId || this._tournamentFormEditId;
-    const editTournament = this.getFriendlyTournamentRecord?.(ApiService.getTournament(editId));
-    if (!editTournament) return;
+    const cachedTournament = ApiService.getTournament(editId);
+    const editTournament = ApiService.getFriendlyTournamentRecord?.(cachedTournament) || cachedTournament;
+    if (!editTournament) {
+      this.showToast('找不到此賽事,請重新整理後再試');
+      return;
+    }
     if (!this.hasPermission('admin.tournaments.manage_all') && !this._canManageTournamentRecord(editTournament)) {
       this.showToast('你目前只能編輯主辦或受委託的賽事。');
       return;
