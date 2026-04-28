@@ -31,6 +31,7 @@ This directory is reserved for the tournament refactor so the feature can move o
 - `tournament-share.js` / `tournament-share-builders.js` — tournament share UI/content builders.
 
 ## Migration note
-- Production now loads this directory as the tournament feature group.
-- Public/detail pages use the `tournament` group; admin tournament pages use `tournamentAdmin`.
+- Production now loads this directory as split tournament feature groups.
+- Public list pages use the light `tournamentList` group; detail pages use `tournamentDetail`; admin tournament pages use `tournamentList` plus `tournamentAdmin`.
+- Keep `tournamentList` limited to first-screen list rendering dependencies. Move detail, roster, notification, and share-only logic to `tournamentDetail` or `tournamentAdmin`.
 - `admin.tournaments.entry` is an entry/page-access permission only. It must not be treated as record-scope edit/review authority; record-scope actions must use admin role, creator, delegate, or host-team officer checks.

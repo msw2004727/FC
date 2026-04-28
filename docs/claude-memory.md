@@ -1651,3 +1651,9 @@
 - **原因**：`isToday` 只比對 `dateKey === todayKey`，沒有排除 `isOutside` 補位格。
 - **修復**：新增 `_isCalendarCellToday(dateKey, isOutside, todayKey)`，只讓非補位格且日期等於今天的格子輸出 `data-today="1"`。
 - **教訓**：月曆跨月補位格只負責排版連續性，不應承接「今天」這類本月狀態樣式。
+
+### 2026-04-28 賽事頁切換卡頓修正 [中型]
+- **問題**：清除快取或版本更新後切到賽事頁會頓，主因是 `page-tournaments` 被綁到完整賽事詳情群組，冷啟動還會在 idle 階段執行活動、隊伍、賽事、個人頁大量 JS。
+- **根因**：賽事列表只需要 helper/core/render，卻載入 detail、roster、notify、share 等詳情模組；列表進頁還等待 standings/matches 靜態集合，與 realtime tournaments 重複拉扯。
+- **修正**：新增 `tournamentList` / `tournamentDetail` 群組，列表只載列表模組，詳情才載完整模組；核心頁預熱改成 network preload hint，不再自動執行所有核心頁 JS；賽事 HTML 納入 boot pages 讓 stale-first 可立即啟用；賽事列表改成 shell-first，可先啟用頁面再背景等 cloud；賽事列表資料依賴縮成 tournaments，realtime 啟動改立即，onSnapshot 渲染延後 80ms。
+- **提醒**：若未來賽事列表新增需要詳情專用能力，先放到 detail 群組，列表群組只保留首屏渲染必需檔案。

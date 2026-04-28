@@ -8,11 +8,11 @@
 const PageLoader = {
 
   /** 啟動時必須載入的頁面（首頁 + 核心頁面） */
-  _bootPages: ['home', 'activity', 'team', 'message', 'profile'],
+  _bootPages: ['home', 'activity', 'team', 'message', 'profile', 'tournament'],
 
   /** 延遲載入的頁面 */
   _deferredPages: [
-    'scan', 'tournament', 'shop',
+    'scan', 'shop',
     'admin-users', 'admin-content', 'admin-system',
     'admin-notif',
     'admin-dashboard', 'admin-seo', 'admin-auto-exp', 'personal-dashboard',

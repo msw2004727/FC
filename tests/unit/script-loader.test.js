@@ -165,7 +165,15 @@ describe('resolvePageScripts', () => {
 describe('resolvePageScripts — real project groups', () => {
   // Subset of the actual _groups and _pageGroups from script-loader.js
   const realGroups = {
-    tournament: [
+    tournamentList: [
+      'js/modules/tournament/tournament-helpers.js',
+      'js/modules/tournament/tournament-core.js',
+      'js/modules/tournament/tournament-render.js',
+    ],
+    tournamentDetail: [
+      'js/modules/tournament/tournament-helpers.js',
+      'js/modules/tournament/tournament-core.js',
+      'js/modules/tournament/tournament-render.js',
       'js/modules/tournament/tournament-detail.js',
       'js/modules/tournament/tournament-friendly-detail.js',
       'js/modules/tournament/tournament-friendly-detail-view.js',
@@ -199,17 +207,24 @@ describe('resolvePageScripts — real project groups', () => {
     ],
   };
   const realPageGroups = {
-    'page-tournaments': ['tournament'],
-    'page-tournament-detail': ['tournament'],
+    'page-tournaments': ['tournamentList'],
+    'page-tournament-detail': ['tournamentDetail'],
     'page-messages': ['message'],
     'page-profile': ['achievement', 'profile'],
     'page-user-card': ['achievement', 'profile'],
   };
 
-  test('page-tournaments loads tournament group', () => {
+  test('page-tournaments loads list-only tournament group', () => {
     const result = resolvePageScripts('page-tournaments', realPageGroups, realGroups);
+    expect(result).toContain('js/modules/tournament/tournament-render.js');
+    expect(result).not.toContain('js/modules/tournament/tournament-detail.js');
+    expect(result).toHaveLength(3);
+  });
+
+  test('page-tournament-detail loads detail tournament group', () => {
+    const result = resolvePageScripts('page-tournament-detail', realPageGroups, realGroups);
+    expect(result).toContain('js/modules/tournament/tournament-render.js');
     expect(result).toContain('js/modules/tournament/tournament-detail.js');
-    expect(result).toHaveLength(6);
   });
 
   test('page-profile deduplicates image-cropper.js across achievement+profile', () => {

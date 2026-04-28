@@ -83,6 +83,10 @@ Object.assign(App, {
     return (typeof PAGE_STRATEGY !== 'undefined' && PAGE_STRATEGY[pageId]) || 'fresh-first';
   },
 
+  _canActivateBeforeCloud(pageId) {
+    return pageId === 'page-tournaments';
+  },
+
   _hasCachedDataForPage(pageId) {
     if (this._hasPageSnapshotReady?.(pageId)) return true;
     if (!document.getElementById(pageId)) return false;
@@ -153,7 +157,8 @@ Object.assign(App, {
       && typeof FirebaseService.schedulePageScopedRealtimeForPage === 'function') {
       const contract = typeof PAGE_DATA_CONTRACT !== 'undefined' && PAGE_DATA_CONTRACT[pageId];
       if (contract && contract.realtime && contract.realtime.length > 0) {
-        FirebaseService.schedulePageScopedRealtimeForPage(pageId);
+        const realtimeOptions = pageId === 'page-tournaments' ? { delayMs: 0 } : undefined;
+        FirebaseService.schedulePageScopedRealtimeForPage(pageId, realtimeOptions);
       }
     }
     // 2026-04-20：同頁重新 activate（例如 Background reload 完成觸發的 showPage(currentPage)）
@@ -382,8 +387,12 @@ Object.assign(App, {
     // stale-first 快取捷徑：有快取時只載 HTML + JS，跳過 cloud + data 等待
     const canStale = this._getPageStrategy(pageId) === 'stale-first'
       && this._hasCachedDataForPage(pageId);
+    const canActivateBeforeCloud = this._canActivateBeforeCloud(pageId);
 
-    if (!canStale && this._pageNeedsCloud(pageId) && typeof this.ensureCloudReady === 'function') {
+    if (!canStale
+      && !canActivateBeforeCloud
+      && this._pageNeedsCloud(pageId)
+      && typeof this.ensureCloudReady === 'function') {
       try {
         await this.ensureCloudReady({ reason: `page:${pageId}` });
       } catch (err) {
@@ -414,6 +423,24 @@ Object.assign(App, {
       await FirebaseService.ensureCollectionsForPage(pageId, {
         skipRealtimeStart: hasRealtime,
       });
+    }
+
+    if (canActivateBeforeCloud
+      && !this._cloudReady
+      && typeof this.ensureCloudReady === 'function') {
+      void this.ensureCloudReady({ reason: `shell:${pageId}` })
+        .then(() => {
+          if (this.currentPage !== pageId || typeof FirebaseService === 'undefined') return;
+          if (typeof FirebaseService.ensureCollectionsForPage === 'function') {
+            void FirebaseService.ensureCollectionsForPage(pageId, { skipRealtimeStart: true }).catch(() => {});
+          }
+          if (typeof FirebaseService.schedulePageScopedRealtimeForPage === 'function') {
+            FirebaseService.schedulePageScopedRealtimeForPage(pageId, { delayMs: 0 });
+          }
+        })
+        .catch(err => {
+          console.warn(`[Navigation] shell cloud init failed for ${pageId}:`, err);
+        });
     }
   },
 
@@ -505,7 +532,9 @@ Object.assign(App, {
     const canUseStale = (strategy === 'stale-first' || strategy === 'stale-confirm')
       && this._canUseStaleNavigation(pageId, { authPending: staleAuthPending });
 
-    const needsCloudInit = this._pageNeedsCloud(pageId) && (!this._cloudReady || !!this._cloudReadyPromise);
+    const needsCloudInit = !this._canActivateBeforeCloud(pageId)
+      && this._pageNeedsCloud(pageId)
+      && (!this._cloudReady || !!this._cloudReadyPromise);
     const shouldShowRouteLoading = pageId !== this.currentPage
       && typeof this._beginRouteLoading === 'function'
       && typeof this._endRouteLoading === 'function';

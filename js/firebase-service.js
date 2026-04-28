@@ -183,8 +183,15 @@ const FirebaseService = {
       return;
     }
     if (source === 'tournaments') {
-      if (page === 'page-tournaments') App.renderTournamentTimeline?.();
       if (page === 'page-home') App.renderOngoingTournaments?.();
+      if (page === 'page-tournaments') {
+        clearTimeout(this._snapshotRenderTimer);
+        this._snapshotRenderTimer = setTimeout(() => {
+          if (typeof App !== 'undefined' && App.currentPage === 'page-tournaments') {
+            App.renderTournamentTimeline?.();
+          }
+        }, 80);
+      }
       return;
     }
 
@@ -471,7 +478,7 @@ const FirebaseService = {
     'page-teams':             ['teams'],
     'page-team-detail':       ['teams', 'events'],
     'page-team-manage':       ['teams'],
-    'page-tournaments':       ['tournaments', 'standings', 'matches'],
+    'page-tournaments':       ['tournaments'],
     'page-tournament-detail': ['tournaments', 'standings', 'matches'],
     'page-shop':              ['shopItems', 'trades'],
     'page-shop-detail':       ['shopItems', 'trades'],

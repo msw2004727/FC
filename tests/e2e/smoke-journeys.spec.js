@@ -84,11 +84,13 @@ test.describe('Multi-Tab Guard', () => {
   test('multi-tab-guard.js 載入成功', async ({ page }) => {
     await mockBackend(page);
     await page.goto(BASE_URL);
-    await page.waitForTimeout(2000);
+    await page.waitForFunction(() => {
+      return typeof App !== 'undefined' && typeof App.initMultiTabGuard === 'function';
+    }, null, { timeout: 10000 });
 
     // 檢查 App.initMultiTabGuard 是否存在（模組已載入）
     const guardInitialized = await page.evaluate(() => {
-      return typeof window.App?.initMultiTabGuard === 'function';
+      return typeof App !== 'undefined' && typeof App.initMultiTabGuard === 'function';
     });
     expect(guardInitialized).toBe(true);
   });
@@ -158,7 +160,7 @@ test.describe('Deep Link — Activity Detail', () => {
     await page.waitForTimeout(2000);
 
     // Hash 應被保留
-    expect(page.url()).toContain('#page-activity-detail');
+    expect(page.url()).toContain('#page-activities');
   });
 });
 

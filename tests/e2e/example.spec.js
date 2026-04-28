@@ -44,7 +44,7 @@ test.describe('Homepage', () => {
     await page.waitForSelector('#loading-overlay', { state: 'hidden', timeout: 15000 });
 
     // Verify key DOM elements exist
-    await expect(page.locator('#page-root')).toBeVisible();
+    await expect(page.locator('#page-home')).toBeVisible();
   });
 
   test('bottom navigation tabs are visible', async ({ page }) => {
@@ -85,6 +85,18 @@ test.describe('Navigation', () => {
       await page.waitForTimeout(500);
     }
   });
+
+  test('can navigate to tournament page', async ({ page }) => {
+    await mockBackend(page);
+    await page.goto(BASE_URL);
+    await page.waitForSelector('#loading-overlay', { state: 'hidden', timeout: 15000 });
+
+    const tournamentTab = page.locator('[data-page="page-tournaments"]').first();
+    await expect(tournamentTab).toBeVisible();
+    await tournamentTab.click();
+    await expect(page.locator('#page-tournaments')).toBeVisible();
+    await expect(page.locator('#tournament-timeline')).toBeAttached();
+  });
 });
 
 // ── Journey 3: Deep link to event detail ──
@@ -106,7 +118,7 @@ test.describe('PWA', () => {
     const response = await page.goto(`${BASE_URL}/manifest.json`);
     expect(response.status()).toBe(200);
     const json = await response.json();
-    expect(json.name).toContain('SportHub');
+    expect(json.name).toContain('ToosterX');
     expect(json.display).toBe('standalone');
   });
 

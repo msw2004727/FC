@@ -241,6 +241,24 @@ const ScriptLoader = {
       'js/modules/kickball/kickball-physics.js',
       'js/modules/kickball/kickball-game-page.js',
     ],
+    tournamentList: [
+      'js/modules/tournament/tournament-helpers.js',
+      'js/modules/tournament/tournament-core.js',
+      'js/modules/tournament/tournament-render.js',
+    ],
+    tournamentDetail: [
+      'js/modules/tournament/tournament-helpers.js',
+      'js/modules/tournament/tournament-core.js',
+      'js/modules/tournament/tournament-render.js',
+      'js/modules/tournament/tournament-share-builders.js',
+      'js/modules/tournament/tournament-detail.js',
+      'js/modules/tournament/tournament-friendly-state.js',
+      'js/modules/tournament/tournament-friendly-detail.js',
+      'js/modules/tournament/tournament-friendly-detail-view.js',
+      'js/modules/tournament/tournament-share.js',
+      'js/modules/tournament/tournament-friendly-roster.js',
+      'js/modules/tournament/tournament-friendly-notify.js',
+    ],
     tournament: [
       'js/modules/tournament/tournament-helpers.js',
       'js/modules/tournament/tournament-core.js',
@@ -381,8 +399,8 @@ const ScriptLoader = {
     'page-titles':             ['achievement', 'profile'],
     'page-shop':               ['shop'],
     'page-leaderboard':        ['achievement', 'shop'],
-    'page-tournaments':        ['tournament'],
-    'page-tournament-detail':  ['tournament'],
+    'page-tournaments':        ['tournamentList'],
+    'page-tournament-detail':  ['tournamentDetail'],
     'page-messages':           ['message'],
     'page-scan':               ['scan'],
     'page-game':               ['game'],
@@ -402,7 +420,7 @@ const ScriptLoader = {
     'page-admin-shop':         ['shop'],
     'page-admin-messages':     ['messageAdmin'],
     'page-admin-teams':        ['team'],
-    'page-admin-tournaments':  ['tournamentAdmin'],
+    'page-admin-tournaments':  ['tournamentList', 'tournamentAdmin'],
     'page-admin-games':        ['adminSystem'],
     'page-admin-auto-exp':     ['adminSystem'],
     'page-admin-error-logs':   ['adminSystem'],
@@ -489,18 +507,8 @@ const ScriptLoader = {
       });
     });
     if (allScripts.length > 0) this._preloadFiles(allScripts);
-
-    // Step 2: 閒置時依序執行
-    const run = async () => {
-      for (const pageId of corePages) {
-        try { await this.ensureForPage(pageId); } catch (e) { /* 繼續下一個 */ }
-      }
-      console.log('[ScriptLoader] 核心頁面背景預載入完成: activity → team → tournament → profile');
-    };
-    if (typeof requestIdleCallback !== 'undefined') {
-      requestIdleCallback(() => run(), { timeout: 2000 });
-    } else {
-      setTimeout(() => run(), 1000);
-    }
+    // Keep this as network warmup only. Executing every core page script after
+    // a cache/version refresh causes visible main-thread jank during navigation.
+    console.log('[ScriptLoader] core page scripts preloaded (network hints only)');
   },
 };
