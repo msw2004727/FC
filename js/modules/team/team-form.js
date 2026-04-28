@@ -26,10 +26,13 @@ Object.assign(App, {
             realLeaderUids, leaderNames, captain, captainUidForSave,
             coaches, newCoachUids, users } = vals;
 
-    // ── 降級確認（編輯模式）──
+    // ── 降級確認（編輯模式)── 必須在 loading wrapper 前(用戶取消 confirm 不該顯示 loading)
     if (this._teamFormState.editId) {
       if (!(await this._confirmTeamRoleDemotions(vals))) return;
     }
+
+    const isEditMode = !!this._teamFormState.editId;
+    return this._withButtonLoading('#ct-team-save-btn', isEditMode ? '儲存中...' : '建立中...', async () => {
 
     const leaderUidCompat = realLeaderUids[0] || null;
     const leaderCompat = leaderNames[0] || '';
@@ -171,6 +174,8 @@ Object.assign(App, {
     this.renderTeamList();
     this.renderAdminTeams();
     this.renderTeamManage();
+
+    });  // _withButtonLoading
   },
 
 });

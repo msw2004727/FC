@@ -141,6 +141,9 @@ Object.assign(App, {
       this.showToast('報名開始時間不能晚於或等於截止時間。');
       return;
     }
+
+    return this._withButtonLoading('#tf-save-btn', '儲存中...', async () => {
+
     const editVenues = [...this._tournamentFormState.venues];
     const editDelegates = [...this._tournamentFormState.delegates];
     const editMatchDates = [...this._tournamentFormState.matchDates];
@@ -199,6 +202,8 @@ Object.assign(App, {
     this.renderTournamentManage();
     this.closeModal();
     this.showToast(`賽事「${editName}」已更新。`);
+
+    });  // _withButtonLoading
   },
 
 });

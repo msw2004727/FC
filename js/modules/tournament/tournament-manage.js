@@ -274,6 +274,9 @@ Object.assign(App, {
       this._tfSetError('tf-reg-start', '報名開始時間不能晚於或等於截止時間。');
       this.showToast('報名開始時間不能晚於或等於截止時間。'); return;
     }
+
+    return this._withButtonLoading('#tf-save-btn', '建立中...', async () => {
+
     const createCoverPreview = document.getElementById('tf-upload-preview');
     const createCoverImage = createCoverPreview?.querySelector('img')?.src || null;
     const createContentPreview = document.getElementById('tf-content-upload-preview');
@@ -360,6 +363,8 @@ Object.assign(App, {
     this._setTournamentFeeFormState('tf', false, 300);
     this._resetTournamentImagePreview('tf');
     this._resetTournamentImagePreview('tf', true);
+
+    });  // _withButtonLoading
   },
 
   // ══════════════════════════════════
