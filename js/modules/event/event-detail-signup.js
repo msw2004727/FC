@@ -287,7 +287,8 @@ Object.assign(App, {
           void flipper.offsetHeight;
           flipper.classList.add('flipped');
           glowWrap.classList.add('flipped');
-          await new Promise(r => setTimeout(r, 1200));
+          // 2026-04-28：原本 await 1200ms 拖慢「秒成功」體感、改為 fire-and-forget
+          // CSS transition 會自己跑完（750ms）、UI 立即更新成「取消報名」按鈕
         }
       }
       this._flipAnimating = false;
@@ -586,7 +587,8 @@ Object.assign(App, {
             void flipper.offsetHeight;
             flipper.classList.add('flipped');
             cancelGlowWrap.classList.add('flipped');
-            await new Promise(r => setTimeout(r, 1200));
+            // 2026-04-28：原本 await 1200ms 拖慢「秒成功」體感、改為 fire-and-forget
+            // CSS transition 會自己跑完（750ms）、UI 立即更新成「立即報名」按鈕
           }
           this._flipAnimating = false;
         }

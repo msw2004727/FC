@@ -4662,7 +4662,8 @@ function sanitizeStr(val, maxLen) {
 //  registerForEvent — 報名 callable（含同行者）
 // ═══════════════════════════════════════════════════════════════
 exports.registerForEvent = onCall(
-  { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB" },
+  // 2026-04-28：minInstances: 1 暖機（消除 cold start tax、月成本約 NT$650 / 用戶體感從 3-5 秒 → < 1 秒）
+  { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB", minInstances: 1 },
   async (request) => {
     // ── 身份驗證 ──
     if (!request.auth) {
@@ -5028,7 +5029,8 @@ exports.registerForEvent = onCall(
 //  cancelRegistration — 取消/移除/候補調整 callable
 // ═══════════════════════════════════════════════════════════════
 exports.cancelRegistration = onCall(
-  { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB" },
+  // 2026-04-28：minInstances: 1 暖機（消除 cold start tax、月成本約 NT$650）
+  { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB", minInstances: 1 },
   async (request) => {
     // ── 身份驗證 ──
     if (!request.auth) {
