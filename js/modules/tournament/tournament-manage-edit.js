@@ -2,15 +2,32 @@
 
 Object.assign(App, {
 
-  showEditTournament(id) {
-    const editRecord = this.getFriendlyTournamentRecord?.(ApiService.getTournament(id));
-    if (!editRecord) return;
+  async showEditTournament(id) {
+    const safeId = String(id || '').trim();
+    if (!safeId) {
+      this.showToast('賽事 ID 無效');
+      return;
+    }
+    let rawRecord = ApiService.getTournament(safeId);
+    if (!rawRecord) {
+      // cache miss → fallback Firestore 單筆查詢(初次進入頁面、limit 截斷、深層連結等情境)
+      try {
+        rawRecord = await ApiService.getTournamentAsync(safeId);
+      } catch (err) {
+        console.error('[showEditTournament] getTournamentAsync failed:', err);
+      }
+    }
+    const editRecord = this.getFriendlyTournamentRecord?.(rawRecord);
+    if (!editRecord) {
+      this.showToast('找不到此賽事(可能已被刪除或仍在載入)');
+      return;
+    }
     if (!this.hasPermission('admin.tournaments.manage_all') && !this._canManageTournamentRecord(editRecord)) {
       this.showToast('你目前只能編輯主辦或受委託的賽事。');
       return;
     }
 
-    this._editTournamentId = id;
+    this._editTournamentId = safeId;
     this._ensureTournamentFormLayout('tf');
     document.getElementById('tf-name').value = editRecord.name || '';
     document.getElementById('tf-type').value = 'friendly';

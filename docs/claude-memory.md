@@ -2,6 +2,19 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-28 — 修復後台「賽事管理」卡片「編輯賽事」按鈕 silent fail [永久]
+- **問題**:後台 `page-admin-tournaments` 列表卡片上「編輯賽事」綠色按鈕點下去完全沒反應(無 toast、無 console error、無 modal),即使前面 4 筆 fix 已修權限、Rules、entry 通行證等問題
+- **根因**:`tournament-manage-edit.js:7` `if (!editRecord) return;` **靜默 return 完全沒 toast**。當 `ApiService.getTournament(id)` cache miss 時(深層連結直接進入、SW 過期、limit 截斷未涵蓋這筆、首次進入該頁時 _tournamentSlices 仍未填入)→ `editRecord = null` → silent return → 用戶看到「點了沒反應」
+- **修復**:`showEditTournament(id)` 改為:
+  1. async 函式
+  2. cache miss 時用 `await ApiService.getTournamentAsync(safeId)` fallback 從 Firestore 拉單筆(同詳情頁的 `showTournamentDetail` 既有 pattern)
+  3. 仍找不到 → showToast「找不到此賽事(可能已被刪除或仍在載入)」(替代 silent return)
+  4. ID 為空字串 → showToast「賽事 ID 無效」
+- **教訓**:
+  - **任何 `if (!x) return;` 在面向用戶的入口函式都是 UX 災難**。必須 toast/alert/console.warn 至少一個訊息,讓用戶或 debug 端有跡可循
+  - **cache lookup 必須 fallback async fetch**(已成 pattern:`showTournamentDetail`、`showEventDetail` 都這樣做),`showEditTournament` 漏寫了
+  - 「按鈕沒反應」的可能原因樹:① onclick 函式名拼錯 → 字串 handler 找不到函式無錯誤 ② 函式 silent return ③ 拋例外被吃掉 ④ 權限守衛擋掉 toast 一閃就消失。修這類 bug 必須把所有可能的 silent failure 點清掉
+
 ### 2026-04-28 — 補修 reviewFriendlyTournamentApplication 殘留閘 [永久]
 - **背景**：上一筆 commit `ff9d6725` 補修兩條漏洞後,Codex review(另一邊獨立審計)又發現 `tournament-friendly-detail.js` `reviewFriendlyTournamentApplication()` 仍有殘留閘
 - **漏洞**：函式開頭 `if (!hasPermission('admin.tournaments.review') && !hasPermission('admin.tournaments.entry')) { showToast('權限不足'); return; }` 在載入 tournament 前就擋掉。Creator-only 用戶在 teams tab 看得到「確認 / 拒絕」按鈕(因 `_canManageTournamentRecord` 通過),點擊後卻被 entry/review 前置閘擋。Firestore Rules 已允許 creator 操作 applications/entries → 前後端再次不對齊
