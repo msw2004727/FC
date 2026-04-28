@@ -108,6 +108,18 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://toosterx.com/blog/equipment/</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://toosterx.com/blog/rules/</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://toosterx.com/blog/football-shoes-guide</loc>
     <lastmod>2026-04-28</lastmod>
     <changefreq>monthly</changefreq>
