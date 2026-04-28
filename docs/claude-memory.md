@@ -2,6 +2,18 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-28 — 修復賽事建立/編輯彈窗封面圖片無法上傳（手機點了沒反應） [永久]
+- **問題**：手機版（也包含桌面）建立賽事時，點「上傳賽事封面圖片」會開啟檔案選擇器，但選完照片後 preview 沒變化，建立後封面圖也是空的；內容圖片同樣狀況
+- **原因**：`pages/tournament.html` 的 `<input type="file" id="tf-image">` 與 `#tf-content-image` 從來沒有 `change` 事件監聽器。整個 tournament 模組沒有任何 FileReader / readAsDataURL 處理選到的檔案。`_resetTournamentImagePreview()` 只重置 placeholder UI，沒做事件綁定
+- **修復**：對齊「創立活動」做法（`event-create.js:125`），呼叫共用函式 `App.bindImageUpload(inputId, previewId)`：
+  - `tournament-manage.js` `openCreateTournamentModal()` 結尾呼叫兩次 bindImageUpload（封面 + 內容）+ 清空 file input value
+  - `tournament-manage-edit.js` `showEditTournament()` 同樣加兩行
+  - `bindImageUpload` 已內建：格式檢查（jpg/png/webp/heic）、5MB 上限、Canvas 壓縮為 webp/jpeg、自動塞 `<img>` 進 preview、`dataset.bound` 防重複綁
+- **教訓**：
+  - 任何 `<input type="file">` 必須有對應的 `change` 監聽，否則點了「沒反應」是必然結果（且手機上更明顯，因為桌面用戶可能會以為是檔案選擇器自身行為）
+  - 既有可重用工具函式（`bindImageUpload` 已被 ad-manage / boot-brand / event-create / event-create-external / event-manage-lifecycle 廣泛使用）優先沿用，禁止為單一模組自寫一份相同邏輯
+  - 新增表單時，**file input 綁定的優先級與「必填欄位驗證」同等重要**，CR 時必查
+
 ### 2026-04-28 — 修復新建賽事立刻從列表消失 [永久]
 - **問題**：用戶建立新賽事後 toast 顯示成功，但賽事中心、首頁、管理列表都看不到剛建立的賽事；重新整理頁面有時會出現、有時又消失
 - **原因**：`firebase-crud.js` 的 `addTournament()` 寫入時只設定 `createdAt` 沒設定 `updatedAt`，但 `firebase-service.js` 的 `_startTournamentsRealtimeListener()` 用 `db.collection('tournaments').orderBy('updatedAt', 'desc')` 監聽。Firestore 的 `orderBy` 會**排除該欄位不存在的文件**，所以新建賽事不會出現在 onSnapshot 結果 → `_tournamentSlices.active` 不包含 → `_mergeTournamentSlices` 後 cache 不包含 → 列表渲染看不到
