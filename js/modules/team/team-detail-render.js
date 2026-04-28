@@ -200,7 +200,7 @@ Object.assign(App, {
       if (!regularMembers.length) return '<div style="font-size:.82rem;color:var(--text-muted);padding:.3rem">' + I18N.t('teamDetail.none') + '</div>';
       return regularMembers.map(u => {
         const memberName = u.name || u.displayName || u.uid || '\u672a\u77e5';
-        const removeBtn = (canManageMembers && memberEditMode && u.uid) ? '<button class="td-member-remove-btn" title="\u79fb\u9664\u968a\u54e1" onclick="event.stopPropagation();App.removeTeamMember(\'' + t.id + '\',\'' + u.uid + '\')">\u00d7</button>' : '';
+        const removeBtn = (canManageMembers && memberEditMode && u.uid) ? '<button class="td-member-remove-btn" title="\u79fb\u9664\u968a\u54e1" onclick="event.stopPropagation();App.removeTeamMember(this, \'' + t.id + '\',\'' + u.uid + '\')">\u00d7</button>' : '';
         return '<span class="td-member-item-wrap"><span class="user-capsule uc-user" onclick="App.showUserProfile(\'' + escapeHTML(memberName) + '\')">' + escapeHTML(memberName) + '</span>' + removeBtn + '</span>';
       }).join('');
     })();

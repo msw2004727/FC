@@ -198,7 +198,7 @@ Object.assign(App, {
     await this._refreshTeamDetailMembers(teamId);
   },
 
-  async removeTeamMember(teamId, memberUid) {
+  async removeTeamMember(btn, teamId, memberUid) {
     const t = ApiService.getTeam(teamId);
     if (!t || !memberUid) return;
     if (!this._canManageTeamMembers(t)) {
@@ -224,6 +224,8 @@ Object.assign(App, {
 
     const memberName = member.name || member.displayName || member.uid;
     if (!(await this.appConfirm('\u78ba\u5b9a\u8981\u79fb\u9664\u968a\u54e1\u300c' + memberName + '\u300d\uff1f'))) return;
+
+    return this._withButtonLoading(btn, '\u79fb\u9664\u4e2d...', async () => {
 
     const teamIds = (typeof this._getUserTeamIds === 'function')
       ? this._getUserTeamIds(member)
@@ -284,6 +286,8 @@ Object.assign(App, {
     ApiService._writeOpLog('team_member_remove', '\u79fb\u9664\u968a\u54e1', actorName + ' \u5c07\u300c' + memberName + '\u300d\u79fb\u51fa\u300c' + t.name + '\u300d');
     this.showToast('\u5df2\u79fb\u9664\u968a\u54e1\u300c' + memberName + '\u300d');
     await this._refreshTeamDetailMembers(teamId);
+
+    });  // _withButtonLoading
   },
 
 });

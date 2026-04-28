@@ -153,80 +153,87 @@ Object.assign(App, {
     this.renderAdminTeams(q);
   },
 
-  toggleTeamPin(id) {
-    const t = ApiService.getTeam(id);
-    if (!t) return;
-    t.pinned = !t.pinned;
-    if (t.pinned) {
-      this._pinCounter++;
-      t.pinOrder = this._pinCounter;
-    } else {
-      t.pinOrder = 0;
-    }
-    ApiService.updateTeam(id, { pinned: t.pinned, pinOrder: t.pinOrder });
-    this.renderAdminTeams();
-    this.renderTeamList();
-    this.showToast(t.pinned ? `已置頂「${t.name}」` : `已取消置頂「${t.name}」`);
+  toggleTeamPin(btn, id) {
+    return this._withButtonLoading(btn, '處理中...', async () => {
+      const t = ApiService.getTeam(id);
+      if (!t) return;
+      t.pinned = !t.pinned;
+      if (t.pinned) {
+        this._pinCounter++;
+        t.pinOrder = this._pinCounter;
+      } else {
+        t.pinOrder = 0;
+      }
+      await ApiService.updateTeamAwait(id, { pinned: t.pinned, pinOrder: t.pinOrder });
+      this.renderAdminTeams();
+      this.renderTeamList();
+      this.showToast(t.pinned ? `已置頂「${t.name}」` : `已取消置頂「${t.name}」`);
+    });
   },
 
-  toggleTeamActive(id) {
-    const t = ApiService.getTeam(id);
-    if (!t) return;
-    t.active = !t.active;
-    ApiService.updateTeam(id, { active: t.active });
-    this.renderAdminTeams();
-    this.renderTeamList();
-    this.renderTeamManage();
-    this.showToast(t.active ? `已上架「${t.name}」` : `已下架「${t.name}」`);
+  toggleTeamActive(btn, id) {
+    return this._withButtonLoading(btn, '處理中...', async () => {
+      const t = ApiService.getTeam(id);
+      if (!t) return;
+      t.active = !t.active;
+      await ApiService.updateTeamAwait(id, { active: t.active });
+      this.renderAdminTeams();
+      this.renderTeamList();
+      this.renderTeamManage();
+      this.showToast(t.active ? `已上架「${t.name}」` : `已下架「${t.name}」`);
+    });
   },
 
   // ── 從 team-form-search.js 搬入（與 toggleTeamPin/toggleTeamActive 同級）──
 
-  async removeTeam(id) {
+  async removeTeam(btn, id) {
     const t = ApiService.getTeam(id);
     if (!t) return;
     if (!(await this.appConfirm(`確定要刪除「${t.name}」？此操作無法復原。`))) return;
-    const tName = t.name;
 
-    // 刪隊前收集俱樂部經理 + 領隊 + 教練 uid，用於刪隊後降級檢查
-    const affectedUids = [];
-    const allUsers = ApiService.getAdminUsers();
-    if (t.captainUid) {
-      affectedUids.push(t.captainUid);
-    } else if (t.captain) {
-      const capUser = allUsers.find(u => u.name === t.captain);
-      if (capUser) affectedUids.push(capUser.uid);
-    }
-    (t.leaderUids || (t.leaderUid ? [t.leaderUid] : [])).forEach(lUid => {
-      if (lUid && !affectedUids.includes(lUid)) affectedUids.push(lUid);
+    return this._withButtonLoading(btn, '刪除中...', async () => {
+      const tName = t.name;
+
+      // 刪隊前收集俱樂部經理 + 領隊 + 教練 uid，用於刪隊後降級檢查
+      const affectedUids = [];
+      const allUsers = ApiService.getAdminUsers();
+      if (t.captainUid) {
+        affectedUids.push(t.captainUid);
+      } else if (t.captain) {
+        const capUser = allUsers.find(u => u.name === t.captain);
+        if (capUser) affectedUids.push(capUser.uid);
+      }
+      (t.leaderUids || (t.leaderUid ? [t.leaderUid] : [])).forEach(lUid => {
+        if (lUid && !affectedUids.includes(lUid)) affectedUids.push(lUid);
+      });
+      (t.coaches || []).forEach(cName => {
+        const cUser = allUsers.find(u => u.name === cName);
+        if (cUser && !affectedUids.includes(cUser.uid)) affectedUids.push(cUser.uid);
+      });
+
+      try {
+        await ApiService.deleteTeam(id);
+      } catch (err) {
+        console.error('[removeTeam] delete failed:', err);
+        this.showToast('刪除俱樂部失敗，請稍後再試');
+        return;
+      }
+      ApiService._writeOpLog('team_delete', '刪除俱樂部', `刪除「${tName}」`);
+
+      // 刪隊後逐一重新計算角色
+      affectedUids.forEach(uid => {
+        this._applyRoleChange(ApiService._recalcUserRole(uid));
+      });
+
+      this.showToast(`已刪除「${tName}」`);
+      this.showPage('page-teams');
+      this.renderTeamList();
+      this.renderAdminTeams();
+      this.renderTeamManage();
+      this.renderProfileData();
+      this.renderHotEvents();
+      this.renderActivityList();
     });
-    (t.coaches || []).forEach(cName => {
-      const cUser = allUsers.find(u => u.name === cName);
-      if (cUser && !affectedUids.includes(cUser.uid)) affectedUids.push(cUser.uid);
-    });
-
-    try {
-      await ApiService.deleteTeam(id);
-    } catch (err) {
-      console.error('[removeTeam] delete failed:', err);
-      this.showToast('刪除俱樂部失敗，請稍後再試');
-      return;
-    }
-    ApiService._writeOpLog('team_delete', '刪除俱樂部', `刪除「${tName}」`);
-
-    // 刪隊後逐一重新計算角色
-    affectedUids.forEach(uid => {
-      this._applyRoleChange(ApiService._recalcUserRole(uid));
-    });
-
-    this.showToast(`已刪除「${tName}」`);
-    this.showPage('page-teams');
-    this.renderTeamList();
-    this.renderAdminTeams();
-    this.renderTeamManage();
-    this.renderProfileData();
-    this.renderHotEvents();
-    this.renderActivityList();
   },
 
 });
