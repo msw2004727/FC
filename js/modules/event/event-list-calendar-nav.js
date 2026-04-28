@@ -96,6 +96,8 @@ Object.assign(App, {
     const { key, target } = ev;
     // Enter / Space 在活動格 → 點擊
     if (key === 'Enter' || key === ' ') {
+      const summaryCell = target.closest?.('.evt-cal-sport-summary[data-jump-date]');
+      if (summaryCell) { ev.preventDefault(); this._jumpToTimelineDate(summaryCell.dataset.jumpDate); return; }
       const evCell = target.closest?.('.evt-cal-event[data-id]');
       if (evCell) { ev.preventDefault(); this.showEventDetail(evCell.dataset.id); return; }
       const moreCell = target.closest?.('.evt-cal-more[data-jump-date]');
@@ -121,7 +123,7 @@ Object.assign(App, {
       case 'PageUp':     this._calendarGoPrev(); ev.preventDefault(); return;
       case 'PageDown':   this._calendarGoNext(); ev.preventDefault(); return;
       case 'Enter': case ' ': {
-        const first = cell.querySelector('.evt-cal-event[data-id]');
+        const first = cell.querySelector('.evt-cal-sport-summary[data-jump-date], .evt-cal-event[data-id]');
         if (first) { first.click(); ev.preventDefault(); }
         return;
       }

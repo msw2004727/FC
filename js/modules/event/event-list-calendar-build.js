@@ -71,20 +71,16 @@ Object.assign(App, {
 
   _buildDayCellHTML({ dateKey, dayNum, isOutside, isToday, isPast, events, weekRow, weekCol }) {
     const sorted = this._sortEventsForCalendarCell(events);
-    const shown = sorted.slice(0, 3);
-    const extra = sorted.length - shown.length;
+    const sportCounts = this._buildCalendarSportCounts(sorted);
     const hasPinned = sorted.some(e => e?.pinned);
     const countAttr = sorted.length === 0 ? '0'
       : sorted.length <= 2 ? String(sorted.length)
       : sorted.length === 3 ? '3' : '4+';
     const summary = sorted.length === 0
       ? `${dayNum}日，無活動`
-      : `${dayNum}日，${sorted.length}場活動，按 Enter 展開`;
+      : `${dayNum}日，${this._formatCalendarSportCountSummary(sportCounts)}，按 Enter 展開`;
 
-    const eventsHTML = shown.map(e => this._buildEventCellHTML(e)).join('');
-    const moreHTML = extra > 0
-      ? `<div class="evt-cal-more" role="button" tabindex="0" data-jump-date="${escapeHTML(dateKey)}" aria-label="還有 ${extra} 場活動，按 Enter 跳到直瀑視圖">還有 ${extra} 場</div>`
-      : '';
+    const eventsHTML = this._buildCalendarSportCountHTML(dateKey, sportCounts);
     const emptyMark = sorted.length === 0
       ? `<div class="evt-cal-empty-mark" aria-hidden="true">—</div>` : '';
 
@@ -101,7 +97,7 @@ Object.assign(App, {
           aria-colindex="${weekCol}"
           aria-label="${escapeHTML(summary)}">
       <div class="evt-cal-day-num">${dayNum}</div>
-      ${eventsHTML}${moreHTML}${emptyMark}
+      ${eventsHTML}${emptyMark}
     </div>`;
   },
 
@@ -133,6 +129,84 @@ Object.assign(App, {
       ${timeStr ? `<span class="evt-cal-time">${escapeHTML(timeStr)}</span>` : ''}
       <span class="evt-cal-title">${escapeHTML(event.title || '')}</span>
     </div>`;
+  },
+
+  _buildCalendarSportCounts(events) {
+    const counts = new Map();
+    (events || []).forEach(event => {
+      const sportKey = this._getCalendarEventSportKey(event);
+      counts.set(sportKey, (counts.get(sportKey) || 0) + 1);
+    });
+
+    const orderMap = this._getCalendarSportOrderMap();
+    return Array.from(counts, ([sportKey, count]) => ({ sportKey, count }))
+      .sort((a, b) => {
+        const ao = orderMap.get(a.sportKey) ?? Number.MAX_SAFE_INTEGER;
+        const bo = orderMap.get(b.sportKey) ?? Number.MAX_SAFE_INTEGER;
+        if (ao !== bo) return ao - bo;
+        return this._getCalendarSportLabel(a.sportKey)
+          .localeCompare(this._getCalendarSportLabel(b.sportKey), 'zh-TW');
+      });
+  },
+
+  _getCalendarEventSportKey(event) {
+    if (typeof this._getEventSportTag === 'function') return this._getEventSportTag(event);
+    const key = typeof getSportKeySafe === 'function'
+      ? getSportKeySafe(event?.sportTag)
+      : String(event?.sportTag || '').trim();
+    return key || 'football';
+  },
+
+  _getCalendarSportOrderMap() {
+    const options = typeof EVENT_SPORT_OPTIONS !== 'undefined' && Array.isArray(EVENT_SPORT_OPTIONS)
+      ? EVENT_SPORT_OPTIONS : [];
+    return new Map(options.map((item, index) => [item.key, index]));
+  },
+
+  _getCalendarSportLabel(sportKey) {
+    return typeof getSportLabelByKey === 'function'
+      ? getSportLabelByKey(sportKey)
+      : (sportKey || 'football');
+  },
+
+  _buildCalendarSportCountHTML(dateKey, sportCounts) {
+    if (!sportCounts.length) return '';
+    const summary = this._formatCalendarSportCountSummary(sportCounts);
+    const itemsHTML = sportCounts.map(({ sportKey, count }) => {
+      const sportDef = typeof getSportDef === 'function'
+        ? getSportDef(sportKey)
+        : { var: '--sport-other' };
+      const label = this._getCalendarSportLabel(sportKey);
+      return `<span class="evt-cal-sport-count-item"
+              style="--sport-color: var(${sportDef.var || '--sport-other'})"
+              title="${escapeHTML(`${label} x${count}`)}">
+        ${this._renderCalendarSportCountIcon(sportKey)}
+        <span class="evt-cal-sport-count-text">x${count}</span>
+      </span>`;
+    }).join('');
+    return `<div class="evt-cal-sport-summary"
+            role="button"
+            tabindex="0"
+            data-jump-date="${escapeHTML(dateKey)}"
+            aria-label="${escapeHTML(`${summary}，跳到直瀑視圖`)}">
+      ${itemsHTML}
+    </div>`;
+  },
+
+  _renderCalendarSportCountIcon(sportKey) {
+    if (typeof getSportIconSvg === 'function') {
+      return getSportIconSvg(sportKey, 'evt-cal-sport-icon');
+    }
+    const emoji = typeof SPORT_ICON_EMOJI !== 'undefined'
+      ? (SPORT_ICON_EMOJI[sportKey] || SPORT_ICON_EMOJI.football || '')
+      : '';
+    return `<span class="sport-emoji evt-cal-sport-icon" aria-hidden="true">${emoji}</span>`;
+  },
+
+  _formatCalendarSportCountSummary(sportCounts) {
+    return (sportCounts || [])
+      .map(({ sportKey, count }) => `${this._getCalendarSportLabel(sportKey)} x${count}`)
+      .join('、');
   },
 
   _getEventSignupStateClassForCal(event) {

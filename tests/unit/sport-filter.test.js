@@ -22,6 +22,30 @@ const sampleEvents = [
   { id: '7', title: 'Legacy empty', sportTag: '' },
 ];
 
+const calendarSportOptions = [
+  { key: 'football', label: '足球' },
+  { key: 'basketball', label: '籃球' },
+  { key: 'pickleball', label: '匹克球' },
+  { key: 'dodgeball', label: '美式躲避球' },
+  { key: 'running', label: '跑步' },
+];
+
+function _getSportKeySafe(key) {
+  const raw = String(key || '').trim();
+  return calendarSportOptions.some(opt => opt.key === raw) ? raw : '';
+}
+
+function _buildCalendarSportCounts(events) {
+  const orderMap = new Map(calendarSportOptions.map((item, index) => [item.key, index]));
+  const counts = new Map();
+  events.forEach(event => {
+    const sportKey = _getSportKeySafe(event?.sportTag) || 'football';
+    counts.set(sportKey, (counts.get(sportKey) || 0) + 1);
+  });
+  return Array.from(counts, ([sportKey, count]) => ({ sportKey, count }))
+    .sort((a, b) => (orderMap.get(a.sportKey) ?? 999) - (orderMap.get(b.sportKey) ?? 999));
+}
+
 describe('_filterBySportTag', () => {
   test('all → returns all events unfiltered', () => {
     const result = _filterBySportTag(sampleEvents, 'all');
@@ -70,5 +94,44 @@ describe('_filterBySportTag', () => {
     const copy = [...sampleEvents];
     _filterBySportTag(sampleEvents, 'basketball');
     expect(sampleEvents).toEqual(copy);
+  });
+});
+
+describe('_buildCalendarSportCounts', () => {
+  test('groups all visible events by sport in configured sport order', () => {
+    const events = [
+      { id: 'p1', sportTag: 'pickleball' },
+      { id: 'f1', sportTag: 'football' },
+      { id: 'd1', sportTag: 'dodgeball' },
+      { id: 'b1', sportTag: 'basketball' },
+      { id: 'p2', sportTag: 'pickleball' },
+      { id: 'f2', sportTag: 'football' },
+    ];
+
+    expect(_buildCalendarSportCounts(events)).toEqual([
+      { sportKey: 'football', count: 2 },
+      { sportKey: 'basketball', count: 1 },
+      { sportKey: 'pickleball', count: 2 },
+      { sportKey: 'dodgeball', count: 1 },
+    ]);
+  });
+
+  test('respects active sport filtering before calendar count rendering', () => {
+    const footballOnly = _filterBySportTag(sampleEvents, 'football');
+    expect(_buildCalendarSportCounts(footballOnly)).toEqual([
+      { sportKey: 'football', count: 5 },
+    ]);
+  });
+
+  test('treats legacy or invalid sport tags as football', () => {
+    const result = _buildCalendarSportCounts([
+      { id: 'legacy-a' },
+      { id: 'legacy-b', sportTag: '' },
+      { id: 'invalid', sportTag: 'curling' },
+    ]);
+
+    expect(result).toEqual([
+      { sportKey: 'football', count: 3 },
+    ]);
   });
 });

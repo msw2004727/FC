@@ -69,6 +69,8 @@ Object.assign(App, {
   },
 
   _handleCalendarClick(ev) {
+    const summaryEl = ev.target.closest?.('.evt-cal-sport-summary[data-jump-date]');
+    if (summaryEl) { this._jumpToTimelineDate(summaryEl.dataset.jumpDate); return; }
     const moreEl = ev.target.closest?.('.evt-cal-more[data-jump-date]');
     if (moreEl) { this._jumpToTimelineDate(moreEl.dataset.jumpDate); return; }
     const eventEl = ev.target.closest?.('.evt-cal-event[data-id]');

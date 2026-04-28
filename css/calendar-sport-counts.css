@@ -1,0 +1,91 @@
+/* Calendar month sport-count chips: <sport icon>x<count> */
+
+.evt-cal-sport-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 2px;
+  width: 100%;
+  margin-top: 2px;
+  cursor: pointer;
+  border-radius: 3px;
+  outline: 0 solid transparent;
+}
+
+.evt-cal-sport-summary:hover .evt-cal-sport-count-item,
+.evt-cal-sport-summary:focus-visible .evt-cal-sport-count-item {
+  background: rgba(97, 97, 97, 0.24);
+  background: color-mix(in srgb, var(--sport-color, var(--sport-other)) 24%, var(--bg-card));
+}
+
+.evt-cal-sport-summary:focus-visible {
+  outline: 1px solid var(--accent, #0d9488);
+  outline-offset: 1px;
+}
+
+.evt-cal-sport-count-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+  min-height: 16px;
+  padding: 0 3px;
+  border-left: 2px solid var(--sport-color, var(--sport-other));
+  border-radius: 3px;
+  background: rgba(97, 97, 97, 0.15);
+  background: color-mix(in srgb, var(--sport-color, var(--sport-other)) 15%, var(--bg-card));
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.evt-cal-sport-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.05em;
+  height: 1.05em;
+  flex: 0 0 auto;
+  line-height: 1;
+}
+
+.evt-cal-sport-icon svg {
+  display: block;
+  width: 1em;
+  height: 1em;
+}
+
+.evt-cal-sport-count-text {
+  display: inline-block;
+  min-width: 1.2em;
+  text-align: left;
+}
+
+.evt-cal-day[data-event-count="1"] .evt-cal-sport-count-item { font-size: 13px; }
+.evt-cal-day[data-event-count="2"] .evt-cal-sport-count-item { font-size: 12px; }
+.evt-cal-day[data-event-count="3"] .evt-cal-sport-count-item,
+.evt-cal-day[data-event-count="4+"] .evt-cal-sport-count-item { font-size: 11px; }
+
+@media (max-width: 767px) {
+  .evt-cal-sport-summary { gap: 1px; }
+  .evt-cal-sport-count-item {
+    min-height: 14px;
+    padding: 0 2px;
+    font-size: 10px;
+  }
+  .evt-cal-day[data-event-count="1"] .evt-cal-sport-count-item { font-size: 11px; }
+  .evt-cal-day[data-event-count="2"] .evt-cal-sport-count-item,
+  .evt-cal-day[data-event-count="3"] .evt-cal-sport-count-item,
+  .evt-cal-day[data-event-count="4+"] .evt-cal-sport-count-item { font-size: 10px; }
+}
+
+@media (min-width: 768px) {
+  .evt-cal-sport-summary { gap: 3px; }
+  .evt-cal-sport-count-item {
+    min-height: 18px;
+    padding: 1px 4px;
+  }
+}

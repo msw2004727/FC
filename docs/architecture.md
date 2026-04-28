@@ -176,7 +176,7 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 | `event-list.js` | 活動列表主模組（整合上述 helper、含月曆 tab 切換 `_setActivityTab` + lazy-load `_loadAndRenderCalendar`）|
 | `event-calendar-constants.js` | 月曆視圖常數：`SPORT_COLORS` × 16、`WEEK_DAY_NAMES`、`MONTH_FORMATTER`、`toDateKey()`、`dateObjToKey()`、`getMonthGridShape()`（2026-04-22 新增）|
 | `event-list-calendar.js` | 月曆視圖主入口：`_renderActivityCalendar` lifecycle + shell + 月份視窗管理（2026-04-22 新增）|
-| `event-list-calendar-build.js` | 月曆 DOM 建構：月份 section / 日期格 / 活動格 / group by date（2026-04-22 新增）|
+| `event-list-calendar-build.js` | 月曆 DOM 建構：月份 section / 日期格 / 運動圖示 x 場次彙總 / group by date（2026-04-22 新增，2026-04-28 改為 sport-count）|
 | `event-list-calendar-nav.js` | 月曆導航：月份切換、IntersectionObserver、鍵盤導航、+N 跳 timeline（2026-04-22 新增）|
 | `event-share-builders.js` | 分享訊息建構工具（純函式，建構 Flex Message 內容） |
 | `event-share.js` | 活動分享（LINE shareTargetPicker + 底部選單 + 建立後分享提示） |

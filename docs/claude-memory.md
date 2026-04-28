@@ -1639,3 +1639,9 @@
 - **原因**：client batch 無法可靠證明同批 root+entry 已存在；Web client 直接 update application status 會繞過 entry 建立與 root summary 更新；前端部分守衛把入口權限當成全域管理權。
 - **修復**：新增 `createFriendlyTournament` / `reviewFriendlyTournamentApplication` callable，以 Admin SDK 原子建立 root+host entry、審核時同步 application/entry/root summary；`tournaments/{id}` root create 與 applications update/delete 改 callable-only；前端改走 atomic wrappers，權限 helper 對齊 admin role + creator/delegate/host officer。
 - **教訓**：跨文件生命週期不可讓 Web client 分段寫入；入口權限只代表能進頁面，record-scope 操作必須由 role 或資料關係重新驗證，且 Rules / callable / UI 三層要同時對齊。
+
+### 2026-04-28 — 活動月曆改為運動場次彙總
+- **問題**：月曆日期格原本列出單筆活動卡，手機窄版資訊密度高，跨運動日程不易快速判斷各運動有幾場。
+- **原因**：月曆渲染沿用 timeline 的單活動思維，沒有把同日活動依 `EVENT_SPORT_OPTIONS` 順序彙總。
+- **修復**：日期格改為先套用既有地區/運動/類型/關鍵字篩選，再依 sportTag 彙總成 `<運動圖示>x<數量>`；All 模式按足球、籃球、匹克球、美式躲避球等設定順序顯示，單一運動篩選只顯示該運動數量。
+- **教訓**：月曆視圖應優先回答「哪天有哪些運動、各幾場」，詳情導覽交給時間軸；新增月曆樣式時拆小 CSS 檔，避免繼續膨脹既有大型樣式檔。
