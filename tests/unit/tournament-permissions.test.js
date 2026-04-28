@@ -65,6 +65,31 @@ function _canCreateFriendlyTournament(user, allTeams, permissions) {
 }
 
 // ---------------------------------------------------------------------------
+// Extracted from tournament-manage-host.js:11-33
+// ---------------------------------------------------------------------------
+function _getTournamentSelectableHostTeams(user, allTeams, selectedId = '') {
+  const source = _isTournamentGlobalAdmin(user)
+    ? (allTeams || [])
+    : _getFriendlyResponsibleTeams(user, allTeams);
+  const teams = [];
+  const seen = new Set();
+
+  source.forEach(team => {
+    const safeId = String(team?.id || '').trim();
+    if (!safeId || seen.has(safeId)) return;
+    seen.add(safeId);
+    teams.push(team);
+  });
+
+  const safeSelectedId = String(selectedId || '').trim();
+  if (safeSelectedId && !seen.has(safeSelectedId)) {
+    const selectedTeam = (allTeams || []).find(team => team.id === safeSelectedId);
+    if (selectedTeam) teams.push(selectedTeam);
+  }
+  return teams;
+}
+
+// ---------------------------------------------------------------------------
 // Extracted from tournament-core.js:219-224
 // ---------------------------------------------------------------------------
 function _isTournamentDelegate(tournament, user) {
@@ -227,6 +252,29 @@ describe('_canCreateFriendlyTournament', () => {
 
   test('null user cannot create', () => {
     expect(_canCreateFriendlyTournament(null, allTeams, adminPermissions)).toBe(false);
+  });
+});
+
+describe('_getTournamentSelectableHostTeams', () => {
+  test('admin role can select any loaded team without manage_all permission', () => {
+    const result = _getTournamentSelectableHostTeams({ uid: 'admin2', role: 'admin' }, allTeams);
+    expect(result.map(team => team.id)).toEqual(allTeams.map(team => team.id));
+  });
+
+  test('captain can only select teams they are responsible for', () => {
+    const result = _getTournamentSelectableHostTeams(captainUser, allTeams);
+    expect(result.map(team => team.id)).toEqual(['teamA']);
+  });
+
+  test('manage_all permission alone is not a host-team selector bypass', () => {
+    const permOnly = { uid: 'permOnly', role: 'user' };
+    const result = _getTournamentSelectableHostTeams(permOnly, allTeams);
+    expect(result).toEqual([]);
+  });
+
+  test('selected existing team is preserved for edit fallback', () => {
+    const result = _getTournamentSelectableHostTeams(captainUser, allTeams, 'teamB');
+    expect(result.map(team => team.id)).toEqual(['teamA', 'teamB']);
   });
 });
 

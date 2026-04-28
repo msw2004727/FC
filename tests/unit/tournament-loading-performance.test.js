@@ -36,6 +36,18 @@ describe('tournament loading performance contract', () => {
     expect(source).toContain("'page-tournament-detail': ['tournaments', 'standings', 'matches']");
   });
 
+  test('create tournament lazily loads host teams without slowing the list page', () => {
+    const manageSource = readProjectFile('js/modules/tournament/tournament-manage.js');
+    const hostSource = readProjectFile('js/modules/tournament/tournament-manage-host.js');
+    const coreSource = readProjectFile('js/modules/tournament/tournament-core.js');
+
+    expect(hostSource).toContain('_ensureTournamentHostTeamsLoaded');
+    expect(hostSource).toContain("ensureStaticCollectionsLoaded(['teams'])");
+    expect(manageSource).toContain('await this._ensureTournamentHostTeamsLoaded?.()');
+    expect(coreSource).toContain("button.textContent = '載入中...'");
+    expect(hostSource).toContain('this._isTournamentGlobalAdmin?.(currentUser)');
+  });
+
   test('tournament realtime render is deferred and realtime starts immediately on activation', () => {
     const firebaseSource = readProjectFile('js/firebase-service.js');
     const navigationSource = readProjectFile('js/core/navigation.js');

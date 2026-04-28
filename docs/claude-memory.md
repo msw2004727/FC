@@ -1713,3 +1713,9 @@
 - **原因**: 首頁活動依賴 Firebase/cache 回填時，慢網路或新版 SW 交替會讓第一屏短暫缺資料。
 - **修補**: `scripts/inject-hot-events.js` 於部署前更新 `index.html` boot events data，讓首頁可以先用 inline 資料渲染，再由 cloud freshness 補正。
 - **驗收**: 兩次 `chore(perf): 自動 inline 首頁活動` commit 已更新 HTML seed；後續若活動資料大幅變動，部署前需再次執行同一流程。
+
+### 2026-04-29 — 新建賽事主辦俱樂部懶載入修正
+- **問題**：使用者直接進賽事頁按「建立賽事」時，可能顯示「目前沒有可代表建立賽事的主辦俱樂部」；切到俱樂部頁再回來後卻正常。
+- **原因**：賽事列表頁為了冷啟速度只載入 `tournaments`，未載入 `teams`；建立表單卻立即用 `ApiService.getTeams()` 判斷可代表的主辦俱樂部，導致 teams 快取尚未載入時誤判。另 `_getTournamentSelectableHostTeams()` 與建立權限的 admin 判斷不一致。
+- **修復**：`openCreateTournamentModal()` 改為先懶載入 `teams` 與使用者 teamIds 對應俱樂部，再重新判斷建立資格；建立按鈕加入「載入中...」狀態；主辦俱樂部選單改用 `_isTournamentGlobalAdmin()` 對齊既有權限 helper；補 `tournament-permissions` 與 `tournament-loading-performance` 測試。
+- **教訓**：效能優化拆掉頁面初始資料依賴後，所有按需功能都要在入口補自己的資料契約，避免被其他頁面載入過快取的副作用掩蓋。

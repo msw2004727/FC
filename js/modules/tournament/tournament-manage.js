@@ -196,7 +196,9 @@ Object.assign(App, {
   },
 
   // ══════════════════════════════════
-  openCreateTournamentModal() {
+  async openCreateTournamentModal() {
+    await this._ensureTournamentHostTeamsLoaded?.();
+
     if (!this._canCreateFriendlyTournament()) {
       this.showToast('目前只有擁有俱樂部的領隊或經理可以建立友誼賽。');
       return;

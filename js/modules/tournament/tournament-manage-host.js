@@ -11,7 +11,7 @@ Object.assign(App, {
   _getTournamentSelectableHostTeams(selectedId = '') {
     const currentUser = ApiService.getCurrentUser?.();
     const allTeams = ApiService.getTeams?.() || [];
-    const source = this.hasPermission('admin.tournaments.manage_all')
+    const source = this._isTournamentGlobalAdmin?.(currentUser)
       ? allTeams
       : this._getFriendlyResponsibleTeams(currentUser);
     const teams = [];
@@ -30,6 +30,45 @@ Object.assign(App, {
       if (selectedTeam) teams.push(selectedTeam);
     }
     return teams;
+  },
+
+  _getTournamentCurrentUserTeamIds(user = null) {
+    const currentUser = user || ApiService.getCurrentUser?.();
+    const ids = [];
+    const seen = new Set();
+    const pushId = (teamId) => {
+      const safeId = String(teamId || '').trim();
+      if (!safeId || seen.has(safeId)) return;
+      seen.add(safeId);
+      ids.push(safeId);
+    };
+
+    if (Array.isArray(currentUser?.teamIds)) currentUser.teamIds.forEach(pushId);
+    pushId(currentUser?.teamId);
+    return ids;
+  },
+
+  async _ensureTournamentHostTeamsLoaded(user = null) {
+    const currentUser = user || ApiService.getCurrentUser?.();
+
+    try {
+      if (typeof FirebaseService !== 'undefined') {
+        if (typeof FirebaseService.ensureStaticCollectionsLoaded === 'function') {
+          await FirebaseService.ensureStaticCollectionsLoaded(['teams']);
+        } else if (typeof FirebaseService.ensureCollectionsForPage === 'function') {
+          await FirebaseService.ensureCollectionsForPage('page-teams', { skipRealtimeStart: true });
+        }
+
+        const userTeamIds = this._getTournamentCurrentUserTeamIds(currentUser);
+        if (userTeamIds.length && typeof FirebaseService.fetchTeamIfMissing === 'function') {
+          await Promise.all(userTeamIds.map(teamId => FirebaseService.fetchTeamIfMissing(teamId)));
+        }
+      }
+      return ApiService.getTeams?.() || [];
+    } catch (err) {
+      console.warn('[Tournament] Failed to load host teams before create:', err);
+      return ApiService.getTeams?.() || [];
+    }
   },
 
   _ensureTournamentHostRow(prefix) {

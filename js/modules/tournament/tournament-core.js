@@ -262,11 +262,22 @@ Object.assign(App, {
       button.className = 'primary-btn small';
       button.textContent = '建立賽事';
       button.onclick = async () => {
-        if (typeof this.openCreateTournamentModal !== 'function') {
-          const scripts = ScriptLoader?._groups?.tournamentAdmin || [];
-          if (scripts.length) await ScriptLoader.loadGroup(scripts);
+        const originalText = button.textContent;
+        button.disabled = true;
+        button.textContent = '載入中...';
+        try {
+          if (typeof this.openCreateTournamentModal !== 'function') {
+            const scripts = ScriptLoader?._groups?.tournamentAdmin || [];
+            if (scripts.length) await ScriptLoader.loadGroup(scripts);
+          }
+          await this.openCreateTournamentModal?.();
+        } catch (err) {
+          console.error('[Tournament] Failed to open create modal:', err);
+          this.showToast?.('建立賽事功能載入失敗，請重新整理後再試');
+        } finally {
+          button.disabled = false;
+          button.textContent = originalText;
         }
-        this.openCreateTournamentModal?.();
       };
       header.appendChild(button);
     }
