@@ -72,15 +72,23 @@ Object.assign(App, {
     const fallbackApplications = Array.isArray(base.teamApplications) ? base.teamApplications : [];
     const fallbackEntries = Array.isArray(base.teamEntries) ? base.teamEntries : [];
     const currentUser = ApiService.getCurrentUser?.();
+    const currentUserTeamIds = (currentUser && typeof this._getUserTeamIds === 'function')
+      ? this._getUserTeamIds(currentUser)
+      : [];
+    const teamHydrationPromise = (async () => {
+      if (!currentUserTeamIds.length || typeof ApiService.getTeamAsync !== 'function') return [];
+      return await Promise.all(currentUserTeamIds.map(teamId =>
+        ApiService.getTeamAsync(teamId).catch(() => null)
+      ));
+    })();
     const canManage = this._canManageTournamentRecord?.(base, currentUser);
     const applicationPromise = (async () => {
       if (canManage) {
         return await ApiService.listTournamentApplications(tournamentId).catch(() => fallbackApplications);
       }
       if (!currentUser) return fallbackApplications;
-      const userTeamIds = (typeof this._getUserTeamIds === 'function') ? this._getUserTeamIds(currentUser) : [];
-      if (userTeamIds.length === 0) return fallbackApplications;
-      const fetched = await Promise.all(userTeamIds.map(teamId =>
+      if (currentUserTeamIds.length === 0) return fallbackApplications;
+      const fetched = await Promise.all(currentUserTeamIds.map(teamId =>
         ApiService.getTournamentApplication(tournamentId, `ta_${teamId}`).catch(() => null)
       ));
       return [...fallbackApplications, ...fetched.filter(Boolean)];
@@ -88,7 +96,8 @@ Object.assign(App, {
     const [rawApplications, rawEntries] = await Promise.all([
       applicationPromise,
       ApiService.listTournamentEntries(tournamentId).catch(() => fallbackEntries),
-    ]);
+      teamHydrationPromise,
+    ]).then(([applications, entries]) => [applications, entries]);
 
     const applicationMap = new Map();
     [...fallbackApplications, ...rawApplications].forEach(item => {
@@ -141,14 +150,18 @@ Object.assign(App, {
     const canManage = this._canManageTournamentRecord?.(tournament, user);
     return (state.applications || []).filter(application => {
       const status = String(application.status || '').trim().toLowerCase();
-      if (status === 'approved' || status === 'cancelled' || status === 'removed') return false;
+      if (status === 'approved' || status === 'cancelled' || status === 'withdrawn' || status === 'removed') return false;
       return canManage || this._isTournamentViewerInTeam(user, application.teamId);
     });
   },
 
   _getFriendlyTournamentApplyContext(tournament, state, user = ApiService.getCurrentUser?.()) {
     const eligibleTeams = this._getFriendlyResponsibleTeams?.(user) || [];
-    const applicationsByTeam = new Map((state?.applications || []).map(item => [item.teamId, item]));
+    const activeApplications = (state?.applications || []).filter(item => {
+      const status = String(item.status || '').trim().toLowerCase();
+      return status !== 'cancelled' && status !== 'withdrawn';
+    });
+    const applicationsByTeam = new Map(activeApplications.map(item => [item.teamId, item]));
     const entriesByTeam = new Map((state?.entries || []).map(item => [item.teamId, item]));
     const tournamentSport = String(tournament?.sportTag || tournament?.sport || '').trim();
     const availableTeams = eligibleTeams.filter(team =>

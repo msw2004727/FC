@@ -117,6 +117,12 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: .45rem;
 }
+.tfd-action-withdraw {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+}
 .tfd-action-meta {
   font-size: .74rem;
   color: var(--text-muted);
@@ -228,7 +234,9 @@
   align-items: center;
   justify-content: flex-end;
 }
-.tfd-entry-remove-btn {
+.tfd-team-withdraw-btn,
+.tfd-entry-remove-btn,
+.tfd-entry-withdraw-btn {
   min-width: 92px;
   min-height: 36px;
   border: 1.5px solid var(--danger);
@@ -243,7 +251,9 @@
   cursor: pointer;
   transition: background var(--transition), color var(--transition), transform var(--transition);
 }
-.tfd-entry-remove-btn[data-btn-loading="1"] {
+.tfd-team-withdraw-btn[data-btn-loading="1"],
+.tfd-entry-remove-btn[data-btn-loading="1"],
+.tfd-entry-withdraw-btn[data-btn-loading="1"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -251,7 +261,9 @@
   cursor: progress;
   pointer-events: none;
 }
-.tfd-entry-remove-btn[data-btn-loading="1"]::before {
+.tfd-team-withdraw-btn[data-btn-loading="1"]::before,
+.tfd-entry-remove-btn[data-btn-loading="1"]::before,
+.tfd-entry-withdraw-btn[data-btn-loading="1"]::before {
   content: "";
   width: .72rem;
   height: .72rem;
@@ -260,10 +272,14 @@
   border-radius: 999px;
   animation: tfd-entry-remove-spin .72s linear infinite;
 }
-.tfd-entry-remove-btn:hover {
+.tfd-team-withdraw-btn:hover,
+.tfd-entry-remove-btn:hover,
+.tfd-entry-withdraw-btn:hover {
   background: rgba(239, 68, 68, .10);
 }
-.tfd-entry-remove-btn:active {
+.tfd-team-withdraw-btn:active,
+.tfd-entry-remove-btn:active,
+.tfd-entry-withdraw-btn:active {
   transform: translateY(1px);
 }
 @keyframes tfd-entry-remove-spin {
@@ -357,7 +373,9 @@
     margin-left: 0;
     justify-content: flex-end;
   }
-  .tfd-entry-remove-btn {
+  .tfd-team-withdraw-btn,
+  .tfd-entry-remove-btn,
+  .tfd-entry-withdraw-btn {
     min-height: 38px;
   }
   .tfd-review-actions {

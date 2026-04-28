@@ -1719,3 +1719,9 @@
 - **原因**：賽事列表頁為了冷啟速度只載入 `tournaments`，未載入 `teams`；建立表單卻立即用 `ApiService.getTeams()` 判斷可代表的主辦俱樂部，導致 teams 快取尚未載入時誤判。另 `_getTournamentSelectableHostTeams()` 與建立權限的 admin 判斷不一致。
 - **修復**：`openCreateTournamentModal()` 改為先懶載入 `teams` 與使用者 teamIds 對應俱樂部，再重新判斷建立資格；建立按鈕加入「載入中...」狀態；主辦俱樂部選單改用 `_isTournamentGlobalAdmin()` 對齊既有權限 helper；補 `tournament-permissions` 與 `tournament-loading-performance` 測試。
 - **教訓**：效能優化拆掉頁面初始資料依賴後，所有按需功能都要在入口補自己的資料契約，避免被其他頁面載入過快取的副作用掩蓋。
+
+### 2026-04-29 — 參加賽事 loading 與隊伍退出流程 [永久]
+- **問題**：友誼賽「參加賽事」按下後缺少明確作動提示；隊伍申請審核中或已核准後，申請方俱樂部職員沒有自行撤回/退出賽事的入口。
+- **修復**：`registerTournament` 改用 `_withButtonLoading(..., '報名中...')`；新增 `tournament-friendly-withdraw.js`，在報名區與俱樂部頁籤顯示「撤回申請 / 退出賽事」，並以 `withdrawFriendlyTournamentTeam` callable 原子更新 application、entries、members 與 root summary。
+- **守衛**：後端只允許 pending 申請撤回、approved/entry 退出；已拒絕、已剔除、已取消狀態不能被轉成可重新報名的取消狀態。賽事主辦隊伍不可退出自己的賽事。
+- **驗收**：補 `tournament-friendly-detail-view.test.js` 與 `tournament-crud.test.js`，覆蓋 loading onclick、申請方退出按鈕、pending 撤回、rejected 不可轉狀態、cancelled/withdrawn 可重新報名。

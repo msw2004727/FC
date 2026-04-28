@@ -1316,6 +1316,124 @@ exports.applyFriendlyTournament = onCall(
   }
 );
 
+exports.withdrawFriendlyTournamentTeam = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB" },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "AUTH_REQUIRED");
+    }
+
+    const callerUid = request.auth.uid;
+    const callerRole = await getCallerRoleWithFallback(request);
+    const tournamentId = String(request.data?.tournamentId || "").trim();
+    const teamId = String(request.data?.teamId || "").trim();
+    if (!tournamentId || !teamId) {
+      throw new HttpsError("invalid-argument", "TOURNAMENT_ID_AND_TEAM_ID_REQUIRED");
+    }
+
+    const callerUserDoc = await findUserDocByUidOrLineUserId(callerUid);
+    const callerName = String(
+      callerUserDoc?.data?.displayName
+        || callerUserDoc?.data?.name
+        || request.auth.token?.name
+        || callerUid
+    ).trim();
+
+    const tournamentRef = db.collection("tournaments").doc(tournamentId);
+    const entryRef = tournamentRef.collection("entries").doc(teamId);
+    const applicationRef = tournamentRef.collection("applications").doc(`ta_${teamId}`);
+
+    return await db.runTransaction(async (tx) => {
+      const [tournamentSnap, applicationSnap, entrySnap] = await Promise.all([
+        tx.get(tournamentRef),
+        tx.get(applicationRef),
+        tx.get(entryRef),
+      ]);
+      if (!tournamentSnap.exists) {
+        throw new HttpsError("not-found", "TOURNAMENT_NOT_FOUND");
+      }
+
+      const tournament = tournamentSnap.data() || {};
+      if (!isFriendlyTournamentData(tournament)) {
+        throw new HttpsError("failed-precondition", "TOURNAMENT_NOT_FRIENDLY");
+      }
+      if (tournament.ended === true) {
+        throw new HttpsError("failed-precondition", "TOURNAMENT_ALREADY_ENDED");
+      }
+      if (String(tournament.hostTeamId || "").trim() === teamId) {
+        throw new HttpsError("failed-precondition", "HOST_ENTRY_CANNOT_BE_WITHDRAWN");
+      }
+      if (!applicationSnap.exists && !entrySnap.exists) {
+        throw new HttpsError("not-found", "TOURNAMENT_APPLICATION_OR_ENTRY_NOT_FOUND");
+      }
+      const application = applicationSnap.exists ? (applicationSnap.data() || {}) : null;
+      const applicationStatus = String(application?.status || "").trim().toLowerCase();
+      const isPendingApplication = applicationSnap.exists && applicationStatus === "pending";
+      const shouldWithdrawApproved = entrySnap.exists
+        || (applicationSnap.exists && applicationStatus === "approved");
+      if (!isPendingApplication && !shouldWithdrawApproved) {
+        throw new HttpsError("failed-precondition", "TOURNAMENT_APPLICATION_NOT_WITHDRAWABLE");
+      }
+
+      const teamDoc = await getTeamDocByTeamIdInTransaction(tx, teamId);
+      const canWithdraw = isRoleAdminOrAbove(callerRole)
+        || (!!teamDoc && isTournamentTeamOfficerForData(teamDoc.data, callerUid));
+      if (!canWithdraw) {
+        throw new HttpsError("permission-denied", "ONLY_TEAM_OFFICER_CAN_WITHDRAW");
+      }
+
+      let membersSnap = null;
+      let entriesSnap = null;
+      if (entrySnap.exists) {
+        membersSnap = await tx.get(entryRef.collection("members"));
+      }
+      if (shouldWithdrawApproved) {
+        entriesSnap = await tx.get(tournamentRef.collection("entries"));
+      }
+
+      const nowStatus = shouldWithdrawApproved ? "withdrawn" : "cancelled";
+      let registeredTeams = null;
+      if (entrySnap.exists) {
+        membersSnap.docs.forEach(doc => tx.delete(doc.ref));
+        tx.delete(entryRef);
+      }
+      if (shouldWithdrawApproved) {
+        registeredTeams = buildRegisteredTeamIdsFromEntries(entriesSnap.docs, { removedTeamId: teamId });
+        tx.update(tournamentRef, {
+          registeredTeams,
+          approvedTeamCount: registeredTeams.length,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+
+      if (applicationSnap.exists) {
+        const auditFields = nowStatus === "withdrawn"
+          ? {
+              withdrawnAt: FieldValue.serverTimestamp(),
+              withdrawnByUid: callerUid,
+              withdrawnByName: callerName,
+            }
+          : {
+              cancelledAt: FieldValue.serverTimestamp(),
+              cancelledByUid: callerUid,
+              cancelledByName: callerName,
+            };
+        tx.update(applicationRef, {
+          status: nowStatus,
+          ...auditFields,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+
+      return {
+        status: nowStatus,
+        teamId,
+        registeredTeams: registeredTeams || undefined,
+      };
+    });
+  }
+);
+
 exports.reviewFriendlyTournamentApplication = onCall(
   { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB" },
   async (request) => {

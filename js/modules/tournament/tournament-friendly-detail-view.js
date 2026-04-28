@@ -10,6 +10,38 @@ const _tournamentFriendlyDetailViewLegacy = {
 
 Object.assign(App, {
 
+  _getFriendlyTournamentWithdrawSelection(selectId, fallbackTeamId) {
+    return document.getElementById(selectId)?.value || fallbackTeamId;
+  },
+
+  _isFriendlyTournamentViewerTeamOfficer(teamId, viewer = ApiService.getCurrentUser?.()) {
+    const team = ApiService.getTeam?.(teamId);
+    return !!(team && this._isTournamentTeamOfficerForTeam?.(team, viewer));
+  },
+
+  _buildFriendlyTournamentWithdrawControl(tournamentId, teams, label) {
+    const safeTournamentId = String(tournamentId || '').trim();
+    const options = (teams || [])
+      .map(team => ({
+        teamId: String(team?.teamId || team?.id || '').trim(),
+        teamName: String(team?.teamName || team?.name || '未命名俱樂部').trim(),
+      }))
+      .filter(team => team.teamId);
+    if (!safeTournamentId || options.length === 0) return '';
+
+    const firstTeamId = options[0].teamId;
+    const selectId = `tfd-withdraw-team-${safeTournamentId.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+    const selector = options.length > 1
+      ? `<select id="${escapeHTML(selectId)}" class="tfd-team-select">${options.map(team => `<option value="${escapeHTML(team.teamId)}">${escapeHTML(team.teamName)}</option>`).join('')}</select>`
+      : '';
+
+    return `
+      <div class="tfd-action-withdraw">
+        ${selector}
+        <button type="button" class="outline-btn full-width tfd-team-withdraw-btn" onclick="return App.withdrawFriendlyTournamentTeam('${escapeHTML(safeTournamentId)}', App._getFriendlyTournamentWithdrawSelection('${escapeHTML(selectId)}','${escapeHTML(firstTeamId)}'), this)">${escapeHTML(label)}</button>
+      </div>`;
+  },
+
   renderRegisterButton(tournament) {
     if (!this._isFriendlyTournamentRecord?.(tournament)) {
       return _tournamentFriendlyDetailViewLegacy.renderRegisterButton.call(this, tournament);
@@ -23,21 +55,27 @@ Object.assign(App, {
     const approvedCount = (state.entries || []).filter(entry => entry.entryStatus === 'host' || entry.entryStatus === 'approved').length;
     const teamLimit = this._getFriendlyTournamentTeamLimit?.(tournament) || 4;
     const status = this.getTournamentStatus(tournament);
+    const isEnded = this.isTournamentEnded?.(tournament);
+    const canWithdrawTeam = !isEnded;
 
     let primaryHtml = '';
-    if (status === TOURNAMENT_STATUS.PREPARING) {
-      primaryHtml = `<button class="primary-btn full-width" disabled>報名尚未開始</button>`;
-    } else if (status === TOURNAMENT_STATUS.REG_CLOSED || this.isTournamentEnded?.(tournament)) {
-      primaryHtml = `<button class="primary-btn full-width" disabled>報名已截止</button>`;
-    } else if (approvedCount >= teamLimit && ctx.approvedTeams.length > 0) {
+    let extraActionHtml = '';
+    if (ctx.pendingTeams.length > 0 && canWithdrawTeam) {
+      primaryHtml = this._buildFriendlyTournamentWithdrawControl(tournament.id, ctx.pendingTeams, '撤回參賽申請');
+    } else if (ctx.approvedTeams.length > 0 && canWithdrawTeam) {
       primaryHtml = `<button class="primary-btn full-width" disabled>俱樂部已通過審核</button>`;
+      extraActionHtml = this._buildFriendlyTournamentWithdrawControl(tournament.id, ctx.approvedTeams, '退出賽事');
+    } else if (status === TOURNAMENT_STATUS.PREPARING) {
+      primaryHtml = `<button class="primary-btn full-width" disabled>報名尚未開始</button>`;
+    } else if (status === TOURNAMENT_STATUS.REG_CLOSED || isEnded) {
+      primaryHtml = `<button class="primary-btn full-width" disabled>報名已截止</button>`;
     } else if (approvedCount >= teamLimit) {
       primaryHtml = `<button class="primary-btn full-width" disabled>隊伍名額已滿</button>`;
     } else if (ctx.availableTeams.length > 0) {
       const selector = ctx.availableTeams.length > 1
         ? `<select id="td-apply-team-select" class="tfd-team-select">${ctx.availableTeams.map(team => `<option value="${escapeHTML(team.id)}">${escapeHTML(team.name)}</option>`).join('')}</select>`
         : '';
-      primaryHtml = `${selector}<button class="primary-btn full-width" onclick="App.registerTournament('${tournament.id}')">參加賽事</button>`;
+      primaryHtml = `${selector}<button class="primary-btn full-width" onclick="return App.registerTournament('${tournament.id}', this)">參加賽事</button>`;
     } else if (ctx.pendingTeams.length > 0) {
       primaryHtml = `<button class="primary-btn full-width" disabled>俱樂部審核中</button>`;
     } else if (ctx.approvedTeams.length > 0) {
@@ -56,6 +94,7 @@ Object.assign(App, {
         <div class="tfd-action-grid">
           ${contactBtn}
           <button class="outline-btn full-width" onclick="App.shareTournament('${tournament.id}')">分享賽事</button>
+          ${extraActionHtml}
         </div>
         <div class="tfd-action-meta">已核准 ${approvedCount} / ${teamLimit} 隊${ctx.pendingTeams.length ? `，待審 ${ctx.pendingTeams.length} 隊` : ''}</div>
       </div>`;
@@ -78,9 +117,12 @@ Object.assign(App, {
       const roster = Array.isArray(entry.memberRoster) && entry.memberRoster.length
         ? entry.memberRoster.map(member => `<span class="tfd-member-chip">${escapeHTML(member.name || member.uid)}</span>`).join('')
         : '<span class="tfd-empty-text">尚無隊員報名</span>';
+      const isViewerTeamOfficer = this._isFriendlyTournamentViewerTeamOfficer?.(entry.teamId, viewer);
       const removeAction = canManage && entry.entryStatus !== 'host'
         ? `<button type="button" class="tfd-entry-remove-btn" onclick="event.stopPropagation();return App.removeFriendlyTournamentEntry('${escapeHTML(tournament.id)}','${escapeHTML(entry.teamId)}', this)">剔除</button>`
-        : '';
+        : (!canManage && isViewerTeamOfficer && entry.entryStatus !== 'host'
+          ? `<button type="button" class="tfd-entry-withdraw-btn" onclick="event.stopPropagation();return App.withdrawFriendlyTournamentTeam('${escapeHTML(tournament.id)}','${escapeHTML(entry.teamId)}', this)">退出賽事</button>`
+          : '');
       return `
         <div class="tfd-team-row">
           <div class="tfd-team-side">
@@ -97,12 +139,15 @@ Object.assign(App, {
 
     const pendingRows = visibleApplications.map(application => {
       const isRejected = application.status === 'rejected';
+      const isViewerTeamOfficer = this._isFriendlyTournamentViewerTeamOfficer?.(application.teamId, viewer);
       const actions = canManage && !isRejected
         ? `<div class="tfd-review-actions">
              <button class="primary-btn small" onclick="App.reviewFriendlyTournamentApplication('${tournament.id}','${application.id}','approve')">確認</button>
              <button class="outline-btn small" onclick="App.reviewFriendlyTournamentApplication('${tournament.id}','${application.id}','reject')">拒絕</button>
            </div>`
-        : '';
+        : (!canManage && isViewerTeamOfficer && !isRejected
+          ? `<div class="tfd-team-action"><button type="button" class="tfd-entry-withdraw-btn" onclick="event.stopPropagation();return App.withdrawFriendlyTournamentTeam('${escapeHTML(tournament.id)}','${escapeHTML(application.teamId)}', this)">撤回申請</button></div>`
+          : '');
       return `
         <div class="tfd-team-row tfd-team-row-pending${isRejected ? ' tfd-team-row-rejected' : ''}">
           <div class="tfd-team-side">

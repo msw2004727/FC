@@ -41,7 +41,7 @@ flowchart TD
         subgraph MODS["modules/ — 14 功能子資料夾 + 24 獨立模組"]
             EVT["event/ (34)\n活動系統"]
             TEAM["team/ (16)\n俱樂部系統"]
-            TOUR["tournament/ (15)\n賽事系統"]
+            TOUR["tournament/ (16)\n賽事系統"]
             PROF["profile/ (9)\n個人資料"]
             MSG["message/ (9)\n訊息系統"]
             ACH["achievement/ (11)\n成就系統"]
@@ -227,7 +227,7 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 | `team-form-roles.js` | 角色降級預覽 + 儲存後自動升降級/通知（Phase 4 §10.1 從 team-form.js 抽出） |
 | `team-form.js` | 俱樂部表單主模組 — 資料組裝 + 儲存 + 日誌（Phase 4 §10.1 瘦身） |
 
-### tournament/ — 賽事系統（15 個模組 + README）
+### tournament/ — 賽事系統（16 個模組 + README）
 
 | 檔案 | 說明 |
 |------|------|
@@ -244,6 +244,7 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 | `tournament-share-builders.js` | 分享用 Flex Message / URL / altText 建構函式（3 個 builder） |
 | `tournament-friendly-state.js` | 友誼賽狀態管理 — 載入、快取同步、可見性、申請上下文（Phase 4 §10.3 從 detail 抽出） |
 | `tournament-friendly-detail.js` | 友誼賽詳情頁 — 渲染 + 使用者操作（Phase 4 §10.3 瘦身） |
+| `tournament-friendly-withdraw.js` | 友誼賽撤回申請與已核准隊伍退出流程（按鈕 loading、狀態守衛、callable wrapper） |
 | `tournament-friendly-detail-view.js` | 友誼賽詳情頁渲染（參加按鈕、俱樂部列表、待審列） |
 | `tournament-friendly-roster.js` | 友誼賽 roster（球員名單、加入/退出、多隊身份選擇） |
 | `tournament-friendly-notify.js` | 友誼賽通知（建賽、俱樂部申請、主辦審核推播） |

@@ -505,6 +505,11 @@ const ApiService = {
     return await FirebaseService.applyFriendlyTournamentAtomic(tournamentId, teamId);
   },
 
+  async withdrawFriendlyTournamentTeamAtomic(tournamentId, teamId) {
+    if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
+    return await FirebaseService.withdrawFriendlyTournamentTeamAtomic(tournamentId, teamId);
+  },
+
   async updateTournamentApplication(tournamentId, applicationId, updates) {
     if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
     return await FirebaseService.updateTournamentApplication(tournamentId, applicationId, updates);

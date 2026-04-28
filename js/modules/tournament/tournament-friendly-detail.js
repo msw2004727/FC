@@ -77,7 +77,7 @@ Object.assign(App, {
     this.renderTournamentTab('info');
   },
 
-  async registerTournament(id) {
+  async registerTournament(id, actionButton = null) {
     // 2026-04-19 UX：寫入類動作必須先補齊個人資料
     if (this._requireProfileComplete()) return;
     const tournament = ApiService.getFriendlyTournamentRecord?.(id) || ApiService.getTournament?.(id);
@@ -96,44 +96,52 @@ Object.assign(App, {
     this._friendlyTournamentApplyBusyById[busyId] = true;
 
     try {
-      const state = await this._loadFriendlyTournamentDetailState(id);
-    if (!state) { this.showToast('無法載入賽事資料'); return; }
-    const latestTournament = state.tournament || tournament;
-    const ctx = this._getFriendlyTournamentApplyContext(latestTournament, state, user);
-    const approvedCount = (state.entries || []).filter(entry => entry.entryStatus === 'host' || entry.entryStatus === 'approved').length;
-    const teamLimit = this._getFriendlyTournamentTeamLimit?.(latestTournament) || 4;
+      const submitApplication = async () => {
+        const state = await this._loadFriendlyTournamentDetailState(id);
+        if (!state) { this.showToast('無法載入賽事資料'); return; }
+        const latestTournament = state.tournament || tournament;
+        const ctx = this._getFriendlyTournamentApplyContext(latestTournament, state, user);
+        const approvedCount = (state.entries || []).filter(entry => entry.entryStatus === 'host' || entry.entryStatus === 'approved').length;
+        const teamLimit = this._getFriendlyTournamentTeamLimit?.(latestTournament) || 4;
 
-    if (this.getTournamentStatus(latestTournament) !== TOURNAMENT_STATUS.REG_OPEN) {
-      this.showToast('目前尚未開放報名');
-      return;
-    }
-    if (approvedCount >= teamLimit) {
-      this.showToast('隊伍名額已滿');
-      return;
-    }
-    if (ctx.availableTeams.length === 0) {
-      const message = ctx.pendingTeams.length > 0
-        ? '你的俱樂部申請已送出，等待主辦審核。'
-        : ctx.approvedTeams.length > 0
-          ? '你的俱樂部已通過審核。'
-          : '需由俱樂部領隊或經理先行報名參賽。';
-      this.showToast(message);
-      return;
-    }
+        if (this.getTournamentStatus(latestTournament) !== TOURNAMENT_STATUS.REG_OPEN) {
+          this.showToast('目前尚未開放報名');
+          return;
+        }
+        if (approvedCount >= teamLimit) {
+          this.showToast('隊伍名額已滿');
+          return;
+        }
+        if (ctx.availableTeams.length === 0) {
+          const message = ctx.pendingTeams.length > 0
+            ? '你的俱樂部申請已送出，等待主辦審核。'
+            : ctx.approvedTeams.length > 0
+              ? '你的俱樂部已通過審核。'
+              : '需由俱樂部領隊或經理先行報名參賽。';
+          this.showToast(message);
+          return;
+        }
 
-    const selectedTeamId = document.getElementById('td-apply-team-select')?.value || ctx.availableTeams[0].id;
-    const selectedTeam = ctx.availableTeams.find(team => team.id === selectedTeamId);
-    if (!selectedTeam) {
-      this.showToast('請先選擇要報名的俱樂部。');
-      return;
-    }
+        const selectedTeamId = document.getElementById('td-apply-team-select')?.value || ctx.availableTeams[0].id;
+        const selectedTeam = ctx.availableTeams.find(team => team.id === selectedTeamId);
+        if (!selectedTeam) {
+          this.showToast('請先選擇要報名的俱樂部。');
+          return;
+        }
 
-    await ApiService.applyFriendlyTournamentAtomic(id, selectedTeam.id);
+        await ApiService.applyFriendlyTournamentAtomic(id, selectedTeam.id);
 
-    await this._loadFriendlyTournamentDetailState(id);
-    this.renderRegisterButton(this._getFriendlyTournamentState(id)?.tournament || latestTournament);
-    this.renderTournamentTab('teams');
-    this.showToast(`已送出「${selectedTeam.name}」的參賽申請。`);
+        await this._loadFriendlyTournamentDetailState(id);
+        this.renderRegisterButton(this._getFriendlyTournamentState(id)?.tournament || latestTournament);
+        this.renderTournamentTab('teams');
+        this.showToast(`已送出「${selectedTeam.name}」的參賽申請。`);
+      };
+
+      if (typeof this._withButtonLoading === 'function') {
+        await this._withButtonLoading(actionButton, '報名中...', submitApplication);
+      } else {
+        await submitApplication();
+      }
     } catch (err) {
       this._showTournamentActionError?.('報名賽事', err);
     }

@@ -256,6 +256,13 @@ Object.assign(FirebaseService, {
     return result.data;
   },
 
+  async withdrawFriendlyTournamentTeamAtomic(tournamentId, teamId) {
+    await this.ensureAuthReadyForWrite();
+    const callable = firebase.app().functions('asia-east1').httpsCallable('withdrawFriendlyTournamentTeam');
+    const result = await callable({ tournamentId, teamId });
+    return result.data;
+  },
+
   async updateTournamentApplication(tournamentId, applicationId, updates) {
     const collectionRef = await this._getTournamentSubcollectionRef(tournamentId, 'applications');
     const docRef = collectionRef.doc(String(applicationId || '').trim());

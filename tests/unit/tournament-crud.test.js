@@ -83,7 +83,11 @@ function registerDecision({ tournament, state, user, availableTeams }) {
 // Duplicate team detection — extracted from tournament-friendly-detail.js:162-176
 // ---------------------------------------------------------------------------
 function getApplyContext(tournament, state, userTeamIds) {
-  const applicationsByTeam = new Map((state?.applications || []).map(a => [a.teamId, a]));
+  const activeApplications = (state?.applications || []).filter(a => {
+    const status = String(a.status || '').trim().toLowerCase();
+    return status !== 'cancelled' && status !== 'withdrawn';
+  });
+  const applicationsByTeam = new Map(activeApplications.map(a => [a.teamId, a]));
   const entriesByTeam = new Map((state?.entries || []).map(e => [e.teamId, e]));
   const availableTeams = (userTeamIds || []).filter(id =>
     id !== tournament.hostTeamId && !applicationsByTeam.has(id) && !entriesByTeam.has(id)
@@ -254,6 +258,18 @@ describe('getApplyContext — duplicate team detection', () => {
     const state = makeState();
     const ctx = getApplyContext(tournament, state, ['newTeam']);
     expect(ctx.availableTeams).toEqual(['newTeam']);
+  });
+
+  test('cancelled or withdrawn applications do not block re-apply', () => {
+    const tournament = makeOpenTournament();
+    const state = makeState({
+      applications: [
+        { teamId: 'cancelledTeam', status: 'cancelled' },
+        { teamId: 'withdrawnTeam', status: 'withdrawn' },
+      ],
+    });
+    const ctx = getApplyContext(tournament, state, ['cancelledTeam', 'withdrawnTeam']);
+    expect(ctx.availableTeams).toEqual(['cancelledTeam', 'withdrawnTeam']);
   });
 });
 
