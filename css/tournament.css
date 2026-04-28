@@ -212,6 +212,34 @@
   gap: .35rem;
   align-items: center;
 }
+.tfd-team-action {
+  margin-left: auto;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.tfd-entry-remove-btn {
+  min-width: 64px;
+  min-height: 36px;
+  border: 1.5px solid var(--danger);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--danger);
+  padding: .35rem .7rem;
+  font-size: .78rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition), transform var(--transition);
+}
+.tfd-entry-remove-btn:hover {
+  background: rgba(239, 68, 68, .10);
+}
+.tfd-entry-remove-btn:active {
+  transform: translateY(1px);
+}
 .tfd-member-chip {
   display: inline-flex;
   align-items: center;
@@ -292,6 +320,14 @@
   }
   .tfd-team-side {
     width: 100%;
+  }
+  .tfd-team-action {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-end;
+  }
+  .tfd-entry-remove-btn {
+    min-height: 38px;
   }
   .tfd-review-actions {
     width: 100%;

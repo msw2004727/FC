@@ -68,7 +68,7 @@ Object.assign(App, {
     }
 
     const viewer = ApiService.getCurrentUser?.();
-    const canManage = this._canManageTournamentRecord?.(tournament, viewer);
+    const canManage = !!(this._isTournamentGlobalAdmin?.(viewer) || this._canManageTournamentRecord?.(tournament, viewer));
     const teamLimit = this._getFriendlyTournamentTeamLimit?.(tournament) || 4;
     const approvedEntries = (state.entries || []).filter(entry => entry.entryStatus === 'host' || entry.entryStatus === 'approved');
     const visibleApplications = this._getFriendlyTournamentVisibleApplications(state, viewer);
@@ -79,7 +79,7 @@ Object.assign(App, {
         ? entry.memberRoster.map(member => `<span class="tfd-member-chip">${escapeHTML(member.name || member.uid)}</span>`).join('')
         : '<span class="tfd-empty-text">尚無隊員報名</span>';
       const removeAction = canManage && entry.entryStatus !== 'host'
-        ? `<button class="outline-btn small" style="color:var(--danger);border-color:var(--danger)" onclick="App.removeFriendlyTournamentEntry('${escapeHTML(tournament.id)}','${escapeHTML(entry.teamId)}')">剔除</button>`
+        ? `<button type="button" class="tfd-entry-remove-btn" onclick="event.stopPropagation();App.removeFriendlyTournamentEntry('${escapeHTML(tournament.id)}','${escapeHTML(entry.teamId)}')">剔除</button>`
         : '';
       return `
         <div class="tfd-team-row">
@@ -91,7 +91,7 @@ Object.assign(App, {
             </div>
           </div>
           <div class="tfd-team-roster">${roster}</div>
-          ${removeAction}
+          ${removeAction ? `<div class="tfd-team-action">${removeAction}</div>` : ''}
         </div>`;
     }).join('');
 

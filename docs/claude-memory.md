@@ -1671,3 +1671,9 @@
 - **修補**: 新增 `applyFriendlyTournament`、`joinFriendlyTournamentRoster`、`leaveFriendlyTournamentRoster`、`removeFriendlyTournamentEntry` callable，統一由後端驗證賽事狀態、隊伍幹部、隊伍資格、名單解鎖與 root summary；前端改呼叫 callable，俱樂部頁籤加入非主辦隊伍「剔除」操作。
 - **權限**: `applications` create/update/delete 改 callable-only；`entries` / `members` 僅保留 admin 直寫作 legacy cleanup，一般主辦/建立者/隊員改走 callable。
 - **測試**: `npm test` 67 suites / 2500 tests passed；`npm run test:rules` 2 suites / 448 tests passed。
+
+### 2026-04-28 賽事俱樂部頁籤剔除按鈕固定右側 [輕型]
+- **問題**: 主辦方剔除報名隊伍的 callable 流程已存在，但俱樂部頁籤沒有穩定呈現右側操作入口，管理者容易看不到剔除按鈕。
+- **原因**: 剔除按鈕直接接在 roster 欄後方，缺少固定 action slot 與渲染測試保護。
+- **修補**: 非主辦、已核准隊伍改用 `tfd-team-action` 右側操作欄與 `tfd-entry-remove-btn`；按鈕仍走既有 `removeFriendlyTournamentEntry`，會先彈出二次確認才呼叫 callable。
+- **驗收**: 新增 `tests/unit/tournament-friendly-detail-view.test.js`，確認管理者只會在非主辦已核准隊伍看到剔除按鈕。
