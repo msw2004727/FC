@@ -187,7 +187,7 @@ Object.assign(App, {
     }
   },
 
-  async removeFriendlyTournamentEntry(tournamentId, teamId) {
+  async removeFriendlyTournamentEntry(tournamentId, teamId, actionButton) {
     const safeTournamentId = String(tournamentId || '').trim();
     const safeTeamId = String(teamId || '').trim();
     if (!safeTournamentId || !safeTeamId) {
@@ -219,11 +219,19 @@ Object.assign(App, {
       const teamName = entry.teamName || '此俱樂部';
       if (!(await this.appConfirm(`確定要將「${teamName}」從此賽事中剔除嗎？該隊球員名單也會一併移除。`))) return;
 
-      await ApiService.removeFriendlyTournamentEntryAtomic(safeTournamentId, safeTeamId);
-      const nextState = await this._loadFriendlyTournamentDetailState(safeTournamentId);
-      this.renderRegisterButton(nextState?.tournament || tournament);
-      this.renderTournamentTab('teams');
-      this.showToast(`已剔除「${teamName}」。`);
+      const removeEntry = async () => {
+        await ApiService.removeFriendlyTournamentEntryAtomic(safeTournamentId, safeTeamId);
+        const nextState = await this._loadFriendlyTournamentDetailState(safeTournamentId);
+        this.renderRegisterButton(nextState?.tournament || tournament);
+        this.renderTournamentTab('teams');
+        this.showToast(`已剔除「${teamName}」。`);
+      };
+
+      if (typeof this._withButtonLoading === 'function') {
+        await this._withButtonLoading(actionButton, '剔除中...', removeEntry);
+      } else {
+        await removeEntry();
+      }
     } catch (err) {
       this._showTournamentActionError?.('剔除參賽俱樂部', err);
     }

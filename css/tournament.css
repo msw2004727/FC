@@ -220,7 +220,7 @@
   justify-content: flex-end;
 }
 .tfd-entry-remove-btn {
-  min-width: 64px;
+  min-width: 92px;
   min-height: 36px;
   border: 1.5px solid var(--danger);
   border-radius: var(--radius-sm);
@@ -234,11 +234,31 @@
   cursor: pointer;
   transition: background var(--transition), color var(--transition), transform var(--transition);
 }
+.tfd-entry-remove-btn[data-btn-loading="1"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+  cursor: progress;
+  pointer-events: none;
+}
+.tfd-entry-remove-btn[data-btn-loading="1"]::before {
+  content: "";
+  width: .72rem;
+  height: .72rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  animation: tfd-entry-remove-spin .72s linear infinite;
+}
 .tfd-entry-remove-btn:hover {
   background: rgba(239, 68, 68, .10);
 }
 .tfd-entry-remove-btn:active {
   transform: translateY(1px);
+}
+@keyframes tfd-entry-remove-spin {
+  to { transform: rotate(360deg); }
 }
 .tfd-member-chip {
   display: inline-flex;

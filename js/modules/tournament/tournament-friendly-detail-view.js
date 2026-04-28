@@ -79,7 +79,7 @@ Object.assign(App, {
         ? entry.memberRoster.map(member => `<span class="tfd-member-chip">${escapeHTML(member.name || member.uid)}</span>`).join('')
         : '<span class="tfd-empty-text">尚無隊員報名</span>';
       const removeAction = canManage && entry.entryStatus !== 'host'
-        ? `<button type="button" class="tfd-entry-remove-btn" onclick="event.stopPropagation();App.removeFriendlyTournamentEntry('${escapeHTML(tournament.id)}','${escapeHTML(entry.teamId)}')">剔除</button>`
+        ? `<button type="button" class="tfd-entry-remove-btn" onclick="event.stopPropagation();return App.removeFriendlyTournamentEntry('${escapeHTML(tournament.id)}','${escapeHTML(entry.teamId)}', this)">剔除</button>`
         : '';
       return `
         <div class="tfd-team-row">
