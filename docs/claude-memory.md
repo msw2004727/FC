@@ -2,6 +2,20 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-28 — 補修兩條前端/後端權限不對齊漏洞(P1+P2) [永久]
+- **背景**：上一筆 commit `36af3b98` 修「編輯按鈕點了跳權限不足」時引入兩個漏洞,經 Codex review(另一邊獨立審計)發現
+- **P1 漏洞 — 前端放行 creator 但 Rules 仍拒**：前端 `_canManageTournamentRecord` 已視 creatorUid 為可管理者(前次 fix),但 `firestore.rules` 的 `canManageTournamentScope()` 仍只認 admin/delegate/hostManager。建立者本人(若不是 host team 幹部)能看見 + 進入編輯彈窗,**最後 `updateTournamentAwait` 寫入時被 Rules permission-denied** → 用戶以為編輯失敗
+- **P2 漏洞 — `admin.tournaments.entry` 變記錄級編輯通行證**：上一筆把 `entry` 設為獨立通行條件,但 `js/config.js:725-727` coach/captain/venue_owner 預設都有 `admin.tournaments.entry`(它原意是「進入賽事管理頁」入口權)。**直接 console 呼叫 `App.showEditTournament(任意賽事ID)` 可繞過列表過濾打開編輯 modal**(雖然 Rules 最終會擋,但 UX 已洩漏 + 違反最小權限原則)
+- **修復**：
+  1. **firestore.rules**: 新增 helper `isTournamentCreator()`,加進 `canManageTournamentScope()` ANY-OF:`isAdmin || isTournamentCreator || isTournamentDelegate || isTournamentHostManager`
+  2. **tournament-manage-edit.js**: 兩處 `showEditTournament` / `handleSaveEditTournament` 第一道守衛**移除 `entry` 獨立通行**,改為 `manage_all OR _canManageTournamentRecord(record)`(entry 本來就被列表過濾擋,不該當記錄級編輯權)
+- **測試**:`npm run test:unit`(2456 通過)+ `npm run test:rules`(437 通過)
+- **教訓**:
+  - **前端權限改動必須同步檢查 firestore.rules 對應 helper**,否則前端放行但後端拒絕 → 「能進但存不了」的 UX 災難。CR 時必查
+  - **權限碼語意不能擴張**:`xxx.entry` 是「進入頁面」入口,不是「能對任意記錄做操作」。新增守衛時禁止把 `xxx.entry` 當記錄級通行證,改用對應的 record-scope helper(`_canManageXxxRecord(r)`)
+  - **修權限 bug 要把所有閘一次掃過**(顯示 + 點擊 + 提交 + Rules 共 4 道閘),這次 Codex 審計幫我捕捉到漏掉的兩道
+  - 「Codex review 在 push 前」這個 SOP **真的有效**(剛建立的 SOP,第一次套用就攔到 P1+P2)
+
 ### 2026-04-28 — 修復編輯賽事按鈕「點了跳權限不足」最後一道閘 [永久]
 - **問題**：前面修了 `_canManageTournamentRecord` 補 creator UID 判定後,toolbar「編輯賽事」按鈕**會顯示**,但點下去仍然進不了編輯彈窗。實際上會跳 toast「權限不足」(用戶以為「沒反應」是因 toast 易被忽略)
 - **原因**：`tournament-manage-edit.js` 內 `showEditTournament` (line 6) 與 `handleSaveEditTournament` (line 62) 第一道守衛 `if (!hasPermission('admin.tournaments.manage_all') && !hasPermission('admin.tournaments.entry')) { showToast('權限不足'); return; }` **只放行 admin 權限,沒給 `_canManageTournamentRecord` fallback**。違反 CLAUDE.md §「hasPermission 守衛新增規則」明文要求的 fallback 模式

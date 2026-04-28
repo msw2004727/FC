@@ -5,7 +5,7 @@ Object.assign(App, {
   showEditTournament(id) {
     const editRecord = this.getFriendlyTournamentRecord?.(ApiService.getTournament(id));
     if (!editRecord) return;
-    if (!this.hasPermission('admin.tournaments.manage_all') && !this.hasPermission('admin.tournaments.entry') && !this._canManageTournamentRecord(editRecord)) {
+    if (!this.hasPermission('admin.tournaments.manage_all') && !this._canManageTournamentRecord(editRecord)) {
       this.showToast('你目前只能編輯主辦或受委託的賽事。');
       return;
     }
@@ -61,7 +61,7 @@ Object.assign(App, {
     const editId = this._editTournamentId || this._tournamentFormEditId;
     const editTournament = this.getFriendlyTournamentRecord?.(ApiService.getTournament(editId));
     if (!editTournament) return;
-    if (!this.hasPermission('admin.tournaments.manage_all') && !this.hasPermission('admin.tournaments.entry') && !this._canManageTournamentRecord(editTournament)) {
+    if (!this.hasPermission('admin.tournaments.manage_all') && !this._canManageTournamentRecord(editTournament)) {
       this.showToast('你目前只能編輯主辦或受委託的賽事。');
       return;
     }

@@ -911,8 +911,16 @@ service cloud.firestore {
           && isCurrentUserTeamCaptainOrLeader(get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.hostTeamId);
       }
 
+      // Phase 2A：建立者本人可管理(對齊前端 _canManageTournamentRecord 的 creator UID 判定)
+      function isTournamentCreator() {
+        return isAuth()
+          && tournamentExists()
+          && hasNonEmptyStringInMap(get(/databases/$(database)/documents/tournaments/$(tournamentId)).data, 'creatorUid')
+          && get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.creatorUid == request.auth.uid;
+      }
+
       function canManageTournamentScope() {
-        return isAdmin() || isTournamentDelegate() || isTournamentHostManager();
+        return isAdmin() || isTournamentCreator() || isTournamentDelegate() || isTournamentHostManager();
       }
 
       function tournamentEntryExists(teamId) {
