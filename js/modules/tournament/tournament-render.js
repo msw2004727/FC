@@ -155,45 +155,46 @@ Object.assign(App, {
     var scrollEl = document.scrollingElement || document.documentElement;
     var savedScroll = scrollEl.scrollTop;
 
+    // 狀態緞帶顏色(右下角斜緞帶,參考活動 detail-cover-ribbon 風格)
+    const ribbonColorMap = {
+      [TOURNAMENT_STATUS.REG_OPEN]:        'linear-gradient(135deg,#10b981,#059669)',
+      [TOURNAMENT_STATUS.REG_CLOSED]:      'linear-gradient(135deg,#f59e0b,#d97706)',
+      [TOURNAMENT_STATUS.REG_CLOSED_ALT]:  'linear-gradient(135deg,#f59e0b,#d97706)',
+      [TOURNAMENT_STATUS.PREPARING]:       'linear-gradient(135deg,#60a5fa,#3b82f6)',
+      [TOURNAMENT_STATUS.ENDED]:           'linear-gradient(135deg,#6b7280,#4b5563)',
+    };
     container.innerHTML = tournaments.map(t => {
       const isEnded = this.isTournamentEnded(t);
       const status = isEnded ? TOURNAMENT_STATUS.ENDED : this.getTournamentStatus(t);
-      const statusColorMap = {
-        [TOURNAMENT_STATUS.PREPARING]: '#6b7280',
-        [TOURNAMENT_STATUS.REG_OPEN]: '#10b981',
-        [TOURNAMENT_STATUS.REG_CLOSED]: '#f59e0b',
-        [TOURNAMENT_STATUS.REG_CLOSED_ALT]: '#f59e0b',
-        [TOURNAMENT_STATUS.ENDED]: '#6b7280',
-      };
-      const statusColor = statusColorMap[status] || '#6b7280';
+      const ribbonBg = ribbonColorMap[status] || ribbonColorMap[TOURNAMENT_STATUS.ENDED];
 
       const registered = t.registeredTeams || [];
       const maxTeams = t.maxTeams || '?';
-      const matchDates = t.matchDates || [];
-      const matchDatesText = matchDates.length ? matchDates.map(d => fmtDate(d)).join('、') : '未定';
       const regPeriod = (t.regStart && t.regEnd) ? `${fmtDatetime(t.regStart)} ~ ${fmtDatetime(t.regEnd)}` : '未定';
       const organizerDisplay = this._getTournamentOrganizerDisplayText?.(t) || t.organizer || '主辦俱樂部';
       const typeLabel = this._getTournamentModeLabel?.(t) || t.type || '友誼賽';
       const region = t.region || '';
 
+      // 右側斜切封面圖 + 右下角狀態緞帶(無圖時 fallback 純 chip)
+      const slantedThumb = t.image ? `
+        <div style="position:relative;width:120px;align-self:stretch;flex-shrink:0;overflow:hidden;clip-path:polygon(28px 0,100% 0,100% 100%,0 100%);background-image:url('${t.image}');background-size:cover;background-position:center">
+          <span style="position:absolute;bottom:8px;right:-30px;width:110px;padding:.12rem 0;background:${ribbonBg};color:#fff;font-size:.58rem;font-weight:800;letter-spacing:.04em;text-align:center;text-shadow:0 1px 1px rgba(0,0,0,.18);box-shadow:0 2px 6px rgba(0,0,0,.22);transform:rotate(-45deg);pointer-events:none">${status}</span>
+        </div>` : `
+        <span style="font-size:.65rem;padding:.18rem .5rem;border-radius:20px;background:${ribbonBg};color:#fff;font-weight:700;white-space:nowrap;align-self:flex-start;margin-right:.4rem">${status}</span>`;
+
       return `
-      <div class="event-card" style="cursor:pointer;${isEnded ? 'opacity:.55;filter:grayscale(.4)' : ''}" onclick="App._openTournamentDetail('${t.id}')">
-        ${t.image ? `<div class="event-card-img"><img src="${t.image}" style="width:100%;height:120px;object-fit:cover;display:block;border-radius:var(--radius) var(--radius) 0 0"></div>` : ''}
-        <div class="event-card-body">
-          <div style="display:flex;align-items:center;gap:.4rem">
-            <div class="event-card-title" style="flex:1">${escapeHTML(t.name)}</div>
-            <span style="font-size:.68rem;padding:.15rem .45rem;border-radius:20px;background:${statusColor}18;color:${statusColor};font-weight:600;white-space:nowrap">${status}</span>
+        <div class="tl-event-row" onclick="App._openTournamentDetail('${t.id}')" style="display:flex;align-items:stretch;gap:0;padding:0;overflow:hidden;${isEnded ? 'opacity:.6;filter:grayscale(.3);' : ''}">
+          <div style="flex:1;min-width:0;padding:.5rem .65rem">
+            <div class="tl-event-title" style="margin-bottom:.18rem">${escapeHTML(t.name)}</div>
+            <div style="font-size:.62rem;color:var(--text-muted);line-height:1.5">
+              ${escapeHTML(typeLabel)}${region ? ' · ' + escapeHTML(region) : ''} · ${registered.length}/${maxTeams} ${I18N.t('tournament.teamUnit')} · 主辦 ${escapeHTML(organizerDisplay)}
+            </div>
+            <div style="font-size:.6rem;color:var(--text-muted);margin-top:.15rem">
+              ${I18N.t('tournament.regPeriod')} ${regPeriod}
+            </div>
           </div>
-          <div class="event-meta">
-            <span class="event-meta-item">${escapeHTML(typeLabel)}</span>
-            ${region ? `<span class="event-meta-item">${escapeHTML(region)}</span>` : ''}
-            <span class="event-meta-item">${registered.length}/${maxTeams} ${I18N.t('tournament.teamUnit')}</span>
-            ${matchDates.length ? `<span class="event-meta-item">${I18N.t('tournament.matchDay')} ${matchDatesText}</span>` : ''}
-            <span class="event-meta-item">主辦 ${escapeHTML(organizerDisplay)}</span>
-          </div>
-          <div style="font-size:.72rem;color:var(--text-muted);margin-top:.3rem">${I18N.t('tournament.regPeriod')} ${regPeriod}</div>
-        </div>
-      </div>`;
+          ${slantedThumb}
+        </div>`;
     }).join('');
     scrollEl.scrollTop = savedScroll;
     this._markPageSnapshotReady?.('page-tournaments');
