@@ -5311,6 +5311,7 @@ exports.cancelRegistration = onCall(
     );
 
     // P5: 遞補者 operationLog（與前端 firebase-crud.js auto_promote 一致）
+    // 2026-04-28 修補：補寫 eventId 欄位、讓 admin Log 模組的 where('eventId','==',X) 查得到
     for (const promoted of result.promoted) {
       const now = new Date();
       const timeStr = `${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
@@ -5321,6 +5322,7 @@ exports.cancelRegistration = onCall(
           content: `活動「${result.eventData.title}」候補 ${promoted.userName || "?"} 自動遞補為正取`,
           operator: "系統",
           actorUid: callerUid,
+          eventId: eventId,
           time: timeStr,
           createdAt: FieldValue.serverTimestamp(),
         })
