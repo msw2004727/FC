@@ -2,6 +2,21 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-28 — 修復賽事詳情頁「編輯賽事」按鈕點了沒反應 [永久]
+- **問題**：在賽事詳情頁（`page-tournament-detail`）按下右上「編輯賽事」按鈕完全沒反應；但從後台「賽事管理」（`page-admin-tournaments`）點則正常
+- **原因**：`App.showEditTournament` 定義於 `tournament-manage-edit.js`，屬於 `script-loader.js` 的 `tournamentAdmin` 群組。詳情頁只配置了 `tournament` 群組（`page-tournament-detail: ['tournament']`），**從未載入 `tournamentAdmin`**，所以 `App.showEditTournament` 是 undefined，按鈕點了沒反應（也沒 toast）
+- **修復**（採遠端 commit `c65c99ba`）：在 `tournament-core.js`（eager 模組，所有頁面必載）新增公開 wrapper `App.openEditTournamentSafe(id)`：
+  1. 函式不存在 → `ScriptLoader.ensureForPage('page-admin-tournaments')`（fallback `loadGroup(_groups.tournamentAdmin)`）
+  2. 載入後仍不存在 → showToast「編輯功能載入失敗，請重新整理後再試」（避免靜默失敗）
+  3. 載入成功 → 呼叫 `showEditTournament(safeId)`
+  4. 同步更新 `tournament-detail.js`、`tournament-manage.js` 兩處按鈕 onclick → `App.openEditTournamentSafe(...)`，後台列表 t.id 補 `escapeHTML`
+- **教訓**：
+  - 凡是按鈕 onclick 呼叫的函式定義在「非當前頁面 script 群組」內，必須加 lazy-load wrapper（已知 pattern：`_openTournamentDetail`、`_refreshTournamentCenterCreateButton`、`openEditTournamentSafe`），否則靜默失敗
+  - **wrapper 應放 eager 模組**（如 `tournament-core.js`）而非 lazy 群組內，避免循環依賴
+  - **wrapper 必須提供 fallback toast**，否則載入失敗時用戶仍以為按鈕壞了
+  - script-loader 群組分割是優化載入速度的設計，但會造成「按鈕跨頁失效」的隱形 bug。新增按鈕時必查：onclick 函式所在檔案 → 屬於哪個群組 → 當前頁面是否載入該群組
+  - 此類 bug 無 console error（onclick 字串型 handler 找不到函式只會靜默），更不易發現
+
 ### 2026-04-28 — 修復賽事建立/編輯彈窗封面圖片無法上傳（手機點了沒反應） [永久]
 - **問題**：手機版（也包含桌面）建立賽事時，點「上傳賽事封面圖片」會開啟檔案選擇器，但選完照片後 preview 沒變化，建立後封面圖也是空的；內容圖片同樣狀況
 - **原因**：`pages/tournament.html` 的 `<input type="file" id="tf-image">` 與 `#tf-content-image` 從來沒有 `change` 事件監聽器。整個 tournament 模組沒有任何 FileReader / readAsDataURL 處理選到的檔案。`_resetTournamentImagePreview()` 只重置 placeholder UI，沒做事件綁定
