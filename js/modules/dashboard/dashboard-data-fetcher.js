@@ -76,6 +76,7 @@ Object.assign(App, {
       }
 
       this._dashboardSnapshot = snapshot;
+      this._dashboardSnapshotScope = 'range';
       return { ok: true, snapshot };
     } finally {
       this._dashboardFetchInProgress = false;

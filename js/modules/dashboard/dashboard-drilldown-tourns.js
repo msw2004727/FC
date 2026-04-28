@@ -10,7 +10,7 @@ Object.assign(App, {
     const filtered = this._getFilteredDashSnapshot();
     if (!filtered) return;
     const tournaments = filtered.tournaments || [];
-    const teams = filtered.teams || [];
+    const teams = filtered.allTeams || filtered.teams || [];
     const ongoing = tournaments.filter(t => !t.ended);
 
     const toMillis = (v) => {

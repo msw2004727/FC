@@ -10,9 +10,9 @@ Object.assign(App, {
     const filtered = this._getFilteredDashSnapshot();
     if (!filtered) return;
     const regs = filtered.registrations || [];
-    const users = filtered.users || [];
-    const events = filtered.events || [];
-    const teams = filtered.teams || [];
+    const users = filtered.allUsers || filtered.users || [];
+    const events = filtered.allEvents || filtered.events || [];
+    const teams = filtered.allTeams || filtered.teams || [];
     const total = regs.length;
 
     const toMillis = (v) => {

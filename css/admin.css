@@ -616,7 +616,7 @@
 .dash-refresh-bar .dash-refresh-info {
   flex: 1; font-size: .72rem; color: var(--text-muted); min-width: 140px;
 }
-.dash-refresh-bar button.primary-btn { flex-shrink: 0; }
+.dash-refresh-bar button { flex-shrink: 0; }
 
 /* dash-card 可點擊視覺提示 */
 .dash-card[data-drill-key] { cursor: pointer; transition: transform .15s, box-shadow .15s; }

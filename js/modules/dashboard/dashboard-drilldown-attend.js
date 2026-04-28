@@ -11,8 +11,8 @@ Object.assign(App, {
     if (!filtered) return;
     const regs = filtered.registrations || [];
     const attRecs = filtered.attendanceRecords || [];
-    const users = filtered.users || [];
-    const events = filtered.events || [];
+    const users = filtered.allUsers || filtered.users || [];
+    const events = filtered.allEvents || filtered.events || [];
 
     const toMillis = (v) => {
       if (!v) return 0;

@@ -7,6 +7,7 @@
 Object.assign(App, {
 
   _dashboardSnapshot: null,
+  _dashboardSnapshotScope: 'range',
 
   _hasDashboardSnapshot() {
     return !!this._dashboardSnapshot;
@@ -14,6 +15,7 @@ Object.assign(App, {
 
   _clearDashboardSnapshot() {
     this._dashboardSnapshot = null;
+    this._dashboardSnapshotScope = 'range';
     this._updateDashRefreshInfo?.();
   },
 
@@ -28,6 +30,127 @@ Object.assign(App, {
     return ms == null ? null : Math.floor(ms / 60000);
   },
 
+  _getDashSelectedMonthsRange(fallback = 6) {
+    const select = typeof document !== 'undefined' ? document.getElementById('dash-months-range') : null;
+    const value = parseInt(select?.value, 10);
+    return Number.isFinite(value) && value > 0 ? value : fallback;
+  },
+
+  _dashValueToMillis(v) {
+    if (!v) return 0;
+    if (typeof v.toMillis === 'function') {
+      const ms = v.toMillis();
+      return Number.isFinite(ms) ? ms : 0;
+    }
+    if (typeof v.toDate === 'function') {
+      const d = v.toDate();
+      const ms = d instanceof Date ? d.getTime() : 0;
+      return Number.isFinite(ms) ? ms : 0;
+    }
+    if (typeof v.seconds === 'number') return v.seconds * 1000;
+    if (v instanceof Date) {
+      const ms = v.getTime();
+      return Number.isFinite(ms) ? ms : 0;
+    }
+    if (typeof v === 'number') {
+      if (!Number.isFinite(v)) return 0;
+      return v > 100000000000 ? v : v * 1000;
+    }
+    if (typeof v === 'string') {
+      const raw = v.trim();
+      if (!raw) return 0;
+      const firstPart = raw.split(/[~～]/)[0].trim();
+      if (/^\d{1,2}[/-]\d{1,2}(?:\s|$)/.test(firstPart) && typeof this._parseMmDdToDate === 'function') {
+        const d = this._parseMmDdToDate(firstPart);
+        const ms = d instanceof Date ? d.getTime() : 0;
+        if (Number.isFinite(ms) && ms > 0) return ms;
+      }
+      const normalized = firstPart.replace(/\//g, '-');
+      const isoish = /^\d{4}-\d{1,2}-\d{1,2}\s+\d/.test(normalized)
+        ? normalized.replace(/\s+/, 'T')
+        : normalized;
+      const direct = new Date(isoish).getTime();
+      if (Number.isFinite(direct)) return direct;
+      if (typeof this._parseMmDdToDate === 'function') {
+        const d = this._parseMmDdToDate(firstPart);
+        const ms = d instanceof Date ? d.getTime() : 0;
+        return Number.isFinite(ms) ? ms : 0;
+      }
+    }
+    const fallback = new Date(v).getTime();
+    return Number.isFinite(fallback) ? fallback : 0;
+  },
+
+  _filterDashItemsByTime(arr, cutoff, ...fields) {
+    if (!Array.isArray(arr)) return [];
+    return arr.filter(item => {
+      if (!item) return false;
+      for (const f of fields) {
+        const ms = this._dashValueToMillis(item[f]);
+        if (ms > 0 && ms >= cutoff) return true;
+      }
+      return false;
+    });
+  },
+
+  _getAllDashSnapshot() {
+    const snap = this._dashboardSnapshot;
+    if (!snap) return null;
+    return {
+      fetchedAt: snap.fetchedAt,
+      monthsRange: this._getDashSelectedMonthsRange(snap.monthsRange || 6),
+      source: 'snapshot',
+      scope: 'all',
+      hasSnapshot: true,
+      users: Array.isArray(snap.users) ? snap.users : [],
+      teams: Array.isArray(snap.teams) ? snap.teams : [],
+      tournaments: Array.isArray(snap.tournaments) ? snap.tournaments : [],
+      events: Array.isArray(snap.events) ? snap.events : [],
+      allUsers: Array.isArray(snap.users) ? snap.users : [],
+      allTeams: Array.isArray(snap.teams) ? snap.teams : [],
+      allTournaments: Array.isArray(snap.tournaments) ? snap.tournaments : [],
+      allEvents: Array.isArray(snap.events) ? snap.events : [],
+      registrations: Array.isArray(snap.registrations) ? snap.registrations : [],
+      attendanceRecords: Array.isArray(snap.attendanceRecords) ? snap.attendanceRecords : [],
+      activityRecords: Array.isArray(snap.activityRecords) ? snap.activityRecords : [],
+    };
+  },
+
+  _getDashboardCacheViewData() {
+    const users = ApiService.getAdminUsers();
+    const teams = ApiService.getTeams();
+    const tournaments = ApiService.getTournaments();
+    const events = ApiService.getEvents();
+    return {
+      fetchedAt: null,
+      monthsRange: this._getDashSelectedMonthsRange(6),
+      source: 'cache',
+      scope: 'all',
+      hasSnapshot: false,
+      users,
+      teams,
+      tournaments,
+      events,
+      allUsers: users,
+      allTeams: teams,
+      allTournaments: tournaments,
+      allEvents: events,
+      registrations: typeof ApiService.getRegistrations === 'function' ? ApiService.getRegistrations() : [],
+      attendanceRecords: typeof ApiService.getAttendanceRecords === 'function' ? ApiService.getAttendanceRecords() : [],
+      activityRecords: ApiService.getActivityRecords(),
+    };
+  },
+
+  _getDashboardViewData() {
+    if (!this._hasDashboardSnapshot()) {
+      return this._getDashboardCacheViewData();
+    }
+    if (this._dashboardSnapshotScope === 'all') {
+      return this._getAllDashSnapshot();
+    }
+    return this._getFilteredDashSnapshot(this._getDashSelectedMonthsRange(this._dashboardSnapshot.monthsRange || 6));
+  },
+
   /**
    * 取得依 monthsRange filter 後的資料
    * @param {number} [monthsRange] 若未指定則使用 snapshot 原本的區間
@@ -36,42 +159,41 @@ Object.assign(App, {
   _getFilteredDashSnapshot(monthsRange) {
     const snap = this._dashboardSnapshot;
     if (!snap) return null;
+    if (!monthsRange && this._dashboardSnapshotScope === 'all') {
+      return this._getAllDashSnapshot();
+    }
 
-    const targetRange = Number(monthsRange) || snap.monthsRange;
+    const targetRange = Number(monthsRange) || this._getDashSelectedMonthsRange(snap.monthsRange || 6);
     const cutoff = this._dashCutoffMillis(targetRange);
-
-    const toMillis = (v) => {
-      if (!v) return 0;
-      if (typeof v.toMillis === 'function') return v.toMillis();
-      if (v.seconds) return v.seconds * 1000;
-      if (typeof v === 'string') {
-        const t = new Date(v.replace(/\//g, '-')).getTime();
-        return isNaN(t) ? 0 : t;
-      }
-      const t = new Date(v).getTime();
-      return isNaN(t) ? 0 : t;
-    };
-
-    const filterByTime = (arr, ...fields) => arr.filter(item => {
-      for (const f of fields) {
-        const ms = toMillis(item[f]);
-        if (ms > 0 && ms >= cutoff) return true;
-      }
-      // 若所有欄位都無效 → 保留（admin 寧可多不可少）
-      return fields.every(f => !item[f]);
-    });
 
     return {
       fetchedAt: snap.fetchedAt,
+      source: 'snapshot',
+      scope: 'range',
+      hasSnapshot: true,
       monthsRange: targetRange,
-      users: snap.users,              // 全量（不依時間篩）
-      teams: snap.teams,              // 全量
-      tournaments: snap.tournaments,  // 全量
-      events: filterByTime(snap.events, 'createdAt', 'date'),
-      registrations: filterByTime(snap.registrations, 'registeredAt', 'createdAt'),
-      attendanceRecords: filterByTime(snap.attendanceRecords, 'createdAt'),
-      activityRecords: filterByTime(snap.activityRecords, 'createdAt', 'date'),
+      users: this._filterDashItemsByTime(snap.users, cutoff, 'createdAt', 'joinDate'),
+      teams: this._filterDashItemsByTime(snap.teams, cutoff, 'createdAt', 'updatedAt'),
+      tournaments: this._filterDashItemsByTime(snap.tournaments, cutoff, 'createdAt', 'date', 'regStart', 'updatedAt'),
+      events: this._filterDashItemsByTime(snap.events, cutoff, 'createdAt', 'date', 'updatedAt'),
+      allUsers: Array.isArray(snap.users) ? snap.users : [],
+      allTeams: Array.isArray(snap.teams) ? snap.teams : [],
+      allTournaments: Array.isArray(snap.tournaments) ? snap.tournaments : [],
+      allEvents: Array.isArray(snap.events) ? snap.events : [],
+      registrations: this._filterDashItemsByTime(snap.registrations, cutoff, 'registeredAt', 'createdAt', 'updatedAt'),
+      attendanceRecords: this._filterDashItemsByTime(snap.attendanceRecords, cutoff, 'createdAt', 'date', 'updatedAt'),
+      activityRecords: this._filterDashItemsByTime(snap.activityRecords, cutoff, 'createdAt', 'date', 'updatedAt'),
     };
+  },
+
+  _restoreDashboardAllData() {
+    if (!this._hasDashboardSnapshot()) {
+      this.showToast?.('尚未撈取完整資料，請先重新整理完整資料。');
+      return;
+    }
+    this._dashboardSnapshotScope = 'all';
+    this.renderDashboard?.();
+    this.showToast?.('已恢復顯示全部已撈取資料。');
   },
 
   // ══════════════════════════════════
@@ -98,12 +220,14 @@ Object.assign(App, {
     this._closeDashboardProgressModal?.();
 
     if (result.ok) {
+      this._dashboardSnapshotScope = 'range';
       this.showToast?.('資料撈取完成，可點擊卡片查看詳情');
-      this._updateDashRefreshInfo();
+      this.renderDashboard?.();
     } else if (result.reason === 'cancelled') {
       this.showToast?.('已取消撈取');
       // Q4=B：取消後清空 snapshot 避免誤用不完整資料
       this._clearDashboardSnapshot();
+      this.renderDashboard?.();
     } else if (result.reason === 'in_progress') {
       this.showToast?.('已有撈取任務進行中');
     }
@@ -119,27 +243,18 @@ Object.assign(App, {
       return;
     }
     const age = this._dashboardSnapshotAgeMinutes();
-    const range = this._dashboardSnapshot.monthsRange;
+    const range = this._getDashSelectedMonthsRange(this._dashboardSnapshot.monthsRange || 6);
+    const scopeText = this._dashboardSnapshotScope === 'all' ? '全部快照資料' : `近 ${range} 個月快照資料`;
     const ageStr = age < 1 ? '剛剛' : age < 60 ? (age + ' 分鐘前') : (Math.floor(age / 60) + ' 小時前');
-    el.textContent = `資料範圍：近 ${range} 個月 · 已撈取：${ageStr}`;
+    el.textContent = `目前顯示：${scopeText} · 已撈取：${ageStr}`;
     el.style.color = age > 10 ? 'var(--warning, #d97706)' : 'var(--text-muted)';
   },
 
-  /** 時間區間切換：若擴大區間需重撈 */
+  /** 時間區間切換：同一份快照即時切換顯示區間 */
   _onDashMonthsRangeChange() {
     if (!this._hasDashboardSnapshot()) return;
-    const select = document.getElementById('dash-months-range');
-    const newRange = parseInt(select?.value) || 6;
-    const oldRange = this._dashboardSnapshot.monthsRange;
-    if (newRange > oldRange) {
-      const ok = confirm(`您選擇的區間（${newRange} 個月）大於目前資料範圍（${oldRange} 個月），需要重新撈取才能顯示該區間資料。要重新撈取嗎？`);
-      if (ok) {
-        this._startDashboardRefresh();
-      } else {
-        select.value = String(oldRange);
-      }
-    }
-    // 新區間 <= 舊區間：不必重撈，下次開彈窗時 _getFilteredDashSnapshot() 會自動以新區間 filter
+    this._dashboardSnapshotScope = 'range';
+    this.renderDashboard?.();
   },
 
   /** 進入儀表板時的自動提示（Q3=B） */

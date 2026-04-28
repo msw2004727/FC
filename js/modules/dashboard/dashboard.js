@@ -7,11 +7,25 @@ Object.assign(App, {
   renderDashboard() {
     const container = document.getElementById('dashboard-content');
     if (!container) return;
-    const users = ApiService.getAdminUsers();
-    const events = ApiService.getEvents();
-    const teams = ApiService.getTeams();
-    const tournaments = ApiService.getTournaments();
-    const records = ApiService.getActivityRecords();
+    const viewData = this._getDashboardViewData?.() || {
+      users: ApiService.getAdminUsers(),
+      events: ApiService.getEvents(),
+      teams: ApiService.getTeams(),
+      tournaments: ApiService.getTournaments(),
+      activityRecords: ApiService.getActivityRecords(),
+      hasSnapshot: false,
+      monthsRange: 6,
+      scope: 'all',
+    };
+    const users = Array.isArray(viewData.users) ? viewData.users : [];
+    const events = Array.isArray(viewData.events) ? viewData.events : [];
+    const teams = Array.isArray(viewData.teams) ? viewData.teams : [];
+    const tournaments = Array.isArray(viewData.tournaments) ? viewData.tournaments : [];
+    const records = Array.isArray(viewData.activityRecords) ? viewData.activityRecords : [];
+    const selectedRange = Number(viewData.monthsRange) || this._getDashSelectedMonthsRange?.(6) || 6;
+    const hasSnapshot = !!viewData.hasSnapshot;
+    const isAllSnapshot = hasSnapshot && viewData.scope === 'all';
+    const selectedAttr = (value) => selectedRange === value ? ' selected' : '';
 
     // ── 統計摘要 ──
     const totalUsers = users.length;
@@ -53,12 +67,13 @@ Object.assign(App, {
       <div class="dash-refresh-bar">
         <span class="dash-refresh-info" id="dash-refresh-info">尚未撈取完整資料（點擊卡片前請先撈取）</span>
         <select id="dash-months-range" onchange="App._onDashMonthsRangeChange?.()">
-          <option value="1">近 1 個月</option>
-          <option value="3">近 3 個月</option>
-          <option value="6" selected>近 6 個月</option>
-          <option value="12">近 12 個月</option>
+          <option value="1"${selectedAttr(1)}>近 1 個月</option>
+          <option value="3"${selectedAttr(3)}>近 3 個月</option>
+          <option value="6"${selectedAttr(6)}>近 6 個月</option>
+          <option value="12"${selectedAttr(12)}>近 12 個月</option>
         </select>
         <button class="primary-btn" type="button" onclick="App._startDashboardRefresh?.()">🔄 重新整理完整資料</button>
+        <button class="outline-btn" type="button" onclick="App._restoreDashboardAllData?.()" ${hasSnapshot && !isAllSnapshot ? '' : 'disabled'}>恢復全部</button>
         <button class="dash-info-btn" type="button" onclick="App._showDashInfo?.('refresh')" title="說明" aria-label="撈取資料說明">?</button>
       </div>
       <div class="dash-summary">

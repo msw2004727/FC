@@ -11,7 +11,7 @@ Object.assign(App, {
     if (!filtered) return;
     const teams = filtered.teams || [];
     const events = filtered.events || [];
-    const users = filtered.users || [];
+    const users = filtered.allUsers || filtered.users || [];
 
     const toMillis = (v) => {
       if (!v) return 0;
