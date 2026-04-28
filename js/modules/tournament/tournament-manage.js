@@ -230,8 +230,7 @@ Object.assign(App, {
     this._initTournamentDelegateSearch('tf');
     document.getElementById('tf-image').value = '';
     document.getElementById('tf-content-image').value = '';
-    this.bindImageUpload('tf-image', 'tf-upload-preview');
-    this.bindImageUpload('tf-content-image', 'tf-content-upload-preview');
+    this._bindTournamentImageUploads('tf');
     this._openTournamentFormModal('create');
   },
 

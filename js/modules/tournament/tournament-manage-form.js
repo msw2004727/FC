@@ -234,6 +234,14 @@ Object.assign(App, {
     const rawValue = document.getElementById(`${p}-teams`)?.value;
     return this._sanitizeFriendlyTournamentTeamLimit?.(rawValue, fallback) ?? fallback;
   },
+  _getTournamentCoverAspectRatio() {
+    return 8 / 3;
+  },
+  _bindTournamentImageUploads(prefix) {
+    const p = prefix || 'tf';
+    this.bindImageUpload(`${p}-image`, `${p}-upload-preview`, this._getTournamentCoverAspectRatio());
+    this.bindImageUpload(`${p}-content-image`, `${p}-content-upload-preview`);
+  },
   _ensureTournamentFeeToggle(prefix) {
     const p = prefix || 'tf';
     const row = document.getElementById(`${p}-fee`)?.closest('.ce-row');

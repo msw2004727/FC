@@ -81,8 +81,7 @@ Object.assign(App, {
       this._resetTournamentImagePreview('tf', true);
     }
 
-    this.bindImageUpload('tf-image', 'tf-upload-preview');
-    this.bindImageUpload('tf-content-image', 'tf-content-upload-preview');
+    this._bindTournamentImageUploads('tf');
     this._openTournamentFormModal('edit', id);
   },
 
