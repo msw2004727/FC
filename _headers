@@ -34,6 +34,10 @@
 /seo/*
   Cache-Control: public, max-age=86400
 
+# Blog (運動百科)
+/blog/*
+  Cache-Control: public, max-age=86400
+
 # Privacy & Terms
 /privacy.html
   Cache-Control: public, max-age=86400

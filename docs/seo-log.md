@@ -98,6 +98,8 @@ Sitemap: https://toosterx.com/sitemap.xml
 | `/seo/nantun-football-park.html` | 0.8 | 2026-04-22 |
 | `/seo/sports-changhua.html` | 0.8 | 2026-04-22 |
 | `/seo/sports-nantou.html` | 0.8 | 2026-04-22 |
+| `/blog/` | 0.7 | 2026-04-28（新增運動百科首頁） |
+| `/blog/football-shoes-guide` | 0.75 | 2026-04-28（新增足球鞋挑選百科） |
 
 sitemap.xml 首頁條目新增 `<image:image>` 標記 og.png。
 
@@ -111,13 +113,17 @@ index.html (noscript)
   │     ├── seo/dodgeball.html
   │     ├── seo/running.html
   │     └── seo/hiking.html
-  └── 依地區揪團
-        ├── seo/football-taichung.html
-        │     └── seo/nantun-football-park.html
-        ├── seo/sports-changhua.html
-        └── seo/sports-nantou.html
+  ├── 依地區揪團
+  │     ├── seo/football-taichung.html
+  │     │     └── seo/nantun-football-park.html
+  │     ├── seo/sports-changhua.html
+  │     └── seo/sports-nantou.html
+  └── 運動百科 / Blog
+        └── blog/index.html
+              └── blog/football-shoes-guide.html
 
 各 SEO 頁面互相交叉連結（每頁連到其他頁面，不連自己）
+Blog 文章交叉連結：footer + 「延伸閱讀」區塊指向相關 seo/* 頁面
 ```
 
 ### 自動化機制
@@ -196,6 +202,70 @@ index.html (noscript)
 2. 新增動態活動聚合頁（`/events/taichung-football-this-weekend.html`）配合 Event schema markup
 3. 申請 Google Business Profile + Google Maps 標記（本地 SEO）
 4. 反向連結建設（PTT Soccer 板、Dcard 台中版、巴哈姆特運動板）
+
+---
+
+### 2026-04-28 — 建立 /blog/ 運動百科區 + 第一篇「足球鞋挑選完整百科」
+
+**問題 / 目標**：
+既有 `/seo/*` 著陸頁主打「揪團報名 × 地區 × 運動類別」服務型 SEO，但欠缺「知識型內容」（運動規則、裝備推薦、新手指南）。知識型內容對應的搜尋意圖（informational query）流量大、競爭較小，且能補強品牌實體權威（E-E-A-T 中的 Expertise）。建立獨立 `/blog/` 區，第一篇從高搜尋量的「足球鞋挑選」切入。
+
+**執行項目**：
+
+1. **建立 `/blog/` 區與第一篇文章**
+   - `blog/index.html`：部落格首頁（Blog schema、文章列表、卡片式 hover 互動、全 responsive）
+   - `blog/football-shoes-guide.html`：第一篇足球鞋挑選百科（約 4,000 字、5 個 SVG 鞋底示意圖、3 個對照表、5 張品牌卡、6 組 FAQ）
+   - 沿用既有 `seo/*` 樣式語彙（teal 主色、相同 hero / cta-box / en-section 結構）保持品牌一致性
+
+2. **第一篇文章 SEO 設計**
+   - title 含主關鍵字 + 全部 5 個鞋種縮寫（FG/AG/SG/TF/IC）
+   - meta keywords 涵蓋 30+ 長尾詞（人工草足球鞋、室內足球鞋、五人制足球鞋、寬腳足球鞋、兒童足球鞋、Nike/Adidas/Puma/Mizuno/Asics）
+   - 三層 JSON-LD：BreadcrumbList（3 層）+ Article（含 datePublished、author、publisher）+ FAQPage（6 組 Q&A）
+   - 文章結構：10 個 H2 + 多個 H3（含 anchor id），符合 Featured Snippet 抓取格式
+   - 5 個 inline SVG 鞋底圖示（FG / AG / SG / TF / IC）— 視覺化、無外部圖片依賴、檔案大小極小
+   - 3 個資料對照表（5 鞋種快速對照、3 個預算分級卡、5 大品牌特色卡）
+   - 內部連結：footer + 「延伸閱讀」指向 `/seo/football`、`/seo/football-taichung`、`/seo/nantun-football-park`
+   - 英文 SEO 段落（Football Boots Buying Guide for Taiwan）
+
+3. **手機窄屏排版（兩層 breakpoint）**
+   - `@media(max-width:640px)`：標準手機調整（hero 字體、表格水平捲動、品牌卡改單欄、價格分級單欄、內距縮小）
+   - `@media(max-width:400px)`：極窄屏特別處理（鞋底圖改垂直堆疊、SVG 縮小至 130px、字體再縮）
+   - 表格水平捲動：`overflow-x:auto` + `-webkit-overflow-scrolling:touch`（iOS 觸控滑順）
+   - 全頁面 viewport meta 正確設定
+
+4. **路由與快取設定**
+   - `_headers`：新增 `/blog/* → max-age=86400`（與 `/seo/*` 一致）
+   - `sitemap.xml`：新增 `/blog/`（priority 0.7）+ `/blog/football-shoes-guide`（priority 0.75）
+   - `index.html` noscript：新增「運動百科」區塊與兩個連結（首頁 + 足球鞋文）
+
+**關鍵 SEO 設計決策**：
+
+- **為什麼開 `/blog/` 而非 `/seo/` 內部新增**：兩者搜尋意圖不同。`/seo/` 是「找服務」（Buy 階段），`/blog/` 是「找知識」（Discover 階段）。分開 URL 結構幫助 Google 理解站台內容類型，也便於未來區分監控
+- **為什麼足球鞋第一篇**：「足球鞋」單詞月搜尋量高（萬級）、長尾豐富（FG/AG/室內/寬腳/兒童 等），且與既有 football 系列頁形成 hub-and-spoke 內部連結
+- **為什麼用 inline SVG 而非外部圖片**：(1) 不依賴圖片資源，無 broken image 風險；(2) 載入速度極快（< 1KB / 圖）；(3) 視覺一致（用 teal 主色），(4) 隨頁面被 Google 抓取為內容一部分
+- **為什麼 article schema 而非 blogPosting**：兩者都可，Article 較通用且 Google 偏好。日後可視 SEO 數據再切換
+- **為什麼不放廣告或 affiliate 連結**：第一階段純內容主導、累積信任度。日後如要加 affiliate 連結（迪卡儂、Nike 官網），須維持 NPOV 描述、且在頁面標註
+
+**預期 SEO 效益**：
+
+- **3-7 天內**：Google 重新爬取、`/blog/` 與 `/blog/football-shoes-guide` 進入索引（sitemap lastmod 更新 + GitHub Actions 自動提交）
+- **2-4 週內**：「足球鞋 推薦」「FG AG 差別」「人工草 足球鞋」「室內足球鞋」等長尾關鍵字累積曝光
+- **2-3 個月內**：FAQ schema 有機會觸發 SERP FAQ rich result（折疊 6 組問答）
+- **長期**：建立內容權威，搜尋「足球」相關關鍵字時 ToosterX 同時佔據服務頁（/seo/football）+ 知識頁（/blog/football-shoes-guide）兩個位置
+
+**驗收方式**：
+- HTML 結構：JSON-LD 三段、Infobox-style 表格、SVG 5 個鞋底全部可顯示 ✅
+- 手機窄屏（375px / 390px / 412px / 360px）：表格水平捲動、卡片單欄、SVG 不溢出 ✅
+- 內部連結密度：4 個 outbound 內鏈到 /seo/* ✅
+- robots / canonical / hreflang 配置 ✅
+- 字數：4,000+ 字、足夠的內容深度 ✅
+
+**下次優化點（待後續執行）**：
+1. 第二篇文章主題候選：「籃球鞋挑選指南」或「羽球拍挑選完整指南」（同樣裝備類、覆蓋既有 /seo/* 涵蓋運動）
+2. 規則類文章：「足球規則完整解析」「五人制足球規則 vs 11 人制差異」（informational 流量大）
+3. 場地類文章：「全台足球場推薦地圖」「室內五人制場地大全」（與既有地區頁互補）
+4. 評估是否啟用 affiliate 連結（迪卡儂、Nike 等）— 須先建立內容信任度
+5. 待 1-2 週後檢視 GSC 數據（曝光、點擊、平均排名）決定下一篇主題
 
 ---
 

@@ -99,6 +99,22 @@
   </url>
 
   <!-- ═══════════════════════════════════════════════ -->
+  <!-- 運動百科 / Blog（priority 0.7 — 知識內容）-->
+  <!-- ═══════════════════════════════════════════════ -->
+  <url>
+    <loc>https://toosterx.com/blog/</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://toosterx.com/blog/football-shoes-guide</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.75</priority>
+  </url>
+
+  <!-- ═══════════════════════════════════════════════ -->
   <!-- 身分方案介紹（priority 0.6）-->
   <!-- ═══════════════════════════════════════════════ -->
   <url>
