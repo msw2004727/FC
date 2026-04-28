@@ -21,6 +21,74 @@ Object.assign(App, {
     ].map(v => String(v == null ? '' : v)).join(fieldSep)).join(rowSep) || 'empty';
   },
 
+  _applyBannerSlideBackground(slide, url) {
+    if (!slide || !url) return;
+    slide.style.backgroundImage = 'url("' + String(url).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '")';
+    slide.style.backgroundSize = 'cover';
+    slide.style.backgroundPosition = 'center';
+    slide.classList.remove('banner-slide--loading');
+    slide.dataset.bannerLoadState = 'done';
+  },
+
+  _ensureBannerSlideImage(slide, options = {}) {
+    if (!slide || !slide.classList || !slide.classList.contains('banner-slide--loading')) return;
+    const url = slide.getAttribute('data-bg-src');
+    if (!url) return;
+    const priority = options.priority || slide.getAttribute('data-banner-priority') || 'normal';
+
+    if (this._bannerImageReady && this._bannerImageReady[url]) {
+      this._applyBannerSlideBackground(slide, url);
+      return;
+    }
+    if (slide.dataset.bannerLoadState === 'loading') return;
+    slide.dataset.bannerLoadState = 'loading';
+
+    let settled = false;
+    const markAndShow = () => {
+      if (settled) return;
+      settled = true;
+      if (this._bannerImageReady) this._bannerImageReady[url] = true;
+      this._applyBannerSlideBackground(slide, url);
+    };
+
+    const timeoutMs = priority === 'high' ? 1800 : 3500;
+    const fallbackTimer = setTimeout(markAndShow, timeoutMs);
+    const img = new Image();
+    if ('fetchPriority' in img) img.fetchPriority = priority === 'high' ? 'high' : 'low';
+    if ('decoding' in img) img.decoding = 'async';
+    img.onload = () => {
+      clearTimeout(fallbackTimer);
+      markAndShow();
+    };
+    img.onerror = () => {
+      clearTimeout(fallbackTimer);
+      markAndShow();
+    };
+    img.src = url;
+    if (typeof img.decode === 'function') {
+      img.decode().then(() => {
+        clearTimeout(fallbackTimer);
+        markAndShow();
+      }).catch(() => {
+        clearTimeout(fallbackTimer);
+        markAndShow();
+      });
+    }
+  },
+
+  _ensureBannerSlideImages(track) {
+    if (!track) return;
+    const scheduleIdle = window.requestIdleCallback || function(cb) { return setTimeout(cb, 120); };
+    track.querySelectorAll('.banner-slide--loading').forEach((slide, idx) => {
+      const priority = slide.getAttribute('data-banner-priority') || (idx === 0 ? 'high' : 'normal');
+      if (priority === 'high') {
+        this._ensureBannerSlideImage(slide, { priority });
+      } else {
+        scheduleIdle(() => this._ensureBannerSlideImage(slide, { priority }), { timeout: 1500 });
+      }
+    });
+  },
+
   renderBannerCarousel(options = {}) {
     const track = document.getElementById('banner-track');
     if (!track) return;
@@ -29,6 +97,7 @@ Object.assign(App, {
     const fingerprint = this._getBannerRenderFingerprint(banners);
     if (this._bannerRenderFingerprint === fingerprint && track.querySelector('.banner-slide')) {
       this.bannerCount = track.querySelectorAll('.banner-slide').length;
+      this._ensureBannerSlideImages(track);
       this._bindBannerCarouselControls();
       if (autoplay) {
         this.startBannerCarousel();
@@ -61,43 +130,7 @@ Object.assign(App, {
         </div>`;
       }).join('');
       // 預載 banner 圖片：背景載入+解碼完成後才設 background-image 並淡入
-      const owner = this;
-      const scheduleIdle = window.requestIdleCallback || function(cb) { return setTimeout(cb, 120); };
-      track.querySelectorAll('.banner-slide--loading').forEach(function(slide, idx) {
-        var url = slide.getAttribute('data-bg-src');
-        if (!url) return;
-        var priority = slide.getAttribute('data-banner-priority') || (idx === 0 ? 'high' : 'normal');
-        var _show = function() {
-          if (!slide.isConnected) return;
-          slide.style.backgroundImage = 'url("' + String(url).replace(/"/g, '\\"') + '")';
-          slide.style.backgroundSize = 'cover';
-          slide.style.backgroundPosition = 'center';
-          slide.classList.remove('banner-slide--loading');
-        };
-        if (owner._bannerImageReady && owner._bannerImageReady[url]) {
-          _show();
-          return;
-        }
-        var _load = function() {
-          var img = new Image();
-          if ('fetchPriority' in img) img.fetchPriority = priority === 'high' ? 'high' : 'low';
-          if ('loading' in img) img.loading = priority === 'high' ? 'eager' : 'lazy';
-          if ('decoding' in img) img.decoding = 'async';
-          img.src = url;
-          var _markAndShow = function() {
-            if (owner._bannerImageReady) owner._bannerImageReady[url] = true;
-            _show();
-          };
-          if (typeof img.decode === 'function') {
-            img.decode().then(_markAndShow).catch(_markAndShow);
-          } else {
-            img.onload = _markAndShow;
-            img.onerror = _markAndShow;
-          }
-        };
-        if (priority === 'high') _load();
-        else scheduleIdle(_load, { timeout: 1500 });
-      });
+      this._ensureBannerSlideImages(track);
     }
     this.bannerIndex = 0;
     this.bannerCount = track.querySelectorAll('.banner-slide').length;
@@ -244,6 +277,8 @@ Object.assign(App, {
     this.bannerIndex = idx;
     const track = document.getElementById('banner-track');
     if (!track) return;
+    const slide = track.querySelectorAll('.banner-slide')[idx];
+    this._ensureBannerSlideImage(slide, { priority: 'high' });
     track.style.transform = `translateX(-${idx * 100}%)`;
     document.querySelectorAll('.banner-dot').forEach((d, i) => d.classList.toggle('active', i === idx));
   },
