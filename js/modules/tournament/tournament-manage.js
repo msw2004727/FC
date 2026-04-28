@@ -37,58 +37,59 @@ Object.assign(App, {
       return;
     }
     // Note: innerHTML usage is safe — all user content passes through escapeHTML()
+    // 後台管理改用窄條版型(對齊賽事中心舊版),省空間更好掃讀
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const statusBgMap = {
+      [TOURNAMENT_STATUS.REG_OPEN]:        { bg: 'rgba(52,211,153,.07)', border: '#10b981', darkBg: 'rgba(52,211,153,.15)' },
+      [TOURNAMENT_STATUS.REG_CLOSED]:      { bg: 'rgba(251,191,36,.07)', border: '#f59e0b', darkBg: 'rgba(251,191,36,.15)' },
+      [TOURNAMENT_STATUS.REG_CLOSED_ALT]:  { bg: 'rgba(251,191,36,.07)', border: '#f59e0b', darkBg: 'rgba(251,191,36,.15)' },
+      [TOURNAMENT_STATUS.PREPARING]:       { bg: 'rgba(96,165,250,.07)', border: '#60a5fa', darkBg: 'rgba(96,165,250,.15)' },
+      [TOURNAMENT_STATUS.ENDED]:           { bg: 'rgba(107,114,128,.07)', border: '#6b7280', darkBg: 'rgba(107,114,128,.15)' },
+    };
+    const statusCssMap = {
+      [TOURNAMENT_STATUS.REG_OPEN]: 'open',
+      [TOURNAMENT_STATUS.REG_CLOSED_ALT]: 'full',
+      [TOURNAMENT_STATUS.REG_CLOSED]: 'full',
+      [TOURNAMENT_STATUS.PREPARING]: 'upcoming',
+      [TOURNAMENT_STATUS.ENDED]: 'ended',
+    };
     container.innerHTML = filtered.map(t => {
       const status = this.getTournamentStatus(t);
       const isEnded = this.isTournamentEnded(t);
       const statusLabel = isEnded ? TOURNAMENT_STATUS.ENDED : status;
-      const statusColorMap = {
-        [TOURNAMENT_STATUS.PREPARING]: '#6b7280',
-        [TOURNAMENT_STATUS.REG_OPEN]: '#10b981',
-        [TOURNAMENT_STATUS.REG_CLOSED]: '#f59e0b',
-        [TOURNAMENT_STATUS.ENDED]: '#6b7280',
-      };
-      const statusColor = statusColorMap[statusLabel] || '#6b7280';
+      const sBg = statusBgMap[statusLabel] || statusBgMap[TOURNAMENT_STATUS.ENDED];
+      const css = statusCssMap[statusLabel] || 'ended';
       const registered = Array.isArray(t.registeredTeams) ? t.registeredTeams : [];
       const feeEnabled = typeof t.feeEnabled === 'boolean' ? t.feeEnabled : Number(t.fee || 0) > 0;
       const fee = feeEnabled ? (Number(t.fee || 0) || 0) : 0;
       const revenue = registered.length * fee;
       const canManage = isAdmin || this._canManageTournamentRecord(t, currentUser);
       const organizerDisplay = this._getTournamentOrganizerDisplayText?.(t) || t.organizer || '主辦俱樂部';
-      const typeLabel = this._getTournamentModeLabel?.(t) || t.type || '友誼賽';
       const teamLimit = this._getFriendlyTournamentTeamLimit?.(t) || t.maxTeams || 4;
-      const scheduleCount = Array.isArray(t.matchDates) ? t.matchDates.length : 0;
       const feeText = feeEnabled
-        ? `應收費用：<strong>NT$${revenue.toLocaleString()}</strong>（${registered.length} 隊 × NT$${fee.toLocaleString()}）`
+        ? `應收 NT$${revenue.toLocaleString()}(${registered.length} × NT$${fee.toLocaleString()})`
         : '報名費未開啟';
       return `
-      <div class="event-card" style="${isEnded ? 'opacity:.55;filter:grayscale(.4)' : ''}">
-        ${t.image ? `<div class="event-card-img"><img src="${t.image}" style="width:100%;height:120px;object-fit:cover;display:block;border-radius:var(--radius) var(--radius) 0 0"></div>` : ''}
-        <div class="event-card-body">
-          <div style="display:flex;align-items:center;gap:.4rem">
-            <div class="event-card-title" style="flex:1">${escapeHTML(t.name)}</div>
-            <span style="font-size:.68rem;padding:.15rem .45rem;border-radius:20px;background:${statusColor}18;color:${statusColor};font-weight:600;white-space:nowrap">${statusLabel}</span>
+        <div class="tl-event-row" style="margin-bottom:.4rem;flex-wrap:wrap;padding:.45rem .6rem .35rem;background:${isDark ? sBg.darkBg : sBg.bg};border-left:3px solid ${sBg.border};${isEnded ? 'opacity:.7;' : ''}">
+          <div style="width:100%;display:flex;align-items:center;gap:.35rem">
+            <div class="tl-event-title" style="flex:1">${escapeHTML(t.name)}</div>
+            <span class="tl-event-status ${css}">${statusLabel}</span>
           </div>
-          <div class="event-meta">
-            <span class="event-meta-item">${escapeHTML(typeLabel)}</span>
-            ${t.region ? `<span class="event-meta-item">${escapeHTML(t.region)}</span>` : ''}
-            <span class="event-meta-item">${teamLimit} 隊</span>
-            ${scheduleCount ? `<span class="event-meta-item">比賽日 ${scheduleCount} 天</span>` : ''}
-            <span class="event-meta-item">主辦 ${escapeHTML(organizerDisplay)}</span>
+          <div style="width:100%;font-size:.62rem;color:var(--text-muted);margin-top:.2rem;line-height:1.5">
+            ${t.region ? escapeHTML(t.region) + ' · ' : ''}${teamLimit} 隊 · ${registered.length}/${teamLimit} 已報名 · ${feeText} · 主辦 ${escapeHTML(organizerDisplay)}
           </div>
-          <div style="font-size:.78rem;color:var(--text-secondary);margin-top:.3rem">${feeText}</div>
-          <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem">
+          <div style="width:100%;display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.35rem">
             ${isEnded ? `
-              <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.showTournamentDetail('${t.id}')">查看詳情</button>
-              ${isAdmin ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;background:#10b981;color:#fff;border-color:#10b981" onclick="App.handleReopenTournament('${t.id}')">重新開啟</button>` : ''}
-              ${isAdmin ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.handleDeleteTournament('${t.id}')">刪除賽事</button>` : ''}
+              <button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem" onclick="App.showTournamentDetail('${t.id}')">查看詳情</button>
+              ${isAdmin ? `<button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem;background:#10b981;color:#fff;border-color:#10b981" onclick="App.handleReopenTournament('${t.id}')">重新開啟</button>` : ''}
+              ${isAdmin ? `<button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem;color:var(--danger)" onclick="App.handleDeleteTournament('${t.id}')">刪除賽事</button>` : ''}
             ` : `
-              ${canManage ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;background:#10b981;color:#fff;border-color:#10b981" onclick="App.openEditTournamentSafe('${escapeHTML(t.id)}')">編輯賽事</button>` : ''}
-              <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.showTournamentDetail('${t.id}')">查看詳情</button>
-              ${canManage ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.handleEndTournament('${t.id}')">結束賽事</button>` : ''}
+              ${canManage ? `<button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem;background:#10b981;color:#fff;border-color:#10b981" onclick="App.openEditTournamentSafe('${escapeHTML(t.id)}')">編輯賽事</button>` : ''}
+              <button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem" onclick="App.showTournamentDetail('${t.id}')">查看詳情</button>
+              ${canManage ? `<button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem;color:var(--danger)" onclick="App.handleEndTournament('${t.id}')">結束賽事</button>` : ''}
             `}
           </div>
-        </div>
-      </div>`;
+        </div>`;
     }).join('');
     this._markPageSnapshotReady?.('page-admin-tournaments');
   },
