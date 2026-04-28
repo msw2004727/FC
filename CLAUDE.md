@@ -722,6 +722,35 @@ async showXxx(args) {
 
 ---
 
+## 部署前審查流程(SOP, 強制)
+
+本專案部署機制：`git push origin main` → Cloudflare Pages + GitHub Pages 自動部署（無 Cloud Run / gcloud / 預發環境）。一旦 push，分鐘內就會推到所有用戶。因此 **push 等於 deploy**，必須在 push 前完成 Codex review。
+
+每次要 `git push origin main` 前，必須照以下順序：
+
+1. 改完 code → 跑相關測試（依 §測試與 CI 規範對照表）→ 本地通過
+2. `git add` → `git commit`（訊息要清楚，遵循既有規範）
+3. **暫停，不要 push**
+4. 主動建議用戶跑 `/codex:review`（一句話即可，例如：「已 commit，建議跑 `/codex:review` 後再 push」）
+5. 等用戶看完 Codex 的意見，用戶會說「OK 部署 / OK push」或「先改 XXX」
+6. 用戶說 OK 才開始 `git push origin main`
+
+**❌ 嚴禁先 push 再審**
+**❌ 嚴禁邊改邊 push**
+
+### 例外（不需等 Codex review，可直接 push）
+
+| 情境 | 理由 |
+|------|------|
+| 純文件變更（`CLAUDE.md`、`docs/*.md`、純註解） | 不影響 runtime，無回歸風險 |
+| 純版號 bump（`bump-version.js` 產出，無其他改動） | 機械性操作 |
+| 用戶明確指示「直接 push」「不用 review」「緊急上線」 | 用戶授權跳過 |
+| Hotfix 用戶當下回報且影響使用的線上 bug，且修法只動 1-3 行 | 時效優先，事後仍可補 review |
+
+### 與「完成後自動部署規範」的關係
+
+「完成後自動部署規範」說明「該 push 哪些變更」，本 SOP 說明「push 前要先過 Codex review 閘門」。兩者並行：先評估「是否該 push」→ 若是，再走「push 前 SOP」。
+
 ## 完成後自動部署規範
 
 每次完成一項任務（功能開發、bug 修復、文件更新等）後，**必須**主動評估是否需要部署：
@@ -730,11 +759,11 @@ async showXxx(args) {
 2. **主動執行順序**：
    1. 依 §測試與 CI 規範「何時必須跑測試」對照表，**先跑相關測試本地通過**
    2. `git add` → `git commit`
-   3. 確認無回歸後 `git push origin main`
-   4. 若測試失敗，先修測試或程式碼，通過後才 push
+   3. **依 §部署前審查流程(SOP) 暫停 push，主動建議用戶跑 `/codex:review`，等用戶同意才 `git push origin main`**（除符合 SOP「例外」表的情境，可直接 push）
+   4. 若測試失敗，先修測試或程式碼，通過後才進入 commit 步驟
 3. **Commit 訊息**：遵循既有 commit 規範（中文描述、列出關鍵改動）
-4. **若僅修改文件檔案**（如 `CLAUDE.md`、`docs/*.md`），不觸發測試，可直接 commit + push
-5. **例外**：僅當用戶明確表示「先不要 push」或「等我確認」時，才暫緩部署
+4. **若僅修改文件檔案**（如 `CLAUDE.md`、`docs/*.md`），不觸發測試，可直接 commit + push（屬 SOP 例外）
+5. **例外**：用戶明確表示「先不要 push」或「等我確認」時，連 commit 也暫緩
 
 ## 計劃與建議回覆規範
 
