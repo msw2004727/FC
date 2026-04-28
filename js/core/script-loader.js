@@ -291,6 +291,7 @@ const ScriptLoader = {
       'js/modules/tournament/tournament-render.js',
     ],
     tournamentDetail: [
+      'js/modules/team/team-list-helpers.js',
       'js/modules/tournament/tournament-helpers.js',
       'js/modules/tournament/tournament-core.js',
       'js/modules/tournament/tournament-render.js',
@@ -304,6 +305,7 @@ const ScriptLoader = {
       'js/modules/tournament/tournament-friendly-notify.js',
     ],
     tournament: [
+      'js/modules/team/team-list-helpers.js',
       'js/modules/tournament/tournament-helpers.js',
       'js/modules/tournament/tournament-core.js',
       'js/modules/tournament/tournament-render.js',

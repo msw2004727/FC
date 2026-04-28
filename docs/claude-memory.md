@@ -1664,3 +1664,10 @@
 - Cause: ScriptLoader tied achievement/profile extras to page-profile, and navigation immediately rendered the hidden user card plus _initProfileScene().
 - Fix: split profile into base, achievementProfile, profileCard, profileShare, and profileScene groups. page-profile renders visible data first, then idle-loads achievement stats, records, and the color-cat scene.
 - Guard: leaving page-profile increments _profileDeferredSeq and destroys the scene so deferred tasks do not write DOM after page switches.
+
+### 2026-04-28 賽事報名與球員名單改為 callable 原子流程 [瘞訾?]
+- **問題**: 友誼賽參賽申請與球員名單仍可由 Web client 直寫 Firestore；主辦方也缺少在賽事詳情「俱樂部」頁籤直接剔除已核准隊伍的完整流程。
+- **風險**: 惡意或舊版前端可能繞過前端檢查，造成 application / entries / root registeredTeams / members 不一致；冷啟賽事詳情若未載入 team-list helper，也可能誤判使用者隊伍狀態。
+- **修補**: 新增 `applyFriendlyTournament`、`joinFriendlyTournamentRoster`、`leaveFriendlyTournamentRoster`、`removeFriendlyTournamentEntry` callable，統一由後端驗證賽事狀態、隊伍幹部、隊伍資格、名單解鎖與 root summary；前端改呼叫 callable，俱樂部頁籤加入非主辦隊伍「剔除」操作。
+- **權限**: `applications` create/update/delete 改 callable-only；`entries` / `members` 僅保留 admin 直寫作 legacy cleanup，一般主辦/建立者/隊員改走 callable。
+- **測試**: `npm test` 67 suites / 2500 tests passed；`npm run test:rules` 2 suites / 448 tests passed。

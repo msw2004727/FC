@@ -141,7 +141,7 @@ Object.assign(App, {
     const canManage = this._canManageTournamentRecord?.(tournament, user);
     return (state.applications || []).filter(application => {
       const status = String(application.status || '').trim().toLowerCase();
-      if (status === 'approved' || status === 'cancelled') return false;
+      if (status === 'approved' || status === 'cancelled' || status === 'removed') return false;
       return canManage || this._isTournamentViewerInTeam(user, application.teamId);
     });
   },
@@ -150,8 +150,12 @@ Object.assign(App, {
     const eligibleTeams = this._getFriendlyResponsibleTeams?.(user) || [];
     const applicationsByTeam = new Map((state?.applications || []).map(item => [item.teamId, item]));
     const entriesByTeam = new Map((state?.entries || []).map(item => [item.teamId, item]));
+    const tournamentSport = String(tournament?.sportTag || tournament?.sport || '').trim();
     const availableTeams = eligibleTeams.filter(team =>
-      team.id !== tournament.hostTeamId && !applicationsByTeam.has(team.id) && !entriesByTeam.has(team.id)
+      team.id !== tournament.hostTeamId
+      && !applicationsByTeam.has(team.id)
+      && !entriesByTeam.has(team.id)
+      && (!tournamentSport || !String(team?.sportTag || team?.sport || '').trim() || String(team?.sportTag || team?.sport || '').trim() === tournamentSport)
     );
     const teamIds = typeof this._getUserTeamIds === 'function' ? this._getUserTeamIds(user) : [];
     return {

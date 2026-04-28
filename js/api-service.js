@@ -500,6 +500,11 @@ const ApiService = {
     return await FirebaseService.createTournamentApplication(tournamentId, payload);
   },
 
+  async applyFriendlyTournamentAtomic(tournamentId, teamId) {
+    if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
+    return await FirebaseService.applyFriendlyTournamentAtomic(tournamentId, teamId);
+  },
+
   async updateTournamentApplication(tournamentId, applicationId, updates) {
     if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
     return await FirebaseService.updateTournamentApplication(tournamentId, applicationId, updates);
@@ -508,6 +513,11 @@ const ApiService = {
   async reviewFriendlyTournamentApplicationAtomic(tournamentId, applicationId, action) {
     if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
     return await FirebaseService.reviewFriendlyTournamentApplicationAtomic(tournamentId, applicationId, action);
+  },
+
+  async removeFriendlyTournamentEntryAtomic(tournamentId, teamId) {
+    if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
+    return await FirebaseService.removeFriendlyTournamentEntryAtomic(tournamentId, teamId);
   },
 
   async listTournamentEntries(tournamentId) {
@@ -532,6 +542,16 @@ const ApiService = {
       : { ...member };
     if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
     return await FirebaseService.upsertTournamentEntryMember(tournamentId, teamId, payload);
+  },
+
+  async joinFriendlyTournamentRosterAtomic(tournamentId, teamId) {
+    if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
+    return await FirebaseService.joinFriendlyTournamentRosterAtomic(tournamentId, teamId);
+  },
+
+  async leaveFriendlyTournamentRosterAtomic(tournamentId) {
+    if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
+    return await FirebaseService.leaveFriendlyTournamentRosterAtomic(tournamentId);
   },
 
   async removeTournamentEntryMember(tournamentId, teamId, memberUid) {

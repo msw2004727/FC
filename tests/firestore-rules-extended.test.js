@@ -1228,8 +1228,8 @@ describe("/tournaments/{tournamentId}", () => {
       );
     });
 
-    test("create entry: creator CAN create entry (host approval flow)", async () => {
-      await assertSucceeds(
+    test("create entry: creator CANNOT directly create entry (callable-only)", async () => {
+      await assertFails(
         setDoc(
           doc(creatorOnly(), "tournaments", "tourCreatorOnly", "entries", "teamA"),
           { teamId: "teamA", status: "confirmed" }
@@ -1237,12 +1237,12 @@ describe("/tournaments/{tournamentId}", () => {
       );
     });
 
-    test("update entry: creator CAN update entry status", async () => {
+    test("update entry: creator CANNOT directly update entry status (callable-only)", async () => {
       await seedPath(["tournaments", "tourCreatorOnly", "entries", "teamA"], {
         teamId: "teamA",
         status: "confirmed",
       });
-      await assertSucceeds(
+      await assertFails(
         updateDoc(
           doc(creatorOnly(), "tournaments", "tourCreatorOnly", "entries", "teamA"),
           { status: "eliminated" }
@@ -1347,8 +1347,8 @@ describe("/tournaments/{id}/applications/{appId}", () => {
     );
   });
 
-  test("create: captain of team can apply", async () => {
-    await assertSucceeds(
+  test("create: captain of team cannot directly apply (callable-only)", async () => {
+    await assertFails(
       setDoc(
         doc(captain(), "tournaments", "tourA", "applications", "ta_teamA"),
         validTournamentApplicationPayload("teamA", "uidCaptain")
@@ -1365,7 +1365,7 @@ describe("/tournaments/{id}/applications/{appId}", () => {
     );
   });
 
-  test("create: approved status is rejected", async () => {
+  test("create: approved status is rejected by callable-only rule", async () => {
     await assertFails(
       setDoc(
         doc(captain(), "tournaments", "tourA", "applications", "ta_teamA"),
@@ -1374,7 +1374,7 @@ describe("/tournaments/{id}/applications/{appId}", () => {
     );
   });
 
-  test("create: doc id must equal ta_<teamId>", async () => {
+  test("create: wrong doc id is rejected by callable-only rule", async () => {
     await assertFails(
       setDoc(
         doc(captain(), "tournaments", "tourA", "applications", "app_teamA"),
@@ -1383,7 +1383,7 @@ describe("/tournaments/{id}/applications/{appId}", () => {
     );
   });
 
-  test("create: requestedByUid must equal auth uid", async () => {
+  test("create: requestedByUid mismatch is rejected by callable-only rule", async () => {
     await assertFails(
       setDoc(
         doc(captain(), "tournaments", "tourA", "applications", "ta_teamA"),
@@ -1392,7 +1392,7 @@ describe("/tournaments/{id}/applications/{appId}", () => {
     );
   });
 
-  test("create: optional display fields must be strings", async () => {
+  test("create: invalid optional display fields are rejected by callable-only rule", async () => {
     await assertFails(
       setDoc(
         doc(captain(), "tournaments", "tourA", "applications", "ta_teamA"),
@@ -1439,7 +1439,7 @@ describe("/tournaments/{id}/entries/{teamId}", () => {
     );
   });
 
-  test("create: scope manager can create", async () => {
+  test("create: admin can create for legacy cleanup", async () => {
     await assertSucceeds(
       setDoc(
         doc(admin(), "tournaments", "tourA", "entries", "teamB"),
@@ -1457,8 +1457,8 @@ describe("/tournaments/{id}/entries/{teamId}", () => {
     );
   });
 
-  test("update: scope manager can update", async () => {
-    await assertSucceeds(
+  test("update: non-admin scope manager cannot directly update", async () => {
+    await assertFails(
       updateDoc(
         doc(memberA(), "tournaments", "tourA", "entries", "teamA"),
         { status: "eliminated" }
@@ -1466,7 +1466,7 @@ describe("/tournaments/{id}/entries/{teamId}", () => {
     );
   });
 
-  test("delete: scope manager can delete", async () => {
+  test("delete: admin can delete for legacy cleanup", async () => {
     await seedPath(["tournaments", "tourA", "entries", "teamDel"], {
       teamId: "teamDel",
       status: "confirmed",
@@ -1495,7 +1495,7 @@ describe("/tournaments/{id}/entries/{teamId}/members/{memberUid}", () => {
     );
   });
 
-  test("create: scope manager can add member", async () => {
+  test("create: admin can add member for legacy cleanup", async () => {
     await assertSucceeds(
       setDoc(
         doc(admin(), "tournaments", "tourA", "entries", "teamA", "members", "uidNew"),
@@ -1504,9 +1504,9 @@ describe("/tournaments/{id}/entries/{teamId}/members/{memberUid}", () => {
     );
   });
 
-  test("create: self-join by team member with entry existing", async () => {
+  test("create: self-join by team member is blocked (callable-only)", async () => {
     // uidA is in teamA, teamA entry exists
-    await assertSucceeds(
+    await assertFails(
       setDoc(
         doc(memberA(), "tournaments", "tourA", "entries", "teamA", "members", "uidA"),
         { name: "Self Join" }
@@ -1524,7 +1524,7 @@ describe("/tournaments/{id}/entries/{teamId}/members/{memberUid}", () => {
     );
   });
 
-  test("delete: scope manager can remove member", async () => {
+  test("delete: admin can remove member for legacy cleanup", async () => {
     await seedPath(
       ["tournaments", "tourA", "entries", "teamA", "members", "uidDel"],
       { name: "Del Member" }
@@ -1536,12 +1536,12 @@ describe("/tournaments/{id}/entries/{teamId}/members/{memberUid}", () => {
     );
   });
 
-  test("delete: self can leave", async () => {
+  test("delete: self leave is blocked (callable-only)", async () => {
     await seedPath(
       ["tournaments", "tourA", "entries", "teamA", "members", "uidA"],
       { name: "Leave Member" }
     );
-    await assertSucceeds(
+    await assertFails(
       deleteDoc(
         doc(memberA(), "tournaments", "tourA", "entries", "teamA", "members", "uidA")
       )

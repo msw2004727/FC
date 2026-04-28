@@ -11,6 +11,26 @@ Object.assign(App, {
     return String(value || '').trim();
   },
 
+  _getUserTeamIds(user) {
+    if (!user) return [];
+    const ids = [];
+    const seen = new Set();
+    const pushId = (id) => {
+      const v = String(id || '').trim();
+      if (!v || seen.has(v)) return;
+      seen.add(v);
+      ids.push(v);
+    };
+    if (Array.isArray(user.teamIds)) user.teamIds.forEach(pushId);
+    pushId(user.teamId);
+    return ids;
+  },
+
+  _isUserInTeam(user, teamId) {
+    if (!user || !teamId) return false;
+    return this._getUserTeamIds(user).includes(String(teamId));
+  },
+
   _toNameIdentityKey(name) {
     const normalized = this._normalizeIdentityValue(name).toLowerCase();
     return normalized ? `name:${normalized}` : null;

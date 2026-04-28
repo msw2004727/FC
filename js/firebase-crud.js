@@ -249,6 +249,13 @@ Object.assign(FirebaseService, {
     return payload;
   },
 
+  async applyFriendlyTournamentAtomic(tournamentId, teamId) {
+    await this.ensureAuthReadyForWrite();
+    const callable = firebase.app().functions('asia-east1').httpsCallable('applyFriendlyTournament');
+    const result = await callable({ tournamentId, teamId });
+    return result.data;
+  },
+
   async updateTournamentApplication(tournamentId, applicationId, updates) {
     const collectionRef = await this._getTournamentSubcollectionRef(tournamentId, 'applications');
     const docRef = collectionRef.doc(String(applicationId || '').trim());
@@ -263,6 +270,13 @@ Object.assign(FirebaseService, {
     await this.ensureAuthReadyForWrite();
     const callable = firebase.app().functions('asia-east1').httpsCallable('reviewFriendlyTournamentApplication');
     const result = await callable({ tournamentId, applicationId, action });
+    return result.data;
+  },
+
+  async removeFriendlyTournamentEntryAtomic(tournamentId, teamId) {
+    await this.ensureAuthReadyForWrite();
+    const callable = firebase.app().functions('asia-east1').httpsCallable('removeFriendlyTournamentEntry');
+    const result = await callable({ tournamentId, teamId });
     return result.data;
   },
 
@@ -326,6 +340,20 @@ Object.assign(FirebaseService, {
     await memberRef.set(record, { merge: true });
     payload._docId = safeUid;
     return payload;
+  },
+
+  async joinFriendlyTournamentRosterAtomic(tournamentId, teamId) {
+    await this.ensureAuthReadyForWrite();
+    const callable = firebase.app().functions('asia-east1').httpsCallable('joinFriendlyTournamentRoster');
+    const result = await callable({ tournamentId, teamId });
+    return result.data;
+  },
+
+  async leaveFriendlyTournamentRosterAtomic(tournamentId) {
+    await this.ensureAuthReadyForWrite();
+    const callable = firebase.app().functions('asia-east1').httpsCallable('leaveFriendlyTournamentRoster');
+    const result = await callable({ tournamentId });
+    return result.data;
   },
 
   async removeTournamentEntryMember(tournamentId, teamId, memberUid) {

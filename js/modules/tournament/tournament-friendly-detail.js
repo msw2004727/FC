@@ -17,6 +17,7 @@ Object.assign(App, {
   _friendlyTournamentDetailSeq: 0,
   _friendlyTournamentApplyBusyById: {},
   _friendlyTournamentReviewBusyById: {},
+  _friendlyTournamentEntryRemoveBusyById: {},
 
   _isFriendlyTournamentRecord(record) {
     return (this._getTournamentMode?.(record) || 'friendly') === 'friendly';
@@ -127,17 +128,7 @@ Object.assign(App, {
       return;
     }
 
-    await ApiService.createTournamentApplication(id, {
-      id: `ta_${selectedTeam.id}`,
-      teamId: selectedTeam.id,
-      teamName: selectedTeam.name || '',
-      teamImage: selectedTeam.image || '',
-      status: 'pending',
-      requestedByUid: user.uid,
-      requestedByName: user.displayName || user.name || '',
-      appliedAt: new Date().toISOString(),
-      messageGroupId: `tfa_${id}_${selectedTeam.id}`,
-    });
+    await ApiService.applyFriendlyTournamentAtomic(id, selectedTeam.id);
 
     await this._loadFriendlyTournamentDetailState(id);
     this.renderRegisterButton(this._getFriendlyTournamentState(id)?.tournament || latestTournament);
@@ -193,6 +184,51 @@ Object.assign(App, {
     }
     finally {
       delete this._friendlyTournamentReviewBusyById[busyKey];
+    }
+  },
+
+  async removeFriendlyTournamentEntry(tournamentId, teamId) {
+    const safeTournamentId = String(tournamentId || '').trim();
+    const safeTeamId = String(teamId || '').trim();
+    if (!safeTournamentId || !safeTeamId) {
+      this.showToast('缺少賽事或俱樂部資料');
+      return;
+    }
+
+    const busyKey = `${safeTournamentId}:${safeTeamId}`;
+    if (this._friendlyTournamentEntryRemoveBusyById[busyKey]) return;
+    this._friendlyTournamentEntryRemoveBusyById[busyKey] = true;
+
+    try {
+      const state = await this._loadFriendlyTournamentDetailState(safeTournamentId);
+      const tournament = state?.tournament || await ApiService.getTournamentAsync?.(safeTournamentId);
+      const entry = (state?.entries || []).find(item => item.teamId === safeTeamId);
+      if (!tournament || !this._isFriendlyTournamentRecord?.(tournament)) {
+        this.showToast('找不到賽事資料');
+        return;
+      }
+      if (!this._isTournamentGlobalAdmin() && !this._canManageTournamentRecord?.(tournament)) {
+        this.showToast('你沒有管理此賽事的權限');
+        return;
+      }
+      if (!entry || entry.entryStatus === 'host') {
+        this.showToast('主辦俱樂部不能從賽事中剔除');
+        return;
+      }
+
+      const teamName = entry.teamName || '此俱樂部';
+      if (!(await this.appConfirm(`確定要將「${teamName}」從此賽事中剔除嗎？該隊球員名單也會一併移除。`))) return;
+
+      await ApiService.removeFriendlyTournamentEntryAtomic(safeTournamentId, safeTeamId);
+      const nextState = await this._loadFriendlyTournamentDetailState(safeTournamentId);
+      this.renderRegisterButton(nextState?.tournament || tournament);
+      this.renderTournamentTab('teams');
+      this.showToast(`已剔除「${teamName}」。`);
+    } catch (err) {
+      this._showTournamentActionError?.('剔除參賽俱樂部', err);
+    }
+    finally {
+      delete this._friendlyTournamentEntryRemoveBusyById[busyKey];
     }
   },
 

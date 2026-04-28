@@ -968,42 +968,25 @@ service cloud.firestore {
         }
 
         allow read: if canManageTournamentScope()
-          || ((resource.data.teamId is string) && isCurrentUserInTeam(resource.data.teamId));
-        allow create: if tournamentExists()
-          && isAuth()
-          && hasString('teamId')
-          && isCurrentUserTeamCaptainOrLeader(request.resource.data.teamId)
-          && isValidTournamentApplicationCreate();
+          || ((resource.data.requestedByUid is string) && resource.data.requestedByUid == request.auth.uid)
+          || ((resource.data.teamId is string) && isCurrentUserInTeam(resource.data.teamId))
+          || ((resource.data.teamId is string) && isCurrentUserTeamCaptainOrLeader(resource.data.teamId));
+        allow create: if false;
         allow update: if false;
         allow delete: if false;
       }
 
       match /entries/{teamId} {
         allow read: if isAuth();
-        allow create: if tournamentExists() && canManageTournamentScope();
-        allow update: if tournamentExists() && canManageTournamentScope();
-        allow delete: if tournamentExists() && canManageTournamentScope();
+        allow create: if tournamentExists() && isAdmin();
+        allow update: if tournamentExists() && isAdmin();
+        allow delete: if tournamentExists() && isAdmin();
 
         match /members/{memberUid} {
           allow read: if isAuth();
-          allow create: if tournamentExists()
-            && (canManageTournamentScope()
-            || (isAuth()
-              && memberUid == request.auth.uid
-              && isCurrentUserInTeam(teamId)
-              && tournamentEntryExists(teamId)));
-          allow update: if tournamentExists()
-            && (canManageTournamentScope()
-            || (isAuth()
-              && memberUid == request.auth.uid
-              && isCurrentUserInTeam(teamId)
-              && tournamentEntryExists(teamId)));
-          allow delete: if tournamentExists()
-            && (canManageTournamentScope()
-            || (isAuth()
-              && memberUid == request.auth.uid
-              && isCurrentUserInTeam(teamId)
-              && tournamentEntryExists(teamId)));
+          allow create: if tournamentExists() && isAdmin();
+          allow update: if tournamentExists() && isAdmin();
+          allow delete: if tournamentExists() && isAdmin();
         }
       }
     }

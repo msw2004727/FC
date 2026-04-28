@@ -78,6 +78,9 @@ Object.assign(App, {
       const roster = Array.isArray(entry.memberRoster) && entry.memberRoster.length
         ? entry.memberRoster.map(member => `<span class="tfd-member-chip">${escapeHTML(member.name || member.uid)}</span>`).join('')
         : '<span class="tfd-empty-text">尚無隊員報名</span>';
+      const removeAction = canManage && entry.entryStatus !== 'host'
+        ? `<button class="outline-btn small" style="color:var(--danger);border-color:var(--danger)" onclick="App.removeFriendlyTournamentEntry('${escapeHTML(tournament.id)}','${escapeHTML(entry.teamId)}')">剔除</button>`
+        : '';
       return `
         <div class="tfd-team-row">
           <div class="tfd-team-side">
@@ -88,6 +91,7 @@ Object.assign(App, {
             </div>
           </div>
           <div class="tfd-team-roster">${roster}</div>
+          ${removeAction}
         </div>`;
     }).join('');
 

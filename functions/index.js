@@ -507,6 +507,109 @@ function sanitizeTournamentTeamLimit(value, fallback = 4) {
   return Math.min(4, Math.max(2, Math.floor(raw)));
 }
 
+function getTimestampMillis(value) {
+  if (!value) return NaN;
+  if (typeof value.toMillis === "function") return value.toMillis();
+  if (typeof value.toDate === "function") return value.toDate().getTime();
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number") return value;
+  return new Date(String(value)).getTime();
+}
+
+function isFriendlyTournamentData(tournament) {
+  const mode = String(tournament?.mode || tournament?.typeCode || "").trim().toLowerCase();
+  return mode === "" || mode === "friendly";
+}
+
+function isTournamentRegistrationOpenForData(tournament, now = new Date()) {
+  if (!tournament || tournament.ended === true) return false;
+  const startMs = getTimestampMillis(tournament.regStart);
+  const endMs = getTimestampMillis(tournament.regEnd);
+  const nowMs = now.getTime();
+  return Number.isFinite(startMs)
+    && Number.isFinite(endMs)
+    && startMs < endMs
+    && nowMs >= startMs
+    && nowMs <= endMs;
+}
+
+function getUserTeamIdSetFromData(userData) {
+  const ids = new Set();
+  const add = (value) => {
+    const safeValue = String(value || "").trim();
+    if (safeValue) ids.add(safeValue);
+  };
+  if (Array.isArray(userData?.teamIds)) userData.teamIds.forEach(add);
+  add(userData?.teamId);
+  return ids;
+}
+
+function isUserDataInTeam(userData, teamId) {
+  const safeTeamId = String(teamId || "").trim();
+  return !!safeTeamId && getUserTeamIdSetFromData(userData).has(safeTeamId);
+}
+
+function getTournamentRosterUnlockUidSet(teamData) {
+  const uids = new Set();
+  const add = (value) => {
+    const safeValue = String(value || "").trim();
+    if (safeValue) uids.add(safeValue);
+  };
+  add(teamData?.captainUid);
+  add(teamData?.creatorUid);
+  add(teamData?.ownerUid);
+  add(teamData?.leaderUid);
+  if (Array.isArray(teamData?.leaderUids)) teamData.leaderUids.forEach(add);
+  if (Array.isArray(teamData?.coachUids)) teamData.coachUids.forEach(add);
+  return uids;
+}
+
+function getTournamentDelegateUidSet(tournament) {
+  return new Set([
+    ...(Array.isArray(tournament?.delegateUids)
+      ? tournament.delegateUids.map(item => String(item || "").trim())
+      : []),
+    ...(Array.isArray(tournament?.delegates)
+      ? tournament.delegates.map(item => String(item?.uid || "").trim())
+      : []),
+  ].filter(Boolean));
+}
+
+async function canManageTournamentDataInTransaction(tx, tournament, uid, role) {
+  const safeUid = String(uid || "").trim();
+  if (!safeUid) return false;
+  if (isRoleAdminOrAbove(role)) return true;
+  if (String(tournament?.creatorUid || "").trim() === safeUid) return true;
+  if (getTournamentDelegateUidSet(tournament).has(safeUid)) return true;
+  const hostTeamId = String(tournament?.hostTeamId || "").trim();
+  if (!hostTeamId) return false;
+  const hostTeamDoc = await getTeamDocByTeamIdInTransaction(tx, hostTeamId);
+  return !!hostTeamDoc && isTournamentTeamOfficerForData(hostTeamDoc.data, safeUid);
+}
+
+function buildRegisteredTeamIdsFromEntries(entriesDocs, options = {}) {
+  const removedTeamId = String(options.removedTeamId || "").trim();
+  const additionalTeamId = String(options.additionalTeamId || "").trim();
+  const ids = new Set();
+  entriesDocs.forEach((doc) => {
+    const data = doc.data() || {};
+    const status = String(data.entryStatus || "").trim().toLowerCase();
+    const teamId = String(data.teamId || doc.id || "").trim();
+    if (!teamId || teamId === removedTeamId) return;
+    if (status === "host" || status === "approved") ids.add(teamId);
+  });
+  if (additionalTeamId && additionalTeamId !== removedTeamId) ids.add(additionalTeamId);
+  return Array.from(ids);
+}
+
+function assertTournamentSportCompatible(tournament, teamData) {
+  const tournamentSport = String(tournament?.sportTag || tournament?.sport || "").trim();
+  const teamSport = String(teamData?.sportTag || teamData?.sport || "").trim();
+  if (tournamentSport && teamSport && tournamentSport !== teamSport) {
+    throw new HttpsError("failed-precondition", "TOURNAMENT_TEAM_SPORT_MISMATCH");
+  }
+}
+
 function resolveTournamentStatusByTime(regStart, regEnd, now = new Date()) {
   const start = new Date(regStart);
   const end = new Date(regEnd);
@@ -549,7 +652,7 @@ function buildTournamentRootForCreate({ input, tournamentId, hostTeamId, teamDat
   [
     "name",
     "teams", "maxTeams", "teamLimit", "matches",
-    "region", "regStart", "regEnd", "matchDates",
+    "region", "sportTag", "sport", "regStart", "regEnd", "matchDates",
     "description", "image", "contentImage",
     "venues", "feeEnabled", "fee",
     "delegates", "delegateUids",
@@ -592,6 +695,7 @@ function buildTournamentRootForCreate({ input, tournamentId, hostTeamId, teamDat
     teamLimit,
     matches: Number(input.matches || 0) || 3,
     region: String(input.region || "").trim(),
+    sportTag: String(input.sportTag || input.sport || teamData?.sportTag || teamData?.sport || "").trim(),
     regStart: String(input.regStart || "").trim(),
     regEnd: String(input.regEnd || "").trim(),
     matchDates: Array.isArray(input.matchDates) ? input.matchDates : [],
@@ -1112,6 +1216,106 @@ exports.createFriendlyTournament = onCall(
   }
 );
 
+exports.applyFriendlyTournament = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB" },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "AUTH_REQUIRED");
+    }
+
+    const callerUid = request.auth.uid;
+    const tournamentId = String(request.data?.tournamentId || "").trim();
+    const teamId = String(request.data?.teamId || "").trim();
+    if (!tournamentId || !teamId) {
+      throw new HttpsError("invalid-argument", "TOURNAMENT_ID_AND_TEAM_ID_REQUIRED");
+    }
+
+    const callerUserDoc = await findUserDocByUidOrLineUserId(callerUid);
+    const callerName = String(
+      callerUserDoc?.data?.displayName
+        || callerUserDoc?.data?.name
+        || request.auth.token?.name
+        || callerUid
+    ).trim();
+
+    const tournamentRef = db.collection("tournaments").doc(tournamentId);
+    const applicationId = `ta_${teamId}`;
+    const applicationRef = tournamentRef.collection("applications").doc(applicationId);
+    const entryRef = tournamentRef.collection("entries").doc(teamId);
+
+    return await db.runTransaction(async (tx) => {
+      const [tournamentSnap, applicationSnap, entrySnap] = await Promise.all([
+        tx.get(tournamentRef),
+        tx.get(applicationRef),
+        tx.get(entryRef),
+      ]);
+      if (!tournamentSnap.exists) {
+        throw new HttpsError("not-found", "TOURNAMENT_NOT_FOUND");
+      }
+
+      const tournament = tournamentSnap.data() || {};
+      if (!isFriendlyTournamentData(tournament)) {
+        throw new HttpsError("failed-precondition", "TOURNAMENT_NOT_FRIENDLY");
+      }
+      if (!isTournamentRegistrationOpenForData(tournament)) {
+        throw new HttpsError("failed-precondition", "TOURNAMENT_REGISTRATION_NOT_OPEN");
+      }
+
+      const hostTeamId = String(tournament.hostTeamId || "").trim();
+      if (hostTeamId && hostTeamId === teamId) {
+        throw new HttpsError("failed-precondition", "HOST_TEAM_ALREADY_REGISTERED");
+      }
+      if (applicationSnap.exists || entrySnap.exists) {
+        throw new HttpsError("already-exists", "TOURNAMENT_APPLICATION_OR_ENTRY_EXISTS");
+      }
+
+      const teamDoc = await getTeamDocByTeamIdInTransaction(tx, teamId);
+      if (!teamDoc) {
+        throw new HttpsError("not-found", "TEAM_NOT_FOUND");
+      }
+      if (!isTournamentTeamOfficerForData(teamDoc.data, callerUid)) {
+        throw new HttpsError("permission-denied", "ONLY_TEAM_OFFICER_CAN_APPLY");
+      }
+      assertTournamentSportCompatible(tournament, teamDoc.data);
+
+      const entriesSnap = await tx.get(tournamentRef.collection("entries"));
+      const registeredTeams = buildRegisteredTeamIdsFromEntries(entriesSnap.docs);
+      const teamLimit = sanitizeTournamentTeamLimit(
+        tournament?.friendlyConfig?.teamLimit ?? tournament.teamLimit ?? tournament.maxTeams ?? tournament.teams,
+        4
+      );
+      if (registeredTeams.length >= teamLimit) {
+        throw new HttpsError("failed-precondition", "TOURNAMENT_TEAM_LIMIT_REACHED");
+      }
+
+      const now = new Date();
+      const application = {
+        id: applicationId,
+        teamId,
+        teamName: String(teamDoc.data?.name || teamDoc.data?.teamName || "").trim(),
+        teamImage: String(teamDoc.data?.image || teamDoc.data?.teamImage || "").trim(),
+        status: "pending",
+        requestedByUid: callerUid,
+        requestedByName: callerName,
+        appliedAt: now.toISOString(),
+        messageGroupId: `tfa_${tournamentId}_${teamId}`,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+      tx.create(applicationRef, application);
+      return {
+        applicationId,
+        status: "pending",
+        application: {
+          ...application,
+          createdAt: now.toISOString(),
+          updatedAt: now.toISOString(),
+        },
+      };
+    });
+  }
+);
+
 exports.reviewFriendlyTournamentApplication = onCall(
   { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB" },
   async (request) => {
@@ -1244,6 +1448,245 @@ exports.reviewFriendlyTournamentApplication = onCall(
         status: normalizedAction === "approve" ? "approved" : "rejected",
         alreadyReviewed,
       };
+    });
+  }
+);
+
+exports.joinFriendlyTournamentRoster = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB" },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "AUTH_REQUIRED");
+    }
+
+    const callerUid = request.auth.uid;
+    const tournamentId = String(request.data?.tournamentId || "").trim();
+    const teamId = String(request.data?.teamId || "").trim();
+    if (!tournamentId || !teamId) {
+      throw new HttpsError("invalid-argument", "TOURNAMENT_ID_AND_TEAM_ID_REQUIRED");
+    }
+
+    const callerUserDoc = await findUserDocByUidOrLineUserId(callerUid);
+    const callerUserData = callerUserDoc?.data || {};
+    const callerName = String(
+      callerUserData.displayName
+        || callerUserData.name
+        || request.auth.token?.name
+        || callerUid
+    ).trim();
+
+    const tournamentRef = db.collection("tournaments").doc(tournamentId);
+    const entryRef = tournamentRef.collection("entries").doc(teamId);
+    const memberRef = entryRef.collection("members").doc(callerUid);
+
+    return await db.runTransaction(async (tx) => {
+      const [tournamentSnap, entrySnap, memberSnap] = await Promise.all([
+        tx.get(tournamentRef),
+        tx.get(entryRef),
+        tx.get(memberRef),
+      ]);
+      if (!tournamentSnap.exists) {
+        throw new HttpsError("not-found", "TOURNAMENT_NOT_FOUND");
+      }
+      const tournament = tournamentSnap.data() || {};
+      if (!isFriendlyTournamentData(tournament)) {
+        throw new HttpsError("failed-precondition", "TOURNAMENT_NOT_FRIENDLY");
+      }
+      if (!isTournamentRegistrationOpenForData(tournament)) {
+        throw new HttpsError("failed-precondition", "TOURNAMENT_REGISTRATION_NOT_OPEN");
+      }
+      if (!entrySnap.exists) {
+        throw new HttpsError("not-found", "TOURNAMENT_ENTRY_NOT_FOUND");
+      }
+
+      const entry = entrySnap.data() || {};
+      const entryStatus = String(entry.entryStatus || "").trim().toLowerCase();
+      if (entryStatus !== "host" && entryStatus !== "approved") {
+        throw new HttpsError("failed-precondition", "TOURNAMENT_ENTRY_NOT_APPROVED");
+      }
+
+      const teamDoc = await getTeamDocByTeamIdInTransaction(tx, teamId);
+      if (!teamDoc) {
+        throw new HttpsError("not-found", "TEAM_NOT_FOUND");
+      }
+      const isOfficer = isTournamentTeamOfficerForData(teamDoc.data, callerUid);
+      if (!isOfficer && !isUserDataInTeam(callerUserData, teamId)) {
+        throw new HttpsError("permission-denied", "ONLY_TEAM_MEMBER_CAN_JOIN_ROSTER");
+      }
+
+      const entriesSnap = await tx.get(tournamentRef.collection("entries"));
+      const membershipRefs = entriesSnap.docs
+        .filter(doc => {
+          const data = doc.data() || {};
+          const status = String(data.entryStatus || "").trim().toLowerCase();
+          return status === "host" || status === "approved";
+        })
+        .map(doc => tournamentRef.collection("entries").doc(doc.id).collection("members").doc(callerUid));
+      const membershipSnaps = [];
+      for (const ref of membershipRefs) {
+        membershipSnaps.push(await tx.get(ref));
+      }
+      const existingMembership = membershipSnaps.find(snap => snap.exists);
+      if (existingMembership && existingMembership.ref.path !== memberRef.path) {
+        throw new HttpsError("failed-precondition", "ALREADY_JOINED_ANOTHER_TOURNAMENT_TEAM");
+      }
+      if (memberSnap.exists) {
+        return { status: "joined", alreadyJoined: true, teamId };
+      }
+
+      const membersSnap = await tx.get(entryRef.collection("members"));
+      const unlockUids = getTournamentRosterUnlockUidSet(teamDoc.data);
+      const isUnlocked = membersSnap.docs.some(doc => unlockUids.has(String(doc.id || doc.data()?.uid || "").trim()));
+      if (!isOfficer && !isUnlocked) {
+        throw new HttpsError("failed-precondition", "ROSTER_REQUIRES_OFFICER_FIRST_JOIN");
+      }
+
+      tx.set(memberRef, {
+        uid: callerUid,
+        name: callerName,
+        joinedAt: FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      tx.update(entryRef, { updatedAt: FieldValue.serverTimestamp() });
+      return { status: "joined", teamId };
+    });
+  }
+);
+
+exports.leaveFriendlyTournamentRoster = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB" },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "AUTH_REQUIRED");
+    }
+
+    const callerUid = request.auth.uid;
+    const tournamentId = String(request.data?.tournamentId || "").trim();
+    if (!tournamentId) {
+      throw new HttpsError("invalid-argument", "TOURNAMENT_ID_REQUIRED");
+    }
+
+    const tournamentRef = db.collection("tournaments").doc(tournamentId);
+    return await db.runTransaction(async (tx) => {
+      const tournamentSnap = await tx.get(tournamentRef);
+      if (!tournamentSnap.exists) {
+        throw new HttpsError("not-found", "TOURNAMENT_NOT_FOUND");
+      }
+      const tournament = tournamentSnap.data() || {};
+      if (!isFriendlyTournamentData(tournament)) {
+        throw new HttpsError("failed-precondition", "TOURNAMENT_NOT_FRIENDLY");
+      }
+      if (!isTournamentRegistrationOpenForData(tournament)) {
+        throw new HttpsError("failed-precondition", "TOURNAMENT_REGISTRATION_NOT_OPEN");
+      }
+
+      const entriesSnap = await tx.get(tournamentRef.collection("entries"));
+      const memberRefs = entriesSnap.docs
+        .filter(doc => {
+          const data = doc.data() || {};
+          const status = String(data.entryStatus || "").trim().toLowerCase();
+          return status === "host" || status === "approved";
+        })
+        .map(doc => tournamentRef.collection("entries").doc(doc.id).collection("members").doc(callerUid));
+      const memberSnaps = [];
+      for (const ref of memberRefs) {
+        memberSnaps.push(await tx.get(ref));
+      }
+      const removedTeamIds = [];
+      memberSnaps.forEach((snap) => {
+        if (!snap.exists) return;
+        const entryTeamId = snap.ref.parent.parent?.id || "";
+        tx.delete(snap.ref);
+        if (entryTeamId) {
+          removedTeamIds.push(entryTeamId);
+          tx.update(tournamentRef.collection("entries").doc(entryTeamId), {
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        }
+      });
+      return { status: "left", removedTeamIds };
+    });
+  }
+);
+
+exports.removeFriendlyTournamentEntry = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB" },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "AUTH_REQUIRED");
+    }
+
+    const callerUid = request.auth.uid;
+    const tournamentId = String(request.data?.tournamentId || "").trim();
+    const teamId = String(request.data?.teamId || "").trim();
+    if (!tournamentId || !teamId) {
+      throw new HttpsError("invalid-argument", "TOURNAMENT_ID_AND_TEAM_ID_REQUIRED");
+    }
+
+    const callerUserDoc = await findUserDocByUidOrLineUserId(callerUid);
+    const callerRole = await getCallerRoleWithFallback(request);
+    const callerName = String(
+      callerUserDoc?.data?.displayName
+        || callerUserDoc?.data?.name
+        || request.auth.token?.name
+        || callerUid
+    ).trim();
+
+    const tournamentRef = db.collection("tournaments").doc(tournamentId);
+    const entryRef = tournamentRef.collection("entries").doc(teamId);
+    const applicationRef = tournamentRef.collection("applications").doc(`ta_${teamId}`);
+
+    return await db.runTransaction(async (tx) => {
+      const [tournamentSnap, entrySnap, applicationSnap] = await Promise.all([
+        tx.get(tournamentRef),
+        tx.get(entryRef),
+        tx.get(applicationRef),
+      ]);
+      if (!tournamentSnap.exists) {
+        throw new HttpsError("not-found", "TOURNAMENT_NOT_FOUND");
+      }
+      const tournament = tournamentSnap.data() || {};
+      if (!isFriendlyTournamentData(tournament)) {
+        throw new HttpsError("failed-precondition", "TOURNAMENT_NOT_FRIENDLY");
+      }
+      if (tournament.ended === true) {
+        throw new HttpsError("failed-precondition", "TOURNAMENT_ALREADY_ENDED");
+      }
+      if (!(await canManageTournamentDataInTransaction(tx, tournament, callerUid, callerRole))) {
+        throw new HttpsError("permission-denied", "TOURNAMENT_MANAGE_PERMISSION_REQUIRED");
+      }
+      if (String(tournament.hostTeamId || "").trim() === teamId) {
+        throw new HttpsError("failed-precondition", "HOST_ENTRY_CANNOT_BE_REMOVED");
+      }
+      if (!entrySnap.exists) {
+        throw new HttpsError("not-found", "TOURNAMENT_ENTRY_NOT_FOUND");
+      }
+
+      const membersSnap = await tx.get(entryRef.collection("members"));
+      const entriesSnap = await tx.get(tournamentRef.collection("entries"));
+      membersSnap.docs.forEach(doc => tx.delete(doc.ref));
+      tx.delete(entryRef);
+
+      const registeredTeams = buildRegisteredTeamIdsFromEntries(entriesSnap.docs, { removedTeamId: teamId });
+      tx.update(tournamentRef, {
+        registeredTeams,
+        approvedTeamCount: registeredTeams.length,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      if (applicationSnap.exists) {
+        tx.update(applicationRef, {
+          status: "removed",
+          removedAt: FieldValue.serverTimestamp(),
+          removedByUid: callerUid,
+          removedByName: callerName,
+          reviewedAt: FieldValue.serverTimestamp(),
+          reviewedByUid: callerUid,
+          reviewedByName: callerName,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+      return { status: "removed", teamId, registeredTeams };
     });
   }
 );

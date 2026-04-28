@@ -246,11 +246,7 @@ Object.assign(App, {
       return;
     }
 
-    await ApiService.upsertTournamentEntryMember(tournamentId, selectedEntry.teamId, {
-      uid: user.uid,
-      name: user.displayName || user.name || '',
-      joinedAt: new Date().toISOString(),
-    });
+    await ApiService.joinFriendlyTournamentRosterAtomic(tournamentId, selectedEntry.teamId);
 
       this.closeFriendlyTournamentRosterPicker();
       state = await this._hydrateFriendlyTournamentRosterState(tournamentId);
@@ -282,9 +278,7 @@ Object.assign(App, {
       : '偵測到你同時存在多支俱樂部名單，確定要全部取消後重新選擇嗎？';
     if (!(await this.appConfirm(confirmText))) return;
 
-    await Promise.all(memberships.map(entry =>
-      ApiService.removeTournamentEntryMember(tournamentId, entry.teamId, user.uid).catch(() => false)
-    ));
+    await ApiService.leaveFriendlyTournamentRosterAtomic(tournamentId);
 
       this.closeFriendlyTournamentRosterPicker();
       state = await this._hydrateFriendlyTournamentRosterState(tournamentId);

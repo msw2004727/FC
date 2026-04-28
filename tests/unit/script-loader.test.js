@@ -171,6 +171,7 @@ describe('resolvePageScripts — real project groups', () => {
       'js/modules/tournament/tournament-render.js',
     ],
     tournamentDetail: [
+      'js/modules/team/team-list-helpers.js',
       'js/modules/tournament/tournament-helpers.js',
       'js/modules/tournament/tournament-core.js',
       'js/modules/tournament/tournament-render.js',
