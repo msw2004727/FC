@@ -93,6 +93,40 @@ Object.assign(App, {
 
   _attRenderTimers: {},
 
+  /**
+   * 2026-04-28 Plan B：用 event.participants / waitlistNames 陣列產出瞬間預覽 HTML
+   * 結構與 full render 類似（避免 swap 視覺跳動）但只顯示名字 + 候補標籤
+   * 後續 _doRenderAttendanceTable 走 fetch + full render 會無聲替換此內容
+   */
+  _renderAttendanceFastPreview(e) {
+    const escName = (n) => escapeHTML(String(n || '').trim());
+    const confirmed = Array.isArray(e.participants) ? e.participants : [];
+    const waitlist = Array.isArray(e.waitlistNames) ? e.waitlistNames : [];
+    const rows = [];
+    confirmed.forEach((name) => {
+      const safe = escName(name);
+      if (!safe) return;
+      rows.push('<tr class="reg-row reg-row-fast">'
+        + '<td style="padding:.45rem .5rem"><span class="reg-name-text">' + safe + '</span></td>'
+        + '<td style="padding:.45rem .2rem;text-align:center;color:var(--text-muted);font-size:.72rem">載入中...</td>'
+        + '</tr>');
+    });
+    waitlist.forEach((name) => {
+      const safe = escName(name);
+      if (!safe) return;
+      rows.push('<tr class="reg-row reg-row-fast reg-row-waitlist">'
+        + '<td style="padding:.45rem .5rem;color:var(--text-secondary)">'
+        + '<span class="reg-name-text">↳ ' + safe + ' <span style="font-size:.7rem;color:var(--warning);font-weight:600">候補</span></span>'
+        + '</td>'
+        + '<td style="padding:.45rem .2rem;text-align:center;color:var(--text-muted);font-size:.72rem">—</td>'
+        + '</tr>');
+    });
+    if (rows.length === 0) return '<div style="font-size:.8rem;color:var(--text-muted);padding:.3rem 0">尚無報名</div>';
+    return '<table class="reg-attendance-table reg-attendance-fast">'
+      + '<tbody>' + rows.join('') + '</tbody>'
+      + '</table>';
+  },
+
   async _renderAttendanceTable(eventId, containerId) {
     // 防抖：多條路徑（onSnapshot / showEventDetail / instant-save）可能連續觸發
     // 100ms 內同一 containerId 只執行最後一次，避免 DOM 連續替換導致名單閃現
@@ -121,6 +155,17 @@ Object.assign(App, {
     this._manualEditingContainerId = cId;
     const e = ApiService.getEvent(eventId);
     if (!e) return;
+
+    // ═══ 2026-04-28 Plan B：Fast Preview 瞬間預覽名單 ═══
+    // 用 event 文件已維護的 participants / waitlistNames 陣列（CF 雙端維護、與子集合一致）
+    // 條件：registrations cache 為空（首次進詳情頁、子集合尚未補查）
+    // 效果：用戶 T+0 立刻看到名字、Phase B（fetch + full render）後再無聲替換為完整版
+    const _cachedRegsForFast = ApiService.getRegistrationsByEvent(eventId);
+    const _hasFastData = (Array.isArray(e.participants) && e.participants.length > 0)
+      || (Array.isArray(e.waitlistNames) && e.waitlistNames.length > 0);
+    if (_cachedRegsForFast.length === 0 && _hasFastData) {
+      container.innerHTML = this._renderAttendanceFastPreview(e);
+    }
 
     // 舊活動可能超出全站監聽器 limit → 一次性從子集合補查
     await Promise.all([
