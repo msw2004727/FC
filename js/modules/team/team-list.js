@@ -153,35 +153,31 @@ Object.assign(App, {
     this.renderAdminTeams(q);
   },
 
-  toggleTeamPin(btn, id) {
-    return this._withButtonLoading(btn, '處理中...', async () => {
-      const t = ApiService.getTeam(id);
-      if (!t) return;
-      t.pinned = !t.pinned;
-      if (t.pinned) {
-        this._pinCounter++;
-        t.pinOrder = this._pinCounter;
-      } else {
-        t.pinOrder = 0;
-      }
-      await ApiService.updateTeamAwait(id, { pinned: t.pinned, pinOrder: t.pinOrder });
-      this.renderAdminTeams();
-      this.renderTeamList();
-      this.showToast(t.pinned ? `已置頂「${t.name}」` : `已取消置頂「${t.name}」`);
-    });
+  toggleTeamPin(id) {
+    const t = ApiService.getTeam(id);
+    if (!t) return;
+    t.pinned = !t.pinned;
+    if (t.pinned) {
+      this._pinCounter++;
+      t.pinOrder = this._pinCounter;
+    } else {
+      t.pinOrder = 0;
+    }
+    ApiService.updateTeam(id, { pinned: t.pinned, pinOrder: t.pinOrder });
+    this.renderAdminTeams();
+    this.renderTeamList();
+    this.showToast(t.pinned ? `已置頂「${t.name}」` : `已取消置頂「${t.name}」`);
   },
 
-  toggleTeamActive(btn, id) {
-    return this._withButtonLoading(btn, '處理中...', async () => {
-      const t = ApiService.getTeam(id);
-      if (!t) return;
-      t.active = !t.active;
-      await ApiService.updateTeamAwait(id, { active: t.active });
-      this.renderAdminTeams();
-      this.renderTeamList();
-      this.renderTeamManage();
-      this.showToast(t.active ? `已上架「${t.name}」` : `已下架「${t.name}」`);
-    });
+  toggleTeamActive(id) {
+    const t = ApiService.getTeam(id);
+    if (!t) return;
+    t.active = !t.active;
+    ApiService.updateTeam(id, { active: t.active });
+    this.renderAdminTeams();
+    this.renderTeamList();
+    this.renderTeamManage();
+    this.showToast(t.active ? `已上架「${t.name}」` : `已下架「${t.name}」`);
   },
 
   // ── 從 team-form-search.js 搬入（與 toggleTeamPin/toggleTeamActive 同級）──
