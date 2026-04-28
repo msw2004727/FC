@@ -2458,6 +2458,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 來源：scripts/inject-hot-events.js 寫入的 boot-*-data tag
   // 失敗（無 tag / 解析錯）→ 跳過、回到原本流程，不影響任何功能
   try {
+    const _recordKey = function(record) {
+      return String((record && (record._docId || record.id)) || '').trim();
+    };
+    const _activeBannerRecords = function(records) {
+      return (Array.isArray(records) ? records : []).filter(function(record) {
+        return record && record.status === 'active' && (record.image || record.gradient);
+      });
+    };
+    const _shouldRepairBannerCacheFromInline = function(current, records) {
+      const inlineActive = _activeBannerRecords(records);
+      if (inlineActive.length <= 1) return false;
+      const currentActiveCount = _activeBannerRecords(current).length;
+      if (inlineActive.length <= currentActiveCount) return false;
+      const currentKeys = new Set((Array.isArray(current) ? current : []).map(_recordKey).filter(Boolean));
+      return inlineActive.some(function(record) {
+        const key = _recordKey(record);
+        return key && !currentKeys.has(key);
+      });
+    };
     const _loadInlineCollection = function(scriptId, collectionName, afterApply) {
       const el = document.getElementById(scriptId);
       if (!el || !el.textContent) return;
@@ -2467,14 +2486,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       const inlineTs = parseInt(el.dataset.ts || '0', 10) || Date.now();
       const cacheTs = (FirebaseService._collectionLoadedAt && FirebaseService._collectionLoadedAt[collectionName]) || 0;
       const current = FirebaseService._cache && FirebaseService._cache[collectionName];
-      // 只在 cache 為空 OR inline 資料較新時注入（避免覆蓋更新的 localStorage 快取）
-      if (!current || current.length === 0 || inlineTs > cacheTs) {
+      // 只在 cache 為空、inline 較新，或 banner 快取缺漏 active id 時注入。
+      const shouldRepairBannerCache = collectionName === 'banners'
+        && _shouldRepairBannerCacheFromInline(current, records);
+      if (!current || current.length === 0 || inlineTs > cacheTs || shouldRepairBannerCache) {
         FirebaseService._cache[collectionName] = records;
         if (FirebaseService._collectionLoadedAt) {
           FirebaseService._collectionLoadedAt[collectionName] = inlineTs;
         }
         if (typeof afterApply === 'function') afterApply(records, inlineTs);
-        console.log(`[Boot] Phase 2.5: inline ${collectionName} 注入 ${records.length} 筆 (ts=${new Date(inlineTs).toISOString()})`);
+        console.log(`[Boot] Phase 2.5: inline ${collectionName} 注入 ${records.length} 筆 (ts=${new Date(inlineTs).toISOString()}${shouldRepairBannerCache ? ', repaired stale banner cache' : ''})`);
       } else {
         console.log(`[Boot] Phase 2.5: localStorage ${collectionName} cache 較新，跳過 inline 注入`);
       }
