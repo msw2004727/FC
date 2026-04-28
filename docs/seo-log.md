@@ -94,7 +94,7 @@ Sitemap: https://toosterx.com/sitemap.xml
 | `/seo/dodgeball.html` | 0.8 | 2026-04-22 |
 | `/seo/running.html` | 0.8 | 2026-04-22 |
 | `/seo/hiking.html` | 0.8 | 2026-04-22 |
-| `/seo/football-taichung.html` | 0.8 | 2026-04-22 |
+| `/seo/football-taichung.html` | 0.8 | 2026-04-28（場地對照表新增） |
 | `/seo/nantun-football-park.html` | 0.8 | 2026-04-22 |
 | `/seo/sports-changhua.html` | 0.8 | 2026-04-22 |
 | `/seo/sports-nantou.html` | 0.8 | 2026-04-22 |
@@ -134,6 +134,70 @@ index.html (noscript)
 ---
 
 ## SEO 優化歷史紀錄
+
+### 2026-04-28 — football-taichung.html 強化：新增「9 大場地快速對照表」+ 強化長尾關鍵字密度
+
+**問題 / 目標**：
+「台中足球」是高競爭關鍵字、5 年老 SEO 對手已穩坐前 10 名。正面對決短期難勝出。需用「長尾包圍」戰術——強化既有 `football-taichung.html` 在「街區級長尾詞」（西屯/南屯/北屯/太平/沙鹿）、「等級分類長尾」（新手/業餘/進階）、「收費分類長尾」（免費/$100-$200/$200-$400）的關鍵字密度與資訊結構。
+
+同時、Google 對結構化資料（特別是表格）有偏好——可觸發 Featured Snippet（即「精選摘要」、出現在 SERP 第 0 位、CTR 比第 1 名還高）。
+
+**執行項目**：
+
+1. **新增 H3「9 大場地快速對照表」段落**（位於 H2「台中足球場地完整推薦」之內、既有 venue-grid 卡片之前）
+   - 6 欄結構：場地名稱 / 區域 / 類型 / 收費／人 / 適合等級 / 核心特色
+   - 9 個場地完整覆蓋（朝馬、台體大、台中都會公園、西屯室內五人制、北屯運動公園、太平運動公園、西屯足球場、南屯足球場園區、彰化三村）
+   - 等級 tag 採視覺色塊（新手/業餘/進階/休閒/2027 啟用/免費）
+   - 末段附「※ 收費為每人均攤估算」+ 內鏈到首頁「台中地區」篩選
+
+2. **新增 H3「場地詳細介紹」**（既有 venue-grid 改作子標）
+   - 階層：H2 → H3 對照表 → H3 詳細介紹
+   - 結構更清楚、Google 易理解 hierarchy
+
+3. **新增專屬 CSS 樣式**（避免破壞既有 venue-card 樣式）
+   - `.venue-table-wrap`：橫向滾動 + iOS 觸控滑順
+   - `.venue-table`：1px 細邊框 + 12px 圓角 + 雙色行底色（zebra striping）
+   - `.vt-tag` 三色 tag（一般 teal / 新功能 amber / 免費 green）
+   - 響應式 `min-width: 640px` 確保手機可滑動瀏覽
+
+4. **sitemap.xml lastmod 更新**：`2026-04-22` → `2026-04-28`
+   - 觸發 Google 重新爬取此頁
+   - GitHub Actions 會在下次 push 後自動 ping Google Search Console（既有 `submit-sitemap.yml`）
+
+**關鍵 SEO 設計決策**：
+
+- **為什麼用 HTML table 而不是 div grid**：Google 爬蟲對 `<table>` 結構解析最深入、有機會觸發 Featured Snippet（精選摘要、SERP 第 0 位）。div + grid 是 visual approach、SEO 弱
+- **為什麼放在 venue-grid 之前**：用戶滑入 H2 後先看到「快速對照」、想看細節再往下看 cards。SEO 上 Google 也會優先抓「上方資訊」當摘要
+- **為什麼 H3 而非 H2**：對照表是「台中足球場地完整推薦」H2 的子內容、應為 H3。多個 H2 會稀釋主題權重
+- **為什麼 9 行不是 10 行**：保持載入快速 + 不過度膨脹頁面。9 個場地已涵蓋 5 個區（西屯/南屯/北屯/太平/沙鹿）+ 1 個跨縣（彰化）+ 一個未來地標（南屯園區 2027）
+- **為什麼 vt-tag 用顏色區分**：視覺辨識增加用戶停留時間（Google 看 dwell time 判斷頁面品質）。3 色設計：teal 為主、amber 強調未來、green 強調免費
+
+**長尾關鍵字密度提升**（grep 計數）：
+- 街區關鍵字（西屯/南屯/北屯/太平/沙鹿/豐原）：頁內提及從 ~25 → **36 次**（+44%）
+- 等級分類詞（新手/業餘/進階/休閒）：表內每一行都帶 tag、自然分布
+- 價格區間（免費/$100-$200/$200-$400）：明確列出、命中「台中免費足球」「台中便宜踢球」等長尾
+
+**預期 SEO 效益**：
+
+- **3-7 天內**：Google 重新爬取（sitemap lastmod 更新觸發）
+- **2-4 週內**：街區級長尾（西屯足球、南屯足球等）排名提升 5-10 位
+- **2-3 個月內**：可能出現 Featured Snippet（針對「台中足球場推薦」「台中各區足球場」等對照型查詢）
+- **長期**：「台中足球揪團」整體權重提升、為衝刺主關鍵字「台中足球」鋪路
+
+**驗收方式**：
+- HTML tag 配對檢查：`<table>` `<tr>` `<td>` 完整、`<div>` 平衡 ✅
+- 表格內容語意正確：6 欄 × 9 行 × 54 個 td、無漏列 ✅
+- 響應式測試：min-width 640px、手機可橫向滑動 ✅
+- 既有 venue-grid 卡片保留：階層調整為 H3、不刪內容 ✅
+- 與 nantun-football-park.html 子頁交叉連結保留 ✅
+
+**下次優化點（待後續執行）**：
+1. 強化「台中各區足球場」對應的個別頁面（`football-xitun.html` / `football-nantun.html` / `football-beitun.html` 等街區獨立頁）
+2. 新增動態活動聚合頁（`/events/taichung-football-this-weekend.html`）配合 Event schema markup
+3. 申請 Google Business Profile + Google Maps 標記（本地 SEO）
+4. 反向連結建設（PTT Soccer 板、Dcard 台中版、巴哈姆特運動板）
+
+---
 
 ### 2026-04-24 — 追認：GCP Service Account 已設定完成、sitemap 自動提交全自動運轉中
 

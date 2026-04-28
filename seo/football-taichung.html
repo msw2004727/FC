@@ -104,6 +104,19 @@
     .venue-card h4{font-size:.95rem;color:#0d9488;margin-bottom:.3rem}
     .venue-card .venue-meta{font-size:.78rem;color:#999;margin-bottom:.3rem}
     .venue-card p{font-size:.85rem;color:#666;margin:0;line-height:1.5}
+    /* 2026-04-28：場地快速對照表（取得 Featured Snippet 用）*/
+    .venue-table-wrap{margin:1rem 0 1.5rem;overflow-x:auto;-webkit-overflow-scrolling:touch}
+    .venue-table{width:100%;border-collapse:collapse;font-size:.82rem;min-width:640px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden}
+    .venue-table th{background:#0d9488;color:#fff;font-weight:600;padding:.6rem .55rem;text-align:left;font-size:.78rem;white-space:nowrap}
+    .venue-table td{padding:.55rem .55rem;border-top:1px solid #e5e7eb;color:#333;vertical-align:top;line-height:1.45}
+    .venue-table tr:nth-child(even) td{background:#f9fafb}
+    .venue-table .vt-name{font-weight:600;color:#0d9488;white-space:nowrap}
+    .venue-table .vt-area{color:#666;white-space:nowrap}
+    .venue-table .vt-cost{color:#0f766e;font-weight:600;white-space:nowrap}
+    .venue-table .vt-feature{font-size:.78rem;color:#555}
+    .venue-table .vt-tag{display:inline-block;font-size:.7rem;padding:.1rem .4rem;border-radius:6px;margin:.05rem .15rem .05rem 0;background:#e0f2f1;color:#0d9488;white-space:nowrap}
+    .venue-table .vt-tag-new{background:#fef3c7;color:#b45309}
+    .venue-table .vt-tag-free{background:#dcfce7;color:#166534}
     .cta-box{background:linear-gradient(135deg,#0d9488,#0f766e);border-radius:16px;padding:2rem 1.5rem;text-align:center;margin:2.5rem 0}
     .cta-box h2{color:#fff;border:none;margin:0 0 .6rem;padding:0}
     .cta-box p{color:rgba(255,255,255,.9);margin-bottom:1.2rem}
@@ -141,6 +154,100 @@
 
     <h2>台中足球場地完整推薦</h2>
     <p>以下是台中最受歡迎的<strong>足球場地</strong>，每個場地都有不同的特色和適合的踢球類型：</p>
+
+    <h3>9 大場地快速對照表</h3>
+    <p>一眼看懂台中各區足球場差異——按區域、類型、收費、適合等級分類：</p>
+    <div class="venue-table-wrap">
+      <table class="venue-table">
+        <thead>
+          <tr>
+            <th>場地名稱</th>
+            <th>區域</th>
+            <th>類型</th>
+            <th>收費／人</th>
+            <th>適合等級</th>
+            <th>核心特色</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="vt-name">朝馬足球場</td>
+            <td class="vt-area">西屯區</td>
+            <td>戶外天然草・8v8 ~ 11v11</td>
+            <td class="vt-cost">$150-$250</td>
+            <td><span class="vt-tag">業餘</span><span class="vt-tag">進階</span></td>
+            <td class="vt-feature">台中地標、夜間照明、揪團密度最高、近朝馬轉運站</td>
+          </tr>
+          <tr>
+            <td class="vt-name">台體大足球場</td>
+            <td class="vt-area">北區</td>
+            <td>專業天然草・11v11</td>
+            <td class="vt-cost">場地租金</td>
+            <td><span class="vt-tag">進階</span></td>
+            <td class="vt-feature">校園級草皮品質、近捷運台中公園站、適合正式比賽</td>
+          </tr>
+          <tr>
+            <td class="vt-name">台中都會公園</td>
+            <td class="vt-area">沙鹿區</td>
+            <td>開放草地・休閒</td>
+            <td class="vt-cost"><span class="vt-tag vt-tag-free">免費</span></td>
+            <td><span class="vt-tag">新手</span><span class="vt-tag">休閒</span></td>
+            <td class="vt-feature">大空間、家庭友善、適合輕鬆踢和友誼賽</td>
+          </tr>
+          <tr>
+            <td class="vt-name">西屯室內五人制</td>
+            <td class="vt-area">西屯區</td>
+            <td>室內人工草・5v5</td>
+            <td class="vt-cost">$250-$400</td>
+            <td><span class="vt-tag">新手</span><span class="vt-tag">業餘</span></td>
+            <td class="vt-feature">不受天氣影響、節奏快、觸球多、適合練技術</td>
+          </tr>
+          <tr>
+            <td class="vt-name">北屯運動公園</td>
+            <td class="vt-area">北屯區</td>
+            <td>多功能戶外草地</td>
+            <td class="vt-cost"><span class="vt-tag vt-tag-free">免費</span>~低</td>
+            <td><span class="vt-tag">業餘</span><span class="vt-tag">休閒</span></td>
+            <td class="vt-feature">社區型、近住宅區、停車方便、下班後可到</td>
+          </tr>
+          <tr>
+            <td class="vt-name">太平運動公園</td>
+            <td class="vt-area">太平區</td>
+            <td>戶外草地+跑道</td>
+            <td class="vt-cost"><span class="vt-tag vt-tag-free">免費</span></td>
+            <td><span class="vt-tag">休閒</span><span class="vt-tag">練習</span></td>
+            <td class="vt-feature">開放式、適合練習射門/盤帶、假日中部球友常來</td>
+          </tr>
+          <tr>
+            <td class="vt-name">西屯足球場</td>
+            <td class="vt-area">西屯區</td>
+            <td>戶外草地・5v5 ~ 8v8</td>
+            <td class="vt-cost">$100-$200</td>
+            <td><span class="vt-tag">業餘</span></td>
+            <td class="vt-feature">鄰近朝馬與工業區、密度高、平日晚場熱門</td>
+          </tr>
+          <tr>
+            <td class="vt-name">南屯足球場（園區）</td>
+            <td class="vt-area">南屯區</td>
+            <td>AFC 國際級・11v11+5v5</td>
+            <td class="vt-cost">待公告</td>
+            <td><span class="vt-tag vt-tag-new">2027 啟用</span></td>
+            <td class="vt-feature">全台首座 AFC 認證・天然+人工雙場・<a href="/seo/nantun-football-park">完整介紹 →</a></td>
+          </tr>
+          <tr>
+            <td class="vt-name">彰化三村足球場</td>
+            <td class="vt-area">彰化縣</td>
+            <td>室內人工草・5v5</td>
+            <td class="vt-cost">$200-$300</td>
+            <td><span class="vt-tag">新手</span><span class="vt-tag">業餘</span></td>
+            <td class="vt-feature">不怕下雨、台中開車 30-40 分、跨縣揪團熱點</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:.78rem;color:#666;margin-top:.3rem">※ 收費為每人均攤估算、實際以揪團主辦方公告為準。可在 ToosterX 上篩選「<a href="/#page-home">台中地區</a>」查看本週實際開團場次與費用。</p>
+
+    <h3>場地詳細介紹</h3>
     <div class="venue-grid">
       <div class="venue-card">
         <h4>朝馬足球場</h4>
