@@ -33,6 +33,10 @@ const PageLoader = {
   /** 首次 boot pages 載入 Promise */
   _loadAllPromise: null,
 
+  /** Shared boot fetches so ensurePage(pageId) can wait for only one fragment. */
+  _bootFetchMap: null,
+  _bootModalFetch: null,
+
   /** 頁面 ID → 片段檔名映射 */
   _pageFileMap: {
     'page-home':               'home',
@@ -126,6 +130,69 @@ const PageLoader = {
     return this._loading[fileName];
   },
 
+  _getBootPriorityFile() {
+    try {
+      if (sessionStorage.getItem('_pendingDeepEvent')) return 'activity';
+      if (sessionStorage.getItem('_pendingDeepTeam')) return 'team';
+      if (sessionStorage.getItem('_pendingDeepTournament')) return 'tournament';
+      if (sessionStorage.getItem('_pendingDeepProfile')) return 'profile';
+    } catch (_) {}
+
+    try {
+      const hashPage = (location.hash || '').replace(/^#/, '').trim();
+      if (!hashPage || hashPage === 'page-home' || !/^page-[\w-]+$/.test(hashPage)) return null;
+      const resolvedHash = (typeof App !== 'undefined' && typeof App._resolveBootPageId === 'function')
+        ? App._resolveBootPageId(hashPage)
+        : hashPage;
+      const fileName = this._pageFileMap[resolvedHash] || this._pageFileMap[hashPage];
+      return this._bootPages.includes(fileName) ? fileName : null;
+    } catch (_) {
+      return null;
+    }
+  },
+
+  _startBootFetches() {
+    if (this._bootFetchMap) return;
+
+    this._bootFetchMap = {};
+    for (const name of this._bootPages) {
+      this._bootFetchMap[name] = fetch(`pages/${name}.html?v=${CACHE_VERSION}`)
+        .then(r => { if (!r.ok) { console.warn(`[PageLoader] pages/${name}.html HTTP ${r.status}`); return ''; } return r.text(); })
+        .catch(err => { console.warn(`[PageLoader] pages/${name}.html 載入失敗:`, err); return ''; });
+    }
+
+    this._bootModalFetch = Promise.all(
+      this._modals.map(name =>
+        fetch(`pages/${name}.html?v=${CACHE_VERSION}`)
+          .then(r => { if (!r.ok) { console.warn(`[PageLoader] pages/${name}.html HTTP ${r.status}`); return ''; } return r.text(); })
+          .catch(err => { console.warn(`[PageLoader] pages/${name}.html 載入失敗:`, err); return ''; })
+      )
+    );
+  },
+
+  _keepBootHashTargetActive() {
+    if (typeof App !== 'undefined' && typeof App._activateBootHashShell === 'function') {
+      try { App._activateBootHashShell(); } catch (_) {}
+    }
+  },
+
+  async _ensureBootFile(fileName, reason = 'boot page') {
+    if (!fileName || this._loaded[fileName]) {
+      this._keepBootHashTargetActive();
+      return;
+    }
+
+    this._startBootFetches();
+    const html = await this._bootFetchMap[fileName];
+    if (html && !this._loaded[fileName]) {
+      this._appendToMainContent(html);
+      this._loaded[fileName] = true;
+      this._bindLoadedPageElements();
+      console.log(`[PageLoader] ${reason}: ${fileName}`);
+    }
+    this._keepBootHashTargetActive();
+  },
+
   /**
    * 啟動時載入核心頁面 + 彈窗（快速啟動）
    * 若偵測到 deep link，優先載入對應頁面並立即觸發渲染，不等其餘頁面。
@@ -138,31 +205,17 @@ const PageLoader = {
       const modalEl = document.getElementById('modal-container');
 
       // ── Deep link 優先載入偵測 ──
-      let priorityFile = null;
-      try {
-        if (sessionStorage.getItem('_pendingDeepEvent')) priorityFile = 'activity';
-        else if (sessionStorage.getItem('_pendingDeepTeam')) priorityFile = 'team';
-      } catch (_) {}
+      const priorityFile = this._getBootPriorityFile();
+      this._startBootFetches();
 
       // 所有 fetch 同時啟動（不論有無 priority，都並行）
-      const fetchMap = {};
-      for (const name of this._bootPages) {
-        fetchMap[name] = fetch(`pages/${name}.html?v=${CACHE_VERSION}`)
-          .then(r => { if (!r.ok) { console.warn(`[PageLoader] pages/${name}.html HTTP ${r.status}`); return ''; } return r.text(); })
-          .catch(err => { console.warn(`[PageLoader] pages/${name}.html 載入失敗:`, err); return ''; });
-      }
-      const modalFetch = Promise.all(
-        this._modals.map(name =>
-          fetch(`pages/${name}.html?v=${CACHE_VERSION}`)
-            .then(r => { if (!r.ok) { console.warn(`[PageLoader] pages/${name}.html HTTP ${r.status}`); return ''; } return r.text(); })
-            .catch(err => { console.warn(`[PageLoader] pages/${name}.html 載入失敗:`, err); return ''; })
-        )
-      );
+      const fetchMap = this._bootFetchMap;
+      const modalFetch = this._bootModalFetch;
 
       // Priority page：先 await → 立即 append → 觸發 instant deep link
       if (priorityFile && fetchMap[priorityFile]) {
         const html = await fetchMap[priorityFile];
-        if (html) {
+        if (html && !this._loaded[priorityFile]) {
           this._appendToMainContent(html);
           this._loaded[priorityFile] = true;
           this._bindLoadedPageElements();
@@ -173,14 +226,16 @@ const PageLoader = {
           }
         }
       }
+      this._keepBootHashTargetActive();
 
       // 其餘 boot pages 逐一 append（fetch 早已並行啟動，這裡只是 await 結果）
       for (const name of this._bootPages) {
         if (this._loaded[name]) continue;
         const html = await fetchMap[name];
-        if (html) {
+        if (html && !this._loaded[name]) {
           this._appendToMainContent(html);
           this._loaded[name] = true;
+          this._keepBootHashTargetActive();
         }
       }
 
@@ -213,14 +268,15 @@ const PageLoader = {
     const fileName = this._pageFileMap[pageId];
     if (!fileName || this._loaded[fileName]) return;
 
+    if (this._bootPages.includes(fileName)) {
+      await this._ensureBootFile(fileName, 'boot page requested');
+      return;
+    }
+
     const bootReady = this._bootPages.every(name => this._loaded[name]);
     if (!bootReady) {
       await this.loadAll();
       if (this._loaded[fileName]) return;
-    }
-
-    if (this._bootPages.includes(fileName)) {
-      return;
     }
 
     await this._loadSingleFile(fileName);

@@ -148,7 +148,8 @@ function _dismissBootOverlay(reason) {
     // 強制跳到 100%，總顯示 < 500ms。加 2500ms 守衛確保用戶看到完整動畫流程。
     // 與下方「pending deep link 守衛」串聯：先滿足 minVisible，再判斷 deep link。
     // 詳見 docs/tunables.md #boot-overlay-min-visible
-    var MIN_VISIBLE_MS = 2500;
+    // 2026-04-28: fixed wait disabled; hash target shell now prevents the home flash.
+    var MIN_VISIBLE_MS = 0;
     var shownAt = window._bootOverlayShownAt || 0;
     var elapsed = shownAt ? (Date.now() - shownAt) : MIN_VISIBLE_MS;
     if (elapsed < MIN_VISIBLE_MS) {
@@ -273,6 +274,8 @@ const App = {
   _scriptLoadTimeoutMs: 18000,
   _pendingProtectedBootRoute: null,
   _pendingProtectedBootRoutePromise: null,
+  _bootHashTargetPageId: null,
+  _bootHashShellActivated: false,
   // 2026-04-20: 用戶「意圖頁面」— showPage 入口立刻更新（不等 _activatePage async 完成）
   // 用於 flush pending boot route 時判斷用戶是否已主動導航到其他頁面
   _userIntendedPage: null,
@@ -1880,6 +1883,77 @@ const App = {
     return this._DETAIL_PAGE_FALLBACK[pageId] || pageId;
   },
 
+  _isBootHashShellPage(pageId) {
+    return ['page-activities', 'page-teams', 'page-tournaments'].includes(pageId);
+  },
+
+  _getBootHashPageId() {
+    try {
+      const bootUrl = new URL(window.location.href);
+      const hashOnUrl = (location.hash || '').replace(/^#/, '').trim();
+      const ridParam = bootUrl.searchParams.get('rid');
+      const rawPageId = (ridParam && (!hashOnUrl || hashOnUrl === 'page-temp-participant-report'))
+        ? 'page-temp-participant-report'
+        : hashOnUrl;
+      const pageId = this._resolveBootPageId(rawPageId);
+      if (!pageId || pageId === 'page-home' || !/^page-[\w-]+$/.test(pageId)) return '';
+      return pageId;
+    } catch (_) {
+      return '';
+    }
+  },
+
+  _syncBottomTabForPage(pageId) {
+    const mainPages = ['page-home', 'page-activities', 'page-teams', 'page-messages', 'page-profile', 'page-tournaments'];
+    document.querySelectorAll('.bot-tab').forEach(tab => {
+      tab.classList.toggle('active', mainPages.includes(pageId) && tab.dataset.page === pageId);
+    });
+  },
+
+  _primeBootHashRoute() {
+    try {
+      if (typeof this._getPendingDeepLink === 'function' && this._getPendingDeepLink()) return '';
+      const pageId = this._getBootHashPageId();
+      if (!this._isBootHashShellPage(pageId)) return '';
+
+      this._bootHashTargetPageId = pageId;
+      this.currentPage = pageId;
+      this._userIntendedPage = pageId;
+      window._bootTargetPageId = pageId;
+      this._syncBottomTabForPage(pageId);
+      document.documentElement.setAttribute('data-boot-target-page', pageId);
+      console.log('[Boot] primed hash route:', pageId);
+      return pageId;
+    } catch (err) {
+      console.warn('[Boot] prime hash route failed:', err && err.message || err);
+      return '';
+    }
+  },
+
+  _activateBootHashShell(pageId = this._bootHashTargetPageId) {
+    try {
+      if (!this._isBootHashShellPage(pageId)) return false;
+      const target = document.getElementById(pageId);
+      if (!target) return false;
+
+      document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
+      target.classList.add('active');
+      if (pageId !== 'page-home') {
+        document.getElementById('page-home')?.classList.add('home-paused');
+      }
+
+      this.currentPage = pageId;
+      this._userIntendedPage = pageId;
+      this._bootHashShellActivated = true;
+      window._bootHashNavCompleted = true;
+      this._syncBottomTabForPage(pageId);
+      return true;
+    } catch (err) {
+      console.warn('[Boot] activate hash shell failed:', err && err.message || err);
+      return false;
+    }
+  },
+
   _isProtectedBootRestoreRoute(pageId) {
     if (!pageId || pageId === 'page-home' || pageId === 'page-temp-participant-report') return false;
     if (typeof this._findDrawerMenuItem === 'function') {
@@ -2355,6 +2429,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   } catch (_) {}
   App._startDeepLinkGuard();
+  try { App._primeBootHashRoute?.(); } catch (_) {}
 
   // ── Phase 1: 載入頁面 HTML 片段（10 秒超時保護）──
   console.log('[Boot] Phase 1: PageLoader.loadAll() 開始（背景執行）');
@@ -2560,15 +2635,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         ? 'page-temp-participant-report'
         : _hashOnUrl;
       const bootPageId = App._resolveBootPageId(rawPageId);
-      if (bootPageId && bootPageId !== App.currentPage) {
+      const isPrimedBootHashShell = !!(bootPageId
+        && bootPageId === App.currentPage
+        && App._bootHashTargetPageId === bootPageId);
+      if (bootPageId && (bootPageId !== App.currentPage || isPrimedBootHashShell)) {
         // 2026-04-27：navigation 完成後 dismiss boot overlay、解除「先閃首頁」
-        if (App._isProtectedBootRestoreRoute(bootPageId)) {
+        if (!isPrimedBootHashShell && App._isProtectedBootRestoreRoute(bootPageId)) {
           App._deferProtectedBootRoute(bootPageId);
           App._flushPendingProtectedBootRoute().finally(() => {
             try { _dismissBootOverlayAfterHashNav('protected-flush-done'); } catch (_) {}
           });
         } else {
-          App.showPage(bootPageId).finally(() => {
+          const bootShowOptions = isPrimedBootHashShell
+            ? { resetHistory: true, suppressHashSync: true, resetScroll: false }
+            : undefined;
+          App.showPage(bootPageId, bootShowOptions).finally(() => {
             try { _dismissBootOverlayAfterHashNav('hash-show-done'); } catch (_) {}
           });
         }

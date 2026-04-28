@@ -3,7 +3,7 @@
 > 專案內所有可調設定（timing / limit / threshold）+ 關鍵流程的順序效果總覽。
 > **強制維護規則（CLAUDE.md §設定追蹤規範）**：修改檔案時若涉及任何可調設定 / 加載順序 / timing / 閾值，必須同步更新本檔對應條目；新增任何可調常數，必須在本檔登記。
 
-**Last Updated: 2026-04-27**（新增 renderAll boot 守衛 — hash nav / deep link 場景跳過首頁渲染）
+**Last Updated: 2026-04-28**（hash reload early route + PageLoader priority，解除 boot overlay 2500ms 最短顯示）
 
 ## 目錄
 
@@ -24,7 +24,7 @@
 <a id="boot-overlay-min-visible"></a>
 | 名稱 | 值 | 檔案位置 | 用途 |
 |------|---|---------|------|
-| **MIN_VISIBLE_MS** | `2500` ms | `app.js` `_dismissBootOverlay` | 最短顯示時間。Phase 3 快取命中(~200ms)會立刻觸發 dismiss、進度條才到 ~10% 就被強制跳 100%。此守衛確保用戶看到完整動畫流程（從 0% → ~92% 動畫約需 2.7 秒，2500ms 可看到 ~83% 進度，視覺感受完整） |
+| **MIN_VISIBLE_MS** | `0` ms | `app.js` `_dismissBootOverlay` | 已解除 boot overlay 人為最短顯示時間。hash reload 由 early boot route + PageLoader priority 先啟用目標頁 shell，overlay 不再為了遮首頁跳轉固定等待 2500ms。 |
 | Navigation 延後安全 timeout | `7000` ms | `app.js` `_dismissBootOverlay` | reload 帶 `?event=` deep link 或 `#page-xxx` hash navigation 時，等 navigation 跳轉完成才隱藏。此 timeout 是兜底（避免 navigation 卡住永遠遮罩）。**必須 < 開機看門狗 8000 ms**。2026-04-27 由 5000 調整為 7000，因 mobile/慢網路下 hash nav 經常需要 5+ 秒（cloud ready + ensureCollectionsForPage） |
 | 開機看門狗 timeout | `8000` ms | `index.html:940` | 清快取後 8 秒內未完成初始化則自動 reload（最多 2 次） |
 | Loading overlay safety timeout | `20000` ms | `index.html:820` | 終極兜底：若 boot overlay 超過 20 秒仍未消失強制隱藏 |
@@ -181,15 +181,15 @@
 <a id="sequence-effects"></a>
 ## 🔀 Sequence Effects 流程順序效果
 
-### Boot Overlay 隱藏流程（2026-04-25 修復後）
+### Boot Overlay 隱藏流程（2026-04-28 hash route 加速後）
 
 ```
 顯示: prod-early class → display='' → _bootOverlayShownAt=Date.now() → start anim
 觸發 dismiss (Phase 3 / Cloud ready / Cloud failed):
   ↓
-[守衛 1] MIN_VISIBLE_MS (1500ms) 未滿足 → setTimeout(差額) → 重新呼叫
+[守衛 1] MIN_VISIBLE_MS = 0，不再固定等待；hash 目標頁 shell 先 active
   ↓
-[守衛 2] _hasPendingDeepLink() && !_bootOverlayForceDismiss → 延後 + 5s timeout
+[守衛 2] _hasPendingDeepLink() / _hasPendingHashNav() && !_bootOverlayForceDismiss → 延後 + 7s timeout
   ↓
 [正常隱藏] 進度條跳 100% → 150ms fade out → display='none' → _startContentStallCheck
 ```
@@ -321,5 +321,6 @@ finally: _completeDeepLinkSuccess / _completeDeepLinkFallback
 ## 變更歷史
 
 - **2026-04-25**：建立檔案。初始登錄 Boot Overlay / Route Loading / Visibility / LIFF / Instant Save / SW / Limit / Threshold / Load Order / Sequence Effects / Versioning 共 11 大類。
+- **2026-04-28**：boot overlay `MIN_VISIBLE_MS` 2500 → 0；hash reload 改由 early boot route + PageLoader priority 先定位目標頁，不再用固定遮罩等待掩蓋首頁跳轉。
 - **2026-04-25**：boot overlay `MIN_VISIBLE_MS` 1500 → 2500（用戶反映 1.5 秒仍偏短，調至 2.5 秒看到更完整的進度條動畫）。
 - **2026-04-25**：新增 `SPORT_ICON_SVG_HTML` 對照表 + 匹克球 V4 SVG 圖示（紅色圓角方形拍斜放 + 黃球飛 + 速度線）。Unicode 無匹克球專屬 emoji、🏓 桌球拍視覺誤導，改用自製 SVG。
