@@ -57,12 +57,16 @@ Object.assign(App, {
       const events = eventsByDate.get(dateKey) || [];
       html += this._buildDayCellHTML({
         dateKey, dayNum, isOutside,
-        isToday: dateKey === todayKey,
+        isToday: this._isCalendarCellToday(dateKey, isOutside, todayKey),
         isPast,
         events, weekRow, weekCol,
       });
     }
     return html;
+  },
+
+  _isCalendarCellToday(dateKey, isOutside, todayKey) {
+    return !isOutside && dateKey === todayKey;
   },
 
   // ══════════════════════════════════
