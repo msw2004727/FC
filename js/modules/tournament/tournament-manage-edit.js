@@ -5,21 +5,31 @@ Object.assign(App, {
   async showEditTournament(id) {
     const safeId = String(id || '').trim();
     if (!safeId) {
+      console.error('[showEditTournament] empty/invalid id, raw =', id);
       this.showToast('賽事 ID 無效');
       return;
     }
     let rawRecord = ApiService.getTournament(safeId);
+    let fetchedFromServer = false;
+    let fetchError = null;
     if (!rawRecord) {
       // cache miss → fallback Firestore 單筆查詢(初次進入頁面、limit 截斷、深層連結等情境)
       try {
         rawRecord = await ApiService.getTournamentAsync(safeId);
+        fetchedFromServer = true;
       } catch (err) {
-        console.error('[showEditTournament] getTournamentAsync failed:', err);
+        fetchError = err;
+        console.error('[showEditTournament] getTournamentAsync threw:', err);
       }
     }
     const editRecord = this.getFriendlyTournamentRecord?.(rawRecord);
     if (!editRecord) {
-      this.showToast('找不到此賽事(可能已被刪除或仍在載入)');
+      const cacheCount = (ApiService.getTournaments?.() || []).length;
+      const shortId = safeId.length > 12 ? safeId.slice(-12) : safeId;
+      console.error('[showEditTournament] tournament not found',
+        { id: safeId, cacheSize: cacheCount, fetchedFromServer, fetchError });
+      const reason = fetchError ? '網路錯誤' : (fetchedFromServer ? '已被刪除' : '快取不一致');
+      this.showToast(`找不到此賽事 (${reason}, …${shortId})`);
       return;
     }
     if (!this.hasPermission('admin.tournaments.manage_all') && !this._canManageTournamentRecord(editRecord)) {
