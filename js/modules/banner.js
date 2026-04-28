@@ -3,25 +3,55 @@
    ================================================ */
 
 Object.assign(App, {
+  _bannerRenderFingerprint: '',
+  _bannerImageReady: {},
+
+  _getBannerRenderFingerprint(banners) {
+    const fieldSep = String.fromCharCode(31);
+    const rowSep = String.fromCharCode(30);
+    return (banners || []).map(b => [
+      b && (b._docId || b.id || ''),
+      b && (b.status || ''),
+      b && (b.title || ''),
+      b && (b.image || ''),
+      b && (b.linkUrl || ''),
+      b && (b.slotName || ''),
+      b && (b.slot || ''),
+      b && (b.gradient || ''),
+    ].map(v => String(v == null ? '' : v)).join(fieldSep)).join(rowSep) || 'empty';
+  },
 
   renderBannerCarousel(options = {}) {
     const track = document.getElementById('banner-track');
     if (!track) return;
     const { autoplay = true } = options;
     const banners = ApiService.getBanners().filter(b => b.status === 'active');
+    const fingerprint = this._getBannerRenderFingerprint(banners);
+    if (this._bannerRenderFingerprint === fingerprint && track.querySelector('.banner-slide')) {
+      this.bannerCount = track.querySelectorAll('.banner-slide').length;
+      this._bindBannerCarouselControls();
+      if (autoplay) {
+        this.startBannerCarousel();
+      } else {
+        this.stopBannerCarousel();
+      }
+      return;
+    }
+    this._bannerRenderFingerprint = fingerprint;
+
     if (banners.length === 0) {
       track.innerHTML = `<div class="banner-slide skeleton-slide">
         <div class="banner-skeleton skeleton"></div>
       </div>`;
     } else {
-      track.innerHTML = banners.map(b => {
+      track.innerHTML = banners.map((b, idx) => {
         const safeUrl = (b.linkUrl && /^https?:\/\//.test(b.linkUrl)) ? escapeHTML(b.linkUrl) : '';
         const clickHandler = safeUrl
           ? `onclick="App.trackAdClick('banner','${escapeHTML(b.id)}');window.open('${safeUrl}','sporthub_ad')" style="cursor:pointer"`
           : '';
         if (b.image) {
           // 先不設 background-image，等預載+解碼完成後再淡入
-          return `<div class="banner-slide banner-slide--loading" data-bg-src="${escapeHTML(b.image)}" ${clickHandler}>
+          return `<div class="banner-slide banner-slide--loading" data-bg-src="${escapeHTML(b.image)}" data-banner-priority="${idx === 0 ? 'high' : 'normal'}" ${clickHandler}>
             <div class="banner-content"><div class="banner-tag">${escapeHTML(b.slotName || '廣告位 ' + b.slot)}</div><h2>${escapeHTML(b.title || '')}</h2></div>
           </div>`;
         }
@@ -31,23 +61,42 @@ Object.assign(App, {
         </div>`;
       }).join('');
       // 預載 banner 圖片：背景載入+解碼完成後才設 background-image 並淡入
-      track.querySelectorAll('.banner-slide--loading').forEach(function(slide) {
+      const owner = this;
+      const scheduleIdle = window.requestIdleCallback || function(cb) { return setTimeout(cb, 120); };
+      track.querySelectorAll('.banner-slide--loading').forEach(function(slide, idx) {
         var url = slide.getAttribute('data-bg-src');
         if (!url) return;
-        var img = new Image();
-        img.src = url;
+        var priority = slide.getAttribute('data-banner-priority') || (idx === 0 ? 'high' : 'normal');
         var _show = function() {
-          slide.style.backgroundImage = "url('" + url + "')";
+          if (!slide.isConnected) return;
+          slide.style.backgroundImage = 'url("' + String(url).replace(/"/g, '\\"') + '")';
           slide.style.backgroundSize = 'cover';
           slide.style.backgroundPosition = 'center';
           slide.classList.remove('banner-slide--loading');
         };
-        if (typeof img.decode === 'function') {
-          img.decode().then(_show).catch(_show);
-        } else {
-          img.onload = _show;
-          img.onerror = _show;
+        if (owner._bannerImageReady && owner._bannerImageReady[url]) {
+          _show();
+          return;
         }
+        var _load = function() {
+          var img = new Image();
+          if ('fetchPriority' in img) img.fetchPriority = priority === 'high' ? 'high' : 'low';
+          if ('loading' in img) img.loading = priority === 'high' ? 'eager' : 'lazy';
+          if ('decoding' in img) img.decoding = 'async';
+          img.src = url;
+          var _markAndShow = function() {
+            if (owner._bannerImageReady) owner._bannerImageReady[url] = true;
+            _show();
+          };
+          if (typeof img.decode === 'function') {
+            img.decode().then(_markAndShow).catch(_markAndShow);
+          } else {
+            img.onload = _markAndShow;
+            img.onerror = _markAndShow;
+          }
+        };
+        if (priority === 'high') _load();
+        else scheduleIdle(_load, { timeout: 1500 });
       });
     }
     this.bannerIndex = 0;

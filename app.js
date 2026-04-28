@@ -2378,31 +2378,57 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.warn('[Boot] Phase 2 快取恢復失敗:', e && e.message || e);
   }
 
-  // ── Phase 2.5: 注入 inline events（deploy 時預先嵌入的活動資料、F 方案 commit #2/4）──
-  // 用戶開首頁時不必等 Firebase SDK 載入 + Firestore 查詢、可立刻渲染近期活動卡
-  // 來源：scripts/inject-hot-events.js 寫入的 <script id="boot-events-data"> tag
+  // ── Phase 2.5: 注入 inline home data（deploy 時預先嵌入的首頁核心資料）──
+  // 用戶開首頁時不必等 Firebase SDK 載入 + Firestore 查詢、可立刻渲染首頁卡片
+  // 來源：scripts/inject-hot-events.js 寫入的 boot-*-data tag
   // 失敗（無 tag / 解析錯）→ 跳過、回到原本流程，不影響任何功能
   try {
-    const _bootEventsEl = document.getElementById('boot-events-data');
-    if (_bootEventsEl && _bootEventsEl.textContent) {
-      const _inlineEvents = JSON.parse(_bootEventsEl.textContent);
-      if (Array.isArray(_inlineEvents) && _inlineEvents.length > 0) {
-        const _inlineTs = parseInt(_bootEventsEl.dataset.ts || '0', 10) || Date.now();
-        const _cacheTs = (FirebaseService._collectionLoadedAt && FirebaseService._collectionLoadedAt.events) || 0;
-        // 只在 cache 為空 OR inline 資料較新時注入（避免覆蓋更新的 localStorage 快取）
-        if (!FirebaseService._cache.events || FirebaseService._cache.events.length === 0 || _inlineTs > _cacheTs) {
-          FirebaseService._cache.events = _inlineEvents;
-          if (FirebaseService._collectionLoadedAt) {
-            FirebaseService._collectionLoadedAt.events = _inlineTs;
-          }
-          console.log(`[Boot] Phase 2.5: inline events 注入 ${_inlineEvents.length} 筆 (ts=${new Date(_inlineTs).toISOString()})`);
-        } else {
-          console.log(`[Boot] Phase 2.5: localStorage cache 較新，跳過 inline 注入`);
+    const _loadInlineCollection = function(scriptId, collectionName, afterApply) {
+      const el = document.getElementById(scriptId);
+      if (!el || !el.textContent) return;
+      const records = JSON.parse(el.textContent);
+      if (!Array.isArray(records) || records.length === 0) return;
+
+      const inlineTs = parseInt(el.dataset.ts || '0', 10) || Date.now();
+      const cacheTs = (FirebaseService._collectionLoadedAt && FirebaseService._collectionLoadedAt[collectionName]) || 0;
+      const current = FirebaseService._cache && FirebaseService._cache[collectionName];
+      // 只在 cache 為空 OR inline 資料較新時注入（避免覆蓋更新的 localStorage 快取）
+      if (!current || current.length === 0 || inlineTs > cacheTs) {
+        FirebaseService._cache[collectionName] = records;
+        if (FirebaseService._collectionLoadedAt) {
+          FirebaseService._collectionLoadedAt[collectionName] = inlineTs;
         }
+        if (typeof afterApply === 'function') afterApply(records, inlineTs);
+        console.log(`[Boot] Phase 2.5: inline ${collectionName} 注入 ${records.length} 筆 (ts=${new Date(inlineTs).toISOString()})`);
+      } else {
+        console.log(`[Boot] Phase 2.5: localStorage ${collectionName} cache 較新，跳過 inline 注入`);
       }
-    }
+    };
+
+    _loadInlineCollection('boot-events-data', 'events');
+    _loadInlineCollection('boot-banners-data', 'banners', function(records) {
+      const firstBanner = records.find(function(b) { return b && b.image; });
+      if (firstBanner && firstBanner.image && document.head && !document.querySelector('link[data-boot-banner-preload="1"]')) {
+        const preload = document.createElement('link');
+        preload.rel = 'preload';
+        preload.as = 'image';
+        preload.href = firstBanner.image;
+        preload.setAttribute('data-boot-banner-preload', '1');
+        document.head.appendChild(preload);
+      }
+    });
+    _loadInlineCollection('boot-tournaments-data', 'tournaments', function(records) {
+      const normalized = records.map(function(t) {
+        if (!t) return t;
+        return Object.assign({}, t, { _docId: t._docId || t.id });
+      });
+      FirebaseService._cache.tournaments = normalized;
+      if (FirebaseService._tournamentSlices) {
+        FirebaseService._tournamentSlices.injected = normalized.slice();
+      }
+    });
   } catch (e) {
-    console.warn('[Boot] Phase 2.5 inline events 解析失敗（不影響後續流程）:', e && e.message || e);
+    console.warn('[Boot] Phase 2.5 inline home data 解析失敗（不影響後續流程）:', e && e.message || e);
   }
 
   // ── Phase 3: 立即顯示頁面（不等 HTML / CDN / Firebase）──

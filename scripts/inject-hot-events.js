@@ -1,20 +1,14 @@
 #!/usr/bin/env node
 /**
- * inject-hot-events.js
+ * Inject small homepage boot payloads into index.html.
  *
- * 從 Firestore 抓最近 6 場熱門活動，inline 注入 index.html 的
- *   <script id="boot-events-data" type="application/json">...</script>
- * 區塊（用 <!-- BOOT_EVENTS_INJECT_BEGIN/END --> 註解定位、idempotent）。
+ * The app can render the homepage before Firebase SDK / Firestore finishes:
+ * - boot-events-data: hot activity cards
+ * - boot-banners-data: active banner carousel
+ * - boot-tournaments-data: active tournament cards
  *
- * 用戶開首頁時可在 Phase 2.5 直接讀取此 JSON、跳過等待 Firebase SDK
- * 載入 + Firestore 查詢的時間，達到「秒開」效果。
- *
- * 環境變數：
- *   GCP_SERVICE_ACCOUNT_JSON — Service Account JSON 字串（既有 secret）
- *
- * 沿用 scripts/gsc-snapshot.js 的零依賴 REST API 模式。
- *
- * 失敗時 exit code 0（不阻塞 CI）；index.html 維持上次 inline 結果。
+ * This script never fails CI/deploy. If Firestore is unavailable, it keeps the
+ * existing inline payloads in index.html.
  */
 
 const fs = require('fs');
@@ -22,30 +16,68 @@ const path = require('path');
 const https = require('https');
 const crypto = require('crypto');
 
-// ─── 設定 ───────────────────────────────────────────────
 const FIRESTORE_PROJECT = 'fc-football-6c8dc';
-const COLLECTION = 'events';
-const TARGET_EVENT_COUNT = 6;
-const FETCH_PAGE_SIZE = 30; // 多撈一些做篩選
 const OAUTH_SCOPES = 'https://www.googleapis.com/auth/datastore';
 const INDEX_HTML_PATH = path.resolve(__dirname, '..', 'index.html');
-const MARKER_BEGIN = '<!-- BOOT_EVENTS_INJECT_BEGIN -->';
-const MARKER_END = '<!-- BOOT_EVENTS_INJECT_END -->';
+const FIREBASE_CONFIG_PATH = path.resolve(__dirname, '..', 'js', 'firebase-config.js');
 
-// 注入到首頁卡需要的欄位（控制 HTML 大小）
-const KEEP_FIELDS = [
+const TARGET_EVENT_COUNT = 6;
+const TARGET_BANNER_COUNT = 8;
+const TARGET_TOURNAMENT_COUNT = 8;
+
+const INJECTION_CONFIGS = {
+  events: {
+    collection: 'events',
+    markerBegin: '<!-- BOOT_EVENTS_INJECT_BEGIN -->',
+    markerEnd: '<!-- BOOT_EVENTS_INJECT_END -->',
+    scriptId: 'boot-events-data',
+    pageSize: 40,
+    orderBy: null,
+  },
+  banners: {
+    collection: 'banners',
+    markerBegin: '<!-- BOOT_BANNERS_INJECT_BEGIN -->',
+    markerEnd: '<!-- BOOT_BANNERS_INJECT_END -->',
+    scriptId: 'boot-banners-data',
+    pageSize: 30,
+    orderBy: 'slot',
+  },
+  tournaments: {
+    collection: 'tournaments',
+    markerBegin: '<!-- BOOT_TOURNAMENTS_INJECT_BEGIN -->',
+    markerEnd: '<!-- BOOT_TOURNAMENTS_INJECT_END -->',
+    scriptId: 'boot-tournaments-data',
+    pageSize: 80,
+    orderBy: 'createdAt desc',
+  },
+};
+
+const EVENT_KEEP_FIELDS = [
   'id', 'title', 'image', 'location', 'date', 'type', 'sport', 'status',
   'region', 'current', 'waitlist', 'max', 'pinned', 'pinOrder',
   'teamOnly', 'privateEvent', 'allowExternal',
   'creatorUid', 'creatorTeamIds',
   'gender', 'ageMin', 'ageMax', 'fee', 'feeEnabled',
-  'blockedUids', // 用戶可見性過濾
+  'blockedUids',
 ];
 
-// ─── OAuth JWT（複用 gsc-snapshot.js 模式）───────────────
+const BANNER_KEEP_FIELDS = [
+  'id', '_docId', 'title', 'image', 'linkUrl', 'slotName', 'slot',
+  'status', 'gradient', 'sortOrder', 'type',
+];
+
+const TOURNAMENT_KEEP_FIELDS = [
+  'id', '_docId', 'name', 'image', 'type', 'teams', 'teamLimit', 'maxTeams',
+  'ended', 'status', 'sportTag', 'hostTeamId', 'region', 'createdAt',
+  'updatedAt', 'regStart', 'regEnd', 'matchDates', 'registeredTeams',
+  'mode', 'typeCode',
+];
+
 function base64url(data) {
   return Buffer.from(data).toString('base64')
-    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
 }
 
 function createJWT(sa) {
@@ -55,24 +87,30 @@ function createJWT(sa) {
     iss: sa.client_email,
     scope: OAUTH_SCOPES,
     aud: 'https://oauth2.googleapis.com/token',
-    iat: now, exp: now + 3600,
+    iat: now,
+    exp: now + 3600,
   };
-  const segs = [base64url(JSON.stringify(header)), base64url(JSON.stringify(payload))];
+  const segments = [base64url(JSON.stringify(header)), base64url(JSON.stringify(payload))];
   const sign = crypto.createSign('RSA-SHA256');
-  sign.update(segs.join('.'));
-  const sig = sign.sign(sa.private_key, 'base64')
-    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  return segs.join('.') + '.' + sig;
+  sign.update(segments.join('.'));
+  const signature = sign.sign(sa.private_key, 'base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+  return segments.join('.') + '.' + signature;
 }
 
 function httpJSON(options, body) {
   return new Promise((resolve, reject) => {
     const req = https.request(options, (res) => {
-      let d = '';
-      res.on('data', c => d += c);
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
       res.on('end', () => {
-        try { resolve({ status: res.statusCode, body: d ? JSON.parse(d) : {} }); }
-        catch (e) { resolve({ status: res.statusCode, body: d, parseError: true }); }
+        try {
+          resolve({ status: res.statusCode, body: data ? JSON.parse(data) : {} });
+        } catch (err) {
+          resolve({ status: res.statusCode, body: data, parseError: true });
+        }
       });
     });
     req.on('error', reject);
@@ -85,31 +123,46 @@ async function getAccessToken(sa) {
   const jwt = createJWT(sa);
   const body = `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`;
   const res = await httpJSON({
-    hostname: 'oauth2.googleapis.com', path: '/token', method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(body) },
+    hostname: 'oauth2.googleapis.com',
+    path: '/token',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Content-Length': Buffer.byteLength(body),
+    },
   }, body);
   if (res.status !== 200) throw new Error(`OAuth failed (${res.status}): ${JSON.stringify(res.body)}`);
   return res.body.access_token;
 }
 
-// ─── Firestore typed value → plain JS（遞迴）─────────────
-function fromFirestoreValue(v) {
-  if (v == null) return null;
-  if ('stringValue' in v) return v.stringValue;
-  if ('integerValue' in v) return Number(v.integerValue);
-  if ('doubleValue' in v) return v.doubleValue;
-  if ('booleanValue' in v) return v.booleanValue;
-  if ('nullValue' in v) return null;
-  if ('timestampValue' in v) return v.timestampValue; // 保留 ISO 字串
-  if ('arrayValue' in v) {
-    const arr = v.arrayValue?.values || [];
-    return arr.map(fromFirestoreValue);
+function readFirebaseApiKey() {
+  try {
+    const text = fs.readFileSync(FIREBASE_CONFIG_PATH, 'utf8');
+    const match = text.match(/apiKey:\s*["']([^"']+)["']/);
+    return match ? match[1] : '';
+  } catch (_) {
+    return '';
   }
-  if ('mapValue' in v) {
-    const fields = v.mapValue?.fields || {};
-    const obj = {};
-    for (const [k, val] of Object.entries(fields)) obj[k] = fromFirestoreValue(val);
-    return obj;
+}
+
+function fromFirestoreValue(value) {
+  if (value == null) return null;
+  if ('stringValue' in value) return value.stringValue;
+  if ('integerValue' in value) return Number(value.integerValue);
+  if ('doubleValue' in value) return value.doubleValue;
+  if ('booleanValue' in value) return value.booleanValue;
+  if ('nullValue' in value) return null;
+  if ('timestampValue' in value) return value.timestampValue;
+  if ('arrayValue' in value) {
+    return (value.arrayValue.values || []).map(fromFirestoreValue);
+  }
+  if ('mapValue' in value) {
+    const out = {};
+    const fields = value.mapValue.fields || {};
+    Object.entries(fields).forEach(([key, nested]) => {
+      out[key] = fromFirestoreValue(nested);
+    });
+    return out;
   }
   return null;
 }
@@ -117,46 +170,72 @@ function fromFirestoreValue(v) {
 function fromFirestoreDoc(doc) {
   const fields = doc.fields || {};
   const obj = {};
-  for (const [k, v] of Object.entries(fields)) obj[k] = fromFirestoreValue(v);
-  // doc.name 格式: projects/{p}/databases/{d}/documents/events/{docId}
+  Object.entries(fields).forEach(([key, value]) => {
+    obj[key] = fromFirestoreValue(value);
+  });
   const docId = (doc.name || '').split('/').pop() || '';
   obj._docId = docId;
+  if (!obj.id && docId) obj.id = docId;
   return obj;
 }
 
-// ─── 抓 events ───────────────────────────────────────────
-async function fetchEvents(token) {
-  const reqPath = `/v1/projects/${FIRESTORE_PROJECT}/databases/(default)/documents/${COLLECTION}?pageSize=${FETCH_PAGE_SIZE}`;
+async function fetchCollection(auth, config, orderByOverride) {
+  const params = new URLSearchParams();
+  params.set('pageSize', String(config.pageSize || 30));
+  const orderBy = orderByOverride === undefined ? config.orderBy : orderByOverride;
+  if (orderBy) params.set('orderBy', orderBy);
+  if (!auth.token && auth.apiKey) params.set('key', auth.apiKey);
+
+  const reqPath = `/v1/projects/${FIRESTORE_PROJECT}/databases/(default)/documents/${config.collection}?${params.toString()}`;
+  const headers = auth.token ? { Authorization: `Bearer ${auth.token}` } : {};
   const res = await httpJSON({
-    hostname: 'firestore.googleapis.com', path: reqPath, method: 'GET',
-    headers: { Authorization: `Bearer ${token}` },
+    hostname: 'firestore.googleapis.com',
+    path: reqPath,
+    method: 'GET',
+    headers,
   });
-  if (res.status !== 200) throw new Error(`Firestore fetch failed (${res.status}): ${JSON.stringify(res.body).slice(0, 200)}`);
-  const docs = res.body.documents || [];
-  return docs.map(fromFirestoreDoc);
+
+  if (res.status !== 200 && orderBy) {
+    console.warn(`[inject-hot-events] ${config.collection} orderBy failed (${res.status}); retrying without orderBy`);
+    return fetchCollection(auth, config, null);
+  }
+  if (res.status !== 200) {
+    throw new Error(`Firestore ${config.collection} fetch failed (${res.status}): ${JSON.stringify(res.body).slice(0, 200)}`);
+  }
+  return (res.body.documents || []).map(fromFirestoreDoc);
 }
 
-// ─── 篩選 + 排序（鏡像 renderHotEvents 邏輯）────────────
+function slimRecord(record, fields) {
+  const out = {};
+  fields.forEach(field => {
+    if (record[field] !== undefined && record[field] !== null) out[field] = record[field];
+  });
+  if (!out.id && record._docId) out.id = record._docId;
+  if (fields.includes('_docId') && record._docId && !out._docId) out._docId = record._docId;
+  return out;
+}
+
+function parseDateMs(dateValue) {
+  if (!dateValue) return 0;
+  if (typeof dateValue === 'number') return dateValue;
+  const raw = String(dateValue);
+  const slash = raw.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})/);
+  if (slash) {
+    return new Date(Number(slash[1]), Number(slash[2]) - 1, Number(slash[3])).getTime();
+  }
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function pickHotEvents(events) {
   const now = Date.now();
-  const candidates = events
+  return events
     .filter(e => e && e.id && e.title)
     .filter(e => e.status !== 'ended' && e.status !== 'cancelled')
-    .filter(e => !e.privateEvent) // SEO 友善：不公開活動不 inline
-    .map(e => {
-      // 解析活動日期（格式如 "2026/04/27 19:30"）
-      const dateStr = String(e.date || '');
-      let dateMs = 0;
-      const m = dateStr.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})/);
-      if (m) {
-        const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-        dateMs = d.getTime();
-      }
-      return { ...e, _dateMs: dateMs };
-    })
-    .filter(e => e._dateMs === 0 || e._dateMs >= now - 86400000) // 排除昨天以前
+    .filter(e => !e.privateEvent)
+    .map(e => Object.assign({}, e, { _dateMs: parseDateMs(e.date) }))
+    .filter(e => e._dateMs === 0 || e._dateMs >= now - 86400000)
     .sort((a, b) => {
-      // pinned 優先
       const ap = a.pinned ? 1 : 0;
       const bp = b.pinned ? 1 : 0;
       if (ap !== bp) return bp - ap;
@@ -165,119 +244,159 @@ function pickHotEvents(events) {
         const bo = Number(b.pinOrder) || 0;
         if (ao !== bo) return ao - bo;
       }
-      // 日期由近到遠
       return (a._dateMs || 0) - (b._dateMs || 0);
     })
-    .slice(0, TARGET_EVENT_COUNT);
-
-  // 移除暫存欄位 + 只保留 KEEP_FIELDS
-  return candidates.map(e => {
-    const slim = {};
-    KEEP_FIELDS.forEach(f => {
-      if (e[f] !== undefined && e[f] !== null) slim[f] = e[f];
-    });
-    return slim;
-  });
+    .slice(0, TARGET_EVENT_COUNT)
+    .map(e => slimRecord(e, EVENT_KEEP_FIELDS));
 }
 
-// ─── 注入 index.html ─────────────────────────────────────
-function buildInjectionBlock(events, ts) {
-  // 防 XSS：JSON 內若含 `</script>` 會破壞 HTML 解析、必須 escape
-  // U+2028 / U+2029 是 JS 字串中可被當成行終止符的字元、會破壞 inline JSON 解析
-  // 使用 unicode escape 取代字面字元（避免檔案內出現隱形 BiDi 控制符）
-  const LS = String.fromCharCode(0x2028);
-  const PS = String.fromCharCode(0x2029);
-  const json = JSON.stringify(events)
+function pickActiveBanners(banners) {
+  return banners
+    .filter(b => b && b.status === 'active' && (b.image || b.gradient))
+    .sort((a, b) => {
+      const slotA = Number(a.slot || a.sortOrder || 0);
+      const slotB = Number(b.slot || b.sortOrder || 0);
+      if (slotA !== slotB) return slotA - slotB;
+      return String(a.title || '').localeCompare(String(b.title || ''));
+    })
+    .slice(0, TARGET_BANNER_COUNT)
+    .map(b => slimRecord(b, BANNER_KEEP_FIELDS));
+}
+
+function isTournamentEnded(tournament) {
+  if (!tournament) return true;
+  if (tournament.ended === true) return true;
+  const status = String(tournament.status || '').toLowerCase();
+  if (['ended', 'cancelled', 'canceled', 'archived'].includes(status)) return true;
+  return /結束|已結束|取消/.test(String(tournament.status || ''));
+}
+
+function pickActiveTournaments(tournaments) {
+  return tournaments
+    .filter(t => t && (t.id || t._docId) && t.name)
+    .filter(t => !isTournamentEnded(t))
+    .sort((a, b) => {
+      const ad = parseDateMs(a.regStart || a.createdAt || a.updatedAt);
+      const bd = parseDateMs(b.regStart || b.createdAt || b.updatedAt);
+      if (ad !== bd) return bd - ad;
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    })
+    .slice(0, TARGET_TOURNAMENT_COUNT)
+    .map(t => slimRecord(t, TOURNAMENT_KEEP_FIELDS));
+}
+
+function escapeInlineJson(value) {
+  const lineSep = String.fromCharCode(0x2028);
+  const paraSep = String.fromCharCode(0x2029);
+  return JSON.stringify(value)
     .replace(/</g, '\\u003c')
     .replace(/>/g, '\\u003e')
     .replace(/&/g, '\\u0026')
-    .split(LS).join('\\u2028')
-    .split(PS).join('\\u2029');
-  return `${MARKER_BEGIN}\n  <script id="boot-events-data" type="application/json" data-ts="${ts}" data-count="${events.length}">${json}</script>\n  ${MARKER_END}`;
+    .split(lineSep).join('\\u2028')
+    .split(paraSep).join('\\u2029');
 }
 
-function injectIntoIndex(events) {
-  const html = fs.readFileSync(INDEX_HTML_PATH, 'utf8');
-  const ts = Date.now();
-  const block = buildInjectionBlock(events, ts);
+function buildInjectionBlock(config, records, ts) {
+  return `${config.markerBegin}\n  <script id="${config.scriptId}" type="application/json" data-ts="${ts}" data-count="${records.length}">${escapeInlineJson(records)}</script>\n  ${config.markerEnd}`;
+}
 
-  // 已有 BEGIN/END → 替換中間（idempotent）
-  const beginIdx = html.indexOf(MARKER_BEGIN);
-  const endIdx = html.indexOf(MARKER_END);
-
-  let next;
+function upsertBlock(html, config, block, anchorMarkerEnd) {
+  const beginIdx = html.indexOf(config.markerBegin);
+  const endIdx = html.indexOf(config.markerEnd);
   if (beginIdx >= 0 && endIdx > beginIdx) {
-    const before = html.slice(0, beginIdx);
-    const after = html.slice(endIdx + MARKER_END.length);
-    next = before + block + after;
-  } else {
-    // 首次：插在 </head> 之前（HTML 解析早期就可讀到）
-    const headCloseIdx = html.indexOf('</head>');
-    if (headCloseIdx < 0) throw new Error('找不到 </head>，無法注入');
-    next = html.slice(0, headCloseIdx) + '  ' + block + '\n' + html.slice(headCloseIdx);
+    return html.slice(0, beginIdx) + block + html.slice(endIdx + config.markerEnd.length);
   }
 
-  // diff check：內容除了 ts 屬性以外都相同 → 不寫入（避免每次 commit 只是 ts 變動）
-  const stripTs = (s) => s.replace(/data-ts="\d+"/g, 'data-ts="X"');
-  if (stripTs(next) === stripTs(html)) {
-    console.log('[inject-hot-events] HTML 內容無變更（活動相同、僅 ts 不同、不重寫）');
+  if (anchorMarkerEnd) {
+    const anchorIdx = html.indexOf(anchorMarkerEnd);
+    if (anchorIdx >= 0) {
+      const insertAt = anchorIdx + anchorMarkerEnd.length;
+      return html.slice(0, insertAt) + '\n  ' + block + html.slice(insertAt);
+    }
+  }
+
+  const headCloseIdx = html.indexOf('</head>');
+  if (headCloseIdx < 0) throw new Error('index.html missing </head>');
+  return html.slice(0, headCloseIdx) + '  ' + block + '\n' + html.slice(headCloseIdx);
+}
+
+function injectIntoIndex(payloads) {
+  const original = fs.readFileSync(INDEX_HTML_PATH, 'utf8');
+  let html = original;
+  const ts = Date.now();
+
+  payloads.forEach(payload => {
+    if (!payload || !Array.isArray(payload.records)) return;
+    const block = buildInjectionBlock(payload.config, payload.records, ts);
+    html = upsertBlock(html, payload.config, block, payload.anchorMarkerEnd);
+  });
+
+  const stripTs = s => s.replace(/data-ts="\d+"/g, 'data-ts="X"');
+  if (stripTs(html) === stripTs(original)) {
+    console.log('[inject-hot-events] index.html payload unchanged');
     return false;
   }
 
-  fs.writeFileSync(INDEX_HTML_PATH, next, 'utf8');
-  console.log(`[inject-hot-events] 已注入 ${events.length} 筆活動到 index.html (ts=${ts})`);
+  fs.writeFileSync(INDEX_HTML_PATH, html, 'utf8');
+  console.log(`[inject-hot-events] index.html updated (ts=${ts})`);
   return true;
 }
 
-// ─── 主流程 ─────────────────────────────────────────────
+async function buildAuth() {
+  const saJson = process.env.GCP_SERVICE_ACCOUNT_JSON;
+  if (saJson) {
+    const sa = JSON.parse(saJson);
+    console.log('[inject-hot-events] using service account auth');
+    return { token: await getAccessToken(sa), apiKey: '' };
+  }
+
+  const apiKey = readFirebaseApiKey();
+  if (!apiKey) throw new Error('No GCP_SERVICE_ACCOUNT_JSON and no Firebase apiKey found');
+  console.log('[inject-hot-events] using public Firestore REST fallback');
+  return { token: '', apiKey };
+}
+
+async function safePayload(auth, key, picker) {
+  const config = INJECTION_CONFIGS[key];
+  try {
+    const docs = await fetchCollection(auth, config);
+    const records = picker(docs);
+    console.log(`[inject-hot-events] ${key}: fetched ${docs.length}, picked ${records.length}`);
+    return { key, config, records };
+  } catch (err) {
+    console.warn(`[inject-hot-events] ${key}: skipped (${err.message})`);
+    return null;
+  }
+}
+
 (async () => {
   try {
-    const saJson = process.env.GCP_SERVICE_ACCOUNT_JSON;
-    if (!saJson) {
-      console.error('[inject-hot-events] 缺少 GCP_SERVICE_ACCOUNT_JSON 環境變數，跳過');
-      process.exit(0); // 不阻塞 CI
+    const auth = await buildAuth();
+    const events = await safePayload(auth, 'events', pickHotEvents);
+    const banners = await safePayload(auth, 'banners', pickActiveBanners);
+    const tournaments = await safePayload(auth, 'tournaments', pickActiveTournaments);
+
+    const payloads = [
+      events,
+      banners && Object.assign(banners, { anchorMarkerEnd: INJECTION_CONFIGS.events.markerEnd }),
+      tournaments && Object.assign(tournaments, { anchorMarkerEnd: INJECTION_CONFIGS.banners.markerEnd }),
+    ].filter(Boolean);
+
+    const totalJsonBytes = payloads.reduce((sum, payload) => sum + JSON.stringify(payload.records).length, 0);
+    console.log(`[inject-hot-events] total inline JSON size: ${totalJsonBytes} bytes`);
+    if (totalJsonBytes > 45000) {
+      console.warn('[inject-hot-events] inline JSON is larger than expected; keeping records but review if this grows');
     }
-    let sa;
-    try { sa = JSON.parse(saJson); }
-    catch (e) {
-      console.error('[inject-hot-events] GCP_SERVICE_ACCOUNT_JSON 解析失敗:', e.message);
+
+    if (!payloads.length) {
+      console.log('[inject-hot-events] no payloads fetched; keeping existing index.html');
       process.exit(0);
     }
 
-    console.log('[inject-hot-events] 取得 access token...');
-    const token = await getAccessToken(sa);
-
-    console.log('[inject-hot-events] 拉取 Firestore events...');
-    const allEvents = await fetchEvents(token);
-    console.log(`[inject-hot-events] 收到 ${allEvents.length} 筆活動文件`);
-
-    const hot = pickHotEvents(allEvents);
-    console.log(`[inject-hot-events] 篩選後保留 ${hot.length} 筆`);
-    if (hot.length === 0) {
-      console.log('[inject-hot-events] 無有效熱門活動、跳過注入');
-      process.exit(0);
-    }
-
-    // 大小檢查（防 HTML 過肥）
-    const jsonSize = JSON.stringify(hot).length;
-    console.log(`[inject-hot-events] JSON 大小: ${jsonSize} bytes`);
-    if (jsonSize > 30000) {
-      const cutTo = Math.max(3, Math.floor(TARGET_EVENT_COUNT / 2));
-      console.warn(`[inject-hot-events] JSON 過大 (${jsonSize}b > 30KB)，截斷至前 ${cutTo} 筆`);
-      hot.splice(cutTo);
-    }
-
-    const changed = injectIntoIndex(hot);
-    if (!changed) {
-      console.log('[inject-hot-events] index.html 內容未變、不需 commit');
-      process.exit(0);
-    }
-
-    console.log('[inject-hot-events] 完成');
+    injectIntoIndex(payloads);
     process.exit(0);
   } catch (err) {
-    console.error('[inject-hot-events] 失敗:', err.message);
-    console.error(err.stack);
-    process.exit(0); // 不阻塞 CI
+    console.error('[inject-hot-events] failed:', err.message);
+    process.exit(0);
   }
 })();

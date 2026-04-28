@@ -16,23 +16,33 @@ Object.assign(App, {
     if (!container) return;
     const ongoing = ApiService.getTournaments().filter(t => !this.isTournamentEnded(t))
       .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    const fingerprint = ongoing.map(t => [
+      t.id || t._docId || '',
+      t.name || '',
+      t.image || '',
+      t.type || '',
+      t.teams || '',
+      t.status || '',
+      t.ended ? '1' : '0',
+    ].join('|')).join(',');
 
     // ── 已渲染且 ID 完全相同 → 跳過，避免封面圖重載 ──
-    const existingCards = container.querySelectorAll('.h-card:not(.skeleton)');
-    if (existingCards.length > 0 && existingCards.length === ongoing.length) {
-      const renderedIds = [...existingCards].map(c => (c.getAttribute('onclick') || '').match(/'([^']+)'/)?.[1]).filter(Boolean);
-      const currentIds = ongoing.map(t => t.id);
-      if (renderedIds.length === currentIds.length && renderedIds.every((id, i) => id === currentIds[i])) return;
-    }
+    if (this._ongoingTournamentsHomeFp === fingerprint && container.querySelector('.h-card:not(.skeleton)')) return;
+    this._ongoingTournamentsHomeFp = fingerprint;
+
     this._setHomeSectionVisibility?.(container, ongoing.length > 0);
     if (ongoing.length === 0) {
       container.innerHTML = '';
       return;
     }
-    container.innerHTML = ongoing.map(t => `
+    container.innerHTML = ongoing.map((t, index) => {
+      const imagePriorityAttrs = index < 2
+        ? 'loading="eager" fetchpriority="high" decoding="async"'
+        : 'loading="lazy" decoding="async"';
+      return `
       <div class="h-card" onclick="App._openTournamentDetail('${t.id}')">
         ${t.image
-          ? `<div class="h-card-img"><img src="${t.image}" alt="${escapeHTML(t.name)}" loading="lazy" decoding="async"></div>`
+          ? `<div class="h-card-img"><img src="${escapeHTML(t.image)}" alt="${escapeHTML(t.name)}" ${imagePriorityAttrs}></div>`
           : `<div class="h-card-img h-card-placeholder">220 × 90</div>`}
         <div class="h-card-body">
           <div class="h-card-title">${escapeHTML(t.name)}</div>
@@ -42,7 +52,8 @@ Object.assign(App, {
           </div>
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
   },
 
   _tcActiveTab: 'active',

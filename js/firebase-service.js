@@ -1004,12 +1004,18 @@ const FirebaseService = {
       if (loaded.has('siteThemes')) {
         App.applySiteThemes?.();
       }
-      const shouldRefreshHome = App.currentPage === 'page-home'
+      if (App.currentPage === 'page-home'
         && ['banners', 'announcements', 'events', 'floatingAds', 'popupAds', 'sponsors', 'tournaments', 'gameConfigs']
-          .some(name => loaded.has(name));
-      if (shouldRefreshHome) {
+          .some(name => loaded.has(name))) {
         var _s = window.scrollY || window.pageYOffset || 0;
-        App.renderAll?.();
+        if (loaded.has('banners')) App.renderBannerCarousel?.();
+        if (loaded.has('announcements')) App.renderAnnouncement?.();
+        if (loaded.has('events')) App.renderHotEvents?.();
+        if (loaded.has('tournaments')) App.renderOngoingTournaments?.();
+        if (loaded.has('sponsors')) App.renderSponsors?.();
+        if (loaded.has('floatingAds')) App.renderFloatingAds?.();
+        if (loaded.has('popupAds')) App.showPopupAdsOnLoad?.();
+        if (loaded.has('gameConfigs')) App.renderHomeGameShortcut?.();
         if (_s > 0) requestAnimationFrame(function() { window.scrollTo(0, _s); });
       }
       // teams 載入後刷新賽事中心建立按鈕（解決首次進入時按鈕不顯示的時序問題）
@@ -2261,6 +2267,7 @@ const FirebaseService = {
     var base = 'https://firestore.googleapis.com/v1/projects/' + projectId + '/databases/(default)/documents/';
     var collections = this._bootCollections.slice();
     collections.push('events');
+    collections.push('tournaments');
 
     (async function() {
       try {
@@ -2278,6 +2285,14 @@ const FirebaseService = {
               self._cache.events = docs;
               updated = true;
             }
+          } else if (collections[i] === 'tournaments') {
+            if (docs.length > 0 && (!self._cache.tournaments || self._cache.tournaments.length === 0)) {
+              self._tournamentSlices.injected = docs.map(function(t) {
+                return Object.assign({}, t, { _docId: t._docId || t.id });
+              });
+              self._mergeTournamentSlices(false);
+              updated = true;
+            }
           } else {
             self._replaceCollectionCache(collections[i], docs);
             updated = true;
@@ -2287,7 +2302,14 @@ const FirebaseService = {
           self._persistCache();
           if (typeof App !== 'undefined') {
             App._cloudReady = true;
-            App.renderAll?.();
+            if (App.currentPage === 'page-home') {
+              App.renderBannerCarousel?.();
+              App.renderAnnouncement?.();
+              App.renderHotEvents?.();
+              App.renderOngoingTournaments?.();
+            } else {
+              App.renderAll?.();
+            }
           }
           console.log('[FirebaseService] REST API fallback: boot data loaded');
         }
