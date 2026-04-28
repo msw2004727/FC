@@ -74,50 +74,66 @@ Object.assign(App, {
     }, []);
   },
 
+  _isTournamentGlobalAdmin(user = null) {
+    const currentUser = user || ApiService.getCurrentUser?.();
+    if (!currentUser) return false;
+    const role = String(currentUser.role || '').trim().toLowerCase();
+    return role === 'admin' || role === 'super_admin';
+  },
+
+  _isTournamentTeamOfficerForTeam(team, user = null) {
+    const currentUser = user || ApiService.getCurrentUser?.();
+    if (!team || !currentUser) return false;
+    const uid = String(currentUser?.uid || currentUser?.lineUserId || '').trim();
+    if (!uid) return false;
+    return String(team.captainUid || '').trim() === uid
+      || String(team.creatorUid || '').trim() === uid
+      || String(team.ownerUid || '').trim() === uid
+      || String(team.leaderUid || '').trim() === uid
+      || (Array.isArray(team.leaderUids) && team.leaderUids.map(item => String(item || '').trim()).includes(uid));
+  },
+
   _isTournamentLeaderForTeam(team, user) {
     if (!team || !user) return false;
-    const uid = String(user.uid || '').trim();
+    const uid = String(user.uid || user.lineUserId || '').trim();
     if (!uid) return false;
-    const leaderUids = Array.isArray(team.leaderUids)
-      ? team.leaderUids
-      : (team.leaderUid ? [team.leaderUid] : []);
-    return leaderUids.includes(uid);
+    return String(team.leaderUid || '').trim() === uid
+      || (Array.isArray(team.leaderUids) && team.leaderUids.map(item => String(item || '').trim()).includes(uid));
   },
 
   _isTournamentCaptainForTeam(team, user) {
     if (!team || !user) return false;
-    const uid = String(user.uid || '').trim();
+    const uid = String(user.uid || user.lineUserId || '').trim();
     if (!uid) return false;
-    return !!(team.captainUid && team.captainUid === uid);
+    return String(team.captainUid || '').trim() === uid;
   },
 
   _getFriendlyResponsibleTeams(user = null) {
     const currentUser = user || ApiService.getCurrentUser?.();
     if (!currentUser) return [];
     const allTeams = ApiService.getTeams?.() || [];
-    return allTeams.filter(team =>
-      this._isTournamentCaptainForTeam(team, currentUser) || this._isTournamentLeaderForTeam(team, currentUser)
-    );
+    return allTeams.filter(team => this._isTournamentTeamOfficerForTeam(team, currentUser));
   },
 
   _canCreateFriendlyTournament(user = null) {
     const currentUser = user || ApiService.getCurrentUser?.();
     if (!currentUser) return false;
-    if (this.hasPermission('admin.tournaments.manage_all')) return true;
+    if (this._isTournamentGlobalAdmin(currentUser)) return true;
     return this._getFriendlyResponsibleTeams(currentUser).length > 0;
   },
 
   _isTournamentDelegate(tournament, user = null) {
     const currentUser = user || ApiService.getCurrentUser?.();
     if (!tournament || !currentUser) return false;
-    const delegates = Array.isArray(tournament.delegates) ? tournament.delegates : [];
-    return delegates.some(delegate => delegate && delegate.uid === currentUser.uid);
+    const currentUid = String(currentUser.uid || currentUser.lineUserId || '').trim();
+    if (!currentUid) return false;
+    return this._getTournamentDelegateUids(tournament).includes(currentUid);
   },
 
   _canManageTournamentRecord(tournament, user = null) {
     const currentUser = user || ApiService.getCurrentUser?.();
     if (!tournament || !currentUser) return false;
-    if (this.hasPermission('admin.tournaments.manage_all')) return true;
+    if (this._isTournamentGlobalAdmin(currentUser)) return true;
     const currentUid = String(currentUser.uid || currentUser.lineUserId || '').trim();
     const creatorUid = String(tournament.creatorUid || '').trim();
     if (currentUid && creatorUid && currentUid === creatorUid) return true;

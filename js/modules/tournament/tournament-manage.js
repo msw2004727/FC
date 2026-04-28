@@ -23,7 +23,7 @@ Object.assign(App, {
     const tab = this._tmActiveTab || 'active';
     this._refreshTournamentCenterCreateButton();
     const currentUser = ApiService.getCurrentUser?.();
-    const isAdmin = this.hasPermission('admin.tournaments.manage_all');
+    const isAdmin = this._isTournamentGlobalAdmin(currentUser);
     const all = (ApiService.getTournaments() || [])
       .map(t => this.getFriendlyTournamentRecord?.(t) || t)
       .filter(t => isAdmin || this._canManageTournamentRecord(t, currentUser));
@@ -84,7 +84,7 @@ Object.assign(App, {
             ` : `
               ${canManage ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;background:#10b981;color:#fff;border-color:#10b981" onclick="App.openEditTournamentSafe('${escapeHTML(t.id)}')">編輯賽事</button>` : ''}
               <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.showTournamentDetail('${t.id}')">查看詳情</button>
-              ${isAdmin ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.handleEndTournament('${t.id}')">結束賽事</button>` : ''}
+              ${canManage ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.handleEndTournament('${t.id}')">結束賽事</button>` : ''}
             `}
           </div>
         </div>
@@ -235,7 +235,6 @@ Object.assign(App, {
   },
 
   async handleCreateTournament() {
-    if (!this.hasPermission('admin.tournaments.create') && !this.hasPermission('admin.tournaments.entry')) { this.showToast('權限不足'); return; }
     const createUser = ApiService.getCurrentUser?.();
     if (!this._canCreateFriendlyTournament(createUser)) {
       this.showToast('目前只有擁有俱樂部的領隊或經理可以建立友誼賽。');
@@ -284,7 +283,6 @@ Object.assign(App, {
     if (!createCreatorUid) {
       this.showToast('請先登入後再建立賽事。'); return;
     }
-    const hostEntry = this._buildTournamentHostEntry(hostTeam, createUser);
     const createData = {
       id: generateId('ct_'),
       name: createName,
@@ -314,7 +312,7 @@ Object.assign(App, {
       hostTeamName: hostTeam.name || '',
       hostTeamImage: hostTeam.image || '',
       organizerDisplay: this._buildTournamentOrganizerDisplay(hostTeam.name, createCreatorName),
-      registeredTeams: hostEntry ? [hostTeam.id] : [],
+      registeredTeams: [hostTeam.id],
       friendlyConfig: {
         teamLimit: createTeamLimit,
         allowMemberSelfJoin: true,
@@ -325,11 +323,12 @@ Object.assign(App, {
     };
     createData.status = this.getTournamentStatus(createData);
     try {
-      await ApiService.createTournamentAwait(createData);
-      if (hostEntry) {
-        await ApiService.upsertTournamentEntry(createData.id, hostTeam.id, hostEntry).catch(err =>
-          console.warn('[createTournament] host entry subcollection write failed:', err)
-        );
+      const result = await ApiService.createFriendlyTournamentAtomic(createData);
+      if (result?.tournament) {
+        const tournaments = ApiService.getTournaments?.() || [];
+        const idx = tournaments.findIndex(item => item.id === result.tournament.id);
+        if (idx >= 0) tournaments[idx] = { ...tournaments[idx], ...result.tournament };
+        else tournaments.unshift(result.tournament);
       }
     } catch (err) {
       this._showTournamentActionError?.('建立賽事', err); return;
@@ -371,7 +370,7 @@ Object.assign(App, {
     const t = ApiService.getTournament(id);
     if (!t) return;
     // 全域權限 or 委託人/主辦隊長 fallback
-    if (!this.hasPermission('admin.tournaments.end') && !this._canManageTournamentRecord(t)) {
+    if (!this._isTournamentGlobalAdmin() && !this._canManageTournamentRecord(t)) {
       this.showToast('權限不足'); return;
     }
     if (t.ended) { this.showToast('此賽事已結束'); return; }
@@ -389,7 +388,7 @@ Object.assign(App, {
   },
   async handleReopenTournament(id) {
     // 重開賽事 — 僅全域權限（管理員）
-    if (!this.hasPermission('admin.tournaments.reopen')) {
+    if (!this._isTournamentGlobalAdmin()) {
       this.showToast('權限不足'); return;
     }
     const t = ApiService.getTournament(id);
@@ -412,7 +411,7 @@ Object.assign(App, {
     const t = ApiService.getTournament(id);
     if (!t) return;
     // 刪除賽事 — 僅全域權限（管理員）
-    if (!this.hasPermission('admin.tournaments.delete')) {
+    if (!this._isTournamentGlobalAdmin()) {
       this.showToast('僅管理員可刪除賽事'); return;
     }
     if (!(await this.appConfirm(`確定要永久刪除賽事「${t.name}」？此操作無法復原。`))) return;

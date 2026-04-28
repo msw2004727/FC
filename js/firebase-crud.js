@@ -217,15 +217,31 @@ Object.assign(FirebaseService, {
     return this._mapCollectionDocs(snapshot);
   },
 
+  async getTournamentApplication(tournamentId, applicationId) {
+    const collectionRef = await this._getTournamentSubcollectionRef(tournamentId, 'applications');
+    const safeApplicationId = String(applicationId || '').trim();
+    if (!safeApplicationId) return null;
+    const snapshot = await collectionRef.doc(safeApplicationId).get();
+    return snapshot.exists ? { id: snapshot.id, ...snapshot.data(), _docId: snapshot.id } : null;
+  },
+
   async createTournamentApplication(tournamentId, data) {
     const collectionRef = await this._getTournamentSubcollectionRef(tournamentId, 'applications');
     const payload = (typeof App !== 'undefined' && typeof App._buildFriendlyTournamentApplicationRecord === 'function')
       ? App._buildFriendlyTournamentApplicationRecord(data)
       : { ...data };
-    if (!payload.id) payload.id = generateId('ta_');
+    const safeTeamId = String(payload.teamId || '').trim();
+    const safeApplicationId = String(payload.id || '').trim();
+    if (!safeTeamId || safeApplicationId !== `ta_${safeTeamId}`) {
+      throw new Error('TOURNAMENT_APPLICATION_ID_MISMATCH');
+    }
     const docRef = collectionRef.doc(payload.id);
+    const writePayload = _stripDocId(payload);
+    delete writePayload.reviewedAt;
+    delete writePayload.reviewedByUid;
+    delete writePayload.reviewedByName;
     await docRef.set({
-      ..._stripDocId(payload),
+      ...writePayload,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
@@ -241,6 +257,13 @@ Object.assign(FirebaseService, {
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
     return { id: applicationId, ...updates, _docId: applicationId };
+  },
+
+  async reviewFriendlyTournamentApplicationAtomic(tournamentId, applicationId, action) {
+    await this.ensureAuthReadyForWrite();
+    const callable = firebase.app().functions('asia-east1').httpsCallable('reviewFriendlyTournamentApplication');
+    const result = await callable({ tournamentId, applicationId, action });
+    return result.data;
   },
 
   async listTournamentEntries(tournamentId) {
@@ -1204,6 +1227,40 @@ Object.assign(FirebaseService, {
     return data;
   },
 
+  async createFriendlyTournamentAtomic(data) {
+    await this.ensureAuthReadyForWrite();
+    const tournament = { ...data };
+    const tournamentId = String(tournament.id || generateId('ct_')).trim();
+    tournament.id = tournamentId;
+    const uploadedImageRefs = [];
+
+    try {
+      if (tournament.image && tournament.image.startsWith('data:')) {
+        const uploaded = await this._uploadImageWithRef(tournament.image, `tournaments/${tournamentId}`);
+        tournament.image = uploaded.url;
+        uploadedImageRefs.push(uploaded.ref || firebase.storage().refFromURL(uploaded.url));
+      }
+      if (tournament.contentImage && tournament.contentImage.startsWith('data:')) {
+        const uploaded = await this._uploadImageWithRef(tournament.contentImage, `tournaments/${tournamentId}_content`);
+        tournament.contentImage = uploaded.url;
+        uploadedImageRefs.push(uploaded.ref || firebase.storage().refFromURL(uploaded.url));
+      }
+
+      const callable = firebase.app().functions('asia-east1').httpsCallable('createFriendlyTournament');
+      const result = await callable({ tournament });
+      return result.data;
+    } catch (err) {
+      for (const ref of uploadedImageRefs) {
+        try {
+          await ref.delete();
+        } catch (cleanupErr) {
+          console.warn('[createFriendlyTournamentAtomic] image cleanup failed:', cleanupErr);
+        }
+      }
+      throw err;
+    }
+  },
+
   async updateTournament(id, updates) {
     const doc = this._cache.tournaments.find(t => t.id === id);
     if (!doc || !doc._docId) return null;
@@ -1671,6 +1728,49 @@ Object.assign(FirebaseService, {
         App.showToast('圖片上傳失敗，請稍後重試');
       }
       return null;
+    }
+  },
+
+  async _uploadImageWithRef(base64DataUrl, path) {
+    try {
+      if (!storage && !uploadStorage) throw new Error('Storage not initialized');
+      const activeStorage = uploadStorage || storage;
+      const uploadTargets = [
+        {
+          bucket: window._firebaseUploadStorageBucket || window._firebaseDefaultStorageBucket || '',
+          service: activeStorage,
+        },
+      ];
+      if (storage && storage !== activeStorage) {
+        uploadTargets.push({
+          bucket: window._firebaseDefaultStorageBucket || '',
+          service: storage,
+        });
+      }
+      const metadata = {
+        cacheControl: 'public, max-age=31536000',
+      };
+      let lastError = null;
+      for (const target of uploadTargets) {
+        try {
+          const ref = target.service.ref().child(`images/${path}_${Date.now()}`);
+          const snapshot = await ref.putString(base64DataUrl, 'data_url', metadata);
+          const url = await snapshot.ref.getDownloadURL();
+          console.log('[Storage] upload target bucket:', target.bucket || '(default)');
+          console.log('[Storage] 圖片上傳成功:', path);
+          return { url, ref: snapshot.ref, bucket: target.bucket || '' };
+        } catch (uploadErr) {
+          lastError = uploadErr;
+          console.warn('[Storage] upload attempt failed:', target.bucket || '(default)', uploadErr.code, uploadErr.message);
+        }
+      }
+      throw lastError || new Error('Storage upload failed');
+    } catch (err) {
+      console.error('[Storage] 圖片上傳失敗:', path, err.code, err.message, err);
+      if (typeof App !== 'undefined' && App.showToast) {
+        App.showToast('圖片上傳失敗，請稍後重試');
+      }
+      throw err;
     }
   },
 

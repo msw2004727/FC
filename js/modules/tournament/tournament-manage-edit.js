@@ -34,7 +34,7 @@ Object.assign(App, {
       this.showToast(`找不到此賽事 (${reason}, …${shortId})`);
       return;
     }
-    if (!this.hasPermission('admin.tournaments.manage_all') && !this._canManageTournamentRecord(editRecord)) {
+    if (!this._isTournamentGlobalAdmin() && !this._canManageTournamentRecord(editRecord)) {
       this.showToast('你目前只能編輯主辦或受委託的賽事。');
       return;
     }
@@ -94,7 +94,7 @@ Object.assign(App, {
       this.showToast('找不到此賽事,請重新整理後再試');
       return;
     }
-    if (!this.hasPermission('admin.tournaments.manage_all') && !this._canManageTournamentRecord(editTournament)) {
+    if (!this._isTournamentGlobalAdmin() && !this._canManageTournamentRecord(editTournament)) {
       this.showToast('你目前只能編輯主辦或受委託的賽事。');
       return;
     }
@@ -184,23 +184,9 @@ Object.assign(App, {
       },
     };
 
-    let pendingHostEntry = null;
-    if (!editTournament.hostTeamId && (!Array.isArray(editTournament.registeredTeams) || editTournament.registeredTeams.length === 0)) {
-      const hostEntry = this._buildTournamentHostEntry(hostTeam, editUser);
-      if (hostEntry) {
-        pendingHostEntry = hostEntry;
-        editUpdates.registeredTeams = [hostTeam.id];
-      }
-    }
-
     editUpdates.status = this.getTournamentStatus({ ...editTournament, ...editUpdates });
     try {
       await ApiService.updateTournamentAwait(editId, editUpdates);
-      if (pendingHostEntry) {
-        await ApiService.upsertTournamentEntry(editId, hostTeam.id, pendingHostEntry).catch(err =>
-          console.warn('[editTournament] host entry subcollection write failed:', err)
-        );
-      }
     } catch (err) {
       this._showTournamentActionError?.('更新賽事', err);
       return;

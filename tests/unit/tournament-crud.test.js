@@ -97,6 +97,10 @@ function getApplyContext(tournament, state, userTeamIds) {
 // Review decision — extracted from tournament-friendly-detail.js:298-344
 // ---------------------------------------------------------------------------
 function reviewDecision({ state, applicationId, action }) {
+  const normalizedAction = String(action || '').trim().toLowerCase();
+  if (!['approve', 'reject'].includes(normalizedAction)) {
+    return { ok: false, reason: 'invalid-action' };
+  }
   const tournament = state?.tournament;
   if (!tournament) return { ok: false, reason: 'state-null' };
 
@@ -105,7 +109,7 @@ function reviewDecision({ state, applicationId, action }) {
     return { ok: false, reason: 'not-pending' };
   }
 
-  if (action === 'approve') {
+  if (normalizedAction === 'approve') {
     const approvedCount = (state.entries || [])
       .filter(e => e.entryStatus === 'host' || e.entryStatus === 'approved').length;
     const teamLimit = tournament.friendlyConfig?.teamLimit || 4;
@@ -334,6 +338,15 @@ describe('reviewDecision — rejection', () => {
     const result = reviewDecision({ state, applicationId: 'app1', action: 'reject' });
     expect(result.ok).toBe(false);
     expect(result.reason).toBe('not-pending');
+  });
+
+  test('rejects unknown action', () => {
+    const state = makeState({
+      applications: [{ id: 'app1', teamId: 'team3', status: 'pending' }],
+    });
+    const result = reviewDecision({ state, applicationId: 'app1', action: 'maybe' });
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe('invalid-action');
   });
 });
 

@@ -71,8 +71,22 @@ Object.assign(App, {
 
     const fallbackApplications = Array.isArray(base.teamApplications) ? base.teamApplications : [];
     const fallbackEntries = Array.isArray(base.teamEntries) ? base.teamEntries : [];
+    const currentUser = ApiService.getCurrentUser?.();
+    const canManage = this._canManageTournamentRecord?.(base, currentUser);
+    const applicationPromise = (async () => {
+      if (canManage) {
+        return await ApiService.listTournamentApplications(tournamentId).catch(() => fallbackApplications);
+      }
+      if (!currentUser) return fallbackApplications;
+      const userTeamIds = (typeof this._getUserTeamIds === 'function') ? this._getUserTeamIds(currentUser) : [];
+      if (userTeamIds.length === 0) return fallbackApplications;
+      const fetched = await Promise.all(userTeamIds.map(teamId =>
+        ApiService.getTournamentApplication(tournamentId, `ta_${teamId}`).catch(() => null)
+      ));
+      return [...fallbackApplications, ...fetched.filter(Boolean)];
+    })();
     const [rawApplications, rawEntries] = await Promise.all([
-      ApiService.listTournamentApplications(tournamentId).catch(() => fallbackApplications),
+      applicationPromise,
       ApiService.listTournamentEntries(tournamentId).catch(() => fallbackEntries),
     ]);
 

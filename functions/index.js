@@ -439,6 +439,192 @@ async function getTeamByShareId(teamId) {
   return querySnap.docs[0].data() || {};
 }
 
+async function getTeamDocByTeamId(teamId) {
+  const safeTeamId = String(teamId || "").trim();
+  if (!safeTeamId) return null;
+
+  const directRef = db.collection("teams").doc(safeTeamId);
+  const directSnap = await directRef.get();
+  if (directSnap.exists) {
+    return { ref: directRef, docId: directSnap.id, data: directSnap.data() || {} };
+  }
+
+  const querySnap = await db.collection("teams")
+    .where("id", "==", safeTeamId)
+    .limit(1)
+    .get();
+  if (querySnap.empty) return null;
+  const doc = querySnap.docs[0];
+  return { ref: doc.ref, docId: doc.id, data: doc.data() || {} };
+}
+
+async function getTeamDocByTeamIdInTransaction(tx, teamId) {
+  const safeTeamId = String(teamId || "").trim();
+  if (!safeTeamId) return null;
+
+  const directRef = db.collection("teams").doc(safeTeamId);
+  const directSnap = await tx.get(directRef);
+  if (directSnap.exists) {
+    return { ref: directRef, docId: directSnap.id, data: directSnap.data() || {} };
+  }
+
+  const querySnap = await tx.get(db.collection("teams").where("id", "==", safeTeamId).limit(1));
+  if (querySnap.empty) return null;
+  const doc = querySnap.docs[0];
+  return { ref: doc.ref, docId: doc.id, data: doc.data() || {} };
+}
+
+function isRoleAdminOrAbove(role) {
+  const safeRole = normalizeRole(role);
+  return safeRole === "admin" || safeRole === "super_admin";
+}
+
+function isTournamentTeamOfficerForData(team, uid) {
+  if (!team || !uid) return false;
+  const safeUid = String(uid || "").trim();
+  if (!safeUid) return false;
+  const leaderUids = Array.isArray(team.leaderUids)
+    ? team.leaderUids.map(item => String(item || "").trim())
+    : [];
+  return String(team.captainUid || "").trim() === safeUid
+    || String(team.creatorUid || "").trim() === safeUid
+    || String(team.ownerUid || "").trim() === safeUid
+    || String(team.leaderUid || "").trim() === safeUid
+    || leaderUids.includes(safeUid);
+}
+
+function validateClientTournamentId(id) {
+  const safeId = String(id || "").trim();
+  if (!/^ct_\d+_[a-z0-9]{6,}$/i.test(safeId)) {
+    throw new HttpsError("invalid-argument", "tournament.id 必須為 ct_ 格式");
+  }
+  return safeId;
+}
+
+function sanitizeTournamentTeamLimit(value, fallback = 4) {
+  const raw = Number(value);
+  if (!Number.isFinite(raw)) return fallback;
+  return Math.min(4, Math.max(2, Math.floor(raw)));
+}
+
+function resolveTournamentStatusByTime(regStart, regEnd, now = new Date()) {
+  const start = new Date(regStart);
+  const end = new Date(regEnd);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "即將開始";
+  if (now < start) return "即將開始";
+  if (now >= start && now <= end) return "報名中";
+  return "已截止報名";
+}
+
+function normalizeTournamentDelegateList(delegates) {
+  if (!Array.isArray(delegates)) return [];
+  const seen = new Set();
+  return delegates.reduce((list, item) => {
+    const uid = String(item?.uid || "").trim();
+    const name = String(item?.name || "").trim();
+    const key = uid || (name ? `name:${name}` : "");
+    if (!key || seen.has(key)) return list;
+    seen.add(key);
+    list.push({ uid, name });
+    return list;
+  }, []);
+}
+
+function buildServerHostEntry({ teamId, teamData, callerUid, callerName }) {
+  return {
+    teamId,
+    teamName: String(teamData?.name || teamData?.teamName || "").trim(),
+    teamImage: String(teamData?.image || teamData?.teamImage || "").trim(),
+    entryStatus: "host",
+    approvedAt: FieldValue.serverTimestamp(),
+    approvedByUid: callerUid,
+    approvedByName: callerName,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+}
+
+function buildTournamentRootForCreate({ input, tournamentId, hostTeamId, teamData, callerUid, callerName, now = new Date() }) {
+  const allowed = {};
+  [
+    "name",
+    "teams", "maxTeams", "teamLimit", "matches",
+    "region", "regStart", "regEnd", "matchDates",
+    "description", "image", "contentImage",
+    "venues", "feeEnabled", "fee",
+    "delegates", "delegateUids",
+    "organizer", "organizerDisplay",
+    "gradient",
+  ].forEach(key => {
+    if (input[key] !== undefined) allowed[key] = input[key];
+  });
+
+  const delegates = normalizeTournamentDelegateList(allowed.delegates);
+  const delegateUids = Array.isArray(allowed.delegateUids)
+    ? allowed.delegateUids.map(item => String(item || "").trim()).filter(Boolean)
+    : delegates.map(item => item.uid).filter(Boolean);
+  const teamLimit = sanitizeTournamentTeamLimit(
+    input?.friendlyConfig?.teamLimit ?? input.teamLimit ?? input.maxTeams ?? input.teams,
+    4
+  );
+  const feeEnabled = typeof allowed.feeEnabled === "boolean"
+    ? allowed.feeEnabled
+    : Number(allowed.fee || 0) > 0;
+  const fee = feeEnabled ? Math.max(0, Number(allowed.fee || 0) || 0) : 0;
+  const hostTeamName = String(teamData?.name || teamData?.teamName || "").trim();
+  const hostTeamImage = String(teamData?.image || teamData?.teamImage || "").trim();
+  const organizerDisplay = String(allowed.organizerDisplay || "").trim()
+    || [hostTeamName, callerName].filter(Boolean).join(" / ")
+    || hostTeamName
+    || callerName;
+
+  const root = {
+    ...allowed,
+    id: tournamentId,
+    name: String(input.name || "").trim(),
+    type: "友誼賽",
+    typeCode: "friendly",
+    mode: "friendly",
+    schemaVersion: 2,
+    dataModel: "tournament_v2",
+    teams: teamLimit,
+    maxTeams: teamLimit,
+    teamLimit,
+    matches: Number(input.matches || 0) || 3,
+    region: String(input.region || "").trim(),
+    regStart: String(input.regStart || "").trim(),
+    regEnd: String(input.regEnd || "").trim(),
+    matchDates: Array.isArray(input.matchDates) ? input.matchDates : [],
+    description: String(input.description || "").trim(),
+    image: typeof input.image === "string" ? input.image : null,
+    contentImage: typeof input.contentImage === "string" ? input.contentImage : null,
+    venues: Array.isArray(input.venues) ? input.venues : [],
+    feeEnabled,
+    fee,
+    delegates,
+    delegateUids,
+    organizer: callerName,
+    creatorName: callerName,
+    creatorUid: callerUid,
+    hostTeamId,
+    hostTeamName,
+    hostTeamImage,
+    organizerDisplay,
+    registeredTeams: [hostTeamId],
+    approvedTeamCount: 1,
+    friendlyConfig: {
+      teamLimit,
+      allowMemberSelfJoin: true,
+      pendingVisibleToThirdParty: false,
+    },
+    ended: false,
+    status: resolveTournamentStatusByTime(input.regStart, input.regEnd, now),
+    updatedAt: FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
+  };
+  return root;
+}
+
 async function ensureAuthUser(uid) {
   try {
     return await authAdmin.getUser(uid);
@@ -845,6 +1031,223 @@ function getLineUserIdByAccessToken(accessToken) {
  * createCustomToken
  * 接收 LINE Access Token，驗證身份後簽發 Firebase Custom Token（UID = LINE userId）
  */
+exports.createFriendlyTournament = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB" },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "請先登入");
+    }
+
+    const callerUid = request.auth.uid;
+    const tournamentInput = request.data?.tournament || {};
+    const name = String(tournamentInput.name || "").trim();
+    const hostTeamId = String(tournamentInput.hostTeamId || "").trim();
+    if (!name || !hostTeamId) {
+      throw new HttpsError("invalid-argument", "名稱與主辦俱樂部為必填");
+    }
+
+    const regStart = String(tournamentInput.regStart || "").trim();
+    const regEnd = String(tournamentInput.regEnd || "").trim();
+    const regStartDate = new Date(regStart);
+    const regEndDate = new Date(regEnd);
+    if (!regStart || !regEnd
+      || Number.isNaN(regStartDate.getTime())
+      || Number.isNaN(regEndDate.getTime())
+      || regStartDate >= regEndDate) {
+      throw new HttpsError("invalid-argument", "報名時間不合法");
+    }
+
+    const tournamentId = validateClientTournamentId(tournamentInput.id);
+    const callerUserDoc = await findUserDocByUidOrLineUserId(callerUid);
+    const callerRole = await getCallerRoleWithFallback(request);
+    const callerName = String(
+      callerUserDoc?.data?.displayName
+        || callerUserDoc?.data?.name
+        || request.auth.token?.name
+        || callerUid
+    ).trim();
+    const isAdmin = isRoleAdminOrAbove(callerRole);
+
+    const teamDoc = await getTeamDocByTeamId(hostTeamId);
+    if (!teamDoc) {
+      throw new HttpsError("not-found", "主辦俱樂部不存在");
+    }
+    if (!isAdmin && !isTournamentTeamOfficerForData(teamDoc.data, callerUid)) {
+      throw new HttpsError("permission-denied", "只有主辦俱樂部的隊長 / 領隊 / 創辦人可建立賽事");
+    }
+
+    const now = new Date();
+    const root = buildTournamentRootForCreate({
+      input: { ...tournamentInput, name, hostTeamId, regStart, regEnd },
+      tournamentId,
+      hostTeamId,
+      teamData: teamDoc.data,
+      callerUid,
+      callerName,
+      now,
+    });
+    const hostEntry = buildServerHostEntry({
+      teamId: hostTeamId,
+      teamData: teamDoc.data,
+      callerUid,
+      callerName,
+    });
+
+    const tournamentRef = db.collection("tournaments").doc(tournamentId);
+    const entryRef = tournamentRef.collection("entries").doc(hostTeamId);
+    const batch = db.batch();
+    batch.create(tournamentRef, root);
+    batch.create(entryRef, hostEntry);
+    await batch.commit();
+
+    return {
+      tournamentId,
+      tournament: {
+        ...root,
+        _docId: tournamentId,
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      },
+    };
+  }
+);
+
+exports.reviewFriendlyTournamentApplication = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB" },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "請先登入");
+    }
+
+    const reviewerUid = request.auth.uid;
+    const tournamentId = String(request.data?.tournamentId || "").trim();
+    const applicationId = String(request.data?.applicationId || "").trim();
+    const normalizedAction = String(request.data?.action || "").trim().toLowerCase();
+    if (!["approve", "reject"].includes(normalizedAction)) {
+      throw new HttpsError("invalid-argument", "未知的審核操作");
+    }
+    if (!tournamentId || !applicationId) {
+      throw new HttpsError("invalid-argument", "缺少 tournamentId 或 applicationId");
+    }
+
+    const reviewerUserDoc = await findUserDocByUidOrLineUserId(reviewerUid);
+    const reviewerRole = await getCallerRoleWithFallback(request);
+    const reviewerName = String(
+      reviewerUserDoc?.data?.displayName
+        || reviewerUserDoc?.data?.name
+        || request.auth.token?.name
+        || reviewerUid
+    ).trim();
+    const isAdmin = isRoleAdminOrAbove(reviewerRole);
+    const tournamentRef = db.collection("tournaments").doc(tournamentId);
+    const applicationRef = tournamentRef.collection("applications").doc(applicationId);
+
+    return await db.runTransaction(async (tx) => {
+      const [tournamentSnap, applicationSnap] = await Promise.all([
+        tx.get(tournamentRef),
+        tx.get(applicationRef),
+      ]);
+      if (!tournamentSnap.exists) {
+        throw new HttpsError("not-found", "賽事不存在");
+      }
+      if (!applicationSnap.exists) {
+        throw new HttpsError("not-found", "申請不存在");
+      }
+
+      const tournament = tournamentSnap.data() || {};
+      const application = applicationSnap.data() || {};
+      const isCreator = String(tournament.creatorUid || "").trim() === reviewerUid;
+      const delegateUids = new Set([
+        ...(Array.isArray(tournament.delegateUids)
+          ? tournament.delegateUids.map(item => String(item || "").trim())
+          : []),
+        ...(Array.isArray(tournament.delegates)
+          ? tournament.delegates.map(item => String(item?.uid || "").trim())
+          : []),
+      ].filter(Boolean));
+      const isDelegate = delegateUids.has(reviewerUid);
+      let isHostOfficer = false;
+      const hostTeamId = String(tournament.hostTeamId || "").trim();
+      if (hostTeamId) {
+        const teamDoc = await getTeamDocByTeamIdInTransaction(tx, hostTeamId);
+        isHostOfficer = !!teamDoc && isTournamentTeamOfficerForData(teamDoc.data, reviewerUid);
+      }
+      if (!isAdmin && !isCreator && !isDelegate && !isHostOfficer) {
+        throw new HttpsError("permission-denied", "無權審核此申請");
+      }
+
+      const applicationStatus = String(application.status || "pending").trim().toLowerCase();
+      const alreadyReviewed = applicationStatus !== "pending";
+      if (alreadyReviewed && !(normalizedAction === "approve" && applicationStatus === "approved")) {
+        return { status: applicationStatus, alreadyReviewed: true };
+      }
+
+      if (normalizedAction === "approve") {
+        const entriesSnap = await tx.get(tournamentRef.collection("entries"));
+        const approvedTeamIdSet = new Set(entriesSnap.docs
+          .filter(doc => {
+            const status = String(doc.data()?.entryStatus || "").trim().toLowerCase();
+            return status === "host" || status === "approved";
+          })
+          .map(doc => String(doc.data()?.teamId || doc.id || "").trim())
+          .filter(Boolean));
+        const teamLimit = sanitizeTournamentTeamLimit(
+          tournament?.friendlyConfig?.teamLimit ?? tournament.teamLimit ?? tournament.maxTeams ?? tournament.teams,
+          4
+        );
+        const applicationTeamId = String(application.teamId || "").trim();
+        if (!applicationTeamId) {
+          throw new HttpsError("failed-precondition", "申請缺少俱樂部 ID");
+        }
+
+        if (!approvedTeamIdSet.has(applicationTeamId)) {
+          if (approvedTeamIdSet.size >= teamLimit) {
+            throw new HttpsError("failed-precondition", "隊伍名額已滿");
+          }
+          tx.set(
+            tournamentRef.collection("entries").doc(applicationTeamId),
+            {
+              teamId: applicationTeamId,
+              teamName: String(application.teamName || "").trim(),
+              teamImage: String(application.teamImage || "").trim(),
+              entryStatus: "approved",
+              approvedAt: FieldValue.serverTimestamp(),
+              approvedByUid: reviewerUid,
+              approvedByName: reviewerName,
+              createdAt: FieldValue.serverTimestamp(),
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+          approvedTeamIdSet.add(applicationTeamId);
+        }
+
+        const registeredTeams = Array.from(approvedTeamIdSet);
+        tx.update(tournamentRef, {
+          registeredTeams,
+          approvedTeamCount: registeredTeams.length,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+
+      if (!alreadyReviewed) {
+        tx.update(applicationRef, {
+          status: normalizedAction === "approve" ? "approved" : "rejected",
+          reviewedAt: FieldValue.serverTimestamp(),
+          reviewedByUid: reviewerUid,
+          reviewedByName: reviewerName,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+
+      return {
+        status: normalizedAction === "approve" ? "approved" : "rejected",
+        alreadyReviewed,
+      };
+    });
+  }
+);
+
 exports.createCustomToken = onCall(
   { region: "asia-east1", timeoutSeconds: 15, minInstances: 1 },
   async (request) => {

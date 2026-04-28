@@ -1633,3 +1633,9 @@
   - 統一 6 處 ID 生成為 `generateId(prefix)`（fp_ / fc_ / ct_ / ce_ / reg_ / ta_）
   - 新增 3 個賽事權限碼：end / reopen / delete（config.js + user-admin-perm-info.js）
 - **教訓**：Phase 1 結構整理不改邏輯，舊入口保留為 facade，降低回歸風險
+
+### 2026-04-28 — 賽事建立與審核改為後端原子流程 [永久]
+- **問題**：友誼賽建立與審核曾由前端分多筆寫入 root / applications / entries / registeredTeams，可能被 Rules 擋住或留下半成功資料；同時 `admin.tournaments.entry/manage_all` 與 record-scope 權限語意容易混淆。
+- **原因**：client batch 無法可靠證明同批 root+entry 已存在；Web client 直接 update application status 會繞過 entry 建立與 root summary 更新；前端部分守衛把入口權限當成全域管理權。
+- **修復**：新增 `createFriendlyTournament` / `reviewFriendlyTournamentApplication` callable，以 Admin SDK 原子建立 root+host entry、審核時同步 application/entry/root summary；`tournaments/{id}` root create 與 applications update/delete 改 callable-only；前端改走 atomic wrappers，權限 helper 對齊 admin role + creator/delegate/host officer。
+- **教訓**：跨文件生命週期不可讓 Web client 分段寫入；入口權限只代表能進頁面，record-scope 操作必須由 role 或資料關係重新驗證，且 Rules / callable / UI 三層要同時對齊。

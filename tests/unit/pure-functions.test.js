@@ -7,7 +7,7 @@
  */
 
 // ---------------------------------------------------------------------------
-// Extracted from js/firebase-crud.js:547-603
+// Extracted from js/firebase-crud.js:601-678
 // Pure function: computes occupancy from event config + registration list
 // ---------------------------------------------------------------------------
 function _rebuildOccupancy(event, registrations) {
@@ -261,7 +261,7 @@ describe('_rebuildOccupancy (js/firebase-crud.js:514-558)', () => {
 
   // ----------------------------------------------------------------
   // Phase 0 (2026-04-19): participantsWithUid 遷移前置—同暱稱、排序、去重覆蓋
-  // 鎖定 _rebuildOccupancy 現有行為，作�a Phase 1 安全網
+  // 鎖定 _rebuildOccupancy 現有行為，作為 Phase 1 安全網
   // ----------------------------------------------------------------
 
   test('same userName with different userId -> both included (confirmed)', () => {

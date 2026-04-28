@@ -136,13 +136,17 @@ function registerTournamentDecision(tournament, state, user, availableTeams, app
 // Extracted from tournament-friendly-detail.js:298-334
 // ---------------------------------------------------------------------------
 function reviewApplicationDecision(state, applicationId, action, approvedCount) {
+  const normalizedAction = String(action || '').trim().toLowerCase();
+  if (!['approve', 'reject'].includes(normalizedAction)) {
+    return { blocked: true, reason: 'invalid-action' };
+  }
   const tournament = state?.tournament;
   if (!tournament) return { blocked: true, reason: 'state-null' };
   const application = (state.applications || []).find(item => item.id === applicationId);
   if (!application || application.status !== 'pending') {
     return { blocked: true, reason: 'not-pending' };
   }
-  if (action === 'approve') {
+  if (normalizedAction === 'approve') {
     const teamLimit = tournament.friendlyConfig?.teamLimit || 4;
     const alreadyEntry = (state.entries || []).some(e => e.teamId === application.teamId);
     if (!alreadyEntry && approvedCount >= teamLimit) {
@@ -228,6 +232,17 @@ describe('Bug #1: State null access (reviewApplication)', () => {
     const result = reviewApplicationDecision(state, 'missing', 'approve', 0);
     expect(result.blocked).toBe(true);
     expect(result.reason).toBe('not-pending');
+  });
+
+  test('returns invalid-action for unknown action', () => {
+    const state = {
+      tournament: { id: 't1' },
+      applications: [{ id: 'app1', teamId: 'teamA', status: 'pending' }],
+      entries: [],
+    };
+    const result = reviewApplicationDecision(state, 'app1', 'maybe', 0);
+    expect(result.blocked).toBe(true);
+    expect(result.reason).toBe('invalid-action');
   });
 });
 

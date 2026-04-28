@@ -14,19 +14,23 @@ This directory is reserved for the tournament refactor so the feature can move o
   - notifications
 - Future `cup` and `league` modes will expand this further.
 
-## Recommended split
-- `tournament-core.js`
-- `tournament-permissions.js`
-- `tournament-friendly-form.js`
-- `tournament-friendly-detail.js`
-- `tournament-friendly-registration.js`
-- `tournament-friendly-notify.js`
-- `tournament-friendly-render.js`
+## Current split
+- `tournament-core.js` — shared status, normalization, record builders, edit lazy-load guard.
+- `tournament-helpers.js` — organizer/delegate helpers and record-scope permission checks.
+- `tournament-render.js` — public list/timeline rendering.
+- `tournament-detail.js` — legacy/non-friendly detail compatibility.
+- `tournament-friendly-detail.js` — friendly detail page actions and application review callsite.
+- `tournament-friendly-detail-view.js` — friendly detail tab/content rendering.
+- `tournament-friendly-state.js` — friendly detail state, application visibility, local cache sync.
+- `tournament-friendly-roster.js` — approved-team roster/member participation flow.
+- `tournament-friendly-notify.js` — notification wrappers for application submit/review.
+- `tournament-manage.js` — admin list, create, end/reopen/delete flows.
+- `tournament-manage-form.js` — shared create/edit form widgets.
+- `tournament-manage-host.js` — host-team option and host entry builders.
+- `tournament-manage-edit.js` — edit modal hydration and save.
+- `tournament-share.js` / `tournament-share-builders.js` — tournament share UI/content builders.
 
 ## Migration note
-- Production still uses the legacy flat files:
-  - `tournament-manage.js`
-  - `tournament-render.js`
-- The first extracted shared module is already live:
-  - `js/modules/tournament/tournament-core.js`
-- New work should treat this directory as the target landing zone for the refactor.
+- Production now loads this directory as the tournament feature group.
+- Public/detail pages use the `tournament` group; admin tournament pages use `tournamentAdmin`.
+- `admin.tournaments.entry` is an entry/page-access permission only. It must not be treated as record-scope edit/review authority; record-scope actions must use admin role, creator, delegate, or host-team officer checks.

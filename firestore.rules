@@ -929,8 +929,7 @@ service cloud.firestore {
       }
 
       allow read: if true;
-      allow create: if hasString('name')
-        && canCreateTournamentRoot();
+      allow create: if false;
       allow update: if isAdmin()
         || (tournamentExists()
           && canManageTournamentScope()
@@ -939,14 +938,44 @@ service cloud.firestore {
       allow delete: if isAdmin();
 
       match /applications/{applicationId} {
+        function optionalStringInApplication(data, field) {
+          return !(field in data)
+            || data[field] == null
+            || data[field] is string;
+        }
+
+        function isValidTournamentApplicationCreate() {
+          let data = request.resource.data;
+          return data.status == 'pending'
+            && data.requestedByUid == request.auth.uid
+            && data.teamId is string
+            && data.teamId.size() > 0
+            && applicationId == ('ta_' + data.teamId)
+            && data.id == applicationId
+            && optionalStringInApplication(data, 'teamName')
+            && optionalStringInApplication(data, 'teamImage')
+            && optionalStringInApplication(data, 'requestedByName')
+            && data.appliedAt is string
+            && data.appliedAt.size() > 0
+            && optionalStringInApplication(data, 'messageGroupId')
+            && data.createdAt == request.time
+            && data.updatedAt == request.time
+            && data.keys().hasOnly([
+              'id', 'teamId', 'teamName', 'teamImage', 'status',
+              'requestedByUid', 'requestedByName', 'appliedAt',
+              'messageGroupId', 'createdAt', 'updatedAt'
+            ]);
+        }
+
         allow read: if canManageTournamentScope()
           || ((resource.data.teamId is string) && isCurrentUserInTeam(resource.data.teamId));
         allow create: if tournamentExists()
           && isAuth()
           && hasString('teamId')
-          && isCurrentUserTeamCaptainOrLeader(request.resource.data.teamId);
-        allow update: if tournamentExists() && canManageTournamentScope();
-        allow delete: if tournamentExists() && canManageTournamentScope();
+          && isCurrentUserTeamCaptainOrLeader(request.resource.data.teamId)
+          && isValidTournamentApplicationCreate();
+        allow update: if false;
+        allow delete: if false;
       }
 
       match /entries/{teamId} {

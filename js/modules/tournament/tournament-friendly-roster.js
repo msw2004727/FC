@@ -296,8 +296,8 @@ Object.assign(App, {
     }
   },
 
-  async showTournamentDetail(id) {
-    await _tournamentFriendlyRosterLegacy.showTournamentDetail.call(this, id);
+  async showTournamentDetail(id, options) {
+    await _tournamentFriendlyRosterLegacy.showTournamentDetail.call(this, id, options);
     const tournament = this._getFriendlyTournamentState?.(id)?.tournament
       || ApiService.getFriendlyTournamentRecord?.(id)
       || ApiService.getTournament?.(id);

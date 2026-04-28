@@ -461,6 +461,19 @@ const ApiService = {
     return await this._createAwaitWrite('tournaments', payload, FirebaseService.addTournament, 'createTournament');
   },
 
+  async createFriendlyTournamentAtomic(data) {
+    if (this._handleRestrictedAction()) return null;
+    const payload = this._normalizeTournamentRecordForWrite(data);
+    if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
+    const result = await FirebaseService.createFriendlyTournamentAtomic(payload);
+    const tournament = result?.tournament || { ...payload, id: result?.tournamentId || payload.id, _docId: result?.tournamentId || payload.id };
+    const source = this._src('tournaments');
+    const idx = source.findIndex(item => item.id === tournament.id);
+    if (idx >= 0) source[idx] = { ...source[idx], ...tournament };
+    else source.unshift(tournament);
+    return { ...result, tournament };
+  },
+
   updateTournament(id, updates) {
     const payload = this._normalizeTournamentRecordForWrite(updates, this.getTournament(id));
     return this._update('tournaments', id, payload, FirebaseService.updateTournament, 'updateTournament');
@@ -475,6 +488,10 @@ const ApiService = {
     return await FirebaseService.listTournamentApplications(tournamentId);
   },
 
+  async getTournamentApplication(tournamentId, applicationId) {
+    return await FirebaseService.getTournamentApplication(tournamentId, applicationId);
+  },
+
   async createTournamentApplication(tournamentId, data) {
     const payload = (typeof App !== 'undefined' && typeof App._buildFriendlyTournamentApplicationRecord === 'function')
       ? App._buildFriendlyTournamentApplicationRecord(data)
@@ -486,6 +503,11 @@ const ApiService = {
   async updateTournamentApplication(tournamentId, applicationId, updates) {
     if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
     return await FirebaseService.updateTournamentApplication(tournamentId, applicationId, updates);
+  },
+
+  async reviewFriendlyTournamentApplicationAtomic(tournamentId, applicationId, action) {
+    if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
+    return await FirebaseService.reviewFriendlyTournamentApplicationAtomic(tournamentId, applicationId, action);
   },
 
   async listTournamentEntries(tournamentId) {

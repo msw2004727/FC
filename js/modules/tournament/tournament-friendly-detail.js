@@ -151,66 +151,44 @@ Object.assign(App, {
   },
 
   async reviewFriendlyTournamentApplication(tournamentId, applicationId, action) {
-    const busyKey = `${String(tournamentId || '').trim()}:${String(applicationId || '').trim()}:${String(action || '').trim().toLowerCase()}`;
+    const normalizedAction = String(action || '').trim().toLowerCase();
+    if (!['approve', 'reject'].includes(normalizedAction)) {
+      this.showToast('未知的審核操作');
+      return;
+    }
+    const busyKey = `${String(tournamentId || '').trim()}:${String(applicationId || '').trim()}:${normalizedAction}`;
     if (this._friendlyTournamentReviewBusyById[busyKey]) return;
     this._friendlyTournamentReviewBusyById[busyKey] = true;
 
     try {
       const state = await this._loadFriendlyTournamentDetailState(tournamentId);
-    const tournament = state?.tournament;
-    if (!tournament) {
-      this.showToast('找不到此賽事。');
-      return;
-    }
-    if (!this.hasPermission('admin.tournaments.manage_all') && !this._canManageTournamentRecord?.(tournament)) {
-      this.showToast('你目前只能審核主辦或受委託的賽事。');
-      return;
-    }
-
-    const application = (state.applications || []).find(item => item.id === applicationId);
-    if (!application || application.status !== 'pending') {
-      this.showToast('找不到待審核的申請。');
-      return;
-    }
-
-    if (action === 'reject' && !(await this.appConfirm(`確定要拒絕「${application.teamName}」的報名申請？`))) return;
-
-    const reviewer = ApiService.getCurrentUser?.();
-    const reviewMeta = {
-      status: action === 'approve' ? 'approved' : 'rejected',
-      reviewedAt: new Date().toISOString(),
-      reviewedByUid: reviewer?.uid || '',
-      reviewedByName: reviewer?.displayName || reviewer?.name || '',
-    };
-
-    if (action === 'approve') {
-      const freshState = await this._loadFriendlyTournamentDetailState(tournamentId);
-      const freshEntries = freshState?.entries || state.entries || [];
-      const approvedCount = freshEntries.filter(entry => entry.entryStatus === 'host' || entry.entryStatus === 'approved').length;
-      const teamLimit = this._getFriendlyTournamentTeamLimit?.(tournament) || 4;
-      if (!freshEntries.some(entry => entry.teamId === application.teamId) && approvedCount >= teamLimit) {
-        this.showToast('隊伍名額已滿，無法再核准更多俱樂部。');
+      const tournament = state?.tournament || await ApiService.getTournamentAsync?.(tournamentId);
+      if (!tournament) {
+        this.showToast('找不到此賽事。');
         return;
       }
-      await ApiService.upsertTournamentEntry(tournamentId, application.teamId, {
-        teamId: application.teamId,
-        teamName: application.teamName,
-        teamImage: application.teamImage,
-        entryStatus: 'approved',
-        approvedAt: reviewMeta.reviewedAt,
-        approvedByUid: reviewMeta.reviewedByUid,
-        approvedByName: reviewMeta.reviewedByName,
-      });
-    }
+      if (!this._isTournamentGlobalAdmin() && !this._canManageTournamentRecord?.(tournament)) {
+        this.showToast('你目前只能審核主辦或受委託的賽事。');
+        return;
+      }
 
-    await ApiService.updateTournamentApplication(tournamentId, applicationId, reviewMeta);
-    const nextState = await this._loadFriendlyTournamentDetailState(tournamentId);
-    const syncedState = await this._persistFriendlyTournamentCompatState(tournamentId, nextState);
-    this.renderRegisterButton(syncedState?.tournament || tournament);
-    this.renderTournamentTab('teams');
-    this.showToast(action === 'approve' ? `已確認「${application.teamName}」參賽。` : `已拒絕「${application.teamName}」的申請。`);
+      const application = (state.applications || []).find(item => item.id === applicationId);
+      if (!application || application.status !== 'pending') {
+        this.showToast('找不到待審核的申請。');
+        return;
+      }
+
+      if (normalizedAction === 'reject' && !(await this.appConfirm(`確定要拒絕「${application.teamName}」的報名申請？`))) return;
+
+      const result = await ApiService.reviewFriendlyTournamentApplicationAtomic(tournamentId, applicationId, normalizedAction);
+      const nextState = await this._loadFriendlyTournamentDetailState(tournamentId);
+      this.renderRegisterButton(nextState?.tournament || tournament);
+      this.renderTournamentTab('teams');
+      this.showToast(result?.alreadyReviewed
+        ? '此申請已被處理過。'
+        : (normalizedAction === 'approve' ? `已確認「${application.teamName}」參賽。` : `已拒絕「${application.teamName}」的申請。`));
     } catch (err) {
-      this._showTournamentActionError?.(action === 'approve' ? '確認報名' : '拒絕報名', err);
+      this._showTournamentActionError?.(normalizedAction === 'approve' ? '確認報名' : '拒絕報名', err);
     }
     finally {
       delete this._friendlyTournamentReviewBusyById[busyKey];

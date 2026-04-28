@@ -1060,8 +1060,8 @@ describe("/tournaments/{tournamentId}", () => {
     );
   });
 
-  test("create: captain of hostTeam can create", async () => {
-    await assertSucceeds(
+  test("create: captain of hostTeam cannot direct-create root (callable-only)", async () => {
+    await assertFails(
       setDoc(doc(captain(), "tournaments", "tourNew"), {
         name: "New Tournament",
         hostTeamId: "teamA",
@@ -1071,8 +1071,8 @@ describe("/tournaments/{tournamentId}", () => {
     );
   });
 
-  test("create: admin can create", async () => {
-    await assertSucceeds(
+  test("create: admin cannot direct-create root (callable-only)", async () => {
+    await assertFails(
       setDoc(doc(admin(), "tournaments", "tourAdmin"), {
         name: "Admin Tournament",
         hostTeamId: "teamA",
@@ -1181,7 +1181,7 @@ describe("/tournaments/{tournamentId}", () => {
   // ─────────────────────────────────────────────────────────────────
   // 2026-04-28 ff9d6725 follow-up: creator-only and entry-only flow
   // - creator (not host team officer / not delegate / not admin) MUST be
-  //   able to update tournaments / applications / entries (前後端對齊)
+  //   able to update tournaments / entries (前後端對齊); application review is callable-only
   // - entry-only role (admin.tournaments.entry only, no record-scope match)
   //   MUST NOT be able to update arbitrary tournaments / subcollections
   //   even though they may previously have bypassed front-end guards.
@@ -1215,12 +1215,12 @@ describe("/tournaments/{tournamentId}", () => {
       );
     });
 
-    test("update application: creator CAN review (approve/reject) applications", async () => {
+    test("update application: creator CANNOT directly review applications (callable-only)", async () => {
       await seedPath(["tournaments", "tourCreatorOnly", "applications", "app_byCreator"], {
         teamId: "teamA",
         status: "pending",
       });
-      await assertSucceeds(
+      await assertFails(
         updateDoc(
           doc(creatorOnly(), "tournaments", "tourCreatorOnly", "applications", "app_byCreator"),
           { status: "approved" }
@@ -1299,6 +1299,22 @@ describe("/tournaments/{tournamentId}", () => {
 //  tournaments/{id}/applications
 // ═══════════════════════════════════════════════════════════════
 describe("/tournaments/{id}/applications/{appId}", () => {
+  function validTournamentApplicationPayload(teamId, uid) {
+    return {
+      id: `ta_${teamId}`,
+      teamId,
+      teamName: `Team ${teamId}`,
+      teamImage: "",
+      status: "pending",
+      requestedByUid: uid,
+      requestedByName: "Applicant",
+      appliedAt: "2026-04-28T00:00:00.000Z",
+      messageGroupId: `tfa_tourA_${teamId}`,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+  }
+
   test("read: scope manager (delegate) can read", async () => {
     await seedPath(["tournaments", "tourA", "applications", "app1"], {
       teamId: "teamB",
@@ -1334,8 +1350,8 @@ describe("/tournaments/{id}/applications/{appId}", () => {
   test("create: captain of team can apply", async () => {
     await assertSucceeds(
       setDoc(
-        doc(captain(), "tournaments", "tourA", "applications", "app_teamA"),
-        { teamId: "teamA", status: "pending" }
+        doc(captain(), "tournaments", "tourA", "applications", "ta_teamA"),
+        validTournamentApplicationPayload("teamA", "uidCaptain")
       )
     );
   });
@@ -1343,18 +1359,54 @@ describe("/tournaments/{id}/applications/{appId}", () => {
   test("create: non-captain cannot apply", async () => {
     await assertFails(
       setDoc(
-        doc(user(), "tournaments", "tourA", "applications", "app_userTeam"),
-        { teamId: "teamA", status: "pending" }
+        doc(user(), "tournaments", "tourA", "applications", "ta_teamA"),
+        validTournamentApplicationPayload("teamA", "uidUser")
       )
     );
   });
 
-  test("update: scope manager can update", async () => {
+  test("create: approved status is rejected", async () => {
+    await assertFails(
+      setDoc(
+        doc(captain(), "tournaments", "tourA", "applications", "ta_teamA"),
+        { ...validTournamentApplicationPayload("teamA", "uidCaptain"), status: "approved" }
+      )
+    );
+  });
+
+  test("create: doc id must equal ta_<teamId>", async () => {
+    await assertFails(
+      setDoc(
+        doc(captain(), "tournaments", "tourA", "applications", "app_teamA"),
+        validTournamentApplicationPayload("teamA", "uidCaptain")
+      )
+    );
+  });
+
+  test("create: requestedByUid must equal auth uid", async () => {
+    await assertFails(
+      setDoc(
+        doc(captain(), "tournaments", "tourA", "applications", "ta_teamA"),
+        validTournamentApplicationPayload("teamA", "someoneElse")
+      )
+    );
+  });
+
+  test("create: optional display fields must be strings", async () => {
+    await assertFails(
+      setDoc(
+        doc(captain(), "tournaments", "tourA", "applications", "ta_teamA"),
+        { ...validTournamentApplicationPayload("teamA", "uidCaptain"), teamName: 123 }
+      )
+    );
+  });
+
+  test("update: scope manager cannot directly update review status", async () => {
     await seedPath(["tournaments", "tourA", "applications", "app_upd"], {
       teamId: "teamB",
       status: "pending",
     });
-    await assertSucceeds(
+    await assertFails(
       updateDoc(
         doc(memberA(), "tournaments", "tourA", "applications", "app_upd"),
         { status: "approved" }
@@ -1362,12 +1414,12 @@ describe("/tournaments/{id}/applications/{appId}", () => {
     );
   });
 
-  test("delete: scope manager can delete", async () => {
+  test("delete: scope manager cannot directly delete application", async () => {
     await seedPath(["tournaments", "tourA", "applications", "app_del"], {
       teamId: "teamB",
       status: "rejected",
     });
-    await assertSucceeds(
+    await assertFails(
       deleteDoc(
         doc(admin(), "tournaments", "tourA", "applications", "app_del")
       )
