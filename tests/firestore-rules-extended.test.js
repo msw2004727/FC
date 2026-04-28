@@ -255,6 +255,12 @@ async function seedBaseDocs() {
       displayName: "Inventory Admin",
       role: "user",
     });
+    // 2026-04-28: creator-only persona — role 'user', no admin perm, NOT in any team
+    await setDoc(doc(db, "users", "uidCreatorOnly"), {
+      uid: "uidCreatorOnly",
+      displayName: "Creator Only",
+      role: "user",
+    });
 
     // Teams with captain/leader info
     await setDoc(doc(db, "teams", "teamA"), {
@@ -1170,6 +1176,122 @@ describe("/tournaments/{tournamentId}", () => {
     await assertFails(deleteDoc(doc(memberA(), "tournaments", "tourDel")));
     await assertFails(deleteDoc(doc(captain(), "tournaments", "tourDel")));
     await assertSucceeds(deleteDoc(doc(admin(), "tournaments", "tourDel")));
+  });
+
+  // ─────────────────────────────────────────────────────────────────
+  // 2026-04-28 ff9d6725 follow-up: creator-only and entry-only flow
+  // - creator (not host team officer / not delegate / not admin) MUST be
+  //   able to update tournaments / applications / entries (前後端對齊)
+  // - entry-only role (admin.tournaments.entry only, no record-scope match)
+  //   MUST NOT be able to update arbitrary tournaments / subcollections
+  //   even though they may previously have bypassed front-end guards.
+  // ─────────────────────────────────────────────────────────────────
+  describe("creator-only persona", () => {
+    function creatorOnly() {
+      return testEnv.authenticatedContext("uidCreatorOnly", { role: "user" }).firestore();
+    }
+
+    beforeEach(async () => {
+      // Tournament hosted by teamB (uidB is captain), but creator is uidCreatorOnly
+      // creatorOnly is NOT in teamB, NOT a delegate, NOT admin → only path is creator branch
+      await seedDoc("tournaments", "tourCreatorOnly", {
+        id: "tourCreatorOnly",
+        name: "Creator Only Tournament",
+        hostTeamId: "teamB",
+        creatorUid: "uidCreatorOnly",
+        mode: "friendly",
+        delegateUids: [],
+      });
+    });
+
+    test("update tournament: creator (not host officer / not delegate / not admin) CAN update", async () => {
+      await assertSucceeds(
+        updateDoc(doc(creatorOnly(), "tournaments", "tourCreatorOnly"), {
+          name: "Creator Updated",
+          hostTeamId: "teamB",
+          creatorUid: "uidCreatorOnly",
+          mode: "friendly",
+        })
+      );
+    });
+
+    test("update application: creator CAN review (approve/reject) applications", async () => {
+      await seedPath(["tournaments", "tourCreatorOnly", "applications", "app_byCreator"], {
+        teamId: "teamA",
+        status: "pending",
+      });
+      await assertSucceeds(
+        updateDoc(
+          doc(creatorOnly(), "tournaments", "tourCreatorOnly", "applications", "app_byCreator"),
+          { status: "approved" }
+        )
+      );
+    });
+
+    test("create entry: creator CAN create entry (host approval flow)", async () => {
+      await assertSucceeds(
+        setDoc(
+          doc(creatorOnly(), "tournaments", "tourCreatorOnly", "entries", "teamA"),
+          { teamId: "teamA", status: "confirmed" }
+        )
+      );
+    });
+
+    test("update entry: creator CAN update entry status", async () => {
+      await seedPath(["tournaments", "tourCreatorOnly", "entries", "teamA"], {
+        teamId: "teamA",
+        status: "confirmed",
+      });
+      await assertSucceeds(
+        updateDoc(
+          doc(creatorOnly(), "tournaments", "tourCreatorOnly", "entries", "teamA"),
+          { status: "eliminated" }
+        )
+      );
+    });
+  });
+
+  describe("entry-only persona (admin.tournaments.entry without record-scope match)", () => {
+    // uidCoach is role 'coach' — by default has admin.tournaments.entry,
+    // but is NOT host team officer / NOT delegate / NOT creator / NOT admin
+    // for tournament tourA (hostTeamId=teamA). Rules MUST reject record-scope
+    // mutations regardless of admin.tournaments.entry.
+    function coachOnly() {
+      return testEnv.authenticatedContext("uidCoach", { role: "coach" }).firestore();
+    }
+
+    test("update tournament: entry-only role CANNOT update arbitrary tournaments", async () => {
+      await assertFails(
+        updateDoc(doc(coachOnly(), "tournaments", "tourA"), {
+          name: "Coach Tried Update",
+          hostTeamId: "teamA",
+          creatorUid: "uidCaptain",
+          mode: "knockout",
+        })
+      );
+    });
+
+    test("update application: entry-only role CANNOT review applications", async () => {
+      await seedPath(["tournaments", "tourA", "applications", "app_byCoach"], {
+        teamId: "teamB",
+        status: "pending",
+      });
+      await assertFails(
+        updateDoc(
+          doc(coachOnly(), "tournaments", "tourA", "applications", "app_byCoach"),
+          { status: "approved" }
+        )
+      );
+    });
+
+    test("create entry: entry-only role CANNOT bypass record-scope to create entry", async () => {
+      await assertFails(
+        setDoc(
+          doc(coachOnly(), "tournaments", "tourA", "entries", "teamB"),
+          { teamId: "teamB", status: "confirmed" }
+        )
+      );
+    });
   });
 });
 

@@ -2,6 +2,26 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-28 — 補修 reviewFriendlyTournamentApplication 殘留閘 [永久]
+- **背景**：上一筆 commit `ff9d6725` 補修兩條漏洞後,Codex review(另一邊獨立審計)又發現 `tournament-friendly-detail.js` `reviewFriendlyTournamentApplication()` 仍有殘留閘
+- **漏洞**：函式開頭 `if (!hasPermission('admin.tournaments.review') && !hasPermission('admin.tournaments.entry')) { showToast('權限不足'); return; }` 在載入 tournament 前就擋掉。Creator-only 用戶在 teams tab 看得到「確認 / 拒絕」按鈕(因 `_canManageTournamentRecord` 通過),點擊後卻被 entry/review 前置閘擋。Firestore Rules 已允許 creator 操作 applications/entries → 前後端再次不對齊
+- **修復**：
+  1. 移除函式開頭 entry/review 前置閘
+  2. 先 `_loadFriendlyTournamentDetailState` 載入 tournament
+  3. 守衛統一改為 `manage_all OR _canManageTournamentRecord(tournament)`
+  4. 新增 toast「找不到此賽事」處理 tournament 為 null 情境
+- **測試**:
+  - `tests/unit/tournament-permissions.test.js`: 抽出 `_canManageTournamentRecord` 同步加 creator 分支(對齊 production code 後),補 4 條 creator 測試 + 新增 `_canReviewFriendlyApplication` describe(8 條測試,涵蓋 creator-only 通過、admin 通過、entry-only 不能繞 record-scope、null 情境)
+  - `tests/firestore-rules-extended.test.js`: 新增 `creator-only persona` describe(4 條 — update tournament/application/entry 都應通過)+ `entry-only persona` describe(3 條 — coach 角色拿 admin.tournaments.entry 仍被 Rules 擋)
+- **驗證**:
+  - `node --check js/modules/tournament/tournament-friendly-detail.js` ✅
+  - `npm run test:unit`: 2468 通過(+12 新增)
+  - `npm run test:rules`: 444 通過(+7 新增)
+- **教訓**:
+  - **多入口的權限守衛要逐一掃過,不能修了一處就交差**:這次第三輪審計又抓到 `reviewFriendlyTournamentApplication` 殘留 — 證明「修一個、找全部」是必要紀律
+  - **`xxx.entry` 權限碼絕對不該出現在 record-scope action 守衛內**(三次了)。應建立 lint 規則或專案級 grep 預防(grep `hasPermission.*\.entry.*&&.*hasPermission` 揪出可疑模式)
+  - 抽出測試版本必須隨 production code 演進同步,否則測試保護網會鬆動
+
 ### 2026-04-28 — 補修兩條前端/後端權限不對齊漏洞(P1+P2) [永久]
 - **背景**：上一筆 commit `36af3b98` 修「編輯按鈕點了跳權限不足」時引入兩個漏洞,經 Codex review(另一邊獨立審計)發現
 - **P1 漏洞 — 前端放行 creator 但 Rules 仍拒**：前端 `_canManageTournamentRecord` 已視 creatorUid 為可管理者(前次 fix),但 `firestore.rules` 的 `canManageTournamentScope()` 仍只認 admin/delegate/hostManager。建立者本人(若不是 host team 幹部)能看見 + 進入編輯彈窗,**最後 `updateTournamentAwait` 寫入時被 Rules permission-denied** → 用戶以為編輯失敗

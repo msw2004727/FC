@@ -62,15 +62,30 @@ function _isTournamentDelegate(tournament, user) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from tournament-core.js:226-234
+// Extracted from tournament-helpers.js:117-128 (post 2026-04-28 creator fix)
 // ---------------------------------------------------------------------------
 function _canManageTournamentRecord(tournament, user, allTeams, permissions) {
   if (!tournament || !user) return false;
   if ((permissions || []).includes('admin.tournaments.manage_all')) return true;
+  const currentUid = String(user.uid || user.lineUserId || '').trim();
+  const creatorUid = String(tournament.creatorUid || '').trim();
+  if (currentUid && creatorUid && currentUid === creatorUid) return true;
   if (_isTournamentDelegate(tournament, user)) return true;
   const hostTeamId = String(tournament.hostTeamId || '').trim();
   if (!hostTeamId) return false;
   return _getFriendlyResponsibleTeams(user, allTeams).some(team => team.id === hostTeamId);
+}
+
+// ---------------------------------------------------------------------------
+// Review-application guard logic
+// (mirror of tournament-friendly-detail.js reviewFriendlyTournamentApplication
+//  post 2026-04-28: manage_all OR _canManageTournamentRecord)
+// admin.tournaments.entry must NOT independently authorize record-scope action.
+// ---------------------------------------------------------------------------
+function _canReviewFriendlyApplication(tournament, user, allTeams, permissions) {
+  if (!tournament || !user) return false;
+  if ((permissions || []).includes('admin.tournaments.manage_all')) return true;
+  return _canManageTournamentRecord(tournament, user, allTeams, permissions);
 }
 
 
@@ -97,18 +112,30 @@ const allTeams = [teamA, teamB];
 const tournamentHostedByA = {
   id: 't1',
   hostTeamId: 'teamA',
+  creatorUid: 'cap1',
   delegates: [{ uid: 'del1', name: 'Delegate Chen' }],
 };
 
 const tournamentHostedByB = {
   id: 't2',
   hostTeamId: 'teamB',
+  creatorUid: 'other',
   delegates: [],
 };
 
 const tournamentNoHost = {
   id: 't3',
   hostTeamId: '',
+  creatorUid: 'someoneElse',  // 非 captainUser、非 regularUser 等任一測試 user
+  delegates: [],
+};
+
+// 「creator-only」 — creator 是一般用戶,不是 host team 幹部/委託人/admin
+const creatorOnlyUser = { uid: 'creatorOnly', displayName: 'Creator Only' };
+const tournamentCreatedByCreatorOnly = {
+  id: 't4',
+  hostTeamId: 'teamA',          // creatorOnly 不是 teamA captain/leader
+  creatorUid: 'creatorOnly',
   delegates: [],
 };
 
@@ -234,5 +261,68 @@ describe('_canManageTournamentRecord', () => {
 
   test('coach without manage_all cannot manage', () => {
     expect(_canManageTournamentRecord(tournamentHostedByA, coach, allTeams, coachPermissions)).toBe(false);
+  });
+
+  // Creator branch (added 2026-04-28)
+  test('creator-only user (not in any team, no admin perm) can manage their own tournament', () => {
+    expect(_canManageTournamentRecord(tournamentCreatedByCreatorOnly, creatorOnlyUser, allTeams, [])).toBe(true);
+  });
+
+  test('creator-only user cannot manage someone else\'s tournament', () => {
+    expect(_canManageTournamentRecord(tournamentHostedByB, creatorOnlyUser, allTeams, [])).toBe(false);
+  });
+
+  test('creator branch falls back to false when creatorUid is empty string', () => {
+    const t = { id: 'tx', hostTeamId: 'teamA', creatorUid: '', delegates: [] };
+    expect(_canManageTournamentRecord(t, creatorOnlyUser, allTeams, [])).toBe(false);
+  });
+
+  test('creator branch falls back to false when user uid is empty', () => {
+    const userNoUid = { displayName: 'No UID' };
+    expect(_canManageTournamentRecord(tournamentCreatedByCreatorOnly, userNoUid, allTeams, [])).toBe(false);
+  });
+});
+
+// ═══════════════════════════════════════════════════════
+//  Review-application guard
+//  (review = manage_all OR _canManageTournamentRecord;
+//   admin.tournaments.entry must NOT bypass record scope)
+// ═══════════════════════════════════════════════════════
+describe('_canReviewFriendlyApplication', () => {
+  test('creator-only user CAN review applications for tournament they created', () => {
+    expect(_canReviewFriendlyApplication(tournamentCreatedByCreatorOnly, creatorOnlyUser, allTeams, [])).toBe(true);
+  });
+
+  test('admin (manage_all) can review any application', () => {
+    expect(_canReviewFriendlyApplication(tournamentHostedByA, adminUser, allTeams, adminPermissions)).toBe(true);
+    expect(_canReviewFriendlyApplication(tournamentHostedByB, adminUser, allTeams, adminPermissions)).toBe(true);
+  });
+
+  test('host team captain can review their tournament applications', () => {
+    expect(_canReviewFriendlyApplication(tournamentHostedByA, captainUser, allTeams, [])).toBe(true);
+  });
+
+  test('delegate can review applications for assigned tournament', () => {
+    expect(_canReviewFriendlyApplication(tournamentHostedByA, delegateUser, allTeams, [])).toBe(true);
+  });
+
+  test('entry-only user (coach/captain/venue_owner with admin.tournaments.entry) CANNOT review arbitrary tournaments', () => {
+    // coach has admin.tournaments.entry but is NOT host/delegate/creator/admin of tournamentHostedByA
+    expect(_canReviewFriendlyApplication(tournamentHostedByA, coach, allTeams, coachPermissions)).toBe(false);
+    // captain of teamA has admin.tournaments.entry too — but on tournament hosted by teamB he's not record-scope manager
+    const captainEntryPerm = ['admin.tournaments.entry'];
+    expect(_canReviewFriendlyApplication(tournamentHostedByB, captainUser, allTeams, captainEntryPerm)).toBe(false);
+  });
+
+  test('regular user without any role cannot review', () => {
+    expect(_canReviewFriendlyApplication(tournamentHostedByA, regularUser, allTeams, [])).toBe(false);
+  });
+
+  test('null tournament returns false', () => {
+    expect(_canReviewFriendlyApplication(null, adminUser, allTeams, adminPermissions)).toBe(false);
+  });
+
+  test('null user returns false', () => {
+    expect(_canReviewFriendlyApplication(tournamentHostedByA, null, allTeams, adminPermissions)).toBe(false);
   });
 });

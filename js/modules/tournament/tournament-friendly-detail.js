@@ -151,7 +151,6 @@ Object.assign(App, {
   },
 
   async reviewFriendlyTournamentApplication(tournamentId, applicationId, action) {
-    if (!this.hasPermission('admin.tournaments.review') && !this.hasPermission('admin.tournaments.entry')) { this.showToast('權限不足'); return; }
     const busyKey = `${String(tournamentId || '').trim()}:${String(applicationId || '').trim()}:${String(action || '').trim().toLowerCase()}`;
     if (this._friendlyTournamentReviewBusyById[busyKey]) return;
     this._friendlyTournamentReviewBusyById[busyKey] = true;
@@ -159,7 +158,11 @@ Object.assign(App, {
     try {
       const state = await this._loadFriendlyTournamentDetailState(tournamentId);
     const tournament = state?.tournament;
-    if (!tournament || !this._canManageTournamentRecord?.(tournament)) {
+    if (!tournament) {
+      this.showToast('找不到此賽事。');
+      return;
+    }
+    if (!this.hasPermission('admin.tournaments.manage_all') && !this._canManageTournamentRecord?.(tournament)) {
       this.showToast('你目前只能審核主辦或受委託的賽事。');
       return;
     }
