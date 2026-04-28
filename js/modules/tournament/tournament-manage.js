@@ -82,11 +82,12 @@ Object.assign(App, {
             ${isEnded ? `
               <button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem" onclick="App.showTournamentDetail('${t.id}')">查看詳情</button>
               ${isAdmin ? `<button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem;background:#10b981;color:#fff;border-color:#10b981" onclick="App.handleReopenTournament('${t.id}')">重新開啟</button>` : ''}
-              ${isAdmin ? `<button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem;color:var(--danger)" onclick="App.handleDeleteTournament('${t.id}')">刪除賽事</button>` : ''}
+              ${isAdmin ? `<button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem;color:var(--danger)" onclick="App.handleDeleteTournament('${t.id}', this)">刪除賽事</button>` : ''}
             ` : `
               ${canManage ? `<button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem;background:#10b981;color:#fff;border-color:#10b981" onclick="App.openEditTournamentSafe('${escapeHTML(t.id)}')">編輯賽事</button>` : ''}
               <button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem" onclick="App.showTournamentDetail('${t.id}')">查看詳情</button>
               ${canManage ? `<button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem;color:var(--danger)" onclick="App.handleEndTournament('${t.id}')">結束賽事</button>` : ''}
+              ${isAdmin ? `<button class="outline-btn" style="font-size:.7rem;padding:.25rem .5rem;color:var(--danger)" onclick="App.handleDeleteTournament('${t.id}', this)">刪除賽事</button>` : ''}
             `}
           </div>
         </div>`;
@@ -412,7 +413,7 @@ Object.assign(App, {
     this.showToast(`賽事「${t.name}」已重新開放`);
   },
 
-  async handleDeleteTournament(id) {
+  async handleDeleteTournament(id, actionButton = null) {
     const t = ApiService.getTournament(id);
     if (!t) return;
     // 刪除賽事 — 僅全域權限（管理員）
@@ -421,14 +422,26 @@ Object.assign(App, {
     }
     if (!(await this.appConfirm(`確定要永久刪除賽事「${t.name}」？此操作無法復原。`))) return;
     const tName = t.name;
-    try {
-      await ApiService.deleteTournamentAwait(id);
-    } catch (err) { if (!err?._toasted) this.showToast('刪除賽事失敗，請重試'); return; }
-    ApiService._writeOpLog('tourn_delete', '刪除賽事', `刪除「${tName}」`);
-    this.renderTournamentTimeline();
-    this.renderOngoingTournaments();
-    this.renderTournamentManage();
-    this.showToast(`已刪除賽事「${tName}」`);
+    const deleteTask = async () => {
+      try {
+        await ApiService.deleteTournamentAwait(id);
+      } catch (err) { if (!err?._toasted) this.showToast('刪除賽事失敗，請重試'); return; }
+      ApiService._writeOpLog('tourn_delete', '刪除賽事', `刪除「${tName}」`);
+      this.renderTournamentTimeline();
+      this.renderOngoingTournaments();
+      this.renderTournamentManage();
+      if (String(this.currentTournament || '') === String(id) && this.currentPage === 'page-tournament-detail') {
+        this.currentTournament = null;
+        this._clearTournamentDetailRouteParam?.();
+        await this.showPage?.('page-tournaments');
+        this.renderTournamentTimeline?.();
+      }
+      this.showToast(`已刪除賽事「${tName}」`);
+    };
+    if (typeof this._withButtonLoading === 'function') {
+      return this._withButtonLoading(actionButton, '刪除中...', deleteTask);
+    }
+    return deleteTask();
   },
 
 });

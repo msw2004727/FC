@@ -70,7 +70,10 @@ Object.assign(App, {
     const { toolbar } = this._ensureTournamentDetailTabsLayout();
     if (!toolbar) return;
 
-    if (!this._canManageTournamentRecord?.(tournament)) {
+    const currentUser = ApiService.getCurrentUser?.();
+    const canManage = this._canManageTournamentRecord?.(tournament, currentUser);
+    const canDelete = this._isTournamentGlobalAdmin?.(currentUser);
+    if (!canManage && !canDelete) {
       // Safety: clearing toolbar
       toolbar.innerHTML = '';
       toolbar.style.display = 'none';
@@ -78,8 +81,41 @@ Object.assign(App, {
     }
 
     // Safety: tournament.id is escaped
-    toolbar.innerHTML = `<button class="td-edit-btn" onclick="App.openEditTournamentSafe('${escapeHTML(tournament.id)}')">編輯賽事</button>`;
+    const safeId = escapeHTML(tournament.id);
+    toolbar.innerHTML = `
+      ${canManage ? `<button class="td-edit-btn" onclick="App.openEditTournamentSafe('${safeId}')">編輯賽事</button>` : ''}
+      ${canDelete ? `<button class="td-delete-btn" onclick="App.openDeleteTournamentSafe('${safeId}', this)">刪除賽事</button>` : ''}
+    `;
     toolbar.style.display = 'flex';
+  },
+
+  async openDeleteTournamentSafe(id, actionButton = null) {
+    const safeId = String(id || '').trim();
+    if (!safeId) return;
+
+    if (typeof this.handleDeleteTournament !== 'function') {
+      const loadAdminScripts = async () => {
+        const scripts = ScriptLoader?._groups?.tournamentAdmin || [];
+        if (scripts.length) await ScriptLoader.loadGroup(scripts);
+      };
+      try {
+        if (typeof this._withButtonLoading === 'function') {
+          await this._withButtonLoading(actionButton, '載入中...', loadAdminScripts);
+        } else {
+          await loadAdminScripts();
+        }
+      } catch (err) {
+        console.error('[Tournament:openDeleteTournamentSafe] failed to load admin scripts', err);
+        this.showToast?.('刪除功能載入失敗，請重新整理後再試');
+        return;
+      }
+    }
+
+    if (typeof this.handleDeleteTournament !== 'function') {
+      this.showToast?.('刪除功能載入失敗，請重新整理後再試');
+      return;
+    }
+    return this.handleDeleteTournament(safeId, actionButton);
   },
 
   _ensureTournamentDetailTabsLayout() {

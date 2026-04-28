@@ -64,7 +64,8 @@
   align-items: stretch;
   flex-shrink: 0;
 }
-.td-edit-btn {
+.td-edit-btn,
+.td-delete-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -81,10 +82,18 @@
   cursor: pointer;
   transition: filter var(--transition), transform var(--transition);
 }
-.td-edit-btn:hover {
+.td-toolbar {
+  gap: .45rem;
+}
+.td-delete-btn {
+  background: var(--danger);
+}
+.td-edit-btn:hover,
+.td-delete-btn:hover {
   filter: brightness(.95);
 }
-.td-edit-btn:active {
+.td-edit-btn:active,
+.td-delete-btn:active {
   transform: translateY(1px);
 }
 
@@ -326,8 +335,10 @@
   }
   .td-toolbar {
     width: 100%;
+    flex-direction: column;
   }
-  .td-edit-btn {
+  .td-edit-btn,
+  .td-delete-btn {
     width: 100%;
     min-height: 42px;
   }
@@ -540,6 +551,7 @@
 [data-theme="dark"] .td-info-label { color: var(--text-muted); }
 [data-theme="dark"] .td-edit-btn { background: #166534; }
 [data-theme="dark"] .td-edit-btn:hover { background: #15803d; }
+[data-theme="dark"] .td-delete-btn { background: #b91c1c; }
 
 /* ─── Form validation error state ─── */
 .ce-row.tf-field-error input,
