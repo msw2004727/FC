@@ -2,6 +2,15 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-28 — 修復編輯賽事按鈕「點了跳權限不足」最後一道閘 [永久]
+- **問題**：前面修了 `_canManageTournamentRecord` 補 creator UID 判定後,toolbar「編輯賽事」按鈕**會顯示**,但點下去仍然進不了編輯彈窗。實際上會跳 toast「權限不足」(用戶以為「沒反應」是因 toast 易被忽略)
+- **原因**：`tournament-manage-edit.js` 內 `showEditTournament` (line 6) 與 `handleSaveEditTournament` (line 62) 第一道守衛 `if (!hasPermission('admin.tournaments.manage_all') && !hasPermission('admin.tournaments.entry')) { showToast('權限不足'); return; }` **只放行 admin 權限,沒給 `_canManageTournamentRecord` fallback**。違反 CLAUDE.md §「hasPermission 守衛新增規則」明文要求的 fallback 模式
+- **修復**：兩個函式的第一道守衛改為 ANY-OF:`hasPermission(admin.X.manage_all) || hasPermission(admin.X.entry) || _canManageTournamentRecord(record)`,並合併原本第二道的 toast 文案「你目前只能編輯主辦或受委託的賽事」(更精準描述,而非籠統的「權限不足」)
+- **教訓**：
+  - **權限守衛 bug 通常是「多道閘」之間不對齊** — 這次 toolbar 顯示用 A 規則 (`_canManageTournamentRecord`),按鈕點擊用 B 規則 (`hasPermission only`),兩條規則不一致就出現「按鈕看得到但點不動」
+  - 修權限類問題時,**必須把所有相關守衛(顯示 + 點擊 + 提交 + Rules)一次掃過**,只修一處往往只是把 bug 推到下一道閘
+  - **toast「權限不足」會被誤判成「按鈕沒反應」**(toast 顯示在頁面底部很短時間),debug 時應該優先查 console / 嘗試在守衛內加 alert 確認哪一道閘擋住
+
 ### 2026-04-28 — 修復歷史賽事閃現 + 建立者編輯按鈕從未顯示 [永久]
 - **問題**（兩個彼此相關但不同）：
   1. **閃現**：進入賽事中心時舊賽事先顯示一下,然後 onSnapshot 觸發後從列表洗掉(看起來像「閃一下消失」)。前次修復(`addTournament` 補 `updatedAt`)只解決新建賽事,**所有歷史賽事**仍會閃現
