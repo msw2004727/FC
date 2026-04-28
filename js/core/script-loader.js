@@ -97,6 +97,19 @@ const ScriptLoader = {
       'js/modules/achievement/admin.js',
       'js/modules/achievement.js',
     ],
+    achievementProfile: [
+      'js/modules/auto-exp/index.js',
+      'js/modules/auto-exp/rules.js',
+      'js/modules/achievement/index.js',
+      'js/modules/achievement/registry.js',
+      'js/modules/achievement/shared.js',
+      'js/modules/achievement/stats.js',
+      'js/modules/achievement/evaluator.js',
+      'js/modules/achievement/badges.js',
+      'js/modules/achievement/titles.js',
+      'js/modules/achievement/profile.js',
+      'js/modules/achievement.js',
+    ],
     activity: [
       'js/modules/auto-exp/index.js',
       'js/modules/auto-exp/rules.js',
@@ -158,8 +171,6 @@ const ScriptLoader = {
     profile: [
       'js/modules/auto-exp/index.js',
       'js/modules/auto-exp/rules.js',
-      'js/modules/event/event-share-builders.js',
-      'js/modules/event/event-share.js',
       'js/modules/profile/profile-avatar.js',
       'js/modules/profile/profile-core.js',
       'js/modules/profile/profile-form.js',
@@ -167,9 +178,17 @@ const ScriptLoader = {
       'js/modules/profile/profile-data-render.js',
       'js/modules/profile/profile-data-stats.js',
       'js/modules/profile/profile-data-history.js',
-      'js/modules/profile/profile-card.js',
-      'js/modules/profile/profile-share.js',
       'js/modules/leaderboard.js',
+    ],
+    profileCard: [
+      'js/modules/profile/profile-card.js',
+    ],
+    profileShare: [
+      'js/modules/event/event-share-builders.js',
+      'js/modules/event/event-share.js',
+      'js/modules/profile/profile-share.js',
+    ],
+    profileScene: [
       'js/modules/color-cat/color-cat-config.js',
       'js/modules/color-cat/color-cat-mbti.js',
       'js/modules/color-cat/dialogue/color-cat-dialogue-data.js',
@@ -393,10 +412,10 @@ const ScriptLoader = {
     'page-teams':              ['team'],
     'page-team-detail':        ['team', 'education'],
     'page-team-manage':        ['team'],
-    'page-profile':            ['achievement', 'profile'],
-    'page-qrcode':             ['profile'],
-    'page-user-card':          ['achievement', 'profile'],
-    'page-titles':             ['achievement', 'profile'],
+    'page-profile':            ['profile'],
+    'page-qrcode':             ['profile', 'profileCard'],
+    'page-user-card':          ['profile', 'achievementProfile', 'profileCard', 'profileShare'],
+    'page-titles':             ['profile', 'achievementProfile'],
     'page-shop':               ['shop'],
     'page-leaderboard':        ['achievement', 'shop'],
     'page-tournaments':        ['tournamentList'],
@@ -452,6 +471,14 @@ const ScriptLoader = {
     });
 
     await this.loadGroup(orderedScripts);
+  },
+
+  async ensureGroup(groupName) {
+    if (!groupName) return;
+    this._primeLoadedFromDom();
+    const scripts = this._groups[groupName] || [];
+    if (scripts.length === 0) return;
+    await this.loadGroup(scripts);
   },
 
   /** 檢查頁面所需腳本是否全部已載入（同步） */

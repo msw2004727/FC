@@ -111,8 +111,10 @@ Object.assign(App, {
     }
     // 徽章數量：從成就資料動態計算
     if (el('profile-stat-badges')) {
-      const _badgeCount = this._getAchievementProfile?.()?.getCurrentBadgeCount?.() || 0;
-      el('profile-stat-badges').textContent = _badgeCount;
+      const _achievementProfile = this._getAchievementProfile?.();
+      el('profile-stat-badges').textContent = _achievementProfile
+        ? (_achievementProfile.getCurrentBadgeCount?.() || 0)
+        : '--';
     }
 
     // 我的資料（顯示模式）

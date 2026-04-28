@@ -732,6 +732,7 @@ Object.assign(App, {
       document.getElementById('page-home')?.classList.add('home-paused');
     }
     if (this.currentPage === 'page-profile' && pageId !== 'page-profile') {
+      this._profileDeferredSeq = (this._profileDeferredSeq || 0) + 1;
       this._destroyProfileScene?.();
     }
     // 離開俱樂部相關頁面：清理教育即時監聽
@@ -754,6 +755,55 @@ Object.assign(App, {
   },
 
   /** 根據頁面 ID 渲染對應內容 */
+  _scheduleProfileDeferredWork() {
+    const seq = (this._profileDeferredSeq || 0) + 1;
+    this._profileDeferredSeq = seq;
+    const stillCurrent = () => seq === this._profileDeferredSeq && this.currentPage === 'page-profile';
+    const runWhenIdle = (task, options = {}) => {
+      const delayMs = options.delayMs || 0;
+      const timeout = options.timeout || 1500;
+      const fallbackDelayMs = options.fallbackDelayMs != null ? options.fallbackDelayMs : 600;
+      const runner = () => {
+        if (!stillCurrent()) return;
+        try {
+          const result = task();
+          if (result && typeof result.catch === 'function') {
+            result.catch(err => { if (stillCurrent()) console.warn('[ProfileDeferred]', err); });
+          }
+        } catch (err) {
+          if (stillCurrent()) console.warn('[ProfileDeferred]', err);
+        }
+      };
+      const scheduleIdle = () => {
+        if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+          window.requestIdleCallback(runner, { timeout });
+        } else {
+          setTimeout(runner, fallbackDelayMs);
+        }
+      };
+      if (delayMs > 0) setTimeout(scheduleIdle, delayMs);
+      else scheduleIdle();
+    };
+
+    runWhenIdle(async () => {
+      if (!stillCurrent() || typeof ScriptLoader === 'undefined') return;
+      await ScriptLoader.ensureGroup?.('achievementProfile');
+      if (!stillCurrent()) return;
+      this.renderProfileData?.();
+    }, { timeout: 1200, fallbackDelayMs: 350 });
+
+    runWhenIdle(() => {
+      if (this.renderActivityRecords) this.renderActivityRecords('all', 1);
+    }, { delayMs: 120, timeout: 900, fallbackDelayMs: 120 });
+
+    runWhenIdle(async () => {
+      if (!stillCurrent() || typeof ScriptLoader === 'undefined') return;
+      await ScriptLoader.ensureGroup?.('profileScene');
+      if (!stillCurrent()) return;
+      this._initProfileScene?.();
+    }, { delayMs: 450, timeout: 2500, fallbackDelayMs: 900 });
+  },
+
   _renderPageContent(pageId) {
     if (this.currentPage !== pageId) return;
     if (pageId === 'page-home') {
@@ -797,7 +847,11 @@ Object.assign(App, {
     }
     if (pageId === 'page-messages') this.renderMessageList();
     if (pageId === 'page-tournaments') { this.renderTournamentTimeline(); }
-    if (pageId === 'page-profile') { this.renderUserCard(); this.renderProfileData(); this.renderProfileFavorites(); if (this.renderActivityRecords) this.renderActivityRecords('all', 1); this._initProfileScene?.(); }
+    if (pageId === 'page-profile') {
+      this.renderProfileData();
+      this.renderProfileFavorites();
+      this._scheduleProfileDeferredWork?.();
+    }
     if (pageId === 'page-shop') this.renderShop();
     if (pageId === 'page-leaderboard') this.renderLeaderboard?.();
     if (pageId === 'page-admin-users') this.renderAdminUsers();

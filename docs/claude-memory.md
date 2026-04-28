@@ -1657,3 +1657,10 @@
 - **根因**：賽事列表只需要 helper/core/render，卻載入 detail、roster、notify、share 等詳情模組；列表進頁還等待 standings/matches 靜態集合，與 realtime tournaments 重複拉扯。
 - **修正**：新增 `tournamentList` / `tournamentDetail` 群組，列表只載列表模組，詳情才載完整模組；核心頁預熱改成 network preload hint，不再自動執行所有核心頁 JS；賽事 HTML 納入 boot pages 讓 stale-first 可立即啟用；賽事列表改成 shell-first，可先啟用頁面再背景等 cloud；賽事列表資料依賴縮成 tournaments，realtime 啟動改立即，onSnapshot 渲染延後 80ms。
 - **提醒**：若未來賽事列表新增需要詳情專用能力，先放到 detail 群組，列表群組只保留首屏渲染必需檔案。
+
+
+### 2026-04-28 Profile page navigation performance [Medium]
+- Problem: page-profile loaded the full achievement page bundle and the color-cat profile scene during first navigation, so cache clears or new cache versions could make the bottom nav feel briefly unresponsive.
+- Cause: ScriptLoader tied achievement/profile extras to page-profile, and navigation immediately rendered the hidden user card plus _initProfileScene().
+- Fix: split profile into base, achievementProfile, profileCard, profileShare, and profileScene groups. page-profile renders visible data first, then idle-loads achievement stats, records, and the color-cat scene.
+- Guard: leaving page-profile increments _profileDeferredSeq and destroys the scene so deferred tasks do not write DOM after page switches.

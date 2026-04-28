@@ -187,8 +187,8 @@ describe('resolvePageScripts — real project groups', () => {
       'js/modules/message/message-inbox.js',
     ],
     profile: [
-      'js/modules/event/event-share-builders.js',
-      'js/modules/event/event-share.js',
+      'js/modules/auto-exp/index.js',
+      'js/modules/auto-exp/rules.js',
       'js/modules/profile/profile-avatar.js',
       'js/modules/profile/profile-core.js',
       'js/modules/profile/profile-form.js',
@@ -196,22 +196,46 @@ describe('resolvePageScripts — real project groups', () => {
       'js/modules/profile/profile-data-render.js',
       'js/modules/profile/profile-data-stats.js',
       'js/modules/profile/profile-data-history.js',
-      'js/modules/profile/profile-card.js',
-      'js/modules/profile/profile-share.js',
-      'js/modules/image-cropper.js',
+      'js/modules/leaderboard.js',
     ],
     achievement: [
       'js/modules/image-cropper.js',
       'js/modules/image-upload.js',
       'js/modules/achievement/index.js',
     ],
+    achievementProfile: [
+      'js/modules/auto-exp/index.js',
+      'js/modules/auto-exp/rules.js',
+      'js/modules/achievement/index.js',
+      'js/modules/achievement/registry.js',
+      'js/modules/achievement/shared.js',
+      'js/modules/achievement/stats.js',
+      'js/modules/achievement/evaluator.js',
+      'js/modules/achievement/badges.js',
+      'js/modules/achievement/titles.js',
+      'js/modules/achievement/profile.js',
+      'js/modules/achievement.js',
+    ],
+    profileCard: [
+      'js/modules/profile/profile-card.js',
+    ],
+    profileShare: [
+      'js/modules/event/event-share-builders.js',
+      'js/modules/event/event-share.js',
+      'js/modules/profile/profile-share.js',
+    ],
+    profileScene: [
+      'js/modules/color-cat/color-cat-config.js',
+      'js/modules/color-cat/color-cat-scene.js',
+    ],
   };
   const realPageGroups = {
     'page-tournaments': ['tournamentList'],
     'page-tournament-detail': ['tournamentDetail'],
     'page-messages': ['message'],
-    'page-profile': ['achievement', 'profile'],
-    'page-user-card': ['achievement', 'profile'],
+    'page-profile': ['profile'],
+    'page-qrcode': ['profile', 'profileCard'],
+    'page-user-card': ['profile', 'achievementProfile', 'profileCard', 'profileShare'],
   };
 
   test('page-tournaments loads list-only tournament group', () => {
@@ -227,15 +251,26 @@ describe('resolvePageScripts — real project groups', () => {
     expect(result).toContain('js/modules/tournament/tournament-detail.js');
   });
 
-  test('page-profile deduplicates image-cropper.js across achievement+profile', () => {
+  test('page-profile keeps first navigation lean', () => {
     const result = resolvePageScripts('page-profile', realPageGroups, realGroups);
-    const cropperCount = result.filter(s => s.includes('image-cropper')).length;
-    expect(cropperCount).toBe(1);
+    expect(result).toContain('js/modules/profile/profile-data-render.js');
+    expect(result).toContain('js/modules/leaderboard.js');
+    expect(result).not.toContain('js/modules/achievement/index.js');
+    expect(result).not.toContain('js/modules/profile/profile-card.js');
+    expect(result).not.toContain('js/modules/profile/profile-share.js');
+    expect(result).not.toContain('js/modules/color-cat/color-cat-scene.js');
   });
 
-  test('page-user-card loads both achievement and profile groups', () => {
+  test('page-qrcode keeps card renderer available after profile split', () => {
+    const result = resolvePageScripts('page-qrcode', realPageGroups, realGroups);
+    expect(result).toContain('js/modules/profile/profile-card.js');
+  });
+
+  test('page-user-card loads profile extras without duplicating shared auto-exp scripts', () => {
     const result = resolvePageScripts('page-user-card', realPageGroups, realGroups);
     expect(result).toContain('js/modules/achievement/index.js');
     expect(result).toContain('js/modules/profile/profile-card.js');
+    expect(result).toContain('js/modules/profile/profile-share.js');
+    expect(result.filter(s => s === 'js/modules/auto-exp/index.js')).toHaveLength(1);
   });
 });
