@@ -1677,3 +1677,39 @@
 - **原因**: 剔除按鈕直接接在 roster 欄後方，缺少固定 action slot 與渲染測試保護。
 - **修補**: 非主辦、已核准隊伍改用 `tfd-team-action` 右側操作欄與 `tfd-entry-remove-btn`；按鈕仍走既有 `removeFriendlyTournamentEntry`，會先彈出二次確認才呼叫 callable。
 - **驗收**: 新增 `tests/unit/tournament-friendly-detail-view.test.js`，確認管理者只會在非主辦已核准隊伍看到剔除按鈕。
+
+### 2026-04-28 近期首頁與導覽效能修正補登 [中型]
+- **問題**: 清快取或新版號後，首頁 banner、近期賽事與 hash reload 導覽容易出現載入慢、先回首頁再跳頁或底部導覽短暫不靈敏。
+- **原因**: boot 階段仍會先處理首頁資料與圖片；hash 目標頁沒有足夠早地標記 priority；banner/tournament 首屏資料沒有穩定 boot seed，頁面切換時需要等待 cloud/cache 回填。
+- **修補**: `app.js` / `page-loader.js` / `navigation.js` 讓 hash 目標頁提早啟用 shell 與 priority；首頁 banner 與近期賽事加入 boot preload/seed；`firebase-service.js` 降低 tournament 首次導覽的 blocking 成本。
+- **驗收**: `tests/unit/boot-hash-navigation.test.js`、`tests/unit/navigation.test.js`、`tests/unit/tournament-loading-performance.test.js` 覆蓋 hash reload、priority preload 與賽事冷啟動路徑。
+
+### 2026-04-28 首頁 banner 空白輪播修正補登 [中型]
+- **問題**: banner 輪播只顯示第一張，其餘 slide 可能是空白，且 boot cache stale 時會把舊資料帶回首頁。
+- **原因**: banner render 對無效圖片/空 URL 沒有足夠過濾，boot seed 與快取修復順序也可能讓 stale banner 覆蓋新資料。
+- **修補**: `banner.js` 過濾可顯示的 active banner 並避免空 slide；`app.js` 的 banner boot cache 路徑補 stale repair；更新首頁 inline version 避免 Service Worker 留住舊輪播。
+- **驗收**: `tests/unit/banner-carousel.test.js` 新增/更新 banner 輪播資料檢查，確認不會渲染空白 slide。
+
+### 2026-04-28 俱樂部頁開啟速度修正補登 [中型]
+- **問題**: 俱樂部頁在新版號或清快取後首次開啟偏慢，使用者會感覺頁面被 script 載入與統計計算卡住。
+- **原因**: `ScriptLoader` 原本把列表、詳情、表單模組綁成同一個 team group；列表首屏需等不必要的 detail/form/education 模組載入後才較完整。
+- **修補**: 將 team script group 拆成 `teamList` / `teamDetail` / `teamForm`，`page-teams` 只載列表必要模組；列表統計與圖片資料改用 shell-first / deferred path，降低首次導覽主執行緒成本。
+- **驗收**: `tests/unit/script-loader.test.js` 與 `tests/unit/tournament-loading-performance.test.js` 確認 page group 拆分與非首屏模組不阻塞列表頁。
+
+### 2026-04-28 賽事封面裁切與上傳體驗補登 [輕型]
+- **問題**: 新增/編輯賽事封面只有基本上傳，沒有活動封面同等的圖片裁切調整體驗。
+- **原因**: 賽事表單只接舊上傳 helper，未接入全站 image cropper 的封面比例與 preview 流程。
+- **修補**: `tournament-manage-form.js`、`tournament-manage.js`、`tournament-manage-edit.js` 接入封面 cropper，讓賽事封面與活動封面一致支援裁切/預覽/儲存。
+- **驗收**: `tests/unit/tournament-image-upload.test.js` 覆蓋 create/edit 表單的 image cropper 綁定與上傳 helper 路徑。
+
+### 2026-04-28 賽事詳情頁重新整理路由補登 [中型]
+- **問題**: 在賽事詳細頁重新整理後，畫面可能先顯示預設骨架或首頁狀態，之後才回到正確賽事，造成「賽事名稱/圖片 placeholder」殘留感。
+- **原因**: deep link / hash route 與 tournament detail state 載入順序不同步，friendly detail 的 state promise 與 `currentPage` 檢查沒有完整保留 refresh 前路由意圖。
+- **修補**: `app.js` / `navigation.js` / `tournament-detail.js` / `tournament-friendly-detail.js` 保留 tournament detail route，讓 refresh 直接走 detail shell 並在資料到位後再渲染內容。
+- **驗收**: `tests/unit/boot-hash-navigation.test.js` 與 `tests/unit/navigation.test.js` 補 detail route refresh guard，避免 stale route 覆蓋目前頁面。
+
+### 2026-04-28 首頁活動 inline 資料補登 [輕型]
+- **問題**: 首頁近期活動雖已優化，但新版部署後仍需要穩定把熱門/近期活動 seed 到 HTML，降低清快取後第一屏等待。
+- **原因**: 首頁活動依賴 Firebase/cache 回填時，慢網路或新版 SW 交替會讓第一屏短暫缺資料。
+- **修補**: `scripts/inject-hot-events.js` 於部署前更新 `index.html` boot events data，讓首頁可以先用 inline 資料渲染，再由 cloud freshness 補正。
+- **驗收**: 兩次 `chore(perf): 自動 inline 首頁活動` commit 已更新 HTML seed；後續若活動資料大幅變動，部署前需再次執行同一流程。
