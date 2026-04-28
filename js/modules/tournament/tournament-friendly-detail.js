@@ -44,6 +44,7 @@ Object.assign(App, {
     const state = await statePromise;
     if (!state || seq !== this._friendlyTournamentDetailSeq || this.currentPage !== 'page-tournament-detail') return;
     const tournament = state.tournament;
+    this._syncTournamentDetailRoute?.(id);
 
     const img = document.getElementById('td-img-placeholder');
     if (img) {

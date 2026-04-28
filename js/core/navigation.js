@@ -128,6 +128,7 @@ Object.assign(App, {
       target.classList.add('active');
     }
     this.currentPage = pageId;
+    this._syncBottomTabForPage?.(pageId);
 
     if (typeof FirebaseService !== 'undefined'
       && typeof FirebaseService.finalizePageScopedRealtimeForPage === 'function') {
@@ -148,6 +149,9 @@ Object.assign(App, {
           history.replaceState(null, '', _u.pathname + (_u.search || '') + (_u.hash || ''));
         }
       } catch (_) {}
+    }
+    if (pageId !== 'page-tournament-detail') {
+      this._clearTournamentDetailRouteParam?.();
     }
 
     this._floatAdOffset = 0;
@@ -928,10 +932,10 @@ Object.assign(App, {
       }
       // 同步 URL hash
       if (location.hash !== '#' + prev) location.hash = prev;
-      const mainPages = ['page-home','page-activities','page-teams','page-messages','page-profile'];
-      document.querySelectorAll('.bot-tab').forEach(t => {
-        t.classList.toggle('active', t.dataset.page === prev && mainPages.includes(prev));
-      });
+      this._syncBottomTabForPage?.(prev);
+      if (prev !== 'page-tournament-detail') {
+        this._clearTournamentDetailRouteParam?.();
+      }
       this._renderPageContent(prev);
       this._resetPageScroll(prev);
     }

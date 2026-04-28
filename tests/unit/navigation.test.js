@@ -65,7 +65,7 @@ function _getRouteFailureToast(pageId, step, err) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/core/navigation.js:704-710
+// Extracted from js/core/navigation.js:755-761
 // _pushPageHistory — manages page history stack
 // ---------------------------------------------------------------------------
 function _pushPageHistory(pageId, options, currentPage, pageHistory) {
@@ -198,7 +198,7 @@ describe('_getRouteFailureToast (navigation.js:23-31)', () => {
   });
 });
 
-describe('_pushPageHistory (navigation.js:568-574)', () => {
+describe('_pushPageHistory (navigation.js:755-761)', () => {
   test('navigating to new page → pushes current to history', () => {
     const history = ['page-home'];
     _pushPageHistory('page-teams', {}, 'page-activities', history);

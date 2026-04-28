@@ -28,6 +28,7 @@ Object.assign(App, {
       return { ok: false, reason: 'stale' };
     }
     this.currentTournament = id;
+    this._syncTournamentDetailRoute?.(id);
     if (!document.getElementById('td-title')) return;
 
     // 圖片渲染

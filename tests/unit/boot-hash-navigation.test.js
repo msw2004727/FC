@@ -33,6 +33,22 @@ describe('boot hash navigation acceleration contract', () => {
     expect(source).toContain("|| pageId === 'page-activities'");
   });
 
+  test('tournament detail refresh keeps an explicit tournament route id', () => {
+    const appSource = readProjectFile('app.js');
+    const navSource = readProjectFile('js/core/navigation.js');
+    const legacyDetailSource = readProjectFile('js/modules/tournament/tournament-detail.js');
+    const friendlyDetailSource = readProjectFile('js/modules/tournament/tournament-friendly-detail.js');
+
+    expect(appSource).toContain("'page-tournament-detail': 'page-tournaments'");
+    expect(appSource).toContain('_syncTournamentDetailRoute(tournamentId)');
+    expect(appSource).toContain("url.searchParams.set('tournament', id)");
+    expect(appSource).toContain('_shouldPreserveDeepLinkQueryParam(key)');
+    expect(navSource).toContain("pageId !== 'page-tournament-detail'");
+    expect(navSource).toContain('this._clearTournamentDetailRouteParam?.()');
+    expect(legacyDetailSource).toContain('this._syncTournamentDetailRoute?.(id)');
+    expect(friendlyDetailSource).toContain('this._syncTournamentDetailRoute?.(id)');
+  });
+
   test('boot overlay no longer enforces the previous 2500ms minimum', () => {
     const appSource = readProjectFile('app.js');
     const tunablesSource = readProjectFile('docs/tunables.md');

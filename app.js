@@ -1040,12 +1040,49 @@ const App = {
     }
   },
 
+  _getTournamentRouteParam() {
+    try {
+      return String(new URL(window.location.href).searchParams.get('tournament') || '').trim();
+    } catch (_) {
+      return '';
+    }
+  },
+
+  _syncTournamentDetailRoute(tournamentId) {
+    const id = String(tournamentId || '').trim();
+    if (!id) return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tournament', id);
+      url.hash = 'page-tournament-detail';
+      history.replaceState(null, '', url.pathname + (url.search || '') + (url.hash || ''));
+    } catch (_) {}
+  },
+
+  _clearTournamentDetailRouteParam() {
+    try {
+      const url = new URL(window.location.href);
+      if (!url.searchParams.has('tournament')) return;
+      url.searchParams.delete('tournament');
+      history.replaceState(null, '', url.pathname + (url.search || '') + (url.hash || ''));
+    } catch (_) {}
+  },
+
+  _shouldPreserveDeepLinkQueryParam(key) {
+    if (key !== 'tournament') return false;
+    const tournamentId = this._getTournamentRouteParam?.();
+    return !!(tournamentId
+      && this.currentPage === 'page-tournament-detail'
+      && String(this.currentTournament || '').trim() === tournamentId);
+  },
+
   _clearDeepLinkQueryParams() {
     try {
       const url = new URL(window.location.href);
       let changed = false;
       ['event', 'team', 'tournament', 'profile', 'rid'].forEach((key) => {
         if (!url.searchParams.has(key)) return;
+        if (this._shouldPreserveDeepLinkQueryParam?.(key)) return;
         url.searchParams.delete(key);
         changed = true;
       });
@@ -1871,6 +1908,7 @@ const App = {
   _DETAIL_PAGE_FALLBACK: {
     'page-team-detail': 'page-teams',
     'page-activity-detail': 'page-activities',
+    'page-tournament-detail': 'page-tournaments',
     'page-edu-groups': 'page-teams',
     'page-edu-students': 'page-teams',
     'page-edu-course-plan': 'page-teams',
@@ -1905,8 +1943,14 @@ const App = {
 
   _syncBottomTabForPage(pageId) {
     const mainPages = ['page-home', 'page-activities', 'page-teams', 'page-messages', 'page-profile', 'page-tournaments'];
+    const tabPage = ({
+      'page-activity-detail': 'page-activities',
+      'page-team-detail': 'page-teams',
+      'page-tournament-detail': 'page-tournaments',
+      'page-user-card': 'page-profile',
+    })[pageId] || pageId;
     document.querySelectorAll('.bot-tab').forEach(tab => {
-      tab.classList.toggle('active', mainPages.includes(pageId) && tab.dataset.page === pageId);
+      tab.classList.toggle('active', mainPages.includes(tabPage) && tab.dataset.page === tabPage);
     });
   },
 
