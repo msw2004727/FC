@@ -7,6 +7,40 @@
 
 Object.assign(App, {
 
+  _buildTeamMemberCountMap(teams = [], users = ApiService.getAdminUsers() || []) {
+    const userList = Array.isArray(users) ? users : [];
+    const teamEntries = (Array.isArray(teams) ? teams : [])
+      .filter(team => team && team.id)
+      .map(team => ({ team, id: String(team.id) }));
+    const teamIds = new Set(teamEntries.map(entry => entry.id));
+    const memberKeysByTeam = new Map();
+
+    teamEntries.forEach(entry => memberKeysByTeam.set(entry.id, new Set()));
+
+    userList.forEach(user => {
+      const identityKey = this._getUserIdentityKey(user);
+      if (!identityKey) return;
+      const teamIdsForUser = typeof this._getUserTeamIds === 'function'
+        ? this._getUserTeamIds(user)
+        : (user.teamId ? [user.teamId] : []);
+      teamIdsForUser.forEach(teamId => {
+        const normalizedTeamId = String(teamId || '');
+        if (!teamIds.has(normalizedTeamId)) return;
+        memberKeysByTeam.get(normalizedTeamId)?.add(identityKey);
+      });
+    });
+
+    teamEntries.forEach(entry => {
+      const staffIdentity = this._buildTeamStaffIdentity(entry.team, userList);
+      const memberKeys = memberKeysByTeam.get(entry.id) || new Set();
+      staffIdentity.keys.forEach(key => memberKeys.add(key));
+    });
+
+    const counts = new Map();
+    memberKeysByTeam.forEach((keys, teamId) => counts.set(teamId, keys.size));
+    return counts;
+  },
+
   _calcTeamMemberCountByTeam(team, users = ApiService.getAdminUsers() || []) {
     if (!team || !team.id) return 0;
     const uniqueIdentities = new Set();

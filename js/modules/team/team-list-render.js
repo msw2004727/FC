@@ -5,7 +5,7 @@
 
 Object.assign(App, {
 
-  _teamCardHTML(t) {
+  _teamCardHTML(t, options = {}) {
     const pinnedClass = t.pinned ? ' tc-pinned' : '';
     const color = t.color || '#6b7280';
     const rank = this._getTeamRank(t.teamExp);
@@ -16,7 +16,11 @@ Object.assign(App, {
     const sportBadge = sportEmoji ? `<span class="tc-sport-badge">${sportEmoji}</span>` : '';
     const typeHandler = this._getTeamTypeHandler(t.type);
     const memberLabel = isEdu ? '學員' : I18N.t('team.memberLabel');
-    const memberCount = typeHandler.memberCount(t.id);
+    const memberCountKey = String(t.id || '');
+    const memberCountMap = options.memberCountByTeam;
+    const memberCount = !isEdu && memberCountMap && memberCountMap.has(memberCountKey)
+      ? memberCountMap.get(memberCountKey)
+      : typeHandler.memberCount(t.id);
     return `
       <div class="tc-card${pinnedClass}" onclick="App.showTeamDetail('${t.id}')">
         ${t.pinned ? '<div class="tc-pin-badge">置頂</div>' : ''}
@@ -48,10 +52,14 @@ Object.assign(App, {
       teams = teams.filter(t => t.sportTag === activeTeamSport);
     }
     const sorted = this._sortTeams(teams);
+    const memberCountByTeam = this._buildTeamMemberCountMap?.(sorted, ApiService.getAdminUsers() || []) || null;
 
     // Phase 2B §8.2B：指紋跳過重繪
     var fp = sorted.map(function(t) {
-      return t.id + '|' + (t.name || '') + '|' + (t.sportTag || '') + '|' + (t.active ? 1 : 0) + '|' + (t.pinned ? 1 : 0) + '|' + (t.teamExp || 0);
+      const memberCount = memberCountByTeam && memberCountByTeam.has(String(t.id || ''))
+        ? memberCountByTeam.get(String(t.id || ''))
+        : '';
+      return t.id + '|' + (t.name || '') + '|' + (t.sportTag || '') + '|' + (t.active ? 1 : 0) + '|' + (t.pinned ? 1 : 0) + '|' + (t.teamExp || 0) + '|' + memberCount;
     }).join(',');
     if (this._teamListLastFp === fp && container.children.length > 0) return;
     this._teamListLastFp = fp;
@@ -59,7 +67,7 @@ Object.assign(App, {
     var _tlScrollEl = document.scrollingElement || document.documentElement;
     var _tlSavedScroll = _tlScrollEl.scrollTop;
     container.innerHTML = sorted.length > 0
-      ? sorted.map(t => this._teamCardHTML(t)).join('')
+      ? sorted.map(t => this._teamCardHTML(t, { memberCountByTeam })).join('')
       : '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--text-muted);font-size:.85rem">此類型尚無俱樂部</div>';
     _tlScrollEl.scrollTop = _tlSavedScroll;
     this._markPageSnapshotReady?.('page-teams');
@@ -82,7 +90,9 @@ Object.assign(App, {
         if (_curTypeTab) ts = ts.filter(t => (t.type || 'general') === _curTypeTab);
         if (_curSport) ts = ts.filter(t => t.sportTag === _curSport);
         this._teamListLastFp = '';
-        c.innerHTML = this._sortTeams(ts).map(t => this._teamCardHTML(t)).join('') || c.innerHTML;
+        const sortedAfterEdu = this._sortTeams(ts);
+        const memberCountAfterEdu = this._buildTeamMemberCountMap?.(sortedAfterEdu, ApiService.getAdminUsers() || []) || null;
+        c.innerHTML = sortedAfterEdu.map(t => this._teamCardHTML(t, { memberCountByTeam: memberCountAfterEdu })).join('') || c.innerHTML;
         _tlScrollEl.scrollTop = _s2;
       });
     }

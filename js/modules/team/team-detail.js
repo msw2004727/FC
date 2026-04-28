@@ -89,12 +89,27 @@ Object.assign(App, {
     return result;
   },
 
-  openTeamDetailEdit() {
+  async openTeamDetailEdit() {
     const teamId = this._teamDetailId;
     const team = teamId ? ApiService.getTeam(teamId) : null;
     if (!team) return;
     if (!this._canEditTeamByRoleOrCaptain?.(team)) {
       this.showToast('\u60a8\u6c92\u6709\u7de8\u8f2f\u6b64\u7403\u968a\u7684\u6b0a\u9650');
+      return;
+    }
+    if (typeof this.showTeamForm !== 'function'
+      && typeof ScriptLoader !== 'undefined'
+      && typeof ScriptLoader.ensureGroup === 'function') {
+      try {
+        await ScriptLoader.ensureGroup('teamForm');
+      } catch (err) {
+        console.error('[TeamDetail] team form scripts failed to load:', err);
+        this.showToast('\u7121\u6cd5\u958b\u555f\u7de8\u8f2f\u8868\u55ae\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+        return;
+      }
+    }
+    if (typeof this.showTeamForm !== 'function') {
+      this.showToast('\u7121\u6cd5\u958b\u555f\u7de8\u8f2f\u8868\u55ae\uff0c\u8acb\u91cd\u65b0\u6574\u7406\u5f8c\u518d\u8a66');
       return;
     }
     this.showTeamForm(team.id);

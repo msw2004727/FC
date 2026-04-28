@@ -49,8 +49,21 @@ Object.assign(App, {
     if (manageBtn) manageBtn.style.display = canCreate ? '' : 'none';
   },
 
-  openTeamCreateFromTeamsPage() {
-    this._showTeamTypeSelect();
+  async openTeamCreateFromTeamsPage() {
+    if (typeof this._showTeamTypeSelect !== 'function'
+      && typeof ScriptLoader !== 'undefined'
+      && typeof ScriptLoader.ensureGroup === 'function') {
+      try {
+        await ScriptLoader.ensureGroup('teamForm');
+      } catch (err) {
+        console.error('[TeamList] team form scripts failed to load:', err);
+        this.showToast?.('無法開啟新增俱樂部表單，請稍後再試');
+        return;
+      }
+    }
+    if (typeof this._showTeamTypeSelect === 'function') {
+      this._showTeamTypeSelect();
+    }
   },
 
   _currentTeamTypeTab: '',
@@ -121,8 +134,9 @@ Object.assign(App, {
     }
 
     const sorted = this._sortTeams(filtered);
+    const memberCountByTeam = this._buildTeamMemberCountMap?.(sorted, ApiService.getAdminUsers() || []) || null;
     container.innerHTML = sorted.length > 0
-      ? sorted.map(t => this._teamCardHTML(t)).join('')
+      ? sorted.map(t => this._teamCardHTML(t, { memberCountByTeam })).join('')
       : `<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--text-muted);font-size:.85rem">${t('team.noMatch')}</div>`;
 
     // Phase 2B §8.2A：快取不完整且搜尋無結果 → 顯示「搜尋所有俱樂部」按鈕

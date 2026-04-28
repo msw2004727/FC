@@ -57,3 +57,46 @@ describe('tournament loading performance contract', () => {
     expect(body[1]).not.toContain('await this.ensureForPage(pageId)');
   });
 });
+
+describe('team loading performance contract', () => {
+  test('public club list activates shell before cloud like other public list pages', () => {
+    const source = readProjectFile('js/core/navigation.js');
+
+    expect(source).toContain("pageId === 'page-tournaments'");
+    expect(source).toContain("|| pageId === 'page-activities'");
+    expect(source).toContain("|| pageId === 'page-teams'");
+  });
+
+  test('public club list uses lean list-only script group', () => {
+    const source = readProjectFile('js/core/script-loader.js');
+    const listGroup = source.match(/teamList:\s*\[([\s\S]*?)\],\s*teamDetail:/);
+    const detailGroup = source.match(/teamDetail:\s*\[([\s\S]*?)\],\s*teamForm:/);
+    const formGroup = source.match(/teamForm:\s*\[([\s\S]*?)\],\s*team:/);
+
+    expect(source).toContain("'page-teams':              ['teamList']");
+    expect(source).toContain("'page-team-detail':        ['teamList', 'teamDetail', 'education']");
+    expect(source).toContain("'page-team-manage':        ['teamList', 'teamForm']");
+    expect(listGroup).not.toBeNull();
+    expect(detailGroup).not.toBeNull();
+    expect(formGroup).not.toBeNull();
+    expect(listGroup[1]).toContain('team-list-render.js');
+    expect(listGroup[1]).not.toContain('team-detail.js');
+    expect(listGroup[1]).not.toContain('team-form.js');
+    expect(listGroup[1]).not.toContain('team-share.js');
+    expect(detailGroup[1]).toContain('team-detail.js');
+    expect(detailGroup[1]).toContain('team-form-join.js');
+    expect(formGroup[1]).toContain('team-form-init.js');
+    expect(formGroup[1]).toContain('team-form.js');
+  });
+
+  test('club list render uses a per-render member count map', () => {
+    const renderSource = readProjectFile('js/modules/team/team-list-render.js');
+    const listSource = readProjectFile('js/modules/team/team-list.js');
+    const statsSource = readProjectFile('js/modules/team/team-list-stats.js');
+
+    expect(statsSource).toContain('_buildTeamMemberCountMap');
+    expect(renderSource).toContain('memberCountByTeam');
+    expect(renderSource).toContain('this._teamCardHTML(t, { memberCountByTeam })');
+    expect(listSource).toContain('this._teamCardHTML(t, { memberCountByTeam })');
+  });
+});

@@ -85,7 +85,8 @@ Object.assign(App, {
 
   _canActivateBeforeCloud(pageId) {
     return pageId === 'page-tournaments'
-      || pageId === 'page-activities';
+      || pageId === 'page-activities'
+      || pageId === 'page-teams';
   },
 
   _hasCachedDataForPage(pageId) {

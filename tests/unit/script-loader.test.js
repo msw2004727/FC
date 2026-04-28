@@ -181,6 +181,31 @@ describe('resolvePageScripts — real project groups', () => {
       'js/modules/tournament/tournament-friendly-roster.js',
       'js/modules/tournament/tournament-friendly-notify.js',
     ],
+    teamList: [
+      'js/modules/team/team-list-helpers.js',
+      'js/modules/team/team-list-stats.js',
+      'js/modules/team/team-list.js',
+      'js/modules/team/team-list-render.js',
+    ],
+    teamDetail: [
+      'js/modules/auto-exp/index.js',
+      'js/modules/event/event-share-builders.js',
+      'js/modules/event/event-share.js',
+      'js/modules/team/team-detail.js',
+      'js/modules/team/team-feed.js',
+      'js/modules/team/team-detail-render.js',
+      'js/modules/team/team-detail-invite.js',
+      'js/modules/team/team-share-builders.js',
+      'js/modules/team/team-share.js',
+      'js/modules/team/team-form-join.js',
+    ],
+    teamForm: [
+      'js/modules/team/team-form-search.js',
+      'js/modules/team/team-form-init.js',
+      'js/modules/team/team-form-validate.js',
+      'js/modules/team/team-form-roles.js',
+      'js/modules/team/team-form.js',
+    ],
     message: [
       'js/modules/message/message-actions.js',
       'js/modules/message/message-actions-team.js',
@@ -232,6 +257,9 @@ describe('resolvePageScripts — real project groups', () => {
   const realPageGroups = {
     'page-tournaments': ['tournamentList'],
     'page-tournament-detail': ['tournamentDetail'],
+    'page-teams': ['teamList'],
+    'page-team-detail': ['teamList', 'teamDetail'],
+    'page-team-manage': ['teamList', 'teamForm'],
     'page-messages': ['message'],
     'page-profile': ['profile'],
     'page-qrcode': ['profile', 'profileCard'],
@@ -249,6 +277,34 @@ describe('resolvePageScripts — real project groups', () => {
     const result = resolvePageScripts('page-tournament-detail', realPageGroups, realGroups);
     expect(result).toContain('js/modules/tournament/tournament-render.js');
     expect(result).toContain('js/modules/tournament/tournament-detail.js');
+  });
+
+  test('page-teams loads only lean team list scripts', () => {
+    const result = resolvePageScripts('page-teams', realPageGroups, realGroups);
+    expect(result).toEqual([
+      'js/modules/team/team-list-helpers.js',
+      'js/modules/team/team-list-stats.js',
+      'js/modules/team/team-list.js',
+      'js/modules/team/team-list-render.js',
+    ]);
+    expect(result).not.toContain('js/modules/team/team-detail.js');
+    expect(result).not.toContain('js/modules/team/team-form.js');
+    expect(result).not.toContain('js/modules/team/team-share.js');
+  });
+
+  test('team detail gets list helpers plus detail actions without loading edit form upfront', () => {
+    const result = resolvePageScripts('page-team-detail', realPageGroups, realGroups);
+    expect(result).toContain('js/modules/team/team-list-stats.js');
+    expect(result).toContain('js/modules/team/team-detail.js');
+    expect(result).toContain('js/modules/team/team-form-join.js');
+    expect(result).not.toContain('js/modules/team/team-form.js');
+  });
+
+  test('team manage loads list renderer and form scripts', () => {
+    const result = resolvePageScripts('page-team-manage', realPageGroups, realGroups);
+    expect(result).toContain('js/modules/team/team-list-render.js');
+    expect(result).toContain('js/modules/team/team-form-init.js');
+    expect(result).toContain('js/modules/team/team-form.js');
   });
 
   test('page-profile keeps first navigation lean', () => {

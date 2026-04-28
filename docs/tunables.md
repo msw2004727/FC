@@ -3,7 +3,7 @@
 > 專案內所有可調設定（timing / limit / threshold）+ 關鍵流程的順序效果總覽。
 > **強制維護規則（CLAUDE.md §設定追蹤規範）**：修改檔案時若涉及任何可調設定 / 加載順序 / timing / 閾值，必須同步更新本檔對應條目；新增任何可調常數，必須在本檔登記。
 
-**Last Updated: 2026-04-28**（hash reload early route + PageLoader priority，解除 boot overlay 2500ms 最短顯示）
+**Last Updated: 2026-04-28**（club page shell-first navigation + team script split）
 
 ## 目錄
 
@@ -168,7 +168,9 @@
 | Page | 模組數 | 檔案位置 |
 |------|-------|---------|
 | `event` | 30+ | `script-loader.js:115-135` |
-| `team` | 16 | `script-loader.js:136+` |
+| `teamList` | 4 | `page-teams` first screen only：helpers/stats/list/render |
+| `teamDetail` | 10 | `page-team-detail` lazy detail/share/join flow |
+| `teamForm` | 5 | create/edit modal lazy loaded from list/detail/manage |
 | `tournament` | 16 | `script-loader.js` |
 | `activityCalendar` | 4（lazy load） | `script-loader.js:306-311` |
 | `adminUsers` | 10+ | `script-loader.js:312-324` |
@@ -322,5 +324,6 @@ finally: _completeDeepLinkSuccess / _completeDeepLinkFallback
 
 - **2026-04-25**：建立檔案。初始登錄 Boot Overlay / Route Loading / Visibility / LIFF / Instant Save / SW / Limit / Threshold / Load Order / Sequence Effects / Versioning 共 11 大類。
 - **2026-04-28**：boot overlay `MIN_VISIBLE_MS` 2500 → 0；hash reload 改由 early boot route + PageLoader priority 先定位目標頁，不再用固定遮罩等待掩蓋首頁跳轉。
+- **2026-04-28**：俱樂部 `page-teams` 改為 shell-first navigation，並將原 `team` script group 拆為 `teamList` / `teamDetail` / `teamForm`，列表第一屏只載列表必要模組。
 - **2026-04-25**：boot overlay `MIN_VISIBLE_MS` 1500 → 2500（用戶反映 1.5 秒仍偏短，調至 2.5 秒看到更完整的進度條動畫）。
 - **2026-04-25**：新增 `SPORT_ICON_SVG_HTML` 對照表 + 匹克球 V4 SVG 圖示（紅色圓角方形拍斜放 + 黃球飛 + 速度線）。Unicode 無匹克球專屬 emoji、🏓 桌球拍視覺誤導，改用自製 SVG。
