@@ -3136,7 +3136,7 @@ const FirebaseService = {
     this._lazyLoaded.tournaments = true;
     var self = this;
     var unsub = db.collection('tournaments')
-      .orderBy('updatedAt', 'desc')
+      .orderBy('createdAt', 'desc')
       .limit(this._getRealtimeLimit('tournamentLimit'))
       .onSnapshot(
         function(snapshot) {

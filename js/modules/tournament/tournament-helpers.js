@@ -118,6 +118,9 @@ Object.assign(App, {
     const currentUser = user || ApiService.getCurrentUser?.();
     if (!tournament || !currentUser) return false;
     if (this.hasPermission('admin.tournaments.manage_all')) return true;
+    const currentUid = String(currentUser.uid || currentUser.lineUserId || '').trim();
+    const creatorUid = String(tournament.creatorUid || '').trim();
+    if (currentUid && creatorUid && currentUid === creatorUid) return true;
     if (this._isTournamentDelegate(tournament, currentUser)) return true;
     const hostTeamId = String(tournament.hostTeamId || '').trim();
     if (!hostTeamId) return false;

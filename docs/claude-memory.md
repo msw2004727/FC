@@ -2,6 +2,21 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-28 — 修復歷史賽事閃現 + 建立者編輯按鈕從未顯示 [永久]
+- **問題**（兩個彼此相關但不同）：
+  1. **閃現**：進入賽事中心時舊賽事先顯示一下,然後 onSnapshot 觸發後從列表洗掉(看起來像「閃一下消失」)。前次修復(`addTournament` 補 `updatedAt`)只解決新建賽事,**所有歷史賽事**仍會閃現
+  2. **編輯按鈕「失效」**：實際是「按鈕從未顯示」(toolbar 被權限判定隱藏)。即使遠端 `c65c99ba` 加了 `openEditTournamentSafe` lazy-load wrapper,只解決「按鈕顯示但點了沒反應」這層,沒解決「按鈕根本沒出現」這層
+- **原因**：
+  1. `_startTournamentsRealtimeListener`(firebase-service.js:3139)用 `orderBy('updatedAt', 'desc')`,但 `_loadStaticCollections`(同檔 :569)用 `orderBy('createdAt', 'desc')`。**兩段查詢條件不一致** + Firestore `orderBy` 排除欄位不存在的文件 → 歷史資料(無 updatedAt)被 onSnapshot 排除 → cache 洗掉 → 閃現
+  2. `_canManageTournamentRecord`(tournament-helpers.js:117-125)只判 `admin / 委託人 / host team captain/leader`,**漏掉「建立者本人」(`creatorUid === currentUser.uid`)**。建立者若不在 host team 任職(例如 admin 代建、或建立後從俱樂部離隊)→ toolbar 完全不顯示
+- **修復**：
+  1. listener 排序欄位改回 `createdAt`(與 static load 一致),歷史資料天然有 createdAt → 不會被排除。`renderTournamentTimeline` 自己會按名稱重排,listener 順序不影響 UI
+  2. `_canManageTournamentRecord` 在 admin 判定後、委託人判定前,補一條 `if (currentUid === creatorUid) return true;`
+- **教訓**：
+  - **同一 collection 的 static load 與 onSnapshot listener 必須使用相同的 orderBy 欄位**,否則歷史資料會在 listener 啟動瞬間被洗掉(=閃現)。CR 時必查
+  - **權限判定函式必須包含「建立者本人」這條最基本的規則**,否則「我建的東西自己不能管」是 UX 災難。新增 CRUD 時的權限 helper checklist:`admin → creator → delegate → team officer → 一般用戶`
+  - 用戶說「按鈕失效」時,先區分「按鈕沒顯示」vs「按鈕點了沒反應」—— 兩者根因完全不同(權限 vs script loading)
+
 ### 2026-04-28 — 修復賽事詳情頁「編輯賽事」按鈕點了沒反應 [永久]
 - **問題**：在賽事詳情頁（`page-tournament-detail`）按下右上「編輯賽事」按鈕完全沒反應；但從後台「賽事管理」（`page-admin-tournaments`）點則正常
 - **原因**：`App.showEditTournament` 定義於 `tournament-manage-edit.js`，屬於 `script-loader.js` 的 `tournamentAdmin` 群組。詳情頁只配置了 `tournament` 群組（`page-tournament-detail: ['tournament']`），**從未載入 `tournamentAdmin`**，所以 `App.showEditTournament` 是 undefined，按鈕點了沒反應（也沒 toast）
