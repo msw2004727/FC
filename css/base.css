@@ -315,6 +315,13 @@ body.modal-open { overflow: hidden; }
   color: var(--text-muted);
   line-height: 1.5;
 }
+.tournament-reg-start-note {
+  margin-left: .35rem;
+  font-size: .68rem;
+  color: var(--text-muted);
+  font-weight: 400;
+  white-space: nowrap;
+}
 .ce-static-select {
   background-color: var(--surface-alt);
   color: var(--text-secondary);

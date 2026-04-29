@@ -2,6 +2,11 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-29 — 賽事表單報名開始提示位置 [小型]
+- **問題**: 新增賽事表單的「未設定則立即開放」提示被掛在整個報名日期列後方，視覺上會跑到「報名截止」旁邊；主辦俱樂部參賽提示也保留了多餘的「開啟時會沿用現狀」前綴。
+- **修復**: 將提示改為「報名開始」label 右側的 inline note，並移除舊的 row-level 提示；主辦參賽開啟文案精簡為「建立後主辦俱樂部直接參賽並佔用1個名額。」。
+- **驗證**: `node --check js/modules/tournament/tournament-manage-host.js`、`git diff --check`、`npm test -- --runInBand --runTestsByPath tests/unit/tournament-loading-performance.test.js tests/unit/tournament-regression.test.js` 通過。
+
 ### 2026-04-29 — 賽事主辦是否參賽與裁判欄位 [中型]
 - **問題**: 建立友誼賽時主辦俱樂部一律自動成為參賽隊伍並佔用 1 個名額，無法只作為主辦單位顯示；賽事也沒有可記錄多位裁判的欄位。
 - **原因**: 建賽 callable 固定建立 `entryStatus: host` 的 entries 文件，並把 `registeredTeams/approvedTeamCount` 預設設為 `[hostTeamId]/1`；前端名額顯示也把 host entry 當成核准隊伍。表單人員 picker 只有委託人狀態。

@@ -148,7 +148,7 @@ Object.assign(App, {
       return;
     }
     note.textContent = toggle.checked
-      ? '開啟時會沿用現狀：建立後主辦俱樂部直接參賽並佔用 1 個名額。'
+      ? '建立後主辦俱樂部直接參賽並佔用1個名額。'
       : '關閉時仍會顯示主辦俱樂部，但不佔參賽名額。';
   },
 
@@ -253,7 +253,8 @@ Object.assign(App, {
     const regStartWrap = regStartInput?.parentElement || null;
     const regStartLabel = regStartWrap?.querySelector('label');
     if (regStartLabel) {
-      regStartLabel.textContent = '報名開始';
+      // Note: innerHTML usage is safe - no user content in this template
+      regStartLabel.innerHTML = '報名開始 <span class="tournament-reg-start-note">（未設定則立即開放）</span>';
     }
 
     const regEndInput = document.getElementById(`${p}-reg-end`);
@@ -266,7 +267,7 @@ Object.assign(App, {
 
     const regRow = regStartWrap?.parentElement;
     if (regRow?.classList.contains('ce-row-half')) {
-      this._ensureTournamentFieldNote(regRow, `tournament-reg-period-note-${p}`, '未設定則立即開放');
+      regRow.querySelector(`.tournament-reg-period-note-${p}`)?.remove();
     }
   },
 
