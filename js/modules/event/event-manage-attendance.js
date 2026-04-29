@@ -244,7 +244,7 @@ Object.assign(App, {
       if (p.isTeamHeader) {
         const canAdjustTeam = !isSubmitting && this._isCurrentUserTeamStaff?.(p.teamReservationTeamId);
         const adjustBtn = canAdjustTeam
-          ? `<button style="font-size:.72rem;padding:.18rem .5rem;border:1px solid #0f766e;color:#0f766e;background:#fff;border-radius:var(--radius-sm);cursor:pointer" onclick="App.openTeamReservationModal('${escapeHTML(eventId)}','${escapeHTML(p.teamReservationTeamId)}')">調整</button>`
+          ? `<button style="font-size:.72rem;padding:.18rem .5rem;border:1px solid #0f766e;color:#0f766e;background:#fff;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap" onclick="App.openTeamReservationModal('${escapeHTML(eventId)}','${escapeHTML(p.teamReservationTeamId)}')">快速調整</button>`
           : '';
         return `<tr class="team-reservation-header-row"><td colspan="${tableColspan}" style="padding:.45rem .55rem;background:#eff6ff;border-bottom:1px solid #bfdbfe;color:#1e3a8a">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap">

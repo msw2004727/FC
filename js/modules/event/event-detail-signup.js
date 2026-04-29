@@ -200,8 +200,8 @@ Object.assign(App, {
       return summary && (Number(summary.reservedSlots || 0) > 0 || Number(summary.usedSlots || 0) > 0);
     });
     const label = active ? '調整名額' : '團隊報名';
-    const bg = active ? '#0f766e' : '#2563eb';
-    const glow = active ? '#14b8a6' : '#60a5fa';
+    const bg = '#2563eb';
+    const glow = '#60a5fa';
     const hint = active ? '調整團隊名額中' : '建立團隊名額中';
     const onclick = `App.openTeamReservationModal('${escapeHTML(e.id)}'${active ? `,'${escapeHTML(active.id)}'` : ''})`;
     return '<div class="signup-glow-wrap team-reservation-action" style="--glow-c:' + bg + ';--glow-c-light:' + glow + '">'
