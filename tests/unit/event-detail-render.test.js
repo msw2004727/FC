@@ -271,4 +271,19 @@ describe('Team reservation button loading contract', () => {
     expect(signupSource).toContain('class="team-reservation-close" onclick="App.closeTeamReservationModal()"');
     expect(signupSource).toContain('class="outline-btn" onclick="App.closeTeamReservationModal()"');
   });
+
+  test('personal signup asks for a club when multiple team reservations match', () => {
+    const signupSource = readProjectFile('js/modules/event/event-detail-signup.js');
+    const companionSource = readProjectFile('js/modules/event/event-detail-companion.js');
+    const crudSource = readProjectFile('js/firebase-crud.js');
+    const functionsSource = readProjectFile('functions/index.js');
+
+    expect(signupSource).toContain('_resolveTeamReservationSignupChoice');
+    expect(signupSource).toContain('choices.length === 1');
+    expect(signupSource).toContain('team-reservation-signup-choice-modal');
+    expect(signupSource).toContain('preferredTeamReservationTeamId');
+    expect(companionSource).toContain('openTeamReservationSignupChoiceModal?.(eventId, reservationChoice.choices, \'companion\')');
+    expect(crudSource).toContain('TEAM_RESERVATION_TEAM_DENIED');
+    expect(functionsSource).toContain('safePreferredTeamReservationTeamId');
+  });
 });

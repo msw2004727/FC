@@ -72,6 +72,41 @@ describe('team reservation occupancy helpers', () => {
     expect(registration.teamSeatSource).toBe('reserved');
   });
 
+  test('multi-club signup consumes the explicitly selected club reservation', () => {
+    const registration = { id: 'r3', userId: 'u3', userName: 'C', participantType: 'self' };
+    const decision = service._decideRegistrationSeat(
+      {
+        max: 4,
+        teamReservationSummaries: [
+          { teamId: 'teamA', teamName: 'Team A', reservedSlots: 2 },
+          { teamId: 'teamB', teamName: 'Team B', reservedSlots: 2 },
+        ],
+      },
+      [],
+      registration,
+      { uid: 'u3', teamIds: ['teamA', 'teamB'], preferredTeamReservationTeamId: 'teamB' },
+    );
+
+    expect(decision.status).toBe('confirmed');
+    expect(registration.status).toBe('confirmed');
+    expect(registration.teamReservationTeamId).toBe('teamB');
+    expect(registration.teamReservationTeamName).toBe('Team B');
+    expect(registration.teamSeatSource).toBe('reserved');
+  });
+
+  test('explicit club reservation choice must belong to the user', () => {
+    const registration = { id: 'r3', userId: 'u3', userName: 'C', participantType: 'self' };
+    expect(() => service._decideRegistrationSeat(
+      {
+        max: 4,
+        teamReservationSummaries: [{ teamId: 'teamB', teamName: 'Team B', reservedSlots: 2 }],
+      },
+      [],
+      registration,
+      { uid: 'u3', teamIds: ['teamA'], preferredTeamReservationTeamId: 'teamB' },
+    )).toThrow('TEAM_RESERVATION_TEAM_DENIED');
+  });
+
   test('team officer signup consumes a reserved placeholder even without member teamIds', () => {
     service.__testApiState.teams = [
       { id: 'teamA', name: 'Team A', captainUid: 'staff_uid' },

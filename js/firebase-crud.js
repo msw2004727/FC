@@ -770,6 +770,13 @@ Object.assign(FirebaseService, {
     if (!userTeamIds.size) return null;
     const summaries = this._normalizeTeamReservationSummaries(eventData)
       .filter(item => item.reservedSlots > 0 || item.usedSlots > 0);
+    const preferredTeamId = String(userData?.preferredTeamReservationTeamId || '').trim();
+    if (preferredTeamId) {
+      if (!userTeamIds.has(preferredTeamId)) throw new Error('TEAM_RESERVATION_TEAM_DENIED');
+      const selected = summaries.find(item => item.teamId === preferredTeamId);
+      if (selected) return selected;
+      throw new Error('TEAM_RESERVATION_TEAM_NOT_AVAILABLE');
+    }
     return summaries.find(item => userTeamIds.has(item.teamId)) || null;
   },
 
@@ -1128,7 +1135,7 @@ Object.assign(FirebaseService, {
    * @param {string} userName - 報名者顯示名稱
    * @param {string|null} teamKey - 分隊 key（分隊模式時）
    */
-  async registerForEvent(eventId, userId, userName, teamKey = null) {
+  async registerForEvent(eventId, userId, userName, teamKey = null, options = {}) {
     if (!userId || userId === 'unknown') throw new Error('用戶資料載入中，請稍候再試');
 
     // Plan C：個人資料完整度前置檢查（⚠️ 鎖定函式 pre-check：不觸碰 transaction/佔位邏輯）
@@ -1144,13 +1151,13 @@ Object.assign(FirebaseService, {
     this._signupBusyMap[busyKey] = true;
 
     try {
-      return await this._doRegisterForEvent(eventId, userId, userName, teamKey);
+      return await this._doRegisterForEvent(eventId, userId, userName, teamKey, options);
     } finally {
       delete this._signupBusyMap[busyKey];
     }
   },
 
-  async _doRegisterForEvent(eventId, userId, userName, teamKey) {
+  async _doRegisterForEvent(eventId, userId, userName, teamKey, options = {}) {
     // v8 Blocker 2 Part 3：身分一致性最後防線（寫入層、Tier 2 換帳號防污染）
     // 傳 expectedUid 讓 _ensureAuth 比對、並在 transaction 前再 assert 一次
     const authed = await this._ensureAuth(userId);
@@ -1219,11 +1226,16 @@ Object.assign(FirebaseService, {
       const currentUserData = (typeof ApiService !== 'undefined' && ApiService.getCurrentUser)
         ? (ApiService.getCurrentUser() || {})
         : { uid: userId };
+      const reservationUserData = { ...currentUserData };
+      const preferredTeamReservationTeamId = String(options?.preferredTeamReservationTeamId || '').trim();
+      if (preferredTeamReservationTeamId) {
+        reservationUserData.preferredTeamReservationTeamId = preferredTeamReservationTeamId;
+      }
       const seatDecision = this._decideRegistrationSeat(
         { ...ed, id: eventId, max: maxCount },
         firestoreActiveRegs,
         registration,
-        currentUserData
+        reservationUserData
       );
       const status = seatDecision.status;
 
@@ -2578,7 +2590,7 @@ Object.assign(FirebaseService, {
   //  Batch Registration（批次報名）
   // ════════════════════════════════
 
-  async batchRegisterForEvent(eventId, entries) {
+  async batchRegisterForEvent(eventId, entries, options = {}) {
     // Plan C：個人資料完整度前置檢查（⚠️ 鎖定函式 pre-check）
     var _cu2 = typeof ApiService !== 'undefined' && ApiService.getCurrentUser?.();
     if (_cu2 && (!_cu2.gender || !_cu2.birthday || !_cu2.region)) {
@@ -2644,6 +2656,11 @@ Object.assign(FirebaseService, {
       const currentUserData = (typeof ApiService !== 'undefined' && ApiService.getCurrentUser)
         ? (ApiService.getCurrentUser() || {})
         : { uid: mainUserId };
+      const reservationUserData = { ...currentUserData };
+      const preferredTeamReservationTeamId = String(options?.preferredTeamReservationTeamId || '').trim();
+      if (preferredTeamReservationTeamId) {
+        reservationUserData.preferredTeamReservationTeamId = preferredTeamReservationTeamId;
+      }
 
       for (const entry of entries) {
         const entryType = entry.participantType || 'self';
@@ -2680,7 +2697,7 @@ Object.assign(FirebaseService, {
           { ...ed, id: eventId, max: maxCount },
           plannedActiveRegs,
           reg,
-          entryType === 'self' ? currentUserData : {}
+          entryType === 'self' ? reservationUserData : {}
         );
         const status = seatDecision.status;
         promotionIdx++;

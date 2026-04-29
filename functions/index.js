@@ -617,6 +617,13 @@ function getUserTeamIdSetFromData(userData, staffTeams = []) {
   return ids;
 }
 
+function teamReservationSelectionError(code) {
+  return new HttpsError(
+    code === "TEAM_RESERVATION_TEAM_DENIED" ? "permission-denied" : "failed-precondition",
+    code
+  );
+}
+
 function isUserDataInTeam(userData, teamId) {
   const safeTeamId = String(teamId || "").trim();
   return !!safeTeamId && getUserTeamIdSetFromData(userData).has(safeTeamId);
@@ -5653,9 +5660,18 @@ function registrationTeamReservationTeamId(reg = {}) {
 function findTeamReservationForUser(eventData = {}, userData = {}, staffTeams = []) {
   const userTeamIds = getUserTeamIdSetFromData(userData, staffTeams);
   if (!userTeamIds.size) return null;
-  return normalizeTeamReservationSummaries(eventData)
-    .filter((item) => item.reservedSlots > 0 || item.usedSlots > 0)
-    .find((item) => userTeamIds.has(item.teamId)) || null;
+  const summaries = normalizeTeamReservationSummaries(eventData)
+    .filter((item) => item.reservedSlots > 0 || item.usedSlots > 0);
+  const preferredTeamId = String(userData?.preferredTeamReservationTeamId || "").trim();
+  if (preferredTeamId) {
+    if (!userTeamIds.has(preferredTeamId)) {
+      throw teamReservationSelectionError("TEAM_RESERVATION_TEAM_DENIED");
+    }
+    const selected = summaries.find((item) => item.teamId === preferredTeamId);
+    if (selected) return selected;
+    throw teamReservationSelectionError("TEAM_RESERVATION_TEAM_NOT_AVAILABLE");
+  }
+  return summaries.find((item) => userTeamIds.has(item.teamId)) || null;
 }
 
 function applyTeamReservationFields(registration, reservation, source) {
@@ -6025,7 +6041,8 @@ exports.registerForEvent = onCall(
     }
     const callerUid = request.auth.uid;
 
-    const { eventId, participants, requestId } = request.data || {};
+    const { eventId, participants, requestId, preferredTeamReservationTeamId } = request.data || {};
+    const safePreferredTeamReservationTeamId = sanitizeStr(preferredTeamReservationTeamId || "", 100);
 
     // ── 參數驗證 ──
     if (typeof eventId !== "string" || !eventId.trim()) {
@@ -6102,6 +6119,7 @@ exports.registerForEvent = onCall(
         lineUserId: callerUserDoc?.data?.lineUserId || callerUid,
         _docId: callerUserDoc?.docId || callerUserDoc?.data?._docId || "",
         docId: callerUserDoc?.docId || callerUserDoc?.data?.docId || "",
+        preferredTeamReservationTeamId: safePreferredTeamReservationTeamId,
       };
       const reservationTeamIds = normalizeTeamReservationSummaries(ed)
         .filter((item) => item.reservedSlots > 0 || item.usedSlots > 0)

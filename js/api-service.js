@@ -1748,7 +1748,7 @@ const ApiService = {
     );
   },
 
-  async registerEventWithCompanions(eventId, participantList) {
+  async registerEventWithCompanions(eventId, participantList, opts = {}) {
     if (this._handleRestrictedAction()) {
       throw new Error('ACCOUNT_RESTRICTED');
     }
@@ -1768,7 +1768,7 @@ const ApiService = {
       companionId: p.type === 'companion' ? p.companionId : null,
       companionName: p.type === 'companion' ? p.companionName : null,
     }));
-    return await FirebaseService.batchRegisterForEvent(eventId, entries);
+    return await FirebaseService.batchRegisterForEvent(eventId, entries, opts);
   },
 
   // ════════════════════════════════

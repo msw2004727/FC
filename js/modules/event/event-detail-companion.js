@@ -99,7 +99,7 @@ Object.assign(App, {
     this._companionSelectEventId = null;
   },
 
-  async _confirmCompanionRegister() {
+  async _confirmCompanionRegister(opts = {}) {
     const eventId = this._companionSelectEventId;
     if (!eventId) return;
     // 2026-04-19 UX：寫入類動作必須先補齊個人資料
@@ -172,6 +172,19 @@ Object.assign(App, {
       return;
     }
 
+    const selfParticipantSelected = participantList.some(participant => participant.type === 'self');
+    let selectedTeamReservationTeamId = String(opts?.preferredTeamReservationTeamId || '').trim();
+    if (selfParticipantSelected && typeof this._resolveTeamReservationSignupChoice === 'function') {
+      const reservationChoice = await this._resolveTeamReservationSignupChoice(e, {
+        preferredTeamReservationTeamId: selectedTeamReservationTeamId,
+      });
+      if (reservationChoice?.requiresSelection) {
+        this.openTeamReservationSignupChoiceModal?.(eventId, reservationChoice.choices, 'companion');
+        return;
+      }
+      selectedTeamReservationTeamId = String(reservationChoice?.teamId || '').trim();
+    }
+
     this._closeCompanionSelectModal();
 
     try {
@@ -195,6 +208,7 @@ Object.assign(App, {
         // team-split: 傳入自選 teamKey（同行者跟主報名人同隊）
         const _pendingTk = this._tsPendingTeamKey;
         if (_pendingTk) { cfPayload.teamKey = _pendingTk; this._tsPendingTeamKey = null; }
+        if (selectedTeamReservationTeamId) cfPayload.preferredTeamReservationTeamId = selectedTeamReservationTeamId;
         const cfResult = await Promise.race([
           firebase.app().functions('asia-east1').httpsCallable('registerForEvent')(cfPayload),
           _cfTimeout,
@@ -219,7 +233,9 @@ Object.assign(App, {
         }
       } else {
         // ═══ 原有路徑（fallback）═══
-        const result = await ApiService.registerEventWithCompanions(eventId, participantList);
+        const result = await ApiService.registerEventWithCompanions(eventId, participantList, {
+          preferredTeamReservationTeamId: selectedTeamReservationTeamId,
+        });
         regCount = result.confirmed || 0;
         wlCount = result.waitlisted || 0;
         total = regCount + wlCount;
@@ -263,6 +279,8 @@ Object.assign(App, {
         TEAM_RESTRICTED: '俱樂部限定活動，僅限該隊成員報名',
         PROFILE_INCOMPLETE: '請先完善個人資料後再報名',
       };
+      cfMsg.TEAM_RESERVATION_TEAM_DENIED = '你無法使用此俱樂部席位報名';
+      cfMsg.TEAM_RESERVATION_TEAM_NOT_AVAILABLE = '此俱樂部席位已變更，請重新選擇';
       const errCode = err?.details || err?.message || '';
       // Plan C：PROFILE_INCOMPLETE → 自動彈出首登表單
       if (errCode === 'PROFILE_INCOMPLETE') {
