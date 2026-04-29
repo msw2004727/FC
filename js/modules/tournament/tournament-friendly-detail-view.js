@@ -200,7 +200,7 @@ Object.assign(App, {
     const fullWidth = options.fullWidth === true;
     const isCurrentEntry = !!(membership?.primary && this._isSameFriendlyTournamentEntry(membership.primary, entry));
     const hasOtherEntry = !!(membership?.primary && !isCurrentEntry);
-    const alreadyJoinedToast = '已代表其他俱樂部參賽，如欲換隊則需先將原本隊伍取消參賽';
+    const alreadyJoinedToast = '你已有參賽隊伍';
 
     if (isCurrentEntry) {
       if (status !== TOURNAMENT_STATUS.REG_OPEN) {

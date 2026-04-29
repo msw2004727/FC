@@ -512,7 +512,7 @@ describe('friendly tournament teams tab actions', () => {
 
     expect(html).toContain('tfd-roster-leave-btn');
     expect(html).toContain('tfd-roster-blocked-btn');
-    expect(html).toContain('已代表其他俱樂部參賽，如欲換隊則需先將原本隊伍取消參賽');
+    expect(html).toContain('你已有參賽隊伍');
   });
 
   test('renders applicant-side withdraw action for pending applications', () => {
