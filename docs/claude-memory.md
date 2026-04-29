@@ -1912,3 +1912,9 @@
 - **原因**: 建立流程只寫 `entries/{hostTeamId}` 的 `approvedByUid/approvedByName`，沒有同步建立 `entries/{hostTeamId}/members/{creatorUid}`；前端 roster 正確讀 members 子集合，因此畫面不會顯示主辦創立人。
 - **修復**: `createFriendlyTournament` 在主辦俱樂部實際參賽時，和 root + host entry 同 batch 建立 creator member；審核通過自動加入名單也共用同一 roster member builder，避免兩條流程欄位形狀不同。
 - **驗收**: `node --check functions/index.js`、targeted tournament/function tests 通過；部署 functions 後新建立賽事會直接讀到主辦創立人。
+
+### 2026-04-30 刪除賽事後仍停留已刪除詳細頁 [中型]
+- **問題**: 管理員在賽事詳細頁成功刪除賽事後，畫面仍可能停在已刪除的詳細頁，而不是回到賽事列表。
+- **原因**: 詳細頁進入後會有短暫 page lock；刪除流程確認與寫入完成後才呼叫 `showPage('page-tournaments')`，容易被 page lock 擋下，且 detail cache / route param 沒有集中清理。
+- **修復**: 新增刪除後導回 helper，成功刪除且目前在詳細頁時清掉 current tournament、friendly detail state、URL `tournament` query，並用 `bypassPageLock + resetHistory` 主動回到 `page-tournaments`。
+- **驗收**: 新增 `tournament-delete-navigation.test.js`，覆蓋詳細頁刪除會跳轉、管理頁刪除不亂跳；`npm test -- --runInBand` 通過 76 suites / 2594 tests。

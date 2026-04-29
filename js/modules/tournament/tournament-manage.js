@@ -457,6 +457,33 @@ Object.assign(App, {
     this.showToast(`賽事「${t.name}」已重新開放`);
   },
 
+  _shouldRedirectAfterTournamentDelete(id) {
+    const safeId = String(id || '').trim();
+    const routeId = String(this._getTournamentRouteParam?.() || '').trim();
+    if (this.currentPage === 'page-tournament-detail') return true;
+    return !!(safeId && routeId === safeId);
+  },
+
+  async _redirectAfterTournamentDelete(id) {
+    const safeId = String(id || '').trim();
+    if (safeId && this._friendlyTournamentDetailStateById) {
+      delete this._friendlyTournamentDetailStateById[safeId];
+    }
+    if (safeId && String(this.currentTournament || '') === safeId) {
+      this.currentTournament = null;
+    } else if (this.currentPage === 'page-tournament-detail') {
+      this.currentTournament = null;
+    }
+    this._tournamentDetailRequestSeq = (this._tournamentDetailRequestSeq || 0) + 1;
+    this._friendlyTournamentDetailSeq = (this._friendlyTournamentDetailSeq || 0) + 1;
+    this._clearTournamentDetailRouteParam?.();
+    await this.showPage?.('page-tournaments', {
+      bypassPageLock: true,
+      resetHistory: true,
+    });
+    this.renderTournamentTimeline?.();
+  },
+
   async handleDeleteTournament(id, actionButton = null) {
     const t = ApiService.getTournament(id);
     if (!t) return;
@@ -466,6 +493,7 @@ Object.assign(App, {
     }
     if (!(await this.appConfirm(`確定要永久刪除賽事「${t.name}」？此操作無法復原。`))) return;
     const tName = t.name;
+    const shouldRedirectToList = this._shouldRedirectAfterTournamentDelete?.(id);
     const deleteTask = async () => {
       try {
         await ApiService.deleteTournamentAwait(id);
@@ -474,11 +502,8 @@ Object.assign(App, {
       this.renderTournamentTimeline();
       this.renderOngoingTournaments();
       this.renderTournamentManage();
-      if (String(this.currentTournament || '') === String(id) && this.currentPage === 'page-tournament-detail') {
-        this.currentTournament = null;
-        this._clearTournamentDetailRouteParam?.();
-        await this.showPage?.('page-tournaments');
-        this.renderTournamentTimeline?.();
+      if (shouldRedirectToList) {
+        await this._redirectAfterTournamentDelete?.(id);
       }
       this.showToast(`已刪除賽事「${tName}」`);
     };
