@@ -40,12 +40,14 @@ describe('tournament loading performance contract', () => {
     const manageSource = readProjectFile('js/modules/tournament/tournament-manage.js');
     const hostSource = readProjectFile('js/modules/tournament/tournament-manage-host.js');
     const coreSource = readProjectFile('js/modules/tournament/tournament-core.js');
+    const loaderSource = readProjectFile('js/core/script-loader.js');
 
     expect(hostSource).toContain('_ensureTournamentHostTeamsLoaded');
     expect(hostSource).toContain("ensureStaticCollectionsLoaded(['teams'])");
     expect(manageSource).toContain('await this._ensureTournamentHostTeamsLoaded?.()');
     expect(coreSource).toContain("button.textContent = '載入中...'");
     expect(hostSource).toContain('this._isTournamentGlobalAdmin?.(currentUser)');
+    expect(loaderSource).toContain('js/modules/tournament/tournament-manage-people.js');
   });
 
   test('tournament realtime render is deferred and realtime starts immediately on activation', () => {

@@ -94,6 +94,64 @@ Object.assign(App, {
     return select;
   },
 
+  _ensureTournamentHostParticipationRow(prefix) {
+    const p = prefix || 'tf';
+    let toggle = document.getElementById(`${p}-host-participates`);
+    if (toggle) return toggle;
+
+    const hostRow = document.getElementById(`${p}-host-team`)?.closest('.ce-row');
+    if (!hostRow || !hostRow.parentElement) return null;
+
+    const row = document.createElement('div');
+    row.className = 'ce-row';
+    row.innerHTML = `
+      <div class="ce-fee-toggle-wrap">
+        <div class="ce-fee-toggle-header">
+          <label for="${p}-host-participates" class="ce-fee-title">主辦俱樂部是否參賽？</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="${p}-host-participates">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div id="${p}-host-participates-note" class="ce-field-note">關閉時仍會顯示主辦俱樂部，但不佔參賽名額。</div>
+      </div>
+    `;
+    hostRow.insertAdjacentElement('afterend', row);
+    toggle = row.querySelector(`#${p}-host-participates`);
+    toggle.addEventListener('change', () => this._updateTournamentHostParticipationNote(p));
+    return toggle;
+  },
+
+  _getTournamentHostParticipates(prefix) {
+    const p = prefix || 'tf';
+    return document.getElementById(`${p}-host-participates`)?.checked === true;
+  },
+
+  _setTournamentHostParticipationFormState(prefix, participates, options = {}) {
+    const p = prefix || 'tf';
+    const toggle = this._ensureTournamentHostParticipationRow(p);
+    if (!toggle) return;
+    toggle.checked = participates === true;
+    toggle.disabled = options.disabled === true;
+    this._updateTournamentHostParticipationNote(p, options);
+  },
+
+  _updateTournamentHostParticipationNote(prefix, options = {}) {
+    const p = prefix || 'tf';
+    const toggle = document.getElementById(`${p}-host-participates`);
+    const note = document.getElementById(`${p}-host-participates-note`);
+    if (!toggle || !note) return;
+    if (options.disabled === true || toggle.disabled) {
+      note.textContent = toggle.checked
+        ? '此賽事建立時主辦俱樂部已設定為參賽，會佔用名額。'
+        : '此賽事建立時主辦俱樂部未參賽，不佔用名額。';
+      return;
+    }
+    note.textContent = toggle.checked
+      ? '開啟時會沿用現狀：建立後主辦俱樂部直接參賽並佔用 1 個名額。'
+      : '關閉時仍會顯示主辦俱樂部，但不佔參賽名額。';
+  },
+
   _renderTournamentHostTeamOptions(prefix, selectedId = '', options = {}) {
     const p = prefix || 'tf';
     const { locked = false } = options;
@@ -171,6 +229,7 @@ Object.assign(App, {
     }
 
     this._ensureTournamentHostRow(p);
+    this._ensureTournamentHostParticipationRow(p);
     this._ensureTournamentFeeToggle(p);
 
     const teamsInput = document.getElementById(`${p}-teams`);
@@ -215,13 +274,14 @@ Object.assign(App, {
   //  Host Entry Builder
   // ══════════════════════════════════
 
-  _buildTournamentHostEntry(team, actor) {
+  _buildTournamentHostEntry(team, actor, options = {}) {
     if (!team) return null;
     return {
       teamId: team.id,
       teamName: team.name || '',
       teamImage: team.image || '',
       entryStatus: 'host',
+      countsTowardLimit: options.countsTowardLimit !== false,
       approvedAt: new Date().toISOString(),
       approvedByUid: actor?.uid || '',
       approvedByName: actor?.displayName || actor?.name || '',

@@ -174,6 +174,7 @@ Object.assign(App, {
       teamName: String(data.teamName || '').trim(),
       teamImage: String(data.teamImage || '').trim(),
       entryStatus: String(data.entryStatus || 'approved').trim().toLowerCase(),
+      countsTowardLimit: data.countsTowardLimit !== false,
       approvedAt: data.approvedAt || null,
       approvedByUid: String(data.approvedByUid || '').trim(),
       approvedByName: String(data.approvedByName || '').trim(),
@@ -186,7 +187,10 @@ Object.assign(App, {
     const mode = this._getTournamentMode(base);
     const delegates = this._normalizeTournamentDelegates(base.delegates);
     const delegateUids = this._getTournamentDelegateUids({ ...base, delegates });
+    const referees = this._normalizeTournamentReferees(base.referees);
+    const refereeUids = this._getTournamentRefereeUids({ ...base, referees });
     const teamLimit = this._getFriendlyTournamentTeamLimit(base);
+    const hostParticipates = this._isTournamentHostParticipating(base);
     const feeEnabled = typeof base.feeEnabled === 'boolean'
       ? base.feeEnabled
       : Number(base.fee || 0) > 0;
@@ -212,6 +216,9 @@ Object.assign(App, {
       organizerDisplay: String(base.organizerDisplay || '').trim() || this._buildTournamentOrganizerDisplay(hostTeamName, creatorName),
       delegates,
       delegateUids,
+      referees,
+      refereeUids,
+      hostParticipates,
       feeEnabled,
       fee,
       teams: Number(base.teams || 0) || teamLimit,
@@ -220,6 +227,7 @@ Object.assign(App, {
         teamLimit,
         allowMemberSelfJoin: base?.friendlyConfig?.allowMemberSelfJoin !== false,
         pendingVisibleToThirdParty: base?.friendlyConfig?.pendingVisibleToThirdParty === true,
+        hostParticipates,
       },
       registeredTeams,
     };

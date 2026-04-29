@@ -2,6 +2,12 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-29 — 賽事主辦是否參賽與裁判欄位 [中型]
+- **問題**: 建立友誼賽時主辦俱樂部一律自動成為參賽隊伍並佔用 1 個名額，無法只作為主辦單位顯示；賽事也沒有可記錄多位裁判的欄位。
+- **原因**: 建賽 callable 固定建立 `entryStatus: host` 的 entries 文件，並把 `registeredTeams/approvedTeamCount` 預設設為 `[hostTeamId]/1`；前端名額顯示也把 host entry 當成核准隊伍。表單人員 picker 只有委託人狀態。
+- **修復**: 新增「主辦俱樂部是否參賽？」滑動開關，新增時預設關閉；後端建立賽事時依 `hostParticipates` 決定 host entry 是否 `countsTowardLimit`，主辦仍會顯示但不一定佔名額。新增 `referees/refereeUids` 欄位，抽出 `tournament-manage-people.js` 共用委託人/裁判最多 10 人複選搜尋。前後端名額計算、審核容量檢查與詳情隊伍頁同步改讀 countable entries。
+- **教訓**: 「顯示主辦」與「佔用參賽名額」是兩個不同概念，資料模型要用明確旗標拆開，不能再只靠 `entryStatus: host` 同時承擔兩種語意。
+
 ### 2026-04-29 — 俱樂部卡片詳情開啟加載條 [小型]
 - **問題**: 公開俱樂部頁點俱樂部卡片時，若詳情頁 HTML/script 或資料還在 lazy load，畫面短時間沒有即時回饋，使用者容易以為點擊無效。
 - **原因**: 俱樂部卡片已有 `.tc-loading-bar` 與 `_markTeamCardPending()` 輔助函式，但卡片 `onclick` 仍直接呼叫 `App.showTeamDetail()`，沒有先掛上 pending UI。

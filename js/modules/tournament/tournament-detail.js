@@ -340,6 +340,12 @@ Object.assign(App, {
       infoRows.push(`<div class="td-info-row"><span class="td-info-label">委託人</span><div class="td-info-value" style="display:flex;flex-wrap:wrap;gap:.3rem">${delegateTags}</div></div>`);
     }
 
+    const infoReferees = Array.isArray(infoTournament.referees) ? infoTournament.referees : [];
+    if (infoReferees.length > 0) {
+      const refereeTags = infoReferees.map(r => this._userTag(r.name)).join(' ');
+      infoRows.push(`<div class="td-info-row"><span class="td-info-label">裁判</span><div class="td-info-value" style="display:flex;flex-wrap:wrap;gap:.3rem">${refereeTags}</div></div>`);
+    }
+
     // Safety: infoRows contains escaped values; _renderTournamentDetailToolbar uses escapeHTML
     container.innerHTML = `<div class="td-info-card">${infoRows.join('')}</div>`;
     this._renderTournamentDetailToolbar(infoTournament);

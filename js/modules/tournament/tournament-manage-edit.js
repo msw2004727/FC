@@ -52,15 +52,21 @@ Object.assign(App, {
     document.getElementById('tf-match-date-picker').value = '';
     document.getElementById('tf-venue-input').value = '';
     document.getElementById('tf-delegate-search').value = '';
+    document.getElementById('tf-referee-search').value = '';
     this._tournamentFormState.venues = [...(editRecord.venues || [])];
     this._tournamentFormState.delegates = [...(editRecord.delegates || [])];
+    this._tournamentFormState.referees = [...(editRecord.referees || [])];
     this._tournamentFormState.matchDates = [...(editRecord.matchDates || [])];
     this._renderVenueTags('tf');
     this._renderTournamentDelegateTags('tf');
     this._updateTournamentDelegateInput('tf');
     this._initTournamentDelegateSearch('tf');
+    this._renderTournamentRefereeTags('tf');
+    this._updateTournamentRefereeInput('tf');
+    this._initTournamentRefereeSearch('tf');
     this._renderMatchDateTags('tf');
     this._renderTournamentHostTeamOptions('tf', editRecord.hostTeamId || '', { locked: !!editRecord.hostTeamId });
+    this._setTournamentHostParticipationFormState('tf', this._isTournamentHostParticipating?.(editRecord) !== false, { disabled: true });
     this._setTournamentFeeFormState('tf', editRecord.feeEnabled, editRecord.fee || 300);
 
     const coverPreviewEl = document.getElementById('tf-upload-preview');
@@ -145,6 +151,7 @@ Object.assign(App, {
 
     const editVenues = [...this._tournamentFormState.venues];
     const editDelegates = [...this._tournamentFormState.delegates];
+    const editReferees = [...this._tournamentFormState.referees];
     const editMatchDates = [...this._tournamentFormState.matchDates];
     const editCoverPreview = document.getElementById('tf-upload-preview');
     const editImage = editCoverPreview?.querySelector('img')?.src || editTournament.image || null;
@@ -168,6 +175,8 @@ Object.assign(App, {
       venues: editVenues,
       delegates: editDelegates,
       delegateUids: editDelegates.map(delegate => String(delegate.uid || '').trim()).filter(uid => uid.length > 0),
+      referees: editReferees,
+      refereeUids: editReferees.map(referee => String(referee.uid || '').trim()).filter(uid => uid.length > 0),
       matchDates: editMatchDates,
       image: editImage,
       contentImage: editContentImage,
@@ -179,10 +188,12 @@ Object.assign(App, {
       hostTeamName: editTournament.hostTeamName || hostTeam.name || '',
       hostTeamImage: editTournament.hostTeamImage || hostTeam.image || '',
       organizerDisplay: this._buildTournamentOrganizerDisplay(editTournament.hostTeamName || hostTeam.name, editCreatorName),
+      hostParticipates: this._isTournamentHostParticipating?.(editTournament) !== false,
       friendlyConfig: {
         teamLimit: editTeamLimit,
         allowMemberSelfJoin: true,
         pendingVisibleToThirdParty: false,
+        hostParticipates: this._isTournamentHostParticipating?.(editTournament) !== false,
       },
     };
 

@@ -164,6 +164,21 @@ function shouldBlockFriendlyTournamentApply(existingApplicationStatus, entryExis
   return !isTournamentApplicationTerminalStatus(existingApplicationStatus);
 }
 
+function cfBuildRegisteredTeamIdsFromEntries(entries, options = {}) {
+  const removedTeamId = String(options.removedTeamId || '').trim();
+  const additionalTeamId = String(options.additionalTeamId || '').trim();
+  const ids = new Set();
+  entries.forEach(data => {
+    const status = String(data.entryStatus || '').trim().toLowerCase();
+    const teamId = String(data.teamId || '').trim();
+    if (!teamId || teamId === removedTeamId) return;
+    if (status === 'approved') ids.add(teamId);
+    if (status === 'host' && data.countsTowardLimit !== false) ids.add(teamId);
+  });
+  if (additionalTeamId && additionalTeamId !== removedTeamId) ids.add(additionalTeamId);
+  return Array.from(ids);
+}
+
 /** registerForEvent CF: duplicate detection logic */
 function cfDuplicateCheck(existingRegs, userId) {
   return existingRegs.some(r =>
@@ -524,6 +539,18 @@ describe('applyFriendlyTournament CF permissions', () => {
     expect(shouldBlockFriendlyTournamentApply('removed', false)).toBe(false);
     expect(shouldBlockFriendlyTournamentApply('rejected', false)).toBe(false);
     expect(shouldBlockFriendlyTournamentApply('removed', true)).toBe(true);
+  });
+
+  test('host can be displayed without consuming tournament capacity', () => {
+    const entries = [
+      { teamId: 'tm_host', entryStatus: 'host', countsTowardLimit: false },
+      { teamId: 'tm_guest_1', entryStatus: 'approved' },
+      { teamId: 'tm_guest_2', entryStatus: 'approved' },
+    ];
+
+    expect(cfBuildRegisteredTeamIdsFromEntries(entries)).toEqual(['tm_guest_1', 'tm_guest_2']);
+    expect(cfBuildRegisteredTeamIdsFromEntries(entries, { additionalTeamId: 'tm_guest_3' }))
+      .toEqual(['tm_guest_1', 'tm_guest_2', 'tm_guest_3']);
   });
 });
 

@@ -46,18 +46,27 @@ Object.assign(App, {
     return user || null;
   },
 
-  _normalizeTournamentDelegates(delegates) {
-    if (!Array.isArray(delegates)) return [];
+  _normalizeTournamentPeople(people, limit = 10) {
+    if (!Array.isArray(people)) return [];
     const seen = new Set();
-    return delegates.reduce((list, delegate) => {
-      const uid = String(delegate?.uid || '').trim();
-      const name = String(delegate?.name || '').trim();
+    return people.reduce((list, person) => {
+      if (list.length >= limit) return list;
+      const uid = String(person?.uid || '').trim();
+      const name = String(person?.name || '').trim();
       const dedupeKey = uid || (name ? `name:${name}` : '');
       if (!dedupeKey || seen.has(dedupeKey)) return list;
       seen.add(dedupeKey);
       list.push({ uid, name });
       return list;
     }, []);
+  },
+
+  _normalizeTournamentDelegates(delegates) {
+    return this._normalizeTournamentPeople(delegates, 10);
+  },
+
+  _normalizeTournamentReferees(referees) {
+    return this._normalizeTournamentPeople(referees, 10);
   },
 
   _getTournamentDelegateUids(tournament) {
@@ -70,6 +79,47 @@ Object.assign(App, {
       if (!safeUid || seen.has(safeUid)) return list;
       seen.add(safeUid);
       list.push(safeUid);
+      return list;
+    }, []);
+  },
+
+  _getTournamentRefereeUids(tournament) {
+    const direct = Array.isArray(tournament?.refereeUids) ? tournament.refereeUids : [];
+    const referees = this._normalizeTournamentReferees(tournament?.referees);
+    const merged = [...direct, ...referees.map(referee => referee.uid)];
+    const seen = new Set();
+    return merged.reduce((list, uid) => {
+      const safeUid = String(uid || '').trim();
+      if (!safeUid || seen.has(safeUid)) return list;
+      seen.add(safeUid);
+      list.push(safeUid);
+      return list;
+    }, []);
+  },
+
+  _isTournamentHostParticipating(tournament) {
+    if (!tournament) return true;
+    if (typeof tournament.hostParticipates === 'boolean') return tournament.hostParticipates;
+    if (typeof tournament.friendlyConfig?.hostParticipates === 'boolean') return tournament.friendlyConfig.hostParticipates;
+    return true;
+  },
+
+  _friendlyTournamentEntryCountsTowardLimit(entry, tournament = null) {
+    const status = String(entry?.entryStatus || '').trim().toLowerCase();
+    if (status === 'approved') return true;
+    if (status !== 'host') return false;
+    if (entry?.countsTowardLimit === false) return false;
+    return this._isTournamentHostParticipating(tournament) !== false;
+  },
+
+  _getFriendlyTournamentRegisteredTeamIdsFromEntries(entries, tournament = null) {
+    const seen = new Set();
+    return (Array.isArray(entries) ? entries : []).reduce((list, entry) => {
+      if (!this._friendlyTournamentEntryCountsTowardLimit(entry, tournament)) return list;
+      const teamId = String(entry?.teamId || '').trim();
+      if (!teamId || seen.has(teamId)) return list;
+      seen.add(teamId);
+      list.push(teamId);
       return list;
     }, []);
   },

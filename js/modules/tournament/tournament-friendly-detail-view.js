@@ -137,7 +137,7 @@ Object.assign(App, {
     const state = this._getFriendlyTournamentState(tournament.id) || { tournament, applications: [], entries: [] };
     const user = ApiService.getCurrentUser?.();
     const ctx = this._getFriendlyTournamentApplyContext(tournament, state, user);
-    const approvedCount = (state.entries || []).filter(entry => entry.entryStatus === 'host' || entry.entryStatus === 'approved').length;
+    const approvedCount = (this._getFriendlyTournamentRegisteredTeamIdsFromEntries?.(state.entries || [], tournament) || []).length;
     const teamLimit = this._getFriendlyTournamentTeamLimit?.(tournament) || 4;
     const status = this.getTournamentStatus(tournament);
     const isEnded = this.isTournamentEnded?.(tournament);
@@ -229,8 +229,9 @@ Object.assign(App, {
     const canManage = !!(this._isTournamentGlobalAdmin?.(viewer) || this._canManageTournamentRecord?.(tournament, viewer));
     const teamLimit = this._getFriendlyTournamentTeamLimit?.(tournament) || 4;
     const approvedEntries = (state.entries || []).filter(entry => entry.entryStatus === 'host' || entry.entryStatus === 'approved');
+    const approvedCount = (this._getFriendlyTournamentRegisteredTeamIdsFromEntries?.(approvedEntries, tournament) || []).length;
     const visibleApplications = this._getFriendlyTournamentVisibleApplications(state, viewer);
-    const emptySlots = Math.max(0, teamLimit - approvedEntries.length);
+    const emptySlots = Math.max(0, teamLimit - approvedCount);
 
     const entryRows = approvedEntries.map(entry => {
       const teamName = entry.teamName || '未命名俱樂部';
@@ -249,7 +250,7 @@ Object.assign(App, {
             <div class="tfd-team-thumb">${entry.teamImage ? `<img src="${entry.teamImage}" alt="${escapeHTML(teamName)}">` : `<span>${escapeHTML((teamName || '?').slice(0, 1))}</span>`}</div>
             <div class="tfd-team-meta">
               <div class="tfd-team-name" title="${escapeHTML(teamName)}">${escapeHTML(teamName)}</div>
-              <div class="tfd-team-status">${entry.entryStatus === 'host' ? '主辦俱樂部' : '已核准參賽'}</div>
+              <div class="tfd-team-status">${entry.entryStatus === 'host' ? (this._friendlyTournamentEntryCountsTowardLimit?.(entry, tournament) ? '主辦俱樂部・參賽' : '主辦俱樂部・未參賽') : '已核准參賽'}</div>
             </div>
           </div>
           <div class="tfd-team-roster">${roster}</div>
@@ -298,7 +299,7 @@ Object.assign(App, {
 
     return `
       <div class="tfd-team-board">
-        <div class="tfd-team-summary">已核准 ${approvedEntries.length} / ${teamLimit} 隊${visibleApplications.length ? `，待審 ${visibleApplications.filter(item => item.status === 'pending').length} 隊` : ''}</div>
+        <div class="tfd-team-summary">已核准 ${approvedCount} / ${teamLimit} 隊${visibleApplications.length ? `，待審 ${visibleApplications.filter(item => item.status === 'pending').length} 隊` : ''}</div>
         ${entryRows || '<div class="tfd-empty-state">目前尚無已核准隊伍</div>'}
         ${slotRows}
         ${pendingRows}

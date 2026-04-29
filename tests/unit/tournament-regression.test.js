@@ -39,18 +39,27 @@ function isTournamentEnded(t) {
 // ---------------------------------------------------------------------------
 // Extracted from tournament-core.js:158-170
 // ---------------------------------------------------------------------------
-function _normalizeTournamentDelegates(delegates) {
-  if (!Array.isArray(delegates)) return [];
+function _normalizeTournamentPeople(people, limit = 10) {
+  if (!Array.isArray(people)) return [];
   const seen = new Set();
-  return delegates.reduce((list, delegate) => {
-    const uid = String(delegate?.uid || '').trim();
-    const name = String(delegate?.name || '').trim();
+  return people.reduce((list, person) => {
+    if (list.length >= limit) return list;
+    const uid = String(person?.uid || '').trim();
+    const name = String(person?.name || '').trim();
     const dedupeKey = uid || (name ? `name:${name}` : '');
     if (!dedupeKey || seen.has(dedupeKey)) return list;
     seen.add(dedupeKey);
     list.push({ uid, name });
     return list;
   }, []);
+}
+
+function _normalizeTournamentDelegates(delegates) {
+  return _normalizeTournamentPeople(delegates, 10);
+}
+
+function _normalizeTournamentReferees(referees) {
+  return _normalizeTournamentPeople(referees, 10);
 }
 
 // ---------------------------------------------------------------------------
@@ -66,6 +75,47 @@ function _getTournamentDelegateUids(tournament) {
     if (!safeUid || seen.has(safeUid)) return list;
     seen.add(safeUid);
     list.push(safeUid);
+    return list;
+  }, []);
+}
+
+function _getTournamentRefereeUids(tournament) {
+  const direct = Array.isArray(tournament?.refereeUids) ? tournament.refereeUids : [];
+  const referees = _normalizeTournamentReferees(tournament?.referees);
+  const merged = [...direct, ...referees.map(referee => referee.uid)];
+  const seen = new Set();
+  return merged.reduce((list, uid) => {
+    const safeUid = String(uid || '').trim();
+    if (!safeUid || seen.has(safeUid)) return list;
+    seen.add(safeUid);
+    list.push(safeUid);
+    return list;
+  }, []);
+}
+
+function _isTournamentHostParticipating(tournament) {
+  if (!tournament) return true;
+  if (typeof tournament.hostParticipates === 'boolean') return tournament.hostParticipates;
+  if (typeof tournament.friendlyConfig?.hostParticipates === 'boolean') return tournament.friendlyConfig.hostParticipates;
+  return true;
+}
+
+function _friendlyTournamentEntryCountsTowardLimit(entry, tournament = null) {
+  const status = String(entry?.entryStatus || '').trim().toLowerCase();
+  if (status === 'approved') return true;
+  if (status !== 'host') return false;
+  if (entry?.countsTowardLimit === false) return false;
+  return _isTournamentHostParticipating(tournament) !== false;
+}
+
+function _getFriendlyTournamentRegisteredTeamIdsFromEntries(entries, tournament = null) {
+  const seen = new Set();
+  return (Array.isArray(entries) ? entries : []).reduce((list, entry) => {
+    if (!_friendlyTournamentEntryCountsTowardLimit(entry, tournament)) return list;
+    const teamId = String(entry?.teamId || '').trim();
+    if (!teamId || seen.has(teamId)) return list;
+    seen.add(teamId);
+    list.push(teamId);
     return list;
   }, []);
 }
@@ -92,6 +142,7 @@ function _buildFriendlyTournamentEntryRecord(data = {}) {
     teamName: String(data.teamName || '').trim(),
     teamImage: String(data.teamImage || '').trim(),
     entryStatus: String(data.entryStatus || 'approved').trim().toLowerCase(),
+    countsTowardLimit: data.countsTowardLimit !== false,
     approvedAt: data.approvedAt || null,
     approvedByUid: String(data.approvedByUid || '').trim(),
     approvedByName: String(data.approvedByName || '').trim(),
@@ -107,7 +158,10 @@ function _buildFriendlyTournamentRecord(data = {}) {
   const base = data && typeof data === 'object' ? data : {};
   const creatorUid = String(base.creatorUid || '').trim();
   const delegateUids = _getTournamentDelegateUids(base);
-  return { ...base, creatorUid, delegateUids };
+  const referees = _normalizeTournamentReferees(base.referees);
+  const refereeUids = _getTournamentRefereeUids({ ...base, referees });
+  const hostParticipates = _isTournamentHostParticipating(base);
+  return { ...base, creatorUid, delegateUids, referees, refereeUids, hostParticipates };
 }
 
 // ---------------------------------------------------------------------------
@@ -296,6 +350,40 @@ describe('Bug #3: delegateUids empty/whitespace filtering', () => {
   test('handles missing tournament gracefully', () => {
     const uids = _getTournamentDelegateUids(null);
     expect(uids).toEqual([]);
+  });
+
+  test('limits delegates to ten unique people', () => {
+    const delegates = Array.from({ length: 12 }).map((_, i) => ({ uid: `u${i}`, name: `User ${i}` }));
+    expect(_normalizeTournamentDelegates(delegates)).toHaveLength(10);
+  });
+});
+
+describe('Tournament referees and host participation', () => {
+  test('normalizes referees separately from delegates and limits to ten', () => {
+    const referees = Array.from({ length: 12 }).map((_, i) => ({ uid: `r${i}`, name: `Ref ${i}` }));
+    const record = _buildFriendlyTournamentRecord({ referees });
+
+    expect(record.referees).toHaveLength(10);
+    expect(record.refereeUids).toEqual(referees.slice(0, 10).map(item => item.uid));
+  });
+
+  test('host entry can display without consuming a tournament slot', () => {
+    const tournament = { hostTeamId: 'host', hostParticipates: false };
+    const entries = [
+      _buildFriendlyTournamentEntryRecord({ teamId: 'host', entryStatus: 'host', countsTowardLimit: false }),
+      _buildFriendlyTournamentEntryRecord({ teamId: 'guest1', entryStatus: 'approved' }),
+      _buildFriendlyTournamentEntryRecord({ teamId: 'guest2', entryStatus: 'approved' }),
+    ];
+
+    expect(_getFriendlyTournamentRegisteredTeamIdsFromEntries(entries, tournament)).toEqual(['guest1', 'guest2']);
+  });
+
+  test('legacy host entries still consume a slot by default', () => {
+    const entries = [
+      _buildFriendlyTournamentEntryRecord({ teamId: 'host', entryStatus: 'host' }),
+    ];
+
+    expect(_getFriendlyTournamentRegisteredTeamIdsFromEntries(entries, {})).toEqual(['host']);
   });
 });
 

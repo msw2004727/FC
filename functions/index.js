@@ -604,7 +604,8 @@ function buildRegisteredTeamIdsFromEntries(entriesDocs, options = {}) {
     const status = String(data.entryStatus || "").trim().toLowerCase();
     const teamId = String(data.teamId || doc.id || "").trim();
     if (!teamId || teamId === removedTeamId) return;
-    if (status === "host" || status === "approved") ids.add(teamId);
+    if (status === "approved") ids.add(teamId);
+    if (status === "host" && data.countsTowardLimit !== false) ids.add(teamId);
   });
   if (additionalTeamId && additionalTeamId !== removedTeamId) ids.add(additionalTeamId);
   return Array.from(ids);
@@ -627,10 +628,11 @@ function resolveTournamentStatusByTime(regStart, regEnd, now = new Date()) {
   return "已截止報名";
 }
 
-function normalizeTournamentDelegateList(delegates) {
-  if (!Array.isArray(delegates)) return [];
+function normalizeTournamentPersonList(people, limit = 10) {
+  if (!Array.isArray(people)) return [];
   const seen = new Set();
-  return delegates.reduce((list, item) => {
+  return people.reduce((list, item) => {
+    if (list.length >= limit) return list;
     const uid = String(item?.uid || "").trim();
     const name = String(item?.name || "").trim();
     const key = uid || (name ? `name:${name}` : "");
@@ -641,12 +643,21 @@ function normalizeTournamentDelegateList(delegates) {
   }, []);
 }
 
-function buildServerHostEntry({ teamId, teamData, callerUid, callerName }) {
+function normalizeTournamentDelegateList(delegates) {
+  return normalizeTournamentPersonList(delegates, 10);
+}
+
+function normalizeTournamentRefereeList(referees) {
+  return normalizeTournamentPersonList(referees, 10);
+}
+
+function buildServerHostEntry({ teamId, teamData, callerUid, callerName, countsTowardLimit = true }) {
   return {
     teamId,
     teamName: String(teamData?.name || teamData?.teamName || "").trim(),
     teamImage: String(teamData?.image || teamData?.teamImage || "").trim(),
     entryStatus: "host",
+    countsTowardLimit: countsTowardLimit !== false,
     approvedAt: FieldValue.serverTimestamp(),
     approvedByUid: callerUid,
     approvedByName: callerName,
@@ -664,6 +675,8 @@ function buildTournamentRootForCreate({ input, tournamentId, hostTeamId, teamDat
     "description", "image", "contentImage",
     "venues", "feeEnabled", "fee",
     "delegates", "delegateUids",
+    "referees", "refereeUids",
+    "hostParticipates",
     "organizer", "organizerDisplay",
     "gradient",
   ].forEach(key => {
@@ -672,12 +685,17 @@ function buildTournamentRootForCreate({ input, tournamentId, hostTeamId, teamDat
 
   const delegates = normalizeTournamentDelegateList(allowed.delegates);
   const delegateUids = Array.isArray(allowed.delegateUids)
-    ? allowed.delegateUids.map(item => String(item || "").trim()).filter(Boolean)
+    ? allowed.delegateUids.map(item => String(item || "").trim()).filter(Boolean).slice(0, 10)
     : delegates.map(item => item.uid).filter(Boolean);
+  const referees = normalizeTournamentRefereeList(allowed.referees);
+  const refereeUids = Array.isArray(allowed.refereeUids)
+    ? allowed.refereeUids.map(item => String(item || "").trim()).filter(Boolean).slice(0, 10)
+    : referees.map(item => item.uid).filter(Boolean);
   const teamLimit = sanitizeTournamentTeamLimit(
     input?.friendlyConfig?.teamLimit ?? input.teamLimit ?? input.maxTeams ?? input.teams,
     4
   );
+  const hostParticipates = input.hostParticipates === true || input?.friendlyConfig?.hostParticipates === true;
   const feeEnabled = typeof allowed.feeEnabled === "boolean"
     ? allowed.feeEnabled
     : Number(allowed.fee || 0) > 0;
@@ -715,6 +733,8 @@ function buildTournamentRootForCreate({ input, tournamentId, hostTeamId, teamDat
     fee,
     delegates,
     delegateUids,
+    referees,
+    refereeUids,
     organizer: callerName,
     creatorName: callerName,
     creatorUid: callerUid,
@@ -722,12 +742,14 @@ function buildTournamentRootForCreate({ input, tournamentId, hostTeamId, teamDat
     hostTeamName,
     hostTeamImage,
     organizerDisplay,
-    registeredTeams: [hostTeamId],
-    approvedTeamCount: 1,
+    hostParticipates,
+    registeredTeams: hostParticipates ? [hostTeamId] : [],
+    approvedTeamCount: hostParticipates ? 1 : 0,
     friendlyConfig: {
       teamLimit,
       allowMemberSelfJoin: true,
       pendingVisibleToThirdParty: false,
+      hostParticipates,
     },
     ended: false,
     status: resolveTournamentStatusByTime(input.regStart, input.regEnd, now),
@@ -1203,6 +1225,7 @@ exports.createFriendlyTournament = onCall(
       teamData: teamDoc.data,
       callerUid,
       callerName,
+      countsTowardLimit: root.hostParticipates === true,
     });
 
     const tournamentRef = db.collection("tournaments").doc(tournamentId);
@@ -1527,13 +1550,7 @@ exports.reviewFriendlyTournamentApplication = onCall(
 
       if (normalizedAction === "approve") {
         const entriesSnap = await tx.get(tournamentRef.collection("entries"));
-        const approvedTeamIdSet = new Set(entriesSnap.docs
-          .filter(doc => {
-            const status = String(doc.data()?.entryStatus || "").trim().toLowerCase();
-            return status === "host" || status === "approved";
-          })
-          .map(doc => String(doc.data()?.teamId || doc.id || "").trim())
-          .filter(Boolean));
+        let registeredTeams = buildRegisteredTeamIdsFromEntries(entriesSnap.docs);
         const teamLimit = sanitizeTournamentTeamLimit(
           tournament?.friendlyConfig?.teamLimit ?? tournament.teamLimit ?? tournament.maxTeams ?? tournament.teams,
           4
@@ -1543,8 +1560,8 @@ exports.reviewFriendlyTournamentApplication = onCall(
           throw new HttpsError("failed-precondition", "申請缺少俱樂部 ID");
         }
 
-        if (!approvedTeamIdSet.has(applicationTeamId)) {
-          if (approvedTeamIdSet.size >= teamLimit) {
+        if (!registeredTeams.includes(applicationTeamId)) {
+          if (registeredTeams.length >= teamLimit) {
             throw new HttpsError("failed-precondition", "隊伍名額已滿");
           }
           tx.set(
@@ -1562,10 +1579,9 @@ exports.reviewFriendlyTournamentApplication = onCall(
             },
             { merge: true }
           );
-          approvedTeamIdSet.add(applicationTeamId);
+          registeredTeams = buildRegisteredTeamIdsFromEntries(entriesSnap.docs, { additionalTeamId: applicationTeamId });
         }
 
-        const registeredTeams = Array.from(approvedTeamIdSet);
         tx.update(tournamentRef, {
           registeredTeams,
           approvedTeamCount: registeredTeams.length,

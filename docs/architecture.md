@@ -41,7 +41,7 @@ flowchart TD
         subgraph MODS["modules/ — 14 功能子資料夾 + 24 獨立模組"]
             EVT["event/ (34)\n活動系統"]
             TEAM["team/ (16)\n俱樂部系統"]
-            TOUR["tournament/ (16)\n賽事系統"]
+            TOUR["tournament/ (17)\n賽事系統"]
             PROF["profile/ (9)\n個人資料"]
             MSG["message/ (9)\n訊息系統"]
             ACH["achievement/ (11)\n成就系統"]
@@ -227,7 +227,7 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 | `team-form-roles.js` | 角色降級預覽 + 儲存後自動升降級/通知（Phase 4 §10.1 從 team-form.js 抽出） |
 | `team-form.js` | 俱樂部表單主模組 — 資料組裝 + 儲存 + 日誌（Phase 4 §10.1 瘦身） |
 
-### tournament/ — 賽事系統（16 個模組 + README）
+### tournament/ — 賽事系統（17 個模組 + README）
 
 | 檔案 | 說明 |
 |------|------|
@@ -238,6 +238,7 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 | `tournament-render.js` | 公開賽事頁與詳情頁 renderer（Phase 2B：搜尋防抖 + 指紋跳過 + 捲動保存） |
 | `tournament-manage.js` | 賽事管理入口與管理列表權限過濾 |
 | `tournament-manage-form.js` | 賽事表單工具與 helper（場地管理等） |
+| `tournament-manage-people.js` | 賽事表單人員選取器（委託人 / 裁判複選，最多 10 人） |
 | `tournament-manage-host.js` | 賽事主辦俱樂部選擇與表單布局 |
 | `tournament-manage-edit.js` | 賽事編輯 Modal 與儲存處理 |
 | `tournament-share.js` | 賽事分享（LINE Flex Message） |

@@ -21,9 +21,7 @@ Object.assign(App, {
   _syncFriendlyTournamentCacheRecord(tournamentId, applications, entries) {
     const live = ApiService.getTournament?.(tournamentId);
     if (!live) return;
-    live.registeredTeams = entries
-      .filter(entry => entry.entryStatus === 'host' || entry.entryStatus === 'approved')
-      .map(entry => entry.teamId);
+    live.registeredTeams = this._getFriendlyTournamentRegisteredTeamIdsFromEntries?.(entries, live) || [];
   },
 
   async _persistFriendlyTournamentCompatState(tournamentId, state = null) {
@@ -38,9 +36,7 @@ Object.assign(App, {
     const entries = (currentState.entries || [])
       .map(item => this._buildFriendlyTournamentEntryRecord(item))
       .filter(item => item.teamId);
-    const registeredTeams = entries
-      .filter(entry => entry.entryStatus === 'host' || entry.entryStatus === 'approved')
-      .map(entry => entry.teamId);
+    const registeredTeams = this._getFriendlyTournamentRegisteredTeamIdsFromEntries?.(entries, tournament) || [];
 
     try {
       await ApiService.updateTournamentAwait(tournamentId, { registeredTeams });
@@ -121,6 +117,7 @@ Object.assign(App, {
         teamName: base.hostTeamName || hostTeam?.name || '',
         teamImage: base.hostTeamImage || hostTeam?.image || '',
         entryStatus: 'host',
+        countsTowardLimit: this._isTournamentHostParticipating?.(base) !== false,
         memberRoster: [],
       }));
     }
@@ -136,9 +133,7 @@ Object.assign(App, {
 
     const tournament = this._buildFriendlyTournamentRecord({
       ...base,
-      registeredTeams: entries
-        .filter(entry => entry.entryStatus === 'host' || entry.entryStatus === 'approved')
-        .map(entry => entry.teamId),
+      registeredTeams: this._getFriendlyTournamentRegisteredTeamIdsFromEntries?.(entries, base) || [],
     });
 
     this._syncFriendlyTournamentCacheRecord(tournamentId, applications, entries);

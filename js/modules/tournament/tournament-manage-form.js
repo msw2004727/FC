@@ -5,7 +5,8 @@ Object.assign(App, {
   _tournamentFormState: {
     venues: [],
     delegates: [],
-    delegateSearchBound: { tf: false },
+    referees: [],
+    personSearchBound: {},
     matchDates: [],
   },
 
@@ -37,109 +38,6 @@ Object.assign(App, {
         <span style="cursor:pointer;color:var(--text-muted)" onclick="App.removeTournamentVenue('${p}',${i})">✕</span>
       </span>`;
     }).join('');
-  },
-
-  // ── Delegate Management ──
-  _initTournamentDelegateSearch(prefix) {
-    const p = prefix || 'tf';
-    const input = document.getElementById(`${p}-delegate-search`);
-    const dropdown = document.getElementById(`${p}-delegate-dropdown`);
-    if (!input || !dropdown) return;
-
-    if (this._tournamentFormState.delegateSearchBound[p]) {
-      this._renderTournamentDelegateTags(p);
-      this._updateTournamentDelegateInput(p);
-      return;
-    }
-    this._tournamentFormState.delegateSearchBound[p] = true;
-
-    input.addEventListener('input', () => {
-      const q = input.value.trim();
-      if (q.length < 1) { dropdown.classList.remove('open'); dropdown.innerHTML = ''; return; }
-      this._searchTournamentDelegates(q, p);
-    });
-    input.addEventListener('blur', () => {
-      setTimeout(() => { dropdown.classList.remove('open'); }, 200);
-    });
-    input.addEventListener('focus', () => {
-      const q = input.value.trim();
-      if (q.length >= 1) this._searchTournamentDelegates(q, p);
-    });
-
-    this._renderTournamentDelegateTags(p);
-    this._updateTournamentDelegateInput(p);
-  },
-
-  _searchTournamentDelegates(query, prefix) {
-    const p = prefix || 'tf';
-    const dropdown = document.getElementById(`${p}-delegate-dropdown`);
-    if (!dropdown) return;
-    const q = query.toLowerCase();
-    const selectedUids = this._tournamentFormState.delegates.map(d => d.uid);
-
-    const allUsers = ApiService.getAdminUsers?.() || [];
-    const results = allUsers.filter(u => {
-      if (selectedUids.includes(u.uid)) return false;
-      return (u.name || '').toLowerCase().includes(q) || (u.uid || '').toLowerCase().includes(q);
-    }).slice(0, 5);
-
-    if (results.length === 0) {
-      // Note: innerHTML usage is safe — all user content passes through escapeHTML()
-      dropdown.innerHTML = '<div style="padding:.4rem .6rem;font-size:.78rem;color:var(--text-muted)">找不到符合的用戶</div>';
-    } else {
-      const roleLabels = typeof ROLES !== 'undefined' ? ROLES : {};
-      // Note: innerHTML usage is safe — all user content passes through escapeHTML()
-      dropdown.innerHTML = results.map(u => {
-        const roleLabel = roleLabels[u.role]?.label || u.role || '';
-        return `<div class="ce-delegate-item" data-uid="${u.uid}" data-name="${escapeHTML(u.name)}">
-          <span class="ce-delegate-item-name">${escapeHTML(u.name)}</span>
-          <span class="ce-delegate-item-meta">${u.uid} · ${roleLabel}</span>
-        </div>`;
-      }).join('');
-
-      dropdown.querySelectorAll('.ce-delegate-item').forEach(item => {
-        item.addEventListener('mousedown', (ev) => {
-          ev.preventDefault();
-          this._addTournamentDelegate(item.dataset.uid, item.dataset.name, p);
-          document.getElementById(`${p}-delegate-search`).value = '';
-          dropdown.classList.remove('open');
-        });
-      });
-    }
-    dropdown.classList.add('open');
-  },
-  _addTournamentDelegate(uid, name, prefix) {
-    if (this._tournamentFormState.delegates.length >= 10) return;
-    if (this._tournamentFormState.delegates.some(d => d.uid === uid)) return;
-    this._tournamentFormState.delegates.push({ uid, name });
-    const p = prefix || 'tf';
-    this._renderTournamentDelegateTags(p);
-    this._updateTournamentDelegateInput(p);
-  },
-  _removeTournamentDelegate(uid, prefix) {
-    this._tournamentFormState.delegates = this._tournamentFormState.delegates.filter(d => d.uid !== uid);
-    const p = prefix || 'tf';
-    this._renderTournamentDelegateTags(p);
-    this._updateTournamentDelegateInput(p);
-  },
-  _renderTournamentDelegateTags(prefix) {
-    const p = prefix || 'tf';
-    const container = document.getElementById(`${p}-delegate-tags`);
-    if (!container) return;
-    const users = ApiService.getAdminUsers?.() || [];
-    // Note: innerHTML usage is safe — all user content passes through escapeHTML()
-    container.innerHTML = this._tournamentFormState.delegates.map(d => {
-      const u = users.find(u => u.uid === d.uid);
-      const role = u?.role || 'user';
-      return `<span class="ce-delegate-tag">${this._userTag(d.name, role)}<span class="ce-delegate-remove" onclick="App._removeTournamentDelegate('${d.uid}','${p}')">✕</span></span>`;
-    }).join('');
-  },
-  _updateTournamentDelegateInput(prefix) {
-    const p = prefix || 'tf';
-    const input = document.getElementById(`${p}-delegate-search`);
-    if (!input) return;
-    input.disabled = this._tournamentFormState.delegates.length >= 10;
-    input.placeholder = this._tournamentFormState.delegates.length >= 10 ? '已達上限 10 人' : '搜尋 UID 或暱稱...';
   },
 
   // ── Match Dates ──

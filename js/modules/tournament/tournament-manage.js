@@ -210,6 +210,7 @@ Object.assign(App, {
       return;
     }
     this._tournamentFormState.delegates = [];
+    this._tournamentFormState.referees = [];
     this._tournamentFormState.venues = [];
     this._tournamentFormState.matchDates = [];
     document.getElementById('tf-name').value = '';
@@ -222,15 +223,20 @@ Object.assign(App, {
     document.getElementById('tf-match-date-picker').value = '';
     document.getElementById('tf-venue-input').value = '';
     document.getElementById('tf-delegate-search').value = '';
+    document.getElementById('tf-referee-search').value = '';
     this._renderTournamentHostTeamOptions('tf', hostTeams[0]?.id || '');
+    this._setTournamentHostParticipationFormState('tf', false);
     this._setTournamentFeeFormState('tf', false, 300);
     this._renderVenueTags('tf');
     this._renderMatchDateTags('tf');
     this._renderTournamentDelegateTags('tf');
     this._updateTournamentDelegateInput('tf');
+    this._renderTournamentRefereeTags('tf');
+    this._updateTournamentRefereeInput('tf');
     this._resetTournamentImagePreview('tf');
     this._resetTournamentImagePreview('tf', true);
     this._initTournamentDelegateSearch('tf');
+    this._initTournamentRefereeSearch('tf');
     document.getElementById('tf-image').value = '';
     document.getElementById('tf-content-image').value = '';
     this._bindTournamentImageUploads('tf');
@@ -259,6 +265,8 @@ Object.assign(App, {
     const createMatchDates = [...this._tournamentFormState.matchDates];
     const createVenues = [...this._tournamentFormState.venues];
     const createDelegates = [...this._tournamentFormState.delegates];
+    const createReferees = [...this._tournamentFormState.referees];
+    const createHostParticipates = this._getTournamentHostParticipates('tf');
     let hasError = false;
     if (!createName) { this._tfSetError('tf-name', '請輸入賽事名稱。'); hasError = true; }
     if (!hostTeam) { this._tfSetError('tf-host-team', '請先選擇主辦俱樂部。'); hasError = true; }
@@ -311,6 +319,8 @@ Object.assign(App, {
       fee: createFee,
       delegates: createDelegates,
       delegateUids: createDelegates.map(delegate => String(delegate.uid || '').trim()).filter(uid => uid.length > 0),
+      referees: createReferees,
+      refereeUids: createReferees.map(referee => String(referee.uid || '').trim()).filter(uid => uid.length > 0),
       organizer: createCreatorName,
       creatorName: createCreatorName,
       creatorUid: createCreatorUid,
@@ -318,11 +328,13 @@ Object.assign(App, {
       hostTeamName: hostTeam.name || '',
       hostTeamImage: hostTeam.image || '',
       organizerDisplay: this._buildTournamentOrganizerDisplay(hostTeam.name, createCreatorName),
-      registeredTeams: [hostTeam.id],
+      hostParticipates: createHostParticipates,
+      registeredTeams: createHostParticipates ? [hostTeam.id] : [],
       friendlyConfig: {
         teamLimit: createTeamLimit,
         allowMemberSelfJoin: true,
         pendingVisibleToThirdParty: false,
+        hostParticipates: createHostParticipates,
       },
       ended: false,
       gradient: GRADIENT_MAP?.friendly || 'linear-gradient(135deg,#0d9488,#065f46)',
@@ -355,14 +367,19 @@ Object.assign(App, {
     document.getElementById('tf-match-date-picker').value = '';
     document.getElementById('tf-venue-input').value = '';
     document.getElementById('tf-delegate-search').value = '';
+    document.getElementById('tf-referee-search').value = '';
     this._tournamentFormState.matchDates = [];
     this._tournamentFormState.venues = [];
     this._tournamentFormState.delegates = [];
+    this._tournamentFormState.referees = [];
     this._renderMatchDateTags('tf');
     this._renderVenueTags('tf');
     this._renderTournamentDelegateTags('tf');
     this._updateTournamentDelegateInput('tf');
+    this._renderTournamentRefereeTags('tf');
+    this._updateTournamentRefereeInput('tf');
     this._renderTournamentHostTeamOptions('tf');
+    this._setTournamentHostParticipationFormState('tf', false);
     this._setTournamentFeeFormState('tf', false, 300);
     this._resetTournamentImagePreview('tf');
     this._resetTournamentImagePreview('tf', true);
