@@ -2,6 +2,12 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-29 — 測試與 CI 保護網校準 [中型]
+- **問題**: 本機 `npm run test:unit:coverage` 會掃到 `.claude/worktrees` 內的歷史測試，造成測試數量被放大；`test:rules` 只跑 2 個 Rules 測試檔，另有可用 Rules 測試未納入；`tests/subcollection-rules.test.js` 是 pre-migration proposed-rules 測試且已不穩定；E2E smoke 未進 CI 且有過時 deep-link 期待值。
+- **原因**: Jest 預設 root 為 repo 根目錄但只忽略 `node_modules`；Rules 腳本清單未隨新增測試更新；歷史遷移測試仍保留 `.test.js` 後綴；E2E 文件與 workflow 未同步。
+- **修復**: `package.json` 新增 `.claude` test ignore、擴充 `test:rules:unit` 清單並修正 watch；將 subcollection pre-migration 測試移至 `tests/archive/subcollection-rules.pre-migration.js`；修正 E2E deep-link 期待值與賽事頁等待條件；CI 新增 E2E smoke job，並同步 `docs/test-coverage.md` 與 `tests/e2e/README.md`。
+- **教訓**: 測試綠燈必須先確保「跑的是目前 repo 的測試」且「CI 清單涵蓋有效測試」；歷史遷移驗證若已不代表正式規則，應降級為 archive，避免形成假保護網。
+
 ### 2026-04-29 — 賽事俱樂部審核按鈕 loading 與防連點 [中型]
 - **問題**: 賽事詳情頁「俱樂部」頁籤審核報名隊伍時，點「確認」後按鈕沒有即時動作提示，使用者可能以為沒有反應而連點。
 - **原因**: 審核按鈕沒有把 clicked button 傳入 handler，`reviewFriendlyTournamentApplication()` 只能靠背景 busy flag，無法同步更新 UI；busy key 也把 approve/reject 分開，快速交錯點擊仍可能進入第二個決策入口。

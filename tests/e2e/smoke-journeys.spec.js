@@ -159,8 +159,8 @@ test.describe('Deep Link — Activity Detail', () => {
     await page.goto(`${BASE_URL}#page-activity-detail`);
     await page.waitForTimeout(2000);
 
-    // Hash 應被保留
-    expect(page.url()).toContain('#page-activities');
+    // Hash 應被保留，避免 deep-link fallback 把原始入口洗掉
+    expect(page.url()).toContain('#page-activity-detail');
   });
 });
 

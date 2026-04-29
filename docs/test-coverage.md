@@ -4,9 +4,12 @@
 
 | 類別 | 測試數量 | 執行指令 |
 |------|----------|----------|
-| 純函式單元測試 | 551 | `npm run test:unit` |
-| Firestore 規則測試 | 113 | `npm run test:rules` |
-| **總計** | **664** | — |
+| 純函式單元測試 | 2534 | `npm run test:unit` |
+| Firestore 規則測試 | 487 | `npm run test:rules` |
+| Playwright E2E smoke | 21 | `npm run test:e2e` |
+| **總計** | **3042** | — |
+
+> 2026-04-29 更新：Jest 已排除 `.claude/` worktree，避免本機測試誤掃歷史工作樹；`test:rules` 只包含目前可穩定驗證正式 `firestore.rules` 的測試檔。舊的 pre-migration subcollection proposed-rules 測試已移至 `tests/archive/subcollection-rules.pre-migration.js`，不再視為 CI 覆蓋。
 
 ### 執行前置條件
 
@@ -24,8 +27,11 @@ npm run test:unit
 # Firestore 規則測試（自動啟動 emulator）
 npm run test:rules
 
-# Firestore 規則測試（watch 模式，需手動啟動 emulator）
+# Firestore 規則測試（watch 模式，會沿用 test:rules:unit 清單）
 npm run test:rules:watch
+
+# Playwright E2E smoke（需本地 HTTP server）
+npm run test:e2e
 ```
 
 ---

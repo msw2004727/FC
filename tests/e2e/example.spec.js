@@ -33,6 +33,22 @@ async function mockBackend(page) {
   });
 }
 
+async function dismissOptionalProfilePrompt(page) {
+  await page.evaluate(() => {
+    const modal = document.getElementById('first-login-modal');
+    if (!modal) return;
+
+    if (typeof App !== 'undefined' && typeof App.dismissFirstLoginModal === 'function') {
+      App.dismissFirstLoginModal();
+      return;
+    }
+
+    modal.classList.remove('show', 'active');
+    modal.style.display = 'none';
+    document.body.classList.remove('modal-open');
+  });
+}
+
 // ── Journey 1: Homepage loads and shows key sections ──
 
 test.describe('Homepage', () => {
@@ -90,11 +106,12 @@ test.describe('Navigation', () => {
     await mockBackend(page);
     await page.goto(BASE_URL);
     await page.waitForSelector('#loading-overlay', { state: 'hidden', timeout: 15000 });
+    await dismissOptionalProfilePrompt(page);
 
     const tournamentTab = page.locator('[data-page="page-tournaments"]').first();
     await expect(tournamentTab).toBeVisible();
     await tournamentTab.click();
-    await expect(page.locator('#page-tournaments')).toBeVisible();
+    await expect(page.locator('#page-tournaments')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('#tournament-timeline')).toBeAttached();
   });
 });

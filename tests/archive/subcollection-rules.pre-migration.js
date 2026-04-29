@@ -1,5 +1,5 @@
 /**
- * Subcollection Security Rules — Pre-migration Validation
+ * Subcollection Security Rules — Pre-migration Validation (archived)
  *
  * Tests the PROPOSED subcollection + collectionGroup security rules
  * from the migration plan (Phase 0) BEFORE they are deployed.
@@ -14,14 +14,19 @@
  * REQUIRES: Firestore Emulator running at FIRESTORE_EMULATOR_HOST (default 127.0.0.1:8080)
  * Skip: Tests are auto-skipped if emulator is not running.
  *
- * Run: FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 npx jest tests/subcollection-rules.test.js
+ * This file is intentionally archived with a non-.test.js suffix so Jest does
+ * not treat it as active CI coverage. It injects proposed Phase 0 rules into
+ * the current rules file and is no longer a reliable current-rules test.
+ *
+ * If the migration plan needs to be audited again, copy this into a temporary
+ * scratch test and update it against the current firestore.rules first.
  */
 
 const fs = require("fs");
 const path = require("path");
 const net = require("net");
 
-const RULES_PATH = path.resolve(__dirname, "..", "firestore.rules");
+const RULES_PATH = path.resolve(__dirname, "..", "..", "firestore.rules");
 const PROJECT_ID = "demo-subcol-rules-test";
 const [EMULATOR_HOST, EMULATOR_PORT] = (
   process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8080"

@@ -13,6 +13,9 @@ npx playwright install chromium
 
 # 2. 啟動本地 HTTP server（serve 專案根目錄）
 npx serve . -l 3000
+
+# 或使用 Python 內建 server
+python3 -m http.server 3000 --bind 127.0.0.1
 ```
 
 ---
@@ -56,12 +59,8 @@ npx playwright test --browser=webkit tests/e2e/
 Playwright 預設跑 Chromium。測試跨瀏覽器需加 `--browser=webkit`（Safari）或 `--browser=firefox`。
 ToosterX 主要運行環境是 LINE WebView + Chrome Mobile + Safari iOS。
 
-### CI 整合（未設定）
-目前 E2E 測試**未納入 CI**，需手動執行。若要加入 GitHub Actions：
-1. 加 `ubuntu-latest` runner
-2. `npx playwright install --with-deps chromium`
-3. 並行跑本地 server（`npx serve . -l 3000 &`）
-4. 再 `npx playwright test`
+### CI 整合
+E2E smoke 已納入 `.github/workflows/test.yml`。CI 會安裝 Chromium、以 Python 內建 server 啟動本地靜態站，並用 `BASE_URL=http://127.0.0.1:3000 npm run test:e2e -- --workers=1` 執行，避免並行瀏覽器測試造成不穩定。
 
 ---
 

@@ -3,11 +3,6 @@ name: Test Suite
 on:
   push:
     branches: [main]
-    # 2026-04-27 F 方案：inject-hot-events.yml 每 3 小時自動 commit 只改 index.html
-    # 這種「純 inline 資料更新」commit 不需要重跑測試（單元/規則測試不依賴 index.html 內容）
-    # 用 paths-ignore 過濾、節省 CI 配額（每月省約 700-1300 分鐘 GitHub Actions 用量）
-    paths-ignore:
-      - 'index.html'
   pull_request:
     branches: [main]
 
@@ -41,3 +36,18 @@ jobs:
       - run: npm ci
       - run: npm install -g firebase-tools
       - run: npm run test:rules
+
+  e2e-smoke-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: |
+          python3 -m http.server 3000 --bind 127.0.0.1 &
+          sleep 2
+          BASE_URL=http://127.0.0.1:3000 npm run test:e2e -- --workers=1
