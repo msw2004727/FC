@@ -1767,3 +1767,10 @@
 - **原因**：`_getFriendlyTournamentApplyContext()`、roster approved entry 判斷只看 `_getUserTeamIds(user)`；隊職員身分雖可從 teams cache 推得，但 status scope 沒有共用同一批可操作隊伍 ID。
 - **修正**：新增 `_getFriendlyTournamentUserActionTeamIds()`，把 user teamIds、joined teams、responsible officer teams 合併成同一個狀態 scope；冷 cache 無 eligible teams 時強制 refresh `page-teams` 一次；報名區即使只有一個可操作俱樂部也顯示 selector，讓狀態列穩定存在。
 - **驗證**：補 `tournament-friendly-detail-view.test.js`，覆蓋 user.teamIds 空、entries 已 approved、冷 cache 強制 refresh、單一 approved club 仍顯示 selector 與退出按鈕。
+
+### 2026-04-29 — 活動行事曆滿額標籤與人數一致
+- **問題**：少數使用者在活動行事曆看到人數/進度條已低於上限，但右上角仍顯示「已額滿」。
+- **原因**：行事曆卡片的狀態標籤直接讀 `event.status`，人數與進度條則走 `_getEventParticipantStats()`；取消報名後若 registrations 或 current 較早更新、status 快取仍停在 `full`，同一張卡片會出現矛盾。
+- **修復**：`event-list-timeline.js` 改用既有 `_getEventEffectiveStatus()` 決定標籤，讓標籤與人數統計共用實際滿額判斷；報名、取消與遞補寫入流程不變。
+- **驗證**：新增 `event-timeline-status.test.js`，覆蓋 `event.status = full` 但 `19/21` 未滿時標籤應顯示「報名中」；`npm test -- --runInBand` 69 suites / 2538 tests passed。
+- **教訓**：顯示層若同時呈現狀態與人數，狀態標籤不能只信任快取欄位，應以同一份統計結果做防呆。

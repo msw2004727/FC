@@ -239,8 +239,11 @@ Object.assign(App, {
         dayInfo.events.forEach(e => {
           const typeConf = TYPE_CONFIG[e.type] || TYPE_CONFIG.friendly;
           const time = e.date.split(' ')[1] || '';
-          const isEnded = e.status === 'ended' || e.status === 'cancelled';
           const isExternal = e.type === 'external';
+          const effectiveStatus = !isExternal && typeof this._getEventEffectiveStatus === 'function'
+            ? this._getEventEffectiveStatus(e)
+            : e.status;
+          const isEnded = effectiveStatus === 'ended' || effectiveStatus === 'cancelled';
 
           // 外部活動：自訂 status 與 meta
           let statusLabel, statusCss, metaText;
@@ -251,10 +254,10 @@ Object.assign(App, {
             const locPart = e.location ? ` · ${escapeHTML((e.location || '').split('市')[1] || e.location)}` : '';
             metaText = `${typeConf.label} · ${time}${locPart}`;
           } else {
-            const statusConf = STATUS_CONFIG[e.status] || STATUS_CONFIG.open;
+            const stats = this._getEventParticipantStats(e);
+            const statusConf = STATUS_CONFIG[effectiveStatus] || STATUS_CONFIG.open;
             statusLabel = statusConf.label;
             statusCss = statusConf.css;
-            const stats = this._getEventParticipantStats(e);
             const waitlistTag = stats.waitlistCount > 0 ? ` · 候補(${stats.waitlistCount})` : '';
             metaText = `${typeConf.label} · ${time} · ${escapeHTML((e.location || '').split('市')[1] || e.location)} · ${stats.confirmedCount}/${stats.maxCount}人${waitlistTag}`;
           }
