@@ -346,7 +346,8 @@
 .tfd-roster-join-btn,
 .tfd-roster-leave-btn,
 .tfd-roster-blocked-btn,
-.tfd-roster-joined-btn {
+.tfd-roster-joined-btn,
+.tfd-roster-loading-btn {
   min-width: 92px;
   min-height: 36px;
   border-radius: var(--radius-sm);
@@ -371,7 +372,8 @@
   color: var(--primary);
 }
 .tfd-roster-blocked-btn,
-.tfd-roster-joined-btn {
+.tfd-roster-joined-btn,
+.tfd-roster-loading-btn {
   border: 1.5px solid var(--border);
   color: var(--text-muted);
   background: var(--bg-elevated);
@@ -381,6 +383,9 @@
 }
 .tfd-roster-joined-btn {
   cursor: default;
+}
+.tfd-roster-loading-btn {
+  cursor: progress;
 }
 .tfd-team-withdraw-btn[data-btn-loading="1"],
 .tfd-entry-remove-btn[data-btn-loading="1"],
@@ -553,7 +558,8 @@
   .tfd-roster-join-btn,
   .tfd-roster-leave-btn,
   .tfd-roster-blocked-btn,
-  .tfd-roster-joined-btn {
+  .tfd-roster-joined-btn,
+  .tfd-roster-loading-btn {
     min-width: 74px;
     min-height: 34px;
     padding: .3rem .55rem;

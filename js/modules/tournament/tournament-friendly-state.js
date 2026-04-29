@@ -133,7 +133,12 @@ Object.assign(App, {
     });
 
     this._syncFriendlyTournamentCacheRecord(tournamentId, applications, entries);
-    this._friendlyTournamentDetailStateById[tournamentId] = { tournament, applications, entries };
+    this._friendlyTournamentDetailStateById[tournamentId] = {
+      tournament,
+      applications,
+      entries,
+      rosterHydrated: false,
+    };
     return this._friendlyTournamentDetailStateById[tournamentId];
   },
 

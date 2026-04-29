@@ -346,16 +346,23 @@ Object.assign(App, {
     const visibleApplications = this._getFriendlyTournamentVisibleApplications(state, viewer);
     const emptySlots = Math.max(0, teamLimit - approvedCount);
     const status = this.getTournamentStatus?.(tournament);
-    const rosterMembership = this._getFriendlyTournamentRosterMembershipForUser(state, viewer);
+    const isRosterHydrated = state?.rosterHydrated !== false;
+    const rosterMembership = isRosterHydrated
+      ? this._getFriendlyTournamentRosterMembershipForUser(state, viewer)
+      : { primary: null, list: [] };
 
     const entryRows = approvedEntries.map(entry => {
       const teamName = entry.teamName || '未命名俱樂部';
-      const roster = Array.isArray(entry.memberRoster) && entry.memberRoster.length
+      const roster = !isRosterHydrated
+        ? '<span class="tfd-empty-text">隊員名單載入中</span>'
+        : Array.isArray(entry.memberRoster) && entry.memberRoster.length
         ? entry.memberRoster.map(member => `<span class="tfd-member-chip">${escapeHTML(member.name || member.uid)}</span>`).join('')
         : '<span class="tfd-empty-text">尚無隊員報名</span>';
       const isViewerTeamOfficer = this._isFriendlyTournamentViewerTeamOfficer?.(entry.teamId, viewer);
       const rosterAction = this._isFriendlyTournamentViewerOnEntryTeam(entry, viewer)
-        ? this._buildFriendlyTournamentRosterActionButton(tournament.id, entry, rosterMembership, status, { stopPropagation: true })
+        ? (isRosterHydrated
+          ? this._buildFriendlyTournamentRosterActionButton(tournament.id, entry, rosterMembership, status, { stopPropagation: true })
+          : '<button type="button" class="tfd-roster-loading-btn" disabled>載入中</button>')
         : '';
       const managementAction = canManage && entry.entryStatus !== 'host'
         ? `<button type="button" class="tfd-entry-remove-btn" onclick="event.stopPropagation();return App.removeFriendlyTournamentEntry('${escapeHTML(tournament.id)}','${escapeHTML(entry.teamId)}', this)">剔除</button>`
@@ -434,6 +441,7 @@ Object.assign(App, {
     if (!container) return;
     const state = this._getFriendlyTournamentState(tournament.id) || { tournament, applications: [], entries: tournament.teamEntries || [] };
     container.innerHTML = this._renderFriendlyTournamentTeamsTab(state);
+    this._ensureFriendlyTournamentRosterHydratedForRender?.(tournament.id);
   },
 
   // shareTournament 已移至 js/modules/tournament-share.js（LIFF Flex Message 版）

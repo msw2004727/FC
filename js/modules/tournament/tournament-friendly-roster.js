@@ -13,6 +13,7 @@ Object.assign(App, {
 
   _friendlyTournamentRosterPickerState: null,
   _friendlyTournamentRosterBusyById: {},
+  _friendlyTournamentRosterHydratePromiseById: {},
 
   _getFriendlyTournamentRosterMembership(state, user = ApiService.getCurrentUser?.()) {
     const uid = String(user?.uid || '').trim();
@@ -73,12 +74,52 @@ Object.assign(App, {
       ...state,
       entries,
       tournament: this._buildFriendlyTournamentRecord({ ...tournament }),
+      rosterHydrated: true,
+      rosterHydrateError: false,
     };
     if (typeof this._syncFriendlyTournamentCacheRecord === 'function') {
       this._syncFriendlyTournamentCacheRecord(tournamentId, nextState.applications || [], entries);
     }
     this._friendlyTournamentDetailStateById[tournamentId] = nextState;
     return nextState;
+  },
+
+  _ensureFriendlyTournamentRosterHydratedForRender(tournamentId) {
+    const safeTournamentId = String(tournamentId || '').trim();
+    if (!safeTournamentId) return null;
+    const state = this._getFriendlyTournamentState?.(safeTournamentId);
+    if (!state || state.rosterHydrated !== false) return null;
+    if (this._friendlyTournamentRosterHydratePromiseById[safeTournamentId]) {
+      return this._friendlyTournamentRosterHydratePromiseById[safeTournamentId];
+    }
+
+    const promise = this._hydrateFriendlyTournamentRosterState(safeTournamentId)
+      .then(nextState => {
+        if (
+          this.currentPage === 'page-tournament-detail'
+          && String(this.currentTournament || '') === safeTournamentId
+        ) {
+          this._refreshFriendlyTournamentRosterUi(safeTournamentId);
+        }
+        return nextState;
+      })
+      .catch(err => {
+        console.warn('[Tournament:RosterHydrate] failed:', err);
+        const currentState = this._getFriendlyTournamentState?.(safeTournamentId);
+        if (currentState && this._friendlyTournamentDetailStateById) {
+          this._friendlyTournamentDetailStateById[safeTournamentId] = {
+            ...currentState,
+            rosterHydrated: false,
+            rosterHydrateError: true,
+          };
+        }
+        return currentState || null;
+      })
+      .finally(() => {
+        delete this._friendlyTournamentRosterHydratePromiseById[safeTournamentId];
+      });
+    this._friendlyTournamentRosterHydratePromiseById[safeTournamentId] = promise;
+    return promise;
   },
 
   _getFriendlyTournamentActiveTab() {
@@ -305,7 +346,10 @@ Object.assign(App, {
     const safeTournamentId = String(id || '').trim();
     if (!tournament || !this._isFriendlyTournamentRecord?.(tournament)) return;
     if (this.currentPage !== 'page-tournament-detail' || String(this.currentTournament || '') !== safeTournamentId) return;
-    await this._hydrateFriendlyTournamentRosterState(safeTournamentId);
+    await (
+      this._friendlyTournamentRosterHydratePromiseById?.[safeTournamentId]
+      || this._hydrateFriendlyTournamentRosterState(safeTournamentId)
+    );
     this._refreshFriendlyTournamentRosterUi(safeTournamentId);
   },
 

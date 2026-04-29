@@ -1913,6 +1913,12 @@
 - **修復**: `createFriendlyTournament` 在主辦俱樂部實際參賽時，和 root + host entry 同 batch 建立 creator member；審核通過自動加入名單也共用同一 roster member builder，避免兩條流程欄位形狀不同。
 - **驗收**: `node --check functions/index.js`、targeted tournament/function tests 通過；部署 functions 後新建立賽事會直接讀到主辦創立人。
 
+### 2026-04-30 賽事俱樂部隊員名單冷載入防呆 [中型]
+- **問題**: 賽事詳細頁第一輪只載入 `entries`，尚未讀取 `entries/{teamId}/members` 子集合時，俱樂部頁籤會暫時把 `memberRoster` 當空陣列，造成已參賽者姓名消失，且多個已核准俱樂部都錯誤顯示「參賽」按鈕。
+- **原因**: `tournament-friendly-state.js` 的 detail state 沒有標記 roster hydration 狀態；`tournament-friendly-detail-view.js` 直接用未補齊的 `memberRoster` 判斷 UI；真正的 `_hydrateFriendlyTournamentRosterState()` 只有後續才補 members 並刷新。
+- **修復**: detail state 新增 `rosterHydrated: false`，teams tab 冷載入時顯示「隊員名單載入中」與 disabled 載入按鈕，不先畫可點擊參賽；`tournament-friendly-roster.js` 新增 hydrate pending guard，members 補齊後設為 `rosterHydrated: true` 並自動刷新頁籤與報名區。
+- **驗證**: 新增 unit tests 覆蓋 cold roster 不顯示錯誤 join action、teams tab 會排程 hydrate；保留已 hydrate 時取消參賽與 blocked 參賽按鈕邏輯。
+
 ### 2026-04-30 刪除賽事後仍停留已刪除詳細頁 [中型]
 - **問題**: 管理員在賽事詳細頁成功刪除賽事後，畫面仍可能停在已刪除的詳細頁，而不是回到賽事列表。
 - **原因**: 詳細頁進入後會有短暫 page lock；刪除流程確認與寫入完成後才呼叫 `showPage('page-tournaments')`，容易被 page lock 擋下，且 detail cache / route param 沒有集中清理。

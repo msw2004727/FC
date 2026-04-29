@@ -351,6 +351,114 @@ describe('friendly tournament teams tab actions', () => {
     expect(html).toContain("return App.joinFriendlyTournamentRoster('ct_test','tm_guest', this)");
   });
 
+  test('keeps cold roster rows in loading state until member subcollections hydrate', () => {
+    global.ApiService = {
+      getCurrentUser: () => ({ uid: 'player_uid', role: 'user', teamIds: ['tm_guest'] }),
+      getTeam: () => ({ id: 'tm_guest' }),
+    };
+    global.TOURNAMENT_STATUS = { REG_OPEN: 'open' };
+    global.App._canManageTournamentRecord = jest.fn(() => false);
+    global.App._getUserTeamIds = jest.fn(user => user?.teamIds || []);
+    global.App._isTournamentTeamOfficerForTeam = jest.fn(() => false);
+    global.App.getTournamentStatus = jest.fn(() => 'open');
+    require('../../js/modules/tournament/tournament-friendly-detail-view.js');
+
+    const html = global.App._renderFriendlyTournamentTeamsTab({
+      tournament: { id: 'ct_test', hostTeamId: 'tm_host' },
+      rosterHydrated: false,
+      entries: [
+        { teamId: 'tm_guest', teamName: 'Guest Team', entryStatus: 'approved', memberRoster: [] },
+      ],
+      applications: [],
+    });
+
+    expect(html).toContain('tfd-roster-loading-btn');
+    expect(html).toContain('隊員名單載入中');
+    expect(html).not.toContain('tfd-roster-join-btn');
+    expect(html).not.toContain('joinFriendlyTournamentRoster');
+  });
+
+  test('teams tab schedules roster hydration after the first cold render', () => {
+    const container = { innerHTML: '' };
+    global.document = { getElementById: id => (id === 'tournament-content' ? container : null) };
+    global.ApiService = {
+      getCurrentUser: () => ({ uid: 'player_uid', role: 'user', teamIds: ['tm_guest'] }),
+      getTeam: () => ({ id: 'tm_guest' }),
+      getFriendlyTournamentRecord: () => ({ id: 'ct_test', hostTeamId: 'tm_host' }),
+      getTournament: jest.fn(),
+    };
+    global.TOURNAMENT_STATUS = { REG_OPEN: 'open' };
+    global.App = {
+      currentTournament: 'ct_test',
+      renderRegisterButton: jest.fn(),
+      renderTournamentTab: jest.fn(),
+      _isFriendlyTournamentRecord: jest.fn(() => true),
+      _getFriendlyTournamentState: jest.fn(() => ({
+        tournament: { id: 'ct_test', hostTeamId: 'tm_host' },
+        rosterHydrated: false,
+        applications: [],
+        entries: [{ teamId: 'tm_guest', teamName: 'Guest Team', entryStatus: 'approved', memberRoster: [] }],
+      })),
+      _canManageTournamentRecord: jest.fn(() => false),
+      _isTournamentGlobalAdmin: jest.fn(() => false),
+      _getFriendlyTournamentTeamLimit: jest.fn(() => 4),
+      _getFriendlyTournamentVisibleApplications: jest.fn(() => []),
+      _getFriendlyTournamentRegisteredTeamIdsFromEntries: jest.fn(entries => entries.map(entry => entry.teamId)),
+      _getUserTeamIds: jest.fn(user => user?.teamIds || []),
+      _isTournamentTeamOfficerForTeam: jest.fn(() => false),
+      getTournamentStatus: jest.fn(() => 'open'),
+      _ensureFriendlyTournamentRosterHydratedForRender: jest.fn(),
+    };
+    require('../../js/modules/tournament/tournament-friendly-detail-view.js');
+
+    global.App.renderTournamentTab('teams');
+
+    expect(container.innerHTML).toContain('tfd-roster-loading-btn');
+    expect(global.App._ensureFriendlyTournamentRosterHydratedForRender).toHaveBeenCalledWith('ct_test');
+  });
+
+  test('roster hydration marks detail state ready and merges member subcollections', async () => {
+    const state = {
+      tournament: { id: 'ct_test', hostTeamId: 'tm_host' },
+      rosterHydrated: false,
+      applications: [],
+      entries: [{ teamId: 'tm_guest', teamName: 'Guest Team', entryStatus: 'approved', memberRoster: [] }],
+    };
+    global.ApiService = {
+      getCurrentUser: () => ({ uid: 'player_uid', role: 'user' }),
+      listTournamentEntryMembers: jest.fn().mockResolvedValue([{ uid: 'player_uid', name: 'Player' }]),
+    };
+    global.App = {
+      showTournamentDetail: jest.fn(),
+      renderRegisterButton: jest.fn(),
+      _friendlyTournamentDetailStateById: {},
+      _getFriendlyTournamentState: jest.fn(() => state),
+      _isFriendlyTournamentRecord: jest.fn(() => true),
+      _buildFriendlyTournamentRosterMemberRecord: member => ({
+        uid: String(member.uid || ''),
+        name: String(member.name || ''),
+        joinedAt: member.joinedAt || null,
+      }),
+      _buildFriendlyTournamentEntryRecord: entry => ({
+        ...entry,
+        memberRoster: (entry.memberRoster || []).map(member => ({
+          uid: String(member.uid || ''),
+          name: String(member.name || ''),
+          joinedAt: member.joinedAt || null,
+        })),
+      }),
+      _buildFriendlyTournamentRecord: tournament => ({ ...tournament }),
+      _syncFriendlyTournamentCacheRecord: jest.fn(),
+    };
+    require('../../js/modules/tournament/tournament-friendly-roster.js');
+
+    const nextState = await global.App._hydrateFriendlyTournamentRosterState('ct_test');
+
+    expect(nextState.rosterHydrated).toBe(true);
+    expect(nextState.entries[0].memberRoster).toEqual([{ uid: 'player_uid', name: 'Player', joinedAt: null }]);
+    expect(global.App._friendlyTournamentDetailStateById.ct_test).toBe(nextState);
+  });
+
   test('keeps roster action on team rows even for tournament managers who belong to that team', () => {
     global.ApiService = {
       getCurrentUser: () => ({ uid: 'manager_uid', role: 'user', teamIds: ['tm_guest'] }),
