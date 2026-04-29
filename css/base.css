@@ -245,6 +245,31 @@ body.modal-open { overflow: hidden; }
 .ce-row label { font-size: .78rem; font-weight: 600; color: var(--text-secondary); }
 .ce-label-row { display: flex; align-items: center; gap: .3rem; }
 .ce-label-row > .edu-info-btn { order: 99; margin-left: auto; flex-shrink: 0; }
+.ce-value-section {
+  display: flex;
+  flex-direction: column;
+  gap: .65rem;
+  padding: .75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+}
+.ce-value-section-title {
+  font-size: .82rem;
+  font-weight: 800;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+.ce-value-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: .65rem;
+}
+.ce-value-section .ce-row { gap: .35rem; }
+.ce-value-section .ce-row + .ce-row {
+  padding-top: .65rem;
+  border-top: 1px solid var(--border);
+}
 .ce-time-row {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto minmax(0, 1fr);
