@@ -164,8 +164,8 @@ Object.assign(App, {
 
       const imgEl = nodes.image;
       const detailRank = this._getTeamRank(t.teamExp);
-      const detailSportEmoji = t.sportTag && typeof SPORT_ICON_EMOJI !== 'undefined' ? (SPORT_ICON_EMOJI[t.sportTag] || '') : '';
-      const detailSportBadge = detailSportEmoji ? '<span class="tc-sport-badge" style="top:8px;left:8px;padding:3px 9px;font-size:1.3rem">' + detailSportEmoji + '</span>' : '';
+      const detailSportIcon = t.sportTag && typeof getSportIconSvg === 'function' ? (getSportIconSvg(t.sportTag) || '') : '';
+      const detailSportBadge = detailSportIcon ? '<span class="tc-sport-badge" style="top:8px;left:8px;padding:3px 9px;font-size:1.3rem">' + detailSportIcon + '</span>' : '';
       imgEl.style.position = 'relative';
       if (t.image) {
         imgEl.innerHTML = detailSportBadge + '<img src="' + t.image + '" loading="lazy" style="width:100%;height:100%;object-fit:cover"><span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';

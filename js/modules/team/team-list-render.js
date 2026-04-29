@@ -12,8 +12,8 @@ Object.assign(App, {
     const isEdu = t.type === 'education';
     const eduBadge = isEdu ? '<span class="tc-edu-badge">教學</span>' : '';
     const eduRibbon = isEdu ? '<span class="tc-edu-ribbon">教學</span>' : '';
-    const sportEmoji = t.sportTag && typeof SPORT_ICON_EMOJI !== 'undefined' ? (SPORT_ICON_EMOJI[t.sportTag] || '') : '';
-    const sportBadge = sportEmoji ? `<span class="tc-sport-badge">${sportEmoji}</span>` : '';
+    const sportIcon = t.sportTag && typeof getSportIconSvg === 'function' ? getSportIconSvg(t.sportTag) : '';
+    const sportBadge = sportIcon ? `<span class="tc-sport-badge">${sportIcon}</span>` : '';
     const typeHandler = this._getTeamTypeHandler(t.type);
     const memberLabel = isEdu ? '學員' : I18N.t('team.memberLabel');
     const memberCountKey = String(t.id || '');
@@ -143,12 +143,12 @@ Object.assign(App, {
     const renderCard = (t) => {
       const canEdit = isAdmin || this._isTeamOwner(t);
       const dim = !t.active ? ' team-inactive' : '';
-      const mSportEmoji = t.sportTag && typeof SPORT_ICON_EMOJI !== 'undefined' ? (SPORT_ICON_EMOJI[t.sportTag] || '') : '';
+      const mSportIcon = t.sportTag && typeof getSportIconSvg === 'function' ? (getSportIconSvg(t.sportTag, 'team-title-sport-icon') || '') : '';
       return `
       <div class="event-card${dim}" onclick="App.showTeamDetail('${t.id}')" style="cursor:pointer">
         <div class="event-card-body">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <div class="event-card-title">${mSportEmoji ? mSportEmoji + ' ' : ''}${escapeHTML(t.name)} <span style="font-size:.72rem;color:var(--text-muted)">${escapeHTML(t.nameEn || '')}</span></div>
+            <div class="event-card-title">${mSportIcon ? mSportIcon + ' ' : ''}${escapeHTML(t.name)} <span style="font-size:.72rem;color:var(--text-muted)">${escapeHTML(t.nameEn || '')}</span></div>
             <div style="display:flex;gap:.4rem;align-items:center">
               ${isAdmin && t.pinned ? '<span style="font-size:.72rem;color:var(--warning);font-weight:600">置頂</span>' : ''}
               <span style="font-size:.72rem;color:${t.active ? 'var(--success)' : 'var(--danger)'}">${t.active ? '上架中' : '已下架'}</span>
@@ -204,12 +204,12 @@ Object.assign(App, {
     const inactiveT = teams.filter(t => !t.active);
     const adminCard = (t) => {
       const dim = !t.active ? ' team-inactive' : '';
-      const aSportEmoji = t.sportTag && typeof SPORT_ICON_EMOJI !== 'undefined' ? (SPORT_ICON_EMOJI[t.sportTag] || '') : '';
+      const aSportIcon = t.sportTag && typeof getSportIconSvg === 'function' ? (getSportIconSvg(t.sportTag, 'team-title-sport-icon') || '') : '';
       return `
       <div class="event-card${dim}" onclick="App.showTeamDetail('${t.id}')" style="cursor:pointer">
         <div class="event-card-body">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <div class="event-card-title">${aSportEmoji ? aSportEmoji + ' ' : ''}${escapeHTML(t.name)} <span style="font-size:.72rem;color:var(--text-muted)">${escapeHTML(t.nameEn || '')}</span></div>
+            <div class="event-card-title">${aSportIcon ? aSportIcon + ' ' : ''}${escapeHTML(t.name)} <span style="font-size:.72rem;color:var(--text-muted)">${escapeHTML(t.nameEn || '')}</span></div>
             ${t.pinned ? '<span style="font-size:.72rem;color:var(--warning);font-weight:600">置頂</span>' : ''}
           </div>
           <div class="event-meta">

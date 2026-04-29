@@ -67,6 +67,16 @@
   background: rgba(255, 255, 255, .68);
   box-shadow: 0 1px 4px rgba(0, 0, 0, .26);
 }
+.tc-sport-badge .sport-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.tc-sport-badge svg {
+  display: block;
+  width: 1em;
+  height: 1em;
+}
 .tc-emblem {
   width: 100%;
   aspect-ratio: 1;

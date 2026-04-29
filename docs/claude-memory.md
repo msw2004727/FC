@@ -2,6 +2,11 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-29 — 俱樂部卡片匹克球圖示改走 SVG [小型]
+- **問題**: 俱樂部卡片與詳情封面左上角 sport badge 仍直接讀 `SPORT_ICON_EMOJI`，匹克球因此顯示桌球拍 emoji，和其他頁面已改用的專屬 SVG 不一致。
+- **修復**: 俱樂部卡片、管理列表標題與詳情封面角標改用 `getSportIconSvg()`，讓匹克球吃到 `SPORT_ICON_SVG_HTML`；補 `.tc-sport-badge svg` 尺寸規則，避免 SVG 在白色透明底內跑版。
+- **驗證**: 新增 `team-sport-icon.test.js` 守住 team render 不再回退到 `SPORT_ICON_EMOJI[t.sportTag]`；targeted unit 與語法檢查通過。
+
 ### 2026-04-29 — 俱樂部卡片運動標籤改淺白 [小型]
 - **需求**: 俱樂部卡片左上角運動標籤改為透明淺白色，取代上一版半透明深灰。
 - **修復**: `.tc-sport-badge` 改用半透明白底，保留 blur、位置與尺寸；深色模式同樣維持透明白底但略降透明度，並同步 bump cache 版本。
