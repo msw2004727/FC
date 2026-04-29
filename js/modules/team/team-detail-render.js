@@ -12,7 +12,7 @@ Object.assign(App, {
   //  Team Events
   // ══════════════════════════════════
 
-  _renderTeamEvents(teamId) {
+  _renderTeamEventsLegacy(teamId) {
     const allEvents = ApiService.getEvents() || [];
     // 2026-04-20：活動黑名單過濾（俱樂部活動列表也要擋被擋用戶）
     const _uid = ApiService.getCurrentUser?.()?.uid || null;
@@ -54,6 +54,237 @@ Object.assign(App, {
       <div class="td-card-title">\u7403\u968a\u6d3b\u52d5 <span style="font-size:.72rem;color:var(--text-muted);font-weight:400">(${teamEvents.length})</span></div>
       ${rows}
     </div>`;
+  },
+
+  // ══════════════════════════════════
+  //  Team Event Cards
+  // ══════════════════════════════════
+
+  _teamEventsExpandedByTeam: {},
+
+  _isTeamEventForTeam(e, teamId) {
+    if (!e || !e.teamOnly) return false;
+    const targetId = String(teamId || '').trim();
+    if (!targetId) return false;
+    const ids = (typeof this._getEventLimitedTeamIds === 'function')
+      ? this._getEventLimitedTeamIds(e)
+      : (() => {
+        const out = [];
+        const seen = new Set();
+        const push = (id) => {
+          const value = String(id || '').trim();
+          if (!value || seen.has(value)) return;
+          seen.add(value);
+          out.push(value);
+        };
+        if (Array.isArray(e.creatorTeamIds)) e.creatorTeamIds.forEach(push);
+        push(e.creatorTeamId);
+        return out;
+      })();
+    return ids.includes(targetId);
+  },
+
+  _isTeamEventInFuture(e, nowDate = new Date()) {
+    if (!e || e.status === 'ended' || e.status === 'cancelled') return false;
+    const endDate = typeof this._parseEventEndDate === 'function' ? this._parseEventEndDate(e.date) : null;
+    const startDate = typeof this._parseEventStartDate === 'function' ? this._parseEventStartDate(e.date) : null;
+    const anchorDate = startDate || endDate;
+    return !anchorDate || anchorDate >= nowDate;
+  },
+
+  _getTeamFutureEvents(teamId) {
+    const source = typeof this._getVisibleEvents === 'function'
+      ? this._getVisibleEvents()
+      : (ApiService.getEvents?.() || []);
+    const uid = ApiService.getCurrentUser?.()?.uid || null;
+    const nowDate = new Date();
+    return (Array.isArray(source) ? source : [])
+      .filter(e => {
+        if (!this._isTeamEventForTeam(e, teamId)) return false;
+        if (!this._isTeamEventInFuture(e, nowDate)) return false;
+        if (e.privateEvent && typeof this._canManageEvent === 'function' && !this._canManageEvent(e)) return false;
+        if (typeof this._isEventVisibleToUser === 'function' && !this._isEventVisibleToUser(e, uid)) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const da = typeof this._parseEventStartDate === 'function' ? this._parseEventStartDate(a.date) : null;
+        const db = typeof this._parseEventStartDate === 'function' ? this._parseEventStartDate(b.date) : null;
+        if (da && db && da.getTime() !== db.getTime()) return da - db;
+        if (da && !db) return -1;
+        if (!da && db) return 1;
+        return String(a.date || '').localeCompare(String(b.date || ''));
+      });
+  },
+
+  _renderTeamEventCard(e) {
+    const typeConf = (typeof TYPE_CONFIG !== 'undefined' && TYPE_CONFIG[e.type])
+      ? TYPE_CONFIG[e.type]
+      : ((typeof TYPE_CONFIG !== 'undefined' && TYPE_CONFIG.friendly) || { label: '\u6d3b\u52d5' });
+    const isExternal = e.type === 'external';
+    const statusKey = !isExternal && typeof this._getEventEffectiveStatus === 'function'
+      ? this._getEventEffectiveStatus(e)
+      : (e.status || 'open');
+    const fallbackStatus = {
+      open: { label: '\u5831\u540d\u4e2d', css: 'open' },
+      full: { label: '\u5df2\u984d\u6eff', css: 'full' },
+      upcoming: { label: '\u5373\u5c07\u958b\u653e', css: 'upcoming' },
+      ended: { label: '\u5df2\u7d50\u675f', css: 'ended' },
+      cancelled: { label: '\u5df2\u53d6\u6d88', css: 'cancelled' },
+      external: { label: '\u5916\u90e8\u6d3b\u52d5', css: 'external' },
+    };
+    const statusConf = isExternal
+      ? fallbackStatus.external
+      : ((typeof STATUS_CONFIG !== 'undefined' && STATUS_CONFIG[statusKey]) || fallbackStatus[statusKey] || fallbackStatus.open);
+    const datePart = (e.date || '').split(' ')[0] || '';
+    const timePart = (e.date || '').split(' ')[1] || '';
+    const location = (e.location || '').split('\u00b7')[1] || e.location || '';
+    const stats = !isExternal && typeof this._getEventParticipantStats === 'function'
+      ? this._getEventParticipantStats(e)
+      : { confirmedCount: Number(e.current || 0), waitlistCount: Number(e.waitlist || 0), maxCount: Number(e.max || 0) };
+    const waitlistTag = stats.waitlistCount > 0 ? ` \u00b7 \u5019\u88dc ${stats.waitlistCount}` : '';
+    const capacityText = !isExternal && stats.maxCount > 0
+      ? ` \u00b7 ${stats.confirmedCount}/${stats.maxCount}\u4eba${waitlistTag}`
+      : '';
+    const metaParts = [
+      typeConf.label,
+      [datePart, timePart].filter(Boolean).join(' '),
+      location,
+    ].filter(Boolean);
+    const metaText = metaParts.map(v => escapeHTML(v)).join(' \u00b7 ') + capacityText;
+    const progressHtml = !isExternal && stats.maxCount > 0
+      ? (() => {
+        const pct = Math.min(100, Math.round(stats.confirmedCount / stats.maxCount * 100));
+        const color = pct >= 100 ? 'var(--danger)' : pct >= 70 ? 'var(--warning)' : 'var(--success)';
+        return `<div class="td-team-event-progress"><div class="td-team-event-progress-track"><div style="width:${pct}%;background:${color}"></div></div><span>${stats.confirmedCount}/${stats.maxCount}${waitlistTag}</span></div>`;
+      })()
+      : '';
+    const sportIcon = typeof this._renderEventSportIcon === 'function' ? this._renderEventSportIcon(e, 'tl-event-sport-corner') : '';
+    const favHeart = (typeof this._favHeartHtml === 'function' && typeof this.isEventFavorited === 'function')
+      ? this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id)
+      : '';
+    const iconStack = `<div class="tl-event-icons">${favHeart}${sportIcon}</div>`;
+    const rowClass = e.teamOnly ? 'tl-type-teamonly' : `tl-type-${e.type || 'friendly'}`;
+    const teamBadge = e.teamOnly ? '<span class="tl-teamonly-badge">\u9650\u5b9a</span>' : '';
+    const genderRibbon = !isExternal && typeof this._hasEventGenderRestriction === 'function' && this._hasEventGenderRestriction(e)
+      ? `<span class="tl-event-gender-ribbon">${escapeHTML(this._getEventGenderTimelineRibbonText?.(e) || '')}</span>`
+      : '';
+    const privateStamp = e.privateEvent ? '<span class="tl-stamp-private">\u4e0d\u516c\u958b</span>' : '';
+    const signedUp = !isExternal && typeof this._isUserSignedUp === 'function' && this._isUserSignedUp(e);
+    const waitlisted = signedUp && typeof this._isUserOnWaitlist === 'function' && this._isUserOnWaitlist(e);
+    const regStamp = waitlisted
+      ? '<span class="tl-stamp-waitlisted">\u5019\u88dc</span>'
+      : (signedUp ? '<span class="tl-stamp-confirmed">\u5df2\u5831</span>' : '');
+
+    return `
+      <div class="tl-event-row ${rowClass}" onclick="App.openTeamEventDetailFromCard('${e.id}', this)">
+        ${genderRibbon}
+        ${e.image ? `<div class="tl-event-thumb"><img src="${e.image}" loading="lazy" alt="${escapeHTML(e.title || '')}"></div>` : ''}
+        <div class="tl-event-info">
+          <div class="tl-event-title-row"><div class="tl-event-title">${escapeHTML(e.title || '')}${teamBadge}</div></div>
+          ${progressHtml}
+          <div class="tl-event-meta">${metaText}</div>
+        </div>
+        <span class="tl-event-status ${statusConf.css || 'open'}">${escapeHTML(statusConf.label || '')}</span>
+        ${iconStack}
+        <span class="tl-event-arrow">\u203a</span>
+        ${privateStamp}${regStamp}
+      </div>`;
+  },
+
+  _renderTeamEvents(teamId) {
+    const teamEvents = this._getTeamFutureEvents(teamId);
+    if (!teamEvents.length) return '';
+
+    const expanded = !!this._teamEventsExpandedByTeam[teamId];
+    const visibleEvents = expanded ? teamEvents : teamEvents.slice(0, 10);
+    const hiddenCount = Math.max(0, teamEvents.length - visibleEvents.length);
+    const cards = visibleEvents.map(e => this._renderTeamEventCard(e)).join('');
+    const moreButton = teamEvents.length > 10
+      ? `<button class="td-team-events-more" onclick="event.stopPropagation();App.toggleTeamEventsExpanded('${teamId}')">${expanded ? '\u6536\u5408' : `\u67e5\u770b\u66f4\u591a${hiddenCount > 0 ? `\uff08\u9084\u6709 ${hiddenCount} \u7b46\uff09` : ''}`}</button>`
+      : '';
+
+    return `<div class="td-card" id="team-events-section">
+      <div class="td-card-title">\u4ff1\u6a02\u90e8\u6d3b\u52d5 <span style="font-size:.72rem;color:var(--text-muted);font-weight:400">(${teamEvents.length})</span></div>
+      <div class="td-team-events-list">${cards}</div>
+      ${moreButton}
+    </div>`;
+  },
+
+  toggleTeamEventsExpanded(teamId) {
+    if (!this._teamEventsExpandedByTeam) this._teamEventsExpandedByTeam = {};
+    this._teamEventsExpandedByTeam[teamId] = !this._teamEventsExpandedByTeam[teamId];
+    const section = document.getElementById('team-events-section');
+    if (section) section.outerHTML = this._renderTeamEvents(teamId);
+  },
+
+  _markTeamEventCardPending(cardEl) {
+    if (!cardEl || !cardEl.classList) return;
+    cardEl.classList.add('tl-pending');
+    cardEl.setAttribute('aria-busy', 'true');
+    if (!cardEl.querySelector('.tl-loading-bar')) {
+      const bar = document.createElement('div');
+      bar.className = 'tl-loading-bar';
+      const fill = document.createElement('div');
+      fill.className = 'tl-loading-fill';
+      bar.appendChild(fill);
+      cardEl.appendChild(bar);
+      requestAnimationFrame(() => { fill.style.width = '85%'; });
+    }
+  },
+
+  _clearTeamEventCardPending(cardEl, minVisibleMs = 0) {
+    if (!cardEl) return;
+    setTimeout(() => {
+      const fill = cardEl.querySelector?.('.tl-loading-fill');
+      if (fill) fill.style.width = '100%';
+      setTimeout(() => {
+        if (cardEl.classList) cardEl.classList.add('tl-loaded');
+        setTimeout(() => {
+          if (cardEl.classList) {
+            cardEl.classList.remove('tl-pending', 'tl-loaded');
+            cardEl.removeAttribute('aria-busy');
+          }
+          const bar = cardEl.querySelector?.('.tl-loading-bar');
+          if (bar) bar.remove();
+        }, 400);
+      }, 350);
+    }, Math.max(0, minVisibleMs));
+  },
+
+  async openTeamEventDetailFromCard(eventId, cardEl) {
+    const safeEventId = String(eventId || '').trim();
+    const targetCard = cardEl?.closest ? cardEl.closest('.tl-event-row') : cardEl;
+    if (!safeEventId) return { ok: false, reason: 'missing-id' };
+
+    const extEvent = ApiService.getEvent?.(safeEventId);
+    if (extEvent?.type === 'external' && extEvent.externalUrl && typeof this.showExternalTransitCard === 'function') {
+      this.showExternalTransitCard(extEvent);
+      return { ok: true };
+    }
+
+    if (targetCard?.dataset?.teamEventOpening === '1') return { ok: false, reason: 'pending' };
+    if (targetCard?.dataset) targetCard.dataset.teamEventOpening = '1';
+    const shouldHint = typeof this._shouldShowHomeEventLoadingHint === 'function'
+      ? this._shouldShowHomeEventLoadingHint()
+      : false;
+    if (shouldHint) this._markTeamEventCardPending(targetCard);
+
+    try {
+      const result = await this.showEventDetail(safeEventId);
+      if (!result?.ok && result?.reason === 'missing') {
+        this.showToast?.('\u6d3b\u52d5\u8cc7\u6599\u5df2\u66f4\u65b0\uff0c\u8acb\u91cd\u65b0\u6574\u7406');
+      }
+      return result;
+    } catch (err) {
+      console.error('[TeamEventClick] open detail failed:', err);
+      this.showToast?.('\u7121\u6cd5\u958b\u555f\u6d3b\u52d5\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+      return { ok: false, reason: 'error' };
+    } finally {
+      this._clearTeamEventCardPending(targetCard, shouldHint ? 650 : 0);
+      if (targetCard?.dataset) {
+        setTimeout(() => { delete targetCard.dataset.teamEventOpening; }, shouldHint ? 900 : 320);
+      }
+    }
   },
 
   // ══════════════════════════════════
@@ -242,8 +473,8 @@ Object.assign(App, {
       + this._buildTeamRecordCard(t, totalGames, winRate)
       + this._buildTeamHistoryCard(t)
       + this._buildTeamMembersCard(t, canManageMembers, memberEditMode, staffIdentity)
-      + this._renderTeamEvents(t.id)
       + '<div id="team-feed-section">' + this._renderTeamFeed(t.id) + '</div>'
+      + this._renderTeamEvents(t.id)
       + actionCards;
   },
 

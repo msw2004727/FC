@@ -172,6 +172,56 @@
 .td-history-name { font-weight: 600; color: var(--text-primary); }
 .td-history-result { color: var(--text-secondary); font-size: .78rem; }
 
+/* ─── Team Detail Club Events ─── */
+.td-team-events-list {
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+}
+.td-team-events-list .tl-event-row {
+  margin: 0;
+}
+.td-team-event-progress {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  margin-top: .2rem;
+}
+.td-team-event-progress-track {
+  flex: 1;
+  height: 5px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.td-team-event-progress-track > div {
+  height: 100%;
+  border-radius: 3px;
+}
+.td-team-event-progress span {
+  font-size: .65rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.td-team-events-more {
+  width: 100%;
+  margin-top: .55rem;
+  padding: .48rem .6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: .78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.td-team-events-more:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
 /* ─── Team User Search Suggest ─── */
 .team-user-suggest {
   position: absolute; top: 100%; left: 0; right: 0; z-index: 50;
