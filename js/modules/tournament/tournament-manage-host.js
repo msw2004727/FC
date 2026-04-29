@@ -253,6 +253,7 @@ Object.assign(App, {
     const regStartWrap = regStartInput?.parentElement || null;
     const regStartLabel = regStartWrap?.querySelector('label');
     if (regStartLabel) {
+      regStartLabel.classList.add('tournament-reg-start-label');
       // Note: innerHTML usage is safe - no user content in this template
       regStartLabel.innerHTML = '報名開始 <span class="tournament-reg-start-note">（未設定則立即開放）</span>';
     }
@@ -267,6 +268,7 @@ Object.assign(App, {
 
     const regRow = regStartWrap?.parentElement;
     if (regRow?.classList.contains('ce-row-half')) {
+      regRow.classList.add('tournament-reg-period-row');
       regRow.querySelector(`.tournament-reg-period-note-${p}`)?.remove();
     }
   },

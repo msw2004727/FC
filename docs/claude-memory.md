@@ -2,6 +2,11 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-29 — 俱樂部卡片運動標籤改深灰 [小型]
+- **需求**: 俱樂部卡片左上角的運動標籤原本是金色半透明底，視覺上容易和置頂/等級金色語意混淆，改成透明深灰色。
+- **修復**: `css/team.css` 的 `.tc-sport-badge` 改為半透明深灰背景，深色模式使用更深灰階，保留原本位置、尺寸與 pointer-events 行為；同步部署快取版本。
+- **驗證**: `git diff --check` 通過；僅 CSS 視覺調整，未改動資料或互動流程。
+
 ### 2026-04-29 — 活動置頂鎖定與加值預留開關 [小型]
 - **需求**: 暫時關閉活動管理中的置頂操作，點擊只提示「功能未開放」；新增活動表單的加值功能區先預留放鴿子偵測、候補名單、委託人、取消報名限制、GPS功能五個開關位置。
 - **修復**: `toggleMyActivityPin()` 改為純 Toast，不再寫入 `pinned/pinOrder` 或重繪列表；管理卡片上的置頂按鈕改成鎖定視覺。加值區新增五個 disabled 預留 switch，沿用既有「預留 — 尚未啟用」文案，不寫入任何活動資料欄位。
@@ -1880,3 +1885,9 @@
 - **原因**：團隊席位匹配只用 `teamIds` / 職員身份找第一個 reservation，前端沒有在多個可用俱樂部時先取得使用者意圖。
 - **修復**：前端在多個可用俱樂部席位時顯示選擇彈窗，單一席位直接報名；CF 與舊交易流程都新增 `preferredTeamReservationTeamId` 驗證，只允許使用者所屬或職員俱樂部。
 - **教訓**：只要席位歸屬會影響名單與統計，就不能靠陣列順序自動決定，必須讓使用者明確選擇並在後端再次驗證。
+
+### 2026-04-29 — 賽事報名時間時區一致化 [中型]
+- **問題**：使用者建立賽事時選「立即開放」或填入台灣時間，但點「參賽」仍可能出現 `TOURNAMENT_REGISTRATION_NOT_OPEN`。
+- **原因**：前端 `datetime-local` 送出的是 `YYYY-MM-DDTHH:mm` 無時區字串，瀏覽器以台灣時間判斷為已開放；Cloud Functions 可能以 UTC 解析同一字串，導致後端覺得報名尚未開始。
+- **修復**：前端建立/編輯賽事時把報名開始與截止轉成 ISO UTC；編輯既有賽事時再轉回本地 `datetime-local` 顯示。後端 `getTimestampMillis()` 補 legacy 相容，無時區賽事時間一律當台灣時間解析，並在 callable 建立賽事時存成 ISO。
+- **驗證**：新增 `tournament-datetime.test.js` 與 `tournament-function-timezone-source.test.js`；targeted tournament tests 通過 6 suites / 133 tests。

@@ -536,7 +536,28 @@ function getTimestampMillis(value) {
   if (typeof value.toDate === "function") return value.toDate().getTime();
   if (value instanceof Date) return value.getTime();
   if (typeof value === "number") return value;
-  return new Date(String(value)).getTime();
+  const raw = String(value).trim();
+  const legacyTaipeiMillis = getLegacyTaipeiLocalDateTimeMillis(raw);
+  if (Number.isFinite(legacyTaipeiMillis)) return legacyTaipeiMillis;
+  return new Date(raw).getTime();
+}
+
+function getLegacyTaipeiLocalDateTimeMillis(value) {
+  const raw = String(value || "").trim();
+  if (!raw || /(?:z|[+-]\d{2}:?\d{2})$/i.test(raw)) return NaN;
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/);
+  if (!match) return NaN;
+  const [, year, month, day, hour, minute, second = "0", millisecond = "0"] = match;
+  const utcMillis = Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second),
+    Number(millisecond.padEnd(3, "0").slice(0, 3)),
+  );
+  return utcMillis - (8 * 60 * 60 * 1000);
 }
 
 function isFriendlyTournamentData(tournament) {
@@ -687,12 +708,13 @@ function assertTournamentSportCompatible(tournament, teamData, hostTeamData = nu
 }
 
 function resolveTournamentStatusByTime(regStart, regEnd, now = new Date()) {
-  const start = new Date(regStart);
-  const end = new Date(regEnd);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "即將開始";
-  if (now < start) return "即將開始";
-  if (now >= start && now <= end) return "報名中";
-  return "已截止報名";
+  const startMs = getTimestampMillis(regStart);
+  const endMs = getTimestampMillis(regEnd);
+  const nowMs = now.getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return "\u5373\u5c07\u958b\u59cb";
+  if (nowMs < startMs) return "\u5373\u5c07\u958b\u59cb";
+  if (nowMs >= startMs && nowMs <= endMs) return "\u5831\u540d\u4e2d";
+  return "\u5df2\u622a\u6b62\u5831\u540d";
 }
 
 function normalizeTournamentPersonList(people, limit = 10) {
@@ -1255,16 +1277,19 @@ exports.createFriendlyTournament = onCall(
       throw new HttpsError("invalid-argument", "TOURNAMENT_SPORT_REQUIRED");
     }
 
-    const regStart = String(tournamentInput.regStart || "").trim();
-    const regEnd = String(tournamentInput.regEnd || "").trim();
-    const regStartDate = new Date(regStart);
-    const regEndDate = new Date(regEnd);
-    if (!regStart || !regEnd
-      || Number.isNaN(regStartDate.getTime())
-      || Number.isNaN(regEndDate.getTime())
-      || regStartDate >= regEndDate) {
+    const regStartRaw = String(tournamentInput.regStart || "").trim();
+    const regEndRaw = String(tournamentInput.regEnd || "").trim();
+    const regStartMs = getTimestampMillis(regStartRaw);
+    const regEndMs = getTimestampMillis(regEndRaw);
+    if (!regStartRaw || !regEndRaw
+      || !Number.isFinite(regStartMs)
+      || !Number.isFinite(regEndMs)
+      || regStartMs >= regEndMs) {
       throw new HttpsError("invalid-argument", "報名時間不合法");
     }
+
+    const regStart = new Date(regStartMs).toISOString();
+    const regEnd = new Date(regEndMs).toISOString();
 
     const tournamentId = validateClientTournamentId(tournamentInput.id);
     const callerUserDoc = await findUserDocByUidOrLineUserId(callerUid);

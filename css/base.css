@@ -388,10 +388,18 @@ body.modal-open { overflow: hidden; }
   line-height: 1.5;
 }
 .tournament-reg-start-note {
-  margin-left: .35rem;
   font-size: .68rem;
   color: var(--text-muted);
   font-weight: 400;
+  white-space: nowrap;
+}
+.tournament-reg-period-row > div:first-child {
+  overflow: visible;
+}
+.tournament-reg-start-label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: .3rem;
   white-space: nowrap;
 }
 .ce-static-select {

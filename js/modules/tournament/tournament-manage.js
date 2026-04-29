@@ -257,7 +257,8 @@ Object.assign(App, {
     this._tfClearErrors();
     const createName = document.getElementById('tf-name').value.trim();
     const createRegStartInput = document.getElementById('tf-reg-start').value || '';
-    const createRegEnd = document.getElementById('tf-reg-end').value || null;
+    const createRegEndInput = document.getElementById('tf-reg-end').value || '';
+    const createRegEnd = this._normalizeTournamentDateTimeValue(createRegEndInput) || null;
     const createDesc = document.getElementById('tf-desc').value.trim();
     const createRegion = document.getElementById('tf-region').value.trim();
     const createSportTag = getSportKeySafe(document.getElementById('tf-sport-tag')?.value || '');

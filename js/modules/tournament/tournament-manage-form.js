@@ -122,10 +122,23 @@ Object.assign(App, {
   },
   _getTournamentImmediateRegStartValue(rawValue = '') {
     const safeValue = String(rawValue || '').trim();
-    if (safeValue) return safeValue;
-    const now = new Date();
-    const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
-    return localNow.toISOString().slice(0, 16);
+    if (safeValue) return this._normalizeTournamentDateTimeValue(safeValue);
+    return new Date().toISOString();
+  },
+  _normalizeTournamentDateTimeValue(rawValue = '') {
+    const safeValue = String(rawValue || '').trim();
+    if (!safeValue) return '';
+    const parsed = new Date(safeValue);
+    if (Number.isNaN(parsed.getTime())) return safeValue;
+    return parsed.toISOString();
+  },
+  _toTournamentDateTimeInputValue(rawValue = '') {
+    const safeValue = String(rawValue || '').trim();
+    if (!safeValue) return '';
+    const parsed = new Date(safeValue);
+    if (Number.isNaN(parsed.getTime())) return safeValue.slice(0, 16);
+    const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 16);
   },
   _getTournamentTeamLimitValue(prefix, fallback = 4) {
     const p = prefix || 'tf';

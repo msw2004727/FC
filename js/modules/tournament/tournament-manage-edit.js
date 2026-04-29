@@ -45,8 +45,8 @@ Object.assign(App, {
     document.getElementById('tf-type').value = 'friendly';
     document.getElementById('tf-teams').value = this._getFriendlyTournamentTeamLimit?.(editRecord) || 4;
     document.getElementById('tf-region').value = editRecord.region || '';
-    document.getElementById('tf-reg-start').value = editRecord.regStart || '';
-    document.getElementById('tf-reg-end').value = editRecord.regEnd || '';
+    document.getElementById('tf-reg-start').value = this._toTournamentDateTimeInputValue?.(editRecord.regStart) || editRecord.regStart || '';
+    document.getElementById('tf-reg-end').value = this._toTournamentDateTimeInputValue?.(editRecord.regEnd) || editRecord.regEnd || '';
     document.getElementById('tf-desc').value = editRecord.description || '';
     document.getElementById('tf-desc-count').textContent = `${(editRecord.description || '').length}/500`;
     document.getElementById('tf-match-date-picker').value = '';
@@ -113,7 +113,8 @@ Object.assign(App, {
     const editRegion = document.getElementById('tf-region').value.trim();
     const editSportTag = getSportKeySafe(document.getElementById('tf-sport-tag')?.value || '');
     const editRegStartInput = document.getElementById('tf-reg-start').value || '';
-    const editRegEnd = document.getElementById('tf-reg-end').value || null;
+    const editRegEndInput = document.getElementById('tf-reg-end').value || '';
+    const editRegEnd = this._normalizeTournamentDateTimeValue(editRegEndInput) || null;
     const editDescription = document.getElementById('tf-desc').value.trim();
     const editFeeEnabled = !!document.getElementById('tf-fee-enabled')?.checked;
     const editFeeInput = parseInt(document.getElementById('tf-fee').value, 10) || 0;
