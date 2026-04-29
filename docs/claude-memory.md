@@ -2,6 +2,14 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-29 — 活動重複報名防護與候補按鈕辨識 [大型]
+- **問題**: `2026/05/01 19:00~21:00 週五晚7-9朝馬踢球團` 中，同一位報名者可在短時間內產生兩筆 active `confirmed` registration，原始正取文件數達到 27 但唯一正取人數只有 26，導致活動看似 `26/27` 卻已被判定額滿並把後續使用者送進候補；同時「報名候補」與「取消候補」按鈕同為紫色，容易誤判目前狀態。
+- **原因**: 報名文件使用隨機 doc id，沒有交易內的 active 唯一鎖；容量判斷曾以 raw confirmed doc 數計算，但 occupancy/display 會依 `(userId, participantType, companionId)` 去重，造成判斷與顯示不一致。UI 端則共用候補紫色按鈕樣式。
+- **修復**: 新增 `events/{eventDoc}/registrationLocks/{lockId}` 作為 active registration 唯一鎖，單人與批次報名都在 transaction 內先讀鎖再寫入；正取容量、rebuild occupancy、取消後候補遞補、管理端移除與名額調整都改用唯一 confirmed count；取消報名同步刪除 lock；Firestore Rules 新增 registrationLocks owner/admin 權限；「取消候補」按鈕改為琥珀橘，保留「報名候補」紫色。
+- **資料修復**: 已取消該活動中重複的 active registration，依候補順序遞補最早候補者，活動恢復為 `27/27`、候補 `2`；全資料庫掃描當下沒有其他 active 重複報名群組。
+- **驗收**: Cloud Functions 與 Firestore Rules 已部署；`npm test -- --runInBand` 通過 `70 suites / 2541 tests`；`tests/firestore.rules.test.js` 通過 `143 tests`；production source 已 push 至 `a75521eb`。
+- **教訓**: 任何「同一使用者同一活動只能 active 一筆」的業務規則，不能只靠查詢或前端狀態判斷，必須有 transaction 內 deterministic lock 或等價唯一鍵；顯示用去重與容量判斷必須共用同一套 identity 規則，否則會再次出現「畫面人數」與「名額判斷」分裂。
+
 ### 2026-04-29 — 測試與 CI 保護網校準 [中型]
 - **問題**: 本機 `npm run test:unit:coverage` 會掃到 `.claude/worktrees` 內的歷史測試，造成測試數量被放大；`test:rules` 只跑 2 個 Rules 測試檔，另有可用 Rules 測試未納入；`tests/subcollection-rules.test.js` 是 pre-migration proposed-rules 測試且已不穩定；E2E smoke 未進 CI 且有過時 deep-link 期待值。
 - **原因**: Jest 預設 root 為 repo 根目錄但只忽略 `node_modules`；Rules 腳本清單未隨新增測試更新；歷史遷移測試仍保留 `.test.js` 後綴；E2E 文件與 workflow 未同步。
