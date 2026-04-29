@@ -244,6 +244,21 @@
             <option value="watch">觀賽</option>
           </select>
         </div>
+        <!-- 活動地區 -->
+        <div class="ce-row" id="ce-region-row">
+          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('region')" title="說明">?</button><label>活動地區</label> <span class="required">*必填</span></div>
+          <div id="ce-region-toggle-row" style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+            <label class="toggle-switch" style="margin:0">
+              <input type="checkbox" id="ce-region-enabled" checked>
+              <span class="toggle-slider"></span>
+            </label>
+            <span id="ce-region-enabled-label" style="font-size:.78rem;color:var(--text-muted)">開啟 — 指定活動地區</span>
+          </div>
+          <div id="ce-region-options" style="margin-top:.6rem">
+            <div id="ce-region-radios"></div>
+            <div id="ce-region-cities" style="margin-top:.5rem"></div>
+          </div>
+        </div>
         <div class="ce-row">
           <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('location')" title="說明">?</button><label>地點</label> <span class="required">*必填</span></div>
           <input type="text" id="ce-location" placeholder="例：台北市大安運動中心">
@@ -285,32 +300,18 @@
           <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('age')" title="說明">?</button><label>年齡限制</label>（歲以上，0 為不限）</div>
           <input type="number" id="ce-min-age" placeholder="0" value="0" min="0">
         </div>
-        <section class="ce-value-section" aria-labelledby="ce-value-section-title">
-          <div class="ce-value-section-title" id="ce-value-section-title">加值功能</div>
+        <details class="ce-value-section" id="ce-value-section" aria-labelledby="ce-value-section-title">
+          <summary class="ce-value-section-title" id="ce-value-section-title">加值功能</summary>
           <div class="ce-value-section-body">
-            <!-- 活動地區 -->
-            <div class="ce-row ce-value-item" id="ce-region-row">
-              <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('region')" title="說明">?</button><label>活動地區</label> <span class="required">*必填</span></div>
-              <div id="ce-region-toggle-row" style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
-                <label class="toggle-switch" style="margin:0">
-                  <input type="checkbox" id="ce-region-enabled" checked>
-                  <span class="toggle-slider"></span>
-                </label>
-                <span id="ce-region-enabled-label" style="font-size:.78rem;color:var(--text-muted)">開啟 — 指定活動地區</span>
-              </div>
-              <div id="ce-region-options" style="margin-top:.6rem">
-                <div id="ce-region-radios"></div>
-                <div id="ce-region-cities" style="margin-top:.5rem"></div>
-              </div>
-            </div>
             <div class="ce-row ce-value-item">
               <div class="ce-fee-toggle-wrap">
-                <div class="ce-fee-toggle-header">
-                  <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('fee')" title="說明">?</button><label for="ce-fee-enabled" class="ce-fee-title">費用 ($)</label></div>
+                <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('fee')" title="說明">?</button><label for="ce-fee-enabled" class="ce-fee-title">費用 ($)</label></div>
+                <div class="ce-toggle-control">
                   <label class="toggle-switch" style="margin:0">
                     <input type="checkbox" id="ce-fee-enabled">
                     <span class="toggle-slider"></span>
                   </label>
+                  <span id="ce-fee-enabled-label" class="ce-toggle-status">關閉 — 不收費</span>
                 </div>
                 <div id="ce-fee-input-wrap" class="ce-fee-input-wrap" style="display:none">
                   <input type="number" id="ce-fee" placeholder="0" value="0" min="0" inputmode="numeric">
@@ -409,8 +410,38 @@
                 </div>
               </div>
             </div>
+            <div class="ce-row ce-value-item ce-value-reserved">
+              <div class="ce-label-row"><label for="ce-reserved-questionnaire">報名前問卷</label></div>
+              <div class="ce-toggle-control">
+                <label class="toggle-switch" style="margin:0">
+                  <input type="checkbox" id="ce-reserved-questionnaire" disabled>
+                  <span class="toggle-slider"></span>
+                </label>
+                <span class="ce-toggle-status">預留 — 尚未啟用</span>
+              </div>
+            </div>
+            <div class="ce-row ce-value-item ce-value-reserved">
+              <div class="ce-label-row"><label for="ce-reserved-reminder">行前提醒</label></div>
+              <div class="ce-toggle-control">
+                <label class="toggle-switch" style="margin:0">
+                  <input type="checkbox" id="ce-reserved-reminder" disabled>
+                  <span class="toggle-slider"></span>
+                </label>
+                <span class="ce-toggle-status">預留 — 尚未啟用</span>
+              </div>
+            </div>
+            <div class="ce-row ce-value-item ce-value-reserved">
+              <div class="ce-label-row"><label for="ce-reserved-feedback">活動後評分</label></div>
+              <div class="ce-toggle-control">
+                <label class="toggle-switch" style="margin:0">
+                  <input type="checkbox" id="ce-reserved-feedback" disabled>
+                  <span class="toggle-slider"></span>
+                </label>
+                <span class="ce-toggle-status">預留 — 尚未啟用</span>
+              </div>
+            </div>
           </div>
-        </section>
+        </details>
         <div class="ce-row">
           <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('delegate')" title="說明">?</button><label>委託人</label>（最多 3 人）</div>
           <div class="ce-delegate-wrap">

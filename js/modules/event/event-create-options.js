@@ -8,16 +8,18 @@ Object.assign(App, {
   _getEventFeeFormNodes() {
     return {
       toggle: document.getElementById('ce-fee-enabled'),
+      label: document.getElementById('ce-fee-enabled-label'),
       wrap: document.getElementById('ce-fee-input-wrap'),
       input: document.getElementById('ce-fee'),
     };
   },
 
   _updateEventFeeToggle() {
-    const { toggle, wrap, input } = this._getEventFeeFormNodes();
+    const { toggle, label, wrap, input } = this._getEventFeeFormNodes();
     if (!toggle || !wrap || !input) return;
 
     const enabled = !!toggle.checked;
+    if (label) label.textContent = enabled ? '開啟 — 收費活動' : '關閉 — 不收費';
     if (enabled) {
       if ((parseInt(input.value, 10) || 0) <= 0) input.value = '0';
       wrap.style.display = '';
