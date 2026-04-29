@@ -581,6 +581,48 @@ describe('friendly tournament teams tab actions', () => {
     expect(global.App._getFriendlyResponsibleTeams).toHaveBeenCalled();
   });
 
+  test('apply context keeps different-sport clubs visible but disabled', () => {
+    const user = { uid: 'cap_uid', role: 'user' };
+    const teams = [
+      { id: 'tm_football', name: 'Football Club', captainUid: 'cap_uid', sportTag: 'football' },
+      { id: 'tm_basket', name: 'Basket Club', captainUid: 'cap_uid', sportTag: 'basketball' },
+      { id: 'tm_unknown', name: 'No Sport Club', captainUid: 'cap_uid' },
+    ];
+    global.ApiService = {
+      getCurrentUser: () => user,
+      getTeams: () => teams,
+      getTeam: teamId => teams.find(team => team.id === teamId) || null,
+    };
+    global.App = {
+      _isTournamentGlobalAdmin: jest.fn(() => false),
+      _getFriendlyResponsibleTeams: jest.fn(() => teams),
+      _getUserTeamIds: jest.fn(() => []),
+      _isTournamentTeamOfficerForTeam: jest.fn((team, item) => team?.captainUid === item?.uid),
+    };
+    require('../../js/modules/tournament/tournament-friendly-apply-state.js');
+
+    const ctx = global.App._getFriendlyTournamentApplyContext({
+      id: 'ct_test',
+      hostTeamId: 'tm_host',
+      sportTag: 'football',
+    }, { applications: [], entries: [] }, user);
+
+    expect(ctx.availableTeams.map(team => team.id)).toEqual(['tm_football']);
+    expect(ctx.blockedTeams.map(team => team.id)).toEqual(['tm_basket', 'tm_unknown']);
+
+    global.App.renderRegisterButton = jest.fn();
+    global.App.renderTournamentTab = jest.fn();
+    require('../../js/modules/tournament/tournament-friendly-detail-view.js');
+    const actionTeams = global.App._getFriendlyTournamentActionTeams(ctx);
+    const blocked = actionTeams.filter(team => team.status === 'sport-mismatch');
+    expect(blocked).toHaveLength(2);
+    expect(blocked.every(team => team.disabled)).toBe(true);
+    expect(global.App._buildFriendlyTournamentActionTeamSelector('ct_test', actionTeams, 'tm_basket'))
+      .toContain('disabled');
+    expect(global.App._buildFriendlyTournamentActionTeamSelector('ct_test', actionTeams, 'tm_basket'))
+      .toContain('非本類賽事運動');
+  });
+
   test('non-admin apply context treats approved officer entry as own status without user teamIds', () => {
     const user = { uid: 'cap_uid', role: 'user' };
     const officerTeam = { id: 'tm_approved', name: 'Approved Club', captainUid: 'cap_uid', sportTag: 'football' };

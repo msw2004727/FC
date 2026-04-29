@@ -611,10 +611,20 @@ function buildRegisteredTeamIdsFromEntries(entriesDocs, options = {}) {
   return Array.from(ids);
 }
 
-function assertTournamentSportCompatible(tournament, teamData) {
-  const tournamentSport = String(tournament?.sportTag || tournament?.sport || "").trim();
-  const teamSport = String(teamData?.sportTag || teamData?.sport || "").trim();
-  if (tournamentSport && teamSport && tournamentSport !== teamSport) {
+function getTournamentSportTagFromData(data) {
+  return String(data?.sportTag || data?.sport || "").trim();
+}
+
+function assertTournamentSportCompatible(tournament, teamData, hostTeamData = null) {
+  const tournamentSport = getTournamentSportTagFromData(tournament) || getTournamentSportTagFromData(hostTeamData);
+  const teamSport = getTournamentSportTagFromData(teamData);
+  if (!tournamentSport) {
+    throw new HttpsError("failed-precondition", "TOURNAMENT_SPORT_REQUIRED");
+  }
+  if (!teamSport) {
+    throw new HttpsError("failed-precondition", "TEAM_SPORT_REQUIRED");
+  }
+  if (tournamentSport !== teamSport) {
     throw new HttpsError("failed-precondition", "TOURNAMENT_TEAM_SPORT_MISMATCH");
   }
 }
@@ -1179,8 +1189,13 @@ exports.createFriendlyTournament = onCall(
     const tournamentInput = request.data?.tournament || {};
     const name = String(tournamentInput.name || "").trim();
     const hostTeamId = String(tournamentInput.hostTeamId || "").trim();
+    const sportTag = getTournamentSportTagFromData(tournamentInput);
     if (!name) {
       throw new HttpsError("invalid-argument", "名稱為必填");
+    }
+
+    if (!sportTag) {
+      throw new HttpsError("invalid-argument", "TOURNAMENT_SPORT_REQUIRED");
     }
 
     const regStart = String(tournamentInput.regStart || "").trim();
@@ -1217,9 +1232,15 @@ exports.createFriendlyTournament = onCall(
       throw new HttpsError("permission-denied", "只有主辦俱樂部的隊長 / 領隊 / 創辦人可建立賽事");
     }
 
+    const wantsHostParticipates = tournamentInput.hostParticipates === true
+      || tournamentInput?.friendlyConfig?.hostParticipates === true;
+    if (hostTeamId && wantsHostParticipates) {
+      assertTournamentSportCompatible({ sportTag }, teamDoc?.data);
+    }
+
     const now = new Date();
     const root = buildTournamentRootForCreate({
-      input: { ...tournamentInput, name, hostTeamId, regStart, regEnd },
+      input: { ...tournamentInput, name, hostTeamId, sportTag, regStart, regEnd },
       tournamentId,
       hostTeamId,
       teamData: teamDoc?.data || null,
@@ -1324,7 +1345,10 @@ exports.applyFriendlyTournament = onCall(
       if (!canApplyForTeam) {
         throw new HttpsError("permission-denied", "ONLY_TEAM_OFFICER_CAN_APPLY");
       }
-      assertTournamentSportCompatible(tournament, teamDoc.data);
+      const hostSportTeamDoc = !getTournamentSportTagFromData(tournament) && hostTeamId
+        ? await getTeamDocByTeamIdInTransaction(tx, hostTeamId)
+        : null;
+      assertTournamentSportCompatible(tournament, teamDoc.data, hostSportTeamDoc?.data);
 
       const entriesSnap = await tx.get(tournamentRef.collection("entries"));
       const registeredTeams = buildRegisteredTeamIdsFromEntries(entriesSnap.docs);
@@ -1569,6 +1593,15 @@ exports.reviewFriendlyTournamentApplication = onCall(
         if (!applicationTeamId) {
           throw new HttpsError("failed-precondition", "申請缺少俱樂部 ID");
         }
+
+        const applicationTeamDoc = await getTeamDocByTeamIdInTransaction(tx, applicationTeamId);
+        if (!applicationTeamDoc) {
+          throw new HttpsError("not-found", "TEAM_NOT_FOUND");
+        }
+        const hostSportTeamDoc = !getTournamentSportTagFromData(tournament) && String(tournament.hostTeamId || "").trim()
+          ? await getTeamDocByTeamIdInTransaction(tx, String(tournament.hostTeamId || "").trim())
+          : null;
+        assertTournamentSportCompatible(tournament, applicationTeamDoc.data, hostSportTeamDoc?.data);
 
         if (!registeredTeams.includes(applicationTeamId)) {
           if (registeredTeams.length >= teamLimit) {

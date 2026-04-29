@@ -210,8 +210,17 @@
   color: var(--danger);
   border-color: color-mix(in srgb, var(--danger) 42%, var(--border));
 }
+.tfd-team-select-disabled {
+  color: var(--text-muted);
+  border-color: var(--border);
+  background: var(--bg-secondary);
+}
 .tfd-apply-option-reapply {
   color: var(--danger);
+}
+.tfd-apply-option-disabled {
+  color: var(--text-muted);
+  background: var(--bg-secondary);
 }
 .tfd-reapply-note {
   margin-top: -.15rem;

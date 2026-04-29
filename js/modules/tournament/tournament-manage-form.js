@@ -132,6 +132,105 @@ Object.assign(App, {
     const rawValue = document.getElementById(`${p}-teams`)?.value;
     return this._sanitizeFriendlyTournamentTeamLimit?.(rawValue, fallback) ?? fallback;
   },
+  _getTournamentSportPickerNodes(prefix = 'tf') {
+    const p = prefix || 'tf';
+    return {
+      picker: document.getElementById(`${p}-sport-picker`),
+      selected: document.getElementById(`${p}-sport-selected`),
+      selectedInner: document.getElementById(`${p}-sport-selected-inner`),
+      dropdown: document.getElementById(`${p}-sport-dropdown`),
+      search: document.getElementById(`${p}-sport-search`),
+      list: document.getElementById(`${p}-sport-list`),
+      hidden: document.getElementById(`${p}-sport-tag`),
+    };
+  },
+  _setTournamentSportTagValue(prefix = 'tf', sportTag = '') {
+    const p = prefix || 'tf';
+    const nodes = this._getTournamentSportPickerNodes(p);
+    if (!nodes.selectedInner || !nodes.hidden) return;
+    const safeKey = typeof getSportKeySafe === 'function' ? getSportKeySafe(sportTag) : String(sportTag || '').trim();
+    nodes.hidden.value = safeKey || '';
+    if (!safeKey) {
+      nodes.selectedInner.innerHTML = '<span class="ce-sport-placeholder">請選擇賽事運動標籤</span>';
+      return;
+    }
+    const label = typeof getSportLabelByKey === 'function' ? getSportLabelByKey(safeKey) : safeKey;
+    const icon = typeof getSportIconSvg === 'function' ? getSportIconSvg(safeKey) : '';
+    nodes.selectedInner.innerHTML = `<span class="ce-sport-value">${icon}<span>${escapeHTML(label)}</span></span>`;
+  },
+  _toggleTournamentSportPicker(prefix = 'tf', open = false) {
+    const nodes = this._getTournamentSportPickerNodes(prefix || 'tf');
+    if (!nodes.selected || !nodes.dropdown) return;
+    const shouldOpen = !!open;
+    nodes.selected.classList.toggle('open', shouldOpen);
+    nodes.selected.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+    nodes.dropdown.classList.toggle('open', shouldOpen);
+    if (shouldOpen) nodes.search?.focus();
+  },
+  _renderTournamentSportPickerOptions(prefix = 'tf', keyword = '') {
+    const p = prefix || 'tf';
+    const nodes = this._getTournamentSportPickerNodes(p);
+    if (!nodes.list || !nodes.hidden) return;
+    const q = String(keyword || '').trim().toLowerCase();
+    const options = (typeof EVENT_SPORT_OPTIONS !== 'undefined' && Array.isArray(EVENT_SPORT_OPTIONS) ? EVENT_SPORT_OPTIONS : [])
+      .filter(item => !q
+        || String(item.label || '').toLowerCase().includes(q)
+        || String(item.key || '').toLowerCase().includes(q));
+    if (!options.length) {
+      nodes.list.innerHTML = '<div class="ce-sport-empty">找不到符合的運動</div>';
+      return;
+    }
+    nodes.list.innerHTML = options.map(item => {
+      const active = item.key === nodes.hidden.value;
+      const icon = typeof getSportIconSvg === 'function' ? getSportIconSvg(item.key) : '';
+      return `<button type="button" class="ce-sport-option${active ? ' active' : ''}" data-sport="${escapeHTML(item.key)}" role="option" aria-selected="${active ? 'true' : 'false'}">
+        ${icon}
+        <span>${escapeHTML(item.label)}</span>
+      </button>`;
+    }).join('');
+  },
+  _initTournamentSportTagPicker(prefix = 'tf', initialSportTag = '') {
+    const p = prefix || 'tf';
+    const nodes = this._getTournamentSportPickerNodes(p);
+    if (!nodes.picker || !nodes.selected || !nodes.dropdown || !nodes.search || !nodes.list || !nodes.hidden) return;
+
+    this._setTournamentSportTagValue(p, initialSportTag);
+    nodes.search.value = '';
+    this._renderTournamentSportPickerOptions(p, '');
+    this._toggleTournamentSportPicker(p, false);
+
+    if (!nodes.selected.dataset.bound) {
+      nodes.selected.dataset.bound = '1';
+      nodes.selected.addEventListener('click', () => {
+        const isOpen = nodes.dropdown.classList.contains('open');
+        this._toggleTournamentSportPicker(p, !isOpen);
+      });
+    }
+    if (!nodes.search.dataset.bound) {
+      nodes.search.dataset.bound = '1';
+      nodes.search.addEventListener('input', () => this._renderTournamentSportPickerOptions(p, nodes.search.value));
+      nodes.search.addEventListener('keydown', ev => {
+        if (ev.key === 'Escape') this._toggleTournamentSportPicker(p, false);
+      });
+    }
+    if (!nodes.list.dataset.bound) {
+      nodes.list.dataset.bound = '1';
+      nodes.list.addEventListener('click', ev => {
+        const btn = ev.target.closest('.ce-sport-option[data-sport]');
+        if (!btn) return;
+        this._setTournamentSportTagValue(p, btn.dataset.sport || '');
+        this._renderTournamentSportPickerOptions(p, nodes.search.value);
+        this._toggleTournamentSportPicker(p, false);
+      });
+    }
+    if (!nodes.picker.dataset.docBound) {
+      nodes.picker.dataset.docBound = '1';
+      document.addEventListener('click', ev => {
+        const currentNodes = this._getTournamentSportPickerNodes(p);
+        if (!currentNodes.picker?.contains(ev.target)) this._toggleTournamentSportPicker(p, false);
+      });
+    }
+  },
   _getTournamentCoverAspectRatio() {
     return 8 / 3;
   },

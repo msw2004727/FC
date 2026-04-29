@@ -67,6 +67,44 @@ Object.assign(App, {
     return labelMap[mode] || labelMap.friendly;
   },
 
+  _getTournamentSportTag(tournament, options = {}) {
+    const record = tournament || {};
+    const direct = typeof getSportKeySafe === 'function'
+      ? (getSportKeySafe(record.sportTag) || getSportKeySafe(record.sport))
+      : String(record.sportTag || record.sport || '').trim();
+    if (direct) return direct;
+    if (options.fallbackToHost === false) return '';
+    const hostTeamId = String(record.hostTeamId || '').trim();
+    const hostTeam = hostTeamId && typeof ApiService !== 'undefined'
+      ? ApiService.getTeam?.(hostTeamId)
+      : null;
+    return typeof getSportKeySafe === 'function'
+      ? (getSportKeySafe(hostTeam?.sportTag) || getSportKeySafe(hostTeam?.sport))
+      : String(hostTeam?.sportTag || hostTeam?.sport || '').trim();
+  },
+
+  _getTournamentTeamSportTag(team) {
+    return typeof getSportKeySafe === 'function'
+      ? (getSportKeySafe(team?.sportTag) || getSportKeySafe(team?.sport))
+      : String(team?.sportTag || team?.sport || '').trim();
+  },
+
+  _isTournamentTeamSportCompatible(tournament, team) {
+    const tournamentSport = this._getTournamentSportTag?.(tournament) || '';
+    const teamSport = this._getTournamentTeamSportTag?.(team) || '';
+    return !!tournamentSport && !!teamSport && tournamentSport === teamSport;
+  },
+
+  _renderTournamentSportIcon(tournament, className = '') {
+    const sportKey = this._getTournamentSportTag?.(tournament) || 'football';
+    const label = typeof getSportLabelByKey === 'function' ? getSportLabelByKey(sportKey) : sportKey;
+    const klass = className ? ` ${className}` : '';
+    const iconHtml = typeof getSportIconSvg === 'function'
+      ? getSportIconSvg(sportKey)
+      : `<span class="sport-emoji" aria-hidden="true">${escapeHTML(sportKey)}</span>`;
+    return `<span class="event-sport-icon${klass}" title="${escapeHTML(label)}" aria-label="${escapeHTML(label)}">${iconHtml}</span>`;
+  },
+
   _buildTournamentOrganizerDisplay(teamName, userName) {
     const safeTeamName = String(teamName || '').trim();
     const safeUserName = String(userName || '').trim();
@@ -77,6 +115,18 @@ Object.assign(App, {
   _showTournamentActionError(actionLabel, err) {
     console.error(`[Tournament:${actionLabel}]`, err);
     const raw = `${err?.code || ''} ${err?.message || err || ''}`.toLowerCase();
+    if (raw.includes('tournament_team_sport_mismatch')) {
+      this.showToast?.('非本類賽事運動，請選擇相同運動類別的俱樂部。');
+      return;
+    }
+    if (raw.includes('tournament_sport_required')) {
+      this.showToast?.('請先選擇賽事運動標籤。');
+      return;
+    }
+    if (raw.includes('team_sport_required')) {
+      this.showToast?.('俱樂部尚未設定運動標籤，無法報名此賽事。');
+      return;
+    }
     if (raw.includes('permission') || raw.includes('unauth')) {
       this.showToast?.(`${actionLabel}失敗，請重新登入或確認權限。`);
       return;
@@ -202,6 +252,7 @@ Object.assign(App, {
           .map(teamId => String(teamId || '').trim())
           .filter(Boolean)
       : [];
+    const sportTag = this._getTournamentSportTag?.(base) || '';
 
     return {
       ...base,
@@ -214,6 +265,7 @@ Object.assign(App, {
       hostTeamName,
       hostTeamImage: String(base.hostTeamImage || '').trim(),
       organizerDisplay: String(base.organizerDisplay || '').trim() || this._buildTournamentOrganizerDisplay(hostTeamName, creatorName),
+      sportTag,
       delegates,
       delegateUids,
       referees,

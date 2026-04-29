@@ -179,6 +179,10 @@ Object.assign(App, {
           return;
         }
         if (ctx.availableTeams.length === 0) {
+          if ((ctx.blockedTeams || []).length > 0 && ctx.pendingTeams.length === 0 && ctx.approvedTeams.length === 0) {
+            this.showToast('非本類賽事運動，請選擇相同運動類別的俱樂部。');
+            return;
+          }
           const message = ctx.pendingTeams.length > 0
             ? '你的俱樂部申請已送出，等待主辦審核。'
             : ctx.approvedTeams.length > 0
@@ -190,6 +194,11 @@ Object.assign(App, {
 
         const selectedTeamId = document.getElementById('td-apply-team-select')?.value || ctx.availableTeams[0].id;
         const selectedTeam = ctx.availableTeams.find(team => team.id === selectedTeamId);
+        const selectedBlockedTeam = (ctx.blockedTeams || []).find(team => team.id === selectedTeamId);
+        if (selectedBlockedTeam) {
+          this.showToast('非本類賽事運動，請選擇相同運動類別的俱樂部。');
+          return;
+        }
         if (!selectedTeam) {
           this.showToast('請先選擇要報名的俱樂部。');
           return;

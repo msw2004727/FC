@@ -224,22 +224,11 @@ Object.assign(App, {
       const key = recordTeamKey(item);
       if (key) entriesByTeam.set(key, item);
     });
-    const tournamentSport = String(tournament?.sportTag || tournament?.sport || '').trim();
+    const tournamentSport = this._getTournamentSportTag?.(tournament) || String(tournament?.sportTag || tournament?.sport || '').trim();
     const hostTeamKey = this._getFriendlyTournamentCanonicalTeamKey({ teamId: tournament?.hostTeamId }, teamLookup, { includeRecordId: false });
     const availableTeamKeys = new Set();
-    const availableTeams = eligibleTeams.filter(team => {
-      const teamKey = this._getFriendlyTournamentCanonicalTeamKey(team, teamLookup);
-      const sportCompatible = !tournamentSport
-        || !String(team?.sportTag || team?.sport || '').trim()
-        || String(team?.sportTag || team?.sport || '').trim() === tournamentSport;
-      return teamKey
-        && teamKey !== hostTeamKey
-        && !applicationsByTeam.has(teamKey)
-        && !entriesByTeam.has(teamKey)
-        && sportCompatible;
-    }).map(team => {
-      const teamKey = this._getFriendlyTournamentCanonicalTeamKey(team, teamLookup);
-      availableTeamKeys.add(teamKey);
+    const blockedTeams = [];
+    const decorateAvailableTeam = (team, teamKey) => {
       const priorApplication = priorRejectedApplicationsByTeam.get(teamKey);
       if (!priorApplication) {
         return {
@@ -258,6 +247,28 @@ Object.assign(App, {
         hasPriorRejectedApplication: true,
         priorApplicationStatus: String(priorApplication.status || '').trim().toLowerCase(),
       };
+    };
+    const availableTeams = [];
+    eligibleTeams.forEach(team => {
+      const teamKey = this._getFriendlyTournamentCanonicalTeamKey(team, teamLookup);
+      if (!teamKey
+        || teamKey === hostTeamKey
+        || applicationsByTeam.has(teamKey)
+        || entriesByTeam.has(teamKey)) return;
+      const teamSport = this._getTournamentTeamSportTag?.(team) || String(team?.sportTag || team?.sport || '').trim();
+      const sportCompatible = !!tournamentSport && !!teamSport && teamSport === tournamentSport;
+      if (!sportCompatible) {
+        blockedTeams.push({
+          ...team,
+          canonicalTeamId: teamKey,
+          sourceTeamId: String(team.id || team.teamId || team._docId || team.docId || '').trim(),
+          sportMismatch: true,
+          disabledReason: 'sport-mismatch',
+        });
+        return;
+      }
+      availableTeamKeys.add(teamKey);
+      availableTeams.push(decorateAvailableTeam(team, teamKey));
     });
     const teamIds = typeof this._getFriendlyTournamentUserActionTeamIds === 'function'
       ? this._getFriendlyTournamentUserActionTeamIds(user)
@@ -277,6 +288,7 @@ Object.assign(App, {
     };
     return {
       availableTeams,
+      blockedTeams,
       pendingTeams: (state?.applications || []).filter(item => inStatusScope(item) && String(item.status || '').trim().toLowerCase() === 'pending'),
       rejectedTeams: (state?.applications || []).filter(item =>
         inStatusScope(item)

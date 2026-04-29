@@ -48,6 +48,8 @@ Object.assign(App, {
       image: team?.image || team?.teamImage || '',
       priorApplicationStatus,
       hasPriorRejectedApplication,
+      disabled: team?.sportMismatch === true || status === 'sport-mismatch',
+      disabledReason: team?.disabledReason || '',
       source: team,
     };
   },
@@ -67,6 +69,7 @@ Object.assign(App, {
     push(ctx.pendingTeams, 'pending');
     push(ctx.approvedTeams, 'approved');
     push(ctx.availableTeams, 'available');
+    push(ctx.blockedTeams, 'sport-mismatch');
     return options;
   },
 
@@ -75,7 +78,9 @@ Object.assign(App, {
     const domSelected = document.getElementById('td-apply-team-select')?.value || '';
     const remembered = safeTournamentId ? this._friendlyTournamentSelectedActionTeamById?.[safeTournamentId] : '';
     const selectedId = String(domSelected || remembered || '').trim();
-    return actionTeams.find(team => team.id === selectedId) || actionTeams[0] || null;
+    const selectedTeam = actionTeams.find(team => team.id === selectedId);
+    if (selectedTeam && !selectedTeam.disabled) return selectedTeam;
+    return actionTeams.find(team => !team.disabled) || selectedTeam || actionTeams[0] || null;
   },
 
   _buildFriendlyTournamentActionTeamSelector(tournamentId, actionTeams, selectedTeamId) {
@@ -84,10 +89,17 @@ Object.assign(App, {
     const selectedTeam = actionTeams.find(team => team.id === selectedTeamId);
     const selectClass = selectedTeam?.hasPriorRejectedApplication
       ? 'tfd-team-select tfd-team-select-reapply'
-      : 'tfd-team-select';
+      : selectedTeam?.disabled
+        ? 'tfd-team-select tfd-team-select-disabled'
+        : 'tfd-team-select';
     return `<select id="td-apply-team-select" class="${selectClass}" onchange="App._handleFriendlyTournamentActionTeamChange('${escapeHTML(safeTournamentId)}', this.value)">${actionTeams.map(team => {
       const selected = team.id === selectedTeamId ? ' selected' : '';
-      const optionClass = team.hasPriorRejectedApplication ? ' class="tfd-apply-option-reapply"' : '';
+      const classes = [
+        team.hasPriorRejectedApplication ? 'tfd-apply-option-reapply' : '',
+        team.disabled ? 'tfd-apply-option-disabled' : '',
+      ].filter(Boolean).join(' ');
+      const optionClass = classes ? ` class="${classes}"` : '';
+      const disabled = team.disabled ? ' disabled' : '';
       const labelSuffix = team.status === 'pending'
         ? '（審核中）'
         : team.status === 'approved'
@@ -95,7 +107,10 @@ Object.assign(App, {
           : team.status === 'rejected'
             ? '（未通過）'
             : '';
-      return `<option value="${escapeHTML(team.id)}"${selected}${optionClass}>${escapeHTML(team.name + labelSuffix)}</option>`;
+      const optionLabel = team.status === 'sport-mismatch'
+        ? `${team.name}（非本類賽事運動）`
+        : team.name + labelSuffix;
+      return `<option value="${escapeHTML(team.id)}"${selected}${disabled}${optionClass}>${escapeHTML(optionLabel)}</option>`;
     }).join('')}</select>`;
   },
 
@@ -184,6 +199,8 @@ Object.assign(App, {
       }
     } else if (selectedTeam?.status === 'rejected') {
       primaryHtml = `${selector}<button class="primary-btn full-width" disabled>俱樂部申請未通過</button>`;
+    } else if (selectedTeam?.status === 'sport-mismatch') {
+      primaryHtml = `${selector}<button class="primary-btn full-width" disabled>非本類賽事運動</button>`;
     } else if (status === TOURNAMENT_STATUS.PREPARING) {
       primaryHtml = `${selector}<button class="primary-btn full-width" disabled>報名尚未開始</button>`;
     } else if (status === TOURNAMENT_STATUS.REG_CLOSED || isEnded) {

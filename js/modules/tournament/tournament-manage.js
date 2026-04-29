@@ -66,12 +66,14 @@ Object.assign(App, {
       const canManage = isAdmin || this._canManageTournamentRecord(t, currentUser);
       const organizerDisplay = this._getTournamentOrganizerDisplayText?.(t) || t.organizer || '主辦俱樂部';
       const teamLimit = this._getFriendlyTournamentTeamLimit?.(t) || t.maxTeams || 4;
+      const sportIcon = this._renderTournamentSportIcon?.(t, 'my-event-sport-icon') || '';
       const feeText = feeEnabled
         ? `應收 NT$${revenue.toLocaleString()}(${registered.length} × NT$${fee.toLocaleString()})`
         : '報名費未開啟';
       return `
         <div class="tl-event-row" style="margin-bottom:.4rem;flex-wrap:wrap;padding:.45rem .6rem .35rem;background:${isDark ? sBg.darkBg : sBg.bg};border-left:3px solid ${sBg.border};${isEnded ? 'opacity:.7;' : ''}">
           <div style="width:100%;display:flex;align-items:center;gap:.35rem">
+            ${sportIcon}
             <div class="tl-event-title" style="flex:1">${escapeHTML(t.name)}</div>
             <span class="tl-event-status ${css}">${statusLabel}</span>
           </div>
@@ -225,6 +227,7 @@ Object.assign(App, {
     document.getElementById('tf-venue-input').value = '';
     document.getElementById('tf-delegate-search').value = '';
     document.getElementById('tf-referee-search').value = '';
+    this._initTournamentSportTagPicker('tf', '');
     this._renderTournamentHostTeamOptions('tf', '');
     this._setTournamentHostParticipationFormState('tf', false);
     this._syncTournamentHostParticipationAvailability?.('tf');
@@ -257,6 +260,7 @@ Object.assign(App, {
     const createRegEnd = document.getElementById('tf-reg-end').value || null;
     const createDesc = document.getElementById('tf-desc').value.trim();
     const createRegion = document.getElementById('tf-region').value.trim();
+    const createSportTag = getSportKeySafe(document.getElementById('tf-sport-tag')?.value || '');
     const createFeeEnabled = !!document.getElementById('tf-fee-enabled')?.checked;
     const createFeeInput = parseInt(document.getElementById('tf-fee').value, 10) || 0;
     const createFee = createFeeEnabled ? Math.max(0, createFeeInput) : 0;
@@ -274,6 +278,7 @@ Object.assign(App, {
     const createHostParticipates = createCanHostParticipate && this._getTournamentHostParticipates('tf');
     const createCanSkipHostTeam = this._canCreateTournamentWithoutHostTeam?.(createUser) === true;
     let hasError = false;
+    if (!createSportTag) { this._tfSetError('tf-sport-tag', '請選擇賽事運動標籤。'); hasError = true; }
     if (!createName) { this._tfSetError('tf-name', '請輸入賽事名稱。'); hasError = true; }
     if (hostTeamId && !hostTeam) {
       this._tfSetError('tf-host-team', '找不到主辦俱樂部資料，請重新選擇。');
@@ -290,6 +295,10 @@ Object.assign(App, {
     if (!createRegion) { this._tfSetError('tf-region', '請選擇舉辦地區。'); hasError = true; }
     else if (typeof TW_REGIONS_WITH_OTHER !== 'undefined' && !TW_REGIONS_WITH_OTHER.includes(createRegion)) {
       this._tfSetError('tf-region', '舉辦地區必須從清單選擇。'); hasError = true;
+    }
+    if (createHostParticipates && !this._isTournamentTeamSportCompatible?.({ sportTag: createSportTag }, hostTeam)) {
+      this._tfSetError('tf-sport-tag', '主辦俱樂部與賽事運動不同，無法直接參賽。');
+      hasError = true;
     }
     if (hasError) { this.showToast('請修正標記欄位。'); return; }
     const createRegStart = this._getTournamentImmediateRegStartValue(createRegStartInput);
@@ -320,6 +329,7 @@ Object.assign(App, {
       teamLimit: createTeamLimit,
       matches: 3,
       region: createRegion,
+      sportTag: createSportTag,
       regStart: createRegStart,
       regEnd: createRegEnd,
       matchDates: createMatchDates,
@@ -380,6 +390,7 @@ Object.assign(App, {
     document.getElementById('tf-venue-input').value = '';
     document.getElementById('tf-delegate-search').value = '';
     document.getElementById('tf-referee-search').value = '';
+    this._setTournamentSportTagValue('tf', '');
     this._tournamentFormState.matchDates = [];
     this._tournamentFormState.venues = [];
     this._tournamentFormState.delegates = [];

@@ -93,7 +93,7 @@ function _normalizeTournamentDelegates(delegates) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from tournament-core.js:172-184
+// Extracted from tournament-helpers.js:72-84
 // ---------------------------------------------------------------------------
 function _getTournamentDelegateUids(tournament) {
   const direct = Array.isArray(tournament?.delegateUids) ? tournament.delegateUids : [];

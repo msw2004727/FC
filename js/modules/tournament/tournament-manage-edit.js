@@ -53,6 +53,7 @@ Object.assign(App, {
     document.getElementById('tf-venue-input').value = '';
     document.getElementById('tf-delegate-search').value = '';
     document.getElementById('tf-referee-search').value = '';
+    this._initTournamentSportTagPicker('tf', this._getTournamentSportTag?.(editRecord) || '');
     this._tournamentFormState.venues = [...(editRecord.venues || [])];
     this._tournamentFormState.delegates = [...(editRecord.delegates || [])];
     this._tournamentFormState.referees = [...(editRecord.referees || [])];
@@ -110,6 +111,7 @@ Object.assign(App, {
     this._tfClearErrors();
     const editName = document.getElementById('tf-name').value.trim();
     const editRegion = document.getElementById('tf-region').value.trim();
+    const editSportTag = getSportKeySafe(document.getElementById('tf-sport-tag')?.value || '');
     const editRegStartInput = document.getElementById('tf-reg-start').value || '';
     const editRegEnd = document.getElementById('tf-reg-end').value || null;
     const editDescription = document.getElementById('tf-desc').value.trim();
@@ -123,6 +125,7 @@ Object.assign(App, {
       ? (this._getTournamentSelectedHostTeam?.('tf') || ApiService.getTeam?.(hostTeamId))
       : null;
     let hasError = false;
+    if (!editSportTag) { this._tfSetError('tf-sport-tag', '請選擇賽事運動標籤。'); hasError = true; }
     if (!editName) {
       this._tfSetError('tf-name', '請輸入賽事名稱。'); hasError = true;
     }
@@ -142,6 +145,12 @@ Object.assign(App, {
     if (!editRegion) { this._tfSetError('tf-region', '請選擇舉辦地區。'); hasError = true; }
     else if (typeof TW_REGIONS_WITH_OTHER !== 'undefined' && !TW_REGIONS_WITH_OTHER.includes(editRegion)) {
       this._tfSetError('tf-region', '舉辦地區必須從清單選擇。'); hasError = true;
+    }
+    const originalSportTag = this._getTournamentSportTag?.(editTournament) || '';
+    const hasRegisteredTeams = Array.isArray(editTournament.registeredTeams) && editTournament.registeredTeams.length > 0;
+    if (originalSportTag && editSportTag !== originalSportTag && hasRegisteredTeams) {
+      this._tfSetError('tf-sport-tag', '已有報名隊伍，無法更改賽事運動標籤。');
+      hasError = true;
     }
     if (hasError) { this.showToast('請修正標記欄位。'); return; }
 
@@ -177,6 +186,7 @@ Object.assign(App, {
       maxTeams: editTeamLimit,
       teamLimit: editTeamLimit,
       region: editRegion,
+      sportTag: editSportTag,
       regStart: editRegStart,
       regEnd: editRegEnd,
       description: editDescription,

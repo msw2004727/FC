@@ -8,6 +8,41 @@ Object.assign(App, {
   //  Host Team Selection
   // ══════════════════════════════════
 
+  _ensureTournamentSportRow(prefix) {
+    const p = prefix || 'tf';
+    let hidden = document.getElementById(`${p}-sport-tag`);
+    if (hidden) return hidden;
+
+    const typeSelect = document.getElementById(`${p}-type`);
+    const typeRow = typeSelect?.closest('.ce-row');
+    if (!typeRow || !typeRow.parentElement) return null;
+
+    const sportRow = document.createElement('div');
+    sportRow.className = 'ce-row';
+    sportRow.innerHTML = `
+      <div class="ce-label-row"><label>賽事運動標籤</label> <span class="required">*必選</span></div>
+      <div class="ce-sport-picker" id="${p}-sport-picker">
+        <button type="button" class="ce-sport-selected" id="${p}-sport-selected" aria-haspopup="listbox" aria-expanded="false">
+          <span class="ce-sport-selected-inner" id="${p}-sport-selected-inner">
+            <span class="ce-sport-placeholder">請選擇賽事運動標籤</span>
+          </span>
+          <span class="ce-sport-arrow" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="none"><path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+        </button>
+        <div class="ce-sport-dropdown" id="${p}-sport-dropdown">
+          <input type="text" id="${p}-sport-search" class="ce-sport-search" placeholder="搜尋運動標籤">
+          <div id="${p}-sport-list" class="ce-sport-list" role="listbox"></div>
+        </div>
+        <input type="hidden" id="${p}-sport-tag" value="">
+      </div>
+      <div class="ce-sport-required-tip">* 必選，報名俱樂部必須與賽事運動類別相同</div>
+    `;
+    typeRow.insertAdjacentElement('afterend', sportRow);
+    hidden = sportRow.querySelector(`#${p}-sport-tag`);
+    return hidden;
+  },
+
   _ensureTournamentHostRow(prefix) {
     const p = prefix || 'tf';
     let select = document.getElementById(`${p}-host-team`);
@@ -16,6 +51,8 @@ Object.assign(App, {
     const typeSelect = document.getElementById(`${p}-type`);
     const typeRow = typeSelect?.closest('.ce-row');
     if (!typeRow || !typeRow.parentElement) return null;
+    const sportRow = document.getElementById(`${p}-sport-tag`)?.closest('.ce-row');
+    const anchorRow = sportRow || typeRow;
 
     const hostRow = document.createElement('div');
     hostRow.className = 'ce-row';
@@ -25,7 +62,7 @@ Object.assign(App, {
       <select id="${p}-host-team"></select>
       <div id="${p}-host-team-summary" class="ce-field-note"></div>
     `;
-    typeRow.insertAdjacentElement('afterend', hostRow);
+    anchorRow.insertAdjacentElement('afterend', hostRow);
     select = hostRow.querySelector('select');
     select.addEventListener('change', () => {
       this._updateTournamentHostTeamSummary(p);
@@ -190,6 +227,7 @@ Object.assign(App, {
       this._ensureTournamentFieldNote(typeSelect.closest('.ce-row'), `tournament-mode-note-${p}`, '第一階段先開放友誼賽，盃賽與聯賽欄位位置先保留。');
     }
 
+    this._ensureTournamentSportRow(p);
     this._ensureTournamentHostRow(p);
     this._ensureTournamentHostParticipationRow(p);
     this._ensureTournamentFeeToggle(p);

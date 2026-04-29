@@ -153,6 +153,19 @@ function canApplyFriendlyTournamentForTeam(callerRole, team, callerUid, userData
     || (isRoleAdminOrAbove(callerRole) && isUserDataInTeam(userData, teamId));
 }
 
+function getTournamentSportTagFromData(data) {
+  return String(data?.sportTag || data?.sport || '').trim();
+}
+
+function assertTournamentSportCompatibleData(tournament, teamData, hostTeamData = null) {
+  const tournamentSport = getTournamentSportTagFromData(tournament) || getTournamentSportTagFromData(hostTeamData);
+  const teamSport = getTournamentSportTagFromData(teamData);
+  if (!tournamentSport) return 'TOURNAMENT_SPORT_REQUIRED';
+  if (!teamSport) return 'TEAM_SPORT_REQUIRED';
+  if (tournamentSport !== teamSport) return 'TOURNAMENT_TEAM_SPORT_MISMATCH';
+  return 'ok';
+}
+
 function validateCreateFriendlyTournamentHost(callerRole, team, callerUid, hostTeamId = team?.id) {
   const safeHostTeamId = String(hostTeamId || '').trim();
   const isAdmin = isRoleAdminOrAbove(callerRole);
@@ -601,6 +614,37 @@ describe('createFriendlyTournament CF host selection permissions', () => {
       ok: true,
       hostParticipatesAllowed: true,
     });
+  });
+});
+
+describe('friendly tournament sport compatibility CF guard', () => {
+  test('allows same-sport tournament applications', () => {
+    expect(assertTournamentSportCompatibleData(
+      { sportTag: 'football' },
+      { sportTag: 'football' }
+    )).toBe('ok');
+  });
+
+  test('rejects different-sport tournament applications', () => {
+    expect(assertTournamentSportCompatibleData(
+      { sportTag: 'football' },
+      { sportTag: 'basketball' }
+    )).toBe('TOURNAMENT_TEAM_SPORT_MISMATCH');
+  });
+
+  test('rejects teams without a sport tag', () => {
+    expect(assertTournamentSportCompatibleData(
+      { sportTag: 'football' },
+      {}
+    )).toBe('TEAM_SPORT_REQUIRED');
+  });
+
+  test('can fall back to host team sport for legacy tournaments', () => {
+    expect(assertTournamentSportCompatibleData(
+      {},
+      { sportTag: 'football' },
+      { sportTag: 'football' }
+    )).toBe('ok');
   });
 });
 

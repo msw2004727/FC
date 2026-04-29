@@ -34,7 +34,9 @@ Object.assign(App, {
     const container = document.getElementById('ongoing-tournaments');
     if (!container) return;
     const priorityLimit = Math.max(0, Number(options?.priorityLimit || 0));
-    const allOngoing = ApiService.getTournaments().filter(t => !this.isTournamentEnded(t))
+    const allOngoing = ApiService.getTournaments()
+      .map(t => this.getFriendlyTournamentRecord?.(t) || t)
+      .filter(t => !this.isTournamentEnded(t))
       .sort((a, b) => {
         const ad = this._getTournamentHomeSortTime(a);
         const bd = this._getTournamentHomeSortTime(b);
@@ -47,6 +49,7 @@ Object.assign(App, {
       t.name || '',
       t.image || '',
       t.type || '',
+      t.sportTag || '',
       t.teams || '',
       t.status || '',
       t.ended ? '1' : '0',
@@ -65,11 +68,13 @@ Object.assign(App, {
       const imagePriorityAttrs = index < 3
         ? 'loading="eager" fetchpriority="auto" decoding="async"'
         : 'loading="lazy" decoding="async"';
+      const sportIcon = this._renderTournamentSportIcon?.(t, 'h-card-sport-chip') || '';
+      const cornerBadges = sportIcon ? `<div class="h-card-corner-badges">${sportIcon}</div>` : '';
       return `
       <div class="h-card" onclick="App._openTournamentDetail('${t.id}')">
         ${t.image
-          ? `<div class="h-card-img"><img src="${escapeHTML(t.image)}" alt="${escapeHTML(t.name)}" ${imagePriorityAttrs}></div>`
-          : `<div class="h-card-img h-card-placeholder">220 × 90</div>`}
+          ? `<div class="h-card-img">${cornerBadges}<img src="${escapeHTML(t.image)}" alt="${escapeHTML(t.name)}" ${imagePriorityAttrs}></div>`
+          : `<div class="h-card-img h-card-placeholder">${cornerBadges}220 × 90</div>`}
         <div class="h-card-body">
           <div class="h-card-title">${escapeHTML(t.name)}</div>
           <div class="h-card-meta">
@@ -164,7 +169,7 @@ Object.assign(App, {
     }
 
     // Phase 2B §8.2B：指紋跳過重繪
-    var fp = tournaments.map(function(t) { return t.id + '|' + (t.name || '') + '|' + (t.status || ''); }).join(',');
+    var fp = tournaments.map(function(t) { return t.id + '|' + (t.name || '') + '|' + (t.status || '') + '|' + (t.sportTag || ''); }).join(',');
     if (this._tournamentListLastFp === fp && container.children.length > 0) return;
     this._tournamentListLastFp = fp;
 
@@ -211,6 +216,7 @@ Object.assign(App, {
       const organizerDisplay = this._getTournamentOrganizerDisplayText?.(t) || t.organizer || '主辦俱樂部';
       const typeLabel = this._getTournamentModeLabel?.(t) || t.type || '友誼賽';
       const region = t.region || '';
+      const sportIcon = this._renderTournamentSportIcon?.(t, 'tl-event-sport-corner') || '';
 
       // 右側斜切封面圖 + 右下角狀態緞帶(無圖時 fallback 純 chip)
       const slantedThumb = t.image ? `
@@ -222,7 +228,7 @@ Object.assign(App, {
       return `
         <div class="tl-event-row" onclick="App._openTournamentDetail('${t.id}')" style="display:flex;align-items:stretch;gap:0;padding:0;overflow:hidden;${isEnded ? 'opacity:.6;filter:grayscale(.3);' : ''}">
           <div style="flex:1;min-width:0;padding:.5rem .65rem">
-            <div class="tl-event-title" style="margin-bottom:.18rem">${escapeHTML(t.name)}</div>
+            <div class="tl-event-title-row" style="margin-bottom:.18rem">${sportIcon}<div class="tl-event-title">${escapeHTML(t.name)}</div></div>
             <div style="font-size:.62rem;color:var(--text-muted);line-height:1.5">
               ${escapeHTML(typeLabel)}${region ? ' · ' + escapeHTML(region) : ''} · ${registered.length}/${maxTeams} ${I18N.t('tournament.teamUnit')} · 主辦 ${escapeHTML(organizerDisplay)}
             </div>
