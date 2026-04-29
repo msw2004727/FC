@@ -2,6 +2,12 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-29 — 友誼賽通知「查看賽事」找不到賽事 [中型]
+- **問題**: 收到「有新俱樂部申請參賽」通知後，點「查看賽事」會顯示「找不到對應的賽事」。
+- **原因**: 友誼賽通知 payload 把 `tournamentId` 放在訊息最外層，但訊息詳情按鈕只讀 `msg.meta.tournamentId`；透過 per-user inbox Cloud Function 持久化時只保留 `meta`，導致既有通知可能沒有可讀的賽事 id。
+- **修復**: 新通知改為同時寫入 top-level 與 `meta`；「查看賽事」解析補上 top-level/link id fallback，並可從舊通知文字中的賽事名稱回查本地 tournaments cache。
+- **驗收**: 補 `message-system.test.js` 覆蓋 top-level group id、top-level tournament id、link id、文字賽事名稱回查。
+
 ### 2026-04-29 — 賽事報名按鈕依選取俱樂部更新 [中型]
 - **問題**: 多俱樂部使用者在友誼賽詳情頁送出「參加賽事」後，報名區按鈕仍可能用整體狀態判斷，無法依下拉選到的俱樂部顯示「審核中 / 已通過審核 / 可報名」；admin/super_admin 使用者若不是隊伍幹部，也看不到自己已加入俱樂部的報名下拉選單。
 - **原因**: `renderRegisterButton()` 先看所有 `pendingTeams` / `approvedTeams` 的聚合結果，沒有保留使用者目前選取的 club id；報名成功或撤回後重新渲染時也沒有把剛操作的俱樂部設為目前狀態目標。前端 apply context 只吃 `_getFriendlyResponsibleTeams()`，導致 admin/super_admin 的一般所屬俱樂部被排除；後端 callable 也需要同步區分「隊伍幹部」與「管理員自己的所屬俱樂部」。

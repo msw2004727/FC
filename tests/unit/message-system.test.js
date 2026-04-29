@@ -76,8 +76,38 @@ function _formatMessageTimestamp(date) {
 
 /** 取得賽事訊息的群組 ID */
 function _getTournamentMessageGroupId(msg) {
-  if (!msg || !msg.meta) return '';
-  return (msg.meta.messageGroupId || msg.meta.groupId || '').trim();
+  return String(
+    msg?.meta?.messageGroupId
+    || msg?.meta?.groupId
+    || msg?.messageGroupId
+    || msg?.groupId
+    || ''
+  ).trim();
+}
+
+function _extractTournamentNameFromMessage(msg) {
+  const directName = String(msg?.meta?.tournamentName || msg?.tournamentName || '').trim();
+  if (directName) return directName;
+  const body = String(msg?.body || msg?.preview || '').trim();
+  const match = body.match(/參加「([^」]+)」/) || body.match(/賽事[：:]\s*([^\n]+)/);
+  return String(match?.[1] || '').trim();
+}
+
+function _resolveTournamentMessageTournamentId(msg, tournaments = []) {
+  const directId = String(
+    msg?.meta?.tournamentId
+    || msg?.tournamentId
+    || ((msg?.meta?.linkType || msg?.linkType) === 'tournament' ? (msg?.meta?.linkId || msg?.linkId || msg?.targetId) : '')
+    || ''
+  ).trim();
+  if (directId) return directId;
+
+  const tournamentName = _extractTournamentNameFromMessage(msg);
+  if (!tournamentName) return '';
+  const match = tournaments.find(tournament =>
+    String(tournament?.name || '').trim() === tournamentName
+  );
+  return String(match?.id || match?._docId || '').trim();
 }
 
 /** 將訊息陣列分成固定大小的 chunk（Firestore batch 上限）
@@ -447,6 +477,25 @@ describe('Message System — Phase 0 Pre-Migration Tests', () => {
     });
     test('trims whitespace', () => {
       expect(_getTournamentMessageGroupId({ meta: { groupId: '  g3  ' } })).toBe('g3');
+    });
+    test('falls back to top-level messageGroupId for legacy friendly notifications', () => {
+      expect(_getTournamentMessageGroupId({ messageGroupId: 'g4' })).toBe('g4');
+    });
+  });
+
+  describe('_resolveTournamentMessageTournamentId', () => {
+    test('uses meta tournamentId first', () => {
+      expect(_resolveTournamentMessageTournamentId({ meta: { tournamentId: 'ct_meta' }, tournamentId: 'ct_top' })).toBe('ct_meta');
+    });
+    test('falls back to top-level tournamentId for legacy friendly notifications', () => {
+      expect(_resolveTournamentMessageTournamentId({ tournamentId: 'ct_top' })).toBe('ct_top');
+    });
+    test('falls back to tournament link id', () => {
+      expect(_resolveTournamentMessageTournamentId({ linkType: 'tournament', linkId: 'ct_link' })).toBe('ct_link');
+    });
+    test('recovers id from tournament name in message body', () => {
+      const msg = { body: '俱樂部「美躲test」已申請參加「測試杯」。' };
+      expect(_resolveTournamentMessageTournamentId(msg, [{ id: 'ct_name', name: '測試杯' }])).toBe('ct_name');
     });
   });
 

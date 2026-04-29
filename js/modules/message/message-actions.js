@@ -66,7 +66,39 @@ Object.assign(App, {
   },
 
   _getTournamentMessageGroupId(msg) {
-    return String(msg?.meta?.messageGroupId || msg?.meta?.groupId || '').trim();
+    return String(
+      msg?.meta?.messageGroupId
+      || msg?.meta?.groupId
+      || msg?.messageGroupId
+      || msg?.groupId
+      || ''
+    ).trim();
+  },
+
+  _extractTournamentNameFromMessage(msg) {
+    const directName = String(msg?.meta?.tournamentName || msg?.tournamentName || '').trim();
+    if (directName) return directName;
+    const body = String(msg?.body || msg?.preview || '').trim();
+    const match = body.match(/參加「([^」]+)」/) || body.match(/賽事[：:]\s*([^\n]+)/);
+    return String(match?.[1] || '').trim();
+  },
+
+  _resolveTournamentMessageTournamentId(msg) {
+    const directId = String(
+      msg?.meta?.tournamentId
+      || msg?.tournamentId
+      || ((msg?.meta?.linkType || msg?.linkType) === 'tournament' ? (msg?.meta?.linkId || msg?.linkId || msg?.targetId) : '')
+      || ''
+    ).trim();
+    if (directId) return directId;
+
+    const tournamentName = this._extractTournamentNameFromMessage?.(msg);
+    if (!tournamentName) return '';
+    const tournaments = ApiService.getTournaments?.() || [];
+    const match = tournaments.find(tournament =>
+      String(tournament?.name || '').trim() === tournamentName
+    );
+    return String(match?.id || match?._docId || '').trim();
   },
 
   // Phase 3 修正：所有 actionStatus 更新都透過 CF（Rules 只允許前端改 read/readAt）
@@ -99,7 +131,17 @@ Object.assign(App, {
   async openFriendlyTournamentMessageReview(msgId) {
     const messages = ApiService.getMessages();
     const msg = messages.find(message => message.id === msgId);
-    const tournamentId = String(msg?.meta?.tournamentId || '').trim();
+    let tournamentId = this._resolveTournamentMessageTournamentId?.(msg) || '';
+    if (!tournamentId) {
+      try {
+        if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.ensureStaticCollectionsLoaded === 'function') {
+          await FirebaseService.ensureStaticCollectionsLoaded(['tournaments']);
+          tournamentId = this._resolveTournamentMessageTournamentId?.(msg) || '';
+        }
+      } catch (err) {
+        console.warn('[openFriendlyTournamentMessageReview] tournament lookup fallback failed:', err);
+      }
+    }
     if (!tournamentId) {
       this.showToast('找不到對應的賽事');
       return;

@@ -49,7 +49,7 @@ Object.assign(App, {
 
   _buildFriendlyTournamentNotifExtra(tournament, extra = {}) {
     const safeTournament = tournament || {};
-    return {
+    const payload = {
       tournamentId: String(safeTournament.id || '').trim(),
       tournamentName: String(safeTournament.name || '').trim(),
       hostTeamId: String(safeTournament.hostTeamId || '').trim(),
@@ -61,6 +61,10 @@ Object.assign(App, {
       actionType: 'tournament_friendly_application',
       actionStatus: String(extra.actionStatus || '').trim(),
       linkType: 'tournament',
+    };
+    return {
+      ...payload,
+      meta: payload,
     };
   },
 

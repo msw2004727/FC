@@ -139,7 +139,9 @@ Object.assign(App, {
     if (!modal || !content) return;
 
     let actionHtml = '';
-    const relatedTournament = msg.meta?.tournamentId ? ApiService.getTournament(msg.meta.tournamentId) : null;
+    const relatedTournamentId = this._resolveTournamentMessageTournamentId?.(msg)
+      || String(msg.meta?.tournamentId || msg.tournamentId || '').trim();
+    const relatedTournament = relatedTournamentId ? ApiService.getTournament(relatedTournamentId) : null;
     const isFriendlyTournamentMessage = (
       msg.actionType === 'tournament_friendly_application'
       || (!!msg.meta?.applicationId && this._isFriendlyTournamentRecord?.(relatedTournament))
