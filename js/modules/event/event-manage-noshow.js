@@ -44,13 +44,27 @@ Object.assign(App, {
         const mainUid = regs[0].userId;
         const proxyOnly = !selfReg;
         const mainReg = selfReg || regs[0];
-        people.push({ name: mainName, uid: mainUid, isCompanion: false, displayName: mainName, hasSelfReg: !proxyOnly, proxyOnly, displayBadges: mainReg.displayBadges || [], teamKey: mainReg.teamKey || null, regDocId: mainReg._docId || mainReg.id || null });
+        people.push({
+          name: mainName, uid: mainUid, isCompanion: false, displayName: mainName,
+          hasSelfReg: !proxyOnly, proxyOnly, displayBadges: mainReg.displayBadges || [],
+          teamKey: mainReg.teamKey || null, regDocId: mainReg._docId || mainReg.id || null,
+          teamReservationTeamId: mainReg.teamReservationTeamId || null,
+          teamReservationTeamName: mainReg.teamReservationTeamName || null,
+          teamSeatSource: mainReg.teamSeatSource || null,
+        });
         addedUids.add(mainUid);
         addedNames.add(mainName);
         companions.forEach(c => {
           const cName = c.companionName || c.userName;
           const cUid = c.companionId || (mainUid + '_' + c.companionName);
-          people.push({ name: cName, uid: cUid, isCompanion: true, displayName: cName, hasSelfReg: false, proxyOnly: false, teamKey: c.teamKey || null, regDocId: c._docId || c.id || null });
+          people.push({
+            name: cName, uid: cUid, isCompanion: true, displayName: cName,
+            hasSelfReg: false, proxyOnly: false, teamKey: c.teamKey || null,
+            regDocId: c._docId || c.id || null,
+            teamReservationTeamId: c.teamReservationTeamId || null,
+            teamReservationTeamName: c.teamReservationTeamName || null,
+            teamSeatSource: c.teamSeatSource || null,
+          });
           addedUids.add(cUid);
           addedNames.add(cName);
         });
@@ -61,7 +75,7 @@ Object.assign(App, {
     // 若無 / 長度不一致，才 fallback 回舊 participants[] 字串反查（同暱稱會挑錯）
     const badgeCache = this._eventBadgeCache?.[eventId] || {};
     const wu = Array.isArray(e.participantsWithUid) ? e.participantsWithUid : [];
-    const expectedLen = Number(e.current || 0);
+    const expectedLen = Number(e.realCurrent || 0) || (Number(e.current || 0) - (Array.isArray(e.teamReservationSummaries) ? e.teamReservationSummaries.reduce((sum, s) => sum + Math.max(0, Number(s.remainingSlots || 0) || 0), 0) : 0));
     const wuValid = wu.length > 0 && wu.length === expectedLen;
 
     if (wuValid) {
@@ -73,6 +87,9 @@ Object.assign(App, {
           name: entry.name, uid: entry.uid, isCompanion: false, displayName: entry.name,
           hasSelfReg: true, proxyOnly: false, uidResolved: true,
           teamKey: entry.teamKey || null, displayBadges: badgeCache[entry.uid] || [],
+          teamReservationTeamId: entry.teamReservationTeamId || null,
+          teamReservationTeamName: entry.teamReservationTeamName || null,
+          teamSeatSource: entry.teamSeatSource || null,
         });
         addedUids.add(entry.uid);
         addedNames.add(entry.name);
@@ -98,7 +115,51 @@ Object.assign(App, {
       });
     }
 
-    return { people, count: people.length };
+    const teamSummaries = (typeof FirebaseService !== 'undefined' && FirebaseService._normalizeTeamReservationSummaries)
+      ? FirebaseService._normalizeTeamReservationSummaries(e)
+      : (Array.isArray(e.teamReservationSummaries) ? e.teamReservationSummaries : []);
+    const teamRows = [];
+    const groupedTeamIds = new Set();
+    teamSummaries
+      .filter(s => Number(s.reservedSlots || 0) > 0 || Number(s.usedSlots || 0) > 0)
+      .forEach(summary => {
+        const teamId = String(summary.teamId || '').trim();
+        if (!teamId) return;
+        const realPeople = people.filter(p => String(p.teamReservationTeamId || '') === teamId);
+        if (realPeople.length === 0 && Number(summary.remainingSlots || 0) <= 0) return;
+        groupedTeamIds.add(teamId);
+        teamRows.push({
+          isTeamHeader: true,
+          uid: `team-header-${teamId}`,
+          name: summary.teamName || teamId,
+          displayName: summary.teamName || teamId,
+          teamReservationTeamId: teamId,
+          teamReservationTeamName: summary.teamName || teamId,
+          reservedSlots: Number(summary.reservedSlots || 0),
+          usedSlots: Number(summary.usedSlots || 0),
+          remainingSlots: Number(summary.remainingSlots || 0),
+        });
+        realPeople.forEach(p => teamRows.push(p));
+        const remaining = Math.max(0, Number(summary.remainingSlots || 0) || 0);
+        for (let i = 0; i < remaining; i++) {
+          teamRows.push({
+            isTeamPlaceholder: true,
+            uid: `team-seat-${teamId}-${i + 1}`,
+            name: `${summary.teamName || teamId} 保留席位`,
+            displayName: `${summary.teamName || teamId} 保留席位`,
+            teamReservationTeamId: teamId,
+            teamReservationTeamName: summary.teamName || teamId,
+            hasSelfReg: false,
+            proxyOnly: false,
+          });
+        }
+      });
+    const normalRows = people.filter(p => !p.teamReservationTeamId || !groupedTeamIds.has(String(p.teamReservationTeamId)));
+    const orderedPeople = teamRows.concat(normalRows);
+    const count = Math.max(orderedPeople.filter(p => !p.isTeamHeader).length, Number(e.current || 0) || 0);
+    const realCount = people.length;
+
+    return { people: orderedPeople, count, realCount, teamSummaries };
   },
 
   _buildRawNoShowCountByUid() {
@@ -214,7 +275,7 @@ Object.assign(App, {
   },
 
   _getParticipantNoShowCount(person, noShowCountByUid) {
-    if (!person || person.isCompanion || !noShowCountByUid) return null;
+    if (!person || person.isCompanion || person.isTeamPlaceholder || person.isTeamHeader || !noShowCountByUid) return null;
     const directUid = String(person.uid || '').trim();
     const fallbackUid = String(this._findUserByName?.(person.name)?.uid || '').trim();
     const resolvedUid = (directUid && directUid !== person.name) ? directUid : fallbackUid;

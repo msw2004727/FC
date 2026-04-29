@@ -142,11 +142,13 @@ Object.assign(App, {
           try {
             await db.collection('events').doc(event._docId).update({
               current: occupancy.current,
+              realCurrent: occupancy.realCurrent,
               waitlist: occupancy.waitlist,
               participants: occupancy.participants,
               waitlistNames: occupancy.waitlistNames,
               participantsWithUid: occupancy.participantsWithUid,
               waitlistWithUid: occupancy.waitlistWithUid,
+              teamReservationSummaries: occupancy.teamReservationSummaries,
               schemaVersion: 2,
               status: occupancy.status,
             });
@@ -293,11 +295,13 @@ Object.assign(App, {
         if (event._docId) {
           batch.update(db.collection('events').doc(event._docId), {
             current: occupancy.current,
+            realCurrent: occupancy.realCurrent,
             waitlist: occupancy.waitlist,
             participants: occupancy.participants,
             waitlistNames: occupancy.waitlistNames,
             participantsWithUid: occupancy.participantsWithUid,
             waitlistWithUid: occupancy.waitlistWithUid,
+            teamReservationSummaries: occupancy.teamReservationSummaries,
             schemaVersion: 2,
             status: occupancy.status,
           });

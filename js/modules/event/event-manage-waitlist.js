@@ -230,11 +230,13 @@ Object.assign(App, {
       });
       batch.update(db.collection('events').doc(eventDocId), {
         current: occupancy.current,
+        realCurrent: occupancy.realCurrent,
         waitlist: occupancy.waitlist,
         participants: occupancy.participants,
         waitlistNames: occupancy.waitlistNames,
         participantsWithUid: occupancy.participantsWithUid,
         waitlistWithUid: occupancy.waitlistWithUid,
+        teamReservationSummaries: occupancy.teamReservationSummaries,
         schemaVersion: 2,
         status: occupancy.status,
       });
@@ -250,9 +252,13 @@ Object.assign(App, {
 
     // 套用投影到本地快取
     e.current = occupancy.current;
+    e.realCurrent = occupancy.realCurrent;
     e.waitlist = occupancy.waitlist;
     e.participants = occupancy.participants;
     e.waitlistNames = occupancy.waitlistNames;
+    e.participantsWithUid = occupancy.participantsWithUid;
+    e.waitlistWithUid = occupancy.waitlistWithUid;
+    e.teamReservationSummaries = occupancy.teamReservationSummaries;
     e.status = occupancy.status;
 
     if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._saveToLS === 'function') {
@@ -363,11 +369,13 @@ Object.assign(App, {
       });
       batch.update(db.collection('events').doc(eventDocId), {
         current: occupancy.current,
+        realCurrent: occupancy.realCurrent,
         waitlist: occupancy.waitlist,
         participants: occupancy.participants,
         waitlistNames: occupancy.waitlistNames,
         participantsWithUid: occupancy.participantsWithUid,
         waitlistWithUid: occupancy.waitlistWithUid,
+        teamReservationSummaries: occupancy.teamReservationSummaries,
         schemaVersion: 2,
         status: occupancy.status,
       });
@@ -383,9 +391,13 @@ Object.assign(App, {
 
     // commit 成功 → 套用投影
     e.current = occupancy.current;
+    e.realCurrent = occupancy.realCurrent;
     e.waitlist = occupancy.waitlist;
     e.participants = occupancy.participants;
     e.waitlistNames = occupancy.waitlistNames;
+    e.participantsWithUid = occupancy.participantsWithUid;
+    e.waitlistWithUid = occupancy.waitlistWithUid;
+    e.teamReservationSummaries = occupancy.teamReservationSummaries;
     e.status = occupancy.status;
 
     if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._saveToLS === 'function') {

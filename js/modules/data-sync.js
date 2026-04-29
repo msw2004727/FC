@@ -875,8 +875,15 @@ Object.assign(App, {
           // Step 5: 重算並 update
           var occupancy = FirebaseService._rebuildOccupancy(ed, allRegs);
           await db.collection('events').doc(docId).update({
+            current: occupancy.current,
+            realCurrent: occupancy.realCurrent,
+            waitlist: occupancy.waitlist,
+            participants: occupancy.participants,
+            waitlistNames: occupancy.waitlistNames,
             participantsWithUid: occupancy.participantsWithUid,
             waitlistWithUid: occupancy.waitlistWithUid,
+            teamReservationSummaries: occupancy.teamReservationSummaries,
+            status: occupancy.status,
             schemaVersion: 2,
           });
           ui.log('[pwu] migrated: ' + (ed.title || docId)
@@ -1062,8 +1069,15 @@ Object.assign(App, {
 
           // 寫入
           await db.collection('events').doc(docId).update({
+            current: expected.current,
+            realCurrent: expected.realCurrent,
+            waitlist: expected.waitlist,
+            participants: expected.participants,
+            waitlistNames: expected.waitlistNames,
             participantsWithUid: expected.participantsWithUid,
             waitlistWithUid: expected.waitlistWithUid,
+            teamReservationSummaries: expected.teamReservationSummaries,
+            status: expected.status,
             schemaVersion: 2,
           });
           ui.log('[pwu] force rebuilt: ' + (ed.title || docId)

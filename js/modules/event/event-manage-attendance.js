@@ -45,6 +45,7 @@ Object.assign(App, {
   },
 
   _matchAttendanceRecord(record, person) {
+    if (person?.isTeamPlaceholder || person?.isTeamHeader) return false;
     if (person.isCompanion) {
       return record.companionId && (record.companionId === person.uid || record.companionName === person.name);
     }
@@ -235,16 +236,33 @@ Object.assign(App, {
     const disabledAttr = isSubmitting ? 'disabled' : '';
     const _attCb = (id, checked) =>
       `<input type="checkbox" id="${id}" class="att-cb" ${checked ? 'checked' : ''} ${disabledAttr}><label for="${id}" class="att-lbl"><span class="att-box"></span></label>`;
+    const tableColspan = (tableEditing ? (1 + (hasDemote ? 1 : 0) + 1) : 1)
+      + (showNoShowColumn ? 1 : 0)
+      + 3;
 
     let rows = people.map(p => {
+      if (p.isTeamHeader) {
+        const canAdjustTeam = !isSubmitting && this._isCurrentUserTeamStaff?.(p.teamReservationTeamId);
+        const adjustBtn = canAdjustTeam
+          ? `<button style="font-size:.72rem;padding:.18rem .5rem;border:1px solid #0f766e;color:#0f766e;background:#fff;border-radius:var(--radius-sm);cursor:pointer" onclick="App.openTeamReservationModal('${escapeHTML(eventId)}','${escapeHTML(p.teamReservationTeamId)}')">調整</button>`
+          : '';
+        return `<tr class="team-reservation-header-row"><td colspan="${tableColspan}" style="padding:.45rem .55rem;background:#eff6ff;border-bottom:1px solid #bfdbfe;color:#1e3a8a">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap">
+            <strong>${escapeHTML(p.teamReservationTeamName || p.displayName)}</strong>
+            <span style="font-size:.76rem;color:#1d4ed8">原團隊佔位：${Number(p.reservedSlots || 0)}　已使用：${Number(p.usedSlots || 0)}　剩餘：${Number(p.remainingSlots || 0)}</span>
+            ${adjustBtn}
+          </div>
+        </td></tr>`;
+      }
+      const isPlaceholder = !!p.isTeamPlaceholder;
       const pendingState = pendingStateByUid ? pendingStateByUid[String(p.uid)] : null;
-      const hasCheckin = pendingState
+      const hasCheckin = isPlaceholder ? false : (pendingState
         ? !!pendingState.checkin
-        : records.some(r => this._matchAttendanceRecord(r, p) && r.type === 'checkin');
-      const hasCheckout = pendingState
+        : records.some(r => this._matchAttendanceRecord(r, p) && r.type === 'checkin'));
+      const hasCheckout = isPlaceholder ? false : (pendingState
         ? !!pendingState.checkout
-        : records.some(r => this._matchAttendanceRecord(r, p) && r.type === 'checkout');
-      const noteRec = this._getLatestAttendanceRecord(records, p, 'note');
+        : records.some(r => this._matchAttendanceRecord(r, p) && r.type === 'checkout'));
+      const noteRec = isPlaceholder ? null : this._getLatestAttendanceRecord(records, p, 'note');
       const noteText = pendingState ? (pendingState.note || '') : (noteRec?.note || '');
       const noShowCount = showNoShowColumn ? this._getParticipantNoShowCount(p, noShowCountByUid) : null;
       const noShowCell = showNoShowColumn
@@ -255,6 +273,9 @@ Object.assign(App, {
 
       // 徽章縮圖
       const badges = p.displayBadges || [];
+      const teamSeatFlag = p.teamReservationTeamId
+        ? `<button type="button" title="俱樂部席位" onclick="event.stopPropagation();App.showToast('${escapeHTML(p.teamReservationTeamName || '俱樂部')}俱樂部席位')" style="margin-right:.28rem;font-size:.68rem;line-height:1;border:1px solid #2563eb;color:#2563eb;background:#eff6ff;border-radius:999px;padding:.12rem .32rem;cursor:pointer">旗</button>`
+        : '';
       const badgeHtml = badges.length
         ? '<span class="reg-badge-list">' + badges.map(b =>
             `<img class="reg-badge-icon" src="${escapeHTML(b.image || '')}" alt="${escapeHTML(b.name || '')}" loading="lazy">`
@@ -272,10 +293,12 @@ Object.assign(App, {
       let nameInner;
       if (p.isCompanion) {
         nameInner = `<span class="reg-name-text" style="padding-left:1.2rem;color:var(--text-secondary)">↳ ${escapeHTML(p.displayName)}</span>`;
+      } else if (p.isTeamPlaceholder) {
+        nameInner = `<span class="reg-name-text" style="color:#1d4ed8;font-weight:600">${teamSeatFlag}${escapeHTML(p.displayName)}</span>`;
       } else if (p.hasSelfReg) {
-        nameInner = `<span class="reg-name-text">${this._userTag(p.displayName, null, _tagOpts)}</span>`;
+        nameInner = `<span class="reg-name-text">${teamSeatFlag}${this._userTag(p.displayName, null, _tagOpts)}</span>`;
       } else {
-        nameInner = `<span class="reg-name-text">${escapeHTML(p.displayName)}</span>`;
+        nameInner = `<span class="reg-name-text">${teamSeatFlag}${escapeHTML(p.displayName)}</span>`;
       }
       const nameHtml = badgeHtml
         ? `<div class="reg-name-badges-wrap"><div class="reg-name-badges">${nameInner}${badgeHtml}</div></div>`
@@ -285,6 +308,17 @@ Object.assign(App, {
       const safeName = escapeHTML(p.name);
 
       if (tableEditing) {
+        if (p.isTeamPlaceholder) {
+          const emptyDemoteTd = hasDemote ? `<td style="padding:.35rem .2rem"></td>` : '';
+          return `<tr data-uid="${safeUid}" style="border-bottom:1px solid var(--border);background:#f8fbff">
+          <td style="padding:.35rem .2rem"></td>${emptyDemoteTd}
+          <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
+          ${showNoShowColumn ? '<td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>' : ''}
+          <td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>
+          <td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>
+          <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">保留席位</td>
+        </tr>`;
+        }
         const kickTd = `<td style="padding:.35rem .2rem;text-align:center"><button style="${kickStyle}" ${disabledAttr} onclick="App._removeParticipant('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">踢</button></td>`;
         const demoteTd = hasDemote && !p.isCompanion
           ? `<td style="padding:.35rem .2rem;text-align:center"><button style="${demoteStyle}" ${disabledAttr} onclick="App._forceDemoteToWaitlist('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">候</button></td>`
@@ -297,6 +331,15 @@ Object.assign(App, {
           <td style="padding:.35rem .2rem;text-align:center">${_attCb('manual-checkout-' + safeUid, hasCheckout)}</td>
           <td style="padding:.35rem .3rem"><input type="text" maxlength="20" value="${escapeHTML(noteText)}" id="manual-note-${safeUid}" placeholder="備註" ${disabledAttr} style="${noteInputStyle}"></td>
         </tr>`;
+      }
+      if (p.isTeamPlaceholder) {
+        return `<tr style="border-bottom:1px solid var(--border);background:#f8fbff">
+        <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
+        ${showNoShowColumn ? '<td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>' : ''}
+        <td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>
+        <td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>
+        <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">保留席位</td>
+      </tr>`;
       }
       return `<tr style="border-bottom:1px solid var(--border)">
         <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>

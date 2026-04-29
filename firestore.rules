@@ -438,8 +438,8 @@ service cloud.firestore {
       function isSignupFieldsOnly() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
         return changed.hasOnly([
-          'current', 'waitlist', 'participants', 'waitlistNames', 'status', 'updatedAt',
-          'participantsWithUid', 'waitlistWithUid', 'schemaVersion'
+          'current', 'realCurrent', 'waitlist', 'participants', 'waitlistNames', 'status', 'updatedAt',
+          'participantsWithUid', 'waitlistWithUid', 'teamReservationSummaries', 'schemaVersion'
         ]);
       }
 
@@ -721,9 +721,15 @@ service cloud.firestore {
           && request.resource.data.status == 'confirmed';
         return baseValid && (
           changed.hasOnly(['status'])
+          || (changed.hasOnly(['status', 'teamSeatSource'])
+              && request.resource.data.teamSeatSource in ['reserved', 'overflow', 'waitlist'])
           || (changed.hasOnly(['status', 'teamKey'])
               && (request.resource.data.teamKey == null
                   || request.resource.data.teamKey in ['A', 'B', 'C', 'D']))
+          || (changed.hasOnly(['status', 'teamKey', 'teamSeatSource'])
+              && (request.resource.data.teamKey == null
+                  || request.resource.data.teamKey in ['A', 'B', 'C', 'D'])
+              && request.resource.data.teamSeatSource in ['reserved', 'overflow', 'waitlist'])
         );
       }
 
@@ -1480,9 +1486,15 @@ service cloud.firestore {
           && request.resource.data.status == 'confirmed';
         return baseValid && (
           changed.hasOnly(['status'])
+          || (changed.hasOnly(['status', 'teamSeatSource'])
+              && request.resource.data.teamSeatSource in ['reserved', 'overflow', 'waitlist'])
           || (changed.hasOnly(['status', 'teamKey'])
               && (request.resource.data.teamKey == null
                   || request.resource.data.teamKey in ['A', 'B', 'C', 'D']))
+          || (changed.hasOnly(['status', 'teamKey', 'teamSeatSource'])
+              && (request.resource.data.teamKey == null
+                  || request.resource.data.teamKey in ['A', 'B', 'C', 'D'])
+              && request.resource.data.teamSeatSource in ['reserved', 'overflow', 'waitlist'])
         );
       }
 
@@ -1539,6 +1551,11 @@ service cloud.firestore {
         || (isSubActiveRegistration() && isSubEventManagerTeamKeyUpdate())
         || (isSubActiveRegistration() && isSubSelfSelectTeamKeyUpdate());
       allow delete: if isAdmin() || isSubRegOwner();
+    }
+
+    match /events/{eventId}/teamReservations/{reservationId} {
+      allow read: if isAuth();
+      allow create, update, delete: if false;
     }
 
     match /events/{eventId}/registrationLocks/{lockId} {

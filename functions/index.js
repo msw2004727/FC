@@ -154,9 +154,14 @@ const CHANGE_WATCH_USER_PRIVILEGE_FIELDS = new Set([
 const CHANGE_WATCH_EVENT_SIGNUP_FIELDS = new Set([
   "status",
   "current",
+  "realCurrent",
   "waitlist",
   "participants",
   "waitlistNames",
+  "participantsWithUid",
+  "waitlistWithUid",
+  "teamReservationSummaries",
+  "schemaVersion",
   "updatedAt",
 ]);
 const CHANGE_WATCH_EVENT_OWNER_FIELDS = new Set([
@@ -491,6 +496,24 @@ function isTournamentTeamOfficerForData(team, uid) {
     || String(team.ownerUid || "").trim() === safeUid
     || String(team.leaderUid || "").trim() === safeUid
     || leaderUids.includes(safeUid);
+}
+
+function isTeamStaffForData(team, uid) {
+  if (!team || !uid) return false;
+  const safeUid = String(uid || "").trim();
+  if (!safeUid) return false;
+  const leaderUids = Array.isArray(team.leaderUids)
+    ? team.leaderUids.map(item => String(item || "").trim())
+    : (team.leaderUid ? [String(team.leaderUid || "").trim()] : []);
+  const coachUids = Array.isArray(team.coachUids)
+    ? team.coachUids.map(item => String(item || "").trim())
+    : [];
+  return String(team.captainUid || "").trim() === safeUid
+    || String(team.creatorUid || "").trim() === safeUid
+    || String(team.ownerUid || "").trim() === safeUid
+    || String(team.leaderUid || "").trim() === safeUid
+    || leaderUids.includes(safeUid)
+    || coachUids.includes(safeUid);
 }
 
 function validateClientTournamentId(id) {
@@ -5505,6 +5528,149 @@ function countUniqueConfirmedRegistrations(registrations = []) {
   ).length;
 }
 
+function normalizeTeamReservationSummaries(eventOrSummaries = {}) {
+  const raw = Array.isArray(eventOrSummaries)
+    ? eventOrSummaries
+    : (Array.isArray(eventOrSummaries?.teamReservationSummaries) ? eventOrSummaries.teamReservationSummaries : []);
+  const seen = new Set();
+  return raw.map((item) => {
+    const teamId = String(item?.teamId || item?.id || "").trim();
+    if (!teamId || seen.has(teamId)) return null;
+    seen.add(teamId);
+    const reservedRaw = Number(item?.reservedSlots || item?.slots || 0);
+    const usedRaw = Number(item?.usedSlots || 0);
+    const reservedSlots = Number.isFinite(reservedRaw) ? Math.max(0, Math.trunc(reservedRaw)) : 0;
+    const usedSlots = Number.isFinite(usedRaw) ? Math.max(0, Math.trunc(usedRaw)) : 0;
+    return {
+      teamId,
+      teamName: String(item?.teamName || item?.name || teamId).trim(),
+      reservedSlots,
+      usedSlots,
+      remainingSlots: Math.max(0, reservedSlots - usedSlots),
+      occupiedSlots: Math.max(reservedSlots, usedSlots),
+      updatedAt: item?.updatedAt || null,
+      updatedByUid: item?.updatedByUid || null,
+      updatedByName: item?.updatedByName || null,
+    };
+  }).filter(Boolean);
+}
+
+function registrationTeamReservationTeamId(reg = {}) {
+  return String(reg.teamReservationTeamId || reg.teamReservationId || "").trim();
+}
+
+function findTeamReservationForUser(eventData = {}, userData = {}) {
+  const userTeamIds = getUserTeamIdSetFromData(userData);
+  if (!userTeamIds.size) return null;
+  return normalizeTeamReservationSummaries(eventData)
+    .filter((item) => item.reservedSlots > 0 || item.usedSlots > 0)
+    .find((item) => userTeamIds.has(item.teamId)) || null;
+}
+
+function applyTeamReservationFields(registration, reservation, source) {
+  if (!registration || !reservation) return registration;
+  registration.teamReservationTeamId = reservation.teamId;
+  registration.teamReservationTeamName = reservation.teamName || reservation.teamId;
+  registration.teamSeatSource = source || "reserved";
+  return registration;
+}
+
+function decideRegistrationSeat(eventData, activeRegs, registration, userData = {}) {
+  const maxCount = Math.max(0, Number(eventData?.max || 0) || 0);
+  const reservation = registration?.participantType === "companion"
+    ? null
+    : findTeamReservationForUser(eventData, userData);
+  const occupancyBefore = rebuildOccupancy(eventData, activeRegs || []);
+  let status = "waitlisted";
+  let source = null;
+
+  if (reservation) {
+    const summary = (occupancyBefore.teamReservationSummaries || []).find((item) => item.teamId === reservation.teamId) || reservation;
+    const usedSlots = Math.max(0, Number(summary.usedSlots || 0) || 0);
+    const reservedSlots = Math.max(0, Number(summary.reservedSlots || 0) || 0);
+    if (usedSlots < reservedSlots) {
+      status = "confirmed";
+      source = "reserved";
+    } else if (occupancyBefore.current < maxCount) {
+      status = "confirmed";
+      source = "overflow";
+    } else {
+      source = "waitlist";
+    }
+    applyTeamReservationFields(registration, reservation, source);
+  } else if (occupancyBefore.current < maxCount) {
+    status = "confirmed";
+  }
+
+  registration.status = status;
+  return { status, reservation, source, occupancyBefore };
+}
+
+function sortWaitlistCandidates(regs = []) {
+  const sortTime = (reg) => {
+    const v = reg && reg.registeredAt;
+    if (!v) return Number.POSITIVE_INFINITY;
+    if (typeof v.toMillis === "function") {
+      try { return v.toMillis(); } catch (_e) { /* ignore */ }
+    }
+    if (typeof v === "object" && typeof v.seconds === "number") {
+      return v.seconds * 1000 + Math.floor((v.nanoseconds || 0) / 1000000);
+    }
+    const t = new Date(v).getTime();
+    return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
+  };
+  return (Array.isArray(regs) ? regs : []).slice().sort((a, b) => {
+    const ta = sortTime(a);
+    const tb = sortTime(b);
+    if (ta !== tb) return ta - tb;
+    const pa = Number(a.promotionOrder || 0);
+    const pb = Number(b.promotionOrder || 0);
+    if (pa !== pb) return pa - pb;
+    return String(a._docId || a.id || "").localeCompare(String(b._docId || b.id || ""));
+  });
+}
+
+function promoteWaitlistForAvailableSeats(eventData, simRegs = []) {
+  const promoted = [];
+  const maxCount = Math.max(0, Number(eventData?.max || 0) || 0);
+
+  while (true) {
+    const activeRegs = simRegs.filter((r) => r.status === "confirmed" || r.status === "waitlisted");
+    const occupancy = rebuildOccupancy(eventData, activeRegs);
+    const summaries = occupancy.teamReservationSummaries || [];
+    const waitlisted = sortWaitlistCandidates(activeRegs.filter((r) => r.status === "waitlisted"));
+    let candidateToPromote = null;
+    let source = null;
+
+    for (const candidate of waitlisted) {
+      const teamId = registrationTeamReservationTeamId(candidate);
+      if (!teamId) continue;
+      const summary = summaries.find((item) => item.teamId === teamId);
+      if (summary && Number(summary.remainingSlots || 0) > 0) {
+        candidateToPromote = candidate;
+        source = "reserved";
+        break;
+      }
+    }
+
+    if (!candidateToPromote && occupancy.current < maxCount) {
+      candidateToPromote = waitlisted[0] || null;
+      if (candidateToPromote && registrationTeamReservationTeamId(candidateToPromote)) {
+        source = "overflow";
+      }
+    }
+
+    if (!candidateToPromote) break;
+    candidateToPromote.status = "confirmed";
+    if (source && registrationTeamReservationTeamId(candidateToPromote)) {
+      candidateToPromote.teamSeatSource = source;
+    }
+    promoted.push(candidateToPromote);
+  }
+
+  return promoted;
+}
+
 // ── 純函式：重建活動佔位投影（與前端 firebase-crud.js _rebuildOccupancy 邏輯一致）──
 function rebuildOccupancy(event, registrations) {
   // 去重：同一 (userId, participantType, companionId) 只保留最早報名的那筆
@@ -5551,6 +5717,26 @@ function rebuildOccupancy(event, registrations) {
 
   // ⚠️ 雙端同步：此函式與 js/firebase-crud.js _rebuildOccupancy 必須邏輯一致
   //    Phase 1（2026-04-19）新增 participantsWithUid / waitlistWithUid 擴充回傳
+  const teamReservations = normalizeTeamReservationSummaries(event);
+  const reservationByTeamId = new Map(teamReservations.map((item) => [item.teamId, item]));
+  const usedSlotsByTeamId = new Map();
+  confirmed.forEach((r) => {
+    const teamId = registrationTeamReservationTeamId(r);
+    if (!teamId || !reservationByTeamId.has(teamId)) return;
+    usedSlotsByTeamId.set(teamId, (usedSlotsByTeamId.get(teamId) || 0) + 1);
+  });
+  const teamReservationSummaries = teamReservations.map((item) => {
+    const usedSlots = usedSlotsByTeamId.get(item.teamId) || 0;
+    const reservedSlots = Math.max(0, Number(item.reservedSlots || 0) || 0);
+    return {
+      ...item,
+      reservedSlots,
+      usedSlots,
+      remainingSlots: Math.max(0, reservedSlots - usedSlots),
+      occupiedSlots: Math.max(reservedSlots, usedSlots),
+    };
+  }).filter((item) => item.reservedSlots > 0 || item.usedSlots > 0);
+
   const buildWuEntry = (r) => {
     const isComp = r.participantType === "companion";
     const uid = isComp
@@ -5559,13 +5745,26 @@ function rebuildOccupancy(event, registrations) {
     const name = isComp
       ? String(r.companionName || r.userName || "").trim()
       : String(r.userName || "").trim();
-    return { uid, name, teamKey: r.teamKey || null };
+    const teamReservationTeamId = registrationTeamReservationTeamId(r);
+    const teamReservation = teamReservationTeamId ? reservationByTeamId.get(teamReservationTeamId) : null;
+    return {
+      uid,
+      name,
+      teamKey: r.teamKey || null,
+      teamReservationTeamId: teamReservationTeamId || null,
+      teamReservationTeamName: r.teamReservationTeamName || teamReservation?.teamName || null,
+      teamSeatSource: r.teamSeatSource || null,
+    };
   };
   const isValidWu = (x) => x.uid && x.name && !x.uid.endsWith("_");
   const participantsWithUid = confirmed.map(buildWuEntry).filter(isValidWu);
   const waitlistWithUid = waitlisted.map(buildWuEntry).filter(isValidWu);
 
-  const current = participants.length;
+  const realCurrent = participants.length;
+  const current = realCurrent + teamReservationSummaries.reduce(
+    (sum, item) => sum + Math.max(0, Number(item.remainingSlots || 0) || 0),
+    0
+  );
   const waitlist = waitlistNames.length;
 
   let status = event.status;
@@ -5574,8 +5773,8 @@ function rebuildOccupancy(event, registrations) {
   }
 
   return {
-    participants, waitlistNames, current, waitlist, status,
-    participantsWithUid, waitlistWithUid,
+    participants, waitlistNames, current, realCurrent, waitlist, status,
+    participantsWithUid, waitlistWithUid, teamReservationSummaries,
   };
 }
 
@@ -5900,7 +6099,6 @@ exports.registerForEvent = onCall(
       const firestoreActiveRegs = allEventRegs.filter(
         (r) => r.status !== "cancelled" && r.status !== "removed"
       );
-      let confirmedCount = countUniqueConfirmedRegistrations(firestoreActiveRegs);
 
       const registrations = [];
       let newConfirmed = 0;
@@ -5908,6 +6106,7 @@ exports.registerForEvent = onCall(
       const nowTimestamp = Timestamp.now();
       const nowISOString = nowTimestamp.toDate().toISOString();
       const plannedKeys = new Set(firestoreActiveRegs.map((r) => registrationUniqueKey(r)));
+      const plannedActiveRegs = firestoreActiveRegs.map((r) => ({ ...r }));
 
       for (let idx = 0; idx < sanitizedParticipants.length; idx++) {
         const p = sanitizedParticipants[idx];
@@ -5925,9 +6124,6 @@ exports.registerForEvent = onCall(
           }
           continue;
         }
-
-        const isWaitlist = confirmedCount >= maxCount;
-        const status = isWaitlist ? "waitlisted" : "confirmed";
 
         // team-split: resolve teamKey
         let teamKey = undefined;
@@ -5965,10 +6161,17 @@ exports.registerForEvent = onCall(
           participantType: p.participantType,
           companionId: p.companionId || null,
           companionName: p.companionName || null,
-          status,
+          status: "waitlisted",
           promotionOrder: idx,
           registeredAt: nowTimestamp,
         };
+        const seatDecision = decideRegistrationSeat(
+          { ...ed, id: eventId, max: maxCount },
+          plannedActiveRegs,
+          reg,
+          p.participantType === "self" ? (callerUserDoc?.data || { uid: callerUid }) : {}
+        );
+        const status = seatDecision.status;
         if (teamKey !== undefined) reg.teamKey = teamKey;
 
         transaction.set(regDocRefs[idx], reg);
@@ -5986,10 +6189,10 @@ exports.registerForEvent = onCall(
         // 儲存帶有統一時間源的副本供 rebuildOccupancy 使用
         registrations.push({ ...reg, _docId: regDocRefs[idx].id, registeredAt: nowISOString });
         plannedKeys.add(dupKey);
+        plannedActiveRegs.push({ ...reg, _docId: regDocRefs[idx].id, registeredAt: nowISOString });
 
         if (status === "confirmed") {
           newConfirmed++;
-          confirmedCount++;
         } else {
           newWaitlisted++;
         }
@@ -6017,15 +6220,17 @@ exports.registerForEvent = onCall(
 
       // T7: 更新 event occupancy
       const allRegsForRebuild = [...firestoreActiveRegs, ...registrations];
-      const occupancy = rebuildOccupancy({ max: maxCount, status: ed.status }, allRegsForRebuild);
+      const occupancy = rebuildOccupancy({ ...ed, max: maxCount, status: ed.status }, allRegsForRebuild);
 
       transaction.update(eventRef, {
         current: occupancy.current,
+        realCurrent: occupancy.realCurrent,
         waitlist: occupancy.waitlist,
         participants: occupancy.participants,
         waitlistNames: occupancy.waitlistNames,
         participantsWithUid: occupancy.participantsWithUid,
         waitlistWithUid: occupancy.waitlistWithUid,
+        teamReservationSummaries: occupancy.teamReservationSummaries,
         schemaVersion: 2,
         status: occupancy.status,
       });
@@ -6037,6 +6242,9 @@ exports.registerForEvent = onCall(
           status: r.status,
           userId: r.userId,
           participantType: r.participantType,
+          teamReservationTeamId: r.teamReservationTeamId || null,
+          teamReservationTeamName: r.teamReservationTeamName || null,
+          teamSeatSource: r.teamSeatSource || null,
         })),
         event: occupancy,
         confirmed: newConfirmed,
@@ -6240,33 +6448,14 @@ exports.cancelRegistration = onCall(
       // T5: 候補遞補
       const promotedCandidates = [];
       if (hadConfirmed) {
-        const activeRegs = simRegs.filter(
-          (r) => r.status === "confirmed" || r.status === "waitlisted"
-        );
-        const confirmedCount = countUniqueConfirmedRegistrations(activeRegs);
-        const maxCount = ed.max || 0;
-        let slotsAvailable = maxCount - confirmedCount;
-
-        if (slotsAvailable > 0) {
-          const waitlistedCandidates = activeRegs
-            .filter((r) => r.status === "waitlisted")
-            .sort((a, b) => {
-              const ta = new Date(a.registeredAt).getTime();
-              const tb = new Date(b.registeredAt).getTime();
-              if (ta !== tb) return ta - tb;
-              return (a.promotionOrder || 0) - (b.promotionOrder || 0);
-            });
-
-          for (const candidate of waitlistedCandidates) {
-            if (slotsAvailable <= 0) break;
-            candidate.status = "confirmed";
-            promotedCandidates.push(candidate);
-            transaction.update(eventDoc.ref.collection("registrations").doc(candidate._docId), {
-              status: "confirmed",
-              promotedAt: FieldValue.serverTimestamp(),
-            });
-            slotsAvailable--;
-          }
+        promotedCandidates.push(...promoteWaitlistForAvailableSeats(ed, simRegs));
+        for (const candidate of promotedCandidates) {
+          const promoUpdate = {
+            status: "confirmed",
+            promotedAt: FieldValue.serverTimestamp(),
+          };
+          if (candidate.teamSeatSource) promoUpdate.teamSeatSource = candidate.teamSeatSource;
+          transaction.update(eventDoc.ref.collection("registrations").doc(candidate._docId), promoUpdate);
         }
       }
 
@@ -6298,15 +6487,17 @@ exports.cancelRegistration = onCall(
       const allActive = simRegs.filter(
         (r) => r.status === "confirmed" || r.status === "waitlisted"
       );
-      const occupancy = rebuildOccupancy({ max: ed.max || 0, status: ed.status }, allActive);
+      const occupancy = rebuildOccupancy({ ...ed, max: ed.max || 0, status: ed.status }, allActive);
 
       transaction.update(eventRef, {
         current: occupancy.current,
+        realCurrent: occupancy.realCurrent,
         waitlist: occupancy.waitlist,
         participants: occupancy.participants,
         waitlistNames: occupancy.waitlistNames,
         participantsWithUid: occupancy.participantsWithUid,
         waitlistWithUid: occupancy.waitlistWithUid,
+        teamReservationSummaries: occupancy.teamReservationSummaries,
         schemaVersion: 2,
         status: occupancy.status,
       });
@@ -6429,6 +6620,281 @@ exports.cancelRegistration = onCall(
 //  定時從 Google Cloud Monitoring API 抓取 Firestore / Functions 用量
 //  寫入 usageMetrics/{date} 供前端儀表板顯示
 // ═══════════════════════════════════════════════════════════════
+
+exports.adjustTeamReservation = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB", minInstances: 1 },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+    const callerUid = request.auth.uid;
+    const { eventId, teamId, reservedSlots, requestId } = request.data || {};
+    const safeEventId = String(eventId || "").trim();
+    const safeTeamId = String(teamId || "").trim();
+    const safeReservedSlots = Number(reservedSlots);
+    if (!safeEventId) throw new HttpsError("invalid-argument", "eventId is required");
+    if (!safeTeamId) throw new HttpsError("invalid-argument", "teamId is required");
+    if (!Number.isFinite(safeReservedSlots) || safeReservedSlots < 0 || Math.trunc(safeReservedSlots) !== safeReservedSlots) {
+      throw new HttpsError("invalid-argument", "reservedSlots must be a non-negative integer");
+    }
+
+    const safeRequestId = typeof requestId === "string" && requestId.length > 0
+      ? requestId.slice(0, 100)
+      : `team_res_${callerUid}_${safeEventId}_${safeTeamId}_${Date.now()}`;
+    const dedupRef = db.collection("_regDedupe").doc(safeRequestId);
+    try {
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+      await dedupRef.create({
+        callerUid,
+        createdAt: FieldValue.serverTimestamp(),
+        expiresAt: Timestamp.fromDate(expiresAt),
+      });
+    } catch (e) {
+      if (e.code === 6 || e.code === "already-exists") {
+        return { success: true, deduplicated: true };
+      }
+      console.warn("[adjustTeamReservation] dedupe create failed:", e.message);
+    }
+
+    const callerRole = await getUserRoleFromFirestore(callerUid);
+    const callerUserDoc = await findUserDocByUidOrLineUserId(callerUid);
+    const callerName = callerUserDoc?.data?.displayName || callerUserDoc?.data?.name || callerUid;
+
+    const result = await db.runTransaction(async (transaction) => {
+      const eventQuerySnap = await transaction.get(
+        db.collection("events").where("id", "==", safeEventId).limit(1)
+      );
+      if (eventQuerySnap.empty) throw new HttpsError("not-found", "EVENT_NOT_FOUND");
+      const eventDoc = eventQuerySnap.docs[0];
+      const eventRef = eventDoc.ref;
+      const ed = eventDoc.data();
+      const maxCount = Math.max(0, Number(ed.max || 0) || 0);
+      if (ed.status === "ended") throw new HttpsError("failed-precondition", "EVENT_ENDED");
+      if (ed.status === "cancelled") throw new HttpsError("failed-precondition", "EVENT_CANCELLED");
+      if (ed.date) {
+        const startDate = parseEventStartDateInTaipei(ed.date);
+        if (startDate && startDate <= new Date()) {
+          throw new HttpsError("failed-precondition", "EVENT_ENDED");
+        }
+      }
+
+      const teamInfo = await getTeamDocByTeamIdInTransaction(transaction, safeTeamId);
+      if (!teamInfo) throw new HttpsError("not-found", "TEAM_NOT_FOUND");
+      const isAdmin = isRoleAdminOrAbove(callerRole);
+      if (!isAdmin && !isTeamStaffForData(teamInfo.data, callerUid)) {
+        throw new HttpsError("permission-denied", "PERMISSION_DENIED");
+      }
+      const teamName = String(teamInfo.data?.name || teamInfo.data?.teamName || safeTeamId).trim();
+
+      const allRegsSnap = await transaction.get(eventRef.collection("registrations"));
+      const allEventRegs = allRegsSnap.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          ...data,
+          _docId: doc.id,
+          registeredAt: data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt,
+        };
+      });
+
+      const memberUidSet = new Set();
+      const addUid = (value) => {
+        const safeValue = String(value || "").trim();
+        if (safeValue) memberUidSet.add(safeValue);
+      };
+      const teamUsersByArray = await transaction.get(db.collection("users").where("teamIds", "array-contains", safeTeamId));
+      teamUsersByArray.forEach((doc) => {
+        const data = doc.data() || {};
+        addUid(doc.id);
+        addUid(data.uid);
+        addUid(data.lineUserId);
+      });
+      const teamUsersByPrimary = await transaction.get(db.collection("users").where("teamId", "==", safeTeamId));
+      teamUsersByPrimary.forEach((doc) => {
+        const data = doc.data() || {};
+        addUid(doc.id);
+        addUid(data.uid);
+        addUid(data.lineUserId);
+      });
+
+      const activeRegs = allEventRegs
+        .filter((reg) => reg.status === "confirmed" || reg.status === "waitlisted")
+        .map((reg) => ({ ...reg }));
+      const stampUpdates = [];
+      activeRegs.forEach((reg) => {
+        if (reg.participantType === "companion") return;
+        if (!memberUidSet.has(String(reg.userId || "").trim())) return;
+        if (registrationTeamReservationTeamId(reg) && registrationTeamReservationTeamId(reg) !== safeTeamId) return;
+        const source = reg.status === "waitlisted" ? "waitlist" : (reg.teamSeatSource || "reserved");
+        if (reg.teamReservationTeamId === safeTeamId && reg.teamReservationTeamName === teamName && reg.teamSeatSource === source) return;
+        reg.teamReservationTeamId = safeTeamId;
+        reg.teamReservationTeamName = teamName;
+        reg.teamSeatSource = source;
+        stampUpdates.push(reg);
+      });
+
+      const existingSummaries = normalizeTeamReservationSummaries(ed);
+      const occupancyBefore = rebuildOccupancy({ ...ed, max: maxCount }, activeRegs);
+      const beforeSummary = occupancyBefore.teamReservationSummaries.find((item) => item.teamId === safeTeamId) || {
+        teamId: safeTeamId,
+        teamName,
+        reservedSlots: 0,
+        usedSlots: 0,
+        remainingSlots: 0,
+        occupiedSlots: 0,
+      };
+      const usedSlots = beforeSummary.usedSlots || 0;
+      if (safeReservedSlots < usedSlots) {
+        throw new HttpsError("failed-precondition", "RESERVED_BELOW_USED");
+      }
+      const baseCurrent = Math.max(0, occupancyBefore.current - Math.max(0, Number(beforeSummary.remainingSlots || 0) || 0));
+      const maxReserved = usedSlots + Math.max(0, maxCount - baseCurrent);
+      if (safeReservedSlots > maxReserved) {
+        throw new HttpsError("failed-precondition", "RESERVED_OVER_CAPACITY");
+      }
+
+      const nextSummaries = existingSummaries.filter((item) => item.teamId !== safeTeamId);
+      if (safeReservedSlots > 0 || usedSlots > 0) {
+        nextSummaries.push({
+          teamId: safeTeamId,
+          teamName,
+          reservedSlots: safeReservedSlots,
+          usedSlots,
+          remainingSlots: Math.max(0, safeReservedSlots - usedSlots),
+          occupiedSlots: Math.max(safeReservedSlots, usedSlots),
+          updatedAt: new Date().toISOString(),
+          updatedByUid: callerUid,
+          updatedByName: callerName,
+        });
+      }
+
+      const eventForRebuild = { ...ed, max: maxCount, teamReservationSummaries: nextSummaries };
+      const promotedCandidates = [];
+      while (true) {
+        const teamOccupancy = rebuildOccupancy(eventForRebuild, activeRegs);
+        const teamSummary = teamOccupancy.teamReservationSummaries.find((item) => item.teamId === safeTeamId);
+        if (!teamSummary || Number(teamSummary.remainingSlots || 0) <= 0) break;
+        const candidate = sortWaitlistCandidates(activeRegs).find((reg) =>
+          reg.status === "waitlisted" && registrationTeamReservationTeamId(reg) === safeTeamId
+        );
+        if (!candidate) break;
+        candidate.status = "confirmed";
+        candidate.teamSeatSource = "reserved";
+        promotedCandidates.push(candidate);
+      }
+      const occupancy = rebuildOccupancy(eventForRebuild, activeRegs);
+      const arSnap = await transaction.get(eventRef.collection("activityRecords"));
+      const allArs = arSnap.docs.map((doc) => ({ ...doc.data(), _docId: doc.id }));
+      const afterSummary = occupancy.teamReservationSummaries.find((item) => item.teamId === safeTeamId) || {
+        teamId: safeTeamId,
+        teamName,
+        reservedSlots: 0,
+        usedSlots: 0,
+        remainingSlots: 0,
+        occupiedSlots: 0,
+      };
+
+      const reservationRef = eventRef.collection("teamReservations").doc(safeTeamId);
+      if (safeReservedSlots > 0 || afterSummary.usedSlots > 0) {
+        transaction.set(reservationRef, {
+          id: safeTeamId,
+          teamId: safeTeamId,
+          teamName,
+          reservedSlots: safeReservedSlots,
+          usedSlots: afterSummary.usedSlots || 0,
+          remainingSlots: afterSummary.remainingSlots || 0,
+          occupiedSlots: afterSummary.occupiedSlots || safeReservedSlots,
+          updatedAt: FieldValue.serverTimestamp(),
+          updatedByUid: callerUid,
+          updatedByName: callerName,
+        }, { merge: true });
+      } else {
+        transaction.delete(reservationRef);
+      }
+
+      for (const reg of stampUpdates) {
+        transaction.update(eventRef.collection("registrations").doc(reg._docId), {
+          teamReservationTeamId: reg.teamReservationTeamId,
+          teamReservationTeamName: reg.teamReservationTeamName,
+          teamSeatSource: reg.teamSeatSource,
+        });
+      }
+      for (const candidate of promotedCandidates) {
+        const update = {
+          status: "confirmed",
+          promotedAt: FieldValue.serverTimestamp(),
+        };
+        if (candidate.teamSeatSource) update.teamSeatSource = candidate.teamSeatSource;
+        transaction.update(eventRef.collection("registrations").doc(candidate._docId), update);
+        if (candidate.participantType !== "companion") {
+          const ar = allArs.find((item) => item.uid === candidate.userId && item.status === "waitlisted");
+          if (ar) transaction.update(eventRef.collection("activityRecords").doc(ar._docId), { status: "registered" });
+        }
+      }
+
+      transaction.update(eventRef, {
+        current: occupancy.current,
+        realCurrent: occupancy.realCurrent,
+        waitlist: occupancy.waitlist,
+        participants: occupancy.participants,
+        waitlistNames: occupancy.waitlistNames,
+        participantsWithUid: occupancy.participantsWithUid,
+        waitlistWithUid: occupancy.waitlistWithUid,
+        teamReservationSummaries: occupancy.teamReservationSummaries,
+        schemaVersion: 2,
+        status: occupancy.status,
+      });
+
+      return {
+        event: occupancy,
+        teamId: safeTeamId,
+        teamName,
+        before: beforeSummary,
+        after: afterSummary,
+        promoted: promotedCandidates.map((item) => ({
+          id: item.id,
+          docId: item._docId,
+          userId: item.userId,
+          userName: item.userName,
+          teamSeatSource: item.teamSeatSource || null,
+        })),
+      };
+    });
+
+    const now = new Date();
+    const timeStr = `${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    const beforeSlots = Number(result.before?.reservedSlots || 0);
+    const afterSlots = Number(result.after?.reservedSlots || 0);
+    const logType = beforeSlots === 0 && afterSlots > 0
+      ? "team_reservation_create"
+      : (afterSlots === 0 ? "team_reservation_cancel" : "team_reservation_update");
+    Promise.allSettled([
+      db.collection("operationLogs").add({
+        type: logType,
+        typeName: "俱樂部席位",
+        content: `${result.teamName} 俱樂部席位 ${beforeSlots} → ${afterSlots}，已使用 ${result.after.usedSlots || 0}，剩餘 ${result.after.remainingSlots || 0}`,
+        operator: callerName,
+        actorUid: callerUid,
+        eventId: safeEventId,
+        teamId: result.teamId,
+        teamName: result.teamName,
+        beforeReservedSlots: beforeSlots,
+        afterReservedSlots: afterSlots,
+        usedSlots: result.after.usedSlots || 0,
+        remainingSlots: result.after.remainingSlots || 0,
+        promotedCount: result.promoted.length,
+        time: timeStr,
+        createdAt: FieldValue.serverTimestamp(),
+      }),
+    ]).catch((err) => console.error("[adjustTeamReservation postOps]", err));
+
+    return {
+      success: true,
+      event: result.event,
+      teamReservation: result.after,
+      promoted: result.promoted,
+    };
+  }
+);
 
 const USAGE_PROJECT_ID = "fc-football-6c8dc";
 

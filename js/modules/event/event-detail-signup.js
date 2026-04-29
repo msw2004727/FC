@@ -108,6 +108,163 @@ Object.assign(App, {
     }
   },
 
+  _getTeamReservationStaffTeams(e) {
+    const user = ApiService.getCurrentUser?.() || null;
+    if (!user?.uid) return [];
+    const teams = ApiService.getTeams?.() || [];
+    return teams.filter(t => t?.id && this._isCurrentUserTeamStaff?.(t.id));
+  },
+
+  _getTeamReservationSummary(e, teamId) {
+    const summaries = (typeof FirebaseService !== 'undefined' && FirebaseService._normalizeTeamReservationSummaries)
+      ? FirebaseService._normalizeTeamReservationSummaries(e)
+      : (Array.isArray(e?.teamReservationSummaries) ? e.teamReservationSummaries : []);
+    return summaries.find(item => String(item.teamId || '') === String(teamId || '')) || null;
+  },
+
+  _renderTeamReservationActionButton(e, opts = {}) {
+    if (!e || opts.regsLoading || opts.isGuestView || opts.isEnded || opts.isUpcoming || opts.teamBlocked) return '';
+    const teams = this._getTeamReservationStaffTeams(e);
+    if (!teams.length) return '';
+    const active = teams.find(t => {
+      const summary = this._getTeamReservationSummary(e, t.id);
+      return summary && (Number(summary.reservedSlots || 0) > 0 || Number(summary.usedSlots || 0) > 0);
+    });
+    const label = active ? '調整名額' : '團隊報名';
+    const bg = active ? '#0f766e' : '#2563eb';
+    const glow = active ? '#14b8a6' : '#60a5fa';
+    const hint = active ? '調整團隊名額中' : '建立團隊名額中';
+    const onclick = `App.openTeamReservationModal('${escapeHTML(e.id)}'${active ? `,'${escapeHTML(active.id)}'` : ''})`;
+    return '<div class="signup-glow-wrap team-reservation-action" style="--glow-c:' + bg + ';--glow-c-light:' + glow + '">'
+      + '<div class="signup-glow-border"></div><div class="signup-glow-shadow"></div>'
+      + '<div class="signup-flipper"><button style="background:' + bg + ';color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="' + onclick + '">' + label + '</button></div>'
+      + '<div class="signup-loading-hint"><div class="mini-spinner"></div><span class="mini-text">' + hint + '</span></div></div>';
+  },
+
+  _composeEventSignupActions(e, personalHtml, opts = {}) {
+    const teamHtml = this._renderTeamReservationActionButton(e, opts);
+    if (!teamHtml) return personalHtml;
+    return '<div class="event-signup-action-row" style="display:flex;gap:.55rem;align-items:center;justify-content:center;flex-wrap:wrap">'
+      + '<div class="event-signup-personal-action">' + (personalHtml || '') + '</div>'
+      + '<div class="event-signup-team-action">' + teamHtml + '</div>'
+      + '</div>';
+  },
+
+  _getTeamReservationModalState(eventId, preferredTeamId) {
+    const e = ApiService.getEvent(eventId);
+    const teams = this._getTeamReservationStaffTeams(e);
+    if (!e || teams.length === 0) return null;
+    const selectedTeam = teams.find(t => String(t.id) === String(preferredTeamId || '')) || teams[0];
+    const summary = this._getTeamReservationSummary(e, selectedTeam.id) || {
+      teamId: selectedTeam.id,
+      teamName: selectedTeam.name || selectedTeam.teamName || selectedTeam.id,
+      reservedSlots: 0,
+      usedSlots: 0,
+      remainingSlots: 0,
+    };
+    const current = Math.max(0, Number(e.current || 0) || 0);
+    const max = Math.max(0, Number(e.max || 0) || 0);
+    const used = Math.max(0, Number(summary.usedSlots || 0) || 0);
+    const remaining = Math.max(0, Number(summary.remainingSlots || 0) || 0);
+    const maxReserved = used + Math.max(0, max - Math.max(0, current - remaining));
+    return { event: e, teams, selectedTeam, summary, used, remaining, maxReserved };
+  },
+
+  openTeamReservationModal(eventId, preferredTeamId) {
+    if (this._requireProtectedActionLogin({ type: 'teamReservation', eventId }, { suppressToast: true })) return;
+    const state = this._getTeamReservationModalState(eventId, preferredTeamId);
+    if (!state) {
+      this.showToast('只有俱樂部職員可以建立團隊名額');
+      return;
+    }
+    const storageKey = 'teamReservationSlots:' + state.selectedTeam.id;
+    const savedSlots = Number(localStorage.getItem(storageKey) || 0);
+    const initialSlots = Number(state.summary.reservedSlots || 0) || (Number.isFinite(savedSlots) && savedSlots > 0 ? savedSlots : state.used);
+    let modal = document.getElementById('team-reservation-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'team-reservation-modal';
+      modal.className = 'modal';
+      document.body.appendChild(modal);
+    }
+    const teamOptions = state.teams.map(t => {
+      const selected = String(t.id) === String(state.selectedTeam.id) ? ' selected' : '';
+      return `<option value="${escapeHTML(t.id)}"${selected}>${escapeHTML(t.name || t.teamName || t.id)}</option>`;
+    }).join('');
+    modal.innerHTML = `
+      <div class="modal-content" style="max-width:420px">
+        <div class="modal-header">
+          <h3>團隊報名</h3>
+          <button class="close-btn" onclick="App.closeTeamReservationModal()">×</button>
+        </div>
+        <div style="font-size:.8rem;color:var(--text-muted);line-height:1.6;margin-bottom:.7rem">
+          團隊名額不包含你本人；如果你也要參加，請再點「個人報名」。
+        </div>
+        <label style="font-size:.78rem;font-weight:600;color:var(--text-secondary)">俱樂部</label>
+        <select id="team-reservation-team-select" style="width:100%;margin:.25rem 0 .75rem;padding:.55rem;border:1px solid var(--border);border-radius:var(--radius-sm)" onchange="App.openTeamReservationModal('${escapeHTML(eventId)}', this.value)">
+          ${teamOptions}
+        </select>
+        <label style="font-size:.78rem;font-weight:600;color:var(--text-secondary)">團隊名額</label>
+        <input id="team-reservation-slots-input" type="number" min="${state.used}" max="${state.maxReserved}" value="${initialSlots}" inputmode="numeric" style="width:100%;margin:.25rem 0 .45rem;padding:.55rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:1rem">
+        <div style="font-size:.76rem;color:var(--text-muted);line-height:1.65;margin-bottom:.8rem">
+          此人數佔位僅於相同俱樂部成員報名時適用。<br>
+          已被俱樂部成員使用：${state.used}　剩餘佔位：${state.remaining}<br>
+          可調整範圍：${state.used} - ${state.maxReserved}
+        </div>
+        <div style="display:flex;gap:.5rem;justify-content:flex-end">
+          <button class="outline-btn" onclick="App.closeTeamReservationModal()">取消</button>
+          <button class="primary-btn" id="team-reservation-confirm-btn" onclick="App.confirmTeamReservation('${escapeHTML(eventId)}','${escapeHTML(state.selectedTeam.id)}')">確認</button>
+        </div>
+      </div>`;
+    modal.classList.add('open');
+  },
+
+  closeTeamReservationModal() {
+    const modal = document.getElementById('team-reservation-modal');
+    if (modal) modal.classList.remove('open');
+  },
+
+  async confirmTeamReservation(eventId, teamId) {
+    const input = document.getElementById('team-reservation-slots-input');
+    const btn = document.getElementById('team-reservation-confirm-btn');
+    const slots = Math.max(0, Math.trunc(Number(input?.value || 0) || 0));
+    const state = this._getTeamReservationModalState(eventId, teamId);
+    if (!state) return;
+    if (slots < state.used) {
+      this.showToast('團隊名額不能低於已使用人數');
+      return;
+    }
+    if (slots > state.maxReserved) {
+      this.showToast('團隊名額超過目前活動可用名額');
+      return;
+    }
+    try {
+      if (btn) { btn.disabled = true; btn.textContent = '處理中...'; }
+      localStorage.setItem('teamReservationSlots:' + teamId, String(slots));
+      const data = await FirebaseService.adjustTeamReservation(eventId, teamId, slots);
+      if (data?.deduplicated) {
+        this.showToast('團隊名額處理中，請稍候');
+        return;
+      }
+      this.closeTeamReservationModal();
+      this.showToast(slots > 0 ? '已更新團隊名額' : '已取消團隊名額');
+      this._patchDetailAfterSignup?.(eventId);
+    } catch (err) {
+      console.error('[confirmTeamReservation]', err);
+      const code = err?.details || err?.message || '';
+      const msgMap = {
+        RESERVED_BELOW_USED: '團隊名額不能低於已使用人數',
+        RESERVED_OVER_CAPACITY: '團隊名額超過目前活動可用名額',
+        PERMISSION_DENIED: '你沒有調整此俱樂部名額的權限',
+        EVENT_ENDED: '活動已開始，無法調整名額',
+        EVENT_CANCELLED: '活動已取消，無法調整名額',
+      };
+      this.showToast(msgMap[code] || err.message || '團隊名額調整失敗');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '確認'; }
+    }
+  },
+
   async handleSignup(id) {
     if (this._requireProtectedActionLogin({ type: 'eventSignup', eventId: id }, { suppressToast: true })) {
       return;
@@ -239,9 +396,13 @@ Object.assign(App, {
         // 樂觀更新本地快取（onSnapshot 到來時會以 Firestore 為準覆蓋）
         if (data.event && e) {
           e.current = data.event.current;
+          e.realCurrent = data.event.realCurrent;
           e.waitlist = data.event.waitlist;
           e.participants = data.event.participants;
           e.waitlistNames = data.event.waitlistNames;
+          e.participantsWithUid = data.event.participantsWithUid;
+          e.waitlistWithUid = data.event.waitlistWithUid;
+          e.teamReservationSummaries = data.event.teamReservationSummaries || [];
           e.status = data.event.status;
           FirebaseService._saveToLS?.('events', FirebaseService._cache?.events);
         }
@@ -251,6 +412,9 @@ Object.assign(App, {
           _regCache.push({
             eventId: id, userId: userId, userName: userName,
             status: inferredStatus, participantType: 'self',
+            teamReservationTeamId: selfReg?.teamReservationTeamId || null,
+            teamReservationTeamName: selfReg?.teamReservationTeamName || null,
+            teamSeatSource: selfReg?.teamSeatSource || null,
             registeredAt: new Date().toISOString(),
             _docId: selfReg?._docId || selfReg?.id || ('reg_optimistic_' + Date.now()),
           });
@@ -542,9 +706,13 @@ Object.assign(App, {
           reg.cancelledAt = new Date().toISOString();
           if (data.event && e0) {
             e0.current = data.event.current;
+            e0.realCurrent = data.event.realCurrent;
             e0.waitlist = data.event.waitlist;
             e0.participants = data.event.participants;
             e0.waitlistNames = data.event.waitlistNames;
+            e0.participantsWithUid = data.event.participantsWithUid;
+            e0.waitlistWithUid = data.event.waitlistWithUid;
+            e0.teamReservationSummaries = data.event.teamReservationSummaries || [];
             e0.status = data.event.status;
           }
           FirebaseService._saveToLS?.('registrations', FirebaseService._cache?.registrations);
@@ -765,6 +933,13 @@ Object.assign(App, {
       html = _gw(_btn('#7c3aed', '報名候補', "App.handleSignup('" + eventId + "')"), '#7c3aed', '#a78bfa', '報名候補中');
     } else {
       html = _gw('<button class="primary-btn" onclick="App.handleSignup(\'' + eventId + '\')">立即報名</button>', 'var(--accent)', 'var(--accent-hover)', '報名中');
+    }
+    if (typeof this._composeEventSignupActions === 'function') {
+      html = this._composeEventSignupActions(e, html, {
+        isEnded,
+        isUpcoming,
+        teamBlocked,
+      });
     }
     actionZone.innerHTML = html;
   },

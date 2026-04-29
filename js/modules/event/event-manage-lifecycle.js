@@ -315,9 +315,13 @@ Object.assign(App, {
         reg.removedAt = new Date().toISOString();
         if (data.event && event) {
           event.current = data.event.current;
+          event.realCurrent = data.event.realCurrent;
           event.waitlist = data.event.waitlist;
           event.participants = data.event.participants;
           event.waitlistNames = data.event.waitlistNames;
+          event.participantsWithUid = data.event.participantsWithUid;
+          event.waitlistWithUid = data.event.waitlistWithUid;
+          event.teamReservationSummaries = data.event.teamReservationSummaries || [];
           event.status = data.event.status;
         }
         FirebaseService._saveToLS?.('registrations', FirebaseService._cache?.registrations);
@@ -436,10 +440,13 @@ Object.assign(App, {
         });
         if (event._docId && occupancy) {
           batch.update(db.collection('events').doc(event._docId), {
-            current: occupancy.current, waitlist: occupancy.waitlist,
+            current: occupancy.current,
+            realCurrent: occupancy.realCurrent,
+            waitlist: occupancy.waitlist,
             participants: occupancy.participants, waitlistNames: occupancy.waitlistNames,
             participantsWithUid: occupancy.participantsWithUid,
             waitlistWithUid: occupancy.waitlistWithUid,
+            teamReservationSummaries: occupancy.teamReservationSummaries,
             schemaVersion: 2,
             status: occupancy.status,
           });

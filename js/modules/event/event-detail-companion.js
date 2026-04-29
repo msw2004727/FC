@@ -207,9 +207,13 @@ Object.assign(App, {
         // 樂觀更新本地快取
         if (data.event && e) {
           e.current = data.event.current;
+          e.realCurrent = data.event.realCurrent;
           e.waitlist = data.event.waitlist;
           e.participants = data.event.participants;
           e.waitlistNames = data.event.waitlistNames;
+          e.participantsWithUid = data.event.participantsWithUid;
+          e.waitlistWithUid = data.event.waitlistWithUid;
+          e.teamReservationSummaries = data.event.teamReservationSummaries || [];
           e.status = data.event.status;
           FirebaseService._saveToLS?.('events', FirebaseService._cache?.events);
         }
@@ -364,9 +368,13 @@ Object.assign(App, {
             const e = ApiService.getEvent(eventId);
             if (e) {
               e.current = data.event.current;
+              e.realCurrent = data.event.realCurrent;
               e.waitlist = data.event.waitlist;
               e.participants = data.event.participants;
               e.waitlistNames = data.event.waitlistNames;
+              e.participantsWithUid = data.event.participantsWithUid;
+              e.waitlistWithUid = data.event.waitlistWithUid;
+              e.teamReservationSummaries = data.event.teamReservationSummaries || [];
               e.status = data.event.status;
             }
           }

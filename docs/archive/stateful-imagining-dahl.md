@@ -310,6 +310,7 @@ commit + push。
 | `cancelCompanionRegistrations` | `firebase-crud.js:2113` | 同 `cancelRegistration` 模式（registrations :2234,:2253）；B' 階段新增 activityRecords 子集合 query + update（候補遞補 waitlisted → registered 同步） |
 | CF `registerForEvent` | `functions/index.js:4441` | transaction 中雙寫：registrations(:4500) + **activityRecords(:4692)** |
 | CF `cancelRegistration` | `functions/index.js:4798` | transaction 中雙寫：registrations(:4916,:4946) + **activityRecords(:4966,:4975)** |
+| CF `adjustTeamReservation` | `functions/index.js:6624` | transaction 中讀寫活動子集合：registrations（讀取、席位標記、同俱樂部候補轉正）+ activityRecords（同俱樂部候補轉正同步 waitlisted → registered） |
 
 > **Phase 1 原則**：全域路徑為主（primary），子集合為副（secondary）。Transaction 內的查詢仍走全域集合，僅寫入時雙寫。
 

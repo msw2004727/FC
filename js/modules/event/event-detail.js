@@ -451,6 +451,16 @@ Object.assign(App, {
       signupBtn = _glowWrap(`<button class="primary-btn" onclick="App.handleSignup('${e.id}')">立即報名</button>`, 'var(--accent)', 'var(--accent-hover)', '報名中');
     }
 
+    if (!isGuestView && typeof this._composeEventSignupActions === 'function') {
+      signupBtn = this._composeEventSignupActions(e, signupBtn, {
+        isGuestView,
+        isEnded,
+        isUpcoming,
+        regsLoading,
+        teamBlocked: e.teamOnly && !canTeamOnlySignup,
+      });
+    }
+
     const teamNameLink = e.creatorTeamId
       ? `<a href="javascript:void(0)" onclick="App.showTeamDetail('${e.creatorTeamId}')" style="color:inherit;text-decoration:underline;text-underline-offset:2px">${escapeHTML(e.creatorTeamName || '俱樂部')}</a>`
       : escapeHTML(e.creatorTeamName || '俱樂部');
@@ -976,8 +986,8 @@ Object.assign(App, {
     });
 
     // 從 Firestore 查詢操作日誌：只用 eventId 精確查（不再 fallback 到 title 模糊比對，避免撈到其他場次）
-    var _opLogActions = { 'force_promote': 'promote', 'auto_promote': 'promote', 'force_demote': 'demote', 'capacity_demote': 'demote' };
-    var _opLogLabels = { 'force_promote': '\u624b\u52d5\u6b63\u53d6', 'auto_promote': '\u81ea\u52d5\u905e\u88dc', 'force_demote': '\u4e0b\u653e\u5019\u88dc', 'capacity_demote': '\u5bb9\u91cf\u964d\u7d1a' };
+    var _opLogActions = { 'force_promote': 'promote', 'auto_promote': 'promote', 'force_demote': 'demote', 'capacity_demote': 'demote', 'team_reservation_create': 'team', 'team_reservation_update': 'team', 'team_reservation_cancel': 'team' };
+    var _opLogLabels = { 'force_promote': '\u624b\u52d5\u6b63\u53d6', 'auto_promote': '\u81ea\u52d5\u905e\u88dc', 'force_demote': '\u4e0b\u653e\u5019\u88dc', 'capacity_demote': '\u5bb9\u91cf\u964d\u7d1a', 'team_reservation_create': '\u5efa\u7acb\u5e2d\u4f4d', 'team_reservation_update': '\u8abf\u6574\u5e2d\u4f4d', 'team_reservation_cancel': '\u53d6\u6d88\u5e2d\u4f4d' };
     var _addOpLogEntries = function(snap) {
       snap.forEach(function(doc) {
         var log = doc.data();
@@ -1017,7 +1027,7 @@ Object.assign(App, {
       body.innerHTML = entries.map(function(e) {
         var d = new Date(e.ms);
         var timeStr = String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-        var actionCls = e.action === 'cancel' ? 'cancel' : e.action === 'promote' ? 'promote' : e.action === 'demote' ? 'demote' : 'reg';
+        var actionCls = e.action === 'cancel' ? 'cancel' : e.action === 'promote' ? 'promote' : e.action === 'demote' ? 'demote' : e.action === 'team' ? 'promote' : 'reg';
         var actionLabel = e.label || (e.action === 'cancel' ? '\u53d6\u6d88' : '\u5831\u540d');
         return '<div class="event-reg-log-item">' +
           '<span class="event-reg-log-time">' + timeStr + '</span>' +

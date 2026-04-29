@@ -665,6 +665,169 @@ Object.assign(FirebaseService, {
     ).length;
   },
 
+  _normalizeTeamReservationSummaries(eventOrSummaries = {}) {
+    const raw = Array.isArray(eventOrSummaries)
+      ? eventOrSummaries
+      : (Array.isArray(eventOrSummaries?.teamReservationSummaries) ? eventOrSummaries.teamReservationSummaries : []);
+    const seen = new Set();
+    return raw.map(item => {
+      const teamId = String(item?.teamId || item?.id || '').trim();
+      if (!teamId || seen.has(teamId)) return null;
+      seen.add(teamId);
+      const reservedSlotsRaw = Number(item?.reservedSlots || item?.slots || 0);
+      const reservedSlots = Number.isFinite(reservedSlotsRaw) ? Math.max(0, Math.trunc(reservedSlotsRaw)) : 0;
+      const usedSlotsRaw = Number(item?.usedSlots || 0);
+      const usedSlots = Number.isFinite(usedSlotsRaw) ? Math.max(0, Math.trunc(usedSlotsRaw)) : 0;
+      return {
+        teamId,
+        teamName: String(item?.teamName || item?.name || teamId).trim(),
+        reservedSlots,
+        usedSlots,
+        remainingSlots: Math.max(0, reservedSlots - usedSlots),
+        occupiedSlots: Math.max(reservedSlots, usedSlots),
+        updatedAt: item?.updatedAt || null,
+        updatedByUid: item?.updatedByUid || null,
+        updatedByName: item?.updatedByName || null,
+      };
+    }).filter(Boolean);
+  },
+
+  _getRegistrationTeamReservationTeamId(reg = {}) {
+    return String(reg.teamReservationTeamId || reg.teamReservationId || '').trim();
+  },
+
+  _getUserTeamIdSetForReservation(userData = {}) {
+    const ids = new Set();
+    const add = (value) => {
+      const safeValue = String(value || '').trim();
+      if (safeValue) ids.add(safeValue);
+    };
+    if (typeof App !== 'undefined' && typeof App._getUserTeamIds === 'function') {
+      App._getUserTeamIds(userData).forEach(add);
+    }
+    if (Array.isArray(userData.teamIds)) userData.teamIds.forEach(add);
+    add(userData.teamId);
+    const uid = String(userData.uid || userData.lineUserId || userData._docId || '').trim();
+    const name = String(userData.name || userData.displayName || '').trim();
+    const users = (typeof ApiService !== 'undefined' && ApiService.getAdminUsers) ? (ApiService.getAdminUsers() || []) : [];
+    const match = users.find(u =>
+      (uid && (u.uid === uid || u.lineUserId === uid || u._docId === uid)) ||
+      (name && (u.name === name || u.displayName === name))
+    );
+    if (match) {
+      if (Array.isArray(match.teamIds)) match.teamIds.forEach(add);
+      add(match.teamId);
+    }
+    return ids;
+  },
+
+  _findTeamReservationForUser(eventData = {}, userData = {}) {
+    const userTeamIds = this._getUserTeamIdSetForReservation(userData);
+    if (!userTeamIds.size) return null;
+    const summaries = this._normalizeTeamReservationSummaries(eventData)
+      .filter(item => item.reservedSlots > 0 || item.usedSlots > 0);
+    return summaries.find(item => userTeamIds.has(item.teamId)) || null;
+  },
+
+  _applyTeamReservationFields(registration, reservation, source) {
+    if (!registration || !reservation) return registration;
+    registration.teamReservationTeamId = reservation.teamId;
+    registration.teamReservationTeamName = reservation.teamName || reservation.teamId;
+    registration.teamSeatSource = source || 'reserved';
+    return registration;
+  },
+
+  _decideRegistrationSeat(eventData, activeRegs, registration, userData = {}) {
+    const maxCount = Math.max(0, Number(eventData?.max || 0) || 0);
+    const reservation = registration?.participantType === 'companion'
+      ? null
+      : this._findTeamReservationForUser(eventData, userData);
+    const occupancyBefore = this._rebuildOccupancy(eventData, activeRegs || []);
+    let status = 'waitlisted';
+    let source = null;
+
+    if (reservation) {
+      const summary = (occupancyBefore.teamReservationSummaries || []).find(item => item.teamId === reservation.teamId) || reservation;
+      const usedSlots = Math.max(0, Number(summary.usedSlots || 0) || 0);
+      const reservedSlots = Math.max(0, Number(summary.reservedSlots || 0) || 0);
+      if (usedSlots < reservedSlots) {
+        status = 'confirmed';
+        source = 'reserved';
+      } else if (occupancyBefore.current < maxCount) {
+        status = 'confirmed';
+        source = 'overflow';
+      } else {
+        source = 'waitlist';
+      }
+      this._applyTeamReservationFields(registration, reservation, source);
+    } else if (occupancyBefore.current < maxCount) {
+      status = 'confirmed';
+    }
+
+    registration.status = status;
+    return { status, reservation, source, occupancyBefore };
+  },
+
+  _sortWaitlistCandidates(regs = []) {
+    const _sortTime = (r) => {
+      const v = r && r.registeredAt;
+      if (!v) return Number.POSITIVE_INFINITY;
+      if (typeof v.toMillis === 'function') { try { return v.toMillis(); } catch (_e) {} }
+      if (typeof v === 'object' && typeof v.seconds === 'number')
+        return (v.seconds * 1000) + Math.floor((v.nanoseconds || 0) / 1000000);
+      const t = new Date(v).getTime();
+      return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
+    };
+    return (Array.isArray(regs) ? regs : []).slice().sort((a, b) => {
+      const ta = _sortTime(a), tb = _sortTime(b);
+      if (ta !== tb) return ta - tb;
+      const pa = Number(a.promotionOrder || 0), pb = Number(b.promotionOrder || 0);
+      if (pa !== pb) return pa - pb;
+      return String(a._docId || a.id || '').localeCompare(String(b._docId || b.id || ''));
+    });
+  },
+
+  _promoteWaitlistForAvailableSeats(eventData, simRegs = []) {
+    const promoted = [];
+    const maxCount = Math.max(0, Number(eventData?.max || 0) || 0);
+
+    while (true) {
+      const activeRegs = simRegs.filter(r => r.status === 'confirmed' || r.status === 'waitlisted');
+      const occupancy = this._rebuildOccupancy(eventData, activeRegs);
+      const summaries = occupancy.teamReservationSummaries || [];
+      const waitlisted = this._sortWaitlistCandidates(activeRegs.filter(r => r.status === 'waitlisted'));
+      let candidateToPromote = null;
+      let source = null;
+
+      for (const candidate of waitlisted) {
+        const teamId = this._getRegistrationTeamReservationTeamId(candidate);
+        if (!teamId) continue;
+        const summary = summaries.find(item => item.teamId === teamId);
+        if (summary && Number(summary.remainingSlots || 0) > 0) {
+          candidateToPromote = candidate;
+          source = 'reserved';
+          break;
+        }
+      }
+
+      if (!candidateToPromote && occupancy.current < maxCount) {
+        candidateToPromote = waitlisted[0] || null;
+        if (candidateToPromote && this._getRegistrationTeamReservationTeamId(candidateToPromote)) {
+          source = 'overflow';
+        }
+      }
+
+      if (!candidateToPromote) break;
+      candidateToPromote.status = 'confirmed';
+      if (source && this._getRegistrationTeamReservationTeamId(candidateToPromote)) {
+        candidateToPromote.teamSeatSource = source;
+      }
+      promoted.push(candidateToPromote);
+    }
+
+    return promoted;
+  },
+
   _rebuildOccupancy(event, registrations) {
     // 去重：同一 (userId, participantType, companionId) 只保留最早報名的那筆
     const confirmed = this._dedupeRegistrations(registrations.filter(r => r.status === 'confirmed'));
@@ -703,6 +866,26 @@ Object.assign(FirebaseService, {
     // ⚠️ 雙端同步：此函式與 functions/index.js rebuildOccupancy 必須邏輯一致
     //    修改任一端時必須手動 review 另一端
     //    Phase 1（2026-04-19）新增 participantsWithUid / waitlistWithUid 擴充回傳
+    const teamReservations = this._normalizeTeamReservationSummaries(event);
+    const reservationByTeamId = new Map(teamReservations.map(item => [item.teamId, item]));
+    const usedSlotsByTeamId = new Map();
+    confirmed.forEach(r => {
+      const teamId = this._getRegistrationTeamReservationTeamId(r);
+      if (!teamId || !reservationByTeamId.has(teamId)) return;
+      usedSlotsByTeamId.set(teamId, (usedSlotsByTeamId.get(teamId) || 0) + 1);
+    });
+    const teamReservationSummaries = teamReservations.map(item => {
+      const usedSlots = usedSlotsByTeamId.get(item.teamId) || 0;
+      const reservedSlots = Math.max(0, Number(item.reservedSlots || 0) || 0);
+      return {
+        ...item,
+        reservedSlots,
+        usedSlots,
+        remainingSlots: Math.max(0, reservedSlots - usedSlots),
+        occupiedSlots: Math.max(reservedSlots, usedSlots),
+      };
+    }).filter(item => item.reservedSlots > 0 || item.usedSlots > 0);
+
     const _buildWuEntry = (r) => {
       const isComp = r.participantType === 'companion';
       const uid = isComp
@@ -711,13 +894,26 @@ Object.assign(FirebaseService, {
       const name = isComp
         ? String(r.companionName || r.userName || '').trim()
         : String(r.userName || '').trim();
-      return { uid, name, teamKey: r.teamKey || null };
+      const teamReservationTeamId = this._getRegistrationTeamReservationTeamId(r);
+      const teamReservation = teamReservationTeamId ? reservationByTeamId.get(teamReservationTeamId) : null;
+      return {
+        uid,
+        name,
+        teamKey: r.teamKey || null,
+        teamReservationTeamId: teamReservationTeamId || null,
+        teamReservationTeamName: r.teamReservationTeamName || teamReservation?.teamName || null,
+        teamSeatSource: r.teamSeatSource || null,
+      };
     };
     const _isValidWu = (x) => x.uid && x.name && !x.uid.endsWith('_');
     const participantsWithUid = confirmed.map(_buildWuEntry).filter(_isValidWu);
     const waitlistWithUid = waitlisted.map(_buildWuEntry).filter(_isValidWu);
 
-    const current = participants.length;
+    const realCurrent = participants.length;
+    const current = realCurrent + teamReservationSummaries.reduce(
+      (sum, item) => sum + Math.max(0, Number(item.remainingSlots || 0) || 0),
+      0
+    );
     const waitlist = waitlistNames.length;
 
     // status: ended/cancelled 不變；current >= max → full；否則 → open
@@ -727,8 +923,8 @@ Object.assign(FirebaseService, {
     }
 
     return {
-      participants, waitlistNames, current, waitlist, status,
-      participantsWithUid, waitlistWithUid,
+      participants, waitlistNames, current, realCurrent, waitlist, status,
+      participantsWithUid, waitlistWithUid, teamReservationSummaries,
     };
   },
 
@@ -741,8 +937,10 @@ Object.assign(FirebaseService, {
     event.participantsWithUid = occupancy.participantsWithUid;
     event.waitlistWithUid = occupancy.waitlistWithUid;
     event.current = occupancy.current;
+    event.realCurrent = occupancy.realCurrent;
     event.waitlist = occupancy.waitlist;
     event.status = occupancy.status;
+    event.teamReservationSummaries = occupancy.teamReservationSummaries || [];
   },
 
   _getEventOccupancyState(eventData = {}) {
@@ -974,11 +1172,16 @@ Object.assign(FirebaseService, {
         r => r.status !== 'cancelled' && r.status !== 'removed'
       );
 
-      const confirmedCount = this._countUniqueConfirmedRegistrations(firestoreActiveRegs);
-
-      const isWaitlist = confirmedCount >= maxCount;
-      const status = isWaitlist ? 'waitlisted' : 'confirmed';
-      registration.status = status;
+      const currentUserData = (typeof ApiService !== 'undefined' && ApiService.getCurrentUser)
+        ? (ApiService.getCurrentUser() || {})
+        : { uid: userId };
+      const seatDecision = this._decideRegistrationSeat(
+        { ...ed, id: eventId, max: maxCount },
+        firestoreActiveRegs,
+        registration,
+        currentUserData
+      );
+      const status = seatDecision.status;
 
       // team-split: 解析 teamKey（random 模式在此分配）
       let resolvedTeamKey = teamKey;
@@ -1007,15 +1210,17 @@ Object.assign(FirebaseService, {
 
       // 用 Firestore 真實資料 + 新報名重建投影
       const allRegsForRebuild = [...firestoreActiveRegs, registration];
-      const occupancy = this._rebuildOccupancy({ max: maxCount, status: ed.status }, allRegsForRebuild);
+      const occupancy = this._rebuildOccupancy({ ...ed, max: maxCount, status: ed.status }, allRegsForRebuild);
 
       transaction.update(eventRef, {
         current: occupancy.current,
+        realCurrent: occupancy.realCurrent,
         waitlist: occupancy.waitlist,
         participants: occupancy.participants,
         waitlistNames: occupancy.waitlistNames,
         participantsWithUid: occupancy.participantsWithUid,
         waitlistWithUid: occupancy.waitlistWithUid,
+        teamReservationSummaries: occupancy.teamReservationSummaries,
         schemaVersion: 2,
         status: occupancy.status,
       });
@@ -1098,31 +1303,8 @@ Object.assign(FirebaseService, {
     let occupancy = null;
     if (event) {
       // 候補遞補：若取消的是正取，依序將 waitlisted 改 confirmed 直到滿額
-      if (wasPreviouslyConfirmed && event.max) {
-        const activeRegs = simRegs.filter(
-          r => r.status === 'confirmed' || r.status === 'waitlisted'
-        );
-        const confirmedCount = this._countUniqueConfirmedRegistrations(activeRegs);
-        const slotsAvailable = event.max - confirmedCount;
-
-        if (slotsAvailable > 0) {
-          const waitlistedCandidates = activeRegs
-            .filter(r => r.status === 'waitlisted')
-            .sort((a, b) => {
-              const ta = new Date(a.registeredAt).getTime();
-              const tb = new Date(b.registeredAt).getTime();
-              if (ta !== tb) return ta - tb;
-              return (a.promotionOrder || 0) - (b.promotionOrder || 0);
-            });
-
-          let promoted = 0;
-          for (const candidate of waitlistedCandidates) {
-            if (promoted >= slotsAvailable) break;
-            candidate.status = 'confirmed';
-            promotedCandidates.push(candidate);
-            promoted++;
-          }
-        }
+      if (wasPreviouslyConfirmed) {
+        promotedCandidates.push(...this._promoteWaitlistForAvailableSeats(event, simRegs));
       }
 
       // 用模擬結果重建投影（不寫入快取）
@@ -1165,6 +1347,7 @@ Object.assign(FirebaseService, {
     for (const candidate of promotedCandidates) {
       if (candidate._docId) {
         const promoUpdate = { status: 'confirmed' };
+        if (candidate.teamSeatSource) promoUpdate.teamSeatSource = candidate.teamSeatSource;
         // team-split: 遞補時分配隊伍
         if (event?.teamSplit?.enabled && typeof App !== 'undefined' && App._assignTeamKeyForPromotion) {
           const assignedKey = App._assignTeamKeyForPromotion(event, simRegs, candidate);
@@ -1203,11 +1386,13 @@ Object.assign(FirebaseService, {
     if (event && event._docId && occupancy) {
       batch.update(db.collection('events').doc(event._docId), {
         current: occupancy.current,
+        realCurrent: occupancy.realCurrent,
         waitlist: occupancy.waitlist,
         participants: occupancy.participants,
         waitlistNames: occupancy.waitlistNames,
         participantsWithUid: occupancy.participantsWithUid,
         waitlistWithUid: occupancy.waitlistWithUid,
+        teamReservationSummaries: occupancy.teamReservationSummaries,
         schemaVersion: 2,
         status: occupancy.status,
       });
@@ -1224,7 +1409,10 @@ Object.assign(FirebaseService, {
     // 同步候補遞補到本地快取
     for (const candidate of promotedCandidates) {
       const localCandidate = this._cache.registrations.find(r => r.id === candidate.id);
-      if (localCandidate) localCandidate.status = 'confirmed';
+      if (localCandidate) {
+        localCandidate.status = 'confirmed';
+        if (candidate.teamSeatSource) localCandidate.teamSeatSource = candidate.teamSeatSource;
+      }
     }
 
     // 同步 activityRecord.status 到本地快取（Bug #A 修復）
@@ -2273,6 +2461,57 @@ Object.assign(FirebaseService, {
     await db.collection('errorLogs').doc(docId).delete();
   },
 
+  async adjustTeamReservation(eventId, teamId, reservedSlots) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) {
+      throw new Error('Firebase 登入尚未完成，請稍候再試');
+    }
+    const safeSlots = Math.max(0, Math.trunc(Number(reservedSlots || 0) || 0));
+    const callable = firebase.app().functions('asia-east1').httpsCallable('adjustTeamReservation');
+    const result = await callable({
+      eventId,
+      teamId,
+      reservedSlots: safeSlots,
+      requestId: `team_res_${auth.currentUser?.uid || 'user'}_${eventId}_${teamId}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+    });
+    const data = result.data || {};
+    const event = this._cache.events.find(e => e.id === eventId);
+    if (event && data.event) {
+      Object.assign(event, {
+        current: data.event.current,
+        realCurrent: data.event.realCurrent,
+        waitlist: data.event.waitlist,
+        participants: data.event.participants,
+        waitlistNames: data.event.waitlistNames,
+        participantsWithUid: data.event.participantsWithUid,
+        waitlistWithUid: data.event.waitlistWithUid,
+        teamReservationSummaries: data.event.teamReservationSummaries || [],
+        status: data.event.status,
+      });
+      this._saveToLS('events', this._cache.events);
+    }
+    if (Array.isArray(data.promoted) && data.promoted.length) {
+      data.promoted.forEach(item => {
+        const reg = this._cache.registrations.find(r =>
+          (item.docId && r._docId === item.docId) || (item.id && r.id === item.id)
+        );
+        if (reg) {
+          reg.status = 'confirmed';
+          if (item.teamSeatSource) reg.teamSeatSource = item.teamSeatSource;
+        }
+        if (Array.isArray(this._cache.activityRecords)) {
+          const ar = this._cache.activityRecords.find(a =>
+            a.eventId === eventId && a.uid === item.userId && a.status === 'waitlisted'
+          );
+          if (ar) ar.status = 'registered';
+        }
+      });
+      this._saveToLS('registrations', this._cache.registrations);
+      if (Array.isArray(this._cache.activityRecords)) this._saveToLS('activityRecords', this._cache.activityRecords);
+    }
+    return data;
+  },
+
   // ════════════════════════════════
   //  Companions（同行者）
   // ════════════════════════════════
@@ -2352,13 +2591,15 @@ Object.assign(FirebaseService, {
       const maxCount = ed.max || 0;
       const lockDocs = await Promise.all(regLockRefs.map(ref => transaction.get(ref)));
 
-      let confirmedCount = this._countUniqueConfirmedRegistrations(firestoreActiveRegs);
-
       const registrations = [];
       let confirmed = 0, waitlisted = 0;
       let refIdx = 0;
       let promotionIdx = 0;
       const plannedKeys = new Set(firestoreActiveRegs.map(r => this._getRegistrationUniqueKey(r)));
+      const plannedActiveRegs = firestoreActiveRegs.map(r => ({ ...r }));
+      const currentUserData = (typeof ApiService !== 'undefined' && ApiService.getCurrentUser)
+        ? (ApiService.getCurrentUser() || {})
+        : { uid: mainUserId };
 
       for (const entry of entries) {
         const entryType = entry.participantType || 'self';
@@ -2379,9 +2620,6 @@ Object.assign(FirebaseService, {
           continue;
         }
 
-        const isWaitlist = confirmedCount >= maxCount;
-        const status = isWaitlist ? 'waitlisted' : 'confirmed';
-
         const reg = {
           id: 'reg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
           eventId,
@@ -2390,10 +2628,17 @@ Object.assign(FirebaseService, {
           participantType: entryType,
           companionId: entry.companionId || null,
           companionName: entry.companionName || null,
-          status,
+          status: 'waitlisted',
           promotionOrder: promotionIdx,
           registeredAt: new Date().toISOString(),
         };
+        const seatDecision = this._decideRegistrationSeat(
+          { ...ed, id: eventId, max: maxCount },
+          plannedActiveRegs,
+          reg,
+          entryType === 'self' ? currentUserData : {}
+        );
+        const status = seatDecision.status;
         promotionIdx++;
 
         const docRef = regDocRefs[refIdx];
@@ -2412,10 +2657,10 @@ Object.assign(FirebaseService, {
         reg._docId = docRef.id;
         registrations.push(reg);
         plannedKeys.add(dupKey);
+        plannedActiveRegs.push(reg);
 
         if (status === 'confirmed') {
           confirmed++;
-          confirmedCount++;
         } else {
           waitlisted++;
         }
@@ -2424,15 +2669,17 @@ Object.assign(FirebaseService, {
 
       // 用 Firestore 真實資料 + 新報名重建投影
       const allRegsForRebuild = [...firestoreActiveRegs, ...registrations];
-      const occupancy = this._rebuildOccupancy({ max: maxCount, status: ed.status }, allRegsForRebuild);
+      const occupancy = this._rebuildOccupancy({ ...ed, max: maxCount, status: ed.status }, allRegsForRebuild);
 
       transaction.update(eventRef, {
         current: occupancy.current,
+        realCurrent: occupancy.realCurrent,
         waitlist: occupancy.waitlist,
         participants: occupancy.participants,
         waitlistNames: occupancy.waitlistNames,
         participantsWithUid: occupancy.participantsWithUid,
         waitlistWithUid: occupancy.waitlistWithUid,
+        teamReservationSummaries: occupancy.teamReservationSummaries,
         schemaVersion: 2,
         status: occupancy.status,
       });
@@ -2539,30 +2786,7 @@ Object.assign(FirebaseService, {
       const event = this._cache.events.find(e => e.id === eventId);
       if (!event) continue;
 
-      const activeRegs = simRegsByEvent[eventId].filter(
-        r => r.status === 'confirmed' || r.status === 'waitlisted'
-      );
-      const confirmedCount = this._countUniqueConfirmedRegistrations(activeRegs);
-      const slotsAvailable = (event.max || 0) - confirmedCount;
-
-      if (slotsAvailable > 0) {
-        const waitlistedCandidates = activeRegs
-          .filter(r => r.status === 'waitlisted')
-          .sort((a, b) => {
-            const ta = new Date(a.registeredAt).getTime();
-            const tb = new Date(b.registeredAt).getTime();
-            if (ta !== tb) return ta - tb;
-            return (a.promotionOrder || 0) - (b.promotionOrder || 0);
-          });
-
-        let promoted = 0;
-        for (const candidate of waitlistedCandidates) {
-          if (promoted >= slotsAvailable) break;
-          candidate.status = 'confirmed';
-          promotedCandidates.push(candidate);
-          promoted++;
-        }
-      }
+      promotedCandidates.push(...this._promoteWaitlistForAvailableSeats(event, simRegsByEvent[eventId]));
     }
 
     // 用模擬結果重建投影
@@ -2616,6 +2840,7 @@ Object.assign(FirebaseService, {
     for (const candidate of promotedCandidates) {
       if (candidate._docId) {
         const promoUpdate = { status: 'confirmed' };
+        if (candidate.teamSeatSource) promoUpdate.teamSeatSource = candidate.teamSeatSource;
         const candEvent = this._cache.events.find(e => e.id === candidate.eventId);
         if (candEvent?.teamSplit?.enabled && typeof App !== 'undefined' && App._assignTeamKeyForPromotion) {
           const simR = (simRegsByEvent?.[candidate.eventId] || []);
@@ -2659,10 +2884,13 @@ Object.assign(FirebaseService, {
       const occupancy = occupancyByEvent[eventId];
       if (event?._docId && occupancy) {
         batch.update(db.collection('events').doc(event._docId), {
-          current: occupancy.current, waitlist: occupancy.waitlist,
+          current: occupancy.current,
+          realCurrent: occupancy.realCurrent,
+          waitlist: occupancy.waitlist,
           participants: occupancy.participants, waitlistNames: occupancy.waitlistNames,
           participantsWithUid: occupancy.participantsWithUid,
           waitlistWithUid: occupancy.waitlistWithUid,
+          teamReservationSummaries: occupancy.teamReservationSummaries,
           schemaVersion: 2,
           status: occupancy.status,
         });
@@ -2682,7 +2910,10 @@ Object.assign(FirebaseService, {
     // 同步候補遞補到本地快取
     for (const candidate of promotedCandidates) {
       const localReg = this._cache.registrations.find(r => r.id === candidate.id);
-      if (localReg) localReg.status = 'confirmed';
+      if (localReg) {
+        localReg.status = 'confirmed';
+        if (candidate.teamSeatSource) localReg.teamSeatSource = candidate.teamSeatSource;
+      }
     }
 
     // 同步 activityRecord.status 到本地快取（Bug #B 修復）

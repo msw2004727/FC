@@ -110,37 +110,43 @@ Object.assign(App, {
 
     if (newMax > oldMax) {
       // ── 模擬先行：在副本上遞補，commit 成功後才寫入 live cache（Rule #10）──
-      const confirmedCount = (typeof FirebaseService !== 'undefined' && typeof FirebaseService._countUniqueConfirmedRegistrations === 'function')
-        ? FirebaseService._countUniqueConfirmedRegistrations(allRegs)
-        : allRegs.filter(r => r.status === 'confirmed').length;
-      let slotsAvailable = newMax - confirmedCount;
-      if (slotsAvailable <= 0) return;
-
       const simRegs = allRegs.map(r => ({ ...r }));
       const arSource = ApiService._src('activityRecords') || [];
-      const promotedSim = [];
+      const eventForRebuild = { ...event, max: newMax, status: event.status };
+      const occupancyBefore = (typeof FirebaseService !== 'undefined' && typeof FirebaseService._rebuildOccupancy === 'function')
+        ? FirebaseService._rebuildOccupancy(eventForRebuild, simRegs)
+        : null;
+      if (occupancyBefore && occupancyBefore.current >= newMax) return;
+      let promotedSim = [];
       const arUpdates = [];
 
-      // 1. 模擬遞補（registeredAt ASC, promotionOrder ASC — Rule #7，從 clone 找候補者）
-      const _sortTime = (r) => { const t = new Date(r.registeredAt).getTime(); return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY; };
-      while (slotsAvailable > 0) {
-        const candidate = simRegs
-          .filter(r => r.status === 'waitlisted')
-          .sort((a, b) => { const d = _sortTime(a) - _sortTime(b); return d !== 0 ? d : (a.promotionOrder || 0) - (b.promotionOrder || 0); })[0];
-        if (!candidate) break;
-        candidate.status = 'confirmed';
-        promotedSim.push(candidate);
+      // 1. 模擬遞補（會優先補同俱樂部保留席位，再補活動總名額）
+      if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._promoteWaitlistForAvailableSeats === 'function') {
+        promotedSim = FirebaseService._promoteWaitlistForAvailableSeats(eventForRebuild, simRegs);
+      } else {
+        const _sortTime = (r) => { const t = new Date(r.registeredAt).getTime(); return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY; };
+        let slotsAvailable = newMax - simRegs.filter(r => r.status === 'confirmed').length;
+        while (slotsAvailable > 0) {
+          const candidate = simRegs
+            .filter(r => r.status === 'waitlisted')
+            .sort((a, b) => { const d = _sortTime(a) - _sortTime(b); return d !== 0 ? d : (a.promotionOrder || 0) - (b.promotionOrder || 0); })[0];
+          if (!candidate) break;
+          candidate.status = 'confirmed';
+          promotedSim.push(candidate);
+          slotsAvailable--;
+        }
+      }
+      promotedSim.forEach(candidate => {
         if (candidate.participantType !== 'companion') {
           const ar = arSource.find(a => a.eventId === event.id && a.uid === candidate.userId && a.status === 'waitlisted');
           if (ar && ar._docId) arUpdates.push({ docId: ar._docId, uid: candidate.userId });
         }
-        slotsAvailable--;
-      }
+      });
 
       // 2. 用副本計算 occupancy
       const simActive = simRegs.filter(r => r.status === 'confirmed' || r.status === 'waitlisted');
       const occupancy = (typeof FirebaseService !== 'undefined' && typeof FirebaseService._rebuildOccupancy === 'function')
-        ? FirebaseService._rebuildOccupancy({ max: newMax, status: event.status }, simActive)
+        ? FirebaseService._rebuildOccupancy(eventForRebuild, simActive)
         : null;
 
       // 3. 建 batch + commit
@@ -155,7 +161,9 @@ Object.assign(App, {
       if (batch) {
         promotedSim.forEach(sim => {
           if (sim._docId) {
-            batch.update(db.collection('events').doc(eventDocId).collection('registrations').doc(sim._docId), { status: 'confirmed' });
+            const update = { status: 'confirmed' };
+            if (sim.teamSeatSource) update.teamSeatSource = sim.teamSeatSource;
+            batch.update(db.collection('events').doc(eventDocId).collection('registrations').doc(sim._docId), update);
           }
         });
         arUpdates.forEach(au => {
@@ -163,10 +171,13 @@ Object.assign(App, {
         });
         if (event._docId && occupancy) {
           batch.update(db.collection('events').doc(event._docId), {
-            current: occupancy.current, waitlist: occupancy.waitlist,
+            current: occupancy.current,
+            realCurrent: occupancy.realCurrent,
+            waitlist: occupancy.waitlist,
             participants: occupancy.participants, waitlistNames: occupancy.waitlistNames,
             participantsWithUid: occupancy.participantsWithUid,
             waitlistWithUid: occupancy.waitlistWithUid,
+            teamReservationSummaries: occupancy.teamReservationSummaries,
             schemaVersion: 2,
             status: occupancy.status,
           });
@@ -184,7 +195,10 @@ Object.assign(App, {
       const liveRegs = ApiService._src('registrations') || [];
       for (const sim of promotedSim) {
         const live = liveRegs.find(r => r._docId === sim._docId || r.id === sim.id);
-        if (live) live.status = 'confirmed';
+        if (live) {
+          live.status = 'confirmed';
+          if (sim.teamSeatSource) live.teamSeatSource = sim.teamSeatSource;
+        }
       }
       for (const au of arUpdates) {
         const liveAr = arSource.find(a => a._docId === au.docId);
@@ -214,6 +228,33 @@ Object.assign(App, {
       const arSource = ApiService._src('activityRecords') || [];
       const demotedSim = [];
       const arDemoteUpdates = [];
+      const currentSummaries = (typeof FirebaseService !== 'undefined' && typeof FirebaseService._normalizeTeamReservationSummaries === 'function')
+        ? FirebaseService._normalizeTeamReservationSummaries(event).map(item => ({ ...item }))
+        : (Array.isArray(event.teamReservationSummaries) ? event.teamReservationSummaries.map(item => ({ ...item })) : []);
+      let eventForRebuild = { ...event, max: newMax, status: event.status, teamReservationSummaries: currentSummaries };
+      const rebuildNow = () => (typeof FirebaseService !== 'undefined' && typeof FirebaseService._rebuildOccupancy === 'function')
+        ? FirebaseService._rebuildOccupancy(eventForRebuild, simRegs.filter(r => r.status === 'confirmed' || r.status === 'waitlisted'))
+        : null;
+
+      let occupancyBeforeDemote = rebuildNow();
+      let overflowSlots = Math.max(0, Number(occupancyBeforeDemote?.current || 0) - newMax);
+      for (const summary of currentSummaries) {
+        if (overflowSlots <= 0) break;
+        const remaining = Math.max(0, Number(summary.remainingSlots || 0) || 0);
+        if (remaining <= 0) continue;
+        const reduceBy = Math.min(remaining, overflowSlots);
+        summary.reservedSlots = Math.max(0, Number(summary.reservedSlots || 0) - reduceBy);
+        summary.remainingSlots = Math.max(0, Number(summary.remainingSlots || 0) - reduceBy);
+        summary.occupiedSlots = Math.max(Number(summary.reservedSlots || 0), Number(summary.usedSlots || 0));
+        summary.updatedAt = new Date().toISOString();
+        overflowSlots -= reduceBy;
+      }
+      eventForRebuild = {
+        ...eventForRebuild,
+        teamReservationSummaries: currentSummaries.filter(item =>
+          Number(item.reservedSlots || 0) > 0 || Number(item.usedSlots || 0) > 0
+        ),
+      };
 
       // 1. 模擬降級（registeredAt DESC, promotionOrder DESC — Rule #8）
       const sortedForDemote = simRegs
@@ -224,11 +265,11 @@ Object.assign(App, {
           if (ta !== tb) return tb - ta;
           return (b.promotionOrder || 0) - (a.promotionOrder || 0);
         });
-      const excess = sortedForDemote.length - newMax;
-      if (excess <= 0) return;
-
-      for (let i = 0; i < excess; i++) {
-        const sim = sortedForDemote[i];
+      let demoteIndex = 0;
+      let currentOccupancy = rebuildNow();
+      while (currentOccupancy && currentOccupancy.current > newMax && demoteIndex < sortedForDemote.length) {
+        const beforeCurrent = currentOccupancy.current;
+        const sim = sortedForDemote[demoteIndex++];
         if (!sim) break;
         sim.status = 'waitlisted';
         demotedSim.push(sim);
@@ -236,12 +277,27 @@ Object.assign(App, {
           const ar = arSource.find(a => a.eventId === event.id && a.uid === sim.userId && a.status === 'registered');
           if (ar && ar._docId) arDemoteUpdates.push({ docId: ar._docId, uid: sim.userId });
         }
+        currentOccupancy = rebuildNow();
+        if (currentOccupancy && currentOccupancy.current >= beforeCurrent && typeof FirebaseService !== 'undefined') {
+          const teamId = FirebaseService._getRegistrationTeamReservationTeamId?.(sim);
+          const summary = teamId ? eventForRebuild.teamReservationSummaries.find(item => item.teamId === teamId) : null;
+          if (summary && Number(summary.reservedSlots || 0) > 0) {
+            summary.reservedSlots = Math.max(0, Number(summary.reservedSlots || 0) - 1);
+            summary.remainingSlots = Math.max(0, Number(summary.remainingSlots || 0) - 1);
+            summary.occupiedSlots = Math.max(Number(summary.reservedSlots || 0), Number(summary.usedSlots || 0));
+            summary.updatedAt = new Date().toISOString();
+            eventForRebuild.teamReservationSummaries = eventForRebuild.teamReservationSummaries.filter(item =>
+              Number(item.reservedSlots || 0) > 0 || Number(item.usedSlots || 0) > 0
+            );
+            currentOccupancy = rebuildNow();
+          }
+        }
       }
 
       // 2. 用副本計算 occupancy
       const simActive = simRegs.filter(r => r.status === 'confirmed' || r.status === 'waitlisted');
       const occupancy = (typeof FirebaseService !== 'undefined' && typeof FirebaseService._rebuildOccupancy === 'function')
-        ? FirebaseService._rebuildOccupancy({ max: newMax, status: event.status }, simActive)
+        ? FirebaseService._rebuildOccupancy(eventForRebuild, simActive)
         : null;
 
       // 3. 建 batch + commit
@@ -264,10 +320,13 @@ Object.assign(App, {
         });
         if (event._docId && occupancy) {
           batch.update(db.collection('events').doc(event._docId), {
-            current: occupancy.current, waitlist: occupancy.waitlist,
+            current: occupancy.current,
+            realCurrent: occupancy.realCurrent,
+            waitlist: occupancy.waitlist,
             participants: occupancy.participants, waitlistNames: occupancy.waitlistNames,
             participantsWithUid: occupancy.participantsWithUid,
             waitlistWithUid: occupancy.waitlistWithUid,
+            teamReservationSummaries: occupancy.teamReservationSummaries,
             schemaVersion: 2,
             status: occupancy.status,
           });
