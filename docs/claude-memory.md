@@ -1755,3 +1755,9 @@
 - **原因**：friendly `showTournamentDetail()` 先切到 detail page 再等待 state promise；`_ensureFriendlyTournamentApplyTeamsLoaded()` 只替全域管理員補載 joined teams，普通隊職員冷啟動時仍仰賴尚未載入的 `ApiService.getTeams()`。
 - **修正**：新增 friendly detail loading shell，先顯示賽事名稱、載入提示與既有進度條；補強 apply team hydration，所有使用者都會先用 `teamIds` 單筆補抓隊伍，非 admin 再合併「全量 teams 掃描」與「已補抓 joined officer teams」作為可報名來源。
 - **驗證**：`node --check js/modules/tournament/tournament-friendly-detail.js`、`node --check js/modules/tournament/tournament-friendly-state.js`、`npm test -- --runTestsByPath tests/unit/tournament-friendly-detail-view.test.js --runInBand`、`npm test -- --runInBand` passed。
+
+### 2026-04-29 — 賽事報名狀態冷刷新仍顯示可報名 [中型]
+- **問題**：上一版只補載可代表俱樂部，但冷刷新時若 `currentUser.teamIds` 尚未同步，已 approved 的 entries 不會被歸入目前使用者，報名區仍顯示「參加賽事」且沒有紅框處的俱樂部狀態下拉。
+- **原因**：`_getFriendlyTournamentApplyContext()`、roster approved entry 判斷只看 `_getUserTeamIds(user)`；隊職員身分雖可從 teams cache 推得，但 status scope 沒有共用同一批可操作隊伍 ID。
+- **修正**：新增 `_getFriendlyTournamentUserActionTeamIds()`，把 user teamIds、joined teams、responsible officer teams 合併成同一個狀態 scope；冷 cache 無 eligible teams 時強制 refresh `page-teams` 一次；報名區即使只有一個可操作俱樂部也顯示 selector，讓狀態列穩定存在。
+- **驗證**：補 `tournament-friendly-detail-view.test.js`，覆蓋 user.teamIds 空、entries 已 approved、冷 cache 強制 refresh、單一 approved club 仍顯示 selector 與退出按鈕。

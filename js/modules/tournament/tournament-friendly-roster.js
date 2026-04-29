@@ -56,7 +56,9 @@ Object.assign(App, {
   },
 
   _getFriendlyTournamentApprovedUserEntries(state, user = ApiService.getCurrentUser?.()) {
-    const teamIds = typeof this._getUserTeamIds === 'function' ? this._getUserTeamIds(user) : [];
+    const teamIds = typeof this._getFriendlyTournamentUserActionTeamIds === 'function'
+      ? this._getFriendlyTournamentUserActionTeamIds(user)
+      : (typeof this._getUserTeamIds === 'function' ? this._getUserTeamIds(user) : []);
     return (state?.entries || []).filter(entry =>
       (entry.entryStatus === 'host' || entry.entryStatus === 'approved')
       && teamIds.includes(entry.teamId)

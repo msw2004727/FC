@@ -72,8 +72,10 @@ Object.assign(App, {
     const fallbackApplications = Array.isArray(base.teamApplications) ? base.teamApplications : [];
     const fallbackEntries = Array.isArray(base.teamEntries) ? base.teamEntries : [];
     const currentUser = ApiService.getCurrentUser?.();
-    const currentUserTeamIds = (currentUser && typeof this._getUserTeamIds === 'function')
-      ? this._getUserTeamIds(currentUser)
+    const currentUserTeamIds = currentUser
+      ? (typeof this._getFriendlyTournamentUserActionTeamIds === 'function'
+        ? this._getFriendlyTournamentUserActionTeamIds(currentUser)
+        : (typeof this._getUserTeamIds === 'function' ? this._getUserTeamIds(currentUser) : []))
       : [];
     const teamHydrationPromise = (async () => {
       if (!currentUserTeamIds.length || typeof ApiService.getTeamAsync !== 'function') return [];
@@ -206,6 +208,25 @@ Object.assign(App, {
     return this._mergeFriendlyTournamentTeamLists(responsibleTeams, joinedOfficerTeams);
   },
 
+  _getFriendlyTournamentUserActionTeamIds(user = ApiService.getCurrentUser?.()) {
+    const ids = [];
+    const seen = new Set();
+    const pushId = id => {
+      const value = String(id || '').trim();
+      if (!value || seen.has(value)) return;
+      seen.add(value);
+      ids.push(value);
+    };
+    if (typeof this._getUserTeamIds === 'function') {
+      this._getUserTeamIds(user).forEach(pushId);
+    }
+    const teams = this._isTournamentGlobalAdmin?.(user) === true
+      ? this._getFriendlyTournamentJoinedTeams(user)
+      : this._getFriendlyTournamentOfficerApplyTeams(user);
+    teams.forEach(team => pushId(team?.id || team?.teamId || team?._docId || team?.docId));
+    return ids;
+  },
+
   async _ensureFriendlyTournamentApplyTeamsLoaded(user = ApiService.getCurrentUser?.()) {
     const currentUser = user || ApiService.getCurrentUser?.();
     if (!currentUser) return [];
@@ -234,10 +255,14 @@ Object.assign(App, {
       }
 
       if (getEligibleTeams().length === 0 && typeof FirebaseService !== 'undefined') {
+        const hasAnyTeamCache = (ApiService.getTeams?.() || []).length > 0;
         if (typeof FirebaseService.ensureStaticCollectionsLoaded === 'function') {
           await FirebaseService.ensureStaticCollectionsLoaded(['teams']);
         } else if (typeof FirebaseService.ensureCollectionsForPage === 'function') {
           await FirebaseService.ensureCollectionsForPage('page-teams', { skipRealtimeStart: true });
+        }
+        if (!hasAnyTeamCache && getEligibleTeams().length === 0 && typeof FirebaseService.refreshCollectionsForPage === 'function') {
+          await FirebaseService.refreshCollectionsForPage('page-teams');
         }
       }
     } catch (err) {
@@ -264,9 +289,11 @@ Object.assign(App, {
       && !entriesByTeam.has(team.id)
       && (!tournamentSport || !String(team?.sportTag || team?.sport || '').trim() || String(team?.sportTag || team?.sport || '').trim() === tournamentSport)
     );
-    const teamIds = typeof this._getUserTeamIds === 'function'
-      ? this._getUserTeamIds(user).map(teamId => String(teamId || '').trim()).filter(Boolean)
-      : [];
+    const teamIds = typeof this._getFriendlyTournamentUserActionTeamIds === 'function'
+      ? this._getFriendlyTournamentUserActionTeamIds(user)
+      : (typeof this._getUserTeamIds === 'function'
+        ? this._getUserTeamIds(user).map(teamId => String(teamId || '').trim()).filter(Boolean)
+        : []);
     const teamIdSet = new Set(teamIds);
     const inStatusScope = item => {
       const teamId = String(item?.teamId || '').trim();

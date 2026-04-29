@@ -72,7 +72,7 @@ Object.assign(App, {
   },
 
   _buildFriendlyTournamentActionTeamSelector(tournamentId, actionTeams, selectedTeamId) {
-    if (!Array.isArray(actionTeams) || actionTeams.length <= 1) return '';
+    if (!Array.isArray(actionTeams) || actionTeams.length === 0) return '';
     const safeTournamentId = String(tournamentId || '').trim();
     return `<select id="td-apply-team-select" class="tfd-team-select" onchange="App._handleFriendlyTournamentActionTeamChange('${escapeHTML(safeTournamentId)}', this.value)">${actionTeams.map(team => {
       const selected = team.id === selectedTeamId ? ' selected' : '';

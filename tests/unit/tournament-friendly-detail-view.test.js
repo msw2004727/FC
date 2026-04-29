@@ -26,6 +26,7 @@ describe('friendly tournament teams tab actions', () => {
     delete global.escapeHTML;
     delete global.document;
     delete global.TOURNAMENT_STATUS;
+    delete global.FirebaseService;
   });
 
   test('register action passes clicked button for loading feedback', () => {
@@ -495,6 +496,35 @@ describe('friendly tournament teams tab actions', () => {
     expect(global.App._getFriendlyResponsibleTeams).toHaveBeenCalled();
   });
 
+  test('non-admin apply context treats approved officer entry as own status without user teamIds', () => {
+    const user = { uid: 'cap_uid', role: 'user' };
+    const officerTeam = { id: 'tm_approved', name: 'Approved Club', captainUid: 'cap_uid', sportTag: 'football' };
+    global.ApiService = {
+      getCurrentUser: () => user,
+      getTeams: () => [officerTeam],
+      getTeam: teamId => (teamId === 'tm_approved' ? officerTeam : null),
+    };
+    global.App = {
+      _isTournamentGlobalAdmin: jest.fn(() => false),
+      _getFriendlyResponsibleTeams: jest.fn(() => [officerTeam]),
+      _getUserTeamIds: jest.fn(() => []),
+      _isTournamentTeamOfficerForTeam: jest.fn((team, item) => team?.captainUid === item?.uid),
+    };
+    require('../../js/modules/tournament/tournament-friendly-state.js');
+
+    const ctx = global.App._getFriendlyTournamentApplyContext({
+      id: 'ct_test',
+      hostTeamId: 'tm_host',
+      sportTag: 'football',
+    }, {
+      applications: [],
+      entries: [{ teamId: 'tm_approved', teamName: 'Approved Club', entryStatus: 'approved' }],
+    }, user);
+
+    expect(ctx.availableTeams.map(team => team.id)).toEqual([]);
+    expect(ctx.approvedTeams.map(team => team.teamId)).toEqual(['tm_approved']);
+  });
+
   test('loads joined team docs for non-admin apply selector on cold detail refresh', async () => {
     const user = { uid: 'cap_uid', role: 'user', teamIds: ['tm_joined'] };
     const loadedTeams = {};
@@ -521,6 +551,78 @@ describe('friendly tournament teams tab actions', () => {
 
     expect(global.ApiService.getTeamAsync).toHaveBeenCalledWith('tm_joined');
     expect(teams.map(team => team.id)).toEqual(['tm_joined']);
+  });
+
+  test('forces a teams refresh when cold cache has no eligible apply teams', async () => {
+    const user = { uid: 'cap_uid', role: 'user' };
+    let teamsCache = [];
+    global.ApiService = {
+      getCurrentUser: () => user,
+      getTeams: () => teamsCache,
+      getTeam: teamId => teamsCache.find(team => team.id === teamId) || null,
+    };
+    global.FirebaseService = {
+      ensureStaticCollectionsLoaded: jest.fn(async () => []),
+      refreshCollectionsForPage: jest.fn(async () => {
+        teamsCache = [{ id: 'tm_staff', name: 'Staff Club', captainUid: 'cap_uid' }];
+        return ['teams'];
+      }),
+    };
+    global.App = {
+      _isTournamentGlobalAdmin: jest.fn(() => false),
+      _getFriendlyResponsibleTeams: jest.fn(item =>
+        teamsCache.filter(team => team.captainUid === item?.uid)
+      ),
+      _getUserTeamIds: jest.fn(() => []),
+      _isTournamentTeamOfficerForTeam: jest.fn((team, item) => team?.captainUid === item?.uid),
+    };
+    require('../../js/modules/tournament/tournament-friendly-state.js');
+
+    const teams = await global.App._ensureFriendlyTournamentApplyTeamsLoaded(user);
+
+    expect(global.FirebaseService.ensureStaticCollectionsLoaded).toHaveBeenCalledWith(['teams']);
+    expect(global.FirebaseService.refreshCollectionsForPage).toHaveBeenCalledWith('page-teams');
+    expect(teams.map(team => team.id)).toEqual(['tm_staff']);
+  });
+
+  test('renders own approved club status and selector after cold detail refresh', () => {
+    const user = { uid: 'guest_cap', role: 'user' };
+    const team = { id: 'tm_approved', name: 'Approved Team', captainUid: 'guest_cap', sportTag: 'football' };
+    const area = { innerHTML: '' };
+    global.document = { getElementById: id => (id === 'td-register-area' ? area : null) };
+    global.TOURNAMENT_STATUS = { PREPARING: 'preparing', REG_CLOSED: 'closed' };
+    global.ApiService = {
+      getCurrentUser: () => user,
+      getTeams: () => [team],
+      getTeam: teamId => (teamId === 'tm_approved' ? team : null),
+    };
+    global.App = {
+      renderRegisterButton: jest.fn(),
+      renderTournamentTab: jest.fn(),
+      _isFriendlyTournamentRecord: jest.fn(() => true),
+      _getFriendlyTournamentState: jest.fn(() => ({
+        tournament: { id: 'ct_test', hostTeamId: 'tm_host', sportTag: 'football' },
+        applications: [],
+        entries: [{ teamId: 'tm_approved', teamName: 'Approved Team', entryStatus: 'approved' }],
+      })),
+      _getFriendlyTournamentTeamLimit: jest.fn(() => 4),
+      _isTournamentGlobalAdmin: jest.fn(() => false),
+      _getFriendlyResponsibleTeams: jest.fn(() => [team]),
+      _getUserTeamIds: jest.fn(() => []),
+      _isTournamentTeamOfficerForTeam: jest.fn((item, currentUser) => item?.captainUid === currentUser?.uid),
+      getTournamentStatus: jest.fn(() => 'open'),
+      isTournamentEnded: jest.fn(() => false),
+    };
+    require('../../js/modules/tournament/tournament-friendly-state.js');
+    require('../../js/modules/tournament/tournament-friendly-detail-view.js');
+
+    global.App.renderRegisterButton({ id: 'ct_test', hostTeamId: 'tm_host', sportTag: 'football' });
+
+    expect(area.innerHTML).toContain('id="td-apply-team-select"');
+    expect(area.innerHTML).toContain('value="tm_approved" selected');
+    expect(area.innerHTML).toContain('data-friendly-team-action-status="approved"');
+    expect(area.innerHTML).toContain("return App.withdrawFriendlyTournamentTeam('ct_test','tm_approved', this)");
+    expect(area.innerHTML).not.toContain("return App.registerTournament('ct_test', this)");
   });
 
   test('renders a friendly detail loading shell before async state resolves', () => {
