@@ -8,69 +8,6 @@ Object.assign(App, {
   //  Host Team Selection
   // ══════════════════════════════════
 
-  _getTournamentSelectableHostTeams(selectedId = '') {
-    const currentUser = ApiService.getCurrentUser?.();
-    const allTeams = ApiService.getTeams?.() || [];
-    const source = this._isTournamentGlobalAdmin?.(currentUser)
-      ? allTeams
-      : this._getFriendlyResponsibleTeams(currentUser);
-    const teams = [];
-    const seen = new Set();
-
-    source.forEach(team => {
-      const safeId = String(team?.id || '').trim();
-      if (!safeId || seen.has(safeId)) return;
-      seen.add(safeId);
-      teams.push(team);
-    });
-
-    const safeSelectedId = String(selectedId || '').trim();
-    if (safeSelectedId && !seen.has(safeSelectedId)) {
-      const selectedTeam = allTeams.find(team => team.id === safeSelectedId);
-      if (selectedTeam) teams.push(selectedTeam);
-    }
-    return teams;
-  },
-
-  _getTournamentCurrentUserTeamIds(user = null) {
-    const currentUser = user || ApiService.getCurrentUser?.();
-    const ids = [];
-    const seen = new Set();
-    const pushId = (teamId) => {
-      const safeId = String(teamId || '').trim();
-      if (!safeId || seen.has(safeId)) return;
-      seen.add(safeId);
-      ids.push(safeId);
-    };
-
-    if (Array.isArray(currentUser?.teamIds)) currentUser.teamIds.forEach(pushId);
-    pushId(currentUser?.teamId);
-    return ids;
-  },
-
-  async _ensureTournamentHostTeamsLoaded(user = null) {
-    const currentUser = user || ApiService.getCurrentUser?.();
-
-    try {
-      if (typeof FirebaseService !== 'undefined') {
-        if (typeof FirebaseService.ensureStaticCollectionsLoaded === 'function') {
-          await FirebaseService.ensureStaticCollectionsLoaded(['teams']);
-        } else if (typeof FirebaseService.ensureCollectionsForPage === 'function') {
-          await FirebaseService.ensureCollectionsForPage('page-teams', { skipRealtimeStart: true });
-        }
-
-        const userTeamIds = this._getTournamentCurrentUserTeamIds(currentUser);
-        if (userTeamIds.length && typeof FirebaseService.fetchTeamIfMissing === 'function') {
-          await Promise.all(userTeamIds.map(teamId => FirebaseService.fetchTeamIfMissing(teamId)));
-        }
-      }
-      return ApiService.getTeams?.() || [];
-    } catch (err) {
-      console.warn('[Tournament] Failed to load host teams before create:', err);
-      return ApiService.getTeams?.() || [];
-    }
-  },
-
   _ensureTournamentHostRow(prefix) {
     const p = prefix || 'tf';
     let select = document.getElementById(`${p}-host-team`);
@@ -84,13 +21,16 @@ Object.assign(App, {
     hostRow.className = 'ce-row';
     // Note: innerHTML usage is safe — no user content in this template
     hostRow.innerHTML = `
-      <label>主辦俱樂部 <span class="required">*</span></label>
+      <label>主辦俱樂部 <span id="${p}-host-team-required" class="required">*</span></label>
       <select id="${p}-host-team"></select>
       <div id="${p}-host-team-summary" class="ce-field-note"></div>
     `;
     typeRow.insertAdjacentElement('afterend', hostRow);
     select = hostRow.querySelector('select');
-    select.addEventListener('change', () => this._updateTournamentHostTeamSummary(p));
+    select.addEventListener('change', () => {
+      this._updateTournamentHostTeamSummary(p);
+      this._syncTournamentHostParticipationAvailability?.(p);
+    });
     return select;
   },
 
@@ -142,6 +82,10 @@ Object.assign(App, {
     const note = document.getElementById(`${p}-host-participates-note`);
     if (!toggle || !note) return;
     if (options.disabled === true || toggle.disabled) {
+      if (options.reason === 'host-unavailable') {
+        note.textContent = '未指定主辦俱樂部，或你不是該俱樂部負責人時，主辦俱樂部固定不參賽。';
+        return;
+      }
       note.textContent = toggle.checked
         ? '此賽事建立時主辦俱樂部已設定為參賽，會佔用名額。'
         : '此賽事建立時主辦俱樂部未參賽，不佔用名額。';
@@ -154,27 +98,43 @@ Object.assign(App, {
 
   _renderTournamentHostTeamOptions(prefix, selectedId = '', options = {}) {
     const p = prefix || 'tf';
-    const { locked = false } = options;
+    const { locked = false, preserveEmpty = false } = options;
     const select = this._ensureTournamentHostRow(p);
     if (!select) return;
 
     const teams = this._getTournamentSelectableHostTeams(selectedId);
     const safeSelectedId = String(selectedId || '').trim();
+    const currentUser = ApiService.getCurrentUser?.();
+    const allowEmptyHost = preserveEmpty || (!locked && this._canCreateTournamentWithoutHostTeam?.(currentUser) === true);
+    const requiredMark = document.getElementById(`${p}-host-team-required`);
+    if (requiredMark) requiredMark.style.display = allowEmptyHost ? 'none' : '';
+    const defaultOfficerTeam = teams.find(team =>
+      this._isTournamentTeamOfficerForTeam?.(team, currentUser) === true
+    );
     // Note: innerHTML usage is safe — all user content passes through escapeHTML()
-    select.innerHTML = teams.length
-      ? teams.map(team => `<option value="${escapeHTML(team.id)}">${escapeHTML(team.name)}</option>`).join('')
-      : '<option value="">目前沒有可選擇的主辦俱樂部</option>';
+    const teamOptions = teams.map(team => `<option value="${escapeHTML(team.id)}">${escapeHTML(team.name)}</option>`).join('');
+    select.innerHTML = [
+      allowEmptyHost ? '<option value="">不指定主辦俱樂部</option>' : '',
+      teamOptions || (!allowEmptyHost ? '<option value="">目前沒有可選擇的主辦俱樂部</option>' : ''),
+    ].join('');
 
     if (safeSelectedId && teams.some(team => team.id === safeSelectedId)) {
       select.value = safeSelectedId;
+    } else if (preserveEmpty) {
+      select.value = '';
+    } else if (allowEmptyHost && !defaultOfficerTeam) {
+      select.value = '';
+    } else if (allowEmptyHost && defaultOfficerTeam) {
+      select.value = defaultOfficerTeam.id;
     } else if (teams.length > 0) {
       select.value = teams[0].id;
     } else {
       select.value = '';
     }
 
-    select.disabled = locked || teams.length === 0;
+    select.disabled = locked || preserveEmpty || (teams.length === 0 && !allowEmptyHost);
     this._updateTournamentHostTeamSummary(p, { locked });
+    this._syncTournamentHostParticipationAvailability?.(p);
   },
 
   _updateTournamentHostTeamSummary(prefix, options = {}) {
@@ -184,11 +144,13 @@ Object.assign(App, {
     const summary = document.getElementById(`${p}-host-team-summary`);
     if (!select || !summary) return;
 
-    const team = ApiService.getTeam?.(select.value);
+    const team = this._getTournamentSelectedHostTeam?.(p) || ApiService.getTeam?.(select.value);
     const actor = ApiService.getCurrentUser?.();
     const actorName = actor?.displayName || actor?.name || '';
     if (!team) {
-      summary.textContent = '請先選擇主辦俱樂部。';
+      summary.textContent = this._canCreateTournamentWithoutHostTeam?.(actor) === true
+        ? '未指定主辦俱樂部，將以建立者作為主辦顯示。'
+        : '請先選擇主辦俱樂部。';
       return;
     }
 

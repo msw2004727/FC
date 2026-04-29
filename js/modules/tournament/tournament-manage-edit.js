@@ -65,7 +65,10 @@ Object.assign(App, {
     this._updateTournamentRefereeInput('tf');
     this._initTournamentRefereeSearch('tf');
     this._renderMatchDateTags('tf');
-    this._renderTournamentHostTeamOptions('tf', editRecord.hostTeamId || '', { locked: !!editRecord.hostTeamId });
+    this._renderTournamentHostTeamOptions('tf', editRecord.hostTeamId || '', {
+      locked: !!editRecord.hostTeamId,
+      preserveEmpty: !editRecord.hostTeamId,
+    });
     this._setTournamentHostParticipationFormState('tf', this._isTournamentHostParticipating?.(editRecord) !== false, { disabled: true });
     this._setTournamentFeeFormState('tf', editRecord.feeEnabled, editRecord.fee || 300);
 
@@ -115,13 +118,15 @@ Object.assign(App, {
     const editFee = editFeeEnabled ? Math.max(0, editFeeInput) : 0;
     const editTeamLimitRaw = Number(document.getElementById('tf-teams')?.value);
     const editTeamLimit = this._getTournamentTeamLimitValue('tf', 4);
-    const hostTeamId = document.getElementById('tf-host-team')?.value || '';
-    const hostTeam = ApiService.getTeam?.(hostTeamId);
+    const hostTeamId = String(document.getElementById('tf-host-team')?.value || '').trim();
+    const hostTeam = hostTeamId
+      ? (this._getTournamentSelectedHostTeam?.('tf') || ApiService.getTeam?.(hostTeamId))
+      : null;
     let hasError = false;
     if (!editName) {
       this._tfSetError('tf-name', '請輸入賽事名稱。'); hasError = true;
     }
-    if (!hostTeam) {
+    if (editTournament.hostTeamId && !hostTeam) {
       this._tfSetError('tf-host-team', '請先選擇主辦俱樂部。'); hasError = true;
     }
     if (editTournament.hostTeamId && hostTeam && hostTeam.id !== editTournament.hostTeamId) {
@@ -159,6 +164,10 @@ Object.assign(App, {
     const editContentImage = editContentPreview?.querySelector('img')?.src || editTournament.contentImage || null;
     const editUser = ApiService.getCurrentUser?.();
     const editCreatorName = editTournament.creatorName || editTournament.organizer || editUser?.displayName || editUser?.name || '使用者';
+    const editHostTeamId = String(editTournament.hostTeamId || '').trim();
+    const editHostParticipates = editHostTeamId
+      ? this._isTournamentHostParticipating?.(editTournament) !== false
+      : false;
     const editUpdates = {
       name: editName,
       type: this._getTournamentModeLabel('friendly'),
@@ -184,16 +193,16 @@ Object.assign(App, {
       fee: editFee,
       organizer: editTournament.organizer || editCreatorName,
       creatorName: editCreatorName,
-      hostTeamId: editTournament.hostTeamId || hostTeam.id,
-      hostTeamName: editTournament.hostTeamName || hostTeam.name || '',
-      hostTeamImage: editTournament.hostTeamImage || hostTeam.image || '',
-      organizerDisplay: this._buildTournamentOrganizerDisplay(editTournament.hostTeamName || hostTeam.name, editCreatorName),
-      hostParticipates: this._isTournamentHostParticipating?.(editTournament) !== false,
+      hostTeamId: editHostTeamId,
+      hostTeamName: editTournament.hostTeamName || hostTeam?.name || '',
+      hostTeamImage: editTournament.hostTeamImage || hostTeam?.image || '',
+      organizerDisplay: this._buildTournamentOrganizerDisplay(editTournament.hostTeamName || hostTeam?.name || '', editCreatorName),
+      hostParticipates: editHostParticipates,
       friendlyConfig: {
         teamLimit: editTeamLimit,
         allowMemberSelfJoin: true,
         pendingVisibleToThirdParty: false,
-        hostParticipates: this._isTournamentHostParticipating?.(editTournament) !== false,
+        hostParticipates: editHostParticipates,
       },
     };
 

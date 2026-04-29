@@ -332,6 +332,7 @@ const ScriptLoader = {
       'js/modules/tournament/tournament-share-builders.js',
       'js/modules/tournament/tournament-manage-form.js',
       'js/modules/tournament/tournament-manage-people.js',
+      'js/modules/tournament/tournament-manage-host-selection.js',
       'js/modules/tournament/tournament-manage-host.js',
       'js/modules/tournament/tournament-manage-edit.js',
       'js/modules/tournament/tournament-manage.js',

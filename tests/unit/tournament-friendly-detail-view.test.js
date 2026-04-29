@@ -509,7 +509,7 @@ describe('friendly tournament teams tab actions', () => {
     expect(global.ApiService.withdrawFriendlyTournamentTeamAtomic).not.toHaveBeenCalled();
   });
 
-  test('admin apply context is limited to joined clubs, not all loaded clubs', () => {
+  test('admin apply context is limited to joined and officer clubs, not all loaded clubs', () => {
     const tournament = { id: 'ct_test', hostTeamId: 'tm_host', sportTag: 'football' };
     const adminUser = { uid: 'admin_uid', role: 'admin', teamIds: ['tm_alpha', 'tm_beta', 'tm_approved'] };
     const teams = [
@@ -517,6 +517,7 @@ describe('friendly tournament teams tab actions', () => {
       { id: 'tm_alpha', name: 'Alpha Club', sportTag: 'football' },
       { id: 'tm_beta', name: 'Beta Club', sportTag: 'football' },
       { id: 'tm_approved', name: 'Approved Club', sportTag: 'football' },
+      { id: 'tm_admin_officer', name: 'Admin Officer Club', ownerUid: 'admin_uid', sportTag: 'football' },
       { id: 'tm_stranger', name: 'Stranger Club', sportTag: 'football' },
       { id: 'tm_stranger_approved', name: 'Stranger Approved Club', sportTag: 'football' },
       { id: 'tm_basket', name: 'Basket Club', sportTag: 'basketball' },
@@ -528,7 +529,7 @@ describe('friendly tournament teams tab actions', () => {
     };
     global.App = {
       _isTournamentGlobalAdmin: jest.fn(user => user?.role === 'admin' || user?.role === 'super_admin'),
-      _getFriendlyResponsibleTeams: jest.fn(() => []),
+      _getFriendlyResponsibleTeams: jest.fn(() => [teams[4]]),
       _getUserTeamIds: jest.fn(user => user?.teamIds || []),
     };
     require('../../js/modules/tournament/tournament-friendly-apply-state.js');
@@ -546,7 +547,7 @@ describe('friendly tournament teams tab actions', () => {
       ],
     }, adminUser);
 
-    expect(ctx.availableTeams.map(team => team.id)).toEqual(['tm_alpha']);
+    expect(ctx.availableTeams.map(team => team.id)).toEqual(['tm_alpha', 'tm_admin_officer']);
     expect(ctx.pendingTeams.map(team => team.teamId)).toEqual(['tm_beta']);
     expect(ctx.approvedTeams.map(team => team.teamId)).toEqual(['tm_approved']);
     expect(ctx.approvedTeams.map(team => team.teamId)).not.toContain('tm_host');
@@ -727,6 +728,39 @@ describe('friendly tournament teams tab actions', () => {
 
     expect(global.ApiService.getTeamAsync).toHaveBeenCalledWith('tm_joined');
     expect(teams.map(team => team.id)).toEqual(['tm_joined']);
+  });
+
+  test('loads team collection for admin apply selector even when joined clubs are already cached', async () => {
+    const user = { uid: 'admin_uid', role: 'super_admin', teamIds: ['tm_joined'] };
+    let teamsCache = [{ id: 'tm_joined', name: 'Joined Club' }];
+    global.ApiService = {
+      getCurrentUser: () => user,
+      getTeams: () => teamsCache,
+      getTeam: teamId => teamsCache.find(team => team.id === teamId) || null,
+    };
+    global.FirebaseService = {
+      ensureStaticCollectionsLoaded: jest.fn(async () => {
+        teamsCache = [
+          { id: 'tm_joined', name: 'Joined Club' },
+          { id: 'tm_officer', name: 'Officer Club', ownerUid: 'admin_uid' },
+        ];
+        return ['teams'];
+      }),
+    };
+    global.App = {
+      _isTournamentGlobalAdmin: jest.fn(() => true),
+      _getFriendlyResponsibleTeams: jest.fn(item =>
+        teamsCache.filter(team => team.ownerUid === item?.uid)
+      ),
+      _getUserTeamIds: jest.fn(item => item?.teamIds || []),
+      _isTournamentTeamOfficerForTeam: jest.fn((team, item) => team?.ownerUid === item?.uid),
+    };
+    require('../../js/modules/tournament/tournament-friendly-apply-state.js');
+
+    const teams = await global.App._ensureFriendlyTournamentApplyTeamsLoaded(user);
+
+    expect(global.FirebaseService.ensureStaticCollectionsLoaded).toHaveBeenCalledWith(['teams']);
+    expect(teams.map(team => team.id)).toEqual(['tm_joined', 'tm_officer']);
   });
 
   test('forces a teams refresh when cold cache has no eligible apply teams', async () => {

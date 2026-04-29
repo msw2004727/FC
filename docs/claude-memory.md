@@ -2,6 +2,12 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-29 — 管理員賽事代表俱樂部與空主辦建立 [中型]
+- **問題**: admin / super_admin 的賽事報名下拉只看 `users.teamIds/teamId`，漏掉自己實際擔任 captain / leader / owner / creator 的俱樂部；建立賽事時管理員若沒有可代表的主辦俱樂部，仍被前端主辦俱樂部必填與後端 callable 擋住。
+- **原因**: 前端把管理員的全域管理權與「可代表哪個俱樂部」混在一起：報名端只取 joined clubs，建立端曾取所有 clubs，兩者都沒有一致合併 joined + officer scope；Cloud Function `createFriendlyTournament` 也硬性要求 `hostTeamId`。
+- **修復**: 報名代表俱樂部改為 joined + officer union，並在 admin 詳情冷啟動時確保 teams collection 已載入；賽事建立主辦候選改為 joined/officer，不再讓 admin 任意代表所有俱樂部。若 admin 沒有可代表主辦俱樂部，可留空主辦建立賽事，主辦俱樂部是否參賽固定關閉；若 admin 選到非 officer 的 joined club，也由前後端強制 `hostParticipates=false`。新增 `tournament-manage-host-selection.js` 拆出主辦候選與鎖定判斷，避免原模組超過 300 行。
+- **驗證**: `node --check` 通過 `tournament-friendly-apply-state.js`、`tournament-manage-host-selection.js`、`tournament-manage-host.js`、`tournament-manage.js`、`tournament-manage-edit.js`、`functions/index.js`；`npm run test:unit -- --runInBand --runTestsByPath tests/unit/tournament-friendly-detail-view.test.js tests/unit/tournament-permissions.test.js tests/unit/tournament-loading-performance.test.js tests/unit/cloud-functions.test.js tests/unit/script-loader.test.js` 通過。
+
 ### 2026-04-29 — 賽事表單報名開始提示位置 [小型]
 - **問題**: 新增賽事表單的「未設定則立即開放」提示被掛在整個報名日期列後方，視覺上會跑到「報名截止」旁邊；主辦俱樂部參賽提示也保留了多餘的「開啟時會沿用現狀」前綴。
 - **修復**: 將提示改為「報名開始」label 右側的 inline note，並移除舊的 row-level 提示；主辦參賽開啟文案精簡為「建立後主辦俱樂部直接參賽並佔用1個名額。」。

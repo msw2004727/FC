@@ -39,15 +39,17 @@ describe('tournament loading performance contract', () => {
   test('create tournament lazily loads host teams without slowing the list page', () => {
     const manageSource = readProjectFile('js/modules/tournament/tournament-manage.js');
     const hostSource = readProjectFile('js/modules/tournament/tournament-manage-host.js');
+    const hostSelectionSource = readProjectFile('js/modules/tournament/tournament-manage-host-selection.js');
     const coreSource = readProjectFile('js/modules/tournament/tournament-core.js');
     const loaderSource = readProjectFile('js/core/script-loader.js');
 
-    expect(hostSource).toContain('_ensureTournamentHostTeamsLoaded');
-    expect(hostSource).toContain("ensureStaticCollectionsLoaded(['teams'])");
+    expect(hostSelectionSource).toContain('_ensureTournamentHostTeamsLoaded');
+    expect(hostSelectionSource).toContain("ensureStaticCollectionsLoaded(['teams'])");
     expect(manageSource).toContain('await this._ensureTournamentHostTeamsLoaded?.()');
     expect(coreSource).toContain("button.textContent = '載入中...'");
-    expect(hostSource).toContain('this._isTournamentGlobalAdmin?.(currentUser)');
+    expect(hostSelectionSource).toContain('this._isTournamentGlobalAdmin?.(currentUser)');
     expect(loaderSource).toContain('js/modules/tournament/tournament-manage-people.js');
+    expect(loaderSource).toContain('js/modules/tournament/tournament-manage-host-selection.js');
   });
 
   test('tournament realtime render is deferred and realtime starts immediately on activation', () => {

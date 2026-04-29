@@ -205,7 +205,8 @@ Object.assign(App, {
     }
     this._ensureTournamentFormLayout('tf');
     const hostTeams = this._getTournamentSelectableHostTeams();
-    if (hostTeams.length === 0) {
+    const canCreateWithoutHost = this._canCreateTournamentWithoutHostTeam?.() === true;
+    if (hostTeams.length === 0 && !canCreateWithoutHost) {
       this.showToast('目前沒有可代表建立賽事的主辦俱樂部。');
       return;
     }
@@ -224,8 +225,9 @@ Object.assign(App, {
     document.getElementById('tf-venue-input').value = '';
     document.getElementById('tf-delegate-search').value = '';
     document.getElementById('tf-referee-search').value = '';
-    this._renderTournamentHostTeamOptions('tf', hostTeams[0]?.id || '');
+    this._renderTournamentHostTeamOptions('tf', '');
     this._setTournamentHostParticipationFormState('tf', false);
+    this._syncTournamentHostParticipationAvailability?.('tf');
     this._setTournamentFeeFormState('tf', false, 300);
     this._renderVenueTags('tf');
     this._renderMatchDateTags('tf');
@@ -260,16 +262,26 @@ Object.assign(App, {
     const createFee = createFeeEnabled ? Math.max(0, createFeeInput) : 0;
     const createTeamLimitRaw = Number(document.getElementById('tf-teams')?.value);
     const createTeamLimit = this._getTournamentTeamLimitValue('tf', 4);
-    const hostTeamId = document.getElementById('tf-host-team')?.value || '';
-    const hostTeam = ApiService.getTeam?.(hostTeamId);
+    const hostTeamId = String(document.getElementById('tf-host-team')?.value || '').trim();
+    const hostTeam = hostTeamId
+      ? (this._getTournamentSelectedHostTeam?.('tf') || ApiService.getTeam?.(hostTeamId))
+      : null;
     const createMatchDates = [...this._tournamentFormState.matchDates];
     const createVenues = [...this._tournamentFormState.venues];
     const createDelegates = [...this._tournamentFormState.delegates];
     const createReferees = [...this._tournamentFormState.referees];
-    const createHostParticipates = this._getTournamentHostParticipates('tf');
+    const createCanHostParticipate = !!hostTeam && this._isTournamentTeamOfficerForTeam?.(hostTeam, createUser) === true;
+    const createHostParticipates = createCanHostParticipate && this._getTournamentHostParticipates('tf');
+    const createCanSkipHostTeam = this._canCreateTournamentWithoutHostTeam?.(createUser) === true;
     let hasError = false;
     if (!createName) { this._tfSetError('tf-name', '請輸入賽事名稱。'); hasError = true; }
-    if (!hostTeam) { this._tfSetError('tf-host-team', '請先選擇主辦俱樂部。'); hasError = true; }
+    if (hostTeamId && !hostTeam) {
+      this._tfSetError('tf-host-team', '找不到主辦俱樂部資料，請重新選擇。');
+      hasError = true;
+    } else if (!hostTeamId && !createCanSkipHostTeam) {
+      this._tfSetError('tf-host-team', '請先選擇主辦俱樂部。');
+      hasError = true;
+    }
     if (!Number.isFinite(createTeamLimitRaw) || createTeamLimitRaw < 2 || createTeamLimitRaw > 4) {
       this._tfSetError('tf-teams', '參賽隊伍數需介於 2 到 4 隊。'); hasError = true;
     }
@@ -324,10 +336,10 @@ Object.assign(App, {
       organizer: createCreatorName,
       creatorName: createCreatorName,
       creatorUid: createCreatorUid,
-      hostTeamId: hostTeam.id,
-      hostTeamName: hostTeam.name || '',
-      hostTeamImage: hostTeam.image || '',
-      organizerDisplay: this._buildTournamentOrganizerDisplay(hostTeam.name, createCreatorName),
+      hostTeamId: hostTeam?.id || '',
+      hostTeamName: hostTeam?.name || '',
+      hostTeamImage: hostTeam?.image || '',
+      organizerDisplay: this._buildTournamentOrganizerDisplay(hostTeam?.name || '', createCreatorName),
       hostParticipates: createHostParticipates,
       registeredTeams: createHostParticipates ? [hostTeam.id] : [],
       friendlyConfig: {
@@ -380,6 +392,7 @@ Object.assign(App, {
     this._updateTournamentRefereeInput('tf');
     this._renderTournamentHostTeamOptions('tf');
     this._setTournamentHostParticipationFormState('tf', false);
+    this._syncTournamentHostParticipationAvailability?.('tf');
     this._setTournamentFeeFormState('tf', false, 300);
     this._resetTournamentImagePreview('tf');
     this._resetTournamentImagePreview('tf', true);

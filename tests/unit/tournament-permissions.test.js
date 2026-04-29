@@ -68,8 +68,16 @@ function _canCreateFriendlyTournament(user, allTeams, permissions) {
 // Extracted from tournament-manage-host.js:11-33
 // ---------------------------------------------------------------------------
 function _getTournamentSelectableHostTeams(user, allTeams, selectedId = '') {
+  const joinedIds = new Set([
+    ...(Array.isArray(user?.teamIds) ? user.teamIds : []),
+    user?.teamId,
+  ].map(item => String(item || '').trim()).filter(Boolean));
+  const isJoinedTeam = team => [team?.id, team?._docId, team?.docId, team?.teamId]
+    .map(item => String(item || '').trim())
+    .filter(Boolean)
+    .some(id => joinedIds.has(id));
   const source = _isTournamentGlobalAdmin(user)
-    ? (allTeams || [])
+    ? (allTeams || []).filter(team => isJoinedTeam(team) || _isTournamentTeamOfficerForTeam(team, user))
     : _getFriendlyResponsibleTeams(user, allTeams);
   const teams = [];
   const seen = new Set();
@@ -256,9 +264,14 @@ describe('_canCreateFriendlyTournament', () => {
 });
 
 describe('_getTournamentSelectableHostTeams', () => {
-  test('admin role can select any loaded team without manage_all permission', () => {
-    const result = _getTournamentSelectableHostTeams({ uid: 'admin2', role: 'admin' }, allTeams);
-    expect(result.map(team => team.id)).toEqual(allTeams.map(team => team.id));
+  test('admin role can select joined and officer teams only', () => {
+    const admin = { uid: 'admin2', role: 'admin', teamIds: ['teamB'] };
+    const result = _getTournamentSelectableHostTeams(admin, [
+      ...allTeams,
+      { id: 'teamAdminOfficer', name: 'Admin Officer', ownerUid: 'admin2' },
+      { id: 'teamStranger', name: 'Stranger', ownerUid: 'someoneElse' },
+    ]);
+    expect(result.map(team => team.id)).toEqual(['teamB', 'teamAdminOfficer']);
   });
 
   test('captain can only select teams they are responsible for', () => {

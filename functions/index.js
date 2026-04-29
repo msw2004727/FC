@@ -666,7 +666,7 @@ function buildServerHostEntry({ teamId, teamData, callerUid, callerName, countsT
   };
 }
 
-function buildTournamentRootForCreate({ input, tournamentId, hostTeamId, teamData, callerUid, callerName, now = new Date() }) {
+function buildTournamentRootForCreate({ input, tournamentId, hostTeamId, teamData, callerUid, callerName, now = new Date(), hostParticipatesAllowed = true }) {
   const allowed = {};
   [
     "name",
@@ -695,7 +695,10 @@ function buildTournamentRootForCreate({ input, tournamentId, hostTeamId, teamDat
     input?.friendlyConfig?.teamLimit ?? input.teamLimit ?? input.maxTeams ?? input.teams,
     4
   );
-  const hostParticipates = input.hostParticipates === true || input?.friendlyConfig?.hostParticipates === true;
+  const safeHostTeamId = String(hostTeamId || "").trim();
+  const hostParticipates = hostParticipatesAllowed === true
+    && !!safeHostTeamId
+    && (input.hostParticipates === true || input?.friendlyConfig?.hostParticipates === true);
   const feeEnabled = typeof allowed.feeEnabled === "boolean"
     ? allowed.feeEnabled
     : Number(allowed.fee || 0) > 0;
@@ -738,12 +741,12 @@ function buildTournamentRootForCreate({ input, tournamentId, hostTeamId, teamDat
     organizer: callerName,
     creatorName: callerName,
     creatorUid: callerUid,
-    hostTeamId,
+    hostTeamId: safeHostTeamId,
     hostTeamName,
     hostTeamImage,
     organizerDisplay,
     hostParticipates,
-    registeredTeams: hostParticipates ? [hostTeamId] : [],
+    registeredTeams: hostParticipates ? [safeHostTeamId] : [],
     approvedTeamCount: hostParticipates ? 1 : 0,
     friendlyConfig: {
       teamLimit,
@@ -1176,8 +1179,8 @@ exports.createFriendlyTournament = onCall(
     const tournamentInput = request.data?.tournament || {};
     const name = String(tournamentInput.name || "").trim();
     const hostTeamId = String(tournamentInput.hostTeamId || "").trim();
-    if (!name || !hostTeamId) {
-      throw new HttpsError("invalid-argument", "名稱與主辦俱樂部為必填");
+    if (!name) {
+      throw new HttpsError("invalid-argument", "名稱為必填");
     }
 
     const regStart = String(tournamentInput.regStart || "").trim();
@@ -1201,12 +1204,16 @@ exports.createFriendlyTournament = onCall(
         || callerUid
     ).trim();
     const isAdmin = isRoleAdminOrAbove(callerRole);
+    if (!hostTeamId && !isAdmin) {
+      throw new HttpsError("invalid-argument", "HOST_TEAM_REQUIRED");
+    }
 
-    const teamDoc = await getTeamDocByTeamId(hostTeamId);
-    if (!teamDoc) {
+    const teamDoc = hostTeamId ? await getTeamDocByTeamId(hostTeamId) : null;
+    if (hostTeamId && !teamDoc) {
       throw new HttpsError("not-found", "主辦俱樂部不存在");
     }
-    if (!isAdmin && !isTournamentTeamOfficerForData(teamDoc.data, callerUid)) {
+    const isHostTeamOfficer = !!teamDoc && isTournamentTeamOfficerForData(teamDoc.data, callerUid);
+    if (hostTeamId && !isAdmin && !isHostTeamOfficer) {
       throw new HttpsError("permission-denied", "只有主辦俱樂部的隊長 / 領隊 / 創辦人可建立賽事");
     }
 
@@ -1215,24 +1222,27 @@ exports.createFriendlyTournament = onCall(
       input: { ...tournamentInput, name, hostTeamId, regStart, regEnd },
       tournamentId,
       hostTeamId,
-      teamData: teamDoc.data,
+      teamData: teamDoc?.data || null,
       callerUid,
       callerName,
       now,
+      hostParticipatesAllowed: isHostTeamOfficer,
     });
-    const hostEntry = buildServerHostEntry({
+    const hostEntry = hostTeamId ? buildServerHostEntry({
       teamId: hostTeamId,
       teamData: teamDoc.data,
       callerUid,
       callerName,
       countsTowardLimit: root.hostParticipates === true,
-    });
+    }) : null;
 
     const tournamentRef = db.collection("tournaments").doc(tournamentId);
-    const entryRef = tournamentRef.collection("entries").doc(hostTeamId);
     const batch = db.batch();
     batch.create(tournamentRef, root);
-    batch.create(entryRef, hostEntry);
+    if (hostEntry) {
+      const entryRef = tournamentRef.collection("entries").doc(hostTeamId);
+      batch.create(entryRef, hostEntry);
+    }
     await batch.commit();
 
     return {

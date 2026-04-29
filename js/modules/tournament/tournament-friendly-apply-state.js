@@ -122,6 +122,13 @@ Object.assign(App, {
     return this._mergeFriendlyTournamentTeamLists(responsibleTeams, joinedOfficerTeams);
   },
 
+  _getFriendlyTournamentRepresentativeTeams(user = ApiService.getCurrentUser?.()) {
+    return this._mergeFriendlyTournamentTeamLists(
+      this._getFriendlyTournamentJoinedTeams(user),
+      this._getFriendlyTournamentOfficerApplyTeams(user)
+    );
+  },
+
   _getFriendlyTournamentUserActionTeamIds(user = ApiService.getCurrentUser?.()) {
     const ids = [];
     const seen = new Set();
@@ -135,7 +142,7 @@ Object.assign(App, {
       this._getUserTeamIds(user).forEach(pushId);
     }
     const teams = this._isTournamentGlobalAdmin?.(user) === true
-      ? this._getFriendlyTournamentJoinedTeams(user)
+      ? this._getFriendlyTournamentRepresentativeTeams(user)
       : this._getFriendlyTournamentOfficerApplyTeams(user);
     teams.forEach(team => {
       (this._getFriendlyTournamentTeamAliasIds?.(team) || []).forEach(pushId);
@@ -154,7 +161,7 @@ Object.assign(App, {
       : [];
     const isGlobalAdmin = this._isTournamentGlobalAdmin?.(currentUser) === true;
     const getEligibleTeams = () => isGlobalAdmin
-      ? this._getFriendlyTournamentJoinedTeams(currentUser)
+      ? this._getFriendlyTournamentRepresentativeTeams(currentUser)
       : this._getFriendlyTournamentOfficerApplyTeams(currentUser);
 
     const hasTeam = teamId => !!(
@@ -170,7 +177,7 @@ Object.assign(App, {
         await Promise.all(missingTeamIds.map(teamId => ApiService.getTeamAsync(teamId).catch(() => null)));
       }
 
-      if (getEligibleTeams().length === 0 && typeof FirebaseService !== 'undefined') {
+      if ((isGlobalAdmin || getEligibleTeams().length === 0) && typeof FirebaseService !== 'undefined') {
         const hasAnyTeamCache = (ApiService.getTeams?.() || []).length > 0;
         if (typeof FirebaseService.ensureStaticCollectionsLoaded === 'function') {
           await FirebaseService.ensureStaticCollectionsLoaded(['teams']);
@@ -190,7 +197,7 @@ Object.assign(App, {
   _getFriendlyTournamentApplyContext(tournament, state, user = ApiService.getCurrentUser?.()) {
     const isGlobalAdmin = this._isTournamentGlobalAdmin?.(user) === true;
     const eligibleTeams = isGlobalAdmin
-      ? this._getFriendlyTournamentJoinedTeams(user)
+      ? this._getFriendlyTournamentRepresentativeTeams(user)
       : this._getFriendlyTournamentOfficerApplyTeams(user);
     const teamLookup = this._buildFriendlyTournamentTeamLookup(eligibleTeams);
     const terminalApplicationStatuses = new Set(['cancelled', 'withdrawn', 'removed', 'rejected']);

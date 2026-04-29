@@ -89,7 +89,7 @@ FC-github/
 │   └── modules/            # 功能模組（14 子資料夾 + 24 獨立檔案）
 │       ├── event/          # 活動系統（30）：列表、詳情、報名、建立、管理、分享
 │       ├── team/           # 俱樂部系統（16）：列表、詳情、表單、動態牆、分享、helpers/stats/builders/validate/roles/invite
-│       ├── tournament/     # 賽事系統（18）：渲染、詳情、管理、友誼賽、helpers/builders/state
+│       ├── tournament/     # 賽事系統（19）：渲染、詳情、管理、友誼賽、helpers/builders/state
 │       ├── profile/        # 個人資料（9）：核心、資料、名片、分享
 │       ├── message/        # 訊息系統（9）：渲染、操作、收件匣、管理員
 │       ├── achievement/    # 成就系統（10）：registry / evaluator / badges 等

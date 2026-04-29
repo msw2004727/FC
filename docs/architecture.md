@@ -227,7 +227,7 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 | `team-form-roles.js` | 角色降級預覽 + 儲存後自動升降級/通知（Phase 4 §10.1 從 team-form.js 抽出） |
 | `team-form.js` | 俱樂部表單主模組 — 資料組裝 + 儲存 + 日誌（Phase 4 §10.1 瘦身） |
 
-### tournament/ — 賽事系統（18 個模組 + README）
+### tournament/ — 賽事系統（19 個模組 + README）
 
 | 檔案 | 說明 |
 |------|------|
@@ -239,7 +239,8 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 | `tournament-manage.js` | 賽事管理入口與管理列表權限過濾 |
 | `tournament-manage-form.js` | 賽事表單工具與 helper（場地管理等） |
 | `tournament-manage-people.js` | 賽事表單人員選取器（委託人 / 裁判複選，最多 10 人） |
-| `tournament-manage-host.js` | 賽事主辦俱樂部選擇與表單布局 |
+| `tournament-manage-host-selection.js` | 賽事建立主辦俱樂部候選來源、空主辦與主辦參賽鎖定判斷 |
+| `tournament-manage-host.js` | 賽事主辦俱樂部表單布局與 host entry builder |
 | `tournament-manage-edit.js` | 賽事編輯 Modal 與儲存處理 |
 | `tournament-share.js` | 賽事分享（LINE Flex Message） |
 | `tournament-share-builders.js` | 分享用 Flex Message / URL / altText 建構函式（3 個 builder） |

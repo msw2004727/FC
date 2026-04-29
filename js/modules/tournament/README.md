@@ -27,7 +27,8 @@ This directory is reserved for the tournament refactor so the feature can move o
 - `tournament-manage.js` — admin list, create, end/reopen/delete flows.
 - `tournament-manage-form.js` — shared create/edit form widgets.
 - `tournament-manage-people.js` — shared delegates/referees multi-user picker.
-- `tournament-manage-host.js` — host-team option and host entry builders.
+- `tournament-manage-host-selection.js` — host-team eligibility, empty-host create, and host participation locking.
+- `tournament-manage-host.js` — host-team form layout and host entry builders.
 - `tournament-manage-edit.js` — edit modal hydration and save.
 - `tournament-share.js` / `tournament-share-builders.js` — tournament share UI/content builders.
 

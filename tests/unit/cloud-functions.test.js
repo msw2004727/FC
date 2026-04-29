@@ -153,6 +153,20 @@ function canApplyFriendlyTournamentForTeam(callerRole, team, callerUid, userData
     || (isRoleAdminOrAbove(callerRole) && isUserDataInTeam(userData, teamId));
 }
 
+function validateCreateFriendlyTournamentHost(callerRole, team, callerUid, hostTeamId = team?.id) {
+  const safeHostTeamId = String(hostTeamId || '').trim();
+  const isAdmin = isRoleAdminOrAbove(callerRole);
+  if (!safeHostTeamId) {
+    return isAdmin
+      ? { ok: true, hostParticipatesAllowed: false }
+      : { ok: false, error: 'HOST_TEAM_REQUIRED' };
+  }
+  if (!team) return { ok: false, error: 'not-found' };
+  const isOfficer = isTournamentTeamOfficerForData(team, callerUid);
+  if (!isAdmin && !isOfficer) return { ok: false, error: 'permission-denied' };
+  return { ok: true, hostParticipatesAllowed: isOfficer };
+}
+
 function isTournamentApplicationTerminalStatus(status) {
   const safeStatus = String(status || '').trim().toLowerCase();
   return ['cancelled', 'withdrawn', 'removed', 'rejected'].includes(safeStatus);
@@ -551,6 +565,42 @@ describe('applyFriendlyTournament CF permissions', () => {
     expect(cfBuildRegisteredTeamIdsFromEntries(entries)).toEqual(['tm_guest_1', 'tm_guest_2']);
     expect(cfBuildRegisteredTeamIdsFromEntries(entries, { additionalTeamId: 'tm_guest_3' }))
       .toEqual(['tm_guest_1', 'tm_guest_2', 'tm_guest_3']);
+  });
+});
+
+describe('createFriendlyTournament CF host selection permissions', () => {
+  const team = {
+    id: 'tm_alpha',
+    captainUid: 'captain_uid',
+    ownerUid: 'owner_uid',
+  };
+
+  test('admin can create without a host team and host participation is forced off', () => {
+    expect(validateCreateFriendlyTournamentHost('admin', null, 'admin_uid', '')).toEqual({
+      ok: true,
+      hostParticipatesAllowed: false,
+    });
+  });
+
+  test('non-admin cannot create without a host team', () => {
+    expect(validateCreateFriendlyTournamentHost('user', null, 'captain_uid', '')).toEqual({
+      ok: false,
+      error: 'HOST_TEAM_REQUIRED',
+    });
+  });
+
+  test('admin can choose a non-officer host display but cannot auto-enroll it', () => {
+    expect(validateCreateFriendlyTournamentHost('super_admin', team, 'admin_uid', 'tm_alpha')).toEqual({
+      ok: true,
+      hostParticipatesAllowed: false,
+    });
+  });
+
+  test('team officers can create with host participation available', () => {
+    expect(validateCreateFriendlyTournamentHost('user', team, 'captain_uid', 'tm_alpha')).toEqual({
+      ok: true,
+      hostParticipatesAllowed: true,
+    });
   });
 });
 
