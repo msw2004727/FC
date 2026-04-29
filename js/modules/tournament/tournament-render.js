@@ -11,11 +11,37 @@ Object.assign(App, {
     await this.showTournamentDetail(id);
   },
 
-  renderOngoingTournaments() {
+  _getTournamentHomeSortTime(tournament) {
+    if (!tournament) return 0;
+    const values = [
+      tournament.regStart,
+      tournament.createdAt,
+      tournament.updatedAt,
+    ];
+    return values.reduce((best, value) => {
+      let time = 0;
+      if (value && typeof value.toMillis === 'function') time = value.toMillis();
+      else if (value && typeof value.seconds === 'number') time = value.seconds * 1000;
+      else if (value) {
+        const parsed = Date.parse(String(value));
+        time = Number.isFinite(parsed) ? parsed : 0;
+      }
+      return Math.max(best, time || 0);
+    }, 0);
+  },
+
+  renderOngoingTournaments(options = {}) {
     const container = document.getElementById('ongoing-tournaments');
     if (!container) return;
-    const ongoing = ApiService.getTournaments().filter(t => !this.isTournamentEnded(t))
-      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    const priorityLimit = Math.max(0, Number(options?.priorityLimit || 0));
+    const allOngoing = ApiService.getTournaments().filter(t => !this.isTournamentEnded(t))
+      .sort((a, b) => {
+        const ad = this._getTournamentHomeSortTime(a);
+        const bd = this._getTournamentHomeSortTime(b);
+        if (ad !== bd) return bd - ad;
+        return (a.name || '').localeCompare(b.name || '');
+      });
+    const ongoing = priorityLimit > 0 ? allOngoing.slice(0, priorityLimit) : allOngoing;
     const fingerprint = ongoing.map(t => [
       t.id || t._docId || '',
       t.name || '',
@@ -24,7 +50,7 @@ Object.assign(App, {
       t.teams || '',
       t.status || '',
       t.ended ? '1' : '0',
-    ].join('|')).join(',');
+    ].join('|')).join(',') + '|limit:' + (priorityLimit || 'all');
 
     // ── 已渲染且 ID 完全相同 → 跳過，避免封面圖重載 ──
     if (this._ongoingTournamentsHomeFp === fingerprint && container.querySelector('.h-card:not(.skeleton)')) return;
@@ -36,8 +62,8 @@ Object.assign(App, {
       return;
     }
     container.innerHTML = ongoing.map((t, index) => {
-      const imagePriorityAttrs = index < 2
-        ? 'loading="eager" fetchpriority="high" decoding="async"'
+      const imagePriorityAttrs = index < 3
+        ? 'loading="eager" fetchpriority="auto" decoding="async"'
         : 'loading="lazy" decoding="async"';
       return `
       <div class="h-card" onclick="App._openTournamentDetail('${t.id}')">

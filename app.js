@@ -492,6 +492,9 @@ const App = {
     this.renderBannerCarousel({ autoplay: false });
     this.renderAnnouncement();
     this.renderHotEvents();
+    if (typeof this.renderOngoingTournaments === 'function') {
+      this.renderOngoingTournaments({ priorityLimit: 3 });
+    }
     this._renderHomeVersionTag();
     this._showSlowNetHint();
     this._markPageSnapshotReady('page-home');
@@ -2545,7 +2548,27 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     };
 
-    _loadInlineCollection('boot-events-data', 'events');
+    const _preloadHomePriorityImages = function(records, kind, limit, fetchPriority) {
+      if (!document.head || !Array.isArray(records)) return;
+      records
+        .filter(function(item) { return item && item.image; })
+        .slice(0, limit || 3)
+        .forEach(function(item, index) {
+          const href = String(item.image || '').trim();
+          if (!href || document.querySelector('link[data-home-priority-image="' + kind + '-' + index + '"]')) return;
+          const preload = document.createElement('link');
+          preload.rel = 'preload';
+          preload.as = 'image';
+          preload.href = href;
+          if (fetchPriority) preload.setAttribute('fetchpriority', fetchPriority);
+          preload.setAttribute('data-home-priority-image', kind + '-' + index);
+          document.head.appendChild(preload);
+        });
+    };
+
+    _loadInlineCollection('boot-events-data', 'events', function(records) {
+      _preloadHomePriorityImages(records, 'event', 3, 'high');
+    });
     _loadInlineCollection('boot-banners-data', 'banners', function(records) {
       const firstBanner = records.find(function(b) { return b && b.image; });
       if (firstBanner && firstBanner.image && document.head && !document.querySelector('link[data-boot-banner-preload="1"]')) {
@@ -2566,6 +2589,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (FirebaseService._tournamentSlices) {
         FirebaseService._tournamentSlices.injected = normalized.slice();
       }
+      _preloadHomePriorityImages(normalized, 'tournament', 3, 'auto');
     });
   } catch (e) {
     console.warn('[Boot] Phase 2.5 inline home data 解析失敗（不影響後續流程）:', e && e.message || e);

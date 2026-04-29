@@ -157,7 +157,7 @@ Object.assign(App, {
     _hideLoading();
     this._setHomeSectionVisibility(container, true);
 
-    const cards = visible.map(e => {
+    const cards = visible.map((e, index) => {
         const _dp = (e.date || '').split(' ')[0].split('/');
         const _typeKey = TYPE_CONFIG?.[e.type] ? e.type : 'friendly';
         const _typeLabel = TYPE_CONFIG?.[_typeKey]?.label || '活動';
@@ -182,10 +182,13 @@ Object.assign(App, {
           const _metaBottomClass = _genderRibbon ? 'h-card-meta-bottom h-card-meta-bottom-has-ribbon' : 'h-card-meta-bottom';
           _metaBottom = `<div class="${_metaBottomClass}"><span class="${_participantCountClass}">${_participantCount}</span>${_capacityBadge}</div>`;
         }
+        const _imagePriorityAttrs = index < 3
+          ? 'loading="eager" fetchpriority="high" decoding="async"'
+          : 'loading="lazy" decoding="async"';
         return `
         <div class="h-card" style="${e.pinned ? 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.15)' : ''}" onclick="App.openHomeEventDetailFromCard('${e.id}', this)">
           ${e.image
-            ? `<div class="h-card-img">${_cornerBadges}${_typeRibbon}<img src="${e.image}" alt="${escapeHTML(e.title)}" loading="lazy" decoding="async"></div>`
+            ? `<div class="h-card-img">${_cornerBadges}${_typeRibbon}<img src="${e.image}" alt="${escapeHTML(e.title)}" ${_imagePriorityAttrs}></div>`
             : `<div class="h-card-img h-card-placeholder">${_cornerBadges}${_typeRibbon}220 × 90</div>`}
           <div class="h-card-body">
             <div class="h-card-title">${e.pinned ? '<span style="font-size:.62rem;padding:.08rem .35rem;border-radius:999px;border:1px solid var(--warning);color:var(--warning);font-weight:700;margin-right:.3rem">置頂</span>' : ''}${escapeHTML(e.title)}${e.teamOnly ? '<span class="tl-teamonly-badge">俱樂部限定</span>' : ''} ${this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id)}</div>
