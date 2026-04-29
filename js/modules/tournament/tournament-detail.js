@@ -60,9 +60,9 @@ Object.assign(App, {
         this.renderTournamentTab(tab.dataset.ttab);
       };
     });
-    // 預設為「說明」頁簽
-    document.querySelectorAll('#td-tabs .tab').forEach(x => x.classList.toggle('active', x.dataset.ttab === 'info'));
-    this.renderTournamentTab('info');
+    // 預設為「俱樂部」頁簽
+    document.querySelectorAll('#td-tabs .tab').forEach(x => x.classList.toggle('active', x.dataset.ttab === 'teams'));
+    this.renderTournamentTab('teams');
     return { ok: true };
   },
 

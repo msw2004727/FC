@@ -79,7 +79,7 @@ Object.assign(App, {
     }
 
     document.querySelectorAll('#td-tabs .tab').forEach(node => {
-      node.classList.toggle('active', node.dataset.ttab === 'info');
+      node.classList.toggle('active', node.dataset.ttab === 'teams');
     });
   },
 
@@ -134,8 +134,8 @@ Object.assign(App, {
         this.renderTournamentTab(tab.dataset.ttab);
       };
     });
-    document.querySelectorAll('#td-tabs .tab').forEach(node => node.classList.toggle('active', node.dataset.ttab === 'info'));
-    this.renderTournamentTab('info');
+    document.querySelectorAll('#td-tabs .tab').forEach(node => node.classList.toggle('active', node.dataset.ttab === 'teams'));
+    this.renderTournamentTab('teams');
   },
 
   async registerTournament(id, actionButton = null) {

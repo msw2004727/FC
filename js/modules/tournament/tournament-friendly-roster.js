@@ -109,7 +109,7 @@ Object.assign(App, {
   },
 
   _getFriendlyTournamentActiveTab() {
-    return document.querySelector('#td-tabs .tab.active')?.dataset?.ttab || 'info';
+    return document.querySelector('#td-tabs .tab.active')?.dataset?.ttab || 'teams';
   },
 
   _refreshFriendlyTournamentRosterUi(tournamentId = this.currentTournament) {

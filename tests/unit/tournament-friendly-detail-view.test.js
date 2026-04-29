@@ -658,7 +658,7 @@ describe('friendly tournament teams tab actions', () => {
     expect(nodes['td-register-area'].innerHTML).toContain('skel-progress-bar');
     expect(nodes['td-info-section'].innerHTML).toContain('tfd-info-skeleton');
     expect(nodes['tournament-content'].innerHTML).toContain('tfd-tab-loading');
-    expect(tabs[0].classList.toggle).toHaveBeenCalledWith('active', true);
-    expect(tabs[1].classList.toggle).toHaveBeenCalledWith('active', false);
+    expect(tabs[0].classList.toggle).toHaveBeenCalledWith('active', false);
+    expect(tabs[1].classList.toggle).toHaveBeenCalledWith('active', true);
   });
 });
