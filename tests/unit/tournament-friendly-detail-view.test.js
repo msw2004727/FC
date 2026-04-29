@@ -131,7 +131,8 @@ describe('friendly tournament teams tab actions', () => {
 
     expect(area.innerHTML).toContain('tfd-team-select-reapply');
     expect(area.innerHTML).toContain('tfd-apply-option-reapply');
-    expect(area.innerHTML).toContain('Removed Club（已被拒絕過）');
+    expect(area.innerHTML).toContain('Removed Club');
+    expect(area.innerHTML).not.toContain('Removed Club（已被拒絕過）');
     expect(area.innerHTML).toContain('<span>已被拒絕過</span>');
     expect(area.innerHTML).toContain("return App.registerTournament('ct_test', this)");
   });

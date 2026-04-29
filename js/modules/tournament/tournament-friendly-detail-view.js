@@ -87,7 +87,6 @@ Object.assign(App, {
     return `<select id="td-apply-team-select" class="${selectClass}" onchange="App._handleFriendlyTournamentActionTeamChange('${escapeHTML(safeTournamentId)}', this.value)">${actionTeams.map(team => {
       const selected = team.id === selectedTeamId ? ' selected' : '';
       const optionClass = team.hasPriorRejectedApplication ? ' class="tfd-apply-option-reapply"' : '';
-      const retryLabelSuffix = team.hasPriorRejectedApplication ? '（已被拒絕過）' : '';
       const labelSuffix = team.status === 'pending'
         ? '（審核中）'
         : team.status === 'approved'
@@ -95,7 +94,7 @@ Object.assign(App, {
           : team.status === 'rejected'
             ? '（未通過）'
             : '';
-      return `<option value="${escapeHTML(team.id)}"${selected}${optionClass}>${escapeHTML(team.name + labelSuffix + retryLabelSuffix)}</option>`;
+      return `<option value="${escapeHTML(team.id)}"${selected}${optionClass}>${escapeHTML(team.name + labelSuffix)}</option>`;
     }).join('')}</select>`;
   },
 
