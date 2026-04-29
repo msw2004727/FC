@@ -206,6 +206,23 @@
   width: 100%;
   margin: 0;
 }
+.tfd-team-select-reapply {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--border));
+}
+.tfd-apply-option-reapply {
+  color: var(--danger);
+}
+.tfd-reapply-note {
+  margin-top: -.15rem;
+  font-size: .74rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.tfd-reapply-note span {
+  color: var(--danger);
+  font-weight: 700;
+}
 .tfd-team-board {
   padding: .1rem .4rem 1rem;
   display: flex;

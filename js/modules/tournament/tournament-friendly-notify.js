@@ -158,11 +158,21 @@ Object.assign(App, {
     const tournamentId = String(args[0] || '').trim();
     const beforeState = tournamentId ? await this._loadFriendlyTournamentDetailState?.(tournamentId) : null;
     const beforeIds = new Set((beforeState?.applications || []).map(item => item.id).filter(Boolean));
+    const beforeApplicationsById = new Map((beforeState?.applications || [])
+      .filter(item => item?.id)
+      .map(item => [item.id, item]));
     const result = await _tournamentFriendlyNotifyLegacy.registerTournament.apply(this, args);
     const afterState = tournamentId ? (this._getFriendlyTournamentState?.(tournamentId) || await this._loadFriendlyTournamentDetailState?.(tournamentId)) : null;
     const tournament = afterState?.tournament;
     if (!tournament || !this._isFriendlyTournamentRecord?.(tournament)) return result;
-    const createdApplication = (afterState?.applications || []).find(item => item.id && !beforeIds.has(item.id));
+    const createdApplication = (afterState?.applications || []).find(item => {
+      if (!item?.id) return false;
+      if (!beforeIds.has(item.id)) return true;
+      const beforeStatus = String(beforeApplicationsById.get(item.id)?.status || '').trim().toLowerCase();
+      const afterStatus = String(item.status || '').trim().toLowerCase();
+      return afterStatus === 'pending'
+        && ['cancelled', 'withdrawn', 'removed', 'rejected'].includes(beforeStatus);
+    });
     if (createdApplication) this._notifyFriendlyTournamentApplicationSubmitted(tournament, createdApplication);
     return result;
   },

@@ -36,11 +36,17 @@ Object.assign(App, {
   _normalizeFriendlyTournamentActionTeam(team, status) {
     const id = String(team?.id || team?.teamId || '').trim();
     if (!id) return null;
+    const priorApplicationStatus = String(team?.priorApplicationStatus || '').trim().toLowerCase();
+    const hasPriorRejectedApplication = team?.hasPriorRejectedApplication === true
+      || priorApplicationStatus === 'removed'
+      || priorApplicationStatus === 'rejected';
     return {
       id,
       status,
       name: String(team?.name || team?.teamName || '未命名俱樂部').trim(),
       image: team?.image || team?.teamImage || '',
+      priorApplicationStatus,
+      hasPriorRejectedApplication,
       source: team,
     };
   },
@@ -74,8 +80,14 @@ Object.assign(App, {
   _buildFriendlyTournamentActionTeamSelector(tournamentId, actionTeams, selectedTeamId) {
     if (!Array.isArray(actionTeams) || actionTeams.length === 0) return '';
     const safeTournamentId = String(tournamentId || '').trim();
-    return `<select id="td-apply-team-select" class="tfd-team-select" onchange="App._handleFriendlyTournamentActionTeamChange('${escapeHTML(safeTournamentId)}', this.value)">${actionTeams.map(team => {
+    const selectedTeam = actionTeams.find(team => team.id === selectedTeamId);
+    const selectClass = selectedTeam?.hasPriorRejectedApplication
+      ? 'tfd-team-select tfd-team-select-reapply'
+      : 'tfd-team-select';
+    return `<select id="td-apply-team-select" class="${selectClass}" onchange="App._handleFriendlyTournamentActionTeamChange('${escapeHTML(safeTournamentId)}', this.value)">${actionTeams.map(team => {
       const selected = team.id === selectedTeamId ? ' selected' : '';
+      const optionClass = team.hasPriorRejectedApplication ? ' class="tfd-apply-option-reapply"' : '';
+      const retryLabelSuffix = team.hasPriorRejectedApplication ? '（已被拒絕過）' : '';
       const labelSuffix = team.status === 'pending'
         ? '（審核中）'
         : team.status === 'approved'
@@ -83,7 +95,7 @@ Object.assign(App, {
           : team.status === 'rejected'
             ? '（未通過）'
             : '';
-      return `<option value="${escapeHTML(team.id)}"${selected}>${escapeHTML(team.name + labelSuffix)}</option>`;
+      return `<option value="${escapeHTML(team.id)}"${selected}${optionClass}>${escapeHTML(team.name + labelSuffix + retryLabelSuffix)}</option>`;
     }).join('')}</select>`;
   },
 
@@ -132,7 +144,11 @@ Object.assign(App, {
     const actionTeams = this._getFriendlyTournamentActionTeams(ctx);
     const selectedTeam = this._getFriendlyTournamentSelectedActionTeam(tournament.id, actionTeams);
     if (selectedTeam) this._rememberFriendlyTournamentActionTeam(tournament.id, selectedTeam.id);
-    const selector = this._buildFriendlyTournamentActionTeamSelector(tournament.id, actionTeams, selectedTeam?.id);
+    let selector = this._buildFriendlyTournamentActionTeamSelector(tournament.id, actionTeams, selectedTeam?.id);
+    const priorRejectedHint = selectedTeam?.hasPriorRejectedApplication
+      ? '<div class="tfd-reapply-note"><span>已被拒絕過</span>，仍可重新送出申請。</div>'
+      : '';
+    if (selectedTeam?.status === 'available' && priorRejectedHint) selector += priorRejectedHint;
     const responsibleTeamIds = new Set((this._getFriendlyResponsibleTeams?.(user) || []).map(team => team.id));
     const joinedTeamIds = new Set((typeof this._getUserTeamIds === 'function' ? this._getUserTeamIds(user) : [])
       .map(teamId => String(teamId || '').trim())

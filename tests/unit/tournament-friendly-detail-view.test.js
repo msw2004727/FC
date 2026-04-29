@@ -95,6 +95,47 @@ describe('friendly tournament teams tab actions', () => {
     expect(area.innerHTML).toContain("return App.registerTournament('ct_test', this)");
   });
 
+  test('previously removed or rejected clubs stay selectable with a warning label', () => {
+    const area = { innerHTML: '' };
+    global.document = { getElementById: id => (id === 'td-register-area' ? area : null) };
+    global.TOURNAMENT_STATUS = { PREPARING: 'preparing', REG_CLOSED: 'closed' };
+    global.ApiService = {
+      getCurrentUser: () => ({ uid: 'guest_cap', role: 'user' }),
+    };
+    global.App = {
+      renderRegisterButton: jest.fn(),
+      renderTournamentTab: jest.fn(),
+      _isFriendlyTournamentRecord: jest.fn(() => true),
+      _getFriendlyTournamentState: jest.fn(() => ({ tournament: { id: 'ct_test' }, applications: [], entries: [] })),
+      _getFriendlyTournamentApplyContext: jest.fn(() => ({
+        availableTeams: [
+          {
+            id: 'tm_removed',
+            name: 'Removed Club',
+            hasPriorRejectedApplication: true,
+            priorApplicationStatus: 'removed',
+          },
+        ],
+        pendingTeams: [],
+        approvedTeams: [],
+        rejectedTeams: [],
+      })),
+      _getFriendlyTournamentTeamLimit: jest.fn(() => 4),
+      _isTournamentGlobalAdmin: jest.fn(() => false),
+      getTournamentStatus: jest.fn(() => 'open'),
+      isTournamentEnded: jest.fn(() => false),
+    };
+    require('../../js/modules/tournament/tournament-friendly-detail-view.js');
+
+    global.App.renderRegisterButton({ id: 'ct_test' });
+
+    expect(area.innerHTML).toContain('tfd-team-select-reapply');
+    expect(area.innerHTML).toContain('tfd-apply-option-reapply');
+    expect(area.innerHTML).toContain('Removed Club（已被拒絕過）');
+    expect(area.innerHTML).toContain('<span>已被拒絕過</span>');
+    expect(area.innerHTML).toContain("return App.registerTournament('ct_test', this)");
+  });
+
   test('keeps join action when the selected club is still available', () => {
     const area = { innerHTML: '' };
     global.document = { getElementById: id => (id === 'td-register-area' ? area : null) };
@@ -530,6 +571,41 @@ describe('friendly tournament teams tab actions', () => {
 
     expect(ctx.availableTeams.map(team => team.id)).toEqual([]);
     expect(ctx.approvedTeams.map(team => team.teamId)).toEqual(['tm_approved']);
+  });
+
+  test('removed and rejected application docs do not block eligible teams from re-applying', () => {
+    const user = { uid: 'cap_uid', role: 'user' };
+    const teams = [
+      { id: 'tm_removed', name: 'Removed Club', captainUid: 'cap_uid', sportTag: 'football' },
+      { id: 'tm_rejected', name: 'Rejected Club', captainUid: 'cap_uid', sportTag: 'football' },
+    ];
+    global.ApiService = {
+      getCurrentUser: () => user,
+      getTeams: () => teams,
+      getTeam: teamId => teams.find(team => team.id === teamId) || null,
+    };
+    global.App = {
+      _isTournamentGlobalAdmin: jest.fn(() => false),
+      _getFriendlyResponsibleTeams: jest.fn(() => teams),
+      _getUserTeamIds: jest.fn(() => []),
+      _isTournamentTeamOfficerForTeam: jest.fn((team, item) => team?.captainUid === item?.uid),
+    };
+    require('../../js/modules/tournament/tournament-friendly-state.js');
+
+    const ctx = global.App._getFriendlyTournamentApplyContext({
+      id: 'ct_test',
+      hostTeamId: 'tm_host',
+      sportTag: 'football',
+    }, {
+      applications: [
+        { teamId: 'tm_removed', teamName: 'Removed Club', status: 'removed' },
+        { teamId: 'tm_rejected', teamName: 'Rejected Club', status: 'rejected' },
+      ],
+      entries: [],
+    }, user);
+
+    expect(ctx.availableTeams.map(team => team.id)).toEqual(['tm_removed', 'tm_rejected']);
+    expect(ctx.availableTeams.every(team => team.hasPriorRejectedApplication)).toBe(true);
   });
 
   test('loads joined team docs for non-admin apply selector on cold detail refresh', async () => {

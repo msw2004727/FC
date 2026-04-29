@@ -152,7 +152,7 @@ Object.assign(App, {
     const canManage = this._canManageTournamentRecord?.(tournament, user);
     return (state.applications || []).filter(application => {
       const status = String(application.status || '').trim().toLowerCase();
-      if (status === 'approved' || status === 'cancelled' || status === 'withdrawn' || status === 'removed') return false;
+      if (status === 'approved' || status === 'cancelled' || status === 'withdrawn' || status === 'removed' || status === 'rejected') return false;
       return canManage || this._isTournamentViewerInTeam(user, application.teamId);
     });
   },
@@ -276,11 +276,16 @@ Object.assign(App, {
     const eligibleTeams = isGlobalAdmin
       ? this._getFriendlyTournamentJoinedTeams(user)
       : this._getFriendlyTournamentOfficerApplyTeams(user);
+    const terminalApplicationStatuses = new Set(['cancelled', 'withdrawn', 'removed', 'rejected']);
+    const priorRejectedStatuses = new Set(['removed', 'rejected']);
     const activeApplications = (state?.applications || []).filter(item => {
       const status = String(item.status || '').trim().toLowerCase();
-      return status !== 'cancelled' && status !== 'withdrawn';
+      return !terminalApplicationStatuses.has(status);
     });
     const applicationsByTeam = new Map(activeApplications.map(item => [item.teamId, item]));
+    const priorRejectedApplicationsByTeam = new Map((state?.applications || [])
+      .filter(item => priorRejectedStatuses.has(String(item.status || '').trim().toLowerCase()))
+      .map(item => [item.teamId, item]));
     const entriesByTeam = new Map((state?.entries || []).map(item => [item.teamId, item]));
     const tournamentSport = String(tournament?.sportTag || tournament?.sport || '').trim();
     const availableTeams = eligibleTeams.filter(team =>
@@ -288,7 +293,15 @@ Object.assign(App, {
       && !applicationsByTeam.has(team.id)
       && !entriesByTeam.has(team.id)
       && (!tournamentSport || !String(team?.sportTag || team?.sport || '').trim() || String(team?.sportTag || team?.sport || '').trim() === tournamentSport)
-    );
+    ).map(team => {
+      const priorApplication = priorRejectedApplicationsByTeam.get(team.id);
+      if (!priorApplication) return team;
+      return {
+        ...team,
+        hasPriorRejectedApplication: true,
+        priorApplicationStatus: String(priorApplication.status || '').trim().toLowerCase(),
+      };
+    });
     const teamIds = typeof this._getFriendlyTournamentUserActionTeamIds === 'function'
       ? this._getFriendlyTournamentUserActionTeamIds(user)
       : (typeof this._getUserTeamIds === 'function'
@@ -302,8 +315,8 @@ Object.assign(App, {
     };
     return {
       availableTeams,
-      pendingTeams: (state?.applications || []).filter(item => inStatusScope(item) && item.status === 'pending'),
-      rejectedTeams: (state?.applications || []).filter(item => inStatusScope(item) && item.status === 'rejected'),
+      pendingTeams: (state?.applications || []).filter(item => inStatusScope(item) && String(item.status || '').trim().toLowerCase() === 'pending'),
+      rejectedTeams: (state?.applications || []).filter(item => inStatusScope(item) && String(item.status || '').trim().toLowerCase() === 'rejected'),
       approvedTeams: (state?.entries || []).filter(item => inStatusScope(item) && (item.entryStatus === 'host' || item.entryStatus === 'approved')),
     };
   },

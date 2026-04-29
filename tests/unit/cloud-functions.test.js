@@ -153,6 +153,17 @@ function canApplyFriendlyTournamentForTeam(callerRole, team, callerUid, userData
     || (isRoleAdminOrAbove(callerRole) && isUserDataInTeam(userData, teamId));
 }
 
+function isTournamentApplicationTerminalStatus(status) {
+  const safeStatus = String(status || '').trim().toLowerCase();
+  return ['cancelled', 'withdrawn', 'removed', 'rejected'].includes(safeStatus);
+}
+
+function shouldBlockFriendlyTournamentApply(existingApplicationStatus, entryExists) {
+  if (entryExists) return true;
+  if (!existingApplicationStatus) return false;
+  return !isTournamentApplicationTerminalStatus(existingApplicationStatus);
+}
+
 /** registerForEvent CF: duplicate detection logic */
 function cfDuplicateCheck(existingRegs, userId) {
   return existingRegs.some(r =>
@@ -503,6 +514,16 @@ describe('applyFriendlyTournament CF permissions', () => {
   test('non-admin non-officer cannot apply for another club', () => {
     expect(canApplyFriendlyTournamentForTeam('coach', team, 'other_uid', { teamIds: ['tm_alpha'] })).toBe(false);
     expect(canApplyFriendlyTournamentForTeam('captain', team, 'other_uid', { teamIds: ['tm_alpha'] })).toBe(false);
+  });
+
+  test('terminal application docs can be reused for a new apply request', () => {
+    expect(shouldBlockFriendlyTournamentApply('pending', false)).toBe(true);
+    expect(shouldBlockFriendlyTournamentApply('approved', false)).toBe(true);
+    expect(shouldBlockFriendlyTournamentApply('cancelled', false)).toBe(false);
+    expect(shouldBlockFriendlyTournamentApply('withdrawn', false)).toBe(false);
+    expect(shouldBlockFriendlyTournamentApply('removed', false)).toBe(false);
+    expect(shouldBlockFriendlyTournamentApply('rejected', false)).toBe(false);
+    expect(shouldBlockFriendlyTournamentApply('removed', true)).toBe(true);
   });
 });
 

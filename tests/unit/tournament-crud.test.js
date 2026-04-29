@@ -85,7 +85,7 @@ function registerDecision({ tournament, state, user, availableTeams }) {
 function getApplyContext(tournament, state, userTeamIds) {
   const activeApplications = (state?.applications || []).filter(a => {
     const status = String(a.status || '').trim().toLowerCase();
-    return status !== 'cancelled' && status !== 'withdrawn';
+    return !['cancelled', 'withdrawn', 'removed', 'rejected'].includes(status);
   });
   const applicationsByTeam = new Map(activeApplications.map(a => [a.teamId, a]));
   const entriesByTeam = new Map((state?.entries || []).map(e => [e.teamId, e]));
@@ -270,6 +270,18 @@ describe('getApplyContext — duplicate team detection', () => {
     });
     const ctx = getApplyContext(tournament, state, ['cancelledTeam', 'withdrawnTeam']);
     expect(ctx.availableTeams).toEqual(['cancelledTeam', 'withdrawnTeam']);
+  });
+
+  test('removed or rejected applications do not block re-apply', () => {
+    const tournament = makeOpenTournament();
+    const state = makeState({
+      applications: [
+        { teamId: 'removedTeam', status: 'removed' },
+        { teamId: 'rejectedTeam', status: 'rejected' },
+      ],
+    });
+    const ctx = getApplyContext(tournament, state, ['removedTeam', 'rejectedTeam']);
+    expect(ctx.availableTeams).toEqual(['removedTeam', 'rejectedTeam']);
   });
 });
 

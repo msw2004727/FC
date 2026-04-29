@@ -533,6 +533,14 @@ function isTournamentRegistrationOpenForData(tournament, now = new Date()) {
     && nowMs <= endMs;
 }
 
+function isTournamentApplicationTerminalStatus(status) {
+  const safeStatus = String(status || "").trim().toLowerCase();
+  return safeStatus === "cancelled"
+    || safeStatus === "withdrawn"
+    || safeStatus === "removed"
+    || safeStatus === "rejected";
+}
+
 function getUserTeamIdSetFromData(userData) {
   const ids = new Set();
   const add = (value) => {
@@ -1266,7 +1274,11 @@ exports.applyFriendlyTournament = onCall(
       if (hostTeamId && hostTeamId === teamId) {
         throw new HttpsError("failed-precondition", "HOST_TEAM_ALREADY_REGISTERED");
       }
-      if (applicationSnap.exists || entrySnap.exists) {
+      const existingApplication = applicationSnap.exists ? (applicationSnap.data() || {}) : null;
+      const existingApplicationStatus = String(existingApplication?.status || "").trim().toLowerCase();
+      const canReuseApplicationDoc = applicationSnap.exists
+        && isTournamentApplicationTerminalStatus(existingApplicationStatus);
+      if (entrySnap.exists || (applicationSnap.exists && !canReuseApplicationDoc)) {
         throw new HttpsError("already-exists", "TOURNAMENT_APPLICATION_OR_ENTRY_EXISTS");
       }
 
@@ -1305,7 +1317,11 @@ exports.applyFriendlyTournament = onCall(
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       };
-      tx.create(applicationRef, application);
+      if (canReuseApplicationDoc) {
+        tx.set(applicationRef, application);
+      } else {
+        tx.create(applicationRef, application);
+      }
       return {
         applicationId,
         status: "pending",
