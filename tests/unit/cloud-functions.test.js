@@ -162,8 +162,32 @@ function cfDuplicateCheck(existingRegs, userId) {
   );
 }
 
+function cfRegistrationUniqueKey(reg = {}) {
+  const userId = String(reg.userId || '').trim();
+  if (reg.participantType === 'companion') {
+    return `${userId}_companion_${String(reg.companionId || '').trim()}`;
+  }
+  return `${userId}_self`;
+}
+
+function cfCountUniqueConfirmed(regs = []) {
+  const seen = new Set();
+  let count = 0;
+  regs.forEach(reg => {
+    if (reg.status !== 'confirmed') return;
+    const key = cfRegistrationUniqueKey(reg);
+    if (seen.has(key)) return;
+    seen.add(key);
+    count++;
+  });
+  return count;
+}
+
 /** registerForEvent CF: status assignment */
-function cfAssignStatus(confirmedCount, maxCapacity) {
+function cfAssignStatus(confirmedInput, maxCapacity) {
+  const confirmedCount = Array.isArray(confirmedInput)
+    ? cfCountUniqueConfirmed(confirmedInput)
+    : confirmedInput;
   return confirmedCount >= maxCapacity ? 'waitlisted' : 'confirmed';
 }
 
@@ -508,6 +532,16 @@ describe('registerForEvent CF logic', () => {
 
   test('waitlisted when over capacity', () => {
     expect(cfAssignStatus(6, 5)).toBe('waitlisted');
+  });
+
+  test('duplicate confirmed docs do not consume a unique capacity slot', () => {
+    const regs = [
+      { userId: 'u1', status: 'confirmed', participantType: 'self' },
+      { userId: 'u2', status: 'confirmed', participantType: 'self' },
+      { userId: 'u1', status: 'confirmed', participantType: 'self' },
+    ];
+    expect(cfAssignStatus(regs, 3)).toBe('confirmed');
+    expect(cfCountUniqueConfirmed(regs)).toBe(2);
   });
 });
 

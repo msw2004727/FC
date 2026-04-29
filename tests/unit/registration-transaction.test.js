@@ -31,6 +31,10 @@ function _dedupRegs(regs) {
   });
 }
 
+function countUniqueConfirmedRegistrations(regs) {
+  return _dedupRegs(regs.filter(r => r.status === 'confirmed')).length;
+}
+
 function _rebuildOccupancy(event, registrations) {
   const confirmed = _dedupRegs(registrations.filter(r => r.status === 'confirmed'));
   const waitlisted = _dedupRegs(registrations.filter(r => r.status === 'waitlisted'));
@@ -109,7 +113,7 @@ function simulateRegisterTransaction(eventData, existingRegs, newUserId, newUser
   const firestoreActiveRegs = existingRegs.filter(
     r => r.status !== 'cancelled' && r.status !== 'removed'
   );
-  const confirmedCount = firestoreActiveRegs.filter(r => r.status === 'confirmed').length;
+  const confirmedCount = countUniqueConfirmedRegistrations(firestoreActiveRegs);
 
   const isWaitlist = confirmedCount >= maxCount;
   const status = isWaitlist ? 'waitlisted' : 'confirmed';
@@ -263,6 +267,18 @@ describe('registerForEvent Transaction Logic', () => {
     const result = simulateRegisterTransaction(baseEvent, existing, 'user4', 'Dave');
     expect(result.status).toBe('confirmed');
     expect(result.occupancy.current).toBe(2); // A + Dave
+  });
+
+  test('duplicate confirmed docs do not force next unique user to waitlist', () => {
+    const existing = [
+      { id: 'r1', userId: 'u1', userName: 'A', status: 'confirmed', participantType: 'self', registeredAt: '2026-03-10T08:00:00Z' },
+      { id: 'r2', userId: 'u2', userName: 'B', status: 'confirmed', participantType: 'self', registeredAt: '2026-03-10T08:01:00Z' },
+      { id: 'r3', userId: 'u1', userName: 'A', status: 'confirmed', participantType: 'self', registeredAt: '2026-03-10T08:02:00Z' },
+    ];
+    const result = simulateRegisterTransaction(baseEvent, existing, 'u3', 'Charlie');
+    expect(result.status).toBe('confirmed');
+    expect(result.occupancy.current).toBe(3);
+    expect(result.occupancy.status).toBe('full');
   });
 });
 

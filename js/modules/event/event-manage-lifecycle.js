@@ -384,7 +384,9 @@ Object.assign(App, {
 
       // 4. 模擬遞補（Rule #7 排序，從 clone 找候補者）
       if (wasConfirmed) {
-        const confirmedCount = simRegs.filter(r => r.status === 'confirmed').length;
+        const confirmedCount = (typeof FirebaseService !== 'undefined' && typeof FirebaseService._countUniqueConfirmedRegistrations === 'function')
+          ? FirebaseService._countUniqueConfirmedRegistrations(simRegs)
+          : simRegs.filter(r => r.status === 'confirmed').length;
         let slotsAvailable = (event.max || 0) - confirmedCount;
         const _sortTime = (r) => { const t = new Date(r.registeredAt).getTime(); return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY; };
 

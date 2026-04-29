@@ -110,7 +110,9 @@ Object.assign(App, {
 
     if (newMax > oldMax) {
       // ── 模擬先行：在副本上遞補，commit 成功後才寫入 live cache（Rule #10）──
-      const confirmedCount = allRegs.filter(r => r.status === 'confirmed').length;
+      const confirmedCount = (typeof FirebaseService !== 'undefined' && typeof FirebaseService._countUniqueConfirmedRegistrations === 'function')
+        ? FirebaseService._countUniqueConfirmedRegistrations(allRegs)
+        : allRegs.filter(r => r.status === 'confirmed').length;
       let slotsAvailable = newMax - confirmedCount;
       if (slotsAvailable <= 0) return;
 

@@ -1541,6 +1541,25 @@ service cloud.firestore {
       allow delete: if isAdmin() || isSubRegOwner();
     }
 
+    match /events/{eventId}/registrationLocks/{lockId} {
+      function isLockOwnerRequest() {
+        return request.auth != null
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.key == lockId
+          && request.resource.data.eventId is string
+          && request.resource.data.registrationDocId is string
+          && request.resource.data.status == 'active';
+      }
+      function isLockOwnerResource() {
+        return request.auth != null && resource.data.userId == request.auth.uid;
+      }
+
+      allow read: if isAuth();
+      allow create: if isAdmin() || isLockOwnerRequest();
+      allow update: if false;
+      allow delete: if isAdmin() || isLockOwnerResource();
+    }
+
     match /events/{eventId}/attendanceRecords/{recId} {
       function isSubAttendanceStatusUpdate() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();

@@ -753,7 +753,7 @@ Object.assign(App, {
     } else if (isEnded) {
       html = _btn('#333', '已結束', '', true);
     } else if (isOnWaitlist) {
-      html = _gw(_btn('#7c3aed', '取消候補', "App.handleCancelSignup('" + eventId + "')"), '#7c3aed', '#a78bfa', '正在取消候補');
+      html = _gw(_btn('#d97706', '取消候補', "App.handleCancelSignup('" + eventId + "')"), '#d97706', '#f59e0b', '正在取消候補');
     } else if (isSignedUp) {
       html = _gw(_btn('#dc2626', '取消報名', "App.handleCancelSignup('" + eventId + "')"), '#dc2626', '#f87171', '正在取消報名');
     } else if (teamBlocked) {

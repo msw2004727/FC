@@ -20,8 +20,8 @@
 // Extracted: _rebuildOccupancy (firebase-crud.js:514-558)
 // ===========================================================================
 function _rebuildOccupancy(event, registrations) {
-  const confirmed = registrations.filter(r => r.status === 'confirmed');
-  const waitlisted = registrations.filter(r => r.status === 'waitlisted');
+  const confirmed = _dedupRegs(registrations.filter(r => r.status === 'confirmed'));
+  const waitlisted = _dedupRegs(registrations.filter(r => r.status === 'waitlisted'));
 
   const _regSortTime = (r) => {
     const v = r && r.registeredAt;
@@ -62,6 +62,22 @@ function _rebuildOccupancy(event, registrations) {
   return { participants, waitlistNames, current, waitlist, status };
 }
 
+function _dedupRegs(regs) {
+  const seen = new Set();
+  return regs.filter(r => {
+    const key = r.participantType === 'companion'
+      ? `${r.userId}_companion_${r.companionId || ''}`
+      : `${r.userId}_self`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function countUniqueConfirmedRegistrations(regs) {
+  return _dedupRegs(regs.filter(r => r.status === 'confirmed')).length;
+}
+
 // ===========================================================================
 // Extracted: batchRegisterForEvent transaction logic (firebase-crud.js:1922-2039)
 //
@@ -90,7 +106,7 @@ function simulateBatchRegister(eventData, existingRegs, entries) {
     r => r.status === 'confirmed' || r.status === 'waitlisted'
   );
 
-  let confirmedCount = firestoreActiveRegs.filter(r => r.status === 'confirmed').length;
+  let confirmedCount = countUniqueConfirmedRegistrations(firestoreActiveRegs);
 
   const registrations = [];
   let confirmed = 0, waitlisted = 0;
@@ -382,5 +398,22 @@ describe('batchRegisterForEvent Decision Logic', () => {
     expect(result.registrations[0].status).toBe('confirmed');
     expect(result.registrations[1].status).toBe('waitlisted');
     expect(result.registrations[2].status).toBe('waitlisted');
+  });
+
+  test('duplicate confirmed docs do not consume a unique capacity slot', () => {
+    const existing = [
+      { userId: 'u2', userName: 'Eve', status: 'confirmed', participantType: 'self', registeredAt: '2026-03-10T08:00:00Z' },
+      { userId: 'u3', userName: 'Frank', status: 'confirmed', participantType: 'self', registeredAt: '2026-03-10T08:01:00Z' },
+      { userId: 'u2', userName: 'Eve', status: 'confirmed', participantType: 'self', registeredAt: '2026-03-10T08:02:00Z' },
+    ];
+    const threeMaxEvent = { id: 'evt1', _docId: 'evt1', max: 3, status: 'open' };
+    const entries = [
+      { userId: 'u1', userName: 'Alice', participantType: 'self' },
+    ];
+    const result = simulateBatchRegister(threeMaxEvent, existing, entries);
+    expect(result.confirmed).toBe(1);
+    expect(result.waitlisted).toBe(0);
+    expect(result.registrations[0].status).toBe('confirmed');
+    expect(result.occupancy.current).toBe(3);
   });
 });

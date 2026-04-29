@@ -5398,23 +5398,43 @@ exports.backfillAutoExp = onCall(
 //  Wave 1 — 報名流程原子化 (Cloud Functions Migration)
 // ═══════════════════════════════════════════════════════════════════════
 
+function registrationUniqueKey(reg = {}) {
+  const userId = String(reg.userId || "").trim();
+  if (reg.participantType === "companion") {
+    return `${userId}_companion_${String(reg.companionId || "").trim()}`;
+  }
+  return `${userId}_self`;
+}
+
+function registrationLockId(reg = {}) {
+  const encode = (value) => encodeURIComponent(String(value || "").trim() || "_");
+  if (reg.participantType === "companion") {
+    return `companion_${encode(reg.userId)}_${encode(reg.companionId)}`;
+  }
+  return `self_${encode(reg.userId)}`;
+}
+
+function dedupeRegistrations(registrations = []) {
+  const seen = new Set();
+  return (Array.isArray(registrations) ? registrations : []).filter((reg) => {
+    const key = registrationUniqueKey(reg);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function countUniqueConfirmedRegistrations(registrations = []) {
+  return dedupeRegistrations(
+    (Array.isArray(registrations) ? registrations : []).filter((reg) => reg.status === "confirmed")
+  ).length;
+}
+
 // ── 純函式：重建活動佔位投影（與前端 firebase-crud.js _rebuildOccupancy 邏輯一致）──
 function rebuildOccupancy(event, registrations) {
   // 去重：同一 (userId, participantType, companionId) 只保留最早報名的那筆
-  const _dedupRegs = (regs) => {
-    const seen = new Set();
-    return regs.filter((r) => {
-      const key = r.participantType === "companion"
-        ? `${r.userId}_companion_${r.companionId || ""}`
-        : `${r.userId}_self`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  };
-
-  const confirmed = _dedupRegs(registrations.filter((r) => r.status === "confirmed"));
-  const waitlisted = _dedupRegs(registrations.filter((r) => r.status === "waitlisted"));
+  const confirmed = dedupeRegistrations(registrations.filter((r) => r.status === "confirmed"));
+  const waitlisted = dedupeRegistrations(registrations.filter((r) => r.status === "waitlisted"));
 
   const regSortTime = (r) => {
     const v = r && r.registeredAt;
@@ -5707,6 +5727,8 @@ exports.registerForEvent = onCall(
       const eventDoc = eventQuerySnap.docs[0];
       const eventRef = eventDoc.ref;
       const regDocRefs = sanitizedParticipants.map(() => eventDoc.ref.collection("registrations").doc());
+      const regLockIds = sanitizedParticipants.map((p) => registrationLockId(p));
+      const regLockRefs = regLockIds.map((lockId) => eventDoc.ref.collection("registrationLocks").doc(lockId));
       const ed = eventDoc.data();
       const maxCount = ed.max || 0;
 
@@ -5743,6 +5765,7 @@ exports.registerForEvent = onCall(
           registeredAt: data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt,
         };
       });
+      const lockDocs = await Promise.all(regLockRefs.map((ref) => transaction.get(ref)));
 
       // T3: 重複報名檢查
       const hasActive = allEventRegs.some(
@@ -5802,26 +5825,30 @@ exports.registerForEvent = onCall(
       const firestoreActiveRegs = allEventRegs.filter(
         (r) => r.status !== "cancelled" && r.status !== "removed"
       );
-      let confirmedCount = firestoreActiveRegs.filter((r) => r.status === "confirmed").length;
+      let confirmedCount = countUniqueConfirmedRegistrations(firestoreActiveRegs);
 
       const registrations = [];
       let newConfirmed = 0;
       let newWaitlisted = 0;
       const nowTimestamp = Timestamp.now();
       const nowISOString = nowTimestamp.toDate().toISOString();
+      const plannedKeys = new Set(firestoreActiveRegs.map((r) => registrationUniqueKey(r)));
 
       for (let idx = 0; idx < sanitizedParticipants.length; idx++) {
         const p = sanitizedParticipants[idx];
+        const dupKey = registrationUniqueKey(p);
+        const lockExists = lockDocs[idx]?.exists;
 
         // 同行者重複檢查
-        if (p.companionId) {
-          const dupKey = `${p.userId}_${p.companionId}`;
-          const existing = allEventRegs.find((r) => {
-            if (r.status === "cancelled" || r.status === "removed") return false;
-            const rKey = r.companionId ? `${r.userId}_${r.companionId}` : r.userId;
-            return rKey === dupKey;
-          });
-          if (existing) continue;
+        const existing = allEventRegs.find((r) => {
+          if (r.status === "cancelled" || r.status === "removed") return false;
+          return registrationUniqueKey(r) === dupKey;
+        });
+        if (existing || plannedKeys.has(dupKey) || lockExists) {
+          if (p.participantType !== "companion") {
+            throw new HttpsError("already-exists", "ALREADY_REGISTERED");
+          }
+          continue;
         }
 
         const isWaitlist = confirmedCount >= maxCount;
@@ -5870,8 +5897,20 @@ exports.registerForEvent = onCall(
         if (teamKey !== undefined) reg.teamKey = teamKey;
 
         transaction.set(regDocRefs[idx], reg);
+        transaction.set(regLockRefs[idx], {
+          key: regLockIds[idx],
+          eventId,
+          userId: p.userId,
+          participantType: p.participantType,
+          companionId: p.companionId || null,
+          registrationDocId: regDocRefs[idx].id,
+          status: "active",
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
         // 儲存帶有統一時間源的副本供 rebuildOccupancy 使用
         registrations.push({ ...reg, _docId: regDocRefs[idx].id, registeredAt: nowISOString });
+        plannedKeys.add(dupKey);
 
         if (status === "confirmed") {
           newConfirmed++;
@@ -6120,6 +6159,7 @@ exports.cancelRegistration = onCall(
           status: newStatus,
           [`${newStatus}At`]: FieldValue.serverTimestamp(),
         });
+        transaction.delete(eventDoc.ref.collection("registrationLocks").doc(registrationLockId(reg)));
       }
 
       // T5: 候補遞補
@@ -6128,7 +6168,7 @@ exports.cancelRegistration = onCall(
         const activeRegs = simRegs.filter(
           (r) => r.status === "confirmed" || r.status === "waitlisted"
         );
-        const confirmedCount = activeRegs.filter((r) => r.status === "confirmed").length;
+        const confirmedCount = countUniqueConfirmedRegistrations(activeRegs);
         const maxCount = ed.max || 0;
         let slotsAvailable = maxCount - confirmedCount;
 

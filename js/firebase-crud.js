@@ -421,7 +421,7 @@ Object.assign(FirebaseService, {
     await db.collection('events').doc(doc._docId).delete();
 
     // 級聯清理：刪除該活動的報名、簽到紀錄
-    const cleanupCollections = ['registrations', 'activityRecords', 'attendanceRecords'];
+    const cleanupCollections = ['registrations', 'activityRecords', 'attendanceRecords', 'registrationLocks'];
     for (const colName of cleanupCollections) {
       try {
         const snap = await db.collection(colName).where('eventId', '==', id).get();
@@ -633,22 +633,42 @@ Object.assign(FirebaseService, {
    * @param {Array} registrations - 該活動所有有效 registrations（含 confirmed/waitlisted）
    * @returns {Object} { participants, waitlistNames, current, waitlist, status }
    */
+  _getRegistrationUniqueKey(reg = {}) {
+    const userId = String(reg.userId || '').trim();
+    if (reg.participantType === 'companion') {
+      return `${userId}_companion_${String(reg.companionId || '').trim()}`;
+    }
+    return `${userId}_self`;
+  },
+
+  _getRegistrationLockId(reg = {}) {
+    const encode = (value) => encodeURIComponent(String(value || '').trim() || '_');
+    if (reg.participantType === 'companion') {
+      return `companion_${encode(reg.userId)}_${encode(reg.companionId)}`;
+    }
+    return `self_${encode(reg.userId)}`;
+  },
+
+  _dedupeRegistrations(registrations = []) {
+    const seen = new Set();
+    return (Array.isArray(registrations) ? registrations : []).filter(r => {
+      const key = this._getRegistrationUniqueKey(r);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  },
+
+  _countUniqueConfirmedRegistrations(registrations = []) {
+    return this._dedupeRegistrations(
+      (Array.isArray(registrations) ? registrations : []).filter(r => r.status === 'confirmed')
+    ).length;
+  },
+
   _rebuildOccupancy(event, registrations) {
     // 去重：同一 (userId, participantType, companionId) 只保留最早報名的那筆
-    const _dedupRegs = (regs) => {
-      const seen = new Set();
-      return regs.filter(r => {
-        const key = r.participantType === 'companion'
-          ? `${r.userId}_companion_${r.companionId || ''}`
-          : `${r.userId}_self`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-    };
-
-    const confirmed = _dedupRegs(registrations.filter(r => r.status === 'confirmed'));
-    const waitlisted = _dedupRegs(registrations.filter(r => r.status === 'waitlisted'));
+    const confirmed = this._dedupeRegistrations(registrations.filter(r => r.status === 'confirmed'));
+    const waitlisted = this._dedupeRegistrations(registrations.filter(r => r.status === 'waitlisted'));
 
     // 排序：確保 participants / waitlistNames 順序一致（registeredAt ASC → docId ASC）
     const _regSortTime = (r) => {
@@ -913,9 +933,6 @@ Object.assign(FirebaseService, {
     );
     if (existing) throw new Error('已報名此活動');
 
-    const eventRef = db.collection('events').doc(event._docId);
-    const regDocRef = db.collection('events').doc(event._docId).collection('registrations').doc();
-
     const registration = {
       id: generateId('reg_'),
       eventId,
@@ -925,6 +942,10 @@ Object.assign(FirebaseService, {
       promotionOrder: 0,
       registeredAt: new Date().toISOString(),
     };
+    const eventRef = db.collection('events').doc(event._docId);
+    const regDocRef = eventRef.collection('registrations').doc();
+    const lockId = this._getRegistrationLockId(registration);
+    const lockRef = eventRef.collection('registrationLocks').doc(lockId);
 
     const result = await db.runTransaction(async (transaction) => {
       // 原子讀取活動最新狀態
@@ -938,6 +959,8 @@ Object.assign(FirebaseService, {
         .collection('registrations')
         .get({ source: 'server' });
       const allEventRegs = allRegsSnap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+      const lockDoc = await transaction.get(lockRef);
+      if (lockDoc.exists) throw new Error('撌脣?迨瘣餃?');
 
       // 防幽靈：在 transaction 內再次檢查重複報名
       const hasActive = allEventRegs.some(r =>
@@ -951,7 +974,7 @@ Object.assign(FirebaseService, {
         r => r.status !== 'cancelled' && r.status !== 'removed'
       );
 
-      const confirmedCount = firestoreActiveRegs.filter(r => r.status === 'confirmed').length;
+      const confirmedCount = this._countUniqueConfirmedRegistrations(firestoreActiveRegs);
 
       const isWaitlist = confirmedCount >= maxCount;
       const status = isWaitlist ? 'waitlisted' : 'confirmed';
@@ -969,6 +992,17 @@ Object.assign(FirebaseService, {
       transaction.set(regDocRef, {
         ..._stripDocId(registration),
         registeredAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      transaction.set(lockRef, {
+        key: lockId,
+        eventId,
+        userId,
+        participantType: 'self',
+        companionId: null,
+        registrationDocId: regDocRef.id,
+        status: 'active',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       });
 
       // 用 Firestore 真實資料 + 新報名重建投影
@@ -1068,7 +1102,7 @@ Object.assign(FirebaseService, {
         const activeRegs = simRegs.filter(
           r => r.status === 'confirmed' || r.status === 'waitlisted'
         );
-        const confirmedCount = activeRegs.filter(r => r.status === 'confirmed').length;
+        const confirmedCount = this._countUniqueConfirmedRegistrations(activeRegs);
         const slotsAvailable = event.max - confirmedCount;
 
         if (slotsAvailable > 0) {
@@ -1125,6 +1159,7 @@ Object.assign(FirebaseService, {
       status: 'cancelled',
       cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
+    batch.delete(db.collection('events').doc(eventDocId).collection('registrationLocks').doc(this._getRegistrationLockId(reg)));
 
     // 2. 遞補候補者（含 team-split teamKey 分配）
     for (const candidate of promotedCandidates) {
@@ -2296,7 +2331,13 @@ Object.assign(FirebaseService, {
     if (hasActive) throw new Error('已報名此活動');
 
     const eventRef = db.collection('events').doc(event._docId);
-    const regDocRefs = entries.map(() => db.collection('events').doc(event._docId).collection('registrations').doc());
+    const regDocRefs = entries.map(() => eventRef.collection('registrations').doc());
+    const regLockIds = entries.map(entry => this._getRegistrationLockId({
+      userId: entry.userId,
+      participantType: entry.participantType || 'self',
+      companionId: entry.companionId || null,
+    }));
+    const regLockRefs = regLockIds.map(lockId => eventRef.collection('registrationLocks').doc(lockId));
 
     // 從 Firestore 查詢結果取得有效報名（不用快取）
     const firestoreActiveRegs = allEventRegs.filter(
@@ -2309,22 +2350,34 @@ Object.assign(FirebaseService, {
       if (!eventDoc.exists) throw new Error('活動不存在');
       const ed = eventDoc.data();
       const maxCount = ed.max || 0;
+      const lockDocs = await Promise.all(regLockRefs.map(ref => transaction.get(ref)));
 
-      let confirmedCount = firestoreActiveRegs.filter(r => r.status === 'confirmed').length;
+      let confirmedCount = this._countUniqueConfirmedRegistrations(firestoreActiveRegs);
 
       const registrations = [];
       let confirmed = 0, waitlisted = 0;
       let refIdx = 0;
       let promotionIdx = 0;
+      const plannedKeys = new Set(firestoreActiveRegs.map(r => this._getRegistrationUniqueKey(r)));
 
       for (const entry of entries) {
-        const dupKey = entry.companionId ? `${entry.userId}_${entry.companionId}` : entry.userId;
+        const entryType = entry.participantType || 'self';
+        const dupKey = this._getRegistrationUniqueKey({
+          userId: entry.userId,
+          participantType: entryType,
+          companionId: entry.companionId || null,
+        });
         const existing = allEventRegs.find(r => {
           if (r.status === 'cancelled' || r.status === 'removed') return false;
-          const rKey = r.companionId ? `${r.userId}_${r.companionId}` : r.userId;
+          const rKey = this._getRegistrationUniqueKey(r);
           return rKey === dupKey;
         });
-        if (existing) { refIdx++; promotionIdx++; continue; }
+        if (existing || plannedKeys.has(dupKey) || lockDocs[refIdx]?.exists) {
+          if (entryType !== 'companion') throw new Error('撌脣?迨瘣餃?');
+          refIdx++;
+          promotionIdx++;
+          continue;
+        }
 
         const isWaitlist = confirmedCount >= maxCount;
         const status = isWaitlist ? 'waitlisted' : 'confirmed';
@@ -2334,7 +2387,7 @@ Object.assign(FirebaseService, {
           eventId,
           userId: entry.userId,
           userName: entry.userName,
-          participantType: entry.participantType || 'self',
+          participantType: entryType,
           companionId: entry.companionId || null,
           companionName: entry.companionName || null,
           status,
@@ -2345,8 +2398,20 @@ Object.assign(FirebaseService, {
 
         const docRef = regDocRefs[refIdx];
         transaction.set(docRef, { ..._stripDocId(reg), registeredAt: firebase.firestore.FieldValue.serverTimestamp() });
+        transaction.set(regLockRefs[refIdx], {
+          key: regLockIds[refIdx],
+          eventId,
+          userId: entry.userId,
+          participantType: entryType,
+          companionId: entry.companionId || null,
+          registrationDocId: docRef.id,
+          status: 'active',
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
         reg._docId = docRef.id;
         registrations.push(reg);
+        plannedKeys.add(dupKey);
 
         if (status === 'confirmed') {
           confirmed++;
@@ -2477,7 +2542,7 @@ Object.assign(FirebaseService, {
       const activeRegs = simRegsByEvent[eventId].filter(
         r => r.status === 'confirmed' || r.status === 'waitlisted'
       );
-      const confirmedCount = activeRegs.filter(r => r.status === 'confirmed').length;
+      const confirmedCount = this._countUniqueConfirmedRegistrations(activeRegs);
       const slotsAvailable = (event.max || 0) - confirmedCount;
 
       if (slotsAvailable > 0) {
@@ -2544,6 +2609,7 @@ Object.assign(FirebaseService, {
         status: 'cancelled',
         cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
       });
+      batch.delete(db.collection('events').doc(eventDocIds[reg.eventId]).collection('registrationLocks').doc(this._getRegistrationLockId(reg)));
     }
 
     // 2. 遞補候補者（含 team-split teamKey 分配）

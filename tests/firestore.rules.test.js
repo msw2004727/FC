@@ -735,6 +735,51 @@ describe("/events/{eventId}", () => {
   });
 });
 
+describe("/events/{eventId}/registrationLocks/{lockId}", () => {
+  test("owner can create and delete own active registration lock", async () => {
+    const lockId = "self_uidA";
+    const ref = doc(memberA(), "events", "eventA", "registrationLocks", lockId);
+    await assertSucceeds(
+      setDoc(ref, {
+        key: lockId,
+        eventId: "eventA",
+        userId: "uidA",
+        participantType: "self",
+        companionId: null,
+        registrationDocId: "regA",
+        status: "active",
+      })
+    );
+    await assertSucceeds(deleteDoc(ref));
+  });
+
+  test("member cannot create another user's registration lock", async () => {
+    await assertFails(
+      setDoc(doc(memberA(), "events", "eventA", "registrationLocks", "self_uidB"), {
+        key: "self_uidB",
+        eventId: "eventA",
+        userId: "uidB",
+        participantType: "self",
+        companionId: null,
+        registrationDocId: "regB",
+        status: "active",
+      })
+    );
+  });
+
+  test("admin can delete registration lock", async () => {
+    await seedPath(["events", "eventA", "registrationLocks", "self_uidA_admin_delete"], {
+      key: "self_uidA_admin_delete",
+      eventId: "eventA",
+      userId: "uidA",
+      participantType: "self",
+      registrationDocId: "regA",
+      status: "active",
+    });
+    await assertSucceeds(deleteDoc(doc(admin(), "events", "eventA", "registrationLocks", "self_uidA_admin_delete")));
+  });
+});
+
 describe("/registrations/{regId}", () => {
   test("read: any authenticated user can read registration", async () => {
     await assertByRole(
