@@ -51,6 +51,8 @@ Object.assign(App, {
         ${info('meta')}
       </div>
 
+      ${this._seoActionItemsHTML(s, history, genAt)}
+
       ${this._seoOverviewHTML(s.overview, info)}
 
       ${this._seoDailyTrendHTML(s.daily, info)}
@@ -77,13 +79,29 @@ Object.assign(App, {
       </div>
 
       <div class="seo-section">
-        <h3>🏅 前兩頁可見關鍵詞（90 天）${info('firstTwoPageQueries')}</h3>
+        <h3>🏅 GSC 近 90 天平均前 20 名查詢詞${info('firstTwoPageQueries')}</h3>
         ${this._seoFirstTwoPageQueriesHTML(s.firstTwoPageQueries || this._seoBuildFirstTwoPageQueries(s.queries))}
+      </div>
+
+      <div class="seo-grid-2">
+        <div class="seo-section">
+          <h3>🎯 SEO 頁面機會</h3>
+          ${this._seoPageOpportunitiesHTML(s.pages)}
+        </div>
+        <div class="seo-section">
+          <h3>🔎 品牌 / 非品牌查詢</h3>
+          ${this._seoQuerySegmentsHTML(s.queries)}
+        </div>
       </div>
 
       <div class="seo-section">
         <h3>🔎 熱門搜尋詞（90 天）${info('queries')}</h3>
         ${this._seoQueriesHTML(s.queries)}
+      </div>
+
+      <div class="seo-section">
+        <h3>✨ Search Appearance</h3>
+        ${this._seoSearchAppearanceHTML(s.searchAppearance)}
       </div>
 
       <div class="seo-section">
@@ -154,6 +172,86 @@ Object.assign(App, {
     `;
   },
 
+  _seoActionItemsHTML(s, history, genAt) {
+    const items = this._seoBuildActionItems(s, history, genAt);
+    if (!items.length) {
+      return `
+        <div class="seo-section">
+          <h3>✅ 今日 SEO 狀態</h3>
+          <div class="seo-alert seo-alert-ok">目前沒有明顯警示。仍建議每週檢查一次低 CTR 與第二頁候選詞。</div>
+        </div>
+      `;
+    }
+    return `
+      <div class="seo-section">
+        <h3>🧭 SEO 待辦 / 警示</h3>
+        <div class="seo-alert-list">
+          ${items.map(item => `
+            <div class="seo-alert seo-alert-${item.level}">
+              <strong>${this._esc(item.title)}</strong>
+              <span>${this._esc(item.body)}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  },
+
+  _seoBuildActionItems(s, history, genAt) {
+    const items = [];
+    if (genAt && (Date.now() - genAt.getTime()) > 36 * 60 * 60 * 1000) {
+      items.push({
+        level: 'warn',
+        title: '資料可能過舊',
+        body: 'SEO 快照已超過 36 小時，建議確認 GitHub Actions 的 GSC Daily Snapshot 是否正常。',
+      });
+    }
+    const urlStatus = Array.isArray(s?.urlStatus) ? s.urlStatus : [];
+    const failedUrls = urlStatus.filter(u => u.error || (u.verdict && u.verdict !== 'PASS'));
+    if (failedUrls.length) {
+      items.push({
+        level: 'danger',
+        title: `URL 收錄檢查有 ${failedUrls.length} 筆需確認`,
+        body: failedUrls.slice(0, 3).map(u => (u.url || '').replace('https://toosterx.com', '') || '/').join('、'),
+      });
+    }
+    const sitemapProblems = (Array.isArray(s?.sitemaps) ? s.sitemaps : [])
+      .filter(m => Number(m.errors || 0) > 0 || Number(m.warnings || 0) > 0);
+    if (sitemapProblems.length) {
+      items.push({
+        level: 'danger',
+        title: 'Sitemap 有錯誤或警告',
+        body: sitemapProblems.map(m => `${m.errors || 0} errors / ${m.warnings || 0} warnings`).join('；'),
+      });
+    }
+    const lowCtrPages = (Array.isArray(s?.pages) ? s.pages : [])
+      .filter(p => Number(p.impressions || 0) >= 10 && Number(p.ctr || 0) < 0.02);
+    if (lowCtrPages.length) {
+      items.push({
+        level: 'warn',
+        title: `高曝光低 CTR 頁面 ${lowCtrPages.length} 筆`,
+        body: '優先檢查 title、description 與搜尋意圖是否匹配。',
+      });
+    }
+    const secondPageQueries = (Array.isArray(s?.queries) ? s.queries : [])
+      .filter(q => Number(q.impressions || 0) >= 3 && Number(q.position || 0) > 10 && Number(q.position || 0) <= 20);
+    if (secondPageQueries.length) {
+      items.push({
+        level: 'info',
+        title: `第二頁候選詞 ${secondPageQueries.length} 個`,
+        body: '這些詞最適合補內文段落、FAQ、內鏈與頁面標題。',
+      });
+    }
+    if (Array.isArray(history) && history.length < 3) {
+      items.push({
+        level: 'info',
+        title: '歷史快照偏少',
+        body: '趨勢圖仍可用，但長期比較至少需要 7 天以上快照會更穩。',
+      });
+    }
+    return items.slice(0, 6);
+  },
+
   _seoPagesTableHTML(pages) {
     if (!Array.isArray(pages) || !pages.length) return '<p class="seo-empty-note">無資料</p>';
     return `
@@ -218,6 +316,90 @@ Object.assign(App, {
     `;
   },
 
+  _seoPageOpportunitiesHTML(pages) {
+    if (!Array.isArray(pages) || !pages.length) return '<p class="seo-empty-note">暫無頁面資料</p>';
+    const opportunities = pages
+      .filter(p => Number(p.impressions || 0) >= 3)
+      .map(p => {
+        const position = Number(p.position || 0);
+        const ctr = Number(p.ctr || 0);
+        let reason = '';
+        if (Number(p.impressions || 0) >= 10 && ctr < 0.02) reason = '高曝光低 CTR';
+        else if (position > 10 && position <= 20) reason = '第二頁候選';
+        else if (position > 0 && position <= 10 && Number(p.clicks || 0) === 0) reason = '有排名但未點擊';
+        if (!reason) return null;
+        return { ...p, reason };
+      })
+      .filter(Boolean)
+      .slice(0, 8);
+    if (!opportunities.length) return '<p class="seo-empty-note">目前沒有明顯頁面機會</p>';
+    return `
+      <table class="seo-table seo-table-compact">
+        <thead><tr><th>頁面</th><th>機會</th><th>曝光</th><th>CTR</th><th>排名</th></tr></thead>
+        <tbody>
+          ${opportunities.map(p => `
+            <tr>
+              <td class="seo-url-cell" title="${this._esc(p.page)}">${this._esc((p.page || '').replace('https://toosterx.com', '') || '/')}</td>
+              <td><span class="seo-pill seo-pill-info">${this._esc(p.reason)}</span></td>
+              <td>${this._fmtNum(p.impressions)}</td>
+              <td>${this._fmtPct(p.ctr)}</td>
+              <td>${this._fmtPos(p.position)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  },
+
+  _seoQuerySegmentsHTML(queries) {
+    if (!Array.isArray(queries) || !queries.length) return '<p class="seo-empty-note">暫無查詢詞資料</p>';
+    const sum = (rows) => rows.reduce((acc, q) => {
+      acc.impressions += Number(q.impressions || 0);
+      acc.clicks += Number(q.clicks || 0);
+      return acc;
+    }, { impressions: 0, clicks: 0 });
+    const brand = queries.filter(q => this._seoIsBrandQuery(q.query));
+    const nonBrand = queries.filter(q => !this._seoIsBrandQuery(q.query));
+    const rows = [
+      { label: '品牌詞', ...sum(brand) },
+      { label: '非品牌詞', ...sum(nonBrand) },
+    ].map(r => ({
+      ...r,
+      ctr: r.impressions > 0 ? r.clicks / r.impressions : 0,
+    }));
+    return `
+      <table class="seo-table seo-table-compact">
+        <thead><tr><th>類型</th><th>曝光</th><th>點擊</th><th>CTR</th></tr></thead>
+        <tbody>
+          ${rows.map(r => `<tr><td>${r.label}</td><td>${this._fmtNum(r.impressions)}</td><td>${this._fmtNum(r.clicks)}</td><td>${this._fmtPct(r.ctr)}</td></tr>`).join('')}
+        </tbody>
+      </table>
+      <p class="seo-empty-note" style="margin-top:.45rem">非品牌詞更接近自然 SEO 成長；品牌詞通常代表既有認知或回訪。</p>
+    `;
+  },
+
+  _seoSearchAppearanceHTML(searchAppearance) {
+    if (!Array.isArray(searchAppearance) || !searchAppearance.length) {
+      return '<p class="seo-empty-note">目前沒有 Search Appearance 資料，代表 GSC 尚未回傳特殊搜尋外觀。</p>';
+    }
+    return `
+      <table class="seo-table seo-table-compact">
+        <thead><tr><th>外觀</th><th>曝光</th><th>點擊</th><th>CTR</th><th>排名</th></tr></thead>
+        <tbody>
+          ${searchAppearance.map(r => `
+            <tr>
+              <td>${this._esc(r.searchAppearance || 'N/A')}</td>
+              <td>${this._fmtNum(r.impressions)}</td>
+              <td>${this._fmtNum(r.clicks)}</td>
+              <td>${this._fmtPct(r.ctr)}</td>
+              <td>${this._fmtPos(r.position)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  },
+
   _seoQueriesHTML(queries) {
     if (!Array.isArray(queries) || !queries.length) {
       return '<p class="seo-empty-note">無資料（GSC 對低曝光查詢詞有隱私門檻，需累積更多流量才會顯示）</p>';
@@ -247,7 +429,25 @@ Object.assign(App, {
       .map(q => ({
         ...q,
         pageBucket: Number(q.position || 0) <= 10 ? 'page1' : 'page2',
+        sampleConfidence: this._seoQuerySampleConfidence(q.impressions || 0),
       }));
+  },
+
+  _seoQuerySampleConfidence(impressions) {
+    const n = Number(impressions || 0);
+    if (n >= 10) return { level: 'high', label: '較可信' };
+    if (n >= 3) return { level: 'medium', label: '樣本不足' };
+    return { level: 'low', label: '樣本極少' };
+  },
+
+  _seoConfidencePill(confidence) {
+    const item = confidence || { level: 'low', label: '樣本極少' };
+    return `<span class="seo-pill seo-pill-${this._esc(item.level || 'low')}">${this._esc(item.label || '樣本極少')}</span>`;
+  },
+
+  _seoIsBrandQuery(query) {
+    const q = String(query || '').toLowerCase();
+    return q.includes('tooster') || q.includes('toosterx') || q.includes('吐司') || q.includes('土司');
   },
 
   _seoFirstTwoPageQueriesHTML(queries) {
@@ -256,12 +456,13 @@ Object.assign(App, {
     }
     return `
       <table class="seo-table">
-        <thead><tr><th>查詢</th><th>頁次</th><th>曝光</th><th>點擊</th><th>CTR</th><th>平均排名</th></tr></thead>
+        <thead><tr><th>查詢</th><th>頁次</th><th>曝光</th><th>點擊</th><th>CTR</th><th>平均排名</th><th>可信度</th></tr></thead>
         <tbody>
           ${queries.map(q => {
             const bucket = q.pageBucket || (Number(q.position || 0) <= 10 ? 'page1' : 'page2');
             const bucketLabel = bucket === 'page1' ? '第 1 頁' : '第 2 頁';
-            return `<tr><td>${this._esc(q.query)}</td><td>${bucketLabel}</td><td>${this._fmtNum(q.impressions)}</td><td>${this._fmtNum(q.clicks)}</td><td>${this._fmtPct(q.ctr)}</td><td>${this._fmtPos(q.position)}</td></tr>`;
+            const confidence = q.sampleConfidence || this._seoQuerySampleConfidence(q.impressions || 0);
+            return `<tr><td>${this._esc(q.query)}</td><td>${bucketLabel}</td><td>${this._fmtNum(q.impressions)}</td><td>${this._fmtNum(q.clicks)}</td><td>${this._fmtPct(q.ctr)}</td><td>${this._fmtPos(q.position)}</td><td>${this._seoConfidencePill(confidence)}</td></tr>`;
           }).join('')}
         </tbody>
       </table>

@@ -78,6 +78,7 @@
   border-radius: 0;
   padding: 0;
   margin: 0 0 1.5rem 0;
+  overflow-x: auto;
 }
 .seo-section:last-child { margin-bottom: 0; }
 .seo-section > h3 {
@@ -186,7 +187,9 @@
   width: 100%;
   border-collapse: collapse;
   font-size: .82rem;
+  min-width: 560px;
 }
+.seo-table-compact { min-width: 480px; }
 .seo-table th, .seo-table td {
   padding: .5rem .55rem;
   text-align: left;
@@ -241,6 +244,75 @@
   text-align: center;
   color: var(--text-muted);
   font-size: .82rem;
+}
+
+.seo-alert-list {
+  display: grid;
+  gap: .5rem;
+}
+.seo-alert {
+  display: flex;
+  flex-direction: column;
+  gap: .2rem;
+  padding: .65rem .75rem;
+  border-radius: var(--radius-sm, 10px);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: .82rem;
+}
+.seo-alert strong {
+  color: var(--text-primary);
+  font-size: .86rem;
+}
+.seo-alert-danger {
+  border-color: rgba(239, 68, 68, .35);
+  background: rgba(239, 68, 68, .08);
+}
+.seo-alert-warn {
+  border-color: rgba(245, 158, 11, .35);
+  background: rgba(245, 158, 11, .08);
+}
+.seo-alert-info {
+  border-color: rgba(14, 165, 233, .35);
+  background: rgba(14, 165, 233, .08);
+}
+.seo-alert-ok {
+  border-color: rgba(16, 185, 129, .28);
+  background: rgba(16, 185, 129, .08);
+}
+.seo-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 .45rem;
+  border-radius: 999px;
+  font-size: .72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.seo-pill-high {
+  color: #047857;
+  border-color: rgba(16, 185, 129, .35);
+  background: rgba(16, 185, 129, .1);
+}
+.seo-pill-medium {
+  color: #a16207;
+  border-color: rgba(245, 158, 11, .35);
+  background: rgba(245, 158, 11, .1);
+}
+.seo-pill-low {
+  color: #b91c1c;
+  border-color: rgba(239, 68, 68, .35);
+  background: rgba(239, 68, 68, .1);
+}
+.seo-pill-info {
+  color: var(--accent);
+  border-color: rgba(20, 184, 166, .35);
+  background: rgba(20, 184, 166, .1);
 }
 
 .seo-footer-note {

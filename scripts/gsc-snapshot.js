@@ -36,10 +36,28 @@ const URLS_TO_INSPECT = [
   'https://toosterx.com/seo/nantun-football-park',
   'https://toosterx.com/seo/sports-changhua',
   'https://toosterx.com/seo/sports-nantou',
+  'https://toosterx.com/blog/',
+  'https://toosterx.com/blog/equipment/',
+  'https://toosterx.com/blog/rules/',
+  'https://toosterx.com/blog/football-shoes-guide',
+  'https://toosterx.com/blog/basketball-shoes-guide',
+  'https://toosterx.com/blog/badminton-racket-guide',
+  'https://toosterx.com/blog/pickleball-complete-guide',
+  'https://toosterx.com/blog/pickleball-paddle-guide',
+  'https://toosterx.com/blog/running-shoes-guide',
+  'https://toosterx.com/blog/hiking-shoes-guide',
+  'https://toosterx.com/blog/football-rules',
+  'https://toosterx.com/blog/basketball-rules',
+  'https://toosterx.com/blog/badminton-rules',
+  'https://toosterx.com/blog/pickleball-rules',
+  'https://toosterx.com/blog/running-rules',
+  'https://toosterx.com/blog/hiking-rules',
   'https://toosterx.com/roles/',
   'https://toosterx.com/privacy.html',
   'https://toosterx.com/terms.html',
 ];
+const SITEMAP_URL = 'https://toosterx.com/sitemap.xml';
+const URL_INSPECTION_LIMIT = 45;
 
 // ─── OAuth JWT Helpers ───────────────────────────────────
 function base64url(data) {
@@ -70,6 +88,22 @@ function httpJSON(options, body) {
     req.on('error', reject);
     if (body) req.write(body);
     req.end();
+  });
+}
+
+function httpText(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, (res) => {
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        res.resume();
+        reject(new Error(`HTTP ${res.statusCode}`));
+        return;
+      }
+      let d = '';
+      res.setEncoding('utf8');
+      res.on('data', c => d += c);
+      res.on('end', () => resolve(d));
+    }).on('error', reject);
   });
 }
 
@@ -214,6 +248,13 @@ async function fetchByDim(token, startDate, endDate, dim, rowLimit = 50) {
   }));
 }
 
+function getQuerySampleConfidence(impressions) {
+  const n = Number(impressions || 0);
+  if (n >= 10) return { level: 'high', label: '較可信' };
+  if (n >= 3) return { level: 'medium', label: '樣本不足' };
+  return { level: 'low', label: '樣本極少' };
+}
+
 function buildFirstTwoPageQueries(queries, limit = 30) {
   if (!Array.isArray(queries)) return [];
   return queries
@@ -231,7 +272,40 @@ function buildFirstTwoPageQueries(queries, limit = 30) {
       ctr: q.ctr || 0,
       position: q.position || 0,
       pageBucket: Number(q.position || 0) <= 10 ? 'page1' : 'page2',
+      sampleConfidence: getQuerySampleConfidence(q.impressions || 0),
     }));
+}
+
+function normalizeToosterUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  if (!trimmed.startsWith('https://toosterx.com/')) return null;
+  return trimmed.replace(/\/index\.html$/, '/');
+}
+
+function extractSitemapUrls(xml) {
+  if (!xml || typeof xml !== 'string') return [];
+  const urls = [];
+  const locRe = /<loc>\s*([^<]+?)\s*<\/loc>/gi;
+  let match;
+  while ((match = locRe.exec(xml)) !== null) {
+    const url = normalizeToosterUrl(match[1]);
+    if (url) urls.push(url);
+  }
+  return urls;
+}
+
+async function buildInspectionUrlList() {
+  let sitemapUrls = [];
+  try {
+    sitemapUrls = extractSitemapUrls(await httpText(SITEMAP_URL));
+  } catch (err) {
+    console.warn('Sitemap URL list fallback:', err.message);
+  }
+  return Array.from(new Set([...URLS_TO_INSPECT, ...sitemapUrls]
+    .map(normalizeToosterUrl)
+    .filter(Boolean)))
+    .slice(0, URL_INSPECTION_LIMIT);
 }
 
 async function fetchSitemap(token) {
@@ -313,7 +387,7 @@ async function main() {
     fetchByDim(token, start28, end, 'page', 50),
     fetchByDim(token, start28, end, 'device', 10),
     fetchByDim(token, start28, end, 'country', 20),
-    fetchByDim(token, start90, end, 'query', 50),
+    fetchByDim(token, start90, end, 'query', 250),
     fetchByDim(token, start90, end, 'searchAppearance', 10).catch(() => []),
   ]);
   console.log('  ✓ pages:', pages.length, '| devices:', devices.length, '| countries:', countries.length, '| queries:', queries.length);
@@ -324,8 +398,9 @@ async function main() {
   const sitemaps = await fetchSitemap(token);
   console.log('  ✓', sitemaps.length, '個 sitemap');
 
-  console.log('→ URL Inspection (' + URLS_TO_INSPECT.length + ' 個 URL)...');
-  const urlStatus = await fetchUrlInspections(token, URLS_TO_INSPECT);
+  const urlsToInspect = await buildInspectionUrlList();
+  console.log('→ URL Inspection (' + urlsToInspect.length + ' 個 URL)...');
+  const urlStatus = await fetchUrlInspections(token, urlsToInspect);
   const indexed = urlStatus.filter(u => u.coverage === 'Submitted and indexed').length;
   console.log('  ✓ 完成，' + indexed + '/' + urlStatus.length + ' indexed');
 
