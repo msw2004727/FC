@@ -281,6 +281,10 @@ describe('Team reservation button loading contract', () => {
     expect(signupSource).toContain('_resolveTeamReservationSignupChoice');
     expect(signupSource).toContain('choices.length === 1');
     expect(signupSource).toContain('team-reservation-signup-choice-modal');
+    expect(signupSource).toContain('team-reservation-choice-card');
+    expect(signupSource).toContain('selectTeamReservationSignupChoice');
+    expect(signupSource).toContain('.team-reservation-choice-card.is-selected');
+    expect(signupSource).not.toContain('name="team-reservation-signup-choice"');
     expect(signupSource).toContain('preferredTeamReservationTeamId');
     expect(companionSource).toContain('openTeamReservationSignupChoiceModal?.(eventId, reservationChoice.choices, \'companion\')');
     expect(crudSource).toContain('TEAM_RESERVATION_TEAM_DENIED');

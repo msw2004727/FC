@@ -244,18 +244,20 @@ Object.assign(App, {
     modal.setAttribute('role', 'presentation');
     modal.removeAttribute('onclick');
     const optionHtml = validChoices.map((item, idx) => {
-      const checked = idx === 0 ? ' checked' : '';
+      const selectedClass = idx === 0 ? ' is-selected' : '';
+      const ariaChecked = idx === 0 ? 'true' : 'false';
       const reserved = Math.max(0, Number(item.reservedSlots || 0) || 0);
       const used = Math.max(0, Number(item.usedSlots || 0) || 0);
       const remaining = Math.max(0, Number(item.remainingSlots || 0) || 0);
+      const safeTeamId = escapeHTML(item.teamId);
       return `
-        <label class="team-reservation-choice-option" style="display:flex;gap:.75rem;align-items:flex-start;padding:.75rem;border:1px solid var(--border);border-radius:10px;margin:.5rem 0;background:#fff;cursor:pointer">
-          <input type="radio" name="team-reservation-signup-choice" value="${escapeHTML(item.teamId)}"${checked} style="margin-top:.2rem">
-          <span style="display:flex;flex-direction:column;gap:.2rem">
-            <b>${escapeHTML(item.teamName || item.teamId)}</b>
-            <span style="font-size:.82rem;color:var(--text-muted)">原團隊佔位 ${reserved}，已使用 ${used}，剩餘 ${remaining}</span>
+        <button type="button" class="team-reservation-choice-card${selectedClass}" data-team-id="${safeTeamId}" role="radio" aria-checked="${ariaChecked}" onclick="App.selectTeamReservationSignupChoice(this.dataset.teamId)">
+          <span class="team-reservation-choice-mark" aria-hidden="true"></span>
+          <span class="team-reservation-choice-main">
+            <span class="team-reservation-choice-name">${escapeHTML(item.teamName || item.teamId)}</span>
+            <span class="team-reservation-choice-meta">席位 ${reserved} · 已用 ${used} · 剩 ${remaining}</span>
           </span>
-        </label>`;
+        </button>`;
     }).join('');
     modal.innerHTML = `
       <div class="team-reservation-dialog" role="dialog" aria-modal="true" aria-labelledby="team-reservation-signup-choice-title" onclick="event.stopPropagation()">
@@ -264,8 +266,10 @@ Object.assign(App, {
           <button type="button" class="team-reservation-close" onclick="App.closeTeamReservationSignupChoiceModal()" aria-label="關閉">×</button>
         </div>
         <div class="team-reservation-dialog-body">
-          <div class="team-reservation-note">你同時符合多個俱樂部席位，請選擇本次個人報名要使用哪一個俱樂部。</div>
-          ${optionHtml}
+          <div class="team-reservation-note">你符合多個俱樂部席位，請選擇本次要使用的俱樂部。</div>
+          <div class="team-reservation-choice-list" role="radiogroup" aria-label="報名俱樂部">
+            ${optionHtml}
+          </div>
         </div>
         <div class="team-reservation-dialog-actions">
           <button type="button" class="outline-btn" onclick="App.closeTeamReservationSignupChoiceModal()">取消</button>
@@ -274,6 +278,17 @@ Object.assign(App, {
       </div>`;
     modal.classList.add('open');
     document.body.classList.add('modal-open');
+  },
+
+  selectTeamReservationSignupChoice(teamId) {
+    const modal = document.getElementById('team-reservation-signup-choice-modal');
+    if (!modal) return;
+    const selectedTeamId = String(teamId || '').trim();
+    modal.querySelectorAll('.team-reservation-choice-card').forEach(card => {
+      const isSelected = String(card.dataset.teamId || '').trim() === selectedTeamId;
+      card.classList.toggle('is-selected', isSelected);
+      card.setAttribute('aria-checked', isSelected ? 'true' : 'false');
+    });
   },
 
   closeTeamReservationSignupChoiceModal() {
@@ -287,8 +302,8 @@ Object.assign(App, {
   },
 
   confirmTeamReservationSignupChoice(eventId, mode = 'signup') {
-    const selected = document.querySelector('#team-reservation-signup-choice-modal input[name="team-reservation-signup-choice"]:checked');
-    const teamId = String(selected?.value || '').trim();
+    const selected = document.querySelector('#team-reservation-signup-choice-modal .team-reservation-choice-card.is-selected');
+    const teamId = String(selected?.dataset?.teamId || '').trim();
     if (!teamId) {
       this.showToast('請先選擇報名俱樂部');
       return;

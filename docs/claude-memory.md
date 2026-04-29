@@ -1891,3 +1891,8 @@
 - **原因**：前端 `datetime-local` 送出的是 `YYYY-MM-DDTHH:mm` 無時區字串，瀏覽器以台灣時間判斷為已開放；Cloud Functions 可能以 UTC 解析同一字串，導致後端覺得報名尚未開始。
 - **修復**：前端建立/編輯賽事時把報名開始與截止轉成 ISO UTC；編輯既有賽事時再轉回本地 `datetime-local` 顯示。後端 `getTimestampMillis()` 補 legacy 相容，無時區賽事時間一律當台灣時間解析，並在 callable 建立賽事時存成 ISO。
 - **驗證**：新增 `tournament-datetime.test.js` 與 `tournament-function-timezone-source.test.js`；targeted tournament tests 通過 6 suites / 133 tests。
+### 2026-04-29 — 多俱樂部報名選擇彈窗卡片化
+- **問題**：多俱樂部個人報名彈窗使用 radio 欄位，選項視覺過重且不像可點整張卡片，深色主題下也不夠清楚。
+- **原因**：選項 HTML 直接用 inline `label + input[type=radio]`，缺少專屬選取狀態樣式與主題分層。
+- **修復**：改為整張俱樂部卡片點選，使用 `aria-checked` 與 `is-selected` 管理狀態；被選卡片改成藍綠漸層、邊框與小型勾選標記，並補上深色主題色階；卡片文字改短且固定單行省略，避免手機亂斷行。
+- **教訓**：高頻操作彈窗要讓「可點擊區域」與「選取狀態」一眼可懂，避免表單控件搶走視覺焦點。

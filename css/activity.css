@@ -576,6 +576,130 @@
   line-height: 1.65;
   margin-bottom: .8rem;
 }
+.team-reservation-choice-list {
+  display: grid;
+  gap: .7rem;
+}
+.team-reservation-choice-card {
+  position: relative;
+  width: 100%;
+  display: block;
+  min-height: 78px;
+  padding: .86rem 2.8rem .86rem .95rem;
+  border: 1px solid rgba(148, 163, 184, .32);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, .78);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .55) inset;
+  transition: transform .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;
+}
+.team-reservation-choice-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(37, 99, 235, .16), rgba(20, 184, 166, .16));
+  opacity: 0;
+  transition: opacity .18s ease;
+}
+.team-reservation-choice-card:hover {
+  border-color: rgba(37, 99, 235, .46);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, .08);
+}
+.team-reservation-choice-card.is-selected {
+  border-color: rgba(37, 99, 235, .72);
+  background: linear-gradient(135deg, rgba(37, 99, 235, .18), rgba(20, 184, 166, .14)), rgba(255, 255, 255, .88);
+  box-shadow: 0 12px 30px rgba(37, 99, 235, .16), 0 1px 0 rgba(255, 255, 255, .72) inset;
+}
+.team-reservation-choice-card.is-selected::before {
+  opacity: 1;
+}
+.team-reservation-choice-mark {
+  position: absolute;
+  z-index: 1;
+  top: .92rem;
+  right: .95rem;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid rgba(148, 163, 184, .8);
+  background: rgba(255, 255, 255, .7);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, .08);
+  transition: border-color .18s ease, background .18s ease, box-shadow .18s ease;
+}
+.team-reservation-choice-card.is-selected .team-reservation-choice-mark {
+  border-color: #2563eb;
+  background: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, .14);
+}
+.team-reservation-choice-card.is-selected .team-reservation-choice-mark::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 5px;
+  height: 10px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.team-reservation-choice-main {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: .22rem;
+}
+.team-reservation-choice-name {
+  font-size: .95rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-reservation-choice-meta {
+  font-size: .78rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-reservation-choice-card.is-selected .team-reservation-choice-name {
+  color: #1d4ed8;
+}
+[data-theme="dark"] .team-reservation-choice-card {
+  border-color: rgba(148, 163, 184, .2);
+  background: rgba(34, 40, 56, .72);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .06) inset;
+}
+[data-theme="dark"] .team-reservation-choice-card::before {
+  background: linear-gradient(135deg, rgba(96, 165, 250, .22), rgba(45, 212, 191, .16));
+}
+[data-theme="dark"] .team-reservation-choice-card:hover {
+  border-color: rgba(96, 165, 250, .46);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, .28);
+}
+[data-theme="dark"] .team-reservation-choice-card.is-selected {
+  border-color: rgba(96, 165, 250, .75);
+  background: linear-gradient(135deg, rgba(37, 99, 235, .34), rgba(20, 184, 166, .2)), rgba(34, 40, 56, .86);
+  box-shadow: 0 14px 34px rgba(37, 99, 235, .2), 0 1px 0 rgba(255, 255, 255, .08) inset;
+}
+[data-theme="dark"] .team-reservation-choice-card.is-selected .team-reservation-choice-mark {
+  border-color: #60a5fa;
+  background: #3b82f6;
+  box-shadow: 0 0 0 4px rgba(96, 165, 250, .16);
+}
+[data-theme="dark"] .team-reservation-choice-card.is-selected .team-reservation-choice-name {
+  color: #bfdbfe;
+}
 .team-reservation-label {
   display: block;
   font-size: .78rem;
