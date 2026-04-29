@@ -564,7 +564,48 @@ function isTournamentApplicationTerminalStatus(status) {
     || safeStatus === "rejected";
 }
 
-function getUserTeamIdSetFromData(userData) {
+function isTeamStaffForReservationUser(teamData = {}, userData = {}) {
+  const uidCandidates = new Set();
+  const addUidCandidate = (value) => {
+    const safeValue = String(value || "").trim();
+    if (safeValue) uidCandidates.add(safeValue);
+  };
+  addUidCandidate(userData?.uid);
+  addUidCandidate(userData?.lineUserId);
+  addUidCandidate(userData?._docId);
+  addUidCandidate(userData?.docId);
+  if (!uidCandidates.size) return false;
+
+  const staffUids = [];
+  const addStaffUid = (value) => {
+    const safeValue = String(value || "").trim();
+    if (safeValue) staffUids.push(safeValue);
+  };
+  addStaffUid(teamData?.captainUid);
+  addStaffUid(teamData?.creatorUid);
+  addStaffUid(teamData?.ownerUid);
+  addStaffUid(teamData?.leaderUid);
+  if (Array.isArray(teamData?.leaderUids)) teamData.leaderUids.forEach(addStaffUid);
+  if (Array.isArray(teamData?.coachUids)) teamData.coachUids.forEach(addStaffUid);
+  return staffUids.some((uid) => uidCandidates.has(uid));
+}
+
+function addStaffTeamIdsForReservation(ids, userData = {}, staffTeams = []) {
+  if (!ids || typeof ids.add !== "function") return;
+  const add = (value) => {
+    const safeValue = String(value || "").trim();
+    if (safeValue) ids.add(safeValue);
+  };
+  (Array.isArray(staffTeams) ? staffTeams : []).forEach((team) => {
+    if (!isTeamStaffForReservationUser(team, userData)) return;
+    add(team?.id);
+    add(team?._docId);
+    add(team?.docId);
+    add(team?.teamId);
+  });
+}
+
+function getUserTeamIdSetFromData(userData, staffTeams = []) {
   const ids = new Set();
   const add = (value) => {
     const safeValue = String(value || "").trim();
@@ -572,27 +613,13 @@ function getUserTeamIdSetFromData(userData) {
   };
   if (Array.isArray(userData?.teamIds)) userData.teamIds.forEach(add);
   add(userData?.teamId);
+  addStaffTeamIdsForReservation(ids, userData, staffTeams);
   return ids;
 }
 
 function isUserDataInTeam(userData, teamId) {
   const safeTeamId = String(teamId || "").trim();
   return !!safeTeamId && getUserTeamIdSetFromData(userData).has(safeTeamId);
-}
-
-function getTournamentRosterUnlockUidSet(teamData) {
-  const uids = new Set();
-  const add = (value) => {
-    const safeValue = String(value || "").trim();
-    if (safeValue) uids.add(safeValue);
-  };
-  add(teamData?.captainUid);
-  add(teamData?.creatorUid);
-  add(teamData?.ownerUid);
-  add(teamData?.leaderUid);
-  if (Array.isArray(teamData?.leaderUids)) teamData.leaderUids.forEach(add);
-  if (Array.isArray(teamData?.coachUids)) teamData.coachUids.forEach(add);
-  return uids;
 }
 
 function getTournamentDelegateUidSet(tournament) {
@@ -1753,13 +1780,6 @@ exports.joinFriendlyTournamentRoster = onCall(
       }
       if (memberSnap.exists) {
         return { status: "joined", alreadyJoined: true, teamId };
-      }
-
-      const membersSnap = await tx.get(entryRef.collection("members"));
-      const unlockUids = getTournamentRosterUnlockUidSet(teamDoc.data);
-      const isUnlocked = membersSnap.docs.some(doc => unlockUids.has(String(doc.id || doc.data()?.uid || "").trim()));
-      if (!isOfficer && !isUnlocked) {
-        throw new HttpsError("failed-precondition", "ROSTER_REQUIRES_OFFICER_FIRST_JOIN");
       }
 
       tx.set(memberRef, {
@@ -5555,12 +5575,39 @@ function normalizeTeamReservationSummaries(eventOrSummaries = {}) {
   }).filter(Boolean);
 }
 
+async function loadTeamReservationTeamsForTransaction(transaction, teamIds = []) {
+  const teams = [];
+  const seen = new Set();
+  for (const rawTeamId of (Array.isArray(teamIds) ? teamIds : [])) {
+    const teamId = String(rawTeamId || "").trim();
+    if (!teamId || seen.has(teamId)) continue;
+    seen.add(teamId);
+
+    const directSnap = await transaction.get(db.collection("teams").doc(teamId));
+    if (directSnap.exists) {
+      const data = directSnap.data() || {};
+      teams.push({ ...data, id: data.id || directSnap.id, _docId: directSnap.id, docId: directSnap.id });
+      continue;
+    }
+
+    const querySnap = await transaction.get(
+      db.collection("teams").where("id", "==", teamId).limit(1)
+    );
+    if (!querySnap.empty) {
+      const doc = querySnap.docs[0];
+      const data = doc.data() || {};
+      teams.push({ ...data, id: data.id || doc.id, _docId: doc.id, docId: doc.id });
+    }
+  }
+  return teams;
+}
+
 function registrationTeamReservationTeamId(reg = {}) {
   return String(reg.teamReservationTeamId || reg.teamReservationId || "").trim();
 }
 
-function findTeamReservationForUser(eventData = {}, userData = {}) {
-  const userTeamIds = getUserTeamIdSetFromData(userData);
+function findTeamReservationForUser(eventData = {}, userData = {}, staffTeams = []) {
+  const userTeamIds = getUserTeamIdSetFromData(userData, staffTeams);
   if (!userTeamIds.size) return null;
   return normalizeTeamReservationSummaries(eventData)
     .filter((item) => item.reservedSlots > 0 || item.usedSlots > 0)
@@ -5575,11 +5622,11 @@ function applyTeamReservationFields(registration, reservation, source) {
   return registration;
 }
 
-function decideRegistrationSeat(eventData, activeRegs, registration, userData = {}) {
+function decideRegistrationSeat(eventData, activeRegs, registration, userData = {}, staffTeams = []) {
   const maxCount = Math.max(0, Number(eventData?.max || 0) || 0);
   const reservation = registration?.participantType === "companion"
     ? null
-    : findTeamReservationForUser(eventData, userData);
+    : findTeamReservationForUser(eventData, userData, staffTeams);
   const occupancyBefore = rebuildOccupancy(eventData, activeRegs || []);
   let status = "waitlisted";
   let source = null;
@@ -6005,6 +6052,19 @@ exports.registerForEvent = onCall(
       const regLockRefs = regLockIds.map((lockId) => eventDoc.ref.collection("registrationLocks").doc(lockId));
       const ed = eventDoc.data();
       const maxCount = ed.max || 0;
+      const callerReservationUserData = {
+        ...(callerUserDoc?.data || {}),
+        uid: callerUid,
+        lineUserId: callerUserDoc?.data?.lineUserId || callerUid,
+        _docId: callerUserDoc?.docId || callerUserDoc?.data?._docId || "",
+        docId: callerUserDoc?.docId || callerUserDoc?.data?.docId || "",
+      };
+      const reservationTeamIds = normalizeTeamReservationSummaries(ed)
+        .filter((item) => item.reservedSlots > 0 || item.usedSlots > 0)
+        .map((item) => item.teamId);
+      const callerReservationStaffTeams = reservationTeamIds.length
+        ? await loadTeamReservationTeamsForTransaction(transaction, reservationTeamIds)
+        : [];
 
       // T2: 驗證活動狀態
       if (ed.status === "ended") throw new HttpsError("failed-precondition", "EVENT_ENDED");
@@ -6169,7 +6229,8 @@ exports.registerForEvent = onCall(
           { ...ed, id: eventId, max: maxCount },
           plannedActiveRegs,
           reg,
-          p.participantType === "self" ? (callerUserDoc?.data || { uid: callerUid }) : {}
+          p.participantType === "self" ? callerReservationUserData : {},
+          p.participantType === "self" ? callerReservationStaffTeams : []
         );
         const status = seatDecision.status;
         if (teamKey !== undefined) reg.teamKey = teamKey;

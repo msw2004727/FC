@@ -12,6 +12,7 @@ const _tournamentFriendlyRosterLegacy = {
 Object.assign(App, {
 
   _friendlyTournamentRosterPickerState: null,
+  _friendlyTournamentRosterBusyById: {},
 
   _getFriendlyTournamentRosterMembership(state, user = ApiService.getCurrentUser?.()) {
     const uid = String(user?.uid || '').trim();
@@ -26,33 +27,7 @@ Object.assign(App, {
   },
 
   _isFriendlyTournamentResponsibleMember(team, user = ApiService.getCurrentUser?.()) {
-    return !!(team && user && (
-      this._isTournamentCaptainForTeam?.(team, user)
-      || this._isTournamentLeaderForTeam?.(team, user)
-    ));
-  },
-
-  _isFriendlyTournamentRosterUnlocked(entry, team = ApiService.getTeam?.(entry?.teamId)) {
-    if (!entry || !team) return false;
-    const responsibleUids = new Set();
-    if (team.captainUid) responsibleUids.add(String(team.captainUid).trim());
-    const leaderUids = Array.isArray(team.leaderUids)
-      ? team.leaderUids
-      : (team.leaderUid ? [team.leaderUid] : []);
-    leaderUids.forEach(uid => {
-      const safeUid = String(uid || '').trim();
-      if (safeUid) responsibleUids.add(safeUid);
-    });
-    const coachUids = Array.isArray(team.coachUids) ? team.coachUids : [];
-    coachUids.forEach(uid => {
-      const safeUid = String(uid || '').trim();
-      if (safeUid) responsibleUids.add(safeUid);
-    });
-
-    return (entry.memberRoster || []).some(member => {
-      const uid = String(member?.uid || '').trim();
-      return responsibleUids.has(uid);
-    });
+    return !!(team && user && this._isTournamentTeamOfficerForTeam?.(team, user));
   },
 
   _getFriendlyTournamentApprovedUserEntries(state, user = ApiService.getCurrentUser?.()) {
@@ -61,16 +36,14 @@ Object.assign(App, {
       : (typeof this._getUserTeamIds === 'function' ? this._getUserTeamIds(user) : []);
     return (state?.entries || []).filter(entry =>
       (entry.entryStatus === 'host' || entry.entryStatus === 'approved')
-      && teamIds.includes(entry.teamId)
+      && (typeof this._isFriendlyTournamentViewerOnEntryTeam === 'function'
+        ? this._isFriendlyTournamentViewerOnEntryTeam(entry, user)
+        : teamIds.includes(entry.teamId))
     );
   },
 
   _getFriendlyTournamentJoinableEntries(state, user = ApiService.getCurrentUser?.()) {
-    return this._getFriendlyTournamentApprovedUserEntries(state, user).filter(entry => {
-      const team = ApiService.getTeam?.(entry.teamId);
-      return this._isFriendlyTournamentResponsibleMember(team, user)
-        || this._isFriendlyTournamentRosterUnlocked(entry, team);
-    });
+    return this._getFriendlyTournamentApprovedUserEntries(state, user);
   },
 
   async _hydrateFriendlyTournamentRosterState(tournamentId) {
@@ -182,7 +155,7 @@ Object.assign(App, {
 
     const joinableEntries = this._getFriendlyTournamentJoinableEntries(state);
     if (joinableEntries.length === 0) {
-      this.showToast('需俱樂部負責人先行報名參賽並經主辦核准後，才可加入名單。');
+      this.showToast('目前沒有已通過且你所屬的俱樂部可參賽。');
       return;
     }
     if (joinableEntries.length === 1) {
@@ -216,7 +189,7 @@ Object.assign(App, {
     await this.joinFriendlyTournamentRoster(tournamentId, teamId);
   },
 
-  async joinFriendlyTournamentRoster(tournamentId, explicitTeamId = '') {
+  async joinFriendlyTournamentRoster(tournamentId, explicitTeamId = '', actionButton = null) {
     const user = ApiService.getCurrentUser?.();
     if (!user?.uid) {
       this.showToast('請先登入');
@@ -242,13 +215,31 @@ Object.assign(App, {
     }
 
     const joinableEntries = this._getFriendlyTournamentJoinableEntries(state, user);
-    const selectedEntry = joinableEntries.find(entry => entry.teamId === String(explicitTeamId || '').trim()) || joinableEntries[0];
+    const requestedTeamId = String(explicitTeamId || '').trim();
+    const selectedEntry = joinableEntries.find(entry =>
+      entry.teamId === requestedTeamId
+      || (requestedTeamId && this._isSameFriendlyTournamentEntry?.(entry, { teamId: requestedTeamId, id: requestedTeamId }))
+    ) || joinableEntries[0];
     if (!selectedEntry) {
       this.showToast('目前沒有可加入的俱樂部名單。');
       return;
     }
 
-    await ApiService.joinFriendlyTournamentRosterAtomic(tournamentId, selectedEntry.teamId);
+    const busyKey = `${String(tournamentId || '').trim()}:join:${selectedEntry.teamId}`;
+    if (this._friendlyTournamentRosterBusyById[busyKey]) return;
+    this._friendlyTournamentRosterBusyById[busyKey] = true;
+    const joinRoster = async () => {
+      await ApiService.joinFriendlyTournamentRosterAtomic(tournamentId, selectedEntry.teamId);
+    };
+    try {
+      if (typeof this._withButtonLoading === 'function') {
+        await this._withButtonLoading(actionButton, '參賽中...', joinRoster);
+      } else {
+        await joinRoster();
+      }
+    } finally {
+      delete this._friendlyTournamentRosterBusyById[busyKey];
+    }
 
       this.closeFriendlyTournamentRosterPicker();
       state = await this._hydrateFriendlyTournamentRosterState(tournamentId);
@@ -260,7 +251,7 @@ Object.assign(App, {
     }
   },
 
-  async cancelFriendlyTournamentRoster(tournamentId) {
+  async cancelFriendlyTournamentRoster(tournamentId, actionButton = null) {
     const user = ApiService.getCurrentUser?.();
     if (!user?.uid) {
       this.showToast('請先登入');
@@ -280,7 +271,21 @@ Object.assign(App, {
       : '偵測到你同時存在多支俱樂部名單，確定要全部取消後重新選擇嗎？';
     if (!(await this.appConfirm(confirmText))) return;
 
-    await ApiService.leaveFriendlyTournamentRosterAtomic(tournamentId);
+    const busyKey = `${String(tournamentId || '').trim()}:leave`;
+    if (this._friendlyTournamentRosterBusyById[busyKey]) return;
+    this._friendlyTournamentRosterBusyById[busyKey] = true;
+    const leaveRoster = async () => {
+      await ApiService.leaveFriendlyTournamentRosterAtomic(tournamentId);
+    };
+    try {
+      if (typeof this._withButtonLoading === 'function') {
+        await this._withButtonLoading(actionButton, '取消中...', leaveRoster);
+      } else {
+        await leaveRoster();
+      }
+    } finally {
+      delete this._friendlyTournamentRosterBusyById[busyKey];
+    }
 
       this.closeFriendlyTournamentRosterPicker();
       state = await this._hydrateFriendlyTournamentRosterState(tournamentId);
@@ -326,18 +331,18 @@ Object.assign(App, {
     let noteText = '';
     if (membership.primary) {
       buttonHtml = status === TOURNAMENT_STATUS.REG_OPEN
-        ? `<button class="primary-btn full-width" onclick="App.cancelFriendlyTournamentRoster('${tournament.id}')">取消參賽</button>`
+        ? `<button class="primary-btn full-width" onclick="return App.cancelFriendlyTournamentRoster('${tournament.id}', this)">取消參賽</button>`
         : `<button class="primary-btn full-width" disabled>已列入球員名單</button>`;
       noteText = `目前以「${membership.primary.teamName}」身分參賽${status === TOURNAMENT_STATUS.REG_OPEN ? '，可取消後重新選擇俱樂部。' : '。'}`;
     } else if (status === TOURNAMENT_STATUS.REG_OPEN && joinableEntries.length === 1) {
-      buttonHtml = `<button class="primary-btn full-width" onclick="App.joinFriendlyTournamentRoster('${tournament.id}','${joinableEntries[0].teamId}')">加入球員名單</button>`;
+      buttonHtml = `<button class="primary-btn full-width" onclick="return App.joinFriendlyTournamentRoster('${tournament.id}','${joinableEntries[0].teamId}', this)">參賽</button>`;
       noteText = `你的俱樂部「${joinableEntries[0].teamName}」已通過審核，現在可加入參賽名單。`;
     } else if (status === TOURNAMENT_STATUS.REG_OPEN && joinableEntries.length > 1) {
       buttonHtml = `<button class="primary-btn full-width" onclick="App.openFriendlyTournamentRosterPicker('${tournament.id}')">選擇俱樂部參賽</button>`;
       noteText = `你所屬的 ${joinableEntries.length} 支已核准俱樂部都可參賽，請先選擇代表俱樂部。`;
     } else if (status === TOURNAMENT_STATUS.REG_OPEN && approvedEntries.length > 0) {
-      buttonHtml = `<button class="primary-btn full-width" style="opacity:.6" onclick="App.showToast('需俱樂部負責人先行報名參賽並經主辦核准後，才可加入名單。')">等待負責人先加入</button>`;
-      noteText = '你的俱樂部已通過審核，但需先由該隊領隊或經理加入球員名單後，其他隊員才可加入。';
+      buttonHtml = `<button class="primary-btn full-width" style="opacity:.6" onclick="App.showToast('目前沒有已通過且你所屬的俱樂部可參賽。')">目前無法參賽</button>`;
+      noteText = '請確認你已加入該俱樂部，且該俱樂部已通過主辦方審核。';
     } else {
       return;
     }

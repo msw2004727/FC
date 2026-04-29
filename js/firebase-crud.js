@@ -696,6 +696,48 @@ Object.assign(FirebaseService, {
     return String(reg.teamReservationTeamId || reg.teamReservationId || '').trim();
   },
 
+  _isTeamStaffForReservationUser(teamData = {}, userData = {}) {
+    const uidCandidates = new Set();
+    const addUidCandidate = (value) => {
+      const safeValue = String(value || '').trim();
+      if (safeValue) uidCandidates.add(safeValue);
+    };
+    addUidCandidate(userData.uid);
+    addUidCandidate(userData.lineUserId);
+    addUidCandidate(userData._docId);
+    addUidCandidate(userData.docId);
+    if (!uidCandidates.size) return false;
+
+    const staffUids = [];
+    const addStaffUid = (value) => {
+      const safeValue = String(value || '').trim();
+      if (safeValue) staffUids.push(safeValue);
+    };
+    addStaffUid(teamData.captainUid);
+    addStaffUid(teamData.creatorUid);
+    addStaffUid(teamData.ownerUid);
+    addStaffUid(teamData.leaderUid);
+    if (Array.isArray(teamData.leaderUids)) teamData.leaderUids.forEach(addStaffUid);
+    if (Array.isArray(teamData.coachUids)) teamData.coachUids.forEach(addStaffUid);
+    return staffUids.some(uid => uidCandidates.has(uid));
+  },
+
+  _addStaffTeamIdsForReservation(ids, userData = {}) {
+    if (!ids || typeof ids.add !== 'function') return;
+    const teams = (typeof ApiService !== 'undefined' && ApiService.getTeams) ? (ApiService.getTeams() || []) : [];
+    const add = (value) => {
+      const safeValue = String(value || '').trim();
+      if (safeValue) ids.add(safeValue);
+    };
+    teams.forEach(team => {
+      if (!this._isTeamStaffForReservationUser(team, userData)) return;
+      add(team.id);
+      add(team._docId);
+      add(team.docId);
+      add(team.teamId);
+    });
+  },
+
   _getUserTeamIdSetForReservation(userData = {}) {
     const ids = new Set();
     const add = (value) => {
@@ -718,6 +760,8 @@ Object.assign(FirebaseService, {
       if (Array.isArray(match.teamIds)) match.teamIds.forEach(add);
       add(match.teamId);
     }
+    this._addStaffTeamIdsForReservation(ids, userData);
+    if (match) this._addStaffTeamIdsForReservation(ids, match);
     return ids;
   },
 

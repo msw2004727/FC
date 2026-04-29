@@ -11,11 +11,7 @@ Object.assign(App, {
     if (typeof this._isUserInTeam === 'function' && this._isUserInTeam(user, teamId)) return true;
     const team = ApiService.getTeam?.(teamId);
     if (!team) return false;
-    const uid = String(user.uid || '').trim();
-    if (!uid) return false;
-    return this._isTournamentCaptainForTeam?.(team, user)
-      || this._isTournamentLeaderForTeam?.(team, user)
-      || (Array.isArray(team.coachUids) && team.coachUids.includes(uid));
+    return this._isTournamentTeamOfficerForTeam?.(team, user) === true;
   },
 
   _syncFriendlyTournamentCacheRecord(tournamentId, applications, entries) {

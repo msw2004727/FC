@@ -119,6 +119,102 @@ Object.assign(App, {
     return !!(team && this._isTournamentTeamOfficerForTeam?.(team, viewer));
   },
 
+  _getFriendlyTournamentEntryAliasIds(entry) {
+    const aliases = [];
+    const seen = new Set();
+    const add = value => {
+      const safeValue = String(value || '').trim();
+      if (!safeValue || seen.has(safeValue)) return;
+      seen.add(safeValue);
+      aliases.push(safeValue);
+    };
+    add(entry?.teamId);
+    add(entry?.id);
+    add(entry?._docId);
+    add(entry?.docId);
+    add(entry?.canonicalTeamId);
+    add(entry?.sourceTeamId);
+
+    const entryTeamId = String(entry?.teamId || entry?.id || '').trim();
+    const team = entryTeamId
+      ? (ApiService.getTeam?.(entryTeamId)
+        || (ApiService.getTeams?.() || []).find(item =>
+          (this._getFriendlyTournamentTeamAliasIds?.(item) || []).includes(entryTeamId)
+        ))
+      : null;
+    (this._getFriendlyTournamentTeamAliasIds?.(team) || []).forEach(add);
+    return aliases;
+  },
+
+  _getFriendlyTournamentUserRosterTeamIdSet(user = ApiService.getCurrentUser?.()) {
+    const ids = new Set();
+    const add = value => {
+      const safeValue = String(value || '').trim();
+      if (safeValue) ids.add(safeValue);
+    };
+    if (typeof this._getUserTeamIds === 'function') {
+      this._getUserTeamIds(user).forEach(add);
+    }
+    if (typeof this._getFriendlyTournamentUserActionTeamIds === 'function') {
+      this._getFriendlyTournamentUserActionTeamIds(user).forEach(add);
+    }
+    (this._getFriendlyTournamentJoinedTeams?.(user) || []).forEach(team => {
+      (this._getFriendlyTournamentTeamAliasIds?.(team) || []).forEach(add);
+    });
+    return ids;
+  },
+
+  _isFriendlyTournamentViewerOnEntryTeam(entry, user = ApiService.getCurrentUser?.()) {
+    const userTeamIds = this._getFriendlyTournamentUserRosterTeamIdSet(user);
+    if (!userTeamIds.size) return false;
+    return this._getFriendlyTournamentEntryAliasIds(entry).some(alias => userTeamIds.has(alias));
+  },
+
+  _getFriendlyTournamentRosterMembershipForUser(state, user = ApiService.getCurrentUser?.()) {
+    const uidCandidates = new Set([
+      user?.uid,
+      user?.lineUserId,
+    ].map(value => String(value || '').trim()).filter(Boolean));
+    if (!uidCandidates.size) return { primary: null, list: [] };
+    const list = (state?.entries || []).filter(entry =>
+      (entry.memberRoster || []).some(member => uidCandidates.has(String(member?.uid || '').trim()))
+    );
+    return { primary: list[0] || null, list };
+  },
+
+  _isSameFriendlyTournamentEntry(left, right) {
+    const rightAliases = new Set(this._getFriendlyTournamentEntryAliasIds(right));
+    return this._getFriendlyTournamentEntryAliasIds(left).some(alias => rightAliases.has(alias));
+  },
+
+  _findFriendlyTournamentEntryForActionTeam(state, actionTeam) {
+    if (!actionTeam) return null;
+    return (state?.entries || []).find(entry => this._isSameFriendlyTournamentEntry(entry, actionTeam)) || null;
+  },
+
+  _buildFriendlyTournamentRosterActionButton(tournamentId, entry, membership, status, options = {}) {
+    const safeTournamentId = escapeHTML(String(tournamentId || '').trim());
+    const safeTeamId = escapeHTML(String(entry?.teamId || entry?.id || '').trim());
+    if (!safeTournamentId || !safeTeamId) return '';
+    const stop = options.stopPropagation ? 'event.stopPropagation();' : '';
+    const fullWidth = options.fullWidth === true;
+    const isCurrentEntry = !!(membership?.primary && this._isSameFriendlyTournamentEntry(membership.primary, entry));
+    const hasOtherEntry = !!(membership?.primary && !isCurrentEntry);
+    const alreadyJoinedToast = '已代表其他俱樂部參賽，如欲換隊則需先將原本隊伍取消參賽';
+
+    if (isCurrentEntry) {
+      if (status !== TOURNAMENT_STATUS.REG_OPEN) {
+        return `<button type="button" class="${fullWidth ? 'primary-btn full-width ' : ''}tfd-roster-joined-btn" disabled>已參賽</button>`;
+      }
+      return `<button type="button" class="${fullWidth ? 'outline-btn full-width ' : ''}tfd-roster-leave-btn" onclick="${stop}return App.cancelFriendlyTournamentRoster('${safeTournamentId}', this)">取消參賽</button>`;
+    }
+    if (hasOtherEntry) {
+      return `<button type="button" class="${fullWidth ? 'primary-btn full-width ' : ''}tfd-roster-blocked-btn" onclick="${stop}App.showToast('${alreadyJoinedToast}');return false;">參賽</button>`;
+    }
+    if (status !== TOURNAMENT_STATUS.REG_OPEN) return '';
+    return `<button type="button" class="${fullWidth ? 'primary-btn full-width ' : ''}tfd-roster-join-btn" onclick="${stop}return App.joinFriendlyTournamentRoster('${safeTournamentId}','${safeTeamId}', this)">參賽</button>`;
+  },
+
   _buildFriendlyTournamentWithdrawControl(tournamentId, teams, label) {
     const safeTournamentId = String(tournamentId || '').trim();
     const options = (teams || [])
@@ -160,6 +256,7 @@ Object.assign(App, {
     const selectedTeam = this._getFriendlyTournamentSelectedActionTeam(tournament.id, actionTeams);
     if (selectedTeam) this._rememberFriendlyTournamentActionTeam(tournament.id, selectedTeam.id);
     let selector = this._buildFriendlyTournamentActionTeamSelector(tournament.id, actionTeams, selectedTeam?.id);
+    const rosterMembership = this._getFriendlyTournamentRosterMembershipForUser(state, user);
     const priorRejectedHint = selectedTeam?.hasPriorRejectedApplication
       ? '<div class="tfd-reapply-note"><span>已被拒絕過</span>，仍可重新送出申請。</div>'
       : '';
@@ -193,7 +290,11 @@ Object.assign(App, {
         extraActionHtml = `<button type="button" class="outline-btn full-width" onclick="return App.withdrawFriendlyTournamentTeam('${escapeHTML(tournament.id)}','${escapeHTML(selectedTeam.id)}', this)">撤回申請</button>`;
       }
     } else if (selectedTeam?.status === 'approved') {
-      primaryHtml = `${selector}<button class="primary-btn full-width" disabled>俱樂部已通過審核</button>`;
+      const selectedEntry = this._findFriendlyTournamentEntryForActionTeam(state, selectedTeam);
+      const rosterAction = selectedEntry && this._isFriendlyTournamentViewerOnEntryTeam(selectedEntry, user)
+        ? this._buildFriendlyTournamentRosterActionButton(tournament.id, selectedEntry, rosterMembership, status, { fullWidth: true })
+        : '';
+      primaryHtml = `${selector}${rosterAction || '<button class="primary-btn full-width" disabled>俱樂部已通過審核</button>'}`;
       if (canWithdrawSelectedTeam) {
         extraActionHtml = `<button type="button" class="outline-btn full-width" onclick="return App.withdrawFriendlyTournamentTeam('${escapeHTML(tournament.id)}','${escapeHTML(selectedTeam.id)}', this)">取消報名</button>`;
       }
@@ -249,6 +350,8 @@ Object.assign(App, {
     const approvedCount = (this._getFriendlyTournamentRegisteredTeamIdsFromEntries?.(approvedEntries, tournament) || []).length;
     const visibleApplications = this._getFriendlyTournamentVisibleApplications(state, viewer);
     const emptySlots = Math.max(0, teamLimit - approvedCount);
+    const status = this.getTournamentStatus?.(tournament);
+    const rosterMembership = this._getFriendlyTournamentRosterMembershipForUser(state, viewer);
 
     const entryRows = approvedEntries.map(entry => {
       const teamName = entry.teamName || '未命名俱樂部';
@@ -256,11 +359,17 @@ Object.assign(App, {
         ? entry.memberRoster.map(member => `<span class="tfd-member-chip">${escapeHTML(member.name || member.uid)}</span>`).join('')
         : '<span class="tfd-empty-text">尚無隊員報名</span>';
       const isViewerTeamOfficer = this._isFriendlyTournamentViewerTeamOfficer?.(entry.teamId, viewer);
-      const removeAction = canManage && entry.entryStatus !== 'host'
+      const rosterAction = this._isFriendlyTournamentViewerOnEntryTeam(entry, viewer)
+        ? this._buildFriendlyTournamentRosterActionButton(tournament.id, entry, rosterMembership, status, { stopPropagation: true })
+        : '';
+      const managementAction = canManage && entry.entryStatus !== 'host'
         ? `<button type="button" class="tfd-entry-remove-btn" onclick="event.stopPropagation();return App.removeFriendlyTournamentEntry('${escapeHTML(tournament.id)}','${escapeHTML(entry.teamId)}', this)">剔除</button>`
         : (!canManage && isViewerTeamOfficer && entry.entryStatus !== 'host'
           ? `<button type="button" class="tfd-entry-withdraw-btn" onclick="event.stopPropagation();return App.withdrawFriendlyTournamentTeam('${escapeHTML(tournament.id)}','${escapeHTML(entry.teamId)}', this)">退出賽事</button>`
           : '');
+      const rowActions = canManage
+        ? managementAction
+        : [rosterAction, managementAction].filter(Boolean).join('');
       return `
         <div class="tfd-team-row">
           <div class="tfd-team-side">
@@ -271,7 +380,7 @@ Object.assign(App, {
             </div>
           </div>
           <div class="tfd-team-roster">${roster}</div>
-          ${removeAction ? `<div class="tfd-team-action">${removeAction}</div>` : ''}
+          ${rowActions ? `<div class="tfd-team-action${rowActions.includes('</button><button') ? ' tfd-team-action-multi' : ''}">${rowActions}</div>` : ''}
         </div>`;
     }).join('');
 

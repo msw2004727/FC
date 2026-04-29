@@ -47,6 +47,26 @@ function _isTournamentCaptainForTeam(team, user) {
   return String(team.captainUid || '').trim() === uid;
 }
 
+describe('_isTournamentTeamOfficerForTeam', () => {
+  test('does not treat coachUids as tournament officers', () => {
+    expect(_isTournamentTeamOfficerForTeam(
+      { coachUids: ['coach_uid'] },
+      { uid: 'coach_uid' }
+    )).toBe(false);
+  });
+
+  test('treats owner and creator as tournament officers', () => {
+    expect(_isTournamentTeamOfficerForTeam(
+      { ownerUid: 'owner_uid' },
+      { uid: 'owner_uid' }
+    )).toBe(true);
+    expect(_isTournamentTeamOfficerForTeam(
+      { creatorUid: 'creator_uid' },
+      { uid: 'creator_uid' }
+    )).toBe(true);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Extracted from tournament-core.js:203-210
 // ---------------------------------------------------------------------------

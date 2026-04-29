@@ -32,7 +32,7 @@ describe('friendly tournament teams tab actions', () => {
   test('register action passes clicked button for loading feedback', () => {
     const area = { innerHTML: '' };
     global.document = { getElementById: id => (id === 'td-register-area' ? area : null) };
-    global.TOURNAMENT_STATUS = { PREPARING: 'preparing', REG_CLOSED: 'closed' };
+    global.TOURNAMENT_STATUS = { PREPARING: 'preparing', REG_OPEN: 'open', REG_CLOSED: 'closed' };
     global.ApiService = {
       getCurrentUser: () => ({ uid: 'guest_cap', role: 'user' }),
     };
@@ -325,6 +325,61 @@ describe('friendly tournament teams tab actions', () => {
     expect(html).toContain('退出賽事');
     expect(html).toContain("return App.withdrawFriendlyTournamentTeam('ct_test','tm_guest', this)");
     expect(html).not.toContain('tfd-entry-remove-btn');
+  });
+
+  test('renders roster join action for a player on an approved team row', () => {
+    global.ApiService = {
+      getCurrentUser: () => ({ uid: 'player_uid', role: 'user', teamIds: ['tm_guest'] }),
+      getTeam: () => ({ id: 'tm_guest' }),
+    };
+    global.TOURNAMENT_STATUS = { REG_OPEN: 'open' };
+    global.App._canManageTournamentRecord = jest.fn(() => false);
+    global.App._getUserTeamIds = jest.fn(user => user?.teamIds || []);
+    global.App._isTournamentTeamOfficerForTeam = jest.fn(() => false);
+    global.App.getTournamentStatus = jest.fn(() => 'open');
+    require('../../js/modules/tournament/tournament-friendly-detail-view.js');
+
+    const html = global.App._renderFriendlyTournamentTeamsTab({
+      tournament: { id: 'ct_test', hostTeamId: 'tm_host' },
+      entries: [
+        { teamId: 'tm_guest', teamName: 'Guest Team', entryStatus: 'approved', memberRoster: [] },
+      ],
+      applications: [],
+    });
+
+    expect(html).toContain('tfd-roster-join-btn');
+    expect(html).toContain("return App.joinFriendlyTournamentRoster('ct_test','tm_guest', this)");
+  });
+
+  test('keeps roster join visible but blocked when player already joined another team', () => {
+    global.ApiService = {
+      getCurrentUser: () => ({ uid: 'player_uid', role: 'user', teamIds: ['tm_alpha', 'tm_beta'] }),
+      getTeam: teamId => ({ id: teamId }),
+    };
+    global.TOURNAMENT_STATUS = { REG_OPEN: 'open' };
+    global.App._canManageTournamentRecord = jest.fn(() => false);
+    global.App._getUserTeamIds = jest.fn(user => user?.teamIds || []);
+    global.App._isTournamentTeamOfficerForTeam = jest.fn(() => false);
+    global.App.getTournamentStatus = jest.fn(() => 'open');
+    require('../../js/modules/tournament/tournament-friendly-detail-view.js');
+
+    const html = global.App._renderFriendlyTournamentTeamsTab({
+      tournament: { id: 'ct_test', hostTeamId: 'tm_host' },
+      entries: [
+        {
+          teamId: 'tm_alpha',
+          teamName: 'Alpha Team',
+          entryStatus: 'approved',
+          memberRoster: [{ uid: 'player_uid', name: 'Player' }],
+        },
+        { teamId: 'tm_beta', teamName: 'Beta Team', entryStatus: 'approved', memberRoster: [] },
+      ],
+      applications: [],
+    });
+
+    expect(html).toContain('tfd-roster-leave-btn');
+    expect(html).toContain('tfd-roster-blocked-btn');
+    expect(html).toContain('已代表其他俱樂部參賽，如欲換隊則需先將原本隊伍取消參賽');
   });
 
   test('renders applicant-side withdraw action for pending applications', () => {
@@ -842,7 +897,7 @@ describe('friendly tournament teams tab actions', () => {
     const team = { id: 'tm_approved', name: 'Approved Team', captainUid: 'guest_cap', sportTag: 'football' };
     const area = { innerHTML: '' };
     global.document = { getElementById: id => (id === 'td-register-area' ? area : null) };
-    global.TOURNAMENT_STATUS = { PREPARING: 'preparing', REG_CLOSED: 'closed' };
+    global.TOURNAMENT_STATUS = { PREPARING: 'preparing', REG_OPEN: 'open', REG_CLOSED: 'closed' };
     global.ApiService = {
       getCurrentUser: () => user,
       getTeams: () => [team],
@@ -873,6 +928,7 @@ describe('friendly tournament teams tab actions', () => {
     expect(area.innerHTML).toContain('id="td-apply-team-select"');
     expect(area.innerHTML).toContain('value="tm_approved" selected');
     expect(area.innerHTML).toContain('data-friendly-team-action-status="approved"');
+    expect(area.innerHTML).toContain("return App.joinFriendlyTournamentRoster('ct_test','tm_approved', this)");
     expect(area.innerHTML).toContain("return App.withdrawFriendlyTournamentTeam('ct_test','tm_approved', this)");
     expect(area.innerHTML).not.toContain("return App.registerTournament('ct_test', this)");
   });

@@ -3,6 +3,7 @@ const path = require('path');
 const vm = require('vm');
 
 function loadFirebaseCrudHelpers() {
+  const apiState = { teams: [], adminUsers: [] };
   const context = {
     FirebaseService: {},
     App: {
@@ -10,11 +11,15 @@ function loadFirebaseCrudHelpers() {
         return Array.isArray(user?.teamIds) ? user.teamIds : (user?.teamId ? [user.teamId] : []);
       },
     },
-    ApiService: { getAdminUsers: () => [] },
+    ApiService: {
+      getAdminUsers: () => apiState.adminUsers,
+      getTeams: () => apiState.teams,
+    },
     console,
   };
   const source = fs.readFileSync(path.resolve(__dirname, '../../js/firebase-crud.js'), 'utf8');
   vm.runInNewContext(source, context, { filename: 'js/firebase-crud.js' });
+  context.FirebaseService.__testApiState = apiState;
   return context.FirebaseService;
 }
 
@@ -59,6 +64,29 @@ describe('team reservation occupancy helpers', () => {
       ],
       registration,
       { uid: 'u3', teamIds: ['teamA'] },
+    );
+
+    expect(decision.status).toBe('confirmed');
+    expect(registration.status).toBe('confirmed');
+    expect(registration.teamReservationTeamId).toBe('teamA');
+    expect(registration.teamSeatSource).toBe('reserved');
+  });
+
+  test('team officer signup consumes a reserved placeholder even without member teamIds', () => {
+    service.__testApiState.teams = [
+      { id: 'teamA', name: 'Team A', captainUid: 'staff_uid' },
+    ];
+    const registration = { id: 'r3', userId: 'staff_uid', userName: 'Staff', participantType: 'self' };
+    const decision = service._decideRegistrationSeat(
+      {
+        max: 3,
+        teamReservationSummaries: [{ teamId: 'teamA', teamName: 'Team A', reservedSlots: 2 }],
+      },
+      [
+        { id: 'r1', userId: 'u1', userName: 'A', participantType: 'self', status: 'confirmed' },
+      ],
+      registration,
+      { uid: 'staff_uid' },
     );
 
     expect(decision.status).toBe('confirmed');

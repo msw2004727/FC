@@ -24,11 +24,8 @@ Object.assign(App, {
     source.forEach(user => {
       const uid = String(user?.uid || '').trim();
       if (!uid || excluded.has(uid)) return;
-      const userName = String(user?.displayName || user?.name || '').trim();
       const inTeam = (typeof this._isUserInTeam === 'function' && this._isUserInTeam(user, safeTeamId))
-        || this._isTournamentCaptainForTeam?.(team, user)
-        || this._isTournamentLeaderForTeam?.(team, user)
-        || (!!team && Array.isArray(team.coachUids) && team.coachUids.includes(uid));
+        || this._isTournamentTeamOfficerForTeam?.(team, user);
       if (inTeam) recipients.add(uid);
     });
     return [...recipients];

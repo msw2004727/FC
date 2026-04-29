@@ -337,15 +337,20 @@
   align-items: center;
   justify-content: flex-end;
 }
+.tfd-team-action-multi {
+  gap: .4rem;
+}
 .tfd-team-withdraw-btn,
 .tfd-entry-remove-btn,
-.tfd-entry-withdraw-btn {
+.tfd-entry-withdraw-btn,
+.tfd-roster-join-btn,
+.tfd-roster-leave-btn,
+.tfd-roster-blocked-btn,
+.tfd-roster-joined-btn {
   min-width: 92px;
   min-height: 36px;
-  border: 1.5px solid var(--danger);
   border-radius: var(--radius-sm);
   background: var(--bg-card);
-  color: var(--danger);
   padding: .35rem .7rem;
   font-size: .78rem;
   font-weight: 700;
@@ -354,9 +359,34 @@
   cursor: pointer;
   transition: background var(--transition), color var(--transition), transform var(--transition);
 }
+.tfd-team-withdraw-btn,
+.tfd-entry-remove-btn,
+.tfd-entry-withdraw-btn,
+.tfd-roster-leave-btn {
+  border: 1.5px solid var(--danger);
+  color: var(--danger);
+}
+.tfd-roster-join-btn {
+  border: 1.5px solid var(--primary);
+  color: var(--primary);
+}
+.tfd-roster-blocked-btn,
+.tfd-roster-joined-btn {
+  border: 1.5px solid var(--border);
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+}
+.tfd-roster-blocked-btn {
+  cursor: not-allowed;
+}
+.tfd-roster-joined-btn {
+  cursor: default;
+}
 .tfd-team-withdraw-btn[data-btn-loading="1"],
 .tfd-entry-remove-btn[data-btn-loading="1"],
 .tfd-entry-withdraw-btn[data-btn-loading="1"],
+.tfd-roster-join-btn[data-btn-loading="1"],
+.tfd-roster-leave-btn[data-btn-loading="1"],
 .tfd-review-actions .primary-btn[data-btn-loading="1"],
 .tfd-review-actions .outline-btn[data-btn-loading="1"] {
   display: inline-flex;
@@ -369,6 +399,8 @@
 .tfd-team-withdraw-btn[data-btn-loading="1"]::before,
 .tfd-entry-remove-btn[data-btn-loading="1"]::before,
 .tfd-entry-withdraw-btn[data-btn-loading="1"]::before,
+.tfd-roster-join-btn[data-btn-loading="1"]::before,
+.tfd-roster-leave-btn[data-btn-loading="1"]::before,
 .tfd-review-actions .primary-btn[data-btn-loading="1"]::before,
 .tfd-review-actions .outline-btn[data-btn-loading="1"]::before {
   content: "";
@@ -381,12 +413,18 @@
 }
 .tfd-team-withdraw-btn:hover,
 .tfd-entry-remove-btn:hover,
-.tfd-entry-withdraw-btn:hover {
+.tfd-entry-withdraw-btn:hover,
+.tfd-roster-leave-btn:hover {
   background: rgba(239, 68, 68, .10);
+}
+.tfd-roster-join-btn:hover {
+  background: rgba(20, 184, 166, .10);
 }
 .tfd-team-withdraw-btn:active,
 .tfd-entry-remove-btn:active,
-.tfd-entry-withdraw-btn:active {
+.tfd-entry-withdraw-btn:active,
+.tfd-roster-join-btn:active,
+.tfd-roster-leave-btn:active {
   transform: translateY(1px);
 }
 @keyframes tfd-entry-remove-spin {
@@ -511,10 +549,17 @@
   }
   .tfd-team-withdraw-btn,
   .tfd-entry-remove-btn,
-  .tfd-entry-withdraw-btn {
+  .tfd-entry-withdraw-btn,
+  .tfd-roster-join-btn,
+  .tfd-roster-leave-btn,
+  .tfd-roster-blocked-btn,
+  .tfd-roster-joined-btn {
     min-width: 74px;
     min-height: 34px;
     padding: .3rem .55rem;
+  }
+  .tfd-team-action-multi {
+    flex-direction: column;
   }
   .tfd-review-actions {
     grid-column: 2;
