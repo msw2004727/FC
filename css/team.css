@@ -64,8 +64,8 @@
   box-shadow: 0 1px 4px rgba(17, 24, 39, .18);
 }
 [data-theme="dark"] .tc-sport-badge {
-  background: rgba(255, 255, 255, .68);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, .26);
+  background: rgba(15, 23, 42, .7);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .28);
 }
 .tc-sport-badge .sport-emoji {
   display: inline-flex;
