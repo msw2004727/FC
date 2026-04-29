@@ -3,6 +3,49 @@
    Timeline, Event Cards, Detail Pages
    ================================================ */
 
+.activity-page-header {
+  align-items: center;
+}
+.activity-page-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  flex: 1;
+  min-width: 0;
+}
+.activity-page-heading h2 {
+  flex: 0 1 auto;
+  margin: 0;
+  white-space: nowrap;
+}
+.activity-page-heading .filter-btn {
+  flex-shrink: 0;
+}
+.activity-page-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+#activity-create-btn {
+  padding: .42rem .65rem;
+  font-size: .78rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 420px) {
+  .activity-page-header {
+    gap: .35rem;
+  }
+  .activity-page-heading {
+    gap: .35rem;
+  }
+  #activity-create-btn {
+    padding: .38rem .5rem;
+  }
+}
+
 /* ─── Timeline Calendar ─── */
 .timeline-calendar {
   padding-bottom: 1rem;

@@ -56,10 +56,17 @@ function _getFriendlyResponsibleTeams(user, allTeams) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from tournament-core.js:212-217
+// Extracted from tournament-helpers.js:168-180
 // ---------------------------------------------------------------------------
+function _hasTournamentCreatePermission(user, permissions) {
+  if (!user) return false;
+  if (String(user.role || '').trim().toLowerCase() === 'super_admin') return true;
+  return (permissions || []).includes('admin.tournaments.create');
+}
+
 function _canCreateFriendlyTournament(user, allTeams, permissions) {
   if (!user) return false;
+  if (!_hasTournamentCreatePermission(user, permissions)) return false;
   if (_isTournamentGlobalAdmin(user)) return true;
   return _getFriendlyResponsibleTeams(user, allTeams).length > 0;
 }
@@ -148,11 +155,14 @@ const coach = { uid: 'coach1', displayName: 'Coach Wang' };
 const coachPermissions = ['admin.tournaments.entry'];
 
 const captainUser = { uid: 'cap1', displayName: 'Captain Li' };
+const captainCreatePermissions = ['admin.tournaments.entry', 'admin.tournaments.create'];
 
 const delegateUser = { uid: 'del1', displayName: 'Delegate Chen' };
 
 const adminUser = { uid: 'admin1', displayName: 'Admin', role: 'admin' };
 const adminPermissions = ['admin.tournaments.manage_all'];
+const adminCreatePermissions = ['admin.tournaments.manage_all', 'admin.tournaments.create'];
+const superAdminUser = { uid: 'super1', displayName: 'Super Admin', role: 'super_admin' };
 
 const teamA = { id: 'teamA', name: 'FC Alpha', captainUid: 'cap1', leaderUids: [] };
 const teamB = { id: 'teamB', name: 'FC Beta', captainUid: 'other', leaderUids: ['leader1'] };
@@ -242,16 +252,32 @@ describe('_canCreateFriendlyTournament', () => {
     expect(_canCreateFriendlyTournament(regularUser, allTeams, [])).toBe(false);
   });
 
-  test('captain with team can create', () => {
-    expect(_canCreateFriendlyTournament(captainUser, allTeams, [])).toBe(true);
+  test('captain with team and create permission can create', () => {
+    expect(_canCreateFriendlyTournament(captainUser, allTeams, captainCreatePermissions)).toBe(true);
   });
 
-  test('admin role can create even without teams', () => {
-    expect(_canCreateFriendlyTournament(adminUser, [], adminPermissions)).toBe(true);
+  test('captain with team but without create permission cannot create', () => {
+    expect(_canCreateFriendlyTournament(captainUser, allTeams, ['admin.tournaments.entry'])).toBe(false);
+  });
+
+  test('admin role with create permission can create even without teams', () => {
+    expect(_canCreateFriendlyTournament(adminUser, [], adminCreatePermissions)).toBe(true);
+  });
+
+  test('admin role without create permission cannot create', () => {
+    expect(_canCreateFriendlyTournament(adminUser, [], adminPermissions)).toBe(false);
+  });
+
+  test('super_admin can create through all-permission bypass', () => {
+    expect(_canCreateFriendlyTournament(superAdminUser, [], [])).toBe(true);
   });
 
   test('manage_all permission alone is not treated as global admin', () => {
     expect(_canCreateFriendlyTournament({ uid: 'permOnly', role: 'user' }, [], ['admin.tournaments.manage_all'])).toBe(false);
+  });
+
+  test('create permission alone still needs admin role or responsible team', () => {
+    expect(_canCreateFriendlyTournament({ uid: 'permOnly', role: 'user' }, [], ['admin.tournaments.create'])).toBe(false);
   });
 
   test('coach without teams cannot create (entry perm is not enough)', () => {

@@ -289,6 +289,10 @@ Object.assign(App, {
       };
       header.appendChild(button);
     }
-    button.style.display = this._canCreateFriendlyTournament() ? '' : 'none';
+    const canCreate = this._canCreateFriendlyTournament();
+    button.style.display = canCreate ? '' : 'none';
+
+    const adminButton = document.getElementById('admin-tournament-open-create-btn');
+    if (adminButton) adminButton.style.display = canCreate ? '' : 'none';
   },
 });

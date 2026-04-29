@@ -152,6 +152,7 @@ Object.assign(App, {
     // 防抖 + 頁面守衛：多條路徑（onSnapshot / seed / revalidate / visibilitychange）
     // 可能在短時間內連續觸發，統一收束為 100ms 內只渲染一次，避免 DOM 連續替換導致捲動跳頂
     if (this.currentPage !== 'page-activities') return;
+    this._refreshActivityCreateButton?.();
     clearTimeout(this._activityListRenderTimer);
     this._activityListRenderTimer = setTimeout(() => { this._doRenderActivityList(); }, 100);
   },

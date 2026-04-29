@@ -2,6 +2,11 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-29 — 活動置頂鎖定與加值預留開關 [小型]
+- **需求**: 暫時關閉活動管理中的置頂操作，點擊只提示「功能未開放」；新增活動表單的加值功能區先預留放鴿子偵測、候補名單、委託人、取消報名限制四個開關位置。
+- **修復**: `toggleMyActivityPin()` 改為純 Toast，不再寫入 `pinned/pinOrder` 或重繪列表；管理卡片上的置頂按鈕改成鎖定視覺。加值區新增四個 disabled 預留 switch，沿用既有「預留 — 尚未啟用」文案，不寫入任何活動資料欄位。
+- **驗證**: `node --check js/modules/event/event-manage.js` 通過；保留既有 dirty worktree，未把其他未提交修改混入本次判定。
+
 ### 2026-04-29 — 管理員賽事代表俱樂部與空主辦建立 [中型]
 - **問題**: admin / super_admin 的賽事報名下拉只看 `users.teamIds/teamId`，漏掉自己實際擔任 captain / leader / owner / creator 的俱樂部；建立賽事時管理員若沒有可代表的主辦俱樂部，仍被前端主辦俱樂部必填與後端 callable 擋住。
 - **原因**: 前端把管理員的全域管理權與「可代表哪個俱樂部」混在一起：報名端只取 joined clubs，建立端曾取所有 clubs，兩者都沒有一致合併 joined + officer scope；Cloud Function `createFriendlyTournament` 也硬性要求 `hostTeamId`。

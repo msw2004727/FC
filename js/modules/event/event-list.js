@@ -9,6 +9,18 @@ Object.assign(App, {
 
   _activityActiveTab: 'normal',
 
+  _canCreateActivityByPermission() {
+    const currentUser = ApiService.getCurrentUser?.();
+    if (!currentUser || typeof this.hasPermission !== 'function') return false;
+    return this.hasPermission('event.create') || this.hasPermission('activity.manage.entry');
+  },
+
+  _refreshActivityCreateButton() {
+    const button = document.getElementById('activity-create-btn');
+    if (!button) return;
+    button.style.display = this._canCreateActivityByPermission() ? '' : 'none';
+  },
+
   resetHomeHotEventsScroll() {
     const container = document.getElementById('hot-events');
     if (!container) return;

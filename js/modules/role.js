@@ -199,6 +199,8 @@ Object.assign(App, {
     }
 
     this._applyRoleBoundVisibility(role);
+    this._refreshActivityCreateButton?.();
+    this._refreshTournamentCenterCreateButton?.();
     this.renderDrawerMenu();
     void this._flushPendingProtectedBootRoute?.({ skipEnsureCloudReady: true });
     if (typeof this.renderAdminUsers === 'function') {

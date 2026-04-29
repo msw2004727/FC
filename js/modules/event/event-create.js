@@ -45,6 +45,10 @@ Object.assign(App, {
   openCreateEventModal() {
     // v8 M1：開 sheet 前先擋未登入（避免用戶填表單後才被踢）
     if (this._requireProtectedActionLogin?.({ type: 'createEvent' }, { suppressToast: true })) return;
+    if (!this._canCreateActivityByPermission?.()) {
+      this.showToast('權限不足：需要建立活動權限');
+      return;
+    }
     // 彈底部 Action Sheet：選擇建立自訂活動或活動連結
     this._showCreateEventTypeSheet();
   },
@@ -153,8 +157,8 @@ Object.assign(App, {
       this.showToast('活動建立中，請勿重複送出');
       return;
     }
-    if (!this.hasPermission('event.create') && !this.hasPermission('activity.manage.entry')) {
-      this.showToast('權限不足'); return;
+    if (!this._canCreateActivityByPermission?.()) {
+      this.showToast('權限不足：需要建立活動權限'); return;
     }
     // 2026-04-19 UX：寫入類動作必須先補齊個人資料（主辦人資料會寫入活動文件）
     if (this._requireProfileComplete()) return;

@@ -165,9 +165,19 @@ Object.assign(App, {
     return allTeams.filter(team => this._isTournamentTeamOfficerForTeam(team, currentUser));
   },
 
+  _hasTournamentCreatePermission(user = null) {
+    const currentUser = user || ApiService.getCurrentUser?.();
+    if (!currentUser) return false;
+    if (typeof this.hasPermission === 'function') {
+      return this.hasPermission('admin.tournaments.create', currentUser.role);
+    }
+    return String(currentUser.role || '').trim().toLowerCase() === 'super_admin';
+  },
+
   _canCreateFriendlyTournament(user = null) {
     const currentUser = user || ApiService.getCurrentUser?.();
     if (!currentUser) return false;
+    if (!this._hasTournamentCreatePermission(currentUser)) return false;
     if (this._isTournamentGlobalAdmin(currentUser)) return true;
     return this._getFriendlyResponsibleTeams(currentUser).length > 0;
   },

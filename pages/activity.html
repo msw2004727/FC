@@ -1,12 +1,17 @@
 <meta name="robots" content="noindex, nofollow">
     <!-- PAGE: Activities -->
     <section class="page" id="page-activities">
-      <div class="page-header">
-        <h2>活動行事曆</h2>
-        <button class="page-header-doc-btn" onclick="App.openHostList()" title="主辦方排行" style="display:none;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="#F59E0B" stroke="#D97706" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
-        </button>
-        <button class="filter-btn" id="filter-toggle">篩選 ▾</button>
+      <div class="page-header activity-page-header">
+        <div class="activity-page-heading">
+          <h2>活動行事曆</h2>
+          <button type="button" class="filter-btn" id="filter-toggle">篩選 ▾</button>
+        </div>
+        <div class="activity-page-actions">
+          <button type="button" class="page-header-doc-btn" onclick="App.openHostList()" title="主辦方排行" style="display:none;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#F59E0B" stroke="#D97706" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
+          </button>
+          <button type="button" class="primary-btn small" id="activity-create-btn" onclick="App.openCreateEventModal()" style="display:none">新增活動</button>
+        </div>
       </div>
       <div class="filter-bar" id="filter-bar">
         <select id="activity-filter-type">
@@ -408,6 +413,46 @@
                     <span>小時鎖定</span>
                   </div>
                 </div>
+              </div>
+            </div>
+            <div class="ce-row ce-value-item ce-value-reserved">
+              <div class="ce-label-row"><label for="ce-reserved-noshow-detection">放鴿子偵測</label></div>
+              <div class="ce-toggle-control">
+                <label class="toggle-switch" style="margin:0">
+                  <input type="checkbox" id="ce-reserved-noshow-detection" disabled>
+                  <span class="toggle-slider"></span>
+                </label>
+                <span class="ce-toggle-status">預留 — 尚未啟用</span>
+              </div>
+            </div>
+            <div class="ce-row ce-value-item ce-value-reserved">
+              <div class="ce-label-row"><label for="ce-reserved-waitlist">候補名單</label></div>
+              <div class="ce-toggle-control">
+                <label class="toggle-switch" style="margin:0">
+                  <input type="checkbox" id="ce-reserved-waitlist" disabled>
+                  <span class="toggle-slider"></span>
+                </label>
+                <span class="ce-toggle-status">預留 — 尚未啟用</span>
+              </div>
+            </div>
+            <div class="ce-row ce-value-item ce-value-reserved">
+              <div class="ce-label-row"><label for="ce-reserved-delegate">委託人</label></div>
+              <div class="ce-toggle-control">
+                <label class="toggle-switch" style="margin:0">
+                  <input type="checkbox" id="ce-reserved-delegate" disabled>
+                  <span class="toggle-slider"></span>
+                </label>
+                <span class="ce-toggle-status">預留 — 尚未啟用</span>
+              </div>
+            </div>
+            <div class="ce-row ce-value-item ce-value-reserved">
+              <div class="ce-label-row"><label for="ce-reserved-cancel-limit">取消報名限制</label></div>
+              <div class="ce-toggle-control">
+                <label class="toggle-switch" style="margin:0">
+                  <input type="checkbox" id="ce-reserved-cancel-limit" disabled>
+                  <span class="toggle-slider"></span>
+                </label>
+                <span class="ce-toggle-status">預留 — 尚未啟用</span>
               </div>
             </div>
             <div class="ce-row ce-value-item ce-value-reserved">

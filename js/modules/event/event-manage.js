@@ -290,7 +290,7 @@ Object.assign(App, {
         const canManage = this._canManageEvent(e);
         let btns = '';
         const pinBtn = canManage
-          ? `<button class="outline-btn" style="${s}" onclick="App.toggleMyActivityPin('${e.id}')">${e.pinned ? '取消置頂' : '置頂'}</button>`
+          ? `<button class="outline-btn" style="${s};opacity:.6;cursor:not-allowed" title="功能未開放" onclick="App.toggleMyActivityPin('${e.id}')">${e.pinned ? '已置頂' : '置頂'}</button>`
           : '';
         if (isExternal && canManage) {
           // 外部活動管理按鈕
@@ -423,30 +423,9 @@ Object.assign(App, {
     );
   },
 
-  // ── 活動置頂（僅 admin 以上）──
+  // ── 活動置頂（暫不開放）──
   toggleMyActivityPin(id) {
-    const e = ApiService.getEvent(id);
-    if (!e) return;
-    if (!this.hasPermission('admin.users.entry') && !this.hasPermission('admin.entry')) {
-      this.showToast('請聯繫管理員');
-      return;
-    }
-
-    const nextPinned = !e.pinned;
-    const updates = nextPinned
-      ? { pinned: true, pinOrder: this._nextEventPinOrder() }
-      : { pinned: false, pinOrder: 0 };
-
-    e.pinned = updates.pinned;
-    e.pinOrder = updates.pinOrder;
-    ApiService.updateEvent(id, updates);
-
-    this.renderMyActivities();
-    this.renderActivityList();
-    this.renderHotEvents();
-    // 月曆 tab 下同步更新置頂高光（見 calendar-view-plan §12.E）
-    if (this._activityActiveTab === 'calendar') { try { this._renderActivityCalendar?.(); } catch (_) {} }
-    this.showToast(nextPinned ? `已置頂「${e.title}」` : `已取消置頂「${e.title}」`);
+    this.showToast('功能未開放');
   },
 
   // ── 查看活動名單 ──

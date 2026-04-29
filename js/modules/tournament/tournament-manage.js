@@ -200,7 +200,7 @@ Object.assign(App, {
     await this._ensureTournamentHostTeamsLoaded?.();
 
     if (!this._canCreateFriendlyTournament()) {
-      this.showToast('目前只有擁有俱樂部的領隊或經理可以建立友誼賽。');
+      this.showToast('權限不足：需要建立賽事權限');
       return;
     }
     this._ensureTournamentFormLayout('tf');
@@ -248,7 +248,7 @@ Object.assign(App, {
   async handleCreateTournament() {
     const createUser = ApiService.getCurrentUser?.();
     if (!this._canCreateFriendlyTournament(createUser)) {
-      this.showToast('目前只有擁有俱樂部的領隊或經理可以建立友誼賽。');
+      this.showToast('權限不足：需要建立賽事權限');
       return;
     }
     this._tfClearErrors();
