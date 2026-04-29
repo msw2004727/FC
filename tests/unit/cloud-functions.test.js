@@ -108,6 +108,51 @@ function hasPermission(userRole, dynamicPermissions, permCode) {
   return (dynamicPermissions || []).includes(permCode);
 }
 
+function normalizeRole(role) {
+  const normalized = String(role || '').trim().toLowerCase();
+  return VALID_ROLES.has(normalized) ? normalized : 'user';
+}
+
+function isRoleAdminOrAbove(role) {
+  const safeRole = normalizeRole(role);
+  return safeRole === 'admin' || safeRole === 'super_admin';
+}
+
+function isTournamentTeamOfficerForData(team, uid) {
+  if (!team || !uid) return false;
+  const safeUid = String(uid || '').trim();
+  if (!safeUid) return false;
+  const leaderUids = Array.isArray(team.leaderUids)
+    ? team.leaderUids.map(item => String(item || '').trim())
+    : [];
+  return String(team.captainUid || '').trim() === safeUid
+    || String(team.creatorUid || '').trim() === safeUid
+    || String(team.ownerUid || '').trim() === safeUid
+    || String(team.leaderUid || '').trim() === safeUid
+    || leaderUids.includes(safeUid);
+}
+
+function getUserTeamIdSetFromData(userData) {
+  const ids = new Set();
+  const add = value => {
+    const safeValue = String(value || '').trim();
+    if (safeValue) ids.add(safeValue);
+  };
+  if (Array.isArray(userData?.teamIds)) userData.teamIds.forEach(add);
+  add(userData?.teamId);
+  return ids;
+}
+
+function isUserDataInTeam(userData, teamId) {
+  const safeTeamId = String(teamId || '').trim();
+  return !!safeTeamId && getUserTeamIdSetFromData(userData).has(safeTeamId);
+}
+
+function canApplyFriendlyTournamentForTeam(callerRole, team, callerUid, userData, teamId = team?.id) {
+  return isTournamentTeamOfficerForData(team, callerUid)
+    || (isRoleAdminOrAbove(callerRole) && isUserDataInTeam(userData, teamId));
+}
+
 /** registerForEvent CF: duplicate detection logic */
 function cfDuplicateCheck(existingRegs, userId) {
   return existingRegs.some(r =>
@@ -403,6 +448,37 @@ describe('ROLE_LEVELS hierarchy', () => {
     expect(ROLE_LEVELS.captain).toBeLessThan(ROLE_LEVELS.venue_owner);
     expect(ROLE_LEVELS.venue_owner).toBeLessThan(ROLE_LEVELS.admin);
     expect(ROLE_LEVELS.admin).toBeLessThan(ROLE_LEVELS.super_admin);
+  });
+});
+
+describe('applyFriendlyTournament CF permissions', () => {
+  const team = {
+    id: 'tm_alpha',
+    captainUid: 'captain_uid',
+    creatorUid: 'creator_uid',
+    ownerUid: 'owner_uid',
+    leaderUid: 'leader_uid',
+    leaderUids: ['leader2_uid'],
+  };
+
+  test('admin and super_admin can apply only for their joined clubs', () => {
+    expect(canApplyFriendlyTournamentForTeam('admin', team, 'other_uid', { teamIds: ['tm_alpha'] })).toBe(true);
+    expect(canApplyFriendlyTournamentForTeam('super_admin', team, 'other_uid', { teamId: 'tm_alpha' })).toBe(true);
+    expect(canApplyFriendlyTournamentForTeam('admin', team, 'other_uid', { teamIds: ['tm_other'] })).toBe(false);
+    expect(canApplyFriendlyTournamentForTeam('super_admin', team, 'other_uid', {})).toBe(false);
+  });
+
+  test('team officers can apply for their own club', () => {
+    expect(canApplyFriendlyTournamentForTeam('user', team, 'captain_uid', {})).toBe(true);
+    expect(canApplyFriendlyTournamentForTeam('user', team, 'creator_uid', {})).toBe(true);
+    expect(canApplyFriendlyTournamentForTeam('user', team, 'owner_uid', {})).toBe(true);
+    expect(canApplyFriendlyTournamentForTeam('user', team, 'leader_uid', {})).toBe(true);
+    expect(canApplyFriendlyTournamentForTeam('user', team, 'leader2_uid', {})).toBe(true);
+  });
+
+  test('non-admin non-officer cannot apply for another club', () => {
+    expect(canApplyFriendlyTournamentForTeam('coach', team, 'other_uid', { teamIds: ['tm_alpha'] })).toBe(false);
+    expect(canApplyFriendlyTournamentForTeam('captain', team, 'other_uid', { teamIds: ['tm_alpha'] })).toBe(false);
   });
 });
 

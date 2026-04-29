@@ -66,6 +66,7 @@ Object.assign(App, {
 
       const withdraw = async () => {
         const result = await ApiService.withdrawFriendlyTournamentTeamAtomic(safeTournamentId, safeTeamId);
+        this._rememberFriendlyTournamentActionTeam?.(safeTournamentId, safeTeamId);
         const nextState = await this._loadFriendlyTournamentDetailState(safeTournamentId);
         this.renderRegisterButton(nextState?.tournament || tournament);
         this.renderTournamentTab('teams');

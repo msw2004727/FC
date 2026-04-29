@@ -10,8 +10,81 @@ const _tournamentFriendlyDetailViewLegacy = {
 
 Object.assign(App, {
 
+  _friendlyTournamentSelectedActionTeamById: {},
+
   _getFriendlyTournamentWithdrawSelection(selectId, fallbackTeamId) {
     return document.getElementById(selectId)?.value || fallbackTeamId;
+  },
+
+  _rememberFriendlyTournamentActionTeam(tournamentId, teamId) {
+    const safeTournamentId = String(tournamentId || '').trim();
+    const safeTeamId = String(teamId || '').trim();
+    if (!safeTournamentId) return;
+    if (safeTeamId) this._friendlyTournamentSelectedActionTeamById[safeTournamentId] = safeTeamId;
+    else delete this._friendlyTournamentSelectedActionTeamById[safeTournamentId];
+  },
+
+  _handleFriendlyTournamentActionTeamChange(tournamentId, teamId) {
+    const safeTournamentId = String(tournamentId || '').trim();
+    this._rememberFriendlyTournamentActionTeam(safeTournamentId, teamId);
+    const tournament = this._getFriendlyTournamentState?.(safeTournamentId)?.tournament
+      || ApiService.getFriendlyTournamentRecord?.(safeTournamentId)
+      || ApiService.getTournament?.(safeTournamentId);
+    if (tournament) this.renderRegisterButton(tournament);
+  },
+
+  _normalizeFriendlyTournamentActionTeam(team, status) {
+    const id = String(team?.id || team?.teamId || '').trim();
+    if (!id) return null;
+    return {
+      id,
+      status,
+      name: String(team?.name || team?.teamName || '未命名俱樂部').trim(),
+      image: team?.image || team?.teamImage || '',
+      source: team,
+    };
+  },
+
+  _getFriendlyTournamentActionTeams(ctx) {
+    const seen = new Set();
+    const options = [];
+    const push = (items, status) => {
+      (items || []).forEach(item => {
+        const option = this._normalizeFriendlyTournamentActionTeam(item, status);
+        if (!option || seen.has(option.id)) return;
+        seen.add(option.id);
+        options.push(option);
+      });
+    };
+    push(ctx.pendingTeams, 'pending');
+    push(ctx.approvedTeams, 'approved');
+    push(ctx.availableTeams, 'available');
+    push(ctx.rejectedTeams, 'rejected');
+    return options;
+  },
+
+  _getFriendlyTournamentSelectedActionTeam(tournamentId, actionTeams) {
+    const safeTournamentId = String(tournamentId || '').trim();
+    const domSelected = document.getElementById('td-apply-team-select')?.value || '';
+    const remembered = safeTournamentId ? this._friendlyTournamentSelectedActionTeamById?.[safeTournamentId] : '';
+    const selectedId = String(domSelected || remembered || '').trim();
+    return actionTeams.find(team => team.id === selectedId) || actionTeams[0] || null;
+  },
+
+  _buildFriendlyTournamentActionTeamSelector(tournamentId, actionTeams, selectedTeamId) {
+    if (!Array.isArray(actionTeams) || actionTeams.length <= 1) return '';
+    const safeTournamentId = String(tournamentId || '').trim();
+    return `<select id="td-apply-team-select" class="tfd-team-select" onchange="App._handleFriendlyTournamentActionTeamChange('${escapeHTML(safeTournamentId)}', this.value)">${actionTeams.map(team => {
+      const selected = team.id === selectedTeamId ? ' selected' : '';
+      const labelSuffix = team.status === 'pending'
+        ? '（審核中）'
+        : team.status === 'approved'
+          ? '（已通過）'
+          : team.status === 'rejected'
+            ? '（未通過）'
+            : '';
+      return `<option value="${escapeHTML(team.id)}"${selected}>${escapeHTML(team.name + labelSuffix)}</option>`;
+    }).join('')}</select>`;
   },
 
   _isFriendlyTournamentViewerTeamOfficer(teamId, viewer = ApiService.getCurrentUser?.()) {
@@ -56,25 +129,51 @@ Object.assign(App, {
     const teamLimit = this._getFriendlyTournamentTeamLimit?.(tournament) || 4;
     const status = this.getTournamentStatus(tournament);
     const isEnded = this.isTournamentEnded?.(tournament);
-    const canWithdrawTeam = !isEnded;
+    const actionTeams = this._getFriendlyTournamentActionTeams(ctx);
+    const selectedTeam = this._getFriendlyTournamentSelectedActionTeam(tournament.id, actionTeams);
+    if (selectedTeam) this._rememberFriendlyTournamentActionTeam(tournament.id, selectedTeam.id);
+    const selector = this._buildFriendlyTournamentActionTeamSelector(tournament.id, actionTeams, selectedTeam?.id);
+    const responsibleTeamIds = new Set((this._getFriendlyResponsibleTeams?.(user) || []).map(team => team.id));
+    const joinedTeamIds = new Set((typeof this._getUserTeamIds === 'function' ? this._getUserTeamIds(user) : [])
+      .map(teamId => String(teamId || '').trim())
+      .filter(Boolean));
+    const canGlobalAdminWithdrawSelectedTeam = !!(
+      this._isTournamentGlobalAdmin?.(user)
+      && selectedTeam
+      && joinedTeamIds.has(String(selectedTeam.id || '').trim())
+    );
+    const canWithdrawSelectedTeam = !!(
+      selectedTeam
+      && !isEnded
+      && String(selectedTeam.id || '').trim() !== String(tournament.hostTeamId || '').trim()
+      && (
+        canGlobalAdminWithdrawSelectedTeam
+        || responsibleTeamIds.has(selectedTeam.id)
+        || this._isFriendlyTournamentViewerTeamOfficer?.(selectedTeam.id, user)
+      )
+    );
 
     let primaryHtml = '';
     let extraActionHtml = '';
-    if (ctx.pendingTeams.length > 0 && canWithdrawTeam) {
-      primaryHtml = this._buildFriendlyTournamentWithdrawControl(tournament.id, ctx.pendingTeams, '撤回參賽申請');
-    } else if (ctx.approvedTeams.length > 0 && canWithdrawTeam) {
-      primaryHtml = `<button class="primary-btn full-width" disabled>俱樂部已通過審核</button>`;
-      extraActionHtml = this._buildFriendlyTournamentWithdrawControl(tournament.id, ctx.approvedTeams, '退出賽事');
+    if (selectedTeam?.status === 'pending') {
+      primaryHtml = `${selector}<button class="primary-btn full-width" disabled>俱樂部審核中</button>`;
+      if (canWithdrawSelectedTeam) {
+        extraActionHtml = `<button type="button" class="outline-btn full-width" onclick="return App.withdrawFriendlyTournamentTeam('${escapeHTML(tournament.id)}','${escapeHTML(selectedTeam.id)}', this)">撤回申請</button>`;
+      }
+    } else if (selectedTeam?.status === 'approved') {
+      primaryHtml = `${selector}<button class="primary-btn full-width" disabled>俱樂部已通過審核</button>`;
+      if (canWithdrawSelectedTeam) {
+        extraActionHtml = `<button type="button" class="outline-btn full-width" onclick="return App.withdrawFriendlyTournamentTeam('${escapeHTML(tournament.id)}','${escapeHTML(selectedTeam.id)}', this)">取消報名</button>`;
+      }
+    } else if (selectedTeam?.status === 'rejected') {
+      primaryHtml = `${selector}<button class="primary-btn full-width" disabled>俱樂部申請未通過</button>`;
     } else if (status === TOURNAMENT_STATUS.PREPARING) {
-      primaryHtml = `<button class="primary-btn full-width" disabled>報名尚未開始</button>`;
+      primaryHtml = `${selector}<button class="primary-btn full-width" disabled>報名尚未開始</button>`;
     } else if (status === TOURNAMENT_STATUS.REG_CLOSED || isEnded) {
-      primaryHtml = `<button class="primary-btn full-width" disabled>報名已截止</button>`;
+      primaryHtml = `${selector}<button class="primary-btn full-width" disabled>報名已截止</button>`;
     } else if (approvedCount >= teamLimit) {
-      primaryHtml = `<button class="primary-btn full-width" disabled>隊伍名額已滿</button>`;
-    } else if (ctx.availableTeams.length > 0) {
-      const selector = ctx.availableTeams.length > 1
-        ? `<select id="td-apply-team-select" class="tfd-team-select">${ctx.availableTeams.map(team => `<option value="${escapeHTML(team.id)}">${escapeHTML(team.name)}</option>`).join('')}</select>`
-        : '';
+      primaryHtml = `${selector}<button class="primary-btn full-width" disabled>隊伍名額已滿</button>`;
+    } else if (selectedTeam?.status === 'available') {
       primaryHtml = `${selector}<button class="primary-btn full-width" onclick="return App.registerTournament('${tournament.id}', this)">參加賽事</button>`;
     } else if (ctx.pendingTeams.length > 0) {
       primaryHtml = `<button class="primary-btn full-width" disabled>俱樂部審核中</button>`;
@@ -89,8 +188,8 @@ Object.assign(App, {
     const contactBtn = `<button class="outline-btn full-width" onclick="App.contactTournamentOrganizer('${tournament.id}')">聯繫主辦人</button>`;
 
     area.innerHTML = `
-      <div class="tfd-action-card">
-        <div class="tfd-action-main">${primaryHtml}</div>
+      <div class="tfd-action-card" data-friendly-team-action-status="${escapeHTML(selectedTeam?.status || '')}">
+        <div class="tfd-action-main" data-friendly-team-action-status="${escapeHTML(selectedTeam?.status || '')}" data-friendly-team-id="${escapeHTML(selectedTeam?.id || '')}">${primaryHtml}</div>
         <div class="tfd-action-grid">
           ${contactBtn}
           <button class="outline-btn full-width" onclick="App.shareTournament('${tournament.id}')">分享賽事</button>

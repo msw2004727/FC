@@ -155,8 +155,74 @@ Object.assign(App, {
     });
   },
 
+  _getFriendlyTournamentJoinedTeams(user = ApiService.getCurrentUser?.()) {
+    const teamIds = typeof this._getUserTeamIds === 'function'
+      ? this._getUserTeamIds(user)
+        .map(teamId => String(teamId || '').trim())
+        .filter(Boolean)
+      : [];
+    if (!teamIds.length) return [];
+
+    const allTeams = ApiService.getTeams?.() || [];
+    const teamsById = new Map();
+    allTeams.forEach(team => {
+      const id = String(team?.id || team?._docId || team?.docId || '').trim();
+      if (id) teamsById.set(id, team);
+    });
+
+    const seen = new Set();
+    return teamIds
+      .map(teamId => {
+        const team = ApiService.getTeam?.(teamId) || teamsById.get(teamId);
+        if (!team || seen.has(teamId)) return null;
+        seen.add(teamId);
+        return {
+          ...team,
+          id: String(team.id || team._docId || team.docId || teamId).trim() || teamId,
+        };
+      })
+      .filter(Boolean);
+  },
+
+  async _ensureFriendlyTournamentApplyTeamsLoaded(user = ApiService.getCurrentUser?.()) {
+    if (!this._isTournamentGlobalAdmin?.(user)) return ApiService.getTeams?.() || [];
+    const teamIds = typeof this._getUserTeamIds === 'function'
+      ? this._getUserTeamIds(user)
+        .map(teamId => String(teamId || '').trim())
+        .filter(Boolean)
+      : [];
+    if (!teamIds.length) return [];
+
+    const hasTeam = teamId => !!(
+      ApiService.getTeam?.(teamId)
+      || (ApiService.getTeams?.() || []).some(team =>
+        String(team?.id || team?._docId || team?.docId || '').trim() === teamId
+      )
+    );
+    const missingTeamIds = teamIds.filter(teamId => !hasTeam(teamId));
+    if (missingTeamIds.length === 0) return this._getFriendlyTournamentJoinedTeams(user);
+
+    try {
+      if (typeof ApiService.getTeamAsync === 'function') {
+        await Promise.all(missingTeamIds.map(teamId => ApiService.getTeamAsync(teamId).catch(() => null)));
+      } else if (typeof FirebaseService !== 'undefined') {
+        if (typeof FirebaseService.ensureStaticCollectionsLoaded === 'function') {
+          await FirebaseService.ensureStaticCollectionsLoaded(['teams']);
+        } else if (typeof FirebaseService.ensureCollectionsForPage === 'function') {
+          await FirebaseService.ensureCollectionsForPage('page-teams', { skipRealtimeStart: true });
+        }
+      }
+    } catch (err) {
+      console.warn('[Tournament] Failed to load joined teams for admin apply selector:', err);
+    }
+    return this._getFriendlyTournamentJoinedTeams(user);
+  },
+
   _getFriendlyTournamentApplyContext(tournament, state, user = ApiService.getCurrentUser?.()) {
-    const eligibleTeams = this._getFriendlyResponsibleTeams?.(user) || [];
+    const isGlobalAdmin = this._isTournamentGlobalAdmin?.(user) === true;
+    const eligibleTeams = isGlobalAdmin
+      ? this._getFriendlyTournamentJoinedTeams(user)
+      : (this._getFriendlyResponsibleTeams?.(user) || []);
     const activeApplications = (state?.applications || []).filter(item => {
       const status = String(item.status || '').trim().toLowerCase();
       return status !== 'cancelled' && status !== 'withdrawn';
@@ -170,12 +236,20 @@ Object.assign(App, {
       && !entriesByTeam.has(team.id)
       && (!tournamentSport || !String(team?.sportTag || team?.sport || '').trim() || String(team?.sportTag || team?.sport || '').trim() === tournamentSport)
     );
-    const teamIds = typeof this._getUserTeamIds === 'function' ? this._getUserTeamIds(user) : [];
+    const teamIds = typeof this._getUserTeamIds === 'function'
+      ? this._getUserTeamIds(user).map(teamId => String(teamId || '').trim()).filter(Boolean)
+      : [];
+    const teamIdSet = new Set(teamIds);
+    const inStatusScope = item => {
+      const teamId = String(item?.teamId || '').trim();
+      if (!teamId) return false;
+      return teamIdSet.has(teamId);
+    };
     return {
       availableTeams,
-      pendingTeams: (state?.applications || []).filter(item => teamIds.includes(item.teamId) && item.status === 'pending'),
-      rejectedTeams: (state?.applications || []).filter(item => teamIds.includes(item.teamId) && item.status === 'rejected'),
-      approvedTeams: (state?.entries || []).filter(item => teamIds.includes(item.teamId) && (item.entryStatus === 'host' || item.entryStatus === 'approved')),
+      pendingTeams: (state?.applications || []).filter(item => inStatusScope(item) && item.status === 'pending'),
+      rejectedTeams: (state?.applications || []).filter(item => inStatusScope(item) && item.status === 'rejected'),
+      approvedTeams: (state?.entries || []).filter(item => inStatusScope(item) && (item.entryStatus === 'host' || item.entryStatus === 'approved')),
     };
   },
 

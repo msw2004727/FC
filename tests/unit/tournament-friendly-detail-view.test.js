@@ -58,6 +58,150 @@ describe('friendly tournament teams tab actions', () => {
     expect(area.innerHTML).toContain('參加賽事');
   });
 
+  test('admin register area shows a club selector for joined available clubs', () => {
+    const area = { innerHTML: '' };
+    global.document = { getElementById: id => (id === 'td-register-area' ? area : null) };
+    global.TOURNAMENT_STATUS = { PREPARING: 'preparing', REG_CLOSED: 'closed' };
+    global.ApiService = {
+      getCurrentUser: () => ({ uid: 'admin_uid', role: 'admin' }),
+    };
+    global.App = {
+      renderRegisterButton: jest.fn(),
+      renderTournamentTab: jest.fn(),
+      _isFriendlyTournamentRecord: jest.fn(() => true),
+      _getFriendlyTournamentState: jest.fn(() => ({ tournament: { id: 'ct_test' }, applications: [], entries: [] })),
+      _getFriendlyTournamentApplyContext: jest.fn(() => ({
+        availableTeams: [
+          { id: 'tm_alpha', name: 'Alpha Club' },
+          { id: 'tm_beta', name: 'Beta Club' },
+        ],
+        pendingTeams: [],
+        approvedTeams: [],
+        rejectedTeams: [],
+      })),
+      _getFriendlyTournamentTeamLimit: jest.fn(() => 4),
+      _isTournamentGlobalAdmin: jest.fn(user => user?.role === 'admin'),
+      getTournamentStatus: jest.fn(() => 'open'),
+      isTournamentEnded: jest.fn(() => false),
+    };
+    require('../../js/modules/tournament/tournament-friendly-detail-view.js');
+
+    global.App.renderRegisterButton({ id: 'ct_test' });
+
+    expect(area.innerHTML).toContain('id="td-apply-team-select"');
+    expect(area.innerHTML).toContain('Alpha Club');
+    expect(area.innerHTML).toContain('Beta Club');
+    expect(area.innerHTML).toContain("return App.registerTournament('ct_test', this)");
+  });
+
+  test('keeps join action when the selected club is still available', () => {
+    const area = { innerHTML: '' };
+    global.document = { getElementById: id => (id === 'td-register-area' ? area : null) };
+    global.TOURNAMENT_STATUS = { PREPARING: 'preparing', REG_CLOSED: 'closed' };
+    global.ApiService = {
+      getCurrentUser: () => ({ uid: 'guest_cap', role: 'user' }),
+      getTeam: id => ({ id, captainUid: 'guest_cap' }),
+    };
+    global.App = {
+      renderRegisterButton: jest.fn(),
+      renderTournamentTab: jest.fn(),
+      _isFriendlyTournamentRecord: jest.fn(() => true),
+      _getFriendlyTournamentState: jest.fn(() => ({ tournament: { id: 'ct_test' }, applications: [], entries: [] })),
+      _getFriendlyTournamentApplyContext: jest.fn(() => ({
+        availableTeams: [{ id: 'tm_free', name: 'Free Team' }],
+        pendingTeams: [{ teamId: 'tm_pending', teamName: 'Pending Team', status: 'pending' }],
+        approvedTeams: [],
+        rejectedTeams: [],
+      })),
+      _getFriendlyTournamentTeamLimit: jest.fn(() => 4),
+      _isTournamentGlobalAdmin: jest.fn(() => false),
+      _isTournamentTeamOfficerForTeam: jest.fn((team, user) => team.captainUid === user.uid),
+      getTournamentStatus: jest.fn(() => 'open'),
+      isTournamentEnded: jest.fn(() => false),
+    };
+    require('../../js/modules/tournament/tournament-friendly-detail-view.js');
+    global.App._friendlyTournamentSelectedActionTeamById.ct_test = 'tm_free';
+
+    global.App.renderRegisterButton({ id: 'ct_test' });
+
+    expect(area.innerHTML).toContain('value="tm_free" selected');
+    expect(area.innerHTML).toContain('參加賽事');
+    expect(area.innerHTML).not.toContain('俱樂部審核中</button>');
+  });
+
+  test('shows pending state for the selected club after application is submitted', () => {
+    const area = { innerHTML: '' };
+    global.document = { getElementById: id => (id === 'td-register-area' ? area : null) };
+    global.TOURNAMENT_STATUS = { PREPARING: 'preparing', REG_CLOSED: 'closed' };
+    global.ApiService = {
+      getCurrentUser: () => ({ uid: 'guest_cap', role: 'user' }),
+      getTeam: id => ({ id, captainUid: 'guest_cap' }),
+    };
+    global.App = {
+      renderRegisterButton: jest.fn(),
+      renderTournamentTab: jest.fn(),
+      _isFriendlyTournamentRecord: jest.fn(() => true),
+      _getFriendlyTournamentState: jest.fn(() => ({ tournament: { id: 'ct_test' }, applications: [], entries: [] })),
+      _getFriendlyTournamentApplyContext: jest.fn(() => ({
+        availableTeams: [{ id: 'tm_free', name: 'Free Team' }],
+        pendingTeams: [{ teamId: 'tm_pending', teamName: 'Pending Team', status: 'pending' }],
+        approvedTeams: [],
+        rejectedTeams: [],
+      })),
+      _getFriendlyTournamentTeamLimit: jest.fn(() => 4),
+      _isTournamentGlobalAdmin: jest.fn(() => false),
+      _isTournamentTeamOfficerForTeam: jest.fn((team, user) => team.captainUid === user.uid),
+      getTournamentStatus: jest.fn(() => 'open'),
+      isTournamentEnded: jest.fn(() => false),
+    };
+    require('../../js/modules/tournament/tournament-friendly-detail-view.js');
+    global.App._friendlyTournamentSelectedActionTeamById.ct_test = 'tm_pending';
+
+    global.App.renderRegisterButton({ id: 'ct_test' });
+
+    expect(area.innerHTML).toContain('value="tm_pending" selected');
+    expect(area.innerHTML).toContain('俱樂部審核中');
+    expect(area.innerHTML).toContain('撤回申請');
+    expect(area.innerHTML).toContain("return App.withdrawFriendlyTournamentTeam('ct_test','tm_pending', this)");
+    expect(area.innerHTML).not.toContain("return App.registerTournament('ct_test', this)");
+  });
+
+  test('shows approved state and cancel registration for the selected approved club', () => {
+    const area = { innerHTML: '' };
+    global.document = { getElementById: id => (id === 'td-register-area' ? area : null) };
+    global.TOURNAMENT_STATUS = { PREPARING: 'preparing', REG_CLOSED: 'closed' };
+    global.ApiService = {
+      getCurrentUser: () => ({ uid: 'guest_cap', role: 'user' }),
+      getTeam: id => ({ id, captainUid: 'guest_cap' }),
+    };
+    global.App = {
+      renderRegisterButton: jest.fn(),
+      renderTournamentTab: jest.fn(),
+      _isFriendlyTournamentRecord: jest.fn(() => true),
+      _getFriendlyTournamentState: jest.fn(() => ({ tournament: { id: 'ct_test' }, applications: [], entries: [] })),
+      _getFriendlyTournamentApplyContext: jest.fn(() => ({
+        availableTeams: [{ id: 'tm_free', name: 'Free Team' }],
+        pendingTeams: [],
+        approvedTeams: [{ teamId: 'tm_approved', teamName: 'Approved Team', entryStatus: 'approved' }],
+        rejectedTeams: [],
+      })),
+      _getFriendlyTournamentTeamLimit: jest.fn(() => 4),
+      _isTournamentGlobalAdmin: jest.fn(() => false),
+      _isTournamentTeamOfficerForTeam: jest.fn((team, user) => team.captainUid === user.uid),
+      getTournamentStatus: jest.fn(() => 'open'),
+      isTournamentEnded: jest.fn(() => false),
+    };
+    require('../../js/modules/tournament/tournament-friendly-detail-view.js');
+    global.App._friendlyTournamentSelectedActionTeamById.ct_test = 'tm_approved';
+
+    global.App.renderRegisterButton({ id: 'ct_test' });
+
+    expect(area.innerHTML).toContain('value="tm_approved" selected');
+    expect(area.innerHTML).toContain('俱樂部已通過審核');
+    expect(area.innerHTML).toContain('取消報名');
+    expect(area.innerHTML).toContain("return App.withdrawFriendlyTournamentTeam('ct_test','tm_approved', this)");
+  });
+
   test('renders a right-side remove action for approved non-host entries only', () => {
     require('../../js/modules/tournament/tournament-friendly-detail-view.js');
 
@@ -216,5 +360,50 @@ describe('friendly tournament teams tab actions', () => {
     expect(global.App.showToast).toHaveBeenCalledWith('目前沒有可撤回或退出的參賽狀態。');
     expect(global.App.appConfirm).not.toHaveBeenCalled();
     expect(global.ApiService.withdrawFriendlyTournamentTeamAtomic).not.toHaveBeenCalled();
+  });
+
+  test('admin apply context is limited to joined clubs, not all loaded clubs', () => {
+    const tournament = { id: 'ct_test', hostTeamId: 'tm_host', sportTag: 'football' };
+    const adminUser = { uid: 'admin_uid', role: 'admin', teamIds: ['tm_alpha', 'tm_beta', 'tm_approved'] };
+    const teams = [
+      { id: 'tm_host', name: 'Host', sportTag: 'football' },
+      { id: 'tm_alpha', name: 'Alpha Club', sportTag: 'football' },
+      { id: 'tm_beta', name: 'Beta Club', sportTag: 'football' },
+      { id: 'tm_approved', name: 'Approved Club', sportTag: 'football' },
+      { id: 'tm_stranger', name: 'Stranger Club', sportTag: 'football' },
+      { id: 'tm_stranger_approved', name: 'Stranger Approved Club', sportTag: 'football' },
+      { id: 'tm_basket', name: 'Basket Club', sportTag: 'basketball' },
+    ];
+    global.ApiService = {
+      getCurrentUser: () => adminUser,
+      getTeams: () => teams,
+      getTeam: teamId => teams.find(team => team.id === teamId) || null,
+    };
+    global.App = {
+      _isTournamentGlobalAdmin: jest.fn(user => user?.role === 'admin' || user?.role === 'super_admin'),
+      _getFriendlyResponsibleTeams: jest.fn(() => []),
+      _getUserTeamIds: jest.fn(user => user?.teamIds || []),
+    };
+    require('../../js/modules/tournament/tournament-friendly-state.js');
+
+    const ctx = global.App._getFriendlyTournamentApplyContext(tournament, {
+      tournament,
+      applications: [
+        { id: 'ta_tm_beta', teamId: 'tm_beta', teamName: 'Beta Club', status: 'pending' },
+        { id: 'ta_tm_stranger', teamId: 'tm_stranger', teamName: 'Stranger Club', status: 'pending' },
+      ],
+      entries: [
+        { teamId: 'tm_host', teamName: 'Host', entryStatus: 'host' },
+        { teamId: 'tm_approved', teamName: 'Approved Club', entryStatus: 'approved' },
+        { teamId: 'tm_stranger_approved', teamName: 'Stranger Approved Club', entryStatus: 'approved' },
+      ],
+    }, adminUser);
+
+    expect(ctx.availableTeams.map(team => team.id)).toEqual(['tm_alpha']);
+    expect(ctx.pendingTeams.map(team => team.teamId)).toEqual(['tm_beta']);
+    expect(ctx.approvedTeams.map(team => team.teamId)).toEqual(['tm_approved']);
+    expect(ctx.approvedTeams.map(team => team.teamId)).not.toContain('tm_host');
+    expect(ctx.pendingTeams.map(team => team.teamId)).not.toContain('tm_stranger');
+    expect(ctx.approvedTeams.map(team => team.teamId)).not.toContain('tm_stranger_approved');
   });
 });

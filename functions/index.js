@@ -1224,6 +1224,7 @@ exports.applyFriendlyTournament = onCall(
     }
 
     const callerUid = request.auth.uid;
+    const callerRole = await getCallerRoleWithFallback(request);
     const tournamentId = String(request.data?.tournamentId || "").trim();
     const teamId = String(request.data?.teamId || "").trim();
     if (!tournamentId || !teamId) {
@@ -1273,7 +1274,9 @@ exports.applyFriendlyTournament = onCall(
       if (!teamDoc) {
         throw new HttpsError("not-found", "TEAM_NOT_FOUND");
       }
-      if (!isTournamentTeamOfficerForData(teamDoc.data, callerUid)) {
+      const canApplyForTeam = isTournamentTeamOfficerForData(teamDoc.data, callerUid)
+        || (isRoleAdminOrAbove(callerRole) && isUserDataInTeam(callerUserDoc?.data, teamId));
+      if (!canApplyForTeam) {
         throw new HttpsError("permission-denied", "ONLY_TEAM_OFFICER_CAN_APPLY");
       }
       assertTournamentSportCompatible(tournament, teamDoc.data);
@@ -1376,8 +1379,10 @@ exports.withdrawFriendlyTournamentTeam = onCall(
       }
 
       const teamDoc = await getTeamDocByTeamIdInTransaction(tx, teamId);
-      const canWithdraw = isRoleAdminOrAbove(callerRole)
-        || (!!teamDoc && isTournamentTeamOfficerForData(teamDoc.data, callerUid));
+      const canWithdraw = !!teamDoc && (
+        isTournamentTeamOfficerForData(teamDoc.data, callerUid)
+        || (isRoleAdminOrAbove(callerRole) && isUserDataInTeam(callerUserDoc?.data, teamId))
+      );
       if (!canWithdraw) {
         throw new HttpsError("permission-denied", "ONLY_TEAM_OFFICER_CAN_WITHDRAW");
       }

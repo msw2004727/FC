@@ -2,6 +2,12 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-29 — 賽事報名按鈕依選取俱樂部更新 [中型]
+- **問題**: 多俱樂部使用者在友誼賽詳情頁送出「參加賽事」後，報名區按鈕仍可能用整體狀態判斷，無法依下拉選到的俱樂部顯示「審核中 / 已通過審核 / 可報名」；admin/super_admin 使用者若不是隊伍幹部，也看不到自己已加入俱樂部的報名下拉選單。
+- **原因**: `renderRegisterButton()` 先看所有 `pendingTeams` / `approvedTeams` 的聚合結果，沒有保留使用者目前選取的 club id；報名成功或撤回後重新渲染時也沒有把剛操作的俱樂部設為目前狀態目標。前端 apply context 只吃 `_getFriendlyResponsibleTeams()`，導致 admin/super_admin 的一般所屬俱樂部被排除；後端 callable 也需要同步區分「隊伍幹部」與「管理員自己的所屬俱樂部」。
+- **修復**: 新增賽事報名區選取俱樂部記憶與狀態正規化；下拉選單同時列出審核中、已通過、可報名與未通過俱樂部，按鈕依目前選取俱樂部顯示「參加賽事 / 俱樂部審核中 / 俱樂部已通過審核」，已通過且有權限時提供「取消報名」。admin/super_admin 的下拉來源改為 `user.teamIds/teamId` 所屬俱樂部，不可代表全平台任意俱樂部；Cloud Function apply/withdraw 同步限制為「隊伍幹部」或「admin/super_admin 且使用者資料內包含該 teamId」。
+- **驗收**: `tests/unit/tournament-friendly-detail-view.test.js` 新增多俱樂部 pending / approved / available 與 admin 所屬俱樂部 selector 測試；`tests/unit/cloud-functions.test.js` 補 admin/super_admin 只能代表自己所屬俱樂部的 apply permission 測試；`npm test -- --runInBand` 198 suites / 7500 tests passed。
+
 ### 2026-04-29 — 首頁 boot data 注入降頻與可追蹤性 [中型]
 - **問題**: GitHub Actions 每 3 小時更新首頁 inline boot data，能加速首頁首屏，但頻率偏高，容易造成 index.html 自動 commit 與協作 rebase 干擾。
 - **原因**: `.github/workflows/inject-hot-events.yml` 固定 3 小時排程，且 `scripts/inject-hot-events.js` 活動只抓前 40 筆再本地挑近期活動，活動量增加時覆蓋率不足。

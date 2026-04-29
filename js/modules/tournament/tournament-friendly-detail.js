@@ -37,7 +37,11 @@ Object.assign(App, {
     if (!(options && options.allowGuest) && this._requireLogin()) return;
 
     const seq = ++this._friendlyTournamentDetailSeq;
-    const statePromise = this._loadFriendlyTournamentDetailState(id);
+    const currentUser = ApiService.getCurrentUser?.();
+    const statePromise = (async () => {
+      await this._ensureFriendlyTournamentApplyTeamsLoaded?.(currentUser);
+      return await this._loadFriendlyTournamentDetailState(id);
+    })();
     this.currentTournament = id;
     await this.showPage('page-tournament-detail');
     if (seq !== this._friendlyTournamentDetailSeq || this.currentPage !== 'page-tournament-detail') return;
@@ -128,6 +132,7 @@ Object.assign(App, {
           this.showToast('請先選擇要報名的俱樂部。');
           return;
         }
+        this._rememberFriendlyTournamentActionTeam?.(id, selectedTeam.id);
 
         await ApiService.applyFriendlyTournamentAtomic(id, selectedTeam.id);
 
