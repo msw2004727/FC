@@ -84,7 +84,15 @@ Object.assign(App, {
     if (!teamId) return false;
     const user = ApiService.getCurrentUser?.() || null;
     if (!user || !user.uid) return false;
-    const team = ApiService.getTeam?.(teamId);
+    const targetId = String(teamId || '').trim();
+    const team = ApiService.getTeam?.(targetId)
+      || (ApiService.getTeams?.() || []).find(t => {
+        if (!t) return false;
+        return [t.id, t._docId, t.docId]
+          .map(v => String(v || '').trim())
+          .filter(Boolean)
+          .includes(targetId);
+      });
     if (!team) return false;
 
     const myUid = user.uid;

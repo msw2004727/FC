@@ -13,6 +13,15 @@
  * decision tree that determines which button the user sees.
  */
 
+const fs = require('fs');
+const path = require('path');
+
+const root = path.resolve(__dirname, '../..');
+
+function readProjectFile(file) {
+  return fs.readFileSync(path.join(root, file), 'utf8');
+}
+
 // ===========================================================================
 // Extracted logic: button state decision (event-detail.js:295-350)
 // ===========================================================================
@@ -234,5 +243,23 @@ describe('DOM rendering smoke test', () => {
     expect(btn.textContent).toBe('載入中…');
 
     document.body.removeChild(container);
+  });
+});
+
+describe('Team reservation button loading contract', () => {
+  test('activity detail hydrates teams before rendering staff-only team signup actions', () => {
+    const detailSource = readProjectFile('js/modules/event/event-detail.js');
+    const signupSource = readProjectFile('js/modules/event/event-detail-signup.js');
+    const helperSource = readProjectFile('js/modules/event/event-list-helpers.js');
+    const configSource = readProjectFile('js/config.js');
+    const firebaseSource = readProjectFile('js/firebase-service.js');
+
+    expect(detailSource).toContain('_ensureTeamReservationStaffTeamsLoaded');
+    expect(signupSource).toContain('_getTeamReservationCandidateTeamIds');
+    expect(signupSource).toContain('FirebaseService.fetchTeamIfMissing');
+    expect(signupSource).toContain("FirebaseService.ensureStaticCollectionsLoaded(['teams'])");
+    expect(helperSource).toContain('t._docId');
+    expect(configSource).toContain("'page-activity-detail':    { required: ['events'], optional: ['teams', 'registrations'");
+    expect(firebaseSource).toContain("'page-activity-detail':   ['events', 'teams', 'registrations'");
   });
 });

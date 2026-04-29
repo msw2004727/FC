@@ -115,6 +115,75 @@ Object.assign(App, {
     return teams.filter(t => t?.id && this._isCurrentUserTeamStaff?.(t.id));
   },
 
+  _getTeamReservationCandidateTeamIds() {
+    const user = ApiService.getCurrentUser?.() || null;
+    if (!user?.uid) return [];
+    const ids = [];
+    const seen = new Set();
+    const pushId = (id) => {
+      const value = String(id || '').trim();
+      if (!value || seen.has(value)) return;
+      seen.add(value);
+      ids.push(value);
+    };
+
+    if (typeof this._getUserTeamIds === 'function') {
+      this._getUserTeamIds(user).forEach(pushId);
+    } else {
+      if (Array.isArray(user.teamIds)) user.teamIds.forEach(pushId);
+      pushId(user.teamId);
+    }
+
+    const uid = user.uid || '';
+    const name = user.displayName || user.name || '';
+    const adminUsers = ApiService.getAdminUsers?.() || [];
+    const adminUser = adminUsers.find(u => (uid && u.uid === uid) || (name && u.name === name));
+    if (adminUser) {
+      if (Array.isArray(adminUser.teamIds)) adminUser.teamIds.forEach(pushId);
+      pushId(adminUser.teamId);
+    }
+
+    (ApiService.getTeams?.() || []).forEach(t => {
+      if (t?.id && this._isCurrentUserTeamStaff?.(t.id)) pushId(t.id);
+      if (t?._docId && this._isCurrentUserTeamStaff?.(t._docId)) pushId(t._docId);
+    });
+    return ids;
+  },
+
+  async _ensureTeamReservationStaffTeamsLoaded() {
+    if (this._getTeamReservationStaffTeams().length > 0) {
+      return this._getTeamReservationStaffTeams();
+    }
+    try {
+      const candidateIds = this._getTeamReservationCandidateTeamIds();
+      const missingIds = candidateIds.filter(id => {
+        const targetId = String(id || '').trim();
+        if (!targetId) return false;
+        return !(ApiService.getTeams?.() || []).some(t =>
+          [t?.id, t?._docId, t?.docId].map(v => String(v || '').trim()).includes(targetId)
+        );
+      });
+
+      if (missingIds.length && typeof FirebaseService !== 'undefined' && FirebaseService.fetchTeamIfMissing) {
+        await Promise.all(missingIds.map(id => FirebaseService.fetchTeamIfMissing(id)));
+      }
+
+      let teams = this._getTeamReservationStaffTeams();
+      if (!teams.length && typeof FirebaseService !== 'undefined' && FirebaseService.ensureStaticCollectionsLoaded) {
+        const role = String((ApiService.getCurrentUser?.() || {}).role || '');
+        const staffRole = ['coach', 'captain', 'venue_owner', 'admin', 'super_admin'].includes(role);
+        if (staffRole) {
+          await FirebaseService.ensureStaticCollectionsLoaded(['teams']);
+          teams = this._getTeamReservationStaffTeams();
+        }
+      }
+      return teams;
+    } catch (err) {
+      console.warn('[teamReservation] staff teams hydrate failed:', err);
+    }
+    return this._getTeamReservationStaffTeams();
+  },
+
   _getTeamReservationSummary(e, teamId) {
     const summaries = (typeof FirebaseService !== 'undefined' && FirebaseService._normalizeTeamReservationSummaries)
       ? FirebaseService._normalizeTeamReservationSummaries(e)
@@ -170,8 +239,9 @@ Object.assign(App, {
     return { event: e, teams, selectedTeam, summary, used, remaining, maxReserved };
   },
 
-  openTeamReservationModal(eventId, preferredTeamId) {
+  async openTeamReservationModal(eventId, preferredTeamId) {
     if (this._requireProtectedActionLogin({ type: 'teamReservation', eventId }, { suppressToast: true })) return;
+    await this._ensureTeamReservationStaffTeamsLoaded?.();
     const state = this._getTeamReservationModalState(eventId, preferredTeamId);
     if (!state) {
       this.showToast('只有俱樂部職員可以建立團隊名額');

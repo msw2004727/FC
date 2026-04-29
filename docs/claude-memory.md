@@ -1838,3 +1838,9 @@
 - **修復**：新增 `adjustTeamReservation(asia-east1)` callable 與前端團隊/個人報名入口；團隊席位改用 team reservation summary 計入容量，真人仍各自保留 registration/activityRecord；同俱樂部成員報名會優先消耗剩餘席位，超過席位才依活動容量與候補規則處理。管理列表改成同俱樂部席位集中顯示，保留真人簽到、簽退、放鴿子欄位，並補齊操作 log。
 - **驗證**：`node --check` 覆蓋 functions 與活動相關 JS；`npm test -- --runInBand` 通過 72 suites / 2572 tests；`npm run test:rules` 通過 5 suites / 490 tests；團隊席位 targeted tests 通過。已部署 functions、firestore.rules，並 push 前端版本 `0.20260429zk`。
 - **教訓**：容量顯示要分清 `realCurrent` 與「尚未被真人使用的團隊席位」；所有後台統計只應吃真人 registration / attendance，團隊席位只影響容量與視覺群組，避免未來再出現佔位與真人統計互相污染。
+
+### 2026-04-29 — 活動詳情團隊報名按鈕冷啟補載
+- **問題**：俱樂部職員進入活動詳情時，原本應並排顯示「個人報名 / 團隊報名」或「取消報名 / 調整名額」，但某些冷啟或刷新路徑只看到舊的單一報名按鈕。
+- **原因**：活動詳情頁沒有保證先載入 `teams`，團隊報名按鈕又依賴 `ApiService.getTeams()` 判斷目前使用者是否為俱樂部職員；此外舊資料可能有 `team.id` 與 Firestore `_docId` 雙軌，單用 `id` 會誤判。
+- **修復**：活動詳情渲染報名區前先補載目前使用者可能代表的俱樂部，必要時 fallback 載入 `teams`；職員判斷改支援 `id/_docId/docId`；活動詳情資料契約補上 `teams`，避免不同進入路徑靠其他頁快取碰運氣。
+- **教訓**：任何「依身分顯示的按鈕」都不能只仰賴其他頁面曾經載過的快取；詳情頁要自帶自己的資料前置條件，尤其是俱樂部與賽事這類有 ID 雙軌歷史的資料。

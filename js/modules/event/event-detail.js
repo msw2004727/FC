@@ -295,6 +295,15 @@ Object.assign(App, {
         }
       }
       e = this._syncEventEffectiveStatus?.(e) || e;
+      if (!isGuestView && typeof this._ensureTeamReservationStaffTeamsLoaded === 'function') {
+        await this._ensureTeamReservationStaffTeamsLoaded();
+        if (requestSeq !== this._eventDetailRequestSeq) {
+          return { ok: false, reason: 'stale' };
+        }
+        e = ApiService.getEvent(id);
+        if (!e) return { ok: false, reason: 'missing' };
+        e = this._syncEventEffectiveStatus?.(e) || e;
+      }
 
       // 驗證 DOM 節點存在（頁面已載入 DOM 但尚未切換顯示）
       const nodes = this._getEventDetailNodes();

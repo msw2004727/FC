@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260429zl';
+const CACHE_VERSION = '0.20260429zm';
 
 // ─── 即時監聽 limit 預設值（可在儀表板動態調整，存於 siteConfig/realtimeConfig）───
 const REALTIME_LIMIT_DEFAULTS = {
@@ -132,7 +132,7 @@ const PAGE_DATA_CONTRACT = {
   'page-tournament-detail':  { required: [], optional: ['tournaments', 'standings', 'matches'], realtime: [] },
   'page-shop':               { required: ['shopItems'], optional: ['trades'], realtime: [] },
   'page-shop-detail':        { required: ['shopItems'], optional: ['trades'], realtime: [] },
-  'page-activity-detail':    { required: ['events'], optional: ['registrations', 'attendanceRecords', 'activityRecords', 'userCorrections'], realtime: ['registrations', 'attendanceRecords'] },
+  'page-activity-detail':    { required: ['events'], optional: ['teams', 'registrations', 'attendanceRecords', 'activityRecords', 'userCorrections'], realtime: ['registrations', 'attendanceRecords'] },
   'page-my-activities':      { required: ['events', 'registrations'], optional: ['attendanceRecords'], realtime: ['registrations', 'attendanceRecords'] },
   'page-scan':               { required: ['events', 'attendanceRecords'], optional: [], realtime: ['attendanceRecords'] },
   // 後台管理頁（required: [] 允許首次載入後即走 stale-first）
