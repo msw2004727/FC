@@ -2,6 +2,12 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-29 — 首頁 boot data 注入降頻與可追蹤性 [中型]
+- **問題**: GitHub Actions 每 3 小時更新首頁 inline boot data，能加速首頁首屏，但頻率偏高，容易造成 index.html 自動 commit 與協作 rebase 干擾。
+- **原因**: `.github/workflows/inject-hot-events.yml` 固定 3 小時排程，且 `scripts/inject-hot-events.js` 活動只抓前 40 筆再本地挑近期活動，活動量增加時覆蓋率不足。
+- **修正**: 將排程改為每 6 小時，保留手動觸發；活動抓取 `pageSize` 提高到 120；每次注入時在 workflow log 列出 picked events/banners/tournaments 的 id 與日期/slot。
+- **驗收**: `node --check scripts/inject-hot-events.js`、`git diff --check`、`npm test` 通過；未進行實體瀏覽器測試。
+
 ### 2026-04-28 — 找出歷史 silent fail 的真正根因:this 指錯物件 [永久]
 - **問題**:用戶按下「編輯賽事」按鈕後跳 toast「找不到此賽事(快取不一致, …17955_jn6d66)」。Console: `tournament not found {id: 'ct_1777349317955_jn6d66', cacheSize: 2, fetchedFromServer: false, fetchError: null}` — `fetchedFromServer: false` 證明根本沒進 fallback fetch
 - **真正根因**:`tournament-manage-edit.js:25` `const editRecord = this.getFriendlyTournamentRecord?.(rawRecord)` — 這函式定義在 **`ApiService`** 不是 **`App`** 上!`App.getFriendlyTournamentRecord` 永遠是 undefined → optional chaining `?.()` 直接回 undefined → `editRecord` falsy → silent fail(舊版)/ 跳 toast(我前面加的版本)

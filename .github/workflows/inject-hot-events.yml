@@ -1,11 +1,11 @@
 name: Inject Hot Events to index.html
 
 # 何時跑：
-#   - schedule: 每 3 小時整點（UTC）跑一次、把 Firestore 最近 6 場活動 inline 到 index.html
+#   - schedule: 每 6 小時整點（UTC）跑一次、把 Firestore 最近 6 場活動 inline 到 index.html
 #   - workflow_dispatch: 允許手動觸發（首次部署 / debug / 緊急更新）
 on:
   schedule:
-    - cron: '0 */3 * * *'   # 0:00, 3:00, 6:00, 9:00, 12:00, 15:00, 18:00, 21:00 UTC
+    - cron: '0 */6 * * *'   # 0:00, 6:00, 12:00, 18:00 UTC
   workflow_dispatch:
 
 # 並發保護：上次還沒結束時，本次自動跳過（避免 push 競爭）

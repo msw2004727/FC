@@ -31,7 +31,7 @@ const INJECTION_CONFIGS = {
     markerBegin: '<!-- BOOT_EVENTS_INJECT_BEGIN -->',
     markerEnd: '<!-- BOOT_EVENTS_INJECT_END -->',
     scriptId: 'boot-events-data',
-    pageSize: 40,
+    pageSize: 120,
     orderBy: null,
   },
   banners: {
@@ -285,6 +285,26 @@ function pickActiveTournaments(tournaments) {
     .map(t => slimRecord(t, TOURNAMENT_KEEP_FIELDS));
 }
 
+function describeRecord(record, key) {
+  if (!record) return '';
+  const id = record.id || record._docId || '(no-id)';
+  if (key === 'events') {
+    return `${id}@${record.date || 'no-date'}`;
+  }
+  if (key === 'tournaments') {
+    return `${id}@${record.regStart || record.createdAt || record.updatedAt || 'no-date'}`;
+  }
+  if (key === 'banners') {
+    return `${id}@slot:${record.slot || record.sortOrder || '0'}`;
+  }
+  return id;
+}
+
+function logPickedRecords(key, records) {
+  const summary = (records || []).map(record => describeRecord(record, key)).join(', ');
+  console.log(`[inject-hot-events] ${key}: picked records ${summary || '(none)'}`);
+}
+
 function escapeInlineJson(value) {
   const lineSep = String.fromCharCode(0x2028);
   const paraSep = String.fromCharCode(0x2029);
@@ -362,6 +382,7 @@ async function safePayload(auth, key, picker) {
     const docs = await fetchCollection(auth, config);
     const records = picker(docs);
     console.log(`[inject-hot-events] ${key}: fetched ${docs.length}, picked ${records.length}`);
+    logPickedRecords(key, records);
     return { key, config, records };
   } catch (err) {
     console.warn(`[inject-hot-events] ${key}: skipped (${err.message})`);
