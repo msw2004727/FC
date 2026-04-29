@@ -262,4 +262,13 @@ describe('Team reservation button loading contract', () => {
     expect(configSource).toContain("'page-activity-detail':    { required: ['events'], optional: ['teams', 'registrations'");
     expect(firebaseSource).toContain("'page-activity-detail':   ['events', 'teams', 'registrations'");
   });
+
+  test('team reservation modal does not close from backdrop clicks', () => {
+    const signupSource = readProjectFile('js/modules/event/event-detail-signup.js');
+
+    expect(signupSource).not.toContain("if(event.target===this)App.closeTeamReservationModal()");
+    expect(signupSource).toContain("modal.removeAttribute('onclick')");
+    expect(signupSource).toContain('class="team-reservation-close" onclick="App.closeTeamReservationModal()"');
+    expect(signupSource).toContain('class="outline-btn" onclick="App.closeTeamReservationModal()"');
+  });
 });

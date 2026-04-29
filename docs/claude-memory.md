@@ -1862,3 +1862,9 @@
 - **原因**：團隊席位匹配只看使用者成員 teamId，沒有同步採用團隊報名按鈕所使用的職員身份來源。
 - **修復**：前端與 `registerForEvent` callable 的席位判定都加入 captain/creator/owner/leader/coach 身份匹配；職員本人個人報名後會寫入 `teamReservationTeamId`，名單分組、簽到簽退與放鴿子統計沿用真人 registration。
 - **驗證**：補 `team-reservation-occupancy.test.js` 覆蓋職員非成員仍消耗團隊保留席位；`node --check` 前後端通過，`npm test -- --runInBand` 通過 72 suites / 2578 tests。
+
+### 2026-04-29 — 團隊報名彈窗取消空白處關閉
+- **問題**：團隊報名彈窗需要手動輸入名額，點到毛玻璃空白處會直接關閉，容易誤觸遺失輸入狀態。
+- **原因**：`team-reservation-overlay` 開啟時寫入 inline `onclick`，只要點擊目標是 overlay 本身就呼叫關閉。
+- **修復**：移除 overlay 空白處關閉行為，只保留右上角 X 與「取消」按鈕可關閉；補測試鎖定不再出現 backdrop close inline handler。
+- **教訓**：含手動輸入的彈窗應避免點外圍關閉，尤其是調整名額這類容易被手指誤觸的 mobile 流程。

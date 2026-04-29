@@ -258,7 +258,7 @@ Object.assign(App, {
     }
     modal.className = 'team-reservation-overlay';
     modal.setAttribute('role', 'presentation');
-    modal.setAttribute('onclick', 'if(event.target===this)App.closeTeamReservationModal()');
+    modal.removeAttribute('onclick');
     const teamOptions = state.teams.map(t => {
       const selected = String(t.id) === String(state.selectedTeam.id) ? ' selected' : '';
       return `<option value="${escapeHTML(t.id)}"${selected}>${escapeHTML(t.name || t.teamName || t.id)}</option>`;
