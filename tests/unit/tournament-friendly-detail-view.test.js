@@ -468,4 +468,95 @@ describe('friendly tournament teams tab actions', () => {
     expect(ctx.pendingTeams.map(team => team.teamId)).not.toContain('tm_stranger');
     expect(ctx.approvedTeams.map(team => team.teamId)).not.toContain('tm_stranger_approved');
   });
+
+  test('non-admin apply context uses hydrated joined officer clubs when teams list is cold', () => {
+    const user = { uid: 'cap_uid', role: 'user', teamIds: ['tm_joined'] };
+    const joinedTeam = { id: 'tm_joined', name: 'Joined Club', captainUid: 'cap_uid', sportTag: 'football' };
+    global.ApiService = {
+      getCurrentUser: () => user,
+      getTeams: () => [],
+      getTeam: teamId => (teamId === 'tm_joined' ? joinedTeam : null),
+    };
+    global.App = {
+      _isTournamentGlobalAdmin: jest.fn(() => false),
+      _getFriendlyResponsibleTeams: jest.fn(() => []),
+      _getUserTeamIds: jest.fn(item => item?.teamIds || []),
+      _isTournamentTeamOfficerForTeam: jest.fn((team, item) => team?.captainUid === item?.uid),
+    };
+    require('../../js/modules/tournament/tournament-friendly-state.js');
+
+    const ctx = global.App._getFriendlyTournamentApplyContext({
+      id: 'ct_test',
+      hostTeamId: 'tm_host',
+      sportTag: 'football',
+    }, { applications: [], entries: [] }, user);
+
+    expect(ctx.availableTeams.map(team => team.id)).toEqual(['tm_joined']);
+    expect(global.App._getFriendlyResponsibleTeams).toHaveBeenCalled();
+  });
+
+  test('loads joined team docs for non-admin apply selector on cold detail refresh', async () => {
+    const user = { uid: 'cap_uid', role: 'user', teamIds: ['tm_joined'] };
+    const loadedTeams = {};
+    global.ApiService = {
+      getCurrentUser: () => user,
+      getTeams: () => Object.values(loadedTeams),
+      getTeam: teamId => loadedTeams[teamId] || null,
+      getTeamAsync: jest.fn(async teamId => {
+        loadedTeams[teamId] = { id: teamId, name: 'Joined Club', captainUid: 'cap_uid' };
+        return loadedTeams[teamId];
+      }),
+    };
+    global.App = {
+      _isTournamentGlobalAdmin: jest.fn(() => false),
+      _getFriendlyResponsibleTeams: jest.fn(item =>
+        Object.values(loadedTeams).filter(team => team.captainUid === item?.uid)
+      ),
+      _getUserTeamIds: jest.fn(item => item?.teamIds || []),
+      _isTournamentTeamOfficerForTeam: jest.fn((team, item) => team?.captainUid === item?.uid),
+    };
+    require('../../js/modules/tournament/tournament-friendly-state.js');
+
+    const teams = await global.App._ensureFriendlyTournamentApplyTeamsLoaded(user);
+
+    expect(global.ApiService.getTeamAsync).toHaveBeenCalledWith('tm_joined');
+    expect(teams.map(team => team.id)).toEqual(['tm_joined']);
+  });
+
+  test('renders a friendly detail loading shell before async state resolves', () => {
+    const nodes = {
+      'td-img-placeholder': { innerHTML: '', textContent: '', style: {} },
+      'td-title': { innerHTML: '' },
+      'td-register-area': { innerHTML: '' },
+      'td-info-section': { innerHTML: '' },
+      'tournament-content': { innerHTML: '' },
+    };
+    const tabs = [
+      { dataset: { ttab: 'info' }, classList: { toggle: jest.fn() } },
+      { dataset: { ttab: 'teams' }, classList: { toggle: jest.fn() } },
+    ];
+    global.document = {
+      getElementById: id => nodes[id] || null,
+      querySelectorAll: selector => (selector === '#td-tabs .tab' ? tabs : []),
+    };
+    global.App = {
+      showTournamentDetail: jest.fn(),
+      renderRegisterButton: jest.fn(),
+      registerTournament: jest.fn(),
+      renderTournamentTab: jest.fn(),
+      isTournamentFavorited: jest.fn(() => false),
+      _favHeartHtml: jest.fn(() => '<button class="fav">fav</button>'),
+    };
+    require('../../js/modules/tournament/tournament-friendly-detail.js');
+
+    global.App._renderFriendlyTournamentDetailLoadingShell({ id: 'ct_test', name: 'Test Cup' });
+
+    expect(nodes['td-title'].innerHTML).toContain('Test Cup');
+    expect(nodes['td-title'].innerHTML).toContain('class="fav"');
+    expect(nodes['td-register-area'].innerHTML).toContain('skel-progress-bar');
+    expect(nodes['td-info-section'].innerHTML).toContain('tfd-info-skeleton');
+    expect(nodes['tournament-content'].innerHTML).toContain('tfd-tab-loading');
+    expect(tabs[0].classList.toggle).toHaveBeenCalledWith('active', true);
+    expect(tabs[1].classList.toggle).toHaveBeenCalledWith('active', false);
+  });
 });

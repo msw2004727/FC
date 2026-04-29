@@ -184,14 +184,41 @@ Object.assign(App, {
       .filter(Boolean);
   },
 
+  _mergeFriendlyTournamentTeamLists(...teamLists) {
+    const seen = new Set();
+    const merged = [];
+    teamLists.flat().forEach(team => {
+      const id = String(team?.id || team?.teamId || team?._docId || team?.docId || '').trim();
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      merged.push({
+        ...team,
+        id,
+      });
+    });
+    return merged;
+  },
+
+  _getFriendlyTournamentOfficerApplyTeams(user = ApiService.getCurrentUser?.()) {
+    const responsibleTeams = this._getFriendlyResponsibleTeams?.(user) || [];
+    const joinedOfficerTeams = this._getFriendlyTournamentJoinedTeams(user)
+      .filter(team => this._isTournamentTeamOfficerForTeam?.(team, user));
+    return this._mergeFriendlyTournamentTeamLists(responsibleTeams, joinedOfficerTeams);
+  },
+
   async _ensureFriendlyTournamentApplyTeamsLoaded(user = ApiService.getCurrentUser?.()) {
-    if (!this._isTournamentGlobalAdmin?.(user)) return ApiService.getTeams?.() || [];
+    const currentUser = user || ApiService.getCurrentUser?.();
+    if (!currentUser) return [];
+
     const teamIds = typeof this._getUserTeamIds === 'function'
-      ? this._getUserTeamIds(user)
+      ? this._getUserTeamIds(currentUser)
         .map(teamId => String(teamId || '').trim())
         .filter(Boolean)
       : [];
-    if (!teamIds.length) return [];
+    const isGlobalAdmin = this._isTournamentGlobalAdmin?.(currentUser) === true;
+    const getEligibleTeams = () => isGlobalAdmin
+      ? this._getFriendlyTournamentJoinedTeams(currentUser)
+      : this._getFriendlyTournamentOfficerApplyTeams(currentUser);
 
     const hasTeam = teamId => !!(
       ApiService.getTeam?.(teamId)
@@ -200,12 +227,13 @@ Object.assign(App, {
       )
     );
     const missingTeamIds = teamIds.filter(teamId => !hasTeam(teamId));
-    if (missingTeamIds.length === 0) return this._getFriendlyTournamentJoinedTeams(user);
 
     try {
-      if (typeof ApiService.getTeamAsync === 'function') {
+      if (missingTeamIds.length > 0 && typeof ApiService.getTeamAsync === 'function') {
         await Promise.all(missingTeamIds.map(teamId => ApiService.getTeamAsync(teamId).catch(() => null)));
-      } else if (typeof FirebaseService !== 'undefined') {
+      }
+
+      if (getEligibleTeams().length === 0 && typeof FirebaseService !== 'undefined') {
         if (typeof FirebaseService.ensureStaticCollectionsLoaded === 'function') {
           await FirebaseService.ensureStaticCollectionsLoaded(['teams']);
         } else if (typeof FirebaseService.ensureCollectionsForPage === 'function') {
@@ -213,16 +241,16 @@ Object.assign(App, {
         }
       }
     } catch (err) {
-      console.warn('[Tournament] Failed to load joined teams for admin apply selector:', err);
+      console.warn('[Tournament] Failed to load teams for friendly tournament apply selector:', err);
     }
-    return this._getFriendlyTournamentJoinedTeams(user);
+    return getEligibleTeams();
   },
 
   _getFriendlyTournamentApplyContext(tournament, state, user = ApiService.getCurrentUser?.()) {
     const isGlobalAdmin = this._isTournamentGlobalAdmin?.(user) === true;
     const eligibleTeams = isGlobalAdmin
       ? this._getFriendlyTournamentJoinedTeams(user)
-      : (this._getFriendlyResponsibleTeams?.(user) || []);
+      : this._getFriendlyTournamentOfficerApplyTeams(user);
     const activeApplications = (state?.applications || []).filter(item => {
       const status = String(item.status || '').trim().toLowerCase();
       return status !== 'cancelled' && status !== 'withdrawn';

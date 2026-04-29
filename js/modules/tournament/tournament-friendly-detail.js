@@ -27,6 +27,62 @@ Object.assign(App, {
     return id ? (this._friendlyTournamentDetailStateById[id] || null) : null;
   },
 
+  _renderFriendlyTournamentDetailLoadingShell(tournament) {
+    const record = tournament || {};
+    const img = document.getElementById('td-img-placeholder');
+    if (img) {
+      if (record.image) {
+        img.innerHTML = `<img src="${record.image}" alt="${escapeHTML(record.name || '')}" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:var(--radius)">`;
+        img.style.border = 'none';
+      } else {
+        img.textContent = '賽事資料載入中';
+        img.style.border = '';
+      }
+    }
+
+    const title = document.getElementById('td-title');
+    if (title) {
+      const favHtml = record.id && typeof this._favHeartHtml === 'function'
+        ? ' ' + this._favHeartHtml(this.isTournamentFavorited?.(record.id), 'Tournament', record.id)
+        : '';
+      title.innerHTML = `${escapeHTML(record.name || '賽事載入中')}${favHtml}`;
+    }
+
+    const registerArea = document.getElementById('td-register-area');
+    if (registerArea) {
+      registerArea.innerHTML = `
+        <div class="tfd-detail-loading" role="status" aria-live="polite">
+          <div class="tfd-detail-loading-title">載入賽事資料中</div>
+          <div class="tfd-detail-loading-sub">正在同步報名狀態與可代表俱樂部</div>
+          <div class="skel-progress-bar"></div>
+        </div>`;
+    }
+
+    const info = document.getElementById('td-info-section');
+    if (info) {
+      info.innerHTML = `
+        <div class="td-info-card tfd-info-skeleton" aria-hidden="true">
+          <div class="tfd-skeleton-row"></div>
+          <div class="tfd-skeleton-row short"></div>
+          <div class="tfd-skeleton-row"></div>
+        </div>`;
+    }
+
+    const content = document.getElementById('tournament-content');
+    if (content) {
+      content.innerHTML = `
+        <div class="tfd-tab-loading" role="status" aria-live="polite">
+          <div class="tfd-detail-loading-title">準備賽事內容</div>
+          <div class="tfd-detail-loading-sub">請稍候，正在整理俱樂部與賽程資料</div>
+          <div class="skel-progress-bar"></div>
+        </div>`;
+    }
+
+    document.querySelectorAll('#td-tabs .tab').forEach(node => {
+      node.classList.toggle('active', node.dataset.ttab === 'info');
+    });
+  },
+
   async showTournamentDetail(id, options) {
     let base = ApiService.getTournament?.(id);
     // 快取 miss → 單筆查詢 Firestore（Phase 2A §7.4）
@@ -45,6 +101,7 @@ Object.assign(App, {
     this.currentTournament = id;
     await this.showPage('page-tournament-detail');
     if (seq !== this._friendlyTournamentDetailSeq || this.currentPage !== 'page-tournament-detail') return;
+    this._renderFriendlyTournamentDetailLoadingShell(base);
 
     const state = await statePromise;
     if (!state || seq !== this._friendlyTournamentDetailSeq || this.currentPage !== 'page-tournament-detail') return;

@@ -1749,3 +1749,9 @@
 - **修復**：`registerTournament` 改用 `_withButtonLoading(..., '報名中...')`；新增 `tournament-friendly-withdraw.js`，在報名區與俱樂部頁籤顯示「撤回申請 / 退出賽事」，並以 `withdrawFriendlyTournamentTeam` callable 原子更新 application、entries、members 與 root summary。
 - **守衛**：後端只允許 pending 申請撤回、approved/entry 退出；已拒絕、已剔除、已取消狀態不能被轉成可重新報名的取消狀態。賽事主辦隊伍不可退出自己的賽事。
 - **驗收**：補 `tournament-friendly-detail-view.test.js` 與 `tournament-crud.test.js`，覆蓋 loading onclick、申請方退出按鈕、pending 撤回、rejected 不可轉狀態、cancelled/withdrawn 可重新報名。
+
+### 2026-04-29 — 賽事詳情冷刷新載入殼與可報名俱樂部補載 [中型]
+- **問題**：使用者直接刷新進入賽事詳情時，完整 applications/entries/team state 回來前會短暫看到預設「賽事名稱」空殼；非 admin 的隊長/領隊也可能因 `teams` 快取尚未載入，看不到可代表報名的俱樂部下拉選單。
+- **原因**：friendly `showTournamentDetail()` 先切到 detail page 再等待 state promise；`_ensureFriendlyTournamentApplyTeamsLoaded()` 只替全域管理員補載 joined teams，普通隊職員冷啟動時仍仰賴尚未載入的 `ApiService.getTeams()`。
+- **修正**：新增 friendly detail loading shell，先顯示賽事名稱、載入提示與既有進度條；補強 apply team hydration，所有使用者都會先用 `teamIds` 單筆補抓隊伍，非 admin 再合併「全量 teams 掃描」與「已補抓 joined officer teams」作為可報名來源。
+- **驗證**：`node --check js/modules/tournament/tournament-friendly-detail.js`、`node --check js/modules/tournament/tournament-friendly-state.js`、`npm test -- --runTestsByPath tests/unit/tournament-friendly-detail-view.test.js --runInBand`、`npm test -- --runInBand` passed。
