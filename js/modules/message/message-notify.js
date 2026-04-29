@@ -161,7 +161,7 @@ Object.assign(App, {
       },
       tournament_friendly_host_opened: {
         title: '友誼賽已建立',
-        body: '主辦俱樂部「{hostTeamName}」已開啟友誼賽「{tournamentName}」。\n\n報名截止：{regEnd}\n\n若您為主辦俱樂部成員，現在可前往賽事頁加入球員名單。',
+        body: '主辦俱樂部「{hostTeamName}」已開啟友誼賽「{tournamentName}」。\n\n報名截止：{regEnd}\n\n若您為主辦俱樂部成員，現在可前往賽事頁的俱樂部頁籤點選參賽。',
       },
       tournament_friendly_team_apply_host: {
         title: '有新俱樂部申請參賽',
@@ -177,7 +177,7 @@ Object.assign(App, {
       },
       tournament_friendly_team_approved_broadcast: {
         title: '俱樂部已可加入名單',
-        body: '俱樂部「{teamName}」已通過「{tournamentName}」參賽審核。\n\n若您是該隊成員，現在可前往賽事頁加入球員名單。',
+        body: '俱樂部「{teamName}」已通過「{tournamentName}」參賽審核。\n\n若您是該隊成員，現在可前往賽事頁的俱樂部頁籤點選參賽。',
       },
     };
   },

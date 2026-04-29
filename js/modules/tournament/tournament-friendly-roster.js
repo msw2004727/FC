@@ -179,7 +179,7 @@ Object.assign(App, {
       overlay.classList.add('open');
       modal?.classList.add('open');
     } catch (err) {
-      this._showTournamentActionError?.('載入球員名單', err);
+      this._showTournamentActionError?.('載入參賽名單', err);
     }
   },
 
@@ -247,7 +247,7 @@ Object.assign(App, {
     this.showToast(`已加入「${selectedEntry.teamName}」球員名單。`);
     return state;
     } catch (err) {
-      this._showTournamentActionError?.('加入球員名單', err);
+      this._showTournamentActionError?.('參賽', err);
     }
   },
 

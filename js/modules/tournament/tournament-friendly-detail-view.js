@@ -256,7 +256,6 @@ Object.assign(App, {
     const selectedTeam = this._getFriendlyTournamentSelectedActionTeam(tournament.id, actionTeams);
     if (selectedTeam) this._rememberFriendlyTournamentActionTeam(tournament.id, selectedTeam.id);
     let selector = this._buildFriendlyTournamentActionTeamSelector(tournament.id, actionTeams, selectedTeam?.id);
-    const rosterMembership = this._getFriendlyTournamentRosterMembershipForUser(state, user);
     const priorRejectedHint = selectedTeam?.hasPriorRejectedApplication
       ? '<div class="tfd-reapply-note"><span>已被拒絕過</span>，仍可重新送出申請。</div>'
       : '';
@@ -290,11 +289,7 @@ Object.assign(App, {
         extraActionHtml = `<button type="button" class="outline-btn full-width" onclick="return App.withdrawFriendlyTournamentTeam('${escapeHTML(tournament.id)}','${escapeHTML(selectedTeam.id)}', this)">撤回申請</button>`;
       }
     } else if (selectedTeam?.status === 'approved') {
-      const selectedEntry = this._findFriendlyTournamentEntryForActionTeam(state, selectedTeam);
-      const rosterAction = selectedEntry && this._isFriendlyTournamentViewerOnEntryTeam(selectedEntry, user)
-        ? this._buildFriendlyTournamentRosterActionButton(tournament.id, selectedEntry, rosterMembership, status, { fullWidth: true })
-        : '';
-      primaryHtml = `${selector}${rosterAction || '<button class="primary-btn full-width" disabled>俱樂部已通過審核</button>'}`;
+      primaryHtml = `${selector}<button class="primary-btn full-width" disabled>俱樂部已通過審核</button>`;
       if (canWithdrawSelectedTeam) {
         extraActionHtml = `<button type="button" class="outline-btn full-width" onclick="return App.withdrawFriendlyTournamentTeam('${escapeHTML(tournament.id)}','${escapeHTML(selectedTeam.id)}', this)">取消報名</button>`;
       }
@@ -367,9 +362,7 @@ Object.assign(App, {
         : (!canManage && isViewerTeamOfficer && entry.entryStatus !== 'host'
           ? `<button type="button" class="tfd-entry-withdraw-btn" onclick="event.stopPropagation();return App.withdrawFriendlyTournamentTeam('${escapeHTML(tournament.id)}','${escapeHTML(entry.teamId)}', this)">退出賽事</button>`
           : '');
-      const rowActions = canManage
-        ? managementAction
-        : [rosterAction, managementAction].filter(Boolean).join('');
+      const rowActions = [rosterAction, managementAction].filter(Boolean).join('');
       return `
         <div class="tfd-team-row">
           <div class="tfd-team-side">

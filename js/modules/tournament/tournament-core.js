@@ -119,6 +119,10 @@ Object.assign(App, {
       this.showToast?.('非本類賽事運動，請選擇相同運動類別的俱樂部。');
       return;
     }
+    if (raw.includes('tournament_registration_not_open')) {
+      this.showToast?.('賽事報名尚未開放或已截止');
+      return;
+    }
     if (raw.includes('tournament_sport_required')) {
       this.showToast?.('請先選擇賽事運動標籤。');
       return;

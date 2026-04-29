@@ -273,7 +273,7 @@ const DEFAULT_NOTIFICATION_TEMPLATES = Object.freeze([
   {
     key: "tournament_friendly_host_opened",
     title: "友誼賽已建立",
-    body: "主辦俱樂部「{hostTeamName}」已開啟友誼賽「{tournamentName}」。\n\n報名截止：{regEnd}\n\n若您為主辦俱樂部成員，現在可前往賽事頁加入球員名單。",
+    body: "主辦俱樂部「{hostTeamName}」已開啟友誼賽「{tournamentName}」。\n\n報名截止：{regEnd}\n\n若您為主辦俱樂部成員，現在可前往賽事頁的俱樂部頁籤點選參賽。",
   },
   {
     key: "tournament_friendly_team_apply_host",
@@ -293,7 +293,7 @@ const DEFAULT_NOTIFICATION_TEMPLATES = Object.freeze([
   {
     key: "tournament_friendly_team_approved_broadcast",
     title: "俱樂部已可加入名單",
-    body: "俱樂部「{teamName}」已通過「{tournamentName}」參賽審核。\n\n若您是該隊成員，現在可前往賽事頁加入球員名單。",
+    body: "俱樂部「{teamName}」已通過「{tournamentName}」參賽審核。\n\n若您是該隊成員，現在可前往賽事頁的俱樂部頁籤點選參賽。",
   },
 ]);
 const SHARE_SITE_ORIGIN = "https://toosterx.com";
@@ -1631,6 +1631,8 @@ exports.reviewFriendlyTournamentApplication = onCall(
       if (alreadyReviewed && !(normalizedAction === "approve" && applicationStatus === "approved")) {
         return { status: applicationStatus, alreadyReviewed: true };
       }
+      let autoRosterAdded = false;
+      let autoRosterSkippedReason = "";
 
       if (normalizedAction === "approve") {
         const entriesSnap = await tx.get(tournamentRef.collection("entries"));
@@ -1642,6 +1644,33 @@ exports.reviewFriendlyTournamentApplication = onCall(
         const applicationTeamId = String(application.teamId || "").trim();
         if (!applicationTeamId) {
           throw new HttpsError("failed-precondition", "申請缺少俱樂部 ID");
+        }
+
+        const applicantUid = String(application.requestedByUid || application.creatorUid || "").trim();
+        const applicantName = String(application.requestedByName || application.creatorName || applicantUid).trim();
+        const applicantMemberRef = applicantUid
+          ? tournamentRef.collection("entries").doc(applicationTeamId).collection("members").doc(applicantUid)
+          : null;
+        let applicantAlreadyOnThisTeam = false;
+        let applicantAlreadyOnAnotherTeam = false;
+        if (applicantMemberRef) {
+          const applicantMembershipRefs = [applicantMemberRef];
+          const seenMemberPaths = new Set([applicantMemberRef.path]);
+          entriesSnap.docs.forEach((doc) => {
+            const data = doc.data() || {};
+            const status = String(data.entryStatus || "").trim().toLowerCase();
+            if (status !== "host" && status !== "approved") return;
+            const ref = tournamentRef.collection("entries").doc(doc.id).collection("members").doc(applicantUid);
+            if (seenMemberPaths.has(ref.path)) return;
+            seenMemberPaths.add(ref.path);
+            applicantMembershipRefs.push(ref);
+          });
+          const applicantMembershipSnaps = [];
+          for (const ref of applicantMembershipRefs) {
+            applicantMembershipSnaps.push(await tx.get(ref));
+          }
+          applicantAlreadyOnThisTeam = applicantMembershipSnaps.some(snap => snap.exists && snap.ref.path === applicantMemberRef.path);
+          applicantAlreadyOnAnotherTeam = applicantMembershipSnaps.some(snap => snap.exists && snap.ref.path !== applicantMemberRef.path);
         }
 
         const applicationTeamDoc = await getTeamDocByTeamIdInTransaction(tx, applicationTeamId);
@@ -1674,6 +1703,19 @@ exports.reviewFriendlyTournamentApplication = onCall(
           );
           registeredTeams = buildRegisteredTeamIdsFromEntries(entriesSnap.docs, { additionalTeamId: applicationTeamId });
         }
+        if (applicantMemberRef && !applicantAlreadyOnThisTeam && !applicantAlreadyOnAnotherTeam) {
+          tx.set(applicantMemberRef, {
+            uid: applicantUid,
+            name: applicantName,
+            joinedAt: FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+            source: "application_approval",
+          }, { merge: true });
+          autoRosterAdded = true;
+        } else if (applicantAlreadyOnAnotherTeam) {
+          autoRosterSkippedReason = "already_joined_another_team";
+        }
 
         tx.update(tournamentRef, {
           registeredTeams,
@@ -1695,6 +1737,8 @@ exports.reviewFriendlyTournamentApplication = onCall(
       return {
         status: normalizedAction === "approve" ? "approved" : "rejected",
         alreadyReviewed,
+        autoRosterAdded,
+        autoRosterSkippedReason,
       };
     });
   }

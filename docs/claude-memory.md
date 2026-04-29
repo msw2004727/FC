@@ -1868,3 +1868,10 @@
 - **原因**：`team-reservation-overlay` 開啟時寫入 inline `onclick`，只要點擊目標是 overlay 本身就呼叫關閉。
 - **修復**：移除 overlay 空白處關閉行為，只保留右上角 X 與「取消」按鈕可關閉；補測試鎖定不再出現 backdrop close inline handler。
 - **教訓**：含手動輸入的彈窗應避免點外圍關閉，尤其是調整名額這類容易被手指誤觸的 mobile 流程。
+
+### 2026-04-29 — 賽事參賽按鈕移至俱樂部卡與審核通過自動入隊 [中型]
+- **問題**：職員送出俱樂部報名並通過審核後，自己仍需再手動加入參賽名單；參賽按鈕也在上方報名區，普通球員主要看俱樂部頁籤時不容易發現。
+- **原因**：審核 callable 只建立 application/entry/root summary，沒有同步建立申請者 member roster；detail view 把 approved 狀態的 roster action 放在主 action card，而不是每個已通過俱樂部列。
+- **修復**：`reviewFriendlyTournamentApplication` 審核通過時會把送出申請的職員自動加入該俱樂部 members，若已代表其他隊參賽則跳過；上方報名區只顯示俱樂部狀態與取消報名，下方俱樂部卡右側依每隊狀態顯示「參賽 / 取消參賽 / 反灰參賽」。
+- **驗證**：`node --check` 覆蓋 functions 與賽事相關 JS；targeted tournament tests 通過 3 suites / 108 tests；`npm test -- --runInBand` 通過 72 suites / 2580 tests。
+- **教訓**：使用者會在「俱樂部頁籤」理解自己要代表哪一隊參賽，因此 roster action 應跟隊伍列綁在一起；後端審核流程若已知道申請者，應同步補齊名單，避免通過審核後還要重複操作。
