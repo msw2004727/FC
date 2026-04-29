@@ -256,7 +256,7 @@ Object.assign(App, {
             <div class="tfd-team-thumb">${application.teamImage ? `<img src="${application.teamImage}" alt="${escapeHTML(applicationTeamName)}">` : `<span>${escapeHTML((applicationTeamName || '?').slice(0, 1))}</span>`}</div>
             <div class="tfd-team-meta">
               <div class="tfd-team-name" title="${escapeHTML(applicationTeamName)}">${escapeHTML(applicationTeamName)}</div>
-              <div class="tfd-team-status">${isRejected ? '申請未通過' : '審核中'}</div>
+              <div class="tfd-team-status">${isRejected ? '申請未通過' : '審核中(僅自己與主辦能見)'}</div>
             </div>
           </div>
           <div class="tfd-team-roster" title="${escapeHTML(requesterName)}"><span class="tfd-empty-text">${escapeHTML(requesterName)}</span></div>
