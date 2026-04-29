@@ -111,4 +111,16 @@ describe('team loading performance contract', () => {
     expect(renderSource).toContain('this._teamCardHTML(t, { memberCountByTeam })');
     expect(listSource).toContain('this._teamCardHTML(t, { memberCountByTeam })');
   });
+
+  test('club cards show pending feedback before lazy detail navigation completes', () => {
+    const renderSource = readProjectFile('js/modules/team/team-list-render.js');
+    const styleSource = readProjectFile('css/team.css');
+
+    expect(renderSource).toContain('onclick="App.openTeamDetailFromCard(this, this.dataset.teamId)"');
+    expect(renderSource).toContain('_markTeamCardPending?.(cardEl, safeTeamId)');
+    expect(renderSource).toContain('return await this.showTeamDetail(safeTeamId, options)');
+    expect(renderSource).toContain('finally');
+    expect(renderSource).toContain('_clearTeamCardPending?.(cardEl, 650)');
+    expect(styleSource).toContain('linear-gradient(90deg, var(--primary), #60a5fa)');
+  });
 });

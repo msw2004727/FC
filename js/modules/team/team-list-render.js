@@ -22,7 +22,7 @@ Object.assign(App, {
       ? memberCountMap.get(memberCountKey)
       : typeHandler.memberCount(t.id);
     return `
-      <div class="tc-card${pinnedClass}" onclick="App.showTeamDetail('${t.id}')">
+      <div class="tc-card${pinnedClass}" data-team-id="${escapeHTML(t.id)}" onclick="App.openTeamDetailFromCard(this, this.dataset.teamId)">
         ${t.pinned ? '<div class="tc-pin-badge">置頂</div>' : ''}
         ${t.image
           ? `<div style="position:relative;width:100%;aspect-ratio:1;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0">${sportBadge}<img src="${t.image}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block"><span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span>${eduRibbon}</div>`
@@ -33,6 +33,19 @@ Object.assign(App, {
           <div class="tc-info-row"><span class="tc-label">${I18N.t('team.regionLabel')}</span><span>${escapeHTML(t.region || '')}</span></div>
         </div>
       </div>`;
+  },
+
+  async openTeamDetailFromCard(cardEl, teamId, options = {}) {
+    const safeTeamId = teamId || cardEl?.dataset?.teamId || '';
+    if (!safeTeamId) return { ok: false, reason: 'missing-id' };
+    this._markTeamCardPending?.(cardEl, safeTeamId);
+    try {
+      return await this.showTeamDetail(safeTeamId, options);
+    } catch (err) {
+      throw err;
+    } finally {
+      this._clearTeamCardPending?.(cardEl, 650);
+    }
   },
 
   _teamListLastFp: '',
@@ -245,7 +258,7 @@ Object.assign(App, {
   // ══════════════════════════════════
   _teamCardLoadingState: null,
 
-  _markTeamCardPending(cardEl) {
+  _markTeamCardPending(cardEl, teamId) {
     if (!cardEl || !cardEl.classList) return;
     cardEl.classList.add('is-pending');
     cardEl.setAttribute('aria-busy', 'true');
@@ -260,10 +273,10 @@ Object.assign(App, {
       imgArea.appendChild(bar);
     }
     // Start simulated progress
-    var teamId = cardEl.getAttribute('onclick')?.match(/'([^']+)'/)?.[1] || '';
-    if (!this._teamCardLoadingState || this._teamCardLoadingState.teamId !== teamId) {
+    var loadingTeamId = teamId || cardEl.dataset?.teamId || '';
+    if (!this._teamCardLoadingState || this._teamCardLoadingState.teamId !== loadingTeamId) {
       clearInterval(this._teamCardLoadingState?.interval);
-      var state = { teamId: teamId, progress: 0, startedAt: Date.now(), interval: null };
+      var state = { teamId: loadingTeamId, cardEl: cardEl, progress: 0, startedAt: Date.now(), interval: null };
       state.interval = setInterval(function () {
         var p = state.progress;
         var inc = p < 30 ? 4 : p < 60 ? 2 : p < 80 ? 0.5 : 0.15;
@@ -279,14 +292,19 @@ Object.assign(App, {
 
   _clearTeamCardPending(cardEl, minVisibleMs) {
     var state = this._teamCardLoadingState;
-    if (!state) return;
-    clearInterval(state.interval);
-    state.interval = null;
-    var elapsed = Date.now() - state.startedAt;
+    var ownsState = !!state && (!state.cardEl || state.cardEl === cardEl);
+    if (ownsState) {
+      clearInterval(state.interval);
+      state.interval = null;
+    }
+    var elapsed = ownsState ? Date.now() - state.startedAt : 0;
     var waitMs = Math.max(0, (minVisibleMs || 0) - elapsed);
     var self = this;
     setTimeout(function () {
-      if (!cardEl) { self._teamCardLoadingState = null; return; }
+      if (!cardEl) {
+        if (ownsState && self._teamCardLoadingState === state) self._teamCardLoadingState = null;
+        return;
+      }
       var fill = cardEl.querySelector('.tc-loading-fill');
       if (fill) fill.style.width = '100%';
       setTimeout(function () {
@@ -298,7 +316,7 @@ Object.assign(App, {
             var bar = cardEl.querySelector('.tc-loading-bar');
             if (bar) bar.remove();
           }
-          self._teamCardLoadingState = null;
+          if (ownsState && self._teamCardLoadingState === state) self._teamCardLoadingState = null;
         }, 400);
       }, 350);
     }, waitMs);

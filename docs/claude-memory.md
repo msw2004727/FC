@@ -2,6 +2,12 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-29 — 俱樂部卡片詳情開啟加載條 [小型]
+- **問題**: 公開俱樂部頁點俱樂部卡片時，若詳情頁 HTML/script 或資料還在 lazy load，畫面短時間沒有即時回饋，使用者容易以為點擊無效。
+- **原因**: 俱樂部卡片已有 `.tc-loading-bar` 與 `_markTeamCardPending()` 輔助函式，但卡片 `onclick` 仍直接呼叫 `App.showTeamDetail()`，沒有先掛上 pending UI。
+- **修復**: 卡片改走 `App.openTeamDetailFromCard(this, this.dataset.teamId)`，先啟動 pending overlay/藍色進度條，再等待 `showTeamDetail()`；無論詳情成功開啟、auth/stale/missing 擋下或例外，都會在 `finally` 清掉 pending 狀態，避免返回列表時卡片殘留 loading。進度條顏色改為 primary blue + light blue，尺寸與活動行事曆 loading bar 對齊。
+- **驗收**: 新增 team loading performance 合約測試，覆蓋卡片 click 入口、pending 啟動、失敗清除與藍色 loading 樣式。
+
 ### 2026-04-29 — 活動重複報名防護與候補按鈕辨識 [大型]
 - **問題**: `2026/05/01 19:00~21:00 週五晚7-9朝馬踢球團` 中，同一位報名者可在短時間內產生兩筆 active `confirmed` registration，原始正取文件數達到 27 但唯一正取人數只有 26，導致活動看似 `26/27` 卻已被判定額滿並把後續使用者送進候補；同時「報名候補」與「取消候補」按鈕同為紫色，容易誤判目前狀態。
 - **原因**: 報名文件使用隨機 doc id，沒有交易內的 active 唯一鎖；容量判斷曾以 raw confirmed doc 數計算，但 occupancy/display 會依 `(userId, participantType, companionId)` 去重，造成判斷與顯示不一致。UI 端則共用候補紫色按鈕樣式。
