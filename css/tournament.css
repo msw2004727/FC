@@ -253,7 +253,9 @@
 }
 .tfd-team-withdraw-btn[data-btn-loading="1"],
 .tfd-entry-remove-btn[data-btn-loading="1"],
-.tfd-entry-withdraw-btn[data-btn-loading="1"] {
+.tfd-entry-withdraw-btn[data-btn-loading="1"],
+.tfd-review-actions .primary-btn[data-btn-loading="1"],
+.tfd-review-actions .outline-btn[data-btn-loading="1"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -263,7 +265,9 @@
 }
 .tfd-team-withdraw-btn[data-btn-loading="1"]::before,
 .tfd-entry-remove-btn[data-btn-loading="1"]::before,
-.tfd-entry-withdraw-btn[data-btn-loading="1"]::before {
+.tfd-entry-withdraw-btn[data-btn-loading="1"]::before,
+.tfd-review-actions .primary-btn[data-btn-loading="1"]::before,
+.tfd-review-actions .outline-btn[data-btn-loading="1"]::before {
   content: "";
   width: .72rem;
   height: .72rem;

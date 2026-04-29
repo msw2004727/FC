@@ -155,15 +155,34 @@ Object.assign(App, {
     }
   },
 
-  async reviewFriendlyTournamentApplication(tournamentId, applicationId, action) {
+  async reviewFriendlyTournamentApplication(tournamentId, applicationId, action, actionButton = null) {
     const normalizedAction = String(action || '').trim().toLowerCase();
     if (!['approve', 'reject'].includes(normalizedAction)) {
       this.showToast('未知的審核操作');
       return;
     }
-    const busyKey = `${String(tournamentId || '').trim()}:${String(applicationId || '').trim()}:${normalizedAction}`;
+    const busyKey = `${String(tournamentId || '').trim()}:${String(applicationId || '').trim()}`;
     if (this._friendlyTournamentReviewBusyById[busyKey]) return;
     this._friendlyTournamentReviewBusyById[busyKey] = true;
+    const loadingText = normalizedAction === 'approve' ? '確認中...' : '拒絕中...';
+    const loadingButton = typeof actionButton === 'string' && typeof document !== 'undefined'
+      ? document.querySelector(actionButton)
+      : actionButton;
+    const originalButtonState = loadingButton ? {
+      text: loadingButton.textContent,
+      disabled: loadingButton.disabled,
+      opacity: loadingButton.style?.opacity || '',
+    } : null;
+    if (loadingButton?.dataset?.btnLoading === '1') {
+      delete this._friendlyTournamentReviewBusyById[busyKey];
+      return;
+    }
+    if (loadingButton) {
+      loadingButton.dataset.btnLoading = '1';
+      loadingButton.disabled = true;
+      loadingButton.textContent = loadingText;
+      if (loadingButton.style) loadingButton.style.opacity = '.6';
+    }
 
     try {
       const state = await this._loadFriendlyTournamentDetailState(tournamentId);
@@ -196,6 +215,14 @@ Object.assign(App, {
       this._showTournamentActionError?.(normalizedAction === 'approve' ? '確認報名' : '拒絕報名', err);
     }
     finally {
+      try {
+        if (loadingButton?.isConnected !== false && originalButtonState) {
+          loadingButton.dataset.btnLoading = '';
+          loadingButton.disabled = originalButtonState.disabled;
+          loadingButton.textContent = originalButtonState.text;
+          if (loadingButton.style) loadingButton.style.opacity = originalButtonState.opacity;
+        }
+      } catch (_) { /* noop */ }
       delete this._friendlyTournamentReviewBusyById[busyKey];
     }
   },

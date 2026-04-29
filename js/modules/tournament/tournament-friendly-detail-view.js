@@ -241,8 +241,8 @@ Object.assign(App, {
       const isViewerTeamOfficer = this._isFriendlyTournamentViewerTeamOfficer?.(application.teamId, viewer);
       const actions = canManage && !isRejected
         ? `<div class="tfd-review-actions">
-             <button class="primary-btn small" onclick="App.reviewFriendlyTournamentApplication('${tournament.id}','${application.id}','approve')">確認</button>
-             <button class="outline-btn small" onclick="App.reviewFriendlyTournamentApplication('${tournament.id}','${application.id}','reject')">拒絕</button>
+             <button type="button" class="primary-btn small" onclick="return App.reviewFriendlyTournamentApplication('${escapeHTML(tournament.id)}','${escapeHTML(application.id)}','approve', this)">確認</button>
+             <button type="button" class="outline-btn small" onclick="return App.reviewFriendlyTournamentApplication('${escapeHTML(tournament.id)}','${escapeHTML(application.id)}','reject', this)">拒絕</button>
            </div>`
         : (!canManage && isViewerTeamOfficer && !isRejected
           ? `<div class="tfd-team-action"><button type="button" class="tfd-entry-withdraw-btn" onclick="event.stopPropagation();return App.withdrawFriendlyTournamentTeam('${escapeHTML(tournament.id)}','${escapeHTML(application.teamId)}', this)">撤回申請</button></div>`

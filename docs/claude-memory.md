@@ -2,6 +2,12 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-29 — 賽事俱樂部審核按鈕 loading 與防連點 [中型]
+- **問題**: 賽事詳情頁「俱樂部」頁籤審核報名隊伍時，點「確認」後按鈕沒有即時動作提示，使用者可能以為沒有反應而連點。
+- **原因**: 審核按鈕沒有把 clicked button 傳入 handler，`reviewFriendlyTournamentApplication()` 只能靠背景 busy flag，無法同步更新 UI；busy key 也把 approve/reject 分開，快速交錯點擊仍可能進入第二個決策入口。
+- **修復**: 審核按鈕改傳 `this`，確認顯示「確認中...」、拒絕顯示「拒絕中...」，按鈕同步 disabled 與 spinner；busy key 改為 tournament + application 級別，避免同一申請被重複決策。
+- **驗收**: 補 `tournament-friendly-detail-view.test.js` 覆蓋 clicked button 傳入、loading 狀態與同申請連點防護。
+
 ### 2026-04-29 — 友誼賽通知「查看賽事」找不到賽事 [中型]
 - **問題**: 收到「有新俱樂部申請參賽」通知後，點「查看賽事」會顯示「找不到對應的賽事」。
 - **原因**: 友誼賽通知 payload 把 `tournamentId` 放在訊息最外層，但訊息詳情按鈕只讀 `msg.meta.tournamentId`；透過 per-user inbox Cloud Function 持久化時只保留 `meta`，導致既有通知可能沒有可讀的賽事 id。

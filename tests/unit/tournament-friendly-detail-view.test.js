@@ -267,6 +267,68 @@ describe('friendly tournament teams tab actions', () => {
     expect(html).not.toContain('tfd-review-actions');
   });
 
+  test('review action buttons pass clicked button for loading feedback', () => {
+    global.App._getFriendlyTournamentVisibleApplications = jest.fn(() => [
+      { id: 'ta_tm_guest', teamId: 'tm_guest', teamName: 'Guest Team', status: 'pending', requestedByName: 'Captain' },
+    ]);
+    require('../../js/modules/tournament/tournament-friendly-detail-view.js');
+
+    const html = global.App._renderFriendlyTournamentTeamsTab({
+      tournament: { id: 'ct_test', hostTeamId: 'tm_host' },
+      entries: [{ teamId: 'tm_host', teamName: 'Host Team', entryStatus: 'host', memberRoster: [] }],
+      applications: [{ id: 'ta_tm_guest', teamId: 'tm_guest', teamName: 'Guest Team', status: 'pending' }],
+    });
+
+    expect(html).toContain("return App.reviewFriendlyTournamentApplication('ct_test','ta_tm_guest','approve', this)");
+    expect(html).toContain("return App.reviewFriendlyTournamentApplication('ct_test','ta_tm_guest','reject', this)");
+  });
+
+  test('review action shows loading and blocks duplicate decisions for the same application', async () => {
+    const actionButton = { textContent: '確認', dataset: {}, style: {}, disabled: false, isConnected: true };
+    const otherButton = { textContent: '拒絕', dataset: {}, style: {}, disabled: false, isConnected: true };
+    const tournament = { id: 'ct_test', hostTeamId: 'tm_host' };
+    const application = { id: 'ta_tm_guest', teamId: 'tm_guest', teamName: 'Guest Team', status: 'pending' };
+    let resolveReview;
+    const reviewPromise = new Promise(resolve => { resolveReview = () => resolve({ ok: true }); });
+
+    global.ApiService = {
+      getCurrentUser: () => ({ uid: 'host_uid', role: 'user' }),
+      reviewFriendlyTournamentApplicationAtomic: jest.fn(() => reviewPromise),
+    };
+    global.App = {
+      showTournamentDetail: jest.fn(),
+      renderRegisterButton: jest.fn(),
+      registerTournament: jest.fn(),
+      renderTournamentTab: jest.fn(),
+      _loadFriendlyTournamentDetailState: jest.fn().mockResolvedValue({ tournament, entries: [], applications: [application] }),
+      _isTournamentGlobalAdmin: jest.fn(() => false),
+      _canManageTournamentRecord: jest.fn(() => true),
+      appConfirm: jest.fn(),
+      showToast: jest.fn(),
+      _showTournamentActionError: jest.fn(),
+    };
+
+    require('../../js/modules/tournament/tournament-friendly-detail.js');
+    const first = global.App.reviewFriendlyTournamentApplication('ct_test', 'ta_tm_guest', 'approve', actionButton);
+    await global.App.reviewFriendlyTournamentApplication('ct_test', 'ta_tm_guest', 'reject', otherButton);
+    await Promise.resolve();
+
+    expect(actionButton.disabled).toBe(true);
+    expect(actionButton.textContent).toBe('確認中...');
+    expect(actionButton.dataset.btnLoading).toBe('1');
+    expect(otherButton.disabled).toBe(false);
+    expect(global.ApiService.reviewFriendlyTournamentApplicationAtomic).toHaveBeenCalledTimes(1);
+    expect(global.ApiService.reviewFriendlyTournamentApplicationAtomic).toHaveBeenCalledWith('ct_test', 'ta_tm_guest', 'approve');
+
+    resolveReview();
+    await first;
+
+    expect(actionButton.disabled).toBe(false);
+    expect(actionButton.textContent).toBe('確認');
+    expect(actionButton.dataset.btnLoading).toBe('');
+    expect(global.App.renderTournamentTab).toHaveBeenCalledWith('teams');
+  });
+
   test('uses button loading while removing an approved entry', async () => {
     const actionButton = { textContent: '剔除', dataset: {}, style: {}, disabled: false, isConnected: true };
     const tournament = { id: 'ct_test', hostTeamId: 'tm_host' };
