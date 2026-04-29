@@ -161,10 +161,13 @@ describe('friendly tournament teams tab actions', () => {
     global.App.renderRegisterButton({ id: 'ct_test' });
 
     expect(area.innerHTML).toContain('value="tm_pending" selected');
+    expect(area.innerHTML).toContain('tfd-status-btn');
+    expect(area.innerHTML).toContain("App.showToast('審核中請耐心等待')");
     expect(area.innerHTML).toContain('俱樂部審核中');
     expect(area.innerHTML).toContain('撤回申請');
     expect(area.innerHTML).toContain("return App.withdrawFriendlyTournamentTeam('ct_test','tm_pending', this)");
     expect(area.innerHTML).not.toContain("return App.registerTournament('ct_test', this)");
+    expect(area.innerHTML).not.toContain('disabled>俱樂部審核中</button>');
   });
 
   test('shows approved state and cancel registration for the selected approved club', () => {
@@ -201,6 +204,8 @@ describe('friendly tournament teams tab actions', () => {
     expect(area.innerHTML).toContain('俱樂部已通過審核');
     expect(area.innerHTML).toContain('取消報名');
     expect(area.innerHTML).toContain("return App.withdrawFriendlyTournamentTeam('ct_test','tm_approved', this)");
+    expect(area.innerHTML).toContain('tfd-action-grid-three');
+    expect(area.innerHTML).toContain("return App.shareTournament('ct_test', this)");
   });
 
   test('renders a right-side remove action for approved non-host entries only', () => {

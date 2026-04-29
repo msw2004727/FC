@@ -533,6 +533,7 @@ ScriptLoader（`js/core/script-loader.js`）定義了以下頁面群組，按需
 | `scan` | `scan/*` (5) + `attendance-notify.js` | QR Code 掃描 |
 | `game` | `shot-game/shot-page-ui` + `shot-game/shot-game-page` | 射門遊戲 |
 | `kickball` | `kickball/*` (6) | 踢球遊戲 |
+| `tournamentDetail` / `tournament` | `team/team-list-helpers` + `event/event-share-*` + `tournament/tournament-*` detail/share/friendly modules | 賽事詳情、友誼賽報名與分享 |
 | `tournamentAdmin` | `event/event-share-*` + `tournament/tournament-manage-*` + `tournament-share` | 賽事管理 |
 | `messageAdmin` | `message/message-admin-*` (3) | 管理員訊息 |
 | `adminDashboard` | `dashboard/*` (5，不含 personal-dashboard) | 管理員儀表板 |

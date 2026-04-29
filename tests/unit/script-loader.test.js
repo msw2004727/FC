@@ -175,8 +175,13 @@ describe('resolvePageScripts — real project groups', () => {
       'js/modules/tournament/tournament-helpers.js',
       'js/modules/tournament/tournament-core.js',
       'js/modules/tournament/tournament-render.js',
+      'js/modules/event/event-share-builders.js',
+      'js/modules/event/event-share.js',
+      'js/modules/tournament/tournament-share-builders.js',
       'js/modules/tournament/tournament-detail.js',
+      'js/modules/tournament/tournament-friendly-state.js',
       'js/modules/tournament/tournament-friendly-detail.js',
+      'js/modules/tournament/tournament-friendly-withdraw.js',
       'js/modules/tournament/tournament-friendly-detail-view.js',
       'js/modules/tournament/tournament-share.js',
       'js/modules/tournament/tournament-friendly-roster.js',
@@ -278,6 +283,10 @@ describe('resolvePageScripts — real project groups', () => {
     const result = resolvePageScripts('page-tournament-detail', realPageGroups, realGroups);
     expect(result).toContain('js/modules/tournament/tournament-render.js');
     expect(result).toContain('js/modules/tournament/tournament-detail.js');
+    expect(result).toContain('js/modules/event/event-share.js');
+    expect(result.indexOf('js/modules/event/event-share.js')).toBeLessThan(
+      result.indexOf('js/modules/tournament/tournament-share.js'),
+    );
   });
 
   test('page-teams loads only lean team list scripts', () => {

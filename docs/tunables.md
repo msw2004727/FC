@@ -171,7 +171,7 @@
 | `teamList` | 4 | `page-teams` first screen only：helpers/stats/list/render |
 | `teamDetail` | 10 | `page-team-detail` lazy detail/share/join flow |
 | `teamForm` | 5 | create/edit modal lazy loaded from list/detail/manage |
-| `tournament` | 16 | `script-loader.js` |
+| `tournament` / `tournamentDetail` | 16 + `event-share` helper | `script-loader.js` |
 | `activityCalendar` | 4（lazy load） | `script-loader.js:306-311` |
 | `adminUsers` | 10+ | `script-loader.js:312-324` |
 | `adminContent` | 6 | `script-loader.js:325-332` |

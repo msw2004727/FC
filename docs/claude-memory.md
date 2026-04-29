@@ -1774,3 +1774,10 @@
 - **修復**：`event-list-timeline.js` 改用既有 `_getEventEffectiveStatus()` 決定標籤，讓標籤與人數統計共用實際滿額判斷；報名、取消與遞補寫入流程不變。
 - **驗證**：新增 `event-timeline-status.test.js`，覆蓋 `event.status = full` 但 `19/21` 未滿時標籤應顯示「報名中」；`npm test -- --runInBand` 69 suites / 2538 tests passed。
 - **教訓**：顯示層若同時呈現狀態與人數，狀態標籤不能只信任快取欄位，應以同一份統計結果做防呆。
+
+### 2026-04-29 — 賽事詳情審核中與分享按鈕回饋 [中型]
+- **問題**：友誼賽詳情中，俱樂部審核中按鈕是 disabled，使用者點擊沒有回饋；分享賽事在詳情頁可能因分享 helper 未載入或資料尚未補齊而看似無反應；桌機版有取消報名時，聯繫、分享、取消三顆按鈕未明確並排。
+- **原因**：`tournamentDetail` / `tournament` ScriptLoader 群組缺少 `event-share` 通用 action sheet/helper；`shareTournament()` 沒有按鈕 loading、缺資料 toast 與 fallback；審核中狀態只靠 disabled button 表示。
+- **修復**：將審核中改為反灰可點狀態按鈕並 toast「審核中請耐心等待」；分享按鈕改走 `_withButtonLoading(..., '分享中...')` 並補缺資料/重複點擊提示；賽事詳情載入 event share helpers；有取消/撤回動作時桌機版 action grid 改為三欄。
+- **驗證**：`node --check` 檢查修改 JS；`npm run test:unit -- tests/unit/tournament-friendly-detail-view.test.js tests/unit/tournament-share.test.js tests/unit/script-loader.test.js --runInBand` 通過 70 suites / 2541 tests。
+- **教訓**：詳情頁的分享功能不能只載入 tournament builder，還要保證 action sheet/copy/LINE fallback helper 一起進入 page group；所有非立即完成的按鈕都要有 visible feedback。

@@ -11,29 +11,71 @@ Object.assign(App, {
   //  Main Entry — shareTournament (overrides old version)
   // ══════════════════════════════════
 
-  async shareTournament(tournamentId) {
-    if (this._shareInProgress) return;
-    this._shareInProgress = true;
-    try {
-      await this._doShareTournament(tournamentId);
-    } finally {
-      this._shareInProgress = false;
+  async shareTournament(tournamentId, actionButton = null) {
+    if (this._shareInProgress) {
+      this.showToast?.('\u5206\u4EAB\u6E96\u5099\u4E2D\uFF0C\u8ACB\u7A0D\u5019');
+      return false;
     }
+
+    const runShare = async () => {
+      this._shareInProgress = true;
+      try {
+        await this._doShareTournament(tournamentId);
+        return true;
+      } catch (err) {
+        console.warn('[TournamentShare] share failed:', err);
+        this.showToast?.('\u5206\u4EAB\u529F\u80FD\u66AB\u6642\u7121\u6CD5\u4F7F\u7528\uFF0C\u8ACB\u7A0D\u5F8C\u518D\u8A66');
+        return false;
+      } finally {
+        this._shareInProgress = false;
+      }
+    };
+
+    if (actionButton && typeof this._withButtonLoading === 'function') {
+      return this._withButtonLoading(actionButton, '\u5206\u4EAB\u4E2D...', runShare);
+    }
+
+    return runShare();
   },
 
   async _doShareTournament(tournamentId) {
+    var safeTournamentId = String(tournamentId || '').trim();
+    if (!safeTournamentId) {
+      this.showToast?.('\u627E\u4E0D\u5230\u8CFD\u4E8B\u8CC7\u6599\uFF0C\u8ACB\u91CD\u65B0\u6574\u7406\u5F8C\u518D\u8A66');
+      return;
+    }
+
     var tournament = ApiService.getFriendlyTournamentRecord
-      ? ApiService.getFriendlyTournamentRecord(tournamentId)
+      ? ApiService.getFriendlyTournamentRecord(safeTournamentId)
       : null;
-    if (!tournament) tournament = ApiService.getTournament ? ApiService.getTournament(tournamentId) : null;
-    if (!tournament) return;
+    if (!tournament) tournament = ApiService.getTournament ? ApiService.getTournament(safeTournamentId) : null;
+    if (!tournament && ApiService.getTournamentAsync) {
+      tournament = await ApiService.getTournamentAsync(safeTournamentId);
+    }
+    if (!tournament) {
+      this.showToast?.('\u627E\u4E0D\u5230\u8CFD\u4E8B\u8CC7\u6599\uFF0C\u8ACB\u91CD\u65B0\u6574\u7406\u5F8C\u518D\u8A66');
+      return;
+    }
 
-    var liffUrl = this._buildTournamentLiffUrl(tournamentId);
-    var shareUrl = this._buildShareUrl('tournament', tournamentId);
+    if (typeof this._buildTournamentLiffUrl !== 'function'
+        || typeof this._buildTournamentShareAltText !== 'function') {
+      this.showToast?.('\u5206\u4EAB\u529F\u80FD\u8F09\u5165\u4E2D\uFF0C\u8ACB\u7A0D\u5F8C\u518D\u8A66');
+      return;
+    }
+
+    var liffUrl = this._buildTournamentLiffUrl(safeTournamentId);
+    var shareUrl = typeof this._buildShareUrl === 'function'
+      ? this._buildShareUrl('tournament', safeTournamentId)
+      : liffUrl;
     var altText = this._buildTournamentShareAltText(tournament, shareUrl);
-    var canPicker = await this._canUseShareTargetPicker();
+    var canPicker = typeof this._canUseShareTargetPicker === 'function'
+      ? await this._canUseShareTargetPicker()
+      : false;
+    var lineLoggedIn = typeof LineAuth !== 'undefined'
+      && typeof LineAuth.isLoggedIn === 'function'
+      && LineAuth.isLoggedIn();
 
-    if (canPicker || LineAuth.isLoggedIn()) {
+    if ((canPicker || lineLoggedIn) && typeof this._showShareActionSheet === 'function') {
       var choice = await this._showShareActionSheet(canPicker, '\u5206\u4EAB\u8CFD\u4E8B');
 
       if (choice === 'line') {
@@ -59,12 +101,19 @@ Object.assign(App, {
       }
 
       if (choice === 'line-share') {
-        this._openLineRShare(altText);
+        if (typeof this._openLineRShare === 'function') {
+          this._openLineRShare(altText);
+        } else if (typeof window !== 'undefined' && window.open) {
+          window.open('https://line.me/R/share?text=' + encodeURIComponent(altText), '_blank');
+        }
+        this.showToast?.('\u5DF2\u958B\u555F LINE \u5206\u4EAB');
         return;
       }
 
       if (choice === 'copy') {
-        var ok = await this._copyToClipboard(altText);
+        var ok = typeof this._copyToClipboard === 'function'
+          ? await this._copyToClipboard(altText)
+          : false;
         this.showToast(ok ? '\u9023\u7D50\u5DF2\u8907\u88FD' : '\u8907\u88FD\u5931\u6557');
         return;
       }
@@ -73,7 +122,7 @@ Object.assign(App, {
     }
 
     // fallback
-    if (navigator.share) {
+    if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share({ text: altText });
         return;
@@ -81,7 +130,9 @@ Object.assign(App, {
         if (err.name === 'AbortError') return;
       }
     }
-    var copyOk = await this._copyToClipboard(altText);
+    var copyOk = typeof this._copyToClipboard === 'function'
+      ? await this._copyToClipboard(altText)
+      : false;
     this.showToast(copyOk
       ? '\u8CFD\u4E8B\u5206\u4EAB\u5DF2\u8907\u88FD\u5230\u526A\u8CBC\u7C3F'
       : '\u8907\u88FD\u5931\u6557\uFF0C\u8ACB\u624B\u52D5\u8907\u88FD');

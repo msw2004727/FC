@@ -155,8 +155,9 @@ Object.assign(App, {
 
     let primaryHtml = '';
     let extraActionHtml = '';
+    const pendingStatusButton = `<button type="button" class="primary-btn full-width tfd-status-btn" onclick="App.showToast('審核中請耐心等待')">俱樂部審核中</button>`;
     if (selectedTeam?.status === 'pending') {
-      primaryHtml = `${selector}<button class="primary-btn full-width" disabled>俱樂部審核中</button>`;
+      primaryHtml = `${selector}${pendingStatusButton}`;
       if (canWithdrawSelectedTeam) {
         extraActionHtml = `<button type="button" class="outline-btn full-width" onclick="return App.withdrawFriendlyTournamentTeam('${escapeHTML(tournament.id)}','${escapeHTML(selectedTeam.id)}', this)">撤回申請</button>`;
       }
@@ -176,7 +177,7 @@ Object.assign(App, {
     } else if (selectedTeam?.status === 'available') {
       primaryHtml = `${selector}<button class="primary-btn full-width" onclick="return App.registerTournament('${tournament.id}', this)">參加賽事</button>`;
     } else if (ctx.pendingTeams.length > 0) {
-      primaryHtml = `<button class="primary-btn full-width" disabled>俱樂部審核中</button>`;
+      primaryHtml = pendingStatusButton;
     } else if (ctx.approvedTeams.length > 0) {
       primaryHtml = `<button class="primary-btn full-width" disabled>俱樂部已通過審核</button>`;
     } else if (ctx.rejectedTeams.length > 0) {
@@ -185,14 +186,17 @@ Object.assign(App, {
       primaryHtml = `<button class="primary-btn full-width" onclick="App.showToast('需由俱樂部領隊或經理先行報名參賽。')">參加賽事</button>`;
     }
 
-    const contactBtn = `<button class="outline-btn full-width" onclick="App.contactTournamentOrganizer('${tournament.id}')">聯繫主辦人</button>`;
+    const safeTournamentId = escapeHTML(tournament.id);
+    const contactBtn = `<button type="button" class="outline-btn full-width" onclick="App.contactTournamentOrganizer('${safeTournamentId}')">聯繫主辦人</button>`;
+    const shareBtn = `<button type="button" class="outline-btn full-width" onclick="return App.shareTournament('${safeTournamentId}', this)">分享賽事</button>`;
+    const actionGridClass = extraActionHtml ? 'tfd-action-grid tfd-action-grid-three' : 'tfd-action-grid';
 
     area.innerHTML = `
       <div class="tfd-action-card" data-friendly-team-action-status="${escapeHTML(selectedTeam?.status || '')}">
         <div class="tfd-action-main" data-friendly-team-action-status="${escapeHTML(selectedTeam?.status || '')}" data-friendly-team-id="${escapeHTML(selectedTeam?.id || '')}">${primaryHtml}</div>
-        <div class="tfd-action-grid">
+        <div class="${actionGridClass}">
           ${contactBtn}
-          <button class="outline-btn full-width" onclick="App.shareTournament('${tournament.id}')">分享賽事</button>
+          ${shareBtn}
           ${extraActionHtml}
         </div>
         <div class="tfd-action-meta">已核准 ${approvedCount} / ${teamLimit} 隊${ctx.pendingTeams.length ? `，待審 ${ctx.pendingTeams.length} 隊` : ''}</div>
