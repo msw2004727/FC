@@ -137,14 +137,14 @@ Object.assign(App, {
     const onclick = `App.openTeamReservationModal('${escapeHTML(e.id)}'${active ? `,'${escapeHTML(active.id)}'` : ''})`;
     return '<div class="signup-glow-wrap team-reservation-action" style="--glow-c:' + bg + ';--glow-c-light:' + glow + '">'
       + '<div class="signup-glow-border"></div><div class="signup-glow-shadow"></div>'
-      + '<div class="signup-flipper"><button style="background:' + bg + ';color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="' + onclick + '">' + label + '</button></div>'
+      + '<div class="signup-flipper"><button class="event-signup-team-button" style="background:' + bg + ';color:#fff" onclick="' + onclick + '">' + label + '</button></div>'
       + '<div class="signup-loading-hint"><div class="mini-spinner"></div><span class="mini-text">' + hint + '</span></div></div>';
   },
 
   _composeEventSignupActions(e, personalHtml, opts = {}) {
     const teamHtml = this._renderTeamReservationActionButton(e, opts);
     if (!teamHtml) return personalHtml;
-    return '<div class="event-signup-action-row" style="display:flex;gap:.55rem;align-items:center;justify-content:center;flex-wrap:wrap">'
+    return '<div class="event-signup-action-row">'
       + '<div class="event-signup-personal-action">' + (personalHtml || '') + '</div>'
       + '<div class="event-signup-team-action">' + teamHtml + '</div>'
       + '</div>';
@@ -184,44 +184,50 @@ Object.assign(App, {
     if (!modal) {
       modal = document.createElement('div');
       modal.id = 'team-reservation-modal';
-      modal.className = 'modal';
       document.body.appendChild(modal);
     }
+    modal.className = 'team-reservation-overlay';
+    modal.setAttribute('role', 'presentation');
+    modal.setAttribute('onclick', 'if(event.target===this)App.closeTeamReservationModal()');
     const teamOptions = state.teams.map(t => {
       const selected = String(t.id) === String(state.selectedTeam.id) ? ' selected' : '';
       return `<option value="${escapeHTML(t.id)}"${selected}>${escapeHTML(t.name || t.teamName || t.id)}</option>`;
     }).join('');
     modal.innerHTML = `
-      <div class="modal-content" style="max-width:420px">
-        <div class="modal-header">
-          <h3>團隊報名</h3>
-          <button class="close-btn" onclick="App.closeTeamReservationModal()">×</button>
+      <div class="team-reservation-dialog" role="dialog" aria-modal="true" aria-labelledby="team-reservation-title" onclick="event.stopPropagation()">
+        <div class="team-reservation-dialog-header">
+          <h3 id="team-reservation-title">團隊報名</h3>
+          <button type="button" class="team-reservation-close" onclick="App.closeTeamReservationModal()" aria-label="關閉">×</button>
         </div>
-        <div style="font-size:.8rem;color:var(--text-muted);line-height:1.6;margin-bottom:.7rem">
-          團隊名額不包含你本人；如果你也要參加，請再點「個人報名」。
+        <div class="team-reservation-dialog-body">
+          <div class="team-reservation-note">
+            團隊名額不包含你本人；如果你也要參加，請再點「個人報名」。
+          </div>
+          <label class="team-reservation-label" for="team-reservation-team-select">俱樂部</label>
+          <select id="team-reservation-team-select" class="team-reservation-control" onchange="App.openTeamReservationModal('${escapeHTML(eventId)}', this.value)">
+            ${teamOptions}
+          </select>
+          <label class="team-reservation-label" for="team-reservation-slots-input">團隊名額</label>
+          <input id="team-reservation-slots-input" class="team-reservation-control" type="number" min="${state.used}" max="${state.maxReserved}" value="${initialSlots}" inputmode="numeric">
+          <div class="team-reservation-help">
+            此人數佔位僅於相同俱樂部成員報名時適用。<br>
+            已被俱樂部成員使用：${state.used}　剩餘佔位：${state.remaining}<br>
+            可調整範圍：${state.used} - ${state.maxReserved}
+          </div>
         </div>
-        <label style="font-size:.78rem;font-weight:600;color:var(--text-secondary)">俱樂部</label>
-        <select id="team-reservation-team-select" style="width:100%;margin:.25rem 0 .75rem;padding:.55rem;border:1px solid var(--border);border-radius:var(--radius-sm)" onchange="App.openTeamReservationModal('${escapeHTML(eventId)}', this.value)">
-          ${teamOptions}
-        </select>
-        <label style="font-size:.78rem;font-weight:600;color:var(--text-secondary)">團隊名額</label>
-        <input id="team-reservation-slots-input" type="number" min="${state.used}" max="${state.maxReserved}" value="${initialSlots}" inputmode="numeric" style="width:100%;margin:.25rem 0 .45rem;padding:.55rem;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:1rem">
-        <div style="font-size:.76rem;color:var(--text-muted);line-height:1.65;margin-bottom:.8rem">
-          此人數佔位僅於相同俱樂部成員報名時適用。<br>
-          已被俱樂部成員使用：${state.used}　剩餘佔位：${state.remaining}<br>
-          可調整範圍：${state.used} - ${state.maxReserved}
-        </div>
-        <div style="display:flex;gap:.5rem;justify-content:flex-end">
-          <button class="outline-btn" onclick="App.closeTeamReservationModal()">取消</button>
-          <button class="primary-btn" id="team-reservation-confirm-btn" onclick="App.confirmTeamReservation('${escapeHTML(eventId)}','${escapeHTML(state.selectedTeam.id)}')">確認</button>
+        <div class="team-reservation-dialog-actions">
+          <button type="button" class="outline-btn" onclick="App.closeTeamReservationModal()">取消</button>
+          <button type="button" class="primary-btn" id="team-reservation-confirm-btn" onclick="App.confirmTeamReservation('${escapeHTML(eventId)}','${escapeHTML(state.selectedTeam.id)}')">確認</button>
         </div>
       </div>`;
     modal.classList.add('open');
+    document.body.classList.add('modal-open');
   },
 
   closeTeamReservationModal() {
     const modal = document.getElementById('team-reservation-modal');
     if (modal) modal.classList.remove('open');
+    document.body.classList.remove('modal-open');
   },
 
   async confirmTeamReservation(eventId, teamId) {

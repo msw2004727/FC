@@ -457,6 +457,37 @@
 .detail-action-primary .signup-glow-wrap { display: flex; width: 100%; }
 .detail-action-primary .signup-glow-wrap .signup-flipper { width: 100%; }
 .detail-action-primary .signup-glow-wrap .signup-flipper > button { width: 100%; padding-top: .63rem !important; padding-bottom: .63rem !important; }
+.detail-action-primary .event-signup-action-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: .55rem;
+  align-items: stretch;
+  width: 100%;
+}
+.detail-action-primary .event-signup-personal-action,
+.detail-action-primary .event-signup-team-action {
+  display: flex;
+  min-width: 0;
+  width: 100%;
+}
+.detail-action-primary .event-signup-action-row .signup-glow-wrap,
+.detail-action-primary .event-signup-action-row .signup-flipper {
+  width: 100%;
+}
+.detail-action-primary .event-signup-action-row button {
+  width: 100%;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius) !important;
+  border: none;
+  padding: .63rem .45rem !important;
+  font-size: .85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  min-width: 0;
+}
 .detail-action-toolbar { display: flex; justify-content: center; gap: .35rem; }
 .detail-toolbar-btn {
   flex: 1 1 0; display: flex; align-items: center; justify-content: center;
@@ -468,6 +499,115 @@
 .detail-toolbar-btn:active { background: var(--accent-bg, #eef2ff); border-color: var(--accent, #6366f1); color: var(--accent, #6366f1); }
 [data-theme="dark"] .detail-toolbar-btn { background: var(--bg-elevated, #1e1e1e); border-color: var(--border, #333); }
 [data-theme="dark"] .detail-toolbar-btn:active { background: rgba(99,102,241,.15); border-color: var(--accent, #818cf8); color: var(--accent, #818cf8); }
+
+.team-reservation-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, .34);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease;
+}
+.team-reservation-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.team-reservation-dialog {
+  width: min(420px, 100%);
+  max-height: calc(100dvh - 2rem);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .48);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .88);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  backdrop-filter: blur(20px) saturate(1.2);
+  box-shadow: 0 18px 55px rgba(15, 23, 42, .22);
+  transform: translateY(10px) scale(.98);
+  transition: transform .2s ease;
+}
+.team-reservation-overlay.open .team-reservation-dialog {
+  transform: translateY(0) scale(1);
+}
+.team-reservation-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: 1rem 1.2rem .8rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.team-reservation-dialog-header h3 {
+  font-size: 1rem;
+  font-weight: 800;
+}
+.team-reservation-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+}
+.team-reservation-close:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+.team-reservation-dialog-body {
+  padding: .85rem 1.2rem 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  min-height: 0;
+}
+.team-reservation-note {
+  font-size: .8rem;
+  color: var(--text-muted);
+  line-height: 1.65;
+  margin-bottom: .8rem;
+}
+.team-reservation-label {
+  display: block;
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin: .75rem 0 .28rem;
+}
+.team-reservation-control {
+  width: 100%;
+  margin: 0;
+}
+.team-reservation-help {
+  font-size: .76rem;
+  color: var(--text-muted);
+  line-height: 1.65;
+  margin-top: .5rem;
+}
+.team-reservation-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: .55rem;
+  padding: 1rem 1.2rem 1.15rem;
+  flex-shrink: 0;
+}
+.team-reservation-dialog-actions button {
+  min-width: 76px;
+}
+[data-theme="dark"] .team-reservation-dialog {
+  border-color: rgba(255, 255, 255, .1);
+  background: rgba(24, 29, 39, .9);
+  box-shadow: 0 18px 55px rgba(0, 0, 0, .48);
+}
 
 .detail-section { margin-top: 1rem; }
 .detail-section-title { font-weight: 700; font-size: .85rem; margin-bottom: .5rem; border-bottom: 1px solid var(--border); padding-bottom: .3rem; }
