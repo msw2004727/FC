@@ -28,8 +28,8 @@ Object.assign(App, {
       container.innerHTML = `
         <div class="seo-empty">
           <h3>尚無 SEO 資料</h3>
-          <p>GitHub Actions 每日 11:00（台北）自動抓取。首次建立後請稍後再試。</p>
-          <p style="margin-top:1rem;font-size:.85rem;color:var(--text-muted)">若要立即抓取，請到 <a href="https://github.com/msw2004727/FC/actions/workflows/gsc-snapshot.yml" target="_blank" rel="noopener">GitHub Actions</a> 手動觸發「GSC Daily Snapshot」。</p>
+          <p>目前還沒有可顯示的 SEO 快照。系統每天台北時間 11:00 會自動抓一次 Google Search Console 資料。</p>
+          <p style="margin-top:1rem;font-size:.85rem;color:var(--text-muted)">如果想立刻更新，可以到 <a href="https://github.com/msw2004727/FC/actions/workflows/gsc-snapshot.yml" target="_blank" rel="noopener">GitHub Actions</a> 手動執行「GSC Daily Snapshot」。</p>
         </div>`;
       return;
     }
@@ -51,7 +51,7 @@ Object.assign(App, {
         ${info('meta')}
       </div>
 
-      ${this._seoActionItemsHTML(s, history, genAt)}
+      ${this._seoActionItemsHTML(s, history, genAt, info)}
 
       ${this._seoOverviewHTML(s.overview, info)}
 
@@ -85,11 +85,11 @@ Object.assign(App, {
 
       <div class="seo-grid-2">
         <div class="seo-section">
-          <h3>🎯 SEO 頁面機會</h3>
+          <h3>🎯 SEO 頁面機會${info('pageOpportunities')}</h3>
           ${this._seoPageOpportunitiesHTML(s.pages)}
         </div>
         <div class="seo-section">
-          <h3>🔎 品牌 / 非品牌查詢</h3>
+          <h3>🔎 品牌 / 非品牌查詢${info('querySegments')}</h3>
           ${this._seoQuerySegmentsHTML(s.queries)}
         </div>
       </div>
@@ -100,7 +100,7 @@ Object.assign(App, {
       </div>
 
       <div class="seo-section">
-        <h3>✨ Search Appearance</h3>
+        <h3>✨ Search Appearance${info('searchAppearance')}</h3>
         ${this._seoSearchAppearanceHTML(s.searchAppearance)}
       </div>
 
@@ -172,19 +172,20 @@ Object.assign(App, {
     `;
   },
 
-  _seoActionItemsHTML(s, history, genAt) {
+  _seoActionItemsHTML(s, history, genAt, info) {
     const items = this._seoBuildActionItems(s, history, genAt);
+    const btn = info ? info('actionItems') : '';
     if (!items.length) {
       return `
         <div class="seo-section">
-          <h3>✅ 今日 SEO 狀態</h3>
-          <div class="seo-alert seo-alert-ok">目前沒有明顯警示。仍建議每週檢查一次低 CTR 與第二頁候選詞。</div>
+          <h3>✅ 今日 SEO 狀態${btn}</h3>
+          <div class="seo-alert seo-alert-ok">目前沒有需要立刻處理的 SEO 警示。下一步可先看低 CTR 頁面與第二頁候選詞，當作優化清單。</div>
         </div>
       `;
     }
     return `
       <div class="seo-section">
-        <h3>🧭 SEO 待辦 / 警示</h3>
+        <h3>🧭 SEO 待辦 / 警示${btn}</h3>
         <div class="seo-alert-list">
           ${items.map(item => `
             <div class="seo-alert seo-alert-${item.level}">
@@ -203,7 +204,7 @@ Object.assign(App, {
       items.push({
         level: 'warn',
         title: '資料可能過舊',
-        body: 'SEO 快照已超過 36 小時，建議確認 GitHub Actions 的 GSC Daily Snapshot 是否正常。',
+        body: '後台資料已經超過 36 小時沒更新，建議確認 GitHub Actions 的 GSC Daily Snapshot 是否有成功執行。',
       });
     }
     const urlStatus = Array.isArray(s?.urlStatus) ? s.urlStatus : [];
@@ -212,7 +213,7 @@ Object.assign(App, {
       items.push({
         level: 'danger',
         title: `URL 收錄檢查有 ${failedUrls.length} 筆需確認`,
-        body: failedUrls.slice(0, 3).map(u => (u.url || '').replace('https://toosterx.com', '') || '/').join('、'),
+        body: `請先看下方「URL 收錄狀態」細節：${failedUrls.slice(0, 3).map(u => (u.url || '').replace('https://toosterx.com', '') || '/').join('、')}`,
       });
     }
     const sitemapProblems = (Array.isArray(s?.sitemaps) ? s.sitemaps : [])
@@ -221,7 +222,7 @@ Object.assign(App, {
       items.push({
         level: 'danger',
         title: 'Sitemap 有錯誤或警告',
-        body: sitemapProblems.map(m => `${m.errors || 0} errors / ${m.warnings || 0} warnings`).join('；'),
+        body: `Google 讀取 sitemap 時回報問題：${sitemapProblems.map(m => `${m.errors || 0} errors / ${m.warnings || 0} warnings`).join('；')}`,
       });
     }
     const lowCtrPages = (Array.isArray(s?.pages) ? s.pages : [])
@@ -230,7 +231,7 @@ Object.assign(App, {
       items.push({
         level: 'warn',
         title: `高曝光低 CTR 頁面 ${lowCtrPages.length} 筆`,
-        body: '優先檢查 title、description 與搜尋意圖是否匹配。',
+        body: '很多人看到但點擊偏低，優先檢查標題、描述是否夠吸引人，或是否符合搜尋者想找的內容。',
       });
     }
     const secondPageQueries = (Array.isArray(s?.queries) ? s.queries : [])
@@ -239,21 +240,21 @@ Object.assign(App, {
       items.push({
         level: 'info',
         title: `第二頁候選詞 ${secondPageQueries.length} 個`,
-        body: '這些詞最適合補內文段落、FAQ、內鏈與頁面標題。',
+        body: '這些詞離第一頁最近，最適合補內文段落、FAQ、內部連結與頁面標題。',
       });
     }
     if (Array.isArray(history) && history.length < 3) {
       items.push({
         level: 'info',
         title: '歷史快照偏少',
-        body: '趨勢圖仍可用，但長期比較至少需要 7 天以上快照會更穩。',
+        body: '資料天數還少，可以先看單日狀態；等累積 7 天以上後，趨勢判斷會更準。',
       });
     }
     return items.slice(0, 6);
   },
 
   _seoPagesTableHTML(pages) {
-    if (!Array.isArray(pages) || !pages.length) return '<p class="seo-empty-note">無資料</p>';
+    if (!Array.isArray(pages) || !pages.length) return '<p class="seo-empty-note">目前還沒有頁面表現資料。</p>';
     return `
       <table class="seo-table">
         <thead><tr><th>URL</th><th>曝光</th><th>點擊</th><th>CTR</th><th>排名</th></tr></thead>
@@ -273,7 +274,7 @@ Object.assign(App, {
   },
 
   _seoDevicesHTML(devices) {
-    if (!Array.isArray(devices) || !devices.length) return '<p class="seo-empty-note">無資料</p>';
+    if (!Array.isArray(devices) || !devices.length) return '<p class="seo-empty-note">目前還沒有裝置分布資料。</p>';
     return `
       <table class="seo-table">
         <thead><tr><th>裝置</th><th>曝光</th><th>點擊</th><th>CTR</th></tr></thead>
@@ -287,7 +288,7 @@ Object.assign(App, {
   },
 
   _seoCountriesHTML(countries) {
-    if (!Array.isArray(countries) || !countries.length) return '<p class="seo-empty-note">無資料</p>';
+    if (!Array.isArray(countries) || !countries.length) return '<p class="seo-empty-note">目前還沒有國家分布資料。</p>';
     return `
       <table class="seo-table">
         <thead><tr><th>國家</th><th>曝光</th><th>點擊</th></tr></thead>
@@ -301,7 +302,7 @@ Object.assign(App, {
   },
 
   _seoTypeBreakdownHTML(tb) {
-    if (!tb) return '<p class="seo-empty-note">無資料</p>';
+    if (!tb) return '<p class="seo-empty-note">目前還沒有搜尋類型資料。</p>';
     const keys = ['web', 'image', 'video', 'news', 'discover'];
     return `
       <table class="seo-table">
@@ -317,7 +318,7 @@ Object.assign(App, {
   },
 
   _seoPageOpportunitiesHTML(pages) {
-    if (!Array.isArray(pages) || !pages.length) return '<p class="seo-empty-note">暫無頁面資料</p>';
+    if (!Array.isArray(pages) || !pages.length) return '<p class="seo-empty-note">目前還沒有頁面資料，等 GSC 累積後會顯示。</p>';
     const opportunities = pages
       .filter(p => Number(p.impressions || 0) >= 3)
       .map(p => {
@@ -332,7 +333,7 @@ Object.assign(App, {
       })
       .filter(Boolean)
       .slice(0, 8);
-    if (!opportunities.length) return '<p class="seo-empty-note">目前沒有明顯頁面機會</p>';
+    if (!opportunities.length) return '<p class="seo-empty-note">目前沒有特別需要優先處理的頁面。</p>';
     return `
       <table class="seo-table seo-table-compact">
         <thead><tr><th>頁面</th><th>機會</th><th>曝光</th><th>CTR</th><th>排名</th></tr></thead>
@@ -352,7 +353,7 @@ Object.assign(App, {
   },
 
   _seoQuerySegmentsHTML(queries) {
-    if (!Array.isArray(queries) || !queries.length) return '<p class="seo-empty-note">暫無查詢詞資料</p>';
+    if (!Array.isArray(queries) || !queries.length) return '<p class="seo-empty-note">目前還沒有查詢詞資料，通常是曝光量還沒達到 GSC 顯示門檻。</p>';
     const sum = (rows) => rows.reduce((acc, q) => {
       acc.impressions += Number(q.impressions || 0);
       acc.clicks += Number(q.clicks || 0);
@@ -374,13 +375,13 @@ Object.assign(App, {
           ${rows.map(r => `<tr><td>${r.label}</td><td>${this._fmtNum(r.impressions)}</td><td>${this._fmtNum(r.clicks)}</td><td>${this._fmtPct(r.ctr)}</td></tr>`).join('')}
         </tbody>
       </table>
-      <p class="seo-empty-note" style="margin-top:.45rem">非品牌詞更接近自然 SEO 成長；品牌詞通常代表既有認知或回訪。</p>
+      <p class="seo-empty-note" style="margin-top:.45rem">非品牌詞代表陌生用戶用需求找到你；品牌詞通常是已經知道 ToosterX 的人。</p>
     `;
   },
 
   _seoSearchAppearanceHTML(searchAppearance) {
     if (!Array.isArray(searchAppearance) || !searchAppearance.length) {
-      return '<p class="seo-empty-note">目前沒有 Search Appearance 資料，代表 GSC 尚未回傳特殊搜尋外觀。</p>';
+      return '<p class="seo-empty-note">目前還沒有特殊搜尋外觀資料；這很常見，不代表錯誤。</p>';
     }
     return `
       <table class="seo-table seo-table-compact">
@@ -402,7 +403,7 @@ Object.assign(App, {
 
   _seoQueriesHTML(queries) {
     if (!Array.isArray(queries) || !queries.length) {
-      return '<p class="seo-empty-note">無資料（GSC 對低曝光查詢詞有隱私門檻，需累積更多流量才會顯示）</p>';
+      return '<p class="seo-empty-note">目前 GSC 還沒有提供查詢詞資料；低曝光查詢會被隱藏，需要累積更多搜尋量。</p>';
     }
     return `
       <table class="seo-table">
@@ -452,7 +453,7 @@ Object.assign(App, {
 
   _seoFirstTwoPageQueriesHTML(queries) {
     if (!Array.isArray(queries) || !queries.length) {
-      return '<p class="seo-empty-note">目前 GSC 可見查詢詞中，尚無平均排名 20 名內的資料；也可能是低曝光查詢被 GSC 隱私門檻隱藏。</p>';
+      return '<p class="seo-empty-note">目前還沒有平均排名 20 名內的查詢詞；也可能是曝光太少，被 GSC 隱私門檻隱藏。</p>';
     }
     return `
       <table class="seo-table">
@@ -466,12 +467,12 @@ Object.assign(App, {
           }).join('')}
         </tbody>
       </table>
-      <p class="seo-empty-note" style="margin-top:.5rem">判定方式：Google Search Console 90 天查詢資料，平均排名 ≤ 20 視為「前兩頁可見」。實際即時搜尋會因地區、裝置、個人化而浮動。</p>
+      <p class="seo-empty-note" style="margin-top:.5rem">判定方式：採用 Google Search Console 近 90 天平均排名，≤ 20 視為前兩頁附近。手動即時搜尋會受地區、裝置、個人化影響，所以不一定完全相同。</p>
     `;
   },
 
   _seoSitemapHTML(sitemaps) {
-    if (!Array.isArray(sitemaps) || !sitemaps.length) return '<p class="seo-empty-note">無資料</p>';
+    if (!Array.isArray(sitemaps) || !sitemaps.length) return '<p class="seo-empty-note">目前還沒有 Sitemap 資料。</p>';
     return sitemaps.map(s => {
       const contents = (s.contents || []).map(c => `${c.type}: ${c.submitted} 已提交 / ${c.indexed} 已索引`).join(' · ');
       const lastDown = s.lastDownloaded ? new Date(s.lastDownloaded).toLocaleString('zh-TW') : '未下載';
@@ -490,7 +491,7 @@ Object.assign(App, {
   },
 
   _seoUrlStatusHTML(urlStatus) {
-    if (!Array.isArray(urlStatus) || !urlStatus.length) return '<p class="seo-empty-note">無資料</p>';
+    if (!Array.isArray(urlStatus) || !urlStatus.length) return '<p class="seo-empty-note">目前還沒有 URL 收錄檢查資料。</p>';
     const verdictIcon = (v, cov) => {
       if (v === 'PASS') return '✅';
       if (cov === 'URL is unknown to Google') return '⏳';
@@ -500,7 +501,7 @@ Object.assign(App, {
     };
     return `
       <table class="seo-table">
-        <thead><tr><th></th><th>URL</th><th>Verdict</th><th>Coverage</th><th>Rich</th><th>Last crawled</th></tr></thead>
+        <thead><tr><th></th><th>URL</th><th>判定</th><th>收錄說明</th><th>Rich 結果</th><th>最後爬取</th></tr></thead>
         <tbody>
           ${urlStatus.map(u => {
             const path = (u.url || '').replace('https://toosterx.com', '') || '/';
@@ -523,119 +524,147 @@ Object.assign(App, {
   /** 說明彈窗（參考教學俱樂部 _showEduInfoPopup，共用 edu-info-overlay 樣式） */
   _showSeoInfoPopup(type) {
     const info = {
+      actionItems: {
+        title: 'SEO 待辦 / 警示怎麼看',
+        body: '<p>這一區是後台幫你把資料翻成「現在最值得注意的事情」。不用逐格看表格，先看這裡就好。</p>'
+          + '<ul>'
+          + '<li><b>紅色</b>：建議優先確認，通常跟收錄、Sitemap 或資料異常有關。</li>'
+          + '<li><b>黃色</b>：不是壞掉，但可能有優化空間，例如曝光多、點擊少。</li>'
+          + '<li><b>藍色</b>：機會提示，例如快進第一頁的關鍵詞。</li>'
+          + '</ul>'
+          + '<p>看到警示不用先緊張，它只是提醒你「這裡值得打開下面的表格看細節」。</p>',
+      },
       meta: {
         title: '資料日期與來源',
-        body: '<p>此列顯示本次快照的三項基本資訊：</p>'
+        body: '<p>這列是在告訴你：現在看的 SEO 資料是哪一天抓的、什麼時候產生的。</p>'
           + '<ul>'
-          + '<li><b>資料日期</b> — 本次快照對應的日期。每日台北時間 11:00 自動重新抓取。</li>'
-          + '<li><b>產出時間</b> — GitHub Actions 實際跑完此快照的時間。</li>'
-          + '<li><b>站點</b> — Google Search Console 資源 ID（sc-domain 格式，涵蓋 toosterx.com 所有子網域）。</li>'
+          + '<li><b>資料日期</b>：這份快照代表哪一天的資料。</li>'
+          + '<li><b>產出時間</b>：GitHub Actions 實際抓完資料的時間。</li>'
+          + '<li><b>站點</b>：目前看的網站來源，這裡就是 ToosterX 的 GSC 資源。</li>'
           + '</ul>'
-          + '<p style="color:var(--text-muted);font-size:.78rem;margin-top:.5rem">右上角 🔄 按鈕可清除快取、重讀最新 Firestore 資料（不會觸發新爬取）。</p>',
+          + '<p style="color:var(--text-muted);font-size:.78rem;margin-top:.5rem">右上角重新整理只會重讀資料庫裡的最新快照，不會立刻叫 Google 重新爬網站。</p>',
       },
       overview: {
-        title: '總覽數字說明',
-        body: '<p>三個時間區間的搜尋表現總覽：</p>'
+        title: '總覽數字怎麼看',
+        body: '<p>這裡是網站在 Google 搜尋的整體成績單。先看它，就能知道最近 SEO 是變好還是變差。</p>'
           + '<ul>'
-          + '<li><b>曝光</b> — 網站在 Google 搜尋結果中被顯示的次數</li>'
-          + '<li><b>點擊</b> — 用戶從搜尋結果點進網站的次數</li>'
-          + '<li><b>CTR（點擊率）</b> — 點擊 ÷ 曝光，衡量搜尋結果吸引力</li>'
-          + '<li><b>排名</b> — 網站在搜尋結果的平均排序位置（1 = 第一個）</li>'
+          + '<li><b>曝光</b>：你的網站出現在 Google 搜尋結果中的次數。</li>'
+          + '<li><b>點擊</b>：使用者真的從 Google 點進網站的次數。</li>'
+          + '<li><b>CTR</b>：曝光後有多少比例的人願意點進來，越高代表標題與描述越吸引人。</li>'
+          + '<li><b>排名</b>：平均出現位置，數字越小越好，1 代表最前面。</li>'
           + '</ul>'
-          + '<p style="margin-top:.5rem;font-size:.82rem"><b>參考值：</b></p>'
-          + '<p style="font-size:.78rem;color:var(--text-muted)">• CTR 3-8% 為一般、10-30% 為優秀、超過 30% 通常是品牌詞<br>• 平均排名 1-3 頂尖、4-10 第一頁、超過 10 第二頁之後</p>',
+          + '<p style="margin-top:.5rem;font-size:.82rem"><b>簡單判斷：</b>曝光增加是被看見，點擊增加才是真的帶流量；排名進步但 CTR 很低時，通常要先改標題或描述。</p>',
       },
       daily: {
-        title: '每日時序圖說明',
-        body: '<p>顯示過去 30 天每日曝光趨勢：</p>'
+        title: '每日趨勢怎麼看',
+        body: '<p>這張圖看的是最近 30 天每天的 SEO 熱度，主要用來看「趨勢」。</p>'
           + '<ul>'
-          + '<li><b>柱高</b> — 當日總曝光數（相對值）</li>'
-          + '<li><b>柱頂數字</b> — 當日點擊數（0 時不顯示）</li>'
-          + '<li><b>日期標籤</b> — MM-DD 格式</li>'
+          + '<li><b>柱子越高</b>：那天在 Google 被看到越多次。</li>'
+          + '<li><b>柱子上的數字</b>：那天有多少點擊。</li>'
+          + '<li><b>連續上升</b>：通常代表 SEO 正在累積效果。</li>'
           + '</ul>'
-          + '<p style="margin-top:.4rem">滑鼠懸停柱子可看完整日期與具體數字。</p>'
-          + '<p style="color:var(--text-muted);font-size:.78rem;margin-top:.3rem">趨勢觀察：(1) 逐日遞增代表 SEO 健康成長、(2) 突然高峰可能是外部曝光（如 PTT 討論）、(3) 連續 0 需檢查是否被 Google 降權。</p>',
+          + '<p style="margin-top:.4rem">偶爾一天高低不用太緊張，SEO 通常看 7 天或 28 天趨勢比較準。</p>',
       },
       pages: {
-        title: '頁面表現說明',
-        body: '<p>過去 28 天中，每個頁面在搜尋結果被曝光、點擊的狀況。</p>'
+        title: '頁面表現怎麼看',
+        body: '<p>這裡是在看「哪一個頁面」幫網站拿到 Google 曝光與點擊。</p>'
           + '<ul>'
-          + '<li><b>URL</b> — 相對路徑（已去除 https://toosterx.com 前綴）</li>'
-          + '<li><b>曝光/點擊/CTR/排名</b> — 定義同「總覽」</li>'
+          + '<li><b>曝光高、點擊低</b>：代表 Google 有把你秀出來，但標題或描述不夠想點。</li>'
+          + '<li><b>排名 10-20</b>：代表快到第一頁，很適合補內容、FAQ、內部連結。</li>'
+          + '<li><b>曝光 0</b>：代表目前幾乎沒被看見，要看是不是沒收錄或內容太弱。</li>'
           + '</ul>'
-          + '<p style="margin-top:.5rem">優化策略：</p>'
-          + '<ol style="font-size:.82rem">'
-          + '<li>排名 1-3 但 CTR 低 → 優化 meta title/description 吸引點擊</li>'
-          + '<li>排名 10-20 → 內容優化（加字數、改關鍵字密度）</li>'
-          + '<li>曝光 0 → Google 沒收錄，檢查 sitemap 與索引狀態</li>'
-          + '</ol>',
+          + '<p style="margin-top:.5rem">最簡單的做法：先挑「曝光高但 CTR 低」和「排名 10-20」的頁面優化，通常最有效率。</p>',
       },
       devices: {
-        title: '裝置分布說明',
-        body: '<p>過去 28 天搜尋流量按裝置類型分布：</p>'
+        title: '裝置分布怎麼看',
+        body: '<p>這裡是在看使用者是用手機、電腦還是平板搜尋到你。</p>'
           + '<ul>'
-          + '<li><b>MOBILE</b> — 手機</li>'
-          + '<li><b>DESKTOP</b> — 桌上型電腦 / 筆電</li>'
-          + '<li><b>TABLET</b> — 平板（通常極少）</li>'
+          + '<li><b>MOBILE</b>：手機流量。ToosterX 以手機使用為主，手機高是正常的。</li>'
+          + '<li><b>DESKTOP</b>：電腦流量。適合看 SEO 著陸頁在桌面版是否吸引人。</li>'
+          + '<li><b>TABLET</b>：平板流量，通常不會太多。</li>'
           + '</ul>'
-          + '<p style="margin-top:.4rem;font-size:.82rem">ToosterX 以 LINE Mini App 為主，手機佔比 60%+ 屬正常。若桌面 CTR 遠低於手機，可能是桌面 RWD 顯示有問題。</p>',
+          + '<p style="margin-top:.4rem">若某個裝置曝光很多但 CTR 特別低，就代表那個版面的標題、排版或摘要可能要檢查。</p>',
       },
       countries: {
-        title: '國家分布說明',
-        body: '<p>過去 28 天搜尋流量按國家分布（ISO 3166-1 alpha-3 代碼）。</p>'
-          + '<p style="margin-top:.3rem">ToosterX 定位台灣市場，TWN 應佔 95%+。</p>'
-          + '<p style="color:var(--text-muted);font-size:.78rem;margin-top:.4rem">若突然出現大量非台灣流量（如 CHN、IND），可能是：(a) VPN 影響、(b) 詞彙被國際搜尋到、(c) 被 bot 大量爬取需檢查。</p>',
+        title: '國家分布怎麼看',
+        body: '<p>這裡是在看搜尋曝光來自哪些國家。</p>'
+          + '<p>ToosterX 目前主要做台灣市場，所以 TWN 越高越合理。</p>'
+          + '<p style="color:var(--text-muted);font-size:.78rem;margin-top:.4rem">如果突然出現很多非台灣流量，不一定是壞事，可能是 VPN、海外搜尋、或某些詞被其他地區搜到；真的暴增時再檢查是否有異常爬蟲。</p>',
       },
       typeBreakdown: {
-        title: '搜尋類型分布說明',
-        body: '<p>Google 搜尋產品線分布（過去 90 天）：</p>'
+        title: '搜尋類型怎麼看',
+        body: '<p>Google 不只有一般網頁搜尋，這裡是在看曝光來自哪一種搜尋入口。</p>'
           + '<ul>'
-          + '<li><b>WEB</b> — 一般 Google 搜尋（主戰場）</li>'
-          + '<li><b>IMAGE</b> — Google 圖片搜尋（需 image sitemap + alt 標籤）</li>'
-          + '<li><b>VIDEO</b> — Google 影片搜尋（需 VideoObject schema）</li>'
-          + '<li><b>NEWS</b> — Google News（需申請 Publisher Center）</li>'
-          + '<li><b>DISCOVER</b> — Android Google App 主頁推薦（需高流量）</li>'
+          + '<li><b>WEB</b>：一般 Google 搜尋，現在最重要。</li>'
+          + '<li><b>IMAGE</b>：Google 圖片搜尋，跟圖片 alt、檔名、頁面內容有關。</li>'
+          + '<li><b>VIDEO</b>：影片搜尋，目前沒有主打影片時可先忽略。</li>'
+          + '<li><b>NEWS / DISCOVER</b>：新聞或推薦流量，通常要內容量和權威累積後才會明顯。</li>'
           + '</ul>'
-          + '<p style="margin-top:.4rem;font-size:.82rem">目前以 WEB 為主。IMAGE 剛起步（sitemap 新增了 og.png）。</p>',
+          + '<p style="margin-top:.4rem">現階段先把 WEB 做好最重要；圖片搜尋可以之後慢慢補圖文內容。</p>',
       },
       firstTwoPageQueries: {
-        title: '前兩頁可見關鍵詞',
-        body: '<p>此區會從 Google Search Console 的「查詢」資料中，自動挑出平均排名 20 名內的詞。</p>'
+        title: '平均前 20 名查詢詞怎麼看',
+        body: '<p>這裡列的是 GSC 裡「平均排名在 20 名內」的搜尋詞。白話說，就是 Google 曾經把你的網站排在第一頁或第二頁附近。</p>'
           + '<ul>'
-          + '<li><b>第 1 頁</b> — 平均排名 1-10。</li>'
-          + '<li><b>第 2 頁</b> — 平均排名 10.1-20。</li>'
-          + '<li><b>已收錄推論</b> — 該查詢已產生曝光，代表 Google 曾在搜尋結果中顯示 ToosterX 頁面。</li>'
+          + '<li><b>第 1 頁</b>：平均排名 1-10。</li>'
+          + '<li><b>第 2 頁</b>：平均排名 10.1-20，通常是最值得努力推上去的詞。</li>'
+          + '<li><b>可信度</b>：曝光太少時只是參考，不代表你每次手動搜尋都會看到同樣排名。</li>'
           + '</ul>'
-          + '<p style="margin-top:.4rem;font-size:.82rem">注意：這是 GSC 的平均排名，不等於每一次手動 Google 搜尋都固定在同一位置；地區、裝置、語言與個人化都會造成差異。</p>',
+          + '<p style="margin-top:.4rem">例如某個詞只有 1 次曝光但排名第 6，這只能說「Google 曾經顯示過」，不能說它已經穩定第一頁。</p>',
+      },
+      pageOpportunities: {
+        title: 'SEO 頁面機會怎麼看',
+        body: '<p>這區是後台幫你挑「最值得先優化的頁面」。不用從整張頁面表慢慢找。</p>'
+          + '<ul>'
+          + '<li><b>高曝光低 CTR</b>：很多人看到，但很少人點。先改標題與描述通常最有效。</li>'
+          + '<li><b>第二頁候選</b>：平均排名 10-20。補內容、FAQ、內部連結，有機會往第一頁推。</li>'
+          + '<li><b>有排名但未點擊</b>：Google 有給位置，但搜尋結果看起來可能不夠吸引人。</li>'
+          + '</ul>'
+          + '<p>這裡列出的不是錯誤，而是「可以用最少力氣換最多 SEO 成效」的清單。</p>',
+      },
+      querySegments: {
+        title: '品牌詞 / 非品牌詞怎麼看',
+        body: '<p>這區把搜尋詞分成兩種，幫你看 SEO 成長是不是靠自然搜尋帶來的。</p>'
+          + '<ul>'
+          + '<li><b>品牌詞</b>：像 tooster、toosterx。通常是已經知道你的人在找你。</li>'
+          + '<li><b>非品牌詞</b>：像台中足球場、室內足球場。這類才比較代表 SEO 拓新客的能力。</li>'
+          + '</ul>'
+          + '<p>品牌詞表現好是基本盤；非品牌詞慢慢增加，才代表內容開始替你帶陌生流量。</p>',
+      },
+      searchAppearance: {
+        title: 'Search Appearance 怎麼看',
+        body: '<p>這是 Google 顯示搜尋結果時的特殊外觀資料，例如更豐富的搜尋結果樣式。</p>'
+          + '<p>如果這裡目前沒有資料，不代表壞掉，只是 Google 尚未回傳特殊外觀。</p>'
+          + '<p style="margin-top:.4rem">未來如果 FAQ、麵包屑、圖片或其他 rich result 有被 Google 採用，這裡就比較可能看到資料。</p>',
       },
       queries: {
-        title: '熱門搜尋詞說明',
-        body: '<p>用戶在 Google 搜尋什麼詞找到你的網站（過去 90 天）。</p>'
-          + '<p style="margin-top:.3rem"><b>⚠️ GSC 隱私門檻：</b>Google 會隱藏低曝光的個別查詢詞以保護用戶隱私，所以此處看到的通常是曝光 ≥ 10 的詞。</p>'
-          + '<p style="margin-top:.5rem;font-size:.82rem">這是最機密的資料 — <b>請勿對外截圖分享</b>，競品會據此逆推你的 SEO 策略。</p>',
+        title: '熱門搜尋詞怎麼看',
+        body: '<p>這裡是在看使用者搜尋哪些字，最後看到或點進 ToosterX。</p>'
+          + '<p>它可以幫你知道：Google 現在覺得你的網站跟哪些主題有關。</p>'
+          + '<p style="margin-top:.3rem"><b>小提醒：</b>GSC 會隱藏一部分低曝光查詢詞，所以這裡不是 100% 全部搜尋字，只是 Google 願意提供的部分。</p>'
+          + '<p style="margin-top:.5rem;font-size:.82rem">這份資料很有商業價值，不建議公開截圖，因為別人可以用它推測你的 SEO 策略。</p>',
       },
       sitemap: {
-        title: 'Sitemap 狀態說明',
-        body: '<p>Google 對 sitemap.xml 的處理狀態：</p>'
+        title: 'Sitemap 狀態怎麼看',
+        body: '<p>Sitemap 就像你交給 Google 的網站地圖，告訴 Google：「這些頁面請來看看」。</p>'
           + '<ul>'
-          + '<li><b>最後下載</b> — Google 最近一次抓取 sitemap 的時間（非索引時間）</li>'
-          + '<li><b>錯誤 / 警告</b> — Google 解析 sitemap 時的問題數</li>'
-          + '<li><b>已提交 / 已索引</b> — Sitemap 中的 URL 數 vs 實際進入 Google 索引的數</li>'
+          + '<li><b>最後下載</b>：Google 最近一次讀取 sitemap 的時間。</li>'
+          + '<li><b>錯誤 / 警告</b>：Google 讀地圖時有沒有遇到問題。</li>'
+          + '<li><b>已提交 / 已索引</b>：地圖裡有幾頁，以及其中幾頁已經進 Google 索引。</li>'
           + '</ul>'
-          + '<p style="margin-top:.4rem;font-size:.82rem">新站通常「已索引 &lt; 已提交」很常見，Google 需時間評估。超過 2 週仍 0 索引需檢查 robots、canonical 或內容品質。</p>',
+          + '<p style="margin-top:.4rem">新頁面剛上線時，「已索引」少於「已提交」很正常。Google 通常需要時間判斷要不要收錄。</p>',
       },
       urlStatus: {
-        title: 'URL 索引狀態說明',
-        body: '<p>每個重要 URL 在 Google 索引中的詳細狀態。</p>'
-          + '<p style="margin-top:.4rem"><b>圖示含義：</b></p>'
+        title: 'URL 收錄狀態怎麼看',
+        body: '<p>這裡是逐頁檢查 Google 對重要 URL 的看法。它比總覽更細，可以看到哪一頁需要處理。</p>'
+          + '<p style="margin-top:.4rem"><b>常見狀態：</b></p>'
           + '<ul>'
-          + '<li>✅ <b>PASS / Submitted and indexed</b> — 已成功索引，會在搜尋結果出現</li>'
-          + '<li>⏳ <b>URL is unknown to Google</b> — Google 還沒看過此 URL，等待中</li>'
-          + '<li>🔍 <b>Discovered - currently not indexed</b> — Google 已發現但還沒決定是否收錄</li>'
-          + '<li>⚠️ <b>Redirect error</b> — 有重定向問題（如 canonical 不一致）</li>'
-          + '<li>❓ 其他 — 點進 URL inspection 連結看詳情</li>'
+          + '<li><b>PASS / Submitted and indexed</b>：已收錄，狀態健康。</li>'
+          + '<li><b>URL is unknown to Google</b>：Google 可能還沒看過這頁，通常新頁會遇到。</li>'
+          + '<li><b>Discovered - currently not indexed</b>：Google 發現了，但暫時還沒收錄。</li>'
+          + '<li><b>Redirect / canonical 相關狀態</b>：要確認網址是否跳轉或 canonical 設定是否符合預期。</li>'
           + '</ul>'
-          + '<p style="margin-top:.4rem;font-size:.82rem"><b>Rich 欄位：</b>PASS 表示結構化資料（FAQ/麵包屑）驗證通過，可在 SERP 顯示豐富片段。</p>',
+          + '<p style="margin-top:.4rem">不是 PASS 不一定代表網站壞掉；它只是提醒你要打開這列看 Coverage 細節，再決定要不要修。</p>',
       },
     };
     const item = info[type];
