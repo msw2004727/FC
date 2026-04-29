@@ -172,6 +172,41 @@ describe('friendly tournament teams tab actions', () => {
     expect(area.innerHTML).not.toContain('俱樂部審核中</button>');
   });
 
+  test('keeps available register action from being replaced by roster hints', () => {
+    const actionMain = {
+      dataset: { friendlyTeamActionStatus: '' },
+      innerHTML: '',
+      querySelector: jest.fn(selector => (selector === '#td-apply-team-select' ? {} : null)),
+    };
+    const card = {
+      dataset: { friendlyTeamActionStatus: '' },
+      querySelector: jest.fn(selector => (selector === '.tfd-action-grid' ? {} : null)),
+    };
+    const area = {
+      querySelector: jest.fn(selector => {
+        if (selector === '.tfd-action-card') return card;
+        if (selector === '.tfd-action-main') return actionMain;
+        return null;
+      }),
+    };
+    global.document = { getElementById: id => (id === 'td-register-area' ? area : null) };
+    global.TOURNAMENT_STATUS = { REG_OPEN: 'open' };
+    global.App = {
+      renderRegisterButton: jest.fn(() => {
+        card.dataset.friendlyTeamActionStatus = 'available';
+        actionMain.dataset.friendlyTeamActionStatus = 'available';
+        actionMain.innerHTML = '<select id="td-apply-team-select"></select><button>參加賽事</button>';
+      }),
+      _isFriendlyTournamentRecord: jest.fn(() => true),
+    };
+    require('../../js/modules/tournament/tournament-friendly-roster.js');
+
+    global.App.renderRegisterButton({ id: 'ct_test', teamEntries: [] });
+
+    expect(actionMain.innerHTML).toContain('參加賽事');
+    expect(actionMain.innerHTML).not.toContain('等待負責人先加入');
+  });
+
   test('shows pending state for the selected club after application is submitted', () => {
     const area = { innerHTML: '' };
     global.document = { getElementById: id => (id === 'td-register-area' ? area : null) };
@@ -496,7 +531,7 @@ describe('friendly tournament teams tab actions', () => {
       _getFriendlyResponsibleTeams: jest.fn(() => []),
       _getUserTeamIds: jest.fn(user => user?.teamIds || []),
     };
-    require('../../js/modules/tournament/tournament-friendly-state.js');
+    require('../../js/modules/tournament/tournament-friendly-apply-state.js');
 
     const ctx = global.App._getFriendlyTournamentApplyContext(tournament, {
       tournament,
@@ -533,7 +568,7 @@ describe('friendly tournament teams tab actions', () => {
       _getUserTeamIds: jest.fn(item => item?.teamIds || []),
       _isTournamentTeamOfficerForTeam: jest.fn((team, item) => team?.captainUid === item?.uid),
     };
-    require('../../js/modules/tournament/tournament-friendly-state.js');
+    require('../../js/modules/tournament/tournament-friendly-apply-state.js');
 
     const ctx = global.App._getFriendlyTournamentApplyContext({
       id: 'ct_test',
@@ -559,7 +594,7 @@ describe('friendly tournament teams tab actions', () => {
       _getUserTeamIds: jest.fn(() => []),
       _isTournamentTeamOfficerForTeam: jest.fn((team, item) => team?.captainUid === item?.uid),
     };
-    require('../../js/modules/tournament/tournament-friendly-state.js');
+    require('../../js/modules/tournament/tournament-friendly-apply-state.js');
 
     const ctx = global.App._getFriendlyTournamentApplyContext({
       id: 'ct_test',
@@ -591,7 +626,7 @@ describe('friendly tournament teams tab actions', () => {
       _getUserTeamIds: jest.fn(() => []),
       _isTournamentTeamOfficerForTeam: jest.fn((team, item) => team?.captainUid === item?.uid),
     };
-    require('../../js/modules/tournament/tournament-friendly-state.js');
+    require('../../js/modules/tournament/tournament-friendly-apply-state.js');
 
     const ctx = global.App._getFriendlyTournamentApplyContext({
       id: 'ct_test',
@@ -607,6 +642,63 @@ describe('friendly tournament teams tab actions', () => {
 
     expect(ctx.availableTeams.map(team => team.id)).toEqual(['tm_removed', 'tm_rejected']);
     expect(ctx.availableTeams.every(team => team.hasPriorRejectedApplication)).toBe(true);
+  });
+
+  test('deduplicates rejected application aliases into one re-applyable club option', () => {
+    const user = { uid: 'cap_uid', role: 'user', teamIds: ['legacy_doc'] };
+    const team = {
+      id: 'tm_current',
+      _docId: 'legacy_doc',
+      name: '台中星期二足球俱樂部',
+      captainUid: 'cap_uid',
+      sportTag: 'football',
+    };
+    global.ApiService = {
+      getCurrentUser: () => user,
+      getTeams: () => [team],
+      getTeam: teamId => (teamId === 'tm_current' || teamId === 'legacy_doc' ? team : null),
+    };
+    global.App = {
+      _isTournamentGlobalAdmin: jest.fn(() => false),
+      _getFriendlyResponsibleTeams: jest.fn(() => [team]),
+      _getUserTeamIds: jest.fn(item => item?.teamIds || []),
+      _isTournamentTeamOfficerForTeam: jest.fn((item, currentUser) => item?.captainUid === currentUser?.uid),
+    };
+    require('../../js/modules/tournament/tournament-friendly-apply-state.js');
+
+    const ctx = global.App._getFriendlyTournamentApplyContext({
+      id: 'ct_test',
+      hostTeamId: 'tm_host',
+      sportTag: 'football',
+    }, {
+      applications: [
+        {
+          id: 'ta_legacy_doc',
+          teamId: 'legacy_doc',
+          teamName: '台中星期二足球俱樂部',
+          status: 'rejected',
+        },
+      ],
+      entries: [],
+    }, user);
+
+    expect(ctx.availableTeams).toHaveLength(1);
+    expect(ctx.availableTeams[0].id).toBe('legacy_doc');
+    expect(ctx.availableTeams[0].canonicalTeamId).toBe('tm_current');
+    expect(ctx.availableTeams[0].hasPriorRejectedApplication).toBe(true);
+    expect(ctx.rejectedTeams).toHaveLength(0);
+
+    global.App.renderRegisterButton = jest.fn();
+    global.App.renderTournamentTab = jest.fn();
+    require('../../js/modules/tournament/tournament-friendly-detail-view.js');
+    const actionTeams = global.App._getFriendlyTournamentActionTeams({
+      availableTeams: ctx.availableTeams,
+      pendingTeams: [],
+      approvedTeams: [],
+      rejectedTeams: [{ teamId: 'legacy_doc', canonicalTeamId: 'tm_current', teamName: '台中星期二足球俱樂部', status: 'rejected' }],
+    });
+    expect(actionTeams).toHaveLength(1);
+    expect(actionTeams[0].status).toBe('available');
   });
 
   test('loads joined team docs for non-admin apply selector on cold detail refresh', async () => {
@@ -629,7 +721,7 @@ describe('friendly tournament teams tab actions', () => {
       _getUserTeamIds: jest.fn(item => item?.teamIds || []),
       _isTournamentTeamOfficerForTeam: jest.fn((team, item) => team?.captainUid === item?.uid),
     };
-    require('../../js/modules/tournament/tournament-friendly-state.js');
+    require('../../js/modules/tournament/tournament-friendly-apply-state.js');
 
     const teams = await global.App._ensureFriendlyTournamentApplyTeamsLoaded(user);
 
@@ -660,7 +752,7 @@ describe('friendly tournament teams tab actions', () => {
       _getUserTeamIds: jest.fn(() => []),
       _isTournamentTeamOfficerForTeam: jest.fn((team, item) => team?.captainUid === item?.uid),
     };
-    require('../../js/modules/tournament/tournament-friendly-state.js');
+    require('../../js/modules/tournament/tournament-friendly-apply-state.js');
 
     const teams = await global.App._ensureFriendlyTournamentApplyTeamsLoaded(user);
 
@@ -697,7 +789,7 @@ describe('friendly tournament teams tab actions', () => {
       getTournamentStatus: jest.fn(() => 'open'),
       isTournamentEnded: jest.fn(() => false),
     };
-    require('../../js/modules/tournament/tournament-friendly-state.js');
+    require('../../js/modules/tournament/tournament-friendly-apply-state.js');
     require('../../js/modules/tournament/tournament-friendly-detail-view.js');
 
     global.App.renderRegisterButton({ id: 'ct_test', hostTeamId: 'tm_host', sportTag: 'football' });

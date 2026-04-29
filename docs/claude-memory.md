@@ -1806,3 +1806,10 @@
 - **修復**：將審核中改為反灰可點狀態按鈕並 toast「審核中請耐心等待」；分享按鈕改走 `_withButtonLoading(..., '分享中...')` 並補缺資料/重複點擊提示；賽事詳情載入 event share helpers；有取消/撤回動作時桌機版 action grid 改為三欄。
 - **驗證**：`node --check` 檢查修改 JS；`npm run test:unit -- tests/unit/tournament-friendly-detail-view.test.js tests/unit/tournament-share.test.js tests/unit/script-loader.test.js --runInBand` 通過 70 suites / 2541 tests。
 - **教訓**：詳情頁的分享功能不能只載入 tournament builder，還要保證 action sheet/copy/LINE fallback helper 一起進入 page group；所有非立即完成的按鈕都要有 visible feedback。
+
+### 2026-04-29 — 賽事報名俱樂部別名去重與重新報名修正 [中型]
+- **問題**：同一個俱樂部可能在賽事詳情報名下拉中同時出現一般選項與「未通過」選項；選到不同項目時，一邊顯示可重新報名，一邊又顯示「俱樂部審核未通過」或被球員名單提示覆蓋。
+- **原因**：application/entry 使用的 `teamId` 可能與目前 teams cache 的 `id/_docId/docId` 不同，狀態比對只用 raw id；detail view 又把 rejected application 當成獨立 action option；roster 模組只排除 pending/approved/rejected，沒有排除 available 報名狀態。
+- **修復**：新增 `tournament-friendly-apply-state.js`，集中友誼賽隊伍別名 canonical key 與可報名狀態判斷，合併 `id/teamId/_docId/docId`；terminal rejected/removed application 會回歸到唯一可重新報名的 available option，並保留既有 application teamId 供 callable 覆寫舊申請；detail view 不再把 rejected history 獨立塞進下拉；roster 模組不再覆蓋 available 報名區。
+- **驗證**：`node --check js/modules/tournament/tournament-friendly-state.js`、`node --check js/modules/tournament/tournament-friendly-detail-view.js`、`node --check js/modules/tournament/tournament-friendly-roster.js`、`npm run test:unit -- tests/unit/tournament-friendly-detail-view.test.js --runInBand` 通過 70 suites / 2553 tests。
+- **教訓**：賽事系統同時碰到 teams、applications、entries 時，不可只用單一 raw id 比對；任何狀態下拉都要先做身份合併，再決定 UI 狀態，避免同一俱樂部被拆成兩個選項。

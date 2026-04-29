@@ -42,6 +42,7 @@ Object.assign(App, {
       || priorApplicationStatus === 'rejected';
     return {
       id,
+      canonicalTeamId: String(team?.canonicalTeamId || team?.sourceTeamId || id).trim(),
       status,
       name: String(team?.name || team?.teamName || '未命名俱樂部').trim(),
       image: team?.image || team?.teamImage || '',
@@ -57,15 +58,15 @@ Object.assign(App, {
     const push = (items, status) => {
       (items || []).forEach(item => {
         const option = this._normalizeFriendlyTournamentActionTeam(item, status);
-        if (!option || seen.has(option.id)) return;
-        seen.add(option.id);
+        const dedupeKey = option?.canonicalTeamId || option?.id;
+        if (!option || seen.has(dedupeKey)) return;
+        seen.add(dedupeKey);
         options.push(option);
       });
     };
     push(ctx.pendingTeams, 'pending');
     push(ctx.approvedTeams, 'approved');
     push(ctx.availableTeams, 'available');
-    push(ctx.rejectedTeams, 'rejected');
     return options;
   },
 

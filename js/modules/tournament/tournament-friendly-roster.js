@@ -313,7 +313,8 @@ Object.assign(App, {
     const actionMain = area?.querySelector('.tfd-action-main');
     if (!card || !actionMain) return;
     const applicationActionStatus = String(actionMain.dataset?.friendlyTeamActionStatus || card.dataset?.friendlyTeamActionStatus || '').trim();
-    if (['pending', 'approved', 'rejected'].includes(applicationActionStatus)) return;
+    if (['available', 'pending', 'approved', 'rejected'].includes(applicationActionStatus)) return;
+    if (actionMain.querySelector('#td-apply-team-select') || actionMain.querySelector('[onclick*="registerTournament"]')) return;
 
     const state = this._getFriendlyTournamentState?.(tournament.id) || { tournament, entries: tournament.teamEntries || [] };
     const status = this.getTournamentStatus(tournament);

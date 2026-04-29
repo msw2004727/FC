@@ -179,6 +179,7 @@ describe('resolvePageScripts — real project groups', () => {
       'js/modules/event/event-share.js',
       'js/modules/tournament/tournament-share-builders.js',
       'js/modules/tournament/tournament-detail.js',
+      'js/modules/tournament/tournament-friendly-apply-state.js',
       'js/modules/tournament/tournament-friendly-state.js',
       'js/modules/tournament/tournament-friendly-detail.js',
       'js/modules/tournament/tournament-friendly-withdraw.js',
