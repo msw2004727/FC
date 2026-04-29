@@ -94,6 +94,12 @@
   color: var(--text-primary);
   min-width: 0;
 }
+#page-tournament-detail .page-header h2 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .td-tabs-row {
   display: flex;
   align-items: stretch;
@@ -107,32 +113,33 @@
 }
 .td-toolbar {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   flex-shrink: 0;
+  gap: .4rem;
 }
 .td-edit-btn,
 .td-delete-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 112px;
-  padding: 0 1rem;
-  border: none;
+  min-width: 54px;
+  height: 32px;
+  padding: 0 .65rem;
+  border: 1px solid transparent;
   border-radius: var(--radius);
   background: #16a34a;
   color: #fff;
-  font-size: .82rem;
+  font-size: .78rem;
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
   transition: filter var(--transition), transform var(--transition);
 }
-.td-toolbar {
-  gap: .45rem;
-}
 .td-delete-btn {
-  background: var(--danger);
+  border-color: var(--danger);
+  background: var(--bg-card);
+  color: var(--danger);
 }
 .td-edit-btn:hover,
 .td-delete-btn:hover {
@@ -258,12 +265,20 @@
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1.3;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .tfd-team-status {
   font-size: .72rem;
   color: var(--text-muted);
   margin-top: .12rem;
   line-height: 1.5;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .tfd-team-roster {
   flex: 1;
@@ -347,6 +362,11 @@
   color: var(--text-secondary);
 }
 .tfd-empty-text {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: .74rem;
   color: var(--text-muted);
 }
@@ -397,43 +417,83 @@
 
 @media (max-width: 640px) {
   .td-tabs-row {
-    flex-wrap: wrap;
+    display: block;
   }
   .td-toolbar {
-    width: 100%;
-    flex-direction: column;
+    width: auto;
+    flex-direction: row;
+    margin-left: auto;
   }
   .td-edit-btn,
   .td-delete-btn {
-    width: 100%;
-    min-height: 42px;
+    min-width: 48px;
+    height: 30px;
+    padding: 0 .55rem;
   }
   .tfd-action-grid {
     grid-template-columns: 1fr;
   }
   .tfd-team-row {
-    flex-direction: column;
-    align-items: stretch;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .35rem .55rem;
+    padding: .62rem;
   }
   .tfd-team-side {
+    grid-column: 1;
+    grid-row: 1;
     width: 100%;
+    gap: .55rem;
+  }
+  .tfd-team-thumb {
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    flex: 0 0 52px;
+  }
+  .tfd-team-roster {
+    grid-column: 1;
+    grid-row: 2;
+    flex-wrap: nowrap;
+    overflow: hidden;
   }
   .tfd-team-action {
-    width: 100%;
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    width: auto;
     margin-left: 0;
     justify-content: flex-end;
+    align-self: center;
+    justify-self: end;
   }
   .tfd-team-withdraw-btn,
   .tfd-entry-remove-btn,
   .tfd-entry-withdraw-btn {
-    min-height: 38px;
+    min-width: 74px;
+    min-height: 34px;
+    padding: .3rem .55rem;
   }
   .tfd-review-actions {
-    width: 100%;
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    width: auto;
+    flex-direction: column;
+    align-self: center;
+    justify-self: end;
   }
   .tfd-review-actions .primary-btn,
   .tfd-review-actions .outline-btn {
-    flex: 1;
+    flex: 0 0 auto;
+    min-width: 48px;
+    padding: .32rem .5rem;
+  }
+  .tfd-member-chip {
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .tfd-picker-option {
     padding: .72rem;
@@ -619,7 +679,7 @@
 [data-theme="dark"] .td-info-label { color: var(--text-muted); }
 [data-theme="dark"] .td-edit-btn { background: #166534; }
 [data-theme="dark"] .td-edit-btn:hover { background: #15803d; }
-[data-theme="dark"] .td-delete-btn { background: #b91c1c; }
+[data-theme="dark"] .td-delete-btn { background: transparent; color: var(--danger); border-color: var(--danger); }
 
 /* ─── Form validation error state ─── */
 .ce-row.tf-field-error input,

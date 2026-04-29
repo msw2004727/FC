@@ -47,6 +47,11 @@ Object.assign(App, {
         : '';
       title.innerHTML = `${escapeHTML(record.name || '賽事載入中')}${favHtml}`;
     }
+    const toolbar = document.getElementById('td-toolbar');
+    if (toolbar) {
+      toolbar.innerHTML = '';
+      toolbar.style.display = 'none';
+    }
 
     const registerArea = document.getElementById('td-register-area');
     if (registerArea) {

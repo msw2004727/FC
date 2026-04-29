@@ -213,6 +213,7 @@ Object.assign(App, {
     const emptySlots = Math.max(0, teamLimit - approvedEntries.length);
 
     const entryRows = approvedEntries.map(entry => {
+      const teamName = entry.teamName || '未命名俱樂部';
       const roster = Array.isArray(entry.memberRoster) && entry.memberRoster.length
         ? entry.memberRoster.map(member => `<span class="tfd-member-chip">${escapeHTML(member.name || member.uid)}</span>`).join('')
         : '<span class="tfd-empty-text">尚無隊員報名</span>';
@@ -225,9 +226,9 @@ Object.assign(App, {
       return `
         <div class="tfd-team-row">
           <div class="tfd-team-side">
-            <div class="tfd-team-thumb">${entry.teamImage ? `<img src="${entry.teamImage}" alt="${escapeHTML(entry.teamName)}">` : `<span>${escapeHTML((entry.teamName || '?').slice(0, 1))}</span>`}</div>
+            <div class="tfd-team-thumb">${entry.teamImage ? `<img src="${entry.teamImage}" alt="${escapeHTML(teamName)}">` : `<span>${escapeHTML((teamName || '?').slice(0, 1))}</span>`}</div>
             <div class="tfd-team-meta">
-              <div class="tfd-team-name">${escapeHTML(entry.teamName || '未命名俱樂部')}</div>
+              <div class="tfd-team-name" title="${escapeHTML(teamName)}">${escapeHTML(teamName)}</div>
               <div class="tfd-team-status">${entry.entryStatus === 'host' ? '主辦俱樂部' : '已核准參賽'}</div>
             </div>
           </div>
@@ -239,6 +240,8 @@ Object.assign(App, {
     const pendingRows = visibleApplications.map(application => {
       const isRejected = application.status === 'rejected';
       const isViewerTeamOfficer = this._isFriendlyTournamentViewerTeamOfficer?.(application.teamId, viewer);
+      const applicationTeamName = application.teamName || '未命名俱樂部';
+      const requesterName = application.requestedByName || '申請人';
       const actions = canManage && !isRejected
         ? `<div class="tfd-review-actions">
              <button type="button" class="primary-btn small" onclick="return App.reviewFriendlyTournamentApplication('${escapeHTML(tournament.id)}','${escapeHTML(application.id)}','approve', this)">確認</button>
@@ -250,13 +253,13 @@ Object.assign(App, {
       return `
         <div class="tfd-team-row tfd-team-row-pending${isRejected ? ' tfd-team-row-rejected' : ''}">
           <div class="tfd-team-side">
-            <div class="tfd-team-thumb">${application.teamImage ? `<img src="${application.teamImage}" alt="${escapeHTML(application.teamName)}">` : `<span>${escapeHTML((application.teamName || '?').slice(0, 1))}</span>`}</div>
+            <div class="tfd-team-thumb">${application.teamImage ? `<img src="${application.teamImage}" alt="${escapeHTML(applicationTeamName)}">` : `<span>${escapeHTML((applicationTeamName || '?').slice(0, 1))}</span>`}</div>
             <div class="tfd-team-meta">
-              <div class="tfd-team-name">${escapeHTML(application.teamName || '未命名俱樂部')}</div>
-              <div class="tfd-team-status">${isRejected ? '申請未通過' : '審核中，僅主辦方與申請方可見'}</div>
+              <div class="tfd-team-name" title="${escapeHTML(applicationTeamName)}">${escapeHTML(applicationTeamName)}</div>
+              <div class="tfd-team-status">${isRejected ? '申請未通過' : '審核中'}</div>
             </div>
           </div>
-          <div class="tfd-team-roster"><span class="tfd-empty-text">${escapeHTML(application.requestedByName || '申請人')}</span></div>
+          <div class="tfd-team-roster" title="${escapeHTML(requesterName)}"><span class="tfd-empty-text">${escapeHTML(requesterName)}</span></div>
           ${actions}
         </div>`;
     }).join('');
@@ -270,7 +273,7 @@ Object.assign(App, {
             <div class="tfd-team-status">保留友誼賽名額</div>
           </div>
         </div>
-        <div class="tfd-team-roster"><span class="tfd-empty-text">主辦核准後將顯示於此</span></div>
+        <div class="tfd-team-roster"><span class="tfd-empty-text">核准後顯示</span></div>
       </div>`).join('');
 
     return `

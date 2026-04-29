@@ -83,8 +83,8 @@ Object.assign(App, {
     // Safety: tournament.id is escaped
     const safeId = escapeHTML(tournament.id);
     toolbar.innerHTML = `
-      ${canManage ? `<button class="td-edit-btn" onclick="App.openEditTournamentSafe('${safeId}')">編輯賽事</button>` : ''}
-      ${canDelete ? `<button class="td-delete-btn" onclick="App.openDeleteTournamentSafe('${safeId}', this)">刪除賽事</button>` : ''}
+      ${canManage ? `<button class="td-edit-btn" onclick="App.openEditTournamentSafe('${safeId}')">編輯</button>` : ''}
+      ${canDelete ? `<button class="td-delete-btn" onclick="App.openDeleteTournamentSafe('${safeId}', this)">刪除</button>` : ''}
     `;
     toolbar.style.display = 'flex';
   },
@@ -130,14 +130,18 @@ Object.assign(App, {
       row.appendChild(tabs);
     }
 
+    const header = document.querySelector('#page-tournament-detail .page-header');
     let toolbar = document.getElementById('td-toolbar');
     if (!toolbar) {
       toolbar = document.createElement('div');
       toolbar.id = 'td-toolbar';
       toolbar.className = 'td-toolbar';
       toolbar.style.display = 'none';
-      row.appendChild(toolbar);
-    } else if (toolbar.parentElement !== row) {
+    }
+
+    if (header && toolbar.parentElement !== header) {
+      header.appendChild(toolbar);
+    } else if (!header && toolbar.parentElement !== row) {
       row.appendChild(toolbar);
     }
 

@@ -265,6 +265,8 @@ describe('friendly tournament teams tab actions', () => {
 
     expect(html).toContain('撤回申請');
     expect(html).toContain("return App.withdrawFriendlyTournamentTeam('ct_test','tm_guest', this)");
+    expect(html).toContain('<div class="tfd-team-status">審核中</div>');
+    expect(html).not.toContain('僅主辦方與申請方可見');
     expect(html).not.toContain('tfd-review-actions');
   });
 
