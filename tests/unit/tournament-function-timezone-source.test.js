@@ -20,4 +20,20 @@ describe('tournament function timezone contract', () => {
     expect(source).toContain('const regStart = new Date(regStartMs).toISOString();');
     expect(source).toContain('const regEnd = new Date(regEndMs).toISOString();');
   });
+
+  test('createFriendlyTournament creates the participating host creator roster member atomically', () => {
+    const source = fs.readFileSync(path.join(projectRoot, 'functions/index.js'), 'utf8');
+
+    expect(source).toContain('function buildServerTournamentRosterMember');
+    expect(source).toContain('source: "host_create"');
+    expect(source).toContain('const hostMember = hostEntry && root.hostParticipates === true');
+    expect(source).toContain('batch.create(entryRef.collection("members").doc(callerUid), hostMember);');
+  });
+
+  test('application approval and host creation share the same roster member shape', () => {
+    const source = fs.readFileSync(path.join(projectRoot, 'functions/index.js'), 'utf8');
+
+    expect(source).toContain('tx.set(applicantMemberRef, buildServerTournamentRosterMember({');
+    expect(source).toContain('source: "application_approval"');
+  });
 });

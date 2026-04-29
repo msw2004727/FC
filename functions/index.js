@@ -755,6 +755,21 @@ function buildServerHostEntry({ teamId, teamData, callerUid, callerName, countsT
   };
 }
 
+function buildServerTournamentRosterMember({ uid, name, source = "" }) {
+  const safeUid = String(uid || "").trim();
+  const safeName = String(name || safeUid).trim();
+  const safeSource = String(source || "").trim();
+  const member = {
+    uid: safeUid,
+    name: safeName,
+    joinedAt: FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  if (safeSource) member.source = safeSource;
+  return member;
+}
+
 function buildTournamentRootForCreate({ input, tournamentId, hostTeamId, teamData, callerUid, callerName, now = new Date(), hostParticipatesAllowed = true }) {
   const allowed = {};
   [
@@ -1338,6 +1353,13 @@ exports.createFriendlyTournament = onCall(
       callerName,
       countsTowardLimit: root.hostParticipates === true,
     }) : null;
+    const hostMember = hostEntry && root.hostParticipates === true
+      ? buildServerTournamentRosterMember({
+          uid: callerUid,
+          name: callerName,
+          source: "host_create",
+        })
+      : null;
 
     const tournamentRef = db.collection("tournaments").doc(tournamentId);
     const batch = db.batch();
@@ -1345,6 +1367,9 @@ exports.createFriendlyTournament = onCall(
     if (hostEntry) {
       const entryRef = tournamentRef.collection("entries").doc(hostTeamId);
       batch.create(entryRef, hostEntry);
+      if (hostMember) {
+        batch.create(entryRef.collection("members").doc(callerUid), hostMember);
+      }
     }
     await batch.commit();
 
@@ -1736,14 +1761,11 @@ exports.reviewFriendlyTournamentApplication = onCall(
           registeredTeams = buildRegisteredTeamIdsFromEntries(entriesSnap.docs, { additionalTeamId: applicationTeamId });
         }
         if (applicantMemberRef && !applicantAlreadyOnThisTeam && !applicantAlreadyOnAnotherTeam) {
-          tx.set(applicantMemberRef, {
+          tx.set(applicantMemberRef, buildServerTournamentRosterMember({
             uid: applicantUid,
             name: applicantName,
-            joinedAt: FieldValue.serverTimestamp(),
-            createdAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp(),
             source: "application_approval",
-          }, { merge: true });
+          }), { merge: true });
           autoRosterAdded = true;
         } else if (applicantAlreadyOnAnotherTeam) {
           autoRosterSkippedReason = "already_joined_another_team";

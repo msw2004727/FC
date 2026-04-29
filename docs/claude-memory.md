@@ -1906,3 +1906,9 @@
 - **原因**：選項 HTML 直接用 inline `label + input[type=radio]`，缺少專屬選取狀態樣式與主題分層。
 - **修復**：改為整張俱樂部卡片點選，使用 `aria-checked` 與 `is-selected` 管理狀態；被選卡片改成藍綠漸層、邊框與小型勾選標記，並補上深色主題色階；卡片文字改短且固定單行省略，避免手機亂斷行。
 - **教訓**：高頻操作彈窗要讓「可點擊區域」與「選取狀態」一眼可懂，避免表單控件搶走視覺焦點。
+
+### 2026-04-30 賽事主辦建立後創立人未進入參賽名單 [中型]
+- **問題**: 主辦單位建立友誼賽後，俱樂部頁籤只看到主辦 entry，卻沒有顯示創立人/主辦人的隊員名單。
+- **原因**: 建立流程只寫 `entries/{hostTeamId}` 的 `approvedByUid/approvedByName`，沒有同步建立 `entries/{hostTeamId}/members/{creatorUid}`；前端 roster 正確讀 members 子集合，因此畫面不會顯示主辦創立人。
+- **修復**: `createFriendlyTournament` 在主辦俱樂部實際參賽時，和 root + host entry 同 batch 建立 creator member；審核通過自動加入名單也共用同一 roster member builder，避免兩條流程欄位形狀不同。
+- **驗收**: `node --check functions/index.js`、targeted tournament/function tests 通過；部署 functions 後新建立賽事會直接讀到主辦創立人。
