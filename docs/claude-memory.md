@@ -1824,3 +1824,17 @@
 - **修復**：新增 `tournament-friendly-apply-state.js`，集中友誼賽隊伍別名 canonical key 與可報名狀態判斷，合併 `id/teamId/_docId/docId`；terminal rejected/removed application 會回歸到唯一可重新報名的 available option，並保留既有 application teamId 供 callable 覆寫舊申請；detail view 不再把 rejected history 獨立塞進下拉；roster 模組不再覆蓋 available 報名區。
 - **驗證**：`node --check js/modules/tournament/tournament-friendly-state.js`、`node --check js/modules/tournament/tournament-friendly-detail-view.js`、`node --check js/modules/tournament/tournament-friendly-roster.js`、`npm run test:unit -- tests/unit/tournament-friendly-detail-view.test.js --runInBand` 通過 70 suites / 2553 tests。
 - **教訓**：賽事系統同時碰到 teams、applications、entries 時，不可只用單一 raw id 比對；任何狀態下拉都要先做身份合併，再決定 UI 狀態，避免同一俱樂部被拆成兩個選項。
+
+### 2026-04-29 — SEO 後台決策化與 GSC 快照覆蓋補強 [中型]
+- **問題**：SEO 後台原本偏資料展示，「前兩頁可見關鍵詞」容易讓 1 次曝光這類低樣本 GSC 資料被誤解成穩定排名；URL Inspection 也主要看首頁與 SEO 著陸頁，沒有完整承接 blog 內容頁。
+- **原因**：dashboard 只列出 overview/pages/queries/urlStatus，缺少樣本可信度、品牌/非品牌拆分與可執行待辦；`scripts/gsc-snapshot.js` 的 query rowLimit 只有 50，且 URL 檢查清單為固定陣列。
+- **修復**：SEO 後台新增「SEO 待辦 / 警示」、「SEO 頁面機會」、「品牌 / 非品牌查詢」、「Search Appearance」與查詢詞樣本可信度；將前 20 名查詢詞命名改成 GSC 平均排名語意；GSC snapshot query rowLimit 提升到 250，URL Inspection 改為固定清單合併 `sitemap.xml`，並補入 `/blog/` 相關頁。
+- **驗證**：`node --check js/modules/admin-seo/seo-dashboard.js`、`node --check scripts/gsc-snapshot.js`、`git diff --check`、`npm test` 通過 70 suites / 2567 tests；另以 Node smoke test 驗證 dashboard HTML 會包含 SEO 待辦、前 20 名查詢詞、頁面機會、品牌/非品牌、Search Appearance 與樣本提示。
+- **教訓**：SEO 後台不能只展示 GSC 原始數字，必須把低樣本、平均排名與手動搜尋浮動講清楚；內容型 SEO 頁面增加後，URL Inspection 應從 sitemap 擴展，避免後台只監控舊頁面。
+
+### 2026-04-29 — 活動俱樂部團隊席位報名上線 [大型]
+- **問題**：俱樂部職員需要用俱樂部身份替現有活動保留一組團隊名額，但名額統計、候補遞補、簽到簽退、放鴿子與後台紀錄仍必須維持真人資料正確，不能讓團隊席位把活動人數或統計算壞。
+- **原因**：既有活動報名模型只有個人與候補，`current` 直接代表真人報名數；若直接用虛擬 registration 代表俱樂部席位，會污染 no-show、attendance、activityRecords 與候補遞補邏輯。
+- **修復**：新增 `adjustTeamReservation(asia-east1)` callable 與前端團隊/個人報名入口；團隊席位改用 team reservation summary 計入容量，真人仍各自保留 registration/activityRecord；同俱樂部成員報名會優先消耗剩餘席位，超過席位才依活動容量與候補規則處理。管理列表改成同俱樂部席位集中顯示，保留真人簽到、簽退、放鴿子欄位，並補齊操作 log。
+- **驗證**：`node --check` 覆蓋 functions 與活動相關 JS；`npm test -- --runInBand` 通過 72 suites / 2572 tests；`npm run test:rules` 通過 5 suites / 490 tests；團隊席位 targeted tests 通過。已部署 functions、firestore.rules，並 push 前端版本 `0.20260429zk`。
+- **教訓**：容量顯示要分清 `realCurrent` 與「尚未被真人使用的團隊席位」；所有後台統計只應吃真人 registration / attendance，團隊席位只影響容量與視覺群組，避免未來再出現佔位與真人統計互相污染。
