@@ -214,6 +214,26 @@ async function fetchByDim(token, startDate, endDate, dim, rowLimit = 50) {
   }));
 }
 
+function buildFirstTwoPageQueries(queries, limit = 30) {
+  if (!Array.isArray(queries)) return [];
+  return queries
+    .filter(q => q && q.query && Number(q.position) > 0 && Number(q.position) <= 20)
+    .sort((a, b) => {
+      const posDiff = Number(a.position || 0) - Number(b.position || 0);
+      if (Math.abs(posDiff) > 0.01) return posDiff;
+      return Number(b.impressions || 0) - Number(a.impressions || 0);
+    })
+    .slice(0, limit)
+    .map(q => ({
+      query: q.query,
+      impressions: q.impressions || 0,
+      clicks: q.clicks || 0,
+      ctr: q.ctr || 0,
+      position: q.position || 0,
+      pageBucket: Number(q.position || 0) <= 10 ? 'page1' : 'page2',
+    }));
+}
+
 async function fetchSitemap(token) {
   const res = await gscSitemaps(token);
   return (res.sitemap || []).map(s => ({
@@ -297,6 +317,8 @@ async function main() {
     fetchByDim(token, start90, end, 'searchAppearance', 10).catch(() => []),
   ]);
   console.log('  ✓ pages:', pages.length, '| devices:', devices.length, '| countries:', countries.length, '| queries:', queries.length);
+  const firstTwoPageQueries = buildFirstTwoPageQueries(queries);
+  console.log('  ✓ first-two-page queries:', firstTwoPageQueries.length);
 
   console.log('→ 取 sitemap 狀態...');
   const sitemaps = await fetchSitemap(token);
@@ -334,6 +356,7 @@ async function main() {
     devices,
     countries,
     queries,
+    firstTwoPageQueries,
     searchAppearance,
     typeBreakdown,
     sitemaps,

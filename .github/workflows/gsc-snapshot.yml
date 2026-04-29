@@ -5,6 +5,15 @@ name: GSC Daily Snapshot
 # - 手動：Actions 頁面可隨時觸發
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/gsc-snapshot.yml'
+      - 'scripts/gsc-snapshot.js'
+      - 'js/modules/admin-seo/**'
+      - 'pages/admin-seo.html'
+      - 'css/admin-seo.css'
   schedule:
     - cron: '0 3 * * *'
 

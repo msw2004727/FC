@@ -77,6 +77,11 @@ Object.assign(App, {
       </div>
 
       <div class="seo-section">
+        <h3>🏅 前兩頁可見關鍵詞（90 天）${info('firstTwoPageQueries')}</h3>
+        ${this._seoFirstTwoPageQueriesHTML(s.firstTwoPageQueries || this._seoBuildFirstTwoPageQueries(s.queries))}
+      </div>
+
+      <div class="seo-section">
         <h3>🔎 熱門搜尋詞（90 天）${info('queries')}</h3>
         ${this._seoQueriesHTML(s.queries)}
       </div>
@@ -229,6 +234,41 @@ Object.assign(App, {
     `;
   },
 
+  _seoBuildFirstTwoPageQueries(queries) {
+    if (!Array.isArray(queries)) return [];
+    return queries
+      .filter(q => q && q.query && Number(q.position) > 0 && Number(q.position) <= 20)
+      .sort((a, b) => {
+        const posDiff = Number(a.position || 0) - Number(b.position || 0);
+        if (Math.abs(posDiff) > 0.01) return posDiff;
+        return Number(b.impressions || 0) - Number(a.impressions || 0);
+      })
+      .slice(0, 30)
+      .map(q => ({
+        ...q,
+        pageBucket: Number(q.position || 0) <= 10 ? 'page1' : 'page2',
+      }));
+  },
+
+  _seoFirstTwoPageQueriesHTML(queries) {
+    if (!Array.isArray(queries) || !queries.length) {
+      return '<p class="seo-empty-note">目前 GSC 可見查詢詞中，尚無平均排名 20 名內的資料；也可能是低曝光查詢被 GSC 隱私門檻隱藏。</p>';
+    }
+    return `
+      <table class="seo-table">
+        <thead><tr><th>查詢</th><th>頁次</th><th>曝光</th><th>點擊</th><th>CTR</th><th>平均排名</th></tr></thead>
+        <tbody>
+          ${queries.map(q => {
+            const bucket = q.pageBucket || (Number(q.position || 0) <= 10 ? 'page1' : 'page2');
+            const bucketLabel = bucket === 'page1' ? '第 1 頁' : '第 2 頁';
+            return `<tr><td>${this._esc(q.query)}</td><td>${bucketLabel}</td><td>${this._fmtNum(q.impressions)}</td><td>${this._fmtNum(q.clicks)}</td><td>${this._fmtPct(q.ctr)}</td><td>${this._fmtPos(q.position)}</td></tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+      <p class="seo-empty-note" style="margin-top:.5rem">判定方式：Google Search Console 90 天查詢資料，平均排名 ≤ 20 視為「前兩頁可見」。實際即時搜尋會因地區、裝置、個人化而浮動。</p>
+    `;
+  },
+
   _seoSitemapHTML(sitemaps) {
     if (!Array.isArray(sitemaps) || !sitemaps.length) return '<p class="seo-empty-note">無資料</p>';
     return sitemaps.map(s => {
@@ -356,6 +396,16 @@ Object.assign(App, {
           + '<li><b>DISCOVER</b> — Android Google App 主頁推薦（需高流量）</li>'
           + '</ul>'
           + '<p style="margin-top:.4rem;font-size:.82rem">目前以 WEB 為主。IMAGE 剛起步（sitemap 新增了 og.png）。</p>',
+      },
+      firstTwoPageQueries: {
+        title: '前兩頁可見關鍵詞',
+        body: '<p>此區會從 Google Search Console 的「查詢」資料中，自動挑出平均排名 20 名內的詞。</p>'
+          + '<ul>'
+          + '<li><b>第 1 頁</b> — 平均排名 1-10。</li>'
+          + '<li><b>第 2 頁</b> — 平均排名 10.1-20。</li>'
+          + '<li><b>已收錄推論</b> — 該查詢已產生曝光，代表 Google 曾在搜尋結果中顯示 ToosterX 頁面。</li>'
+          + '</ul>'
+          + '<p style="margin-top:.4rem;font-size:.82rem">注意：這是 GSC 的平均排名，不等於每一次手動 Google 搜尋都固定在同一位置；地區、裝置、語言與個人化都會造成差異。</p>',
       },
       queries: {
         title: '熱門搜尋詞說明',
