@@ -2000,3 +2000,9 @@
 - **原因**：用戶成長圖使用已被目前範圍過濾的 `users`，不是完整用戶來源；當月趨勢圖直接顯示 `MM/DD`。
 - **修復**：用戶成長圖改用 `allUsers` 作為來源，再由圖表自己切最近 12 個月；當月趨勢 X 軸只顯示日數。
 - **教訓**：標題寫固定區間的圖表，資料來源也要固定，不能沿用頁面篩選後的集合。
+
+### 2026-04-30 團隊報名佔位左側插旗圖修正 [小型]
+- **問題**：報名名單中團隊保留席位左側 badge 仍以文字「旗」呈現，不符合原本要使用 SVG 插旗圖的設計。
+- **原因**：`event-manage-attendance.js` 的 `teamSeatFlag` 直接把中文字塞進 button，沒有使用圖示。
+- **修復**：改為 inline SVG flag icon，保留既有藍色圓形 badge、tooltip 與點擊 toast。
+- **驗證**：`node --check js/modules/event/event-manage-attendance.js`；`npm test -- --runInBand --runTestsByPath tests/unit/event-detail-render.test.js`。
