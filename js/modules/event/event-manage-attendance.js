@@ -471,7 +471,7 @@ Object.assign(App, {
     // 編輯 / 完成 按鈕（右上角，僅管理員）
     const topBtn = canManage ? (tableEditing
       ? `<button style="font-size:.75rem;padding:.25rem .6rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);${isSubmitting ? 'cursor:not-allowed;opacity:.72' : 'cursor:pointer'}" ${isSubmitting ? 'disabled' : ''} onclick="App._confirmAllAttendance('${escapeHTML(eventId)}')">${isSubmitting ? '儲存中...' : '完成'}</button>`
-      : `<button style="font-size:.75rem;padding:.25rem .6rem;background:#1565c0;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="App._startTableEdit('${escapeHTML(eventId)}')">編輯</button>`
+      : `<button style="font-size:.75rem;padding:.25rem .6rem;background:#1565c0;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="App._startTableEdit('${escapeHTML(eventId)}')">管理名單</button>`
     ) : '';
 
     // 分隊排序按鈕（僅分隊活動顯示）
