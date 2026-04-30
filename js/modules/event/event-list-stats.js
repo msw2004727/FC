@@ -298,20 +298,32 @@ Object.assign(App, {
   //  User Signup Check
   // ══════════════════════════════════
 
-  /** 判斷當前用戶是否已報名（僅用 UID 比對 registrations，不 fallback displayName） */
-  _isUserSignedUp(e) {
-    const uid = ApiService.getCurrentUser?.()?.uid;
-    if (!uid) return false;
+  _getCurrentUserEventRegistrationState(e) {
+    const uid = String(ApiService.getCurrentUser?.()?.uid || '').trim();
+    if (!uid || !e?.id) return { signedUp: false, onWaitlist: false };
     const regs = ApiService.getRegistrationsByEvent?.(e.id) || [];
-    return regs.some(r => r.userId === uid && r.status !== 'cancelled' && r.status !== 'removed');
+    const isActive = r => r && r.status !== 'cancelled' && r.status !== 'removed';
+    const isMine = r => String(r?.userId || r?.uid || '').trim() === uid;
+    const myRegs = regs.filter(r => isActive(r) && isMine(r));
+    if (myRegs.length > 0) {
+      return { signedUp: true, onWaitlist: myRegs.some(r => r.status === 'waitlisted') };
+    }
+    const hasUid = list => Array.isArray(list) && list.some(item =>
+      String(item?.uid || item?.userId || '').trim() === uid
+    );
+    if (hasUid(e.waitlistWithUid)) return { signedUp: true, onWaitlist: true };
+    if (hasUid(e.participantsWithUid)) return { signedUp: true, onWaitlist: false };
+    return { signedUp: false, onWaitlist: false };
   },
 
-  /** 判斷當前用戶是否在候補名單中（僅用 UID 比對 registrations） */
+  /** 判斷當前用戶是否已報名（用 UID 比對 registrations；快取缺漏時用活動名單投影補判斷） */
+  _isUserSignedUp(e) {
+    return this._getCurrentUserEventRegistrationState(e).signedUp;
+  },
+
+  /** 判斷當前用戶是否在候補名單中（用 UID 比對 registrations；快取缺漏時用活動名單投影補判斷） */
   _isUserOnWaitlist(e) {
-    const uid = ApiService.getCurrentUser?.()?.uid;
-    if (!uid) return false;
-    const regs = ApiService.getRegistrationsByEvent?.(e.id) || [];
-    return regs.some(r => r.userId === uid && r.status === 'waitlisted');
+    return this._getCurrentUserEventRegistrationState(e).onWaitlist;
   },
 
 });

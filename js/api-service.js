@@ -932,8 +932,11 @@ const ApiService = {
   // ════════════════════════════════
 
   getRegistrationsByUser(userId) {
+    const targetUid = String(userId || '').trim();
+    if (!targetUid) return [];
     return this._src('registrations').filter(
-      r => r.userId === userId && r.status !== 'cancelled' && r.status !== 'removed'
+      r => (String(r.userId || '').trim() === targetUid || String(r.uid || '').trim() === targetUid)
+        && r.status !== 'cancelled' && r.status !== 'removed'
     );
   },
 
@@ -1782,8 +1785,11 @@ const ApiService = {
   getMyRegistrationsByEvent(eventId) {
     const uid = this.getCurrentUser()?.uid;
     if (!uid) return [];
+    const targetUid = String(uid).trim();
     return this._src('registrations').filter(
-      r => r.eventId === eventId && r.userId === uid && r.status !== 'cancelled' && r.status !== 'removed'
+      r => r.eventId === eventId
+        && (String(r.userId || '').trim() === targetUid || String(r.uid || '').trim() === targetUid)
+        && r.status !== 'cancelled' && r.status !== 'removed'
     );
   },
 

@@ -394,10 +394,18 @@ Object.assign(App, {
       if (_safetyUid && typeof db !== 'undefined') {
         var _self = this;
         var _safetyEventId = e.id;
-        db.collection('events').doc(e._docId).collection('registrations')
+        var _regsRef = db.collection('events').doc(e._docId).collection('registrations');
+        var _safetyQuery = _regsRef
           .where('userId', '==', _safetyUid)
           .limit(1)
-          .get({ source: 'server' })
+          .get({ source: 'server' });
+        _safetyQuery.then(function(snap) {
+          if (!snap.empty) return snap;
+          return _regsRef
+            .where('uid', '==', _safetyUid)
+            .limit(1)
+            .get({ source: 'server' });
+        })
           .then(function(snap) {
             var active = snap.docs.filter(function(d) {
               var s = d.data().status;
@@ -411,6 +419,7 @@ Object.assign(App, {
               active.forEach(function(d) {
                 var reg = Object.assign({}, d.data(), { _docId: d.id });
                 if (reg.userId && !reg.uid) reg.uid = reg.userId;
+                if (reg.uid && !reg.userId) reg.userId = reg.uid;
                 var cache = FirebaseService._cache.registrations || [];
                 if (!cache.some(function(r) { return r._docId === d.id; })) {
                   cache.push(reg);

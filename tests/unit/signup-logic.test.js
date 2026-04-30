@@ -1,7 +1,7 @@
 /**
  * Signup Logic — unit tests
  *
- * A1: _isUserSignedUp / _isUserOnWaitlist (event-list-stats.js:261-290)
+ * A1: _isUserSignedUp / _isUserOnWaitlist (event-list-stats.js:301-330)
  * A2: _docId backfill logic (firebase-crud.js:752-757)
  * A3: handleCancelSignup reg selection (event-detail-signup.js:435-449)
  *
@@ -15,18 +15,30 @@
 //  Adapted: inject user + regs instead of ApiService globals
 // ═══════════════════════════════════════════════════════
 
-function _isUserSignedUp(e, { user, getRegistrationsByEvent }) {
-  const uid = user?.uid;
-  if (!uid) return false;
+function _getCurrentUserEventRegistrationState(e, { user, getRegistrationsByEvent }) {
+  const uid = String(user?.uid || '').trim();
+  if (!uid || !e?.id) return { signedUp: false, onWaitlist: false };
   const regs = getRegistrationsByEvent?.(e.id) || [];
-  return regs.some(r => r.userId === uid && r.status !== 'cancelled' && r.status !== 'removed');
+  const isActive = r => r && r.status !== 'cancelled' && r.status !== 'removed';
+  const isMine = r => String(r?.userId || r?.uid || '').trim() === uid;
+  const myRegs = regs.filter(r => isActive(r) && isMine(r));
+  if (myRegs.length > 0) {
+    return { signedUp: true, onWaitlist: myRegs.some(r => r.status === 'waitlisted') };
+  }
+  const hasUid = list => Array.isArray(list) && list.some(item =>
+    String(item?.uid || item?.userId || '').trim() === uid
+  );
+  if (hasUid(e.waitlistWithUid)) return { signedUp: true, onWaitlist: true };
+  if (hasUid(e.participantsWithUid)) return { signedUp: true, onWaitlist: false };
+  return { signedUp: false, onWaitlist: false };
 }
 
-function _isUserOnWaitlist(e, { user, getRegistrationsByEvent }) {
-  const uid = user?.uid;
-  if (!uid) return false;
-  const regs = getRegistrationsByEvent?.(e.id) || [];
-  return regs.some(r => r.userId === uid && r.status === 'waitlisted');
+function _isUserSignedUp(e, deps) {
+  return _getCurrentUserEventRegistrationState(e, deps).signedUp;
+}
+
+function _isUserOnWaitlist(e, deps) {
+  return _getCurrentUserEventRegistrationState(e, deps).onWaitlist;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -74,6 +86,10 @@ function selectCancelReg(myRegs, isWaitlist) {
     || null;
   const extraRegs = myRegs.filter(r => r !== reg && r._docId);
   return { reg, extraRegs };
+}
+
+function resolveCancelRegistrationId(reg) {
+  return reg ? (reg.id || reg._docId || null) : null;
 }
 
 function isActiveSelfRegistrationRecord(reg) {
@@ -136,6 +152,11 @@ describe('_isUserSignedUp (event-list-stats.js:261-275)', () => {
     expect(_isUserSignedUp({ id: 'e1' }, deps(regs))).toBe(true);
   });
 
+  test('registration with uid-only cache row → true', () => {
+    const regs = [{ uid: 'U123', eventId: 'e1', status: 'confirmed' }];
+    expect(_isUserSignedUp({ id: 'e1' }, deps(regs))).toBe(true);
+  });
+
   test('user with cancelled registration → false (registrations path)', () => {
     const regs = [mkReg('U123', 'e1', 'cancelled')];
     expect(_isUserSignedUp({ id: 'e1' }, deps(regs))).toBe(false);
@@ -163,6 +184,20 @@ describe('_isUserSignedUp (event-list-stats.js:261-275)', () => {
       { id: 'e1', waitlistNames: ['Alice', 'U123'] },
       { user: USER, getRegistrationsByEvent: () => [] }
     )).toBe(false);
+  });
+
+  test('participantsWithUid fallback → true when registration cache is missing', () => {
+    expect(_isUserSignedUp(
+      { id: 'e1', participantsWithUid: [{ uid: 'U123', name: 'Alice' }] },
+      { user: USER, getRegistrationsByEvent: () => [] }
+    )).toBe(true);
+  });
+
+  test('waitlistWithUid fallback → true when registration cache is missing', () => {
+    expect(_isUserSignedUp(
+      { id: 'e1', waitlistWithUid: [{ uid: 'U123', name: 'Alice' }] },
+      { user: USER, getRegistrationsByEvent: () => [] }
+    )).toBe(true);
   });
 
   test('no match anywhere → false', () => {
@@ -218,6 +253,11 @@ describe('_isUserOnWaitlist (event-list-stats.js:278-290)', () => {
     expect(_isUserOnWaitlist({ id: 'e1' }, deps(regs))).toBe(true);
   });
 
+  test('registration with uid-only cache row waitlisted → true', () => {
+    const regs = [{ uid: 'U123', eventId: 'e1', status: 'waitlisted' }];
+    expect(_isUserOnWaitlist({ id: 'e1' }, deps(regs))).toBe(true);
+  });
+
   test('user with confirmed registration → false', () => {
     const regs = [mkReg('U123', 'e1', 'confirmed')];
     expect(_isUserOnWaitlist({ id: 'e1' }, deps(regs))).toBe(false);
@@ -236,6 +276,20 @@ describe('_isUserOnWaitlist (event-list-stats.js:278-290)', () => {
   test('waitlistNames array ignored — only registrations matter', () => {
     expect(_isUserOnWaitlist(
       { id: 'e1', waitlistNames: ['Alice', 'U123'] },
+      { user: USER, getRegistrationsByEvent: () => [] }
+    )).toBe(false);
+  });
+
+  test('waitlistWithUid fallback → true when registration cache is missing', () => {
+    expect(_isUserOnWaitlist(
+      { id: 'e1', waitlistWithUid: [{ uid: 'U123', name: 'Alice' }] },
+      { user: USER, getRegistrationsByEvent: () => [] }
+    )).toBe(true);
+  });
+
+  test('participantsWithUid fallback does not mark waitlisted', () => {
+    expect(_isUserOnWaitlist(
+      { id: 'e1', participantsWithUid: [{ uid: 'U123', name: 'Alice' }] },
       { user: USER, getRegistrationsByEvent: () => [] }
     )).toBe(false);
   });
@@ -432,6 +486,12 @@ describe('selectCancelReg (event-detail-signup.js:435-441)', () => {
     ];
     const { reg } = selectCancelReg(regs, false);
     expect(reg.id).toBe('2'); // first find matches confirmed
+  });
+
+  test('cancel action accepts _docId when custom id is absent', () => {
+    const regs = [{ _docId: 'DOC_1', status: 'confirmed' }];
+    const { reg } = selectCancelReg(regs, false);
+    expect(resolveCancelRegistrationId(reg)).toBe('DOC_1');
   });
 });
 

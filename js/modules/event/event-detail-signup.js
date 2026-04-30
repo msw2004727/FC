@@ -142,16 +142,26 @@ Object.assign(App, {
 
       const _eventDocId = await FirebaseService._getEventDocIdAsync(eventId);
       if (!_eventDocId) return ApiService.getMyRegistrationsByEvent(eventId);
-      const snapshot = await db.collection('events').doc(_eventDocId)
-        .collection('registrations')
+      const regsRef = db.collection('events').doc(_eventDocId).collection('registrations');
+      let snapshot = await regsRef
         .where('userId', '==', userId)
         .get();
+      if (snapshot.empty) {
+        snapshot = await regsRef
+          .where('uid', '==', userId)
+          .get();
+      }
 
-      const allDocs = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+      const allDocs = snapshot.docs.map(doc => {
+        const data = { ...doc.data(), _docId: doc.id };
+        if (data.userId && !data.uid) data.uid = data.userId;
+        if (data.uid && !data.userId) data.userId = data.uid;
+        return data;
+      });
       const activeDocs = allDocs.filter(r => r.status !== 'cancelled' && r.status !== 'removed');
       const source = FirebaseService._cache.registrations || [];
       FirebaseService._cache.registrations = source
-        .filter(r => !(r.eventId === eventId && r.userId === userId))
+        .filter(r => !(r.eventId === eventId && (r.userId === userId || r.uid === userId)))
         .concat(allDocs);
       FirebaseService._saveToLS?.('registrations', FirebaseService._cache.registrations);
       return activeDocs;
@@ -881,13 +891,20 @@ Object.assign(App, {
       try {
         const _eventDocId2 = await FirebaseService._getEventDocIdAsync(id);
         if (!_eventDocId2) throw new Error('eventDocId not found');
-        const snap = await db.collection('events').doc(_eventDocId2)
-          .collection('registrations')
+        const regsRef = db.collection('events').doc(_eventDocId2).collection('registrations');
+        let snap = await regsRef
           .where('userId', '==', currentUserId)
           .get();
+        if (snap.empty) {
+          snap = await regsRef
+            .where('uid', '==', currentUserId)
+            .get();
+        }
         const fetched = [];
         snap.forEach(doc => {
           const d = doc.data();
+          if (d.userId && !d.uid) d.uid = d.userId;
+          if (d.uid && !d.userId) d.userId = d.uid;
           fetched.push({
             ...d, _docId: doc.id, id: doc.id,
             registeredAt: d.registeredAt?.toDate?.()?.toISOString?.() || d.registeredAt,
@@ -996,6 +1013,7 @@ Object.assign(App, {
       || myRegs.find(r => r._docId && r.status !== 'cancelled' && r.status !== 'removed')
       || myRegs[0]
       || null;
+    const regCancelId = reg ? (reg.id || reg._docId) : null;
     // 若有重複的本人報名（資料不一致），直接清掉額外的（不觸發候補遞補）
     const extraRegs = myRegs.filter(r => r !== reg && r._docId);
     for (const extra of extraRegs) {
@@ -1008,6 +1026,14 @@ Object.assign(App, {
           cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
         });
       }).catch(function(err) { console.error('[cancelSignup dedup]', err); });
+    }
+    if (reg && !regCancelId) {
+      console.warn('[cancelSignup] registration id missing', { eventId: id, userId, reg });
+      clearTimeout(_busyTimeout);
+      _restoreCancelUI();
+      this.showToast('報名資料尚未同步完成，請重新整理後再試');
+      this.showEventDetail(id);
+      return;
     }
     if (reg) {
       try {
@@ -1022,7 +1048,7 @@ Object.assign(App, {
           const cfResult = await Promise.race([
             firebase.app().functions('asia-east1').httpsCallable('cancelRegistration')({
               eventId: id,
-              registrationIds: [reg.id],
+              registrationIds: [regCancelId],
               reason: 'user_cancel',
               requestId: `cancel_${userId}_${id}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
             }),
@@ -1053,7 +1079,7 @@ Object.assign(App, {
         } else {
           // ═══ 原有路徑：前端 Firestore（fallback）═══
           cancelledReg = await Promise.race([
-            FirebaseService.cancelRegistration(reg.id),
+            FirebaseService.cancelRegistration(regCancelId),
             _cancelTimeout,
           ]);
         }
