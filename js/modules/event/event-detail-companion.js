@@ -398,7 +398,9 @@ Object.assign(App, {
     const userId = user?.uid || 'unknown';
 
     const hasSelfCancel = this._companionCancelRegs.filter(r => checked.includes(r.id)).some(r => !r.companionId);
-    const useCF = typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration();
+    const useCF = typeof shouldUseServerRegistrationForCancel === 'function'
+      ? shouldUseServerRegistrationForCancel()
+      : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration());
 
     try {
       if (useCF) {

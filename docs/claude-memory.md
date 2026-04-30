@@ -2040,3 +2040,9 @@
 - **Fix**: Added FirebaseService canonical metadata/upsert helpers, routed ApiService official reads through canonical helpers, and updated detail, favorites, leaderboard, scan, dashboard, achievement batch, and no-show paths to avoid raw root cache.
 - **Audit notes**: Canonical dedupe now first merges the same subcollection `_path`, then uses status-aware logical keys, preserving cancelled history while preventing waitlisted/confirmed double-counting for the same document.
 - **Validation**: Added `canonical-cache.test.js`; ran syntax checks plus focused unit tests for canonical cache, fetch-if-missing, dashboard, achievements, scan, no-show, and migration coverage.
+
+### 2026-04-30 Activity cancellation Cloud Function cutover
+- **Issue**: Some migrated/legacy activity registrations could still use the frontend Firestore cancellation fallback. If the related `registrationLocks` document was missing or not owned by the caller, Firestore rules denied the whole batch with `Missing or insufficient permissions`.
+- **Fix**: Added `shouldUseServerRegistrationForCancel()` so production cancellation paths always call the existing `cancelRegistration` Cloud Function. Updated single cancel, companion cancel, and manager remove flows to use it.
+- **Fallback hardening**: Kept the old client fallback for non-production only, but prechecks registration lock ownership before deleting locks so local/dev fallback does not fail on stale lock data.
+- **Validation**: Added config unit coverage proving production cancellation ignores rollout fallback and stays on the Cloud Function path.

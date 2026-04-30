@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260430zk';
+const CACHE_VERSION = '0.20260430zl';
 
 // ─── 即時監聽 limit 預設值（可在儀表板動態調整，存於 siteConfig/realtimeConfig）───
 const REALTIME_LIMIT_DEFAULTS = {
@@ -70,6 +70,19 @@ function shouldUseServerRegistration() {
     h = ((h << 5) + h) + uid.charCodeAt(i);
   }
   return (Math.abs(h) % 100) < percent;
+}
+
+function shouldUseServerRegistrationForCancel() {
+  try {
+    if (typeof ModeManager !== 'undefined'
+      && typeof ModeManager.getMode === 'function'
+      && ModeManager.getMode() === 'production') {
+      return true;
+    }
+  } catch (_err) {
+    // Fall back to the shared rollout helper below.
+  }
+  return typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration();
 }
 
 // ─── Page Strategy Registry ───

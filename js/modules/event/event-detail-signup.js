@@ -1006,9 +1006,13 @@ Object.assign(App, {
       || myRegs[0]
       || null;
     const regCancelId = reg ? (reg.id || reg._docId) : null;
+    const useCF = typeof shouldUseServerRegistrationForCancel === 'function'
+      ? shouldUseServerRegistrationForCancel()
+      : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration());
     // 若有重複的本人報名（資料不一致），直接清掉額外的（不觸發候補遞補）
-    const extraRegs = myRegs.filter(r => r !== reg && r._docId);
+    const extraRegs = myRegs.filter(r => r !== reg && r._docId && r.status !== 'cancelled' && r.status !== 'removed');
     for (const extra of extraRegs) {
+      if (useCF) continue;
       extra.status = 'cancelled';
       extra.cancelledAt = new Date().toISOString();
       var _dedupRegDocId = extra._docId;
@@ -1033,14 +1037,14 @@ Object.assign(App, {
           setTimeout(() => reject(new Error('取消操作逾時，請重新整理後再試')), 15000));
 
         let cancelledReg;
-        const useCF = typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration();
 
         if (useCF) {
           // ═══ CF 路徑：呼叫 Cloud Function ═══
+          const cancelRegistrationIds = [regCancelId, ...extraRegs.map(r => r.id || r._docId)].filter(Boolean).slice(0, 20);
           const cfResult = await Promise.race([
             firebase.app().functions('asia-east1').httpsCallable('cancelRegistration')({
               eventId: id,
-              registrationIds: [regCancelId],
+              registrationIds: cancelRegistrationIds,
               reason: 'user_cancel',
               requestId: `cancel_${userId}_${id}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
             }),
@@ -1053,8 +1057,10 @@ Object.assign(App, {
             cancelledReg._promotedUserId = cancelledReg._promotedUserIds[0];
           }
           // 樂觀更新本地快取
-          reg.status = 'cancelled';
-          reg.cancelledAt = new Date().toISOString();
+          [reg, ...extraRegs].filter(Boolean).forEach(cancelledLocalReg => {
+            cancelledLocalReg.status = 'cancelled';
+            cancelledLocalReg.cancelledAt = new Date().toISOString();
+          });
           if (data.event && e0) {
             e0.current = data.event.current;
             e0.realCurrent = data.event.realCurrent;

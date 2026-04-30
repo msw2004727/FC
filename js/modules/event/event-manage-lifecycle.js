@@ -283,7 +283,9 @@ Object.assign(App, {
     const event = ApiService.getEvent(eventId);
     if (!event) return;
 
-    const useCF = typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration();
+    const useCF = typeof shouldUseServerRegistrationForCancel === 'function'
+      ? shouldUseServerRegistrationForCancel()
+      : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration());
 
     if (useCF) {
       // ═══ CF 路徑：呼叫 cancelRegistration（reason='manager_remove'）═══

@@ -361,6 +361,26 @@ function _normalizeRuntimeCustomRoles(customRoles) {
     }));
 }
 
+let ModeManager = null;
+let _serverRegistrationFallback = false;
+
+function shouldUseServerRegistration() {
+  return _serverRegistrationFallback;
+}
+
+function shouldUseServerRegistrationForCancel() {
+  try {
+    if (typeof ModeManager !== 'undefined'
+      && typeof ModeManager.getMode === 'function'
+      && ModeManager.getMode() === 'production') {
+      return true;
+    }
+  } catch (_err) {
+    // Fall back to the shared rollout helper below.
+  }
+  return typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration();
+}
+
 
 // =========================================================================
 // Tests
@@ -994,6 +1014,37 @@ describe('_normalizeRuntimeCustomRoles', () => {
     const input = [{ key: 'myRole', label: '' }];
     const result = _normalizeRuntimeCustomRoles(input);
     expect(result[0].label).toBe('myRole');
+  });
+});
+
+describe('shouldUseServerRegistrationForCancel', () => {
+  beforeEach(() => {
+    ModeManager = null;
+    _serverRegistrationFallback = false;
+  });
+
+  test('forces Cloud Function cancel path in production even when rollout fallback is false', () => {
+    ModeManager = { getMode: () => 'production' };
+    _serverRegistrationFallback = false;
+
+    expect(shouldUseServerRegistrationForCancel()).toBe(true);
+  });
+
+  test('uses the shared rollout helper outside production', () => {
+    ModeManager = { getMode: () => 'demo' };
+
+    _serverRegistrationFallback = false;
+    expect(shouldUseServerRegistrationForCancel()).toBe(false);
+
+    _serverRegistrationFallback = true;
+    expect(shouldUseServerRegistrationForCancel()).toBe(true);
+  });
+
+  test('falls back safely when ModeManager throws', () => {
+    ModeManager = { getMode: () => { throw new Error('mode failed'); } };
+    _serverRegistrationFallback = true;
+
+    expect(shouldUseServerRegistrationForCancel()).toBe(true);
   });
 });
 

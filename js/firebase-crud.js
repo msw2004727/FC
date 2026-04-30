@@ -1416,6 +1416,18 @@ Object.assign(FirebaseService, {
 
     // 若有候補遞補，查該活動所有 activityRecords（Firestore 而非快取，避免 onSnapshot limit 漏資料）
     // Bug #A 修復：遞補時必須同步 activityRecord.status，否則統計會少算
+    let lockRefToDelete = null;
+    try {
+      const candidateLockRef = db.collection('events').doc(eventDocId)
+        .collection('registrationLocks').doc(this._getRegistrationLockId(reg));
+      const lockSnap = await candidateLockRef.get();
+      if (lockSnap.exists && lockSnap.data()?.userId === auth.currentUser?.uid) {
+        lockRefToDelete = candidateLockRef;
+      }
+    } catch (err) {
+      console.warn('[cancelRegistration] registration lock precheck failed:', err);
+    }
+
     let eventActivityRecords = [];
     if (promotedCandidates.length > 0) {
       try {
@@ -1437,7 +1449,7 @@ Object.assign(FirebaseService, {
       status: 'cancelled',
       cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
-    batch.delete(db.collection('events').doc(eventDocId).collection('registrationLocks').doc(this._getRegistrationLockId(reg)));
+    if (lockRefToDelete) batch.delete(lockRefToDelete);
 
     // 2. 遞補候補者（含 team-split teamKey 分配）
     for (const candidate of promotedCandidates) {
@@ -2945,6 +2957,20 @@ Object.assign(FirebaseService, {
 
     // 若有候補遞補（hadConfirmed），查受影響活動的 activityRecords（Firestore 而非快取，避免 onSnapshot limit 漏資料）
     // Bug #B 修復：遞補時必須同步 activityRecord.status
+    const lockRefsByRegId = {};
+    for (const reg of validRegsToCancel) {
+      try {
+        const candidateLockRef = db.collection('events').doc(eventDocIds[reg.eventId])
+          .collection('registrationLocks').doc(this._getRegistrationLockId(reg));
+        const lockSnap = await candidateLockRef.get();
+        if (lockSnap.exists && lockSnap.data()?.userId === auth.currentUser?.uid) {
+          lockRefsByRegId[reg.id] = candidateLockRef;
+        }
+      } catch (err) {
+        console.warn('[cancelCompanionRegistrations] registration lock precheck failed:', err);
+      }
+    }
+
     const arsByEvent = {};
     for (const _evId of affectedEventIds) {
       if (!hadConfirmed.has(_evId)) continue;
@@ -2968,7 +2994,7 @@ Object.assign(FirebaseService, {
         status: 'cancelled',
         cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
       });
-      batch.delete(db.collection('events').doc(eventDocIds[reg.eventId]).collection('registrationLocks').doc(this._getRegistrationLockId(reg)));
+      if (lockRefsByRegId[reg.id]) batch.delete(lockRefsByRegId[reg.id]);
     }
 
     // 2. 遞補候補者（含 team-split teamKey 分配）
