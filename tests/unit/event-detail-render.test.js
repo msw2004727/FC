@@ -293,9 +293,18 @@ describe('Team reservation button loading contract', () => {
 
   test('team reservation placeholder uses emoji flag icon instead of SVG markup', () => {
     const attendanceSource = readProjectFile('js/modules/event/event-manage-attendance.js');
+    const flagButtonLine = attendanceSource.split('\n').find(line => line.includes('>🚩</button>')) || '';
 
     expect(attendanceSource).toContain('>🚩</button>');
     expect(attendanceSource).toContain('aria-label="俱樂部席位"');
+    expect(flagButtonLine).toContain('border:0');
+    expect(flagButtonLine).toContain('background:transparent');
+    expect(flagButtonLine).toContain('border-radius:0');
+    expect(flagButtonLine).not.toContain('border:1px solid');
+    expect(flagButtonLine).not.toContain('background:#eff6ff');
+    expect(flagButtonLine).not.toContain('border-radius:999px');
+    expect(flagButtonLine).not.toContain('width:1.18rem');
+    expect(flagButtonLine).not.toContain('height:1.18rem');
     expect(attendanceSource).not.toContain('team-seat-flag-icon');
     expect(attendanceSource).not.toContain('<svg class="team-seat-flag-icon"');
     expect(attendanceSource).not.toContain('>旗</button>');
