@@ -260,14 +260,28 @@ service cloud.firestore {
         || data[field] is list;
     }
 
-    function isCurrentUserInTeam(teamId) {
+    function currentUserHasTeamKey(teamKey) {
       let userPath = /databases/$(database)/documents/users/$(request.auth.uid);
       return isAuth()
-        && teamId is string
         && exists(userPath)
+        && teamKey is string
         && (
-          ((get(userPath).data.teamId is string) && get(userPath).data.teamId == teamId)
-          || ((get(userPath).data.teamIds is list) && teamId in get(userPath).data.teamIds)
+          ((get(userPath).data.teamId is string) && get(userPath).data.teamId == teamKey)
+          || ((get(userPath).data.teamIds is list) && teamKey in get(userPath).data.teamIds)
+        );
+    }
+
+    function isCurrentUserInTeam(teamId) {
+      let teamPath = /databases/$(database)/documents/teams/$(teamId);
+      return isAuth()
+        && teamId is string
+        && (
+          currentUserHasTeamKey(teamId)
+          || (
+            exists(teamPath)
+            && get(teamPath).data.id is string
+            && currentUserHasTeamKey(get(teamPath).data.id)
+          )
         );
     }
 

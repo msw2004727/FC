@@ -2061,3 +2061,8 @@
 - **Issue**: Club detail "member list" and "match history" cards called `App.toggleProfileSection`, but the profile module is not loaded on the team detail route.
 - **Fix**: Added team-owned `App.toggleTeamDetailSection` and changed team detail collapsible card onclick handlers to use it.
 - **Validation**: Added regression coverage so team detail can collapse/expand without loading profile modules.
+
+### 2026-04-30 team feed rules doc-id membership fix [bugfix]
+- **Issue**: Club feed posts could fail with `Missing or insufficient permissions` when the team Firestore document ID differed from the public `team.id` stored in user membership fields.
+- **Fix**: Updated `isCurrentUserInTeam` to accept both `teams/{docId}` and that team's internal `id`, without allowing non-members.
+- **Validation**: Added a Firestore rules regression test for separate doc ID/public ID team feed creation.

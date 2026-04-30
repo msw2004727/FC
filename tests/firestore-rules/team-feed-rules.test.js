@@ -23,6 +23,7 @@ const [EMULATOR_HOST, EMULATOR_PORT] = (
 let testEnv;
 
 const TEAM_ID = "tm_test_team_001";
+const TEAM_DOC_ID = "team_doc_test_001";
 const CAPTAIN_UID = "captain_uid_001";
 const MEMBER_UID = "member_uid_002";
 const OUTSIDER_UID = "outsider_uid_003";
@@ -61,6 +62,14 @@ beforeEach(async () => {
     await setDoc(doc(db, "teams", TEAM_ID), {
       id: TEAM_ID,
       name: "Test Team",
+      captainUid: CAPTAIN_UID,
+      leaderUids: [CAPTAIN_UID],
+      coachUids: [],
+      active: true,
+    });
+    await setDoc(doc(db, "teams", TEAM_DOC_ID), {
+      id: TEAM_ID,
+      name: "Test Team With Separate Doc Id",
       captainUid: CAPTAIN_UID,
       leaderUids: [CAPTAIN_UID],
       coachUids: [],
@@ -108,6 +117,22 @@ describe("Team Feed Rules (Phase 0 + Phase 3)", () => {
         uid: MEMBER_UID,
         content: "New post",
         createdAt: new Date().toISOString(),
+      })
+    );
+  });
+
+  test("2b. member can create feed when team document id differs from public team id", async () => {
+    await assertSucceeds(
+      setDoc(doc(member(), "teams", TEAM_DOC_ID, "feed", "fp_new_post_doc_id"), {
+        uid: MEMBER_UID,
+        name: "Member",
+        content: "New post through resolved team doc id",
+        time: "2026/04/30 22:00",
+        pinned: false,
+        isPublic: true,
+        reactions: { like: [], heart: [], cheer: [] },
+        comments: [],
+        createdAt: new Date(),
       })
     );
   });
