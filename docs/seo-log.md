@@ -4,6 +4,13 @@
 
 ---
 
+### 2026-04-30 — GSC FAQPage JSON-LD 解析錯誤修復
+**目的 / 背景**：Google Search Console 回報 `/blog/basketball-rules` 的結構化資料無法剖析，錯誤為「缺少 `,` 或 `}`」。檢查後確認是 FAQPage 第 5 題答案內的 `"foul"` 未在 JSON 字串中跳脫，導致 Google 把後半段視為非法 JSON。
+
+**修正內容**：將 FAQPage 文字中的 `"foul"` 改為 `\"foul\"`，保留頁面語意並讓 JSON-LD 可被解析。新增 `tests/unit/seo-jsonld.test.js`，掃描 `index.html`、`privacy.html`、`terms.html`、`blog/**/*.html`、`seo/**/*.html` 的所有 `application/ld+json` 區塊，避免同類錯誤再次提交。
+
+---
+
 ### 2026-04-29 — SEO 後台說明文案口語化
 
 **目的 / 背景**：SEO 後台新增決策區塊後，部分區塊尚未提供說明按鈕，既有說明也偏工程術語，不利於快速判讀。
@@ -132,7 +139,7 @@ Sitemap: https://toosterx.com/sitemap.xml
 | `/blog/rules/` | 0.7 | 2026-04-28（規則類分類頁、1 篇文章） |
 | `/blog/football-shoes-guide` | 0.75 | 2026-04-28（足球鞋挑選百科） |
 | `/blog/football-rules` | 0.75 | 2026-04-28（足球規則完整解析） |
-| `/blog/basketball-rules` | 0.75 | 2026-04-28（籃球規則完整解析） |
+| `/blog/basketball-rules` | 0.75 | 2026-04-30（籃球規則 JSON-LD 修復） |
 | `/blog/badminton-rules` | 0.75 | 2026-04-28（羽球規則完整解析） |
 | `/blog/running-rules` | 0.75 | 2026-04-28（路跑賽事規則與禮儀） |
 | `/blog/hiking-rules` | 0.75 | 2026-04-28（登山倫理與安全守則） |
