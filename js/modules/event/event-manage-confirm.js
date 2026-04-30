@@ -245,7 +245,16 @@ Object.assign(App, {
     // 軟刪除該用戶在此活動的所有出席記錄（unreg / checkin / checkout / note）
     const targets = records.filter(r => r.uid === uid || this._matchAttendanceRecord(r, person));
     for (const rec of targets) {
-      await ApiService.removeAttendanceRecord(rec).catch(err => console.error('[removeUnregUser]', err));
+      await ApiService.removeAttendanceRecord(rec).catch(err => {
+        console.error('[removeUnregUser]', err);
+        ApiService._writeErrorLog({
+          fn: '_removeUnregUser.removeAttendanceRecord',
+          eventId,
+          uid,
+          recordId: rec?.id || rec?._docId || '',
+          type: rec?.type || '',
+        }, err);
+      });
     }
     ApiService._writeOpLog('unreg_removed', '移除未報名掃碼', `從「${ApiService.getEvent(eventId)?.title}」移除 ${name}`);
     this._renderUnregTable(eventId, 'detail-unreg-table');
@@ -313,6 +322,7 @@ Object.assign(App, {
       console.error('[_confirmAllUnregAttendance] batch failed:', err);
       failed = true;
       failMsg = err?.message || '';
+      ApiService._writeErrorLog({ fn: '_confirmAllUnregAttendance', eventId, adds: allAdds.length, removes: allRemoves.length }, err);
     } finally {
       this._unregSubmittingEventId = null;
       if (failed) {

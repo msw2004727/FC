@@ -91,6 +91,7 @@ Object.assign(App, {
           await ApiService.updateTeamAwait(this._teamFormState.editId, updates);
         } catch (err) {
           if (!err?._toasted) this.showToast('俱樂部更新失敗，請重試');
+          ApiService._writeErrorLog({ fn: 'handleSaveTeam.updateTeamAwait', teamId: this._teamFormState.editId, mode: 'edit' }, err);
           return;
         }
         ApiService._writeOpLog('team_edit', '編輯俱樂部', `編輯「${name}」`);

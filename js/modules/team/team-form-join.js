@@ -212,6 +212,7 @@ Object.assign(App, {
       await ApiService.updateCurrentUserAwait(userTeamUpdates);
     } catch (err) {
       if (!err?._toasted) this.showToast('退出俱樂部失敗，請重試');
+      ApiService._writeErrorLog({ fn: 'handleLeaveTeam.updateCurrentUserAwait', teamId, uid }, err);
       return;
     }
 

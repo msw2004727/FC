@@ -72,6 +72,13 @@ Object.assign(App, {
       ApiService.addAttendanceRecord(rec).catch(err => {
         console.error('[Scan] attendance write failed:', err);
         this.showToast(`寫入失敗：${err?.message || '請確認登入狀態與網路'}`);
+        ApiService._writeErrorLog({
+          fn: '_processAttendance.addAttendanceRecord',
+          eventId: rec?.eventId || this._scanSelectedEventId,
+          uid: rec?.uid || uid,
+          type: rec?.type || '',
+          mode,
+        }, err);
         // rollback 後重新渲染 UI 以反映快取狀態
         this._renderScanResults();
         this._renderAttendanceSections();

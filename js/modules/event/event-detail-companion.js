@@ -289,6 +289,14 @@ Object.assign(App, {
         this._tryShowFirstLoginModal?.();
         return;
       }
+      ApiService._writeErrorLog({
+        fn: '_confirmCompanionRegister',
+        eventId,
+        userId,
+        participantCount: participantList.length,
+        teamReservationTeamId: selectedTeamReservationTeamId || '',
+        errCode,
+      }, err);
       const isNetworkOrTimeout = /timeout|network|fetch|ECONNREFUSED|逾時/i.test(err?.message || '');
       this.showToast(cfMsg[errCode] || (isNetworkOrTimeout ? '連線逾時，請檢查網路後重新整理再試' : err.message || '報名失敗，請稍後再試'));
     }
@@ -462,6 +470,14 @@ Object.assign(App, {
       const errCode = err?.details || err?.message || '';
       const isNetworkOrTimeout = /timeout|network|fetch|ECONNREFUSED|逾時/i.test(err?.message || '');
       this.showToast('取消失敗：' + (cfMsg[errCode] || (isNetworkOrTimeout ? '連線逾時，請檢查網路後重新整理再試' : err.message || '')));
+      ApiService._writeErrorLog({
+        fn: '_confirmCompanionCancel',
+        eventId,
+        userId,
+        registrationCount: checked.length,
+        hasSelfCancel,
+        errCode,
+      }, err);
     }
   },
 

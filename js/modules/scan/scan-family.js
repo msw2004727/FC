@@ -72,6 +72,14 @@ Object.assign(App, {
       ApiService.addAttendanceRecord(rec).catch(err => {
         console.error('[Scan] family attendance write failed:', err);
         this.showToast(`寫入失敗：${err?.message || '請確認登入狀態與網路'}`);
+        ApiService._writeErrorLog({
+          fn: '_confirmFamilyCheckin.addAttendanceRecord',
+          eventId: rec?.eventId || eventId,
+          uid: rec?.uid || uid,
+          companionId: rec?.companionId || '',
+          type: rec?.type || '',
+          mode,
+        }, err);
         this._renderScanResults();
         this._renderAttendanceSections();
       });

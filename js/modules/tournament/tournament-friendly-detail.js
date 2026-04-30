@@ -283,6 +283,12 @@ Object.assign(App, {
         ? '此申請已被處理過。'
         : (normalizedAction === 'approve' ? `已確認「${application.teamName}」參賽。` : `已拒絕「${application.teamName}」的申請。`));
     } catch (err) {
+      ApiService._writeErrorLog({
+        fn: 'reviewFriendlyTournamentApplication',
+        tournamentId,
+        applicationId,
+        action: normalizedAction,
+      }, err);
       this._showTournamentActionError?.(normalizedAction === 'approve' ? '確認報名' : '拒絕報名', err);
     }
     finally {

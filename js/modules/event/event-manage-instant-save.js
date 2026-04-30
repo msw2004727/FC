@@ -123,6 +123,14 @@ Object.assign(App, {
       }
     } catch (err) {
       console.error('[_writeInstantAttendance]', uid, err);
+      ApiService._writeErrorLog({
+        fn: '_writeInstantAttendance',
+        eventId,
+        uid,
+        participantType,
+        adds: ops.adds.length,
+        removes: ops.removes.length,
+      }, err);
       // 還原 checkbox 至實際 DB 狀態
       const records = ApiService.getAttendanceRecords(eventId);
       const hasCI = records.some(r => this._matchAttendanceRecord(r, personObj) && r.type === 'checkin');
@@ -237,6 +245,13 @@ Object.assign(App, {
       }
     } catch (err) {
       console.error('[_writeInstantUnregAttendance]', uid, err);
+      ApiService._writeErrorLog({
+        fn: '_writeInstantUnregAttendance',
+        eventId,
+        uid,
+        adds: ops.adds.length,
+        removes: ops.removes.length,
+      }, err);
       const records = ApiService.getAttendanceRecords(eventId);
       const hasCI = records.some(r => this._matchAttendanceRecord(r, personObj) && r.type === 'checkin');
       const hasCO = records.some(r => this._matchAttendanceRecord(r, personObj) && r.type === 'checkout');

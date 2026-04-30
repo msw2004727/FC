@@ -246,11 +246,20 @@ Object.assign(App, {
     for (let i = 0; i < images.length; i++) {
       if (images[i] && images[i].startsWith('data:')) {
         if (!hasNewUpload) { this.showToast('圖片上傳中...'); hasNewUpload = true; }
-        const url = await FirebaseService._uploadImage(images[i], `shopItems/${itemId}_${i}`);
+        let url = '';
+        try {
+          url = await FirebaseService._uploadImage(images[i], `shopItems/${itemId}_${i}`);
+        } catch (err) {
+          console.error('[shopImageUpload]', err);
+          this.showToast('圖片上傳失敗，請重試');
+          ApiService._writeErrorLog({ fn: 'handleSaveShopItem.uploadImage', itemId, imageIndex: i, mode: isEdit ? 'edit' : 'create' }, err);
+          return;
+        }
         if (url) {
           images[i] = url;
         } else {
           this.showToast('圖片上傳失敗，請重試');
+          ApiService._writeErrorLog({ fn: 'handleSaveShopItem.uploadImage', itemId, imageIndex: i, mode: isEdit ? 'edit' : 'create' }, new Error('upload returned empty url'));
           return;
         }
       }

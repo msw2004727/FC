@@ -1936,3 +1936,10 @@
 - **修復**：新增 `error-log-diagnostics.js` 拆出白話化、嚴重度、時間排序、裝置與 context helper；重寫錯誤日誌 UI，加入摘要、篩選與展開技術細節；`_writeErrorLog` 新增診斷欄位並走 `FirebaseService.addErrorLog` 寫入 `createdAt`；同步更新 lazy-load、CSS、架構文件與單元測試。
 - **驗證**：`node --check` 覆蓋修改 JS；targeted Jest 通過；`npm run test:unit -- --runInBand` 通過 77 suites / 2602 tests；`git diff --check` 通過（僅 CRLF warning）。
 - **教訓**：錯誤日誌應先提升「看得懂、查得到」的診斷能力，再逐步擴大收集點；全域錯誤捕捉與通用 CRUD 攔截需延後，避免日誌爆量或影響正常流程。
+
+### 2026-04-30 — 錯誤日誌 Phase 3 高價值流程精準補點
+- **問題**：Phase 1 + Phase 2 讓錯誤日誌變得可讀，但部分高價值流程失敗時仍只停在 console 或 toast，管理員難以知道用戶是在報名、取消、簽到、俱樂部操作、賽事審核或商品上傳哪一步失敗。
+- **原因**：既有錯誤記錄主要集中在少數 catch，許多 UI 流程層失敗分支只負責還原畫面或顯示提示，沒有把 eventId、teamId、uid、操作類型與寫入筆數等診斷 context 帶入 `errorLogs`。
+- **修復**：只在既有失敗分支補 `_writeErrorLog`，涵蓋活動報名、同行者報名/取消、掃碼與手動簽到、未報名簽到管理、俱樂部編輯/退出/刪除、入隊審核讀取、賽事申請審核、商品圖片上傳；不改交易函式、權限規則或成功路徑。
+- **驗證**：新增 `error-log-high-value-flows.test.js` 鎖定補點；修改 JS 全數 `node --check` 通過；targeted Jest 通過；`npm run test:unit -- --runInBand` 通過。
+- **教訓**：錯誤補點應先放在用戶可感知、管理員需要追查的流程層；避免把通用 CRUD 或全域錯誤攔截一次打開，才能降低日誌爆量與誤報風險。

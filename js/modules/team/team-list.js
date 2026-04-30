@@ -226,6 +226,7 @@ Object.assign(App, {
       } catch (err) {
         console.error('[removeTeam] delete failed:', err);
         this.showToast('刪除俱樂部失敗，請稍後再試');
+        ApiService._writeErrorLog({ fn: 'removeTeam', teamId: id, teamName: tName }, err);
         return;
       }
       ApiService._writeOpLog('team_delete', '刪除俱樂部', `刪除「${tName}」`);

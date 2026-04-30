@@ -15,7 +15,15 @@ Object.assign(App, {
     const { teamId, teamName, applicantUid, applicantName, groupId } = msg.meta;
 
     // 1. Permission check: current user must be team staff (captain/leader/coach) or admin
-    let team = await ApiService.getTeamAsync(teamId);
+    let team = null;
+    try {
+      team = await ApiService.getTeamAsync(teamId);
+    } catch (err) {
+      console.error('[handleTeamJoinAction] getTeamAsync failed:', err);
+      this.showToast('讀取俱樂部資料失敗，請稍後再試');
+      ApiService._writeErrorLog({ fn: 'handleTeamJoinAction.getTeamAsync', teamId, applicantUid, msgId }, err);
+      return;
+    }
     if (!team) { this.showToast('找不到此俱樂部'); return; }
     const curUser = ApiService.getCurrentUser();
     const curUid = curUser?.uid || null;

@@ -731,6 +731,14 @@ Object.assign(App, {
         signupBtns.forEach(b => { b.disabled = false; b.style.opacity = ''; if (b === activeBtn && b._origText) b.textContent = b._origText; });
         return;
       }
+      ApiService._writeErrorLog({
+        fn: 'handleSignup',
+        eventId: id,
+        userId,
+        teamKey: _tsTeamKey || '',
+        teamReservationTeamId: selectedTeamReservationTeamId || '',
+        errCode,
+      }, err);
       const isNetworkOrTimeout = /timeout|network|fetch|ECONNREFUSED|逾時/i.test(err?.message || '');
       const friendlyMsg = cfMsg[errCode] || (isNetworkOrTimeout ? '連線逾時，請檢查網路後重新整理再試' : err.message || '報名失敗，請稍後再試');
       this.showToast(friendlyMsg);
