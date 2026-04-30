@@ -2047,9 +2047,7 @@
 - **Fallback hardening**: Kept the old client fallback for non-production only, but prechecks registration lock ownership before deleting locks so local/dev fallback does not fail on stale lock data.
 - **Validation**: Added config unit coverage proving production cancellation ignores rollout fallback and stays on the Cloud Function path.
 
-### 2026-04-30 Team reservation attendance row styling
-- **Issue**: Team reservation members and placeholder seats used a flag button in the attendance list, making the left side noisy and too similar to per-person badges.
-- **Fix**: Removed the flag button and marked reservation rows with `team-reservation-seat-row` / `team-reservation-placeholder-row`, then applied light/dark gradient row backgrounds to identify team seats.
-- **Follow-up**: Normalized team seat row height so placeholder seats match registered member rows, and limited the gradient cue to the left third of each row.
-- **Compatibility**: No reservation count, matching, attendance, no-show, or quick-adjust logic changed; this is a presentation-only update.
-- **Validation**: Updated static unit coverage to assert gradient row classes/styles and prevent the flag icon from returning.
+### 2026-04-30 Team reservation flag style rollback
+- **Issue**: The gradient team-seat styling made the attendance list feel visually heavy and uneven.
+- **Fix**: Reverted the team reservation attendance list back to the previous flag marker style, including the original static coverage for the flag button.
+- **Validation**: Planned syntax checks, focused unit test run, cache-version bump, and frontend push deploy.

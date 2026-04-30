@@ -291,19 +291,20 @@ describe('Team reservation button loading contract', () => {
     expect(functionsSource).toContain('safePreferredTeamReservationTeamId');
   });
 
-  test('team reservation seats use gradient rows instead of flag icons', () => {
+  test('team reservation placeholder uses emoji flag icon instead of SVG markup', () => {
     const attendanceSource = readProjectFile('js/modules/event/event-manage-attendance.js');
-    const activityCss = readProjectFile('css/activity.css');
+    const flagButtonLine = attendanceSource.split('\n').find(line => line.includes('>🚩</button>')) || '';
 
-    expect(attendanceSource).toContain('team-reservation-seat-row');
-    expect(attendanceSource).toContain('team-reservation-placeholder-row');
-    expect(attendanceSource).toContain('class="reg-attendance-table"');
-    expect(activityCss).toContain('.reg-attendance-table .team-reservation-seat-row');
-    expect(activityCss).toContain('linear-gradient(90deg');
-    expect(activityCss).toContain('--team-reservation-row-height: 56px');
-    expect(activityCss).toContain('--team-reservation-gradient-end: 33%');
-    expect(attendanceSource).not.toContain('>🚩</button>');
-    expect(attendanceSource).not.toContain('aria-label="俱樂部席位"');
+    expect(attendanceSource).toContain('>🚩</button>');
+    expect(attendanceSource).toContain('aria-label="俱樂部席位"');
+    expect(flagButtonLine).toContain('border:0');
+    expect(flagButtonLine).toContain('background:transparent');
+    expect(flagButtonLine).toContain('border-radius:0');
+    expect(flagButtonLine).not.toContain('border:1px solid');
+    expect(flagButtonLine).not.toContain('background:#eff6ff');
+    expect(flagButtonLine).not.toContain('border-radius:999px');
+    expect(flagButtonLine).not.toContain('width:1.18rem');
+    expect(flagButtonLine).not.toContain('height:1.18rem');
     expect(attendanceSource).not.toContain('team-seat-flag-icon');
     expect(attendanceSource).not.toContain('<svg class="team-seat-flag-icon"');
     expect(attendanceSource).not.toContain('>旗</button>');
