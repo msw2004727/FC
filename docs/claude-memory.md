@@ -2023,6 +2023,12 @@
 - **Compatibility**: Kept legacy `team.image` as the cover fallback so old club data and old clients continue to render.
 - **Validation**: Added `team-image-variants.test.js`, ran JS syntax checks and full unit tests before cache-version bump and frontend push deploy.
 
+### 2026-04-30 Image cropper hint and aspect safety
+- **Issue**: The cropper size hint sat inside the preview image and could cover important image content; mismatched source/target ratios could also appear stretched because the export path drew the transformed full image directly into the output canvas.
+- **Fix**: Moved target size guidance to an external pill above the preview, removed viewport CSS max-size compression, and changed export rendering to compute a source crop rectangle before drawing into the final canvas.
+- **Compatibility**: Kept the same cropper options and upload APIs, so existing upload flows continue to call `showImageCropper` without contract changes.
+- **Validation**: Added static coverage for external hint placement and source-rect rendering before cache-version bump and frontend push deploy.
+
 ### 2026-04-30 Registration canonical cache hardening
 - **Scope**: Canonicalized official reads for `registrations`, `activityRecords`, and `attendanceRecords` so UI/stat flows prefer event subcollections and ignore root leftovers.
 - **Fix**: Added FirebaseService canonical metadata/upsert helpers, routed ApiService official reads through canonical helpers, and updated detail, favorites, leaderboard, scan, dashboard, achievement batch, and no-show paths to avoid raw root cache.

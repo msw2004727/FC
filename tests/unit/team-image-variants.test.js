@@ -13,17 +13,28 @@ describe('club image variants', () => {
     expect(appSource).not.toContain("bindImageUpload('ct-team-image',    'ct-team-preview',          8/3)");
   });
 
-  test('shared image editor supports frame hints for target size guidance', () => {
+  test('shared image editor keeps target size guidance outside the image frame', () => {
     const cropperSource = readProjectFile('js/modules/image-cropper.js');
     const uploadSource = readProjectFile('js/modules/image-upload.js');
 
-    expect(cropperSource).toContain('image-cropper-frame-hint');
+    expect(cropperSource).toContain('image-cropper-frame-meta');
+    expect(cropperSource).not.toContain('image-cropper-frame-hint');
     expect(cropperSource).toContain('recommendedSize');
     expect(uploadSource).toContain('_getTeamImageVariantTargets');
     expect(uploadSource).toContain("key: 'cover'");
     expect(uploadSource).toContain("key: 'card'");
     expect(uploadSource).toContain("recommendedSize: '800 x 300'");
     expect(uploadSource).toContain("recommendedSize: '800 x 800'");
+  });
+
+  test('shared image editor renders from a source crop rectangle to avoid stretching', () => {
+    const cropperSource = readProjectFile('js/modules/image-cropper.js');
+
+    expect(cropperSource).toContain('_cropperComputeSourceRect');
+    expect(cropperSource).toContain('const sourceRect = this._cropperComputeSourceRect');
+    expect(cropperSource).toContain('sourceRect.width');
+    expect(cropperSource).not.toContain('const ratioX = outputW / vpW');
+    expect(cropperSource).not.toContain('state.imgW * state.scale * ratioX');
   });
 
   test('team records upload and render cover/card variants with legacy fallback', () => {

@@ -294,17 +294,17 @@ Object.assign(App, {
       state.vpW = viewportSize.width;
       state.vpH = viewportSize.height;
       workspace.innerHTML = [
+        config.frameHint ? '<div class="image-cropper-frame-meta"></div>' : '',
         '<div class="image-cropper-viewport" style="width:' + state.vpW + 'px;height:' + state.vpH + 'px">',
           '<img class="image-cropper-image" alt="">',
           '<div class="image-cropper-grid" aria-hidden="true"></div>',
-          config.frameHint ? '<div class="image-cropper-frame-hint"></div>' : '',
         '</div>',
       ].join('');
       state.viewport = workspace.querySelector('.image-cropper-viewport');
       state.imgEl = workspace.querySelector('.image-cropper-image');
       state.imgEl.src = sourceImage.src;
-      const hintEl = workspace.querySelector('.image-cropper-frame-hint');
-      if (hintEl) hintEl.textContent = config.frameHint;
+      const metaEl = workspace.querySelector('.image-cropper-frame-meta');
+      if (metaEl) metaEl.textContent = config.frameHint;
       bindEditorEvents();
       resetTransform();
     };
@@ -365,8 +365,8 @@ Object.assign(App, {
     const naturalW = sourceImage.naturalWidth || sourceImage.width || 1;
     const naturalH = sourceImage.naturalHeight || sourceImage.height || 1;
     const ratio = forcedRatio || (naturalW / naturalH) || 1;
-    const maxW = Math.max(260, Math.min(window.innerWidth - 32, 760));
-    const maxH = Math.max(240, Math.min(window.innerHeight * 0.58, 560));
+    const maxW = Math.max(220, Math.min(window.innerWidth - 76, 760));
+    const maxH = Math.max(180, Math.min(window.innerHeight - 330, window.innerHeight * 0.58, 560));
     let width;
     let height;
     if (maxW / ratio <= maxH) {
@@ -401,6 +401,37 @@ Object.assign(App, {
     return result;
   },
 
+  _cropperComputeSourceRect(sourceImage, state, vpW, vpH) {
+    const naturalW = sourceImage.naturalWidth || sourceImage.width || 1;
+    const naturalH = sourceImage.naturalHeight || sourceImage.height || 1;
+    const renderedW = Math.max(1, (state.imgW || 1) * (state.scale || 1));
+    const renderedH = Math.max(1, (state.imgH || 1) * (state.scale || 1));
+    const scaleX = renderedW / naturalW;
+    const scaleY = renderedH / naturalH;
+    const sourceScale = Math.max(0.0001, (scaleX + scaleY) / 2);
+    const targetRatio = Math.max(0.0001, vpW / Math.max(1, vpH));
+    let width = Math.max(1, vpW / sourceScale);
+    let height = Math.max(1, vpH / sourceScale);
+
+    if (width > naturalW) {
+      width = naturalW;
+      height = width / targetRatio;
+    }
+    if (height > naturalH) {
+      height = naturalH;
+      width = height * targetRatio;
+    }
+    width = Math.max(1, Math.min(naturalW, width));
+    height = Math.max(1, Math.min(naturalH, height));
+
+    const maxX = Math.max(0, naturalW - width);
+    const maxY = Math.max(0, naturalH - height);
+    const x = Math.min(maxX, Math.max(0, -state.tx / sourceScale));
+    const y = Math.min(maxY, Math.max(0, -state.ty / sourceScale));
+
+    return { x, y, width, height };
+  },
+
   _cropperRenderResult(sourceImage, state, vpW, vpH, config = {}) {
     const canvas = document.createElement('canvas');
     const outputW = Math.max(320, Math.min(2400, parseInt(config.outputWidth, 10) || 1200));
@@ -416,14 +447,17 @@ Object.assign(App, {
       ctx.fillRect(0, 0, outputW, outputH);
     }
 
-    const ratioX = outputW / vpW;
-    const ratioY = outputH / vpH;
+    const sourceRect = this._cropperComputeSourceRect(sourceImage, state, vpW, vpH);
     ctx.drawImage(
       sourceImage,
-      state.tx * ratioX,
-      state.ty * ratioY,
-      state.imgW * state.scale * ratioX,
-      state.imgH * state.scale * ratioY
+      sourceRect.x,
+      sourceRect.y,
+      sourceRect.width,
+      sourceRect.height,
+      0,
+      0,
+      outputW,
+      outputH
     );
 
     const outputType = config.outputType || 'image/webp';
