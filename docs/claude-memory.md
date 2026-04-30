@@ -2006,3 +2006,9 @@
 - **原因**：`event-manage-attendance.js` 的 `teamSeatFlag` 直接把中文字塞進 button，沒有使用圖示。
 - **修復**：改為 inline SVG flag icon，保留既有藍色圓形 badge、tooltip 與點擊 toast。
 - **驗證**：`node --check js/modules/event/event-manage-attendance.js`；`npm test -- --runInBand --runTestsByPath tests/unit/event-detail-render.test.js`。
+
+### 2026-04-30 團隊報名佔位旗幟改用 emoji [小型]
+- **問題**：使用者確認團隊保留席位左側旗幟要顯示為 `🚩`，不是 inline SVG 插旗圖。
+- **原因**：前次修正依插旗圖語意改成 SVG，但實際視覺需求是 emoji 旗幟。
+- **修復**：移除 SVG flag markup，保留原本圓形 badge、tooltip 與點擊 toast，按鈕內容改為 `🚩`。
+- **驗證**：補測試確認 `event-manage-attendance.js` 使用 `🚩` 並拒絕 SVG/文字「旗」退回。

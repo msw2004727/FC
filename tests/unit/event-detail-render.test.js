@@ -291,12 +291,13 @@ describe('Team reservation button loading contract', () => {
     expect(functionsSource).toContain('safePreferredTeamReservationTeamId');
   });
 
-  test('team reservation placeholder uses SVG flag icon instead of text flag', () => {
+  test('team reservation placeholder uses emoji flag icon instead of SVG markup', () => {
     const attendanceSource = readProjectFile('js/modules/event/event-manage-attendance.js');
 
-    expect(attendanceSource).toContain('team-seat-flag-icon');
-    expect(attendanceSource).toContain('<svg class="team-seat-flag-icon"');
+    expect(attendanceSource).toContain('>🚩</button>');
     expect(attendanceSource).toContain('aria-label="俱樂部席位"');
+    expect(attendanceSource).not.toContain('team-seat-flag-icon');
+    expect(attendanceSource).not.toContain('<svg class="team-seat-flag-icon"');
     expect(attendanceSource).not.toContain('>旗</button>');
   });
 });

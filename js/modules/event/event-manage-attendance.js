@@ -239,8 +239,6 @@ Object.assign(App, {
     const tableColspan = (tableEditing ? (1 + (hasDemote ? 1 : 0) + 1) : 1)
       + (showNoShowColumn ? 1 : 0)
       + 3;
-    const teamSeatFlagIcon = '<svg class="team-seat-flag-icon" viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 21V4"/><path d="M6 4h11l-1.5 4L17 12H6"/></svg>';
-
     let rows = people.map(p => {
       if (p.isTeamHeader) {
         const canAdjustTeam = !isSubmitting && this._isCurrentUserTeamStaff?.(p.teamReservationTeamId);
@@ -275,7 +273,7 @@ Object.assign(App, {
       // 徽章縮圖
       const badges = p.displayBadges || [];
       const teamSeatFlag = p.teamReservationTeamId
-        ? `<button type="button" title="俱樂部席位" aria-label="俱樂部席位" onclick="event.stopPropagation();App.showToast('${escapeHTML(p.teamReservationTeamName || '俱樂部')}俱樂部席位')" style="display:inline-flex;align-items:center;justify-content:center;width:1.18rem;height:1.18rem;margin-right:.28rem;vertical-align:-.18rem;line-height:1;border:1px solid #2563eb;color:#2563eb;background:#eff6ff;border-radius:999px;padding:0;cursor:pointer">${teamSeatFlagIcon}</button>`
+        ? `<button type="button" title="俱樂部席位" aria-label="俱樂部席位" onclick="event.stopPropagation();App.showToast('${escapeHTML(p.teamReservationTeamName || '俱樂部')}俱樂部席位')" style="display:inline-flex;align-items:center;justify-content:center;width:1.18rem;height:1.18rem;margin-right:.28rem;vertical-align:-.18rem;font-size:.86rem;line-height:1;border:1px solid #2563eb;color:#2563eb;background:#eff6ff;border-radius:999px;padding:0;cursor:pointer">🚩</button>`
         : '';
       const badgeHtml = badges.length
         ? '<span class="reg-badge-list">' + badges.map(b =>
