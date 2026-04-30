@@ -300,6 +300,8 @@ describe('Team reservation button loading contract', () => {
     expect(attendanceSource).toContain('class="reg-attendance-table"');
     expect(activityCss).toContain('.reg-attendance-table .team-reservation-seat-row');
     expect(activityCss).toContain('linear-gradient(90deg');
+    expect(activityCss).toContain('--team-reservation-row-height: 56px');
+    expect(activityCss).toContain('--team-reservation-gradient-end: 33%');
     expect(attendanceSource).not.toContain('>🚩</button>');
     expect(attendanceSource).not.toContain('aria-label="俱樂部席位"');
     expect(attendanceSource).not.toContain('team-seat-flag-icon');

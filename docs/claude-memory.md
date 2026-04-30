@@ -2050,5 +2050,6 @@
 ### 2026-04-30 Team reservation attendance row styling
 - **Issue**: Team reservation members and placeholder seats used a flag button in the attendance list, making the left side noisy and too similar to per-person badges.
 - **Fix**: Removed the flag button and marked reservation rows with `team-reservation-seat-row` / `team-reservation-placeholder-row`, then applied light/dark gradient row backgrounds to identify team seats.
+- **Follow-up**: Normalized team seat row height so placeholder seats match registered member rows, and limited the gradient cue to the left third of each row.
 - **Compatibility**: No reservation count, matching, attendance, no-show, or quick-adjust logic changed; this is a presentation-only update.
 - **Validation**: Updated static unit coverage to assert gradient row classes/styles and prevent the flag icon from returning.

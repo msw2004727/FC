@@ -733,25 +733,40 @@
   box-shadow: 0 18px 55px rgba(0, 0, 0, .48);
 }
 
+.reg-attendance-table {
+  --team-reservation-row-height: 56px;
+  --team-reservation-name-height: 34px;
+  --team-reservation-gradient-end: 33%;
+  --team-reservation-gradient-fade: 36%;
+}
 .reg-attendance-table .team-reservation-header-row td {
-  background: linear-gradient(90deg, rgba(37, 99, 235, .14), rgba(20, 184, 166, .1) 58%, rgba(37, 99, 235, .04)) !important;
+  background: linear-gradient(90deg, rgba(37, 99, 235, .14), rgba(20, 184, 166, .1) var(--team-reservation-gradient-end), rgba(255, 255, 255, 0) var(--team-reservation-gradient-fade)) !important;
   border-bottom-color: rgba(37, 99, 235, .28) !important;
 }
 .reg-attendance-table .team-reservation-seat-row {
-  background: linear-gradient(90deg, rgba(37, 99, 235, .13), rgba(20, 184, 166, .08) 60%, rgba(255, 255, 255, 0));
+  height: var(--team-reservation-row-height);
+  background: linear-gradient(90deg, rgba(37, 99, 235, .13), rgba(20, 184, 166, .08) var(--team-reservation-gradient-end), rgba(255, 255, 255, 0) var(--team-reservation-gradient-fade));
 }
 .reg-attendance-table .team-reservation-seat-row > td:first-child {
   box-shadow: inset 3px 0 0 rgba(37, 99, 235, .56);
 }
 .reg-attendance-table .team-reservation-seat-row td {
+  height: var(--team-reservation-row-height);
+  vertical-align: middle;
   background: transparent;
 }
+.reg-attendance-table .team-reservation-seat-row .reg-name-badges,
+.reg-attendance-table .team-reservation-seat-row .reg-name-text {
+  min-height: var(--team-reservation-name-height);
+  align-items: center;
+}
 .reg-attendance-table .team-reservation-placeholder-row .reg-name-text {
+  display: inline-flex;
   color: #1d4ed8 !important;
   font-weight: 700 !important;
 }
 [data-theme="dark"] .reg-attendance-table .team-reservation-header-row td {
-  background: linear-gradient(90deg, rgba(96, 165, 250, .24), rgba(45, 212, 191, .13) 58%, rgba(96, 165, 250, .06)) !important;
+  background: linear-gradient(90deg, rgba(96, 165, 250, .24), rgba(45, 212, 191, .13) var(--team-reservation-gradient-end), rgba(15, 23, 42, 0) var(--team-reservation-gradient-fade)) !important;
   border-bottom-color: rgba(96, 165, 250, .3) !important;
   color: #bfdbfe !important;
 }
@@ -759,7 +774,7 @@
   color: #bfdbfe !important;
 }
 [data-theme="dark"] .reg-attendance-table .team-reservation-seat-row {
-  background: linear-gradient(90deg, rgba(96, 165, 250, .2), rgba(45, 212, 191, .11) 60%, rgba(15, 23, 42, 0));
+  background: linear-gradient(90deg, rgba(96, 165, 250, .2), rgba(45, 212, 191, .11) var(--team-reservation-gradient-end), rgba(15, 23, 42, 0) var(--team-reservation-gradient-fade));
 }
 [data-theme="dark"] .reg-attendance-table .team-reservation-seat-row > td:first-child {
   box-shadow: inset 3px 0 0 rgba(96, 165, 250, .62);
