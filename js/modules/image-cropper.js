@@ -9,6 +9,7 @@ Object.assign(App, {
     const ratio = Number(raw.aspectRatio);
     const outputWidth = Math.max(320, Math.min(2400, parseInt(raw.outputWidth, 10) || 1200));
     const outputHeight = parseInt(raw.outputHeight, 10) || null;
+    const minZoom = Math.max(0.1, Math.min(1, Number(raw.minZoom) || 0.25));
     const maxZoom = Math.max(2, Math.min(8, Number(raw.maxZoom) || 5));
     const quality = Number.isFinite(Number(raw.quality)) ? Math.max(0.5, Math.min(1, Number(raw.quality))) : 0.9;
     const frameHintParts = [
@@ -22,6 +23,7 @@ Object.assign(App, {
       outputHeight: outputHeight && outputHeight > 0 ? Math.max(240, Math.min(2400, outputHeight)) : null,
       outputType: raw.outputType || 'image/webp',
       quality,
+      minZoom,
       maxZoom,
       title: raw.title || '\u5716\u7247\u7de8\u8f2f',
       subtitle: raw.subtitle || '\u62d6\u66f3\u8abf\u6574\u4f4d\u7f6e\uff0c\u4f7f\u7528\u6ed1\u687f\u6216\u6efe\u8f2a\u653e\u5927\u7e2e\u5c0f',
@@ -64,7 +66,7 @@ Object.assign(App, {
         '<div class="image-cropper-controls">',
           '<div class="image-cropper-tool-row">',
             '<button type="button" class="image-cropper-tool" data-action="zoom-out" aria-label="Zoom out">-</button>',
-            '<input type="range" class="image-cropper-zoom-slider" min="100" max="' + Math.round(config.maxZoom * 100) + '" value="100">',
+            '<input type="range" class="image-cropper-zoom-slider" min="' + Math.round(config.minZoom * 100) + '" max="' + Math.round(config.maxZoom * 100) + '" value="100">',
             '<button type="button" class="image-cropper-tool" data-action="zoom-in" aria-label="Zoom in">+</button>',
             '<span class="image-cropper-zoom-value">100%</span>',
           '</div>',
@@ -140,12 +142,14 @@ Object.assign(App, {
     const clampPosition = () => {
       const scaledW = state.imgW * state.scale;
       const scaledH = state.imgH * state.scale;
-      state.tx = scaledW <= state.vpW
-        ? Math.round((state.vpW - scaledW) / 2)
-        : Math.min(0, Math.max(state.vpW - scaledW, state.tx));
-      state.ty = scaledH <= state.vpH
-        ? Math.round((state.vpH - scaledH) / 2)
-        : Math.min(0, Math.max(state.vpH - scaledH, state.ty));
+      const clampAxis = (pos, frameSize, imageSize) => {
+        if (imageSize <= frameSize) {
+          return Math.min(frameSize - imageSize, Math.max(0, pos));
+        }
+        return Math.min(0, Math.max(frameSize - imageSize, pos));
+      };
+      state.tx = clampAxis(state.tx, state.vpW, scaledW);
+      state.ty = clampAxis(state.ty, state.vpH, scaledH);
     };
 
     const resetTransform = () => {
@@ -164,7 +168,7 @@ Object.assign(App, {
 
     const setScale = (nextScale, originX = state.vpW / 2, originY = state.vpH / 2) => {
       const oldScale = state.scale || 1;
-      const clamped = Math.max(1, Math.min(config.maxZoom, Number(nextScale) || 1));
+      const clamped = Math.max(config.minZoom, Math.min(config.maxZoom, Number(nextScale) || 1));
       if (Math.abs(clamped - oldScale) < 0.001) return;
       const ratio = clamped / oldScale;
       state.tx = originX - (originX - state.tx) * ratio;
@@ -240,7 +244,7 @@ Object.assign(App, {
           const p2 = values[1];
           const center = pointerCenter(p1, p2);
           const dist = pointerDistance(p1, p2) || 1;
-          const nextScale = Math.max(1, Math.min(config.maxZoom, pinchStart.scale * (dist / pinchStart.dist)));
+          const nextScale = Math.max(config.minZoom, Math.min(config.maxZoom, pinchStart.scale * (dist / pinchStart.dist)));
           const ratio = nextScale / pinchStart.scale;
           state.scale = nextScale;
           state.tx = (center.x - rect.left) - (pinchStart.cx - pinchStart.tx) * ratio;
@@ -376,9 +380,19 @@ Object.assign(App, {
       height = maxH;
       width = maxH * ratio;
     }
+    const minW = Math.min(maxW, 220);
+    const minH = Math.min(maxH, 140);
+    if (width < minW && minW / ratio <= maxH) {
+      width = minW;
+      height = width / ratio;
+    }
+    if (height < minH && minH * ratio <= maxW) {
+      height = minH;
+      width = height * ratio;
+    }
     return {
-      width: Math.max(220, Math.round(width)),
-      height: Math.max(180, Math.round(height)),
+      width: Math.max(1, Number(width.toFixed(2))),
+      height: Math.max(1, Number(height.toFixed(2))),
     };
   },
 
@@ -401,37 +415,6 @@ Object.assign(App, {
     return result;
   },
 
-  _cropperComputeSourceRect(sourceImage, state, vpW, vpH) {
-    const naturalW = sourceImage.naturalWidth || sourceImage.width || 1;
-    const naturalH = sourceImage.naturalHeight || sourceImage.height || 1;
-    const renderedW = Math.max(1, (state.imgW || 1) * (state.scale || 1));
-    const renderedH = Math.max(1, (state.imgH || 1) * (state.scale || 1));
-    const scaleX = renderedW / naturalW;
-    const scaleY = renderedH / naturalH;
-    const sourceScale = Math.max(0.0001, (scaleX + scaleY) / 2);
-    const targetRatio = Math.max(0.0001, vpW / Math.max(1, vpH));
-    let width = Math.max(1, vpW / sourceScale);
-    let height = Math.max(1, vpH / sourceScale);
-
-    if (width > naturalW) {
-      width = naturalW;
-      height = width / targetRatio;
-    }
-    if (height > naturalH) {
-      height = naturalH;
-      width = height * targetRatio;
-    }
-    width = Math.max(1, Math.min(naturalW, width));
-    height = Math.max(1, Math.min(naturalH, height));
-
-    const maxX = Math.max(0, naturalW - width);
-    const maxY = Math.max(0, naturalH - height);
-    const x = Math.min(maxX, Math.max(0, -state.tx / sourceScale));
-    const y = Math.min(maxY, Math.max(0, -state.ty / sourceScale));
-
-    return { x, y, width, height };
-  },
-
   _cropperRenderResult(sourceImage, state, vpW, vpH, config = {}) {
     const canvas = document.createElement('canvas');
     const outputW = Math.max(320, Math.min(2400, parseInt(config.outputWidth, 10) || 1200));
@@ -447,17 +430,21 @@ Object.assign(App, {
       ctx.fillRect(0, 0, outputW, outputH);
     }
 
-    const sourceRect = this._cropperComputeSourceRect(sourceImage, state, vpW, vpH);
+    const naturalW = sourceImage.naturalWidth || sourceImage.width || 1;
+    const naturalH = sourceImage.naturalHeight || sourceImage.height || 1;
+    const canvasScale = Math.min(outputW / vpW, outputH / vpH);
+    const offsetX = (outputW - (vpW * canvasScale)) / 2;
+    const offsetY = (outputH - (vpH * canvasScale)) / 2;
     ctx.drawImage(
       sourceImage,
-      sourceRect.x,
-      sourceRect.y,
-      sourceRect.width,
-      sourceRect.height,
       0,
       0,
-      outputW,
-      outputH
+      naturalW,
+      naturalH,
+      offsetX + (state.tx * canvasScale),
+      offsetY + (state.ty * canvasScale),
+      state.imgW * state.scale * canvasScale,
+      state.imgH * state.scale * canvasScale
     );
 
     const outputType = config.outputType || 'image/webp';

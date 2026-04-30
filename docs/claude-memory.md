@@ -2029,6 +2029,12 @@
 - **Compatibility**: Kept the same cropper options and upload APIs, so existing upload flows continue to call `showImageCropper` without contract changes.
 - **Validation**: Added static coverage for external hint placement and source-rect rendering before cache-version bump and frontend push deploy.
 
+### 2026-04-30 Image cropper no-stretch and transparent padding follow-up
+- **Issue**: The previous cropper fix still allowed visible distortion because global `img { max-width: 100% }` could squeeze cropper images larger than the frame, and viewport min-height/min-width guards could break target ratios such as 8:3.
+- **Fix**: Forced cropper images to ignore global max-size rules, preserved the target frame ratio on compact screens, allowed zooming out below the original fill size, and rendered the full transformed image onto a transparent canvas so empty areas export as alpha for WebP/PNG.
+- **Compatibility**: JPEG exports still use a white background because JPEG cannot store transparency; WebP/PNG flows keep transparent padding.
+- **Validation**: Added executable cropper tests for compact-frame ratio, zoom-out rendering, and non-stretched draw dimensions before cache-version bump and push deploy.
+
 ### 2026-04-30 Registration canonical cache hardening
 - **Scope**: Canonicalized official reads for `registrations`, `activityRecords`, and `attendanceRecords` so UI/stat flows prefer event subcollections and ignore root leftovers.
 - **Fix**: Added FirebaseService canonical metadata/upsert helpers, routed ApiService official reads through canonical helpers, and updated detail, favorites, leaderboard, scan, dashboard, achievement batch, and no-show paths to avoid raw root cache.

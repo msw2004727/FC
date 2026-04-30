@@ -129,7 +129,14 @@ body.image-cropper-open {
   overflow: hidden;
   border: 2px solid rgba(255, 255, 255, 0.86);
   border-radius: var(--radius-sm, 8px);
-  background: #0f172a;
+  background-color: rgba(148, 163, 184, 0.16);
+  background-image:
+    linear-gradient(45deg, rgba(100, 116, 139, 0.2) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(100, 116, 139, 0.2) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(100, 116, 139, 0.2) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(100, 116, 139, 0.2) 75%);
+  background-size: 18px 18px;
+  background-position: 0 0, 0 9px, 9px -9px, -9px 0;
   box-shadow: 0 16px 48px rgba(15, 23, 42, 0.28);
   cursor: grab;
   touch-action: none;
@@ -144,8 +151,11 @@ body.image-cropper-open {
   position: absolute;
   top: 0;
   left: 0;
+  max-width: none;
+  max-height: none;
   transform-origin: 0 0;
   will-change: transform;
+  opacity: 1;
   pointer-events: none;
   -webkit-user-drag: none;
 }
