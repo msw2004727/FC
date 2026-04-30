@@ -2,54 +2,99 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
-### 2026-04-30 — UID 健康檢查診斷包複製 [小型]
-- **需求**: UID 健康檢查報表內容不易手動複製，需要一鍵打包成可貼給工程師分析的文字。
-- **修正**: 在「用戶補正管理 > UID檢查」卡片新增「複製診斷包」，報表彈窗右上角也新增同功能；診斷包只包含狀態、摘要、掃描/讀取/警告/嚴重數、各區塊異常分類與少量樣本路徑，不匯出完整資料庫。複製邏輯拆到 `user-admin-uid-health-copy.js`，並加入 adminUsers 動態載入群組。
-- **驗證**: `node --check` 通過 `user-admin-uid-health.js`、`user-admin-uid-health-copy.js`、`script-loader.js`、`config.js`、`sw.js`；`npm test -- --runInBand --runTestsByPath tests/unit/script-deps.test.js tests/unit/user-admin.test.js` 通過；`git diff --check` 通過；前端版本 bump 至 `0.20260430za`。
-- **提醒**: 這是診斷輸出工具，不會新增 Firestore 讀取或寫入；只有使用者點複製時讀最後一次已存在的 `uidHealthLastReport`。
+### 2026-04-30 — 日誌排序與濃縮整理 [維護]
+- **問題**: `docs/claude-memory.md` 近期有多批 2026-04-28～2026-04-30 紀錄追加在檔案尾端，造成日期排序斷裂；同一功能也留下多個中間修正版本，閱讀成本偏高。
+- **整理**: 以日期新到舊重排所有段落；合併 UID 健康檢查、操作/稽核日誌、錯誤日誌、資料同步修復、俱樂部運動標籤、團隊保留席位旗幟等同主題連續紀錄。
+- **保留原則**: 保留永久/中大型、權限與資料一致性、部署或測試驗證，以及可避免重犯的教訓；移除已被後續修正取代的中間狀態與純過程雜訊。
+- **影響**: 文件維護，不改 runtime 程式、Firestore rules、Cloud Functions 或版本號。
 
-### 2026-04-30 — UID 健康檢查移入用戶補正管理 [小型]
-- **需求**: UID 健康檢查不再放在數據儀表板的「資料同步與監聽設定」內，改放到「用戶補正管理」的新分頁。
-- **修正**: 新增「UID檢查」分頁，沿用 `admin.repair.data_sync` 權限與後端密碼驗證；移除儀表板設定卡片內的 UID 檢查面板，保留資料同步 Log 合併顯示 UID 檢查紀錄。
-- **驗證**: `node --check` 通過 `dashboard-usage.js`、`user-admin-corrections.js`、`user-admin-uid-health.js`、`script-loader.js`、`config.js`、`user-admin-perm-info.js`；`git diff --check` 通過；完整 `npm test -- --runInBand` 通過（81 suites / 2631 tests）；前端版本 bump 至 `0.20260430y`。
-- **提醒**: 同一個權限現在同時控制「系統資料同步」與「UID檢查」分頁，避免新增權限碼後舊角色看不到工具。
+### 2026-04-30 — UID 健康檢查、移轉與診斷包 [中型]
+- **需求**: 管理端需要只讀式 UID 健康報表，能掃描 root/subcollection 與 companion pseudo uid 風險，且報表要能快速複製給工程師分析。
+- **修正**: 新增 `runUidHealthCheck` callable，掃描 users、registrations、activityRecords、attendanceRecords、eventProjections、events、teams、tournaments；工具移到「用戶補正管理 > UID檢查」，沿用 `admin.repair.data_sync` 與後端密碼驗證；新增「複製診斷包」，只輸出摘要、分類、少量樣本與最後報告，不匯出完整資料庫。
+- **驗證**: `node --check` 覆蓋 dashboard/user-admin/functions/script-loader/config 相關檔；完整 `npm test -- --runInBand` 通過（81 suites / 2631 tests）；前端版本曾更新至 `0.20260430x`～`0.20260430za`。
+- **提醒**: 健康檢查只產生報表/log，不修復或刪除正式活動、用戶、報名、簽到資料。
 
-### 2026-04-30 — UID 健康檢查報表 [審計]
-- **問題**: 既有 UID migration / repair 工具偏向 root collection，容易漏掉正式使用中的 subcollection 與 companion pseudo uid 風險。
-- **修正**: 新增後端 `runUidHealthCheck` callable，接在「資料同步與監聽設定」下方，需 `admin.repair.data_sync` 權限與後端密碼驗證；掃描 users、registrations、activityRecords、attendanceRecords、eventProjections、events、teams、tournaments，產生只讀報表、最後報告與 UID 檢查 Log。
-- **驗證**: `node --check functions/index.js`、`node --check js/modules/dashboard/dashboard-usage.js`、`git diff --check`、完整 `npm test -- --runInBand` 通過（81 suites / 2631 tests）；前端版本 bump 至 `0.20260430x`。
-- **提醒**: 健康檢查只會改寫報表/log，不修復或刪除正式活動、用戶、報名、簽到資料。
+### 2026-04-30 — 操作/稽核日誌顯示、搜尋與診斷包升級 [中型]
+- **問題**: 操作日誌與稽核日誌早期只顯示少量欄位，搜尋也偏向名稱/內容；實務查 UID、活動 ID、文件 ID、目標、來源或 meta 時不夠用。
+- **修正**: 操作日誌納入 `actorUid/type/typeName/content/eventId/_docId/createdAt` 搜尋與顯示，並提供詳細內容與診斷包；稽核日誌保留並顯示 `result/source/targetType/targetId/targetLabel/meta/_docId`，加入結果膠囊、目標/來源/UID 摘要、詳細內容與診斷包複製。
+- **測試**: 新增 `tests/unit/operation-log.test.js` 與 `tests/unit/audit-log.test.js`，覆蓋搜尋文字、ID/meta 篩選、詳細顯示與診斷包內容。
+- **提醒**: 本次只升級顯示、搜尋與複製包，不改既有寫入流程或 Firestore rules。
 
-### 2026-04-30 — 操作日誌顯示與搜尋升級 [修補]
-- **問題**: 操作日誌畫面只顯示時間、類型、操作者與內容，搜尋也只比對操作者/內容；實務上查 UID、活動 ID、文件 ID 或類型代碼時不夠好用。
-- **修補**: `js/modules/user-admin/user-admin-exp.js` 新增操作日誌搜尋文字彙整，納入 `actorUid/type/typeName/content/eventId/_docId/createdAt`，並在列表顯示 UID、類型、活動 ID、文件 ID、詳細內容與診斷包複製。
-- **測試**: 新增 `tests/unit/operation-log.test.js`，覆蓋搜尋文字、事件/文件 ID 篩選、詳細顯示與診斷包內容。
+### 2026-04-30 — 俱樂部運動標籤底色最終狀態 [小型]
+- **需求**: 俱樂部卡片左上角運動標籤在一般主題使用透明淺白底色，深色主題維持原本半透明深灰色。
+- **修正**: `.tc-sport-badge` 一般主題採淺白半透明與 blur；`[data-theme="dark"] .tc-sport-badge` 還原為 `rgba(15, 23, 42, .7)` 並保留深色陰影；同步做 cache bump。
+- **驗證**: `git diff --check` 通過；CSS scoped 在 team card badge，不影響其它頁面。
 
-### 2026-04-30 — 稽核日誌顯示與搜尋升級 [修補]
-- **問題**: 稽核日誌後台只顯示時間、操作者與動作，搜尋也只比對操作者名稱/UID；但 UI 提示可搜尋目標，實際查活動 ID、目標名稱、來源或 meta 時容易搜不到。
-- **修補**: `js/modules/audit-log.js` 保留並顯示 `result/source/targetType/targetId/targetLabel/meta/_docId`，新增結果膠囊、目標/來源/UID 摘要、詳細內容、診斷包複製，並把搜尋範圍擴充到目標、來源、結果、文件 ID 與 meta。
-- **頁簽**: 保留側邊選單「日誌中心」作為整體入口，將整合頁第一個分頁固定顯示為「操作日誌」，避免入口名稱與操作日誌分頁混淆。
-- **測試**: 新增 `tests/unit/audit-log.test.js`，覆蓋搜尋文字、目標/meta 篩選、顯示內容與稽核診斷包。
+### 2026-04-30 — 錯誤日誌診斷中心升級與篩選排版修正 [中型]
+- **問題**: 錯誤日誌原本只像技術訊息列表，缺少白話摘要、嚴重度、用戶、頁面/功能、裝置、版本、context、同類聚合與可轉交的診斷包；手機版篩選列也會把搜尋欄拉得過高。
+- **修正**: 新增 `error-log-diagnostics.js` 與 `error-log-insights.js`，提供白話化、嚴重度、時間排序、裝置/context helper、同類錯誤 Top、近 7 天趨勢、單筆/群組診斷包；只在高價值流程的既有失敗分支補 `_writeErrorLog`，涵蓋報名/取消、簽到、俱樂部、賽事審核、商品圖片上傳；錯誤日誌篩選列改為頁面專用 grid，搜尋框第一列全寬，篩選器等寬往下排列。
+- **驗證**: `node --check` 覆蓋修改 JS；`error-log-high-value-flows.test.js`、`error-log-insights.test.js` 與相關 targeted Jest 通過；完整 unit 通過；CSS/Playwright 手機寬度量測通過。
+- **教訓**: 診斷升級先強化管理端閱讀與轉交流程，不打開全域攔截或通用 CRUD 記錄，避免日誌爆量與誤報。
 
-### 2026-04-30 — 深色主題俱樂部運動標籤底色還原 [小型]
-- **需求**: 俱樂部頁面卡片左上角運動標籤在一般主題維持透明淺白，但深色主題要回到原本半透明深灰色。
-- **修復**: `css/team.css` 的 `[data-theme="dark"] .tc-sport-badge` 改回 `rgba(15, 23, 42, .7)`，並保留深色陰影；同步 bump cache 版本。
-- **驗證**: `git diff --check` 與版本號一致性檢查通過；僅 CSS 視覺與 cache bust 調整。
+### 2026-04-30 — 資料同步立即修復 timeout、preload 與進度回饋 [中型]
+- **問題**: 管理端「資料同步與監聽設定」立即修復會出現 `deadline-exceeded`，console 也有大量 `preload was not used`；分批後又缺少直覺進度回饋。
+- **修正**: `repairActivityRecordsManual` 改支援 `startIndex/maxEventsPerRun` 分段與 `hasMore/nextStartIndex`；前端改成 80 場一批、最多接力 8 批、timeout 300 秒，設定區新增單次活動上限；核心頁 warmup 改用 `prefetch`，動態群組不再整包 preload；操作按鈕下方加入進度條與「已處理 X/Y 場活動」。
+- **驗證**: `node --check` 覆蓋 functions、dashboard usage、script loader；完整 unit 通過（81 suites / 2616 tests）；production function log 確認是前端等待逾時而非權限或密碼失敗。
+- **教訓**: 補償型修復要能分段、能續跑、能回報進度；短時間內不會執行的 JS 暖機應用 `prefetch`。
+
+### 2026-04-30 — 團隊報名保留席位旗幟最終樣式 [小型]
+- **需求**: 報名名單中團隊保留席位左側只顯示旗子本身，最終視覺為裸 `🚩`，不要文字、SVG、藍色圈框或底色。
+- **修正**: `event-manage-attendance.js` 的 `teamSeatFlag` 保留可點擊 button、tooltip 與 toast，但移除 inline SVG、文字「旗」、固定寬高、藍框、底色、圓角與陰影。
+- **驗證**: `node --check js/modules/event/event-manage-attendance.js`；相關 unit 測試確認使用 `🚩`、拒絕 SVG/文字退回，且 button 為透明背景與無邊框。
+
+### 2026-04-30 賽事主辦建立後創立人未進入參賽名單 [中型]
+- **問題**: 主辦單位建立友誼賽後，俱樂部頁籤只看到主辦 entry，卻沒有顯示創立人/主辦人的隊員名單。
+- **原因**: 建立流程只寫 `entries/{hostTeamId}` 的 `approvedByUid/approvedByName`，沒有同步建立 `entries/{hostTeamId}/members/{creatorUid}`；前端 roster 正確讀 members 子集合，因此畫面不會顯示主辦創立人。
+- **修復**: `createFriendlyTournament` 在主辦俱樂部實際參賽時，和 root + host entry 同 batch 建立 creator member；審核通過自動加入名單也共用同一 roster member builder，避免兩條流程欄位形狀不同。
+- **驗收**: `node --check functions/index.js`、targeted tournament/function tests 通過；部署 functions 後新建立賽事會直接讀到主辦創立人。
+
+### 2026-04-30 賽事俱樂部隊員名單冷載入防呆 [中型]
+- **問題**: 賽事詳細頁第一輪只載入 `entries`，尚未讀取 `entries/{teamId}/members` 子集合時，俱樂部頁籤會暫時把 `memberRoster` 當空陣列，造成已參賽者姓名消失，且多個已核准俱樂部都錯誤顯示「參賽」按鈕。
+- **原因**: `tournament-friendly-state.js` 的 detail state 沒有標記 roster hydration 狀態；`tournament-friendly-detail-view.js` 直接用未補齊的 `memberRoster` 判斷 UI；真正的 `_hydrateFriendlyTournamentRosterState()` 只有後續才補 members 並刷新。
+- **修復**: detail state 新增 `rosterHydrated: false`，teams tab 冷載入時顯示「隊員名單載入中」與 disabled 載入按鈕，不先畫可點擊參賽；`tournament-friendly-roster.js` 新增 hydrate pending guard，members 補齊後設為 `rosterHydrated: true` 並自動刷新頁籤與報名區。
+- **驗證**: 新增 unit tests 覆蓋 cold roster 不顯示錯誤 join action、teams tab 會排程 hydrate；保留已 hydrate 時取消參賽與 blocked 參賽按鈕邏輯。
+
+### 2026-04-30 刪除賽事後仍停留已刪除詳細頁 [中型]
+- **問題**: 管理員在賽事詳細頁成功刪除賽事後，畫面仍可能停在已刪除的詳細頁，而不是回到賽事列表。
+- **原因**: 詳細頁進入後會有短暫 page lock；刪除流程確認與寫入完成後才呼叫 `showPage('page-tournaments')`，容易被 page lock 擋下，且 detail cache / route param 沒有集中清理。
+- **修復**: 新增刪除後導回 helper，成功刪除且目前在詳細頁時清掉 current tournament、friendly detail state、URL `tournament` query，並用 `bypassPageLock + resetHistory` 主動回到 `page-tournaments`。
+- **驗收**: 新增 `tournament-delete-navigation.test.js`，覆蓋詳細頁刪除會跳轉、管理頁刪除不亂跳；`npm test -- --runInBand` 通過 76 suites / 2594 tests。
+
+### 2026-04-30 報名紀錄漏寫 activityRecords 修復 [中型]
+- **問題**：UID `U210473e818fbc6ce639606b9e83efdd1` 已報名 2026/05/01「連假週五下午3-5西屯踢球團」，但個人資訊頁報名紀錄未顯示。
+- **原因**：報名主資料寫入 `events/{event}/registrations` 成功，但個人頁讀取的 `activityRecords` 缺漏；舊 fallback 路徑把 activityRecord 放在交易後另行非同步寫入，若頁面流程中斷或 post-op 失敗會留下註冊成功但紀錄缺失。
+- **修復**：補回該活動缺漏的 4 筆 activityRecords；正式環境 featureFlags 未載入時預設走 server registration；fallback 報名交易同步寫入 registration、lock、occupancy 與 activityRecord，前端不再額外另開非同步 activityRecord 寫入。
+- **驗證**：Firestore 稽核確認該活動 active self registration 對應 activityRecords 缺漏數為 0；新增/更新 registration transaction 與 migration path 測試，並做 JS 語法檢查。
+- **教訓**：個人紀錄屬於報名索引資料，必須跟主報名寫入維持同交易或由後端權威路徑寫入；排程補償可以做一致性修復，但不能取代即時寫入。
+
+### 2026-04-30 報名與取消報名連點防護 [小型]
+- **問題**：使用者快速連點報名/取消報名時，第二次操作可能撞到已完成的狀態，console 出現 `已報名此活動` mojibake 或 `報名記錄不存在`。
+- **原因**：取消報名的 busy lock 在確認框之後才建立，連點可同時進入兩條取消流程；報名流程也缺少本機有效本人報名的早期攔截。
+- **修復**：報名前先檢查本人有效報名並改顯示白話提示；取消報名在確認前先上鎖，早退時釋放；連點造成的已報名/找不到報名記錄改視為狀態已更新，不再寫入錯誤日誌。
+- **驗證**：`node --check js/modules/event/event-detail-signup.js`；`npm test -- --runInBand --runTestsByPath tests/unit/signup-logic.test.js tests/unit/event-detail-render.test.js tests/unit/error-log-high-value-flows.test.js`；`npm test -- --runInBand` 全綠。
+
+### 2026-04-30 數據儀表板用戶成長趨勢固定範圍 [小型]
+- **問題**：用戶成長趨勢標示近 12 個月，但圖表會跟著儀表板上方撈取月份範圍改變；當月趨勢 X 軸顯示月/日，日期密集時容易擠在一起。
+- **原因**：用戶成長圖使用已被目前範圍過濾的 `users`，不是完整用戶來源；當月趨勢圖直接顯示 `MM/DD`。
+- **修復**：用戶成長圖改用 `allUsers` 作為來源，再由圖表自己切最近 12 個月；當月趨勢 X 軸只顯示日數。
+- **教訓**：標題寫固定區間的圖表，資料來源也要固定，不能沿用頁面篩選後的集合。
+
+### 2026-04-30 活動詳情報名按鈕與名單狀態一致 [小型]
+- **問題**：用戶已在報名名單內時，活動詳情頁主按鈕仍可能顯示「立即報名」。
+- **原因**：報名名單可用活動文件的 `participantsWithUid/waitlistWithUid` 投影先顯示，但按鈕只看 `registrations` 快取；快取尚未補齊或只含 `uid` 欄位時會誤判未報名。
+- **修復**：報名狀態判斷改為先看 `registrations`，缺資料時再用名單投影比對 UID；個人報名查詢支援 `userId/uid`；取消報名同時接受 `id/_docId`。
+- **教訓**：同一畫面的名單與動作按鈕必須共用一致的身份判斷，否則快取與投影資料短暫不一致時會讓用戶誤以為能重複報名。
+
+### 2026-04-30 用戶補正管理資料同步整併與密碼守門 [中型]
+- **問題**：用戶補正管理內「系統資料同步」工具過多且散落，日常修復、健康檢查、歷史遷移與高風險重算混在同一層，且部分前端直接執行的按鈕沒有先做後端密碼驗證。
+- **原因**：早期維修工具陸續加入同一頁，只有 `saveRealtimeConfig`、`repairActivityRecordsManual`、`runUidHealthCheck` 這類 callable 本身有 `1121` 密碼守門；頁面內直接跑 Firestore 或舊 Cloud Function 的工具缺少一致的前置驗證。
+- **修復**：前端將資料同步工具整理成「日常修復」「健康檢查」「進階 / 歷史工具」三區，一鍵同步隱藏，放鴿子全站重算移到放鴿子系統頁；新增 `verifyDataSyncPassword` callable，所有資料同步功能按鈕執行前先輸入密碼並由後端驗證；`migrateUidFields` 與 `calcNoShowCountsManual` 也補上密碼要求。
+- **教訓**：管理端維修工具可以保留救援能力，但預設視覺層級要區分日常與高風險；直接由前端發動的修復流程也應先走同一個後端密碼守門，避免誤觸或權限外操作。
 
 ### 2026-04-29 — 俱樂部卡片匹克球圖示改走 SVG [小型]
 - **問題**: 俱樂部卡片與詳情封面左上角 sport badge 仍直接讀 `SPORT_ICON_EMOJI`，匹克球因此顯示桌球拍 emoji，和其他頁面已改用的專屬 SVG 不一致。
 - **修復**: 俱樂部卡片、管理列表標題與詳情封面角標改用 `getSportIconSvg()`，讓匹克球吃到 `SPORT_ICON_SVG_HTML`；補 `.tc-sport-badge svg` 尺寸規則，避免 SVG 在白色透明底內跑版。
 - **驗證**: 新增 `team-sport-icon.test.js` 守住 team render 不再回退到 `SPORT_ICON_EMOJI[t.sportTag]`；targeted unit 與語法檢查通過。
-
-### 2026-04-29 — 俱樂部卡片運動標籤改淺白 [小型]
-- **需求**: 俱樂部卡片左上角運動標籤改為透明淺白色，取代上一版半透明深灰。
-- **修復**: `.tc-sport-badge` 改用半透明白底，保留 blur、位置與尺寸；深色模式同樣維持透明白底但略降透明度，並同步 bump cache 版本。
-- **驗證**: `git diff --check` 與版本號一致性檢查通過；僅 CSS 視覺與 cache bust 調整。
-
-### 2026-04-29 — 俱樂部卡片運動標籤改深灰 [小型]
-- **需求**: 俱樂部卡片左上角的運動標籤原本是金色半透明底，視覺上容易和置頂/等級金色語意混淆，改成透明深灰色。
-- **修復**: `css/team.css` 的 `.tc-sport-badge` 改為半透明深灰背景，深色模式使用更深灰階，保留原本位置、尺寸與 pointer-events 行為；同步部署快取版本。
-- **驗證**: `git diff --check` 通過；僅 CSS 視覺調整，未改動資料或互動流程。
 
 ### 2026-04-29 — 活動置頂鎖定與加值預留開關 [小型]
 - **需求**: 暫時關閉活動管理中的置頂操作，點擊只提示「功能未開放」；新增活動表單的加值功能區先預留放鴿子偵測、候補名單、委託人、取消報名限制、GPS功能五個開關位置。
@@ -116,6 +161,120 @@
 - **原因**: `.github/workflows/inject-hot-events.yml` 固定 3 小時排程，且 `scripts/inject-hot-events.js` 活動只抓前 40 筆再本地挑近期活動，活動量增加時覆蓋率不足。
 - **修正**: 將排程改為每 6 小時，保留手動觸發；活動抓取 `pageSize` 提高到 120；每次注入時在 workflow log 列出 picked events/banners/tournaments 的 id 與日期/slot。
 - **驗收**: `node --check scripts/inject-hot-events.js`、`git diff --check`、`npm test` 通過；未進行實體瀏覽器測試。
+
+### 2026-04-29 — 新建賽事主辦俱樂部懶載入修正
+- **問題**：使用者直接進賽事頁按「建立賽事」時，可能顯示「目前沒有可代表建立賽事的主辦俱樂部」；切到俱樂部頁再回來後卻正常。
+- **原因**：賽事列表頁為了冷啟速度只載入 `tournaments`，未載入 `teams`；建立表單卻立即用 `ApiService.getTeams()` 判斷可代表的主辦俱樂部，導致 teams 快取尚未載入時誤判。另 `_getTournamentSelectableHostTeams()` 與建立權限的 admin 判斷不一致。
+- **修復**：`openCreateTournamentModal()` 改為先懶載入 `teams` 與使用者 teamIds 對應俱樂部，再重新判斷建立資格；建立按鈕加入「載入中...」狀態；主辦俱樂部選單改用 `_isTournamentGlobalAdmin()` 對齊既有權限 helper；補 `tournament-permissions` 與 `tournament-loading-performance` 測試。
+- **教訓**：效能優化拆掉頁面初始資料依賴後，所有按需功能都要在入口補自己的資料契約，避免被其他頁面載入過快取的副作用掩蓋。
+
+### 2026-04-29 — 參加賽事 loading 與隊伍退出流程 [永久]
+- **問題**：友誼賽「參加賽事」按下後缺少明確作動提示；隊伍申請審核中或已核准後，申請方俱樂部職員沒有自行撤回/退出賽事的入口。
+- **修復**：`registerTournament` 改用 `_withButtonLoading(..., '報名中...')`；新增 `tournament-friendly-withdraw.js`，在報名區與俱樂部頁籤顯示「撤回申請 / 退出賽事」，並以 `withdrawFriendlyTournamentTeam` callable 原子更新 application、entries、members 與 root summary。
+- **守衛**：後端只允許 pending 申請撤回、approved/entry 退出；已拒絕、已剔除、已取消狀態不能被轉成可重新報名的取消狀態。賽事主辦隊伍不可退出自己的賽事。
+- **驗收**：補 `tournament-friendly-detail-view.test.js` 與 `tournament-crud.test.js`，覆蓋 loading onclick、申請方退出按鈕、pending 撤回、rejected 不可轉狀態、cancelled/withdrawn 可重新報名。
+
+### 2026-04-29 — 賽事詳情冷刷新載入殼與可報名俱樂部補載 [中型]
+- **問題**：使用者直接刷新進入賽事詳情時，完整 applications/entries/team state 回來前會短暫看到預設「賽事名稱」空殼；非 admin 的隊長/領隊也可能因 `teams` 快取尚未載入，看不到可代表報名的俱樂部下拉選單。
+- **原因**：friendly `showTournamentDetail()` 先切到 detail page 再等待 state promise；`_ensureFriendlyTournamentApplyTeamsLoaded()` 只替全域管理員補載 joined teams，普通隊職員冷啟動時仍仰賴尚未載入的 `ApiService.getTeams()`。
+- **修正**：新增 friendly detail loading shell，先顯示賽事名稱、載入提示與既有進度條；補強 apply team hydration，所有使用者都會先用 `teamIds` 單筆補抓隊伍，非 admin 再合併「全量 teams 掃描」與「已補抓 joined officer teams」作為可報名來源。
+- **驗證**：`node --check js/modules/tournament/tournament-friendly-detail.js`、`node --check js/modules/tournament/tournament-friendly-state.js`、`npm test -- --runTestsByPath tests/unit/tournament-friendly-detail-view.test.js --runInBand`、`npm test -- --runInBand` passed。
+
+### 2026-04-29 — 賽事報名狀態冷刷新仍顯示可報名 [中型]
+- **問題**：上一版只補載可代表俱樂部，但冷刷新時若 `currentUser.teamIds` 尚未同步，已 approved 的 entries 不會被歸入目前使用者，報名區仍顯示「參加賽事」且沒有紅框處的俱樂部狀態下拉。
+- **原因**：`_getFriendlyTournamentApplyContext()`、roster approved entry 判斷只看 `_getUserTeamIds(user)`；隊職員身分雖可從 teams cache 推得，但 status scope 沒有共用同一批可操作隊伍 ID。
+- **修正**：新增 `_getFriendlyTournamentUserActionTeamIds()`，把 user teamIds、joined teams、responsible officer teams 合併成同一個狀態 scope；冷 cache 無 eligible teams 時強制 refresh `page-teams` 一次；報名區即使只有一個可操作俱樂部也顯示 selector，讓狀態列穩定存在。
+- **驗證**：補 `tournament-friendly-detail-view.test.js`，覆蓋 user.teamIds 空、entries 已 approved、冷 cache 強制 refresh、單一 approved club 仍顯示 selector 與退出按鈕。
+
+### 2026-04-29 — 活動行事曆滿額標籤與人數一致
+- **問題**：少數使用者在活動行事曆看到人數/進度條已低於上限，但右上角仍顯示「已額滿」。
+- **原因**：行事曆卡片的狀態標籤直接讀 `event.status`，人數與進度條則走 `_getEventParticipantStats()`；取消報名後若 registrations 或 current 較早更新、status 快取仍停在 `full`，同一張卡片會出現矛盾。
+- **修復**：`event-list-timeline.js` 改用既有 `_getEventEffectiveStatus()` 決定標籤，讓標籤與人數統計共用實際滿額判斷；報名、取消與遞補寫入流程不變。
+- **驗證**：新增 `event-timeline-status.test.js`，覆蓋 `event.status = full` 但 `19/21` 未滿時標籤應顯示「報名中」；`npm test -- --runInBand` 69 suites / 2538 tests passed。
+- **教訓**：顯示層若同時呈現狀態與人數，狀態標籤不能只信任快取欄位，應以同一份統計結果做防呆。
+
+### 2026-04-29 — 賽事詳情審核中與分享按鈕回饋 [中型]
+- **問題**：友誼賽詳情中，俱樂部審核中按鈕是 disabled，使用者點擊沒有回饋；分享賽事在詳情頁可能因分享 helper 未載入或資料尚未補齊而看似無反應；桌機版有取消報名時，聯繫、分享、取消三顆按鈕未明確並排。
+- **原因**：`tournamentDetail` / `tournament` ScriptLoader 群組缺少 `event-share` 通用 action sheet/helper；`shareTournament()` 沒有按鈕 loading、缺資料 toast 與 fallback；審核中狀態只靠 disabled button 表示。
+- **修復**：將審核中改為反灰可點狀態按鈕並 toast「審核中請耐心等待」；分享按鈕改走 `_withButtonLoading(..., '分享中...')` 並補缺資料/重複點擊提示；賽事詳情載入 event share helpers；有取消/撤回動作時桌機版 action grid 改為三欄。
+- **驗證**：`node --check` 檢查修改 JS；`npm run test:unit -- tests/unit/tournament-friendly-detail-view.test.js tests/unit/tournament-share.test.js tests/unit/script-loader.test.js --runInBand` 通過 70 suites / 2541 tests。
+- **教訓**：詳情頁的分享功能不能只載入 tournament builder，還要保證 action sheet/copy/LINE fallback helper 一起進入 page group；所有非立即完成的按鈕都要有 visible feedback。
+
+### 2026-04-29 — 賽事報名俱樂部別名去重與重新報名修正 [中型]
+- **問題**：同一個俱樂部可能在賽事詳情報名下拉中同時出現一般選項與「未通過」選項；選到不同項目時，一邊顯示可重新報名，一邊又顯示「俱樂部審核未通過」或被球員名單提示覆蓋。
+- **原因**：application/entry 使用的 `teamId` 可能與目前 teams cache 的 `id/_docId/docId` 不同，狀態比對只用 raw id；detail view 又把 rejected application 當成獨立 action option；roster 模組只排除 pending/approved/rejected，沒有排除 available 報名狀態。
+- **修復**：新增 `tournament-friendly-apply-state.js`，集中友誼賽隊伍別名 canonical key 與可報名狀態判斷，合併 `id/teamId/_docId/docId`；terminal rejected/removed application 會回歸到唯一可重新報名的 available option，並保留既有 application teamId 供 callable 覆寫舊申請；detail view 不再把 rejected history 獨立塞進下拉；roster 模組不再覆蓋 available 報名區。
+- **驗證**：`node --check js/modules/tournament/tournament-friendly-state.js`、`node --check js/modules/tournament/tournament-friendly-detail-view.js`、`node --check js/modules/tournament/tournament-friendly-roster.js`、`npm run test:unit -- tests/unit/tournament-friendly-detail-view.test.js --runInBand` 通過 70 suites / 2553 tests。
+- **教訓**：賽事系統同時碰到 teams、applications、entries 時，不可只用單一 raw id 比對；任何狀態下拉都要先做身份合併，再決定 UI 狀態，避免同一俱樂部被拆成兩個選項。
+
+### 2026-04-29 — SEO 後台決策化與 GSC 快照覆蓋補強 [中型]
+- **問題**：SEO 後台原本偏資料展示，「前兩頁可見關鍵詞」容易讓 1 次曝光這類低樣本 GSC 資料被誤解成穩定排名；URL Inspection 也主要看首頁與 SEO 著陸頁，沒有完整承接 blog 內容頁。
+- **原因**：dashboard 只列出 overview/pages/queries/urlStatus，缺少樣本可信度、品牌/非品牌拆分與可執行待辦；`scripts/gsc-snapshot.js` 的 query rowLimit 只有 50，且 URL 檢查清單為固定陣列。
+- **修復**：SEO 後台新增「SEO 待辦 / 警示」、「SEO 頁面機會」、「品牌 / 非品牌查詢」、「Search Appearance」與查詢詞樣本可信度；將前 20 名查詢詞命名改成 GSC 平均排名語意；GSC snapshot query rowLimit 提升到 250，URL Inspection 改為固定清單合併 `sitemap.xml`，並補入 `/blog/` 相關頁。
+- **驗證**：`node --check js/modules/admin-seo/seo-dashboard.js`、`node --check scripts/gsc-snapshot.js`、`git diff --check`、`npm test` 通過 70 suites / 2567 tests；另以 Node smoke test 驗證 dashboard HTML 會包含 SEO 待辦、前 20 名查詢詞、頁面機會、品牌/非品牌、Search Appearance 與樣本提示。
+- **教訓**：SEO 後台不能只展示 GSC 原始數字，必須把低樣本、平均排名與手動搜尋浮動講清楚；內容型 SEO 頁面增加後，URL Inspection 應從 sitemap 擴展，避免後台只監控舊頁面。
+
+### 2026-04-29 — 活動俱樂部團隊席位報名上線 [大型]
+- **問題**：俱樂部職員需要用俱樂部身份替現有活動保留一組團隊名額，但名額統計、候補遞補、簽到簽退、放鴿子與後台紀錄仍必須維持真人資料正確，不能讓團隊席位把活動人數或統計算壞。
+- **原因**：既有活動報名模型只有個人與候補，`current` 直接代表真人報名數；若直接用虛擬 registration 代表俱樂部席位，會污染 no-show、attendance、activityRecords 與候補遞補邏輯。
+- **修復**：新增 `adjustTeamReservation(asia-east1)` callable 與前端團隊/個人報名入口；團隊席位改用 team reservation summary 計入容量，真人仍各自保留 registration/activityRecord；同俱樂部成員報名會優先消耗剩餘席位，超過席位才依活動容量與候補規則處理。管理列表改成同俱樂部席位集中顯示，保留真人簽到、簽退、放鴿子欄位，並補齊操作 log。
+- **驗證**：`node --check` 覆蓋 functions 與活動相關 JS；`npm test -- --runInBand` 通過 72 suites / 2572 tests；`npm run test:rules` 通過 5 suites / 490 tests；團隊席位 targeted tests 通過。已部署 functions、firestore.rules，並 push 前端版本 `0.20260429zk`。
+- **教訓**：容量顯示要分清 `realCurrent` 與「尚未被真人使用的團隊席位」；所有後台統計只應吃真人 registration / attendance，團隊席位只影響容量與視覺群組，避免未來再出現佔位與真人統計互相污染。
+
+### 2026-04-29 — 活動詳情團隊報名按鈕冷啟補載
+- **問題**：俱樂部職員進入活動詳情時，原本應並排顯示「個人報名 / 團隊報名」或「取消報名 / 調整名額」，但某些冷啟或刷新路徑只看到舊的單一報名按鈕。
+- **原因**：活動詳情頁沒有保證先載入 `teams`，團隊報名按鈕又依賴 `ApiService.getTeams()` 判斷目前使用者是否為俱樂部職員；此外舊資料可能有 `team.id` 與 Firestore `_docId` 雙軌，單用 `id` 會誤判。
+- **修復**：活動詳情渲染報名區前先補載目前使用者可能代表的俱樂部，必要時 fallback 載入 `teams`；職員判斷改支援 `id/_docId/docId`；活動詳情資料契約補上 `teams`，避免不同進入路徑靠其他頁快取碰運氣。
+- **教訓**：任何「依身分顯示的按鈕」都不能只仰賴其他頁面曾經載過的快取；詳情頁要自帶自己的資料前置條件，尤其是俱樂部與賽事這類有 ID 雙軌歷史的資料。
+
+### 2026-04-29 — 團隊席位調整按鈕語意與顏色區分
+- **問題**：活動詳情上方「調整名額」與個人報名綠色太接近，且報名名單內每個俱樂部群組旁的「調整」與主操作按鈕語意過於相似。
+- **原因**：團隊席位建立後沿用綠色 active 樣式，名單內群組快捷入口也使用同樣的簡短「調整」字樣，沒有清楚區分主操作與指定俱樂部快捷操作。
+- **修復**：上方團隊操作按鈕維持原本「團隊報名」藍色系；名單內每個俱樂部群組旁的按鈕改名為「快速調整」，並避免按鈕文字換行。
+- **教訓**：同一頁若有主操作與列表內快捷操作，文案與顏色要明確分層，避免使用者誤以為是同一種入口。
+
+### 2026-04-29 — 賽事球員參賽名單與換隊限制修正 [中型]
+- **問題**：俱樂部已通過賽事審核後，普通球員仍可能看不到「參賽」入口；同一使用者若有多個俱樂部，也缺少清楚的換隊限制提示。
+- **原因**：前端與 callable 仍有「負責人先加入」的舊門檻，且隊伍職員判斷分散在多處，coachUids 也可能被誤當成賽事職員。
+- **修復**：取消負責人先加入限制，已通過/主辦俱樂部成員可直接參賽；同一賽事只允許代表一隊，其他隊保留反灰「參賽」按鈕並提示需先取消原隊；前後端職員規則統一為 captain/leader/owner/creator，不含 coach。
+- **驗證**：補 roster UI 與權限 unit tests；`node --check` 覆蓋賽事相關 JS/functions，`npm test -- --runInBand` 通過 72 suites / 2578 tests。
+
+### 2026-04-29 — 活動團隊席位納入俱樂部職員身份
+- **問題**：職員可用俱樂部身份建立團隊席位，但如果職員本人不是一般成員、使用者資料沒有該俱樂部 `teamId/teamIds`，之後個人報名可能被歸到一般名單，而不是俱樂部團隊席位。
+- **原因**：團隊席位匹配只看使用者成員 teamId，沒有同步採用團隊報名按鈕所使用的職員身份來源。
+- **修復**：前端與 `registerForEvent` callable 的席位判定都加入 captain/creator/owner/leader/coach 身份匹配；職員本人個人報名後會寫入 `teamReservationTeamId`，名單分組、簽到簽退與放鴿子統計沿用真人 registration。
+- **驗證**：補 `team-reservation-occupancy.test.js` 覆蓋職員非成員仍消耗團隊保留席位；`node --check` 前後端通過，`npm test -- --runInBand` 通過 72 suites / 2578 tests。
+
+### 2026-04-29 — 團隊報名彈窗取消空白處關閉
+- **問題**：團隊報名彈窗需要手動輸入名額，點到毛玻璃空白處會直接關閉，容易誤觸遺失輸入狀態。
+- **原因**：`team-reservation-overlay` 開啟時寫入 inline `onclick`，只要點擊目標是 overlay 本身就呼叫關閉。
+- **修復**：移除 overlay 空白處關閉行為，只保留右上角 X 與「取消」按鈕可關閉；補測試鎖定不再出現 backdrop close inline handler。
+- **教訓**：含手動輸入的彈窗應避免點外圍關閉，尤其是調整名額這類容易被手指誤觸的 mobile 流程。
+
+### 2026-04-29 — 賽事參賽按鈕移至俱樂部卡與審核通過自動入隊 [中型]
+- **問題**：職員送出俱樂部報名並通過審核後，自己仍需再手動加入參賽名單；參賽按鈕也在上方報名區，普通球員主要看俱樂部頁籤時不容易發現。
+- **原因**：審核 callable 只建立 application/entry/root summary，沒有同步建立申請者 member roster；detail view 把 approved 狀態的 roster action 放在主 action card，而不是每個已通過俱樂部列。
+- **修復**：`reviewFriendlyTournamentApplication` 審核通過時會把送出申請的職員自動加入該俱樂部 members，若已代表其他隊參賽則跳過；上方報名區只顯示俱樂部狀態與取消報名，下方俱樂部卡右側依每隊狀態顯示「參賽 / 取消參賽 / 反灰參賽」。
+- **驗證**：`node --check` 覆蓋 functions 與賽事相關 JS；targeted tournament tests 通過 3 suites / 108 tests；`npm test -- --runInBand` 通過 72 suites / 2580 tests。
+- **教訓**：使用者會在「俱樂部頁籤」理解自己要代表哪一隊參賽，因此 roster action 應跟隊伍列綁在一起；後端審核流程若已知道申請者，應同步補齊名單，避免通過審核後還要重複操作。
+
+### 2026-04-29 — 多俱樂部個人報名需選擇席位
+- **問題**：同一用戶同時屬於多個俱樂部且活動存在多個團隊席位時，個人報名會自動吃到第一個匹配席位，使用者無法指定要用哪個俱樂部報名。
+- **原因**：團隊席位匹配只用 `teamIds` / 職員身份找第一個 reservation，前端沒有在多個可用俱樂部時先取得使用者意圖。
+- **修復**：前端在多個可用俱樂部席位時顯示選擇彈窗，單一席位直接報名；CF 與舊交易流程都新增 `preferredTeamReservationTeamId` 驗證，只允許使用者所屬或職員俱樂部。
+- **教訓**：只要席位歸屬會影響名單與統計，就不能靠陣列順序自動決定，必須讓使用者明確選擇並在後端再次驗證。
+
+### 2026-04-29 — 賽事報名時間時區一致化 [中型]
+- **問題**：使用者建立賽事時選「立即開放」或填入台灣時間，但點「參賽」仍可能出現 `TOURNAMENT_REGISTRATION_NOT_OPEN`。
+- **原因**：前端 `datetime-local` 送出的是 `YYYY-MM-DDTHH:mm` 無時區字串，瀏覽器以台灣時間判斷為已開放；Cloud Functions 可能以 UTC 解析同一字串，導致後端覺得報名尚未開始。
+- **修復**：前端建立/編輯賽事時把報名開始與截止轉成 ISO UTC；編輯既有賽事時再轉回本地 `datetime-local` 顯示。後端 `getTimestampMillis()` 補 legacy 相容，無時區賽事時間一律當台灣時間解析，並在 callable 建立賽事時存成 ISO。
+- **驗證**：新增 `tournament-datetime.test.js` 與 `tournament-function-timezone-source.test.js`；targeted tournament tests 通過 6 suites / 133 tests。
+
+### 2026-04-29 — 多俱樂部報名選擇彈窗卡片化
+- **問題**：多俱樂部個人報名彈窗使用 radio 欄位，選項視覺過重且不像可點整張卡片，深色主題下也不夠清楚。
+- **原因**：選項 HTML 直接用 inline `label + input[type=radio]`，缺少專屬選取狀態樣式與主題分層。
+- **修復**：改為整張俱樂部卡片點選，使用 `aria-checked` 與 `is-selected` 管理狀態；被選卡片改成藍綠漸層、邊框與小型勾選標記，並補上深色主題色階；卡片文字改短且固定單行省略，避免手機亂斷行。
+- **教訓**：高頻操作彈窗要讓「可點擊區域」與「選取狀態」一眼可懂，避免表單控件搶走視覺焦點。
 
 ### 2026-04-28 — 找出歷史 silent fail 的真正根因:this 指錯物件 [永久]
 - **問題**:用戶按下「編輯賽事」按鈕後跳 toast「找不到此賽事(快取不一致, …17955_jn6d66)」。Console: `tournament not found {id: 'ct_1777349317955_jn6d66', cacheSize: 2, fetchedFromServer: false, fetchError: null}` — `fetchedFromServer: false` 證明根本沒進 fallback fetch
@@ -237,6 +396,85 @@
   - 凡是 onSnapshot 用 `orderBy(X)`，對應 CRUD 寫入時**必須**確保 X 欄位存在，否則文件會「隱形」
   - `addTeam()` 寫了 `createdAt` + `updatedAt` 兩者，`addTournament()` 只寫 `createdAt`——這種「同類函式不對齊」就是地雷源頭
   - 未來新增任何 collection 的 CRUD 時，先檢查對應 onSnapshot 的 `orderBy` 欄位有無在寫入路徑出現
+
+### 2026-04-28 — 賽事建立與審核改為後端原子流程 [永久]
+- **問題**：友誼賽建立與審核曾由前端分多筆寫入 root / applications / entries / registeredTeams，可能被 Rules 擋住或留下半成功資料；同時 `admin.tournaments.entry/manage_all` 與 record-scope 權限語意容易混淆。
+- **原因**：client batch 無法可靠證明同批 root+entry 已存在；Web client 直接 update application status 會繞過 entry 建立與 root summary 更新；前端部分守衛把入口權限當成全域管理權。
+- **修復**：新增 `createFriendlyTournament` / `reviewFriendlyTournamentApplication` callable，以 Admin SDK 原子建立 root+host entry、審核時同步 application/entry/root summary；`tournaments/{id}` root create 與 applications update/delete 改 callable-only；前端改走 atomic wrappers，權限 helper 對齊 admin role + creator/delegate/host officer。
+- **教訓**：跨文件生命週期不可讓 Web client 分段寫入；入口權限只代表能進頁面，record-scope 操作必須由 role 或資料關係重新驗證，且 Rules / callable / UI 三層要同時對齊。
+
+### 2026-04-28 — 活動月曆改為運動場次彙總
+- **問題**：月曆日期格原本列出單筆活動卡，手機窄版資訊密度高，跨運動日程不易快速判斷各運動有幾場。
+- **原因**：月曆渲染沿用 timeline 的單活動思維，沒有把同日活動依 `EVENT_SPORT_OPTIONS` 順序彙總。
+- **修復**：日期格改為先套用既有地區/運動/類型/關鍵字篩選，再依 sportTag 彙總成 `<運動圖示>x<數量>`；All 模式按足球、籃球、匹克球、美式躲避球等設定順序顯示，單一運動篩選只顯示該運動數量。
+- **教訓**：月曆視圖應優先回答「哪天有哪些運動、各幾場」，詳情導覽交給時間軸；新增月曆樣式時拆小 CSS 檔，避免繼續膨脹既有大型樣式檔。
+
+### 2026-04-28 活動月曆今日框只標本月日期 [輕型]
+- **問題**：月曆為了補滿週列會顯示前後月日期；若補位格日期剛好等於今天，補位格與實際本月日期都會出現綠色 today 框。
+- **原因**：`isToday` 只比對 `dateKey === todayKey`，沒有排除 `isOutside` 補位格。
+- **修復**：新增 `_isCalendarCellToday(dateKey, isOutside, todayKey)`，只讓非補位格且日期等於今天的格子輸出 `data-today="1"`。
+- **教訓**：月曆跨月補位格只負責排版連續性，不應承接「今天」這類本月狀態樣式。
+
+### 2026-04-28 賽事頁切換卡頓修正 [中型]
+- **問題**：清除快取或版本更新後切到賽事頁會頓，主因是 `page-tournaments` 被綁到完整賽事詳情群組，冷啟動還會在 idle 階段執行活動、隊伍、賽事、個人頁大量 JS。
+- **根因**：賽事列表只需要 helper/core/render，卻載入 detail、roster、notify、share 等詳情模組；列表進頁還等待 standings/matches 靜態集合，與 realtime tournaments 重複拉扯。
+- **修正**：新增 `tournamentList` / `tournamentDetail` 群組，列表只載列表模組，詳情才載完整模組；核心頁預熱改成 network preload hint，不再自動執行所有核心頁 JS；賽事 HTML 納入 boot pages 讓 stale-first 可立即啟用；賽事列表改成 shell-first，可先啟用頁面再背景等 cloud；賽事列表資料依賴縮成 tournaments，realtime 啟動改立即，onSnapshot 渲染延後 80ms。
+- **提醒**：若未來賽事列表新增需要詳情專用能力，先放到 detail 群組，列表群組只保留首屏渲染必需檔案。
+
+### 2026-04-28 Profile page navigation performance [Medium]
+- Problem: page-profile loaded the full achievement page bundle and the color-cat profile scene during first navigation, so cache clears or new cache versions could make the bottom nav feel briefly unresponsive.
+- Cause: ScriptLoader tied achievement/profile extras to page-profile, and navigation immediately rendered the hidden user card plus _initProfileScene().
+- Fix: split profile into base, achievementProfile, profileCard, profileShare, and profileScene groups. page-profile renders visible data first, then idle-loads achievement stats, records, and the color-cat scene.
+- Guard: leaving page-profile increments _profileDeferredSeq and destroys the scene so deferred tasks do not write DOM after page switches.
+
+### 2026-04-28 賽事報名與球員名單改為 callable 原子流程 [中型]
+- **問題**: 友誼賽參賽申請與球員名單仍可由 Web client 直寫 Firestore；主辦方也缺少在賽事詳情「俱樂部」頁籤直接剔除已核准隊伍的完整流程。
+- **風險**: 惡意或舊版前端可能繞過前端檢查，造成 application / entries / root registeredTeams / members 不一致；冷啟賽事詳情若未載入 team-list helper，也可能誤判使用者隊伍狀態。
+- **修補**: 新增 `applyFriendlyTournament`、`joinFriendlyTournamentRoster`、`leaveFriendlyTournamentRoster`、`removeFriendlyTournamentEntry` callable，統一由後端驗證賽事狀態、隊伍幹部、隊伍資格、名單解鎖與 root summary；前端改呼叫 callable，俱樂部頁籤加入非主辦隊伍「剔除」操作。
+- **權限**: `applications` create/update/delete 改 callable-only；`entries` / `members` 僅保留 admin 直寫作 legacy cleanup，一般主辦/建立者/隊員改走 callable。
+- **測試**: `npm test` 67 suites / 2500 tests passed；`npm run test:rules` 2 suites / 448 tests passed。
+
+### 2026-04-28 賽事俱樂部頁籤剔除按鈕固定右側 [輕型]
+- **問題**: 主辦方剔除報名隊伍的 callable 流程已存在，但俱樂部頁籤沒有穩定呈現右側操作入口，管理者容易看不到剔除按鈕。
+- **原因**: 剔除按鈕直接接在 roster 欄後方，缺少固定 action slot 與渲染測試保護。
+- **修補**: 非主辦、已核准隊伍改用 `tfd-team-action` 右側操作欄與 `tfd-entry-remove-btn`；按鈕仍走既有 `removeFriendlyTournamentEntry`，會先彈出二次確認才呼叫 callable。
+- **驗收**: 新增 `tests/unit/tournament-friendly-detail-view.test.js`，確認管理者只會在非主辦已核准隊伍看到剔除按鈕。
+
+### 2026-04-28 近期首頁與導覽效能修正補登 [中型]
+- **問題**: 清快取或新版號後，首頁 banner、近期賽事與 hash reload 導覽容易出現載入慢、先回首頁再跳頁或底部導覽短暫不靈敏。
+- **原因**: boot 階段仍會先處理首頁資料與圖片；hash 目標頁沒有足夠早地標記 priority；banner/tournament 首屏資料沒有穩定 boot seed，頁面切換時需要等待 cloud/cache 回填。
+- **修補**: `app.js` / `page-loader.js` / `navigation.js` 讓 hash 目標頁提早啟用 shell 與 priority；首頁 banner 與近期賽事加入 boot preload/seed；`firebase-service.js` 降低 tournament 首次導覽的 blocking 成本。
+- **驗收**: `tests/unit/boot-hash-navigation.test.js`、`tests/unit/navigation.test.js`、`tests/unit/tournament-loading-performance.test.js` 覆蓋 hash reload、priority preload 與賽事冷啟動路徑。
+
+### 2026-04-28 首頁 banner 空白輪播修正補登 [中型]
+- **問題**: banner 輪播只顯示第一張，其餘 slide 可能是空白，且 boot cache stale 時會把舊資料帶回首頁。
+- **原因**: banner render 對無效圖片/空 URL 沒有足夠過濾，boot seed 與快取修復順序也可能讓 stale banner 覆蓋新資料。
+- **修補**: `banner.js` 過濾可顯示的 active banner 並避免空 slide；`app.js` 的 banner boot cache 路徑補 stale repair；更新首頁 inline version 避免 Service Worker 留住舊輪播。
+- **驗收**: `tests/unit/banner-carousel.test.js` 新增/更新 banner 輪播資料檢查，確認不會渲染空白 slide。
+
+### 2026-04-28 俱樂部頁開啟速度修正補登 [中型]
+- **問題**: 俱樂部頁在新版號或清快取後首次開啟偏慢，使用者會感覺頁面被 script 載入與統計計算卡住。
+- **原因**: `ScriptLoader` 原本把列表、詳情、表單模組綁成同一個 team group；列表首屏需等不必要的 detail/form/education 模組載入後才較完整。
+- **修補**: 將 team script group 拆成 `teamList` / `teamDetail` / `teamForm`，`page-teams` 只載列表必要模組；列表統計與圖片資料改用 shell-first / deferred path，降低首次導覽主執行緒成本。
+- **驗收**: `tests/unit/script-loader.test.js` 與 `tests/unit/tournament-loading-performance.test.js` 確認 page group 拆分與非首屏模組不阻塞列表頁。
+
+### 2026-04-28 賽事封面裁切與上傳體驗補登 [輕型]
+- **問題**: 新增/編輯賽事封面只有基本上傳，沒有活動封面同等的圖片裁切調整體驗。
+- **原因**: 賽事表單只接舊上傳 helper，未接入全站 image cropper 的封面比例與 preview 流程。
+- **修補**: `tournament-manage-form.js`、`tournament-manage.js`、`tournament-manage-edit.js` 接入封面 cropper，讓賽事封面與活動封面一致支援裁切/預覽/儲存。
+- **驗收**: `tests/unit/tournament-image-upload.test.js` 覆蓋 create/edit 表單的 image cropper 綁定與上傳 helper 路徑。
+
+### 2026-04-28 賽事詳情頁重新整理路由補登 [中型]
+- **問題**: 在賽事詳細頁重新整理後，畫面可能先顯示預設骨架或首頁狀態，之後才回到正確賽事，造成「賽事名稱/圖片 placeholder」殘留感。
+- **原因**: deep link / hash route 與 tournament detail state 載入順序不同步，friendly detail 的 state promise 與 `currentPage` 檢查沒有完整保留 refresh 前路由意圖。
+- **修補**: `app.js` / `navigation.js` / `tournament-detail.js` / `tournament-friendly-detail.js` 保留 tournament detail route，讓 refresh 直接走 detail shell 並在資料到位後再渲染內容。
+- **驗收**: `tests/unit/boot-hash-navigation.test.js` 與 `tests/unit/navigation.test.js` 補 detail route refresh guard，避免 stale route 覆蓋目前頁面。
+
+### 2026-04-28 首頁活動 inline 資料補登 [輕型]
+- **問題**: 首頁近期活動雖已優化，但新版部署後仍需要穩定把熱門/近期活動 seed 到 HTML，降低清快取後第一屏等待。
+- **原因**: 首頁活動依賴 Firebase/cache 回填時，慢網路或新版 SW 交替會讓第一屏短暫缺資料。
+- **修補**: `scripts/inject-hot-events.js` 於部署前更新 `index.html` boot events data，讓首頁可以先用 inline 資料渲染，再由 cloud freshness 補正。
+- **驗收**: 兩次 `chore(perf): 自動 inline 首頁活動` commit 已更新 HTML seed；後續若活動資料大幅變動，部署前需再次執行同一流程。
 
 ### 2026-04-27 — 安裝 tommyboy326/line-dev Claude Code skill bundle(全域,5 個 LINE 專業 skill)
 - **背景**:同類專案調查中發現 `tommyboy326/line-dev` 是台灣 dev 寫的 Claude Code skill bundle,提供 LINE Messaging API / LINE Login / LIFF / Mini App / Notification Messages 5 個專業 skill,雙語(英 + 繁中)
@@ -477,7 +715,6 @@
   - modal 加 `data-no-backdrop-close="1"` 避免誤觸關閉
 - **限制**：方案 A 是 UX 引導、無法 100% 解決（用戶仍可能誤點「在 LINE 打開」）；但解決率 70-80%、LINE 平台限制下最佳折衷
 - **影響檔案**：`js/line-auth.js`（加 _isMobileExternalBrowser / _mobileHintContinue / _copyAppUrlForLine）+ `pages/modals.html`（加 hint modal）
-
 
 ### 2026-04-25 — 匹克球改用自製 V4 SVG 圖示（圓角方形拍 + 飛球 + 速度線）
 - **動機**：用戶反映 `SPORT_ICON_EMOJI.pickleball = '🏓'` 跟桌球視覺易混淆。Unicode 無匹克球專屬 emoji，建議用自製 SVG。經設計 4 個版本後用戶選 V4（動感斜放紅色圓角方形拍 + 黃球飛 + 速度線）
@@ -1387,6 +1624,18 @@
   - feed create 不能用 `isCurrentUserInTeam(teamId)` 收緊 — `teamId` 來自 Firestore 路徑是 doc.id，但 `users.teamIds` 存的是自訂 ID，對舊俱樂部（doc.id ≠ data.id）會擋住合法成員
   - `delegateUids` 不能設為完全不可變（immutable），因為賽事建立者通常是隊長而非管理員，需要能管理自己的委託人
 
+### 2026-04-14 — 俱樂部×賽事重構 Phase 1b — 賽事結構整理 + 全域任務
+- **問題**：賽事模組結構需要與俱樂部模組同步整理（Phase 1a 已完成俱樂部部分）
+- **修復**：
+  - 新建 `tournament-helpers.js`（9 個純工具函式從 tournament-core.js 抽出）
+  - 新建 `tournament-share-builders.js`（3 個 Builder 從 tournament-share.js 抽出）
+  - 刪除 `tournament-detail.js` 死代碼（renderLeagueSchedule / renderBracket）
+  - 全域狀態收進 `_tournamentFormState` / `_teamFormState` 物件
+  - 更新 `script-loader.js` — tournament group 新增 helpers / core / render / share-builders
+  - 統一 6 處 ID 生成為 `generateId(prefix)`（fp_ / fc_ / ct_ / ce_ / reg_ / ta_）
+  - 新增 3 個賽事權限碼：end / reopen / delete（config.js + user-admin-perm-info.js）
+- **教訓**：Phase 1 結構整理不改邏輯，舊入口保留為 facade，降低回歸風險
+
 ### 2026-04-13 — 舊活動簽到/報名紀錄不顯示 — 全站監聯器 limit 截斷 + 極簡補查
 - **問題**：全站監聽器 `collectionGroup.limit(1500)` + dedup 後實際只有 ~750 筆快取，舊活動的簽到/報名紀錄被截斷，詳情頁顯示空白
 - **調查過程**：經四輪專家審計（13 個 MUST FIX）設計出 per-event listener + Feature Flag 完整方案（v5），但第五輪極簡挑戰 + 7 位專家 7-0 投票後決定採用極簡方案
@@ -1632,6 +1881,9 @@
 - **全站裁切比例**：封面 8/3、商品圖 4/3、banner 2.2、浮動廣告 1、彈窗 16/9
 - teams `doc.id` ≠ `data.id`，CF/Map key 都需雙 key
 
+### [永久] 2026-03-21 — 面板碰撞彈飛失效
+- **教訓**：物理碰撞判定必須在同一個更新階段完成
+
 ### [永久] 2026-03-20 — 候補邏輯修復 + 快取清除角色降級 + 首次登入按鈕無反應
 - 候補：降級時 activityRecord 必須同步更新；cancelCompanionRegistrations 改 5 階段模式
 - 快取清除：必須先 auth.signOut() + liff.logout() 再清 localStorage
@@ -1659,9 +1911,6 @@
 - event 有兩個 ID（doc.id ≠ data().id）；批量刪除必須先 dry-run
 - _showPageStale：所有進入 _renderPageContent 的路徑必須有 ensureForPage 前置
 - 新增入口權限後必須 bump catalog version 觸發 seed
-
-### [永久] 2026-03-21 — 面板碰撞彈飛失效
-- **教訓**：物理碰撞判定必須在同一個更新階段完成
 
 ### [永久] 2026-03-16 — 成就系統遷移 + 鎖定/解鎖
 - 進度存 `users/{uid}/achievements/{achId}` 子集合；三道防火牆
@@ -1736,315 +1985,3 @@
 
 *最後清理日期：2026-04-07*
 *原始檔案：449 行 → 清理後約 195 行*
-
-### 2026-04-14 — 俱樂部×賽事重構 Phase 1b — 賽事結構整理 + 全域任務
-- **問題**：賽事模組結構需要與俱樂部模組同步整理（Phase 1a 已完成俱樂部部分）
-- **修復**：
-  - 新建 `tournament-helpers.js`（9 個純工具函式從 tournament-core.js 抽出）
-  - 新建 `tournament-share-builders.js`（3 個 Builder 從 tournament-share.js 抽出）
-  - 刪除 `tournament-detail.js` 死代碼（renderLeagueSchedule / renderBracket）
-  - 全域狀態收進 `_tournamentFormState` / `_teamFormState` 物件
-  - 更新 `script-loader.js` — tournament group 新增 helpers / core / render / share-builders
-  - 統一 6 處 ID 生成為 `generateId(prefix)`（fp_ / fc_ / ct_ / ce_ / reg_ / ta_）
-  - 新增 3 個賽事權限碼：end / reopen / delete（config.js + user-admin-perm-info.js）
-- **教訓**：Phase 1 結構整理不改邏輯，舊入口保留為 facade，降低回歸風險
-
-### 2026-04-28 — 賽事建立與審核改為後端原子流程 [永久]
-- **問題**：友誼賽建立與審核曾由前端分多筆寫入 root / applications / entries / registeredTeams，可能被 Rules 擋住或留下半成功資料；同時 `admin.tournaments.entry/manage_all` 與 record-scope 權限語意容易混淆。
-- **原因**：client batch 無法可靠證明同批 root+entry 已存在；Web client 直接 update application status 會繞過 entry 建立與 root summary 更新；前端部分守衛把入口權限當成全域管理權。
-- **修復**：新增 `createFriendlyTournament` / `reviewFriendlyTournamentApplication` callable，以 Admin SDK 原子建立 root+host entry、審核時同步 application/entry/root summary；`tournaments/{id}` root create 與 applications update/delete 改 callable-only；前端改走 atomic wrappers，權限 helper 對齊 admin role + creator/delegate/host officer。
-- **教訓**：跨文件生命週期不可讓 Web client 分段寫入；入口權限只代表能進頁面，record-scope 操作必須由 role 或資料關係重新驗證，且 Rules / callable / UI 三層要同時對齊。
-
-### 2026-04-28 — 活動月曆改為運動場次彙總
-- **問題**：月曆日期格原本列出單筆活動卡，手機窄版資訊密度高，跨運動日程不易快速判斷各運動有幾場。
-- **原因**：月曆渲染沿用 timeline 的單活動思維，沒有把同日活動依 `EVENT_SPORT_OPTIONS` 順序彙總。
-- **修復**：日期格改為先套用既有地區/運動/類型/關鍵字篩選，再依 sportTag 彙總成 `<運動圖示>x<數量>`；All 模式按足球、籃球、匹克球、美式躲避球等設定順序顯示，單一運動篩選只顯示該運動數量。
-- **教訓**：月曆視圖應優先回答「哪天有哪些運動、各幾場」，詳情導覽交給時間軸；新增月曆樣式時拆小 CSS 檔，避免繼續膨脹既有大型樣式檔。
-
-### 2026-04-28 活動月曆今日框只標本月日期 [輕型]
-- **問題**：月曆為了補滿週列會顯示前後月日期；若補位格日期剛好等於今天，補位格與實際本月日期都會出現綠色 today 框。
-- **原因**：`isToday` 只比對 `dateKey === todayKey`，沒有排除 `isOutside` 補位格。
-- **修復**：新增 `_isCalendarCellToday(dateKey, isOutside, todayKey)`，只讓非補位格且日期等於今天的格子輸出 `data-today="1"`。
-- **教訓**：月曆跨月補位格只負責排版連續性，不應承接「今天」這類本月狀態樣式。
-
-### 2026-04-28 賽事頁切換卡頓修正 [中型]
-- **問題**：清除快取或版本更新後切到賽事頁會頓，主因是 `page-tournaments` 被綁到完整賽事詳情群組，冷啟動還會在 idle 階段執行活動、隊伍、賽事、個人頁大量 JS。
-- **根因**：賽事列表只需要 helper/core/render，卻載入 detail、roster、notify、share 等詳情模組；列表進頁還等待 standings/matches 靜態集合，與 realtime tournaments 重複拉扯。
-- **修正**：新增 `tournamentList` / `tournamentDetail` 群組，列表只載列表模組，詳情才載完整模組；核心頁預熱改成 network preload hint，不再自動執行所有核心頁 JS；賽事 HTML 納入 boot pages 讓 stale-first 可立即啟用；賽事列表改成 shell-first，可先啟用頁面再背景等 cloud；賽事列表資料依賴縮成 tournaments，realtime 啟動改立即，onSnapshot 渲染延後 80ms。
-- **提醒**：若未來賽事列表新增需要詳情專用能力，先放到 detail 群組，列表群組只保留首屏渲染必需檔案。
-
-
-### 2026-04-28 Profile page navigation performance [Medium]
-- Problem: page-profile loaded the full achievement page bundle and the color-cat profile scene during first navigation, so cache clears or new cache versions could make the bottom nav feel briefly unresponsive.
-- Cause: ScriptLoader tied achievement/profile extras to page-profile, and navigation immediately rendered the hidden user card plus _initProfileScene().
-- Fix: split profile into base, achievementProfile, profileCard, profileShare, and profileScene groups. page-profile renders visible data first, then idle-loads achievement stats, records, and the color-cat scene.
-- Guard: leaving page-profile increments _profileDeferredSeq and destroys the scene so deferred tasks do not write DOM after page switches.
-
-### 2026-04-28 賽事報名與球員名單改為 callable 原子流程 [中型]
-- **問題**: 友誼賽參賽申請與球員名單仍可由 Web client 直寫 Firestore；主辦方也缺少在賽事詳情「俱樂部」頁籤直接剔除已核准隊伍的完整流程。
-- **風險**: 惡意或舊版前端可能繞過前端檢查，造成 application / entries / root registeredTeams / members 不一致；冷啟賽事詳情若未載入 team-list helper，也可能誤判使用者隊伍狀態。
-- **修補**: 新增 `applyFriendlyTournament`、`joinFriendlyTournamentRoster`、`leaveFriendlyTournamentRoster`、`removeFriendlyTournamentEntry` callable，統一由後端驗證賽事狀態、隊伍幹部、隊伍資格、名單解鎖與 root summary；前端改呼叫 callable，俱樂部頁籤加入非主辦隊伍「剔除」操作。
-- **權限**: `applications` create/update/delete 改 callable-only；`entries` / `members` 僅保留 admin 直寫作 legacy cleanup，一般主辦/建立者/隊員改走 callable。
-- **測試**: `npm test` 67 suites / 2500 tests passed；`npm run test:rules` 2 suites / 448 tests passed。
-
-### 2026-04-28 賽事俱樂部頁籤剔除按鈕固定右側 [輕型]
-- **問題**: 主辦方剔除報名隊伍的 callable 流程已存在，但俱樂部頁籤沒有穩定呈現右側操作入口，管理者容易看不到剔除按鈕。
-- **原因**: 剔除按鈕直接接在 roster 欄後方，缺少固定 action slot 與渲染測試保護。
-- **修補**: 非主辦、已核准隊伍改用 `tfd-team-action` 右側操作欄與 `tfd-entry-remove-btn`；按鈕仍走既有 `removeFriendlyTournamentEntry`，會先彈出二次確認才呼叫 callable。
-- **驗收**: 新增 `tests/unit/tournament-friendly-detail-view.test.js`，確認管理者只會在非主辦已核准隊伍看到剔除按鈕。
-
-### 2026-04-28 近期首頁與導覽效能修正補登 [中型]
-- **問題**: 清快取或新版號後，首頁 banner、近期賽事與 hash reload 導覽容易出現載入慢、先回首頁再跳頁或底部導覽短暫不靈敏。
-- **原因**: boot 階段仍會先處理首頁資料與圖片；hash 目標頁沒有足夠早地標記 priority；banner/tournament 首屏資料沒有穩定 boot seed，頁面切換時需要等待 cloud/cache 回填。
-- **修補**: `app.js` / `page-loader.js` / `navigation.js` 讓 hash 目標頁提早啟用 shell 與 priority；首頁 banner 與近期賽事加入 boot preload/seed；`firebase-service.js` 降低 tournament 首次導覽的 blocking 成本。
-- **驗收**: `tests/unit/boot-hash-navigation.test.js`、`tests/unit/navigation.test.js`、`tests/unit/tournament-loading-performance.test.js` 覆蓋 hash reload、priority preload 與賽事冷啟動路徑。
-
-### 2026-04-28 首頁 banner 空白輪播修正補登 [中型]
-- **問題**: banner 輪播只顯示第一張，其餘 slide 可能是空白，且 boot cache stale 時會把舊資料帶回首頁。
-- **原因**: banner render 對無效圖片/空 URL 沒有足夠過濾，boot seed 與快取修復順序也可能讓 stale banner 覆蓋新資料。
-- **修補**: `banner.js` 過濾可顯示的 active banner 並避免空 slide；`app.js` 的 banner boot cache 路徑補 stale repair；更新首頁 inline version 避免 Service Worker 留住舊輪播。
-- **驗收**: `tests/unit/banner-carousel.test.js` 新增/更新 banner 輪播資料檢查，確認不會渲染空白 slide。
-
-### 2026-04-28 俱樂部頁開啟速度修正補登 [中型]
-- **問題**: 俱樂部頁在新版號或清快取後首次開啟偏慢，使用者會感覺頁面被 script 載入與統計計算卡住。
-- **原因**: `ScriptLoader` 原本把列表、詳情、表單模組綁成同一個 team group；列表首屏需等不必要的 detail/form/education 模組載入後才較完整。
-- **修補**: 將 team script group 拆成 `teamList` / `teamDetail` / `teamForm`，`page-teams` 只載列表必要模組；列表統計與圖片資料改用 shell-first / deferred path，降低首次導覽主執行緒成本。
-- **驗收**: `tests/unit/script-loader.test.js` 與 `tests/unit/tournament-loading-performance.test.js` 確認 page group 拆分與非首屏模組不阻塞列表頁。
-
-### 2026-04-28 賽事封面裁切與上傳體驗補登 [輕型]
-- **問題**: 新增/編輯賽事封面只有基本上傳，沒有活動封面同等的圖片裁切調整體驗。
-- **原因**: 賽事表單只接舊上傳 helper，未接入全站 image cropper 的封面比例與 preview 流程。
-- **修補**: `tournament-manage-form.js`、`tournament-manage.js`、`tournament-manage-edit.js` 接入封面 cropper，讓賽事封面與活動封面一致支援裁切/預覽/儲存。
-- **驗收**: `tests/unit/tournament-image-upload.test.js` 覆蓋 create/edit 表單的 image cropper 綁定與上傳 helper 路徑。
-
-### 2026-04-28 賽事詳情頁重新整理路由補登 [中型]
-- **問題**: 在賽事詳細頁重新整理後，畫面可能先顯示預設骨架或首頁狀態，之後才回到正確賽事，造成「賽事名稱/圖片 placeholder」殘留感。
-- **原因**: deep link / hash route 與 tournament detail state 載入順序不同步，friendly detail 的 state promise 與 `currentPage` 檢查沒有完整保留 refresh 前路由意圖。
-- **修補**: `app.js` / `navigation.js` / `tournament-detail.js` / `tournament-friendly-detail.js` 保留 tournament detail route，讓 refresh 直接走 detail shell 並在資料到位後再渲染內容。
-- **驗收**: `tests/unit/boot-hash-navigation.test.js` 與 `tests/unit/navigation.test.js` 補 detail route refresh guard，避免 stale route 覆蓋目前頁面。
-
-### 2026-04-28 首頁活動 inline 資料補登 [輕型]
-- **問題**: 首頁近期活動雖已優化，但新版部署後仍需要穩定把熱門/近期活動 seed 到 HTML，降低清快取後第一屏等待。
-- **原因**: 首頁活動依賴 Firebase/cache 回填時，慢網路或新版 SW 交替會讓第一屏短暫缺資料。
-- **修補**: `scripts/inject-hot-events.js` 於部署前更新 `index.html` boot events data，讓首頁可以先用 inline 資料渲染，再由 cloud freshness 補正。
-- **驗收**: 兩次 `chore(perf): 自動 inline 首頁活動` commit 已更新 HTML seed；後續若活動資料大幅變動，部署前需再次執行同一流程。
-
-### 2026-04-29 — 新建賽事主辦俱樂部懶載入修正
-- **問題**：使用者直接進賽事頁按「建立賽事」時，可能顯示「目前沒有可代表建立賽事的主辦俱樂部」；切到俱樂部頁再回來後卻正常。
-- **原因**：賽事列表頁為了冷啟速度只載入 `tournaments`，未載入 `teams`；建立表單卻立即用 `ApiService.getTeams()` 判斷可代表的主辦俱樂部，導致 teams 快取尚未載入時誤判。另 `_getTournamentSelectableHostTeams()` 與建立權限的 admin 判斷不一致。
-- **修復**：`openCreateTournamentModal()` 改為先懶載入 `teams` 與使用者 teamIds 對應俱樂部，再重新判斷建立資格；建立按鈕加入「載入中...」狀態；主辦俱樂部選單改用 `_isTournamentGlobalAdmin()` 對齊既有權限 helper；補 `tournament-permissions` 與 `tournament-loading-performance` 測試。
-- **教訓**：效能優化拆掉頁面初始資料依賴後，所有按需功能都要在入口補自己的資料契約，避免被其他頁面載入過快取的副作用掩蓋。
-
-### 2026-04-29 — 參加賽事 loading 與隊伍退出流程 [永久]
-- **問題**：友誼賽「參加賽事」按下後缺少明確作動提示；隊伍申請審核中或已核准後，申請方俱樂部職員沒有自行撤回/退出賽事的入口。
-- **修復**：`registerTournament` 改用 `_withButtonLoading(..., '報名中...')`；新增 `tournament-friendly-withdraw.js`，在報名區與俱樂部頁籤顯示「撤回申請 / 退出賽事」，並以 `withdrawFriendlyTournamentTeam` callable 原子更新 application、entries、members 與 root summary。
-- **守衛**：後端只允許 pending 申請撤回、approved/entry 退出；已拒絕、已剔除、已取消狀態不能被轉成可重新報名的取消狀態。賽事主辦隊伍不可退出自己的賽事。
-- **驗收**：補 `tournament-friendly-detail-view.test.js` 與 `tournament-crud.test.js`，覆蓋 loading onclick、申請方退出按鈕、pending 撤回、rejected 不可轉狀態、cancelled/withdrawn 可重新報名。
-
-### 2026-04-29 — 賽事詳情冷刷新載入殼與可報名俱樂部補載 [中型]
-- **問題**：使用者直接刷新進入賽事詳情時，完整 applications/entries/team state 回來前會短暫看到預設「賽事名稱」空殼；非 admin 的隊長/領隊也可能因 `teams` 快取尚未載入，看不到可代表報名的俱樂部下拉選單。
-- **原因**：friendly `showTournamentDetail()` 先切到 detail page 再等待 state promise；`_ensureFriendlyTournamentApplyTeamsLoaded()` 只替全域管理員補載 joined teams，普通隊職員冷啟動時仍仰賴尚未載入的 `ApiService.getTeams()`。
-- **修正**：新增 friendly detail loading shell，先顯示賽事名稱、載入提示與既有進度條；補強 apply team hydration，所有使用者都會先用 `teamIds` 單筆補抓隊伍，非 admin 再合併「全量 teams 掃描」與「已補抓 joined officer teams」作為可報名來源。
-- **驗證**：`node --check js/modules/tournament/tournament-friendly-detail.js`、`node --check js/modules/tournament/tournament-friendly-state.js`、`npm test -- --runTestsByPath tests/unit/tournament-friendly-detail-view.test.js --runInBand`、`npm test -- --runInBand` passed。
-
-### 2026-04-29 — 賽事報名狀態冷刷新仍顯示可報名 [中型]
-- **問題**：上一版只補載可代表俱樂部，但冷刷新時若 `currentUser.teamIds` 尚未同步，已 approved 的 entries 不會被歸入目前使用者，報名區仍顯示「參加賽事」且沒有紅框處的俱樂部狀態下拉。
-- **原因**：`_getFriendlyTournamentApplyContext()`、roster approved entry 判斷只看 `_getUserTeamIds(user)`；隊職員身分雖可從 teams cache 推得，但 status scope 沒有共用同一批可操作隊伍 ID。
-- **修正**：新增 `_getFriendlyTournamentUserActionTeamIds()`，把 user teamIds、joined teams、responsible officer teams 合併成同一個狀態 scope；冷 cache 無 eligible teams 時強制 refresh `page-teams` 一次；報名區即使只有一個可操作俱樂部也顯示 selector，讓狀態列穩定存在。
-- **驗證**：補 `tournament-friendly-detail-view.test.js`，覆蓋 user.teamIds 空、entries 已 approved、冷 cache 強制 refresh、單一 approved club 仍顯示 selector 與退出按鈕。
-
-### 2026-04-29 — 活動行事曆滿額標籤與人數一致
-- **問題**：少數使用者在活動行事曆看到人數/進度條已低於上限，但右上角仍顯示「已額滿」。
-- **原因**：行事曆卡片的狀態標籤直接讀 `event.status`，人數與進度條則走 `_getEventParticipantStats()`；取消報名後若 registrations 或 current 較早更新、status 快取仍停在 `full`，同一張卡片會出現矛盾。
-- **修復**：`event-list-timeline.js` 改用既有 `_getEventEffectiveStatus()` 決定標籤，讓標籤與人數統計共用實際滿額判斷；報名、取消與遞補寫入流程不變。
-- **驗證**：新增 `event-timeline-status.test.js`，覆蓋 `event.status = full` 但 `19/21` 未滿時標籤應顯示「報名中」；`npm test -- --runInBand` 69 suites / 2538 tests passed。
-- **教訓**：顯示層若同時呈現狀態與人數，狀態標籤不能只信任快取欄位，應以同一份統計結果做防呆。
-
-### 2026-04-29 — 賽事詳情審核中與分享按鈕回饋 [中型]
-- **問題**：友誼賽詳情中，俱樂部審核中按鈕是 disabled，使用者點擊沒有回饋；分享賽事在詳情頁可能因分享 helper 未載入或資料尚未補齊而看似無反應；桌機版有取消報名時，聯繫、分享、取消三顆按鈕未明確並排。
-- **原因**：`tournamentDetail` / `tournament` ScriptLoader 群組缺少 `event-share` 通用 action sheet/helper；`shareTournament()` 沒有按鈕 loading、缺資料 toast 與 fallback；審核中狀態只靠 disabled button 表示。
-- **修復**：將審核中改為反灰可點狀態按鈕並 toast「審核中請耐心等待」；分享按鈕改走 `_withButtonLoading(..., '分享中...')` 並補缺資料/重複點擊提示；賽事詳情載入 event share helpers；有取消/撤回動作時桌機版 action grid 改為三欄。
-- **驗證**：`node --check` 檢查修改 JS；`npm run test:unit -- tests/unit/tournament-friendly-detail-view.test.js tests/unit/tournament-share.test.js tests/unit/script-loader.test.js --runInBand` 通過 70 suites / 2541 tests。
-- **教訓**：詳情頁的分享功能不能只載入 tournament builder，還要保證 action sheet/copy/LINE fallback helper 一起進入 page group；所有非立即完成的按鈕都要有 visible feedback。
-
-### 2026-04-29 — 賽事報名俱樂部別名去重與重新報名修正 [中型]
-- **問題**：同一個俱樂部可能在賽事詳情報名下拉中同時出現一般選項與「未通過」選項；選到不同項目時，一邊顯示可重新報名，一邊又顯示「俱樂部審核未通過」或被球員名單提示覆蓋。
-- **原因**：application/entry 使用的 `teamId` 可能與目前 teams cache 的 `id/_docId/docId` 不同，狀態比對只用 raw id；detail view 又把 rejected application 當成獨立 action option；roster 模組只排除 pending/approved/rejected，沒有排除 available 報名狀態。
-- **修復**：新增 `tournament-friendly-apply-state.js`，集中友誼賽隊伍別名 canonical key 與可報名狀態判斷，合併 `id/teamId/_docId/docId`；terminal rejected/removed application 會回歸到唯一可重新報名的 available option，並保留既有 application teamId 供 callable 覆寫舊申請；detail view 不再把 rejected history 獨立塞進下拉；roster 模組不再覆蓋 available 報名區。
-- **驗證**：`node --check js/modules/tournament/tournament-friendly-state.js`、`node --check js/modules/tournament/tournament-friendly-detail-view.js`、`node --check js/modules/tournament/tournament-friendly-roster.js`、`npm run test:unit -- tests/unit/tournament-friendly-detail-view.test.js --runInBand` 通過 70 suites / 2553 tests。
-- **教訓**：賽事系統同時碰到 teams、applications、entries 時，不可只用單一 raw id 比對；任何狀態下拉都要先做身份合併，再決定 UI 狀態，避免同一俱樂部被拆成兩個選項。
-
-### 2026-04-29 — SEO 後台決策化與 GSC 快照覆蓋補強 [中型]
-- **問題**：SEO 後台原本偏資料展示，「前兩頁可見關鍵詞」容易讓 1 次曝光這類低樣本 GSC 資料被誤解成穩定排名；URL Inspection 也主要看首頁與 SEO 著陸頁，沒有完整承接 blog 內容頁。
-- **原因**：dashboard 只列出 overview/pages/queries/urlStatus，缺少樣本可信度、品牌/非品牌拆分與可執行待辦；`scripts/gsc-snapshot.js` 的 query rowLimit 只有 50，且 URL 檢查清單為固定陣列。
-- **修復**：SEO 後台新增「SEO 待辦 / 警示」、「SEO 頁面機會」、「品牌 / 非品牌查詢」、「Search Appearance」與查詢詞樣本可信度；將前 20 名查詢詞命名改成 GSC 平均排名語意；GSC snapshot query rowLimit 提升到 250，URL Inspection 改為固定清單合併 `sitemap.xml`，並補入 `/blog/` 相關頁。
-- **驗證**：`node --check js/modules/admin-seo/seo-dashboard.js`、`node --check scripts/gsc-snapshot.js`、`git diff --check`、`npm test` 通過 70 suites / 2567 tests；另以 Node smoke test 驗證 dashboard HTML 會包含 SEO 待辦、前 20 名查詢詞、頁面機會、品牌/非品牌、Search Appearance 與樣本提示。
-- **教訓**：SEO 後台不能只展示 GSC 原始數字，必須把低樣本、平均排名與手動搜尋浮動講清楚；內容型 SEO 頁面增加後，URL Inspection 應從 sitemap 擴展，避免後台只監控舊頁面。
-
-### 2026-04-29 — 活動俱樂部團隊席位報名上線 [大型]
-- **問題**：俱樂部職員需要用俱樂部身份替現有活動保留一組團隊名額，但名額統計、候補遞補、簽到簽退、放鴿子與後台紀錄仍必須維持真人資料正確，不能讓團隊席位把活動人數或統計算壞。
-- **原因**：既有活動報名模型只有個人與候補，`current` 直接代表真人報名數；若直接用虛擬 registration 代表俱樂部席位，會污染 no-show、attendance、activityRecords 與候補遞補邏輯。
-- **修復**：新增 `adjustTeamReservation(asia-east1)` callable 與前端團隊/個人報名入口；團隊席位改用 team reservation summary 計入容量，真人仍各自保留 registration/activityRecord；同俱樂部成員報名會優先消耗剩餘席位，超過席位才依活動容量與候補規則處理。管理列表改成同俱樂部席位集中顯示，保留真人簽到、簽退、放鴿子欄位，並補齊操作 log。
-- **驗證**：`node --check` 覆蓋 functions 與活動相關 JS；`npm test -- --runInBand` 通過 72 suites / 2572 tests；`npm run test:rules` 通過 5 suites / 490 tests；團隊席位 targeted tests 通過。已部署 functions、firestore.rules，並 push 前端版本 `0.20260429zk`。
-- **教訓**：容量顯示要分清 `realCurrent` 與「尚未被真人使用的團隊席位」；所有後台統計只應吃真人 registration / attendance，團隊席位只影響容量與視覺群組，避免未來再出現佔位與真人統計互相污染。
-
-### 2026-04-29 — 活動詳情團隊報名按鈕冷啟補載
-- **問題**：俱樂部職員進入活動詳情時，原本應並排顯示「個人報名 / 團隊報名」或「取消報名 / 調整名額」，但某些冷啟或刷新路徑只看到舊的單一報名按鈕。
-- **原因**：活動詳情頁沒有保證先載入 `teams`，團隊報名按鈕又依賴 `ApiService.getTeams()` 判斷目前使用者是否為俱樂部職員；此外舊資料可能有 `team.id` 與 Firestore `_docId` 雙軌，單用 `id` 會誤判。
-- **修復**：活動詳情渲染報名區前先補載目前使用者可能代表的俱樂部，必要時 fallback 載入 `teams`；職員判斷改支援 `id/_docId/docId`；活動詳情資料契約補上 `teams`，避免不同進入路徑靠其他頁快取碰運氣。
-- **教訓**：任何「依身分顯示的按鈕」都不能只仰賴其他頁面曾經載過的快取；詳情頁要自帶自己的資料前置條件，尤其是俱樂部與賽事這類有 ID 雙軌歷史的資料。
-
-### 2026-04-29 — 團隊席位調整按鈕語意與顏色區分
-- **問題**：活動詳情上方「調整名額」與個人報名綠色太接近，且報名名單內每個俱樂部群組旁的「調整」與主操作按鈕語意過於相似。
-- **原因**：團隊席位建立後沿用綠色 active 樣式，名單內群組快捷入口也使用同樣的簡短「調整」字樣，沒有清楚區分主操作與指定俱樂部快捷操作。
-- **修復**：上方團隊操作按鈕維持原本「團隊報名」藍色系；名單內每個俱樂部群組旁的按鈕改名為「快速調整」，並避免按鈕文字換行。
-- **教訓**：同一頁若有主操作與列表內快捷操作，文案與顏色要明確分層，避免使用者誤以為是同一種入口。
-
-### 2026-04-29 — 賽事球員參賽名單與換隊限制修正 [中型]
-- **問題**：俱樂部已通過賽事審核後，普通球員仍可能看不到「參賽」入口；同一使用者若有多個俱樂部，也缺少清楚的換隊限制提示。
-- **原因**：前端與 callable 仍有「負責人先加入」的舊門檻，且隊伍職員判斷分散在多處，coachUids 也可能被誤當成賽事職員。
-- **修復**：取消負責人先加入限制，已通過/主辦俱樂部成員可直接參賽；同一賽事只允許代表一隊，其他隊保留反灰「參賽」按鈕並提示需先取消原隊；前後端職員規則統一為 captain/leader/owner/creator，不含 coach。
-- **驗證**：補 roster UI 與權限 unit tests；`node --check` 覆蓋賽事相關 JS/functions，`npm test -- --runInBand` 通過 72 suites / 2578 tests。
-
-### 2026-04-29 — 活動團隊席位納入俱樂部職員身份
-- **問題**：職員可用俱樂部身份建立團隊席位，但如果職員本人不是一般成員、使用者資料沒有該俱樂部 `teamId/teamIds`，之後個人報名可能被歸到一般名單，而不是俱樂部團隊席位。
-- **原因**：團隊席位匹配只看使用者成員 teamId，沒有同步採用團隊報名按鈕所使用的職員身份來源。
-- **修復**：前端與 `registerForEvent` callable 的席位判定都加入 captain/creator/owner/leader/coach 身份匹配；職員本人個人報名後會寫入 `teamReservationTeamId`，名單分組、簽到簽退與放鴿子統計沿用真人 registration。
-- **驗證**：補 `team-reservation-occupancy.test.js` 覆蓋職員非成員仍消耗團隊保留席位；`node --check` 前後端通過，`npm test -- --runInBand` 通過 72 suites / 2578 tests。
-
-### 2026-04-29 — 團隊報名彈窗取消空白處關閉
-- **問題**：團隊報名彈窗需要手動輸入名額，點到毛玻璃空白處會直接關閉，容易誤觸遺失輸入狀態。
-- **原因**：`team-reservation-overlay` 開啟時寫入 inline `onclick`，只要點擊目標是 overlay 本身就呼叫關閉。
-- **修復**：移除 overlay 空白處關閉行為，只保留右上角 X 與「取消」按鈕可關閉；補測試鎖定不再出現 backdrop close inline handler。
-- **教訓**：含手動輸入的彈窗應避免點外圍關閉，尤其是調整名額這類容易被手指誤觸的 mobile 流程。
-
-### 2026-04-29 — 賽事參賽按鈕移至俱樂部卡與審核通過自動入隊 [中型]
-- **問題**：職員送出俱樂部報名並通過審核後，自己仍需再手動加入參賽名單；參賽按鈕也在上方報名區，普通球員主要看俱樂部頁籤時不容易發現。
-- **原因**：審核 callable 只建立 application/entry/root summary，沒有同步建立申請者 member roster；detail view 把 approved 狀態的 roster action 放在主 action card，而不是每個已通過俱樂部列。
-- **修復**：`reviewFriendlyTournamentApplication` 審核通過時會把送出申請的職員自動加入該俱樂部 members，若已代表其他隊參賽則跳過；上方報名區只顯示俱樂部狀態與取消報名，下方俱樂部卡右側依每隊狀態顯示「參賽 / 取消參賽 / 反灰參賽」。
-- **驗證**：`node --check` 覆蓋 functions 與賽事相關 JS；targeted tournament tests 通過 3 suites / 108 tests；`npm test -- --runInBand` 通過 72 suites / 2580 tests。
-- **教訓**：使用者會在「俱樂部頁籤」理解自己要代表哪一隊參賽，因此 roster action 應跟隊伍列綁在一起；後端審核流程若已知道申請者，應同步補齊名單，避免通過審核後還要重複操作。
-### 2026-04-29 — 多俱樂部個人報名需選擇席位
-- **問題**：同一用戶同時屬於多個俱樂部且活動存在多個團隊席位時，個人報名會自動吃到第一個匹配席位，使用者無法指定要用哪個俱樂部報名。
-- **原因**：團隊席位匹配只用 `teamIds` / 職員身份找第一個 reservation，前端沒有在多個可用俱樂部時先取得使用者意圖。
-- **修復**：前端在多個可用俱樂部席位時顯示選擇彈窗，單一席位直接報名；CF 與舊交易流程都新增 `preferredTeamReservationTeamId` 驗證，只允許使用者所屬或職員俱樂部。
-- **教訓**：只要席位歸屬會影響名單與統計，就不能靠陣列順序自動決定，必須讓使用者明確選擇並在後端再次驗證。
-
-### 2026-04-29 — 賽事報名時間時區一致化 [中型]
-- **問題**：使用者建立賽事時選「立即開放」或填入台灣時間，但點「參賽」仍可能出現 `TOURNAMENT_REGISTRATION_NOT_OPEN`。
-- **原因**：前端 `datetime-local` 送出的是 `YYYY-MM-DDTHH:mm` 無時區字串，瀏覽器以台灣時間判斷為已開放；Cloud Functions 可能以 UTC 解析同一字串，導致後端覺得報名尚未開始。
-- **修復**：前端建立/編輯賽事時把報名開始與截止轉成 ISO UTC；編輯既有賽事時再轉回本地 `datetime-local` 顯示。後端 `getTimestampMillis()` 補 legacy 相容，無時區賽事時間一律當台灣時間解析，並在 callable 建立賽事時存成 ISO。
-- **驗證**：新增 `tournament-datetime.test.js` 與 `tournament-function-timezone-source.test.js`；targeted tournament tests 通過 6 suites / 133 tests。
-### 2026-04-29 — 多俱樂部報名選擇彈窗卡片化
-- **問題**：多俱樂部個人報名彈窗使用 radio 欄位，選項視覺過重且不像可點整張卡片，深色主題下也不夠清楚。
-- **原因**：選項 HTML 直接用 inline `label + input[type=radio]`，缺少專屬選取狀態樣式與主題分層。
-- **修復**：改為整張俱樂部卡片點選，使用 `aria-checked` 與 `is-selected` 管理狀態；被選卡片改成藍綠漸層、邊框與小型勾選標記，並補上深色主題色階；卡片文字改短且固定單行省略，避免手機亂斷行。
-- **教訓**：高頻操作彈窗要讓「可點擊區域」與「選取狀態」一眼可懂，避免表單控件搶走視覺焦點。
-
-### 2026-04-30 賽事主辦建立後創立人未進入參賽名單 [中型]
-- **問題**: 主辦單位建立友誼賽後，俱樂部頁籤只看到主辦 entry，卻沒有顯示創立人/主辦人的隊員名單。
-- **原因**: 建立流程只寫 `entries/{hostTeamId}` 的 `approvedByUid/approvedByName`，沒有同步建立 `entries/{hostTeamId}/members/{creatorUid}`；前端 roster 正確讀 members 子集合，因此畫面不會顯示主辦創立人。
-- **修復**: `createFriendlyTournament` 在主辦俱樂部實際參賽時，和 root + host entry 同 batch 建立 creator member；審核通過自動加入名單也共用同一 roster member builder，避免兩條流程欄位形狀不同。
-- **驗收**: `node --check functions/index.js`、targeted tournament/function tests 通過；部署 functions 後新建立賽事會直接讀到主辦創立人。
-
-### 2026-04-30 賽事俱樂部隊員名單冷載入防呆 [中型]
-- **問題**: 賽事詳細頁第一輪只載入 `entries`，尚未讀取 `entries/{teamId}/members` 子集合時，俱樂部頁籤會暫時把 `memberRoster` 當空陣列，造成已參賽者姓名消失，且多個已核准俱樂部都錯誤顯示「參賽」按鈕。
-- **原因**: `tournament-friendly-state.js` 的 detail state 沒有標記 roster hydration 狀態；`tournament-friendly-detail-view.js` 直接用未補齊的 `memberRoster` 判斷 UI；真正的 `_hydrateFriendlyTournamentRosterState()` 只有後續才補 members 並刷新。
-- **修復**: detail state 新增 `rosterHydrated: false`，teams tab 冷載入時顯示「隊員名單載入中」與 disabled 載入按鈕，不先畫可點擊參賽；`tournament-friendly-roster.js` 新增 hydrate pending guard，members 補齊後設為 `rosterHydrated: true` 並自動刷新頁籤與報名區。
-- **驗證**: 新增 unit tests 覆蓋 cold roster 不顯示錯誤 join action、teams tab 會排程 hydrate；保留已 hydrate 時取消參賽與 blocked 參賽按鈕邏輯。
-
-### 2026-04-30 刪除賽事後仍停留已刪除詳細頁 [中型]
-- **問題**: 管理員在賽事詳細頁成功刪除賽事後，畫面仍可能停在已刪除的詳細頁，而不是回到賽事列表。
-- **原因**: 詳細頁進入後會有短暫 page lock；刪除流程確認與寫入完成後才呼叫 `showPage('page-tournaments')`，容易被 page lock 擋下，且 detail cache / route param 沒有集中清理。
-- **修復**: 新增刪除後導回 helper，成功刪除且目前在詳細頁時清掉 current tournament、friendly detail state、URL `tournament` query，並用 `bypassPageLock + resetHistory` 主動回到 `page-tournaments`。
-- **驗收**: 新增 `tournament-delete-navigation.test.js`，覆蓋詳細頁刪除會跳轉、管理頁刪除不亂跳；`npm test -- --runInBand` 通過 76 suites / 2594 tests。
-
-### 2026-04-30 — 錯誤日誌 Phase 1 + Phase 2 低風險升級
-- **問題**：錯誤日誌只顯示簡短訊息，缺少白話摘要、用戶、頁面、裝置、版本與 context 等診斷資訊，管理員難以判斷用戶錯誤狀況。
-- **原因**：既有 `_writeErrorLog` 已記部分原始資訊，但後台 UI 沒展開使用；新錯誤也缺少 `createdAt`、裝置、URL、角色等欄位，錯誤訊息偏技術化。
-- **修復**：新增 `error-log-diagnostics.js` 拆出白話化、嚴重度、時間排序、裝置與 context helper；重寫錯誤日誌 UI，加入摘要、篩選與展開技術細節；`_writeErrorLog` 新增診斷欄位並走 `FirebaseService.addErrorLog` 寫入 `createdAt`；同步更新 lazy-load、CSS、架構文件與單元測試。
-- **驗證**：`node --check` 覆蓋修改 JS；targeted Jest 通過；`npm run test:unit -- --runInBand` 通過 77 suites / 2602 tests；`git diff --check` 通過（僅 CRLF warning）。
-- **教訓**：錯誤日誌應先提升「看得懂、查得到」的診斷能力，再逐步擴大收集點；全域錯誤捕捉與通用 CRUD 攔截需延後，避免日誌爆量或影響正常流程。
-
-### 2026-04-30 — 錯誤日誌 Phase 3 高價值流程精準補點
-- **問題**：Phase 1 + Phase 2 讓錯誤日誌變得可讀，但部分高價值流程失敗時仍只停在 console 或 toast，管理員難以知道用戶是在報名、取消、簽到、俱樂部操作、賽事審核或商品上傳哪一步失敗。
-- **原因**：既有錯誤記錄主要集中在少數 catch，許多 UI 流程層失敗分支只負責還原畫面或顯示提示，沒有把 eventId、teamId、uid、操作類型與寫入筆數等診斷 context 帶入 `errorLogs`。
-- **修復**：只在既有失敗分支補 `_writeErrorLog`，涵蓋活動報名、同行者報名/取消、掃碼與手動簽到、未報名簽到管理、俱樂部編輯/退出/刪除、入隊審核讀取、賽事申請審核、商品圖片上傳；不改交易函式、權限規則或成功路徑。
-- **驗證**：新增 `error-log-high-value-flows.test.js` 鎖定補點；修改 JS 全數 `node --check` 通過；targeted Jest 通過；`npm run test:unit -- --runInBand` 通過。
-- **教訓**：錯誤補點應先放在用戶可感知、管理員需要追查的流程層；避免把通用 CRUD 或全域錯誤攔截一次打開，才能降低日誌爆量與誤報風險。
-
-### 2026-04-30 — 錯誤日誌 Phase 4 同類聚合與診斷包
-- **問題**：錯誤日誌已能看懂單筆錯誤，但管理員仍需要逐筆比對，難以快速判斷是否為同一類問題、最近是否升高，以及轉交修復時要複製哪些診斷資訊。
-- **原因**：後台只有列表與篩選，沒有依錯誤碼、頁面、功能與白話訊息聚合同類錯誤，也沒有將單筆或群組資料整理成可直接複製的診斷包。
-- **修復**：新增 `error-log-insights.js`，提供同類錯誤 Top 聚合、近 7 天趨勢、單筆/群組診斷包複製；`error-log.js` 只接上 insights 渲染與 copy id，維持低於 300 行；同步更新 CSS、lazy-load、架構文件與測試。
-- **驗證**：Phase 1~3 commits 先以 `git show --check` 與 diff review 審計無阻斷問題；新增 `error-log-insights.test.js`，targeted Jest 通過；修改 JS 全數 `node --check` 通過；完整 unit 通過後再 commit 與部署。
-- **教訓**：診斷型升級應優先強化管理端閱讀與轉交流程，不新增前台攔截或資料寫入路徑，降低對正常功能的干擾。
-
-### 2026-04-30 — 錯誤日誌篩選列手機版排版修正
-- **問題**：錯誤日誌頁的搜尋欄在手機版被拉成過高的直欄，且與右側多個下拉篩選器並排，位置不符合第一列搜尋、下方依序篩選的操作期待。
-- **原因**：共用 `.admin-search` 採 flex 且預設 stretch，錯誤日誌新增多個篩選器後，搜尋 input 會被同列較高的 filter 區塊撐高。
-- **修復**：針對 `#page-admin-error-logs` 與日誌中心實際顯示的 `data-admin-log-panel="error"` 都套用專用 grid：搜尋框第一列全寬，下拉與日期篩選等寬排列；小螢幕改為單欄往下排列，不影響其它後台搜尋列。
-- **驗證**：CSS 差異檢查、script dependency 測試與日誌中心 error panel 的手機寬度 Playwright 量測通過；快取版號同步更新。
-- **教訓**：共用 flex 搜尋列遇到動態增生的多個篩選器時，應在該頁建立局部 grid 規則，避免單一 input 被兄弟元素高度牽動。
-
-### 2026-04-30 報名紀錄漏寫 activityRecords 修復 [中型]
-- **問題**：UID `U210473e818fbc6ce639606b9e83efdd1` 已報名 2026/05/01「連假週五下午3-5西屯踢球團」，但個人資訊頁報名紀錄未顯示。
-- **原因**：報名主資料寫入 `events/{event}/registrations` 成功，但個人頁讀取的 `activityRecords` 缺漏；舊 fallback 路徑把 activityRecord 放在交易後另行非同步寫入，若頁面流程中斷或 post-op 失敗會留下註冊成功但紀錄缺失。
-- **修復**：補回該活動缺漏的 4 筆 activityRecords；正式環境 featureFlags 未載入時預設走 server registration；fallback 報名交易同步寫入 registration、lock、occupancy 與 activityRecord，前端不再額外另開非同步 activityRecord 寫入。
-- **驗證**：Firestore 稽核確認該活動 active self registration 對應 activityRecords 缺漏數為 0；新增/更新 registration transaction 與 migration path 測試，並做 JS 語法檢查。
-- **教訓**：個人紀錄屬於報名索引資料，必須跟主報名寫入維持同交易或由後端權威路徑寫入；排程補償可以做一致性修復，但不能取代即時寫入。
-
-### 2026-04-30 資料同步立即修復 timeout 與 preload 警告 [中型]
-- **問題**：管理端「資料同步與監聽設定」點立即修復後顯示 `deadline-exceeded`，瀏覽器 console 同時出現大量 `preload was not used` 警告。
-- **原因**：手動修復單次最多掃 500 場活動且逐場讀取 registrations / activityRecords，前端 callable 沒拉長 timeout，瀏覽器端會先放棄等待；console 警告則來自 `ScriptLoader` 對未立即執行的核心頁模組使用 `rel=preload`。
-- **修復**：`repairActivityRecordsManual` 支援 `startIndex/maxEventsPerRun` 分段執行並回傳 `hasMore/nextStartIndex`；前端立即修復改成 80 場一批、最多接力 8 批、timeout 300 秒並顯示進度；設定區新增「單次活動上限」；核心頁 warmup 改用 `prefetch`，動態群組不再整包 preload。
-- **驗證**：`node --check` 覆蓋 functions、dashboard usage、script loader；`npm test -- --runInBand tests/unit/tournament-loading-performance.test.js` 實際跑完整 unit，81 suites / 2616 tests 全綠；production function log 顯示呼叫驗證通過後沒有成功/錯誤完成列，符合前端等待逾時而非權限或密碼失敗。
-- **教訓**：補償型修復要設計成可分段與可回報進度；未來頁面暖機要用 prefetch，不要把短時間內不會執行的 JS 用 preload 推進瀏覽器。
-
-### 2026-04-30 資料同步立即修復進度條 [小型]
-- **問題**：立即修復已改成分批處理，但處理期間只有文字狀態，管理員無法直觀看出目前跑到哪裡。
-- **原因**：前端雖然拿得到每批 `candidateEvents/nextStartIndex`，但沒有把批次進度渲染成可視化進度條。
-- **修復**：在資料同步設定卡片的操作按鈕下方加入內嵌進度條；執行中顯示百分比與「已處理 X/Y 場活動」，完成、部分完成與失敗都會保留對應狀態。
-- **教訓**：長時間管理操作除了 toast/status 文字，也應有穩定的可視化進度，避免管理員誤以為畫面卡住。
-
-### 2026-04-30 報名與取消報名連點防護 [小型]
-- **問題**：使用者快速連點報名/取消報名時，第二次操作可能撞到已完成的狀態，console 出現 `已報名此活動` mojibake 或 `報名記錄不存在`。
-- **原因**：取消報名的 busy lock 在確認框之後才建立，連點可同時進入兩條取消流程；報名流程也缺少本機有效本人報名的早期攔截。
-- **修復**：報名前先檢查本人有效報名並改顯示白話提示；取消報名在確認前先上鎖，早退時釋放；連點造成的已報名/找不到報名記錄改視為狀態已更新，不再寫入錯誤日誌。
-- **驗證**：`node --check js/modules/event/event-detail-signup.js`；`npm test -- --runInBand --runTestsByPath tests/unit/signup-logic.test.js tests/unit/event-detail-render.test.js tests/unit/error-log-high-value-flows.test.js`；`npm test -- --runInBand` 全綠。
-
-### 2026-04-30 數據儀表板用戶成長趨勢固定範圍 [小型]
-- **問題**：用戶成長趨勢標示近 12 個月，但圖表會跟著儀表板上方撈取月份範圍改變；當月趨勢 X 軸顯示月/日，日期密集時容易擠在一起。
-- **原因**：用戶成長圖使用已被目前範圍過濾的 `users`，不是完整用戶來源；當月趨勢圖直接顯示 `MM/DD`。
-- **修復**：用戶成長圖改用 `allUsers` 作為來源，再由圖表自己切最近 12 個月；當月趨勢 X 軸只顯示日數。
-- **教訓**：標題寫固定區間的圖表，資料來源也要固定，不能沿用頁面篩選後的集合。
-
-### 2026-04-30 活動詳情報名按鈕與名單狀態一致 [小型]
-- **問題**：用戶已在報名名單內時，活動詳情頁主按鈕仍可能顯示「立即報名」。
-- **原因**：報名名單可用活動文件的 `participantsWithUid/waitlistWithUid` 投影先顯示，但按鈕只看 `registrations` 快取；快取尚未補齊或只含 `uid` 欄位時會誤判未報名。
-- **修復**：報名狀態判斷改為先看 `registrations`，缺資料時再用名單投影比對 UID；個人報名查詢支援 `userId/uid`；取消報名同時接受 `id/_docId`。
-- **教訓**：同一畫面的名單與動作按鈕必須共用一致的身份判斷，否則快取與投影資料短暫不一致時會讓用戶誤以為能重複報名。
-
-### 2026-04-30 團隊報名佔位左側插旗圖修正 [小型]
-- **問題**：報名名單中團隊保留席位左側 badge 仍以文字「旗」呈現，不符合原本要使用 SVG 插旗圖的設計。
-- **原因**：`event-manage-attendance.js` 的 `teamSeatFlag` 直接把中文字塞進 button，沒有使用圖示。
-- **修復**：改為 inline SVG flag icon，保留既有藍色圓形 badge、tooltip 與點擊 toast。
-- **驗證**：`node --check js/modules/event/event-manage-attendance.js`；`npm test -- --runInBand --runTestsByPath tests/unit/event-detail-render.test.js`。
-
-### 2026-04-30 團隊報名佔位旗幟改用 emoji [小型]
-- **問題**：使用者確認團隊保留席位左側旗幟要顯示為 `🚩`，不是 inline SVG 插旗圖。
-- **原因**：前次修正依插旗圖語意改成 SVG，但實際視覺需求是 emoji 旗幟。
-- **修復**：移除 SVG flag markup，保留原本圓形 badge、tooltip 與點擊 toast，按鈕內容改為 `🚩`。
-- **驗證**：補測試確認 `event-manage-attendance.js` 使用 `🚩` 並拒絕 SVG/文字「旗」退回。
-
-### 2026-04-30 團隊報名佔位旗幟移除圈框 [小型]
-- **問題**：團隊保留席位左側只要顯示 `🚩`，不需要藍色圓形框或底色。
-- **原因**：emoji 旗幟仍沿用前次 badge button 樣式，造成視覺上像圈框徽章。
-- **修復**：保留可點擊 button 與 tooltip/toast，但移除固定寬高、藍框、底色、圓角與陰影，讓畫面只露出旗子。
-- **驗證**：補測試確認旗幟 button 使用透明背景與無邊框，且不再含 `width:1.18rem`、`height:1.18rem`、`border-radius:999px`。
-
-### 2026-04-30 用戶補正管理資料同步整併與密碼守門 [中型]
-- **問題**：用戶補正管理內「系統資料同步」工具過多且散落，日常修復、健康檢查、歷史遷移與高風險重算混在同一層，且部分前端直接執行的按鈕沒有先做後端密碼驗證。
-- **原因**：早期維修工具陸續加入同一頁，只有 `saveRealtimeConfig`、`repairActivityRecordsManual`、`runUidHealthCheck` 這類 callable 本身有 `1121` 密碼守門；頁面內直接跑 Firestore 或舊 Cloud Function 的工具缺少一致的前置驗證。
-- **修復**：前端將資料同步工具整理成「日常修復」「健康檢查」「進階 / 歷史工具」三區，一鍵同步隱藏，放鴿子全站重算移到放鴿子系統頁；新增 `verifyDataSyncPassword` callable，所有資料同步功能按鈕執行前先輸入密碼並由後端驗證；`migrateUidFields` 與 `calcNoShowCountsManual` 也補上密碼要求。
-- **教訓**：管理端維修工具可以保留救援能力，但預設視覺層級要區分日常與高風險；直接由前端發動的修復流程也應先走同一個後端密碼守門，避免誤觸或權限外操作。
