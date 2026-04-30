@@ -805,6 +805,15 @@ Object.assign(App, {
       + '  <button id="rl-save-btn" class="btn-sm">儲存設定</button>'
       + '  <button id="ar-run-btn" class="outline-btn">立即修復</button>'
       + '</div>'
+      + '<div class="sync-config-progress" id="ar-repair-progress" hidden aria-hidden="true">'
+      + '  <div class="sync-config-progress-head">'
+      + '    <span id="ar-repair-progress-text">準備中...</span>'
+      + '    <strong id="ar-repair-progress-percent">0%</strong>'
+      + '  </div>'
+      + '  <div class="sync-config-progress-track" id="ar-repair-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">'
+      + '    <div class="sync-config-progress-fill" id="ar-repair-progress-fill" style="width:0%"></div>'
+      + '  </div>'
+      + '</div>'
       + '<div id="rl-status" style="font-size:.72rem;color:var(--text-secondary);margin-top:.45rem;text-align:center"></div>'
       + '</div>';
 
@@ -1061,14 +1070,50 @@ Object.assign(App, {
   async runActivityRecordRepairNow() {
     var btn = document.getElementById('ar-run-btn');
     var statusEl = document.getElementById('rl-status');
+    var progressEl = document.getElementById('ar-repair-progress');
+    var progressFill = document.getElementById('ar-repair-progress-fill');
+    var progressTrack = document.getElementById('ar-repair-progress-track');
+    var progressPercent = document.getElementById('ar-repair-progress-percent');
+    var progressText = document.getElementById('ar-repair-progress-text');
+    var hideRepairProgress = function() {
+      if (!progressEl) return;
+      progressEl.hidden = true;
+      progressEl.setAttribute('aria-hidden', 'true');
+      progressEl.classList.remove('is-running', 'is-done', 'is-error');
+      if (progressFill) progressFill.style.width = '0%';
+      if (progressTrack) progressTrack.setAttribute('aria-valuenow', '0');
+      if (progressPercent) progressPercent.textContent = '0%';
+      if (progressText) progressText.textContent = '準備中...';
+    };
+    var setRepairProgress = function(done, total, label, state) {
+      var safeTotal = Math.max(0, Number(total || 0));
+      var safeDone = Math.max(0, Number(done || 0));
+      var pct = safeTotal > 0 ? Math.round(Math.min(100, safeDone / safeTotal * 100)) : (state === 'done' ? 100 : 0);
+      if (state === 'running' && safeTotal > 0 && safeDone < safeTotal) pct = Math.min(99, pct);
+      if (progressEl) {
+        progressEl.hidden = false;
+        progressEl.setAttribute('aria-hidden', 'false');
+        progressEl.classList.toggle('is-running', state === 'running');
+        progressEl.classList.toggle('is-done', state === 'done');
+        progressEl.classList.toggle('is-error', state === 'error');
+      }
+      if (progressFill) progressFill.style.width = pct + '%';
+      if (progressTrack) progressTrack.setAttribute('aria-valuenow', String(pct));
+      if (progressPercent) progressPercent.textContent = pct + '%';
+      if (progressText) progressText.textContent = label || '處理中...';
+    };
     var ok = typeof this.appConfirm === 'function'
       ? await this.appConfirm('確定要立即執行報名紀錄修復嗎？\n\n系統會掃描設定範圍內的活動，補齊缺漏的報名紀錄。')
       : window.confirm('確定要立即執行報名紀錄修復嗎？');
-    if (!ok) return;
+    if (!ok) {
+      hideRepairProgress();
+      return;
+    }
 
     var password = await this._promptDataSyncPassword('立即修復報名紀錄');
     if (!password) {
       if (statusEl) statusEl.textContent = '已取消，沒有執行修復。';
+      hideRepairProgress();
       return;
     }
 
@@ -1080,6 +1125,7 @@ Object.assign(App, {
       statusEl.style.color = 'var(--text-secondary)';
       statusEl.textContent = '正在執行報名紀錄修復...';
     }
+    setRepairProgress(0, 0, '準備掃描活動...', 'running');
     var aggregate = {
       created: 0,
       updated: 0,
@@ -1109,11 +1155,18 @@ Object.assign(App, {
         });
         aggregate.candidateEvents = Math.max(aggregate.candidateEvents, Number(data.candidateEvents || 0));
         var nextStartIndex = Number(data.nextStartIndex || 0);
+        var totalEvents = Number(data.candidateEvents || aggregate.candidateEvents || 0);
+        var completedEvents = totalEvents > 0 ? Math.min(nextStartIndex, totalEvents) : nextStartIndex;
         hasMore = !!data.hasMore && nextStartIndex > startIndex;
         startIndex = nextStartIndex;
+        var progressLabel = totalEvents > 0
+          ? ('已處理 ' + completedEvents + '/' + totalEvents + ' 場活動')
+          : ('已掃描 ' + aggregate.scannedEvents + ' 場活動');
+        if (hasMore) progressLabel += '，繼續下一批';
+        setRepairProgress(completedEvents, totalEvents, progressLabel, hasMore ? 'running' : 'done');
         if (statusEl && hasMore) {
           statusEl.style.color = 'var(--text-secondary)';
-          statusEl.textContent = '修復中：已掃描 ' + aggregate.scannedEvents + ' 場，繼續處理下一批...';
+          statusEl.textContent = '修復中：' + progressLabel + '...';
         }
       }
       password = '';
@@ -1127,6 +1180,14 @@ Object.assign(App, {
         statusEl.style.color = 'var(--success,#16a34a)';
         statusEl.textContent = msg;
       }
+      var finalTotal = aggregate.candidateEvents || startIndex || aggregate.scannedEvents;
+      var finalDone = hasMore ? Math.min(startIndex || aggregate.scannedEvents, finalTotal) : finalTotal;
+      setRepairProgress(
+        finalDone,
+        finalTotal,
+        hasMore ? '本次批次已完成，仍有資料可再次修復' : '修復完成',
+        'done'
+      );
       this.showToast?.(msg);
     } catch (err) {
       password = '';
@@ -1139,6 +1200,12 @@ Object.assign(App, {
         statusEl.style.color = 'var(--danger,#dc2626)';
         statusEl.textContent = this._getDataSyncGuardErrorMessage(err, fallback);
       }
+      setRepairProgress(
+        aggregate.candidateEvents ? Math.min(startIndex || 0, aggregate.candidateEvents) : aggregate.scannedEvents,
+        aggregate.candidateEvents || aggregate.scannedEvents || 1,
+        hasPartial ? '部分完成後中斷' : '修復失敗',
+        'error'
+      );
       this.showToast?.(hasPartial ? '報名紀錄部分修復後中斷' : '報名紀錄修復失敗');
     } finally {
       if (btn) {

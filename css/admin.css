@@ -1078,6 +1078,66 @@
   font-size: .88rem;
   font-weight: 700;
 }
+.sync-config-progress {
+  margin-top: .65rem;
+  padding: .65rem .75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--bg-elevated);
+}
+.sync-config-progress[hidden] { display: none !important; }
+.sync-config-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  margin-bottom: .45rem;
+}
+.sync-config-progress-head span {
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: .74rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sync-config-progress-head strong {
+  flex-shrink: 0;
+  color: var(--accent);
+  font-size: .76rem;
+  font-variant-numeric: tabular-nums;
+}
+.sync-config-progress-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, .28);
+}
+.sync-config-progress-fill {
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2563eb, #14b8a6, #22c55e);
+  transition: width .28s ease;
+}
+.sync-config-progress.is-running .sync-config-progress-fill {
+  background-size: 180% 100%;
+  animation: sync-config-progress-flow 1.35s linear infinite;
+}
+.sync-config-progress.is-done .sync-config-progress-fill {
+  background: linear-gradient(90deg, #10b981, #22c55e);
+}
+.sync-config-progress.is-error .sync-config-progress-fill {
+  background: linear-gradient(90deg, #ef4444, #f97316);
+}
+.sync-config-progress.is-error .sync-config-progress-head strong {
+  color: var(--danger, #ef4444);
+}
+@keyframes sync-config-progress-flow {
+  from { background-position: 0 0; }
+  to { background-position: 180% 0; }
+}
 .sync-config-log-overlay {
   display: none;
   position: fixed;
