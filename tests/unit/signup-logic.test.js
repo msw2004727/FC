@@ -76,6 +76,36 @@ function selectCancelReg(myRegs, isWaitlist) {
   return { reg, extraRegs };
 }
 
+function isActiveSelfRegistrationRecord(reg) {
+  const status = String(reg?.status || '').trim();
+  const participantType = String(reg?.participantType || '').trim();
+  return participantType !== 'companion' && status !== 'cancelled' && status !== 'removed';
+}
+
+function hasActiveSelfRegistrationForEvent(regs, userId) {
+  return (regs || []).some(reg =>
+    isActiveSelfRegistrationRecord(reg)
+    && (!userId || reg.userId === userId || reg.uid === userId)
+  );
+}
+
+function isDuplicateSignupError(err) {
+  const code = String(err?.details || err?.code || '').trim();
+  const message = String(err?.message || err || '');
+  return code === 'ALREADY_REGISTERED'
+    || message.includes('已報名')
+    || message.includes('已經報名')
+    || (message.includes('撌脣') && message.includes('瘣餃'));
+}
+
+function isMissingCancelRegistrationError(err) {
+  const code = String(err?.details || err?.code || '').trim();
+  const message = String(err?.message || err || '');
+  return code === 'REG_NOT_FOUND'
+    || message.includes('報名記錄不存在')
+    || message.includes('找不到報名');
+}
+
 
 // ═══════════════════════════════════════════════════════
 //  Tests
@@ -402,5 +432,50 @@ describe('selectCancelReg (event-detail-signup.js:435-441)', () => {
     ];
     const { reg } = selectCancelReg(regs, false);
     expect(reg.id).toBe('2'); // first find matches confirmed
+  });
+});
+
+describe('signup/cancel rapid-click guard helpers', () => {
+  test('active self registration includes confirmed, registered, and waitlisted', () => {
+    expect(isActiveSelfRegistrationRecord({ status: 'confirmed' })).toBe(true);
+    expect(isActiveSelfRegistrationRecord({ status: 'registered' })).toBe(true);
+    expect(isActiveSelfRegistrationRecord({ status: 'waitlisted' })).toBe(true);
+  });
+
+  test('active self registration excludes cancelled, removed, and companions', () => {
+    expect(isActiveSelfRegistrationRecord({ status: 'cancelled' })).toBe(false);
+    expect(isActiveSelfRegistrationRecord({ status: 'removed' })).toBe(false);
+    expect(isActiveSelfRegistrationRecord({ status: 'confirmed', participantType: 'companion' })).toBe(false);
+  });
+
+  test('hasActiveSelfRegistrationForEvent matches userId or uid only for active self rows', () => {
+    const regs = [
+      { userId: 'OTHER', status: 'confirmed' },
+      { userId: 'U123', status: 'cancelled' },
+      { uid: 'U123', status: 'waitlisted' },
+    ];
+    expect(hasActiveSelfRegistrationForEvent(regs, 'U123')).toBe(true);
+    expect(hasActiveSelfRegistrationForEvent(regs, 'U999')).toBe(false);
+  });
+
+  test('duplicate signup error detects Cloud Function code and readable messages', () => {
+    expect(isDuplicateSignupError({ details: 'ALREADY_REGISTERED' })).toBe(true);
+    expect(isDuplicateSignupError(new Error('已報名此活動'))).toBe(true);
+    expect(isDuplicateSignupError(new Error('你已經報名這場活動'))).toBe(true);
+  });
+
+  test('duplicate signup error detects observed mojibake fallback', () => {
+    expect(isDuplicateSignupError(new Error('撌脣?迨瘣餃?'))).toBe(true);
+  });
+
+  test('missing cancel registration error detects code and readable messages', () => {
+    expect(isMissingCancelRegistrationError({ details: 'REG_NOT_FOUND' })).toBe(true);
+    expect(isMissingCancelRegistrationError(new Error('報名記錄不存在'))).toBe(true);
+    expect(isMissingCancelRegistrationError(new Error('找不到報名資料'))).toBe(true);
+  });
+
+  test('non-benign errors stay reportable', () => {
+    expect(isDuplicateSignupError(new Error('permission-denied'))).toBe(false);
+    expect(isMissingCancelRegistrationError(new Error('permission-denied'))).toBe(false);
   });
 });

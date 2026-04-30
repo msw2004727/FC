@@ -1982,3 +1982,15 @@
 - **修復**：`repairActivityRecordsManual` 支援 `startIndex/maxEventsPerRun` 分段執行並回傳 `hasMore/nextStartIndex`；前端立即修復改成 80 場一批、最多接力 8 批、timeout 300 秒並顯示進度；設定區新增「單次活動上限」；核心頁 warmup 改用 `prefetch`，動態群組不再整包 preload。
 - **驗證**：`node --check` 覆蓋 functions、dashboard usage、script loader；`npm test -- --runInBand tests/unit/tournament-loading-performance.test.js` 實際跑完整 unit，81 suites / 2616 tests 全綠；production function log 顯示呼叫驗證通過後沒有成功/錯誤完成列，符合前端等待逾時而非權限或密碼失敗。
 - **教訓**：補償型修復要設計成可分段與可回報進度；未來頁面暖機要用 prefetch，不要把短時間內不會執行的 JS 用 preload 推進瀏覽器。
+
+### 2026-04-30 資料同步立即修復進度條 [小型]
+- **問題**：立即修復已改成分批處理，但處理期間只有文字狀態，管理員無法直觀看出目前跑到哪裡。
+- **原因**：前端雖然拿得到每批 `candidateEvents/nextStartIndex`，但沒有把批次進度渲染成可視化進度條。
+- **修復**：在資料同步設定卡片的操作按鈕下方加入內嵌進度條；執行中顯示百分比與「已處理 X/Y 場活動」，完成、部分完成與失敗都會保留對應狀態。
+- **教訓**：長時間管理操作除了 toast/status 文字，也應有穩定的可視化進度，避免管理員誤以為畫面卡住。
+
+### 2026-04-30 報名與取消報名連點防護 [小型]
+- **問題**：使用者快速連點報名/取消報名時，第二次操作可能撞到已完成的狀態，console 出現 `已報名此活動` mojibake 或 `報名記錄不存在`。
+- **原因**：取消報名的 busy lock 在確認框之後才建立，連點可同時進入兩條取消流程；報名流程也缺少本機有效本人報名的早期攔截。
+- **修復**：報名前先檢查本人有效報名並改顯示白話提示；取消報名在確認前先上鎖，早退時釋放；連點造成的已報名/找不到報名記錄改視為狀態已更新，不再寫入錯誤日誌。
+- **驗證**：`node --check js/modules/event/event-detail-signup.js`；`npm test -- --runInBand --runTestsByPath tests/unit/signup-logic.test.js tests/unit/event-detail-render.test.js tests/unit/error-log-high-value-flows.test.js`；`npm test -- --runInBand` 全綠。

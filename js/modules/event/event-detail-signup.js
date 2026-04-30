@@ -28,6 +28,37 @@ Object.assign(App, {
     if (this._eventActionBusyMap) delete this._eventActionBusyMap[busyKey];
   },
 
+  _isActiveSelfRegistrationRecord(reg) {
+    const status = String(reg?.status || '').trim();
+    const participantType = String(reg?.participantType || '').trim();
+    return participantType !== 'companion' && status !== 'cancelled' && status !== 'removed';
+  },
+
+  _hasActiveSelfRegistrationForEvent(eventId, userId) {
+    const regs = ApiService.getMyRegistrationsByEvent?.(eventId) || [];
+    return regs.some(reg =>
+      this._isActiveSelfRegistrationRecord(reg)
+      && (!userId || reg.userId === userId || reg.uid === userId)
+    );
+  },
+
+  _isDuplicateSignupError(err) {
+    const code = String(err?.details || err?.code || '').trim();
+    const message = String(err?.message || err || '');
+    return code === 'ALREADY_REGISTERED'
+      || message.includes('已報名')
+      || message.includes('已經報名')
+      || (message.includes('撌脣') && message.includes('瘣餃'));
+  },
+
+  _isMissingCancelRegistrationError(err) {
+    const code = String(err?.details || err?.code || '').trim();
+    const message = String(err?.message || err || '');
+    return code === 'REG_NOT_FOUND'
+      || message.includes('報名記錄不存在')
+      || message.includes('找不到報名');
+  },
+
   // ══════════════════════════════════
   //  Signup & Cancel
   // ══════════════════════════════════
@@ -571,6 +602,17 @@ Object.assign(App, {
       }
     }
 
+    const user = ApiService.getCurrentUser();
+    if (!user?.uid) { this.showToast('用戶資料載入中，請稍候再試'); return; }
+    const userName = user.displayName || user.name || '用戶';
+    const userId = user.uid;
+
+    if (this._hasActiveSelfRegistrationForEvent(id, userId)) {
+      this.showToast('你已經報名這場活動');
+      this._patchDetailAfterSignup(id);
+      return;
+    }
+
     // 有同行者 → 顯示選人 Modal
     const companions = ApiService.getCompanions();
     if (companions.length > 0) {
@@ -578,11 +620,6 @@ Object.assign(App, {
       this._openCompanionSelectModal(id);
       return;
     }
-
-    const user = ApiService.getCurrentUser();
-    if (!user?.uid) { this.showToast('用戶資料載入中，請稍候再試'); return; }
-    const userName = user.displayName || user.name || '用戶';
-    const userId = user.uid;
 
     // 恢復報名 → 移除之前的取消紀錄
     this._removeCancelRecordOnResignup(id, userId);
@@ -755,6 +792,17 @@ Object.assign(App, {
       }
       this._evaluateAchievements?.(e.type);
     } catch (err) {
+      const errCode = err?.details || err?.message || '';
+      if (this._isDuplicateSignupError(err)) {
+        this.showToast('你已經報名這場活動');
+        this._patchDetailAfterSignup(id);
+        if (glowWrap) glowWrap.classList.remove('loading');
+        signupBtns.forEach(b => {
+          b.disabled = false; b.style.opacity = '';
+          if (b === activeBtn && b._origText) { b.textContent = b._origText; }
+        });
+        return;
+      }
       console.error('[handleSignup]', err);
       // CF 錯誤碼轉換為友善訊息
       const cfMsg = {
@@ -769,7 +817,6 @@ Object.assign(App, {
       };
       cfMsg.TEAM_RESERVATION_TEAM_DENIED = '你無法使用此俱樂部席位報名';
       cfMsg.TEAM_RESERVATION_TEAM_NOT_AVAILABLE = '此俱樂部席位已變更，請重新選擇';
-      const errCode = err?.details || err?.message || '';
       // Plan C：PROFILE_INCOMPLETE → 自動彈出首登表單
       if (errCode === 'PROFILE_INCOMPLETE') {
         this._pendingFirstLogin = true;
@@ -816,6 +863,14 @@ Object.assign(App, {
       this.showToast('系統已在處理中');
       return;
     }
+    this._cancelSignupBusyMap[id] = true;
+    const cancelPrelockTimeout = setTimeout(() => {
+      delete this._cancelSignupBusyMap[id];
+    }, 15000);
+    const releaseCancelPrelock = () => {
+      clearTimeout(cancelPrelockTimeout);
+      delete this._cancelSignupBusyMap[id];
+    };
 
     const currentUser = ApiService.getCurrentUser();
     const currentUserId = currentUser?.uid || 'unknown';
@@ -859,6 +914,7 @@ Object.assign(App, {
     const hasRealCompanions = myRegs.some(r => r.participantType === 'companion' || r.companionId);
     if (myRegs.length > 1 && hasRealCompanions) {
       this._openCompanionCancelModal(id, myRegs);
+      releaseCancelPrelock();
       return;
     }
 
@@ -867,6 +923,7 @@ Object.assign(App, {
     if (e0?.status === 'ended' || e0?.status === 'cancelled') {
       this.showToast('\u6d3b\u52d5\u5df2\u958b\u59cb\uff0c\u7121\u6cd5\u518d\u53d6\u6d88\u5831\u540d');
       this.showEventDetail(id);
+      releaseCancelPrelock();
       return;
     }
     // 活動開始時間已過 → 自動結束並阻止操作
@@ -875,12 +932,16 @@ Object.assign(App, {
       ApiService.updateEvent(id, { status: 'ended' });
       this.showToast('活動已於開始時間結束，無法取消報名');
       this.showEventDetail(id);
+      releaseCancelPrelock();
       return;
     }
     const singleReg = myRegs.length === 1 ? myRegs[0] : null;
     const isWaitlist = singleReg ? singleReg.status === 'waitlisted' : (e0 && this._isUserOnWaitlist(e0));
     const confirmMsg = isWaitlist ? '確定要取消候補？' : '確定要取消報名？';
-    if (!await this.appConfirm(confirmMsg)) return;
+    if (!await this.appConfirm(confirmMsg)) {
+      releaseCancelPrelock();
+      return;
+    }
 
     // B1 優化：移除 _syncMyEventRegistrations 前置查詢
     // cancelRegistration 內部已查詢 firestoreRegs 並自動回填 _docId（C1），不再需要額外同步
@@ -892,6 +953,7 @@ Object.assign(App, {
       .filter(b => ((b.getAttribute('onclick') || '').includes('handleCancelSignup')));
     const activeCancelBtn = cancelBtns[0] || null;
     let cancelUiRestored = false;
+    clearTimeout(cancelPrelockTimeout);
     this._cancelSignupBusyMap[id] = true;
     // 安全超時：15 秒後自動解鎖，防止 Firestore 卡住導致永久鎖定
     const _busyTimeout = setTimeout(() => { delete this._cancelSignupBusyMap[id]; }, 15000);
@@ -1093,6 +1155,13 @@ Object.assign(App, {
         }
         this._evaluateAchievements?.(e0?.type);
       } catch (err) {
+        const errCode = err?.details || err?.message || '';
+        if (this._isMissingCancelRegistrationError(err)) {
+          this.showToast('報名狀態已更新');
+          this._patchDetailAfterCancel(id);
+          _restoreCancelUI();
+          return;
+        }
         console.error('[cancelSignup]', err);
         this._flipAnimating = false;
         const cfMsg = {
@@ -1101,7 +1170,6 @@ Object.assign(App, {
           EVENT_NOT_FOUND: '活動不存在',
           PERMISSION_DENIED: '無權限執行此操作',
         };
-        const errCode = err?.details || err?.message || '';
         const isNetworkOrTimeout = /timeout|network|fetch|ECONNREFUSED|逾時/i.test(err?.message || '');
         this.showToast('取消失敗：' + (cfMsg[errCode] || (isNetworkOrTimeout ? '連線逾時，請檢查網路後重新整理再試' : err.message || '')));
         ApiService._writeErrorLog({ fn: 'handleCancelSignup', eventId: id }, err);
@@ -1120,6 +1188,7 @@ Object.assign(App, {
         activeRegCount: myRegs.length,
         activeRegStatuses: myRegs.map(r => r.status)
       });
+      clearTimeout(_busyTimeout);
       _restoreCancelUI();
       this.showToast('找不到有效的報名紀錄，請重新整理後再試');
       this.showEventDetail(id);
