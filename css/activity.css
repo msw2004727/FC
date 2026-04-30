@@ -1538,7 +1538,7 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
 [data-theme="dark"] .team-select-card.selected { border-color: var(--accent); }
 
 /* 色票選擇器（膠囊右側滑出） */
-.jersey-picker-anchor { position: absolute; top: -10px; right: -3px; z-index: 10; }
+.jersey-picker-anchor { position: fixed; width: 0; height: 0; z-index: 1250; overflow: visible; }
 .jersey-picker {
   position: absolute; left: 100%; top: 50%;
   display: flex; align-items: center; gap: 3px;
@@ -1546,6 +1546,7 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
   border-radius: 999px; padding: 3px 6px;
   box-shadow: 0 4px 12px rgba(0,0,0,.15);
   white-space: nowrap; margin-left: 4px;
+  max-width: calc(100vw - 16px); overflow-x: auto;
   transform-origin: left center;
   opacity: 0; transform: scaleX(0) translateY(-50%);
   transition: opacity .2s ease, transform .25s cubic-bezier(.34,1.56,.64,1);

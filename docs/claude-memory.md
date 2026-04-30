@@ -2004,3 +2004,8 @@
 - **Case**: Event `ce_1777379740742_06jw_0` on `2026/05/03 20:00~22:00`, user `Ud55d5ba583447c2034f3e352ef0b2fc2` was a coach in `tm_1772099699445_naajv3` but had no `users.teamId/teamIds`.
 - **Fix**: Added `addTeamStaffUidsToSet()` and made `adjustTeamReservation` include captain/leader/coach/creator/owner UIDs when stamping existing active registrations into team reservation seats.
 - **Validation**: Added unit coverage for staff UID backfill and planned production data repair by re-stamping the affected registration and rebuilding event occupancy.
+
+### 2026-04-30 Team split jersey picker clipping fix [critical]
+- **Issue**: Staff could click the team-split jersey in the attendance list, but the color picker was appended inside `.user-capsule`, so attendance row and badge overflow containers could clip or cover it.
+- **Fix**: Rendered the jersey picker as a fixed floating layer on `document.body`, positioned beside the clicked jersey and flipped left when there is not enough right-side space.
+- **Validation**: Planned syntax checks and cache-version bump for the frontend assets.

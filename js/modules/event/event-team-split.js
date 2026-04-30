@@ -328,18 +328,24 @@ Object.assign(App, {
     const cancelSvg = this._tsJerseySvg(null, null, '✕', { width: 20, inline: true });
     const cancelHtml = `<div class="jersey-pick-item" onclick="event.stopPropagation();App._tsPickTeam('${rdId}','${evId}','')" title="取消分配">${cancelSvg}</div>`;
 
+    const jerseyRect = jerseyEl.getBoundingClientRect();
     const anchor = document.createElement('div');
     anchor.className = 'jersey-picker-anchor';
+    anchor.style.left = `${Math.round(jerseyRect.right)}px`;
+    anchor.style.top = `${Math.round(jerseyRect.top + jerseyRect.height / 2)}px`;
     const picker = document.createElement('div');
     picker.className = 'jersey-picker';
     picker.innerHTML = items + cancelHtml;
     anchor.appendChild(picker);
-    capsule.style.position = 'relative';
-    capsule.appendChild(anchor);
+    document.body.appendChild(anchor);
 
     requestAnimationFrame(() => {
-      const rect = picker.getBoundingClientRect();
-      if (rect.right > window.innerWidth - 8) picker.classList.add('flip');
+      const pickerWidth = picker.scrollWidth || 0;
+      const spaceRight = window.innerWidth - jerseyRect.right - 8;
+      if (pickerWidth > spaceRight && jerseyRect.left > pickerWidth + 8) {
+        anchor.style.left = `${Math.round(jerseyRect.left)}px`;
+        picker.classList.add('flip');
+      }
       picker.classList.add('open');
     });
 
