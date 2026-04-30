@@ -66,7 +66,9 @@ Object.assign(App, {
      Submit Post
      ═══════════════════════════════ */
 
-  async submitTeamPost(teamId) {
+  async submitTeamPost(teamId, buttonEl) {
+    var submitButton = (buttonEl && typeof buttonEl === 'object') ? buttonEl : null;
+    if (submitButton && submitButton.disabled) return;
     if (!this._canPostTeamFeed(teamId)) {
       this.showToast('僅俱樂部成員可發文');
       return;
@@ -91,12 +93,21 @@ Object.assign(App, {
       reactions: { like: [], heart: [], cheer: [] },
       comments: [], createdAt: now.toISOString()
     };
+    var originalButtonText = submitButton ? submitButton.textContent : '';
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = I18N.t('teamDetail.publishing');
+    }
 
     try {
       await ApiService.createTeamFeedPost(teamId, post);
       await this._loadTeamFeed(teamId);
     } catch (err) {
       console.error('[TeamFeed] submitTeamPost failed:', err);
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = originalButtonText || I18N.t('teamDetail.publish');
+      }
       this.showToast('發佈失敗，請稍後再試');
       return;
     }

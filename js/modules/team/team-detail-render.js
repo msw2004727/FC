@@ -319,7 +319,7 @@ Object.assign(App, {
       <div style="margin-bottom:.5rem">
         <textarea id="team-feed-input" rows="2" maxlength="200" placeholder="${I18N.t('teamDetail.postPlaceholder')}" style="width:100%;font-size:.82rem;padding:.4rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);resize:none;box-sizing:border-box"></textarea>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:.3rem">
-          <button class="primary-btn small" onclick="App.submitTeamPost('${teamId}')">${I18N.t('teamDetail.publish')}</button>
+          <button class="primary-btn small" onclick="App.submitTeamPost('${teamId}', this)">${I18N.t('teamDetail.publish')}</button>
           <div style="display:flex;align-items:center;gap:.3rem">
             <span id="team-feed-public-label" style="font-size:.72rem;color:var(--text-muted)">${I18N.t('teamDetail.public')}</span>
             <label class="toggle-switch" style="margin:0;transform:scale(.8)">

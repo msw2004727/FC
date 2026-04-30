@@ -178,6 +178,21 @@ describe('team detail club activity section', () => {
     expect(html.indexOf('club events')).toBeGreaterThan(html.indexOf('team-feed-section'));
   });
 
+  test('team feed publish button passes itself for loading feedback', () => {
+    const app = makeApp([]);
+    Object.assign(app, {
+      _isTeamMember: () => true,
+      _teamFeedPage: {},
+      _FEED_PAGE_SIZE: 20,
+      getTeamFeed: () => [],
+    });
+    loadTeamDetailRender(app, []);
+
+    const html = app._renderTeamFeed('teamA');
+
+    expect(html).toContain("App.submitTeamPost('teamA', this)");
+  });
+
   test('team detail collapsible cards use the team-owned collapse handler', () => {
     const app = makeApp([]);
     loadTeamDetailRender(app, []);

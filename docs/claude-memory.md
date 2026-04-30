@@ -2066,3 +2066,8 @@
 - **Issue**: Club feed posts could fail with `Missing or insufficient permissions` when the team Firestore document ID differed from the public `team.id` stored in user membership fields.
 - **Fix**: Updated `isCurrentUserInTeam` to accept both `teams/{docId}` and that team's internal `id`, without allowing non-members.
 - **Validation**: Added a Firestore rules regression test for separate doc ID/public ID team feed creation.
+
+### 2026-04-30 team feed publish loading feedback [ux]
+- **Issue**: Club feed publishing gave no immediate button feedback, so users could think the tap did not work.
+- **Fix**: Passed the clicked publish button into `submitTeamPost`, disabled it during the async write, and changed the label to `發布中`.
+- **Validation**: Added unit coverage for pending and failed publish button states.
