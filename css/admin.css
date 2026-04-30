@@ -9,6 +9,16 @@
 .admin-filters { display: flex; gap: .3rem; flex: 1; flex-wrap: wrap; }
 .admin-filters select { flex: 1; min-width: 100px; }
 .admin-filters input[type="date"] { flex: 1; min-width: 130px; }
+#page-admin-error-logs .admin-search { display: grid; grid-template-columns: minmax(0,1fr); gap: .45rem; align-items: start; }
+#page-admin-error-logs #errlog-search { width: 100%; min-width: 0; height: auto; min-height: 2.35rem; flex: none; align-self: start; }
+#page-admin-error-logs .admin-filters { display: grid; grid-template-columns: repeat(auto-fit,minmax(130px,1fr)); gap: .35rem; width: 100%; flex: none; }
+#page-admin-error-logs .admin-filters select,
+#page-admin-error-logs .admin-filters input[type="date"] { width: 100%; min-width: 0; flex: none; }
+#page-admin-error-logs .error-log-clear-filter { justify-self: start; }
+@media (max-width: 520px) {
+  #page-admin-error-logs .admin-filters { grid-template-columns: 1fr; }
+  #page-admin-error-logs .error-log-clear-filter { width: 100%; }
+}
 .admin-card-list { display: flex; flex-direction: column; gap: .5rem; }
 .admin-log-tabs { margin-bottom: .7rem; }
 .admin-log-toolbar { display: flex; justify-content: center; align-items: center; gap: .45rem; margin-bottom: .5rem; padding: .5rem .65rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-card); }

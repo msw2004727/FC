@@ -1950,3 +1950,10 @@
 - **修復**：新增 `error-log-insights.js`，提供同類錯誤 Top 聚合、近 7 天趨勢、單筆/群組診斷包複製；`error-log.js` 只接上 insights 渲染與 copy id，維持低於 300 行；同步更新 CSS、lazy-load、架構文件與測試。
 - **驗證**：Phase 1~3 commits 先以 `git show --check` 與 diff review 審計無阻斷問題；新增 `error-log-insights.test.js`，targeted Jest 通過；修改 JS 全數 `node --check` 通過；完整 unit 通過後再 commit 與部署。
 - **教訓**：診斷型升級應優先強化管理端閱讀與轉交流程，不新增前台攔截或資料寫入路徑，降低對正常功能的干擾。
+
+### 2026-04-30 — 錯誤日誌篩選列手機版排版修正
+- **問題**：錯誤日誌頁的搜尋欄在手機版被拉成過高的直欄，且與右側多個下拉篩選器並排，位置不符合第一列搜尋、下方依序篩選的操作期待。
+- **原因**：共用 `.admin-search` 採 flex 且預設 stretch，錯誤日誌新增多個篩選器後，搜尋 input 會被同列較高的 filter 區塊撐高。
+- **修復**：只針對 `#page-admin-error-logs` 改成專用 grid：搜尋框第一列全寬，下拉與日期篩選等寬排列；小螢幕改為單欄往下排列，不影響其它後台搜尋列。
+- **驗證**：CSS 差異檢查、script dependency 測試與手機寬度 Playwright 量測通過；快取版號同步更新。
+- **教訓**：共用 flex 搜尋列遇到動態增生的多個篩選器時，應在該頁建立局部 grid 規則，避免單一 input 被兄弟元素高度牽動。
