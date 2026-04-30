@@ -2042,3 +2042,9 @@
 - **原因**：emoji 旗幟仍沿用前次 badge button 樣式，造成視覺上像圈框徽章。
 - **修復**：保留可點擊 button 與 tooltip/toast，但移除固定寬高、藍框、底色、圓角與陰影，讓畫面只露出旗子。
 - **驗證**：補測試確認旗幟 button 使用透明背景與無邊框，且不再含 `width:1.18rem`、`height:1.18rem`、`border-radius:999px`。
+
+### 2026-04-30 用戶補正管理資料同步整併與密碼守門 [中型]
+- **問題**：用戶補正管理內「系統資料同步」工具過多且散落，日常修復、健康檢查、歷史遷移與高風險重算混在同一層，且部分前端直接執行的按鈕沒有先做後端密碼驗證。
+- **原因**：早期維修工具陸續加入同一頁，只有 `saveRealtimeConfig`、`repairActivityRecordsManual`、`runUidHealthCheck` 這類 callable 本身有 `1121` 密碼守門；頁面內直接跑 Firestore 或舊 Cloud Function 的工具缺少一致的前置驗證。
+- **修復**：前端將資料同步工具整理成「日常修復」「健康檢查」「進階 / 歷史工具」三區，一鍵同步隱藏，放鴿子全站重算移到放鴿子系統頁；新增 `verifyDataSyncPassword` callable，所有資料同步功能按鈕執行前先輸入密碼並由後端驗證；`migrateUidFields` 與 `calcNoShowCountsManual` 也補上密碼要求。
+- **教訓**：管理端維修工具可以保留救援能力，但預設視覺層級要區分日常與高風險；直接由前端發動的修復流程也應先走同一個後端密碼守門，避免誤觸或權限外操作。

@@ -4720,6 +4720,7 @@ exports.migrateUidFields = onCall(
     if (!access.isSuperAdmin) {
       throw new HttpsError("permission-denied", "Only super_admin can run UID migration");
     }
+    assertDataSyncSettingsPassword(request);
 
     const { dryRun: rawDryRun = true, collection = "both" } = request.data || {};
     // 嚴格型別：只有 boolean false 才執行寫入，"false" 字串視為 dry-run
@@ -8902,6 +8903,19 @@ exports.saveRealtimeConfig = onCall(
   },
 );
 
+exports.verifyDataSyncPassword = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB" },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "auth required");
+    const access = await getCallerAccessContext(request);
+    if (!access.hasPermission("admin.repair.data_sync")) {
+      throw new HttpsError("permission-denied", "permission denied");
+    }
+    assertDataSyncSettingsPassword(request);
+    return { success: true };
+  },
+);
+
 exports.repairActivityRecordsManual = onCall(
   { region: "asia-east1", timeoutSeconds: 300, memory: "512MiB" },
   async (request) => {
@@ -9169,6 +9183,7 @@ exports.calcNoShowCountsManual = onCall(
     if (!access.hasPermission("admin.repair.data_sync")) {
       throw new HttpsError("permission-denied", "權限不足");
     }
+    assertDataSyncSettingsPassword(request);
     const result = await calcNoShowCountsBatch();
     return { success: true, ...result };
   },

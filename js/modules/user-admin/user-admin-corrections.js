@@ -84,6 +84,7 @@ Object.assign(App, {
     if (dataSyncPane) dataSyncPane.style.display = this._adminRepairActiveTab === 'data-sync' ? '' : 'none';
     if (uidCheckPane) uidCheckPane.style.display = this._adminRepairActiveTab === 'uid-health' ? '' : 'none';
     if (blocklistPane) blocklistPane.style.display = this._adminRepairActiveTab === 'event-blocklist' ? '' : 'none';
+    this._setupDataSyncToolLayout?.(access);
 
     if (this._adminRepairActiveTab === 'no-show') {
       this._renderSelectedUserNoShowSummary();

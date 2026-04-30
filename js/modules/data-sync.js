@@ -32,6 +32,134 @@ Object.assign(App, {
     };
   },
 
+  _setupDataSyncToolLayout(access = {}) {
+    const pane = document.getElementById('repair-pane-data-sync');
+    const noShowPane = document.getElementById('repair-pane-no-show');
+    if (!pane) return;
+
+    const findRunCard = (op) => {
+      const btn = pane.querySelector(`button[onclick="App.runDataSyncOp('${op}')"]`)
+        || document.querySelector(`button[onclick="App.runDataSyncOp('${op}')"]`);
+      return btn?.closest('.form-card') || null;
+    };
+    const findDirectCard = (handler) => {
+      const btn = pane.querySelector(`button[onclick="App.${handler}()"]`)
+        || document.querySelector(`button[onclick="App.${handler}()"]`);
+      return btn?.closest('.form-card') || null;
+    };
+    const noShowCard = findRunCard('noShowCount');
+    if (noShowCard) {
+      noShowCard.id = 'no-show-resync-card';
+      noShowCard.style.display = access.dataSync ? '' : 'none';
+      if (noShowPane && noShowCard.parentElement !== noShowPane) {
+        const anchor = noShowPane.querySelector('.form-card');
+        noShowPane.insertBefore(noShowCard, anchor?.nextElementSibling || null);
+      }
+    }
+
+    const fullCard = document.getElementById('data-sync-full-btn')?.closest('.form-card');
+    if (fullCard) fullCard.style.display = 'none';
+
+    if (pane.dataset.toolLayoutReady === '1') return;
+
+    const progressCard = document.getElementById('data-sync-progress')?.closest('.form-card');
+    const introCard = pane.querySelector('.form-card');
+    if (introCard && !introCard.querySelector('.data-sync-password-note')) {
+      const note = document.createElement('div');
+      note.className = 'data-sync-password-note';
+      note.style.cssText = 'margin-top:.55rem;font-size:.74rem;color:var(--warning);line-height:1.55';
+      note.textContent = '所有功能按鈕執行前都會先輸入密碼，並由後端驗證通過後才開始處理。';
+      introCard.appendChild(note);
+    }
+
+    const makeSection = (id, title, desc) => {
+      const section = document.createElement('div');
+      section.id = id;
+      section.className = 'data-sync-tool-section';
+      section.style.marginBottom = '.8rem';
+      const head = document.createElement('div');
+      head.style.cssText = 'font-weight:700;font-size:.84rem;margin:.2rem 0 .45rem;color:var(--text-primary)';
+      head.textContent = title;
+      const sub = document.createElement('div');
+      sub.style.cssText = 'font-size:.72rem;color:var(--text-muted);line-height:1.55;margin:-.2rem 0 .5rem';
+      sub.textContent = desc;
+      section.appendChild(head);
+      section.appendChild(sub);
+      return section;
+    };
+
+    const daily = makeSection('data-sync-daily-tools', '日常修復', '常用且低風險的資料重算工具。');
+    const health = makeSection('data-sync-health-tools', '健康檢查', '用來檢查 UID 與活動名單一致性，不直接修改正式資料。');
+    const advanced = document.createElement('details');
+    advanced.id = 'data-sync-advanced-tools';
+    advanced.style.cssText = 'margin-bottom:.8rem;border:1px solid var(--border);border-radius:var(--radius-md, 12px);background:var(--bg-elevated);padding:.65rem .65rem .2rem';
+    const summary = document.createElement('summary');
+    summary.style.cssText = 'cursor:pointer;font-weight:700;font-size:.84rem;color:var(--warning);margin-bottom:.55rem';
+    summary.textContent = '進階 / 歷史工具';
+    const advancedDesc = document.createElement('div');
+    advancedDesc.style.cssText = 'font-size:.72rem;color:var(--text-muted);line-height:1.55;margin:.1rem 0 .6rem';
+    advancedDesc.textContent = '較少使用或影響範圍較大的舊資料工具，僅在明確需要修復時執行。';
+    advanced.appendChild(summary);
+    advanced.appendChild(advancedDesc);
+
+    const insertBefore = progressCard || pane.lastElementChild;
+    pane.insertBefore(daily, insertBefore);
+    pane.insertBefore(health, insertBefore);
+    pane.insertBefore(advanced, insertBefore);
+
+    ['teamMembers', 'userTeam'].forEach((op) => {
+      const card = findRunCard(op);
+      if (card) daily.appendChild(card);
+    });
+    ['checkPU', 'uidFallbackCheck'].forEach((op) => {
+      const card = findRunCard(op);
+      if (card) health.appendChild(card);
+    });
+    [
+      findRunCard('achievement'),
+      findRunCard('orphan'),
+      findRunCard('uidMigration'),
+      findDirectCard('_scanUserRegions'),
+      findDirectCard('_backfillEventRegion'),
+      findRunCard('backfillPU'),
+      findRunCard('forceRebuildPU'),
+    ].filter(Boolean).forEach((card) => advanced.appendChild(card));
+
+    pane.dataset.toolLayoutReady = '1';
+  },
+
+  async _verifyDataSyncActionPassword(actionTitle) {
+    if (!this.hasPermission?.('admin.repair.data_sync')) {
+      this.showToast('權限不足，無法執行資料同步。');
+      return '';
+    }
+    if (typeof this._promptDataSyncPassword !== 'function') {
+      this.showToast('密碼驗證功能尚未載入，請重新整理後再試。');
+      return '';
+    }
+    const password = await this._promptDataSyncPassword(actionTitle || '系統資料同步');
+    if (!password) {
+      this.showToast('已取消，操作沒有執行。');
+      return '';
+    }
+    try {
+      const callable = firebase.app().functions('asia-east1').httpsCallable('verifyDataSyncPassword');
+      await callable({ password });
+      return password;
+    } catch (err) {
+      const message = typeof this._getDataSyncGuardErrorMessage === 'function'
+        ? this._getDataSyncGuardErrorMessage(err, '密碼驗證失敗，操作沒有執行。')
+        : '密碼驗證失敗，操作沒有執行。';
+      console.error('[verifyDataSyncPassword]', err);
+      this.showToast(message);
+      return '';
+    }
+  },
+
+  async _ensureDataSyncPassword(actionTitle, verifiedPassword) {
+    return verifiedPassword || this._verifyDataSyncActionPassword(actionTitle);
+  },
+
   async runDataSyncOp(op) {
     if (this._dataSyncRunning || this._achBatchRunning) {
       this.showToast('同步作業正在執行中');
@@ -43,27 +171,39 @@ Object.assign(App, {
     }
 
     if (op === 'achievement') {
+      const password = await this._verifyDataSyncActionPassword('成就進度同步');
+      if (!password) return;
       return this.runAchievementBatchUpdate();
     }
 
     if (op === 'noShowCount') {
-      return this._syncNoShowCount();
+      const password = await this._verifyDataSyncActionPassword('放鴿子次數重算');
+      if (!password) return;
+      return this._syncNoShowCount(password);
     }
 
     if (op === 'uidFallbackCheck') {
-      return this._checkUidFallbackSafety();
+      const password = await this._verifyDataSyncActionPassword('同暱稱 UID 偵測');
+      if (!password) return;
+      return this._checkUidFallbackSafety(password);
     }
 
     if (op === 'backfillPU') {
-      return this._backfillParticipantsWithUid();
+      const password = await this._verifyDataSyncActionPassword('participantsWithUid 資料遷移');
+      if (!password) return;
+      return this._backfillParticipantsWithUid(password);
     }
 
     if (op === 'checkPU') {
-      return this._checkParticipantsConsistency();
+      const password = await this._verifyDataSyncActionPassword('participantsWithUid 一致性檢查');
+      if (!password) return;
+      return this._checkParticipantsConsistency(password);
     }
 
     if (op === 'forceRebuildPU') {
-      return this._forceRebuildParticipantsWithUid();
+      const password = await this._verifyDataSyncActionPassword('participantsWithUid 強制重算');
+      if (!password) return;
+      return this._forceRebuildParticipantsWithUid(password);
     }
 
     const opMap = {
@@ -86,6 +226,8 @@ Object.assign(App, {
       '請勿關閉頁面。'
     );
     if (!ok) return;
+    const password = await this._verifyDataSyncActionPassword(config.label);
+    if (!password) return;
 
     this._dataSyncRunning = true;
     const ui = this._dataSyncUI();
@@ -93,7 +235,7 @@ Object.assign(App, {
     const startTime = Date.now();
 
     try {
-      await this[config.fn](ui);
+      await this[config.fn](ui, password);
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
       ui.log(`\n=== ${config.label}完成（${elapsed} 秒）===`);
       this.showToast(`${config.label}完成`);
@@ -362,14 +504,15 @@ Object.assign(App, {
   },
 
   // ── ⑤ UID 欄位修正（Cloud Function）──
-  async _syncUidMigration(ui) {
+  async _syncUidMigration(ui, verifiedPassword) {
     ui.log('開始 UID 欄位修正...');
     ui.log('呼叫 Cloud Function（dry-run 預覽）...');
 
     const fn = firebase.app().functions('asia-east1').httpsCallable('migrateUidFields');
+    const passwordPayload = verifiedPassword ? { password: verifiedPassword } : {};
     let dryResult;
     try {
-      const resp = await fn({ dryRun: true, collection: 'both' });
+      const resp = await fn({ dryRun: true, collection: 'both', ...passwordPayload });
       dryResult = resp.data;
     } catch (err) {
       ui.log('Cloud Function 呼叫失敗：' + (err.message || err));
@@ -424,7 +567,7 @@ Object.assign(App, {
 
     ui.log('\n呼叫 Cloud Function（正式執行）...');
     try {
-      const resp = await fn({ dryRun: false, collection: 'both' });
+      const resp = await fn({ dryRun: false, collection: 'both', ...passwordPayload });
       const result = resp.data;
       ui.log(`\n修正完成：${result.totalFixed} 筆已更新，${result.totalUnmapped} 筆無法映射`);
       ui.log('備份已寫入 _migrationBackups 集合');
@@ -455,7 +598,7 @@ Object.assign(App, {
   },
 
   // ── ⑦ 活動地區批次設定（全部設為中部 + 縣市全選）──
-  async _backfillEventRegion() {
+  async _backfillEventRegion(verifiedPassword) {
     if (!this.hasPermission?.('admin.repair.data_sync')) {
       this.showToast('權限不足');
       return;
@@ -464,6 +607,9 @@ Object.assign(App, {
       this.showToast('同步作業正在執行中');
       return;
     }
+
+    const password = await this._ensureDataSyncPassword('活動地區批次設定', verifiedPassword);
+    if (!password) return;
 
     var CENTRAL_CITIES = ['台中市', '苗栗縣', '彰化縣', '南投縣', '雲林縣'];
     var ok = await this.appConfirm(
@@ -535,9 +681,20 @@ Object.assign(App, {
   },
 
   // ── ⑥ 用戶地區掃描 ──
-  async _scanUserRegions() {
+  async _scanUserRegions(verifiedPassword) {
+    if (this._dataSyncRunning) {
+      this.showToast('同步作業正在執行中');
+      return;
+    }
+    if (!this.hasPermission?.('admin.repair.data_sync')) {
+      this.showToast('權限不足');
+      return;
+    }
+    const password = await this._ensureDataSyncPassword('用戶地區掃描', verifiedPassword);
+    if (!password) return;
     var regions = typeof TW_REGIONS !== 'undefined' ? TW_REGIONS : [];
     if (!regions.length) { this.showToast('TW_REGIONS 未定義'); return; }
+    this._dataSyncRunning = true;
     this.showToast('正在掃描...');
     try {
       var snap = await db.collection('users').get();
@@ -568,15 +725,28 @@ Object.assign(App, {
       document.body.appendChild(overlay);
     } catch (err) {
       this.showToast('\u6383\u63CF\u5931\u6557\uFF1A' + (err.message || err));
+    } finally {
+      this._dataSyncRunning = false;
     }
   },
 
   // ── ⑥ 用戶地區強制補正 ──
-  async _fixUserRegions() {
+  async _fixUserRegions(verifiedPassword) {
+    if (this._dataSyncRunning) {
+      this.showToast('同步作業正在執行中');
+      return;
+    }
+    if (!this.hasPermission?.('admin.repair.data_sync')) {
+      this.showToast('權限不足');
+      return;
+    }
+    const password = await this._ensureDataSyncPassword('用戶地區補正', verifiedPassword);
+    if (!password) return;
     var regions = typeof TW_REGIONS !== 'undefined' ? TW_REGIONS : [];
     if (!regions.length) { this.showToast('TW_REGIONS \u672A\u5B9A\u7FA9'); return; }
     var defaultRegion = '\u53F0\u4E2D\u5E02'; // 台中市
     // 先掃描確認數量
+    this._dataSyncRunning = true;
     this.showToast('\u6B63\u5728\u6383\u63CF...');
     try {
       var snap = await db.collection('users').get();
@@ -637,11 +807,13 @@ Object.assign(App, {
       this.showToast('\u5DF2\u5C07 ' + count + ' \u4F4D\u7528\u6236\u5730\u5340\u88DC\u6B63\u70BA ' + defaultRegion);
     } catch (err) {
       this.showToast('\u88DC\u6B63\u5931\u6557\uFF1A' + (err.message || err));
+    } finally {
+      this._dataSyncRunning = false;
     }
   },
 
   // ── ⑧ 放鴿子次數重算（呼叫 Cloud Function）──
-  async _syncNoShowCount() {
+  async _syncNoShowCount(verifiedPassword) {
     if (this._dataSyncRunning) {
       this.showToast('同步作業正在執行中');
       return;
@@ -650,6 +822,8 @@ Object.assign(App, {
       this.showToast('權限不足');
       return;
     }
+    const password = await this._ensureDataSyncPassword('放鴿子次數重算', verifiedPassword);
+    if (!password) return;
     var ok = await this.appConfirm(
       '確定要重算全站放鴿子次數嗎？\n\n' +
       '將呼叫 Cloud Function 重新掃描所有已結束活動的報名與簽到紀錄，\n' +
@@ -667,7 +841,7 @@ Object.assign(App, {
     try {
       var fn = firebase.app().functions('asia-east1');
       var callable = fn.httpsCallable('calcNoShowCountsManual');
-      var resp = await callable();
+      var resp = await callable({ password: password });
       var r = resp.data || {};
       var elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
       ui.log('掃描活動：' + (r.scannedEvents || 0) + ' 個已結束活動');
@@ -688,9 +862,11 @@ Object.assign(App, {
   // ── ⑨ 同暱稱用戶偵測（唯讀，無寫入）──
   // 列出 users 集合中同名用戶組，標記 _userByName.set() 的「勝者 UID」，
   // 並對每組同名顯示：活動 participants[] 受污染範圍、各 UID 報名數、放鴿子次數。
-  async _checkUidFallbackSafety() {
+  async _checkUidFallbackSafety(verifiedPassword) {
     if (this._dataSyncRunning) { this.showToast('同步作業正在執行中'); return; }
     if (!this.hasPermission?.('admin.repair.data_sync')) { this.showToast('權限不足'); return; }
+    const password = await this._ensureDataSyncPassword('同暱稱 UID 偵測', verifiedPassword);
+    if (!password) return;
 
     this._dataSyncRunning = true;
     var ui = this._dataSyncUI();
@@ -795,9 +971,11 @@ Object.assign(App, {
   // 為所有現存 events 補齊 participantsWithUid / waitlistWithUid 欄位
   // 策略：從 registrations 子集合重建（不從 participants[] 字串反查 UID，避免同名挑錯）
   // Race 緩解：double-check schemaVersion 避免 overwrite Phase 1 路徑的新寫入
-  async _backfillParticipantsWithUid() {
+  async _backfillParticipantsWithUid(verifiedPassword) {
     if (this._dataSyncRunning) { this.showToast('同步作業正在執行中'); return; }
     if (!this.hasPermission?.('admin.repair.data_sync')) { this.showToast('權限不足'); return; }
+    const password = await this._ensureDataSyncPassword('participantsWithUid 資料遷移', verifiedPassword);
+    if (!password) return;
 
     var events = FirebaseService._cache.events || [];
     var est = {
@@ -918,9 +1096,11 @@ Object.assign(App, {
 
   // ── ⑪ participantsWithUid 一致性檢查（Phase 4，唯讀）──
   // 比對每個 event 的 participantsWithUid 與從 registrations 重算結果
-  async _checkParticipantsConsistency() {
+  async _checkParticipantsConsistency(verifiedPassword) {
     if (this._dataSyncRunning) { this.showToast('同步作業正在執行中'); return; }
     if (!this.hasPermission?.('admin.repair.data_sync')) { this.showToast('權限不足'); return; }
+    const password = await this._ensureDataSyncPassword('participantsWithUid 一致性檢查', verifiedPassword);
+    if (!password) return;
 
     this._dataSyncRunning = true;
     var ui = this._dataSyncUI();
@@ -1007,9 +1187,11 @@ Object.assign(App, {
   },
 
   // ── ⑫ participantsWithUid 強制重算（Phase 4，寫入，含權限守衛）──
-  async _forceRebuildParticipantsWithUid() {
+  async _forceRebuildParticipantsWithUid(verifiedPassword) {
     if (this._dataSyncRunning) { this.showToast('同步作業正在執行中'); return; }
     if (!this.hasPermission?.('admin.repair.data_sync')) { this.showToast('權限不足'); return; }
+    const password = await this._ensureDataSyncPassword('participantsWithUid 強制重算', verifiedPassword);
+    if (!password) return;
 
     var events = FirebaseService._cache.events || [];
     var ok = await this.appConfirm(
