@@ -1957,3 +1957,10 @@
 - **修復**：只針對 `#page-admin-error-logs` 改成專用 grid：搜尋框第一列全寬，下拉與日期篩選等寬排列；小螢幕改為單欄往下排列，不影響其它後台搜尋列。
 - **驗證**：CSS 差異檢查、script dependency 測試與手機寬度 Playwright 量測通過；快取版號同步更新。
 - **教訓**：共用 flex 搜尋列遇到動態增生的多個篩選器時，應在該頁建立局部 grid 規則，避免單一 input 被兄弟元素高度牽動。
+
+### 2026-04-30 報名紀錄漏寫 activityRecords 修復 [瘞訾?]
+- **問題**：UID `U210473e818fbc6ce639606b9e83efdd1` 已報名 2026/05/01「連假週五下午3-5西屯踢球團」，但個人資訊頁報名紀錄未顯示。
+- **原因**：報名主資料寫入 `events/{event}/registrations` 成功，但個人頁讀取的 `activityRecords` 缺漏；舊 fallback 路徑把 activityRecord 放在交易後另行非同步寫入，若頁面流程中斷或 post-op 失敗會留下註冊成功但紀錄缺失。
+- **修復**：補回該活動缺漏的 4 筆 activityRecords；正式環境 featureFlags 未載入時預設走 server registration；fallback 報名交易同步寫入 registration、lock、occupancy 與 activityRecord，前端不再額外另開非同步 activityRecord 寫入。
+- **驗證**：Firestore 稽核確認該活動 active self registration 對應 activityRecords 缺漏數為 0；新增/更新 registration transaction 與 migration path 測試，並做 JS 語法檢查。
+- **教訓**：個人紀錄屬於報名索引資料，必須跟主報名寫入維持同交易或由後端權威路徑寫入；排程補償可以做一致性修復，但不能取代即時寫入。

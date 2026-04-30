@@ -675,21 +675,14 @@ Object.assign(App, {
 
       // ── 背景 post-ops（僅 fallback 路徑需要，CF 路徑已在伺服器完成）──
       if (!useCF) {
-        const dateParts = e.date.split(' ')[0].split('/');
-        const dateStr = `${dateParts[1]}/${dateParts[2]}`;
-        const arRecord = {
-          eventId: e.id, name: e.title, date: dateStr,
-          status: result.status === 'waitlisted' ? 'waitlisted' : 'registered', uid: userId, eventType: e.type,
-        };
-        ApiService.addActivityRecord(arRecord);
-        FirebaseService._getEventDocIdAsync(e.id).then(function(_evDocId) {
-          if (!_evDocId) { console.error('[activityRecord] eventDocId not found:', e.id); return; }
-          var ref = db.collection('events').doc(_evDocId).collection('activityRecords').doc();
-          arRecord._docId = ref.id;
-          ref.set({
-            ...arRecord, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-          });
-        }).catch(function(err) { console.error('[activityRecord]', err); });
+        if (result.activityRecord && typeof ApiService !== 'undefined' && typeof ApiService._src === 'function') {
+          const arSource = ApiService._src('activityRecords');
+          const arExists = arSource.some(r =>
+            r._docId === result.activityRecord._docId
+            || (r.eventId === e.id && r.uid === userId && r.status === result.activityRecord.status)
+          );
+          if (!arExists) ApiService.addActivityRecord(result.activityRecord);
+        }
         void ApiService.writeAuditLog({
           action: 'event_signup',
           targetType: 'event',

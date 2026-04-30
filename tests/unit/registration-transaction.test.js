@@ -131,8 +131,17 @@ function simulateRegisterTransaction(eventData, existingRegs, newUserId, newUser
 
   const allRegsForRebuild = [...firestoreActiveRegs, registration];
   const occupancy = _rebuildOccupancy(eventData, allRegsForRebuild);
+  const dateParts = String(eventData.date || '').split(' ')[0].split('/');
+  const activityRecord = {
+    eventId: eventData.id,
+    name: eventData.title || '',
+    date: dateParts.length >= 3 ? `${dateParts[1]}/${dateParts[2]}` : '',
+    status: status === 'waitlisted' ? 'waitlisted' : 'registered',
+    uid: newUserId,
+    eventType: eventData.type || '',
+  };
 
-  return { registration, status, occupancy };
+  return { registration, status, occupancy, activityRecord };
 }
 
 // ===========================================================================
@@ -194,6 +203,7 @@ describe('registerForEvent Transaction Logic', () => {
     expect(result.status).toBe('confirmed');
     expect(result.occupancy.current).toBe(1);
     expect(result.occupancy.waitlist).toBe(0);
+    expect(result.activityRecord).toMatchObject({ eventId: 'evt1', uid: 'user1', status: 'registered' });
   });
 
   test('registration goes to waitlist when at capacity', () => {
@@ -206,6 +216,7 @@ describe('registerForEvent Transaction Logic', () => {
     expect(result.status).toBe('waitlisted');
     expect(result.occupancy.current).toBe(3);
     expect(result.occupancy.waitlist).toBe(1);
+    expect(result.activityRecord).toMatchObject({ eventId: 'evt1', uid: 'user4', status: 'waitlisted' });
   });
 
   test('duplicate registration is rejected', () => {

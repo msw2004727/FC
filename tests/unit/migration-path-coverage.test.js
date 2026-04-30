@@ -31,12 +31,12 @@ const PROJECT_ROOT = path.resolve(__dirname, '../..');
 //  that the migration plan doesn't cover.
 // ═══════════════════════════════════════════════════════════════
 const KNOWN_REFERENCES = {
-  'js/firebase-crud.js': { registrations: 11, attendanceRecords: 4, activityRecords: 4 }, // Phase 4b: 全部改為子集合路徑（regex 仍匹配 .collection('registrations') in subcollection chain）；B' 階段 (2026-04-17) 新增 4 處 activityRecords 子集合寫入（cancelRegistration + cancelCompanionRegistrations 候補遞補同步，修復 waitlisted → registered 漏同步 bug）
+  'js/firebase-crud.js': { registrations: 11, attendanceRecords: 4, activityRecords: 5 }, // Phase 4b: 全部改為子集合路徑（regex 仍匹配 .collection('registrations') in subcollection chain）；B' 階段 (2026-04-17) 新增 4 處 activityRecords 子集合寫入（cancelRegistration + cancelCompanionRegistrations 候補遞補同步，修復 waitlisted → registered 漏同步 bug）
   'js/firebase-service.js': { registrations: 0, attendanceRecords: 0, activityRecords: 0 },
   'js/api-service.js': { registrations: 1, attendanceRecords: 2, activityRecords: 0 }, // fetchRegistrationsIfMissing + fetchAttendanceIfMissing
   'js/modules/achievement/batch.js': { registrations: 1, attendanceRecords: 0, activityRecords: 0 }, // Phase 4b: 寫入改子集合（2026-04-27 從 js/modules/achievement-batch.js 搬移）
   'js/modules/event/event-create-waitlist.js': { registrations: 3, attendanceRecords: 0, activityRecords: 2 }, // Phase 4b: 寫入改子集合
-  'js/modules/event/event-detail-signup.js': { registrations: 3, attendanceRecords: 0, activityRecords: 5 }, // Phase 4b: 寫入改子集合
+  'js/modules/event/event-detail-signup.js': { registrations: 3, attendanceRecords: 0, activityRecords: 4 }, // Phase 4b: 寫入改子集合
   'js/modules/event/event-detail-companion.js': { registrations: 0, attendanceRecords: 0, activityRecords: 4 }, // Phase 4b: 寫入改子集合
   'js/modules/event/event-detail.js': { registrations: 2, attendanceRecords: 0, activityRecords: 0 }, // +1: Phase 3 安全網 subcollection fallback query
   'js/modules/event/event-manage-badges.js': { registrations: 2, attendanceRecords: 0, activityRecords: 0 }, // Phase 4b: 寫入改子集合

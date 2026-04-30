@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260430g';
+const CACHE_VERSION = '0.20260430h';
 
 // ─── 即時監聽 limit 預設值（可在儀表板動態調整，存於 siteConfig/realtimeConfig）───
 const REALTIME_LIMIT_DEFAULTS = {
@@ -40,12 +40,23 @@ const NetDevice = {
 // ─── CF Migration Feature Flag ───
 // 判斷是否走 Cloud Functions 報名流程（Wave 1）
 function shouldUseServerRegistration() {
+  const productionDefault = (() => {
+    try {
+      return typeof ModeManager !== 'undefined'
+        && typeof ModeManager.getMode === 'function'
+        && ModeManager.getMode() === 'production';
+    } catch (_err) {
+      return false;
+    }
+  })();
   // 僅 Production 模式才走 CF
   // 讀取 Firestore featureFlags（在 boot collections 時已快取）
   const flags = (typeof FirebaseService !== 'undefined' && typeof FirebaseService.getCachedDoc === 'function')
     ? FirebaseService.getCachedDoc('siteConfig', 'featureFlags')
     : null;
-  if (!flags || !flags.useServerRegistration) return false;
+  if (!flags) return productionDefault;
+  if (flags.useServerRegistration === false) return false;
+  if (flags.useServerRegistration !== true) return productionDefault;
   const uid = (typeof App !== 'undefined' && App.currentUser) ? App.currentUser.uid : '';
   if (!uid) return false;
   // 白名單：testUids 內的用戶直接走 CF（不受 rolloutPercent 限制）

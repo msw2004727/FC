@@ -1193,6 +1193,7 @@ Object.assign(FirebaseService, {
     };
     const eventRef = db.collection('events').doc(event._docId);
     const regDocRef = eventRef.collection('registrations').doc();
+    const activityRecordDocRef = eventRef.collection('activityRecords').doc();
     const lockId = this._getRegistrationLockId(registration);
     const lockRef = eventRef.collection('registrationLocks').doc(lockId);
 
@@ -1264,6 +1265,20 @@ Object.assign(FirebaseService, {
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       });
 
+      const dateParts = String(ed.date || '').split(' ')[0].split('/');
+      const activityRecord = {
+        eventId,
+        name: ed.title || '',
+        date: dateParts.length >= 3 ? `${dateParts[1]}/${dateParts[2]}` : '',
+        status: status === 'waitlisted' ? 'waitlisted' : 'registered',
+        uid: userId,
+        eventType: ed.type || '',
+      };
+      transaction.set(activityRecordDocRef, {
+        ...activityRecord,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+
       // 用 Firestore 真實資料 + 新報名重建投影
       const allRegsForRebuild = [...firestoreActiveRegs, registration];
       const occupancy = this._rebuildOccupancy({ ...ed, max: maxCount, status: ed.status }, allRegsForRebuild);
@@ -1281,7 +1296,15 @@ Object.assign(FirebaseService, {
         status: occupancy.status,
       });
 
-      return { status, occupancy };
+      return {
+        status,
+        occupancy,
+        activityRecord: {
+          ...activityRecord,
+          _docId: activityRecordDocRef.id,
+          createdAt: new Date().toISOString(),
+        },
+      };
     });
 
     // Transaction 成功後更新本地快取
@@ -1289,16 +1312,24 @@ Object.assign(FirebaseService, {
     registration.status = result.status;
     this._cache.registrations.push(registration);
     this._applyRebuildOccupancy(event, result.occupancy);
+    if (result.activityRecord && Array.isArray(this._cache.activityRecords)) {
+      const arExists = this._cache.activityRecords.some(r =>
+        r._docId === result.activityRecord._docId
+        || (r.eventId === eventId && r.uid === userId && r.status === result.activityRecord.status)
+      );
+      if (!arExists) this._cache.activityRecords.unshift(result.activityRecord);
+    }
 
     console.log('[registerForEvent] transaction OK, docId:', regDocRef.id, 'status:', result.status);
 
     this._saveToLS('registrations', this._cache.registrations);
     this._saveToLS('events', this._cache.events);
+    if (Array.isArray(this._cache.activityRecords)) this._saveToLS('activityRecords', this._cache.activityRecords);
 
     // 背景寫入徽章（不阻塞報名流程）
     this._writeDisplayBadgesToReg(regDocRef.id);
 
-    return { registration, status: result.status };
+    return { registration, status: result.status, activityRecord: result.activityRecord };
   },
 
   /**
