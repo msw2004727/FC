@@ -1751,7 +1751,7 @@
 - Fix: split profile into base, achievementProfile, profileCard, profileShare, and profileScene groups. page-profile renders visible data first, then idle-loads achievement stats, records, and the color-cat scene.
 - Guard: leaving page-profile increments _profileDeferredSeq and destroys the scene so deferred tasks do not write DOM after page switches.
 
-### 2026-04-28 賽事報名與球員名單改為 callable 原子流程 [瘞訾?]
+### 2026-04-28 賽事報名與球員名單改為 callable 原子流程 [中型]
 - **問題**: 友誼賽參賽申請與球員名單仍可由 Web client 直寫 Firestore；主辦方也缺少在賽事詳情「俱樂部」頁籤直接剔除已核准隊伍的完整流程。
 - **風險**: 惡意或舊版前端可能繞過前端檢查，造成 application / entries / root registeredTeams / members 不一致；冷啟賽事詳情若未載入 team-list helper，也可能誤判使用者隊伍狀態。
 - **修補**: 新增 `applyFriendlyTournament`、`joinFriendlyTournamentRoster`、`leaveFriendlyTournamentRoster`、`removeFriendlyTournamentEntry` callable，統一由後端驗證賽事狀態、隊伍幹部、隊伍資格、名單解鎖與 root summary；前端改呼叫 callable，俱樂部頁籤加入非主辦隊伍「剔除」操作。
@@ -1954,11 +1954,11 @@
 ### 2026-04-30 — 錯誤日誌篩選列手機版排版修正
 - **問題**：錯誤日誌頁的搜尋欄在手機版被拉成過高的直欄，且與右側多個下拉篩選器並排，位置不符合第一列搜尋、下方依序篩選的操作期待。
 - **原因**：共用 `.admin-search` 採 flex 且預設 stretch，錯誤日誌新增多個篩選器後，搜尋 input 會被同列較高的 filter 區塊撐高。
-- **修復**：只針對 `#page-admin-error-logs` 改成專用 grid：搜尋框第一列全寬，下拉與日期篩選等寬排列；小螢幕改為單欄往下排列，不影響其它後台搜尋列。
-- **驗證**：CSS 差異檢查、script dependency 測試與手機寬度 Playwright 量測通過；快取版號同步更新。
+- **修復**：針對 `#page-admin-error-logs` 與日誌中心實際顯示的 `data-admin-log-panel="error"` 都套用專用 grid：搜尋框第一列全寬，下拉與日期篩選等寬排列；小螢幕改為單欄往下排列，不影響其它後台搜尋列。
+- **驗證**：CSS 差異檢查、script dependency 測試與日誌中心 error panel 的手機寬度 Playwright 量測通過；快取版號同步更新。
 - **教訓**：共用 flex 搜尋列遇到動態增生的多個篩選器時，應在該頁建立局部 grid 規則，避免單一 input 被兄弟元素高度牽動。
 
-### 2026-04-30 報名紀錄漏寫 activityRecords 修復 [瘞訾?]
+### 2026-04-30 報名紀錄漏寫 activityRecords 修復 [中型]
 - **問題**：UID `U210473e818fbc6ce639606b9e83efdd1` 已報名 2026/05/01「連假週五下午3-5西屯踢球團」，但個人資訊頁報名紀錄未顯示。
 - **原因**：報名主資料寫入 `events/{event}/registrations` 成功，但個人頁讀取的 `activityRecords` 缺漏；舊 fallback 路徑把 activityRecord 放在交易後另行非同步寫入，若頁面流程中斷或 post-op 失敗會留下註冊成功但紀錄缺失。
 - **修復**：補回該活動缺漏的 4 筆 activityRecords；正式環境 featureFlags 未載入時預設走 server registration；fallback 報名交易同步寫入 registration、lock、occupancy 與 activityRecord，前端不再額外另開非同步 activityRecord 寫入。
