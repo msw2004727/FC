@@ -330,6 +330,51 @@ Object.assign(App, {
     }
   },
 
+  async refreshMyActivityRecords() {
+    const user = ApiService.getCurrentUser?.();
+    const uid = user?.uid || user?.lineUserId || '';
+    if (!uid) {
+      this.showToast?.('請先登入');
+      return;
+    }
+    const btn = document.getElementById('my-records-refresh');
+    if (btn) {
+      btn.disabled = true;
+      btn.classList.add('spinning');
+    }
+    try {
+      const fn = firebase.app().functions('asia-east1');
+      const callable = fn.httpsCallable('refreshMyActivityRecords');
+      const resp = await callable({});
+      const data = resp.data || {};
+
+      if (FirebaseService._userStatsCache) {
+        FirebaseService._userStatsCache = { uid: null, activityRecords: null, attendanceRecords: null };
+      }
+      await FirebaseService.ensureUserStatsLoaded(uid);
+
+      const activeTab = document.querySelector('#record-tabs .tab.active');
+      const filter = activeTab?.dataset?.filter || 'all';
+      this.renderActivityRecords?.(filter, 1);
+
+      const changed = Number(data.created || 0) + Number(data.updated || 0);
+      this.showToast?.(changed > 0 ? '報名紀錄已更新' : '報名紀錄已是最新');
+    } catch (err) {
+      console.warn('[refreshMyActivityRecords]', err);
+      if (err?.code === 'resource-exhausted') {
+        const seconds = Number(err?.details?.retryAfterSeconds || 0);
+        this.showToast?.(seconds ? ('請 ' + seconds + ' 秒後再刷新') : '刷新太頻繁，請稍後再試');
+      } else {
+        this.showToast?.('報名紀錄刷新失敗');
+      }
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.classList.remove('spinning');
+      }
+    }
+  },
+
   /**
    * 從毛玻璃遮蔽點擊觸發：首次載入用戶卡片的活動紀錄 + 徽章
    * 設計目的：預設不自動讀 Firestore，由用戶點擊才載入以節省成本

@@ -182,7 +182,7 @@
         </div>
         <div class="info-card">
           <div class="info-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,'records')">
-            <span style="display:flex;align-items:center;gap:.35rem"><button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('records')" title="說明">?</button><span data-i18n="profile.activityRecords">報名紀錄</span></span>
+            <span style="display:flex;align-items:center;gap:.35rem"><button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('records')" title="說明">?</button><span data-i18n="profile.activityRecords">報名紀錄</span><button id="my-records-refresh" type="button" class="profile-record-refresh-btn" onclick="event.stopPropagation();App.refreshMyActivityRecords()" title="&#x91CD;&#x65B0;&#x6574;&#x7406;" aria-label="&#x91CD;&#x65B0;&#x6574;&#x7406;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg></button></span>
             <span class="profile-collapse-arrow">▶</span>
           </div>
           <div class="profile-collapse-content" style="display:none">

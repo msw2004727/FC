@@ -722,4 +722,342 @@ Object.assign(App, {
       + '</div>';
     document.body.appendChild(overlay);
   },
+
+  async _renderRealtimeLimitCard(container) {
+    if (!container) return;
+    if (document.getElementById('realtime-limit-card')) return;
+
+    var defaults = (typeof REALTIME_LIMIT_DEFAULTS !== 'undefined') ? REALTIME_LIMIT_DEFAULTS
+      : { attendanceLimit: 1500, registrationLimit: 3000, eventLimit: 100 };
+    var current = Object.assign({
+      attendanceLimit: 1500,
+      registrationLimit: 3000,
+      eventLimit: 100,
+      noShowFrequency: 24,
+      activityRepairEnabled: false,
+      activityRepairFrequency: 1,
+      activityRepairLookbackDays: 90,
+      activityRepairFutureDays: 180,
+      activityRepairBatchSize: 300,
+      activityRepairManualCooldownSeconds: 300,
+      activityRepairLogs: [],
+    }, defaults);
+
+    try {
+      var snap = await db.collection('siteConfig').doc('realtimeConfig').get();
+      if (snap.exists) {
+        var d = snap.data() || {};
+        [
+          'attendanceLimit', 'registrationLimit', 'eventLimit', 'noShowFrequency',
+          'activityRepairFrequency', 'activityRepairLookbackDays', 'activityRepairFutureDays',
+          'activityRepairBatchSize', 'activityRepairManualCooldownSeconds',
+        ].forEach(function(key) {
+          if (d[key] !== undefined && d[key] !== null && d[key] !== '') current[key] = Number(d[key]);
+        });
+        current.activityRepairEnabled = d.activityRepairEnabled === true;
+        current.activityRepairLogs = Array.isArray(d.activityRepairLogs) ? d.activityRepairLogs : [];
+      }
+    } catch (e) {
+      console.warn('[dashboard] realtimeConfig read failed:', e);
+    }
+
+    var inputStyle = 'width:86px;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;'
+      + 'font-size:14px;font-weight:600;text-align:center;background:var(--bg-card);'
+      + 'color:var(--text-primary);outline:none';
+    var rowStyle = 'display:flex;align-items:center;justify-content:space-between;gap:12px';
+    var sectionTitle = 'font-size:.78rem;font-weight:800;color:var(--text-secondary);margin:.15rem 0 .1rem';
+    var freqOptions = [1, 2, 3, 4, 6, 8, 12, 24].map(function(n) {
+      var label = n === 24 ? '24次/天' : (n === 1 ? '1次/天' : n + '次/天');
+      return '<option value="' + n + '"' + (n === Number(current.noShowFrequency) ? ' selected' : '') + '>' + label + '</option>';
+    }).join('');
+    var repairFreqOptions = [1, 2, 4, 6, 12, 24].map(function(n) {
+      var label = n === 24 ? '24次/天' : (n === 1 ? '1次/天' : n + '次/天');
+      return '<option value="' + n + '"' + (n === Number(current.activityRepairFrequency) ? ' selected' : '') + '>' + label + '</option>';
+    }).join('');
+
+    var html = '<div class="info-card" id="realtime-limit-card">'
+      + '<div class="info-title sync-config-title">'
+      + '  <span>資料同步與監聽設定</span>'
+      + '  <button class="event-reg-log-btn sync-config-log-btn" onclick="App.openActivityRepairLogModal()">Log</button>'
+      + '  <button class="edu-info-btn" onclick="App._showDataSyncSettingInfo()" title="說明">?</button>'
+      + '</div>'
+      + '<div style="font-size:.75rem;color:var(--text-secondary);margin-bottom:.75rem">'
+      + '調整即時監聽文件數與報名紀錄排程修復。監聽數越大即時範圍越廣但讀取成本越高。</div>'
+      + '<div style="display:flex;flex-direction:column;gap:10px">'
+      + '  <div style="' + sectionTitle + '">即時監聽範圍</div>'
+      + '  <div style="' + rowStyle + '"><div><div style="font-size:.82rem;font-weight:600">簽到紀錄</div><div style="font-size:.7rem;color:var(--text-secondary)">掃碼與簽到頁即時資料</div></div><input id="rl-attendance" type="number" inputmode="numeric" min="100" max="10000" value="' + Number(current.attendanceLimit || 1500) + '" style="' + inputStyle + '" /></div>'
+      + '  <div style="' + rowStyle + '"><div><div style="font-size:.82rem;font-weight:600">報名紀錄</div><div style="font-size:.7rem;color:var(--text-secondary)">活動頁與管理員報名資料</div></div><input id="rl-registration" type="number" inputmode="numeric" min="100" max="10000" value="' + Number(current.registrationLimit || 3000) + '" style="' + inputStyle + '" /></div>'
+      + '  <div style="' + rowStyle + '"><div><div style="font-size:.82rem;font-weight:600">活動列表</div><div style="font-size:.7rem;color:var(--text-secondary)">首頁與活動列表即時資料</div></div><input id="rl-event" type="number" inputmode="numeric" min="100" max="10000" value="' + Number(current.eventLimit || 100) + '" style="' + inputStyle + '" /></div>'
+      + '  <div style="' + rowStyle + ';border-top:1px solid var(--border);padding-top:10px;margin-top:2px"><div><div style="font-size:.82rem;font-weight:600">放鴿子統計頻率</div><div style="font-size:.7rem;color:var(--text-secondary)">Cloud Function 排程重算</div></div><select id="rl-noshow-freq" style="' + inputStyle + ';width:auto;min-width:96px">' + freqOptions + '</select></div>'
+      + '  <div style="' + sectionTitle + ';border-top:1px solid var(--border);padding-top:10px;margin-top:2px">排程修復</div>'
+      + '  <label class="sync-config-toggle-row"><span><strong>報名紀錄修復</strong><small>自動補齊 registrations 對應的 activityRecords</small></span><input id="ar-repair-enabled" type="checkbox"' + (current.activityRepairEnabled ? ' checked' : '') + '></label>'
+      + '  <div style="' + rowStyle + '"><div><div style="font-size:.82rem;font-weight:600">修復頻率</div><div style="font-size:.7rem;color:var(--text-secondary)">排程啟用後生效</div></div><select id="ar-repair-freq" style="' + inputStyle + ';width:auto;min-width:96px">' + repairFreqOptions + '</select></div>'
+      + '  <div style="' + rowStyle + '"><div><div style="font-size:.82rem;font-weight:600">回補天數</div><div style="font-size:.7rem;color:var(--text-secondary)">往前掃描活動天數</div></div><input id="ar-repair-lookback" type="number" inputmode="numeric" min="1" max="365" value="' + Number(current.activityRepairLookbackDays || 90) + '" style="' + inputStyle + '" /></div>'
+      + '  <div style="' + rowStyle + '"><div><div style="font-size:.82rem;font-weight:600">未來天數</div><div style="font-size:.7rem;color:var(--text-secondary)">往後掃描活動天數</div></div><input id="ar-repair-future" type="number" inputmode="numeric" min="0" max="365" value="' + Number(current.activityRepairFutureDays || 180) + '" style="' + inputStyle + '" /></div>'
+      + '  <div style="' + rowStyle + '"><div><div style="font-size:.82rem;font-weight:600">批次大小</div><div style="font-size:.7rem;color:var(--text-secondary)">每批 Firestore 寫入上限</div></div><input id="ar-repair-batch" type="number" inputmode="numeric" min="50" max="450" value="' + Number(current.activityRepairBatchSize || 300) + '" style="' + inputStyle + '" /></div>'
+      + '  <div style="' + rowStyle + '"><div><div style="font-size:.82rem;font-weight:600">用戶刷新冷卻</div><div style="font-size:.7rem;color:var(--text-secondary)">個人頁手動刷新間隔秒數</div></div><input id="ar-repair-cooldown" type="number" inputmode="numeric" min="60" max="3600" value="' + Number(current.activityRepairManualCooldownSeconds || 300) + '" style="' + inputStyle + '" /></div>'
+      + '</div>'
+      + '<div class="sync-config-actions">'
+      + '  <button id="rl-save-btn" class="btn-sm">儲存設定</button>'
+      + '  <button id="ar-run-btn" class="outline-btn">立即修復</button>'
+      + '</div>'
+      + '<div id="rl-status" style="font-size:.72rem;color:var(--text-secondary);margin-top:.45rem;text-align:center"></div>'
+      + '</div>';
+
+    var wrapper = document.createElement('div');
+    wrapper.innerHTML = html;
+    container.appendChild(wrapper);
+
+    var saveBtn = document.getElementById('rl-save-btn');
+    var runBtn = document.getElementById('ar-run-btn');
+    var statusEl = document.getElementById('rl-status');
+    var setStatus = function(message, color) {
+      if (!statusEl) return;
+      statusEl.style.color = color || 'var(--text-secondary)';
+      statusEl.textContent = message || '';
+    };
+    var readInt = function(id, fallback) {
+      var el = document.getElementById(id);
+      var n = parseInt(el && el.value, 10);
+      return Number.isFinite(n) ? n : fallback;
+    };
+    var appendConfigLog = function(logs) {
+      var now = (firebase.firestore.Timestamp && firebase.firestore.Timestamp.now)
+        ? firebase.firestore.Timestamp.now()
+        : new Date();
+      var next = Array.isArray(logs) ? logs.slice() : [];
+      next.unshift({
+        id: 'cfg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+        at: now,
+        source: 'config',
+        status: 'success',
+        message: 'settings saved',
+        scannedEvents: 0,
+        scannedRegistrations: 0,
+        created: 0,
+        updated: 0,
+        skipped: 0,
+      });
+      return next.slice(0, 30);
+    };
+
+    if (saveBtn) {
+      saveBtn.addEventListener('click', async function() {
+        var att = readInt('rl-attendance', 1500);
+        var reg = readInt('rl-registration', 3000);
+        var evt = readInt('rl-event', 100);
+        var noShowFreq = readInt('rl-noshow-freq', 24);
+        var repairFreq = readInt('ar-repair-freq', 1);
+        var lookback = readInt('ar-repair-lookback', 90);
+        var future = readInt('ar-repair-future', 180);
+        var batch = readInt('ar-repair-batch', 300);
+        var cooldown = readInt('ar-repair-cooldown', 300);
+        var enabledEl = document.getElementById('ar-repair-enabled');
+        var errors = [];
+        if (att < 100 || att > 10000) errors.push('簽到紀錄需介於 100~10000');
+        if (reg < 100 || reg > 10000) errors.push('報名紀錄需介於 100~10000');
+        if (evt < 100 || evt > 10000) errors.push('活動列表需介於 100~10000');
+        if (lookback < 1 || lookback > 365) errors.push('回補天數需介於 1~365');
+        if (future < 0 || future > 365) errors.push('未來天數需介於 0~365');
+        if (batch < 50 || batch > 450) errors.push('批次大小需介於 50~450');
+        if (cooldown < 60 || cooldown > 3600) errors.push('刷新冷卻需介於 60~3600 秒');
+        if (errors.length) {
+          setStatus(errors.join('；'), 'var(--danger,#dc2626)');
+          return;
+        }
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = '儲存中...';
+        try {
+          var ref = db.collection('siteConfig').doc('realtimeConfig');
+          await db.runTransaction(async function(tx) {
+            var snap = await tx.get(ref);
+            var data = snap.exists ? (snap.data() || {}) : {};
+            tx.set(ref, {
+              attendanceLimit: att,
+              registrationLimit: reg,
+              eventLimit: evt,
+              noShowFrequency: noShowFreq,
+              activityRepairEnabled: !!(enabledEl && enabledEl.checked),
+              activityRepairFrequency: repairFreq,
+              activityRepairLookbackDays: lookback,
+              activityRepairFutureDays: future,
+              activityRepairBatchSize: batch,
+              activityRepairManualCooldownSeconds: cooldown,
+              activityRepairLogs: appendConfigLog(data.activityRepairLogs),
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+              updatedBy: (typeof App !== 'undefined' && App.currentUser) ? App.currentUser.uid : '',
+            }, { merge: true });
+          });
+          if (typeof FirebaseService !== 'undefined' && FirebaseService._realtimeLimits) {
+            FirebaseService._realtimeLimits = Object.assign(
+              {},
+              (typeof REALTIME_LIMIT_DEFAULTS !== 'undefined' ? REALTIME_LIMIT_DEFAULTS : {}),
+              FirebaseService._realtimeLimits,
+              { attendanceLimit: att, registrationLimit: reg, eventLimit: evt }
+            );
+          }
+          setStatus('設定已儲存，部分監聽設定會在重新進入頁面後生效', 'var(--success,#16a34a)');
+          if (typeof App !== 'undefined' && App.showToast) App.showToast('資料同步與監聽設定已儲存');
+        } catch (e) {
+          console.error('[dashboard] realtimeConfig save failed:', e);
+          setStatus('儲存失敗：' + (e.message || e), 'var(--danger,#dc2626)');
+        } finally {
+          saveBtn.disabled = false;
+          saveBtn.textContent = '儲存設定';
+        }
+      });
+    }
+
+    if (runBtn) {
+      runBtn.addEventListener('click', function() {
+        App.runActivityRecordRepairNow();
+      });
+    }
+  },
+
+  _syncConfigLogMs(v) {
+    if (!v) return 0;
+    if (typeof v === 'number') return v;
+    if (typeof v.toMillis === 'function') { try { return v.toMillis(); } catch (_) {} }
+    if (typeof v.toDate === 'function') { try { return v.toDate().getTime(); } catch (_) {} }
+    if (typeof v === 'object' && typeof (v.seconds || v._seconds) === 'number') {
+      return ((v.seconds || v._seconds) * 1000) + Math.floor(((v.nanoseconds || v._nanoseconds || 0) / 1000000));
+    }
+    var t = new Date(v).getTime();
+    return Number.isFinite(t) ? t : 0;
+  },
+
+  _formatSyncConfigLogTime(v) {
+    var ms = this._syncConfigLogMs(v);
+    if (!ms) return '--';
+    var d = new Date(ms);
+    return String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0')
+      + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  },
+
+  async openActivityRepairLogModal() {
+    var overlay = document.getElementById('activity-repair-log-modal');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'activity-repair-log-modal';
+      overlay.className = 'sync-config-log-overlay';
+      overlay.onclick = function(e) { if (e.target === overlay) App.closeActivityRepairLogModal(); };
+      overlay.innerHTML = '<div class="sync-config-log-box">'
+        + '<div class="sync-config-log-header"><span>資料同步 Log</span><button class="event-reg-log-close" onclick="App.closeActivityRepairLogModal()">&times;</button></div>'
+        + '<div class="sync-config-log-body" id="activity-repair-log-body"></div>'
+        + '</div>';
+      document.body.appendChild(overlay);
+    }
+    var body = document.getElementById('activity-repair-log-body');
+    overlay.classList.add('open');
+    if (body) body.innerHTML = '<div class="sync-config-empty">載入中...</div>';
+
+    try {
+      var snap = await db.collection('siteConfig').doc('realtimeConfig').get();
+      var data = snap.exists ? (snap.data() || {}) : {};
+      var logs = Array.isArray(data.activityRepairLogs) ? data.activityRepairLogs.slice() : [];
+      logs.sort((a, b) => this._syncConfigLogMs(b.at) - this._syncConfigLogMs(a.at));
+      if (!logs.length) {
+        if (body) body.innerHTML = '<div class="sync-config-empty">尚無同步紀錄</div>';
+        return;
+      }
+      var sourceLabels = {
+        scheduled: '排程',
+        admin_manual: '手動',
+        config: '設定',
+        system: '系統',
+      };
+      var statusLabels = {
+        success: '完成',
+        error: '失敗',
+      };
+      if (body) {
+        body.innerHTML = logs.map((log) => {
+          var status = String(log.status || 'success');
+          var source = sourceLabels[log.source] || log.source || '系統';
+          var actionClass = status === 'error' ? 'cancel' : (log.source === 'config' ? 'promote' : 'reg');
+          var summary = '活動 ' + (Number(log.scannedEvents || 0) || 0)
+            + '｜報名 ' + (Number(log.scannedRegistrations || 0) || 0)
+            + '｜新增 ' + (Number(log.created || 0) || 0)
+            + '｜更新 ' + (Number(log.updated || 0) || 0);
+          var msg = log.error || log.message || summary;
+          return '<div class="sync-config-log-item">'
+            + '<div class="sync-config-log-main">'
+            + '<span class="event-reg-log-time">' + this._formatSyncConfigLogTime(log.at) + '</span>'
+            + '<span class="event-reg-log-user">' + escapeHTML(source) + '</span>'
+            + '<span class="event-reg-log-action ' + actionClass + '">' + escapeHTML(statusLabels[status] || status) + '</span>'
+            + '</div>'
+            + '<div class="sync-config-log-sub">' + escapeHTML(summary) + '</div>'
+            + '<div class="sync-config-log-msg">' + escapeHTML(msg) + '</div>'
+            + '</div>';
+        }).join('');
+      }
+    } catch (err) {
+      console.error('[activityRepairLog]', err);
+      if (body) body.innerHTML = '<div class="sync-config-empty">Log 載入失敗</div>';
+    }
+  },
+
+  closeActivityRepairLogModal() {
+    var modal = document.getElementById('activity-repair-log-modal');
+    if (modal) modal.classList.remove('open');
+  },
+
+  async runActivityRecordRepairNow() {
+    var btn = document.getElementById('ar-run-btn');
+    var statusEl = document.getElementById('rl-status');
+    var ok = typeof this.appConfirm === 'function'
+      ? await this.appConfirm('確定要立即執行報名紀錄修復嗎？\n\n系統會掃描設定範圍內的活動，補齊缺漏的報名紀錄。')
+      : window.confirm('確定要立即執行報名紀錄修復嗎？');
+    if (!ok) return;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '修復中...';
+    }
+    if (statusEl) {
+      statusEl.style.color = 'var(--text-secondary)';
+      statusEl.textContent = '正在執行報名紀錄修復...';
+    }
+    try {
+      var fn = firebase.app().functions('asia-east1');
+      var callable = fn.httpsCallable('repairActivityRecordsManual');
+      var resp = await callable({});
+      var data = resp.data || {};
+      var msg = '修復完成：新增 ' + (data.created || 0) + '，更新 ' + (data.updated || 0);
+      if (statusEl) {
+        statusEl.style.color = 'var(--success,#16a34a)';
+        statusEl.textContent = msg;
+      }
+      this.showToast?.(msg);
+    } catch (err) {
+      console.error('[runActivityRecordRepairNow]', err);
+      var errMsg = (err && (err.message || err.code)) || '修復失敗';
+      if (statusEl) {
+        statusEl.style.color = 'var(--danger,#dc2626)';
+        statusEl.textContent = '修復失敗：' + errMsg;
+      }
+      this.showToast?.('報名紀錄修復失敗');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '立即修復';
+      }
+    }
+  },
+
+  _showDataSyncSettingInfo() {
+    var body = '<p style="margin-bottom:.6rem">此設定控制 Firestore 即時監聽範圍，以及報名紀錄與 activityRecords 的排程修復。</p>'
+      + '<p style="margin-bottom:.6rem">排程修復只會補齊或更新缺漏的個人報名紀錄，不會更動活動名額、報名狀態或同行者紀錄。</p>'
+      + '<p style="color:var(--text-muted);font-size:.78rem">Log 會保留最近 30 筆設定與修復結果。</p>';
+    var overlay = document.createElement('div');
+    overlay.className = 'edu-info-overlay';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = '<div class="edu-info-dialog">'
+      + '<div class="edu-info-dialog-title">資料同步與監聽設定</div>'
+      + '<div class="edu-info-dialog-body">' + body + '</div>'
+      + '<button class="primary-btn" style="width:100%;margin-top:.8rem" onclick="this.closest(\'.edu-info-overlay\').remove()">確認</button>'
+      + '</div>';
+    document.body.appendChild(overlay);
+  },
 });

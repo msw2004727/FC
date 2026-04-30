@@ -7797,6 +7797,556 @@ exports.translateTexts = onCall(
  * 計算全站每位用戶的放鴿子次數（noShowCount）並寫回 users 文件。
  * 判定條件：已結束活動 + 正式報名(confirmed) + 非同行者 + 活動日期已過 + 無 checkin 紀錄
  */
+const ACTIVITY_RECORD_REPAIR_DEFAULTS = Object.freeze({
+  enabled: false,
+  frequency: 1,
+  lookbackDays: 90,
+  futureDays: 180,
+  batchSize: 300,
+  maxEventsPerRun: 500,
+  manualCooldownSeconds: 300,
+});
+const ACTIVITY_RECORD_REPAIR_LOG_LIMIT = 30;
+
+function clampInteger(value, fallback, min, max) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+function readActivityRecordRepairConfig(data = {}) {
+  return {
+    enabled: data.activityRepairEnabled === true,
+    frequency: clampInteger(data.activityRepairFrequency, ACTIVITY_RECORD_REPAIR_DEFAULTS.frequency, 1, 24),
+    lookbackDays: clampInteger(data.activityRepairLookbackDays, ACTIVITY_RECORD_REPAIR_DEFAULTS.lookbackDays, 1, 365),
+    futureDays: clampInteger(data.activityRepairFutureDays, ACTIVITY_RECORD_REPAIR_DEFAULTS.futureDays, 0, 365),
+    batchSize: clampInteger(data.activityRepairBatchSize, ACTIVITY_RECORD_REPAIR_DEFAULTS.batchSize, 50, 450),
+    maxEventsPerRun: clampInteger(data.activityRepairMaxEventsPerRun, ACTIVITY_RECORD_REPAIR_DEFAULTS.maxEventsPerRun, 50, 1000),
+    manualCooldownSeconds: clampInteger(data.activityRepairManualCooldownSeconds, ACTIVITY_RECORD_REPAIR_DEFAULTS.manualCooldownSeconds, 60, 3600),
+  };
+}
+
+function shouldRunActivityRepairByFrequency(frequency, now = new Date()) {
+  const freq = clampInteger(frequency, 1, 1, 24);
+  const interval = Math.max(1, Math.round(24 / freq));
+  const taipeiHour = new Date(now).toLocaleString("en-US", {
+    timeZone: "Asia/Taipei",
+    hour: "numeric",
+    hour12: false,
+  });
+  const hour = Number(taipeiHour);
+  return Number.isFinite(hour) && hour % interval === 0;
+}
+
+function valueToMillis(value) {
+  if (!value) return 0;
+  if (typeof value === "number") return value;
+  if (typeof value.toMillis === "function") {
+    try { return value.toMillis(); } catch (_) {}
+  }
+  if (typeof value.toDate === "function") {
+    try { return value.toDate().getTime(); } catch (_) {}
+  }
+  if (typeof value === "object" && typeof (value.seconds || value._seconds) === "number") {
+    const seconds = value.seconds || value._seconds;
+    const nanos = value.nanoseconds || value._nanoseconds || 0;
+    return seconds * 1000 + Math.floor(nanos / 1000000);
+  }
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseEventDateMillis(raw) {
+  const s = String(raw || "").split(" ")[0].trim().replace(/\//g, "-");
+  const m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (!m) return 0;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const ms = d.getTime();
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+function formatActivityRecordDate(raw) {
+  const s = String(raw || "").split(" ")[0].trim();
+  const parts = s.includes("/") ? s.split("/") : s.split("-");
+  if (parts.length >= 3) {
+    return `${String(parts[1]).padStart(2, "0")}/${String(parts[2]).padStart(2, "0")}`;
+  }
+  return "";
+}
+
+function isCompanionRegistration(reg = {}) {
+  return reg.participantType === "companion" || !!reg.companionId;
+}
+
+function registrationStatusToActivityStatus(reg = {}) {
+  const status = String(reg.status || "confirmed").toLowerCase();
+  if (status === "waitlisted") return "waitlisted";
+  if (status === "cancelled") return "cancelled";
+  if (status === "removed") return "removed";
+  return "registered";
+}
+
+function isActiveRegistrationStatus(reg = {}) {
+  const status = String(reg.status || "confirmed").toLowerCase();
+  return status !== "cancelled" && status !== "removed";
+}
+
+function registrationSortMillis(reg = {}) {
+  return Math.max(
+    valueToMillis(reg.updatedAt),
+    valueToMillis(reg.promotedAt),
+    valueToMillis(reg.removedAt),
+    valueToMillis(reg.cancelledAt),
+    valueToMillis(reg.registeredAt),
+    0
+  );
+}
+
+function chooseAuthoritativeRegistration(regs = []) {
+  const list = regs
+    .filter((reg) => reg && !isCompanionRegistration(reg) && String(reg.userId || "").trim())
+    .sort((a, b) => registrationSortMillis(b) - registrationSortMillis(a));
+  const active = list.find((reg) => isActiveRegistrationStatus(reg));
+  return active || list[0] || null;
+}
+
+function chooseActivityRecordForRepair(records = [], expectedStatus = "") {
+  if (!records.length) return null;
+  return records.find((record) => record.status === expectedStatus)
+    || records.find((record) => record.status !== "cancelled" && record.status !== "removed")
+    || records[0];
+}
+
+function buildExpectedActivityRecord(eventData = {}, eventId = "", reg = {}) {
+  return {
+    eventId,
+    name: eventData.title || eventData.name || "",
+    date: formatActivityRecordDate(eventData.date),
+    status: registrationStatusToActivityStatus(reg),
+    uid: String(reg.userId || "").trim(),
+    eventType: eventData.type || "",
+  };
+}
+
+function diffActivityRecord(existing = {}, expected = {}) {
+  const patch = {};
+  ["eventId", "name", "date", "status", "uid", "eventType"].forEach((key) => {
+    if (String(existing[key] || "") !== String(expected[key] || "")) {
+      patch[key] = expected[key] || "";
+    }
+  });
+  return patch;
+}
+
+async function appendActivityRepairLog(entry = {}, extraFields = {}) {
+  const ref = db.collection("siteConfig").doc("realtimeConfig");
+  const now = Timestamp.now();
+  const safeEntry = {
+    id: `arl_${now.toMillis()}_${Math.random().toString(36).slice(2, 8)}`,
+    at: now,
+    source: String(entry.source || "system").slice(0, 40),
+    status: String(entry.status || "success").slice(0, 30),
+    message: String(entry.message || "").slice(0, 220),
+    scannedEvents: Number(entry.scannedEvents || 0) || 0,
+    scannedRegistrations: Number(entry.scannedRegistrations || 0) || 0,
+    created: Number(entry.created || 0) || 0,
+    updated: Number(entry.updated || 0) || 0,
+    skipped: Number(entry.skipped || 0) || 0,
+    error: entry.error ? String(entry.error).slice(0, 300) : "",
+  };
+
+  await db.runTransaction(async (transaction) => {
+    const snap = await transaction.get(ref);
+    const data = snap.exists ? (snap.data() || {}) : {};
+    const prev = Array.isArray(data.activityRepairLogs) ? data.activityRepairLogs : [];
+    const logs = [safeEntry, ...prev].slice(0, ACTIVITY_RECORD_REPAIR_LOG_LIMIT);
+    transaction.set(ref, {
+      activityRepairLogs: logs,
+      activityRepairLastLogAt: now,
+      ...extraFields,
+    }, { merge: true });
+  });
+}
+
+function addRepairResult(total, part) {
+  total.scannedEvents += Number(part.scannedEvents || 0);
+  total.scannedRegistrations += Number(part.scannedRegistrations || 0);
+  total.created += Number(part.created || 0);
+  total.updated += Number(part.updated || 0);
+  total.skipped += Number(part.skipped || 0);
+  return total;
+}
+
+async function repairActivityRecordsForEventDoc(eventDoc, options = {}) {
+  const eventRef = eventDoc.ref;
+  const eventData = eventDoc.data() || {};
+  const eventId = String(eventData.id || eventDoc.id || "").trim();
+  const batchSize = clampInteger(options.batchSize, ACTIVITY_RECORD_REPAIR_DEFAULTS.batchSize, 50, 450);
+  const result = { scannedEvents: 1, scannedRegistrations: 0, created: 0, updated: 0, skipped: 0 };
+
+  const [regsSnap, arsSnap] = await Promise.all([
+    eventRef.collection("registrations").get(),
+    eventRef.collection("activityRecords").get(),
+  ]);
+
+  const regsByUid = new Map();
+  regsSnap.docs.forEach((doc) => {
+    const reg = { ...doc.data(), _docId: doc.id };
+    if (isCompanionRegistration(reg)) {
+      result.skipped += 1;
+      return;
+    }
+    const uid = String(reg.userId || "").trim();
+    if (!uid) {
+      result.skipped += 1;
+      return;
+    }
+    if (!regsByUid.has(uid)) regsByUid.set(uid, []);
+    regsByUid.get(uid).push(reg);
+  });
+
+  const arsByUid = new Map();
+  arsSnap.docs.forEach((doc) => {
+    const ar = { ...doc.data(), _docId: doc.id };
+    const uid = String(ar.uid || "").trim();
+    if (!uid) return;
+    if (!arsByUid.has(uid)) arsByUid.set(uid, []);
+    arsByUid.get(uid).push(ar);
+  });
+
+  let batch = db.batch();
+  let ops = 0;
+  const commitIfNeeded = async (force = false) => {
+    if (ops === 0) return;
+    if (!force && ops < batchSize) return;
+    await batch.commit();
+    batch = db.batch();
+    ops = 0;
+  };
+
+  for (const [uid, regs] of regsByUid.entries()) {
+    const selected = chooseAuthoritativeRegistration(regs);
+    if (!selected) {
+      result.skipped += 1;
+      continue;
+    }
+    result.scannedRegistrations += regs.length;
+    const expected = buildExpectedActivityRecord(eventData, eventId, selected);
+    const existing = chooseActivityRecordForRepair(arsByUid.get(uid) || [], expected.status);
+
+    if (!existing && expected.status === "removed") {
+      result.skipped += 1;
+      continue;
+    }
+
+    if (!existing) {
+      const ref = eventRef.collection("activityRecords").doc();
+      batch.set(ref, {
+        ...expected,
+        createdAt: FieldValue.serverTimestamp(),
+        repairedAt: FieldValue.serverTimestamp(),
+        repairSource: options.source || "scheduled",
+      });
+      result.created += 1;
+      ops += 1;
+      await commitIfNeeded();
+      continue;
+    }
+
+    const patch = diffActivityRecord(existing, expected);
+    if (Object.keys(patch).length > 0) {
+      batch.update(eventRef.collection("activityRecords").doc(existing._docId), {
+        ...patch,
+        repairedAt: FieldValue.serverTimestamp(),
+        repairSource: options.source || "scheduled",
+      });
+      result.updated += 1;
+      ops += 1;
+      await commitIfNeeded();
+    }
+  }
+
+  await commitIfNeeded(true);
+  return result;
+}
+
+async function repairActivityRecordsBatch(options = {}) {
+  const cfg = {
+    ...ACTIVITY_RECORD_REPAIR_DEFAULTS,
+    ...options,
+    lookbackDays: clampInteger(options.lookbackDays, ACTIVITY_RECORD_REPAIR_DEFAULTS.lookbackDays, 1, 365),
+    futureDays: clampInteger(options.futureDays, ACTIVITY_RECORD_REPAIR_DEFAULTS.futureDays, 0, 365),
+    maxEventsPerRun: clampInteger(options.maxEventsPerRun, ACTIVITY_RECORD_REPAIR_DEFAULTS.maxEventsPerRun, 50, 1000),
+    batchSize: clampInteger(options.batchSize, ACTIVITY_RECORD_REPAIR_DEFAULTS.batchSize, 50, 450),
+  };
+  const now = Date.now();
+  const lower = now - cfg.lookbackDays * 86400000;
+  const upper = now + cfg.futureDays * 86400000;
+  const eventsSnap = await db.collection("events")
+    .select("id", "title", "name", "date", "type")
+    .get();
+
+  const candidates = [];
+  let skippedInvalidDate = 0;
+  eventsSnap.docs.forEach((doc) => {
+    const data = doc.data() || {};
+    const dateMs = parseEventDateMillis(data.date);
+    if (!dateMs) {
+      skippedInvalidDate += 1;
+      return;
+    }
+    if (dateMs >= lower && dateMs <= upper) {
+      candidates.push({ doc, dateMs });
+    }
+  });
+  candidates.sort((a, b) => b.dateMs - a.dateMs);
+
+  const total = {
+    scannedEvents: 0,
+    scannedRegistrations: 0,
+    created: 0,
+    updated: 0,
+    skipped: skippedInvalidDate,
+  };
+  const limited = candidates.slice(0, cfg.maxEventsPerRun);
+  for (const item of limited) {
+    const part = await repairActivityRecordsForEventDoc(item.doc, {
+      batchSize: cfg.batchSize,
+      source: options.source || "scheduled",
+    });
+    addRepairResult(total, part);
+  }
+  if (candidates.length > limited.length) {
+    total.skipped += candidates.length - limited.length;
+  }
+  return total;
+}
+
+async function repairActivityRecordsForUserId(userId, options = {}) {
+  const safeUid = String(userId || "").trim();
+  if (!safeUid) throw new HttpsError("invalid-argument", "uid required");
+  const batchSize = clampInteger(options.batchSize, ACTIVITY_RECORD_REPAIR_DEFAULTS.batchSize, 50, 450);
+  const regsSnap = await db.collectionGroup("registrations")
+    .where("userId", "==", safeUid)
+    .get();
+
+  const byEventPath = new Map();
+  regsSnap.docs.forEach((doc) => {
+    const eventRef = doc.ref.parent.parent;
+    if (!eventRef) return;
+    const reg = { ...doc.data(), _docId: doc.id };
+    if (isCompanionRegistration(reg)) return;
+    const key = eventRef.path;
+    if (!byEventPath.has(key)) byEventPath.set(key, { eventRef, regs: [] });
+    byEventPath.get(key).regs.push(reg);
+  });
+
+  const total = { scannedEvents: 0, scannedRegistrations: 0, created: 0, updated: 0, skipped: 0 };
+  let batch = db.batch();
+  let ops = 0;
+  const commitIfNeeded = async (force = false) => {
+    if (ops === 0) return;
+    if (!force && ops < batchSize) return;
+    await batch.commit();
+    batch = db.batch();
+    ops = 0;
+  };
+
+  for (const entry of byEventPath.values()) {
+    const selected = chooseAuthoritativeRegistration(entry.regs);
+    if (!selected) {
+      total.skipped += 1;
+      continue;
+    }
+    const eventSnap = await entry.eventRef.get();
+    if (!eventSnap.exists) {
+      total.skipped += entry.regs.length;
+      continue;
+    }
+    const eventData = eventSnap.data() || {};
+    const eventId = String(eventData.id || eventSnap.id || selected.eventId || "").trim();
+    const expected = buildExpectedActivityRecord(eventData, eventId, selected);
+    const arSnap = await entry.eventRef.collection("activityRecords")
+      .where("uid", "==", safeUid)
+      .get();
+    const existing = chooseActivityRecordForRepair(
+      arSnap.docs.map((doc) => ({ ...doc.data(), _docId: doc.id })),
+      expected.status
+    );
+
+    total.scannedEvents += 1;
+    total.scannedRegistrations += entry.regs.length;
+
+    if (!existing && expected.status === "removed") {
+      total.skipped += 1;
+      continue;
+    }
+
+    if (!existing) {
+      batch.set(entry.eventRef.collection("activityRecords").doc(), {
+        ...expected,
+        createdAt: FieldValue.serverTimestamp(),
+        repairedAt: FieldValue.serverTimestamp(),
+        repairSource: options.source || "self_refresh",
+      });
+      total.created += 1;
+      ops += 1;
+      await commitIfNeeded();
+      continue;
+    }
+
+    const patch = diffActivityRecord(existing, expected);
+    if (Object.keys(patch).length > 0) {
+      batch.update(entry.eventRef.collection("activityRecords").doc(existing._docId), {
+        ...patch,
+        repairedAt: FieldValue.serverTimestamp(),
+        repairSource: options.source || "self_refresh",
+      });
+      total.updated += 1;
+      ops += 1;
+      await commitIfNeeded();
+    }
+  }
+
+  await commitIfNeeded(true);
+  return total;
+}
+
+exports.repairActivityRecordsScheduled = onSchedule(
+  {
+    region: "asia-east1",
+    schedule: "0 * * * *",
+    timeZone: "Asia/Taipei",
+    timeoutSeconds: 300,
+    memory: "512MiB",
+    maxInstances: 1,
+  },
+  async () => {
+    const configDoc = await db.collection("siteConfig").doc("realtimeConfig").get();
+    const config = readActivityRecordRepairConfig(configDoc.exists ? configDoc.data() : {});
+    if (!config.enabled) {
+      console.log("[repairActivityRecordsScheduled] disabled");
+      return;
+    }
+    if (!shouldRunActivityRepairByFrequency(config.frequency)) {
+      console.log("[repairActivityRecordsScheduled] skip by frequency", config.frequency);
+      return;
+    }
+    try {
+      const result = await repairActivityRecordsBatch({ ...config, source: "scheduled" });
+      await appendActivityRepairLog({
+        source: "scheduled",
+        status: "success",
+        message: "scheduled repair completed",
+        ...result,
+      }, {
+        activityRepairLastRunAt: FieldValue.serverTimestamp(),
+        activityRepairLastResult: result,
+        activityRepairLastStatus: "success",
+      });
+      console.log("[repairActivityRecordsScheduled]", result);
+    } catch (err) {
+      await appendActivityRepairLog({
+        source: "scheduled",
+        status: "error",
+        message: "scheduled repair failed",
+        error: err?.message || String(err),
+      }, {
+        activityRepairLastRunAt: FieldValue.serverTimestamp(),
+        activityRepairLastStatus: "error",
+        activityRepairLastError: String(err?.message || err).slice(0, 300),
+      });
+      throw err;
+    }
+  },
+);
+
+exports.repairActivityRecordsManual = onCall(
+  { region: "asia-east1", timeoutSeconds: 300, memory: "512MiB" },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "auth required");
+    const access = await getCallerAccessContext(request);
+    if (!access.hasPermission("admin.repair.data_sync")) {
+      throw new HttpsError("permission-denied", "permission denied");
+    }
+    const configDoc = await db.collection("siteConfig").doc("realtimeConfig").get();
+    const config = readActivityRecordRepairConfig(configDoc.exists ? configDoc.data() : {});
+    try {
+      const result = await repairActivityRecordsBatch({ ...config, source: "admin_manual" });
+      await appendActivityRepairLog({
+        source: "admin_manual",
+        status: "success",
+        message: "admin manual repair completed",
+        ...result,
+      }, {
+        activityRepairLastRunAt: FieldValue.serverTimestamp(),
+        activityRepairLastResult: result,
+        activityRepairLastStatus: "success",
+      });
+      await writeOperationLog({
+        operator: access.displayName || request.auth.uid,
+        type: "activity_record_repair",
+        typeName: "Activity record repair",
+        content: `created=${result.created}, updated=${result.updated}, events=${result.scannedEvents}`,
+      }).catch(() => {});
+      return { success: true, ...result };
+    } catch (err) {
+      await appendActivityRepairLog({
+        source: "admin_manual",
+        status: "error",
+        message: "admin manual repair failed",
+        error: err?.message || String(err),
+      }, {
+        activityRepairLastRunAt: FieldValue.serverTimestamp(),
+        activityRepairLastStatus: "error",
+        activityRepairLastError: String(err?.message || err).slice(0, 300),
+      });
+      throw err;
+    }
+  },
+);
+
+exports.refreshMyActivityRecords = onCall(
+  { region: "asia-east1", timeoutSeconds: 120, memory: "256MiB" },
+  async (request) => {
+    if (!request.auth?.uid) throw new HttpsError("unauthenticated", "auth required");
+    const configDoc = await db.collection("siteConfig").doc("realtimeConfig").get();
+    const config = readActivityRecordRepairConfig(configDoc.exists ? configDoc.data() : {});
+    const found = await findUserDocByUidOrLineUserId(request.auth.uid);
+    const targetUid = getAuthUidFromUserDoc(found, request.auth.uid);
+    const userRef = found ? db.collection("users").doc(found.docId) : null;
+
+    if (userRef) {
+      await db.runTransaction(async (transaction) => {
+        const snap = await transaction.get(userRef);
+        const data = snap.exists ? snap.data() || {} : {};
+        const lastMs = valueToMillis(data.activityRecordsManualRefreshAt);
+        const elapsed = Date.now() - lastMs;
+        const cooldownMs = config.manualCooldownSeconds * 1000;
+        if (lastMs && elapsed < cooldownMs) {
+          const retryAfterSeconds = Math.max(1, Math.ceil((cooldownMs - elapsed) / 1000));
+          throw new HttpsError("resource-exhausted", "too soon", { retryAfterSeconds });
+        }
+        transaction.set(userRef, {
+          activityRecordsManualRefreshAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      });
+    }
+
+    const result = await repairActivityRecordsForUserId(targetUid, {
+      batchSize: config.batchSize,
+      source: "self_refresh",
+    });
+    if (userRef) {
+      await userRef.set({
+        activityRecordsManualRefreshResult: result,
+        activityRecordsManualRefreshCompletedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+    return { success: true, ...result };
+  },
+);
+
 async function calcNoShowCountsBatch({ batchSize = 400 } = {}) {
   const today = new Date().toISOString().slice(0, 10);
 

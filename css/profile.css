@@ -306,6 +306,37 @@ a.social-btn { text-decoration: none; }
   padding-top: .4rem;
 }
 
+.profile-record-refresh-btn {
+  width: 1.65rem;
+  height: 1.65rem;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  transition: transform .25s, color .15s, border-color .15s, background .15s;
+}
+.profile-record-refresh-btn:hover {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+.profile-record-refresh-btn:disabled {
+  opacity: .55;
+  cursor: wait;
+}
+.profile-record-refresh-btn.spinning svg {
+  animation: profile-record-refresh-spin .65s linear infinite;
+}
+@keyframes profile-record-refresh-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* ─── User Card 毛玻璃遮蔽（延遲載入以節省 Firestore 讀取） ─── */
 #page-user-card .info-card { position: relative; }
 .uc-blur-overlay {
