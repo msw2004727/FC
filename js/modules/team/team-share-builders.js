@@ -89,9 +89,10 @@ Object.assign(App, {
 
     var bubble = { type: 'bubble', size: 'mega', body: body, footer: footer };
 
-    if (team.coverImage) {
+    var heroImage = this._getTeamImageUrl?.(team, 'cover') || team.coverImage || team.image || '';
+    if (heroImage) {
       bubble.hero = {
-        type: 'image', url: team.coverImage,
+        type: 'image', url: heroImage,
         size: 'full', aspectRatio: '20:13', aspectMode: 'cover',
       };
     }

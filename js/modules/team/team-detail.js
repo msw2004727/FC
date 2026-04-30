@@ -166,9 +166,10 @@ Object.assign(App, {
       const detailRank = this._getTeamRank(t.teamExp);
       const detailSportIcon = t.sportTag && typeof getSportIconSvg === 'function' ? (getSportIconSvg(t.sportTag) || '') : '';
       const detailSportBadge = detailSportIcon ? '<span class="tc-sport-badge" style="top:8px;left:8px;padding:3px 9px;font-size:1.3rem">' + detailSportIcon + '</span>' : '';
+      const detailImage = this._getTeamImageUrl?.(t, 'cover') || t.image || '';
       imgEl.style.position = 'relative';
-      if (t.image) {
-        imgEl.innerHTML = detailSportBadge + '<img src="' + t.image + '" loading="lazy" style="width:100%;height:100%;object-fit:cover"><span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
+      if (detailImage) {
+        imgEl.innerHTML = detailSportBadge + '<img src="' + escapeHTML(detailImage) + '" loading="lazy" style="width:100%;height:100%;object-fit:cover"><span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
       } else {
         imgEl.innerHTML = detailSportBadge + '\u7403\u968a\u5c01\u9762 800 \u00d7 300<span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
       }

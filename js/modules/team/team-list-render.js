@@ -14,6 +14,7 @@ Object.assign(App, {
     const eduRibbon = isEdu ? '<span class="tc-edu-ribbon">教學</span>' : '';
     const sportIcon = t.sportTag && typeof getSportIconSvg === 'function' ? getSportIconSvg(t.sportTag) : '';
     const sportBadge = sportIcon ? `<span class="tc-sport-badge">${sportIcon}</span>` : '';
+    const cardImage = this._getTeamImageUrl?.(t, 'card') || t.image || '';
     const typeHandler = this._getTeamTypeHandler(t.type);
     const memberLabel = isEdu ? '學員' : I18N.t('team.memberLabel');
     const memberCountKey = String(t.id || '');
@@ -24,8 +25,8 @@ Object.assign(App, {
     return `
       <div class="tc-card${pinnedClass}" data-team-id="${escapeHTML(t.id)}" onclick="App.openTeamDetailFromCard(this, this.dataset.teamId)">
         ${t.pinned ? '<div class="tc-pin-badge">置頂</div>' : ''}
-        ${t.image
-          ? `<div style="position:relative;width:100%;aspect-ratio:1;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0">${sportBadge}<img src="${t.image}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block"><span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span>${eduRibbon}</div>`
+        ${cardImage
+          ? `<div style="position:relative;width:100%;aspect-ratio:1;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0">${sportBadge}<img src="${escapeHTML(cardImage)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block"><span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span>${eduRibbon}</div>`
           : `<div class="tc-img-placeholder" style="position:relative">${sportBadge}俱樂部圖片<span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span>${eduRibbon}</div>`}
         <div class="tc-body">
           <div class="tc-name">${escapeHTML(t.name)}${eduBadge}</div>
@@ -72,7 +73,7 @@ Object.assign(App, {
       const memberCount = memberCountByTeam && memberCountByTeam.has(String(t.id || ''))
         ? memberCountByTeam.get(String(t.id || ''))
         : '';
-      return t.id + '|' + (t.name || '') + '|' + (t.sportTag || '') + '|' + (t.active ? 1 : 0) + '|' + (t.pinned ? 1 : 0) + '|' + (t.teamExp || 0) + '|' + memberCount;
+      return t.id + '|' + (t.name || '') + '|' + (t.sportTag || '') + '|' + (t.image || '') + '|' + (t.imageVariants?.card || '') + '|' + (t.active ? 1 : 0) + '|' + (t.pinned ? 1 : 0) + '|' + (t.teamExp || 0) + '|' + memberCount;
     }).join(',');
     if (this._teamListLastFp === fp && container.children.length > 0) return;
     this._teamListLastFp = fp;

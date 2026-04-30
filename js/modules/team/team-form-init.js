@@ -32,6 +32,7 @@ Object.assign(App, {
     this._teamFormState.leaders = [];
     this._teamFormState.captain = null;
     this._teamFormState.coaches = [];
+    this._teamImageVariantsData = null;
     // 運動類型重置
     const sportSelect = document.getElementById('ct-team-sport-tag');
     if (sportSelect) sportSelect.value = '';
@@ -40,7 +41,7 @@ Object.assign(App, {
     if (typeSelect) typeSelect.value = 'general';
     this._onTeamTypeChange('general');
     const preview = document.getElementById('ct-team-preview');
-    preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳封面圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
+    preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">\u4e0a\u50b3\u4ff1\u6a02\u90e8\u5716\u7247</span><span class="ce-upload-hint">\u4e00\u5f35\u539f\u5716\u88c1\u5207\u5c01\u9762 800 x 300 \u8207\u5361\u7247 800 x 800</span>';
     preview.style.backgroundImage = '';
     preview.classList.remove('has-image');
     const fileInput = document.getElementById('ct-team-image');
@@ -159,6 +160,7 @@ Object.assign(App, {
       }
     }
     this._teamFormState.editId = id || null;
+    this._teamImageVariantsData = null;
     this._initTeamSportOptions();
     const titleEl = document.getElementById('ct-team-modal-title');
     const saveBtn = document.getElementById('ct-team-save-btn');
@@ -252,14 +254,15 @@ Object.assign(App, {
       }
 
       const preview = document.getElementById('ct-team-preview');
-      if (t.image) {
+      const previewImage = this._getTeamImageUrl?.(t, 'cover') || t.image;
+      if (previewImage) {
         preview.innerHTML = '';
-        preview.style.backgroundImage = `url(${t.image})`;
+        preview.style.backgroundImage = `url(${previewImage})`;
         preview.style.backgroundSize = 'cover';
         preview.style.backgroundPosition = 'center';
         preview.classList.add('has-image');
       } else {
-        preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳封面圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
+        preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">\u4e0a\u50b3\u4ff1\u6a02\u90e8\u5716\u7247</span><span class="ce-upload-hint">\u4e00\u5f35\u539f\u5716\u88c1\u5207\u5c01\u9762 800 x 300 \u8207\u5361\u7247 800 x 800</span>';
         preview.style.backgroundImage = '';
         preview.classList.remove('has-image');
       }

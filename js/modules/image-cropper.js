@@ -11,6 +11,11 @@ Object.assign(App, {
     const outputHeight = parseInt(raw.outputHeight, 10) || null;
     const maxZoom = Math.max(2, Math.min(8, Number(raw.maxZoom) || 5));
     const quality = Number.isFinite(Number(raw.quality)) ? Math.max(0.5, Math.min(1, Number(raw.quality))) : 0.9;
+    const frameHintParts = [
+      raw.targetLabel,
+      raw.recommendedSize ? '\u5efa\u8b70 ' + raw.recommendedSize : '',
+      raw.aspectLabel,
+    ].map(v => String(v || '').trim()).filter(Boolean);
     return {
       aspectRatio: ratio > 0 ? ratio : null,
       outputWidth,
@@ -24,6 +29,7 @@ Object.assign(App, {
       cancelText: raw.cancelText || '\u53d6\u6d88',
       resetText: raw.resetText || '\u91cd\u8a2d',
       rotateLabel: raw.rotateLabel || '\u65cb\u8f49',
+      frameHint: String(raw.frameHint || '').trim() || frameHintParts.join(' / '),
       onConfirm: typeof raw.onConfirm === 'function' ? raw.onConfirm : () => {},
       onCancel: typeof raw.onCancel === 'function' ? raw.onCancel : null,
     };
@@ -291,11 +297,14 @@ Object.assign(App, {
         '<div class="image-cropper-viewport" style="width:' + state.vpW + 'px;height:' + state.vpH + 'px">',
           '<img class="image-cropper-image" alt="">',
           '<div class="image-cropper-grid" aria-hidden="true"></div>',
+          config.frameHint ? '<div class="image-cropper-frame-hint"></div>' : '',
         '</div>',
       ].join('');
       state.viewport = workspace.querySelector('.image-cropper-viewport');
       state.imgEl = workspace.querySelector('.image-cropper-image');
       state.imgEl.src = sourceImage.src;
+      const hintEl = workspace.querySelector('.image-cropper-frame-hint');
+      if (hintEl) hintEl.textContent = config.frameHint;
       bindEditorEvents();
       resetTransform();
     };

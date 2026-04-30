@@ -1627,10 +1627,38 @@ Object.assign(FirebaseService, {
   //  Teams
   // ════════════════════════════════
 
+  async _uploadTeamImageVariants(teamId, payload) {
+    if (!payload || !payload.imageVariants || typeof payload.imageVariants !== 'object') return;
+    const variants = { ...payload.imageVariants };
+    const keys = ['cover', 'card', 'square'];
+    let hasValue = false;
+    for (const key of keys) {
+      const value = variants[key];
+      if (!value) {
+        delete variants[key];
+        continue;
+      }
+      if (typeof value === 'string' && value.startsWith('data:')) {
+        const uploaded = await this._uploadImage(value, `teams/${teamId}_${key}`);
+        if (uploaded) variants[key] = uploaded;
+        else delete variants[key];
+      }
+      if (variants[key]) hasValue = true;
+    }
+    if (!hasValue) {
+      delete payload.imageVariants;
+      return;
+    }
+    payload.imageVariants = variants;
+    if (variants.cover && (!payload.image || (typeof payload.image === 'string' && payload.image.startsWith('data:')))) {
+      payload.image = variants.cover;
+    }
+  },
   async addTeam(data) {
     // Phase 2A §11.2②：自訂 ID = Firestore doc ID，消除雙軌制
     const teamId = data.id || generateId('tm_');
     data.id = teamId;
+    await this._uploadTeamImageVariants(teamId, data);
     if (data.image && data.image.startsWith('data:')) {
       data.image = await this._uploadImage(data.image, `teams/${teamId}`);
     }
@@ -1647,6 +1675,7 @@ Object.assign(FirebaseService, {
   async updateTeam(id, updates) {
     const doc = this._cache.teams.find(t => t.id === id);
     if (!doc || !doc._docId) return null;
+    await this._uploadTeamImageVariants(id, updates);
     if (updates.image && updates.image.startsWith('data:')) {
       updates.image = await this._uploadImage(updates.image, `teams/${id}`);
     }

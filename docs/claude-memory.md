@@ -2016,3 +2016,9 @@
 - **Fix**: Reworked `image-cropper.js` to edit the original data URL first, then export a compressed result. Added drag, wheel zoom, slider zoom, pinch zoom, reset, rotate, grid overlay, and responsive modal styling. Reworked `image-upload.js` so fixed-aspect and natural-aspect uploads share the same editor path.
 - **Audit notes**: Corrected popup ad crop ratio from `16/9` to `600/800`, set shot-game ad crop ratio to `1200/545`, and kept achievement badge exports square PNG at 400x400.
 - **Validation**: Planned syntax checks, unit tests, cache-version bump, version alignment check, and frontend push deploy.
+
+### 2026-04-30 Club image variants
+- **Scope**: Extended the club image flow from one crop to one original image with separate `cover` and `card` crop outputs.
+- **Fix**: Added crop-frame target hints, a club-specific two-step crop sequence, `team.imageVariants.cover/card` storage, and rendering fallbacks so club cards use the square crop while club detail/share views use the wide cover crop.
+- **Compatibility**: Kept legacy `team.image` as the cover fallback so old club data and old clients continue to render.
+- **Validation**: Added `team-image-variants.test.js`, ran JS syntax checks and full unit tests before cache-version bump and frontend push deploy.

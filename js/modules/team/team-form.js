@@ -71,6 +71,12 @@ Object.assign(App, {
         image = bgImg.replace(/^url\(["']?/, '').replace(/["']?\)$/, '');
       }
     }
+    const imageVariants = (this._teamImageVariantsData && typeof this._teamImageVariantsData === 'object')
+      ? { ...this._teamImageVariantsData }
+      : null;
+    if (imageVariants && (imageVariants.cover || imageVariants.card)) {
+      image = imageVariants.cover || imageVariants.card || image;
+    }
 
     try {
       // leader/leaderUid 相容欄位（舊格式）
@@ -86,6 +92,7 @@ Object.assign(App, {
         };
         if (eduSettings) updates.eduSettings = eduSettings;
         else updates.eduSettings = firebase.firestore.FieldValue.delete();
+        if (imageVariants) updates.imageVariants = imageVariants;
         if (image) updates.image = image;
         try {
           await ApiService.updateTeamAwait(this._teamFormState.editId, updates);
@@ -146,6 +153,7 @@ Object.assign(App, {
           type: teamType, sportTag,
         };
         if (eduSettings) data.eduSettings = eduSettings;
+        if (imageVariants) data.imageVariants = imageVariants;
         ApiService.createTeam(data);
         ApiService._writeOpLog('team_create', '建立俱樂部', `建立「${name}」`);
         // ── 新建俱樂部職位日誌 ──
@@ -172,6 +180,7 @@ Object.assign(App, {
 
     this.closeModal();
     this._teamFormState.editId = null;
+    this._teamImageVariantsData = null;
     this.renderTeamList();
     this.renderAdminTeams();
     this.renderTeamManage();
