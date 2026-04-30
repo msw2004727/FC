@@ -420,7 +420,7 @@ Object.assign(App, {
 
   _buildTeamHistoryCard(t) {
     const historyRows = (t.history || []).map(h => '<div class="td-history-row"><span class="td-history-name">' + escapeHTML(h.name) + '</span><span class="td-history-result">' + escapeHTML(h.result) + '</span></div>').join('') || '<div style="font-size:.82rem;color:var(--text-muted);padding:.3rem">' + I18N.t('teamDetail.noHistory') + '</div>';
-    return '<div class="td-card"><div class="td-card-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,\'teamMatch\')"><span>' + I18N.t('teamDetail.matchHistory') + '</span><span class="profile-collapse-arrow">\u25b6</span></div><div class="profile-collapse-content" style="display:none">' + historyRows + '</div></div>';
+    return '<div class="td-card"><div class="td-card-title profile-collapse-toggle" onclick="App.toggleTeamDetailSection(this,\'teamMatch\')"><span>' + I18N.t('teamDetail.matchHistory') + '</span><span class="profile-collapse-arrow">\u25b6</span></div><div class="profile-collapse-content" style="display:none">' + historyRows + '</div></div>';
   },
 
   _buildTeamMembersCard(t, canManageMembers, memberEditMode, staffIdentity) {
@@ -436,7 +436,7 @@ Object.assign(App, {
       }).join('');
     })();
     const editBtn = canManageMembers ? '<button class="outline-btn td-member-edit-btn" onclick="event.stopPropagation();App.toggleTeamMemberEditMode(\'' + t.id + '\')">' + (memberEditMode ? '\u5b8c\u6210' : '\u7de8\u8f2f') + '</button>' : '';
-    return '<div class="td-card"><div id="team-members-toggle" class="td-card-title td-card-title-row profile-collapse-toggle" onclick="App.toggleProfileSection(this,\'teamMembers\')"><span>' + I18N.t('teamDetail.memberList') + '</span><span class="td-card-title-right">' + editBtn + '<span class="profile-collapse-arrow">\u25b6</span></span></div><div class="profile-collapse-content td-member-tags" style="display:none">' + membersContent + '</div></div>';
+    return '<div class="td-card"><div id="team-members-toggle" class="td-card-title td-card-title-row profile-collapse-toggle" onclick="App.toggleTeamDetailSection(this,\'teamMembers\')"><span>' + I18N.t('teamDetail.memberList') + '</span><span class="td-card-title-right">' + editBtn + '<span class="profile-collapse-arrow">\u25b6</span></span></div><div class="profile-collapse-content td-member-tags" style="display:none">' + membersContent + '</div></div>';
   },
 
   // ══════════════════════════════════

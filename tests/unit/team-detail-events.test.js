@@ -10,6 +10,7 @@ describe('team detail club activity section', () => {
         getCurrentUser: () => ({ uid: 'viewer' }),
         getEvents: () => events,
         getTeam: () => ({ id: 'teamA', feed: [] }),
+        getAdminUsers: () => [],
       },
       TYPE_CONFIG: {
         friendly: { label: '友誼賽' },
@@ -45,6 +46,32 @@ describe('team detail club activity section', () => {
     };
     const source = fs.readFileSync(
       path.join(__dirname, '../../js/modules/team/team-detail-render.js'),
+      'utf8'
+    );
+    vm.runInNewContext(source, context);
+  }
+
+  function loadTeamDetailCore(app) {
+    const context = {
+      App: app,
+      ApiService: {},
+      I18N: { t: (key) => key },
+      document: {
+        getElementById: () => null,
+      },
+      window: {},
+      console,
+      Object,
+      Date,
+      Math,
+      Number,
+      String,
+      Array,
+      Set,
+      escapeHTML: (value) => String(value ?? ''),
+    };
+    const source = fs.readFileSync(
+      path.join(__dirname, '../../js/modules/team/team-detail.js'),
       'utf8'
     );
     vm.runInNewContext(source, context);
@@ -149,5 +176,49 @@ describe('team detail club activity section', () => {
 
     expect(html.indexOf('team-feed-section')).toBeGreaterThan(-1);
     expect(html.indexOf('club events')).toBeGreaterThan(html.indexOf('team-feed-section'));
+  });
+
+  test('team detail collapsible cards use the team-owned collapse handler', () => {
+    const app = makeApp([]);
+    loadTeamDetailRender(app, []);
+    Object.assign(app, {
+      _isRegularTeamMember: () => true,
+    });
+
+    const html = [
+      app._buildTeamHistoryCard({ history: [] }),
+      app._buildTeamMembersCard(
+        { id: 'teamA' },
+        false,
+        false,
+        { keys: new Set(), names: new Set() }
+      ),
+    ].join('');
+
+    expect(html).toContain("App.toggleTeamDetailSection(this,'teamMatch')");
+    expect(html).toContain("App.toggleTeamDetailSection(this,'teamMembers')");
+    expect(html).not.toContain('App.toggleProfileSection');
+  });
+
+  test('team detail owns its collapse behavior without loading profile modules', () => {
+    const app = {};
+    loadTeamDetailCore(app);
+    let isOpen = false;
+    const content = { style: { display: 'none' } };
+    const label = {
+      nextElementSibling: content,
+      classList: {
+        toggle: () => {
+          isOpen = !isOpen;
+          return isOpen;
+        },
+      },
+    };
+
+    app.toggleTeamDetailSection(label);
+    expect(content.style.display).toBe('');
+
+    app.toggleTeamDetailSection(label);
+    expect(content.style.display).toBe('none');
   });
 });

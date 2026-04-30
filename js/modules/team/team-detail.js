@@ -63,12 +63,20 @@ Object.assign(App, {
     return true;
   },
 
+  toggleTeamDetailSection(labelEl) {
+    if (!labelEl) return;
+    const isOpen = labelEl.classList.toggle('open');
+    const content = labelEl.nextElementSibling;
+    if (!content) return;
+    content.style.display = isOpen ? '' : 'none';
+  },
+
   _keepTeamMembersSectionOpen() {
     const toggle = document.getElementById('team-members-toggle');
     if (!toggle) return;
     const content = toggle.nextElementSibling;
     if (content && content.style.display === 'none') {
-      this.toggleProfileSection(toggle, 'teamMembers');
+      this.toggleTeamDetailSection(toggle, 'teamMembers');
     }
   },
 

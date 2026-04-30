@@ -2056,3 +2056,8 @@
 - **Issue**: The gradient team-seat styling made the attendance list feel visually heavy and uneven.
 - **Fix**: Reverted the team reservation attendance list back to the previous flag marker style, including the original static coverage for the flag button.
 - **Validation**: Planned syntax checks, focused unit test run, cache-version bump, and frontend push deploy.
+
+### 2026-04-30 team detail collapse handler fix [bugfix]
+- **Issue**: Club detail "member list" and "match history" cards called `App.toggleProfileSection`, but the profile module is not loaded on the team detail route.
+- **Fix**: Added team-owned `App.toggleTeamDetailSection` and changed team detail collapsible card onclick handlers to use it.
+- **Validation**: Added regression coverage so team detail can collapse/expand without loading profile modules.
