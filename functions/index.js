@@ -3889,9 +3889,34 @@ exports.autoEndStartedEvents = onSchedule(
 exports.watchUsersChanges = onDocumentWrittenWithAuthContext(
   {
     ...CHANGE_WATCH_FUNCTION_OPTIONS,
+    timeoutSeconds: 60,
+    memory: "256MiB",
     document: "users/{userId}",
   },
-  async (event) => processChangeWatchEvent(event, "users", classifyUsersChange),
+  async (event) => {
+    const watchResult = await processChangeWatchEvent(event, "users", classifyUsersChange);
+    const beforeData = event?.data?.before?.exists ? (event.data.before.data() || {}) : null;
+    const afterData = event?.data?.after?.exists ? (event.data.after.data() || {}) : null;
+    try {
+      const syncResult = await syncTeamReservationSeatsForUserChange({
+        userId: event?.params?.userId || "",
+        beforeData,
+        afterData,
+      });
+      if (syncResult?.updatedRegistrations || syncResult?.promoted) {
+        console.log("[teamReservationMembershipSync]", {
+          userId: event?.params?.userId || "",
+          ...syncResult,
+        });
+      }
+    } catch (err) {
+      console.error("[teamReservationMembershipSync] failed", {
+        userId: event?.params?.userId || "",
+        error: err?.message || String(err),
+      });
+    }
+    return watchResult;
+  },
 );
 
 exports.watchEventsChanges = onDocumentWrittenWithAuthContext(
@@ -5838,6 +5863,265 @@ function promoteWaitlistForAvailableSeats(eventData, simRegs = []) {
   }
 
   return promoted;
+}
+
+// ── 團隊席位會員身份同步 helpers ──
+function getUserReservationMembershipTeamIds(userData = {}) {
+  return getUserTeamIdSetFromData(userData || {});
+}
+
+function areStringSetsEqual(a, b) {
+  if (!(a instanceof Set) || !(b instanceof Set)) return false;
+  if (a.size !== b.size) return false;
+  for (const value of a) {
+    if (!b.has(value)) return false;
+  }
+  return true;
+}
+
+function unionStringSets(...sets) {
+  const result = new Set();
+  sets.forEach((set) => {
+    if (!(set instanceof Set)) return;
+    set.forEach((value) => {
+      const safeValue = String(value || "").trim();
+      if (safeValue) result.add(safeValue);
+    });
+  });
+  return result;
+}
+
+function buildUserReservationUidCandidates(userId, beforeData = {}, afterData = {}) {
+  const candidates = new Set();
+  const add = (value) => {
+    const safeValue = String(value || "").trim();
+    if (safeValue) candidates.add(safeValue);
+  };
+  add(userId);
+  add(beforeData?.uid);
+  add(beforeData?.lineUserId);
+  add(beforeData?._docId);
+  add(beforeData?.docId);
+  add(afterData?.uid);
+  add(afterData?.lineUserId);
+  add(afterData?._docId);
+  add(afterData?.docId);
+  return candidates;
+}
+
+function hasAffectedTeamReservation(eventData = {}, affectedTeamIds = new Set()) {
+  if (!affectedTeamIds?.size) return false;
+  return normalizeTeamReservationSummaries(eventData)
+    .some((summary) => affectedTeamIds.has(summary.teamId));
+}
+
+function shouldSyncTeamReservationEvent(eventData = {}, affectedTeamIds = new Set(), now = new Date()) {
+  const status = String(eventData?.status || "").trim().toLowerCase();
+  if (!["open", "full", "upcoming"].includes(status)) return false;
+  if (!hasAffectedTeamReservation(eventData, affectedTeamIds)) return false;
+
+  const startDate = parseEventStartDateInTaipei(eventData?.date);
+  if (startDate instanceof Date && !Number.isNaN(startDate.getTime()) && startDate.getTime() <= now.getTime()) {
+    return false;
+  }
+  return true;
+}
+
+function chooseReservationSummaryForUser(summaries = [], currentTeamId = "", afterTeamIds = new Set()) {
+  const safeCurrentTeamId = String(currentTeamId || "").trim();
+  if (safeCurrentTeamId && afterTeamIds.has(safeCurrentTeamId)) {
+    return summaries.find((summary) => summary.teamId === safeCurrentTeamId) || null;
+  }
+  return summaries.find((summary) => afterTeamIds.has(summary.teamId)) || null;
+}
+
+async function syncTeamReservationSeatsForUserEvent(eventRef, uidCandidates, afterTeamIds, affectedTeamIds) {
+  if (!eventRef || !uidCandidates?.size || !affectedTeamIds?.size) {
+    return { updatedRegistrations: 0, promoted: 0, updatedEvent: false };
+  }
+
+  return db.runTransaction(async (transaction) => {
+    const eventSnap = await transaction.get(eventRef);
+    if (!eventSnap.exists) return { updatedRegistrations: 0, promoted: 0, updatedEvent: false };
+
+    const eventData = eventSnap.data() || {};
+    if (!shouldSyncTeamReservationEvent(eventData, affectedTeamIds)) {
+      return { updatedRegistrations: 0, promoted: 0, updatedEvent: false };
+    }
+
+    const summaries = normalizeTeamReservationSummaries(eventData)
+      .filter((summary) => summary.reservedSlots > 0 || summary.usedSlots > 0);
+    if (!summaries.length) return { updatedRegistrations: 0, promoted: 0, updatedEvent: false };
+
+    const regsSnap = await transaction.get(eventRef.collection("registrations"));
+    const allRegs = regsSnap.docs.map((doc) => ({ ...doc.data(), _docId: doc.id }));
+    const activeRegs = allRegs
+      .filter((reg) => reg.status === "confirmed" || reg.status === "waitlisted")
+      .map((reg) => ({ ...reg }));
+
+    const regUpdates = [];
+    for (const reg of activeRegs) {
+      if (reg.participantType === "companion") continue;
+      const regUserId = String(reg.userId || "").trim();
+      if (!uidCandidates.has(regUserId)) continue;
+
+      const currentTeamId = registrationTeamReservationTeamId(reg);
+      const currentIsAffected = !!currentTeamId && affectedTeamIds.has(currentTeamId);
+      const nextReservation = chooseReservationSummaryForUser(summaries, currentTeamId, afterTeamIds);
+      if (nextReservation) {
+        if (currentTeamId && currentTeamId !== nextReservation.teamId && !currentIsAffected) continue;
+        const source = reg.status === "waitlisted" ? "waitlist" : (reg.teamSeatSource || "reserved");
+        if (
+          reg.teamReservationTeamId === nextReservation.teamId
+          && reg.teamReservationTeamName === nextReservation.teamName
+          && reg.teamSeatSource === source
+        ) {
+          continue;
+        }
+        reg.teamReservationTeamId = nextReservation.teamId;
+        reg.teamReservationTeamName = nextReservation.teamName || nextReservation.teamId;
+        reg.teamSeatSource = source;
+        regUpdates.push({
+          docId: reg._docId,
+          update: {
+            teamReservationTeamId: reg.teamReservationTeamId,
+            teamReservationTeamName: reg.teamReservationTeamName,
+            teamSeatSource: reg.teamSeatSource,
+          },
+        });
+        continue;
+      }
+
+      if (currentIsAffected && !afterTeamIds.has(currentTeamId)) {
+        delete reg.teamReservationTeamId;
+        delete reg.teamReservationTeamName;
+        delete reg.teamSeatSource;
+        regUpdates.push({
+          docId: reg._docId,
+          update: {
+            teamReservationTeamId: FieldValue.delete(),
+            teamReservationTeamName: FieldValue.delete(),
+            teamSeatSource: FieldValue.delete(),
+          },
+        });
+      }
+    }
+
+    const promotedCandidates = regUpdates.length
+      ? promoteWaitlistForAvailableSeats(eventData, activeRegs)
+      : [];
+    const arSnap = promotedCandidates.length
+      ? await transaction.get(eventRef.collection("activityRecords"))
+      : null;
+    const allArs = arSnap
+      ? arSnap.docs.map((doc) => ({ ...doc.data(), _docId: doc.id }))
+      : [];
+
+    if (!regUpdates.length && !promotedCandidates.length) {
+      return { updatedRegistrations: 0, promoted: 0, updatedEvent: false };
+    }
+
+    const occupancy = rebuildOccupancy(
+      { ...eventData, max: eventData.max || 0, status: eventData.status },
+      activeRegs,
+    );
+
+    for (const item of regUpdates) {
+      transaction.update(eventRef.collection("registrations").doc(item.docId), item.update);
+    }
+
+    for (const candidate of promotedCandidates) {
+      const update = {
+        status: "confirmed",
+        promotedAt: FieldValue.serverTimestamp(),
+      };
+      if (candidate.teamSeatSource) update.teamSeatSource = candidate.teamSeatSource;
+      transaction.update(eventRef.collection("registrations").doc(candidate._docId), update);
+      if (candidate.participantType !== "companion") {
+        const ar = allArs.find((item) => item.uid === candidate.userId && item.status === "waitlisted");
+        if (ar) transaction.update(eventRef.collection("activityRecords").doc(ar._docId), { status: "registered" });
+      }
+    }
+
+    transaction.update(eventRef, {
+      current: occupancy.current,
+      realCurrent: occupancy.realCurrent,
+      waitlist: occupancy.waitlist,
+      participants: occupancy.participants,
+      waitlistNames: occupancy.waitlistNames,
+      participantsWithUid: occupancy.participantsWithUid,
+      waitlistWithUid: occupancy.waitlistWithUid,
+      teamReservationSummaries: occupancy.teamReservationSummaries,
+      schemaVersion: 2,
+      status: occupancy.status,
+    });
+
+    occupancy.teamReservationSummaries
+      .filter((summary) => affectedTeamIds.has(summary.teamId))
+      .forEach((summary) => {
+        transaction.set(eventRef.collection("teamReservations").doc(summary.teamId), {
+          id: summary.teamId,
+          teamId: summary.teamId,
+          teamName: summary.teamName || summary.teamId,
+          reservedSlots: summary.reservedSlots || 0,
+          usedSlots: summary.usedSlots || 0,
+          remainingSlots: summary.remainingSlots || 0,
+          occupiedSlots: summary.occupiedSlots || 0,
+          syncedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      });
+
+    return {
+      updatedRegistrations: regUpdates.length,
+      promoted: promotedCandidates.length,
+      updatedEvent: true,
+      occupancy,
+    };
+  });
+}
+
+async function syncTeamReservationSeatsForUserChange({ userId, beforeData = null, afterData = null } = {}) {
+  const beforeTeamIds = getUserReservationMembershipTeamIds(beforeData || {});
+  const afterTeamIds = getUserReservationMembershipTeamIds(afterData || {});
+  if (areStringSetsEqual(beforeTeamIds, afterTeamIds)) {
+    return { scannedEvents: 0, updatedEvents: 0, updatedRegistrations: 0, promoted: 0 };
+  }
+
+  const affectedTeamIds = unionStringSets(beforeTeamIds, afterTeamIds);
+  const uidCandidates = buildUserReservationUidCandidates(userId, beforeData || {}, afterData || {});
+  if (!affectedTeamIds.size || !uidCandidates.size) {
+    return { scannedEvents: 0, updatedEvents: 0, updatedRegistrations: 0, promoted: 0 };
+  }
+
+  const eventSnap = await db.collection("events")
+    .where("status", "in", ["open", "full", "upcoming"])
+    .get();
+  let scannedEvents = 0;
+  let updatedEvents = 0;
+  let updatedRegistrations = 0;
+  let promoted = 0;
+  const now = new Date();
+
+  for (const doc of eventSnap.docs) {
+    const eventData = doc.data() || {};
+    if (!shouldSyncTeamReservationEvent(eventData, affectedTeamIds, now)) continue;
+    scannedEvents += 1;
+    try {
+      const result = await syncTeamReservationSeatsForUserEvent(doc.ref, uidCandidates, afterTeamIds, affectedTeamIds);
+      if (result?.updatedEvent) updatedEvents += 1;
+      updatedRegistrations += Number(result?.updatedRegistrations || 0) || 0;
+      promoted += Number(result?.promoted || 0) || 0;
+    } catch (err) {
+      console.error("[teamReservationMembershipSync] event sync failed", {
+        eventDocId: doc.id,
+        eventId: eventData.id || doc.id,
+        userId,
+        error: err?.message || String(err),
+      });
+    }
+  }
+
+  return { scannedEvents, updatedEvents, updatedRegistrations, promoted };
 }
 
 // ── 純函式：重建活動佔位投影（與前端 firebase-crud.js _rebuildOccupancy 邏輯一致）──

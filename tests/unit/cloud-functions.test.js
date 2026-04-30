@@ -369,6 +369,17 @@ function readCloudFunctionSource(functionName) {
   return source.slice(start, nextExport === -1 ? source.length : nextExport);
 }
 
+function readSourceBetween(startNeedle, endNeedle) {
+  const source = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'functions', 'index.js'),
+    'utf8'
+  );
+  const start = source.indexOf(startNeedle);
+  expect(start).toBeGreaterThanOrEqual(0);
+  const end = endNeedle ? source.indexOf(endNeedle, start + startNeedle.length) : -1;
+  return source.slice(start, end === -1 ? source.length : end);
+}
+
 function readCancelRegistrationTransactionSource() {
   const fnSource = readCloudFunctionSource('cancelRegistration');
   const txStart = fnSource.indexOf('const result = await db.runTransaction');
@@ -412,6 +423,35 @@ describe('cancelRegistration CF transaction ordering', () => {
     expect(activityRecordsReadIndex).toBeGreaterThanOrEqual(0);
     expect(activityRecordsReadIndex).toBeLessThan(firstWriteIndex);
     expect(lateReadIndexes).toEqual([]);
+  });
+});
+
+describe('team reservation membership sync CF source', () => {
+  test('user membership watcher invokes reservation seat sync', () => {
+    const source = readCloudFunctionSource('watchUsersChanges');
+    expect(source).toContain('timeoutSeconds: 60');
+    expect(source).toContain('memory: "256MiB"');
+    expect(source).toContain('syncTeamReservationSeatsForUserChange');
+    expect(source).toContain('beforeData');
+    expect(source).toContain('afterData');
+  });
+
+  test('sync transaction reads before writes', () => {
+    const source = readSourceBetween(
+      'async function syncTeamReservationSeatsForUserEvent',
+      'async function syncTeamReservationSeatsForUserChange'
+    );
+    const writeIndexes = [
+      ...findAllIndexes(source, 'transaction.update('),
+      ...findAllIndexes(source, 'transaction.delete('),
+      ...findAllIndexes(source, 'transaction.set('),
+      ...findAllIndexes(source, 'transaction.create('),
+    ];
+    const readIndexes = findAllIndexes(source, 'transaction.get(');
+    expect(writeIndexes.length).toBeGreaterThan(0);
+    expect(readIndexes.length).toBeGreaterThan(0);
+    const firstWriteIndex = Math.min(...writeIndexes);
+    expect(readIndexes.filter((index) => index > firstWriteIndex)).toEqual([]);
   });
 });
 

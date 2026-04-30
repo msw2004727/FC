@@ -1,5 +1,12 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-01 — 團隊席位會員身份晚同步修復 [修復]
+- **問題**: 2026/05/03 20:00「週日晚8-10西屯踢球團（強度）」中，部分用戶先完成個人報名，之後才同步為「台中星期二足球俱樂部」成員，因此沒有被歸入既有團隊保留席位。
+- **原因**: 團隊席位判定只在個人報名與職員調整席位當下執行；若 `users.teamId/teamIds` 晚於報名或晚於團隊席位建立才更新，既有 registration 不會被自動回頭標記 `teamReservationTeamId`。
+- **修復**: `watchUsersChanges` 監聽會員 `teamId/teamIds` 變化後，會掃描未開始且仍可報名的團隊席位活動，將該用戶既有報名重新歸位、重算 `current/realCurrent/waitlist/teamReservationSummaries`，並依現有候補規則遞補。
+- **資料修復**: 該活動已把 Jilson、William Lorenz、Jie Khor 許士杰 歸入俱樂部席位；團隊席位由已用 5 改為 8、剩餘 3，原 2 位候補已依排序遞補，活動狀態為 `21/22`、候補 `0`。
+- **驗證**: `node --check functions/index.js` 通過；Firestore dry-run 修復後 `stampUpdates=[]`、`promoted=[]`；補 `cloud-functions` source test 與 migration coverage allowlist。
+
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
 ### 2026-04-30 — 團隊席位標記改用俱樂部縮圖 [微調]
