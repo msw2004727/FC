@@ -102,6 +102,26 @@ Object.assign(App, {
   async _confirmCompanionRegister(opts = {}) {
     const eventId = this._companionSelectEventId;
     if (!eventId) return;
+    const busyKey = 'companion-register:' + String(eventId || '');
+    if (this._beginEventActionBusy && !this._beginEventActionBusy(busyKey)) return;
+    const confirmBtn = document.getElementById('companion-select-confirm-btn');
+    const originalText = confirmBtn?.textContent || '';
+    if (confirmBtn) {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = '處理中...';
+    }
+    try {
+      return await this._confirmCompanionRegisterUnlocked(opts, eventId);
+    } finally {
+      this._endEventActionBusy?.(busyKey);
+      if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = originalText || '確認';
+      }
+    }
+  },
+
+  async _confirmCompanionRegisterUnlocked(opts = {}, eventId) {
     // 2026-04-19 UX：寫入類動作必須先補齊個人資料
     if (this._requireProfileComplete()) { this._closeCompanionSelectModal?.(); return; }
     if (!this._cloudReady) {
@@ -358,6 +378,17 @@ Object.assign(App, {
 
   async _confirmCompanionCancel() {
     const eventId = this._companionCancelEventId;
+    if (!eventId) return;
+    const busyKey = 'companion-cancel:' + String(eventId || '');
+    if (this._beginEventActionBusy && !this._beginEventActionBusy(busyKey)) return;
+    try {
+      return await this._confirmCompanionCancelUnlocked(eventId);
+    } finally {
+      this._endEventActionBusy?.(busyKey);
+    }
+  },
+
+  async _confirmCompanionCancelUnlocked(eventId) {
     const checked = [...document.querySelectorAll('#companion-cancel-list input[name="cc-reg"]:checked')].map(cb => cb.value);
     if (checked.length === 0) { this.showToast('請選擇要取消的報名'); return; }
 

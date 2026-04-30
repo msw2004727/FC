@@ -6,6 +6,28 @@
 
 Object.assign(App, {
 
+  _beginEventActionBusy(key, message = '系統已在處理中') {
+    const busyKey = String(key || '').trim();
+    if (!busyKey) return false;
+    this._eventActionBusyMap = this._eventActionBusyMap || Object.create(null);
+    if (this._eventActionBusyMap[busyKey]) {
+      this.showToast(message);
+      return false;
+    }
+    const timeoutId = setTimeout(() => {
+      delete this._eventActionBusyMap[busyKey];
+    }, 20000);
+    this._eventActionBusyMap[busyKey] = { timeoutId };
+    return true;
+  },
+
+  _endEventActionBusy(key) {
+    const busyKey = String(key || '').trim();
+    const item = this._eventActionBusyMap?.[busyKey];
+    if (item?.timeoutId) clearTimeout(item.timeoutId);
+    if (this._eventActionBusyMap) delete this._eventActionBusyMap[busyKey];
+  },
+
   // ══════════════════════════════════
   //  Signup & Cancel
   // ══════════════════════════════════
@@ -273,7 +295,7 @@ Object.assign(App, {
         </div>
         <div class="team-reservation-dialog-actions">
           <button type="button" class="outline-btn" onclick="App.closeTeamReservationSignupChoiceModal()">取消</button>
-          <button type="button" class="primary-btn" onclick="App.confirmTeamReservationSignupChoice('${escapeHTML(eventId)}','${safeMode}')">確認報名</button>
+          <button type="button" class="primary-btn" id="team-reservation-signup-choice-confirm-btn" onclick="App.confirmTeamReservationSignupChoice('${escapeHTML(eventId)}','${safeMode}')">確認報名</button>
         </div>
       </div>`;
     modal.classList.add('open');
@@ -302,19 +324,33 @@ Object.assign(App, {
   },
 
   confirmTeamReservationSignupChoice(eventId, mode = 'signup') {
+    const busyKey = 'team-reservation-choice:' + String(mode || 'signup') + ':' + String(eventId || '');
+    if (!this._beginEventActionBusy(busyKey)) return;
+    const confirmBtn = document.getElementById('team-reservation-signup-choice-confirm-btn');
+    const originalText = confirmBtn?.textContent || '';
     const selected = document.querySelector('#team-reservation-signup-choice-modal .team-reservation-choice-card.is-selected');
     const teamId = String(selected?.dataset?.teamId || '').trim();
     if (!teamId) {
+      this._endEventActionBusy(busyKey);
       this.showToast('請先選擇報名俱樂部');
       return;
     }
+    if (confirmBtn) {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = '處理中...';
+    }
     this.closeTeamReservationSignupChoiceModal();
     const opts = { preferredTeamReservationTeamId: teamId };
-    if (mode === 'companion') {
-      void this._confirmCompanionRegister?.(opts);
-      return;
-    }
-    void this.handleSignup(eventId, opts);
+    const action = mode === 'companion'
+      ? this._confirmCompanionRegister?.(opts)
+      : this.handleSignup(eventId, opts);
+    void Promise.resolve(action).finally(() => {
+      this._endEventActionBusy(busyKey);
+      if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = originalText || '確認報名';
+      }
+    });
   },
 
   _renderTeamReservationActionButton(e, opts = {}) {
@@ -429,14 +465,21 @@ Object.assign(App, {
   async confirmTeamReservation(eventId, teamId) {
     const input = document.getElementById('team-reservation-slots-input');
     const btn = document.getElementById('team-reservation-confirm-btn');
+    const busyKey = 'team-reservation:' + String(eventId || '') + ':' + String(teamId || '');
+    if (!this._beginEventActionBusy(busyKey)) return;
     const slots = Math.max(0, Math.trunc(Number(input?.value || 0) || 0));
     const state = this._getTeamReservationModalState(eventId, teamId);
-    if (!state) return;
+    if (!state) {
+      this._endEventActionBusy(busyKey);
+      return;
+    }
     if (slots < state.used) {
+      this._endEventActionBusy(busyKey);
       this.showToast('團隊名額不能低於已使用人數');
       return;
     }
     if (slots > state.maxReserved) {
+      this._endEventActionBusy(busyKey);
       this.showToast('團隊名額超過目前活動可用名額');
       return;
     }
@@ -464,6 +507,7 @@ Object.assign(App, {
       this.showToast(msgMap[code] || err.message || '團隊名額調整失敗');
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = '確認'; }
+      this._endEventActionBusy(busyKey);
     }
   },
 
@@ -551,8 +595,19 @@ Object.assign(App, {
     }
 
     // 防幽靈 UI 層：報名期間禁用按鈕，啟動光跡載入特效
-    const reservationChoice = await this._resolveTeamReservationSignupChoice(e, opts);
+    const signupBusyKey = 'signup:' + String(id || '') + ':' + String(userId || '');
+    if (!this._beginEventActionBusy(signupBusyKey)) return;
+    let reservationChoice;
+    try {
+      reservationChoice = await this._resolveTeamReservationSignupChoice(e, opts);
+    } catch (err) {
+      this._endEventActionBusy(signupBusyKey);
+      console.error('[handleSignup reservationChoice]', err);
+      this.showToast(err?.message || '報名處理失敗，請稍後再試');
+      return;
+    }
     if (reservationChoice?.requiresSelection) {
+      this._endEventActionBusy(signupBusyKey);
       this.openTeamReservationSignupChoiceModal(id, reservationChoice.choices, 'signup');
       return;
     }
@@ -743,6 +798,7 @@ Object.assign(App, {
     } finally {
       this._flipAnimating = false;
       this._flipAnimatingAt = 0;
+      this._endEventActionBusy(signupBusyKey);
     }
   },
 
@@ -757,7 +813,7 @@ Object.assign(App, {
     }
     this._cancelSignupBusyMap = this._cancelSignupBusyMap || {};
     if (this._cancelSignupBusyMap[id]) {
-      this.showToast('取消處理中，請稍後');
+      this.showToast('系統已在處理中');
       return;
     }
 
