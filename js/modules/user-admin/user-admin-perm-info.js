@@ -182,8 +182,8 @@ Object.assign(App, {
       body: '允許修改用戶的放鴿子（未出席）紀錄，適用於誤判或特殊情況需要調整時。',
     },
     'admin.repair.data_sync': {
-      title: '系統資料同步',
-      body: '允許執行系統資料同步操作，修正快取與資料庫之間的不一致問題。',
+      title: '系統資料同步 / UID檢查',
+      body: '允許執行系統資料同步操作，也能使用「UID檢查」只讀報表。資料同步用於修正快取與資料庫之間的不一致；UID檢查只產生報表與 Log，不會直接修資料。',
     },
     'admin.repair.event_blocklist': {
       title: '活動黑名單',

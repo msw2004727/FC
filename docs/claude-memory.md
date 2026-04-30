@@ -2,6 +2,12 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-30 — UID 健康檢查移入用戶補正管理 [小型]
+- **需求**: UID 健康檢查不再放在數據儀表板的「資料同步與監聽設定」內，改放到「用戶補正管理」的新分頁。
+- **修正**: 新增「UID檢查」分頁，沿用 `admin.repair.data_sync` 權限與後端密碼驗證；移除儀表板設定卡片內的 UID 檢查面板，保留資料同步 Log 合併顯示 UID 檢查紀錄。
+- **驗證**: `node --check` 通過 `dashboard-usage.js`、`user-admin-corrections.js`、`user-admin-uid-health.js`、`script-loader.js`、`config.js`、`user-admin-perm-info.js`；`git diff --check` 通過；完整 `npm test -- --runInBand` 通過（81 suites / 2631 tests）；前端版本 bump 至 `0.20260430y`。
+- **提醒**: 同一個權限現在同時控制「系統資料同步」與「UID檢查」分頁，避免新增權限碼後舊角色看不到工具。
+
 ### 2026-04-30 — UID 健康檢查報表 [審計]
 - **問題**: 既有 UID migration / repair 工具偏向 root collection，容易漏掉正式使用中的 subcollection 與 companion pseudo uid 風險。
 - **修正**: 新增後端 `runUidHealthCheck` callable，接在「資料同步與監聽設定」下方，需 `admin.repair.data_sync` 權限與後端密碼驗證；掃描 users、registrations、activityRecords、attendanceRecords、eventProjections、events、teams、tournaments，產生只讀報表、最後報告與 UID 檢查 Log。

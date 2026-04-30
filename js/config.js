@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260430x';
+const CACHE_VERSION = '0.20260430y';
 
 // ─── 即時監聽 limit 預設值（可在儀表板動態調整，存於 siteConfig/realtimeConfig）───
 const REALTIME_LIMIT_DEFAULTS = {
@@ -714,7 +714,7 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
   'page-admin-repair': [
     { code: 'admin.repair.team_join_repair', name: '歷史入隊補正' },
     { code: 'admin.repair.no_show_adjust', name: '放鴿子修改' },
-    { code: 'admin.repair.data_sync', name: '系統資料同步' },
+    { code: 'admin.repair.data_sync', name: '系統資料同步 / UID檢查' },
     { code: 'admin.repair.event_blocklist', name: '活動黑名單' },
     { code: 'activity.view_noshow', name: '查看放鴿子次數' },
   ],

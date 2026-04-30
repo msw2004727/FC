@@ -743,8 +743,6 @@ Object.assign(App, {
       activityRepairBatchSize: 300,
       activityRepairManualCooldownSeconds: 300,
       activityRepairLogs: [],
-      uidHealthCheckLogs: [],
-      uidHealthLastReport: null,
     }, defaults);
 
     try {
@@ -760,15 +758,10 @@ Object.assign(App, {
         });
         current.activityRepairEnabled = d.activityRepairEnabled === true;
         current.activityRepairLogs = Array.isArray(d.activityRepairLogs) ? d.activityRepairLogs : [];
-        current.uidHealthCheckLogs = Array.isArray(d.uidHealthCheckLogs) ? d.uidHealthCheckLogs : [];
-        current.uidHealthLastReport = d.uidHealthLastReport && typeof d.uidHealthLastReport === 'object'
-          ? d.uidHealthLastReport
-          : null;
       }
     } catch (e) {
       console.warn('[dashboard] realtimeConfig read failed:', e);
     }
-    this._uidHealthLastReport = current.uidHealthLastReport || null;
 
     var inputStyle = 'width:86px;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;'
       + 'font-size:14px;font-weight:600;text-align:center;background:var(--bg-card);'
@@ -783,10 +776,6 @@ Object.assign(App, {
       var label = n === 24 ? '24次/天' : (n === 1 ? '1次/天' : n + '次/天');
       return '<option value="' + n + '"' + (n === Number(current.activityRepairFrequency) ? ' selected' : '') + '>' + label + '</option>';
     }).join('');
-    var uidHealthSummaryHtml = this._buildUidHealthSummaryHtml(current.uidHealthLastReport);
-    var uidHealthStatusClass = this._getUidHealthStatusClass(current.uidHealthLastReport && current.uidHealthLastReport.status);
-    var uidHealthStatusLabel = this._getUidHealthStatusLabel(current.uidHealthLastReport && current.uidHealthLastReport.status);
-
     var html = '<div class="info-card" id="realtime-limit-card">'
       + '<div class="info-title sync-config-title">'
       + '  <span>資料同步與監聽設定</span>'
@@ -811,27 +800,6 @@ Object.assign(App, {
       + '  <div style="' + rowStyle + '"><div><div style="font-size:.82rem;font-weight:600">單次活動上限</div><div style="font-size:.7rem;color:var(--text-secondary)">每次排程最多掃描幾場</div></div><input id="ar-repair-max-events" type="number" inputmode="numeric" min="50" max="1000" value="' + Number(current.activityRepairMaxEventsPerRun || 500) + '" style="' + inputStyle + '" /></div>'
       + '  <div style="' + rowStyle + '"><div><div style="font-size:.82rem;font-weight:600">批次大小</div><div style="font-size:.7rem;color:var(--text-secondary)">每批 Firestore 寫入上限</div></div><input id="ar-repair-batch" type="number" inputmode="numeric" min="50" max="450" value="' + Number(current.activityRepairBatchSize || 300) + '" style="' + inputStyle + '" /></div>'
       + '  <div style="' + rowStyle + '"><div><div style="font-size:.82rem;font-weight:600">用戶刷新冷卻</div><div style="font-size:.7rem;color:var(--text-secondary)">個人頁手動刷新間隔秒數</div></div><input id="ar-repair-cooldown" type="number" inputmode="numeric" min="60" max="3600" value="' + Number(current.activityRepairManualCooldownSeconds || 300) + '" style="' + inputStyle + '" /></div>'
-      + '  <div style="' + sectionTitle + ';border-top:1px solid var(--border);padding-top:10px;margin-top:2px">UID 健康檢查</div>'
-      + '  <div class="uid-health-panel">'
-      + '    <div class="uid-health-head">'
-      + '      <span><strong>只讀稽核報表</strong><small>檢查 UID 欄位一致性，不修復、不刪除正式資料</small></span>'
-      + '      <b id="uid-health-status" class="uid-health-status ' + uidHealthStatusClass + '">' + uidHealthStatusLabel + '</b>'
-      + '    </div>'
-      + '    <div id="uid-health-summary">' + uidHealthSummaryHtml + '</div>'
-      + '    <div class="uid-health-actions">'
-      + '      <button id="uid-health-run-btn" class="outline-btn" type="button">立即檢查</button>'
-      + '      <button id="uid-health-report-btn" class="btn-sm" type="button">查看報表</button>'
-      + '    </div>'
-      + '    <div class="sync-config-progress uid-health-progress" id="uid-health-progress" hidden aria-hidden="true">'
-      + '      <div class="sync-config-progress-head">'
-      + '        <span id="uid-health-progress-text">準備中...</span>'
-      + '        <strong id="uid-health-progress-percent">0%</strong>'
-      + '      </div>'
-      + '      <div class="sync-config-progress-track" id="uid-health-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">'
-      + '        <div class="sync-config-progress-fill" id="uid-health-progress-fill" style="width:0%"></div>'
-      + '      </div>'
-      + '    </div>'
-      + '  </div>'
       + '</div>'
       + '<div class="sync-config-actions">'
       + '  <button id="rl-save-btn" class="btn-sm">儲存設定</button>'
@@ -855,8 +823,6 @@ Object.assign(App, {
 
     var saveBtn = document.getElementById('rl-save-btn');
     var runBtn = document.getElementById('ar-run-btn');
-    var uidHealthRunBtn = document.getElementById('uid-health-run-btn');
-    var uidHealthReportBtn = document.getElementById('uid-health-report-btn');
     var statusEl = document.getElementById('rl-status');
     var setStatus = function(message, color) {
       if (!statusEl) return;
@@ -967,218 +933,6 @@ Object.assign(App, {
         App.runActivityRecordRepairNow();
       });
     }
-    if (uidHealthRunBtn) {
-      uidHealthRunBtn.addEventListener('click', function() {
-        App.runUidHealthCheckNow();
-      });
-    }
-    if (uidHealthReportBtn) {
-      uidHealthReportBtn.addEventListener('click', function() {
-        App.openUidHealthReportModal();
-      });
-    }
-  },
-
-  _getUidHealthStatusLabel(status) {
-    var safeStatus = String(status || '').toLowerCase();
-    if (safeStatus === 'ok') return '正常';
-    if (safeStatus === 'warning') return '警告';
-    if (safeStatus === 'error') return '異常';
-    return '未檢查';
-  },
-
-  _getUidHealthStatusClass(status) {
-    var safeStatus = String(status || '').toLowerCase();
-    if (safeStatus === 'ok') return 'is-ok';
-    if (safeStatus === 'warning') return 'is-warning';
-    if (safeStatus === 'error') return 'is-error';
-    return 'is-idle';
-  },
-
-  _buildUidHealthSummaryHtml(report) {
-    if (!report || typeof report !== 'object') {
-      return '<div class="uid-health-empty">尚未執行 UID 健康檢查。</div>';
-    }
-    var checkedAt = this._formatSyncConfigLogTime(report.checkedAtMs || report.checkedAt || report.uidHealthLastCheckedAt);
-    var scanned = Number(report.scannedDocs || 0) || 0;
-    var reads = Number(report.estimatedReads || 0) || 0;
-    var errors = Number(report.errors || 0) || 0;
-    var warnings = Number(report.warnings || 0) || 0;
-    var changes = Number(report.dataChanges || 0) || 0;
-    return '<div class="uid-health-summary-grid">'
-      + '<div><b>' + scanned.toLocaleString() + '</b><span>掃描文件</span></div>'
-      + '<div><b>' + warnings.toLocaleString() + '</b><span>警告</span></div>'
-      + '<div><b>' + errors.toLocaleString() + '</b><span>嚴重</span></div>'
-      + '<div><b>' + changes.toLocaleString() + '</b><span>資料修改</span></div>'
-      + '</div>'
-      + '<div class="uid-health-summary-text">最近檢查：' + escapeHTML(checkedAt || '--')
-      + '｜估計讀取：' + reads.toLocaleString() + ' 筆</div>';
-  },
-
-  _updateUidHealthSummary(report) {
-    this._uidHealthLastReport = report || null;
-    var summaryEl = document.getElementById('uid-health-summary');
-    var statusEl = document.getElementById('uid-health-status');
-    if (summaryEl) summaryEl.innerHTML = this._buildUidHealthSummaryHtml(report);
-    if (statusEl) {
-      statusEl.className = 'uid-health-status ' + this._getUidHealthStatusClass(report && report.status);
-      statusEl.textContent = this._getUidHealthStatusLabel(report && report.status);
-    }
-  },
-
-  _setUidHealthProgress(done, total, label, state) {
-    var progressEl = document.getElementById('uid-health-progress');
-    var fill = document.getElementById('uid-health-progress-fill');
-    var track = document.getElementById('uid-health-progress-track');
-    var percent = document.getElementById('uid-health-progress-percent');
-    var text = document.getElementById('uid-health-progress-text');
-    var safeTotal = Math.max(0, Number(total || 0));
-    var safeDone = Math.max(0, Number(done || 0));
-    var pct = safeTotal > 0 ? Math.round(Math.min(100, safeDone / safeTotal * 100)) : (state === 'done' ? 100 : 0);
-    if (state === 'running' && pct >= 100) pct = 96;
-    if (progressEl) {
-      progressEl.hidden = false;
-      progressEl.setAttribute('aria-hidden', 'false');
-      progressEl.classList.toggle('is-running', state === 'running');
-      progressEl.classList.toggle('is-done', state === 'done');
-      progressEl.classList.toggle('is-error', state === 'error');
-    }
-    if (fill) fill.style.width = pct + '%';
-    if (track) track.setAttribute('aria-valuenow', String(pct));
-    if (percent) percent.textContent = pct + '%';
-    if (text) text.textContent = label || '檢查中...';
-  },
-
-  async runUidHealthCheckNow() {
-    var btn = document.getElementById('uid-health-run-btn');
-    var reportBtn = document.getElementById('uid-health-report-btn');
-    var statusEl = document.getElementById('rl-status');
-    var ok = typeof this.appConfirm === 'function'
-      ? await this.appConfirm('確定要執行 UID 健康檢查嗎？\n\n這會讀取使用者、報名、簽到、活動投影等資料，只產生報表與 Log，不會修復或刪除正式資料。')
-      : window.confirm('確定要執行 UID 健康檢查嗎？');
-    if (!ok) return;
-
-    var password = await this._promptDataSyncPassword('UID 健康檢查');
-    if (!password) {
-      if (statusEl) statusEl.textContent = '已取消，沒有執行 UID 健康檢查。';
-      return;
-    }
-
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = '檢查中...';
-    }
-    if (reportBtn) reportBtn.disabled = true;
-    if (statusEl) {
-      statusEl.style.color = 'var(--text-secondary)';
-      statusEl.textContent = '正在執行 UID 健康檢查...';
-    }
-    this._setUidHealthProgress(1, 5, '送出後端驗證...', 'running');
-    try {
-      var fn = firebase.app().functions('asia-east1');
-      var callable = fn.httpsCallable('runUidHealthCheck', { timeout: 300000 });
-      this._setUidHealthProgress(2, 5, '掃描 UID 關聯資料...', 'running');
-      var resp = await callable({ password: password });
-      password = '';
-      var report = (resp && resp.data && resp.data.report) ? resp.data.report : null;
-      this._setUidHealthProgress(5, 5, '檢查完成', 'done');
-      this._updateUidHealthSummary(report);
-      var msg = report && report.summary ? report.summary : 'UID 健康檢查完成';
-      if (statusEl) {
-        statusEl.style.color = report && report.status === 'error'
-          ? 'var(--danger,#dc2626)'
-          : (report && report.status === 'warning' ? 'var(--warning,#f59e0b)' : 'var(--success,#16a34a)');
-        statusEl.textContent = msg;
-      }
-      this.showToast?.(msg);
-    } catch (err) {
-      password = '';
-      console.error('[runUidHealthCheckNow]', err);
-      this._setUidHealthProgress(1, 1, '檢查失敗', 'error');
-      if (statusEl) {
-        statusEl.style.color = 'var(--danger,#dc2626)';
-        statusEl.textContent = this._getDataSyncGuardErrorMessage(err, 'UID 健康檢查失敗。');
-      }
-      this.showToast?.('UID 健康檢查失敗');
-    } finally {
-      if (btn) {
-        btn.disabled = false;
-        btn.textContent = '立即檢查';
-      }
-      if (reportBtn) reportBtn.disabled = false;
-    }
-  },
-
-  async openUidHealthReportModal() {
-    var report = this._uidHealthLastReport || null;
-    if (!report) {
-      try {
-        var snap = await db.collection('siteConfig').doc('realtimeConfig').get();
-        var data = snap.exists ? (snap.data() || {}) : {};
-        report = data.uidHealthLastReport || null;
-        this._uidHealthLastReport = report;
-      } catch (err) {
-        console.error('[openUidHealthReportModal]', err);
-      }
-    }
-    if (!report) {
-      this.showToast?.('尚無 UID 健康檢查報表');
-      return;
-    }
-
-    var overlay = document.getElementById('uid-health-report-modal');
-    if (!overlay) {
-      overlay = document.createElement('div');
-      overlay.id = 'uid-health-report-modal';
-      overlay.className = 'sync-config-log-overlay';
-      overlay.onclick = function(e) { if (e.target === overlay) App.closeUidHealthReportModal(); };
-      overlay.innerHTML = '<div class="sync-config-log-box uid-health-report-box">'
-        + '<div class="sync-config-log-header"><span>UID 健康檢查報表</span><button class="event-reg-log-close" onclick="App.closeUidHealthReportModal()">&times;</button></div>'
-        + '<div class="sync-config-log-body" id="uid-health-report-body"></div>'
-        + '</div>';
-      document.body.appendChild(overlay);
-    }
-    var body = document.getElementById('uid-health-report-body');
-    var statusLabel = this._getUidHealthStatusLabel(report.status);
-    var statusClass = this._getUidHealthStatusClass(report.status);
-    var sections = Array.isArray(report.sections) ? report.sections : [];
-    var sectionHtml = sections.map((section) => {
-      var issues = Array.isArray(section.issues) ? section.issues : [];
-      var issueHtml = issues.length ? issues.map((issue) => {
-        var samples = Array.isArray(issue.samples) ? issue.samples : [];
-        var sampleHtml = samples.length ? '<div class="uid-health-samples">' + samples.map((sample) => {
-          var line = [
-            sample.path,
-            sample.field ? ('欄位 ' + sample.field) : '',
-            sample.value ? ('值 ' + sample.value) : '',
-            sample.name ? ('名稱 ' + sample.name) : '',
-          ].filter(Boolean).join('｜');
-          return '<code>' + escapeHTML(line) + '</code>';
-        }).join('') + '</div>' : '';
-        return '<div class="uid-health-issue ' + (issue.severity === 'error' ? 'is-error' : 'is-warning') + '">'
-          + '<div><b>' + escapeHTML(issue.message || issue.type || '異常') + '</b><span>' + Number(issue.count || 0).toLocaleString() + ' 筆</span></div>'
-          + sampleHtml
-          + '</div>';
-      }).join('') : '<div class="uid-health-no-issue">未發現異常</div>';
-      return '<details class="uid-health-section" ' + (issues.length ? 'open' : '') + '>'
-        + '<summary><span>' + escapeHTML(section.title || section.key || '') + '</span><b class="' + this._getUidHealthStatusClass(section.status) + '">' + this._getUidHealthStatusLabel(section.status) + '</b></summary>'
-        + '<div class="uid-health-section-body">' + issueHtml + '</div>'
-        + '</details>';
-    }).join('');
-    if (body) {
-      body.innerHTML = '<div class="uid-health-report-head">'
-        + '<span class="uid-health-status ' + statusClass + '">' + statusLabel + '</span>'
-        + '<p>' + escapeHTML(report.summary || '') + '</p>'
-        + '<small>最近檢查：' + escapeHTML(this._formatSyncConfigLogTime(report.checkedAtMs || report.checkedAt)) + '｜資料修改：0</small>'
-        + '</div>'
-        + sectionHtml;
-    }
-    overlay.classList.add('open');
-  },
-
-  closeUidHealthReportModal() {
-    var modal = document.getElementById('uid-health-report-modal');
-    if (modal) modal.classList.remove('open');
   },
 
   _syncConfigLogMs(v) {
@@ -1488,7 +1242,7 @@ Object.assign(App, {
       + '<div><b>單次活動上限</b><span>自動排程一次最多檢查幾場活動。活動量很多時可以先調小，避免單次修復跑太久。</span></div>'
       + '<div><b>批次大小</b><span>每一批最多寫入幾筆修復資料。一般維持預設就好，調太高比較容易碰到寫入限制。</span></div>'
       + '<div><b>用戶刷新冷卻</b><span>個人資訊頁的刷新按鈕，按完後要等幾秒才能再按。這是用來避免一直重複刷新造成成本。</span></div>'
-      + '<div><b>UID 健康檢查</b><span>用來檢查使用者、報名、簽到、活動投影等資料裡的 UID 是否一致。它只產生報表與 Log，不會修正、刪除或改動正式資料。</span></div>'
+      + '<div><b>UID 檢查</b><span>已移到「用戶補正管理」的 UID檢查分頁。那裡是只讀體檢報表，不會修正或刪除正式資料。</span></div>'
       + '<div><b>Log</b><span>會保留最近 30 筆設定儲存、自動修復、手動修復與 UID 檢查結果，方便回頭查發生什麼事。</span></div>'
       + '<div><b>上鎖保護</b><span>儲存設定和立即修復都會要求輸入密碼，而且一定是後端驗證通過才會真的寫入或執行。</span></div>'
       + '</div>'

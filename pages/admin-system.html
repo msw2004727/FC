@@ -358,6 +358,7 @@
         <button class="tab active" data-repair-tab="team-joins" onclick="App.switchUserCorrectionTab('team-joins')">歷史入隊補正</button>
         <button class="tab" data-repair-tab="no-show" onclick="App.switchUserCorrectionTab('no-show')">放鴿子系統</button>
         <button class="tab" data-repair-tab="data-sync" onclick="App.switchUserCorrectionTab('data-sync')">系統資料同步</button>
+        <button class="tab" data-repair-tab="uid-health" onclick="App.switchUserCorrectionTab('uid-health')">UID檢查</button>
         <button class="tab" data-repair-tab="event-blocklist" onclick="App.switchUserCorrectionTab('event-blocklist')">活動黑名單</button>
       </div>
       <div class="form-card" id="admin-repair-empty" style="display:none"></div>
@@ -574,6 +575,21 @@
           </div>
           <div id="data-sync-log" style="display:none;margin-top:.6rem;font-size:.75rem;color:var(--text-secondary);line-height:1.7;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.5rem .6rem;max-height:400px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;font-family:monospace"></div>
         </div>
+      </div>
+      <div id="repair-pane-uid-health" style="display:none">
+        <div class="form-card" style="margin-bottom:.8rem">
+          <div class="sync-config-title">
+            <span>UID 檢查</span>
+            <button class="event-reg-log-btn sync-config-log-btn" onclick="App.openActivityRepairLogModal()">Log</button>
+            <span class="sync-config-lock-pill">唯讀上鎖</span>
+            <button class="edu-info-btn" onclick="App._showUidHealthInfo()" title="說明">?</button>
+          </div>
+          <div style="font-size:.78rem;color:var(--text-muted);line-height:1.7;margin-top:.45rem">
+            檢查使用者、報名、簽到、活動投影等資料裡的 UID 是否一致。<br>
+            此工具只產生報表與 Log，不會修復、刪除或改動正式資料。
+          </div>
+        </div>
+        <div id="uid-health-panel-host"></div>
       </div>
       <div id="repair-pane-event-blocklist" style="display:none">
         <div class="form-card" style="margin-bottom:.8rem">
