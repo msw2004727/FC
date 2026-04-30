@@ -54,7 +54,7 @@ flowchart TD
             CCAT["color-cat/ (45)\n養成角色系統"]
             UADM["user-admin/ (5)\n用戶管理後台"]
             AUTOEXP["auto-exp/ (2)\n自動 EXP 系統"]
-            STANDALONE["22 個獨立模組\nbanner / shop / role / leaderboard\nachievement facade / news / favorites\nannouncement / popup-ad\nsite-theme / game-manage / data-sync\nimage-cropper / image-upload / pwa-install\nattendance-notify / registration-audit\nadmin-log-tabs\naudit-log / error-log / game-log-viewer"]
+            STANDALONE["25 個獨立模組\nbanner / shop / role / leaderboard\nachievement facade / news / favorites\nannouncement / popup-ad\nsite-theme / game-manage / data-sync\nimage-cropper / image-upload / pwa-install\nattendance-notify / registration-audit\nadmin-log-tabs\naudit-log / error-log / error-log-diagnostics / game-log-viewer\nmulti-tab-guard / sync-status / translate"]
         end
     end
 
@@ -450,7 +450,7 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 
 ---
 
-## 獨立模組清單（22 個）
+## 獨立模組清單（25 個）
 
 以下模組位於 `js/modules/` 根目錄，不屬於任何子資料夾：
 
@@ -463,6 +463,7 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 | `audit-log.js` | `super_admin` 審計日誌查詢（單日查詢、時間/UID/動作篩選） |
 | `banner.js` | 首頁輪播 Banner 渲染 |
 | `data-sync.js` | 系統資料同步（俱樂部成員數重算、用戶俱樂部欄位驗證、孤兒記錄清理），含費用預估 |
+| `error-log-diagnostics.js` | 錯誤日誌白話化、嚴重度、時間排序、裝置與 context 解析 helper |
 | `error-log.js` | 錯誤日誌查詢與嚴重度分類顯示 |
 | `favorites.js` | 用戶收藏活動 / 俱樂部管理 |
 | `game-log-viewer.js` | 遊戲歷史紀錄瀏覽器（篩選遊戲/日期、分頁、統計） |
@@ -470,6 +471,7 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 | `image-cropper.js` | 圖片裁切 Modal（拖拽定位 + 縮放 + Canvas 輸出） |
 | `image-upload.js` | 圖片上傳共用功能（Firebase Storage），整合 image-cropper 裁切 |
 | `leaderboard.js` | 用戶 EXP 排行榜 |
+| `multi-tab-guard.js` | 多分頁使用提醒與接管提示，降低同帳號多分頁狀態衝突 |
 | `news.js` | 首頁每日體育新聞渲染（卡片直瀑式），資料來自 Cloud Function 定時抓取 |
 | `popup-ad.js` | 首頁彈窗廣告顯示邏輯 |
 | `pwa-install.js` | PWA 安裝提示（Android/iOS 偵測、beforeinstallprompt、引導安裝） |
@@ -477,6 +479,8 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 | `role.js` | 角色系統、抽屜選單渲染、自訂層級 runtime 等級計算、後台入口權限判斷 |
 | `shop.js` | 二手運動商品市集（刊登、購買、管理） |
 | `site-theme.js` | 站點佈景主題設定（管理端） |
+| `sync-status.js` | 前端同步狀態提示（離線、同步中、同步完成、重試） |
+| `translate.js` | 非預設語系的原地翻譯輔助 |
 
 ---
 
@@ -544,7 +548,7 @@ ScriptLoader（`js/core/script-loader.js`）定義了以下頁面群組，按需
 | `adminUsers` | `user-admin/*` (5) + `achievement/batch` + `data-sync` | 用戶管理 |
 | `education` | `education/*` (21) | 教育型俱樂部（分組、學員、課程、報名、簽到、行事曆） |
 | `adminContent` | `ad-manage/*` (6) | 廣告管理 |
-| `adminSystem` | `auto-exp/*` (2) + `game-manage` + `admin-log-tabs` + `error-log` + `audit-log` | 系統管理 |
+| `adminSystem` | `auto-exp/*` (2) + `game-manage` + `admin-log-tabs` + `error-log-diagnostics` + `error-log` + `audit-log` | 系統管理 |
 
 ---
 

@@ -1929,3 +1929,10 @@
 - **原因**: 詳細頁進入後會有短暫 page lock；刪除流程確認與寫入完成後才呼叫 `showPage('page-tournaments')`，容易被 page lock 擋下，且 detail cache / route param 沒有集中清理。
 - **修復**: 新增刪除後導回 helper，成功刪除且目前在詳細頁時清掉 current tournament、friendly detail state、URL `tournament` query，並用 `bypassPageLock + resetHistory` 主動回到 `page-tournaments`。
 - **驗收**: 新增 `tournament-delete-navigation.test.js`，覆蓋詳細頁刪除會跳轉、管理頁刪除不亂跳；`npm test -- --runInBand` 通過 76 suites / 2594 tests。
+
+### 2026-04-30 — 錯誤日誌 Phase 1 + Phase 2 低風險升級
+- **問題**：錯誤日誌只顯示簡短訊息，缺少白話摘要、用戶、頁面、裝置、版本與 context 等診斷資訊，管理員難以判斷用戶錯誤狀況。
+- **原因**：既有 `_writeErrorLog` 已記部分原始資訊，但後台 UI 沒展開使用；新錯誤也缺少 `createdAt`、裝置、URL、角色等欄位，錯誤訊息偏技術化。
+- **修復**：新增 `error-log-diagnostics.js` 拆出白話化、嚴重度、時間排序、裝置與 context helper；重寫錯誤日誌 UI，加入摘要、篩選與展開技術細節；`_writeErrorLog` 新增診斷欄位並走 `FirebaseService.addErrorLog` 寫入 `createdAt`；同步更新 lazy-load、CSS、架構文件與單元測試。
+- **驗證**：`node --check` 覆蓋修改 JS；targeted Jest 通過；`npm run test:unit -- --runInBand` 通過 77 suites / 2602 tests；`git diff --check` 通過（僅 CRLF warning）。
+- **教訓**：錯誤日誌應先提升「看得懂、查得到」的診斷能力，再逐步擴大收集點；全域錯誤捕捉與通用 CRUD 攔截需延後，避免日誌爆量或影響正常流程。

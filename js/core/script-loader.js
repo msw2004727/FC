@@ -411,6 +411,7 @@ const ScriptLoader = {
       'js/modules/game-manage.js',
       'js/modules/game-log-viewer.js',
       'js/modules/admin-log-tabs.js',
+      'js/modules/error-log-diagnostics.js',
       'js/modules/error-log.js',
       'js/modules/audit-log.js',
     ],

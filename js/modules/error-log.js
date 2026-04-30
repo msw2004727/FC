@@ -1,40 +1,108 @@
 /* ================================================
    SportHub Error Log Module
-   Super admin only
+   Admin diagnostics view only
    ================================================ */
 
 Object.assign(App, {
   _errorLogPage: 1,
   _errorLogFiltered: null,
   _errorLogRefreshing: false,
+  _errorLogPageSize: 20,
+
+  _ensureErrorLogFilters() {
+    const search = document.getElementById('errlog-search');
+    if (search) search.placeholder = '搜尋用戶 / UID / 頁面 / 功能 / 白話錯誤 / context...';
+
+    const codeSel = document.getElementById('errlog-code-filter');
+    const host = codeSel?.closest('.admin-filters');
+    if (!host) return;
+
+    if (codeSel) codeSel.onchange = () => this.filterErrorLogs(1);
+    const controls = [
+      { id: 'errlog-severity-filter', label: '全部嚴重度', type: 'select' },
+      { id: 'errlog-page-filter', label: '全部頁面', type: 'select' },
+      { id: 'errlog-device-filter', label: '全部裝置', type: 'select' },
+      { id: 'errlog-version-filter', label: '全部版本', type: 'select' },
+      { id: 'errlog-date-filter', label: '依日期', type: 'date' },
+    ];
+
+    controls.forEach(spec => {
+      if (document.getElementById(spec.id)) return;
+      const el = document.createElement(spec.type === 'date' ? 'input' : 'select');
+      el.id = spec.id;
+      el.className = spec.type === 'date' ? 'error-log-date-filter' : 'error-log-filter-select';
+      el.title = spec.label;
+      if (spec.type === 'date') {
+        el.type = 'date';
+      } else {
+        el.innerHTML = `<option value="">${spec.label}</option>`;
+      }
+      el.onchange = () => this.filterErrorLogs(1);
+      host.appendChild(el);
+    });
+
+    const severitySel = document.getElementById('errlog-severity-filter');
+    if (severitySel && severitySel.options.length <= 1) {
+      severitySel.innerHTML = [
+        '<option value="">全部嚴重度</option>',
+        '<option value="critical">嚴重</option>',
+        '<option value="warn">警告</option>',
+        '<option value="info">一般</option>',
+      ].join('');
+    }
+
+    if (!document.getElementById('errlog-clear-filters')) {
+      const btn = document.createElement('button');
+      btn.id = 'errlog-clear-filters';
+      btn.type = 'button';
+      btn.className = 'outline-btn error-log-clear-filter';
+      btn.textContent = '清除篩選';
+      btn.onclick = () => this._clearErrorLogFilters();
+      host.appendChild(btn);
+    }
+  },
+
+  _getErrorFilterValues() {
+    return {
+      keyword: (document.getElementById('errlog-search')?.value || '').trim().toLowerCase(),
+      code: this._normalizeErrorCode(document.getElementById('errlog-code-filter')?.value || ''),
+      severity: document.getElementById('errlog-severity-filter')?.value || '',
+      page: document.getElementById('errlog-page-filter')?.value || '',
+      device: document.getElementById('errlog-device-filter')?.value || '',
+      version: document.getElementById('errlog-version-filter')?.value || '',
+      date: document.getElementById('errlog-date-filter')?.value || '',
+    };
+  },
+
+  _matchesErrorLogFilters(log, filters) {
+    if (filters.keyword && !this._getErrorSearchText(log).includes(filters.keyword)) return false;
+    if (filters.code && this._normalizeErrorCode(log?.errorCode) !== filters.code) return false;
+    if (filters.severity && this._getErrorSeverity(log).key !== filters.severity) return false;
+    if (filters.page && this._getErrorPage(log) !== filters.page) return false;
+    if (filters.device && this._getErrorDeviceType(log) !== filters.device) return false;
+    if (filters.version && this._getErrorVersion(log) !== filters.version) return false;
+    if (filters.date && this._getErrorDateKey(log) !== filters.date) return false;
+    return true;
+  },
 
   filterErrorLogs(page) {
-    const keyword = (document.getElementById('errlog-search')?.value || '').trim().toLowerCase();
-    const codeFilter = document.getElementById('errlog-code-filter')?.value || '';
-
-    let logs = ApiService.getErrorLogs();
-
-    if (keyword) {
-      logs = logs.filter(log => {
-        const translated = this._getErrorChineseMessage(log).toLowerCase();
-        const severity = this._getErrorSeverity(log).label.toLowerCase();
-        return (
-          (log.userName || '').toLowerCase().includes(keyword)
-          || (log.errorMessage || '').toLowerCase().includes(keyword)
-          || (log.context || '').toLowerCase().includes(keyword)
-          || (log.errorCode || '').toLowerCase().includes(keyword)
-          || translated.includes(keyword)
-          || severity.includes(keyword)
-        );
-      });
-    }
-    if (codeFilter) {
-      logs = logs.filter(log => (log.errorCode || '') === codeFilter);
-    }
-
+    this._ensureErrorLogFilters();
+    const allLogs = ApiService.getErrorLogs();
+    this._populateErrorLogFilterOptions(allLogs);
+    const filters = this._getErrorFilterValues();
+    const logs = allLogs.filter(log => this._matchesErrorLogFilters(log, filters));
     this._errorLogFiltered = logs;
     this._errorLogPage = page || 1;
     this.renderErrorLogs(logs, this._errorLogPage);
+  },
+
+  _clearErrorLogFilters() {
+    ['errlog-search', 'errlog-code-filter', 'errlog-severity-filter', 'errlog-page-filter', 'errlog-device-filter', 'errlog-version-filter', 'errlog-date-filter']
+      .forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+    this.filterErrorLogs(1);
   },
 
   _errorLogGoPage(page) {
@@ -42,9 +110,7 @@ Object.assign(App, {
     this.renderErrorLogs(this._errorLogFiltered || ApiService.getErrorLogs(), page);
   },
 
-  _ensureErrorLogRefreshButton() {
-    // 重整按鈕已移至 tab bar 圓形圖示按鈕（admin-log-tabs.js）
-  },
+  _ensureErrorLogRefreshButton() { /* 重整按鈕已移至 tab bar 圓形圖示按鈕（admin-log-tabs.js） */ },
 
   async refreshErrorLogs() {
     if (this._errorLogRefreshing) return;
@@ -63,233 +129,167 @@ Object.assign(App, {
     }
   },
 
-  _normalizeErrorCode(value) {
-    return String(value || '').trim().toLowerCase();
-  },
-
-  _normalizeErrorMessage(value) {
-    return String(value || '').trim();
-  },
-
-  _getErrorSeverity(log) {
-    const code = this._normalizeErrorCode(log?.errorCode);
-    const message = this._normalizeErrorMessage(log?.errorMessage).toLowerCase();
-
-    if (
-      ['permission-denied', 'unauthenticated', 'failed-precondition', 'internal', 'unknown', 'data-loss']
-        .includes(code)
-      || /permission|forbidden|auth|unauth|rules|insufficient permissions/.test(message)
-    ) {
-      return { label: '嚴重', className: 'severity-critical' };
-    }
-
-    if (
-      ['deadline-exceeded', 'unavailable', 'resource-exhausted', 'aborted', 'cancelled', 'network-request-failed']
-        .includes(code)
-      || /timeout|timed out|network|failed to fetch|load failed|quota|too many requests|unavailable/.test(message)
-    ) {
-      return { label: '警告', className: 'severity-warn' };
-    }
-
-    return { label: '一般', className: 'severity-info' };
-  },
-
-  _getErrorCodeLabel(code) {
-    const normalized = this._normalizeErrorCode(code);
-    const map = {
-      'permission-denied': '權限不足',
-      'unauthenticated': '登入失效',
-      'not-found': '找不到資料',
-      'already-exists': '資料已存在',
-      'failed-precondition': '前置條件不符',
-      'resource-exhausted': '資源已達上限',
-      'deadline-exceeded': '操作逾時',
-      cancelled: '操作取消',
-      unavailable: '服務不可用',
-      'network-request-failed': '網路錯誤',
-      'invalid-argument': '參數錯誤',
-      internal: '系統錯誤',
-      unknown: '未知錯誤',
-      aborted: '流程中止',
-    };
-    return map[normalized] || (normalized ? normalized : '未分類');
-  },
-
-  _getErrorChineseMessage(log) {
-    const code = this._normalizeErrorCode(log?.errorCode);
-    const message = this._normalizeErrorMessage(log?.errorMessage);
-    const lower = message.toLowerCase();
-
-    const codeMap = {
-      'permission-denied': '權限不足，操作被拒絕',
-      'unauthenticated': '尚未登入或登入已失效',
-      'not-found': '找不到資料',
-      'already-exists': '資料已存在',
-      'failed-precondition': '前置條件不符，暫時無法操作',
-      'resource-exhausted': '操作過於頻繁或資源已達上限',
-      'deadline-exceeded': '操作逾時，請稍後再試',
-      cancelled: '操作已取消',
-      unavailable: '服務暫時不可用，請稍後再試',
-      'network-request-failed': '網路連線失敗，請檢查網路後再試',
-      'invalid-argument': '參數不正確，請檢查後再試',
-      internal: '系統內部錯誤，請稍後再試',
-      unknown: '系統發生未知錯誤',
-      aborted: '流程已中止，請重新操作',
-    };
-    if (codeMap[code]) return codeMap[code];
-
-    if (/missing or insufficient permissions|the caller does not have permission|permission denied|insufficient permissions/.test(lower)) {
-      return '權限不足，操作被拒絕';
-    }
-    if (/authentication required|requires authentication|auth token is expired|id token has expired|user token expired/.test(lower)) {
-      return '尚未登入或登入已失效';
-    }
-    if (/network request failed|failed to fetch|load failed|networkerror/.test(lower)) {
-      return '網路連線失敗，請檢查網路後再試';
-    }
-    if (/no document to update|document does not exist|not found/.test(lower)) {
-      return '找不到要更新的資料';
-    }
-    if (/is required|missing required/.test(lower)) {
-      return '缺少必要參數';
-    }
-    if (/too many requests|quota exceeded|resource exhausted/.test(lower)) {
-      return '操作過於頻繁或資源已達上限';
-    }
-    if (/timeout|timed out|deadline exceeded/.test(lower)) {
-      return '操作逾時，請稍後再試';
-    }
-
-    if (/[\u4e00-\u9fff]/.test(message)) {
-      return message;
-    }
-
-    return '系統錯誤，請稍後再試';
-  },
-
   renderErrorLogs(logs, page) {
     const container = document.getElementById('error-log-list');
     if (!container) return;
     this._ensureErrorLogRefreshButton();
+    this._ensureErrorLogFilters();
 
-    if (!logs) logs = ApiService.getErrorLogs();
-    const sorted = [...logs].sort((a, b) => (b.time || '').localeCompare(a.time || ''));
-
-    this._populateErrorCodeFilter(logs);
-
-    const PAGE_SIZE = 20;
+    const allLogs = ApiService.getErrorLogs();
+    if (!logs) logs = allLogs;
+    this._populateErrorLogFilterOptions(allLogs);
+    const sorted = [...logs].sort((a, b) => this._getErrorTimestampMs(b) - this._getErrorTimestampMs(a));
+    const pageSize = this._errorLogPageSize || 20;
     const p = Math.max(1, page || 1);
-    const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+    const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
     const safePage = Math.min(p, totalPages);
-    const pageItems = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+    const pageItems = sorted.slice((safePage - 1) * pageSize, safePage * pageSize);
 
+    let html = this._renderErrorLogSummary(allLogs, sorted);
     if (sorted.length === 0) {
-      container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-muted)">目前沒有錯誤日誌</div>';
+      container.innerHTML = html + '<div class="error-log-empty">目前沒有符合條件的錯誤日誌</div>';
       return;
     }
 
-    let html = pageItems.map(log => {
-      const severity = this._getErrorSeverity(log);
-      const translatedMessage = this._getErrorChineseMessage(log);
-      const codeLabel = this._getErrorCodeLabel(log.errorCode);
-      const rawCode = this._normalizeErrorCode(log.errorCode);
-      const ctxDisplay = this._parseErrorContext(log.context);
-      const uaShort = this._parseUserAgent(log.userAgent);
-      const details = [
-        ctxDisplay,
-        log.appVersion ? `v${log.appVersion}` : '',
-        uaShort,
-        rawCode ? `代碼：${rawCode}` : '',
-      ].filter(Boolean).join(' · ');
-
-      return `
-      <div class="log-item" style="flex-direction:column;gap:.3rem">
-        <div style="display:flex;align-items:flex-start;gap:.5rem;width:100%">
-          <span class="log-time">${escapeHTML(log.time || '')}</span>
-          <span class="log-content" style="flex:1">
-            <span class="log-type ${severity.className}">${escapeHTML(severity.label)}</span>
-            <span class="log-type error_log">${escapeHTML(codeLabel)}</span>
-            <strong>${escapeHTML(log.userName || '未知用戶')}</strong>
-            <span style="color:var(--text-muted);font-size:.72rem">(${escapeHTML(log.page || 'unknown')})</span>
-            <div class="error-log-message">${escapeHTML(translatedMessage)}</div>
-          </span>
-        </div>
-        <div class="log-detail">${escapeHTML(details)}</div>
-      </div>`;
-    }).join('');
-
+    html += pageItems.map(log => this._renderErrorLogItem(log)).join('');
     if (totalPages > 1) {
-      html += `<div style="display:flex;justify-content:center;align-items:center;gap:.5rem;padding:.8rem 0;font-size:.78rem">
-        <button class="outline-btn" style="font-size:.72rem;padding:.25rem .6rem" onclick="App._errorLogGoPage(${safePage - 1})" ${safePage <= 1 ? 'disabled' : ''}>&#8249; 上一頁</button>
-        <span style="color:var(--text-muted)">${safePage} / ${totalPages}，共 ${sorted.length} 筆</span>
-        <button class="outline-btn" style="font-size:.72rem;padding:.25rem .6rem" onclick="App._errorLogGoPage(${safePage + 1})" ${safePage >= totalPages ? 'disabled' : ''}>下一頁 &#8250;</button>
+      html += `<div class="error-log-pagination">
+        <button class="outline-btn" onclick="App._errorLogGoPage(${safePage - 1})" ${safePage <= 1 ? 'disabled' : ''}>&#8249; 上一頁</button>
+        <span>${safePage} / ${totalPages}，共 ${sorted.length} 筆</span>
+        <button class="outline-btn" onclick="App._errorLogGoPage(${safePage + 1})" ${safePage >= totalPages ? 'disabled' : ''}>下一頁 &#8250;</button>
       </div>`;
     }
-
     container.innerHTML = html;
   },
 
-  _populateErrorCodeFilter(logs) {
-    const sel = document.getElementById('errlog-code-filter');
+  _renderErrorLogSummary(allLogs, visibleLogs) {
+    const critical = allLogs.filter(log => this._getErrorSeverity(log).key === 'critical').length;
+    const warn = allLogs.filter(log => this._getErrorSeverity(log).key === 'warn').length;
+    const todayKey = this._getErrorDateKey({ clientTimeIso: new Date().toISOString() });
+    const today = allLogs.filter(log => this._getErrorDateKey(log) === todayKey).length;
+    const stats = [
+      ['總筆數', allLogs.length],
+      ['目前顯示', visibleLogs.length],
+      ['嚴重', critical],
+      ['警告', warn],
+      ['今天', today],
+    ];
+    return `<div class="error-log-summary-grid">${stats.map(([label, value]) => `
+      <div class="error-log-stat"><span>${escapeHTML(label)}</span><strong>${escapeHTML(String(value))}</strong></div>
+    `).join('')}</div>`;
+  },
+
+  _renderErrorLogItem(log) {
+    const severity = this._getErrorSeverity(log);
+    const codeLabel = this._getErrorCodeLabel(log?.errorCode);
+    const message = this._getErrorChineseMessage(log);
+    const page = this._getErrorPage(log);
+    const fn = this._getErrorFunctionName(log);
+    const version = this._getErrorVersion(log);
+    const device = this._getErrorDeviceLabel(log);
+    const meta = [
+      fn ? `功能：${fn}` : '',
+      `頁面：${page}`,
+      device ? `裝置：${device}` : '',
+      version ? `版本：${version}` : '',
+      log?.role ? `身分：${log.role}` : '',
+    ].filter(Boolean);
+
+    return `<div class="log-item error-log-card">
+      <div class="error-log-main">
+        <span class="log-time">${escapeHTML(this._formatErrorLogTime(log) || '')}</span>
+        <div class="error-log-body">
+          <div class="error-log-title-row">
+            <span class="log-type ${severity.className}">${escapeHTML(severity.label)}</span>
+            <span class="log-type error_log">${escapeHTML(codeLabel)}</span>
+            <strong data-no-translate>${escapeHTML(log?.userName || '未知用戶')}</strong>
+          </div>
+          <div class="error-log-message">${escapeHTML(message)}</div>
+          <div class="error-log-meta">${meta.map(item => `<span>${escapeHTML(item)}</span>`).join('')}</div>
+        </div>
+      </div>
+      ${this._renderErrorLogDetails(log)}
+    </div>`;
+  },
+
+  _renderErrorLogDetails(log) {
+    const rawContext = typeof log?.context === 'string' ? log.context : (log?.context ? JSON.stringify(log.context) : '');
+    const rows = [
+      ['UID', log?.uid, true],
+      ['功能位置', this._parseErrorContext(log?.context), true],
+      ['頁面', this._getErrorPage(log), true],
+      ['錯誤碼', this._normalizeErrorCode(log?.errorCode), true],
+      ['原始錯誤', log?.errorMessage, true],
+      ['Context', rawContext, true],
+      ['Stack', log?.errorStack, true],
+      ['URL', log?.url, true],
+      ['Hash', log?.hash, true],
+      ['User Agent', log?.userAgent, true],
+      ['文件 ID', log?._docId, true],
+    ].map(([label, value, mono]) => this._renderErrorDetailRow(label, value, mono)).join('');
+    return `<details class="error-log-details">
+      <summary>查看技術細節</summary>
+      <div class="error-log-detail-grid">${rows}</div>
+    </details>`;
+  },
+
+  _renderErrorDetailRow(label, value, mono) {
+    const text = String(value || '').trim();
+    if (!text) return '';
+    return `<div class="error-log-detail-row">
+      <span>${escapeHTML(label)}</span>
+      <pre class="${mono ? 'is-mono' : ''}" data-no-translate>${escapeHTML(text)}</pre>
+    </div>`;
+  },
+
+  _populateErrorLogFilterOptions(logs) {
+    this._setErrorLogSelectOptions('errlog-code-filter',
+      [...new Set(logs.map(log => this._normalizeErrorCode(log?.errorCode)).filter(Boolean))]
+        .sort()
+        .map(code => [code, `${this._getErrorCodeLabel(code)} (${code})`]),
+      '全部錯誤類型');
+    this._setErrorLogSelectOptions('errlog-page-filter',
+      [...new Set(logs.map(log => this._getErrorPage(log)).filter(Boolean))].sort().map(page => [page, page]),
+      '全部頁面');
+    this._setErrorLogSelectOptions('errlog-device-filter',
+      [...new Set(logs.map(log => this._getErrorDeviceType(log)).filter(Boolean))]
+        .sort()
+        .map(type => [type, ({ mobile: '手機', tablet: '平板', desktop: '桌機' }[type] || type)]),
+      '全部裝置');
+    this._setErrorLogSelectOptions('errlog-version-filter',
+      [...new Set(logs.map(log => this._getErrorVersion(log)).filter(Boolean))].sort().map(v => [v, `v${v}`]),
+      '全部版本');
+  },
+
+  _setErrorLogSelectOptions(id, entries, placeholder) {
+    const sel = document.getElementById(id);
     if (!sel) return;
     const current = sel.value;
-    const codes = [...new Set(logs.map(log => log.errorCode).filter(Boolean))].sort();
-    let opts = '<option value="">全部錯誤類型</option>';
-    codes.forEach(code => {
-      const label = this._getErrorCodeLabel(code);
-      opts += `<option value="${escapeHTML(code)}">${escapeHTML(label)}${code ? ` (${escapeHTML(code)})` : ''}</option>`;
-    });
-    sel.innerHTML = opts;
-    sel.value = current;
-  },
-
-  _parseErrorContext(ctx) {
-    if (!ctx) return '';
-    try {
-      const obj = JSON.parse(ctx);
-      if (typeof obj === 'object' && obj !== null) {
-        const parts = [];
-        if (obj.fn) parts.push(obj.fn);
-        Object.keys(obj).forEach(key => {
-          if (key !== 'fn') parts.push(`${key}=${obj[key]}`);
-        });
-        return parts.join(', ');
-      }
-    } catch (_) {}
-    return String(ctx);
-  },
-
-  _parseUserAgent(ua) {
-    if (!ua) return '';
-    if (/iPhone|iPad|iPod/i.test(ua)) return 'iOS';
-    if (/Android/i.test(ua)) return 'Android';
-    if (/Windows/i.test(ua)) return 'Windows';
-    if (/Mac/i.test(ua)) return 'macOS';
-    return 'Other';
+    const values = new Set(entries.map(([value]) => value));
+    sel.innerHTML = `<option value="">${escapeHTML(placeholder)}</option>`
+      + entries.map(([value, label]) => `<option value="${escapeHTML(value)}">${escapeHTML(label)}</option>`).join('');
+    sel.value = values.has(current) ? current : '';
   },
 
   async clearOldErrorLogs() {
     const ok = await App.appConfirm('要清除 30 天前的錯誤日誌嗎？');
     if (!ok) return;
-
     try {
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - 30);
-      const cutoffStr = App._formatDateTime ? App._formatDateTime(cutoff) : cutoff.toISOString();
-
-      const logs = ApiService.getErrorLogs().filter(log => (log.time || '') < cutoffStr);
+      const cutoffMs = Date.now() - (30 * 24 * 60 * 60 * 1000);
+      const logs = ApiService.getErrorLogs().filter(log => {
+        const ms = this._getErrorTimestampMs(log);
+        return log?._docId && ms > 0 && ms < cutoffMs;
+      });
       if (logs.length === 0) {
         this.showToast('沒有 30 天前的錯誤日誌');
         return;
       }
-
       let deleted = 0;
       for (let i = 0; i < logs.length; i += 500) {
         const batch = logs.slice(i, i + 500);
         await Promise.all(batch.map(log => FirebaseService.deleteErrorLog(log._docId)));
         deleted += batch.length;
       }
-
       this.showToast(`已清除 ${deleted} 筆錯誤日誌`);
       this.filterErrorLogs(1);
     } catch (err) {

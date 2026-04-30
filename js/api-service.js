@@ -1188,6 +1188,26 @@ const ApiService = {
 
   _errorLogCache: new Set(),
 
+  _getErrorLogClientInfo(ua) {
+    const text = String(ua || '');
+    const osName = /iPhone|iPad|iPod/i.test(text) ? 'iOS'
+      : /Android/i.test(text) ? 'Android'
+      : /Windows/i.test(text) ? 'Windows'
+      : /Macintosh|Mac OS X/i.test(text) ? 'macOS'
+      : /Linux/i.test(text) ? 'Linux'
+      : 'Other';
+    const browserName = /Line\//i.test(text) ? 'LINE'
+      : /Edg\//i.test(text) ? 'Edge'
+      : /CriOS|Chrome\//i.test(text) ? 'Chrome'
+      : /FxiOS|Firefox\//i.test(text) ? 'Firefox'
+      : /Safari\//i.test(text) ? 'Safari'
+      : 'Other';
+    const deviceType = /iPad|Tablet/i.test(text) ? 'tablet'
+      : /Mobi|Android|iPhone|iPod/i.test(text) ? 'mobile'
+      : 'desktop';
+    return { osName, browserName, deviceType };
+  },
+
   _writeErrorLog(context, err) {
     try {
       const curUser = this.getCurrentUser();
@@ -1200,24 +1220,43 @@ const ApiService = {
       if (this._errorLogCache.has(dedupKey)) return;
       this._errorLogCache.add(dedupKey);
 
-      const page = App._currentPage
+      const page = App.currentPage
+        || App._currentPage
         || document.querySelector('.page.active')?.id
         || 'unknown';
+      const userAgent = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
+      const clientInfo = this._getErrorLogClientInfo(userAgent);
+      const now = new Date();
 
       const entry = {
-        time: App._formatDateTime ? App._formatDateTime(new Date()) : new Date().toISOString(),
+        time: App._formatDateTime ? App._formatDateTime(now) : now.toISOString(),
+        clientTimeIso: now.toISOString(),
         uid: curUser.uid,
         userName: curUser.displayName || curUser.name || curUser.uid,
+        role: App.currentRole || curUser.role || '',
         context: contextStr,
         errorCode: err?.code || '',
         errorMessage: err?.message || (err != null ? String(err) : ''),
         errorStack: err?.stack ? err.stack.slice(0, 1500) : '',
         page,
         appVersion: CACHE_VERSION,
-        userAgent: navigator.userAgent,
+        url: typeof location !== 'undefined' ? location.href : '',
+        hash: typeof location !== 'undefined' ? location.hash : '',
+        userAgent,
+        ...clientInfo,
       };
 
-      db?.collection('errorLogs').add(entry)
+      const writePromise = (typeof FirebaseService !== 'undefined' && typeof FirebaseService.addErrorLog === 'function')
+        ? FirebaseService.addErrorLog(entry)
+        : db?.collection('errorLogs').add({
+          ...entry,
+          createdAt: (typeof firebase !== 'undefined' && firebase.firestore?.FieldValue?.serverTimestamp)
+            ? firebase.firestore.FieldValue.serverTimestamp()
+            : now,
+        });
+
+      if (!writePromise || typeof writePromise.then !== 'function') return;
+      writePromise
         .then(() => console.log('[errorLog] written:', dedupKey))
         .catch(e => console.warn('[errorLog] write failed:', e?.code, e?.message));
     } catch (_) {

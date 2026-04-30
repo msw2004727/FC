@@ -101,7 +101,7 @@ FC-github/
 │       ├── dashboard/      # 儀表板（6）：管理員、個人、報表分享、用量
 │       ├── ad-manage/      # 廣告管理（6）：輪播、浮動、贊助、小遊戲、品牌開機
 │       ├── user-admin/     # 用戶後台（5）：列表、EXP、角色、補正、權限說明
-│       └── [24 獨立模組]   # banner / shop / leaderboard / role / pwa-install 等
+│       └── [25 獨立模組]   # banner / shop / leaderboard / role / pwa-install 等
 ├── pages/                  # HTML 片段（18 個）
 ├── docs/                   # 專案文件
 └── functions/              # Cloud Functions
