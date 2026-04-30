@@ -7809,6 +7809,10 @@ const ACTIVITY_RECORD_REPAIR_DEFAULTS = Object.freeze({
 const ACTIVITY_RECORD_REPAIR_MANUAL_CHUNK_LIMIT = 80;
 const ACTIVITY_RECORD_REPAIR_LOG_LIMIT = 30;
 const DATA_SYNC_SETTINGS_PASSWORD = process.env.DATA_SYNC_SETTINGS_PASSWORD || "1121";
+const UID_HEALTH_CHECK_LOG_LIMIT = 30;
+const UID_HEALTH_SAMPLE_LIMIT = 8;
+const UID_HEALTH_ISSUE_LIMIT = 40;
+const LINE_UID_RE = /^U[a-f0-9]{32}$/i;
 
 function clampInteger(value, fallback, min, max) {
   const n = Number(value);
@@ -7991,6 +7995,552 @@ async function appendActivityRepairLog(entry = {}, extraFields = {}) {
       ...extraFields,
     }, { merge: true });
   });
+}
+
+function normalizeAuditString(value, maxLength = 180) {
+  return String(value || "").trim().slice(0, maxLength);
+}
+
+function isLineUid(value) {
+  return LINE_UID_RE.test(String(value || "").trim());
+}
+
+function isCompanionPseudoUid(value) {
+  return String(value || "").trim().startsWith("comp_");
+}
+
+function isActiveAuditStatus(status) {
+  const safeStatus = String(status || "").trim().toLowerCase();
+  return safeStatus !== "cancelled" && safeStatus !== "removed";
+}
+
+function getAuditDocPath(doc) {
+  return doc?.ref?.path || doc?.id || "";
+}
+
+function getAuditDocScope(doc) {
+  return doc?.ref?.parent?.parent ? "sub" : "root";
+}
+
+function getAuditEventId(doc, data = {}) {
+  return normalizeAuditString(data.eventId || data.id || doc?.ref?.parent?.parent?.id || "", 80);
+}
+
+function createUidHealthSection(key, title) {
+  return {
+    key,
+    title,
+    status: "ok",
+    checked: 0,
+    metrics: {},
+    issues: [],
+  };
+}
+
+function addUidHealthIssue(section, severity, type, message, sample = null) {
+  if (!section || section.issues.length >= UID_HEALTH_ISSUE_LIMIT) return;
+  let issue = section.issues.find((item) => item.type === type && item.severity === severity);
+  if (!issue) {
+    issue = {
+      severity,
+      type,
+      message,
+      count: 0,
+      samples: [],
+    };
+    section.issues.push(issue);
+  }
+  issue.count += 1;
+  if (sample && issue.samples.length < UID_HEALTH_SAMPLE_LIMIT) {
+    issue.samples.push(sample);
+  }
+  if (severity === "error") section.status = "error";
+  if (severity === "warning" && section.status === "ok") section.status = "warning";
+}
+
+function addUidHealthBulkIssue(section, severity, type, message, count, samples = []) {
+  const safeCount = Number(count || 0) || 0;
+  if (!safeCount || !section || section.issues.length >= UID_HEALTH_ISSUE_LIMIT) return;
+  const issue = {
+    severity,
+    type,
+    message,
+    count: safeCount,
+    samples: samples.slice(0, UID_HEALTH_SAMPLE_LIMIT),
+  };
+  section.issues.push(issue);
+  if (severity === "error") section.status = "error";
+  if (severity === "warning" && section.status === "ok") section.status = "warning";
+}
+
+function compactUidHealthSample(doc, data = {}, extra = {}) {
+  return {
+    path: normalizeAuditString(getAuditDocPath(doc), 180),
+    eventId: normalizeAuditString(extra.eventId || data.eventId || data.id || "", 90),
+    field: normalizeAuditString(extra.field || "", 80),
+    value: normalizeAuditString(extra.value, 120),
+    name: normalizeAuditString(extra.name || data.userName || data.displayName || data.name || data.title || "", 80),
+    status: normalizeAuditString(extra.status || data.status || "", 40),
+    participantType: normalizeAuditString(extra.participantType || data.participantType || "", 40),
+  };
+}
+
+function collectUidValuesFromData(data = {}, specs = []) {
+  const values = [];
+  specs.forEach((spec) => {
+    const field = typeof spec === "string" ? spec : spec.field;
+    const kind = typeof spec === "string" ? "scalar" : spec.kind;
+    const value = data?.[field];
+    if (kind === "array") {
+      if (Array.isArray(value)) {
+        value.forEach((item, index) => values.push({ field: `${field}[${index}]`, value: item }));
+      }
+      return;
+    }
+    if (kind === "objectArray") {
+      const childField = spec.childField || "uid";
+      if (Array.isArray(value)) {
+        value.forEach((item, index) => values.push({
+          field: `${field}[${index}].${childField}`,
+          value: item?.[childField],
+        }));
+      }
+      return;
+    }
+    values.push({ field, value });
+  });
+  return values;
+}
+
+async function getMergedCollectionDocs(collectionName) {
+  const [rootSnap, groupSnap] = await Promise.all([
+    db.collection(collectionName).get(),
+    db.collectionGroup(collectionName).get(),
+  ]);
+  const docsByPath = new Map();
+  rootSnap.docs.forEach((doc) => docsByPath.set(getAuditDocPath(doc), doc));
+  groupSnap.docs.forEach((doc) => docsByPath.set(getAuditDocPath(doc), doc));
+  return {
+    docs: Array.from(docsByPath.values()),
+    billedReads: rootSnap.size + groupSnap.size,
+  };
+}
+
+function scanUidFieldSection(section, docs, specs, options = {}) {
+  const allowMissing = options.allowMissing === true;
+  docs.forEach((doc) => {
+    const data = doc.data() || {};
+    section.checked += 1;
+    collectUidValuesFromData(data, specs).forEach(({ field, value }) => {
+      const safeValue = normalizeAuditString(value, 120);
+      if (!safeValue) {
+        if (!allowMissing) {
+          addUidHealthIssue(section, "warning", "missing_uid_field", `${field} 缺少 UID`, compactUidHealthSample(doc, data, { field }));
+        }
+        return;
+      }
+      if (!isLineUid(safeValue)) {
+        addUidHealthIssue(section, "error", "invalid_uid_field", `${field} 不是 LINE UID`, compactUidHealthSample(doc, data, {
+          field,
+          value: safeValue,
+        }));
+      }
+    });
+  });
+}
+
+function buildUsersUidHealthSection(usersDocs) {
+  const section = createUidHealthSection("users", "使用者 UID 一致性");
+  const uidMap = new Map();
+  const lineUidMap = new Map();
+  const nameMap = new Map();
+  usersDocs.forEach((doc) => {
+    const data = doc.data() || {};
+    section.checked += 1;
+    const docId = normalizeAuditString(doc.id, 120);
+    const uid = normalizeAuditString(data.uid, 120);
+    const lineUserId = normalizeAuditString(data.lineUserId, 120);
+    const name = normalizeAuditString(data.displayName || data.name || "", 80);
+    if (!isLineUid(docId)) {
+      addUidHealthIssue(section, "error", "invalid_user_doc_id", "users 文件 ID 不是 LINE UID", compactUidHealthSample(doc, data, {
+        field: "doc.id",
+        value: docId,
+      }));
+    }
+    if (!uid) {
+      addUidHealthIssue(section, "error", "missing_user_uid", "users.uid 缺少值", compactUidHealthSample(doc, data, { field: "uid" }));
+    } else if (!isLineUid(uid)) {
+      addUidHealthIssue(section, "error", "invalid_user_uid", "users.uid 不是 LINE UID", compactUidHealthSample(doc, data, {
+        field: "uid",
+        value: uid,
+      }));
+    }
+    if (!lineUserId) {
+      addUidHealthIssue(section, "error", "missing_line_user_id", "users.lineUserId 缺少值", compactUidHealthSample(doc, data, { field: "lineUserId" }));
+    } else if (!isLineUid(lineUserId)) {
+      addUidHealthIssue(section, "error", "invalid_line_user_id", "users.lineUserId 不是 LINE UID", compactUidHealthSample(doc, data, {
+        field: "lineUserId",
+        value: lineUserId,
+      }));
+    }
+    if (uid && docId && uid !== docId) {
+      addUidHealthIssue(section, "error", "user_doc_uid_mismatch", "users 文件 ID 與 uid 不一致", compactUidHealthSample(doc, data, {
+        field: "uid",
+        value: uid,
+      }));
+    }
+    if (lineUserId && docId && lineUserId !== docId) {
+      addUidHealthIssue(section, "error", "user_doc_line_uid_mismatch", "users 文件 ID 與 lineUserId 不一致", compactUidHealthSample(doc, data, {
+        field: "lineUserId",
+        value: lineUserId,
+      }));
+    }
+    if (uid) {
+      if (!uidMap.has(uid)) uidMap.set(uid, []);
+      uidMap.get(uid).push(doc);
+    }
+    if (lineUserId) {
+      if (!lineUidMap.has(lineUserId)) lineUidMap.set(lineUserId, []);
+      lineUidMap.get(lineUserId).push(doc);
+    }
+    if (name) {
+      if (!nameMap.has(name)) nameMap.set(name, []);
+      nameMap.get(name).push(doc);
+    }
+  });
+  const duplicateUidSamples = [];
+  let duplicateUidGroups = 0;
+  uidMap.forEach((docs, uid) => {
+    if (docs.length > 1) {
+      duplicateUidGroups += 1;
+      duplicateUidSamples.push({ value: uid, name: `${docs.length} docs`, path: docs.map(getAuditDocPath).slice(0, 3).join(" | ") });
+    }
+  });
+  addUidHealthBulkIssue(section, "error", "duplicate_users_uid", "users.uid 有重複", duplicateUidGroups, duplicateUidSamples);
+  const duplicateLineUidSamples = [];
+  let duplicateLineUidGroups = 0;
+  lineUidMap.forEach((docs, uid) => {
+    if (docs.length > 1) {
+      duplicateLineUidGroups += 1;
+      duplicateLineUidSamples.push({ value: uid, name: `${docs.length} docs`, path: docs.map(getAuditDocPath).slice(0, 3).join(" | ") });
+    }
+  });
+  addUidHealthBulkIssue(section, "error", "duplicate_users_line_user_id", "users.lineUserId 有重複", duplicateLineUidGroups, duplicateLineUidSamples);
+  const duplicateNameSamples = [];
+  let duplicateNameGroups = 0;
+  nameMap.forEach((docs, name) => {
+    if (docs.length > 1) {
+      duplicateNameGroups += 1;
+      duplicateNameSamples.push({ value: name, name: `${docs.length} 位同名`, path: docs.map(getAuditDocPath).slice(0, 3).join(" | ") });
+    }
+  });
+  addUidHealthBulkIssue(section, "warning", "duplicate_display_name", "displayName 有重名，姓名 fallback 仍有風險", duplicateNameGroups, duplicateNameSamples);
+  section.metrics = {
+    users: usersDocs.length,
+    duplicateUidGroups,
+    duplicateLineUidGroups,
+    duplicateDisplayNameGroups: duplicateNameGroups,
+  };
+  return section;
+}
+
+function buildRegistrationUidHealthSection(regDocs) {
+  const section = createUidHealthSection("registrations", "報名資料 userId");
+  const rootActiveKeys = new Map();
+  const subActiveKeys = new Map();
+  let rootDocs = 0;
+  let subDocs = 0;
+  let activeDocs = 0;
+  regDocs.forEach((doc) => {
+    const data = doc.data() || {};
+    const scope = getAuditDocScope(doc);
+    if (scope === "root") rootDocs += 1;
+    else subDocs += 1;
+    section.checked += 1;
+    const userId = normalizeAuditString(data.userId, 120);
+    const uid = normalizeAuditString(data.uid, 120);
+    const active = isActiveAuditStatus(data.status);
+    if (active) activeDocs += 1;
+    if (!userId) {
+      addUidHealthIssue(section, "error", "missing_registration_user_id", "registrations.userId 缺少值", compactUidHealthSample(doc, data, { field: "userId" }));
+      if (uid) {
+        addUidHealthIssue(section, "warning", "registration_uid_only", "registrations 仍有 uid-only 舊格式", compactUidHealthSample(doc, data, {
+          field: "uid",
+          value: uid,
+        }));
+      }
+    } else if (!isLineUid(userId)) {
+      addUidHealthIssue(section, "error", "invalid_registration_user_id", "registrations.userId 不是 LINE UID", compactUidHealthSample(doc, data, {
+        field: "userId",
+        value: userId,
+      }));
+    }
+    if (active && userId) {
+      const eventId = getAuditEventId(doc, data);
+      const key = [
+        eventId,
+        userId,
+        normalizeAuditString(data.participantType || "self", 40),
+        normalizeAuditString(data.companionId || "", 80),
+      ].join("|");
+      const bucket = scope === "root" ? rootActiveKeys : subActiveKeys;
+      if (!bucket.has(key)) bucket.set(key, []);
+      bucket.get(key).push(doc);
+    }
+  });
+  if (rootDocs) {
+    addUidHealthBulkIssue(section, "warning", "registration_root_leftover", "root registrations 仍有舊資料，需避免被統計重複讀取", rootDocs);
+  }
+  const rootSubDupSamples = [];
+  let rootSubDup = 0;
+  rootActiveKeys.forEach((rootItems, key) => {
+    if (subActiveKeys.has(key)) {
+      rootSubDup += 1;
+      rootSubDupSamples.push({ value: key.slice(0, 120), name: "root/sub active duplicate", path: getAuditDocPath(rootItems[0]) });
+    }
+  });
+  addUidHealthBulkIssue(section, "warning", "registration_root_sub_duplicate", "root 與 subcollection 有相同 active 報名鍵，舊工具若沒過濾會重複計算", rootSubDup, rootSubDupSamples);
+  const subDupSamples = [];
+  let subDup = 0;
+  subActiveKeys.forEach((docs, key) => {
+    if (docs.length > 1) {
+      subDup += 1;
+      subDupSamples.push({ value: key.slice(0, 120), name: `${docs.length} active sub docs`, path: docs.map(getAuditDocPath).slice(0, 3).join(" | ") });
+    }
+  });
+  addUidHealthBulkIssue(section, "error", "registration_sub_active_duplicate", "subcollection 內有重複 active 報名鍵", subDup, subDupSamples);
+  section.metrics = { total: regDocs.length, rootDocs, subDocs, activeDocs, rootSubDuplicateKeys: rootSubDup, subActiveDuplicateKeys: subDup };
+  return section;
+}
+
+function buildActivityRecordUidHealthSection(activityDocs) {
+  const section = createUidHealthSection("activityRecords", "活動紀錄 uid");
+  let rootDocs = 0;
+  let subDocs = 0;
+  let activeDocs = 0;
+  activityDocs.forEach((doc) => {
+    const data = doc.data() || {};
+    const scope = getAuditDocScope(doc);
+    if (scope === "root") rootDocs += 1;
+    else subDocs += 1;
+    section.checked += 1;
+    if (isActiveAuditStatus(data.status)) activeDocs += 1;
+    const uid = normalizeAuditString(data.uid, 120);
+    if (!uid) {
+      addUidHealthIssue(section, "error", "missing_activity_uid", "activityRecords.uid 缺少值", compactUidHealthSample(doc, data, { field: "uid" }));
+    } else if (!isLineUid(uid)) {
+      addUidHealthIssue(section, "error", "invalid_activity_uid", "activityRecords.uid 不是 LINE UID", compactUidHealthSample(doc, data, {
+        field: "uid",
+        value: uid,
+      }));
+    }
+  });
+  if (rootDocs) {
+    addUidHealthBulkIssue(section, "warning", "activity_root_leftover", "root activityRecords 仍有舊資料，正式統計應優先使用 subcollection", rootDocs);
+  }
+  section.metrics = { total: activityDocs.length, rootDocs, subDocs, activeDocs };
+  return section;
+}
+
+function buildAttendanceUidHealthSection(attDocs) {
+  const section = createUidHealthSection("attendanceRecords", "簽到紀錄 uid");
+  let rootDocs = 0;
+  let subDocs = 0;
+  let activeDocs = 0;
+  let compUidCount = 0;
+  let compAsSelfCount = 0;
+  attDocs.forEach((doc) => {
+    const data = doc.data() || {};
+    const scope = getAuditDocScope(doc);
+    if (scope === "root") rootDocs += 1;
+    else subDocs += 1;
+    section.checked += 1;
+    const active = isActiveAuditStatus(data.status);
+    if (active) activeDocs += 1;
+    const uid = normalizeAuditString(data.uid, 120);
+    if (!uid) {
+      addUidHealthIssue(section, "error", "missing_attendance_uid", "attendanceRecords.uid 缺少值", compactUidHealthSample(doc, data, { field: "uid" }));
+      return;
+    }
+    if (!isLineUid(uid)) {
+      const severity = isCompanionPseudoUid(uid) ? "warning" : "error";
+      const type = isCompanionPseudoUid(uid) ? "attendance_comp_uid" : "invalid_attendance_uid";
+      if (isCompanionPseudoUid(uid)) compUidCount += 1;
+      addUidHealthIssue(section, severity, type, "attendanceRecords.uid 不是 LINE UID", compactUidHealthSample(doc, data, {
+        field: "uid",
+        value: uid,
+      }));
+    }
+    const participantType = normalizeAuditString(data.participantType || "self", 40);
+    const companionId = normalizeAuditString(data.companionId, 120);
+    if (isCompanionPseudoUid(uid) && participantType === "self" && !companionId) {
+      compAsSelfCount += 1;
+      addUidHealthIssue(section, "error", "attendance_comp_uid_as_self", "companion pseudo id 被寫成 self 簽到紀錄", compactUidHealthSample(doc, data, {
+        field: "uid",
+        value: uid,
+      }));
+    }
+  });
+  if (rootDocs) {
+    addUidHealthBulkIssue(section, "warning", "attendance_root_leftover", "root attendanceRecords 仍有舊資料，正式統計應優先使用 subcollection", rootDocs);
+  }
+  section.metrics = { total: attDocs.length, rootDocs, subDocs, activeDocs, compUidCount, compAsSelfCount };
+  return section;
+}
+
+function buildEventProjectionUidHealthSection(projectionDocs) {
+  const section = createUidHealthSection("eventProjections", "活動投影名單 uid");
+  let participants = 0;
+  let waitlist = 0;
+  projectionDocs.forEach((doc) => {
+    const data = doc.data() || {};
+    section.checked += 1;
+    [
+      { field: "participantsWithUid", rows: Array.isArray(data.participantsWithUid) ? data.participantsWithUid : [] },
+      { field: "waitlistWithUid", rows: Array.isArray(data.waitlistWithUid) ? data.waitlistWithUid : [] },
+    ].forEach(({ field, rows }) => {
+      if (field === "participantsWithUid") participants += rows.length;
+      if (field === "waitlistWithUid") waitlist += rows.length;
+      rows.forEach((row, index) => {
+        const uid = normalizeAuditString(row?.uid, 120);
+        const sample = compactUidHealthSample(doc, data, {
+          field: `${field}[${index}].uid`,
+          value: uid,
+          name: row?.name,
+          eventId: data.eventId || data.id || doc.id,
+        });
+        if (!uid) {
+          addUidHealthIssue(section, "warning", "projection_missing_uid", `${field}.uid 缺少值`, sample);
+        } else if (!isLineUid(uid)) {
+          addUidHealthIssue(section, isCompanionPseudoUid(uid) ? "warning" : "error", "projection_invalid_uid", `${field}.uid 不是 LINE UID`, sample);
+        }
+      });
+    });
+  });
+  section.metrics = { events: projectionDocs.length, participantsWithUid: participants, waitlistWithUid: waitlist };
+  return section;
+}
+
+function buildGenericUidHealthSection(key, title, docs, specs) {
+  const section = createUidHealthSection(key, title);
+  scanUidFieldSection(section, docs, specs, { allowMissing: true });
+  section.metrics = { total: docs.length };
+  return section;
+}
+
+async function buildUidHealthCheckReport() {
+  const [
+    usersSnap,
+    regPack,
+    activityPack,
+    attendancePack,
+    eventProjectionsSnap,
+    eventsSnap,
+    teamsSnap,
+    tournamentsSnap,
+  ] = await Promise.all([
+    db.collection("users").get(),
+    getMergedCollectionDocs("registrations"),
+    getMergedCollectionDocs("activityRecords"),
+    getMergedCollectionDocs("attendanceRecords"),
+    db.collection("eventProjections").get(),
+    db.collection("events").get(),
+    db.collection("teams").get(),
+    db.collection("tournaments").get(),
+  ]);
+
+  const sections = [
+    buildUsersUidHealthSection(usersSnap.docs),
+    buildRegistrationUidHealthSection(regPack.docs),
+    buildActivityRecordUidHealthSection(activityPack.docs),
+    buildAttendanceUidHealthSection(attendancePack.docs),
+    buildEventProjectionUidHealthSection(eventProjectionsSnap.docs),
+    buildGenericUidHealthSection("events", "活動建立者與委託人 UID", eventsSnap.docs, [
+      "creatorUid",
+      { field: "delegateUids", kind: "array" },
+      { field: "delegates", kind: "objectArray", childField: "uid" },
+    ]),
+    buildGenericUidHealthSection("teams", "俱樂部職員 UID", teamsSnap.docs, [
+      "captainUid",
+      "creatorUid",
+      "ownerUid",
+      "leaderUid",
+      { field: "leaderUids", kind: "array" },
+      { field: "coachUids", kind: "array" },
+    ]),
+    buildGenericUidHealthSection("tournaments", "賽事建立者與職員 UID", tournamentsSnap.docs, [
+      "creatorUid",
+      { field: "delegateUids", kind: "array" },
+      { field: "delegates", kind: "objectArray", childField: "uid" },
+      { field: "refereeUids", kind: "array" },
+      { field: "referees", kind: "objectArray", childField: "uid" },
+    ]),
+  ];
+
+  const issueTotals = sections.reduce((acc, section) => {
+    section.issues.forEach((issue) => {
+      if (issue.severity === "error") acc.errors += Number(issue.count || 0);
+      else acc.warnings += Number(issue.count || 0);
+    });
+    return acc;
+  }, { errors: 0, warnings: 0 });
+  const scannedDocs = usersSnap.size + regPack.docs.length + activityPack.docs.length + attendancePack.docs.length
+    + eventProjectionsSnap.size + eventsSnap.size + teamsSnap.size + tournamentsSnap.size;
+  const estimatedReads = usersSnap.size + regPack.billedReads + activityPack.billedReads + attendancePack.billedReads
+    + eventProjectionsSnap.size + eventsSnap.size + teamsSnap.size + tournamentsSnap.size;
+  const status = issueTotals.errors > 0 ? "error" : (issueTotals.warnings > 0 ? "warning" : "ok");
+  const summary = status === "ok"
+    ? `檢查完成，未發現 UID 異常。掃描 ${scannedDocs} 筆，未修改資料。`
+    : `檢查完成：嚴重 ${issueTotals.errors}、警告 ${issueTotals.warnings}。掃描 ${scannedDocs} 筆，未修改資料。`;
+
+  return {
+    status,
+    summary,
+    scannedDocs,
+    estimatedReads,
+    dataChanges: 0,
+    errors: issueTotals.errors,
+    warnings: issueTotals.warnings,
+    sections,
+  };
+}
+
+async function appendUidHealthCheckLog(report = {}, access = {}, callerUid = "") {
+  const ref = db.collection("siteConfig").doc("realtimeConfig");
+  const now = Timestamp.now();
+  const safeReport = {
+    ...report,
+    checkedAtMs: now.toMillis(),
+    checkedAtIso: now.toDate().toISOString(),
+    checkedByUid: normalizeAuditString(callerUid, 120),
+    checkedByRole: normalizeAuditString(access.role, 40),
+  };
+  const logEntry = {
+    id: `uidh_${now.toMillis()}_${Math.random().toString(36).slice(2, 8)}`,
+    at: now,
+    source: "uid_health",
+    status: normalizeAuditString(report.status || "ok", 30),
+    message: normalizeAuditString(report.summary || "UID health check completed", 220),
+    scannedDocs: Number(report.scannedDocs || 0) || 0,
+    estimatedReads: Number(report.estimatedReads || 0) || 0,
+    errors: Number(report.errors || 0) || 0,
+    warnings: Number(report.warnings || 0) || 0,
+    dataChanges: 0,
+  };
+
+  await db.runTransaction(async (transaction) => {
+    const snap = await transaction.get(ref);
+    const data = snap.exists ? (snap.data() || {}) : {};
+    const prev = Array.isArray(data.uidHealthCheckLogs) ? data.uidHealthCheckLogs : [];
+    transaction.set(ref, {
+      uidHealthLastReport: safeReport,
+      uidHealthCheckLogs: [logEntry, ...prev].slice(0, UID_HEALTH_CHECK_LOG_LIMIT),
+      uidHealthLastCheckedAt: now,
+      uidHealthLastStatus: logEntry.status,
+      uidHealthLastLogAt: now,
+    }, { merge: true });
+  });
+  return safeReport;
 }
 
 function addRepairResult(total, part) {
@@ -8406,6 +8956,44 @@ exports.repairActivityRecordsManual = onCall(
         activityRepairLastError: String(err?.message || err).slice(0, 300),
       });
       throw err;
+    }
+  },
+);
+
+exports.runUidHealthCheck = onCall(
+  { region: "asia-east1", timeoutSeconds: 300, memory: "512MiB" },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "auth required");
+    const access = await getCallerAccessContext(request);
+    if (!access.hasPermission("admin.repair.data_sync")) {
+      throw new HttpsError("permission-denied", "permission denied");
+    }
+    assertDataSyncSettingsPassword(request);
+
+    try {
+      const report = await buildUidHealthCheckReport();
+      const savedReport = await appendUidHealthCheckLog(report, access, request.auth.uid);
+      await writeOperationLog({
+        operator: access.displayName || request.auth.uid,
+        type: "uid_health_check",
+        typeName: "UID health check",
+        content: `status=${savedReport.status}, scanned=${savedReport.scannedDocs}, errors=${savedReport.errors}, warnings=${savedReport.warnings}, dataChanges=0`,
+      }).catch(() => {});
+      return { success: true, report: savedReport };
+    } catch (err) {
+      await appendUidHealthCheckLog({
+        status: "error",
+        summary: `UID health check failed: ${String(err?.message || err).slice(0, 180)}`,
+        scannedDocs: 0,
+        estimatedReads: 0,
+        dataChanges: 0,
+        errors: 1,
+        warnings: 0,
+        sections: [],
+      }, access, request.auth.uid).catch(() => {});
+      if (err instanceof HttpsError) throw err;
+      console.error("[runUidHealthCheck]", err);
+      throw new HttpsError("internal", "UID health check failed");
     }
   },
 );

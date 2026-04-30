@@ -2,6 +2,12 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-30 — UID 健康檢查報表 [審計]
+- **問題**: 既有 UID migration / repair 工具偏向 root collection，容易漏掉正式使用中的 subcollection 與 companion pseudo uid 風險。
+- **修正**: 新增後端 `runUidHealthCheck` callable，接在「資料同步與監聽設定」下方，需 `admin.repair.data_sync` 權限與後端密碼驗證；掃描 users、registrations、activityRecords、attendanceRecords、eventProjections、events、teams、tournaments，產生只讀報表、最後報告與 UID 檢查 Log。
+- **驗證**: `node --check functions/index.js`、`node --check js/modules/dashboard/dashboard-usage.js`、`git diff --check`、完整 `npm test -- --runInBand` 通過（81 suites / 2631 tests）；前端版本 bump 至 `0.20260430x`。
+- **提醒**: 健康檢查只會改寫報表/log，不修復或刪除正式活動、用戶、報名、簽到資料。
+
 ### 2026-04-30 — 操作日誌顯示與搜尋升級 [修補]
 - **問題**: 操作日誌畫面只顯示時間、類型、操作者與內容，搜尋也只比對操作者/內容；實務上查 UID、活動 ID、文件 ID 或類型代碼時不夠好用。
 - **修補**: `js/modules/user-admin/user-admin-exp.js` 新增操作日誌搜尋文字彙整，納入 `actorUid/type/typeName/content/eventId/_docId/createdAt`，並在列表顯示 UID、類型、活動 ID、文件 ID、詳細內容與診斷包複製。
