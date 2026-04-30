@@ -6621,6 +6621,12 @@ exports.cancelRegistration = onCall(
         }
       }
 
+      // Firestore transactions require every read before the first write.
+      const arSnap = await transaction.get(
+        eventDoc.ref.collection("activityRecords")
+      );
+      const allArs = arSnap.docs.map((d) => ({ ...d.data(), _docId: d.id }));
+
       // 寫入 Firestore
       for (const reg of targetRegs) {
         transaction.update(eventDoc.ref.collection("registrations").doc(reg._docId), {
@@ -6646,11 +6652,6 @@ exports.cancelRegistration = onCall(
 
       // T6: 更新 activityRecords（子集合直接查詢，Transaction 內確保一致性）
       // 取消者的 activityRecord → cancelled/removed
-      const arSnap = await transaction.get(
-        eventDoc.ref.collection("activityRecords")
-      );
-      const allArs = arSnap.docs.map((d) => ({ ...d.data(), _docId: d.id }));
-
       for (const reg of targetRegs) {
         if (reg.participantType === "companion") continue;
         const ar = allArs.find((a) => a.uid === reg.userId && a.status !== "cancelled" && a.status !== "removed");

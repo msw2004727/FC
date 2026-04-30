@@ -8,6 +8,9 @@
  * Covers 30 exported functions' input validation and key decision logic.
  */
 
+const fs = require('fs');
+const path = require('path');
+
 // ===========================================================================
 // Constants extracted from functions/index.js:27-74
 // ===========================================================================
@@ -355,9 +358,62 @@ async function getNotificationTogglesWithFallback(source, deps = {}) {
   }
 }
 
+function readCloudFunctionSource(functionName) {
+  const source = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'functions', 'index.js'),
+    'utf8'
+  );
+  const start = source.indexOf(`exports.${functionName}`);
+  expect(start).toBeGreaterThanOrEqual(0);
+  const nextExport = source.indexOf('\nexports.', start + 1);
+  return source.slice(start, nextExport === -1 ? source.length : nextExport);
+}
+
+function readCancelRegistrationTransactionSource() {
+  const fnSource = readCloudFunctionSource('cancelRegistration');
+  const txStart = fnSource.indexOf('const result = await db.runTransaction');
+  expect(txStart).toBeGreaterThanOrEqual(0);
+  const txEnd = fnSource.indexOf('\n    });', txStart);
+  expect(txEnd).toBeGreaterThan(txStart);
+  return fnSource.slice(txStart, txEnd);
+}
+
+function findAllIndexes(source, needle) {
+  const indexes = [];
+  let index = source.indexOf(needle);
+  while (index !== -1) {
+    indexes.push(index);
+    index = source.indexOf(needle, index + needle.length);
+  }
+  return indexes;
+}
+
 // ===========================================================================
 // TESTS
 // ===========================================================================
+
+describe('cancelRegistration CF transaction ordering', () => {
+  test('performs transaction reads before writes', () => {
+    const txSource = readCancelRegistrationTransactionSource();
+    const writeIndexes = [
+      ...findAllIndexes(txSource, 'transaction.update('),
+      ...findAllIndexes(txSource, 'transaction.delete('),
+      ...findAllIndexes(txSource, 'transaction.set('),
+      ...findAllIndexes(txSource, 'transaction.create('),
+    ];
+    const readIndexes = findAllIndexes(txSource, 'transaction.get(');
+    expect(writeIndexes.length).toBeGreaterThan(0);
+    expect(readIndexes.length).toBeGreaterThan(0);
+
+    const firstWriteIndex = Math.min(...writeIndexes);
+    const lateReadIndexes = readIndexes.filter((index) => index > firstWriteIndex);
+    const activityRecordsReadIndex = txSource.indexOf('eventDoc.ref.collection("activityRecords")');
+
+    expect(activityRecordsReadIndex).toBeGreaterThanOrEqual(0);
+    expect(activityRecordsReadIndex).toBeLessThan(firstWriteIndex);
+    expect(lateReadIndexes).toEqual([]);
+  });
+});
 
 describe('createCustomToken validation', () => {
   test('rejects unauthenticated request', () => {
