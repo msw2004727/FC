@@ -430,6 +430,47 @@ Object.assign(App, {
     return (logs || []).filter(log => !this._shouldHideDuplicatedOperationLog(log));
   },
 
+  _getOperationLogDocId(log) {
+    return String(log?._docId || log?.id || '').trim();
+  },
+
+  _formatOperationLogCreatedAt(log) {
+    const createdAt = log?.createdAt;
+    let date = null;
+    if (createdAt && typeof createdAt.toDate === 'function') {
+      date = createdAt.toDate();
+    } else if (createdAt && typeof createdAt.seconds === 'number') {
+      date = new Date((createdAt.seconds * 1000) + Math.floor((createdAt.nanoseconds || 0) / 1000000));
+    } else if (createdAt instanceof Date) {
+      date = createdAt;
+    }
+    if (!date || Number.isNaN(date.getTime())) return String(log?.time || '').trim() || '未標示';
+    return date.toLocaleString('zh-TW', { hour12: false });
+  },
+
+  _getOperationLogSearchText(log) {
+    const parts = [
+      log?.time,
+      this._formatOperationLogCreatedAt(log),
+      log?.operator,
+      log?.actorUid,
+      log?.type,
+      log?.typeName,
+      log?.content,
+      log?.eventId,
+      this._getOperationLogDocId(log),
+    ];
+    return parts
+      .map(value => String(value || '').trim().toLowerCase())
+      .filter(Boolean)
+      .join(' ');
+  },
+
+  _matchesOperationLogKeyword(log, keyword) {
+    const normalized = String(keyword || '').trim().toLowerCase();
+    return !normalized || this._getOperationLogSearchText(log).includes(normalized);
+  },
+
   _getOperationLogToneClass(type) {
     const safeType = String(type || '').trim();
     if (!safeType) return 'log-tone-gray';
@@ -535,10 +576,7 @@ Object.assign(App, {
     let logs = this._getVisibleOperationLogs(ApiService.getOperationLogs());
 
     if (keyword) {
-      logs = logs.filter(l =>
-        l.operator.toLowerCase().includes(keyword) ||
-        l.content.toLowerCase().includes(keyword)
-      );
+      logs = logs.filter(l => this._matchesOperationLogKeyword(l, keyword));
     }
     if (typeFilter) {
       logs = logs.filter(l => l.type === typeFilter);
@@ -557,6 +595,7 @@ Object.assign(App, {
   renderOperationLogs(logs, page) {
     const container = document.getElementById('operation-log-list');
     if (!container) return;
+    this._ensureOperationLogListActions();
 
     if (!logs) logs = this._getVisibleOperationLogs(ApiService.getOperationLogs());
     logs = this._getVisibleOperationLogs(logs);
@@ -574,13 +613,42 @@ Object.assign(App, {
 
     let html = pageItems.map(l => {
       const tone = this._getOperationLogToneClass(l.type);
+      const docId = this._getOperationLogDocId(l);
+      const createdLabel = this._formatOperationLogCreatedAt(l);
+      const actorUid = String(l?.actorUid || '').trim();
+      const eventId = String(l?.eventId || '').trim();
+      const type = String(l?.type || '').trim();
+      const typeName = String(l?.typeName || type || '未分類').trim();
+      const operator = String(l?.operator || '未標示').trim();
+      const content = String(l?.content || '未標示').trim();
       return `
-      <div class="log-item oplog-row-${tone}">
-        <span class="log-time">${escapeHTML(l.time)}</span>
-        <span class="log-content">
-          <span class="log-type ${tone}">${escapeHTML(l.typeName)}</span>
-          ${escapeHTML(l.operator)}：${escapeHTML(l.content)}
-        </span>
+      <div class="log-item operation-log-item oplog-row-${tone}">
+        <div class="operation-log-main">
+          <span class="log-time">${escapeHTML(l.time || createdLabel)}</span>
+          <span class="log-content">
+            <span class="log-type ${tone}">${escapeHTML(typeName)}</span>
+            <span class="operation-log-action-text">${escapeHTML(operator)}：${escapeHTML(content)}</span>
+          </span>
+        </div>
+        <div class="operation-log-meta">
+          <span>操作者：${escapeHTML(operator)}</span>
+          <span>UID：${escapeHTML(actorUid || '未標示')}</span>
+          <span>類型：${escapeHTML(type || '未標示')}</span>
+          ${eventId ? `<span>活動：${escapeHTML(eventId)}</span>` : ''}
+          ${docId ? `<span>文件：${escapeHTML(docId)}</span>` : ''}
+        </div>
+        <details class="operation-log-details">
+          <summary>查看詳細內容</summary>
+          <div class="operation-log-detail-grid">
+            <div class="operation-log-detail-row"><span>時間</span><pre>${escapeHTML(createdLabel)}</pre></div>
+            <div class="operation-log-detail-row"><span>類型</span><pre>${escapeHTML(typeName)}${type ? `（${escapeHTML(type)}）` : ''}</pre></div>
+            <div class="operation-log-detail-row"><span>內容</span><pre>${escapeHTML(content)}</pre></div>
+            <div class="operation-log-detail-row"><span>操作者</span><pre>${escapeHTML(operator)} / ${escapeHTML(actorUid || '未標示')}</pre></div>
+            <div class="operation-log-detail-row"><span>活動 ID</span><pre class="is-mono">${escapeHTML(eventId || '無')}</pre></div>
+            ${docId ? `<div class="operation-log-detail-row"><span>文件 ID</span><pre class="is-mono">${escapeHTML(docId)}</pre></div>` : ''}
+          </div>
+          ${docId ? `<button type="button" class="outline-btn operation-log-copy-btn" data-operation-doc-id="${escapeHTML(docId)}">複製診斷包</button>` : ''}
+        </details>
       </div>`;
     }).join('');
 
@@ -593,6 +661,67 @@ Object.assign(App, {
     }
 
     container.innerHTML = html;
+  },
+
+  _ensureOperationLogListActions() {
+    const container = document.getElementById('operation-log-list');
+    if (!container || container.dataset.operationActionsBound === '1') return;
+    container.dataset.operationActionsBound = '1';
+    container.addEventListener('click', event => {
+      const button = event.target?.closest?.('[data-operation-doc-id]');
+      if (!button) return;
+      void this.copyOperationLogDiagnostic(button.dataset.operationDocId || '');
+    });
+  },
+
+  _findOperationLogByDocId(docId) {
+    const targetId = String(docId || '').trim();
+    if (!targetId) return null;
+    const source = [
+      ...(this._opLogFiltered || []),
+      ...this._getVisibleOperationLogs(ApiService.getOperationLogs()),
+    ];
+    return source.find(log => this._getOperationLogDocId(log) === targetId) || null;
+  },
+
+  _buildOperationLogDiagnosticText(log) {
+    return [
+      'ToosterX 操作日誌診斷包',
+      `時間：${this._formatOperationLogCreatedAt(log)}`,
+      `類型：${log?.typeName || '未分類'} (${log?.type || 'unknown'})`,
+      `操作者：${log?.operator || '未標示'} / ${log?.actorUid || '未標示'}`,
+      `內容：${log?.content || '未標示'}`,
+      `活動 ID：${log?.eventId || '無'}`,
+      `文件 ID：${this._getOperationLogDocId(log) || '未標示'}`,
+    ].join('\n');
+  },
+
+  async copyOperationLogDiagnostic(docId) {
+    const log = this._findOperationLogByDocId(docId);
+    if (!log) {
+      this.showToast?.('找不到這筆操作日誌');
+      return;
+    }
+    const text = this._buildOperationLogDiagnosticText(log);
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        textarea.remove();
+      }
+      this.showToast?.('已複製操作日誌診斷包');
+    } catch (err) {
+      console.error('[copyOperationLogDiagnostic]', err);
+      this.showToast?.('複製操作日誌診斷包失敗');
+    }
   },
 
 });

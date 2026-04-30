@@ -2,6 +2,11 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-30 — 操作日誌顯示與搜尋升級 [修補]
+- **問題**: 操作日誌畫面只顯示時間、類型、操作者與內容，搜尋也只比對操作者/內容；實務上查 UID、活動 ID、文件 ID 或類型代碼時不夠好用。
+- **修補**: `js/modules/user-admin/user-admin-exp.js` 新增操作日誌搜尋文字彙整，納入 `actorUid/type/typeName/content/eventId/_docId/createdAt`，並在列表顯示 UID、類型、活動 ID、文件 ID、詳細內容與診斷包複製。
+- **測試**: 新增 `tests/unit/operation-log.test.js`，覆蓋搜尋文字、事件/文件 ID 篩選、詳細顯示與診斷包內容。
+
 ### 2026-04-30 — 稽核日誌顯示與搜尋升級 [修補]
 - **問題**: 稽核日誌後台只顯示時間、操作者與動作，搜尋也只比對操作者名稱/UID；但 UI 提示可搜尋目標，實際查活動 ID、目標名稱、來源或 meta 時容易搜不到。
 - **修補**: `js/modules/audit-log.js` 保留並顯示 `result/source/targetType/targetId/targetLabel/meta/_docId`，新增結果膠囊、目標/來源/UID 摘要、詳細內容、診斷包複製，並把搜尋範圍擴充到目標、來源、結果、文件 ID 與 meta。

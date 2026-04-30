@@ -426,6 +426,26 @@
 
 /* ─── Operation Log Row Background Colors ─── */
 .log-item[class*="oplog-row-"] { border-radius: 6px; }
+.operation-log-item { flex-direction: column; align-items: stretch; gap: .45rem; }
+.operation-log-main { display: flex; align-items: flex-start; gap: .55rem; width: 100%; min-width: 0; }
+.operation-log-main .log-content { flex: 1; min-width: 0; }
+.operation-log-action-text { overflow-wrap: anywhere; }
+.operation-log-meta { display: flex; flex-wrap: wrap; gap: .25rem; padding-left: calc(70px + .55rem); }
+.operation-log-meta span { font-size: .68rem; line-height: 1.35; color: var(--text-muted); background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 999px; padding: .12rem .4rem; overflow-wrap: anywhere; }
+.operation-log-details { border-top: 1px solid var(--border); padding-top: .42rem; }
+.operation-log-details summary { cursor: pointer; color: var(--primary); font-size: .74rem; font-weight: 700; }
+.operation-log-detail-grid { margin-top: .5rem; display: flex; flex-direction: column; gap: .42rem; }
+.operation-log-detail-row { display: grid; grid-template-columns: 70px minmax(0,1fr); gap: .5rem; align-items: start; }
+.operation-log-detail-row span { color: var(--text-muted); font-size: .68rem; padding-top: .18rem; }
+.operation-log-detail-row pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .72rem; line-height: 1.45; color: var(--text-secondary); background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: .42rem .5rem; }
+.operation-log-detail-row pre.is-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.operation-log-copy-btn { font-size: .68rem; padding: .18rem .45rem; margin-top: .45rem; }
+@media (max-width: 520px) {
+  .operation-log-main { flex-wrap: wrap; }
+  .operation-log-main .log-time { width: 100%; }
+  .operation-log-meta { padding-left: 0; }
+  .operation-log-detail-row { grid-template-columns: 1fr; gap: .2rem; }
+}
 .log-item.oplog-row-log-tone-blue   { background: rgba(59,130,246,.06); }
 .log-item.oplog-row-log-tone-violet { background: rgba(168,85,247,.06); }
 .log-item.oplog-row-log-tone-purple { background: rgba(139,92,246,.06); }

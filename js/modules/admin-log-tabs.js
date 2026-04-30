@@ -8,7 +8,7 @@ Object.assign(App, {
   _pendingAdminLogTab: '',
 
   _adminLogInfoMap: {
-    operation: { title: '操作日誌', desc: '查看後台與系統操作紀錄，可依類型與關鍵字快速篩選。' },
+    operation: { title: '操作日誌', desc: '查看後台與系統操作紀錄，可依類型、UID、活動或文件 ID 篩選，並可複製診斷包。' },
     audit:     { title: '稽核日誌', desc: '查看敏感行為與關鍵操作紀錄，可依日期、時段與動作條件過濾。' },
     error:     { title: '錯誤日誌', desc: '集中查看前端與系統錯誤，可依錯誤代碼與關鍵字過濾。' },
   },
