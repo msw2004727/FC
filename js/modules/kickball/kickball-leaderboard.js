@@ -10,6 +10,50 @@ window._KickballLeaderboard = (function () {
   var _lbOpen = false;
   var _lbSubmitPending = false;
   var _bestSession = null; // { distance, maxSpeed, durationMs }
+  var _lbReturnFocusEl = null;
+
+  function _focusElement(el) {
+    if (!el || typeof el.focus !== 'function') return false;
+    var needsTabIndex = el.nodeType === 1
+      && !el.hasAttribute('tabindex')
+      && !/^(A|BUTTON|INPUT|SELECT|TEXTAREA)$/i.test(el.tagName || '');
+    if (needsTabIndex) el.setAttribute('tabindex', '-1');
+    try {
+      el.focus({ preventScroll: true });
+    } catch (_) {
+      try { el.focus(); } catch (err) {}
+    }
+    if (needsTabIndex) el.removeAttribute('tabindex');
+    return document.activeElement === el;
+  }
+
+  function _rememberLeaderboardFocus(modal) {
+    var active = document.activeElement;
+    if (active && active !== document.body && !modal.contains(active)) {
+      _lbReturnFocusEl = active;
+    }
+  }
+
+  function _restoreLeaderboardFocus(modal) {
+    var active = document.activeElement;
+    if (!active || !modal.contains(active)) {
+      _lbReturnFocusEl = null;
+      return;
+    }
+
+    var root = document.documentElement;
+    var target = (_lbReturnFocusEl && root && root.contains(_lbReturnFocusEl) && !modal.contains(_lbReturnFocusEl))
+      ? _lbReturnFocusEl
+      : document.getElementById('kg-leaderboard-btn-inner')
+        || document.querySelector('#page-kick-game .kg-lb-btn')
+        || document.getElementById('kick-game-container')
+        || document.body;
+
+    if (!_focusElement(target) && typeof active.blur === 'function') {
+      active.blur();
+    }
+    _lbReturnFocusEl = null;
+  }
 
   /* ── Leaderboard ── */
   function _renderLeaderboard(period) {
@@ -189,14 +233,17 @@ window._KickballLeaderboard = (function () {
   function _openLeaderboard(period) {
     var modal = document.getElementById('kg-leaderboard-modal');
     if (!modal) return;
+    _rememberLeaderboardFocus(modal);
     _renderLeaderboard(period || _lbPeriod);
     modal.classList.add('is-open');
     modal.setAttribute('aria-hidden', 'false');
     _lbOpen = true;
+    _focusElement(document.getElementById('kg-leaderboard-close'));
   }
   function _closeLeaderboard() {
     var modal = document.getElementById('kg-leaderboard-modal');
     if (!modal) return;
+    _restoreLeaderboardFocus(modal);
     modal.classList.remove('is-open');
     modal.setAttribute('aria-hidden', 'true');
     _lbOpen = false;

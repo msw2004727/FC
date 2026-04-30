@@ -2,6 +2,12 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-30 — 開球榜關閉時 aria-hidden focus 警告修復 [小型]
+- **問題**: 關閉開球榜時，瀏覽器警告 `Blocked aria-hidden on an element because its descendant retained focus`；焦點仍停在 `#kg-leaderboard-close`，父層 `#kg-leaderboard-modal` 卻被設成 `aria-hidden="true"`。
+- **原因**: `_closeLeaderboard()` 先隱藏 modal，沒有先把焦點移出彈窗；對鍵盤與螢幕閱讀器使用者會形成「焦點在已隱藏區域」的無障礙狀態衝突。
+- **修復**: 開榜時記住原本焦點並把焦點移到關閉鍵；關榜時先將焦點還給原本開榜按鈕或安全 fallback，再移除 `is-open` 並設定 `aria-hidden="true"`。
+- **驗證**: `node --check js/modules/kickball/kickball-leaderboard.js` 通過；新增 `tests/unit/kickball-leaderboard-focus.test.js` 覆蓋關榜前焦點移出 modal；前端版本 bump 至 `0.20260430zd`。
+
 ### 2026-04-30 — 同行者簽到 UID 修復與防復發 [維護]
 - **問題**: UID 健康檢查發現 `attendanceRecords.uid` 有 12 筆 `comp_...` 同行者 pseudo id 被寫成 `participantType:self`，會污染真人 UID 統計與放鴿子/簽到資料。
 - **根因**: 管理簽到進入編輯時，instant-save 可能早於 registrations 完整載入，`participantsWithUid` fallback 將 `comp_...` 視為一般 self 人員，後續寫入 attendanceRecords 時沒有共同防線阻擋。
