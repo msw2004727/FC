@@ -738,6 +738,7 @@ Object.assign(App, {
       activityRepairFrequency: 1,
       activityRepairLookbackDays: 90,
       activityRepairFutureDays: 180,
+      activityRepairMaxEventsPerRun: 500,
       activityRepairBatchSize: 300,
       activityRepairManualCooldownSeconds: 300,
       activityRepairLogs: [],
@@ -750,7 +751,7 @@ Object.assign(App, {
         [
           'attendanceLimit', 'registrationLimit', 'eventLimit', 'noShowFrequency',
           'activityRepairFrequency', 'activityRepairLookbackDays', 'activityRepairFutureDays',
-          'activityRepairBatchSize', 'activityRepairManualCooldownSeconds',
+          'activityRepairMaxEventsPerRun', 'activityRepairBatchSize', 'activityRepairManualCooldownSeconds',
         ].forEach(function(key) {
           if (d[key] !== undefined && d[key] !== null && d[key] !== '') current[key] = Number(d[key]);
         });
@@ -796,6 +797,7 @@ Object.assign(App, {
       + '  <div style="' + rowStyle + '"><div><div style="font-size:.82rem;font-weight:600">修復頻率</div><div style="font-size:.7rem;color:var(--text-secondary)">排程啟用後生效</div></div><select id="ar-repair-freq" style="' + inputStyle + ';width:auto;min-width:96px">' + repairFreqOptions + '</select></div>'
       + '  <div style="' + rowStyle + '"><div><div style="font-size:.82rem;font-weight:600">回補天數</div><div style="font-size:.7rem;color:var(--text-secondary)">往前掃描活動天數</div></div><input id="ar-repair-lookback" type="number" inputmode="numeric" min="1" max="365" value="' + Number(current.activityRepairLookbackDays || 90) + '" style="' + inputStyle + '" /></div>'
       + '  <div style="' + rowStyle + '"><div><div style="font-size:.82rem;font-weight:600">未來天數</div><div style="font-size:.7rem;color:var(--text-secondary)">往後掃描活動天數</div></div><input id="ar-repair-future" type="number" inputmode="numeric" min="0" max="365" value="' + Number(current.activityRepairFutureDays || 180) + '" style="' + inputStyle + '" /></div>'
+      + '  <div style="' + rowStyle + '"><div><div style="font-size:.82rem;font-weight:600">單次活動上限</div><div style="font-size:.7rem;color:var(--text-secondary)">每次排程最多掃描幾場</div></div><input id="ar-repair-max-events" type="number" inputmode="numeric" min="50" max="1000" value="' + Number(current.activityRepairMaxEventsPerRun || 500) + '" style="' + inputStyle + '" /></div>'
       + '  <div style="' + rowStyle + '"><div><div style="font-size:.82rem;font-weight:600">批次大小</div><div style="font-size:.7rem;color:var(--text-secondary)">每批 Firestore 寫入上限</div></div><input id="ar-repair-batch" type="number" inputmode="numeric" min="50" max="450" value="' + Number(current.activityRepairBatchSize || 300) + '" style="' + inputStyle + '" /></div>'
       + '  <div style="' + rowStyle + '"><div><div style="font-size:.82rem;font-weight:600">用戶刷新冷卻</div><div style="font-size:.7rem;color:var(--text-secondary)">個人頁手動刷新間隔秒數</div></div><input id="ar-repair-cooldown" type="number" inputmode="numeric" min="60" max="3600" value="' + Number(current.activityRepairManualCooldownSeconds || 300) + '" style="' + inputStyle + '" /></div>'
       + '</div>'
@@ -852,6 +854,7 @@ Object.assign(App, {
         var repairFreq = readInt('ar-repair-freq', 1);
         var lookback = readInt('ar-repair-lookback', 90);
         var future = readInt('ar-repair-future', 180);
+        var maxEvents = readInt('ar-repair-max-events', 500);
         var batch = readInt('ar-repair-batch', 300);
         var cooldown = readInt('ar-repair-cooldown', 300);
         var enabledEl = document.getElementById('ar-repair-enabled');
@@ -861,6 +864,7 @@ Object.assign(App, {
         if (evt < 100 || evt > 10000) errors.push('活動列表需介於 100~10000');
         if (lookback < 1 || lookback > 365) errors.push('回補天數需介於 1~365');
         if (future < 0 || future > 365) errors.push('未來天數需介於 0~365');
+        if (maxEvents < 50 || maxEvents > 1000) errors.push('單次活動上限需介於 50~1000');
         if (batch < 50 || batch > 450) errors.push('批次大小需介於 50~450');
         if (cooldown < 60 || cooldown > 3600) errors.push('刷新冷卻需介於 60~3600 秒');
         if (errors.length) {
@@ -889,6 +893,7 @@ Object.assign(App, {
             activityRepairFrequency: repairFreq,
             activityRepairLookbackDays: lookback,
             activityRepairFutureDays: future,
+            activityRepairMaxEventsPerRun: maxEvents,
             activityRepairBatchSize: batch,
             activityRepairManualCooldownSeconds: cooldown,
           });
@@ -1075,13 +1080,49 @@ Object.assign(App, {
       statusEl.style.color = 'var(--text-secondary)';
       statusEl.textContent = '正在執行報名紀錄修復...';
     }
+    var aggregate = {
+      created: 0,
+      updated: 0,
+      scannedEvents: 0,
+      scannedRegistrations: 0,
+      skipped: 0,
+      candidateEvents: 0,
+    };
     try {
       var fn = firebase.app().functions('asia-east1');
-      var callable = fn.httpsCallable('repairActivityRecordsManual');
-      var resp = await callable({ password: password });
+      var callable = fn.httpsCallable('repairActivityRecordsManual', { timeout: 300000 });
+      var startIndex = 0;
+      var hasMore = true;
+      var loops = 0;
+      var maxLoops = 8;
+      var chunkSize = 80;
+      while (hasMore && loops < maxLoops) {
+        loops += 1;
+        var resp = await callable({
+          password: password,
+          startIndex: startIndex,
+          maxEventsPerRun: chunkSize,
+        });
+        var data = resp.data || {};
+        ['created', 'updated', 'scannedEvents', 'scannedRegistrations', 'skipped'].forEach(function(key) {
+          aggregate[key] += Number(data[key] || 0);
+        });
+        aggregate.candidateEvents = Math.max(aggregate.candidateEvents, Number(data.candidateEvents || 0));
+        var nextStartIndex = Number(data.nextStartIndex || 0);
+        hasMore = !!data.hasMore && nextStartIndex > startIndex;
+        startIndex = nextStartIndex;
+        if (statusEl && hasMore) {
+          statusEl.style.color = 'var(--text-secondary)';
+          statusEl.textContent = '修復中：已掃描 ' + aggregate.scannedEvents + ' 場，繼續處理下一批...';
+        }
+      }
       password = '';
-      var data = resp.data || {};
-      var msg = '修復完成：新增 ' + (data.created || 0) + '，更新 ' + (data.updated || 0);
+      var msg = '修復完成：新增 ' + aggregate.created + '，更新 ' + aggregate.updated
+        + '，掃描 ' + aggregate.scannedEvents + ' 場';
+      if (hasMore) {
+        msg = '已分批修復：新增 ' + aggregate.created + '，更新 ' + aggregate.updated
+          + '，掃描 ' + aggregate.scannedEvents + ' 場；仍有資料可再次修復';
+      }
       if (statusEl) {
         statusEl.style.color = 'var(--success,#16a34a)';
         statusEl.textContent = msg;
@@ -1090,11 +1131,15 @@ Object.assign(App, {
     } catch (err) {
       password = '';
       console.error('[runActivityRecordRepairNow]', err);
+      var hasPartial = aggregate.scannedEvents > 0 || aggregate.created > 0 || aggregate.updated > 0;
+      var fallback = hasPartial
+        ? ('部分修復完成後中斷。新增 ' + aggregate.created + '，更新 ' + aggregate.updated + '，掃描 ' + aggregate.scannedEvents + ' 場。')
+        : '修復失敗，沒有變更任何資料。';
       if (statusEl) {
         statusEl.style.color = 'var(--danger,#dc2626)';
-        statusEl.textContent = this._getDataSyncGuardErrorMessage(err, '修復失敗，沒有變更任何資料。');
+        statusEl.textContent = this._getDataSyncGuardErrorMessage(err, fallback);
       }
-      this.showToast?.('報名紀錄修復失敗');
+      this.showToast?.(hasPartial ? '報名紀錄部分修復後中斷' : '報名紀錄修復失敗');
     } finally {
       if (btn) {
         btn.disabled = false;
@@ -1114,6 +1159,7 @@ Object.assign(App, {
       + '<div><b>修復頻率</b><span>一天要跑幾次自動修復。例如 1 次就是每天跑一次，24 次就是每小時都會檢查。</span></div>'
       + '<div><b>回補天數</b><span>往過去看幾天的活動。數字越大，越能補舊資料，但會掃描更多活動。</span></div>'
       + '<div><b>未來天數</b><span>往未來看幾天的活動。用來確保快到來的活動也有完整報名紀錄。</span></div>'
+      + '<div><b>單次活動上限</b><span>自動排程一次最多檢查幾場活動。活動量很多時可以先調小，避免單次修復跑太久。</span></div>'
       + '<div><b>批次大小</b><span>每一批最多寫入幾筆修復資料。一般維持預設就好，調太高比較容易碰到寫入限制。</span></div>'
       + '<div><b>用戶刷新冷卻</b><span>個人資訊頁的刷新按鈕，按完後要等幾秒才能再按。這是用來避免一直重複刷新造成成本。</span></div>'
       + '<div><b>Log</b><span>會保留最近 30 筆設定儲存、自動修復、手動修復結果，方便回頭查發生什麼事。</span></div>'

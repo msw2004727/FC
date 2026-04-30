@@ -1975,3 +1975,10 @@
 - **修復**：補回該活動缺漏的 4 筆 activityRecords；正式環境 featureFlags 未載入時預設走 server registration；fallback 報名交易同步寫入 registration、lock、occupancy 與 activityRecord，前端不再額外另開非同步 activityRecord 寫入。
 - **驗證**：Firestore 稽核確認該活動 active self registration 對應 activityRecords 缺漏數為 0；新增/更新 registration transaction 與 migration path 測試，並做 JS 語法檢查。
 - **教訓**：個人紀錄屬於報名索引資料，必須跟主報名寫入維持同交易或由後端權威路徑寫入；排程補償可以做一致性修復，但不能取代即時寫入。
+
+### 2026-04-30 資料同步立即修復 timeout 與 preload 警告 [中型]
+- **問題**：管理端「資料同步與監聽設定」點立即修復後顯示 `deadline-exceeded`，瀏覽器 console 同時出現大量 `preload was not used` 警告。
+- **原因**：手動修復單次最多掃 500 場活動且逐場讀取 registrations / activityRecords，前端 callable 沒拉長 timeout，瀏覽器端會先放棄等待；console 警告則來自 `ScriptLoader` 對未立即執行的核心頁模組使用 `rel=preload`。
+- **修復**：`repairActivityRecordsManual` 支援 `startIndex/maxEventsPerRun` 分段執行並回傳 `hasMore/nextStartIndex`；前端立即修復改成 80 場一批、最多接力 8 批、timeout 300 秒並顯示進度；設定區新增「單次活動上限」；核心頁 warmup 改用 `prefetch`，動態群組不再整包 preload。
+- **驗證**：`node --check` 覆蓋 functions、dashboard usage、script loader；`npm test -- --runInBand tests/unit/tournament-loading-performance.test.js` 實際跑完整 unit，81 suites / 2616 tests 全綠；production function log 顯示呼叫驗證通過後沒有成功/錯誤完成列，符合前端等待逾時而非權限或密碼失敗。
+- **教訓**：補償型修復要設計成可分段與可回報進度；未來頁面暖機要用 prefetch，不要把短時間內不會執行的 JS 用 preload 推進瀏覽器。

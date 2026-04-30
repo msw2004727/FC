@@ -66,12 +66,26 @@ const ScriptLoader = {
     });
   },
 
+  _prefetched: {},
+
+  _prefetchFiles(scripts) {
+    scripts.forEach(src => {
+      if (this._prefetched[src] || this._loaded[src]) return;
+      this._prefetched[src] = true;
+      const link = document.createElement('link');
+      link.rel = 'prefetch';
+      link.as = 'script';
+      link.href = src + '?v=' + CACHE_VERSION;
+      document.head.appendChild(link);
+    });
+  },
+
   /** 載入一組 scripts（平行預載 + 嚴格依序執行，避免 Object.assign 順序競態） */
   async loadGroup(scripts) {
     const toLoad = scripts.filter(s => !this._loaded[s]);
     if (toLoad.length === 0) return;
-    // 先觸發平行下載，再依序執行（命中快取後每個 script 幾乎秒完成）
-    this._preloadFiles(toLoad);
+    // Dynamic groups are injected immediately below. Group-wide preload hints
+    // make Chrome warn when later modules are not consumed within a few seconds.
     for (const src of toLoad) {
       await this._load(src);
     }
@@ -559,7 +573,7 @@ const ScriptLoader = {
     if (this._preloadQueued) return;
     this._preloadQueued = true;
 
-    // Step 1: 立即觸發平行下載（只下載不執行，不影響首頁效能）
+    // Step 1: 以低優先序 warm up 核心頁腳本（只下載不執行，不影響首頁效能）
     this._primeLoadedFromDom();
     const corePages = ['page-activities', 'page-teams', 'page-tournaments', 'page-profile'];
     const allScripts = [];
@@ -572,9 +586,9 @@ const ScriptLoader = {
         });
       });
     });
-    if (allScripts.length > 0) this._preloadFiles(allScripts);
+    if (allScripts.length > 0) this._prefetchFiles(allScripts);
     // Keep this as network warmup only. Executing every core page script after
     // a cache/version refresh causes visible main-thread jank during navigation.
-    console.log('[ScriptLoader] core page scripts preloaded (network hints only)');
+    console.log('[ScriptLoader] core page scripts prefetched (network hints only)');
   },
 };

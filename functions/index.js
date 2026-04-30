@@ -7806,6 +7806,7 @@ const ACTIVITY_RECORD_REPAIR_DEFAULTS = Object.freeze({
   maxEventsPerRun: 500,
   manualCooldownSeconds: 300,
 });
+const ACTIVITY_RECORD_REPAIR_MANUAL_CHUNK_LIMIT = 80;
 const ACTIVITY_RECORD_REPAIR_LOG_LIMIT = 30;
 const DATA_SYNC_SETTINGS_PASSWORD = process.env.DATA_SYNC_SETTINGS_PASSWORD || "1121";
 
@@ -7844,6 +7845,7 @@ function readRealtimeConfigPayload(data = {}) {
     activityRepairFrequency: clampInteger(data.activityRepairFrequency, ACTIVITY_RECORD_REPAIR_DEFAULTS.frequency, 1, 24),
     activityRepairLookbackDays: clampInteger(data.activityRepairLookbackDays, ACTIVITY_RECORD_REPAIR_DEFAULTS.lookbackDays, 1, 365),
     activityRepairFutureDays: clampInteger(data.activityRepairFutureDays, ACTIVITY_RECORD_REPAIR_DEFAULTS.futureDays, 0, 365),
+    activityRepairMaxEventsPerRun: clampInteger(data.activityRepairMaxEventsPerRun, ACTIVITY_RECORD_REPAIR_DEFAULTS.maxEventsPerRun, 50, 1000),
     activityRepairBatchSize: clampInteger(data.activityRepairBatchSize, ACTIVITY_RECORD_REPAIR_DEFAULTS.batchSize, 50, 450),
     activityRepairManualCooldownSeconds: clampInteger(data.activityRepairManualCooldownSeconds, ACTIVITY_RECORD_REPAIR_DEFAULTS.manualCooldownSeconds, 60, 3600),
   };
@@ -8102,6 +8104,7 @@ async function repairActivityRecordsBatch(options = {}) {
     maxEventsPerRun: clampInteger(options.maxEventsPerRun, ACTIVITY_RECORD_REPAIR_DEFAULTS.maxEventsPerRun, 50, 1000),
     batchSize: clampInteger(options.batchSize, ACTIVITY_RECORD_REPAIR_DEFAULTS.batchSize, 50, 450),
   };
+  const requestedStartIndex = clampInteger(options.startIndex, 0, 0, 1000000);
   const now = Date.now();
   const lower = now - cfg.lookbackDays * 86400000;
   const upper = now + cfg.futureDays * 86400000;
@@ -8124,14 +8127,22 @@ async function repairActivityRecordsBatch(options = {}) {
   });
   candidates.sort((a, b) => b.dateMs - a.dateMs);
 
+  const startIndex = Math.min(requestedStartIndex, candidates.length);
+  const nextStartIndex = Math.min(startIndex + cfg.maxEventsPerRun, candidates.length);
   const total = {
     scannedEvents: 0,
     scannedRegistrations: 0,
     created: 0,
     updated: 0,
     skipped: skippedInvalidDate,
+    candidateEvents: candidates.length,
+    startIndex,
+    nextStartIndex,
+    hasMore: nextStartIndex < candidates.length,
+    processedEvents: 0,
+    processedAll: nextStartIndex >= candidates.length,
   };
-  const limited = candidates.slice(0, cfg.maxEventsPerRun);
+  const limited = candidates.slice(startIndex, nextStartIndex);
   for (const item of limited) {
     const part = await repairActivityRecordsForEventDoc(item.doc, {
       batchSize: cfg.batchSize,
@@ -8139,8 +8150,9 @@ async function repairActivityRecordsBatch(options = {}) {
     });
     addRepairResult(total, part);
   }
-  if (candidates.length > limited.length) {
-    total.skipped += candidates.length - limited.length;
+  total.processedEvents = limited.length;
+  if (options.countRemainingAsSkipped === true && total.hasMore) {
+    total.skipped += candidates.length - nextStartIndex;
   }
   return total;
 }
@@ -8256,7 +8268,11 @@ exports.repairActivityRecordsScheduled = onSchedule(
       return;
     }
     try {
-      const result = await repairActivityRecordsBatch({ ...config, source: "scheduled" });
+      const result = await repairActivityRecordsBatch({
+        ...config,
+        source: "scheduled",
+        countRemainingAsSkipped: true,
+      });
       await appendActivityRepairLog({
         source: "scheduled",
         status: "success",
@@ -8329,7 +8345,7 @@ exports.saveRealtimeConfig = onCall(
       operator: access.displayName || request.auth.uid,
       type: "data_sync_config_save",
       typeName: "Data sync config save",
-      content: `attendance=${payload.attendanceLimit}, registration=${payload.registrationLimit}, event=${payload.eventLimit}`,
+      content: `attendance=${payload.attendanceLimit}, registration=${payload.registrationLimit}, event=${payload.eventLimit}, repairMaxEvents=${payload.activityRepairMaxEventsPerRun}`,
     }).catch(() => {});
 
     return { success: true, ...payload };
@@ -8347,12 +8363,24 @@ exports.repairActivityRecordsManual = onCall(
     assertDataSyncSettingsPassword(request);
     const configDoc = await db.collection("siteConfig").doc("realtimeConfig").get();
     const config = readActivityRecordRepairConfig(configDoc.exists ? configDoc.data() : {});
+    const startIndex = clampInteger(request.data?.startIndex, 0, 0, 1000000);
+    const requestedMaxEvents = clampInteger(
+      request.data?.maxEventsPerRun,
+      ACTIVITY_RECORD_REPAIR_MANUAL_CHUNK_LIMIT,
+      50,
+      150
+    );
     try {
-      const result = await repairActivityRecordsBatch({ ...config, source: "admin_manual" });
+      const result = await repairActivityRecordsBatch({
+        ...config,
+        startIndex,
+        maxEventsPerRun: Math.min(config.maxEventsPerRun, requestedMaxEvents),
+        source: "admin_manual",
+      });
       await appendActivityRepairLog({
         source: "admin_manual",
         status: "success",
-        message: "admin manual repair completed",
+        message: result.hasMore ? "admin manual repair chunk completed" : "admin manual repair completed",
         ...result,
       }, {
         activityRepairLastRunAt: FieldValue.serverTimestamp(),
