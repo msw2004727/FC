@@ -144,14 +144,20 @@ Object.assign(App, {
     const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
     const safePage = Math.min(p, totalPages);
     const pageItems = sorted.slice((safePage - 1) * pageSize, safePage * pageSize);
+    this._errorLogCopyItems = Object.create(null);
 
     let html = this._renderErrorLogSummary(allLogs, sorted);
+    html += this._renderErrorLogInsights(allLogs, sorted);
     if (sorted.length === 0) {
       container.innerHTML = html + '<div class="error-log-empty">目前沒有符合條件的錯誤日誌</div>';
       return;
     }
 
-    html += pageItems.map(log => this._renderErrorLogItem(log)).join('');
+    html += pageItems.map((log, idx) => {
+      const copyId = `p${safePage}_${idx}`;
+      this._errorLogCopyItems[copyId] = log;
+      return this._renderErrorLogItem(log, copyId);
+    }).join('');
     if (totalPages > 1) {
       html += `<div class="error-log-pagination">
         <button class="outline-btn" onclick="App._errorLogGoPage(${safePage - 1})" ${safePage <= 1 ? 'disabled' : ''}>&#8249; 上一頁</button>
@@ -179,7 +185,7 @@ Object.assign(App, {
     `).join('')}</div>`;
   },
 
-  _renderErrorLogItem(log) {
+  _renderErrorLogItem(log, copyId) {
     const severity = this._getErrorSeverity(log);
     const codeLabel = this._getErrorCodeLabel(log?.errorCode);
     const message = this._getErrorChineseMessage(log);
@@ -208,11 +214,11 @@ Object.assign(App, {
           <div class="error-log-meta">${meta.map(item => `<span>${escapeHTML(item)}</span>`).join('')}</div>
         </div>
       </div>
-      ${this._renderErrorLogDetails(log)}
+      ${this._renderErrorLogDetails(log, copyId)}
     </div>`;
   },
 
-  _renderErrorLogDetails(log) {
+  _renderErrorLogDetails(log, copyId) {
     const rawContext = typeof log?.context === 'string' ? log.context : (log?.context ? JSON.stringify(log.context) : '');
     const rows = [
       ['UID', log?.uid, true],
@@ -229,6 +235,7 @@ Object.assign(App, {
     ].map(([label, value, mono]) => this._renderErrorDetailRow(label, value, mono)).join('');
     return `<details class="error-log-details">
       <summary>查看技術細節</summary>
+      <button type="button" class="outline-btn error-log-copy-btn" onclick="event.stopPropagation();App.copyErrorLogDiagnostic('${escapeHTML(copyId || '')}')">複製診斷包</button>
       <div class="error-log-detail-grid">${rows}</div>
     </details>`;
   },

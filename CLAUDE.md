@@ -86,7 +86,7 @@ FC-github/
 │   ├── api-service.js      # Demo / Prod 抽象層
 │   ├── line-auth.js        # LINE LIFF 登入
 │   ├── core/               # 基礎設施（4 個）
-│   └── modules/            # 功能模組（14 子資料夾 + 24 獨立檔案）
+│   └── modules/            # 功能模組（14 子資料夾 + 26 獨立檔案）
 │       ├── event/          # 活動系統（30）：列表、詳情、報名、建立、管理、分享
 │       ├── team/           # 俱樂部系統（16）：列表、詳情、表單、動態牆、分享、helpers/stats/builders/validate/roles/invite
 │       ├── tournament/     # 賽事系統（19）：渲染、詳情、管理、友誼賽、helpers/builders/state
@@ -101,7 +101,7 @@ FC-github/
 │       ├── dashboard/      # 儀表板（6）：管理員、個人、報表分享、用量
 │       ├── ad-manage/      # 廣告管理（6）：輪播、浮動、贊助、小遊戲、品牌開機
 │       ├── user-admin/     # 用戶後台（5）：列表、EXP、角色、補正、權限說明
-│       └── [25 獨立模組]   # banner / shop / leaderboard / role / pwa-install 等
+│       └── [26 獨立模組]   # banner / shop / leaderboard / role / pwa-install 等
 ├── pages/                  # HTML 片段（18 個）
 ├── docs/                   # 專案文件
 └── functions/              # Cloud Functions

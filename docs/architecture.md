@@ -38,7 +38,7 @@ flowchart TD
         NAV["core/navigation.js\n頁面路由 & Modal"]
         THEME["core/theme.js\n深色 / 淺色主題"]
 
-        subgraph MODS["modules/ — 14 功能子資料夾 + 24 獨立模組"]
+        subgraph MODS["modules/ — 14 功能子資料夾 + 26 獨立模組"]
             EVT["event/ (34)\n活動系統"]
             TEAM["team/ (16)\n俱樂部系統"]
             TOUR["tournament/ (18)\n賽事系統"]
@@ -54,7 +54,7 @@ flowchart TD
             CCAT["color-cat/ (45)\n養成角色系統"]
             UADM["user-admin/ (5)\n用戶管理後台"]
             AUTOEXP["auto-exp/ (2)\n自動 EXP 系統"]
-            STANDALONE["25 個獨立模組\nbanner / shop / role / leaderboard\nachievement facade / news / favorites\nannouncement / popup-ad\nsite-theme / game-manage / data-sync\nimage-cropper / image-upload / pwa-install\nattendance-notify / registration-audit\nadmin-log-tabs\naudit-log / error-log / error-log-diagnostics / game-log-viewer\nmulti-tab-guard / sync-status / translate"]
+            STANDALONE["26 個獨立模組\nbanner / shop / role / leaderboard\nachievement facade / news / favorites\nannouncement / popup-ad\nsite-theme / game-manage / data-sync\nimage-cropper / image-upload / pwa-install\nattendance-notify / registration-audit\nadmin-log-tabs\naudit-log / error-log / error-log-diagnostics / error-log-insights / game-log-viewer\nmulti-tab-guard / sync-status / translate"]
         end
     end
 
@@ -450,7 +450,7 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 
 ---
 
-## 獨立模組清單（25 個）
+## 獨立模組清單（26 個）
 
 以下模組位於 `js/modules/` 根目錄，不屬於任何子資料夾：
 
@@ -464,6 +464,7 @@ CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（p
 | `banner.js` | 首頁輪播 Banner 渲染 |
 | `data-sync.js` | 系統資料同步（俱樂部成員數重算、用戶俱樂部欄位驗證、孤兒記錄清理），含費用預估 |
 | `error-log-diagnostics.js` | 錯誤日誌白話化、嚴重度、時間排序、裝置與 context 解析 helper |
+| `error-log-insights.js` | 錯誤日誌同類聚合、近 7 天趨勢與診斷包複製 |
 | `error-log.js` | 錯誤日誌查詢與嚴重度分類顯示 |
 | `favorites.js` | 用戶收藏活動 / 俱樂部管理 |
 | `game-log-viewer.js` | 遊戲歷史紀錄瀏覽器（篩選遊戲/日期、分頁、統計） |
@@ -548,7 +549,7 @@ ScriptLoader（`js/core/script-loader.js`）定義了以下頁面群組，按需
 | `adminUsers` | `user-admin/*` (5) + `achievement/batch` + `data-sync` | 用戶管理 |
 | `education` | `education/*` (21) | 教育型俱樂部（分組、學員、課程、報名、簽到、行事曆） |
 | `adminContent` | `ad-manage/*` (6) | 廣告管理 |
-| `adminSystem` | `auto-exp/*` (2) + `game-manage` + `admin-log-tabs` + `error-log-diagnostics` + `error-log` + `audit-log` | 系統管理 |
+| `adminSystem` | `auto-exp/*` (2) + `game-manage` + `admin-log-tabs` + `error-log-diagnostics` + `error-log-insights` + `error-log` + `audit-log` | 系統管理 |
 
 ---
 
