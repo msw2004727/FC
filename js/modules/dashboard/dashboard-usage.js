@@ -779,11 +779,13 @@ Object.assign(App, {
       + '<div class="info-title sync-config-title">'
       + '  <span>資料同步與監聽設定</span>'
       + '  <button class="event-reg-log-btn sync-config-log-btn" onclick="App.openActivityRepairLogModal()">Log</button>'
+      + '  <span class="sync-config-lock-pill">後端上鎖</span>'
       + '  <button class="edu-info-btn" onclick="App._showDataSyncSettingInfo()" title="說明">?</button>'
       + '</div>'
       + '<div style="font-size:.75rem;color:var(--text-secondary);margin-bottom:.75rem">'
       + '調整即時監聽文件數與報名紀錄排程修復。監聽數越大即時範圍越廣但讀取成本越高。</div>'
       + '<div style="display:flex;flex-direction:column;gap:10px">'
+      + '  <div class="sync-config-lock-note">這區可以查看與調整數值，但「儲存設定」和「立即修復」都必須輸入密碼，並由後端驗證通過才會真正生效。</div>'
       + '  <div style="' + sectionTitle + '">即時監聽範圍</div>'
       + '  <div style="' + rowStyle + '"><div><div style="font-size:.82rem;font-weight:600">簽到紀錄</div><div style="font-size:.7rem;color:var(--text-secondary)">掃碼與簽到頁即時資料</div></div><input id="rl-attendance" type="number" inputmode="numeric" min="100" max="10000" value="' + Number(current.attendanceLimit || 1500) + '" style="' + inputStyle + '" /></div>'
       + '  <div style="' + rowStyle + '"><div><div style="font-size:.82rem;font-weight:600">報名紀錄</div><div style="font-size:.7rem;color:var(--text-secondary)">活動頁與管理員報名資料</div></div><input id="rl-registration" type="number" inputmode="numeric" min="100" max="10000" value="' + Number(current.registrationLimit || 3000) + '" style="' + inputStyle + '" /></div>'
@@ -866,29 +868,31 @@ Object.assign(App, {
           return;
         }
 
+        var password = await App._promptDataSyncPassword('儲存資料同步設定');
+        if (!password) {
+          setStatus('已取消，設定沒有變更。');
+          return;
+        }
+
         saveBtn.disabled = true;
         saveBtn.textContent = '儲存中...';
         try {
-          var ref = db.collection('siteConfig').doc('realtimeConfig');
-          await db.runTransaction(async function(tx) {
-            var snap = await tx.get(ref);
-            var data = snap.exists ? (snap.data() || {}) : {};
-            tx.set(ref, {
-              attendanceLimit: att,
-              registrationLimit: reg,
-              eventLimit: evt,
-              noShowFrequency: noShowFreq,
-              activityRepairEnabled: !!(enabledEl && enabledEl.checked),
-              activityRepairFrequency: repairFreq,
-              activityRepairLookbackDays: lookback,
-              activityRepairFutureDays: future,
-              activityRepairBatchSize: batch,
-              activityRepairManualCooldownSeconds: cooldown,
-              activityRepairLogs: appendConfigLog(data.activityRepairLogs),
-              updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-              updatedBy: (typeof App !== 'undefined' && App.currentUser) ? App.currentUser.uid : '',
-            }, { merge: true });
+          var fn = firebase.app().functions('asia-east1');
+          var callable = fn.httpsCallable('saveRealtimeConfig');
+          await callable({
+            password: password,
+            attendanceLimit: att,
+            registrationLimit: reg,
+            eventLimit: evt,
+            noShowFrequency: noShowFreq,
+            activityRepairEnabled: !!(enabledEl && enabledEl.checked),
+            activityRepairFrequency: repairFreq,
+            activityRepairLookbackDays: lookback,
+            activityRepairFutureDays: future,
+            activityRepairBatchSize: batch,
+            activityRepairManualCooldownSeconds: cooldown,
           });
+          password = '';
           if (typeof FirebaseService !== 'undefined' && FirebaseService._realtimeLimits) {
             FirebaseService._realtimeLimits = Object.assign(
               {},
@@ -897,11 +901,12 @@ Object.assign(App, {
               { attendanceLimit: att, registrationLimit: reg, eventLimit: evt }
             );
           }
-          setStatus('設定已儲存，部分監聽設定會在重新進入頁面後生效', 'var(--success,#16a34a)');
+          setStatus('設定已儲存，後端密碼驗證通過。', 'var(--success,#16a34a)');
           if (typeof App !== 'undefined' && App.showToast) App.showToast('資料同步與監聽設定已儲存');
         } catch (e) {
+          password = '';
           console.error('[dashboard] realtimeConfig save failed:', e);
-          setStatus('儲存失敗：' + (e.message || e), 'var(--danger,#dc2626)');
+          setStatus(App._getDataSyncGuardErrorMessage(e, '儲存失敗，設定沒有變更。'), 'var(--danger,#dc2626)');
         } finally {
           saveBtn.disabled = false;
           saveBtn.textContent = '儲存設定';
@@ -1004,6 +1009,50 @@ Object.assign(App, {
     if (modal) modal.classList.remove('open');
   },
 
+  _getDataSyncGuardErrorMessage(err, fallback) {
+    var code = String((err && (err.code || err.name)) || '');
+    var message = String((err && err.message) || '');
+    if (code.indexOf('permission-denied') >= 0 || message.indexOf('data sync password invalid') >= 0) {
+      return '密碼錯誤或權限不足，操作沒有執行。';
+    }
+    if (code.indexOf('unauthenticated') >= 0) {
+      return '請先登入後再操作。';
+    }
+    return fallback + (message ? '（' + message + '）' : '');
+  },
+
+  _promptDataSyncPassword(actionTitle) {
+    return new Promise(function(resolve) {
+      var overlay = document.createElement('div');
+      overlay.className = 'sync-config-password-overlay';
+      overlay.innerHTML = '<div class="sync-config-password-box" role="dialog" aria-modal="true">'
+        + '<div class="sync-config-password-title">' + escapeHTML(actionTitle || '資料同步設定') + '</div>'
+        + '<div class="sync-config-password-text">此操作已上鎖。請輸入密碼，送出後會交給後端驗證，通過才會生效。</div>'
+        + '<input class="sync-config-password-input" type="password" inputmode="numeric" autocomplete="off" placeholder="輸入密碼" />'
+        + '<div class="sync-config-password-actions">'
+        + '  <button type="button" class="outline-btn sync-config-password-cancel">取消</button>'
+        + '  <button type="button" class="btn-sm sync-config-password-submit">確認</button>'
+        + '</div>'
+        + '</div>';
+      document.body.appendChild(overlay);
+
+      var input = overlay.querySelector('.sync-config-password-input');
+      var done = function(value) {
+        overlay.remove();
+        resolve(value);
+      };
+      overlay.querySelector('.sync-config-password-cancel')?.addEventListener('click', function() { done(''); });
+      overlay.querySelector('.sync-config-password-submit')?.addEventListener('click', function() {
+        done((input && input.value || '').trim());
+      });
+      overlay.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') done('');
+        if (e.key === 'Enter') done((input && input.value || '').trim());
+      });
+      setTimeout(function() { if (input) input.focus(); }, 30);
+    });
+  },
+
   async runActivityRecordRepairNow() {
     var btn = document.getElementById('ar-run-btn');
     var statusEl = document.getElementById('rl-status');
@@ -1011,6 +1060,13 @@ Object.assign(App, {
       ? await this.appConfirm('確定要立即執行報名紀錄修復嗎？\n\n系統會掃描設定範圍內的活動，補齊缺漏的報名紀錄。')
       : window.confirm('確定要立即執行報名紀錄修復嗎？');
     if (!ok) return;
+
+    var password = await this._promptDataSyncPassword('立即修復報名紀錄');
+    if (!password) {
+      if (statusEl) statusEl.textContent = '已取消，沒有執行修復。';
+      return;
+    }
+
     if (btn) {
       btn.disabled = true;
       btn.textContent = '修復中...';
@@ -1022,7 +1078,8 @@ Object.assign(App, {
     try {
       var fn = firebase.app().functions('asia-east1');
       var callable = fn.httpsCallable('repairActivityRecordsManual');
-      var resp = await callable({});
+      var resp = await callable({ password: password });
+      password = '';
       var data = resp.data || {};
       var msg = '修復完成：新增 ' + (data.created || 0) + '，更新 ' + (data.updated || 0);
       if (statusEl) {
@@ -1031,11 +1088,11 @@ Object.assign(App, {
       }
       this.showToast?.(msg);
     } catch (err) {
+      password = '';
       console.error('[runActivityRecordRepairNow]', err);
-      var errMsg = (err && (err.message || err.code)) || '修復失敗';
       if (statusEl) {
         statusEl.style.color = 'var(--danger,#dc2626)';
-        statusEl.textContent = '修復失敗：' + errMsg;
+        statusEl.textContent = this._getDataSyncGuardErrorMessage(err, '修復失敗，沒有變更任何資料。');
       }
       this.showToast?.('報名紀錄修復失敗');
     } finally {
@@ -1047,9 +1104,22 @@ Object.assign(App, {
   },
 
   _showDataSyncSettingInfo() {
-    var body = '<p style="margin-bottom:.6rem">此設定控制 Firestore 即時監聽範圍，以及報名紀錄與 activityRecords 的排程修復。</p>'
-      + '<p style="margin-bottom:.6rem">排程修復只會補齊或更新缺漏的個人報名紀錄，不會更動活動名額、報名狀態或同行者紀錄。</p>'
-      + '<p style="color:var(--text-muted);font-size:.78rem">Log 會保留最近 30 筆設定與修復結果。</p>';
+    var body = '<p style="margin-bottom:.65rem">這一區是在管「資料要聽多少」和「報名紀錄要不要自動補齊」。數字越大，能看的資料越多，但資料庫讀寫成本也會比較高。</p>'
+      + '<div class="sync-config-help-list">'
+      + '<div><b>簽到監聽</b><span>簽到頁一次最多即時盯住多少筆簽到資料。人很多、簽到很頻繁時才需要調高。</span></div>'
+      + '<div><b>報名監聽</b><span>活動報名名單一次最多即時盯住多少筆資料。活動很多或報名名單很長時，這個值會影響畫面更新範圍。</span></div>'
+      + '<div><b>活動監聽</b><span>活動列表一次最多即時盯住多少筆活動。調太高會讓首頁或活動列表讀比較多資料。</span></div>'
+      + '<div><b>放鴿子統計頻率</b><span>系統多久重新計算一次放鴿子次數。越頻繁越即時，但 Cloud Functions 執行次數也會增加。</span></div>'
+      + '<div><b>報名紀錄修復</b><span>開啟後，系統會定時檢查報名資料，幫缺漏的個人報名紀錄補回來。它不會改活動名額，也不會改報名狀態。</span></div>'
+      + '<div><b>修復頻率</b><span>一天要跑幾次自動修復。例如 1 次就是每天跑一次，24 次就是每小時都會檢查。</span></div>'
+      + '<div><b>回補天數</b><span>往過去看幾天的活動。數字越大，越能補舊資料，但會掃描更多活動。</span></div>'
+      + '<div><b>未來天數</b><span>往未來看幾天的活動。用來確保快到來的活動也有完整報名紀錄。</span></div>'
+      + '<div><b>批次大小</b><span>每一批最多寫入幾筆修復資料。一般維持預設就好，調太高比較容易碰到寫入限制。</span></div>'
+      + '<div><b>用戶刷新冷卻</b><span>個人資訊頁的刷新按鈕，按完後要等幾秒才能再按。這是用來避免一直重複刷新造成成本。</span></div>'
+      + '<div><b>Log</b><span>會保留最近 30 筆設定儲存、自動修復、手動修復結果，方便回頭查發生什麼事。</span></div>'
+      + '<div><b>上鎖保護</b><span>儲存設定和立即修復都會要求輸入密碼，而且一定是後端驗證通過才會真的寫入或執行。</span></div>'
+      + '</div>'
+      + '<p style="color:var(--text-muted);font-size:.78rem;margin-top:.65rem">簡單說：平常不要常改，真的要改時先看成本和範圍；如果只是個人報名紀錄漏掉，優先用個人頁的刷新按鈕。</p>';
     var overlay = document.createElement('div');
     overlay.className = 'edu-info-overlay';
     overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };

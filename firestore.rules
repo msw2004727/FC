@@ -1147,12 +1147,12 @@ service cloud.firestore {
     // ═══════════════════════════════════════════
     match /siteConfig/{docId} {
       allow read: if isAuth();
-      allow create: if isAdmin()
+      allow create: if docId != 'realtimeConfig' && (isAdmin()
         || canManageAutoExpSiteConfig(docId)
-        || canCreateNotificationFeatureFlags(docId);
-      allow update: if isAdmin()
+        || canCreateNotificationFeatureFlags(docId));
+      allow update: if docId != 'realtimeConfig' && (isAdmin()
         || canManageAutoExpSiteConfig(docId)
-        || canUpdateNotificationFeatureFlags(docId);
+        || canUpdateNotificationFeatureFlags(docId));
       allow delete: if false;
     }
 

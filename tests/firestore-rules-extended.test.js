@@ -1958,6 +1958,16 @@ describe("/siteConfig/{docId}", () => {
     );
   });
 
+  test("create/update: realtimeConfig is backend-only even for admin", async () => {
+    await assertFails(
+      setDoc(doc(admin(), "siteConfig", "realtimeConfig"), { attendanceLimit: 1500 })
+    );
+    await seedDoc("siteConfig", "realtimeConfig", { attendanceLimit: 1500 });
+    await assertFails(
+      updateDoc(doc(admin(), "siteConfig", "realtimeConfig"), { attendanceLimit: 1600 })
+    );
+  });
+
   test("create/update: user cannot", async () => {
     await assertFails(
       setDoc(doc(user(), "siteConfig", "cfg_user"), { setting: true })

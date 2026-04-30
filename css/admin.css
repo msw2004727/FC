@@ -969,6 +969,26 @@
   cursor: pointer;
   white-space: nowrap;
 }
+.sync-config-lock-pill {
+  flex-shrink: 0;
+  padding: .24rem .5rem;
+  border: 1px solid rgba(245, 158, 11, .45);
+  border-radius: 999px;
+  background: rgba(245, 158, 11, .12);
+  color: #b45309;
+  font-size: .7rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.sync-config-lock-note {
+  padding: .55rem .7rem;
+  border: 1px solid rgba(245, 158, 11, .38);
+  border-radius: var(--radius-sm, 6px);
+  background: rgba(245, 158, 11, .1);
+  color: var(--text-secondary);
+  font-size: .74rem;
+  line-height: 1.45;
+}
 .sync-config-toggle-row {
   display: flex;
   align-items: center;
@@ -1112,7 +1132,83 @@
   padding: 1.5rem .75rem;
   font-size: .82rem;
 }
+.sync-config-password-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, .42);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.sync-config-password-box {
+  width: min(92vw, 360px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, .24);
+  padding: 1rem;
+}
+.sync-config-password-title {
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 800;
+  margin-bottom: .45rem;
+}
+.sync-config-password-text {
+  color: var(--text-secondary);
+  font-size: .82rem;
+  line-height: 1.5;
+  margin-bottom: .75rem;
+}
+.sync-config-password-input {
+  width: 100%;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 1rem;
+  padding: .72rem .8rem;
+  outline: none;
+}
+.sync-config-password-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, .15);
+}
+.sync-config-password-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .6rem;
+  margin-top: .9rem;
+}
+.sync-config-help-list {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+.sync-config-help-list > div {
+  padding: .55rem .65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--bg-elevated);
+}
+.sync-config-help-list b {
+  display: block;
+  margin-bottom: .18rem;
+  color: var(--text-primary);
+  font-size: .82rem;
+}
+.sync-config-help-list span {
+  display: block;
+  color: var(--text-secondary);
+  font-size: .78rem;
+  line-height: 1.45;
+}
 @media (max-width: 420px) {
   .sync-config-actions { grid-template-columns: 1fr; }
   .sync-config-title { gap: .3rem; }
+  .sync-config-password-actions { grid-template-columns: 1fr; }
 }

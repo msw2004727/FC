@@ -7807,6 +7807,7 @@ const ACTIVITY_RECORD_REPAIR_DEFAULTS = Object.freeze({
   manualCooldownSeconds: 300,
 });
 const ACTIVITY_RECORD_REPAIR_LOG_LIMIT = 30;
+const DATA_SYNC_SETTINGS_PASSWORD = process.env.DATA_SYNC_SETTINGS_PASSWORD || "1121";
 
 function clampInteger(value, fallback, min, max) {
   const n = Number(value);
@@ -7823,6 +7824,28 @@ function readActivityRecordRepairConfig(data = {}) {
     batchSize: clampInteger(data.activityRepairBatchSize, ACTIVITY_RECORD_REPAIR_DEFAULTS.batchSize, 50, 450),
     maxEventsPerRun: clampInteger(data.activityRepairMaxEventsPerRun, ACTIVITY_RECORD_REPAIR_DEFAULTS.maxEventsPerRun, 50, 1000),
     manualCooldownSeconds: clampInteger(data.activityRepairManualCooldownSeconds, ACTIVITY_RECORD_REPAIR_DEFAULTS.manualCooldownSeconds, 60, 3600),
+  };
+}
+
+function assertDataSyncSettingsPassword(request) {
+  const password = String(request?.data?.password || "");
+  if (!password || password !== DATA_SYNC_SETTINGS_PASSWORD) {
+    throw new HttpsError("permission-denied", "data sync password invalid");
+  }
+}
+
+function readRealtimeConfigPayload(data = {}) {
+  return {
+    attendanceLimit: clampInteger(data.attendanceLimit, 1500, 100, 10000),
+    registrationLimit: clampInteger(data.registrationLimit, 3000, 100, 10000),
+    eventLimit: clampInteger(data.eventLimit, 100, 100, 10000),
+    noShowFrequency: clampInteger(data.noShowFrequency, 24, 1, 24),
+    activityRepairEnabled: data.activityRepairEnabled === true,
+    activityRepairFrequency: clampInteger(data.activityRepairFrequency, ACTIVITY_RECORD_REPAIR_DEFAULTS.frequency, 1, 24),
+    activityRepairLookbackDays: clampInteger(data.activityRepairLookbackDays, ACTIVITY_RECORD_REPAIR_DEFAULTS.lookbackDays, 1, 365),
+    activityRepairFutureDays: clampInteger(data.activityRepairFutureDays, ACTIVITY_RECORD_REPAIR_DEFAULTS.futureDays, 0, 365),
+    activityRepairBatchSize: clampInteger(data.activityRepairBatchSize, ACTIVITY_RECORD_REPAIR_DEFAULTS.batchSize, 50, 450),
+    activityRepairManualCooldownSeconds: clampInteger(data.activityRepairManualCooldownSeconds, ACTIVITY_RECORD_REPAIR_DEFAULTS.manualCooldownSeconds, 60, 3600),
   };
 }
 
@@ -8261,6 +8284,58 @@ exports.repairActivityRecordsScheduled = onSchedule(
   },
 );
 
+exports.saveRealtimeConfig = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB" },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "auth required");
+    const access = await getCallerAccessContext(request);
+    if (!access.hasPermission("admin.repair.data_sync")) {
+      throw new HttpsError("permission-denied", "permission denied");
+    }
+    assertDataSyncSettingsPassword(request);
+
+    const payload = readRealtimeConfigPayload(request.data || {});
+    const now = Timestamp.now();
+    const ref = db.collection("siteConfig").doc("realtimeConfig");
+    const logEntry = {
+      id: `cfg_${now.toMillis()}_${Math.random().toString(36).slice(2, 8)}`,
+      at: now,
+      source: "config",
+      status: "success",
+      message: "settings saved",
+      scannedEvents: 0,
+      scannedRegistrations: 0,
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      error: "",
+    };
+
+    await db.runTransaction(async (transaction) => {
+      const snap = await transaction.get(ref);
+      const data = snap.exists ? (snap.data() || {}) : {};
+      const prev = Array.isArray(data.activityRepairLogs) ? data.activityRepairLogs : [];
+      transaction.set(ref, {
+        ...payload,
+        activityRepairLogs: [logEntry, ...prev].slice(0, ACTIVITY_RECORD_REPAIR_LOG_LIMIT),
+        activityRepairLastLogAt: now,
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: request.auth.uid,
+        updatedByName: access.displayName || "",
+      }, { merge: true });
+    });
+
+    await writeOperationLog({
+      operator: access.displayName || request.auth.uid,
+      type: "data_sync_config_save",
+      typeName: "Data sync config save",
+      content: `attendance=${payload.attendanceLimit}, registration=${payload.registrationLimit}, event=${payload.eventLimit}`,
+    }).catch(() => {});
+
+    return { success: true, ...payload };
+  },
+);
+
 exports.repairActivityRecordsManual = onCall(
   { region: "asia-east1", timeoutSeconds: 300, memory: "512MiB" },
   async (request) => {
@@ -8269,6 +8344,7 @@ exports.repairActivityRecordsManual = onCall(
     if (!access.hasPermission("admin.repair.data_sync")) {
       throw new HttpsError("permission-denied", "permission denied");
     }
+    assertDataSyncSettingsPassword(request);
     const configDoc = await db.collection("siteConfig").doc("realtimeConfig").get();
     const config = readActivityRecordRepairConfig(configDoc.exists ? configDoc.data() : {});
     try {
