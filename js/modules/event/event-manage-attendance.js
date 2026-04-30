@@ -53,6 +53,27 @@ Object.assign(App, {
     return status !== 'cancelled' && status !== 'removed';
   },
 
+  _getTeamReservationMarkerImage(teamId) {
+    const targetId = String(teamId || '').trim();
+    if (!targetId || typeof ApiService === 'undefined') return '';
+    const teams = ApiService.getTeams?.() || [];
+    const team = ApiService.getTeam?.(targetId)
+      || teams.find(t => {
+        if (!t) return false;
+        return [t.id, t._docId, t.docId, t.teamId]
+          .map(v => String(v || '').trim())
+          .filter(Boolean)
+          .includes(targetId);
+      });
+    if (!team) return '';
+    return this._getTeamImageUrl?.(team, 'card')
+      || team.imageVariants?.card
+      || team.imageVariants?.cover
+      || team.image
+      || team.coverImage
+      || '';
+  },
+
   _findCompanionRegistrationForAttendance(eventId, person, regs) {
     const safeUid = String(person?.uid || '').trim();
     const safeName = String(person?.name || person?.displayName || '').trim();
@@ -368,8 +389,9 @@ Object.assign(App, {
 
       // 徽章縮圖
       const badges = p.displayBadges || [];
-      const teamSeatFlag = p.teamReservationTeamId
-        ? `<button type="button" title="俱樂部席位" aria-label="俱樂部席位" onclick="event.stopPropagation();App.showToast('${escapeHTML(p.teamReservationTeamName || '俱樂部')}俱樂部席位')" style="display:inline-flex;align-items:center;justify-content:center;margin-right:.28rem;vertical-align:-.12rem;font-size:1rem;line-height:1;border:0;background:transparent;border-radius:0;box-shadow:none;padding:0;min-width:0;min-height:0;cursor:pointer;appearance:none;-webkit-appearance:none">🚩</button>`
+      const teamSeatImageUrl = p.teamReservationTeamId ? this._getTeamReservationMarkerImage?.(p.teamReservationTeamId) : '';
+      const teamSeatMarker = p.teamReservationTeamId
+        ? `<button type="button" class="team-seat-club-marker" title="俱樂部席位" aria-label="俱樂部席位" onclick="event.stopPropagation();App.showToast('${escapeHTML(p.teamReservationTeamName || '俱樂部')}俱樂部席位')">${teamSeatImageUrl ? `<img class="team-seat-club-marker-img" src="${escapeHTML(teamSeatImageUrl)}" alt="" loading="lazy" onerror="this.replaceWith(document.createTextNode('🚩'))">` : '🚩'}</button>`
         : '';
       const badgeHtml = badges.length
         ? '<span class="reg-badge-list">' + badges.map(b =>
@@ -389,11 +411,11 @@ Object.assign(App, {
       if (p.isCompanion) {
         nameInner = `<span class="reg-name-text" style="padding-left:1.2rem;color:var(--text-secondary)">↳ ${escapeHTML(p.displayName)}</span>`;
       } else if (p.isTeamPlaceholder) {
-        nameInner = `<span class="reg-name-text" style="color:#1d4ed8;font-weight:600">${teamSeatFlag}${escapeHTML(p.displayName)}</span>`;
+        nameInner = `<span class="reg-name-text" style="color:#1d4ed8;font-weight:600">${teamSeatMarker}${escapeHTML(p.displayName)}</span>`;
       } else if (p.hasSelfReg) {
-        nameInner = `<span class="reg-name-text">${teamSeatFlag}${this._userTag(p.displayName, null, _tagOpts)}</span>`;
+        nameInner = `<span class="reg-name-text">${teamSeatMarker}${this._userTag(p.displayName, null, _tagOpts)}</span>`;
       } else {
-        nameInner = `<span class="reg-name-text">${teamSeatFlag}${escapeHTML(p.displayName)}</span>`;
+        nameInner = `<span class="reg-name-text">${teamSeatMarker}${escapeHTML(p.displayName)}</span>`;
       }
       const nameHtml = badgeHtml
         ? `<div class="reg-name-badges-wrap"><div class="reg-name-badges">${nameInner}${badgeHtml}</div></div>`

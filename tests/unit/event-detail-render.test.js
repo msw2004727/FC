@@ -291,22 +291,21 @@ describe('Team reservation button loading contract', () => {
     expect(functionsSource).toContain('safePreferredTeamReservationTeamId');
   });
 
-  test('team reservation placeholder uses emoji flag icon instead of SVG markup', () => {
+  test('team reservation marker uses club thumbnail with flag fallback', () => {
     const attendanceSource = readProjectFile('js/modules/event/event-manage-attendance.js');
-    const flagButtonLine = attendanceSource.split('\n').find(line => line.includes('>🚩</button>')) || '';
+    const activityCss = readProjectFile('css/activity.css');
 
-    expect(attendanceSource).toContain('>🚩</button>');
-    expect(attendanceSource).toContain('aria-label="俱樂部席位"');
-    expect(flagButtonLine).toContain('border:0');
-    expect(flagButtonLine).toContain('background:transparent');
-    expect(flagButtonLine).toContain('border-radius:0');
-    expect(flagButtonLine).not.toContain('border:1px solid');
-    expect(flagButtonLine).not.toContain('background:#eff6ff');
-    expect(flagButtonLine).not.toContain('border-radius:999px');
-    expect(flagButtonLine).not.toContain('width:1.18rem');
-    expect(flagButtonLine).not.toContain('height:1.18rem');
+    expect(attendanceSource).toContain('_getTeamReservationMarkerImage');
+    expect(attendanceSource).toContain('class="team-seat-club-marker"');
+    expect(attendanceSource).toContain('class="team-seat-club-marker-img"');
+    expect(attendanceSource).toContain('loading="lazy"');
+    expect(attendanceSource).toContain("document.createTextNode('🚩')");
+    expect(attendanceSource).not.toContain('teamSeatFlag');
     expect(attendanceSource).not.toContain('team-seat-flag-icon');
     expect(attendanceSource).not.toContain('<svg class="team-seat-flag-icon"');
-    expect(attendanceSource).not.toContain('>旗</button>');
+    expect(activityCss).toContain('.team-seat-club-marker');
+    expect(activityCss).toContain('.team-seat-club-marker-img');
+    expect(activityCss).toContain('height: 1rem');
+    expect(activityCss).toContain('object-fit: cover');
   });
 });

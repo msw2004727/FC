@@ -2,6 +2,11 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-30 — 團隊席位標記改用俱樂部縮圖 [微調]
+- **需求**: 活動報名名單中，團隊席位原本顯示旗子 emoji，改成同位置顯示俱樂部小縮圖，高度維持與旗子一致。
+- **修改**: `event-manage-attendance.js` 新增俱樂部縮圖查找 helper，優先使用 `imageVariants.card`/俱樂部圖片，沒有圖片或載入失敗時回退旗子；`activity.css` 新增 1rem 縮圖樣式。
+- **驗收**: 補充 unit source test，確認有縮圖 class、lazy loading、fallback 與舊 SVG 旗子不回歸。
+
 ### 2026-04-30 — 開球榜關閉時 aria-hidden focus 警告修復 [小型]
 - **問題**: 關閉開球榜時，瀏覽器警告 `Blocked aria-hidden on an element because its descendant retained focus`；焦點仍停在 `#kg-leaderboard-close`，父層 `#kg-leaderboard-modal` 卻被設成 `aria-hidden="true"`。
 - **原因**: `_closeLeaderboard()` 先隱藏 modal，沒有先把焦點移出彈窗；對鍵盤與螢幕閱讀器使用者會形成「焦點在已隱藏區域」的無障礙狀態衝突。

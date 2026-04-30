@@ -1285,6 +1285,36 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
 .reg-name-badges::-webkit-scrollbar { display: none; }
 .reg-name-badges { scrollbar-width: none; }
 .reg-name-text { flex-shrink: 0; white-space: nowrap; }
+.team-seat-club-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  margin-right: .28rem;
+  vertical-align: -.12rem;
+  font-size: 1rem;
+  line-height: 1;
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  min-width: 0;
+  min-height: 0;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.team-seat-club-marker-img {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 3px;
+  object-fit: cover;
+  background: var(--bg-elevated);
+  flex-shrink: 0;
+}
 .reg-badge-list {
   display: flex; align-items: center; gap: 2px;
   flex-shrink: 0;
