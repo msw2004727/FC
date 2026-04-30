@@ -66,7 +66,11 @@ Object.assign(App, {
       actorName: String(item?.actorName || '').trim(),
       action: String(item?.action || '').trim(),
       result: String(item?.result || '').trim(),
+      source: String(item?.source || '').trim(),
+      targetType: String(item?.targetType || '').trim(),
+      targetId: String(item?.targetId || '').trim(),
       targetLabel: String(item?.targetLabel || '').trim(),
+      meta: (item?.meta && typeof item.meta === 'object') ? item.meta : {},
       timeKey,
       createdAtDate,
       createdLabel,
@@ -96,6 +100,99 @@ Object.assign(App, {
     const actorUid = String(item?.actorUid || '').trim();
     const actorName = String(item?.actorName || '').trim();
     return !!actorUid && (!actorName || actorName === actorUid);
+  },
+
+  _formatAuditMetaValue(value) {
+    if (value == null) return '';
+    if (typeof value === 'object') {
+      try {
+        return JSON.stringify(value);
+      } catch (_) {
+        return String(value);
+      }
+    }
+    return String(value);
+  },
+
+  _getAuditMetaPairs(item) {
+    const meta = item?.meta && typeof item.meta === 'object' ? item.meta : {};
+    return Object.entries(meta)
+      .map(([key, value]) => [String(key || '').trim(), this._formatAuditMetaValue(value).trim()])
+      .filter(([key, value]) => key && value);
+  },
+
+  _getAuditMetaText(item) {
+    return this._getAuditMetaPairs(item)
+      .map(([key, value]) => `${key}=${value}`)
+      .join(' · ');
+  },
+
+  _getAuditResultLabel(result) {
+    const normalized = String(result || '').trim();
+    if (normalized === 'success') return '成功';
+    if (normalized === 'failure') return '失敗';
+    return normalized || '未標示';
+  },
+
+  _getAuditSourceLabel(source) {
+    const normalized = String(source || '').trim();
+    const labels = {
+      web: '網頁',
+      liff: 'LINE LIFF',
+      system: '系統',
+      cloud_function: '後端函式',
+    };
+    return labels[normalized] || normalized || '未標示';
+  },
+
+  _getAuditTargetTypeLabel(targetType) {
+    const normalized = String(targetType || '').trim();
+    const labels = {
+      system: '系統',
+      user: '用戶',
+      event: '活動',
+      team: '俱樂部',
+      message: '訊息',
+    };
+    return labels[normalized] || normalized || '目標';
+  },
+
+  _getAuditTargetSummary(item) {
+    const typeLabel = this._getAuditTargetTypeLabel(item?.targetType);
+    const targetLabel = String(item?.targetLabel || '').trim();
+    const targetId = String(item?.targetId || '').trim();
+    if (!targetLabel && !targetId && !item?.targetType) return '未標示';
+    const main = targetLabel || targetId || '未命名';
+    const idSuffix = targetId && targetId !== main ? `（${targetId}）` : '';
+    return `${typeLabel}：${main}${idSuffix}`;
+  },
+
+  _getAuditSearchText(item) {
+    const parts = [
+      this._resolveAuditActorName(item),
+      item?.actorUid,
+      item?.action,
+      this._getAuditActionLabel(item?.action),
+      item?.result,
+      this._getAuditResultLabel(item?.result),
+      item?.source,
+      this._getAuditSourceLabel(item?.source),
+      item?.targetType,
+      this._getAuditTargetTypeLabel(item?.targetType),
+      item?.targetId,
+      item?.targetLabel,
+      item?._docId,
+      this._getAuditMetaText(item),
+    ];
+    return parts
+      .map(value => String(value || '').trim().toLowerCase())
+      .filter(Boolean)
+      .join(' ');
+  },
+
+  _matchesAuditKeyword(item, keyword) {
+    const normalized = String(keyword || '').trim().toLowerCase();
+    return !normalized || this._getAuditSearchText(item).includes(normalized);
   },
 
   _isTodayAuditDay(dayKey) {
@@ -273,10 +370,7 @@ Object.assign(App, {
 
     let items = [...this._auditLogItems];
     if (keyword) {
-      items = items.filter(item => {
-        const actorName = this._resolveAuditActorName(item).toLowerCase();
-        return actorName.includes(keyword) || (item.actorUid || '').toLowerCase().includes(keyword);
-      });
+      items = items.filter(item => this._matchesAuditKeyword(item, keyword));
     }
     if (action) {
       items = items.filter(item => item.action === action);
@@ -302,15 +396,8 @@ Object.assign(App, {
 
   _getAuditDisplayText(item) {
     const actionLabel = this._getAuditActionLabel(item.action);
-    const targetLabel = String(item?.targetLabel || '').trim();
-    if (
-      ['event_signup', 'event_cancel_signup', 'team_join_request', 'team_join_approve', 'team_join_reject']
-        .includes(item.action)
-      && targetLabel
-    ) {
-      return `${actionLabel}：${targetLabel}`;
-    }
-    return actionLabel;
+    const targetLabel = String(item?.targetLabel || item?.targetId || '').trim();
+    return targetLabel ? `${actionLabel}：${targetLabel}` : actionLabel;
   },
 
   _getAuditActionClass(item) {
@@ -331,9 +418,23 @@ Object.assign(App, {
     const list = document.getElementById('audit-log-list');
     const summary = document.getElementById('auditlog-summary');
     if (!list) return;
+    this._ensureAuditLogListActions();
 
     if (summary) {
-      summary.textContent = `共 ${this._auditLogItems.length} 筆，顯示 ${items.length} 筆`;
+      const successCount = items.filter(item => item.result === 'success').length;
+      const failureCount = items.filter(item => item.result === 'failure').length;
+      const moreNote = this._auditLogHasMore
+        ? '<span class="audit-log-summary-note">還有更多未載入，搜尋目前只比對已載入資料。</span>'
+        : '';
+      summary.innerHTML = `
+        <div class="audit-log-summary">
+          <span>已載入 <strong>${escapeHTML(this._auditLogItems.length)}</strong> 筆</span>
+          <span>目前顯示 <strong>${escapeHTML(items.length)}</strong> 筆</span>
+          <span>成功 <strong>${escapeHTML(successCount)}</strong></span>
+          <span>失敗 <strong>${escapeHTML(failureCount)}</strong></span>
+          ${moreNote}
+        </div>
+      `;
     }
 
     if (!items.length) {
@@ -343,21 +444,98 @@ Object.assign(App, {
 
     list.innerHTML = items.map(item => {
       const actorName = this._resolveAuditActorName(item);
-      let actionLabel = this._getAuditDisplayText(item);
-      if (item.result === 'failure' && !actionLabel.includes('失敗')) {
-        actionLabel += '（失敗）';
-      }
+      const actionLabel = this._getAuditDisplayText(item);
       const actionClass = this._getAuditActionClass(item);
+      const resultClass = String(item.result || 'unknown').replace(/[^a-z0-9_-]/gi, '') || 'unknown';
+      const resultLabel = this._getAuditResultLabel(item.result);
+      const sourceLabel = this._getAuditSourceLabel(item.source);
+      const targetSummary = this._getAuditTargetSummary(item);
+      const metaText = this._getAuditMetaText(item);
+      const docId = String(item?._docId || '').trim();
       return `
-        <div class="log-item${actionClass ? ' ' + actionClass : ''}">
-          <span class="log-time">${escapeHTML(item.createdLabel || item.timeKey || '')}</span>
-          <span class="log-content">
-            <span class="log-type role">${escapeHTML(actorName)}</span>
-            ${escapeHTML(actionLabel)}
-          </span>
+        <div class="log-item audit-log-item${actionClass ? ' ' + actionClass : ''}">
+          <div class="audit-log-main">
+            <span class="log-time">${escapeHTML(item.createdLabel || item.timeKey || '')}</span>
+            <span class="log-content">
+              <span class="log-type role">${escapeHTML(actorName)}</span>
+              <span class="audit-log-action-text">${escapeHTML(actionLabel)}</span>
+            </span>
+            <span class="audit-log-result audit-log-result-${escapeHTML(resultClass)}">${escapeHTML(resultLabel)}</span>
+          </div>
+          <div class="audit-log-meta">
+            <span>目標：${escapeHTML(targetSummary)}</span>
+            <span>來源：${escapeHTML(sourceLabel)}</span>
+            <span>UID：${escapeHTML(item.actorUid || '未標示')}</span>
+          </div>
+          <details class="audit-log-details">
+            <summary>查看詳細內容</summary>
+            <div class="audit-log-detail-grid">
+              <div class="audit-log-detail-row"><span>動作</span><pre>${escapeHTML(item.action || '未標示')}</pre></div>
+              <div class="audit-log-detail-row"><span>目標 ID</span><pre class="is-mono">${escapeHTML(item.targetId || '未標示')}</pre></div>
+              <div class="audit-log-detail-row"><span>來源</span><pre>${escapeHTML(sourceLabel)}${item.source ? `（${escapeHTML(item.source)}）` : ''}</pre></div>
+              <div class="audit-log-detail-row"><span>Meta</span><pre class="is-mono">${escapeHTML(metaText || '無')}</pre></div>
+              ${docId ? `<div class="audit-log-detail-row"><span>文件 ID</span><pre class="is-mono">${escapeHTML(docId)}</pre></div>` : ''}
+            </div>
+            ${docId ? `<button type="button" class="outline-btn audit-log-copy-btn" data-audit-doc-id="${escapeHTML(docId)}">複製診斷包</button>` : ''}
+          </details>
         </div>
       `;
     }).join('');
+  },
+
+  _ensureAuditLogListActions() {
+    const list = document.getElementById('audit-log-list');
+    if (!list || list.dataset.auditActionsBound === '1') return;
+    list.dataset.auditActionsBound = '1';
+    list.addEventListener('click', event => {
+      const button = event.target?.closest?.('[data-audit-doc-id]');
+      if (!button) return;
+      void this.copyAuditLogDiagnostic(button.dataset.auditDocId || '');
+    });
+  },
+
+  _buildAuditLogDiagnosticText(item) {
+    const actorName = this._resolveAuditActorName(item);
+    return [
+      'ToosterX 稽核日誌診斷包',
+      `時間：${item.createdLabel || item.timeKey || '未標示'}`,
+      `結果：${this._getAuditResultLabel(item.result)} (${item.result || 'unknown'})`,
+      `動作：${this._getAuditActionLabel(item.action)} (${item.action || 'unknown'})`,
+      `操作者：${actorName} / ${item.actorUid || '未標示'}`,
+      `目標：${this._getAuditTargetSummary(item)}`,
+      `來源：${this._getAuditSourceLabel(item.source)}${item.source ? ` (${item.source})` : ''}`,
+      `Meta：${this._getAuditMetaText(item) || '無'}`,
+      `文件 ID：${item._docId || '未標示'}`,
+    ].join('\n');
+  },
+
+  async copyAuditLogDiagnostic(docId) {
+    const targetId = String(docId || '').trim();
+    const item = this._auditLogItems.find(log => String(log?._docId || '') === targetId);
+    if (!item) {
+      this.showToast?.('找不到這筆稽核日誌');
+      return;
+    }
+    const text = this._buildAuditLogDiagnosticText(item);
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        textarea.remove();
+      }
+      this.showToast?.('已複製稽核診斷包');
+    } catch (err) {
+      console.error('[copyAuditLogDiagnostic]', err);
+      this.showToast?.('複製稽核診斷包失敗');
+    }
   },
 
   async backfillAuditActorNames() {
