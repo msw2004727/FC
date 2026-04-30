@@ -2,6 +2,13 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-30 — 同行者簽到 UID 修復與防復發 [維護]
+- **問題**: UID 健康檢查發現 `attendanceRecords.uid` 有 12 筆 `comp_...` 同行者 pseudo id 被寫成 `participantType:self`，會污染真人 UID 統計與放鴿子/簽到資料。
+- **根因**: 管理簽到進入編輯時，instant-save 可能早於 registrations 完整載入，`participantsWithUid` fallback 將 `comp_...` 視為一般 self 人員，後續寫入 attendanceRecords 時沒有共同防線阻擋。
+- **修正**: 前端新增同行者簽到 baseRecord 解析 helper，`comp_...` 必須對回 active companion registration 才能寫入，並將管理簽到編輯前 registrations/attendance 預載；批次寫入共用 `_collectAttendanceOps` 也阻擋任何 `comp_...` 作為 attendance uid。
+- **修復工具**: Cloud Function 新增 `repairCompanionAttendanceRecords`，提供 dry-run 預覽與正式修復，密碼 `1121` 後端驗證，僅修能嚴格對回同行者報名的紀錄；UID 檢查頁新增「預覽同行修復 / 正式修復同行」與結果區塊，Log 會記錄掃描、可修復、已修復、略過。
+- **驗收**: 新增 unit tests 覆蓋 stale `comp_...` self map、缺 registration 阻擋、後端 strict repair patch；部署後正式修復仍需先看預覽再由管理員按鈕觸發。
+
 ### 2026-04-30 — 日誌排序與濃縮整理 [維護]
 - **問題**: `docs/claude-memory.md` 近期有多批 2026-04-28～2026-04-30 紀錄追加在檔案尾端，造成日期排序斷裂；同一功能也留下多個中間修正版本，閱讀成本偏高。
 - **整理**: 以日期新到舊重排所有段落；合併 UID 健康檢查、操作/稽核日誌、錯誤日誌、資料同步修復、俱樂部運動標籤、團隊保留席位旗幟等同主題連續紀錄。

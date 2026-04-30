@@ -44,11 +44,107 @@ Object.assign(App, {
     });
   },
 
+  _isCompanionPseudoUid(value) {
+    return String(value || '').trim().startsWith('comp_');
+  },
+
+  _isActiveAttendanceRegistration(reg) {
+    const status = String(reg?.status || 'confirmed').toLowerCase();
+    return status !== 'cancelled' && status !== 'removed';
+  },
+
+  _findCompanionRegistrationForAttendance(eventId, person, regs) {
+    const safeUid = String(person?.uid || '').trim();
+    const safeName = String(person?.name || person?.displayName || '').trim();
+    const allRegs = Array.isArray(regs) ? regs : ApiService.getRegistrationsByEvent(eventId);
+    const companionRegs = (allRegs || []).filter(r =>
+      r
+      && this._isActiveAttendanceRegistration(r)
+      && (r.participantType === 'companion' || r.companionId)
+    );
+    return companionRegs.find(r => String(r.companionId || '').trim() === safeUid)
+      || (!this._isCompanionPseudoUid(safeUid)
+        ? companionRegs.find(r => String(r.companionName || r.userName || '').trim() === safeName)
+        : null)
+      || null;
+  },
+
+  _buildAttendanceBaseRecord(eventId, person, regs) {
+    const safeUid = String(person?.uid || '').trim();
+    const safeName = String(person?.name || person?.displayName || '').trim();
+    const mustBeCompanion = !!person?.isCompanion || this._isCompanionPseudoUid(safeUid);
+
+    if (mustBeCompanion) {
+      const cReg = this._findCompanionRegistrationForAttendance(eventId, person, regs);
+      const ownerUid = String(cReg?.userId || '').trim();
+      if (!cReg || !ownerUid || this._isCompanionPseudoUid(ownerUid)) {
+        return {
+          ok: false,
+          reason: 'companion_registration_missing',
+          personUid: safeUid,
+          personName: safeName,
+        };
+      }
+      const companionId = String(cReg.companionId || safeUid).trim();
+      return {
+        ok: true,
+        record: {
+          eventId,
+          uid: ownerUid,
+          userName: String(cReg.userName || '').trim(),
+          participantType: 'companion',
+          companionId,
+          companionName: String(cReg.companionName || safeName).trim(),
+        },
+      };
+    }
+
+    if (!safeUid || this._isCompanionPseudoUid(safeUid)) {
+      return {
+        ok: false,
+        reason: 'invalid_self_uid',
+        personUid: safeUid,
+        personName: safeName,
+      };
+    }
+
+    return {
+      ok: true,
+      record: {
+        eventId,
+        uid: safeUid,
+        userName: safeName,
+        participantType: 'self',
+        companionId: null,
+        companionName: null,
+      },
+    };
+  },
+
+  _reportInvalidAttendanceBaseRecord(eventId, person, reason) {
+    const msg = '同行者簽到資料尚未載入，請重新整理後再試';
+    console.warn('[attendance-base-record-blocked]', {
+      eventId,
+      uid: person?.uid,
+      name: person?.name || person?.displayName,
+      reason,
+    });
+    this.showToast?.(msg);
+    ApiService._writeErrorLog?.({
+      fn: '_reportInvalidAttendanceBaseRecord',
+      eventId,
+      uid: person?.uid || '',
+      name: person?.name || person?.displayName || '',
+      reason,
+    }, new Error(reason || 'invalid attendance base record'));
+  },
+
   _matchAttendanceRecord(record, person) {
     if (person?.isTeamPlaceholder || person?.isTeamHeader) return false;
     if (person.isCompanion) {
       return record.companionId && (record.companionId === person.uid || record.companionName === person.name);
     }
+    if (this._isCompanionPseudoUid(person?.uid)) return false;
     return ((record.uid === person.uid || record.userName === person.name) && !record.companionId);
   },
 

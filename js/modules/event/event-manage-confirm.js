@@ -18,6 +18,15 @@ Object.assign(App, {
       if (!_e || !this._canManageEvent(_e)) { this.showToast('權限不足'); return; }
     }
     this._attendanceEditingEventId = eventId;
+    const preload = [];
+    if (typeof ApiService.fetchRegistrationsIfMissing === 'function') preload.push(ApiService.fetchRegistrationsIfMissing(eventId));
+    if (typeof ApiService.fetchAttendanceIfMissing === 'function') preload.push(ApiService.fetchAttendanceIfMissing(eventId));
+    if (preload.length) {
+      const results = await Promise.allSettled(preload);
+      results.forEach((result) => {
+        if (result.status === 'rejected') console.warn('[_startTableEdit] preload failed:', result.reason);
+      });
+    }
     if (typeof this._initInstantSave === 'function') this._initInstantSave(eventId);
     await this._renderAttendanceTable(eventId, this._manualEditingContainerId);
   },
@@ -38,6 +47,16 @@ Object.assign(App, {
 
     if (wanted.checkin === hasCheckin && wanted.checkout === hasCheckout && wanted.note === existingNoteText) {
       return { adds, removes, grantExp };
+    }
+
+    if (this._isCompanionPseudoUid?.(baseRecord?.uid)) {
+      console.warn('[_collectAttendanceOps] blocked companion pseudo uid as attendance uid', {
+        eventId,
+        uid: baseRecord?.uid,
+        participantType: baseRecord?.participantType,
+        personUid: person?.uid,
+      });
+      return { adds, removes, grantExp, blocked: true, reason: 'companion_pseudo_uid_as_attendance_uid' };
     }
 
     // 取消簽退

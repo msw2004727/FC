@@ -991,6 +991,7 @@ Object.assign(App, {
         config: '設定',
         system: '系統',
         uid_health: 'UID檢查',
+        uid_companion_attendance: '同行簽到修復',
       };
       var statusLabels = {
         success: '完成',
@@ -1009,10 +1010,15 @@ Object.assign(App, {
               + '｜警告 ' + (Number(log.warnings || 0) || 0)
               + '｜嚴重 ' + (Number(log.errors || 0) || 0)
               + '｜改資料 ' + (Number(log.dataChanges || 0) || 0))
+            : (log.source === 'uid_companion_attendance'
+              ? ('掃描簽到 ' + (Number(log.scannedRegistrations || 0) || 0)
+                + '｜可修復 ' + (Number(log.created || 0) || 0)
+                + '｜已修復 ' + (Number(log.updated || 0) || 0)
+                + '｜略過 ' + (Number(log.skipped || 0) || 0))
             : ('活動 ' + (Number(log.scannedEvents || 0) || 0)
               + '｜報名 ' + (Number(log.scannedRegistrations || 0) || 0)
               + '｜新增 ' + (Number(log.created || 0) || 0)
-              + '｜更新 ' + (Number(log.updated || 0) || 0));
+              + '｜更新 ' + (Number(log.updated || 0) || 0)));
           var msg = log.error || log.message || summary;
           return '<div class="sync-config-log-item">'
             + '<div class="sync-config-log-main">'

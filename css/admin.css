@@ -1158,7 +1158,7 @@
 }
 .uid-health-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
   gap: .5rem;
   margin-top: .65rem;
 }
@@ -1167,6 +1167,75 @@
   padding: 9px;
   font-size: .82rem;
   font-weight: 800;
+}
+.uid-health-danger-action {
+  border-color: rgba(220, 38, 38, .38) !important;
+  color: var(--danger, #dc2626) !important;
+  background: rgba(220, 38, 38, .06) !important;
+}
+.uid-health-repair-result {
+  margin-top: .65rem;
+  padding: .65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  background: color-mix(in srgb, var(--bg-card) 88%, #0f766e 12%);
+}
+.uid-health-repair-result[hidden] {
+  display: none !important;
+}
+.uid-health-repair-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  margin-bottom: .5rem;
+}
+.uid-health-repair-head b {
+  color: var(--text-primary);
+  font-size: .82rem;
+}
+.uid-health-repair-head span {
+  color: var(--text-secondary);
+  font-size: .7rem;
+  white-space: nowrap;
+}
+.uid-health-repair-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: .35rem;
+}
+.uid-health-repair-grid > div {
+  padding: .38rem .32rem;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--bg-card);
+  text-align: center;
+}
+.uid-health-repair-grid b {
+  display: block;
+  color: var(--text-primary);
+  font-size: .82rem;
+  line-height: 1.1;
+}
+.uid-health-repair-grid span {
+  display: block;
+  margin-top: .12rem;
+  color: var(--text-secondary);
+  font-size: .66rem;
+}
+.uid-health-repair-samples {
+  display: grid;
+  gap: .28rem;
+  margin-top: .55rem;
+}
+.uid-health-repair-samples code {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: .32rem .42rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  background: color-mix(in srgb, var(--bg-card) 92%, #0f766e 8%);
+  color: var(--text-secondary);
+  font-size: .68rem;
 }
 .uid-health-progress {
   margin-top: .6rem;
@@ -1535,4 +1604,6 @@
   .sync-config-password-actions { grid-template-columns: 1fr; }
   .uid-health-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .uid-health-actions { grid-template-columns: 1fr; }
+  .uid-health-repair-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .uid-health-repair-head { align-items: flex-start; flex-direction: column; }
 }

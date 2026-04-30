@@ -46,7 +46,10 @@ Object.assign(App, {
       + '      <button id="uid-health-run-btn" class="outline-btn" type="button">立即檢查</button>'
       + '      <button id="uid-health-report-btn" class="btn-sm" type="button">查看報表</button>'
       + '      <button id="uid-health-copy-btn" class="outline-btn" type="button">複製診斷包</button>'
+      + '      <button id="uid-health-preview-comp-repair-btn" class="outline-btn" type="button">預覽同行修復</button>'
+      + '      <button id="uid-health-apply-comp-repair-btn" class="outline-btn uid-health-danger-action" type="button">正式修復同行</button>'
       + '    </div>'
+      + '    <div id="uid-health-repair-result" class="uid-health-repair-result" hidden></div>'
       + '    <div class="sync-config-progress uid-health-progress" id="uid-health-progress" hidden aria-hidden="true">'
       + '      <div class="sync-config-progress-head">'
       + '        <span id="uid-health-progress-text">準備中...</span>'
@@ -68,6 +71,12 @@ Object.assign(App, {
     });
     document.getElementById('uid-health-copy-btn')?.addEventListener('click', () => {
       this.copyUidHealthDiagnosticPackage();
+    });
+    document.getElementById('uid-health-preview-comp-repair-btn')?.addEventListener('click', () => {
+      this.runCompanionAttendanceRepair(false);
+    });
+    document.getElementById('uid-health-apply-comp-repair-btn')?.addEventListener('click', () => {
+      this.runCompanionAttendanceRepair(true);
     });
   },
 
@@ -167,6 +176,8 @@ Object.assign(App, {
     const btn = document.getElementById('uid-health-run-btn');
     const reportBtn = document.getElementById('uid-health-report-btn');
     const copyBtn = document.getElementById('uid-health-copy-btn');
+    const previewRepairBtn = document.getElementById('uid-health-preview-comp-repair-btn');
+    const applyRepairBtn = document.getElementById('uid-health-apply-comp-repair-btn');
     const statusEl = document.getElementById('uid-health-status-text') || document.getElementById('rl-status');
     const ok = typeof this.appConfirm === 'function'
       ? await this.appConfirm('確定要執行 UID 健康檢查嗎？\n\n這會讀取使用者、報名、簽到、活動投影等資料，只產生報表與 Log，不會修復或刪除正式資料。')
@@ -185,6 +196,8 @@ Object.assign(App, {
     }
     if (reportBtn) reportBtn.disabled = true;
     if (copyBtn) copyBtn.disabled = true;
+    if (previewRepairBtn) previewRepairBtn.disabled = true;
+    if (applyRepairBtn) applyRepairBtn.disabled = true;
     if (statusEl) {
       statusEl.style.color = 'var(--text-secondary)';
       statusEl.textContent = '正在執行 UID 健康檢查...';
@@ -221,6 +234,111 @@ Object.assign(App, {
       }
       if (reportBtn) reportBtn.disabled = false;
       if (copyBtn) copyBtn.disabled = false;
+      if (previewRepairBtn) previewRepairBtn.disabled = false;
+      if (applyRepairBtn) applyRepairBtn.disabled = false;
+    }
+  },
+
+  _setUidHealthRepairButtonsDisabled(disabled) {
+    [
+      'uid-health-run-btn',
+      'uid-health-report-btn',
+      'uid-health-copy-btn',
+      'uid-health-preview-comp-repair-btn',
+      'uid-health-apply-comp-repair-btn',
+    ].forEach((id) => {
+      const btn = document.getElementById(id);
+      if (btn) btn.disabled = !!disabled;
+    });
+  },
+
+  _renderCompanionAttendanceRepairResult(result, applyMode) {
+    const box = document.getElementById('uid-health-repair-result');
+    if (!box) return;
+    const data = result && typeof result === 'object' ? result : {};
+    const samples = Array.isArray(data.samples) ? data.samples : [];
+    const title = applyMode ? '正式修復結果' : '預覽結果';
+    const sampleHtml = samples.length
+      ? '<div class="uid-health-repair-samples">' + samples.map((sample) => {
+        const line = [
+          sample.path,
+          sample.fromUid ? ('from ' + sample.fromUid) : '',
+          sample.toUid ? ('to ' + sample.toUid) : '',
+          sample.companionName ? sample.companionName : '',
+          sample.reason ? ('reason ' + sample.reason) : '',
+        ].filter(Boolean).join(' / ');
+        return '<code>' + escapeHTML(line) + '</code>';
+      }).join('') + '</div>'
+      : '';
+    box.hidden = false;
+    box.innerHTML = '<div class="uid-health-repair-head">'
+      + '<b>' + escapeHTML(title) + '</b>'
+      + '<span>' + (applyMode ? '已寫入資料庫' : '未修改資料') + '</span>'
+      + '</div>'
+      + '<div class="uid-health-repair-grid">'
+      + '<div><b>' + Number(data.scannedAttendance || 0).toLocaleString() + '</b><span>掃描簽到</span></div>'
+      + '<div><b>' + Number(data.candidates || 0).toLocaleString() + '</b><span>候選</span></div>'
+      + '<div><b>' + Number(data.repairable || 0).toLocaleString() + '</b><span>可修復</span></div>'
+      + '<div><b>' + Number(data.repaired || 0).toLocaleString() + '</b><span>已修復</span></div>'
+      + '<div><b>' + Number(data.skipped || 0).toLocaleString() + '</b><span>略過</span></div>'
+      + '</div>'
+      + sampleHtml;
+  },
+
+  async runCompanionAttendanceRepair(applyMode) {
+    if (!this.hasPermission?.('admin.repair.data_sync')) {
+      this.showToast?.('權限不足');
+      return;
+    }
+    const title = applyMode ? '正式修復同行簽到 UID' : '預覽同行簽到 UID 修復';
+    const confirmText = applyMode
+      ? '這會只修復「comp_ 同行者 ID 被寫成 self 簽到」且能對回同行者報名的紀錄。其他資料不會修改。\n\n是否繼續？'
+      : '這次只會預覽可修復的同行者簽到紀錄，不會修改資料。\n\n是否繼續？';
+    const ok = typeof this.appConfirm === 'function'
+      ? await this.appConfirm(confirmText)
+      : window.confirm(confirmText);
+    if (!ok) return;
+
+    const password = await this._promptDataSyncPassword(title);
+    if (!password) return;
+
+    const statusEl = document.getElementById('uid-health-status-text') || document.getElementById('rl-status');
+    this._setUidHealthRepairButtonsDisabled(true);
+    if (statusEl) {
+      statusEl.style.color = 'var(--text-secondary)';
+      statusEl.textContent = applyMode ? '正在修復同行者簽到 UID...' : '正在預覽同行者簽到 UID 修復...';
+    }
+    this._setUidHealthProgress(1, 4, applyMode ? '準備修復...' : '準備預覽...', 'running');
+    try {
+      const fn = firebase.app().functions('asia-east1');
+      const callable = fn.httpsCallable('repairCompanionAttendanceRecords', { timeout: 300000 });
+      this._setUidHealthProgress(2, 4, '掃描簽到紀錄...', 'running');
+      const resp = await callable({
+        password,
+        dryRun: !applyMode,
+        confirmApply: !!applyMode,
+      });
+      const result = (resp && resp.data) ? resp.data : {};
+      this._setUidHealthProgress(4, 4, applyMode ? '修復完成' : '預覽完成', 'done');
+      this._renderCompanionAttendanceRepairResult(result, applyMode);
+      const msg = applyMode
+        ? ('修復完成：已修復 ' + Number(result.repaired || 0).toLocaleString() + ' 筆')
+        : ('預覽完成：可修復 ' + Number(result.repairable || 0).toLocaleString() + ' 筆');
+      if (statusEl) {
+        statusEl.style.color = 'var(--success,#16a34a)';
+        statusEl.textContent = msg + '，建議再執行一次 UID 檢查。';
+      }
+      this.showToast?.(msg);
+    } catch (err) {
+      console.error('[runCompanionAttendanceRepair]', err);
+      this._setUidHealthProgress(1, 1, applyMode ? '修復失敗' : '預覽失敗', 'error');
+      if (statusEl) {
+        statusEl.style.color = 'var(--danger,#dc2626)';
+        statusEl.textContent = this._getDataSyncGuardErrorMessage(err, applyMode ? '同行簽到修復失敗' : '同行簽到修復預覽失敗');
+      }
+      this.showToast?.(applyMode ? '同行簽到修復失敗' : '同行簽到修復預覽失敗');
+    } finally {
+      this._setUidHealthRepairButtonsDisabled(false);
     }
   },
 
@@ -344,6 +462,7 @@ Object.assign(App, {
         config: '設定',
         system: '系統',
         uid_health: 'UID檢查',
+        uid_companion_attendance: '同行簽到修復',
       };
       const statusLabels = {
         success: '完成',
@@ -362,10 +481,15 @@ Object.assign(App, {
               + '｜警告 ' + (Number(log.warnings || 0) || 0)
               + '｜嚴重 ' + (Number(log.errors || 0) || 0)
               + '｜改資料 ' + (Number(log.dataChanges || 0) || 0))
+            : (log.source === 'uid_companion_attendance'
+              ? ('掃描簽到 ' + (Number(log.scannedRegistrations || 0) || 0)
+                + '｜可修復 ' + (Number(log.created || 0) || 0)
+                + '｜已修復 ' + (Number(log.updated || 0) || 0)
+                + '｜略過 ' + (Number(log.skipped || 0) || 0))
             : ('活動 ' + (Number(log.scannedEvents || 0) || 0)
               + '｜報名 ' + (Number(log.scannedRegistrations || 0) || 0)
               + '｜新增 ' + (Number(log.created || 0) || 0)
-              + '｜更新 ' + (Number(log.updated || 0) || 0));
+              + '｜更新 ' + (Number(log.updated || 0) || 0)));
           const msg = log.error || log.message || summary;
           return '<div class="sync-config-log-item">'
             + '<div class="sync-config-log-main">'

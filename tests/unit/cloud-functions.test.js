@@ -206,6 +206,36 @@ function cfBuildRegisteredTeamIdsFromEntries(entries, options = {}) {
   return Array.from(ids);
 }
 
+function cfIsCompanionPseudoUid(value) {
+  return String(value || '').trim().startsWith('comp_');
+}
+
+function cfIsLineUid(value) {
+  return /^U[a-f0-9]{32}$/i.test(String(value || '').trim());
+}
+
+function cfIsCompanionAttendanceSelfCandidate(data = {}) {
+  const uid = String(data.uid || '').trim();
+  const participantType = String(data.participantType || 'self').trim();
+  const companionId = String(data.companionId || '').trim();
+  return cfIsCompanionPseudoUid(uid) && participantType === 'self' && !companionId;
+}
+
+function cfBuildCompanionAttendanceRepairPatch(attData = {}, regData = {}) {
+  if (!cfIsCompanionAttendanceSelfCandidate(attData)) return null;
+  if (!cfIsLineUid(regData.userId)) return null;
+  if (String(regData.status || 'confirmed').toLowerCase() === 'cancelled') return null;
+  if (String(regData.status || 'confirmed').toLowerCase() === 'removed') return null;
+  return {
+    uid: regData.userId,
+    userName: regData.userName || '',
+    participantType: 'companion',
+    companionId: regData.companionId || attData.uid,
+    companionName: regData.companionName || attData.userName || '',
+    companionAttendancePreviousUid: attData.uid,
+  };
+}
+
 /** registerForEvent CF: duplicate detection logic */
 function cfDuplicateCheck(existingRegs, userId) {
   return existingRegs.some(r =>
@@ -645,6 +675,47 @@ describe('friendly tournament sport compatibility CF guard', () => {
       { sportTag: 'football' },
       { sportTag: 'football' }
     )).toBe('ok');
+  });
+});
+
+describe('companion attendance repair guard', () => {
+  test('detects comp_ uid written as self attendance', () => {
+    expect(cfIsCompanionAttendanceSelfCandidate({
+      uid: 'comp_1776681312140',
+      participantType: 'self',
+      companionId: '',
+    })).toBe(true);
+  });
+
+  test('does not treat valid companion attendance as repair candidate', () => {
+    expect(cfIsCompanionAttendanceSelfCandidate({
+      uid: 'U1234567890abcdef1234567890abcdef',
+      participantType: 'companion',
+      companionId: 'comp_1776681312140',
+    })).toBe(false);
+  });
+
+  test('builds strict repair patch only from active companion registration', () => {
+    const patch = cfBuildCompanionAttendanceRepairPatch(
+      { uid: 'comp_1776681312140', participantType: 'self', userName: 'Guest' },
+      { userId: 'U1234567890abcdef1234567890abcdef', userName: 'Owner', companionId: 'comp_1776681312140', companionName: 'Guest', status: 'confirmed' }
+    );
+    expect(patch).toMatchObject({
+      uid: 'U1234567890abcdef1234567890abcdef',
+      userName: 'Owner',
+      participantType: 'companion',
+      companionId: 'comp_1776681312140',
+      companionName: 'Guest',
+      companionAttendancePreviousUid: 'comp_1776681312140',
+    });
+  });
+
+  test('refuses repair when owner uid is not a LINE UID', () => {
+    const patch = cfBuildCompanionAttendanceRepairPatch(
+      { uid: 'comp_1776681312140', participantType: 'self', userName: 'Guest' },
+      { userId: 'legacy_name', userName: 'Owner', companionId: 'comp_1776681312140', companionName: 'Guest', status: 'confirmed' }
+    );
+    expect(patch).toBeNull();
   });
 });
 

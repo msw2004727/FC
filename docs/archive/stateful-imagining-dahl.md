@@ -311,6 +311,7 @@ commit + push。
 | CF `registerForEvent` | `functions/index.js:4441` | transaction 中雙寫：registrations(:4500) + **activityRecords(:4692)** |
 | CF `cancelRegistration` | `functions/index.js:4798` | transaction 中雙寫：registrations(:4916,:4946) + **activityRecords(:4966,:4975)** |
 | CF `adjustTeamReservation` | `functions/index.js:6624` | transaction 中讀寫活動子集合：registrations（讀取、席位標記、同俱樂部候補轉正）+ activityRecords（同俱樂部候補轉正同步 waitlisted → registered） |
+| CF `repairCompanionAttendanceRecords` | `functions/index.js:9144` | UID 健康檢查修復工具，只讀 `events/{event}/registrations` 對回 companionId 後，才修正 `events/{event}/attendanceRecords` 中被寫成 self 的 `comp_...` 紀錄 |
 
 > **Phase 1 原則**：全域路徑為主（primary），子集合為副（secondary）。Transaction 內的查詢仍走全域集合，僅寫入時雙寫。
 

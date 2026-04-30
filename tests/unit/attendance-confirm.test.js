@@ -84,25 +84,61 @@ function buildPeopleList(confirmedRegs, eventParticipants, adminUsers) {
 // For each person, the function builds a baseRecord and resolves
 // companion-specific fields. This tests the UID/record mapping logic.
 // ===========================================================================
-function buildBaseRecord(person, allActiveRegs, eventId) {
-  let recordUid = person.uid;
-  let recordUserName = person.name;
-  let companionId = null;
-  let companionName = null;
-  let participantType = 'self';
+function isCompanionPseudoUid(value) {
+  return String(value || '').trim().startsWith('comp_');
+}
 
-  if (person.isCompanion) {
-    const cReg = allActiveRegs.find(r => r.companionId === person.uid);
-    if (cReg) {
-      recordUid = cReg.userId;
-      recordUserName = cReg.userName;
-      companionId = person.uid;
-      companionName = person.name;
-      participantType = 'companion';
+function findCompanionRegistrationForAttendance(person, allActiveRegs) {
+  const safeUid = String(person?.uid || '').trim();
+  const safeName = String(person?.name || '').trim();
+  const companionRegs = (allActiveRegs || []).filter(r =>
+    r && r.status !== 'cancelled' && r.status !== 'removed' && (r.participantType === 'companion' || r.companionId)
+  );
+  return companionRegs.find(r => String(r.companionId || '').trim() === safeUid)
+    || (!isCompanionPseudoUid(safeUid)
+      ? companionRegs.find(r => String(r.companionName || r.userName || '').trim() === safeName)
+      : null)
+    || null;
+}
+
+function buildBaseRecord(person, allActiveRegs, eventId) {
+  const safeUid = String(person?.uid || '').trim();
+  const safeName = String(person?.name || '').trim();
+  const mustBeCompanion = !!person?.isCompanion || isCompanionPseudoUid(safeUid);
+
+  if (mustBeCompanion) {
+    const cReg = findCompanionRegistrationForAttendance(person, allActiveRegs);
+    if (!cReg || !cReg.userId || isCompanionPseudoUid(cReg.userId)) {
+      return { ok: false, reason: 'companion_registration_missing' };
     }
+    return {
+      ok: true,
+      record: {
+        eventId,
+        uid: cReg.userId,
+        userName: cReg.userName,
+        participantType: 'companion',
+        companionId: cReg.companionId || safeUid,
+        companionName: cReg.companionName || safeName,
+      },
+    };
   }
 
-  return { eventId, uid: recordUid, userName: recordUserName, participantType, companionId, companionName };
+  if (!safeUid || isCompanionPseudoUid(safeUid)) {
+    return { ok: false, reason: 'invalid_self_uid' };
+  }
+
+  return {
+    ok: true,
+    record: { eventId, uid: safeUid, userName: safeName, participantType: 'self', companionId: null, companionName: null },
+  };
+}
+
+function collectAttendanceOpsGuard(baseRecord) {
+  if (isCompanionPseudoUid(baseRecord?.uid)) {
+    return { adds: [], removes: [], grantExp: false, blocked: true, reason: 'companion_pseudo_uid_as_attendance_uid' };
+  }
+  return { adds: [{ ...baseRecord, type: 'checkin' }], removes: [], grantExp: false };
 }
 
 // ===========================================================================
@@ -273,7 +309,9 @@ describe('_confirmAllAttendance Participant Resolution', () => {
 
     test('non-companion person uses own uid and name', () => {
       const person = { name: 'Alice', uid: 'u1', isCompanion: false };
-      const record = buildBaseRecord(person, [], 'evt1');
+      const resolved = buildBaseRecord(person, [], 'evt1');
+      expect(resolved.ok).toBe(true);
+      const record = resolved.record;
       expect(record.uid).toBe('u1');
       expect(record.userName).toBe('Alice');
       expect(record.participantType).toBe('self');
@@ -286,7 +324,9 @@ describe('_confirmAllAttendance Participant Resolution', () => {
       const allRegs = [
         { userId: 'u1', userName: 'Alice', companionId: 'comp1', participantType: 'companion', status: 'confirmed' },
       ];
-      const record = buildBaseRecord(person, allRegs, 'evt1');
+      const resolved = buildBaseRecord(person, allRegs, 'evt1');
+      expect(resolved.ok).toBe(true);
+      const record = resolved.record;
       expect(record.uid).toBe('u1');           // parent userId
       expect(record.userName).toBe('Alice');    // parent userName
       expect(record.companionId).toBe('comp1');
@@ -294,18 +334,46 @@ describe('_confirmAllAttendance Participant Resolution', () => {
       expect(record.participantType).toBe('companion');
     });
 
-    test('companion without matching registration keeps own uid', () => {
+    test('companion without matching registration is blocked', () => {
       const person = { name: 'Orphan', uid: 'orphan_uid', isCompanion: true };
-      const record = buildBaseRecord(person, [], 'evt1');
-      // No matching cReg found → falls through, keeps person.uid
-      expect(record.uid).toBe('orphan_uid');
-      expect(record.userName).toBe('Orphan');
-      expect(record.participantType).toBe('self'); // not overridden
+      const resolved = buildBaseRecord(person, [], 'evt1');
+      expect(resolved.ok).toBe(false);
+      expect(resolved.reason).toBe('companion_registration_missing');
+    });
+
+    test('comp_ pseudo uid resolves as companion even when stale map marks self', () => {
+      const person = { name: 'Guest', uid: 'comp_1776681312140', isCompanion: false };
+      const allRegs = [
+        { userId: 'U1234567890abcdef1234567890abcdef', userName: 'Owner', companionId: 'comp_1776681312140', companionName: 'Guest', participantType: 'companion', status: 'confirmed' },
+      ];
+      const resolved = buildBaseRecord(person, allRegs, 'evt1');
+      expect(resolved.ok).toBe(true);
+      expect(resolved.record.uid).toBe('U1234567890abcdef1234567890abcdef');
+      expect(resolved.record.participantType).toBe('companion');
+      expect(resolved.record.companionId).toBe('comp_1776681312140');
+    });
+
+    test('comp_ pseudo uid without registration is blocked instead of self attendance', () => {
+      const person = { name: 'Ghost', uid: 'comp_1776681312140', isCompanion: false };
+      const resolved = buildBaseRecord(person, [], 'evt1');
+      expect(resolved.ok).toBe(false);
+      expect(resolved.reason).toBe('companion_registration_missing');
+    });
+
+    test('collect guard refuses comp_ as attendance uid', () => {
+      const ops = collectAttendanceOpsGuard({
+        eventId: 'evt1',
+        uid: 'comp_1776681312140',
+        userName: 'Guest',
+        participantType: 'self',
+      });
+      expect(ops.blocked).toBe(true);
+      expect(ops.adds).toHaveLength(0);
     });
 
     test('eventId is passed through to baseRecord', () => {
       const person = { name: 'Alice', uid: 'u1', isCompanion: false };
-      const record = buildBaseRecord(person, [], 'event_abc');
+      const record = buildBaseRecord(person, [], 'event_abc').record;
       expect(record.eventId).toBe('event_abc');
     });
   });

@@ -7813,6 +7813,7 @@ const DATA_SYNC_SETTINGS_PASSWORD = process.env.DATA_SYNC_SETTINGS_PASSWORD || "
 const UID_HEALTH_CHECK_LOG_LIMIT = 30;
 const UID_HEALTH_SAMPLE_LIMIT = 8;
 const UID_HEALTH_ISSUE_LIMIT = 40;
+const COMPANION_ATTENDANCE_REPAIR_SAMPLE_LIMIT = 12;
 const LINE_UID_RE = /^U[a-f0-9]{32}$/i;
 
 function clampInteger(value, fallback, min, max) {
@@ -8387,6 +8388,134 @@ function buildAttendanceUidHealthSection(attDocs) {
   }
   section.metrics = { total: attDocs.length, rootDocs, subDocs, activeDocs, compUidCount, compAsSelfCount };
   return section;
+}
+
+function isCompanionAttendanceSelfCandidate(data = {}) {
+  const uid = normalizeAuditString(data.uid, 120);
+  const participantType = normalizeAuditString(data.participantType || "self", 40);
+  const companionId = normalizeAuditString(data.companionId, 120);
+  return isCompanionPseudoUid(uid) && participantType === "self" && !companionId;
+}
+
+function summarizeCompanionAttendanceRepairSample(attDoc, attData = {}, regDoc = null, patch = {}, reason = "") {
+  return {
+    path: normalizeAuditString(getAuditDocPath(attDoc), 180),
+    eventId: normalizeAuditString(attData.eventId || attDoc?.ref?.parent?.parent?.id || "", 90),
+    recordId: normalizeAuditString(attDoc?.id || "", 90),
+    fromUid: normalizeAuditString(attData.uid, 120),
+    fromParticipantType: normalizeAuditString(attData.participantType || "self", 40),
+    toUid: normalizeAuditString(patch.uid, 120),
+    toParticipantType: normalizeAuditString(patch.participantType, 40),
+    companionId: normalizeAuditString(patch.companionId, 120),
+    companionName: normalizeAuditString(patch.companionName || attData.userName, 80),
+    registrationPath: normalizeAuditString(getAuditDocPath(regDoc), 180),
+    reason: normalizeAuditString(reason, 120),
+  };
+}
+
+async function findCompanionRegistrationForAttendanceRepair(eventRef, companionId) {
+  if (!eventRef || !companionId) {
+    return { status: "no_event_ref", regDoc: null, patch: null };
+  }
+  const snap = await eventRef.collection("registrations")
+    .where("companionId", "==", companionId)
+    .get();
+  const active = snap.docs.filter((doc) => {
+    const data = doc.data() || {};
+    return isActiveRegistrationStatus(data)
+      && (data.participantType === "companion" || data.companionId)
+      && isLineUid(data.userId);
+  });
+  if (active.length === 0) {
+    return { status: "no_active_companion_registration", regDoc: null, patch: null };
+  }
+  if (active.length > 1) {
+    return { status: "ambiguous_companion_registration", regDoc: null, patch: null };
+  }
+  const regDoc = active[0];
+  const regData = regDoc.data() || {};
+  return {
+    status: "repairable",
+    regDoc,
+    patch: {
+      uid: normalizeAuditString(regData.userId, 120),
+      userName: normalizeAuditString(regData.userName, 120),
+      participantType: "companion",
+      companionId: normalizeAuditString(regData.companionId || companionId, 120),
+      companionName: normalizeAuditString(regData.companionName, 120),
+    },
+  };
+}
+
+async function repairCompanionAttendanceRecordsBatch(options = {}) {
+  const dryRun = options.dryRun !== false;
+  const eventIdFilter = normalizeAuditString(options.eventId, 90);
+  const limit = clampInteger(options.limit, 20000, 1, 20000);
+  const now = Timestamp.now();
+  const result = {
+    dryRun,
+    scannedAttendance: 0,
+    candidates: 0,
+    repairable: 0,
+    repaired: 0,
+    skipped: 0,
+    failures: 0,
+    samples: [],
+  };
+  const snap = await db.collectionGroup("attendanceRecords").get();
+  let batch = db.batch();
+  let batchOps = 0;
+
+  for (const attDoc of snap.docs) {
+    if (result.scannedAttendance >= limit) break;
+    result.scannedAttendance += 1;
+    const attData = attDoc.data() || {};
+    const eventRef = attDoc.ref.parent.parent || null;
+    const docEventId = normalizeAuditString(attData.eventId || eventRef?.id || "", 90);
+    if (eventIdFilter && docEventId !== eventIdFilter && eventRef?.id !== eventIdFilter) continue;
+    if (!isCompanionAttendanceSelfCandidate(attData)) continue;
+
+    result.candidates += 1;
+    const oldUid = normalizeAuditString(attData.uid, 120);
+    const match = await findCompanionRegistrationForAttendanceRepair(eventRef, oldUid);
+    if (match.status !== "repairable" || !match.patch) {
+      result.skipped += 1;
+      if (result.samples.length < COMPANION_ATTENDANCE_REPAIR_SAMPLE_LIMIT) {
+        result.samples.push(summarizeCompanionAttendanceRepairSample(attDoc, attData, match.regDoc, {}, match.status));
+      }
+      continue;
+    }
+
+    result.repairable += 1;
+    const patch = {
+      ...match.patch,
+      companionName: match.patch.companionName || normalizeAuditString(attData.companionName || attData.userName, 120),
+      companionAttendanceUidFixedAt: now,
+      companionAttendanceUidFixType: "companion_uid_as_self",
+      companionAttendancePreviousUid: oldUid,
+      companionAttendancePreviousParticipantType: normalizeAuditString(attData.participantType || "self", 40),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    if (result.samples.length < COMPANION_ATTENDANCE_REPAIR_SAMPLE_LIMIT) {
+      result.samples.push(summarizeCompanionAttendanceRepairSample(attDoc, attData, match.regDoc, patch, "repairable"));
+    }
+    if (dryRun) continue;
+
+    batch.update(attDoc.ref, patch);
+    batchOps += 1;
+    result.repaired += 1;
+    if (batchOps >= 450) {
+      await batch.commit();
+      batch = db.batch();
+      batchOps = 0;
+    }
+  }
+
+  if (!dryRun && batchOps > 0) {
+    await batch.commit();
+  }
+
+  return result;
 }
 
 function buildEventProjectionUidHealthSection(projectionDocs) {
@@ -9008,6 +9137,66 @@ exports.runUidHealthCheck = onCall(
       if (err instanceof HttpsError) throw err;
       console.error("[runUidHealthCheck]", err);
       throw new HttpsError("internal", "UID health check failed");
+    }
+  },
+);
+
+exports.repairCompanionAttendanceRecords = onCall(
+  { region: "asia-east1", timeoutSeconds: 300, memory: "512MiB" },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "auth required");
+    const access = await getCallerAccessContext(request);
+    if (!access.hasPermission("admin.repair.data_sync")) {
+      throw new HttpsError("permission-denied", "permission denied");
+    }
+    assertDataSyncSettingsPassword(request);
+
+    const dryRun = request.data?.dryRun !== false;
+    if (!dryRun && request.data?.confirmApply !== true) {
+      throw new HttpsError("failed-precondition", "confirmApply required");
+    }
+
+    try {
+      const result = await repairCompanionAttendanceRecordsBatch({
+        dryRun,
+        eventId: request.data?.eventId,
+        limit: request.data?.limit,
+      });
+      await appendActivityRepairLog({
+        source: "uid_companion_attendance",
+        status: "success",
+        message: dryRun ? "companion attendance repair preview completed" : "companion attendance repair completed",
+        scannedEvents: 0,
+        scannedRegistrations: result.scannedAttendance,
+        created: result.repairable,
+        updated: result.repaired,
+        skipped: result.skipped,
+      }, {
+        companionAttendanceRepairLastRunAt: FieldValue.serverTimestamp(),
+        companionAttendanceRepairLastResult: result,
+        companionAttendanceRepairLastStatus: "success",
+      });
+      await writeOperationLog({
+        operator: access.displayName || request.auth.uid,
+        type: dryRun ? "companion_attendance_repair_preview" : "companion_attendance_repair",
+        typeName: dryRun ? "Companion attendance repair preview" : "Companion attendance repair",
+        content: `dryRun=${dryRun}, scanned=${result.scannedAttendance}, candidates=${result.candidates}, repairable=${result.repairable}, repaired=${result.repaired}, skipped=${result.skipped}`,
+      }).catch(() => {});
+      return { success: true, ...result };
+    } catch (err) {
+      await appendActivityRepairLog({
+        source: "uid_companion_attendance",
+        status: "error",
+        message: dryRun ? "companion attendance repair preview failed" : "companion attendance repair failed",
+        error: err?.message || String(err),
+      }, {
+        companionAttendanceRepairLastRunAt: FieldValue.serverTimestamp(),
+        companionAttendanceRepairLastStatus: "error",
+        companionAttendanceRepairLastError: String(err?.message || err).slice(0, 300),
+      }).catch(() => {});
+      if (err instanceof HttpsError) throw err;
+      console.error("[repairCompanionAttendanceRecords]", err);
+      throw new HttpsError("internal", "companion attendance repair failed");
     }
   },
 );

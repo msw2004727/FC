@@ -33,6 +33,18 @@ Object.assign(App, {
       wu.forEach(entry => {
         if (!entry || !entry.uid || !entry.name) return;
         if (addedNames.has(entry.name) || map.has(String(entry.uid))) return;
+        if (this._isCompanionPseudoUid?.(entry.uid)) {
+          const cReg = this._findCompanionRegistrationForAttendance?.(eventId, { uid: entry.uid, name: entry.name });
+          if (!cReg) {
+            console.warn('[_initInstantSave] skipped unresolved companion projection', { eventId, uid: entry.uid, name: entry.name });
+            return;
+          }
+          const companionUid = String(cReg.companionId || entry.uid).trim();
+          if (!companionUid || map.has(companionUid)) return;
+          map.set(companionUid, { name: cReg.companionName || entry.name, uid: companionUid, isCompanion: true });
+          addedNames.add(entry.name);
+          return;
+        }
         map.set(String(entry.uid), { name: entry.name, uid: entry.uid, isCompanion: false });
         addedNames.add(entry.name);
       });
@@ -84,21 +96,23 @@ Object.assign(App, {
     const currentRecords = ApiService.getAttendanceRecords(eventId);
     const allActiveRegs = ApiService.getRegistrationsByEvent(eventId);
     const timeStr = App._formatDateTime(new Date());
-    let recordUid = person.uid, recordUserName = person.name;
-    let companionId = null, companionName = null, participantType = 'self';
-    if (person.isCompanion) {
-      const cReg = allActiveRegs.find(r => r.companionId === person.uid);
-      if (cReg) {
-        recordUid = cReg.userId;
-        recordUserName = cReg.userName;
-        companionId = person.uid;
-        companionName = person.name;
-        participantType = 'companion';
-      }
+    const personObj = {
+      uid: person.uid,
+      name: person.name,
+      isCompanion: !!person.isCompanion || this._isCompanionPseudoUid?.(person.uid),
+    };
+    const resolvedRecord = this._buildAttendanceBaseRecord?.(eventId, personObj, allActiveRegs);
+    if (!resolvedRecord?.ok) {
+      this._reportInvalidAttendanceBaseRecord?.(eventId, personObj, resolvedRecord?.reason || 'invalid_attendance_record');
+      const hasCI = currentRecords.some(r => this._matchAttendanceRecord(r, personObj) && r.type === 'checkin');
+      const hasCO = currentRecords.some(r => this._matchAttendanceRecord(r, personObj) && r.type === 'checkout');
+      if (checkinBox) checkinBox.checked = hasCI;
+      if (checkoutBox) checkoutBox.checked = hasCO;
+      return;
     }
-
-    const baseRecord = { eventId, uid: recordUid, userName: recordUserName, participantType, companionId, companionName };
-    const personObj = { uid: person.uid, name: person.name, isCompanion: person.isCompanion };
+    const baseRecord = resolvedRecord.record;
+    const recordUid = baseRecord.uid;
+    const participantType = baseRecord.participantType;
     const idCounter = { v: Date.now() };
     const ops = this._collectAttendanceOps(personObj, wanted, currentRecords, eventId, timeStr, baseRecord, idCounter);
 
