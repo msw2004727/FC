@@ -175,6 +175,31 @@ Object.assign(App, {
       input.value = '';
       return;
     }
+    const setThumb = (dataURL) => {
+      const thumb = input.closest('.sp-manage-row').querySelector('.sp-row-thumb');
+      if (!thumb) return;
+      thumb.innerHTML = `<img src="${dataURL}" style="width:100%;height:100%;object-fit:cover;border-radius:4px">${input.outerHTML}`;
+      thumb.classList.add('has-img');
+      const newInput = thumb.querySelector('.sp-row-file');
+      if (newInput) newInput.addEventListener('change', (e2) => this._handleSponsorFileChange(e2));
+    };
+
+    try {
+      if (typeof this.showImageCropper === 'function') {
+        const sourceDataURL = await this._readImageFileAsDataURL(file);
+        this.showImageCropper(sourceDataURL, {
+          outputWidth: 800,
+          onConfirm: setThumb,
+          onCancel: () => { input.value = ''; },
+        });
+        return;
+      }
+    } catch (err) {
+      console.error('[SponsorImage] image processing failed:', err);
+      this.showToast('\u5716\u7247\u8655\u7406\u5931\u6557\uff0c\u8acb\u91cd\u8a66');
+      input.value = '';
+      return;
+    }
     const dataURL = await this._compressImage(file);
     const thumb = input.closest('.sp-manage-row').querySelector('.sp-row-thumb');
     if (thumb) {

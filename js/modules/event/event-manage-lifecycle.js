@@ -22,7 +22,7 @@ Object.assign(App, {
     if (e.type === 'external') { this.editExternalActivity(id); return; }
     this._editEventId = id;
     // 確保事件已綁定（防止 Phase 1 非同步時機導致未綁定）
-    this.bindImageUpload('ce-image', 'ce-upload-preview');
+    this.bindImageUpload('ce-image', 'ce-upload-preview', 8 / 3);
     this.bindTeamOnlyToggle();
     this.bindEventFeeToggle?.();
     this.bindGenderRestrictionToggle?.();

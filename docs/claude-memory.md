@@ -2009,3 +2009,10 @@
 - **Issue**: Staff could click the team-split jersey in the attendance list, but the color picker was appended inside `.user-capsule`, so attendance row and badge overflow containers could clip or cover it.
 - **Fix**: Rendered the jersey picker as a fixed floating layer on `document.body`, positioned beside the clicked jersey and flipped left when there is not enough right-side space.
 - **Validation**: Planned syntax checks and cache-version bump for the frontend assets.
+
+### 2026-04-30 Shared image editor upgrade
+- **Scope**: Upgraded the shared image upload editor used by activities, clubs, tournaments, ads, site themes, shop items, achievements, education covers, sponsors, and boot-brand images.
+- **Issue**: Several flows compressed the file before cropping or skipped the cropper when no fixed aspect ratio was passed, making drag/crop precision weak and inconsistent across upload surfaces.
+- **Fix**: Reworked `image-cropper.js` to edit the original data URL first, then export a compressed result. Added drag, wheel zoom, slider zoom, pinch zoom, reset, rotate, grid overlay, and responsive modal styling. Reworked `image-upload.js` so fixed-aspect and natural-aspect uploads share the same editor path.
+- **Audit notes**: Corrected popup ad crop ratio from `16/9` to `600/800`, set shot-game ad crop ratio to `1200/545`, and kept achievement badge exports square PNG at 400x400.
+- **Validation**: Planned syntax checks, unit tests, cache-version bump, version alignment check, and frontend push deploy.

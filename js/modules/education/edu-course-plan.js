@@ -129,11 +129,13 @@ Object.assign(App, {
       reader.onload = () => {
         this.showImageCropper(reader.result, {
           aspectRatio: 8/3,
+          outputWidth: 1200,
           onConfirm: (croppedDataUrl) => {
             this._eduCpCoverDataUrl = croppedDataUrl;
             const preview = document.getElementById('edu-cp-cover-preview');
             if (preview) preview.innerHTML = '<img src="' + croppedDataUrl + '">';
-          }
+          },
+          onCancel: () => { input.value = ''; },
         });
       };
       reader.readAsDataURL(file);

@@ -126,7 +126,7 @@ Object.assign(App, {
     this._eventSubmitInFlight = false;
     this._setCreateEventSubmitIdleLabel('建立活動');
     // 確保事件已綁定（防止 Phase 1 非同步時機導致未綁定）
-    this.bindImageUpload('ce-image', 'ce-upload-preview');
+    this.bindImageUpload('ce-image', 'ce-upload-preview', 8 / 3);
     this.bindTeamOnlyToggle();
     this.bindEventFeeToggle();
     this.bindGenderRestrictionToggle();

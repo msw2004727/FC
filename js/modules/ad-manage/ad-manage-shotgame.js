@@ -125,7 +125,7 @@ Object.assign(App, {
       preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 1200 × 545 px｜JPG / PNG｜最大 5MB</span>';
     }
     document.getElementById('sgad-image').value = '';
-    this.bindImageUpload('sgad-image', 'sgad-preview');
+    this.bindImageUpload('sgad-image', 'sgad-preview', 1200 / 545);
     const isScheduled = editData.status === 'scheduled';
     document.getElementById('sgad-input-mode').value = isScheduled ? 'scheduled' : 'now';
     this.toggleSgAdSchedule();

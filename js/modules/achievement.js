@@ -265,7 +265,6 @@ Object.assign(App, {
         input.value = '';
         return;
       }
-      const dataURL = await this._compressImage(file, 400, 0.80, 'image/png');
       const setPreview = (finalURL) => {
         this._achBadgeDataURL = finalURL;
         const preview = document.getElementById('ach-badge-preview');
@@ -274,12 +273,18 @@ Object.assign(App, {
         }
       };
       if (this.showImageCropper) {
+        const dataURL = await this._readImageFileAsDataURL(file);
         this.showImageCropper(dataURL, {
           aspectRatio: 1,
+          outputWidth: 400,
+          outputHeight: 400,
+          outputType: 'image/png',
+          quality: 0.80,
           onConfirm: setPreview,
           onCancel: () => { input.value = ''; },
         });
       } else {
+        const dataURL = await this._compressImage(file, 400, 0.80, 'image/png');
         setPreview(dataURL);
       }
     });

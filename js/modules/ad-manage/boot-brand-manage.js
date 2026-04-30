@@ -99,6 +99,9 @@ Object.assign(App, {
       input.addEventListener('change', () => {
         setTimeout(() => this._syncBootBrandUploadToPreview(), 300);
       });
+      input.addEventListener('imageupload:preview', () => {
+        this._syncBootBrandUploadToPreview();
+      });
     }
 
     this._bootBrandLoaded = true;
