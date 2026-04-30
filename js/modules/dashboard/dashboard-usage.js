@@ -409,7 +409,8 @@ Object.assign(App, {
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     docs.forEach((doc, i) => {
       const x = pad.left + (cw / (docs.length - 1 || 1)) * i;
-      const label = doc.dateKey ? doc.dateKey.slice(4, 6) + '/' + doc.dateKey.slice(6, 8) : '';
+      const day = doc.dateKey ? parseInt(String(doc.dateKey).slice(6, 8), 10) : 0;
+      const label = day ? String(day) : '';
       ctx.fillText(label, x, pad.top + ch + 6);
     });
 

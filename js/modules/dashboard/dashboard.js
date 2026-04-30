@@ -18,6 +18,7 @@ Object.assign(App, {
       scope: 'all',
     };
     const users = Array.isArray(viewData.users) ? viewData.users : [];
+    const userGrowthUsers = Array.isArray(viewData.allUsers) ? viewData.allUsers : users;
     const events = Array.isArray(viewData.events) ? viewData.events : [];
     const teams = Array.isArray(viewData.teams) ? viewData.teams : [];
     const tournaments = Array.isArray(viewData.tournaments) ? viewData.tournaments : [];
@@ -137,7 +138,7 @@ Object.assign(App, {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         months.push({ y: d.getFullYear(), m: d.getMonth(), label: (d.getMonth() + 1) + '月', count: 0 });
       }
-      users.forEach(u => {
+      userGrowthUsers.forEach(u => {
         const raw = u.createdAt || u.joinDate || '';
         if (!raw) return;
         const d = new Date(typeof raw === 'object' && raw.toDate ? raw.toDate() : raw);

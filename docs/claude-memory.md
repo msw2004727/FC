@@ -1994,3 +1994,9 @@
 - **原因**：取消報名的 busy lock 在確認框之後才建立，連點可同時進入兩條取消流程；報名流程也缺少本機有效本人報名的早期攔截。
 - **修復**：報名前先檢查本人有效報名並改顯示白話提示；取消報名在確認前先上鎖，早退時釋放；連點造成的已報名/找不到報名記錄改視為狀態已更新，不再寫入錯誤日誌。
 - **驗證**：`node --check js/modules/event/event-detail-signup.js`；`npm test -- --runInBand --runTestsByPath tests/unit/signup-logic.test.js tests/unit/event-detail-render.test.js tests/unit/error-log-high-value-flows.test.js`；`npm test -- --runInBand` 全綠。
+
+### 2026-04-30 數據儀表板用戶成長趨勢固定範圍 [小型]
+- **問題**：用戶成長趨勢標示近 12 個月，但圖表會跟著儀表板上方撈取月份範圍改變；當月趨勢 X 軸顯示月/日，日期密集時容易擠在一起。
+- **原因**：用戶成長圖使用已被目前範圍過濾的 `users`，不是完整用戶來源；當月趨勢圖直接顯示 `MM/DD`。
+- **修復**：用戶成長圖改用 `allUsers` 作為來源，再由圖表自己切最近 12 個月；當月趨勢 X 軸只顯示日數。
+- **教訓**：標題寫固定區間的圖表，資料來源也要固定，不能沿用頁面篩選後的集合。
