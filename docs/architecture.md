@@ -1,805 +1,957 @@
-<!--
-  結構文件交叉引用（任一檔案的結構描述更新時，必須同步更新以下所有檔案）：
-  - docs/architecture.md       ← 本檔案（完整架構圖 + 模組清單 + Mermaid 圖）
-  - docs/structure-guide.md    ← 中文功能導覽圖（給人看的，附功能解釋）
-  - CLAUDE.md                  ← 目錄結構概覽（§ 目錄結構）
--->
+# ToosterX 現況架構文件
 
-# ToosterX — 模組架構圖
+> Last audited: 2026-05-01
+> 依據實際程式碼盤點：`index.html`、`app.js`、`js/`、`pages/`、`functions/index.js`、`firestore.rules`、`firebase.json`、`package.json`、`tests/`、近期 git history。
+> 本文件描述「目前專案真的怎麼運作」，不是未來計劃書。若與舊文件或記憶有衝突，以目前程式碼為準。
 
-## 模組關係圖
+---
+
+## 一句話總覽
+
+ToosterX 是一個 LINE LIFF + Firebase 的 buildless Vanilla JS SPA。前端由 `index.html` 直接載入核心腳本，`PageLoader` 按需載入 `pages/*.html`，`ScriptLoader` 再依頁面載入功能模組；資料層以 Firestore 為主，活動報名、簽到、個人紀錄已遷移到 `events/{eventDocId}/...` 子集合，關鍵一致性由 `asia-east1` Cloud Functions transaction 與 Firestore rules 共同保護。
+
+---
+
+## 快速盤點
+
+| 項目 | 現況 |
+|---|---|
+| 前端型態 | Vanilla JS / HTML / CSS，無 webpack、無 build step |
+| 主入口 | `index.html` + `app.js` |
+| HTML fragments | `pages/` 共 20 個頁面片段 |
+| JS 檔案 | `js/` 共 267 個 JS |
+| 功能模組 | `js/modules/` 共 255 個 JS，16 個子資料夾 + 26 個 root-level shared module |
+| CSS | `css/` 共 17 個 CSS |
+| 後端 | Firebase Cloud Functions v2，Node.js 22，主要 region `asia-east1` |
+| Cloud Functions exports | 52 個 |
+| 資料庫 | Firestore，rules 約 1600 行 |
+| Storage | Firebase Storage，含 default bucket 與 asia-east1 bucket target |
+| 驗證 | LINE LIFF profile + Firebase Custom Token |
+| 佈署 | 前端 push `main` 後由 Cloudflare Pages / GitHub Pages 發佈；functions/rules 需 Firebase deploy |
+| 測試 | Jest unit、Firestore rules emulator、Playwright e2e smoke |
+| 目前快取版本 | `0.20260501` |
+
+---
+
+## 高層拓樸
 
 ```mermaid
 flowchart TD
-    subgraph F["① 基礎層 Foundation"]
-        CONFIG["config.js\n常數 & ModeManager"]
-        I18N["i18n.js\n多語系翻譯"]
-        FB_CFG["firebase-config.js\nFirebase SDK 初始化"]
-    end
+    U["使用者 / LINE Mini App / 瀏覽器"]
+    H["靜態站台\nCloudflare Pages / GitHub Pages"]
+    IDX["index.html\n核心 script defer + boot data inline"]
+    SW["sw.js\nHTML network-first\nJS/CSS cache-first\nStorage image SWR"]
+    APP["app.js\nApp singleton / boot phases / route glue"]
+    PL["PageLoader\npages/*.html fragments"]
+    SL["ScriptLoader\npage -> module groups"]
+    MOD["Feature modules\nObject.assign(App, ...)"]
+    API["ApiService\nread facade"]
+    FSVC["FirebaseService\n_cache / listeners / localStorage"]
+    CRUD["firebase-crud.js\nclient CRUD + fallback transaction"]
+    CF["Cloud Functions v2\ncallable / trigger / schedule / OG"]
+    DB["Firestore\nroot collections + event subcollections"]
+    ST["Firebase Storage\nimage assets"]
+    LIFF["LINE LIFF SDK\nprofile / shareTargetPicker"]
+    LINE["LINE Messaging API\npush / queue / notification"]
+    EXT["Google APIs\nBigQuery usage / Translate / News fetch"]
 
-    subgraph D["② 資料層 Data Layer"]
-        FB_SVC["firebase-service.js\n快取優先服務層"]
-        FB_CRUD["firebase-crud.js\nCRUD 操作擴充"]
-        API["api-service.js\nDemo / Prod 抽象層"]
-        LINE["line-auth.js\nLINE LIFF 驗證"]
-    end
-
-    subgraph I["③ 基礎設施 Infrastructure"]
-        PAGE_LDR["page-loader.js\nHTML 片段載入器"]
-        SCRPT_LDR["script-loader.js\nJS 模組動態載入"]
-    end
-
-    subgraph C["④ 核心應用 App Core"]
-        APP["app.js\nApp 主物件 & 初始化流程"]
-    end
-
-    subgraph E["⑤ 功能擴充 Feature Modules（Object.assign）"]
-        direction TB
-        NAV["core/navigation.js\n頁面路由 & Modal"]
-        THEME["core/theme.js\n深色 / 淺色主題"]
-
-        subgraph MODS["modules/ — 14 功能子資料夾 + 26 獨立模組"]
-            EVT["event/ (34)\n活動系統"]
-            TEAM["team/ (16)\n俱樂部系統"]
-            TOUR["tournament/ (18)\n賽事系統"]
-            PROF["profile/ (9)\n個人資料"]
-            MSG["message/ (9)\n訊息系統"]
-            ACH["achievement/ (11)\n成就系統"]
-            SHOT["shot-game/ (10)\n射門遊戲"]
-            KICK["kickball/ (6)\n踢球遊戲"]
-            SCAN["scan/ (5)\nQR Code 掃描"]
-            DASH["dashboard/ (6)\n儀表板"]
-            ADMG["ad-manage/ (6)\n廣告管理"]
-            EDU["education/ (21)\n教育型俱樂部"]
-            CCAT["color-cat/ (45)\n養成角色系統"]
-            UADM["user-admin/ (5)\n用戶管理後台"]
-            AUTOEXP["auto-exp/ (2)\n自動 EXP 系統"]
-            STANDALONE["26 個獨立模組\nbanner / shop / role / leaderboard\nachievement facade / news / favorites\nannouncement / popup-ad\nsite-theme / game-manage / data-sync\nimage-cropper / image-upload / pwa-install\nattendance-notify / registration-audit\nadmin-log-tabs\naudit-log / error-log / error-log-diagnostics / error-log-insights / game-log-viewer\nmulti-tab-guard / sync-status / translate"]
-        end
-    end
-
-    %% Foundation 內部依賴
-    FB_CFG --> CONFIG
-
-    %% 資料層依賴
-    FB_SVC --> CONFIG
-    FB_SVC --> FB_CFG
-    FB_CRUD --> FB_SVC
-    API --> CONFIG
-    API --> FB_SVC
-    API --> FB_CRUD
-    LINE --> CONFIG
-
-    %% 基礎設施依賴
-    PAGE_LDR --> CONFIG
-    SCRPT_LDR --> CONFIG
-    SCRPT_LDR --> PAGE_LDR
-
-    %% App Core 依賴
-    APP --> API
-    APP --> LINE
-    APP --> PAGE_LDR
-    APP --> SCRPT_LDR
-    APP --> I18N
-
-    %% 功能擴充（Object.assign → App）
-    NAV --> APP
-    NAV --> PAGE_LDR
-    NAV --> SCRPT_LDR
-    THEME --> APP
-    MODS --> APP
-    MODS --> API
+    U --> H --> IDX
+    IDX --> SW
+    IDX --> APP
+    APP --> PL
+    APP --> SL
+    SL --> MOD
+    MOD --> API
+    MOD --> CRUD
+    API --> FSVC
+    CRUD --> DB
+    FSVC --> DB
+    MOD --> LIFF
+    MOD --> ST
+    CF --> DB
+    CF --> LINE
+    CF --> EXT
+    DB --> CF
 ```
 
 ---
 
-## 基礎層與核心模組說明
+## Runtime 與部署邊界
 
-| 模組 | 說明 |
-|------|------|
-| `config.js` | 全域常數（`ROLES`、`TYPE_CONFIG`、`CACHE_VERSION` 等）；`ModeManager` 已硬編碼為 production |
-| `i18n.js` | 多語系翻譯字串，無外部依賴，最先載入 |
-| `firebase-config.js` | 初始化 Firebase SDK，向外暴露 `db`、`storage`、`auth` 全域物件 |
-| `firebase-service.js` | **快取優先**資料層；以 `_cache` 記憶體物件映射 Firestore 子集合（`events/{docId}/registrations` 等），透過 `collectionGroup` 監聯器即時同步並持久化至 localStorage。提供 `_getEventDocId()` / `_getEventDocIdAsync()` 子集合路徑工具。Phase 2A 新增 `fetchTeamIfMissing()` / `fetchTournamentIfMissing()` 單筆補查（cache-first → Firestore fallback），搭配 `_teamSlices.injected` / `_tournamentSlices.injected` 追蹤注入來源 |
-| `firebase-crud.js` | 透過 `Object.assign` 擴充 `FirebaseService`，提供各集合的新增 / 更新 / 刪除 / 圖片上傳操作。包含 `_rebuildOccupancy()` 統一佔位重建函式，所有報名/取消/遞補流程共用。Phase 2A 起 `addTeam` / `addTournament` 改用 `.doc(customId).set()` 消除雙軌 ID。Phase 2B 新增 Team Feed CRUD（`listTeamFeed` / `createTeamPost` / `deleteTeamPost` / `updateTeamPost` / `pinTeamPost` / `toggleTeamFeedReaction` / `addTeamFeedComment` / `deleteTeamFeedComment`） |
-| `api-service.js` | **抽象層**；從 `FirebaseService._cache` 取資料，提供統一讀取介面。Phase 2A 新增 `getTeamAsync()` / `getTournamentAsync()` 非同步版本。Phase 2B 新增 Team Feed 封裝（`getTeamFeed` / `createTeamFeedPost` / `deleteTeamFeedPost` 等 8 個方法 + audit log） |
-| `line-auth.js` | LINE LIFF SDK 封裝；在 Demo 模式或 localhost 時停用，提供登入 / 登出 / 取得個人資料 |
-| `page-loader.js` | 按需非同步載入 `pages/*.html` 片段，快取版本由 `CACHE_VERSION` 控制。延遲載入（`_loadDeferred`）與按需載入（`ensurePage`）完成後自動呼叫 `App._bindPageElements()` 重新綁定事件 |
-| `script-loader.js` | 定義頁面群組與模組映射；目前所有模組已在 `index.html` 以 `<script defer>` 靜態載入，ScriptLoader 作為保底機制確保頁面切換時模組可用 |
-| `app.js` | `App` 主物件；定義 4 階段初始化流程、`renderAll()`、`showToast()`、`appConfirm()` |
-| `core/navigation.js` | `showPage()` 策略分派頁面路由（stale-first / stale-confirm / prepare-first / fresh-first），Modal 管理、Drawer 開關，`_freshCheckBeforeAction()` 操作前確認，透過 `Object.assign` 擴充 App。策略由 `config.js` 的 `PAGE_STRATEGY` registry 定義 |
-| `core/theme.js` | 深色 / 淺色主題切換，偏好儲存於 localStorage |
+### 前端
 
----
+- `index.html` 是唯一主要 SPA 入口，直接 `<script defer>` 載入核心與 boot 必要模組。
+- `pages/*.html` 是頁面片段，不是獨立 route。
+- `app.js` 建立全域 `App` singleton，其他模組透過 `Object.assign(App, {...})` 擴充。
+- `js/config.js` 保存 runtime 常數、角色、權限 catalog、運動標籤、頁面策略、快取版本。
+- 沒有 npm build。`package.json` 只提供測試腳本。
 
-## Firestore 架構演進（2026-04-12 完成 Phase 4b）
+### 後端
 
-### 子集合遷移完成狀態
+- `functions/index.js` 是 Cloud Functions 主檔，Node.js 22。
+- 所有前端 callable 都應使用 `firebase.app().functions('asia-east1')` 呼叫，避免 region mismatch。
+- 關鍵寫入路徑包含活動報名、取消報名、團隊席位、賽事友誼賽流程、資料同步、UID 健康檢查、放鴿子計算、登入 IP 紀錄。
 
-`registrations`、`attendanceRecords`、`activityRecords` 三個集合已從根集合遷移至 `events/{docId}/` 子集合。完整計劃書見 `docs/archive/stateful-imagining-dahl.md`（已歸檔）。
+### 部署
 
-| 項目 | 狀態 | 說明 |
-|------|------|------|
-| Phase 0-4b | ✅ 全部完成 | 索引 + rules + 雙寫 + 遷移 + 讀取切換 + 寫入翻轉 |
-| Phase 4c | ⏸ 待執行 | 刪除根集合殘留資料 + 移除去重 + 鎖定 rules（不可逆，不影響功能） |
-
-### 查詢路徑（已切換）
-
-```
-單一活動查詢：db.collection('events').doc(eventDocId).collection('registrations')
-跨活動查詢：  db.collectionGroup('registrations') + 去重（doc.ref.parent.parent !== null）
-CF 查詢：     admin.firestore().collectionGroup('registrations') + 去重（path.split('/').length > 2）
-```
-
-### 寫入路徑（已切換）
-
-所有寫入只走子集合。根集合已凍結（無人讀寫），保留作為 Phase 4c 前的回退保險。
-
-### 活動詳情頁局部更新機制（2026-04-13）
-
-報名/取消/候補等操作後，活動詳情頁**不做全頁重繪**，改為局部 DOM 更新：
-- `_refreshSignupButton()` — 按鈕狀態（含性別限定、球隊限定等 8 種分支）
-- `_patchDetailCount()` — 人數文字更新
-- `_patchDetailTables()` — 報名名單 + 候補名單 + 簽到表
-- Firestore `onSnapshot` 觸發時也走局部更新路徑（`_debouncedSnapshotRender`）
-
-### 舊活動資料補查機制（2026-04-13）
-
-全站 `onSnapshot` 監聽器有 limit（`siteConfig/realtimeConfig` 可調），超出 limit 的舊活動資料不在快取中。以下兩個函式在快取 miss 時從子集合一次性補查：
-
-- `ApiService.fetchAttendanceIfMissing(eventId)` — 簽到紀錄
-- `ApiService.fetchRegistrationsIfMissing(eventId)` — 報名紀錄
-
-兩者在 `_doRenderAttendanceTable` 開頭以 `Promise.all` 平行執行。快取有資料時瞬間 return（零成本），沒有才查一次子集合 merge 進全站快取。
-
-活動列表本身已有「載入更多歷史活動」手動分頁按鈕（`loadMoreTerminalEvents`，每次 100 場）。
-
-### 圖片載入優化（2026-04-13）
-
-- 全站 `<img>` 淡入：`opacity:0` → `load` 事件 → `img.decode()` 預解碼 → `.img-loaded` 淡入
-- 輪播 Banner（CSS `background-image`）：`new Image().decode()` 預載後才設背景
-- 開機品牌圖：1536×1535 PNG 1198KB → 512×512 WebP 49KB（-96%）
+- 前端文件、HTML、JS、CSS：`git push origin main` 後由靜態站台部署。
+- Cloud Functions：`firebase deploy --only functions --project fc-football-6c8dc`。
+- Firestore Rules：`firebase deploy --only firestore:rules --project fc-football-6c8dc`。
+- Firestore Indexes：`firebase deploy --only firestore:indexes --project fc-football-6c8dc`，只有 indexes 變更時需要。
+- docs-only 變更不需要 bump `CACHE_VERSION`，也不需要 functions/rules deploy。
 
 ---
 
-## 功能子資料夾模組清單
-
-### event/ — 活動系統（34 個模組）
-
-| 檔案 | 說明 |
-|------|------|
-| `event-blocklist.js` | 活動黑名單可見性守衛（`_isEventVisibleToUser` / `_userHasRegistrationForEvent` / `_filterVisibleEvents`）— 2026-04-20 導入 |
-| `event-list-helpers.js` | 活動列表共用工具函式（建立者、俱樂部、性別、歸屬判斷、`_getVisibleEvents` 整合黑名單）|
-| `event-list-stats.js` | 活動列表統計渲染（徽章、日期解析、狀態、倒數計時） |
-| `event-list-home.js` | 首頁活動區塊、運動捷徑、熱門活動渲染 |
-| `event-list-timeline.js` | 時間軸卡片載入與活動列表渲染（含月曆 `data-date-anchor` 支援）|
-| `event-list.js` | 活動列表主模組（整合上述 helper、含月曆 tab 切換 `_setActivityTab` + lazy-load `_loadAndRenderCalendar`）|
-| `event-calendar-constants.js` | 月曆視圖常數：`SPORT_COLORS` × 16、`WEEK_DAY_NAMES`、`MONTH_FORMATTER`、`toDateKey()`、`dateObjToKey()`、`getMonthGridShape()`（2026-04-22 新增）|
-| `event-list-calendar.js` | 月曆視圖主入口：`_renderActivityCalendar` lifecycle + shell + 月份視窗管理（2026-04-22 新增）|
-| `event-list-calendar-build.js` | 月曆 DOM 建構：月份 section / 日期格 / 運動圖示 x 場次彙總 / group by date（2026-04-22 新增，2026-04-28 改為 sport-count）|
-| `event-list-calendar-nav.js` | 月曆導航：月份切換、IntersectionObserver、鍵盤導航、+N 跳 timeline（2026-04-22 新增）|
-| `event-share-builders.js` | 分享訊息建構工具（純函式，建構 Flex Message 內容） |
-| `event-share.js` | 活動分享（LINE shareTargetPicker + 底部選單 + 建立後分享提示） |
-| `event-detail.js` | 活動詳情頁主模組 |
-| `event-detail-signup.js` | 活動報名 UI 入口（含 `handleSignup()`、`handleCancelSignup()`） |
-| `event-detail-companion.js` | 同行者報名 UI（含 `_confirmCompanionRegister()`、`_confirmCompanionCancel()`） |
-| `event-detail-calendar.js` | Google 日曆整合（一鍵加入行事曆、日期解析） |
-| `event-detail-notify-prompt.js` | 報名後 LINE 通知綁定提示（可關閉，localStorage 記憶） |
-| `event-create-input-history.js` | 建立活動表單輸入歷史（localStorage） |
-| `event-create-sport-picker.js` | 建立活動運動標籤選擇器 |
-| `event-create-delegates.js` | 建立活動代理人搜尋與管理 |
-| `event-create-options.js` | 建立活動選項（費用、性別、報名開放時間） |
-| `event-create-team-picker.js` | 建立活動俱樂部限定選擇器 |
-| `event-create-external.js` | 建立外部活動工作流 |
-| `event-create-template.js` | 建立活動範本管理（本地 + 雲端） |
-| `event-create-multidate.js` | 多日期批次建立活動（單表單產生多場獨立活動） |
-| `event-create-waitlist.js` | 建立活動候補自動遞補設定 |
-| `event-create.js` | 建立活動主模組 |
-| `event-manage-noshow.js` | 放鴿子統計（含鎖定函式 `_buildRawNoShowCountByUid()`、`_getNoShowDetailsByUid()`） |
-| `event-manage-attendance.js` | 出席表格渲染與 helper |
-| `event-manage-instant-save.js` | 即時儲存：checkbox 勾選後 300ms debounce 自動寫入 Firestore |
-| `event-manage-confirm.js` | 批次確認出席（含鎖定函式 `_confirmAllAttendance()`），現主要處理備註 + 收尾 |
-| `event-manage-lifecycle.js` | 活動 CRUD 操作（複製、刪除、狀態切換） |
-| `event-manage-badges.js` | 活動管理徽章刷新 |
-| `event-manage-waitlist.js` | 候補名單管理表格 |
-| `event-manage-visibility.js` | 編輯模式下離開瀏覽器 ≥ 3 秒自動退出編輯（visibilitychange + pagehide 掛載） |
-| `event-manage.js` | 活動管理主模組（共用 helper） |
-| `event-external-transit.js` | 外部活動中繼卡片（YouTube 嵌入、連結跳轉、分享） |
-
-### team/ — 俱樂部系統（16 個模組）
-
-| 檔案 | 說明 |
-|------|------|
-| `team-list-helpers.js` | 身分解析、權限判斷、type handler 等純工具函式（Phase 1a 抽出 + Phase 4 §10.2 教育解耦） |
-| `team-list-stats.js` | 成員計數、排名、排序等純計算函式（Phase 1a 從 team-list.js 抽出） |
-| `team-list.js` | 俱樂部列表篩選、置頂、管理操作膠水（Phase 2B：搜尋防抖 300ms + searchTeamsFromServer） |
-| `team-list-render.js` | 俱樂部卡片渲染與列表顯示（Phase 2B：指紋跳過重繪） |
-| `team-detail.js` | 俱樂部詳情主模組 |
-| `team-feed.js` | 俱樂部動態牆 — ApiService 封裝 + per-team 權限守衛（Phase 2B §8.4 + §12.4B） |
-| `team-detail-render.js` | 俱樂部詳情渲染（活動、動態牆、留言） |
-| `team-detail-invite.js` | 俱樂部邀請 QR Code 與連結分享（原 team-detail-members.js） |
-| `team-share-builders.js` | 分享用純建構函式：URL / AltText / Flex Message（Phase 1a 從 team-share.js 抽出） |
-| `team-share.js` | 俱樂部分享 UI 操作（LINE Flex Message + 底部選單） |
-| `team-form-join.js` | 加入/退出俱樂部 |
-| `team-form-search.js` | 俱樂部表單搜尋 UI（隊長/副隊長/教練） |
-| `team-form-init.js` | 俱樂部表單初始化與顯示 |
-| `team-form-validate.js` | 表單驗證與欄位值提取（Phase 4 §10.1 從 team-form.js 抽出） |
-| `team-form-roles.js` | 角色降級預覽 + 儲存後自動升降級/通知（Phase 4 §10.1 從 team-form.js 抽出） |
-| `team-form.js` | 俱樂部表單主模組 — 資料組裝 + 儲存 + 日誌（Phase 4 §10.1 瘦身） |
-
-### tournament/ — 賽事系統（19 個模組 + README）
-
-| 檔案 | 說明 |
-|------|------|
-| `README.md` | 賽事重構預留目錄說明 |
-| `tournament-core.js` | 賽事共用核心 helper（狀態判斷、主辦顯示） |
-| `tournament-helpers.js` | 純工具函式（權限判斷、委託人正規化、主辦人解析等 9 個 helper） |
-| `tournament-detail.js` | 賽事詳情頁主模組（Phase 1b 移除 renderLeagueSchedule / renderBracket 死碼） |
-| `tournament-render.js` | 公開賽事頁與詳情頁 renderer（Phase 2B：搜尋防抖 + 指紋跳過 + 捲動保存） |
-| `tournament-manage.js` | 賽事管理入口與管理列表權限過濾 |
-| `tournament-manage-form.js` | 賽事表單工具與 helper（場地管理等） |
-| `tournament-manage-people.js` | 賽事表單人員選取器（委託人 / 裁判複選，最多 10 人） |
-| `tournament-manage-host-selection.js` | 賽事建立主辦俱樂部候選來源、空主辦與主辦參賽鎖定判斷 |
-| `tournament-manage-host.js` | 賽事主辦俱樂部表單布局與 host entry builder |
-| `tournament-manage-edit.js` | 賽事編輯 Modal 與儲存處理 |
-| `tournament-share.js` | 賽事分享（LINE Flex Message） |
-| `tournament-share-builders.js` | 分享用 Flex Message / URL / altText 建構函式（3 個 builder） |
-| `tournament-friendly-apply-state.js` | 友誼賽報名狀態 — 可代表報名俱樂部、隊伍 id 別名、申請/核准/拒絕狀態上下文 |
-| `tournament-friendly-state.js` | 友誼賽狀態管理 — 載入、快取同步、可見性（Phase 4 §10.3 從 detail 抽出） |
-| `tournament-friendly-detail.js` | 友誼賽詳情頁 — 渲染 + 使用者操作（Phase 4 §10.3 瘦身） |
-| `tournament-friendly-withdraw.js` | 友誼賽撤回申請與已核准隊伍退出流程（按鈕 loading、狀態守衛、callable wrapper） |
-| `tournament-friendly-detail-view.js` | 友誼賽詳情頁渲染（參加按鈕、俱樂部列表、待審列） |
-| `tournament-friendly-roster.js` | 友誼賽 roster（球員名單、加入/退出、多隊身份選擇） |
-| `tournament-friendly-notify.js` | 友誼賽通知（建賽、俱樂部申請、主辦審核推播） |
-
-### profile/ — 個人資料（9 個模組）
-
-| 檔案 | 說明 |
-|------|------|
-| `profile-avatar.js` | 頭像 helper（顯示、預設圖、快取） |
-| `profile-core.js` | 個人資料核心 UI 與頁面入口 |
-| `profile-form.js` | 個人資料編輯表單 |
-| `profile-data.js` | 個人資料數據頁核心 |
-| `profile-data-render.js` | 個人資料數據頁渲染 |
-| `profile-data-stats.js` | 個人資料稱號與建議 |
-| `profile-data-history.js` | 個人資料申請紀錄與同行者歷史 |
-| `profile-card.js` | 個人名片彈窗 |
-| `profile-share.js` | 個人名片 LINE Flex Message 分享（shareTargetPicker + 底部選單） |
-
-### message/ — 訊息系統（9 個模組）
-
-| 檔案 | 說明 |
-|------|------|
-| `message-render.js` | 訊息收件匣渲染與顯示 |
-| `message-inbox.js` | 用戶收件匣與通知工具（slim glue） |
-| `message-actions.js` | 收件匣操作（已讀、清除、賽事審核） |
-| `message-actions-team.js` | 俱樂部加入申請審核操作 |
-| `message-notify.js` | 通知範本與 LINE 推播 |
-| `message-line-push.js` | LINE 推播通知佇列 |
-| `message-admin-list.js` | 管理員站內信列表 |
-| `message-admin-compose.js` | 管理員站內信撰寫 |
-| `message-admin.js` | 管理員訊息主模組 |
-
-### achievement/ — 成就系統（11 個模組）
-
-| 檔案 | 說明 |
-|------|------|
-| `index.js` | 成就領域模組容器（registry / shared / stats / evaluator 的相容層入口） |
-| `registry.js` | 成就條件 registry（action / timeRange、field state、legacy label fallback） |
-| `shared.js` | 成就共用 helper（threshold、條件描述、分類排序等純函式） |
-| `stats.js` | 成就衍生計算 helper（徽章數、已獲得徽章、稱號選項） |
-| `evaluator.js` | 成就評估器（25 種動作類型、role_check、manual_award、只讀快照評估） |
-| `badges.js` | 成就徽章 helper（同步/異步路徑、badge list HTML） |
-| `titles.js` | 成就稱號 helper（稱號顯示、選項、提示、儲存） |
-| `profile.js` | 成就個人頁 bridge（profile-facing API，供多模組共用） |
-| `view.js` | 成就頁 view helper（公開成就頁卡片與徽章展示） |
-| `admin.js` | 成就後台 helper（列表、表單、上傳、cleanup、手動授予面板） |
-| `batch.js` | 成就批次更新（一鍵為全員重新計算成就進度，2026-04-27 從 root 搬入） |
-
-### auto-exp/ — 自動 EXP 系統（2 個模組）
-
-| 檔案 | 說明 |
-|------|------|
-| `index.js` | 自動 EXP 規則設定（依行為觸發、Firestore 持久化 + localStorage fallback） |
-| `rules.js` | 自動 EXP 對帳規則（放鴿子扣分 / LINE 綁定獎勵 / 徽章獎勵，reconciliation model） |
-
-### shot-game/ — 射門遊戲（10 個模組）
-
-| 檔案 | 說明 |
-|------|------|
-| `shot-physics.js` | 球體物理常數、工具函式、碰撞 helper |
-| `shot-renderer.js` | Three.js 場景建構（場地線、球門、廣告看板） |
-| `shot-scoring.js` | 分數對照表、連擊里程碑、訊息主題 helper |
-| `shot-game-loop.js` | 遊戲迴圈、輸入處理、物理步進、計分 |
-| `shot-game-engine.js` | 蓄力射門 3D 遊戲引擎（Three.js 主控） |
-| `shot-lab-controls.js` | 實驗室資料 helper（排行榜處理、Mock 資料、身分驗證） |
-| `shot-lab-ui.js` | 實驗室 UI 渲染（排行榜、排名圖示、格式化） |
-| `shot-game-lab-page.js` | 蓄力射門實驗室頁面（token-gated，game-lab.html 專用） |
-| `shot-page-ui.js` | 正式版頁面 UI（排行榜渲染、Session Badge、Intro/Modal） |
-| `shot-game-page.js` | 蓄力射門正式版頁面（嵌入主站 game.html） |
-
-### kickball/ — 踢球遊戲（6 個模組）
-
-| 檔案 | 說明 |
-|------|------|
-| `kickball-helpers.js` | 踢球遊戲共用 helper |
-| `kickball-leaderboard.js` | 踢球遊戲排行榜 |
-| `kickball-renderer.js` | 踢球遊戲 Three.js 場景渲染 |
-| `kickball-ui.js` | 踢球遊戲 UI 控制 |
-| `kickball-physics.js` | 踢球遊戲物理引擎 |
-| `kickball-game-page.js` | 開球王遊戲頁面（嵌入主站 kickball.html） |
-
-### color-cat/ — 養成角色系統（45 個模組，含 dialogue/ 子目錄）
-
-| 檔案 | 說明 |
-|------|------|
-| `color-cat-config.js` | 常數、皮膚定義（貓×2 + 兔×2）、動作定義 |
-| `color-cat-stats.js` | 遊戲數值（體力、AI 權重、物理、粒子參數） |
-| `color-cat-sprite.js` | 精靈圖載入、繪製、剪影、2x 高解析支援 |
-| `color-cat-ball.js` | 球體物理、踢球煙塵、叼球模式 |
-| `color-cat-character.js` | 角色核心（共享狀態、初始化、更新迴圈、公開 API） |
-| `color-cat-character-stamina.js` | 體力消耗/恢復、虛弱等級觸發、體力條繪製 |
-| `color-cat-character-particles.js` | 跑步煙塵、擊退爆發、呼吸動畫、愛心粒子 |
-| `color-cat-character-actions.js` | 動作啟動/停止、移動更新（追球、走向紙箱、短跑） |
-| `color-cat-character-actions-interact.js` | 互動動作：睡覺、醒來、賞花、攻擊花/草/蝴蝶/敵人 |
-| `color-cat-character-actions-special.js` | 特殊動作：必殺蓄力+釋放、擊退恢復、逃跑、喘氣返回 |
-| `color-cat-character-combo.js` | 連續動作序列（爬邊牆、爬紙箱、咬球跑） |
-| `color-cat-character-combat.js` | 戰鬥邏輯：受傷、瀕死倒數→重生、攻擊敵人、敵人 AI 互動 |
-| `color-cat-character-bubble.js` | 對話氣泡：依情緒×MBTI×皮膚取得台詞並顯示 |
-| `color-cat-character-ai.js` | AI 行為選擇（權重+MBTI+環境修正）、追球/踢球/閒置更新 |
-| `color-cat-mbti.js` | MBTI 16 型人格系統：對應行動權重乘數 |
-| `color-cat-damage-number.js` | 浮動傷害/經驗值數字（生成、上浮、淡出） |
-| `color-cat-enemy.js` | 敵人系統：10 種敵人×4 技能、生成、狀態機、AI 行為樹、精英 |
-| `color-cat-enemy-draw.js` | 敵人精靈渲染：幀推進、陰影、傷害數字、受驚效果 |
-| `color-cat-enemy-projectile.js` | 投射物系統：弓箭/魔法彈生成、物理更新、碰撞偵測 |
-| `color-cat-enemy-util.js` | 戰鬥工具：命中偵測、傷害套用、擊退軌跡、搜尋最近敵人 |
-| `color-cat-profile.js` | 角色資訊（名稱、等級、數值、個性、心情、裝備） |
-| `color-cat-scene.js` | 場景核心（共享狀態、主迴圈、初始化、點擊、App 掛載） |
-| `color-cat-scene-bg.js` | 背景繪製（天空漸層、山丘、雲朵、日夜循環） |
-| `color-cat-scene-box.js` | 紙箱繪製（箱體、貓臉塗鴉、蓋子開合、Zzz） |
-| `color-cat-scene-flag.js` | 旗子繪製（飄揚動畫、旗上貓臉）+ 牆面影子 |
-| `color-cat-scene-flower.js` | 花朵系統（4 階段成長、金花 1/6 機率、採集 EXP、枯萎） |
-| `color-cat-scene-grass.js` | 雜草系統（自動生長、離線補長、鋤草動畫、存檔） |
-| `color-cat-scene-butterfly.js` | 蝴蝶系統（懸停物理、隨機行走、玩家追逐觸發） |
-| `color-cat-scene-fog.js` | 濃霧事件（降低能見度、嚇退敵人 90% 休眠、視覺覆蓋） |
-| `color-cat-scene-grave.js` | 死亡墓碑（死亡位置生成、累積、點擊摧毀） |
-| `color-cat-scene-panel.js` | 右側抽屜面板（框架、把手、側邊頁籤、碰撞檢測） |
-| `color-cat-scene-panel-tab0.js` | 面板頁籤0：基本資料（頭像、名稱、等級、EXP、換膚） |
-| `color-cat-scene-panel-tab1.js` | 面板頁籤1：狀態（體力條、HP 條、虛弱顯示） |
-| `color-cat-scene-panel-tab2.js` | 面板頁籤2：裝備（6 格裝備欄位，預留擴充） |
-| `color-cat-scene-panel-modal.js` | 浮動統計 Modal（角色檔案、成就列表、數值明細） |
-| `color-cat-scene-signpost-modal.js` | 故事/提示 Modal（首次載入說明遊戲機制） |
-| `color-cat-scene-stats-modal.js` | 詳細數值 Modal（體力狀態、動作歷史、戰鬥統計、MBTI） |
-| `color-cat-scene-weather.js` | 天氣系統（晴/陰/雨/雷暴/雪/霧 + 粒子特效） |
-| `color-cat-naming.js` | 角色命名 UI overlay（LINE 暱稱帶入 + 自訂） |
-| `color-cat-cloud-save.js` | Firestore 雲端存讀檔 + localStorage 備援 + dirty flag |
-| **dialogue/ 子目錄** | |
-| `dialogue/color-cat-dialogue-data.js` | 基礎對話池：4 皮膚×4 情緒×10 台詞 |
-| `dialogue/color-cat-dialogue-mbti-analysts.js` | INTJ/INTP/ENTJ/ENTP 分析師型台詞 |
-| `dialogue/color-cat-dialogue-mbti-diplomats.js` | INFJ/INFP/ENFJ/ENFP 外交官型台詞 |
-| `dialogue/color-cat-dialogue-mbti-explorers.js` | ISTP/ISFP/ESTP/ESFP 探險家型台詞 |
-| `dialogue/color-cat-dialogue-mbti-sentinels.js` | ISTJ/ISFJ/ESTJ/ESFJ 守衛者型台詞 |
-
-### scan/ — QR Code 掃描（5 個模組）
-
-| 檔案 | 說明 |
-|------|------|
-| `scan.js` | QR Code 掃描簽到/簽退主模組 |
-| `scan-ui.js` | 掃描頁 UI 渲染（活動分類、選擇器、出席區塊） |
-| `scan-camera.js` | 相機初始化、QR 掃描、裝置選擇、手動 UID 輸入 |
-| `scan-process.js` | 掃描結果處理、出席標記、驗證 |
-| `scan-family.js` | 家庭成員批次簽到 Modal |
-
-### dashboard/ — 儀表板（6 個模組）
-
-| 檔案 | 說明 |
-|------|------|
-| `dashboard-widgets.js` | 儀表板 Canvas 圖表元件與 helper |
-| `dashboard.js` | 管理員後台數據儀表板 |
-| `dashboard-participant-query.js` | 活動參與查詢摘要卡（關鍵字、日期區間、摘要、臨時頁入口） |
-| `dashboard-participant-share.js` | 活動參與查詢臨時報表分享（7 天有效網址與公開快照頁） |
-| `dashboard-usage.js` | 雲端用量指標（Firestore/Functions 用量、免費額度百分比、7 天趨勢圖） |
-| `personal-dashboard.js` | 個人數據儀表板（參加場次、出席率、EXP 統計） |
-
-### education/ — 教育型俱樂部（21 個模組）
-
-| 檔案 | 說明 |
-|------|------|
-| `edu-helpers.js` | 共用工具：isEducationClub、權限、年齡計算、generateWeeklyDates |
-| `edu-group-list.js` | 分組列表渲染 |
-| `edu-group-form.js` | 分組 CRUD 表單 |
-| `edu-student-list.js` | 學員列表、分組內學員卡片 |
-| `edu-student-form.js` | 學員資料表單（新增/編輯/自動歸組） |
-| `edu-student-join.js` | 學員/家長申請加入 + 教練審核 |
-| `edu-detail-render.js` | 教育型俱樂部詳情頁渲染（框架 + 頁籤 + 成員區塊） |
-| `edu-detail-realtime.js` | Firestore 即時監聽（students / teams） |
-| `edu-detail-withdraw.js` | 退學 / 取消申請流程 |
-| `edu-course-plan.js` | 課程方案 CRUD（週期制 + 堂數制） |
-| `edu-course-plan-render.js` | 課程方案卡片渲染（排序、置頂、報名按鈕） |
-| `edu-course-plan-attendance.js` | 課程出勤月曆彈窗（按日期顯示出勤明細） |
-| `edu-course-enrollment.js` | 課程報名申請、教練審核、備註、繳費旗標 |
-| `edu-course-enrollment-render.js` | 報名名冊渲染（待審/已核准頁籤、繳費追蹤） |
-| `edu-checkin.js` | 群組批次簽到 |
-| `edu-checkin-scan.js` | QR 掃碼簽到（掃到自動歸組） |
-| `edu-calendar-core.js` | 行事曆共用邏輯、視圖切換 |
-| `edu-calendar-stamp.js` | 集點卡視圖 |
-| `edu-calendar-monthly.js` | 月曆格子視圖 |
-| `edu-parent-binding.js` | 家長-孩子綁定管理 |
-| `edu-notify.js` | 通知：簽到成功、課前提醒、出席報告 |
-
-### ad-manage/ — 廣告管理（6 個模組）
-
-| 檔案 | 說明 |
-|------|------|
-| `ad-manage-core.js` | 廣告管理核心（共用 helper） |
-| `ad-manage-banner.js` | Banner 輪播廣告管理 |
-| `ad-manage-float.js` | 浮動廣告管理 |
-| `ad-manage-popup-sponsor.js` | 贊助彈窗廣告管理 |
-| `ad-manage-shotgame.js` | 小遊戲廣告管理 |
-| `boot-brand-manage.js` | 品牌開機動畫管理 |
-
-### user-admin/ — 用戶管理後台（5 個模組）
-
-| 檔案 | 說明 |
-|------|------|
-| `user-admin-list.js` | 用戶列表與搜尋 |
-| `user-admin-exp.js` | 用戶 EXP 管理 |
-| `user-admin-roles.js` | 角色權限管理（自訂層級、權限面板、儲存預設） |
-| `user-admin-perm-info.js` | 權限說明彈窗（每個權限開關旁的「?」按鈕與說明內容） |
-| `user-admin-corrections.js` | 用戶補正管理 |
-
----
-
-## 獨立模組清單（26 個）
-
-以下模組位於 `js/modules/` 根目錄，不屬於任何子資料夾：
-
-| 檔案 | 說明 |
-|------|------|
-| `achievement.js` | 成就領域 facade（保留舊入口方法名稱，逐步轉接到 `achievement/` 子模組） |
-| `admin-log-tabs.js` | 管理員日誌中心（操作日誌 + 審計日誌 + 錯誤日誌頁籤介面） |
-| `announcement.js` | 系統公告管理與顯示 |
-| `attendance-notify.js` | 被掃方即時通知（Production: Firestore onSnapshot / Demo: 直接觸發） |
-| `audit-log.js` | `super_admin` 審計日誌查詢（單日查詢、時間/UID/動作篩選） |
-| `banner.js` | 首頁輪播 Banner 渲染 |
-| `data-sync.js` | 系統資料同步（俱樂部成員數重算、用戶俱樂部欄位驗證、孤兒記錄清理），含費用預估 |
-| `error-log-diagnostics.js` | 錯誤日誌白話化、嚴重度、時間排序、裝置與 context 解析 helper |
-| `error-log-insights.js` | 錯誤日誌同類聚合、近 7 天趨勢與診斷包複製 |
-| `error-log.js` | 錯誤日誌查詢與嚴重度分類顯示 |
-| `favorites.js` | 用戶收藏活動 / 俱樂部管理 |
-| `game-log-viewer.js` | 遊戲歷史紀錄瀏覽器（篩選遊戲/日期、分頁、統計） |
-| `game-manage.js` | 小遊戲管理（首頁顯示開關，預留多款遊戲設定） |
-| `image-cropper.js` | 圖片裁切 Modal（拖拽定位 + 縮放 + Canvas 輸出） |
-| `image-upload.js` | 圖片上傳共用功能（Firebase Storage），整合 image-cropper 裁切 |
-| `leaderboard.js` | 用戶 EXP 排行榜 |
-| `multi-tab-guard.js` | 多分頁使用提醒與接管提示，降低同帳號多分頁狀態衝突 |
-| `news.js` | 首頁每日體育新聞渲染（卡片直瀑式），資料來自 Cloud Function 定時抓取 |
-| `popup-ad.js` | 首頁彈窗廣告顯示邏輯 |
-| `pwa-install.js` | PWA 安裝提示（Android/iOS 偵測、beforeinstallprompt、引導安裝） |
-| `registration-audit.js` | 報名資料審計與修復（`auditRegistrations()` 掃描差異、`repairRegistrations()` 回寫修正） |
-| `role.js` | 角色系統、抽屜選單渲染、自訂層級 runtime 等級計算、後台入口權限判斷 |
-| `shop.js` | 二手運動商品市集（刊登、購買、管理） |
-| `site-theme.js` | 站點佈景主題設定（管理端） |
-| `sync-status.js` | 前端同步狀態提示（離線、同步中、同步完成、重試） |
-| `translate.js` | 非預設語系的原地翻譯輔助 |
-
----
-
-## 初始化流程（4 階段 + 延遲載入回呼）
-
-```
-DOMContentLoaded
-  │
-  ├─ Phase 1（非阻塞）── PageLoader.loadAll()     → 載入 Boot HTML 片段（home / activity / team / profile / message）
-  │                        └─ 排程 _loadDeferred() → 背景載入延遲頁面（scan / tournament / shop / game / admin-* / personal-dashboard）
-  │
-  ├─ Phase 2 ── FirebaseService._restoreCache()   → 從 localStorage 還原快取（Prod 模式）
-  ├─ Phase 3 ── App.init() → renderAll()          → 立即顯示 UI（使用快取或 Demo 資料）
-  │                └─ 隱藏 Loading 遮罩
-  │
-  ├─ Phase 1 完成 → App.renderAll() + App._bindPageElements()  → 補跑一次渲染與事件綁定
-  │
-  ├─ _loadDeferred() 完成 → App._bindPageElements()  → 延遲頁面元素事件綁定（如廣告圖片上傳）
-  │
-  └─ Phase 4（背景 async — 分層啟動）
-       ├─ 載入 Firebase + LIFF CDN SDK
-       ├─ FirebaseService.init()（分層啟動）
-       │    ├─ 立即：boot collections (.get()) + events/teams listeners（公開讀取，不等 Auth）
-       │    ├─ 並行：Auth（LINE Custom Token / 匿名）
-       │    ├─ init 完成 → 首頁可渲染
-       │    ├─ 背景：terminal events listener（公開，非首頁必需）
-       │    └─ Auth 完成後：messages + users + rolePermissions listeners → seed
-       ├─ LineAuth.init()                          → LINE 登入狀態初始化
-       └─ 延遲 listener（進入頁面時）：registrations / attendanceRecords
-```
-
-> Phase 3 在 Phase 1/4 之前完成渲染，確保弱網路環境下不出現白畫面。
-> Phase 4 的分層啟動讓公開資料（boot + events + teams）不等 Auth 直接載入，大幅減少冷啟動時間。
-> 延遲載入的頁面（admin-content 等）在 DOM 注入後會觸發 `_bindPageElements()` 重新綁定事件。
-
-## Script 載入順序（index.html defer 順序）
-
-```
-i18n.js → config.js → firebase-config.js
-  → firebase-service.js → firebase-crud.js → api-service.js → line-auth.js
-  → page-loader.js → script-loader.js → app.js
-  → core/navigation.js → core/theme.js
-  → [boot modules 以 <script defer> 靜態載入，其餘由 ScriptLoader 按需載入]
-```
-
-## ScriptLoader 群組定義
-
-ScriptLoader（`js/core/script-loader.js`）定義了以下頁面群組，按需動態載入：
-
-| 群組名稱 | 載入模組 | 觸發頁面 |
-|----------|----------|----------|
-| `achievement` | `image-cropper` + `image-upload` + `achievement/*` (11) + `achievement.js` | 成就頁、個人資料、排行榜 |
-| `activity` | `event/*` (27) + `registration-audit.js` | 活動列表、詳情、我的活動 |
-| `team` | `event/event-share-builders` + `event/event-share` + `team/*` (10) | 俱樂部列表、詳情、管理 |
-| `profile` | `event/event-share-builders` + `event/event-share` + `profile/*` (9) | 個人資料、名片、稱號 |
-| `shop` | `shop.js` + `leaderboard.js` | 商城、排行榜 |
-| `scan` | `scan/*` (5) + `attendance-notify.js` | QR Code 掃描 |
-| `game` | `shot-game/shot-page-ui` + `shot-game/shot-game-page` | 射門遊戲 |
-| `kickball` | `kickball/*` (6) | 踢球遊戲 |
-| `tournamentDetail` / `tournament` | `team/team-list-helpers` + `event/event-share-*` + `tournament/tournament-*` detail/share/friendly modules | 賽事詳情、友誼賽報名與分享 |
-| `tournamentAdmin` | `event/event-share-*` + `tournament/tournament-manage-*` + `tournament-share` | 賽事管理 |
-| `messageAdmin` | `message/message-admin-*` (3) | 管理員訊息 |
-| `adminDashboard` | `dashboard/*` (5，不含 personal-dashboard) | 管理員儀表板 |
-| `personalDashboard` | `dashboard/dashboard-widgets` + `dashboard/dashboard` + `dashboard/personal-dashboard` | 個人儀表板 |
-| `adminUsers` | `user-admin/*` (5) + `achievement/batch` + `data-sync` | 用戶管理 |
-| `education` | `education/*` (21) | 教育型俱樂部（分組、學員、課程、報名、簽到、行事曆） |
-| `adminContent` | `ad-manage/*` (6) | 廣告管理 |
-| `adminSystem` | `auto-exp/*` (2) + `game-manage` + `admin-log-tabs` + `error-log-diagnostics` + `error-log-insights` + `error-log` + `audit-log` | 系統管理 |
-
----
-
-## 3D Charged Shot Lab (Phase 0, private route)
-
-- 入口頁面：`game-lab.html`（不在主站導航中；token-gated）
-- Runtime 模組：
-  - `js/modules/shot-game/shot-physics.js`
-  - `js/modules/shot-game/shot-renderer.js`
-  - `js/modules/shot-game/shot-scoring.js`
-  - `js/modules/shot-game/shot-game-loop.js`
-  - `js/modules/shot-game/shot-game-engine.js`
-  - `js/modules/shot-game/shot-lab-controls.js`
-  - `js/modules/shot-game/shot-lab-ui.js`
-  - `js/modules/shot-game/shot-game-lab-page.js`
-- 外部依賴：
-  - `three.js r128` via CDN in `game-lab.html`
-- 資料流（Phase 0）：
-  1. `ShotGameLabPage` 驗證 query token（`?t=`）對照 SHA-256 hash
-  2. 成功後，`ShotGameEngine` 初始化並運行於 `#shot-game-container`
-  3. 遊戲結束時，本地數據寫入 localStorage key `sporthub_shot_game_lab_metrics_v1`
-  4. 測試面板渲染摘要並支援 JSON 匯出/重置
-- 隔離邊界：
-  - Phase 0 無 Firestore 讀寫
-  - 尚未使用 `Object.assign(App, ...)` 掛載
-
----
-
-## Audit Log Additions (2026-03-09)
-
-- New Cloud Functions: `functions/index.js` exports `writeAuditLog` and `backfillAuditActorNames`
-  - Trusted write path for audit events
-  - Adds `dayKey`, `timeKey`, `actorUid`, `actorRole`, `createdAt`, `expiresAt`
-  - Writes to `auditLogsByDay/{yyyyMMdd}/auditEntries/{logId}`
-- Frontend module: `js/modules/audit-log.js`
-  - `super_admin` single-day audit log page
-  - Local filters for time range, nickname or UID, and action
-  - No realtime listener and no localStorage persistence
-- Admin route:
-  - `page-admin-audit-logs`
-  - Fragment source: `pages/admin-system.html`
-  - Lazy script group: `adminSystem`
+## 啟動流程
 
 ```mermaid
-flowchart LR
-    UI["page-admin-audit-logs\npages/admin-system.html"]
-    MOD["js/modules/audit-log.js"]
-    API["js/api-service.js"]
-    CF["functions/index.js\nwriteAuditLog + backfillAuditActorNames"]
-    FS["Firestore\nauditLogsByDay/{day}/auditEntries/{id}"]
-    RULES["firestore.rules\nsuper_admin read only"]
+sequenceDiagram
+    participant Browser
+    participant Index as index.html
+    participant App
+    participant PageLoader
+    participant ScriptLoader
+    participant FirebaseService
+    participant LIFF
 
-    UI --> MOD
-    MOD --> API
-    API --> CF
-    CF --> FS
-    MOD --> FS
-    RULES --> FS
+    Browser->>Index: 載入 HTML / CSS / core JS
+    Index->>App: DOMContentLoaded boot
+    App->>PageLoader: Phase 1: loadAll()
+    PageLoader->>PageLoader: 先載 home/activity/team/message/profile/tournament + modals
+    PageLoader->>PageLoader: idle 後背景載 scan/shop/admin/game/education...
+    App->>FirebaseService: Phase 2: restore localStorage cache
+    App->>App: Phase 3: renderAll() 先渲染可用快取
+    App->>FirebaseService: Phase 4: init Firestore / auth / listeners
+    App->>LIFF: LineAuth.init()
+    App->>ScriptLoader: showPage 時 ensureForPage(pageId)
 ```
 
-## UID Migration Cloud Function (2026-03-17)
+### 啟動設計重點
 
-- New Cloud Function: `functions/index.js` exports `migrateUidFields`
-  - `onCall`, requires `super_admin` role
-  - Fixes historical `attendanceRecords`/`activityRecords` where `uid` field contains displayName instead of LINE userId
-  - Supports `dryRun` mode for preview, automatic backup to `_migrationBackups` collection
-  - Handles duplicate names via cross-referencing `registrations` collection
-  - Region: `asia-east1`, timeout: 540s, memory: 512MiB
-- Frontend trigger: `js/modules/data-sync.js` — `_syncUidMigration()` operation
-  - UI button in `pages/admin-system.html` ("⑤ UID 欄位修正")
-  - Follows existing dry-run + confirm + progress pattern
-
-## Admin Log Center Update (2026-03-10)
-
-- Frontend module: `js/modules/admin-log-tabs.js`
-  - Merges operation logs, audit logs, and error logs into the single route `page-admin-logs`
-  - Builds tabbed panels at runtime from `pages/admin-system.html`
-  - Keeps legacy routes `page-admin-audit-logs` and `page-admin-error-logs` as aliases that redirect to the same page with the matching tab
-- Updated route dependencies:
-  - `page-admin-logs` now lazy-loads both `adminUsers` and `adminSystem`
-  - `page-admin-logs` now preloads both `operationLogs` and `errorLogs`
-- UI behavior:
-  - Left drawer now exposes one entry only: log center
-  - Inside the page, tabs switch between operation, audit, and error logs without leaving the route
-
-## Admin Drawer Permission Update (2026-03-10)
-
-- `js/config.js`
-  - 新增後台抽屜入口對應的權限碼定義（例如 `admin.dashboard.entry`、`admin.games.entry`）
-  - 內建權限分類改以抽屜入口名稱為分類標題，且每個分類至少包含「顯示入口」
-  - 權限分類排序直接沿用抽屜順序，包含「活動管理」與「賽事管理」入口
-  - 內建角色 / 自訂角色的 runtime 等級與顏色資訊改由動態序列計算，不再只靠固定 `ROLE_LEVEL_MAP`
-- `js/modules/role.js`
-  - 只要抽屜入口有 `permissionCode`，就改由權限碼單獨控制顯示與進頁，不再受 `minRole` 限制
-  - `showPage()` 與頁面根節點顯示共用同一套頁面權限判斷，避免手動切頁繞過抽屜隱藏
-- `js/modules/user-admin/user-admin-roles.js`
-  - 自訂層級列表排序改用 runtime 序列，支援「自訂層級插在自訂層級之後」
-  - 權限面板改由內建 catalog + Firestore `permissions` 合併渲染
-  - 新增「儲存成預設」與「只顯示已有權限」操作，並把 `rolePermissions.defaultPermissions` 作為各層級重置來源
-  - `super_admin` 權限開關在 UI 層固定鎖定，避免誤觸關閉抽屜入口或其他權限
-- `js/firebase-service.js`
-  - `rolePermissions` 即時監聽新增 catalog metadata，並同步讀取 `defaultPermissions`
-  - `super_admin` 登入時會做一次後台入口權限補遷移，避免舊的 admin / super_admin 在新入口權限上線後瞬間失去抽屜入口
-
-## Participant Query Temporary Share (2026-03-10)
-
-- Frontend module: `js/modules/dashboard/dashboard-participant-share.js`
-  - Adds the dashboard action that snapshots participant-query results into a short-lived share report
-  - Renders the public route `page-temp-participant-report` from `?rid=<shareId>#page-temp-participant-report`
-- New data model:
-  - `participantQueryShares/{shareId}`
-  - `participantQueryShares/{shareId}/shareItems/{itemId}`
-- Access model:
-  - Only `admin / super_admin` can create report snapshots
-  - Anyone with the URL can read a ready, unexpired snapshot
-  - Public page hides `UID` and only exposes display name, count, recent date, and matched events
-- Lifecycle:
-  - Reports are query-time snapshots, not live reruns
-  - Each snapshot carries `expiresAt` and is intended to expire after 7 days
-
-## Realtime Scope Update (2026-03-09)
-
-- `events` and `teams` are no longer boot-time global realtime listeners.
-- Homepage, teams, and tournament pages now rely on static `.get()` loads through `FirebaseService.ensureCollectionsForPage()`.
-- True page-scoped realtime is kept only for activity-sensitive pages:
-  - `page-activities`
-  - `page-activity-detail`
-  - `page-my-activities`
-  - `page-scan`
-- The page-scoped realtime collections are:
-  - `registrations`
-  - `attendanceRecords`
-- `js/core/navigation.js` now finalizes page-scoped listeners on route changes so activity listeners do not stay subscribed after leaving those pages.
-
-## Audit / Error Log Display Update (2026-03-09)
-
-- Audit logs now resolve display names with two layers:
-  - Cloud Function `writeAuditLog` prefers `users.uid`, user profile name, and Firebase Auth `displayName`
-  - Admin audit log UI locally falls back to `adminUsers` cache when old entries only stored `actorUid`
-- Super admin can trigger `backfillAuditActorNames` for a selected audit day to write missing `actorName` values back into `auditLogsByDay/{day}/auditEntries/{id}`.
-- Error log UI now translates common Firebase / network errors into Chinese at render time and derives a severity badge:
-  - `嚴重`
-  - `警告`
-  - `一般`
-- The Chinese translation and severity are display-layer derived, so existing historical `errorLogs` entries benefit without Firestore migration.
-
-## Users Self-Update Security Boundary (2026-03-09)
-
-- `users/{userId}` 的自助更新責任已拆成三條規則路徑：
-  - 一般個人資料更新：`isSafeSelfProfileUpdate`
-  - 登入更新格式：`isSafeLoginUpdate`
-  - 俱樂部欄位退出流程：`isTeamFieldShrinkOrClear`
-- 最後登入時間（`lastLogin`）不再允許夾帶於一般個人資料更新；只接受登入更新格式，且值必須等於 `request.time`。
-- 更新時間（`updatedAt`）在自助更新與隊職員跨使用者俱樂部調整中，皆改為只接受 `request.time`，避免客戶端偽造任意 Timestamp。
-- 俱樂部欄位（`teamId`、`teamName`、`teamIds`、`teamNames`）已自一般個人資料白名單移除：
-  - 一般使用者不可自行填入新俱樂部歸屬
-  - 一般使用者只能全清或把既有 `teamIds` 縮減為嚴格子集
-- 前端的退出俱樂部（`handleLeaveTeam`）沿用既有多俱樂部 shrink 邏輯；刪除俱樂部（`deleteTeam`）則補上 secondary team 清理，避免只清主俱樂部造成殘留引用。
+- `PageLoader._bootPages`：`home`、`activity`、`team`、`message`、`profile`、`tournament`。
+- `PageLoader._deferredPages`：`scan`、`shop`、admin 系列、`personal-dashboard`、`game`、`kickball`、`education` 等。
+- deep link 會讓 `PageLoader` 優先載入目標頁片段，例如活動、俱樂部、賽事。
+- `ScriptLoader._pageGroups` 把 page id 對應到模組群組，避免所有功能一次載完。
+- `Service Worker` 與 `?v=0.20260501` 控制前端快取更新。
 
 ---
 
-## 報名系統鎖定函式路徑
+## Script 載入分層
 
-| 鎖定函式 | 檔案路徑 |
-|----------|----------|
-| `registerForEvent()` | `js/firebase-crud.js` |
-| `batchRegisterForEvent()` | `js/firebase-crud.js` |
-| `cancelRegistration()` | `js/firebase-crud.js` |
-| `cancelCompanionRegistrations()` | `js/firebase-crud.js` |
-| `_rebuildOccupancy()` | `js/firebase-crud.js` |
-| `_applyRebuildOccupancy()` | `js/firebase-crud.js` |
-| `handleSignup()` | `js/modules/event/event-detail-signup.js` |
-| `handleCancelSignup()` | `js/modules/event/event-detail-signup.js` |
-| `_confirmCompanionRegister()` | `js/modules/event/event-detail-companion.js` |
-| `_confirmCompanionCancel()` | `js/modules/event/event-detail-companion.js` |
+### index.html 直接載入的核心
 
-## 統計系統鎖定函式路徑
+核心順序大致如下：
 
-| 鎖定函式 | 檔案路徑 |
-|----------|----------|
-| `_buildRawNoShowCountByUid()` | `js/modules/event/event-manage-noshow.js` |
-| `_getNoShowDetailsByUid()` | `js/modules/event/event-manage-noshow.js` |
-| `_confirmAllAttendance()` | `js/modules/event/event-manage-confirm.js` |
-| `getParticipantAttendanceStats()` | `js/modules/achievement/stats.js` |
-| `_calcScanStats()` | `js/modules/leaderboard.js` |
-| `_categorizeRecords()` | `js/modules/leaderboard.js` |
-| `ensureUserStatsLoaded()` | `js/firebase-service.js` |
-| `getUserAttendanceRecords()` | `js/api-service.js` |
+1. `js/i18n.js`
+2. `js/config.js`
+3. `js/firebase-config.js`
+4. `js/firebase-service.js`
+5. `js/firebase-crud.js`
+6. `js/api-service.js`
+7. `js/line-auth.js`
+8. `js/core/page-loader.js`
+9. `js/core/script-loader.js`
+10. `app.js`
+11. `js/core/navigation.js`
+12. `js/core/theme.js`
+13. `js/core/button-loading.js`
+14. 常用 shared modules：PWA、多分頁 guard、圖片裁切/上傳、sync-status、role、profile core、banner、popup、announcement、site theme、首頁活動/賽事/message 基礎等。
 
----
+### ScriptLoader 主要群組
 
-## 結構文件同步規則
-
-當任何模組被新增、搬移或刪除時，**必須同步更新以下所有檔案**：
-
-### 需同步更新的檔案與區段
-
-| 檔案 | 需更新的區段 | 說明 |
-|------|-------------|------|
-| `docs/architecture.md` | Mermaid 圖 MODS 子圖 + 功能子資料夾模組清單 + 獨立模組清單 + ScriptLoader 群組表 + 鎖定函式路徑表 | 完整架構圖與模組清單 |
-| `docs/structure-guide.md` | 中文功能導覽圖 | 給人看的功能導覽（附功能解釋） |
-| `CLAUDE.md` | `§ 目錄結構（概覽）` | 目錄樹與模組數量 |
-
-### 同步規則
-
-1. **新增模組**：在上述三個檔案中加入新模組的路徑與說明
-2. **搬移模組**：更新所有出現舊路徑的地方為新路徑（包含鎖定函式路徑表）
-3. **刪除模組**：從所有檔案中移除對應條目
-4. **子資料夾新增/合併**：更新 Mermaid 圖的 MODS 子圖、模組清單表、ScriptLoader 群組表
+| 群組 | 用途 |
+|---|---|
+| `activity` | 活動列表、活動詳情、報名/取消/候補、同行者、活動建立、分隊、簽到管理、報名稽核 |
+| `activityCalendar` | 活動行事曆、月曆格、日期導覽、運動數量標籤 |
+| `teamList` | 俱樂部列表與卡片 |
+| `teamDetail` | 俱樂部內頁、俱樂部動態、俱樂部活動、邀請、分享 |
+| `teamForm` | 建立/編輯俱樂部表單、搜尋、驗證、職員欄位 |
+| `tournamentList` | 賽事列表與卡片 |
+| `tournamentDetail` | 賽事詳情、友誼賽報名、隊伍成員 roster、通知、分享 |
+| `tournamentAdmin` | 建立/編輯賽事、主辦俱樂部、委託人、裁判、host participates |
+| `profile` | 個人資訊、統計、報名紀錄、個人資料編輯 |
+| `message` / `messageAdmin` | 使用者收件匣與後台訊息管理 |
+| `scan` | QR 掃描、簽到/簽退、家人/代理 |
+| `adminDashboard` | 數據儀表板、用量、drilldown、參與者查詢與分享 |
+| `adminUsers` | 用戶管理、EXP、角色、補正、黑名單、UID 檢查、資料同步 |
+| `adminSystem` | 遊戲設定、log center、error/audit log |
+| `adminContent` | 廣告、banner、浮動廣告、彈窗贊助、boot brand |
+| `adminSeo` | SEO dashboard / snapshot |
+| `education` | 教學/課程/學生/課表/簽到/家長綁定 |
+| `achievement` | 成就、稱號、EXP evaluator、徽章、管理 |
+| `game` / `kickball` / `profileScene` | 互動遊戲與 2D 場景 |
 
 ---
 
-## 俱樂部×賽事重構 Phase 3 — 資料架構遷移 (2026-04-14)
+## 主要前端模組
 
-### 賽事內嵌陣列移除 (§9.1)
-- 所有讀寫路徑已使用子集合（`applications/`, `entries/`, `entries/{teamId}/members/`）
-- `_syncFriendlyTournamentCacheRecord` 不再寫入 `teamApplications`/`teamEntries` 到快取
-- `_persistFriendlyTournamentCompatState` 不再寫入 `teamApplications`/`teamEntries` 到 Firestore，只同步 `registeredTeams`
-- `_buildFriendlyTournamentRecord` 不再產生 `teamApplications`/`teamEntries` 陣列，只保留 `registeredTeams`
-- 賽事建立/編輯改為寫入 entries 子集合（`upsertTournamentEntry`），不再寫入內嵌 `teamEntries`
-- 舊資料的 fallback 讀取路徑保留 30 天（`base.teamApplications`/`base.teamEntries`）
+| 目錄 | JS 數 | 角色 |
+|---|---:|---|
+| `event/` | 39 | 活動列表、行事曆、詳情、建立、報名、候補、同行者、團隊席位、分隊、簽到管理、活動生命週期 |
+| `team/` | 16 | 俱樂部列表、內頁、動態、俱樂部活動、邀請、分享、建立/編輯、職員與運動標籤 |
+| `tournament/` | 19 | 賽事列表、詳情、友誼賽隊伍報名、主辦俱樂部、運動標籤、委託人/裁判、roster、通知 |
+| `profile/` | 9 | 個人頁、資料編輯、頭像、統計、報名紀錄、個人卡分享 |
+| `message/` | 10 | 收件匣、訊息動作、俱樂部邀請動作、後台發訊息、LINE push |
+| `achievement/` | 11 | 成就 registry、統計、evaluator、徽章、稱號、個人與後台 view |
+| `dashboard/` | 20 | 後台儀表板、用量、CI、參與者查詢、snapshot、drilldown、個人儀表板 |
+| `user-admin/` | 8 | 使用者列表、EXP、角色權限、補正、活動黑名單、UID 健康檢查與診斷包 |
+| `education/` | 21 | 教學團體、學生、課程、報名、簽到、月曆、家長綁定、通知 |
+| `ad-manage/` | 6 | banner、浮動廣告、popup sponsor、shot game 廣告、boot brand |
+| `scan/` | 5 | QR camera、掃描流程、UI、家人模式 |
+| `shot-game/` | 10 | 射門遊戲與 private 3D lab runtime |
+| `kickball/` | 6 | 踢球小遊戲、物理、排行榜、UI |
+| `color-cat/` | 40 | 個人場景、角色互動、MBTI 對話、敵人/天氣/雲端儲存 |
+| `auto-exp/` | 2 | EXP 自動規則與執行器 |
+| `admin-seo/` | 2 | SEO snapshot loader/dashboard |
 
-### Cloud Function onTeamUpdate (§9.2)
-- 新增 `functions/index.js` → `exports.onTeamUpdate`（已部署 asia-east1）
-- 使用 v2 API `onDocumentWrittenWithAuthContext('teams/{teamId}')`
-- 當 `team.name` 或 `team.image` 變更時，批次更新所有 `hostTeamId == teamId` 的賽事
-- 設定：`timeoutSeconds: 30`, `memory: 256MiB`
-- 注意：僅更新賽事根文件的 `hostTeamName`/`hostTeamImage`，不更新 entries 子集合中的 `teamName`/`teamImage`
+### root-level shared modules
 
-### 教練 UID 化遷移 (§11.4-11.6)
-- 新增遷移腳本 `scripts/migrate-team-uids.js`（教練名字→UID，支援 `--dry-run`）
-- 新增 Firestore Rules 函式 `isCurrentUserTeamStaff`（隊長+領隊+教練超集，含 `coachUids is list` 防護）
-- Feed create 規則收緊為 `isCurrentUserInTeam(teamId)`
-- Feed update/delete 改用 `isCurrentUserTeamStaff`（含教練）
-- `coursePlans` / `students` 子集合規則改用 `isCurrentUserTeamStaff`
-- `groups` 子集合維持 `isCurrentUserTeamCaptainOrLeader`（教練不應管理分組）
-- 前端 17 個函式移除名字 fallback，改用純 UID 比對（`coachUids`）
-- Cloud Function `eduCheckin` / `registerForEvent` 改用 `coachUids` UID 比對
-- Team form 儲存時同步寫入 `coachUids`/`coachNames`/`captainName`/`leaderNames`
+`js/modules` 根目錄目前有 26 個 shared module：
 
-### 俱樂部×賽事重構計畫完成狀態（2026-04-14 全部結案）
+- 內容與站台：`banner.js`、`announcement.js`、`popup-ad.js`、`news.js`、`site-theme.js`
+- 權限與系統：`role.js`、`sync-status.js`、`multi-tab-guard.js`、`pwa-install.js`
+- 圖片：`image-cropper.js`、`image-upload.js`
+- 紀錄與稽核：`audit-log.js`、`error-log.js`、`error-log-diagnostics.js`、`error-log-insights.js`、`admin-log-tabs.js`、`registration-audit.js`、`game-log-viewer.js`
+- 資料修復：`data-sync.js`
+- 遊戲/商城/排行：`shop.js`、`leaderboard.js`、`game-manage.js`
+- 通知與翻譯：`attendance-notify.js`、`translate.js`
+- 其他：`favorites.js`、`achievement.js`
 
-| Phase | 內容 | Commit | 版號 |
-|-------|------|--------|------|
-| Phase 0 | 安全性修復 + delegateUids 不可變 | `d01c2e2a` | — |
-| Phase 1 | 結構整理 + 權限碼定義 + generateId | `35345ed8` + `14e055f6` | 20260414a |
-| Phase 2A | 專看專讀 + ID 統一建立流程 | `bf746b7b` + `44725091` | 20260414b |
-| Phase 4 | 表單拆分 + 教育解耦 | `be901eaa` | 20260414c |
-| Phase 2B | 列表效能 + Feed ApiService + 權限守衛 | `5e4bd8ae` | 20260414d |
-| Phase 3 | 資料架構遷移 + coachUids + feed 收緊 | `37107c20` | 20260414e |
+---
 
-Cloud Functions 總數：31 個 exports（含新增 `onTeamUpdate`）
-5. **ScriptLoader 群組變更**：同步更新 `js/core/script-loader.js` 的 `_groups` 定義與本文件的群組表
+## 資料層職責
+
+### `FirebaseService`
+
+`js/firebase-service.js` 是前端資料快取與監聽核心。
+
+- 維護 `FirebaseService._cache`，供 `ApiService` 與 UI 讀取。
+- 以 localStorage 保存可恢復資料，降低冷啟讀取成本。
+- 對 canonical 集合做去重與標準化，避免 root/subcollection 重複資料污染 UI。
+- 依頁面啟動 page-scoped realtime listeners。
+- `registrations`、`attendanceRecords` 是活動敏感集合，使用專用 listener。
+- `activityRecords` 多用 collectionGroup 讀取與修復，不應完全信任舊 root collection。
+- `fetchTeamIfMissing()` / `fetchTournamentIfMissing()` 會把冷門資料注入 injected bucket，避免 onSnapshot active slice 洗掉。
+- `ensureUserStatsLoaded(uid)` 會針對個人頁完整載入該 UID 的 `activityRecords` / `attendanceRecords`，避免 limit 導致個人統計缺漏。
+
+### `ApiService`
+
+`js/api-service.js` 是讀取 facade。
+
+- 統一從 `FirebaseService._cache` 讀資料。
+- 對外提供 `getEvents()`、`getTeams()`、`getTournaments()`、`getRegistrations()` 等 UI 讀取 API。
+- 提供 fetch-if-missing 補資料，例如熱門活動超出 listener limit 時，直接查單場子集合。
+- 個人資料、報名紀錄、統計查詢應優先走 canonical source。
+
+### `firebase-crud.js`
+
+`js/firebase-crud.js` 是前端寫入與 fallback 邏輯集中處。
+
+- 活動報名、批次報名、取消報名仍保留 client-side fallback transaction。
+- 現行正式路徑優先使用 Cloud Functions callable：`registerForEvent`、`cancelRegistration`、`adjustTeamReservation`。
+- 內含 `_rebuildOccupancy()` 與 team reservation 佔位計算，前後端需與 `functions/index.js` 對齊。
+- 寫入後會 optimistic update `_cache` 並保存 localStorage。
+
+---
+
+## Firestore 資料模型
+
+### 核心集合
+
+| 路徑 | 用途 | 現況 |
+|---|---|---|
+| `events/{eventDocId}` | 活動主文件 | 活動列表、詳情、投影欄位、名額統計 |
+| `events/{eventDocId}/registrations/{regId}` | 報名真實來源 | 現行權威報名資料 |
+| `events/{eventDocId}/attendanceRecords/{recId}` | 簽到/簽退 | 現行權威簽到資料 |
+| `events/{eventDocId}/activityRecords/{recId}` | 個人活動紀錄 | 個人報名紀錄來源，透過即時寫入 + 修復保持一致 |
+| `events/{eventDocId}/registrationLocks/{lockId}` | 報名防重鎖 | 防止同一 UID/同行者/活動重複佔位 |
+| `events/{eventDocId}/teamReservations/{teamId}` | 俱樂部團隊席位鏡像 | 由 Cloud Function 寫入，前端唯讀 |
+| `teams/{teamId}` | 俱樂部 | 成員、職員、運動標籤、圖片 variants、動態 |
+| `teams/{teamId}/feed/{postId}` | 俱樂部動態 | 成員可讀，俱樂部成員可發，職員可管理 |
+| `tournaments/{tournamentId}` | 賽事主文件 | 友誼賽資料、主辦俱樂部、運動標籤、名額 |
+| `tournaments/{id}/applications/{applicationId}` | 賽事申請 | callable 管理，前端不可直接寫 |
+| `tournaments/{id}/entries/{teamId}` | 已參賽隊伍 | callable 管理 |
+| `tournaments/{id}/entries/{teamId}/members/{uid}` | 隊伍參賽 roster | callable 管理 |
+| `users/{uid}` | 使用者 | LINE UID 為主鍵，保存 role、profile、team fields |
+| `users/{uid}/inbox/{msgId}` | 使用者收件匣 | Cloud Function 寫入，使用者讀/標記 |
+| `rolePermissions/{roleId}` | runtime 權限 | super_admin 寫，前端讀 |
+| `operationLogs/{logId}` | 操作 log | 前端/後端寫入，管理頁讀 |
+| `auditLogsByDay/{yyyyMMdd}/auditEntries/{logId}` | 安全稽核 log | Cloud Function 寫入，super_admin/權限讀 |
+| `errorLogs/{docId}` | 前端錯誤 log | 使用者可寫，後台可讀 |
+| `siteConfig/realtimeConfig` | 即時監聽與資料同步設定 | 後端密碼保護寫入，前端讀 |
+| `participantQueryShares/{shareId}` | 儀表板臨時分享 | 7 天快照型報表 |
+| `shotGameScores` / `kickGameScores` | 遊戲分數 | callable 寫入，排行榜讀 |
+| `usageMetrics` / `translateUsage` | 用量統計 | schedule / callable 寫入，super_admin 讀 |
+| `seoSnapshots` / `ciUsageSnapshots` | SEO/CI snapshot | 後台讀，寫入由後端或工具負責 |
+| `inv_*` collections | inventory 子系統 | 獨立 rules 區塊，inventory admin 管理 |
+
+### 舊 root collection 狀態
+
+以下 root collections 仍可能存在歷史資料，但正式統計與新功能應優先使用子集合：
+
+- `registrations`
+- `attendanceRecords`
+- `activityRecords`
+
+UID 健康檢查會把 root leftovers 標成 warning，避免未來舊工具重複計算。
+
+---
+
+## 活動報名架構
+
+### 權威資料來源
+
+活動報名的真實來源是：
+
+```text
+events/{eventDocId}/registrations/{regId}
+```
+
+`events/{eventDocId}` 上的 `current`、`realCurrent`、`participantsWithUid`、`waitlistWithUid`、`teamReservationSummaries` 都是投影欄位，必須由報名子集合重建，不應當作唯一真實來源。
+
+### 報名/取消主流程
+
+```mermaid
+sequenceDiagram
+    participant UI as 活動詳情 UI
+    participant CF as Cloud Function
+    participant TX as Firestore Transaction
+    participant EV as events/{eventDocId}
+    participant REG as registrations subcollection
+    participant AR as activityRecords subcollection
+    participant LOCK as registrationLocks
+
+    UI->>CF: registerForEvent / cancelRegistration
+    CF->>TX: runTransaction
+    TX->>EV: 讀活動主文件
+    TX->>REG: 讀該活動所有 registrations
+    TX->>LOCK: 檢查/建立/刪除 lock
+    TX->>REG: 建立或更新報名狀態
+    TX->>AR: 建立或更新個人活動紀錄
+    TX->>EV: rebuild occupancy 投影
+    CF-->>UI: event + registration + occupancy
+```
+
+### 防重與一致性
+
+- `registrationLocks` 防止同一活動、同一人或同行者重複佔位。
+- `registerForEvent` / `cancelRegistration` 在後端 transaction 內重讀該活動 registrations，避免快取或 listener limit 造成錯誤。
+- `participantsWithUid` 與 `waitlistWithUid` 用於前端顯示與個人狀態判斷，但不能取代 registrations。
+- `_rebuildOccupancy()` 前後端都有一份，必須維持邏輯一致。
+- 前端按鈕有 busy guard 與 loading 狀態，重複點擊時會提示「系統已在處理中」。
+- 報名名單「管理名單」按鈕位於 `event-manage-attendance.js`，進入簽到/簽退/備註管理模式。
+
+### 候補與遞補
+
+- 取消 confirmed 報名時，若候補存在，transaction 內會挑選候補者遞補。
+- 遞補時會更新 registrations、activityRecords 與 event 投影欄位。
+- 團隊席位有剩餘佔位時，遞補要同時考慮 team reservation 佔位。
+
+---
+
+## 俱樂部團隊席位
+
+### 功能定位
+
+俱樂部職員可以用俱樂部身份在活動中建立「團隊報名/俱樂部席位」。這不是多個假人報名，而是活動名額中的一段保留容量。同俱樂部成員之後個人報名時，會優先消耗該俱樂部席位。
+
+### 資料欄位
+
+活動主文件：
+
+- `teamReservationSummaries`
+- `realCurrent`
+- `current`
+- `participantsWithUid`
+- `waitlistWithUid`
+
+團隊席位子集合：
+
+```text
+events/{eventDocId}/teamReservations/{teamId}
+```
+
+常見欄位：
+
+- `teamId`
+- `teamName`
+- `reservedSlots`
+- `usedSlots`
+- `remainingSlots`
+- `occupiedSlots`
+- `createdByUid`
+- `lastAdjustedByUid`
+- `updatedAt`
+
+registration 上的席位欄位：
+
+- `teamReservationTeamId`
+- `teamReservationTeamName`
+- `teamSeatSource`: `reserved` / `overflow` / `waitlist`
+
+### 名額公式
+
+```text
+realCurrent = confirmed 真人報名數
+usedSlots = confirmed 中 teamReservationTeamId == teamId 的人數
+remainingSlots = max(0, reservedSlots - usedSlots)
+occupiedSlots = max(reservedSlots, usedSlots)
+current = realCurrent + sum(remainingSlots)
+```
+
+重點：
+
+- `realCurrent` 是真人數。
+- `current` 是對外顯示佔位數，包含尚未被真人使用的保留席位。
+- 放鴿子、簽到、簽退、EXP 等真人統計不能把 placeholder 當真人。
+- 同俱樂部席位被真人使用後，剩餘保留席位會下降，但真人仍正常列入報名與統計。
+- 超過原保留席位但仍在活動上限內的同俱樂部成員會標記為 `overflow`，UI 仍可呈現為俱樂部席位來源。
+
+### 觸發點
+
+- `registerForEvent`：判斷報名者是否屬於可用 team reservation。
+- `cancelRegistration`：取消後重建 occupancy 並遞補。
+- `adjustTeamReservation`：職員調整保留席位數，後端會檢查不得低於已使用數，也不得超過活動上限。
+- `watchUsersChanges`：使用者 `teamId/teamIds` 或職員身份變動時，同步受影響活動的團隊席位歸屬。
+- `repairActivityRecordsScheduled` / UID 檢查不直接修 team reservation，但可協助辨識資料一致性問題。
+
+### UI 呈現
+
+- 報名名單中同俱樂部席位集中成一組。
+- 已報名的同俱樂部真人正常顯示簽到、簽退、備註欄位。
+- 保留席位 placeholder 顯示為「某俱樂部 保留席位」。
+- 左側標記目前改用俱樂部小縮圖，載入失敗 fallback 為旗子。
+- 團隊報名彈窗使用毛玻璃 overlay，不允許點空白處誤關閉。
+- 多俱樂部使用者在個人報名匹配席位時，會用卡片式彈窗選擇要消耗哪個俱樂部席位；單一可用俱樂部則直接報名。
+
+---
+
+## 活動建立與活動頁
+
+### 活動類型與運動標籤
+
+- 活動使用 `type` 表示 PLAY / 教學 / 觀賽 / 外部等類型。
+- 運動類別使用 `sportTag`，來源在 `config.js` 的 `EVENT_SPORT_OPTIONS`。
+- 卡片與標籤圖示優先使用 `SPORT_ICON_SVG_HTML`，文字-only 場景 fallback 到 emoji。
+
+### 新增活動表單
+
+`pages/activity.html` 與 `js/modules/event/event-create*.js` 共同組成活動建立流程。
+
+目前表單包含：
+
+- 活動類型、活動地區、地點、日期時間、主辦/委託人、裁判類欄位
+- 運動標籤選擇器
+- 費用、俱樂部限定、性別限定、私密活動、分隊、候補、預留開關等加值功能
+- 多日期活動
+- 活動範本
+- 外部活動轉換
+- input history
+
+「加值功能」區塊預設收合，琥珀色底，部分預留開關目前無實際作用。
+
+### 活動列表與行事曆
+
+- 活動頁支援列表與行事曆。
+- 行事曆相關模組獨立為 `activityCalendar` group。
+- 活動卡點擊時有藍色 loading bar，降低使用者誤以為點擊無反應的機率。
+- 首頁活動資料會被 inline 到 `index.html` boot data，提升冷啟速度。
+
+---
+
+## 俱樂部架構
+
+### 俱樂部資料
+
+`teams/{teamId}` 保存：
+
+- 名稱、地區、運動標籤
+- 成員與職員欄位
+- `coachUids`、`captainUid`、`leaderUids` 等 UID 型欄位
+- 圖片欄位與 `imageVariants`
+- creator / owner 類資訊
+
+### 俱樂部圖片 variants
+
+俱樂部圖片目前支援多尺寸用途：
+
+- `imageVariants.cover`：俱樂部內頁封面，建議 800 x 300，比例 8:3
+- `imageVariants.card`：俱樂部卡片，建議 800 x 800，比例 1:1
+- 舊欄位 `image` 仍可作 fallback
+
+`App._getTeamImageUrl(team, variantKey)` 會依需求選擇 variant，找不到時 fallback 到 cover/image。
+
+### 俱樂部內頁
+
+`team-detail-render.js` 負責內頁 UI：
+
+- 成員列表
+- 俱樂部動態
+- 俱樂部活動
+- 邀請 QR Code
+- 離開/聯繫/管理按鈕
+
+「俱樂部活動」區塊顯示該俱樂部限定活動的未來活動，最多先顯示 10 筆，點「查看更多」展開；卡片樣式與活動行事曆相同，點擊會到同一個活動報名頁。是否可報名仍由活動現有 team-only 規則與提示控制。
+
+---
+
+## 賽事架構
+
+### 賽事資料模型
+
+`tournaments/{tournamentId}` 常見欄位：
+
+- `name`
+- `mode` / `typeCode`
+- `sportTag`
+- `hostTeamId`
+- `hostTeamName`
+- `hostTeamImage`
+- `hostParticipates`
+- `registeredTeams`
+- `approvedTeamCount`
+- `delegates` / `delegateUids`
+- `referees` / `refereeUids`
+- `regStart` / `regEnd`
+- `matchDates`
+
+### 建立賽事
+
+建立賽事由 `tournament-manage*` 模組 + `createFriendlyTournament` callable 處理。
+
+關鍵規則：
+
+- `sportTag` 必選。
+- 報名隊伍必須與賽事運動類別相同。
+- 主辦俱樂部固定顯示，但是否參賽由 `hostParticipates` 控制。
+- `hostParticipates` 預設關閉；開啟後建立時主辦俱樂部直接參賽並佔用 1 個名額。
+- 委託人與裁判皆為複數人員欄位，最多 10 人。
+- 主辦俱樂部、建立者、委託人、admin/super_admin 形成不同的 record-scope 權限。
+
+### 報名與 roster
+
+賽事隊伍報名與成員名單使用子集合：
+
+```text
+tournaments/{tournamentId}/applications/{applicationId}
+tournaments/{tournamentId}/entries/{teamId}
+tournaments/{tournamentId}/entries/{teamId}/members/{memberUid}
+```
+
+主要 callable：
+
+- `applyFriendlyTournament`
+- `withdrawFriendlyTournamentTeam`
+- `reviewFriendlyTournamentApplication`
+- `joinFriendlyTournamentRoster`
+- `leaveFriendlyTournamentRoster`
+- `removeFriendlyTournamentEntry`
+
+賽事卡片、首頁、賽事頁、賽事管理頁都應顯示運動標籤圖示。
+
+---
+
+## 圖片上傳與編輯器
+
+### shared image editor
+
+`js/modules/image-cropper.js` 是目前通用圖片編輯器：
+
+- 支援拖曳定位。
+- 支援滑桿、按鈕、滑鼠滾輪、雙指 pinch zoom。
+- `minZoom` 可小於 1，允許把原圖縮小。
+- WebP 輸出不填背景，空白處保留透明；JPEG 輸出會填白底。
+- 支援旋轉與重設。
+- 預覽框外顯示用途、建議尺寸、比例提示。
+- 輸出尺寸由呼叫方傳入 `outputWidth` / `outputHeight` / `aspectRatio`。
+
+### image upload wrapper
+
+`js/modules/image-upload.js` 負責：
+
+- FileReader 讀取。
+- 通用 `bindImageUpload(inputId, previewId, options)`。
+- 俱樂部多 variant 流程 `bindTeamImageVariantUpload()`。
+- `_openImageVariantCropSequence()` 讓同一張來源圖依序裁出多個用途版本。
+- `_getImageVariantUrl()` / `_getTeamImageUrl()` 讀取合適圖片。
+
+### 注意事項
+
+- 不同用途比例不同時，不應拉伸圖片；應以 cropper transform + canvas drawImage 產生對應輸出。
+- 若 UI 顯示圖片變形，優先檢查 CSS 是否對 `<img>` 設定了錯誤的 `width/height/object-fit`，以及輸出端是否使用正確 variant。
+- 新增上傳入口時應使用 shared cropper，不要新增陽春裁切器。
+
+---
+
+## 權限架構
+
+### 角色與權限
+
+`js/config.js` 定義：
+
+- `ROLE_LEVEL_MAP`
+- `DRAWER_MENUS`
+- `ADMIN_PAGE_EXTRA_PERMISSION_ITEMS`
+- `INHERENT_ROLE_PERMISSIONS`
+- `getDefaultRolePermissions()`
+
+Firestore / Functions 也有一份權限判斷，尤其 `INHERENT_ROLE_PERMISSIONS` 必須與前端同步。
+
+### 核心原則
+
+- drawer/page entry 權限不等於 record-scope 權限。
+- record-scope 行為應檢查：建立者、主辦者、委託人、俱樂部職員、admin/super_admin。
+- `admin.tournaments.entry` 只代表能進入賽事管理頁，不應自動擁有所有賽事的審核/編輯權。
+- `admin.repair.data_sync` 是資料同步、UID 檢查、修復工具的主要入口權限。
+
+### 後台分區
+
+| 頁面 | 功能 |
+|---|---|
+| `page-admin-dashboard` | 數據儀表板、使用者成長、參與者查詢、用量、drilldown |
+| `page-admin-users` | 用戶列表、角色、EXP |
+| `page-admin-repair` | 用戶補正、系統資料同步、UID 檢查、活動黑名單 |
+| `page-admin-logs` | operation / audit / error log center |
+| `page-admin-banners` | banner / ads / sponsor / boot brand |
+| `page-admin-tournaments` | 賽事管理 |
+| `page-admin-seo` | SEO snapshot |
+| `page-admin-games` | 遊戲設定與 log |
+
+---
+
+## 資料同步與 UID 健康檢查
+
+### 設定位置
+
+目前「系統資料同步」與「UID 檢查」位於：
+
+```text
+用戶補正管理 > 系統資料同步 / UID檢查
+```
+
+對應：
+
+- HTML：`pages/admin-system.html`
+- 前端：`js/modules/data-sync.js`
+- UID UI：`js/modules/user-admin/user-admin-uid-health.js`
+- 診斷包：`js/modules/user-admin/user-admin-uid-health-copy.js`
+- 後端：`functions/index.js`
+- 設定文件：`siteConfig/realtimeConfig`
+
+### 密碼保護
+
+以下操作需要先輸入密碼，並由後端驗證：
+
+- 儲存即時監聽/資料同步設定
+- 立即修復 activityRecords
+- UID 健康檢查
+- 同行者簽到 UID 修復
+- 放鴿子統計手動重算
+- 舊 UID migration 等高風險修復工具
+
+目前後端密碼常數：
+
+```text
+DATA_SYNC_SETTINGS_PASSWORD = process.env.DATA_SYNC_SETTINGS_PASSWORD || "1121"
+```
+
+### 活動紀錄修復
+
+`repairActivityRecordsScheduled`：
+
+- schedule：每小時觸發一次。
+- 實際是否執行由 `siteConfig/realtimeConfig.activityRepairEnabled` 與 `activityRepairFrequency` 決定。
+- 會依 lookback/future/batch/maxEvents 設定分批修復。
+- 寫入 `activityRepairLogs`，保留最近 30 筆。
+
+`repairActivityRecordsManual`：
+
+- 後台立即修復按鈕觸發。
+- 使用 chunk 方式回報進度，避免 deadline-exceeded。
+- 可從指定 `startIndex` 繼續。
+
+`refreshMyActivityRecords`：
+
+- 使用者個人報名紀錄手動刷新。
+- 以使用者 UID 為範圍，降低全庫掃描成本。
+- 有 cooldown，避免連點造成成本暴增。
+
+### UID 健康檢查
+
+`runUidHealthCheck` 是只讀檢查，不修改正式資料。
+
+檢查區塊包含：
+
+- 使用者 UID 一致性
+- 報名資料 `userId`
+- 活動紀錄 `uid`
+- 簽到紀錄 `uid`
+- 活動投影名單 `participantsWithUid` / `waitlistWithUid`
+- 活動建立者與委託人 UID
+- 俱樂部職員 UID
+- 賽事建立者、委託人、裁判 UID
+
+報表保存於 `siteConfig/realtimeConfig.uidHealthLastReport`，log 保存於 `uidHealthCheckLogs`。
+
+診斷包只輸出摘要、分類與少量樣本路徑，不複製完整資料庫內容。
+
+---
+
+## Cloud Functions exports
+
+### 活動報名與團隊席位
+
+- `registerForEvent`
+- `cancelRegistration`
+- `adjustTeamReservation`
+- `autoEndStartedEvents`
+- `calcNoShowCounts`
+- `calcNoShowCountsManual`
+- `repairActivityRecordsScheduled`
+- `repairActivityRecordsManual`
+- `refreshMyActivityRecords`
+- `repairCompanionAttendanceRecords`
+
+### 賽事
+
+- `createFriendlyTournament`
+- `applyFriendlyTournament`
+- `withdrawFriendlyTournamentTeam`
+- `reviewFriendlyTournamentApplication`
+- `joinFriendlyTournamentRoster`
+- `leaveFriendlyTournamentRoster`
+- `removeFriendlyTournamentEntry`
+- `onTeamUpdate`
+
+### 使用者、角色、權限
+
+- `createCustomToken`
+- `syncUserRole`
+- `adminManageUser`
+- `adjustExp`
+- `autoPromoteTeamRole`
+- `backfillRoleClaims`
+- `recordUserLoginIp`
+
+### 通知與訊息
+
+- `ensureNotificationTemplates`
+- `enqueuePrivilegedLineNotification`
+- `processLinePushQueue`
+- `deliverToInbox`
+- `syncGroupActionStatus`
+
+### 稽核、log、資料同步
+
+- `writeAuditLog`
+- `backfillAuditActorNames`
+- `migrateUidFields`
+- `migrateToSubcollections`
+- `backfillAutoExp`
+- `saveRealtimeConfig`
+- `verifyDataSyncPassword`
+- `runUidHealthCheck`
+
+### 遊戲、分享、用量、外部 API
+
+- `submitShotGameScore`
+- `submitKickGameScore`
+- `teamShareOg`
+- `eventShareOg`
+- `trackPageView`
+- `fetchSportsNews`
+- `fetchUsageMetrics`
+- `fetchUsageMetricsManual`
+- `translateTexts`
+
+### 監聽 triggers
+
+- `watchUsersChanges`
+- `watchEventsChanges`
+- `watchRegistrationsChanges`
+- `watchAttendanceChanges`
+
+`watchUsersChanges` 目前也負責在使用者俱樂部歸屬變動時，重新同步團隊席位相關活動。
+
+---
+
+## Firestore Rules 邊界
+
+### 重要 helper
+
+`firestore.rules` 中的重要 helper 包含：
+
+- `isAuth()`
+- `isOwner(docId)`
+- `authRole()`
+- `isAdmin()`
+- `isSuperAdmin()`
+- `hasPerm(perm)`
+- `isCurrentUserInTeam(teamId)`
+- `isCurrentUserTeamCaptainOrLeader(teamId)`
+- `isCurrentUserTeamStaff(teamId)`
+- `isSafeSelfProfileUpdate()`
+- `isSafeLoginUpdate()`
+- `isSafeTeamMembershipUpdateByStaff()`
+- tournament scope helpers
+- registration owner / safe update helpers
+
+### 高風險規則
+
+- `events/{eventId}/registrations/{regId}`：使用者只能建立/更新自己的安全欄位；管理者可處理活動管理欄位。
+- `events/{eventId}/registrationLocks/{lockId}`：使用者只能建立/刪自己的 lock，admin 可清。
+- `events/{eventId}/teamReservations/{reservationId}`：前端只能讀，寫入關閉，必須透過 Cloud Function。
+- `tournaments/{id}/applications` / `entries` / `members`：前端直接寫入關閉或限 admin，正式流程走 callable。
+- `siteConfig/realtimeConfig`：前端 rules 不允許直接修改，設定保存走 `saveRealtimeConfig` callable。
+- `auditLogsByDay`：前端不可寫，讀取需 super_admin 或 audit read 權限。
+- `participantQueryShares`：公開讀取只允許已完成、未過期且 public-safe 的 snapshot。
+
+---
+
+## Service Worker 與快取
+
+`sw.js` 現況：
+
+- `CACHE_NAME = sporthub-0.20260501`
+- HTML：network-first。
+- JS/CSS：cache-first，靠 `?v=` cache busting。
+- Firebase Storage 圖片：stale-while-revalidate，獨立圖片快取。
+- 圖片快取上限：150 張。
+- 圖片過期：7 天。
+
+版本更新原則：
+
+- 只要改前端 JS/CSS/HTML，需要跑 `node scripts/bump-version.js`，同步改：
+  - `js/config.js` 的 `CACHE_VERSION`
+  - `sw.js` 的 `CACHE_NAME`
+  - `index.html` 的 `var V` 與所有 `?v=`
+- docs-only 不需要 bump。
+- functions/rules-only 不需要 bump，除非同時改前端。
+
+---
+
+## Log 與觀測性
+
+| 類型 | 存放 | 用途 |
+|---|---|---|
+| operation logs | `operationLogs` | 使用者/後台操作、活動/賽事/資料修復紀錄 |
+| audit logs | `auditLogsByDay/{day}/auditEntries` | 安全稽核，Cloud Function trusted write |
+| error logs | `errorLogs` | 前端錯誤、context、診斷與 insights |
+| activity repair logs | `siteConfig/realtimeConfig.activityRepairLogs` | activityRecords 修復與設定保存紀錄 |
+| UID health logs | `siteConfig/realtimeConfig.uidHealthCheckLogs` | UID 健康檢查歷史 |
+| game logs | game modules / score collections | 遊戲分數與診斷 |
+
+後台 `page-admin-logs` 由 `admin-log-tabs.js` 統一 operation/audit/error 三類 log。
+
+---
+
+## 測試架構
+
+### package scripts
+
+| 指令 | 用途 |
+|---|---|
+| `npm test` | 跑 `jest tests/unit/` |
+| `npm run test:unit` | 同上 |
+| `npm run test:unit:coverage` | unit coverage |
+| `npm run test:rules` | Firebase emulator 跑 Firestore rules tests |
+| `npm run test:e2e` | Playwright e2e |
+
+### 測試分佈
+
+- `tests/unit/`：86 個 unit test 檔。
+- `tests/firestore.rules.test.js`、`tests/firestore-rules-extended.test.js`、`tests/team-split-rules.test.js`、`tests/firestore-rules/*`：rules 測試。
+- `tests/e2e/`：Playwright smoke journeys。
+
+### 高價值 unit tests
+
+近期架構最應維護的測試包含：
+
+- `registration-transaction.test.js`
+- `team-reservation-occupancy.test.js`
+- `waitlist-capacity.test.js`
+- `waitlist-sort.test.js`
+- `canonical-cache.test.js`
+- `api-fetch-if-missing.test.js`
+- `subcollection-utils.test.js`
+- `team-detail-events.test.js`
+- `team-image-variants.test.js`
+- `tournament-core.test.js`
+- `tournament-crud.test.js`
+- `tournament-friendly-detail-view.test.js`
+- `tournament-permissions.test.js`
+- `cloud-functions.test.js`
+- `source-drift.test.js`
+- `script-deps.test.js`
+
+---
+
+## 目前最重要的不變式
+
+1. 活動報名真實來源是 `events/{eventDocId}/registrations`，不是 root `registrations`，也不是 `events.participants`。
+2. 活動人數顯示 `current` 可以包含剩餘團隊席位；真人統計必須使用 `realCurrent` 或 confirmed registrations。
+3. 團隊席位不能當真人報名，不能進放鴿子統計、簽到統計、EXP 真人計算。
+4. 使用者 UID 的主鍵應是 LINE UID (`U` + 32 hex)；`displayName` 只能顯示，不可當 join key。
+5. `activityRecords` 是個人報名紀錄顯示來源，但缺漏時應由 registrations 修復，不從姓名反查。
+6. 賽事 `sportTag` 必選，隊伍報名必須同運動類別。
+7. 主辦俱樂部可顯示但不一定參賽；是否佔名額由 `hostParticipates` 決定。
+8. `teamReservations` 子集合前端唯讀，所有調整走 Cloud Function。
+9. `siteConfig/realtimeConfig` 寫入必須走後端密碼驗證。
+10. `INHERENT_ROLE_PERMISSIONS` 前後端必須同步。
+11. 新上傳入口應使用 shared image cropper，不新增分散裁切器。
+12. 新前端改動必須 bump version；docs-only 不 bump。
+
+---
+
+## 已知技術債與注意事項
+
+### 歷史 root collections
+
+root `registrations`、`attendanceRecords`、`activityRecords` 仍有歷史資料。新統計若同時讀 root 與 subcollection，必須明確去重並優先使用 subcollection。
+
+### UID 健康
+
+UID 健康檢查目前會發現：
+
+- 同名 displayName fallback 仍有風險。
+- root/subcollection duplicate 可能讓舊工具重複計算。
+- companion pseudo id (`comp_...`) 不能被寫成真人 self UID。
+
+此類問題應先以只讀報表定位，再用專用修復 callable 處理。
+
+### 前後端重複邏輯
+
+以下邏輯前後端都有實作，修改時必須同步：
+
+- `_rebuildOccupancy()` / `rebuildOccupancy()`
+- team reservation matching
+- tournament sport compatibility
+- permission/inherent role fallback
+- UID normalization helpers
+
+### 編碼債
+
+部分舊文件與歷史註解仍有 mojibake。更新文件時應使用 UTF-8 直接重寫或 patch，不要用會改變 encoding 的 shell 寫檔方式。
+
+---
+
+## 文件維護規則
+
+更新架構文件時，至少要檢查：
+
+- `js/core/script-loader.js` 的 `_groups` / `_pageGroups`
+- `js/core/page-loader.js` 的 boot/deferred pages
+- `js/config.js` 的角色、權限、運動標籤與版本
+- `js/firebase-service.js` 的 cache/listener 策略
+- `js/firebase-crud.js` 的寫入與 occupancy
+- `functions/index.js` 的 exports、region、transaction 與 schedule
+- `firestore.rules` 的 match / allow 邊界
+- `pages/` 中 admin 與主要 UI 是否移動
+- `tests/` 是否已有對應保護
+
+若新增或移除功能模組，必須同步更新：
+
+- 本文件的模組表
+- `docs/structure-guide.md`
+- `CLAUDE.md` 中的主規則或提醒
+- 若影響載入：`script-loader.js` 與 `source-drift` / `script-deps` 測試
