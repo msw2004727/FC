@@ -733,6 +733,41 @@
   box-shadow: 0 18px 55px rgba(0, 0, 0, .48);
 }
 
+.reg-attendance-table .team-reservation-header-row td {
+  background: linear-gradient(90deg, rgba(37, 99, 235, .14), rgba(20, 184, 166, .1) 58%, rgba(37, 99, 235, .04)) !important;
+  border-bottom-color: rgba(37, 99, 235, .28) !important;
+}
+.reg-attendance-table .team-reservation-seat-row {
+  background: linear-gradient(90deg, rgba(37, 99, 235, .13), rgba(20, 184, 166, .08) 60%, rgba(255, 255, 255, 0));
+}
+.reg-attendance-table .team-reservation-seat-row > td:first-child {
+  box-shadow: inset 3px 0 0 rgba(37, 99, 235, .56);
+}
+.reg-attendance-table .team-reservation-seat-row td {
+  background: transparent;
+}
+.reg-attendance-table .team-reservation-placeholder-row .reg-name-text {
+  color: #1d4ed8 !important;
+  font-weight: 700 !important;
+}
+[data-theme="dark"] .reg-attendance-table .team-reservation-header-row td {
+  background: linear-gradient(90deg, rgba(96, 165, 250, .24), rgba(45, 212, 191, .13) 58%, rgba(96, 165, 250, .06)) !important;
+  border-bottom-color: rgba(96, 165, 250, .3) !important;
+  color: #bfdbfe !important;
+}
+[data-theme="dark"] .reg-attendance-table .team-reservation-header-row span {
+  color: #bfdbfe !important;
+}
+[data-theme="dark"] .reg-attendance-table .team-reservation-seat-row {
+  background: linear-gradient(90deg, rgba(96, 165, 250, .2), rgba(45, 212, 191, .11) 60%, rgba(15, 23, 42, 0));
+}
+[data-theme="dark"] .reg-attendance-table .team-reservation-seat-row > td:first-child {
+  box-shadow: inset 3px 0 0 rgba(96, 165, 250, .62);
+}
+[data-theme="dark"] .reg-attendance-table .team-reservation-placeholder-row .reg-name-text {
+  color: #bfdbfe !important;
+}
+
 .detail-section { margin-top: 1rem; }
 .detail-section-title { font-weight: 700; font-size: .85rem; margin-bottom: .5rem; border-bottom: 1px solid var(--border); padding-bottom: .3rem; }
 .participant-list { display: flex; flex-wrap: wrap; gap: .4rem; }
