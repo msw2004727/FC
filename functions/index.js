@@ -516,6 +516,20 @@ function isTeamStaffForData(team, uid) {
     || coachUids.includes(safeUid);
 }
 
+function addTeamStaffUidsToSet(targetSet, teamData = {}) {
+  if (!targetSet || typeof targetSet.add !== "function") return;
+  const addUid = (value) => {
+    const safeValue = String(value || "").trim();
+    if (safeValue) targetSet.add(safeValue);
+  };
+  addUid(teamData?.captainUid);
+  addUid(teamData?.creatorUid);
+  addUid(teamData?.ownerUid);
+  addUid(teamData?.leaderUid);
+  if (Array.isArray(teamData?.leaderUids)) teamData.leaderUids.forEach(addUid);
+  if (Array.isArray(teamData?.coachUids)) teamData.coachUids.forEach(addUid);
+}
+
 function validateClientTournamentId(id) {
   const safeId = String(id || "").trim();
   if (!/^ct_\d+_[a-z0-9]{6,}$/i.test(safeId)) {
@@ -6886,6 +6900,7 @@ exports.adjustTeamReservation = onCall(
         addUid(data.uid);
         addUid(data.lineUserId);
       });
+      addTeamStaffUidsToSet(memberUidSet, teamInfo.data);
 
       const activeRegs = allEventRegs
         .filter((reg) => reg.status === "confirmed" || reg.status === "waitlisted")

@@ -1998,3 +1998,9 @@
 
 *最後清理日期：2026-04-07*
 *原始檔案：449 行 → 清理後約 195 行*
+
+### 2026-04-30 Team reservation staff backfill fix [critical]
+- **Issue**: When a team reservation was created after a staff member had already signed up, `adjustTeamReservation` only matched existing registrations through `users.teamId/teamIds`. Staff-only users listed in `teams.coachUids/leaderUids/captainUid` were not stamped with `teamReservationTeamId`, so they stayed as general seats.
+- **Case**: Event `ce_1777379740742_06jw_0` on `2026/05/03 20:00~22:00`, user `Ud55d5ba583447c2034f3e352ef0b2fc2` was a coach in `tm_1772099699445_naajv3` but had no `users.teamId/teamIds`.
+- **Fix**: Added `addTeamStaffUidsToSet()` and made `adjustTeamReservation` include captain/leader/coach/creator/owner UIDs when stamping existing active registrations into team reservation seats.
+- **Validation**: Added unit coverage for staff UID backfill and planned production data repair by re-stamping the affected registration and rebuilding event occupancy.

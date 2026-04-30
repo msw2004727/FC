@@ -132,6 +132,20 @@ function isTournamentTeamOfficerForData(team, uid) {
     || leaderUids.includes(safeUid);
 }
 
+function addTeamStaffUidsToSet(targetSet, teamData = {}) {
+  if (!targetSet || typeof targetSet.add !== 'function') return;
+  const addUid = value => {
+    const safeValue = String(value || '').trim();
+    if (safeValue) targetSet.add(safeValue);
+  };
+  addUid(teamData?.captainUid);
+  addUid(teamData?.creatorUid);
+  addUid(teamData?.ownerUid);
+  addUid(teamData?.leaderUid);
+  if (Array.isArray(teamData?.leaderUids)) teamData.leaderUids.forEach(addUid);
+  if (Array.isArray(teamData?.coachUids)) teamData.coachUids.forEach(addUid);
+}
+
 function getUserTeamIdSetFromData(userData) {
   const ids = new Set();
   const add = value => {
@@ -151,6 +165,22 @@ function isUserDataInTeam(userData, teamId) {
 function canApplyFriendlyTournamentForTeam(callerRole, team, callerUid, userData, teamId = team?.id) {
   return isTournamentTeamOfficerForData(team, callerUid)
     || (isRoleAdminOrAbove(callerRole) && isUserDataInTeam(userData, teamId));
+}
+
+function cfBuildTeamReservationMemberUidSet(teamData, userDocs = []) {
+  const memberUidSet = new Set();
+  const addUid = value => {
+    const safeValue = String(value || '').trim();
+    if (safeValue) memberUidSet.add(safeValue);
+  };
+  userDocs.forEach(doc => {
+    const data = doc.data || {};
+    addUid(doc.id);
+    addUid(data.uid);
+    addUid(data.lineUserId);
+  });
+  addTeamStaffUidsToSet(memberUidSet, teamData);
+  return memberUidSet;
 }
 
 function getTournamentSportTagFromData(data) {
@@ -762,6 +792,62 @@ describe('registerForEvent CF logic', () => {
 //  adminManageUser — extracted helpers (index.js:1103-1222)
 //  2026-04-27 補強：之前完全沒有此函式的測試
 // ═══════════════════════════════════════════════════════════════
+
+describe('adjustTeamReservation CF member stamping', () => {
+  test('includes club staff UIDs even when users.teamIds is empty', () => {
+    const memberSet = cfBuildTeamReservationMemberUidSet(
+      {
+        captainUid: 'captain_uid',
+        leaderUid: 'leader_uid',
+        leaderUids: ['leader2_uid'],
+        coachUids: ['coach_uid'],
+      },
+      [
+        {
+          id: 'member_doc',
+          data: {
+            uid: 'member_uid',
+            lineUserId: 'member_line_uid',
+          },
+        },
+      ],
+    );
+
+    expect(memberSet.has('member_uid')).toBe(true);
+    expect(memberSet.has('coach_uid')).toBe(true);
+    expect(memberSet.has('leader2_uid')).toBe(true);
+  });
+
+  test('stamps existing staff registration into the team reservation group', () => {
+    const teamName = 'Team A';
+    const teamId = 'teamA';
+    const memberSet = cfBuildTeamReservationMemberUidSet(
+      { id: teamId, name: teamName, coachUids: ['staff_uid'] },
+      [],
+    );
+    const regs = [
+      { _docId: 'r1', userId: 'staff_uid', userName: 'Staff', participantType: 'self', status: 'confirmed' },
+      { _docId: 'r2', userId: 'other_uid', userName: 'Other', participantType: 'self', status: 'confirmed' },
+    ];
+    const stamped = regs
+      .filter(reg => reg.participantType !== 'companion')
+      .filter(reg => memberSet.has(String(reg.userId || '').trim()))
+      .map(reg => ({
+        ...reg,
+        teamReservationTeamId: teamId,
+        teamReservationTeamName: teamName,
+        teamSeatSource: reg.status === 'waitlisted' ? 'waitlist' : (reg.teamSeatSource || 'reserved'),
+      }));
+
+    expect(stamped).toHaveLength(1);
+    expect(stamped[0]).toMatchObject({
+      userId: 'staff_uid',
+      teamReservationTeamId: 'teamA',
+      teamReservationTeamName: 'Team A',
+      teamSeatSource: 'reserved',
+    });
+  });
+});
 
 const ADMIN_USER_EDIT_PROFILE_PERMISSION = 'admin.users.edit_profile';
 const ADMIN_USER_CHANGE_ROLE_PERMISSION = 'admin.users.change_role';
