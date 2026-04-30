@@ -81,11 +81,9 @@ Object.assign(App, {
           .get();
         const firestoreRegs = snap.docs.map(d => {
           const data = d.data();
-          return {
-            ...data,
-            _docId: d.id,
-            registeredAt: data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt,
-          };
+          const mapped = FirebaseService._mapSubcollectionDoc(d, 'registrations');
+          mapped.registeredAt = data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt;
+          return mapped;
         });
         const cacheRegs = ApiService._src('registrations') || [];
         for (const fsReg of firestoreRegs) {
@@ -96,7 +94,7 @@ Object.assign(App, {
             cached.registeredAt = fsReg.registeredAt;
             cached.promotionOrder = fsReg.promotionOrder;
           } else {
-            cacheRegs.push(fsReg);
+            FirebaseService._upsertCanonicalCacheRecord('registrations', fsReg);
           }
         }
       } catch (err) {

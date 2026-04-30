@@ -213,6 +213,19 @@ const ApiService = {
     return this._src(key).find(item => item.id === id) || null;
   },
 
+  _canonicalSource(key, options = {}) {
+    const source = this._src(key);
+    if (typeof FirebaseService !== 'undefined'
+      && typeof FirebaseService._canonicalizeRecordList === 'function') {
+      return FirebaseService._canonicalizeRecordList(key, source, options);
+    }
+    return Array.isArray(source) ? source : [];
+  },
+
+  _isTerminalRecordStatus(status) {
+    return status === 'cancelled' || status === 'removed';
+  },
+
   _normalizeTournamentRecordForWrite(data, existing = null) {
     const merged = existing ? { ...existing, ...data } : { ...data };
     if (typeof App !== 'undefined' && typeof App._buildFriendlyTournamentRecord === 'function') {
@@ -934,16 +947,41 @@ const ApiService = {
   getRegistrationsByUser(userId) {
     const targetUid = String(userId || '').trim();
     if (!targetUid) return [];
-    return this._src('registrations').filter(
-      r => (String(r.userId || '').trim() === targetUid || String(r.uid || '').trim() === targetUid)
-        && r.status !== 'cancelled' && r.status !== 'removed'
-    );
+    return this.getRegistrations({ userId: targetUid });
   },
 
   getRegistrationsByEvent(eventId) {
-    return this._src('registrations').filter(
-      r => r.eventId === eventId && r.status !== 'cancelled' && r.status !== 'removed'
-    );
+    return this.getRegistrations({ eventId });
+  },
+
+  getRegistrations(options = {}) {
+    let source = this._canonicalSource('registrations');
+    const targetEventId = String(options.eventId || '').trim();
+    const targetUid = String(options.userId || options.uid || '').trim();
+    const includeTerminal = options.includeTerminal === true || options.statusScope === 'all';
+    if (!includeTerminal) {
+      source = source.filter(r => !this._isTerminalRecordStatus(r.status));
+    }
+    if (targetEventId) {
+      source = source.filter(r => String(r.eventId || '').trim() === targetEventId);
+    }
+    if (targetUid) {
+      source = source.filter(r =>
+        String(r.userId || '').trim() === targetUid || String(r.uid || '').trim() === targetUid
+      );
+    }
+    return source;
+  },
+
+  getRegistrationHistoryByEventUser(eventId, userId) {
+    const targetEventId = String(eventId || '').trim();
+    const targetUid = String(userId || '').trim();
+    if (!targetEventId || !targetUid) return [];
+    return this.getRegistrations({
+      eventId: targetEventId,
+      userId: targetUid,
+      includeTerminal: true,
+    });
   },
 
   /**
@@ -971,10 +1009,12 @@ const ApiService = {
     try {
       var snap = await db.collection('events').doc(ev._docId)
         .collection('registrations').get();
-      var records = snap.docs.map(function(d) { return Object.assign({}, d.data(), { _docId: d.id }); });
-      var source = FirebaseService._cache.registrations || [];
-      var existing = new Set(source.map(function(r) { return r._docId; }));
-      records.forEach(function(r) { if (!existing.has(r._docId)) source.push(r); });
+      var records = snap.docs.map(function(d) {
+        return FirebaseService._mapSubcollectionDoc(d, 'registrations');
+      });
+      records.forEach(function(r) {
+        FirebaseService._upsertCanonicalCacheRecord('registrations', r);
+      });
       this._fetchedRegistrationIds.add(eventId);
     } catch (err) {
       console.warn('[fetchRegistrationsIfMissing]', err);
@@ -1015,17 +1055,25 @@ const ApiService = {
     if (uid) {
       const usc = FirebaseService.getUserStatsCache?.();
       if (usc && usc.uid === uid && usc.activityRecords !== null) {
-        return usc.activityRecords.filter(r => r.uid === uid);
+        return FirebaseService._canonicalizeRecordList('activityRecords', usc.activityRecords)
+          .filter(r => r.uid === uid);
       }
     }
-    const source = this._src('activityRecords');
+    const source = this._canonicalSource('activityRecords');
     if (uid) return source.filter(r => r.uid === uid);
     return source;
   },
 
   addActivityRecord(record) {
-    this._src('activityRecords').unshift(record);
-    return record;
+    const normalized = FirebaseService._withSubcollectionMetadata?.(
+      record,
+      'activityRecords',
+      record?.eventDocId || record?.eventId
+    ) || record;
+    return FirebaseService._upsertCanonicalCacheRecord('activityRecords', normalized, {
+      prepend: true,
+      requireSubcollection: false,
+    }) || record;
   },
 
   removeActivityRecord(eventId, uid) {
@@ -1043,7 +1091,7 @@ const ApiService = {
   // ════════════════════════════════
 
   getAttendanceRecords(eventId) {
-    const source = this._src('attendanceRecords');
+    const source = this._canonicalSource('attendanceRecords');
     const active = source.filter(r => r.status !== 'removed' && r.status !== 'cancelled');
     if (eventId) return active.filter(r => r.eventId === eventId);
     return active;
@@ -1078,10 +1126,12 @@ const ApiService = {
     try {
       var snap = await db.collection('events').doc(ev._docId)
         .collection('attendanceRecords').get();
-      var records = snap.docs.map(function(d) { return Object.assign({}, d.data(), { _docId: d.id }); });
-      var source = FirebaseService._cache.attendanceRecords || [];
-      var existing = new Set(source.map(function(r) { return r._docId; }));
-      records.forEach(function(r) { if (!existing.has(r._docId)) source.push(r); });
+      var records = snap.docs.map(function(d) {
+        return FirebaseService._mapSubcollectionDoc(d, 'attendanceRecords');
+      });
+      records.forEach(function(r) {
+        FirebaseService._upsertCanonicalCacheRecord('attendanceRecords', r);
+      });
       this._fetchedAttendanceIds.add(eventId);
     } catch (err) {
       console.warn('[fetchAttendanceIfMissing]', err);
@@ -1097,7 +1147,8 @@ const ApiService = {
     if (uid) {
       const usc = FirebaseService.getUserStatsCache?.();
       if (usc && usc.uid === uid && usc.attendanceRecords !== null) {
-        return usc.attendanceRecords.filter(r => r.status !== 'removed' && r.status !== 'cancelled');
+        return FirebaseService._canonicalizeRecordList('attendanceRecords', usc.attendanceRecords)
+          .filter(r => r.status !== 'removed' && r.status !== 'cancelled');
       }
     }
     return this.getAttendanceRecords().filter(r => r.uid === uid);
@@ -1110,15 +1161,25 @@ const ApiService = {
       throw new Error('missing required fields: eventId/uid');
     }
     const source = this._src('attendanceRecords');
-    source.push(normalized);
+    const optimistic = FirebaseService._withSubcollectionMetadata?.(
+      normalized,
+      'attendanceRecords',
+      normalized.eventDocId || normalized.eventId
+    ) || normalized;
+    FirebaseService._upsertCanonicalCacheRecord('attendanceRecords', optimistic, {
+      requireSubcollection: false,
+    });
     try {
       await this._runAttendanceWriteWithAuthRetry(async () => {
-        await FirebaseService.addAttendanceRecord(normalized);
+        const saved = await FirebaseService.addAttendanceRecord(normalized);
+        if (saved) FirebaseService._upsertCanonicalCacheRecord('attendanceRecords', saved);
         FirebaseService._saveToLS('attendanceRecords', FirebaseService._cache.attendanceRecords);
       }, 'addAttendanceRecord');
     } catch (err) {
-      const idx = source.findIndex(r => r.id === normalized.id);
-      if (idx !== -1) source.splice(idx, 1);
+      const activeSource = FirebaseService._cache.attendanceRecords || source;
+      const idx = activeSource.findIndex(r => r.id === normalized.id);
+      if (idx !== -1) activeSource.splice(idx, 1);
+      FirebaseService._saveToLS('attendanceRecords', FirebaseService._cache.attendanceRecords);
       console.error('[addAttendanceRecord]', err);
       throw new Error(this._mapAttendanceWriteError(err));
     }
@@ -1786,11 +1847,7 @@ const ApiService = {
     const uid = this.getCurrentUser()?.uid;
     if (!uid) return [];
     const targetUid = String(uid).trim();
-    return this._src('registrations').filter(
-      r => r.eventId === eventId
-        && (String(r.userId || '').trim() === targetUid || String(r.uid || '').trim() === targetUid)
-        && r.status !== 'cancelled' && r.status !== 'removed'
-    );
+    return this.getRegistrations({ eventId, userId: targetUid });
   },
 
   async registerEventWithCompanions(eventId, participantList, opts = {}) {
@@ -2157,7 +2214,7 @@ const ApiService = {
         const snap = await db.collection('events').doc(_eventDocId)
           .collection('attendanceRecords')
           .get({ source: 'server' });
-        return snap.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+        return snap.docs.map(doc => FirebaseService._mapSubcollectionDoc(doc, 'attendanceRecords'));
       }));
       _chunkResults.forEach(docs => attendanceRecords.push(...docs));
     }

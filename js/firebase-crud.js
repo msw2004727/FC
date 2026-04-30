@@ -514,7 +514,7 @@ Object.assign(FirebaseService, {
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
     data._docId = docRef.id;
-    return data;
+    return this._withSubcollectionMetadata(data, 'attendanceRecords', eventDocId);
   },
 
   async removeAttendanceRecord(record) {
@@ -574,6 +574,7 @@ Object.assign(FirebaseService, {
     for (const record of adds) {
       const docRef = db.collection('events').doc(eventDocIdMap[record.eventId]).collection('attendanceRecords').doc();
       record._docId = docRef.id;
+      Object.assign(record, this._withSubcollectionMetadata(record, 'attendanceRecords', eventDocIdMap[record.eventId]));
       batch.set(docRef, {
         ..._stripDocId(record),
         status: record.status || 'active',
@@ -618,9 +619,9 @@ Object.assign(FirebaseService, {
       }
     }
     for (const record of adds) {
-      source.push(record);
+      this._upsertCanonicalCacheRecord('attendanceRecords', record, { requireSubcollection: false });
     }
-    this._saveToLS('attendanceRecords', source);
+    this._saveToLS('attendanceRecords', this._cache.attendanceRecords);
   },
 
   // ════════════════════════════════
@@ -1208,7 +1209,7 @@ Object.assign(FirebaseService, {
       const allRegsSnap = await db.collection('events').doc(event._docId)
         .collection('registrations')
         .get({ source: 'server' });
-      const allEventRegs = allRegsSnap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+      const allEventRegs = allRegsSnap.docs.map(d => this._mapSubcollectionDoc(d, 'registrations'));
       const lockDoc = await transaction.get(lockRef);
       if (lockDoc.exists) throw new Error('撌脣?迨瘣餃?');
 
@@ -1310,14 +1311,24 @@ Object.assign(FirebaseService, {
     // Transaction 成功後更新本地快取
     registration._docId = regDocRef.id;
     registration.status = result.status;
-    this._cache.registrations.push(registration);
+    this._upsertCanonicalCacheRecord(
+      'registrations',
+      this._withSubcollectionMetadata(registration, 'registrations', event._docId),
+      { requireSubcollection: false }
+    );
     this._applyRebuildOccupancy(event, result.occupancy);
     if (result.activityRecord && Array.isArray(this._cache.activityRecords)) {
       const arExists = this._cache.activityRecords.some(r =>
         r._docId === result.activityRecord._docId
         || (r.eventId === eventId && r.uid === userId && r.status === result.activityRecord.status)
       );
-      if (!arExists) this._cache.activityRecords.unshift(result.activityRecord);
+      if (!arExists) {
+        this._upsertCanonicalCacheRecord(
+          'activityRecords',
+          this._withSubcollectionMetadata(result.activityRecord, 'activityRecords', event._docId),
+          { prepend: true, requireSubcollection: false }
+        );
+      }
     }
 
     console.log('[registerForEvent] transaction OK, docId:', regDocRef.id, 'status:', result.status);
@@ -1359,12 +1370,10 @@ Object.assign(FirebaseService, {
           .collection('registrations')
           .get();
         firestoreRegs = snap.docs.map(d => {
+          const mapped = this._mapSubcollectionDoc(d, 'registrations');
           const data = d.data();
-          return {
-            ...data,
-            _docId: d.id,
-            registeredAt: data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt,
-          };
+          mapped.registeredAt = data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt;
+          return mapped;
         });
       } catch (err) {
         console.warn('[cancelRegistration] Firestore 查詢失敗，fallback 用快取:', err);
@@ -1411,7 +1420,7 @@ Object.assign(FirebaseService, {
     if (promotedCandidates.length > 0) {
       try {
         const arSnap = await db.collection('events').doc(eventDocId).collection('activityRecords').get();
-        eventActivityRecords = arSnap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+        eventActivityRecords = arSnap.docs.map(d => this._mapSubcollectionDoc(d, 'activityRecords'));
       } catch (err) {
         console.warn('[cancelRegistration] activityRecords query failed, fallback to cache:', err);
         const arSource = (typeof ApiService !== 'undefined' && ApiService._src)
@@ -1534,13 +1543,13 @@ Object.assign(FirebaseService, {
   },
 
   getRegistrationsByUser(userId) {
-    return this._cache.registrations.filter(
+    return this._canonicalizeRecordList('registrations', this._cache.registrations).filter(
       r => r.userId === userId && r.status !== 'cancelled' && r.status !== 'removed'
     );
   },
 
   getRegistrationsByEvent(eventId) {
-    return this._cache.registrations.filter(
+    return this._canonicalizeRecordList('registrations', this._cache.registrations).filter(
       r => r.eventId === eventId && r.status !== 'cancelled' && r.status !== 'removed'
     );
   },
@@ -1654,6 +1663,7 @@ Object.assign(FirebaseService, {
       payload.image = variants.cover;
     }
   },
+
   async addTeam(data) {
     // Phase 2A §11.2②：自訂 ID = Firestore doc ID，消除雙軌制
     const teamId = data.id || generateId('tm_');
@@ -2676,7 +2686,7 @@ Object.assign(FirebaseService, {
     const allRegsSnap = await db.collection('events').doc(event._docId)
       .collection('registrations')
       .get({ source: 'server' });
-    const allEventRegs = allRegsSnap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+    const allEventRegs = allRegsSnap.docs.map(d => this._mapSubcollectionDoc(d, 'registrations'));
 
     // 防幽靈：用 Firestore 真實資料檢查重複報名
     const hasActive = allEventRegs.some(r =>
@@ -2810,7 +2820,13 @@ Object.assign(FirebaseService, {
 
     // Transaction 成功後同步本地快取
     this._applyRebuildOccupancy(event, result.occupancy);
-    result.registrations.forEach(r => this._cache.registrations.push(r));
+    result.registrations.forEach(r => {
+      this._upsertCanonicalCacheRecord(
+        'registrations',
+        this._withSubcollectionMetadata(r, 'registrations', event._docId),
+        { requireSubcollection: false }
+      );
+    });
 
     // 立即寫入 localStorage，避免刷新後資料遺失
     this._saveToLS('registrations', this._cache.registrations);
@@ -2857,12 +2873,10 @@ Object.assign(FirebaseService, {
           .collection('registrations')
           .get();
         firestoreRegsByEvent[eventId] = snap.docs.map(d => {
+          const mapped = this._mapSubcollectionDoc(d, 'registrations');
           const data = d.data();
-          return {
-            ...data,
-            _docId: d.id,
-            registeredAt: data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt,
-          };
+          mapped.registeredAt = data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt;
+          return mapped;
         });
       } catch (err) {
         console.warn('[cancelCompanionRegistrations] Firestore query failed, fallback:', err);
@@ -2936,7 +2950,7 @@ Object.assign(FirebaseService, {
       if (!hadConfirmed.has(_evId)) continue;
       try {
         const arSnap = await db.collection('events').doc(eventDocIds[_evId]).collection('activityRecords').get();
-        arsByEvent[_evId] = arSnap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+        arsByEvent[_evId] = arSnap.docs.map(d => this._mapSubcollectionDoc(d, 'activityRecords'));
       } catch (err) {
         console.warn('[cancelCompanionRegistrations] activityRecords query failed for event=' + _evId + ':', err);
         const arSource = (typeof ApiService !== 'undefined' && ApiService._src)

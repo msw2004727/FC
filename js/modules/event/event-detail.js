@@ -417,13 +417,8 @@ Object.assign(App, {
               && !_self._flipAnimating) {
               // 快取確實落後 — 補入快取
               active.forEach(function(d) {
-                var reg = Object.assign({}, d.data(), { _docId: d.id });
-                if (reg.userId && !reg.uid) reg.uid = reg.userId;
-                if (reg.uid && !reg.userId) reg.userId = reg.uid;
-                var cache = FirebaseService._cache.registrations || [];
-                if (!cache.some(function(r) { return r._docId === d.id; })) {
-                  cache.push(reg);
-                }
+                var reg = FirebaseService._mapSubcollectionDoc(d, 'registrations');
+                FirebaseService._upsertCanonicalCacheRecord('registrations', reg);
               });
               // 2026-04-20：改用局部 patch 避免整頁重繪造成畫面跳動。
               // 快取已補齊，_refreshSignupButton 會正確顯示「取消報名」按鈕
@@ -970,14 +965,14 @@ Object.assign(App, {
         var snap = await db.collection('events').doc(_eventDocId).collection('registrations').get();
         allRegs = [];
         snap.forEach(function(doc) {
-          allRegs.push(Object.assign({ _docId: doc.id, id: doc.id }, doc.data()));
+          allRegs.push(FirebaseService._mapSubcollectionDoc(doc, 'registrations', { id: doc.id }));
         });
       } catch (err) {
         console.error('[openEventRegLogModal] Firestore query failed, fallback to cache:', err);
-        allRegs = ApiService._src('registrations').filter(function(r) { return r.eventId === eventId; });
+        allRegs = ApiService.getRegistrations({ eventId: eventId, includeTerminal: true });
       }
     } else {
-      allRegs = ApiService._src('registrations').filter(function(r) { return r.eventId === eventId; });
+      allRegs = ApiService.getRegistrations({ eventId: eventId, includeTerminal: true });
     }
 
     // 內聯時間解析（避免 this/self 綁定問題）

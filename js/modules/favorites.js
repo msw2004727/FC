@@ -69,8 +69,9 @@ Object.assign(App, {
     const uid = user?.uid || user?.lineUserId || null;
     if (!uid) return { css: fallback.css, label: fallback.label };
 
-    const regs = (typeof ApiService._src === 'function' ? ApiService._src('registrations') : [])
-      .filter(r => r && r.eventId === eventId && r.userId === uid);
+    const regs = typeof ApiService.getRegistrationHistoryByEventUser === 'function'
+      ? ApiService.getRegistrationHistoryByEventUser(eventId, uid)
+      : [];
     if (!regs.length) return { css: fallback.css, label: fallback.label };
 
     if (regs.some(r => r.status === 'confirmed')) {

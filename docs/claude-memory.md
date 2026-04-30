@@ -2022,3 +2022,9 @@
 - **Fix**: Added crop-frame target hints, a club-specific two-step crop sequence, `team.imageVariants.cover/card` storage, and rendering fallbacks so club cards use the square crop while club detail/share views use the wide cover crop.
 - **Compatibility**: Kept legacy `team.image` as the cover fallback so old club data and old clients continue to render.
 - **Validation**: Added `team-image-variants.test.js`, ran JS syntax checks and full unit tests before cache-version bump and frontend push deploy.
+
+### 2026-04-30 Registration canonical cache hardening
+- **Scope**: Canonicalized official reads for `registrations`, `activityRecords`, and `attendanceRecords` so UI/stat flows prefer event subcollections and ignore root leftovers.
+- **Fix**: Added FirebaseService canonical metadata/upsert helpers, routed ApiService official reads through canonical helpers, and updated detail, favorites, leaderboard, scan, dashboard, achievement batch, and no-show paths to avoid raw root cache.
+- **Audit notes**: Canonical dedupe now first merges the same subcollection `_path`, then uses status-aware logical keys, preserving cancelled history while preventing waitlisted/confirmed double-counting for the same document.
+- **Validation**: Added `canonical-cache.test.js`; ran syntax checks plus focused unit tests for canonical cache, fetch-if-missing, dashboard, achievements, scan, no-show, and migration coverage.

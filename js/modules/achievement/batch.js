@@ -185,13 +185,13 @@ Object.assign(App, {
 
     let registrations = regSnap.docs
       .filter(doc => doc.ref.parent.parent !== null)
-      .map(doc => ({ ...doc.data(), _docId: doc.id }));
+      .map(doc => FirebaseService._mapSubcollectionDoc(doc, 'registrations'));
     let activityRecords = actSnap.docs
       .filter(doc => doc.ref.parent.parent !== null)
-      .map(doc => ({ ...doc.data(), _docId: doc.id }));
+      .map(doc => FirebaseService._mapSubcollectionDoc(doc, 'activityRecords'));
     let attendanceRecords = attSnap.docs
       .filter(doc => doc.ref.parent.parent !== null)
-      .map(doc => ({ ...doc.data(), _docId: doc.id }));
+      .map(doc => FirebaseService._mapSubcollectionDoc(doc, 'attendanceRecords'));
 
     // 歷史修正：displayName fallback for attendanceRecords
     if (attendanceRecords.length === 0) {
@@ -202,8 +202,7 @@ Object.assign(App, {
         attendanceRecords = attByNameSnap.docs
           .filter(doc => doc.ref.parent.parent !== null)
           .map(doc => {
-            const data = doc.data();
-            return { ...data, uid, _docId: doc.id };
+            return FirebaseService._mapSubcollectionDoc(doc, 'attendanceRecords', { uid });
           });
       }
     }
@@ -218,9 +217,9 @@ Object.assign(App, {
 
     let evaluatedAchievements;
     try {
-      FirebaseService._cache.registrations = registrations;
-      FirebaseService._cache.activityRecords = activityRecords;
-      FirebaseService._cache.attendanceRecords = attendanceRecords;
+      FirebaseService._cache.registrations = FirebaseService._canonicalizeRecordList('registrations', registrations);
+      FirebaseService._cache.activityRecords = FirebaseService._canonicalizeRecordList('activityRecords', activityRecords);
+      FirebaseService._cache.attendanceRecords = FirebaseService._canonicalizeRecordList('attendanceRecords', attendanceRecords);
       FirebaseService._userStatsCache = {
         uid,
         activityRecords,

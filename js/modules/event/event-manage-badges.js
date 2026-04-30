@@ -21,7 +21,7 @@ Object.assign(App, {
       const snap = await db.collection('events').doc(_eventDocId)
         .collection('registrations')
         .get();
-      const allDocs = snap.docs.map(d => ({ ...d.data(), _docId: d.id }));
+      const allDocs = snap.docs.map(d => FirebaseService._mapSubcollectionDoc(d, 'registrations'));
       const confirmedSelf = allDocs.filter(
         r => r.status === 'confirmed'
           && (r.participantType === 'self' || !r.participantType)

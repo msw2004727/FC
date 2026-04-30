@@ -245,10 +245,193 @@ const FirebaseService = {
     this._lsUidPrefix = uid || '';
   },
 
+  _canonicalCollections: {
+    registrations: true,
+    activityRecords: true,
+    attendanceRecords: true,
+  },
+
+  _isCanonicalCollection(name) {
+    return !!this._canonicalCollections?.[name];
+  },
+
+  _isSubcollectionPath(pathOrDoc) {
+    if (!pathOrDoc) return false;
+    try {
+      if (typeof pathOrDoc === 'string') {
+        return pathOrDoc.split('/').filter(Boolean).length >= 4;
+      }
+      if (pathOrDoc.ref) return pathOrDoc.ref.parent.parent !== null;
+      if (pathOrDoc._path) return this._isSubcollectionPath(pathOrDoc._path);
+    } catch (_) {}
+    return false;
+  },
+
+  _mapSubcollectionDoc(doc, collectionName, overrides = {}) {
+    const data = doc?.data ? doc.data() : (doc || {});
+    const docId = overrides._docId || doc?.id || data?._docId || data?.id || '';
+    const parentPath = doc?.ref?.parent?.parent?.path || overrides._parentPath || '';
+    const path = doc?.ref?.path || overrides._path || (parentPath && docId
+      ? `${parentPath}/${collectionName}/${docId}`
+      : '');
+    const mapped = {
+      ...data,
+      ...overrides,
+      _docId: docId,
+      _path: path,
+      _parentPath: parentPath,
+      _sourceCollection: collectionName,
+      _sourceKind: 'subcollection',
+    };
+    if (collectionName === 'registrations') {
+      if (mapped.userId && !mapped.uid) mapped.uid = mapped.userId;
+      if (mapped.uid && !mapped.userId) mapped.userId = mapped.uid;
+    }
+    return mapped;
+  },
+
+  _withSubcollectionMetadata(record, collectionName, eventDocIdOrPath) {
+    const rawParent = String(eventDocIdOrPath || record?._parentPath || '').trim();
+    const parentPath = rawParent.includes('/') ? rawParent : (rawParent ? `events/${rawParent}` : '');
+    const docId = record?._docId || record?.id || '';
+    return this._mapSubcollectionDoc(record || {}, collectionName, {
+      _docId: docId,
+      _parentPath: parentPath,
+      _path: parentPath && docId ? `${parentPath}/${collectionName}/${docId}` : String(record?._path || '').trim(),
+    });
+  },
+
+  _isCanonicalCacheRecord(name, record) {
+    if (!this._isCanonicalCollection(name)) return true;
+    if (!record) return false;
+    if (record._sourceKind === 'subcollection') return true;
+    return this._isSubcollectionPath(record._path);
+  },
+
+  _canonicalRecordTime(record) {
+    const parseValue = (value) => {
+      if (!value) return 0;
+      if (typeof value.toMillis === 'function') {
+        try { return value.toMillis(); } catch (_) { return 0; }
+      }
+      if (typeof value.toDate === 'function') {
+        try { return value.toDate().getTime(); } catch (_) { return 0; }
+      }
+      if (typeof value === 'object' && typeof (value.seconds || value._seconds) === 'number') {
+        return ((value.seconds || value._seconds) * 1000) + Math.floor(((value.nanoseconds || value._nanoseconds || 0) / 1000000));
+      }
+      if (typeof value === 'number') return value;
+      const parsed = Date.parse(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+    return parseValue(record?.updatedAt)
+      || parseValue(record?.registeredAt)
+      || parseValue(record?.createdAt)
+      || parseValue(record?.cancelledAt)
+      || parseValue(record?.removedAt)
+      || 0;
+  },
+
+  _canonicalRecordKey(name, record = {}) {
+    const eventId = String(record.eventId || '').trim();
+    if (name === 'registrations') {
+      const userId = String(record.userId || record.uid || '').trim();
+      const type = String(record.participantType || 'self').trim();
+      const status = String(record.status || '').trim();
+      const companionKey = type === 'companion'
+        ? String(record.companionId || record.companionName || record._docId || record.id || record._path || '').trim()
+        : 'self';
+      if (eventId && userId) return `${eventId}|${userId}|${type}|${companionKey}|${status}`;
+    }
+    if (name === 'activityRecords') {
+      const uid = String(record.uid || record.userId || '').trim();
+      const status = String(record.status || '').trim();
+      if (eventId && uid) return `${eventId}|${uid}|${status}`;
+    }
+    if (name === 'attendanceRecords') {
+      const uid = String(record.uid || record.userId || '').trim();
+      const type = String(record.type || record.attendanceType || '').trim();
+      const participant = String(record.participantType || '').trim();
+      const status = String(record.status || '').trim();
+      if (eventId && uid && type) return `${eventId}|${uid}|${type}|${participant}|${status}`;
+    }
+    return String(record._path || record._docId || record.id || Math.random());
+  },
+
+  _preferCanonicalRecord(current, next) {
+    if (!current) return next;
+    if (!next) return current;
+    const currentSub = this._isSubcollectionPath(current._path) || current._sourceKind === 'subcollection';
+    const nextSub = this._isSubcollectionPath(next._path) || next._sourceKind === 'subcollection';
+    if (nextSub && !currentSub) return next;
+    if (!nextSub && currentSub) return current;
+    return this._canonicalRecordTime(next) >= this._canonicalRecordTime(current) ? next : current;
+  },
+
+  _canonicalizeRecordList(name, records, options = {}) {
+    const requireSubcollection = options.requireSubcollection !== false;
+    if (!this._isCanonicalCollection(name)) return Array.isArray(records) ? records : [];
+    const byDocPath = new Map();
+    const withoutDocPath = [];
+    const byKey = new Map();
+    (Array.isArray(records) ? records : []).forEach(record => {
+      if (!record) return;
+      if (requireSubcollection && !this._isCanonicalCacheRecord(name, record)) return;
+      const normalized = { ...record, _sourceCollection: record._sourceCollection || name };
+      if (name === 'registrations') {
+        if (normalized.userId && !normalized.uid) normalized.uid = normalized.userId;
+        if (normalized.uid && !normalized.userId) normalized.userId = normalized.uid;
+      }
+      const docPath = this._isSubcollectionPath(normalized._path) ? String(normalized._path) : '';
+      if (docPath) {
+        byDocPath.set(docPath, this._preferCanonicalRecord(byDocPath.get(docPath), normalized));
+        return;
+      }
+      withoutDocPath.push(normalized);
+    });
+    [...byDocPath.values(), ...withoutDocPath].forEach(normalized => {
+      const key = this._canonicalRecordKey(name, normalized);
+      byKey.set(key, this._preferCanonicalRecord(byKey.get(key), normalized));
+    });
+    return Array.from(byKey.values());
+  },
+
+  _upsertCanonicalCacheRecord(name, record, options = {}) {
+    if (!this._isCanonicalCollection(name)) {
+      if (!Array.isArray(this._cache[name])) this._cache[name] = [];
+      this._cache[name].push(record);
+      return record;
+    }
+    if (!this._isCanonicalCacheRecord(name, record) && options.requireSubcollection !== false) return null;
+    const source = Array.isArray(this._cache[name]) ? this._cache[name] : [];
+    const normalized = this._canonicalizeRecordList(name, [record], { requireSubcollection: false })[0] || record;
+    const key = this._canonicalRecordKey(name, normalized);
+    const idx = source.findIndex(item => this._canonicalRecordKey(name, item) === key);
+    if (idx >= 0) {
+      source[idx] = this._preferCanonicalRecord(source[idx], normalized);
+    } else if (options.prepend) {
+      source.unshift(normalized);
+    } else {
+      source.push(normalized);
+    }
+    this._cache[name] = this._canonicalizeRecordList(name, source, {
+      requireSubcollection: options.requireSubcollection !== false
+    });
+    return normalized;
+  },
+
+  _replaceCanonicalCollectionCache(name, records) {
+    this._cache[name] = this._canonicalizeRecordList(name, records);
+    if (this._initialized) this._notifyCacheUpdated(name);
+  },
+
   /** 儲存集合到 localStorage */
   _saveToLS(name, data) {
     try {
-      const json = JSON.stringify(data);
+      const payload = this._isCanonicalCollection(name)
+        ? this._canonicalizeRecordList(name, data)
+        : data;
+      const json = JSON.stringify(payload);
       // 單一集合超過 500KB 就不存（避免 localStorage 爆掉）
       if (json.length > 512000) return;
       try {
@@ -411,9 +594,11 @@ const FirebaseService = {
     allCollections.forEach(name => {
       const data = this._loadFromLS(name);
       if (data && data.length > 0) {
-        this._cache[name] = data;
+        this._cache[name] = this._isCanonicalCollection(name)
+          ? this._canonicalizeRecordList(name, data)
+          : data;
         this._collectionLoadedAt[name] = ts;
-        restored++;
+        if (!this._isCanonicalCollection(name) || this._cache[name].length > 0) restored++;
       }
     });
     const rp = this._loadFromLS('rolePermissions');
@@ -599,6 +784,10 @@ const FirebaseService = {
   },
 
   _replaceCollectionCache(name, docs) {
+    if (this._isCanonicalCollection(name)) {
+      this._replaceCanonicalCollectionCache(name, docs || []);
+      return;
+    }
     const seen = new Set();
     this._cache[name] = (docs || []).filter(doc => {
       if (!doc?.id) return true;
@@ -947,13 +1136,13 @@ const FirebaseService = {
       ]);
       const attDocs = attSnap.docs
         .filter(doc => doc.ref.parent.parent !== null)
-        .map(doc => ({ ...doc.data(), _docId: doc.id }));
+        .map(doc => this._mapSubcollectionDoc(doc, 'attendanceRecords'));
 
       this._userStatsCache = {
         uid,
         activityRecords: actSnap.docs
           .filter(doc => doc.ref.parent.parent !== null)
-          .map(doc => ({ ...doc.data(), _docId: doc.id })),
+          .map(doc => this._mapSubcollectionDoc(doc, 'activityRecords')),
         attendanceRecords: attDocs,
       };
     } catch (err) {
@@ -1556,7 +1745,9 @@ const FirebaseService = {
       if (name === 'activityRecords') {
         rawDocs = rawDocs.filter(doc => doc.ref.parent.parent !== null);
       }
-      const docs = rawDocs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+      const docs = this._isCanonicalCollection(name)
+        ? rawDocs.map(doc => this._mapSubcollectionDoc(doc, name))
+        : rawDocs.map(doc => ({ ...doc.data(), _docId: doc.id }));
       this._replaceCollectionCache(name, docs);
       // Phase 2B：teams / tournaments 分頁 cursor 捕捉
       if (name === 'teams') {
@@ -1828,14 +2019,11 @@ const FirebaseService = {
     const unsub = this._getRegistrationsListenerQuery(ctx)
       .onSnapshot(
         snapshot => {
-          this._cache.registrations = snapshot.docs
+          this._replaceCanonicalCollectionCache('registrations', snapshot.docs
             .filter(doc => doc.ref.parent.parent !== null) // Phase 3b: collectionGroup 去重
             .map(doc => {
-              const d = { ...doc.data(), _docId: doc.id };
-              if (d.userId && !d.uid) d.uid = d.userId;
-              if (d.uid && !d.userId) d.userId = d.uid;
-              return d;
-            });
+              return this._mapSubcollectionDoc(doc, 'registrations');
+            }));
           this._registrationsFirstSnapshotReceived = true; // Fix A
           this._snapshotReconnectAttempts.registrations = 0; // RC4：成功時重置重連計數
           this._debouncedPersistCache();
@@ -1907,9 +2095,9 @@ const FirebaseService = {
       .limit(this._getRealtimeLimit('attendanceLimit'))
       .onSnapshot(
         snapshot => {
-          this._cache.attendanceRecords = snapshot.docs
+          this._replaceCanonicalCollectionCache('attendanceRecords', snapshot.docs
             .filter(doc => doc.ref.parent.parent !== null) // Phase 3b: collectionGroup 去重
-            .map(doc => ({ ...doc.data(), _docId: doc.id }));
+            .map(doc => this._mapSubcollectionDoc(doc, 'attendanceRecords')));
           // Phase 3c: per-event cache workaround 已移除
           this._attendanceSnapshotReady = true;
           this._snapshotReconnectAttempts.attendanceRecords = 0; // RC4：成功時重置重連計數
@@ -2827,14 +3015,11 @@ const FirebaseService = {
 
     this._getRegistrationsListenerQuery(ctx).get().then(snapshot => {
       this._registrationsRevalidating = false;
-      const fresh = snapshot.docs.map(doc => {
-        const d = { ...doc.data(), _docId: doc.id };
-        if (d.userId && !d.uid) d.uid = d.userId;
-        if (d.uid && !d.userId) d.userId = d.uid;
-        return d;
-      });
+      const fresh = snapshot.docs
+        .filter(doc => doc.ref.parent.parent !== null)
+        .map(doc => this._mapSubcollectionDoc(doc, 'registrations'));
       const oldCount = this._cache.registrations.length;
-      this._cache.registrations = fresh;
+      this._replaceCanonicalCollectionCache('registrations', fresh);
       this._registrationsFirstSnapshotReceived = true; // Fix A: .get() 也視為新鮮資料
       this._debouncedPersistCache();
       if (oldCount !== fresh.length) {
@@ -2939,14 +3124,11 @@ const FirebaseService = {
 
     this._getRegistrationsListenerQuery(ctx).get().then(snapshot => {
       this._registrationsRevalidating = false;
-      const fresh = snapshot.docs.map(doc => {
-        const d = { ...doc.data(), _docId: doc.id };
-        if (d.userId && !d.uid) d.uid = d.userId;
-        if (d.uid && !d.userId) d.userId = d.uid;
-        return d;
-      });
+      const fresh = snapshot.docs
+        .filter(doc => doc.ref.parent.parent !== null)
+        .map(doc => this._mapSubcollectionDoc(doc, 'registrations'));
       const oldLen = this._cache.registrations.length;
-      this._cache.registrations = fresh;
+      this._replaceCanonicalCollectionCache('registrations', fresh);
       this._debouncedPersistCache();
       if (fresh.length !== oldLen) {
         console.log(`[FirebaseService] registrations 刷新: ${oldLen} → ${fresh.length}`);

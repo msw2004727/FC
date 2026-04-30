@@ -104,11 +104,12 @@ Object.assign(App, {
     const eventMap = new Map(events.map(event => [event.id, event]));
 
     // 用 registrations（權威資料）排除已取消的活動，修正 activityRecords 狀態未同步問題
-    const allRegs = ApiService._src('registrations') || [];
+    const allRegs = typeof ApiService.getRegistrations === 'function'
+      ? ApiService.getRegistrations({ userId: uid, includeTerminal: true })
+      : [];
     const activeRegEventIds = new Set();
     const cancelledRegEventIds = new Set();
     allRegs.forEach(r => {
-      if (String(r?.userId || '').trim() !== uid) return;
       if (r.status === 'confirmed' || r.status === 'waitlisted') {
         activeRegEventIds.add(r.eventId);
       } else if (r.status === 'cancelled') {

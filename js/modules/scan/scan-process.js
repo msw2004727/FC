@@ -45,9 +45,10 @@ Object.assign(App, {
     const userName = userInfo.name;
 
     // 取得此用戶在此活動的 confirmed 報名（含同行者）
-    const userRegs = ApiService._src('registrations').filter(
-      r => r.userId === uid && r.eventId === this._scanSelectedEventId && r.status === 'confirmed'
-    );
+    const userRegs = ApiService.getRegistrations({
+      eventId: this._scanSelectedEventId,
+      userId: uid,
+    }).filter(r => r.status === 'confirmed');
     if (userRegs.length > 1 || (userRegs.length === 1 && userRegs[0].companionId)) {
       this._showFamilyCheckinMenu(uid, userName, userRegs, mode);
       return;

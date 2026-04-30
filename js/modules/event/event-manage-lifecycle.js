@@ -352,7 +352,9 @@ Object.assign(App, {
           const snap = await db.collection('events').doc(_eventDocId).collection('registrations').get();
           firestoreRegs = snap.docs.map(d => {
             const data = d.data();
-            return { ...data, _docId: d.id, registeredAt: data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt };
+            const mapped = FirebaseService._mapSubcollectionDoc(d, 'registrations');
+            mapped.registeredAt = data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt;
+            return mapped;
           });
         } catch (err) {
           console.warn('[removeParticipant] Firestore refresh failed, using cache:', err);

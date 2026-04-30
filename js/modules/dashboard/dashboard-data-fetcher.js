@@ -119,21 +119,21 @@ Object.assign(App, {
     const snap = await db.collectionGroup('registrations').get();
     return snap.docs
       .filter(d => d.ref.path.split('/').length > 2)
-      .map(d => ({ ...d.data(), _docId: d.id }));
+      .map(d => FirebaseService._mapSubcollectionDoc(d, 'registrations'));
   },
 
   async _fetchDashAttendance() {
     const snap = await db.collectionGroup('attendanceRecords').get();
     return snap.docs
       .filter(d => d.ref.path.split('/').length > 2)
-      .map(d => ({ ...d.data(), _docId: d.id }));
+      .map(d => FirebaseService._mapSubcollectionDoc(d, 'attendanceRecords'));
   },
 
   async _fetchDashActivity() {
     const snap = await db.collectionGroup('activityRecords').get();
     return snap.docs
       .filter(d => d.ref.path.split('/').length > 2)
-      .map(d => ({ ...d.data(), _docId: d.id }));
+      .map(d => FirebaseService._mapSubcollectionDoc(d, 'activityRecords'));
   },
 
   // ══════════════════════════════════

@@ -40,10 +40,11 @@ Object.assign(App, {
    */
   _userHasRegistrationForEvent(eventId, uid) {
     if (!eventId || !uid) return false;
-    const cache = (typeof FirebaseService !== 'undefined'
-      && FirebaseService._cache
-      && FirebaseService._cache.registrations) || [];
-    return cache.some(r => r && r.eventId === eventId && r.userId === uid);
+    const history = typeof ApiService !== 'undefined'
+      && typeof ApiService.getRegistrationHistoryByEventUser === 'function'
+      ? ApiService.getRegistrationHistoryByEventUser(eventId, uid)
+      : [];
+    return history.length > 0;
   },
 
   /**

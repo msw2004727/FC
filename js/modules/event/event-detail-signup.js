@@ -152,17 +152,12 @@ Object.assign(App, {
           .get();
       }
 
-      const allDocs = snapshot.docs.map(doc => {
-        const data = { ...doc.data(), _docId: doc.id };
-        if (data.userId && !data.uid) data.uid = data.userId;
-        if (data.uid && !data.userId) data.userId = data.uid;
-        return data;
-      });
+      const allDocs = snapshot.docs.map(doc => FirebaseService._mapSubcollectionDoc(doc, 'registrations'));
       const activeDocs = allDocs.filter(r => r.status !== 'cancelled' && r.status !== 'removed');
       const source = FirebaseService._cache.registrations || [];
-      FirebaseService._cache.registrations = source
+      FirebaseService._cache.registrations = FirebaseService._canonicalizeRecordList('registrations', source
         .filter(r => !(r.eventId === eventId && (r.userId === userId || r.uid === userId)))
-        .concat(allDocs);
+        .concat(allDocs));
       FirebaseService._saveToLS?.('registrations', FirebaseService._cache.registrations);
       return activeDocs;
     } catch (err) {
@@ -721,7 +716,7 @@ Object.assign(App, {
         // 樂觀補入 registration 到快取（防止 _refreshSignupButton 在 snapshot 到達前讀到空快取閃回「報名」）
         var _regCache = FirebaseService._cache.registrations || [];
         if (!_regCache.some(function(r) { return r.eventId === id && r.userId === userId && r.status !== 'cancelled' && r.status !== 'removed'; })) {
-          _regCache.push({
+          FirebaseService._upsertCanonicalCacheRecord('registrations', FirebaseService._withSubcollectionMetadata({
             eventId: id, userId: userId, userName: userName,
             status: inferredStatus, participantType: 'self',
             teamReservationTeamId: selfReg?.teamReservationTeamId || null,
@@ -729,7 +724,7 @@ Object.assign(App, {
             teamSeatSource: selfReg?.teamSeatSource || null,
             registeredAt: new Date().toISOString(),
             _docId: selfReg?._docId || selfReg?.id || ('reg_optimistic_' + Date.now()),
-          });
+          }, 'registrations', e?._docId || id), { requireSubcollection: false });
         }
         // CF 已完成 activityRecord / auditLog / EXP / 通知，前端不需要再做
       } else {
@@ -903,12 +898,9 @@ Object.assign(App, {
         const fetched = [];
         snap.forEach(doc => {
           const d = doc.data();
-          if (d.userId && !d.uid) d.uid = d.userId;
-          if (d.uid && !d.userId) d.userId = d.uid;
-          fetched.push({
-            ...d, _docId: doc.id, id: doc.id,
-            registeredAt: d.registeredAt?.toDate?.()?.toISOString?.() || d.registeredAt,
-          });
+          const mapped = FirebaseService._mapSubcollectionDoc(doc, 'registrations', { id: doc.id });
+          mapped.registeredAt = d.registeredAt?.toDate?.()?.toISOString?.() || d.registeredAt;
+          fetched.push(mapped);
         });
         const active = fetched.filter(r => r.status !== 'cancelled' && r.status !== 'removed');
         if (active.length > 0) {
@@ -916,7 +908,7 @@ Object.assign(App, {
           const cache = FirebaseService._cache?.registrations;
           if (Array.isArray(cache)) {
             active.forEach(r => {
-              if (!cache.some(c => c._docId === r._docId)) cache.push(r);
+              FirebaseService._upsertCanonicalCacheRecord('registrations', r);
             });
           }
           myRegs = active;

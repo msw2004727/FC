@@ -225,7 +225,9 @@ Object.assign(App, {
     const safeUid = String(uid || '').trim();
     if (!safeUid) return [];
 
-    const allRegistrations = ApiService._src('registrations');
+    const allRegistrations = typeof ApiService.getRegistrations === 'function'
+      ? ApiService.getRegistrations({ userId: safeUid, includeTerminal: true })
+      : [];
     // 全域快取已移除 limit，直接使用全域資料（不再合併 userStatsCache，避免切換用戶時汙染統計）
     const attendanceRecords = ApiService.getAttendanceRecords();
     const checkinKeys = new Set();
