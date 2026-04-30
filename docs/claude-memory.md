@@ -2,6 +2,12 @@
 
 此檔案隨 git 版本控制，記錄歷次 bug 修復與重要技術決策，供跨設備、跨會話參考。
 
+### 2026-04-30 — UID 健康檢查診斷包複製 [小型]
+- **需求**: UID 健康檢查報表內容不易手動複製，需要一鍵打包成可貼給工程師分析的文字。
+- **修正**: 在「用戶補正管理 > UID檢查」卡片新增「複製診斷包」，報表彈窗右上角也新增同功能；診斷包只包含狀態、摘要、掃描/讀取/警告/嚴重數、各區塊異常分類與少量樣本路徑，不匯出完整資料庫。複製邏輯拆到 `user-admin-uid-health-copy.js`，並加入 adminUsers 動態載入群組。
+- **驗證**: `node --check` 通過 `user-admin-uid-health.js`、`user-admin-uid-health-copy.js`、`script-loader.js`、`config.js`、`sw.js`；`npm test -- --runInBand --runTestsByPath tests/unit/script-deps.test.js tests/unit/user-admin.test.js` 通過；`git diff --check` 通過；前端版本 bump 至 `0.20260430za`。
+- **提醒**: 這是診斷輸出工具，不會新增 Firestore 讀取或寫入；只有使用者點複製時讀最後一次已存在的 `uidHealthLastReport`。
+
 ### 2026-04-30 — UID 健康檢查移入用戶補正管理 [小型]
 - **需求**: UID 健康檢查不再放在數據儀表板的「資料同步與監聽設定」內，改放到「用戶補正管理」的新分頁。
 - **修正**: 新增「UID檢查」分頁，沿用 `admin.repair.data_sync` 權限與後端密碼驗證；移除儀表板設定卡片內的 UID 檢查面板，保留資料同步 Log 合併顯示 UID 檢查紀錄。

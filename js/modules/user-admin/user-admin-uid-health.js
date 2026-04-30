@@ -45,6 +45,7 @@ Object.assign(App, {
       + '    <div class="uid-health-actions">'
       + '      <button id="uid-health-run-btn" class="outline-btn" type="button">立即檢查</button>'
       + '      <button id="uid-health-report-btn" class="btn-sm" type="button">查看報表</button>'
+      + '      <button id="uid-health-copy-btn" class="outline-btn" type="button">複製診斷包</button>'
       + '    </div>'
       + '    <div class="sync-config-progress uid-health-progress" id="uid-health-progress" hidden aria-hidden="true">'
       + '      <div class="sync-config-progress-head">'
@@ -64,6 +65,9 @@ Object.assign(App, {
     });
     document.getElementById('uid-health-report-btn')?.addEventListener('click', () => {
       this.openUidHealthReportModal();
+    });
+    document.getElementById('uid-health-copy-btn')?.addEventListener('click', () => {
+      this.copyUidHealthDiagnosticPackage();
     });
   },
 
@@ -137,6 +141,23 @@ Object.assign(App, {
     if (text) text.textContent = label || '檢查中...';
   },
 
+  async _loadUidHealthLastReport() {
+    let report = this._uidHealthLastReport || null;
+    if (report && typeof report === 'object') return report;
+    try {
+      const snap = await db.collection('siteConfig').doc('realtimeConfig').get();
+      const data = snap.exists ? (snap.data() || {}) : {};
+      report = data.uidHealthLastReport && typeof data.uidHealthLastReport === 'object'
+        ? data.uidHealthLastReport
+        : null;
+      this._uidHealthLastReport = report;
+      return report;
+    } catch (err) {
+      console.error('[loadUidHealthLastReport]', err);
+      return null;
+    }
+  },
+
   async runUidHealthCheckNow() {
     if (!this.hasPermission?.('admin.repair.data_sync')) {
       this.showToast?.('權限不足');
@@ -145,6 +166,7 @@ Object.assign(App, {
 
     const btn = document.getElementById('uid-health-run-btn');
     const reportBtn = document.getElementById('uid-health-report-btn');
+    const copyBtn = document.getElementById('uid-health-copy-btn');
     const statusEl = document.getElementById('uid-health-status-text') || document.getElementById('rl-status');
     const ok = typeof this.appConfirm === 'function'
       ? await this.appConfirm('確定要執行 UID 健康檢查嗎？\n\n這會讀取使用者、報名、簽到、活動投影等資料，只產生報表與 Log，不會修復或刪除正式資料。')
@@ -162,6 +184,7 @@ Object.assign(App, {
       btn.textContent = '檢查中...';
     }
     if (reportBtn) reportBtn.disabled = true;
+    if (copyBtn) copyBtn.disabled = true;
     if (statusEl) {
       statusEl.style.color = 'var(--text-secondary)';
       statusEl.textContent = '正在執行 UID 健康檢查...';
@@ -197,21 +220,12 @@ Object.assign(App, {
         btn.textContent = '立即檢查';
       }
       if (reportBtn) reportBtn.disabled = false;
+      if (copyBtn) copyBtn.disabled = false;
     }
   },
 
   async openUidHealthReportModal() {
-    let report = this._uidHealthLastReport || null;
-    if (!report) {
-      try {
-        const snap = await db.collection('siteConfig').doc('realtimeConfig').get();
-        const data = snap.exists ? (snap.data() || {}) : {};
-        report = data.uidHealthLastReport || null;
-        this._uidHealthLastReport = report;
-      } catch (err) {
-        console.error('[openUidHealthReportModal]', err);
-      }
-    }
+    const report = await this._loadUidHealthLastReport();
     if (!report) {
       this.showToast?.('尚無 UID 健康檢查報表');
       return;
@@ -224,7 +238,7 @@ Object.assign(App, {
       overlay.className = 'sync-config-log-overlay';
       overlay.onclick = function(e) { if (e.target === overlay) App.closeUidHealthReportModal(); };
       overlay.innerHTML = '<div class="sync-config-log-box uid-health-report-box">'
-        + '<div class="sync-config-log-header"><span>UID 健康檢查報表</span><button class="event-reg-log-close" onclick="App.closeUidHealthReportModal()">&times;</button></div>'
+        + '<div class="sync-config-log-header"><span>UID 健康檢查報表</span><div class="uid-health-report-tools"><button class="outline-btn uid-health-report-copy-btn" type="button" onclick="App.copyUidHealthDiagnosticPackage()">複製診斷包</button><button class="event-reg-log-close" onclick="App.closeUidHealthReportModal()">&times;</button></div></div>'
         + '<div class="sync-config-log-body" id="uid-health-report-body"></div>'
         + '</div>';
       document.body.appendChild(overlay);
@@ -424,6 +438,7 @@ Object.assign(App, {
       + '<div class="sync-config-help-list">'
       + '<div><b>立即檢查</b><span>會請後端掃描 users、報名、簽到、活動紀錄、活動投影、俱樂部與賽事等資料，只產生報表。</span></div>'
       + '<div><b>查看報表</b><span>打開最後一次檢查結果，能看到各區塊正常、警告或異常，以及少量範例路徑。</span></div>'
+      + '<div><b>複製診斷包</b><span>把最後一次檢查的摘要、分類、筆數與樣本路徑一次複製，方便貼給工程師分析，不會包含完整資料庫。</span></div>'
       + '<div><b>資料修改</b><span>健康檢查預期永遠是 0，代表它不會修資料、不會刪資料，只會寫入最後報表與 Log。</span></div>'
       + '<div><b>Log</b><span>記錄最近的 UID 檢查與報名紀錄修復結果，方便追查哪次檢查發現問題。</span></div>'
       + '<div><b>上鎖保護</b><span>執行檢查前要輸入密碼，密碼由後端驗證，避免誤觸造成大量讀取。</span></div>'

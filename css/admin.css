@@ -1158,7 +1158,7 @@
 }
 .uid-health-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: .5rem;
   margin-top: .65rem;
 }
@@ -1422,6 +1422,17 @@
 }
 .uid-health-report-box {
   max-width: 680px;
+}
+.uid-health-report-tools {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+}
+.uid-health-report-copy-btn {
+  padding: .32rem .65rem;
+  font-size: .72rem;
+  font-weight: 800;
+  white-space: nowrap;
 }
 .uid-health-report-head {
   display: flex;
