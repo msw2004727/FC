@@ -1,0 +1,71 @@
+# ToosterX Source-Available License and Copyright Notice
+
+Copyright (c) 2024-2026 ToosterX. All rights reserved.
+
+This repository is source-available for review and reference only. No open source license is granted.
+
+## Permission Granted
+
+You may view this repository through GitHub and read the source code for personal review, security review, educational reference, or evaluation of ToosterX.
+
+## No Permission Granted For Use
+
+Unless you have prior written permission from the copyright owner, you may not:
+
+- copy this software or substantial portions of it into another project;
+- modify, adapt, translate, or create derivative works from this software;
+- distribute, sublicense, publish, mirror, sell, rent, lease, or otherwise transfer this software;
+- deploy, host, run, or provide this software as a service;
+- use this software for commercial purposes;
+- use this software to build or operate a competing product or white-label service;
+- remove or alter copyright, trademark, attribution, or proprietary notices.
+
+## Repository Forks And GitHub Features
+
+GitHub may provide technical features such as viewing, cloning, and forking repositories. Those platform features do not grant any copyright license beyond the permissions required to use GitHub as a hosting platform.
+
+## Contributions
+
+This project does not currently accept external code contributions unless separately agreed in writing. Submitting an issue or message does not create a license to use ToosterX source code.
+
+## Third-Party Components
+
+This notice applies to ToosterX-owned source code and documentation in this repository. Third-party libraries, SDKs, APIs, assets, or services used by the project remain governed by their own licenses and terms.
+
+## Written Permission
+
+Any permission to use, copy, modify, distribute, deploy, commercialize, or create derivative works from this project must be granted in writing by the copyright owner.
+
+# ToosterX 原始碼公開檢視授權與版權聲明
+
+Copyright (c) 2024-2026 ToosterX. All rights reserved.
+
+本 repo 採 Source-available, All Rights Reserved。原始碼公開僅供檢視、參考、資安審查或合作評估，不代表授與開源授權。
+
+## 允許事項
+
+你可以透過 GitHub 查看本 repo，並閱讀原始碼作為個人學習、架構參考、資安審查或合作評估。
+
+## 未授權事項
+
+除非事前取得著作權人書面授權，否則不得：
+
+- 將本專案全部或部分程式碼複製到其他專案；
+- 修改、改作、翻譯或製作衍生作品；
+- 散布、再授權、公開發布、鏡像、販售、出租、轉讓或提供下載；
+- 重新部署、自架、代管、營運或作為 SaaS / 白牌服務提供；
+- 用於商業用途；
+- 用於建立或營運競品；
+- 移除或修改版權、商標、署名或專有權利聲明。
+
+## GitHub 功能說明
+
+GitHub 可能提供檢視、clone、fork 等技術功能。這些平台功能不代表著作權人授與上述使用權利。
+
+## 第三方元件
+
+本聲明適用於本 repo 中 ToosterX 自有程式碼與文件。第三方 library、SDK、API、素材或服務仍依其各自授權與條款辦理。
+
+## 書面授權
+
+任何使用、複製、修改、散布、部署、商業化或製作衍生作品之權利，都必須由著作權人事前以書面明確授權。

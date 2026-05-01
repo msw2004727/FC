@@ -328,8 +328,12 @@ firebase deploy --only functions --project fc-football-6c8dc
 
 ## License
 
-本專案採 Source-available, All Rights Reserved。
+本專案採 Source-available, All Rights Reserved。詳細條款請見 [`LICENSE`](LICENSE)。
 
-GitHub 上可見、可閱讀或可使用 GitHub 平台內建 fork / view 機制，不代表授權重製、散布、商用、改作、重新部署、自架、白牌化、建立競品或取用程式碼片段到其他產品。任何外部使用都需要專案所有人的明確書面授權。
+簡要說明：
+
+- 原始碼公開僅供檢視、參考、資安審查或合作評估。
+- GitHub 上可見、可閱讀、可使用 GitHub 平台內建 fork / view 機制，不代表授權重製、散布、商用、改作、重新部署、自架、白牌化、建立競品或取用程式碼片段到其他產品。
+- 任何外部使用都需要專案所有人的明確書面授權。
 
 Copyright 2024-2026 ToosterX. All rights reserved.
