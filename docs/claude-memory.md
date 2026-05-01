@@ -1,5 +1,11 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-02 活動報名名單 proxy-only 陪同者多算修正 [靽桀儔]
+- **問題**: `2026/05/02 18:00~20:00 週六女生專場8v8踢球團` 上方人數顯示 `23/27`，但下方報名名單顯示 `24/27`。
+- **原因**: 報名名單彙整器依 `userId` 分組時，若用戶只幫陪同者報名、本人沒有 `self` 報名，仍會建立一筆代理本人列，導致下方名單多算 1 人。此問題不是 `user` 以上層級被漏算，live data 中 `venue_owner` 角色已正常計入。
+- **修正**: `_buildConfirmedParticipantSummary()` 與 `_confirmAllAttendance()` 的名單重建邏輯改為只有存在 `self` registration 時才加入本人列；proxy-only 代報者不再佔名單席位，陪同者仍正常顯示與可簽到。
+- **驗收**: 新增 `event-confirmed-summary.test.js` 覆蓋 proxy-only companion case；更新 `attendance-confirm.test.js`；以 live Firestore 該活動唯讀重跑修正後函式確認 `summaryCount=23`、`peopleLength=23`、代理人不再列入；`npm test -- --runInBand` 通過 89 suites / 2699 tests。
+
 ### 2026-05-01 — 團隊席位會員身份晚同步修復 [修復]
 - **問題**: 2026/05/03 20:00「週日晚8-10西屯踢球團（強度）」中，部分用戶先完成個人報名，之後才同步為「台中星期二足球俱樂部」成員，因此沒有被歸入既有團隊保留席位。
 - **原因**: 團隊席位判定只在個人報名與職員調整席位當下執行；若 `users.teamId/teamIds` 晚於報名或晚於團隊席位建立才更新，既有 registration 不會被自動回頭標記 `teamReservationTeamId`。

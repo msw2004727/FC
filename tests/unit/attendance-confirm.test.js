@@ -43,11 +43,13 @@ function buildPeopleList(confirmedRegs, eventParticipants, adminUsers) {
     groups.forEach(regs => {
       const selfReg = regs.find(r => r.participantType === 'self');
       const companions = regs.filter(r => r.participantType === 'companion');
-      const mainName = selfReg ? selfReg.userName : regs[0].userName;
       const mainUid = regs[0].userId;
 
-      people.push({ name: mainName, uid: mainUid, isCompanion: false });
-      addedNames.add(mainName);
+      if (selfReg) {
+        const mainName = selfReg.userName;
+        people.push({ name: mainName, uid: mainUid, isCompanion: false });
+        addedNames.add(mainName);
+      }
 
       companions.forEach(c => {
         const cName = c.companionName || c.userName;
@@ -276,16 +278,14 @@ describe('_confirmAllAttendance Participant Resolution', () => {
       expect(people[2]).toEqual({ name: 'Carol', uid: 'c2', isCompanion: true });
     });
 
-    test('group without self reg uses first reg userName as mainName', () => {
-      // Edge case: all regs for a user are companions (no self)
+    test('group without self reg only includes companion seats', () => {
+      // Edge case: all regs for a user are companions (owner did not sign up)
       const regs = [
         { userId: 'u1', userName: 'AliceMain', participantType: 'companion', companionId: 'c1', companionName: 'Bob', status: 'confirmed' },
       ];
       const people = buildPeopleList(regs, [], []);
-      // selfReg is undefined → mainName falls back to regs[0].userName
-      expect(people).toHaveLength(2);
-      expect(people[0].name).toBe('AliceMain'); // main from regs[0].userName
-      expect(people[1].name).toBe('Bob');        // companion
+      expect(people).toHaveLength(1);
+      expect(people[0]).toEqual({ name: 'Bob', uid: 'c1', isCompanion: true });
     });
 
     test('multiple users with companions are all resolved', () => {

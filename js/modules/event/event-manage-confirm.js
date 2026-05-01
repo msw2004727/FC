@@ -113,10 +113,12 @@ Object.assign(App, {
       groups.forEach(regs => {
         const selfReg = regs.find(r => r.participantType === 'self');
         const companions = regs.filter(r => r.participantType === 'companion');
-        const mainName = selfReg ? selfReg.userName : regs[0].userName;
         const mainUid = regs[0].userId;
-        people.push({ name: mainName, uid: mainUid, isCompanion: false });
-        addedNames.add(mainName);
+        if (selfReg) {
+          const mainName = selfReg.userName;
+          people.push({ name: mainName, uid: mainUid, isCompanion: false });
+          addedNames.add(mainName);
+        }
         companions.forEach(c => {
           const cName = c.companionName || c.userName;
           const cUid = c.companionId || (mainUid + '_' + c.companionName);
