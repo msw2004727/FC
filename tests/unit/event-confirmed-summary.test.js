@@ -30,7 +30,7 @@ function loadEventNoshowModule({ event, registrations }) {
 }
 
 describe('_buildConfirmedParticipantSummary', () => {
-  test('does not count proxy-only companion owner as a participant', () => {
+  test('shows proxy-only companion owner without counting them as a participant', () => {
     const event = {
       id: 'evt1',
       current: 2,
@@ -69,8 +69,15 @@ describe('_buildConfirmedParticipantSummary', () => {
 
     expect(summary.realCount).toBe(2);
     expect(summary.count).toBe(2);
-    expect(summary.people.map(p => p.name)).toEqual(['Guest A', 'Guest B']);
-    expect(summary.people.some(p => p.name === 'Owner Only')).toBe(false);
+    expect(summary.people.map(p => p.name)).toEqual(['Owner Only', 'Guest A', 'Guest B']);
+    const proxyOnlyRow = summary.people.find(p => p.name === 'Owner Only');
+    expect(proxyOnlyRow).toMatchObject({
+      uid: 'owner_uid',
+      hasSelfReg: false,
+      proxyOnly: true,
+      isProxyOnly: true,
+    });
+    expect(summary.people.filter(p => !p.proxyOnly && !p.isProxyOnly).map(p => p.name)).toEqual(['Guest A', 'Guest B']);
   });
 
   test('keeps self registration plus companions when owner also signs up', () => {

@@ -53,6 +53,19 @@ Object.assign(App, {
           });
           addedUids.add(mainUid);
           addedNames.add(mainName);
+        } else {
+          const proxyName = regs[0].userName;
+          if (mainUid && proxyName) {
+            people.push({
+              name: proxyName, uid: mainUid, isCompanion: false, displayName: proxyName,
+              hasSelfReg: false, proxyOnly: true, isProxyOnly: true,
+              displayBadges: regs[0].displayBadges || [],
+              teamKey: null, regDocId: null,
+              teamReservationTeamId: null,
+              teamReservationTeamName: null,
+              teamSeatSource: null,
+            });
+          }
         }
         companions.forEach(c => {
           const cName = c.companionName || c.userName;
@@ -156,8 +169,9 @@ Object.assign(App, {
       });
     const normalRows = people.filter(p => !p.teamReservationTeamId || !groupedTeamIds.has(String(p.teamReservationTeamId)));
     const orderedPeople = teamRows.concat(normalRows);
-    const count = Math.max(orderedPeople.filter(p => !p.isTeamHeader).length, Number(e.current || 0) || 0);
-    const realCount = people.length;
+    const countablePeople = orderedPeople.filter(p => !p.isTeamHeader && !p.proxyOnly && !p.isProxyOnly);
+    const count = Math.max(countablePeople.length, Number(e.current || 0) || 0);
+    const realCount = people.filter(p => !p.proxyOnly && !p.isProxyOnly).length;
 
     return { people: orderedPeople, count, realCount, teamSummaries };
   },

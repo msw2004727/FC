@@ -371,18 +371,19 @@ Object.assign(App, {
         </td></tr>`;
       }
       const isPlaceholder = !!p.isTeamPlaceholder;
+      const isProxyOnly = !!p.proxyOnly || !!p.isProxyOnly;
       const pendingState = pendingStateByUid ? pendingStateByUid[String(p.uid)] : null;
-      const hasCheckin = isPlaceholder ? false : (pendingState
+      const hasCheckin = (isPlaceholder || isProxyOnly) ? false : (pendingState
         ? !!pendingState.checkin
         : records.some(r => this._matchAttendanceRecord(r, p) && r.type === 'checkin'));
-      const hasCheckout = isPlaceholder ? false : (pendingState
+      const hasCheckout = (isPlaceholder || isProxyOnly) ? false : (pendingState
         ? !!pendingState.checkout
         : records.some(r => this._matchAttendanceRecord(r, p) && r.type === 'checkout'));
-      const noteRec = isPlaceholder ? null : this._getLatestAttendanceRecord(records, p, 'note');
+      const noteRec = (isPlaceholder || isProxyOnly) ? null : this._getLatestAttendanceRecord(records, p, 'note');
       const noteText = pendingState ? (pendingState.note || '') : (noteRec?.note || '');
-      const noShowCount = showNoShowColumn ? this._getParticipantNoShowCount(p, noShowCountByUid) : null;
+      const noShowCount = (showNoShowColumn && !isProxyOnly) ? this._getParticipantNoShowCount(p, noShowCountByUid) : null;
       const noShowCell = showNoShowColumn
-        ? `<td style="padding:.35rem .2rem;text-align:center;width:3rem"><span title="放鴿子次數（已結束、正式報名且未完成簽到）" style="font-size:.78rem;font-weight:${noShowCount > 0 ? '700' : '600'};color:${noShowCount > 0 ? 'var(--danger)' : 'var(--text-muted)'}">${noShowCount == null ? '—' : (noShowCount > 0 ? noShowCount : '')}</span></td>`
+        ? `<td style="padding:.35rem .2rem;text-align:center;width:3rem"><span title="放鴿子次數（已結束、正式報名且未完成簽到）" style="font-size:.78rem;font-weight:${noShowCount > 0 ? '700' : '600'};color:${noShowCount > 0 ? 'var(--danger)' : 'var(--text-muted)'}">${(noShowCount == null || isProxyOnly) ? '—' : (noShowCount > 0 ? noShowCount : '')}</span></td>`
         : '';
       const autoNote = p.proxyOnly ? '僅代報' : '';
       const combinedNote = [autoNote, noteText].filter(Boolean).join('・');
@@ -408,7 +409,9 @@ Object.assign(App, {
         : { uid: p.uid };
 
       let nameInner;
-      if (p.isCompanion) {
+      if (isProxyOnly) {
+        nameInner = `<span class="reg-name-text" style="color:var(--text-muted);font-weight:600">${escapeHTML(p.displayName)}</span>`;
+      } else if (p.isCompanion) {
         nameInner = `<span class="reg-name-text" style="padding-left:1.2rem;color:var(--text-secondary)">↳ ${escapeHTML(p.displayName)}</span>`;
       } else if (p.isTeamPlaceholder) {
         nameInner = `<span class="reg-name-text" style="color:#1d4ed8;font-weight:600">${teamSeatMarker}${escapeHTML(p.displayName)}</span>`;
@@ -425,6 +428,17 @@ Object.assign(App, {
       const safeName = escapeHTML(p.name);
 
       if (tableEditing) {
+        if (isProxyOnly) {
+          const emptyDemoteTd = hasDemote ? `<td style="padding:.35rem .2rem"></td>` : '';
+          return `<tr data-uid="${safeUid}" style="border-bottom:1px solid var(--border);background:linear-gradient(90deg, rgba(148,163,184,.16), rgba(148,163,184,.04) 55%, transparent)">
+          <td style="padding:.35rem .2rem"></td>${emptyDemoteTd}
+          <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
+          ${showNoShowColumn ? '<td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>' : ''}
+          <td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>
+          <td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>
+          <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">僅代報</td>
+        </tr>`;
+        }
         if (p.isTeamPlaceholder) {
           const emptyDemoteTd = hasDemote ? `<td style="padding:.35rem .2rem"></td>` : '';
           return `<tr data-uid="${safeUid}" style="border-bottom:1px solid var(--border);background:#f8fbff">
@@ -456,6 +470,15 @@ Object.assign(App, {
         <td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>
         <td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>
         <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">保留席位</td>
+      </tr>`;
+      }
+      if (isProxyOnly) {
+        return `<tr style="border-bottom:1px solid var(--border);background:linear-gradient(90deg, rgba(148,163,184,.16), rgba(148,163,184,.04) 55%, transparent)">
+        <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
+        ${showNoShowColumn ? '<td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>' : ''}
+        <td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>
+        <td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>
+        <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">僅代報</td>
       </tr>`;
       }
       return `<tr style="border-bottom:1px solid var(--border)">

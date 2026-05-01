@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-02 僅代報顯示列補回且不佔名額 [修復]
+- **問題**: 前一版為了修正陪同報名 proxy-only 代報者被多算名額，直接把代報者顯示列排除，導致「弘鈞」這類只代報、不參加的人在名單中看不到「僅代報」備註。
+- **修復**: `_buildConfirmedParticipantSummary()` 重新產生 `proxyOnly/isProxyOnly` 顯示列，但 `count/realCount`、簽到簽退、放鴿子與名額統計全部排除；`event-manage-attendance.js` 將該列改為淡灰漸層特殊樣式，備註固定顯示「僅代報」，不提供簽到簽退操作。
+- **驗證**: 線上只讀驗證 `2026/05/02 18:00~20:00 週六女生專場8v8踢球團`：`summaryCount=23`、`realCount=23`、`peopleLength=24`，proxy-only row 為 `弘鈞 / U34e589d8ed47c8a0358c21e959a5b053`；`npm test -- --runInBand` 通過 89 suites / 2699 tests。
+
 ### 2026-05-02 活動報名名單 proxy-only 陪同者多算修正 [靽桀儔]
 - **問題**: `2026/05/02 18:00~20:00 週六女生專場8v8踢球團` 上方人數顯示 `23/27`，但下方報名名單顯示 `24/27`。
 - **原因**: 報名名單彙整器依 `userId` 分組時，若用戶只幫陪同者報名、本人沒有 `self` 報名，仍會建立一筆代理本人列，導致下方名單多算 1 人。此問題不是 `user` 以上層級被漏算，live data 中 `venue_owner` 角色已正常計入。
