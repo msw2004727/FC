@@ -304,7 +304,11 @@ const ApiService = {
   async _updateAwaitWrite(key, id, updates, firebaseMethod, label) {
     if (this._handleRestrictedAction()) return null;
     const item = this._findById(key, id);
-    if (!item) return null;
+    if (!item) {
+      const err = new Error(`${label} target not found: ${key}/${id}`);
+      if (typeof App !== 'undefined') App._setSyncState?.('error', { text: '同步失敗' });
+      throw err;
+    }
 
     const snapshot = JSON.parse(JSON.stringify(item));
     Object.assign(item, updates);
@@ -312,7 +316,10 @@ const ApiService = {
       if (typeof App !== 'undefined') App._setSyncState?.('syncing');
       try {
         await FirebaseService.ensureAuthReadyForWrite();
-        await firebaseMethod.call(FirebaseService, id, updates);
+        const result = await firebaseMethod.call(FirebaseService, id, updates);
+        if (result === null || result === false) {
+          throw new Error(`${label} write did not update target: ${key}/${id}`);
+        }
         if (typeof App !== 'undefined') App._setSyncState?.('done');
       } catch (err) {
         Object.keys(item).forEach(keyName => delete item[keyName]);

@@ -395,14 +395,23 @@ Object.assign(FirebaseService, {
   },
 
   async updateEvent(id, updates) {
-    const doc = this._cache.events.find(e => e.id === id);
-    if (!doc || !doc._docId) return null;
+    const safeId = String(id || '').trim();
+    if (!safeId) throw new Error('EVENT_ID_REQUIRED');
     if (typeof db === 'undefined' || !db) {
       console.error('[updateEvent] db 尚未初始化');
       throw new Error('Firebase 尚未準備就緒，請稍後再試');
     }
+    const doc = this._cache.events.find(e => e.id === safeId);
+    let eventDocId = doc?._docId || null;
+    if (!eventDocId && typeof this._getEventDocIdAsync === 'function') {
+      eventDocId = await this._getEventDocIdAsync(safeId);
+    }
+    if (!eventDocId) {
+      throw new Error('EVENT_DOC_NOT_FOUND: id=' + safeId);
+    }
+    if (doc && !doc._docId) doc._docId = eventDocId;
     if (updates.image && typeof updates.image === 'string' && updates.image.startsWith('data:')) {
-      const uploadedUrl = await this._uploadImage(updates.image, `events/${id}`);
+      const uploadedUrl = await this._uploadImage(updates.image, `events/${safeId}`);
       if (uploadedUrl) updates.image = uploadedUrl;
       else delete updates.image;
     }
@@ -411,27 +420,33 @@ Object.assign(FirebaseService, {
       updates.delegateUids = updates.delegates.map(d => String(d.uid || '').trim()).filter(Boolean);
     }
     updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
-    await db.collection('events').doc(doc._docId).update(updates);
-    return doc;
+    await db.collection('events').doc(eventDocId).update(updates);
+    return doc || { id: safeId, _docId: eventDocId, ...updates };
   },
 
   async deleteEvent(id) {
-    const doc = this._cache.events.find(e => e.id === id);
-    if (!doc || !doc._docId) return false;
-    await db.collection('events').doc(doc._docId).delete();
+    const safeId = String(id || '').trim();
+    const doc = this._cache.events.find(e => e.id === safeId);
+    let eventDocId = doc?._docId || null;
+    if (!eventDocId && typeof this._getEventDocIdAsync === 'function') {
+      eventDocId = await this._getEventDocIdAsync(safeId);
+    }
+    if (!eventDocId) return false;
+    if (doc && !doc._docId) doc._docId = eventDocId;
+    await db.collection('events').doc(eventDocId).delete();
 
     // 級聯清理：刪除該活動的報名、簽到紀錄
     const cleanupCollections = ['registrations', 'activityRecords', 'attendanceRecords', 'registrationLocks'];
     for (const colName of cleanupCollections) {
       try {
-        const snap = await db.collection(colName).where('eventId', '==', id).get();
+        const snap = await db.collection(colName).where('eventId', '==', safeId).get();
         if (snap.empty) continue;
         const batch = db.batch();
         snap.docs.forEach(d => batch.delete(d.ref));
         await batch.commit();
         // 同步本地快取
         if (Array.isArray(this._cache[colName])) {
-          this._cache[colName] = this._cache[colName].filter(r => r.eventId !== id);
+          this._cache[colName] = this._cache[colName].filter(r => r.eventId !== safeId);
         }
       } catch (err) {
         console.warn(`[deleteEvent] cleanup ${colName} failed:`, err);

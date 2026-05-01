@@ -97,6 +97,7 @@ Object.assign(App, {
   async closeMyActivity(id) {
     if (!this.hasPermission('event.publish') && !this.hasPermission('activity.manage.entry')) { this.showToast('權限不足'); return; }
     const e = ApiService.getEvent(id);
+    if (!e) return;
     if (e && !this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
 
     const startDate = this._parseEventStartDate?.(e.date);
@@ -129,8 +130,10 @@ Object.assign(App, {
       if (!await this.appConfirm('確定要結束此活動？')) return;
     }
 
-    ApiService.updateEvent(id, { status: 'ended' });
-    ApiService._writeOpLog('event_end', '結束活動', `結束「${e.title}」`);
+    try {
+      await ApiService.updateEventAwait(id, { status: 'ended' });
+    } catch (err) { if (!err?._toasted) this.showToast('結束活動失敗，請重試'); return; }
+    ApiService._writeOpLog('event_end', '結束活動', `結束「${e.title}」`, id);
     this.renderMyActivities();
     this.renderActivityList();
     this.renderHotEvents();
@@ -165,7 +168,7 @@ Object.assign(App, {
       });
       // 活動被取消 → 刪除所有個人取消紀錄
       await this._cleanupCancelledRecords(id);
-      ApiService._writeOpLog('event_cancel', '取消活動', `取消「${e.title}」`);
+      ApiService._writeOpLog('event_cancel', '取消活動', `取消「${e.title}」`, id);
       this.renderMyActivities();
       this.renderActivityList();
       this.renderHotEvents();
@@ -195,7 +198,7 @@ Object.assign(App, {
     try {
       await ApiService.updateEventAwait(id, { status: newStatus });
     } catch (err) { if (!err?._toasted) this.showToast('重新開放失敗，請重試'); return; }
-    ApiService._writeOpLog('event_reopen', '重開活動', `重開「${e.title}」`);
+    ApiService._writeOpLog('event_reopen', '重開活動', `重開「${e.title}」`, id);
     this.renderMyActivities();
     this.renderActivityList();
     this.renderHotEvents();
@@ -222,7 +225,7 @@ Object.assign(App, {
     try {
       await ApiService.updateEventAwait(id, { status: newStatus });
     } catch (err) { if (!err?._toasted) this.showToast('重新上架失敗，請重試'); return; }
-    ApiService._writeOpLog('event_relist', '重新上架', `重新上架「${e.title}」`);
+    ApiService._writeOpLog('event_relist', '重新上架', `重新上架「${e.title}」`, id);
 
     // 通知已報名的用戶
     const notifyUids = this._collectEventNotifyRecipientUids(e, id);
@@ -239,7 +242,7 @@ Object.assign(App, {
   },
 
   /** 清理某活動的所有個人取消紀錄（活動被刪除或取消時呼叫） */
-  async _cleanupCancelledRecords(eventId) {
+  async _cleanupCancelledRecords(eventId, eventDocIdOverride) {
     if (!await this._ensureActivityRecordsReady()) return;
     const source = ApiService._src('activityRecords');
     const toRemove = [];
@@ -250,8 +253,8 @@ Object.assign(App, {
     }
     if (toRemove.length === 0) return;
     // 解析 eventDocId（子集合寫入必要）
-    var _eventDocId = null;
-    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._getEventDocIdAsync === 'function') {
+    var _eventDocId = eventDocIdOverride || null;
+    if (!_eventDocId && typeof FirebaseService !== 'undefined' && typeof FirebaseService._getEventDocIdAsync === 'function') {
       _eventDocId = await FirebaseService._getEventDocIdAsync(eventId);
     }
     if (!_eventDocId) throw new Error('無法取得活動文件 ID: ' + eventId);
@@ -497,7 +500,7 @@ Object.assign(App, {
       }
     }
 
-    ApiService._writeOpLog('participant_removed', '移除參加者', `從「${event.title}」移除 ${name}`);
+    ApiService._writeOpLog('participant_removed', '移除參加者', `從「${event.title}」移除 ${name}`, eventId);
 
     this._manualEditingUid = null;
     this._manualEditingEventId = null;
@@ -509,9 +512,11 @@ Object.assign(App, {
   async deleteMyActivity(id) {
     if (!this.hasPermission('event.delete') && !this.hasPermission('event.delete_self') && !this.hasPermission('activity.manage.entry')) { this.showToast('權限不足'); return; }
     const e = ApiService.getEvent(id);
+    if (!e) return;
     if (e && !this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
     if (!(await this.appConfirm('確定要刪除此活動？刪除後無法恢復。'))) return;
     const title = e.title;
+    const eventDocId = e._docId || await FirebaseService._getEventDocIdAsync?.(id);
     let deleted = false;
     try {
       deleted = await ApiService.deleteEvent(id);
@@ -525,8 +530,8 @@ Object.assign(App, {
       return;
     }
     // 活動被刪除 → 刪除所有個人取消紀錄
-    await this._cleanupCancelledRecords(id);
-    ApiService._writeOpLog('event_delete', '刪除活動', `刪除「${title}」`);
+    await this._cleanupCancelledRecords(id, eventDocId);
+    ApiService._writeOpLog('event_delete', '刪除活動', `刪除「${title}」`, id);
     this.renderMyActivities();
     this.renderActivityList();
     this.renderHotEvents();

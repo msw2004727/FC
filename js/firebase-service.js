@@ -1593,7 +1593,11 @@ const FirebaseService = {
     if (cached) return cached;
     if (typeof db === 'undefined') return null;
     var snap = await db.collection('events').where('id', '==', eventId).limit(1).get();
-    return snap.empty ? null : snap.docs[0].id;
+    if (snap.empty) return null;
+    var docId = snap.docs[0].id;
+    var ev = this._cache.events.find(function(e) { return e.id === eventId; });
+    if (ev && !ev._docId) ev._docId = docId;
+    return docId;
   },
 
   async ensureSingleDocLoaded(collection, docId) {

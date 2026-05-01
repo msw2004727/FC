@@ -2078,3 +2078,9 @@
 - **Issue**: Club feed publishing gave no immediate button feedback, so users could think the tap did not work.
 - **Fix**: Passed the clicked publish button into `submitTeamPost`, disabled it during the async write, and changed the label to `發布中`.
 - **Validation**: Added unit coverage for pending and failed publish button states.
+
+### 2026-05-01 活動取消假成功防護 [bugfix]
+- **問題**：活動「週五晚7-9朝馬踢球團」第一次取消時寫入了 `event_cancel` 操作日誌，但活動文件沒有更新為 `cancelled`，造成管理者需要再取消一次。
+- **原因**：`FirebaseService.updateEvent()` 遇到快取事件缺 `_docId` 時靜默回傳 `null`，而 `ApiService._updateAwaitWrite()` 沒有把 `null` 視為失敗，流程誤判為成功後繼續寫操作日誌。
+- **修復**：`updateEvent()` 改為缺 `_docId` 時用 `_getEventDocIdAsync()` 查正式活動文件，查不到就丟錯；`_updateAwaitWrite()` 將 `null/false` 回傳視為寫入失敗並 rollback；活動結束改為 awaited 寫入；活動取消/結束/重開/重新上架/刪除/移除參加者日誌都帶 `eventId`。
+- **教訓**：關鍵狀態變更不可接受「空回傳等於成功」；操作日誌必須在資料寫入確定成功後才產生，並帶可精確追蹤的活動 ID。
