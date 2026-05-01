@@ -179,6 +179,7 @@ Object.assign(App, {
     }
     ApiService.updateTeam(id, { pinned: t.pinned, pinOrder: t.pinOrder });
     this.renderAdminTeams();
+    this.renderTeamManage();
     this.renderTeamList();
     this.showToast(t.pinned ? `已置頂「${t.name}」` : `已取消置頂「${t.name}」`);
   },

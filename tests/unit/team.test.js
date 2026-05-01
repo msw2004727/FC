@@ -1,3 +1,6 @@
+const fs = require('fs');
+const path = require('path');
+
 /**
  * Team module unit tests — extracted pure functions.
  *
@@ -266,6 +269,25 @@ describe('_sortTeams (team-list-stats.js:42-49)', () => {
     const sorted = _sortTeams(teams);
     expect(sorted).not.toBe(teams);
     expect(teams[0].id).toBe('a');
+  });
+});
+
+describe('team pin management wiring', () => {
+  const teamListSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-list.js'), 'utf8');
+  const teamListRenderSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-list-render.js'), 'utf8');
+
+  test('toggleTeamPin refreshes the club manage page immediately', () => {
+    expect(teamListSource).toMatch(/toggleTeamPin\(id\)[\s\S]*this\.renderTeamManage\(\);/);
+  });
+
+  test('club manage page sorts pinned active and inactive teams before rendering', () => {
+    expect(teamListRenderSource).toContain('const activeTeams = this._sortTeams(teams.filter(t => t.active));');
+    expect(teamListRenderSource).toContain('const inactiveTeams = this._sortTeams(teams.filter(t => !t.active));');
+  });
+
+  test('admin team list also keeps pinned teams first', () => {
+    expect(teamListRenderSource).toContain('const activeT = this._sortTeams(teams.filter(t => t.active));');
+    expect(teamListRenderSource).toContain('const inactiveT = this._sortTeams(teams.filter(t => !t.active));');
   });
 });
 

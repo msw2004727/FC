@@ -139,8 +139,8 @@ Object.assign(App, {
       return;
     }
 
-    const activeTeams = teams.filter(t => t.active);
-    const inactiveTeams = teams.filter(t => !t.active);
+    const activeTeams = this._sortTeams(teams.filter(t => t.active));
+    const inactiveTeams = this._sortTeams(teams.filter(t => !t.active));
     const renderCard = (t) => {
       const canEdit = isAdmin || this._isTeamOwner(t);
       const dim = !t.active ? ' team-inactive' : '';
@@ -201,8 +201,8 @@ Object.assign(App, {
       container.innerHTML = '<div style="padding:1rem;font-size:.82rem;color:var(--text-muted);text-align:center">未找到符合條件的俱樂部</div>';
       return;
     }
-    const activeT = teams.filter(t => t.active);
-    const inactiveT = teams.filter(t => !t.active);
+    const activeT = this._sortTeams(teams.filter(t => t.active));
+    const inactiveT = this._sortTeams(teams.filter(t => !t.active));
     const adminCard = (t) => {
       const dim = !t.active ? ' team-inactive' : '';
       const aSportIcon = t.sportTag && typeof getSportIconSvg === 'function' ? (getSportIconSvg(t.sportTag, 'team-title-sport-icon') || '') : '';
