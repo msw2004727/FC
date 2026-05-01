@@ -26,11 +26,16 @@ Object.assign(App, {
 
     // ── 基本資訊卡 ──
     const acceptingStudents = team.eduSettings && team.eduSettings.acceptingStudents !== false;
+    const leaderNames = (Array.isArray(team.leaders) ? team.leaders : (team.leader ? [team.leader] : [])).filter(Boolean);
+    const leaderValue = leaderNames.length
+      ? leaderNames.map(n => this._teamLeaderTag(n)).join(' ')
+      : '未設定';
     const infoCard = '<div class="td-card">'
       + '<div class="td-card-title">俱樂部資訊</div>'
       + '<div class="td-card-grid">'
       + '<div class="td-card-item"><span class="td-card-label">招生狀態</span><span class="td-card-value" style="color:' + (acceptingStudents ? 'var(--success)' : 'var(--text-muted)') + '">' + (acceptingStudents ? '招生中' : '暫停招生') + '</span></div>'
       + '<div class="td-card-item"><span class="td-card-label">俱樂部經理</span><span class="td-card-value">' + (team.captain ? this._userTag(team.captain, 'captain') : '未設定') + '</span></div>'
+      + '<div class="td-card-item"><span class="td-card-label">領隊</span><span class="td-card-value">' + leaderValue + '</span></div>'
       + '<div class="td-card-item"><span class="td-card-label">教練</span><span class="td-card-value">' + ((team.coaches || []).length > 0 ? team.coaches.map(c => this._userTag(c, 'coach')).join(' ') : '無') + '</span></div>'
       + '<div class="td-card-item"><span class="td-card-label">地區</span><span class="td-card-value">' + escapeHTML(team.region || '') + '</span></div>'
       + (team.contact ? '<div class="td-card-item"><span class="td-card-label">聯繫方式</span><span class="td-card-value">' + escapeHTML(team.contact) + '</span></div>' : '')
