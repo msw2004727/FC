@@ -138,6 +138,21 @@ function _buildActionStatusMap(action) {
   return map[action] || null;
 }
 
+function _isPendingActionMessage(msg) {
+  return !!(
+    msg
+    && msg.actionType
+    && String(msg.actionStatus || '').trim().toLowerCase() === 'pending'
+  );
+}
+
+function _getInboxRemoveConfirmText(msg) {
+  if (_isPendingActionMessage(msg)) {
+    return '\u9019\u53ea\u6703\u5c07\u9019\u5c01\u901a\u77e5\u5f9e\u4f60\u7684\u6536\u4ef6\u5323\u79fb\u9664\uff0c\u4e0d\u6703\u53d6\u6d88\u5831\u540d\u3001\u4e0d\u6703\u901a\u904e\u6216\u62d2\u7d55\u5be9\u6838\uff0c\u4e5f\u4e0d\u6703\u522a\u9664\u8cfd\u4e8b\u6216\u4ff1\u6a02\u90e8\u7533\u8acb\u3002\u78ba\u5b9a\u8981\u79fb\u9664\u55ce\uff1f';
+  }
+  return '\u78ba\u5b9a\u8981\u5c07\u9019\u5c01\u8a0a\u606f\u5f9e\u4f60\u7684\u6536\u4ef6\u5323\u79fb\u9664\u55ce\uff1f';
+}
+
 // ═══════════════════════════════════════════════════
 // 4. 從 message-actions-team.js 提取的純函式
 // ═══════════════════════════════════════════════════
@@ -584,7 +599,33 @@ describe('Message System — Phase 0 Pre-Migration Tests', () => {
     });
   });
 
-  // ─── 10. _normalizeMembership ───
+  // ─── 10. Inbox removal helpers ───
+  describe('_isPendingActionMessage', () => {
+    test('returns true only for pending action messages', () => {
+      expect(_isPendingActionMessage({ actionType: 'team_join_request', actionStatus: 'pending' })).toBe(true);
+      expect(_isPendingActionMessage({ actionType: 'team_join_request', actionStatus: ' Pending ' })).toBe(true);
+      expect(_isPendingActionMessage({ actionType: 'team_join_request', actionStatus: 'approved' })).toBe(false);
+      expect(_isPendingActionMessage({ actionStatus: 'pending' })).toBe(false);
+      expect(_isPendingActionMessage(null)).toBe(false);
+    });
+  });
+
+  describe('_getInboxRemoveConfirmText', () => {
+    test('explains pending removal is inbox-only and does not approve or reject', () => {
+      const text = _getInboxRemoveConfirmText({ actionType: 'team_join_request', actionStatus: 'pending' });
+      expect(text).toContain('\u6536\u4ef6\u5323\u79fb\u9664');
+      expect(text).toContain('\u4e0d\u6703\u53d6\u6d88\u5831\u540d');
+      expect(text).toContain('\u4e0d\u6703\u901a\u904e\u6216\u62d2\u7d55\u5be9\u6838');
+    });
+
+    test('uses a shorter confirm for normal inbox messages', () => {
+      const text = _getInboxRemoveConfirmText({ actionStatus: 'read' });
+      expect(text).toContain('\u9019\u5c01\u8a0a\u606f');
+      expect(text).not.toContain('\u4e0d\u6703\u901a\u904e\u6216\u62d2\u7d55\u5be9\u6838');
+    });
+  });
+
+  // ─── 11. _normalizeMembership ───
   describe('_normalizeMembership', () => {
     test('null data returns empty', () => {
       expect(_normalizeMembership(null)).toEqual({ ids: [], names: [] });

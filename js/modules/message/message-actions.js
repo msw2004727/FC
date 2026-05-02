@@ -36,8 +36,12 @@ Object.assign(App, {
     const myMessages = ApiService.getMessages() || [];
     const myUid = ApiService.getCurrentUser()?.uid || null;
     if (!myMessages.length) { this.showToast('沒有訊息可清空'); return; }
-    // 過濾掉 pending 審核訊息（Rules 也會阻擋）
-    const deletable = myMessages.filter(m => !(m.actionType && m.actionStatus === 'pending'));
+    // 保留批量清除 pending 審核訊息的保護，避免誤刪需要處理的通知。
+    const deletable = myMessages.filter(m => !this._isPendingActionMessage(m));
+    if (!deletable.length) {
+      this.showToast('\u6c92\u6709\u53ef\u6e05\u7a7a\u7684\u8a0a\u606f\uff1b\u5f85\u5be9\u6838\u901a\u77e5\u8acb\u958b\u555f\u5167\u5bb9\u5f8c\u55ae\u5c01\u79fb\u9664\u3002');
+      return;
+    }
     if (!(await this.appConfirm(`確定要清空 ${deletable.length} 則訊息？此操作無法恢復。`))) return;
     if (!myUid) { this.showToast('Please login first'); return; }
     try {
@@ -63,6 +67,82 @@ Object.assign(App, {
     this.renderMessageList();
     this.updateNotifBadge();
     this.showToast('已清空所有訊息');
+  },
+
+  _isPendingActionMessage(msg) {
+    return !!(
+      msg
+      && msg.actionType
+      && String(msg.actionStatus || '').trim().toLowerCase() === 'pending'
+    );
+  },
+
+  _getInboxRemoveConfirmText(msg) {
+    if (this._isPendingActionMessage(msg)) {
+      return '\u9019\u53ea\u6703\u5c07\u9019\u5c01\u901a\u77e5\u5f9e\u4f60\u7684\u6536\u4ef6\u5323\u79fb\u9664\uff0c\u4e0d\u6703\u53d6\u6d88\u5831\u540d\u3001\u4e0d\u6703\u901a\u904e\u6216\u62d2\u7d55\u5be9\u6838\uff0c\u4e5f\u4e0d\u6703\u522a\u9664\u8cfd\u4e8b\u6216\u4ff1\u6a02\u90e8\u7533\u8acb\u3002\u78ba\u5b9a\u8981\u79fb\u9664\u55ce\uff1f';
+    }
+    return '\u78ba\u5b9a\u8981\u5c07\u9019\u5c01\u8a0a\u606f\u5f9e\u4f60\u7684\u6536\u4ef6\u5323\u79fb\u9664\u55ce\uff1f';
+  },
+
+  async removeInboxMessage(msgId) {
+    const messages = ApiService.getMessages() || [];
+    const msg = messages.find(m => m.id === msgId);
+    if (!msg) {
+      this.showToast('\u627e\u4e0d\u5230\u9019\u5c01\u8a0a\u606f');
+      return;
+    }
+
+    const authUid = (typeof auth !== 'undefined' && auth?.currentUser?.uid) ? auth.currentUser.uid : null;
+    const myUid = ApiService.getCurrentUser()?.uid || authUid;
+    if (!myUid) {
+      this.showToast('Please login first');
+      return;
+    }
+
+    if (!(await this.appConfirm(this._getInboxRemoveConfirmText(msg)))) return;
+
+    try {
+      const docId = String(msg._docId || msg.id || '').trim();
+      if (docId) {
+        await db.collection('users').doc(myUid).collection('inbox').doc(docId).delete();
+      }
+
+      const cache = (typeof FirebaseService !== 'undefined' && FirebaseService._cache?.messages)
+        ? FirebaseService._cache.messages
+        : messages;
+      const idx = cache.findIndex(m => m === msg || m.id === msgId);
+      if (idx >= 0) cache.splice(idx, 1);
+
+      void ApiService.writeAuditLog?.({
+        action: 'inbox_message_remove',
+        targetType: 'message',
+        targetId: String(msg._docId || msg.id || ''),
+        targetLabel: String(msg.title || '').slice(0, 80),
+        result: 'success',
+        source: 'web',
+        meta: {
+          actionType: msg.actionType || '',
+          actionStatus: msg.actionStatus || '',
+          inboxOnly: true,
+        },
+      });
+
+      const modal = document.getElementById('msg-inbox-detail-modal');
+      if (modal) modal.style.display = 'none';
+      this.renderMessageList();
+      this.updateNotifBadge();
+      this.updateStorageBar();
+      this.showToast('\u5df2\u5f9e\u6536\u4ef6\u5323\u79fb\u9664');
+    } catch (err) {
+      console.error('[removeInboxMessage]', err);
+      ApiService._writeErrorLog?.({
+        fn: 'removeInboxMessage',
+        msgId,
+        docId: msg._docId || '',
+        actionStatus: msg.actionStatus || '',
+      }, err);
+      this.showToast('\u79fb\u9664\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+    }
   },
 
   _getTournamentMessageGroupId(msg) {

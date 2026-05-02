@@ -32,6 +32,9 @@
 .msg-action-reject { background: var(--danger); color: #fff; }
 .msg-action-ignore { background: var(--border); color: var(--text-secondary); }
 .msg-action-status { display: inline-block; padding: .2rem .5rem; border-radius: var(--radius-full); font-size: .72rem; font-weight: 600; margin-top: .5rem; }
+.msg-detail-remove-row { display: flex; justify-content: flex-end; margin-top: .85rem; }
+.msg-detail-remove-btn { padding: .42rem .72rem; border: 1px solid rgba(239,68,68,.36); border-radius: var(--radius); background: transparent; color: var(--danger); font-size: .78rem; font-weight: 600; cursor: pointer; }
+.msg-detail-remove-btn:hover { background: rgba(239,68,68,.08); }
 
 /* ─── 審核緞帶（右下角斜角） ─── */
 .msg-card { position: relative; overflow: hidden; }

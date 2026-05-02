@@ -213,6 +213,12 @@ Object.assign(App, {
       }
     }
 
+    const safeMsgIdForAction = String(msg.id || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const removeActionHtml = `
+      <div class="msg-detail-remove-row">
+        <button class="msg-detail-remove-btn" type="button" onclick="App.removeInboxMessage('${safeMsgIdForAction}')">\u5f9e\u6211\u7684\u6536\u4ef6\u5323\u79fb\u9664</button>
+      </div>`;
+
     content.innerHTML = `
       <h3 style="margin:0 0 .6rem;font-size:1rem">${escapeHTML(msg.title)}</h3>
       <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:.5rem">
@@ -222,6 +228,7 @@ Object.assign(App, {
       </div>
       <div style="font-size:.85rem;line-height:1.7;padding:.6rem;background:var(--bg-elevated);border-radius:var(--radius-sm);white-space:pre-wrap">${escapeHTML(msg.body)}</div>
       ${actionHtml}
+      ${removeActionHtml}
     `;
     document.body.appendChild(modal);
     modal.style.webkitBackdropFilter = 'blur(10px)';

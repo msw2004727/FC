@@ -715,10 +715,7 @@ service cloud.firestore {
         allow update: if (isOwner(userId)
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt']))
           || isAdmin();
-        allow delete: if (isOwner(userId)
-            && !(resource.data.keys().hasAny(['actionType'])
-                 && resource.data.actionStatus == 'pending'))
-          || isAdmin();
+        allow delete: if isOwner(userId) || isAdmin();
       }
     }
 

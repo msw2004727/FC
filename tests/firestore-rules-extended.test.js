@@ -1015,14 +1015,14 @@ describe("/users/{uid}/inbox/{msgId}", () => {
     );
   });
 
-  test("delete: owner cannot delete pending action message", async () => {
+  test("delete: owner can delete pending action inbox notice", async () => {
     await seedPath(["users", "uidA", "inbox", "inb_del_pending"], {
       title: "Action Required",
       body: "Please approve",
       actionType: "team_join_request",
       actionStatus: "pending",
     });
-    await assertFails(
+    await assertSucceeds(
       deleteDoc(doc(memberA(), "users", "uidA", "inbox", "inb_del_pending"))
     );
   });
