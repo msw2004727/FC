@@ -6,7 +6,11 @@ on:
     paths:
       - 'sitemap.xml'
       - 'seo/**'
+      - 'blog/**'
+      - 'roles/**'
       - 'index.html'
+      - 'privacy.html'
+      - 'terms.html'
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true

@@ -22,15 +22,20 @@ jobs:
         with:
           urls: |
             https://toosterx.com/
-            https://toosterx.com/seo/football.html
-            https://toosterx.com/seo/basketball.html
-            https://toosterx.com/seo/pickleball.html
-            https://toosterx.com/seo/dodgeball.html
-            https://toosterx.com/seo/running.html
-            https://toosterx.com/seo/hiking.html
-            https://toosterx.com/seo/football-taichung.html
-            https://toosterx.com/seo/sports-changhua.html
-            https://toosterx.com/seo/sports-nantou.html
+            https://toosterx.com/seo/football
+            https://toosterx.com/seo/basketball
+            https://toosterx.com/seo/pickleball
+            https://toosterx.com/seo/dodgeball
+            https://toosterx.com/seo/running
+            https://toosterx.com/seo/hiking
+            https://toosterx.com/seo/football-taichung
+            https://toosterx.com/seo/nantun-football-park
+            https://toosterx.com/seo/sports-changhua
+            https://toosterx.com/seo/sports-nantou
+            https://toosterx.com/blog/
+            https://toosterx.com/blog/football-shoes-guide
+            https://toosterx.com/blog/basketball-rules
+            https://toosterx.com/roles/
           uploadArtifacts: true
           temporaryPublicStorage: true
           # 不設 assertions，只收集報告（先觀察基準再訂閾值）

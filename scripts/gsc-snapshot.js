@@ -49,7 +49,6 @@ const URLS_TO_INSPECT = [
   'https://toosterx.com/blog/football-rules',
   'https://toosterx.com/blog/basketball-rules',
   'https://toosterx.com/blog/badminton-rules',
-  'https://toosterx.com/blog/pickleball-rules',
   'https://toosterx.com/blog/running-rules',
   'https://toosterx.com/blog/hiking-rules',
   'https://toosterx.com/roles/',

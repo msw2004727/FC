@@ -22,6 +22,7 @@ describe('SEO JSON-LD markup', () => {
       || rel === 'privacy.html'
       || rel === 'terms.html'
       || rel.startsWith('blog/')
+      || rel.startsWith('roles/')
       || rel.startsWith('seo/');
   });
 
