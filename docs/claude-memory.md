@@ -2106,3 +2106,8 @@
 - **修正**: 新增 `deleteTournament` callable，由 Admin SDK 後端集中掃描並刪除 applications、entries members、entries，最後才 root-last 刪 tournament root；前端改呼叫 `FirebaseService.deleteTournamentAtomic`，成功後才移除快取。
 - **權限**: Firestore rules 禁止 client 直接刪 tournament root、entries、members，正式刪除一律走 callable；UI 仍維持 admin/super_admin 才可刪除。
 - **驗收**: 補 unit/source tests 與 rules tests，確認 direct delete 被擋、callable wrapper 使用 asia-east1、前端不再直接刪子集合。
+
+### 2026-05-05 活動頁建立入口文案與光邊 [ux]
+- **問題**: 活動頁右上角建立入口仍顯示「新增活動」，語氣不夠貼近開團情境，也缺少明顯視覺提示。
+- **修復**: 將活動頁建立按鈕改為「我要開團」，同步更新未登入後提示與中文 i18n key，並沿用抽屜 APP 下載按鈕的旋轉光邊與發光效果。
+- **教訓**: 入口文案變更要同步檢查登入後 toast 與語系 key，避免不同流程出現新舊文案混用。

@@ -32,6 +32,54 @@
   padding: .42rem .65rem;
   font-size: .78rem;
   white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+  border: none;
+  background: transparent;
+  color: #fff;
+  animation: activity-create-glow 2s ease-in-out infinite;
+}
+#activity-create-btn > span {
+  position: relative;
+  z-index: 3;
+}
+#activity-create-btn::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 300%;
+  aspect-ratio: 1;
+  margin-left: -150%;
+  margin-top: -150%;
+  background: conic-gradient(from 0deg, transparent 40%, #b8860b 60%, #ffd700 75%, #fff8dc 82%, #ffd700 90%, #b8860b 97%, transparent 100%);
+  animation: pwa-border-spin 2s linear infinite;
+  z-index: 1;
+}
+#activity-create-btn::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, var(--accent), #2563eb);
+  z-index: 2;
+}
+#activity-create-btn:hover {
+  background: transparent;
+  transform: translateY(-1px);
+}
+#activity-create-btn:hover::after {
+  background: linear-gradient(135deg, var(--accent-hover), #1d4ed8);
+}
+#activity-create-btn:active {
+  transform: scale(.97);
+}
+#activity-create-btn:active::after {
+  background: linear-gradient(135deg, var(--accent-hover), #1e40af);
+}
+@keyframes activity-create-glow {
+  0%, 100% { box-shadow: 0 0 4px rgba(255,215,0,.28); }
+  50% { box-shadow: 0 0 10px rgba(255,215,0,.48), 0 0 20px rgba(37,99,235,.22); }
 }
 
 @media (max-width: 420px) {

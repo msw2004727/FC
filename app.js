@@ -1426,7 +1426,7 @@ const App = {
           case 'createEvent':
             // 只回活動頁、不自動開 modal（避免用戶填一半表單遺失）
             await this.showPage?.('page-activities', { resetHistory: true });
-            this.showToast?.('登入成功、請再點一次「＋ 新增活動」');
+            this.showToast?.('登入成功、請再點一次「我要開團」');
             return true;
           case 'createTeam':
             await this.showPage?.('page-teams', { resetHistory: true });

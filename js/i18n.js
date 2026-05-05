@@ -277,7 +277,7 @@ I18N.register('zh-TW', {
   'activityPage.manage': '管理',
   'activityPage.tabNormal': '進行中',
   'activityPage.tabEnded': '已結束',
-  'activityPage.newEvent': '新增活動',
+  'activityPage.newEvent': '我要開團',
   // Profile Page
   'profilePage.notLoggedIn': '尚未登入',
   'profilePage.loginHint': '請先登入以查看個人資料',
