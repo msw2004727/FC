@@ -147,6 +147,7 @@ Object.assign(App, {
     this.bindGenderRestrictionToggle();
     this.bindPrivateEventToggle();
     this.bindTeamSplitToggle?.();
+    this.bindReservedActivityAddonToggles?.();
     this.bindRegionToggle?.();
     this._resetMultiDates();
     this._initMultiDatePicker();

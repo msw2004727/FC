@@ -27,6 +27,7 @@ Object.assign(App, {
     this.bindGenderRestrictionToggle?.();
     this.bindPrivateEventToggle?.();
     this.bindTeamSplitToggle?.();
+    this.bindReservedActivityAddonToggles?.();
     this.bindRegionToggle?.();
     this.showModal('create-event-modal');
     this._eventSubmitInFlight = false;

@@ -18,6 +18,37 @@ Object.assign(App, {
     return false;
   },
 
+  _handleReservedActivityAddonClick(event) {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    const row = event?.currentTarget?.closest?.('.ce-value-reserved')
+      || event?.target?.closest?.('.ce-value-reserved')
+      || null;
+    const toggle = row?.querySelector?.('input[type="checkbox"]') || null;
+    if (toggle) toggle.checked = false;
+    this._showActivityAddonUpsellToast?.();
+    return false;
+  },
+
+  bindReservedActivityAddonToggles() {
+    document.querySelectorAll('.ce-value-reserved').forEach(row => {
+      row.setAttribute('role', 'button');
+      row.setAttribute('tabindex', '0');
+      row.setAttribute('aria-disabled', 'true');
+      row.querySelectorAll('input[type="checkbox"]').forEach(input => {
+        input.checked = false;
+        input.setAttribute('aria-disabled', 'true');
+      });
+      if (row.dataset.reservedAddonBound === '1') return;
+      row.dataset.reservedAddonBound = '1';
+      row.addEventListener('click', (event) => this._handleReservedActivityAddonClick(event));
+      row.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return;
+        this._handleReservedActivityAddonClick(event);
+      });
+    });
+  },
+
   _getEventFeeFormNodes() {
     return {
       toggle: document.getElementById('ce-fee-enabled'),

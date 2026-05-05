@@ -305,9 +305,10 @@ body.modal-open { overflow: hidden; }
 }
 .ce-value-reserved {
   opacity: .78;
+  cursor: pointer;
 }
 .ce-value-reserved .toggle-switch {
-  cursor: not-allowed;
+  cursor: pointer;
 }
 [data-theme="dark"] .ce-value-section {
   border-color: rgba(251, 191, 36, .28);
