@@ -31,7 +31,7 @@ Object.assign(App, {
       return;
     }
 
-    const event = ApiService.getEvent(this._scanSelectedEventId);
+    const event = this._getScanSelectedEvent?.() || ApiService.getEvent(this._scanSelectedEventId);
     if (!event) {
       this.showToast('活動不存在');
       return;
@@ -189,7 +189,7 @@ Object.assign(App, {
         resultClass = 'success';
         resultMsg = `${userName} 未簽到，已自動完成簽到與簽退`;
         // Auto EXP: complete activity
-        const _evt = ApiService.getEvent(this._scanSelectedEventId);
+        const _evt = this._getScanSelectedEvent?.() || ApiService.getEvent(this._scanSelectedEventId);
         this._grantAutoExp?.(uid, 'complete_activity', _evt?.title || '');
         this._evaluateAchievements?.(_evt?.type);
       } else {
@@ -206,7 +206,7 @@ Object.assign(App, {
         resultClass = 'success';
         resultMsg = `${userName} 簽退成功`;
         // Auto EXP: complete activity
-        const _evt = ApiService.getEvent(this._scanSelectedEventId);
+        const _evt = this._getScanSelectedEvent?.() || ApiService.getEvent(this._scanSelectedEventId);
         this._grantAutoExp?.(uid, 'complete_activity', _evt?.title || '');
         this._evaluateAchievements?.(_evt?.type);
       }
@@ -226,7 +226,7 @@ Object.assign(App, {
     const box = document.getElementById('scan-result-box');
     document.getElementById('scan-result-icon').textContent = icons[cls] || '';
     document.getElementById('scan-result-title').textContent = msg;
-    const event = this._scanSelectedEventId ? ApiService.getEvent(this._scanSelectedEventId) : null;
+    const event = this._scanSelectedEventId ? (this._getScanSelectedEvent?.() || ApiService.getEvent(this._scanSelectedEventId)) : null;
     document.getElementById('scan-result-name').textContent = event ? event.title : '';
     box.className = 'scan-result-box ' + cls;
     modal.classList.add('open');

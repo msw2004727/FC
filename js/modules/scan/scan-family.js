@@ -119,7 +119,7 @@ Object.assign(App, {
           type: 'checkout', time: timeStr,
         });
         if (!cId) {
-          const _evt = ApiService.getEvent(eventId);
+          const _evt = this._getScanSelectedEvent?.() || ApiService.getEvent(eventId);
           this._grantAutoExp?.(uid, 'complete_activity', _evt?.title || '');
         }
       }

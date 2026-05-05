@@ -134,6 +134,16 @@ describe('event write integrity', () => {
 
     expect(item.status).toBe('open');
   });
+
+  test('getEvent resolves ended event records by data id or Firestore doc id', () => {
+    const item = { id: 'evt-ended-1', _docId: 'doc-ended-1', docId: 'legacy-doc-id', title: 'Ended Event', status: 'ended' };
+    const { ApiService } = loadApiService({ cache: { events: [item] } });
+
+    expect(ApiService.getEvent('evt-ended-1')).toBe(item);
+    expect(ApiService.getEvent('doc-ended-1')).toBe(item);
+    expect(ApiService.getEvent('legacy-doc-id')).toBe(item);
+    expect(ApiService.getEvent('missing')).toBeNull();
+  });
 });
 
 describe('event lifecycle operation logs', () => {

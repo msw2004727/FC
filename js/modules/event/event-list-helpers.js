@@ -393,7 +393,7 @@ Object.assign(App, {
   _isAnyActiveEventOperator() {
     if (typeof ApiService === 'undefined') return false;
     if (this._scanPresetEventId) {
-      const presetEvent = ApiService.getEvent(this._scanPresetEventId);
+      const presetEvent = this._scanPresetEventRecord || ApiService.getEvent(this._scanPresetEventId);
       if (presetEvent && this._canOperateEventSite(presetEvent)) return true;
     }
     const events = ApiService.getEvents?.() || [];

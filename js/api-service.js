@@ -383,7 +383,15 @@ const ApiService = {
   // ════════════════════════════════
 
   getEvents()       { return this._src('events'); },
-  getEvent(id)      { return this._findById('events', id); },
+  getEvent(id) {
+    const safeId = String(id || '').trim();
+    if (!safeId) return null;
+    return this._src('events').find(e =>
+      String(e?.id || '').trim() === safeId
+      || String(e?._docId || '').trim() === safeId
+      || String(e?.docId || '').trim() === safeId
+    ) || null;
+  },
 
   getActiveEvents() {
     return this._src('events').filter(e => e.status !== 'ended' && e.status !== 'cancelled');

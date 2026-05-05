@@ -9,6 +9,8 @@ Object.assign(App, {
 
   _scanSelectedEventId: null,
   _scanPresetEventId: null,
+  _scanPresetEventRecord: null,
+  _scanSelectedEventRecord: null,
   _scanMode: 'checkin',
   _scanDateFilter: 'today',
   _scanEventBuckets: null,
@@ -19,6 +21,19 @@ Object.assign(App, {
   // ══════════════════════════════════
   //  Render scan page
   // ══════════════════════════════════
+
+  _getScanSelectedEvent() {
+    if (!this._scanSelectedEventId) return null;
+    const event = ApiService.getEvent?.(this._scanSelectedEventId);
+    if (event) return event;
+    const record = this._scanSelectedEventRecord;
+    const recordId = this._getScanEventValue(record);
+    return recordId && recordId === String(this._scanSelectedEventId || '').trim() ? record : null;
+  },
+
+  _getScanEventValue(e) {
+    return e ? String(e.id || e._docId || e.docId || '').trim() : '';
+  },
 
   renderScanPage() {
     if (!this.hasPermission('event.scan') && !this.hasPermission('activity.manage.entry') && !this._isAnyActiveEventOperator?.()) { this.showToast('權限不足'); return; }
@@ -37,18 +52,26 @@ Object.assign(App, {
     if (this._scanPresetEventId) {
       if (filterContainer) filterContainer.style.display = 'none';
       const presetId = this._scanPresetEventId;
+      const presetEvent = this._scanPresetEventRecord || ApiService.getEvent(presetId);
       this._scanPresetEventId = null;
-      const presetEvent = ApiService.getEvent(presetId);
+      this._scanPresetEventRecord = null;
       select.innerHTML = '<option value="">— 請選擇活動 —</option>';
-      if (presetEvent) {
+      if (presetEvent && this._canOperateEventSite?.(presetEvent) === true) {
+        const selectedId = this._getScanEventValue(presetEvent) || presetId;
         const typeLabel = this._getScanEventTypeLabel(presetEvent);
         const opt = document.createElement('option');
-        opt.value = presetId;
+        opt.value = selectedId;
         opt.textContent = `${typeLabel}${presetEvent.title}（${presetEvent.date}）`;
         select.appendChild(opt);
-        select.value = presetId;
-        this._scanSelectedEventId = presetId;
+        select.value = selectedId;
+        this._scanSelectedEventId = selectedId;
+        this._scanSelectedEventRecord = presetEvent;
         select.disabled = true;
+      } else {
+        this._scanSelectedEventId = null;
+        this._scanSelectedEventRecord = null;
+        this.showToast('權限不足');
+        return;
       }
     } else {
       select.disabled = false;

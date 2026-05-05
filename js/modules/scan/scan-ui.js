@@ -71,21 +71,25 @@ Object.assign(App, {
     select.innerHTML = '<option value="">— 請選擇活動 —</option>';
     list.forEach(e => {
       const opt = document.createElement('option');
-      opt.value = e.id;
+      opt.value = this._getScanEventValue?.(e) || '';
       const typeLabel = this._getScanEventTypeLabel(e);
       opt.textContent = `${typeLabel}${e.title}（${e.date}）`;
       select.appendChild(opt);
     });
 
     // Restore previous selection if still in list
-    if (this._scanSelectedEventId && list.some(e => e.id === this._scanSelectedEventId)) {
+    if (this._scanSelectedEventId && list.some(e => this._getScanEventValue?.(e) === this._scanSelectedEventId)) {
       select.value = this._scanSelectedEventId;
+      this._scanSelectedEventRecord = list.find(e => this._getScanEventValue?.(e) === this._scanSelectedEventId) || null;
     } else if (list.length === 1) {
       // Auto-select if only 1 event
-      select.value = list[0].id;
-      this._scanSelectedEventId = list[0].id;
+      const eventId = this._getScanEventValue?.(list[0]) || '';
+      select.value = eventId;
+      this._scanSelectedEventId = eventId || null;
+      this._scanSelectedEventRecord = eventId ? list[0] : null;
     } else {
       this._scanSelectedEventId = null;
+      this._scanSelectedEventRecord = null;
       select.value = '';
     }
   },
@@ -116,6 +120,9 @@ Object.assign(App, {
 
     select.addEventListener('change', () => {
       this._scanSelectedEventId = select.value || null;
+      this._scanSelectedEventRecord = this._scanSelectedEventId
+        ? (ApiService.getEvent?.(this._scanSelectedEventId) || null)
+        : null;
       this._updateScanControls();
       this._renderScanResults();
       this._renderAttendanceSections();
@@ -184,7 +191,7 @@ Object.assign(App, {
       return;
     }
 
-    const event = ApiService.getEvent(eventId);
+    const event = this._getScanSelectedEvent?.() || ApiService.getEvent(eventId);
     if (!event) return;
 
     const records = ApiService.getAttendanceRecords(eventId);

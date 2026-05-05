@@ -125,4 +125,27 @@ describe('Permission guard safety — management guards have fallback', () => {
     expect(fnSlice).toContain('_canOperateEventSite');
     expect(fnSlice).not.toContain('_isAnyActiveEventDelegate');
   });
+
+  test('goToScanForEvent carries the clicked event record into the lazy scan page', () => {
+    const source = readFile('js/core/navigation.js');
+    expect(source).toContain('goToScanForEvent(eventId)');
+    expect(source).toContain('ApiService.getEvent?.(presetId)');
+    expect(source).toContain('_currentDetailEventRecord');
+    expect(source).toContain('_scanPresetEventRecord = presetEvent');
+    expect(source).toContain('_scanSelectedEventRecord = presetEvent');
+  });
+
+  test('renderScanPage uses the carried preset record and normalizes the selected event id', () => {
+    const source = readFile('js/modules/scan/scan.js');
+    expect(source).toContain('_scanPresetEventRecord || ApiService.getEvent(presetId)');
+    expect(source).toContain('this._getScanEventValue(presetEvent) || presetId');
+    expect(source).toContain('_scanSelectedEventRecord = presetEvent');
+    expect(source).toContain('this._canOperateEventSite?.(presetEvent) === true');
+  });
+
+  test('event detail scan button passes an event id with Firestore doc id fallback', () => {
+    const source = readFile('js/modules/event/event-detail.js');
+    expect(source).toContain('_currentDetailEventRecord = e');
+    expect(source).toContain("App.goToScanForEvent('${escapeHTML(e.id || e._docId || e.docId || '')}')");
+  });
 });

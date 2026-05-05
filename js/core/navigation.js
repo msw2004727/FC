@@ -488,7 +488,17 @@ Object.assign(App, {
       return;
     }
     // Keep the entrypoint in core so event detail can route to the lazy scan module safely.
-    this._scanPresetEventId = eventId || null;
+    const presetId = String(eventId || '').trim();
+    const detailEvent = this._currentDetailEventRecord || null;
+    const detailEventId = detailEvent
+      ? String(detailEvent.id || detailEvent._docId || detailEvent.docId || '').trim()
+      : '';
+    const presetEvent = presetId && typeof ApiService !== 'undefined'
+      ? (ApiService.getEvent?.(presetId) || (detailEventId === presetId ? detailEvent : null))
+      : null;
+    this._scanPresetEventId = presetId || null;
+    this._scanPresetEventRecord = presetEvent;
+    this._scanSelectedEventRecord = presetEvent;
     void this.showPage('page-scan');
   },
 

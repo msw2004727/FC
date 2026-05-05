@@ -313,6 +313,7 @@ Object.assign(App, {
       }
 
       this._currentDetailEventId = id;
+      this._currentDetailEventRecord = e;
     // ── 瀏覽數：顯示當前值 + 觸發 +1（登入用戶同日去重，僅正式詳情頁，不含 guest）──
     if (!isGuestView) {
       const _vcSpan = document.getElementById('detail-view-count-num');
@@ -559,7 +560,7 @@ Object.assign(App, {
           <button class="detail-toolbar-btn" onclick="App.contactEventOrganizer('${escapeHTML(e.creator)}')">\u806F\u7E6B\u4E3B\u8FA6</button>
           <button class="detail-toolbar-btn" onclick="App.shareEvent('${e.id}')">\u5206\u4EAB\u6D3B\u52D5</button>
           <button class="detail-toolbar-btn" onclick="App.addEventToCalendar('${e.id}')">\u52A0\u5165\u884C\u4E8B\u66C6</button>
-          ${canScan ? `<button class="detail-toolbar-btn" onclick="App.goToScanForEvent('${e.id}')">\u73FE\u5834\u7C3D\u5230</button>` : ''}
+          ${canScan ? `<button class="detail-toolbar-btn" onclick="App.goToScanForEvent('${escapeHTML(e.id || e._docId || e.docId || '')}')">\u73FE\u5834\u7C3D\u5230</button>` : ''}
         </div>
         ${(this._tsRenderTeamSelectUI?.(e, this._tsSelectedTeamKey) || '')}
         <div class="detail-action-primary">${signupBtn}</div>
