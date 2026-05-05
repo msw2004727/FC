@@ -99,18 +99,30 @@ describe('Permission guard safety — management guards have fallback', () => {
       const fnSlice = lines.slice(fnStart, fnStart + 10).join('\n');
 
       if (fnSlice.includes('hasPermission')) {
-        // Must NOT be a bare return — must have _canManageEvent or _isAnyActiveEventDelegate fallback
-        const hasFallback = fnSlice.includes('_canManageEvent') || fnSlice.includes('_isAnyActiveEventDelegate');
+        // Must NOT be a bare return — must have management or owner-scope operator fallback
+        const hasFallback = fnSlice.includes('_canManageEvent') || fnSlice.includes('_isAnyActiveEventOperator');
         const hasBareReturn = BARE_BLOCK_REGEX.test(fnSlice);
 
         if (hasBareReturn && !hasFallback) {
           fail(
             `${fn} has a bare hasPermission guard without _canManageEvent fallback!\n` +
-            `Delegates (regular user role) will be blocked.\n` +
-            `Fix: add _canManageEvent(event) fallback inside the guard.`
+            `Owner-scope operators (regular user role) will be blocked.\n` +
+            `Fix: add _canManageEvent(event) or _isAnyActiveEventOperator fallback inside the guard.`
           );
         }
       }
     });
+  });
+
+  test('renderScanPage uses owner-scope site operator instead of delegate-only fallback', () => {
+    const lines = getLines('js/modules/scan/scan.js');
+    expect(lines.length).toBeGreaterThan(0);
+    const fnStart = lines.findIndex(l => l.includes('renderScanPage('));
+    expect(fnStart).toBeGreaterThanOrEqual(0);
+    const fnSlice = lines.slice(fnStart, fnStart + 20).join('\n');
+
+    expect(fnSlice).toContain('_isAnyActiveEventOperator');
+    expect(fnSlice).toContain('_canOperateEventSite');
+    expect(fnSlice).not.toContain('_isAnyActiveEventDelegate');
   });
 });

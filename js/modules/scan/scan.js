@@ -21,18 +21,15 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   renderScanPage() {
-    if (!this.hasPermission('event.scan') && !this.hasPermission('activity.manage.entry') && !this._isAnyActiveEventDelegate()) { this.showToast('權限不足'); return; }
+    if (!this.hasPermission('event.scan') && !this.hasPermission('activity.manage.entry') && !this._isAnyActiveEventOperator?.()) { this.showToast('權限不足'); return; }
     const select = document.getElementById('scan-event-select');
     if (!select) return;
 
     // Populate event options
-    const isAdmin = this.hasPermission('event.edit_all');
     let events = ApiService.getEvents().filter(e =>
       e.status === 'open' || e.status === 'full' || e.status === 'ended'
     );
-    if (!isAdmin) {
-      events = events.filter(e => this._isEventOwner(e) || this._isEventDelegate(e));
-    }
+    events = events.filter(e => this._canOperateEventSite?.(e) === true);
 
     const filterContainer = document.getElementById('scan-date-filter');
 

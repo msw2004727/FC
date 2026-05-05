@@ -67,11 +67,10 @@ Object.assign(App, {
     // 2. 不在 DRAWER_MENUS 中的特殊頁面：硬編碼存取規則
     // page-admin-roles: admin.roles.entry 已停用，僅 super_admin 可進入
     if (pageId === 'page-admin-roles') return this._getEffectiveRoleKey(role) === 'super_admin';
-    // page-scan: delegate 例外 + 教練以上
+    // page-scan: coach+ and owner-scope site operator
     if (pageId === 'page-scan') {
       if (this._getEffectiveRoleLevel(role) >= (ROLE_LEVEL_MAP.coach || 0)) return true;
       if (typeof this._isAnyActiveEventOperator === 'function' && this._isAnyActiveEventOperator()) return true;
-      if (typeof this._isAnyActiveEventDelegate === 'function' && this._isAnyActiveEventDelegate()) return true;
       return false;
     }
     // page-team-manage: 領隊以上
