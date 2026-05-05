@@ -1166,7 +1166,7 @@ describe("/tournaments/{tournamentId}", () => {
     );
   });
 
-  test("delete: only admin can delete", async () => {
+  test("delete: client direct delete is blocked for all roles", async () => {
     await seedDoc("tournaments", "tourDel", {
       name: "Delete Me",
       hostTeamId: "teamA",
@@ -1175,7 +1175,7 @@ describe("/tournaments/{tournamentId}", () => {
     });
     await assertFails(deleteDoc(doc(memberA(), "tournaments", "tourDel")));
     await assertFails(deleteDoc(doc(captain(), "tournaments", "tourDel")));
-    await assertSucceeds(deleteDoc(doc(admin(), "tournaments", "tourDel")));
+    await assertFails(deleteDoc(doc(admin(), "tournaments", "tourDel")));
   });
 
   // ─────────────────────────────────────────────────────────────────
@@ -1466,12 +1466,12 @@ describe("/tournaments/{id}/entries/{teamId}", () => {
     );
   });
 
-  test("delete: admin can delete for legacy cleanup", async () => {
+  test("delete: admin direct delete is blocked (callable-only)", async () => {
     await seedPath(["tournaments", "tourA", "entries", "teamDel"], {
       teamId: "teamDel",
       status: "confirmed",
     });
-    await assertSucceeds(
+    await assertFails(
       deleteDoc(doc(admin(), "tournaments", "tourA", "entries", "teamDel"))
     );
   });
@@ -1524,12 +1524,12 @@ describe("/tournaments/{id}/entries/{teamId}/members/{memberUid}", () => {
     );
   });
 
-  test("delete: admin can remove member for legacy cleanup", async () => {
+  test("delete: admin direct delete is blocked (callable-only)", async () => {
     await seedPath(
       ["tournaments", "tourA", "entries", "teamA", "members", "uidDel"],
       { name: "Del Member" }
     );
-    await assertSucceeds(
+    await assertFails(
       deleteDoc(
         doc(admin(), "tournaments", "tourA", "entries", "teamA", "members", "uidDel")
       )

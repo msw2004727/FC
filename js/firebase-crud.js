@@ -307,6 +307,13 @@ Object.assign(FirebaseService, {
     return result.data;
   },
 
+  async deleteTournamentAtomic(tournamentId) {
+    await this.ensureAuthReadyForWrite();
+    const callable = firebase.app().functions('asia-east1').httpsCallable('deleteTournament');
+    const result = await callable({ tournamentId });
+    return result.data;
+  },
+
   async listTournamentEntries(tournamentId) {
     const collectionRef = await this._getTournamentSubcollectionRef(tournamentId, 'entries');
     const snapshot = await collectionRef.get();

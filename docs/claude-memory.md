@@ -2100,3 +2100,9 @@
 - **修正**: 新增 `roleActivityCapabilities/user` 作為一般 user 前台活動能力，保留 `rolePermissions` 作為 coach+/admin 後台權限。一般 user 預設可基本建立、外部連結、自己的活動管理入口、基本編輯、取消、現場操作、委託人；`user.activity.addons_use` 預設關閉。
 - **安全邊界**: Firestore Rules、前端 helper、Cloud Functions callable 都同步檢查 owner/delegate + capability；加值欄位被前端 Toast `如需更多功能請聯繫官方Line@` 與 Rules 雙層阻擋。子集合 `attendanceRecords` / `activityRecords` 寫入收斂到參與者本人或活動 operator。
 - **驗證**: `npm run test:rules` 通過 506 tests；`npm run test:unit` 應維持全綠後才能佈署。
+
+### 2026-05-05 賽事刪除改走 Cloud Function [bugfix]
+- **問題**: 舊版 `deleteTournamentAwait` 由前端直接刪 `applications` / `entries` / `members` / tournament root；因 applications 已是 callable-only，可能發生 root 被刪但子集合殘留，或只關 root 時舊快取前端先刪 entries/members 造成資料缺口。
+- **修正**: 新增 `deleteTournament` callable，由 Admin SDK 後端集中掃描並刪除 applications、entries members、entries，最後才 root-last 刪 tournament root；前端改呼叫 `FirebaseService.deleteTournamentAtomic`，成功後才移除快取。
+- **權限**: Firestore rules 禁止 client 直接刪 tournament root、entries、members，正式刪除一律走 callable；UI 仍維持 admin/super_admin 才可刪除。
+- **驗收**: 補 unit/source tests 與 rules tests，確認 direct delete 被擋、callable wrapper 使用 asia-east1、前端不再直接刪子集合。

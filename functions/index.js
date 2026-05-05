@@ -2106,6 +2106,112 @@ exports.removeFriendlyTournamentEntry = onCall(
   }
 );
 
+function validateTournamentIdForDelete(tournamentId) {
+  const safeId = String(tournamentId || "").trim();
+  if (!safeId || safeId.includes("/")) {
+    throw new HttpsError("invalid-argument", "TOURNAMENT_ID_INVALID");
+  }
+  if (!/^ct_/i.test(safeId)) {
+    console.warn("[deleteTournament] deleting legacy tournament id:", safeId);
+  }
+  return safeId;
+}
+
+function assertCanDeleteTournament(callerRole) {
+  if (!isRoleAdminOrAbove(callerRole)) {
+    throw new HttpsError("permission-denied", "TOURNAMENT_DELETE_ADMIN_REQUIRED");
+  }
+}
+
+async function listTournamentDeleteRefs(tournamentRef) {
+  const applicationsSnap = await tournamentRef.collection("applications").get();
+  const entriesSnap = await tournamentRef.collection("entries").get();
+  const childRefs = [];
+  const deleted = {
+    applications: applicationsSnap.size,
+    entries: entriesSnap.size,
+    members: 0,
+  };
+
+  applicationsSnap.docs.forEach(doc => childRefs.push(doc.ref));
+  for (const entryDoc of entriesSnap.docs) {
+    const membersSnap = await entryDoc.ref.collection("members").get();
+    deleted.members += membersSnap.size;
+    membersSnap.docs.forEach(memberDoc => childRefs.push(memberDoc.ref));
+    childRefs.push(entryDoc.ref);
+  }
+
+  return { childRefs, deleted };
+}
+
+async function commitDeleteRefsInChunks(refs, chunkSize = 450) {
+  for (let i = 0; i < refs.length; i += chunkSize) {
+    const batch = db.batch();
+    refs.slice(i, i + chunkSize).forEach(ref => batch.delete(ref));
+    await batch.commit();
+  }
+}
+
+exports.deleteTournament = onCall(
+  { region: "asia-east1", timeoutSeconds: 60, memory: "512MiB" },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "AUTH_REQUIRED");
+    }
+
+    const tournamentId = validateTournamentIdForDelete(request.data?.tournamentId);
+    const callerRole = await getCallerRoleWithFallback(request);
+    assertCanDeleteTournament(callerRole);
+
+    const tournamentRef = db.collection("tournaments").doc(tournamentId);
+    const tournamentSnap = await tournamentRef.get();
+    if (!tournamentSnap.exists) {
+      return {
+        ok: true,
+        tournamentId,
+        alreadyDeleted: true,
+        deleted: { applications: 0, entries: 0, members: 0, root: 0 },
+      };
+    }
+
+    let deletePlan;
+    try {
+      deletePlan = await listTournamentDeleteRefs(tournamentRef);
+    } catch (err) {
+      console.error("[deleteTournament] failed to scan children:", err);
+      throw new HttpsError("internal", "TOURNAMENT_DELETE_SCAN_FAILED");
+    }
+
+    const { childRefs, deleted } = deletePlan;
+    try {
+      if (childRefs.length + 1 <= 450) {
+        const batch = db.batch();
+        childRefs.forEach(ref => batch.delete(ref));
+        batch.delete(tournamentRef);
+        await batch.commit();
+      } else {
+        await commitDeleteRefsInChunks(childRefs);
+        const rootBatch = db.batch();
+        rootBatch.delete(tournamentRef);
+        await rootBatch.commit();
+      }
+    } catch (err) {
+      console.error("[deleteTournament] failed to delete tournament:", {
+        tournamentId,
+        childCount: childRefs.length,
+        err,
+      });
+      throw new HttpsError("internal", "TOURNAMENT_DELETE_FAILED");
+    }
+
+    return {
+      ok: true,
+      tournamentId,
+      deleted: { ...deleted, root: 1 },
+    };
+  }
+);
+
 exports.createCustomToken = onCall(
   { region: "asia-east1", timeoutSeconds: 15, minInstances: 1 },
   async (request) => {

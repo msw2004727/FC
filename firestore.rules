@@ -1135,7 +1135,7 @@ service cloud.firestore {
           && canManageTournamentScope()
           && tournamentRootImmutableFieldsSafe()
           && delegateUidsUnchangedOrCreator());
-      allow delete: if isAdmin();
+      allow delete: if false;
 
       match /applications/{applicationId} {
         function optionalStringInApplication(data, field) {
@@ -1180,13 +1180,13 @@ service cloud.firestore {
         allow read: if isAuth();
         allow create: if tournamentExists() && isAdmin();
         allow update: if tournamentExists() && isAdmin();
-        allow delete: if tournamentExists() && isAdmin();
+        allow delete: if false;
 
         match /members/{memberUid} {
           allow read: if isAuth();
           allow create: if tournamentExists() && isAdmin();
           allow update: if tournamentExists() && isAdmin();
-          allow delete: if tournamentExists() && isAdmin();
+          allow delete: if false;
         }
       }
     }

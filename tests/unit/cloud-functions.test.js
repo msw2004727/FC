@@ -1419,3 +1419,60 @@ describe('adjustExp operator label + reason sanitization', () => {
     expect(safeReason(longReason).length).toBe(200);
   });
 });
+
+describe('deleteTournament callable source', () => {
+  test('uses v2 callable, admin role guard, and root-last helper flow', () => {
+    const source = readCloudFunctionSource('deleteTournament');
+    expect(source).toContain('onCall(');
+    expect(source).toContain('region: "asia-east1"');
+    expect(source).toContain('timeoutSeconds: 60');
+    expect(source).toContain('memory: "512MiB"');
+    expect(source).toContain('getCallerRoleWithFallback(request)');
+    expect(source).toContain('assertCanDeleteTournament(callerRole)');
+    expect(source).toContain('listTournamentDeleteRefs(tournamentRef)');
+    expect(source).toContain('commitDeleteRefsInChunks(childRefs)');
+    expect(source).toContain('rootBatch.delete(tournamentRef)');
+    expect(source).toContain('alreadyDeleted: true');
+  });
+
+  test('scans applications, entries, and members before deleting root', () => {
+    const source = readSourceBetween(
+      'async function listTournamentDeleteRefs',
+      'async function commitDeleteRefsInChunks'
+    );
+    expect(source).toContain('collection("applications")');
+    expect(source).toContain('collection("entries")');
+    expect(source).toContain('collection("members")');
+    expect(source.indexOf('membersSnap.docs.forEach')).toBeLessThan(source.indexOf('childRefs.push(entryDoc.ref)'));
+  });
+});
+
+describe('ApiService tournament delete source', () => {
+  test('uses callable delete and no longer directly deletes tournament subcollections', () => {
+    const apiSource = fs.readFileSync(
+      path.join(__dirname, '..', '..', 'js', 'api-service.js'),
+      'utf8'
+    );
+    const start = apiSource.indexOf('async deleteTournamentAwait');
+    expect(start).toBeGreaterThanOrEqual(0);
+    const end = apiSource.indexOf('\n  },', start);
+    const source = apiSource.slice(start, end);
+    expect(source).toContain('FirebaseService.deleteTournamentAtomic');
+    expect(source).not.toContain("collection('applications')");
+    expect(source).not.toContain("collection('entries')");
+    expect(source).not.toContain('docRef.delete');
+  });
+
+  test('FirebaseService exposes deleteTournamentAtomic wrapper in asia-east1', () => {
+    const crudSource = fs.readFileSync(
+      path.join(__dirname, '..', '..', 'js', 'firebase-crud.js'),
+      'utf8'
+    );
+    const start = crudSource.indexOf('async deleteTournamentAtomic');
+    expect(start).toBeGreaterThanOrEqual(0);
+    const end = crudSource.indexOf('\n  },', start);
+    const source = crudSource.slice(start, end);
+    expect(source).toContain("functions('asia-east1')");
+    expect(source).toContain("httpsCallable('deleteTournament')");
+  });
+});

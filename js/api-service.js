@@ -595,35 +595,9 @@ const ApiService = {
     if (idx === -1) return;
     const removed = source[idx];
     if (removed._docId) {
-      await FirebaseService.ensureAuthReadyForWrite();
       if (typeof App !== 'undefined') App._setSyncState?.('syncing');
       try {
-        const docRef = db.collection('tournaments').doc(removed._docId);
-        // 子集合清理：每個獨立 try/catch，部分失敗不阻止刪除主文件
-        const subs = ['applications', 'entries'];
-        for (const sub of subs) {
-          try {
-            const snap = await docRef.collection(sub).get();
-            if (snap.empty) continue;
-            const ops = [];
-            for (const doc of snap.docs) {
-              if (sub === 'entries') {
-                try {
-                  const membersSnap = await doc.ref.collection('members').get();
-                  membersSnap.docs.forEach(m => ops.push(m.ref));
-                } catch (memberErr) { console.warn(`[deleteTournament] members cleanup failed for ${doc.id}:`, memberErr); }
-              }
-              ops.push(doc.ref);
-            }
-            for (let i = 0; i < ops.length; i += 450) {
-              const batch = db.batch();
-              ops.slice(i, i + 450).forEach(ref => batch.delete(ref));
-              await batch.commit();
-            }
-          } catch (subErr) { console.warn(`[deleteTournament] ${sub} cleanup failed:`, subErr); }
-        }
-        // 主文件刪除（這是唯一必須成功的操作）
-        await docRef.delete();
+        await FirebaseService.deleteTournamentAtomic(removed._docId || id);
         if (typeof App !== 'undefined') App._setSyncState?.('done');
       } catch (err) {
         if (typeof App !== 'undefined') App._setSyncState?.('error', { text: '刪除失敗' });
