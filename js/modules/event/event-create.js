@@ -13,6 +13,9 @@ Object.assign(App, {
 
   _editEventId: null,
   _eventSubmitInFlight: false,
+  _defaultEventCoverAssetPath: 'LOGO/Nocoverimage set.png',
+  _defaultEventCoverDataUrl: null,
+  _defaultEventCoverPromise: null,
 
   _setCreateEventSubmitIdleLabel(label) {
     const submitBtn = document.getElementById('ce-submit-btn');
@@ -40,6 +43,57 @@ Object.assign(App, {
     submitBtn.style.opacity = '';
     submitBtn.style.cursor = '';
     submitBtn.textContent = idleLabel;
+  },
+
+  _getDefaultEventCoverUrl() {
+    const version = (typeof CACHE_VERSION !== 'undefined' && CACHE_VERSION) ? CACHE_VERSION : '';
+    try {
+      const baseUrl = (typeof document !== 'undefined' && document.baseURI)
+        || (typeof window !== 'undefined' && window.location?.href)
+        || '';
+      const url = new URL(this._defaultEventCoverAssetPath, baseUrl);
+      if (version) url.searchParams.set('v', version);
+      return url.toString();
+    } catch (_) {
+      const suffix = version ? `?v=${encodeURIComponent(version)}` : '';
+      return `${encodeURI(this._defaultEventCoverAssetPath)}${suffix}`;
+    }
+  },
+
+  async _getDefaultEventCoverDataUrl() {
+    if (this._defaultEventCoverDataUrl) return this._defaultEventCoverDataUrl;
+    if (!this._defaultEventCoverPromise) {
+      this._defaultEventCoverPromise = (async () => {
+        if (typeof fetch !== 'function') throw new Error('DEFAULT_EVENT_COVER_FETCH_UNAVAILABLE');
+        if (typeof this._compressImage !== 'function') throw new Error('DEFAULT_EVENT_COVER_COMPRESS_UNAVAILABLE');
+        const response = await fetch(this._getDefaultEventCoverUrl(), { cache: 'force-cache' });
+        if (!response || !response.ok) {
+          throw new Error(`DEFAULT_EVENT_COVER_NOT_FOUND:${response?.status || 'unknown'}`);
+        }
+        const blob = await response.blob();
+        const dataUrl = await this._compressImage(blob, 1200, 0.9, 'image/webp');
+        this._defaultEventCoverDataUrl = dataUrl;
+        return dataUrl;
+      })();
+    }
+    try {
+      return await this._defaultEventCoverPromise;
+    } catch (err) {
+      this._defaultEventCoverPromise = null;
+      throw err;
+    }
+  },
+
+  async _resolveEventCoverImage(image) {
+    const currentImage = typeof image === 'string' ? image.trim() : image;
+    if (currentImage) return currentImage;
+    try {
+      return await this._getDefaultEventCoverDataUrl();
+    } catch (err) {
+      console.error('[EventCreate] default cover failed:', err);
+      this.showToast('預設活動封面載入失敗，請重新整理後再試');
+      throw err;
+    }
   },
 
   openCreateEventModal() {
@@ -386,10 +440,20 @@ Object.assign(App, {
       const creatorName = this._getEventCreatorName();
       const creatorUid = this._getEventCreatorUid();
       const initStatus = (regOpenTime && new Date(regOpenTime) > new Date()) ? 'upcoming' : 'open';
+      this._eventSubmitInFlight = true;
+      this._setCreateEventSubmitting(true);
+      let resolvedImage;
+      try {
+        resolvedImage = await this._resolveEventCoverImage(image);
+      } catch (_) {
+        this._eventSubmitInFlight = false;
+        this._setCreateEventSubmitting(false);
+        return;
+      }
       const newEvent = {
         id: generateId('ce_'),
         title, type, status: initStatus, location, date: fullDate,
-        fee, feeEnabled, max, current: 0, waitlist: 0, minAge, notes, image, sportTag,
+        fee, feeEnabled, max, current: 0, waitlist: 0, minAge, notes, image: resolvedImage, sportTag,
         regOpenTime: regOpenTime || null,
         creator: creatorName,
         creatorUid,
@@ -422,9 +486,6 @@ Object.assign(App, {
         newEvent.teamSplit = teamSplitData;
         this._recalcTeamSplitTimestamps?.(newEvent);
       }
-      this._eventSubmitInFlight = true;
-      this._setCreateEventSubmitting(true);
-
       // ★ 多日期模式：批次建立所有場次
       let totalCreated = 1;
       if (this._isMultiDateMode()) {

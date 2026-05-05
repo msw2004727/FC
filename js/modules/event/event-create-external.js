@@ -149,6 +149,18 @@ Object.assign(App, {
       const startDt = new Date(`${dateVal}T${tStart}`);
       if (startDt < new Date()) { this.showToast('活動開始時間不可早於現在'); return; }
 
+      this._externalEventSubmitInFlight = true;
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '建立中...'; }
+
+      let resolvedImage;
+      try {
+        resolvedImage = await this._resolveEventCoverImage(image);
+      } catch (_) {
+        this._externalEventSubmitInFlight = false;
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '建立活動連結'; }
+        return;
+      }
+
       const creatorName = this._getEventCreatorName();
       const creatorUid = this._getEventCreatorUid();
 
@@ -161,7 +173,7 @@ Object.assign(App, {
         location: location || '',
         externalUrl,
         sportTag,
-        image,
+        image: resolvedImage,
         gradient: GRADIENT_MAP.external,
         creator: creatorName,
         creatorUid,
@@ -170,8 +182,6 @@ Object.assign(App, {
         participants: [], waitlistNames: [],
       };
 
-      this._externalEventSubmitInFlight = true;
-      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '建立中...'; }
       try {
         await ApiService.createEvent(newEvent);
         this.closeModal();
