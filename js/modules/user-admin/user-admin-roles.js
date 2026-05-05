@@ -27,6 +27,56 @@ Object.assign(App, {
     return ApiService.getRoleActivityCapabilities(roleKey);
   },
 
+  _showUserActivityCapabilityInfo(code) {
+    const info = {
+      'user.activity.basic_create': {
+        title: '基本建立活動',
+        body: '開了之後，一般 user 可以自己建立活動。這是基本版活動，不包含收費、性別限定、私密活動、分隊這些加值開關。',
+      },
+      'user.activity.external_create': {
+        title: '建立外部活動連結',
+        body: '開了之後，一般 user 可以把外部報名頁或活動連結放進來，讓活動列表可以看到這個活動入口。',
+      },
+      'user.activity.own_manage_entry': {
+        title: '自己活動管理入口',
+        body: '開了之後，一般 user 會看到活動管理入口，但只能看到自己主辦的活動，或自己被委託協助的活動，不會看到別人的活動。',
+      },
+      'user.activity.own_edit_basic': {
+        title: '編輯自己活動基本資料',
+        body: '開了之後，一般 user 可以改自己活動的名稱、時間、地點、人數、注意事項等基本資料。加值功能還是另外看「使用加值功能」開關。',
+      },
+      'user.activity.own_cancel': {
+        title: '取消自己活動',
+        body: '開了之後，一般 user 可以把自己主辦的活動取消。這不是刪除活動，只是把活動狀態改成取消。',
+      },
+      'user.activity.site_operate': {
+        title: '現場簽到與候補操作',
+        body: '開了之後，主辦人和委託人可以處理自己活動的現場簽到、掃碼、手動確認，以及候補遞補。委託人只能協助現場作業，不能取消活動或亂改活動設定。',
+      },
+      'user.activity.delegate_assign': {
+        title: '設定委託人',
+        body: '開了之後，一般 user 主辦人可以找最多 3 位委託人幫忙管理現場。委託人主要是協助簽到、候補和現場操作。',
+      },
+      'user.activity.addons_use': {
+        title: '使用加值功能',
+        body: '預設建議關閉。關閉時，一般 user 不能開收費、俱樂部限定、性別限定、私密活動、分隊功能。使用者如果嘗試開啟，系統會提示「如需更多功能請聯繫官方Line@」。',
+      },
+    }[code];
+    if (!info) return;
+    var overlay = document.createElement('div');
+    overlay.className = 'perm-info-overlay';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    overlay.addEventListener('touchmove', function(e) {
+      if (!e.target.closest('.perm-info-dialog')) { e.preventDefault(); e.stopPropagation(); }
+    }, { passive: false });
+    overlay.innerHTML = '<div class="perm-info-dialog">'
+      + '<div class="perm-info-dialog-title">' + escapeHTML(info.title) + '</div>'
+      + '<div class="perm-info-dialog-body">' + escapeHTML(info.body) + '</div>'
+      + '<button class="primary-btn" style="width:100%;margin-top:.8rem" onclick="this.closest(\'.perm-info-overlay\').remove()">知道了</button>'
+      + '</div>';
+    document.body.appendChild(overlay);
+  },
+
   _persistRolePermissionMetaCache() {
     FirebaseService._saveToLS('rolePermissionMeta', FirebaseService._cache.rolePermissionMeta || {});
   },
@@ -45,9 +95,7 @@ Object.assign(App, {
       return '<div class="perm-item">'
         + '<span class="perm-item-label">'
         + escapeHTML(item.name)
-        + '<span style="display:block;font-size:.68rem;color:var(--text-muted);font-weight:400;margin-top:.12rem">'
-        + escapeHTML(item.description || item.code)
-        + '</span>'
+        + '<button class="perm-info-btn" onclick="event.stopPropagation();App._showUserActivityCapabilityInfo(\'' + item.code + '\')" title="說明">?</button>'
         + '</span>'
         + '<label class="toggle-switch ' + (checked ? 'active' : '') + '">'
         + '<input type="checkbox" ' + (checked ? 'checked' : '') + ' ' + (!canEdit ? 'disabled' : '') + ' onchange="App.toggleUserActivityCapability(\'' + item.code + '\')">'
