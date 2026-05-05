@@ -9,15 +9,14 @@ Object.assign(App, {
   editExternalActivity(id) {
     const e = ApiService.getEvent(id);
     if (!e || e.type !== 'external') return;
-    if (!this._canManageEvent(e)) { this.showToast('您只能編輯自己的活動'); return; }
+    if (!this._canEditExternalActivity?.(e)) { this.showToast('您只能編輯自己的活動'); return; }
     this.openCreateExternalEventModal(id);
   },
 
   editMyActivity(id) {
-    if (!this.hasPermission('event.edit_self') && !this.hasPermission('event.edit_all') && !this.hasPermission('activity.manage.entry')) { this.showToast('權限不足'); return; }
     const e = ApiService.getEvent(id);
     if (!e) return;
-    if (!this._canManageEvent(e)) { this.showToast('您只能編輯自己的活動'); return; }
+    if (!this._canEditOwnActivityBasic?.(e)) { this.showToast('您只能編輯自己的活動'); return; }
     // 外部活動走專用編輯流程
     if (e.type === 'external') { this.editExternalActivity(id); return; }
     this._editEventId = id;
@@ -95,10 +94,9 @@ Object.assign(App, {
 
   // ── 結束活動 ──
   async closeMyActivity(id) {
-    if (!this.hasPermission('event.publish') && !this.hasPermission('activity.manage.entry')) { this.showToast('權限不足'); return; }
     const e = ApiService.getEvent(id);
     if (!e) return;
-    if (e && !this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
+    if (e && !this._canReopenOrRelistActivity?.(e)) { this.showToast('您只能管理自己的活動'); return; }
 
     const startDate = this._parseEventStartDate?.(e.date);
     const notStarted = startDate && startDate > new Date();
@@ -146,7 +144,7 @@ Object.assign(App, {
 
     const e = ApiService.getEvent(id);
     if (!e) return;
-    if (e && !this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
+    if (e && !this._canCancelOwnActivity?.(e)) { this.showToast('您只能管理自己的活動'); return; }
     this._cancelActivityBusyMap[id] = true;
     try {
       if (!await this.appConfirm('確定要取消此活動？')) return;
@@ -167,7 +165,9 @@ Object.assign(App, {
         }, uid, 'activity', '活動');
       });
       // 活動被取消 → 刪除所有個人取消紀錄
-      await this._cleanupCancelledRecords(id);
+      if (this._canRemoveConfirmedParticipant?.(e) || this._canManageAllActivities?.()) {
+        await this._cleanupCancelledRecords(id);
+      }
       ApiService._writeOpLog('event_cancel', '取消活動', `取消「${e.title}」`, id);
       this.renderMyActivities();
       this.renderActivityList();
@@ -180,10 +180,9 @@ Object.assign(App, {
 
   // ── 重新開放（已取消 → open/full） ──
   async reopenMyActivity(id) {
-    if (!this.hasPermission('event.publish') && !this.hasPermission('activity.manage.entry')) { this.showToast('權限不足'); return; }
     const e = ApiService.getEvent(id);
     if (!e) return;
-    if (!this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
+    if (!this._canReopenOrRelistActivity?.(e)) { this.showToast('您只能管理自己的活動'); return; }
 
     // 檢查活動時間是否在未來
     const startDate = this._parseEventStartDate(e.date);
@@ -207,10 +206,9 @@ Object.assign(App, {
 
   // ── 重新上架（已結束 → open/full） ──
   async relistMyActivity(id) {
-    if (!this.hasPermission('event.publish') && !this.hasPermission('activity.manage.entry')) { this.showToast('權限不足'); return; }
     const e = ApiService.getEvent(id);
     if (!e) return;
-    if (!this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
+    if (!this._canReopenOrRelistActivity?.(e)) { this.showToast('您只能管理自己的活動'); return; }
 
     // 檢查活動時間是否在未來
     const startDate = this._parseEventStartDate(e.date);
@@ -285,6 +283,21 @@ Object.assign(App, {
 
     const event = ApiService.getEvent(eventId);
     if (!event) return;
+    const targetRegsForPermission = (ApiService._src('registrations') || []).filter(r => {
+      if (r.eventId !== eventId) return false;
+      if (isCompanion) return r.companionId === uid;
+      return r.userId === uid && r.participantType !== 'companion';
+    }).filter(r => r.status !== 'cancelled' && r.status !== 'removed');
+    const touchesConfirmed = targetRegsForPermission.some(r => r.status === 'confirmed' || r.status === 'registered');
+    const touchesWaitlisted = targetRegsForPermission.some(r => r.status === 'waitlisted');
+    if (touchesConfirmed && !this._canRemoveConfirmedParticipant?.(event)) {
+      this.showToast('\u6b0a\u9650\u4e0d\u8db3');
+      return;
+    }
+    if (touchesWaitlisted && !this._canRemoveWaitlistedParticipant?.(event)) {
+      this.showToast('\u6b0a\u9650\u4e0d\u8db3');
+      return;
+    }
 
     const useCF = typeof shouldUseServerRegistrationForCancel === 'function'
       ? shouldUseServerRegistrationForCancel()
@@ -510,10 +523,9 @@ Object.assign(App, {
 
   // ── 刪除活動 ──
   async deleteMyActivity(id) {
-    if (!this.hasPermission('event.delete') && !this.hasPermission('event.delete_self') && !this.hasPermission('activity.manage.entry')) { this.showToast('權限不足'); return; }
     const e = ApiService.getEvent(id);
     if (!e) return;
-    if (e && !this._canManageEvent(e)) { this.showToast('您只能管理自己的活動'); return; }
+    if (e && !this._canDeleteActivity?.(e)) { this.showToast('您只能管理自己的活動'); return; }
     if (!(await this.appConfirm('確定要刪除此活動？刪除後無法恢復。'))) return;
     const title = e.title;
     const eventDocId = e._docId || await FirebaseService._getEventDocIdAsync?.(id);

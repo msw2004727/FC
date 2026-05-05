@@ -14,7 +14,7 @@ Object.assign(App, {
     const e = ApiService.getEvent(eventId);
     if (!e) { container.innerHTML = ''; _wsScrollEl.scrollTop = _wsSavedScroll; return; }
 
-    const canManage = this._canManageEvent(e);
+    const canManage = this._canOperateEventSite?.(e);
     const tableEditing = this._waitlistEditingEventId === eventId;
     const allActiveRegs = ApiService.getRegistrationsByEvent(eventId);
     const _regTime = (r) => {
@@ -162,6 +162,10 @@ Object.assign(App, {
   async _forcePromoteWaitlist(eventId, userId) {
     const e = ApiService.getEvent(eventId);
     if (!e) return;
+    if (!this._canOperateEventSite?.(e)) {
+      this.showToast('\u6b0a\u9650\u4e0d\u8db3');
+      return;
+    }
     const allRegs = ApiService.getRegistrationsByEvent(eventId);
     const userWaitlisted = allRegs.filter(r => r.userId === userId && r.status === 'waitlisted');
     if (userWaitlisted.length === 0) { this.showToast('找不到候補紀錄'); return; }
@@ -171,6 +175,10 @@ Object.assign(App, {
     const currentConfirmed = allRegs.filter(r => r.status === 'confirmed').length;
     const afterCount = currentConfirmed + userWaitlisted.length;
     if (afterCount > (e.max || 0)) {
+      if (!this._canRemoveConfirmedParticipant?.(e)) {
+        this.showToast('\u6b0a\u9650\u4e0d\u8db3');
+        return;
+      }
       const ok = await this.appConfirm(`正取後將超過名額上限（${afterCount}/${e.max}），確定要繼續嗎？`);
       if (!ok) return;
     }
@@ -296,6 +304,10 @@ Object.assign(App, {
     if (isCompanion) { this.showToast('請從主報名者操作下放'); return; }
     const e = ApiService.getEvent(eventId);
     if (!e) return;
+    if (!this._canRemoveConfirmedParticipant?.(e)) {
+      this.showToast('\u6b0a\u9650\u4e0d\u8db3');
+      return;
+    }
     if (!e.max || e.max <= 0) { this.showToast('此活動無名額上限，無法下放候補'); return; }
 
     const allRegs = ApiService.getRegistrationsByEvent(eventId);

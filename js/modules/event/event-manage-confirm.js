@@ -13,9 +13,10 @@ Object.assign(App, {
   _unregPendingStateByUid: null,
 
   async _startTableEdit(eventId) {
-    if (!this.hasPermission('event.manual_checkin') && !this.hasPermission('activity.manage.entry')) {
-      const _e = eventId && ApiService.getEvent(eventId);
-      if (!_e || !this._canManageEvent(_e)) { this.showToast('權限不足'); return; }
+    const _e = eventId && ApiService.getEvent(eventId);
+    if (!_e || this._canOperateEventSite?.(_e) !== true) {
+      this.showToast('權限不足');
+      return;
     }
     this._attendanceEditingEventId = eventId;
     const preload = [];
@@ -98,6 +99,11 @@ Object.assign(App, {
     if (typeof this._flushInstantSaves === 'function') await this._flushInstantSaves(eventId);
     const e = ApiService.getEvent(eventId);
     if (!e) return;
+    if (this._canOperateEventSite?.(e) !== true) {
+      this._attendanceSubmittingEventId = null;
+      this.showToast('權限不足');
+      return;
+    }
     const containerId = this._manualEditingContainerId || 'attendance-table-container';
 
     const allActiveRegs = ApiService.getRegistrationsByEvent(eventId);
@@ -254,12 +260,22 @@ Object.assign(App, {
   },
 
   _startUnregTableEdit(eventId) {
+    const e = eventId && ApiService.getEvent(eventId);
+    if (!e || this._canOperateEventSite?.(e) !== true) {
+      this.showToast('權限不足');
+      return;
+    }
     this._unregEditingEventId = eventId;
     if (typeof this._initUnregInstantSave === 'function') this._initUnregInstantSave(eventId);
     this._renderUnregTable(eventId, 'detail-unreg-table');
   },
 
   async _removeUnregUser(eventId, uid, name) {
+    const e = eventId && ApiService.getEvent(eventId);
+    if (!e || this._canOperateEventSite?.(e) !== true) {
+      this.showToast('權限不足');
+      return;
+    }
     if (!await this.appConfirm(`確定要將 ${name} 從未報名單中移除嗎？`)) return;
     const records = ApiService.getAttendanceRecords(eventId);
     const person = { uid, name, isCompanion: false };
@@ -285,13 +301,15 @@ Object.assign(App, {
 
   async _confirmAllUnregAttendance(eventId) {
     if (this._unregSubmittingEventId) return;
+    const e = ApiService.getEvent(eventId);
+    if (!e || this._canOperateEventSite?.(e) !== true) {
+      this.showToast('權限不足');
+      return;
+    }
     // 立即顯示「儲存中...」
     this._unregSubmittingEventId = eventId;
     this._renderUnregTable(eventId, 'detail-unreg-table');
     if (typeof this._flushUnregInstantSaves === 'function') await this._flushUnregInstantSaves(eventId);
-    const e = ApiService.getEvent(eventId);
-    if (!e) return;
-
     const records = ApiService.getAttendanceRecords(eventId);
     const unregMap = new Map();
     records.forEach(r => {

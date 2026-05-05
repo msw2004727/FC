@@ -43,6 +43,9 @@ Object.assign(App, {
   _canAccessDrawerItem(item, role) {
     if (!item || item.divider || item.sectionLabel) return true;
     const roleKey = this._getEffectiveRoleKey(role);
+    if (item.page === 'page-my-activities' && typeof this._canAccessOwnActivityManageEntry === 'function') {
+      return this._canAccessOwnActivityManageEntry();
+    }
     if (item.permissionCode) {
       return this.hasPermission(item.permissionCode, roleKey);
     }
@@ -67,6 +70,7 @@ Object.assign(App, {
     // page-scan: delegate 例外 + 教練以上
     if (pageId === 'page-scan') {
       if (this._getEffectiveRoleLevel(role) >= (ROLE_LEVEL_MAP.coach || 0)) return true;
+      if (typeof this._isAnyActiveEventOperator === 'function' && this._isAnyActiveEventOperator()) return true;
       if (typeof this._isAnyActiveEventDelegate === 'function' && this._isAnyActiveEventDelegate()) return true;
       return false;
     }
@@ -200,6 +204,7 @@ Object.assign(App, {
 
     this._applyRoleBoundVisibility(role);
     this._refreshActivityCreateButton?.();
+    this._refreshOwnActivityManageEntry?.();
     this._refreshTournamentCenterCreateButton?.();
     this.renderDrawerMenu();
     void this._flushPendingProtectedBootRoute?.({ skipEnsureCloudReady: true });

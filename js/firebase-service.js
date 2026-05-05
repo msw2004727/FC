@@ -70,6 +70,7 @@ const FirebaseService = {
     newsArticles: [],
     rolePermissions: {},
     rolePermissionMeta: {},
+    roleActivityCapabilities: {},
     customRoles: [],
     currentUser: null,
   },
@@ -537,6 +538,9 @@ const FirebaseService = {
     if (Object.keys(this._cache.rolePermissionMeta).length > 0) {
       this._saveToLS('rolePermissionMeta', this._cache.rolePermissionMeta);
     }
+    if (Object.keys(this._cache.roleActivityCapabilities || {}).length > 0) {
+      this._saveToLS('roleActivityCapabilities', this._cache.roleActivityCapabilities);
+    }
     localStorage.setItem(this._getLSTsKey(), Date.now().toString());
   },
 
@@ -611,6 +615,11 @@ const FirebaseService = {
       this._cache.rolePermissionMeta = rpMeta;
       restored++;
     }
+    const roleActivityCapabilities = this._loadFromLS('roleActivityCapabilities');
+    if (roleActivityCapabilities && Object.keys(roleActivityCapabilities).length > 0) {
+      this._cache.roleActivityCapabilities = roleActivityCapabilities;
+      restored++;
+    }
     // 恢復 currentUser（防止刷新後 currentUser 為 null 導致幽靈用戶）
     const savedUser = this._loadFromLS('currentUser');
     if (savedUser && savedUser.uid) {
@@ -649,7 +658,7 @@ const FirebaseService = {
     'events', 'teams', 'tournaments', 'shopItems', 'leaderboard', 'standings', 'matches',
     'trades', 'attendanceRecords', 'activityRecords',
     'expLogs', 'teamExpLogs', 'operationLogs',
-    'adminMessages', 'notifTemplates', 'eventTemplates', 'permissions', 'customRoles',
+    'adminMessages', 'notifTemplates', 'eventTemplates', 'permissions', 'customRoles', 'roleActivityCapabilities',
     'userCorrections',
     'errorLogs',
     'registrations', 'messages',
@@ -672,13 +681,13 @@ const FirebaseService = {
     'page-my-activities':     ['events', 'attendanceRecords', 'registrations'],
     'page-scan':              ['attendanceRecords', 'registrations'],
     'page-admin-dashboard':   ['expLogs', 'teamExpLogs', 'operationLogs', 'attendanceRecords', 'activityRecords'],
-    'page-admin-users':       ['permissions', 'customRoles'],
+    'page-admin-users':       ['permissions', 'customRoles', 'roleActivityCapabilities'],
     'page-admin-messages':    ['adminMessages', 'notifTemplates'],
     'page-admin-exp':         ['expLogs', 'teamExpLogs'],
     'page-admin-auto-exp':    ['expLogs'],
     'page-admin-achievements': ['achievements', 'badges'],
     'page-admin-games':       ['gameConfigs'],
-    'page-admin-roles':       ['permissions', 'customRoles'],
+    'page-admin-roles':       ['permissions', 'customRoles', 'roleActivityCapabilities'],
     'page-admin-logs':        ['operationLogs', 'errorLogs'],
     'page-admin-error-logs':  ['errorLogs'],
     'page-admin-inactive':    ['attendanceRecords', 'activityRecords', 'operationLogs'],
@@ -1245,10 +1254,20 @@ const FirebaseService = {
     if (typeof App === 'undefined') return;
     try {
       App.applyRole?.(App.currentRole || 'user', true);
+      App._refreshActivityCreateButton?.();
+      App._refreshOwnActivityManageEntry?.();
       if (App.currentPage === 'page-teams') {
         App.renderTeamList?.();
       } else if (App.currentPage === 'page-team-manage') {
         App.renderTeamManage?.();
+      } else if (App.currentPage === 'page-activities') {
+        App.renderActivityList?.();
+      } else if (App.currentPage === 'page-my-activities') {
+        App.renderMyActivities?.();
+      } else if (App.currentPage === 'page-activity-detail' && App._currentDetailEventId) {
+        App.showEventDetail?.(App._currentDetailEventId);
+      } else if (App.currentPage === 'page-scan') {
+        App.renderScanPage?.();
       } else if (App.currentPage === 'page-team-detail' && App._teamDetailId) {
         var _tdS = window.scrollY || window.pageYOffset || 0;
         App.showTeamDetail?.(App._teamDetailId);
@@ -1476,6 +1495,57 @@ const FirebaseService = {
   },
 
   /** Firebase Auth 登入方式 */
+  _watchRoleActivityCapabilitiesRealtime(waitForFirstSnapshot = false) {
+    return new Promise(resolve => {
+      if (!auth?.currentUser) {
+        resolve();
+        return;
+      }
+      let firstSnapshot = true;
+      let settled = false;
+      const done = () => {
+        if (!settled) {
+          settled = true;
+          resolve();
+        }
+      };
+
+      const unsub = db.collection('roleActivityCapabilities').onSnapshot(
+        snapshot => {
+          const nextRoleActivityCapabilities = {};
+          snapshot.docs.forEach(doc => {
+            const data = doc.data() || {};
+            if (Object.prototype.hasOwnProperty.call(data, 'capabilities')) {
+              nextRoleActivityCapabilities[doc.id] = sanitizeRoleActivityCapabilities(data.capabilities);
+            }
+          });
+
+          const prev = JSON.stringify(this._cache.roleActivityCapabilities || {});
+          const next = JSON.stringify(nextRoleActivityCapabilities);
+          this._cache.roleActivityCapabilities = nextRoleActivityCapabilities;
+          this._saveToLS('roleActivityCapabilities', this._cache.roleActivityCapabilities);
+
+          if (firstSnapshot) {
+            firstSnapshot = false;
+            done();
+            return;
+          }
+
+          if (prev !== next) {
+            this._onRolePermissionsUpdated();
+          }
+        },
+        err => {
+          console.warn('[FirebaseService] roleActivityCapabilities realtime failed:', err);
+          done();
+        }
+      );
+
+      this._listeners.push(unsub);
+      if (!waitForFirstSnapshot) done();
+    });
+  },
+
   async _signInWithAppropriateMethod(expectedUid = null) {
     // 先等待 Auth 狀態恢復——若先前已登入成功且有 persistence，不需重新走 LINE 驗證
     if (typeof _firebaseAuthReadyPromise !== 'undefined' && !_firebaseAuthReady) {
@@ -1644,7 +1714,7 @@ const FirebaseService = {
    */
   async _fetchSingleDoc(collection, docId) {
     // v8 M3：訪客模式下需登入的集合短路、避免 console noise（permission-denied）
-    const AUTH_REQUIRED_COLLECTIONS = ['siteConfig', 'customRoles', 'rolePermissions', 'permissions'];
+    const AUTH_REQUIRED_COLLECTIONS = ['siteConfig', 'customRoles', 'rolePermissions', 'roleActivityCapabilities', 'permissions'];
     if (AUTH_REQUIRED_COLLECTIONS.includes(collection) && !auth?.currentUser) {
       return;
     }
@@ -2193,6 +2263,7 @@ const FirebaseService = {
 
       try {
         await this._watchRolePermissionsRealtime(true);
+        await this._watchRoleActivityCapabilitiesRealtime(true);
       } catch (err) { console.warn('[FirebaseService] rolePermissions 載入失敗:', err); }
 
       const authRole = await this._resolveCurrentAuthRole();
@@ -2965,13 +3036,31 @@ const FirebaseService = {
         hasChanges = true;
       });
 
-      if (!hasChanges) return;
+      if (hasChanges) {
+        await batch.commit();
+        this._cache.rolePermissions = nextRolePermissions;
+        this._cache.rolePermissionMeta = nextRolePermissionMeta;
+        this._saveToLS('rolePermissions', this._cache.rolePermissions);
+        this._saveToLS('rolePermissionMeta', this._cache.rolePermissionMeta);
+      }
 
-      await batch.commit();
-      this._cache.rolePermissions = nextRolePermissions;
-      this._cache.rolePermissionMeta = nextRolePermissionMeta;
-      this._saveToLS('rolePermissions', this._cache.rolePermissions);
-      this._saveToLS('rolePermissionMeta', this._cache.rolePermissionMeta);
+      const roleActivitySource = { ...(this._cache.roleActivityCapabilities || {}) };
+      const currentUserCaps = sanitizeRoleActivityCapabilities(roleActivitySource.user || []);
+      const defaultUserCaps = sanitizeRoleActivityCapabilities(getDefaultRoleActivityCapabilities('user'));
+      const userCapDoc = await db.collection('roleActivityCapabilities').doc('user').get();
+      const docData = userCapDoc.exists ? (userCapDoc.data() || {}) : {};
+      if (!userCapDoc.exists || docData.catalogVersion !== ROLE_ACTIVITY_CAPABILITY_CATALOG_VERSION) {
+        const seededCaps = currentUserCaps.length ? currentUserCaps : defaultUserCaps;
+        await db.collection('roleActivityCapabilities').doc('user').set({
+          capabilities: seededCaps,
+          defaultCapabilities: defaultUserCaps,
+          catalogVersion: ROLE_ACTIVITY_CAPABILITY_CATALOG_VERSION,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        roleActivitySource.user = seededCaps;
+        this._cache.roleActivityCapabilities = roleActivitySource;
+        this._saveToLS('roleActivityCapabilities', this._cache.roleActivityCapabilities);
+      }
       console.log('[FirebaseService] 後台入口預設權限補遷移完成');
     } catch (err) {
       console.warn('[FirebaseService] 後台入口預設權限補遷移失敗:', err);
@@ -3437,7 +3526,7 @@ const FirebaseService = {
     // 重置快取到初始空白狀態
     Object.keys(this._cache).forEach(k => {
       if (k === 'currentUser') { this._cache[k] = null; }
-      else if (k === 'rolePermissions' || k === 'rolePermissionMeta') { this._cache[k] = {}; }
+      else if (k === 'rolePermissions' || k === 'rolePermissionMeta' || k === 'roleActivityCapabilities') { this._cache[k] = {}; }
       else { this._cache[k] = []; }
     });
   },

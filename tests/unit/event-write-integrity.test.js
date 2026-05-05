@@ -59,6 +59,9 @@ function loadLifecycle() {
   const App = {
     hasPermission: jest.fn(() => true),
     _canManageEvent: jest.fn(() => true),
+    _canCancelOwnActivity: jest.fn(() => true),
+    _canReopenOrRelistActivity: jest.fn(() => true),
+    _canDeleteActivity: jest.fn(() => true),
     appConfirm: jest.fn().mockResolvedValue(true),
     _parseEventStartDate: jest.fn(() => new Date(0)),
     _isEventTrulyFull: jest.fn(() => false),

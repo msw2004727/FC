@@ -132,6 +132,16 @@ const denyAll = {
   superAdmin: false,
 };
 
+const DEFAULT_USER_ACTIVITY_CAPABILITIES = [
+  "user.activity.basic_create",
+  "user.activity.external_create",
+  "user.activity.own_manage_entry",
+  "user.activity.own_edit_basic",
+  "user.activity.own_cancel",
+  "user.activity.site_operate",
+  "user.activity.delegate_assign",
+];
+
 async function assertByRole(opFactory, expectedByRole) {
   for (const role of roles) {
     const db = roleDb[role]();
@@ -172,6 +182,13 @@ async function seedUserDoc(id, overrides = {}) {
 async function seedRolePermissions(roleKey, permissions = []) {
   await seedDoc("rolePermissions", roleKey, {
     permissions: [...permissions],
+  });
+}
+
+async function seedRoleActivityCapabilities(capabilities = DEFAULT_USER_ACTIVITY_CAPABILITIES) {
+  await seedDoc("roleActivityCapabilities", "user", {
+    capabilities: [...capabilities],
+    catalogVersion: "test",
   });
 }
 
@@ -671,18 +688,396 @@ describe("/events/{eventId}", () => {
     );
   });
 
-  test("write-create (current): guest deny; authenticated allow", async () => {
+  test("write-create: guest denied; authenticated roles allowed through scoped capabilities", async () => {
     await assertByRole(
       ({ db, role }) =>
-        setDoc(doc(db, "events", `event_create_${role}`), { title: "created" }),
+        setDoc(doc(db, "events", `event_create_${role}`), {
+          title: "created",
+          creatorUid: uidByRole[role] || "uidA",
+        }),
       allowAuth
     );
   });
 
-  test("[SECURITY_GAP] write-update (current): any authenticated user can update others' event", async () => {
+  test("write-update: non-owner user cannot update another user's event", async () => {
     await assertByRole(
       ({ db }) => updateDoc(doc(db, "events", "eventB"), { status: "closed" }),
-      allowAuth
+      {
+        guest: false,
+        memberA: false,
+        memberB: false,
+        admin: true,
+        superAdmin: true,
+      }
+    );
+  });
+
+  test("user activity capabilities can be read by authenticated users and written only by super_admin", async () => {
+    await seedRoleActivityCapabilities();
+    await assertFails(getDoc(doc(guest(), "roleActivityCapabilities", "user")));
+    await assertSucceeds(getDoc(doc(user(), "roleActivityCapabilities", "user")));
+    await assertFails(
+      setDoc(doc(user(), "roleActivityCapabilities", "user"), {
+        capabilities: [],
+      })
+    );
+    await assertFails(
+      setDoc(doc(admin(), "roleActivityCapabilities", "user"), {
+        capabilities: [],
+      })
+    );
+    await assertSucceeds(
+      setDoc(doc(superAdmin(), "roleActivityCapabilities", "user"), {
+        capabilities: DEFAULT_USER_ACTIVITY_CAPABILITIES,
+      })
+    );
+  });
+
+  test("user can create own basic event but cannot enable add-on fields", async () => {
+    await assertSucceeds(
+      setDoc(doc(user(), "events", "event_user_basic_create"), {
+        title: "User Basic",
+        creatorUid: "uidUser",
+        status: "open",
+      })
+    );
+
+    await assertFails(
+      setDoc(doc(user(), "events", "event_user_addon_create"), {
+        title: "User Add-on",
+        creatorUid: "uidUser",
+        feeEnabled: true,
+        fee: 500,
+      })
+    );
+  });
+
+  test("user basic event creation requires safe initial status and empty projection fields", async () => {
+    await assertFails(
+      setDoc(doc(user(), "events", "event_user_bad_status_create"), {
+        title: "Bad Status",
+        creatorUid: "uidUser",
+        status: "cancelled",
+      })
+    );
+    await assertFails(
+      setDoc(doc(user(), "events", "event_user_bad_projection_create"), {
+        title: "Bad Projection",
+        creatorUid: "uidUser",
+        current: 9,
+        participants: ["spoofed"],
+      })
+    );
+  });
+
+  test("user create delegate fields require delegate_assign when non-empty", async () => {
+    await seedRoleActivityCapabilities(
+      DEFAULT_USER_ACTIVITY_CAPABILITIES.filter((code) => code !== "user.activity.delegate_assign")
+    );
+    await assertSucceeds(
+      setDoc(doc(user(), "events", "event_user_empty_delegates_create"), {
+        title: "Empty Delegates",
+        creatorUid: "uidUser",
+        delegates: [],
+        delegateUids: [],
+      })
+    );
+    await assertFails(
+      setDoc(doc(user(), "events", "event_user_delegates_denied_create"), {
+        title: "Delegates Denied",
+        creatorUid: "uidUser",
+        delegates: [{ uid: "uidDelegate" }],
+        delegateUids: ["uidDelegate"],
+      })
+    );
+  });
+
+  test("user external activity creation follows roleActivityCapabilities", async () => {
+    await assertSucceeds(
+      setDoc(doc(user(), "events", "event_user_external_create"), {
+        title: "External OK",
+        creatorUid: "uidUser",
+        type: "external",
+      })
+    );
+
+    await seedRoleActivityCapabilities(
+      DEFAULT_USER_ACTIVITY_CAPABILITIES.filter((code) => code !== "user.activity.external_create")
+    );
+    await assertFails(
+      setDoc(doc(user(), "events", "event_user_external_denied"), {
+        title: "External Denied",
+        creatorUid: "uidUser",
+        type: "external",
+      })
+    );
+  });
+
+  test("user owner can edit basic fields and cancel own event, but cannot update add-ons", async () => {
+    await assertSucceeds(
+      updateDoc(doc(user(), "events", "eventUserOwn"), {
+        title: "User Event Updated",
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(user(), "events", "eventUserOwn"), {
+        status: "cancelled",
+      })
+    );
+    await assertFails(
+      updateDoc(doc(user(), "events", "eventUserOwn"), {
+        feeEnabled: true,
+      })
+    );
+    await assertFails(
+      updateDoc(doc(user(), "events", "eventUserOwn"), {
+        teamSplit: { enabled: true, mode: "random" },
+      })
+    );
+  });
+
+  test("user owner cannot lower capacity below current participant count", async () => {
+    await seedDoc("events", "eventUserOwn", {
+      id: "eventUserOwn",
+      title: "User Event",
+      creatorUid: "uidUser",
+      ownerUid: "uidUser",
+      captainUid: "uidUser",
+      status: "open",
+      current: 5,
+      max: 8,
+    });
+
+    await assertFails(
+      updateDoc(doc(user(), "events", "eventUserOwn"), {
+        max: 4,
+      })
+    );
+    await assertFails(
+      updateDoc(doc(user(), "events", "eventUserOwn"), {
+        max: "5",
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(user(), "events", "eventUserOwn"), {
+        max: 5,
+      })
+    );
+  });
+
+  test("user owner can edit externalUrl and combine basic edit with delegate assignment when allowed", async () => {
+    await assertSucceeds(
+      updateDoc(doc(user(), "events", "eventUserOwn"), {
+        title: "User Event With Delegate",
+        externalUrl: "https://example.com/activity",
+        delegates: [{ uid: "uidDelegate" }],
+        delegateUids: ["uidDelegate"],
+      })
+    );
+  });
+
+  test("user owner basic edit can be disabled through roleActivityCapabilities", async () => {
+    await seedRoleActivityCapabilities(
+      DEFAULT_USER_ACTIVITY_CAPABILITIES.filter((code) => code !== "user.activity.own_edit_basic")
+    );
+    await assertFails(
+      updateDoc(doc(user(), "events", "eventUserOwn"), {
+        title: "Denied Update",
+      })
+    );
+  });
+
+  test("user owner/delegate can promote waitlisted registrations only when site_operate is enabled", async () => {
+    await seedDoc("events", "event_user_operator", {
+      id: "event_user_operator",
+      title: "User Operator",
+      creatorUid: "uidUser",
+      delegateUids: ["uidDelegate"],
+      status: "open",
+    });
+    await seedDoc("registrations", "reg_wait_owner", {
+      id: "reg_wait_owner",
+      eventId: "event_user_operator",
+      userId: "uidA",
+      status: "waitlisted",
+    });
+    await assertSucceeds(
+      updateDoc(doc(user(), "registrations", "reg_wait_owner"), {
+        status: "confirmed",
+      })
+    );
+
+    await seedDoc("registrations", "reg_wait_delegate", {
+      id: "reg_wait_delegate",
+      eventId: "event_user_operator",
+      userId: "uidB",
+      status: "waitlisted",
+    });
+    await assertSucceeds(
+      updateDoc(doc(roleContext("uidDelegate", "user"), "registrations", "reg_wait_delegate"), {
+        status: "confirmed",
+      })
+    );
+
+    await seedDoc("registrations", "reg_wait_random", {
+      id: "reg_wait_random",
+      eventId: "event_user_operator",
+      userId: "uidB",
+      status: "waitlisted",
+    });
+    await assertFails(
+      updateDoc(doc(roleContext("uidRandom", "user"), "registrations", "reg_wait_random"), {
+        status: "confirmed",
+      })
+    );
+
+    await seedRoleActivityCapabilities(
+      DEFAULT_USER_ACTIVITY_CAPABILITIES.filter((code) => code !== "user.activity.site_operate")
+    );
+    await seedDoc("registrations", "reg_wait_cap_disabled", {
+      id: "reg_wait_cap_disabled",
+      eventId: "event_user_operator",
+      userId: "uidA",
+      status: "waitlisted",
+    });
+    await assertFails(
+      updateDoc(doc(user(), "registrations", "reg_wait_cap_disabled"), {
+        status: "confirmed",
+      })
+    );
+  });
+
+  test("user owner/delegate subcollection attendance writes require site_operate", async () => {
+    await seedDoc("events", "event_user_attendance", {
+      id: "event_user_attendance",
+      title: "User Attendance",
+      creatorUid: "uidUser",
+      delegateUids: ["uidDelegate"],
+      status: "open",
+    });
+    await seedPath(["events", "event_user_attendance", "attendanceRecords", "att_existing"], {
+      eventId: "event_user_attendance",
+      uid: "uidA",
+      type: "checkin",
+      status: "active",
+    });
+
+    await assertSucceeds(
+      setDoc(doc(user(), "events", "event_user_attendance", "attendanceRecords", "att_owner"), {
+        eventId: "event_user_attendance",
+        uid: "uidA",
+        type: "checkin",
+      })
+    );
+    await assertSucceeds(
+      setDoc(doc(roleContext("uidDelegate", "user"), "events", "event_user_attendance", "attendanceRecords", "att_delegate"), {
+        eventId: "event_user_attendance",
+        uid: "uidB",
+        type: "checkout",
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(user(), "events", "event_user_attendance", "attendanceRecords", "att_existing"), {
+        status: "removed",
+      })
+    );
+    await assertFails(
+      setDoc(doc(roleContext("uidRandom", "user"), "events", "event_user_attendance", "attendanceRecords", "att_random"), {
+        eventId: "event_user_attendance",
+        uid: "uidA",
+        type: "checkin",
+      })
+    );
+    await assertFails(
+      setDoc(doc(user(), "events", "event_user_attendance", "attendanceRecords", "att_wrong_event"), {
+        eventId: "other_event",
+        uid: "uidA",
+        type: "checkin",
+      })
+    );
+
+    await seedRoleActivityCapabilities(
+      DEFAULT_USER_ACTIVITY_CAPABILITIES.filter((code) => code !== "user.activity.site_operate")
+    );
+    await assertFails(
+      setDoc(doc(user(), "events", "event_user_attendance", "attendanceRecords", "att_owner_disabled"), {
+        eventId: "event_user_attendance",
+        uid: "uidA",
+        type: "checkin",
+      })
+    );
+    await assertFails(
+      updateDoc(doc(user(), "events", "event_user_attendance", "attendanceRecords", "att_existing"), {
+        status: "removed",
+      })
+    );
+    await assertSucceeds(
+      setDoc(doc(coach(), "events", "event_user_attendance", "attendanceRecords", "att_coach"), {
+        eventId: "event_user_attendance",
+        uid: "uidCoach",
+        type: "checkin",
+      })
+    );
+  });
+
+  test("subcollection activity record writes are limited to participant owner or event operator", async () => {
+    await seedDoc("events", "event_user_activity_record", {
+      id: "event_user_activity_record",
+      title: "User Activity Record",
+      creatorUid: "uidUser",
+      delegateUids: ["uidDelegate"],
+      status: "open",
+    });
+    await seedPath(["events", "event_user_activity_record", "activityRecords", "act_existing"], {
+      eventId: "event_user_activity_record",
+      uid: "uidA",
+      status: "registered",
+    });
+
+    await assertSucceeds(
+      setDoc(doc(memberA(), "events", "event_user_activity_record", "activityRecords", "act_self"), {
+        eventId: "event_user_activity_record",
+        uid: "uidA",
+        status: "registered",
+      })
+    );
+    await assertFails(
+      setDoc(doc(memberB(), "events", "event_user_activity_record", "activityRecords", "act_spoof"), {
+        eventId: "event_user_activity_record",
+        uid: "uidA",
+        status: "registered",
+      })
+    );
+    await assertSucceeds(
+      setDoc(doc(user(), "events", "event_user_activity_record", "activityRecords", "act_operator"), {
+        eventId: "event_user_activity_record",
+        uid: "uidB",
+        status: "registered",
+      })
+    );
+    await assertFails(
+      updateDoc(doc(roleContext("uidRandom", "user"), "events", "event_user_activity_record", "activityRecords", "act_existing"), {
+        status: "removed",
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(user(), "events", "event_user_activity_record", "activityRecords", "act_existing"), {
+        status: "removed",
+      })
+    );
+
+    await seedRoleActivityCapabilities(
+      DEFAULT_USER_ACTIVITY_CAPABILITIES.filter((code) => code !== "user.activity.site_operate")
+    );
+    await seedPath(["events", "event_user_activity_record", "activityRecords", "act_disabled"], {
+      eventId: "event_user_activity_record",
+      uid: "uidB",
+      status: "registered",
+    });
+    await assertFails(
+      updateDoc(doc(user(), "events", "event_user_activity_record", "activityRecords", "act_disabled"), {
+        status: "removed",
+      })
     );
   });
 
@@ -1395,9 +1790,8 @@ describe("Role usability smoke tests", () => {
     );
   });
 
-  test("[SECURITY_GAP_USABILITY] non-coach user can update event", async () => {
-    // SECURITY GAP: /events update currently allows any authenticated user (isAuth()).
-    await assertSucceeds(
+  test("[SECURITY_HARDENED] non-owner user cannot update coach event", async () => {
+    await assertFails(
       updateDoc(doc(user(), "events", "eventCoachOwn"), {
         status: "user-updated",
       })

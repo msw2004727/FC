@@ -5,6 +5,19 @@ Object.assign(App, {
 
   // ── Event Fee ──
 
+  _isActivityAddonAllowedForCurrentEdit() {
+    const eventRecord = this._editEventId ? ApiService.getEvent(this._editEventId) : null;
+    return !!this._canUseActivityAddons?.(eventRecord || null);
+  },
+
+  _guardActivityAddonToggle(toggle) {
+    if (!toggle?.checked) return true;
+    if (this._isActivityAddonAllowedForCurrentEdit()) return true;
+    toggle.checked = false;
+    this._showActivityAddonUpsellToast?.();
+    return false;
+  },
+
   _getEventFeeFormNodes() {
     return {
       toggle: document.getElementById('ce-fee-enabled'),
@@ -45,7 +58,10 @@ Object.assign(App, {
     const { toggle } = this._getEventFeeFormNodes();
     if (toggle && !toggle.dataset.bound) {
       toggle.dataset.bound = '1';
-      toggle.addEventListener('change', () => this._updateEventFeeToggle());
+      toggle.addEventListener('change', () => {
+        this._guardActivityAddonToggle(toggle);
+        this._updateEventFeeToggle();
+      });
     }
     this._updateEventFeeToggle();
   },
@@ -114,6 +130,10 @@ Object.assign(App, {
           this._setGenderRestrictionValue('');
           return;
         }
+        if (!this._guardActivityAddonToggle(toggle)) {
+          this._setGenderRestrictionValue('');
+          return;
+        }
         this._updateGenderRestrictionUI();
       });
     }
@@ -123,6 +143,10 @@ Object.assign(App, {
       btn.dataset.bound = '1';
       btn.addEventListener('click', () => {
         if (!document.getElementById('ce-gender-restriction-enabled')?.checked) return;
+        if (!this._isActivityAddonAllowedForCurrentEdit()) {
+          this._showActivityAddonUpsellToast?.();
+          return;
+        }
         this._setGenderRestrictionValue(btn.dataset.value || '');
       });
     });
@@ -151,7 +175,10 @@ Object.assign(App, {
     const toggle = document.getElementById('ce-private-event');
     if (toggle && !toggle.dataset.bound) {
       toggle.dataset.bound = '1';
-      toggle.addEventListener('change', () => this._updatePrivateEventUI());
+      toggle.addEventListener('change', () => {
+        this._guardActivityAddonToggle(toggle);
+        this._updatePrivateEventUI();
+      });
     }
     this._updatePrivateEventUI();
   },
@@ -418,6 +445,10 @@ Object.assign(App, {
   },
 
   _tsCycleColor(teamIdx) {
+    if (!this._isActivityAddonAllowedForCurrentEdit()) {
+      this._showActivityAddonUpsellToast?.();
+      return;
+    }
     const presets = this._tsDefaultColors;
     const current = this._tsTeamColorIdx[teamIdx] ?? teamIdx;
     // 循環到下一個顏色，跳過已被其他隊使用的
@@ -436,7 +467,11 @@ Object.assign(App, {
     this._tsRenderColorChips();
   },
 
-  _tsSetMode(mode) {
+  _tsSetMode(mode, silent = false) {
+    if (!silent && !this._isActivityAddonAllowedForCurrentEdit()) {
+      this._showActivityAddonUpsellToast?.();
+      return;
+    }
     document.querySelectorAll('#ce-team-split-mode .ce-gender-chip').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.value === mode);
     });
@@ -453,7 +488,10 @@ Object.assign(App, {
     const toggle = document.getElementById('ce-team-split-enabled');
     if (toggle && !toggle.dataset.bound) {
       toggle.dataset.bound = '1';
-      toggle.addEventListener('change', () => this._updateTeamSplitUI());
+      toggle.addEventListener('change', () => {
+        if (!this._guardActivityAddonToggle(toggle)) this._tsSetFormData?.(null);
+        this._updateTeamSplitUI();
+      });
     }
     const countSel = document.getElementById('ce-team-split-count');
     if (countSel && !countSel.dataset.bound) {
@@ -463,7 +501,10 @@ Object.assign(App, {
     const balanceCb = document.getElementById('ce-team-split-balance');
     if (balanceCb && !balanceCb.dataset.bound) {
       balanceCb.dataset.bound = '1';
-      balanceCb.addEventListener('change', () => this._tsUpdateBalanceCard());
+      balanceCb.addEventListener('change', () => {
+        if (!this._guardActivityAddonToggle(balanceCb)) return;
+        this._tsUpdateBalanceCard();
+      });
     }
     // 直接綁定卡片點擊，避免 display:none 的 checkbox 在 LINE WebView 無法觸發 label-for
     const balanceCard = document.getElementById('ce-team-split-balance-card');
@@ -472,7 +513,11 @@ Object.assign(App, {
       balanceCard.addEventListener('click', (e) => {
         e.preventDefault();
         const cb = document.getElementById('ce-team-split-balance');
-        if (cb) { cb.checked = !cb.checked; this._tsUpdateBalanceCard(); }
+        if (cb) {
+          cb.checked = !cb.checked;
+          if (!this._guardActivityAddonToggle(cb)) return;
+          this._tsUpdateBalanceCard();
+        }
       });
     }
     this._updateTeamSplitUI();
@@ -517,7 +562,7 @@ Object.assign(App, {
         if (idx >= 0) this._tsTeamColorIdx[i] = idx;
       });
     }
-    if (teamSplit?.mode) this._tsSetMode(teamSplit.mode);
+    if (teamSplit?.mode) this._tsSetMode(teamSplit.mode, true);
     const balance = document.getElementById('ce-team-split-balance');
     if (balance) balance.checked = teamSplit?.balanceCap !== false;
     const lockHours = document.getElementById('ce-team-split-lock-hours');

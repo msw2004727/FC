@@ -124,8 +124,9 @@ Object.assign(App, {
   },
 
   _buildCurrentTemplate(name, image) {
-    const genderRestrictionEnabled = !!document.getElementById('ce-gender-restriction-enabled')?.checked;
-    const feeEnabled = !!document.getElementById('ce-fee-enabled')?.checked;
+    const canUseAddons = !!this._isActivityAddonAllowedForCurrentEdit?.();
+    const genderRestrictionEnabled = canUseAddons && !!document.getElementById('ce-gender-restriction-enabled')?.checked;
+    const feeEnabled = canUseAddons && !!document.getElementById('ce-fee-enabled')?.checked;
     return {
       id: 'tpl_' + Date.now(),
       name,
@@ -140,7 +141,7 @@ Object.assign(App, {
       sportTag: getSportKeySafe(document.getElementById('ce-sport-tag')?.value || '') || '',
       genderRestrictionEnabled,
       allowedGender: genderRestrictionEnabled ? this._getAllowedGenderValue() : '',
-      privateEvent: !!document.getElementById('ce-private-event')?.checked,
+      privateEvent: canUseAddons && !!document.getElementById('ce-private-event')?.checked,
       regionEnabled: !!document.getElementById('ce-region-enabled')?.checked,
       region: document.getElementById('ce-region-radios')?.querySelector('input[name="ce-region"]:checked')?.value || '',
       cities: this._regionSelectedCities ? [...this._regionSelectedCities] : [],
@@ -220,14 +221,18 @@ Object.assign(App, {
     setVal('ce-type', tpl.type);
     setVal('ce-location', tpl.location);
     // 活動時間與開放報名時間不從範本還原（一次性欄位）
+    const canUseAddons = !!this._isActivityAddonAllowedForCurrentEdit?.();
+    if (!canUseAddons && (tpl.feeEnabled || Number(tpl.fee || 0) > 0 || tpl.genderRestrictionEnabled || tpl.privateEvent)) {
+      this._showActivityAddonUpsellToast?.();
+    }
     const feeEnabled = typeof tpl.feeEnabled === 'boolean' ? tpl.feeEnabled : Number(tpl.fee || 0) > 0;
-    this._setEventFeeFormState(feeEnabled, Number(tpl.fee || 0) > 0 ? tpl.fee : 0);
+    this._setEventFeeFormState(canUseAddons && feeEnabled, canUseAddons && Number(tpl.fee || 0) > 0 ? tpl.fee : 0);
     setVal('ce-max', tpl.max);
     setVal('ce-min-age', tpl.minAge);
     setVal('ce-notes', tpl.notes);
     this._initSportTagPicker(tpl.sportTag || '');
-    this._setGenderRestrictionState(!!tpl.genderRestrictionEnabled, tpl.allowedGender || '');
-    this._setPrivateEventState?.(!!tpl.privateEvent);
+    this._setGenderRestrictionState(canUseAddons && !!tpl.genderRestrictionEnabled, canUseAddons ? (tpl.allowedGender || '') : '');
+    this._setPrivateEventState?.(canUseAddons && !!tpl.privateEvent);
     this._regionSetFormData?.(tpl.regionEnabled !== false, tpl.region || '', tpl.cities || []);
     if (tpl.image) {
       const preview = document.getElementById('ce-upload-preview');

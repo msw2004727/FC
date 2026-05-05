@@ -12,13 +12,15 @@ Object.assign(App, {
   _canCreateActivityByPermission() {
     const currentUser = ApiService.getCurrentUser?.();
     if (!currentUser || typeof this.hasPermission !== 'function') return false;
-    return this.hasPermission('event.create') || this.hasPermission('activity.manage.entry');
+    return this._canCreateBasicActivity?.() || this._canCreateExternalActivity?.();
   },
 
   _refreshActivityCreateButton() {
-    const button = document.getElementById('activity-create-btn');
-    if (!button) return;
-    button.style.display = this._canCreateActivityByPermission() ? '' : 'none';
+    const canCreate = this._canCreateActivityByPermission();
+    ['activity-create-btn', 'my-activity-create-btn'].forEach(id => {
+      const button = document.getElementById(id);
+      if (button) button.style.display = canCreate ? '' : 'none';
+    });
   },
 
   resetHomeHotEventsScroll() {

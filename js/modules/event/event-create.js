@@ -56,6 +56,12 @@ Object.assign(App, {
   _showCreateEventTypeSheet() {
     const existing = document.getElementById('create-event-type-sheet');
     if (existing) existing.remove();
+    const canCustom = !!this._canCreateBasicActivity?.();
+    const canExternal = !!this._canCreateExternalActivity?.();
+    if (!canCustom && !canExternal) {
+      this.showToast('權限不足：需要建立活動權限');
+      return;
+    }
 
     const overlay = document.createElement('div');
     overlay.id = 'create-event-type-sheet';
@@ -81,11 +87,16 @@ Object.assign(App, {
     overlay.appendChild(sheet);
     document.body.appendChild(overlay);
 
-    sheet.querySelector('#cets-custom').addEventListener('click', () => {
+    const customBtn = sheet.querySelector('#cets-custom');
+    const externalBtn = sheet.querySelector('#cets-external');
+    if (customBtn) customBtn.style.display = canCustom ? 'flex' : 'none';
+    if (externalBtn) externalBtn.style.display = canExternal ? 'flex' : 'none';
+
+    customBtn?.addEventListener('click', () => {
       overlay.remove();
       this._openCreateCustomEventModal();
     });
-    sheet.querySelector('#cets-external').addEventListener('click', () => {
+    externalBtn?.addEventListener('click', () => {
       overlay.remove();
       this.openCreateExternalEventModal();
     });
@@ -93,6 +104,10 @@ Object.assign(App, {
   },
 
   _openCreateCustomEventModal() {
+    if (!this._canCreateBasicActivity?.()) {
+      this.showToast('權限不足：需要建立活動權限');
+      return;
+    }
     this._editEventId = null;
     this._delegates = [];
     // 重置表單欄位，防止編輯後殘留資料
@@ -157,7 +172,11 @@ Object.assign(App, {
       this.showToast('活動建立中，請勿重複送出');
       return;
     }
-    if (!this._canCreateActivityByPermission?.()) {
+    const eventBeingEdited = this._editEventId ? ApiService.getEvent(this._editEventId) : null;
+    const canSubmitActivity = this._editEventId
+      ? this._canEditOwnActivityBasic?.(eventBeingEdited)
+      : this._canCreateBasicActivity?.();
+    if (!canSubmitActivity) {
       this.showToast('權限不足：需要建立活動權限'); return;
     }
     // 2026-04-19 UX：寫入類動作必須先補齊個人資料（主辦人資料會寫入活動文件）
@@ -170,19 +189,30 @@ Object.assign(App, {
     const tStart = document.getElementById('ce-time-start').value;
     const tEnd = document.getElementById('ce-time-end').value;
     const timeVal = (tStart && tEnd) ? `${tStart}~${tEnd}` : '';
-    const feeEnabled = !!document.getElementById('ce-fee-enabled')?.checked;
-    const fee = feeEnabled ? (parseInt(document.getElementById('ce-fee').value, 10) || 0) : 0;
+    let feeEnabled = !!document.getElementById('ce-fee-enabled')?.checked;
+    let fee = feeEnabled ? (parseInt(document.getElementById('ce-fee').value, 10) || 0) : 0;
     const max = parseInt(document.getElementById('ce-max').value) || 20;
     const minAge = parseInt(document.getElementById('ce-min-age').value) || 0;
     const notes = document.getElementById('ce-notes').value.trim();
     const sportTag = getSportKeySafe(document.getElementById('ce-sport-tag')?.value || this._selectedSportTag || '');
     const regOpenTime = this._getEventRegOpenTimeValue();
-    const teamOnly = !!document.getElementById('ce-team-only')?.checked;
-    const genderRestrictionEnabled = !!document.getElementById('ce-gender-restriction-enabled')?.checked;
-    const allowedGender = genderRestrictionEnabled ? this._getAllowedGenderValue() : '';
-    const privateEvent = !!document.getElementById('ce-private-event')?.checked;
-    const teamSplitData = this._tsGetFormData?.() || null;
+    let teamOnly = !!document.getElementById('ce-team-only')?.checked;
+    let genderRestrictionEnabled = !!document.getElementById('ce-gender-restriction-enabled')?.checked;
+    let allowedGender = genderRestrictionEnabled ? this._getAllowedGenderValue() : '';
+    let privateEvent = !!document.getElementById('ce-private-event')?.checked;
+    let teamSplitData = this._tsGetFormData?.() || null;
     const regionData = this._regionGetFormData?.() || { regionEnabled: true, region: '', cities: [] };
+    const canUseAddons = !!this._canUseActivityAddons?.(eventBeingEdited || null);
+    if (!canUseAddons && (feeEnabled || teamOnly || genderRestrictionEnabled || privateEvent || teamSplitData)) {
+      this._showActivityAddonUpsellToast?.();
+      feeEnabled = false;
+      fee = 0;
+      teamOnly = false;
+      genderRestrictionEnabled = false;
+      allowedGender = '';
+      privateEvent = false;
+      teamSplitData = null;
+    }
 
     if (!title) { this.showToast('請輸入活動名稱'); return; }
     if (title.length > 16) { this.showToast('活動名稱不可超過 16 字'); return; }
@@ -240,6 +270,10 @@ Object.assign(App, {
     if (this._editEventId) {
       // Trigger 6：活動變更通知 — 先取得現有報名者
       const existingEvent = ApiService.getEvent(this._editEventId);
+      if (!this._hasActivityManageEntry?.() && !this._canManageAllActivities?.() && max < (Number(existingEvent?.current || 0) || 0)) {
+        this.showToast('\u540d\u984d\u4e0d\u53ef\u5c0f\u65bc\u5df2\u6b63\u53d6\u4eba\u6578');
+        return;
+      }
       const notifyUids = this._collectEventNotifyRecipientUids
         ? this._collectEventNotifyRecipientUids(existingEvent, this._editEventId)
         : (() => {
@@ -286,12 +320,25 @@ Object.assign(App, {
         delegates: [...this._delegates],
         delegateUids: this._delegates.map(d => String(d.uid || '').trim()).filter(Boolean),
       };
+      if (!canUseAddons) {
+        [
+          'fee', 'feeEnabled', 'teamOnly', 'genderRestrictionEnabled', 'allowedGender',
+          'privateEvent', 'creatorTeamId', 'creatorTeamName', 'creatorTeamIds',
+          'creatorTeamNames', 'teamSplit',
+        ].forEach(key => { delete updates[key]; });
+      }
+      if (!this._canManageEventDelegates?.(existingEvent)) {
+        delete updates.delegates;
+        delete updates.delegateUids;
+      }
       if (teamSplitData) {
         updates.teamSplit = teamSplitData;
         this._recalcTeamSplitTimestamps?.(updates);
       }
       // 已結束/已取消的活動編輯時不改變狀態
-      if (existingEvent && (existingEvent.status === 'ended' || existingEvent.status === 'cancelled')) {
+      if (!this._hasActivityManageEntry?.() && !this._canManageAllActivities?.()) {
+        // Owner-scope basic edit must not change lifecycle state.
+      } else if (existingEvent && (existingEvent.status === 'ended' || existingEvent.status === 'cancelled')) {
         // 保持原狀態，不做任何改變
       } else if (regOpenTime && new Date(regOpenTime) > new Date()) {
         // 若有設定報名時間且尚未到達，更新狀態為 upcoming
@@ -318,7 +365,9 @@ Object.assign(App, {
       this._editEventId = null;
       // 非關鍵操作：即使失敗也不影響用戶體驗
       try {
-        await this._adjustWaitlistOnCapacityChange(editedId, oldMax, max);
+        if (this._hasActivityManageEntry?.() || this._canManageAllActivities?.()) {
+          await this._adjustWaitlistOnCapacityChange(editedId, oldMax, max);
+        }
         notifyUids.forEach(uid => {
           this._sendNotifFromTemplate('event_changed', {
             eventName: title, date: fullDate, location,
@@ -364,6 +413,10 @@ Object.assign(App, {
         delegates: [...this._delegates],
         delegateUids: this._delegates.map(d => String(d.uid || '').trim()).filter(Boolean),
       };
+      if (!this._canManageEventDelegates?.(null)) {
+        newEvent.delegates = [];
+        newEvent.delegateUids = [];
+      }
       if (teamSplitData) {
         newEvent.teamSplit = teamSplitData;
         this._recalcTeamSplitTimestamps?.(newEvent);

@@ -239,8 +239,8 @@ Object.assign(App, {
     if (!event?.id) return event;
     const nextStatus = this._getEventEffectiveStatus(event, nowDate);
     if (event.status !== nextStatus) {
-      ApiService.updateEvent(event.id, { status: nextStatus });
-      return ApiService.getEvent(event.id) || event;
+      event.status = nextStatus;
+      event.effectiveStatus = nextStatus;
     }
     return event;
   },
@@ -278,18 +278,21 @@ Object.assign(App, {
       if (e.status === 'upcoming' && e.regOpenTime) {
         const regOpen = new Date(e.regOpenTime);
         if (regOpen <= nowDate) {
-          ApiService.updateEvent(e.id, { status: 'open' });
+          e.status = 'open';
+          e.effectiveStatus = 'open';
         }
         return;
       }
       // open → full（人數已達上限，外部活動不適用）
       if (e.status === 'open' && e.type !== 'external' && e.max > 0 && e.current >= e.max) {
-        ApiService.updateEvent(e.id, { status: 'full' });
+        e.status = 'full';
+        e.effectiveStatus = 'full';
       }
       if (e.status !== 'open' && e.status !== 'full') return;
       const end = this._parseEventEndDate(e.date) || this._parseEventStartDate(e.date);
       if (end && end <= nowDate) {
-        ApiService.updateEvent(e.id, { status: 'ended' });
+        e.status = 'ended';
+        e.effectiveStatus = 'ended';
       }
     });
   },

@@ -17,7 +17,7 @@ Object.assign(App, {
 
   // ── 活動統計彈窗 ──
   _showActivityStatsModal() {
-    const isAdmin = this.hasPermission('event.edit_all');
+    const isAdmin = this._canManageAllActivities?.() || this.hasPermission('event.edit_all');
     let events = ApiService.getEvents() || [];
     if (!isAdmin) {
       events = events.filter(e => this._isEventOwner(e) || this._isEventDelegate(e));
@@ -211,7 +211,7 @@ Object.assign(App, {
     const f = filter || this._myActivityFilter || 'all';
     this._myActivityFilter = f;
 
-    const isAdmin = this.hasPermission('event.edit_all');
+    const isAdmin = this._canManageAllActivities?.() || this._hasActivityManageEntry?.() || this.hasPermission('event.edit_all');
 
     // 場主(含)以下只看自己的活動或受委託的活動
     let allEvents = ApiService.getEvents();
@@ -288,39 +288,39 @@ Object.assign(App, {
         const statusConf = STATUS_CONFIG[e.status] || STATUS_CONFIG.open;
         const isExternal = e.type === 'external';
         const canManage = this._canManageEvent(e);
+        const canEdit = isExternal ? this._canEditExternalActivity?.(e) : this._canEditOwnActivityBasic?.(e);
+        const canCancel = this._canCancelOwnActivity?.(e);
+        const canReopenRelist = this._canReopenOrRelistActivity?.(e);
+        const canDelete = this._canDeleteActivity?.(e);
+        const canPin = (this._hasActivityManageEntry?.() || this._canManageAllActivities?.()) && canManage;
         let btns = '';
-        const pinBtn = canManage
+        const pinBtn = canPin
           ? `<button class="outline-btn" style="${s};opacity:.6;cursor:not-allowed" title="功能未開放" onclick="App.toggleMyActivityPin('${e.id}')">${e.pinned ? '已置頂' : '置頂'}</button>`
           : '';
-        if (isExternal && canManage) {
-          // 外部活動管理按鈕
-          btns = `<button class="outline-btn" style="${s}" onclick="App.editExternalActivity('${e.id}')">編輯</button>`;
-          if (e.status !== 'cancelled') {
+        if (isExternal) {
+          if (canEdit) btns += `<button class="outline-btn" style="${s}" onclick="App.editExternalActivity('${e.id}')">編輯</button>`;
+          if (e.status !== 'cancelled' && canCancel) {
             btns += `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.cancelMyActivity('${e.id}')">取消</button>`;
-          } else {
+          } else if (e.status === 'cancelled' && canReopenRelist) {
             btns += `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.reopenMyActivity('${e.id}')">重新開放</button>`;
           }
-          if (isAdmin) btns += `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMyActivity('${e.id}')">刪除</button>`;
-          btns += `<button class="outline-btn" style="${s};margin-left:auto;color:var(--accent)" onclick="event.stopPropagation();App.shareExternalEvent('${e.id}')">分享</button>`;
-        } else if (canManage) {
-          if (e.status === 'upcoming') {
-            btns = `<button class="outline-btn" style="${s}" onclick="App.editMyActivity('${e.id}')">編輯</button>`
-                 + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.cancelMyActivity('${e.id}')">取消</button>`;
-          } else if (e.status === 'open' || e.status === 'full') {
-            btns = `<button class="outline-btn" style="${s}" onclick="App.editMyActivity('${e.id}')">編輯</button>`
-                 + `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.cancelMyActivity('${e.id}')">取消</button>`;
-          } else if (e.status === 'ended') {
-            btns = `<button class="outline-btn" style="${s}" onclick="App.editMyActivity('${e.id}')">編輯</button>`
-                 + `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.relistMyActivity('${e.id}')">上架</button>`
-                 + (isAdmin ? `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMyActivity('${e.id}')">刪除</button>` : '');
-          } else if (e.status === 'cancelled') {
-            btns = `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.reopenMyActivity('${e.id}')">重新開放</button>`
-                 + (isAdmin ? `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMyActivity('${e.id}')">刪除</button>` : '');
-          }
-        } else {
-          btns = '';
+          if (canDelete) btns += `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMyActivity('${e.id}')">刪除</button>`;
+          if (canManage) btns += `<button class="outline-btn" style="${s};margin-left:auto;color:var(--accent)" onclick="event.stopPropagation();App.shareExternalEvent('${e.id}')">分享</button>`;
+        } else if (e.status === 'upcoming') {
+          if (canEdit) btns += `<button class="outline-btn" style="${s}" onclick="App.editMyActivity('${e.id}')">編輯</button>`;
+          if (canCancel) btns += `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.cancelMyActivity('${e.id}')">取消</button>`;
+        } else if (e.status === 'open' || e.status === 'full') {
+          if (canEdit) btns += `<button class="outline-btn" style="${s}" onclick="App.editMyActivity('${e.id}')">編輯</button>`;
+          if (canCancel) btns += `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.cancelMyActivity('${e.id}')">取消</button>`;
+        } else if (e.status === 'ended') {
+          if (canEdit) btns += `<button class="outline-btn" style="${s}" onclick="App.editMyActivity('${e.id}')">編輯</button>`;
+          if (canReopenRelist) btns += `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.relistMyActivity('${e.id}')">上架</button>`;
+          if (canDelete) btns += `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMyActivity('${e.id}')">刪除</button>`;
+        } else if (e.status === 'cancelled') {
+          if (canReopenRelist) btns += `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.reopenMyActivity('${e.id}')">重新開放</button>`;
+          if (canDelete) btns += `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.deleteMyActivity('${e.id}')">刪除</button>`;
         }
-        if (canManage && pinBtn && btns) {
+        if (canPin && pinBtn && btns) {
           const firstBtnEnd = btns.indexOf('</button>');
           if (firstBtnEnd >= 0) {
             btns = btns.slice(0, firstBtnEnd + 9) + pinBtn + btns.slice(firstBtnEnd + 9);

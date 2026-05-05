@@ -16,8 +16,52 @@ Object.assign(App, {
     return FirebaseService._cache.rolePermissionMeta || {};
   },
 
+  _getRoleActivityCapabilitySource() {
+    return FirebaseService._cache.roleActivityCapabilities || {};
+  },
+
+  _getSelectedRoleActivityCapabilities(roleKey) {
+    if (typeof ApiService === 'undefined' || typeof ApiService.getRoleActivityCapabilities !== 'function') {
+      return [];
+    }
+    return ApiService.getRoleActivityCapabilities(roleKey);
+  },
+
   _persistRolePermissionMetaCache() {
     FirebaseService._saveToLS('rolePermissionMeta', FirebaseService._cache.rolePermissionMeta || {});
+  },
+
+  _renderUserActivityCapabilitySection() {
+    if (this._permSelectedRole !== 'user') return '';
+    const currentCaps = new Set(this._getSelectedRoleActivityCapabilities('user'));
+    const canEdit = (ROLE_LEVEL_MAP[this.currentRole] || 0) >= ROLE_LEVEL_MAP.super_admin;
+    const items = (typeof ROLE_ACTIVITY_CAPABILITY_ITEMS !== 'undefined')
+      ? ROLE_ACTIVITY_CAPABILITY_ITEMS
+      : [];
+    if (!items.length) return '';
+
+    const rows = items.map(item => {
+      const checked = currentCaps.has(item.code);
+      return '<div class="perm-item">'
+        + '<span class="perm-item-label">'
+        + escapeHTML(item.name)
+        + '<span style="display:block;font-size:.68rem;color:var(--text-muted);font-weight:400;margin-top:.12rem">'
+        + escapeHTML(item.description || item.code)
+        + '</span>'
+        + '</span>'
+        + '<label class="toggle-switch ' + (checked ? 'active' : '') + '">'
+        + '<input type="checkbox" ' + (checked ? 'checked' : '') + ' ' + (!canEdit ? 'disabled' : '') + ' onchange="App.toggleUserActivityCapability(\'' + item.code + '\')">'
+        + '<span class="toggle-slider"></span>'
+        + '</label>'
+        + '</div>';
+    }).join('');
+
+    return '<div class="perm-category">'
+      + '<div class="perm-category-title">'
+      + '<span class="perm-cat-name">\u4e00\u822c user \u524d\u53f0\u6d3b\u52d5\u80fd\u529b</span>'
+      + '</div>'
+      + '<div class="perm-items">' + rows + '</div>'
+      + '</div>';
   },
 
   _getSavedRoleDefaultPermissions(roleKey) {
@@ -313,8 +357,10 @@ Object.assign(App, {
       });
     }
 
+    const userActivityCapabilityHtml = roleKey === 'user' ? this._renderUserActivityCapabilitySection() : '';
+
     if (!mapped.length) {
-      container.innerHTML = '<div style="padding:.75rem .3rem;color:var(--text-muted);font-size:.78rem">目前沒有符合篩選條件的權限。</div>';
+      container.innerHTML = '<div style="padding:.75rem .3rem;color:var(--text-muted);font-size:.78rem">目前沒有符合篩選條件的權限。</div>' + userActivityCapabilityHtml;
       return;
     }
 
@@ -360,7 +406,48 @@ Object.assign(App, {
         + '</div>'
         + (hasSubItems ? '<div class="perm-items">' + subHtml + '</div>' : '')
         + '</div>';
-    }).join('');
+    }).join('') + userActivityCapabilityHtml;
+  },
+
+  async toggleUserActivityCapability(code) {
+    if (this._permSelectedRole !== 'user') return;
+    if ((ROLE_LEVEL_MAP[this.currentRole] || 0) < ROLE_LEVEL_MAP.super_admin) {
+      this.showToast('\u6b0a\u9650\u4e0d\u8db3');
+      this.renderPermissions('user');
+      return;
+    }
+    const allowed = new Set(getRoleActivityCapabilityCodes());
+    if (!allowed.has(code)) {
+      this.renderPermissions('user');
+      return;
+    }
+
+    const source = this._getRoleActivityCapabilitySource();
+    const current = Array.from(new Set(this._getSelectedRoleActivityCapabilities('user')));
+    if (!Object.prototype.hasOwnProperty.call(source, 'user')) {
+      source.user = [...current];
+    }
+    const prevCaps = [...source.user];
+    if (source.user.includes(code)) {
+      source.user = source.user.filter(item => item !== code);
+    } else {
+      source.user.push(code);
+    }
+    source.user = sanitizeRoleActivityCapabilities(source.user);
+
+    try {
+      await FirebaseService.saveRoleActivityCapabilities('user', source.user);
+    } catch (err) {
+      source.user = prevCaps;
+      console.error('[toggleUserActivityCapability]', err);
+      this.renderPermissions('user');
+      this.showToast('\u6b0a\u9650\u66f4\u65b0\u5931\u6557');
+      return;
+    }
+
+    this.renderPermissions('user');
+    this.renderRoleHierarchy();
+    this.showToast('\u6b0a\u9650\u5df2\u66f4\u65b0');
   },
 
   async togglePermission(code) {

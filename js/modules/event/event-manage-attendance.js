@@ -292,7 +292,7 @@ Object.assign(App, {
     ]);
     const _t1 = _perfLog ? performance.now() : 0;
 
-    const canManage = this._canManageEvent(e);
+    const canManage = this._canOperateEventSite?.(e) === true;
     const records = ApiService.getAttendanceRecords(eventId);
     const summary = this._buildConfirmedParticipantSummary(eventId);
     const people = summary.people;
@@ -609,7 +609,7 @@ Object.assign(App, {
     const e = ApiService.getEvent(eventId);
     if (!e) return;
 
-    const canManage = this._canManageEvent(e);
+    const canManage = this._canOperateEventSite?.(e) === true;
     const records = ApiService.getAttendanceRecords(eventId);
 
     // 收集不重複的未報名用戶

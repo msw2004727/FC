@@ -8,6 +8,12 @@ Object.assign(App, {
 
   openCreateExternalEventModal(editId) {
     const isEdit = !!editId;
+    const eventRecord = isEdit ? ApiService.getEvent(editId) : null;
+    const canOpen = isEdit ? this._canEditExternalActivity?.(eventRecord) : this._canCreateExternalActivity?.();
+    if (!canOpen) {
+      this.showToast('\u6b0a\u9650\u4e0d\u8db3');
+      return;
+    }
     this._editExternalEventId = editId || null;
     this._externalEventSubmitInFlight = false;
 
@@ -84,7 +90,11 @@ Object.assign(App, {
       this.showToast('活動建立中，請勿重複送出');
       return;
     }
-    if (!this.hasPermission('activity.manage.entry')) {
+    const eventRecord = this._editExternalEventId ? ApiService.getEvent(this._editExternalEventId) : null;
+    const canSubmit = this._editExternalEventId
+      ? this._canEditExternalActivity?.(eventRecord)
+      : this._canCreateExternalActivity?.();
+    if (!canSubmit) {
       this.showToast('權限不足'); return;
     }
 

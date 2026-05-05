@@ -157,6 +157,70 @@ service cloud.firestore {
         && authRole() in ['coach', 'captain', 'venue_owner', 'admin', 'super_admin'];
     }
 
+    function hasActivityCap(cap) {
+      let capPath = /databases/$(database)/documents/roleActivityCapabilities/user;
+      return request.auth != null
+        && authRole() == 'user'
+        && (
+          (
+            exists(capPath)
+            && get(capPath).data.capabilities is list
+            && cap in get(capPath).data.capabilities
+          )
+          || (
+            !exists(capPath)
+            && cap in [
+              'user.activity.basic_create',
+              'user.activity.external_create',
+              'user.activity.own_manage_entry',
+              'user.activity.own_edit_basic',
+              'user.activity.own_cancel',
+              'user.activity.site_operate',
+              'user.activity.delegate_assign'
+            ]
+          )
+        );
+    }
+
+    function hasActivityManageEntry() {
+      return isAdmin()
+        || isCoachPlus()
+        || hasPerm('activity.manage.entry')
+        || hasPerm('event.edit_all');
+    }
+
+    function eventDataHasDelegateUid(eventData, uid) {
+      return eventData.delegateUids is list && uid in eventData.delegateUids;
+    }
+
+    function isEventOperatorForData(eventData) {
+      return isAuth()
+        && eventData != null
+        && (
+          hasActivityManageEntry()
+          || (
+            authRole() == 'user'
+            && hasActivityCap('user.activity.site_operate')
+            && (eventData.creatorUid == request.auth.uid || eventDataHasDelegateUid(eventData, request.auth.uid))
+          )
+        );
+    }
+
+    function pathEventData(eventDocId) {
+      return get(/databases/$(database)/documents/events/$(eventDocId)).data;
+    }
+
+    function isEventOperatorForPath(eventDocId) {
+      return isEventOperatorForData(pathEventData(eventDocId));
+    }
+
+    function requestEventIdMatchesPath(eventDocId) {
+      let eventData = pathEventData(eventDocId);
+      return eventData != null
+        && request.resource.data.eventId is string
+        && (request.resource.data.eventId == eventDocId || request.resource.data.eventId == eventData.id);
+    }
+
     function hasString(field) {
       return field in request.resource.data
         && request.resource.data[field] is string
@@ -454,7 +518,25 @@ service cloud.firestore {
         return changed.hasOnly([
           'current', 'realCurrent', 'waitlist', 'participants', 'waitlistNames', 'status', 'updatedAt',
           'participantsWithUid', 'waitlistWithUid', 'teamReservationSummaries', 'schemaVersion'
-        ]);
+        ])
+        && (
+          !changed.hasAny(['status'])
+          || (
+            resource.data.status in ['open', 'full']
+            && request.resource.data.status in ['open', 'full']
+            && (
+              (
+                request.resource.data.current is number
+                && request.resource.data.max is number
+                && request.resource.data.status == (request.resource.data.current >= request.resource.data.max ? 'full' : 'open')
+              )
+              || (
+                !(request.resource.data.max is number)
+                && request.resource.data.status == 'open'
+              )
+            )
+          )
+        );
       }
 
       function isBlocklistFieldsOnly() {
@@ -468,13 +550,113 @@ service cloud.firestore {
           && request.resource.data.viewCount == resource.data.get('viewCount', 0) + 1;
       }
 
+      function eventCreateHasNoAddons() {
+        return (!request.resource.data.keys().hasAny(['feeEnabled']) || request.resource.data.feeEnabled == false)
+          && (!request.resource.data.keys().hasAny(['fee']) || request.resource.data.fee == 0)
+          && (!request.resource.data.keys().hasAny(['teamOnly']) || request.resource.data.teamOnly == false)
+          && (!request.resource.data.keys().hasAny(['creatorTeamId']) || request.resource.data.creatorTeamId == null || request.resource.data.creatorTeamId == '')
+          && (!request.resource.data.keys().hasAny(['creatorTeamName']) || request.resource.data.creatorTeamName == null || request.resource.data.creatorTeamName == '')
+          && (!request.resource.data.keys().hasAny(['creatorTeamIds']) || (request.resource.data.creatorTeamIds is list && request.resource.data.creatorTeamIds.size() == 0))
+          && (!request.resource.data.keys().hasAny(['creatorTeamNames']) || (request.resource.data.creatorTeamNames is list && request.resource.data.creatorTeamNames.size() == 0))
+          && (!request.resource.data.keys().hasAny(['genderRestrictionEnabled']) || request.resource.data.genderRestrictionEnabled == false)
+          && (!request.resource.data.keys().hasAny(['allowedGender']) || request.resource.data.allowedGender == null || request.resource.data.allowedGender == '')
+          && (!request.resource.data.keys().hasAny(['privateEvent']) || request.resource.data.privateEvent == false)
+          && (!request.resource.data.keys().hasAny(['teamSplit']) || request.resource.data.teamSplit == null);
+      }
+
+      function eventCreateHasSafeInitialProjection() {
+        return (!request.resource.data.keys().hasAny(['status']) || request.resource.data.status == 'open')
+          && (!request.resource.data.keys().hasAny(['current']) || request.resource.data.current == 0)
+          && (!request.resource.data.keys().hasAny(['realCurrent']) || request.resource.data.realCurrent == 0)
+          && (!request.resource.data.keys().hasAny(['waitlist']) || request.resource.data.waitlist == 0)
+          && (!request.resource.data.keys().hasAny(['participants']) || (request.resource.data.participants is list && request.resource.data.participants.size() == 0))
+          && (!request.resource.data.keys().hasAny(['waitlistNames']) || (request.resource.data.waitlistNames is list && request.resource.data.waitlistNames.size() == 0))
+          && (!request.resource.data.keys().hasAny(['participantsWithUid']) || (request.resource.data.participantsWithUid is list && request.resource.data.participantsWithUid.size() == 0))
+          && (!request.resource.data.keys().hasAny(['waitlistWithUid']) || (request.resource.data.waitlistWithUid is list && request.resource.data.waitlistWithUid.size() == 0));
+      }
+
+      function eventCreateDelegateFieldsAllowed() {
+        return (!request.resource.data.keys().hasAny(['delegates']) || (
+            request.resource.data.delegates is list
+            && (request.resource.data.delegates.size() == 0 || hasActivityCap('user.activity.delegate_assign'))
+          ))
+          && (!request.resource.data.keys().hasAny(['delegateUids']) || (
+            request.resource.data.delegateUids is list
+            && (request.resource.data.delegateUids.size() == 0 || hasActivityCap('user.activity.delegate_assign'))
+          ));
+      }
+
+      function isUserCreateOwner() {
+        return isAuth()
+          && request.resource.data.creatorUid is string
+          && request.resource.data.creatorUid == request.auth.uid;
+      }
+
+      function isUserBasicEventCreate() {
+        return authRole() == 'user'
+          && hasActivityCap('user.activity.basic_create')
+          && isUserCreateOwner()
+          && (!request.resource.data.keys().hasAny(['type']) || request.resource.data.type != 'external')
+          && eventCreateHasNoAddons()
+          && eventCreateHasSafeInitialProjection()
+          && eventCreateDelegateFieldsAllowed();
+      }
+
+      function isUserExternalEventCreate() {
+        return authRole() == 'user'
+          && hasActivityCap('user.activity.external_create')
+          && isUserCreateOwner()
+          && request.resource.data.type == 'external'
+          && eventCreateHasNoAddons()
+          && eventCreateHasSafeInitialProjection()
+          && eventCreateDelegateFieldsAllowed();
+      }
+
+      function isUserOwnerBasicUpdate() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return authRole() == 'user'
+          && isEventOwner()
+          && (
+            (
+              hasActivityCap('user.activity.own_edit_basic')
+              && changed.hasOnly([
+                'title', 'type', 'location', 'date', 'externalUrl', 'max', 'minAge', 'notes', 'image',
+                'sportTag', 'regOpenTime', 'gradient', 'icon', 'countdown',
+                'regionEnabled', 'region', 'cities', 'delegates', 'delegateUids', 'updatedAt'
+              ])
+              && (!changed.hasAny(['max']) || (
+                request.resource.data.max is number
+                && (!(resource.data.current is number) || request.resource.data.max >= resource.data.current)
+              ))
+              && (!changed.hasAny(['delegates', 'delegateUids']) || hasActivityCap('user.activity.delegate_assign'))
+            )
+            || (
+              hasActivityCap('user.activity.delegate_assign')
+              && changed.hasOnly(['delegates', 'delegateUids', 'updatedAt'])
+            )
+            || (
+              hasActivityCap('user.activity.own_cancel')
+              && changed.hasOnly(['status', 'updatedAt'])
+              && request.resource.data.status == 'cancelled'
+            )
+          );
+      }
+
       allow read: if true;
       allow create: if isAuth()
-        && hasString('title');
+        && hasString('title')
+        && (
+          hasActivityManageEntry()
+          || hasPerm('event.create')
+          || isUserBasicEventCreate()
+          || isUserExternalEventCreate()
+        );
       allow update: if isAuth()
         && (
-          isEventOwner()
+          hasActivityManageEntry()
           || hasPerm('event.edit_all')
+          || (isEventOwner() && hasPerm('event.edit_self'))
+          || isUserOwnerBasicUpdate()
           || isSignupFieldsOnly()
           || (isBlocklistFieldsOnly() && canManageEventBlocklist())
           || isViewCountIncrementOnly()
@@ -785,6 +967,7 @@ service cloud.firestore {
         return eventData != null
           && isAuth()
           && isTeamKeyOnlyUpdate()
+          && hasActivityManageEntry()
           && (eventData.creatorUid == request.auth.uid
               || (eventData.delegateUids is list && request.auth.uid in eventData.delegateUids));
       }
@@ -806,7 +989,7 @@ service cloud.firestore {
       allow create: if isAdmin() || isRegistrationOwnerRequest();
       allow update: if isAdmin()
         || (isRegistrationOwnerResource() && isRegistrationOwnerRequest() && isRegistrationOwnerSafeUpdate())
-        || (isAuth() && isWaitlistPromotion())
+        || (isWaitlistPromotion() && isEventOperatorForData(getRegEventData()))
         || (isRegistrationOwnerResource() && isBadgeOnlyUpdate())
         || (isActiveRegistration() && isEventManagerTeamKeyUpdate())
         || (isActiveRegistration() && isSelfSelectTeamKeyUpdate());
@@ -1245,6 +1428,10 @@ service cloud.firestore {
       allow read: if isAuth();
       allow write: if isSuperAdmin();
     }
+    match /roleActivityCapabilities/{roleId} {
+      allow read: if isAuth();
+      allow write: if isSuperAdmin();
+    }
     match /permissions/{permId} {
       allow read: if isAuth();
       allow write: if isSuperAdmin();
@@ -1537,6 +1724,7 @@ service cloud.firestore {
         return eventData != null
           && isAuth()
           && isSubTeamKeyOnlyUpdate()
+          && hasActivityManageEntry()
           && (eventData.creatorUid == request.auth.uid
               || (eventData.delegateUids is list && request.auth.uid in eventData.delegateUids));
       }
@@ -1557,7 +1745,7 @@ service cloud.firestore {
       allow create: if isAdmin() || isSubRegOwnerRequest();
       allow update: if isAdmin()
         || (isSubRegOwner() && isSubRegOwnerRequest() && isSubRegOwnerSafeUpdate())
-        || (isAuth() && isSubWaitlistPromotion())
+        || (isSubWaitlistPromotion() && isEventOperatorForData(getSubRegEventData()))
         || (isSubRegOwner() && isSubBadgeOnlyUpdate())
         || (isSubActiveRegistration() && isSubEventManagerTeamKeyUpdate())
         || (isSubActiveRegistration() && isSubSelfSelectTeamKeyUpdate());
@@ -1595,8 +1783,10 @@ service cloud.firestore {
       }
 
       allow read: if isAuth();
-      allow create: if isAuth();
-      allow update: if isAuth() && (isAdmin() || isSubAttendanceStatusUpdate());
+      allow create: if isEventOperatorForPath(eventId)
+        && requestEventIdMatchesPath(eventId);
+      allow update: if isEventOperatorForPath(eventId)
+        && isSubAttendanceStatusUpdate();
       allow delete: if false;
     }
 
@@ -1607,9 +1797,10 @@ service cloud.firestore {
       }
 
       allow read: if isAuth();
-      allow create: if isAuth();
+      allow create: if requestEventIdMatchesPath(eventId)
+        && (isUserFieldOwnerRequest() || isEventOperatorForPath(eventId));
       allow update: if isAuth()
-        && (isUserFieldOwnerResource() || isAdmin() || isSubActivityStatusOnly());
+        && (isUserFieldOwnerResource() || isAdmin() || (isSubActivityStatusOnly() && isEventOperatorForPath(eventId)));
       allow delete: if isAdmin();
     }
 

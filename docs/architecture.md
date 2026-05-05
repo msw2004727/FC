@@ -1,6 +1,6 @@
 # ToosterX 現況架構文件
 
-> Last audited: 2026-05-01
+> Last audited: 2026-05-05
 > 依據實際程式碼盤點：`index.html`、`app.js`、`js/`、`pages/`、`functions/index.js`、`firestore.rules`、`firebase.json`、`package.json`、`tests/`、近期 git history。
 > 本文件描述「目前專案真的怎麼運作」，不是未來計劃書。若與舊文件或記憶有衝突，以目前程式碼為準。
 
@@ -955,3 +955,10 @@ UID 健康檢查目前會發現：
 - `docs/structure-guide.md`
 - `CLAUDE.md` 中的主規則或提醒
 - 若影響載入：`script-loader.js` 與 `source-drift` / `script-deps` 測試
+## 2026-05-05 活動權限補充
+
+- 後台角色權限仍由 `rolePermissions/{roleKey}` 與 `hasPerm()` 控制，例如 `activity.manage.entry`、`event.create`、`event.edit_all`、`event.delete`。
+- 一般 user 的前台活動主辦能力獨立放在 `roleActivityCapabilities/user`，由權限管理頁的 user 項目展示與手動啟閉。缺文件時前端、Firestore Rules、Cloud Functions 皆套用同一份預設：基本建立、外部連結、自己的活動管理入口、基本編輯、取消、現場操作、委託人開啟；`user.activity.addons_use` 預設關閉。
+- 一般 user 建立/編輯自己的活動時不得寫入加值欄位；嘗試開啟加值開關時前端顯示 `如需更多功能請聯繫官方Line@`，Firestore Rules 也會拒絕 fee、teamOnly、gender restriction、private event、teamSplit 等加值欄位。
+- owner-scope 能力只限自己建立或被委託的活動，不等同 `activity.manage.entry`。coach+、admin、`activity.manage.entry`、`event.edit_all` 仍是完整活動管理能力。
+- 掃碼、手動簽到、候補升正取與未報名名單操作走 `_canOperateEventSite(e)` 與 Rules `isEventOperatorForData()`；一般 user owner/delegate 必須具備 `user.activity.site_operate`。`events/{eventId}/attendanceRecords` 與 `events/{eventId}/activityRecords` 的寫入也已收斂到參與者本人或活動 operator。

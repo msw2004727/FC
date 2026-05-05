@@ -112,6 +112,26 @@ Object.assign(FirebaseService, {
     }, { merge: true });
   },
 
+  async saveRoleActivityCapabilities(roleKey, capabilities) {
+    const sanitizedCapabilities = sanitizeRoleActivityCapabilities(capabilities);
+    await db.collection('roleActivityCapabilities').doc(roleKey).set({
+      capabilities: sanitizedCapabilities,
+      catalogVersion: ROLE_ACTIVITY_CAPABILITY_CATALOG_VERSION,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedBy: auth?.currentUser?.uid || '',
+    }, { merge: true });
+  },
+
+  async saveRoleActivityCapabilityDefaults(roleKey, defaultCapabilities) {
+    const sanitizedDefaults = sanitizeRoleActivityCapabilities(defaultCapabilities);
+    await db.collection('roleActivityCapabilities').doc(roleKey).set({
+      defaultCapabilities: sanitizedDefaults,
+      catalogVersion: ROLE_ACTIVITY_CAPABILITY_CATALOG_VERSION,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedBy: auth?.currentUser?.uid || '',
+    }, { merge: true });
+  },
+
   async deleteRolePermissions(roleKey) {
     await db.collection('rolePermissions').doc(roleKey).delete();
   },

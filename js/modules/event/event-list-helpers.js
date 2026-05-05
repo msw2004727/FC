@@ -234,12 +234,7 @@ Object.assign(App, {
   },
 
   _canToggleEventPublic(e) {
-    if (!e || !e.teamOnly) return false;
-    if (this.hasPermission('event.edit_all')) return true;
-    if (this.hasPermission('team.toggle_event_visibility')) return true;
-    const eventTeamIds = this._getEventLimitedTeamIds(e);
-    if (eventTeamIds.length === 0) return this._isEventOwner(e);
-    return this._isEventOwner(e) || eventTeamIds.some(teamId => this._isCurrentUserTeamStaff(teamId));
+    return this._canManageTeamOnlyVisibility(e);
   },
 
   /** 判斷當前用戶是否為該活動建立者 */
@@ -254,14 +249,169 @@ Object.assign(App, {
 
   /** 判斷當前用戶是否為該活動委託人 */
   _isEventDelegate(e) {
-    if (!e.delegates || !e.delegates.length) return false;
     const myUid = this._getEventCreatorUid();
+    if (!myUid || !e) return false;
+    if (Array.isArray(e.delegateUids) && e.delegateUids.map(String).includes(String(myUid))) return true;
+    if (!e.delegates || !e.delegates.length) return false;
     return e.delegates.some(d => d.uid === myUid);
+  },
+
+  _getCurrentActivityRoleKey() {
+    return ApiService.getCurrentUser?.()?.role || this.currentRole || 'user';
+  },
+
+  _isCoachPlusRole(roleKey = this._getCurrentActivityRoleKey()) {
+    return (ROLE_LEVEL_MAP[roleKey] || 0) >= (ROLE_LEVEL_MAP.coach || 1);
+  },
+
+  _canManageAllActivities() {
+    const roleKey = this._getCurrentActivityRoleKey();
+    return this.hasPermission('event.edit_all') || (ROLE_LEVEL_MAP[roleKey] || 0) >= (ROLE_LEVEL_MAP.admin || 4);
+  },
+
+  _hasActivityManageEntry() {
+    return this.hasPermission('activity.manage.entry') || this._isCoachPlusRole?.() || this._canManageAllActivities();
+  },
+
+  _hasUserActivityCapability(code) {
+    if (this._getCurrentActivityRoleKey() !== 'user') return false;
+    return !!ApiService.hasRoleActivityCapability?.('user', code);
+  },
+
+  _showActivityAddonUpsellToast() {
+    this.showToast('\u5982\u9700\u66f4\u591a\u529f\u80fd\u8acb\u806f\u7e6b\u5b98\u65b9Line@');
+  },
+
+  _canCreateBasicActivity() {
+    const currentUser = ApiService.getCurrentUser?.();
+    if (!currentUser?.uid) return false;
+    return this.hasPermission('event.create')
+      || this._hasActivityManageEntry()
+      || this._hasUserActivityCapability('user.activity.basic_create');
+  },
+
+  _canCreateExternalActivity() {
+    const currentUser = ApiService.getCurrentUser?.();
+    if (!currentUser?.uid) return false;
+    return this.hasPermission('event.create')
+      || this._hasActivityManageEntry()
+      || this._hasUserActivityCapability('user.activity.external_create');
+  },
+
+  _canAccessOwnActivityManageEntry() {
+    const currentUser = ApiService.getCurrentUser?.();
+    if (!currentUser?.uid) return false;
+    return this._hasActivityManageEntry()
+      || this._hasUserActivityCapability('user.activity.own_manage_entry');
+  },
+
+  _canEditOwnActivityBasic(e) {
+    if (!e) return false;
+    if (this._canManageAllActivities() || this._hasActivityManageEntry()) return true;
+    return this._getCurrentActivityRoleKey() === 'user'
+      && this._isEventOwner(e)
+      && this._hasUserActivityCapability('user.activity.own_edit_basic');
+  },
+
+  _canEditExternalActivity(e) {
+    if (!e) return this._canCreateExternalActivity();
+    return this._canEditOwnActivityBasic(e);
+  },
+
+  _canCancelOwnActivity(e) {
+    if (!e) return false;
+    if (this._canManageAllActivities() || this._hasActivityManageEntry()) return true;
+    return this._getCurrentActivityRoleKey() === 'user'
+      && this._isEventOwner(e)
+      && this._hasUserActivityCapability('user.activity.own_cancel');
+  },
+
+  _canReopenOrRelistActivity(e) {
+    if (!e) return false;
+    return (this._canManageAllActivities() || this._hasActivityManageEntry())
+      && (this._isEventOwner(e) || this._isEventDelegate(e) || this._canManageAllActivities());
+  },
+
+  _canDeleteActivity(e) {
+    if (!e) return false;
+    return this.hasPermission('event.delete')
+      || this._canManageAllActivities()
+      || (this.hasPermission('event.delete_self') && this._isEventOwner(e));
+  },
+
+  _canOperateEventSite(e) {
+    if (!e) return false;
+    if (this.hasPermission('event.scan') || this.hasPermission('event.manual_checkin')) return true;
+    if (this._hasActivityManageEntry()) return true;
+    return this._getCurrentActivityRoleKey() === 'user'
+      && (this._isEventOwner(e) || this._isEventDelegate(e))
+      && this._hasUserActivityCapability('user.activity.site_operate');
+  },
+
+  _canRemoveWaitlistedParticipant(e) {
+    return this._canOperateEventSite(e);
+  },
+
+  _canRemoveConfirmedParticipant(e) {
+    if (!e) return false;
+    return this._canManageAllActivities()
+      || this._hasActivityManageEntry();
+  },
+
+  _canManageEventDelegates(e) {
+    if (e && !this._isEventOwner(e) && !this._canManageAllActivities() && !this._hasActivityManageEntry()) return false;
+    if (this._canManageAllActivities() || this._hasActivityManageEntry()) return true;
+    return this._getCurrentActivityRoleKey() === 'user'
+      && (!e || this._isEventOwner(e))
+      && this._hasUserActivityCapability('user.activity.delegate_assign');
+  },
+
+  _canUseActivityAddons(e = null) {
+    if (this._canManageAllActivities() || this._hasActivityManageEntry() || this.hasPermission('team.create_event')) return true;
+    if (this._getCurrentActivityRoleKey() !== 'user') return false;
+    if (!this._hasUserActivityCapability('user.activity.addons_use')) return false;
+    return !e || this._isEventOwner(e);
+  },
+
+  _canManageTeamSplit(e) {
+    return !!e && this._canUseActivityAddons(e) && (this._canManageAllActivities() || this._isEventOwner(e) || this._hasActivityManageEntry());
+  },
+
+  _canManageTeamOnlyVisibility(e) {
+    if (!e || !e.teamOnly) return false;
+    if (this._canManageAllActivities() || this._hasActivityManageEntry() || this.hasPermission('team.toggle_event_visibility')) return true;
+    if (!this._canUseActivityAddons(e)) return false;
+    const eventTeamIds = this._getEventLimitedTeamIds(e);
+    if (eventTeamIds.length === 0) return this._isEventOwner(e);
+    return this._isEventOwner(e) || eventTeamIds.some(teamId => this._isCurrentUserTeamStaff(teamId));
+  },
+
+  _canViewEventOperationLog(e) {
+    return !!e && (this._canManageAllActivities() || this._hasActivityManageEntry());
+  },
+
+  _isAnyActiveEventOperator() {
+    if (typeof ApiService === 'undefined') return false;
+    if (this._scanPresetEventId) {
+      const presetEvent = ApiService.getEvent(this._scanPresetEventId);
+      if (presetEvent && this._canOperateEventSite(presetEvent)) return true;
+    }
+    const events = ApiService.getEvents?.() || [];
+    return events.some(e =>
+      (e.status === 'open' || e.status === 'full' || e.status === 'ended') &&
+      this._canOperateEventSite(e)
+    );
+  },
+
+  _refreshOwnActivityManageEntry() {
+    const section = document.getElementById('own-activity-manage-entry');
+    if (!section) return;
+    section.style.display = this._canAccessOwnActivityManageEntry() ? '' : 'none';
   },
 
   /** 場主(含)以下只能管理自己的活動或受委託的活動，admin+ 可管理全部 */
   _canManageEvent(e) {
-    if (this.hasPermission('event.edit_all')) return true;
+    if (this._canManageAllActivities() || this._hasActivityManageEntry()) return true;
     return this._isEventOwner(e) || this._isEventDelegate(e);
   },
 

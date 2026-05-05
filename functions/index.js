@@ -54,6 +54,25 @@ const INHERENT_ROLE_PERMISSIONS = Object.freeze({
   venue_owner: ["activity.manage.entry", "admin.tournaments.entry", "team.manage.entry"],
   super_admin: ["admin.repair.event_blocklist", "admin.seo.entry"],
 });
+const ROLE_ACTIVITY_CAPABILITY_CODES = new Set([
+  "user.activity.basic_create",
+  "user.activity.external_create",
+  "user.activity.own_manage_entry",
+  "user.activity.own_edit_basic",
+  "user.activity.own_cancel",
+  "user.activity.site_operate",
+  "user.activity.delegate_assign",
+  "user.activity.addons_use",
+]);
+const DEFAULT_USER_ACTIVITY_CAPABILITIES = Object.freeze([
+  "user.activity.basic_create",
+  "user.activity.external_create",
+  "user.activity.own_manage_entry",
+  "user.activity.own_edit_basic",
+  "user.activity.own_cancel",
+  "user.activity.site_operate",
+  "user.activity.delegate_assign",
+]);
 const ALLOWED_AUDIT_ACTIONS = new Set([
   "login_success",
   "login_failure",
@@ -1033,6 +1052,19 @@ async function getRolePermissionsFromFirestore(roleKey) {
   return sanitizePermissionCodeList(snapshot.data()?.permissions);
 }
 
+function sanitizeRoleActivityCapabilityList(capabilities) {
+  if (!Array.isArray(capabilities)) return [];
+  return Array.from(new Set(capabilities.filter((code) => ROLE_ACTIVITY_CAPABILITY_CODES.has(code))));
+}
+
+async function getRoleActivityCapabilitiesFromFirestore(roleKey) {
+  const safeRole = normalizeRole(roleKey);
+  if (safeRole !== "user") return [];
+  const snapshot = await db.collection("roleActivityCapabilities").doc("user").get();
+  if (!snapshot.exists) return [...DEFAULT_USER_ACTIVITY_CAPABILITIES];
+  return sanitizeRoleActivityCapabilityList(snapshot.data()?.capabilities);
+}
+
 async function getCallerAccessContext(request) {
   const role = await getCallerRoleWithFallback(request);
   const stored = role === "super_admin"
@@ -1040,14 +1072,44 @@ async function getCallerAccessContext(request) {
     : await getRolePermissionsFromFirestore(role);
   const inherent = INHERENT_ROLE_PERMISSIONS[role] || [];
   const permissions = Array.from(new Set([...stored, ...inherent]));
+  const activityCapabilities = await getRoleActivityCapabilitiesFromFirestore(role);
   return {
     role,
     permissions,
+    activityCapabilities,
     isSuperAdmin: role === "super_admin",
     hasPermission(code) {
       return role === "super_admin" || permissions.includes(code);
     },
+    hasActivityCapability(code) {
+      return role === "user" && activityCapabilities.includes(code);
+    },
   };
+}
+
+function isEventDelegateForUid(eventData, uid) {
+  const safeUid = String(uid || "").trim();
+  if (!safeUid || !eventData) return false;
+  const delegateUids = Array.isArray(eventData.delegateUids) ? eventData.delegateUids : [];
+  if (delegateUids.map((item) => String(item || "").trim()).includes(safeUid)) return true;
+  return Array.isArray(eventData.delegates)
+    && eventData.delegates.some((item) => String(item?.uid || "").trim() === safeUid);
+}
+
+function hasActivityManageEntryAccess(access) {
+  if (!access) return false;
+  return access.isSuperAdmin
+    || (ROLE_LEVELS[access.role] || 0) >= ROLE_LEVELS.coach
+    || access.hasPermission("activity.manage.entry")
+    || access.hasPermission("event.edit_all");
+}
+
+function canOperateEventSiteForAccess(access, eventData, uid) {
+  if (!access || !eventData || !uid) return false;
+  if (hasActivityManageEntryAccess(access)) return true;
+  return access.role === "user"
+    && access.hasActivityCapability("user.activity.site_operate")
+    && (eventData.creatorUid === uid || isEventDelegateForUid(eventData, uid));
 }
 
 async function roleExists(roleKey) {
@@ -6830,9 +6892,9 @@ exports.cancelRegistration = onCall(
     }
 
     // ── 預先查詢呼叫者角色（在 Transaction 外，避免 Transaction 內非交易讀取）──
-    let callerRole = null;
+    let callerAccess = null;
     if (cancelReason !== "user_cancel") {
-      callerRole = await getUserRoleFromFirestore(callerUid);
+      callerAccess = await getCallerAccessContext(request);
     }
 
     // ── Firestore Transaction ──
@@ -6883,12 +6945,14 @@ exports.cancelRegistration = onCall(
           throw new HttpsError("permission-denied", "PERMISSION_DENIED");
         }
       } else {
-        // 使用 Transaction 前預查的 callerRole，避免 Transaction 內非交易讀取
-        const isCreator = ed.creatorUid === callerUid;
-        const isDelegate = Array.isArray(ed.delegates) && ed.delegates.some((d) => d.uid === callerUid);
-        const isAdmin = callerRole && (ROLE_LEVELS[callerRole] || 0) >= ROLE_LEVELS.admin;
-        if (!isCreator && !isDelegate && !isAdmin) {
+        const hasSiteOperateAccess = canOperateEventSiteForAccess(callerAccess, ed, callerUid);
+        const hasHighManagerAccess = hasActivityManageEntryAccess(callerAccess);
+        const touchesConfirmed = targetRegs.some((r) => r.status === "confirmed" || r.status === "registered");
+        if (!hasSiteOperateAccess) {
           throw new HttpsError("permission-denied", "PERMISSION_DENIED");
+        }
+        if ((touchesConfirmed || cancelReason === "capacity_change") && !hasHighManagerAccess) {
+          throw new HttpsError("permission-denied", "CONFIRMED_MANAGER_RESTRICTED");
         }
       }
 

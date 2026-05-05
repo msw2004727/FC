@@ -111,7 +111,7 @@ Object.assign(App, {
 
   _tsRenderBatchButtons(event) {
     if (!event.teamSplit?.enabled) return '';
-    const canManage = this._canManageEvent?.(event);
+    const canManage = this._canManageTeamSplit?.(event);
     if (!canManage) return '';
     const eid = event.id;
     return `<div class="team-batch-actions">`
@@ -124,9 +124,10 @@ Object.assign(App, {
   // ── 批次操作實作 ──
 
   async _tsBatchRandom(eventId) {
-    if (!await this.appConfirm(I18N?.t?.('teamSplit.batch.confirmRandom') || '重新分隊不會通知參加者，確認繼續？')) return;
     const event = ApiService.getEvent(eventId);
     if (!event?.teamSplit?.enabled) return;
+    if (!this._canManageTeamSplit?.(event)) { this.showToast('\u6b0a\u9650\u4e0d\u8db3'); return; }
+    if (!await this.appConfirm(I18N?.t?.('teamSplit.batch.confirmRandom') || '重新分隊不會通知參加者，確認繼續？')) return;
     const regs = (ApiService.getRegistrationsByEvent?.(eventId) || [])
       .filter(r => r.status === 'confirmed' || r.status === 'waitlisted');
     if (!regs.length) return;
@@ -151,6 +152,7 @@ Object.assign(App, {
   async _tsBatchFill(eventId) {
     const event = ApiService.getEvent(eventId);
     if (!event?.teamSplit?.enabled) return;
+    if (!this._canManageTeamSplit?.(event)) { this.showToast('\u6b0a\u9650\u4e0d\u8db3'); return; }
     const teams = event.teamSplit.teams;
     const validKeys = new Set(teams.map(t => t.key));
     const regs = (ApiService.getRegistrationsByEvent?.(eventId) || [])
@@ -178,6 +180,9 @@ Object.assign(App, {
   },
 
   async _tsBatchReset(eventId) {
+    const event = ApiService.getEvent(eventId);
+    if (!event?.teamSplit?.enabled) return;
+    if (!this._canManageTeamSplit?.(event)) { this.showToast('\u6b0a\u9650\u4e0d\u8db3'); return; }
     if (!await this.appConfirm(I18N?.t?.('teamSplit.batch.confirmReset') || '確定清除所有隊伍分配？')) return;
     const regs = (ApiService.getRegistrationsByEvent?.(eventId) || [])
       .filter(r => r.status === 'confirmed' || r.status === 'waitlisted');
@@ -312,6 +317,7 @@ Object.assign(App, {
     if (!regDocId || !eventId) return;
     const event = ApiService.getEvent(eventId);
     if (!event?.teamSplit?.enabled) return;
+    if (!this._canManageTeamSplit?.(event)) { this.showToast('\u6b0a\u9650\u4e0d\u8db3'); return; }
     const teams = event.teamSplit.teams || [];
     if (!teams.length) return;
     const jerseyEl = evt.currentTarget || evt.target.closest('.uc-jersey-tap') || evt.target.closest('.uc-team-jersey');
@@ -365,6 +371,8 @@ Object.assign(App, {
   async _tsPickTeam(regDocId, eventId, teamKey) {
     this._tsCloseJerseyPicker();
     if (!regDocId) return;
+    const event = ApiService.getEvent(eventId);
+    if (!this._canManageTeamSplit?.(event)) { this.showToast('\u6b0a\u9650\u4e0d\u8db3'); return; }
     const newKey = teamKey || null;
     try {
       var _dwDocId = await FirebaseService._getEventDocIdAsync(eventId);

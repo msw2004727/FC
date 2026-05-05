@@ -39,7 +39,7 @@ let testEnv;
 
 // ─── Auth contexts ───
 function guest() { return testEnv.unauthenticatedContext().firestore(); }
-function authed(uid) { return testEnv.authenticatedContext(uid, { role: "user" }).firestore(); }
+function authed(uid, role = "user") { return testEnv.authenticatedContext(uid, { role }).firestore(); }
 function adminDb() { return testEnv.authenticatedContext("uidAdmin", { admin: true, role: "admin" }).firestore(); }
 
 async function seedDoc(collection, id, data) {
@@ -197,19 +197,31 @@ describe("Step 0: Registration owner update whitelist", () => {
   });
 
   describe("waitlist promotion", () => {
-    test("any auth user can promote waitlisted to confirmed (status only)", async () => {
+    test("event operator can promote waitlisted to confirmed (status only)", async () => {
+      await seedEvent("evt1");
       await seedReg("reg1", { userId: "uidA", status: "waitlisted" });
       await assertSucceeds(
-        updateDoc(doc(authed("uidB"), "registrations", "reg1"), {
+        updateDoc(doc(authed("uidOrganizer"), "registrations", "reg1"), {
           status: "confirmed",
         })
       );
     });
 
-    test("promotion with teamKey (combined write) succeeds", async () => {
+    test("non-operator cannot promote waitlisted registration", async () => {
+      await seedEvent("evt1");
+      await seedReg("reg1", { userId: "uidA", status: "waitlisted" });
+      await assertFails(
+        updateDoc(doc(authed("uidRandom"), "registrations", "reg1"), {
+          status: "confirmed",
+        })
+      );
+    });
+
+    test("operator promotion with teamKey (combined write) succeeds", async () => {
+      await seedEvent("evt1");
       await seedReg("reg1", { userId: "uidA", status: "waitlisted" });
       await assertSucceeds(
-        updateDoc(doc(authed("uidB"), "registrations", "reg1"), {
+        updateDoc(doc(authed("uidOrganizer"), "registrations", "reg1"), {
           status: "confirmed",
           teamKey: "A",
         })
@@ -217,9 +229,10 @@ describe("Step 0: Registration owner update whitelist", () => {
     });
 
     test("promotion with invalid teamKey rejected", async () => {
+      await seedEvent("evt1");
       await seedReg("reg1", { userId: "uidA", status: "waitlisted" });
       await assertFails(
-        updateDoc(doc(authed("uidB"), "registrations", "reg1"), {
+        updateDoc(doc(authed("uidOrganizer"), "registrations", "reg1"), {
           status: "confirmed",
           teamKey: "HACKED",
         })
@@ -227,9 +240,10 @@ describe("Step 0: Registration owner update whitelist", () => {
     });
 
     test("cannot promote confirmed to confirmed", async () => {
+      await seedEvent("evt1");
       await seedReg("reg1", { userId: "uidA", status: "confirmed" });
       await assertFails(
-        updateDoc(doc(authed("uidB"), "registrations", "reg1"), {
+        updateDoc(doc(authed("uidOrganizer"), "registrations", "reg1"), {
           status: "confirmed",
         })
       );
@@ -244,21 +258,21 @@ describe("Step 0: Registration owner update whitelist", () => {
 describe("Step 2: teamKey write validation", () => {
 
   describe("isTeamKeyOnlyUpdate — value validation", () => {
-    test("organizer can set teamKey to valid value A", async () => {
+    test("coach organizer can set teamKey to valid value A", async () => {
       await seedEvent("evt1", { creatorUid: "uidOrganizer" });
       await seedReg("reg1", { eventId: "evt1", userId: "uidPlayer" });
       await assertSucceeds(
-        updateDoc(doc(authed("uidOrganizer"), "registrations", "reg1"), {
+        updateDoc(doc(authed("uidOrganizer", "coach"), "registrations", "reg1"), {
           teamKey: "A",
         })
       );
     });
 
-    test("organizer can set teamKey to null (unassign)", async () => {
+    test("coach organizer can set teamKey to null (unassign)", async () => {
       await seedEvent("evt1");
       await seedReg("reg1", { eventId: "evt1", teamKey: "A" });
       await assertSucceeds(
-        updateDoc(doc(authed("uidOrganizer"), "registrations", "reg1"), {
+        updateDoc(doc(authed("uidOrganizer", "coach"), "registrations", "reg1"), {
           teamKey: null,
         })
       );
@@ -268,7 +282,7 @@ describe("Step 2: teamKey write validation", () => {
       await seedEvent("evt1");
       await seedReg("reg1", { eventId: "evt1" });
       await assertFails(
-        updateDoc(doc(authed("uidOrganizer"), "registrations", "reg1"), {
+        updateDoc(doc(authed("uidOrganizer", "coach"), "registrations", "reg1"), {
           teamKey: "HACKED",
         })
       );
@@ -278,7 +292,7 @@ describe("Step 2: teamKey write validation", () => {
       await seedEvent("evt1");
       await seedReg("reg1", { eventId: "evt1" });
       await assertFails(
-        updateDoc(doc(authed("uidOrganizer"), "registrations", "reg1"), {
+        updateDoc(doc(authed("uidOrganizer", "coach"), "registrations", "reg1"), {
           teamKey: "E",
         })
       );
@@ -288,7 +302,7 @@ describe("Step 2: teamKey write validation", () => {
       await seedEvent("evt1");
       await seedReg("reg1", { eventId: "evt1" });
       await assertFails(
-        updateDoc(doc(authed("uidOrganizer"), "registrations", "reg1"), {
+        updateDoc(doc(authed("uidOrganizer", "coach"), "registrations", "reg1"), {
           teamKey: 1,
         })
       );
@@ -296,10 +310,20 @@ describe("Step 2: teamKey write validation", () => {
   });
 
   describe("isEventManagerTeamKeyUpdate — permission check", () => {
-    test("delegate can assign teamKey", async () => {
+    test("coach delegate can assign teamKey", async () => {
       await seedEvent("evt1", { delegateUids: ["uidDelegate"] });
       await seedReg("reg1", { eventId: "evt1" });
       await assertSucceeds(
+        updateDoc(doc(authed("uidDelegate", "coach"), "registrations", "reg1"), {
+          teamKey: "B",
+        })
+      );
+    });
+
+    test("user delegate cannot assign team-split teamKey add-on", async () => {
+      await seedEvent("evt1", { delegateUids: ["uidDelegate"] });
+      await seedReg("reg1", { eventId: "evt1" });
+      await assertFails(
         updateDoc(doc(authed("uidDelegate"), "registrations", "reg1"), {
           teamKey: "B",
         })
@@ -320,7 +344,7 @@ describe("Step 2: teamKey write validation", () => {
       await seedEvent("evt1");
       await seedReg("reg1", { eventId: "evt1" });
       await assertFails(
-        updateDoc(doc(authed("uidOrganizer"), "registrations", "reg1"), {
+        updateDoc(doc(authed("uidOrganizer", "coach"), "registrations", "reg1"), {
           teamKey: "A",
           status: "cancelled",
         })
@@ -333,17 +357,17 @@ describe("Step 2: teamKey write validation", () => {
       await seedEvent("evt1");
       await seedReg("reg1", { eventId: "evt1", status: "cancelled" });
       await assertFails(
-        updateDoc(doc(authed("uidOrganizer"), "registrations", "reg1"), {
+        updateDoc(doc(authed("uidOrganizer", "coach"), "registrations", "reg1"), {
           teamKey: "A",
         })
       );
     });
 
-    test("CAN assign teamKey to waitlisted registration", async () => {
+    test("coach organizer can assign teamKey to waitlisted registration", async () => {
       await seedEvent("evt1");
       await seedReg("reg1", { eventId: "evt1", status: "waitlisted" });
       await assertSucceeds(
-        updateDoc(doc(authed("uidOrganizer"), "registrations", "reg1"), {
+        updateDoc(doc(authed("uidOrganizer", "coach"), "registrations", "reg1"), {
           teamKey: "A",
         })
       );

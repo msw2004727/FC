@@ -1579,3 +1579,13 @@ URL 路徑正規化（同源判斷、解碼、query/hash 移除）。
 4. **Phase 6：E2E 測試**
    - 使用 Playwright 或 Cypress 測試完整用戶流程
    - 報名 → 簽到 → 統計的端到端驗證
+## 2026-05-05 覆蓋率更新
+
+| 類別 | 測試數 | 指令 |
+|------|------:|------|
+| Jest unit | 2735 | `npm run test:unit` |
+| Firestore Rules emulator | 506 | `npm run test:rules` |
+| Playwright E2E smoke | 21 | `npm run test:e2e` |
+| **合計** | **3262** |  |
+
+本次新增/擴充覆蓋：`roleActivityCapabilities/user` 讀寫、一般 user 基本/外部活動建立、加值欄位拒絕、owner 基本編輯/取消、capacity 不得低於目前人數、owner/delegate 現場操作、子集合 `attendanceRecords` / `activityRecords` 寫入收斂、teamSplit manager 寫入權限。

@@ -492,7 +492,7 @@ Object.assign(App, {
       ? `<div class="detail-row"><span class="detail-label">費用</span>${fee > 0 ? 'NT$' + fee : '免費'}</div>`
       : '';
 
-    const canScan = !isGuestView && this._canManageEvent(e);
+    const canScan = !isGuestView && this._canOperateEventSite?.(e);
 
     // 開放報名時間顯示
     let regOpenHtml = '';
@@ -671,7 +671,7 @@ Object.assign(App, {
     const e = ApiService.getEvent(eventId);
     if (!e) { container.innerHTML = ''; _wlScrollEl.scrollTop = _wlSavedScroll; return; }
 
-    const canManage = this._canManageEvent(e);
+    const canManage = this._canOperateEventSite?.(e);
     const tableEditing = this._waitlistEditingEventId === eventId;
     const allRegs = ApiService.getRegistrationsByEvent(eventId);
     const getRegTime = (r) => {
@@ -929,7 +929,7 @@ Object.assign(App, {
   _renderEventLogButton(e) {
     const wrap = document.getElementById('detail-log-btn-wrap');
     if (!wrap) return;
-    if (!e || !this._canManageEvent(e)) {
+    if (!e || !this._canViewEventOperationLog?.(e)) {
       wrap.style.display = 'none';
       wrap.innerHTML = '';
       return;
@@ -950,6 +950,11 @@ Object.assign(App, {
 
   async openEventRegLogModal(eventId) {
     var self = this;
+    var eventRecord = ApiService.getEvent(eventId);
+    if (!this._canViewEventOperationLog?.(eventRecord)) {
+      this.showToast('\u6b0a\u9650\u4e0d\u8db3');
+      return;
+    }
     var modal = document.getElementById('event-reg-log-modal');
     var body = document.getElementById('event-reg-log-body');
     if (!modal || !body) return;

@@ -947,6 +947,23 @@ const ApiService = {
     return Array.isArray(builtInDefaults) ? [...builtInDefaults] : null;
   },
 
+  getRoleActivityCapabilities(role) {
+    const roleKey = role || 'user';
+    if (roleKey !== 'user') return [];
+    const source = FirebaseService._cache.roleActivityCapabilities || {};
+    const hasStored = Object.prototype.hasOwnProperty.call(source, roleKey);
+    const stored = hasStored ? source[roleKey] : getDefaultRoleActivityCapabilities(roleKey);
+    return sanitizeRoleActivityCapabilities(stored);
+  },
+
+  getRoleActivityCapabilityDefaults(role) {
+    return sanitizeRoleActivityCapabilities(getDefaultRoleActivityCapabilities(role || 'user'));
+  },
+
+  hasRoleActivityCapability(role, code) {
+    return this.getRoleActivityCapabilities(role).includes(code);
+  },
+
   // ════════════════════════════════
   //  Registrations（報名管理 — 僅 Firebase 模式）
   // ════════════════════════════════

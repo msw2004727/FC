@@ -344,6 +344,11 @@ Object.assign(App, {
     if (cb && !cb.dataset.bound) {
       cb.dataset.bound = '1';
       cb.addEventListener('change', () => {
+        if (cb.checked && !this._guardActivityAddonToggle?.(cb)) {
+          if (select) Array.from(select.options || []).forEach(opt => { opt.selected = false; });
+          this._updateTeamOnlyLabel();
+          return;
+        }
         if (cb.checked && select) {
           this._populateTeamSelect(select);
         } else if (select) {

@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260502e';
+const CACHE_VERSION = '0.20260505';
 
 // ─── 即時監聽 limit 預設值（可在儀表板動態調整，存於 siteConfig/realtimeConfig）───
 const REALTIME_LIMIT_DEFAULTS = {
@@ -174,7 +174,7 @@ const PAGE_DATA_CONTRACT = {
   'page-admin-notif':        { required: [], optional: [], realtime: [] },
   'page-admin-announcements':{ required: [], optional: ['announcements'], realtime: [] },
   'page-admin-achievements': { required: [], optional: ['achievements', 'badges'], realtime: [] },
-  'page-admin-roles':        { required: [], optional: ['permissions', 'customRoles'], realtime: [] },
+  'page-admin-roles':        { required: [], optional: ['permissions', 'customRoles', 'roleActivityCapabilities'], realtime: [] },
   'page-admin-logs':         { required: [], optional: ['operationLogs', 'errorLogs'], realtime: [] },
   'page-admin-repair':       { required: [], optional: ['events', 'attendanceRecords', 'activityRecords', 'userCorrections', 'teams'], realtime: [] },
   'page-admin-inactive':     { required: [], optional: ['attendanceRecords', 'activityRecords', 'operationLogs'], realtime: [] },
@@ -684,6 +684,78 @@ function sanitizePermissionCodeList(codes) {
   return Array.from(new Set(
     (Array.isArray(codes) ? codes : []).filter(code => isPermissionCodeEnabled(code))
   ));
+}
+
+const ROLE_ACTIVITY_CAPABILITY_CATALOG_VERSION = '20260505a';
+const ROLE_ACTIVITY_CAPABILITY_ITEMS = Object.freeze([
+  {
+    code: 'user.activity.basic_create',
+    name: '\u57fa\u672c\u5efa\u7acb\u6d3b\u52d5',
+    description: '\u5141\u8a31\u4e00\u822c user \u5efa\u7acb\u4e0d\u542b\u52a0\u503c\u529f\u80fd\u7684\u57fa\u672c\u6d3b\u52d5\u3002',
+    defaultEnabled: true,
+  },
+  {
+    code: 'user.activity.external_create',
+    name: '\u5efa\u7acb\u5916\u90e8\u6d3b\u52d5\u9023\u7d50',
+    description: '\u5141\u8a31\u4e00\u822c user \u5efa\u7acb\u81ea\u5df1\u4e3b\u8fa6\u7684\u5916\u90e8\u6d3b\u52d5\u9023\u7d50\u3002',
+    defaultEnabled: true,
+  },
+  {
+    code: 'user.activity.own_manage_entry',
+    name: '\u81ea\u5df1\u6d3b\u52d5\u7ba1\u7406\u5165\u53e3',
+    description: '\u5141\u8a31\u4e00\u822c user \u770b\u5230\u6d3b\u52d5\u7ba1\u7406\u5165\u53e3\uff0c\u4f46\u53ea\u80fd\u7ba1\u81ea\u5df1\u4e3b\u8fa6\u6216\u88ab\u59d4\u8a17\u7684\u6d3b\u52d5\u3002',
+    defaultEnabled: true,
+  },
+  {
+    code: 'user.activity.own_edit_basic',
+    name: '\u7de8\u8f2f\u81ea\u5df1\u6d3b\u52d5\u57fa\u672c\u8cc7\u6599',
+    description: '\u5141\u8a31\u4e00\u822c user \u7de8\u8f2f\u81ea\u5df1\u4e3b\u8fa6\u6d3b\u52d5\u7684\u57fa\u672c\u6b04\u4f4d\uff0c\u4e0d\u542b\u52a0\u503c\u529f\u80fd\u6b04\u4f4d\u3002',
+    defaultEnabled: true,
+  },
+  {
+    code: 'user.activity.own_cancel',
+    name: '\u53d6\u6d88\u81ea\u5df1\u6d3b\u52d5',
+    description: '\u5141\u8a31\u4e00\u822c user \u53d6\u6d88\u81ea\u5df1\u4e3b\u8fa6\u7684\u6d3b\u52d5\u3002',
+    defaultEnabled: true,
+  },
+  {
+    code: 'user.activity.site_operate',
+    name: '\u73fe\u5834\u7c3d\u5230\u8207\u5019\u88dc\u64cd\u4f5c',
+    description: '\u5141\u8a31\u4e00\u822c user \u4e3b\u8fa6\u4eba\u6216\u59d4\u8a17\u4eba\u64cd\u4f5c\u81ea\u5df1\u6d3b\u52d5\u7684\u73fe\u5834\u7c3d\u5230\u8207\u5019\u88dc\u6649\u5347\uff0c\u4e0d\u542b confirmed \u79fb\u9664\u6216\u964d\u7d1a\u3002',
+    defaultEnabled: true,
+  },
+  {
+    code: 'user.activity.delegate_assign',
+    name: '\u8a2d\u5b9a\u59d4\u8a17\u4eba',
+    description: '\u5141\u8a31\u4e00\u822c user \u4e3b\u8fa6\u4eba\u5728\u81ea\u5df1\u6d3b\u52d5\u4e2d\u8a2d\u5b9a\u59d4\u8a17\u4eba\u3002',
+    defaultEnabled: true,
+  },
+  {
+    code: 'user.activity.addons_use',
+    name: '\u4f7f\u7528\u52a0\u503c\u529f\u80fd',
+    description: '\u9810\u8a2d\u95dc\u9589\u3002\u958b\u555f\u5f8c\u4e00\u822c user \u624d\u80fd\u4f7f\u7528\u6536\u8cbb\u3001\u968a\u4f0d\u9650\u5b9a\u3001\u6027\u5225\u9650\u5b9a\u3001\u79c1\u5bc6\u6d3b\u52d5\u8207\u5206\u968a\u7b49\u52a0\u503c\u958b\u95dc\u3002',
+    defaultEnabled: false,
+  },
+]);
+
+function getRoleActivityCapabilityCodes() {
+  return ROLE_ACTIVITY_CAPABILITY_ITEMS.map(item => item.code);
+}
+
+function sanitizeRoleActivityCapabilities(codes) {
+  const allowed = new Set(getRoleActivityCapabilityCodes());
+  return Array.from(new Set(
+    (Array.isArray(codes) ? codes : []).filter(code => allowed.has(code))
+  ));
+}
+
+function getDefaultRoleActivityCapabilities(roleKey) {
+  if (roleKey !== 'user') return [];
+  return sanitizeRoleActivityCapabilities(
+    ROLE_ACTIVITY_CAPABILITY_ITEMS
+      .filter(item => item.defaultEnabled)
+      .map(item => item.code)
+  );
 }
 
 const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {

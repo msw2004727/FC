@@ -283,3 +283,13 @@
 | 雲端函式 | 處理推播通知、新聞抓取、分數提交等後端邏輯 |
 | 即時同步 | 資料變更時自動推送到所有使用者的畫面 |
 | 通訊軟體登入 | 透過通訊軟體帳號驗證使用者身分 |
+## 2026-05-05 活動權限結構補充
+
+- `js/config.js`：宣告 `ROLE_ACTIVITY_CAPABILITY_ITEMS`、`DEFAULT_ROLE_ACTIVITY_CAPABILITIES` 與 user 活動能力目錄。
+- `js/modules/user-admin/user-admin-roles.js`：權限管理頁在 user 角色內顯示並保存 `roleActivityCapabilities/user`，與既有 `rolePermissions` 分開。
+- `js/firebase-service.js` / `js/api-service.js` / `js/firebase-crud.js`：快取、即時監聽與 CRUD 皆納入 `roleActivityCapabilities`。
+- `js/modules/event/event-list-helpers.js`：集中 owner-scope helper，例如 `_canCreateBasicActivity`、`_canAccessOwnActivityManageEntry`、`_canOperateEventSite`、`_canUseActivityAddons`。
+- `js/modules/event/event-create*.js`：一般 user 建立活動時鎖住加值開關，顯示 `如需更多功能請聯繫官方Line@`，並在送出前移除/保留加值欄位。
+- `js/modules/event/event-manage*.js`、`js/modules/scan/*`：自己的活動管理、掃碼、手動簽到、候補與委託人操作改走細分 capability。
+- `firestore.rules`：`roleActivityCapabilities/{roleId}` 只能 super_admin 寫入；一般 user 建立/編輯活動與現場操作皆有 owner/delegate + capability 檢查。
+- `functions/index.js`：Admin SDK callable 不依賴 Firestore Rules，需同步讀取 `roleActivityCapabilities` 檢查 owner/delegate 現場操作。

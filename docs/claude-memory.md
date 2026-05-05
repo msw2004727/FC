@@ -2095,3 +2095,8 @@
 - **原因**：`FirebaseService.updateEvent()` 遇到快取事件缺 `_docId` 時靜默回傳 `null`，而 `ApiService._updateAwaitWrite()` 沒有把 `null` 視為失敗，流程誤判為成功後繼續寫操作日誌。
 - **修復**：`updateEvent()` 改為缺 `_docId` 時用 `_getEventDocIdAsync()` 查正式活動文件，查不到就丟錯；`_updateAwaitWrite()` 將 `null/false` 回傳視為寫入失敗並 rollback；活動結束改為 awaited 寫入；活動取消/結束/重開/重新上架/刪除/移除參加者日誌都帶 `eventId`。
 - **教訓**：關鍵狀態變更不可接受「空回傳等於成功」；操作日誌必須在資料寫入確定成功後才產生，並帶可精確追蹤的活動 ID。
+### 2026-05-05 一般 user 活動主辦權限上線 [權限/安全]
+- **問題**: 不能直接把 `activity.manage.entry` 或 `event.create` 下放給一般 user，否則會擴大既有活動管理權限；同時 owner/delegate 現場簽到與候補操作必須能被權限管理手動啟閉。
+- **修正**: 新增 `roleActivityCapabilities/user` 作為一般 user 前台活動能力，保留 `rolePermissions` 作為 coach+/admin 後台權限。一般 user 預設可基本建立、外部連結、自己的活動管理入口、基本編輯、取消、現場操作、委託人；`user.activity.addons_use` 預設關閉。
+- **安全邊界**: Firestore Rules、前端 helper、Cloud Functions callable 都同步檢查 owner/delegate + capability；加值欄位被前端 Toast `如需更多功能請聯繫官方Line@` 與 Rules 雙層阻擋。子集合 `attendanceRecords` / `activityRecords` 寫入收斂到參與者本人或活動 operator。
+- **驗證**: `npm run test:rules` 通過 506 tests；`npm run test:unit` 應維持全綠後才能佈署。

@@ -95,7 +95,7 @@ function _isEventDelegate(delegates, myUid) {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/modules/role.js:71-86
+// Extracted from js/modules/role.js:92-108
 // _isAnyActiveEventDelegate — checks whether the current user is a delegate
 // of any scannable (open/full/ended) event, or the preset event.
 // Adapted to accept explicit dependencies instead of `this.*` / globals.

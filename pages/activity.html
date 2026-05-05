@@ -27,7 +27,7 @@
         </div>
       </div>
       <!-- Coach+ : My Activity Management -->
-      <div class="my-section" data-min-role="coach">
+      <div class="my-section" id="own-activity-manage-entry" data-min-role="coach">
         <button class="action-btn" onclick="App.showPage('page-my-activities')">活動管理</button>
       </div>
       <div class="tab-bar" id="activity-tabs">
@@ -110,7 +110,7 @@
           <span id="my-activity-creator-clear" onclick="App.clearCreatorFilter()" style="display:none;position:absolute;right:4px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:.7rem;color:var(--text-muted);line-height:1">✕</span>
           <div id="my-activity-creator-dropdown" class="ce-delegate-dropdown" style="min-width:140px"></div>
         </div>
-        <button class="primary-btn small" onclick="App.openCreateEventModal()">＋ 新增</button>
+        <button class="primary-btn small" id="my-activity-create-btn" onclick="App.openCreateEventModal()" style="display:none">＋ 新增</button>
       </div>
       <!-- stats moved to modal: _showActivityStatsModal -->
       <div class="tab-bar" id="my-activity-tabs">
