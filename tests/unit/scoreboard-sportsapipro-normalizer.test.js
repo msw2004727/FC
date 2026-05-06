@@ -95,7 +95,7 @@ describe("SportsAPI Pro scoreboard normalizer", () => {
     expect(requests[0]).toMatchObject({ sport: "football", date: "2026-05-06" });
   });
 
-  test("builds homepage sections for upcoming, featured, and score tabs", () => {
+  test("builds homepage sections for featured, live, and schedule tabs", () => {
     const fakeTimestamp = { fromMillis: (ms) => ({ ms, toMillis: () => ms }) };
     const fakeFieldValue = { serverTimestamp: () => "SERVER_TIMESTAMP" };
     const now = new Date("2026-05-06T00:00:00.000Z");
@@ -136,10 +136,12 @@ describe("SportsAPI Pro scoreboard normalizer", () => {
       FieldValue: fakeFieldValue,
     });
 
-    expect(snapshot.homepageSections.upcoming24h.matches.map((item) => item.id)).toEqual(["up1"]);
     expect(snapshot.homepageSections.featured.matches.map((item) => item.id)).toEqual(["live1", "up1"]);
+    expect(snapshot.homepageSections.live.matches.map((item) => item.id)).toEqual(["live1"]);
+    expect(snapshot.homepageSections.schedule.matches.map((item) => item.id)).toEqual(["up1"]);
+    expect(snapshot.homepageSections.upcoming24h.matches.map((item) => item.id)).toEqual(["up1"]);
     expect(snapshot.homepageSections.scores.matches.map((item) => item.id)).toContain("live1");
-    expect(snapshot.homepageSections.scores.updatedAt).toEqual(snapshot.generatedAt);
+    expect(snapshot.homepageSections.featured.updatedAt).toEqual(snapshot.generatedAt);
   });
 
   test("sanitizes status payload without account secrets", () => {

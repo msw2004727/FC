@@ -213,16 +213,31 @@ function snapshotFromResults({ config, liveMatches, scheduleMatches, errors, sta
   const homepageSports = new Set(Object.entries(config.sports)
     .filter(([, sport]) => sport?.homepageEnabled !== false)
     .map(([sport]) => sport));
-  const homePool = sortMatches([...safeLive, ...safeSchedule])
-    .filter((match) => homepageSports.has(match.sport))
+  const homeRaw = sortMatches([...liveMatches, ...scheduleMatches])
+    .filter((match) => homepageSports.has(match.sport));
+  const homePool = homeRaw
+    .map(compactMatch)
+    .filter(Boolean)
     .slice(0, 160);
   const homepageMatches = homePool
     .slice(0, 6);
+  const featuredMatches = sortMatches(homeRaw)
+    .filter((match) => isFeaturedMatch(match, config))
+    .map(compactMatch)
+    .filter(Boolean)
+    .slice(0, 24);
+  const liveNow = sortMatches(liveMatches)
+    .filter((match) => homepageSports.has(match.sport))
+    .map(compactMatch)
+    .filter(Boolean)
+    .slice(0, 24);
+  const todaySchedule = sortMatches(scheduleMatches)
+    .filter((match) => homepageSports.has(match.sport) && isUpcomingWithin24Hours(match, now))
+    .map(compactMatch)
+    .filter(Boolean)
+    .slice(0, 24);
   const upcoming24h = sortMatches(homePool)
     .filter((match) => isUpcomingWithin24Hours(match, now))
-    .slice(0, 24);
-  const featuredMatches = sortMatches(homePool)
-    .filter((match) => isFeaturedMatch(match, config))
     .slice(0, 24);
 
   return {
@@ -235,13 +250,22 @@ function snapshotFromResults({ config, liveMatches, scheduleMatches, errors, sta
     recentSchedule: safeSchedule,
     homepageMatches,
     homepageSections: {
-      upcoming24h: {
-        updatedAt: generatedAt,
-        matches: upcoming24h,
-      },
       featured: {
         updatedAt: generatedAt,
         matches: featuredMatches,
+      },
+      live: {
+        updatedAt: generatedAt,
+        matches: liveNow,
+      },
+      schedule: {
+        updatedAt: generatedAt,
+        matches: todaySchedule,
+      },
+      // Legacy aliases kept so older clients can still render cached snapshots.
+      upcoming24h: {
+        updatedAt: generatedAt,
+        matches: upcoming24h,
       },
       scores: {
         updatedAt: generatedAt,

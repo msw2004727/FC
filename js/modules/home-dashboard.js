@@ -12,20 +12,21 @@
     ['ligue_1', '法甲'], ['champions_league', '歐冠'], ['europa_league', '歐聯'], ['world_cup', '世界盃'],
   ].map(([id, label]) => ({ id, label }));
   const HOME_SCOREBOARD_LIMIT = 3;
-  const HOME_SCOREBOARD_SECTION_KEYS = ['upcoming24h', 'featured', 'scores'];
+  const HOME_SCOREBOARD_SECTION_KEYS = ['featured', 'live', 'schedule'];
+  const HOME_SCOREBOARD_NOTICE = '系統更新頻率仍在測試階段，比分與賽程僅供參考，實際結果請以官方公告為準。';
+  const HOME_SCOREBOARD_MORE_TEXT = '點擊可看更多賽事';
   const HOME_SCOREBOARD_SECTIONS = {
-    upcoming24h: {
-      label: '即將開賽 24H',
-      empty: '目前沒有 24 小時內即將開賽的比賽。',
-    },
     featured: {
-      label: '重要賽事',
-      empty: '目前沒有可顯示的重要賽事。',
+      label: '焦點賽事',
+      empty: '目前沒有可顯示的焦點賽事。',
     },
-    scores: {
-      label: '賽事比分',
-      empty: '目前沒有可顯示的比分或賽程。',
-      note: '系統更新頻率仍在測試階段，比分與賽程僅供參考，實際結果請以官方公告為準。',
+    live: {
+      label: '即時比分',
+      empty: '目前沒有進行中的比分。',
+    },
+    schedule: {
+      label: '今日賽程',
+      empty: '目前沒有 24 小時內即將開賽的賽程。',
     },
   };
 
@@ -185,8 +186,10 @@
 
   function allScoreboardMatches(config, snapshot) {
     const sources = [
-      snapshot?.homepageSections?.upcoming24h?.matches,
       snapshot?.homepageSections?.featured?.matches,
+      snapshot?.homepageSections?.live?.matches,
+      snapshot?.homepageSections?.schedule?.matches,
+      snapshot?.homepageSections?.upcoming24h?.matches,
       snapshot?.homepageSections?.scores?.matches,
       snapshot?.homepageMatches,
       snapshot?.liveMatches,
@@ -237,10 +240,14 @@
   }
 
   function scoreboardSectionUpdatedAt(config, snapshot, sectionKey) {
-    return snapshot?.homepageSections?.[sectionKey]?.updatedAt
+    const snapshotSection = snapshot?.homepageSections?.[sectionKey]
+      || (sectionKey === 'schedule' ? snapshot?.homepageSections?.upcoming24h : null);
+    const configSection = config?.homepageSections?.[sectionKey]
+      || (sectionKey === 'schedule' ? config?.homepageSections?.upcoming24h : null);
+    return snapshotSection?.updatedAt
       || snapshot?.generatedAt
       || snapshot?.updatedAt
-      || config?.homepageSections?.[sectionKey]?.updatedAt
+      || configSection?.updatedAt
       || config?.updatedAt
       || null;
   }
@@ -260,13 +267,23 @@
     return config?.featuredSources?.[sourceId]?.enabled !== false;
   }
 
+  function isLiveScoreboardMatch(match) {
+    if (match?.isLive) return true;
+    const lower = String(match?.status || '').trim().toLowerCase();
+    return ['live', 'in progress', 'ongoing', 'playing'].includes(lower);
+  }
+
   function scoreboardSectionMatches(config, snapshot, sectionKey) {
-    const sectionRows = snapshot?.homepageSections?.[sectionKey]?.matches
-      || config?.homepageSections?.[sectionKey]?.matches;
+    const snapshotSection = snapshot?.homepageSections?.[sectionKey]
+      || (sectionKey === 'schedule' ? snapshot?.homepageSections?.upcoming24h : null);
+    const configSection = config?.homepageSections?.[sectionKey]
+      || (sectionKey === 'schedule' ? config?.homepageSections?.upcoming24h : null);
+    const sectionRows = snapshotSection?.matches || configSection?.matches;
     if (Array.isArray(sectionRows)) return sectionRows.filter(Boolean);
     const rows = allScoreboardMatches(config, snapshot);
-    if (sectionKey === 'upcoming24h') return rows.filter(isUpcomingScoreboardMatch);
     if (sectionKey === 'featured') return rows.filter(match => isFeaturedScoreboardMatch(match, config));
+    if (sectionKey === 'live') return rows.filter(isLiveScoreboardMatch);
+    if (sectionKey === 'schedule') return rows.filter(isUpcomingScoreboardMatch);
     return rows;
   }
 
@@ -392,7 +409,7 @@
 
     const activeSectionKey = HOME_SCOREBOARD_SECTION_KEYS.includes(app._homeScoreboardActiveSection)
       ? app._homeScoreboardActiveSection
-      : (sections.find(section => section.matches.length)?.key || 'scores');
+      : (sections.find(section => section.matches.length)?.key || 'featured');
     app._homeScoreboardActiveSection = activeSectionKey;
     const activeSection = sections.find(section => section.key === activeSectionKey) || sections[0];
     const sports = scoreboardSports(config, snapshot, activeSection.matches);
@@ -405,7 +422,11 @@
       <div class="home-league-rail" aria-label="賽事運動分類">
         ${sports.map(item => `<button class="home-league-chip${item.key === activeSport ? ' active' : ''}" type="button" onclick="App.selectHomeScoreboardSport('${escapeHTML(item.key)}')" aria-pressed="${item.key === activeSport ? 'true' : 'false'}">${escapeHTML(item.label)}<span>${numberText(item.count)}</span></button>`).join('')}
       </div>` : '';
-    const note = activeSection.note ? `<div class="home-scoreboard-note">${escapeHTML(activeSection.note)}</div>` : '';
+    const notice = `
+      <div class="home-scoreboard-note">
+        <span>${escapeHTML(HOME_SCOREBOARD_NOTICE)}</span>
+        <button class="home-scoreboard-more-link" type="button" onclick="App.openHomeScoreboardMore?.()">${escapeHTML(HOME_SCOREBOARD_MORE_TEXT)}</button>
+      </div>`;
     const rows = matches.length ? `
       <div class="home-score-list">
         ${matches.map(item => `
@@ -429,8 +450,8 @@
         <div class="home-scoreboard-section-tabs" aria-label="賽事資訊分類">
           ${sections.map(section => `<button class="home-scoreboard-section-tab${section.key === activeSectionKey ? ' active' : ''}" type="button" onclick="App.selectHomeScoreboardSection('${escapeHTML(section.key)}')" aria-pressed="${section.key === activeSectionKey ? 'true' : 'false'}"><span>${escapeHTML(section.label)}</span><small>${escapeHTML(section.updatedText)}</small></button>`).join('')}
         </div>
+        ${notice}
         ${sportTabs}
-        ${note}
         ${rows}
       </div>
     `;
@@ -542,6 +563,10 @@
 
     async openHomeScoreboardMatch(sport, matchId) {
       this._scoreboardPendingContext = { sport, matchId };
+      await this.showPage?.('page-match-calendar');
+    },
+
+    async openHomeScoreboardMore() {
       await this.showPage?.('page-match-calendar');
     },
   });
