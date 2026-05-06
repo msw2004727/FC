@@ -34,25 +34,64 @@
   }
 
   const INFO = {
-    provider: { title: '資料來源', body: '目前使用 SportsAPI Pro。API key 放在 Firebase Secret，前台和 Firestore 都不會保存 key。' },
-    homepage: { title: '首頁顯示', body: '關閉後首頁不顯示比分區，但公開賽程頁仍可依公開頁開關決定是否顯示。' },
-    publicPage: { title: '公開賽程頁', body: '控制使用者能不能進入完整比分與賽程頁。首頁預覽可另外開關。' },
-    enabledSports: { title: '啟用運動', body: '只有開啟的運動會被後端排入抓取。免費額度有限，先開常用項目最穩。' },
-    homepageSports: { title: '首頁顯示', body: '決定這個運動的賽事是否能出現在首頁小區塊。' },
-    liveSports: { title: '即時比分', body: '開啟後後端會抓這個運動的 live endpoint。' },
-    scheduleSports: { title: '最近賽程', body: '開啟後後端會抓這個運動的今日或最近賽程。' },
-    detailSports: { title: '基本詳情', body: '開啟後使用者點賽事時，可以讀取或產生這場比賽的基本詳情快取。' },
-    sortOrder: { title: '排序', body: '數字越小越前面。首頁和公開頁籤會優先照這個順序排列。' },
-    featured: { title: '重點聯賽', body: '用來把五大聯賽、歐冠、NBA 等賽事分組顯示。後續若要改成 tournament ID，也會接在這裡。' },
-    usage: { title: '用量', body: '這裡顯示 SportsAPI Pro /status 回傳的剩餘額度與今日 request 數；沒有資料時代表尚未成功刷新。' },
-    refresh: { title: '手動刷新', body: '立即呼叫 Cloud Function 更新快取。為避免打爆免費額度，按鈕有短暫冷卻。' },
-    translationTotal: { title: '已翻譯詞條', body: '已確認會正式顯示中文的隊名、聯賽名、狀態或其他來源名稱。內建熱門詞庫和人工確認詞庫都會被套用。' },
-    translationPending: { title: '待翻譯詞條', body: '系統在比分資料裡看過，但目前還沒有中文對照或保留原文決策的名稱。待翻多不代表錯誤，先處理高頻項目即可。' },
-    translationKeepOriginal: { title: '保留原文', body: '不確定、太小眾、地方隊、青年隊或非英文原文名稱，可以刻意保留原文，避免硬翻造成誤解。' },
-    translationCoverage: { title: '覆蓋率', body: '已翻譯、保留原文、忽略的詞條占全部已出現詞條的比例。不是越接近 100% 越好，因為有些名稱保留原文更準確。' },
-    translationBySport: { title: '依運動細分', body: '把翻譯狀態依足球、籃球、網球等運動拆開看，方便只處理某一種運動的高頻待翻名稱。' },
-    translationTopPending: { title: '高頻待翻', body: '依出現次數排序的待翻名稱。建議優先處理首頁常見、熱門聯賽與知名隊伍。' },
-    translationPrompt: { title: 'AI 維護指引', body: '之後忘記怎麼維護時，可以複製這段提示給 AI。流程會先讀待翻清單與統計，再產生保守的繁中建議。' },
+    provider: {
+      title: 'SportsAPI Pro 設定',
+      items: [
+        ['資料來源', '目前比分與賽程資料由 SportsAPI Pro 提供。前台不會直接打第三方 API。'],
+        ['API key', 'API key 放在 Firebase Secret，前台與 Firestore 都不保存 key。'],
+        ['首頁顯示', '控制首頁是否顯示比分區。關閉後首頁不顯示，但不代表資料來源被刪除。'],
+        ['公開頁', '控制使用者能不能進入完整比分與賽程頁。首頁預覽和公開頁可以分開控制。'],
+        ['快取策略', 'Cloud Function 先抓資料再寫入快取，前台讀快取，避免每個使用者刷新都消耗 API 額度。'],
+      ],
+    },
+    usage: {
+      title: 'API 狀態說明',
+      items: [
+        ['今日 requests', '今天已使用的 SportsAPI Pro request 數。數字越高代表越接近每日額度。'],
+        ['每日上限', '目前方案或 API 狀態回傳的每日可用上限。沒有資料時通常代表尚未成功取得 /status。'],
+        ['剩餘額度', '今天大約還能使用的 request 數。低於安全值時建議減少開啟的運動或避免手動刷新。'],
+        ['最近快取', '首頁比分快取最後產生的時間，不一定等於最後一次 API status 更新時間。'],
+        ['刷新錯誤', '最近刷新流程累積的錯誤數。若持續增加，通常要檢查 API key、額度或供應商回應。'],
+        ['快取賽事', '目前首頁快取中可顯示的賽事筆數。為 0 不一定是錯，可能是該時段沒有資料。'],
+        ['手動刷新', '立即呼叫 Cloud Function 更新快取。請少量使用，避免快速消耗免費或付費額度。'],
+      ],
+    },
+    translationTotal: {
+      title: '比分中文詞庫說明',
+      items: [
+        ['已翻譯', '已確認會正式顯示中文的隊名、聯賽名、狀態或其他來源名稱。'],
+        ['待翻譯', '系統看過但還沒有中文對照或保留原文決策的名稱。先處理高頻項目即可。'],
+        ['保留原文', '小眾隊伍、青年隊、地方隊或非英文原文名稱，可以刻意保留原文，避免硬翻。'],
+        ['需複查', '系統或人工標記需要再確認的詞條，適合之後集中處理。'],
+        ['衝突', '同一來源名稱可能出現不同翻譯建議，應人工確認後再套用。'],
+        ['覆蓋率', '已翻譯、保留原文或忽略的詞條占全部已出現詞條的比例，不需要硬追 100%。'],
+        ['依運動細分', '把詞庫狀態拆成足球、籃球、網球等運動，方便只處理某一類高頻詞。'],
+        ['高頻待翻', '依出現次數排序的待翻名稱，建議優先處理首頁常見或熱門聯賽。'],
+        ['AI 翻譯指引', '忘記流程時可複製給 AI，讓 AI 依待翻清單產出保守的繁中建議。'],
+      ],
+    },
+    enabledSports: {
+      title: '運動項目設定說明',
+      items: [
+        ['啟用', '只有啟用的運動會排入後端抓取。免費額度有限，建議先開常用運動。'],
+        ['首頁', '允許這個運動的比分或賽程出現在首頁小區塊。'],
+        ['即時', '允許後端抓取這個運動的即時比分資料。'],
+        ['賽程', '允許後端抓取這個運動的今日或最近賽程資料。'],
+        ['詳情', '允許使用者點進賽事後讀取或產生基本詳情快取。'],
+        ['排序', '數字越小越前面，會影響首頁與公開頁籤的顯示順序。'],
+        ['API slug', '卡片上的英文代碼是供應商 API 路徑名稱，主要用來核對串接是否正確。'],
+      ],
+    },
+    featured: {
+      title: '重點聯賽設定說明',
+      items: [
+        ['用途', '把五大聯賽、歐冠、NBA、MLB、BWF 等重要賽事優先分組呈現。'],
+        ['開關', '打開後該聯賽來源會進入首頁或公開頁的重點排序清單。'],
+        ['排序', '數字越小越前面，適合把最常看的聯賽放在前面。'],
+        ['資料比對', '目前先用關鍵字比對供應商回傳的聯賽名稱，後續可升級成 tournament ID。'],
+        ['版面策略', '這區只是重點入口，不需要列出所有聯賽；完整運動範圍由上方運動項目控制。'],
+      ],
+    },
   };
 
   function infoButton(key) {
@@ -61,6 +100,15 @@
 
   function fieldTitle(text, key) {
     return `<span class="scoreboard-field-title">${esc(text)}${infoButton(key)}</span>`;
+  }
+
+  function infoBodyHtml(info) {
+    if (Array.isArray(info?.items)) {
+      return '<ul class="scoreboard-info-list">' + info.items.map(([label, body]) => (
+        `<li><b>${esc(label)}</b><span>${esc(body)}</span></li>`
+      )).join('') + '</ul>';
+    }
+    return `<p>${esc(info?.body || '')}</p>`;
   }
 
   function checked(list, key) {
@@ -150,9 +198,9 @@
     const refresh = usage.lastRefresh || {};
     const snapshot = status?.snapshot || {};
     const generated = snapshot.generatedAt?.toDate?.()?.toLocaleString?.('zh-TW') || '-';
-    const item = (label, value, key) => `
+    const item = (label, value) => `
       <div class="scoreboard-meter-card">
-        <span>${fieldTitle(label, key)}</span>
+        <span>${esc(label)}</span>
         <strong>${esc(value ?? '-')}</strong>
       </div>
     `;
@@ -160,15 +208,15 @@
       <section class="scoreboard-admin-panel">
         <div class="scoreboard-admin-title-row">
           <h3>API 狀態${infoButton('usage')}</h3>
-          <button class="secondary-btn small" id="scoreboard-refresh-btn" type="button" onclick="App.refreshScoreboardNow()" ${canConfigure() ? '' : 'disabled'}>手動刷新${infoButton('refresh')}</button>
+          <button class="scoreboard-refresh-action" id="scoreboard-refresh-btn" type="button" onclick="App.refreshScoreboardNow()" ${canConfigure() ? '' : 'disabled'}>手動刷新</button>
         </div>
         <div class="scoreboard-meter-grid">
-          ${item('今日 requests', quota.requestsToday, 'usage')}
-          ${item('每日上限', quota.dailyLimit, 'usage')}
-          ${item('剩餘額度', quota.remaining, 'usage')}
-          ${item('最近快取', generated, 'usage')}
-          ${item('刷新錯誤', refresh.errorCount ?? 0, 'usage')}
-          ${item('快取賽事', Number(snapshot.homepageMatches?.length || 0), 'usage')}
+          ${item('今日 requests', quota.requestsToday)}
+          ${item('每日上限', quota.dailyLimit)}
+          ${item('剩餘額度', quota.remaining)}
+          ${item('最近快取', generated)}
+          ${item('刷新錯誤', refresh.errorCount ?? 0)}
+          ${item('快取賽事', Number(snapshot.homepageMatches?.length || 0))}
         </div>
       </section>
     `;
@@ -197,9 +245,9 @@
       '產生繁體中文建議時請保守處理；小眾隊伍、青年隊、地方隊或不確定的非英文名稱請標記 keep_original，不要硬翻。',
       '不要覆蓋已確認翻譯，除非我明確要求。',
     ].join('\n');
-    const item = (label, value, key) => `
+    const item = (label, value) => `
       <div class="scoreboard-meter-card">
-        <span>${fieldTitle(label, key)}</span>
+        <span>${esc(label)}</span>
         <strong>${esc(value ?? 0)}</strong>
       </div>
     `;
@@ -229,29 +277,29 @@
           <span>統計更新：${esc(updated)}</span>
         </div>
         <div class="scoreboard-meter-grid">
-          ${item('已翻譯', numberText(totals.approved || 0), 'translationTotal')}
-          ${item('待翻譯', numberText(totals.pending || 0), 'translationPending')}
-          ${item('保留原文', numberText(totals.keep_original || 0), 'translationKeepOriginal')}
-          ${item('需複查', numberText(totals.needs_review || 0), 'translationPending')}
-          ${item('衝突', numberText(totals.conflict || 0), 'translationPending')}
-          ${item('覆蓋率', percentText(stats.coverageRate), 'translationCoverage')}
+          ${item('已翻譯', numberText(totals.approved || 0))}
+          ${item('待翻譯', numberText(totals.pending || 0))}
+          ${item('保留原文', numberText(totals.keep_original || 0))}
+          ${item('需複查', numberText(totals.needs_review || 0))}
+          ${item('衝突', numberText(totals.conflict || 0))}
+          ${item('覆蓋率', percentText(stats.coverageRate))}
         </div>
         <div class="scoreboard-translation-split">
           <div>
-            <div class="scoreboard-subtitle">${fieldTitle('依運動細分', 'translationBySport')}</div>
+            <div class="scoreboard-subtitle">依運動細分</div>
             <div class="scoreboard-translation-sport-list">
               ${sportRows || '<div class="scoreboard-empty compact">尚未累積翻譯統計。</div>'}
             </div>
           </div>
           <div>
-            <div class="scoreboard-subtitle">${fieldTitle('高頻待翻', 'translationTopPending')}</div>
+            <div class="scoreboard-subtitle">高頻待翻</div>
             <div class="scoreboard-pending-list">
               ${pendingRows || '<div class="scoreboard-empty compact">目前沒有待翻譯名稱。</div>'}
             </div>
           </div>
         </div>
         <div class="scoreboard-ai-prompt">
-          <div class="scoreboard-subtitle">${fieldTitle('AI 翻譯指引', 'translationPrompt')}</div>
+          <div class="scoreboard-subtitle">AI 翻譯指引</div>
           <pre class="scoreboard-ai-prompt-text">${esc(prompt)}</pre>
         </div>
       </section>
@@ -336,11 +384,11 @@
         <div class="scoreboard-admin-switches">
           <label class="scoreboard-home-toggle">
             <input type="checkbox" id="scoreboard-homepage-enabled" ${config.homepageEnabled !== false ? 'checked' : ''} ${locked ? 'disabled' : ''}>
-            <span>首頁顯示${infoButton('homepage')}</span>
+            <span>首頁顯示</span>
           </label>
           <label class="scoreboard-home-toggle">
             <input type="checkbox" id="scoreboard-public-enabled" ${config.publicPageEnabled !== false ? 'checked' : ''} ${locked ? 'disabled' : ''}>
-            <span>公開頁${infoButton('publicPage')}</span>
+            <span>公開頁</span>
           </label>
         </div>
       </section>
@@ -472,7 +520,7 @@
         <div class="edu-info-dialog">
           <button class="edu-info-close" type="button" onclick="this.closest('.edu-info-overlay').remove()">×</button>
           <div class="edu-info-dialog-title">${esc(info.title)}</div>
-          <div style="font-size:.82rem;line-height:1.65;color:var(--text-secondary)">${esc(info.body)}</div>
+          <div class="edu-info-dialog-body scoreboard-info-dialog-body">${infoBodyHtml(info)}</div>
         </div>
       `;
       document.body.appendChild(overlay);

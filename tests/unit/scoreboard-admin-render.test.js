@@ -133,6 +133,14 @@ describe("scoreboard admin render", () => {
     expect(page.textContent).toContain("12");
     expect(page.textContent).toContain("62.5%");
     expect(page.textContent).toContain("docs/scoreboard-translation-workflow-plan.md");
+    expect(page.querySelectorAll(".scoreboard-meter-card .scoreboard-info-btn")).toHaveLength(0);
+    expect(page.querySelectorAll(".scoreboard-translation-panel .scoreboard-subtitle .scoreboard-info-btn")).toHaveLength(0);
+    expect(page.querySelector(".scoreboard-translation-panel h3 .scoreboard-info-btn")).toBeTruthy();
+
+    app.showScoreboardInfo("translationTotal");
+    const infoBody = dom.window.document.querySelector(".scoreboard-info-dialog-body");
+    expect(infoBody.textContent).toContain("待翻譯");
+    expect(infoBody.textContent).toContain("AI 翻譯指引");
     expect(app._markPageSnapshotReady).toHaveBeenCalledWith("page-admin-scoreboard");
   });
 
@@ -144,6 +152,15 @@ describe("scoreboard admin render", () => {
     const page = dom.window.document.getElementById("page-admin-scoreboard");
     expect(page.querySelector(".scoreboard-sport-card")).toBeTruthy();
     expect(page.querySelector(".scoreboard-feature-row")).toBeTruthy();
+    expect(page.querySelectorAll(".scoreboard-admin-switches .scoreboard-info-btn")).toHaveLength(0);
+    expect(page.querySelectorAll(".scoreboard-meter-card .scoreboard-info-btn")).toHaveLength(0);
+    expect(page.querySelector("#scoreboard-refresh-btn").classList.contains("scoreboard-refresh-action")).toBe(true);
+    expect(page.querySelector("#scoreboard-refresh-btn").textContent).toBe("手動刷新");
+
+    app.showScoreboardInfo("usage");
+    const infoBody = dom.window.document.querySelector(".scoreboard-info-dialog-body");
+    expect(infoBody.textContent).toContain("今日 requests");
+    expect(infoBody.textContent).toContain("手動刷新");
 
     app.openScoreboardSportSettings("football");
     const overlay = dom.window.document.querySelector(".scoreboard-config-overlay");

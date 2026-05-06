@@ -1826,6 +1826,62 @@
   vertical-align: middle;
 }
 .scoreboard-info-btn:hover { background: var(--accent); color: #fff; }
+.scoreboard-info-dialog-body {
+  font-size: .82rem;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+.scoreboard-info-list {
+  display: grid;
+  gap: .48rem;
+  margin: .25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.scoreboard-info-list li {
+  padding: .52rem .62rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+}
+.scoreboard-info-list b {
+  display: block;
+  margin-bottom: .16rem;
+  color: var(--text-primary);
+  font-size: .82rem;
+  line-height: 1.35;
+}
+.scoreboard-info-list span {
+  display: block;
+  color: var(--text-secondary);
+  font-size: .78rem;
+  line-height: 1.55;
+  white-space: normal;
+}
+.scoreboard-refresh-action {
+  min-height: 34px;
+  margin-left: auto;
+  padding: 0 .95rem;
+  border: 1px solid rgba(0, 166, 126, .38);
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--accent), #087c70);
+  color: #fff;
+  font-size: .78rem;
+  font-weight: 850;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(0, 166, 126, .18);
+}
+.scoreboard-refresh-action:hover {
+  filter: brightness(1.04);
+  box-shadow: 0 10px 22px rgba(0, 166, 126, .24);
+}
+.scoreboard-refresh-action:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+  box-shadow: none;
+}
 .scoreboard-sort-list {
   display: grid;
   gap: .45rem;
@@ -2241,6 +2297,7 @@
   .scoreboard-modal-toggle-grid { grid-template-columns: 1fr; }
   .scoreboard-config-overlay { align-items: flex-end; padding: .65rem; }
   .scoreboard-config-dialog { max-height: 86vh; }
+  .scoreboard-refresh-action { align-self: flex-end; }
   .scoreboard-admin-panel,
   .scoreboard-admin-intro { margin-left: .35rem; margin-right: .35rem; }
   .scoreboard-sport-card { min-height: 88px; padding: .62rem; }
