@@ -2167,3 +2167,8 @@
 - **原因**: 保留席位 header、保留列與名稱顏色直接寫在 `event-manage-attendance.js` inline style，深色主題 CSS 無法替換。
 - **修復**: 改用 `team-reservation-*` 語意化 class，保留淺色主題原視覺，並新增深色主題專用的低亮度藍綠漸層、文字色與俱樂部縮圖邊框。
 - **驗證**: 新增 unit source contract，確認 JS 不再硬寫亮色背景，且 CSS 具備深色主題覆蓋；`event-detail-render.test.js` 通過。
+
+### 2026-05-06 活動頁我要開團加號對齊 [ux]
+- **調整**: 活動頁右上角 `我要開團` 改為首頁同款加號圖示 + 文字呈現，按鈕 aria label 補為 `＋我要開團`。
+- **視覺**: `activity.css` 將活動頁與首頁建立入口統一為 `inline-flex`、同 gap 與 svg 尺寸，避免加號與文字位置不一致。
+- **驗證**: 新增 `activity-create-button.test.js` source contract，確認活動頁與首頁使用相同 plus icon path 與共用 CSS。

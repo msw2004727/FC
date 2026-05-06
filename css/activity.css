@@ -30,6 +30,10 @@
 }
 #activity-create-btn,
 .home-create-event-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
   padding: .42rem .65rem;
   font-size: .78rem;
   white-space: nowrap;
@@ -42,6 +46,14 @@
 }
 #activity-create-btn > span,
 .home-create-event-btn > span {
+  position: relative;
+  z-index: 3;
+}
+#activity-create-btn svg,
+.home-create-event-btn svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
   position: relative;
   z-index: 3;
 }
