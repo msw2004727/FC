@@ -28,6 +28,7 @@ function runHomeDashboardModule() {
     EVENT_SPORT_OPTIONS: [
       { key: "football", label: "足球" },
       { key: "dodgeball", label: "躲避球" },
+      { key: "basketball", label: "籃球" },
     ],
     escapeHTML: value => String(value ?? ""),
     getSportIconSvg: key => `<span>${key}</span>`,
@@ -58,8 +59,11 @@ describe("home-dashboard browser binding", () => {
     await app.renderHomeScoreboardPreview();
 
     const sportEntry = dom.window.document.getElementById("home-sport-entry");
-    expect(sportEntry.children).toHaveLength(2);
+    expect(sportEntry.children).toHaveLength(3);
     expect(sportEntry.textContent).toContain("19 活動");
+    expect(sportEntry.textContent).toContain("查看更多");
+    expect(sportEntry.textContent).not.toContain("0 活動");
+    expect(sportEntry.querySelector(".home-sport-chip-more")?.getAttribute("onclick")).toBe("App.selectHomeSport('all')");
     expect(sportEntry.textContent).not.toContain("足球");
     expect(sportEntry.querySelector('[data-home-sport="football"]')?.getAttribute("aria-label")).toContain("足球");
     expect(sportEntry.querySelector(".home-sport-chip-mark")?.innerHTML).toContain("football");
@@ -67,7 +71,7 @@ describe("home-dashboard browser binding", () => {
     expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("活動");
     expect(dom.window.document.getElementById("home-info-meter").textContent).not.toContain("活動數");
     expect(dom.window.document.getElementById("home-info-meter").textContent).not.toContain("預留");
-    expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("311");
+    expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("811");
     expect(dom.window.document.querySelectorAll(".home-stat-views")).toHaveLength(1);
 
     const scoreboard = dom.window.document.getElementById("home-scoreboard-preview");

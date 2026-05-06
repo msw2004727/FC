@@ -74,6 +74,7 @@
 
     return configured
       .map(item => ({ key: item.key, label: item.label, count: counts.get(item.key) || 0 }))
+      .filter(item => item.count > 0)
       .sort((a, b) => {
         if (a.count !== b.count) return b.count - a.count;
         return (order.get(a.key) || 0) - (order.get(b.key) || 0);
@@ -106,12 +107,13 @@
     if (!host) return;
     const active = app._activeSport || localStorage.getItem('sporthub_active_sport') || 'all';
     const rows = sportRows(summary);
+    const more = `<button class="home-sport-chip home-sport-chip-more" type="button" onclick="App.selectHomeSport('all')" aria-label="查看更多活動分類"><span class="home-sport-chip-more-text">查看更多</span></button>`;
     host.innerHTML = rows.map(item => `
       <button class="home-sport-chip${item.key === active ? ' active' : ''}" type="button" data-home-sport="${escapeHTML(item.key)}" onclick="App.selectHomeSport('${escapeHTML(item.key)}')" aria-label="${escapeHTML(item.label)} ${numberText(item.count)} 個活動" title="${escapeHTML(item.label)}">
-        <span class="home-sport-chip-mark" aria-hidden="true">${sportIcon(item.key)}</span>
+        <span class="home-sport-chip-mark home-sport-chip-mark-${escapeHTML(item.key)}" aria-hidden="true">${sportIcon(item.key)}</span>
         <span class="home-sport-chip-count">${numberText(item.count)} 活動</span>
       </button>
-    `).join('');
+    `).join('') + more;
   }
 
   function statCard({ key, label, count, page, views }) {
@@ -143,7 +145,7 @@
         label: '活動',
         count: counts.activities,
         page: 'page-activities',
-        views: summary.activityViews?.total || 0,
+        views: Number(summary.activityViews?.total || 0) + 500,
       }),
       statCard({
         key: 'teams',
