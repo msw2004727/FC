@@ -2193,3 +2193,8 @@
 - **Change**: Activity page region tabs now default to `全部` instead of `中部`, with both the HTML active state and event-list JS fallback aligned.
 - **Scope**: Left the create-activity form region default unchanged so event creation behavior is not affected.
 - **Validation**: Added `activity-region-default.test.js` source contract coverage for the tab markup and JS fallback.
+
+### 2026-05-06 Event Registration Open Status Repair [bugfix]
+- **Issue**: An activity whose `regOpenTime` had already passed could still store `status: upcoming`; the detail header displayed `已開放`, but `_refreshSignupButton` and `registerForEvent` still treated the raw status as not open.
+- **Fix**: Safely repaired the affected 2026/05/08 朝馬 activity document to `status: open`. Frontend signup-button refresh now normalizes effective status before rendering, and the Cloud Function now checks `regOpenTime` before stale `upcoming` can block signup.
+- **Validation**: Added `event-registration-open-status.test.js` source contract coverage for frontend refresh and backend registration-open ordering.

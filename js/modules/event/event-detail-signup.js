@@ -1245,6 +1245,7 @@ Object.assign(App, {
     if (this._flipAnimating) return; // 翻牌動畫中不干擾
     var e = ApiService.getEvent(eventId);
     if (!e) return;
+    e = this._syncEventEffectiveStatus?.(e) || e;
     var actionZone = document.querySelector('.detail-action-primary');
     if (!actionZone) return;
 

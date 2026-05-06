@@ -3201,6 +3201,42 @@ function parseEventStartDateInTaipei(dateStr) {
   return new Date(Date.UTC(year, month - 1, day, hours - 8, minutes, 0, 0));
 }
 
+function parseEventRegOpenTimeInTaipei(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value?.toDate === "function") {
+    try { return value.toDate(); } catch (_e) { return null; }
+  }
+  if (typeof value === "object" && typeof value.seconds === "number") {
+    return new Date(value.seconds * 1000 + Math.floor((value.nanoseconds || 0) / 1000000));
+  }
+
+  const text = String(value || "").trim();
+  if (!text) return null;
+
+  const localMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (localMatch) {
+    const [, y, m, d, h, min, s = "0"] = localMatch;
+    return new Date(Date.UTC(
+      Number(y),
+      Number(m) - 1,
+      Number(d),
+      Number(h) - 8,
+      Number(min),
+      Number(s),
+      0
+    ));
+  }
+
+  const parsed = new Date(text);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function isEventRegistrationNotOpen(data, now = new Date()) {
+  const regOpen = parseEventRegOpenTimeInTaipei(data?.regOpenTime);
+  return regOpen instanceof Date && !Number.isNaN(regOpen.getTime()) && regOpen.getTime() > now.getTime();
+}
+
 function shouldAutoEndEvent(data, now = new Date()) {
   const status = String(data?.status || "").trim();
   if (!["open", "full", "upcoming"].includes(status)) return false;
@@ -6642,26 +6678,26 @@ exports.registerForEvent = onCall(
       const callerReservationStaffTeams = reservationTeamIds.length
         ? await loadTeamReservationTeamsForTransaction(transaction, reservationTeamIds)
         : [];
+      const now = new Date();
 
       // T2: 驗證活動狀態
       if (ed.status === "ended") throw new HttpsError("failed-precondition", "EVENT_ENDED");
       if (ed.status === "cancelled") throw new HttpsError("failed-precondition", "EVENT_CANCELLED");
-      if (ed.status === "upcoming") throw new HttpsError("failed-precondition", "REG_NOT_OPEN");
 
       // 檢查活動開始時間
       if (ed.date) {
         const startDate = parseEventStartDateInTaipei(ed.date);
-        if (startDate && startDate <= new Date()) {
+        if (startDate && startDate <= now) {
           throw new HttpsError("failed-precondition", "EVENT_ENDED");
         }
       }
 
       // 報名開放時間檢查
-      if (ed.regOpenTime) {
-        const regOpen = new Date(ed.regOpenTime);
-        if (!isNaN(regOpen.getTime()) && regOpen > new Date()) {
-          throw new HttpsError("failed-precondition", "REG_NOT_OPEN");
-        }
+      if (isEventRegistrationNotOpen(ed, now)) {
+        throw new HttpsError("failed-precondition", "REG_NOT_OPEN");
+      }
+      if (ed.status === "upcoming") {
+        ed.status = "open";
       }
 
       // T2: 查詢所有報名（子集合直接查詢，Transaction 內確保一致性）
