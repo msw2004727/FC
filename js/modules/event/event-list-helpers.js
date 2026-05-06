@@ -456,7 +456,7 @@ Object.assign(App, {
 
   /** 依地區頁籤過濾活動 */
   _filterByRegionTab(events) {
-    const tab = this._activeRegionTab || '中部';
+    const tab = this._activeRegionTab || '全部';
     if (tab === '全部') return events;
     return events.filter(e => {
       // 舊活動或未設定地區 → 所有 tab 都顯示
@@ -475,11 +475,11 @@ Object.assign(App, {
     return events.filter(e => (e.sportTag || 'football') === tag);
   },
 
-  _activeRegionTab: '中部',
+  _activeRegionTab: '全部',
 
   switchRegionTab(region) {
     // HTML entity decode（onclick 傳入的 &amp; 需還原為 &）
-    var decoded = region.replace(/&amp;/g, '&');
+    var decoded = (region || '全部').replace(/&amp;/g, '&');
     this._activeRegionTab = decoded;
     // 同步所有地區頁籤 UI（首頁 + 活動頁）
     document.querySelectorAll('.region-tab').forEach(function(btn) {

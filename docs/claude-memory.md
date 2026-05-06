@@ -2188,3 +2188,8 @@
 - **Problem**: Homepage scoreboard showed football featured tabs such as Premier League while `homepageMatches` could contain tennis/basketball rows; tab clicks were visual-only, and opening a non-default sport could fall back to the first public scoreboard tab.
 - **Fix**: Homepage scoreboard tabs are now generated from sports present in `scoreboardSnapshots/home` and filter rows by the selected sport. Public scoreboard tabs also merge config tabs with snapshot sports that already have data, so homepage sport/match context opens the matching sport page.
 - **Validation**: Updated `home-dashboard-render.test.js` and `scoreboard-public-render.test.js` to cover homepage tab filtering and non-default sport handoff.
+
+### 2026-05-06 Activity Region Tab Default [ux]
+- **Change**: Activity page region tabs now default to `全部` instead of `中部`, with both the HTML active state and event-list JS fallback aligned.
+- **Scope**: Left the create-activity form region default unchanged so event creation behavior is not affected.
+- **Validation**: Added `activity-region-default.test.js` source contract coverage for the tab markup and JS fallback.
