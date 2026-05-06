@@ -1656,7 +1656,15 @@
   font-weight: 800;
   white-space: nowrap;
 }
-.scoreboard-home-toggle span,
+.scoreboard-home-toggle {
+  min-height: 34px;
+  padding: .34rem .48rem .34rem .62rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  gap: .5rem;
+}
+.scoreboard-home-toggle > span:not(.scoreboard-switch),
 .scoreboard-source-toggle span {
   display: inline-flex;
   align-items: center;
@@ -1831,7 +1839,7 @@
   line-height: 1.65;
   color: var(--text-secondary);
 }
-.scoreboard-info-list {
+.edu-info-dialog-body .scoreboard-info-list {
   display: grid;
   gap: .48rem;
   margin: .25rem 0 0;
@@ -1843,6 +1851,9 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-elevated);
+}
+.edu-info-dialog-body .scoreboard-info-list li {
+  margin: 0;
 }
 .scoreboard-info-list b {
   display: block;
@@ -1910,9 +1921,11 @@
 }
 .scoreboard-admin-switches {
   display: flex;
-  flex-direction: column;
-  gap: .42rem;
-  align-items: flex-end;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: .5rem;
+  align-items: center;
+  justify-content: flex-end;
 }
 .scoreboard-meter-grid {
   display: grid;
@@ -2257,6 +2270,25 @@
 .scoreboard-ai-prompt {
   margin-top: .72rem;
 }
+.scoreboard-ai-prompt-head {
+  justify-content: space-between;
+}
+.scoreboard-copy-btn {
+  min-height: 28px;
+  padding: 0 .72rem;
+  border: 1px solid rgba(0, 166, 126, .28);
+  border-radius: 999px;
+  background: rgba(0, 166, 126, .08);
+  color: var(--accent);
+  font-size: .72rem;
+  font-weight: 850;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.scoreboard-copy-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
 .scoreboard-ai-prompt-text {
   margin: 0;
   padding: .62rem;
@@ -2292,7 +2324,7 @@
   .scoreboard-admin-title-row,
   .scoreboard-source-main,
   .scoreboard-api-slot { flex-direction: column; align-items: flex-start; }
-  .scoreboard-admin-switches { align-items: flex-start; }
+  .scoreboard-admin-switches { align-items: flex-start; justify-content: flex-start; }
   .scoreboard-meter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .scoreboard-modal-toggle-grid { grid-template-columns: 1fr; }
   .scoreboard-config-overlay { align-items: flex-end; padding: .65rem; }

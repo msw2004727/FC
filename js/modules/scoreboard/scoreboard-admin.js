@@ -154,6 +154,18 @@
     `;
   }
 
+  function homeSwitchMarkup(id, label, isChecked, locked) {
+    return `
+      <label class="scoreboard-home-toggle">
+        <span>${esc(label)}</span>
+        <span class="scoreboard-switch">
+          <input type="checkbox" id="${esc(id)}" ${isChecked ? 'checked' : ''} ${locked ? 'disabled' : ''}>
+          <span class="scoreboard-switch-slider" aria-hidden="true"></span>
+        </span>
+      </label>
+    `;
+  }
+
   function todayKey() {
     const parts = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Asia/Taipei',
@@ -299,7 +311,10 @@
           </div>
         </div>
         <div class="scoreboard-ai-prompt">
-          <div class="scoreboard-subtitle">AI 翻譯指引</div>
+          <div class="scoreboard-subtitle scoreboard-ai-prompt-head">
+            <span>AI 翻譯指引</span>
+            <button class="scoreboard-copy-btn" type="button" onclick="App.copyScoreboardAiPrompt(this)">一鍵複製</button>
+          </div>
           <pre class="scoreboard-ai-prompt-text">${esc(prompt)}</pre>
         </div>
       </section>
@@ -382,14 +397,8 @@
           <p>控制首頁與公開賽程頁顯示，不保存 API key，不讓前台直接打第三方 API。</p>
         </div>
         <div class="scoreboard-admin-switches">
-          <label class="scoreboard-home-toggle">
-            <input type="checkbox" id="scoreboard-homepage-enabled" ${config.homepageEnabled !== false ? 'checked' : ''} ${locked ? 'disabled' : ''}>
-            <span>首頁顯示</span>
-          </label>
-          <label class="scoreboard-home-toggle">
-            <input type="checkbox" id="scoreboard-public-enabled" ${config.publicPageEnabled !== false ? 'checked' : ''} ${locked ? 'disabled' : ''}>
-            <span>公開頁</span>
-          </label>
+          ${homeSwitchMarkup('scoreboard-homepage-enabled', '首頁顯示', config.homepageEnabled !== false, locked)}
+          ${homeSwitchMarkup('scoreboard-public-enabled', '公開頁', config.publicPageEnabled !== false, locked)}
         </div>
       </section>
       ${usagePanel(status)}
@@ -524,6 +533,35 @@
         </div>
       `;
       document.body.appendChild(overlay);
+    },
+
+    async copyScoreboardAiPrompt(trigger) {
+      const source = trigger?.closest?.('.scoreboard-ai-prompt')?.querySelector?.('.scoreboard-ai-prompt-text');
+      const text = source?.textContent || '';
+      if (!text.trim()) {
+        this.showToast?.('目前沒有可複製的 AI 翻譯指引');
+        return;
+      }
+      try {
+        if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const textarea = document.createElement('textarea');
+          textarea.value = text;
+          textarea.setAttribute('readonly', '');
+          textarea.style.position = 'fixed';
+          textarea.style.left = '-9999px';
+          document.body.appendChild(textarea);
+          textarea.select();
+          const copied = document.execCommand('copy');
+          textarea.remove();
+          if (!copied) throw new Error('clipboard unavailable');
+        }
+        this.showToast?.('已複製 AI 翻譯指引');
+      } catch (err) {
+        console.error('[ScoreboardAdmin] copy AI prompt failed:', err);
+        this.showToast?.('複製失敗，請手動選取文字');
+      }
     },
 
     openScoreboardSportSettings(sportKey) {

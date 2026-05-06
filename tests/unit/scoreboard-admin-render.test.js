@@ -21,6 +21,7 @@ function runAdmin(stats = {}) {
   const dom = new JSDOM(`<!doctype html><section id="page-admin-scoreboard"></section>`, {
     url: "https://example.test/",
   });
+  dom.window.document.execCommand = jest.fn(() => true);
   const catalog = {
     SPORT_CATALOG: [{ key: "football", label: "Football", icon: "⚽", apiSport: "football", sortOrder: 1 }],
     FEATURED_SOURCE_CATALOG: [{ id: "nba", label: "NBA", sport: "basketball", sortOrder: 1 }],
@@ -133,9 +134,14 @@ describe("scoreboard admin render", () => {
     expect(page.textContent).toContain("12");
     expect(page.textContent).toContain("62.5%");
     expect(page.textContent).toContain("docs/scoreboard-translation-workflow-plan.md");
+    expect(page.querySelector(".scoreboard-copy-btn").textContent).toBe("一鍵複製");
     expect(page.querySelectorAll(".scoreboard-meter-card .scoreboard-info-btn")).toHaveLength(0);
     expect(page.querySelectorAll(".scoreboard-translation-panel .scoreboard-subtitle .scoreboard-info-btn")).toHaveLength(0);
     expect(page.querySelector(".scoreboard-translation-panel h3 .scoreboard-info-btn")).toBeTruthy();
+
+    await app.copyScoreboardAiPrompt(page.querySelector(".scoreboard-copy-btn"));
+    expect(dom.window.document.execCommand).toHaveBeenCalledWith("copy");
+    expect(app.showToast).toHaveBeenCalledWith("已複製 AI 翻譯指引");
 
     app.showScoreboardInfo("translationTotal");
     const infoBody = dom.window.document.querySelector(".scoreboard-info-dialog-body");
@@ -153,6 +159,9 @@ describe("scoreboard admin render", () => {
     expect(page.querySelector(".scoreboard-sport-card")).toBeTruthy();
     expect(page.querySelector(".scoreboard-feature-row")).toBeTruthy();
     expect(page.querySelectorAll(".scoreboard-admin-switches .scoreboard-info-btn")).toHaveLength(0);
+    expect(page.querySelectorAll(".scoreboard-admin-switches .scoreboard-switch")).toHaveLength(2);
+    expect(page.querySelector("#scoreboard-homepage-enabled").checked).toBe(true);
+    expect(page.querySelector("#scoreboard-public-enabled").checked).toBe(true);
     expect(page.querySelectorAll(".scoreboard-meter-card .scoreboard-info-btn")).toHaveLength(0);
     expect(page.querySelector("#scoreboard-refresh-btn").classList.contains("scoreboard-refresh-action")).toBe(true);
     expect(page.querySelector("#scoreboard-refresh-btn").textContent).toBe("手動刷新");
