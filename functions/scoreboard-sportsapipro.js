@@ -174,6 +174,22 @@ function sortMatches(matches) {
     });
 }
 
+function isUpcomingWithin24Hours(match, now) {
+  if (!match || match.isLive || match.isFinished || !match.startsAt) return false;
+  const startsAtMs = Date.parse(match.startsAt);
+  if (!Number.isFinite(startsAtMs)) return false;
+  const nowMs = now.getTime();
+  return startsAtMs >= nowMs && startsAtMs <= nowMs + 24 * 60 * 60 * 1000;
+}
+
+function isFeaturedMatch(match, config) {
+  const sourceId = safeText(match?.sourceId, 64);
+  const sport = safeText(match?.sport, 40);
+  if (!sourceId || !sport || sourceId === sport) return false;
+  const sourceConfig = config?.featuredSources?.[sourceId];
+  return sourceConfig?.enabled !== false;
+}
+
 function buildSportsSummary({ config, liveMatches, scheduleMatches, fetchedAtBySport }) {
   return Object.entries(config.sports)
     .filter(([, sportConfig]) => sportConfig?.enabled)
@@ -197,9 +213,17 @@ function snapshotFromResults({ config, liveMatches, scheduleMatches, errors, sta
   const homepageSports = new Set(Object.entries(config.sports)
     .filter(([, sport]) => sport?.homepageEnabled !== false)
     .map(([sport]) => sport));
-  const homepageMatches = sortMatches([...safeLive, ...safeSchedule])
+  const homePool = sortMatches([...safeLive, ...safeSchedule])
     .filter((match) => homepageSports.has(match.sport))
+    .slice(0, 160);
+  const homepageMatches = homePool
     .slice(0, 6);
+  const upcoming24h = sortMatches(homePool)
+    .filter((match) => isUpcomingWithin24Hours(match, now))
+    .slice(0, 24);
+  const featuredMatches = sortMatches(homePool)
+    .filter((match) => isFeaturedMatch(match, config))
+    .slice(0, 24);
 
   return {
     schemaVersion: 1,
@@ -210,6 +234,20 @@ function snapshotFromResults({ config, liveMatches, scheduleMatches, errors, sta
     liveMatches: safeLive,
     recentSchedule: safeSchedule,
     homepageMatches,
+    homepageSections: {
+      upcoming24h: {
+        updatedAt: generatedAt,
+        matches: upcoming24h,
+      },
+      featured: {
+        updatedAt: generatedAt,
+        matches: featuredMatches,
+      },
+      scores: {
+        updatedAt: generatedAt,
+        matches: homepageMatches,
+      },
+    },
     status: statusPayload || null,
     errors: errors.slice(0, 20),
     updatedAt: FieldValue.serverTimestamp(),

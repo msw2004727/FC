@@ -86,8 +86,60 @@ describe("SportsAPI Pro scoreboard normalizer", () => {
       },
     });
     const requests = utils.planRequests(cfg, new Date("2026-05-05T16:30:00.000Z"));
-    expect(requests.map((item) => item.path)).toEqual(["/api/live", "/api/today", "/status"]);
+    expect(requests.map((item) => item.path)).toEqual([
+      "/api/live",
+      "/api/today",
+      "/api/schedule/2026-05-07?timezoneName=Asia%2FTaipei",
+      "/status",
+    ]);
     expect(requests[0]).toMatchObject({ sport: "football", date: "2026-05-06" });
+  });
+
+  test("builds homepage sections for upcoming, featured, and score tabs", () => {
+    const fakeTimestamp = { fromMillis: (ms) => ({ ms, toMillis: () => ms }) };
+    const fakeFieldValue = { serverTimestamp: () => "SERVER_TIMESTAMP" };
+    const now = new Date("2026-05-06T00:00:00.000Z");
+    const config = utils.normalizeScoreboardConfig({
+      enabledSports: ["football"],
+      homepageSports: ["football"],
+      liveSports: ["football"],
+      scheduleSports: ["football"],
+    });
+    const snapshot = scoreboard.snapshotFromResults({
+      config,
+      liveMatches: [{
+        id: "live1",
+        sport: "football",
+        sourceId: "premier_league",
+        title: "Live A vs Live B",
+        startsAt: "2026-05-05T23:30:00.000Z",
+        isLive: true,
+      }],
+      scheduleMatches: [{
+        id: "up1",
+        sport: "football",
+        sourceId: "premier_league",
+        title: "Soon A vs Soon B",
+        startsAt: "2026-05-06T12:00:00.000Z",
+      }, {
+        id: "late1",
+        sport: "football",
+        sourceId: "football",
+        title: "Late A vs Late B",
+        startsAt: "2026-05-08T12:00:00.000Z",
+      }],
+      errors: [],
+      statusPayload: null,
+      fetchedAtBySport: { football: "2026-05-06T00:00:00.000Z" },
+      now,
+      Timestamp: fakeTimestamp,
+      FieldValue: fakeFieldValue,
+    });
+
+    expect(snapshot.homepageSections.upcoming24h.matches.map((item) => item.id)).toEqual(["up1"]);
+    expect(snapshot.homepageSections.featured.matches.map((item) => item.id)).toEqual(["live1", "up1"]);
+    expect(snapshot.homepageSections.scores.matches.map((item) => item.id)).toContain("live1");
+    expect(snapshot.homepageSections.scores.updatedAt).toEqual(snapshot.generatedAt);
   });
 
   test("sanitizes status payload without account secrets", () => {

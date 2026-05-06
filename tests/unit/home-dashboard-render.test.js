@@ -90,11 +90,19 @@ describe("home-dashboard browser binding", () => {
     };
     await app.renderHomeScoreboardPreview();
     expect(scoreboard.style.display).toBe("");
+    expect(scoreboard.querySelectorAll(".home-scoreboard-section-tab")).toHaveLength(3);
+    expect(scoreboard.querySelector(".home-scoreboard-section-tab.active")?.getAttribute("onclick")).toContain("scores");
+    expect(scoreboard.querySelector(".home-scoreboard-note")).not.toBeNull();
     expect(scoreboard.textContent).toContain("A vs B");
     expect(scoreboard.textContent).not.toContain("C vs D");
 
     app.selectHomeScoreboardSport("basketball");
     expect(scoreboard.textContent).toContain("C vs D");
     expect(scoreboard.textContent).not.toContain("A vs B");
+
+    app.selectHomeScoreboardSection("featured");
+    expect(scoreboard.querySelector(".home-scoreboard-section-tab.active")?.getAttribute("onclick")).toContain("featured");
+    expect(scoreboard.querySelectorAll(".home-score-row")).toHaveLength(0);
+    expect(scoreboard.querySelector(".home-scoreboard-note")).toBeNull();
   });
 });

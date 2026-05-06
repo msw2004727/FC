@@ -12,6 +12,22 @@
     ['ligue_1', '法甲'], ['champions_league', '歐冠'], ['europa_league', '歐聯'], ['world_cup', '世界盃'],
   ].map(([id, label]) => ({ id, label }));
   const HOME_SCOREBOARD_LIMIT = 3;
+  const HOME_SCOREBOARD_SECTION_KEYS = ['upcoming24h', 'featured', 'scores'];
+  const HOME_SCOREBOARD_SECTIONS = {
+    upcoming24h: {
+      label: '即將開賽 24H',
+      empty: '目前沒有 24 小時內即將開賽的比賽。',
+    },
+    featured: {
+      label: '重要賽事',
+      empty: '目前沒有可顯示的重要賽事。',
+    },
+    scores: {
+      label: '賽事比分',
+      empty: '目前沒有可顯示的比分或賽程。',
+      note: '系統更新頻率仍在測試階段，比分與賽程僅供參考，實際結果請以官方公告為準。',
+    },
+  };
 
   function numberText(value) {
     const num = Number(value || 0);
@@ -169,6 +185,9 @@
 
   function allScoreboardMatches(config, snapshot) {
     const sources = [
+      snapshot?.homepageSections?.upcoming24h?.matches,
+      snapshot?.homepageSections?.featured?.matches,
+      snapshot?.homepageSections?.scores?.matches,
       snapshot?.homepageMatches,
       snapshot?.liveMatches,
       snapshot?.recentSchedule,
@@ -184,6 +203,71 @@
       });
     });
     return Array.from(map.values());
+  }
+
+  function timestampMillis(value) {
+    if (!value) return 0;
+    if (typeof value.toMillis === 'function') return Number(value.toMillis()) || 0;
+    if (typeof value.toDate === 'function') {
+      const date = value.toDate();
+      return date && !Number.isNaN(date.getTime()) ? date.getTime() : 0;
+    }
+    if (typeof value.seconds === 'number') return value.seconds * 1000;
+    const numeric = Number(value);
+    if (Number.isFinite(numeric) && numeric > 0) return numeric > 9999999999 ? numeric : numeric * 1000;
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function formatScoreboardUpdatedAt(value) {
+    const ms = timestampMillis(value);
+    if (!ms) return '尚未更新';
+    try {
+      const text = new Date(ms).toLocaleString('zh-TW', {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
+      return `更新 ${text}`;
+    } catch (_) {
+      return '尚未更新';
+    }
+  }
+
+  function scoreboardSectionUpdatedAt(config, snapshot, sectionKey) {
+    return snapshot?.homepageSections?.[sectionKey]?.updatedAt
+      || snapshot?.generatedAt
+      || snapshot?.updatedAt
+      || config?.homepageSections?.[sectionKey]?.updatedAt
+      || config?.updatedAt
+      || null;
+  }
+
+  function isUpcomingScoreboardMatch(match) {
+    if (!match || match.isLive || match.isFinished || !match.startsAt) return false;
+    const startsAtMs = Date.parse(match.startsAt);
+    if (!Number.isFinite(startsAtMs)) return false;
+    const nowMs = Date.now();
+    return startsAtMs >= nowMs && startsAtMs <= nowMs + 24 * 60 * 60 * 1000;
+  }
+
+  function isFeaturedScoreboardMatch(match, config) {
+    const sourceId = String(match?.sourceId || '').trim();
+    const sport = String(match?.sport || '').trim();
+    if (!sourceId || !sport || sourceId === sport) return false;
+    return config?.featuredSources?.[sourceId]?.enabled !== false;
+  }
+
+  function scoreboardSectionMatches(config, snapshot, sectionKey) {
+    const sectionRows = snapshot?.homepageSections?.[sectionKey]?.matches
+      || config?.homepageSections?.[sectionKey]?.matches;
+    if (Array.isArray(sectionRows)) return sectionRows.filter(Boolean);
+    const rows = allScoreboardMatches(config, snapshot);
+    if (sectionKey === 'upcoming24h') return rows.filter(isUpcomingScoreboardMatch);
+    if (sectionKey === 'featured') return rows.filter(match => isFeaturedScoreboardMatch(match, config));
+    return rows;
   }
 
   function sportSummaryMap(snapshot) {
@@ -234,8 +318,8 @@
       }));
   }
 
-  function scoreboardMatches(config, snapshot, sport) {
-    const rows = allScoreboardMatches(config, snapshot);
+  function scoreboardMatches(config, snapshot, sectionKey, sport) {
+    const rows = scoreboardSectionMatches(config, snapshot, sectionKey);
     return rows
       .filter(match => !sport || match.sport === sport)
       .slice(0, HOME_SCOREBOARD_LIMIT);
@@ -272,6 +356,10 @@
   function renderScoreboard(config, snapshot) {
     const host = document.getElementById('home-scoreboard-preview');
     if (!host) return;
+    renderScoreboardTabbed(config, snapshot, host);
+  }
+
+  function renderScoreboardTabbed(config, snapshot, host) {
     if (config && config.homepageEnabled === false) {
       host.style.display = 'none';
       host.innerHTML = '';
@@ -281,7 +369,7 @@
       host.style.display = '';
       host.innerHTML = `
         <div class="home-scoreboard-title-row">
-          <h3 id="home-scoreboard-title">賽事比分</h3>
+          <h3 id="home-scoreboard-title">賽事資訊</h3>
         </div>
         <div class="home-scoreboard-panel">
           <div class="scoreboard-empty compact">比分與賽程載入中...</div>
@@ -289,41 +377,64 @@
       `;
       return;
     }
-    const allMatches = allScoreboardMatches(config, snapshot);
-    const sports = scoreboardSports(config, snapshot, allMatches);
-    const activeSport = sports.some(item => item.key === app._homeScoreboardActiveSport)
-      ? app._homeScoreboardActiveSport
-      : (sports[0]?.key || '');
-    app._homeScoreboardActiveSport = activeSport;
-    const matches = scoreboardMatches(config, snapshot, activeSport);
-    if (!matches.length) {
+
+    const sections = HOME_SCOREBOARD_SECTION_KEYS.map(key => ({
+      key,
+      ...HOME_SCOREBOARD_SECTIONS[key],
+      matches: scoreboardSectionMatches(config, snapshot, key),
+      updatedText: formatScoreboardUpdatedAt(scoreboardSectionUpdatedAt(config, snapshot, key)),
+    }));
+    if (!sections.some(section => section.matches.length)) {
       host.style.display = 'none';
       host.innerHTML = '';
       return;
     }
-    host.style.display = '';
-    host.innerHTML = `
-      <div class="home-scoreboard-title-row">
-        <h3 id="home-scoreboard-title">賽事比分</h3>
-      </div>
-      <div class="home-scoreboard-panel">
-        <div class="home-league-rail" aria-label="賽事分類">
-          ${sports.map(item => `<button class="home-league-chip${item.key === activeSport ? ' active' : ''}" type="button" onclick="App.selectHomeScoreboardSport('${escapeHTML(item.key)}')" aria-pressed="${item.key === activeSport ? 'true' : 'false'}">${escapeHTML(item.label)}<span>${numberText(item.count)}</span></button>`).join('')}
-        </div>
-        <div class="home-score-list">
+
+    const activeSectionKey = HOME_SCOREBOARD_SECTION_KEYS.includes(app._homeScoreboardActiveSection)
+      ? app._homeScoreboardActiveSection
+      : (sections.find(section => section.matches.length)?.key || 'scores');
+    app._homeScoreboardActiveSection = activeSectionKey;
+    const activeSection = sections.find(section => section.key === activeSectionKey) || sections[0];
+    const sports = scoreboardSports(config, snapshot, activeSection.matches);
+    const activeSport = sports.some(item => item.key === app._homeScoreboardActiveSport)
+      ? app._homeScoreboardActiveSport
+      : (sports[0]?.key || '');
+    app._homeScoreboardActiveSport = activeSport;
+    const matches = activeSport ? scoreboardMatches(config, snapshot, activeSectionKey, activeSport) : [];
+    const sportTabs = sports.length ? `
+      <div class="home-league-rail" aria-label="賽事運動分類">
+        ${sports.map(item => `<button class="home-league-chip${item.key === activeSport ? ' active' : ''}" type="button" onclick="App.selectHomeScoreboardSport('${escapeHTML(item.key)}')" aria-pressed="${item.key === activeSport ? 'true' : 'false'}">${escapeHTML(item.label)}<span>${numberText(item.count)}</span></button>`).join('')}
+      </div>` : '';
+    const note = activeSection.note ? `<div class="home-scoreboard-note">${escapeHTML(activeSection.note)}</div>` : '';
+    const rows = matches.length ? `
+      <div class="home-score-list">
         ${matches.map(item => `
-          <a class="home-score-row" href="#page-match-calendar" aria-label="前往賽事比分與行事曆">
-            <div class="home-score-time">${escapeHTML(item.timeLabel || item.time || '預留')}<br>${escapeHTML(item.dateLabel || item.date || 'API')}</div>
+          <a class="home-score-row" href="#page-match-calendar" aria-label="查看賽事比分詳情">
+            <div class="home-score-time">${escapeHTML(item.timeLabel || item.time || '--:--')}<br>${escapeHTML(item.dateLabel || item.date || 'API')}</div>
             <div class="home-score-main">
-              <div class="home-score-title">${escapeHTML(item.title || item.match || '比分與行事曆資料槽')}</div>
+              <div class="home-score-title">${escapeHTML(item.title || item.match || '尚未取得賽事名稱')}</div>
               <div class="home-score-sub">${escapeHTML(item.subtitle || item.league || sportLabelForScoreboard(config, snapshot, item.sport))}</div>
             </div>
             <div class="home-score-badge${item.reserved ? ' reserve' : ''}">${escapeHTML(scoreboardStatusText(item))}</div>
           </a>
         `).join('')}
+      </div>` : `<div class="scoreboard-empty compact">${escapeHTML(activeSection.empty)}</div>`;
+
+    host.style.display = '';
+    host.innerHTML = `
+      <div class="home-scoreboard-title-row">
+        <h3 id="home-scoreboard-title">賽事資訊</h3>
+      </div>
+      <div class="home-scoreboard-panel">
+        <div class="home-scoreboard-section-tabs" aria-label="賽事資訊分類">
+          ${sections.map(section => `<button class="home-scoreboard-section-tab${section.key === activeSectionKey ? ' active' : ''}" type="button" onclick="App.selectHomeScoreboardSection('${escapeHTML(section.key)}')" aria-pressed="${section.key === activeSectionKey ? 'true' : 'false'}"><span>${escapeHTML(section.label)}</span><small>${escapeHTML(section.updatedText)}</small></button>`).join('')}
         </div>
+        ${sportTabs}
+        ${note}
+        ${rows}
       </div>
     `;
+
     host.querySelectorAll('.home-score-row').forEach((row, index) => {
       const item = matches[index];
       row.addEventListener('click', (event) => {
@@ -336,6 +447,7 @@
   Object.assign(app, {
     _homeSummary: null,
     _homeScoreboardActiveSport: '',
+    _homeScoreboardActiveSection: '',
 
     setActiveSportFilter(sportKey, options = {}) {
       const safeKey = safeSportKey(sportKey);
@@ -373,6 +485,14 @@
 
     selectHomeScoreboardSport(sportKey) {
       this._homeScoreboardActiveSport = String(sportKey || '').trim();
+      renderScoreboard(this._scoreboardConfig || null, this._scoreboardSnapshot || null);
+    },
+
+    selectHomeScoreboardSection(sectionKey) {
+      const safeKey = String(sectionKey || '').trim();
+      if (!HOME_SCOREBOARD_SECTION_KEYS.includes(safeKey)) return;
+      this._homeScoreboardActiveSection = safeKey;
+      this._homeScoreboardActiveSport = '';
       renderScoreboard(this._scoreboardConfig || null, this._scoreboardSnapshot || null);
     },
 

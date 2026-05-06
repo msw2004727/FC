@@ -320,6 +320,57 @@
   overflow: hidden;
 }
 
+.home-scoreboard-section-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .4rem;
+  padding: .55rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-card) 88%, var(--bg-elevated) 12%);
+}
+
+.home-scoreboard-section-tab {
+  min-width: 0;
+  min-height: 42px;
+  display: grid;
+  align-content: center;
+  gap: .12rem;
+  padding: .34rem .42rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.home-scoreboard-section-tab span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: .72rem;
+  font-weight: 900;
+}
+
+.home-scoreboard-section-tab small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-muted);
+  font-size: .58rem;
+  font-weight: 750;
+}
+
+.home-scoreboard-section-tab.active {
+  border-color: rgba(37, 99, 235, .38);
+  background: rgba(37, 99, 235, .12);
+  color: #2563eb;
+}
+
+.home-scoreboard-section-tab.active small {
+  color: color-mix(in srgb, #2563eb 68%, var(--text-muted) 32%);
+}
+
 .home-league-rail {
   display: flex;
   gap: .45rem;
@@ -356,6 +407,15 @@
   color: var(--text-muted);
   font-size: .68rem;
   font-weight: 850;
+}
+
+.home-scoreboard-note {
+  padding: .52rem .7rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: .68rem;
+  line-height: 1.45;
+  background: color-mix(in srgb, var(--bg-elevated) 72%, transparent);
 }
 
 .home-score-list { display: grid; }
