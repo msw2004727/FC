@@ -78,6 +78,7 @@ const DRAWER_MENUS = [
   { divider: true, minRole: 'admin' },
   { sectionLabel: '\u5f8c\u53f0\u7ba1\u7406', minRole: 'admin' },
   { icon: '', label: '\u5c0f\u904a\u6232\u7ba1\u7406', page: 'page-admin-games', minRole: 'admin', permissionCode: 'admin.games.entry' },
+  { icon: '', label: '\u8cfd\u4e8b\u6bd4\u5206\u63a7\u5236', page: 'page-admin-scoreboard', minRole: 'admin', permissionCode: 'admin.scoreboard.entry' },
   { icon: '', label: '\u7528\u6236\u7ba1\u7406', page: 'page-admin-users', minRole: 'admin', permissionCode: 'admin.users.entry' },
   { icon: '', label: '\u5ee3\u544a\u7ba1\u7406', page: 'page-admin-banners', minRole: 'admin', permissionCode: 'admin.banners.entry' },
   { icon: '', label: '\u4e8c\u624b\u5546\u54c1\u7ba1\u7406', page: 'page-admin-shop', minRole: 'admin', permissionCode: 'admin.shop.entry' },
@@ -118,6 +119,9 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
     { code: 'admin.logs.error_read', name: 'Error Log Read' },
     { code: 'admin.logs.error_delete', name: 'Error Log Delete' },
     { code: 'admin.logs.audit_read', name: 'Audit Log Read' },
+  ],
+  'page-admin-scoreboard': [
+    { code: 'admin.scoreboard.configure', name: 'Configure Scoreboard' },
   ],
   'page-admin-notif': [
     { code: 'admin.notif.toggle', name: 'Toggle Notifications' },

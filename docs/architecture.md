@@ -1,6 +1,6 @@
 # ToosterX 現況架構文件
 
-> Last audited: 2026-05-05
+> Last audited: 2026-05-06
 > 依據實際程式碼盤點：`index.html`、`app.js`、`js/`、`pages/`、`functions/index.js`、`firestore.rules`、`firebase.json`、`package.json`、`tests/`、近期 git history。
 > 本文件描述「目前專案真的怎麼運作」，不是未來計劃書。若與舊文件或記憶有衝突，以目前程式碼為準。
 
@@ -19,8 +19,8 @@ ToosterX 是一個 LINE LIFF + Firebase 的 buildless Vanilla JS SPA。前端由
 | 前端型態 | Vanilla JS / HTML / CSS，無 webpack、無 build step |
 | 主入口 | `index.html` + `app.js` |
 | HTML fragments | `pages/` 共 20 個頁面片段 |
-| JS 檔案 | `js/` 共 267 個 JS |
-| 功能模組 | `js/modules/` 共 255 個 JS，16 個子資料夾 + 26 個 root-level shared module |
+| JS 檔案 | `js/` 共 270 個 JS |
+| 功能模組 | `js/modules/` 共 258 個 JS，17 個子資料夾 + 27 個 root-level shared module |
 | CSS | `css/` 共 17 個 CSS |
 | 後端 | Firebase Cloud Functions v2，Node.js 22，主要 region `asia-east1` |
 | Cloud Functions exports | 52 個 |
@@ -29,7 +29,7 @@ ToosterX 是一個 LINE LIFF + Firebase 的 buildless Vanilla JS SPA。前端由
 | 驗證 | LINE LIFF profile + Firebase Custom Token |
 | 佈署 | 前端 push `main` 後由 Cloudflare Pages / GitHub Pages 發佈；functions/rules 需 Firebase deploy |
 | 測試 | Jest unit、Firestore rules emulator、Playwright e2e smoke |
-| 目前快取版本 | `0.20260501` |
+| 目前快取版本 | `0.20260506a` |
 
 ---
 
@@ -132,7 +132,7 @@ sequenceDiagram
 - `PageLoader._deferredPages`：`scan`、`shop`、admin 系列、`personal-dashboard`、`game`、`kickball`、`education` 等。
 - deep link 會讓 `PageLoader` 優先載入目標頁片段，例如活動、俱樂部、賽事。
 - `ScriptLoader._pageGroups` 把 page id 對應到模組群組，避免所有功能一次載完。
-- `Service Worker` 與 `?v=0.20260501` 控制前端快取更新。
+- `Service Worker` 與 `?v=0.20260506a` 控制前端快取更新。
 
 ---
 
@@ -155,7 +155,7 @@ sequenceDiagram
 11. `js/core/navigation.js`
 12. `js/core/theme.js`
 13. `js/core/button-loading.js`
-14. 常用 shared modules：PWA、多分頁 guard、圖片裁切/上傳、sync-status、role、profile core、banner、popup、announcement、site theme、首頁活動/賽事/message 基礎等。
+14. 常用 shared modules：PWA、多分頁 guard、圖片裁切/上傳、sync-status、role、profile core、banner、popup、announcement、site theme、首頁摘要儀表與 message 基礎等。
 
 ### ScriptLoader 主要群組
 
@@ -177,6 +177,7 @@ sequenceDiagram
 | `adminSystem` | 遊戲設定、log center、error/audit log |
 | `adminContent` | 廣告、banner、浮動廣告、彈窗贊助、boot brand |
 | `adminSeo` | SEO dashboard / snapshot |
+| `scoreboardAdmin` | 首頁比分預留來源排序與顯示開關 |
 | `education` | 教學/課程/學生/課表/簽到/家長綁定 |
 | `achievement` | 成就、稱號、EXP evaluator、徽章、管理 |
 | `game` / `kickball` / `profileScene` | 互動遊戲與 2D 場景 |
@@ -203,12 +204,14 @@ sequenceDiagram
 | `color-cat/` | 40 | 個人場景、角色互動、MBTI 對話、敵人/天氣/雲端儲存 |
 | `auto-exp/` | 2 | EXP 自動規則與執行器 |
 | `admin-seo/` | 2 | SEO snapshot loader/dashboard |
+| `scoreboard/` | 2 | 首頁比分預留設定、後台控制頁 |
 
 ### root-level shared modules
 
 `js/modules` 根目錄目前有 26 個 shared module：
 
 - 內容與站台：`banner.js`、`announcement.js`、`popup-ad.js`、`news.js`、`site-theme.js`
+- 首頁：`home-dashboard.js` 渲染運動快速入口、活動/俱樂部/賽事儀表與比分預留區
 - 權限與系統：`role.js`、`sync-status.js`、`multi-tab-guard.js`、`pwa-install.js`
 - 圖片：`image-cropper.js`、`image-upload.js`
 - 紀錄與稽核：`audit-log.js`、`error-log.js`、`error-log-diagnostics.js`、`error-log-insights.js`、`admin-log-tabs.js`、`registration-audit.js`、`game-log-viewer.js`
@@ -279,6 +282,7 @@ sequenceDiagram
 | `auditLogsByDay/{yyyyMMdd}/auditEntries/{logId}` | 安全稽核 log | Cloud Function 寫入，super_admin/權限讀 |
 | `errorLogs/{docId}` | 前端錯誤 log | 使用者可寫，後台可讀 |
 | `siteConfig/realtimeConfig` | 即時監聽與資料同步設定 | 後端密碼保護寫入，前端讀 |
+| `siteConfig/scoreboardConfig` | 首頁比分預留來源顯示與排序 | 公開讀；寫入只允許白名單欄位與 `admin.scoreboard.configure` / admin |
 | `participantQueryShares/{shareId}` | 儀表板臨時分享 | 7 天快照型報表 |
 | `shotGameScores` / `kickGameScores` | 遊戲分數 | callable 寫入，排行榜讀 |
 | `usageMetrics` / `translateUsage` | 用量統計 | schedule / callable 寫入，super_admin 讀 |
@@ -455,7 +459,21 @@ current = realCurrent + sum(remainingSlots)
 - 活動頁支援列表與行事曆。
 - 行事曆相關模組獨立為 `activityCalendar` group。
 - 活動卡點擊時有藍色 loading bar，降低使用者誤以為點擊無反應的機率。
-- 首頁活動資料會被 inline 到 `index.html` boot data，提升冷啟速度。
+- 首頁不再 inline 活動卡清單；改由 `scripts/inject-hot-events.js` 產生 `boot-home-summary-data`，只保存匿名公開摘要（活動數、俱樂部數、賽事數、運動分類數、已記錄瀏覽數），提升冷啟速度並避免把完整活動資料塞進首頁。
+
+### 首頁摘要儀表
+
+- `pages/home.html` 首屏順序：banner、公告、運動快速入口、活動/俱樂部/賽事儀表、比分預留區，後續才是小遊戲、贊助、新聞與浮動廣告。
+- `js/modules/home-dashboard.js` 直接從 inline `boot-home-summary-data` 渲染，不等待 `events` collection。
+- 首頁活動統計排除取消、私密、俱樂部限定，以及「開始時間已過」的活動；無法解析開始時間的資料採保守保留，不在首頁顯示假 0。
+- 儀表卡可點擊：活動數前往活動頁，俱樂部數前往俱樂部頁，賽事數前往賽事頁；「我要開活動」會帶使用者到活動頁並開啟建立活動流程。
+
+### 比分預留控制
+
+- 首頁比分區只顯示預留來源與排序，不呼叫第三方比分 API。
+- `js/modules/scoreboard/scoreboard-config.js` 負責來源 catalog、預設值、正規化與 `siteConfig/scoreboardConfig` single-doc 讀寫。
+- `js/modules/scoreboard/scoreboard-admin.js` 負責後台 `page-admin-scoreboard` 控制頁，入口權限是 `admin.scoreboard.entry`，保存權限是 `admin.scoreboard.configure`。
+- `siteConfig/scoreboardConfig` 是公開可讀設定，因此不得保存 API key、token、secret、管理員 UID、email 或 displayName；rules 以欄位白名單阻擋敏感欄位。
 
 ---
 

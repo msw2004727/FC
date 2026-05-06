@@ -1,7 +1,7 @@
-name: Inject Hot Events to index.html
+name: Inject Home Summary to index.html
 
 # 何時跑：
-#   - schedule: 每 6 小時整點（UTC）跑一次、把 Firestore 最近 6 場活動 inline 到 index.html
+#   - schedule: 每 6 小時整點（UTC）跑一次、把 Firestore 首頁摘要 inline 到 index.html
 #   - workflow_dispatch: 允許手動觸發（首次部署 / debug / 緊急更新）
 on:
   schedule:
@@ -10,7 +10,7 @@ on:
 
 # 並發保護：上次還沒結束時，本次自動跳過（避免 push 競爭）
 concurrency:
-  group: inject-hot-events
+  group: inject-home-summary
   cancel-in-progress: false
 
 # 需要 commit + push 權限
@@ -31,7 +31,7 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Inject hot events
+      - name: Inject home summary
         env:
           GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
         run: node scripts/inject-hot-events.js
@@ -49,7 +49,7 @@ jobs:
           git add index.html
           # commit message 含 [skip ci] tag、防 test.yml 等被觸發（雙保險：
           # test.yml 也用 paths-ignore: index.html 過濾）
-          git commit -m "chore(perf): 自動 inline 首頁活動 (UTC $(date -u +%Y-%m-%dT%H:%M)) [skip ci]"
+          git commit -m "chore(perf): 自動 inline 首頁摘要 (UTC $(date -u +%Y-%m-%dT%H:%M)) [skip ci]"
           # 推前先 rebase，處理可能的並發 push（極少見，但安全）
           git pull --rebase origin main || (echo "[inject-bot] rebase 失敗、放棄本次 commit"; exit 1)
           git push origin HEAD:main

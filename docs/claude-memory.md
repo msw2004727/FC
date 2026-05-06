@@ -2117,3 +2117,10 @@
 - **原因**: 活動建立流程只讀取上傳預覽圖，沒有預設封面的 fallback；Storage 上傳層只處理 `data:` 圖片。
 - **修復**: 新增活動與活動連結建立時，若沒有上傳圖片，先載入 `LOGO/Nocoverimage set.png`，用既有圖片壓縮流程轉成 WebP data URL，再交給原本活動建立流程上傳到活動封面。
 - **教訓**: 預設圖片也要走同一條壓縮與上傳管線，避免前端靜態圖路徑和正式活動封面資料分流。
+
+### 2026-05-06 首頁摘要儀表與比分預留控制 [feature]
+- **問題**: 首頁「最新活動 / 最新賽事」卡片需要改為速度優先的摘要式首頁，且舊 GitHub inline 任務仍會寫入完整活動/賽事 payload。
+- **原因**: 舊首頁依賴 events/tournaments cache 與 boot cards，會讓首頁總量和排序受首批資料影響；比分預留若直接公開設定，也必須先切清楚「公開來源代號」與真正 API 憑證。
+- **修復**: 新增 `boot-home-summary-data`、`home-dashboard.js`、首頁 sport quick entry / 數量儀表 / 我要開活動 / 比分預留區；改造 `scripts/inject-hot-events.js` 與 GitHub workflow 只產生匿名完整摘要；新增 `scoreboard` 模組與 `page-admin-scoreboard`，設定走 `siteConfig/scoreboardConfig` single-doc，Rules 白名單拒絕 `apiKey/token/secret` 與任意 `sourceKey`。
+- **教訓**: 首頁總量要由完整摘要產生，不能用 partial cache 假裝總量；公開設定欄位名稱不能叫 `apiKey`，即使只是內部代號也會造成安全語意混淆。
+- **驗證**: `node --check` 覆蓋新增/修改 JS；`npm test` 通過 94 suites / 2784 tests；`npm run test:rules` 通過 5 suites / 511 tests；快取版本同步至 `0.20260506a`。

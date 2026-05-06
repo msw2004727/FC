@@ -85,7 +85,6 @@ function _deduplicateDocs(docs) {
 // Pure function: returns realtime collections for a page
 // ===========================================================================
 const _pageScopedRealtimeMap = {
-  'page-home':            ['events'],
   'page-activities':      ['registrations', 'attendanceRecords'],
   'page-activity-detail': ['registrations', 'attendanceRecords'],
   'page-my-activities':   ['registrations', 'attendanceRecords'],
@@ -470,8 +469,8 @@ describe('_deduplicateDocs (firebase-service.js:400-408)', () => {
 });
 
 describe('_getPageScopedRealtimeCollections (firebase-service.js:380-382)', () => {
-  test('page-home \u2192 events', () => {
-    expect(_getPageScopedRealtimeCollections('page-home')).toEqual(['events']);
+  test('page-home has no realtime collection after summary-based dashboard', () => {
+    expect(_getPageScopedRealtimeCollections('page-home')).toEqual([]);
   });
 
   test('page-activities \u2192 registrations + attendanceRecords', () => {

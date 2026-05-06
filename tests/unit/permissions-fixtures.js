@@ -19,7 +19,7 @@ const INHERENT_ROLE_PERMISSIONS = Object.freeze({
   coach:       ['activity.manage.entry', 'admin.tournaments.entry'],
   captain:     ['activity.manage.entry', 'admin.tournaments.entry'],
   venue_owner: ['activity.manage.entry', 'admin.tournaments.entry'],
-  super_admin: ['admin.repair.event_blocklist'],
+  super_admin: ['admin.repair.event_blocklist', 'admin.seo.entry'],
 });
 
 const DISABLED_PERMISSION_CODES = new Set(['admin.roles.entry']);
@@ -29,6 +29,7 @@ const ENTRY_PERMISSION_CODES = [
   'activity.manage.entry',
   'admin.tournaments.entry',
   'admin.games.entry',
+  'admin.scoreboard.entry',
   'admin.users.entry',
   'admin.banners.entry',
   'admin.shop.entry',
@@ -58,6 +59,7 @@ const SUB_PERMISSION_CODES = [
   'admin.messages.compose', 'admin.messages.delete',
   'admin.repair.team_join_repair', 'admin.repair.no_show_adjust', 'admin.repair.data_sync',
   'admin.logs.error_read', 'admin.logs.error_delete', 'admin.logs.audit_read',
+  'admin.scoreboard.configure',
   'admin.notif.toggle',
 ];
 
@@ -68,6 +70,7 @@ const DRAWER_PAGE_ENTRIES = [
   { page: 'page-my-activities',        minRole: 'coach',       permissionCode: 'activity.manage.entry' },
   { page: 'page-admin-tournaments',    minRole: 'coach',       permissionCode: 'admin.tournaments.entry' },
   { page: 'page-admin-games',          minRole: 'admin',       permissionCode: 'admin.games.entry' },
+  { page: 'page-admin-scoreboard',     minRole: 'admin',       permissionCode: 'admin.scoreboard.entry' },
   { page: 'page-admin-users',          minRole: 'admin',       permissionCode: 'admin.users.entry' },
   { page: 'page-admin-banners',        minRole: 'admin',       permissionCode: 'admin.banners.entry' },
   { page: 'page-admin-shop',           minRole: 'admin',       permissionCode: 'admin.shop.entry' },
@@ -101,6 +104,7 @@ const DATA_MIN_ROLE_PAGES = [
   { page: 'page-admin-dashboard',     minRole: 'super_admin', file: 'admin-dashboard.html' },
   { page: 'page-admin-achievements',  minRole: 'super_admin', file: 'admin-system.html' },
   { page: 'page-admin-games',         minRole: 'admin',       file: 'admin-system.html' },
+  { page: 'page-admin-scoreboard',    minRole: 'admin',       file: 'admin-system.html' },
   { page: 'page-admin-themes',        minRole: 'super_admin', file: 'admin-system.html' },
   { page: 'page-admin-announcements', minRole: 'super_admin', file: 'admin-system.html' },
   { page: 'page-admin-roles',         minRole: 'super_admin', file: 'admin-system.html' },

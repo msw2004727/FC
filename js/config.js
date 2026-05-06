@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260506';
+const CACHE_VERSION = '0.20260506a';
 
 // ─── 即時監聽 limit 預設值（可在儀表板動態調整，存於 siteConfig/realtimeConfig）───
 const REALTIME_LIMIT_DEFAULTS = {
@@ -110,6 +110,7 @@ const PAGE_STRATEGY = {
   'page-admin-teams':        'stale-first',
   'page-admin-tournaments':  'stale-first',
   'page-admin-games':        'stale-first',
+  'page-admin-scoreboard':   'stale-first',
   'page-admin-users':        'stale-first',
   'page-admin-banners':      'stale-first',
   'page-admin-shop':         'stale-first',
@@ -145,7 +146,7 @@ const PAGE_STRATEGY = {
 // ─── Page Data Contract ───
 // 每頁的資料依賴定義：required = 必要集合，optional = 可背景補的，realtime = 需即時監聽的
 const PAGE_DATA_CONTRACT = {
-  'page-home':               { required: ['events', 'banners', 'announcements'], optional: ['teams', 'tournaments', 'leaderboard'], realtime: [] },
+  'page-home':               { required: ['banners', 'announcements'], optional: [], realtime: [] },
   'page-activities':         { required: ['events'], optional: ['registrations'], realtime: ['registrations', 'attendanceRecords'] },
   'page-teams':              { required: ['teams'], optional: [], realtime: ['teams'] },
   'page-tournaments':        { required: ['tournaments'], optional: ['standings', 'matches'], realtime: ['tournaments'] },
@@ -164,6 +165,7 @@ const PAGE_DATA_CONTRACT = {
   'page-admin-teams':        { required: [], optional: ['teams', 'tournaments', 'standings', 'matches'], realtime: [] },
   'page-admin-tournaments':  { required: [], optional: ['tournaments', 'standings', 'matches'], realtime: [] },
   'page-admin-games':        { required: [], optional: ['gameConfigs'], realtime: [] },
+  'page-admin-scoreboard':   { required: [], optional: [], realtime: [] },
   'page-admin-users':        { required: [], optional: ['permissions', 'customRoles'], realtime: [] },
   'page-admin-banners':      { required: [], optional: ['banners', 'floatingAds', 'popupAds', 'sponsors'], realtime: [] },
   'page-admin-shop':         { required: [], optional: ['shopItems', 'trades'], realtime: [] },
@@ -653,6 +655,7 @@ const DRAWER_MENUS = [
   { divider: true, minRole: 'admin' },
   { sectionLabel: '後台管理', i18nKey: 'drawer.backendManage', minRole: 'admin' },
   { icon: '', label: '小遊戲管理', page: 'page-admin-games', minRole: 'admin', permissionCode: 'admin.games.entry' },
+  { icon: '', label: '賽事比分控制', page: 'page-admin-scoreboard', minRole: 'admin', permissionCode: 'admin.scoreboard.entry' },
   { icon: '', label: '用戶管理', i18nKey: 'admin.userManage', page: 'page-admin-users', minRole: 'admin', permissionCode: 'admin.users.entry' },
   { icon: '', label: '廣告管理', i18nKey: 'admin.adManage', page: 'page-admin-banners', minRole: 'admin', permissionCode: 'admin.banners.entry' },
   { icon: '', label: '二手商品管理', i18nKey: 'admin.shopManage', page: 'page-admin-shop', minRole: 'admin', permissionCode: 'admin.shop.entry' },
@@ -671,7 +674,7 @@ const DRAWER_MENUS = [
   { icon: '', label: '無效資料查詢', i18nKey: 'admin.inactive', page: 'page-admin-inactive', minRole: 'super_admin', permissionCode: 'admin.inactive.entry' },
 ];
 
-const ROLE_PERMISSION_CATALOG_VERSION = '20260422a';
+const ROLE_PERMISSION_CATALOG_VERSION = '20260506a';
 const DISABLED_PERMISSION_CODES = new Set(['admin.roles.entry']);
 
 function isPermissionCodeEnabled(code) {
@@ -807,6 +810,9 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
     { code: 'admin.logs.error_read', name: '錯誤日誌讀取' },
     { code: 'admin.logs.error_delete', name: '錯誤日誌清除' },
     { code: 'admin.logs.audit_read', name: '稽核日誌讀取' },
+  ],
+  'page-admin-scoreboard': [
+    { code: 'admin.scoreboard.configure', name: '調整比分來源與排序' },
   ],
   'page-admin-notif': [
     { code: 'admin.notif.toggle', name: '修改推播開關' },

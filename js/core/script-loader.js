@@ -432,6 +432,10 @@ const ScriptLoader = {
       'js/modules/error-log.js',
       'js/modules/audit-log.js',
     ],
+    scoreboardAdmin: [
+      'js/modules/scoreboard/scoreboard-config.js',
+      'js/modules/scoreboard/scoreboard-admin.js',
+    ],
     education: [
       'js/modules/education/edu-helpers.js',
       'js/modules/education/edu-group-list.js',
@@ -496,6 +500,7 @@ const ScriptLoader = {
     'page-admin-teams':        ['teamList', 'teamForm'],
     'page-admin-tournaments':  ['tournamentList', 'tournamentAdmin'],
     'page-admin-games':        ['adminSystem'],
+    'page-admin-scoreboard':   ['scoreboardAdmin'],
     'page-admin-auto-exp':     ['adminSystem'],
     'page-admin-error-logs':   ['adminSystem'],
     'page-edu-groups':         ['education'],

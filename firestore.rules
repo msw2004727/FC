@@ -147,6 +147,65 @@ service cloud.firestore {
         && isValidNotificationTogglesMap(request.resource.data.notificationToggles);
     }
 
+    function scoreboardSourceKeys() {
+      return [
+        'premier_league',
+        'laliga',
+        'serie_a',
+        'bundesliga',
+        'ligue_1',
+        'champions_league',
+        'europa_league',
+        'world_cup',
+        'nba',
+        'badminton',
+        'olympics'
+      ];
+    }
+
+    function isSafeScoreboardSource(source, sportKey, publicSourceKey) {
+      return source is map
+        && source.keys().hasOnly(['enabled', 'label', 'sport', 'sourceKey', 'sortOrder'])
+        && (!source.keys().hasAny(['enabled']) || source.enabled is bool)
+        && (!source.keys().hasAny(['label']) || (source.label is string && source.label.size() <= 24))
+        && (!source.keys().hasAny(['sport']) || source.sport == sportKey)
+        && (!source.keys().hasAny(['sourceKey']) || source.sourceKey == publicSourceKey)
+        && (!source.keys().hasAny(['sortOrder']) || (source.sortOrder is int && source.sortOrder >= 1 && source.sortOrder <= 999));
+    }
+
+    function isSafeOptionalScoreboardSource(sources, sourceKey, sportKey, publicSourceKey) {
+      return !sources.keys().hasAny([sourceKey]) || isSafeScoreboardSource(sources[sourceKey], sportKey, publicSourceKey);
+    }
+
+    function isSafeScoreboardSources(sources) {
+      return sources is map
+        && sources.keys().hasOnly(scoreboardSourceKeys())
+        && isSafeOptionalScoreboardSource(sources, 'premier_league', 'football', 'football_epl')
+        && isSafeOptionalScoreboardSource(sources, 'laliga', 'football', 'football_laliga')
+        && isSafeOptionalScoreboardSource(sources, 'serie_a', 'football', 'football_serie_a')
+        && isSafeOptionalScoreboardSource(sources, 'bundesliga', 'football', 'football_bundesliga')
+        && isSafeOptionalScoreboardSource(sources, 'ligue_1', 'football', 'football_ligue_1')
+        && isSafeOptionalScoreboardSource(sources, 'champions_league', 'football', 'football_ucl')
+        && isSafeOptionalScoreboardSource(sources, 'europa_league', 'football', 'football_uel')
+        && isSafeOptionalScoreboardSource(sources, 'world_cup', 'football', 'football_world_cup')
+        && isSafeOptionalScoreboardSource(sources, 'nba', 'basketball', 'basketball_nba')
+        && isSafeOptionalScoreboardSource(sources, 'badminton', 'badminton', 'badminton_general')
+        && isSafeOptionalScoreboardSource(sources, 'olympics', 'multi', 'olympics_general');
+    }
+
+    function isSafeScoreboardConfig(data) {
+      return data is map
+        && data.keys().hasOnly(['schemaVersion', 'homepageEnabled', 'homepageOrder', 'sources', 'updatedAt'])
+        && (!data.keys().hasAny(['schemaVersion']) || data.schemaVersion == 1)
+        && (!data.keys().hasAny(['homepageEnabled']) || data.homepageEnabled is bool)
+        && (!data.keys().hasAny(['homepageOrder'])
+          || (data.homepageOrder is list
+            && data.homepageOrder.size() <= 11
+            && data.homepageOrder.hasOnly(scoreboardSourceKeys())))
+        && (!data.keys().hasAny(['sources']) || isSafeScoreboardSources(data.sources))
+        && (!data.keys().hasAny(['updatedAt']) || data.updatedAt is timestamp);
+    }
+
     function canManageAutoExpSiteConfig(docId) {
       return hasPerm('admin.auto_exp.entry')
         && docId == 'autoExpRules';
@@ -1363,11 +1422,17 @@ service cloud.firestore {
     //  登入可讀；admin、受限的 admin.auto_exp.entry 或 admin.notif.toggle 可寫
     // ═══════════════════════════════════════════
     match /siteConfig/{docId} {
-      allow read: if isAuth();
-      allow create: if docId != 'realtimeConfig' && (isAdmin()
+      allow read: if docId == 'scoreboardConfig' || isAuth();
+      allow create: if docId == 'scoreboardConfig'
+        && (isAdmin() || hasPerm('admin.scoreboard.configure'))
+        && isSafeScoreboardConfig(request.resource.data);
+      allow update: if docId == 'scoreboardConfig'
+        && (isAdmin() || hasPerm('admin.scoreboard.configure'))
+        && isSafeScoreboardConfig(request.resource.data);
+      allow create: if docId != 'realtimeConfig' && docId != 'scoreboardConfig' && (isAdmin()
         || canManageAutoExpSiteConfig(docId)
         || canCreateNotificationFeatureFlags(docId));
-      allow update: if docId != 'realtimeConfig' && (isAdmin()
+      allow update: if docId != 'realtimeConfig' && docId != 'scoreboardConfig' && (isAdmin()
         || canManageAutoExpSiteConfig(docId)
         || canUpdateNotificationFeatureFlags(docId));
       allow delete: if false;

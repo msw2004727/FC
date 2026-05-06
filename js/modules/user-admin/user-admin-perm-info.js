@@ -218,6 +218,14 @@ Object.assign(App, {
       title: '小遊戲管理',
       body: '允許進入小遊戲管理功能區，可管理射門遊戲、踢球遊戲等小遊戲的設定與排行榜。',
     },
+    'admin.scoreboard.entry': {
+      title: '賽事比分控制',
+      body: '允許進入比分控制功能區。這頁目前只管理首頁預留欄位的來源顯示與排序，不會連外抓 API。',
+    },
+    'admin.scoreboard.configure': {
+      title: '調整比分來源與排序',
+      body: '允許儲存首頁比分預留區的開關與排序。這裡不能填 API 密鑰，只能切換哪些來源先顯示。',
+    },
     'admin.shop.entry': {
       title: '二手商品管理',
       body: '允許進入二手商品管理功能區，可檢視與管理用戶刊登的二手運動用品。',

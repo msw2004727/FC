@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 /**
- * Inject small homepage boot payloads into index.html.
+ * Inject compact homepage boot payloads into index.html.
  *
- * The app can render the homepage before Firebase SDK / Firestore finishes:
- * - boot-events-data: hot activity cards
+ * The homepage only needs summary counters for first paint:
+ * - boot-home-summary-data: public active counts, sport counts, recorded views
  * - boot-banners-data: active banner carousel
- * - boot-tournaments-data: active tournament cards
  *
- * This script never fails CI/deploy. If Firestore is unavailable, it keeps the
- * existing inline payloads in index.html.
+ * This script is best-effort for CI/deploy. If Firestore is unavailable, it
+ * keeps the existing inline payloads in index.html.
  */
 
 const fs = require('fs');
@@ -21,18 +20,15 @@ const OAUTH_SCOPES = 'https://www.googleapis.com/auth/datastore';
 const INDEX_HTML_PATH = path.resolve(__dirname, '..', 'index.html');
 const FIREBASE_CONFIG_PATH = path.resolve(__dirname, '..', 'js', 'firebase-config.js');
 
-const TARGET_EVENT_COUNT = 6;
 const TARGET_BANNER_COUNT = 8;
-const TARGET_TOURNAMENT_COUNT = 8;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const INJECTION_CONFIGS = {
-  events: {
-    collection: 'events',
-    markerBegin: '<!-- BOOT_EVENTS_INJECT_BEGIN -->',
-    markerEnd: '<!-- BOOT_EVENTS_INJECT_END -->',
-    scriptId: 'boot-events-data',
-    pageSize: 120,
-    orderBy: null,
+  homeSummary: {
+    collection: '',
+    markerBegin: '<!-- BOOT_HOME_SUMMARY_INJECT_BEGIN -->',
+    markerEnd: '<!-- BOOT_HOME_SUMMARY_INJECT_END -->',
+    scriptId: 'boot-home-summary-data',
   },
   banners: {
     collection: 'banners',
@@ -42,35 +38,22 @@ const INJECTION_CONFIGS = {
     pageSize: 30,
     orderBy: 'slot',
   },
-  tournaments: {
-    collection: 'tournaments',
-    markerBegin: '<!-- BOOT_TOURNAMENTS_INJECT_BEGIN -->',
-    markerEnd: '<!-- BOOT_TOURNAMENTS_INJECT_END -->',
-    scriptId: 'boot-tournaments-data',
-    pageSize: 80,
-    orderBy: 'createdAt desc',
-  },
 };
 
-const EVENT_KEEP_FIELDS = [
-  'id', 'title', 'image', 'location', 'date', 'type', 'sport', 'status',
-  'region', 'current', 'waitlist', 'max', 'pinned', 'pinOrder',
-  'teamOnly', 'privateEvent', 'allowExternal',
-  'creatorUid', 'creatorTeamIds',
-  'gender', 'ageMin', 'ageMax', 'fee', 'feeEnabled',
-  'blockedUids',
+const LEGACY_BLOCKS = [
+  { markerBegin: '<!-- BOOT_EVENTS_INJECT_BEGIN -->', markerEnd: '<!-- BOOT_EVENTS_INJECT_END -->' },
+  { markerBegin: '<!-- BOOT_TOURNAMENTS_INJECT_BEGIN -->', markerEnd: '<!-- BOOT_TOURNAMENTS_INJECT_END -->' },
 ];
+
+const SUMMARY_COLLECTIONS = {
+  events: { collection: 'events', pageSize: 300, orderBy: null, maxPages: 25 },
+  teams: { collection: 'teams', pageSize: 300, orderBy: null, maxPages: 15 },
+  tournaments: { collection: 'tournaments', pageSize: 300, orderBy: null, maxPages: 15 },
+};
 
 const BANNER_KEEP_FIELDS = [
   'id', '_docId', 'title', 'image', 'linkUrl', 'slotName', 'slot',
   'status', 'gradient', 'sortOrder', 'type',
-];
-
-const TOURNAMENT_KEEP_FIELDS = [
-  'id', '_docId', 'name', 'image', 'type', 'teams', 'teamLimit', 'maxTeams',
-  'ended', 'status', 'sportTag', 'hostTeamId', 'region', 'createdAt',
-  'updatedAt', 'regStart', 'regEnd', 'matchDates', 'registeredTeams',
-  'mode', 'typeCode',
 ];
 
 function base64url(data) {
@@ -108,7 +91,7 @@ function httpJSON(options, body) {
       res.on('end', () => {
         try {
           resolve({ status: res.statusCode, body: data ? JSON.parse(data) : {} });
-        } catch (err) {
+        } catch (_) {
           resolve({ status: res.statusCode, body: data, parseError: true });
         }
       });
@@ -153,13 +136,10 @@ function fromFirestoreValue(value) {
   if ('booleanValue' in value) return value.booleanValue;
   if ('nullValue' in value) return null;
   if ('timestampValue' in value) return value.timestampValue;
-  if ('arrayValue' in value) {
-    return (value.arrayValue.values || []).map(fromFirestoreValue);
-  }
+  if ('arrayValue' in value) return (value.arrayValue.values || []).map(fromFirestoreValue);
   if ('mapValue' in value) {
     const out = {};
-    const fields = value.mapValue.fields || {};
-    Object.entries(fields).forEach(([key, nested]) => {
+    Object.entries(value.mapValue.fields || {}).forEach(([key, nested]) => {
       out[key] = fromFirestoreValue(nested);
     });
     return out;
@@ -168,9 +148,8 @@ function fromFirestoreValue(value) {
 }
 
 function fromFirestoreDoc(doc) {
-  const fields = doc.fields || {};
   const obj = {};
-  Object.entries(fields).forEach(([key, value]) => {
+  Object.entries(doc.fields || {}).forEach(([key, value]) => {
     obj[key] = fromFirestoreValue(value);
   });
   const docId = (doc.name || '').split('/').pop() || '';
@@ -179,11 +158,12 @@ function fromFirestoreDoc(doc) {
   return obj;
 }
 
-async function fetchCollection(auth, config, orderByOverride) {
+async function fetchCollectionPage(auth, config, pageToken = '', orderByOverride) {
   const params = new URLSearchParams();
-  params.set('pageSize', String(config.pageSize || 30));
+  params.set('pageSize', String(config.pageSize || 300));
   const orderBy = orderByOverride === undefined ? config.orderBy : orderByOverride;
   if (orderBy) params.set('orderBy', orderBy);
+  if (pageToken) params.set('pageToken', pageToken);
   if (!auth.token && auth.apiKey) params.set('key', auth.apiKey);
 
   const reqPath = `/v1/projects/${FIRESTORE_PROJECT}/databases/(default)/documents/${config.collection}?${params.toString()}`;
@@ -197,12 +177,31 @@ async function fetchCollection(auth, config, orderByOverride) {
 
   if (res.status !== 200 && orderBy) {
     console.warn(`[inject-hot-events] ${config.collection} orderBy failed (${res.status}); retrying without orderBy`);
-    return fetchCollection(auth, config, null);
+    return fetchCollectionPage(auth, config, pageToken, null);
   }
   if (res.status !== 200) {
     throw new Error(`Firestore ${config.collection} fetch failed (${res.status}): ${JSON.stringify(res.body).slice(0, 200)}`);
   }
-  return (res.body.documents || []).map(fromFirestoreDoc);
+  return {
+    docs: (res.body.documents || []).map(fromFirestoreDoc),
+    nextPageToken: res.body.nextPageToken || '',
+  };
+}
+
+async function fetchCollectionAll(auth, config) {
+  const allDocs = [];
+  let pageToken = '';
+  let page = 0;
+  do {
+    page += 1;
+    const res = await fetchCollectionPage(auth, config, pageToken);
+    allDocs.push(...res.docs);
+    pageToken = res.nextPageToken;
+  } while (pageToken && page < (config.maxPages || 20));
+  if (pageToken) {
+    throw new Error(`${config.collection} exceeded ${config.maxPages || 20} pages; summary is incomplete`);
+  }
+  return allDocs;
 }
 
 function slimRecord(record, fields) {
@@ -218,36 +217,89 @@ function slimRecord(record, fields) {
 function parseDateMs(dateValue) {
   if (!dateValue) return 0;
   if (typeof dateValue === 'number') return dateValue;
-  const raw = String(dateValue);
-  const slash = raw.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})/);
+  if (dateValue && typeof dateValue.toDate === 'function') return dateValue.toDate().getTime();
+  const raw = String(dateValue).trim();
+  const slash = raw.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})(?:\s+(\d{1,2}):(\d{2}))?/);
   if (slash) {
-    return new Date(Number(slash[1]), Number(slash[2]) - 1, Number(slash[3])).getTime();
+    return new Date(
+      Number(slash[1]),
+      Number(slash[2]) - 1,
+      Number(slash[3]),
+      Number(slash[4] || 0),
+      Number(slash[5] || 0)
+    ).getTime();
   }
   const parsed = Date.parse(raw);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function pickHotEvents(events) {
-  const now = Date.now();
-  return events
-    .filter(e => e && e.id && e.title)
-    .filter(e => e.status !== 'ended' && e.status !== 'cancelled')
-    .filter(e => !e.privateEvent)
-    .map(e => Object.assign({}, e, { _dateMs: parseDateMs(e.date) }))
-    .filter(e => e._dateMs === 0 || e._dateMs >= now - 86400000)
-    .sort((a, b) => {
-      const ap = a.pinned ? 1 : 0;
-      const bp = b.pinned ? 1 : 0;
-      if (ap !== bp) return bp - ap;
-      if (ap && bp) {
-        const ao = Number(a.pinOrder) || 0;
-        const bo = Number(b.pinOrder) || 0;
-        if (ao !== bo) return ao - bo;
-      }
-      return (a._dateMs || 0) - (b._dateMs || 0);
-    })
-    .slice(0, TARGET_EVENT_COUNT)
-    .map(e => slimRecord(e, EVENT_KEEP_FIELDS));
+function isPublicActiveEvent(event, nowMs) {
+  if (!event || !(event.id || event._docId)) return false;
+  const status = String(event.status || '').toLowerCase();
+  if (['ended', 'cancelled', 'canceled', 'archived'].includes(status)) return false;
+  if (event.privateEvent === true || event.teamOnly === true) return false;
+  const startMs = parseDateMs(event.date || event.startAt || event.startTime);
+  return startMs === 0 || startMs > nowMs;
+}
+
+function normalizeSportKey(event) {
+  return String(event.sportTag || event.sport || 'football').trim() || 'football';
+}
+
+function isActiveTeam(team) {
+  if (!team || !(team.id || team._docId)) return false;
+  const status = String(team.status || '').toLowerCase();
+  return team.active !== false && !['deleted', 'archived', 'inactive'].includes(status);
+}
+
+function tournamentLatestMatchMs(tournament) {
+  const matchDates = Array.isArray(tournament.matchDates) ? tournament.matchDates : [];
+  return matchDates.reduce((max, value) => Math.max(max, parseDateMs(value)), 0);
+}
+
+function isTournamentEnded(tournament, nowMs) {
+  if (!tournament) return true;
+  if (tournament.ended === true) return true;
+  const status = String(tournament.status || '').toLowerCase();
+  if (['ended', 'cancelled', 'canceled', 'archived'].includes(status)) return true;
+  const latestMs = tournamentLatestMatchMs(tournament);
+  return latestMs > 0 && latestMs + DAY_MS < nowMs;
+}
+
+function buildHomeSummary({ events, teams, tournaments }) {
+  const nowMs = Date.now();
+  const activeEvents = (events || []).filter(event => isPublicActiveEvent(event, nowMs));
+  const sportMap = new Map();
+  let viewTotal = 0;
+
+  activeEvents.forEach(event => {
+    const sport = normalizeSportKey(event);
+    sportMap.set(sport, (sportMap.get(sport) || 0) + 1);
+    const views = Number(event.viewCount || event.views || 0);
+    if (Number.isFinite(views) && views > 0) viewTotal += Math.floor(views);
+  });
+
+  const activeTeams = (teams || []).filter(isActiveTeam);
+  const activeTournaments = (tournaments || []).filter(t => t && (t.id || t._docId) && !isTournamentEnded(t, nowMs));
+
+  return {
+    schemaVersion: 1,
+    generatedAt: new Date(nowMs).toISOString(),
+    scope: 'public-active',
+    complete: true,
+    counts: {
+      activities: activeEvents.length,
+      teams: activeTeams.length,
+      tournaments: activeTournaments.length,
+    },
+    activityViews: {
+      label: '\u5df2\u8a18\u9304\u700f\u89bd',
+      total: viewTotal,
+    },
+    sportCounts: Array.from(sportMap.entries())
+      .map(([sportTag, count]) => ({ sportTag, count }))
+      .sort((a, b) => b.count - a.count || a.sportTag.localeCompare(b.sportTag)),
+  };
 }
 
 function pickActiveBanners(banners) {
@@ -263,48 +315,6 @@ function pickActiveBanners(banners) {
     .map(b => slimRecord(b, BANNER_KEEP_FIELDS));
 }
 
-function isTournamentEnded(tournament) {
-  if (!tournament) return true;
-  if (tournament.ended === true) return true;
-  const status = String(tournament.status || '').toLowerCase();
-  if (['ended', 'cancelled', 'canceled', 'archived'].includes(status)) return true;
-  return /結束|已結束|取消/.test(String(tournament.status || ''));
-}
-
-function pickActiveTournaments(tournaments) {
-  return tournaments
-    .filter(t => t && (t.id || t._docId) && t.name)
-    .filter(t => !isTournamentEnded(t))
-    .sort((a, b) => {
-      const ad = parseDateMs(a.regStart || a.createdAt || a.updatedAt);
-      const bd = parseDateMs(b.regStart || b.createdAt || b.updatedAt);
-      if (ad !== bd) return bd - ad;
-      return String(a.name || '').localeCompare(String(b.name || ''));
-    })
-    .slice(0, TARGET_TOURNAMENT_COUNT)
-    .map(t => slimRecord(t, TOURNAMENT_KEEP_FIELDS));
-}
-
-function describeRecord(record, key) {
-  if (!record) return '';
-  const id = record.id || record._docId || '(no-id)';
-  if (key === 'events') {
-    return `${id}@${record.date || 'no-date'}`;
-  }
-  if (key === 'tournaments') {
-    return `${id}@${record.regStart || record.createdAt || record.updatedAt || 'no-date'}`;
-  }
-  if (key === 'banners') {
-    return `${id}@slot:${record.slot || record.sortOrder || '0'}`;
-  }
-  return id;
-}
-
-function logPickedRecords(key, records) {
-  const summary = (records || []).map(record => describeRecord(record, key)).join(', ');
-  console.log(`[inject-hot-events] ${key}: picked records ${summary || '(none)'}`);
-}
-
 function escapeInlineJson(value) {
   const lineSep = String.fromCharCode(0x2028);
   const paraSep = String.fromCharCode(0x2029);
@@ -317,7 +327,8 @@ function escapeInlineJson(value) {
 }
 
 function buildInjectionBlock(config, records, ts) {
-  return `${config.markerBegin}\n  <script id="${config.scriptId}" type="application/json" data-ts="${ts}" data-count="${records.length}">${escapeInlineJson(records)}</script>\n  ${config.markerEnd}`;
+  const count = Array.isArray(records) ? records.length : 1;
+  return `${config.markerBegin}\n  <script id="${config.scriptId}" type="application/json" data-ts="${ts}" data-count="${count}">${escapeInlineJson(records)}</script>\n  ${config.markerEnd}`;
 }
 
 function upsertBlock(html, config, block, anchorMarkerEnd) {
@@ -326,7 +337,6 @@ function upsertBlock(html, config, block, anchorMarkerEnd) {
   if (beginIdx >= 0 && endIdx > beginIdx) {
     return html.slice(0, beginIdx) + block + html.slice(endIdx + config.markerEnd.length);
   }
-
   if (anchorMarkerEnd) {
     const anchorIdx = html.indexOf(anchorMarkerEnd);
     if (anchorIdx >= 0) {
@@ -334,19 +344,25 @@ function upsertBlock(html, config, block, anchorMarkerEnd) {
       return html.slice(0, insertAt) + '\n  ' + block + html.slice(insertAt);
     }
   }
-
   const headCloseIdx = html.indexOf('</head>');
   if (headCloseIdx < 0) throw new Error('index.html missing </head>');
   return html.slice(0, headCloseIdx) + '  ' + block + '\n' + html.slice(headCloseIdx);
 }
 
+function removeBlock(html, config) {
+  const beginIdx = html.indexOf(config.markerBegin);
+  const endIdx = html.indexOf(config.markerEnd);
+  if (beginIdx < 0 || endIdx <= beginIdx) return html;
+  return html.slice(0, beginIdx) + html.slice(endIdx + config.markerEnd.length).replace(/^\s*\n/, '');
+}
+
 function injectIntoIndex(payloads) {
   const original = fs.readFileSync(INDEX_HTML_PATH, 'utf8');
-  let html = original;
+  let html = LEGACY_BLOCKS.reduce((current, config) => removeBlock(current, config), original);
   const ts = Date.now();
 
   payloads.forEach(payload => {
-    if (!payload || !Array.isArray(payload.records)) return;
+    if (!payload || payload.records == null) return;
     const block = buildInjectionBlock(payload.config, payload.records, ts);
     html = upsertBlock(html, payload.config, block, payload.anchorMarkerEnd);
   });
@@ -376,48 +392,72 @@ async function buildAuth() {
   return { token: '', apiKey };
 }
 
-async function safePayload(auth, key, picker) {
-  const config = INJECTION_CONFIGS[key];
+async function safeHomeSummary(auth) {
   try {
-    const docs = await fetchCollection(auth, config);
-    const records = picker(docs);
-    console.log(`[inject-hot-events] ${key}: fetched ${docs.length}, picked ${records.length}`);
-    logPickedRecords(key, records);
-    return { key, config, records };
+    const [events, teams, tournaments] = await Promise.all([
+      fetchCollectionAll(auth, SUMMARY_COLLECTIONS.events),
+      fetchCollectionAll(auth, SUMMARY_COLLECTIONS.teams),
+      fetchCollectionAll(auth, SUMMARY_COLLECTIONS.tournaments),
+    ]);
+    const summary = buildHomeSummary({ events, teams, tournaments });
+    console.log(`[inject-hot-events] homeSummary: events=${events.length}, teams=${teams.length}, tournaments=${tournaments.length}`);
+    console.log(`[inject-hot-events] homeSummary counts: ${JSON.stringify(summary.counts)}, views=${summary.activityViews.total}`);
+    return { key: 'homeSummary', config: INJECTION_CONFIGS.homeSummary, records: summary };
   } catch (err) {
-    console.warn(`[inject-hot-events] ${key}: skipped (${err.message})`);
+    console.warn(`[inject-hot-events] homeSummary skipped (${err.message})`);
     return null;
   }
 }
 
-(async () => {
+async function safeBanners(auth) {
+  try {
+    const docs = await fetchCollectionAll(auth, INJECTION_CONFIGS.banners);
+    const records = pickActiveBanners(docs);
+    console.log(`[inject-hot-events] banners: fetched ${docs.length}, picked ${records.length}`);
+    return { key: 'banners', config: INJECTION_CONFIGS.banners, records };
+  } catch (err) {
+    console.warn(`[inject-hot-events] banners skipped (${err.message})`);
+    return null;
+  }
+}
+
+async function main() {
   try {
     const auth = await buildAuth();
-    const events = await safePayload(auth, 'events', pickHotEvents);
-    const banners = await safePayload(auth, 'banners', pickActiveBanners);
-    const tournaments = await safePayload(auth, 'tournaments', pickActiveTournaments);
+    const homeSummary = await safeHomeSummary(auth);
+    const banners = await safeBanners(auth);
 
     const payloads = [
-      events,
-      banners && Object.assign(banners, { anchorMarkerEnd: INJECTION_CONFIGS.events.markerEnd }),
-      tournaments && Object.assign(tournaments, { anchorMarkerEnd: INJECTION_CONFIGS.banners.markerEnd }),
+      homeSummary,
+      banners && Object.assign(banners, { anchorMarkerEnd: INJECTION_CONFIGS.homeSummary.markerEnd }),
     ].filter(Boolean);
 
     const totalJsonBytes = payloads.reduce((sum, payload) => sum + JSON.stringify(payload.records).length, 0);
     console.log(`[inject-hot-events] total inline JSON size: ${totalJsonBytes} bytes`);
-    if (totalJsonBytes > 45000) {
-      console.warn('[inject-hot-events] inline JSON is larger than expected; keeping records but review if this grows');
+    if (totalJsonBytes > 18000) {
+      console.warn('[inject-hot-events] inline JSON is larger than expected; review homepage payload size');
     }
 
     if (!payloads.length) {
       console.log('[inject-hot-events] no payloads fetched; keeping existing index.html');
-      process.exit(0);
+      return 0;
     }
 
     injectIntoIndex(payloads);
-    process.exit(0);
+    return 0;
   } catch (err) {
     console.error('[inject-hot-events] failed:', err.message);
-    process.exit(0);
+    return 0;
   }
-})();
+}
+
+if (require.main === module) {
+  main().then(code => process.exit(code));
+}
+
+module.exports = {
+  buildHomeSummary,
+  isPublicActiveEvent,
+  isTournamentEnded,
+  parseDateMs,
+};

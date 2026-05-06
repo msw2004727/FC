@@ -31,42 +31,28 @@
     </div>
   </div>
 
-  <!-- Region Tabs -->
-  <div class="region-tabs" id="home-region-tabs">
-    <button class="region-tab active" data-region="中部" onclick="App.switchRegionTab('中部')">中部</button>
-    <button class="region-tab" data-region="北部" onclick="App.switchRegionTab('北部')">北部</button>
-    <button class="region-tab" data-region="南部" onclick="App.switchRegionTab('南部')">南部</button>
-    <button class="region-tab" data-region="東部&外島" onclick="App.switchRegionTab('東部&amp;外島')">東部&amp;外島</button>
-    <button class="region-tab" data-region="全部" onclick="App.switchRegionTab('全部')">全部</button>
-    <button class="region-tab region-tab-disabled" id="region-tab-nearby-home" aria-disabled="true" title="附近活動（即將推出）" onclick="App.showToast('尚未開放此功能')">
-      <svg class="region-tab-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M3 7l5-2 5 2 5-2v12l-5 2-5-2-5 2z" opacity="0.55"/>
-        <line x1="8" y1="5" x2="8" y2="19" opacity="0.55"/>
-        <line x1="13" y1="7" x2="13" y2="21" opacity="0.55"/>
-        <path d="M12 8c-1.5 0-2.7 1.2-2.7 2.7 0 1.8 2.7 4 2.7 4s2.7-2.2 2.7-4c0-1.5-1.2-2.7-2.7-2.7z" fill="currentColor" stroke="none"/>
-        <circle cx="12" cy="10.7" r="0.8" fill="#fff" stroke="none"/>
-      </svg>附近活動</button>
-  </div>
+  <!-- Sport Quick Entry -->
+  <section class="home-dashboard-section" aria-labelledby="home-sport-entry-title">
+    <div class="home-dashboard-title-row">
+      <h3 id="home-sport-entry-title">運動快速入口</h3>
+      <span class="home-dashboard-note">依目前公開活動數排序</span>
+    </div>
+    <div class="home-sport-entry" id="home-sport-entry" aria-live="polite"></div>
+  </section>
 
-  <!-- Hot Events -->
-  <div class="home-heading"><h3>近期活動</h3><div class="home-heading-accent"></div></div>
-  <div class="skel-loading" id="hot-events-loading">
-    <div class="skel-hint">網頁冷啟動較慢，系統正在努力加載中 &gt;&quot;&lt;</div>
-    <div class="skel-progress-bar"></div>
-  </div>
-  <div class="horizontal-scroll" id="hot-events">
-    <div class="skeleton skeleton-card"></div>
-    <div class="skeleton skeleton-card"></div>
-    <div class="skeleton skeleton-card"></div>
-  </div>
+  <!-- Current Info Meter -->
+  <section class="home-dashboard-section" aria-labelledby="home-info-meter-title">
+    <div class="home-dashboard-title-row">
+      <h3 id="home-info-meter-title">目前資訊</h3>
+      <button class="home-create-event-btn" type="button" onclick="App.openHomeCreateEvent()">
+        我要開活動
+      </button>
+    </div>
+    <div class="home-info-meter" id="home-info-meter" aria-live="polite"></div>
+  </section>
 
-  <hr class="home-divider">
-  <!-- Ongoing Tournaments -->
-  <div class="home-heading"><h3>近期賽事</h3><div class="home-heading-accent"></div></div>
-  <div class="horizontal-scroll" id="ongoing-tournaments">
-    <div class="skeleton skeleton-card"></div>
-    <div class="skeleton skeleton-card"></div>
-  </div>
+  <!-- Scoreboard Preview -->
+  <section class="home-scoreboard-preview" id="home-scoreboard-preview" aria-labelledby="home-scoreboard-title"></section>
 
   <hr class="home-divider" style="display:none">
   <!-- Game Shortcut -->

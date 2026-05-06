@@ -3,7 +3,7 @@
 > 專案內所有可調設定（timing / limit / threshold）+ 關鍵流程的順序效果總覽。
 > **強制維護規則（CLAUDE.md §設定追蹤規範）**：修改檔案時若涉及任何可調設定 / 加載順序 / timing / 閾值，必須同步更新本檔對應條目；新增任何可調常數，必須在本檔登記。
 
-**Last Updated: 2026-04-28**（club page shell-first navigation + team script split）
+**Last Updated: 2026-05-06**（home summary dashboard + scoreboard placeholder control）
 
 ## 目錄
 
@@ -108,6 +108,8 @@
 | Attendance / Registration query 預設 | `500` (典型值) | `firebase-service.js` | onSnapshot listener limit。超過 500 筆的老活動需 fallback fetch |
 | Event blocklist `blockedUidsLog` | 無上限 | `firestore.rules` | 黑名單審計軌跡，建議手動清理超過 100 筆的活動 |
 | Operation log altText 截斷 | `400` 字 | `event-share*.js` | LIFF Flex Message altText 上限 |
+| Home summary Firestore REST page size | `100` 筆/頁 | `scripts/inject-hot-events.js` | GitHub Action 產生 `boot-home-summary-data` 時分頁掃描 events / teams / tournaments，避免只取前幾筆造成首頁總量不準 |
+| Home summary max pages | `50` 頁/集合 | `scripts/inject-hot-events.js` | 防止注入腳本在資料異常或 API pagination 異常時無限掃描；超過即標記 `complete:false` |
 
 ---
 
@@ -134,6 +136,13 @@
 |------|---|---------|------|
 | 出席率分子 | `checkin` 紀錄數 | `stats.js` `getParticipantAttendanceStats` | 鎖定函式 |
 | No-show 判定 | `confirmed` 報名 + `status !== ended/cancelled` 排除 + 無 `checkin` | `event-manage-noshow.js` | 鎖定函式 |
+
+### 首頁摘要
+
+| 名稱 | 值 | 檔案位置 | 用途 |
+|------|---|---------|------|
+| 首頁活動有效判定 | 活動開始時間 `<= now` 即視為已結束並排除 | `scripts/inject-hot-events.js` | 首頁活動數、運動分類數與已記錄瀏覽數都使用同一口徑；取消、私密、俱樂部限定也排除 |
+| 首頁瀏覽數口徑 | `viewCount` 或 `views` 的正數加總 | `scripts/inject-hot-events.js` / `js/modules/home-dashboard.js` | 顯示為「已記錄瀏覽」，只做輕量趨勢參考，不宣稱精準訪客數 |
 
 ### 版號 cleanup
 
@@ -175,6 +184,7 @@
 | `activityCalendar` | 4（lazy load） | `script-loader.js:306-311` |
 | `adminUsers` | 10+ | `script-loader.js:312-324` |
 | `adminContent` | 6 | `script-loader.js:325-332` |
+| `scoreboardAdmin` | 2 | `page-admin-scoreboard` lazy load；只讀寫 `siteConfig/scoreboardConfig` single doc，不透過 `PAGE_DATA_CONTRACT` 載入 `siteConfig` collection |
 
 **新模組註冊規則**：放在對應頁面清單的合理位置（依賴前 / 同類後）；event-manage 系列放在 `event` 清單的後段。
 
@@ -266,6 +276,23 @@ finally: _completeDeepLinkSuccess / _completeDeepLinkFallback
   → _dismissBootOverlayAfterDeepLink (若 boot overlay 處於延後狀態)
 ```
 
+### 首頁摘要儀表流程（2026-05-06）
+
+```
+GitHub Action / 手動腳本
+  → scripts/inject-hot-events.js 分頁讀 events / teams / tournaments
+  → 依活動開始時間與公開狀態產生 boot-home-summary-data
+  → index.html inline 匿名摘要
+  ↓
+App renderHomeCritical()
+  → banner / announcement 保留
+  → home-dashboard.js 渲染運動快速入口、數量儀表、我要開活動、比分預留
+  → 首屏不等待 events / teams / tournaments collection
+  ↓
+Firebase 可用後
+  → 首頁比分區可 best-effort 讀 siteConfig/scoreboardConfig single doc 套用來源排序
+```
+
 ---
 
 <a id="versioning"></a>
@@ -325,5 +352,6 @@ finally: _completeDeepLinkSuccess / _completeDeepLinkFallback
 - **2026-04-25**：建立檔案。初始登錄 Boot Overlay / Route Loading / Visibility / LIFF / Instant Save / SW / Limit / Threshold / Load Order / Sequence Effects / Versioning 共 11 大類。
 - **2026-04-28**：boot overlay `MIN_VISIBLE_MS` 2500 → 0；hash reload 改由 early boot route + PageLoader priority 先定位目標頁，不再用固定遮罩等待掩蓋首頁跳轉。
 - **2026-04-28**：俱樂部 `page-teams` 改為 shell-first navigation，並將原 `team` script group 拆為 `teamList` / `teamDetail` / `teamForm`，列表第一屏只載列表必要模組。
+- **2026-05-06**：首頁改為 summary-based dashboard，新增 `boot-home-summary-data`、`home-dashboard.js`、`scoreboardAdmin` lazy group；首頁不再 realtime 載入 events 只為了顯示首頁總量。
 - **2026-04-25**：boot overlay `MIN_VISIBLE_MS` 1500 → 2500（用戶反映 1.5 秒仍偏短，調至 2.5 秒看到更完整的進度條動畫）。
 - **2026-04-25**：新增 `SPORT_ICON_SVG_HTML` 對照表 + 匹克球 V4 SVG 圖示（紅色圓角方形拍斜放 + 黃球飛 + 速度線）。Unicode 無匹克球專屬 emoji、🏓 桌球拍視覺誤導，改用自製 SVG。

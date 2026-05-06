@@ -113,13 +113,16 @@ describe('inherent permissions', () => {
     });
   });
 
-  test('user/admin have no inherent permissions; super_admin has event_blocklist only', () => {
-    // 2026-04-20: super_admin gained INHERENT admin.repair.event_blocklist
-    // to prevent accidental removal of blocklist management capability
+  test('user/admin have no inherent permissions; super_admin has locked admin safeguards', () => {
+    // 2026-04-20: super_admin gained INHERENT admin.repair.event_blocklist.
+    // 2026-04-22: SEO dashboard is also locked to super_admin.
     ['user', 'admin'].forEach(role => {
       expect(getInherentRolePermissions(role)).toEqual([]);
     });
-    expect(getInherentRolePermissions('super_admin')).toEqual(['admin.repair.event_blocklist']);
+    expect(getInherentRolePermissions('super_admin')).toEqual([
+      'admin.repair.event_blocklist',
+      'admin.seo.entry',
+    ]);
   });
 
   test('inherent permissions survive even with empty stored permissions', () => {

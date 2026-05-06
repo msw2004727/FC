@@ -135,6 +135,9 @@ Object.assign(App, {
     }).join('');
 
     const setActiveSport = (sportKey) => {
+      if (typeof App.setActiveSportFilter === 'function') {
+        return App.setActiveSportFilter(sportKey, { render: false });
+      }
       const safeKey = sportKey === 'all' ? 'all' : (getSportKeySafe(sportKey) || 'football');
       App._activeSport = safeKey;
       try { localStorage.setItem('sporthub_active_sport', safeKey); } catch (_) {}

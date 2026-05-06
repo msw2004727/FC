@@ -276,7 +276,7 @@
   <!-- 偵測 clear=1 參數時清除 SW cache 與 LINE 登入狀態 -->
   <script>
   (function(){
-    var V='0.20260506';
+    var V='0.20260506a';
     if(location.search.indexOf('clear=1')!==-1){
       if('caches' in window) caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});
       if('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(w){w.unregister()})});
@@ -347,36 +347,36 @@
   })();
   </script>
   <!-- CSS 載入：首屏必要樣式（render-blocking） -->
-  <link rel="stylesheet" href="css/base.css?v=0.20260506">
-  <link rel="stylesheet" href="css/layout.css?v=0.20260506">
-  <link rel="stylesheet" href="css/home.css?v=0.20260506">
-  <link rel="stylesheet" href="css/activity.css?v=0.20260506">
-  <link rel="stylesheet" href="css/calendar.css?v=0.20260506" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/calendar-sport-counts.css?v=0.20260506" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/base.css?v=0.20260506a">
+  <link rel="stylesheet" href="css/layout.css?v=0.20260506a">
+  <link rel="stylesheet" href="css/home.css?v=0.20260506a">
+  <link rel="stylesheet" href="css/activity.css?v=0.20260506a">
+  <link rel="stylesheet" href="css/calendar.css?v=0.20260506a" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/calendar-sport-counts.css?v=0.20260506a" media="print" onload="this.media='all'">
   <!-- 非首屏樣式（非同步載入，不阻塞首次渲染） -->
-  <link rel="stylesheet" href="css/team.css?v=0.20260506" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/profile.css?v=0.20260506" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/message.css?v=0.20260506" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/tournament.css?v=0.20260506" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/shop.css?v=0.20260506" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/scan.css?v=0.20260506" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/admin.css?v=0.20260506" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/admin-seo.css?v=0.20260506" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/game.css?v=0.20260506" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/image-cropper.css?v=0.20260506" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="css/education.css?v=0.20260506" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/team.css?v=0.20260506a" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/profile.css?v=0.20260506a" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/message.css?v=0.20260506a" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/tournament.css?v=0.20260506a" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/shop.css?v=0.20260506a" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/scan.css?v=0.20260506a" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/admin.css?v=0.20260506a" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/admin-seo.css?v=0.20260506a" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/game.css?v=0.20260506a" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/image-cropper.css?v=0.20260506a" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/education.css?v=0.20260506a" media="print" onload="this.media='all'">
   <noscript>
-    <link rel="stylesheet" href="css/team.css?v=0.20260506">
-    <link rel="stylesheet" href="css/profile.css?v=0.20260506">
-    <link rel="stylesheet" href="css/message.css?v=0.20260506">
-    <link rel="stylesheet" href="css/tournament.css?v=0.20260506">
-    <link rel="stylesheet" href="css/shop.css?v=0.20260506">
-    <link rel="stylesheet" href="css/scan.css?v=0.20260506">
-    <link rel="stylesheet" href="css/admin.css?v=0.20260506">
-    <link rel="stylesheet" href="css/admin-seo.css?v=0.20260506">
-    <link rel="stylesheet" href="css/game.css?v=0.20260506">
-    <link rel="stylesheet" href="css/image-cropper.css?v=0.20260506">
-    <link rel="stylesheet" href="css/education.css?v=0.20260506">
+    <link rel="stylesheet" href="css/team.css?v=0.20260506a">
+    <link rel="stylesheet" href="css/profile.css?v=0.20260506a">
+    <link rel="stylesheet" href="css/message.css?v=0.20260506a">
+    <link rel="stylesheet" href="css/tournament.css?v=0.20260506a">
+    <link rel="stylesheet" href="css/shop.css?v=0.20260506a">
+    <link rel="stylesheet" href="css/scan.css?v=0.20260506a">
+    <link rel="stylesheet" href="css/admin.css?v=0.20260506a">
+    <link rel="stylesheet" href="css/admin-seo.css?v=0.20260506a">
+    <link rel="stylesheet" href="css/game.css?v=0.20260506a">
+    <link rel="stylesheet" href="css/image-cropper.css?v=0.20260506a">
+    <link rel="stylesheet" href="css/education.css?v=0.20260506a">
   </noscript>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -385,15 +385,12 @@
   <noscript>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Outfit:wght@400;600;700&display=swap">
   </noscript>
-  <!-- BOOT_EVENTS_INJECT_BEGIN -->
-  <script id="boot-events-data" type="application/json" data-ts="1778033305494" data-count="6">[{"id":"ce_1777626834557_h1kkxh","title":"聖騎士俱樂部｜足球成人班（初階）","image":"https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/images%2FeventTemplates%2FUad8b3a861b648d12005ec02fe5d9002f_1777626608624?alt=media\u0026token=e1fa9f40-21a4-4701-a6d0-8d95163ad177","location":"高雄市｜新興區｜七賢國小操場","date":"2026/05/06 18:46~20:30","type":"camp","status":"open","region":"南部","current":1,"waitlist":0,"max":20,"teamOnly":false,"privateEvent":false,"creatorUid":"Uad8b3a861b648d12005ec02fe5d9002f","creatorTeamIds":[],"fee":1,"feeEnabled":true},{"id":"ce_1777979880379_tt7im2","title":"週三中科嶺東社團練球（開放）","image":"https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/images%2FeventTemplates%2FU196b342b7899c68e07a0a1c27ceff346_1775409316809?alt=media\u0026token=3d7fc546-f451-4276-97aa-9ef876e3bc12","location":"中央公園","date":"2026/05/06 17:00~19:00","type":"play","status":"open","region":"中部","current":5,"waitlist":0,"max":20,"teamOnly":false,"privateEvent":false,"creatorUid":"U196b342b7899c68e07a0a1c27ceff346","creatorTeamIds":[],"fee":0,"feeEnabled":false},{"id":"ce_1776687412238_n5xk_1","title":"圖斯特週四成人足球進階班","image":"https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/images%2FeventTemplates%2FU196b342b7899c68e07a0a1c27ceff346_1774141832691?alt=media\u0026token=94bc7d8e-14fb-41dd-8334-5c6048217d4f","location":"西屯足球場","date":"2026/05/07 20:00~22:00","type":"camp","status":"full","region":"中部","current":24,"waitlist":1,"max":24,"teamOnly":false,"privateEvent":false,"creatorUid":"U196b342b7899c68e07a0a1c27ceff346","creatorTeamIds":[],"fee":200,"feeEnabled":true},{"id":"ce_1777808740886_nafqd5","title":"週五美躲日","image":"https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/images%2FeventTemplates%2FUc9d86e7ad193668577be9b60286e3e69_1776680344009?alt=media\u0026token=d30e6ac1-f091-4883-a954-d29c58ebc22e","location":"臺中市朝馬運動中心3F籃球場","date":"2026/05/08 20:00~22:00","type":"play","status":"open","region":"中部","current":3,"waitlist":0,"max":24,"teamOnly":false,"privateEvent":false,"creatorUid":"Uc9d86e7ad193668577be9b60286e3e69","creatorTeamIds":[],"fee":250,"feeEnabled":true},{"id":"ce_1777124755155_1nw3_1","title":"週五晚7-9朝馬踢球團","image":"https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/images%2Fevents%2Fce_1777124755155_1nw3_1_1777124911771?alt=media\u0026token=36608ac9-a098-429b-ab2e-ec7fb38b1941","location":"朝馬足球場","date":"2026/05/08 19:00~21:00","type":"play","status":"upcoming","region":"中部","current":0,"waitlist":0,"max":27,"teamOnly":false,"privateEvent":false,"creatorUid":"U196b342b7899c68e07a0a1c27ceff346","creatorTeamIds":[],"fee":150,"feeEnabled":true},{"id":"ce_1777126425427_aufu_1","title":"週六女生專場8v8踢球團","image":"https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/images%2FeventTemplates%2FU196b342b7899c68e07a0a1c27ceff346_1774148147277?alt=media\u0026token=df9eda91-9aa6-46bb-a518-727d87e8ab2e","location":"朝馬足球場","date":"2026/05/09 18:00~20:00","type":"play","status":"open","region":"中部","current":1,"waitlist":0,"max":27,"teamOnly":false,"privateEvent":false,"creatorUid":"U196b342b7899c68e07a0a1c27ceff346","creatorTeamIds":[],"fee":200,"feeEnabled":true}]</script>
-  <!-- BOOT_EVENTS_INJECT_END -->
-  <!-- BOOT_BANNERS_INJECT_BEGIN -->
-  <script id="boot-banners-data" type="application/json" data-ts="1778033305494" data-count="3">[{"id":"ban1","_docId":"ban1","title":"","image":"https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/images%2Fbanners%2Fban1_1776067940267?alt=media\u0026token=d87c7e47-191b-4464-87cf-7e775a990c35","linkUrl":"","slotName":"footballCat","slot":1,"status":"active","gradient":""},{"id":"ban2","_docId":"ban2","title":"","image":"https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/images%2Fbanners%2Fban2_1777725402366?alt=media\u0026token=9080be92-9ee9-4f80-9c95-e787fdb01567","linkUrl":"","slotName":"ToosterX","slot":2,"status":"active","gradient":""},{"id":"ban3","_docId":"ban3","title":"","image":"https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/images%2Fbanners%2Fban3_1777725417024?alt=media\u0026token=96bb756b-7247-44e5-9557-72c0c285d726","linkUrl":"","slotName":"Football","slot":3,"status":"active","gradient":""}]</script>
+<<    <!-- BOOT_BANNERS_INJECT_BEGIN -->
+  <script id="boot-banners-data" type="application/json" data-ts="1778040822314" data-count="3">[{"id":"ban1","_docId":"ban1","title":"","image":"https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/images%2Fbanners%2Fban1_1776067940267?alt=media\u0026token=d87c7e47-191b-4464-87cf-7e775a990c35","linkUrl":"","slotName":"footballCat","slot":1,"status":"active","gradient":""},{"id":"ban2","_docId":"ban2","title":"","image":"https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/images%2Fbanners%2Fban2_1777725402366?alt=media\u0026token=9080be92-9ee9-4f80-9c95-e787fdb01567","linkUrl":"","slotName":"ToosterX","slot":2,"status":"active","gradient":""},{"id":"ban3","_docId":"ban3","title":"","image":"https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/images%2Fbanners%2Fban3_1777725417024?alt=media\u0026token=96bb756b-7247-44e5-9557-72c0c285d726","linkUrl":"","slotName":"Football","slot":3,"status":"active","gradient":""}]</script>
   <!-- BOOT_BANNERS_INJECT_END -->
-  <!-- BOOT_TOURNAMENTS_INJECT_BEGIN -->
-  <script id="boot-tournaments-data" type="application/json" data-ts="1778033305494" data-count="1">[{"id":"ct_1777470183892_462ig1","_docId":"ct_1777470183892_462ig1","name":"運動熱區足球賽","image":"https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc-asia-east1/o/images%2Ftournaments%2Fct_1777470183892_462ig1_1777470183893?alt=media\u0026token=8ea3bf30-8d76-425a-b2e5-2039a64f6db9","type":"友誼賽","teams":4,"teamLimit":4,"maxTeams":4,"ended":false,"status":"報名中","sportTag":"football","hostTeamId":"tm_1772099699445_naajv3","region":"台中市","createdAt":"2026-04-29T13:43:13.039Z","updatedAt":"2026-05-01T09:47:50.280Z","regStart":"2026-04-29T13:43:00.000Z","regEnd":"2026-05-02T13:42:00.000Z","matchDates":["2026-05-03"],"registeredTeams":["tm_1772099699445_naajv3","tm_1774501575628_nox9py","tm_1772098773535_xwom46","tm_1775200536662_oruwll"],"mode":"friendly","typeCode":"friendly"}]</script>
-  <!-- BOOT_TOURNAMENTS_INJECT_END -->
+    <!-- BOOT_HOME_SUMMARY_INJECT_BEGIN -->
+  <script id="boot-home-summary-data" type="application/json" data-ts="1778040822314" data-count="1">{"schemaVersion":1,"generatedAt":"2026-05-06T04:13:42.068Z","scope":"public-active","complete":true,"counts":{"activities":20,"teams":6,"tournaments":0},"activityViews":{"label":"已記錄瀏覽","total":311},"sportCounts":[{"sportTag":"football","count":19},{"sportTag":"dodgeball","count":1}]}</script>
+  <!-- BOOT_HOME_SUMMARY_INJECT_END -->
 </head>
 <body>
   <!-- SWR 進度條：快取渲染後、SDK 就緒前顯示 -->
@@ -937,63 +934,64 @@
   <!-- 由 scan.js 動態載入相關依賴 -->
 
   <!-- 多語系模組 -->
-  <script defer src="js/i18n.js?v=0.20260506"></script>
+  <script defer src="js/i18n.js?v=0.20260506a"></script>
 
   <!-- 核心 -->
-  <script defer src="js/config.js?v=0.20260506"></script>
-  <script defer src="js/firebase-config.js?v=0.20260506"></script>
-  <script defer src="js/firebase-service.js?v=0.20260506"></script>
-  <script defer src="js/firebase-crud.js?v=0.20260506"></script>
-  <script defer src="js/api-service.js?v=0.20260506"></script>
-  <script defer src="js/line-auth.js?v=0.20260506"></script>
+  <script defer src="js/config.js?v=0.20260506a"></script>
+  <script defer src="js/firebase-config.js?v=0.20260506a"></script>
+  <script defer src="js/firebase-service.js?v=0.20260506a"></script>
+  <script defer src="js/firebase-crud.js?v=0.20260506a"></script>
+  <script defer src="js/api-service.js?v=0.20260506a"></script>
+  <script defer src="js/line-auth.js?v=0.20260506a"></script>
 
   <!-- 頁面載入器 + 腳本載入器（動態依頁面載入對應 App 模組） -->
-  <script defer src="js/core/page-loader.js?v=0.20260506"></script>
-  <script defer src="js/core/script-loader.js?v=0.20260506"></script>
+  <script defer src="js/core/page-loader.js?v=0.20260506a"></script>
+  <script defer src="js/core/script-loader.js?v=0.20260506a"></script>
 
   <!-- 主程式 App 進入點 + init/renderAll/showToast -->
-  <script defer src="app.js?v=0.20260506"></script>
+  <script defer src="app.js?v=0.20260506a"></script>
 
   <!-- 導覽與主題 -->
-  <script defer src="js/core/navigation.js?v=0.20260506"></script>
-  <script defer src="js/core/theme.js?v=0.20260506"></script>
-  <script defer src="js/core/button-loading.js?v=0.20260506"></script>
-  <script defer src="js/modules/pwa-install.js?v=0.20260506"></script>
-  <script defer src="js/modules/multi-tab-guard.js?v=0.20260506"></script>
+  <script defer src="js/core/navigation.js?v=0.20260506a"></script>
+  <script defer src="js/core/theme.js?v=0.20260506a"></script>
+  <script defer src="js/core/button-loading.js?v=0.20260506a"></script>
+  <script defer src="js/modules/pwa-install.js?v=0.20260506a"></script>
+  <script defer src="js/modules/multi-tab-guard.js?v=0.20260506a"></script>
 
   <!-- 功能模組（核心 + 首頁必需） -->
-  <script defer src="js/modules/image-cropper.js?v=0.20260506"></script>
-  <script defer src="js/modules/image-upload.js?v=0.20260506"></script>
-  <script defer src="js/modules/sync-status.js?v=0.20260506"></script>
-  <script defer src="js/modules/role.js?v=0.20260506"></script>
-  <script defer src="js/modules/profile/profile-avatar.js?v=0.20260506"></script>
-  <script defer src="js/modules/profile/profile-core.js?v=0.20260506"></script>
-  <script defer src="js/modules/profile/profile-data-stats.js?v=0.20260506"></script>
-  <script defer src="js/modules/profile/profile-form.js?v=0.20260506"></script>
-  <script defer src="js/modules/banner.js?v=0.20260506"></script>
-  <script defer src="js/modules/popup-ad.js?v=0.20260506"></script>
-  <script defer src="js/modules/announcement.js?v=0.20260506"></script>
-  <script defer src="js/modules/site-theme.js?v=0.20260506"></script>
-  <script defer src="js/modules/event/event-external-transit.js?v=0.20260506"></script>
-  <script defer src="js/modules/event/event-blocklist.js?v=0.20260506"></script>
-  <script defer src="js/modules/event/event-list-helpers.js?v=0.20260506"></script>
-  <script defer src="js/modules/event/event-list-stats.js?v=0.20260506"></script>
-  <script defer src="js/modules/event/event-list-home.js?v=0.20260506"></script>
-  <script defer src="js/modules/event/event-list-timeline.js?v=0.20260506"></script>
-  <script defer src="js/modules/event/event-list.js?v=0.20260506"></script>
-  <script defer src="js/modules/event/event-host-list.js?v=0.20260506"></script>
-  <script defer src="js/modules/tournament/tournament-helpers.js?v=0.20260506"></script>
-  <script defer src="js/modules/tournament/tournament-core.js?v=0.20260506"></script>
-  <script defer src="js/modules/tournament/tournament-render.js?v=0.20260506"></script>
-  <script defer src="js/modules/message/message-render.js?v=0.20260506"></script>
-  <script defer src="js/modules/message/message-inbox.js?v=0.20260506"></script>
-  <script defer src="js/modules/message/message-line-push.js?v=0.20260506"></script>
-  <script defer src="js/modules/message/message-notify.js?v=0.20260506"></script>
-  <script defer src="js/modules/message/notif-settings.js?v=0.20260506"></script>
-  <script defer src="js/modules/favorites.js?v=0.20260506"></script>
-  <script defer src="js/modules/news.js?v=0.20260506"></script>
+  <script defer src="js/modules/image-cropper.js?v=0.20260506a"></script>
+  <script defer src="js/modules/image-upload.js?v=0.20260506a"></script>
+  <script defer src="js/modules/sync-status.js?v=0.20260506a"></script>
+  <script defer src="js/modules/role.js?v=0.20260506a"></script>
+  <script defer src="js/modules/profile/profile-avatar.js?v=0.20260506a"></script>
+  <script defer src="js/modules/profile/profile-core.js?v=0.20260506a"></script>
+  <script defer src="js/modules/profile/profile-data-stats.js?v=0.20260506a"></script>
+  <script defer src="js/modules/profile/profile-form.js?v=0.20260506a"></script>
+  <script defer src="js/modules/banner.js?v=0.20260506a"></script>
+  <script defer src="js/modules/popup-ad.js?v=0.20260506a"></script>
+  <script defer src="js/modules/announcement.js?v=0.20260506a"></script>
+  <script defer src="js/modules/site-theme.js?v=0.20260506a"></script>
+  <script defer src="js/modules/home-dashboard.js?v=0.20260506a"></script>
+  <script defer src="js/modules/event/event-external-transit.js?v=0.20260506a"></script>
+  <script defer src="js/modules/event/event-blocklist.js?v=0.20260506a"></script>
+  <script defer src="js/modules/event/event-list-helpers.js?v=0.20260506a"></script>
+  <script defer src="js/modules/event/event-list-stats.js?v=0.20260506a"></script>
+  <script defer src="js/modules/event/event-list-home.js?v=0.20260506a"></script>
+  <script defer src="js/modules/event/event-list-timeline.js?v=0.20260506a"></script>
+  <script defer src="js/modules/event/event-list.js?v=0.20260506a"></script>
+  <script defer src="js/modules/event/event-host-list.js?v=0.20260506a"></script>
+  <script defer src="js/modules/tournament/tournament-helpers.js?v=0.20260506a"></script>
+  <script defer src="js/modules/tournament/tournament-core.js?v=0.20260506a"></script>
+  <script defer src="js/modules/tournament/tournament-render.js?v=0.20260506a"></script>
+  <script defer src="js/modules/message/message-render.js?v=0.20260506a"></script>
+  <script defer src="js/modules/message/message-inbox.js?v=0.20260506a"></script>
+  <script defer src="js/modules/message/message-line-push.js?v=0.20260506a"></script>
+  <script defer src="js/modules/message/message-notify.js?v=0.20260506a"></script>
+  <script defer src="js/modules/message/notif-settings.js?v=0.20260506a"></script>
+  <script defer src="js/modules/favorites.js?v=0.20260506a"></script>
+  <script defer src="js/modules/news.js?v=0.20260506a"></script>
   <!-- 原地翻譯（移除此行即完全關閉翻譯功能） -->
-  <script defer src="js/modules/translate.js?v=0.20260506"></script>
+  <script defer src="js/modules/translate.js?v=0.20260506a"></script>
 
   <!-- Service Worker Registration + 版本更新 -->
   <script>

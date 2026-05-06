@@ -184,7 +184,6 @@ const FirebaseService = {
       return;
     }
     if (source === 'tournaments') {
-      if (page === 'page-home') App.renderOngoingTournaments?.();
       if (page === 'page-tournaments') {
         clearTimeout(this._snapshotRenderTimer);
         this._snapshotRenderTimer = setTimeout(() => {
@@ -202,7 +201,6 @@ const FirebaseService = {
       if (typeof App === 'undefined') return;
       var _s = window.scrollY || window.pageYOffset || 0;
       var p = App.currentPage;
-      if (p === 'page-home') App.renderHotEvents?.();
       if (p === 'page-activities') {
         App.renderActivityList?.();
         // 月曆 tab 下也要跟著 realtime 更新（見 calendar-view-plan §12.C）
@@ -668,7 +666,7 @@ const FirebaseService = {
 
   // 集合 → 頁面映射（用於懶載入觸發）
   _collectionPageMap: {
-    'page-home':              ['events', 'newsArticles'],
+    'page-home':              ['newsArticles'],
     'page-teams':             ['teams'],
     'page-team-detail':       ['teams', 'events'],
     'page-team-manage':       ['teams'],
@@ -704,7 +702,6 @@ const FirebaseService = {
   },
 
   _pageScopedRealtimeMap: {
-    'page-home':            ['events'],
     'page-activities':      ['registrations', 'attendanceRecords'],
     'page-activity-detail': ['registrations', 'attendanceRecords', 'events'],
     'page-my-activities':   ['registrations', 'attendanceRecords'],
@@ -3253,7 +3250,6 @@ const FirebaseService = {
       // 觸發首頁重新渲染（保留捲動位置）
       if (typeof App !== 'undefined') {
         var _s4 = window.scrollY || window.pageYOffset || 0;
-        if (App.currentPage === 'page-home') App.renderHotEvents?.();
         if (App.currentPage === 'page-activities') App.renderActivityList?.();
         if (App.currentPage === 'page-my-activities') App.renderMyActivities?.();
         if (_s4 > 0) requestAnimationFrame(function() { window.scrollTo(0, _s4); });

@@ -1949,6 +1949,14 @@ describe("/siteConfig/{docId}", () => {
     );
   });
 
+  test("read: scoreboardConfig is public for homepage placeholder", async () => {
+    await seedDoc("siteConfig", "scoreboardConfig", {
+      schemaVersion: 1,
+      homepageEnabled: true,
+    });
+    await assertSucceeds(getDoc(doc(guest(), "siteConfig", "scoreboardConfig")));
+  });
+
   test("create/update: admin can", async () => {
     await assertSucceeds(
       setDoc(doc(admin(), "siteConfig", "cfg_admin"), { setting: true })
@@ -2072,6 +2080,111 @@ describe("/siteConfig/{docId}", () => {
     await assertFails(
       setDoc(doc(contentManager(), "siteConfig", "featureFlags"), {
         notificationToggles: { category_activity: "false" },
+      })
+    );
+  });
+
+  test("hasPerm(admin.scoreboard.configure) can write valid scoreboardConfig only", async () => {
+    await seedRolePermissions("content_manager", ["admin.scoreboard.configure"]);
+    await assertSucceeds(
+      setDoc(doc(contentManager(), "siteConfig", "scoreboardConfig"), {
+        schemaVersion: 1,
+        homepageEnabled: true,
+        homepageOrder: ["premier_league", "world_cup"],
+        sources: {
+          premier_league: {
+            enabled: true,
+            label: "英超",
+            sport: "football",
+            sourceKey: "football_epl",
+            sortOrder: 1,
+          },
+          world_cup: {
+            enabled: true,
+            label: "世界盃",
+            sport: "football",
+            sourceKey: "football_world_cup",
+            sortOrder: 2,
+          },
+        },
+      })
+    );
+  });
+
+  test("scoreboardConfig rejects unknown fields and secret-like payload", async () => {
+    await seedRolePermissions("content_manager", ["admin.scoreboard.configure"]);
+    await assertFails(
+      setDoc(doc(contentManager(), "siteConfig", "scoreboardConfig"), {
+        schemaVersion: 1,
+        homepageEnabled: true,
+        apiSecret: "should-not-exist",
+      })
+    );
+    await assertFails(
+      setDoc(doc(contentManager(), "siteConfig", "scoreboardConfig"), {
+        schemaVersion: 1,
+        sources: {
+          premier_league: {
+            enabled: true,
+            label: "英超",
+            sport: "football",
+            sourceKey: "football_epl",
+            secret: "bad",
+            sortOrder: 1,
+          },
+        },
+      })
+    );
+    await assertFails(
+      setDoc(doc(contentManager(), "siteConfig", "scoreboardConfig"), {
+        schemaVersion: 1,
+        sources: {
+          premier_league: {
+            enabled: true,
+            label: "英超",
+            sport: "football",
+            apiKey: "not-allowed-in-public-config",
+            sortOrder: 1,
+          },
+        },
+      })
+    );
+    await assertFails(
+      setDoc(doc(contentManager(), "siteConfig", "scoreboardConfig"), {
+        schemaVersion: 1,
+        sources: {
+          premier_league: {
+            enabled: true,
+            label: "英超",
+            sport: "football",
+            sourceKey: "not_catalog_value",
+            sortOrder: 1,
+          },
+        },
+      })
+    );
+    await assertFails(
+      setDoc(doc(contentManager(), "siteConfig", "scoreboardConfig"), {
+        schemaVersion: 1,
+        sources: {
+          premier_league: {
+            enabled: true,
+            label: "英超",
+            sport: "basketball",
+            sourceKey: "football_epl",
+            sortOrder: 1,
+          },
+        },
+      })
+    );
+  });
+
+  test("other siteConfig permissions cannot write scoreboardConfig", async () => {
+    await seedRolePermissions("content_manager", ["admin.auto_exp.entry"]);
+    await assertFails(
+      setDoc(doc(contentManager(), "siteConfig", "scoreboardConfig"), {
+        schemaVersion: 1,
+        homepageEnabled: true,
       })
     );
   });

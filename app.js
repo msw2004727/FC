@@ -491,10 +491,8 @@ const App = {
     if (!this._isHomePageActive()) return;
     this.renderBannerCarousel({ autoplay: false });
     this.renderAnnouncement();
-    this.renderHotEvents();
-    if (typeof this.renderOngoingTournaments === 'function') {
-      this.renderOngoingTournaments({ priorityLimit: 3 });
-    }
+    this.renderHomeDashboard?.();
+    this.renderHomeScoreboardPreview?.();
     this._renderHomeVersionTag();
     this._showSlowNetHint();
     this._markPageSnapshotReady('page-home');
@@ -515,7 +513,6 @@ const App = {
 
   renderHomeDeferred() {
     if (!this._isHomePageActive()) return false;
-    if (typeof this.renderOngoingTournaments === 'function') this.renderOngoingTournaments();
     this.renderSponsors();
     if (this.renderNews) this.renderNews();
     this.renderFloatingAds();
@@ -2528,21 +2525,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       const el = document.getElementById(scriptId);
       if (!el || !el.textContent) return;
       const records = JSON.parse(el.textContent);
-      if (!Array.isArray(records) || records.length === 0) return;
+      const isArrayPayload = Array.isArray(records);
+      if ((isArrayPayload && records.length === 0) || (!isArrayPayload && (!records || typeof records !== 'object'))) return;
 
       const inlineTs = parseInt(el.dataset.ts || '0', 10) || Date.now();
       const cacheTs = (FirebaseService._collectionLoadedAt && FirebaseService._collectionLoadedAt[collectionName]) || 0;
       const current = FirebaseService._cache && FirebaseService._cache[collectionName];
+      const currentEmpty = Array.isArray(current) ? current.length === 0 : !current;
       // 只在 cache 為空、inline 較新，或 banner 快取缺漏 active id 時注入。
       const shouldRepairBannerCache = collectionName === 'banners'
         && _shouldRepairBannerCacheFromInline(current, records);
-      if (!current || current.length === 0 || inlineTs > cacheTs || shouldRepairBannerCache) {
+      if (currentEmpty || inlineTs > cacheTs || shouldRepairBannerCache) {
         FirebaseService._cache[collectionName] = records;
         if (FirebaseService._collectionLoadedAt) {
           FirebaseService._collectionLoadedAt[collectionName] = inlineTs;
         }
         if (typeof afterApply === 'function') afterApply(records, inlineTs);
-        console.log(`[Boot] Phase 2.5: inline ${collectionName} 注入 ${records.length} 筆 (ts=${new Date(inlineTs).toISOString()}${shouldRepairBannerCache ? ', repaired stale banner cache' : ''})`);
+        console.log(`[Boot] Phase 2.5: inline ${collectionName} 注入 ${isArrayPayload ? records.length : 1} 筆 (ts=${new Date(inlineTs).toISOString()}${shouldRepairBannerCache ? ', repaired stale banner cache' : ''})`);
       } else {
         console.log(`[Boot] Phase 2.5: localStorage ${collectionName} cache 較新，跳過 inline 注入`);
       }
@@ -2566,8 +2565,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     };
 
-    _loadInlineCollection('boot-events-data', 'events', function(records) {
-      _preloadHomePriorityImages(records, 'event', 3, 'high');
+    _loadInlineCollection('boot-home-summary-data', 'homeSummary', function(records) {
+      FirebaseService._cache.homeSummary = records;
+      if (records && typeof records === 'object' && !Array.isArray(records)) {
+        App._homeSummary = records;
+      }
     });
     _loadInlineCollection('boot-banners-data', 'banners', function(records) {
       const firstBanner = records.find(function(b) { return b && b.image; });
@@ -2579,17 +2581,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         preload.setAttribute('data-boot-banner-preload', '1');
         document.head.appendChild(preload);
       }
-    });
-    _loadInlineCollection('boot-tournaments-data', 'tournaments', function(records) {
-      const normalized = records.map(function(t) {
-        if (!t) return t;
-        return Object.assign({}, t, { _docId: t._docId || t.id });
-      });
-      FirebaseService._cache.tournaments = normalized;
-      if (FirebaseService._tournamentSlices) {
-        FirebaseService._tournamentSlices.injected = normalized.slice();
-      }
-      _preloadHomePriorityImages(normalized, 'tournament', 3, 'auto');
     });
   } catch (e) {
     console.warn('[Boot] Phase 2.5 inline home data 解析失敗（不影響後續流程）:', e && e.message || e);
@@ -2622,7 +2613,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     var _homeHasContent = false;
     try {
       if (typeof FirebaseService !== 'undefined' && FirebaseService._cache) {
-        _homeHasContent = FirebaseService._cache.events.length > 0;
+        _homeHasContent = !!FirebaseService._cache.homeSummary
+          || (Array.isArray(FirebaseService._cache.banners) && FirebaseService._cache.banners.length > 0);
       }
     } catch (_) {}
 

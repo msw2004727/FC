@@ -74,6 +74,7 @@ const PageLoader = {
     'page-admin-achievements': 'admin-content',
     'page-admin-announcements':'admin-content',
     'page-admin-games':        'admin-system',
+    'page-admin-scoreboard':   'admin-system',
     'page-admin-themes':       'admin-system',
     'page-admin-dashboard':    'admin-dashboard',
     'page-admin-seo':          'admin-seo',
