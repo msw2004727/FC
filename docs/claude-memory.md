@@ -2204,3 +2204,8 @@
 - **Issue**: An activity whose `regOpenTime` had already passed could still store `status: upcoming`; the detail header displayed `已開放`, but `_refreshSignupButton` and `registerForEvent` still treated the raw status as not open.
 - **Fix**: Safely repaired the affected 2026/05/08 朝馬 activity document to `status: open`. Frontend signup-button refresh now normalizes effective status before rendering, and the Cloud Function now checks `regOpenTime` before stale `upcoming` can block signup.
 - **Validation**: Added `event-registration-open-status.test.js` source contract coverage for frontend refresh and backend registration-open ordering.
+
+### 2026-05-06 Scoreboard Premier League Translation Guard [bugfix]
+- **Issue**: Generic `Premier League` was mapped to `英超`, which incorrectly translated country-specific leagues such as Kenya/FKF Premier League.
+- **Fix**: Removed the generic built-in mapping and kept only explicit `English Premier League -> 英超`. Added a Firestore translation override for `football / league / Premier League` with `status=keep_original`.
+- **Validation**: Added unit coverage to confirm ambiguous `Premier League` stays original while `English Premier League` still displays as `英超`.

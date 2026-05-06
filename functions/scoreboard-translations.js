@@ -33,7 +33,6 @@ const AI_DIRECT_PROMPT = [
 ].join("\n");
 
 const BUILTIN_TRANSLATIONS = Object.freeze([
-  ["*", "league", "Premier League", "\u82f1\u8d85"],
   ["*", "league", "English Premier League", "\u82f1\u8d85"],
   ["*", "league", "LaLiga", "\u897f\u7532"],
   ["*", "league", "La Liga", "\u897f\u7532"],

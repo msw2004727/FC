@@ -47,6 +47,25 @@ describe("scoreboard translation helpers", () => {
     expect(match.title).toBe("AE Lerou \u4e2d\u6587 vs Unknown FC");
   });
 
+  test("does not translate ambiguous Premier League without explicit country context", () => {
+    const lookup = translations.createTranslationLookup([]);
+    const ambiguous = translations.translateSourceName("Premier League", {
+      lookup,
+      sport: "football",
+      type: "league",
+    });
+    const explicitEnglish = translations.translateSourceName("English Premier League", {
+      lookup,
+      sport: "football",
+      type: "league",
+    });
+
+    expect(ambiguous.value).toBe("Premier League");
+    expect(ambiguous.translated).toBe(false);
+    expect(explicitEnglish.value).toBe("\u82f1\u8d85");
+    expect(explicitEnglish.translated).toBe(true);
+  });
+
   test("keep_original does not translate and does not create pending coverage", () => {
     const lookup = translations.createTranslationLookup([
       {
