@@ -7,6 +7,10 @@ const source = fs.readFileSync(
   path.join(__dirname, "../../js/modules/home-dashboard.js"),
   "utf8"
 );
+const homeCssSource = fs.readFileSync(
+  path.join(__dirname, "../../css/home.css"),
+  "utf8"
+);
 
 function runHomeDashboardModule() {
   const dom = new JSDOM(`<!doctype html>
@@ -48,6 +52,10 @@ function runHomeDashboardModule() {
 }
 
 describe("home-dashboard browser binding", () => {
+  test("scoreboard preview has a divider from the current info section only when populated", () => {
+    expect(homeCssSource).toMatch(/\.home-scoreboard-preview:not\(:empty\)\s*\{[\s\S]*border-top:\s*1px solid var\(--border\)/);
+  });
+
   test("attaches to lexical App and renders homepage cards when window.App is empty", async () => {
     const { app, dom } = runHomeDashboardModule();
 

@@ -314,6 +314,12 @@
   padding: 0;
 }
 
+.home-scoreboard-preview:not(:empty) {
+  margin-top: .95rem;
+  padding-top: .95rem;
+  border-top: 1px solid var(--border);
+}
+
 .home-scoreboard-title-row { margin-bottom: .55rem; }
 
 .home-scoreboard-panel {
