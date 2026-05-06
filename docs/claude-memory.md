@@ -2124,3 +2124,10 @@
 - **修復**: 新增 `boot-home-summary-data`、`home-dashboard.js`、首頁 sport quick entry / 數量儀表 / 我要開活動 / 比分預留區；改造 `scripts/inject-hot-events.js` 與 GitHub workflow 只產生匿名完整摘要；新增 `scoreboard` 模組與 `page-admin-scoreboard`，設定走 `siteConfig/scoreboardConfig` single-doc，Rules 白名單拒絕 `apiKey/token/secret` 與任意 `sourceKey`。
 - **教訓**: 首頁總量要由完整摘要產生，不能用 partial cache 假裝總量；公開設定欄位名稱不能叫 `apiKey`，即使只是內部代號也會造成安全語意混淆。
 - **驗證**: `node --check` 覆蓋新增/修改 JS；`npm test` 通過 94 suites / 2784 tests；`npm run test:rules` 通過 5 suites / 511 tests；快取版本同步至 `0.20260506a`。
+
+### 2026-05-06 首頁摘要模組 window.App 掛載修復 [bugfix]
+- **問題**: 線上首頁會看到「運動快速入口 / 目前資訊 / 比分預留」標題，但內容卡片為空，瀏覽器拋出 `Cannot convert undefined or null to object`。
+- **原因**: 新增的 `home-dashboard` 與 `scoreboard` IIFE 模組使用 `root.App/window.App` 掛載；本專案既有主程式是 `const App` 全域 lexical binding，瀏覽器中不保證存在 `window.App`。
+- **修復**: 模組啟動時改為優先讀既有 lexical `App/FirebaseService/ApiService/LineAuth/ScriptLoader/db`，再 fallback 到 `root.*`，並把解析到的 `App` 回填到 `root.App` 供同模組內使用。
+- **教訓**: 新模組若採 IIFE `root` 寫法，必須先核對本專案全域宣告模式；不要假設 top-level `const` 會自動掛到 `window`。
+- **驗證**: 新增 `home-dashboard-render.test.js` 覆蓋 `window.App` 為空但 lexical `App` 存在的渲染情境；本機 headless browser 實測首頁三區塊均有 children 且沒有 HomeDashboard 相關錯誤。

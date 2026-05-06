@@ -4,14 +4,26 @@
    ================================================ */
 
 (function(root) {
+  const app = (typeof App !== 'undefined') ? App : root.App;
+  if (!app) return;
+  root.App = app;
+
   function esc(value) {
     return typeof root.escapeHTML === 'function' ? root.escapeHTML(value) : String(value ?? '');
   }
 
+  function apiService() {
+    return (typeof ApiService !== 'undefined') ? ApiService : root.ApiService;
+  }
+
+  function firebaseService() {
+    return (typeof FirebaseService !== 'undefined') ? FirebaseService : root.FirebaseService;
+  }
+
   function canConfigure() {
-    const currentUser = root.ApiService?.getCurrentUser?.() || root.FirebaseService?._cache?.currentUser || null;
-    const roleKey = root.App?._getEffectiveRoleKey?.(currentUser?.role);
-    return root.App?.hasPermission?.('admin.scoreboard.configure')
+    const currentUser = apiService()?.getCurrentUser?.() || firebaseService()?._cache?.currentUser || null;
+    const roleKey = app._getEffectiveRoleKey?.(currentUser?.role);
+    return app.hasPermission?.('admin.scoreboard.configure')
       || roleKey === 'admin'
       || roleKey === 'super_admin';
   }
@@ -109,7 +121,7 @@
     };
   }
 
-  Object.assign(root.App, {
+  Object.assign(app, {
     async renderScoreboardAdmin() {
       const page = document.getElementById('page-admin-scoreboard');
       if (!page) return;

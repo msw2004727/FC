@@ -4,6 +4,10 @@
    ================================================ */
 
 (function(root) {
+  const app = (typeof App !== 'undefined') ? App : root.App;
+  if (!app) return;
+  root.App = app;
+
   const SOURCE_CATALOG = [
     { id: 'premier_league', label: '英超', sport: 'football', sourceKey: 'football_epl' },
     { id: 'laliga', label: '西甲', sport: 'football', sourceKey: 'football_laliga' },
@@ -96,20 +100,30 @@
     };
   }
 
+  function firebaseService() {
+    return (typeof FirebaseService !== 'undefined') ? FirebaseService : root.FirebaseService;
+  }
+
+  function firestoreDb() {
+    return (typeof db !== 'undefined') ? db : root.db;
+  }
+
   async function loadScoreboardConfig() {
-    const cached = root.FirebaseService?.getCachedDoc?.('siteConfig', 'scoreboardConfig');
+    const cached = firebaseService()?.getCachedDoc?.('siteConfig', 'scoreboardConfig');
     if (cached) return normalizeConfig(cached);
-    const doc = await root.FirebaseService?.ensureSingleDocLoaded?.('siteConfig', 'scoreboardConfig');
+    const doc = await firebaseService()?.ensureSingleDocLoaded?.('siteConfig', 'scoreboardConfig');
     return normalizeConfig(doc || {});
   }
 
   async function saveScoreboardConfig(config) {
     const payload = normalizeConfig(config);
     payload.updatedAt = root.firebase?.firestore?.FieldValue?.serverTimestamp?.() || new Date().toISOString();
-    if (!root.db) throw new Error('Firestore 尚未初始化');
-    await root.db.collection('siteConfig').doc('scoreboardConfig').set(payload, { merge: true });
-    if (root.FirebaseService?._singleDocCache) {
-      root.FirebaseService._singleDocCache['siteConfig/scoreboardConfig'] = { ...payload };
+    const dbRef = firestoreDb();
+    if (!dbRef) throw new Error('Firestore 尚未初始化');
+    await dbRef.collection('siteConfig').doc('scoreboardConfig').set(payload, { merge: true });
+    const service = firebaseService();
+    if (service?._singleDocCache) {
+      service._singleDocCache['siteConfig/scoreboardConfig'] = { ...payload };
     }
     return payload;
   }
@@ -121,7 +135,7 @@
     normalizeConfig,
   };
 
-  Object.assign(root.App, {
+  Object.assign(app, {
     async loadScoreboardConfig() {
       this._scoreboardConfig = await loadScoreboardConfig();
       return this._scoreboardConfig;

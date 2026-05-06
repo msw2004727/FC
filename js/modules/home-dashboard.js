@@ -4,6 +4,10 @@
    ================================================ */
 
 (function(root) {
+  const app = (typeof App !== 'undefined') ? App : root.App;
+  if (!app) return;
+  root.App = app;
+
   const SCOREBOARD_FALLBACK = [
     { id: 'premier_league', label: '英超' },
     { id: 'laliga', label: '西甲' },
@@ -54,14 +58,21 @@
   }
 
   function currentSummary() {
-    if (root.App?._homeSummary) return root.App._homeSummary;
+    if (app._homeSummary) return app._homeSummary;
     const boot = readBootSummary();
-    if (boot) root.App._homeSummary = boot;
+    if (boot) app._homeSummary = boot;
     return boot || normalizeSummary({});
   }
 
+  function configuredSports() {
+    if (Array.isArray(root.EVENT_SPORT_OPTIONS)) return root.EVENT_SPORT_OPTIONS;
+    return (typeof EVENT_SPORT_OPTIONS !== 'undefined' && Array.isArray(EVENT_SPORT_OPTIONS))
+      ? EVENT_SPORT_OPTIONS
+      : [];
+  }
+
   function sportRows(summary) {
-    const configured = Array.isArray(root.EVENT_SPORT_OPTIONS) ? root.EVENT_SPORT_OPTIONS : [];
+    const configured = configuredSports();
     const order = new Map(configured.map((item, index) => [item.key, index]));
     const counts = new Map((summary.sportCounts || []).map(item => [
       String(item.sportTag || '').trim(),
@@ -81,14 +92,26 @@
   }
 
   function sportIcon(key) {
+    if (typeof getSportIconSvg === 'function') return getSportIconSvg(key);
     if (typeof root.getSportIconSvg === 'function') return root.getSportIconSvg(key);
     return '<span class="sport-emoji" aria-hidden="true">•</span>';
+  }
+
+  function safeSportKey(key) {
+    if (key === 'all') return 'all';
+    if (typeof getSportKeySafe === 'function') return getSportKeySafe(key) || 'football';
+    return root.getSportKeySafe?.(key) || 'football';
+  }
+
+  function sportLabel(key) {
+    if (typeof getSportLabelByKey === 'function') return getSportLabelByKey(key) || '此運動';
+    return root.getSportLabelByKey?.(key) || '此運動';
   }
 
   function renderSportEntry(summary) {
     const host = document.getElementById('home-sport-entry');
     if (!host) return;
-    const active = root.App?._activeSport || localStorage.getItem('sporthub_active_sport') || 'all';
+    const active = app._activeSport || localStorage.getItem('sporthub_active_sport') || 'all';
     const rows = sportRows(summary);
     host.innerHTML = rows.map(item => `
       <button class="home-sport-chip${item.key === active ? ' active' : ''}" type="button" data-home-sport="${escapeHTML(item.key)}" onclick="App.selectHomeSport('${escapeHTML(item.key)}')">
@@ -184,11 +207,11 @@
     `;
   }
 
-  Object.assign(root.App, {
+  Object.assign(app, {
     _homeSummary: null,
 
     setActiveSportFilter(sportKey, options = {}) {
-      const safeKey = sportKey === 'all' ? 'all' : (root.getSportKeySafe?.(sportKey) || 'football');
+      const safeKey = safeSportKey(sportKey);
       this._activeSport = safeKey;
       try { localStorage.setItem('sporthub_active_sport', safeKey); } catch (_) {}
       document.querySelectorAll('.sport-picker-item[data-sport]').forEach(item => {
@@ -217,19 +240,23 @@
       const safeKey = this.setActiveSportFilter(sportKey, { render: false });
       this.showPage?.('page-activities');
       if (safeKey && safeKey !== 'all') {
-        this.showToast?.(`已切換到${root.getSportLabelByKey?.(safeKey) || '此運動'}`);
+        this.showToast?.(`已切換到${sportLabel(safeKey)}`);
       }
     },
 
     async openHomeCreateEvent() {
-      const isLoggedIn = typeof root.LineAuth !== 'undefined' && root.LineAuth.isLoggedIn?.();
-      const currentUser = root.ApiService?.getCurrentUser?.() || root.FirebaseService?._cache?.currentUser || null;
+      const lineAuth = (typeof LineAuth !== 'undefined') ? LineAuth : root.LineAuth;
+      const apiService = (typeof ApiService !== 'undefined') ? ApiService : root.ApiService;
+      const firebaseService = (typeof FirebaseService !== 'undefined') ? FirebaseService : root.FirebaseService;
+      const scriptLoader = (typeof ScriptLoader !== 'undefined') ? ScriptLoader : root.ScriptLoader;
+      const isLoggedIn = typeof lineAuth !== 'undefined' && lineAuth.isLoggedIn?.();
+      const currentUser = apiService?.getCurrentUser?.() || firebaseService?._cache?.currentUser || null;
       if (this._requestLoginForAction && !isLoggedIn && !currentUser) {
         this._requestLoginForAction({ type: 'createEvent' });
         return;
       }
       await this.showPage?.('page-activities');
-      await root.ScriptLoader?.ensureForPage?.('page-activities');
+      await scriptLoader?.ensureForPage?.('page-activities');
       if (typeof this.openCreateEventModal === 'function') {
         this.openCreateEventModal();
       } else {
@@ -247,7 +274,8 @@
     async renderHomeScoreboardPreview() {
       renderScoreboard(this._scoreboardConfig || null);
       try {
-        const config = await root.FirebaseService?.ensureSingleDocLoaded?.('siteConfig', 'scoreboardConfig');
+        const firebaseService = (typeof FirebaseService !== 'undefined') ? FirebaseService : root.FirebaseService;
+        const config = await firebaseService?.ensureSingleDocLoaded?.('siteConfig', 'scoreboardConfig');
         this._scoreboardConfig = config || this._scoreboardConfig || null;
         renderScoreboard(this._scoreboardConfig);
       } catch (err) {
