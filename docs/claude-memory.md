@@ -2177,3 +2177,8 @@
 - **Implementation**: Added `functions/scoreboard-sportsapipro.js` and utility normalizers, using Firebase Secret `SPORTSAPI_PRO_API_KEY` only inside Cloud Functions. Scheduled/manual refresh writes `scoreboardSnapshots/home`; detail cache writes `scoreboardMatchDetails/{sport_matchId}`; `/status` usage writes `sportsApiProUsage/{yyyyMMdd}`.
 - **Security**: `siteConfig/scoreboardConfig` uses list-based public schema (`enabledSports`, `sportsOrder`, `enabledFeaturedSources`, etc.) to avoid nested secret storage and Firestore rules expression-limit failures. Frontend never calls SportsAPI Pro directly.
 - **Validation**: Added normalizer, config, public render, home render, and Firestore rules coverage. Focused tests passed for scoreboard unit and rules suites.
+
+### 2026-05-06 SportsAPI Pro scoreboard tab alignment [bugfix/ux]
+- **Problem**: Homepage scoreboard showed football featured tabs such as Premier League while `homepageMatches` could contain tennis/basketball rows; tab clicks were visual-only, and opening a non-default sport could fall back to the first public scoreboard tab.
+- **Fix**: Homepage scoreboard tabs are now generated from sports present in `scoreboardSnapshots/home` and filter rows by the selected sport. Public scoreboard tabs also merge config tabs with snapshot sports that already have data, so homepage sport/match context opens the matching sport page.
+- **Validation**: Updated `home-dashboard-render.test.js` and `scoreboard-public-render.test.js` to cover homepage tab filtering and non-default sport handoff.

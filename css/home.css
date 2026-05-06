@@ -351,6 +351,13 @@
   color: #2563eb;
 }
 
+.home-league-chip span {
+  margin-left: .32rem;
+  color: var(--text-muted);
+  font-size: .68rem;
+  font-weight: 850;
+}
+
 .home-score-list { display: grid; }
 
 .home-score-row {

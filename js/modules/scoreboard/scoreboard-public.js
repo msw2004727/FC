@@ -35,8 +35,19 @@
   function scoreText(match) {
     const home = match?.homeScore;
     const away = match?.awayScore;
-    if (home == null && away == null) return match?.timeLabel || '未開賽';
+    if (home == null && away == null) return statusText(match);
     return `${home ?? '-'} : ${away ?? '-'}`;
+  }
+
+  function statusText(match) {
+    const raw = String(match?.status || '').trim();
+    const lower = raw.toLowerCase();
+    const setMatch = lower.match(/^(\d+)(st|nd|rd|th)\s+set$/);
+    if (setMatch) return `第 ${setMatch[1]} 盤`;
+    if (match?.isFinished || ['ended', 'finished', 'full time', 'ft'].includes(lower)) return '已結束';
+    if (match?.isLive || ['live', 'in progress'].includes(lower)) return '進行中';
+    if (!raw || ['scheduled', 'not started'].includes(lower)) return '未開賽';
+    return raw;
   }
 
   function sportLabel(config, sport) {
@@ -60,6 +71,45 @@
     return allMatches(snapshot).filter(match => match.sport === sport);
   }
 
+  function sportSummaryMap(snapshot) {
+    const map = new Map();
+    (Array.isArray(snapshot?.sports) ? snapshot.sports : []).forEach(item => {
+      if (item?.sport) map.set(item.sport, item);
+    });
+    return map;
+  }
+
+  function sportTabs(config, snapshot) {
+    const matches = allMatches(snapshot);
+    const counts = new Map();
+    matches.forEach(match => {
+      if (!match?.sport) return;
+      counts.set(match.sport, (counts.get(match.sport) || 0) + 1);
+    });
+    const summary = sportSummaryMap(snapshot);
+    const orderedKeys = [];
+    const addKeys = rows => (Array.isArray(rows) ? rows : []).forEach(key => {
+      const safeKey = String(key || '').trim();
+      if (safeKey && !orderedKeys.includes(safeKey)) orderedKeys.push(safeKey);
+    });
+    addKeys(config?.defaultSportTabs);
+    addKeys(config?.enabledSports);
+    addKeys(config?.sportsOrder);
+    addKeys((Array.isArray(snapshot?.sports) ? snapshot.sports : []).map(item => item?.sport));
+    addKeys(matches.map(match => match?.sport));
+
+    return orderedKeys
+      .filter(sport => {
+        const summaryCount = Number(summary.get(sport)?.liveCount || 0) + Number(summary.get(sport)?.scheduleCount || 0);
+        return config?.sports?.[sport]?.enabled !== false || (counts.get(sport) || 0) > 0 || summaryCount > 0;
+      })
+      .map(sport => ({
+        key: sport,
+        label: summary.get(sport)?.label || sportLabel(config, sport),
+        count: counts.get(sport) || Number(summary.get(sport)?.liveCount || 0) + Number(summary.get(sport)?.scheduleCount || 0),
+      }));
+  }
+
   function matchRow(match) {
     const statusClass = match.isLive ? ' live' : '';
     return `
@@ -67,7 +117,7 @@
         <span class="scoreboard-match-time">${esc(match.dateLabel || '')}<strong>${esc(match.timeLabel || '')}</strong></span>
         <span class="scoreboard-match-main">
           <b>${esc(match.title || `${match.homeTeam || ''} vs ${match.awayTeam || ''}`)}</b>
-          <small>${esc(match.league || match.subtitle || '')}</small>
+          <small>${esc(match.league || match.subtitle || statusText(match))}</small>
         </span>
         <span class="scoreboard-match-score${statusClass}">${esc(scoreText(match))}</span>
       </button>
@@ -75,14 +125,11 @@
   }
 
   function renderTabs(config, snapshot, activeSport) {
-    const tabSports = (config.defaultSportTabs || config.enabledSports || [])
-      .filter(sport => config.sports?.[sport]?.enabled !== false);
-    const sports = tabSports.length ? tabSports : Object.keys(config.sports || {}).filter(key => config.sports[key]?.enabled);
+    const sports = sportTabs(config, snapshot);
     return `
       <div class="scoreboard-sport-tabs" role="tablist">
-        ${sports.map(sport => {
-          const count = matchesForSport(snapshot, sport).length;
-          return `<button class="${sport === activeSport ? 'active' : ''}" type="button" role="tab" onclick="App.renderScoreboardPublic('${esc(sport)}')">${esc(sportLabel(config, sport))}<span>${numberText(count)}</span></button>`;
+        ${sports.map(item => {
+          return `<button class="${item.key === activeSport ? 'active' : ''}" type="button" role="tab" onclick="App.renderScoreboardPublic('${esc(item.key)}')" aria-selected="${item.key === activeSport ? 'true' : 'false'}">${esc(item.label)}<span>${numberText(item.count)}</span></button>`;
         }).join('')}
       </div>
     `;
@@ -95,8 +142,9 @@
       rootEl.innerHTML = '<div class="scoreboard-empty">賽事比分頁目前未開放。</div>';
       return;
     }
-    const sports = (config.defaultSportTabs || config.enabledSports || []).filter(key => config.sports?.[key]?.enabled);
-    const sport = activeSport && config.sports?.[activeSport]?.enabled ? activeSport : sports[0];
+    const tabs = sportTabs(config, snapshot);
+    const tabKeys = tabs.map(item => item.key);
+    const sport = activeSport && tabKeys.includes(activeSport) ? activeSport : tabKeys[0];
     if (!sport) {
       rootEl.innerHTML = '<div class="scoreboard-empty">目前尚未啟用任何運動比分。</div>';
       return;

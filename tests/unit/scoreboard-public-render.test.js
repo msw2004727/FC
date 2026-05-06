@@ -29,6 +29,11 @@ function runModules() {
     homepageOrder: ["premier_league", "nba"],
   };
   const snapshot = {
+    sports: [
+      { sport: "football", label: "Football", liveCount: 1, scheduleCount: 0 },
+      { sport: "basketball", label: "Basketball", liveCount: 0, scheduleCount: 1 },
+      { sport: "tennis", label: "Tennis", liveCount: 1, scheduleCount: 0 },
+    ],
     liveMatches: [{
       id: "m1",
       sport: "football",
@@ -40,6 +45,16 @@ function runModules() {
       awayScore: 0,
       isLive: true,
       detailCacheKey: "football_m1",
+    }, {
+      id: "m3",
+      sport: "tennis",
+      title: "E vs F",
+      league: "ATP",
+      homeScore: 1,
+      awayScore: 1,
+      isLive: true,
+      status: "2nd set",
+      detailCacheKey: "tennis_m3",
     }],
     recentSchedule: [{
       id: "m2",
@@ -80,13 +95,18 @@ describe("scoreboard public render", () => {
     await app.renderScoreboardPublic("football");
     const root = dom.window.document.getElementById("scoreboard-public-root");
 
-    expect(root.textContent).toContain("足球");
+    expect(root.textContent).toContain("Football");
     expect(root.textContent).toContain("A vs B");
     expect(root.textContent).toContain("即時比分");
 
     await app.renderScoreboardPublic("basketball");
     expect(root.textContent).toContain("C vs D");
     expect(root.textContent).toContain("最近賽程");
+
+    await app.renderScoreboardPublic("tennis");
+    expect(root.textContent).toContain("Tennis");
+    expect(root.textContent).toContain("E vs F");
+    expect(root.querySelector(".scoreboard-sport-tabs button.active")?.textContent).toContain("Tennis");
 
     await app.openScoreboardMatchDetail("basketball", "m2");
     expect(dom.window.document.getElementById("scoreboard-detail-overlay").textContent).toContain("C vs D");

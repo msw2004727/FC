@@ -185,7 +185,7 @@
 | `adminUsers` | 10+ | `script-loader.js:312-324` |
 | `adminContent` | 6 | `script-loader.js:325-332` |
 | `scoreboardAdmin` | 2 | `page-admin-scoreboard` lazy load；只讀寫 `siteConfig/scoreboardConfig` single doc，不透過 `PAGE_DATA_CONTRACT` 載入 `siteConfig` collection |
-| `scoreboardPublic` | 2 | `page-match-calendar` lazy load；只讀公開快取 `scoreboardSnapshots/home` / `scoreboardMatchDetails`，不從前台呼叫 SportsAPI Pro |
+| `scoreboardPublic` | 2 | `page-match-calendar` lazy load；只讀公開快取 `scoreboardSnapshots/home` / `scoreboardMatchDetails`，不從前台呼叫 SportsAPI Pro；頁籤會補入 snapshot 中已有資料的 sport，避免首頁帶入 sport 後被 default tabs 擋掉 |
 
 **新模組註冊規則**：放在對應頁面清單的合理位置（依賴前 / 同類後）；event-manage 系列放在 `event` 清單的後段。
 
@@ -305,6 +305,7 @@ Firebase 可用後
 | Match detail TTL | 30 minutes | `scoreboardMatchDetails/{sport_matchId}.expiresAt` |
 | Per-run request cap | 28 requests | Limits enabled sport live/today calls plus `/status` |
 | Manual refresh cooldown | 60 seconds | Stored in `sportsApiProUsage/{yyyyMMdd}.manualRefreshAt` |
+| Homepage scoreboard tabs | Snapshot data first | `home-dashboard.js`; tabs are generated from sports with `homepageMatches` / `liveMatches` / `recentSchedule`, not from football-only featured leagues |
 | Secret storage | Firebase Secret | `SPORTSAPI_PRO_API_KEY`; never in Firestore, docs, logs, or frontend JS |
 
 <a id="versioning"></a>

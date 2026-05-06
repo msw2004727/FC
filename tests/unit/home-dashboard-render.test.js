@@ -81,13 +81,20 @@ describe("home-dashboard browser binding", () => {
 
     app._scoreboardConfig = {
       homepageEnabled: true,
-      homepageOrder: ["premier_league"],
-      sources: { premier_league: { label: "英超", enabled: true } },
-      homepageMatches: [{ timeLabel: "今晚", dateLabel: "22:00", title: "A vs B", subtitle: "英超", status: "未開賽" }],
+      homepageSports: ["football", "basketball"],
+      defaultSportTabs: ["football", "basketball"],
+      homepageMatches: [
+        { id: "m1", sport: "football", timeLabel: "今晚", dateLabel: "22:00", title: "A vs B", subtitle: "英超", status: "未開賽" },
+        { id: "m2", sport: "basketball", timeLabel: "明晚", dateLabel: "21:00", title: "C vs D", subtitle: "NBA", status: "Scheduled" },
+      ],
     };
     await app.renderHomeScoreboardPreview();
     expect(scoreboard.style.display).toBe("");
-    expect(scoreboard.textContent).toContain("英超");
     expect(scoreboard.textContent).toContain("A vs B");
+    expect(scoreboard.textContent).not.toContain("C vs D");
+
+    app.selectHomeScoreboardSport("basketball");
+    expect(scoreboard.textContent).toContain("C vs D");
+    expect(scoreboard.textContent).not.toContain("A vs B");
   });
 });

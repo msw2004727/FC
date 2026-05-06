@@ -211,7 +211,7 @@ sequenceDiagram
 `js/modules` 根目錄目前有 26 個 shared module：
 
 - 內容與站台：`banner.js`、`announcement.js`、`popup-ad.js`、`news.js`、`site-theme.js`
-- 首頁：`home-dashboard.js` 渲染 demo 風格運動快速入口、活動/俱樂部/賽事儀表與比分預留區；無比分資料時比分區收折。
+- 首頁：`home-dashboard.js` 渲染 demo 風格運動快速入口、活動/俱樂部/賽事儀表與比分區；比分頁籤依 `scoreboardSnapshots/home` 的運動資料產生，切換頁籤只顯示同一 sport 的賽事，點擊賽事會帶 sport/matchId 進公開比分頁。
 - 權限與系統：`role.js`、`sync-status.js`、`multi-tab-guard.js`、`pwa-install.js`
 - 圖片：`image-cropper.js`、`image-upload.js`
 - 紀錄與稽核：`audit-log.js`、`error-log.js`、`error-log-diagnostics.js`、`error-log-insights.js`、`admin-log-tabs.js`、`registration-audit.js`、`game-log-viewer.js`
@@ -473,10 +473,10 @@ current = realCurrent + sum(remainingSlots)
 
 ### 比分預留控制
 
-- 首頁比分區只顯示預留來源與排序，不呼叫第三方比分 API。
+- 首頁比分區只讀 `siteConfig/scoreboardConfig` 與 `scoreboardSnapshots/home` 公開快取，不呼叫第三方比分 API；首頁 sport tabs 以 snapshot 有資料的運動為主，避免五大聯賽 tab 與非足球內容錯配。
 - `js/modules/scoreboard/scoreboard-config.js` 負責 SportsAPI Pro sport / featured source catalog、預設值、正規化與 `siteConfig/scoreboardConfig` single-doc 讀寫；公開設定採 list-based schema（enabled/order arrays），避免 nested map 藏 secret 或觸發 Firestore rules expression 上限。
 - `js/modules/scoreboard/scoreboard-admin.js` 負責後台 `page-admin-scoreboard` 控制頁，入口在左方抽屜，預設只有 `super_admin` 顯示；保存與手動刷新權限是 `admin.scoreboard.configure` 或 `super_admin`。
-- `js/modules/scoreboard/scoreboard-public.js` 負責 `page-match-calendar` 公開比分/賽程頁，讀 `scoreboardSnapshots/home` 與 `scoreboardMatchDetails/{sport_matchId}`；前台不直接呼叫 SportsAPI Pro。
+- `js/modules/scoreboard/scoreboard-public.js` 負責 `page-match-calendar` 公開比分/賽程頁，讀 `scoreboardSnapshots/home` 與 `scoreboardMatchDetails/{sport_matchId}`；運動頁籤同時納入 config 與 snapshot 中有資料的 sport，首頁帶入的 sport/matchId 必須優先套用；前台不直接呼叫 SportsAPI Pro。
 - `functions/scoreboard-sportsapipro.js` 以 Firebase Secret `SPORTSAPI_PRO_API_KEY` 呼叫 SportsAPI Pro V2 `/api/live`、`/api/today`、`/api/match/{id}` 等 endpoint，產生公開快取與 `sportsApiProUsage/{yyyyMMdd}` 用量摘要。
 - `siteConfig/scoreboardConfig` 是公開可讀設定，因此不得保存 API key、token、secret、管理員 UID、email 或 displayName；rules 以欄位白名單阻擋敏感欄位。
 
