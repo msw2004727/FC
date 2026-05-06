@@ -240,6 +240,7 @@ function planRequests(config, now = new Date()) {
   const normalized = normalizeScoreboardConfig(config);
   const today = formatTaipeiDate(now);
   const tomorrow = formatTaipeiDate(new Date(now.getTime() + 24 * 60 * 60 * 1000));
+  const taipeiTimezoneQuery = "?timezoneName=Asia%2FTaipei";
   const requests = [];
   const sortedSports = Object.entries(normalized.sports)
     .filter(([, sport]) => sport?.enabled)
@@ -251,14 +252,14 @@ function planRequests(config, now = new Date()) {
   for (const [sportKey, sportConfig] of orderedSports) {
     const baseUrl = sportsApiBaseUrl(sportKey);
     if (!baseUrl) continue;
-    if (sportConfig.liveEnabled !== false) requests.push({ sport: sportKey, kind: "live", baseUrl, path: "/api/live" });
-    if (sportConfig.scheduleEnabled !== false) requests.push({ sport: sportKey, kind: "today", baseUrl, path: "/api/today" });
+    if (sportConfig.liveEnabled !== false) requests.push({ sport: sportKey, kind: "live", baseUrl, path: `/api/live${taipeiTimezoneQuery}` });
+    if (sportConfig.scheduleEnabled !== false) requests.push({ sport: sportKey, kind: "today", baseUrl, path: `/api/today${taipeiTimezoneQuery}` });
     if (sportConfig.scheduleEnabled !== false && sportConfig.homepageEnabled !== false) {
       requests.push({
         sport: sportKey,
         kind: "tomorrow",
         baseUrl,
-        path: `/api/schedule/${tomorrow}?timezoneName=Asia%2FTaipei`,
+        path: `/api/schedule/${tomorrow}${taipeiTimezoneQuery}`,
       });
     }
     if (requests.length >= SCOREBOARD_REFRESH_REQUEST_LIMIT) break;

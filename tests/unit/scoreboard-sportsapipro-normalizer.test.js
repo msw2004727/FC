@@ -87,8 +87,8 @@ describe("SportsAPI Pro scoreboard normalizer", () => {
     });
     const requests = utils.planRequests(cfg, new Date("2026-05-05T16:30:00.000Z"));
     expect(requests.map((item) => item.path)).toEqual([
-      "/api/live",
-      "/api/today",
+      "/api/live?timezoneName=Asia%2FTaipei",
+      "/api/today?timezoneName=Asia%2FTaipei",
       "/api/schedule/2026-05-07?timezoneName=Asia%2FTaipei",
       "/status",
     ]);

@@ -169,6 +169,8 @@ describe("scoreboard admin render", () => {
     app.showScoreboardInfo("usage");
     const infoBody = dom.window.document.querySelector(".scoreboard-info-dialog-body");
     expect(infoBody.textContent).toContain("今日 requests");
+    expect(infoBody.textContent).toContain("額度歸零");
+    expect(infoBody.textContent).toContain("08:00");
     expect(infoBody.textContent).toContain("手動刷新");
 
     app.openScoreboardSportSettings("football");
