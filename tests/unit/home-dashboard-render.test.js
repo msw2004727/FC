@@ -59,10 +59,14 @@ describe("home-dashboard browser binding", () => {
 
     expect(dom.window.document.getElementById("home-sport-entry").children).toHaveLength(2);
     expect(dom.window.document.getElementById("home-sport-entry").textContent).toContain("19");
-    expect(dom.window.document.getElementById("home-sport-entry").textContent).not.toContain("足球");
+    expect(dom.window.document.getElementById("home-sport-entry").textContent).toContain("足球");
+    expect(dom.window.document.getElementById("home-sport-entry").textContent).toContain("19 活動");
     expect(dom.window.document.getElementById("home-info-meter").children).toHaveLength(3);
-    expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("活動數");
+    expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("活動");
+    expect(dom.window.document.getElementById("home-info-meter").textContent).not.toContain("活動數");
+    expect(dom.window.document.getElementById("home-info-meter").textContent).not.toContain("預留");
     expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("311");
+    expect(dom.window.document.querySelectorAll(".home-stat-views")).toHaveLength(1);
 
     const scoreboard = dom.window.document.getElementById("home-scoreboard-preview");
     expect(scoreboard.style.display).toBe("none");

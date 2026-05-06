@@ -1424,10 +1424,10 @@ service cloud.firestore {
     match /siteConfig/{docId} {
       allow read: if docId == 'scoreboardConfig' || isAuth();
       allow create: if docId == 'scoreboardConfig'
-        && (isAdmin() || hasPerm('admin.scoreboard.configure'))
+        && (isSuperAdmin() || hasPerm('admin.scoreboard.configure'))
         && isSafeScoreboardConfig(request.resource.data);
       allow update: if docId == 'scoreboardConfig'
-        && (isAdmin() || hasPerm('admin.scoreboard.configure'))
+        && (isSuperAdmin() || hasPerm('admin.scoreboard.configure'))
         && isSafeScoreboardConfig(request.resource.data);
       allow create: if docId != 'realtimeConfig' && docId != 'scoreboardConfig' && (isAdmin()
         || canManageAutoExpSiteConfig(docId)

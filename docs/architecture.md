@@ -211,7 +211,7 @@ sequenceDiagram
 `js/modules` 根目錄目前有 26 個 shared module：
 
 - 內容與站台：`banner.js`、`announcement.js`、`popup-ad.js`、`news.js`、`site-theme.js`
-- 首頁：`home-dashboard.js` 渲染運動快速入口、活動/俱樂部/賽事儀表與比分預留區
+- 首頁：`home-dashboard.js` 渲染 demo 風格運動快速入口、活動/俱樂部/賽事儀表與比分預留區；無比分資料時比分區收折。
 - 權限與系統：`role.js`、`sync-status.js`、`multi-tab-guard.js`、`pwa-install.js`
 - 圖片：`image-cropper.js`、`image-upload.js`
 - 紀錄與稽核：`audit-log.js`、`error-log.js`、`error-log-diagnostics.js`、`error-log-insights.js`、`admin-log-tabs.js`、`registration-audit.js`、`game-log-viewer.js`
@@ -282,7 +282,7 @@ sequenceDiagram
 | `auditLogsByDay/{yyyyMMdd}/auditEntries/{logId}` | 安全稽核 log | Cloud Function 寫入，super_admin/權限讀 |
 | `errorLogs/{docId}` | 前端錯誤 log | 使用者可寫，後台可讀 |
 | `siteConfig/realtimeConfig` | 即時監聽與資料同步設定 | 後端密碼保護寫入，前端讀 |
-| `siteConfig/scoreboardConfig` | 首頁比分預留來源顯示與排序 | 公開讀；寫入只允許白名單欄位與 `admin.scoreboard.configure` / admin |
+| `siteConfig/scoreboardConfig` | 首頁比分預留來源顯示與排序 | 公開讀；寫入只允許白名單欄位與 `admin.scoreboard.configure` / `super_admin` |
 | `participantQueryShares/{shareId}` | 儀表板臨時分享 | 7 天快照型報表 |
 | `shotGameScores` / `kickGameScores` | 遊戲分數 | callable 寫入，排行榜讀 |
 | `usageMetrics` / `translateUsage` | 用量統計 | schedule / callable 寫入，super_admin 讀 |
@@ -472,7 +472,7 @@ current = realCurrent + sum(remainingSlots)
 
 - 首頁比分區只顯示預留來源與排序，不呼叫第三方比分 API。
 - `js/modules/scoreboard/scoreboard-config.js` 負責來源 catalog、預設值、正規化與 `siteConfig/scoreboardConfig` single-doc 讀寫。
-- `js/modules/scoreboard/scoreboard-admin.js` 負責後台 `page-admin-scoreboard` 控制頁，入口權限是 `admin.scoreboard.entry`，保存權限是 `admin.scoreboard.configure`。
+- `js/modules/scoreboard/scoreboard-admin.js` 負責後台 `page-admin-scoreboard` 控制頁，入口在左方抽屜，預設只有 `super_admin` 顯示；保存權限是 `admin.scoreboard.configure` 或 `super_admin`。
 - `siteConfig/scoreboardConfig` 是公開可讀設定，因此不得保存 API key、token、secret、管理員 UID、email 或 displayName；rules 以欄位白名單阻擋敏感欄位。
 
 ---

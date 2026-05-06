@@ -9,17 +9,17 @@
   root.App = app;
 
   const SOURCE_CATALOG = [
-    { id: 'premier_league', label: '英超', sport: 'football', sourceKey: 'football_epl' },
-    { id: 'laliga', label: '西甲', sport: 'football', sourceKey: 'football_laliga' },
-    { id: 'serie_a', label: '義甲', sport: 'football', sourceKey: 'football_serie_a' },
-    { id: 'bundesliga', label: '德甲', sport: 'football', sourceKey: 'football_bundesliga' },
-    { id: 'ligue_1', label: '法甲', sport: 'football', sourceKey: 'football_ligue_1' },
-    { id: 'champions_league', label: '歐冠', sport: 'football', sourceKey: 'football_ucl' },
-    { id: 'europa_league', label: '歐聯', sport: 'football', sourceKey: 'football_uel' },
-    { id: 'world_cup', label: '世界盃', sport: 'football', sourceKey: 'football_world_cup' },
-    { id: 'nba', label: 'NBA', sport: 'basketball', sourceKey: 'basketball_nba' },
-    { id: 'badminton', label: '羽球', sport: 'badminton', sourceKey: 'badminton_general' },
-    { id: 'olympics', label: '奧運', sport: 'multi', sourceKey: 'olympics_general' },
+    { id: 'premier_league', label: '英超', sport: 'football', sourceKey: 'football_epl', provider: 'Football Data API' },
+    { id: 'laliga', label: '西甲', sport: 'football', sourceKey: 'football_laliga', provider: 'Football Data API' },
+    { id: 'serie_a', label: '義甲', sport: 'football', sourceKey: 'football_serie_a', provider: 'Football Data API' },
+    { id: 'bundesliga', label: '德甲', sport: 'football', sourceKey: 'football_bundesliga', provider: 'Football Data API' },
+    { id: 'ligue_1', label: '法甲', sport: 'football', sourceKey: 'football_ligue_1', provider: 'Football Data API' },
+    { id: 'champions_league', label: '歐冠', sport: 'football', sourceKey: 'football_ucl', provider: 'Football Data API' },
+    { id: 'europa_league', label: '歐聯', sport: 'football', sourceKey: 'football_uel', provider: 'Football Data API' },
+    { id: 'world_cup', label: '世界盃', sport: 'football', sourceKey: 'football_world_cup', provider: 'Football Data API' },
+    { id: 'nba', label: 'NBA', sport: 'basketball', sourceKey: 'basketball_nba', provider: 'NBA API' },
+    { id: 'badminton', label: '羽球', sport: 'badminton', sourceKey: 'badminton_general', provider: 'BWF Badminton' },
+    { id: 'olympics', label: '奧運', sport: 'multi', sourceKey: 'olympics_general', provider: 'Olympics Feed' },
   ];
 
   const DEFAULT_ORDER = [

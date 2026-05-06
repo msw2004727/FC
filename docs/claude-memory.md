@@ -2137,3 +2137,9 @@
 - **比分區**: 賽事比分改成 demo 的 league rail + score row 結構，但在沒有 `homepageMatches` / `matches` API 資料時整區收起，避免顯示空預留卡。
 - **Banner**: 首頁 banner 左右箭頭在手機視覺上隱藏，保留滑動與圓點，不再露出 `<<`。
 - **驗證**: 更新 `home-dashboard-render.test.js`，並用 headless browser 確認 banner arrow `display:none`、運動入口高度降低、比分區無資料時隱藏。
+
+### 2026-05-06 首頁抽屜與比分控制面板補齊 [ux/security]
+- **調整**: 首頁運動快速入口改回 demo 風格的短碼、名稱、活動數卡片；移除「目前資訊」標題，活動/俱樂部/賽事卡片置中放大數字，沒有瀏覽數就不顯示眼睛統計。
+- **比分控制**: `page-admin-scoreboard` 實裝來源 API 開關、排序、首頁顯示與 API 位置預留欄位；左方抽屜入口預設只給 `super_admin`，一般 admin 需手動取得 `admin.scoreboard.entry/configure` 才能進入或儲存。
+- **安全**: `siteConfig/scoreboardConfig` 寫入規則改為 `super_admin` 或 `admin.scoreboard.configure`，保留公開欄位白名單，仍禁止 apiKey/token/secret 類資料寫進公開設定。
+- **導覽**: 版本號移到左方抽屜下載 APP 按鈕下方並置右，首頁 banner 左右箭頭按鈕改成 hidden 空按鈕，避免手機左上角露出 `<<`。

@@ -1607,3 +1607,128 @@
   .uid-health-repair-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .uid-health-repair-head { align-items: flex-start; flex-direction: column; }
 }
+
+/* Scoreboard Admin */
+.scoreboard-admin-intro,
+.scoreboard-admin-panel {
+  margin: 0 .5rem .75rem;
+  padding: .8rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+}
+.scoreboard-admin-intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .75rem;
+}
+.scoreboard-admin-intro h3,
+.scoreboard-admin-title-row h3 {
+  margin: 0;
+  font-size: .95rem;
+  font-weight: 850;
+}
+.scoreboard-admin-intro p,
+.scoreboard-admin-title-row span,
+.scoreboard-source-meta,
+.scoreboard-api-slot small {
+  color: var(--text-muted);
+  font-size: .74rem;
+  line-height: 1.45;
+}
+.scoreboard-home-toggle,
+.scoreboard-source-toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  color: var(--text-secondary);
+  font-size: .76rem;
+  font-weight: 800;
+}
+.scoreboard-admin-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .75rem;
+  margin-bottom: .6rem;
+}
+.scoreboard-source-list {
+  display: grid;
+  gap: .6rem;
+}
+.scoreboard-source-row {
+  display: grid;
+  gap: .55rem;
+  padding: .72rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+}
+.scoreboard-source-main,
+.scoreboard-source-fields,
+.scoreboard-api-slot,
+.scoreboard-sort-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .6rem;
+}
+.scoreboard-source-name {
+  font-size: .88rem;
+  font-weight: 850;
+}
+.scoreboard-source-fields {
+  display: grid;
+  grid-template-columns: 1fr 88px;
+}
+.scoreboard-source-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+  color: var(--text-muted);
+  font-size: .72rem;
+  font-weight: 750;
+}
+.scoreboard-api-slot {
+  align-items: flex-start;
+  padding: .55rem;
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: .72rem;
+}
+.scoreboard-api-slot code {
+  color: var(--accent);
+  font-size: .72rem;
+}
+.scoreboard-sort-list {
+  display: grid;
+  gap: .45rem;
+}
+.scoreboard-sort-pill {
+  min-height: 34px;
+  padding: 0 .62rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: .8rem;
+  font-weight: 850;
+}
+.scoreboard-sort-pill span {
+  color: var(--text-muted);
+  font-size: .72rem;
+}
+.scoreboard-locked-note {
+  margin: .45rem .5rem 0;
+  color: var(--danger);
+  font-size: .76rem;
+}
+@media (max-width: 420px) {
+  .scoreboard-admin-intro,
+  .scoreboard-admin-title-row,
+  .scoreboard-source-main,
+  .scoreboard-api-slot { flex-direction: column; align-items: flex-start; }
+}

@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260506c';
+const CACHE_VERSION = '0.20260506d';
 
 // ─── 即時監聽 limit 預設值（可在儀表板動態調整，存於 siteConfig/realtimeConfig）───
 const REALTIME_LIMIT_DEFAULTS = {
@@ -655,7 +655,7 @@ const DRAWER_MENUS = [
   { divider: true, minRole: 'admin' },
   { sectionLabel: '後台管理', i18nKey: 'drawer.backendManage', minRole: 'admin' },
   { icon: '', label: '小遊戲管理', page: 'page-admin-games', minRole: 'admin', permissionCode: 'admin.games.entry' },
-  { icon: '', label: '賽事比分控制', page: 'page-admin-scoreboard', minRole: 'admin', permissionCode: 'admin.scoreboard.entry' },
+  { icon: '', label: '賽事比分控制', page: 'page-admin-scoreboard', minRole: 'super_admin', permissionCode: 'admin.scoreboard.entry' },
   { icon: '', label: '用戶管理', i18nKey: 'admin.userManage', page: 'page-admin-users', minRole: 'admin', permissionCode: 'admin.users.entry' },
   { icon: '', label: '廣告管理', i18nKey: 'admin.adManage', page: 'page-admin-banners', minRole: 'admin', permissionCode: 'admin.banners.entry' },
   { icon: '', label: '二手商品管理', i18nKey: 'admin.shopManage', page: 'page-admin-shop', minRole: 'admin', permissionCode: 'admin.shop.entry' },
@@ -674,7 +674,7 @@ const DRAWER_MENUS = [
   { icon: '', label: '無效資料查詢', i18nKey: 'admin.inactive', page: 'page-admin-inactive', minRole: 'super_admin', permissionCode: 'admin.inactive.entry' },
 ];
 
-const ROLE_PERMISSION_CATALOG_VERSION = '20260506a';
+const ROLE_PERMISSION_CATALOG_VERSION = '20260506b';
 const DISABLED_PERMISSION_CODES = new Set(['admin.roles.entry']);
 
 function isPermissionCodeEnabled(code) {

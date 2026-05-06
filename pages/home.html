@@ -8,8 +8,8 @@
         <div class="banner-skeleton skeleton"></div>
       </div>
     </div>
-    <button class="banner-arrow banner-arrow-left" id="banner-prev">‹</button>
-    <button class="banner-arrow banner-arrow-right" id="banner-next">›</button>
+    <button class="banner-arrow banner-arrow-left" id="banner-prev" type="button" aria-hidden="true" tabindex="-1" hidden></button>
+    <button class="banner-arrow banner-arrow-right" id="banner-next" type="button" aria-hidden="true" tabindex="-1" hidden></button>
     <div class="banner-dots" id="banner-dots"></div>
   </div>
 
@@ -35,19 +35,19 @@
   <section class="home-dashboard-section" aria-labelledby="home-sport-entry-title">
     <div class="home-dashboard-title-row">
       <h3 id="home-sport-entry-title">運動快速入口</h3>
-      <span class="home-dashboard-note">依目前公開活動數排序</span>
+      <button class="primary-btn small home-create-event-btn" type="button" onclick="App.openHomeCreateEvent()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+          <path d="M12 5v14"></path>
+          <path d="M5 12h14"></path>
+        </svg>
+        <span>我要開團</span>
+      </button>
     </div>
     <div class="home-sport-entry" id="home-sport-entry" aria-live="polite"></div>
   </section>
 
   <!-- Current Info Meter -->
-  <section class="home-dashboard-section" aria-labelledby="home-info-meter-title">
-    <div class="home-dashboard-title-row">
-      <h3 id="home-info-meter-title">目前資訊</h3>
-      <button class="primary-btn small home-create-event-btn" type="button" onclick="App.openHomeCreateEvent()">
-        <span>我要開團</span>
-      </button>
-    </div>
+  <section class="home-dashboard-section home-info-dashboard-section" aria-label="首頁資訊統計">
     <div class="home-info-meter" id="home-info-meter" aria-live="polite"></div>
   </section>
 

@@ -2111,6 +2111,41 @@ describe("/siteConfig/{docId}", () => {
     );
   });
 
+  test("admin without scoreboard permission cannot write scoreboardConfig", async () => {
+    await assertFails(
+      setDoc(doc(admin(), "siteConfig", "scoreboardConfig"), {
+        schemaVersion: 1,
+        homepageEnabled: true,
+        homepageOrder: ["premier_league"],
+        sources: {
+          premier_league: {
+            enabled: true,
+            label: "EPL",
+            sport: "football",
+            sourceKey: "football_epl",
+            sortOrder: 1,
+          },
+        },
+      })
+    );
+    await assertSucceeds(
+      setDoc(doc(superAdmin(), "siteConfig", "scoreboardConfig"), {
+        schemaVersion: 1,
+        homepageEnabled: true,
+        homepageOrder: ["premier_league"],
+        sources: {
+          premier_league: {
+            enabled: true,
+            label: "EPL",
+            sport: "football",
+            sourceKey: "football_epl",
+            sortOrder: 1,
+          },
+        },
+      })
+    );
+  });
+
   test("scoreboardConfig rejects unknown fields and secret-like payload", async () => {
     await seedRolePermissions("content_manager", ["admin.scoreboard.configure"]);
     await assertFails(

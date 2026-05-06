@@ -384,6 +384,7 @@
 .drawer-user-info { min-width: 0; flex-shrink: 1; }
 .drawer-name { font-weight: 700; font-size: .95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .drawer-actions { display: flex; align-items: center; gap: .5rem; flex-shrink: 0; margin-left: auto; }
+.drawer-action-stack { display: flex; flex-direction: column; align-items: flex-end; gap: .18rem; min-width: 0; }
 .drawer-clear-btn { flex-shrink: 0; display: inline-flex; align-items: center; gap: .3rem; padding: .28rem .6rem; border-radius: var(--radius-full); border: 1px solid var(--border); background: var(--bg-elevated); color: var(--text-muted); font-size: .72rem; font-weight: 500; cursor: pointer; transition: all var(--transition); line-height: 1; }
 .drawer-clear-btn svg { flex-shrink: 0; opacity: .7; }
 .drawer-clear-btn:hover { border-color: #ef4444; color: #ef4444; background: rgba(239,68,68,.08); }

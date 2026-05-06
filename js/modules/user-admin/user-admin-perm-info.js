@@ -220,11 +220,11 @@ Object.assign(App, {
     },
     'admin.scoreboard.entry': {
       title: '賽事比分控制',
-      body: '允許進入比分控制功能區。這頁目前只管理首頁預留欄位的來源顯示與排序，不會連外抓 API。',
+      body: '允許進入比分控制功能區。預設只有總管層級開啟，其他角色要在權限管理手動打開入口。',
     },
     'admin.scoreboard.configure': {
       title: '調整比分來源與排序',
-      body: '允許儲存首頁比分預留區的開關與排序。這裡不能填 API 密鑰，只能切換哪些來源先顯示。',
+      body: '允許儲存首頁比分預留區的來源開關、名稱與排序。API 端點與金鑰後續接後端，這裡不保存密鑰。',
     },
     'admin.shop.entry': {
       title: '二手商品管理',
