@@ -298,8 +298,14 @@ describe('Team reservation button loading contract', () => {
     expect(attendanceSource).toContain('_getTeamReservationMarkerImage');
     expect(attendanceSource).toContain('class="team-seat-club-marker"');
     expect(attendanceSource).toContain('class="team-seat-club-marker-img"');
+    expect(attendanceSource).toContain('team-reservation-header-cell');
+    expect(attendanceSource).toContain('team-reservation-summary');
+    expect(attendanceSource).toContain('team-reservation-placeholder-row');
+    expect(attendanceSource).toContain('team-reservation-placeholder-name');
     expect(attendanceSource).toContain('loading="lazy"');
     expect(attendanceSource).toContain("document.createTextNode('🚩')");
+    expect(attendanceSource).not.toContain('background:#f8fbff');
+    expect(attendanceSource).not.toContain('background:#eff6ff');
     expect(attendanceSource).not.toContain('teamSeatFlag');
     expect(attendanceSource).not.toContain('team-seat-flag-icon');
     expect(attendanceSource).not.toContain('<svg class="team-seat-flag-icon"');
@@ -307,5 +313,8 @@ describe('Team reservation button loading contract', () => {
     expect(activityCss).toContain('.team-seat-club-marker-img');
     expect(activityCss).toContain('height: 1rem');
     expect(activityCss).toContain('object-fit: cover');
+    expect(activityCss).toContain('[data-theme="dark"] .team-reservation-header-cell');
+    expect(activityCss).toContain('[data-theme="dark"] .team-reservation-placeholder-row');
+    expect(activityCss).toContain('[data-theme="dark"] .team-reservation-placeholder-name');
   });
 });

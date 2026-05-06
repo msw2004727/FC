@@ -1342,6 +1342,58 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
 .reg-name-badges::-webkit-scrollbar { display: none; }
 .reg-name-badges { scrollbar-width: none; }
 .reg-name-text { flex-shrink: 0; white-space: nowrap; }
+.team-reservation-header-cell {
+  padding: .45rem .55rem;
+  background: #eff6ff;
+  border-bottom: 1px solid #bfdbfe;
+  color: #1e3a8a;
+}
+.team-reservation-summary {
+  font-size: .76rem;
+  color: #1d4ed8;
+}
+.team-reservation-adjust-btn {
+  font-size: .72rem;
+  padding: .18rem .5rem;
+  border: 1px solid #0f766e;
+  color: #0f766e;
+  background: #fff;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.team-reservation-placeholder-row {
+  border-bottom: 1px solid var(--border);
+  background: #f8fbff;
+}
+.team-reservation-placeholder-name {
+  color: #1d4ed8;
+  font-weight: 600;
+}
+[data-theme="dark"] .team-reservation-header-cell {
+  background: linear-gradient(90deg, rgba(30, 58, 138, .34), rgba(15, 118, 110, .16) 56%, rgba(15, 23, 42, .2));
+  border-bottom-color: rgba(96, 165, 250, .24);
+  color: #c7d2fe;
+}
+[data-theme="dark"] .team-reservation-summary {
+  color: #7dd3fc;
+}
+[data-theme="dark"] .team-reservation-adjust-btn {
+  border-color: rgba(45, 212, 191, .58);
+  color: #5eead4;
+  background: rgba(15, 118, 110, .16);
+}
+[data-theme="dark"] .team-reservation-placeholder-row {
+  background: linear-gradient(90deg, rgba(30, 58, 138, .24), rgba(15, 118, 110, .12) 48%, rgba(15, 23, 42, .08));
+  border-bottom-color: rgba(148, 163, 184, .18);
+}
+[data-theme="dark"] .team-reservation-placeholder-name {
+  color: #93c5fd;
+}
+[data-theme="dark"] .team-seat-club-marker-img {
+  background: rgba(15, 23, 42, .86);
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, .28);
+}
 .team-seat-club-marker {
   display: inline-flex;
   align-items: center;

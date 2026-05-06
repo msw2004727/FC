@@ -360,12 +360,12 @@ Object.assign(App, {
       if (p.isTeamHeader) {
         const canAdjustTeam = !isSubmitting && this._isCurrentUserTeamStaff?.(p.teamReservationTeamId);
         const adjustBtn = canAdjustTeam
-          ? `<button style="font-size:.72rem;padding:.18rem .5rem;border:1px solid #0f766e;color:#0f766e;background:#fff;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap" onclick="App.openTeamReservationModal('${escapeHTML(eventId)}','${escapeHTML(p.teamReservationTeamId)}')">快速調整</button>`
+          ? `<button class="team-reservation-adjust-btn" onclick="App.openTeamReservationModal('${escapeHTML(eventId)}','${escapeHTML(p.teamReservationTeamId)}')">快速調整</button>`
           : '';
-        return `<tr class="team-reservation-header-row"><td colspan="${tableColspan}" style="padding:.45rem .55rem;background:#eff6ff;border-bottom:1px solid #bfdbfe;color:#1e3a8a">
+        return `<tr class="team-reservation-header-row"><td colspan="${tableColspan}" class="team-reservation-header-cell">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap">
             <strong>${escapeHTML(p.teamReservationTeamName || p.displayName)}</strong>
-            <span style="font-size:.76rem;color:#1d4ed8">原團隊佔位：${Number(p.reservedSlots || 0)}　已使用：${Number(p.usedSlots || 0)}　剩餘：${Number(p.remainingSlots || 0)}</span>
+            <span class="team-reservation-summary">原團隊佔位：${Number(p.reservedSlots || 0)}　已使用：${Number(p.usedSlots || 0)}　剩餘：${Number(p.remainingSlots || 0)}</span>
             ${adjustBtn}
           </div>
         </td></tr>`;
@@ -414,7 +414,7 @@ Object.assign(App, {
       } else if (p.isCompanion) {
         nameInner = `<span class="reg-name-text" style="padding-left:1.2rem;color:var(--text-secondary)">↳ ${escapeHTML(p.displayName)}</span>`;
       } else if (p.isTeamPlaceholder) {
-        nameInner = `<span class="reg-name-text" style="color:#1d4ed8;font-weight:600">${teamSeatMarker}${escapeHTML(p.displayName)}</span>`;
+        nameInner = `<span class="reg-name-text team-reservation-placeholder-name">${teamSeatMarker}${escapeHTML(p.displayName)}</span>`;
       } else if (p.hasSelfReg) {
         nameInner = `<span class="reg-name-text">${teamSeatMarker}${this._userTag(p.displayName, null, _tagOpts)}</span>`;
       } else {
@@ -441,7 +441,7 @@ Object.assign(App, {
         }
         if (p.isTeamPlaceholder) {
           const emptyDemoteTd = hasDemote ? `<td style="padding:.35rem .2rem"></td>` : '';
-          return `<tr data-uid="${safeUid}" style="border-bottom:1px solid var(--border);background:#f8fbff">
+          return `<tr data-uid="${safeUid}" class="team-reservation-placeholder-row">
           <td style="padding:.35rem .2rem"></td>${emptyDemoteTd}
           <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
           ${showNoShowColumn ? '<td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>' : ''}
@@ -464,7 +464,7 @@ Object.assign(App, {
         </tr>`;
       }
       if (p.isTeamPlaceholder) {
-        return `<tr style="border-bottom:1px solid var(--border);background:#f8fbff">
+        return `<tr class="team-reservation-placeholder-row">
         <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
         ${showNoShowColumn ? '<td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>' : ''}
         <td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>

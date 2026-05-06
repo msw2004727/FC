@@ -2150,3 +2150,9 @@
 - **修復**: 運動入口改用 `getSportIconSvg()` 既有體育標籤圖示並只顯示圖示 + 活動數；目前資訊卡新增上方分隔線，眼睛瀏覽數改到卡片底部置中；抽屜將 `賽事比分控制` 移到 `SEO 儀表板` 正下方並用同一紅色群組避免分隔線；比分控制欄位加上圓形說明按鈕且文字不換行。
 - **防復發**: 移除 `index.html` 的殘留 `<<`，並在 `inject-hot-events.js` 增加 marker 前雜訊清理，避免 GitHub 自動注入流程再次保留同類字元。
 - **驗證**: `node --check` 覆蓋首頁、比分控制、config、注入腳本；`npm test -- --runInBand ...` 實際跑完整 unit suite，95 suites / 2791 tests 全通過。
+
+### 2026-05-06 團隊保留席位深色主題修正 [ux]
+- **問題**: 活動報名名單內的團隊保留席位列在深色主題仍使用淺色背景，畫面亮度過高。
+- **原因**: 保留席位 header、保留列與名稱顏色直接寫在 `event-manage-attendance.js` inline style，深色主題 CSS 無法替換。
+- **修復**: 改用 `team-reservation-*` 語意化 class，保留淺色主題原視覺，並新增深色主題專用的低亮度藍綠漸層、文字色與俱樂部縮圖邊框。
+- **驗證**: 新增 unit source contract，確認 JS 不再硬寫亮色背景，且 CSS 具備深色主題覆蓋；`event-detail-render.test.js` 通過。
