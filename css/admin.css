@@ -1681,6 +1681,8 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-elevated);
+  min-width: 0;
+  overflow: hidden;
 }
 .scoreboard-source-main,
 .scoreboard-source-fields,
@@ -1690,6 +1692,7 @@
   align-items: center;
   justify-content: space-between;
   gap: .6rem;
+  min-width: 0;
 }
 .scoreboard-source-main > div { min-width: 0; }
 .scoreboard-source-name {
@@ -1816,8 +1819,9 @@
 }
 .scoreboard-toggle-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(106px, 1fr)) minmax(136px, .8fr);
+  grid-template-columns: repeat(4, minmax(88px, 1fr)) minmax(116px, .72fr);
   gap: .42rem;
+  min-width: 0;
 }
 .scoreboard-toggle-grid label,
 .scoreboard-feature-row {
@@ -1842,7 +1846,7 @@
   grid-template-columns: 18px minmax(0, 1fr);
 }
 .scoreboard-toggle-order {
-  grid-template-columns: minmax(0, 1fr) 64px;
+  grid-template-columns: minmax(0, 1fr) 58px;
 }
 .scoreboard-toggle-grid input[type="checkbox"] {
   width: 16px;
@@ -1872,7 +1876,7 @@
 }
 .scoreboard-toggle-grid input[type="number"],
 .scoreboard-feature-row input[type="number"] {
-  width: 64px;
+  width: 58px;
   min-width: 0;
   height: 32px;
   box-sizing: border-box;
