@@ -20,6 +20,8 @@ Object.assign(App, {
     const teamEvents = allEvents.filter(e => {
       if (typeof this._isEventVisibleToUser === 'function'
         && !this._isEventVisibleToUser(e, _uid)) return false;
+      if (typeof this._canListPrivateEvent === 'function'
+        && !this._canListPrivateEvent(e)) return false;
       return e.teamOnly && ((Array.isArray(e.creatorTeamIds) && e.creatorTeamIds.map(v => String(v)).includes(teamIdStr)) || String(e.creatorTeamId || '') === teamIdStr) &&
         e.status !== 'ended' && e.status !== 'cancelled';
     }).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
@@ -102,7 +104,7 @@ Object.assign(App, {
       .filter(e => {
         if (!this._isTeamEventForTeam(e, teamId)) return false;
         if (!this._isTeamEventInFuture(e, nowDate)) return false;
-        if (e.privateEvent && typeof this._canManageEvent === 'function' && !this._canManageEvent(e)) return false;
+        if (typeof this._canListPrivateEvent === 'function' && !this._canListPrivateEvent(e)) return false;
         if (typeof this._isEventVisibleToUser === 'function' && !this._isEventVisibleToUser(e, uid)) return false;
         return true;
       })

@@ -56,9 +56,16 @@ Object.assign(App, {
     body.innerHTML = '<div style="text-align:center;padding:2.5rem;color:var(--text-muted)"><div style="width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 1rem"></div>載入中...</div>';
   },
 
+  _getHostListCacheKey() {
+    var user = ApiService.getCurrentUser?.() || {};
+    var uid = user.uid || user.lineUserId || 'guest';
+    var role = user.role || this.currentRole || 'user';
+    return 'hostListCache:' + uid + ':' + role;
+  },
+
   _loadHostListCache() {
     try {
-      var raw = sessionStorage.getItem('hostListCache');
+      var raw = sessionStorage.getItem(this._getHostListCacheKey());
       if (!raw) return false;
       var cache = JSON.parse(raw);
       if (!cache || !cache.ts || (Date.now() - cache.ts) >= this._HOST_LIST_TTL) return false;
@@ -70,7 +77,7 @@ Object.assign(App, {
 
   _saveHostListCache() {
     try {
-      sessionStorage.setItem('hostListCache', JSON.stringify({ data: this._hostListData, ts: this._hostListDataTs }));
+      sessionStorage.setItem(this._getHostListCacheKey(), JSON.stringify({ data: this._hostListData, ts: this._hostListDataTs }));
     } catch (_) {}
   },
 
@@ -82,7 +89,10 @@ Object.assign(App, {
     // sessionStorage 快取（頁面重載後仍有效）
     if (this._loadHostListCache()) return;
     try {
-      var events = ApiService.getEvents() || [];
+      var canListPrivate = typeof this._canListPrivateEvent === 'function' ? this._canListPrivateEvent.bind(this) : null;
+      var events = (ApiService.getEvents() || []).filter(function(e) {
+        return !canListPrivate || canListPrivate(e);
+      });
       var hostMap = {};
       events.forEach(function(e) {
         var uid = e.creatorUid;

@@ -1020,6 +1020,101 @@ describe("/events/{eventId}", () => {
     );
   });
 
+  test("admin-below activity managers cannot operate non-owned private events", async () => {
+    await seedDoc("events", "event_private_other", {
+      id: "event_private_other",
+      title: "Private Other",
+      creatorUid: "uidA",
+      privateEvent: true,
+      status: "open",
+    });
+    await seedDoc("events", "event_private_coach_own", {
+      id: "event_private_coach_own",
+      title: "Private Coach Own",
+      creatorUid: "uidCoach",
+      privateEvent: true,
+      status: "open",
+    });
+    await seedDoc("events", "event_private_delegated", {
+      id: "event_private_delegated",
+      title: "Private Delegated",
+      creatorUid: "uidA",
+      delegateUids: ["uidCoach"],
+      privateEvent: true,
+      status: "open",
+    });
+    await seedRolePermissions("manager", ["activity.manage.entry", "event.edit_all"]);
+
+    const belowAdminManagers = [
+      ["coach", coach()],
+      ["captain", captain()],
+      ["venue_owner", venueOwner()],
+      ["manager", manager()],
+    ];
+
+    for (const [role, db] of belowAdminManagers) {
+      await assertFails(
+        updateDoc(doc(db, "events", "event_private_other"), {
+          title: `Private Other Updated By ${role}`,
+        })
+      );
+      await assertFails(
+        setDoc(doc(db, "events", "event_private_other", "attendanceRecords", `att_${role}`), {
+          eventId: "event_private_other",
+          uid: `uid_${role}`,
+          type: "checkin",
+        })
+      );
+    }
+
+    await assertFails(
+      updateDoc(doc(coach(), "events", "eventA"), {
+        privateEvent: true,
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(coach(), "events", "eventB"), {
+        title: "Public Event Managed By Coach",
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(coach(), "events", "event_private_coach_own"), {
+        title: "Private Coach Own Updated",
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(coach(), "events", "event_private_delegated"), {
+        title: "Private Delegated Updated",
+      })
+    );
+    await assertSucceeds(
+      setDoc(doc(coach(), "events", "event_private_coach_own", "attendanceRecords", "att_coach_own_private"), {
+        eventId: "event_private_coach_own",
+        uid: "uidA",
+        type: "checkin",
+      })
+    );
+    await assertSucceeds(
+      setDoc(doc(coach(), "events", "event_private_delegated", "attendanceRecords", "att_coach_delegate_private"), {
+        eventId: "event_private_delegated",
+        uid: "uidB",
+        type: "checkin",
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(admin(), "events", "event_private_other"), {
+        title: "Private Other Updated By Admin",
+      })
+    );
+    await assertSucceeds(
+      setDoc(doc(admin(), "events", "event_private_other", "attendanceRecords", "att_admin_private"), {
+        eventId: "event_private_other",
+        uid: "uidAdmin",
+        type: "checkin",
+      })
+    );
+  });
+
   test("subcollection activity record writes are limited to participant owner or event operator", async () => {
     await seedDoc("events", "event_user_activity_record", {
       id: "event_user_activity_record",

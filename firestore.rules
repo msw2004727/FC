@@ -193,14 +193,38 @@ service cloud.firestore {
       return eventData.delegateUids is list && uid in eventData.delegateUids;
     }
 
+    function isPrivateEventData(eventData) {
+      return eventData != null
+        && ('privateEvent' in eventData)
+        && eventData.privateEvent == true;
+    }
+
+    function canOperatePrivateEventData(eventData) {
+      return !isPrivateEventData(eventData)
+        || isAdmin()
+        || eventData.creatorUid == request.auth.uid
+        || eventDataHasDelegateUid(eventData, request.auth.uid);
+    }
+
+    function canBroadManageEventData(eventData) {
+      return (hasActivityManageEntry() || hasPerm('event.edit_all'))
+        && canOperatePrivateEventData(eventData);
+    }
+
+    function canBroadManageEventUpdate() {
+      return canBroadManageEventData(resource.data)
+        && canOperatePrivateEventData(request.resource.data);
+    }
+
     function isEventOperatorForData(eventData) {
       return isAuth()
         && eventData != null
         && (
-          hasActivityManageEntry()
+          canBroadManageEventData(eventData)
           || (
             authRole() == 'user'
             && hasActivityCap('user.activity.site_operate')
+            && canOperatePrivateEventData(eventData)
             && (eventData.creatorUid == request.auth.uid || eventDataHasDelegateUid(eventData, request.auth.uid))
           )
         );
@@ -653,8 +677,7 @@ service cloud.firestore {
         );
       allow update: if isAuth()
         && (
-          hasActivityManageEntry()
-          || hasPerm('event.edit_all')
+          canBroadManageEventUpdate()
           || (isEventOwner() && hasPerm('event.edit_self'))
           || isUserOwnerBasicUpdate()
           || isSignupFieldsOnly()

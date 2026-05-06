@@ -22,6 +22,9 @@ Object.assign(App, {
     if (!isAdmin) {
       events = events.filter(e => this._isEventOwner(e) || this._isEventDelegate(e));
     }
+    if (typeof this._canListPrivateEvent === 'function') {
+      events = events.filter(e => this._canListPrivateEvent(e));
+    }
     const counts = events.reduce((acc, e) => { acc[e.status] = (acc[e.status] || 0) + 1; return acc; }, {});
     const scope = isAdmin ? '所有活動' : '我管理的活動';
     const items = [
@@ -217,6 +220,9 @@ Object.assign(App, {
     let allEvents = ApiService.getEvents();
     if (!isAdmin) {
       allEvents = allEvents.filter(e => this._isEventOwner(e) || this._isEventDelegate(e));
+    }
+    if (typeof this._canListPrivateEvent === 'function') {
+      allEvents = allEvents.filter(e => this._canListPrivateEvent(e));
     }
 
     // 管理員主辦人篩選

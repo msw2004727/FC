@@ -48,6 +48,13 @@ Object.assign(App, {
   },
 
   /** 賽事狀態文字 → CSS class 對照 */
+  _getFavoriteVisibleEventMap() {
+    const events = ApiService.getEvents?.() || [];
+    return new Map(events
+      .filter(e => typeof this._canListPrivateEvent !== 'function' || this._canListPrivateEvent(e))
+      .map(e => [e.id, e]));
+  },
+
   _tournStatusCss(t) {
     if (!t) return { css: 'ended', label: '已結束' };
     const isEnded = (typeof this.isTournamentEnded === 'function') ? this.isTournamentEnded(t) : !!t.ended;
@@ -153,7 +160,9 @@ Object.assign(App, {
     const card = document.getElementById('profile-favorites-card');
     if (!card) return;
     const favs = this._getSanitizedFavorites();
-    const total = favs.events.length + favs.tournaments.length;
+    const visibleEventMap = this._getFavoriteVisibleEventMap();
+    const visibleEventCount = favs.events.filter(id => visibleEventMap.has(id)).length;
+    const total = visibleEventCount + favs.tournaments.length;
     card.style.display = '';
     const badge = document.getElementById('fav-count-badge');
     if (badge) badge.textContent = total;
@@ -173,8 +182,9 @@ Object.assign(App, {
 
     // 收集所有收藏項目
     const items = [];
+    const visibleEventMap = this._getFavoriteVisibleEventMap();
     favs.events.forEach(eid => {
-      const ev = ApiService.getEvents().find(e => e.id === eid);
+      const ev = visibleEventMap.get(eid);
       if (!ev) return;
       const sc = this._getFavoriteEventBadge(eid, ev.status);
       const dateStr = ev.date ? ev.date.split(' ')[0] : '';
