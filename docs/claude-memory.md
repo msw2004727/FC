@@ -2131,3 +2131,9 @@
 - **修復**: 模組啟動時改為優先讀既有 lexical `App/FirebaseService/ApiService/LineAuth/ScriptLoader/db`，再 fallback 到 `root.*`，並把解析到的 `App` 回填到 `root.App` 供同模組內使用。
 - **教訓**: 新模組若採 IIFE `root` 寫法，必須先核對本專案全域宣告模式；不要假設 top-level `const` 會自動掛到 `window`。
 - **驗證**: 新增 `home-dashboard-render.test.js` 覆蓋 `window.App` 為空但 lexical `App` 存在的渲染情境；本機 headless browser 實測首頁三區塊均有 children 且沒有 HomeDashboard 相關錯誤。
+
+### 2026-05-06 首頁摘要卡片緊湊化 [ux]
+- **調整**: 運動快速入口改成純圖示 + 活動數，不再顯示運動名稱；目前資訊卡改用 demo 的 meter 視覺，活動瀏覽數移到活動卡右上角；首頁建立入口改名「我要開團」並沿用活動頁同款發光按鈕。
+- **比分區**: 賽事比分改成 demo 的 league rail + score row 結構，但在沒有 `homepageMatches` / `matches` API 資料時整區收起，避免顯示空預留卡。
+- **Banner**: 首頁 banner 左右箭頭在手機視覺上隱藏，保留滑動與圓點，不再露出 `<<`。
+- **驗證**: 更新 `home-dashboard-render.test.js`，並用 headless browser 確認 banner arrow `display:none`、運動入口高度降低、比分區無資料時隱藏。

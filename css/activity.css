@@ -28,7 +28,8 @@
   margin-left: auto;
   flex-shrink: 0;
 }
-#activity-create-btn {
+#activity-create-btn,
+.home-create-event-btn {
   padding: .42rem .65rem;
   font-size: .78rem;
   white-space: nowrap;
@@ -39,11 +40,13 @@
   color: #fff;
   animation: activity-create-glow 2s ease-in-out infinite;
 }
-#activity-create-btn > span {
+#activity-create-btn > span,
+.home-create-event-btn > span {
   position: relative;
   z-index: 3;
 }
-#activity-create-btn::before {
+#activity-create-btn::before,
+.home-create-event-btn::before {
   content: '';
   position: absolute;
   top: 50%;
@@ -56,7 +59,8 @@
   animation: pwa-border-spin 2s linear infinite;
   z-index: 1;
 }
-#activity-create-btn::after {
+#activity-create-btn::after,
+.home-create-event-btn::after {
   content: '';
   position: absolute;
   inset: 2px;
@@ -64,17 +68,21 @@
   background: linear-gradient(135deg, var(--accent), #2563eb);
   z-index: 2;
 }
-#activity-create-btn:hover {
+#activity-create-btn:hover,
+.home-create-event-btn:hover {
   background: transparent;
   transform: translateY(-1px);
 }
-#activity-create-btn:hover::after {
+#activity-create-btn:hover::after,
+.home-create-event-btn:hover::after {
   background: linear-gradient(135deg, var(--accent-hover), #1d4ed8);
 }
-#activity-create-btn:active {
+#activity-create-btn:active,
+.home-create-event-btn:active {
   transform: scale(.97);
 }
-#activity-create-btn:active::after {
+#activity-create-btn:active::after,
+.home-create-event-btn:active::after {
   background: linear-gradient(135deg, var(--accent-hover), #1e40af);
 }
 @keyframes activity-create-glow {
@@ -89,7 +97,8 @@
   .activity-page-heading {
     gap: .35rem;
   }
-  #activity-create-btn {
+  #activity-create-btn,
+  .home-create-event-btn {
     padding: .38rem .5rem;
   }
 }

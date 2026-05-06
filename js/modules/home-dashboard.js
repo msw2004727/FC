@@ -5,19 +5,12 @@
 
 (function(root) {
   const app = (typeof App !== 'undefined') ? App : root.App;
-  if (!app) return;
-  root.App = app;
+  if (!app) return; root.App = app;
 
   const SCOREBOARD_FALLBACK = [
-    { id: 'premier_league', label: '英超' },
-    { id: 'laliga', label: '西甲' },
-    { id: 'serie_a', label: '義甲' },
-    { id: 'bundesliga', label: '德甲' },
-    { id: 'ligue_1', label: '法甲' },
-    { id: 'champions_league', label: '歐冠' },
-    { id: 'europa_league', label: '歐聯' },
-    { id: 'world_cup', label: '世界盃' },
-  ];
+    ['premier_league', '英超'], ['laliga', '西甲'], ['serie_a', '義甲'], ['bundesliga', '德甲'],
+    ['ligue_1', '法甲'], ['champions_league', '歐冠'], ['europa_league', '歐聯'], ['world_cup', '世界盃'],
+  ].map(([id, label]) => ({ id, label }));
 
   function numberText(value) {
     const num = Number(value || 0);
@@ -114,26 +107,30 @@
     const active = app._activeSport || localStorage.getItem('sporthub_active_sport') || 'all';
     const rows = sportRows(summary);
     host.innerHTML = rows.map(item => `
-      <button class="home-sport-chip${item.key === active ? ' active' : ''}" type="button" data-home-sport="${escapeHTML(item.key)}" onclick="App.selectHomeSport('${escapeHTML(item.key)}')">
+      <button class="home-sport-chip${item.key === active ? ' active' : ''}" type="button" data-home-sport="${escapeHTML(item.key)}" onclick="App.selectHomeSport('${escapeHTML(item.key)}')" aria-label="${escapeHTML(item.label)} ${numberText(item.count)} 個活動" title="${escapeHTML(item.label)}">
         <span class="home-sport-chip-icon">${sportIcon(item.key)}</span>
-        <span class="home-sport-chip-label">${escapeHTML(item.label)}</span>
-        <span class="home-sport-chip-count">${numberText(item.count)} 活動</span>
+        <span class="home-sport-chip-count">${numberText(item.count)}</span>
       </button>
     `).join('');
   }
 
-  function statCard({ key, label, count, page, meta, reserved }) {
+  function statCard({ key, label, count, page, views, reserved }) {
+    const viewHtml = views == null ? '' : `
+      <span class="home-stat-views" title="瀏覽統計">
+        ${eyeSvg()}
+        <span>${numberText(views)}</span>
+      </span>`;
     return `
       <button class="home-stat-card" type="button" data-stat="${escapeHTML(key)}" onclick="App.showPage('${escapeHTML(page)}')">
         <span class="home-stat-label-row">
-          <span>${escapeHTML(label)}</span>
-          ${eyeSvg()}
+          <span class="home-stat-label">${escapeHTML(label)}</span>
+          ${viewHtml}
         </span>
-        <strong class="home-stat-number">${numberText(count)}</strong>
-        <span class="home-stat-meta">
-          ${reserved ? '<span class="home-stat-reserved">預留</span>' : ''}
-          <span>${meta}</span>
+        <span class="home-stat-value-row">
+          <strong class="home-stat-number">${numberText(count)}</strong>
+          <span class="home-stat-arrow" aria-hidden="true">›</span>
         </span>
+        ${reserved ? '<span class="home-stat-reserved">預留</span>' : ''}
       </button>
     `;
   }
@@ -142,21 +139,19 @@
     const host = document.getElementById('home-info-meter');
     if (!host) return;
     const counts = summary.counts || {};
-    const views = numberText(summary.activityViews?.total || 0);
     host.innerHTML = [
       statCard({
         key: 'activities',
         label: '活動數',
         count: counts.activities,
         page: 'page-activities',
-        meta: `活動詳情 ${views} 次`,
+        views: summary.activityViews?.total || 0,
       }),
       statCard({
         key: 'teams',
         label: '俱樂部數',
         count: counts.teams,
         page: 'page-teams',
-        meta: '列表入口',
         reserved: true,
       }),
       statCard({
@@ -164,11 +159,12 @@
         label: '賽事數',
         count: counts.tournaments,
         page: 'page-tournaments',
-        meta: '列表入口',
         reserved: true,
       }),
     ].join('');
   }
+
+  function scoreboardMatches(config) { const rows = Array.isArray(config?.homepageMatches) ? config.homepageMatches : config?.matches; return (Array.isArray(rows) ? rows : []).filter(Boolean).slice(0, 3); }
 
   function scoreboardRows(config) {
     const order = Array.isArray(config?.homepageOrder) && config.homepageOrder.length
@@ -185,24 +181,34 @@
   function renderScoreboard(config) {
     const host = document.getElementById('home-scoreboard-preview');
     if (!host) return;
-    const rows = scoreboardRows(config);
-    if (config && config.homepageEnabled === false) {
+    const matches = scoreboardMatches(config);
+    if (!config || config.homepageEnabled === false || matches.length === 0) {
       host.style.display = 'none';
+      host.innerHTML = '';
       return;
     }
     host.style.display = '';
+    const leagues = scoreboardRows(config);
     host.innerHTML = `
       <div class="home-scoreboard-title-row">
-        <h3 id="home-scoreboard-title">賽事比分與行事曆</h3>
-        <span class="home-scoreboard-badge">預留</span>
+        <h3 id="home-scoreboard-title">賽事比分</h3>
       </div>
-      <div class="home-scoreboard-grid">
-        ${rows.map(item => `
-          <div class="home-scoreboard-item">
-            <div class="home-scoreboard-league">${escapeHTML(item.label)}</div>
-            <div class="home-scoreboard-line">比分 / 賽程 API 待啟用</div>
-          </div>
+      <div class="home-scoreboard-panel">
+        <div class="home-league-rail" aria-label="賽事分類">
+          ${leagues.map((item, index) => `<button class="home-league-chip${index === 0 ? ' active' : ''}" type="button">${escapeHTML(item.label)}</button>`).join('')}
+        </div>
+        <div class="home-score-list">
+        ${matches.map(item => `
+          <a class="home-score-row" href="#page-match-calendar" aria-label="前往賽事比分與行事曆">
+            <div class="home-score-time">${escapeHTML(item.timeLabel || item.time || '預留')}<br>${escapeHTML(item.dateLabel || item.date || 'API')}</div>
+            <div class="home-score-main">
+              <div class="home-score-title">${escapeHTML(item.title || item.match || '比分與行事曆資料槽')}</div>
+              <div class="home-score-sub">${escapeHTML(item.subtitle || item.league || '賽程資料')}</div>
+            </div>
+            <div class="home-score-badge${item.reserved ? ' reserve' : ''}">${escapeHTML(item.status || '未開賽')}</div>
+          </a>
         `).join('')}
+        </div>
       </div>
     `;
   }
@@ -260,7 +266,7 @@
       if (typeof this.openCreateEventModal === 'function') {
         this.openCreateEventModal();
       } else {
-        this.showToast?.('請從活動頁右上角新增活動');
+        this.showToast?.('請從活動頁右上角「我要開團」進入');
       }
     },
 

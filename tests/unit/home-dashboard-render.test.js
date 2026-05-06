@@ -58,9 +58,24 @@ describe("home-dashboard browser binding", () => {
     await app.renderHomeScoreboardPreview();
 
     expect(dom.window.document.getElementById("home-sport-entry").children).toHaveLength(2);
+    expect(dom.window.document.getElementById("home-sport-entry").textContent).toContain("19");
+    expect(dom.window.document.getElementById("home-sport-entry").textContent).not.toContain("足球");
     expect(dom.window.document.getElementById("home-info-meter").children).toHaveLength(3);
     expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("活動數");
     expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("311");
-    expect(dom.window.document.getElementById("home-scoreboard-preview").textContent).toContain("英超");
+
+    const scoreboard = dom.window.document.getElementById("home-scoreboard-preview");
+    expect(scoreboard.style.display).toBe("none");
+
+    app._scoreboardConfig = {
+      homepageEnabled: true,
+      homepageOrder: ["premier_league"],
+      sources: { premier_league: { label: "英超", enabled: true } },
+      homepageMatches: [{ timeLabel: "今晚", dateLabel: "22:00", title: "A vs B", subtitle: "英超", status: "未開賽" }],
+    };
+    await app.renderHomeScoreboardPreview();
+    expect(scoreboard.style.display).toBe("");
+    expect(scoreboard.textContent).toContain("英超");
+    expect(scoreboard.textContent).toContain("A vs B");
   });
 });
