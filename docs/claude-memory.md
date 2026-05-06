@@ -2107,6 +2107,11 @@
 - **權限**: Firestore rules 禁止 client 直接刪 tournament root、entries、members，正式刪除一律走 callable；UI 仍維持 admin/super_admin 才可刪除。
 - **驗收**: 補 unit/source tests 與 rules tests，確認 direct delete 被擋、callable wrapper 使用 asia-east1、前端不再直接刪子集合。
 
+### 2026-05-06 賽事比分控制後台窄版排版修正 [bugfix]
+- **問題**: 比分控制後台的運動項目卡片在窄版用同一組 flex label 承載勾選框、欄位文字、說明按鈕與排序輸入框，畫面寬度不足時會互相擠壓，造成文字、欄位、勾選與按鈕視覺位移。
+- **修正**: 將運動項目開關列改成明確的 grid 欄位模型，checkbox、文字與說明按鈕各自固定欄位；排序欄在窄版獨立成一列，避免與四個開關互擠。
+- **驗收**: `node --check js/modules/scoreboard/scoreboard-admin.js` 通過；靜態檢查確認新增 `scoreboard-toggle-option` / `scoreboard-toggle-order` 與 640px 窄版規則。
+
 ### 2026-05-05 活動頁建立入口文案與光邊 [ux]
 - **問題**: 活動頁右上角建立入口仍顯示「新增活動」，語氣不夠貼近開團情境，也缺少明顯視覺提示。
 - **修復**: 將活動頁建立按鈕改為「我要開團」，同步更新未登入後提示與中文 i18n key，並沿用抽屜 APP 下載按鈕的旋轉光邊與發光效果。

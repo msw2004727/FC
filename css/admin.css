@@ -1816,7 +1816,7 @@
 }
 .scoreboard-toggle-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(106px, 1fr)) minmax(136px, .8fr);
   gap: .42rem;
 }
 .scoreboard-toggle-grid label,
@@ -1829,16 +1829,53 @@
   color: var(--text-secondary);
   font-size: .72rem;
   font-weight: 800;
+  white-space: nowrap;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.scoreboard-toggle-grid label {
+  display: grid;
+  align-items: center;
+  gap: .4rem;
+}
+.scoreboard-toggle-option {
+  grid-template-columns: 18px minmax(0, 1fr);
+}
+.scoreboard-toggle-order {
+  grid-template-columns: minmax(0, 1fr) 64px;
+}
+.scoreboard-toggle-grid input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  justify-self: center;
+}
+.scoreboard-toggle-grid .scoreboard-field-title {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20px;
+  align-items: center;
+  min-width: 0;
+  gap: .32rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scoreboard-toggle-grid .scoreboard-field-title .scoreboard-info-btn {
+  justify-self: end;
+}
+.scoreboard-toggle-order .scoreboard-field-title {
+  justify-self: start;
+}
+.scoreboard-feature-row {
   display: flex;
   align-items: center;
   gap: .35rem;
-  white-space: nowrap;
-  min-width: 0;
 }
 .scoreboard-toggle-grid input[type="number"],
 .scoreboard-feature-row input[type="number"] {
-  width: 58px;
+  width: 64px;
   min-width: 0;
+  height: 32px;
+  box-sizing: border-box;
 }
 .scoreboard-feature-list {
   display: grid;
@@ -1851,6 +1888,13 @@
   color: var(--text-muted);
   font-size: .7rem;
 }
+@media (max-width: 640px) {
+  .scoreboard-toggle-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .scoreboard-toggle-order {
+    grid-column: 1 / -1;
+    width: min(190px, 100%);
+  }
+}
 @media (max-width: 420px) {
   .scoreboard-admin-intro,
   .scoreboard-admin-title-row,
@@ -1858,5 +1902,7 @@
   .scoreboard-api-slot { flex-direction: column; align-items: flex-start; }
   .scoreboard-admin-switches { align-items: flex-start; }
   .scoreboard-meter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .scoreboard-toggle-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .scoreboard-admin-panel,
+  .scoreboard-admin-intro { margin-left: .35rem; margin-right: .35rem; }
+  .scoreboard-source-row { padding: .62rem; }
 }

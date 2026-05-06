@@ -139,11 +139,11 @@
             </label>
           </div>
           <div class="scoreboard-toggle-grid">
-            <label><input type="checkbox" class="scoreboard-sport-homepage" ${checked(config.homepageSports, item.key)} ${locked ? 'disabled' : ''}>${fieldTitle('首頁', 'homepageSports')}</label>
-            <label><input type="checkbox" class="scoreboard-sport-live" ${checked(config.liveSports, item.key)} ${locked ? 'disabled' : ''}>${fieldTitle('即時', 'liveSports')}</label>
-            <label><input type="checkbox" class="scoreboard-sport-schedule" ${checked(config.scheduleSports, item.key)} ${locked ? 'disabled' : ''}>${fieldTitle('賽程', 'scheduleSports')}</label>
-            <label><input type="checkbox" class="scoreboard-sport-detail" ${checked(config.detailSports, item.key)} ${locked ? 'disabled' : ''}>${fieldTitle('詳情', 'detailSports')}</label>
-            <label>${fieldTitle('排序', 'sortOrder')}<input class="scoreboard-sport-order" type="number" min="1" max="999" step="1" value="${esc(sport.sortOrder || item.sortOrder)}" ${locked ? 'disabled' : ''}></label>
+            <label class="scoreboard-toggle-option"><input type="checkbox" class="scoreboard-sport-homepage" ${checked(config.homepageSports, item.key)} ${locked ? 'disabled' : ''}>${fieldTitle('首頁', 'homepageSports')}</label>
+            <label class="scoreboard-toggle-option"><input type="checkbox" class="scoreboard-sport-live" ${checked(config.liveSports, item.key)} ${locked ? 'disabled' : ''}>${fieldTitle('即時', 'liveSports')}</label>
+            <label class="scoreboard-toggle-option"><input type="checkbox" class="scoreboard-sport-schedule" ${checked(config.scheduleSports, item.key)} ${locked ? 'disabled' : ''}>${fieldTitle('賽程', 'scheduleSports')}</label>
+            <label class="scoreboard-toggle-option"><input type="checkbox" class="scoreboard-sport-detail" ${checked(config.detailSports, item.key)} ${locked ? 'disabled' : ''}>${fieldTitle('詳情', 'detailSports')}</label>
+            <label class="scoreboard-toggle-option scoreboard-toggle-order">${fieldTitle('排序', 'sortOrder')}<input class="scoreboard-sport-order" type="number" min="1" max="999" step="1" value="${esc(sport.sortOrder || item.sortOrder)}" ${locked ? 'disabled' : ''}></label>
           </div>
         </section>
       `;
