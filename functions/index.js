@@ -4127,6 +4127,7 @@ exports.watchUsersChanges = onDocumentWrittenWithAuthContext(
 exports.watchEventsChanges = onDocumentWrittenWithAuthContext(
   {
     ...CHANGE_WATCH_FUNCTION_OPTIONS,
+    memory: "256MiB",
     document: "events/{eventId}",
   },
   async (event) => processChangeWatchEvent(event, "events", classifyEventsChange),
@@ -4135,6 +4136,7 @@ exports.watchEventsChanges = onDocumentWrittenWithAuthContext(
 exports.watchRegistrationsChanges = onDocumentWrittenWithAuthContext(
   {
     ...CHANGE_WATCH_FUNCTION_OPTIONS,
+    memory: "256MiB",
     document: "events/{eventId}/registrations/{regId}",
   },
   async (event) => processChangeWatchEvent(event, "registrations", classifyRegistrationsChange),
