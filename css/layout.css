@@ -576,7 +576,27 @@
 /* ─── Page Header ─── */
 .page-header { display: flex; align-items: center; justify-content: space-between; padding: .6rem .2rem; gap: .5rem; }
 .page-header h2 { font-family: var(--font-display); font-size: 1.15rem; font-weight: 800; flex: 1; }
-.page-header .back-btn { position: static; background: var(--bg-elevated); color: var(--text-primary); flex-shrink: 0; }
+.page-header .back-btn {
+  position: static;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  line-height: 1;
+  box-shadow: none;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition), transform .15s ease;
+}
+.page-header .back-btn:hover { background: var(--accent-bg); color: var(--accent); }
+.page-header .back-btn:active { transform: scale(.94); }
 .page-header-doc-btn { display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:var(--bg-elevated);color:var(--text-secondary);border:1px solid var(--border);flex-shrink:0;transition:background .15s,color .15s; }
 .page-header-doc-btn:hover { background:var(--accent-bg);color:var(--accent); }
 

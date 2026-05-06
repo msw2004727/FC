@@ -1,5 +1,11 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-06 Page Header Back Button Restore [bugfix]
+- **問題**: 我的、活動行事曆、俱樂部、賽事中心、訊息等頂層頁面沒有顯示與賽事比分控制相同的圓形返回按鈕。
+- **原因**: 不是 CSS 隱藏，而是這些頁面的第一層 `page-header` 缺少 `.back-btn`；活動頁在 2026-04-29 header 重排後維持無返回按鈕，其他頂層頁面也未統一套用。
+- **修復**: 在 `pages/activity.html`、`pages/team.html`、`pages/tournament.html`、`pages/message.html`、`pages/profile.html` 補回 `App.goBack()` 圓形返回按鈕，並把 `page-header .back-btn` 的尺寸、圓形、hover/active 樣式集中到 `css/layout.css`。
+- **驗收**: 新增 `tests/unit/page-header-back-button.test.js`，掃描 `pages/*.html` 確認所有靜態 `page-header` 都有 `.back-btn`，並鎖定五個主頁入口不可再缺漏。
+
 ### 2026-05-02 僅代報顯示列補回且不佔名額 [修復]
 - **問題**: 前一版為了修正陪同報名 proxy-only 代報者被多算名額，直接把代報者顯示列排除，導致「弘鈞」這類只代報、不參加的人在名單中看不到「僅代報」備註。
 - **修復**: `_buildConfirmedParticipantSummary()` 重新產生 `proxyOnly/isProxyOnly` 顯示列，但 `count/realCount`、簽到簽退、放鴿子與名額統計全部排除；`event-manage-attendance.js` 將該列改為淡灰漸層特殊樣式，備註固定顯示「僅代報」，不提供簽到簽退操作。
