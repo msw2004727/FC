@@ -68,7 +68,9 @@ describe("home-dashboard browser binding", () => {
     expect(sportEntry.querySelector('[data-home-sport="football"]')?.getAttribute("aria-label")).toContain("足球");
     expect(sportEntry.querySelector(".home-sport-chip-mark")?.innerHTML).toContain("football");
     expect(dom.window.document.getElementById("home-info-meter").children).toHaveLength(3);
-    expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("活動");
+    expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("已開放活動");
+    expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("已成立俱樂部");
+    expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("正舉辦賽事");
     expect(dom.window.document.getElementById("home-info-meter").textContent).not.toContain("活動數");
     expect(dom.window.document.getElementById("home-info-meter").textContent).not.toContain("預留");
     expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("811");

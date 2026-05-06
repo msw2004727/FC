@@ -142,20 +142,20 @@
     host.innerHTML = [
       statCard({
         key: 'activities',
-        label: '活動',
+        label: '已開放活動',
         count: counts.activities,
         page: 'page-activities',
         views: Number(summary.activityViews?.total || 0) + 500,
       }),
       statCard({
         key: 'teams',
-        label: '俱樂部',
+        label: '已成立俱樂部',
         count: counts.teams,
         page: 'page-teams',
       }),
       statCard({
         key: 'tournaments',
-        label: '賽事',
+        label: '正舉辦賽事',
         count: counts.tournaments,
         page: 'page-tournaments',
       }),

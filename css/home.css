@@ -85,6 +85,10 @@
   color: var(--text-muted);
 }
 
+.home-info-title-row {
+  margin-bottom: .42rem;
+}
+
 .home-sport-entry {
   display: flex;
   gap: .56rem;
@@ -252,9 +256,11 @@
 }
 
 .home-stat-number {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-family: "Arial Black", "Segoe UI Black", "Microsoft JhengHei UI", system-ui, sans-serif;
   font-size: 2.18rem;
-  font-weight: 900;
+  font-weight: 950;
+  font-stretch: expanded;
+  font-variant-numeric: tabular-nums;
   line-height: 1;
   letter-spacing: 0;
   color: #2563eb;
