@@ -269,6 +269,10 @@
 .home-stat-card:nth-child(2) .home-stat-number { color: #16a34a; }
 .home-stat-card:nth-child(3) .home-stat-number { color: #d97706; }
 
+[data-theme="dark"] .home-stat-card:nth-child(1) .home-stat-number {
+  color: var(--warning, #fbbf24);
+}
+
 .home-stat-value-row {
   flex: 1 1 auto;
   margin-top: .12rem;
@@ -371,6 +375,16 @@
   color: color-mix(in srgb, #2563eb 68%, var(--text-muted) 32%);
 }
 
+[data-theme="dark"] .home-scoreboard-section-tab.active {
+  border-color: color-mix(in srgb, var(--warning, #fbbf24) 46%, transparent);
+  background: color-mix(in srgb, var(--warning, #fbbf24) 16%, transparent);
+  color: var(--warning, #fbbf24);
+}
+
+[data-theme="dark"] .home-scoreboard-section-tab.active small {
+  color: color-mix(in srgb, var(--warning, #fbbf24) 74%, var(--text-muted) 26%);
+}
+
 .home-league-rail {
   display: flex;
   gap: .45rem;
@@ -402,11 +416,21 @@
   color: #2563eb;
 }
 
+[data-theme="dark"] .home-league-chip.active {
+  background: color-mix(in srgb, var(--warning, #fbbf24) 16%, transparent);
+  border-color: color-mix(in srgb, var(--warning, #fbbf24) 44%, transparent);
+  color: var(--warning, #fbbf24);
+}
+
 .home-league-chip span {
   margin-left: .32rem;
   color: var(--text-muted);
   font-size: .68rem;
   font-weight: 850;
+}
+
+[data-theme="dark"] .home-league-chip.active span {
+  color: color-mix(in srgb, var(--warning, #fbbf24) 76%, var(--text-muted) 24%);
 }
 
 .home-scoreboard-note {
