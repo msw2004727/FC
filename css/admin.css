@@ -1628,6 +1628,10 @@
   margin: 0;
   font-size: .95rem;
   font-weight: 850;
+  display: inline-flex;
+  align-items: center;
+  gap: .28rem;
+  white-space: nowrap;
 }
 .scoreboard-admin-intro p,
 .scoreboard-admin-title-row span,
@@ -1636,6 +1640,10 @@
   color: var(--text-muted);
   font-size: .74rem;
   line-height: 1.45;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .scoreboard-home-toggle,
 .scoreboard-source-toggle {
@@ -1646,6 +1654,14 @@
   color: var(--text-secondary);
   font-size: .76rem;
   font-weight: 800;
+  white-space: nowrap;
+}
+.scoreboard-home-toggle span,
+.scoreboard-source-toggle span {
+  display: inline-flex;
+  align-items: center;
+  gap: .28rem;
+  white-space: nowrap;
 }
 .scoreboard-admin-title-row {
   display: flex;
@@ -1675,9 +1691,13 @@
   justify-content: space-between;
   gap: .6rem;
 }
+.scoreboard-source-main > div { min-width: 0; }
 .scoreboard-source-name {
   font-size: .88rem;
   font-weight: 850;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .scoreboard-source-fields {
   display: grid;
@@ -1690,6 +1710,7 @@
   color: var(--text-muted);
   font-size: .72rem;
   font-weight: 750;
+  min-width: 0;
 }
 .scoreboard-api-slot {
   align-items: flex-start;
@@ -1702,7 +1723,34 @@
 .scoreboard-api-slot code {
   color: var(--accent);
   font-size: .72rem;
+  white-space: nowrap;
 }
+.scoreboard-field-title {
+  display: inline-flex;
+  align-items: center;
+  gap: .28rem;
+  max-width: 100%;
+  white-space: nowrap;
+}
+.scoreboard-info-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: .68rem;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: 0;
+  line-height: 1;
+  vertical-align: middle;
+}
+.scoreboard-info-btn:hover { background: var(--accent); color: #fff; }
 .scoreboard-sort-list {
   display: grid;
   gap: .45rem;
@@ -1716,10 +1764,13 @@
   color: var(--text-primary);
   font-size: .8rem;
   font-weight: 850;
+  white-space: nowrap;
+  min-width: 0;
 }
-.scoreboard-sort-pill span {
+.scoreboard-sort-pill > span:not(.scoreboard-field-title) {
   color: var(--text-muted);
   font-size: .72rem;
+  white-space: nowrap;
 }
 .scoreboard-locked-note {
   margin: .45rem .5rem 0;

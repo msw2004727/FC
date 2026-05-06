@@ -11,7 +11,6 @@
     ['premier_league', '英超'], ['laliga', '西甲'], ['serie_a', '義甲'], ['bundesliga', '德甲'],
     ['ligue_1', '法甲'], ['champions_league', '歐冠'], ['europa_league', '歐聯'], ['world_cup', '世界盃'],
   ].map(([id, label]) => ({ id, label }));
-  const SPORT_SHORT = { football: 'FO', basketball: 'BK', pickleball: 'PK', dodgeball: 'DG', restaurant: 'RS', baseball_softball: 'BB', volleyball: 'VB', table_tennis: 'TT', tennis: 'TN', badminton: 'BD', hiking: 'HK', running: 'RN', cycling: 'CY', motorcycle: 'MC', motorsport: 'MT', skateboard: 'SK', dance: 'DN', yoga: 'YG', martial_arts: 'MA' };
 
   function numberText(value) {
     const num = Number(value || 0);
@@ -90,10 +89,6 @@
     if (typeof root.getSportIconSvg === 'function') return root.getSportIconSvg(key);
     return '<span class="sport-emoji" aria-hidden="true">•</span>';
   }
-  function sportShort(key, label) {
-    if (SPORT_SHORT[key]) return SPORT_SHORT[key];
-    return String(label || key || 'SP').trim().slice(0, 2).toUpperCase() || 'SP';
-  }
 
   function safeSportKey(key) {
     if (key === 'all') return 'all';
@@ -113,8 +108,7 @@
     const rows = sportRows(summary);
     host.innerHTML = rows.map(item => `
       <button class="home-sport-chip${item.key === active ? ' active' : ''}" type="button" data-home-sport="${escapeHTML(item.key)}" onclick="App.selectHomeSport('${escapeHTML(item.key)}')" aria-label="${escapeHTML(item.label)} ${numberText(item.count)} 個活動" title="${escapeHTML(item.label)}">
-        <span class="home-sport-chip-mark" aria-hidden="true">${escapeHTML(sportShort(item.key, item.label))}</span>
-        <span class="home-sport-chip-label">${escapeHTML(item.label)}</span>
+        <span class="home-sport-chip-mark" aria-hidden="true">${sportIcon(item.key)}</span>
         <span class="home-sport-chip-count">${numberText(item.count)} 活動</span>
       </button>
     `).join('');
@@ -130,11 +124,11 @@
       <button class="home-stat-card" type="button" data-stat="${escapeHTML(key)}" onclick="App.showPage('${escapeHTML(page)}')">
         <span class="home-stat-label-row">
           <span class="home-stat-label">${escapeHTML(label)}</span>
-          ${viewHtml}
         </span>
         <span class="home-stat-value-row">
           <strong class="home-stat-number">${numberText(count)}</strong>
         </span>
+        ${viewHtml}
       </button>
     `;
   }

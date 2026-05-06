@@ -57,10 +57,12 @@ describe("home-dashboard browser binding", () => {
     app.renderHomeDashboard();
     await app.renderHomeScoreboardPreview();
 
-    expect(dom.window.document.getElementById("home-sport-entry").children).toHaveLength(2);
-    expect(dom.window.document.getElementById("home-sport-entry").textContent).toContain("19");
-    expect(dom.window.document.getElementById("home-sport-entry").textContent).toContain("足球");
-    expect(dom.window.document.getElementById("home-sport-entry").textContent).toContain("19 活動");
+    const sportEntry = dom.window.document.getElementById("home-sport-entry");
+    expect(sportEntry.children).toHaveLength(2);
+    expect(sportEntry.textContent).toContain("19 活動");
+    expect(sportEntry.textContent).not.toContain("足球");
+    expect(sportEntry.querySelector('[data-home-sport="football"]')?.getAttribute("aria-label")).toContain("足球");
+    expect(sportEntry.querySelector(".home-sport-chip-mark")?.innerHTML).toContain("football");
     expect(dom.window.document.getElementById("home-info-meter").children).toHaveLength(3);
     expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("活動");
     expect(dom.window.document.getElementById("home-info-meter").textContent).not.toContain("活動數");

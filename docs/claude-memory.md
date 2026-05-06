@@ -2143,3 +2143,10 @@
 - **比分控制**: `page-admin-scoreboard` 實裝來源 API 開關、排序、首頁顯示與 API 位置預留欄位；左方抽屜入口預設只給 `super_admin`，一般 admin 需手動取得 `admin.scoreboard.entry/configure` 才能進入或儲存。
 - **安全**: `siteConfig/scoreboardConfig` 寫入規則改為 `super_admin` 或 `admin.scoreboard.configure`，保留公開欄位白名單，仍禁止 apiKey/token/secret 類資料寫進公開設定。
 - **導覽**: 版本號移到左方抽屜下載 APP 按鈕下方並置右，首頁 banner 左右箭頭按鈕改成 hidden 空按鈕，避免手機左上角露出 `<<`。
+
+### 2026-05-06 首頁摘要細節回歸與 banner 汙染修復 [bugfix/ux]
+- **問題**: 首頁運動入口仍顯示 `FO/DG/BK` 短碼，統計卡瀏覽數位置不符合需求，且手機左上角持續出現 `<<`。
+- **原因**: `index.html` 的 boot banner 注入區前實際殘留 `<<` 字元；`scripts/inject-hot-events.js` 更新 inline payload 時會保留 marker 前既有雜訊，導致自動寫入後問題持續。
+- **修復**: 運動入口改用 `getSportIconSvg()` 既有體育標籤圖示並只顯示圖示 + 活動數；目前資訊卡新增上方分隔線，眼睛瀏覽數改到卡片底部置中；抽屜將 `賽事比分控制` 移到 `SEO 儀表板` 正下方並用同一紅色群組避免分隔線；比分控制欄位加上圓形說明按鈕且文字不換行。
+- **防復發**: 移除 `index.html` 的殘留 `<<`，並在 `inject-hot-events.js` 增加 marker 前雜訊清理，避免 GitHub 自動注入流程再次保留同類字元。
+- **驗證**: `node --check` 覆蓋首頁、比分控制、config、注入腳本；`npm test -- --runInBand ...` 實際跑完整 unit suite，95 suites / 2791 tests 全通過。

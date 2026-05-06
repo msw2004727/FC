@@ -356,9 +356,16 @@ function removeBlock(html, config) {
   return html.slice(0, beginIdx) + html.slice(endIdx + config.markerEnd.length).replace(/^\s*\n/, '');
 }
 
+function sanitizeInjectionArtifacts(html) {
+  return Object.values(INJECTION_CONFIGS).reduce((current, config) => {
+    const escaped = config.markerBegin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return current.replace(new RegExp(`(^|\\n)[ \\t]*<<[ \\t]*(${escaped})`, 'g'), '$1  $2');
+  }, html);
+}
+
 function injectIntoIndex(payloads) {
   const original = fs.readFileSync(INDEX_HTML_PATH, 'utf8');
-  let html = LEGACY_BLOCKS.reduce((current, config) => removeBlock(current, config), original);
+  let html = sanitizeInjectionArtifacts(LEGACY_BLOCKS.reduce((current, config) => removeBlock(current, config), original));
   const ts = Date.now();
 
   payloads.forEach(payload => {

@@ -29,6 +29,29 @@
     return app.hasPermission?.('admin.scoreboard.configure') || roleKey === 'super_admin';
   }
 
+  const INFO = {
+    homepageToggle: { title: '首頁比分區顯示', body: '開著時，首頁會保留比分與賽程區。關掉後，首頁直接隱藏這一區。' },
+    sourceToggle: { title: '來源開關', body: '這個來源是否要出現在首頁的比分區。之後接 API 時也會照這裡的開關判斷。' },
+    sourceLabel: { title: '首頁名稱', body: '顯示給一般使用者看的名稱，建議短一點，例如英超、NBA、奧運。' },
+    sourceOrder: { title: '排序', body: '數字越小越前面。未來來源變多時，首頁會照這個順序先顯示。' },
+    apiSlot: { title: 'API 位置預留', body: '這裡只放來源代號，不放金鑰。正式 API 金鑰會放後端，避免暴露在前台。' },
+    sourcePanel: { title: '來源 API 開關', body: '先把可控制的來源儀表做好，資料 API 後續再接，不影響目前首頁速度。' },
+    strategyPanel: { title: '排序與載入策略', body: '首頁以快速載入為主，只讀公開設定；真正比分資料後續可再分批或延遲載入。' },
+    sortHome: { title: '首頁排序', body: '用每個來源的排序數字決定排列，數字越小越優先。' },
+    dataLoad: { title: '資料載入', body: '首頁先讀公開設定，不在第一時間載入大量比分資料。' },
+    homeLimit: { title: '首頁筆數', body: '目前預設最多放 3 場，避免首頁變慢或畫面太長。' },
+    cacheStrategy: { title: '快取策略', body: '優先使用快取與公開設定，減少讀取量，提升首頁開啟速度。' },
+    enabledCount: { title: '已開來源', body: '目前有多少來源被打開，方便快速檢查設定狀態。' },
+  };
+
+  function infoButton(key) {
+    return `<button class="scoreboard-info-btn" type="button" onclick="event.stopPropagation();App.showScoreboardInfo('${esc(key)}')" title="說明" aria-label="說明">?</button>`;
+  }
+
+  function fieldTitle(text, key) {
+    return `<span class="scoreboard-field-title">${esc(text)}${infoButton(key)}</span>`;
+  }
+
   function sourceRows(config) {
     const catalog = root.ScoreboardConfigUtils?.SOURCE_CATALOG || [];
     const sources = config.sources || {};
@@ -48,21 +71,21 @@
             </div>
             <label class="scoreboard-source-toggle">
               <input type="checkbox" class="scoreboard-source-enabled" ${enabled ? 'checked' : ''}>
-              <span>首頁顯示</span>
+              <span>首頁顯示${infoButton('sourceToggle')}</span>
             </label>
           </div>
           <div class="scoreboard-source-fields">
             <label>
-              <span>首頁名稱</span>
+              ${fieldTitle('首頁名稱', 'sourceLabel')}
               <input class="scoreboard-source-label" type="text" maxlength="24" value="${esc(src.label || item.label)}">
             </label>
             <label>
-              <span>排序</span>
+              ${fieldTitle('排序', 'sourceOrder')}
               <input class="scoreboard-source-order" type="number" min="1" max="999" step="1" value="${esc(order)}">
             </label>
           </div>
           <div class="scoreboard-api-slot">
-            <span>API 位置預留</span>
+            ${fieldTitle('API 位置預留', 'apiSlot')}
             <code>${esc(src.sourceKey || item.sourceKey)}</code>
             <small>正式端點與金鑰後續接後端，前端不保存密鑰。</small>
           </div>
@@ -73,13 +96,14 @@
 
   function sortSummary(config) {
     const enabledCount = Object.values(config.sources || {}).filter(src => src?.enabled !== false).length;
+    const pill = (title, value, key) => `<div class="scoreboard-sort-pill">${fieldTitle(title, key)} <span>${esc(value)}</span></div>`;
     return `
       <div class="scoreboard-sort-list">
-        <div class="scoreboard-sort-pill">首頁排序 <span>依排序數字由小到大</span></div>
-        <div class="scoreboard-sort-pill">資料載入 <span>首頁只讀公開設定</span></div>
-        <div class="scoreboard-sort-pill">首頁筆數 <span>目前最多 3 場</span></div>
-        <div class="scoreboard-sort-pill">快取策略 <span>優先速度與低讀取</span></div>
-        <div class="scoreboard-sort-pill">已開來源 <span>${enabledCount} 個</span></div>
+        ${pill('首頁排序', '依排序數字由小到大', 'sortHome')}
+        ${pill('資料載入', '首頁只讀公開設定', 'dataLoad')}
+        ${pill('首頁筆數', '目前最多 3 場', 'homeLimit')}
+        ${pill('快取策略', '優先速度與低讀取', 'cacheStrategy')}
+        ${pill('已開來源', `${enabledCount} 個`, 'enabledCount')}
       </div>
     `;
   }
@@ -100,19 +124,19 @@
         </div>
         <label class="scoreboard-home-toggle">
           <input type="checkbox" id="scoreboard-homepage-enabled" ${config.homepageEnabled !== false ? 'checked' : ''}>
-          <span>首頁比分區顯示</span>
+          <span>首頁比分區顯示${infoButton('homepageToggle')}</span>
         </label>
       </section>
       <section class="scoreboard-admin-panel">
         <div class="scoreboard-admin-title-row">
-          <h3>來源 API 開關</h3>
+          <h3>來源 API 開關${infoButton('sourcePanel')}</h3>
           <span>足球、NBA、羽球、奧運先預留；未來可再新增其他運動。</span>
         </div>
         <div id="scoreboard-source-list" class="scoreboard-source-list">${sourceRows(config)}</div>
       </section>
       <section class="scoreboard-admin-panel">
         <div class="scoreboard-admin-title-row">
-          <h3>排序與載入策略</h3>
+          <h3>排序與載入策略${infoButton('strategyPanel')}</h3>
           <span>首頁以速度優先，正式資料後續再接入。</span>
         </div>
         ${sortSummary(config)}
@@ -178,6 +202,21 @@
         const currentBtn = document.getElementById('scoreboard-save-btn');
         currentBtn && (currentBtn.disabled = false);
       }
+    },
+
+    showScoreboardInfo(key) {
+      const info = INFO[key] || { title: '欄位說明', body: '這個欄位用來控制首頁比分區的顯示方式。' };
+      const overlay = document.createElement('div');
+      overlay.className = 'edu-info-overlay';
+      overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+      overlay.innerHTML = `
+        <div class="edu-info-dialog">
+          <button class="edu-info-close" type="button" onclick="this.closest('.edu-info-overlay').remove()">×</button>
+          <div class="edu-info-dialog-title">${esc(info.title)}</div>
+          <div style="font-size:.82rem;line-height:1.65;color:var(--text-secondary)">${esc(info.body)}</div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
     },
   });
 })(typeof window !== 'undefined' ? window : globalThis);
