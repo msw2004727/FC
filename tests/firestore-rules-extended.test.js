@@ -17,9 +17,12 @@ const {
 
 const PROJECT_ID = "demo-rules-test";
 const RULES_PATH = path.resolve(__dirname, "..", "firestore.rules");
+const RULES_TEST_TIMEOUT_MS = 30000;
 const [EMULATOR_HOST, EMULATOR_PORT] = (
   process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8080"
 ).split(":");
+
+jest.setTimeout(RULES_TEST_TIMEOUT_MS);
 
 let testEnv;
 
@@ -349,7 +352,7 @@ beforeAll(async () => {
       rules: fs.readFileSync(RULES_PATH, "utf8"),
     },
   });
-});
+}, RULES_TEST_TIMEOUT_MS);
 
 beforeEach(async () => {
   await testEnv.clearFirestore();
@@ -357,8 +360,8 @@ beforeEach(async () => {
 }, 30000);
 
 afterAll(async () => {
-  await testEnv.cleanup();
-});
+  if (testEnv) await testEnv.cleanup();
+}, RULES_TEST_TIMEOUT_MS);
 
 // ═══════════════════════════════════════════════════════════════
 //  eventTemplates
