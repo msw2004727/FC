@@ -424,18 +424,6 @@
 
 .home-scoreboard-note span { min-width: 0; }
 
-.home-scoreboard-more-link {
-  border: 0;
-  background: transparent;
-  color: var(--accent, #0d9488);
-  font: inherit;
-  font-weight: 900;
-  line-height: 1.45;
-  padding: 0;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
 .home-score-list { display: grid; }
 
 .home-score-row {

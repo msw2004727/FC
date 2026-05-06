@@ -13,8 +13,7 @@
   ].map(([id, label]) => ({ id, label }));
   const HOME_SCOREBOARD_LIMIT = 3;
   const HOME_SCOREBOARD_SECTION_KEYS = ['featured', 'live', 'schedule'];
-  const HOME_SCOREBOARD_NOTICE = '系統更新頻率仍在測試階段，比分與賽程僅供參考，實際結果請以官方公告為準。';
-  const HOME_SCOREBOARD_MORE_TEXT = '點擊可看更多賽事';
+  const HOME_SCOREBOARD_NOTICE = '更新頻率仍在測試，比分賽程僅供參考，實際結果以官方公告為準。';
   const HOME_SCOREBOARD_SECTIONS = {
     featured: {
       label: '焦點賽事',
@@ -425,7 +424,6 @@
     const notice = `
       <div class="home-scoreboard-note">
         <span>${escapeHTML(HOME_SCOREBOARD_NOTICE)}</span>
-        <button class="home-scoreboard-more-link" type="button" onclick="App.openHomeScoreboardMore?.()">${escapeHTML(HOME_SCOREBOARD_MORE_TEXT)}</button>
       </div>`;
     const rows = matches.length ? `
       <div class="home-score-list">
@@ -563,10 +561,6 @@
 
     async openHomeScoreboardMatch(sport, matchId) {
       this._scoreboardPendingContext = { sport, matchId };
-      await this.showPage?.('page-match-calendar');
-    },
-
-    async openHomeScoreboardMore() {
       await this.showPage?.('page-match-calendar');
     },
   });

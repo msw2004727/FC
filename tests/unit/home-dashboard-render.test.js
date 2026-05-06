@@ -114,8 +114,8 @@ describe("home-dashboard browser binding", () => {
     expect(scoreboard.querySelectorAll(".home-scoreboard-section-tab")).toHaveLength(3);
     expect(scoreboard.querySelector(".home-scoreboard-section-tab.active")?.getAttribute("onclick")).toContain("featured");
     expect(scoreboard.querySelector(".home-scoreboard-note")).not.toBeNull();
-    expect(scoreboard.textContent).toContain("系統更新頻率仍在測試階段");
-    expect(scoreboard.textContent).toContain("點擊可看更多賽事");
+    expect(scoreboard.textContent).toContain("更新頻率仍在測試");
+    expect(scoreboard.textContent).not.toContain("點擊可看更多賽事");
     expect(scoreboard.textContent).toContain("A vs B");
     expect(scoreboard.textContent).not.toContain("C vs D");
 
@@ -132,9 +132,6 @@ describe("home-dashboard browser binding", () => {
     expect(scoreboard.querySelector(".home-scoreboard-section-tab.active")?.getAttribute("onclick")).toContain("schedule");
     expect(scoreboard.textContent).toContain("Soon A vs Soon B");
     expect(scoreboard.querySelector(".home-scoreboard-note")).not.toBeNull();
-
-    await app.openHomeScoreboardMore();
-    expect(app.showPage).toHaveBeenCalledWith("page-match-calendar");
 
     app.selectHomeScoreboardSection("featured");
     expect(scoreboard.querySelector(".home-scoreboard-section-tab.active")?.getAttribute("onclick")).toContain("featured");
