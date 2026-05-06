@@ -67,6 +67,45 @@
     return Array.isArray(list) && list.includes(key) ? 'checked' : '';
   }
 
+  function findSportRow(sportKey) {
+    return Array.from(document.querySelectorAll('.scoreboard-sport-row[data-sport]'))
+      .find(row => row.dataset.sport === sportKey) || null;
+  }
+
+  function sportSettingSummary({ enabled, homepage, live, schedule, detail, order }) {
+    const flags = [];
+    if (homepage) flags.push('首頁');
+    if (live) flags.push('即時');
+    if (schedule) flags.push('賽程');
+    if (detail) flags.push('詳情');
+    const prefix = enabled ? (flags.length ? flags.join(' / ') : '已啟用') : '停用';
+    return `${prefix} · #${Number(order || 99)}`;
+  }
+
+  function updateSportCard(row) {
+    if (!row) return;
+    const enabled = row.querySelector('.scoreboard-sport-enabled')?.checked === true;
+    const homepage = row.querySelector('.scoreboard-sport-homepage')?.checked === true;
+    const live = row.querySelector('.scoreboard-sport-live')?.checked === true;
+    const schedule = row.querySelector('.scoreboard-sport-schedule')?.checked === true;
+    const detail = row.querySelector('.scoreboard-sport-detail')?.checked === true;
+    const order = row.querySelector('.scoreboard-sport-order')?.value || 99;
+    row.classList.toggle('is-enabled', enabled);
+    const status = row.querySelector('[data-sport-status]');
+    const summary = row.querySelector('[data-sport-summary]');
+    if (status) status.textContent = enabled ? '啟用' : '停用';
+    if (summary) summary.textContent = sportSettingSummary({ enabled, homepage, live, schedule, detail, order });
+  }
+
+  function switchMarkup(className, isChecked, locked) {
+    return `
+      <span class="scoreboard-switch">
+        <input type="checkbox" class="${esc(className)}" ${isChecked ? 'checked' : ''} ${locked ? 'disabled' : ''}>
+        <span class="scoreboard-switch-slider" aria-hidden="true"></span>
+      </span>
+    `;
+  }
+
   function todayKey() {
     const parts = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Asia/Taipei',
@@ -223,24 +262,35 @@
     const catalog = root.ScoreboardConfigUtils?.SPORT_CATALOG || [];
     return catalog.map(item => {
       const sport = config.sports?.[item.key] || {};
+      const enabled = sport.enabled === true;
+      const homepage = Array.isArray(config.homepageSports) && config.homepageSports.includes(item.key);
+      const live = Array.isArray(config.liveSports) && config.liveSports.includes(item.key);
+      const schedule = Array.isArray(config.scheduleSports) && config.scheduleSports.includes(item.key);
+      const detail = Array.isArray(config.detailSports) && config.detailSports.includes(item.key);
+      const order = sport.sortOrder || item.sortOrder;
+      const summary = sportSettingSummary({ enabled, homepage, live, schedule, detail, order });
       return `
-        <section class="scoreboard-source-row scoreboard-sport-row" data-sport="${esc(item.key)}">
-          <div class="scoreboard-source-main">
-            <div>
-              <div class="scoreboard-source-name">${esc(item.label)}</div>
-              <div class="scoreboard-source-meta">SportsAPI Pro V2 · ${esc(item.apiSport)}</div>
+        <section class="scoreboard-source-row scoreboard-sport-row ${enabled ? 'is-enabled' : ''}" data-sport="${esc(item.key)}" data-locked="${locked ? 'true' : 'false'}">
+          <button class="scoreboard-sport-card" type="button" onclick="App.openScoreboardSportSettings('${esc(item.key)}')">
+            <div class="scoreboard-sport-card-head">
+              <span class="scoreboard-sport-icon">${esc(item.icon || '🏟️')}</span>
+              <span class="scoreboard-source-name">${esc(item.label)}</span>
+              <span class="scoreboard-sport-watermark" aria-hidden="true">${esc(item.icon || '🏟️')}</span>
             </div>
-            <label class="scoreboard-source-toggle">
-              <input type="checkbox" class="scoreboard-sport-enabled" ${sport.enabled ? 'checked' : ''} ${locked ? 'disabled' : ''}>
-              <span>啟用${infoButton('enabledSports')}</span>
-            </label>
-          </div>
-          <div class="scoreboard-toggle-grid">
-            <label class="scoreboard-toggle-option"><input type="checkbox" class="scoreboard-sport-homepage" ${checked(config.homepageSports, item.key)} ${locked ? 'disabled' : ''}>${fieldTitle('首頁', 'homepageSports')}</label>
-            <label class="scoreboard-toggle-option"><input type="checkbox" class="scoreboard-sport-live" ${checked(config.liveSports, item.key)} ${locked ? 'disabled' : ''}>${fieldTitle('即時', 'liveSports')}</label>
-            <label class="scoreboard-toggle-option"><input type="checkbox" class="scoreboard-sport-schedule" ${checked(config.scheduleSports, item.key)} ${locked ? 'disabled' : ''}>${fieldTitle('賽程', 'scheduleSports')}</label>
-            <label class="scoreboard-toggle-option"><input type="checkbox" class="scoreboard-sport-detail" ${checked(config.detailSports, item.key)} ${locked ? 'disabled' : ''}>${fieldTitle('詳情', 'detailSports')}</label>
-            <label class="scoreboard-toggle-option scoreboard-toggle-order">${fieldTitle('排序', 'sortOrder')}<input class="scoreboard-sport-order" type="number" min="1" max="999" step="1" value="${esc(sport.sortOrder || item.sortOrder)}" ${locked ? 'disabled' : ''}></label>
+            <div class="scoreboard-sport-card-meta">
+              <span class="scoreboard-sport-status" data-sport-status>${enabled ? '啟用' : '停用'}</span>
+              <span>${locked ? '檢視' : '設定'} →</span>
+            </div>
+            <div class="scoreboard-source-meta">${esc(item.apiSport)}</div>
+            <div class="scoreboard-sport-summary" data-sport-summary>${esc(summary)}</div>
+          </button>
+          <div class="scoreboard-sport-state" hidden>
+            <input type="checkbox" class="scoreboard-sport-enabled" ${enabled ? 'checked' : ''} ${locked ? 'disabled' : ''}>
+            <input type="checkbox" class="scoreboard-sport-homepage" ${homepage ? 'checked' : ''} ${locked ? 'disabled' : ''}>
+            <input type="checkbox" class="scoreboard-sport-live" ${live ? 'checked' : ''} ${locked ? 'disabled' : ''}>
+            <input type="checkbox" class="scoreboard-sport-schedule" ${schedule ? 'checked' : ''} ${locked ? 'disabled' : ''}>
+            <input type="checkbox" class="scoreboard-sport-detail" ${detail ? 'checked' : ''} ${locked ? 'disabled' : ''}>
+            <input class="scoreboard-sport-order" type="number" min="1" max="999" step="1" value="${esc(order)}" ${locked ? 'disabled' : ''}>
           </div>
         </section>
       `;
@@ -253,12 +303,17 @@
       const source = config.featuredSources?.[item.id] || {};
       return `
         <section class="scoreboard-feature-row" data-featured="${esc(item.id)}">
-          <label class="scoreboard-source-toggle">
-            <input type="checkbox" class="scoreboard-feature-enabled" ${source.enabled ? 'checked' : ''} ${locked ? 'disabled' : ''}>
-            <span>${esc(item.label)}${infoButton('featured')}</span>
+          <div class="scoreboard-feature-main">
+            <strong>${esc(item.label)}</strong>
+            <span>${esc(item.sport)}</span>
+          </div>
+          <label class="scoreboard-feature-switch" aria-label="${esc(item.label)} 啟用">
+            ${switchMarkup('scoreboard-feature-enabled', source.enabled === true, locked)}
           </label>
-          <span>${esc(item.sport)}</span>
-          <input class="scoreboard-feature-order" type="number" min="1" max="999" step="1" value="${esc(source.sortOrder || item.sortOrder)}" ${locked ? 'disabled' : ''}>
+          <label class="scoreboard-feature-order-wrap">
+            <span>排序</span>
+            <input class="scoreboard-feature-order" type="number" min="1" max="999" step="1" value="${esc(source.sortOrder || item.sortOrder)}" ${locked ? 'disabled' : ''}>
+          </label>
         </section>
       `;
     }).join('');
@@ -421,6 +476,68 @@
         </div>
       `;
       document.body.appendChild(overlay);
+    },
+
+    openScoreboardSportSettings(sportKey) {
+      const row = findSportRow(sportKey);
+      if (!row) return;
+      const locked = row.dataset.locked === 'true';
+      const label = row.querySelector('.scoreboard-source-name')?.textContent || sportKey;
+      const apiSport = row.querySelector('.scoreboard-source-meta')?.textContent || sportKey;
+      const read = cls => row.querySelector(cls)?.checked === true;
+      const order = row.querySelector('.scoreboard-sport-order')?.value || 99;
+      const overlay = document.createElement('div');
+      overlay.className = 'scoreboard-config-overlay';
+      overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+      overlay.innerHTML = `
+        <div class="scoreboard-config-dialog" role="dialog" aria-modal="true" aria-label="${esc(label)} 設定" onclick="event.stopPropagation()">
+          <div class="scoreboard-config-dialog-head">
+            <div>
+              <h3>${esc(label)}</h3>
+              <span>${esc(apiSport)}</span>
+            </div>
+            <button class="scoreboard-dialog-close" type="button" onclick="this.closest('.scoreboard-config-overlay').remove()">×</button>
+          </div>
+          <div class="scoreboard-subtitle">${fieldTitle('設定項目', 'enabledSports')}</div>
+          <div class="scoreboard-modal-toggle-grid">
+            <label class="scoreboard-modal-toggle-row"><span>啟用</span>${switchMarkup('scoreboard-modal-enabled', read('.scoreboard-sport-enabled'), locked)}</label>
+            <label class="scoreboard-modal-toggle-row"><span>首頁</span>${switchMarkup('scoreboard-modal-homepage', read('.scoreboard-sport-homepage'), locked)}</label>
+            <label class="scoreboard-modal-toggle-row"><span>即時</span>${switchMarkup('scoreboard-modal-live', read('.scoreboard-sport-live'), locked)}</label>
+            <label class="scoreboard-modal-toggle-row"><span>賽程</span>${switchMarkup('scoreboard-modal-schedule', read('.scoreboard-sport-schedule'), locked)}</label>
+            <label class="scoreboard-modal-toggle-row"><span>詳情</span>${switchMarkup('scoreboard-modal-detail', read('.scoreboard-sport-detail'), locked)}</label>
+            <label class="scoreboard-modal-toggle-row scoreboard-modal-order-row"><span>排序</span><input class="scoreboard-modal-order" type="number" min="1" max="999" step="1" value="${esc(order)}" ${locked ? 'disabled' : ''}></label>
+          </div>
+          <div class="scoreboard-dialog-actions">
+            <button class="secondary-btn small" type="button" onclick="this.closest('.scoreboard-config-overlay').remove()">關閉</button>
+            <button class="primary-btn small" type="button" onclick="App.applyScoreboardSportSettings('${esc(sportKey)}')" ${locked ? 'disabled' : ''}>套用設定</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+    },
+
+    applyScoreboardSportSettings(sportKey) {
+      const row = findSportRow(sportKey);
+      const overlay = document.querySelector('.scoreboard-config-overlay');
+      if (!row || !overlay) return;
+      const setChecked = (stateClass, modalClass) => {
+        const state = row.querySelector(stateClass);
+        const modal = overlay.querySelector(modalClass);
+        if (state && modal) state.checked = modal.checked;
+      };
+      setChecked('.scoreboard-sport-enabled', '.scoreboard-modal-enabled');
+      setChecked('.scoreboard-sport-homepage', '.scoreboard-modal-homepage');
+      setChecked('.scoreboard-sport-live', '.scoreboard-modal-live');
+      setChecked('.scoreboard-sport-schedule', '.scoreboard-modal-schedule');
+      setChecked('.scoreboard-sport-detail', '.scoreboard-modal-detail');
+      const stateOrder = row.querySelector('.scoreboard-sport-order');
+      const modalOrder = overlay.querySelector('.scoreboard-modal-order');
+      if (stateOrder && modalOrder) {
+        const next = Math.max(1, Math.min(999, Math.trunc(Number(modalOrder.value || stateOrder.value || 99))));
+        stateOrder.value = Number.isFinite(next) ? next : stateOrder.value;
+      }
+      updateSportCard(row);
+      overlay.remove();
     },
   });
 })(typeof window !== 'undefined' ? window : globalThis);

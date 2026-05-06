@@ -22,8 +22,8 @@ function runAdmin(stats = {}) {
     url: "https://example.test/",
   });
   const catalog = {
-    SPORT_CATALOG: [{ key: "football", label: "Football", apiSport: "football", sortOrder: 1 }],
-    FEATURED_SOURCE_CATALOG: [],
+    SPORT_CATALOG: [{ key: "football", label: "Football", icon: "⚽", apiSport: "football", sortOrder: 1 }],
+    FEATURED_SOURCE_CATALOG: [{ id: "nba", label: "NBA", sport: "basketball", sortOrder: 1 }],
   };
   const config = {
     schemaVersion: 2,
@@ -35,10 +35,12 @@ function runAdmin(stats = {}) {
     scheduleSports: ["football"],
     detailSports: ["football"],
     sportsOrder: ["football"],
-    featuredSources: {},
-    enabledFeaturedSources: [],
-    featuredSourceOrder: [],
-    homepageOrder: [],
+    featuredSources: {
+      nba: { enabled: true, sortOrder: 1, sport: "basketball", label: "NBA" },
+    },
+    enabledFeaturedSources: ["nba"],
+    featuredSourceOrder: ["nba"],
+    homepageOrder: ["nba"],
     sports: {
       football: { enabled: true, sortOrder: 1 },
     },
@@ -61,6 +63,23 @@ function runAdmin(stats = {}) {
     _markPageSnapshotReady: jest.fn(),
     goBack: jest.fn(),
     showToast: jest.fn(),
+    closeModal: jest.fn(),
+    renderHomeScoreboardPreview: jest.fn(),
+    saveScoreboardConfig: jest.fn(async payload => ({
+      ...config,
+      ...payload,
+      sports: {
+        football: {
+          enabled: payload.enabledSports.includes("football"),
+          homepageEnabled: payload.homepageSports.includes("football"),
+          liveEnabled: payload.liveSports.includes("football"),
+          scheduleEnabled: payload.scheduleSports.includes("football"),
+          detailEnabled: payload.detailSports.includes("football"),
+          sortOrder: 7,
+        },
+      },
+      featuredSources: config.featuredSources,
+    })),
   };
   dom.window.App = app;
   dom.window.ScoreboardConfigUtils = catalog;
@@ -115,5 +134,42 @@ describe("scoreboard admin render", () => {
     expect(page.textContent).toContain("62.5%");
     expect(page.textContent).toContain("docs/scoreboard-translation-workflow-plan.md");
     expect(app._markPageSnapshotReady).toHaveBeenCalledWith("page-admin-scoreboard");
+  });
+
+  test("renders compact sport cards, edits sport modal settings and keeps save payload lists", async () => {
+    const { app, dom } = runAdmin();
+
+    await app.renderScoreboardAdmin();
+
+    const page = dom.window.document.getElementById("page-admin-scoreboard");
+    expect(page.querySelector(".scoreboard-sport-card")).toBeTruthy();
+    expect(page.querySelector(".scoreboard-feature-row")).toBeTruthy();
+
+    app.openScoreboardSportSettings("football");
+    const overlay = dom.window.document.querySelector(".scoreboard-config-overlay");
+    expect(overlay).toBeTruthy();
+
+    overlay.querySelector(".scoreboard-modal-homepage").checked = false;
+    overlay.querySelector(".scoreboard-modal-schedule").checked = false;
+    overlay.querySelector(".scoreboard-modal-order").value = "7";
+    app.applyScoreboardSportSettings("football");
+
+    const row = page.querySelector('.scoreboard-sport-row[data-sport="football"]');
+    expect(row.querySelector(".scoreboard-sport-homepage").checked).toBe(false);
+    expect(row.querySelector(".scoreboard-sport-schedule").checked).toBe(false);
+    expect(row.querySelector(".scoreboard-sport-order").value).toBe("7");
+    expect(row.querySelector("[data-sport-summary]").textContent).toContain("#7");
+
+    await app.saveScoreboardAdminConfig();
+    expect(app.saveScoreboardConfig).toHaveBeenCalledWith(expect.objectContaining({
+      enabledSports: ["football"],
+      homepageSports: [],
+      liveSports: ["football"],
+      scheduleSports: [],
+      detailSports: ["football"],
+      sportsOrder: ["football"],
+      enabledFeaturedSources: ["nba"],
+      featuredSourceOrder: ["nba"],
+    }));
   });
 });

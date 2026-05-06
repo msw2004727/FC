@@ -189,7 +189,17 @@ service cloud.firestore {
         'aussie_rules',
         'esports',
         'floorball',
-        'mma'
+        'mma',
+        'boxing',
+        'rugby_league',
+        'golf',
+        'field_hockey',
+        'beach_soccer',
+        'netball',
+        'pesapallo',
+        'horse_racing',
+        'winter_sports',
+        'kabaddi'
       ];
     }
 
@@ -230,6 +240,16 @@ service cloud.firestore {
         'esports',
         'floorball',
         'mma',
+        'boxing',
+        'rugby_league',
+        'golf',
+        'field_hockey',
+        'beach_soccer',
+        'netball',
+        'pesapallo',
+        'horse_racing',
+        'winter_sports',
+        'kabaddi',
         'mlb',
         'bwf'
       ];
@@ -310,7 +330,17 @@ service cloud.firestore {
         && isSafeOptionalScoreboardSport(sports, 'aussie_rules')
         && isSafeOptionalScoreboardSport(sports, 'esports')
         && isSafeOptionalScoreboardSport(sports, 'floorball')
-        && isSafeOptionalScoreboardSport(sports, 'mma');
+        && isSafeOptionalScoreboardSport(sports, 'mma')
+        && isSafeOptionalScoreboardSport(sports, 'boxing')
+        && isSafeOptionalScoreboardSport(sports, 'rugby_league')
+        && isSafeOptionalScoreboardSport(sports, 'golf')
+        && isSafeOptionalScoreboardSport(sports, 'field_hockey')
+        && isSafeOptionalScoreboardSport(sports, 'beach_soccer')
+        && isSafeOptionalScoreboardSport(sports, 'netball')
+        && isSafeOptionalScoreboardSport(sports, 'pesapallo')
+        && isSafeOptionalScoreboardSport(sports, 'horse_racing')
+        && isSafeOptionalScoreboardSport(sports, 'winter_sports')
+        && isSafeOptionalScoreboardSport(sports, 'kabaddi');
     }
 
     function isSafeScoreboardFeaturedSource(source, sportKey) {
@@ -350,7 +380,7 @@ service cloud.firestore {
 
     function isSafeScoreboardSportList(value) {
       return value is list
-        && value.size() <= 25
+        && value.size() <= 35
         && value.hasOnly(scoreboardSportKeys());
     }
 
@@ -368,11 +398,11 @@ service cloud.firestore {
         && (!data.keys().hasAny(['publicPageEnabled']) || data.publicPageEnabled is bool)
         && (!data.keys().hasAny(['homepageOrder'])
           || (data.homepageOrder is list
-            && data.homepageOrder.size() <= 40
+            && data.homepageOrder.size() <= 60
             && data.homepageOrder.hasOnly(scoreboardHomepageOrderKeys())))
         && (!data.keys().hasAny(['defaultSportTabs'])
           || (data.defaultSportTabs is list
-            && data.defaultSportTabs.size() <= 25
+            && data.defaultSportTabs.size() <= 35
             && data.defaultSportTabs.hasOnly(scoreboardSportKeys())))
         && (!data.keys().hasAny(['enabledSports']) || isSafeScoreboardSportList(data.enabledSports))
         && (!data.keys().hasAny(['homepageSports']) || isSafeScoreboardSportList(data.homepageSports))

@@ -5,8 +5,23 @@ const scoreboard = require("../../functions/scoreboard-sportsapipro").__test;
 
 describe("SportsAPI Pro scoreboard normalizer", () => {
   test("builds V2 base URLs from supported sport catalog", () => {
+    expect(utils.SUPPORTED_SPORTS).toHaveLength(35);
     expect(utils.sportsApiBaseUrl("football")).toBe("https://v2.football.sportsapipro.com");
     expect(utils.sportsApiBaseUrl("badminton")).toBe("https://v2.badminton.sportsapipro.com");
+    expect(utils.sportsApiBaseUrl("golf")).toBe("https://v2.golf.sportsapipro.com");
+    expect(utils.sportsApiBaseUrl("horse_racing")).toBe("https://v2.horse-racing.sportsapipro.com");
+    expect(utils.SUPPORTED_SPORTS.map((item) => item.key)).toEqual(expect.arrayContaining([
+      "boxing",
+      "rugby_league",
+      "golf",
+      "field_hockey",
+      "beach_soccer",
+      "netball",
+      "pesapallo",
+      "horse_racing",
+      "winter_sports",
+      "kabaddi",
+    ]));
     expect(utils.sportsApiBaseUrl("unknown")).toBeNull();
   });
 
