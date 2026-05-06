@@ -2228,6 +2228,76 @@ describe("/siteConfig/{docId}", () => {
 // ═══════════════════════════════════════════════════════════════
 //  gameConfigs (public read, admin/hasPerm write, no delete)
 // ═══════════════════════════════════════════════════════════════
+describe("/siteConfig/{docId} scoreboardConfig schema v2", () => {
+  test("scoreboardConfig accepts schemaVersion 2 SportsAPI Pro catalog fields", async () => {
+    await seedRolePermissions("content_manager", ["admin.scoreboard.configure"]);
+    await assertSucceeds(
+      setDoc(doc(contentManager(), "siteConfig", "scoreboardConfig"), {
+        schemaVersion: 2,
+        homepageEnabled: true,
+        publicPageEnabled: true,
+        homepageOrder: ["football", "nba"],
+        defaultSportTabs: ["football", "basketball"],
+        enabledSports: ["football", "basketball"],
+        homepageSports: ["football", "basketball"],
+        liveSports: ["football", "basketball"],
+        scheduleSports: ["football", "basketball"],
+        detailSports: ["football", "basketball"],
+        sportsOrder: ["football", "basketball"],
+        enabledFeaturedSources: ["nba"],
+        featuredSourceOrder: ["nba"],
+      })
+    );
+  });
+
+  test("scoreboardConfig schemaVersion 2 rejects unknown sports and secret fields", async () => {
+    await seedRolePermissions("content_manager", ["admin.scoreboard.configure"]);
+    await assertFails(
+      setDoc(doc(contentManager(), "siteConfig", "scoreboardConfig"), {
+        schemaVersion: 2,
+        enabledSports: ["football", "pickleball"],
+      })
+    );
+    await assertFails(
+      setDoc(doc(contentManager(), "siteConfig", "scoreboardConfig"), {
+        schemaVersion: 2,
+        sports: {
+          football: { enabled: true },
+        },
+      })
+    );
+    await assertFails(
+      setDoc(doc(contentManager(), "siteConfig", "scoreboardConfig"), {
+        schemaVersion: 2,
+        apiKey: "not-allowed",
+      })
+    );
+  });
+});
+
+describe("/scoreboardSnapshots / scoreboardMatchDetails / sportsApiProUsage", () => {
+  test("scoreboardSnapshots home is public read and client write denied", async () => {
+    await seedDoc("scoreboardSnapshots", "home", { provider: "sportsapipro", homepageMatches: [] });
+    await assertSucceeds(getDoc(doc(guest(), "scoreboardSnapshots", "home")));
+    await assertFails(getDoc(doc(guest(), "scoreboardSnapshots", "other")));
+    await assertFails(setDoc(doc(superAdmin(), "scoreboardSnapshots", "home"), { provider: "client" }));
+  });
+
+  test("scoreboardMatchDetails are public read and client write denied", async () => {
+    await seedDoc("scoreboardMatchDetails", "football_1", { provider: "sportsapipro", matchId: "1" });
+    await assertSucceeds(getDoc(doc(guest(), "scoreboardMatchDetails", "football_1")));
+    await assertFails(setDoc(doc(superAdmin(), "scoreboardMatchDetails", "football_1"), { provider: "client" }));
+  });
+
+  test("sportsApiProUsage is super admin read only", async () => {
+    await seedDoc("sportsApiProUsage", "20260506", { provider: "sportsapipro", usage: { remaining: 90 } });
+    await assertFails(getDoc(doc(guest(), "sportsApiProUsage", "20260506")));
+    await assertFails(getDoc(doc(admin(), "sportsApiProUsage", "20260506")));
+    await assertSucceeds(getDoc(doc(superAdmin(), "sportsApiProUsage", "20260506")));
+    await assertFails(setDoc(doc(superAdmin(), "sportsApiProUsage", "20260506"), { provider: "client" }));
+  });
+});
+
 describe("/gameConfigs/{configId}", () => {
   test("read: public", async () => {
     await seedDoc("gameConfigs", "gc1", { enabled: true });

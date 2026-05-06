@@ -1,6 +1,6 @@
 /* ================================================
    ToosterX - Scoreboard Admin
-   Homepage score/schedule source switches and ordering.
+   SportsAPI Pro switches, ordering and usage status.
    ================================================ */
 
 (function(root) {
@@ -23,6 +23,10 @@
     return (typeof FirebaseService !== 'undefined') ? FirebaseService : root.FirebaseService;
   }
 
+  function firestoreDb() {
+    return (typeof db !== 'undefined') ? db : root.db;
+  }
+
   function canConfigure() {
     const currentUser = apiService()?.getCurrentUser?.() || firebaseService()?._cache?.currentUser || null;
     const roleKey = app._getEffectiveRoleKey?.(currentUser?.role);
@@ -30,18 +34,18 @@
   }
 
   const INFO = {
-    homepageToggle: { title: '首頁比分區顯示', body: '開著時，首頁會保留比分與賽程區。關掉後，首頁直接隱藏這一區。' },
-    sourceToggle: { title: '來源開關', body: '這個來源是否要出現在首頁的比分區。之後接 API 時也會照這裡的開關判斷。' },
-    sourceLabel: { title: '首頁名稱', body: '顯示給一般使用者看的名稱，建議短一點，例如英超、NBA、奧運。' },
-    sourceOrder: { title: '排序', body: '數字越小越前面。未來來源變多時，首頁會照這個順序先顯示。' },
-    apiSlot: { title: 'API 位置預留', body: '這裡只放來源代號，不放金鑰。正式 API 金鑰會放後端，避免暴露在前台。' },
-    sourcePanel: { title: '來源 API 開關', body: '先把可控制的來源儀表做好，資料 API 後續再接，不影響目前首頁速度。' },
-    strategyPanel: { title: '排序與載入策略', body: '首頁以快速載入為主，只讀公開設定；真正比分資料後續可再分批或延遲載入。' },
-    sortHome: { title: '首頁排序', body: '用每個來源的排序數字決定排列，數字越小越優先。' },
-    dataLoad: { title: '資料載入', body: '首頁先讀公開設定，不在第一時間載入大量比分資料。' },
-    homeLimit: { title: '首頁筆數', body: '目前預設最多放 3 場，避免首頁變慢或畫面太長。' },
-    cacheStrategy: { title: '快取策略', body: '優先使用快取與公開設定，減少讀取量，提升首頁開啟速度。' },
-    enabledCount: { title: '已開來源', body: '目前有多少來源被打開，方便快速檢查設定狀態。' },
+    provider: { title: '資料來源', body: '目前使用 SportsAPI Pro。API key 放在 Firebase Secret，前台和 Firestore 都不會保存 key。' },
+    homepage: { title: '首頁顯示', body: '關閉後首頁不顯示比分區，但公開賽程頁仍可依公開頁開關決定是否顯示。' },
+    publicPage: { title: '公開賽程頁', body: '控制使用者能不能進入完整比分與賽程頁。首頁預覽可另外開關。' },
+    enabledSports: { title: '啟用運動', body: '只有開啟的運動會被後端排入抓取。免費額度有限，先開常用項目最穩。' },
+    homepageSports: { title: '首頁顯示', body: '決定這個運動的賽事是否能出現在首頁小區塊。' },
+    liveSports: { title: '即時比分', body: '開啟後後端會抓這個運動的 live endpoint。' },
+    scheduleSports: { title: '最近賽程', body: '開啟後後端會抓這個運動的今日或最近賽程。' },
+    detailSports: { title: '基本詳情', body: '開啟後使用者點賽事時，可以讀取或產生這場比賽的基本詳情快取。' },
+    sortOrder: { title: '排序', body: '數字越小越前面。首頁和公開頁籤會優先照這個順序排列。' },
+    featured: { title: '重點聯賽', body: '用來把五大聯賽、歐冠、NBA 等賽事分組顯示。後續若要改成 tournament ID，也會接在這裡。' },
+    usage: { title: '用量', body: '這裡顯示 SportsAPI Pro /status 回傳的剩餘額度與今日 request 數；沒有資料時代表尚未成功刷新。' },
+    refresh: { title: '手動刷新', body: '立即呼叫 Cloud Function 更新快取。為避免打爆免費額度，按鈕有短暫冷卻。' },
   };
 
   function infoButton(key) {
@@ -52,63 +56,118 @@
     return `<span class="scoreboard-field-title">${esc(text)}${infoButton(key)}</span>`;
   }
 
-  function sourceRows(config) {
-    const catalog = root.ScoreboardConfigUtils?.SOURCE_CATALOG || [];
-    const sources = config.sources || {};
-    const orderIndex = new Map((config.homepageOrder || []).map((id, index) => [id, index + 1]));
+  function checked(list, key) {
+    return Array.isArray(list) && list.includes(key) ? 'checked' : '';
+  }
 
+  function todayKey() {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Taipei',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date()).reduce((acc, part) => {
+      acc[part.type] = part.value;
+      return acc;
+    }, {});
+    return `${parts.year}${parts.month}${parts.day}`;
+  }
+
+  async function readAdminStatus() {
+    const dbRef = firestoreDb();
+    if (!dbRef) return {};
+    const result = {};
+    try {
+      const usage = await dbRef.collection('sportsApiProUsage').doc(todayKey()).get();
+      result.usage = usage.exists ? usage.data() : null;
+    } catch (err) {
+      result.usageError = err;
+    }
+    try {
+      const snap = await dbRef.collection('scoreboardSnapshots').doc('home').get();
+      result.snapshot = snap.exists ? snap.data() : null;
+    } catch (err) {
+      result.snapshotError = err;
+    }
+    return result;
+  }
+
+  function usagePanel(status) {
+    const usage = status?.usage || {};
+    const quota = usage.usage || {};
+    const refresh = usage.lastRefresh || {};
+    const snapshot = status?.snapshot || {};
+    const generated = snapshot.generatedAt?.toDate?.()?.toLocaleString?.('zh-TW') || '-';
+    const item = (label, value, key) => `
+      <div class="scoreboard-meter-card">
+        <span>${fieldTitle(label, key)}</span>
+        <strong>${esc(value ?? '-')}</strong>
+      </div>
+    `;
+    return `
+      <section class="scoreboard-admin-panel">
+        <div class="scoreboard-admin-title-row">
+          <h3>API 狀態${infoButton('usage')}</h3>
+          <button class="secondary-btn small" id="scoreboard-refresh-btn" type="button" onclick="App.refreshScoreboardNow()" ${canConfigure() ? '' : 'disabled'}>手動刷新${infoButton('refresh')}</button>
+        </div>
+        <div class="scoreboard-meter-grid">
+          ${item('今日 requests', quota.requestsToday, 'usage')}
+          ${item('每日上限', quota.dailyLimit, 'usage')}
+          ${item('剩餘額度', quota.remaining, 'usage')}
+          ${item('最近快取', generated, 'usage')}
+          ${item('刷新錯誤', refresh.errorCount ?? 0, 'usage')}
+          ${item('快取賽事', Number(snapshot.homepageMatches?.length || 0), 'usage')}
+        </div>
+      </section>
+    `;
+  }
+
+  function sportRows(config, locked) {
+    const catalog = root.ScoreboardConfigUtils?.SPORT_CATALOG || [];
     return catalog.map(item => {
-      const src = sources[item.id] || {};
-      const enabled = src.enabled !== false;
-      const order = orderIndex.get(item.id) || src.sortOrder || 99;
-      const provider = item.provider || 'API Source';
+      const sport = config.sports?.[item.key] || {};
       return `
-        <section class="scoreboard-source-row" data-source-id="${esc(item.id)}">
+        <section class="scoreboard-source-row scoreboard-sport-row" data-sport="${esc(item.key)}">
           <div class="scoreboard-source-main">
             <div>
-              <div class="scoreboard-source-name">${esc(src.label || item.label)}</div>
-              <div class="scoreboard-source-meta">${esc(provider)} · ${esc(item.sport)} · ${esc(src.sourceKey || item.sourceKey)}</div>
+              <div class="scoreboard-source-name">${esc(item.label)}</div>
+              <div class="scoreboard-source-meta">SportsAPI Pro V2 · ${esc(item.apiSport)}</div>
             </div>
             <label class="scoreboard-source-toggle">
-              <input type="checkbox" class="scoreboard-source-enabled" ${enabled ? 'checked' : ''}>
-              <span>首頁顯示${infoButton('sourceToggle')}</span>
+              <input type="checkbox" class="scoreboard-sport-enabled" ${sport.enabled ? 'checked' : ''} ${locked ? 'disabled' : ''}>
+              <span>啟用${infoButton('enabledSports')}</span>
             </label>
           </div>
-          <div class="scoreboard-source-fields">
-            <label>
-              ${fieldTitle('首頁名稱', 'sourceLabel')}
-              <input class="scoreboard-source-label" type="text" maxlength="24" value="${esc(src.label || item.label)}">
-            </label>
-            <label>
-              ${fieldTitle('排序', 'sourceOrder')}
-              <input class="scoreboard-source-order" type="number" min="1" max="999" step="1" value="${esc(order)}">
-            </label>
-          </div>
-          <div class="scoreboard-api-slot">
-            ${fieldTitle('API 位置預留', 'apiSlot')}
-            <code>${esc(src.sourceKey || item.sourceKey)}</code>
-            <small>正式端點與金鑰後續接後端，前端不保存密鑰。</small>
+          <div class="scoreboard-toggle-grid">
+            <label><input type="checkbox" class="scoreboard-sport-homepage" ${checked(config.homepageSports, item.key)} ${locked ? 'disabled' : ''}>${fieldTitle('首頁', 'homepageSports')}</label>
+            <label><input type="checkbox" class="scoreboard-sport-live" ${checked(config.liveSports, item.key)} ${locked ? 'disabled' : ''}>${fieldTitle('即時', 'liveSports')}</label>
+            <label><input type="checkbox" class="scoreboard-sport-schedule" ${checked(config.scheduleSports, item.key)} ${locked ? 'disabled' : ''}>${fieldTitle('賽程', 'scheduleSports')}</label>
+            <label><input type="checkbox" class="scoreboard-sport-detail" ${checked(config.detailSports, item.key)} ${locked ? 'disabled' : ''}>${fieldTitle('詳情', 'detailSports')}</label>
+            <label>${fieldTitle('排序', 'sortOrder')}<input class="scoreboard-sport-order" type="number" min="1" max="999" step="1" value="${esc(sport.sortOrder || item.sortOrder)}" ${locked ? 'disabled' : ''}></label>
           </div>
         </section>
       `;
     }).join('');
   }
 
-  function sortSummary(config) {
-    const enabledCount = Object.values(config.sources || {}).filter(src => src?.enabled !== false).length;
-    const pill = (title, value, key) => `<div class="scoreboard-sort-pill">${fieldTitle(title, key)} <span>${esc(value)}</span></div>`;
-    return `
-      <div class="scoreboard-sort-list">
-        ${pill('首頁排序', '依排序數字由小到大', 'sortHome')}
-        ${pill('資料載入', '首頁只讀公開設定', 'dataLoad')}
-        ${pill('首頁筆數', '目前最多 3 場', 'homeLimit')}
-        ${pill('快取策略', '優先速度與低讀取', 'cacheStrategy')}
-        ${pill('已開來源', `${enabledCount} 個`, 'enabledCount')}
-      </div>
-    `;
+  function featuredRows(config, locked) {
+    const catalog = root.ScoreboardConfigUtils?.FEATURED_SOURCE_CATALOG || [];
+    return catalog.map(item => {
+      const source = config.featuredSources?.[item.id] || {};
+      return `
+        <section class="scoreboard-feature-row" data-featured="${esc(item.id)}">
+          <label class="scoreboard-source-toggle">
+            <input type="checkbox" class="scoreboard-feature-enabled" ${source.enabled ? 'checked' : ''} ${locked ? 'disabled' : ''}>
+            <span>${esc(item.label)}${infoButton('featured')}</span>
+          </label>
+          <span>${esc(item.sport)}</span>
+          <input class="scoreboard-feature-order" type="number" min="1" max="999" step="1" value="${esc(source.sortOrder || item.sortOrder)}" ${locked ? 'disabled' : ''}>
+        </section>
+      `;
+    }).join('');
   }
 
-  function renderAdmin(config) {
+  function renderAdmin(config, status) {
     const page = document.getElementById('page-admin-scoreboard');
     if (!page) return;
     const locked = !canConfigure();
@@ -119,53 +178,77 @@
       </div>
       <section class="scoreboard-admin-intro">
         <div>
-          <h3>首頁比分與賽程預留控制</h3>
-          <p>先決定首頁要顯示哪些賽事來源與排序。API 串接位置先預留，後續正式接資料時只需替換後端來源。</p>
+          <h3>SportsAPI Pro${infoButton('provider')}</h3>
+          <p>控制首頁與公開賽程頁顯示，不保存 API key，不讓前台直接打第三方 API。</p>
         </div>
-        <label class="scoreboard-home-toggle">
-          <input type="checkbox" id="scoreboard-homepage-enabled" ${config.homepageEnabled !== false ? 'checked' : ''}>
-          <span>首頁比分區顯示${infoButton('homepageToggle')}</span>
-        </label>
+        <div class="scoreboard-admin-switches">
+          <label class="scoreboard-home-toggle">
+            <input type="checkbox" id="scoreboard-homepage-enabled" ${config.homepageEnabled !== false ? 'checked' : ''} ${locked ? 'disabled' : ''}>
+            <span>首頁顯示${infoButton('homepage')}</span>
+          </label>
+          <label class="scoreboard-home-toggle">
+            <input type="checkbox" id="scoreboard-public-enabled" ${config.publicPageEnabled !== false ? 'checked' : ''} ${locked ? 'disabled' : ''}>
+            <span>公開頁${infoButton('publicPage')}</span>
+          </label>
+        </div>
+      </section>
+      ${usagePanel(status)}
+      <section class="scoreboard-admin-panel">
+        <div class="scoreboard-admin-title-row">
+          <h3>運動項目${infoButton('enabledSports')}</h3>
+          <span>依 SportsAPI Pro 支援項目預留，先開常用運動以控制免費額度。</span>
+        </div>
+        <div id="scoreboard-sport-list" class="scoreboard-source-list">${sportRows(config, locked)}</div>
       </section>
       <section class="scoreboard-admin-panel">
         <div class="scoreboard-admin-title-row">
-          <h3>來源 API 開關${infoButton('sourcePanel')}</h3>
-          <span>足球、NBA、羽球、奧運先預留；未來可再新增其他運動。</span>
+          <h3>重點聯賽${infoButton('featured')}</h3>
+          <span>首頁與公開頁可用來優先呈現五大聯賽、歐冠、NBA 等。</span>
         </div>
-        <div id="scoreboard-source-list" class="scoreboard-source-list">${sourceRows(config)}</div>
-      </section>
-      <section class="scoreboard-admin-panel">
-        <div class="scoreboard-admin-title-row">
-          <h3>排序與載入策略${infoButton('strategyPanel')}</h3>
-          <span>首頁以速度優先，正式資料後續再接入。</span>
-        </div>
-        ${sortSummary(config)}
+        <div class="scoreboard-feature-list">${featuredRows(config, locked)}</div>
       </section>
       <button class="primary-btn full-width" id="scoreboard-save-btn" onclick="App.saveScoreboardAdminConfig()" ${locked ? 'disabled' : ''}>儲存設定</button>
       ${locked ? '<div class="scoreboard-locked-note">目前帳號只能查看，沒有調整賽事比分控制的權限。</div>' : ''}
     `;
   }
 
+  function orderedCheckedRows(selector, checkboxSelector, orderSelector, datasetName) {
+    return Array.from(document.querySelectorAll(selector))
+      .filter(row => row.querySelector(checkboxSelector)?.checked === true)
+      .sort((a, b) => Number(a.querySelector(orderSelector)?.value || 99) - Number(b.querySelector(orderSelector)?.value || 99))
+      .map(row => row.dataset[datasetName])
+      .filter(Boolean);
+  }
+
   function collectAdminConfig() {
-    const base = root.ScoreboardConfigUtils?.defaultConfig?.() || {};
-    const sources = {};
-    document.querySelectorAll('.scoreboard-source-row[data-source-id]').forEach(row => {
-      const id = row.dataset.sourceId;
-      const fallback = base.sources?.[id] || {};
-      const enabled = row.querySelector('.scoreboard-source-enabled')?.checked === true;
-      const label = row.querySelector('.scoreboard-source-label')?.value?.trim() || fallback.label || id;
-      const sortOrder = Number(row.querySelector('.scoreboard-source-order')?.value || fallback.sortOrder || 99);
-      sources[id] = { ...fallback, enabled, label, sortOrder };
-    });
-    const homepageOrder = Object.entries(sources)
-      .filter(([, src]) => src.enabled)
-      .sort((a, b) => Number(a[1].sortOrder || 99) - Number(b[1].sortOrder || 99))
-      .map(([id]) => id);
+    const sportsOrder = Array.from(document.querySelectorAll('.scoreboard-sport-row[data-sport]'))
+      .sort((a, b) => Number(a.querySelector('.scoreboard-sport-order')?.value || 99) - Number(b.querySelector('.scoreboard-sport-order')?.value || 99))
+      .map(row => row.dataset.sport)
+      .filter(Boolean);
+    const enabledSports = orderedCheckedRows('.scoreboard-sport-row[data-sport]', '.scoreboard-sport-enabled', '.scoreboard-sport-order', 'sport');
+    const homepageSports = orderedCheckedRows('.scoreboard-sport-row[data-sport]', '.scoreboard-sport-homepage', '.scoreboard-sport-order', 'sport');
+    const liveSports = orderedCheckedRows('.scoreboard-sport-row[data-sport]', '.scoreboard-sport-live', '.scoreboard-sport-order', 'sport');
+    const scheduleSports = orderedCheckedRows('.scoreboard-sport-row[data-sport]', '.scoreboard-sport-schedule', '.scoreboard-sport-order', 'sport');
+    const detailSports = orderedCheckedRows('.scoreboard-sport-row[data-sport]', '.scoreboard-sport-detail', '.scoreboard-sport-order', 'sport');
+    const featuredSourceOrder = Array.from(document.querySelectorAll('.scoreboard-feature-row[data-featured]'))
+      .sort((a, b) => Number(a.querySelector('.scoreboard-feature-order')?.value || 99) - Number(b.querySelector('.scoreboard-feature-order')?.value || 99))
+      .map(row => row.dataset.featured)
+      .filter(Boolean);
+    const enabledFeaturedSources = orderedCheckedRows('.scoreboard-feature-row[data-featured]', '.scoreboard-feature-enabled', '.scoreboard-feature-order', 'featured');
     return {
-      schemaVersion: 1,
+      schemaVersion: 2,
       homepageEnabled: document.getElementById('scoreboard-homepage-enabled')?.checked !== false,
-      homepageOrder,
-      sources,
+      publicPageEnabled: document.getElementById('scoreboard-public-enabled')?.checked !== false,
+      enabledSports,
+      homepageSports,
+      liveSports,
+      scheduleSports,
+      detailSports,
+      sportsOrder,
+      defaultSportTabs: enabledSports.slice(0, 8),
+      enabledFeaturedSources,
+      featuredSourceOrder,
+      homepageOrder: enabledFeaturedSources,
     };
   }
 
@@ -176,7 +259,8 @@
       page.innerHTML = '<div class="page-header"><button class="back-btn" onclick="App.goBack()">‹</button><h2>賽事比分控制</h2></div><div style="padding:.8rem;color:var(--text-muted)">載入中...</div>';
       try {
         const config = await this.loadScoreboardConfig();
-        renderAdmin(config);
+        const status = await readAdminStatus();
+        renderAdmin(config, status);
         this._markPageSnapshotReady?.('page-admin-scoreboard');
       } catch (err) {
         page.innerHTML = '<div class="page-header"><button class="back-btn" onclick="App.goBack()">‹</button><h2>賽事比分控制</h2></div><div style="padding:.8rem;color:var(--danger)">載入失敗：' + esc(err.message || err) + '</div>';
@@ -189,23 +273,45 @@
         return;
       }
       const btn = document.getElementById('scoreboard-save-btn');
-      btn && (btn.disabled = true);
+      if (btn) btn.disabled = true;
       try {
         const saved = await this.saveScoreboardConfig(collectAdminConfig());
         this.showToast?.('賽事比分設定已儲存');
-        renderAdmin(saved);
+        renderAdmin(saved, await readAdminStatus());
         this.renderHomeScoreboardPreview?.();
       } catch (err) {
         console.error('[ScoreboardAdmin] save failed:', err);
         this.showToast?.('儲存失敗，請稍後再試');
       } finally {
         const currentBtn = document.getElementById('scoreboard-save-btn');
-        currentBtn && (currentBtn.disabled = false);
+        if (currentBtn) currentBtn.disabled = false;
+      }
+    },
+
+    async refreshScoreboardNow() {
+      if (!canConfigure()) {
+        this.showToast?.('目前帳號沒有手動刷新的權限');
+        return;
+      }
+      const btn = document.getElementById('scoreboard-refresh-btn');
+      if (btn) btn.disabled = true;
+      try {
+        const callable = root.firebase.app().functions('asia-east1').httpsCallable('refreshSportsApiProScoreboard', { timeout: 180000 });
+        const res = await callable({});
+        this.showToast?.(`已刷新：${Number(res?.data?.liveCount || 0)} 場即時、${Number(res?.data?.scheduleCount || 0)} 場賽程`);
+        await this.renderScoreboardAdmin();
+        this.renderHomeScoreboardPreview?.();
+      } catch (err) {
+        console.error('[ScoreboardAdmin] manual refresh failed:', err);
+        this.showToast?.('手動刷新失敗，請確認 Secret 或 API 額度');
+      } finally {
+        const currentBtn = document.getElementById('scoreboard-refresh-btn');
+        if (currentBtn) currentBtn.disabled = false;
       }
     },
 
     showScoreboardInfo(key) {
-      const info = INFO[key] || { title: '欄位說明', body: '這個欄位用來控制首頁比分區的顯示方式。' };
+      const info = INFO[key] || { title: '說明', body: '這個設定只影響賽事比分顯示，不會保存 API key。' };
       const overlay = document.createElement('div');
       overlay.className = 'edu-info-overlay';
       overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };

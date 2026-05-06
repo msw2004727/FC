@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260506i';
+const CACHE_VERSION = '0.20260506j';
 
 // ─── 即時監聽 limit 預設值（可在儀表板動態調整，存於 siteConfig/realtimeConfig）───
 const REALTIME_LIMIT_DEFAULTS = {
@@ -93,6 +93,7 @@ const PAGE_STRATEGY = {
   'page-activities':         'stale-first',
   'page-teams':              'stale-first',
   'page-tournaments':        'stale-first',
+  'page-match-calendar':     'stale-first',
   'page-personal-dashboard': 'stale-first',
   'page-leaderboard':        'stale-first',
   'page-activity-detail':    'stale-first',
@@ -150,6 +151,7 @@ const PAGE_DATA_CONTRACT = {
   'page-activities':         { required: ['events'], optional: ['registrations'], realtime: ['registrations', 'attendanceRecords'] },
   'page-teams':              { required: ['teams'], optional: [], realtime: ['teams'] },
   'page-tournaments':        { required: ['tournaments'], optional: ['standings', 'matches'], realtime: ['tournaments'] },
+  'page-match-calendar':     { required: [], optional: [], realtime: [] },
   'page-personal-dashboard': { required: ['events', 'registrations'], optional: ['attendanceRecords'], realtime: [] },
   'page-leaderboard':        { required: ['leaderboard'], optional: [], realtime: [] },
   'page-profile':            { required: [], optional: ['attendanceRecords', 'activityRecords'], realtime: [] },

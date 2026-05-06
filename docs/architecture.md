@@ -282,7 +282,10 @@ sequenceDiagram
 | `auditLogsByDay/{yyyyMMdd}/auditEntries/{logId}` | 安全稽核 log | Cloud Function 寫入，super_admin/權限讀 |
 | `errorLogs/{docId}` | 前端錯誤 log | 使用者可寫，後台可讀 |
 | `siteConfig/realtimeConfig` | 即時監聽與資料同步設定 | 後端密碼保護寫入，前端讀 |
-| `siteConfig/scoreboardConfig` | 首頁比分預留來源顯示與排序 | 公開讀；寫入只允許白名單欄位與 `admin.scoreboard.configure` / `super_admin` |
+| `siteConfig/scoreboardConfig` | 首頁比分/賽程顯示設定與排序 | 公開讀；寫入只允許 list-based 白名單欄位與 `admin.scoreboard.configure` / `super_admin`；不得保存 key |
+| `scoreboardSnapshots/home` | SportsAPI Pro 首頁比分與最近賽程快取 | 公開讀；client 禁寫；由 Cloud Function 以 Admin SDK 更新 |
+| `scoreboardMatchDetails/{sport_matchId}` | 賽事基本詳情快取 | 公開讀；client 禁寫；由 Cloud Function 產生/刷新 |
+| `sportsApiProUsage/{yyyyMMdd}` | SportsAPI Pro 用量與刷新狀態 | 僅 `super_admin` 讀；client 禁寫；不得保存 API key |
 | `participantQueryShares/{shareId}` | 儀表板臨時分享 | 7 天快照型報表 |
 | `shotGameScores` / `kickGameScores` | 遊戲分數 | callable 寫入，排行榜讀 |
 | `usageMetrics` / `translateUsage` | 用量統計 | schedule / callable 寫入，super_admin 讀 |
@@ -471,8 +474,10 @@ current = realCurrent + sum(remainingSlots)
 ### 比分預留控制
 
 - 首頁比分區只顯示預留來源與排序，不呼叫第三方比分 API。
-- `js/modules/scoreboard/scoreboard-config.js` 負責來源 catalog、預設值、正規化與 `siteConfig/scoreboardConfig` single-doc 讀寫。
-- `js/modules/scoreboard/scoreboard-admin.js` 負責後台 `page-admin-scoreboard` 控制頁，入口在左方抽屜，預設只有 `super_admin` 顯示；保存權限是 `admin.scoreboard.configure` 或 `super_admin`。
+- `js/modules/scoreboard/scoreboard-config.js` 負責 SportsAPI Pro sport / featured source catalog、預設值、正規化與 `siteConfig/scoreboardConfig` single-doc 讀寫；公開設定採 list-based schema（enabled/order arrays），避免 nested map 藏 secret 或觸發 Firestore rules expression 上限。
+- `js/modules/scoreboard/scoreboard-admin.js` 負責後台 `page-admin-scoreboard` 控制頁，入口在左方抽屜，預設只有 `super_admin` 顯示；保存與手動刷新權限是 `admin.scoreboard.configure` 或 `super_admin`。
+- `js/modules/scoreboard/scoreboard-public.js` 負責 `page-match-calendar` 公開比分/賽程頁，讀 `scoreboardSnapshots/home` 與 `scoreboardMatchDetails/{sport_matchId}`；前台不直接呼叫 SportsAPI Pro。
+- `functions/scoreboard-sportsapipro.js` 以 Firebase Secret `SPORTSAPI_PRO_API_KEY` 呼叫 SportsAPI Pro V2 `/api/live`、`/api/today`、`/api/match/{id}` 等 endpoint，產生公開快取與 `sportsApiProUsage/{yyyyMMdd}` 用量摘要。
 - `siteConfig/scoreboardConfig` 是公開可讀設定，因此不得保存 API key、token、secret、管理員 UID、email 或 displayName；rules 以欄位白名單阻擋敏感欄位。
 
 ---

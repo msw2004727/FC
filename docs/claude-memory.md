@@ -2172,3 +2172,8 @@
 - **調整**: 活動頁右上角 `我要開團` 改為首頁同款加號圖示 + 文字呈現，按鈕 aria label 補為 `＋我要開團`。
 - **視覺**: `activity.css` 將活動頁與首頁建立入口統一為 `inline-flex`、同 gap 與 svg 尺寸，避免加號與文字位置不一致。
 - **驗證**: 新增 `activity-create-button.test.js` source contract，確認活動頁與首頁使用相同 plus icon path 與共用 CSS。
+### 2026-05-06 SportsAPI Pro scoreboard integration [feature/security]
+- **Scope**: Added server-side SportsAPI Pro integration for homepage scoreboard, public match calendar, admin controls, and usage visibility.
+- **Implementation**: Added `functions/scoreboard-sportsapipro.js` and utility normalizers, using Firebase Secret `SPORTSAPI_PRO_API_KEY` only inside Cloud Functions. Scheduled/manual refresh writes `scoreboardSnapshots/home`; detail cache writes `scoreboardMatchDetails/{sport_matchId}`; `/status` usage writes `sportsApiProUsage/{yyyyMMdd}`.
+- **Security**: `siteConfig/scoreboardConfig` uses list-based public schema (`enabledSports`, `sportsOrder`, `enabledFeaturedSources`, etc.) to avoid nested secret storage and Firestore rules expression-limit failures. Frontend never calls SportsAPI Pro directly.
+- **Validation**: Added normalizer, config, public render, home render, and Firestore rules coverage. Focused tests passed for scoreboard unit and rules suites.

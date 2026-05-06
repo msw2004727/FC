@@ -1777,9 +1777,86 @@
   color: var(--danger);
   font-size: .76rem;
 }
+.scoreboard-admin-switches {
+  display: flex;
+  flex-direction: column;
+  gap: .42rem;
+  align-items: flex-end;
+}
+.scoreboard-meter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .5rem;
+}
+.scoreboard-meter-card {
+  min-height: 62px;
+  padding: .55rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: .3rem;
+  min-width: 0;
+}
+.scoreboard-meter-card > span {
+  color: var(--text-muted);
+  font-size: .7rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+.scoreboard-meter-card strong {
+  color: var(--text-primary);
+  font-size: .9rem;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scoreboard-toggle-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: .42rem;
+}
+.scoreboard-toggle-grid label,
+.scoreboard-feature-row {
+  min-height: 36px;
+  padding: .42rem .5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: .72rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  white-space: nowrap;
+  min-width: 0;
+}
+.scoreboard-toggle-grid input[type="number"],
+.scoreboard-feature-row input[type="number"] {
+  width: 58px;
+  min-width: 0;
+}
+.scoreboard-feature-list {
+  display: grid;
+  gap: .45rem;
+}
+.scoreboard-feature-row {
+  justify-content: space-between;
+}
+.scoreboard-feature-row > span {
+  color: var(--text-muted);
+  font-size: .7rem;
+}
 @media (max-width: 420px) {
   .scoreboard-admin-intro,
   .scoreboard-admin-title-row,
   .scoreboard-source-main,
   .scoreboard-api-slot { flex-direction: column; align-items: flex-start; }
+  .scoreboard-admin-switches { align-items: flex-start; }
+  .scoreboard-meter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .scoreboard-toggle-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

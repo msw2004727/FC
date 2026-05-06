@@ -436,6 +436,10 @@ const ScriptLoader = {
       'js/modules/scoreboard/scoreboard-config.js',
       'js/modules/scoreboard/scoreboard-admin.js',
     ],
+    scoreboardPublic: [
+      'js/modules/scoreboard/scoreboard-config.js',
+      'js/modules/scoreboard/scoreboard-public.js',
+    ],
     education: [
       'js/modules/education/edu-helpers.js',
       'js/modules/education/edu-group-list.js',
@@ -479,6 +483,7 @@ const ScriptLoader = {
     'page-leaderboard':        ['achievement', 'shop'],
     'page-tournaments':        ['tournamentList'],
     'page-tournament-detail':  ['tournamentDetail'],
+    'page-match-calendar':     ['scoreboardPublic'],
     'page-messages':           ['message'],
     'page-scan':               ['scan'],
     'page-game':               ['game'],

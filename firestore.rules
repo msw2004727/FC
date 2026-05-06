@@ -163,6 +163,78 @@ service cloud.firestore {
       ];
     }
 
+    function scoreboardSportKeys() {
+      return [
+        'football',
+        'basketball',
+        'tennis',
+        'baseball',
+        'badminton',
+        'ice_hockey',
+        'handball',
+        'american_football',
+        'volleyball',
+        'cycling',
+        'motorsport',
+        'rugby',
+        'table_tennis',
+        'snooker',
+        'darts',
+        'water_polo',
+        'futsal',
+        'bandy',
+        'beach_volleyball',
+        'cricket',
+        'minifootball',
+        'aussie_rules',
+        'esports',
+        'floorball',
+        'mma'
+      ];
+    }
+
+    function scoreboardHomepageOrderKeys() {
+      return [
+        'premier_league',
+        'laliga',
+        'serie_a',
+        'bundesliga',
+        'ligue_1',
+        'champions_league',
+        'europa_league',
+        'world_cup',
+        'nba',
+        'badminton',
+        'olympics',
+        'football',
+        'basketball',
+        'tennis',
+        'baseball',
+        'ice_hockey',
+        'handball',
+        'american_football',
+        'volleyball',
+        'cycling',
+        'motorsport',
+        'rugby',
+        'table_tennis',
+        'snooker',
+        'darts',
+        'water_polo',
+        'futsal',
+        'bandy',
+        'beach_volleyball',
+        'cricket',
+        'minifootball',
+        'aussie_rules',
+        'esports',
+        'floorball',
+        'mma',
+        'mlb',
+        'bwf'
+      ];
+    }
+
     function isSafeScoreboardSource(source, sportKey, publicSourceKey) {
       return source is map
         && source.keys().hasOnly(['enabled', 'label', 'sport', 'sourceKey', 'sortOrder'])
@@ -193,15 +265,123 @@ service cloud.firestore {
         && isSafeOptionalScoreboardSource(sources, 'olympics', 'multi', 'olympics_general');
     }
 
+    function isSafeScoreboardSport(sport) {
+      return sport is map
+        && sport.keys().hasOnly(['enabled', 'homepageEnabled', 'liveEnabled', 'scheduleEnabled', 'detailEnabled', 'sortOrder', 'label', 'apiSport', 'sourceKey'])
+        && (!sport.keys().hasAny(['enabled']) || sport.enabled is bool)
+        && (!sport.keys().hasAny(['homepageEnabled']) || sport.homepageEnabled is bool)
+        && (!sport.keys().hasAny(['liveEnabled']) || sport.liveEnabled is bool)
+        && (!sport.keys().hasAny(['scheduleEnabled']) || sport.scheduleEnabled is bool)
+        && (!sport.keys().hasAny(['detailEnabled']) || sport.detailEnabled is bool)
+        && (!sport.keys().hasAny(['sortOrder']) || (sport.sortOrder is int && sport.sortOrder >= 1 && sport.sortOrder <= 999))
+        && (!sport.keys().hasAny(['label']) || (sport.label is string && sport.label.size() <= 24))
+        && (!sport.keys().hasAny(['apiSport']) || (sport.apiSport is string && sport.apiSport.size() <= 64))
+        && (!sport.keys().hasAny(['sourceKey']) || (sport.sourceKey is string && sport.sourceKey.size() <= 80));
+    }
+
+    function isSafeOptionalScoreboardSport(sports, sportKey) {
+      return !sports.keys().hasAny([sportKey]) || isSafeScoreboardSport(sports[sportKey]);
+    }
+
+    function isSafeScoreboardSports(sports) {
+      return sports is map
+        && sports.keys().hasOnly(scoreboardSportKeys())
+        && isSafeOptionalScoreboardSport(sports, 'football')
+        && isSafeOptionalScoreboardSport(sports, 'basketball')
+        && isSafeOptionalScoreboardSport(sports, 'tennis')
+        && isSafeOptionalScoreboardSport(sports, 'baseball')
+        && isSafeOptionalScoreboardSport(sports, 'badminton')
+        && isSafeOptionalScoreboardSport(sports, 'ice_hockey')
+        && isSafeOptionalScoreboardSport(sports, 'handball')
+        && isSafeOptionalScoreboardSport(sports, 'american_football')
+        && isSafeOptionalScoreboardSport(sports, 'volleyball')
+        && isSafeOptionalScoreboardSport(sports, 'cycling')
+        && isSafeOptionalScoreboardSport(sports, 'motorsport')
+        && isSafeOptionalScoreboardSport(sports, 'rugby')
+        && isSafeOptionalScoreboardSport(sports, 'table_tennis')
+        && isSafeOptionalScoreboardSport(sports, 'snooker')
+        && isSafeOptionalScoreboardSport(sports, 'darts')
+        && isSafeOptionalScoreboardSport(sports, 'water_polo')
+        && isSafeOptionalScoreboardSport(sports, 'futsal')
+        && isSafeOptionalScoreboardSport(sports, 'bandy')
+        && isSafeOptionalScoreboardSport(sports, 'beach_volleyball')
+        && isSafeOptionalScoreboardSport(sports, 'cricket')
+        && isSafeOptionalScoreboardSport(sports, 'minifootball')
+        && isSafeOptionalScoreboardSport(sports, 'aussie_rules')
+        && isSafeOptionalScoreboardSport(sports, 'esports')
+        && isSafeOptionalScoreboardSport(sports, 'floorball')
+        && isSafeOptionalScoreboardSport(sports, 'mma');
+    }
+
+    function isSafeScoreboardFeaturedSource(source, sportKey) {
+      return source is map
+        && source.keys().hasOnly(['enabled', 'sport', 'label', 'matchKeywords', 'sortOrder'])
+        && (!source.keys().hasAny(['enabled']) || source.enabled is bool)
+        && (!source.keys().hasAny(['sport']) || source.sport == sportKey)
+        && (!source.keys().hasAny(['label']) || (source.label is string && source.label.size() <= 24))
+        && (!source.keys().hasAny(['sortOrder']) || (source.sortOrder is int && source.sortOrder >= 1 && source.sortOrder <= 999))
+        && (!source.keys().hasAny(['matchKeywords'])
+          || (source.matchKeywords is list && source.matchKeywords.size() <= 12));
+    }
+
+    function isSafeOptionalScoreboardFeaturedSource(sources, sourceKey, sportKey) {
+      return !sources.keys().hasAny([sourceKey]) || isSafeScoreboardFeaturedSource(sources[sourceKey], sportKey);
+    }
+
+    function isSafeScoreboardFeaturedSources(sources) {
+      return sources is map
+        && sources.keys().hasOnly(['premier_league', 'laliga', 'serie_a', 'bundesliga', 'ligue_1', 'champions_league', 'europa_league', 'world_cup', 'nba', 'mlb', 'bwf'])
+        && isSafeOptionalScoreboardFeaturedSource(sources, 'premier_league', 'football')
+        && isSafeOptionalScoreboardFeaturedSource(sources, 'laliga', 'football')
+        && isSafeOptionalScoreboardFeaturedSource(sources, 'serie_a', 'football')
+        && isSafeOptionalScoreboardFeaturedSource(sources, 'bundesliga', 'football')
+        && isSafeOptionalScoreboardFeaturedSource(sources, 'ligue_1', 'football')
+        && isSafeOptionalScoreboardFeaturedSource(sources, 'champions_league', 'football')
+        && isSafeOptionalScoreboardFeaturedSource(sources, 'europa_league', 'football')
+        && isSafeOptionalScoreboardFeaturedSource(sources, 'world_cup', 'football')
+        && isSafeOptionalScoreboardFeaturedSource(sources, 'nba', 'basketball')
+        && isSafeOptionalScoreboardFeaturedSource(sources, 'mlb', 'baseball')
+        && isSafeOptionalScoreboardFeaturedSource(sources, 'bwf', 'badminton');
+    }
+
+    function scoreboardFeaturedSourceKeys() {
+      return ['premier_league', 'laliga', 'serie_a', 'bundesliga', 'ligue_1', 'champions_league', 'europa_league', 'world_cup', 'nba', 'mlb', 'bwf'];
+    }
+
+    function isSafeScoreboardSportList(value) {
+      return value is list
+        && value.size() <= 25
+        && value.hasOnly(scoreboardSportKeys());
+    }
+
+    function isSafeScoreboardFeaturedSourceList(value) {
+      return value is list
+        && value.size() <= 11
+        && value.hasOnly(scoreboardFeaturedSourceKeys());
+    }
+
     function isSafeScoreboardConfig(data) {
       return data is map
-        && data.keys().hasOnly(['schemaVersion', 'homepageEnabled', 'homepageOrder', 'sources', 'updatedAt'])
-        && (!data.keys().hasAny(['schemaVersion']) || data.schemaVersion == 1)
+        && data.keys().hasOnly(['schemaVersion', 'homepageEnabled', 'publicPageEnabled', 'homepageOrder', 'defaultSportTabs', 'enabledSports', 'homepageSports', 'liveSports', 'scheduleSports', 'detailSports', 'sportsOrder', 'enabledFeaturedSources', 'featuredSourceOrder', 'sources', 'updatedAt'])
+        && (!data.keys().hasAny(['schemaVersion']) || data.schemaVersion in [1, 2])
         && (!data.keys().hasAny(['homepageEnabled']) || data.homepageEnabled is bool)
+        && (!data.keys().hasAny(['publicPageEnabled']) || data.publicPageEnabled is bool)
         && (!data.keys().hasAny(['homepageOrder'])
           || (data.homepageOrder is list
-            && data.homepageOrder.size() <= 11
-            && data.homepageOrder.hasOnly(scoreboardSourceKeys())))
+            && data.homepageOrder.size() <= 40
+            && data.homepageOrder.hasOnly(scoreboardHomepageOrderKeys())))
+        && (!data.keys().hasAny(['defaultSportTabs'])
+          || (data.defaultSportTabs is list
+            && data.defaultSportTabs.size() <= 25
+            && data.defaultSportTabs.hasOnly(scoreboardSportKeys())))
+        && (!data.keys().hasAny(['enabledSports']) || isSafeScoreboardSportList(data.enabledSports))
+        && (!data.keys().hasAny(['homepageSports']) || isSafeScoreboardSportList(data.homepageSports))
+        && (!data.keys().hasAny(['liveSports']) || isSafeScoreboardSportList(data.liveSports))
+        && (!data.keys().hasAny(['scheduleSports']) || isSafeScoreboardSportList(data.scheduleSports))
+        && (!data.keys().hasAny(['detailSports']) || isSafeScoreboardSportList(data.detailSports))
+        && (!data.keys().hasAny(['sportsOrder']) || isSafeScoreboardSportList(data.sportsOrder))
+        && (!data.keys().hasAny(['enabledFeaturedSources']) || isSafeScoreboardFeaturedSourceList(data.enabledFeaturedSources))
+        && (!data.keys().hasAny(['featuredSourceOrder']) || isSafeScoreboardFeaturedSourceList(data.featuredSourceOrder))
         && (!data.keys().hasAny(['sources']) || isSafeScoreboardSources(data.sources))
         && (!data.keys().hasAny(['updatedAt']) || data.updatedAt is timestamp);
     }
@@ -1442,6 +1622,21 @@ service cloud.firestore {
     //  Home Game Config（首頁小遊戲設定）
     //  公開可讀；admin 或持有 admin.games.entry 可寫
     // ═══════════════════════════════════════════
+    match /scoreboardSnapshots/{docId} {
+      allow read: if docId == 'home';
+      allow write: if false;
+    }
+
+    match /scoreboardMatchDetails/{detailId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /sportsApiProUsage/{dateKey} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+
     match /gameConfigs/{configId} {
       allow read: if true;
       allow create, update: if isAdmin() || hasPerm('admin.games.entry');

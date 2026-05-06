@@ -162,13 +162,20 @@
     ].join('');
   }
 
-  function scoreboardMatches(config) { const rows = Array.isArray(config?.homepageMatches) ? config.homepageMatches : config?.matches; return (Array.isArray(rows) ? rows : []).filter(Boolean).slice(0, 3); }
+  function scoreboardMatches(config, snapshot) {
+    const rows = Array.isArray(snapshot?.homepageMatches) && snapshot.homepageMatches.length
+      ? snapshot.homepageMatches
+      : (Array.isArray(config?.homepageMatches) ? config.homepageMatches : config?.matches);
+    return (Array.isArray(rows) ? rows : []).filter(Boolean).slice(0, 3);
+  }
 
   function scoreboardRows(config) {
     const order = Array.isArray(config?.homepageOrder) && config.homepageOrder.length
       ? config.homepageOrder
       : SCOREBOARD_FALLBACK.map(item => item.id);
-    const sourceMap = config?.sources && typeof config.sources === 'object' ? config.sources : {};
+    const sourceMap = config?.featuredSources && typeof config.featuredSources === 'object'
+      ? config.featuredSources
+      : (config?.sources && typeof config.sources === 'object' ? config.sources : {});
     return order.map(id => {
       const fallback = SCOREBOARD_FALLBACK.find(item => item.id === id) || { id, label: id };
       const src = sourceMap[id] || {};
@@ -176,10 +183,10 @@
     }).filter(item => item.enabled).slice(0, 8);
   }
 
-  function renderScoreboard(config) {
+  function renderScoreboard(config, snapshot) {
     const host = document.getElementById('home-scoreboard-preview');
     if (!host) return;
-    const matches = scoreboardMatches(config);
+    const matches = scoreboardMatches(config, snapshot);
     if (!config || config.homepageEnabled === false || matches.length === 0) {
       host.style.display = 'none';
       host.innerHTML = '';
@@ -209,6 +216,13 @@
         </div>
       </div>
     `;
+    host.querySelectorAll('.home-score-row').forEach((row, index) => {
+      const item = matches[index];
+      row.addEventListener('click', (event) => {
+        event.preventDefault();
+        app.openHomeScoreboardMatch?.(item?.sport || '', item?.id || '');
+      });
+    });
   }
 
   Object.assign(app, {
@@ -276,15 +290,25 @@
     },
 
     async renderHomeScoreboardPreview() {
-      renderScoreboard(this._scoreboardConfig || null);
+      renderScoreboard(this._scoreboardConfig || null, this._scoreboardSnapshot || null);
       try {
         const firebaseService = (typeof FirebaseService !== 'undefined') ? FirebaseService : root.FirebaseService;
-        const config = await firebaseService?.ensureSingleDocLoaded?.('siteConfig', 'scoreboardConfig');
-        this._scoreboardConfig = config || this._scoreboardConfig || null;
-        renderScoreboard(this._scoreboardConfig);
+        const [config, snapshot] = await Promise.all([
+          firebaseService?.ensureSingleDocLoaded?.('siteConfig', 'scoreboardConfig'),
+          firebaseService?.ensureSingleDocLoaded?.('scoreboardSnapshots', 'home'),
+        ]);
+        this._scoreboardConfig = config || this._scoreboardConfig || { homepageEnabled: true, homepageOrder: SCOREBOARD_FALLBACK.map(item => item.id) };
+        this._scoreboardSnapshot = snapshot || this._scoreboardSnapshot || null;
+        this._scoreboardConfig = root.ScoreboardConfigUtils?.normalizeConfig?.(this._scoreboardConfig) || this._scoreboardConfig;
+        renderScoreboard(this._scoreboardConfig, this._scoreboardSnapshot);
       } catch (err) {
         console.warn('[HomeDashboard] scoreboard config load skipped:', err);
       }
+    },
+
+    async openHomeScoreboardMatch(sport, matchId) {
+      this._scoreboardPendingContext = { sport, matchId };
+      await this.showPage?.('page-match-calendar');
     },
   });
 
