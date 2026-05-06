@@ -386,6 +386,12 @@ service cloud.firestore {
         && (!data.keys().hasAny(['updatedAt']) || data.updatedAt is timestamp);
     }
 
+    function canReadScoreboardTranslationData() {
+      return isSuperAdmin()
+        || hasPerm('admin.scoreboard.configure')
+        || hasPerm('admin.scoreboard.translation');
+    }
+
     function canManageAutoExpSiteConfig(docId) {
       return hasPerm('admin.auto_exp.entry')
         && docId == 'autoExpRules';
@@ -1634,6 +1640,21 @@ service cloud.firestore {
 
     match /sportsApiProUsage/{dateKey} {
       allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /scoreboardTranslationCandidates/{termId} {
+      allow read: if canReadScoreboardTranslationData();
+      allow write: if false;
+    }
+
+    match /scoreboardTranslations/{termId} {
+      allow read: if canReadScoreboardTranslationData();
+      allow write: if false;
+    }
+
+    match /scoreboardTranslationStats/{docId} {
+      allow read: if docId == 'summary' && canReadScoreboardTranslationData();
       allow write: if false;
     }
 

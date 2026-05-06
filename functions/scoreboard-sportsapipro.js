@@ -12,6 +12,15 @@ const {
   normalizeMatches,
   sanitizeStatusPayload,
 } = require("./scoreboard-sportsapipro-utils");
+const {
+  loadScoreboardTranslations,
+  applyScoreboardTranslationsToMatches,
+  applyScoreboardTranslationsToMatch,
+  collectTranslationTermsFromMatches,
+  recordTranslationCandidates,
+  updateTranslationStats,
+  upsertScoreboardTranslations,
+} = require("./scoreboard-translations");
 
 const REGION = "asia-east1";
 const PROVIDER = "sportsapipro";
@@ -111,7 +120,7 @@ async function fetchJson({ apiKey, baseUrl, path, sport, kind, fetchImpl = fetch
 
 function compactMatch(match) {
   if (!match) return null;
-  return {
+  const compact = {
     id: safeText(match.id, 80),
     sport: safeText(match.sport, 40),
     sourceId: safeText(match.sourceId, 64),
@@ -133,6 +142,25 @@ function compactMatch(match) {
     hasDetail: match.hasDetail !== false,
     detailCacheKey: safeId(match.detailCacheKey || `${match.sport}_${match.id}`),
   };
+  [
+    "homeTeamOriginal",
+    "awayTeamOriginal",
+    "leagueOriginal",
+    "subtitleOriginal",
+    "statusOriginal",
+    "titleOriginal",
+  ].forEach((key) => {
+    if (match[key]) compact[key] = safeText(match[key], 160);
+  });
+  if (match.translationStatus && typeof match.translationStatus === "object") {
+    compact.translationStatus = Object.entries(match.translationStatus)
+      .slice(0, 8)
+      .reduce((acc, [key, value]) => {
+        acc[safeId(key, 40)] = safeText(value, 40);
+        return acc;
+      }, {});
+  }
+  return compact;
 }
 
 function sortMatches(matches) {
@@ -196,9 +224,11 @@ async function readScoreboardConfig(db) {
 async function collectSportsApiProScoreboard({ db, Timestamp, FieldValue, apiKey, fetchImpl, now = new Date() }) {
   const safeNow = nowDate(now);
   const config = await readScoreboardConfig(db);
+  const translations = await loadScoreboardTranslations(db);
   const requests = planRequests(config, safeNow);
   const liveMatches = [];
   const scheduleMatches = [];
+  const translationTerms = [];
   const errors = [];
   const fetchedAtBySport = {};
   let statusPayload = null;
@@ -215,9 +245,11 @@ async function collectSportsApiProScoreboard({ db, Timestamp, FieldValue, apiKey
         kind: request.kind === "live" ? "live" : "today",
         featuredSources: config.featuredSources,
       });
+      translationTerms.push(...collectTranslationTermsFromMatches(matches));
+      const translatedMatches = applyScoreboardTranslationsToMatches(matches, translations);
       fetchedAtBySport[request.sport] = timestampFromMillis(Timestamp, safeNow.getTime());
-      if (request.kind === "live") liveMatches.push(...matches);
-      else scheduleMatches.push(...matches);
+      if (request.kind === "live") liveMatches.push(...translatedMatches);
+      else scheduleMatches.push(...translatedMatches);
     } catch (err) {
       errors.push(safeError(err, request));
     }
@@ -265,12 +297,32 @@ async function collectSportsApiProScoreboard({ db, Timestamp, FieldValue, apiKey
   }
   await usageRef.set(usagePayload, { merge: true });
 
+  let translationMaintenance = null;
+  try {
+    const candidateResult = await recordTranslationCandidates({
+      db,
+      FieldValue,
+      terms: translationTerms,
+      lookup: translations,
+    });
+    const statsResult = await updateTranslationStats({ db, FieldValue, lookup: translations });
+    translationMaintenance = {
+      candidatesWritten: candidateResult?.written || 0,
+      pending: statsResult?.totals?.pending ?? null,
+      approved: statsResult?.totals?.approved ?? null,
+      keepOriginal: statsResult?.totals?.keep_original ?? null,
+    };
+  } catch (err) {
+    console.warn("[SportsAPIPro] translation maintenance skipped:", err?.message || err);
+  }
+
   return {
     ok: errors.length === 0,
     generatedAt: safeNow.toISOString(),
     requestCount: requests.length,
     liveCount: payload.liveMatches.length,
     scheduleCount: payload.recentSchedule.length,
+    translationMaintenance,
     errorCount: errors.length,
     errors,
   };
@@ -337,12 +389,49 @@ function sanitizeLineups(payload) {
   })).filter((item) => item.team || item.formation || item.playerCount != null);
 }
 
-function sanitizeDetailPayload({ sport, matchId, matchPayload, statisticsPayload, incidentsPayload, lineupsPayload, unavailable, now, Timestamp, FieldValue }) {
+function sanitizeDetailPayload({ sport, matchId, matchPayload, statisticsPayload, incidentsPayload, lineupsPayload, unavailable, now, Timestamp, FieldValue, translations }) {
   const event = rawEventFromPayload(matchPayload);
   const homeTeam = teamName(event.homeTeam || event.home);
   const awayTeam = teamName(event.awayTeam || event.away);
   const title = [homeTeam, awayTeam].filter(Boolean).join(" vs ") || safeText(event.name || event.title || matchId, 160);
   const startsAt = isoFromAnyDate(event.startTimestamp || event.startTime || event.date || event.time);
+  const league = safeText(tournamentName(event.tournament || event.league || event.competition), 120);
+  const status = safeText(event.status?.description || event.status?.type || event.status || "", 80);
+  const translatedMatch = applyScoreboardTranslationsToMatch({
+    id: matchId,
+    sport,
+    title,
+    homeTeam,
+    awayTeam,
+    league,
+    subtitle: league,
+    status,
+  }, translations);
+  const summary = {
+    title: translatedMatch.title || title,
+    league: safeText(translatedMatch.league || league, 120),
+    homeTeam: safeText(translatedMatch.homeTeam || homeTeam, 100),
+    awayTeam: safeText(translatedMatch.awayTeam || awayTeam, 100),
+    score: {
+      home: event.homeScore?.display ?? event.homeScore?.current ?? event.homeScore ?? null,
+      away: event.awayScore?.display ?? event.awayScore?.current ?? event.awayScore ?? null,
+    },
+    status: safeText(translatedMatch.status || status, 80),
+    startsAt: startsAt || null,
+    venue: safeText(event.venue?.name || event.stadium?.name || event.venue || "", 120),
+    referee: safeText(event.referee?.name || event.referee || "", 100),
+  };
+  [
+    "homeTeamOriginal",
+    "awayTeamOriginal",
+    "leagueOriginal",
+    "subtitleOriginal",
+    "statusOriginal",
+    "titleOriginal",
+  ].forEach((key) => {
+    if (translatedMatch[key]) summary[key] = safeText(translatedMatch[key], 160);
+  });
+  if (translatedMatch.translationStatus) summary.translationStatus = translatedMatch.translationStatus;
   return {
     schemaVersion: 1,
     provider: PROVIDER,
@@ -350,20 +439,7 @@ function sanitizeDetailPayload({ sport, matchId, matchPayload, statisticsPayload
     matchId,
     fetchedAt: timestampFromMillis(Timestamp, now.getTime()),
     expiresAt: timestampFromMillis(Timestamp, now.getTime() + SCOREBOARD_DETAIL_TTL_MS),
-    summary: {
-      title,
-      league: safeText(tournamentName(event.tournament || event.league || event.competition), 120),
-      homeTeam: safeText(homeTeam, 100),
-      awayTeam: safeText(awayTeam, 100),
-      score: {
-        home: event.homeScore?.display ?? event.homeScore?.current ?? event.homeScore ?? null,
-        away: event.awayScore?.display ?? event.awayScore?.current ?? event.awayScore ?? null,
-      },
-      status: safeText(event.status?.description || event.status?.type || event.status || "", 80),
-      startsAt: startsAt || null,
-      venue: safeText(event.venue?.name || event.stadium?.name || event.venue || "", 120),
-      referee: safeText(event.referee?.name || event.referee || "", 100),
-    },
+    summary,
     statistics: sanitizeStats(statisticsPayload),
     incidents: sanitizeIncidents(incidentsPayload),
     lineupsSummary: sanitizeLineups(lineupsPayload),
@@ -396,6 +472,7 @@ async function fetchSportsApiProDetail({ db, Timestamp, FieldValue, apiKey, spor
     return { ok: true, cached: true, detail: cached.data() };
   }
 
+  const translations = await loadScoreboardTranslations(db);
   const baseUrl = sportsApiBaseUrl(safeSport);
   const endpoints = [
     ["match", `/api/match/${encodeURIComponent(safeMatchId)}`],
@@ -426,8 +503,26 @@ async function fetchSportsApiProDetail({ db, Timestamp, FieldValue, apiKey, spor
     now: nowDate(now),
     Timestamp,
     FieldValue,
+    translations,
   });
   await ref.set(detail, { merge: true });
+  try {
+    const event = rawEventFromPayload(responses.match);
+    const terms = collectTranslationTermsFromMatches([{
+      id: safeMatchId,
+      sport: safeSport,
+      homeTeam: teamName(event.homeTeam || event.home),
+      awayTeam: teamName(event.awayTeam || event.away),
+      league: tournamentName(event.tournament || event.league || event.competition),
+      subtitle: tournamentName(event.tournament || event.league || event.competition),
+      status: event.status?.description || event.status?.type || event.status || "",
+      title: detail.summary?.title || safeMatchId,
+    }]);
+    await recordTranslationCandidates({ db, FieldValue, terms, lookup: translations });
+    await updateTranslationStats({ db, FieldValue, lookup: translations });
+  } catch (err) {
+    console.warn("[SportsAPIPro] detail translation maintenance skipped:", err?.message || err);
+  }
   return { ok: true, cached: false, detail };
 }
 
@@ -438,6 +533,20 @@ function requireRefreshPermission(request, getCallerAccessContext, HttpsError) {
   return getCallerAccessContext(request).then((access) => {
     if (!access?.isSuperAdmin && !access?.hasPermission?.("admin.scoreboard.configure")) {
       throw new HttpsError("permission-denied", "scoreboard permission required");
+    }
+    return access;
+  });
+}
+
+function requireTranslationPermission(request, getCallerAccessContext, HttpsError) {
+  if (!request.auth?.uid) {
+    throw new HttpsError("unauthenticated", "auth required");
+  }
+  return getCallerAccessContext(request).then((access) => {
+    if (!access?.isSuperAdmin
+      && !access?.hasPermission?.("admin.scoreboard.translation")
+      && !access?.hasPermission?.("admin.scoreboard.configure")) {
+      throw new HttpsError("permission-denied", "scoreboard translation permission required");
     }
     return access;
   });
@@ -517,6 +626,26 @@ function createSportsApiProScoreboardExports({ db, FieldValue, Timestamp, onCall
           if (status === 429) throw new HttpsError("resource-exhausted", "provider rate limited");
           throw new HttpsError("unavailable", "scoreboard detail unavailable");
         }
+      },
+    ),
+
+    upsertScoreboardTranslations: onCall(
+      {
+        region: REGION,
+        timeoutSeconds: 90,
+        memory: "256MiB",
+      },
+      async (request) => {
+        const access = await requireTranslationPermission(request, getCallerAccessContext, HttpsError);
+        const result = await upsertScoreboardTranslations({
+          db,
+          FieldValue,
+          items: request.data?.items,
+          reviewerUid: request.auth?.uid || null,
+          force: access.isSuperAdmin && request.data?.force === true,
+        });
+        if (!result.ok) throw new HttpsError("invalid-argument", "no valid translations");
+        return result;
       },
     ),
   };

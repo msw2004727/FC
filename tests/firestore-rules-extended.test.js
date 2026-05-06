@@ -2296,6 +2296,49 @@ describe("/scoreboardSnapshots / scoreboardMatchDetails / sportsApiProUsage", ()
     await assertSucceeds(getDoc(doc(superAdmin(), "sportsApiProUsage", "20260506")));
     await assertFails(setDoc(doc(superAdmin(), "sportsApiProUsage", "20260506"), { provider: "client" }));
   });
+
+  test("scoreboard translation collections are permission-gated read only", async () => {
+    await seedDoc("scoreboardTranslationCandidates", "sportsapipro_football_team_a", {
+      provider: "sportsapipro",
+      sport: "football",
+      type: "team",
+      sourceName: "Team A",
+      status: "pending",
+    });
+    await seedDoc("scoreboardTranslations", "sportsapipro_football_team_b", {
+      provider: "sportsapipro",
+      sport: "football",
+      type: "team",
+      sourceName: "Team B",
+      zhTwName: "B Team",
+      status: "approved",
+    });
+    await seedDoc("scoreboardTranslationStats", "summary", {
+      provider: "sportsapipro",
+      totals: { pending: 1, approved: 1 },
+    });
+
+    await assertFails(getDoc(doc(guest(), "scoreboardTranslationCandidates", "sportsapipro_football_team_a")));
+    await assertFails(getDoc(doc(admin(), "scoreboardTranslations", "sportsapipro_football_team_b")));
+    await assertFails(getDoc(doc(contentManager(), "scoreboardTranslationStats", "summary")));
+
+    await seedRolePermissions("content_manager", ["admin.scoreboard.translation"]);
+    await assertSucceeds(getDoc(doc(contentManager(), "scoreboardTranslationCandidates", "sportsapipro_football_team_a")));
+    await assertSucceeds(getDoc(doc(contentManager(), "scoreboardTranslations", "sportsapipro_football_team_b")));
+    await assertSucceeds(getDoc(doc(contentManager(), "scoreboardTranslationStats", "summary")));
+
+    await seedRolePermissions("content_manager", ["admin.scoreboard.configure"]);
+    await assertSucceeds(getDoc(doc(contentManager(), "scoreboardTranslationStats", "summary")));
+    await assertSucceeds(getDoc(doc(superAdmin(), "scoreboardTranslationStats", "summary")));
+    await assertFails(getDoc(doc(superAdmin(), "scoreboardTranslationStats", "other")));
+
+    await assertFails(setDoc(doc(superAdmin(), "scoreboardTranslations", "sportsapipro_football_team_b"), {
+      provider: "client",
+    }));
+    await assertFails(setDoc(doc(contentManager(), "scoreboardTranslationCandidates", "new"), {
+      provider: "client",
+    }));
+  });
 });
 
 describe("/gameConfigs/{configId}", () => {

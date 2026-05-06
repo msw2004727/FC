@@ -286,6 +286,9 @@ sequenceDiagram
 | `scoreboardSnapshots/home` | SportsAPI Pro 首頁比分與最近賽程快取 | 公開讀；client 禁寫；由 Cloud Function 以 Admin SDK 更新 |
 | `scoreboardMatchDetails/{sport_matchId}` | 賽事基本詳情快取 | 公開讀；client 禁寫；由 Cloud Function 產生/刷新 |
 | `sportsApiProUsage/{yyyyMMdd}` | SportsAPI Pro 用量與刷新狀態 | 僅 `super_admin` 讀；client 禁寫；不得保存 API key |
+| `scoreboardTranslationCandidates/{termId}` | 比分來源名稱待翻譯清單 | 僅 `super_admin` / `admin.scoreboard.configure` / `admin.scoreboard.translation` 讀；client 禁寫；由 Cloud Function 收集 |
+| `scoreboardTranslations/{termId}` | 比分正式中文詞庫 | 僅 `super_admin` / `admin.scoreboard.configure` / `admin.scoreboard.translation` 讀；client 禁寫；由 Cloud Function 維護 |
+| `scoreboardTranslationStats/summary` | 比分中文詞庫統計與 AI 維護指引 | 僅 `super_admin` / `admin.scoreboard.configure` / `admin.scoreboard.translation` 讀；client 禁寫 |
 | `participantQueryShares/{shareId}` | 儀表板臨時分享 | 7 天快照型報表 |
 | `shotGameScores` / `kickGameScores` | 遊戲分數 | callable 寫入，排行榜讀 |
 | `usageMetrics` / `translateUsage` | 用量統計 | schedule / callable 寫入，super_admin 讀 |
@@ -478,7 +481,9 @@ current = realCurrent + sum(remainingSlots)
 - `js/modules/scoreboard/scoreboard-admin.js` 負責後台 `page-admin-scoreboard` 控制頁，入口在左方抽屜，預設只有 `super_admin` 顯示；保存與手動刷新權限是 `admin.scoreboard.configure` 或 `super_admin`。
 - `js/modules/scoreboard/scoreboard-public.js` 負責 `page-match-calendar` 公開比分/賽程頁，讀 `scoreboardSnapshots/home` 與 `scoreboardMatchDetails/{sport_matchId}`；運動頁籤同時納入 config 與 snapshot 中有資料的 sport，首頁帶入的 sport/matchId 必須優先套用；前台不直接呼叫 SportsAPI Pro。
 - `functions/scoreboard-sportsapipro.js` 以 Firebase Secret `SPORTSAPI_PRO_API_KEY` 呼叫 SportsAPI Pro V2 `/api/live`、`/api/today`、`/api/match/{id}` 等 endpoint，產生公開快取與 `sportsApiProUsage/{yyyyMMdd}` 用量摘要。
+- `functions/scoreboard-translations.js` 負責比分來源名稱中文化：先套用內建/正式詞庫，未知來源名稱寫入 `scoreboardTranslationCandidates`，統計寫入 `scoreboardTranslationStats/summary`；未知或不確定名稱保留原文，不額外呼叫第三方 API。
 - `siteConfig/scoreboardConfig` 是公開可讀設定，因此不得保存 API key、token、secret、管理員 UID、email 或 displayName；rules 以欄位白名單阻擋敏感欄位。
+- 比分中文詞庫維護流程與 AI 提示記錄在 `docs/scoreboard-translation-workflow-plan.md`，後台「賽事比分控制」也會顯示待翻譯/已翻譯/保留原文/依運動細分統計。
 
 ---
 

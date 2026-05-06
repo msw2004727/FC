@@ -1892,11 +1892,94 @@
   color: var(--text-muted);
   font-size: .7rem;
 }
+.scoreboard-subtitle {
+  color: var(--text-secondary);
+  font-size: .76rem;
+  font-weight: 850;
+  margin: .15rem 0 .42rem;
+  display: flex;
+  align-items: center;
+  gap: .28rem;
+}
+.scoreboard-translation-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: .65rem;
+  margin-top: .7rem;
+}
+.scoreboard-translation-sport-list,
+.scoreboard-pending-list {
+  display: grid;
+  gap: .42rem;
+}
+.scoreboard-translation-sport-row,
+.scoreboard-pending-term {
+  min-height: 34px;
+  padding: .48rem .55rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  min-width: 0;
+}
+.scoreboard-translation-sport-row {
+  display: grid;
+  grid-template-columns: minmax(72px, 1fr) repeat(4, minmax(0, auto));
+  gap: .45rem;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: .7rem;
+  white-space: nowrap;
+}
+.scoreboard-translation-sport-row b {
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scoreboard-pending-term {
+  display: grid;
+  gap: .12rem;
+}
+.scoreboard-pending-term b {
+  color: var(--text-primary);
+  font-size: .78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scoreboard-pending-term span {
+  color: var(--text-muted);
+  font-size: .68rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scoreboard-ai-prompt {
+  margin-top: .72rem;
+}
+.scoreboard-ai-prompt-text {
+  margin: 0;
+  padding: .62rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: .72rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow: auto;
+}
 @media (max-width: 640px) {
   .scoreboard-toggle-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .scoreboard-toggle-order {
     grid-column: 1 / -1;
     width: min(190px, 100%);
+  }
+  .scoreboard-translation-split { grid-template-columns: 1fr; }
+  .scoreboard-translation-sport-row {
+    grid-template-columns: 1fr repeat(2, auto);
+    white-space: normal;
   }
 }
 @media (max-width: 420px) {

@@ -123,4 +123,29 @@ describe("SportsAPI Pro scoreboard normalizer", () => {
     expect(JSON.stringify(detail)).not.toContain("odds");
     expect(JSON.stringify(detail)).not.toContain("betting");
   });
+
+  test("compact match keeps translated display values and original source names", () => {
+    const compact = scoreboard.compactMatch({
+      id: "m1",
+      sport: "football",
+      sourceId: "premier_league",
+      league: "\u82f1\u8d85",
+      leagueOriginal: "Premier League",
+      title: "\u66fc\u806f vs Liverpool",
+      titleOriginal: "Manchester United vs Liverpool",
+      homeTeam: "\u66fc\u806f",
+      homeTeamOriginal: "Manchester United",
+      awayTeam: "Liverpool",
+      status: "\u9032\u884c\u4e2d",
+      statusOriginal: "Live",
+      detailCacheKey: "football_m1",
+      translationStatus: { homeTeam: "approved", status: "approved" },
+    });
+
+    expect(compact.homeTeam).toBe("\u66fc\u806f");
+    expect(compact.homeTeamOriginal).toBe("Manchester United");
+    expect(compact.leagueOriginal).toBe("Premier League");
+    expect(compact.statusOriginal).toBe("Live");
+    expect(compact.translationStatus).toEqual({ homeTeam: "approved", status: "approved" });
+  });
 });
