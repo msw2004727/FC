@@ -452,13 +452,13 @@ current = realCurrent + sum(remainingSlots)
 
 - 活動類型、活動地區、地點、日期時間、主辦/委託人、裁判類欄位
 - 運動標籤選擇器
-- 費用、俱樂部限定、性別限定、私密活動、分隊、候補、預留開關等加值功能
+- 費用、俱樂部限定、性別限定、私密活動、分隊、候補、預留開關等進階功能（加值服務）
 - 多日期活動
 - 活動範本
 - 外部活動轉換
 - input history
 
-「加值功能」區塊預設收合，琥珀色底，部分預留開關目前無實際作用。
+「進階功能（加值服務）」區塊預設收合，琥珀色底，部分預留開關目前無實際作用。
 
 ### 活動列表與行事曆
 
@@ -470,7 +470,7 @@ current = realCurrent + sum(remainingSlots)
 ### 首頁摘要儀表
 
 - `pages/home.html` 首屏順序：banner、公告、運動快速入口、活動/俱樂部/賽事儀表、比分預留區，後續才是小遊戲、贊助、新聞與浮動廣告。
-- `js/modules/home-dashboard.js` 直接從 inline `boot-home-summary-data` 渲染，不等待 `events` collection。
+- `js/modules/home-dashboard.js` 先從 inline `boot-home-summary-data` 渲染首屏；若摘要超過 5 分鐘，背景讀取公開活動快取/Firestore 重新計算活動數、運動分類數與已記錄瀏覽數，避免 GitHub Action 注入延遲讓快速入口長時間過舊。
 - 首頁活動統計排除取消、私密、俱樂部限定，以及「開始時間已過」的活動；無法解析開始時間的資料採保守保留，不在首頁顯示假 0。
 - 儀表卡可點擊：活動數前往活動頁，俱樂部數前往俱樂部頁，賽事數前往賽事頁；「我要開活動」會帶使用者到活動頁並開啟建立活動流程。
 
@@ -987,6 +987,6 @@ UID 健康檢查目前會發現：
 
 - 後台角色權限仍由 `rolePermissions/{roleKey}` 與 `hasPerm()` 控制，例如 `activity.manage.entry`、`event.create`、`event.edit_all`、`event.delete`。
 - 一般 user 的前台活動主辦能力獨立放在 `roleActivityCapabilities/user`，由權限管理頁的 user 項目展示與手動啟閉。缺文件時前端、Firestore Rules、Cloud Functions 皆套用同一份預設：基本建立、外部連結、自己的活動管理入口、基本編輯、取消、現場操作、委託人開啟；`user.activity.addons_use` 預設關閉。
-- 一般 user 建立/編輯自己的活動時不得寫入加值欄位；嘗試開啟加值開關時前端顯示 `如需更多功能請聯繫官方Line@`，Firestore Rules 也會拒絕 fee、teamOnly、gender restriction、private event、teamSplit 等加值欄位。
+- 一般 user 建立/編輯自己的活動時不得寫入進階功能（加值服務）欄位；嘗試開啟進階功能（加值服務）開關時前端顯示 `如需更多功能請聯繫官方Line@`，Firestore Rules 也會拒絕 fee、teamOnly、gender restriction、private event、teamSplit 等進階功能（加值服務）欄位。
 - owner-scope 能力只限自己建立或被委託的活動，不等同 `activity.manage.entry`。coach+、admin、`activity.manage.entry`、`event.edit_all` 仍是完整活動管理能力。
 - 掃碼、手動簽到、候補升正取與未報名名單操作走 `_canOperateEventSite(e)` 與 Rules `isEventOperatorForData()`；一般 user owner/delegate 必須具備 `user.activity.site_operate`。`events/{eventId}/attendanceRecords` 與 `events/{eventId}/activityRecords` 的寫入也已收斂到參與者本人或活動 operator。

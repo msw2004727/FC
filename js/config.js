@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260507c';
+const CACHE_VERSION = '0.20260507d';
 
 // ─── 即時監聽 limit 預設值（可在儀表板動態調整，存於 siteConfig/realtimeConfig）───
 const REALTIME_LIMIT_DEFAULTS = {
@@ -696,7 +696,7 @@ const ROLE_ACTIVITY_CAPABILITY_ITEMS = Object.freeze([
   {
     code: 'user.activity.basic_create',
     name: '\u57fa\u672c\u5efa\u7acb\u6d3b\u52d5',
-    description: '\u5141\u8a31\u4e00\u822c user \u5efa\u7acb\u4e0d\u542b\u52a0\u503c\u529f\u80fd\u7684\u57fa\u672c\u6d3b\u52d5\u3002',
+    description: '允許一般 user 建立不含進階功能（加值服務）的基本活動。',
     defaultEnabled: true,
   },
   {
@@ -714,7 +714,7 @@ const ROLE_ACTIVITY_CAPABILITY_ITEMS = Object.freeze([
   {
     code: 'user.activity.own_edit_basic',
     name: '\u7de8\u8f2f\u81ea\u5df1\u6d3b\u52d5\u57fa\u672c\u8cc7\u6599',
-    description: '\u5141\u8a31\u4e00\u822c user \u7de8\u8f2f\u81ea\u5df1\u4e3b\u8fa6\u6d3b\u52d5\u7684\u57fa\u672c\u6b04\u4f4d\uff0c\u4e0d\u542b\u52a0\u503c\u529f\u80fd\u6b04\u4f4d\u3002',
+    description: '允許一般 user 編輯自己主辦活動的基本欄位，不含進階功能（加值服務）欄位。',
     defaultEnabled: true,
   },
   {
@@ -737,8 +737,8 @@ const ROLE_ACTIVITY_CAPABILITY_ITEMS = Object.freeze([
   },
   {
     code: 'user.activity.addons_use',
-    name: '\u4f7f\u7528\u52a0\u503c\u529f\u80fd',
-    description: '\u9810\u8a2d\u95dc\u9589\u3002\u958b\u555f\u5f8c\u4e00\u822c user \u624d\u80fd\u4f7f\u7528\u6536\u8cbb\u3001\u968a\u4f0d\u9650\u5b9a\u3001\u6027\u5225\u9650\u5b9a\u3001\u79c1\u5bc6\u6d3b\u52d5\u8207\u5206\u968a\u7b49\u52a0\u503c\u958b\u95dc\u3002',
+    name: '使用進階功能（加值服務）',
+    description: '預設關閉。開啟後一般 user 才能使用收費、隊伍限定、性別限定、私密活動與分隊等進階功能（加值服務）開關。',
     defaultEnabled: false,
   },
 ]);

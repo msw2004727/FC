@@ -31,7 +31,7 @@ Object.assign(App, {
     const info = {
       'user.activity.basic_create': {
         title: '基本建立活動',
-        body: '開了之後，一般 user 可以自己建立活動。這是基本版活動，不包含收費、性別限定、私密活動、分隊這些加值開關。',
+        body: '開了之後，一般 user 可以自己建立活動。這是基本版活動，不包含收費、性別限定、私密活動、分隊這些進階功能（加值服務）。',
       },
       'user.activity.external_create': {
         title: '建立外部活動連結',
@@ -43,7 +43,7 @@ Object.assign(App, {
       },
       'user.activity.own_edit_basic': {
         title: '編輯自己活動基本資料',
-        body: '開了之後，一般 user 可以改自己活動的名稱、時間、地點、人數、注意事項等基本資料。加值功能還是另外看「使用加值功能」開關。',
+        body: '開了之後，一般 user 可以改自己活動的名稱、時間、地點、人數、注意事項等基本資料。進階功能（加值服務）還是另外看「使用進階功能（加值服務）」開關。',
       },
       'user.activity.own_cancel': {
         title: '取消自己活動',
@@ -58,7 +58,7 @@ Object.assign(App, {
         body: '開了之後，一般 user 主辦人可以找最多 3 位委託人幫忙管理現場。委託人主要是協助簽到、候補和現場操作。',
       },
       'user.activity.addons_use': {
-        title: '使用加值功能',
+        title: '使用進階功能（加值服務）',
         body: '預設建議關閉。關閉時，一般 user 不能開收費、俱樂部限定、性別限定、私密活動、分隊功能。使用者如果嘗試開啟，系統會提示「如需更多功能請聯繫官方Line@」。',
       },
     }[code];
