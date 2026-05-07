@@ -5,7 +5,7 @@ name: Inject Home Summary to index.html
 #   - workflow_dispatch: 允許手動觸發（首次部署 / debug / 緊急更新）
 on:
   schedule:
-    - cron: '0 */6 * * *'   # 0:00, 6:00, 12:00, 18:00 UTC
+    - cron: '17 * * * *'    # hourly, offset to avoid top-of-hour queueing
   workflow_dispatch:
 
 # 並發保護：上次還沒結束時，本次自動跳過（避免 push 競爭）

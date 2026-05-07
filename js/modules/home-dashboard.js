@@ -13,6 +13,8 @@
   ].map(([id, label]) => ({ id, label }));
   const HOME_SCOREBOARD_LIMIT = 3;
   const HOME_SCOREBOARD_SECTION_KEYS = ['featured', 'live', 'schedule'];
+  const HOME_SUMMARY_CLIENT_REFRESH_MIN_AGE_MS = 5 * 60 * 1000;
+  const HOME_SUMMARY_CLIENT_REFRESH_THROTTLE_MS = 5 * 60 * 1000;
   const HOME_SCOREBOARD_NOTICE = '更新頻率仍在測試，比分賽程僅供參考，實際結果以官方公告為準。';
   const HOME_SCOREBOARD_SECTIONS = {
     featured: {
@@ -72,6 +74,143 @@
     const boot = readBootSummary();
     if (boot) app._homeSummary = boot;
     return boot || normalizeSummary({});
+  }
+
+  function summaryGeneratedMs(summary) {
+    const raw = summary?.generatedAt;
+    const parsed = raw ? Date.parse(raw) : 0;
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function parseEventDateMs(dateValue) {
+    if (!dateValue) return 0;
+    if (typeof dateValue === 'number') return dateValue;
+    if (dateValue && typeof dateValue.toDate === 'function') return dateValue.toDate().getTime();
+    const raw = String(dateValue).trim();
+    const slash = raw.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})(?:\s+(\d{1,2}):(\d{2}))?/);
+    if (slash) {
+      return new Date(
+        Number(slash[1]),
+        Number(slash[2]) - 1,
+        Number(slash[3]),
+        Number(slash[4] || 0),
+        Number(slash[5] || 0)
+      ).getTime();
+    }
+    const parsed = Date.parse(raw);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function normalizeEventSportKey(event) {
+    const raw = String(event?.sportTag || event?.sport || 'football').trim();
+    const safe = typeof getSportKeySafe === 'function'
+      ? getSportKeySafe(raw)
+      : root.getSportKeySafe?.(raw);
+    return safe || raw || 'football';
+  }
+
+  function isPublicActiveHomeEvent(event, nowMs) {
+    if (!event || !(event.id || event._docId)) return false;
+    const status = String(event.status || '').toLowerCase();
+    if (['ended', 'cancelled', 'canceled', 'archived'].includes(status)) return false;
+    if (event.privateEvent === true || event.teamOnly === true) return false;
+    const startMs = parseEventDateMs(event.date || event.startAt || event.startTime);
+    return startMs === 0 || startMs > nowMs;
+  }
+
+  function buildSummaryFromEvents(events, baseSummary) {
+    const base = normalizeSummary(baseSummary || {});
+    const nowMs = Date.now();
+    const activeEvents = (Array.isArray(events) ? events : [])
+      .filter(event => isPublicActiveHomeEvent(event, nowMs));
+    const sportMap = new Map();
+    let viewTotal = 0;
+
+    activeEvents.forEach(event => {
+      const sport = normalizeEventSportKey(event);
+      sportMap.set(sport, (sportMap.get(sport) || 0) + 1);
+      const views = Number(event.viewCount || event.views || 0);
+      if (Number.isFinite(views) && views > 0) viewTotal += Math.floor(views);
+    });
+
+    return {
+      ...base,
+      generatedAt: new Date(nowMs).toISOString(),
+      counts: {
+        ...base.counts,
+        activities: activeEvents.length,
+      },
+      activityViews: {
+        ...base.activityViews,
+        total: viewTotal,
+      },
+      sportCounts: Array.from(sportMap.entries())
+        .map(([sportTag, count]) => ({ sportTag, count }))
+        .sort((a, b) => b.count - a.count || a.sportTag.localeCompare(b.sportTag)),
+    };
+  }
+
+  function homeSummaryChanged(prev, next) {
+    const a = normalizeSummary(prev || {});
+    const b = normalizeSummary(next || {});
+    return a.counts.activities !== b.counts.activities
+      || a.activityViews.total !== b.activityViews.total
+      || JSON.stringify(a.sportCounts || []) !== JSON.stringify(b.sportCounts || []);
+  }
+
+  async function refreshHomeSummaryFromEvents() {
+    const firebaseService = (typeof FirebaseService !== 'undefined') ? FirebaseService : root.FirebaseService;
+    if (!firebaseService?._cache || app._homeSummaryRefreshing) return null;
+    app._homeSummaryRefreshing = true;
+    try {
+      const shouldReloadEvents = typeof firebaseService._shouldReloadCollection === 'function'
+        ? firebaseService._shouldReloadCollection('events')
+        : (!Array.isArray(firebaseService._cache.events) || !firebaseService._cache.events.length);
+      if (shouldReloadEvents && typeof firebaseService._loadEventsStatic === 'function') {
+        await firebaseService._loadEventsStatic();
+      }
+      const events = Array.isArray(firebaseService._cache.events) ? firebaseService._cache.events : [];
+      if (!events.length) return null;
+
+      const prev = currentSummary();
+      const next = buildSummaryFromEvents(events, prev);
+      if (!homeSummaryChanged(prev, next)) return null;
+
+      app._homeSummary = next;
+      firebaseService._cache.homeSummary = next;
+      renderSportEntry(next);
+      renderInfoMeter(next);
+      return next;
+    } catch (err) {
+      console.warn('[HomeDashboard] home summary refresh skipped:', err);
+      return null;
+    } finally {
+      app._homeSummaryRefreshing = false;
+      app._homeSummaryRefreshedAt = Date.now();
+    }
+  }
+
+  function scheduleHomeSummaryRefresh(summary) {
+    const firebaseService = (typeof FirebaseService !== 'undefined') ? FirebaseService : root.FirebaseService;
+    if (!firebaseService?._cache) return;
+    if (app._homeSummaryRefreshScheduled || app._homeSummaryRefreshing) return;
+
+    const nowMs = Date.now();
+    const generatedMs = summaryGeneratedMs(summary);
+    if (generatedMs && nowMs - generatedMs < HOME_SUMMARY_CLIENT_REFRESH_MIN_AGE_MS) return;
+    if (app._homeSummaryRefreshedAt
+      && nowMs - app._homeSummaryRefreshedAt < HOME_SUMMARY_CLIENT_REFRESH_THROTTLE_MS) return;
+
+    app._homeSummaryRefreshScheduled = true;
+    const run = () => {
+      app._homeSummaryRefreshScheduled = false;
+      refreshHomeSummaryFromEvents();
+    };
+    if (typeof root.requestIdleCallback === 'function') {
+      root.requestIdleCallback(run, { timeout: 2500 });
+    } else {
+      setTimeout(run, 1200);
+    }
   }
 
   function configuredSports() {
@@ -539,8 +678,11 @@
       const summary = currentSummary();
       renderSportEntry(summary);
       renderInfoMeter(summary);
+      scheduleHomeSummaryRefresh(summary);
       this._markPageSnapshotReady?.('page-home');
     },
+
+    _refreshHomeSummaryFromEvents: refreshHomeSummaryFromEvents,
 
     async renderHomeScoreboardPreview() {
       renderScoreboard(this._scoreboardConfig || null, this._scoreboardSnapshot || null);
@@ -569,5 +711,7 @@
     normalizeSummary,
     sportRows,
     numberText,
+    buildSummaryFromEvents,
+    isPublicActiveHomeEvent,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

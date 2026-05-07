@@ -12,7 +12,7 @@ const homeCssSource = fs.readFileSync(
   "utf8"
 );
 
-function runHomeDashboardModule() {
+function runHomeDashboardModule(options = {}) {
   const dom = new JSDOM(`<!doctype html>
     <div id="home-sport-entry"></div>
     <div id="home-info-meter"></div>
@@ -39,6 +39,12 @@ function runHomeDashboardModule() {
     getSportKeySafe: key => key,
     getSportLabelByKey: key => key,
   });
+  if (options.firebaseService) {
+    context.FirebaseService = options.firebaseService;
+  }
+  if (options.sports) {
+    context.EVENT_SPORT_OPTIONS = options.sports;
+  }
   vm.runInContext(source, context);
   app._homeSummary = {
     counts: { activities: 20, teams: 6, tournaments: 0 },
@@ -48,7 +54,7 @@ function runHomeDashboardModule() {
       { sportTag: "dodgeball", count: 1 },
     ],
   };
-  return { app, dom };
+  return { app, dom, context };
 }
 
 describe("home-dashboard browser binding", () => {
@@ -144,5 +150,41 @@ describe("home-dashboard browser binding", () => {
     app.selectHomeScoreboardSection("featured");
     expect(scoreboard.querySelector(".home-scoreboard-section-tab.active")?.getAttribute("onclick")).toContain("featured");
     expect(scoreboard.querySelector(".home-scoreboard-note")).not.toBeNull();
+  });
+
+  test("refreshes stale sport quick entry from cached public events", async () => {
+    const firebaseService = {
+      _cache: {
+        events: [
+          { id: "a", status: "open", date: "2099/05/06 12:01", sportTag: "football", viewCount: 10 },
+          { id: "b", status: "open", date: "2099/05/06 12:02", sportTag: "basketball", viewCount: 20 },
+          { id: "c", status: "open", date: "2099/05/06 12:03", sportTag: "dodgeball", viewCount: 40, privateEvent: true },
+        ],
+      },
+      _loadEventsStatic: jest.fn(),
+    };
+    const { app, dom } = runHomeDashboardModule({
+      firebaseService,
+      sports: [
+        { key: "football", label: "Football" },
+        { key: "basketball", label: "Basketball" },
+        { key: "dodgeball", label: "Dodgeball" },
+      ],
+    });
+
+    await app._refreshHomeSummaryFromEvents();
+
+    const sportEntry = dom.window.document.getElementById("home-sport-entry");
+    expect(firebaseService._loadEventsStatic).not.toHaveBeenCalled();
+    expect(firebaseService._cache.homeSummary.counts.activities).toBe(2);
+    expect(firebaseService._cache.homeSummary.activityViews.total).toBe(30);
+    expect(firebaseService._cache.homeSummary.sportCounts).toEqual([
+      { sportTag: "basketball", count: 1 },
+      { sportTag: "football", count: 1 },
+    ]);
+    expect(sportEntry.querySelector('[data-home-sport="basketball"]')).not.toBeNull();
+    expect(sportEntry.querySelector('[data-home-sport="football"]')).not.toBeNull();
+    expect(sportEntry.querySelector('[data-home-sport="dodgeball"]')).toBeNull();
+    expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("530");
   });
 });
