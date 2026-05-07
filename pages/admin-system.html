@@ -141,28 +141,28 @@
 
     <!-- PAGE: Backend - Announcement Management (Super Admin) -->
     <section class="page" id="page-admin-announcements">
-      <div class="page-header">
+      <div class="page-header announcement-admin-header">
         <button class="back-btn" onclick="App.goBack()">←</button>
         <h2>系統公告管理</h2>
-        <button class="primary-btn" style="margin-left:auto;font-size:.75rem;padding:.35rem .7rem" onclick="App.showAnnouncementForm()">＋ 新增公告</button>
+        <button class="primary-btn announcement-create-btn" type="button" onclick="App.showAnnouncementForm()">＋ 新增公告</button>
       </div>
-      <div id="ann-manage-count" style="font-size:.75rem;color:var(--text-muted);padding:.2rem .3rem .5rem"></div>
-      <div class="card-list" id="announcement-manage-list"></div>
+      <div id="ann-manage-count" class="announcement-count"></div>
+      <div class="card-list announcement-card-list" id="announcement-manage-list"></div>
 
       <!-- Announcement Form Modal -->
-      <div class="modal-overlay" id="announcement-form-overlay" onclick="if(event.target===this)App.hideAnnouncementForm()">
-        <div class="modal" style="max-height:85vh">
+      <div class="modal-overlay announcement-form-overlay" id="announcement-form-overlay" onclick="if(event.target===this)App.hideAnnouncementForm()">
+        <div class="modal announcement-form-modal">
           <div class="modal-header">
             <h3 id="announcement-form-title">新增公告</h3>
             <button class="modal-close" onclick="App.hideAnnouncementForm()">✕</button>
           </div>
-          <div class="modal-body" style="display:flex;flex-direction:column;gap:.65rem">
+          <div class="modal-body announcement-form-body">
             <div class="form-row"><label>公告標題（12 字內） <span class="required">*必填</span></label><input type="text" id="ann-input-title" maxlength="12" placeholder="例：系統維護通知"></div>
             <div class="form-row"><label>公告內容（50 字內） <span class="required">*必填</span></label><textarea id="ann-input-content" rows="3" maxlength="50" placeholder="公告內容..." oninput="document.getElementById('ann-content-count').textContent=this.value.length+'/50'"></textarea><span id="ann-content-count" style="font-size:.68rem;color:var(--text-muted);text-align:right">0/50</span></div>
             <div class="form-row"><label>發布方式</label><select id="ann-input-publish-type" onchange="App.toggleAnnSchedule()"><option value="now">立即發布</option><option value="scheduled">預約發布</option></select></div>
             <div class="form-row" id="ann-schedule-row" style="display:none"><label>預約發布時間</label><input type="datetime-local" id="ann-input-schedule"></div>
             <div class="form-row"><label>結束時間（選填）</label><input type="datetime-local" id="ann-input-unpublish"></div>
-            <button class="primary-btn full-width" onclick="App.saveAnnouncementItem()">儲存</button>
+            <button class="primary-btn full-width announcement-save-btn" id="ann-save-btn" type="button" onclick="App.saveAnnouncementItem()">儲存</button>
           </div>
         </div>
       </div>

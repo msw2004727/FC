@@ -753,6 +753,50 @@
   0%   { transform: translateX(0); }
   100% { transform: translateX(-50%); }
 }
+#announce-detail-modal {
+  align-items: flex-start;
+  overflow-y: auto;
+  padding: calc(58px + .75rem) .75rem calc(1rem + env(safe-area-inset-bottom));
+}
+#announce-detail-modal .announcement-detail-modal {
+  position: relative;
+  inset: auto;
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 520px);
+  max-height: calc(100dvh - 92px);
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: 16px;
+  transform: translateY(12px);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, .18);
+}
+#announce-detail-modal .announcement-detail-modal.open {
+  transform: translateY(0);
+}
+#announce-detail-modal .modal-header,
+#announce-detail-modal #ann-detail-footer {
+  flex-shrink: 0;
+}
+#announce-detail-modal .modal-body {
+  overflow-y: auto;
+  color: var(--text-primary);
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+@media (min-width: 800px) {
+  #announce-detail-modal .announcement-detail-modal {
+    left: auto;
+    right: auto;
+    bottom: auto;
+    border-radius: 16px;
+    transform: translateY(12px);
+  }
+  #announce-detail-modal .announcement-detail-modal.open {
+    transform: translateY(0);
+  }
+}
 
 /* ─── Horizontal Scroll Cards ─── */
 .horizontal-scroll { display: flex; gap: .65rem; overflow-x: auto; padding: .2rem .2rem .6rem; -webkit-overflow-scrolling: touch; scroll-snap-type: x mandatory; scroll-behavior: smooth; }

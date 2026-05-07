@@ -1,15 +1,66 @@
 /* ================================================
-   SportHub — Announcement: Marquee (Frontend) + CRUD (Admin)
+   SportHub - Announcement: Marquee + Admin CRUD
    ================================================ */
 
 Object.assign(App, {
 
   _annEditId: null,
+  _annBusy: false,
 
-  // ════════════════════════════════
-  //  Frontend — Marquee
-  // ════════════════════════════════
+  _annActionArg(value) {
+    return String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  },
 
+  _parseAnnDateTime(value) {
+    if (!value) return null;
+    if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+    if (typeof value?.toDate === 'function') {
+      const d = value.toDate();
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+    if (typeof value === 'number') {
+      const d = new Date(value);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+    if (typeof value !== 'string') return null;
+    const normalized = value.trim().replace(/\//g, '-').replace(' ', 'T');
+    const d = new Date(normalized);
+    return Number.isNaN(d.getTime()) ? null : d;
+  },
+
+  _formatAnnDisplayDate(value) {
+    const d = this._parseAnnDateTime(value) || new Date();
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  },
+
+  _formatAnnInputDate(value) {
+    const d = this._parseAnnDateTime(value);
+    if (!d) return '';
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  },
+
+  _getAnnStatusMeta(status, storedStatus) {
+    if (status === 'active') {
+      return { label: '上架中', className: 'active' };
+    }
+    if (status === 'scheduled') {
+      return { label: '排程中', className: 'scheduled' };
+    }
+    return { label: storedStatus === 'active' ? '已到期' : '已下架', className: 'expired' };
+  },
+
+  _setAnnSaveBusy(isBusy) {
+    this._annBusy = !!isBusy;
+    const btn = document.getElementById('ann-save-btn');
+    if (btn) {
+      btn.disabled = this._annBusy;
+      btn.textContent = this._annBusy ? '儲存中...' : '儲存';
+    }
+  },
+
+  // Frontend marquee
   renderAnnouncement() {
     const wrap = document.getElementById('announce-marquee-wrap');
     const track = document.getElementById('announce-marquee-track');
@@ -23,234 +74,305 @@ Object.assign(App, {
       return;
     }
 
-    // Build marquee items
-    const html = items.map(a =>
-      `<span class="announce-marquee-item" onclick="App.showAnnDetail('${a.id}')">${escapeHTML(a.title)}：${escapeHTML(a.content)}</span>`
-    ).join('');
+    const html = items.map(a => {
+      const id = this._annActionArg(a.id);
+      return `<span class="announce-marquee-item" onclick="App.showAnnDetail('${id}')">${escapeHTML(a.title || '公告')}：${escapeHTML(a.content || '')}</span>`;
+    }).join('');
 
-    // Duplicate for seamless loop
     track.innerHTML = `<div class="announce-marquee-inner">${html}${html}</div>`;
     wrap.style.display = '';
 
-    // Calculate duration based on total character count
-    const totalChars = items.reduce((sum, a) => sum + (a.title + a.content).length, 0);
+    const totalChars = items.reduce((sum, a) => sum + String((a.title || '') + (a.content || '')).length, 0);
     const duration = Math.max(10, totalChars * 0.35);
-    track.querySelector('.announce-marquee-inner').style.setProperty('--marquee-duration', duration + 's');
+    track.querySelector('.announce-marquee-inner')?.style.setProperty('--marquee-duration', `${duration}s`);
   },
 
   showAnnDetail(id) {
-    const items = ApiService.getActiveAnnouncements();
-    const ann = items.find(a => a.id === id);
+    const ann = ApiService.getActiveAnnouncements().find(a => a.id === id);
     if (!ann) return;
-    const modal = document.getElementById('announce-detail-modal');
-    if (!modal) return;
-    document.getElementById('ann-detail-title').textContent = ann.title;
-    document.getElementById('ann-detail-body').textContent = ann.content;
+    const overlay = document.getElementById('announce-detail-modal');
+    const panel = overlay?.querySelector('.modal');
+    if (!overlay || !panel) return;
+
+    document.getElementById('ann-detail-title').textContent = ann.title || '公告';
+    document.getElementById('ann-detail-body').textContent = ann.content || '';
     const footer = document.getElementById('ann-detail-footer');
-    footer.innerHTML = `<span>${escapeHTML(ann.publishAt)}</span>`;
-    modal.classList.add('open');
-    modal.querySelector('.modal').classList.add('open');
+    if (footer) footer.innerHTML = `<span>${escapeHTML(ann.publishAt || '')}</span>`;
+    overlay.classList.add('open');
+    panel.classList.add('open');
   },
 
-  // ════════════════════════════════
-  //  Backend — Admin Management
-  // ════════════════════════════════
-
+  // Admin management
   renderAnnouncementManage() {
     const container = document.getElementById('announcement-manage-list');
     if (!container) return;
-    const items = ApiService.getAnnouncements().slice().sort((a, b) => (a.sortOrder || 99) - (b.sortOrder || 99));
+
+    const items = ApiService.getAnnouncements()
+      .slice()
+      .sort((a, b) => (Number(a.sortOrder) || 99) - (Number(b.sortOrder) || 99));
     const countEl = document.getElementById('ann-manage-count');
     if (countEl) countEl.textContent = `共 ${items.length}/5 則`;
 
-    const statusLabels = { active: '上架中', scheduled: '已排程', expired: '已下架' };
-    const statusColors = { active: '#10b981', scheduled: '#f59e0b', expired: '#6b7280' };
+    if (!items.length) {
+      container.innerHTML = '<div class="announcement-empty">目前沒有公告</div>';
+      return;
+    }
 
-    container.innerHTML = items.length ? items.map((a, idx) => `
-      <div class="banner-manage-card" style="align-items:center">
-        <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0;margin-right:.4rem">
-          <button class="text-btn" style="font-size:.85rem;padding:0;line-height:1" onclick="App.moveAnnouncement('${a.id}','up')" ${idx === 0 ? 'disabled style="opacity:.3;font-size:.85rem;padding:0;line-height:1"' : ''}>▲</button>
-          <button class="text-btn" style="font-size:.85rem;padding:0;line-height:1" onclick="App.moveAnnouncement('${a.id}','down')" ${idx === items.length - 1 ? 'disabled style="opacity:.3;font-size:.85rem;padding:0;line-height:1"' : ''}>▼</button>
-        </div>
-        <div class="banner-manage-info" style="flex:1;min-width:0">
-          <div class="banner-manage-title">${escapeHTML(a.title)}</div>
-          <div class="banner-manage-meta" style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
-            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${statusColors[a.status] || '#6b7280'}"></span>
-            <span>${statusLabels[a.status] || a.status}</span>
-            <span>・</span>
-            ${this._userTag(a.operatorName || a.createdBy)}
+    const now = new Date();
+    container.innerHTML = items.map((a, idx) => {
+      const id = this._annActionArg(a.id);
+      const effectiveStatus = ApiService._getAnnouncementEffectiveStatus
+        ? ApiService._getAnnouncementEffectiveStatus(a, now)
+        : (a.status || 'active');
+      const status = this._getAnnStatusMeta(effectiveStatus, a.status);
+      const isFirst = idx === 0;
+      const isLast = idx === items.length - 1;
+      const canActivate = a.status !== 'active';
+      return `
+        <article class="announcement-card">
+          <div class="announcement-order-controls" aria-label="公告排序">
+            <button class="text-btn announcement-order-btn" type="button" onclick="App.moveAnnouncement('${id}','up')" ${isFirst || this._annBusy ? 'disabled' : ''} aria-label="上移">▲</button>
+            <button class="text-btn announcement-order-btn" type="button" onclick="App.moveAnnouncement('${id}','down')" ${isLast || this._annBusy ? 'disabled' : ''} aria-label="下移">▼</button>
           </div>
-        </div>
-        <div style="flex-shrink:0;display:flex;flex-direction:column;gap:.25rem;align-items:flex-end">
-          <button class="text-btn" style="font-size:.72rem" onclick="App.editAnnouncementItem('${a.id}')">編輯</button>
-          <button class="text-btn" style="font-size:.72rem;color:${a.status === 'active' ? 'var(--text-muted)' : 'var(--accent)'}" onclick="App.toggleAnnouncementStatus('${a.id}')">${a.status === 'active' ? '下架' : '上架'}</button>
-          <button class="text-btn" style="font-size:.72rem;color:var(--danger)" onclick="App.deleteAnnouncementItem('${a.id}')">刪除</button>
-        </div>
-      </div>
-    `).join('') : '<div style="text-align:center;padding:1.5rem;color:var(--text-muted);font-size:.82rem">尚無公告</div>';
+          <div class="announcement-main">
+            <div class="announcement-title-row">
+              <span class="announcement-status-dot announcement-status-${status.className}" aria-hidden="true"></span>
+              <span class="announcement-title">${escapeHTML(a.title || '未命名公告')}</span>
+            </div>
+            <div class="announcement-content">${escapeHTML(a.content || '')}</div>
+            <div class="announcement-meta">
+              <span>${status.label}</span>
+              ${a.publishAt ? `<span>${escapeHTML(a.publishAt)}</span>` : ''}
+              ${this._userTag(a.operatorName || a.createdBy)}
+            </div>
+          </div>
+          <div class="announcement-actions">
+            <button class="text-btn announcement-action-btn" type="button" onclick="App.editAnnouncementItem('${id}')" ${this._annBusy ? 'disabled' : ''}>編輯</button>
+            <button class="text-btn announcement-action-btn ${canActivate ? 'announcement-action-accent' : 'announcement-action-muted'}" type="button" onclick="App.toggleAnnouncementStatus('${id}')" ${this._annBusy ? 'disabled' : ''}>${canActivate ? '上架' : '下架'}</button>
+            <button class="text-btn announcement-action-btn announcement-action-danger" type="button" onclick="App.deleteAnnouncementItem('${id}')" ${this._annBusy ? 'disabled' : ''}>刪除</button>
+          </div>
+        </article>
+      `;
+    }).join('');
   },
 
   showAnnouncementForm(editData) {
     const overlay = document.getElementById('announcement-form-overlay');
-    if (!overlay) return;
+    const panel = overlay?.querySelector('.modal');
+    if (!overlay || !panel) return;
 
-    // Check max 5 limit for new
-    if (!editData) {
-      const count = ApiService.getAnnouncements().length;
-      if (count >= 5) {
-        this.showToast('公告最多 5 則，請先刪除舊公告');
-        return;
-      }
+    if (!editData && ApiService.getAnnouncements().length >= 5) {
+      this.showToast('公告最多 5 則，請先刪除舊公告');
+      return;
     }
 
     this._annEditId = editData ? editData.id : null;
-    document.getElementById('announcement-form-title').textContent = editData ? '編輯公告' : '新增公告';
-    document.getElementById('ann-input-title').value = editData ? editData.title : '';
-    document.getElementById('ann-input-content').value = editData ? editData.content : '';
-    document.getElementById('ann-content-count').textContent = (editData ? editData.content.length : 0) + '/50';
+    const scheduledDate = this._parseAnnDateTime(editData?.publishAt);
+    const isFutureScheduled = editData?.status === 'scheduled' && scheduledDate && scheduledDate > new Date();
 
-    const isScheduled = editData && editData.status === 'scheduled';
-    document.getElementById('ann-input-publish-type').value = isScheduled ? 'scheduled' : 'now';
+    document.getElementById('announcement-form-title').textContent = editData ? '編輯公告' : '新增公告';
+    document.getElementById('ann-input-title').value = editData?.title || '';
+    document.getElementById('ann-input-content').value = editData?.content || '';
+    document.getElementById('ann-content-count').textContent = `${String(editData?.content || '').length}/50`;
+    document.getElementById('ann-input-publish-type').value = isFutureScheduled ? 'scheduled' : 'now';
+    document.getElementById('ann-input-schedule').value = isFutureScheduled ? this._formatAnnInputDate(editData.publishAt) : '';
+    document.getElementById('ann-input-unpublish').value = editData?.unpublishAt ? this._formatAnnInputDate(editData.unpublishAt) : '';
     this.toggleAnnSchedule();
-    if (isScheduled && editData.publishAt) {
-      document.getElementById('ann-input-schedule').value = editData.publishAt.replace(/\//g, '-').replace(' ', 'T');
-    }
-    // Unpublish time
-    const unpubInput = document.getElementById('ann-input-unpublish');
-    if (unpubInput) {
-      unpubInput.value = (editData && editData.unpublishAt) ? editData.unpublishAt.replace(/\//g, '-').replace(' ', 'T') : '';
-    }
+    this._setAnnSaveBusy(false);
 
     overlay.classList.add('open');
-    overlay.querySelector('.modal').classList.add('open');
+    panel.classList.add('open');
   },
 
   hideAnnouncementForm() {
     const overlay = document.getElementById('announcement-form-overlay');
-    if (!overlay) return;
+    const panel = overlay?.querySelector('.modal');
+    if (!overlay || !panel || this._annBusy) return;
     overlay.classList.remove('open');
-    overlay.querySelector('.modal').classList.remove('open');
+    panel.classList.remove('open');
     this._annEditId = null;
   },
 
   toggleAnnSchedule() {
-    const type = document.getElementById('ann-input-publish-type').value;
-    document.getElementById('ann-schedule-row').style.display = type === 'scheduled' ? '' : 'none';
+    const type = document.getElementById('ann-input-publish-type')?.value;
+    const row = document.getElementById('ann-schedule-row');
+    if (row) row.style.display = type === 'scheduled' ? '' : 'none';
   },
 
-  saveAnnouncementItem() {
+  async saveAnnouncementItem() {
     if (!this.hasPermission('admin.announcements.entry')) {
-      this.showToast('權限不足'); return;
+      this.showToast('權限不足');
+      return;
     }
-    const title = document.getElementById('ann-input-title').value.trim();
-    const content = document.getElementById('ann-input-content').value.trim();
-    const publishType = document.getElementById('ann-input-publish-type').value;
+    if (this._annBusy) return;
+
+    const title = document.getElementById('ann-input-title')?.value.trim() || '';
+    const content = document.getElementById('ann-input-content')?.value.trim() || '';
+    const publishType = document.getElementById('ann-input-publish-type')?.value || 'now';
     const curUser = ApiService.getCurrentUser();
-    const operatorName = curUser?.displayName || ROLES[this.currentRole]?.label || '總管';
+    const operatorName = curUser?.displayName || ROLES[this.currentRole]?.label || '管理員';
 
     if (!title) { this.showToast('請輸入公告標題'); return; }
-    if (title.length > 12) { this.showToast('標題不得超過 12 字'); return; }
+    if (title.length > 12) { this.showToast('標題不能超過 12 字'); return; }
     if (!content) { this.showToast('請輸入公告內容'); return; }
-    if (content.length > 50) { this.showToast('內容不得超過 50 字'); return; }
-
-    // Max 5 check (new only)
+    if (content.length > 50) { this.showToast('內容不能超過 50 字'); return; }
     if (!this._annEditId && ApiService.getAnnouncements().length >= 5) {
       this.showToast('公告最多 5 則，請先刪除舊公告');
       return;
     }
 
-    let publishAt, status;
+    const now = new Date();
+    let publishAtDate = now;
+    let status = 'active';
     if (publishType === 'scheduled') {
-      const scheduleVal = document.getElementById('ann-input-schedule').value;
-      if (!scheduleVal) { this.showToast('請選擇預約發布時間'); return; }
-      publishAt = this._formatDT(scheduleVal);
+      publishAtDate = this._parseAnnDateTime(document.getElementById('ann-input-schedule')?.value);
+      if (!publishAtDate) { this.showToast('請選擇有效的排程發布時間'); return; }
+      if (publishAtDate <= now) { this.showToast('排程發布時間必須晚於現在'); return; }
       status = 'scheduled';
-    } else {
-      publishAt = this._formatDT(new Date().toISOString());
-      status = 'active';
     }
 
-    const unpubVal = document.getElementById('ann-input-unpublish').value;
-    const unpublishAt = unpubVal ? this._formatDT(unpubVal) : null;
-
-    if (this._annEditId) {
-      ApiService.updateAnnouncement(this._annEditId, { title, content, status, publishAt, unpublishAt, operatorName });
-      ApiService._writeOpLog('ann_edit', '編輯公告', `編輯「${title}」`);
-      this.showToast(`公告「${title}」已更新`);
-    } else {
-      // Assign sortOrder
-      const all = ApiService.getAnnouncements();
-      const maxSort = all.reduce((m, a) => Math.max(m, a.sortOrder || 0), 0);
-      ApiService.createAnnouncement({
-        id: 'ann' + Date.now(),
-        title, content, status, publishAt, unpublishAt,
-        sortOrder: maxSort + 1,
-        createdAt: this._formatDT(new Date().toISOString()),
-        createdBy: ROLES[this.currentRole]?.label || '總管',
-        operatorName
-      });
-      ApiService._writeOpLog('ann_create', '建立公告', `發布「${title}」`);
-      this.showToast(status === 'scheduled' ? `公告「${title}」已排程` : `公告「${title}」已發布`);
+    const unpublishAtDate = this._parseAnnDateTime(document.getElementById('ann-input-unpublish')?.value);
+    if (document.getElementById('ann-input-unpublish')?.value && !unpublishAtDate) {
+      this.showToast('請選擇有效的結束時間');
+      return;
     }
-    this.hideAnnouncementForm();
-    this.renderAnnouncementManage();
-    this.renderAnnouncement();
+    if (unpublishAtDate && unpublishAtDate <= publishAtDate) {
+      this.showToast('結束時間必須晚於發布時間');
+      return;
+    }
+
+    const publishAt = this._formatAnnDisplayDate(publishAtDate);
+    const unpublishAt = unpublishAtDate ? this._formatAnnDisplayDate(unpublishAtDate) : null;
+
+    try {
+      this._setAnnSaveBusy(true);
+      if (this._annEditId) {
+        await ApiService.updateAnnouncementAwait(this._annEditId, { title, content, status, publishAt, unpublishAt, operatorName });
+        ApiService._writeOpLog('ann_edit', '編輯公告', `編輯「${title}」`);
+        this.showToast(`公告「${title}」已更新`);
+      } else {
+        const all = ApiService.getAnnouncements();
+        const maxSort = all.reduce((m, a) => Math.max(m, Number(a.sortOrder) || 0), 0);
+        await ApiService.createAnnouncementAwait({
+          id: `ann${Date.now()}`,
+          title,
+          content,
+          status,
+          publishAt,
+          unpublishAt,
+          sortOrder: maxSort + 1,
+          createdAt: this._formatAnnDisplayDate(now),
+          createdBy: ROLES[this.currentRole]?.label || '管理員',
+          operatorName
+        });
+        ApiService._writeOpLog('ann_create', '新增公告', `新增「${title}」`);
+        this.showToast(status === 'scheduled' ? `公告「${title}」已排程` : `公告「${title}」已發布`);
+      }
+      this._setAnnSaveBusy(false);
+      this.hideAnnouncementForm();
+      this.renderAnnouncementManage();
+      this.renderAnnouncement();
+    } catch (err) {
+      console.error('[Announcement:save]', err);
+      if (!err?._toasted) this.showToast(`公告儲存失敗：${err?.message || '請稍後再試'}`);
+      this._setAnnSaveBusy(false);
+    }
   },
 
   editAnnouncementItem(id) {
     if (!this.hasPermission('admin.announcements.entry')) {
-      this.showToast('權限不足'); return;
+      this.showToast('權限不足');
+      return;
     }
+    if (this._annBusy) return;
     const item = ApiService.getAnnouncements().find(a => a.id === id);
     if (item) this.showAnnouncementForm(item);
   },
 
   async deleteAnnouncementItem(id) {
     if (!this.hasPermission('admin.announcements.entry')) {
-      this.showToast('權限不足'); return;
+      this.showToast('權限不足');
+      return;
     }
-    const items = ApiService.getAnnouncements();
-    const item = items.find(a => a.id === id);
+    if (this._annBusy) return;
+    const item = ApiService.getAnnouncements().find(a => a.id === id);
     if (!item) return;
-    if (!(await this.appConfirm(`確定要刪除公告「${item.title}」？`))) return;
-    ApiService.deleteAnnouncement(id);
-    ApiService._writeOpLog('ann_delete', '刪除公告', `刪除「${item.title}」`);
-    this.renderAnnouncementManage();
-    this.renderAnnouncement();
-    this.showToast(`公告「${item.title}」已刪除`);
+    if (!(await this.appConfirm(`確定要刪除「${item.title}」嗎？`))) return;
+
+    try {
+      this._annBusy = true;
+      this.renderAnnouncementManage();
+      const deleted = await ApiService.deleteAnnouncementAwait(id);
+      if (!deleted) throw new Error('找不到公告資料');
+      ApiService._writeOpLog('ann_delete', '刪除公告', `刪除「${item.title}」`);
+      this.showToast(`公告「${item.title}」已刪除`);
+      this.renderAnnouncement();
+    } catch (err) {
+      console.error('[Announcement:delete]', err);
+      if (!err?._toasted) this.showToast(`刪除失敗：${err?.message || '請稍後再試'}`);
+    } finally {
+      this._annBusy = false;
+      this.renderAnnouncementManage();
+    }
   },
 
-  toggleAnnouncementStatus(id) {
+  async toggleAnnouncementStatus(id) {
     if (!this.hasPermission('admin.announcements.entry')) {
-      this.showToast('權限不足'); return;
+      this.showToast('權限不足');
+      return;
     }
+    if (this._annBusy) return;
     const item = ApiService.getAnnouncements().find(a => a.id === id);
     if (!item) return;
     const newStatus = item.status === 'active' ? 'expired' : 'active';
-    ApiService.updateAnnouncement(id, { status: newStatus });
-    ApiService._writeOpLog('ann_toggle', '公告上下架', `${newStatus === 'active' ? '上架' : '下架'}「${item.title}」`);
-    this.renderAnnouncementManage();
-    this.renderAnnouncement();
-    this.showToast(newStatus === 'active' ? `公告「${item.title}」已上架` : `公告「${item.title}」已下架`);
+
+    try {
+      this._annBusy = true;
+      this.renderAnnouncementManage();
+      await ApiService.updateAnnouncementAwait(id, {
+        status: newStatus,
+        operatorName: ApiService.getCurrentUser()?.displayName || ROLES[this.currentRole]?.label || '管理員'
+      });
+      ApiService._writeOpLog('ann_toggle', '公告上下架', `${newStatus === 'active' ? '上架' : '下架'}「${item.title}」`);
+      this.showToast(newStatus === 'active' ? `公告「${item.title}」已上架` : `公告「${item.title}」已下架`);
+      this.renderAnnouncement();
+    } catch (err) {
+      console.error('[Announcement:toggle]', err);
+      if (!err?._toasted) this.showToast(`更新失敗：${err?.message || '請稍後再試'}`);
+    } finally {
+      this._annBusy = false;
+      this.renderAnnouncementManage();
+    }
   },
 
-  moveAnnouncement(id, dir) {
+  async moveAnnouncement(id, dir) {
     if (!this.hasPermission('admin.announcements.entry')) {
-      this.showToast('權限不足'); return;
+      this.showToast('權限不足');
+      return;
     }
-    const items = ApiService.getAnnouncements().slice().sort((a, b) => (a.sortOrder || 99) - (b.sortOrder || 99));
+    if (this._annBusy) return;
+    const items = ApiService.getAnnouncements()
+      .slice()
+      .sort((a, b) => (Number(a.sortOrder) || 99) - (Number(b.sortOrder) || 99));
     const idx = items.findIndex(a => a.id === id);
-    if (idx < 0) return;
     const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
-    if (swapIdx < 0 || swapIdx >= items.length) return;
+    if (idx < 0 || swapIdx < 0 || swapIdx >= items.length) return;
 
-    // Swap sortOrder values
-    const tempOrder = items[idx].sortOrder;
-    ApiService.updateAnnouncement(items[idx].id, { sortOrder: items[swapIdx].sortOrder });
-    ApiService.updateAnnouncement(items[swapIdx].id, { sortOrder: tempOrder });
-
-    this.renderAnnouncementManage();
-    this.renderAnnouncement();
+    const currentOrder = Number(items[idx].sortOrder) || (idx + 1);
+    const swapOrder = Number(items[swapIdx].sortOrder) || (swapIdx + 1);
+    try {
+      this._annBusy = true;
+      this.renderAnnouncementManage();
+      await ApiService.updateAnnouncementAwait(items[idx].id, { sortOrder: swapOrder });
+      await ApiService.updateAnnouncementAwait(items[swapIdx].id, { sortOrder: currentOrder });
+      this.renderAnnouncement();
+    } catch (err) {
+      console.error('[Announcement:move]', err);
+      if (!err?._toasted) this.showToast(`排序失敗：${err?.message || '請稍後再試'}`);
+    } finally {
+      this._annBusy = false;
+      this.renderAnnouncementManage();
+    }
   },
 
 });

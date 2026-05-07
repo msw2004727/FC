@@ -2209,3 +2209,13 @@
 - **Issue**: Generic `Premier League` was mapped to `英超`, which incorrectly translated country-specific leagues such as Kenya/FKF Premier League.
 - **Fix**: Removed the generic built-in mapping and kept only explicit `English Premier League -> 英超`. Added a Firestore translation override for `football / league / Premier League` with `status=keep_original`.
 - **Validation**: Added unit coverage to confirm ambiguous `Premier League` stays original while `English Premier League` still displays as `英超`.
+
+### 2026-05-07 Home Sport Quick Entry Refresh [bugfix]
+- **Issue**: The homepage sport quick entry rendered only from stale `boot-home-summary-data`, so newly opened public sports could stay hidden until the scheduled injector rewrote `index.html`.
+- **Fix**: Rebuilt the current inline homepage summary and added a client-side stale refresh. `home-dashboard.js` now keeps the inline summary for first paint, then refreshes activity count, sport counts, and recorded views from cached/public events when the inline summary is older than 5 minutes. The GitHub injector schedule now runs hourly.
+- **Validation**: Added unit coverage for refreshing the sport quick entry from cached public events while excluding private events.
+
+### 2026-05-07 System Announcement Management Layout And Write Flow [bugfix/ux]
+- **Issue**: System announcement management reused generic modal/card styles, causing the form top to be clipped on narrow screens and list actions to crowd the card. Announcement writes also returned success before Firestore confirmed the write.
+- **Fix**: Added announcement-specific list cards, scroll-safe form/detail modal containers, busy-state buttons, and awaited create/update/delete wrappers. Active announcements now use effective status based on `publishAt` and `unpublishAt`, so scheduled and expired announcements render consistently.
+- **Validation**: Ran `node --check` for announcement and API modules plus `git diff --check` on the touched files.

@@ -1490,12 +1490,43 @@ const ApiService = {
   // ════════════════════════════════
 
   getAnnouncements()       { return this._src('announcements'); },
-  getActiveAnnouncements() { return this.getAnnouncements().filter(a => a.status === 'active').sort((a, b) => (a.sortOrder || 99) - (b.sortOrder || 99)); },
+  _parseAnnouncementTime(value) {
+    if (!value) return null;
+    if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+    if (typeof value?.toDate === 'function') {
+      const d = value.toDate();
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+    if (typeof value !== 'string') return null;
+    const normalized = value.trim().replace(/\//g, '-').replace(' ', 'T');
+    const d = new Date(normalized);
+    return Number.isNaN(d.getTime()) ? null : d;
+  },
+  _getAnnouncementEffectiveStatus(item, now = new Date()) {
+    const storedStatus = item?.status || 'active';
+    const publishAt = this._parseAnnouncementTime(item?.publishAt);
+    const unpublishAt = this._parseAnnouncementTime(item?.unpublishAt);
+    if (storedStatus === 'expired') return 'expired';
+    if (unpublishAt && unpublishAt <= now) return 'expired';
+    if (storedStatus === 'scheduled') {
+      return publishAt && publishAt <= now ? 'active' : 'scheduled';
+    }
+    return storedStatus;
+  },
+  getActiveAnnouncements() {
+    const now = new Date();
+    return this.getAnnouncements()
+      .filter(a => this._getAnnouncementEffectiveStatus(a, now) === 'active')
+      .sort((a, b) => (a.sortOrder || 99) - (b.sortOrder || 99));
+  },
   getActiveAnnouncement()  { return this.getActiveAnnouncements()[0] || null; },
 
   createAnnouncement(data)        { return this._create('announcements', data, FirebaseService.addAnnouncement, 'createAnnouncement'); },
   updateAnnouncement(id, updates) { return this._update('announcements', id, updates, FirebaseService.updateAnnouncement, 'updateAnnouncement'); },
   deleteAnnouncement(id)          { return this._delete('announcements', id, FirebaseService.deleteAnnouncement, 'deleteAnnouncement'); },
+  createAnnouncementAwait(data)        { return this._createAwaitWrite('announcements', data, FirebaseService.addAnnouncement, 'createAnnouncement'); },
+  updateAnnouncementAwait(id, updates) { return this._updateAwaitWrite('announcements', id, updates, FirebaseService.updateAnnouncement, 'updateAnnouncement'); },
+  deleteAnnouncementAwait(id)          { return this._deleteAwaitWrite('announcements', id, FirebaseService.deleteAnnouncement, 'deleteAnnouncement'); },
 
   // ════════════════════════════════
   //  News Articles（每日體育新聞）
