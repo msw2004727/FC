@@ -103,19 +103,20 @@
 
 .home-next-event {
   display: grid;
-  grid-template-columns: minmax(104px, 34%) minmax(0, 1fr);
+  grid-template-columns: clamp(116px, 31%, 148px) minmax(0, 1fr);
   gap: .8rem;
-  align-items: stretch;
+  align-items: start;
 }
 
 .home-next-cover {
+  grid-row: 1 / span 2;
   min-width: 0;
   border: 0;
   border-radius: 10px;
   overflow: hidden;
   padding: 0;
   background: var(--bg-elevated);
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 4 / 3;
   cursor: pointer;
 }
 
@@ -127,10 +128,11 @@
 }
 
 .home-next-event-main {
+  grid-column: 2;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: .58rem;
+  gap: .5rem;
 }
 
 .home-next-event-main h4 {
@@ -191,12 +193,17 @@
   margin-top: auto;
 }
 
+.home-next-event-actions {
+  grid-column: 2;
+  margin-top: .05rem;
+}
+
 .home-next-primary,
 .home-next-outline {
   min-width: 0;
   min-height: 40px;
   border-radius: 8px;
-  padding: 0 .72rem;
+  padding: 0 .58rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -232,6 +239,16 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.home-next-event-actions .home-next-primary,
+.home-next-event-actions .home-next-outline {
+  font-size: .86rem;
+}
+
+.home-next-event-actions .home-next-outline span {
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .home-next-empty {
@@ -327,13 +344,13 @@
 
 .home-next-loading {
   display: grid;
-  grid-template-columns: minmax(104px, 34%) minmax(0, 1fr);
+  grid-template-columns: clamp(116px, 31%, 148px) minmax(0, 1fr);
   gap: .8rem;
   align-items: center;
 }
 
 .home-next-loading-img {
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 4 / 3;
   border-radius: 10px;
 }
 
@@ -375,8 +392,19 @@
   }
 
   .home-next-event {
-    grid-template-columns: 96px minmax(0, 1fr);
+    grid-template-columns: 108px minmax(0, 1fr);
     gap: .65rem;
+  }
+
+  .home-next-cover {
+    grid-row: 1;
+  }
+
+  .home-next-event-actions {
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: .5rem;
+    margin-top: .05rem;
   }
 
   .home-next-event-main h4 {
@@ -392,13 +420,8 @@
   .home-next-primary,
   .home-next-outline {
     min-height: 36px;
-    padding: 0 .48rem;
-    font-size: .78rem;
-  }
-
-  .home-next-event-actions {
-    grid-template-columns: 1fr;
-    gap: .4rem;
+    padding: 0 .42rem;
+    font-size: .8rem;
   }
 
   .home-next-empty-actions {

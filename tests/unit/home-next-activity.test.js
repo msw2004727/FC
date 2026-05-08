@@ -110,6 +110,22 @@ describe('home next activity', () => {
     expect(app.openHomeCreateEvent).toHaveBeenCalled();
   });
 
+  test('view all opens the activity list page', async () => {
+    const { app, dom } = runModule({
+      registrations: [
+        { id: 'r1', eventId: 'evt-next', userId: 'u1', status: 'confirmed' },
+      ],
+      events: [
+        { id: 'evt-next', title: 'Next Match', date: '2099/05/20 18:00~20:00', location: 'B Center', status: 'open' },
+      ],
+    });
+
+    await app.renderHomeNextActivity({ force: true });
+    dom.window.document.querySelector('[data-home-next-action="all"]').click();
+
+    expect(app.showPage).toHaveBeenCalledWith('page-activities');
+  });
+
   test('calendar button lazy-loads the existing activity calendar module path', async () => {
     const { app, dom, context } = runModule({
       registrations: [
