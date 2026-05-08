@@ -2239,3 +2239,8 @@
 - **Issue**: 首頁觀賽聚會區塊仍顯示標題、描述與較寬的卡片底色，和只保留「查看聚會」小型入口的需求不一致。
 - **Fix**: `pages/home.html` 移除觀賽聚會標題、插圖與描述；`home.css` 將入口改成透明外層與內容寬度 pill，避免底色被父層撐滿。
 - **Validation**: Updated `home-dashboard-render.test.js`; `node --check js/modules/home-dashboard.js` and the unit suite passed.
+
+### 2026-05-08 Home Watch Party Card Width Correction [bugfix/ux]
+- **Issue**: The prior homepage watch-party tweak shrank the whole watch-party card, but the intended change was only to reduce the inner action pill background width.
+- **Fix**: Restored the watch-party card as a full-width hero action with managed background support, kept the card title removed, and made only the action pill content-width.
+- **Validation**: Updated `home-dashboard-render.test.js` source contracts to protect full-width card layout plus content-width action pill.

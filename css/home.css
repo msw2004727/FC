@@ -28,9 +28,8 @@
 
 .home-hero-actions {
   display: grid;
-  grid-template-columns: auto auto;
-  justify-content: end;
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
   gap: .5rem;
   margin: 0 0 .6rem;
 }
@@ -39,33 +38,56 @@
   min-width: 0;
   min-height: 40px;
   height: 40px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(34, 197, 94, .12), transparent 28%),
+    var(--bg-card);
   color: var(--text-primary);
-  box-shadow: none;
-  padding: 0;
+  box-shadow: 0 5px 14px rgba(15, 23, 42, .055);
+  padding: 0 .35rem 0 .58rem;
   display: grid;
-  grid-template-columns: auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-items: center;
-  gap: 0;
-  text-align: center;
+  gap: .42rem;
+  text-align: left;
   cursor: pointer;
   overflow: hidden;
-  transition: transform .12s ease;
+  transition: border-color .16s ease, transform .12s ease, box-shadow .16s ease, background-image .18s ease;
 }
 
 .home-watch-party-card.has-bg {
   --home-watch-party-bg: none;
+  background-image:
+    linear-gradient(90deg, rgba(255, 255, 255, .98), rgba(255, 255, 255, .86) 56%, rgba(255, 255, 255, .18)),
+    var(--home-watch-party-bg),
+    radial-gradient(circle at 18% 0%, rgba(34, 197, 94, .12), transparent 28%);
+  background-size: cover;
+  background-position: center;
 }
 
 .home-watch-party-card:hover {
-  box-shadow: none;
+  border-color: #16a34a;
+  box-shadow: 0 7px 18px rgba(15, 23, 42, .08);
+  transform: translateY(-1px);
 }
 
 .home-watch-party-card:active {
   transform: translateY(1px);
+}
+
+.home-watch-party-copy {
+  min-width: 0;
+  justify-self: start;
+  align-self: center;
+  color: #64748b;
+  font-size: .72rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .home-watch-party-action {
@@ -84,6 +106,13 @@
   white-space: nowrap;
   background: linear-gradient(135deg, #f0fdf4 0%, #d9f99d 52%, #ccfbf1 100%);
   box-shadow: 0 4px 10px rgba(16, 185, 129, .12);
+}
+
+[data-theme="dark"] .home-watch-party-card.has-bg {
+  background-image:
+    linear-gradient(90deg, rgba(15, 23, 42, .96), rgba(15, 23, 42, .82) 58%, rgba(15, 23, 42, .28)),
+    var(--home-watch-party-bg),
+    radial-gradient(circle at 18% 0%, rgba(34, 197, 94, .12), transparent 28%);
 }
 
 [data-theme="dark"] .home-watch-party-action {
@@ -816,9 +845,13 @@
   .home-watch-party-card {
     min-height: 40px;
     height: 40px;
-    grid-template-columns: auto;
-    gap: 0;
-    padding: 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: .34rem;
+    padding: 0 .32rem 0 .48rem;
+  }
+
+  .home-watch-party-copy {
+    display: block;
   }
 
   .home-watch-party-action {
@@ -837,7 +870,7 @@
 
 @media (max-width: 360px) {
   .home-watch-party-card {
-    grid-template-columns: auto;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .home-watch-party-action {
