@@ -40,6 +40,8 @@
   height: 40px;
   border: 1px solid var(--border);
   border-radius: 12px;
+  position: relative;
+  isolation: isolate;
   background:
     radial-gradient(circle at 18% 0%, rgba(34, 197, 94, .12), transparent 28%),
     var(--bg-card);
@@ -59,11 +61,25 @@
 .home-watch-party-card.has-bg {
   --home-watch-party-bg: none;
   background-image:
-    linear-gradient(90deg, rgba(255, 255, 255, .74), rgba(255, 255, 255, .65) 56%, rgba(255, 255, 255, .14)),
+    linear-gradient(90deg, rgba(255, 255, 255, .56), rgba(255, 255, 255, .49) 56%, rgba(255, 255, 255, .10)),
     var(--home-watch-party-bg),
     radial-gradient(circle at 18% 0%, rgba(34, 197, 94, .12), transparent 28%);
   background-size: cover;
   background-position: center;
+}
+
+.home-watch-party-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 0%, transparent 35%, rgba(255, 255, 255, .42) 47%, rgba(255, 255, 255, .15) 53%, transparent 66%);
+  mix-blend-mode: screen;
+  opacity: .72;
+  transform: translateX(-120%);
+  animation: homeWatchPartyShine 4.8s ease-in-out infinite;
+  z-index: 1;
 }
 
 .home-watch-party-card:hover {
@@ -79,6 +95,8 @@
 .home-watch-party-copy {
   width: max-content;
   min-width: 0;
+  position: relative;
+  z-index: 2;
   justify-self: start;
   align-self: center;
   height: 24px;
@@ -121,14 +139,36 @@
 
 [data-theme="dark"] .home-watch-party-card.has-bg {
   background-image:
-    linear-gradient(90deg, rgba(15, 23, 42, .72), rgba(15, 23, 42, .62) 58%, rgba(15, 23, 42, .21)),
+    linear-gradient(90deg, rgba(15, 23, 42, .54), rgba(15, 23, 42, .47) 58%, rgba(15, 23, 42, .16)),
     var(--home-watch-party-bg),
     radial-gradient(circle at 18% 0%, rgba(34, 197, 94, .12), transparent 28%);
+}
+
+[data-theme="dark"] .home-watch-party-card::after {
+  background: linear-gradient(115deg, transparent 0%, transparent 35%, rgba(255, 255, 255, .26) 47%, rgba(255, 255, 255, .10) 53%, transparent 66%);
+  opacity: .58;
 }
 
 [data-theme="dark"] .home-watch-party-copy {
   color: #052e16;
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 52%, #dcfce7 100%);
+}
+
+@keyframes homeWatchPartyShine {
+  0%, 42% {
+    transform: translateX(-120%);
+  }
+  72%, 100% {
+    transform: translateX(120%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-watch-party-card::after {
+    animation: none;
+    opacity: .18;
+    transform: translateX(0);
+  }
 }
 
 [data-theme="dark"] .home-watch-party-action {

@@ -2249,3 +2249,8 @@
 - **Issue**: The homepage watch-party card still had a separate right-side action label, while the intended design was one compact pill at the left text position.
 - **Fix**: Removed the separate action label, converted the left copy into the content-width pill, and reduced the background image overlay opacity by about 25% so the managed image is clearer.
 - **Validation**: Updated `home-dashboard-render.test.js` source contracts for the single-pill markup and lighter image overlay.
+
+### 2026-05-08 Home Watch Party Shine Overlay [ux]
+- **Issue**: The homepage watch-party background image still felt too muted and the whole field needed a more visible reflective treatment.
+- **Fix**: Reduced the image overlay opacity by another 25% and added a subtle full-card shine sweep with reduced-motion fallback.
+- **Validation**: Updated `home-dashboard-render.test.js` source contracts for the lighter overlay values, shine pseudo-element, keyframes, and reduced-motion guard.
