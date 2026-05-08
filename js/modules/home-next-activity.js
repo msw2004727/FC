@@ -322,7 +322,7 @@
         </div>
         <div class="home-next-event-actions">
           <button class="home-next-primary" type="button" data-home-next-action="detail">查看活動</button>
-          <button class="home-next-outline" type="button" data-home-next-action="calendar">${iconSvg('calendar')}<span>加入行事曆</span></button>
+          <button class="home-next-outline" type="button" data-home-next-action="calendar"><span>加入行事曆</span></button>
         </div>
       </div>`);
     bindActions(host, event);

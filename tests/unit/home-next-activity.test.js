@@ -137,6 +137,10 @@ describe('home next activity', () => {
     });
 
     await app.renderHomeNextActivity({ force: true });
+    const calendarButton = dom.window.document.querySelector('[data-home-next-action="calendar"]');
+    expect(calendarButton.textContent).toContain('加入行事曆');
+    expect(calendarButton.querySelector('svg')).toBeNull();
+
     dom.window.document.querySelector('[data-home-next-action="calendar"]').click();
     await new Promise(resolve => setTimeout(resolve, 0));
 
