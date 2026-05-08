@@ -33,6 +33,7 @@ Object.assign(App, {
     const { firstWeekday, daysInMonth, weekRows } = shape;
     const totalCells = weekRows * 7;
     const eventsByDate = this._groupEventsByDateForMonth(y, m - 1);
+    const userRegisteredDateKeys = this._getCalendarUserRegisteredDateKeys();
     const today = new Date();
     const todayKey = dateObjToKey(today);
     const todayTs = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
@@ -58,6 +59,7 @@ Object.assign(App, {
       html += this._buildDayCellHTML({
         dateKey, dayNum, isOutside,
         isToday: this._isCalendarCellToday(dateKey, isOutside, todayKey),
+        isUserRegisteredDay: userRegisteredDateKeys.has(dateKey),
         isPast,
         events, weekRow, weekCol,
       });
@@ -69,24 +71,68 @@ Object.assign(App, {
     return !isOutside && dateKey === todayKey;
   },
 
+  _getCalendarUserRegisteredDateKeys() {
+    const dateKeys = new Set();
+    if (typeof ApiService === 'undefined') return dateKeys;
+    const currentUser = ApiService.getCurrentUser?.();
+    const uid = String(currentUser?.uid || currentUser?.lineUserId || '').trim();
+    if (!uid) return dateKeys;
+
+    const events = typeof this._getVisibleEvents === 'function'
+      ? this._getVisibleEvents()
+      : (ApiService.getEvents?.() || []);
+
+    (events || []).forEach(event => {
+      if (!event?.id) return;
+      if (!this._isCalendarEventSignedUpByUid(event, uid)) return;
+      const dateKey = typeof toDateKey === 'function' ? toDateKey(event.date) : '';
+      if (dateKey) dateKeys.add(dateKey);
+    });
+
+    return dateKeys;
+  },
+
+  _isCalendarEventSignedUpByUid(event, uid) {
+    if (!event || !uid) return false;
+    if (typeof this._getCurrentUserEventRegistrationState === 'function') {
+      return !!this._getCurrentUserEventRegistrationState(event).signedUp;
+    }
+
+    const regs = (typeof ApiService !== 'undefined' && ApiService.getRegistrationsByEvent)
+      ? ApiService.getRegistrationsByEvent(event.id) : [];
+    const active = reg => reg && reg.status !== 'cancelled' && reg.status !== 'removed';
+    const sameUser = reg => String(reg?.userId || reg?.uid || '').trim() === uid;
+    if ((regs || []).some(reg => active(reg) && sameUser(reg))) return true;
+
+    const projectionHasUid = list => Array.isArray(list) && list.some(item =>
+      String(item?.uid || item?.userId || '').trim() === uid
+    );
+    return projectionHasUid(event.waitlistWithUid) || projectionHasUid(event.participantsWithUid);
+  },
+
   // ══════════════════════════════════
   //  日期格 HTML
   // ══════════════════════════════════
 
-  _buildDayCellHTML({ dateKey, dayNum, isOutside, isToday, isPast, events, weekRow, weekCol }) {
+  _buildDayCellHTML({ dateKey, dayNum, isOutside, isToday, isUserRegisteredDay, isPast, events, weekRow, weekCol }) {
     const sorted = this._sortEventsForCalendarCell(events);
     const sportCounts = this._buildCalendarSportCounts(sorted);
     const hasPinned = sorted.some(e => e?.pinned);
     const countAttr = sorted.length === 0 ? '0'
       : sorted.length <= 2 ? String(sorted.length)
       : sorted.length === 3 ? '3' : '4+';
-    const summary = sorted.length === 0
+    let summary = sorted.length === 0
       ? `${dayNum}日，無活動`
       : `${dayNum}日，${this._formatCalendarSportCountSummary(sportCounts)}，按 Enter 展開`;
+
+    if (isUserRegisteredDay) summary += '，你當天已有報名';
 
     const eventsHTML = this._buildCalendarSportCountHTML(dateKey, sportCounts);
     const emptyMark = sorted.length === 0
       ? `<div class="evt-cal-empty-mark" aria-hidden="true">—</div>` : '';
+
+    const userRegisteredMark = isUserRegisteredDay
+      ? '<span class="evt-cal-user-day-check" aria-hidden="true">✓</span>' : '';
 
     return `<div class="evt-cal-day"
           role="gridcell"
@@ -95,12 +141,16 @@ Object.assign(App, {
           data-event-count="${countAttr}"
           data-has-pinned="${hasPinned ? '1' : '0'}"
           data-today="${isToday ? '1' : '0'}"
+          data-user-registered="${isUserRegisteredDay ? '1' : '0'}"
           data-outside="${isOutside ? '1' : '0'}"
           data-past="${isPast ? '1' : '0'}"
           aria-rowindex="${weekRow}"
           aria-colindex="${weekCol}"
           aria-label="${escapeHTML(summary)}">
-      <div class="evt-cal-day-num">${dayNum}</div>
+      <div class="evt-cal-day-head">
+        <span class="evt-cal-day-num">${dayNum}</span>
+        ${userRegisteredMark}
+      </div>
       ${eventsHTML}${emptyMark}
     </div>`;
   },

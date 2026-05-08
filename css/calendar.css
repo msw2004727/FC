@@ -163,14 +163,47 @@
   z-index: 1;
 }
 
+.evt-cal-day-head {
+  min-height: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: .2rem;
+}
+
 .evt-cal-day-num {
   font-size: .72rem;
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: .2rem;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.evt-cal-user-day-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1em;
+  height: 1em;
+  font-size: .78rem;
+  font-weight: 900;
+  line-height: 1;
+  color: #16a34a;
+  text-shadow: 0 0 8px rgba(34, 197, 94, .32);
+  flex-shrink: 0;
+}
+
+[data-theme="dark"] .evt-cal-user-day-check {
+  color: #86efac;
+  text-shadow: 0 0 10px rgba(74, 222, 128, .42);
+}
+
+.evt-cal-day[data-outside="1"] .evt-cal-user-day-check {
+  color: var(--text-muted);
+  opacity: .7;
+  text-shadow: none;
 }
 
 /* 今天（明顯外框 + 日期數字圓形 badge）*/
@@ -408,6 +441,7 @@
   #activity-calendar { max-height: calc(100dvh - 200px); max-height: calc(100vh - 200px); }
   .evt-cal-day { min-height: 80px; padding: .2rem .15rem; }
   .evt-cal-day-num { font-size: .7rem; }
+  .evt-cal-user-day-check { font-size: .72rem; }
   .evt-cal-event { padding: .1rem .2rem; min-height: 16px; }
   .evt-cal-weekhead-cell { font-size: .62rem; padding: .18rem 0; }
 }
@@ -416,5 +450,6 @@
 @media (min-width: 768px) {
   .evt-cal-day { min-height: 120px; padding: .35rem .3rem; }
   .evt-cal-day-num { font-size: .85rem; }
+  .evt-cal-user-day-check { font-size: .88rem; }
   .evt-cal-event { padding: .2rem .3rem; min-height: 22px; }
 }
