@@ -104,7 +104,7 @@ I18N.register('zh-TW', {
   'activity.organizer': '主辦',
   'activity.free': '免費',
   'activity.noActive': '目前沒有進行中的活動',
-  'activity.noMatch': '請確認活動類別，目前沒有活動',
+  'activity.noMatch': '請確認「右上角」活動類別，當前沒有活動',
   // Status
   'status.open': '報名中',
   'status.full': '已額滿',
