@@ -110,7 +110,6 @@ Object.assign(App, {
   showShotGameAdForm(editData) {
     const form = document.getElementById('sgad-form-card');
     if (!form) return;
-    form.style.display = '';
     this._sgAdEditId = editData.id;
     const isEmpty = editData.status === 'empty';
     document.getElementById('sgad-form-title').textContent = isEmpty ? '設定射門遊戲廣告位' : '編輯射門遊戲廣告位';
@@ -133,12 +132,11 @@ Object.assign(App, {
       document.getElementById('sgad-input-publish').value = editData.publishAt.replace(/\//g, '-').replace(' ', 'T');
     }
     document.getElementById('sgad-input-unpublish').value = editData.unpublishAt ? editData.unpublishAt.replace(/\//g, '-').replace(' ', 'T') : '';
-    form.scrollIntoView({ behavior: 'smooth' });
+    this._openAdEditModal('sgad-form-card', 'hideShotGameAdForm');
   },
 
   hideShotGameAdForm() {
-    const form = document.getElementById('sgad-form-card');
-    if (form) form.style.display = 'none';
+    this._closeAdEditModal('sgad-form-card');
     this._sgAdEditId = null;
   },
 

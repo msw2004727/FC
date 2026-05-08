@@ -21,9 +21,25 @@ Object.assign(App, {
     const imgHeight = config.imgHeight ?? 140;
 
     container.innerHTML = `
-      <div class="form-card">
+      <div class="banner-manage-card" style="margin-bottom:.5rem">
+        <div class="banner-thumb" style="overflow:hidden">
+          <img src="${escapeHTML(imgUrl)}" style="width:100%;height:100%;object-fit:contain;background:${bgMode === 'light' ? bgColor : bgMode === 'dark' ? '#1e1e2e' : 'var(--bg-elevated)'}">
+        </div>
+        <div class="banner-manage-info">
+          <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
+            <div class="banner-manage-title">開機品牌圖設定</div>
+            <span class="banner-manage-status status-active">可編輯</span>
+          </div>
+          <div class="banner-manage-meta">縮放 ${imgHeight}% · 垂直 ${marginTop}% · 背景 ${bgMode === 'auto' ? '跟隨主題' : bgMode === 'dark' ? '深色' : '淺色自訂'}</div>
+          <div style="display:flex;gap:.3rem;margin-top:.3rem">
+            <button class="primary-btn small" onclick="App.showBootBrandForm()">編輯</button>
+          </div>
+        </div>
+      </div>
+      <div class="form-card" id="boot-brand-form-card" style="display:none">
         <div class="role-editor-header">
           <span>開機品牌圖設定</span>
+          <button class="text-btn" onclick="App.hideBootBrandForm()">取消</button>
         </div>
 
         <!-- 預覽區（與實際 boot-loading 結構一致） -->
@@ -105,6 +121,14 @@ Object.assign(App, {
     }
 
     this._bootBrandLoaded = true;
+  },
+
+  showBootBrandForm() {
+    this._openAdEditModal('boot-brand-form-card', 'hideBootBrandForm');
+  },
+
+  hideBootBrandForm() {
+    this._closeAdEditModal('boot-brand-form-card');
   },
 
   /** 從上傳區同步圖片到預覽框 */
@@ -208,6 +232,7 @@ Object.assign(App, {
       localStorage.setItem('_bootBrand', JSON.stringify(config));
 
       this.showToast('開機品牌圖設定已儲存');
+      this.hideBootBrandForm();
       this.renderBootBrandManage();
     } catch (e) {
       console.error('[BootBrand] 儲存失敗:', e);

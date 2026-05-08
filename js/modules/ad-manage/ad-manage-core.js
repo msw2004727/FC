@@ -17,6 +17,83 @@ Object.assign(App, {
     return Math.max(0, Math.ceil(diff / 86400000));
   },
 
+  _ensureAdEditModalRoot() {
+    let root = document.getElementById('ad-edit-modal-root');
+    if (root) return root;
+    root = document.createElement('div');
+    root.id = 'ad-edit-modal-root';
+    root.className = 'ad-edit-modal-root';
+    root.setAttribute('aria-hidden', 'true');
+    root.addEventListener('mousedown', (event) => {
+      if (event.target === root) this._closeActiveAdEditModal?.();
+    });
+    document.body.appendChild(root);
+    return root;
+  },
+
+  _openAdEditModal(formId, closeMethodName) {
+    const form = document.getElementById(formId);
+    if (!form) return null;
+    if (this._activeAdEditModal?.formId && this._activeAdEditModal.formId !== formId) {
+      this._closeActiveAdEditModal();
+    }
+    const root = this._ensureAdEditModalRoot();
+    if (!form._adModalReturnParent) {
+      form._adModalReturnParent = form.parentNode;
+      form._adModalReturnNext = form.nextSibling;
+    }
+    root.appendChild(form);
+    form.classList.add('ad-edit-modal-card');
+    form.style.display = '';
+    root.classList.add('is-open');
+    root.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('ad-edit-modal-open');
+    this._activeAdEditModal = { formId, closeMethodName };
+    if (!this._adEditModalKeyHandler) {
+      this._adEditModalKeyHandler = (event) => {
+        if (event.key === 'Escape') this._closeActiveAdEditModal?.();
+      };
+    }
+    document.addEventListener('keydown', this._adEditModalKeyHandler);
+    setTimeout(() => {
+      const target = form.querySelector('input:not([type="hidden"]), select, textarea, button');
+      try { target?.focus?.({ preventScroll: true }); } catch (_) {}
+    }, 0);
+    return form;
+  },
+
+  _closeAdEditModal(formId) {
+    const form = document.getElementById(formId);
+    if (!form) return;
+    form.style.display = 'none';
+    form.classList.remove('ad-edit-modal-card');
+    const parent = form._adModalReturnParent;
+    const next = form._adModalReturnNext;
+    if (parent && parent.isConnected) {
+      if (next && next.parentNode === parent) parent.insertBefore(form, next);
+      else parent.appendChild(form);
+    }
+    const root = document.getElementById('ad-edit-modal-root');
+    if (root) {
+      root.classList.remove('is-open');
+      root.setAttribute('aria-hidden', 'true');
+    }
+    document.body.classList.remove('ad-edit-modal-open');
+    if (this._adEditModalKeyHandler) {
+      document.removeEventListener('keydown', this._adEditModalKeyHandler);
+    }
+    if (this._activeAdEditModal?.formId === formId) this._activeAdEditModal = null;
+  },
+
+  _closeActiveAdEditModal() {
+    const active = this._activeAdEditModal;
+    if (active?.closeMethodName && typeof this[active.closeMethodName] === 'function') {
+      this[active.closeMethodName]();
+      return;
+    }
+    if (active?.formId) this._closeAdEditModal(active.formId);
+  },
+
   // 自動下架已過期廣告
   _autoExpireAds() {
     if (!this.hasPermission('admin.banners.entry')) return;

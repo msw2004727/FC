@@ -10,6 +10,7 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   _popupAdEditId: null,
+  _sponsorEditId: null,
 
   renderPopupAdManage() {
     const container = document.getElementById('popup-ad-manage-list');
@@ -48,7 +49,6 @@ Object.assign(App, {
   showPopupAdForm(editData) {
     const form = document.getElementById('popupad-form-card');
     if (!form || !editData) return;
-    form.style.display = '';
     this._popupAdEditId = editData.id;
     const isEmpty = editData.status === 'empty';
     document.getElementById('popupad-form-title').textContent = isEmpty ? `設定廣告位 第 ${editData.layer} 層` : `編輯廣告位 第 ${editData.layer} 層`;
@@ -71,12 +71,11 @@ Object.assign(App, {
       document.getElementById('popupad-input-publish').value = editData.publishAt.replace(/\//g, '-').replace(' ', 'T');
     }
     document.getElementById('popupad-input-unpublish').value = editData.unpublishAt ? editData.unpublishAt.replace(/\//g, '-').replace(' ', 'T') : '';
-    form.scrollIntoView({ behavior: 'smooth' });
+    this._openAdEditModal('popupad-form-card', 'hidePopupAdForm');
   },
 
   hidePopupAdForm() {
-    const form = document.getElementById('popupad-form-card');
-    if (form) form.style.display = 'none';
+    this._closeAdEditModal('popupad-form-card');
     this._popupAdEditId = null;
   },
 
@@ -137,103 +136,81 @@ Object.assign(App, {
       const thumb = hasImage
         ? `<img src="${sp.image}" style="width:100%;height:100%;object-fit:cover;border-radius:4px">`
         : `<span class="sp-row-upload-hint">+</span>`;
+      const isActive = sp.status === 'active';
+      const statusClass = sp.status === 'empty' ? 'empty' : isActive ? 'active' : 'expired';
+      const statusLabel = sp.status === 'empty' ? '未設定' : isActive ? '顯示中' : '已停用';
       return `
       <div class="sp-manage-row" data-id="${sp.id}">
         <span class="sp-row-num">${idx + 1}</span>
-        <div class="sp-row-thumb${hasImage ? ' has-img' : ''}" onclick="App.triggerSponsorUpload('${sp.id}')">
+        <div class="sp-row-thumb${hasImage ? ' has-img' : ''}">
           ${thumb}
-          <input type="file" class="sp-row-file" data-sp="${sp.id}" accept=".jpg,.jpeg,.png" hidden>
         </div>
-        <input type="text" class="sp-row-link" data-sp="${sp.id}" value="${escapeHTML(sp.linkUrl || '')}" placeholder="連結網址（選填）">
-        <button class="sp-row-save" onclick="App.saveSponsorRow('${sp.id}')">儲存</button>
+        <div class="banner-manage-info" style="min-width:0">
+          <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
+            <div class="banner-manage-title">贊助商 ${sp.slot || idx + 1}</div>
+            <span class="banner-manage-status status-${statusClass}">${statusLabel}</span>
+          </div>
+          <div class="banner-manage-meta">${sp.linkUrl ? escapeHTML(sp.linkUrl) : '未設定連結'}${hasImage ? ' · 點擊 ' + (sp.clicks || 0) + ' 次' : ''}</div>
+        </div>
+        <button class="sp-row-save" onclick="App.editSponsorItem('${sp.id}')">編輯</button>
         ${hasImage ? `<button class="sp-row-del" onclick="App.clearSponsorRow('${sp.id}')" title="清除">✕</button>` : ''}
       </div>`;
     }).join('');
-
-    // 綁定每一列的 file input change
-    container.querySelectorAll('.sp-row-file').forEach(input => {
-      input.addEventListener('change', (e) => this._handleSponsorFileChange(e));
-    });
   },
 
-  triggerSponsorUpload(id) {
-    const input = document.querySelector(`.sp-row-file[data-sp="${id}"]`);
-    if (input) input.click();
-  },
-
-  async _handleSponsorFileChange(e) {
-    const input = e.target;
-    const file = input.files[0];
-    if (!file) return;
-    if (!['image/jpeg', 'image/png'].includes(file.type)) {
-      this.showToast('僅支援 JPG / PNG 格式');
-      input.value = '';
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      this.showToast('檔案大小不可超過 5MB');
-      input.value = '';
-      return;
-    }
-    const setThumb = (dataURL) => {
-      const thumb = input.closest('.sp-manage-row').querySelector('.sp-row-thumb');
-      if (!thumb) return;
-      thumb.innerHTML = `<img src="${dataURL}" style="width:100%;height:100%;object-fit:cover;border-radius:4px">${input.outerHTML}`;
-      thumb.classList.add('has-img');
-      const newInput = thumb.querySelector('.sp-row-file');
-      if (newInput) newInput.addEventListener('change', (e2) => this._handleSponsorFileChange(e2));
-    };
-
-    try {
-      if (typeof this.showImageCropper === 'function') {
-        const sourceDataURL = await this._readImageFileAsDataURL(file);
-        this.showImageCropper(sourceDataURL, {
-          outputWidth: 800,
-          onConfirm: setThumb,
-          onCancel: () => { input.value = ''; },
-        });
-        return;
+  showSponsorForm(editData) {
+    const form = document.getElementById('sponsor-form-card');
+    if (!form || !editData) return;
+    this._sponsorEditId = editData.id;
+    const title = document.getElementById('sponsor-form-title');
+    if (title) title.textContent = `編輯贊助商 ${editData.slot || ''}`.trim();
+    const linkInput = document.getElementById('sponsor-input-link');
+    if (linkInput) linkInput.value = editData.linkUrl || '';
+    const preview = document.getElementById('sponsor-preview');
+    if (preview) {
+      if (editData.image) {
+        preview.innerHTML = `<img src="${editData.image}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">`;
+        preview.classList.add('has-image');
+      } else {
+        preview.classList.remove('has-image');
+        preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">上傳贊助商圖片</span><span class="ce-upload-hint">建議使用清楚橫式圖片，JPG / PNG / WebP，5MB 內</span>';
       }
-    } catch (err) {
-      console.error('[SponsorImage] image processing failed:', err);
-      this.showToast('\u5716\u7247\u8655\u7406\u5931\u6557\uff0c\u8acb\u91cd\u8a66');
-      input.value = '';
-      return;
     }
-    const dataURL = await this._compressImage(file);
-    const thumb = input.closest('.sp-manage-row').querySelector('.sp-row-thumb');
-    if (thumb) {
-      thumb.innerHTML = `<img src="${dataURL}" style="width:100%;height:100%;object-fit:cover;border-radius:4px">${input.outerHTML}`;
-      thumb.classList.add('has-img');
-      // 重新綁定新 input
-      const newInput = thumb.querySelector('.sp-row-file');
-      if (newInput) newInput.addEventListener('change', (e2) => this._handleSponsorFileChange(e2));
-    }
+    const input = document.getElementById('sponsor-image');
+    if (input) input.value = '';
+    this.bindImageUpload('sponsor-image', 'sponsor-preview', {
+      outputWidth: 800,
+      title: '贊助商圖片',
+      subtitle: '拖曳調整圖片位置，裁切後會顯示在贊助商欄位。',
+      targetLabel: '贊助商圖片',
+      recommendedSize: '800 px 寬以上',
+    });
+    this._openAdEditModal('sponsor-form-card', 'hideSponsorForm');
   },
 
-  async saveSponsorRow(id) {
+  hideSponsorForm() {
+    this._closeAdEditModal('sponsor-form-card');
+    this._sponsorEditId = null;
+  },
+
+  async saveSponsorForm() {
     if (!this.hasPermission('admin.banners.entry')) {
       this.showToast('權限不足'); return;
     }
-    const row = document.querySelector(`.sp-manage-row[data-id="${id}"]`);
-    if (!row) return;
-    const thumbImg = row.querySelector('.sp-row-thumb img');
-    const linkInput = row.querySelector('.sp-row-link');
+    const id = this._sponsorEditId;
+    if (!id) return;
+    const previewImg = document.querySelector('#sponsor-preview img');
+    const linkInput = document.getElementById('sponsor-input-link');
     const linkUrl = linkInput ? linkInput.value.trim() : '';
-
-    let image = thumbImg ? thumbImg.src : null;
+    let image = previewImg ? previewImg.src : null;
     if (!image) {
-      // 保留原有圖片
       const sp = ApiService.getSponsors().find(s => s.id === id);
       image = sp ? sp.image : null;
     }
-
     if (!image) {
       this.showToast('請先上傳圖片');
       return;
     }
-
-    // Firebase 模式上傳 base64
     if (image.startsWith('data:')) {
       this.showToast('圖片上傳中...');
       const url = await FirebaseService._uploadImage(image, `sponsors/${id}`);
@@ -251,6 +228,7 @@ Object.assign(App, {
       title: ''
     });
     this.showToast('贊助商已儲存');
+    this.hideSponsorForm();
     this.renderSponsorManage();
     this.renderSponsors();
   },
@@ -270,9 +248,8 @@ Object.assign(App, {
     if (!this.hasPermission('admin.banners.entry')) {
       this.showToast('權限不足'); return;
     }
-    // 直式模式不需要單獨表單，直接滾動到該列
-    const row = document.querySelector(`.sp-manage-row[data-id="${id}"]`);
-    if (row) row.scrollIntoView({ behavior: 'smooth' });
+    const item = ApiService.getSponsors().find(s => s.id === id);
+    if (item) this.showSponsorForm(item);
   },
 
 });

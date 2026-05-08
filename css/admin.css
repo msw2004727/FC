@@ -560,6 +560,15 @@
   color: var(--text-muted);
   line-height: 1;
 }
+.sp-manage-row .banner-manage-info {
+  flex: 1;
+  min-width: 0;
+}
+.sp-manage-row .banner-manage-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .sp-row-link {
   flex: 1;
   min-width: 0;
@@ -626,6 +635,58 @@
 .watch-party-bg-preview {
   min-height: 92px;
   aspect-ratio: 5 / 1;
+}
+
+.ad-edit-modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, .46);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+.ad-edit-modal-root.is-open {
+  display: flex;
+}
+
+body.ad-edit-modal-open {
+  overflow: hidden;
+}
+
+.ad-edit-modal-root .form-card.ad-edit-modal-card {
+  width: min(100%, 460px);
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0;
+  box-shadow: 0 20px 55px rgba(15, 23, 42, .28);
+  border-radius: var(--radius-lg);
+}
+
+.ad-edit-modal-root .form-card.ad-edit-modal-card .role-editor-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-card);
+  padding-bottom: .45rem;
+}
+
+@media (max-width: 520px) {
+  .ad-edit-modal-root {
+    align-items: flex-end;
+    padding: .7rem;
+  }
+
+  .ad-edit-modal-root .form-card.ad-edit-modal-card {
+    width: 100%;
+    max-height: calc(100vh - 1.4rem);
+    border-radius: 18px 18px 12px 12px;
+  }
 }
 
 /* ─── EXP Log Operator Label ─── */

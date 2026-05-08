@@ -46,7 +46,6 @@ Object.assign(App, {
   showBannerForm(editData) {
     const form = document.getElementById('banner-form-card');
     if (!form) return;
-    form.style.display = '';
     this._bannerEditId = editData.id;
     const isEmpty = editData.status === 'empty';
     const slotLabel = editData.slotName || `廣告位 ${editData.slot}`;
@@ -70,12 +69,11 @@ Object.assign(App, {
       document.getElementById('banner-input-publish').value = editData.publishAt.replace(/\//g, '-').replace(' ', 'T');
     }
     document.getElementById('banner-input-unpublish').value = editData.unpublishAt ? editData.unpublishAt.replace(/\//g, '-').replace(' ', 'T') : '';
-    form.scrollIntoView({ behavior: 'smooth' });
+    this._openAdEditModal('banner-form-card', 'hideBannerForm');
   },
 
   hideBannerForm() {
-    const form = document.getElementById('banner-form-card');
-    if (form) form.style.display = 'none';
+    this._closeAdEditModal('banner-form-card');
     this._bannerEditId = null;
   },
 
@@ -219,7 +217,6 @@ Object.assign(App, {
   showWatchPartyBgForm(editData) {
     const form = document.getElementById('watch-party-bg-form-card');
     if (!form) return;
-    form.style.display = '';
     this._watchPartyBgEditId = editData.id || editData._docId || 'watch-party-bg';
     const preview = document.getElementById('watch-party-bg-preview');
     if (editData.image) {
@@ -241,12 +238,11 @@ Object.assign(App, {
       recommendedSize: '1000 x 200',
       aspectLabel: '5:1',
     });
-    form.scrollIntoView({ behavior: 'smooth' });
+    this._openAdEditModal('watch-party-bg-form-card', 'hideWatchPartyBgForm');
   },
 
   hideWatchPartyBgForm() {
-    const form = document.getElementById('watch-party-bg-form-card');
-    if (form) form.style.display = 'none';
+    this._closeAdEditModal('watch-party-bg-form-card');
     this._watchPartyBgEditId = null;
   },
 

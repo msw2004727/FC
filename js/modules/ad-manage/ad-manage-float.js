@@ -44,7 +44,6 @@ Object.assign(App, {
   showFloatingAdForm(editData) {
     const form = document.getElementById('floatad-form-card');
     if (!form) return;
-    form.style.display = '';
     this._floatAdEditId = editData.id;
     const isEmpty = editData.status === 'empty';
     document.getElementById('floatad-form-title').textContent = isEmpty ? `設定 ${editData.slot}` : `編輯 ${editData.slot}`;
@@ -66,12 +65,11 @@ Object.assign(App, {
       document.getElementById('floatad-input-publish').value = editData.publishAt.replace(/\//g, '-').replace(' ', 'T');
     }
     document.getElementById('floatad-input-unpublish').value = editData.unpublishAt ? editData.unpublishAt.replace(/\//g, '-').replace(' ', 'T') : '';
-    form.scrollIntoView({ behavior: 'smooth' });
+    this._openAdEditModal('floatad-form-card', 'hideFloatingAdForm');
   },
 
   hideFloatingAdForm() {
-    const form = document.getElementById('floatad-form-card');
-    if (form) form.style.display = 'none';
+    this._closeAdEditModal('floatad-form-card');
     this._floatAdEditId = null;
   },
 

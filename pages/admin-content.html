@@ -137,6 +137,22 @@
         </div>
         <div class="ad-collapse-content" style="display:none">
           <div id="sponsor-manage-list"></div>
+          <div class="form-card" id="sponsor-form-card" style="display:none">
+            <div class="role-editor-header"><span id="sponsor-form-title">編輯贊助商</span><button class="text-btn" onclick="App.hideSponsorForm()">取消</button></div>
+            <div class="form-row">
+              <label>贊助商圖片</label>
+              <div class="ce-upload">
+                <input type="file" id="sponsor-image" accept=".jpg,.jpeg,.png,.webp" hidden>
+                <div class="ce-upload-placeholder" id="sponsor-preview" onclick="document.getElementById('sponsor-image').click()">
+                  <span class="ce-upload-icon">+</span>
+                  <span class="ce-upload-text">上傳贊助商圖片</span>
+                  <span class="ce-upload-hint">建議使用清楚橫式圖片，JPG / PNG / WebP，5MB 內</span>
+                </div>
+              </div>
+            </div>
+            <div class="form-row"><label>連結網址（選填）</label><input type="text" id="sponsor-input-link" placeholder="https://..."></div>
+            <button class="primary-btn full-width" onclick="App.saveSponsorForm()">儲存贊助商</button>
+          </div>
         </div>
       </div>
 
