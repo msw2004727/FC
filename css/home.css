@@ -4,9 +4,9 @@
    ================================================ */
 
 /* ─── Banner Carousel ─── */
-.banner-carousel { position: relative; border-radius: var(--radius); overflow: hidden; margin-bottom: 1rem; box-shadow: var(--banner-shadow); }
+.banner-carousel { position: relative; border-radius: var(--radius); overflow: hidden; margin-bottom: .68rem; box-shadow: var(--banner-shadow); }
 .banner-track { display: flex; transition: transform .5s cubic-bezier(.4,0,.2,1); will-change: transform; }
-.banner-slide { min-width: 100%; aspect-ratio: 2.2/1; display: flex; align-items: flex-end; padding: 1.2rem; position: relative; transition: background-image 0s, opacity .3s ease; }
+.banner-slide { min-width: 100%; aspect-ratio: 3.3/1; display: flex; align-items: flex-end; padding: .82rem; position: relative; transition: background-image 0s, opacity .3s ease; }
 .banner-slide--loading { opacity: .15; }
 .banner-slide.banner-placeholder { background: var(--bg-elevated) !important; border: 2px dashed var(--border); }
 .banner-slide.skeleton-slide { padding: 0; }
@@ -25,6 +25,88 @@
 .banner-dots { position: absolute; bottom: .6rem; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; z-index: 2; }
 .banner-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.35); cursor: pointer; transition: all var(--transition); }
 .banner-dot.active { background: #fff; width: 20px; border-radius: 4px; }
+
+.home-hero-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: .58rem;
+  margin: 0 .5rem .72rem;
+}
+
+.home-watch-party-card {
+  min-width: 0;
+  min-height: 58px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(34, 197, 94, .12), transparent 28%),
+    var(--bg-card);
+  color: var(--text-primary);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, .06);
+  padding: .52rem .58rem;
+  display: grid;
+  grid-template-columns: auto minmax(54px, 82px) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .48rem;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color .16s ease, transform .12s ease, box-shadow .16s ease;
+}
+
+.home-watch-party-card:hover {
+  border-color: #16a34a;
+  box-shadow: 0 10px 22px rgba(22, 163, 74, .12);
+}
+
+.home-watch-party-card:active {
+  transform: translateY(1px);
+}
+
+.home-watch-party-title {
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.home-watch-party-art {
+  width: clamp(54px, 18vw, 82px);
+  display: block;
+}
+
+.home-watch-party-art svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.home-watch-party-copy {
+  min-width: 0;
+  justify-self: end;
+  color: var(--text-secondary);
+  font-size: .82rem;
+  font-weight: 750;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.home-watch-party-action {
+  min-height: 34px;
+  border: 1px solid #16a34a;
+  border-radius: 10px;
+  color: #16a34a;
+  padding: 0 .78rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .86rem;
+  font-weight: 900;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--bg-card) 92%, #16a34a 8%);
+}
 
 /* ─── Category Bar ─── */
 .category-bar { display: flex; gap: .6rem; overflow-x: auto; padding: .2rem .2rem .8rem; -webkit-overflow-scrolling: touch; }
@@ -711,6 +793,79 @@
   flex: 0 0 auto;
   position: relative;
   z-index: 3;
+}
+
+.home-hero-actions .home-create-event-btn {
+  align-self: stretch;
+  min-height: 58px;
+  border-radius: 14px;
+  padding: 0 .9rem;
+  white-space: nowrap;
+}
+
+.home-hero-actions .home-create-event-btn span {
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .banner-slide {
+    aspect-ratio: 3.3 / 1;
+    padding: .65rem;
+  }
+
+  .home-hero-actions {
+    gap: .45rem;
+    margin-bottom: .68rem;
+  }
+
+  .home-watch-party-card {
+    min-height: 56px;
+    grid-template-columns: auto minmax(46px, 58px) minmax(0, 1fr);
+    gap: .38rem;
+    padding: .45rem .48rem;
+  }
+
+  .home-watch-party-title {
+    font-size: .92rem;
+  }
+
+  .home-watch-party-copy {
+    display: none;
+  }
+
+  .home-watch-party-action {
+    min-height: 32px;
+    padding: 0 .56rem;
+    font-size: .78rem;
+  }
+
+  .home-hero-actions .home-create-event-btn {
+    min-height: 56px;
+    padding: 0 .66rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .home-watch-party-card {
+    grid-template-columns: auto auto;
+  }
+
+  .home-watch-party-art {
+    display: none;
+  }
+
+  .home-watch-party-title {
+    font-size: .88rem;
+  }
+
+  .home-watch-party-action {
+    padding: 0 .48rem;
+    font-size: .76rem;
+  }
+
+  .home-hero-actions .home-create-event-btn svg {
+    display: none;
+  }
 }
 
 .home-scoreboard-preview {

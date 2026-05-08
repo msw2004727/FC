@@ -11,16 +11,27 @@ const homeCssSource = fs.readFileSync(
   path.join(__dirname, "../../css/home.css"),
   "utf8"
 );
+const homeHtmlSource = fs.readFileSync(
+  path.join(__dirname, "../../pages/home.html"),
+  "utf8"
+);
 
 function runHomeDashboardModule(options = {}) {
   const dom = new JSDOM(`<!doctype html>
     <div id="home-sport-entry"></div>
     <div id="home-info-meter"></div>
     <section id="home-scoreboard-preview"></section>
+    <select id="activity-filter-type"><option value=""></option><option value="watch"></option></select>
+    <input id="activity-filter-keyword" value="">
   `, { url: "https://example.test/" });
   const app = {
     _markPageSnapshotReady: jest.fn(),
     showPage: jest.fn(),
+    resetActivityTab: jest.fn(),
+    renderActivityList: jest.fn(),
+    renderTeamList: jest.fn(),
+    renderTournamentTimeline: jest.fn(),
+    showToast: jest.fn(),
   };
   const context = vm.createContext({
     window: dom.window,
@@ -38,6 +49,9 @@ function runHomeDashboardModule(options = {}) {
     getSportIconSvg: key => `<span>${key}</span>`,
     getSportKeySafe: key => key,
     getSportLabelByKey: key => key,
+    ScriptLoader: {
+      ensureForPage: jest.fn().mockResolvedValue(undefined),
+    },
   });
   if (options.firebaseService) {
     context.FirebaseService = options.firebaseService;
@@ -58,6 +72,13 @@ function runHomeDashboardModule(options = {}) {
 }
 
 describe("home-dashboard browser binding", () => {
+  test("home hero action row keeps watch party and create buttons under the shortened banner", () => {
+    expect(homeCssSource).toMatch(/\.banner-slide\s*\{[\s\S]*aspect-ratio:\s*3\.3\s*\/\s*1/);
+    expect(homeHtmlSource).toContain("home-watch-party-card");
+    expect(homeHtmlSource).toContain("App.openHomeWatchParty()");
+    expect(homeHtmlSource).toContain("home-create-event-btn");
+  });
+
   test("scoreboard preview has a divider from the current info section only when populated", () => {
     expect(homeCssSource).toMatch(/\.home-scoreboard-preview:not\(:empty\)\s*\{[\s\S]*border-top:\s*1px solid var\(--border\)/);
   });
@@ -186,5 +207,22 @@ describe("home-dashboard browser binding", () => {
     expect(sportEntry.querySelector('[data-home-sport="football"]')).not.toBeNull();
     expect(sportEntry.querySelector('[data-home-sport="dodgeball"]')).toBeNull();
     expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("530");
+  });
+
+  test("watch party shortcut opens activities with the restaurant sport filter", async () => {
+    const { app, dom, context } = runHomeDashboardModule();
+    dom.window.document.getElementById("activity-filter-type").value = "watch";
+    dom.window.document.getElementById("activity-filter-keyword").value = "leftover";
+
+    await app.openHomeWatchParty();
+
+    expect(app.showPage).toHaveBeenCalledWith("page-activities");
+    expect(context.ScriptLoader.ensureForPage).toHaveBeenCalledWith("page-activities");
+    expect(app.resetActivityTab).toHaveBeenCalledWith({ render: false });
+    expect(app._activeSport).toBe("restaurant");
+    expect(dom.window.localStorage.getItem("sporthub_active_sport")).toBe("restaurant");
+    expect(dom.window.document.getElementById("activity-filter-type").value).toBe("");
+    expect(dom.window.document.getElementById("activity-filter-keyword").value).toBe("");
+    expect(app.renderActivityList).toHaveBeenCalled();
   });
 });

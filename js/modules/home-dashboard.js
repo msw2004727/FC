@@ -641,6 +641,21 @@
       }
     },
 
+    async openHomeWatchParty() {
+      const scriptLoader = (typeof ScriptLoader !== 'undefined') ? ScriptLoader : root.ScriptLoader;
+      await this.showPage?.('page-activities');
+      await scriptLoader?.ensureForPage?.('page-activities');
+      this.resetActivityTab?.({ render: false });
+
+      const typeFilter = document.getElementById('activity-filter-type');
+      const keywordFilter = document.getElementById('activity-filter-keyword');
+      if (typeFilter) typeFilter.value = '';
+      if (keywordFilter) keywordFilter.value = '';
+
+      const safeKey = this.setActiveSportFilter('restaurant', { render: true });
+      if (safeKey) this.showToast?.(`已切換到${sportLabel(safeKey)}`);
+    },
+
     selectHomeScoreboardSport(sportKey) {
       this._homeScoreboardActiveSport = String(sportKey || '').trim();
       renderScoreboard(this._scoreboardConfig || null, this._scoreboardSnapshot || null);
