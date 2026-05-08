@@ -2254,3 +2254,8 @@
 - **Issue**: The homepage watch-party background image still felt too muted and the whole field needed a more visible reflective treatment.
 - **Fix**: Reduced the image overlay opacity by another 25% and added a subtle full-card shine sweep with reduced-motion fallback.
 - **Validation**: Updated `home-dashboard-render.test.js` source contracts for the lighter overlay values, shine pseudo-element, keyframes, and reduced-motion guard.
+
+### 2026-05-08 Home Watch Party Wider Shine [ux]
+- **Issue**: The homepage watch-party shine sweep was too narrow and moved slightly too fast for the intended reflective field effect.
+- **Fix**: Expanded the shine gradient coverage from roughly one-third of the card to about two-thirds and slowed the animation duration from 4.8s to 6s.
+- **Validation**: Updated `home-dashboard-render.test.js` source contracts for the wider shine stops and slower animation duration.

@@ -74,11 +74,11 @@
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  background: linear-gradient(115deg, transparent 0%, transparent 35%, rgba(255, 255, 255, .42) 47%, rgba(255, 255, 255, .15) 53%, transparent 66%);
+  background: linear-gradient(115deg, transparent 0%, transparent 18%, rgba(255, 255, 255, .34) 38%, rgba(255, 255, 255, .48) 50%, rgba(255, 255, 255, .20) 62%, transparent 82%);
   mix-blend-mode: screen;
   opacity: .72;
   transform: translateX(-120%);
-  animation: homeWatchPartyShine 4.8s ease-in-out infinite;
+  animation: homeWatchPartyShine 6s ease-in-out infinite;
   z-index: 1;
 }
 
@@ -145,7 +145,7 @@
 }
 
 [data-theme="dark"] .home-watch-party-card::after {
-  background: linear-gradient(115deg, transparent 0%, transparent 35%, rgba(255, 255, 255, .26) 47%, rgba(255, 255, 255, .10) 53%, transparent 66%);
+  background: linear-gradient(115deg, transparent 0%, transparent 18%, rgba(255, 255, 255, .21) 38%, rgba(255, 255, 255, .30) 50%, rgba(255, 255, 255, .12) 62%, transparent 82%);
   opacity: .58;
 }
 

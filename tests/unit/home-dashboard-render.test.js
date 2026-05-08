@@ -96,7 +96,8 @@ describe("home-dashboard browser binding", () => {
     expect(homeCssSource).toMatch(/\.home-watch-party-card\s*\{[\s\S]*border:\s*1px solid var\(--border\)[\s\S]*grid-template-columns:\s*auto/);
     expect(homeCssSource).toMatch(/\.home-watch-party-card\.has-bg\s*\{[\s\S]*--home-watch-party-bg:\s*none[\s\S]*background-image:/);
     expect(homeCssSource).toMatch(/\.home-watch-party-card\.has-bg\s*\{[\s\S]*rgba\(255,\s*255,\s*255,\s*\.56\)[\s\S]*rgba\(255,\s*255,\s*255,\s*\.49\)/);
-    expect(homeCssSource).toMatch(/\.home-watch-party-card::after\s*\{[\s\S]*animation:\s*homeWatchPartyShine/);
+    expect(homeCssSource).toMatch(/\.home-watch-party-card::after\s*\{[\s\S]*transparent 18%[\s\S]*transparent 82%/);
+    expect(homeCssSource).toMatch(/\.home-watch-party-card::after\s*\{[\s\S]*animation:\s*homeWatchPartyShine 6s/);
     expect(homeCssSource).toMatch(/@keyframes\s+homeWatchPartyShine/);
     expect(homeCssSource).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*\.home-watch-party-card::after\s*\{[\s\S]*animation:\s*none/);
     expect(homeCssSource).toMatch(/\.home-watch-party-copy\s*\{[\s\S]*width:\s*max-content[\s\S]*padding:\s*0 \.36rem[\s\S]*text-overflow:\s*ellipsis/);
