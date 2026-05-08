@@ -403,19 +403,35 @@ Object.assign(FirebaseService, {
   //  Events CRUD
   // ════════════════════════════════
 
+  _normalizeEventDocumentId(eventData) {
+    const eventId = String(eventData?.id || '').trim();
+    if (!eventId) throw new Error('EVENT_ID_REQUIRED');
+    if (!/^[A-Za-z0-9_-]{1,120}$/.test(eventId)) {
+      throw new Error('EVENT_ID_INVALID');
+    }
+    return eventId;
+  },
+
   async addEvent(eventData) {
     // 圖片上傳至 Storage
+    const eventId = this._normalizeEventDocumentId(eventData);
+    eventData.id = eventId;
     if (eventData.image && eventData.image.startsWith('data:')) {
-      eventData.image = await this._uploadImage(eventData.image, `events/${eventData.id}`);
+      eventData.image = await this._uploadImage(eventData.image, `events/${eventId}`);
     }
     // delegateUids 同步：確保 delegates → delegateUids 一致（team-split Rules 依賴此欄位）
     if (Array.isArray(eventData.delegates) && !eventData.delegateUids) {
       eventData.delegateUids = eventData.delegates.map(d => String(d.uid || '').trim()).filter(Boolean);
     }
-    const docRef = await db.collection('events').add({
-      ..._stripDocId(eventData),
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    const docRef = db.collection('events').doc(eventId);
+    await db.runTransaction(async transaction => {
+      const existing = await transaction.get(docRef);
+      if (existing.exists) throw new Error('EVENT_ID_CONFLICT: id=' + eventId);
+      transaction.set(docRef, {
+        ..._stripDocId(eventData),
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
     });
     eventData._docId = docRef.id;
     return eventData;

@@ -403,6 +403,25 @@ function findAllIndexes(source, needle) {
 // TESTS
 // ===========================================================================
 
+describe('event id lookup source', () => {
+  test('event lookup prefers events/{eventId} and keeps legacy id query fallback', () => {
+    const helperSource = readSourceBetween(
+      'async function getEventDocByPublicId',
+      'function getAuthUidFromUserDoc'
+    );
+    expect(helperSource).toContain('db.collection("events").doc(eventId).get()');
+    expect(helperSource).toContain('db.collection("events").where("id", "==", eventId).limit(1).get()');
+    expect(helperSource).toContain('async function getEventDocByPublicIdInTransaction');
+    expect(helperSource).toContain('db.collection("events").doc(eventId)');
+  });
+
+  test('registration callables use the shared event id bridge', () => {
+    expect(readCloudFunctionSource('registerForEvent')).toContain('getEventDocByPublicIdInTransaction(transaction, eventId)');
+    expect(readCloudFunctionSource('cancelRegistration')).toContain('getEventDocByPublicIdInTransaction(transaction, eventId)');
+    expect(readCloudFunctionSource('adjustTeamReservation')).toContain('getEventDocByPublicIdInTransaction(transaction, safeEventId)');
+  });
+});
+
 describe('cancelRegistration CF transaction ordering', () => {
   test('performs transaction reads before writes', () => {
     const txSource = readCancelRegistrationTransactionSource();

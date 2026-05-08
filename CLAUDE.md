@@ -28,7 +28,7 @@
 
 | 地雷 | 症狀 | 詳情位置 |
 |------|------|---------|
-| **活動 ID 雙軌制**（`doc.id` vs `data.id`） | 統計歸零、跨集合 join 失敗 | §程式碼規範 最末條 |
+| **活動 ID 橋接規則**（新活動 `doc.id=data.id`、舊活動雙軌相容） | 統計歸零、跨集合 join 失敗 | §程式碼規範 最末條 |
 | **UID 欄位對照差異** | 統計歸零、身份誤判 | §統計系統保護規則 背景知識 |
 | **`INHERENT_ROLE_PERMISSIONS` 兩地同步** | 前後端權限靜默分歧 | §每次新增功能時的規範 第 8 條 |
 | **報名系統原子操作** | 人數覆蓋、超收、候補漏遞補 | §報名系統保護規則 |
@@ -315,9 +315,9 @@ grep -rn "CACHE_VERSION\|CACHE_NAME\|var V='" js/config.js sw.js index.html
   - **用戶**：唯一辨識方式為 Firebase Auth UID（= LINE userId）。所有新增的 Firestore 文件寫入，若需記錄「操作者」或「所屬用戶」，**必須包含 `uid` 欄位**，值為 Firebase Auth UID。**禁止用顯示名稱（displayName/name）做身分比對或查詢條件**，名稱只能做為顯示用的快取欄位。既有集合的用戶 ID 欄位名對照（歷史慣例，不變更）：`users` → `uid`/`lineUserId`、`registrations` → `userId`、`attendanceRecords` → `uid`、`activityRecords` → `uid`、`events` → `creatorUid`、`expLogs` → `uid`、`operationLogs` → `uid`。
   - **俱樂部**：唯一辨識方式為自訂 ID（格式 `tm_<timestamp>_<random>`，由 `generateId('tm_')` 產生）。新建俱樂部必須使用 `db.collection('teams').doc(teamId).set(data)` 讓自訂 ID 作為 Firestore 文件 ID，消除 `id` 與 `_docId` 不一致的雙軌制。跨集合引用（`users.teamIds`、`events.creatorTeamIds`、`tournaments.hostTeamId`）一律存此 ID。俱樂部幹部欄位必須用 UID（`captainUid`、`leaderUids`、`coachUids`），禁止用名字做身分比對；名字欄位（`captainName`、`leaderNames`、`coachNames`）只做顯示快取。
   - **賽事**：唯一辨識方式為自訂 ID（格式 `ct_<timestamp>_<random>`，由 `generateId('ct_')` 產生）。新建賽事同樣使用 `.doc(tournamentId).set(data)` 消除雙軌制。委託人欄位用 `delegateUids`（UID 陣列），`delegateNames` 只做顯示快取。
-  - **活動（events）**：因已有大量歷史資料且子集合遷移（Phase 4b）剛完成，維持既有的 `data.id` + `_docId` 雙軌制不變動。
+  - **活動（events）**：新建活動必須使用 `db.collection('events').doc(eventId).set(...)`（或 transaction set）讓 `events/{eventId}` 的 Firestore 文件 ID 與 `data.id` 相同，`eventId` 只允許系統產生的安全格式 `[A-Za-z0-9_-]{1,120}`，禁止使用 `add()` 讓 Firestore 產生隨機 doc.id。歷史活動維持既有 `data.id` + `_docId` 雙軌資料，不做大遷移；所有讀寫仍需保留橋接 fallback。
   - **ID 生成統一**：所有新建實體的 ID 必須使用 `generateId(prefix)` 函式（`config.js`），禁止內聯拼接。前綴對照：`tm_`=俱樂部、`ct_`=賽事、`ce_`=活動、`reg_`=報名、`fp_`=動態牆貼文、`fc_`=動態牆留言、`ta_`=賽事申請。
-- **活動 ID 雙軌制地雷（永久，歷史教訓 2026-04-11）**：`events` 集合的 Firestore 文件 ID（`doc.id`，如 `ga0CqtaPpjRwimUGEZfU`）與活動自訂 ID（`data.id`，如 `ce_1774920121549_j63p`）**不同**。`registrations.eventId`、`attendanceRecords.eventId`、`activityRecords.eventId` 存的都是 `data.id`（自訂 ID），**不是** `doc.id`。在 Cloud Functions 或任何後端查詢中，凡涉及活動 ID 的比對，**必須使用 `doc.data().id`（或 `data.id`），禁止使用 `doc.id`**。前端快取中活動的 `id` 欄位對應 `data.id`，`_docId` 對應 `doc.id`。遇到數據異常（統計歸零、跨集合 join 配不上）時，**第一步就檢查是否誤用了 doc.id 取代 data.id**。
+- **活動 ID 橋接規則（永久，歷史教訓 2026-04-11；新規 2026-05-08）**：2026-05-08 起新活動必須 `data.id === _docId === events/{eventId}`；舊活動仍可能是 Firestore 隨機 `doc.id`（如 `ga0CqtaPpjRwimUGEZfU`）搭配活動自訂 `data.id`（如 `ce_1774920121549_j63p`）。`registrations.eventId`、`attendanceRecords.eventId`、`activityRecords.eventId` 永遠存活動公開 ID，也就是 `data.id`，不是舊資料的隨機 `doc.id`。任何需要寫入 `events/{docId}/...` 子集合的流程，必須先透過 `FirebaseService._getEventDocIdAsync(eventId)` 或 Cloud Functions 的等價橋接 helper 解析：先查新制 `events/{eventId}`，找不到再 fallback `where('id','==',eventId)`。禁止為了統一 ID 大量搬移舊資料；遇到統計歸零、跨集合 join 配不上時，第一步檢查是否混用了公開 `eventId` 與 Firestore `_docId`。
 
 ---
 

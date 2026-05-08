@@ -943,6 +943,33 @@ async function findUserDocByUidOrLineUserId(uidOrDocId) {
   return null;
 }
 
+function isSafeEventDirectDocId(eventId) {
+  return typeof eventId === "string" && /^[A-Za-z0-9_-]{1,120}$/.test(eventId);
+}
+
+async function getEventDocByPublicId(eventId) {
+  if (!eventId) return null;
+  if (isSafeEventDirectDocId(eventId)) {
+    const directSnap = await db.collection("events").doc(eventId).get();
+    if (directSnap.exists && (directSnap.data() || {}).id === eventId) return directSnap;
+  }
+  const snap = await db.collection("events").where("id", "==", eventId).limit(1).get();
+  if (!snap.empty) return snap.docs[0];
+  return null;
+}
+
+async function getEventDocByPublicIdInTransaction(transaction, eventId) {
+  if (!eventId) return null;
+  if (isSafeEventDirectDocId(eventId)) {
+    const directSnap = await transaction.get(db.collection("events").doc(eventId));
+    if (directSnap.exists && (directSnap.data() || {}).id === eventId) return directSnap;
+  }
+  const querySnap = await transaction.get(
+    db.collection("events").where("id", "==", eventId).limit(1)
+  );
+  return querySnap.empty ? null : querySnap.docs[0];
+}
+
 function getAuthUidFromUserDoc(found, fallbackUid) {
   const data = found?.data || {};
   if (typeof data.uid === "string" && data.uid) return data.uid;
@@ -4482,8 +4509,8 @@ function buildEventShareHtml({ ogTitle, ogDescription, ogImage, ogUrl, redirectU
 async function getEventById(eventId) {
   if (!eventId) return null;
   // 用 id 欄位查詢，因 eventId 是邏輯 ID 非 Firestore doc ID
-  const snap = await db.collection("events").where("id", "==", eventId).limit(1).get();
-  if (!snap.empty) return snap.docs[0].data() || {};
+  const eventDoc = await getEventDocByPublicId(eventId);
+  if (eventDoc) return eventDoc.data() || {};
   return null;
 }
 
@@ -6653,13 +6680,10 @@ exports.registerForEvent = onCall(
     // ── Firestore Transaction ──
     const result = await db.runTransaction(async (transaction) => {
       // T1: 讀取活動（用 id 欄位查詢，因 eventId 是邏輯 ID 非 Firestore doc ID）
-      const eventQuerySnap = await transaction.get(
-        db.collection("events").where("id", "==", eventId).limit(1)
-      );
-      if (eventQuerySnap.empty) {
+      const eventDoc = await getEventDocByPublicIdInTransaction(transaction, eventId);
+      if (!eventDoc) {
         throw new HttpsError("not-found", "EVENT_NOT_FOUND");
       }
-      const eventDoc = eventQuerySnap.docs[0];
       const eventRef = eventDoc.ref;
       const regDocRefs = sanitizedParticipants.map(() => eventDoc.ref.collection("registrations").doc());
       const regLockIds = sanitizedParticipants.map((p) => registrationLockId(p));
@@ -7045,13 +7069,10 @@ exports.cancelRegistration = onCall(
     // ── Firestore Transaction ──
     const result = await db.runTransaction(async (transaction) => {
       // T1: 讀取活動（用 id 欄位查詢，因 eventId 是邏輯 ID 非 Firestore doc ID）
-      const eventQuerySnap = await transaction.get(
-        db.collection("events").where("id", "==", eventId).limit(1)
-      );
-      if (eventQuerySnap.empty) {
+      const eventDoc = await getEventDocByPublicIdInTransaction(transaction, eventId);
+      if (!eventDoc) {
         throw new HttpsError("not-found", "EVENT_NOT_FOUND");
       }
-      const eventDoc = eventQuerySnap.docs[0];
       const eventRef = eventDoc.ref;
       const ed = eventDoc.data();
 
@@ -7340,11 +7361,8 @@ exports.adjustTeamReservation = onCall(
     const callerName = callerUserDoc?.data?.displayName || callerUserDoc?.data?.name || callerUid;
 
     const result = await db.runTransaction(async (transaction) => {
-      const eventQuerySnap = await transaction.get(
-        db.collection("events").where("id", "==", safeEventId).limit(1)
-      );
-      if (eventQuerySnap.empty) throw new HttpsError("not-found", "EVENT_NOT_FOUND");
-      const eventDoc = eventQuerySnap.docs[0];
+      const eventDoc = await getEventDocByPublicIdInTransaction(transaction, safeEventId);
+      if (!eventDoc) throw new HttpsError("not-found", "EVENT_NOT_FOUND");
       const eventRef = eventDoc.ref;
       const ed = eventDoc.data();
       const maxCount = Math.max(0, Number(ed.max || 0) || 0);

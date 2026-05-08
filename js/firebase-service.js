@@ -1644,7 +1644,9 @@ const FirebaseService = {
    */
   _getEventDocId(eventId) {
     if (!eventId) return null;
-    var ev = this._cache.events.find(function(e) { return e.id === eventId; });
+    var ev = this._cache.events.find(function(e) {
+      return e.id === eventId || e._docId === eventId || e.docId === eventId;
+    });
     if (ev && ev._docId) return ev._docId;
     return null;
   },
@@ -1659,6 +1661,19 @@ const FirebaseService = {
     var cached = this._getEventDocId(eventId);
     if (cached) return cached;
     if (typeof db === 'undefined') return null;
+    if (/^[A-Za-z0-9_-]{1,120}$/.test(String(eventId))) {
+      var directSnap = await db.collection('events').doc(eventId).get();
+      if (directSnap.exists) {
+        var directDocId = directSnap.id;
+        var directData = directSnap.data() || {};
+        var directEventId = directData.id || eventId;
+        var directEv = this._cache.events.find(function(e) {
+          return e.id === directEventId || e._docId === directDocId || e.docId === directDocId;
+        });
+        if (directEv) directEv._docId = directDocId;
+        return directDocId;
+      }
+    }
     var snap = await db.collection('events').where('id', '==', eventId).limit(1).get();
     if (snap.empty) return null;
     var docId = snap.docs[0].id;

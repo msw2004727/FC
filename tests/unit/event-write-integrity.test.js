@@ -13,6 +13,10 @@ function loadFirebaseCrud({ events, dbMock, docLookup }) {
   const sandbox = {
     FirebaseService,
     db: dbMock,
+    _stripDocId: obj => {
+      const { _docId, ...rest } = obj || {};
+      return rest;
+    },
     firebase: {
       firestore: {
         FieldValue: {
@@ -32,6 +36,17 @@ function makeEventsDb() {
   const doc = jest.fn(() => ({ update }));
   const collection = jest.fn(() => ({ doc }));
   return { db: { collection }, collection, doc, update };
+}
+
+function makeCreateEventDb({ exists = false } = {}) {
+  const transaction = {
+    get: jest.fn().mockResolvedValue({ exists }),
+    set: jest.fn(),
+  };
+  const runTransaction = jest.fn(async callback => callback(transaction));
+  const doc = jest.fn(id => ({ id, path: `events/${id}` }));
+  const collection = jest.fn(() => ({ doc }));
+  return { db: { collection, runTransaction }, collection, doc, transaction, runTransaction };
 }
 
 function loadApiService({ cache }) {
@@ -92,6 +107,60 @@ function loadLifecycle() {
 }
 
 describe('event write integrity', () => {
+  test('addEvent creates new events with data id as Firestore doc id', async () => {
+    const db = makeCreateEventDb();
+    const { FirebaseService } = loadFirebaseCrud({
+      events: [],
+      dbMock: db.db,
+      docLookup: jest.fn(),
+    });
+    const event = { id: 'ce_123_abc', title: 'New Event', image: '' };
+
+    const result = await FirebaseService.addEvent(event);
+
+    expect(db.collection).toHaveBeenCalledWith('events');
+    expect(db.doc).toHaveBeenCalledWith('ce_123_abc');
+    expect(db.runTransaction).toHaveBeenCalled();
+    expect(db.transaction.get).toHaveBeenCalledWith(expect.objectContaining({ id: 'ce_123_abc' }));
+    expect(db.transaction.set).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'ce_123_abc' }),
+      expect.objectContaining({
+        id: 'ce_123_abc',
+        title: 'New Event',
+        createdAt: 'SERVER_TIMESTAMP',
+        updatedAt: 'SERVER_TIMESTAMP',
+      })
+    );
+    expect(result._docId).toBe('ce_123_abc');
+  });
+
+  test('addEvent rejects unsafe event ids before writing', async () => {
+    const db = makeCreateEventDb();
+    const { FirebaseService } = loadFirebaseCrud({
+      events: [],
+      dbMock: db.db,
+      docLookup: jest.fn(),
+    });
+
+    await expect(FirebaseService.addEvent({ id: 'events/bad', title: 'Bad Event' }))
+      .rejects.toThrow('EVENT_ID_INVALID');
+    expect(db.collection).not.toHaveBeenCalled();
+    expect(db.runTransaction).not.toHaveBeenCalled();
+  });
+
+  test('addEvent does not overwrite an existing event id', async () => {
+    const db = makeCreateEventDb({ exists: true });
+    const { FirebaseService } = loadFirebaseCrud({
+      events: [],
+      dbMock: db.db,
+      docLookup: jest.fn(),
+    });
+
+    await expect(FirebaseService.addEvent({ id: 'ce_123_abc', title: 'Duplicate' }))
+      .rejects.toThrow('EVENT_ID_CONFLICT');
+    expect(db.transaction.set).not.toHaveBeenCalled();
+  });
+
   test('updateEvent resolves missing event doc id before writing', async () => {
     const event = { id: 'evt-1', title: 'Test Event' };
     const db = makeEventsDb();
