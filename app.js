@@ -491,6 +491,7 @@ const App = {
     if (!this._isHomePageActive()) return;
     this.renderBannerCarousel({ autoplay: false });
     this.renderAnnouncement();
+    this.renderHomeNextActivity?.();
     this.renderHomeDashboard?.();
     this.renderHomeScoreboardPreview?.();
     this._renderHomeVersionTag();
@@ -1302,6 +1303,9 @@ const App = {
       && LineAuth.isLoggedIn()
       && this._getPendingAuthAction()) {
       void this._resumePendingAuthAction();
+    }
+    if (this._isHomePageActive?.() && typeof this.renderHomeNextActivity === 'function') {
+      void this.renderHomeNextActivity({ force: true, silent: true });
     }
   },
 
