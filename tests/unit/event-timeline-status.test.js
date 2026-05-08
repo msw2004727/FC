@@ -32,7 +32,7 @@ describe('activity timeline effective status label', () => {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
-    context.t = () => '沒有符合條件的活動';
+    context.t = () => '請確認活動類別，目前沒有活動';
 
     const source = fs.readFileSync(
       path.join(__dirname, '../../js/modules/event/event-list-timeline.js'),
