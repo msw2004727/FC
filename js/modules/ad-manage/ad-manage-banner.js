@@ -6,6 +6,8 @@
 Object.assign(App, {
 
   _bannerEditId: null,
+  _watchPartyBgEditId: null,
+  _watchPartyBgEnsuringSlot: false,
 
   renderBannerManage() {
     const container = document.getElementById('banner-manage-list');
@@ -118,6 +120,173 @@ Object.assign(App, {
     this.hideBannerForm();
     this.renderBannerManage();
     this.renderBannerCarousel();
+  },
+
+  _getWatchPartyBgPlaceholder() {
+    const existing = ApiService.getWatchPartyBg?.();
+    if (existing) return existing;
+    let source = null;
+    if (typeof ApiService !== 'undefined' && typeof ApiService._src === 'function') {
+      source = ApiService._src('banners');
+    } else if (typeof FirebaseService !== 'undefined' && FirebaseService._cache) {
+      source = FirebaseService._cache.banners;
+    }
+    if (!Array.isArray(source)) return null;
+    const placeholder = {
+      id: 'watch-party-bg',
+      _docId: 'watch-party-bg',
+      slot: 'watch-party-bg',
+      type: 'watchParty',
+      slotName: '觀賽聚會底圖',
+      title: '',
+      image: null,
+      status: 'empty',
+      publishAt: null,
+      unpublishAt: null,
+      clicks: 0,
+      linkUrl: '',
+    };
+    source.push(placeholder);
+    return placeholder;
+  },
+
+  async _ensureWatchPartyBgSlot() {
+    if (this._watchPartyBgEnsuringSlot) return;
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService._ensureWatchPartyBgSlot !== 'function') return;
+    this._watchPartyBgEnsuringSlot = true;
+    try {
+      if (typeof _firebaseAuthReadyPromise !== 'undefined' && !_firebaseAuthReady) {
+        await Promise.race([_firebaseAuthReadyPromise, new Promise(r => setTimeout(r, 5000))]);
+      }
+      await FirebaseService._ensureWatchPartyBgSlot();
+    } catch (err) {
+      console.warn('[WatchPartyBg] ensure slot failed:', err);
+    } finally {
+      this._watchPartyBgEnsuringSlot = false;
+    }
+  },
+
+  renderWatchPartyBgManage() {
+    const container = document.getElementById('watch-party-bg-manage-list');
+    if (!container) return;
+    let b = ApiService.getWatchPartyBg?.() || this._getWatchPartyBgPlaceholder();
+    if (!b) {
+      container.innerHTML = '<p style="color:var(--text-muted);padding:.5rem">觀賽聚會底圖載入中...</p>';
+      this._ensureWatchPartyBgSlot().then(() => {
+        const ensured = ApiService.getWatchPartyBg?.() || this._getWatchPartyBgPlaceholder();
+        if (ensured) this.renderWatchPartyBgManage();
+      });
+      return;
+    }
+    this._ensureWatchPartyBgSlot();
+
+    const isEmpty = b.status === 'empty';
+    const isActive = b.status === 'active';
+    const isScheduled = b.status === 'scheduled';
+    const remain = b.unpublishAt ? this._remainDays(b.unpublishAt) : 0;
+    const isPermanent = !isEmpty && !b.unpublishAt;
+    const statusLabel = isEmpty ? '未設定' : isActive ? '顯示中' : isScheduled ? '排程中' : '已停用';
+    const statusClass = isEmpty ? 'empty' : isActive ? 'active' : isScheduled ? 'scheduled' : 'expired';
+    const timeInfo = isEmpty ? '首頁會使用預設樣式' : (b.publishAt && b.unpublishAt ? `${b.publishAt} ~ ${b.unpublishAt}` : (b.publishAt ? `${b.publishAt} ~ 長期` : '已設定底圖'));
+    const remainText = isActive ? (isPermanent ? '長期' : `剩餘 ${remain} 天`) : '';
+    const thumb = b.image
+      ? `<div class="banner-thumb" style="overflow:hidden;aspect-ratio:5/1;width:128px;height:auto"><img src="${b.image}" style="width:100%;height:100%;object-fit:cover"></div>`
+      : `<div class="banner-thumb banner-thumb-empty" style="aspect-ratio:5/1;width:128px;height:auto"><span>1000<br>×<br>200</span></div>`;
+    container.innerHTML = `
+    <div class="banner-manage-card" style="margin-bottom:.5rem">
+      ${thumb}
+      <div class="banner-manage-info">
+        <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
+          <div class="banner-manage-title">觀賽聚會底圖</div>
+          <span class="banner-manage-status status-${statusClass}">${statusLabel}</span>
+        </div>
+        <div class="banner-manage-meta">${timeInfo}${remainText ? ' ・ ' + remainText : ''}${!isEmpty ? ' ・ 點擊 ' + (b.clicks || 0) + ' 次' : ''}</div>
+        <div style="display:flex;gap:.3rem;margin-top:.3rem;flex-wrap:wrap">
+          ${this._adActionBtns('watchparty', b.id || 'watch-party-bg', b.status, b.unpublishAt)}
+        </div>
+      </div>
+    </div>`;
+  },
+
+  editWatchPartyBg(id) {
+    if (!this.hasPermission('admin.banners.entry')) {
+      this.showToast('權限不足'); return;
+    }
+    const item = ApiService.getWatchPartyBg?.() || this._getWatchPartyBgPlaceholder();
+    if (item) this.showWatchPartyBgForm(item);
+  },
+
+  showWatchPartyBgForm(editData) {
+    const form = document.getElementById('watch-party-bg-form-card');
+    if (!form) return;
+    form.style.display = '';
+    this._watchPartyBgEditId = editData.id || editData._docId || 'watch-party-bg';
+    const preview = document.getElementById('watch-party-bg-preview');
+    if (editData.image) {
+      preview.innerHTML = `<img src="${editData.image}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">`;
+      preview.classList.add('has-image');
+    } else {
+      preview.classList.remove('has-image');
+      preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">上傳觀賽聚會底圖</span><span class="ce-upload-hint">建議 1000 x 200 px，裁切後會套用到首頁觀賽聚會卡片</span>';
+    }
+    document.getElementById('watch-party-bg-visible').checked = editData.status === 'active';
+    document.getElementById('watch-party-bg-image').value = '';
+    this.bindImageUpload('watch-party-bg-image', 'watch-party-bg-preview', {
+      aspectRatio: 5,
+      outputWidth: 1000,
+      outputHeight: 200,
+      title: '觀賽聚會底圖',
+      subtitle: '拖曳調整圖片位置，裁切後會套用到首頁那條觀賽聚會卡片。',
+      targetLabel: '首頁觀賽聚會卡片',
+      recommendedSize: '1000 x 200',
+      aspectLabel: '5:1',
+    });
+    form.scrollIntoView({ behavior: 'smooth' });
+  },
+
+  hideWatchPartyBgForm() {
+    const form = document.getElementById('watch-party-bg-form-card');
+    if (form) form.style.display = 'none';
+    this._watchPartyBgEditId = null;
+  },
+
+  async saveWatchPartyBg() {
+    if (!this.hasPermission('admin.banners.entry')) {
+      this.showToast('權限不足'); return;
+    }
+    await this._ensureWatchPartyBgSlot();
+    const item = ApiService.getWatchPartyBg?.() || this._getWatchPartyBgPlaceholder();
+    const id = this._watchPartyBgEditId || item?.id || item?._docId || 'watch-party-bg';
+    const visible = document.getElementById('watch-party-bg-visible')?.checked === true;
+    const previewImg = document.querySelector('#watch-party-bg-preview img');
+    let image = previewImg ? previewImg.src : (item?.image || null);
+    if (visible && !image) {
+      this.showToast('請先上傳底圖');
+      return;
+    }
+    if (image && image.startsWith('data:')) {
+      this.showToast('圖片上傳中...');
+      const url = await FirebaseService._uploadImage(image, 'banners/watch-party-bg');
+      if (!url) { this.showToast('圖片上傳失敗，請重試'); return; }
+      image = url;
+    }
+    const status = image ? (visible ? 'active' : 'expired') : 'empty';
+    const publishAt = status === 'active' ? this._formatDT(new Date().toISOString()) : null;
+    ApiService.updateWatchPartyBg(id, {
+      slotName: '觀賽聚會底圖',
+      slot: 'watch-party-bg',
+      type: 'watchParty',
+      title: '',
+      linkUrl: '',
+      image,
+      publishAt,
+      unpublishAt: null,
+      status,
+    });
+    this.showToast(visible ? '觀賽聚會底圖已套用到首頁' : '觀賽聚會底圖已儲存但未顯示');
+    this.hideWatchPartyBgForm();
+    this.renderWatchPartyBgManage();
+    this.renderHomeWatchPartyCard?.();
   },
 
   editBannerItem(id) {

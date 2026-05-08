@@ -36,6 +36,38 @@
         </div>
       </div>
 
+      <!-- 觀賽聚會底圖 -->
+      <div class="ad-collapse-section">
+        <div class="admin-section-label ad-collapse-toggle" onclick="App.toggleAdSection(this)">
+          <span>觀賽聚會底圖</span><span class="ad-collapse-arrow">▶</span>
+        </div>
+        <div class="ad-collapse-content" style="display:none">
+          <div class="card-list" id="watch-party-bg-manage-list"></div>
+          <div class="form-card" id="watch-party-bg-form-card" style="display:none">
+            <div class="role-editor-header"><span id="watch-party-bg-form-title">調整觀賽聚會底圖</span><button class="text-btn" onclick="App.hideWatchPartyBgForm()">取消</button></div>
+            <div class="form-row">
+              <label>底圖圖片</label>
+              <div class="ce-upload">
+                <input type="file" id="watch-party-bg-image" accept=".jpg,.jpeg,.png,.webp" hidden>
+                <div class="ce-upload-placeholder watch-party-bg-preview" id="watch-party-bg-preview" onclick="document.getElementById('watch-party-bg-image').click()">
+                  <span class="ce-upload-icon">+</span>
+                  <span class="ce-upload-text">上傳觀賽聚會底圖</span>
+                  <span class="ce-upload-hint">建議 1000 x 200 px，裁切後會套用到首頁觀賽聚會卡片</span>
+                </div>
+              </div>
+            </div>
+            <div class="form-row">
+              <label>首頁顯示</label>
+              <label class="toggle-switch" style="margin:0">
+                <input type="checkbox" id="watch-party-bg-visible">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <button class="primary-btn full-width" onclick="App.saveWatchPartyBg()">儲存底圖</button>
+          </div>
+        </div>
+      </div>
+
       <!-- 浮動廣告 -->
       <div class="ad-collapse-section">
         <div class="admin-section-label ad-collapse-toggle" onclick="App.toggleAdSection(this)">

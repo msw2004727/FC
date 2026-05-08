@@ -1409,7 +1409,7 @@ const ApiService = {
   getTeamExpLogs()   { return this._src('teamExpLogs'); },
   getOperationLogs() { return this._src('operationLogs'); },
   getErrorLogs()     { return this._src('errorLogs'); },
-  getBanners()       { return this._src('banners').filter(b => b.type !== 'shotgame'); },
+  getBanners()       { return this._src('banners').filter(b => b.type !== 'shotgame' && b.type !== 'watchParty'); },
   getShotGameAd()    {
     return this._src('banners').find(b =>
       b.slot === 'sga1'
@@ -1418,9 +1418,54 @@ const ApiService = {
       || b.type === 'shotgame'
     ) || null;
   },
+  getWatchPartyBg()  {
+    return this._src('banners').find(b =>
+      b.slot === 'watch-party-bg'
+      || b.id === 'watch-party-bg'
+      || b._docId === 'watch-party-bg'
+      || b.type === 'watchParty'
+    ) || null;
+  },
   getPermissions()   { return getMergedPermissionCatalog(this._src('permissions') || []); },
 
   updateBanner(id, updates)      { return this._update('banners', id, updates, FirebaseService.updateBanner, 'updateBanner'); },
+  updateWatchPartyBg(id, updates) {
+    if (this._handleRestrictedAction()) return null;
+
+    const source = this._src('banners');
+    const item = this.getWatchPartyBg()
+      || source.find(b => b.id === id || b._docId === id || b.slot === 'watch-party-bg' || b.type === 'watchParty')
+      || null;
+
+    if (item) {
+      Object.assign(item, updates);
+      if (!item.id && item._docId) item.id = item._docId;
+      if (typeof FirebaseService !== 'undefined' && FirebaseService.updateBanner) {
+        const writeId = item.id || item._docId || 'watch-party-bg';
+        FirebaseService.ensureAuthReadyForWrite()
+          .then(() => FirebaseService.updateBanner.call(FirebaseService, writeId, updates))
+          .catch(err => console.error('[updateWatchPartyBg]', err));
+      }
+      return item;
+    }
+
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._ensureWatchPartyBgSlot === 'function') {
+      Promise.resolve(FirebaseService._ensureWatchPartyBgSlot())
+        .then(() => {
+          const created = this.getWatchPartyBg();
+          if (!created) return;
+          Object.assign(created, updates);
+          const retryId = created.id || created._docId || 'watch-party-bg';
+          if (FirebaseService.updateBanner) {
+            return FirebaseService.ensureAuthReadyForWrite()
+              .then(() => FirebaseService.updateBanner.call(FirebaseService, retryId, updates));
+          }
+          return null;
+        })
+        .catch(err => console.warn('[updateWatchPartyBg] ensure slot failed:', err));
+    }
+    return null;
+  },
   updateShotGameAd(id, updates)  {
     if (this._handleRestrictedAction()) return null;
 

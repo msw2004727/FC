@@ -490,6 +490,7 @@ const FirebaseService = {
             break;
           case 'banners':
             App.renderBannerCarousel?.();
+            App.renderHomeWatchPartyCard?.();
             break;
           case 'announcements':
             App.renderAnnouncement?.();
@@ -1203,7 +1204,10 @@ const FirebaseService = {
         && ['banners', 'announcements', 'events', 'floatingAds', 'popupAds', 'sponsors', 'tournaments', 'gameConfigs']
           .some(name => loaded.has(name))) {
         var _s = window.scrollY || window.pageYOffset || 0;
-        if (loaded.has('banners')) App.renderBannerCarousel?.();
+        if (loaded.has('banners')) {
+          App.renderBannerCarousel?.();
+          App.renderHomeWatchPartyCard?.();
+        }
         if (loaded.has('announcements')) App.renderAnnouncement?.();
         if (loaded.has('events')) App.renderHotEvents?.();
         if (loaded.has('tournaments')) App.renderOngoingTournaments?.();
@@ -2297,7 +2301,7 @@ const FirebaseService = {
       if (canAdminSeed) {
         seedTasks.push(
           this._cleanupDuplicateDocs(),
-          this._seedAdSlots().then(() => this._ensureSga1Slot()),
+          this._seedAdSlots().then(() => Promise.all([this._ensureSga1Slot(), this._ensureWatchPartyBgSlot()])),
           this._seedNotifTemplates(),
           this._seedAchievements(),
         );
@@ -2744,6 +2748,7 @@ const FirebaseService = {
         { id: 'ban2', slot: 2, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, gradient: '' },
         { id: 'ban3', slot: 3, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, gradient: '' },
         { id: 'sga1', slot: 'sga1', type: 'shotgame', slotName: '射門遊戲廣告位', title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, linkUrl: '' },
+        { id: 'watch-party-bg', slot: 'watch-party-bg', type: 'watchParty', slotName: '觀賽聚會底圖', title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, linkUrl: '' },
       ]],
       ['floatingAds', [
         { id: 'fad1', slot: 'AD1', title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0 },
@@ -2809,6 +2814,38 @@ const FirebaseService = {
       }
     } catch (err) {
       console.warn('[FirebaseService] _ensureSga1Slot 失敗:', err);
+    }
+  },
+
+  async _ensureWatchPartyBgSlot() {
+    if (!db) return;
+    if (this._cache.banners && this._cache.banners.find(b =>
+      b.id === 'watch-party-bg'
+      || b._docId === 'watch-party-bg'
+      || b.slot === 'watch-party-bg'
+      || b.type === 'watchParty'
+    )) return;
+    try {
+      if (typeof _firebaseAuthReadyPromise !== 'undefined' && !_firebaseAuthReady) {
+        await Promise.race([_firebaseAuthReadyPromise, new Promise(r => setTimeout(r, 5000))]);
+      }
+      const ref = db.collection('banners').doc('watch-party-bg');
+      const snap = await ref.get();
+      if (!snap.exists) {
+        const data = { id: 'watch-party-bg', slot: 'watch-party-bg', type: 'watchParty', slotName: '觀賽聚會底圖',
+          title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, linkUrl: '' };
+        await ref.set({ ...data, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+        if (this._cache.banners) this._cache.banners.push({ ...data, _docId: 'watch-party-bg' });
+        console.log('[FirebaseService] 觀賽聚會底圖 watch-party-bg 已建立');
+      } else {
+        if (this._cache.banners) this._cache.banners.push({ _docId: snap.id, ...snap.data() });
+      }
+      if (typeof App !== 'undefined') {
+        App.renderWatchPartyBgManage?.();
+        App.renderHomeWatchPartyCard?.();
+      }
+    } catch (err) {
+      console.warn('[FirebaseService] _ensureWatchPartyBgSlot 失敗:', err);
     }
   },
 

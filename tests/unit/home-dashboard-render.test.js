@@ -15,12 +15,25 @@ const homeHtmlSource = fs.readFileSync(
   path.join(__dirname, "../../pages/home.html"),
   "utf8"
 );
+const apiServiceSource = fs.readFileSync(
+  path.join(__dirname, "../../js/api-service.js"),
+  "utf8"
+);
+const adminContentSource = fs.readFileSync(
+  path.join(__dirname, "../../pages/admin-content.html"),
+  "utf8"
+);
+const adManageBannerSource = fs.readFileSync(
+  path.join(__dirname, "../../js/modules/ad-manage/ad-manage-banner.js"),
+  "utf8"
+);
 
 function runHomeDashboardModule(options = {}) {
   const dom = new JSDOM(`<!doctype html>
     <div id="home-sport-entry"></div>
     <div id="home-info-meter"></div>
     <section id="home-scoreboard-preview"></section>
+    <button class="home-watch-party-card" type="button"></button>
     <select id="activity-filter-type"><option value=""></option><option value="watch"></option></select>
     <input id="activity-filter-keyword" value="">
   `, { url: "https://example.test/" });
@@ -56,6 +69,9 @@ function runHomeDashboardModule(options = {}) {
   if (options.firebaseService) {
     context.FirebaseService = options.firebaseService;
   }
+  if (options.apiService) {
+    context.ApiService = options.apiService;
+  }
   if (options.sports) {
     context.EVENT_SPORT_OPTIONS = options.sports;
   }
@@ -76,12 +92,36 @@ describe("home-dashboard browser binding", () => {
     expect(homeCssSource).toMatch(/\.banner-slide\s*\{[\s\S]*aspect-ratio:\s*3\.3\s*\/\s*1/);
     expect(homeCssSource).toMatch(/\.home-hero-actions\s*\{[\s\S]*margin:\s*0 0 \.6rem/);
     expect(homeCssSource).toMatch(/\.home-watch-party-card\s*\{[\s\S]*height:\s*40px/);
+    expect(homeCssSource).toMatch(/\.home-watch-party-card\.has-bg\s*\{[\s\S]*--home-watch-party-bg:\s*none[\s\S]*background-image:/);
     expect(homeCssSource).toMatch(/\.home-watch-party-art\s*\{[\s\S]*display:\s*none/);
-    expect(homeCssSource).toMatch(/\.home-watch-party-action\s*\{[\s\S]*height:\s*40px[\s\S]*border:\s*0[\s\S]*background:\s*linear-gradient/);
+    expect(homeCssSource).toMatch(/\.home-watch-party-action\s*\{[\s\S]*height:\s*24px[\s\S]*border:\s*0[\s\S]*background:\s*linear-gradient/);
     expect(homeCssSource).toMatch(/\.home-hero-actions \.home-create-event-btn\s*\{[\s\S]*height:\s*40px/);
     expect(homeHtmlSource).toContain("home-watch-party-card");
     expect(homeHtmlSource).toContain("App.openHomeWatchParty()");
     expect(homeHtmlSource).toContain("home-create-event-btn");
+  });
+
+  test("watch party background is a managed special banner slot outside the carousel", () => {
+    expect(apiServiceSource).toMatch(/getBanners\(\)\s*\{[\s\S]*type !== 'watchParty'/);
+    expect(apiServiceSource).toContain("getWatchPartyBg()");
+    expect(adminContentSource).toContain("watch-party-bg-manage-list");
+    expect(adminContentSource).toContain("watch-party-bg-preview");
+    expect(adManageBannerSource).toContain("renderWatchPartyBgManage()");
+    expect(adManageBannerSource).toContain("bindImageUpload('watch-party-bg-image', 'watch-party-bg-preview'");
+    expect(adManageBannerSource).toContain("aspectRatio: 5");
+  });
+
+  test("renders active watch party background onto the home card", () => {
+    const { app, dom } = runHomeDashboardModule({
+      apiService: {
+        getWatchPartyBg: () => ({ status: "active", image: "https://cdn.test/watch-party.webp" }),
+      },
+    });
+
+    app.renderHomeWatchPartyCard();
+    const card = dom.window.document.querySelector(".home-watch-party-card");
+    expect(card.classList.contains("has-bg")).toBe(true);
+    expect(card.style.getPropertyValue("--home-watch-party-bg")).toContain("watch-party.webp");
   });
 
   test("scoreboard preview has a divider from the current info section only when populated", () => {

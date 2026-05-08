@@ -35,6 +35,8 @@ Object.assign(App, {
     check(ApiService.getBanners(), (id, u) => ApiService.updateBanner(id, u));
     const sgAd = ApiService.getShotGameAd();
     if (sgAd) check([sgAd], (id, u) => ApiService.updateShotGameAd(id, u));
+    const watchPartyBg = ApiService.getWatchPartyBg?.();
+    if (watchPartyBg) check([watchPartyBg], (id, u) => ApiService.updateWatchPartyBg(id, u));
     check(ApiService.getFloatingAds(), (id, u) => ApiService.updateFloatingAd(id, u));
     check(ApiService.getPopupAds(), (id, u) => ApiService.updatePopupAd(id, u));
     check(ApiService.getSponsors(), (id, u) => ApiService.updateSponsor(id, u));
@@ -91,6 +93,7 @@ Object.assign(App, {
     else if (type === 'popup') this.editPopupAd(id);
     else if (type === 'sponsor') this.editSponsorItem(id);
     else if (type === 'shotgame') this.editShotGameAd(id);
+    else if (type === 'watchparty') this.editWatchPartyBg(id);
   },
 
   // ── 通用：下架 ──
@@ -116,6 +119,10 @@ Object.assign(App, {
     } else if (type === 'shotgame') {
       ApiService.updateShotGameAd(id, { status: 'expired' });
       this.renderShotGameAdManage();
+    } else if (type === 'watchparty') {
+      ApiService.updateWatchPartyBg(id, { status: 'expired' });
+      this.renderWatchPartyBgManage();
+      this.renderHomeWatchPartyCard?.();
     }
     this.showToast('廣告已下架');
   },
@@ -140,6 +147,10 @@ Object.assign(App, {
     } else if (type === 'shotgame') {
       ApiService.updateShotGameAd(id, { status: 'active' });
       this.renderShotGameAdManage();
+    } else if (type === 'watchparty') {
+      ApiService.updateWatchPartyBg(id, { status: 'active' });
+      this.renderWatchPartyBgManage();
+      this.renderHomeWatchPartyCard?.();
     }
     this.showToast('廣告已重新上架');
   },
@@ -169,6 +180,10 @@ Object.assign(App, {
     } else if (type === 'shotgame') {
       ApiService.updateShotGameAd(id, emptyData);
       this.renderShotGameAdManage();
+    } else if (type === 'watchparty') {
+      ApiService.updateWatchPartyBg(id, { ...emptyData, slotName: '觀賽聚會底圖', slot: 'watch-party-bg', type: 'watchParty' });
+      this.renderWatchPartyBgManage();
+      this.renderHomeWatchPartyCard?.();
     }
     this.showToast('廣告已刪除');
   },
@@ -188,6 +203,9 @@ Object.assign(App, {
     } else if (type === 'sponsor') {
       item = ApiService.getSponsors().find(s => s.id === id);
       if (item) { item.clicks = (item.clicks || 0) + 1; ApiService.updateSponsor(id, { clicks: item.clicks }); }
+    } else if (type === 'watchparty') {
+      item = ApiService.getWatchPartyBg?.();
+      if (item) { item.clicks = (item.clicks || 0) + 1; ApiService.updateWatchPartyBg(id, { clicks: item.clicks }); }
     }
   },
 

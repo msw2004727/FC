@@ -37,6 +37,12 @@
     return Math.floor(num).toLocaleString('zh-TW');
   }
 
+  function cssImageUrl(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    return 'url("' + raw.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '")';
+  }
+
   function readBootSummary() {
     const el = document.getElementById('boot-home-summary-data');
     if (!el) return null;
@@ -656,6 +662,22 @@
       if (safeKey) this.showToast?.(`已切換到${sportLabel(safeKey)}`);
     },
 
+    renderHomeWatchPartyCard() {
+      const card = document.querySelector('.home-watch-party-card');
+      if (!card) return;
+      const apiService = (typeof ApiService !== 'undefined') ? ApiService : root.ApiService;
+      const item = apiService?.getWatchPartyBg?.();
+      const image = item && item.status === 'active' ? String(item.image || '').trim() : '';
+      const bg = cssImageUrl(image);
+      if (!bg) {
+        card.classList.remove('has-bg');
+        card.style.removeProperty('--home-watch-party-bg');
+        return;
+      }
+      card.classList.add('has-bg');
+      card.style.setProperty('--home-watch-party-bg', bg);
+    },
+
     selectHomeScoreboardSport(sportKey) {
       this._homeScoreboardActiveSport = String(sportKey || '').trim();
       renderScoreboard(this._scoreboardConfig || null, this._scoreboardSnapshot || null);
@@ -691,6 +713,7 @@
 
     renderHomeDashboard() {
       const summary = currentSummary();
+      this.renderHomeWatchPartyCard?.();
       renderSportEntry(summary);
       renderInfoMeter(summary);
       scheduleHomeSummaryRefresh(summary);

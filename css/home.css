@@ -53,7 +53,22 @@
   text-align: left;
   cursor: pointer;
   overflow: hidden;
-  transition: border-color .16s ease, transform .12s ease, box-shadow .16s ease;
+  transition: border-color .16s ease, transform .12s ease, box-shadow .16s ease, background-image .18s ease;
+}
+
+.home-watch-party-card.has-bg {
+  --home-watch-party-bg: none;
+  background-image:
+    linear-gradient(90deg, rgba(255, 255, 255, .92) 0%, rgba(255, 255, 255, .72) 45%, rgba(255, 255, 255, .22) 100%),
+    var(--home-watch-party-bg);
+  background-size: cover;
+  background-position: center;
+}
+
+[data-theme="dark"] .home-watch-party-card.has-bg {
+  background-image:
+    linear-gradient(90deg, rgba(15, 23, 42, .88) 0%, rgba(15, 23, 42, .62) 48%, rgba(15, 23, 42, .18) 100%),
+    var(--home-watch-party-bg);
 }
 
 .home-watch-party-card:hover {
@@ -94,20 +109,25 @@
 }
 
 .home-watch-party-action {
-  height: 40px;
-  min-height: 40px;
+  height: 24px;
+  min-height: 24px;
   border: 0;
-  border-radius: 10px;
-  color: #fff;
-  padding: 0 .62rem;
+  border-radius: 999px;
+  color: #047857;
+  padding: 0 .46rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: .84rem;
+  font-size: .72rem;
   font-weight: 900;
   white-space: nowrap;
-  background: linear-gradient(135deg, #16a34a 0%, #0f766e 100%);
-  box-shadow: 0 6px 14px rgba(16, 185, 129, .2);
+  background: linear-gradient(135deg, #f0fdf4 0%, #d9f99d 52%, #ccfbf1 100%);
+  box-shadow: 0 4px 10px rgba(16, 185, 129, .12);
+}
+
+[data-theme="dark"] .home-watch-party-action {
+  color: #052e16;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 52%, #dcfce7 100%);
 }
 
 /* ─── Category Bar ─── */
@@ -838,10 +858,10 @@
   }
 
   .home-watch-party-action {
-    min-height: 40px;
-    height: 40px;
-    padding: 0 .5rem;
-    font-size: .78rem;
+    min-height: 22px;
+    height: 22px;
+    padding: 0 .4rem;
+    font-size: .68rem;
   }
 
   .home-hero-actions .home-create-event-btn {
@@ -865,8 +885,8 @@
   }
 
   .home-watch-party-action {
-    padding: 0 .46rem;
-    font-size: .76rem;
+    padding: 0 .36rem;
+    font-size: .66rem;
   }
 
   .home-hero-actions .home-create-event-btn svg {

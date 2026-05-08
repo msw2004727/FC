@@ -623,6 +623,11 @@
   padding-top: .4rem;
 }
 
+.watch-party-bg-preview {
+  min-height: 92px;
+  aspect-ratio: 5 / 1;
+}
+
 /* ─── EXP Log Operator Label ─── */
 .exp-log-operator { font-size: .72rem; font-style: italic; color: var(--text-muted); margin-left: .3rem; }
 

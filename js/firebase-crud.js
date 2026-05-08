@@ -2238,6 +2238,8 @@ Object.assign(FirebaseService, {
       || b._docId === id
       || (id === 'sga1' && b.slot === 'sga1')
       || (id === 'sga1' && b.type === 'shotgame')
+      || (id === 'watch-party-bg' && b.slot === 'watch-party-bg')
+      || (id === 'watch-party-bg' && b.type === 'watchParty')
     );
     if (!doc || !doc._docId) return null;
     // 避免 base64 寫入 Firestore（超過 1MB 限制）
@@ -2248,12 +2250,13 @@ Object.assign(FirebaseService, {
       await ref.update(updates);
     } catch (err) {
       const isShotGame = id === 'sga1' || doc.id === 'sga1' || doc.slot === 'sga1' || doc.type === 'shotgame';
+      const isWatchParty = id === 'watch-party-bg' || doc.id === 'watch-party-bg' || doc.slot === 'watch-party-bg' || doc.type === 'watchParty';
       const isNotFound = err && (err.code === 'not-found' || String(err.message || '').toLowerCase().includes('no document to update'));
-      if (!(isShotGame && isNotFound)) throw err;
+      if (!((isShotGame || isWatchParty) && isNotFound)) throw err;
       await ref.set({
-        id: 'sga1',
-        slot: 'sga1',
-        type: 'shotgame',
+        id: isWatchParty ? 'watch-party-bg' : 'sga1',
+        slot: isWatchParty ? 'watch-party-bg' : 'sga1',
+        type: isWatchParty ? 'watchParty' : 'shotgame',
         ...updates,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
