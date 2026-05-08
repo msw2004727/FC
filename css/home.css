@@ -201,7 +201,7 @@
 
 /* ---- Home Dashboard Redesign ---- */
 .home-next-activity-section {
-  margin: .78rem .5rem 0;
+  margin: .78rem 0 0;
 }
 
 .home-next-card {
@@ -548,6 +548,12 @@
     var(--bg-card);
 }
 
+[data-theme="dark"] .home-dashboard-section {
+  background:
+    radial-gradient(circle at 95% 0%, color-mix(in srgb, var(--warning, #fbbf24) 10%, transparent), transparent 32%),
+    var(--bg-card);
+}
+
 [data-theme="dark"] .home-next-view-all,
 [data-theme="dark"] .home-next-meta svg {
   color: var(--warning, #fbbf24);
@@ -603,15 +609,24 @@
   }
 }
 
-.home-dashboard-section,
+.home-dashboard-section {
+  margin: .75rem 0 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 95% 0%, rgba(34, 197, 94, .08), transparent 30%),
+    var(--bg-card);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, .06);
+  padding: .78rem .74rem .74rem;
+  overflow: hidden;
+}
+
 .home-scoreboard-preview {
-  margin: .75rem .5rem 0;
+  margin: .75rem 0 0;
 }
 
 .home-info-dashboard-section {
   margin-top: .65rem;
-  padding-top: .72rem;
-  border-top: 1px solid var(--border);
 }
 
 .home-dashboard-title-row,
@@ -1753,7 +1768,7 @@
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   gap: 4px;
-  padding: 0 .5rem .5rem;
+  padding: 0 0 .5rem;
 }
 .sponsor-slot {
   aspect-ratio: 1;
@@ -1799,15 +1814,15 @@
 
 .home-divider {
   border: none; border-top: 1px solid var(--border);
-  margin: .6rem .5rem 0;
+  margin: .6rem 0 0;
 }
 
 /* ─── Sports News ─── */
 
 /* folder-style tabs */
 .news-tabs {
-  display: flex; gap: 0; padding: 0 .5rem;
-  margin: 0 .5rem;
+  display: flex; gap: 0; padding: 0;
+  margin: 0;
   overflow-x: auto; -webkit-overflow-scrolling: touch;
   position: relative;
 }
@@ -1843,7 +1858,7 @@
   background: var(--bg-card);
   border: 1px solid var(--border); border-top: none;
   border-radius: 0 0 var(--radius-sm, 8px) var(--radius-sm, 8px);
-  margin: 0 .5rem .5rem;
+  margin: 0 0 .5rem;
   box-shadow: 0 2px 8px rgba(0,0,0,.06);
 }
 .news-card + .news-card {
