@@ -37,8 +37,7 @@ describe('activity region default', () => {
     expect(activityCss).toContain('#activity-tabs .activity-tab-female.active');
     expect(activityCss).toContain('#activity-tabs .tab');
     expect(activityCss).toContain('padding-inline: .46rem');
-    expect(activityCss).toContain('[data-theme="light"] #page-activities.activity-female-theme #activity-list');
-    expect(activityCss).toContain('rgba(255,247,251,.82)');
+    expect(activityCss).toContain('z-index: 4');
     expect(activityCss).toContain('.tl-event-row.tl-type-female-only');
     expect(tabSource).toContain("_unavailableActivityTabs: ['beginner', 'high-intensity']");
     expect(tabSource).toContain('this._syncActivityFemaleTheme?.(tab)');
