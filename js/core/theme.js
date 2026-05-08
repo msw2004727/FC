@@ -127,7 +127,7 @@ Object.assign(App, {
       : getSportIconSvg(key);
 
     listHost.innerHTML = pickerOptions.map(item => {
-      return `<button class="sport-picker-item${item.key === initialSport ? ' active' : ''}" data-sport="${escapeHTML(item.key)}">
+      return `<button class="sport-picker-item${item.key === initialSport ? ' active' : ''}" data-sport="${escapeHTML(item.key)}" role="option" aria-selected="${item.key === initialSport ? 'true' : 'false'}">
         <span class="sp-icon">${_sportIcon(item.key)}</span>
         <span>${escapeHTML(item.label)}</span>
         <span class="sp-pulse"></span>
@@ -142,7 +142,9 @@ Object.assign(App, {
       App._activeSport = safeKey;
       try { localStorage.setItem('sporthub_active_sport', safeKey); } catch (_) {}
       listHost.querySelectorAll('.sport-picker-item').forEach(item => {
-        item.classList.toggle('active', item.dataset.sport === safeKey);
+        const active = item.dataset.sport === safeKey;
+        item.classList.toggle('active', active);
+        item.setAttribute('aria-selected', active ? 'true' : 'false');
       });
       iconEl.innerHTML = _sportIcon(safeKey);
       document.querySelectorAll('.cat-item[data-sport]').forEach(item => {
@@ -153,14 +155,19 @@ Object.assign(App, {
 
     setActiveSport(initialSport);
 
+    const setPickerOpen = (open) => {
+      btn.classList.toggle('open', open);
+      dropdown.classList.toggle('open', open);
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
       document.querySelectorAll('.role-dropdown.open').forEach(d => d.classList.remove('open'));
       document.querySelectorAll('.role-avatar-btn.open').forEach(b => b.classList.remove('open'));
       const isOpen = dropdown.classList.contains('open');
-      btn.classList.toggle('open', !isOpen);
-      dropdown.classList.toggle('open', !isOpen);
+      setPickerOpen(!isOpen);
     });
 
     listHost.addEventListener('click', (e) => {
@@ -184,8 +191,7 @@ Object.assign(App, {
       const _perfSportLog = typeof window !== 'undefined' && (window._sportDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_sportDebug')));
       const _prevSport = App._activeSport;
       setActiveSport(sportKey);
-      btn.classList.remove('open');
-      dropdown.classList.remove('open');
+      setPickerOpen(false);
       const label = item.querySelector('span:nth-child(2)')?.textContent || '全部運動';
       this.showToast(`已切換為 ${label}`);
 
@@ -213,9 +219,12 @@ Object.assign(App, {
 
     document.addEventListener('click', (e) => {
       if (!wrapper.contains(e.target)) {
-        btn.classList.remove('open');
-        dropdown.classList.remove('open');
+        setPickerOpen(false);
       }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') setPickerOpen(false);
     });
 
     // 初次嘗試刷新光暈（資料可能尚未載入，_cloudReady 後會再呼叫一次）

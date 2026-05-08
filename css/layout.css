@@ -219,6 +219,10 @@
 .sport-picker-wrapper {
   position: relative;
   z-index: 1000;
+  --sport-picker-accent: var(--accent, #0d9488);
+}
+[data-theme="dark"] .sport-picker-wrapper {
+  --sport-picker-accent: var(--warning, #fbbf24);
 }
 .sport-picker-btn {
   width: 36px; height: 36px;
@@ -226,8 +230,23 @@
   border-radius: var(--radius-sm);
   background: transparent;
   border: 1.5px solid var(--border);
-  transition: all var(--transition);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--sport-picker-accent) 0%, transparent);
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+  transition: background var(--transition), border-color var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition);
   cursor: pointer;
+}
+.sport-picker-btn::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border: 1px solid color-mix(in srgb, var(--sport-picker-accent) 32%, transparent);
+  border-radius: calc(var(--radius-sm) + 6px);
+  opacity: 0;
+  transform: scale(.86);
+  pointer-events: none;
+  animation: sport-picker-attention 4.6s ease-in-out 2;
 }
 .sport-picker-icon {
   width: 20px;
@@ -243,11 +262,27 @@
 }
 .sport-picker-btn:hover {
   background: var(--accent-bg);
-  border-color: var(--accent);
+  border-color: var(--sport-picker-accent);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--sport-picker-accent) 18%, transparent);
+  transform: translateY(-1px);
+}
+.sport-picker-btn:focus-visible {
+  outline: none;
+  border-color: var(--sport-picker-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sport-picker-accent) 24%, transparent);
+}
+.sport-picker-btn:active {
+  transform: translateY(0) scale(.96);
 }
 .sport-picker-btn.open {
   background: var(--accent-bg);
-  border-color: var(--accent);
+  border-color: var(--sport-picker-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sport-picker-accent) 18%, transparent), 0 12px 24px color-mix(in srgb, var(--sport-picker-accent) 16%, transparent);
+}
+.sport-picker-btn.open::before {
+  animation: none;
+  opacity: 1;
+  transform: scale(1);
 }
 .sport-picker-dropdown {
   position: absolute;
@@ -261,17 +296,26 @@
   opacity: 0;
   pointer-events: none;
   transform: translateY(-10px) scale(.95);
+  transform-origin: top right;
   transition: all .25s cubic-bezier(.4,0,.2,1);
   overflow: hidden;
   z-index: 1002;
   max-height: 360px;
   overflow-y: auto;
+  will-change: opacity, transform;
 }
 .sport-picker-dropdown.open {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0) scale(1);
 }
+.sport-picker-dropdown.open .sport-picker-item {
+  animation: sport-picker-item-in .18s ease both;
+}
+.sport-picker-dropdown.open .sport-picker-item:nth-child(2) { animation-delay: .02s; }
+.sport-picker-dropdown.open .sport-picker-item:nth-child(3) { animation-delay: .04s; }
+.sport-picker-dropdown.open .sport-picker-item:nth-child(4) { animation-delay: .06s; }
+.sport-picker-dropdown.open .sport-picker-item:nth-child(5) { animation-delay: .08s; }
 .sport-picker-header {
   padding: .55rem .8rem;
   font-size: .72rem;
@@ -343,6 +387,21 @@
 @keyframes sp-pulse-ring {
   0%   { width: 8px; height: 8px; opacity: .45; }
   100% { width: 20px; height: 20px; opacity: 0; }
+}
+@keyframes sport-picker-attention {
+  0%, 58%, 100% { opacity: 0; transform: scale(.86); }
+  12% { opacity: .72; transform: scale(1); }
+  24% { opacity: 0; transform: scale(1.12); }
+}
+@keyframes sport-picker-item-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sport-picker-btn::before,
+  .sport-picker-dropdown.open .sport-picker-item {
+    animation: none;
+  }
 }
 
 .sport-picker-item .sp-lock {

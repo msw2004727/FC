@@ -621,7 +621,9 @@
       this._activeSport = safeKey;
       try { localStorage.setItem('sporthub_active_sport', safeKey); } catch (_) {}
       document.querySelectorAll('.sport-picker-item[data-sport]').forEach(item => {
-        item.classList.toggle('active', item.dataset.sport === safeKey);
+        const active = item.dataset.sport === safeKey;
+        item.classList.toggle('active', active);
+        item.setAttribute('aria-selected', active ? 'true' : 'false');
       });
       const iconEl = document.querySelector('#sport-picker-wrapper .sport-picker-icon');
       if (iconEl) iconEl.innerHTML = safeKey === 'all'
