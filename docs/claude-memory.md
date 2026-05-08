@@ -2219,3 +2219,8 @@
 - **Issue**: System announcement management reused generic modal/card styles, causing the form top to be clipped on narrow screens and list actions to crowd the card. Announcement writes also returned success before Firestore confirmed the write.
 - **Fix**: Added announcement-specific list cards, scroll-safe form/detail modal containers, busy-state buttons, and awaited create/update/delete wrappers. Active announcements now use effective status based on `publishAt` and `unpublishAt`, so scheduled and expired announcements render consistently.
 - **Validation**: Ran `node --check` for announcement and API modules plus `git diff --check` on the touched files.
+
+### 2026-05-08 Companion Attendance Cache Completeness [bugfix]
+- **Issue**: Activity detail attendance could render companion rows from `participantsWithUid` while the local registrations cache was only partially loaded. Instant companion check-in then could not resolve the owner registration and reverted the checkbox with `companion_registration_missing`.
+- **Fix**: `fetchRegistrationsIfMissing` now checks projected participant/waitlist UIDs before treating an event registration cache as complete. Companion attendance resolution now supports owner-scoped derived IDs and retries once with a forced registration fetch before blocking.
+- **Validation**: Confirmed the reported event had the companion registration in Firestore, then ran `node --check` on touched modules and the full `npm test` unit suite.

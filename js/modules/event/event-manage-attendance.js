@@ -77,17 +77,29 @@ Object.assign(App, {
   _findCompanionRegistrationForAttendance(eventId, person, regs) {
     const safeUid = String(person?.uid || '').trim();
     const safeName = String(person?.name || person?.displayName || '').trim();
+    const ownerUid = String(person?.ownerUid || person?.userId || '').trim();
     const allRegs = Array.isArray(regs) ? regs : ApiService.getRegistrationsByEvent(eventId);
     const companionRegs = (allRegs || []).filter(r =>
       r
       && this._isActiveAttendanceRegistration(r)
       && (r.participantType === 'companion' || r.companionId)
     );
-    return companionRegs.find(r => String(r.companionId || '').trim() === safeUid)
-      || (!this._isCompanionPseudoUid(safeUid)
-        ? companionRegs.find(r => String(r.companionName || r.userName || '').trim() === safeName)
-        : null)
-      || null;
+    const byId = companionRegs.find(r => String(r.companionId || '').trim() === safeUid);
+    if (byId) return byId;
+
+    const scopedRegs = ownerUid
+      ? companionRegs.filter(r => String(r.userId || '').trim() === ownerUid)
+      : companionRegs;
+    const byDerivedUid = scopedRegs.find(r => {
+      const regOwnerUid = String(r.userId || '').trim();
+      const regName = String(r.companionName || r.userName || '').trim();
+      return regOwnerUid && regName && `${regOwnerUid}_${regName}` === safeUid;
+    });
+    if (byDerivedUid) return byDerivedUid;
+
+    if (this._isCompanionPseudoUid(safeUid) || !safeName) return null;
+    const nameMatches = scopedRegs.filter(r => String(r.companionName || r.userName || '').trim() === safeName);
+    return nameMatches.length === 1 ? nameMatches[0] : null;
   },
 
   _buildAttendanceBaseRecord(eventId, person, regs) {
@@ -162,11 +174,20 @@ Object.assign(App, {
 
   _matchAttendanceRecord(record, person) {
     if (person?.isTeamPlaceholder || person?.isTeamHeader) return false;
+    const recordUid = String(record?.uid || '').trim();
+    const recordUserName = String(record?.userName || '').trim();
+    const recordCompanionId = String(record?.companionId || '').trim();
+    const recordCompanionName = String(record?.companionName || '').trim();
+    const personUid = String(person?.uid || '').trim();
+    const personName = String(person?.name || person?.displayName || '').trim();
+    const ownerUid = String(person?.ownerUid || person?.userId || '').trim();
     if (person.isCompanion) {
-      return record.companionId && (record.companionId === person.uid || record.companionName === person.name);
+      if (!recordCompanionId) return false;
+      if (ownerUid && recordUid !== ownerUid) return false;
+      return recordCompanionId === personUid || (!!personName && recordCompanionName === personName);
     }
-    if (this._isCompanionPseudoUid(person?.uid)) return false;
-    return ((record.uid === person.uid || record.userName === person.name) && !record.companionId);
+    if (this._isCompanionPseudoUid(personUid)) return false;
+    return ((recordUid === personUid || (!!personName && recordUserName === personName)) && !recordCompanionId);
   },
 
   _attendanceRecordMs(record, fallbackOrder = 0) {

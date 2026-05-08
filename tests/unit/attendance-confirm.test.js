@@ -93,14 +93,26 @@ function isCompanionPseudoUid(value) {
 function findCompanionRegistrationForAttendance(person, allActiveRegs) {
   const safeUid = String(person?.uid || '').trim();
   const safeName = String(person?.name || '').trim();
+  const ownerUid = String(person?.ownerUid || person?.userId || '').trim();
   const companionRegs = (allActiveRegs || []).filter(r =>
     r && r.status !== 'cancelled' && r.status !== 'removed' && (r.participantType === 'companion' || r.companionId)
   );
-  return companionRegs.find(r => String(r.companionId || '').trim() === safeUid)
-    || (!isCompanionPseudoUid(safeUid)
-      ? companionRegs.find(r => String(r.companionName || r.userName || '').trim() === safeName)
-      : null)
-    || null;
+  const byId = companionRegs.find(r => String(r.companionId || '').trim() === safeUid);
+  if (byId) return byId;
+
+  const scopedRegs = ownerUid
+    ? companionRegs.filter(r => String(r.userId || '').trim() === ownerUid)
+    : companionRegs;
+  const byDerivedUid = scopedRegs.find(r => {
+    const regOwnerUid = String(r.userId || '').trim();
+    const regName = String(r.companionName || r.userName || '').trim();
+    return regOwnerUid && regName && `${regOwnerUid}_${regName}` === safeUid;
+  });
+  if (byDerivedUid) return byDerivedUid;
+
+  if (isCompanionPseudoUid(safeUid) || !safeName) return null;
+  const nameMatches = scopedRegs.filter(r => String(r.companionName || r.userName || '').trim() === safeName);
+  return nameMatches.length === 1 ? nameMatches[0] : null;
 }
 
 function buildBaseRecord(person, allActiveRegs, eventId) {
@@ -358,6 +370,30 @@ describe('_confirmAllAttendance Participant Resolution', () => {
       const resolved = buildBaseRecord(person, [], 'evt1');
       expect(resolved.ok).toBe(false);
       expect(resolved.reason).toBe('companion_registration_missing');
+    });
+
+    test('companion derived uid resolves owner registration when companionId is missing', () => {
+      const person = { name: 'Guest', uid: 'owner_uid_Guest', ownerUid: 'owner_uid', isCompanion: true };
+      const allRegs = [
+        { userId: 'owner_uid', userName: 'Owner', companionName: 'Guest', participantType: 'companion', status: 'confirmed' },
+      ];
+      const resolved = buildBaseRecord(person, allRegs, 'evt1');
+      expect(resolved.ok).toBe(true);
+      expect(resolved.record.uid).toBe('owner_uid');
+      expect(resolved.record.companionId).toBe('owner_uid_Guest');
+      expect(resolved.record.participantType).toBe('companion');
+    });
+
+    test('same companion name requires owner scope instead of guessing wrong owner', () => {
+      const allRegs = [
+        { userId: 'owner_a', userName: 'Owner A', companionName: 'Guest', participantType: 'companion', status: 'confirmed' },
+        { userId: 'owner_b', userName: 'Owner B', companionName: 'Guest', participantType: 'companion', status: 'confirmed' },
+      ];
+      expect(buildBaseRecord({ name: 'Guest', uid: 'legacy_guest', isCompanion: true }, allRegs, 'evt1').ok).toBe(false);
+
+      const resolved = buildBaseRecord({ name: 'Guest', uid: 'owner_b_Guest', ownerUid: 'owner_b', isCompanion: true }, allRegs, 'evt1');
+      expect(resolved.ok).toBe(true);
+      expect(resolved.record.uid).toBe('owner_b');
     });
 
     test('collect guard refuses comp_ as attendance uid', () => {

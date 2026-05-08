@@ -41,7 +41,12 @@ Object.assign(App, {
           }
           const companionUid = String(cReg.companionId || entry.uid).trim();
           if (!companionUid || map.has(companionUid)) return;
-          map.set(companionUid, { name: cReg.companionName || entry.name, uid: companionUid, isCompanion: true });
+          map.set(companionUid, {
+            name: cReg.companionName || entry.name,
+            uid: companionUid,
+            isCompanion: true,
+            ownerUid: String(cReg.userId || '').trim(),
+          });
           addedNames.add(entry.name);
           return;
         }
@@ -100,8 +105,20 @@ Object.assign(App, {
       uid: person.uid,
       name: person.name,
       isCompanion: !!person.isCompanion || this._isCompanionPseudoUid?.(person.uid),
+      ownerUid: person.ownerUid || person.userId || '',
     };
-    const resolvedRecord = this._buildAttendanceBaseRecord?.(eventId, personObj, allActiveRegs);
+    let resolvedRecord = this._buildAttendanceBaseRecord?.(eventId, personObj, allActiveRegs);
+    if (!resolvedRecord?.ok
+      && resolvedRecord?.reason === 'companion_registration_missing'
+      && typeof ApiService.fetchRegistrationsIfMissing === 'function') {
+      try {
+        await ApiService.fetchRegistrationsIfMissing(eventId, { force: true });
+        const refreshedRegs = ApiService.getRegistrationsByEvent(eventId);
+        resolvedRecord = this._buildAttendanceBaseRecord?.(eventId, personObj, refreshedRegs);
+      } catch (retryErr) {
+        console.warn('[_writeInstantAttendance] companion registration refetch failed:', retryErr);
+      }
+    }
     if (!resolvedRecord?.ok) {
       this._reportInvalidAttendanceBaseRecord?.(eventId, personObj, resolvedRecord?.reason || 'invalid_attendance_record');
       const hasCI = currentRecords.some(r => this._matchAttendanceRecord(r, personObj) && r.type === 'checkin');

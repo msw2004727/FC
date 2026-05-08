@@ -979,6 +979,47 @@ const ApiService = {
     return source;
   },
 
+  _registrationProjectionUid(reg) {
+    if (!reg) return '';
+    const isCompanion = reg.participantType === 'companion' || !!reg.companionId;
+    if (isCompanion) {
+      const ownerUid = String(reg.userId || '').trim();
+      const companionName = String(reg.companionName || reg.userName || '').trim();
+      return String(reg.companionId || (ownerUid && companionName ? `${ownerUid}_${companionName}` : '')).trim();
+    }
+    return String(reg.userId || reg.uid || '').trim();
+  },
+
+  _registrationCacheCompleteForEvent(event, cachedRegs) {
+    if (!event) return false;
+    const cached = Array.isArray(cachedRegs) ? cachedRegs : [];
+    const projected = []
+      .concat(Array.isArray(event.participantsWithUid) ? event.participantsWithUid : [])
+      .concat(Array.isArray(event.waitlistWithUid) ? event.waitlistWithUid : []);
+    const projectedUids = projected
+      .map(x => String(x?.uid || '').trim())
+      .filter(Boolean);
+    const expectedWaitlist = Number(event.waitlist || 0) || 0;
+
+    if (projectedUids.length > 0) {
+      const cachedUids = new Set(cached.map(r => this._registrationProjectionUid(r)).filter(Boolean));
+      const hasAllProjected = projectedUids.every(uid => cachedUids.has(uid));
+      if (!hasAllProjected) return false;
+      const hasWaitlistProjection = Array.isArray(event.waitlistWithUid) && event.waitlistWithUid.length > 0;
+      const expectedActive = projectedUids.length + (hasWaitlistProjection ? 0 : Math.max(0, expectedWaitlist));
+      return cached.length >= expectedActive;
+    }
+
+    const expectedConfirmed = Number(event.realCurrent || 0)
+      || (Number(event.current || 0) - (Array.isArray(event.teamReservationSummaries)
+        ? event.teamReservationSummaries.reduce((sum, s) => sum + Math.max(0, Number(s.remainingSlots || 0) || 0), 0)
+        : 0))
+      || Number(event.current || 0)
+      || 0;
+    const expectedActive = Math.max(0, expectedConfirmed) + Math.max(0, expectedWaitlist);
+    return expectedActive <= 0 ? cached.length > 0 : cached.length >= expectedActive;
+  },
+
   getRegistrationHistoryByEventUser(eventId, userId) {
     const targetEventId = String(eventId || '').trim();
     const targetUid = String(userId || '').trim();
@@ -995,19 +1036,20 @@ const ApiService = {
    * 2026-04-25：加 `_fetchedRegistrationIds` Set 去重，避免熱門活動（超 onSnapshot
    * limit 前 500 筆）每次進頁都重打 Firestore query。
    */
-  async fetchRegistrationsIfMissing(eventId) {
+  async fetchRegistrationsIfMissing(eventId, options = {}) {
     if (!eventId || typeof db === 'undefined') return;
 
     this._fetchedRegistrationIds = this._fetchedRegistrationIds || new Set();
-    if (this._fetchedRegistrationIds.has(eventId)) return;
+    const force = options === true || options?.force === true;
+    if (!force && this._fetchedRegistrationIds.has(eventId)) return;
 
     var cached = this.getRegistrationsByEvent(eventId);
-    if (cached.length > 0) {
+    var ev = this._findById('events', eventId);
+    if (!force && cached.length > 0 && this._registrationCacheCompleteForEvent(ev, cached)) {
       this._fetchedRegistrationIds.add(eventId);
       return;
     }
 
-    var ev = this._findById('events', eventId);
     if (!ev || !ev._docId) {
       if (ev) console.warn('[fetchRegistrationsIfMissing] missing _docId:', eventId);
       return;
