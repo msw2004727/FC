@@ -57,6 +57,15 @@ Object.assign(App, {
       preview.classList.remove('has-image');
       preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 200 × 200 px｜JPG / PNG｜最大 2MB</span>';
     }
+    this.bindImageUpload('floatad-image', 'floatad-preview', {
+      aspectRatio: 1,
+      outputWidth: 800,
+      outputHeight: 800,
+      title: 'Floating ad image',
+      targetLabel: 'Floating ad',
+      recommendedSize: '800 x 800',
+      aspectLabel: '1:1',
+    });
     document.getElementById('floatad-image').value = '';
     const isScheduled = editData.status === 'scheduled';
     document.getElementById('floatad-input-mode').value = isScheduled ? 'scheduled' : 'now';

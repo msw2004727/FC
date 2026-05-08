@@ -63,6 +63,15 @@ Object.assign(App, {
       preview.classList.remove('has-image');
       preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 600 × 800 px｜JPG / PNG｜最大 2MB</span>';
     }
+    this.bindImageUpload('popupad-image', 'popupad-preview', {
+      aspectRatio: 3 / 4,
+      outputWidth: 600,
+      outputHeight: 800,
+      title: 'Popup ad image',
+      targetLabel: 'Popup ad',
+      recommendedSize: '600 x 800',
+      aspectLabel: '3:4',
+    });
     document.getElementById('popupad-image').value = '';
     const isScheduled = editData.status === 'scheduled';
     document.getElementById('popupad-input-mode').value = isScheduled ? 'scheduled' : 'now';
@@ -179,7 +188,9 @@ Object.assign(App, {
     const input = document.getElementById('sponsor-image');
     if (input) input.value = '';
     this.bindImageUpload('sponsor-image', 'sponsor-preview', {
+      aspectRatio: 1,
       outputWidth: 800,
+      outputHeight: 800,
       title: '贊助商圖片',
       subtitle: '拖曳調整圖片位置，裁切後會顯示在贊助商欄位。',
       targetLabel: '贊助商圖片',

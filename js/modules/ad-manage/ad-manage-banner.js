@@ -25,7 +25,7 @@ Object.assign(App, {
       const remainText = isActive ? (isPermanent ? '永久' : `剩餘 ${remain} 天`) : '';
       const thumb = b.image
         ? `<div class="banner-thumb" style="overflow:hidden"><img src="${b.image}" style="width:100%;height:100%;object-fit:cover"></div>`
-        : `<div class="banner-thumb banner-thumb-empty"><span>1200<br>×<br>545</span></div>`;
+        : `<div class="banner-thumb banner-thumb-empty"><span>1320<br>×<br>400</span></div>`;
       return `
       <div class="banner-manage-card" style="margin-bottom:.5rem">
         ${thumb}
@@ -59,8 +59,17 @@ Object.assign(App, {
       preview.classList.add('has-image');
     } else {
       preview.classList.remove('has-image');
-      preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 1200 × 545 px｜JPG / PNG｜最大 5MB</span>';
+      preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 1320 × 400 px｜JPG / PNG｜最大 5MB</span>';
     }
+    this.bindImageUpload('banner-image', 'banner-preview', {
+      aspectRatio: 3.3,
+      outputWidth: 1320,
+      outputHeight: 400,
+      title: 'Banner 圖片',
+      targetLabel: '首頁 Banner',
+      recommendedSize: '1320 x 400',
+      aspectLabel: '3.3:1',
+    });
     document.getElementById('banner-image').value = '';
     const isScheduled = editData.status === 'scheduled';
     document.getElementById('banner-input-mode').value = isScheduled ? 'scheduled' : 'now';

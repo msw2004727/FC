@@ -278,6 +278,9 @@
 .banner-thumb { width: 80px; aspect-ratio: 2.2/1; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: .75rem; color: #fff; font-weight: 600; flex-shrink: 0; overflow: hidden; }
 .banner-thumb-empty { background: transparent; border: 2px dashed var(--border); color: var(--text-muted); font-size: .55rem; line-height: 1.2; text-align: center; }
 .banner-thumb-circle { width: 50px; height: 50px; border-radius: 50%; }
+#banner-manage-list .banner-thumb { width: 112px; aspect-ratio: 3.3 / 1; }
+#popup-ad-manage-list .banner-thumb { width: 54px; aspect-ratio: 3 / 4; }
+#shotgame-ad-manage-list .banner-thumb { width: 96px; aspect-ratio: 1200 / 545; }
 .banner-manage-info { flex: 1; }
 .banner-manage-title { font-weight: 600; font-size: .85rem; }
 .banner-manage-meta { font-size: .72rem; color: var(--text-muted); margin-top: .1rem; }
@@ -635,6 +638,39 @@
 .watch-party-bg-preview {
   min-height: 92px;
   aspect-ratio: 5 / 1;
+}
+
+#banner-preview {
+  aspect-ratio: 3.3 / 1;
+  min-height: 96px;
+}
+
+#floatad-preview {
+  width: min(100%, 220px);
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  margin-inline: auto;
+}
+
+#floatad-preview img {
+  border-radius: 50% !important;
+}
+
+#popupad-preview {
+  width: min(100%, 260px);
+  aspect-ratio: 3 / 4;
+  margin-inline: auto;
+}
+
+#sponsor-preview {
+  width: min(100%, 260px);
+  aspect-ratio: 1 / 1;
+  margin-inline: auto;
+}
+
+#sgad-preview {
+  aspect-ratio: 1200 / 545;
+  min-height: 96px;
 }
 
 .ad-edit-modal-root {
