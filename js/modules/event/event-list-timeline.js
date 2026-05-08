@@ -177,6 +177,9 @@ Object.assign(App, {
     } else {
       events = events.filter(e => e.status !== 'ended' && e.status !== 'cancelled');
     }
+    if (activeTab === 'female') {
+      events = events.filter(e => this._getEventAllowedGender?.(e) === '女');
+    }
 
     if (filterType) events = events.filter(e => e.type === filterType);
     if (filterKw) events = events.filter(e =>
@@ -314,7 +317,7 @@ Object.assign(App, {
     });
 
     // 方案 B：資料未變時跳過 re-render
-    var _fp = events.map(function(e){ return e.id + '|' + e.status + '|' + (e.current||0) + '|' + (e.waitlist||0) + '|' + (e.pinned?1:0) + '|' + (e.title||''); }).join(',') + '|f:' + filterType + '|k:' + filterKw + '|s:' + (App._activeSport || 'all');
+    var _fp = events.map(function(e){ return e.id + '|' + e.status + '|' + (e.current||0) + '|' + (e.waitlist||0) + '|' + (e.pinned?1:0) + '|' + (e.title||''); }).join(',') + '|tab:' + activeTab + '|f:' + filterType + '|k:' + filterKw + '|s:' + (App._activeSport || 'all');
     if (this._activityListLastFp === _fp && container.children.length > 0) return;
     this._activityListLastFp = _fp;
 
@@ -343,7 +346,7 @@ Object.assign(App, {
     // 綁定左右滑動切換頁籤
     this._bindSwipeTabs('activity-list', 'activity-tabs',
       this.switchActivityTab,
-      (btn) => btn.dataset.atab
+      (btn) => this._unavailableActivityTabs?.includes(btn.dataset.atab) ? null : btn.dataset.atab
     );
   },
 

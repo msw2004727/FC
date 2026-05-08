@@ -8,6 +8,7 @@
 Object.assign(App, {
 
   _activityActiveTab: 'normal',
+  _unavailableActivityTabs: ['beginner', 'high-intensity'],
 
   _canCreateActivityByPermission() {
     const currentUser = ApiService.getCurrentUser?.();
@@ -80,8 +81,18 @@ Object.assign(App, {
       });
   },
 
-  switchActivityTab(tab) {
+  switchActivityTab(tab, event) {
+    if (this._unavailableActivityTabs.includes(tab)) {
+      event?.preventDefault?.();
+      event?.stopImmediatePropagation?.();
+      this.showToast?.('功能尚未開放');
+      document.querySelectorAll('#activity-tabs .tab').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.atab === this._activityActiveTab);
+      });
+      return false;
+    }
     this._setActivityTab(tab);
+    return true;
   },
 
   resetActivityTab(options = {}) {

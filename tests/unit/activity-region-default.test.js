@@ -18,4 +18,19 @@ describe('activity region default', () => {
     expect(helperSource).toContain("this._activeRegionTab || '全部'");
     expect(helperSource).toContain("region || '全部'");
   });
+
+  test('activity feature tabs include female-only filter and unavailable placeholders', () => {
+    const activityHtml = readProjectFile('pages/activity.html');
+    const tabSource = readProjectFile('js/modules/event/event-list.js');
+    const timelineSource = readProjectFile('js/modules/event/event-list-timeline.js');
+
+    expect(activityHtml).toContain('data-atab="female" onclick="App.switchActivityTab(\'female\')">女生專屬</button>');
+    expect(activityHtml).toContain('data-atab="beginner" onclick="App.switchActivityTab(\'beginner\', event)">新手友善</button>');
+    expect(activityHtml).toContain('data-atab="high-intensity" onclick="App.switchActivityTab(\'high-intensity\', event)">高強度</button>');
+    expect(tabSource).toContain("_unavailableActivityTabs: ['beginner', 'high-intensity']");
+    expect(tabSource).toContain("this.showToast?.('功能尚未開放')");
+    expect(tabSource).toContain('event?.stopImmediatePropagation?.()');
+    expect(timelineSource).toContain("if (activeTab === 'female')");
+    expect(timelineSource).toContain("this._getEventAllowedGender?.(e) === '女'");
+  });
 });
