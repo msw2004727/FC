@@ -43,7 +43,7 @@ Object.assign(App, {
     window.addEventListener('resize', state.resizeHandler, { passive: true });
     this._resizeActivityFemalePetals();
 
-    const count = Math.max(18, Math.min(42, Math.round((state.cssWidth || 360) / 14)));
+    const count = Math.max(14, Math.min(34, Math.round(((state.cssWidth || 360) / 14) * 0.8)));
     state.petals = Array.from({ length: count }, () => this._createActivityFemalePetal(true));
 
     const animate = timestamp => {
@@ -103,7 +103,7 @@ Object.assign(App, {
       x: Math.random() * width,
       y: randomY ? Math.random() * height : -18 - Math.random() * 120,
       size: 5 + Math.random() * 6,
-      speed: 0.073 + Math.random() * 0.14,
+      speed: 0.0365 + Math.random() * 0.07,
       drift: -0.12 + Math.random() * 0.24,
       angle: Math.random() * Math.PI * 2,
       spin: -0.012 + Math.random() * 0.024,
