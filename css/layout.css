@@ -248,6 +248,22 @@
   pointer-events: none;
   animation: sport-picker-attention 4.6s ease-in-out 2;
 }
+.sport-picker-btn::after {
+  content: '';
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 5px;
+  height: 5px;
+  border-right: 1.6px solid currentColor;
+  border-bottom: 1.6px solid currentColor;
+  border-radius: 1px;
+  opacity: .58;
+  pointer-events: none;
+  transform: rotate(45deg);
+  transform-origin: center;
+  transition: opacity var(--transition), transform var(--transition), color var(--transition);
+}
 .sport-picker-icon {
   width: 20px;
   height: 20px;
@@ -283,6 +299,11 @@
   animation: none;
   opacity: 1;
   transform: scale(1);
+}
+.sport-picker-btn.open::after {
+  opacity: .95;
+  color: var(--sport-picker-accent);
+  transform: rotate(225deg) translate(-1px, -1px);
 }
 .sport-picker-dropdown {
   position: absolute;
