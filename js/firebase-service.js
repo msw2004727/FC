@@ -351,8 +351,11 @@ const FirebaseService = {
       const uid = String(record.uid || record.userId || '').trim();
       const type = String(record.type || record.attendanceType || '').trim();
       const participant = String(record.participantType || '').trim();
+      const companionKey = (participant === 'companion' || record.companionId || record.companionName || record.registrationDocId)
+        ? String(record.registrationDocId || record.companionId || record.companionName || record._docId || record.id || record._path || '').trim()
+        : 'self';
       const status = String(record.status || '').trim();
-      if (eventId && uid && type) return `${eventId}|${uid}|${type}|${participant}|${status}`;
+      if (eventId && uid && type) return `${eventId}|${uid}|${type}|${participant}|${companionKey}|${status}`;
     }
     return String(record._path || record._docId || record.id || Math.random());
   },

@@ -161,4 +161,40 @@ describe('canonical registration/activity/attendance cache', () => {
       'reg_cancelled:cancelled',
     ]);
   });
+
+  test('attendance cache keeps separate companions under the same owner uid', () => {
+    const { FirebaseService } = loadServices();
+    const records = [
+      {
+        eventId: 'e1',
+        uid: 'owner_uid',
+        userName: 'Owner',
+        type: 'checkin',
+        participantType: 'companion',
+        companionId: 'comp_a',
+        companionName: 'Guest A',
+        status: 'active',
+        _docId: 'att_a',
+        _path: 'events/eventDocA/attendanceRecords/att_a',
+        _sourceKind: 'subcollection',
+      },
+      {
+        eventId: 'e1',
+        uid: 'owner_uid',
+        userName: 'Owner',
+        type: 'checkin',
+        participantType: 'companion',
+        companionId: 'comp_b',
+        companionName: 'Guest B',
+        status: 'active',
+        _docId: 'att_b',
+        _path: 'events/eventDocA/attendanceRecords/att_b',
+        _sourceKind: 'subcollection',
+      },
+    ];
+
+    const result = FirebaseService._canonicalizeRecordList('attendanceRecords', records);
+
+    expect(result.map(r => r.companionId).sort()).toEqual(['comp_a', 'comp_b']);
+  });
 });

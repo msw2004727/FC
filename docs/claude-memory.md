@@ -2224,3 +2224,8 @@
 - **Issue**: Activity detail attendance could render companion rows from `participantsWithUid` while the local registrations cache was only partially loaded. Instant companion check-in then could not resolve the owner registration and reverted the checkbox with `companion_registration_missing`.
 - **Fix**: `fetchRegistrationsIfMissing` now checks projected participant/waitlist UIDs before treating an event registration cache as complete. Companion attendance resolution now supports owner-scoped derived IDs and retries once with a forced registration fetch before blocking.
 - **Validation**: Confirmed the reported event had the companion registration in Firestore, then ran `node --check` on touched modules and the full `npm test` unit suite.
+
+### 2026-05-08 Companion Attendance Cache Identity [bugfix]
+- **Issue**: Multiple companions under the same owner UID could overwrite each other in the frontend canonical attendance cache because the cache key did not include `companionId`.
+- **Fix**: `attendanceRecords` canonical keys now include `registrationDocId`, `companionId`, or companion name for companion records, while self records keep a stable `self` key.
+- **Validation**: Confirmed the reported 2026/05/08 event has separate companion IDs for the two companions, then added and ran canonical-cache coverage with `attendance-confirm.test.js`.
