@@ -608,19 +608,21 @@
 .home-sport-entry::-webkit-scrollbar { display: none; }
 
 .home-sport-chip {
-  flex: 0 0 72px;
-  min-height: 70px;
+  flex: 0 0 auto;
+  min-width: 86px;
+  height: 42px;
   border: 1px solid var(--border);
   background: var(--bg-card);
   color: var(--text-primary);
-  border-radius: 8px;
-  padding: 8px 7px 7px;
+  border-radius: 9px;
+  padding: 5px 8px 5px 6px;
   display: grid;
-  grid-template-rows: 32px auto;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: .42rem;
   align-items: center;
-  justify-items: center;
+  justify-items: stretch;
   cursor: pointer;
-  text-align: center;
+  text-align: left;
   box-shadow: 0 7px 16px rgba(15, 23, 42, .05);
   transition: border-color .16s ease, background .16s ease, transform .12s ease;
 }
@@ -633,9 +635,9 @@
 }
 
 .home-sport-chip-mark {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
   display: grid;
   place-items: center;
   background: transparent;
@@ -651,13 +653,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.55rem;
+  font-size: 1.45rem;
   line-height: 1;
 }
 
 .home-sport-chip-mark svg {
-  width: 28px;
-  height: 28px;
+  width: 25px;
+  height: 25px;
   display: block;
 }
 
@@ -670,31 +672,40 @@
 }
 
 .home-sport-chip-mark-pickleball .sport-emoji { font-size: 1.25rem; }
-.home-sport-chip-mark-pickleball svg { width: 22px; height: 22px; }
+.home-sport-chip-mark-pickleball svg { width: 21px; height: 21px; }
+
+.home-sport-chip-text {
+  min-width: 0;
+  height: 100%;
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  align-items: center;
+}
 
 .home-sport-chip-label {
   max-width: 100%;
-  margin-top: 7px;
-  font-size: .8rem;
+  font-size: .76rem;
   font-weight: 800;
-  line-height: 1.1;
+  line-height: 1;
+  color: #0f766e;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .home-sport-chip-count {
-  margin-top: 4px;
   color: var(--text-muted);
-  font-size: .72rem;
-  line-height: 1.2;
+  font-size: .66rem;
+  line-height: 1;
   font-weight: 700;
   white-space: nowrap;
 }
 
 .home-sport-chip-more {
-  grid-template-rows: 1fr;
+  min-width: 74px;
+  grid-template-columns: 1fr;
   place-content: center;
+  text-align: center;
   color: #0f766e;
   font-weight: 850;
 }

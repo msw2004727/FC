@@ -2229,3 +2229,8 @@
 - **Issue**: Multiple companions under the same owner UID could overwrite each other in the frontend canonical attendance cache because the cache key did not include `companionId`.
 - **Fix**: `attendanceRecords` canonical keys now include `registrationDocId`, `companionId`, or companion name for companion records, while self records keep a stable `self` key.
 - **Validation**: Confirmed the reported 2026/05/08 event has separate companion IDs for the two companions, then added and ran canonical-cache coverage with `attendance-confirm.test.js`.
+
+### 2026-05-08 Home Sport Quick Entry Pill Layout [ux]
+- **Issue**: 首頁運動快速入口仍是直向圖示卡，和目標設計「左圖示、右側上名稱下活動數」不一致，窄版掃描效率較差。
+- **Fix**: `home-dashboard.js` 讓每個運動入口輸出獨立的名稱與活動數文字列，`home.css` 改為緊湊橫向 pill，右側文字用 1fr/1fr 平均上下高度。
+- **Validation**: Added source contract coverage in `home-dashboard-render.test.js`; `node --check js/modules/home-dashboard.js` and the unit suite passed.

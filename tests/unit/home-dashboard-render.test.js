@@ -128,8 +128,13 @@ describe("home-dashboard browser binding", () => {
     expect(homeCssSource).toMatch(/\.home-scoreboard-preview:not\(:empty\)\s*\{[\s\S]*border-top:\s*1px solid var\(--border\)/);
   });
 
+  test("sport quick entry uses icon plus two-line text layout", () => {
+    expect(homeCssSource).toMatch(/\.home-sport-chip\s*\{[\s\S]*grid-template-columns:\s*30px minmax\(0,\s*1fr\)/);
+    expect(homeCssSource).toMatch(/\.home-sport-chip-text\s*\{[\s\S]*grid-template-rows:\s*1fr 1fr/);
+  });
+
   test("attaches to lexical App and renders homepage cards when window.App is empty", async () => {
-    const { app, dom } = runHomeDashboardModule();
+    const { app, dom, context } = runHomeDashboardModule();
 
     expect(dom.window.App).toBe(app);
     expect(typeof app.renderHomeDashboard).toBe("function");
@@ -144,9 +149,11 @@ describe("home-dashboard browser binding", () => {
     expect(sportEntry.textContent).toContain("查看更多");
     expect(sportEntry.textContent).not.toContain("0 活動");
     expect(sportEntry.querySelector(".home-sport-chip-more")?.getAttribute("onclick")).toBe("App.selectHomeSport('all')");
-    expect(sportEntry.textContent).not.toContain("足球");
-    expect(sportEntry.querySelector('[data-home-sport="football"]')?.getAttribute("aria-label")).toContain("足球");
-    expect(sportEntry.querySelector(".home-sport-chip-mark")?.innerHTML).toContain("football");
+    const footballChip = sportEntry.querySelector('[data-home-sport="football"]');
+    expect(footballChip?.querySelector(".home-sport-chip-label")?.textContent).toBe(context.EVENT_SPORT_OPTIONS[0].label);
+    expect(footballChip?.querySelector(".home-sport-chip-count")?.textContent).toContain("19 活動");
+    expect(footballChip?.getAttribute("aria-label")).toContain("足球");
+    expect(footballChip?.querySelector(".home-sport-chip-mark")?.innerHTML).toContain("football");
     expect(dom.window.document.getElementById("home-info-meter").children).toHaveLength(3);
     expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("已開放活動");
     expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("已成立俱樂部");

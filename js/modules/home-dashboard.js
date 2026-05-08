@@ -273,7 +273,10 @@
     host.innerHTML = rows.map(item => `
       <button class="home-sport-chip${item.key === active ? ' active' : ''}" type="button" data-home-sport="${escapeHTML(item.key)}" onclick="App.selectHomeSport('${escapeHTML(item.key)}')" aria-label="${escapeHTML(item.label)} ${numberText(item.count)} 個活動" title="${escapeHTML(item.label)}">
         <span class="home-sport-chip-mark home-sport-chip-mark-${escapeHTML(item.key)}" aria-hidden="true">${sportIcon(item.key)}</span>
-        <span class="home-sport-chip-count">${numberText(item.count)} 活動</span>
+        <span class="home-sport-chip-text">
+          <span class="home-sport-chip-label">${escapeHTML(item.label)}</span>
+          <span class="home-sport-chip-count">${numberText(item.count)} 活動</span>
+        </span>
       </button>
     `).join('') + more;
   }
