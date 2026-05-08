@@ -185,25 +185,33 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1em;
-  height: 1em;
+  width: 1.24em;
+  height: 1.24em;
   font-size: .78rem;
   font-weight: 900;
   line-height: 1;
-  color: #16a34a;
-  text-shadow: 0 0 8px rgba(34, 197, 94, .32);
+  color: #ecfdf5;
+  background: #16a34a;
+  border-radius: 999px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, .55),
+    0 0 8px rgba(34, 197, 94, .34);
   flex-shrink: 0;
 }
 
 [data-theme="dark"] .evt-cal-user-day-check {
-  color: #86efac;
-  text-shadow: 0 0 10px rgba(74, 222, 128, .42);
+  color: #ecfdf5;
+  background: #15803d;
+  box-shadow:
+    0 0 0 1px rgba(134, 239, 172, .42),
+    0 0 10px rgba(34, 197, 94, .34);
 }
 
 .evt-cal-day[data-outside="1"] .evt-cal-user-day-check {
-  color: var(--text-muted);
+  color: var(--bg-card);
+  background: var(--text-muted);
   opacity: .7;
-  text-shadow: none;
+  box-shadow: none;
 }
 
 /* 今天（明顯外框 + 日期數字圓形 badge）*/
