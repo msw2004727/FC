@@ -47,7 +47,7 @@
   box-shadow: 0 5px 14px rgba(15, 23, 42, .055);
   padding: 0 .35rem 0 .58rem;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto;
   align-items: center;
   gap: .42rem;
   text-align: left;
@@ -59,7 +59,7 @@
 .home-watch-party-card.has-bg {
   --home-watch-party-bg: none;
   background-image:
-    linear-gradient(90deg, rgba(255, 255, 255, .98), rgba(255, 255, 255, .86) 56%, rgba(255, 255, 255, .18)),
+    linear-gradient(90deg, rgba(255, 255, 255, .74), rgba(255, 255, 255, .65) 56%, rgba(255, 255, 255, .14)),
     var(--home-watch-party-bg),
     radial-gradient(circle at 18% 0%, rgba(34, 197, 94, .12), transparent 28%);
   background-size: cover;
@@ -77,17 +77,28 @@
 }
 
 .home-watch-party-copy {
+  width: max-content;
   min-width: 0;
   justify-self: start;
   align-self: center;
-  color: #64748b;
+  height: 24px;
+  min-height: 24px;
+  border: 0;
+  border-radius: 999px;
+  color: #047857;
+  padding: 0 .36rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: .72rem;
-  font-weight: 800;
-  line-height: 1;
+  font-weight: 900;
+  line-height: normal;
   letter-spacing: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  background: linear-gradient(135deg, #f0fdf4 0%, #d9f99d 52%, #ccfbf1 100%);
+  box-shadow: 0 4px 10px rgba(16, 185, 129, .12);
 }
 
 .home-watch-party-action {
@@ -110,9 +121,14 @@
 
 [data-theme="dark"] .home-watch-party-card.has-bg {
   background-image:
-    linear-gradient(90deg, rgba(15, 23, 42, .96), rgba(15, 23, 42, .82) 58%, rgba(15, 23, 42, .28)),
+    linear-gradient(90deg, rgba(15, 23, 42, .72), rgba(15, 23, 42, .62) 58%, rgba(15, 23, 42, .21)),
     var(--home-watch-party-bg),
     radial-gradient(circle at 18% 0%, rgba(34, 197, 94, .12), transparent 28%);
+}
+
+[data-theme="dark"] .home-watch-party-copy {
+  color: #052e16;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 52%, #dcfce7 100%);
 }
 
 [data-theme="dark"] .home-watch-party-action {
@@ -845,13 +861,17 @@
   .home-watch-party-card {
     min-height: 40px;
     height: 40px;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: auto;
     gap: .34rem;
     padding: 0 .32rem 0 .48rem;
   }
 
   .home-watch-party-copy {
-    display: block;
+    display: inline-flex;
+    min-height: 22px;
+    height: 22px;
+    padding: 0 .34rem;
+    font-size: .68rem;
   }
 
   .home-watch-party-action {
@@ -870,7 +890,12 @@
 
 @media (max-width: 360px) {
   .home-watch-party-card {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: auto;
+  }
+
+  .home-watch-party-copy {
+    padding: 0 .32rem;
+    font-size: .66rem;
   }
 
   .home-watch-party-action {

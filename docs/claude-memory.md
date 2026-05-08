@@ -2244,3 +2244,8 @@
 - **Issue**: The prior homepage watch-party tweak shrank the whole watch-party card, but the intended change was only to reduce the inner action pill background width.
 - **Fix**: Restored the watch-party card as a full-width hero action with managed background support, kept the card title removed, and made only the action pill content-width.
 - **Validation**: Updated `home-dashboard-render.test.js` source contracts to protect full-width card layout plus content-width action pill.
+
+### 2026-05-08 Home Watch Party Single Pill [ux]
+- **Issue**: The homepage watch-party card still had a separate right-side action label, while the intended design was one compact pill at the left text position.
+- **Fix**: Removed the separate action label, converted the left copy into the content-width pill, and reduced the background image overlay opacity by about 25% so the managed image is clearer.
+- **Validation**: Updated `home-dashboard-render.test.js` source contracts for the single-pill markup and lighter image overlay.
