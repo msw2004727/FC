@@ -42,6 +42,7 @@ Object.assign(App, {
     document.querySelectorAll('#activity-tabs .tab').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.atab === tab);
     });
+    this._syncActivityFemaleTheme?.(tab);
     // 容器顯示切換（timeline 與月曆互斥）
     const listEl = document.getElementById('activity-list');
     const calEl = document.getElementById('activity-calendar');
@@ -89,6 +90,7 @@ Object.assign(App, {
       document.querySelectorAll('#activity-tabs .tab').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.atab === this._activityActiveTab);
       });
+      this._syncActivityFemaleTheme?.(this._activityActiveTab);
       return false;
     }
     this._setActivityTab(tab);

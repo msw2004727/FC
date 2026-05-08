@@ -131,6 +131,7 @@ const ScriptLoader = {
       'js/modules/event/event-list-stats.js',
       'js/modules/event/event-list-home.js',
       'js/modules/event/event-list-timeline.js',
+      'js/modules/event/event-list-female-theme.js',
       'js/modules/event/event-list.js',
       'js/modules/event/event-share-builders.js',
       'js/modules/event/event-share.js',

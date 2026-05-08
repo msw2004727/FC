@@ -6,6 +6,63 @@
 .activity-page-header {
   align-items: center;
 }
+#page-activities {
+  position: relative;
+}
+#page-activities.activity-female-theme {
+  transition: background .28s ease;
+}
+[data-theme="light"] #page-activities.activity-female-theme {
+  background:
+    radial-gradient(circle at 12% 8%, rgba(255,255,255,.92), transparent 30%),
+    linear-gradient(180deg, #fff7fb 0%, #fff1f7 38%, #fff7fb 100%);
+  border-radius: var(--radius);
+}
+[data-theme="dark"] #page-activities.activity-female-theme {
+  background: transparent;
+}
+.activity-female-petals {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+#page-activities.activity-female-theme .activity-female-petals {
+  opacity: .72;
+}
+[data-theme="dark"] #page-activities.activity-female-theme .activity-female-petals {
+  opacity: .58;
+}
+#page-activities > :not(.activity-female-petals) {
+  position: relative;
+  z-index: 1;
+}
+#activity-tabs {
+  align-items: center;
+}
+.activity-tab-separator {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  opacity: .58;
+  padding: 0 .12rem;
+  font-weight: 700;
+}
+#activity-tabs .activity-tab-female.active {
+  background: linear-gradient(135deg, #f472b6, #ec4899);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(236,72,153,.26);
+}
+[data-theme="dark"] #activity-tabs .activity-tab-female.active {
+  background: linear-gradient(135deg, #be185d, #ec4899);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(236,72,153,.30);
+}
+[data-theme="light"] #page-activities.activity-female-theme .region-tab.active {
+  color: #db2777;
+  border-bottom-color: #ec4899;
+}
 .activity-page-heading {
   display: inline-flex;
   align-items: center;

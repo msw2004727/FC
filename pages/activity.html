@@ -1,6 +1,7 @@
 <meta name="robots" content="noindex, nofollow">
     <!-- PAGE: Activities -->
     <section class="page" id="page-activities">
+      <canvas id="activity-female-petals" class="activity-female-petals" aria-hidden="true"></canvas>
       <div class="page-header activity-page-header">
         <button class="back-btn" type="button" onclick="App.goBack()" aria-label="返回">&#8249;</button>
         <div class="activity-page-heading">
@@ -41,7 +42,8 @@
         <button class="tab" data-atab="calendar" onclick="App.switchActivityTab('calendar')">月曆</button>
         <button class="tab active" data-atab="normal" onclick="App.switchActivityTab('normal')">進行中</button>
         <button class="tab" data-atab="ended" onclick="App.switchActivityTab('ended')">已結束</button>
-        <button class="tab" data-atab="female" onclick="App.switchActivityTab('female')">女生專屬</button>
+        <span class="activity-tab-separator" aria-hidden="true">|</span>
+        <button class="tab activity-tab-female" data-atab="female" onclick="App.switchActivityTab('female')">女生專屬</button>
         <button class="tab" data-atab="beginner" onclick="App.switchActivityTab('beginner', event)">新手友善</button>
         <button class="tab" data-atab="high-intensity" onclick="App.switchActivityTab('high-intensity', event)">高強度</button>
       </div>
