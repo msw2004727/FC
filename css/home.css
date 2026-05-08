@@ -28,8 +28,9 @@
 
 .home-hero-actions {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: stretch;
+  grid-template-columns: auto auto;
+  justify-content: end;
+  align-items: center;
   gap: .5rem;
   margin: 0 0 .6rem;
 }
@@ -38,83 +39,43 @@
   min-width: 0;
   min-height: 40px;
   height: 40px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background:
-    radial-gradient(circle at 18% 0%, rgba(34, 197, 94, .12), transparent 28%),
-    var(--bg-card);
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
   color: var(--text-primary);
-  box-shadow: 0 5px 14px rgba(15, 23, 42, .055);
-  padding: 0 .35rem 0 .58rem;
+  box-shadow: none;
+  padding: 0;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto;
   align-items: center;
-  gap: .42rem;
-  text-align: left;
+  justify-items: center;
+  gap: 0;
+  text-align: center;
   cursor: pointer;
   overflow: hidden;
-  transition: border-color .16s ease, transform .12s ease, box-shadow .16s ease, background-image .18s ease;
+  transition: transform .12s ease;
 }
 
 .home-watch-party-card.has-bg {
   --home-watch-party-bg: none;
-  background-image:
-    linear-gradient(90deg, rgba(255, 255, 255, .92) 0%, rgba(255, 255, 255, .72) 45%, rgba(255, 255, 255, .22) 100%),
-    var(--home-watch-party-bg);
-  background-size: cover;
-  background-position: center;
-}
-
-[data-theme="dark"] .home-watch-party-card.has-bg {
-  background-image:
-    linear-gradient(90deg, rgba(15, 23, 42, .88) 0%, rgba(15, 23, 42, .62) 48%, rgba(15, 23, 42, .18) 100%),
-    var(--home-watch-party-bg);
 }
 
 .home-watch-party-card:hover {
-  border-color: #16a34a;
-  box-shadow: 0 10px 22px rgba(22, 163, 74, .12);
+  box-shadow: none;
 }
 
 .home-watch-party-card:active {
   transform: translateY(1px);
 }
 
-.home-watch-party-title {
-  color: var(--text-primary);
-  font-size: .94rem;
-  font-weight: 900;
-  white-space: nowrap;
-}
-
-.home-watch-party-art {
-  display: none;
-}
-
-.home-watch-party-art svg {
-  width: 100%;
-  height: auto;
-  display: block;
-}
-
-.home-watch-party-copy {
-  min-width: 0;
-  justify-self: end;
-  color: var(--text-secondary);
-  font-size: .77rem;
-  font-weight: 750;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .home-watch-party-action {
+  width: max-content;
   height: 24px;
   min-height: 24px;
   border: 0;
   border-radius: 999px;
   color: #047857;
-  padding: 0 .46rem;
+  padding: 0 .36rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -855,23 +816,15 @@
   .home-watch-party-card {
     min-height: 40px;
     height: 40px;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    gap: .34rem;
-    padding: 0 .32rem 0 .48rem;
-  }
-
-  .home-watch-party-title {
-    font-size: .92rem;
-  }
-
-  .home-watch-party-copy {
-    display: none;
+    grid-template-columns: auto;
+    gap: 0;
+    padding: 0;
   }
 
   .home-watch-party-action {
     min-height: 22px;
     height: 22px;
-    padding: 0 .4rem;
+    padding: 0 .34rem;
     font-size: .68rem;
   }
 
@@ -884,19 +837,11 @@
 
 @media (max-width: 360px) {
   .home-watch-party-card {
-    grid-template-columns: auto auto;
-  }
-
-  .home-watch-party-art {
-    display: none;
-  }
-
-  .home-watch-party-title {
-    font-size: .88rem;
+    grid-template-columns: auto;
   }
 
   .home-watch-party-action {
-    padding: 0 .36rem;
+    padding: 0 .32rem;
     font-size: .66rem;
   }
 

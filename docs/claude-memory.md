@@ -2234,3 +2234,8 @@
 - **Issue**: 首頁運動快速入口仍是直向圖示卡，和目標設計「左圖示、右側上名稱下活動數」不一致，窄版掃描效率較差。
 - **Fix**: `home-dashboard.js` 讓每個運動入口輸出獨立的名稱與活動數文字列，`home.css` 改為緊湊橫向 pill，右側文字用 1fr/1fr 平均上下高度。
 - **Validation**: Added source contract coverage in `home-dashboard-render.test.js`; `node --check js/modules/home-dashboard.js` and the unit suite passed.
+
+### 2026-05-08 Home Watch Party Compact Action [ux]
+- **Issue**: 首頁觀賽聚會區塊仍顯示標題、描述與較寬的卡片底色，和只保留「查看聚會」小型入口的需求不一致。
+- **Fix**: `pages/home.html` 移除觀賽聚會標題、插圖與描述；`home.css` 將入口改成透明外層與內容寬度 pill，避免底色被父層撐滿。
+- **Validation**: Updated `home-dashboard-render.test.js`; `node --check js/modules/home-dashboard.js` and the unit suite passed.
