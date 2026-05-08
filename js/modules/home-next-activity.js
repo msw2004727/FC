@@ -12,6 +12,7 @@
   const REGISTRATION_QUERY_LIMIT = 120;
   const TERMINAL_EVENT_STATUSES = new Set(['ended', 'cancelled', 'canceled', 'archived', 'removed']);
   const TERMINAL_REGISTRATION_STATUSES = new Set(['cancelled', 'canceled', 'removed', 'deleted', 'rejected', 'withdrawn']);
+  const WAITLIST_REGISTRATION_STATUS = 'waitlisted';
   const DAY_NAMES = ['日', '一', '二', '三', '四', '五', '六'];
 
   function esc(value) {
@@ -99,6 +100,19 @@
     if (uid && recordUid && recordUid !== uid) return false;
     const status = String(record.status || '').trim().toLowerCase();
     return !TERMINAL_REGISTRATION_STATUSES.has(status);
+  }
+
+  function registrationStatusMeta(record) {
+    const status = String(record?.status || '').trim().toLowerCase();
+    if (status === WAITLIST_REGISTRATION_STATUS) {
+      return { key: 'waitlisted', label: '候補' };
+    }
+    return { key: 'confirmed', label: '正取' };
+  }
+
+  function registrationDisplayPriority(record) {
+    const participantType = String(record?.participantType || 'self').trim().toLowerCase();
+    return !participantType || participantType === 'self' ? 0 : 1;
   }
 
   function isUpcomingEvent(event, nowMs = Date.now()) {
@@ -190,7 +204,7 @@
     }
   }
 
-  function pickNextActivity(registrations, events, uid, nowMs = Date.now()) {
+  function pickNextActivityCandidate(registrations, events, uid, nowMs = Date.now()) {
     const eventMap = new Map();
     (Array.isArray(events) ? events : []).forEach(event => {
       if (!event) return;
@@ -201,9 +215,16 @@
     });
     return (Array.isArray(registrations) ? registrations : [])
       .filter(record => isActiveRegistration(record, uid))
-      .map(record => eventMap.get(String(record.eventId || '').trim()))
-      .filter(event => isUpcomingEvent(event, nowMs))
-      .sort((a, b) => eventStartMs(a) - eventStartMs(b))[0] || null;
+      .map(record => ({ event: eventMap.get(String(record.eventId || '').trim()), registration: record }))
+      .filter(item => isUpcomingEvent(item.event, nowMs))
+      .sort((a, b) => {
+        const byStart = eventStartMs(a.event) - eventStartMs(b.event);
+        return byStart || registrationDisplayPriority(a.registration) - registrationDisplayPriority(b.registration);
+      })[0] || null;
+  }
+
+  function pickNextActivity(registrations, events, uid, nowMs = Date.now()) {
+    return pickNextActivityCandidate(registrations, events, uid, nowMs)?.event || null;
   }
 
   async function resolveNextActivity(uid) {
@@ -214,14 +235,14 @@
       .filter(Boolean)));
 
     const cachedEvents = eventIds.map(findCachedEvent).filter(Boolean);
-    let next = pickNextActivity(activeRegistrations, cachedEvents, uid);
+    let next = pickNextActivityCandidate(activeRegistrations, cachedEvents, uid);
     if (next) return next;
 
     const fetchedEvents = await Promise.all(eventIds.map(id => fetchEventByPublicId(id).catch(err => {
       console.warn('[HomeNextActivity] event fetch skipped:', id, err);
       return null;
     })));
-    next = pickNextActivity(activeRegistrations, fetchedEvents.filter(Boolean), uid);
+    next = pickNextActivityCandidate(activeRegistrations, fetchedEvents.filter(Boolean), uid);
     return next;
   }
 
@@ -260,7 +281,6 @@
           <span></span><span></span><span></span><span></span>
           <strong>+</strong>
         </div>
-        <div class="home-next-ball-art"></div>
       </div>`;
   }
 
@@ -304,7 +324,10 @@
     bindActions(host, null);
   }
 
-  function renderActivity(host, event) {
+  function renderActivity(host, nextActivity) {
+    const event = nextActivity?.event || nextActivity;
+    const registration = nextActivity?.registration || null;
+    const statusMeta = registrationStatusMeta(registration);
     const title = event?.title || '未命名活動';
     const location = event?.location || '地點待補';
     const image = event?.image || FALLBACK_IMAGE;
@@ -318,6 +341,7 @@
           <div class="home-next-meta-row">
             <span class="home-next-meta">${iconSvg('calendar')}<span>${esc(formatDateRange(event))}</span></span>
             <span class="home-next-meta">${iconSvg('location')}<span>${esc(location)}</span></span>
+            <span class="home-next-status-pill home-next-status-${statusMeta.key}">${esc(statusMeta.label)}</span>
           </div>
         </div>
         <div class="home-next-event-actions">
@@ -359,7 +383,8 @@
 
       const cached = this._homeNextActivityCache;
       if (!options.force && cached?.uid === uid && now - cached.loadedAt < CACHE_TTL_MS) {
-        if (cached.event) renderActivity(host, cached.event);
+        if (cached.next) renderActivity(host, cached.next);
+        else if (cached.event) renderActivity(host, cached.event);
         else renderEmpty(host);
         return;
       }
@@ -367,10 +392,10 @@
       const seq = ++this._homeNextActivityRequestSeq;
       if (!options.silent) renderLoading(host);
       try {
-        const event = await resolveNextActivity(uid);
+        const next = await resolveNextActivity(uid);
         if (seq !== this._homeNextActivityRequestSeq) return;
-        this._homeNextActivityCache = { uid, loadedAt: Date.now(), event: event || null };
-        if (event) renderActivity(host, event);
+        this._homeNextActivityCache = { uid, loadedAt: Date.now(), next: next || null };
+        if (next) renderActivity(host, next);
         else renderEmpty(host);
       } catch (err) {
         console.warn('[HomeNextActivity] render failed:', err);

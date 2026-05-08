@@ -70,6 +70,8 @@ describe('home next activity', () => {
     expect(host.textContent).toContain('05/20');
     expect(host.textContent).not.toContain('Late Match');
     expect(host.querySelector('.home-next-cover img')?.getAttribute('src')).toBe('next.jpg');
+    expect(host.querySelector('.home-next-status-pill')?.textContent).toBe('候補');
+    expect(host.querySelector('.home-next-status-pill')?.classList.contains('home-next-status-waitlisted')).toBe(true);
   });
 
   test('skips cancelled registrations and already-started events', async () => {
@@ -92,6 +94,8 @@ describe('home next activity', () => {
     expect(host.textContent).toContain('Future Match');
     expect(host.textContent).not.toContain('Past Match');
     expect(host.textContent).not.toContain('Cancelled Match');
+    expect(host.querySelector('.home-next-status-pill')?.textContent).toBe('正取');
+    expect(host.querySelector('.home-next-status-pill')?.classList.contains('home-next-status-confirmed')).toBe(true);
   });
 
   test('renders empty state when the user has no future registrations', async () => {
@@ -103,6 +107,8 @@ describe('home next activity', () => {
     expect(host.textContent).toContain('你目前還沒有報名活動');
     expect(host.textContent).toContain('找活動');
     expect(host.textContent).toContain('我要開團');
+
+    expect(host.querySelector('.home-next-ball-art')).toBeNull();
 
     host.querySelector('[data-home-next-action="find"]').click();
     host.querySelector('[data-home-next-action="create"]').click();
