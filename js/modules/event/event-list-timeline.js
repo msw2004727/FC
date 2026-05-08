@@ -268,7 +268,12 @@ Object.assign(App, {
           }
 
           // 俱樂部限定用特殊色
-          const rowClass = e.teamOnly ? 'tl-type-teamonly' : `tl-type-${e.type}`;
+          const isFemaleOnly = !isExternal && this._getEventAllowedGender?.(e) === '女';
+          const rowBaseClass = e.teamOnly ? 'tl-type-teamonly' : `tl-type-${e.type}`;
+          const rowClass = isFemaleOnly ? `${rowBaseClass} tl-type-female-only` : rowBaseClass;
+          const rowStyle = e.pinned
+            ? (isFemaleOnly ? 'box-shadow:0 0 0 1px rgba(236,72,153,.16)' : 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.12)')
+            : '';
           const teamBadge = e.teamOnly ? '<span class="tl-teamonly-badge">限定</span>' : '';
           const genderRibbon = !isExternal && this._hasEventGenderRestriction(e)
             ? `<span class="tl-event-gender-ribbon">${escapeHTML(this._getEventGenderTimelineRibbonText(e))}</span>`
@@ -296,7 +301,7 @@ Object.assign(App, {
           }
 
           html += `
-            <div class="tl-event-row ${rowClass}${isEnded ? ' tl-past' : ''}" style="${e.pinned ? 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.12)' : ''}" onclick="App.openTimelineEventDetail('${e.id}', this)">
+            <div class="tl-event-row ${rowClass}${isEnded ? ' tl-past' : ''}" style="${rowStyle}" onclick="App.openTimelineEventDetail('${e.id}', this)">
               ${genderRibbon}
               ${e.image ? `<div class="tl-event-thumb"><img src="${e.image}" loading="lazy"></div>` : ''}
               <div class="tl-event-info">

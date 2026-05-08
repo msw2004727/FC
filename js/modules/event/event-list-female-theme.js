@@ -103,7 +103,7 @@ Object.assign(App, {
       x: Math.random() * width,
       y: randomY ? Math.random() * height : -18 - Math.random() * 120,
       size: 5 + Math.random() * 6,
-      speed: 0.22 + Math.random() * 0.42,
+      speed: 0.073 + Math.random() * 0.14,
       drift: -0.12 + Math.random() * 0.24,
       angle: Math.random() * Math.PI * 2,
       spin: -0.012 + Math.random() * 0.024,
