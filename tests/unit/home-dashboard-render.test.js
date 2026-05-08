@@ -74,6 +74,11 @@ function runHomeDashboardModule(options = {}) {
 describe("home-dashboard browser binding", () => {
   test("home hero action row keeps watch party and create buttons under the shortened banner", () => {
     expect(homeCssSource).toMatch(/\.banner-slide\s*\{[\s\S]*aspect-ratio:\s*3\.3\s*\/\s*1/);
+    expect(homeCssSource).toMatch(/\.home-hero-actions\s*\{[\s\S]*margin:\s*0 0 \.6rem/);
+    expect(homeCssSource).toMatch(/\.home-watch-party-card\s*\{[\s\S]*height:\s*40px/);
+    expect(homeCssSource).toMatch(/\.home-watch-party-art\s*\{[\s\S]*display:\s*none/);
+    expect(homeCssSource).toMatch(/\.home-watch-party-action\s*\{[\s\S]*height:\s*40px[\s\S]*border:\s*0[\s\S]*background:\s*linear-gradient/);
+    expect(homeCssSource).toMatch(/\.home-hero-actions \.home-create-event-btn\s*\{[\s\S]*height:\s*40px/);
     expect(homeHtmlSource).toContain("home-watch-party-card");
     expect(homeHtmlSource).toContain("App.openHomeWatchParty()");
     expect(homeHtmlSource).toContain("home-create-event-btn");
