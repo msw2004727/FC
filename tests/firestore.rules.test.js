@@ -750,6 +750,14 @@ describe("/events/{eventId}", () => {
         fee: 500,
       })
     );
+    await assertFails(
+      setDoc(doc(user(), "events", "event_user_social_addon_create"), {
+        title: "User Social Add-on",
+        creatorUid: "uidUser",
+        socialLinksEnabled: true,
+        socialLinks: [{ url: "https://line.me/R/ti/p/test", platform: "line", label: "LINE" }],
+      })
+    );
   });
 
   test("user basic event creation requires safe initial status and empty projection fields", async () => {
@@ -832,6 +840,12 @@ describe("/events/{eventId}", () => {
     await assertFails(
       updateDoc(doc(user(), "events", "eventUserOwn"), {
         teamSplit: { enabled: true, mode: "random" },
+      })
+    );
+    await assertFails(
+      updateDoc(doc(user(), "events", "eventUserOwn"), {
+        socialLinksEnabled: true,
+        socialLinks: [{ url: "https://instagram.com/toosterx", platform: "instagram", label: "Instagram" }],
       })
     );
   });

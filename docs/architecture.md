@@ -448,13 +448,13 @@ current = realCurrent + sum(remainingSlots)
 
 - 活動類型、活動地區、地點、日期時間、主辦/委託人、裁判類欄位
 - 運動標籤選擇器
-- 費用、俱樂部限定、性別限定、私密活動、分隊、候補、預留開關等進階功能（加值服務）
+- 費用、俱樂部限定、性別限定、私密活動、分隊、社群連結、候補、預留開關等進階功能
 - 多日期活動
 - 活動範本
 - 外部活動轉換
 - input history
 
-「進階功能（加值服務）」區塊預設收合，琥珀色底，部分預留開關目前無實際作用。
+「進階功能」區塊預設收合，琥珀色底；其中社群連結可儲存最多 5 個 URL，前端依網域判斷 LINE、Facebook、Instagram、YouTube 等平台並在活動詳情頁主辦/委託資訊下方顯示圓形連結按鈕。部分預留開關目前無實際作用。
 
 ### 活動列表與行事曆
 
@@ -973,6 +973,6 @@ UID 健康檢查目前會發現：
 
 - 後台角色權限仍由 `rolePermissions/{roleKey}` 與 `hasPerm()` 控制，例如 `activity.manage.entry`、`event.create`、`event.edit_all`、`event.delete`。
 - 一般 user 的前台活動主辦能力獨立放在 `roleActivityCapabilities/user`，由權限管理頁的 user 項目展示與手動啟閉。缺文件時前端、Firestore Rules、Cloud Functions 皆套用同一份預設：基本建立、外部連結、自己的活動管理入口、基本編輯、取消、現場操作、委託人開啟；`user.activity.addons_use` 預設關閉。
-- 一般 user 建立/編輯自己的活動時不得寫入進階功能（加值服務）欄位；嘗試開啟進階功能（加值服務）開關時前端顯示 `如需更多功能請聯繫官方Line@`，Firestore Rules 也會拒絕 fee、teamOnly、gender restriction、private event、teamSplit 等進階功能（加值服務）欄位。
+- 一般 user 建立/編輯自己的活動時不得寫入進階功能欄位；嘗試開啟進階功能開關時前端顯示 `如需更多功能請聯繫官方Line@`，Firestore Rules 也會拒絕 fee、teamOnly、gender restriction、private event、teamSplit、socialLinks 等進階功能欄位。
 - owner-scope 能力只限自己建立或被委託的活動，不等同 `activity.manage.entry`。coach+、admin、`activity.manage.entry`、`event.edit_all` 仍是完整活動管理能力。
 - 掃碼、手動簽到、候補升正取與未報名名單操作走 `_canOperateEventSite(e)` 與 Rules `isEventOperatorForData()`；一般 user owner/delegate 必須具備 `user.activity.site_operate`。`events/{eventId}/attendanceRecords` 與 `events/{eventId}/activityRecords` 的寫入也已收斂到參與者本人或活動 operator。

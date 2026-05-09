@@ -310,9 +310,92 @@ body.modal-open { overflow: hidden; }
 .ce-value-reserved .toggle-switch {
   cursor: pointer;
 }
+.ce-social-links-options {
+  border: 1px solid rgba(217, 119, 6, .22);
+  border-radius: 8px;
+  padding: .55rem .6rem;
+  background: var(--bg-elevated);
+}
+.ce-social-links-list {
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+}
+.ce-social-link-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: .4rem;
+  align-items: center;
+}
+.ce-social-link-row input {
+  min-width: 0;
+  padding: .42rem .5rem;
+  font-size: .82rem;
+}
+.ce-social-link-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  min-width: 4.6rem;
+  color: var(--text-secondary);
+  font-size: .74rem;
+  white-space: nowrap;
+}
+.ce-social-link-preview .event-social-link-icon {
+  width: 1.35rem;
+  height: 1.35rem;
+  flex: 0 0 1.35rem;
+}
+.ce-social-link-empty {
+  color: var(--text-muted);
+}
+.ce-social-link-remove,
+.ce-social-links-add {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: .74rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ce-social-link-remove {
+  padding: .38rem .52rem;
+}
+.ce-social-link-remove:disabled {
+  opacity: .42;
+  cursor: not-allowed;
+}
+.ce-social-links-add {
+  width: 100%;
+  margin-top: .5rem;
+  padding: .45rem .65rem;
+}
+.ce-social-links-add:not(:disabled):active,
+.ce-social-link-remove:not(:disabled):active {
+  transform: translateY(1px);
+}
+.ce-social-links-tip {
+  margin-top: .4rem;
+  color: var(--text-muted);
+  font-size: .72rem;
+  line-height: 1.5;
+}
 [data-theme="dark"] .ce-value-section {
   border-color: rgba(251, 191, 36, .28);
   background: rgba(245, 158, 11, .14);
+}
+[data-theme="dark"] .ce-social-links-options {
+  border-color: rgba(251, 191, 36, .18);
+}
+@media (max-width: 420px) {
+  .ce-social-link-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .ce-social-link-preview {
+    grid-column: 1 / -1;
+    order: 3;
+  }
 }
 [data-theme="dark"] .ce-value-section-title::after {
   background: rgba(251, 191, 36, .18);

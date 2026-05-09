@@ -616,6 +616,70 @@
   background: rgba(96, 165, 250, .14);
   color: #93c5fd;
 }
+.detail-social-links-row {
+  align-items: center;
+}
+.event-social-link-list {
+  display: inline-flex;
+  align-items: center;
+  gap: .34rem;
+  flex-wrap: wrap;
+}
+.event-social-link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.72rem;
+  height: 1.72rem;
+  min-width: 1.72rem;
+  border-radius: 999px;
+  text-decoration: none;
+  margin-top: 7px;
+  border: 1px solid rgba(15, 23, 42, .08);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .12);
+  transition: transform var(--transition), filter var(--transition), box-shadow var(--transition);
+}
+.event-social-link-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(.96);
+  box-shadow: 0 3px 8px rgba(15, 23, 42, .16);
+}
+.event-social-link-btn:active {
+  transform: translateY(1px);
+}
+.event-social-link-icon {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: .58rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1;
+}
+.event-social-link-icon-line { background: #06c755; font-size: .47rem; }
+.event-social-link-icon-facebook { background: #1877f2; font-family: Arial, sans-serif; font-size: .92rem; }
+.event-social-link-icon-instagram { background: linear-gradient(135deg, #f58529, #dd2a7b 45%, #8134af); font-size: .56rem; }
+.event-social-link-icon-threads { background: #101010; font-size: .82rem; }
+.event-social-link-icon-x { background: #111827; font-size: .78rem; }
+.event-social-link-icon-youtube { background: #ff0000; font-size: .7rem; }
+.event-social-link-icon-tiktok { background: linear-gradient(135deg, #25f4ee, #000 42%, #fe2c55); font-size: .78rem; }
+.event-social-link-icon-discord { background: #5865f2; font-size: .72rem; }
+.event-social-link-icon-telegram { background: #2aabee; font-size: .74rem; }
+.event-social-link-icon-linktree { background: #39e09b; color: #052e1a; font-size: .5rem; }
+.event-social-link-icon-link { background: #64748b; font-size: .76rem; }
+[data-theme="dark"] .event-social-link-btn {
+  border-color: rgba(255, 255, 255, .12);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .28);
+}
+[data-theme="dark"] .event-social-link-icon-x,
+[data-theme="dark"] .event-social-link-icon-threads {
+  background: #f8fafc;
+  color: #020617;
+}
 .detail-label { font-size: .75rem; font-weight: 600; color: var(--text-muted); min-width: 2.5em; flex-shrink: 0; }
 /* ─── Detail Grid（短欄位雙欄佈局） ─── */
 .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem .5rem; margin: .2rem 0; }

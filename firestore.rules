@@ -585,7 +585,9 @@ service cloud.firestore {
           && (!request.resource.data.keys().hasAny(['genderRestrictionEnabled']) || request.resource.data.genderRestrictionEnabled == false)
           && (!request.resource.data.keys().hasAny(['allowedGender']) || request.resource.data.allowedGender == null || request.resource.data.allowedGender == '')
           && (!request.resource.data.keys().hasAny(['privateEvent']) || request.resource.data.privateEvent == false)
-          && (!request.resource.data.keys().hasAny(['teamSplit']) || request.resource.data.teamSplit == null);
+          && (!request.resource.data.keys().hasAny(['teamSplit']) || request.resource.data.teamSplit == null)
+          && (!request.resource.data.keys().hasAny(['socialLinksEnabled']) || request.resource.data.socialLinksEnabled == false)
+          && (!request.resource.data.keys().hasAny(['socialLinks']) || (request.resource.data.socialLinks is list && request.resource.data.socialLinks.size() == 0));
       }
 
       function eventCreateHasSafeInitialProjection() {

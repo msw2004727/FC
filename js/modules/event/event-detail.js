@@ -496,6 +496,10 @@ Object.assign(App, {
       : escapeHTML(e.creatorTeamName || '俱樂部');
     const teamTag = e.teamOnly ? `<div class="detail-row"><span class="detail-label">限定</span><span style="color:#e11d48;font-weight:600">${teamNameLink} 專屬活動</span></div>` : '';
     const privateTag = e.privateEvent ? `<div class="detail-row"><span class="detail-label">可見</span><span style="color:#7c3aed;font-weight:600">🔒 私密活動 — 僅限連結分享</span></div>` : '';
+    const socialLinksHtml = e.socialLinksEnabled ? (this._renderEventSocialLinksHtml?.(e.socialLinks) || '') : '';
+    const socialLinksRow = socialLinksHtml
+      ? `<div class="detail-row detail-row-wide detail-social-links-row"><span class="detail-label">社群</span><span class="event-social-link-list">${socialLinksHtml}</span></div>`
+      : '';
     const genderTag = this._hasEventGenderRestriction?.(e)
       ? `<div class="detail-row"><span class="detail-label">性別</span><span style="color:#dc2626;font-weight:700">${escapeHTML(this._getEventGenderDetailText(e))}</span></div>`
       : '';
@@ -563,6 +567,7 @@ Object.assign(App, {
       <div class="detail-grid">${_shortCells.join('')}</div>
       <div class="detail-row detail-row-wide detail-host-row"><span class="detail-label">\u4E3B\u8FA6</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${this._userTag(e.creator, null, { uid: e.creatorUid || '' })}</span><button type="button" class="event-host-contact-pill" onclick="App.contactEventOrganizer(${escapeHTML(JSON.stringify({ eventId: e.id || '', uid: e.creatorUid || '', name: e.creator || '' }))})">\u806F\u7E6B\u4E3B\u8FA6</button></div>
       ${(e.delegates && e.delegates.length) ? `<div class="detail-row detail-row-wide"><span class="detail-label">\u59D4\u8A17</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${e.delegates.map(d => this._userTag(d.name, null, { uid: d.uid || '' })).join('')}</span></div>` : ''}
+      ${socialLinksRow}
       ${e.contact ? `<div class="detail-row detail-row-wide"><span class="detail-label">\u806F\u7E6B</span>${escapeHTML(e.contact)}</div>` : ''}
       ${teamTag ? teamTag.replace('detail-row"', 'detail-row detail-row-wide"') : ''}
       ${privateTag ? privateTag.replace('detail-row"', 'detail-row detail-row-wide"') : ''}

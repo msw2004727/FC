@@ -427,6 +427,21 @@
                 </div>
               </div>
             </div>
+            <div class="ce-row ce-value-item ce-social-links-row">
+              <div class="ce-label-row"><button type="button" class="edu-info-btn" onclick="event.stopPropagation();App._showCeInfo('socialLinks')" title="說明">?</button><label>社群連結</label></div>
+              <div class="ce-toggle-control">
+                <label class="toggle-switch" style="margin:0">
+                  <input type="checkbox" id="ce-social-links-enabled">
+                  <span class="toggle-slider"></span>
+                </label>
+                <span id="ce-social-links-label" class="ce-toggle-status">關閉</span>
+              </div>
+              <div id="ce-social-links-options" class="ce-social-links-options" style="display:none">
+                <div id="ce-social-links-list" class="ce-social-links-list"></div>
+                <button type="button" id="ce-social-links-add" class="ce-social-links-add">+ 新增連結</button>
+                <div class="ce-social-links-tip">最多 5 個。系統會依網址自動判斷 LINE、Facebook、Instagram、YouTube 等常見社群圖示。</div>
+              </div>
+            </div>
             <div class="ce-row ce-value-item ce-value-reserved">
               <div class="ce-label-row"><label for="ce-reserved-noshow-detection">放鴿子偵測</label></div>
               <div class="ce-toggle-control">

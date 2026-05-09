@@ -27,6 +27,7 @@ Object.assign(App, {
     this.bindGenderRestrictionToggle?.();
     this.bindPrivateEventToggle?.();
     this.bindTeamSplitToggle?.();
+    this.bindEventSocialLinksToggle?.();
     this.bindReservedActivityAddonToggles?.();
     this.bindRegionToggle?.();
     this.showModal('create-event-modal');
@@ -89,6 +90,8 @@ Object.assign(App, {
     this._initDelegateSearch();
     // 分隊設定還原
     this._tsSetFormData?.(e.teamSplit || null);
+    // 社群連結還原
+    this._setEventSocialLinksFormData?.(!!e.socialLinksEnabled, e.socialLinks || []);
     // 活動地區還原
     this._regionSetFormData?.(e.regionEnabled !== false, e.region || '', e.cities || []);
   },

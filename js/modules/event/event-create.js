@@ -186,6 +186,7 @@ Object.assign(App, {
     this._setGenderRestrictionState(false, '');
     this._setPrivateEventState(false);
     this._tsSetFormData?.(null);
+    this._setEventSocialLinksFormData?.(false, []);
     this._regionSetFormData?.(true, '中部', typeof REGION_MAP !== 'undefined' && REGION_MAP['中部'] ? [...REGION_MAP['中部']] : []);
     const cePreview = document.getElementById('ce-upload-preview');
     if (cePreview) {
@@ -201,6 +202,7 @@ Object.assign(App, {
     this.bindGenderRestrictionToggle();
     this.bindPrivateEventToggle();
     this.bindTeamSplitToggle?.();
+    this.bindEventSocialLinksToggle?.();
     this.bindReservedActivityAddonToggles?.();
     this.bindRegionToggle?.();
     this._resetMultiDates();
@@ -256,9 +258,13 @@ Object.assign(App, {
     let allowedGender = genderRestrictionEnabled ? this._getAllowedGenderValue() : '';
     let privateEvent = !!document.getElementById('ce-private-event')?.checked;
     let teamSplitData = this._tsGetFormData?.() || null;
+    let socialLinksData = this._getEventSocialLinksFormData?.({ validate: true }) || { enabled: false, links: [] };
+    if (socialLinksData.error) { this.showToast(socialLinksData.error); return; }
+    let socialLinksEnabled = !!socialLinksData.enabled;
+    let socialLinks = Array.isArray(socialLinksData.links) ? socialLinksData.links : [];
     const regionData = this._regionGetFormData?.() || { regionEnabled: true, region: '', cities: [] };
     const canUseAddons = !!this._canUseActivityAddons?.(eventBeingEdited || null);
-    if (!canUseAddons && (feeEnabled || teamOnly || genderRestrictionEnabled || privateEvent || teamSplitData)) {
+    if (!canUseAddons && (feeEnabled || teamOnly || genderRestrictionEnabled || privateEvent || teamSplitData || socialLinksEnabled)) {
       this._showActivityAddonUpsellToast?.();
       feeEnabled = false;
       fee = 0;
@@ -267,6 +273,8 @@ Object.assign(App, {
       allowedGender = '';
       privateEvent = false;
       teamSplitData = null;
+      socialLinksEnabled = false;
+      socialLinks = [];
     }
 
     if (!title) { this.showToast('請輸入活動名稱'); return; }
@@ -365,6 +373,8 @@ Object.assign(App, {
         genderRestrictionEnabled,
         allowedGender,
         privateEvent,
+        socialLinksEnabled,
+        socialLinks,
         regionEnabled: regionData.regionEnabled,
         region: regionData.region,
         cities: regionData.cities,
@@ -379,7 +389,7 @@ Object.assign(App, {
         [
           'fee', 'feeEnabled', 'teamOnly', 'genderRestrictionEnabled', 'allowedGender',
           'privateEvent', 'creatorTeamId', 'creatorTeamName', 'creatorTeamIds',
-          'creatorTeamNames', 'teamSplit',
+          'creatorTeamNames', 'teamSplit', 'socialLinksEnabled', 'socialLinks',
         ].forEach(key => { delete updates[key]; });
       }
       if (!this._canManageEventDelegates?.(existingEvent)) {
@@ -468,6 +478,8 @@ Object.assign(App, {
         genderRestrictionEnabled,
         allowedGender,
         privateEvent,
+        socialLinksEnabled,
+        socialLinks,
         regionEnabled: regionData.regionEnabled,
         region: regionData.region,
         cities: regionData.cities,
@@ -567,6 +579,7 @@ Object.assign(App, {
     if (ceTeamOnly) { ceTeamOnly.checked = false; this._updateTeamOnlyLabel(); }
     this._setGenderRestrictionState(false, '');
     this._setPrivateEventState(false);
+    this._setEventSocialLinksFormData?.(false, []);
     this._resetMultiDates();
     const cePreview = document.getElementById('ce-upload-preview');
     if (cePreview) {
@@ -666,6 +679,10 @@ Object.assign(App, {
     'private': {
       title: '私密活動',
       body: '開啟後活動<b>不會</b>出現在公開列表中，只有透過分享連結才能查看。<p style="margin:.3rem 0 0;color:var(--text-muted);font-size:.8rem">適合內部活動或邀請制活動。</p>',
+    },
+    socialLinks: {
+      title: '社群連結',
+      body: '開啟後可放最多 5 個社群或外部連結。系統會依網址自動判斷 LINE、Facebook、Instagram、YouTube 等常見平台，並在活動詳情頁顯示成圓形連結按鈕。<p style="margin:.3rem 0 0;color:var(--text-muted);font-size:.8rem">適合放社團公告、主辦社群、活動相簿或其他補充資訊。</p>',
     },
     teamSplit: {
       title: '分隊功能（色衣分組）',

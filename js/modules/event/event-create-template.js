@@ -127,6 +127,9 @@ Object.assign(App, {
     const canUseAddons = !!this._isActivityAddonAllowedForCurrentEdit?.();
     const genderRestrictionEnabled = canUseAddons && !!document.getElementById('ce-gender-restriction-enabled')?.checked;
     const feeEnabled = canUseAddons && !!document.getElementById('ce-fee-enabled')?.checked;
+    const socialLinksData = canUseAddons
+      ? (this._getEventSocialLinksFormData?.({ validate: false }) || { enabled: false, links: [] })
+      : { enabled: false, links: [] };
     return {
       id: 'tpl_' + Date.now(),
       name,
@@ -142,6 +145,8 @@ Object.assign(App, {
       genderRestrictionEnabled,
       allowedGender: genderRestrictionEnabled ? this._getAllowedGenderValue() : '',
       privateEvent: canUseAddons && !!document.getElementById('ce-private-event')?.checked,
+      socialLinksEnabled: !!socialLinksData.enabled,
+      socialLinks: Array.isArray(socialLinksData.links) ? socialLinksData.links : [],
       regionEnabled: !!document.getElementById('ce-region-enabled')?.checked,
       region: document.getElementById('ce-region-radios')?.querySelector('input[name="ce-region"]:checked')?.value || '',
       cities: this._regionSelectedCities ? [...this._regionSelectedCities] : [],
@@ -222,7 +227,7 @@ Object.assign(App, {
     setVal('ce-location', tpl.location);
     // 活動時間與開放報名時間不從範本還原（一次性欄位）
     const canUseAddons = !!this._isActivityAddonAllowedForCurrentEdit?.();
-    if (!canUseAddons && (tpl.feeEnabled || Number(tpl.fee || 0) > 0 || tpl.genderRestrictionEnabled || tpl.privateEvent)) {
+    if (!canUseAddons && (tpl.feeEnabled || Number(tpl.fee || 0) > 0 || tpl.genderRestrictionEnabled || tpl.privateEvent || tpl.socialLinksEnabled)) {
       this._showActivityAddonUpsellToast?.();
     }
     const feeEnabled = typeof tpl.feeEnabled === 'boolean' ? tpl.feeEnabled : Number(tpl.fee || 0) > 0;
@@ -233,6 +238,7 @@ Object.assign(App, {
     this._initSportTagPicker(tpl.sportTag || '');
     this._setGenderRestrictionState(canUseAddons && !!tpl.genderRestrictionEnabled, canUseAddons ? (tpl.allowedGender || '') : '');
     this._setPrivateEventState?.(canUseAddons && !!tpl.privateEvent);
+    this._setEventSocialLinksFormData?.(canUseAddons && !!tpl.socialLinksEnabled, canUseAddons ? (tpl.socialLinks || []) : []);
     this._regionSetFormData?.(tpl.regionEnabled !== false, tpl.region || '', tpl.cities || []);
     if (tpl.image) {
       const preview = document.getElementById('ce-upload-preview');

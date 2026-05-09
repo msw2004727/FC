@@ -2278,3 +2278,8 @@
 - **Issue**: The left drawer and permission copy still exposed the content area as `廣告管理`, while the same page now owns broader homepage controls. Admins also had no UI to reorder homepage containers.
 - **Fix**: Renamed the entry and permission description to `首頁管理`; added `首頁排版順序` inside the page. The layout order is stored in `banners/home-layout` as section keys and applied by `home-dashboard.js`, so all homepage containers can be reordered without changing their data source.
 - **Validation**: Added unit/source coverage for the management UI, API/Firebase special document handling, banner filtering, and homepage DOM reorder behavior.
+
+### 2026-05-09 Activity Social Links Add-on [feature]
+- **Issue**: Activity hosts needed a controlled way to place official social/external links on the activity detail page without mixing them with host profile social links.
+- **Fix**: Added a `社群連結` toggle under the create/edit activity advanced section below team split. Enabled events can store up to 5 normalized URLs in `socialLinks`, with `socialLinksEnabled` as the display flag. The UI detects common platforms from the URL domain and renders compact round buttons below delegates and above the note area.
+- **Validation**: Added source contract coverage for form placement, data persistence/restoration, detail rendering, CSS, and Firestore Rules add-on guarding.

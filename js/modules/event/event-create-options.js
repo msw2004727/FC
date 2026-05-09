@@ -602,4 +602,207 @@ Object.assign(App, {
     this._tsUpdateBalanceCard();
   },
 
+  _eventSocialLinksMax: 5,
+  _eventSocialLinksDraft: [],
+
+  _getEventSocialLinksNodes() {
+    return {
+      toggle: document.getElementById('ce-social-links-enabled'),
+      label: document.getElementById('ce-social-links-label'),
+      options: document.getElementById('ce-social-links-options'),
+      list: document.getElementById('ce-social-links-list'),
+      add: document.getElementById('ce-social-links-add'),
+    };
+  },
+
+  _normalizeEventSocialUrl(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const withProtocol = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`;
+    try {
+      const url = new URL(withProtocol);
+      if (url.protocol !== 'https:' && url.protocol !== 'http:') return '';
+      url.hash = '';
+      return url.href;
+    } catch (_) {
+      return '';
+    }
+  },
+
+  _detectEventSocialPlatform(value) {
+    const normalized = this._normalizeEventSocialUrl?.(value) || '';
+    let host = '';
+    try {
+      host = normalized ? new URL(normalized).hostname.toLowerCase().replace(/^www\./, '') : '';
+    } catch (_) {}
+    const matches = (...domains) => domains.some(domain => host === domain || host.endsWith(`.${domain}`));
+    if (matches('line.me', 'lin.ee')) return { key: 'line', label: 'LINE', icon: 'LINE', host };
+    if (matches('facebook.com', 'fb.com', 'messenger.com', 'm.me')) return { key: 'facebook', label: 'Facebook', icon: 'f', host };
+    if (matches('instagram.com')) return { key: 'instagram', label: 'Instagram', icon: 'IG', host };
+    if (matches('threads.net')) return { key: 'threads', label: 'Threads', icon: '@', host };
+    if (matches('x.com', 'twitter.com')) return { key: 'x', label: 'X', icon: 'X', host };
+    if (matches('youtube.com', 'youtu.be')) return { key: 'youtube', label: 'YouTube', icon: '▶', host };
+    if (matches('tiktok.com')) return { key: 'tiktok', label: 'TikTok', icon: '♪', host };
+    if (matches('discord.gg', 'discord.com')) return { key: 'discord', label: 'Discord', icon: 'D', host };
+    if (matches('telegram.org', 'telegram.me', 't.me')) return { key: 'telegram', label: 'Telegram', icon: '✈', host };
+    if (matches('linktr.ee', 'linktree.com')) return { key: 'linktree', label: 'Linktree', icon: 'LT', host };
+    return { key: 'link', label: host || '連結', icon: '↗', host };
+  },
+
+  _normalizeEventSocialLinks(value) {
+    const list = Array.isArray(value) ? value : [];
+    const seen = new Set();
+    const normalized = [];
+    list.forEach(item => {
+      const rawUrl = typeof item === 'string'
+        ? item
+        : (item?.url || item?.href || item?.link || '');
+      const url = this._normalizeEventSocialUrl?.(rawUrl) || '';
+      if (!url || seen.has(url)) return;
+      seen.add(url);
+      const meta = this._detectEventSocialPlatform?.(url) || { key: 'link', label: '連結', host: '' };
+      const rawLabel = typeof item === 'object' && item ? String(item.label || '').trim() : '';
+      normalized.push({
+        url,
+        platform: meta.key,
+        label: rawLabel || meta.label,
+        host: meta.host || '',
+      });
+    });
+    return normalized.slice(0, this._eventSocialLinksMax || 5);
+  },
+
+  _renderEventSocialIcon(link) {
+    const meta = this._detectEventSocialPlatform?.(link?.url || '') || { key: 'link', label: '連結', icon: '↗' };
+    return `<span class="event-social-link-icon event-social-link-icon-${escapeHTML(meta.key)}" aria-hidden="true">${escapeHTML(meta.icon)}</span>`;
+  },
+
+  _renderEventSocialLinksHtml(links) {
+    const normalized = this._normalizeEventSocialLinks?.(links) || [];
+    if (!normalized.length) return '';
+    return normalized.map(link => {
+      const meta = this._detectEventSocialPlatform?.(link.url) || { key: link.platform || 'link', label: link.label || '連結' };
+      const label = link.label || meta.label || '連結';
+      return `<a class="event-social-link-btn" data-platform="${escapeHTML(meta.key)}" href="${escapeHTML(link.url)}" target="sporthub_social" rel="noopener noreferrer" aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}">${this._renderEventSocialIcon(link)}</a>`;
+    }).join('');
+  },
+
+  _renderEventSocialLinksFormRows() {
+    const nodes = this._getEventSocialLinksNodes();
+    if (!nodes.list) return;
+    const draft = Array.isArray(this._eventSocialLinksDraft) ? this._eventSocialLinksDraft : [];
+    const rows = draft.length ? draft : [{ url: '' }];
+    nodes.list.innerHTML = rows.map((item, index) => {
+      const value = typeof item === 'string' ? item : (item?.url || '');
+      const normalized = this._normalizeEventSocialUrl?.(value) || '';
+      const normalizedLink = normalized ? (this._normalizeEventSocialLinks?.([{ url: normalized }]) || [])[0] : null;
+      const preview = normalizedLink
+        ? `${this._renderEventSocialIcon(normalizedLink)}<span>${escapeHTML(normalizedLink.label)}</span>`
+        : '<span class="ce-social-link-empty">待判斷</span>';
+      const removeDisabled = rows.length <= 1 ? 'disabled' : '';
+      return `
+        <div class="ce-social-link-row" data-index="${index}">
+          <input type="url" class="ce-social-link-input" value="${escapeHTML(value)}" placeholder="貼上社群網址，例如 https://line.me/...">
+          <span class="ce-social-link-preview">${preview}</span>
+          <button type="button" class="ce-social-link-remove" ${removeDisabled} onclick="App._removeEventSocialLinkInput(${index})">移除</button>
+        </div>`;
+    }).join('');
+    nodes.list.querySelectorAll('.ce-social-link-input').forEach((input, index) => {
+      if (input.dataset.bound === '1') return;
+      input.dataset.bound = '1';
+      input.addEventListener('input', () => {
+        this._eventSocialLinksDraft[index] = { url: input.value };
+      });
+      input.addEventListener('blur', () => {
+        this._eventSocialLinksDraft[index] = { url: input.value };
+        this._renderEventSocialLinksFormRows();
+      });
+    });
+    if (nodes.add) nodes.add.disabled = rows.length >= (this._eventSocialLinksMax || 5);
+  },
+
+  _updateEventSocialLinksUI() {
+    const nodes = this._getEventSocialLinksNodes();
+    if (!nodes.toggle || !nodes.options) return;
+    const enabled = !!nodes.toggle.checked;
+    if (nodes.label) {
+      nodes.label.textContent = enabled ? '開啟' : '關閉';
+      nodes.label.style.color = enabled ? 'var(--accent)' : 'var(--text-muted)';
+    }
+    nodes.options.style.display = enabled ? '' : 'none';
+    if (enabled) {
+      if (!Array.isArray(this._eventSocialLinksDraft) || this._eventSocialLinksDraft.length === 0) {
+        this._eventSocialLinksDraft = [{ url: '' }];
+      }
+      this._renderEventSocialLinksFormRows();
+    }
+  },
+
+  _addEventSocialLinkInput() {
+    const max = this._eventSocialLinksMax || 5;
+    const draft = Array.isArray(this._eventSocialLinksDraft) ? this._eventSocialLinksDraft : [];
+    if (draft.length >= max) {
+      this.showToast?.(`社群連結最多 ${max} 個`);
+      return;
+    }
+    this._eventSocialLinksDraft = [...draft, { url: '' }];
+    this._updateEventSocialLinksUI();
+  },
+
+  _removeEventSocialLinkInput(index) {
+    const draft = Array.isArray(this._eventSocialLinksDraft) ? this._eventSocialLinksDraft : [];
+    if (draft.length <= 1) return;
+    this._eventSocialLinksDraft = draft.filter((_, i) => i !== index);
+    this._updateEventSocialLinksUI();
+  },
+
+  _getEventSocialLinksFormData(options = {}) {
+    const validate = !!options.validate;
+    const nodes = this._getEventSocialLinksNodes();
+    const enabled = !!nodes.toggle?.checked;
+    if (!enabled) return { enabled: false, links: [] };
+    const draft = Array.isArray(this._eventSocialLinksDraft) ? this._eventSocialLinksDraft : [];
+    const rawValues = draft
+      .map(item => typeof item === 'string' ? item : (item?.url || ''))
+      .map(value => String(value || '').trim());
+    const nonEmpty = rawValues.filter(Boolean);
+    const invalid = nonEmpty.find(value => !this._normalizeEventSocialUrl?.(value));
+    if (validate && nonEmpty.length === 0) {
+      return { enabled: true, links: [], error: '社群連結開啟後，請至少填入 1 個網址' };
+    }
+    if (validate && invalid) {
+      return { enabled: true, links: [], error: '社群連結網址格式不正確，請確認後再送出' };
+    }
+    const links = this._normalizeEventSocialLinks?.(nonEmpty.map(url => ({ url }))) || [];
+    return { enabled: links.length > 0, links };
+  },
+
+  _setEventSocialLinksFormData(enabled, links = []) {
+    const nodes = this._getEventSocialLinksNodes();
+    const normalized = this._normalizeEventSocialLinks?.(links) || [];
+    this._eventSocialLinksDraft = normalized.length ? normalized.map(link => ({ url: link.url })) : [];
+    if (nodes.toggle) nodes.toggle.checked = !!enabled && normalized.length > 0;
+    if (!!enabled && normalized.length === 0) this._eventSocialLinksDraft = [{ url: '' }];
+    this._updateEventSocialLinksUI();
+  },
+
+  bindEventSocialLinksToggle() {
+    const nodes = this._getEventSocialLinksNodes();
+    if (nodes.toggle && nodes.toggle.dataset.bound !== '1') {
+      nodes.toggle.dataset.bound = '1';
+      nodes.toggle.addEventListener('change', () => {
+        if (!this._guardActivityAddonToggle(nodes.toggle)) {
+          this._setEventSocialLinksFormData(false, []);
+          return;
+        }
+        this._updateEventSocialLinksUI();
+      });
+    }
+    if (nodes.add && nodes.add.dataset.bound !== '1') {
+      nodes.add.dataset.bound = '1';
+      nodes.add.addEventListener('click', () => this._addEventSocialLinkInput());
+    }
+    this._updateEventSocialLinksUI();
+  },
+
 });
