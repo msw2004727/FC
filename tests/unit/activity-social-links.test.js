@@ -66,9 +66,9 @@ describe('activity social links add-on', () => {
     expect(activityCss).toContain('width: 1.72rem');
     expect(activityCss).toContain('.event-social-link-icon-line');
     expect(activityCss).toContain('.event-social-link-icon-instagram img');
-    expect(activityCss).toContain('width: 138%');
-    expect(activityCss).toContain('object-fit: cover');
+    expect(activityCss).toContain('width: 84%');
     expect(activityCss).toContain('.event-social-link-icon-threads img');
+    expect(activityCss).toContain('width: 115%');
     expect(activityCss).toContain('[data-theme="dark"] .event-social-link-btn');
     expect(baseCss).toContain('.ce-social-link-row');
   });

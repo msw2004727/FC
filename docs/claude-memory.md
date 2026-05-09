@@ -2293,3 +2293,8 @@
 - **Issue**: Threads links on `threads.com` fell back to the generic link arrow, and the Instagram PNG was rendered with padding/contain sizing that left visible whitespace.
 - **Fix**: Added `threads.com` to activity social link domain detection and changed Instagram icon rendering to zoom/crop inside the circular button.
 - **Validation**: Updated source contract coverage and reran targeted unit checks.
+
+### 2026-05-09 Activity Social Links Icon Scale [ux]
+- **Issue**: The Instagram activity social icon was visually oversized after the crop fix, while the Threads icon read slightly too small.
+- **Fix**: Reduced the Instagram image scale inside its circular button and enlarged the Threads image by 15%.
+- **Validation**: Updated source contract coverage for the intended icon scale values.

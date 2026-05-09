@@ -670,11 +670,11 @@
 }
 .event-social-link-icon-instagram img {
   display: block;
-  width: 138%;
-  height: 138%;
+  width: 84%;
+  height: 84%;
   max-width: none;
   flex: 0 0 auto;
-  object-fit: cover;
+  object-fit: contain;
 }
 .event-social-link-icon-threads {
   background: #ffffff;
@@ -683,8 +683,10 @@
 }
 .event-social-link-icon-threads img {
   display: block;
-  width: 100%;
-  height: 100%;
+  width: 115%;
+  height: 115%;
+  max-width: none;
+  flex: 0 0 auto;
   object-fit: contain;
 }
 .event-social-link-icon-x { background: #111827; font-size: .78rem; }
