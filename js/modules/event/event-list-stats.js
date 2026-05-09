@@ -218,6 +218,20 @@ Object.assign(App, {
     return new Date(y, m, d, hh, mm);
   },
 
+  _getActivityEndedTabDate(event) {
+    const end = this._parseEventEndDate(event?.date) || this._parseEventStartDate(event?.date);
+    if (!(end instanceof Date) || Number.isNaN(end.getTime())) return null;
+    return new Date(end.getTime() + 6 * 60 * 60 * 1000);
+  },
+
+  _isEventInActivityEndedTab(event, nowDate = new Date()) {
+    if (!event) return true;
+    if (event.status === 'cancelled') return true;
+    const moveAt = this._getActivityEndedTabDate(event);
+    if (!moveAt) return event.status === 'ended';
+    return moveAt <= nowDate;
+  },
+
   /** 計算倒數文字 */
   _getEventEffectiveStatus(event, nowDate = new Date()) {
     if (!event) return 'ended';

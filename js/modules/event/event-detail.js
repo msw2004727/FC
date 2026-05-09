@@ -50,15 +50,27 @@ Object.assign(App, {
     };
   },
 
+  _renderEventDetailEditButton(eventRecord) {
+    const eventId = eventRecord?.id || eventRecord?._docId || eventRecord?.docId || '';
+    if (!eventId) return '';
+    const canEdit = eventRecord?.type === 'external'
+      ? this._canEditExternalActivity?.(eventRecord)
+      : this._canEditOwnActivityBasic?.(eventRecord);
+    if (!canEdit) return '';
+    return `<button type="button" class="detail-cover-edit-btn" data-event-id="${escapeHTML(eventId)}" onclick="event.stopPropagation();App.editMyActivity(this.dataset.eventId)">活動編輯</button>`;
+  },
+
   _renderEventDetailCover(eventRecord) {
     const ribbonMeta = this._getEventDetailRibbonMeta(eventRecord);
     const ribbonHtml = `<span class="detail-cover-ribbon detail-cover-ribbon-${ribbonMeta.typeKey}">${escapeHTML(ribbonMeta.label)}</span>`;
+    const editButtonHtml = this._renderEventDetailEditButton(eventRecord);
 
     if (eventRecord?.image) {
       return `
         <div class="detail-cover-media">
           <img class="detail-cover-image" src="${eventRecord.image}" alt="${escapeHTML(eventRecord.title)}" loading="lazy">
           ${ribbonHtml}
+          ${editButtonHtml}
         </div>`;
     }
 
@@ -66,6 +78,7 @@ Object.assign(App, {
       <div class="detail-cover-media detail-cover-media-empty">
         <span class="detail-cover-placeholder-text">活動圖片 800 × 300</span>
         ${ribbonHtml}
+        ${editButtonHtml}
       </div>`;
   },
 

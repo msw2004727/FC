@@ -916,6 +916,33 @@
 .detail-cover-ribbon-camp     { background: linear-gradient(135deg, #ec4899, #be185d); }
 .detail-cover-ribbon-play     { background: linear-gradient(135deg, #7c3aed, #4338ca); }
 .detail-cover-ribbon-watch    { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.detail-cover-edit-btn {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 3;
+  min-height: 34px;
+  padding: 0 .82rem;
+  border: 0;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: #fff;
+  font-size: .78rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(220, 38, 38, .34);
+}
+.detail-cover-edit-btn:hover {
+  background: linear-gradient(135deg, #f05252 0%, #b91c1c 100%);
+}
+.detail-cover-edit-btn:active {
+  transform: translateY(1px);
+}
+[data-theme="dark"] .detail-cover-edit-btn {
+  background: linear-gradient(135deg, #ef4444 0%, #991b1b 100%);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, .42), 0 0 0 1px rgba(248, 113, 113, .22);
+}
 
 @media (max-width: 640px) {
   .detail-cover-ribbon {
@@ -924,6 +951,14 @@
     min-width: 120px;
     padding: .42rem 1.45rem;
     font-size: .76rem;
+  }
+
+  .detail-cover-edit-btn {
+    right: 8px;
+    bottom: 8px;
+    min-height: 32px;
+    padding: 0 .72rem;
+    font-size: .74rem;
   }
 }
 

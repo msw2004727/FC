@@ -171,12 +171,16 @@ Object.assign(App, {
     events = this._filterByRegionTab(events);
     events = this._filterBySportTag(events);
 
-    // 頁簽篩選：一般 = 非已結束/已取消，已結束 = ended/cancelled
+    // 頁簽篩選：取消立即進已結束；其他活動結束後 6 小時才移入已結束
     const activeTab = this._activityActiveTab || 'normal';
+    const nowDateForEndedTab = new Date();
+    const isInEndedTab = (e) => this._isEventInActivityEndedTab
+      ? this._isEventInActivityEndedTab(e, nowDateForEndedTab)
+      : (e.status === 'ended' || e.status === 'cancelled');
     if (activeTab === 'ended') {
-      events = events.filter(e => e.status === 'ended' || e.status === 'cancelled');
+      events = events.filter(e => isInEndedTab(e));
     } else {
-      events = events.filter(e => e.status !== 'ended' && e.status !== 'cancelled');
+      events = events.filter(e => !isInEndedTab(e));
     }
     if (activeTab === 'female') {
       events = events.filter(e => this._getEventAllowedGender?.(e) === '女');
