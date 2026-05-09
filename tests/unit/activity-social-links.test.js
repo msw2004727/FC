@@ -7,6 +7,13 @@ function readProjectFile(file) {
   return fs.readFileSync(path.join(ROOT, file), 'utf8');
 }
 
+function getCssRule(source, selector) {
+  const start = source.indexOf(selector);
+  if (start === -1) return '';
+  const end = source.indexOf('}', start);
+  return end === -1 ? source.slice(start) : source.slice(start, end + 1);
+}
+
 describe('activity social links add-on', () => {
   test('create activity places social links below team split and before reserved toggles', () => {
     const activityHtml = readProjectFile('pages/activity.html');
@@ -65,10 +72,10 @@ describe('activity social links add-on', () => {
     expect(activityCss).toContain('.event-social-link-btn');
     expect(activityCss).toContain('width: 1.72rem');
     expect(activityCss).toContain('.event-social-link-icon-line');
-    expect(activityCss).toContain('.event-social-link-icon-instagram img');
-    expect(activityCss).toContain('width: 98%');
-    expect(activityCss).toContain('.event-social-link-icon-threads img');
-    expect(activityCss).toContain('width: 108%');
+    expect(getCssRule(activityCss, '.event-social-link-icon-instagram img')).toContain('width: 108%');
+    expect(getCssRule(activityCss, '.event-social-link-icon-instagram img')).toContain('height: 108%');
+    expect(getCssRule(activityCss, '.event-social-link-icon-threads img')).toContain('width: 108%');
+    expect(getCssRule(activityCss, '.event-social-link-icon-threads img')).toContain('height: 108%');
     expect(activityCss).toContain('[data-theme="dark"] .event-social-link-btn');
     expect(baseCss).toContain('.ce-social-link-row');
   });

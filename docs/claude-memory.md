@@ -2303,3 +2303,8 @@
 - **Issue**: The Threads activity social button still needed a cleaner block-style brand asset and both Instagram/Threads needed tighter sizing to reduce visible button background.
 - **Fix**: Switched Threads to `Thread-Block-Logo--Streamline-Ultimate.png`, removed Threads inner padding, and tuned Instagram/Threads image scale from asset bounds instead of applying a blind crop.
 - **Validation**: Checked alpha bounds for both PNG assets and updated source contract coverage for the new asset path and scale values.
+
+### 2026-05-09 Activity Social Links Instagram Scale [ux]
+- **Issue**: The Instagram activity social icon still read slightly small after the Threads icon asset swap.
+- **Fix**: Increased the Instagram image scale by roughly 10% inside the circular button.
+- **Validation**: Updated source contract coverage for the Instagram scale value.
