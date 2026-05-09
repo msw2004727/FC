@@ -670,21 +670,21 @@
 }
 .event-social-link-icon-instagram img {
   display: block;
-  width: 84%;
-  height: 84%;
+  width: 98%;
+  height: 98%;
   max-width: none;
   flex: 0 0 auto;
   object-fit: contain;
 }
 .event-social-link-icon-threads {
   background: #ffffff;
-  padding: .18rem;
+  padding: 0;
   overflow: hidden;
 }
 .event-social-link-icon-threads img {
   display: block;
-  width: 115%;
-  height: 115%;
+  width: 108%;
+  height: 108%;
   max-width: none;
   flex: 0 0 auto;
   object-fit: contain;

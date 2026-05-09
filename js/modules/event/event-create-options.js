@@ -677,7 +677,7 @@ Object.assign(App, {
     const iconClass = `event-social-link-icon event-social-link-icon-${escapeHTML(meta.key)}`;
     const imageIcons = {
       instagram: 'img/Instagram-Logo--Streamline-Plump-Gradient.png',
-      threads: 'img/Threads-Logo-Fill--Streamline-Phosphor-Fill.png',
+      threads: 'img/Thread-Block-Logo--Streamline-Ultimate.png',
     };
     if (imageIcons[meta.key]) {
       return `<span class="${iconClass}" aria-hidden="true"><img src="${escapeHTML(imageIcons[meta.key])}" alt=""></span>`;

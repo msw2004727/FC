@@ -6,7 +6,7 @@
      - Firebase Storage 圖片 → stale-while-revalidate（獨立快取）
    ================================================ */
 
-const CACHE_NAME       = 'sporthub-0.20260509zp';
+const CACHE_NAME       = 'sporthub-0.20260509zq';
 const IMAGE_CACHE_NAME = 'sporthub-images-v2';
 const MAX_IMAGE_CACHE  = 150;                         // 最多快取 150 張圖片
 const MAX_IMAGE_AGE_MS = 7 * 24 * 60 * 60 * 1000;    // 7 天過期
@@ -40,7 +40,7 @@ const STATIC_ASSETS = [
   './pages/profile.html',
   './pages/modals.html',
   './img/Instagram-Logo--Streamline-Plump-Gradient.png',
-  './img/Threads-Logo-Fill--Streamline-Phosphor-Fill.png',
+  './img/Thread-Block-Logo--Streamline-Ultimate.png',
 ];
 
 // ─── 圖片快取工具函式 ───
