@@ -4,7 +4,7 @@
    ================================================ */
 
 /**
- * 8 種熱門運動啟用色 + 7 種結構預留 + 1 種備援
+ * 8 種熱門運動啟用色 + 9 種結構預留 + 1 種備援
  * 未來啟用某個預留運動：改 css/calendar.css 的 CSS 變數即可，不需動 JS
  */
 const SPORT_COLORS = Object.freeze({
@@ -21,6 +21,8 @@ const SPORT_COLORS = Object.freeze({
   volleyball:   { var: '--sport-volleyball',   emoji: '🏐', label: '排球',     enabled: false },
   tennis:       { var: '--sport-tennis',       emoji: '🎾', label: '網球',     enabled: false },
   table_tennis: { var: '--sport-table-tennis', emoji: '🏓', label: '桌球',     enabled: false },
+  escape_room:  { var: '--sport-escape-room',  emoji: '🧠', label: '密室逃脫', enabled: false },
+  baseball_softball: { var: '--sport-baseball-softball', emoji: '⚾', label: '棒壘球', enabled: false },
   baseball:     { var: '--sport-baseball',     emoji: '⚾', label: '棒球',     enabled: false },
   softball:     { var: '--sport-softball',     emoji: '🥎', label: '壘球',     enabled: false },
   fitness:      { var: '--sport-fitness',      emoji: '💪', label: '健身',     enabled: false },

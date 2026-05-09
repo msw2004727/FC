@@ -3,7 +3,7 @@
    命名空間：.evt-cal-*（避免 .calendar-* 全域污染、見 calendar-view-plan §12.P）
    ================================================ */
 
-/* ── 運動色 CSS 變數（啟用 8 種 + 預留 7 種 fallback + 備援）── */
+/* ── 運動色 CSS 變數（啟用 8 種 + 預留 9 種 fallback + 備援）── */
 :root {
   /* 啟用運動 */
   --sport-football:   #2e7d32;
@@ -20,6 +20,8 @@
   --sport-volleyball:    var(--sport-other);
   --sport-tennis:        var(--sport-other);
   --sport-table-tennis:  var(--sport-other);
+  --sport-escape-room:   var(--sport-other);
+  --sport-baseball-softball: var(--sport-other);
   --sport-baseball:      var(--sport-other);
   --sport-softball:      var(--sport-other);
   --sport-fitness:       var(--sport-other);

@@ -12,8 +12,10 @@
 const EVENT_SPORT_OPTIONS = [
   { key: 'football', label: '足球' },
   { key: 'basketball', label: '籃球' },
+  { key: 'pickleball', label: '匹克球' },
   { key: 'dodgeball', label: '美式躲避球' },
   { key: 'restaurant', label: '餐廳(觀賽)' },
+  { key: 'escape_room', label: '密室逃脫' },
   { key: 'baseball_softball', label: '棒壘球' },
   { key: 'volleyball', label: '排球' },
   { key: 'table_tennis', label: '桌球' },
@@ -27,7 +29,6 @@ const EVENT_SPORT_OPTIONS = [
   { key: 'dance', label: '舞蹈' },
   { key: 'yoga', label: '瑜伽' },
   { key: 'martial_arts', label: '武術' },
-  { key: 'pickleball', label: '匹克球' },
 ];
 
 const EVENT_SPORT_MAP = EVENT_SPORT_OPTIONS.reduce((acc, item) => {

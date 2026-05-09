@@ -72,14 +72,14 @@
 
 | 名稱 | 值 / 內容 | 檔案位置 | 用途 |
 |------|----------|---------|------|
-| `SPORT_ICON_EMOJI` | 18 個運動 → emoji 字符對照表 | `js/config.js:437` | LINE Flex Message / textContent 等不支援 HTML 的場景使用 |
-| `SPORT_ICON_SVG_HTML` | 自製 SVG 圖示對照（目前 1 項：pickleball）| `js/config.js:458` | 網頁 UI 渲染時優先使用，否則 fallback 到 emoji |
+| `SPORT_ICON_EMOJI` | 19 個運動 → emoji 字符對照表 | `js/config.js:437` | LINE Flex Message / textContent 等不支援 HTML 的場景使用 |
+| `SPORT_ICON_SVG_HTML` | 自製 HTML 圖示對照（目前 2 項：pickleball、escape_room）| `js/config.js:458` | 網頁 UI 渲染時優先使用，否則 fallback 到 emoji |
 | `getSportIconSvg(key, className)` | 渲染 `<span class="sport-emoji">` 包裹的圖示 | `js/config.js:481` | 統一入口：先查 SVG_HTML，否則用 EMOJI |
 | 匹克球 SVG 設計 | V4 動感版（圓角方形拍 + 飛球 + 速度線）| `js/config.js:461` | 因 Unicode 無匹克球專屬 emoji，且 🏓（桌球橢圓拍）會誤導視覺 |
 
-**新增自製 SVG 圖示流程**：
-1. 在 `SPORT_ICON_SVG_HTML` 加 `<key>: '<svg ...>...</svg>'`
-2. SVG 必須含 `width="1em" height="1em" style="vertical-align:-0.1em"`（適配 `.sport-emoji` font-size）
+**新增自製 HTML/SVG 圖示流程**：
+1. 在 `SPORT_ICON_SVG_HTML` 加 `<key>: '<svg ...>...</svg>'` 或 `<key>: '<img ...>'`
+2. SVG 或圖片必須能跟隨 `.sport-emoji` 的 1em 尺寸縮放
 3. `SPORT_ICON_EMOJI` 對應 key 仍要保留 emoji 作為「不支援 HTML 場景」的 fallback
 4. 同步更新 `tests/unit/config-utils.test.js` 加新測試
 

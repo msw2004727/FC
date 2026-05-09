@@ -384,6 +384,18 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   _buildTeamInfoCard(t) {
+    const sportKey = typeof getSportKeySafe === 'function'
+      ? getSportKeySafe(t.sportTag)
+      : String(t.sportTag || '').trim();
+    const sportLabel = sportKey && typeof EVENT_SPORT_MAP !== 'undefined' && EVENT_SPORT_MAP[sportKey]
+      ? EVENT_SPORT_MAP[sportKey].label
+      : sportKey;
+    const sportIcon = sportKey && typeof getSportIconSvg === 'function'
+      ? getSportIconSvg(sportKey)
+      : (sportKey && typeof SPORT_ICON_EMOJI !== 'undefined' ? (SPORT_ICON_EMOJI[sportKey] || '') : '');
+    const sportInfoHtml = sportKey
+      ? '<div class="td-card-item"><span class="td-card-label">\u904b\u52d5\u985e\u578b</span><span class="td-card-value">' + (sportIcon ? sportIcon + ' ' : '') + escapeHTML(sportLabel) + '</span></div>'
+      : '';
     return '<div class="td-card">'
       + '<div class="td-card-title">' + I18N.t('teamDetail.info') + '</div>'
       + '<div class="td-card-grid">'
@@ -391,7 +403,7 @@ Object.assign(App, {
       + '<div class="td-card-item"><span class="td-card-label">\u9818\u968a</span><span class="td-card-value">' + (() => { const lNames = t.leaders || (t.leader ? [t.leader] : []); return lNames.length ? lNames.map(n => this._teamLeaderTag(n)).join(' ') : I18N.t('teamDetail.notSet'); })() + '</span></div>'
       + '<div class="td-card-item"><span class="td-card-label">' + I18N.t('teamDetail.coach') + '</span><span class="td-card-value">' + ((t.coaches || []).length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : I18N.t('teamDetail.none')) + '</span></div>'
       + '<div class="td-card-item"><span class="td-card-label">' + I18N.t('teamDetail.memberCount') + '</span><span class="td-card-value">' + (typeof this._calcTeamMemberCount === 'function' ? this._calcTeamMemberCount(t.id) : (ApiService.getAdminUsers() || []).filter(u => u.teamId === t.id).length) + ' ' + I18N.t('teamDetail.personUnit') + '</span></div>'
-      + (t.sportTag && typeof SPORT_ICON_EMOJI !== 'undefined' && SPORT_ICON_EMOJI[t.sportTag] ? '<div class="td-card-item"><span class="td-card-label">\u904b\u52d5\u985e\u578b</span><span class="td-card-value">' + SPORT_ICON_EMOJI[t.sportTag] + ' ' + escapeHTML((typeof EVENT_SPORT_MAP !== 'undefined' && EVENT_SPORT_MAP[t.sportTag] ? EVENT_SPORT_MAP[t.sportTag].label : t.sportTag)) + '</span></div>' : '')
+      + sportInfoHtml
       + '<div class="td-card-item"><span class="td-card-label">' + I18N.t('teamDetail.region') + '</span><span class="td-card-value">' + escapeHTML(t.region) + '</span></div>'
       + (t.nationality ? '<div class="td-card-item"><span class="td-card-label">' + I18N.t('teamDetail.nationality') + '</span><span class="td-card-value">' + escapeHTML(t.nationality) + '</span></div>' : '')
       + (t.founded ? '<div class="td-card-item"><span class="td-card-label">' + I18N.t('teamDetail.founded') + '</span><span class="td-card-value">' + escapeHTML(t.founded) + '</span></div>' : '')

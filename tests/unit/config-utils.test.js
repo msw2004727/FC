@@ -15,8 +15,10 @@
 const EVENT_SPORT_OPTIONS = [
   { key: 'football', label: '\u8db3\u7403' },
   { key: 'basketball', label: '\u7c43\u7403' },
+  { key: 'pickleball', label: '\u5339\u514b\u7403' },
   { key: 'dodgeball', label: '\u7f8e\u5f0f\u8eb2\u907f\u7403' },
   { key: 'restaurant', label: '\u9910\u5ef3(\u89c0\u8cfd)' },
+  { key: 'escape_room', label: '\u5bc6\u5ba4\u9003\u812b' },
   { key: 'baseball_softball', label: '\u68d2\u58d8\u7403' },
   { key: 'volleyball', label: '\u6392\u7403' },
   { key: 'table_tennis', label: '\u684c\u7403' },
@@ -30,12 +32,12 @@ const EVENT_SPORT_OPTIONS = [
   { key: 'dance', label: '\u821e\u8e48' },
   { key: 'yoga', label: '\u7c84\u4f3d' },
   { key: 'martial_arts', label: '\u6b66\u8853' },
-  { key: 'pickleball', label: '\u5339\u514b\u7403' },
 ];
 
 const SPORT_ICON_EMOJI = {
   football: '\u26bd',
   basketball: '\ud83c\udfc0',
+  escape_room: '\ud83e\udde0',
   baseball_softball: '\u26be',
   volleyball: '\ud83c\udfd0',
   table_tennis: '\ud83c\udfd3',
@@ -178,15 +180,16 @@ function getSportLabelByKey(key) {
 
 // ---------------------------------------------------------------------------
 // Extracted from js/config.js — SPORT_ICON_SVG_HTML (2026-04-25 added)
-// 自製 SVG 圖示對照表（優先於 emoji）
+// 自製 HTML/SVG 圖示對照表（優先於 emoji）
 // ---------------------------------------------------------------------------
 const SPORT_ICON_SVG_HTML = {
   pickleball: '<svg viewBox="0 0 100 100" width="1em" height="1em" style="vertical-align:-0.1em" xmlns="http://www.w3.org/2000/svg"><g transform="rotate(-30 50 50)"><rect x="32" y="62" width="14" height="30" rx="3" fill="#0f172a"/><rect x="34" y="64" width="10" height="26" rx="2" fill="#334155"/><rect x="14" y="6" width="52" height="58" rx="13" fill="#dc2626" stroke="#7f1d1d" stroke-width="2.5"/></g><circle cx="78" cy="22" r="11" fill="#fde047" stroke="#713f12" stroke-width="2"/><g fill="#713f12"><circle cx="74" cy="18" r="1.3"/><circle cx="82" cy="18" r="1.3"/><circle cx="78" cy="22" r="1.3"/><circle cx="74" cy="26" r="1.3"/><circle cx="82" cy="26" r="1.3"/></g><path d="M 60 24 L 67 22 M 58 30 L 65 30 M 60 36 L 67 36" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg>',
+  escape_room: '<img src="./img/Artificial-Intelligence-Brain--Streamline-Plump-Gradient.png" alt="" width="20" height="20" loading="lazy" decoding="async">',
 };
 
 // ---------------------------------------------------------------------------
 // Extracted from js/config.js — getSportIconSvg
-// 優先使用 SPORT_ICON_SVG_HTML(自製 SVG),否則 fallback 到 emoji span
+// 優先使用 SPORT_ICON_SVG_HTML(自製 HTML/SVG),否則 fallback 到 emoji span
 // ---------------------------------------------------------------------------
 function getSportIconSvg(key, className = '') {
   const safeKey = getSportKeySafe(key) || 'football';
@@ -533,6 +536,7 @@ describe('Sport Config Lookup', () => {
       expect(getSportLabelByKey('football')).toBe('\u8db3\u7403');
       expect(getSportLabelByKey('basketball')).toBe('\u7c43\u7403');
       expect(getSportLabelByKey('pickleball')).toBe('\u5339\u514b\u7403');
+      expect(getSportLabelByKey('escape_room')).toBe('\u5bc6\u5ba4\u9003\u812b');
     });
 
     test('returns football label as default for invalid key', () => {
@@ -591,6 +595,13 @@ describe('Sport Config Lookup', () => {
       const result = getSportIconSvg('pickleball', 'large');
       expect(result).toContain('class="sport-emoji large"');
       expect(result).toContain('<svg');
+    });
+
+    test('returns image markup for escape room tag', () => {
+      const result = getSportIconSvg('escape_room');
+      expect(result).toContain('<img');
+      expect(result).toContain('Artificial-Intelligence-Brain--Streamline-Plump-Gradient.png');
+      expect(result).not.toContain('\ud83e\udde0');
     });
   });
 });

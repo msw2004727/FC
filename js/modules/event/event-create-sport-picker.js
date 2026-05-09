@@ -126,12 +126,18 @@ Object.assign(App, {
     const hiddenInput = document.getElementById(prefix + '-sport-tag');
     if (!picker || !selectedBtn || !dropdown || !listEl || !hiddenInput) return;
 
+    const renderIcon = (key) => {
+      if (typeof getSportIconSvg === 'function') return getSportIconSvg(key);
+      if (typeof SPORT_ICON_EMOJI !== 'undefined') return SPORT_ICON_EMOJI[key] || '';
+      return '';
+    };
+
     const renderList = (filter) => {
       const q = (filter || '').toLowerCase();
       listEl.innerHTML = EVENT_SPORT_OPTIONS
         .filter(o => !q || o.label.toLowerCase().includes(q) || o.key.toLowerCase().includes(q))
         .map(o => {
-          const icon = typeof SPORT_ICON_MAP !== 'undefined' ? (SPORT_ICON_MAP[o.key] || '') : '';
+          const icon = renderIcon(o.key);
           const selected = hiddenInput.value === o.key;
           return `<div class="ce-sport-option${selected ? ' selected' : ''}" data-key="${o.key}" role="option">${icon ? icon + ' ' : ''}${escapeHTML(o.label)}</div>`;
         }).join('');
@@ -140,7 +146,7 @@ Object.assign(App, {
         opt.addEventListener('click', () => {
           const key = opt.dataset.key;
           hiddenInput.value = key;
-          const icon = typeof SPORT_ICON_MAP !== 'undefined' ? (SPORT_ICON_MAP[key] || '') : '';
+          const icon = renderIcon(key);
           const label = EVENT_SPORT_OPTIONS.find(o => o.key === key)?.label || key;
           selectedInner.innerHTML = `${icon ? icon + ' ' : ''}${escapeHTML(label)}`;
           dropdown.classList.remove('open');
@@ -175,7 +181,7 @@ Object.assign(App, {
     // 設定初始值
     if (initialValue) {
       hiddenInput.value = initialValue;
-      const icon = typeof SPORT_ICON_MAP !== 'undefined' ? (SPORT_ICON_MAP[initialValue] || '') : '';
+      const icon = renderIcon(initialValue);
       const label = EVENT_SPORT_OPTIONS.find(o => o.key === initialValue)?.label || initialValue;
       selectedInner.innerHTML = `${icon ? icon + ' ' : ''}${escapeHTML(label)}`;
     } else {
