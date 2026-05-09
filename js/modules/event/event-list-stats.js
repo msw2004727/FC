@@ -52,12 +52,14 @@ Object.assign(App, {
       });
     }
 
-    (Array.isArray(fallbackNames) ? fallbackNames : []).forEach(name => {
-      const safeName = String(name || '').trim();
-      if (!safeName || addedNames.has(safeName)) return;
-      people.push({ name: safeName, isCompanion: false });
-      addedNames.add(safeName);
-    });
+    if (targetRegs.length === 0) {
+      (Array.isArray(fallbackNames) ? fallbackNames : []).forEach(name => {
+        const safeName = String(name || '').trim();
+        if (!safeName || addedNames.has(safeName)) return;
+        people.push({ name: safeName, isCompanion: false });
+        addedNames.add(safeName);
+      });
+    }
 
     return {
       people,
@@ -107,12 +109,32 @@ Object.assign(App, {
 
     // 2026-04-27 方案 A：cache 命中直接返回（cache key 含投影欄位、event 變動自動失效）
     const _cache = this._getEventStatsCacheMap();
+    const _eventRegsForStats = (typeof ApiService !== 'undefined'
+      && typeof ApiService.getRegistrationsByEvent === 'function'
+      && event.id)
+      ? (ApiService.getRegistrationsByEvent(event.id) || [])
+      : [];
+    const _eventRegsKey = _eventRegsForStats.length > 0
+      ? _eventRegsForStats.map(r => [
+          r?._docId || r?.id || '',
+          r?.status || '',
+          r?.participantType || '',
+          r?.companionId || '',
+          r?.userId || '',
+          r?.companionName || r?.userName || '',
+        ].join(':')).join(',')
+      : '0';
+    const _registrationReadyKey = (typeof FirebaseService !== 'undefined'
+      && FirebaseService._realtimeListenerStarted?.registrations)
+      ? String(FirebaseService._registrationListenerKey || 'started')
+      : 'not-started';
     const _teamRemainKey = (Array.isArray(event.teamReservationSummaries) ? event.teamReservationSummaries : [])
       .map(s => `${s?.teamId || ''}:${Number(s?.remainingSlots || 0) || 0}:${Number(s?.reservedSlots || 0) || 0}:${Number(s?.usedSlots || 0) || 0}`)
       .join(',');
     const _cacheKey = event.id + '|' + (event.current || 0) + '|' + (event.waitlist || 0)
       + '|' + (event.realCurrent ?? '') + '|' + _teamRemainKey
-      + '|' + (event.max || 0) + '|' + (event.status || '');
+      + '|' + (event.max || 0) + '|' + (event.status || '')
+      + '|' + _registrationReadyKey + '|' + _eventRegsKey;
     if (_cache.has(_cacheKey)) return _cache.get(_cacheKey);
 
     const fallbackConfirmed = this._getEventProjectedConfirmedCount(event);
@@ -127,9 +149,9 @@ Object.assign(App, {
       && FirebaseService._realtimeListenerStarted?.registrations
       && FirebaseService._registrationListenerKey === 'all';
 
-    if (_hasCompleteRegs) {
+    if (_hasCompleteRegs || _eventRegsForStats.length > 0) {
       // admin 全量 listener 啟動時、走精算路徑（不變）
-      const registrations = ApiService.getRegistrationsByEvent?.(event.id) || [];
+      const registrations = _eventRegsForStats;
       const confirmedSummary = this._buildEventPeopleSummaryByStatus(
         event,
         registrations,

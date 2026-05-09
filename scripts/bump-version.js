@@ -120,11 +120,9 @@ html = html.replace(
   /var V='[^']+'/,
   `var V='${newVer}'`
 );
-const vCount = (html.match(new RegExp('\\?v=' + oldVer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length;
-html = html.replace(
-  new RegExp('\\?v=' + oldVer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
-  '?v=' + newVer
-);
+const assetVersionPattern = /\?v=0\.\d{8}[a-z]*/g;
+const vCount = (html.match(assetVersionPattern) || []).length;
+html = html.replace(assetVersionPattern, '?v=' + newVer);
 writeFile('index.html', html);
 
 console.log(`  config.js  ✓`);

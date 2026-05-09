@@ -3,11 +3,12 @@ const path = require('path');
 const vm = require('vm');
 
 function loadEventListStatsModule({ event, registrations = [], hasCompleteRegs = true }) {
+  const state = { registrations };
   const context = {
     App: {},
     ApiService: {
       getEvent: id => (id === event.id ? event : null),
-      getRegistrationsByEvent: id => (id === event.id ? registrations : []),
+      getRegistrationsByEvent: id => (id === event.id ? state.registrations : []),
     },
     FirebaseService: {
       _realtimeListenerStarted: { registrations: hasCompleteRegs },
@@ -20,6 +21,7 @@ function loadEventListStatsModule({ event, registrations = [], hasCompleteRegs =
     'utf8',
   );
   vm.runInNewContext(source, context, { filename: 'js/modules/event/event-list-stats.js' });
+  context.App.__testState = state;
   return context.App;
 }
 
@@ -32,7 +34,7 @@ describe('_getEventParticipantStats', () => {
       waitlist: 0,
       max: 21,
       status: 'open',
-      participants: ['Guest A', 'Guest B'],
+      participants: ['Owner Only', 'Guest A', 'Guest B'],
       teamReservationSummaries: [],
     };
     const registrations = [
@@ -55,7 +57,7 @@ describe('_getEventParticipantStats', () => {
     ];
     const app = loadEventListStatsModule({ event, registrations });
 
-    const summary = app._buildEventPeopleSummaryByStatus(event, registrations, 'confirmed', []);
+    const summary = app._buildEventPeopleSummaryByStatus(event, registrations, 'confirmed', event.participants);
     const stats = app._getEventParticipantStats(event);
 
     expect(summary.people.map(p => p.name)).toEqual(['Guest A', 'Guest B']);
@@ -76,6 +78,95 @@ describe('_getEventParticipantStats', () => {
     const app = loadEventListStatsModule({ event, hasCompleteRegs: false });
 
     expect(app._getEventParticipantStats(event).confirmedCount).toBe(2);
+  });
+
+  test('uses loaded event registrations even before the all-registration listener is complete', () => {
+    const event = {
+      id: 'evt2b',
+      current: 3,
+      waitlist: 0,
+      max: 21,
+      status: 'open',
+      participants: ['Owner Only', 'Guest A', 'Guest B'],
+      teamReservationSummaries: [],
+    };
+    const registrations = [
+      {
+        userId: 'owner_uid',
+        userName: 'Owner Only',
+        participantType: 'companion',
+        companionId: 'comp_a',
+        companionName: 'Guest A',
+        status: 'confirmed',
+      },
+      {
+        userId: 'owner_uid',
+        userName: 'Owner Only',
+        participantType: 'companion',
+        companionId: 'comp_b',
+        companionName: 'Guest B',
+        status: 'confirmed',
+      },
+    ];
+    const app = loadEventListStatsModule({ event, registrations, hasCompleteRegs: false });
+
+    expect(app._getEventParticipantStats(event).confirmedCount).toBe(2);
+  });
+
+  test('refreshes cached projected count after registrations load', () => {
+    const event = {
+      id: 'evt2c',
+      current: 3,
+      waitlist: 0,
+      max: 21,
+      status: 'open',
+      participants: ['Owner Only', 'Guest A', 'Guest B'],
+      teamReservationSummaries: [],
+    };
+    const app = loadEventListStatsModule({ event, registrations: [], hasCompleteRegs: true });
+
+    expect(app._getEventParticipantStats(event).confirmedCount).toBe(3);
+
+    app.__testState.registrations = [
+      {
+        id: 'reg-a',
+        userId: 'owner_uid',
+        userName: 'Owner Only',
+        participantType: 'companion',
+        companionId: 'comp_a',
+        companionName: 'Guest A',
+        status: 'confirmed',
+      },
+      {
+        id: 'reg-b',
+        userId: 'owner_uid',
+        userName: 'Owner Only',
+        participantType: 'companion',
+        companionId: 'comp_b',
+        companionName: 'Guest B',
+        status: 'confirmed',
+      },
+    ];
+
+    expect(app._getEventParticipantStats(event).confirmedCount).toBe(2);
+  });
+
+  test('uses projected fallback names only when registrations are absent', () => {
+    const event = {
+      id: 'evt2d',
+      current: 2,
+      waitlist: 0,
+      max: 21,
+      status: 'open',
+      participants: ['Guest A', 'Guest B'],
+      teamReservationSummaries: [],
+    };
+    const app = loadEventListStatsModule({ event, registrations: [], hasCompleteRegs: true });
+    const summary = app._buildEventPeopleSummaryByStatus(event, [], 'confirmed', event.participants);
+
+    expect(summary.people.map(p => p.name)).toEqual(['Guest A', 'Guest B']);
+    expect(summary.count).toBe(2);
+    expect(summary.hasSource).toBe(false);
   });
 
   test('keeps team reservation empty seats in projected occupied count', () => {
