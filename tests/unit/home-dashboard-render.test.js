@@ -117,7 +117,9 @@ describe("home-dashboard browser binding", () => {
     expect(infoSectionRule).toContain("display: flex");
     expect(infoSectionRule).toContain("align-items: center");
     expect(homeCssSource).toMatch(/\.home-info-meter\s*\{[\s\S]*align-items:\s*center/);
-    expect(homeCssSource).toMatch(/\.home-info-meter\s*\{[\s\S]*padding-right:\s*4\.9rem/);
+    expect(homeCssSource).toMatch(/\.home-info-meter\s*\{[\s\S]*flex-wrap:\s*nowrap/);
+    expect(homeCssSource).toMatch(/\.home-info-meter\s*\{[\s\S]*padding-right:\s*0/);
+    expect(homeCssSource).toMatch(/\.home-info-meter\s*\{[\s\S]*white-space:\s*nowrap/);
     expect(homeCssSource).toMatch(/\.home-watch-party-card\s*\{[\s\S]*height:\s*40px/);
     expect(homeCssSource).toMatch(/\.home-watch-party-card\s*\{[\s\S]*border:\s*1px solid var\(--border\)[\s\S]*grid-template-columns:\s*auto/);
     expect(homeCssSource).toMatch(/\.home-watch-party-card\.has-bg\s*\{[\s\S]*--home-watch-party-bg:\s*none[\s\S]*background-image:/);
@@ -245,10 +247,13 @@ describe("home-dashboard browser binding", () => {
     expect(footballChip?.querySelector(".home-sport-chip-mark")?.innerHTML).toContain("football");
     expect(dom.window.document.querySelectorAll("#home-info-meter .home-stat-card")).toHaveLength(3);
     expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("即時資訊");
-    expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("已開放活動");
-    expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("俱樂部數");
+    expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("活動");
+    expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("俱樂部");
+    expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("賽事");
+    expect(dom.window.document.getElementById("home-info-meter").textContent).not.toContain("已開放活動");
+    expect(dom.window.document.getElementById("home-info-meter").textContent).not.toContain("俱樂部數");
     expect(dom.window.document.getElementById("home-info-meter").textContent).not.toContain("已成立俱樂部");
-    expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("正舉辦賽事");
+    expect(dom.window.document.getElementById("home-info-meter").textContent).not.toContain("正舉辦賽事");
     expect(dom.window.document.getElementById("home-info-meter").textContent).not.toContain("活動數");
     expect(dom.window.document.getElementById("home-info-meter").textContent).not.toContain("預留");
     expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("811");

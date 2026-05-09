@@ -339,19 +339,19 @@
     host.innerHTML = '<span class="home-info-lead">即時資訊：</span>' + [
       statCard({
         key: 'activities',
-        label: '已開放活動',
+        label: '活動',
         count: counts.activities,
         page: 'page-activities',
       }),
       statCard({
         key: 'teams',
-        label: '俱樂部數',
+        label: '俱樂部',
         count: counts.teams,
         page: 'page-teams',
       }),
       statCard({
         key: 'tournaments',
-        label: '正舉辦賽事',
+        label: '賽事',
         count: counts.tournaments,
         page: 'page-tournaments',
       }),

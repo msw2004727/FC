@@ -1035,11 +1035,13 @@ body.home-activity-search-open {
 .home-info-meter {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: .28rem .55rem;
+  flex-wrap: nowrap;
+  gap: .24rem;
   min-height: 0;
   width: 100%;
-  padding-right: 4.9rem;
+  padding-right: 0;
+  white-space: nowrap;
+  overflow: visible;
 }
 
 .home-info-lead {
@@ -1065,9 +1067,10 @@ body.home-activity-search-open {
   flex-direction: row;
   align-items: center;
   justify-content: flex-start;
-  gap: .08rem;
+  gap: .04rem;
   line-height: 1.2;
   transition: color .16s ease, transform .12s ease;
+  flex: 0 0 auto;
 }
 
 .home-stat-card:hover { color: var(--accent); }
@@ -1083,7 +1086,7 @@ body.home-activity-search-open {
 .home-stat-label {
   min-width: 0;
   color: var(--text-muted);
-  font-size: .75rem;
+  font-size: .72rem;
   font-weight: 800;
   white-space: nowrap;
   overflow: hidden;
@@ -1117,7 +1120,7 @@ body.home-activity-search-open {
 
 .home-stat-number {
   font-family: "Arial Black", "Segoe UI Black", "Microsoft JhengHei UI", system-ui, sans-serif;
-  font-size: .88rem;
+  font-size: .86rem;
   font-weight: 950;
   font-stretch: expanded;
   font-variant-numeric: tabular-nums;
@@ -1692,12 +1695,12 @@ body.home-activity-search-open {
 
 @media (max-width: 420px) {
   .home-info-dashboard-section { padding: .48rem .62rem; }
-  .home-info-meter { gap: .22rem .42rem; }
+  .home-info-meter { gap: .18rem; }
   .home-info-lead,
   .home-stat-label,
-  .home-stat-views { font-size: .7rem; }
+  .home-stat-views { font-size: .68rem; }
   .home-stat-card { padding: .06rem 0; }
-  .home-stat-number { font-size: .8rem; }
+  .home-stat-number { font-size: .78rem; }
   .home-info-views {
     right: .62rem;
     bottom: .2rem;
