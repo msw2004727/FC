@@ -116,6 +116,63 @@ describe('home next activity', () => {
     expect(app.openHomeCreateEvent).toHaveBeenCalled();
   });
 
+  test('renders the nearest managed activity when the user has no registrations', async () => {
+    const { app, dom } = runModule({
+      registrations: [],
+      events: [
+        { id: 'evt-owner-late', title: 'Owner Late', date: '2099/05/24 20:00~22:00', location: 'Owner Center', status: 'open', creatorUid: 'u1' },
+        { id: 'evt-delegate-next', title: 'Delegate Next', date: '2099/05/20 18:00~20:00', location: 'Delegate Center', status: 'open', delegateUids: ['u1'] },
+      ],
+    });
+
+    await app.renderHomeNextActivity({ force: true });
+
+    const host = dom.window.document.getElementById('home-next-activity');
+    expect(host.textContent).toContain('Delegate Next');
+    expect(host.textContent).toContain('Delegate Center');
+    expect(host.textContent).not.toContain('Owner Late');
+    expect(host.querySelector('.home-next-status-pill')?.textContent).toBe('\u59d4\u8a17');
+    expect(host.querySelector('.home-next-status-pill')?.classList.contains('home-next-status-delegate')).toBe(true);
+  });
+
+  test('chooses the nearest activity across registered and managed candidates', async () => {
+    const { app, dom } = runModule({
+      registrations: [
+        { id: 'r1', eventId: 'evt-registered-late', userId: 'u1', status: 'confirmed' },
+      ],
+      events: [
+        { id: 'evt-registered-late', title: 'Registered Late', date: '2099/05/26 20:00~22:00', location: 'Late Center', status: 'open' },
+        { id: 'evt-owner-next', title: 'Owner Next', date: '2099/05/21 19:00~21:00', location: 'Owner Center', status: 'open', creatorUid: 'u1' },
+      ],
+    });
+
+    await app.renderHomeNextActivity({ force: true });
+
+    const host = dom.window.document.getElementById('home-next-activity');
+    expect(host.textContent).toContain('Owner Next');
+    expect(host.textContent).not.toContain('Registered Late');
+    expect(host.querySelector('.home-next-status-pill')?.textContent).toBe('\u4e3b\u8fa6');
+    expect(host.querySelector('.home-next-status-pill')?.classList.contains('home-next-status-owner')).toBe(true);
+  });
+
+  test('falls back to a managed activity when a registration points to a missing event', async () => {
+    const { app, dom } = runModule({
+      registrations: [
+        { id: 'r1', eventId: 'stale-event-id', userId: 'u1', status: 'confirmed' },
+      ],
+      events: [
+        { id: 'evt-owned-current', title: 'Owned Current', date: '2099/05/22 18:00~20:00', location: 'Current Center', status: 'open', ownerUid: 'u1' },
+      ],
+    });
+
+    await app.renderHomeNextActivity({ force: true });
+
+    const host = dom.window.document.getElementById('home-next-activity');
+    expect(host.textContent).toContain('Owned Current');
+    expect(host.textContent).toContain('Current Center');
+    expect(host.querySelector('.home-next-status-pill')?.textContent).toBe('\u4e3b\u8fa6');
+  });
+
   test('view all opens the activity list page', async () => {
     const { app, dom } = runModule({
       registrations: [

@@ -566,6 +566,18 @@ body.home-activity-search-open {
   background: color-mix(in srgb, #a855f7 16%, var(--bg-card) 84%);
 }
 
+.home-next-status-owner {
+  color: #047857;
+  border-color: rgba(16, 185, 129, .42);
+  background: color-mix(in srgb, #10b981 16%, var(--bg-card) 84%);
+}
+
+.home-next-status-delegate {
+  color: #b45309;
+  border-color: rgba(245, 158, 11, .42);
+  background: color-mix(in srgb, #f59e0b 16%, var(--bg-card) 84%);
+}
+
 .home-next-event-actions,
 .home-next-empty-actions {
   display: grid;
@@ -806,6 +818,18 @@ body.home-activity-search-open {
   color: #d8b4fe;
   border-color: color-mix(in srgb, #d8b4fe 48%, transparent);
   background: color-mix(in srgb, #9333ea 18%, var(--bg-card) 82%);
+}
+
+[data-theme="dark"] .home-next-status-owner {
+  color: #6ee7b7;
+  border-color: color-mix(in srgb, #6ee7b7 44%, transparent);
+  background: color-mix(in srgb, #059669 18%, var(--bg-card) 82%);
+}
+
+[data-theme="dark"] .home-next-status-delegate {
+  color: #fcd34d;
+  border-color: color-mix(in srgb, #fcd34d 48%, transparent);
+  background: color-mix(in srgb, #d97706 18%, var(--bg-card) 82%);
 }
 
 @media (max-width: 380px) {

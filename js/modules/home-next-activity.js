@@ -10,6 +10,7 @@
   const FALLBACK_IMAGE = 'LOGO/Nocoverimage%20set.png';
   const CACHE_TTL_MS = 45 * 1000;
   const REGISTRATION_QUERY_LIMIT = 120;
+  const EVENT_QUERY_LIMIT = 80;
   const TERMINAL_EVENT_STATUSES = new Set(['ended', 'cancelled', 'canceled', 'archived', 'removed']);
   const TERMINAL_REGISTRATION_STATUSES = new Set(['cancelled', 'canceled', 'removed', 'deleted', 'rejected', 'withdrawn']);
   const WAITLIST_REGISTRATION_STATUS = 'waitlisted';
@@ -34,14 +35,57 @@
     };
   }
 
-  function currentUid() {
+  function normalizeString(value) {
+    return String(value ?? '').trim();
+  }
+
+  function normalizeLower(value) {
+    return normalizeString(value).toLowerCase();
+  }
+
+  function addIfPresent(set, value, transform = normalizeString) {
+    const normalized = transform(value);
+    if (normalized) set.add(normalized);
+  }
+
+  function currentUserIdentity() {
     const { api, firebase } = services();
     const user = api?.getCurrentUser?.() || firebase?._cache?.currentUser || null;
     let authUid = '';
     try {
       if (typeof auth !== 'undefined' && auth?.currentUser?.uid) authUid = auth.currentUser.uid;
     } catch (_) {}
-    return String(authUid || user?.uid || user?.lineUserId || '').trim();
+    const uidSet = new Set();
+    [authUid, user?.uid, user?.lineUserId, user?.id, user?.userId].forEach(value => addIfPresent(uidSet, value));
+    const nameSet = new Set();
+    [
+      user?.displayName,
+      user?.name,
+      user?.nickname,
+      user?.lineName,
+      user?.profileName,
+    ].forEach(value => addIfPresent(nameSet, value, normalizeLower));
+    return {
+      uid: normalizeString(authUid || user?.uid || user?.lineUserId || user?.id || user?.userId || ''),
+      uidSet,
+      nameSet,
+      user,
+    };
+  }
+
+  function identityFrom(value) {
+    if (value?.uidSet instanceof Set) return value;
+    const uid = normalizeString(value);
+    return {
+      uid,
+      uidSet: new Set(uid ? [uid] : []),
+      nameSet: new Set(),
+      user: null,
+    };
+  }
+
+  function currentUid() {
+    return currentUserIdentity().uid;
   }
 
   function toMillis(value) {
@@ -96,13 +140,21 @@
 
   function isActiveRegistration(record, uid) {
     if (!record) return false;
-    const recordUid = String(record.userId || record.uid || '').trim();
-    if (uid && recordUid && recordUid !== uid) return false;
+    const identity = identityFrom(uid);
+    const recordUid = normalizeString(record.userId || record.uid || record.ownerUid);
+    if (recordUid && identity.uidSet.size && !identity.uidSet.has(recordUid)) return false;
     const status = String(record.status || '').trim().toLowerCase();
     return !TERMINAL_REGISTRATION_STATUSES.has(status);
   }
 
   function registrationStatusMeta(record) {
+    const managedRole = normalizeString(record?.managedRole).toLowerCase();
+    if (managedRole === 'owner') {
+      return { key: 'owner', label: '\u4e3b\u8fa6' };
+    }
+    if (managedRole === 'delegate') {
+      return { key: 'delegate', label: '\u59d4\u8a17' };
+    }
     const status = String(record?.status || '').trim().toLowerCase();
     if (status === WAITLIST_REGISTRATION_STATUS) {
       return { key: 'waitlisted', label: '候補' };
@@ -113,6 +165,78 @@
   function registrationDisplayPriority(record) {
     const participantType = String(record?.participantType || 'self').trim().toLowerCase();
     return !participantType || participantType === 'self' ? 0 : 1;
+  }
+
+  function eventIdentityKey(event) {
+    const id = normalizeString(event?.id || event?._docId || event?.docId);
+    if (id) return `id:${id}`;
+    const title = normalizeString(event?.title);
+    const date = normalizeString(event?.date || event?.startAt || event?.startTime);
+    return title || date ? `event:${title}|${date}` : '';
+  }
+
+  function eventOwnerIds(event) {
+    return [
+      event?.creatorUid,
+      event?.ownerUid,
+      event?.createdByUid,
+      event?.creatorId,
+      event?.ownerId,
+      event?.organizerUid,
+    ].map(normalizeString).filter(Boolean);
+  }
+
+  function isEventOwnerForIdentity(event, identityValue) {
+    const identity = identityFrom(identityValue);
+    if (!event || !identity.uidSet.size) return false;
+    const ownerIds = eventOwnerIds(event);
+    if (ownerIds.some(uid => identity.uidSet.has(uid))) return true;
+    if (ownerIds.length > 0 || !identity.nameSet.size) return false;
+    return [
+      event.creator,
+      event.creatorName,
+      event.ownerName,
+      event.organizer,
+      event.organizerDisplay,
+    ].map(normalizeLower).filter(Boolean).some(name => identity.nameSet.has(name));
+  }
+
+  function isEventDelegateForIdentity(event, identityValue) {
+    const identity = identityFrom(identityValue);
+    if (!event || !identity.uidSet.size) return false;
+    const delegateUids = Array.isArray(event.delegateUids) ? event.delegateUids.map(normalizeString).filter(Boolean) : [];
+    if (delegateUids.some(uid => identity.uidSet.has(uid))) return true;
+    const delegates = Array.isArray(event.delegates) ? event.delegates : [];
+    return delegates.some(delegate => {
+      const ids = [
+        delegate?.uid,
+        delegate?.userId,
+        delegate?.lineUserId,
+        delegate?.ownerUid,
+      ].map(normalizeString).filter(Boolean);
+      if (ids.some(uid => identity.uidSet.has(uid))) return true;
+      if (!ids.length && identity.nameSet.size) {
+        return [
+          delegate?.name,
+          delegate?.displayName,
+          delegate?.lineName,
+        ].map(normalizeLower).filter(Boolean).some(name => identity.nameSet.has(name));
+      }
+      return false;
+    });
+  }
+
+  function managedRoleForEvent(event, identity) {
+    if (isEventOwnerForIdentity(event, identity)) return 'owner';
+    if (isEventDelegateForIdentity(event, identity)) return 'delegate';
+    return '';
+  }
+
+  function candidatePriority(candidate) {
+    const role = normalizeString(candidate?.managedRole || candidate?.registration?.managedRole).toLowerCase();
+    if (role === 'owner') return 0;
+    if (role === 'delegate') return 1;
+    return 2 + registrationDisplayPriority(candidate?.registration);
   }
 
   function isUpcomingEvent(event, nowMs = Date.now()) {
@@ -158,6 +282,17 @@
     return index >= 0 ? firebase._cache.events[index] : event;
   }
 
+  function mergeUniqueEvents(events) {
+    const map = new Map();
+    (Array.isArray(events) ? events : []).forEach(event => {
+      if (!event) return;
+      const key = eventIdentityKey(event);
+      if (!key) return;
+      map.set(key, { ...(map.get(key) || {}), ...event });
+    });
+    return Array.from(map.values());
+  }
+
   async function fetchEventByPublicId(eventId) {
     const cached = findCachedEvent(eventId);
     if (cached) return cached;
@@ -171,40 +306,102 @@
   }
 
   function cachedRegistrationsForUid(uid) {
+    const identity = identityFrom(uid);
     const { api, firebase } = services();
     if (typeof api?.getRegistrations === 'function') {
-      return api.getRegistrations({ userId: uid, includeTerminal: true }) || [];
+      return (api.getRegistrations({ userId: identity.uid, includeTerminal: true }) || [])
+        .filter(record => {
+          const recordUid = normalizeString(record?.userId || record?.uid || record?.ownerUid);
+          return !recordUid || identity.uidSet.has(recordUid);
+        });
     }
     return (Array.isArray(firebase?._cache?.registrations) ? firebase._cache.registrations : [])
-      .filter(record => String(record?.userId || record?.uid || '').trim() === uid);
+      .filter(record => {
+        const recordUid = normalizeString(record?.userId || record?.uid || record?.ownerUid);
+        return !recordUid || identity.uidSet.has(recordUid);
+      });
   }
 
   async function fetchRegistrationsForUid(uid) {
+    const identity = identityFrom(uid);
     const { firebase } = services();
-    const cached = cachedRegistrationsForUid(uid);
-    if (typeof db === 'undefined' || !uid) return cached;
+    const cached = cachedRegistrationsForUid(identity);
+    const queryUids = Array.from(identity.uidSet).filter(Boolean);
+    if (typeof db === 'undefined' || !queryUids.length) return cached;
     try {
-      const snap = await db.collectionGroup('registrations')
-        .where('userId', '==', uid)
+      const snaps = await Promise.all(queryUids.map(queryUid => db.collectionGroup('registrations')
+        .where('userId', '==', queryUid)
         .limit(REGISTRATION_QUERY_LIMIT)
-        .get();
-      const rows = snap.docs.map(doc => {
-        if (firebase?._mapSubcollectionDoc) return firebase._mapSubcollectionDoc(doc, 'registrations');
-        return { ...doc.data(), _docId: doc.id, userId: doc.data()?.userId || doc.data()?.uid || uid };
+        .get()
+        .catch(err => {
+          console.warn('[HomeNextActivity] registration query skipped:', queryUid, err);
+          return null;
+        })));
+      const rows = snaps.flatMap((snap, index) => {
+        const fallbackUid = queryUids[index];
+        return snap?.docs?.map(doc => {
+          if (firebase?._mapSubcollectionDoc) return firebase._mapSubcollectionDoc(doc, 'registrations');
+          return { ...doc.data(), _docId: doc.id, userId: doc.data()?.userId || doc.data()?.uid || fallbackUid };
+        }) || [];
       });
       rows.forEach(record => {
         if (firebase?._upsertCanonicalCacheRecord) {
           firebase._upsertCanonicalCacheRecord('registrations', record, { requireSubcollection: false });
         }
       });
-      return rows.length ? rows : cached;
+      const merged = new Map();
+      [...cached, ...rows].forEach(record => {
+        const key = normalizeString(record?._docId || record?.id || `${record?.eventId || ''}:${record?.userId || record?.uid || ''}:${record?.participantType || ''}`);
+        if (key) merged.set(key, { ...(merged.get(key) || {}), ...record });
+      });
+      return merged.size ? Array.from(merged.values()) : cached;
     } catch (err) {
       console.warn('[HomeNextActivity] registration query skipped:', err);
       return cached;
     }
   }
 
+  async function fetchManagedEventsForIdentity(identityValue) {
+    const identity = identityFrom(identityValue);
+    const cached = eventCacheList().filter(event => managedRoleForEvent(event, identity));
+    const queryUids = Array.from(identity.uidSet).filter(Boolean);
+    if (typeof db === 'undefined' || !queryUids.length) return cached;
+
+    const queries = [];
+    const seen = new Set();
+    queryUids.forEach(uid => {
+      [
+        ['creatorUid', '==', uid],
+        ['ownerUid', '==', uid],
+        ['delegateUids', 'array-contains', uid],
+      ].forEach(([field, operator, value]) => {
+        const key = `${field}:${operator}:${value}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        queries.push({ field, operator, value });
+      });
+    });
+
+    const fetched = [];
+    await Promise.all(queries.map(query => db.collection('events')
+      .where(query.field, query.operator, query.value)
+      .limit(EVENT_QUERY_LIMIT)
+      .get()
+      .then(snap => {
+        snap.docs.forEach(doc => {
+          const event = upsertEventCache({ ...doc.data(), _docId: doc.id });
+          if (managedRoleForEvent(event, identity)) fetched.push(event);
+        });
+      })
+      .catch(err => {
+        console.warn('[HomeNextActivity] managed event query skipped:', query.field, err);
+      })));
+
+    return mergeUniqueEvents([...cached, ...fetched]).filter(event => managedRoleForEvent(event, identity));
+  }
+
   function pickNextActivityCandidate(registrations, events, uid, nowMs = Date.now()) {
+    const identity = identityFrom(uid);
     const eventMap = new Map();
     (Array.isArray(events) ? events : []).forEach(event => {
       if (!event) return;
@@ -213,13 +410,41 @@
         if (key && !eventMap.has(key)) eventMap.set(key, event);
       });
     });
-    return (Array.isArray(registrations) ? registrations : [])
-      .filter(record => isActiveRegistration(record, uid))
+    const candidates = [];
+    const byEvent = new Map();
+    const pushCandidate = candidate => {
+      if (!candidate?.event || !isUpcomingEvent(candidate.event, nowMs)) return;
+      const key = eventIdentityKey(candidate.event);
+      if (!key) {
+        candidates.push(candidate);
+        return;
+      }
+      const existingIndex = byEvent.get(key);
+      if (existingIndex == null) {
+        byEvent.set(key, candidates.length);
+        candidates.push(candidate);
+        return;
+      }
+      if (candidatePriority(candidate) < candidatePriority(candidates[existingIndex])) {
+        candidates[existingIndex] = candidate;
+      }
+    };
+
+    (Array.isArray(registrations) ? registrations : [])
+      .filter(record => isActiveRegistration(record, identity))
       .map(record => ({ event: eventMap.get(String(record.eventId || '').trim()), registration: record }))
-      .filter(item => isUpcomingEvent(item.event, nowMs))
+      .forEach(pushCandidate);
+
+    (Array.isArray(events) ? events : []).forEach(event => {
+      const managedRole = managedRoleForEvent(event, identity);
+      if (!managedRole) return;
+      pushCandidate({ event, registration: { managedRole }, managedRole });
+    });
+
+    return candidates
       .sort((a, b) => {
         const byStart = eventStartMs(a.event) - eventStartMs(b.event);
-        return byStart || registrationDisplayPriority(a.registration) - registrationDisplayPriority(b.registration);
+        return byStart || candidatePriority(a) - candidatePriority(b);
       })[0] || null;
   }
 
@@ -228,22 +453,35 @@
   }
 
   async function resolveNextActivity(uid) {
-    const registrations = await fetchRegistrationsForUid(uid);
-    const activeRegistrations = registrations.filter(record => isActiveRegistration(record, uid));
+    const identity = currentUserIdentity();
+    addIfPresent(identity.uidSet, uid);
+    if (!identity.uid) identity.uid = normalizeString(uid);
+
+    const registrations = await fetchRegistrationsForUid(identity);
+    const activeRegistrations = registrations.filter(record => isActiveRegistration(record, identity));
     const eventIds = Array.from(new Set(activeRegistrations
       .map(record => String(record.eventId || '').trim())
       .filter(Boolean)));
 
     const cachedEvents = eventIds.map(findCachedEvent).filter(Boolean);
-    let next = pickNextActivityCandidate(activeRegistrations, cachedEvents, uid);
-    if (next) return next;
-
-    const fetchedEvents = await Promise.all(eventIds.map(id => fetchEventByPublicId(id).catch(err => {
-      console.warn('[HomeNextActivity] event fetch skipped:', id, err);
-      return null;
-    })));
-    next = pickNextActivityCandidate(activeRegistrations, fetchedEvents.filter(Boolean), uid);
-    return next;
+    const cachedEventKeys = new Set(cachedEvents.flatMap(event => [
+      normalizeString(event?.id),
+      normalizeString(event?._docId),
+      normalizeString(event?.docId),
+    ].filter(Boolean)));
+    const missingEventIds = eventIds.filter(id => !cachedEventKeys.has(id));
+    const [fetchedEvents, managedEvents] = await Promise.all([
+      Promise.all(missingEventIds.map(id => fetchEventByPublicId(id).catch(err => {
+        console.warn('[HomeNextActivity] event fetch skipped:', id, err);
+        return null;
+      }))),
+      fetchManagedEventsForIdentity(identity),
+    ]);
+    return pickNextActivityCandidate(
+      activeRegistrations,
+      mergeUniqueEvents([...cachedEvents, ...fetchedEvents.filter(Boolean), ...managedEvents]),
+      identity
+    );
   }
 
   function pad2(num) {
