@@ -2262,3 +2262,8 @@
 - **Issue**: The companion signup modal used a longer confirm label, companion updates did not show the toolbar action as writing, and mixed self/companion cancellation used a static warning that did not reflect the current checked targets.
 - **Fix**: Renamed the companion modal submit label to `確認`, wrapped the `幫夥伴報名` toolbar action with the existing glow-loading treatment during writes, added cancel-action glow for mixed cancellation, and made the cancel warning update from the checked self/partner list.
 - **Validation**: Added source contract coverage for companion busy states, dynamic cancel warning text, and toolbar glow styling.
+
+### 2026-05-09 Kickball Previous Month Leaderboard [ux]
+- **Issue**: Kickball monthly leaderboard was missing the previous-month review affordance used by the shot-game leaderboard.
+- **Fix**: Added the previous-month review row, monthly-prev bucket support, toggle state, and matching button styling for the kickball leaderboard.
+- **Validation**: Added kickball leaderboard coverage for the previous-month UI contract and toggle behavior.

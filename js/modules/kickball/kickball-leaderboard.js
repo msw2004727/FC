@@ -11,6 +11,7 @@ window._KickballLeaderboard = (function () {
   var _lbSubmitPending = false;
   var _bestSession = null; // { distance, maxSpeed, durationMs }
   var _lbReturnFocusEl = null;
+  var _lbShowingPrevMonth = false;
 
   function _focusElement(el) {
     if (!el || typeof el.focus !== 'function') return false;
@@ -56,19 +57,37 @@ window._KickballLeaderboard = (function () {
   }
 
   /* ── Leaderboard ── */
+  function _syncPrevMonthBtn(activeKey) {
+    var row = document.getElementById('kg-lb-prev-month-row');
+    var btn = document.getElementById('kg-lb-prev-month-btn');
+    if (!row || !btn) return;
+    if (activeKey === 'monthly' || activeKey === 'monthly-prev') {
+      row.style.display = '';
+      btn.textContent = _lbShowingPrevMonth ? '\u56DE\u5230\u672C\u6708' : '\u2190 \u4E0A\u6708\u56DE\u9867';
+    } else {
+      row.style.display = 'none';
+      _lbShowingPrevMonth = false;
+    }
+  }
+
   function _renderLeaderboard(period) {
-    var key = period in H.LEADERBOARD_PERIOD_LABELS ? period : 'daily';
+    var isPrev = period === 'monthly-prev';
+    var key = isPrev ? 'monthly' : (period in H.LEADERBOARD_PERIOD_LABELS ? period : 'daily');
+    var queryKey = isPrev ? 'monthly-prev' : key;
     _lbPeriod = key;
+    _lbShowingPrevMonth = isPrev;
     var rangeEl = document.getElementById('kg-leaderboard-range');
     var bodyEl = document.getElementById('kg-leaderboard-body');
     var playerRowEl = document.getElementById('kg-leaderboard-player-row');
     var tabs = document.querySelectorAll('#kg-leaderboard-modal .kg-lb-tab');
-    if (rangeEl) rangeEl.textContent = H.LEADERBOARD_PERIOD_LABELS[key] + '\u6392\u884C\u524D ' + H.LEADERBOARD_TOP_SIZE + ' \u540D';
+    var label = isPrev ? '\u4E0A\u6708' : H.LEADERBOARD_PERIOD_LABELS[key];
+    if (rangeEl) rangeEl.textContent = label + '\u6392\u884C\u524D ' + H.LEADERBOARD_TOP_SIZE + ' \u540D';
     tabs.forEach(function (tab) {
       var active = tab.getAttribute('data-lb-period') === key;
       tab.classList.toggle('is-active', active);
       tab.setAttribute('aria-selected', active ? 'true' : 'false');
     });
+    _syncPrevMonthBtn(queryKey);
     if (!bodyEl) return;
     bodyEl.textContent = '';
     var loadingRow = document.createElement('tr');
@@ -80,7 +99,7 @@ window._KickballLeaderboard = (function () {
     bodyEl.appendChild(loadingRow);
     if (playerRowEl) { playerRowEl.classList.add('is-hidden'); playerRowEl.textContent = ''; }
 
-    var bucket = H.getTaipeiDateBucket(key);
+    var bucket = H.getTaipeiDateBucket(queryKey);
     firebase.firestore()
       .collection('kickGameRankings').doc(bucket)
       .collection('entries')
@@ -88,8 +107,9 @@ window._KickballLeaderboard = (function () {
       .then(function (snap) {
         var rows = snap.docs.map(function (d) { return H.normalizeRow(d.id, d.data()); }).filter(function (r) { return !H.isAnonymousRow(r); });
         rows = H.dedupeRows(rows);
+        var skipLocal = isPrev;
         var currentUid = H.getCurrentAuthUid();
-        var localBest = _bestSession && _bestSession.distance > 0
+        var localBest = !skipLocal && _bestSession && _bestSession.distance > 0
           ? { distance: _bestSession.distance, maxSpeed: _bestSession.maxSpeed || 0, durationSec: Math.round((_bestSession.durationMs || 0) / 1000) }
           : null;
         var selfIds = new Set();
@@ -104,7 +124,7 @@ window._KickballLeaderboard = (function () {
               selfRow.maxSpeed = localBest.maxSpeed;
               selfRow.durationSec = localBest.durationSec;
             }
-          } else if (localBest && _lbSubmitPending) {
+          } else if (localBest && !skipLocal && _lbSubmitPending) {
             rows.push({ id: currentUid, uid: currentUid, nick: '\u4F60', distance: localBest.distance, maxSpeed: localBest.maxSpeed, durationSec: localBest.durationSec });
           }
         }
@@ -119,7 +139,7 @@ window._KickballLeaderboard = (function () {
           var emptyCell = document.createElement('td');
           emptyCell.setAttribute('colspan', '5');
           emptyCell.style.cssText = 'text-align:center;padding:1.5rem;opacity:0.6';
-          emptyCell.textContent = '\u5C1A\u7121\u6392\u884C\u8CC7\u6599';
+          emptyCell.textContent = isPrev ? '\u4E0A\u6708\u5C1A\u7121\u6392\u884C\u8CC7\u6599' : '\u5C1A\u7121\u6392\u884C\u8CC7\u6599';
           emptyRow.appendChild(emptyCell);
           bodyEl.appendChild(emptyRow);
           return;
@@ -278,6 +298,7 @@ window._KickballLeaderboard = (function () {
   return {
     get lbPeriod() { return _lbPeriod; },
     get lbOpen() { return _lbOpen; },
+    get lbShowingPrevMonth() { return _lbShowingPrevMonth; },
     get bestSession() { return _bestSession; },
     set bestSession(v) { _bestSession = v; },
     renderLeaderboard: _renderLeaderboard,

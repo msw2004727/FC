@@ -204,6 +204,12 @@
     document.querySelectorAll('#kg-leaderboard-modal .kg-lb-tab').forEach(function (tab) {
       tab.addEventListener('click', function () { LB.renderLeaderboard(tab.getAttribute('data-lb-period') || 'daily'); });
     });
+    var prevBtn = document.getElementById('kg-lb-prev-month-btn');
+    if (prevBtn) {
+      prevBtn.addEventListener('click', function () {
+        LB.renderLeaderboard(LB.lbShowingPrevMonth ? 'monthly' : 'monthly-prev');
+      });
+    }
     var introStart = document.getElementById('kg-intro-start');
     if (introStart) introStart.addEventListener('click', function () {
       var modal = document.getElementById('kg-intro-modal');
