@@ -131,7 +131,7 @@ Object.assign(App, {
         <span style="font-size:1.3rem">📋</span>
         <span><div>自訂活動</div><div style="font-size:.72rem;font-weight:400;color:var(--text-muted);margin-top:.15rem">建立可報名的活動（含人數、費用等設定）</div></span>
       </button>
-      <button id="cets-external" style="width:100%;padding:.7rem;margin-bottom:.6rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-elevated);color:var(--text-primary);font-size:.85rem;font-weight:600;cursor:pointer;text-align:left;display:flex;align-items:center;gap:.6rem">
+      <button id="cets-external" aria-disabled="true" data-feature-locked="true" style="width:100%;padding:.7rem;margin-bottom:.6rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-elevated);color:var(--text-muted);font-size:.85rem;font-weight:600;cursor:not-allowed;text-align:left;display:flex;align-items:center;gap:.6rem;opacity:.62;filter:grayscale(1)">
         <span style="font-size:1.3rem">🔗</span>
         <span><div>活動連結</div><div style="font-size:.72rem;font-weight:400;color:var(--text-muted);margin-top:.15rem">連結外部平台活動，點擊直接跳轉</div></span>
       </button>
@@ -144,15 +144,14 @@ Object.assign(App, {
     const customBtn = sheet.querySelector('#cets-custom');
     const externalBtn = sheet.querySelector('#cets-external');
     if (customBtn) customBtn.style.display = canCustom ? 'flex' : 'none';
-    if (externalBtn) externalBtn.style.display = canExternal ? 'flex' : 'none';
+    if (externalBtn) externalBtn.style.display = 'flex';
 
     customBtn?.addEventListener('click', () => {
       overlay.remove();
       this._openCreateCustomEventModal();
     });
     externalBtn?.addEventListener('click', () => {
-      overlay.remove();
-      this.openCreateExternalEventModal();
+      this.showToast('功能尚未開放');
     });
     sheet.querySelector('#cets-cancel').addEventListener('click', () => overlay.remove());
   },

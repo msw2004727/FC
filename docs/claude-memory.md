@@ -2313,3 +2313,8 @@
 - **Issue**: Activity detail pages had no event-scoped discussion area for pre-event questions, private notes to hosts/delegates, replies, or lightweight reactions.
 - **Fix**: Added event subcollection comments with LINE display name/avatar snapshots, public/private visibility, 300-character comments/replies, optimistic likes, reply locking, and soft delete controls for hosts/delegates/admin+. Create/edit activity now persists `startTimestamp` and `endTimestamp` so rules can block new comments after an event ends for newly saved events.
 - **Validation**: Added unit source contracts for loader/detail/comment UI and Firestore rules coverage for private visibility, max length, ended-event blocking, lock/delete permissions, replies, and per-user likes.
+
+### 2026-05-09 Activity External Link Creation Locked [ux]
+- **Issue**: The create-activity type sheet still allowed users to enter the external activity link creation flow, but that feature should stay closed for now.
+- **Fix**: Kept the activity link option visible as a grey locked choice and changed its click behavior to show `功能尚未開放` without opening the external-link modal.
+- **Validation**: Added source contract coverage for the locked state, forced visibility, toast, and removed external modal call path.
