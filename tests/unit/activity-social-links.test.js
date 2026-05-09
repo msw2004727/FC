@@ -26,6 +26,7 @@ describe('activity social links add-on', () => {
     const createSource = readProjectFile('js/modules/event/event-create.js');
     const lifecycleSource = readProjectFile('js/modules/event/event-manage-lifecycle.js');
     const templateSource = readProjectFile('js/modules/event/event-create-template.js');
+    const swSource = readProjectFile('sw.js');
 
     expect(optionsSource).toContain('_eventSocialLinksMax: 5');
     expect(optionsSource).toContain('_normalizeEventSocialUrl');
@@ -33,7 +34,14 @@ describe('activity social links add-on', () => {
     expect(optionsSource).toContain('_getEventSocialLinksFormData');
     expect(optionsSource).toContain("matches('line.me', 'lin.ee')");
     expect(optionsSource).toContain("matches('instagram.com')");
+    expect(optionsSource).toContain("matches('threads.net')");
     expect(optionsSource).toContain("matches('youtube.com', 'youtu.be')");
+    expect(optionsSource).toContain('Instagram-Logo--Streamline-Plump-Gradient.png');
+    expect(optionsSource).toContain('Threads-Logo-Fill--Streamline-Phosphor-Fill.png');
+    expect(swSource).toContain('./img/Instagram-Logo--Streamline-Plump-Gradient.png');
+    expect(swSource).toContain('./img/Threads-Logo-Fill--Streamline-Phosphor-Fill.png');
+    expect(fs.existsSync(path.join(ROOT, 'img/Instagram-Logo--Streamline-Plump-Gradient.png'))).toBe(true);
+    expect(fs.existsSync(path.join(ROOT, 'img/Threads-Logo-Fill--Streamline-Phosphor-Fill.png'))).toBe(true);
 
     expect(createSource).toContain('this._getEventSocialLinksFormData?.({ validate: true })');
     expect(createSource).toContain('socialLinksEnabled');
@@ -57,6 +65,8 @@ describe('activity social links add-on', () => {
     expect(activityCss).toContain('.event-social-link-btn');
     expect(activityCss).toContain('width: 1.72rem');
     expect(activityCss).toContain('.event-social-link-icon-line');
+    expect(activityCss).toContain('.event-social-link-icon-instagram img');
+    expect(activityCss).toContain('.event-social-link-icon-threads img');
     expect(activityCss).toContain('[data-theme="dark"] .event-social-link-btn');
     expect(baseCss).toContain('.ce-social-link-row');
   });

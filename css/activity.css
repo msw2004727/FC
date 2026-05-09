@@ -648,6 +648,7 @@
   transform: translateY(1px);
 }
 .event-social-link-icon {
+  box-sizing: border-box;
   width: 100%;
   height: 100%;
   border-radius: inherit;
@@ -662,8 +663,19 @@
 }
 .event-social-link-icon-line { background: #06c755; font-size: .47rem; }
 .event-social-link-icon-facebook { background: #1877f2; font-family: Arial, sans-serif; font-size: .92rem; }
-.event-social-link-icon-instagram { background: linear-gradient(135deg, #f58529, #dd2a7b 45%, #8134af); font-size: .56rem; }
-.event-social-link-icon-threads { background: #101010; font-size: .82rem; }
+.event-social-link-icon-instagram,
+.event-social-link-icon-threads {
+  background: #ffffff;
+  padding: .18rem;
+  overflow: hidden;
+}
+.event-social-link-icon-instagram img,
+.event-social-link-icon-threads img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
 .event-social-link-icon-x { background: #111827; font-size: .78rem; }
 .event-social-link-icon-youtube { background: #ff0000; font-size: .7rem; }
 .event-social-link-icon-tiktok { background: linear-gradient(135deg, #25f4ee, #000 42%, #fe2c55); font-size: .78rem; }

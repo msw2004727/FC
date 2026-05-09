@@ -2283,3 +2283,8 @@
 - **Issue**: Activity hosts needed a controlled way to place official social/external links on the activity detail page without mixing them with host profile social links.
 - **Fix**: Added a `社群連結` toggle under the create/edit activity advanced section below team split. Enabled events can store up to 5 normalized URLs in `socialLinks`, with `socialLinksEnabled` as the display flag. The UI detects common platforms from the URL domain and renders compact round buttons below delegates and above the note area.
 - **Validation**: Added source contract coverage for form placement, data persistence/restoration, detail rendering, CSS, and Firestore Rules add-on guarding.
+
+### 2026-05-09 Activity Social Links Platform Icons [ux]
+- **Issue**: Activity social links could detect Instagram and Threads domains, but those activity buttons used text-style fallbacks instead of the provided brand icon assets.
+- **Fix**: Rendered Instagram and Threads activity social buttons with local PNG assets and included both files in the Service Worker static cache list.
+- **Validation**: Updated source contract coverage for Instagram/Threads domain detection and image-backed icons.

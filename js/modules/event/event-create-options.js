@@ -674,7 +674,15 @@ Object.assign(App, {
 
   _renderEventSocialIcon(link) {
     const meta = this._detectEventSocialPlatform?.(link?.url || '') || { key: 'link', label: '連結', icon: '↗' };
-    return `<span class="event-social-link-icon event-social-link-icon-${escapeHTML(meta.key)}" aria-hidden="true">${escapeHTML(meta.icon)}</span>`;
+    const iconClass = `event-social-link-icon event-social-link-icon-${escapeHTML(meta.key)}`;
+    const imageIcons = {
+      instagram: 'img/Instagram-Logo--Streamline-Plump-Gradient.png',
+      threads: 'img/Threads-Logo-Fill--Streamline-Phosphor-Fill.png',
+    };
+    if (imageIcons[meta.key]) {
+      return `<span class="${iconClass}" aria-hidden="true"><img src="${escapeHTML(imageIcons[meta.key])}" alt=""></span>`;
+    }
+    return `<span class="${iconClass}" aria-hidden="true">${escapeHTML(meta.icon)}</span>`;
   },
 
   _renderEventSocialLinksHtml(links) {
