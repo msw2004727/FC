@@ -23,6 +23,12 @@ function runModule(options = {}) {
   const currentUser = options.currentUser === undefined
     ? { uid: 'u1', displayName: 'User One' }
     : options.currentUser;
+  if (options.storedCache) {
+    dom.window.localStorage.setItem(
+      `toosterx.homeNextActivity.v1.${options.storedCache.uid}`,
+      JSON.stringify(options.storedCache)
+    );
+  }
   const context = vm.createContext({
     window: dom.window,
     globalThis: dom.window,
@@ -209,5 +215,61 @@ describe('home next activity', () => {
 
     expect(context.ScriptLoader.ensureGroup).toHaveBeenCalledWith('activity');
     expect(app.addEventToCalendar).toHaveBeenCalledWith('evt-next');
+  });
+
+  test('renders a fresh stored cache without querying registrations', async () => {
+    const { app, dom, context } = runModule({
+      registrations: [],
+      events: [],
+      storedCache: {
+        uid: 'u1',
+        loadedAt: Date.now(),
+        next: {
+          event: {
+            id: 'evt-stored',
+            title: 'Stored Match',
+            date: '2099/05/20 18:00~20:00',
+            location: 'Stored Center',
+            status: 'open',
+          },
+          registration: { status: 'confirmed', eventId: 'evt-stored', userId: 'u1' },
+        },
+      },
+    });
+    context.ApiService.getRegistrations.mockClear();
+
+    await app.renderHomeNextActivity({ force: true });
+
+    const host = dom.window.document.getElementById('home-next-activity');
+    expect(host.textContent).toContain('Stored Match');
+    expect(host.textContent).toContain('Stored Center');
+    expect(context.ApiService.getRegistrations).not.toHaveBeenCalled();
+  });
+
+  test('invalidateHomeNextActivityCache clears memory and stored cache', async () => {
+    const { app, dom } = runModule({
+      storedCache: {
+        uid: 'u1',
+        loadedAt: Date.now(),
+        next: {
+          event: {
+            id: 'evt-stored',
+            title: 'Stored Match',
+            date: '2099/05/20 18:00~20:00',
+            location: 'Stored Center',
+            status: 'open',
+          },
+          registration: { status: 'confirmed', eventId: 'evt-stored', userId: 'u1' },
+        },
+      },
+    });
+
+    await app.renderHomeNextActivity({ force: true });
+    expect(app._homeNextActivityCache?.next?.event?.id).toBe('evt-stored');
+
+    app.invalidateHomeNextActivityCache('u1');
+
+    expect(app._homeNextActivityCache).toBeNull();
+    expect(dom.window.localStorage.getItem('toosterx.homeNextActivity.v1.u1')).toBeNull();
   });
 });

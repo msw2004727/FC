@@ -155,6 +155,7 @@ Object.assign(App, {
 
       try {
         await ApiService._updateAwaitWrite('events', id, ApiService._normalizeEventUpdates({ status: 'cancelled' }), FirebaseService.updateEvent, 'cancelMyActivity');
+        this.invalidateHomeNextActivityCache?.();
       } catch (writeErr) {
         console.error('[cancelMyActivity] Firestore write failed:', writeErr);
         this.showToast('取消失敗，請重試');

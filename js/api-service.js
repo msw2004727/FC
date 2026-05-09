@@ -414,10 +414,26 @@ const ApiService = {
     return normalized;
   },
 
-  createEvent(data)         { return this._createAwaitWrite('events', data, FirebaseService.addEvent, 'createEvent'); },
-  updateEvent(id, updates)  { return this._update('events', id, this._normalizeEventUpdates(updates), FirebaseService.updateEvent, 'updateEvent'); },
-  async updateEventAwait(id, updates) { return await this._updateAwaitWrite('events', id, this._normalizeEventUpdates(updates), FirebaseService.updateEvent, 'updateEvent'); },
-  deleteEvent(id)           { return this._deleteAwaitWrite('events', id, FirebaseService.deleteEvent, 'deleteEvent'); },
+  async createEvent(data) {
+    const result = await this._createAwaitWrite('events', data, FirebaseService.addEvent, 'createEvent');
+    try { if (typeof App !== 'undefined') App.invalidateHomeNextActivityCache?.(); } catch (_) {}
+    return result;
+  },
+  updateEvent(id, updates)  {
+    const result = this._update('events', id, this._normalizeEventUpdates(updates), FirebaseService.updateEvent, 'updateEvent');
+    try { if (typeof App !== 'undefined') App.invalidateHomeNextActivityCache?.(); } catch (_) {}
+    return result;
+  },
+  async updateEventAwait(id, updates) {
+    const result = await this._updateAwaitWrite('events', id, this._normalizeEventUpdates(updates), FirebaseService.updateEvent, 'updateEvent');
+    try { if (typeof App !== 'undefined') App.invalidateHomeNextActivityCache?.(); } catch (_) {}
+    return result;
+  },
+  async deleteEvent(id) {
+    const result = await this._deleteAwaitWrite('events', id, FirebaseService.deleteEvent, 'deleteEvent');
+    try { if (typeof App !== 'undefined') App.invalidateHomeNextActivityCache?.(); } catch (_) {}
+    return result;
+  },
 
   async loadMyEventTemplates(ownerUid) {
     const data = await FirebaseService.loadMyEventTemplates(ownerUid);
@@ -2101,7 +2117,9 @@ const ApiService = {
       companionId: p.type === 'companion' ? p.companionId : null,
       companionName: p.type === 'companion' ? p.companionName : null,
     }));
-    return await FirebaseService.batchRegisterForEvent(eventId, entries, opts);
+    const result = await FirebaseService.batchRegisterForEvent(eventId, entries, opts);
+    try { if (typeof App !== 'undefined') App.invalidateHomeNextActivityCache?.(userId); } catch (_) {}
+    return result;
   },
 
   // ════════════════════════════════

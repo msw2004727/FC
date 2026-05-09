@@ -776,6 +776,7 @@ Object.assign(App, {
       }
 
       // ── 即時回饋：翻牌動畫 + toast ──
+      this.invalidateHomeNextActivityCache?.(userId);
       const isWL = result.status === 'waitlisted';
       let toastMsg = isWL ? '已加入候補名單' : '報名成功！';
       // team-split: random 模式顯示分配結果
@@ -1145,6 +1146,7 @@ Object.assign(App, {
         }
 
         // ── 即時回饋：翻牌動畫 + toast ──
+        this.invalidateHomeNextActivityCache?.(userId);
         this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
         if (cancelGlowWrap) {
           cancelGlowWrap.classList.remove('loading');

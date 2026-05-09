@@ -324,6 +324,7 @@ Object.assign(App, {
         }
       }
 
+      this.invalidateHomeNextActivityCache?.(userId);
       const wlMsg = wlCount > 0 ? `（${wlCount} 人候補）` : '';
       this.showToast(`共 ${total} 人報名成功${wlMsg}`);
       this.showEventDetail(eventId);
@@ -572,6 +573,7 @@ Object.assign(App, {
           }
         }
       }
+      this.invalidateHomeNextActivityCache?.();
       this.showToast(`已取消 ${checked.length} 筆報名`);
       this.showEventDetail(eventId);
     } catch (err) {
@@ -925,6 +927,7 @@ Object.assign(App, {
       if (confirmed + waitlisted > 0) parts.push(`\u65b0\u589e ${confirmed + waitlisted} \u4eba`);
       if (waitlisted > 0) parts.push(`\u5019\u88dc ${waitlisted} \u4eba`);
       if (cancelled > 0) parts.push(`\u53d6\u6d88 ${cancelled} \u4eba`);
+      this.invalidateHomeNextActivityCache?.(userId);
       this.showToast(parts.length ? `\u5925\u4f34\u5831\u540d\u5df2\u66f4\u65b0\uff1a${parts.join('\u3001')}` : '\u5925\u4f34\u5831\u540d\u5df2\u66f4\u65b0');
       this.showEventDetail(eventId);
       this._releaseEventSignupScrollLock?.();

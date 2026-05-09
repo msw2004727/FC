@@ -8,7 +8,9 @@
   if (!app) return; root.App = app;
 
   const FALLBACK_IMAGE = 'LOGO/Nocoverimage%20set.png';
-  const CACHE_TTL_MS = 45 * 1000;
+  const CACHE_REVALIDATE_MS = 10 * 60 * 1000;
+  const CACHE_DISPLAY_MAX_MS = 60 * 60 * 1000;
+  const CACHE_STORAGE_PREFIX = 'toosterx.homeNextActivity.v1.';
   const REGISTRATION_QUERY_LIMIT = 120;
   const EVENT_QUERY_LIMIT = 80;
   const TERMINAL_EVENT_STATUSES = new Set(['ended', 'cancelled', 'canceled', 'archived', 'removed']);
@@ -86,6 +88,117 @@
 
   function currentUid() {
     return currentUserIdentity().uid;
+  }
+
+  function safeStorage() {
+    try {
+      return root.localStorage || null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function storageKey(uid) {
+    const safeUid = normalizeString(uid);
+    return safeUid ? `${CACHE_STORAGE_PREFIX}${safeUid}` : '';
+  }
+
+  function compactEvent(event) {
+    if (!event) return null;
+    return {
+      id: normalizeString(event.id || event._docId || event.docId),
+      _docId: normalizeString(event._docId || event.docId || event.id),
+      docId: normalizeString(event.docId || event._docId || event.id),
+      title: normalizeString(event.title),
+      date: event.date || event.startAt || event.startTime || '',
+      startAt: event.startAt || null,
+      startTime: event.startTime || null,
+      status: normalizeString(event.status),
+      location: normalizeString(event.location),
+      image: event.image || '',
+      type: normalizeString(event.type),
+      externalUrl: event.externalUrl || '',
+    };
+  }
+
+  function compactRegistration(registration) {
+    if (!registration) return null;
+    return {
+      id: normalizeString(registration.id || registration._docId),
+      _docId: normalizeString(registration._docId || registration.id),
+      eventId: normalizeString(registration.eventId),
+      userId: normalizeString(registration.userId || registration.uid || registration.ownerUid),
+      uid: normalizeString(registration.uid),
+      ownerUid: normalizeString(registration.ownerUid),
+      status: normalizeString(registration.status),
+      participantType: normalizeString(registration.participantType),
+      managedRole: normalizeString(registration.managedRole),
+    };
+  }
+
+  function compactNextActivity(next) {
+    if (!next) return null;
+    const event = compactEvent(next.event || next);
+    if (!event?.id) return null;
+    return {
+      event,
+      registration: compactRegistration(next.registration) || null,
+      managedRole: normalizeString(next.managedRole || next.registration?.managedRole),
+    };
+  }
+
+  function normalizeCacheRecord(record, uid, nowMs = Date.now()) {
+    if (!record || typeof record !== 'object') return null;
+    if (normalizeString(record.uid) !== normalizeString(uid)) return null;
+    const loadedAt = Number(record.loadedAt || 0);
+    if (!Number.isFinite(loadedAt) || loadedAt <= 0) return null;
+    if (nowMs - loadedAt > CACHE_DISPLAY_MAX_MS) return null;
+    const next = compactNextActivity(record.next);
+    if (record.next && !next) return null;
+    if (next && !isUpcomingEvent(next.event, nowMs)) return null;
+    return { uid: normalizeString(uid), loadedAt, next };
+  }
+
+  function readStoredCache(uid, nowMs = Date.now()) {
+    const storage = safeStorage();
+    const key = storageKey(uid);
+    if (!storage || !key) return null;
+    try {
+      return normalizeCacheRecord(JSON.parse(storage.getItem(key) || 'null'), uid, nowMs);
+    } catch (_) {
+      try { storage.removeItem(key); } catch (_) {}
+      return null;
+    }
+  }
+
+  function writeStoredCache(uid, next, loadedAt = Date.now()) {
+    const storage = safeStorage();
+    const key = storageKey(uid);
+    if (!storage || !key) return;
+    const record = { uid: normalizeString(uid), loadedAt, next: compactNextActivity(next) };
+    try {
+      storage.setItem(key, JSON.stringify(record));
+    } catch (_) {}
+  }
+
+  function clearStoredCache(uid) {
+    const storage = safeStorage();
+    if (!storage) return;
+    const targetKey = storageKey(uid);
+    try {
+      if (targetKey) {
+        storage.removeItem(targetKey);
+        return;
+      }
+      for (let i = storage.length - 1; i >= 0; i -= 1) {
+        const key = storage.key(i);
+        if (key && key.startsWith(CACHE_STORAGE_PREFIX)) storage.removeItem(key);
+      }
+    } catch (_) {}
+  }
+
+  function isFreshCache(record, nowMs = Date.now()) {
+    return !!record && nowMs - Number(record.loadedAt || 0) < CACHE_REVALIDATE_MS;
   }
 
   function toMillis(value) {
@@ -604,6 +717,40 @@
     });
   }
 
+  function renderCacheRecord(host, record) {
+    if (record?.next) renderActivity(host, record.next);
+    else renderEmpty(host);
+  }
+
+  function setHomeNextCache(appRef, uid, next) {
+    const record = {
+      uid: normalizeString(uid),
+      loadedAt: Date.now(),
+      next: compactNextActivity(next),
+    };
+    appRef._homeNextActivityCache = record;
+    writeStoredCache(uid, record.next, record.loadedAt);
+    return record;
+  }
+
+  async function refreshHomeNextActivity(appRef, host, uid, options = {}) {
+    const seq = ++appRef._homeNextActivityRequestSeq;
+    if (options.showLoading) renderLoading(host);
+    try {
+      const next = await resolveNextActivity(uid);
+      if (seq !== appRef._homeNextActivityRequestSeq) return null;
+      const record = setHomeNextCache(appRef, uid, next || null);
+      renderCacheRecord(host, record);
+      return record;
+    } catch (err) {
+      console.warn('[HomeNextActivity] render failed:', err);
+      if (seq !== appRef._homeNextActivityRequestSeq) return null;
+      appRef._homeNextActivityCache = null;
+      renderEmpty(host);
+      return null;
+    }
+  }
+
   Object.assign(app, {
     _homeNextActivityRequestSeq: 0,
     _homeNextActivityCache: null,
@@ -615,31 +762,38 @@
       const now = Date.now();
       if (!uid) {
         this._homeNextActivityCache = null;
+        const { lineAuth } = services();
+        if (lineAuth?.isLoggedIn?.()) {
+          if (!options.silent && !host.innerHTML) renderLoading(host);
+          return;
+        }
         renderEmpty(host);
         return;
       }
 
-      const cached = this._homeNextActivityCache;
-      if (!options.force && cached?.uid === uid && now - cached.loadedAt < CACHE_TTL_MS) {
-        if (cached.next) renderActivity(host, cached.next);
-        else if (cached.event) renderActivity(host, cached.event);
-        else renderEmpty(host);
+      const memoryCache = normalizeCacheRecord(this._homeNextActivityCache, uid, now);
+      const storedCache = memoryCache || readStoredCache(uid, now);
+      if (storedCache) {
+        this._homeNextActivityCache = storedCache;
+        renderCacheRecord(host, storedCache);
+        if (isFreshCache(storedCache, now)) return;
+        void refreshHomeNextActivity(this, host, uid, { showLoading: false });
         return;
       }
 
-      const seq = ++this._homeNextActivityRequestSeq;
-      if (!options.silent) renderLoading(host);
-      try {
-        const next = await resolveNextActivity(uid);
-        if (seq !== this._homeNextActivityRequestSeq) return;
-        this._homeNextActivityCache = { uid, loadedAt: Date.now(), next: next || null };
-        if (next) renderActivity(host, next);
-        else renderEmpty(host);
-      } catch (err) {
-        console.warn('[HomeNextActivity] render failed:', err);
-        if (seq !== this._homeNextActivityRequestSeq) return;
-        this._homeNextActivityCache = { uid, loadedAt: Date.now(), event: null };
-        renderEmpty(host);
+      return refreshHomeNextActivity(this, host, uid, { showLoading: !options.silent });
+    },
+
+    invalidateHomeNextActivityCache(uid) {
+      const identity = currentUserIdentity();
+      const targets = new Set(Array.from(identity.uidSet || []).filter(Boolean));
+      addIfPresent(targets, uid);
+      this._homeNextActivityRequestSeq += 1;
+      this._homeNextActivityCache = null;
+      if (targets.size) {
+        targets.forEach(targetUid => clearStoredCache(targetUid));
+      } else {
+        clearStoredCache('');
       }
     },
 

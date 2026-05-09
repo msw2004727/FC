@@ -3,7 +3,7 @@
 > 專案內所有可調設定（timing / limit / threshold）+ 關鍵流程的順序效果總覽。
 > **強制維護規則（CLAUDE.md §設定追蹤規範）**：修改檔案時若涉及任何可調設定 / 加載順序 / timing / 閾值，必須同步更新本檔對應條目；新增任何可調常數，必須在本檔登記。
 
-**Last Updated: 2026-05-07**（home summary client refresh + hourly injection）
+**Last Updated: 2026-05-09**（home next activity local cache + background refresh）
 
 ## 目錄
 
@@ -113,6 +113,8 @@
 | Home summary client stale age | `5` 分鐘 | `js/modules/home-dashboard.js` | inline `boot-home-summary-data` 超過此時間後，首頁背景讀公開活動快取/Firestore，重算活動數、運動分類數與已記錄瀏覽數 |
 | Home summary client refresh throttle | `5` 分鐘 | `js/modules/home-dashboard.js` | 避免使用者反覆切回首頁時連續觸發活動摘要刷新 |
 | Home summary injection schedule | 每小時第 `17` 分鐘 | `.github/workflows/inject-hot-events.yml` | 定期重建 `index.html` 內的首頁匿名摘要，降低新活動/新運動分類在首屏出現的延遲 |
+| Home next activity revalidate | `10` 分鐘 | `js/modules/home-next-activity.js` | 首頁「我的下一場活動」先顯示同 UID 的本機快取，再背景刷新，避免切回首頁時短暫空白。 |
+| Home next activity max local cache age | `60` 分鐘 | `js/modules/home-next-activity.js` | 快取最長只作為 1 小時內的先顯示資料；活動已過開始時間、已結束或取消時不顯示快取。 |
 
 ---
 
