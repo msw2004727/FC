@@ -15,11 +15,32 @@
 
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 
 const root = path.resolve(__dirname, '../..');
 
 function readProjectFile(file) {
   return fs.readFileSync(path.join(root, file), 'utf8');
+}
+
+function loadEventDetailModule({ currentUser = null, canEdit = false } = {}) {
+  const app = {
+    _canEditOwnActivityBasic: jest.fn(() => canEdit),
+    _canEditExternalActivity: jest.fn(() => canEdit),
+  };
+  vm.runInNewContext(readProjectFile('js/modules/event/event-detail.js'), {
+    App: app,
+    ApiService: { getCurrentUser: jest.fn(() => currentUser) },
+    TYPE_CONFIG: { friendly: { label: '友誼賽' }, external: { label: '外部活動' } },
+    escapeHTML: (value) => String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;'),
+    Object,
+    console,
+  });
+  return app;
 }
 
 // ===========================================================================
@@ -243,6 +264,27 @@ describe('DOM rendering smoke test', () => {
     expect(btn.textContent).toBe('載入中…');
 
     document.body.removeChild(container);
+  });
+});
+
+describe('Activity detail cover edit button permissions', () => {
+  test('hides the cover edit button when the user is not logged in', () => {
+    const app = loadEventDetailModule({ currentUser: null, canEdit: true });
+
+    expect(app._renderEventDetailEditButton({ id: 'event-1', type: 'friendly' })).toBe('');
+  });
+
+  test('hides the cover edit button when edit permission is not explicitly granted', () => {
+    const app = loadEventDetailModule({ currentUser: { uid: 'U1' }, canEdit: false });
+
+    expect(app._renderEventDetailEditButton({ id: 'event-1', type: 'friendly' })).toBe('');
+  });
+
+  test('renders the cover edit button only for logged-in users with edit permission', () => {
+    const app = loadEventDetailModule({ currentUser: { uid: 'U1' }, canEdit: true });
+
+    expect(app._renderEventDetailEditButton({ id: 'event-1', type: 'friendly' }))
+      .toContain('detail-cover-edit-btn');
   });
 });
 

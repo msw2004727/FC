@@ -53,10 +53,12 @@ Object.assign(App, {
   _renderEventDetailEditButton(eventRecord) {
     const eventId = eventRecord?.id || eventRecord?._docId || eventRecord?.docId || '';
     if (!eventId) return '';
+    const currentUser = ApiService.getCurrentUser?.();
+    if (!currentUser?.uid) return '';
     const canEdit = eventRecord?.type === 'external'
       ? this._canEditExternalActivity?.(eventRecord)
       : this._canEditOwnActivityBasic?.(eventRecord);
-    if (!canEdit) return '';
+    if (canEdit !== true) return '';
     return `<button type="button" class="detail-cover-edit-btn" data-event-id="${escapeHTML(eventId)}" onclick="event.stopPropagation();App.editMyActivity(this.dataset.eventId)">活動編輯</button>`;
   },
 
