@@ -34,7 +34,7 @@ Object.assign(App, {
         + '• 活動結束後收藏會自動歸檔',
     },
     companions: {
-      title: '我的同行者',
+      title: '我的運動夥伴',
       body: '預先設定常一起參加活動的夥伴，報名時可一鍵帶入。'
         + '<p style="margin:.4rem 0 .15rem;font-weight:600">使用方式</p>'
         + '• 點擊「新增同行者」輸入名稱即可建立<br>'
