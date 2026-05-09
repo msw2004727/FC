@@ -28,11 +28,17 @@ Object.assign(App, {
       });
 
       groups.forEach(regs => {
-        const selfReg = regs.find(reg => reg.participantType === 'self');
-        const companions = regs.filter(reg => reg.participantType === 'companion');
-        const mainName = String(selfReg?.userName || regs[0]?.userName || '').trim();
+        const selfReg = regs.find(reg => {
+          const type = String(reg?.participantType || 'self').trim();
+          return type !== 'companion' && !String(reg?.companionId || '').trim();
+        });
+        const companions = regs.filter(reg => {
+          const type = String(reg?.participantType || '').trim();
+          return type === 'companion' || !!String(reg?.companionId || '').trim();
+        });
+        const mainName = String(selfReg?.userName || '').trim();
 
-        if (mainName && !addedNames.has(mainName)) {
+        if (selfReg && mainName && !addedNames.has(mainName)) {
           people.push({ name: mainName, isCompanion: false });
           addedNames.add(mainName);
         }
@@ -74,6 +80,17 @@ Object.assign(App, {
     if (this._eventStatsCache) this._eventStatsCache.clear();
   },
 
+  _getEventProjectedConfirmedCount(event) {
+    if (!event) return 0;
+    const realCurrent = Number(event.realCurrent);
+    if (Number.isFinite(realCurrent) && realCurrent >= 0) {
+      const remainingReservedSlots = (Array.isArray(event.teamReservationSummaries) ? event.teamReservationSummaries : [])
+        .reduce((sum, summary) => sum + Math.max(0, Number(summary?.remainingSlots || 0) || 0), 0);
+      return Math.max(0, realCurrent + remainingReservedSlots);
+    }
+    return Math.max(0, Number(event.current || 0) || 0);
+  },
+
   _getEventParticipantStats(eventInput) {
     const event = typeof eventInput === 'string' ? ApiService.getEvent(eventInput) : eventInput;
     if (!event) {
@@ -90,11 +107,15 @@ Object.assign(App, {
 
     // 2026-04-27 方案 A：cache 命中直接返回（cache key 含投影欄位、event 變動自動失效）
     const _cache = this._getEventStatsCacheMap();
+    const _teamRemainKey = (Array.isArray(event.teamReservationSummaries) ? event.teamReservationSummaries : [])
+      .map(s => `${s?.teamId || ''}:${Number(s?.remainingSlots || 0) || 0}:${Number(s?.reservedSlots || 0) || 0}:${Number(s?.usedSlots || 0) || 0}`)
+      .join(',');
     const _cacheKey = event.id + '|' + (event.current || 0) + '|' + (event.waitlist || 0)
+      + '|' + (event.realCurrent ?? '') + '|' + _teamRemainKey
       + '|' + (event.max || 0) + '|' + (event.status || '');
     if (_cache.has(_cacheKey)) return _cache.get(_cacheKey);
 
-    const fallbackConfirmed = Math.max(0, Number(event.current || 0));
+    const fallbackConfirmed = this._getEventProjectedConfirmedCount(event);
     const fallbackWaitlist = Math.max(0, Number(event.waitlist || 0));
     let confirmedCount = fallbackConfirmed;
     let waitlistCount = fallbackWaitlist;

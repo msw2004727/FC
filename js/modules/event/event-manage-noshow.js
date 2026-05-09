@@ -170,7 +170,13 @@ Object.assign(App, {
     const normalRows = people.filter(p => !p.teamReservationTeamId || !groupedTeamIds.has(String(p.teamReservationTeamId)));
     const orderedPeople = teamRows.concat(normalRows);
     const countablePeople = orderedPeople.filter(p => !p.isTeamHeader && !p.proxyOnly && !p.isProxyOnly);
-    const count = Math.max(countablePeople.length, Number(e.current || 0) || 0);
+    const fallbackCount = typeof this._getEventProjectedConfirmedCount === 'function'
+      ? this._getEventProjectedConfirmedCount(e)
+      : Math.max(0, Number(e.realCurrent ?? e.current ?? 0) || 0);
+    const hasCountSource = orderedPeople.length > 0
+      || (Array.isArray(e.participantsWithUid) && e.participantsWithUid.length > 0)
+      || (Array.isArray(e.participants) && e.participants.length > 0);
+    const count = hasCountSource ? countablePeople.length : fallbackCount;
     const realCount = people.filter(p => !p.proxyOnly && !p.isProxyOnly).length;
 
     return { people: orderedPeople, count, realCount, teamSummaries };

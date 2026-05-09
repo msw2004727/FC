@@ -33,7 +33,7 @@ describe('_buildConfirmedParticipantSummary', () => {
   test('shows proxy-only companion owner without counting them as a participant', () => {
     const event = {
       id: 'evt1',
-      current: 2,
+      current: 3,
       realCurrent: 2,
       max: 10,
       participants: ['Guest A', 'Guest B'],
