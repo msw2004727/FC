@@ -120,6 +120,17 @@ describe('ad edit modal wiring', () => {
     expect(sources.bootBrand).toContain("_openAdEditModal('boot-brand-form-card'");
   });
 
+  test('watch party ad settings expose text, destination and clear-image controls', () => {
+    expect(sources.adminContent).toContain('watch-party-bg-title');
+    expect(sources.adminContent).toContain('watch-party-bg-link-type');
+    expect(sources.adminContent).toContain('watch-party-bg-link-url');
+    expect(sources.banner).toContain('_syncWatchPartyLinkUrlField');
+    expect(sources.banner).toContain('_normalizeWatchPartyLinkType');
+    expect(sources.banner).toContain('linkType');
+    expect(sources.core).toContain('\\u6e05\\u7a7a\\u5716\\u7247');
+    expect(sources.core).toContain("ApiService.updateWatchPartyBg(id, { image: null })");
+  });
+
   test('static ad management forms are hidden until opened as modals', () => {
     [
       'banner-form-card',

@@ -287,8 +287,17 @@ body.home-activity-search-open {
   transform: translateY(1px);
 }
 
+.home-watch-party-card.is-hidden {
+  display: none;
+}
+
+.home-hero-actions.is-empty {
+  display: none;
+}
+
 .home-watch-party-copy {
   width: max-content;
+  max-width: 100%;
   min-width: 0;
   position: relative;
   z-index: 2;
@@ -861,6 +870,7 @@ body.home-activity-search-open {
 
 .home-info-dashboard-section {
   margin-top: .65rem;
+  padding: .5rem .68rem;
 }
 
 .home-dashboard-title-row,
@@ -888,7 +898,15 @@ body.home-activity-search-open {
 }
 
 .home-info-title-row {
-  margin-bottom: .42rem;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .home-sport-entry {
@@ -1011,44 +1029,56 @@ body.home-activity-search-open {
 }
 
 .home-info-meter {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: .5rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .28rem .55rem;
+  min-height: 28px;
+}
+
+.home-info-lead {
+  flex: 0 0 auto;
+  color: var(--text-primary);
+  font-size: .78rem;
+  font-weight: 900;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .home-stat-card {
   position: relative;
-  min-height: 92px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-card);
-  padding: .68rem .56rem .62rem;
+  min-height: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  padding: .1rem 0;
   color: var(--text-primary);
-  text-align: center;
+  text-align: left;
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
+  display: inline-flex;
+  flex-direction: row;
   align-items: center;
-  justify-content: space-between;
-  gap: .18rem;
-  transition: border-color .16s ease, transform .12s ease;
+  justify-content: flex-start;
+  gap: .08rem;
+  line-height: 1.2;
+  transition: color .16s ease, transform .12s ease;
 }
 
-.home-stat-card:hover { border-color: var(--accent); }
+.home-stat-card:hover { color: var(--accent); }
 .home-stat-card:active { transform: translateY(1px); }
 
 .home-stat-label-row {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   min-width: 0;
 }
 
 .home-stat-label {
   min-width: 0;
   color: var(--text-muted);
-  font-size: .72rem;
-  font-weight: 750;
+  font-size: .75rem;
+  font-weight: 800;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1061,16 +1091,17 @@ body.home-activity-search-open {
   justify-content: center;
   gap: .16rem;
   color: #475569;
-  font-size: .66rem;
+  font-size: .72rem;
   font-weight: 800;
   line-height: 1;
   min-height: 14px;
-  width: 100%;
+  width: auto;
+  margin-left: .08rem;
 }
 
 .home-stat-number {
   font-family: "Arial Black", "Segoe UI Black", "Microsoft JhengHei UI", system-ui, sans-serif;
-  font-size: 2.18rem;
+  font-size: .88rem;
   font-weight: 950;
   font-stretch: expanded;
   font-variant-numeric: tabular-nums;
@@ -1079,16 +1110,21 @@ body.home-activity-search-open {
   color: #2563eb;
 }
 
-.home-stat-card:nth-child(2) .home-stat-number { color: #16a34a; }
-.home-stat-card:nth-child(3) .home-stat-number { color: #d97706; }
+.home-stat-card[data-stat="teams"] .home-stat-number { color: #16a34a; }
+.home-stat-card[data-stat="tournaments"] .home-stat-number { color: #d97706; }
 
-[data-theme="dark"] .home-stat-card:nth-child(1) .home-stat-number {
+[data-theme="dark"] .home-stat-card[data-stat="activities"] .home-stat-number {
   color: var(--warning, #fbbf24);
 }
 
+[data-theme="dark"] .home-stat-views,
+[data-theme="dark"] .home-view-icon {
+  color: #94a3b8;
+}
+
 .home-stat-value-row {
-  flex: 1 1 auto;
-  margin-top: .12rem;
+  flex: 0 0 auto;
+  margin-top: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1639,9 +1675,13 @@ body.home-activity-search-open {
 }
 
 @media (max-width: 420px) {
-  .home-info-meter { gap: .38rem; }
-  .home-stat-card { padding: .56rem .46rem; min-height: 86px; }
-  .home-stat-number { font-size: 1.92rem; }
+  .home-info-dashboard-section { padding: .48rem .62rem; }
+  .home-info-meter { gap: .22rem .42rem; }
+  .home-info-lead,
+  .home-stat-label,
+  .home-stat-views { font-size: .7rem; }
+  .home-stat-card { padding: .06rem 0; }
+  .home-stat-number { font-size: .8rem; }
   .home-dashboard-note { display: none; }
   .scoreboard-match-row { grid-template-columns: 46px 1fr; }
   .scoreboard-match-score { grid-column: 2; justify-self: start; }

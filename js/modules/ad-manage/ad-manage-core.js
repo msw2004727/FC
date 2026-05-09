@@ -141,7 +141,11 @@ Object.assign(App, {
       }
       btns.push(`<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.clearAdSlot('${type}','${id}')">刪除</button>`);
     }
-    return btns.join('');
+    const html = btns.join('');
+    if (type === 'watchparty') {
+      return html.replace(/(onclick="App\.clearAdSlot\('watchparty','[^']*'\)">)[^<]*(<\/button>)/g, (_, open, close) => `${open}\u6e05\u7a7a\u5716\u7247${close}`);
+    }
+    return html;
   },
 
   // ── 首頁新聞開關 ──
@@ -234,6 +238,17 @@ Object.assign(App, {
 
   // ── 通用：刪除（清空欄位，恢復空白） ──
   async clearAdSlot(type, id) {
+    if (type === 'watchparty') {
+      if (!this.hasPermission('admin.banners.entry')) {
+        this.showToast('\u6b0a\u9650\u4e0d\u8db3'); return;
+      }
+      if (!(await this.appConfirm('\u78ba\u5b9a\u8981\u6e05\u7a7a\u89c0\u8cfd\u805a\u6703\u5e95\u5716\uff1f\u6309\u9215\u6587\u5b57\u3001\u9023\u7d50\u8207\u986f\u793a\u72c0\u614b\u6703\u4fdd\u7559\u3002'))) return;
+      ApiService.updateWatchPartyBg(id, { image: null });
+      this.renderWatchPartyBgManage();
+      this.renderHomeWatchPartyCard?.();
+      this.showToast('\u5df2\u6e05\u7a7a\u89c0\u8cfd\u805a\u6703\u5716\u7247');
+      return;
+    }
     if (!this.hasPermission('admin.banners.entry')) {
       this.showToast('權限不足'); return;
     }

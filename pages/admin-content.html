@@ -46,6 +46,24 @@
           <div class="form-card" id="watch-party-bg-form-card" style="display:none">
             <div class="role-editor-header"><span id="watch-party-bg-form-title">調整觀賽聚會底圖</span><button class="text-btn" onclick="App.hideWatchPartyBgForm()">取消</button></div>
             <div class="form-row">
+              <label>按鈕文字</label>
+              <input type="text" id="watch-party-bg-title" maxlength="18" placeholder="一起找人看比賽">
+            </div>
+            <div class="form-row">
+              <label>連結位置</label>
+              <select id="watch-party-bg-link-type" onchange="App._syncWatchPartyLinkUrlField?.()">
+                <option value="activities">活動</option>
+                <option value="tournaments">賽事</option>
+                <option value="teams">俱樂部</option>
+                <option value="url">網址</option>
+              </select>
+            </div>
+            <div class="form-row" id="watch-party-bg-link-url-row">
+              <label>網址</label>
+              <input type="url" id="watch-party-bg-link-url" placeholder="https://example.com">
+              <small style="color:var(--text-muted)">只有連結位置選「網址」時需要填。</small>
+            </div>
+            <div class="form-row">
               <label>底圖圖片</label>
               <div class="ce-upload">
                 <input type="file" id="watch-party-bg-image" accept=".jpg,.jpeg,.png,.webp" hidden>
@@ -63,7 +81,7 @@
                 <span class="toggle-slider"></span>
               </label>
             </div>
-            <button class="primary-btn full-width" onclick="App.saveWatchPartyBg()">儲存底圖</button>
+            <button class="primary-btn full-width" onclick="App.saveWatchPartyBg()">儲存設定</button>
           </div>
         </div>
       </div>

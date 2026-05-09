@@ -41,7 +41,9 @@ function runHomeDashboardModule(options = {}) {
     <div id="home-sport-entry"></div>
     <div id="home-info-meter"></div>
     <section id="home-scoreboard-preview"></section>
-    <button class="home-watch-party-card" type="button"></button>
+    <button class="home-watch-party-card" type="button">
+      <span class="home-watch-party-copy">一起找人看比賽</span>
+    </button>
     <select id="activity-filter-type"><option value=""></option><option value="watch"></option></select>
     <input id="activity-filter-keyword" value="">
   `, { url: "https://example.test/" });
@@ -53,6 +55,7 @@ function runHomeDashboardModule(options = {}) {
     renderTeamList: jest.fn(),
     renderTournamentTimeline: jest.fn(),
     showToast: jest.fn(),
+    trackAdClick: jest.fn(),
   };
   const context = vm.createContext({
     window: dom.window,
@@ -121,6 +124,8 @@ describe("home-dashboard browser binding", () => {
     expect(homeCssSource).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*\.home-watch-party-card::after\s*\{[\s\S]*animation:\s*none/);
     expect(homeCssSource).toMatch(/\.home-watch-party-copy\s*\{[\s\S]*width:\s*max-content[\s\S]*padding:\s*0 \.36rem[\s\S]*text-overflow:\s*ellipsis/);
     expect(homeCssSource).toMatch(/\.home-watch-party-copy\s*\{[\s\S]*background:\s*linear-gradient/);
+    expect(homeCssSource).toContain(".home-watch-party-card.is-hidden");
+    expect(homeCssSource).toContain(".home-hero-actions.is-empty");
     expect(homeCssSource).toMatch(/\.home-hero-actions \.home-create-event-btn\s*\{[\s\S]*display:\s*none/);
     expect(homeCssSource).toMatch(/\.banner-create-event-btn\s*\{[\s\S]*box-shadow:/);
     expect(adManageBannerSource).toContain("banner-input-subtitle");
@@ -129,6 +134,7 @@ describe("home-dashboard browser binding", () => {
     expect(bannerSource).toContain("_ensureBannerFixedOverlay(banners)");
     expect(bannerSource).toContain("banner-content banner-fixed-content");
     expect(homeHtmlSource).toContain("home-watch-party-card");
+    expect(homeHtmlSource).toContain("home-watch-party-card is-hidden");
     expect(homeHtmlSource).toContain("App.openHomeWatchParty()");
     expect(homeHtmlSource).not.toContain("home-watch-party-action");
     expect(homeHtmlSource).not.toContain("home-watch-party-title");
@@ -142,7 +148,12 @@ describe("home-dashboard browser binding", () => {
     expect(apiServiceSource).toContain("getWatchPartyBg()");
     expect(adminContentSource).toContain("watch-party-bg-manage-list");
     expect(adminContentSource).toContain("watch-party-bg-preview");
+    expect(adminContentSource).toContain("watch-party-bg-title");
+    expect(adminContentSource).toContain("watch-party-bg-link-type");
+    expect(adminContentSource).toContain("watch-party-bg-link-url");
     expect(adManageBannerSource).toContain("renderWatchPartyBgManage()");
+    expect(adManageBannerSource).toContain("_normalizeWatchPartyLinkType");
+    expect(adManageBannerSource).toContain("linkType");
     expect(adManageBannerSource).toContain("bindImageUpload('watch-party-bg-image', 'watch-party-bg-preview'");
     expect(adManageBannerSource).toContain("aspectRatio: 5");
   });
@@ -167,14 +178,30 @@ describe("home-dashboard browser binding", () => {
   test("renders active watch party background onto the home card", () => {
     const { app, dom } = runHomeDashboardModule({
       apiService: {
-        getWatchPartyBg: () => ({ status: "active", image: "https://cdn.test/watch-party.webp" }),
+        getWatchPartyBg: () => ({ status: "active", title: "看球聚會", image: "https://cdn.test/watch-party.webp" }),
       },
     });
 
     app.renderHomeWatchPartyCard();
     const card = dom.window.document.querySelector(".home-watch-party-card");
+    expect(card.classList.contains("is-hidden")).toBe(false);
     expect(card.classList.contains("has-bg")).toBe(true);
+    expect(card.textContent).toContain("看球聚會");
+    expect(card.getAttribute("aria-label")).toBe("看球聚會");
     expect(card.style.getPropertyValue("--home-watch-party-bg")).toContain("watch-party.webp");
+  });
+
+  test("hides watch party shortcut when the managed slot is not active", () => {
+    const { app, dom } = runHomeDashboardModule({
+      apiService: {
+        getWatchPartyBg: () => ({ status: "expired", title: "下架聚會", image: "https://cdn.test/watch-party.webp" }),
+      },
+    });
+
+    app.renderHomeWatchPartyCard();
+    const card = dom.window.document.querySelector(".home-watch-party-card");
+    expect(card.classList.contains("is-hidden")).toBe(true);
+    expect(card.classList.contains("has-bg")).toBe(false);
   });
 
   test("scoreboard preview has a divider from the current info section only when populated", () => {
@@ -187,7 +214,12 @@ describe("home-dashboard browser binding", () => {
   });
 
   test("attaches to lexical App and renders homepage cards when window.App is empty", async () => {
-    const { app, dom, context } = runHomeDashboardModule();
+    const { app, dom, context } = runHomeDashboardModule({
+      apiService: {
+        getWatchPartyBg: () => ({ id: "watch-party-bg", status: "active", linkType: "activities" }),
+        updateWatchPartyBg: jest.fn(),
+      },
+    });
 
     expect(dom.window.App).toBe(app);
     expect(typeof app.renderHomeDashboard).toBe("function");
@@ -207,9 +239,11 @@ describe("home-dashboard browser binding", () => {
     expect(footballChip?.querySelector(".home-sport-chip-count")?.textContent).toContain("19 活動");
     expect(footballChip?.getAttribute("aria-label")).toContain("足球");
     expect(footballChip?.querySelector(".home-sport-chip-mark")?.innerHTML).toContain("football");
-    expect(dom.window.document.getElementById("home-info-meter").children).toHaveLength(3);
+    expect(dom.window.document.getElementById("home-info-meter").children).toHaveLength(4);
+    expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("即時資訊");
     expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("已開放活動");
-    expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("已成立俱樂部");
+    expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("俱樂部數");
+    expect(dom.window.document.getElementById("home-info-meter").textContent).not.toContain("已成立俱樂部");
     expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("正舉辦賽事");
     expect(dom.window.document.getElementById("home-info-meter").textContent).not.toContain("活動數");
     expect(dom.window.document.getElementById("home-info-meter").textContent).not.toContain("預留");
@@ -315,7 +349,12 @@ describe("home-dashboard browser binding", () => {
   });
 
   test("watch party shortcut opens activities with the restaurant sport filter", async () => {
-    const { app, dom, context } = runHomeDashboardModule();
+    const { app, dom, context } = runHomeDashboardModule({
+      apiService: {
+        getWatchPartyBg: () => ({ id: "watch-party-bg", status: "active", linkType: "activities" }),
+        updateWatchPartyBg: jest.fn(),
+      },
+    });
     dom.window.document.getElementById("activity-filter-type").value = "watch";
     dom.window.document.getElementById("activity-filter-keyword").value = "leftover";
 
@@ -329,5 +368,19 @@ describe("home-dashboard browser binding", () => {
     expect(dom.window.document.getElementById("activity-filter-type").value).toBe("");
     expect(dom.window.document.getElementById("activity-filter-keyword").value).toBe("");
     expect(app.renderActivityList).toHaveBeenCalled();
+    expect(app.trackAdClick).toHaveBeenCalledWith("watchparty", "watch-party-bg");
+  });
+
+  test("watch party shortcut can route to configured pages", async () => {
+    const { app, context } = runHomeDashboardModule({
+      apiService: {
+        getWatchPartyBg: () => ({ id: "watch-party-bg", status: "active", linkType: "tournaments" }),
+      },
+    });
+
+    await app.openHomeWatchParty();
+
+    expect(app.showPage).toHaveBeenCalledWith("page-tournaments");
+    expect(context.ScriptLoader.ensureForPage).toHaveBeenCalledWith("page-tournaments");
   });
 });

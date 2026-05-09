@@ -318,13 +318,14 @@
         ${eyeSvg()}
         <span>${numberText(views)}</span>
       </span>` : '';
+    const countText = numberText(count);
     return `
-      <button class="home-stat-card" type="button" data-stat="${escapeHTML(key)}" onclick="App.showPage('${escapeHTML(page)}')">
+      <button class="home-stat-card" type="button" data-stat="${escapeHTML(key)}" onclick="App.showPage('${escapeHTML(page)}')" aria-label="${escapeHTML(label)} ${escapeHTML(countText)}">
         <span class="home-stat-label-row">
-          <span class="home-stat-label">${escapeHTML(label)}</span>
+          <span class="home-stat-label">${escapeHTML(label)}：</span>
         </span>
         <span class="home-stat-value-row">
-          <strong class="home-stat-number">${numberText(count)}</strong>
+          <strong class="home-stat-number">${countText}</strong>
         </span>
         ${viewHtml}
       </button>
@@ -335,7 +336,7 @@
     const host = document.getElementById('home-info-meter');
     if (!host) return;
     const counts = summary.counts || {};
-    host.innerHTML = [
+    host.innerHTML = '<span class="home-info-lead">即時資訊：</span>' + [
       statCard({
         key: 'activities',
         label: '已開放活動',
@@ -345,7 +346,7 @@
       }),
       statCard({
         key: 'teams',
-        label: '已成立俱樂部',
+        label: '俱樂部數',
         count: counts.teams,
         page: 'page-teams',
       }),
@@ -805,6 +806,31 @@
 
     async openHomeWatchParty() {
       const scriptLoader = (typeof ScriptLoader !== 'undefined') ? ScriptLoader : root.ScriptLoader;
+      const apiService = (typeof ApiService !== 'undefined') ? ApiService : root.ApiService;
+      const item = apiService?.getWatchPartyBg?.();
+      if (!item || item.status !== 'active') return;
+      this.trackAdClick?.('watchparty', item.id || item._docId || 'watch-party-bg');
+
+      const linkType = String(item.linkType || item.target || item.targetPage || 'activities').trim();
+      if (linkType === 'url') {
+        const url = String(item.linkUrl || '').trim();
+        if (/^https?:\/\//i.test(url)) {
+          window.open(url, '_blank', 'noopener');
+          return;
+        }
+        this.showToast?.('\u9023\u7d50\u7db2\u5740\u5c1a\u672a\u8a2d\u5b9a');
+        return;
+      }
+      if (linkType === 'tournaments') {
+        await this.showPage?.('page-tournaments');
+        await scriptLoader?.ensureForPage?.('page-tournaments');
+        return;
+      }
+      if (linkType === 'teams') {
+        await this.showPage?.('page-teams');
+        await scriptLoader?.ensureForPage?.('page-teams');
+        return;
+      }
       await this.showPage?.('page-activities');
       await scriptLoader?.ensureForPage?.('page-activities');
       this.resetActivityTab?.({ render: false });
@@ -821,9 +847,23 @@
     renderHomeWatchPartyCard() {
       const card = document.querySelector('.home-watch-party-card');
       if (!card) return;
+      const wrap = card.closest('.home-hero-actions');
       const apiService = (typeof ApiService !== 'undefined') ? ApiService : root.ApiService;
       const item = apiService?.getWatchPartyBg?.();
-      const image = item && item.status === 'active' ? String(item.image || '').trim() : '';
+      if (!item || item.status !== 'active') {
+        card.classList.add('is-hidden');
+        wrap?.classList.add('is-empty');
+        card.classList.remove('has-bg');
+        card.style.removeProperty('--home-watch-party-bg');
+        return;
+      }
+      const label = String(item.title || '').trim() || '\u4e00\u8d77\u627e\u4eba\u770b\u6bd4\u8cfd';
+      const textEl = card.querySelector('.home-watch-party-copy');
+      if (textEl) textEl.textContent = label;
+      card.setAttribute('aria-label', label);
+      card.classList.remove('is-hidden');
+      wrap?.classList.remove('is-empty');
+      const image = String(item.image || '').trim();
       const bg = cssImageUrl(image);
       if (!bg) {
         card.classList.remove('has-bg');

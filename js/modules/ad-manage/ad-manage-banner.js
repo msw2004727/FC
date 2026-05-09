@@ -185,13 +185,14 @@ Object.assign(App, {
       slot: 'watch-party-bg',
       type: 'watchParty',
       slotName: '觀賽聚會底圖',
-      title: '',
+      title: '\u4e00\u8d77\u627e\u4eba\u770b\u6bd4\u8cfd',
       image: null,
       status: 'empty',
       publishAt: null,
       unpublishAt: null,
       clicks: 0,
       linkUrl: '',
+      linkType: 'activities',
     };
     source.push(placeholder);
     return placeholder;
@@ -211,6 +212,39 @@ Object.assign(App, {
     } finally {
       this._watchPartyBgEnsuringSlot = false;
     }
+  },
+
+  _watchPartyLinkTypes: {
+    activities: '\u6d3b\u52d5',
+    tournaments: '\u8cfd\u4e8b',
+    teams: '\u4ff1\u6a02\u90e8',
+    url: '\u7db2\u5740',
+  },
+
+  _normalizeWatchPartyLinkType(value) {
+    const raw = String(value || '').trim();
+    return this._watchPartyLinkTypes && this._watchPartyLinkTypes[raw] ? raw : 'activities';
+  },
+
+  _getWatchPartyButtonText(item) {
+    const text = String(item?.title || '').trim();
+    return text || '\u4e00\u8d77\u627e\u4eba\u770b\u6bd4\u8cfd';
+  },
+
+  _getWatchPartyTargetLabel(item) {
+    const type = this._normalizeWatchPartyLinkType(item?.linkType || item?.target || item?.targetPage);
+    const label = this._watchPartyLinkTypes[type] || this._watchPartyLinkTypes.activities;
+    if (type !== 'url') return label;
+    const url = String(item?.linkUrl || '').trim();
+    return url ? `${label}: ${url}` : `${label}: \u672a\u8a2d\u5b9a`;
+  },
+
+  _syncWatchPartyLinkUrlField() {
+    const type = this._normalizeWatchPartyLinkType(document.getElementById('watch-party-bg-link-type')?.value);
+    const row = document.getElementById('watch-party-bg-link-url-row');
+    const input = document.getElementById('watch-party-bg-link-url');
+    if (row) row.style.display = type === 'url' ? '' : 'none';
+    if (input) input.disabled = type !== 'url';
   },
 
   renderWatchPartyBgManage() {
@@ -236,8 +270,10 @@ Object.assign(App, {
     const statusClass = isEmpty ? 'empty' : isActive ? 'active' : isScheduled ? 'scheduled' : 'expired';
     const timeInfo = isEmpty ? '首頁會使用預設樣式' : (b.publishAt && b.unpublishAt ? `${b.publishAt} ~ ${b.unpublishAt}` : (b.publishAt ? `${b.publishAt} ~ 長期` : '已設定底圖'));
     const remainText = isActive ? (isPermanent ? '長期' : `剩餘 ${remain} 天`) : '';
+    const buttonText = this._getWatchPartyButtonText(b);
+    const targetLabel = this._getWatchPartyTargetLabel(b);
     const thumb = b.image
-      ? `<div class="banner-thumb" style="overflow:hidden;aspect-ratio:5/1;width:128px;height:auto"><img src="${b.image}" style="width:100%;height:100%;object-fit:cover"></div>`
+      ? `<div class="banner-thumb" style="overflow:hidden;aspect-ratio:5/1;width:128px;height:auto"><img src="${escapeHTML(b.image)}" style="width:100%;height:100%;object-fit:cover"></div>`
       : `<div class="banner-thumb banner-thumb-empty" style="aspect-ratio:5/1;width:128px;height:auto"><span>1000<br>×<br>200</span></div>`;
     container.innerHTML = `
     <div class="banner-manage-card" style="margin-bottom:.5rem">
@@ -253,6 +289,10 @@ Object.assign(App, {
         </div>
       </div>
     </div>`;
+    const titleEl = container.querySelector('.banner-manage-title');
+    const metaEl = container.querySelector('.banner-manage-meta');
+    if (titleEl) titleEl.textContent = buttonText;
+    if (metaEl) metaEl.textContent = `${targetLabel} · ${metaEl.textContent || ''}`;
   },
 
   editWatchPartyBg(id) {
@@ -275,6 +315,13 @@ Object.assign(App, {
       preview.classList.remove('has-image');
       preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">上傳觀賽聚會底圖</span><span class="ce-upload-hint">建議 1000 x 200 px，裁切後會套用到首頁觀賽聚會卡片</span>';
     }
+    const titleInput = document.getElementById('watch-party-bg-title');
+    const linkTypeSelect = document.getElementById('watch-party-bg-link-type');
+    const linkUrlInput = document.getElementById('watch-party-bg-link-url');
+    if (titleInput) titleInput.value = this._getWatchPartyButtonText(editData);
+    if (linkTypeSelect) linkTypeSelect.value = this._normalizeWatchPartyLinkType(editData.linkType || editData.target || editData.targetPage);
+    if (linkUrlInput) linkUrlInput.value = editData.linkUrl || '';
+    this._syncWatchPartyLinkUrlField();
     document.getElementById('watch-party-bg-visible').checked = editData.status === 'active';
     document.getElementById('watch-party-bg-image').value = '';
     this.bindImageUpload('watch-party-bg-image', 'watch-party-bg-preview', {
@@ -303,9 +350,20 @@ Object.assign(App, {
     const item = ApiService.getWatchPartyBg?.() || this._getWatchPartyBgPlaceholder();
     const id = this._watchPartyBgEditId || item?.id || item?._docId || 'watch-party-bg';
     const visible = document.getElementById('watch-party-bg-visible')?.checked === true;
+    const title = (document.getElementById('watch-party-bg-title')?.value || '').trim().slice(0, 18) || '\u4e00\u8d77\u627e\u4eba\u770b\u6bd4\u8cfd';
+    const linkType = this._normalizeWatchPartyLinkType(document.getElementById('watch-party-bg-link-type')?.value);
+    let linkUrl = (document.getElementById('watch-party-bg-link-url')?.value || '').trim();
+    if (linkType === 'url') {
+      if (!/^https?:\/\//i.test(linkUrl)) {
+        this.showToast('\u8acb\u8f38\u5165\u5b8c\u6574\u7db2\u5740\uff0c\u9700\u4ee5 http:// \u6216 https:// \u958b\u982d');
+        return;
+      }
+    } else {
+      linkUrl = '';
+    }
     const previewImg = document.querySelector('#watch-party-bg-preview img');
     let image = previewImg ? previewImg.src : (item?.image || null);
-    if (visible && !image) {
+    if (false && visible && !image) {
       this.showToast('請先上傳底圖');
       return;
     }
@@ -315,14 +373,15 @@ Object.assign(App, {
       if (!url) { this.showToast('圖片上傳失敗，請重試'); return; }
       image = url;
     }
-    const status = image ? (visible ? 'active' : 'expired') : 'empty';
+    const status = visible ? 'active' : 'expired';
     const publishAt = status === 'active' ? this._formatDT(new Date().toISOString()) : null;
     ApiService.updateWatchPartyBg(id, {
       slotName: '觀賽聚會底圖',
       slot: 'watch-party-bg',
       type: 'watchParty',
-      title: '',
-      linkUrl: '',
+      title,
+      linkType,
+      linkUrl,
       image,
       publishAt,
       unpublishAt: null,
