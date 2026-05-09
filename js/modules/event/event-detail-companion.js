@@ -103,6 +103,39 @@ Object.assign(App, {
     this._syncEventSignupScrollLock?.();
   },
 
+  _startEventDetailGlowButton(button, busyText) {
+    if (!button) return function() {};
+    const wrap = button.closest('.signup-glow-wrap');
+    const originalHtml = button.innerHTML;
+    const originalDisabled = button.disabled;
+    const originalOpacity = button.style.opacity || '';
+    button.disabled = true;
+    button.innerHTML = escapeHTML(busyText || '\u5BEB\u5165\u4E2D...');
+    button.style.opacity = '';
+    if (wrap) wrap.classList.add('loading');
+    this._flipAnimating = true;
+    this._flipAnimatingAt = Date.now();
+    return () => {
+      if (wrap) wrap.classList.remove('loading');
+      button.disabled = originalDisabled;
+      button.innerHTML = originalHtml;
+      button.style.opacity = originalOpacity;
+      this._flipAnimating = false;
+      this._flipAnimatingAt = 0;
+    };
+  },
+
+  _startCompanionSignupToolbarGlow() {
+    const button = document.querySelector('.detail-action-toolbar .companion-signup-toolbar-action');
+    return this._startEventDetailGlowButton(button, '\u5BEB\u5165\u4E2D...');
+  },
+
+  _startCancelSignupActionGlow() {
+    const button = Array.from(document.querySelectorAll('.detail-action-primary button'))
+      .find(btn => String(btn.getAttribute('onclick') || '').includes('handleCancelSignup')) || null;
+    return this._startEventDetailGlowButton(button, '\u53D6\u6D88\u4E2D...');
+  },
+
   async _confirmCompanionRegister(opts = {}) {
     const eventId = this._companionSelectEventId;
     if (!eventId) return;
@@ -110,15 +143,17 @@ Object.assign(App, {
     if (this._beginEventActionBusy && !this._beginEventActionBusy(busyKey)) return;
     const confirmBtn = document.getElementById('companion-select-confirm-btn');
     const originalText = confirmBtn?.textContent || '';
+    const stopToolbarGlow = this._startCompanionSignupToolbarGlow?.() || function() {};
     if (confirmBtn) {
       confirmBtn.disabled = true;
-      confirmBtn.textContent = '處理中...';
+      confirmBtn.textContent = '\u5BEB\u5165\u4E2D...';
     }
     try {
       return await this._confirmCompanionRegisterUnlocked(opts, eventId);
     } finally {
       this._endEventActionBusy?.(busyKey);
       this._syncEventSignupScrollLock?.();
+      stopToolbarGlow();
       if (confirmBtn) {
         confirmBtn.disabled = false;
         confirmBtn.textContent = originalText || '確認';
@@ -334,6 +369,39 @@ Object.assign(App, {
   _companionCancelEventId: null,
   _companionCancelRegs: [],
 
+  _getCompanionCancelTargetLabel(reg) {
+    const isCompanion = String(reg?.participantType || '').trim() === 'companion'
+      || String(reg?.companionId || '').trim();
+    if (!isCompanion) return '\u672C\u4EBA';
+    const name = String(reg?.companionName || reg?.userName || '').trim();
+    return name ? ('\u5925\u4F34' + name) : '\u5925\u4F34';
+  },
+
+  _formatCompanionCancelTargetList(labels) {
+    const items = (labels || []).filter(Boolean);
+    if (items.length <= 1) return items[0] || '';
+    if (items.length === 2) return items.join('\u8207');
+    return items.slice(0, -1).join('\u3001') + '\u8207' + items[items.length - 1];
+  },
+
+  _updateCompanionCancelWarn() {
+    const warnEl = document.getElementById('companion-cancel-warn');
+    const confirmBtn = document.getElementById('companion-cancel-confirm-btn')
+      || document.querySelector('#companion-cancel-overlay .modal-actions .primary-btn');
+    const checked = Array.from(document.querySelectorAll('#companion-cancel-list input[name="cc-reg"]:checked'))
+      .map(cb => String(cb.value || '').trim())
+      .filter(Boolean);
+    const labels = (this._companionCancelRegs || [])
+      .filter(reg => checked.includes(String(reg?.id || reg?._docId || '').trim()))
+      .map(reg => this._getCompanionCancelTargetLabel(reg));
+    if (confirmBtn) confirmBtn.disabled = labels.length === 0;
+    if (!warnEl) return;
+    warnEl.style.display = '';
+    warnEl.textContent = labels.length
+      ? ('\u6CE8\u610F\uFF1A\u78BA\u8A8D\u53D6\u6D88\u5F8C\u5C07\u6703\u53D6\u6D88' + this._formatCompanionCancelTargetList(labels))
+      : '\u6CE8\u610F\uFF1A\u8ACB\u81F3\u5C11\u52FE\u9078\u4E00\u4F4D\u8981\u53D6\u6D88\u7684\u5C0D\u8C61';
+  },
+
   _openCompanionCancelModal(eventId, myRegs) {
     this._companionCancelEventId = eventId;
     this._companionCancelRegs = myRegs;
@@ -354,23 +422,29 @@ Object.assign(App, {
       warnEl.style.display = companionCount > 0 ? '' : 'none';
     }
     const statusLabel = { confirmed: '正取', waitlisted: '候補' };
+    if (warnEl) {
+      warnEl.textContent = '';
+      warnEl.style.display = '';
+    }
     listEl.innerHTML = myRegs.map(r => {
       const displayName = r.companionName || r.userName;
       const cancelId = r.id || r._docId || '';
       const tag = statusLabel[r.status] || r.status;
       const tagColor = r.status === 'confirmed' ? 'var(--success)' : 'var(--warning)';
       return `<label style="display:flex;align-items:center;gap:.5rem;padding:.35rem 0;border-bottom:1px solid var(--border);cursor:pointer">
-        <input type="checkbox" name="cc-reg" value="${escapeHTML(cancelId)}" checked ${cancelId ? '' : 'disabled'} style="width:16px;height:16px">
+        <input type="checkbox" name="cc-reg" value="${escapeHTML(cancelId)}" checked ${cancelId ? '' : 'disabled'} style="width:16px;height:16px" onchange="App._updateCompanionCancelWarn()">
         <span style="flex:1;font-size:.85rem">${escapeHTML(displayName)}${r.companionId ? '' : '（本人）'}</span>
         <span style="font-size:.72rem;padding:.1rem .3rem;border-radius:3px;background:${tagColor}22;color:${tagColor}">${tag}</span>
       </label>`;
     }).join('');
+    this._updateCompanionCancelWarn();
     overlay.style.display = 'flex';
     overlay.classList.add('open');
   },
 
   _selectAllCancelRegs() {
     document.querySelectorAll('#companion-cancel-list input[name="cc-reg"]').forEach(cb => { cb.checked = true; });
+    this._updateCompanionCancelWarn();
   },
 
   _closeCompanionCancelModal() {
@@ -387,10 +461,12 @@ Object.assign(App, {
     if (!eventId) return;
     const busyKey = 'companion-cancel:' + String(eventId || '');
     if (this._beginEventActionBusy && !this._beginEventActionBusy(busyKey)) return;
+    const stopCancelGlow = this._startCancelSignupActionGlow?.() || function() {};
     try {
       return await this._confirmCompanionCancelUnlocked(eventId);
     } finally {
       this._endEventActionBusy?.(busyKey);
+      stopCancelGlow();
     }
   },
 
@@ -551,7 +627,7 @@ Object.assign(App, {
     const cancelBtn = overlay.querySelector('.modal-actions .outline-btn');
     if (cancelBtn) cancelBtn.textContent = '\u53d6\u6d88';
     const confirmBtn = document.getElementById('companion-select-confirm-btn');
-    if (confirmBtn) confirmBtn.textContent = '\u78ba\u8a8d\u8abf\u6574';
+    if (confirmBtn) confirmBtn.textContent = '\u78BA\u8A8D';
 
     const myRegs = ApiService.getMyRegistrationsByEvent?.(eventId) || [];
     const activeCompanionRegs = myRegs.filter(r =>

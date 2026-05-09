@@ -663,6 +663,15 @@
   min-width: 0;
 }
 .detail-action-toolbar { display: flex; justify-content: center; gap: .35rem; }
+.detail-action-toolbar .signup-glow-wrap {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+}
+.detail-action-toolbar .signup-flipper,
+.detail-action-toolbar .signup-flipper > button {
+  width: 100%;
+}
 .detail-toolbar-btn {
   flex: 1 1 0; display: flex; align-items: center; justify-content: center;
   padding: .45rem .25rem; border: 1.5px solid var(--border, #e5e5e5);

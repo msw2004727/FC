@@ -2289,3 +2289,8 @@
 - **Issue**: The `新手友善` and `高強度` activity tabs were unavailable but still looked like normal selectable tabs.
 - **Fix**: Marked both placeholder tabs with disabled semantics and added greyed-out unavailable styling while keeping the existing unavailable-feature toast path.
 - **Validation**: Updated activity tab source contract coverage.
+
+### 2026-05-09 Companion Signup Confirm And Cancel Feedback [ux]
+- **Issue**: The companion signup modal used a longer confirm label, companion updates did not show the toolbar action as writing, and mixed self/companion cancellation used a static warning that did not reflect the current checked targets.
+- **Fix**: Renamed the companion modal submit label to `確認`, wrapped the `幫夥伴報名` toolbar action with the existing glow-loading treatment during writes, added cancel-action glow for mixed cancellation, and made the cancel warning update from the checked self/partner list.
+- **Validation**: Added source contract coverage for companion busy states, dynamic cancel warning text, and toolbar glow styling.

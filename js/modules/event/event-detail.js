@@ -573,7 +573,7 @@ Object.assign(App, {
       </div>` : ''}
       <div class="detail-action-zone">
         <div class="detail-action-toolbar">
-          <button class="detail-toolbar-btn" onclick="App._openCompanionSelectModal('${escapeHTML(e.id)}')">\u5E6B\u5925\u4F34\u5831\u540D</button>
+          ${_glowWrap(`<button class="detail-toolbar-btn companion-signup-toolbar-action" onclick="App._openCompanionSelectModal('${escapeHTML(e.id)}')">\u5E6B\u5925\u4F34\u5831\u540D</button>`, '#2563eb', '#60a5fa', '\u5BEB\u5165\u4E2D')}
           <button class="detail-toolbar-btn" onclick="App.shareEvent('${e.id}')">\u5206\u4EAB\u6D3B\u52D5</button>
           <button class="detail-toolbar-btn" onclick="App.addEventToCalendar('${e.id}')">\u52A0\u5165\u884C\u4E8B\u66C6</button>
           ${canScan ? `<button class="detail-toolbar-btn" onclick="App.goToScanForEvent('${escapeHTML(e.id || e._docId || e.docId || '')}')">\u73FE\u5834\u7C3D\u5230</button>` : ''}

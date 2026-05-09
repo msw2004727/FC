@@ -403,11 +403,28 @@ describe('Activity detail host contact and companion action labels', () => {
     const profileCardSource = readProjectFile('js/modules/profile/profile-card.js');
 
     expect(detailSource).toContain('contactEventOrganizer(${escapeHTML(JSON.stringify({ eventId: e.id');
+    expect(detailSource).toContain('companion-signup-toolbar-action');
+    expect(detailSource).toContain('\\u5BEB\\u5165\\u4E2D');
     expect(detailSource).toContain('\\u5E6B\\u5925\\u4F34\\u5831\\u540D');
     expect(detailSource).not.toContain('\\u540C\\u884C\\u5831\\u540D');
     expect(profileCardSource).toContain('_normalizeLineContactUrl');
     expect(profileCardSource).toContain('ApiService.getEvent(eventId)');
     expect(profileCardSource).toContain("window.open(lineUrl, 'sporthub_line')");
     expect(profileCardSource).toContain("allowGuest: true");
+  });
+
+  test('companion signup and mixed cancel flows expose precise busy and warning states', () => {
+    const companionSource = readProjectFile('js/modules/event/event-detail-companion.js');
+    const activeOpenSource = companionSource.slice(companionSource.lastIndexOf('_openCompanionSelectModal'));
+    const activityCss = readProjectFile('css/activity.css');
+
+    expect(activeOpenSource).toContain("confirmBtn.textContent = '\\u78BA\\u8A8D'");
+    expect(activeOpenSource).not.toContain('\\u78ba\\u8a8d\\u8abf\\u6574');
+    expect(companionSource).toContain('_startCompanionSignupToolbarGlow');
+    expect(companionSource).toContain('_startCancelSignupActionGlow');
+    expect(companionSource).toContain('_updateCompanionCancelWarn');
+    expect(companionSource).toContain('\\u6CE8\\u610F\\uFF1A\\u78BA\\u8A8D\\u53D6\\u6D88\\u5F8C\\u5C07\\u6703\\u53D6\\u6D88');
+    expect(companionSource).toContain('onchange="App._updateCompanionCancelWarn()"');
+    expect(activityCss).toContain('.detail-action-toolbar .signup-glow-wrap');
   });
 });
