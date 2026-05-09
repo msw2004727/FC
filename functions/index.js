@@ -5573,7 +5573,7 @@ exports.backfillAutoExp = onCall(
 
     // ── 6. noshow_penalty：放鴿子扣分（reconciliation 模型：count × amount） ──
     const noshowAmount = typeof rules.noshow_penalty === "number" ? rules.noshow_penalty : 0;
-    if (noshowAmount !== 0) {
+    if (NO_SHOW_FEATURE_ENABLED && noshowAmount !== 0) {
       // 載入所有 registrations 與 attendanceRecords 計算放鴿子次數
       const allRegsSnap = await db.collectionGroup("registrations").get();
       const allAttendSnap = await db.collectionGroup("attendanceRecords").get();
@@ -8335,6 +8335,7 @@ const ACTIVITY_RECORD_REPAIR_DEFAULTS = Object.freeze({
 const ACTIVITY_RECORD_REPAIR_MANUAL_CHUNK_LIMIT = 80;
 const ACTIVITY_RECORD_REPAIR_LOG_LIMIT = 30;
 const DATA_SYNC_SETTINGS_PASSWORD = process.env.DATA_SYNC_SETTINGS_PASSWORD || "1121";
+const NO_SHOW_FEATURE_ENABLED = false;
 const UID_HEALTH_CHECK_LOG_LIMIT = 30;
 const UID_HEALTH_SAMPLE_LIMIT = 8;
 const UID_HEALTH_ISSUE_LIMIT = 40;
@@ -9768,6 +9769,16 @@ exports.refreshMyActivityRecords = onCall(
 );
 
 async function calcNoShowCountsBatch({ batchSize = 400 } = {}) {
+  if (!NO_SHOW_FEATURE_ENABLED) {
+    return {
+      success: true,
+      disabled: true,
+      scannedEvents: 0,
+      totalRegs: 0,
+      totalCheckins: 0,
+      updatedUsers: 0,
+    };
+  }
   const today = new Date().toISOString().slice(0, 10);
 
   // Step 1: 取得所有已結束活動
@@ -9874,6 +9885,10 @@ exports.calcNoShowCounts = onSchedule(
     maxInstances: 1,
   },
   async () => {
+    if (!NO_SHOW_FEATURE_ENABLED) {
+      console.log("[calcNoShowCounts] disabled by feature flag");
+      return;
+    }
     // 讀取儀表板設定的頻率（每天幾次），預設 24（每小時）
     const configDoc = await db.collection("siteConfig").doc("realtimeConfig").get();
     const freq = Number((configDoc.exists && configDoc.data().noShowFrequency) || 24);

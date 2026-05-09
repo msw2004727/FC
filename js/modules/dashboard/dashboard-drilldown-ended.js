@@ -87,6 +87,9 @@ Object.assign(App, {
         if (e.max > 0) { fillSum += (e.current || 0) / e.max; fillCount++; }
       });
       const avgFill = fillCount > 0 ? Math.round(fillSum / fillCount * 100) : 0;
+      const noShowFeatureEnabled = typeof isNoShowFeatureEnabled === 'function'
+        ? isNoShowFeatureEnabled()
+        : true;
 
       // 放鴿子事件 & 超收事件
       const noShowEvents = events.filter(e => {
@@ -96,13 +99,17 @@ Object.assign(App, {
       }).length;
       const overfillEvents = events.filter(e => e.max > 0 && (e.current || 0) > e.max).length;
 
+      const noShowMetric = noShowFeatureEnabled
+        ? `<div class="dash-kv">放鴿子事件（簽到 &lt; 確認）：<strong>${noShowEvents}</strong></div>`
+        : '';
+
       return this._dashSection('出席率分布', this._dashBarList(Object.entries(attendGroups), total))
            + this._dashSection('類型分布', this._dashBarList(Object.entries(typeCounts), total))
            + this._dashSection('運動分布', this._dashBarList(Object.entries(sportCounts), total))
            + this._dashSection('地區分布（前 10）', this._dashBarList(topRegions, total))
            + this._dashSection('其他指標', `
                <div class="dash-kv">平均填滿率：<strong>${avgFill}%</strong></div>
-               <div class="dash-kv">放鴿子事件（簽到 &lt; 確認）：<strong>${noShowEvents}</strong></div>
+               ${noShowMetric}
                <div class="dash-kv">超收事件（current &gt; max）：<strong>${overfillEvents}</strong></div>
                <div class="dash-kv">已取消活動：<strong>${cancelled.length}</strong></div>
              `);

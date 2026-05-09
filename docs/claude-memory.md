@@ -1,5 +1,11 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-09 — 放鴿子功能暫時軟關閉 [feature-flag]
+- **問題**：放鴿子功能需要暫停，且活動詳細頁報名名單中的放鴿子欄位要先隱藏；同時避免背景排程或管理工具繼續改寫 `noShowCount`。
+- **修復**：新增前端 `NO_SHOW_FEATURE_ENABLED=false` / `isNoShowFeatureEnabled()`，活動詳細頁放鴿子欄位、用戶補正管理放鴿子頁籤、資料同步手動重算、Dashboard 放鴿子排行與 Auto EXP 放鴿子扣分都會停用或隱藏。後端 `functions/index.js` 同步新增 `NO_SHOW_FEATURE_ENABLED=false`，`calcNoShowCounts` 排程與手動 callable 直接跳過，`noshow_penalty` 對帳不再執行。
+- **資料策略**：不刪除任何歷史 `noShowCount`、`userCorrections.noShow`、opLog 或相關文件；未來恢復只需前後端 flag 同步改回 `true`、更新 cache version、重新部署 functions。
+- **驗證**：補上 no-show feature flag 測試，並檢查前端/後端語法。
+
 ### 2026-05-06 Page Header Back Button Restore [bugfix]
 - **原因**: 不是 CSS 隱藏，而是這些頁面的第一層 `page-header` 缺少 `.back-btn`；活動頁在 2026-04-29 header 重排後維持無返回按鈕，其他頂層頁面也未統一套用。
 - **修復**: 在 `pages/activity.html`、`pages/team.html`、`pages/tournament.html`、`pages/message.html`、`pages/profile.html` 補回 `App.goBack()` 圓形返回按鈕，並把 `page-header .back-btn` 的尺寸、圓形、hover/active 樣式集中到 `css/layout.css`。
@@ -2264,6 +2270,6 @@
 - **Validation**: Added source contract coverage for companion busy states, dynamic cancel warning text, and toolbar glow styling.
 
 ### 2026-05-09 Kickball Previous Month Leaderboard [ux]
-- **Issue**: Kickball monthly leaderboard was missing the previous-month review affordance used by the shot-game leaderboard.
-- **Fix**: Added the previous-month review row, monthly-prev bucket support, toggle state, and matching button styling for the kickball leaderboard.
+- **Issue**: The `誰是開球王` monthly leaderboard did not have the `← 上月回顧` affordance already used by the shot-game shooter leaderboard.
+- **Fix**: Added the previous-month review row, `monthly-prev` bucket support, toggle state, and matching button styling for the kickball leaderboard.
 - **Validation**: Added kickball leaderboard coverage for the previous-month UI contract and toggle behavior.

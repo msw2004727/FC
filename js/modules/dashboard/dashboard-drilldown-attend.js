@@ -201,6 +201,9 @@ Object.assign(App, {
 
     // ══════════ 排行 Tab ══════════
     const renderRanking = () => {
+      const noShowFeatureEnabled = typeof isNoShowFeatureEnabled === 'function'
+        ? isNoShowFeatureEnabled()
+        : true;
       // 放鴿子前 10（noShowCount）
       const topNoShow = [...users]
         .filter(u => (u.noShowCount || 0) > 0)
@@ -265,9 +268,15 @@ Object.assign(App, {
           }).join('')
         : '<div class="dash-empty">無資料</div>';
 
-      return this._dashSection('放鴿子排行 Top 10', noShowHtml)
-           + this._dashSection('全勤用戶榮譽榜 Top 10', perfectHtml)
-           + this._dashSection('放鴿子活動 Top 10（缺席率高）', worstHtml);
+      let html = '';
+      if (noShowFeatureEnabled) {
+        html += this._dashSection('放鴿子排行 Top 10', noShowHtml);
+      }
+      html += this._dashSection('全勤用戶榮譽榜 Top 10', perfectHtml);
+      if (noShowFeatureEnabled) {
+        html += this._dashSection('放鴿子活動 Top 10（缺席率高）', worstHtml);
+      }
+      return html;
     };
 
     this._renderDashDrillShell({

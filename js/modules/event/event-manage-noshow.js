@@ -5,6 +5,12 @@
 
 Object.assign(App, {
 
+  _isNoShowFeatureEnabled() {
+    return typeof isNoShowFeatureEnabled === 'function'
+      ? isNoShowFeatureEnabled()
+      : true;
+  },
+
   _buildConfirmedParticipantSummary(eventId) {
     const e = ApiService.getEvent(eventId);
     if (!e) return { people: [], count: 0 };
@@ -183,6 +189,7 @@ Object.assign(App, {
   },
 
   _buildRawNoShowCountByUid() {
+    if (!this._isNoShowFeatureEnabled()) return new Map();
     // 讀取 Cloud Function calcNoShowCounts 預先計算並寫入 users 文件的 noShowCount
     // 不再前端即時跨集合計算（避免 onSnapshot limit 截斷導致誤判）
     const users = ApiService.getAdminUsers() || [];
@@ -198,6 +205,7 @@ Object.assign(App, {
   },
 
   _getUserNoShowCorrection(uid) {
+    if (!this._isNoShowFeatureEnabled()) return null;
     const safeUid = String(uid || '').trim();
     if (!safeUid || typeof ApiService?.getUserCorrection !== 'function') return null;
     return ApiService.getUserCorrection(safeUid);
@@ -209,6 +217,7 @@ Object.assign(App, {
   },
 
   _buildNoShowCountByUid() {
+    if (!this._isNoShowFeatureEnabled()) return new Map();
     const rawCountByUid = this._buildRawNoShowCountByUid();
     const effectiveCountByUid = new Map(rawCountByUid);
     const corrections = typeof ApiService?.getUserCorrections === 'function'
@@ -228,12 +237,14 @@ Object.assign(App, {
   },
 
   _getRawNoShowCount(uid) {
+    if (!this._isNoShowFeatureEnabled()) return 0;
     const safeUid = String(uid || '').trim();
     if (!safeUid) return 0;
     return this._buildRawNoShowCountByUid().get(safeUid) || 0;
   },
 
   _getEffectiveNoShowCount(uid) {
+    if (!this._isNoShowFeatureEnabled()) return 0;
     const safeUid = String(uid || '').trim();
     if (!safeUid) return 0;
     const map = this._buildNoShowCountByUid();
@@ -242,6 +253,7 @@ Object.assign(App, {
   },
 
   _getNoShowDetailsByUid(uid) {
+    if (!this._isNoShowFeatureEnabled()) return [];
     const safeUid = String(uid || '').trim();
     if (!safeUid) return [];
 
@@ -297,6 +309,7 @@ Object.assign(App, {
   },
 
   _getParticipantNoShowCount(person, noShowCountByUid) {
+    if (!this._isNoShowFeatureEnabled()) return null;
     if (!person || person.isCompanion || person.isTeamPlaceholder || person.isTeamHeader || !noShowCountByUid) return null;
     const directUid = String(person.uid || '').trim();
     const fallbackUid = String(this._findUserByName?.(person.name)?.uid || '').trim();

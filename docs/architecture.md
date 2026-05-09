@@ -92,6 +92,12 @@ flowchart TD
 - 所有前端 callable 都應使用 `firebase.app().functions('asia-east1')` 呼叫，避免 region mismatch。
 - 關鍵寫入路徑包含活動報名、取消報名、團隊席位、賽事友誼賽流程、資料同步、UID 健康檢查、放鴿子計算、登入 IP 紀錄。
 
+### 暫停中的功能
+
+- 放鴿子功能目前暫時軟關閉（2026-05-09）：前端 `js/config.js` 與後端 `functions/index.js` 的 `NO_SHOW_FEATURE_ENABLED` 都是 `false`。
+- 關閉期間活動詳細頁不顯示放鴿子欄位，用戶補正管理不顯示放鴿子頁籤，資料同步不開放放鴿子重算，Cloud Function 排程與手動 callable 不會重算 `noShowCount`，Auto EXP 不執行 `noshow_penalty`。
+- 歷史資料保留不刪除；恢復功能時需前後端 flag 同步改回 `true`、更新 cache version、部署 functions，並跑 no-show 權限/統計測試。
+
 ### 部署
 
 - 前端文件、HTML、JS、CSS：`git push origin main` 後由靜態站台部署。

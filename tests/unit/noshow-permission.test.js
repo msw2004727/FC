@@ -12,11 +12,11 @@
  */
 
 // ─── 從 event-manage-attendance.js 抽取 ───
-function shouldShowNoShowColumn({ containerId, canManage, hasPermission }) {
+function shouldShowNoShowColumn({ containerId, canManage, hasPermission, featureEnabled = true }) {
   const canViewNoShow = canManage
     || (typeof hasPermission === 'function' && hasPermission('activity.view_noshow'))
     || (typeof hasPermission === 'function' && hasPermission('admin.repair.no_show_adjust'));
-  return containerId === 'detail-attendance-table' && canViewNoShow;
+  return featureEnabled && containerId === 'detail-attendance-table' && canViewNoShow;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -155,5 +155,16 @@ describe('放鴿子欄位 — 可見性規則', () => {
         })).toBe(sc.expected);
       });
     });
+  });
+});
+
+describe('no-show feature flag', () => {
+  test('disabled flag hides the no-show column for every role', () => {
+    expect(shouldShowNoShowColumn({
+      containerId: 'detail-attendance-table',
+      canManage: true,
+      hasPermission: () => true,
+      featureEnabled: false,
+    })).toBe(false);
   });
 });

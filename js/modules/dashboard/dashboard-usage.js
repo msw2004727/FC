@@ -648,6 +648,11 @@ Object.assign(App, {
     var wrapper = document.createElement('div');
     wrapper.innerHTML = html;
     container.appendChild(wrapper);
+    if (typeof isNoShowFeatureEnabled === 'function' && !isNoShowFeatureEnabled()) {
+      var noShowSelect = document.getElementById('rl-noshow-freq');
+      var noShowRow = noShowSelect && noShowSelect.closest('div[style*="justify-content:space-between"]');
+      if (noShowRow) noShowRow.style.display = 'none';
+    }
 
     // 綁定儲存
     var saveBtn = document.getElementById('rl-save-btn');
@@ -657,7 +662,8 @@ Object.assign(App, {
         var att = parseInt(document.getElementById('rl-attendance').value, 10);
         var reg = parseInt(document.getElementById('rl-registration').value, 10);
         var evt = parseInt(document.getElementById('rl-event').value, 10);
-        var freq = parseInt(document.getElementById('rl-noshow-freq').value, 10) || 24;
+        var freqEl = document.getElementById('rl-noshow-freq');
+        var freq = freqEl ? (parseInt(freqEl.value, 10) || 24) : 24;
         // 驗證
         var errors = [];
         if (!att || att < 100 || att > 10000) errors.push('簽到紀錄需在 100~10000 之間');
@@ -820,6 +826,11 @@ Object.assign(App, {
     var wrapper = document.createElement('div');
     wrapper.innerHTML = html;
     container.appendChild(wrapper);
+    if (typeof isNoShowFeatureEnabled === 'function' && !isNoShowFeatureEnabled()) {
+      var noShowSelect2 = document.getElementById('rl-noshow-freq');
+      var noShowRow2 = noShowSelect2 && noShowSelect2.closest('div[style*="justify-content:space-between"]');
+      if (noShowRow2) noShowRow2.style.display = 'none';
+    }
 
     var saveBtn = document.getElementById('rl-save-btn');
     var runBtn = document.getElementById('ar-run-btn');

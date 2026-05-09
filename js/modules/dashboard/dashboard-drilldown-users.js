@@ -163,6 +163,9 @@ Object.assign(App, {
 
     // ══════════ 排行 Tab ══════════
     const renderRanking = () => {
+      const noShowFeatureEnabled = typeof isNoShowFeatureEnabled === 'function'
+        ? isNoShowFeatureEnabled()
+        : true;
       const topExp = [...users].sort((a, b) => (b.exp || 0) - (a.exp || 0)).slice(0, 10);
       const topNoShow = [...users]
         .filter(u => (u.noShowCount || 0) > 0)
@@ -192,8 +195,10 @@ Object.assign(App, {
         ? topNoShow.map(u => renderUserItem(u, `${u.noShowCount} 次`)).join('')
         : '<div class="dash-empty">無放鴿子紀錄</div>';
 
-      let html = this._dashSection('EXP 排行 Top 10', expHtml)
-               + this._dashSection('放鴿子排行 Top 10', noShowHtml);
+      let html = this._dashSection('EXP 排行 Top 10', expHtml);
+      if (noShowFeatureEnabled) {
+        html += this._dashSection('放鴿子排行 Top 10', noShowHtml);
+      }
 
       if (currentRole === 'super_admin') {
         const stealthHtml = stealthAdmins.length > 0

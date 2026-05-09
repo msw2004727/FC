@@ -319,10 +319,13 @@ Object.assign(App, {
     const people = summary.people;
     const _t2 = _perfLog ? performance.now() : 0;
     // 放鴿子 🕊 欄位查看權：admin(event.edit_all) / 主辦人 / 委託人 / 查看權持有者 / 放鴿子修改權持有者
+    const noShowFeatureEnabled = typeof isNoShowFeatureEnabled === 'function'
+      ? isNoShowFeatureEnabled()
+      : true;
     const canViewNoShow = canManage
       || (typeof this.hasPermission === 'function' && this.hasPermission('activity.view_noshow'))
       || (typeof this.hasPermission === 'function' && this.hasPermission('admin.repair.no_show_adjust'));
-    const showNoShowColumn = cId === 'detail-attendance-table' && canViewNoShow;
+    const showNoShowColumn = noShowFeatureEnabled && cId === 'detail-attendance-table' && canViewNoShow;
     const noShowCountByUid = showNoShowColumn ? this._buildNoShowCountByUid() : null;
     const _t3 = _perfLog ? performance.now() : 0;
 

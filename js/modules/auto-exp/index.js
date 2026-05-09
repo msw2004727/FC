@@ -23,6 +23,13 @@ Object.assign(App, {
     { key: 'badge_bonus',          label: '\u5FBD\u7AE0\u734E\u52F5',     desc: '\u6BCF\u679A\u5FBD\u7AE0\u734E\u52F5\uFF08\u6EFE\u52D5\u66F4\u65B0\uFF0C\u5FBD\u7AE0\u6E1B\u5C11\u4E5F\u6703\u6263\u56DE\uFF09' },
   ],
 
+  _getAutoExpDefaultRules() {
+    const noShowEnabled = typeof isNoShowFeatureEnabled === 'function'
+      ? isNoShowFeatureEnabled()
+      : true;
+    return this._AUTO_EXP_DEFAULTS.filter(rule => noShowEnabled || rule.key !== 'noshow_penalty');
+  },
+
   // ── Rule CRUD ──
 
   _getAutoExpRules() {
@@ -34,11 +41,11 @@ Object.assign(App, {
       } catch (_) { saved = null; }
     }
     if (saved && typeof saved === 'object') {
-      return this._AUTO_EXP_DEFAULTS.map(function (d) {
+      return this._getAutoExpDefaultRules().map(function (d) {
         return { key: d.key, label: d.label, desc: d.desc, amount: saved[d.key] !== undefined ? Number(saved[d.key]) : 0 };
       });
     }
-    return this._AUTO_EXP_DEFAULTS.map(function (d) { return { key: d.key, label: d.label, desc: d.desc, amount: 0 }; });
+    return this._getAutoExpDefaultRules().map(function (d) { return { key: d.key, label: d.label, desc: d.desc, amount: 0 }; });
   },
 
   _getAutoExpAmount(key) {

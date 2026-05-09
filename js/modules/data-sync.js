@@ -50,7 +50,10 @@ Object.assign(App, {
     const noShowCard = findRunCard('noShowCount');
     if (noShowCard) {
       noShowCard.id = 'no-show-resync-card';
-      noShowCard.style.display = access.dataSync ? '' : 'none';
+      const noShowFeatureEnabled = typeof isNoShowFeatureEnabled === 'function'
+        ? isNoShowFeatureEnabled()
+        : true;
+      noShowCard.style.display = (access.dataSync && noShowFeatureEnabled) ? '' : 'none';
       if (noShowPane && noShowCard.parentElement !== noShowPane) {
         const anchor = noShowPane.querySelector('.form-card');
         noShowPane.insertBefore(noShowCard, anchor?.nextElementSibling || null);
@@ -814,6 +817,10 @@ Object.assign(App, {
 
   // ── ⑧ 放鴿子次數重算（呼叫 Cloud Function）──
   async _syncNoShowCount(verifiedPassword) {
+    if (typeof isNoShowFeatureEnabled === 'function' && !isNoShowFeatureEnabled()) {
+      this.showToast('放鴿子功能暫停使用');
+      return;
+    }
     if (this._dataSyncRunning) {
       this.showToast('同步作業正在執行中');
       return;

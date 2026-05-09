@@ -132,6 +132,7 @@ Object.assign(App, {
   // ═══ Rule 2: No-show Penalty (reconciliation, −50 per occurrence) ═══
 
   async _reconcileNoShowExp(uid) {
+    if (typeof isNoShowFeatureEnabled === 'function' && !isNoShowFeatureEnabled()) return;
     if (!uid) return;
     var amount = typeof this._getAutoExpAmount === 'function'
       ? this._getAutoExpAmount('noshow_penalty') : 0;

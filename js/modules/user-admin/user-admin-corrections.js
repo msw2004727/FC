@@ -19,9 +19,12 @@ Object.assign(App, {
     return uid && primaryLabel !== uid ? `${primaryLabel}（${uid}）` : primaryLabel;
   },
   _getAdminRepairTabAccess() {
+    const noShowFeatureEnabled = typeof isNoShowFeatureEnabled === 'function'
+      ? isNoShowFeatureEnabled()
+      : true;
     return {
       teamJoins: !!this.hasPermission?.('admin.repair.team_join_repair'),
-      noShow: !!this.hasPermission?.('admin.repair.no_show_adjust'),
+      noShow: noShowFeatureEnabled && !!this.hasPermission?.('admin.repair.no_show_adjust'),
       dataSync: !!this.hasPermission?.('admin.repair.data_sync'),
       uidCheck: !!this.hasPermission?.('admin.repair.data_sync'),
       eventBlocklist: !!this.hasPermission?.('admin.repair.event_blocklist'),
@@ -165,6 +168,10 @@ Object.assign(App, {
     dropdown.classList.add('open');
   },
   searchUserNoShowTarget() {
+    if (typeof isNoShowFeatureEnabled === 'function' && !isNoShowFeatureEnabled()) {
+      this.showToast('放鴿子功能暫停使用');
+      return;
+    }
     if (!this.hasPermission?.('admin.repair.no_show_adjust')) return;
 
     const input = document.getElementById('user-correction-search');
@@ -298,6 +305,10 @@ Object.assign(App, {
     formula.textContent = `公式預覽：原始 ${rawCount} ${adjustment >= 0 ? '+ ' + adjustment : '- ' + Math.abs(adjustment)} = 顯示 ${Math.max(0, rawCount + adjustment)}`;
   },
   async submitUserNoShowCorrection() {
+    if (typeof isNoShowFeatureEnabled === 'function' && !isNoShowFeatureEnabled()) {
+      this.showToast('放鴿子功能暫停使用');
+      return;
+    }
     if (!this.hasPermission?.('admin.repair.no_show_adjust')) {
       this.showToast('權限不足');
       return;
@@ -351,6 +362,10 @@ Object.assign(App, {
     }
   },
   async clearUserNoShowCorrection() {
+    if (typeof isNoShowFeatureEnabled === 'function' && !isNoShowFeatureEnabled()) {
+      this.showToast('放鴿子功能暫停使用');
+      return;
+    }
     if (!this.hasPermission?.('admin.repair.no_show_adjust')) {
       this.showToast('權限不足');
       return;

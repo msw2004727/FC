@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-function loadEventNoshowModule({ event, registrations }) {
+function loadEventNoshowModule({ event, registrations, noShowFeatureEnabled = true }) {
   const state = {
     event,
     registrations,
@@ -19,6 +19,7 @@ function loadEventNoshowModule({ event, registrations }) {
     FirebaseService: {
       _normalizeTeamReservationSummaries: e => e.teamReservationSummaries || [],
     },
+    isNoShowFeatureEnabled: () => noShowFeatureEnabled,
     console,
   };
   const source = fs.readFileSync(
@@ -118,5 +119,17 @@ describe('_buildConfirmedParticipantSummary', () => {
     expect(summary.realCount).toBe(2);
     expect(summary.count).toBe(2);
     expect(summary.people.map(p => p.name)).toEqual(['Owner', 'Guest']);
+  });
+
+  test('no-show helpers return empty values while feature flag is disabled', () => {
+    const event = { id: 'evt3', current: 0, realCurrent: 0, max: 10, teamReservationSummaries: [] };
+    const app = loadEventNoshowModule({ event, registrations: [], noShowFeatureEnabled: false });
+
+    expect(app._buildRawNoShowCountByUid().size).toBe(0);
+    expect(app._buildNoShowCountByUid().size).toBe(0);
+    expect(app._getRawNoShowCount('uid1')).toBe(0);
+    expect(app._getEffectiveNoShowCount('uid1')).toBe(0);
+    expect(app._getNoShowDetailsByUid('uid1')).toEqual([]);
+    expect(app._getParticipantNoShowCount({ uid: 'uid1' }, new Map([['uid1', 3]]))).toBeNull();
   });
 });

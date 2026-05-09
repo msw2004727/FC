@@ -296,3 +296,8 @@
 - `js/modules/event/event-manage*.js`、`js/modules/scan/*`：自己的活動管理、掃碼、手動簽到、候補與委託人操作改走細分 capability。
 - `firestore.rules`：`roleActivityCapabilities/{roleId}` 只能 super_admin 寫入；一般 user 建立/編輯活動與現場操作皆有 owner/delegate + capability 檢查。
 - `functions/index.js`：Admin SDK callable 不依賴 Firestore Rules，需同步讀取 `roleActivityCapabilities` 檢查 owner/delegate 現場操作。
+## 目前暫停功能（2026-05-09）
+
+- 放鴿子功能以 feature flag 軟關閉，主要開關為前端 `js/config.js` 的 `NO_SHOW_FEATURE_ENABLED` 與後端 `functions/index.js` 的同名常數。
+- 活動詳細頁放鴿子欄位、用戶補正管理放鴿子頁籤、資料同步放鴿子重算、Dashboard 放鴿子排行、Auto EXP `noshow_penalty` 都應在 flag 關閉時隱藏或跳過。
+- 歷史資料與計畫書不刪除；若要恢復功能，先同步開啟前後端 flag，再更新 cache version 與部署 functions。
