@@ -325,8 +325,15 @@ describe('Team reservation button loading contract', () => {
     expect(signupSource).toContain('_syncEventSignupScrollLock()');
     expect(signupSource).toContain('_releaseEventSignupScrollLock()');
     expect(signupSource).toContain("document.body.classList.remove('modal-open')");
+    expect(signupSource).toContain("document.body.style.overflow = ''");
+    expect(signupSource).toContain("'#companion-cancel-overlay'");
+    expect(signupSource).toContain("modal.style?.display === 'none'");
     expect(signupSource).toContain('this._releaseEventSignupScrollLock?.();');
     expect(companionSource).toContain('this._syncEventSignupScrollLock?.();');
+    const companionToggleSource = companionSource.slice(companionSource.lastIndexOf('async _confirmCompanionRegisterUnlocked'));
+    expect(companionToggleSource).toContain('this._releaseEventSignupScrollLock?.();');
+    expect(companionToggleSource).toContain('finally');
+    expect(companionToggleSource).toContain('this._syncEventSignupScrollLock?.();');
     expect(activityCss).toContain('.ln-prompt-overlay');
     expect(activityCss).toContain('overflow-y: auto');
     expect(activityCss).toContain('-webkit-overflow-scrolling: touch');

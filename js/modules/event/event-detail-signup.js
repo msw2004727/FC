@@ -355,12 +355,20 @@ Object.assign(App, {
       '#team-reservation-modal',
       '#team-reservation-signup-choice-modal',
       '#companion-select-overlay',
-    ].some(selector => document.querySelector(selector)?.classList?.contains('open'));
+      '#companion-cancel-overlay',
+      '#app-confirm-modal',
+    ].some(selector => {
+      const modal = document.querySelector(selector);
+      if (!modal?.classList?.contains('open')) return false;
+      if (modal.style?.display === 'none') return false;
+      return true;
+    });
   },
 
   _syncEventSignupScrollLock() {
     if (!this._isEventSignupModalOpen?.()) {
       document.body.classList.remove('modal-open');
+      if (document.body.style?.overflow === 'hidden') document.body.style.overflow = '';
     }
   },
 
@@ -369,11 +377,12 @@ Object.assign(App, {
       'team-reservation-modal',
       'team-reservation-signup-choice-modal',
       'companion-select-overlay',
+      'companion-cancel-overlay',
     ].forEach(id => {
       const modal = document.getElementById(id);
       if (!modal) return;
       modal.classList.remove('open');
-      if (id === 'companion-select-overlay') modal.style.display = 'none';
+      if (id === 'companion-select-overlay' || id === 'companion-cancel-overlay') modal.style.display = 'none';
     });
     this._syncEventSignupScrollLock?.();
   },
@@ -1268,12 +1277,14 @@ Object.assign(App, {
   _patchDetailAfterSignup(eventId) {
     this._refreshSignupButton(eventId);
     this._patchDetailTables(eventId);
+    this._syncEventSignupScrollLock?.();
   },
 
   /** 取消成功後：更新按鈕 + 名單 + 人數 */
   _patchDetailAfterCancel(eventId) {
     this._refreshSignupButton(eventId);
     this._patchDetailTables(eventId);
+    this._syncEventSignupScrollLock?.();
   },
 
   /**

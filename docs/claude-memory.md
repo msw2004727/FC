@@ -2274,3 +2274,8 @@
 - **Issue**: The create activity form still displayed the advanced section as `進階功能（加值服務）`, which was longer than the requested concise label.
 - **Fix**: Renamed the create activity section title to `進階功能` while keeping permission-management wording unchanged.
 - **Validation**: Updated the label source contract test and ran the targeted unit test.
+
+### 2026-05-09 Companion Signup Scroll Freeze [bugfix]
+- **Issue**: The newer companion signup toggle flow refreshed the activity detail screen after success but did not always perform the final signup modal scroll-lock cleanup, so `body.modal-open` could remain and freeze scrolling.
+- **Fix**: Hardened event signup scroll-lock detection, included the companion cancel overlay in cleanup, cleared stale inline body overflow, and added explicit release/sync cleanup after companion toggle signup updates.
+- **Validation**: Added source contract coverage for the companion toggle cleanup path and scroll-lock fallback behavior.

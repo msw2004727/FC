@@ -118,6 +118,7 @@ Object.assign(App, {
       return await this._confirmCompanionRegisterUnlocked(opts, eventId);
     } finally {
       this._endEventActionBusy?.(busyKey);
+      this._syncEventSignupScrollLock?.();
       if (confirmBtn) {
         confirmBtn.disabled = false;
         confirmBtn.textContent = originalText || '確認';
@@ -850,6 +851,7 @@ Object.assign(App, {
       if (cancelled > 0) parts.push(`\u53d6\u6d88 ${cancelled} \u4eba`);
       this.showToast(parts.length ? `\u5925\u4f34\u5831\u540d\u5df2\u66f4\u65b0\uff1a${parts.join('\u3001')}` : '\u5925\u4f34\u5831\u540d\u5df2\u66f4\u65b0');
       this.showEventDetail(eventId);
+      this._releaseEventSignupScrollLock?.();
     } catch (err) {
       console.error('[_confirmCompanionRegister toggle]', err);
       const errCode = err?.details || err?.message || '';
@@ -873,6 +875,8 @@ Object.assign(App, {
         PROFILE_INCOMPLETE: '\u8acb\u5148\u88dc\u9f4a\u500b\u4eba\u8cc7\u6599',
       };
       this.showToast(msgMap[errCode] || err.message || '\u5925\u4f34\u5831\u540d\u8abf\u6574\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+    } finally {
+      this._syncEventSignupScrollLock?.();
     }
   },
 
