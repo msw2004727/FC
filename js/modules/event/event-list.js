@@ -109,9 +109,9 @@ Object.assign(App, {
     if (e.status === 'ended' || e.status === 'cancelled') return '';
     const pred = this._calcHeatPrediction(e);
     if (!pred) return '';
-    const colors = { hot: '#dc2626', warm: '#f59e0b', normal: '#3b82f6', cold: '#6b7280' };
-    const labels = { hot: '極熱門 — 預計快速額滿', warm: '熱門 — 報名踴躍', normal: '一般 — 正常報名中', cold: '冷門 — 名額充裕' };
-    return `<div class="detail-row"><span class="detail-label">熱度</span><span style="color:${colors[pred]};font-weight:600">${labels[pred]}</span></div>`;
+    const colors = { hot: '#dc2626', warm: '#f59e0b', normal: '#3b82f6', cold: '#059669' };
+    const labels = { hot: '高人氣即將額滿', warm: '報名熱烈增加中', normal: '穩定開放報名中', cold: '潛力場次招募中' };
+    return `<div class="detail-row"><span class="detail-label">熱度</span><span style="color:${colors[pred]};font-weight:600;white-space:nowrap">${labels[pred]}</span></div>`;
   },
 
   _calcHeatPrediction(e) {

@@ -42,7 +42,7 @@ Object.assign(App, {
     ];
     const _heat = this._calcHeatPrediction?.(event);
     if (_heat) {
-      const _heatLabels = { hot: '極熱門 — 預計快速額滿', warm: '熱門 — 報名踴躍', normal: '一般 — 正常報名中', cold: '冷門 — 名額充裕' };
+      const _heatLabels = { hot: '高人氣即將額滿', warm: '報名熱烈增加中', normal: '穩定開放報名中', cold: '潛力場次招募中' };
       lines.push('熱度：' + (_heatLabels[_heat] || ''));
     }
     lines.push(liffUrl);
@@ -111,7 +111,7 @@ Object.assign(App, {
     }
     const _flexHeat = this._calcHeatPrediction?.(event);
     if (_flexHeat) {
-      const _flexHeatLabels = { hot: '極熱門 — 預計快速額滿', warm: '熱門 — 報名踴躍', normal: '一般 — 正常報名中', cold: '冷門 — 名額充裕' };
+      const _flexHeatLabels = { hot: '高人氣即將額滿', warm: '報名熱烈增加中', normal: '穩定開放報名中', cold: '潛力場次招募中' };
       infoContents.push(this._buildFlexInfoRow('熱度', _flexHeatLabels[_flexHeat] || ''));
     }
     if (event.feeEnabled && event.fee > 0) {

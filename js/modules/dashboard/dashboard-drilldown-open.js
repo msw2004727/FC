@@ -135,7 +135,7 @@ Object.assign(App, {
         .sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0))
         .slice(0, 10);
 
-      // 冷門搶救（3 天內開始 & 填滿率 < 30%）
+      // 潛力加溫（3 天內開始 & 填滿率 < 30%）
       const now = Date.now();
       const cold = events.filter(e => {
         if (!e.max || e.max <= 0) return false;
@@ -168,11 +168,11 @@ Object.assign(App, {
             <span class="dash-rank-name">${escapeHTML(e.title || '(無標題)')}</span>
             <span class="dash-rank-val">${e.current}/${e.max}</span>
           </div>`).join('')
-        : '<div class="dash-empty">無冷門活動</div>';
+        : '<div class="dash-empty">目前沒有潛力加溫活動</div>';
 
       let html = this._dashSection('熱度 Top 10', hotHtml);
       html += this._dashSection('瀏覽數 Top 10', viewHtml, '資料累積中');
-      html += this._dashSection('冷門搶救名單（3 天內開始 &amp; 填滿率 &lt; 30%）', coldHtml);
+      html += this._dashSection('潛力加溫名單（3 天內開始 &amp; 填滿率 &lt; 30%）', coldHtml);
       return html;
     };
 
