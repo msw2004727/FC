@@ -34,7 +34,7 @@ describe('activity social links add-on', () => {
     expect(optionsSource).toContain('_getEventSocialLinksFormData');
     expect(optionsSource).toContain("matches('line.me', 'lin.ee')");
     expect(optionsSource).toContain("matches('instagram.com')");
-    expect(optionsSource).toContain("matches('threads.net')");
+    expect(optionsSource).toContain("matches('threads.net', 'threads.com')");
     expect(optionsSource).toContain("matches('youtube.com', 'youtu.be')");
     expect(optionsSource).toContain('Instagram-Logo--Streamline-Plump-Gradient.png');
     expect(optionsSource).toContain('Threads-Logo-Fill--Streamline-Phosphor-Fill.png');
@@ -66,6 +66,8 @@ describe('activity social links add-on', () => {
     expect(activityCss).toContain('width: 1.72rem');
     expect(activityCss).toContain('.event-social-link-icon-line');
     expect(activityCss).toContain('.event-social-link-icon-instagram img');
+    expect(activityCss).toContain('width: 138%');
+    expect(activityCss).toContain('object-fit: cover');
     expect(activityCss).toContain('.event-social-link-icon-threads img');
     expect(activityCss).toContain('[data-theme="dark"] .event-social-link-btn');
     expect(baseCss).toContain('.ce-social-link-row');

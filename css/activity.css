@@ -663,13 +663,24 @@
 }
 .event-social-link-icon-line { background: #06c755; font-size: .47rem; }
 .event-social-link-icon-facebook { background: #1877f2; font-family: Arial, sans-serif; font-size: .92rem; }
-.event-social-link-icon-instagram,
+.event-social-link-icon-instagram {
+  background: #ffffff;
+  padding: 0;
+  overflow: hidden;
+}
+.event-social-link-icon-instagram img {
+  display: block;
+  width: 138%;
+  height: 138%;
+  max-width: none;
+  flex: 0 0 auto;
+  object-fit: cover;
+}
 .event-social-link-icon-threads {
   background: #ffffff;
   padding: .18rem;
   overflow: hidden;
 }
-.event-social-link-icon-instagram img,
 .event-social-link-icon-threads img {
   display: block;
   width: 100%;

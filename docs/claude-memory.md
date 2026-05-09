@@ -2288,3 +2288,8 @@
 - **Issue**: Activity social links could detect Instagram and Threads domains, but those activity buttons used text-style fallbacks instead of the provided brand icon assets.
 - **Fix**: Rendered Instagram and Threads activity social buttons with local PNG assets and included both files in the Service Worker static cache list.
 - **Validation**: Updated source contract coverage for Instagram/Threads domain detection and image-backed icons.
+
+### 2026-05-09 Activity Social Links Icon Polish [bugfix]
+- **Issue**: Threads links on `threads.com` fell back to the generic link arrow, and the Instagram PNG was rendered with padding/contain sizing that left visible whitespace.
+- **Fix**: Added `threads.com` to activity social link domain detection and changed Instagram icon rendering to zoom/crop inside the circular button.
+- **Validation**: Updated source contract coverage and reran targeted unit checks.

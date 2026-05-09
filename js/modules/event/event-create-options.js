@@ -639,7 +639,7 @@ Object.assign(App, {
     if (matches('line.me', 'lin.ee')) return { key: 'line', label: 'LINE', icon: 'LINE', host };
     if (matches('facebook.com', 'fb.com', 'messenger.com', 'm.me')) return { key: 'facebook', label: 'Facebook', icon: 'f', host };
     if (matches('instagram.com')) return { key: 'instagram', label: 'Instagram', icon: 'IG', host };
-    if (matches('threads.net')) return { key: 'threads', label: 'Threads', icon: '@', host };
+    if (matches('threads.net', 'threads.com')) return { key: 'threads', label: 'Threads', icon: '@', host };
     if (matches('x.com', 'twitter.com')) return { key: 'x', label: 'X', icon: 'X', host };
     if (matches('youtube.com', 'youtu.be')) return { key: 'youtube', label: 'YouTube', icon: '▶', host };
     if (matches('tiktok.com')) return { key: 'tiktok', label: 'TikTok', icon: '♪', host };
