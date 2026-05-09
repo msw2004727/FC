@@ -918,6 +918,10 @@
 .detail-cover-ribbon-watch    { background: linear-gradient(135deg, #f59e0b, #d97706); }
 .detail-cover-edit-btn {
   position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .28rem;
   right: 10px;
   bottom: 10px;
   z-index: 3;
@@ -933,6 +937,11 @@
   cursor: pointer;
   opacity: .75;
   box-shadow: 0 8px 18px rgba(220, 38, 38, .22);
+}
+.detail-cover-edit-icon {
+  width: .88rem;
+  height: .88rem;
+  flex: 0 0 auto;
 }
 .detail-cover-edit-btn:hover {
   background: linear-gradient(135deg, #f05252 0%, #b91c1c 100%);
@@ -961,6 +970,10 @@
     min-height: 27px;
     padding: 0 .58rem;
     font-size: .7rem;
+  }
+  .detail-cover-edit-icon {
+    width: .82rem;
+    height: .82rem;
   }
 }
 

@@ -59,7 +59,8 @@ Object.assign(App, {
       ? this._canEditExternalActivity?.(eventRecord)
       : this._canEditOwnActivityBasic?.(eventRecord);
     if (canEdit !== true) return '';
-    return `<button type="button" class="detail-cover-edit-btn" data-event-id="${escapeHTML(eventId)}" onclick="event.stopPropagation();App.editMyActivity(this.dataset.eventId)">活動編輯</button>`;
+    const editIconHtml = '<svg class="detail-cover-edit-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.4 2.6a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4 9.4-9.4z"/></svg>';
+    return `<button type="button" class="detail-cover-edit-btn" data-event-id="${escapeHTML(eventId)}" onclick="event.stopPropagation();App.editMyActivity(this.dataset.eventId)">${editIconHtml}<span>活動編輯</span></button>`;
   },
 
   _renderEventDetailCover(eventRecord) {

@@ -282,9 +282,11 @@ describe('Activity detail cover edit button permissions', () => {
 
   test('renders the cover edit button only for logged-in users with edit permission', () => {
     const app = loadEventDetailModule({ currentUser: { uid: 'U1' }, canEdit: true });
+    const html = app._renderEventDetailEditButton({ id: 'event-1', type: 'friendly' });
 
-    expect(app._renderEventDetailEditButton({ id: 'event-1', type: 'friendly' }))
-      .toContain('detail-cover-edit-btn');
+    expect(html).toContain('detail-cover-edit-btn');
+    expect(html).toContain('detail-cover-edit-icon');
+    expect(html).toContain('活動編輯');
   });
 });
 
