@@ -139,6 +139,52 @@ Object.assign(App, {
     </div>`;
   },
 
+  _renderBannerFixedContent(b = {}) {
+    const title = b.title || '\u4e0b\u73ed\u63ea\u4eba\u4e00\u8d77\u52d5';
+    const subtitle = b.subtitle || '\u627e\u6d3b\u52d5\u3001\u958b\u5718\u3001\u52a0\u5165\u5831\u540d\uff0c\u4e00\u500b\u5730\u65b9\u5b8c\u6210\u3002';
+    const titleColor = this._safeBannerColor(b.titleColor, '#ffffff');
+    const subtitleColor = this._safeBannerColor(b.subtitleColor, '#e5edf8');
+    return `<div class="banner-content banner-fixed-content" style="--banner-title-color:${titleColor};--banner-subtitle-color:${subtitleColor}">
+      ${this._renderBannerRegionSelect()}
+      <div class="banner-copy">
+        <h2>${escapeHTML(title)}</h2>
+        <p>${escapeHTML(subtitle)}</p>
+        <div class="banner-actions">
+          <button class="banner-find-btn" type="button" onclick="event.stopPropagation();App.openHomeActivitySearchModal?.()">
+            <span>\u627e\u6d3b\u52d5</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          </button>
+          <button class="primary-btn small home-create-event-btn banner-create-event-btn" type="button" onclick="event.stopPropagation();App.openHomeCreateEvent?.()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+            <span>\u6211\u8981\u958b\u5718</span>
+          </button>
+        </div>
+      </div>
+    </div>`;
+  },
+
+  _ensureBannerFixedOverlay(banners) {
+    const carousel = document.querySelector('.banner-carousel');
+    if (!carousel) return;
+    const existing = carousel.querySelector('.banner-fixed-content');
+    const source = Array.isArray(banners) && banners.length ? banners[0] : null;
+    if (!source) {
+      if (existing) existing.remove();
+      return;
+    }
+    const html = this._renderBannerFixedContent(source);
+    if (existing) {
+      existing.outerHTML = html;
+      return;
+    }
+    const dots = document.getElementById('banner-dots');
+    if (dots) {
+      dots.insertAdjacentHTML('beforebegin', html);
+    } else {
+      carousel.insertAdjacentHTML('beforeend', html);
+    }
+  },
+
   renderBannerCarousel(options = {}) {
     const track = document.getElementById('banner-track');
     if (!track) return;
@@ -147,6 +193,7 @@ Object.assign(App, {
     const fingerprint = this._getBannerRenderFingerprint(banners);
     if (this._bannerRenderFingerprint === fingerprint && track.querySelector('.banner-slide')) {
       this.bannerCount = track.querySelectorAll('.banner-slide').length;
+      this._ensureBannerFixedOverlay(banners);
       this._ensureBannerSlideImages(track);
       this._bindBannerCarouselControls();
       if (autoplay) {
@@ -159,6 +206,7 @@ Object.assign(App, {
     this._bannerRenderFingerprint = fingerprint;
 
     if (banners.length === 0) {
+      this._ensureBannerFixedOverlay([]);
       track.innerHTML = `<div class="banner-slide skeleton-slide">
         <div class="banner-skeleton skeleton"></div>
       </div>`;
@@ -170,15 +218,13 @@ Object.assign(App, {
           : '';
         if (b.image) {
           // 先不設 background-image，等預載+解碼完成後再淡入
-          return `<div class="banner-slide banner-slide--loading" data-bg-src="${escapeHTML(b.image)}" data-banner-priority="${idx === 0 ? 'high' : 'normal'}" ${clickHandler}>
-            ${this._renderBannerSlideContent(b)}
-          </div>`;
+          return `<div class="banner-slide banner-slide--loading" data-bg-src="${escapeHTML(b.image)}" data-banner-priority="${idx === 0 ? 'high' : 'normal'}" ${clickHandler}></div>`;
         }
         return `<div class="banner-slide banner-placeholder" style="background:${b.gradient || 'var(--bg-elevated)'}" ${clickHandler}>
-          ${this._renderBannerSlideContent(b)}
           <div class="banner-img-placeholder">1200 × 545</div>
         </div>`;
       }).join('');
+      this._ensureBannerFixedOverlay(banners);
       // 預載 banner 圖片：背景載入+解碼完成後才設 background-image 並淡入
       this._ensureBannerSlideImages(track);
     }

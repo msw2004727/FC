@@ -702,10 +702,18 @@
       });
       const modalRegion = document.getElementById('home-search-region');
       if (modalRegion) modalRegion.value = safeRegion;
-      if (this.currentPage === 'page-activities' && typeof this.switchRegionTab === 'function') {
+      if (options.syncActivities !== false && this.currentPage === 'page-activities' && typeof this.switchRegionTab === 'function') {
         this.switchRegionTab(safeRegion);
       }
       return safeRegion;
+    },
+
+    resetHomeEntryFilters() {
+      this.setHomeBannerRegion?.('全部', { persist: true, syncActivities: false });
+      this.setActiveSportFilter?.('all', { render: false });
+      document.querySelectorAll('.home-sport-chip[data-home-sport]').forEach(item => {
+        item.classList.toggle('active', item.dataset.homeSport === 'all');
+      });
     },
 
     _ensureHomeActivitySearchModal() {

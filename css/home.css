@@ -19,10 +19,11 @@
 .banner-arrow-left { left: .5rem; }
 .banner-arrow-right { right: .5rem; }
 .banner-content { position: relative; z-index: 1; color: #fff; width: 100%; min-height: 100%; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: .65rem; pointer-events: none; }
+.banner-fixed-content { position: absolute; inset: 0; z-index: 3; box-sizing: border-box; padding: clamp(.72rem, 2.4vw, 1.1rem); }
 .banner-tag { display: inline-block; padding: .2rem .6rem; border-radius: var(--radius-full); background: rgba(255,255,255,.2); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); font-size: .7rem; font-weight: 600; margin-bottom: .4rem; }
 .banner-content h2 { font-family: var(--font-display); font-size: clamp(1.45rem, 5vw, 2.42rem); font-weight: 900; line-height: 1.08; margin: 0; color: var(--banner-title-color, #fff); letter-spacing: 0; text-shadow: 0 2px 12px rgba(0,0,0,.28); }
 .banner-content p { font-size: clamp(.76rem, 2.1vw, .98rem); opacity: .95; color: var(--banner-subtitle-color, #e5edf8); margin: .35rem 0 0; line-height: 1.45; max-width: 26rem; text-shadow: 0 1px 8px rgba(0,0,0,.25); }
-.banner-dots { position: absolute; bottom: .6rem; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; z-index: 2; }
+.banner-dots { position: absolute; right: .72rem; bottom: .58rem; left: auto; transform: none; display: flex; gap: 6px; z-index: 4; }
 .banner-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.35); cursor: pointer; transition: all var(--transition); }
 .banner-dot.active { background: #fff; width: 20px; border-radius: 4px; }
 
@@ -1139,6 +1140,10 @@ body.home-activity-search-open {
 @media (max-width: 520px) {
   .banner-slide {
     aspect-ratio: 2.2 / 1;
+    padding: .62rem;
+  }
+
+  .banner-fixed-content {
     padding: .62rem;
   }
 

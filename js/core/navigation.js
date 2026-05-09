@@ -375,6 +375,7 @@ Object.assign(App, {
           return;
         }
         this.pageHistory = [];
+        if (page === 'page-home') this.resetHomeEntryFilters?.();
         void this.showPage(page);
         document.querySelectorAll('.bot-tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');

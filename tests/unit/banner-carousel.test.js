@@ -85,6 +85,8 @@ describe('home banner carousel image loading', () => {
 
     const slides = Array.from(document.querySelectorAll('.banner-slide'));
     expect(slides).toHaveLength(3);
+    expect(document.querySelector('.banner-fixed-content')).not.toBeNull();
+    expect(document.querySelectorAll('.banner-slide .banner-content')).toHaveLength(0);
     expect(createdImages).toHaveLength(3);
     expect(createdImages.some(img => img.loading === 'lazy')).toBe(false);
 

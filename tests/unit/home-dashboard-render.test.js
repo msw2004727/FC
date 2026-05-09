@@ -27,6 +27,14 @@ const adManageBannerSource = fs.readFileSync(
   path.join(__dirname, "../../js/modules/ad-manage/ad-manage-banner.js"),
   "utf8"
 );
+const bannerSource = fs.readFileSync(
+  path.join(__dirname, "../../js/modules/banner.js"),
+  "utf8"
+);
+const navigationSource = fs.readFileSync(
+  path.join(__dirname, "../../js/core/navigation.js"),
+  "utf8"
+);
 
 function runHomeDashboardModule(options = {}) {
   const dom = new JSDOM(`<!doctype html>
@@ -90,6 +98,8 @@ function runHomeDashboardModule(options = {}) {
 describe("home-dashboard browser binding", () => {
   test("home banner restores original height and owns activity search/create actions", () => {
     expect(homeCssSource).toMatch(/\.banner-slide\s*\{[\s\S]*aspect-ratio:\s*2\.2\s*\/\s*1/);
+    expect(homeCssSource).toContain(".banner-fixed-content");
+    expect(homeCssSource).toMatch(/\.banner-dots\s*\{[\s\S]*right:\s*\.72rem[\s\S]*left:\s*auto[\s\S]*transform:\s*none/);
     expect(homeCssSource).toContain(".banner-region-control");
     expect(homeCssSource).toContain(".banner-find-btn");
     expect(homeCssSource).toContain(".home-activity-search-overlay");
@@ -116,6 +126,8 @@ describe("home-dashboard browser binding", () => {
     expect(adManageBannerSource).toContain("banner-input-subtitle");
     expect(adManageBannerSource).toContain("titleColor");
     expect(adManageBannerSource).toContain("outputWidth: 1200");
+    expect(bannerSource).toContain("_ensureBannerFixedOverlay(banners)");
+    expect(bannerSource).toContain("banner-content banner-fixed-content");
     expect(homeHtmlSource).toContain("home-watch-party-card");
     expect(homeHtmlSource).toContain("App.openHomeWatchParty()");
     expect(homeHtmlSource).not.toContain("home-watch-party-action");
@@ -133,6 +145,23 @@ describe("home-dashboard browser binding", () => {
     expect(adManageBannerSource).toContain("renderWatchPartyBgManage()");
     expect(adManageBannerSource).toContain("bindImageUpload('watch-party-bg-image', 'watch-party-bg-preview'");
     expect(adManageBannerSource).toContain("aspectRatio: 5");
+  });
+
+  test("bottom home tab resets sport and region filters without touching activity page state", () => {
+    expect(navigationSource).toContain("if (page === 'page-home') this.resetHomeEntryFilters?.();");
+    const { app, dom } = runHomeDashboardModule();
+    app.currentPage = "page-activities";
+    app.switchRegionTab = jest.fn();
+
+    app.setActiveSportFilter("football", { render: false });
+    app.setHomeBannerRegion("北部", { persist: true, syncActivities: false });
+    app.resetHomeEntryFilters();
+
+    expect(app._activeSport).toBe("all");
+    expect(dom.window.localStorage.getItem("sporthub_active_sport")).toBe("all");
+    expect(app.getHomeBannerRegion()).toBe("全部");
+    expect(dom.window.localStorage.getItem("toosterx_home_activity_region")).toBe("全部");
+    expect(app.switchRegionTab).not.toHaveBeenCalled();
   });
 
   test("renders active watch party background onto the home card", () => {
