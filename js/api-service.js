@@ -1647,6 +1647,12 @@ const ApiService = {
 
   isNewsVisible() {
     var cfg = this.getGameConfigs().find(function (c) { return c.gameKey === 'news-section' || c.id === 'news-section'; });
+    if (!cfg) {
+      var gameConfigsLoaded = typeof FirebaseService !== 'undefined'
+        && FirebaseService._lazyLoaded
+        && FirebaseService._lazyLoaded.gameConfigs === true;
+      return gameConfigsLoaded ? true : false;
+    }
     return !cfg || cfg.homeVisible !== false;
   },
 

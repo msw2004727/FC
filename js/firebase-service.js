@@ -499,6 +499,14 @@ const FirebaseService = {
           case 'announcements':
             App.renderAnnouncement?.();
             break;
+          case 'gameConfigs':
+            App.renderHomeGameShortcut?.();
+            App.renderNewsToggle?.();
+            App.renderNews?.();
+            break;
+          case 'newsArticles':
+            App.renderNews?.();
+            break;
           case 'teams':
             if (App.currentPage === 'page-teams') App.renderTeamList?.();
             break;
@@ -1205,7 +1213,7 @@ const FirebaseService = {
         App.applySiteThemes?.();
       }
       if (App.currentPage === 'page-home'
-        && ['banners', 'announcements', 'events', 'floatingAds', 'popupAds', 'sponsors', 'tournaments', 'gameConfigs']
+        && ['banners', 'announcements', 'events', 'floatingAds', 'popupAds', 'sponsors', 'tournaments', 'gameConfigs', 'newsArticles']
           .some(name => loaded.has(name))) {
         var _s = window.scrollY || window.pageYOffset || 0;
         if (loaded.has('banners')) {
@@ -1218,7 +1226,11 @@ const FirebaseService = {
         if (loaded.has('sponsors')) App.renderSponsors?.();
         if (loaded.has('floatingAds')) App.renderFloatingAds?.();
         if (loaded.has('popupAds')) App.showPopupAdsOnLoad?.();
-        if (loaded.has('gameConfigs')) App.renderHomeGameShortcut?.();
+        if (loaded.has('gameConfigs')) {
+          App.renderHomeGameShortcut?.();
+          App.renderNews?.();
+        }
+        if (loaded.has('newsArticles')) App.renderNews?.();
         if (_s > 0) requestAnimationFrame(function() { window.scrollTo(0, _s); });
       }
       // teams 載入後刷新賽事中心建立按鈕（解決首次進入時按鈕不顯示的時序問題）
