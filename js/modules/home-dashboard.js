@@ -294,9 +294,10 @@
     const raw = (typeof ApiService !== 'undefined' && typeof ApiService.getHomeInfoSettings === 'function')
       ? (ApiService.getHomeInfoSettings() || {})
       : {};
+    const hasManagedConfig = Object.keys(raw).length > 0;
     const labels = raw.labels && typeof raw.labels === 'object' ? raw.labels : {};
     return {
-      status: String(raw.status || 'active'),
+      status: hasManagedConfig ? String(raw.status || 'active') : 'pending',
       labels: {
         activities: String(labels.activities || raw.activityLabel || HOME_INFO_DEFAULT_LABELS.activities).trim() || HOME_INFO_DEFAULT_LABELS.activities,
         teams: String(labels.teams || raw.teamLabel || HOME_INFO_DEFAULT_LABELS.teams).trim() || HOME_INFO_DEFAULT_LABELS.teams,

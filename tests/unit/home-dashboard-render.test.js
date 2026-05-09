@@ -227,6 +227,7 @@ describe("home-dashboard browser binding", () => {
     const { app, dom, context } = runHomeDashboardModule({
       apiService: {
         getWatchPartyBg: () => ({ id: "watch-party-bg", status: "active", linkType: "activities" }),
+        getHomeInfoSettings: () => ({ id: "home-info", status: "active" }),
         updateWatchPartyBg: jest.fn(),
       },
     });
@@ -261,6 +262,16 @@ describe("home-dashboard browser binding", () => {
     expect(dom.window.document.querySelectorAll(".home-sport-views")).toHaveLength(1);
     expect(dom.window.document.querySelectorAll(".home-info-views")).toHaveLength(0);
     expect(dom.window.document.querySelector('[data-stat="activities"] .home-stat-views')).toBeNull();
+  });
+
+  test("keeps home info hidden until the managed visibility setting is loaded", () => {
+    const { app, dom } = runHomeDashboardModule();
+
+    app.renderHomeDashboard();
+
+    const section = dom.window.document.querySelector(".home-info-dashboard-section");
+    expect(section.classList.contains("is-hidden")).toBe(true);
+    expect(dom.window.document.getElementById("home-info-meter").innerHTML).toBe("");
   });
 
   test("applies editable home info labels, colors, font size, and visibility", () => {

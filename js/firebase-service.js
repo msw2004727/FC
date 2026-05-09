@@ -494,6 +494,7 @@ const FirebaseService = {
           case 'banners':
             App.renderBannerCarousel?.();
             App.renderHomeWatchPartyCard?.();
+            App.renderHomeDashboard?.();
             break;
           case 'announcements':
             App.renderAnnouncement?.();
