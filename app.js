@@ -493,7 +493,6 @@ const App = {
     this.renderAnnouncement();
     this.renderHomeNextActivity?.();
     this.renderHomeDashboard?.();
-    this.renderHomeScoreboardPreview?.();
     this._renderHomeVersionTag();
     this._showSlowNetHint();
     this._markPageSnapshotReady('page-home');

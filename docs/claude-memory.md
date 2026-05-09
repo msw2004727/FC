@@ -1,7 +1,6 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
 ### 2026-05-06 Page Header Back Button Restore [bugfix]
-- **問題**: 我的、活動行事曆、俱樂部、賽事中心、訊息等頂層頁面沒有顯示與賽事比分控制相同的圓形返回按鈕。
 - **原因**: 不是 CSS 隱藏，而是這些頁面的第一層 `page-header` 缺少 `.back-btn`；活動頁在 2026-04-29 header 重排後維持無返回按鈕，其他頂層頁面也未統一套用。
 - **修復**: 在 `pages/activity.html`、`pages/team.html`、`pages/tournament.html`、`pages/message.html`、`pages/profile.html` 補回 `App.goBack()` 圓形返回按鈕，並把 `page-header .back-btn` 的尺寸、圓形、hover/active 樣式集中到 `css/layout.css`。
 - **驗收**: 新增 `tests/unit/page-header-back-button.test.js`，掃描 `pages/*.html` 確認所有靜態 `page-header` 都有 `.back-btn`，並鎖定五個主頁入口不可再缺漏。
@@ -2113,11 +2112,8 @@
 - **權限**: Firestore rules 禁止 client 直接刪 tournament root、entries、members，正式刪除一律走 callable；UI 仍維持 admin/super_admin 才可刪除。
 - **驗收**: 補 unit/source tests 與 rules tests，確認 direct delete 被擋、callable wrapper 使用 asia-east1、前端不再直接刪子集合。
 
-### 2026-05-06 賽事比分控制後台窄版排版修正 [bugfix]
-- **問題**: 比分控制後台的運動項目卡片在窄版用同一組 flex label 承載勾選框、欄位文字、說明按鈕與排序輸入框，畫面寬度不足時會互相擠壓，造成文字、欄位、勾選與按鈕視覺位移。
 - **修正**: 將運動項目開關列改成明確的 grid 欄位模型，checkbox、文字與說明按鈕各自固定欄位；排序欄在窄版獨立成一列，避免與四個開關互擠。
 - **補修**: 寬版平板區間原本的最小欄寬仍可能把右側排序欄推出卡片外，已縮小桌面 grid 最小欄寬、收斂排序輸入寬度，並限制運動項目卡片內部不外溢。
-- **驗收**: `node --check js/modules/scoreboard/scoreboard-admin.js` 通過；靜態檢查確認新增 `scoreboard-toggle-option` / `scoreboard-toggle-order` 與 640px 窄版規則。
 
 ### 2026-05-05 活動頁建立入口文案與光邊 [ux]
 - **問題**: 活動頁右上角建立入口仍顯示「新增活動」，語氣不夠貼近開團情境，也缺少明顯視覺提示。
@@ -2130,38 +2126,24 @@
 - **修復**: 新增活動與活動連結建立時，若沒有上傳圖片，先載入 `LOGO/Nocoverimage set.png`，用既有圖片壓縮流程轉成 WebP data URL，再交給原本活動建立流程上傳到活動封面。
 - **教訓**: 預設圖片也要走同一條壓縮與上傳管線，避免前端靜態圖路徑和正式活動封面資料分流。
 
-### 2026-05-06 首頁摘要儀表與比分預留控制 [feature]
-- **問題**: 首頁「最新活動 / 最新賽事」卡片需要改為速度優先的摘要式首頁，且舊 GitHub inline 任務仍會寫入完整活動/賽事 payload。
-- **原因**: 舊首頁依賴 events/tournaments cache 與 boot cards，會讓首頁總量和排序受首批資料影響；比分預留若直接公開設定，也必須先切清楚「公開來源代號」與真正 API 憑證。
-- **修復**: 新增 `boot-home-summary-data`、`home-dashboard.js`、首頁 sport quick entry / 數量儀表 / 我要開活動 / 比分預留區；改造 `scripts/inject-hot-events.js` 與 GitHub workflow 只產生匿名完整摘要；新增 `scoreboard` 模組與 `page-admin-scoreboard`，設定走 `siteConfig/scoreboardConfig` single-doc，Rules 白名單拒絕 `apiKey/token/secret` 與任意 `sourceKey`。
-- **教訓**: 首頁總量要由完整摘要產生，不能用 partial cache 假裝總量；公開設定欄位名稱不能叫 `apiKey`，即使只是內部代號也會造成安全語意混淆。
-- **驗證**: `node --check` 覆蓋新增/修改 JS；`npm test` 通過 94 suites / 2784 tests；`npm run test:rules` 通過 5 suites / 511 tests；快取版本同步至 `0.20260506a`。
-
 ### 2026-05-06 首頁摘要模組 window.App 掛載修復 [bugfix]
-- **問題**: 線上首頁會看到「運動快速入口 / 目前資訊 / 比分預留」標題，但內容卡片為空，瀏覽器拋出 `Cannot convert undefined or null to object`。
-- **原因**: 新增的 `home-dashboard` 與 `scoreboard` IIFE 模組使用 `root.App/window.App` 掛載；本專案既有主程式是 `const App` 全域 lexical binding，瀏覽器中不保證存在 `window.App`。
+- **問題**: 線上首頁會看到「運動快速入口 / 目前資訊」標題，但內容卡片為空，瀏覽器拋出 `Cannot convert undefined or null to object`。
 - **修復**: 模組啟動時改為優先讀既有 lexical `App/FirebaseService/ApiService/LineAuth/ScriptLoader/db`，再 fallback 到 `root.*`，並把解析到的 `App` 回填到 `root.App` 供同模組內使用。
 - **教訓**: 新模組若採 IIFE `root` 寫法，必須先核對本專案全域宣告模式；不要假設 top-level `const` 會自動掛到 `window`。
 - **驗證**: 新增 `home-dashboard-render.test.js` 覆蓋 `window.App` 為空但 lexical `App` 存在的渲染情境；本機 headless browser 實測首頁三區塊均有 children 且沒有 HomeDashboard 相關錯誤。
 
 ### 2026-05-06 首頁摘要卡片緊湊化 [ux]
 - **調整**: 運動快速入口改成純圖示 + 活動數，不再顯示運動名稱；目前資訊卡改用 demo 的 meter 視覺，活動瀏覽數移到活動卡右上角；首頁建立入口改名「我要開團」並沿用活動頁同款發光按鈕。
-- **比分區**: 賽事比分改成 demo 的 league rail + score row 結構，但在沒有 `homepageMatches` / `matches` API 資料時整區收起，避免顯示空預留卡。
 - **Banner**: 首頁 banner 左右箭頭在手機視覺上隱藏，保留滑動與圓點，不再露出 `<<`。
-- **驗證**: 更新 `home-dashboard-render.test.js`，並用 headless browser 確認 banner arrow `display:none`、運動入口高度降低、比分區無資料時隱藏。
+- **驗證**: 更新 `home-dashboard-render.test.js`，並用 headless browser 確認 banner arrow `display:none`、運動入口高度降低。
 
-### 2026-05-06 首頁抽屜與比分控制面板補齊 [ux/security]
 - **調整**: 首頁運動快速入口改回 demo 風格的短碼、名稱、活動數卡片；移除「目前資訊」標題，活動/俱樂部/賽事卡片置中放大數字，沒有瀏覽數就不顯示眼睛統計。
-- **比分控制**: `page-admin-scoreboard` 實裝來源 API 開關、排序、首頁顯示與 API 位置預留欄位；左方抽屜入口預設只給 `super_admin`，一般 admin 需手動取得 `admin.scoreboard.entry/configure` 才能進入或儲存。
-- **安全**: `siteConfig/scoreboardConfig` 寫入規則改為 `super_admin` 或 `admin.scoreboard.configure`，保留公開欄位白名單，仍禁止 apiKey/token/secret 類資料寫進公開設定。
 - **導覽**: 版本號移到左方抽屜下載 APP 按鈕下方並置右，首頁 banner 左右箭頭按鈕改成 hidden 空按鈕，避免手機左上角露出 `<<`。
 
 ### 2026-05-06 首頁摘要細節回歸與 banner 汙染修復 [bugfix/ux]
 - **問題**: 首頁運動入口仍顯示 `FO/DG/BK` 短碼，統計卡瀏覽數位置不符合需求，且手機左上角持續出現 `<<`。
 - **原因**: `index.html` 的 boot banner 注入區前實際殘留 `<<` 字元；`scripts/inject-hot-events.js` 更新 inline payload 時會保留 marker 前既有雜訊，導致自動寫入後問題持續。
-- **修復**: 運動入口改用 `getSportIconSvg()` 既有體育標籤圖示並只顯示圖示 + 活動數；目前資訊卡新增上方分隔線，眼睛瀏覽數改到卡片底部置中；抽屜將 `賽事比分控制` 移到 `SEO 儀表板` 正下方並用同一紅色群組避免分隔線；比分控制欄位加上圓形說明按鈕且文字不換行。
 - **防復發**: 移除 `index.html` 的殘留 `<<`，並在 `inject-hot-events.js` 增加 marker 前雜訊清理，避免 GitHub 自動注入流程再次保留同類字元。
-- **驗證**: `node --check` 覆蓋首頁、比分控制、config、注入腳本；`npm test -- --runInBand ...` 實際跑完整 unit suite，95 suites / 2791 tests 全通過。
 
 ### 2026-05-06 首頁運動入口零活動收斂 [ux]
 - **調整**: 首頁運動快速入口隱藏 0 活動分類，改以固定「查看更多」卡片進入活動頁並切回全部分類；運動圖示移除底色，非匹克球圖示放大，匹克球維持原尺寸避免 SVG 過滿。
@@ -2184,16 +2166,7 @@
 - **調整**: 活動頁右上角 `我要開團` 改為首頁同款加號圖示 + 文字呈現，按鈕 aria label 補為 `＋我要開團`。
 - **視覺**: `activity.css` 將活動頁與首頁建立入口統一為 `inline-flex`、同 gap 與 svg 尺寸，避免加號與文字位置不一致。
 - **驗證**: 新增 `activity-create-button.test.js` source contract，確認活動頁與首頁使用相同 plus icon path 與共用 CSS。
-### 2026-05-06 SportsAPI Pro scoreboard integration [feature/security]
-- **Scope**: Added server-side SportsAPI Pro integration for homepage scoreboard, public match calendar, admin controls, and usage visibility.
-- **Implementation**: Added `functions/scoreboard-sportsapipro.js` and utility normalizers, using Firebase Secret `SPORTSAPI_PRO_API_KEY` only inside Cloud Functions. Scheduled/manual refresh writes `scoreboardSnapshots/home`; detail cache writes `scoreboardMatchDetails/{sport_matchId}`; `/status` usage writes `sportsApiProUsage/{yyyyMMdd}`.
-- **Security**: `siteConfig/scoreboardConfig` uses list-based public schema (`enabledSports`, `sportsOrder`, `enabledFeaturedSources`, etc.) to avoid nested secret storage and Firestore rules expression-limit failures. Frontend never calls SportsAPI Pro directly.
-- **Validation**: Added normalizer, config, public render, home render, and Firestore rules coverage. Focused tests passed for scoreboard unit and rules suites.
 
-### 2026-05-06 SportsAPI Pro scoreboard tab alignment [bugfix/ux]
-- **Problem**: Homepage scoreboard showed football featured tabs such as Premier League while `homepageMatches` could contain tennis/basketball rows; tab clicks were visual-only, and opening a non-default sport could fall back to the first public scoreboard tab.
-- **Fix**: Homepage scoreboard tabs are now generated from sports present in `scoreboardSnapshots/home` and filter rows by the selected sport. Public scoreboard tabs also merge config tabs with snapshot sports that already have data, so homepage sport/match context opens the matching sport page.
-- **Validation**: Updated `home-dashboard-render.test.js` and `scoreboard-public-render.test.js` to cover homepage tab filtering and non-default sport handoff.
 
 ### 2026-05-06 Activity Region Tab Default [ux]
 - **Change**: Activity page region tabs now default to `全部` instead of `中部`, with both the HTML active state and event-list JS fallback aligned.
@@ -2204,11 +2177,6 @@
 - **Issue**: An activity whose `regOpenTime` had already passed could still store `status: upcoming`; the detail header displayed `已開放`, but `_refreshSignupButton` and `registerForEvent` still treated the raw status as not open.
 - **Fix**: Safely repaired the affected 2026/05/08 朝馬 activity document to `status: open`. Frontend signup-button refresh now normalizes effective status before rendering, and the Cloud Function now checks `regOpenTime` before stale `upcoming` can block signup.
 - **Validation**: Added `event-registration-open-status.test.js` source contract coverage for frontend refresh and backend registration-open ordering.
-
-### 2026-05-06 Scoreboard Premier League Translation Guard [bugfix]
-- **Issue**: Generic `Premier League` was mapped to `英超`, which incorrectly translated country-specific leagues such as Kenya/FKF Premier League.
-- **Fix**: Removed the generic built-in mapping and kept only explicit `English Premier League -> 英超`. Added a Firestore translation override for `football / league / Premier League` with `status=keep_original`.
-- **Validation**: Added unit coverage to confirm ambiguous `Premier League` stays original while `English Premier League` still displays as `英超`.
 
 ### 2026-05-07 Home Sport Quick Entry Refresh [bugfix]
 - **Issue**: The homepage sport quick entry rendered only from stale `boot-home-summary-data`, so newly opened public sports could stay hidden until the scheduled injector rewrote `index.html`.

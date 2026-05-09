@@ -884,8 +884,6 @@ Object.assign(App, {
     if (pageId === 'page-admin-exp') { this.renderExpLogs(); }
     if (pageId === 'page-admin-announcements') this.renderAnnouncementManage();
     if (pageId === 'page-admin-games') { this.renderGameManage(); if (this.renderGameLogViewer) this.renderGameLogViewer(); }
-    if (pageId === 'page-admin-scoreboard') this.renderScoreboardAdmin?.();
-    if (pageId === 'page-match-calendar') this.renderScoreboardPublic?.();
     if (pageId === 'page-admin-themes') this.renderThemeManage();
     // 教育俱樂部詳情頁：返回時重繪教育區塊（需確認 listener 仍在且有教育區塊容器）
     if (pageId === 'page-team-detail' && this._eduDetailTeamId && document.getElementById('edu-member-section')) {

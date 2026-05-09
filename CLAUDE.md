@@ -101,7 +101,6 @@ FC-github/
 │       ├── dashboard/      # 儀表板（6）：管理員、個人、報表分享、用量
 │       ├── ad-manage/      # 廣告管理（6）：輪播、浮動、贊助、小遊戲、品牌開機
 │       ├── user-admin/     # 用戶後台（5）：列表、EXP、角色、補正、權限說明
-│       ├── scoreboard/     # 首頁比分預留設定（2）：來源排序、後台控制
 │       └── [27 獨立模組]   # banner / home-dashboard / shop / leaderboard / role / pwa-install 等
 ├── pages/                  # HTML 片段（18 個）
 ├── docs/                   # 專案文件
@@ -208,7 +207,7 @@ grep -rn "CACHE_VERSION\|CACHE_NAME\|var V='" js/config.js sw.js index.html
 
 - 專案長期目標是逐步走向**功能模組化、資料夾化、責任邊界清楚**的架構；對於已明顯跨頁、跨責任、跨資料來源的功能，不應長期維持在單一大檔案中持續堆疊。
 - 重構既有功能時，預設採用「**保留舊入口、內部邏輯逐步抽離到新資料夾**」的方式進行；除非使用者明確要求，否則不要直接做一次性大搬家。
-- 已完成 17 個功能子資料夾化（achievement / tournament / user-admin / event / team / profile / message / scan / dashboard / kickball / ad-manage / shot-game / education / color-cat / auto-exp / admin-seo / scoreboard），新增模組應放入對應子資料夾。
+- 已完成 16 個功能子資料夾化（achievement / tournament / user-admin / event / team / profile / message / scan / dashboard / kickball / ad-manage / shot-game / education / color-cat / auto-exp / admin-seo ），新增模組應放入對應子資料夾。
 - 舊檔若仍承擔既有入口責任，應先轉為 facade / compatibility layer，再逐步瘦身，而不是在第一步就刪除。
 - 功能重構時，要明確區分「結構整理」與「業務邏輯改寫」兩種工作；若兩者同時進行會提高回歸風險，預設先做結構整理，再做邏輯重寫。
 - 每次完成資料夾化或模組拆分後，必須同步更新 `docs/architecture.md`，讓專案結構演進有文件可追。

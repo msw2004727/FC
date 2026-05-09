@@ -85,7 +85,6 @@ const DRAWER_MENUS = [
   { icon: '', label: '\u7403\u968a\u7ba1\u7406', page: 'page-admin-teams', minRole: 'admin', permissionCode: 'admin.teams.entry' },
   { icon: '', label: '\u6578\u64da\u5100\u8868\u677f', page: 'page-admin-dashboard', minRole: 'super_admin', permissionCode: 'admin.dashboard.entry' },
   { icon: '', label: 'SEO \u5100\u8868\u677f', page: 'page-admin-seo', minRole: 'admin', permissionCode: 'admin.seo.entry', highlight: 'red' },
-  { icon: '', label: '\u8cfd\u4e8b\u6bd4\u5206\u63a7\u5236', page: 'page-admin-scoreboard', minRole: 'super_admin', permissionCode: 'admin.scoreboard.entry', highlight: 'red' },
   { icon: '', label: '\u4f48\u666f\u4e3b\u984c', page: 'page-admin-themes', minRole: 'super_admin', permissionCode: 'admin.themes.entry' },
   { icon: '', label: '\u624b\u52d5 EXP \u7ba1\u7406', page: 'page-admin-exp', minRole: 'super_admin', permissionCode: 'admin.exp.entry' },
   { icon: '', label: '\u81ea\u52d5 EXP \u7ba1\u7406', page: 'page-admin-auto-exp', minRole: 'super_admin', permissionCode: 'admin.auto_exp.entry' },
@@ -120,9 +119,6 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
     { code: 'admin.logs.error_read', name: 'Error Log Read' },
     { code: 'admin.logs.error_delete', name: 'Error Log Delete' },
     { code: 'admin.logs.audit_read', name: 'Audit Log Read' },
-  ],
-  'page-admin-scoreboard': [
-    { code: 'admin.scoreboard.configure', name: 'Configure Scoreboard' },
   ],
   'page-admin-notif': [
     { code: 'admin.notif.toggle', name: 'Toggle Notifications' },
@@ -910,7 +906,6 @@ describe('Permission System', () => {
       expect(perms).toContain('team.create');
       expect(perms).toContain('team.manage_all');
       expect(perms).toContain('event.edit_all');
-      expect(perms).not.toContain('admin.scoreboard.entry');
     });
 
     test('super_admin gets all drawer permission codes', () => {

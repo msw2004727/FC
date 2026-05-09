@@ -18,7 +18,6 @@ const PageLoader = {
     'admin-dashboard', 'admin-seo', 'admin-auto-exp', 'personal-dashboard',
     'game',
     'kickball',
-    'match-calendar',
     'education',
   ],
 
@@ -57,7 +56,6 @@ const PageLoader = {
     'page-tournaments':        'tournament',
     'page-tournament-detail':  'tournament',
     'page-admin-tournaments':  'tournament',
-    'page-match-calendar':     'match-calendar',
     'page-shop':               'shop',
     'page-shop-detail':        'shop',
     'page-leaderboard':        'shop',
@@ -76,7 +74,6 @@ const PageLoader = {
     'page-admin-achievements': 'admin-content',
     'page-admin-announcements':'admin-content',
     'page-admin-games':        'admin-system',
-    'page-admin-scoreboard':   'admin-system',
     'page-admin-themes':       'admin-system',
     'page-admin-dashboard':    'admin-dashboard',
     'page-admin-seo':          'admin-seo',

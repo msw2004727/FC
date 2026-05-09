@@ -218,18 +218,6 @@ Object.assign(App, {
       title: '小遊戲管理',
       body: '允許進入小遊戲管理功能區，可管理射門遊戲、踢球遊戲等小遊戲的設定與排行榜。',
     },
-    'admin.scoreboard.entry': {
-      title: '賽事比分控制',
-      body: '允許進入比分控制功能區。預設只有總管層級開啟，其他角色要在權限管理手動打開入口。',
-    },
-    'admin.scoreboard.configure': {
-      title: '調整比分來源與排序',
-      body: '允許儲存首頁比分預留區的來源開關、名稱與排序。API 端點與金鑰後續接後端，這裡不保存密鑰。',
-    },
-    'admin.scoreboard.translation': {
-      title: '比分中文詞庫維護',
-      body: '允許查看比分中文化詞庫統計、待翻譯名稱與 AI 維護指引。正式詞庫寫入仍走後端維護流程，避免前台直接改資料。',
-    },
     'admin.shop.entry': {
       title: '二手商品管理',
       body: '允許進入二手商品管理功能區，可檢視與管理用戶刊登的二手運動用品。',

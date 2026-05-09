@@ -43,7 +43,6 @@ function runHomeDashboardModule(options = {}) {
     <section class="home-dashboard-section home-info-dashboard-section">
       <div id="home-info-meter"></div>
     </section>
-    <section id="home-scoreboard-preview"></section>
     <button class="home-watch-party-card" type="button">
       <span class="home-watch-party-copy">一起找人看比賽</span>
     </button>
@@ -113,7 +112,6 @@ describe("home-dashboard browser binding", () => {
     expect(homeCssSource).toMatch(/\.home-hero-actions\s*\{[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)[\s\S]*align-items:\s*stretch/);
     expect(homeCssSource).toMatch(/\.home-next-activity-section\s*\{[\s\S]*margin:\s*\.78rem 0 0/);
     expect(homeCssSource).toMatch(/\.home-dashboard-section\s*\{[\s\S]*margin:\s*\.75rem 0 0[\s\S]*border:\s*1px solid var\(--border\)[\s\S]*border-radius:\s*14px/);
-    expect(homeCssSource).toMatch(/\.home-scoreboard-preview\s*\{[\s\S]*margin:\s*\.75rem 0 0/);
     const infoSectionRule = homeCssSource.match(/\.home-info-dashboard-section\s*\{([\s\S]*?)\}/)?.[1] || "";
     expect(infoSectionRule).not.toContain("border-top");
     expect(infoSectionRule).not.toContain("padding-top");
@@ -220,10 +218,6 @@ describe("home-dashboard browser binding", () => {
     expect(card.classList.contains("has-bg")).toBe(false);
   });
 
-  test("scoreboard preview has a divider from the current info section only when populated", () => {
-    expect(homeCssSource).toMatch(/\.home-scoreboard-preview:not\(:empty\)\s*\{[\s\S]*border-top:\s*1px solid var\(--border\)/);
-  });
-
   test("sport quick entry uses icon plus two-line text layout", () => {
     expect(homeCssSource).toMatch(/\.home-sport-chip\s*\{[\s\S]*grid-template-columns:\s*30px minmax\(0,\s*1fr\)/);
     expect(homeCssSource).toMatch(/\.home-sport-chip-text\s*\{[\s\S]*grid-template-rows:\s*1fr 1fr/);
@@ -239,10 +233,8 @@ describe("home-dashboard browser binding", () => {
 
     expect(dom.window.App).toBe(app);
     expect(typeof app.renderHomeDashboard).toBe("function");
-    expect(typeof app.renderHomeScoreboardPreview).toBe("function");
 
     app.renderHomeDashboard();
-    await app.renderHomeScoreboardPreview();
 
     const sportEntry = dom.window.document.getElementById("home-sport-entry");
     expect(sportEntry.children).toHaveLength(3);
@@ -269,67 +261,6 @@ describe("home-dashboard browser binding", () => {
     expect(dom.window.document.querySelectorAll(".home-sport-views")).toHaveLength(1);
     expect(dom.window.document.querySelectorAll(".home-info-views")).toHaveLength(0);
     expect(dom.window.document.querySelector('[data-stat="activities"] .home-stat-views')).toBeNull();
-
-    const scoreboard = dom.window.document.getElementById("home-scoreboard-preview");
-    expect(scoreboard.style.display).toBe("none");
-
-    app._scoreboardConfig = {
-      homepageEnabled: true,
-      homepageSports: ["football", "basketball"],
-      defaultSportTabs: ["football", "basketball"],
-      featuredSources: { premier_league: { enabled: true }, nba: { enabled: true } },
-    };
-    app._scoreboardSnapshot = {
-      generatedAt: { toMillis: () => Date.parse("2026-05-06T10:00:00Z") },
-      homepageSections: {
-        featured: {
-          updatedAt: { toMillis: () => Date.parse("2026-05-06T10:00:00Z") },
-          matches: [
-            { id: "m1", sport: "football", sourceId: "premier_league", timeLabel: "今晚", dateLabel: "22:00", title: "A vs B", subtitle: "英超", status: "未開賽" },
-            { id: "m2", sport: "basketball", sourceId: "nba", timeLabel: "明晚", dateLabel: "21:00", title: "C vs D", subtitle: "NBA", status: "Scheduled" },
-          ],
-        },
-        live: {
-          updatedAt: { toMillis: () => Date.parse("2026-05-06T10:01:00Z") },
-          matches: [
-            { id: "live1", sport: "football", isLive: true, timeLabel: "進行中", dateLabel: "05/06", title: "Live A vs Live B", subtitle: "英超", homeScore: 1, awayScore: 0 },
-          ],
-        },
-        schedule: {
-          updatedAt: { toMillis: () => Date.parse("2026-05-06T10:02:00Z") },
-          matches: [
-            { id: "up1", sport: "football", startsAt: "2026-05-06T12:00:00.000Z", timeLabel: "20:00", dateLabel: "05/06", title: "Soon A vs Soon B", subtitle: "歐冠", status: "Scheduled" },
-          ],
-        },
-      },
-    };
-    await app.renderHomeScoreboardPreview();
-    expect(scoreboard.style.display).toBe("");
-    expect(scoreboard.querySelectorAll(".home-scoreboard-section-tab")).toHaveLength(3);
-    expect(scoreboard.querySelector(".home-scoreboard-section-tab.active")?.getAttribute("onclick")).toContain("featured");
-    expect(scoreboard.querySelector(".home-scoreboard-note")).not.toBeNull();
-    expect(scoreboard.textContent).toContain("更新頻率仍在測試");
-    expect(scoreboard.textContent).not.toContain("點擊可看更多賽事");
-    expect(scoreboard.textContent).toContain("A vs B");
-    expect(scoreboard.textContent).not.toContain("C vs D");
-
-    app.selectHomeScoreboardSport("basketball");
-    expect(scoreboard.textContent).toContain("C vs D");
-    expect(scoreboard.textContent).not.toContain("A vs B");
-
-    app.selectHomeScoreboardSection("live");
-    expect(scoreboard.querySelector(".home-scoreboard-section-tab.active")?.getAttribute("onclick")).toContain("live");
-    expect(scoreboard.textContent).toContain("Live A vs Live B");
-    expect(scoreboard.querySelector(".home-scoreboard-note")).not.toBeNull();
-
-    app.selectHomeScoreboardSection("schedule");
-    expect(scoreboard.querySelector(".home-scoreboard-section-tab.active")?.getAttribute("onclick")).toContain("schedule");
-    expect(scoreboard.textContent).toContain("Soon A vs Soon B");
-    expect(scoreboard.querySelector(".home-scoreboard-note")).not.toBeNull();
-
-    app.selectHomeScoreboardSection("featured");
-    expect(scoreboard.querySelector(".home-scoreboard-section-tab.active")?.getAttribute("onclick")).toContain("featured");
-    expect(scoreboard.querySelector(".home-scoreboard-note")).not.toBeNull();
   });
 
   test("applies editable home info labels, colors, font size, and visibility", () => {

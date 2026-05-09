@@ -187,8 +187,6 @@
 | `activityCalendar` | 4（lazy load） | `script-loader.js:306-311` |
 | `adminUsers` | 10+ | `script-loader.js:312-324` |
 | `adminContent` | 6 | `script-loader.js:325-332` |
-| `scoreboardAdmin` | 2 | `page-admin-scoreboard` lazy load；只讀寫 `siteConfig/scoreboardConfig` single doc，不透過 `PAGE_DATA_CONTRACT` 載入 `siteConfig` collection |
-| `scoreboardPublic` | 2 | `page-match-calendar` lazy load；只讀公開快取 `scoreboardSnapshots/home` / `scoreboardMatchDetails`，不從前台呼叫 SportsAPI Pro；頁籤會補入 snapshot 中已有資料的 sport，避免首頁帶入 sport 後被 default tabs 擋掉 |
 
 **新模組註冊規則**：放在對應頁面清單的合理位置（依賴前 / 同類後）；event-manage 系列放在 `event` 清單的後段。
 
@@ -290,26 +288,11 @@ GitHub Action / 手動腳本
   ↓
 App renderHomeCritical()
   → banner / announcement 保留
-  → home-dashboard.js 渲染運動快速入口、數量儀表、我要開活動、比分預留
+  → home-dashboard.js 渲染運動快速入口、數量儀表、我要開活動
   → 首屏不等待 events / teams / tournaments collection
   ↓
 Firebase 可用後
-  → 首頁比分區可 best-effort 讀 siteConfig/scoreboardConfig single doc 套用來源排序
 ```
-
----
-
-### SportsAPI Pro Scoreboard
-
-| Tunable | Value | Notes |
-|---|---:|---|
-| Scheduled refresh | every 6 hours | `refreshSportsApiProScoreboardScheduled` in `asia-east1`; keeps free quota usage low |
-| Snapshot TTL | 15 minutes | `scoreboardSnapshots/home.expiresAt`; UI can still show stale cache when refresh fails |
-| Match detail TTL | 30 minutes | `scoreboardMatchDetails/{sport_matchId}.expiresAt` |
-| Per-run request cap | 28 requests | Limits enabled sport live/today calls plus `/status` |
-| Manual refresh cooldown | 60 seconds | Stored in `sportsApiProUsage/{yyyyMMdd}.manualRefreshAt` |
-| Homepage scoreboard tabs | Snapshot data first | `home-dashboard.js`; tabs are generated from sports with `homepageMatches` / `liveMatches` / `recentSchedule`, not from football-only featured leagues |
-| Secret storage | Firebase Secret | `SPORTSAPI_PRO_API_KEY`; never in Firestore, docs, logs, or frontend JS |
 
 <a id="versioning"></a>
 ## 🏷️ Versioning 版號規範
@@ -368,8 +351,6 @@ Firebase 可用後
 - **2026-04-25**：建立檔案。初始登錄 Boot Overlay / Route Loading / Visibility / LIFF / Instant Save / SW / Limit / Threshold / Load Order / Sequence Effects / Versioning 共 11 大類。
 - **2026-04-28**：boot overlay `MIN_VISIBLE_MS` 2500 → 0；hash reload 改由 early boot route + PageLoader priority 先定位目標頁，不再用固定遮罩等待掩蓋首頁跳轉。
 - **2026-04-28**：俱樂部 `page-teams` 改為 shell-first navigation，並將原 `team` script group 拆為 `teamList` / `teamDetail` / `teamForm`，列表第一屏只載列表必要模組。
-- **2026-05-06**：首頁改為 summary-based dashboard，新增 `boot-home-summary-data`、`home-dashboard.js`、`scoreboardAdmin` lazy group；首頁首屏不再 realtime 載入 events 只為了顯示首頁總量。
 - **2026-05-07**：首頁摘要增加 5 分鐘 stale client refresh，並將 `inject-hot-events` 排程改為每小時，讓運動快速入口可在靜態注入延遲時背景補正。
-- **2026-05-06**：SportsAPI Pro scoreboard 接入，新增 `scoreboardPublic` lazy group、Cloud Function refresh/detail TTL、per-run request cap 與 manual refresh cooldown。
 - **2026-04-25**：boot overlay `MIN_VISIBLE_MS` 1500 → 2500（用戶反映 1.5 秒仍偏短，調至 2.5 秒看到更完整的進度條動畫）。
 - **2026-04-25**：新增 `SPORT_ICON_SVG_HTML` 對照表 + 匹克球 V4 SVG 圖示（紅色圓角方形拍斜放 + 黃球飛 + 速度線）。Unicode 無匹克球專屬 emoji、🏓 桌球拍視覺誤導，改用自製 SVG。

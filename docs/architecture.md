@@ -177,7 +177,6 @@ sequenceDiagram
 | `adminSystem` | 遊戲設定、log center、error/audit log |
 | `adminContent` | 廣告、banner、浮動廣告、彈窗贊助、boot brand |
 | `adminSeo` | SEO dashboard / snapshot |
-| `scoreboardAdmin` | 首頁比分預留來源排序與顯示開關 |
 | `education` | 教學/課程/學生/課表/簽到/家長綁定 |
 | `achievement` | 成就、稱號、EXP evaluator、徽章、管理 |
 | `game` / `kickball` / `profileScene` | 互動遊戲與 2D 場景 |
@@ -204,14 +203,12 @@ sequenceDiagram
 | `color-cat/` | 40 | 個人場景、角色互動、MBTI 對話、敵人/天氣/雲端儲存 |
 | `auto-exp/` | 2 | EXP 自動規則與執行器 |
 | `admin-seo/` | 2 | SEO snapshot loader/dashboard |
-| `scoreboard/` | 2 | 首頁比分預留設定、後台控制頁 |
 
 ### root-level shared modules
 
 `js/modules` 根目錄目前有 26 個 shared module：
 
 - 內容與站台：`banner.js`、`announcement.js`、`popup-ad.js`、`news.js`、`site-theme.js`
-- 首頁：`home-dashboard.js` 渲染 demo 風格運動快速入口、活動/俱樂部/賽事儀表與比分區；比分頁籤依 `scoreboardSnapshots/home` 的運動資料產生，切換頁籤只顯示同一 sport 的賽事，點擊賽事會帶 sport/matchId 進公開比分頁。
 - 權限與系統：`role.js`、`sync-status.js`、`multi-tab-guard.js`、`pwa-install.js`
 - 圖片：`image-cropper.js`、`image-upload.js`
 - 紀錄與稽核：`audit-log.js`、`error-log.js`、`error-log-diagnostics.js`、`error-log-insights.js`、`admin-log-tabs.js`、`registration-audit.js`、`game-log-viewer.js`
@@ -282,13 +279,6 @@ sequenceDiagram
 | `auditLogsByDay/{yyyyMMdd}/auditEntries/{logId}` | 安全稽核 log | Cloud Function 寫入，super_admin/權限讀 |
 | `errorLogs/{docId}` | 前端錯誤 log | 使用者可寫，後台可讀 |
 | `siteConfig/realtimeConfig` | 即時監聽與資料同步設定 | 後端密碼保護寫入，前端讀 |
-| `siteConfig/scoreboardConfig` | 首頁比分/賽程顯示設定與排序 | 公開讀；寫入只允許 list-based 白名單欄位與 `admin.scoreboard.configure` / `super_admin`；不得保存 key |
-| `scoreboardSnapshots/home` | SportsAPI Pro 首頁比分與最近賽程快取 | 公開讀；client 禁寫；由 Cloud Function 以 Admin SDK 更新 |
-| `scoreboardMatchDetails/{sport_matchId}` | 賽事基本詳情快取 | 公開讀；client 禁寫；由 Cloud Function 產生/刷新 |
-| `sportsApiProUsage/{yyyyMMdd}` | SportsAPI Pro 用量與刷新狀態 | 僅 `super_admin` 讀；client 禁寫；不得保存 API key |
-| `scoreboardTranslationCandidates/{termId}` | 比分來源名稱待翻譯清單 | 僅 `super_admin` / `admin.scoreboard.configure` / `admin.scoreboard.translation` 讀；client 禁寫；由 Cloud Function 收集 |
-| `scoreboardTranslations/{termId}` | 比分正式中文詞庫 | 僅 `super_admin` / `admin.scoreboard.configure` / `admin.scoreboard.translation` 讀；client 禁寫；由 Cloud Function 維護 |
-| `scoreboardTranslationStats/summary` | 比分中文詞庫統計與 AI 維護指引 | 僅 `super_admin` / `admin.scoreboard.configure` / `admin.scoreboard.translation` 讀；client 禁寫 |
 | `participantQueryShares/{shareId}` | 儀表板臨時分享 | 7 天快照型報表 |
 | `shotGameScores` / `kickGameScores` | 遊戲分數 | callable 寫入，排行榜讀 |
 | `usageMetrics` / `translateUsage` | 用量統計 | schedule / callable 寫入，super_admin 讀 |
@@ -469,21 +459,10 @@ current = realCurrent + sum(remainingSlots)
 
 ### 首頁摘要儀表
 
-- `pages/home.html` 首屏順序：banner、公告、運動快速入口、活動/俱樂部/賽事儀表、比分預留區，後續才是小遊戲、贊助、新聞與浮動廣告。
+- `pages/home.html` 首屏順序：banner、公告、運動快速入口、活動/俱樂部/賽事儀表，後續才是小遊戲、贊助、新聞與浮動廣告。
 - `js/modules/home-dashboard.js` 先從 inline `boot-home-summary-data` 渲染首屏；若摘要超過 5 分鐘，背景讀取公開活動快取/Firestore 重新計算活動數、運動分類數與已記錄瀏覽數，避免 GitHub Action 注入延遲讓快速入口長時間過舊。
 - 首頁活動統計排除取消、私密、俱樂部限定，以及「開始時間已過」的活動；無法解析開始時間的資料採保守保留，不在首頁顯示假 0。
 - 儀表卡可點擊：活動數前往活動頁，俱樂部數前往俱樂部頁，賽事數前往賽事頁；「我要開活動」會帶使用者到活動頁並開啟建立活動流程。
-
-### 比分預留控制
-
-- 首頁比分區只讀 `siteConfig/scoreboardConfig` 與 `scoreboardSnapshots/home` 公開快取，不呼叫第三方比分 API；首頁 sport tabs 以 snapshot 有資料的運動為主，避免五大聯賽 tab 與非足球內容錯配。
-- `js/modules/scoreboard/scoreboard-config.js` 負責 SportsAPI Pro sport / featured source catalog、預設值、正規化與 `siteConfig/scoreboardConfig` single-doc 讀寫；公開設定採 list-based schema（enabled/order arrays），避免 nested map 藏 secret 或觸發 Firestore rules expression 上限。
-- `js/modules/scoreboard/scoreboard-admin.js` 負責後台 `page-admin-scoreboard` 控制頁，入口在左方抽屜，預設只有 `super_admin` 顯示；保存與手動刷新權限是 `admin.scoreboard.configure` 或 `super_admin`。
-- `js/modules/scoreboard/scoreboard-public.js` 負責 `page-match-calendar` 公開比分/賽程頁，讀 `scoreboardSnapshots/home` 與 `scoreboardMatchDetails/{sport_matchId}`；運動頁籤同時納入 config 與 snapshot 中有資料的 sport，首頁帶入的 sport/matchId 必須優先套用；前台不直接呼叫 SportsAPI Pro。
-- `functions/scoreboard-sportsapipro.js` 以 Firebase Secret `SPORTSAPI_PRO_API_KEY` 呼叫 SportsAPI Pro V2 `/api/live`、`/api/today`、`/api/match/{id}` 等 endpoint，產生公開快取與 `sportsApiProUsage/{yyyyMMdd}` 用量摘要。
-- `functions/scoreboard-translations.js` 負責比分來源名稱中文化：先套用內建/正式詞庫，未知來源名稱寫入 `scoreboardTranslationCandidates`，統計寫入 `scoreboardTranslationStats/summary`；未知或不確定名稱保留原文，不額外呼叫第三方 API。
-- `siteConfig/scoreboardConfig` 是公開可讀設定，因此不得保存 API key、token、secret、管理員 UID、email 或 displayName；rules 以欄位白名單阻擋敏感欄位。
-- 比分中文詞庫維護流程與 AI 提示記錄在 `docs/scoreboard-translation-workflow-plan.md`，後台「賽事比分控制」也會顯示待翻譯/已翻譯/保留原文/依運動細分統計。
 
 ---
 
