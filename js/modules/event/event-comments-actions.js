@@ -93,7 +93,7 @@ Object.assign(App, {
     const input = form?.querySelector('input');
     const body = String(input?.value || '').trim();
     if (!body) { this.showToast?.('請輸入回覆'); return; }
-    if (body.length > 300) { this.showToast?.('回覆最多 300 字'); return; }
+    if (body.length > 100) { this.showToast?.('回覆最多 100 字'); return; }
     const btn = form?.querySelector('button');
     this._eventCommentWriteBusy = true;
     if (btn) { btn.disabled = true; btn.textContent = '送出中'; }

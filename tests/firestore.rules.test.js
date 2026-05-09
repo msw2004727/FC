@@ -2653,6 +2653,16 @@ describe("event comments subcollections", () => {
       })
     );
     await assertSucceeds(
+      setDoc(doc(memberB(), "events", "commentReply", "comments", "c1", "replies", "r100"), {
+        ...replyData("commentReply", "c1", "uidB", "x".repeat(100)),
+      })
+    );
+    await assertFails(
+      setDoc(doc(memberB(), "events", "commentReply", "comments", "c1", "replies", "r101"), {
+        ...replyData("commentReply", "c1", "uidB", "x".repeat(101)),
+      })
+    );
+    await assertSucceeds(
       setDoc(doc(memberB(), "events", "commentReply", "comments", "c1", "likes", "uidB"), {
         eventId: "commentReply",
         commentId: "c1",

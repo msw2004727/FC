@@ -1937,7 +1937,7 @@ service cloud.firestore {
             && request.resource.data.authorPhoto.size() <= 1200
             && request.resource.data.body is string
             && request.resource.data.body.size() > 0
-            && request.resource.data.body.size() <= 300
+            && request.resource.data.body.size() <= 100
             && request.resource.data.deleted == false
             && request.resource.data.createdAt == request.time
             && request.resource.data.updatedAt == request.time

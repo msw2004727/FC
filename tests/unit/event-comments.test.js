@@ -29,6 +29,8 @@ describe('activity detail comments source contracts', () => {
     expect(comments).toContain('lineProfile?.pictureUrl');
     expect(comments).toContain('authorPhoto');
     expect(comments).toContain('maxlength="300"');
+    expect(comments).toContain('maxlength="100"');
+    expect(comments).toContain('私密留言（僅主辦與委託能見）');
     expect(comments).toContain("visibility === 'private'");
     expect(comments).toContain('replyLocked');
     expect(actions).toContain('_setEventCommentLikeButtonState(btn, nextLiked, nextCount)');
@@ -36,6 +38,7 @@ describe('activity detail comments source contracts', () => {
     expect(actions.indexOf('_setEventCommentLikeButtonState(btn, nextLiked, nextCount)'))
       .toBeLessThan(actions.indexOf("await likeRef.set"));
     expect(css).toContain('.event-comment-avatar');
+    expect(css).toContain('[data-theme="dark"] .event-comment-body');
     expect(css).toContain('[data-theme="dark"] .event-comment-card');
   });
 

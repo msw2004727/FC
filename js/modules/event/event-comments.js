@@ -168,7 +168,7 @@ Object.assign(App, {
       <form class="event-comment-form" onsubmit="App._submitEventComment('${eventId}');return false;">
         <textarea id="event-comment-input" maxlength="300" rows="3" placeholder="輸入留言，最多 300 字"></textarea>
         <div class="event-comment-form-foot">
-          <label class="event-comment-private-toggle"><input type="checkbox" id="event-comment-private"> 私密留言</label>
+          <label class="event-comment-private-toggle"><input type="checkbox" id="event-comment-private"> 私密留言（僅主辦與委託能見）</label>
           <button type="submit" class="event-comment-submit">送出</button>
         </div>
       </form>`;
@@ -197,7 +197,7 @@ Object.assign(App, {
       ? `<button type="button" class="event-comment-action" onclick="App._toggleEventCommentReplyBox('${safeCommentId}')">回覆</button>`
       : '';
     const replyForm = (!ctx.closed && !comment.replyLocked && !comment.deleted)
-      ? `<form class="event-comment-reply-form" id="event-comment-reply-${safeCommentId}" onsubmit="App._submitEventCommentReply('${safeEventId}','${safeCommentId}');return false;" hidden><input maxlength="300" placeholder="回覆留言，最多 300 字"><button type="submit">送出</button></form>`
+      ? `<form class="event-comment-reply-form" id="event-comment-reply-${safeCommentId}" onsubmit="App._submitEventCommentReply('${safeEventId}','${safeCommentId}');return false;" hidden><input maxlength="100" placeholder="回覆留言，最多 100 字"><button type="submit">送出</button></form>`
       : '';
     return `<article class="event-comment-card" data-comment-id="${safeCommentId}">
       <div class="event-comment-head">
