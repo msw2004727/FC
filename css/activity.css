@@ -578,16 +578,19 @@
 .detail-row .icon { font-size: 1rem; width: 22px; text-align: center; }
 .detail-host-row { flex-wrap: wrap; }
 .event-host-contact-pill {
+  display: inline-flex;
+  align-items: center;
   border: 1px solid rgba(37, 99, 235, .22);
   border-radius: 999px;
   background: rgba(37, 99, 235, .08);
   color: #2563eb;
-  padding: .22rem .62rem;
-  font-size: .74rem;
-  font-weight: 700;
-  line-height: 1.2;
+  padding: .25rem .65rem;
+  font-size: .78rem;
+  font-weight: 500;
+  line-height: 1.4;
   cursor: pointer;
   white-space: nowrap;
+  margin-top: 7px;
 }
 .event-host-contact-pill:active {
   transform: translateY(1px);

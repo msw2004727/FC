@@ -471,7 +471,7 @@ const ScriptLoader = {
     'page-achievements':       ['achievement'],
     'page-admin-achievements': ['achievement'],
     'page-activities':         ['activity'],
-    'page-activity-detail':    ['activity', 'achievement'],
+    'page-activity-detail':    ['activity', 'achievement', 'profileCard'],
     'page-my-activities':      ['activity'],
     'page-teams':              ['teamList'],
     'page-team-detail':        ['teamList', 'teamDetail', 'education'],

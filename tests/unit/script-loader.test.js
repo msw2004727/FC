@@ -218,6 +218,9 @@ describe('resolvePageScripts — real project groups', () => {
       'js/modules/message/message-actions-team.js',
       'js/modules/message/message-inbox.js',
     ],
+    activity: [
+      'js/modules/event/event-detail.js',
+    ],
     profile: [
       'js/modules/auto-exp/index.js',
       'js/modules/auto-exp/rules.js',
@@ -264,6 +267,7 @@ describe('resolvePageScripts — real project groups', () => {
   const realPageGroups = {
     'page-tournaments': ['tournamentList'],
     'page-tournament-detail': ['tournamentDetail'],
+    'page-activity-detail': ['activity', 'achievement', 'profileCard'],
     'page-teams': ['teamList'],
     'page-team-detail': ['teamList', 'teamDetail'],
     'page-team-manage': ['teamList', 'teamForm'],
@@ -288,6 +292,12 @@ describe('resolvePageScripts — real project groups', () => {
     expect(result.indexOf('js/modules/event/event-share.js')).toBeLessThan(
       result.indexOf('js/modules/tournament/tournament-share.js'),
     );
+  });
+
+  test('page-activity-detail loads profile card actions for host contact', () => {
+    const result = resolvePageScripts('page-activity-detail', realPageGroups, realGroups);
+    expect(result).toContain('js/modules/event/event-detail.js');
+    expect(result).toContain('js/modules/profile/profile-card.js');
   });
 
   test('page-teams loads only lean team list scripts', () => {
