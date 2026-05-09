@@ -521,7 +521,7 @@ Object.assign(App, {
     if (!e) return;
     e = this._syncEventEffectiveStatus?.(e) || e;
     if (e.status === 'ended' || e.status === 'cancelled') {
-      this.showToast('\u6d3b\u52d5\u5df2\u958b\u59cb\uff0c\u7121\u6cd5\u518d\u8abf\u6574\u540c\u884c\u5831\u540d');
+      this.showToast('\u6d3b\u52d5\u5df2\u958b\u59cb\uff0c\u7121\u6cd5\u518d\u8abf\u6574\u5925\u4f34\u5831\u540d');
       return;
     }
     if (e.status === 'upcoming') {
@@ -539,7 +539,7 @@ Object.assign(App, {
     const overlay = document.getElementById('companion-select-overlay');
     if (!overlay) return;
     const titleEl = document.getElementById('companion-select-title') || overlay.querySelector('.modal-header h3');
-    if (titleEl) titleEl.textContent = '\u540c\u884c\u5831\u540d';
+    if (titleEl) titleEl.textContent = '\u5e6b\u5925\u4f34\u5831\u540d';
     const closeBtn = overlay.querySelector('.modal-close');
     if (closeBtn) closeBtn.textContent = '\u00d7';
     const cancelBtn = overlay.querySelector('.modal-actions .outline-btn');
@@ -841,7 +841,7 @@ Object.assign(App, {
       if (confirmed + waitlisted > 0) parts.push(`\u65b0\u589e ${confirmed + waitlisted} \u4eba`);
       if (waitlisted > 0) parts.push(`\u5019\u88dc ${waitlisted} \u4eba`);
       if (cancelled > 0) parts.push(`\u53d6\u6d88 ${cancelled} \u4eba`);
-      this.showToast(parts.length ? `\u540c\u884c\u5831\u540d\u5df2\u66f4\u65b0\uff1a${parts.join('\u3001')}` : '\u540c\u884c\u5831\u540d\u5df2\u66f4\u65b0');
+      this.showToast(parts.length ? `\u5925\u4f34\u5831\u540d\u5df2\u66f4\u65b0\uff1a${parts.join('\u3001')}` : '\u5925\u4f34\u5831\u540d\u5df2\u66f4\u65b0');
       this.showEventDetail(eventId);
     } catch (err) {
       console.error('[_confirmCompanionRegister toggle]', err);
@@ -865,7 +865,7 @@ Object.assign(App, {
         TEAM_RESTRICTED: '\u4e0d\u7b26\u5408\u7403\u968a\u9650\u5b9a',
         PROFILE_INCOMPLETE: '\u8acb\u5148\u88dc\u9f4a\u500b\u4eba\u8cc7\u6599',
       };
-      this.showToast(msgMap[errCode] || err.message || '\u540c\u884c\u5831\u540d\u8abf\u6574\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+      this.showToast(msgMap[errCode] || err.message || '\u5925\u4f34\u5831\u540d\u8abf\u6574\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
     }
   },
 

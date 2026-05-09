@@ -362,3 +362,18 @@ describe('Team reservation button loading contract', () => {
     expect(activityCss).toContain('[data-theme="dark"] .team-reservation-placeholder-name');
   });
 });
+
+describe('Activity detail host contact and companion action labels', () => {
+  test('renders host contact with event context and renames companion signup action', () => {
+    const detailSource = readProjectFile('js/modules/event/event-detail.js');
+    const profileCardSource = readProjectFile('js/modules/profile/profile-card.js');
+
+    expect(detailSource).toContain('contactEventOrganizer(${escapeHTML(JSON.stringify({ eventId: e.id');
+    expect(detailSource).toContain('\\u5E6B\\u5925\\u4F34\\u5831\\u540D');
+    expect(detailSource).not.toContain('\\u540C\\u884C\\u5831\\u540D');
+    expect(profileCardSource).toContain('_normalizeLineContactUrl');
+    expect(profileCardSource).toContain('ApiService.getEvent(eventId)');
+    expect(profileCardSource).toContain("window.open(lineUrl, 'sporthub_line')");
+    expect(profileCardSource).toContain("allowGuest: true");
+  });
+});

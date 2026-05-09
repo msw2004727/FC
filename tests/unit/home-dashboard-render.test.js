@@ -114,6 +114,10 @@ describe("home-dashboard browser binding", () => {
     const infoSectionRule = homeCssSource.match(/\.home-info-dashboard-section\s*\{([\s\S]*?)\}/)?.[1] || "";
     expect(infoSectionRule).not.toContain("border-top");
     expect(infoSectionRule).not.toContain("padding-top");
+    expect(infoSectionRule).toContain("display: flex");
+    expect(infoSectionRule).toContain("align-items: center");
+    expect(homeCssSource).toMatch(/\.home-info-meter\s*\{[\s\S]*align-items:\s*center/);
+    expect(homeCssSource).toMatch(/\.home-info-meter\s*\{[\s\S]*padding-right:\s*4\.9rem/);
     expect(homeCssSource).toMatch(/\.home-watch-party-card\s*\{[\s\S]*height:\s*40px/);
     expect(homeCssSource).toMatch(/\.home-watch-party-card\s*\{[\s\S]*border:\s*1px solid var\(--border\)[\s\S]*grid-template-columns:\s*auto/);
     expect(homeCssSource).toMatch(/\.home-watch-party-card\.has-bg\s*\{[\s\S]*--home-watch-party-bg:\s*none[\s\S]*background-image:/);

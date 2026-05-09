@@ -279,14 +279,41 @@ Object.assign(App, {
   },
 
   /** 聯繫活動主辦人：有 LINE 帳號則直接跳轉，否則開啟名片卡 */
-  contactEventOrganizer(name) {
-    const users = ApiService.getAdminUsers();
-    const user = users.find(u => u.name === name || u.displayName === name);
-    const lineId = user && user.socialLinks && user.socialLinks.line;
-    if (lineId) {
-      window.open('https://line.me/ti/p/' + encodeURIComponent(lineId), 'sporthub_line');
+  _normalizeLineContactUrl(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    if (/^https?:\/\//i.test(raw) || /^line:\/\//i.test(raw)) return raw;
+    return 'https://line.me/ti/p/' + encodeURIComponent(raw.replace(/^@/, ''));
+  },
+
+  contactEventOrganizer(target) {
+    const users = ApiService.getAdminUsers?.() || [];
+    let name = '';
+    let uid = '';
+    if (target && typeof target === 'object') {
+      const eventId = String(target.eventId || '').trim();
+      const event = eventId && ApiService.getEvent ? ApiService.getEvent(eventId) : null;
+      name = String(event?.creator || target.name || '').trim();
+      uid = String(event?.creatorUid || target.uid || '').trim();
     } else {
-      this.showUserProfile(name, { allowGuest: true });
+      const value = String(target || '').trim();
+      const event = value && ApiService.getEvent ? ApiService.getEvent(value) : null;
+      name = String(event?.creator || value).trim();
+      uid = String(event?.creatorUid || '').trim();
+    }
+    const user = users.find(u =>
+      (uid && (u.uid === uid || u.lineUserId === uid || u._docId === uid || u.docId === uid)) ||
+      u.name === name ||
+      u.displayName === name
+    );
+    const lineUrl = this._normalizeLineContactUrl(user?.socialLinks?.line);
+    if (lineUrl) {
+      window.open(lineUrl, 'sporthub_line');
+    } else {
+      this.showUserProfile(name || user?.displayName || user?.name || '', {
+        uid: uid || user?.uid || user?.lineUserId || '',
+        allowGuest: true,
+      });
     }
   },
 

@@ -169,7 +169,7 @@ Object.assign(App, {
         <button class="outline-btn" style="font-size:.7rem;padding:.15rem .45rem;color:var(--danger);border-color:var(--danger)" onclick="App.deleteCompanion('${escapeHTML(c.id)}')">刪除</button>
       </div>
     `).join('') +
-    (companions.length > 0 ? '<div style="font-size:.7rem;color:var(--text-muted);margin-top:.3rem">※ 序號為同行報名時的候補遞補順序</div>' : '');
+    (companions.length > 0 ? '<div style="font-size:.7rem;color:var(--text-muted);margin-top:.3rem">※ 序號為幫夥伴報名時的候補遞補順序</div>' : '');
   },
 
   toggleCompanionsSection(labelEl) {

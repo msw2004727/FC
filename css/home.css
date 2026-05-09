@@ -872,6 +872,9 @@ body.home-activity-search-open {
   margin-top: .65rem;
   padding: .5rem .68rem;
   position: relative;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
 }
 
 .home-dashboard-title-row,
@@ -1031,10 +1034,12 @@ body.home-activity-search-open {
 
 .home-info-meter {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   flex-wrap: wrap;
   gap: .28rem .55rem;
-  min-height: 28px;
+  min-height: 0;
+  width: 100%;
+  padding-right: 4.9rem;
 }
 
 .home-info-lead {
