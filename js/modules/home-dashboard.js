@@ -15,6 +15,15 @@
   const HOME_SCOREBOARD_SECTION_KEYS = ['featured', 'live', 'schedule'];
   const HOME_SUMMARY_CLIENT_REFRESH_MIN_AGE_MS = 5 * 60 * 1000;
   const HOME_SUMMARY_CLIENT_REFRESH_THROTTLE_MS = 5 * 60 * 1000;
+  const HOME_ACTIVITY_REGION_KEY = 'toosterx_home_activity_region';
+  const HOME_ACTIVITY_REGIONS = ['全部', '北部', '中部', '南部', '東部&外島'];
+  const HOME_ACTIVITY_TYPES = [
+    { value: '', label: '全部類型' },
+    { value: 'play', label: 'PLAY' },
+    { value: 'camp', label: '訓練營' },
+    { value: 'watch', label: '觀賽' },
+    { value: 'external', label: '外部活動' },
+  ];
   const HOME_SCOREBOARD_NOTICE = '更新頻率仍在測試，比分賽程僅供參考，實際結果以官方公告為準。';
   const HOME_SCOREBOARD_SECTIONS = {
     featured: {
@@ -262,6 +271,28 @@
   function sportLabel(key) {
     if (typeof getSportLabelByKey === 'function') return getSportLabelByKey(key) || '此運動';
     return root.getSportLabelByKey?.(key) || '此運動';
+  }
+
+  function safeHomeRegion(region) {
+    const raw = String(region || '').replace(/&amp;/g, '&').trim();
+    return HOME_ACTIVITY_REGIONS.includes(raw) ? raw : '全部';
+  }
+
+  function homeSportOptions() {
+    return [{ key: 'all', label: '全部運動' }].concat(
+      configuredSports().map(item => ({
+        key: item.key,
+        label: item.label || sportLabel(item.key),
+      }))
+    );
+  }
+
+  function optionHtml(items, selectedValue) {
+    return items.map(item => {
+      const value = String(item.value ?? item.key ?? '');
+      const label = String(item.label ?? value);
+      return `<option value="${escapeHTML(value)}"${value === selectedValue ? ' selected' : ''}>${escapeHTML(label)}</option>`;
+    }).join('');
   }
 
   function renderSportEntry(summary) {
@@ -646,10 +677,122 @@
 
     selectHomeSport(sportKey) {
       const safeKey = this.setActiveSportFilter(sportKey, { render: false });
-      this.showPage?.('page-activities');
+      this.openActivitiesWithHomeFilters?.({ region: this.getHomeBannerRegion?.(), sport: safeKey });
       if (safeKey && safeKey !== 'all') {
         this.showToast?.(`已切換到${sportLabel(safeKey)}`);
       }
+    },
+
+    getHomeBannerRegion() {
+      if (this._homeBannerRegion) return safeHomeRegion(this._homeBannerRegion);
+      let stored = '';
+      try { stored = localStorage.getItem(HOME_ACTIVITY_REGION_KEY) || ''; } catch (_) {}
+      this._homeBannerRegion = safeHomeRegion(stored);
+      return this._homeBannerRegion;
+    },
+
+    setHomeBannerRegion(region, options = {}) {
+      const safeRegion = safeHomeRegion(region);
+      this._homeBannerRegion = safeRegion;
+      if (options.persist !== false) {
+        try { localStorage.setItem(HOME_ACTIVITY_REGION_KEY, safeRegion); } catch (_) {}
+      }
+      document.querySelectorAll('.banner-region-select').forEach(select => {
+        select.value = safeRegion;
+      });
+      const modalRegion = document.getElementById('home-search-region');
+      if (modalRegion) modalRegion.value = safeRegion;
+      if (this.currentPage === 'page-activities' && typeof this.switchRegionTab === 'function') {
+        this.switchRegionTab(safeRegion);
+      }
+      return safeRegion;
+    },
+
+    _ensureHomeActivitySearchModal() {
+      let overlay = document.getElementById('home-activity-search-overlay');
+      if (overlay) return overlay;
+      const selectedRegion = this.getHomeBannerRegion();
+      const selectedSport = this._activeSport || localStorage.getItem('sporthub_active_sport') || 'all';
+      const regionOptions = optionHtml(HOME_ACTIVITY_REGIONS.map(region => ({ value: region, label: region })), selectedRegion);
+      const sportOptions = optionHtml(homeSportOptions(), selectedSport);
+      const typeOptions = optionHtml(HOME_ACTIVITY_TYPES, '');
+      document.body.insertAdjacentHTML('beforeend', `
+        <div class="home-activity-search-overlay" id="home-activity-search-overlay" onclick="if(event.target===this)App.closeHomeActivitySearchModal()">
+          <div class="home-activity-search-dialog" role="dialog" aria-modal="true" aria-labelledby="home-activity-search-title">
+            <button class="home-activity-search-close" type="button" onclick="App.closeHomeActivitySearchModal()" aria-label="關閉">&times;</button>
+            <div class="home-activity-search-head">
+              <h3 id="home-activity-search-title">找活動</h3>
+              <p>選好條件後，我會直接帶你到活動頁並套用篩選。</p>
+            </div>
+            <div class="home-activity-search-fields">
+              <label>
+                <span>地區</span>
+                <select id="home-search-region">${regionOptions}</select>
+              </label>
+              <label>
+                <span>運動類別</span>
+                <select id="home-search-sport">${sportOptions}</select>
+              </label>
+              <label>
+                <span>活動類型</span>
+                <select id="home-search-type">${typeOptions}</select>
+              </label>
+            </div>
+            <button class="home-activity-search-submit" type="button" onclick="App.submitHomeActivitySearch()">找活動</button>
+          </div>
+        </div>
+      `);
+      return document.getElementById('home-activity-search-overlay');
+    },
+
+    openHomeActivitySearchModal() {
+      const overlay = this._ensureHomeActivitySearchModal();
+      const selectedRegion = this.getHomeBannerRegion();
+      const selectedSport = this._activeSport || localStorage.getItem('sporthub_active_sport') || 'all';
+      const regionSelect = document.getElementById('home-search-region');
+      const sportSelect = document.getElementById('home-search-sport');
+      const typeSelect = document.getElementById('home-search-type');
+      if (regionSelect) regionSelect.value = selectedRegion;
+      if (sportSelect) sportSelect.value = selectedSport;
+      if (typeSelect) typeSelect.value = '';
+      overlay?.classList.add('open');
+      document.body.classList.add('home-activity-search-open');
+    },
+
+    closeHomeActivitySearchModal() {
+      const overlay = document.getElementById('home-activity-search-overlay');
+      if (overlay) overlay.classList.remove('open');
+      document.body.classList.remove('home-activity-search-open');
+    },
+
+    async submitHomeActivitySearch() {
+      const region = document.getElementById('home-search-region')?.value || this.getHomeBannerRegion();
+      const sport = document.getElementById('home-search-sport')?.value || 'all';
+      const type = document.getElementById('home-search-type')?.value || '';
+      await this.openActivitiesWithHomeFilters({ region, sport, type });
+      this.closeHomeActivitySearchModal();
+    },
+
+    async openActivitiesWithHomeFilters(filters = {}) {
+      const scriptLoader = (typeof ScriptLoader !== 'undefined') ? ScriptLoader : root.ScriptLoader;
+      const region = this.setHomeBannerRegion(filters.region || this.getHomeBannerRegion(), { persist: true });
+      const sport = this.setActiveSportFilter(filters.sport || 'all', { render: false });
+      const type = String(filters.type || '');
+
+      await this.showPage?.('page-activities');
+      await scriptLoader?.ensureForPage?.('page-activities');
+      this.resetActivityTab?.({ render: false });
+
+      const typeFilter = document.getElementById('activity-filter-type');
+      const keywordFilter = document.getElementById('activity-filter-keyword');
+      if (typeFilter) typeFilter.value = type;
+      if (keywordFilter) keywordFilter.value = '';
+      if (typeof this.switchRegionTab === 'function') {
+        this.switchRegionTab(region);
+      } else {
+        try { this.renderActivityList?.(); } catch (_) {}
+      }
+      return { region, sport, type };
     },
 
     async openHomeWatchParty() {

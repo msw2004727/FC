@@ -9,6 +9,32 @@ Object.assign(App, {
   _watchPartyBgEditId: null,
   _watchPartyBgEnsuringSlot: false,
 
+  _safeBannerTextColor(value, fallback) {
+    const raw = String(value || '').trim();
+    return /^#[0-9a-fA-F]{6}$/.test(raw) ? raw : fallback;
+  },
+
+  _ensureBannerFormExtras() {
+    const titleInput = document.getElementById('banner-input-title');
+    if (!titleInput || document.getElementById('banner-input-subtitle')) return;
+    const titleRow = titleInput.closest('.form-row');
+    if (!titleRow) return;
+    const titleLabel = titleRow.querySelector('label');
+    if (titleLabel) titleLabel.textContent = 'Banner 大標題';
+    titleInput.maxLength = 18;
+    titleInput.placeholder = '例：下班揪人一起動';
+    titleRow.insertAdjacentHTML('afterend', `
+      <div class="form-row"><label>Banner 小標題</label><input type="text" id="banner-input-subtitle" placeholder="例：找活動、開團、加入報名，一個地方完成。" maxlength="32"></div>
+      <div class="form-row banner-text-color-row">
+        <label>Banner 字色</label>
+        <div class="banner-color-inputs">
+          <label><span>大標題</span><input type="color" id="banner-input-title-color" value="#ffffff"></label>
+          <label><span>小標題</span><input type="color" id="banner-input-subtitle-color" value="#e5edf8"></label>
+        </div>
+      </div>
+    `);
+  },
+
   renderBannerManage() {
     const container = document.getElementById('banner-manage-list');
     if (!container) return;
@@ -25,7 +51,8 @@ Object.assign(App, {
       const remainText = isActive ? (isPermanent ? '永久' : `剩餘 ${remain} 天`) : '';
       const thumb = b.image
         ? `<div class="banner-thumb" style="overflow:hidden"><img src="${b.image}" style="width:100%;height:100%;object-fit:cover"></div>`
-        : `<div class="banner-thumb banner-thumb-empty"><span>1320<br>×<br>400</span></div>`;
+        : `<div class="banner-thumb banner-thumb-empty"><span>1200<br>×<br>545</span></div>`;
+      const subtitleHtml = b.subtitle ? `<div class="banner-manage-meta">${escapeHTML(b.subtitle)}</div>` : '';
       return `
       <div class="banner-manage-card" style="margin-bottom:.5rem">
         ${thumb}
@@ -34,6 +61,7 @@ Object.assign(App, {
             <div class="banner-manage-title">${escapeHTML(b.slotName || '廣告位 ' + b.slot)}${b.title ? ' — ' + escapeHTML(b.title) : ''}</div>
             <span class="banner-manage-status status-${statusClass}">${statusLabel}</span>
           </div>
+          ${subtitleHtml}
           <div class="banner-manage-meta">${timeInfo}${remainText ? ' ・ ' + remainText : ''}${!isEmpty ? ' ・ 點擊 ' + (b.clicks || 0) + ' 次' : ''}</div>
           <div style="display:flex;gap:.3rem;margin-top:.3rem">
             ${this._adActionBtns('banner', b.id, b.status, b.unpublishAt)}
@@ -46,11 +74,15 @@ Object.assign(App, {
   showBannerForm(editData) {
     const form = document.getElementById('banner-form-card');
     if (!form) return;
+    this._ensureBannerFormExtras();
     this._bannerEditId = editData.id;
     const isEmpty = editData.status === 'empty';
     const slotLabel = editData.slotName || `廣告位 ${editData.slot}`;
     document.getElementById('banner-form-title').textContent = isEmpty ? `設定 ${slotLabel}` : `編輯 ${slotLabel}`;
     document.getElementById('banner-input-title').value = editData.title || '';
+    document.getElementById('banner-input-subtitle').value = editData.subtitle || '';
+    document.getElementById('banner-input-title-color').value = this._safeBannerTextColor(editData.titleColor, '#ffffff');
+    document.getElementById('banner-input-subtitle-color').value = this._safeBannerTextColor(editData.subtitleColor, '#e5edf8');
     document.getElementById('banner-input-link').value = editData.linkUrl || '';
     document.getElementById('banner-slot-display').value = slotLabel;
     const preview = document.getElementById('banner-preview');
@@ -59,16 +91,20 @@ Object.assign(App, {
       preview.classList.add('has-image');
     } else {
       preview.classList.remove('has-image');
-      preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 1320 × 400 px｜JPG / PNG｜最大 5MB</span>';
+      preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 1200 × 545 px｜JPG / PNG｜最大 5MB</span>';
+    }
+    if (!editData.image) {
+      const hint = preview.querySelector('.ce-upload-hint');
+      if (hint) hint.textContent = '建議尺寸 1200 x 545 px，JPG / PNG，5MB 內';
     }
     this.bindImageUpload('banner-image', 'banner-preview', {
-      aspectRatio: 3.3,
-      outputWidth: 1320,
-      outputHeight: 400,
+      aspectRatio: 1200 / 545,
+      outputWidth: 1200,
+      outputHeight: 545,
       title: 'Banner 圖片',
       targetLabel: '首頁 Banner',
-      recommendedSize: '1320 x 400',
-      aspectLabel: '3.3:1',
+      recommendedSize: '1200 x 545',
+      aspectLabel: '2.2:1',
     });
     document.getElementById('banner-image').value = '';
     const isScheduled = editData.status === 'scheduled';
@@ -97,7 +133,11 @@ Object.assign(App, {
     }
     const unpublishVal = document.getElementById('banner-input-unpublish').value;
     const title = document.getElementById('banner-input-title').value.trim();
-    if (title.length > 12) { this.showToast('標題不可超過 12 字'); return; }
+    const subtitle = document.getElementById('banner-input-subtitle')?.value.trim() || '';
+    const titleColor = this._safeBannerTextColor(document.getElementById('banner-input-title-color')?.value, '#ffffff');
+    const subtitleColor = this._safeBannerTextColor(document.getElementById('banner-input-subtitle-color')?.value, '#e5edf8');
+    if (title.length > 18) { this.showToast('Banner 大標題不可超過 18 字'); return; }
+    if (subtitle.length > 32) { this.showToast('Banner 小標題不可超過 32 字'); return; }
     const slotName = document.getElementById('banner-slot-display').value.trim();
     if (!slotName) { this.showToast('請輸入廣告位名稱'); return; }
     if (slotName.length > 12) { this.showToast('廣告位名稱不可超過 12 字'); return; }
@@ -122,7 +162,7 @@ Object.assign(App, {
       if (!url) { this.showToast('圖片上傳失敗，請重試'); return; }
       image = url;
     }
-    ApiService.updateBanner(this._bannerEditId, { title, slotName, linkUrl, image, publishAt, unpublishAt, status });
+    ApiService.updateBanner(this._bannerEditId, { title, subtitle, titleColor, subtitleColor, slotName, linkUrl, image, publishAt, unpublishAt, status });
     this.showToast(status === 'scheduled' ? `Banner 已排程，將於 ${publishAt} 啟用` : 'Banner 已更新並立即啟用');
     this.hideBannerForm();
     this.renderBannerManage();

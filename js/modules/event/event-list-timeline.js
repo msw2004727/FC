@@ -174,8 +174,11 @@ Object.assign(App, {
     // 頁簽篩選：取消立即進已結束；其他活動結束後 6 小時才移入已結束
     const activeTab = this._activityActiveTab || 'normal';
     const nowDateForEndedTab = new Date();
-    const isInEndedTab = (e) => this._isEventInActivityEndedTab
-      ? this._isEventInActivityEndedTab(e, nowDateForEndedTab)
+    const endedTabHelper = typeof this._isEventInActivityEndedTab === 'function'
+      ? this._isEventInActivityEndedTab.bind(this)
+      : null;
+    const isInEndedTab = (e) => endedTabHelper
+      ? endedTabHelper(e, nowDateForEndedTab)
       : (e.status === 'ended' || e.status === 'cancelled');
     if (activeTab === 'ended') {
       events = events.filter(e => isInEndedTab(e));

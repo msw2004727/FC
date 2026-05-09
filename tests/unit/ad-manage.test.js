@@ -142,14 +142,17 @@ describe('ad edit modal wiring', () => {
   });
 
   test('ad edit previews use the same ratios as live placements', () => {
-    expect(sources.adminCss).toMatch(/#banner-preview\s*\{[\s\S]*aspect-ratio:\s*3\.3\s*\/\s*1/);
-    expect(sources.adminCss).toMatch(/#banner-manage-list\s+\.banner-thumb\s*\{[\s\S]*aspect-ratio:\s*3\.3\s*\/\s*1/);
+    expect(sources.adminCss).toMatch(/#banner-preview\s*\{[\s\S]*aspect-ratio:\s*1200\s*\/\s*545/);
+    expect(sources.adminCss).toMatch(/#banner-manage-list\s+\.banner-thumb\s*\{[\s\S]*aspect-ratio:\s*1200\s*\/\s*545/);
     expect(sources.adminCss).toMatch(/#floatad-preview\s*\{[\s\S]*aspect-ratio:\s*1\s*\/\s*1/);
     expect(sources.adminCss).toMatch(/#popupad-preview\s*\{[\s\S]*aspect-ratio:\s*3\s*\/\s*4/);
     expect(sources.adminCss).toMatch(/#sponsor-preview\s*\{[\s\S]*aspect-ratio:\s*1\s*\/\s*1/);
     expect(sources.adminCss).toMatch(/#sgad-preview\s*\{[\s\S]*aspect-ratio:\s*1200\s*\/\s*545/);
 
     expect(sources.banner).toContain("bindImageUpload('banner-image', 'banner-preview'");
+    expect(sources.banner).toContain("banner-input-subtitle");
+    expect(sources.banner).toContain("titleColor");
+    expect(sources.banner).toContain("outputHeight: 545");
     expect(sources.float).toContain("bindImageUpload('floatad-image', 'floatad-preview'");
     expect(sources.popupSponsor).toContain("bindImageUpload('popupad-image', 'popupad-preview'");
     expect(sources.popupSponsor).toContain("bindImageUpload('sponsor-image', 'sponsor-preview'");

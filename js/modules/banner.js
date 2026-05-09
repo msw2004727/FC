@@ -13,6 +13,9 @@ Object.assign(App, {
       b && (b._docId || b.id || ''),
       b && (b.status || ''),
       b && (b.title || ''),
+      b && (b.subtitle || ''),
+      b && (b.titleColor || ''),
+      b && (b.subtitleColor || ''),
       b && (b.image || ''),
       b && (b.linkUrl || ''),
       b && (b.slotName || ''),
@@ -89,6 +92,53 @@ Object.assign(App, {
     });
   },
 
+  _safeBannerColor(value, fallback) {
+    const raw = String(value || '').trim();
+    return /^#[0-9a-fA-F]{6}$/.test(raw) ? raw : fallback;
+  },
+
+  _renderBannerRegionSelect() {
+    const regions = ['全部', '北部', '中部', '南部', '東部&外島'];
+    const current = typeof this.getHomeBannerRegion === 'function'
+      ? this.getHomeBannerRegion()
+      : '全部';
+    const options = regions.map(region =>
+      `<option value="${escapeHTML(region)}"${region === current ? ' selected' : ''}>${escapeHTML(region)}</option>`
+    ).join('');
+    return `<label class="banner-region-control" onclick="event.stopPropagation()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-4.6 7-11a7 7 0 1 0-14 0c0 6.4 7 11 7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg>
+      <select class="banner-region-select" aria-label="首頁活動地區" onchange="App.setHomeBannerRegion(this.value, { persist: true })">${options}</select>
+    </label>`;
+  },
+
+  _renderBannerActions() {
+    return `<div class="banner-actions">
+      <button class="banner-find-btn" type="button" onclick="event.stopPropagation();App.openHomeActivitySearchModal?.()">
+        <span>找活動</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      </button>
+      <button class="primary-btn small home-create-event-btn banner-create-event-btn" type="button" onclick="event.stopPropagation();App.openHomeCreateEvent?.()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+        <span>我要開團</span>
+      </button>
+    </div>`;
+  },
+
+  _renderBannerSlideContent(b) {
+    const title = b.title || '下班揪人一起動';
+    const subtitle = b.subtitle || '找活動、開團、加入報名，一個地方完成。';
+    const titleColor = this._safeBannerColor(b.titleColor, '#ffffff');
+    const subtitleColor = this._safeBannerColor(b.subtitleColor, '#e5edf8');
+    return `<div class="banner-content" style="--banner-title-color:${titleColor};--banner-subtitle-color:${subtitleColor}">
+      ${this._renderBannerRegionSelect()}
+      <div class="banner-copy">
+        <h2>${escapeHTML(title)}</h2>
+        <p>${escapeHTML(subtitle)}</p>
+        ${this._renderBannerActions()}
+      </div>
+    </div>`;
+  },
+
   renderBannerCarousel(options = {}) {
     const track = document.getElementById('banner-track');
     if (!track) return;
@@ -121,12 +171,12 @@ Object.assign(App, {
         if (b.image) {
           // 先不設 background-image，等預載+解碼完成後再淡入
           return `<div class="banner-slide banner-slide--loading" data-bg-src="${escapeHTML(b.image)}" data-banner-priority="${idx === 0 ? 'high' : 'normal'}" ${clickHandler}>
-            <div class="banner-content"><div class="banner-tag">${escapeHTML(b.slotName || '廣告位 ' + b.slot)}</div><h2>${escapeHTML(b.title || '')}</h2></div>
+            ${this._renderBannerSlideContent(b)}
           </div>`;
         }
         return `<div class="banner-slide banner-placeholder" style="background:${b.gradient || 'var(--bg-elevated)'}" ${clickHandler}>
+          ${this._renderBannerSlideContent(b)}
           <div class="banner-img-placeholder">1200 × 545</div>
-          <div class="banner-content"><div class="banner-tag">${escapeHTML(b.slotName || '廣告位 ' + b.slot)}</div><h2>${escapeHTML(b.title || '')}</h2></div>
         </div>`;
       }).join('');
       // 預載 banner 圖片：背景載入+解碼完成後才設 background-image 並淡入
