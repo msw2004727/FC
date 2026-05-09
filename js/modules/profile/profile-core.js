@@ -452,10 +452,10 @@ Object.assign(App, {
 
   // 用戶資料卡片三功能按鈕（純裝飾，功能未啟用；身分膠囊下方橫排）
   _buildUserCardActionPanel() {
-    return `<div class="uc-action-panel" aria-hidden="true">
-      <button type="button" class="uc-action-btn" disabled>加好友</button>
-      <button type="button" class="uc-action-btn" disabled>私訊</button>
-      <button type="button" class="uc-action-btn" disabled>關注</button>
+    return `<div class="uc-action-panel">
+      <button type="button" class="uc-action-btn" onclick="App.showToast('功能尚未開放')">加好友</button>
+      <button type="button" class="uc-action-btn" onclick="App.showToast('功能尚未開放')">私訊</button>
+      <button type="button" class="uc-action-btn" onclick="App.showToast('功能尚未開放')">關注</button>
     </div>`;
   },
 
