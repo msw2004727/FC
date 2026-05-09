@@ -93,10 +93,14 @@ Object.assign(App, {
 
   _closeCompanionSelectModal() {
     const overlay = document.getElementById('companion-select-overlay');
-    if (!overlay) return;
+    if (!overlay) {
+      this._syncEventSignupScrollLock?.();
+      return;
+    }
     overlay.style.display = 'none';
     overlay.classList.remove('open');
     this._companionSelectEventId = null;
+    this._syncEventSignupScrollLock?.();
   },
 
   async _confirmCompanionRegister(opts = {}) {
@@ -351,10 +355,11 @@ Object.assign(App, {
     const statusLabel = { confirmed: '正取', waitlisted: '候補' };
     listEl.innerHTML = myRegs.map(r => {
       const displayName = r.companionName || r.userName;
+      const cancelId = r.id || r._docId || '';
       const tag = statusLabel[r.status] || r.status;
       const tagColor = r.status === 'confirmed' ? 'var(--success)' : 'var(--warning)';
       return `<label style="display:flex;align-items:center;gap:.5rem;padding:.35rem 0;border-bottom:1px solid var(--border);cursor:pointer">
-        <input type="checkbox" name="cc-reg" value="${escapeHTML(r.id)}" checked style="width:16px;height:16px">
+        <input type="checkbox" name="cc-reg" value="${escapeHTML(cancelId)}" checked ${cancelId ? '' : 'disabled'} style="width:16px;height:16px">
         <span style="flex:1;font-size:.85rem">${escapeHTML(displayName)}${r.companionId ? '' : '（本人）'}</span>
         <span style="font-size:.72rem;padding:.1rem .3rem;border-radius:3px;background:${tagColor}22;color:${tagColor}">${tag}</span>
       </label>`;
@@ -397,7 +402,7 @@ Object.assign(App, {
     const user = ApiService.getCurrentUser();
     const userId = user?.uid || 'unknown';
 
-    const hasSelfCancel = this._companionCancelRegs.filter(r => checked.includes(r.id)).some(r => !r.companionId);
+    const hasSelfCancel = this._companionCancelRegs.filter(r => checked.includes(r.id || r._docId)).some(r => !r.companionId);
     const useCF = typeof shouldUseServerRegistrationForCancel === 'function'
       ? shouldUseServerRegistrationForCancel()
       : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration());
@@ -420,7 +425,7 @@ Object.assign(App, {
         if (!data.deduplicated) {
           // 樂觀更新本地快取
           for (const regId of checked) {
-            const localReg = (FirebaseService._cache?.registrations || []).find(r => r.id === regId);
+            const localReg = (FirebaseService._cache?.registrations || []).find(r => r.id === regId || r._docId === regId);
             if (localReg) { localReg.status = 'cancelled'; localReg.cancelledAt = new Date().toISOString(); }
           }
           if (data.event) {
@@ -603,8 +608,10 @@ Object.assign(App, {
         ? statusText(reg.status)
         : (disabled ? '\u4e0d\u7b26\u9650\u5236' : '\u672a\u5831\u540d');
       const noteParts = [];
-      if (c.gender) noteParts.push(c.gender);
       if (c.notes) noteParts.push(c.notes);
+      const genderBadge = c.gender
+        ? `<span class="companion-toggle-gender">${escapeHTML(c.gender)}</span>`
+        : '';
       return `<label class="${rowClass}">
         <input type="checkbox" name="cs-participant" value="companion"
           data-companion-id="${escapeHTML(companionId)}"
@@ -615,7 +622,7 @@ Object.assign(App, {
           ${disabled ? 'disabled' : ''}
           onchange="App._updateCompanionSelectSummary('${escapeHTML(eventId)}')">
         <span class="companion-toggle-main">
-          <span class="companion-toggle-name">${escapeHTML(companionName || '\u540c\u884c\u8005')}</span>
+          <span class="companion-toggle-name">${escapeHTML(companionName || '\u540c\u884c\u8005')}${genderBadge}</span>
           ${noteParts.length ? `<span class="companion-toggle-note">${escapeHTML(noteParts.join(' / '))}</span>` : ''}
         </span>
         <span class="companion-toggle-status${statusClass}">${statusLabel}</span>

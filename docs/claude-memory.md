@@ -2259,3 +2259,13 @@
 - **Issue**: The homepage watch-party shine sweep was too narrow and moved slightly too fast for the intended reflective field effect.
 - **Fix**: Expanded the shine gradient coverage from roughly one-third of the card to about two-thirds and slowed the animation duration from 4.8s to 6s.
 - **Validation**: Updated `home-dashboard-render.test.js` source contracts for the wider shine stops and slower animation duration.
+
+### 2026-05-09 Activity Signup Scroll Lock Release [bugfix]
+- **Issue**: Companion/signup reservation flows could leave `body.modal-open` after the success UI refreshed, keeping `body { overflow:hidden }` active and making the updated activity detail screen unable to scroll.
+- **Fix**: Centralized event signup modal scroll-lock syncing, made companion modal close release the lock, and added an explicit success cleanup path. The LINE notify prompt overlay/card also became internally scrollable for narrow screens.
+- **Validation**: Added source contract coverage for scroll-lock cleanup and prompt overflow behavior.
+
+### 2026-05-09 Activity Self And Companion Signup Split [bugfix/ux]
+- **Issue**: Companion registrations used the same owner `userId`, so the self signup button could treat companion-only registrations as the user's own signup. The cancel flow also needed to keep the mixed self+companion cancel picker when both existed.
+- **Fix**: Self signup state now ignores `participantType=companion` and legacy `companionId` rows. Main cancel opens the selection modal only when an active self registration and companion registrations both exist; companion-only rows no longer block self signup. Companion picker now shows gender beside the companion name instead of below it.
+- **Validation**: Added regression coverage for companion-owned rows not counting as self signup and ran targeted syntax checks plus `signup-logic.test.js`.

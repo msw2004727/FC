@@ -706,6 +706,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.companion-toggle-gender {
+  color: var(--text-muted);
+  font-size: .72rem;
+  font-weight: 700;
+  margin-left: .35rem;
+  vertical-align: baseline;
+}
 .companion-toggle-note {
   color: var(--text-muted);
   font-size: .72rem;
@@ -1677,6 +1684,9 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
 .ln-prompt-overlay {
   position: fixed; inset: 0; z-index: 1250;
   display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: rgba(0,0,0,.45);
   backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   opacity: 0; pointer-events: none;
@@ -1689,6 +1699,8 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
   border-radius: 18px;
   padding: 2rem 1.5rem 1.5rem;
   width: 300px; max-width: 88vw;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
   text-align: center;
   transform: translateY(24px) scale(.94);
   transition: transform .3s ease;

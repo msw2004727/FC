@@ -864,6 +864,10 @@ body.home-activity-search-open {
   overflow: hidden;
 }
 
+.home-dashboard-section.is-hidden {
+  display: none;
+}
+
 .home-scoreboard-preview {
   margin: .75rem 0 0;
 }
@@ -875,6 +879,9 @@ body.home-activity-search-open {
   min-height: 56px;
   display: flex;
   align-items: center;
+  --home-info-font-size: .72rem;
+  --home-info-label-color: var(--text-muted);
+  --home-info-number-color: #2563eb;
 }
 
 .home-dashboard-title-row,
@@ -1111,14 +1118,14 @@ body.home-activity-search-open {
   margin-left: .08rem;
 }
 
-.home-info-views {
-  position: absolute;
-  right: .68rem;
-  bottom: .22rem;
-  width: auto;
-  margin-left: 0;
-  pointer-events: none;
+.home-sport-views {
+  flex: 0 0 auto;
+  margin-left: auto;
   color: #64748b;
+}
+
+.home-sport-views:empty {
+  display: none;
 }
 
 .home-stat-number {
@@ -1136,6 +1143,24 @@ body.home-activity-search-open {
 .home-stat-card[data-stat="teams"] .home-stat-number { color: #16a34a; }
 .home-stat-card[data-stat="tournaments"] .home-stat-number { color: #d97706; }
 
+.home-info-dashboard-section.has-custom-info-font .home-info-lead,
+.home-info-dashboard-section.has-custom-info-font .home-stat-label {
+  font-size: var(--home-info-font-size);
+}
+
+.home-info-dashboard-section.has-custom-info-font .home-stat-number {
+  font-size: calc(var(--home-info-font-size) + .14rem);
+}
+
+.home-info-dashboard-section.has-custom-info-label-color .home-info-lead,
+.home-info-dashboard-section.has-custom-info-label-color .home-stat-label {
+  color: var(--home-info-label-color);
+}
+
+.home-info-dashboard-section.has-custom-info-number-color .home-stat-number {
+  color: var(--home-info-number-color);
+}
+
 [data-theme="dark"] .home-stat-card[data-stat="activities"] .home-stat-number {
   color: var(--warning, #fbbf24);
 }
@@ -1143,6 +1168,10 @@ body.home-activity-search-open {
 [data-theme="dark"] .home-stat-views,
 [data-theme="dark"] .home-view-icon {
   color: #94a3b8;
+}
+
+[data-theme="dark"] .home-info-dashboard-section.has-custom-info-number-color .home-stat-number {
+  color: var(--home-info-number-color);
 }
 
 .home-stat-value-row {
@@ -1705,10 +1734,6 @@ body.home-activity-search-open {
   .home-stat-views { font-size: .68rem; }
   .home-stat-card { padding: .06rem 0; }
   .home-stat-number { font-size: .78rem; }
-  .home-info-views {
-    right: .62rem;
-    bottom: .2rem;
-  }
   .home-dashboard-note { display: none; }
   .scoreboard-match-row { grid-template-columns: 46px 1fr; }
   .scoreboard-match-score { grid-column: 2; justify-self: start; }

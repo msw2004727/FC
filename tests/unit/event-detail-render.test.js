@@ -316,6 +316,22 @@ describe('Team reservation button loading contract', () => {
     expect(signupSource).toContain('class="outline-btn" onclick="App.closeTeamReservationModal()"');
   });
 
+  test('signup success releases modal scroll lock after companion or reservation flows', () => {
+    const signupSource = readProjectFile('js/modules/event/event-detail-signup.js');
+    const companionSource = readProjectFile('js/modules/event/event-detail-companion.js');
+    const activityCss = readProjectFile('css/activity.css');
+
+    expect(signupSource).toContain('_isEventSignupModalOpen()');
+    expect(signupSource).toContain('_syncEventSignupScrollLock()');
+    expect(signupSource).toContain('_releaseEventSignupScrollLock()');
+    expect(signupSource).toContain("document.body.classList.remove('modal-open')");
+    expect(signupSource).toContain('this._releaseEventSignupScrollLock?.();');
+    expect(companionSource).toContain('this._syncEventSignupScrollLock?.();');
+    expect(activityCss).toContain('.ln-prompt-overlay');
+    expect(activityCss).toContain('overflow-y: auto');
+    expect(activityCss).toContain('-webkit-overflow-scrolling: touch');
+  });
+
   test('personal signup asks for a club when multiple team reservations match', () => {
     const signupSource = readProjectFile('js/modules/event/event-detail-signup.js');
     const companionSource = readProjectFile('js/modules/event/event-detail-companion.js');

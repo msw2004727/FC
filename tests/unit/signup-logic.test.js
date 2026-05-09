@@ -21,7 +21,9 @@ function _getCurrentUserEventRegistrationState(e, { user, getRegistrationsByEven
   const regs = getRegistrationsByEvent?.(e.id) || [];
   const isActive = r => r && r.status !== 'cancelled' && r.status !== 'removed';
   const isMine = r => String(r?.userId || r?.uid || '').trim() === uid;
-  const myRegs = regs.filter(r => isActive(r) && isMine(r));
+  const isSelf = r => String(r?.participantType || '').trim() !== 'companion'
+    && !String(r?.companionId || '').trim();
+  const myRegs = regs.filter(r => isActive(r) && isMine(r) && isSelf(r));
   if (myRegs.length > 0) {
     return { signedUp: true, onWaitlist: myRegs.some(r => r.status === 'waitlisted') };
   }
@@ -95,7 +97,8 @@ function resolveCancelRegistrationId(reg) {
 function isActiveSelfRegistrationRecord(reg) {
   const status = String(reg?.status || '').trim();
   const participantType = String(reg?.participantType || '').trim();
-  return participantType !== 'companion' && status !== 'cancelled' && status !== 'removed';
+  const companionId = String(reg?.companionId || '').trim();
+  return participantType !== 'companion' && !companionId && status !== 'cancelled' && status !== 'removed';
 }
 
 function hasActiveSelfRegistrationForEvent(regs, userId) {
@@ -155,6 +158,20 @@ describe('_isUserSignedUp (event-list-stats.js:261-275)', () => {
   test('registration with uid-only cache row → true', () => {
     const regs = [{ uid: 'U123', eventId: 'e1', status: 'confirmed' }];
     expect(_isUserSignedUp({ id: 'e1' }, deps(regs))).toBe(true);
+  });
+
+  test('companion registration under same owner uid does not count as self signup', () => {
+    const regs = [mkReg('U123', 'e1', 'confirmed', {
+      participantType: 'companion',
+      companionId: 'comp_1',
+      companionName: 'Buddy',
+    })];
+    expect(_isUserSignedUp({ id: 'e1' }, deps(regs))).toBe(false);
+  });
+
+  test('legacy companionId row without participantType does not count as self signup', () => {
+    const regs = [mkReg('U123', 'e1', 'confirmed', { companionId: 'comp_legacy' })];
+    expect(_isUserSignedUp({ id: 'e1' }, deps(regs))).toBe(false);
   });
 
   test('user with cancelled registration → false (registrations path)', () => {
@@ -506,6 +523,7 @@ describe('signup/cancel rapid-click guard helpers', () => {
     expect(isActiveSelfRegistrationRecord({ status: 'cancelled' })).toBe(false);
     expect(isActiveSelfRegistrationRecord({ status: 'removed' })).toBe(false);
     expect(isActiveSelfRegistrationRecord({ status: 'confirmed', participantType: 'companion' })).toBe(false);
+    expect(isActiveSelfRegistrationRecord({ status: 'confirmed', companionId: 'comp_1' })).toBe(false);
   });
 
   test('hasActiveSelfRegistrationForEvent matches userId or uid only for active self rows', () => {

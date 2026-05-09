@@ -321,7 +321,9 @@ Object.assign(App, {
     const regs = ApiService.getRegistrationsByEvent?.(e.id) || [];
     const isActive = r => r && r.status !== 'cancelled' && r.status !== 'removed';
     const isMine = r => String(r?.userId || r?.uid || '').trim() === uid;
-    const myRegs = regs.filter(r => isActive(r) && isMine(r));
+    const isSelf = r => String(r?.participantType || '').trim() !== 'companion'
+      && !String(r?.companionId || '').trim();
+    const myRegs = regs.filter(r => isActive(r) && isMine(r) && isSelf(r));
     if (myRegs.length > 0) {
       return { signedUp: true, onWaitlist: myRegs.some(r => r.status === 'waitlisted') };
     }
