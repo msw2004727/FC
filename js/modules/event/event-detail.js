@@ -593,6 +593,7 @@ Object.assign(App, {
         <div id="detail-unreg-table"></div>
       </div>
       <div id="detail-waitlist-container"></div>
+      <div id="detail-comments-container"></div>
     `;
     // ── 防跳頂：解鎖高度 + 多重 scroll 恢復 ──
     // 內容已填入，解鎖 minHeight
@@ -673,6 +674,7 @@ Object.assign(App, {
       }
       const attTable = document.getElementById('detail-attendance-table');
       this._markBadgeRowOverflow?.(attTable);
+      this._renderEventComments?.(id);
       this._markPageSnapshotReady?.('page-activity-detail');
       return { ok: true, reason: 'ok' };
     } catch (err) {

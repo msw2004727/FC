@@ -270,6 +270,7 @@ sequenceDiagram
 | `events/{eventDocId}/registrations/{regId}` | 報名真實來源 | 現行權威報名資料 |
 | `events/{eventDocId}/attendanceRecords/{recId}` | 簽到/簽退 | 現行權威簽到資料 |
 | `events/{eventDocId}/activityRecords/{recId}` | 個人活動紀錄 | 個人報名紀錄來源，透過即時寫入 + 修復保持一致 |
+| `events/{eventDocId}/comments/{commentId}` | 活動留言 | 活動詳情留言來源；支援公開/私密、回覆、按讚、鎖回覆與軟刪除 |
 | `events/{eventDocId}/registrationLocks/{lockId}` | 報名防重鎖 | 防止同一 UID/同行者/活動重複佔位 |
 | `events/{eventDocId}/teamReservations/{teamId}` | 俱樂部團隊席位鏡像 | 由 Cloud Function 寫入，前端唯讀 |
 | `teams/{teamId}` | 俱樂部 | 成員、職員、運動標籤、圖片 variants、動態 |

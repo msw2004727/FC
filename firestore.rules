@@ -646,7 +646,7 @@ service cloud.firestore {
             (
               hasActivityCap('user.activity.own_edit_basic')
               && changed.hasOnly([
-                'title', 'type', 'location', 'date', 'externalUrl', 'max', 'minAge', 'notes', 'image',
+                'title', 'type', 'location', 'date', 'startTimestamp', 'endTimestamp', 'externalUrl', 'max', 'minAge', 'notes', 'image',
                 'sportTag', 'regOpenTime', 'gradient', 'icon', 'countdown',
                 'regionEnabled', 'region', 'cities', 'delegates', 'delegateUids', 'updatedAt'
               ])
@@ -1828,6 +1828,183 @@ service cloud.firestore {
       allow update: if isAuth()
         && (isUserFieldOwnerResource() || isAdmin() || (isSubActivityStatusOnly() && isEventOperatorForPath(eventId)));
       allow delete: if isAdmin();
+    }
+
+    match /events/{eventId}/comments/{commentId} {
+      function eventData() {
+        return pathEventData(eventId);
+      }
+      function isCommentManager() {
+        let data = eventData();
+        return isAuth()
+          && data != null
+          && (
+            isAdmin()
+            || data.creatorUid == request.auth.uid
+            || data.ownerUid == request.auth.uid
+            || data.captainUid == request.auth.uid
+            || eventDataHasDelegateUid(data, request.auth.uid)
+          );
+      }
+      function eventAcceptsCommentWrites() {
+        let data = eventData();
+        return data != null
+          && (!('status' in data) || data.status != 'cancelled')
+          && (!('endTimestamp' in data) || !(data.endTimestamp is timestamp) || request.time < data.endTimestamp);
+      }
+      function canReadCommentData(data) {
+        return isAuth()
+          && data != null
+          && (
+            data.visibility == 'public'
+            || data.authorUid == request.auth.uid
+            || isCommentManager()
+          );
+      }
+      function commentCreateIsSafe() {
+        return request.resource.data.keys().hasOnly([
+            'eventId', 'authorUid', 'authorName', 'authorPhoto', 'body', 'visibility',
+            'replyLocked', 'deleted', 'createdAt', 'updatedAt'
+          ])
+          && requestEventIdMatchesPath(eventId)
+          && request.resource.data.authorUid == request.auth.uid
+          && request.resource.data.authorName is string
+          && request.resource.data.authorName.size() > 0
+          && request.resource.data.authorName.size() <= 80
+          && request.resource.data.authorPhoto is string
+          && request.resource.data.authorPhoto.size() <= 1200
+          && request.resource.data.body is string
+          && request.resource.data.body.size() > 0
+          && request.resource.data.body.size() <= 300
+          && request.resource.data.visibility in ['public', 'private']
+          && request.resource.data.replyLocked == false
+          && request.resource.data.deleted == false
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+      }
+      function commentManagerUpdateIsSafe() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return changed.hasOnly(['replyLocked', 'deleted', 'deletedAt', 'deletedByUid', 'updatedAt'])
+          && request.resource.data.eventId == resource.data.eventId
+          && request.resource.data.authorUid == resource.data.authorUid
+          && request.resource.data.authorName == resource.data.authorName
+          && request.resource.data.authorPhoto == resource.data.authorPhoto
+          && request.resource.data.body == resource.data.body
+          && request.resource.data.visibility == resource.data.visibility
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt == request.time
+          && (!changed.hasAny(['replyLocked']) || request.resource.data.replyLocked is bool)
+          && (!changed.hasAny(['deleted']) || request.resource.data.deleted == true)
+          && (!changed.hasAny(['deletedAt']) || request.resource.data.deletedAt == request.time)
+          && (!changed.hasAny(['deletedByUid']) || request.resource.data.deletedByUid == request.auth.uid);
+      }
+
+      allow read: if canReadCommentData(resource.data);
+      allow create: if isAuth()
+        && eventAcceptsCommentWrites()
+        && commentCreateIsSafe();
+      allow update: if isCommentManager()
+        && commentManagerUpdateIsSafe();
+      allow delete: if isCommentManager();
+
+      match /replies/{replyId} {
+        function parentCommentData() {
+          return get(/databases/$(database)/documents/events/$(eventId)/comments/$(commentId)).data;
+        }
+        function canReadParentComment() {
+          let data = parentCommentData();
+          return isAuth()
+            && data != null
+            && (
+              data.visibility == 'public'
+              || data.authorUid == request.auth.uid
+              || isCommentManager()
+            );
+        }
+        function replyCreateIsSafe() {
+          let parent = parentCommentData();
+          return request.resource.data.keys().hasOnly([
+              'eventId', 'commentId', 'authorUid', 'authorName', 'authorPhoto',
+              'body', 'deleted', 'createdAt', 'updatedAt'
+            ])
+            && requestEventIdMatchesPath(eventId)
+            && request.resource.data.commentId == commentId
+            && request.resource.data.authorUid == request.auth.uid
+            && request.resource.data.authorName is string
+            && request.resource.data.authorName.size() > 0
+            && request.resource.data.authorName.size() <= 80
+            && request.resource.data.authorPhoto is string
+            && request.resource.data.authorPhoto.size() <= 1200
+            && request.resource.data.body is string
+            && request.resource.data.body.size() > 0
+            && request.resource.data.body.size() <= 300
+            && request.resource.data.deleted == false
+            && request.resource.data.createdAt == request.time
+            && request.resource.data.updatedAt == request.time
+            && parent != null
+            && parent.deleted != true
+            && parent.replyLocked != true;
+        }
+        function replyManagerUpdateIsSafe() {
+          let changed = request.resource.data.diff(resource.data).affectedKeys();
+          return changed.hasOnly(['deleted', 'deletedAt', 'deletedByUid', 'updatedAt'])
+            && request.resource.data.eventId == resource.data.eventId
+            && request.resource.data.commentId == resource.data.commentId
+            && request.resource.data.authorUid == resource.data.authorUid
+            && request.resource.data.authorName == resource.data.authorName
+            && request.resource.data.authorPhoto == resource.data.authorPhoto
+            && request.resource.data.body == resource.data.body
+            && request.resource.data.createdAt == resource.data.createdAt
+            && request.resource.data.updatedAt == request.time
+            && (!changed.hasAny(['deleted']) || request.resource.data.deleted == true)
+            && (!changed.hasAny(['deletedAt']) || request.resource.data.deletedAt == request.time)
+            && (!changed.hasAny(['deletedByUid']) || request.resource.data.deletedByUid == request.auth.uid);
+        }
+
+        allow read: if canReadParentComment();
+        allow create: if isAuth()
+          && eventAcceptsCommentWrites()
+          && canReadParentComment()
+          && replyCreateIsSafe();
+        allow update: if isCommentManager()
+          && replyManagerUpdateIsSafe();
+        allow delete: if isCommentManager();
+      }
+
+      match /likes/{uid} {
+        function parentCommentData() {
+          return get(/databases/$(database)/documents/events/$(eventId)/comments/$(commentId)).data;
+        }
+        function canReadParentComment() {
+          let data = parentCommentData();
+          return isAuth()
+            && data != null
+            && (
+              data.visibility == 'public'
+              || data.authorUid == request.auth.uid
+              || isCommentManager()
+            );
+        }
+        function likeCreateIsSafe() {
+          let parent = parentCommentData();
+          return uid == request.auth.uid
+            && request.resource.data.keys().hasOnly(['eventId', 'commentId', 'uid', 'createdAt'])
+            && requestEventIdMatchesPath(eventId)
+            && request.resource.data.commentId == commentId
+            && request.resource.data.uid == request.auth.uid
+            && request.resource.data.createdAt == request.time
+            && parent != null
+            && parent.deleted != true;
+        }
+
+        allow read: if canReadParentComment();
+        allow create: if isAuth()
+          && canReadParentComment()
+          && likeCreateIsSafe();
+        allow update: if false;
+        allow delete: if isAuth()
+          && uid == request.auth.uid;
+      }
     }
 
     // collectionGroup wildcard rules（僅 read，供 Phase 3 collectionGroup 查詢使用）

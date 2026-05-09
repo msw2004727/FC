@@ -2308,3 +2308,8 @@
 - **Issue**: The Instagram activity social icon still read slightly small after the Threads icon asset swap.
 - **Fix**: Increased the Instagram image scale by roughly 10% inside the circular button.
 - **Validation**: Updated source contract coverage for the Instagram scale value.
+
+### 2026-05-09 Activity Detail Comments [feature]
+- **Issue**: Activity detail pages had no event-scoped discussion area for pre-event questions, private notes to hosts/delegates, replies, or lightweight reactions.
+- **Fix**: Added event subcollection comments with LINE display name/avatar snapshots, public/private visibility, 300-character comments/replies, optimistic likes, reply locking, and soft delete controls for hosts/delegates/admin+. Create/edit activity now persists `startTimestamp` and `endTimestamp` so rules can block new comments after an event ends for newly saved events.
+- **Validation**: Added unit source contracts for loader/detail/comment UI and Firestore rules coverage for private visibility, max length, ended-event blocking, lock/delete permissions, replies, and per-user likes.

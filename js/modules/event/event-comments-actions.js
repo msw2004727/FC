@@ -1,0 +1,224 @@
+/* ================================================
+   ToosterX Activity Comment Actions
+   Firestore writes for comments, replies, likes, locks, deletes
+   ================================================ */
+
+Object.assign(App, {
+  _eventCommentWriteBusy: false,
+
+  _eventCommentServerTimestamp() {
+    return firebase.firestore.FieldValue.serverTimestamp();
+  },
+
+  async _getEventCommentRefs(eventId, commentId, replyId) {
+    const eventRecord = ApiService.getEvent?.(eventId);
+    const eventDocId = await this._resolveEventCommentsDocId(eventRecord || eventId);
+    if (!eventDocId) throw new Error('event_doc_missing');
+    const eventRef = db.collection('events').doc(eventDocId);
+    const commentsRef = eventRef.collection('comments');
+    const commentRef = commentId ? commentsRef.doc(commentId) : null;
+    const replyRef = commentRef && replyId ? commentRef.collection('replies').doc(replyId) : null;
+    return { eventRecord, eventDocId, eventRef, commentsRef, commentRef, replyRef };
+  },
+
+  _requireEventCommentUser() {
+    const author = this._getEventCommentAuthor?.();
+    if (!author?.uid) {
+      this.showToast?.('請先登入');
+      return null;
+    }
+    return author;
+  },
+
+  async _submitEventComment(eventId) {
+    if (this._eventCommentWriteBusy) {
+      this.showToast?.('系統已在處理中');
+      return;
+    }
+    const author = this._requireEventCommentUser();
+    if (!author) return;
+    const eventRecord = ApiService.getEvent?.(eventId);
+    if (this._isEventCommentsClosed(eventRecord)) {
+      this.showToast?.('活動已結束，無法新增留言');
+      return;
+    }
+    const input = document.getElementById('event-comment-input');
+    const privateInput = document.getElementById('event-comment-private');
+    const body = String(input?.value || '').trim();
+    if (!body) { this.showToast?.('請輸入留言'); return; }
+    if (body.length > 300) { this.showToast?.('留言最多 300 字'); return; }
+    const btn = document.querySelector('.event-comment-submit');
+    this._eventCommentWriteBusy = true;
+    if (btn) { btn.disabled = true; btn.textContent = '送出中'; }
+    try {
+      const { commentsRef, eventRecord: currentEvent } = await this._getEventCommentRefs(eventId);
+      await commentsRef.add({
+        eventId: currentEvent?.id || eventId,
+        authorUid: author.uid,
+        authorName: author.authorName,
+        authorPhoto: author.authorPhoto || '',
+        body,
+        visibility: privateInput?.checked ? 'private' : 'public',
+        replyLocked: false,
+        deleted: false,
+        createdAt: this._eventCommentServerTimestamp(),
+        updatedAt: this._eventCommentServerTimestamp(),
+      });
+      if (input) input.value = '';
+      if (privateInput) privateInput.checked = false;
+      this.showToast?.('留言已送出');
+      await this._renderEventComments?.(eventId);
+    } catch (err) {
+      console.error('[event-comments] submit failed', err);
+      this.showToast?.('留言送出失敗，請稍後再試');
+    } finally {
+      this._eventCommentWriteBusy = false;
+      if (btn) { btn.disabled = false; btn.textContent = '送出'; }
+    }
+  },
+
+  async _submitEventCommentReply(eventId, commentId) {
+    if (this._eventCommentWriteBusy) {
+      this.showToast?.('系統已在處理中');
+      return;
+    }
+    const author = this._requireEventCommentUser();
+    if (!author) return;
+    const eventRecord = ApiService.getEvent?.(eventId);
+    if (this._isEventCommentsClosed(eventRecord)) {
+      this.showToast?.('活動已結束，無法新增回覆');
+      return;
+    }
+    const form = document.getElementById('event-comment-reply-' + commentId);
+    const input = form?.querySelector('input');
+    const body = String(input?.value || '').trim();
+    if (!body) { this.showToast?.('請輸入回覆'); return; }
+    if (body.length > 300) { this.showToast?.('回覆最多 300 字'); return; }
+    const btn = form?.querySelector('button');
+    this._eventCommentWriteBusy = true;
+    if (btn) { btn.disabled = true; btn.textContent = '送出中'; }
+    try {
+      const { commentRef, eventRecord: currentEvent } = await this._getEventCommentRefs(eventId, commentId);
+      await commentRef.collection('replies').add({
+        eventId: currentEvent?.id || eventId,
+        commentId,
+        authorUid: author.uid,
+        authorName: author.authorName,
+        authorPhoto: author.authorPhoto || '',
+        body,
+        deleted: false,
+        createdAt: this._eventCommentServerTimestamp(),
+        updatedAt: this._eventCommentServerTimestamp(),
+      });
+      if (input) input.value = '';
+      if (form) form.hidden = true;
+      this.showToast?.('回覆已送出');
+      await this._renderEventComments?.(eventId);
+    } catch (err) {
+      console.error('[event-comments] reply failed', err);
+      this.showToast?.('回覆送出失敗，請稍後再試');
+    } finally {
+      this._eventCommentWriteBusy = false;
+      if (btn) { btn.disabled = false; btn.textContent = '送出'; }
+    }
+  },
+
+  _setEventCommentLikeButtonState(btn, liked, count) {
+    if (!btn) return;
+    btn.classList.toggle('active', liked);
+    btn.setAttribute('aria-pressed', liked ? 'true' : 'false');
+    const span = btn.querySelector('span');
+    if (span) span.textContent = '+' + Math.max(0, count);
+  },
+
+  async _toggleEventCommentLike(eventId, commentId) {
+    const author = this._requireEventCommentUser();
+    if (!author) return;
+    const key = eventId + ':' + commentId;
+    if (this._eventCommentLikeBusy.has(key)) return;
+    const card = Array.from(document.querySelectorAll('.event-comment-card'))
+      .find(el => el.getAttribute('data-comment-id') === commentId);
+    const btn = card?.querySelector('.event-comment-like') || null;
+    const wasLiked = btn?.classList.contains('active') || false;
+    const countText = btn?.querySelector('span')?.textContent || '+0';
+    const oldCount = parseInt(countText.replace(/[^\d]/g, ''), 10) || 0;
+    const nextLiked = !wasLiked;
+    const nextCount = oldCount + (nextLiked ? 1 : -1);
+    this._setEventCommentLikeButtonState(btn, nextLiked, nextCount);
+    this._eventCommentLikeBusy.add(key);
+    try {
+      const { commentRef, eventRecord } = await this._getEventCommentRefs(eventId, commentId);
+      const likeRef = commentRef.collection('likes').doc(author.uid);
+      if (nextLiked) {
+        await likeRef.set({
+          eventId: eventRecord?.id || eventId,
+          commentId,
+          uid: author.uid,
+          createdAt: this._eventCommentServerTimestamp(),
+        });
+      } else {
+        await likeRef.delete();
+      }
+    } catch (err) {
+      console.error('[event-comments] like failed', err);
+      this._setEventCommentLikeButtonState(btn, wasLiked, oldCount);
+      this.showToast?.('按讚更新失敗，請稍後再試');
+    } finally {
+      this._eventCommentLikeBusy.delete(key);
+    }
+  },
+
+  async _setEventCommentReplyLocked(eventId, commentId, locked) {
+    const eventRecord = ApiService.getEvent?.(eventId);
+    if (!this._canManageEventComments(eventRecord)) { this.showToast?.('權限不足'); return; }
+    try {
+      const { commentRef } = await this._getEventCommentRefs(eventId, commentId);
+      await commentRef.update({ replyLocked: !!locked, updatedAt: this._eventCommentServerTimestamp() });
+      this.showToast?.(locked ? '已鎖定回覆' : '已解除鎖定');
+      await this._renderEventComments?.(eventId);
+    } catch (err) {
+      console.error('[event-comments] lock failed', err);
+      this.showToast?.('更新失敗，請稍後再試');
+    }
+  },
+
+  async _deleteEventComment(eventId, commentId) {
+    const eventRecord = ApiService.getEvent?.(eventId);
+    if (!this._canManageEventComments(eventRecord)) { this.showToast?.('權限不足'); return; }
+    if (!confirm('確定刪除此留言？')) return;
+    try {
+      const { commentRef } = await this._getEventCommentRefs(eventId, commentId);
+      await commentRef.update({
+        deleted: true,
+        deletedByUid: ApiService.getCurrentUser?.()?.uid || '',
+        deletedAt: this._eventCommentServerTimestamp(),
+        updatedAt: this._eventCommentServerTimestamp(),
+      });
+      this.showToast?.('留言已刪除');
+      await this._renderEventComments?.(eventId);
+    } catch (err) {
+      console.error('[event-comments] delete failed', err);
+      this.showToast?.('刪除失敗，請稍後再試');
+    }
+  },
+
+  async _deleteEventCommentReply(eventId, commentId, replyId) {
+    const eventRecord = ApiService.getEvent?.(eventId);
+    if (!this._canManageEventComments(eventRecord)) { this.showToast?.('權限不足'); return; }
+    if (!confirm('確定刪除此回覆？')) return;
+    try {
+      const { replyRef } = await this._getEventCommentRefs(eventId, commentId, replyId);
+      await replyRef.update({
+        deleted: true,
+        deletedByUid: ApiService.getCurrentUser?.()?.uid || '',
+        deletedAt: this._eventCommentServerTimestamp(),
+        updatedAt: this._eventCommentServerTimestamp(),
+      });
+      this.showToast?.('回覆已刪除');
+      await this._renderEventComments?.(eventId);
+    } catch (err) {
+      console.error('[event-comments] delete reply failed', err);
+      this.showToast?.('刪除失敗，請稍後再試');
+    }
+  },
+});

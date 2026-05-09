@@ -2117,3 +2117,55 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
 .reg-loading-skeleton{padding:.3rem 0;display:flex;flex-direction:column;gap:.4rem}
 .reg-loading-skeleton-row{height:1.4rem;border-radius:6px;background:linear-gradient(90deg,var(--bg-elevated) 0%,var(--border) 50%,var(--bg-elevated) 100%);background-size:200% 100%;animation:reg-loading-shimmer 1.2s ease-in-out infinite}
 @keyframes reg-loading-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* Activity detail comments */
+.event-comments-section{margin-top:.8rem}
+.event-comment-form{display:flex;flex-direction:column;gap:.55rem;margin:.25rem 0 .8rem}
+.event-comment-form textarea{width:100%;box-sizing:border-box;resize:vertical;min-height:76px;max-height:160px;border:1px solid var(--border);border-radius:10px;background:var(--bg-elevated);color:var(--text-primary);padding:.7rem .75rem;font-size:.86rem;line-height:1.55;outline:none}
+.event-comment-form textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+.event-comment-form-foot{display:flex;align-items:center;justify-content:space-between;gap:.6rem}
+.event-comment-private-toggle{display:inline-flex;align-items:center;gap:.35rem;font-size:.8rem;color:var(--text-secondary);font-weight:650}
+.event-comment-private-toggle input{width:16px;height:16px;accent-color:var(--primary)}
+.event-comment-submit{border:0;border-radius:999px;background:linear-gradient(135deg,#2563eb,#0d9488);color:#fff;font-weight:800;font-size:.82rem;padding:.48rem 1rem;min-width:76px;cursor:pointer}
+.event-comment-submit:disabled{opacity:.65;cursor:not-allowed}
+.event-comments-list{display:flex;flex-direction:column;gap:.65rem}
+.event-comments-empty,.event-comments-closed{padding:.75rem;border-radius:10px;background:var(--bg-elevated);color:var(--text-muted);font-size:.82rem;text-align:center}
+.event-comment-card{border:1px solid var(--border);border-radius:12px;background:linear-gradient(135deg,rgba(37,99,235,.05),rgba(13,148,136,.04) 42%,var(--bg-card) 100%);padding:.75rem .8rem}
+.event-comment-head{display:flex;align-items:center;gap:.45rem;min-width:0}
+.event-comment-avatar{width:30px;height:30px;flex:0 0 30px;border-radius:50%;object-fit:cover;display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#e0f2fe,#ccfbf1);color:#0f766e;font-size:.78rem;font-weight:800}
+.event-comment-author{border:0;background:transparent;color:var(--text-primary);font-weight:800;font-size:.86rem;padding:0;min-width:0;max-width:42%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;text-align:left}
+.event-comment-time{font-size:.72rem;color:var(--text-muted);white-space:nowrap}
+.event-comment-badge{font-size:.68rem;font-weight:800;border-radius:999px;padding:.08rem .42rem;white-space:nowrap}
+.event-comment-badge.private{background:rgba(124,58,237,.12);color:#7c3aed}
+.event-comment-badge.locked{background:rgba(245,158,11,.14);color:#b45309}
+.event-comment-manage{margin-left:auto;display:inline-flex;gap:.25rem;align-items:center}
+.event-comment-mini-btn{border:1px solid var(--border);background:var(--bg-card);color:var(--text-secondary);border-radius:999px;padding:.18rem .45rem;font-size:.68rem;font-weight:700;cursor:pointer;white-space:nowrap}
+.event-comment-mini-btn.danger{border-color:rgba(220,38,38,.35);color:#dc2626}
+.event-comment-body{font-size:.86rem;line-height:1.65;color:var(--text-primary);white-space:pre-wrap;margin:.55rem 0 .45rem;padding-left:2.2rem}
+.event-comment-deleted{font-size:.82rem;color:var(--text-muted);font-style:italic;margin:.55rem 0 .45rem;padding-left:2.2rem}
+.event-comment-actions{display:flex;align-items:center;gap:.6rem;padding-left:2.2rem}
+.event-comment-action{display:inline-flex;align-items:center;gap:.24rem;border:0;background:transparent;color:var(--text-secondary);font-size:.78rem;font-weight:750;cursor:pointer;padding:.15rem 0}
+.event-comment-action svg{width:15px;height:15px;fill:currentColor}
+.event-comment-action.active{color:#0d9488}
+.event-comment-reply-form{display:flex;gap:.4rem;margin:.55rem 0 0 2.2rem}
+.event-comment-reply-form input{flex:1;min-width:0;border:1px solid var(--border);border-radius:999px;background:var(--bg-elevated);color:var(--text-primary);padding:.45rem .7rem;font-size:.8rem;outline:none}
+.event-comment-reply-form button{border:0;border-radius:999px;background:var(--primary);color:#fff;font-size:.75rem;font-weight:800;padding:.35rem .7rem;white-space:nowrap}
+.event-comment-replies{display:flex;flex-direction:column;gap:.45rem;margin:.65rem 0 0 2.2rem}
+.event-comment-reply{display:flex;gap:.45rem;align-items:flex-start;padding:.45rem .55rem;border-radius:10px;background:rgba(148,163,184,.10)}
+.event-comment-reply .event-comment-avatar{width:24px;height:24px;flex-basis:24px;font-size:.68rem}
+.event-comment-reply-main{flex:1;min-width:0}
+.event-comment-reply-meta{display:flex;align-items:center;gap:.35rem;min-width:0}
+.event-comment-reply-meta span{font-size:.78rem;font-weight:800;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.event-comment-reply-meta small{font-size:.68rem;color:var(--text-muted);white-space:nowrap}
+.event-comment-reply-body{font-size:.8rem;line-height:1.55;color:var(--text-secondary);white-space:pre-wrap;margin-top:.12rem}
+[data-theme="dark"] .event-comment-card{background:linear-gradient(135deg,rgba(59,130,246,.14),rgba(20,184,166,.09) 42%,var(--bg-card) 100%)}
+[data-theme="dark"] .event-comment-avatar{background:linear-gradient(135deg,#1e3a8a,#115e59);color:#dbeafe}
+[data-theme="dark"] .event-comment-badge.private{background:rgba(167,139,250,.18);color:#c4b5fd}
+[data-theme="dark"] .event-comment-badge.locked{background:rgba(251,191,36,.18);color:#fbbf24}
+[data-theme="dark"] .event-comment-action.active{color:#5eead4}
+@media (max-width:520px){
+  .event-comment-head{flex-wrap:wrap}
+  .event-comment-author{max-width:58%}
+  .event-comment-manage{width:100%;margin-left:2.2rem}
+  .event-comment-body,.event-comment-deleted,.event-comment-actions,.event-comment-replies,.event-comment-reply-form{padding-left:0;margin-left:0}
+}

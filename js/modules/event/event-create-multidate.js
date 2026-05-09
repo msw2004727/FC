@@ -200,10 +200,14 @@ Object.assign(App, {
       const fullDate = dateStr.replace(/-/g, '/') + ' ' + timeVal;
       const regOpen = this._calcRegOpenForDate(dateStr, tStart, rel.days, rel.hours);
       const status = (regOpen && new Date(regOpen) > new Date()) ? 'upcoming' : 'open';
+      const startTimestamp = new Date(dateStr + 'T' + tStart);
+      const endTimestamp = new Date(dateStr + 'T' + tEnd);
 
       events.push(Object.assign({}, baseEvent, {
         id: 'ce_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6) + '_' + i,
         date: fullDate,
+        startTimestamp: startTimestamp,
+        endTimestamp: endTimestamp,
         regOpenTime: regOpen || null,
         status: status,
         batchGroupId: batchGroupId,

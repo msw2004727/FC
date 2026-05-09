@@ -329,6 +329,8 @@ Object.assign(App, {
     const image = ceImg ? ceImg.src : null;
 
     const fullDate = `${dateVal.replace(/-/g, '/')} ${timeVal}`;
+    const startTimestamp = new Date(`${dateVal}T${tStart}`);
+    const endTimestamp = new Date(`${dateVal}T${tEnd}`);
 
     if (this._editEventId) {
       // Trigger 6：活動變更通知 — 先取得現有報名者
@@ -366,7 +368,7 @@ Object.assign(App, {
         })();
 
       const updates = {
-        title, type, location, date: fullDate, fee, feeEnabled, max, minAge, notes, image, sportTag,
+        title, type, location, date: fullDate, startTimestamp, endTimestamp, fee, feeEnabled, max, minAge, notes, image, sportTag,
         regOpenTime: regOpenTime || null,
         gradient: GRADIENT_MAP[type] || GRADIENT_MAP.friendly,
         teamOnly,
@@ -462,7 +464,7 @@ Object.assign(App, {
       }
       const newEvent = {
         id: generateId('ce_'),
-        title, type, status: initStatus, location, date: fullDate,
+        title, type, status: initStatus, location, date: fullDate, startTimestamp, endTimestamp,
         fee, feeEnabled, max, current: 0, waitlist: 0, minAge, notes, image: resolvedImage, sportTag,
         regOpenTime: regOpenTime || null,
         creator: creatorName,

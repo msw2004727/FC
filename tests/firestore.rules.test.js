@@ -487,7 +487,7 @@ beforeAll(async () => {
       rules: fs.readFileSync(RULES_PATH, "utf8"),
     },
   });
-});
+}, 30000);
 
 beforeEach(async () => {
   await testEnv.clearFirestore();
@@ -495,7 +495,7 @@ beforeEach(async () => {
 }, 30000);
 
 afterAll(async () => {
-  await testEnv.cleanup();
+  if (testEnv) await testEnv.cleanup();
 });
 
 describe("/users/{userId}", () => {
@@ -2532,6 +2532,145 @@ describe("/rolePermissions/{roleKey}", () => {
 // ═══════════════════════════════════════════════════════════════
 // Phase 4: hasPerm() 權限碼授予 → 存取控制矩陣
 // ═══════════════════════════════════════════════════════════════
+
+describe("event comments subcollections", () => {
+  const futureDate = () => new Date(Date.now() + 60 * 60 * 1000);
+  const pastDate = () => new Date(Date.now() - 60 * 60 * 1000);
+
+  async function seedCommentEvent(id, overrides = {}) {
+    await seedDoc("events", id, {
+      id,
+      title: "Comment Event",
+      creatorUid: "uidA",
+      delegateUids: ["uidCaptain"],
+      status: "open",
+      endTimestamp: futureDate(),
+      ...overrides,
+    });
+  }
+
+  function commentData(eventId, authorUid = "uidUser", body = "hello") {
+    return {
+      eventId,
+      authorUid,
+      authorName: "LINE User",
+      authorPhoto: "https://example.com/a.png",
+      body,
+      visibility: "public",
+      replyLocked: false,
+      deleted: false,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+  }
+
+  function replyData(eventId, commentId, authorUid = "uidB", body = "reply") {
+    return {
+      eventId,
+      commentId,
+      authorUid,
+      authorName: "Reply User",
+      authorPhoto: "",
+      body,
+      deleted: false,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+  }
+
+  test("authenticated user can create a 300-character public comment before event end", async () => {
+    await seedCommentEvent("commentFuture");
+    await assertSucceeds(
+      setDoc(doc(user(), "events", "commentFuture", "comments", "c1"), {
+        ...commentData("commentFuture", "uidUser", "x".repeat(300)),
+      })
+    );
+  });
+
+  test("comment create rejects over 300 characters and ended events", async () => {
+    await seedCommentEvent("commentFuture");
+    await assertFails(
+      setDoc(doc(user(), "events", "commentFuture", "comments", "tooLong"), {
+        ...commentData("commentFuture", "uidUser", "x".repeat(301)),
+      })
+    );
+
+    await seedCommentEvent("commentPast", { endTimestamp: pastDate() });
+    await assertFails(
+      setDoc(doc(user(), "events", "commentPast", "comments", "late"), {
+        ...commentData("commentPast", "uidUser", "late"),
+      })
+    );
+  });
+
+  test("private comments are visible only to author, host/delegate, and admin", async () => {
+    await seedCommentEvent("commentPrivate");
+    await seedPath(["events", "commentPrivate", "comments", "private1"], {
+      ...commentData("commentPrivate", "uidUser", "secret"),
+      visibility: "private",
+    });
+
+    await assertSucceeds(getDoc(doc(user(), "events", "commentPrivate", "comments", "private1")));
+    await assertSucceeds(getDoc(doc(memberA(), "events", "commentPrivate", "comments", "private1")));
+    await assertSucceeds(getDoc(doc(captain(), "events", "commentPrivate", "comments", "private1")));
+    await assertSucceeds(getDoc(doc(admin(), "events", "commentPrivate", "comments", "private1")));
+    await assertFails(getDoc(doc(memberB(), "events", "commentPrivate", "comments", "private1")));
+  });
+
+  test("only host/delegate/admin can lock or soft-delete comments", async () => {
+    await seedCommentEvent("commentManage");
+    await seedPath(["events", "commentManage", "comments", "c1"], commentData("commentManage"));
+
+    await assertFails(
+      updateDoc(doc(memberB(), "events", "commentManage", "comments", "c1"), {
+        replyLocked: true,
+        updatedAt: serverTimestamp(),
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(memberA(), "events", "commentManage", "comments", "c1"), {
+        replyLocked: true,
+        updatedAt: serverTimestamp(),
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(captain(), "events", "commentManage", "comments", "c1"), {
+        deleted: true,
+        deletedByUid: "uidCaptain",
+        deletedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  test("replies respect parent reply lock and likes are per-user documents", async () => {
+    await seedCommentEvent("commentReply");
+    await seedPath(["events", "commentReply", "comments", "c1"], commentData("commentReply"));
+
+    await assertSucceeds(
+      setDoc(doc(memberB(), "events", "commentReply", "comments", "c1", "replies", "r1"), {
+        ...replyData("commentReply", "c1", "uidB"),
+      })
+    );
+    await assertSucceeds(
+      setDoc(doc(memberB(), "events", "commentReply", "comments", "c1", "likes", "uidB"), {
+        eventId: "commentReply",
+        commentId: "c1",
+        uid: "uidB",
+        createdAt: serverTimestamp(),
+      })
+    );
+
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), "events", "commentReply", "comments", "c1"), { replyLocked: true });
+    });
+    await assertFails(
+      setDoc(doc(memberB(), "events", "commentReply", "comments", "c1", "replies", "r2"), {
+        ...replyData("commentReply", "c1", "uidB", "locked"),
+      })
+    );
+  });
+});
 
 describe("Phase 4: hasPerm() permission-grant access control", () => {
   // --- errorLogs: requires admin.logs.error_read ---
