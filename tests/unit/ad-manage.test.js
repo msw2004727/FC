@@ -94,6 +94,8 @@ describe('ad edit modal wiring', () => {
   const sources = {
     adminCss: read('css/admin.css'),
     adminContent: read('pages/admin-content.html'),
+    apiService: read('js/api-service.js'),
+    firebaseService: read('js/firebase-service.js'),
     core: read('js/modules/ad-manage/ad-manage-core.js'),
     banner: read('js/modules/ad-manage/ad-manage-banner.js'),
     float: read('js/modules/ad-manage/ad-manage-float.js'),
@@ -113,6 +115,7 @@ describe('ad edit modal wiring', () => {
   test('all ad edit forms open through the modal helper', () => {
     expect(sources.banner).toContain("_openAdEditModal('banner-form-card'");
     expect(sources.banner).toContain("_openAdEditModal('watch-party-bg-form-card'");
+    expect(sources.banner).toContain("_openAdEditModal('home-info-form-card'");
     expect(sources.float).toContain("_openAdEditModal('floatad-form-card'");
     expect(sources.popupSponsor).toContain("_openAdEditModal('popupad-form-card'");
     expect(sources.popupSponsor).toContain("_openAdEditModal('sponsor-form-card'");
@@ -131,10 +134,36 @@ describe('ad edit modal wiring', () => {
     expect(sources.core).toContain("ApiService.updateWatchPartyBg(id, { image: null })");
   });
 
+  test('home info settings expose visibility text and color controls', () => {
+    [
+      'home-info-manage-list',
+      'home-info-form-card',
+      'home-info-visible',
+      'home-info-label-activities',
+      'home-info-label-teams',
+      'home-info-label-tournaments',
+      'home-info-font-size',
+      'home-info-label-color',
+      'home-info-number-color',
+    ].forEach((id) => {
+      expect(sources.adminContent).toContain(id);
+    });
+    expect(sources.banner).toContain('renderHomeInfoManage()');
+    expect(sources.banner).toContain('saveHomeInfoSettings()');
+    expect(sources.banner).toContain('_normalizeHomeInfoLabels');
+    expect(sources.banner).toContain('ApiService.updateHomeInfoSettings');
+    expect(sources.core).toContain("'homeinfo'");
+    expect(sources.core).toContain('renderHomeInfoManage');
+    expect(sources.apiService).toContain('getHomeInfoSettings()');
+    expect(sources.apiService).toContain('updateHomeInfoSettings');
+    expect(sources.firebaseService).toContain('_ensureHomeInfoSlot()');
+  });
+
   test('static ad management forms are hidden until opened as modals', () => {
     [
       'banner-form-card',
       'watch-party-bg-form-card',
+      'home-info-form-card',
       'floatad-form-card',
       'popupad-form-card',
       'sponsor-form-card',

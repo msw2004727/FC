@@ -86,6 +86,38 @@
         </div>
       </div>
 
+      <!-- 即時資訊編輯 -->
+      <div class="ad-collapse-section">
+        <div class="admin-section-label ad-collapse-toggle" onclick="App.toggleAdSection(this)">
+          <span>即時資訊編輯</span><span class="ad-collapse-arrow">▶</span>
+        </div>
+        <div class="ad-collapse-content" style="display:none">
+          <div class="card-list" id="home-info-manage-list"></div>
+          <div class="form-card" id="home-info-form-card" style="display:none">
+            <div class="role-editor-header"><span id="home-info-form-title">調整即時資訊</span><button class="text-btn" onclick="App.hideHomeInfoForm()">取消</button></div>
+            <div class="form-row">
+              <label>首頁顯示</label>
+              <label class="toggle-switch" style="margin:0">
+                <input type="checkbox" id="home-info-visible">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="form-row"><label>活動文字</label><input type="text" id="home-info-label-activities" maxlength="12" placeholder="已開放活動"></div>
+            <div class="form-row"><label>俱樂部文字</label><input type="text" id="home-info-label-teams" maxlength="12" placeholder="俱樂部數"></div>
+            <div class="form-row"><label>賽事文字</label><input type="text" id="home-info-label-tournaments" maxlength="12" placeholder="正舉辦賽事"></div>
+            <div class="form-row"><label>字體大小</label><input type="number" id="home-info-font-size" min="10" max="20" step="1" placeholder="12"></div>
+            <div class="form-row banner-text-color-row">
+              <label>顏色設定</label>
+              <div class="banner-color-inputs">
+                <label><span>文字</span><input type="color" id="home-info-label-color" value="#64748b"></label>
+                <label><span>數字</span><input type="color" id="home-info-number-color" value="#2563eb"></label>
+              </div>
+            </div>
+            <button class="primary-btn full-width" onclick="App.saveHomeInfoSettings()">儲存設定</button>
+          </div>
+        </div>
+      </div>
+
       <!-- 浮動廣告 -->
       <div class="ad-collapse-section">
         <div class="admin-section-label ad-collapse-toggle" onclick="App.toggleAdSection(this)">

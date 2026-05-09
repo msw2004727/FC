@@ -1409,7 +1409,14 @@ const ApiService = {
   getTeamExpLogs()   { return this._src('teamExpLogs'); },
   getOperationLogs() { return this._src('operationLogs'); },
   getErrorLogs()     { return this._src('errorLogs'); },
-  getBanners()       { return this._src('banners').filter(b => b.type !== 'shotgame' && b.type !== 'watchParty'); },
+  getBanners()       { return this._src('banners').filter(b =>
+    b.type !== 'shotgame'
+    && b.type !== 'watchParty'
+    && b.type !== 'homeInfo'
+    && b.slot !== 'home-info'
+    && b.id !== 'home-info'
+    && b._docId !== 'home-info'
+  ); },
   getShotGameAd()    {
     return this._src('banners').find(b =>
       b.slot === 'sga1'
@@ -1424,6 +1431,14 @@ const ApiService = {
       || b.id === 'watch-party-bg'
       || b._docId === 'watch-party-bg'
       || b.type === 'watchParty'
+    ) || null;
+  },
+  getHomeInfoSettings()  {
+    return this._src('banners').find(b =>
+      b.slot === 'home-info'
+      || b.id === 'home-info'
+      || b._docId === 'home-info'
+      || b.type === 'homeInfo'
     ) || null;
   },
   getPermissions()   { return getMergedPermissionCatalog(this._src('permissions') || []); },
@@ -1463,6 +1478,43 @@ const ApiService = {
           return null;
         })
         .catch(err => console.warn('[updateWatchPartyBg] ensure slot failed:', err));
+    }
+    return null;
+  },
+  updateHomeInfoSettings(id, updates) {
+    if (this._handleRestrictedAction()) return null;
+
+    const source = this._src('banners');
+    const item = this.getHomeInfoSettings()
+      || source.find(b => b.id === id || b._docId === id || b.slot === 'home-info' || b.type === 'homeInfo')
+      || null;
+
+    if (item) {
+      Object.assign(item, updates);
+      if (!item.id && item._docId) item.id = item._docId;
+      if (typeof FirebaseService !== 'undefined' && FirebaseService.updateBanner) {
+        const writeId = item.id || item._docId || 'home-info';
+        FirebaseService.ensureAuthReadyForWrite()
+          .then(() => FirebaseService.updateBanner.call(FirebaseService, writeId, updates))
+          .catch(err => console.error('[updateHomeInfoSettings]', err));
+      }
+      return item;
+    }
+
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._ensureHomeInfoSlot === 'function') {
+      Promise.resolve(FirebaseService._ensureHomeInfoSlot())
+        .then(() => {
+          const created = this.getHomeInfoSettings();
+          if (!created) return;
+          Object.assign(created, updates);
+          const retryId = created.id || created._docId || 'home-info';
+          if (FirebaseService.updateBanner) {
+            return FirebaseService.ensureAuthReadyForWrite()
+              .then(() => FirebaseService.updateBanner.call(FirebaseService, retryId, updates));
+          }
+          return null;
+        })
+        .catch(err => console.warn('[updateHomeInfoSettings] ensure slot failed:', err));
     }
     return null;
   },

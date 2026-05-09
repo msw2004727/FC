@@ -8,6 +8,8 @@ Object.assign(App, {
   _bannerEditId: null,
   _watchPartyBgEditId: null,
   _watchPartyBgEnsuringSlot: false,
+  _homeInfoEditId: null,
+  _homeInfoEnsuringSlot: false,
 
   _safeBannerTextColor(value, fallback) {
     const raw = String(value || '').trim();
@@ -391,6 +393,184 @@ Object.assign(App, {
     this.hideWatchPartyBgForm();
     this.renderWatchPartyBgManage();
     this.renderHomeWatchPartyCard?.();
+  },
+
+  _homeInfoDefaultLabels: {
+    activities: '\u5df2\u958b\u653e\u6d3b\u52d5',
+    teams: '\u4ff1\u6a02\u90e8\u6578',
+    tournaments: '\u6b63\u8209\u8fa6\u8cfd\u4e8b',
+  },
+
+  _getHomeInfoPlaceholder() {
+    const existing = ApiService.getHomeInfoSettings?.();
+    if (existing) return existing;
+    let source = null;
+    if (typeof ApiService !== 'undefined' && typeof ApiService._src === 'function') {
+      source = ApiService._src('banners');
+    } else if (typeof FirebaseService !== 'undefined' && FirebaseService._cache) {
+      source = FirebaseService._cache.banners;
+    }
+    if (!Array.isArray(source)) return null;
+    const placeholder = {
+      id: 'home-info',
+      _docId: 'home-info',
+      slot: 'home-info',
+      type: 'homeInfo',
+      slotName: '\u5373\u6642\u8cc7\u8a0a\u7de8\u8f2f',
+      status: 'active',
+      publishAt: null,
+      unpublishAt: null,
+      clicks: 0,
+      labels: { ...this._homeInfoDefaultLabels },
+      fontSize: '',
+      labelColor: '',
+      numberColor: '',
+    };
+    source.push(placeholder);
+    return placeholder;
+  },
+
+  async _ensureHomeInfoSlot() {
+    if (this._homeInfoEnsuringSlot) return;
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService._ensureHomeInfoSlot !== 'function') return;
+    this._homeInfoEnsuringSlot = true;
+    try {
+      if (typeof _firebaseAuthReadyPromise !== 'undefined' && !_firebaseAuthReady) {
+        await Promise.race([_firebaseAuthReadyPromise, new Promise(r => setTimeout(r, 5000))]);
+      }
+      await FirebaseService._ensureHomeInfoSlot();
+    } catch (err) {
+      console.warn('[HomeInfo] ensure slot failed:', err);
+    } finally {
+      this._homeInfoEnsuringSlot = false;
+    }
+  },
+
+  _normalizeHomeInfoLabels(item) {
+    const labels = item?.labels && typeof item.labels === 'object' ? item.labels : {};
+    return {
+      activities: String(labels.activities || item?.activityLabel || this._homeInfoDefaultLabels.activities).trim() || this._homeInfoDefaultLabels.activities,
+      teams: String(labels.teams || item?.teamLabel || this._homeInfoDefaultLabels.teams).trim() || this._homeInfoDefaultLabels.teams,
+      tournaments: String(labels.tournaments || item?.tournamentLabel || this._homeInfoDefaultLabels.tournaments).trim() || this._homeInfoDefaultLabels.tournaments,
+    };
+  },
+
+  _normalizeHomeInfoFontSize(value) {
+    const num = Number(value);
+    return Number.isFinite(num) && num >= 10 && num <= 20 ? String(Math.round(num)) : '';
+  },
+
+  renderHomeInfoManage() {
+    const container = document.getElementById('home-info-manage-list');
+    if (!container) return;
+    let item = ApiService.getHomeInfoSettings?.() || this._getHomeInfoPlaceholder();
+    if (!item) {
+      container.innerHTML = '<p style="color:var(--text-muted);padding:.5rem">\u5373\u6642\u8cc7\u8a0a\u8a2d\u5b9a\u8f09\u5165\u4e2d...</p>';
+      this._ensureHomeInfoSlot().then(() => {
+        const ensured = ApiService.getHomeInfoSettings?.() || this._getHomeInfoPlaceholder();
+        if (ensured) this.renderHomeInfoManage();
+      });
+      return;
+    }
+    this._ensureHomeInfoSlot();
+
+    const isEmpty = item.status === 'empty';
+    const isActive = item.status === 'active';
+    const isScheduled = item.status === 'scheduled';
+    const statusLabel = isEmpty ? '\u5c1a\u672a\u8a2d\u5b9a' : isActive ? '\u9996\u9801\u986f\u793a\u4e2d' : isScheduled ? '\u6392\u7a0b\u4e2d' : '\u5df2\u4e0b\u67b6';
+    const statusClass = isEmpty ? 'empty' : isActive ? 'active' : isScheduled ? 'scheduled' : 'expired';
+    const labels = this._normalizeHomeInfoLabels(item);
+    const fontSize = this._normalizeHomeInfoFontSize(item.fontSize);
+    const labelColor = this._safeBannerTextColor(item.labelColor || item.fontColor, '');
+    const numberColor = this._safeBannerTextColor(item.numberColor, '');
+    const styleText = [
+      fontSize ? `\u5b57\u9ad4 ${fontSize}px` : '\u9810\u8a2d\u5b57\u9ad4',
+      labelColor ? `\u6587\u5b57 ${labelColor}` : '\u9810\u8a2d\u6587\u5b57\u8272',
+      numberColor ? `\u6578\u5b57 ${numberColor}` : '\u9810\u8a2d\u6578\u5b57\u8272',
+    ].join(' \u2022 ');
+    container.innerHTML = `
+    <div class="banner-manage-card" style="margin-bottom:.5rem">
+      <div class="banner-thumb banner-thumb-empty" style="width:128px;height:auto;aspect-ratio:5/1"><span>\u5373\u6642<br>\u8cc7\u8a0a</span></div>
+      <div class="banner-manage-info">
+        <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
+          <div class="banner-manage-title">\u5373\u6642\u8cc7\u8a0a\u7de8\u8f2f</div>
+          <span class="banner-manage-status status-${statusClass}">${statusLabel}</span>
+        </div>
+        <div class="banner-manage-meta">${escapeHTML(labels.activities)} / ${escapeHTML(labels.teams)} / ${escapeHTML(labels.tournaments)}</div>
+        <div class="banner-manage-meta">${escapeHTML(styleText)}</div>
+        <div style="display:flex;gap:.3rem;margin-top:.3rem;flex-wrap:wrap">
+          ${this._adActionBtns('homeinfo', item.id || item._docId || 'home-info', item.status || 'active', item.unpublishAt)}
+        </div>
+      </div>
+    </div>`;
+  },
+
+  editHomeInfo(id) {
+    if (!this.hasPermission('admin.banners.entry')) {
+      this.showToast('\u6b0a\u9650\u4e0d\u8db3'); return;
+    }
+    const item = ApiService.getHomeInfoSettings?.() || this._getHomeInfoPlaceholder();
+    if (item) this.showHomeInfoForm(item);
+  },
+
+  showHomeInfoForm(editData) {
+    const form = document.getElementById('home-info-form-card');
+    if (!form) return;
+    this._homeInfoEditId = editData.id || editData._docId || 'home-info';
+    const labels = this._normalizeHomeInfoLabels(editData);
+    document.getElementById('home-info-visible').checked = editData.status !== 'expired' && editData.status !== 'empty';
+    document.getElementById('home-info-label-activities').value = labels.activities;
+    document.getElementById('home-info-label-teams').value = labels.teams;
+    document.getElementById('home-info-label-tournaments').value = labels.tournaments;
+    document.getElementById('home-info-font-size').value = this._normalizeHomeInfoFontSize(editData.fontSize);
+    document.getElementById('home-info-label-color').value = this._safeBannerTextColor(editData.labelColor || editData.fontColor, '#64748b');
+    document.getElementById('home-info-number-color').value = this._safeBannerTextColor(editData.numberColor, '#2563eb');
+    this._openAdEditModal('home-info-form-card', 'hideHomeInfoForm');
+  },
+
+  hideHomeInfoForm() {
+    this._closeAdEditModal('home-info-form-card');
+    this._homeInfoEditId = null;
+  },
+
+  async saveHomeInfoSettings() {
+    if (!this.hasPermission('admin.banners.entry')) {
+      this.showToast('\u6b0a\u9650\u4e0d\u8db3'); return;
+    }
+    await this._ensureHomeInfoSlot();
+    const item = ApiService.getHomeInfoSettings?.() || this._getHomeInfoPlaceholder();
+    const id = this._homeInfoEditId || item?.id || item?._docId || 'home-info';
+    const labels = {
+      activities: (document.getElementById('home-info-label-activities')?.value || '').trim().slice(0, 12) || this._homeInfoDefaultLabels.activities,
+      teams: (document.getElementById('home-info-label-teams')?.value || '').trim().slice(0, 12) || this._homeInfoDefaultLabels.teams,
+      tournaments: (document.getElementById('home-info-label-tournaments')?.value || '').trim().slice(0, 12) || this._homeInfoDefaultLabels.tournaments,
+    };
+    const fontSizeRaw = (document.getElementById('home-info-font-size')?.value || '').trim();
+    const fontSize = this._normalizeHomeInfoFontSize(fontSizeRaw);
+    if (fontSizeRaw && !fontSize) {
+      this.showToast('\u5b57\u9ad4\u5927\u5c0f\u8acb\u8a2d\u5b9a\u5728 10-20 \u4e4b\u9593');
+      return;
+    }
+    const labelColor = this._safeBannerTextColor(document.getElementById('home-info-label-color')?.value, '#64748b');
+    const numberColor = this._safeBannerTextColor(document.getElementById('home-info-number-color')?.value, '#2563eb');
+    const visible = document.getElementById('home-info-visible')?.checked === true;
+    const status = visible ? 'active' : 'expired';
+    ApiService.updateHomeInfoSettings(id, {
+      slotName: '\u5373\u6642\u8cc7\u8a0a\u7de8\u8f2f',
+      slot: 'home-info',
+      type: 'homeInfo',
+      labels,
+      fontSize,
+      labelColor,
+      numberColor,
+      publishAt: status === 'active' ? this._formatDT(new Date().toISOString()) : null,
+      unpublishAt: null,
+      status,
+    });
+    this.showToast(visible ? '\u5373\u6642\u8cc7\u8a0a\u5df2\u5957\u7528\u5230\u9996\u9801' : '\u5373\u6642\u8cc7\u8a0a\u5df2\u4e0b\u67b6');
+    this.hideHomeInfoForm();
+    this.renderHomeInfoManage();
+    this.renderHomeDashboard?.();
   },
 
   editBannerItem(id) {

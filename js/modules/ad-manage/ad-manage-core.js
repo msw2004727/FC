@@ -114,6 +114,8 @@ Object.assign(App, {
     if (sgAd) check([sgAd], (id, u) => ApiService.updateShotGameAd(id, u));
     const watchPartyBg = ApiService.getWatchPartyBg?.();
     if (watchPartyBg) check([watchPartyBg], (id, u) => ApiService.updateWatchPartyBg(id, u));
+    const homeInfo = ApiService.getHomeInfoSettings?.();
+    if (homeInfo) check([homeInfo], (id, u) => ApiService.updateHomeInfoSettings(id, u));
     check(ApiService.getFloatingAds(), (id, u) => ApiService.updateFloatingAd(id, u));
     check(ApiService.getPopupAds(), (id, u) => ApiService.updatePopupAd(id, u));
     check(ApiService.getSponsors(), (id, u) => ApiService.updateSponsor(id, u));
@@ -142,6 +144,21 @@ Object.assign(App, {
       btns.push(`<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.clearAdSlot('${type}','${id}')">刪除</button>`);
     }
     const html = btns.join('');
+    if (type === 'homeinfo') {
+      if (status === 'active') {
+        return [
+          `<button class="primary-btn small" style="${s}" onclick="App.editAd('homeinfo','${id}')">\u7de8\u8f2f</button>`,
+          `<button class="outline-btn" style="${s};color:var(--danger)" onclick="App.delistAd('homeinfo','${id}')">\u4e0b\u67b6</button>`,
+        ].join('');
+      }
+      if (status === 'empty') {
+        return `<button class="primary-btn small" style="${s}" onclick="App.editAd('homeinfo','${id}')">\u8a2d\u5b9a</button>`;
+      }
+      return [
+        `<button class="primary-btn small" style="${s}" onclick="App.editAd('homeinfo','${id}')">\u7de8\u8f2f</button>`,
+        `<button class="outline-btn" style="${s};color:var(--success)" onclick="App.relistAd('homeinfo','${id}')">\u91cd\u65b0\u4e0a\u67b6</button>`,
+      ].join('');
+    }
     if (type === 'watchparty') {
       return html.replace(/(onclick="App\.clearAdSlot\('watchparty','[^']*'\)">)[^<]*(<\/button>)/g, (_, open, close) => `${open}\u6e05\u7a7a\u5716\u7247${close}`);
     }
@@ -175,6 +192,7 @@ Object.assign(App, {
     else if (type === 'sponsor') this.editSponsorItem(id);
     else if (type === 'shotgame') this.editShotGameAd(id);
     else if (type === 'watchparty') this.editWatchPartyBg(id);
+    else if (type === 'homeinfo') this.editHomeInfo(id);
   },
 
   // ── 通用：下架 ──
@@ -204,6 +222,10 @@ Object.assign(App, {
       ApiService.updateWatchPartyBg(id, { status: 'expired' });
       this.renderWatchPartyBgManage();
       this.renderHomeWatchPartyCard?.();
+    } else if (type === 'homeinfo') {
+      ApiService.updateHomeInfoSettings(id, { status: 'expired' });
+      this.renderHomeInfoManage?.();
+      this.renderHomeDashboard?.();
     }
     this.showToast('廣告已下架');
   },
@@ -232,6 +254,10 @@ Object.assign(App, {
       ApiService.updateWatchPartyBg(id, { status: 'active' });
       this.renderWatchPartyBgManage();
       this.renderHomeWatchPartyCard?.();
+    } else if (type === 'homeinfo') {
+      ApiService.updateHomeInfoSettings(id, { status: 'active' });
+      this.renderHomeInfoManage?.();
+      this.renderHomeDashboard?.();
     }
     this.showToast('廣告已重新上架');
   },

@@ -16,6 +16,11 @@
   const HOME_SUMMARY_CLIENT_REFRESH_MIN_AGE_MS = 5 * 60 * 1000;
   const HOME_SUMMARY_CLIENT_REFRESH_THROTTLE_MS = 5 * 60 * 1000;
   const HOME_ACTIVITY_REGION_KEY = 'toosterx_home_activity_region';
+  const HOME_INFO_DEFAULT_LABELS = {
+    activities: '\u5df2\u958b\u653e\u6d3b\u52d5',
+    teams: '\u4ff1\u6a02\u90e8\u6578',
+    tournaments: '\u6b63\u8209\u8fa6\u8cfd\u4e8b',
+  };
   const HOME_ACTIVITY_REGIONS = ['全部', '北部', '中部', '南部', '東部&外島'];
   const HOME_ACTIVITY_TYPES = [
     { value: '', label: '全部類型' },
@@ -295,9 +300,61 @@
     }).join('');
   }
 
+  function safeHexColor(value) {
+    const raw = String(value || '').trim();
+    return /^#[0-9a-fA-F]{6}$/.test(raw) ? raw : '';
+  }
+
+  function normalizeHomeInfoFontSize(value) {
+    const num = Number(value);
+    if (!Number.isFinite(num) || num < 10 || num > 20) return '';
+    return `${num}px`;
+  }
+
+  function homeInfoSettings() {
+    const raw = (typeof ApiService !== 'undefined' && typeof ApiService.getHomeInfoSettings === 'function')
+      ? (ApiService.getHomeInfoSettings() || {})
+      : {};
+    const labels = raw.labels && typeof raw.labels === 'object' ? raw.labels : {};
+    return {
+      status: String(raw.status || 'active'),
+      labels: {
+        activities: String(labels.activities || raw.activityLabel || HOME_INFO_DEFAULT_LABELS.activities).trim() || HOME_INFO_DEFAULT_LABELS.activities,
+        teams: String(labels.teams || raw.teamLabel || HOME_INFO_DEFAULT_LABELS.teams).trim() || HOME_INFO_DEFAULT_LABELS.teams,
+        tournaments: String(labels.tournaments || raw.tournamentLabel || HOME_INFO_DEFAULT_LABELS.tournaments).trim() || HOME_INFO_DEFAULT_LABELS.tournaments,
+      },
+      fontSize: normalizeHomeInfoFontSize(raw.fontSize),
+      labelColor: safeHexColor(raw.labelColor || raw.fontColor),
+      numberColor: safeHexColor(raw.numberColor),
+    };
+  }
+
+  function applyHomeInfoStyles(section, settings) {
+    if (!section) return;
+    section.classList.toggle('has-custom-info-font', !!settings.fontSize);
+    section.classList.toggle('has-custom-info-label-color', !!settings.labelColor);
+    section.classList.toggle('has-custom-info-number-color', !!settings.numberColor);
+    if (settings.fontSize) section.style.setProperty('--home-info-font-size', settings.fontSize);
+    else section.style.removeProperty('--home-info-font-size');
+    if (settings.labelColor) section.style.setProperty('--home-info-label-color', settings.labelColor);
+    else section.style.removeProperty('--home-info-label-color');
+    if (settings.numberColor) section.style.setProperty('--home-info-number-color', settings.numberColor);
+    else section.style.removeProperty('--home-info-number-color');
+  }
+
+  function renderSportViews(summary) {
+    const host = document.getElementById('home-sport-views');
+    if (!host) return;
+    const activityViews = Number(summary?.activityViews?.total || 0) + 500;
+    host.innerHTML = activityViews > 0
+      ? `${eyeSvg()}<span>${numberText(activityViews)}</span>`
+      : '';
+  }
+
   function renderSportEntry(summary) {
     const host = document.getElementById('home-sport-entry');
     if (!host) return;
+    renderSportViews(summary);
     const active = app._activeSport || localStorage.getItem('sporthub_active_sport') || 'all';
     const rows = sportRows(summary);
     const more = `<button class="home-sport-chip home-sport-chip-more" type="button" onclick="App.selectHomeSport('all')" aria-label="查看更多活動分類"><span class="home-sport-chip-more-text">查看更多</span></button>`;
@@ -329,33 +386,36 @@
   function renderInfoMeter(summary) {
     const host = document.getElementById('home-info-meter');
     if (!host) return;
+    const section = host.closest('.home-info-dashboard-section');
+    const settings = homeInfoSettings();
+    if (settings.status !== 'active') {
+      host.innerHTML = '';
+      section?.classList.add('is-hidden');
+      return;
+    }
+    section?.classList.remove('is-hidden');
+    applyHomeInfoStyles(section, settings);
     const counts = summary.counts || {};
-    const activityViews = Number(summary.activityViews?.total || 0) + 500;
-    const viewHtml = activityViews > 0 ? `
-      <span class="home-stat-views home-info-views" title="瀏覽統計">
-        ${eyeSvg()}
-        <span>${numberText(activityViews)}</span>
-      </span>` : '';
     host.innerHTML = '<span class="home-info-lead">即時資訊：</span>' + [
       statCard({
         key: 'activities',
-        label: '已開放活動',
+        label: settings.labels.activities,
         count: counts.activities,
         page: 'page-activities',
       }),
       statCard({
         key: 'teams',
-        label: '俱樂部數',
+        label: settings.labels.teams,
         count: counts.teams,
         page: 'page-teams',
       }),
       statCard({
         key: 'tournaments',
-        label: '正舉辦賽事',
+        label: settings.labels.tournaments,
         count: counts.tournaments,
         page: 'page-tournaments',
       }),
-    ].join('') + viewHtml;
+    ].join('');
   }
 
   function matchKey(match) {

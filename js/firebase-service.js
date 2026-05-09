@@ -2304,7 +2304,7 @@ const FirebaseService = {
       if (canAdminSeed) {
         seedTasks.push(
           this._cleanupDuplicateDocs(),
-          this._seedAdSlots().then(() => Promise.all([this._ensureSga1Slot(), this._ensureWatchPartyBgSlot()])),
+          this._seedAdSlots().then(() => Promise.all([this._ensureSga1Slot(), this._ensureWatchPartyBgSlot(), this._ensureHomeInfoSlot()])),
           this._seedNotifTemplates(),
           this._seedAchievements(),
         );
@@ -2752,6 +2752,7 @@ const FirebaseService = {
         { id: 'ban3', slot: 3, title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, gradient: '' },
         { id: 'sga1', slot: 'sga1', type: 'shotgame', slotName: '射門遊戲廣告位', title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, linkUrl: '' },
         { id: 'watch-party-bg', slot: 'watch-party-bg', type: 'watchParty', slotName: '觀賽聚會底圖', title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0, linkUrl: '' },
+        { id: 'home-info', slot: 'home-info', type: 'homeInfo', slotName: '即時資訊編輯', status: 'active', publishAt: null, unpublishAt: null, clicks: 0, labels: { activities: '已開放活動', teams: '俱樂部數', tournaments: '正舉辦賽事' }, fontSize: '', labelColor: '', numberColor: '' },
       ]],
       ['floatingAds', [
         { id: 'fad1', slot: 'AD1', title: '', image: null, status: 'empty', publishAt: null, unpublishAt: null, clicks: 0 },
@@ -2849,6 +2850,50 @@ const FirebaseService = {
       }
     } catch (err) {
       console.warn('[FirebaseService] _ensureWatchPartyBgSlot 失敗:', err);
+    }
+  },
+
+  async _ensureHomeInfoSlot() {
+    if (!db) return;
+    if (this._cache.banners && this._cache.banners.find(b =>
+      b.id === 'home-info'
+      || b._docId === 'home-info'
+      || b.slot === 'home-info'
+      || b.type === 'homeInfo'
+    )) return;
+    try {
+      if (typeof _firebaseAuthReadyPromise !== 'undefined' && !_firebaseAuthReady) {
+        await Promise.race([_firebaseAuthReadyPromise, new Promise(r => setTimeout(r, 5000))]);
+      }
+      const ref = db.collection('banners').doc('home-info');
+      const snap = await ref.get();
+      if (!snap.exists) {
+        const data = {
+          id: 'home-info',
+          slot: 'home-info',
+          type: 'homeInfo',
+          slotName: '即時資訊編輯',
+          status: 'active',
+          publishAt: null,
+          unpublishAt: null,
+          clicks: 0,
+          labels: { activities: '已開放活動', teams: '俱樂部數', tournaments: '正舉辦賽事' },
+          fontSize: '',
+          labelColor: '',
+          numberColor: '',
+        };
+        await ref.set({ ...data, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+        if (this._cache.banners) this._cache.banners.push({ ...data, _docId: 'home-info' });
+        console.log('[FirebaseService] 即時資訊編輯 home-info 已建立');
+      } else {
+        if (this._cache.banners) this._cache.banners.push({ _docId: snap.id, ...snap.data() });
+      }
+      if (typeof App !== 'undefined') {
+        App.renderHomeInfoManage?.();
+        App.renderHomeDashboard?.();
+      }
+    } catch (err) {
+      console.warn('[FirebaseService] _ensureHomeInfoSlot 失敗:', err);
     }
   },
 

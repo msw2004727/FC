@@ -38,8 +38,11 @@ const navigationSource = fs.readFileSync(
 
 function runHomeDashboardModule(options = {}) {
   const dom = new JSDOM(`<!doctype html>
+    <span class="home-stat-views home-sport-views" id="home-sport-views"></span>
     <div id="home-sport-entry"></div>
-    <div id="home-info-meter"></div>
+    <section class="home-dashboard-section home-info-dashboard-section">
+      <div id="home-info-meter"></div>
+    </section>
     <section id="home-scoreboard-preview"></section>
     <button class="home-watch-party-card" type="button">
       <span class="home-watch-party-copy">一起找人看比賽</span>
@@ -122,6 +125,8 @@ describe("home-dashboard browser binding", () => {
     expect(homeCssSource).toMatch(/\.home-info-meter\s*\{[\s\S]*white-space:\s*nowrap/);
     expect(homeCssSource).toMatch(/\.home-info-meter\s*\{[\s\S]*overflow:\s*hidden/);
     expect(homeCssSource).toMatch(/\.home-stat-label\s*\{[\s\S]*text-overflow:\s*ellipsis/);
+    expect(homeCssSource).toContain(".home-sport-views");
+    expect(homeCssSource).toContain(".home-dashboard-section.is-hidden");
     expect(homeCssSource).toMatch(/\.home-watch-party-card\s*\{[\s\S]*height:\s*40px/);
     expect(homeCssSource).toMatch(/\.home-watch-party-card\s*\{[\s\S]*border:\s*1px solid var\(--border\)[\s\S]*grid-template-columns:\s*auto/);
     expect(homeCssSource).toMatch(/\.home-watch-party-card\.has-bg\s*\{[\s\S]*--home-watch-party-bg:\s*none[\s\S]*background-image:/);
@@ -147,12 +152,15 @@ describe("home-dashboard browser binding", () => {
     expect(homeHtmlSource).not.toContain("home-watch-party-action");
     expect(homeHtmlSource).not.toContain("home-watch-party-title");
     expect(homeHtmlSource).toContain("home-watch-party-copy");
+    expect(homeHtmlSource).toContain("home-sport-views");
     expect(homeHtmlSource).not.toContain("home-watch-party-art");
     expect(homeCssSource).toContain("banner-create-event-btn");
   });
 
   test("watch party background is a managed special banner slot outside the carousel", () => {
     expect(apiServiceSource).toMatch(/getBanners\(\)\s*\{[\s\S]*type !== 'watchParty'/);
+    expect(apiServiceSource).toMatch(/getBanners\(\)\s*\{[\s\S]*type !== 'homeInfo'/);
+    expect(apiServiceSource).toMatch(/getBanners\(\)\s*\{[\s\S]*slot !== 'home-info'/);
     expect(apiServiceSource).toContain("getWatchPartyBg()");
     expect(adminContentSource).toContain("watch-party-bg-manage-list");
     expect(adminContentSource).toContain("watch-party-bg-preview");
@@ -255,9 +263,11 @@ describe("home-dashboard browser binding", () => {
     expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("正舉辦賽事");
     expect(dom.window.document.getElementById("home-info-meter").textContent).not.toContain("活動數");
     expect(dom.window.document.getElementById("home-info-meter").textContent).not.toContain("預留");
-    expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("811");
+    expect(dom.window.document.getElementById("home-info-meter").textContent).not.toContain("811");
+    expect(dom.window.document.getElementById("home-sport-views").textContent).toContain("811");
     expect(dom.window.document.querySelectorAll(".home-stat-views")).toHaveLength(1);
-    expect(dom.window.document.querySelectorAll(".home-info-views")).toHaveLength(1);
+    expect(dom.window.document.querySelectorAll(".home-sport-views")).toHaveLength(1);
+    expect(dom.window.document.querySelectorAll(".home-info-views")).toHaveLength(0);
     expect(dom.window.document.querySelector('[data-stat="activities"] .home-stat-views')).toBeNull();
 
     const scoreboard = dom.window.document.getElementById("home-scoreboard-preview");
@@ -322,6 +332,54 @@ describe("home-dashboard browser binding", () => {
     expect(scoreboard.querySelector(".home-scoreboard-note")).not.toBeNull();
   });
 
+  test("applies editable home info labels, colors, font size, and visibility", () => {
+    const { app, dom } = runHomeDashboardModule({
+      apiService: {
+        getHomeInfoSettings: () => ({
+          status: "active",
+          labels: {
+            activities: "Open events",
+            teams: "Clubs",
+            tournaments: "Tournaments",
+          },
+          fontSize: 16,
+          labelColor: "#123456",
+          numberColor: "#abcdef",
+        }),
+      },
+    });
+
+    app.renderHomeDashboard();
+
+    const section = dom.window.document.querySelector(".home-info-dashboard-section");
+    const meter = dom.window.document.getElementById("home-info-meter");
+    expect(meter.textContent).toContain("Open events");
+    expect(meter.textContent).toContain("Clubs");
+    expect(meter.textContent).toContain("Tournaments");
+    expect(section.classList.contains("is-hidden")).toBe(false);
+    expect(section.classList.contains("has-custom-info-font")).toBe(true);
+    expect(section.classList.contains("has-custom-info-label-color")).toBe(true);
+    expect(section.classList.contains("has-custom-info-number-color")).toBe(true);
+    expect(section.style.getPropertyValue("--home-info-font-size")).toBe("16px");
+    expect(section.style.getPropertyValue("--home-info-label-color")).toBe("#123456");
+    expect(section.style.getPropertyValue("--home-info-number-color")).toBe("#abcdef");
+  });
+
+  test("hides the editable home info container when the ad slot is down", () => {
+    const { app, dom } = runHomeDashboardModule({
+      apiService: {
+        getHomeInfoSettings: () => ({ status: "expired" }),
+      },
+    });
+
+    app.renderHomeDashboard();
+
+    const section = dom.window.document.querySelector(".home-info-dashboard-section");
+    expect(section.classList.contains("is-hidden")).toBe(true);
+    expect(dom.window.document.getElementById("home-info-meter").innerHTML).toBe("");
+    expect(dom.window.document.getElementById("home-sport-views").textContent).toContain("811");
+  });
+
   test("refreshes stale sport quick entry from cached public events", async () => {
     const firebaseService = {
       _cache: {
@@ -355,7 +413,8 @@ describe("home-dashboard browser binding", () => {
     expect(sportEntry.querySelector('[data-home-sport="basketball"]')).not.toBeNull();
     expect(sportEntry.querySelector('[data-home-sport="football"]')).not.toBeNull();
     expect(sportEntry.querySelector('[data-home-sport="dodgeball"]')).toBeNull();
-    expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("530");
+    expect(dom.window.document.getElementById("home-info-meter").textContent).not.toContain("530");
+    expect(dom.window.document.getElementById("home-sport-views").textContent).toContain("530");
   });
 
   test("watch party shortcut opens activities with the restaurant sport filter", async () => {
