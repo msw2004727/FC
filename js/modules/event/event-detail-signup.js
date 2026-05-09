@@ -31,7 +31,8 @@ Object.assign(App, {
   _isActiveSelfRegistrationRecord(reg) {
     const status = String(reg?.status || '').trim();
     const participantType = String(reg?.participantType || '').trim();
-    return participantType !== 'companion' && status !== 'cancelled' && status !== 'removed';
+    const companionId = String(reg?.companionId || '').trim();
+    return participantType !== 'companion' && !companionId && status !== 'cancelled' && status !== 'removed';
   },
 
   _hasActiveSelfRegistrationForEvent(eventId, userId) {
@@ -349,14 +350,38 @@ Object.assign(App, {
     });
   },
 
+  _isEventSignupModalOpen() {
+    return [
+      '#team-reservation-modal',
+      '#team-reservation-signup-choice-modal',
+      '#companion-select-overlay',
+    ].some(selector => document.querySelector(selector)?.classList?.contains('open'));
+  },
+
+  _syncEventSignupScrollLock() {
+    if (!this._isEventSignupModalOpen?.()) {
+      document.body.classList.remove('modal-open');
+    }
+  },
+
+  _releaseEventSignupScrollLock() {
+    [
+      'team-reservation-modal',
+      'team-reservation-signup-choice-modal',
+      'companion-select-overlay',
+    ].forEach(id => {
+      const modal = document.getElementById(id);
+      if (!modal) return;
+      modal.classList.remove('open');
+      if (id === 'companion-select-overlay') modal.style.display = 'none';
+    });
+    this._syncEventSignupScrollLock?.();
+  },
+
   closeTeamReservationSignupChoiceModal() {
     const modal = document.getElementById('team-reservation-signup-choice-modal');
     if (modal) modal.classList.remove('open');
-    const teamModal = document.getElementById('team-reservation-modal');
-    const companionModalOpen = document.getElementById('companion-select-overlay')?.classList?.contains('open');
-    if (!teamModal?.classList?.contains('open') && !companionModalOpen) {
-      document.body.classList.remove('modal-open');
-    }
+    this._syncEventSignupScrollLock?.();
   },
 
   confirmTeamReservationSignupChoice(eventId, mode = 'signup') {
@@ -495,7 +520,7 @@ Object.assign(App, {
   closeTeamReservationModal() {
     const modal = document.getElementById('team-reservation-modal');
     if (modal) modal.classList.remove('open');
-    document.body.classList.remove('modal-open');
+    this._syncEventSignupScrollLock?.();
   },
 
   async confirmTeamReservation(eventId, teamId) {
@@ -688,7 +713,17 @@ Object.assign(App, {
           _signupTimeout,
         ]);
         const data = cfResult.data;
-        if (data.deduplicated) { this.showToast('報名處理中，請稍候'); return; }
+        if (data.deduplicated) {
+          this.showToast('報名處理中，請稍候');
+          if (glowWrap) glowWrap.classList.remove('loading');
+          signupBtns.forEach(b => {
+            b.disabled = false; b.style.opacity = '';
+            if (b === activeBtn && b._origText) { b.textContent = b._origText; }
+          });
+          this._patchDetailAfterSignup(id);
+          this._releaseEventSignupScrollLock?.();
+          return;
+        }
         // 同步 CF 回傳結果到本地快取
         const selfReg = (data.registrations || []).find(r => r.participantType === 'self') || data.registrations?.[0];
         // 若 CF 回傳 waitlisted 計數 > 0 且 selfReg 未定義，使用 waitlisted 狀態以避免誤報
@@ -762,6 +797,7 @@ Object.assign(App, {
       this._flipAnimatingAt = 0;
       // 局部更新：只換按鈕和名單，不做全頁重繪（避免跳頂）
       this._patchDetailAfterSignup(id);
+      this._releaseEventSignupScrollLock?.();
       this._maybeShowLineNotifyPrompt?.();
 
       // ── 背景 post-ops（僅 fallback 路徑需要，CF 路徑已在伺服器完成）──
@@ -845,6 +881,7 @@ Object.assign(App, {
       this._flipAnimating = false;
       this._flipAnimatingAt = 0;
       this._endEventActionBusy(signupBusyKey);
+      this._syncEventSignupScrollLock?.();
     }
   },
 
@@ -914,12 +951,21 @@ Object.assign(App, {
 
     // 有真正的同行者報名（companionId 存在）→ 顯示多選取消 Modal
     // 若只是本人報名出現重複（資料競態窗口），不誤觸同行者 modal
-    const hasRealCompanions = myRegs.some(r => r.participantType === 'companion' || r.companionId);
-    if (myRegs.length > 1 && hasRealCompanions) {
-      this._openCompanionCancelModal(id, myRegs);
+    const activeRegs = myRegs.filter(r => r && r.status !== 'cancelled' && r.status !== 'removed');
+    const selfRegs = activeRegs.filter(r => this._isActiveSelfRegistrationRecord(r));
+    const companionRegs = activeRegs.filter(r => r && !this._isActiveSelfRegistrationRecord(r) && (r.participantType === 'companion' || r.companionId));
+    if (selfRegs.length === 0) {
+      this.showToast('\u4f60\u5c1a\u672a\u5831\u540d\u6b64\u6d3b\u52d5');
+      this.showEventDetail(id);
       releaseCancelPrelock();
       return;
     }
+    if (companionRegs.length > 0) {
+      this._openCompanionCancelModal(id, selfRegs.concat(companionRegs));
+      releaseCancelPrelock();
+      return;
+    }
+    myRegs = selfRegs;
 
     let e0 = ApiService.getEvent(id);
     e0 = this._syncEventEffectiveStatus?.(e0) || e0;
