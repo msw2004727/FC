@@ -683,7 +683,7 @@ Object.assign(App, {
     }
     const selectedTeamReservationTeamId = String(reservationChoice?.teamId || '').trim();
 
-    const signupBtns = document.querySelectorAll('#detail-body button');
+    const signupBtns = document.querySelectorAll('.detail-action-primary button');
     let activeBtn = null;
     let glowWrap = null;
     signupBtns.forEach(b => {

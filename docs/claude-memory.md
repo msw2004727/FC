@@ -2279,3 +2279,8 @@
 - **Issue**: The newer companion signup toggle flow refreshed the activity detail screen after success but did not always perform the final signup modal scroll-lock cleanup, so `body.modal-open` could remain and freeze scrolling.
 - **Fix**: Hardened event signup scroll-lock detection, included the companion cancel overlay in cleanup, cleared stale inline body overflow, and added explicit release/sync cleanup after companion toggle signup updates.
 - **Validation**: Added source contract coverage for the companion toggle cleanup path and scroll-lock fallback behavior.
+
+### 2026-05-09 Companion Signup Toolbar Busy Scope [bugfix]
+- **Issue**: Personal activity signup disabled every button inside `#detail-body`, including the toolbar `幫夥伴報名` action. After success only the primary signup area was refreshed, so the companion button stayed disabled until the page was reopened.
+- **Fix**: Scoped the personal signup busy state to `.detail-action-primary button`, leaving toolbar actions interactive after self signup refreshes.
+- **Validation**: Added source contract coverage for the scoped selector and ran the targeted event detail render test.

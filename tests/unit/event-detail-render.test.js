@@ -339,6 +339,17 @@ describe('Team reservation button loading contract', () => {
     expect(activityCss).toContain('-webkit-overflow-scrolling: touch');
   });
 
+  test('personal signup busy state only disables primary signup buttons', () => {
+    const signupSource = readProjectFile('js/modules/event/event-detail-signup.js');
+    const handleSignupSource = signupSource.slice(
+      signupSource.indexOf('async handleSignup'),
+      signupSource.indexOf('async handleCancelSignup')
+    );
+
+    expect(handleSignupSource).toContain("document.querySelectorAll('.detail-action-primary button')");
+    expect(handleSignupSource).not.toContain("document.querySelectorAll('#detail-body button')");
+  });
+
   test('personal signup asks for a club when multiple team reservations match', () => {
     const signupSource = readProjectFile('js/modules/event/event-detail-signup.js');
     const companionSource = readProjectFile('js/modules/event/event-detail-companion.js');
