@@ -8,12 +8,13 @@ function readProjectFile(file) {
 }
 
 describe('activity advanced add-on wording', () => {
-  test('create activity and permission management use the new label', () => {
+  test('create activity uses the concise advanced feature label', () => {
     const activityHtml = readProjectFile('pages/activity.html');
     const configSource = readProjectFile('js/config.js');
     const rolesSource = readProjectFile('js/modules/user-admin/user-admin-roles.js');
 
-    expect(activityHtml).toContain('進階功能（加值服務）');
+    expect(activityHtml).toContain('<summary class="ce-value-section-title" id="ce-value-section-title">進階功能</summary>');
+    expect(activityHtml).not.toContain('進階功能（加值服務）</summary>');
     expect(activityHtml).not.toContain('>加值功能</summary>');
     expect(configSource).toContain('使用進階功能（加值服務）');
     expect(configSource).toContain('進階功能（加值服務）');

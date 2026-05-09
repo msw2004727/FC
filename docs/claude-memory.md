@@ -2269,3 +2269,8 @@
 - **Issue**: Companion registrations used the same owner `userId`, so the self signup button could treat companion-only registrations as the user's own signup. The cancel flow also needed to keep the mixed self+companion cancel picker when both existed.
 - **Fix**: Self signup state now ignores `participantType=companion` and legacy `companionId` rows. Main cancel opens the selection modal only when an active self registration and companion registrations both exist; companion-only rows no longer block self signup. Companion picker now shows gender beside the companion name instead of below it.
 - **Validation**: Added regression coverage for companion-owned rows not counting as self signup and ran targeted syntax checks plus `signup-logic.test.js`.
+
+### 2026-05-09 Create Activity Advanced Label [ux]
+- **Issue**: The create activity form still displayed the advanced section as `進階功能（加值服務）`, which was longer than the requested concise label.
+- **Fix**: Renamed the create activity section title to `進階功能` while keeping permission-management wording unchanged.
+- **Validation**: Updated the label source contract test and ran the targeted unit test.
