@@ -1041,7 +1041,7 @@ body.home-activity-search-open {
   width: 100%;
   padding-right: 0;
   white-space: nowrap;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .home-info-lead {
@@ -1070,7 +1070,8 @@ body.home-activity-search-open {
   gap: .04rem;
   line-height: 1.2;
   transition: color .16s ease, transform .12s ease;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .home-stat-card:hover { color: var(--accent); }
@@ -1080,7 +1081,9 @@ body.home-activity-search-open {
   display: flex;
   align-items: center;
   justify-content: flex-start;
+  flex: 0 1 auto;
   min-width: 0;
+  overflow: hidden;
 }
 
 .home-stat-label {
@@ -1119,6 +1122,7 @@ body.home-activity-search-open {
 }
 
 .home-stat-number {
+  flex: 0 0 auto;
   font-family: "Arial Black", "Segoe UI Black", "Microsoft JhengHei UI", system-ui, sans-serif;
   font-size: .86rem;
   font-weight: 950;
