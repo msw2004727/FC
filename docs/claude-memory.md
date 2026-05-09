@@ -2284,3 +2284,8 @@
 - **Issue**: Personal activity signup disabled every button inside `#detail-body`, including the toolbar `幫夥伴報名` action. After success only the primary signup area was refreshed, so the companion button stayed disabled until the page was reopened.
 - **Fix**: Scoped the personal signup busy state to `.detail-action-primary button`, leaving toolbar actions interactive after self signup refreshes.
 - **Validation**: Added source contract coverage for the scoped selector and ran the targeted event detail render test.
+
+### 2026-05-09 Activity Placeholder Tabs Disabled [ux]
+- **Issue**: The `新手友善` and `高強度` activity tabs were unavailable but still looked like normal selectable tabs.
+- **Fix**: Marked both placeholder tabs with disabled semantics and added greyed-out unavailable styling while keeping the existing unavailable-feature toast path.
+- **Validation**: Updated activity tab source contract coverage.

@@ -31,11 +31,14 @@ describe('activity region default', () => {
     expect(activityHtml).toContain('id="activity-female-petals"');
     expect(activityHtml).toContain('<span class="activity-tab-separator" aria-hidden="true">|</span>');
     expect(activityHtml).toContain('class="tab activity-tab-female" data-atab="female" onclick="App.switchActivityTab(\'female\')">女生專屬</button>');
-    expect(activityHtml).toContain('data-atab="beginner" onclick="App.switchActivityTab(\'beginner\', event)">新手友善</button>');
-    expect(activityHtml).toContain('data-atab="high-intensity" onclick="App.switchActivityTab(\'high-intensity\', event)">高強度</button>');
+    expect(activityHtml).toContain('class="tab activity-tab-unavailable" data-atab="beginner" aria-disabled="true" title="功能未開放" onclick="App.switchActivityTab(\'beginner\', event)">新手友善</button>');
+    expect(activityHtml).toContain('class="tab activity-tab-unavailable" data-atab="high-intensity" aria-disabled="true" title="功能未開放" onclick="App.switchActivityTab(\'high-intensity\', event)">高強度</button>');
     expect(activityCss).toContain('#page-activities.activity-female-theme');
     expect(activityCss).toContain('#activity-tabs .activity-tab-female.active');
     expect(activityCss).toContain('#activity-tabs .tab');
+    expect(activityCss).toContain('#activity-tabs .activity-tab-unavailable');
+    expect(activityCss).toContain('cursor: not-allowed');
+    expect(activityCss).toContain('filter: grayscale(1)');
     expect(activityCss).toContain('padding-inline: .46rem');
     expect(activityCss).toContain('z-index: 4');
     expect(activityCss).toContain('.tl-event-row.tl-type-female-only');

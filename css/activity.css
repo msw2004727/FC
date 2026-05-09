@@ -35,6 +35,21 @@
 #activity-tabs .tab {
   padding-inline: .46rem;
 }
+#activity-tabs .activity-tab-unavailable {
+  color: var(--text-muted);
+  background: rgba(148, 163, 184, .12);
+  opacity: .46;
+  cursor: not-allowed;
+  box-shadow: none;
+  filter: grayscale(1);
+}
+#activity-tabs .activity-tab-unavailable:hover,
+#activity-tabs .activity-tab-unavailable:active {
+  color: var(--text-muted);
+  background: rgba(148, 163, 184, .12);
+  transform: none;
+  box-shadow: none;
+}
 .activity-tab-separator {
   flex: 0 0 auto;
   color: var(--text-muted);
