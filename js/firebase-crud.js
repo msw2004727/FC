@@ -2762,9 +2762,12 @@ Object.assign(FirebaseService, {
     const allEventRegs = allRegsSnap.docs.map(d => this._mapSubcollectionDoc(d, 'registrations'));
 
     // 防幽靈：用 Firestore 真實資料檢查重複報名
-    const hasActive = allEventRegs.some(r =>
+    const entriesIncludeSelf = entries.some(entry => (entry.participantType || 'self') !== 'companion');
+    const hasActive = entriesIncludeSelf && allEventRegs.some(r =>
       r.userId === mainUserId
       && (r.status === 'confirmed' || r.status === 'waitlisted')
+      && (r.participantType || 'self') !== 'companion'
+      && !r.companionId
     );
     if (hasActive) throw new Error('已報名此活動');
 
@@ -2843,6 +2846,20 @@ Object.assign(FirebaseService, {
           entryType === 'self' ? reservationUserData : {}
         );
         const status = seatDecision.status;
+        let resolvedTeamKey = entry.teamKey;
+        if (resolvedTeamKey === undefined && options?.teamKey !== undefined) resolvedTeamKey = options.teamKey;
+        if (ed.teamSplit?.enabled) {
+          if (ed.teamSplit.mode === 'self-select') {
+            resolvedTeamKey = resolvedTeamKey && ['A', 'B', 'C', 'D'].includes(resolvedTeamKey) ? resolvedTeamKey : null;
+          } else if (ed.teamSplit.mode === 'random' && resolvedTeamKey == null) {
+            resolvedTeamKey = typeof App !== 'undefined' && App._resolveTeamKey
+              ? App._resolveTeamKey({ teamSplit: ed.teamSplit, max: maxCount }, plannedActiveRegs)
+              : null;
+          } else if (ed.teamSplit.mode === 'manual') {
+            resolvedTeamKey = null;
+          }
+        }
+        if (resolvedTeamKey !== undefined) reg.teamKey = resolvedTeamKey;
         promotionIdx++;
 
         const docRef = regDocRefs[refIdx];

@@ -514,4 +514,359 @@ Object.assign(App, {
     }
   },
 
+  _openCompanionSelectModal(eventId) {
+    if (this._requireProtectedActionLogin?.({ type: 'eventCompanionSignup', eventId }, { suppressToast: true })) return;
+    if (this._requireProfileComplete?.()) return;
+    let e = ApiService.getEvent(eventId);
+    if (!e) return;
+    e = this._syncEventEffectiveStatus?.(e) || e;
+    if (e.status === 'ended' || e.status === 'cancelled') {
+      this.showToast('\u6d3b\u52d5\u5df2\u958b\u59cb\uff0c\u7121\u6cd5\u518d\u8abf\u6574\u540c\u884c\u5831\u540d');
+      return;
+    }
+    if (e.status === 'upcoming') {
+      this.showToast('\u5831\u540d\u5c1a\u672a\u958b\u653e\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+      return;
+    }
+
+    const companions = ApiService.getCompanions?.() || [];
+    if (!companions.length) {
+      this.showToast('\u8acb\u5148\u5230\u500b\u4eba\u8cc7\u8a0a\u65b0\u589e\u540c\u884c\u8005');
+      return;
+    }
+
+    this._companionSelectEventId = eventId;
+    const overlay = document.getElementById('companion-select-overlay');
+    if (!overlay) return;
+    const titleEl = document.getElementById('companion-select-title') || overlay.querySelector('.modal-header h3');
+    if (titleEl) titleEl.textContent = '\u540c\u884c\u5831\u540d';
+    const closeBtn = overlay.querySelector('.modal-close');
+    if (closeBtn) closeBtn.textContent = '\u00d7';
+    const cancelBtn = overlay.querySelector('.modal-actions .outline-btn');
+    if (cancelBtn) cancelBtn.textContent = '\u53d6\u6d88';
+    const confirmBtn = document.getElementById('companion-select-confirm-btn');
+    if (confirmBtn) confirmBtn.textContent = '\u78ba\u8a8d\u8abf\u6574';
+
+    const myRegs = ApiService.getMyRegistrationsByEvent?.(eventId) || [];
+    const activeCompanionRegs = myRegs.filter(r =>
+      r
+      && r.status !== 'cancelled'
+      && r.status !== 'removed'
+      && (r.participantType === 'companion' || r.companionId)
+    );
+    const regByCompanionId = new Map();
+    const regByCompanionName = new Map();
+    activeCompanionRegs.forEach(r => {
+      const cid = String(r.companionId || '').trim();
+      const cname = String(r.companionName || r.userName || '').trim();
+      if (cid) regByCompanionId.set(cid, r);
+      if (cname) regByCompanionName.set(cname, r);
+    });
+
+    const feeEnabled = this._isEventFeeEnabled?.(e) ?? Number(e?.fee || 0) > 0;
+    const fee = this._getEventFeeAmount?.(e) ?? (feeEnabled ? (Number(e?.fee || 0) || 0) : 0);
+    const confirmedCount = (typeof this._buildConfirmedParticipantSummary === 'function')
+      ? this._buildConfirmedParticipantSummary(eventId).count
+      : Number(e.current || 0);
+    const remaining = Math.max(0, Number(e.max || 0) - confirmedCount);
+    const allowedGender = this._getEventAllowedGender?.(e) || '';
+
+    const infoEl = document.getElementById('companion-select-event-info');
+    if (infoEl) {
+      const feeText = feeEnabled ? (fee > 0 ? `\u8cbb\u7528\uff1aNT$${fee}/\u4eba` : '\u8cbb\u7528\uff1a\u514d\u8cbb') : '';
+      const genderText = allowedGender
+        ? `<br><span style="color:#dc2626;font-weight:700">\u6027\u5225\u9650\u5236\uff1a${escapeHTML(this._getEventGenderDetailText?.(e) || '')}</span>`
+        : '';
+      infoEl.innerHTML = `<b>${escapeHTML(e.title || '')}</b><br>${[feeText, `\u5269\u9918\u540d\u984d\uff1a${remaining}/${e.max || 0}`].filter(Boolean).join('\u3000')}${genderText}`;
+    }
+
+    const statusText = (status) => status === 'waitlisted' ? '\u5019\u88dc\u4e2d' : '\u5df2\u5831\u540d';
+    const listEl = document.getElementById('companion-select-list');
+    if (!listEl) return;
+    listEl.classList.add('companion-select-list');
+    listEl.innerHTML = companions.map(c => {
+      const companionId = String(c.id || '').trim();
+      const companionName = String(c.name || '').trim();
+      const reg = regByCompanionId.get(companionId) || regByCompanionName.get(companionName) || null;
+      const isRegistered = !!reg;
+      const genderAllowed = this._canEventGenderParticipantSignup?.(e, c.gender) ?? true;
+      const disabled = !isRegistered && !genderAllowed;
+      const statusClass = isRegistered
+        ? (reg.status === 'waitlisted' ? ' is-waitlisted' : ' is-active')
+        : '';
+      const rowClass = [
+        'companion-toggle-row',
+        isRegistered ? 'is-selected' : '',
+        disabled ? 'is-disabled' : '',
+      ].filter(Boolean).join(' ');
+      const statusLabel = isRegistered
+        ? statusText(reg.status)
+        : (disabled ? '\u4e0d\u7b26\u9650\u5236' : '\u672a\u5831\u540d');
+      const noteParts = [];
+      if (c.gender) noteParts.push(c.gender);
+      if (c.notes) noteParts.push(c.notes);
+      return `<label class="${rowClass}">
+        <input type="checkbox" name="cs-participant" value="companion"
+          data-companion-id="${escapeHTML(companionId)}"
+          data-name="${escapeHTML(companionName)}"
+          data-registered="${isRegistered ? '1' : '0'}"
+          data-reg-id="${escapeHTML(reg?.id || reg?._docId || '')}"
+          ${isRegistered ? 'checked' : ''}
+          ${disabled ? 'disabled' : ''}
+          onchange="App._updateCompanionSelectSummary('${escapeHTML(eventId)}')">
+        <span class="companion-toggle-main">
+          <span class="companion-toggle-name">${escapeHTML(companionName || '\u540c\u884c\u8005')}</span>
+          ${noteParts.length ? `<span class="companion-toggle-note">${escapeHTML(noteParts.join(' / '))}</span>` : ''}
+        </span>
+        <span class="companion-toggle-status${statusClass}">${statusLabel}</span>
+      </label>`;
+    }).join('');
+
+    this._updateCompanionSelectSummary(eventId);
+    overlay.style.display = 'flex';
+    overlay.classList.add('open');
+    document.body.classList.add('modal-open');
+  },
+
+  _updateCompanionSelectSummary(eventId) {
+    const e = ApiService.getEvent(eventId);
+    const boxes = Array.from(document.querySelectorAll('#companion-select-list input[name="cs-participant"]'));
+    let selected = 0;
+    let toRegister = 0;
+    let toCancel = 0;
+    boxes.forEach(cb => {
+      const row = cb.closest('.companion-toggle-row');
+      if (row) row.classList.toggle('is-selected', cb.checked);
+      if (cb.checked) selected++;
+      const wasRegistered = cb.dataset.registered === '1';
+      if (!cb.disabled && cb.checked && !wasRegistered) toRegister++;
+      if (!cb.disabled && !cb.checked && wasRegistered) toCancel++;
+    });
+    const feeEnabled = this._isEventFeeEnabled?.(e) ?? Number(e?.fee || 0) > 0;
+    const fee = this._getEventFeeAmount?.(e) ?? (feeEnabled ? (Number(e?.fee || 0) || 0) : 0);
+    const confirmedCount = e && typeof this._buildConfirmedParticipantSummary === 'function'
+      ? this._buildConfirmedParticipantSummary(eventId).count
+      : Number(e?.current || 0);
+    const remaining = Math.max(0, Number(e?.max || 0) - confirmedCount);
+    const summaryEl = document.getElementById('companion-select-summary');
+    if (summaryEl) {
+      const feeHtml = feeEnabled && fee > 0 && toRegister > 0
+        ? `<span>\u65b0\u589e\u8cbb\u7528 <b>NT$${fee * toRegister}</b></span>`
+        : '';
+      const waitlistWarning = toRegister > remaining
+        ? `<span style="color:var(--warning);font-weight:700">\u53ef\u80fd\u6709 ${toRegister - remaining} \u4eba\u9032\u5019\u88dc</span>`
+        : '';
+      summaryEl.innerHTML = [
+        `<span>\u5df2\u52fe\u9078 <b>${selected}</b></span>`,
+        `<span>\u65b0\u589e <b>${toRegister}</b></span>`,
+        `<span>\u53d6\u6d88 <b>${toCancel}</b></span>`,
+        `<span>\u5269\u9918 <b>${remaining}</b></span>`,
+        feeHtml,
+        waitlistWarning,
+      ].filter(Boolean).join('');
+    }
+    const confirmBtn = document.getElementById('companion-select-confirm-btn');
+    if (confirmBtn) confirmBtn.disabled = (toRegister + toCancel) === 0;
+  },
+
+  async _confirmCompanionRegisterUnlocked(opts = {}, eventId) {
+    if (this._requireProfileComplete?.()) { this._closeCompanionSelectModal?.(); return; }
+    if (!this._cloudReady) {
+      this.showToast('\u7cfb\u7d71\u8f09\u5165\u4e2d\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+      void this.ensureCloudReady?.({ reason: 'companion-signup' });
+      return;
+    }
+    let e = ApiService.getEvent(eventId);
+    if (!e) return;
+    if (typeof this._isEventVisibleToUser === 'function') {
+      const uid = ApiService.getCurrentUser?.()?.uid || null;
+      if (!this._isEventVisibleToUser(e, uid)) {
+        this._closeCompanionSelectModal?.();
+        this.showToast('\u6b64\u6d3b\u52d5\u76ee\u524d\u7121\u6cd5\u5831\u540d');
+        return;
+      }
+    }
+    e = this._syncEventEffectiveStatus?.(e) || e;
+    if (e.status === 'ended' || e.status === 'cancelled') {
+      this._closeCompanionSelectModal?.();
+      this.showToast('\u6d3b\u52d5\u5df2\u958b\u59cb\uff0c\u5831\u540d\u5df2\u7d50\u675f');
+      this.showEventDetail(eventId);
+      return;
+    }
+    if (e.status === 'upcoming') {
+      this.showToast('\u5831\u540d\u5c1a\u672a\u958b\u653e\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+      return;
+    }
+
+    const user = ApiService.getCurrentUser();
+    if (!user?.uid) { this.showToast('\u8acb\u5148\u767b\u5165\u5f8c\u518d\u8a66'); return; }
+    const userId = user.uid;
+    const boxes = Array.from(document.querySelectorAll('#companion-select-list input[name="cs-participant"]'));
+    const toRegister = [];
+    const toCancelIds = [];
+    boxes.forEach(cb => {
+      if (cb.disabled) return;
+      const wasRegistered = cb.dataset.registered === '1';
+      const regId = String(cb.dataset.regId || '').trim();
+      if (cb.checked && !wasRegistered) {
+        toRegister.push({
+          type: 'companion',
+          companionId: cb.dataset.companionId || '',
+          companionName: cb.dataset.name || '',
+        });
+      }
+      if (!cb.checked && wasRegistered && regId) {
+        toCancelIds.push(regId);
+      }
+    });
+    if (toRegister.length + toCancelIds.length === 0) {
+      this.showToast('\u6c92\u6709\u9700\u8981\u8abf\u6574\u7684\u540c\u884c\u8005');
+      return;
+    }
+
+    const companionsById = new Map((ApiService.getCompanions?.() || []).map(comp => [String(comp.id || ''), comp]));
+    const invalidParticipant = toRegister.find(participant => {
+      const companion = companionsById.get(String(participant.companionId || ''));
+      return !(this._canEventGenderParticipantSignup?.(e, companion?.gender) ?? true);
+    });
+    if (invalidParticipant) {
+      this.showToast(this._getCompanionGenderRestrictionMessage?.(e, invalidParticipant.companionName || '') || '\u540c\u884c\u8005\u4e0d\u7b26\u5408\u6d3b\u52d5\u6027\u5225\u9650\u5236');
+      return;
+    }
+
+    const teamSplitEnabled = !!e.teamSplit?.enabled;
+    const teamSplitMode = e.teamSplit?.mode;
+    const selectedTeamKey = teamSplitEnabled && teamSplitMode === 'self-select'
+      ? this._tsSelectedTeamKey
+      : null;
+    if (toRegister.length > 0 && teamSplitEnabled && teamSplitMode === 'self-select' && !selectedTeamKey) {
+      const selectTeamMsg = (typeof I18N !== 'undefined' && I18N?.t)
+        ? I18N.t('teamSplit.select.required')
+        : '';
+      this.showToast(selectTeamMsg || '\u8acb\u5148\u9078\u64c7\u968a\u4f0d');
+      return;
+    }
+
+    this._closeCompanionSelectModal?.();
+
+    let cancelled = 0;
+    let confirmed = 0;
+    let waitlisted = 0;
+    try {
+      if (toCancelIds.length > 0) {
+        const useCancelCF = typeof shouldUseServerRegistrationForCancel === 'function'
+          ? shouldUseServerRegistrationForCancel()
+          : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration());
+        if (useCancelCF) {
+          const cfResult = await Promise.race([
+            firebase.app().functions('asia-east1').httpsCallable('cancelRegistration')({
+              eventId,
+              registrationIds: toCancelIds,
+              reason: 'companion_toggle',
+              requestId: `cancel_companion_toggle_${userId}_${eventId}_${Date.now()}`,
+            }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('cancel timeout')), 15000)),
+          ]);
+          const data = cfResult.data || {};
+          if (!data.deduplicated) {
+            toCancelIds.forEach(regId => {
+              const localReg = (FirebaseService._cache?.registrations || []).find(r => r.id === regId || r._docId === regId);
+              if (localReg) { localReg.status = 'cancelled'; localReg.cancelledAt = new Date().toISOString(); }
+            });
+            if (data.event && e) {
+              e.current = data.event.current;
+              e.realCurrent = data.event.realCurrent;
+              e.waitlist = data.event.waitlist;
+              e.participants = data.event.participants;
+              e.waitlistNames = data.event.waitlistNames;
+              e.participantsWithUid = data.event.participantsWithUid;
+              e.waitlistWithUid = data.event.waitlistWithUid;
+              e.teamReservationSummaries = data.event.teamReservationSummaries || [];
+              e.status = data.event.status;
+            }
+            FirebaseService._saveToLS?.('registrations', FirebaseService._cache?.registrations);
+            FirebaseService._saveToLS?.('events', FirebaseService._cache?.events);
+          }
+        } else {
+          await FirebaseService.cancelCompanionRegistrations(toCancelIds);
+        }
+        cancelled = toCancelIds.length;
+      }
+
+      if (toRegister.length > 0) {
+        const useRegisterCF = typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration();
+        if (useRegisterCF) {
+          const cfPayload = {
+            eventId,
+            participants: toRegister.map(p => ({
+              userId,
+              userName: user.displayName || user.name || '\u4f7f\u7528\u8005',
+              companionId: p.companionId,
+              companionName: p.companionName,
+            })),
+            requestId: `${userId}_${eventId}_companions_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+          };
+          if (selectedTeamKey) cfPayload.teamKey = selectedTeamKey;
+          const cfResult = await Promise.race([
+            firebase.app().functions('asia-east1').httpsCallable('registerForEvent')(cfPayload),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('register timeout')), 15000)),
+          ]);
+          const data = cfResult.data || {};
+          if (!data.deduplicated) {
+            confirmed = data.confirmed || 0;
+            waitlisted = data.waitlisted || 0;
+            if (data.event && e) {
+              e.current = data.event.current;
+              e.realCurrent = data.event.realCurrent;
+              e.waitlist = data.event.waitlist;
+              e.participants = data.event.participants;
+              e.waitlistNames = data.event.waitlistNames;
+              e.participantsWithUid = data.event.participantsWithUid;
+              e.waitlistWithUid = data.event.waitlistWithUid;
+              e.teamReservationSummaries = data.event.teamReservationSummaries || [];
+              e.status = data.event.status;
+              FirebaseService._saveToLS?.('events', FirebaseService._cache?.events);
+            }
+          }
+        } else {
+          const result = await ApiService.registerEventWithCompanions(eventId, toRegister, {
+            teamKey: selectedTeamKey || undefined,
+          });
+          confirmed = result.confirmed || 0;
+          waitlisted = result.waitlisted || 0;
+        }
+      }
+
+      const parts = [];
+      if (confirmed + waitlisted > 0) parts.push(`\u65b0\u589e ${confirmed + waitlisted} \u4eba`);
+      if (waitlisted > 0) parts.push(`\u5019\u88dc ${waitlisted} \u4eba`);
+      if (cancelled > 0) parts.push(`\u53d6\u6d88 ${cancelled} \u4eba`);
+      this.showToast(parts.length ? `\u540c\u884c\u5831\u540d\u5df2\u66f4\u65b0\uff1a${parts.join('\u3001')}` : '\u540c\u884c\u5831\u540d\u5df2\u66f4\u65b0');
+      this.showEventDetail(eventId);
+    } catch (err) {
+      console.error('[_confirmCompanionRegister toggle]', err);
+      const errCode = err?.details || err?.message || '';
+      ApiService._writeErrorLog?.({
+        fn: '_confirmCompanionRegister',
+        mode: 'toggle_companion',
+        eventId,
+        userId,
+        registerCount: toRegister.length,
+        cancelCount: toCancelIds.length,
+        errCode,
+      }, err);
+      const msgMap = {
+        ALREADY_REGISTERED: '\u5df2\u6709\u76f8\u540c\u5831\u540d\uff0c\u8acb\u91cd\u65b0\u6574\u7406\u5f8c\u518d\u8a66',
+        EVENT_NOT_FOUND: '\u627e\u4e0d\u5230\u6d3b\u52d5',
+        EVENT_ENDED: '\u6d3b\u52d5\u5df2\u958b\u59cb\uff0c\u7121\u6cd5\u8abf\u6574',
+        EVENT_CANCELLED: '\u6d3b\u52d5\u5df2\u53d6\u6d88',
+        REG_NOT_OPEN: '\u5831\u540d\u5c1a\u672a\u958b\u653e',
+        GENDER_RESTRICTED: '\u540c\u884c\u8005\u4e0d\u7b26\u5408\u6027\u5225\u9650\u5236',
+        TEAM_RESTRICTED: '\u4e0d\u7b26\u5408\u7403\u968a\u9650\u5b9a',
+        PROFILE_INCOMPLETE: '\u8acb\u5148\u88dc\u9f4a\u500b\u4eba\u8cc7\u6599',
+      };
+      this.showToast(msgMap[errCode] || err.message || '\u540c\u884c\u5831\u540d\u8abf\u6574\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+    }
+  },
+
 });

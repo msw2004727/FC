@@ -561,7 +561,7 @@ Object.assign(App, {
       <div class="detail-row detail-row-wide"><span class="detail-label">\u6642\u9593</span>${escapeHTML(e.date)}</div>
       ${regOpenHtml ? regOpenHtml.replace('detail-row"', 'detail-row detail-row-wide"') : ''}
       <div class="detail-grid">${_shortCells.join('')}</div>
-      <div class="detail-row detail-row-wide"><span class="detail-label">\u4E3B\u8FA6</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${this._userTag(e.creator, null, { uid: e.creatorUid || '' })}</span></div>
+      <div class="detail-row detail-row-wide detail-host-row"><span class="detail-label">\u4E3B\u8FA6</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${this._userTag(e.creator, null, { uid: e.creatorUid || '' })}</span><button type="button" class="event-host-contact-pill" onclick="App.contactEventOrganizer(${escapeHTML(JSON.stringify(e.creator || ''))})">\u806F\u7E6B\u4E3B\u8FA6</button></div>
       ${(e.delegates && e.delegates.length) ? `<div class="detail-row detail-row-wide"><span class="detail-label">\u59D4\u8A17</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${e.delegates.map(d => this._userTag(d.name, null, { uid: d.uid || '' })).join('')}</span></div>` : ''}
       ${e.contact ? `<div class="detail-row detail-row-wide"><span class="detail-label">\u806F\u7E6B</span>${escapeHTML(e.contact)}</div>` : ''}
       ${teamTag ? teamTag.replace('detail-row"', 'detail-row detail-row-wide"') : ''}
@@ -573,7 +573,7 @@ Object.assign(App, {
       </div>` : ''}
       <div class="detail-action-zone">
         <div class="detail-action-toolbar">
-          <button class="detail-toolbar-btn" onclick="App.contactEventOrganizer('${escapeHTML(e.creator)}')">\u806F\u7E6B\u4E3B\u8FA6</button>
+          <button class="detail-toolbar-btn" onclick="App._openCompanionSelectModal('${escapeHTML(e.id)}')">\u540C\u884C\u5831\u540D</button>
           <button class="detail-toolbar-btn" onclick="App.shareEvent('${e.id}')">\u5206\u4EAB\u6D3B\u52D5</button>
           <button class="detail-toolbar-btn" onclick="App.addEventToCalendar('${e.id}')">\u52A0\u5165\u884C\u4E8B\u66C6</button>
           ${canScan ? `<button class="detail-toolbar-btn" onclick="App.goToScanForEvent('${escapeHTML(e.id || e._docId || e.docId || '')}')">\u73FE\u5834\u7C3D\u5230</button>` : ''}

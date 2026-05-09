@@ -312,12 +312,7 @@
     `).join('') + more;
   }
 
-  function statCard({ key, label, count, page, views }) {
-    const viewHtml = Number(views || 0) > 0 ? `
-      <span class="home-stat-views" title="瀏覽統計">
-        ${eyeSvg()}
-        <span>${numberText(views)}</span>
-      </span>` : '';
+  function statCard({ key, label, count, page }) {
     const countText = numberText(count);
     return `
       <button class="home-stat-card" type="button" data-stat="${escapeHTML(key)}" onclick="App.showPage('${escapeHTML(page)}')" aria-label="${escapeHTML(label)} ${escapeHTML(countText)}">
@@ -327,7 +322,6 @@
         <span class="home-stat-value-row">
           <strong class="home-stat-number">${countText}</strong>
         </span>
-        ${viewHtml}
       </button>
     `;
   }
@@ -336,13 +330,18 @@
     const host = document.getElementById('home-info-meter');
     if (!host) return;
     const counts = summary.counts || {};
+    const activityViews = Number(summary.activityViews?.total || 0) + 500;
+    const viewHtml = activityViews > 0 ? `
+      <span class="home-stat-views home-info-views" title="瀏覽統計">
+        ${eyeSvg()}
+        <span>${numberText(activityViews)}</span>
+      </span>` : '';
     host.innerHTML = '<span class="home-info-lead">即時資訊：</span>' + [
       statCard({
         key: 'activities',
         label: '已開放活動',
         count: counts.activities,
         page: 'page-activities',
-        views: Number(summary.activityViews?.total || 0) + 500,
       }),
       statCard({
         key: 'teams',
@@ -356,7 +355,7 @@
         count: counts.tournaments,
         page: 'page-tournaments',
       }),
-    ].join('');
+    ].join('') + viewHtml;
   }
 
   function matchKey(match) {

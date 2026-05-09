@@ -239,7 +239,7 @@ describe("home-dashboard browser binding", () => {
     expect(footballChip?.querySelector(".home-sport-chip-count")?.textContent).toContain("19 活動");
     expect(footballChip?.getAttribute("aria-label")).toContain("足球");
     expect(footballChip?.querySelector(".home-sport-chip-mark")?.innerHTML).toContain("football");
-    expect(dom.window.document.getElementById("home-info-meter").children).toHaveLength(4);
+    expect(dom.window.document.querySelectorAll("#home-info-meter .home-stat-card")).toHaveLength(3);
     expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("即時資訊");
     expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("已開放活動");
     expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("俱樂部數");
@@ -249,6 +249,8 @@ describe("home-dashboard browser binding", () => {
     expect(dom.window.document.getElementById("home-info-meter").textContent).not.toContain("預留");
     expect(dom.window.document.getElementById("home-info-meter").textContent).toContain("811");
     expect(dom.window.document.querySelectorAll(".home-stat-views")).toHaveLength(1);
+    expect(dom.window.document.querySelectorAll(".home-info-views")).toHaveLength(1);
+    expect(dom.window.document.querySelector('[data-stat="activities"] .home-stat-views')).toBeNull();
 
     const scoreboard = dom.window.document.getElementById("home-scoreboard-preview");
     expect(scoreboard.style.display).toBe("none");

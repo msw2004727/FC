@@ -620,13 +620,6 @@ Object.assign(App, {
     }
 
     // 有同行者 → 顯示選人 Modal
-    const companions = ApiService.getCompanions();
-    if (companions.length > 0) {
-      if (_tsEnabled) this._tsPendingTeamKey = _tsTeamKey;
-      this._openCompanionSelectModal(id);
-      return;
-    }
-
     // 恢復報名 → 移除之前的取消紀錄
     this._removeCancelRecordOnResignup(id, userId);
 

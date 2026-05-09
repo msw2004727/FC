@@ -6741,7 +6741,8 @@ exports.registerForEvent = onCall(
       const lockDocs = await Promise.all(regLockRefs.map((ref) => transaction.get(ref)));
 
       // T3: 重複報名檢查
-      const hasActive = allEventRegs.some(
+      const participantsIncludeSelf = sanitizedParticipants.some((p) => p.participantType !== "companion");
+      const hasActive = participantsIncludeSelf && allEventRegs.some(
         (r) =>
           r.userId === callerUid &&
           (r.status === "confirmed" || r.status === "waitlisted") &&
@@ -6752,7 +6753,7 @@ exports.registerForEvent = onCall(
       }
 
       // T3: 性別限制檢查（使用 Transaction 前預查的 callerUserDoc，避免 Transaction 內非交易讀取）
-      if (ed.genderRestrictionEnabled && ed.allowedGender) {
+      if (participantsIncludeSelf && ed.genderRestrictionEnabled && ed.allowedGender) {
         const callerGender = callerUserDoc?.data?.gender;
         if (callerGender && ed.allowedGender !== "all") {
           const normalizedGender = callerGender === "男" || callerGender === "male" ? "male" : callerGender === "女" || callerGender === "female" ? "female" : "";
