@@ -79,7 +79,7 @@ const DRAWER_MENUS = [
   { sectionLabel: '\u5f8c\u53f0\u7ba1\u7406', minRole: 'admin' },
   { icon: '', label: '\u5c0f\u904a\u6232\u7ba1\u7406', page: 'page-admin-games', minRole: 'admin', permissionCode: 'admin.games.entry' },
   { icon: '', label: '\u7528\u6236\u7ba1\u7406', page: 'page-admin-users', minRole: 'admin', permissionCode: 'admin.users.entry' },
-  { icon: '', label: '\u5ee3\u544a\u7ba1\u7406', page: 'page-admin-banners', minRole: 'admin', permissionCode: 'admin.banners.entry' },
+  { icon: '', label: '\u9996\u9801\u7ba1\u7406', page: 'page-admin-banners', minRole: 'admin', permissionCode: 'admin.banners.entry' },
   { icon: '', label: '\u4e8c\u624b\u5546\u54c1\u7ba1\u7406', page: 'page-admin-shop', minRole: 'admin', permissionCode: 'admin.shop.entry' },
   { icon: '', label: '\u7ad9\u5167\u4fe1\u7ba1\u7406', page: 'page-admin-messages', minRole: 'admin', permissionCode: 'admin.messages.entry' },
   { icon: '', label: '\u7403\u968a\u7ba1\u7406', page: 'page-admin-teams', minRole: 'admin', permissionCode: 'admin.teams.entry' },

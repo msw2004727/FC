@@ -181,7 +181,7 @@ sequenceDiagram
 | `adminDashboard` | 數據儀表板、用量、drilldown、參與者查詢與分享 |
 | `adminUsers` | 用戶管理、EXP、角色、補正、黑名單、UID 檢查、資料同步 |
 | `adminSystem` | 遊戲設定、log center、error/audit log |
-| `adminContent` | 廣告、banner、浮動廣告、彈窗贊助、boot brand |
+| `adminContent` | 首頁管理、首頁排版順序、banner、浮動廣告、彈窗贊助、boot brand |
 | `adminSeo` | SEO dashboard / snapshot |
 | `education` | 教學/課程/學生/課表/簽到/家長綁定 |
 | `achievement` | 成就、稱號、EXP evaluator、徽章、管理 |
@@ -202,7 +202,7 @@ sequenceDiagram
 | `dashboard/` | 20 | 後台儀表板、用量、CI、參與者查詢、snapshot、drilldown、個人儀表板 |
 | `user-admin/` | 8 | 使用者列表、EXP、角色權限、補正、活動黑名單、UID 健康檢查與診斷包 |
 | `education/` | 21 | 教學團體、學生、課程、報名、簽到、月曆、家長綁定、通知 |
-| `ad-manage/` | 6 | banner、浮動廣告、popup sponsor、shot game 廣告、boot brand |
+| `ad-manage/` | 6 | 首頁管理、首頁排版順序、banner、浮動廣告、popup sponsor、shot game 廣告、boot brand |
 | `scan/` | 5 | QR camera、掃描流程、UI、家人模式 |
 | `shot-game/` | 10 | 射門遊戲與 private 3D lab runtime |
 | `kickball/` | 6 | 踢球小遊戲、物理、排行榜、UI |
@@ -465,7 +465,8 @@ current = realCurrent + sum(remainingSlots)
 
 ### 首頁摘要儀表
 
-- `pages/home.html` 首屏順序：banner、公告、運動快速入口、活動/俱樂部/賽事儀表，後續才是小遊戲、贊助、新聞與浮動廣告。
+- `pages/home.html` 預設首屏順序：banner、快捷操作、公告、我的下一場活動、運動快速入口、活動/俱樂部/賽事儀表，後續才是小遊戲、贊助、新聞與浮動廣告。
+- 首頁順序可在「首頁管理 > 首頁排版順序」調整，設定存於 `banners/home-layout`，只保存 section key 陣列，不影響各容器本身資料。
 - `js/modules/home-dashboard.js` 先從 inline `boot-home-summary-data` 渲染首屏；若摘要超過 5 分鐘，背景讀取公開活動快取/Firestore 重新計算活動數、運動分類數與已記錄瀏覽數，避免 GitHub Action 注入延遲讓快速入口長時間過舊。
 - 首頁活動統計排除取消、私密、俱樂部限定，以及「開始時間已過」的活動；無法解析開始時間的資料採保守保留，不在首頁顯示假 0。
 - 儀表卡可點擊：活動數前往活動頁，俱樂部數前往俱樂部頁，賽事數前往賽事頁；「我要開活動」會帶使用者到活動頁並開啟建立活動流程。
@@ -625,7 +626,7 @@ Firestore / Functions 也有一份權限判斷，尤其 `INHERENT_ROLE_PERMISSIO
 | `page-admin-users` | 用戶列表、角色、EXP |
 | `page-admin-repair` | 用戶補正、系統資料同步、UID 檢查、活動黑名單 |
 | `page-admin-logs` | operation / audit / error log center |
-| `page-admin-banners` | banner / ads / sponsor / boot brand |
+| `page-admin-banners` | 首頁管理 / homepage layout / banner / ads / sponsor / boot brand |
 | `page-admin-tournaments` | 賽事管理 |
 | `page-admin-seo` | SEO snapshot |
 | `page-admin-games` | 遊戲設定與 log |

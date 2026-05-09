@@ -4,6 +4,8 @@
    ================================================ */
 
 Object.assign(App, {
+  _homeLayoutEditOrder: null,
+  _homeLayoutEnsuringSlot: false,
 
   // ── Shared Utils ──
 
@@ -182,6 +184,173 @@ Object.assign(App, {
       updatedAt: new Date().toISOString(),
     });
     this.showToast(visible ? '已開啟首頁新聞' : '已關閉首頁新聞');
+  },
+
+  _homeLayoutSections() {
+    const utils = (typeof window !== 'undefined' && window.HomeDashboardUtils) || {};
+    const fallback = [
+      { key: 'banner', label: '\u9996\u9801 Banner' },
+      { key: 'heroActions', label: '\u5feb\u6377\u64cd\u4f5c' },
+      { key: 'announcement', label: '\u516c\u544a\u8dd1\u99ac\u71c8' },
+      { key: 'nextActivity', label: '\u6211\u7684\u4e0b\u4e00\u5834\u6d3b\u52d5' },
+      { key: 'sportEntry', label: '\u6d3b\u52d5\u985e\u5225\u5165\u53e3' },
+      { key: 'infoMeter', label: '\u5373\u6642\u8cc7\u8a0a' },
+      { key: 'gameShortcut', label: '\u5c0f\u904a\u6232\u5165\u53e3' },
+      { key: 'sponsors', label: '\u8d0a\u52a9\u5546' },
+      { key: 'news', label: '\u9996\u9801\u65b0\u805e' },
+      { key: 'floatingAds', label: '\u6d6e\u52d5\u5ee3\u544a' },
+    ];
+    return Array.isArray(utils.homeLayoutSections) && utils.homeLayoutSections.length
+      ? utils.homeLayoutSections
+      : fallback;
+  },
+
+  _homeLayoutDefaultOrder() {
+    const utils = (typeof window !== 'undefined' && window.HomeDashboardUtils) || {};
+    return Array.isArray(utils.homeLayoutDefaultOrder) && utils.homeLayoutDefaultOrder.length
+      ? Array.from(utils.homeLayoutDefaultOrder)
+      : this._homeLayoutSections().map(item => item.key);
+  },
+
+  _normalizeHomeLayoutOrder(order) {
+    const utils = (typeof window !== 'undefined' && window.HomeDashboardUtils) || {};
+    if (typeof utils.normalizeHomeLayoutOrder === 'function') {
+      return utils.normalizeHomeLayoutOrder(order);
+    }
+    const defaults = this._homeLayoutDefaultOrder();
+    const known = new Set(defaults);
+    const seen = new Set();
+    const result = [];
+    (Array.isArray(order) ? order : []).forEach(key => {
+      const safeKey = String(key || '').trim();
+      if (!known.has(safeKey) || seen.has(safeKey)) return;
+      seen.add(safeKey);
+      result.push(safeKey);
+    });
+    defaults.forEach(key => { if (!seen.has(key)) result.push(key); });
+    return result;
+  },
+
+  _getHomeLayoutPlaceholder() {
+    const existing = ApiService.getHomeLayoutSettings?.();
+    if (existing) return existing;
+    let source = null;
+    if (typeof ApiService !== 'undefined' && typeof ApiService._src === 'function') {
+      source = ApiService._src('banners');
+    } else if (typeof FirebaseService !== 'undefined' && FirebaseService._cache) {
+      source = FirebaseService._cache.banners;
+    }
+    if (!Array.isArray(source)) return null;
+    const placeholder = {
+      id: 'home-layout',
+      _docId: 'home-layout',
+      slot: 'home-layout',
+      type: 'homeLayout',
+      slotName: '\u9996\u9801\u6392\u7248\u9806\u5e8f',
+      status: 'active',
+      order: this._homeLayoutDefaultOrder(),
+    };
+    source.push(placeholder);
+    return placeholder;
+  },
+
+  async _ensureHomeLayoutSlot() {
+    if (this._homeLayoutEnsuringSlot) return;
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService._ensureHomeLayoutSlot !== 'function') return;
+    this._homeLayoutEnsuringSlot = true;
+    try {
+      if (typeof _firebaseAuthReadyPromise !== 'undefined' && !_firebaseAuthReady) {
+        await Promise.race([_firebaseAuthReadyPromise, new Promise(r => setTimeout(r, 5000))]);
+      }
+      await FirebaseService._ensureHomeLayoutSlot();
+    } catch (err) {
+      console.warn('[HomeLayout] ensure slot failed:', err);
+    } finally {
+      this._homeLayoutEnsuringSlot = false;
+    }
+  },
+
+  renderHomeLayoutManage(options = {}) {
+    const container = document.getElementById('home-layout-manage-list');
+    if (!container) return;
+    const item = ApiService.getHomeLayoutSettings?.() || this._getHomeLayoutPlaceholder();
+    if (!item) {
+      container.innerHTML = '<p style="color:var(--text-muted);padding:.5rem">\u9996\u9801\u6392\u7248\u8a2d\u5b9a\u8f09\u5165\u4e2d...</p>';
+      this._ensureHomeLayoutSlot().then(() => this.renderHomeLayoutManage({ resetFromData: true }));
+      return;
+    }
+    this._ensureHomeLayoutSlot();
+
+    if (!Array.isArray(this._homeLayoutEditOrder) || options.resetFromData) {
+      this._homeLayoutEditOrder = this._normalizeHomeLayoutOrder(item.order);
+    }
+    const order = this._normalizeHomeLayoutOrder(this._homeLayoutEditOrder);
+    this._homeLayoutEditOrder = order.slice();
+    const labels = new Map(this._homeLayoutSections().map(section => [section.key, section.label]));
+    const itemHtml = order.map((key, index) => {
+      const label = labels.get(key) || key;
+      const hint = key === 'floatingAds'
+        ? '<div class="banner-manage-meta">\u6d6e\u52d5\u5ee3\u544a\u70ba\u6d6e\u5c64\uff0c\u4f4d\u7f6e\u4e3b\u8981\u7531\u6a23\u5f0f\u63a7\u5236\u3002</div>'
+        : '';
+      return `
+        <div class="home-layout-row" data-home-layout-key="${escapeHTML(key)}">
+          <div class="home-layout-rank">${index + 1}</div>
+          <div class="banner-manage-info">
+            <div class="banner-manage-title">${escapeHTML(label)}</div>
+            ${hint}
+          </div>
+          <div class="home-layout-row-actions">
+            <button class="outline-btn home-layout-move-btn" type="button" onclick="App.moveHomeLayoutItem('${escapeHTML(key)}', -1)"${index === 0 ? ' disabled' : ''}>\u4e0a\u79fb</button>
+            <button class="outline-btn home-layout-move-btn" type="button" onclick="App.moveHomeLayoutItem('${escapeHTML(key)}', 1)"${index === order.length - 1 ? ' disabled' : ''}>\u4e0b\u79fb</button>
+          </div>
+        </div>`;
+    }).join('');
+    container.innerHTML = `
+      <div class="home-layout-card">
+        <div class="banner-manage-meta">\u7531\u4e0a\u5230\u4e0b\u8abf\u6574\u9996\u9801\u5bb9\u5668\u9806\u5e8f\uff0c\u5132\u5b58\u5f8c\u6703\u7acb\u5373\u5957\u7528\u5230\u9996\u9801\u3002</div>
+        <div class="home-layout-list">${itemHtml}</div>
+        <div class="home-layout-actions">
+          <button class="outline-btn" type="button" onclick="App.resetHomeLayoutOrder()">\u9084\u539f\u9810\u8a2d</button>
+          <button class="primary-btn" type="button" onclick="App.saveHomeLayoutOrder()">\u5132\u5b58\u9806\u5e8f</button>
+        </div>
+      </div>`;
+  },
+
+  moveHomeLayoutItem(key, direction) {
+    const order = this._normalizeHomeLayoutOrder(this._homeLayoutEditOrder);
+    const idx = order.indexOf(key);
+    const nextIdx = idx + Number(direction || 0);
+    if (idx < 0 || nextIdx < 0 || nextIdx >= order.length) return;
+    const [item] = order.splice(idx, 1);
+    order.splice(nextIdx, 0, item);
+    this._homeLayoutEditOrder = order;
+    this.renderHomeLayoutManage();
+  },
+
+  resetHomeLayoutOrder() {
+    this._homeLayoutEditOrder = this._homeLayoutDefaultOrder();
+    this.renderHomeLayoutManage();
+  },
+
+  async saveHomeLayoutOrder() {
+    if (!this.hasPermission('admin.banners.entry')) {
+      this.showToast('\u6b0a\u9650\u4e0d\u8db3'); return;
+    }
+    await this._ensureHomeLayoutSlot();
+    const item = ApiService.getHomeLayoutSettings?.() || this._getHomeLayoutPlaceholder();
+    const id = item?.id || item?._docId || 'home-layout';
+    const order = this._normalizeHomeLayoutOrder(this._homeLayoutEditOrder);
+    ApiService.updateHomeLayoutSettings(id, {
+      slotName: '\u9996\u9801\u6392\u7248\u9806\u5e8f',
+      slot: 'home-layout',
+      type: 'homeLayout',
+      status: 'active',
+      order,
+    });
+    this._homeLayoutEditOrder = order;
+    if (typeof window !== 'undefined') window.HomeDashboardUtils?.applyHomeLayoutOrder?.();
+    this.renderHomeLayoutManage();
+    this.showToast('\u9996\u9801\u6392\u7248\u9806\u5e8f\u5df2\u5132\u5b58');
   },
 
   // ── 通用：編輯 ──

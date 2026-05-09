@@ -1413,9 +1413,13 @@ const ApiService = {
     b.type !== 'shotgame'
     && b.type !== 'watchParty'
     && b.type !== 'homeInfo'
+    && b.type !== 'homeLayout'
     && b.slot !== 'home-info'
     && b.id !== 'home-info'
     && b._docId !== 'home-info'
+    && b.slot !== 'home-layout'
+    && b.id !== 'home-layout'
+    && b._docId !== 'home-layout'
   ); },
   getShotGameAd()    {
     return this._src('banners').find(b =>
@@ -1439,6 +1443,14 @@ const ApiService = {
       || b.id === 'home-info'
       || b._docId === 'home-info'
       || b.type === 'homeInfo'
+    ) || null;
+  },
+  getHomeLayoutSettings() {
+    return this._src('banners').find(b =>
+      b.slot === 'home-layout'
+      || b.id === 'home-layout'
+      || b._docId === 'home-layout'
+      || b.type === 'homeLayout'
     ) || null;
   },
   getPermissions()   { return getMergedPermissionCatalog(this._src('permissions') || []); },
@@ -1515,6 +1527,43 @@ const ApiService = {
           return null;
         })
         .catch(err => console.warn('[updateHomeInfoSettings] ensure slot failed:', err));
+    }
+    return null;
+  },
+  updateHomeLayoutSettings(id, updates) {
+    if (this._handleRestrictedAction()) return null;
+
+    const source = this._src('banners');
+    const item = this.getHomeLayoutSettings()
+      || source.find(b => b.id === id || b._docId === id || b.slot === 'home-layout' || b.type === 'homeLayout')
+      || null;
+
+    if (item) {
+      Object.assign(item, updates);
+      if (!item.id && item._docId) item.id = item._docId;
+      if (typeof FirebaseService !== 'undefined' && FirebaseService.updateBanner) {
+        const writeId = item.id || item._docId || 'home-layout';
+        FirebaseService.ensureAuthReadyForWrite()
+          .then(() => FirebaseService.updateBanner.call(FirebaseService, writeId, updates))
+          .catch(err => console.error('[updateHomeLayoutSettings]', err));
+      }
+      return item;
+    }
+
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._ensureHomeLayoutSlot === 'function') {
+      Promise.resolve(FirebaseService._ensureHomeLayoutSlot())
+        .then(() => {
+          const created = this.getHomeLayoutSettings();
+          if (!created) return null;
+          Object.assign(created, updates);
+          const retryId = created.id || created._docId || 'home-layout';
+          if (FirebaseService.updateBanner) {
+            return FirebaseService.ensureAuthReadyForWrite()
+              .then(() => FirebaseService.updateBanner.call(FirebaseService, retryId, updates));
+          }
+          return null;
+        })
+        .catch(err => console.warn('[updateHomeLayoutSettings] ensure slot failed:', err));
     }
     return null;
   },

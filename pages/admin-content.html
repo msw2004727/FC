@@ -1,9 +1,18 @@
 <meta name="robots" content="noindex, nofollow">
-    <!-- PAGE: Backend - Ad Management (Admin+) -->
+    <!-- PAGE: Backend - Home Management (Admin+) -->
     <section class="page" id="page-admin-banners">
       <div class="page-header">
         <button class="back-btn" onclick="App.goBack()">←</button>
-        <h2>廣告管理</h2>
+        <h2>首頁管理</h2>
+      </div>
+      <!-- 首頁排版順序 -->
+      <div class="ad-collapse-section">
+        <div class="admin-section-label ad-collapse-toggle" onclick="App.toggleAdSection(this)">
+          <span>首頁排版順序</span><span class="ad-collapse-arrow">▶</span>
+        </div>
+        <div class="ad-collapse-content" style="display:none">
+          <div class="card-list" id="home-layout-manage-list"></div>
+        </div>
       </div>
       <!-- Banner 廣告 -->
       <div class="ad-collapse-section">

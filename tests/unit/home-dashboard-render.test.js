@@ -151,6 +151,8 @@ describe("home-dashboard browser binding", () => {
     expect(homeHtmlSource).not.toContain("home-watch-party-title");
     expect(homeHtmlSource).toContain("home-watch-party-copy");
     expect(homeHtmlSource).toContain("home-sport-views");
+    expect(homeHtmlSource).toContain("home-game-divider");
+    expect(homeHtmlSource).toContain("home-game-heading");
     expect(homeHtmlSource).not.toContain("home-watch-party-art");
     expect(homeCssSource).toContain("banner-create-event-btn");
   });
@@ -158,6 +160,7 @@ describe("home-dashboard browser binding", () => {
   test("watch party background is a managed special banner slot outside the carousel", () => {
     expect(apiServiceSource).toMatch(/getBanners\(\)\s*\{[\s\S]*type !== 'watchParty'/);
     expect(apiServiceSource).toMatch(/getBanners\(\)\s*\{[\s\S]*type !== 'homeInfo'/);
+    expect(apiServiceSource).toMatch(/getBanners\(\)\s*\{[\s\S]*type !== 'homeLayout'/);
     expect(apiServiceSource).toMatch(/getBanners\(\)\s*\{[\s\S]*slot !== 'home-info'/);
     expect(apiServiceSource).toContain("getWatchPartyBg()");
     expect(adminContentSource).toContain("watch-party-bg-manage-list");
@@ -320,6 +323,50 @@ describe("home-dashboard browser binding", () => {
     expect(section.classList.contains("is-hidden")).toBe(true);
     expect(dom.window.document.getElementById("home-info-meter").innerHTML).toBe("");
     expect(dom.window.document.getElementById("home-sport-views").textContent).toContain("811");
+  });
+
+  test("applies managed homepage layout order to section containers", () => {
+    const dom = new JSDOM(`<!doctype html>
+      <section id="page-home">
+        <div class="banner-carousel" id="banner-section"></div>
+        <div class="home-hero-actions" id="hero-actions"></div>
+        <div id="announce-marquee-wrap"></div>
+        <div id="announce-detail-modal"></div>
+        <section id="home-next-activity"></section>
+        <section class="home-dashboard-section" id="sport-section"><div id="home-sport-entry"></div></section>
+        <section class="home-dashboard-section home-info-dashboard-section" id="info-section"><div id="home-info-meter"></div></section>
+        <hr id="home-game-divider">
+        <div id="home-game-heading"></div>
+        <button id="home-game-card-shot"></button>
+        <button id="home-game-card-kick"></button>
+        <hr id="sponsor-divider">
+        <div id="sponsor-grid"></div>
+        <hr id="news-divider">
+        <div id="news-section-title"></div>
+        <div id="news-tabs"></div>
+        <div id="news-card-list"></div>
+        <div id="floating-ads"></div>
+      </section>
+    `, { url: "https://example.test/" });
+    const context = vm.createContext({
+      window: dom.window,
+      globalThis: dom.window,
+      document: dom.window.document,
+      localStorage: dom.window.localStorage,
+      console,
+      App: {},
+      ApiService: {
+        getHomeLayoutSettings: () => ({ order: ["infoMeter", "banner", "sponsors"] }),
+      },
+    });
+
+    vm.runInContext(source, context);
+    context.window.HomeDashboardUtils.applyHomeLayoutOrder();
+
+    const order = Array.from(dom.window.document.getElementById("page-home").children)
+      .map(el => el.id || el.className);
+    expect(order.slice(0, 4)).toEqual(["info-section", "banner-section", "sponsor-divider", "sponsor-grid"]);
+    expect(order).toContain("floating-ads");
   });
 
   test("refreshes stale sport quick entry from cached public events", async () => {

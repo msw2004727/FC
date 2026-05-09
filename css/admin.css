@@ -285,6 +285,69 @@
 .banner-manage-title { font-weight: 600; font-size: .85rem; }
 .banner-manage-meta { font-size: .72rem; color: var(--text-muted); margin-top: .1rem; }
 .banner-manage-status { display: inline-block; padding: .1rem .4rem; border-radius: var(--radius-full); font-size: .65rem; font-weight: 600; }
+.home-layout-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .75rem;
+}
+.home-layout-list {
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+  margin-top: .6rem;
+}
+.home-layout-row {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .65rem;
+  padding: .58rem .65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+.home-layout-rank {
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(37, 99, 235, .12);
+  color: #2563eb;
+  font-weight: 800;
+  font-size: .78rem;
+}
+.home-layout-row-actions,
+.home-layout-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .4rem;
+}
+.home-layout-actions {
+  margin-top: .7rem;
+  flex-wrap: wrap;
+}
+.home-layout-move-btn {
+  padding: .22rem .48rem;
+  font-size: .72rem;
+}
+.home-layout-move-btn:disabled {
+  opacity: .42;
+  cursor: not-allowed;
+}
+
+@media (max-width: 520px) {
+  .home-layout-row {
+    grid-template-columns: 1.8rem minmax(0, 1fr);
+  }
+  .home-layout-row-actions {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+}
 
 /* ─── System Announcement Management ─── */
 #page-admin-announcements {

@@ -2242,6 +2242,8 @@ Object.assign(FirebaseService, {
       || (id === 'watch-party-bg' && b.type === 'watchParty')
       || (id === 'home-info' && b.slot === 'home-info')
       || (id === 'home-info' && b.type === 'homeInfo')
+      || (id === 'home-layout' && b.slot === 'home-layout')
+      || (id === 'home-layout' && b.type === 'homeLayout')
     );
     if (!doc || !doc._docId) return null;
     // 避免 base64 寫入 Firestore（超過 1MB 限制）
@@ -2254,12 +2256,13 @@ Object.assign(FirebaseService, {
       const isShotGame = id === 'sga1' || doc.id === 'sga1' || doc.slot === 'sga1' || doc.type === 'shotgame';
       const isWatchParty = id === 'watch-party-bg' || doc.id === 'watch-party-bg' || doc.slot === 'watch-party-bg' || doc.type === 'watchParty';
       const isHomeInfo = id === 'home-info' || doc.id === 'home-info' || doc.slot === 'home-info' || doc.type === 'homeInfo';
+      const isHomeLayout = id === 'home-layout' || doc.id === 'home-layout' || doc.slot === 'home-layout' || doc.type === 'homeLayout';
       const isNotFound = err && (err.code === 'not-found' || String(err.message || '').toLowerCase().includes('no document to update'));
-      if (!((isShotGame || isWatchParty || isHomeInfo) && isNotFound)) throw err;
+      if (!((isShotGame || isWatchParty || isHomeInfo || isHomeLayout) && isNotFound)) throw err;
       await ref.set({
-        id: isHomeInfo ? 'home-info' : (isWatchParty ? 'watch-party-bg' : 'sga1'),
-        slot: isHomeInfo ? 'home-info' : (isWatchParty ? 'watch-party-bg' : 'sga1'),
-        type: isHomeInfo ? 'homeInfo' : (isWatchParty ? 'watchParty' : 'shotgame'),
+        id: isHomeLayout ? 'home-layout' : (isHomeInfo ? 'home-info' : (isWatchParty ? 'watch-party-bg' : 'sga1')),
+        slot: isHomeLayout ? 'home-layout' : (isHomeInfo ? 'home-info' : (isWatchParty ? 'watch-party-bg' : 'sga1')),
+        type: isHomeLayout ? 'homeLayout' : (isHomeInfo ? 'homeInfo' : (isWatchParty ? 'watchParty' : 'shotgame')),
         ...updates,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });

@@ -2273,3 +2273,8 @@
 - **Issue**: The `誰是開球王` monthly leaderboard did not have the `← 上月回顧` affordance already used by the shot-game shooter leaderboard.
 - **Fix**: Added the previous-month review row, `monthly-prev` bucket support, toggle state, and matching button styling for the kickball leaderboard.
 - **Validation**: Added kickball leaderboard coverage for the previous-month UI contract and toggle behavior.
+
+### 2026-05-09 Home Management Layout Order [ux]
+- **Issue**: The left drawer and permission copy still exposed the content area as `廣告管理`, while the same page now owns broader homepage controls. Admins also had no UI to reorder homepage containers.
+- **Fix**: Renamed the entry and permission description to `首頁管理`; added `首頁排版順序` inside the page. The layout order is stored in `banners/home-layout` as section keys and applied by `home-dashboard.js`, so all homepage containers can be reordered without changing their data source.
+- **Validation**: Added unit/source coverage for the management UI, API/Firebase special document handling, banner filtering, and homepage DOM reorder behavior.

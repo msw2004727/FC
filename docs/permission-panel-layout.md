@@ -37,7 +37,7 @@
     ├ 修改用戶身分           admin.users.change_role                      ✅ CF 接線
     └ 限制 / 解除限制        admin.users.restrict                         ✅ CF 接線
 
-廣告管理
+首頁管理
     └ 顯示入口              admin.banners.entry                          ✅ 已接線
 
 二手商品管理

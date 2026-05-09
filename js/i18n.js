@@ -193,7 +193,7 @@ I18N.register('zh-TW', {
   'admin.dashboard': '數據儀表板',
   'admin.seo': 'SEO 儀表板',
   'admin.userManage': '用戶管理',
-  'admin.adManage': '廣告管理',
+  'admin.adManage': '首頁管理',
   'admin.shopManage': '二手商品管理',
   'admin.messageManage': '站內信管理',
   'admin.teamManage': '俱樂部管理',

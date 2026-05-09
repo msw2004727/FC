@@ -15,6 +15,19 @@
     teams: '\u4ff1\u6a02\u90e8\u6578',
     tournaments: '\u6b63\u8209\u8fa6\u8cfd\u4e8b',
   };
+  const HOME_LAYOUT_SECTIONS = Object.freeze([
+    { key: 'banner', label: '\u9996\u9801 Banner' },
+    { key: 'heroActions', label: '\u5feb\u6377\u64cd\u4f5c' },
+    { key: 'announcement', label: '\u516c\u544a\u8dd1\u99ac\u71c8' },
+    { key: 'nextActivity', label: '\u6211\u7684\u4e0b\u4e00\u5834\u6d3b\u52d5' },
+    { key: 'sportEntry', label: '\u6d3b\u52d5\u985e\u5225\u5165\u53e3' },
+    { key: 'infoMeter', label: '\u5373\u6642\u8cc7\u8a0a' },
+    { key: 'gameShortcut', label: '\u5c0f\u904a\u6232\u5165\u53e3' },
+    { key: 'sponsors', label: '\u8d0a\u52a9\u5546' },
+    { key: 'news', label: '\u9996\u9801\u65b0\u805e' },
+    { key: 'floatingAds', label: '\u6d6e\u52d5\u5ee3\u544a' },
+  ]);
+  const HOME_LAYOUT_DEFAULT_ORDER = Object.freeze(HOME_LAYOUT_SECTIONS.map(item => item.key));
   const HOME_ACTIVITY_REGIONS = ['全部', '北部', '中部', '南部', '東部&外島'];
   const HOME_ACTIVITY_TYPES = [
     { value: '', label: '全部類型' },
@@ -309,6 +322,30 @@
     };
   }
 
+  function normalizeHomeLayoutOrder(value) {
+    const source = Array.isArray(value) ? value : (Array.isArray(value?.order) ? value.order : []);
+    const known = new Set(HOME_LAYOUT_DEFAULT_ORDER);
+    const seen = new Set();
+    const result = [];
+    source.forEach(key => {
+      const safeKey = String(key || '').trim();
+      if (!known.has(safeKey) || seen.has(safeKey)) return;
+      seen.add(safeKey);
+      result.push(safeKey);
+    });
+    HOME_LAYOUT_DEFAULT_ORDER.forEach(key => {
+      if (!seen.has(key)) result.push(key);
+    });
+    return result;
+  }
+
+  function homeLayoutSettings() {
+    const raw = (typeof ApiService !== 'undefined' && typeof ApiService.getHomeLayoutSettings === 'function')
+      ? (ApiService.getHomeLayoutSettings() || {})
+      : {};
+    return { order: normalizeHomeLayoutOrder(raw.order) };
+  }
+
   function applyHomeInfoStyles(section, settings) {
     if (!section) return;
     section.classList.toggle('has-custom-info-font', !!settings.fontSize);
@@ -396,6 +433,46 @@
         page: 'page-tournaments',
       }),
     ].join('');
+  }
+
+  function homeLayoutNodes(key) {
+    if (key === 'banner') return [document.querySelector('#page-home .banner-carousel')];
+    if (key === 'heroActions') return [document.querySelector('#page-home .home-hero-actions')];
+    if (key === 'announcement') return [
+      document.getElementById('announce-marquee-wrap'),
+      document.getElementById('announce-detail-modal'),
+    ];
+    if (key === 'nextActivity') return [document.getElementById('home-next-activity')];
+    if (key === 'sportEntry') return [document.getElementById('home-sport-entry')?.closest('.home-dashboard-section')];
+    if (key === 'infoMeter') return [document.getElementById('home-info-meter')?.closest('.home-dashboard-section')];
+    if (key === 'gameShortcut') return [
+      document.getElementById('home-game-divider'),
+      document.getElementById('home-game-heading'),
+      document.getElementById('home-game-card-shot'),
+      document.getElementById('home-game-card-kick'),
+    ];
+    if (key === 'sponsors') return [
+      document.getElementById('sponsor-divider'),
+      document.getElementById('sponsor-grid'),
+    ];
+    if (key === 'news') return [
+      document.getElementById('news-divider'),
+      document.getElementById('news-section-title'),
+      document.getElementById('news-tabs'),
+      document.getElementById('news-card-list'),
+    ];
+    if (key === 'floatingAds') return [document.getElementById('floating-ads')];
+    return [];
+  }
+
+  function applyHomeLayoutOrder() {
+    const home = document.getElementById('page-home');
+    if (!home) return;
+    homeLayoutSettings().order.forEach(key => {
+      homeLayoutNodes(key)
+        .filter(node => node && node.parentElement === home)
+        .forEach(node => home.appendChild(node));
+    });
   }
 
   Object.assign(app, {
@@ -652,6 +729,7 @@
       this.renderHomeWatchPartyCard?.();
       renderSportEntry(summary);
       renderInfoMeter(summary);
+      applyHomeLayoutOrder();
       scheduleHomeSummaryRefresh(summary);
       this._markPageSnapshotReady?.('page-home');
     },
@@ -666,5 +744,9 @@
     numberText,
     buildSummaryFromEvents,
     isPublicActiveHomeEvent,
+    homeLayoutSections: HOME_LAYOUT_SECTIONS,
+    homeLayoutDefaultOrder: HOME_LAYOUT_DEFAULT_ORDER,
+    normalizeHomeLayoutOrder,
+    applyHomeLayoutOrder,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -159,6 +159,18 @@ describe('ad edit modal wiring', () => {
     expect(sources.firebaseService).toContain('_ensureHomeInfoSlot()');
   });
 
+  test('home management exposes homepage layout ordering', () => {
+    expect(sources.adminContent).toContain('<h2>\u9996\u9801\u7ba1\u7406</h2>');
+    expect(sources.adminContent).toContain('home-layout-manage-list');
+    expect(sources.core).toContain('renderHomeLayoutManage');
+    expect(sources.core).toContain('moveHomeLayoutItem');
+    expect(sources.core).toContain('saveHomeLayoutOrder');
+    expect(sources.apiService).toContain('getHomeLayoutSettings()');
+    expect(sources.apiService).toContain('updateHomeLayoutSettings');
+    expect(sources.firebaseService).toContain('_ensureHomeLayoutSlot()');
+    expect(sources.firebaseService).toContain("'home-layout'");
+  });
+
   test('static ad management forms are hidden until opened as modals', () => {
     [
       'banner-form-card',
