@@ -3226,6 +3226,54 @@ function parseEventStartDateInTaipei(dateStr) {
   return new Date(Date.UTC(year, month - 1, day, hours - 8, minutes, 0, 0));
 }
 
+function parseEventEndDateInTaipei(dateStr) {
+  if (typeof dateStr !== "string") return null;
+  const trimmed = dateStr.trim();
+  if (!trimmed) return null;
+
+  const [rawDatePart = "", rawTimePart = ""] = trimmed.split(/\s+/, 2);
+  const dateParts = rawDatePart.split("/").map(part => Number(part));
+  if (dateParts.length < 3 || dateParts.some(part => !Number.isFinite(part))) {
+    return null;
+  }
+
+  const [year, month, day] = dateParts;
+  let hours = 23;
+  let minutes = 59;
+  if (rawTimePart) {
+    const endTimePart = rawTimePart.includes("~")
+      ? rawTimePart.split("~")[1]
+      : rawTimePart.split("~")[0];
+    const timeParts = String(endTimePart || "").split(":").map(part => Number(part));
+    if (timeParts.length >= 2 && Number.isFinite(timeParts[0]) && Number.isFinite(timeParts[1])) {
+      [hours, minutes] = timeParts;
+    } else {
+      return parseEventStartDateInTaipei(dateStr);
+    }
+  }
+
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(day) ||
+    !Number.isInteger(hours) ||
+    !Number.isInteger(minutes)
+  ) {
+    return null;
+  }
+
+  if (month < 1 || month > 12 || day < 1 || day > 31 || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return null;
+  }
+
+  const startDate = parseEventStartDateInTaipei(dateStr);
+  let endDate = new Date(Date.UTC(year, month - 1, day, hours - 8, minutes, 0, 0));
+  if (startDate && endDate.getTime() < startDate.getTime()) {
+    endDate = new Date(endDate.getTime() + 24 * 60 * 60 * 1000);
+  }
+  return endDate;
+}
+
 function parseEventRegOpenTimeInTaipei(value) {
   if (!value) return null;
   if (value instanceof Date) return value;
@@ -3266,9 +3314,9 @@ function shouldAutoEndEvent(data, now = new Date()) {
   const status = String(data?.status || "").trim();
   if (!["open", "full", "upcoming"].includes(status)) return false;
 
-  const startDate = parseEventStartDateInTaipei(data?.date);
-  if (!(startDate instanceof Date) || Number.isNaN(startDate.getTime())) return false;
-  return startDate.getTime() <= now.getTime();
+  const endDate = parseEventEndDateInTaipei(data?.date);
+  if (!(endDate instanceof Date) || Number.isNaN(endDate.getTime())) return false;
+  return endDate.getTime() <= now.getTime();
 }
 
 async function autoEndStartedEventsBatch({ now = new Date(), batchSize = 400 } = {}) {

@@ -622,8 +622,6 @@ Object.assign(App, {
     // 活動開始時間已過 → 自動結束並阻止操作
     const _startGuard = App._parseEventStartDate?.(e.date);
     if (_startGuard && _startGuard <= new Date() && e.status !== 'ended' && e.status !== 'cancelled') {
-      e0.status = 'ended';
-      e0.effectiveStatus = 'ended';
       this.showToast('活動已於開始時間結束，無法報名');
       this.showEventDetail(id);
       return;
@@ -988,8 +986,6 @@ Object.assign(App, {
     // 活動開始時間已過 → 自動結束並阻止操作
     const _startGuard = App._parseEventStartDate?.(e0?.date);
     if (_startGuard && _startGuard <= new Date() && e0?.status !== 'ended' && e0?.status !== 'cancelled') {
-      e.status = 'ended';
-      e.effectiveStatus = 'ended';
       this.showToast('活動已於開始時間結束，無法取消報名');
       this.showEventDetail(id);
       releaseCancelPrelock();

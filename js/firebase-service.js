@@ -715,7 +715,7 @@ const FirebaseService = {
   },
 
   _pageScopedRealtimeMap: {
-    'page-activities':      ['registrations', 'attendanceRecords'],
+    'page-activities':      ['registrations', 'attendanceRecords', 'events'],
     'page-activity-detail': ['registrations', 'attendanceRecords', 'events'],
     'page-my-activities':   ['registrations', 'attendanceRecords'],
     'page-scan':            ['attendanceRecords', 'registrations'],
@@ -818,6 +818,30 @@ const FirebaseService = {
     if (this._initialized) this._notifyCacheUpdated(name);
   },
 
+  async _fetchTerminalEventsSnapshot() {
+    const orderedResult = await this._fetchQuerySnapshot(
+      'events:terminal:recent',
+      db.collection('events')
+        .where('status', 'in', ['ended', 'cancelled'])
+        .orderBy('date', 'desc')
+        .limit(200)
+    );
+    if (orderedResult.ok) {
+      this._terminalOrderedByDate = true;
+      this._terminalPageSize = 200;
+      return orderedResult;
+    }
+
+    this._terminalOrderedByDate = false;
+    this._terminalPageSize = 100;
+    return await this._fetchQuerySnapshot(
+      'events:terminal:fallback',
+      db.collection('events')
+        .where('status', 'in', ['ended', 'cancelled'])
+        .limit(100)
+    );
+  },
+
   async _loadEventsStatic() {
     const [activeResult, terminalResult] = await Promise.all([
       this._fetchQuerySnapshot(
@@ -826,12 +850,7 @@ const FirebaseService = {
           .where('status', 'in', ['open', 'full', 'upcoming'])
           .limit(200)
       ),
-      this._fetchQuerySnapshot(
-        'events:terminal',
-        db.collection('events')
-          .where('status', 'in', ['ended', 'cancelled'])
-          .limit(100)
-      ),
+      this._fetchTerminalEventsSnapshot(),
     ]);
 
     if (!activeResult.ok && !terminalResult.ok) {
@@ -844,7 +863,7 @@ const FirebaseService = {
     // 記錄 terminal 最後一筆 doc snapshot，供分頁用
     this._terminalLastDoc = (terminalResult.docs && terminalResult.docs.length > 0)
       ? terminalResult.docs[terminalResult.docs.length - 1] : null;
-    this._terminalAllLoaded = !terminalResult.docs || terminalResult.docs.length < 100;
+    this._terminalAllLoaded = !terminalResult.docs || terminalResult.docs.length < (this._terminalPageSize || 100);
     this._mergeRealtimeEventSlices(false);
     this._markCollectionsLoaded(['events']);
     this._saveToLS('events', this._cache.events);
@@ -861,9 +880,13 @@ const FirebaseService = {
     this._loadingMoreTerminal = true;
     try {
       var query = db.collection('events')
-        .where('status', 'in', ['ended', 'cancelled'])
+        .where('status', 'in', ['ended', 'cancelled']);
+      if (this._terminalOrderedByDate !== false) {
+        query = query.orderBy('date', 'desc');
+      }
+      query = query
         .startAfter(this._terminalLastDoc)
-        .limit(100);
+        .limit(this._terminalPageSize || 100);
       var snap = await query.get();
       var newDocs = snap.docs.map(function(doc) { return Object.assign({}, doc.data(), { _docId: doc.id }); });
       if (newDocs.length > 0) {
@@ -872,7 +895,7 @@ const FirebaseService = {
         this._mergeRealtimeEventSlices(false);
         this._saveToLS('events', this._cache.events);
       }
-      if (newDocs.length < 100) this._terminalAllLoaded = true;
+      if (newDocs.length < (this._terminalPageSize || 100)) this._terminalAllLoaded = true;
       return newDocs.length;
     } catch (err) {
       console.error('[loadMoreTerminalEvents]', err);
@@ -3450,7 +3473,7 @@ const FirebaseService = {
     if (this._realtimeListenerStarted.events) return;
     this._realtimeListenerStarted.events = true;
     this._lazyLoaded.events = true;
-    const unsub = db.collection('events')
+    const activeUnsub = db.collection('events')
       .where('status', 'in', ['open', 'full', 'upcoming'])
       .orderBy('createdAt', 'desc')
       .limit(this._getRealtimeLimit('eventLimit'))
@@ -3462,7 +3485,32 @@ const FirebaseService = {
         },
         err => this._reconnectEventsListener(err)
       );
-    this._pageScopedRealtimeListeners.events = unsub;
+    let terminalUnsub = null;
+    try {
+      terminalUnsub = db.collection('events')
+        .where('status', 'in', ['ended', 'cancelled'])
+        .orderBy('date', 'desc')
+        .limit(200)
+        .onSnapshot(
+          snapshot => {
+            this._eventSlices.terminal = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+            this._terminalOrderedByDate = true;
+            this._terminalPageSize = 200;
+            this._terminalLastDoc = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : null;
+            this._terminalAllLoaded = snapshot.docs.length < 200;
+            this._mergeRealtimeEventSlices(true);
+          },
+          err => {
+            console.warn('[onSnapshot] events terminal listener failed:', err);
+          }
+        );
+    } catch (err) {
+      console.warn('[onSnapshot] events terminal listener setup failed:', err);
+    }
+    this._pageScopedRealtimeListeners.events = function() {
+      try { activeUnsub?.(); } catch (_) {}
+      try { terminalUnsub?.(); } catch (_) {}
+    };
   },
 
   _stopEventsRealtimeListener() {
@@ -3475,6 +3523,7 @@ const FirebaseService = {
 
   _reconnectEventsListener(err) {
     console.warn('[onSnapshot] events 監聽錯誤:', err);
+    try { this._pageScopedRealtimeListeners.events?.(); } catch (_) {}
     this._pageScopedRealtimeListeners.events = null;
     this._realtimeListenerStarted.events = false;
     const key = 'events';

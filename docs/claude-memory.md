@@ -2318,3 +2318,9 @@
 - **Issue**: The create-activity type sheet still allowed users to enter the external activity link creation flow, but that feature should stay closed for now.
 - **Fix**: Kept the activity link option visible as a grey locked choice and changed its click behavior to show `功能尚未開放` without opening the external-link modal.
 - **Validation**: Added source contract coverage for the locked state, forced visibility, toast, and removed external modal call path.
+
+### 2026-05-10 Activity In-Progress Visibility [bugfix]
+- **Issue**: The 2026/05/10 08:00~10:00 football event was missing from the activity page's in-progress tab. Firestore showed `status=ended`; the root cause was the scheduled `autoEndStartedEvents` job marking events ended at start time, while the activity page rule expects ended/cancelled events to remain visible until 6 hours after event end. Recent terminal events were also not guaranteed to be loaded first.
+- **Fix**: Changed the scheduled auto-end check to use the parsed event end time, added recent terminal event loading ordered by `date desc` with fallback, added `events` realtime to the activity page, and stopped the direct signup guard from writing `ended` just because the start time passed.
+- **Validation**: Confirmed the target event exists as `ce_1777123624789_880i_1`, verified the ordered terminal query returns it, and passed `node --check` for the touched function/front-end files.
+- **Risk**: Existing events already prematurely written as `ended` are not auto-reopened to avoid reversing intentional manual endings; future events will not be ended by the scheduler before their end time.
