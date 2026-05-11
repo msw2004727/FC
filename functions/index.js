@@ -9876,8 +9876,9 @@ async function calcNoShowCountsBatch({ batchSize = 400 } = {}) {
     }
   });
 
-  // Step 4: 計算每位用戶的放鴿子次數
+  // Step 4: 計算每位用戶的放鴿子次數 + 已結束活動正取場次（分母，用於前端出席率渲染）
   const countByUid = {};
+  const endedRegByUid = {};
   const seenRegKeys = new Set();
 
   regsDocs.forEach(doc => {
@@ -9892,18 +9893,27 @@ async function calcNoShowCountsBatch({ batchSize = 400 } = {}) {
     if (seenRegKeys.has(key)) return;
     seenRegKeys.add(key);
 
+    endedRegByUid[uid] = (endedRegByUid[uid] || 0) + 1;
     if (checkinKeys.has(key)) return;
     countByUid[uid] = (countByUid[uid] || 0) + 1;
   });
 
   // Step 5: 比對 users 文件，只更新有差異的
-  const usersSnap = await db.collection("users").select("noShowCount").get();
+  const usersSnap = await db.collection("users")
+    .select("noShowCount", "endedRegCount").get();
   const updates = [];
   usersSnap.docs.forEach(doc => {
-    const current = Number(doc.data().noShowCount || 0);
-    const expected = countByUid[doc.id] || 0;
-    if (current !== expected) {
-      updates.push({ ref: doc.ref, noShowCount: expected });
+    const data = doc.data();
+    const currentNoShow = Number(data.noShowCount || 0);
+    const currentEnded = Number(data.endedRegCount || 0);
+    const expectedNoShow = countByUid[doc.id] || 0;
+    const expectedEnded = endedRegByUid[doc.id] || 0;
+    if (currentNoShow !== expectedNoShow || currentEnded !== expectedEnded) {
+      updates.push({
+        ref: doc.ref,
+        noShowCount: expectedNoShow,
+        endedRegCount: expectedEnded,
+      });
     }
   });
 
@@ -9911,7 +9921,10 @@ async function calcNoShowCountsBatch({ batchSize = 400 } = {}) {
   for (let i = 0; i < updates.length; i += batchSize) {
     const batch = db.batch();
     const chunk = updates.slice(i, i + batchSize);
-    chunk.forEach(u => batch.update(u.ref, { noShowCount: u.noShowCount }));
+    chunk.forEach(u => batch.update(u.ref, {
+      noShowCount: u.noShowCount,
+      endedRegCount: u.endedRegCount,
+    }));
     await batch.commit();
     updatedCount += chunk.length;
   }

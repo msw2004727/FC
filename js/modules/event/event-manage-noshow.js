@@ -252,6 +252,40 @@ Object.assign(App, {
     return map.get(safeUid) || 0;
   },
 
+  // 讀取 Cloud Function 預先寫入的「已結束活動正取場次」分母
+  _buildEndedRegCountByUid() {
+    if (!this._isNoShowFeatureEnabled()) return new Map();
+    const users = ApiService.getAdminUsers() || [];
+    const map = new Map();
+    users.forEach(function (u) {
+      var uid = String(u.uid || u.lineUserId || u._docId || '').trim();
+      var ended = Number(u.endedRegCount || 0);
+      if (uid && ended > 0) map.set(uid, ended);
+    });
+    return map;
+  },
+
+  // 出席率膠囊填充：返回 { pct, color } 或 null（不渲染）
+  // 設計：填充長度 = 放鴿子率（負面比例），完美用戶膠囊保持原色
+  // 少樣本豁免：分母 < 3 不渲染（避免新用戶被貼標籤）
+  _getParticipantAttendanceFill(uid, noShowCountByUid, endedRegCountByUid) {
+    if (!this._isNoShowFeatureEnabled()) return null;
+    const safeUid = String(uid || '').trim();
+    if (!safeUid) return null;
+    const noShowMap = noShowCountByUid || this._buildNoShowCountByUid();
+    const endedMap = endedRegCountByUid || this._buildEndedRegCountByUid();
+    const ended = Number(endedMap.get(safeUid) || 0);
+    if (ended < 3) return null;
+    const noShow = Number(noShowMap.get(safeUid) || 0);
+    if (noShow <= 0) return null;
+    const ratio = Math.min(1, noShow / ended);
+    const pct = Math.round(ratio * 100);
+    const color = ratio >= 0.5 ? 'rgba(220,38,38,.55)'
+      : ratio >= 0.2 ? 'rgba(239,68,68,.45)'
+        : 'rgba(251,146,60,.45)';
+    return { pct, color, ended, noShow };
+  },
+
   _getNoShowDetailsByUid(uid) {
     if (!this._isNoShowFeatureEnabled()) return [];
     const safeUid = String(uid || '').trim();

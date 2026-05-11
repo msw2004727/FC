@@ -327,6 +327,9 @@ Object.assign(App, {
       || (typeof this.hasPermission === 'function' && this.hasPermission('admin.repair.no_show_adjust'));
     const showNoShowColumn = noShowFeatureEnabled && cId === 'detail-attendance-table' && canViewNoShow;
     const noShowCountByUid = showNoShowColumn ? this._buildNoShowCountByUid() : null;
+    // 膠囊出席率染色：權限同步綁定（canViewNoShow），覆蓋所有名單渲染情境（不限 detail-attendance-table）
+    const showAttendanceFill = noShowFeatureEnabled && canViewNoShow;
+    const endedRegCountByUid = showAttendanceFill ? this._buildEndedRegCountByUid() : null;
     const _t3 = _perfLog ? performance.now() : 0;
 
     if (people.length === 0) {
@@ -428,9 +431,12 @@ Object.assign(App, {
       // Phase 3 補強 (2026-04-19): 一律傳 uid 讓 showUserProfile 能跳對的人（修同暱稱 bug）
       const _tsTeams = e.teamSplit?.enabled ? e.teamSplit.teams : null;
       const _safeTeamKey = _tsTeams ? (this._tsSafeTeamKey?.(p.teamKey, e) || null) : null;
+      const _attFill = (showAttendanceFill && !isProxyOnly && !p.isCompanion && !p.isTeamPlaceholder && p.uid)
+        ? this._getParticipantAttendanceFill(p.uid, noShowCountByUid, endedRegCountByUid)
+        : null;
       const _tagOpts = _tsTeams
-        ? { uid: p.uid, teamKey: _safeTeamKey, teams: _tsTeams, showEmptyJersey: e.teamSplit?.enabled, canPickTeam: canManage && !tableEditing, regDocId: p.regDocId, eventId: eventId }
-        : { uid: p.uid };
+        ? { uid: p.uid, teamKey: _safeTeamKey, teams: _tsTeams, showEmptyJersey: e.teamSplit?.enabled, canPickTeam: canManage && !tableEditing, regDocId: p.regDocId, eventId: eventId, attendanceFill: _attFill }
+        : { uid: p.uid, attendanceFill: _attFill };
 
       let nameInner;
       if (isProxyOnly) {

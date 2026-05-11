@@ -122,7 +122,16 @@ Object.assign(App, {
     const _onclick = _uid
       ? `App.showUserProfile('${escapeHTML(name)}',{uid:'${escapeHTML(_uid)}'})`
       : `App.showUserProfile('${escapeHTML(name)}')`;
-    return `<span class="user-capsule uc-${role}" data-no-translate onclick="${_onclick}" title="${ROLES[role]?.label || '一般用戶'}"><span class="uc-lv">Lv${lvl}</span>${jerseyHtml}${escapeHTML(name)}</span>`;
+    // 出席率染色（同步綁定 noShow 查看權限，由呼叫方判斷後傳入）
+    const fill = options && options.attendanceFill;
+    const attClass = fill ? ' uc-att-warn' : '';
+    const attStyle = fill
+      ? ` style="--att-fill-pct:${fill.pct}%;--att-fill-color:${fill.color};"`
+      : '';
+    const attTitle = fill
+      ? ` title="放鴿子 ${fill.noShow}/${fill.ended} 場 (${fill.pct}%)"`
+      : ` title="${ROLES[role]?.label || '一般用戶'}"`;
+    return `<span class="user-capsule uc-${role}${attClass}"${attStyle} data-no-translate onclick="${_onclick}"${attTitle}><span class="uc-lv">Lv${lvl}</span>${jerseyHtml}${escapeHTML(name)}</span>`;
   },
 
   _findUserByName(name) {

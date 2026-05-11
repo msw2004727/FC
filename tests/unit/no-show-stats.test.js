@@ -434,3 +434,98 @@ describe('_getNoShowDetailsByUid', () => {
     expect(result.map(d => d.eventId)).toEqual(['e2', 'e3', 'e1']);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Extracted from event-manage-noshow.js: _getParticipantAttendanceFill
+// Same algorithm without dependence on ApiService / _isNoShowFeatureEnabled.
+// ---------------------------------------------------------------------------
+function _getParticipantAttendanceFill({ uid, noShowMap, endedMap }) {
+  const safeUid = String(uid || '').trim();
+  if (!safeUid) return null;
+  const ended = Number(endedMap.get(safeUid) || 0);
+  if (ended < 3) return null;
+  const noShow = Number(noShowMap.get(safeUid) || 0);
+  if (noShow <= 0) return null;
+  const ratio = Math.min(1, noShow / ended);
+  const pct = Math.round(ratio * 100);
+  const color = ratio >= 0.5 ? 'rgba(220,38,38,.55)'
+    : ratio >= 0.2 ? 'rgba(239,68,68,.45)'
+      : 'rgba(251,146,60,.45)';
+  return { pct, color, ended, noShow };
+}
+
+describe('_getParticipantAttendanceFill — capsule fill renderer', () => {
+  test('returns null when ended < 3 (sample size exemption)', () => {
+    const fill = _getParticipantAttendanceFill({
+      uid: 'u1',
+      noShowMap: new Map([['u1', 1]]),
+      endedMap: new Map([['u1', 2]]),
+    });
+    expect(fill).toBeNull();
+  });
+
+  test('returns null for perfect attendance (no-show = 0)', () => {
+    const fill = _getParticipantAttendanceFill({
+      uid: 'u1',
+      noShowMap: new Map(),
+      endedMap: new Map([['u1', 10]]),
+    });
+    expect(fill).toBeNull();
+  });
+
+  test('returns null for missing uid', () => {
+    const fill = _getParticipantAttendanceFill({
+      uid: '',
+      noShowMap: new Map(),
+      endedMap: new Map(),
+    });
+    expect(fill).toBeNull();
+  });
+
+  test('low no-show ratio (< 20%) uses orange', () => {
+    const fill = _getParticipantAttendanceFill({
+      uid: 'u1',
+      noShowMap: new Map([['u1', 1]]),
+      endedMap: new Map([['u1', 10]]),
+    });
+    expect(fill).toEqual({ pct: 10, color: 'rgba(251,146,60,.45)', ended: 10, noShow: 1 });
+  });
+
+  test('moderate no-show ratio (20%–50%) uses red', () => {
+    const fill = _getParticipantAttendanceFill({
+      uid: 'u1',
+      noShowMap: new Map([['u1', 3]]),
+      endedMap: new Map([['u1', 10]]),
+    });
+    expect(fill).toEqual({ pct: 30, color: 'rgba(239,68,68,.45)', ended: 10, noShow: 3 });
+  });
+
+  test('high no-show ratio (>= 50%) uses dark red', () => {
+    const fill = _getParticipantAttendanceFill({
+      uid: 'u1',
+      noShowMap: new Map([['u1', 6]]),
+      endedMap: new Map([['u1', 10]]),
+    });
+    expect(fill).toEqual({ pct: 60, color: 'rgba(220,38,38,.55)', ended: 10, noShow: 6 });
+  });
+
+  test('caps ratio at 100% when noShow > ended (data anomaly)', () => {
+    const fill = _getParticipantAttendanceFill({
+      uid: 'u1',
+      noShowMap: new Map([['u1', 15]]),
+      endedMap: new Map([['u1', 10]]),
+    });
+    expect(fill.pct).toBe(100);
+    expect(fill.color).toBe('rgba(220,38,38,.55)');
+  });
+
+  test('exactly at 3 sample threshold renders', () => {
+    const fill = _getParticipantAttendanceFill({
+      uid: 'u1',
+      noShowMap: new Map([['u1', 1]]),
+      endedMap: new Map([['u1', 3]]),
+    });
+    expect(fill).not.toBeNull();
+    expect(fill.pct).toBe(33);
+  });
+});

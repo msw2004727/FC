@@ -37,6 +37,13 @@
 [data-theme="dark"] .uc-venue_owner { background: rgba(217,119,6,.20); color: #fbbf24; border-color: rgba(217,119,6,.4); }
 [data-theme="dark"] .uc-admin { background: rgba(59,130,246,.20); color: #93bbfc; border-color: rgba(59,130,246,.4); }
 [data-theme="dark"] .uc-super_admin { background: rgba(239,68,68,.20); color: #fca5a5; border-color: rgba(239,68,68,.4); }
+/* Capsule attendance-rate fill (no-show ratio): warning-color gradient overlay */
+.user-capsule.uc-att-warn {
+  background-image: linear-gradient(90deg,
+    var(--att-fill-color, rgba(239,68,68,.45)) var(--att-fill-pct, 0%),
+    transparent var(--att-fill-pct, 0%));
+  background-repeat: no-repeat;
+}
 /* Capsule LV badge */
 .user-capsule { position: relative; margin-top: 7px; }
 .uc-lv {
