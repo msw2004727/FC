@@ -42,9 +42,18 @@ describe('history route hosting fallback contract', () => {
     ]));
 
     const indexSource = readProjectFile('index.html');
-    expect(indexSource).toContain('js/core/runtime-controller.js');
+    expect(indexSource).toContain('id="app-inline-runtime"');
+    expect(indexSource).not.toContain('js/core/runtime-controller.js');
     expect(indexSource).not.toContain('src="app.js?v=');
-    expect(readProjectFile('js/core/runtime-controller.js')).toBe(readProjectFile('app.js'));
+  });
+
+  test('inline runtime mirrors app.js so production does not fetch the failing app asset', () => {
+    const indexSource = readProjectFile('index.html');
+    const appSource = readProjectFile('app.js').trim();
+    const match = indexSource.match(/<script id="app-inline-runtime">\n([\s\S]*?)\n  <\/script>/);
+
+    expect(match).toBeTruthy();
+    expect(match[1].trim()).toBe(appSource);
   });
 
   test('service worker normalizes SPA navigate cache to index instead of every clean path', () => {

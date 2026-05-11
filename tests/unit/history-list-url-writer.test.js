@@ -21,7 +21,7 @@ describe('history list URL writer phase 4 contract', () => {
   });
 
   test('writes clean paths for the three approved list pages before hash fallback', () => {
-    const appSource = readProjectFile('js/core/runtime-controller.js');
+    const appSource = readProjectFile('app.js');
     const listWriterIndex = appSource.indexOf('flags.writeListPaths');
     const hashFallbackIndex = appSource.indexOf('flags.cleanHashFallbackPath');
 
@@ -38,7 +38,7 @@ describe('history list URL writer phase 4 contract', () => {
   });
 
   test('keeps LIFF path writing disabled and detail writer deferred', () => {
-    const appSource = readProjectFile('js/core/runtime-controller.js');
+    const appSource = readProjectFile('app.js');
 
     expect(appSource).toContain('_shouldDisableHistoryPathWrite(flags)');
     expect(appSource).toContain('window.liff');

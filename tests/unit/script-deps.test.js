@@ -39,6 +39,9 @@ function getEagerScripts() {
     if (m[1].startsWith('http')) continue;
     scripts.push(m[1]);
   }
+  if (html.includes('id="app-inline-runtime"')) {
+    scripts.push('app.js');
+  }
   return scripts;
 }
 

@@ -48,7 +48,6 @@ const KNOWN_REFERENCES = {
   'js/modules/data-sync.js': { registrations: 3, attendanceRecords: 0, activityRecords: 0 }, // Phase 2+4: backfillPU / checkPU / forceRebuildPU 讀 registrations 子集合
   'js/modules/attendance-notify.js': { registrations: 0, attendanceRecords: 0, activityRecords: 0 },
   'app.js': { registrations: 0, attendanceRecords: 0, activityRecords: 1 }, // Phase 4b: 寫入改子集合
-  'js/core/runtime-controller.js': { registrations: 0, attendanceRecords: 0, activityRecords: 1 }, // 2026-05-11: production bootstrap mirror of app.js
 };
 
 // Cloud Functions — uses double quotes
