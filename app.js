@@ -214,6 +214,10 @@ function _dismissBootOverlay(reason) {
       _ov.style.display = 'none';
       console.log('[Boot] 載入畫面已隱藏（' + (reason || '') + '）');
       _startContentStallCheck();
+      // Phase 6 D11:overlay 真正隱藏後立即嘗試安裝 sentinel(只 LIFF / PWA standalone 才裝)
+      if (window.App && typeof window.App._maybePushBootSentinel === 'function') {
+        try { window.App._maybePushBootSentinel(); } catch (_) {}
+      }
     }, 150);
     if (window._loadingSafety) { clearTimeout(window._loadingSafety); window._loadingSafety = null; }
   } catch (_) {}
@@ -1084,7 +1088,9 @@ const App = {
       const url = new URL(window.location.href);
       url.searchParams.set('tournament', id);
       url.hash = 'page-tournament-detail';
-      history.replaceState(null, '', url.pathname + (url.search || '') + (url.hash || ''));
+      // Phase 6 Commit A:fallback path 也帶完整 state(原本是 null,LIFF 內 popstate 拿不到 id)
+      const state = { source: 'sportshub', pageId: 'page-tournament-detail', id };
+      history.replaceState(state, '', url.pathname + (url.search || '') + (url.hash || ''));
     } catch (_) {}
   },
 
@@ -2086,6 +2092,131 @@ const App = {
     }
   },
 
+  // ====================================================================
+  // Phase 6 — popstate handler / sentinel / route intent helpers
+  // 詳:docs/history-api-dual-route-plan.md §8.9 V6 + decisions D6/D10-D14
+  // ====================================================================
+
+  _popstateRequestSeq: 0,
+  _bootSentinelPushed: false,
+
+  /** 驗證 hash pageId 真的對應 SPA 頁面（避免 #section 錨點被誤判為 pageId）*/
+  _validatePageId(pageId) {
+    if (!pageId) return null;
+    if (document.getElementById(pageId)) return pageId;
+    if (typeof PageLoader !== 'undefined' && PageLoader._pageFileMap?.[pageId]) return pageId;
+    return null;
+  },
+
+  /** 解析既有 legacy query route(?event= / ?team= / ?tournament= / ?profile=)*/
+  _parseLegacyQueryRoute(searchString) {
+    try {
+      const params = new URLSearchParams(String(searchString || ''));
+      const mapping = [
+        { key: 'event', pageId: 'page-activity-detail' },
+        { key: 'team', pageId: 'page-team-detail' },
+        { key: 'tournament', pageId: 'page-tournament-detail' },
+        { key: 'profile', pageId: 'page-user-card' },
+      ];
+      for (const { key, pageId } of mapping) {
+        const id = String(params.get(key) || '').trim();
+        if (id && this._isSafeHistoryRouteSegment?.(id)) return { pageId, id };
+      }
+    } catch (_) {}
+    return null;
+  },
+
+  /** D11 + D13 共用 route 解析。順序遵循 §5.1:
+   *   state(source guard 通過且非 sentinel)→ legacy query → clean path → validated hash → page-home
+   *  opts:
+   *   - state:明確指定的 state(若未提供則讀 history.state)
+   *   - skipState:跳過 state 那層
+   *   - loc:預設 window.location
+   */
+  _resolveRouteIntent(opts) {
+    opts = opts || {};
+    const loc = opts.loc || window.location;
+    const flags = this._getHistoryRouteFlags?.() || {};
+
+    if (!opts.skipState) {
+      const st = opts.state !== undefined ? opts.state : history.state;
+      if (st && st.source === 'sportshub' && !st.sentinel && st.pageId) {
+        return { pageId: st.pageId, id: st.id || null };
+      }
+    }
+    const legacy = this._parseLegacyQueryRoute(loc.search);
+    if (legacy && legacy.pageId) return { pageId: legacy.pageId, id: legacy.id || null };
+
+    if (window.HistoryRouteAdapter && typeof window.HistoryRouteAdapter.parseHistoryRoute === 'function') {
+      const parsed = window.HistoryRouteAdapter.parseHistoryRoute(
+        loc.pathname,
+        { usersPathEnabled: !!flags.usersPathEnabled }
+      );
+      if (parsed && parsed.pageId && parsed.pageId !== 'page-home') {
+        return { pageId: parsed.pageId, id: parsed.id || null };
+      }
+    }
+    const hashPageId = this._validatePageId((loc.hash || '').replace(/^#/, ''));
+    if (hashPageId) return { pageId: hashPageId, id: null };
+
+    return { pageId: 'page-home', id: null };
+  },
+
+  /** D11:從當前 location + cached SPA state 反推 page state(供 sentinel push E1 用)*/
+  _buildCurrentRouteState() {
+    const existing = history.state;
+    if (existing && existing.source === 'sportshub' && !existing.sentinel && existing.pageId) {
+      return existing;
+    }
+    const intent = this._resolveRouteIntent({ skipState: true });
+    return {
+      source: 'sportshub',
+      pageId: intent.pageId,
+      ...(intent.id ? { id: intent.id } : {}),
+    };
+  },
+
+  /** D11 觸發條件:只在 LIFF / Mini App / PWA standalone 內安裝 sentinel */
+  _shouldInstallSentinel() {
+    try {
+      const isLiffInClient = !!(window.liff
+        && typeof window.liff.isInClient === 'function'
+        && window.liff.isInClient());
+      const isStandalonePWA = !!(window.matchMedia
+        && window.matchMedia('(display-mode: standalone)').matches);
+      return isLiffInClient || isStandalonePWA;
+    } catch (_) {
+      return false;
+    }
+  },
+
+  /** D11:boot 完成後安裝 sentinel(防退出 Mini App)
+   *  雙寫策略:replaceState 把當前 E0 改 sentinel + pushState 把當前頁變 E1
+   *  user 按返回 → E0 active → popstate event.state = sentinel ✓ 攔截成功
+   */
+  _maybePushBootSentinel() {
+    try {
+      const flags = this._getHistoryRouteFlags?.() || {};
+      if (!flags.popstateTakeover) return;
+      if (this._bootSentinelPushed) return;
+      if (!this._shouldInstallSentinel()) return;
+
+      this._bootSentinelPushed = true;
+
+      const currentState = this._buildCurrentRouteState();
+      const originalUrl = window.location.href;
+
+      history.replaceState(
+        { source: 'sportshub', sentinel: true, fallbackPageId: 'page-home' },
+        '',
+        '/'
+      );
+      history.pushState(currentState, '', originalUrl);
+    } catch (err) {
+      console.warn('[Phase6] _maybePushBootSentinel failed:', err);
+    }
+  },
+
   _getPageMetaMap() {
     return {
       'page-home':              { path: '/', ogType: 'website' },
@@ -2181,15 +2312,24 @@ const App = {
         return true;
       }
 
+      // Phase 6 Commit A:hash fallback 兩條路徑都帶完整 state(含 detail id),
+      //                  讓 popstate handler 能正確還原 detail data。
+      const stateForHashWrite = detailId
+        ? { source: 'sportshub', pageId, id: detailId }
+        : { source: 'sportshub', pageId };
+
       if (flags.cleanHashFallbackPath && url.pathname && url.pathname !== '/') {
-        history.replaceState(null, '', '/' + targetHash);
+        history.replaceState(stateForHashWrite, '', '/' + targetHash);
         return true;
       }
 
       if (location.hash === targetHash) return true;
       if (shouldReplace && history?.replaceState) {
         url.hash = targetHash;
-        history.replaceState(null, '', url.pathname + (url.search || '') + (url.hash || ''));
+        history.replaceState(stateForHashWrite, '', url.pathname + (url.search || '') + (url.hash || ''));
+      } else if (history?.pushState) {
+        url.hash = targetHash;
+        history.pushState(stateForHashWrite, '', url.pathname + (url.search || '') + (url.hash || ''));
       } else {
         location.hash = pageId;
       }
@@ -3142,6 +3282,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // pageId !== App.currentPage 條件防止 showPage() 設 hash 後再次觸發無窮迴圈
   try {
     window.addEventListener('hashchange', () => {
+      // Phase 6 D10 dedupe:popstate handler 已處理就跳過,避免雙觸發 showPage
+      if (window._suppressNextHashchange) {
+        window._suppressNextHashchange = false;
+        return;
+      }
       const pageId = location.hash.replace(/^#/, '');
       // hashchange 不套用 _resolveBootPageId，因為正常導航（showTeamDetail 等）
       // 會在渲染完成後設定 hash，此時不應被重導回列表頁
@@ -3152,6 +3297,70 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 2026-04-19 UX 調整：移除 hash 導航的 _pendingFirstLogin 守衛，允許自由瀏覽。
         // 寫入類動作由對應函式的 _requireProfileComplete() 守衛負責攔截。
         App.showPage(pageId);
+      }
+    });
+  } catch (e) {}
+
+  // Phase 6:popstate handler — Browser Back / Forward 協調
+  // 詳:docs/history-api-dual-route-plan.md §8.9.1 + decisions D6/D10-D14
+  try {
+    window.addEventListener('popstate', async (event) => {
+      const flags = App._getHistoryRouteFlags?.() || {};
+      if (!flags.popstateTakeover) return;  // flag 防護:Commit B 階段為 false 即不做事
+
+      const seq = ++App._popstateRequestSeq;
+
+      // D10 dedupe:同步階段先 set 攔截緊接的 hashchange
+      window._suppressNextHashchange = true;
+      setTimeout(() => { window._suppressNextHashchange = false; }, 50);
+
+      try {
+        const stateValid = event.state && event.state.source === 'sportshub';
+
+        // D11 sentinel 攔截:防退出 Mini App
+        if (stateValid && event.state.sentinel === true) {
+          const requestedFallback = event.state.fallbackPageId || 'page-home';
+          const isDetailPage = /-detail$/.test(requestedFallback);
+          const fallback = isDetailPage ? 'page-home' : requestedFallback;
+          await App.showPage(fallback, {
+            bypassPageLock: true,
+            skipPageHistory: true,
+            suppressHashSync: true,
+          });
+          if (seq !== App._popstateRequestSeq) return;
+          history.pushState({ ...event.state, fallbackPageId: fallback }, '', window.location.href);
+          return;
+        }
+
+        // D13 fallback chain(走共用 helper,順序遵循 §5.1)
+        const intent = App._resolveRouteIntent({ state: event.state });
+        const targetPageId = intent.pageId;
+        const targetId = intent.id;
+
+        const detailOptions = {
+          bypassPageLock: true,
+          allowGuest: true,
+          skipPageHistory: true,
+          suppressHashSync: true,
+        };
+
+        if (targetPageId === 'page-activity-detail' && targetId) {
+          await App.showEventDetail(targetId, detailOptions);
+        } else if (targetPageId === 'page-team-detail' && targetId) {
+          await App.showTeamDetail(targetId, detailOptions);
+        } else if (targetPageId === 'page-tournament-detail' && targetId) {
+          await App.showTournamentDetail(targetId, detailOptions);
+        } else {
+          await App.showPage(targetPageId, {
+            bypassPageLock: true,
+            skipPageHistory: true,
+            suppressHashSync: true,
+          });
+        }
+
+        if (seq !== App._popstateRequestSeq) return;
+      } catch (err) {
+        console.error('[Popstate] handler error:', err);
       }
     });
   } catch (e) {}

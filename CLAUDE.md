@@ -660,6 +660,51 @@ async showXxx(args) {
 
 ---
 
+## History API popstate / sentinel 規範（Phase 6 完成後強制，2026-05-11）
+
+Phase 6 已啟用瀏覽器返回鍵接管(`HISTORY_ROUTE_FLAGS.popstateTakeover = true`)。修改 popstate handler / sentinel / detail handler 時必須遵守以下規範,違反會導致 LIFF 用戶退出 Mini App、站內返回循環、popstate 拿不到 detail id 等 UX 災難:
+
+### 強制規則
+
+1. **所有 `history.replaceState` / `history.pushState` 寫入路徑必須帶完整 state**:
+   - 形狀:`{ source: 'sportshub', pageId: 'page-xxx', id?: '...', sentinel?: true, fallbackPageId?: '...' }`
+   - **絕不允許** `history.replaceState(null, ...)` 或 `history.pushState(null, ...)` — 會讓 popstate handler 拿不到 detail id
+   - 既有寫入點:`_setRouteUrl`、`_syncTournamentDetailRoute`、`_maybePushBootSentinel`、popstate handler 內的 re-push。新增寫入點時必須跟進
+2. **popstate handler 內呼叫 `showPage` / `showXxxDetail` 必須帶 4 個 option**:
+   - `bypassPageLock: true`(D6 — popstate 是使用者意圖,不該被 10 秒 page lock 擋)
+   - `skipPageHistory: true`(避免 `_pushPageHistory` 把剛離開的頁面塞回 `App.pageHistory`,造成站內返回循環)
+   - `suppressHashSync: true`(URL 已是目標,避免內部 `_setRouteUrl` 二次寫;對 sentinel branch 同時防止 replaceState 沖掉 sentinel state)
+   - `allowGuest: true`(訪客模式進來看過的 detail,popstate 返回應允許繼續看,不被 `_requireLogin` 擋)
+   - **sentinel branch 也必須帶全 4 個**(歷史教訓:第十四輪修 fallback branch 沒同步 sentinel branch,被 Codex 第十六輪審計抓到)
+3. **detail handler(`showEventDetail` / `showTeamDetail` / `showTournamentDetail` 含 friendly)必須透傳上述 option 給內部 `showPage`**:
+   - 寫法:`await this.showPage(targetPageId, { suppressHashSync: true, bypassPageLock: options?.bypassPageLock, skipPageHistory: options?.skipPageHistory })`
+   - `allowGuest` 例外:已在 detail handler 開頭的 `_requireLogin` guard 處用,**不需要再傳給 showPage**(showPage 不認 allowGuest)
+4. **使用共用 helper `App._resolveRouteIntent(opts)` 解析 route intent,禁止重寫 fallback chain**:
+   - 共用 helper 順序遵循 §5.1「舊路由永遠先通」:state(source guard 通過且非 sentinel)→ legacy query → clean path → validated hash → page-home
+   - **如需改順序,只動 `_resolveRouteIntent` 一個函式**;`_buildCurrentRouteState` 與 popstate handler fallback 都自動同步
+5. **sentinel push 用雙寫策略(D11),禁止只 pushState**:
+   - 正確:`replaceState(sentinel, '', '/')` + `pushState(currentState, '', originalUrl)`
+   - **絕不允許**單獨 `pushState(sentinel, ...)` — 違反瀏覽器 popstate spec,沒法攔截第一次返回(歷史教訓:Codex 第十三輪審計指出)
+6. **sentinel 觸發條件限縮為 LIFF + PWA standalone**(`window.liff.isInClient()` 或 `display-mode: standalone`):
+   - 一般瀏覽器外部進入(Google search / FB / Twitter / 直接打字)按返回必須走原生行為,不能用 `document.referrer` 攔截 — 接近 dark pattern
+
+### 加新 history 寫入點 / popstate 分支時的 cross-check 清單
+
+每次新增 `history.replaceState` / `history.pushState` 呼叫或 popstate-driven 的 showPage 分支,寫完必須 grep 確認:
+- [ ] 寫入帶完整 `{source, pageId, id?}` state(不是 null)
+- [ ] 若是 popstate 分支:showPage 帶 4 個 option 完整(grep `bypassPageLock` 確認沒漏)
+- [ ] 若涉及 sentinel:雙寫策略 + 觸發條件限縮 + fallbackPageId 防 detail 驗證
+
+### 參考實作
+
+- popstate handler 主體:`app.js` `window.addEventListener('popstate', ...)` 
+- Sentinel push 雙寫:`app.js` `_maybePushBootSentinel`
+- 共用 fallback chain:`app.js` `_resolveRouteIntent`
+- 單元測試:`tests/unit/popstate-handler.test.js` 36 個測試
+- 設計依據:`docs/archive/history-api-dual-route-plan.md` §8.9 V6 + `docs/archive/history-route-decisions.md` D6 / D10-D14
+
+---
+
 ## 修復日誌規則（每次解決問題後必做）
 
 每次解決一個 bug 或完成一項功能後，**必須**在 `docs/claude-memory.md` 新增一筆記錄：

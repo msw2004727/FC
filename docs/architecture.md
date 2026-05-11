@@ -998,6 +998,36 @@ UID 健康檢查目前會發現：
 - `_renderPageContent` 末尾呼叫 helper(跳過 `*-detail`);`showEventDetail` / `showTeamDetail` / `showTournamentDetail` / friendly tournament 在 `_setRouteUrl` 之後以實際 id 呼叫。
 - `scripts/build-sitemap.js` + `.github/workflows/build-sitemap.yml` 每日重建三個 dynamic sub-sitemap(events / teams / tournaments),過濾私人 / 已結束 / 隱藏 / 30 天前的紀錄;`sitemap.xml` 改為 sitemapindex 引用 `sitemap-static.xml` + 三個 dynamic。
 - 移除 Phase 2 暫時保護:`_worker.js` 與 `_headers` 不再對 detail SPA path 加 `X-Robots-Tag: noindex, nofollow`;由 sitemap + canonical 取代。
+
+### 2026-05-11 History API Dual Route Phase 6 — Browser Back / Popstate 協調(經 16 輪審計 + Codex 2 次第三方審計)
+
+- **設計目標**:啟用 `HISTORY_ROUTE_FLAGS.popstateTakeover = true`,讓瀏覽器返回鍵與 `App.goBack()` 不衝突,並在 LIFF / PWA standalone 內**防止用戶按一次返回鍵直接退出 Mini App**。
+- **Pre-Phase 6 三項解耦改動(可獨立 deploy)**:
+  - `goBack()` URL sync 改 replace 模式([navigation.js:953-958](js/core/navigation.js:953)),避免 browser history 隨 goBack 持續膨脹
+  - 4 個 detail handler(event / team / tournament / friendly tournament 的 `showXxxDetail`)接受 `bypassPageLock` / `allowGuest` / `skipPageHistory` / `suppressHashSync` 4 個 popstate-friendly options 並透傳給內部 `showPage`
+  - `_pushPageHistory` 新增 `skipPageHistory` 支援([navigation.js:770](js/core/navigation.js:770)),避免 popstate 觸發的 showPage 污染站內返回 stack
+  - `_setRouteUrl` hash fallback + `_syncTournamentDetailRoute` fallback 都帶完整 state `{source, pageId, id?}`,LIFF 內 popstate 才能拿到 detail id reload data
+- **核心設計(D6 / D10-D14)**:
+  - **D11 Sentinel state 雙寫**:`_maybePushBootSentinel()` 用 `replaceState`(把 E0 改 sentinel,URL→`/`)+ `pushState`(E1 帶當前頁 state,URL→原 URL);user 按返回時 E0 變 active,popstate `event.state.sentinel === true` 攔截,導向 home 並 re-push sentinel
+  - **D11 觸發條件限縮**:`_shouldInstallSentinel()` 只在 `window.liff.isInClient()` 或 `display-mode: standalone` 時 install;一般瀏覽器尊重原生返回(不再用 `document.referrer` 過寬攔截)
+  - **D6 page lock bypass**:popstate handler 所有 showPage / showXxxDetail 帶 `bypassPageLock: true`,進 detail 10 秒內按返回也能正常返回
+  - **D10 hashchange dedupe**:popstate 進入時 `window._suppressNextHashchange = true` + 50ms 視窗(詳 [tunables.md#popstate-hashchange-dedupe-window](tunables.md));hashchange listener 開頭判 flag 攔截,避免雙觸發
+  - **D13 fallback chain(共用 helper)**:`App._resolveRouteIntent(opts)` 共用 helper,順序遵循 §5.1「舊路由永遠先通」:state(source guard 通過且非 sentinel)→ legacy query(`?event=` / `?team=` / `?tournament=` / `?profile=`)→ clean path(`HistoryRouteAdapter.parseHistoryRoute`)→ validated hash → page-home。**D11 `_buildCurrentRouteState` 與 D13 popstate fallback 共用同一 helper**,避免再次失同步
+  - **D14 global popstate race counter**:`App._popstateRequestSeq` 防連按返回的 stale render
+- **新增 App helper**(全部掛 `Object.assign(App, {...})`):
+  - `_popstateRequestSeq` / `_bootSentinelPushed`(欄位)
+  - `_validatePageId(pageId)`(D13 hash 驗證)
+  - `_parseLegacyQueryRoute(searchString)`(D13 legacy query)
+  - `_resolveRouteIntent(opts)`(D11 + D13 共用 helper)
+  - `_buildCurrentRouteState()`(D11 sentinel push 反推當前 page state)
+  - `_shouldInstallSentinel()`(D11 環境判定)
+  - `_maybePushBootSentinel()`(D11 雙寫 helper,由 `_dismissBootOverlay` 後立刻呼叫)
+- **flag 與測試**:
+  - [js/core/history-route-flags.js](js/core/history-route-flags.js) `popstateTakeover: true`(Commit C 啟用)
+  - [tests/unit/popstate-handler.test.js](tests/unit/popstate-handler.test.js) 36 個測試覆蓋:_validatePageId / _parseLegacyQueryRoute / _resolveRouteIntent 五層 fallback / _buildCurrentRouteState / _shouldInstallSentinel / _maybePushBootSentinel 雙寫 / source-level contract / sentinel 不污染 pageHistory 等
+- **計劃書與決策歸檔**:詳 [docs/archive/history-api-dual-route-plan.md](archive/history-api-dual-route-plan.md) + [docs/archive/history-route-decisions.md](archive/history-route-decisions.md)(2026-05-11 完成,歸檔保留 16 輪審計歷程)
+
+Phase 6 完成後 ToosterX clean URL 全套(Phase 0 → 6)實作完成。LIFF 用戶按返回不再退出 Mini App;一般瀏覽器外部進入按返回走原生行為;站內圓形返回鍵與瀏覽器返回鍵互不污染。剩 LIFF 五平台實機測試(iOS LINE WebView / Android LINE WebView / iOS Safari / Android Chrome / Desktop Chrome)為部署後 7 天觀察期項目。
 - `sw.js` 對 clean SPA navigation 只快取 `/index.html`,避免每個 `/events/{id}` 都形成一份 HTML cache key。
 - `CLAUDE.md` 中的主規則或提醒
 - 若影響載入：`script-loader.js` 與 `source-drift` / `script-deps` 測試

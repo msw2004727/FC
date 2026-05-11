@@ -8,7 +8,7 @@
     bootIntegration: true,
     writeListPaths: true,
     writeDetailPaths: true,
-    popstateTakeover: false,
+    popstateTakeover: true,
     liffPathDisable: true,
     usersPathEnabled: false
   };

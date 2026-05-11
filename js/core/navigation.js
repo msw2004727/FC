@@ -768,6 +768,8 @@ Object.assign(App, {
   },
 
   _pushPageHistory(pageId, options) {
+    // Phase 6 Commit A:popstate-driven 切頁帶 skipPageHistory=true,避免污染站內返回 stack
+    if (options.skipPageHistory) return;
     if (options.resetHistory) {
       this.pageHistory = [];
     } else if (this.currentPage !== pageId) {
@@ -950,10 +952,13 @@ Object.assign(App, {
         && typeof FirebaseService.finalizePageScopedRealtimeForPage === 'function') {
         FirebaseService.finalizePageScopedRealtimeForPage(prev);
       }
-      // 同步 URL hash
+      // 同步 URL hash(Phase 6 Commit A:改 push → replace,避免 browser history 隨 goBack 持續膨脹)
       if (location.hash !== '#' + prev) {
-        if (typeof this._setRouteUrl === 'function') this._setRouteUrl(prev);
-        else location.hash = prev;
+        if (typeof this._setRouteUrl === 'function') {
+          this._setRouteUrl(prev, { mode: 'replace' });
+        } else {
+          history.replaceState(null, '', '#' + prev);
+        }
       }
       this._syncBottomTabForPage?.(prev);
       if (prev !== 'page-tournament-detail') {

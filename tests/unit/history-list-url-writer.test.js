@@ -7,8 +7,8 @@ function readProjectFile(file) {
   return fs.readFileSync(path.join(root, file), 'utf8');
 }
 
-describe('history URL writer phase 4/5 contract', () => {
-  test('enables list and detail path writes while keeping popstate and LIFF path writes guarded', () => {
+describe('history URL writer phase 4/5/6 contract', () => {
+  test('enables list / detail / popstate path writes while keeping LIFF path writes guarded', () => {
     const flagsSource = readProjectFile('js/core/history-route-flags.js');
     const indexSource = readProjectFile('index.html');
 
@@ -16,7 +16,8 @@ describe('history URL writer phase 4/5 contract', () => {
     expect(indexSource).not.toContain('js/core/route-flags.js?v=');
     expect(flagsSource).toContain('writeListPaths: true');
     expect(flagsSource).toContain('writeDetailPaths: true');
-    expect(flagsSource).toContain('popstateTakeover: false');
+    // Phase 6 啟用後 popstateTakeover 改為 true
+    expect(flagsSource).toContain('popstateTakeover: true');
     expect(flagsSource).toContain('liffPathDisable: true');
   });
 
@@ -56,21 +57,23 @@ describe('history URL writer phase 4/5 contract', () => {
     expect(detailWriterIndex).toBeLessThan(hashFallbackIndex);
   });
 
-  test('detail pages suppress intermediate hash writes and sync URLs after successful entry', () => {
+  test('detail pages suppress intermediate hash writes and forward popstate options', () => {
     const eventDetailSource = readProjectFile('js/modules/event/event-detail.js');
     const teamDetailSource = readProjectFile('js/modules/team/team-detail.js');
     const legacyTournamentSource = readProjectFile('js/modules/tournament/tournament-detail.js');
     const friendlyTournamentSource = readProjectFile('js/modules/tournament/tournament-friendly-detail.js');
 
-    expect(eventDetailSource).toContain("showPage('page-activity-detail', { suppressHashSync: true })");
+    // Phase 6 Commit A:detail handler 已擴展接受 popstate options
+    for (const src of [eventDetailSource, teamDetailSource, legacyTournamentSource, friendlyTournamentSource]) {
+      expect(src).toMatch(/suppressHashSync:\s*true/);
+      expect(src).toMatch(/bypassPageLock:\s*options\?\.bypassPageLock/);
+      expect(src).toMatch(/skipPageHistory:\s*options\?\.skipPageHistory/);
+    }
     expect(eventDetailSource).toContain("this._setRouteUrl?.({ pageId: 'page-activity-detail', id }");
-    expect(teamDetailSource).toContain("showPage('page-team-detail', { suppressHashSync: true })");
     expect(teamDetailSource).toContain("this._setRouteUrl?.({ pageId: 'page-team-detail', id }");
-    expect(legacyTournamentSource).toContain("showPage('page-tournament-detail', { suppressHashSync: true })");
-    expect(friendlyTournamentSource).toContain("showPage('page-tournament-detail', { suppressHashSync: true })");
   });
 
-  test('keeps LIFF path writing disabled and popstate takeover deferred', () => {
+  test('LIFF path writing remains disabled; popstate takeover is now enabled (Phase 6)', () => {
     const appSource = readProjectFile('app.js');
 
     expect(appSource).toContain('_shouldDisableHistoryPathWrite(flags)');
@@ -78,6 +81,7 @@ describe('history URL writer phase 4/5 contract', () => {
     expect(appSource).toContain('window.liff.isInClient()');
     expect(appSource).toContain('flags.writeDetailPaths && !pathWritesDisabled');
     expect(appSource).toContain('flags.writeDetailPaths && !this._shouldDisableHistoryPathWrite?.(flags)');
-    expect(appSource).not.toContain("addEventListener('popstate'");
+    // Phase 6 啟用後 popstate handler 已存在
+    expect(appSource).toContain("addEventListener('popstate'");
   });
 });

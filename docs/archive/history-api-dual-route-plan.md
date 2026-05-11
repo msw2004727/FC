@@ -1,4 +1,14 @@
-# History API 雙軌漸進式升級計劃書(V5 定稿候選版)
+# History API 雙軌漸進式升級計劃書(V5 → V6 多輪審計 → 已完成歸檔)
+
+> **狀態:Phase 0 → Phase 6 全部完成,2026-05-11 歸檔**
+> **完成歷程:V5(原計劃)→ V6 第 1-12 輪自我審計 → V6 第 13-14 輪用戶 spec 知識審計 → V6 第 15-16 輪 Codex 第三方審計 → 2026-05-11 Phase 6 實作 + 部署**
+> **實作摘要詳 [docs/architecture.md](../architecture.md) 「2026-05-11 History API Dual Route Phase 6」段落**
+> **強制規範詳 [CLAUDE.md](../../CLAUDE.md) 「History API popstate / sentinel 規範」**
+> **單元測試 36 項詳 [tests/unit/popstate-handler.test.js](../../tests/unit/popstate-handler.test.js)**
+>
+> 本計劃書保留 16 輪審計歷程作為「設計反思教材」,不再作為實作指引。新增的 popstate / sentinel / detail handler 行為遵循 CLAUDE.md 強制規範。
+
+---
 
 > Last Reviewed: 2026-05-10
 > 狀態: 計劃書,尚未實作。V5 在 V4 基礎上修正中型審計缺口:拆分純重構與行為改變、補上 `_replaceRouteHash`、補齊 clean URL boot overlay guard、統一 Worker path-first 規則、修正 404 hash 保存、補齊 `_headers` 與 SW/SEO 執行時機(v1 → v5)

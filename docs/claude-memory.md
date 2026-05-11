@@ -1,5 +1,24 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-11 — Phase 6 實作完成 + 歸檔 + Cloudflare 部署 [永久]
+- **背景**:經 16 輪審計(自審 12 + 用戶 spec 知識 2 + Codex 第三方 2)收斂後,用戶決議直接動工。三個 Commit(A + B + C)合併執行,跳過原計劃書的觀察期。
+- **實作範圍**:
+  - **Commit A**(Pre-Phase 6 三項解耦):`goBack` 改 replace、`_pushPageHistory` 新增 `skipPageHistory`、4 個 detail handler 接受 4 個 popstate option 並透傳、`_setRouteUrl` + `_syncTournamentDetailRoute` hash fallback 帶完整 state
+  - **Commit B**(popstate handler 基礎設施):App 加 2 欄位 + 5 helper(`_validatePageId` / `_parseLegacyQueryRoute` / `_resolveRouteIntent` / `_buildCurrentRouteState` / `_shouldInstallSentinel`)+ `_maybePushBootSentinel`(由 `_dismissBootOverlay` 後立刻呼叫)+ 完整 popstate handler(sentinel branch + fallback chain 都帶 4 個 option)+ hashchange listener 加 `_suppressNextHashchange` 攔截(50ms 視窗)
+  - **Commit C**:`history-route-flags.js` `popstateTakeover: true`
+- **測試**:`tests/unit/popstate-handler.test.js` 36 個測試覆蓋 helper 行為、source-level contract、sentinel 不污染 pageHistory、Codex 兩次審計指出的所有 cross-check。全套 114 suites / 2928 tests 全綠。
+- **文件**:
+  - `docs/architecture.md` 加 Phase 6 完成段落
+  - `CLAUDE.md` 加「History API popstate / sentinel 規範」強制規則
+  - `docs/tunables.md` 加 `popstate-hashchange-dedupe-window = 50ms`
+  - 計劃書 + 決策文件移至 `docs/archive/`,頂部加完成標註
+- **CACHE_VERSION**:`0.20260511k`
+- **後續觀察**:LIFF 五平台(iOS/Android LINE WebView + iOS Safari + Android Chrome + Desktop Chrome)實機測試屬部署後 7 天觀察期項目。Playwright e2e 補測屬可選範圍。
+- **教訓**:
+  - **設計文件審計沒有「真正收斂」**:16 輪審計後 Codex 仍能找出根本性瑕疵(sentinel spec / fallback 順序 / 同型 bug 復發)。最佳做法不是「再審 5 輪」,而是「實作 + e2e test 抓剩餘 5%」。
+  - **共用 helper 是避免「修一處漏一處」的最佳策略**:Phase 6 內 D11 / D13 / boot 三套 fallback 透過 `_resolveRouteIntent` 共用,將「兩處需要同步」的問題從源頭消除。
+  - **跨章節 cross-check 必須機械化**:此次新增的 `popstate-handler.test.js` 用 source-level regex 鎖住計劃書關鍵契約(sentinel branch 帶 4 個 option、_pushPageHistory skipPageHistory、goBack 用 replace、所有 history.replaceState 帶 state),讓「未來改一處漏一處」會直接被測試紅燈攔截。
+
 ### 2026-05-11 — Phase 6 V6 第十六輪審計(Codex 第二次第三方審計):sentinel branch 同型 bug 復發 + Commit B 範圍清單失同步 [永久]
 - **背景**:第十五輪修完 D13 fallback 與 helper 抽取後,Codex 再次 review,提兩個新發現,**全部驗證為真**。
 - **發現 1 (P2):sentinel branch `await App.showPage(fallback, { bypassPageLock: true })` 漏帶 `skipPageHistory: true`**:

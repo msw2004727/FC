@@ -631,7 +631,11 @@ Object.assign(App, {
       if (!_isReRender) {
         // stale 檢查：用戶可能在 await 期間已導航到其他頁面，不可再拉回
         if (requestSeq !== this._eventDetailRequestSeq) return { ok: false, reason: 'stale' };
-        await this.showPage('page-activity-detail', { suppressHashSync: true });
+        await this.showPage('page-activity-detail', {
+          suppressHashSync: true,
+          bypassPageLock: options?.bypassPageLock,
+          skipPageHistory: options?.skipPageHistory,
+        });
       }
       if (requestSeq !== this._eventDetailRequestSeq || this.currentPage !== 'page-activity-detail') {
         return { ok: false, reason: 'stale' };

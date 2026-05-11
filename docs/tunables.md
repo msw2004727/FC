@@ -96,6 +96,14 @@
 | Auth ID Token 有效期 | `1 小時` | Firebase SDK（外部） | SDK 自動 refresh，背景時 refresh 可能失敗 |
 | Auth state ready 等待 | 無明確 timeout | `firebase-config.js:120` `onAuthStateChanged` | 首次觸發代表 persistence 已讀取完成 |
 
+### Phase 6 popstate handler (D10 hashchange dedupe)
+
+<a id="popstate-hashchange-dedupe-window"></a>
+
+| 名稱 | 值 | 檔案位置 | 用途 |
+|------|---|---------|------|
+| `popstate-hashchange-dedupe-window` | `50ms` | `app.js` popstate handler 內 `setTimeout(..., 50)` | popstate 觸發時 set `window._suppressNextHashchange = true`,50ms 內到達的 hashchange 視為「popstate 接續觸發」會被攔截。50ms 視窗在實測瀏覽器(Chrome 120+ / Safari 17 / LINE WebView iOS 14+/Android 80+)都足夠,且不會誤殺正常 hashchange。詳 §8.9 V6 / D10。 |
+
 ---
 
 <a id="limit"></a>

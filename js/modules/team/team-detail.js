@@ -198,7 +198,11 @@ Object.assign(App, {
       }
 
       // ── 內容已渲染就緒，切換顯示頁面（避免空白模板閃現）──
-      await this.showPage('page-team-detail', { suppressHashSync: true });
+      await this.showPage('page-team-detail', {
+        suppressHashSync: true,
+        bypassPageLock: options?.bypassPageLock,
+        skipPageHistory: options?.skipPageHistory,
+      });
       if (requestSeq !== this._teamDetailRequestSeq || this.currentPage !== 'page-team-detail') {
         return { ok: false, reason: 'stale' };
       }

@@ -1,6 +1,10 @@
-# History API 雙軌升級決策文件(Phase 0)
+# History API 雙軌升級決策文件(Phase 0 → 6 已完成歸檔)
 
-> 對應計劃書: [docs/history-api-dual-route-plan.md](history-api-dual-route-plan.md)
+> **狀態:全部決策(D1-D14)已落實,2026-05-11 隨 Phase 6 一起歸檔**
+> **強制規範詳 [CLAUDE.md](../../CLAUDE.md) 「History API popstate / sentinel 規範」**
+> **架構摘要詳 [docs/architecture.md](../architecture.md) 「2026-05-11 History API Dual Route Phase 6」段落**
+
+> 對應計劃書: [docs/archive/history-api-dual-route-plan.md](history-api-dual-route-plan.md)
 > 階段: Phase 0(施工前審計與決策)
 > Last Reviewed: 2026-05-11
 > 狀態: Phase 0 已審計確認,進入 Phase 0.5-3 施工
