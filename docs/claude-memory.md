@@ -1,5 +1,17 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-11 — 放鴿子功能恢復（軟關閉 → 啟用）
+- **背景**：2026-05-09 commit `bd7c9a36 feat: temporarily disable no-show feature` 將前後端 `NO_SHOW_FEATURE_ENABLED` 設為 `false` 做軟關閉。歷史資料（`users.noShowCount`、`userCorrections.noShow`、相關 opLog）依規範保留未刪除。
+- **本次動作**：
+  - `js/config.js:10` `NO_SHOW_FEATURE_ENABLED = false` → `true`
+  - `functions/index.js:8387` `const NO_SHOW_FEATURE_ENABLED = false;` → `true;`
+  - `CLAUDE.md` 「暫時性功能狀態」段落改寫為「2026-05-11 已恢復」
+  - `bump-version.js` 同步 4 處版號
+  - 部署 `calcNoShowCounts` / `calcNoShowCountsManual` / `backfillAutoExp` Cloud Functions
+- **恢復後預期**：活動詳情報名名單 🕊 欄位（受 `activity.view_noshow` 或 `admin.repair.no_show_adjust` 或主辦人/委託人權限控管）、補正管理放鴿子頁籤、`calcNoShowCounts` 每小時排程重算、`noshow_penalty` EXP 扣分 全數恢復作用。
+- **空窗期影響**：軟關閉 2 天內結束且未簽到的活動，下次排程或手動重算時會被一次補入 `noShowCount`，可能造成相關用戶的數字一次性上升、`noshow_penalty` 一次性扣分；屬恢復後預期行為，非 bug。
+- **教訓**：當初軟關閉設計選擇保留所有程式碼僅以 flag 守衛包裹（而非刪除 UI / 函式 / 欄位），讓恢復工作降到 2 個常數切換 + 重新部署，這是長期維護性高的關閉模式。未來若再有暫時關閉的需求，應沿用此模式而非物理移除。
+
 ### 2026-05-11 — Phase 6 V6 第十四輪審計：popstate handler 三個額外實作瑕疵修正 [永久]
 - **背景**:第十三輪修完 D11 sentinel 根本設計後,用戶繼續用「popstate handler 實際與 navigation.js / history-route-adapter.js / app.js 既有函式互動」的角度,提出三個新疑點,**全部驗證為真**。
 - **三個瑕疵**:

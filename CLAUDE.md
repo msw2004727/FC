@@ -513,12 +513,12 @@ https://miniapp.line.me/2009525300-AuPGQ0sh?{deepLinkParam}={id}
 
 統計系統（完成場次、出席率、放鴿子）歷史上多次因 UID 欄位不一致導致統計歸零或誤判。以下規則**強制適用**：
 
-### 暫時性功能狀態（2026-05-09）
+### 功能狀態（2026-05-11 已恢復）
 
-- 放鴿子功能目前採「軟關閉」：前端 `js/config.js` 的 `NO_SHOW_FEATURE_ENABLED = false`，後端 `functions/index.js` 的 `NO_SHOW_FEATURE_ENABLED = false`。
-- 關閉期間不可顯示活動詳情報名名單的放鴿子欄位，不可開放用戶補正管理的放鴿子頁籤，不可手動或排程重算 `noShowCount`，也不可執行 `noshow_penalty` EXP 扣分。
-- 歷史 `noShowCount`、`userCorrections.noShow`、opLog 與相關資料不可刪除；本次只是暫停顯示與寫入。
-- 未來恢復時必須前後端 flag 同步改回 `true`、更新 cache version、重新部署 functions，並跑 no-show 權限與統計相關測試。
+- 放鴿子功能已恢復啟用：前端 `js/config.js` 的 `NO_SHOW_FEATURE_ENABLED = true`，後端 `functions/index.js` 的 `NO_SHOW_FEATURE_ENABLED = true`。
+- 活動詳情報名名單的 🕊 欄位、用戶補正管理的放鴿子頁籤、`calcNoShowCounts` 排程重算、`noshow_penalty` EXP 扣分 均恢復作用，受既有權限碼控管（`activity.view_noshow`、`admin.repair.no_show_adjust`）。
+- 歷史軟關閉期間（2026-05-09 至 2026-05-11）的「結束未簽到」會在下次排程或手動重算時一次補入 `noShowCount`。
+- 若未來需再次關閉，將兩個 flag 同步改回 `false`、bump cache version、重新部署 functions，並跑 no-show 權限與統計相關測試即可。
 
 ### 背景知識（必讀）
 
