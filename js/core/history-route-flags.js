@@ -7,7 +7,7 @@
     cleanHashFallbackPath: true,
     bootIntegration: true,
     writeListPaths: true,
-    writeDetailPaths: false,
+    writeDetailPaths: true,
     popstateTakeover: false,
     liffPathDisable: true,
     usersPathEnabled: false
@@ -19,4 +19,3 @@
 
   root.HISTORY_ROUTE_FLAGS = Object.assign({}, defaults, existing);
 })(typeof window !== 'undefined' ? window : globalThis);
-

@@ -977,6 +977,14 @@ UID 健康檢查目前會發現：
 - `App._setRouteUrl` writes those three clean paths before the old hash fallback. Non-list pages continue using the existing hash/query route behavior.
 - `writeDetailPaths`, `popstateTakeover`, `/users/{uid}`, and LIFF in-client path writing remain disabled.
 
+### 2026-05-11 History API Dual Route Phase 5
+
+- `HISTORY_ROUTE_FLAGS.writeDetailPaths` is enabled for detail routes after Phase 4 validation.
+- `App._setRouteUrl({ pageId, id })` writes `/events/{id}`, `/teams/{id}`, and `/tournaments/{id}` only when an explicit safe detail id is provided.
+- Event, team, and tournament detail flows suppress the intermediate hash sync and update the URL after the detail page succeeds. This keeps failed or stale detail attempts from publishing the wrong clean URL.
+- Tournament detail keeps the legacy `?tournament=` + `#page-tournament-detail` fallback when detail path writing is disabled or blocked inside LIFF.
+- Popstate takeover, `/users/{uid}`, and SEO/canonical/sitemap detail publishing remain deferred.
+
 - 新增 `js/core/history-route-flags.js` 作為 History API 雙軌升級的開關中心。第一輪只啟用讀取解析與 boot 入口轉譯,不啟用 URL writer 全面接管、popstate takeover 或 `/users/{uid}`。
 - 新增 `js/core/history-route-adapter.js` 作為純解析層。它只把 `/activities`、`/teams`、`/tournaments`、`/profile`、`/events/{id}`、`/teams/{id}`、`/tournaments/{id}` 解析成既有 page/deep-link intent,不碰 DOM、Firebase 或 App 狀態。
 - `app.js` 只在 boot 階段把 clean URL 轉回既有 `_pendingDeepEventId` / `_pendingDeepTeamId` / `_pendingDeepTournamentId` 或 list page shell,因此原本 `#page-xxx`、`?event=xxx`、`?team=xxx`、`?tournament=xxx` 還是保留為主路由。

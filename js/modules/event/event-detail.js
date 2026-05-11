@@ -631,7 +631,7 @@ Object.assign(App, {
       if (!_isReRender) {
         // stale 檢查：用戶可能在 await 期間已導航到其他頁面，不可再拉回
         if (requestSeq !== this._eventDetailRequestSeq) return { ok: false, reason: 'stale' };
-        await this.showPage('page-activity-detail');
+        await this.showPage('page-activity-detail', { suppressHashSync: true });
       }
       if (requestSeq !== this._eventDetailRequestSeq || this.currentPage !== 'page-activity-detail') {
         return { ok: false, reason: 'stale' };
@@ -675,6 +675,9 @@ Object.assign(App, {
       const attTable = document.getElementById('detail-attendance-table');
       this._markBadgeRowOverflow?.(attTable);
       this._renderEventComments?.(id);
+      this._setRouteUrl?.({ pageId: 'page-activity-detail', id }, {
+        mode: this._hasLegacyRouteSignal?.() ? 'replace' : undefined,
+      });
       this._markPageSnapshotReady?.('page-activity-detail');
       return { ok: true, reason: 'ok' };
     } catch (err) {

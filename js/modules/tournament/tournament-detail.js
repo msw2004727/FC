@@ -20,7 +20,7 @@ Object.assign(App, {
       }
       if (!t) return;
     }
-    await this.showPage('page-tournament-detail');
+    await this.showPage('page-tournament-detail', { suppressHashSync: true });
     if (requestSeq !== this._tournamentDetailRequestSeq || this.currentPage !== 'page-tournament-detail') {
       if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
         console.log('[race-skip]', { fn: 'showTournamentDetail', seq: requestSeq, latest: this._tournamentDetailRequestSeq, currentPage: this.currentPage });

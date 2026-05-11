@@ -2340,3 +2340,8 @@
 - **Issue**: Production HTML loaded version `0.20260511b`, but `/app.js` and `/js/core/route-flags.js` returned HTTP 500. Because `app.js` never loaded, all later modules failed with `App is not defined`.
 - **Fix**: Excluded `/app.js` from Cloudflare Worker routing, moved the History API flag bootstrap to `js/core/history-route-flags.js`, removed the old failing asset paths from Service Worker precache, and inlined the `app.js` runtime in `index.html` so production no longer requests the asset path that Cloudflare returns as 500. The root file remains as canonical source and tests enforce inline/runtime parity.
 - **Validation**: Added contract coverage for the new flag script reference and `/app.js` route exclusion; production validation must confirm both assets return 200 after deploy.
+
+### 2026-05-11 History API Dual Route Phase 5 [feature]
+- **Issue**: Phase 4 wrote clean URLs for list pages only. Event, team, and tournament detail pages still depended on hash/query URL writes after in-app navigation.
+- **Fix**: Enabled `HISTORY_ROUTE_FLAGS.writeDetailPaths` and added explicit detail URL writing through `App._setRouteUrl({ pageId, id })` for `/events/{id}`, `/teams/{id}`, and `/tournaments/{id}`. Detail pages now suppress intermediate hash writes and sync the clean URL only after the detail entry succeeds. Tournament legacy query/hash sync remains as the fallback when detail path writing is disabled or LIFF in-client path writing is blocked.
+- **Validation**: Added Phase 5 URL writer contract coverage for detail path mapping, safe segment validation, LIFF guard, and successful-entry URL sync. Phase 5.5 SEO/canonical work and Phase 6 popstate takeover remain deferred.

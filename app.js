@@ -1072,7 +1072,14 @@ const App = {
   _syncTournamentDetailRoute(tournamentId) {
     const id = String(tournamentId || '').trim();
     if (!id) return;
-    if (this._isCurrentHistoryRouteForPage?.('page-tournament-detail')) return;
+    try {
+      const flags = this._getHistoryRouteFlags?.() || {};
+      if (flags.writeDetailPaths && !this._shouldDisableHistoryPathWrite?.(flags)) {
+        this._setRouteUrl?.({ pageId: 'page-tournament-detail', id }, { mode: 'replace' });
+        return;
+      }
+    } catch (_) {}
+    if (this._isCurrentHistoryDetailRoute?.('page-tournament-detail', id)) return;
     try {
       const url = new URL(window.location.href);
       url.searchParams.set('tournament', id);
@@ -1084,6 +1091,13 @@ const App = {
   _clearTournamentDetailRouteParam() {
     try {
       const url = new URL(window.location.href);
+      const flags = this._getHistoryRouteFlags?.() || {};
+      if (flags.writeDetailPaths
+        && !this._shouldDisableHistoryPathWrite?.(flags)
+        && /^\/tournaments\/[A-Za-z0-9_-]{3,80}\/?$/.test(url.pathname || '')) {
+        history.replaceState(null, '', '/');
+        return;
+      }
       if (!url.searchParams.has('tournament')) return;
       url.searchParams.delete('tournament');
       history.replaceState(null, '', url.pathname + (url.search || '') + (url.hash || ''));
@@ -2014,12 +2028,50 @@ const App = {
     return !this._hasLegacyRouteSignal();
   },
 
+  _isCurrentHistoryDetailRoute(pageId, id) {
+    const route = this._readCurrentHistoryRoute();
+    if (!route || !route.pageId || route.pageId !== pageId) return false;
+    if (String(route.id || '').trim() !== String(id || '').trim()) return false;
+    return !this._hasLegacyRouteSignal();
+  },
+
   _getListRoutePath(pageId) {
     return ({
       'page-activities': '/activities',
       'page-teams': '/teams',
       'page-tournaments': '/tournaments',
     })[pageId] || '';
+  },
+
+  _getExplicitDetailRouteId(routeOrPageId) {
+    if (!routeOrPageId || typeof routeOrPageId === 'string') return '';
+    return String(routeOrPageId.id
+      || routeOrPageId.eventId
+      || routeOrPageId.teamId
+      || routeOrPageId.tournamentId
+      || '').trim();
+  },
+
+  _isSafeHistoryRouteSegment(id) {
+    const value = String(id || '').trim();
+    if (!value) return false;
+    if (window.HistoryRouteAdapter?.isSafeRouteSegment) {
+      return !!window.HistoryRouteAdapter.isSafeRouteSegment(value);
+    }
+    if (value === '.' || value === '..') return false;
+    if (value.indexOf('/') !== -1 || value.indexOf('\\') !== -1) return false;
+    return /^[A-Za-z0-9_-]{3,80}$/.test(value);
+  },
+
+  _getDetailRoutePath(pageId, id) {
+    const safeId = String(id || '').trim();
+    if (!safeId || !this._isSafeHistoryRouteSegment(safeId)) return '';
+    const root = ({
+      'page-activity-detail': '/events',
+      'page-team-detail': '/teams',
+      'page-tournament-detail': '/tournaments',
+    })[pageId] || '';
+    return root ? root + '/' + encodeURIComponent(safeId) : '';
   },
 
   _shouldDisableHistoryPathWrite(flags) {
@@ -2043,15 +2095,33 @@ const App = {
     if (options.suppressHashSync) return true;
 
     try {
-      if (this._isCurrentHistoryRouteForPage(pageId)) return true;
-
       const flags = this._getHistoryRouteFlags();
       const shouldReplace = options.replace === true || options.mode === 'replace';
       const targetHash = '#' + pageId;
       const url = new URL(window.location.href);
-      const listPath = flags.writeListPaths && !this._shouldDisableHistoryPathWrite(flags)
+      const pathWritesDisabled = this._shouldDisableHistoryPathWrite(flags);
+      const detailId = this._getExplicitDetailRouteId(routeOrPageId);
+      const detailPath = flags.writeDetailPaths && !pathWritesDisabled
+        ? this._getDetailRoutePath(pageId, detailId)
+        : '';
+      const listPath = flags.writeListPaths && !pathWritesDisabled
         ? this._getListRoutePath(pageId)
         : '';
+
+      if (!detailPath && this._isCurrentHistoryRouteForPage(pageId)) return true;
+
+      if (detailPath && (history?.pushState || history?.replaceState)) {
+        if (url.pathname === detailPath && !url.search && !url.hash) return true;
+        const state = { source: 'sportshub', pageId, id: detailId };
+        if (shouldReplace && history.replaceState) {
+          history.replaceState(state, '', detailPath);
+        } else if (history.pushState) {
+          history.pushState(state, '', detailPath);
+        } else {
+          history.replaceState(state, '', detailPath);
+        }
+        return true;
+      }
 
       if (listPath && (history?.pushState || history?.replaceState)) {
         if (url.pathname === listPath && !url.search && !url.hash) return true;

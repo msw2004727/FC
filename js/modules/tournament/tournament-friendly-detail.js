@@ -104,7 +104,7 @@ Object.assign(App, {
       return await this._loadFriendlyTournamentDetailState(id);
     })();
     this.currentTournament = id;
-    await this.showPage('page-tournament-detail');
+    await this.showPage('page-tournament-detail', { suppressHashSync: true });
     if (seq !== this._friendlyTournamentDetailSeq || this.currentPage !== 'page-tournament-detail') return;
     this._renderFriendlyTournamentDetailLoadingShell(base);
 
