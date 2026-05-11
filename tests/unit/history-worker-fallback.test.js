@@ -36,6 +36,15 @@ describe('history route hosting fallback contract', () => {
       '/tournaments/*',
     ]));
     expect(routes.include).not.toContain('/users/*');
+    expect(routes.exclude).toEqual(expect.arrayContaining([
+      '/app.js',
+      '/js/*',
+    ]));
+
+    const indexSource = readProjectFile('index.html');
+    expect(indexSource).toContain('js/core/app-main.js');
+    expect(indexSource).not.toContain('src="app.js?v=');
+    expect(readProjectFile('js/core/app-main.js')).toBe(readProjectFile('app.js'));
   });
 
   test('service worker normalizes SPA navigate cache to index instead of every clean path', () => {

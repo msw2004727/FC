@@ -19,6 +19,7 @@
     "/img/*",
     "/assets/*",
     "/sw.js",
+    "/app.js",
     "/favicon.ico",
     "/manifest.json",
     "/robots.txt",

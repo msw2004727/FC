@@ -2335,3 +2335,8 @@
 - **Issue**: Phase 0-3 could read and boot clean list URLs, but normal in-app navigation still wrote hash URLs.
 - **Fix**: Enabled `writeListPaths` and updated `App._setRouteUrl` so only `page-activities`, `page-teams`, and `page-tournaments` write `/activities`, `/teams`, and `/tournaments` before hash fallback. Detail writer, popstate takeover, `/users/{uid}`, and LIFF in-client path writes remain disabled.
 - **Validation**: Added a Phase 4 contract test covering route flags, list path mapping, LIFF guard, and writer/fallback ordering. Ran targeted History API unit tests and full unit tests before deployment.
+
+### 2026-05-11 Cloudflare Bootstrap Asset 500 [bugfix]
+- **Issue**: Production HTML loaded version `0.20260511b`, but `/app.js` and `/js/core/route-flags.js` returned HTTP 500. Because `app.js` never loaded, all later modules failed with `App is not defined`.
+- **Fix**: Excluded `/app.js` from Cloudflare Worker routing, moved the runtime bootstrap script reference to `js/core/app-main.js`, moved the History API flag bootstrap to `js/core/history-route-flags.js`, and removed the old failing asset paths from Service Worker precache. The older root/flag files remain in place only for compatibility/reference. This avoids the failing asset paths while keeping the same app code and rollout flags.
+- **Validation**: Added contract coverage for the new flag script reference and `/app.js` route exclusion; production validation must confirm both assets return 200 after deploy.

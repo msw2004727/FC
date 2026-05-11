@@ -17,7 +17,7 @@ ToosterX 是一個 LINE LIFF + Firebase 的 buildless Vanilla JS SPA。前端由
 | 項目 | 現況 |
 |---|---|
 | 前端型態 | Vanilla JS / HTML / CSS，無 webpack、無 build step |
-| 主入口 | `index.html` + `app.js` |
+| 主入口 | `index.html` + `js/core/app-main.js` |
 | HTML fragments | `pages/` 共 20 個頁面片段 |
 | JS 檔案 | `js/` 共 270 個 JS |
 | 功能模組 | `js/modules/` 共 258 個 JS，17 個子資料夾 + 27 個 root-level shared module |
@@ -41,7 +41,7 @@ flowchart TD
     H["靜態站台\nCloudflare Pages / GitHub Pages"]
     IDX["index.html\n核心 script defer + boot data inline"]
     SW["sw.js\nHTML network-first\nJS/CSS cache-first\nStorage image SWR"]
-    APP["app.js\nApp singleton / boot phases / route glue"]
+    APP["js/core/app-main.js\nApp singleton / boot phases / route glue"]
     PL["PageLoader\npages/*.html fragments"]
     SL["ScriptLoader\npage -> module groups"]
     MOD["Feature modules\nObject.assign(App, ...)"]
@@ -82,7 +82,7 @@ flowchart TD
 
 - `index.html` 是唯一主要 SPA 入口，直接 `<script defer>` 載入核心與 boot 必要模組。
 - `pages/*.html` 是頁面片段，不是獨立 route。
-- `app.js` 建立全域 `App` singleton，其他模組透過 `Object.assign(App, {...})` 擴充。
+- `js/core/app-main.js` 建立全域 `App` singleton，其他模組透過 `Object.assign(App, {...})` 擴充。
 - `js/config.js` 保存 runtime 常數、角色、權限 catalog、運動標籤、頁面策略、快取版本。
 - 沒有 npm build。`package.json` 只提供測試腳本。
 
@@ -977,7 +977,7 @@ UID 健康檢查目前會發現：
 - `App._setRouteUrl` writes those three clean paths before the old hash fallback. Non-list pages continue using the existing hash/query route behavior.
 - `writeDetailPaths`, `popstateTakeover`, `/users/{uid}`, and LIFF in-client path writing remain disabled.
 
-- 新增 `js/core/route-flags.js` 作為 History API 雙軌升級的開關中心。第一輪只啟用讀取解析與 boot 入口轉譯,不啟用 URL writer 全面接管、popstate takeover 或 `/users/{uid}`。
+- 新增 `js/core/history-route-flags.js` 作為 History API 雙軌升級的開關中心。第一輪只啟用讀取解析與 boot 入口轉譯,不啟用 URL writer 全面接管、popstate takeover 或 `/users/{uid}`。
 - 新增 `js/core/history-route-adapter.js` 作為純解析層。它只把 `/activities`、`/teams`、`/tournaments`、`/profile`、`/events/{id}`、`/teams/{id}`、`/tournaments/{id}` 解析成既有 page/deep-link intent,不碰 DOM、Firebase 或 App 狀態。
 - `app.js` 只在 boot 階段把 clean URL 轉回既有 `_pendingDeepEventId` / `_pendingDeepTeamId` / `_pendingDeepTournamentId` 或 list page shell,因此原本 `#page-xxx`、`?event=xxx`、`?team=xxx`、`?tournament=xxx` 還是保留為主路由。
 - `_worker.js`、`_routes.json`、`_headers` 組成 Cloudflare Pages clean URL fallback。OG share routes 仍優先處理;第一輪 clean detail path 會回 `index.html` 並加 `X-Robots-Tag: noindex, nofollow`,等 Phase 5.5 動態 canonical/sitemap 完成後再解除。

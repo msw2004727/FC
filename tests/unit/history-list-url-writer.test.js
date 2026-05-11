@@ -9,8 +9,11 @@ function readProjectFile(file) {
 
 describe('history list URL writer phase 4 contract', () => {
   test('enables only list page path writes by default', () => {
-    const flagsSource = readProjectFile('js/core/route-flags.js');
+    const flagsSource = readProjectFile('js/core/history-route-flags.js');
+    const indexSource = readProjectFile('index.html');
 
+    expect(indexSource).toContain('js/core/history-route-flags.js');
+    expect(indexSource).not.toContain('js/core/route-flags.js?v=');
     expect(flagsSource).toContain('writeListPaths: true');
     expect(flagsSource).toContain('writeDetailPaths: false');
     expect(flagsSource).toContain('popstateTakeover: false');
@@ -18,7 +21,7 @@ describe('history list URL writer phase 4 contract', () => {
   });
 
   test('writes clean paths for the three approved list pages before hash fallback', () => {
-    const appSource = readProjectFile('app.js');
+    const appSource = readProjectFile('js/core/app-main.js');
     const listWriterIndex = appSource.indexOf('flags.writeListPaths');
     const hashFallbackIndex = appSource.indexOf('flags.cleanHashFallbackPath');
 
@@ -35,7 +38,7 @@ describe('history list URL writer phase 4 contract', () => {
   });
 
   test('keeps LIFF path writing disabled and detail writer deferred', () => {
-    const appSource = readProjectFile('app.js');
+    const appSource = readProjectFile('js/core/app-main.js');
 
     expect(appSource).toContain('_shouldDisableHistoryPathWrite(flags)');
     expect(appSource).toContain('window.liff');
