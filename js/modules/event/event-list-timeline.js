@@ -77,6 +77,17 @@ Object.assign(App, {
       clearInterval(state.interval);
       state.interval = null;
     }
+    // 同步解除 tl-pending（pointer-events: none 立刻釋放）。
+    // 避免「從詳細頁快速返回時，_doRenderActivityList fp 短路跳過重繪、
+    //       舊 DOM 殘留 tl-pending 造成卡片 1.4 秒內不能點」的時序 bug。
+    // 後續 setTimeout 鏈仍負責 loading bar DOM 清理。
+    var immediateCard = (cardEl && cardEl.isConnected) ? cardEl
+             : (clickedEventId ? this._tlFindCardByEventId(clickedEventId) : null)
+             || (stateEventId ? this._tlFindCardByEventId(stateEventId) : null);
+    if (immediateCard) {
+      immediateCard.classList.remove('tl-pending');
+      immediateCard.removeAttribute('aria-busy');
+    }
     var elapsed = state ? (Date.now() - state.startedAt) : 0;
     var waitMs = Math.max(0, (minVisibleMs || 0) - elapsed);
     var self = this;

@@ -1,5 +1,11 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-11 — 從活動詳細頁快速返回時 timeline 卡片殘留 tl-pending、1.4 秒不能點
+- **問題**：用戶在活動頁點卡片進入詳細頁，立刻按瀏覽器返回鍵時，被點過的卡片殘留黑色「載入中」遮罩、`pointer-events: none` 鎖住約 1.4 秒。
+- **原因**：`openTimelineEventDetail` 的 finally 區塊呼叫 `_clearTlCardPending`，內部用 setTimeout 鏈（waitMs → 350ms → 400ms）延遲清掉 `tl-pending` class。但用戶在這 1.4 秒內按返回鍵 → popstate handler 觸發 `showPage('page-activities')` → `_doRenderActivityList` 因資料 fp 未變而 fp 短路跳過重繪 → 舊 DOM 上的 `tl-pending` 沒被沖掉。
+- **修復**：[js/modules/event/event-list-timeline.js](js/modules/event/event-list-timeline.js) `_clearTlCardPending` 函式入口加入同步清理區塊（在 clearInterval 之後、setTimeout 鏈之前），立刻 `card.classList.remove('tl-pending')` + `removeAttribute('aria-busy')`，後續 setTimeout 鏈仍負責 loading bar DOM 清理。
+- **教訓**：list 頁面的「fp 短路」優化會讓任何「DOM 上需要被清掉的暫態 class」變成殘留風險。任何在卡片上加 class 的 UX 機制（不只 `tl-pending`，未來新增類似的 loading / highlight / animate state 都同理），清掉時必須**同步**完成；setTimeout 鏈只應該負責「視覺淡出」這種純動畫副作用，不應該負責「解鎖互動」這種功能性還原。
+
 ### 2026-05-11 — Phase 6 實作完成 + 歸檔 + Cloudflare 部署 [永久]
 - **背景**:經 16 輪審計(自審 12 + 用戶 spec 知識 2 + Codex 第三方 2)收斂後,用戶決議直接動工。三個 Commit(A + B + C)合併執行,跳過原計劃書的觀察期。
 - **實作範圍**:
