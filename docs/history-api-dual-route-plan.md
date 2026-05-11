@@ -1255,6 +1255,7 @@ Phase 5 is implemented and self-audited for the limited detail URL writer scope.
 - [x] `App._setRouteUrl({ pageId, id })` writes clean detail paths for `page-activity-detail` -> `/events/{id}`, `page-team-detail` -> `/teams/{id}`, and `page-tournament-detail` -> `/tournaments/{id}`.
 - [x] Detail IDs are validated through `HistoryRouteAdapter.isSafeRouteSegment` before path writing.
 - [x] Event, team, and tournament detail flows suppress intermediate hash writes and sync the URL only after successful detail entry.
+- [x] `index.html` includes `<base href="/">` so nested detail paths resolve CSS/JS/page assets from the site root.
 - [x] `_syncTournamentDetailRoute` keeps the old `?tournament=` + `#page-tournament-detail` fallback when detail path writing is disabled or LIFF in-client path writing is blocked.
 - [x] `popstateTakeover`, `/users/{uid}`, and Phase 5.5 SEO/canonical/sitemap work remain deferred.
 - [x] Existing hash/query routes remain readable; LINE Mini App sharing links are unchanged.

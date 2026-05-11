@@ -2344,4 +2344,5 @@
 ### 2026-05-11 History API Dual Route Phase 5 [feature]
 - **Issue**: Phase 4 wrote clean URLs for list pages only. Event, team, and tournament detail pages still depended on hash/query URL writes after in-app navigation.
 - **Fix**: Enabled `HISTORY_ROUTE_FLAGS.writeDetailPaths` and added explicit detail URL writing through `App._setRouteUrl({ pageId, id })` for `/events/{id}`, `/teams/{id}`, and `/tournaments/{id}`. Detail pages now suppress intermediate hash writes and sync the clean URL only after the detail entry succeeds. Tournament legacy query/hash sync remains as the fallback when detail path writing is disabled or LIFF in-client path writing is blocked.
+- **Follow-up fix**: Added `<base href="/">` to `index.html` so nested detail paths load root-relative CSS/JS/page assets instead of resolving `js/...` under `/events/`, `/teams/`, or `/tournaments/`.
 - **Validation**: Added Phase 5 URL writer contract coverage for detail path mapping, safe segment validation, LIFF guard, and successful-entry URL sync. Phase 5.5 SEO/canonical work and Phase 6 popstate takeover remain deferred.

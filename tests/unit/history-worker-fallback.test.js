@@ -42,6 +42,7 @@ describe('history route hosting fallback contract', () => {
     ]));
 
     const indexSource = readProjectFile('index.html');
+    expect(indexSource).toContain('<base href="/">');
     expect(indexSource).toContain('id="app-inline-runtime"');
     expect(indexSource).not.toContain('js/core/runtime-controller.js');
     expect(indexSource).not.toContain('src="app.js?v=');

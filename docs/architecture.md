@@ -982,6 +982,7 @@ UID 健康檢查目前會發現：
 - `HISTORY_ROUTE_FLAGS.writeDetailPaths` is enabled for detail routes after Phase 4 validation.
 - `App._setRouteUrl({ pageId, id })` writes `/events/{id}`, `/teams/{id}`, and `/tournaments/{id}` only when an explicit safe detail id is provided.
 - Event, team, and tournament detail flows suppress the intermediate hash sync and update the URL after the detail page succeeds. This keeps failed or stale detail attempts from publishing the wrong clean URL.
+- `index.html` declares `<base href="/">` so nested detail URLs keep resolving CSS, JS, page fragments, and Service Worker assets from the site root.
 - Tournament detail keeps the legacy `?tournament=` + `#page-tournament-detail` fallback when detail path writing is disabled or blocked inside LIFF.
 - Popstate takeover, `/users/{uid}`, and SEO/canonical/sitemap detail publishing remain deferred.
 
