@@ -52,7 +52,8 @@ describe('history route hosting fallback contract', () => {
   test('inline runtime mirrors app.js so production does not fetch the failing app asset', () => {
     const indexSource = readProjectFile('index.html');
     const appSource = readProjectFile('app.js').trim();
-    const match = indexSource.match(/<script id="app-inline-runtime">\n([\s\S]*?)\n  <\/script>/);
+    // 同時支援 LF 與 CRLF 換行，並容許 </script> 前的縮排寬度變動（Windows checkout 會是 CRLF）
+    const match = indexSource.match(/<script id="app-inline-runtime">\r?\n([\s\S]*?)\r?\n\s*<\/script>/);
 
     expect(match).toBeTruthy();
     expect(match[1].trim()).toBe(appSource);

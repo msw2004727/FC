@@ -634,7 +634,7 @@ V5 定案:第一輪啟用 `/profile`,但 `/users/*` 先列為第二輪;若實作
 
 - [ ] `/activities` 重新整理回 HTTP 200,不是 404 redirect
 - [ ] `/events/{id}` 重新整理回 HTTP 200,不是 404 redirect
-- [ ] `/events/{id}` response header 含 `X-Robots-Tag: noindex, nofollow`(Phase 5.5 前的暫時保護)
+- [~] `/events/{id}` response header 含 `X-Robots-Tag: noindex, nofollow` ─ **Phase 5.5（2026-05-11）已解除此暫時保護**，detail SPA path 改由動態 canonical + sitemap 開放索引，本項已不適用。Phase 2 自我驗收時若需重做請僅驗其餘項。
 - [ ] `/event-share/{id}` 仍回 OG HTML,不變成 SPA
 - [ ] `/team-share/{id}` 仍回 OG HTML,不變成 SPA
 - [ ] curl `/activities`(不帶 Accept header)仍回 index.html 200(V5 path-first 邊界驗收)
@@ -819,9 +819,9 @@ V5 呼叫時機定案:`_setRouteUrl` 只負責 URL 與 route intent,不直接改
 - [x] 進 `/events/ce_xxx` 後 `<link rel="canonical">` 變為 `https://toosterx.com/events/ce_xxx`（2026-05-11 `_updateRouteMetaTags` 由 detail handler 在資料載入後呼叫，unit test 覆蓋）
 - [x] 進 `/activities` 後 canonical 變為 `https://toosterx.com/activities`（2026-05-11 `_renderPageContent` 末尾呼叫 helper）
 - [x] 回首頁 `/` 後 canonical 變回 `https://toosterx.com/`（2026-05-11 unit test 覆蓋 `page-home` 路徑）
-- [x] sitemap.xml 包含首頁、列表頁、若干 detail URL（2026-05-11 sitemap.xml 改為 sitemapindex，引用 `sitemap-static.xml` + 三個 dynamic sub-sitemap）
-- [ ] Google Search Console 提交新 sitemap 後 24 小時內有抓取紀錄（部署後驗證）
+- [x] sitemap.xml 包含首頁、列表頁、若干 detail URL（2026-05-11 sitemap.xml 改為 sitemapindex，引用 `sitemap-static.xml` + 三個 dynamic sub-sitemap，線上 200 確認）
 - [x] [docs/seo-log.md](seo-log.md) 已新增本次 SEO 變更紀錄（CLAUDE.md 強制；2026-05-11 紀錄）
+- [ ] **唯一待驗證項目**：Google Search Console 提交新 sitemap 後 24 小時內有抓取紀錄 — 需到 Search Console > Sitemaps 看到 `sitemap.xml` 的 last read 時間 ≥ 2026-05-11、且四個子 sitemap 都 status=success。
 
 ---
 
@@ -916,9 +916,9 @@ V5 呼叫時機定案:`_setRouteUrl` 只負責 URL 與 route intent,不直接改
 | 活動分享按鈕 | 仍用既有 Mini App 連結 |
 | LINE Mini App 開啟 | 不受 clean URL 影響 |
 | 一般瀏覽器開 clean URL | 可正常進頁 |
-| **canonical 動態化** | Phase 5.5 才驗;第一輪 Phase 0 → 3 不列入阻擋項 |
-| **og:url 動態化** | Phase 5.5 才驗;第一輪 Phase 0 → 3 不列入阻擋項 |
-| **sitemap 包含新 URL** | Phase 5.5 才驗;第一輪 Phase 0 → 3 不列入阻擋項 |
+| **canonical 動態化** | Phase 5.5 已完成（2026-05-11），由 `_updateRouteMetaTags` 在 list / detail render 後動態更新 |
+| **og:url 動態化** | Phase 5.5 已完成（2026-05-11），同上 |
+| **sitemap 包含新 URL** | Phase 5.5 已完成（2026-05-11），sitemap.xml 為 sitemapindex + 四個 sub-sitemap，每日 cron 重建 |
 
 ### 9.6 失敗情境
 
@@ -1164,10 +1164,11 @@ Phase 0 → 3 第一輪不執行本段。只有啟用 Phase 5 詳細頁 URL writ
 
 通過條件:
 
-- [ ] canonical 動態化生效
-- [ ] og:url 動態化生效
-- [ ] sitemap 已提交或可被搜尋引擎讀取
-- [ ] seo-log 已更新
+- [x] canonical 動態化生效（2026-05-11 `_updateRouteMetaTags` 由 detail handler 在資料載入後呼叫；unit test + 線上 SPA path 200 已驗證）
+- [x] og:url 動態化生效（2026-05-11 同上）
+- [x] sitemap 已提交或可被搜尋引擎讀取（2026-05-11 sitemap.xml / sitemap-static / sitemap-events / sitemap-teams / sitemap-tournaments 全部回 200；Submit Sitemap workflow 已於部署觸發跑過）
+- [x] seo-log 已更新（2026-05-11 紀錄）
+- [ ] GSC sitemap 24 小時抓取面板複核 — Phase 5.5 唯一待驗證項目，需到 Search Console 看到 last fetch 時間 ≥ 2026-05-11 才算完成
 
 ---
 
