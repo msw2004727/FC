@@ -12,6 +12,7 @@ Object.assign(App, {
     const bar = document.getElementById('data-sync-bar');
     const percentEl = document.getElementById('data-sync-percent');
     const logEl = document.getElementById('data-sync-log');
+    let tickTimer = null;
     return {
       progressWrap, bar, percentEl, logEl,
       show() {
@@ -25,9 +26,30 @@ Object.assign(App, {
         logEl.scrollTop = logEl.scrollHeight;
       },
       setProgress(current, total) {
+        if (bar) bar.classList.remove('indeterminate');
         const pct = total > 0 ? Math.round((current / total) * 100) : 0;
-        if (bar) bar.style.width = pct + '%';
+        if (bar) { bar.style.transform = ''; bar.style.width = pct + '%'; }
         if (percentEl) percentEl.textContent = `${pct}%`;
+      },
+      // Indeterminate 動畫：bar 流動 + 上方文字顯示「處理中... X.X 秒」
+      startIndeterminate(label) {
+        if (bar) {
+          bar.style.width = '';
+          bar.classList.add('indeterminate');
+        }
+        const start = Date.now();
+        const baseLabel = label || '處理中';
+        if (percentEl) percentEl.textContent = `${baseLabel}... 0.0 秒`;
+        if (tickTimer) clearInterval(tickTimer);
+        tickTimer = setInterval(() => {
+          if (!percentEl) return;
+          const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+          percentEl.textContent = `${baseLabel}... ${elapsed} 秒`;
+        }, 100);
+      },
+      stopIndeterminate() {
+        if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+        if (bar) { bar.classList.remove('indeterminate'); bar.style.transform = ''; }
       },
     };
   },
@@ -842,7 +864,9 @@ Object.assign(App, {
     this._dataSyncRunning = true;
     var ui = this._dataSyncUI();
     ui.show();
-    ui.log('呼叫 Cloud Function calcNoShowCountsManual ...');
+    ui.log('=== 放鴿子次數重算開始 ===');
+    ui.log('[1/3] 呼叫 Cloud Function calcNoShowCountsManual ...');
+    ui.startIndeterminate('Cloud Function 處理中');
     var startTime = Date.now();
 
     try {
@@ -851,16 +875,43 @@ Object.assign(App, {
       var resp = await callable({ password: password });
       var r = resp.data || {};
       var elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-      ui.log('掃描活動：' + (r.scannedEvents || 0) + ' 個已結束活動');
-      ui.log('報名紀錄：' + (r.totalRegs || 0) + ' 筆');
-      ui.log('簽到紀錄：' + (r.totalCheckins || 0) + ' 筆');
-      ui.log('更新用戶：' + (r.updatedUsers || 0) + ' 位');
-      ui.log('\n=== 放鴿子次數重算完成（' + elapsed + ' 秒）===');
-      this.showToast('放鴿子重算完成，更新 ' + (r.updatedUsers || 0) + ' 位用戶');
+      ui.log('[2/3] Cloud Function 回應已收到');
+      ui.log('  - 掃描活動：' + (r.scannedEvents || 0) + ' 個已結束活動');
+      ui.log('  - 報名紀錄：' + (r.totalRegs || 0) + ' 筆');
+      ui.log('  - 簽到紀錄：' + (r.totalCheckins || 0) + ' 筆');
+      ui.log('  - 更新用戶：' + (r.updatedUsers || 0) + ' 位');
+      ui.log('[3/3] 完成（' + elapsed + ' 秒）');
+      ui.stopIndeterminate();
+      ui.setProgress(100, 100);
+      this.showToast('放鴿子重算完成');
+      await this.appAlert(
+        '<div style="text-align:center">'
+        + '<div style="font-size:1.8rem;margin-bottom:.4rem">✅</div>'
+        + '<div style="font-weight:600;margin-bottom:.6rem">放鴿子次數重算完成</div>'
+        + '<div style="font-size:.78rem;color:var(--text-secondary);line-height:1.8;text-align:left;background:var(--bg-elevated);padding:.6rem .8rem;border-radius:6px">'
+        + '掃描活動：<b>' + (r.scannedEvents || 0) + '</b> 個<br>'
+        + '報名紀錄：<b>' + (r.totalRegs || 0) + '</b> 筆<br>'
+        + '簽到紀錄：<b>' + (r.totalCheckins || 0) + '</b> 筆<br>'
+        + '更新用戶：<b style="color:var(--accent)">' + (r.updatedUsers || 0) + '</b> 位<br>'
+        + '耗時：<b>' + elapsed + '</b> 秒'
+        + '</div></div>',
+        { html: true }
+      );
     } catch (err) {
+      ui.stopIndeterminate();
+      ui.setProgress(0, 100);
       ui.log('錯誤：' + (err.message || err));
       console.error('[_syncNoShowCount]', err);
       this.showToast('放鴿子重算失敗');
+      await this.appAlert(
+        '<div style="text-align:center">'
+        + '<div style="font-size:1.8rem;margin-bottom:.4rem">❌</div>'
+        + '<div style="font-weight:600;margin-bottom:.6rem;color:var(--danger)">放鴿子重算失敗</div>'
+        + '<div style="font-size:.78rem;color:var(--text-secondary);line-height:1.7;text-align:left;background:var(--bg-elevated);padding:.6rem .8rem;border-radius:6px">'
+        + escapeHTML(err.message || String(err))
+        + '</div></div>',
+        { html: true }
+      );
     } finally {
       this._dataSyncRunning = false;
     }

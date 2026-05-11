@@ -952,6 +952,8 @@ const App = {
       document.body.classList.add('modal-open');
       const ok = document.getElementById('app-confirm-ok');
       const cancel = document.getElementById('app-confirm-cancel');
+      cancel.style.display = '';
+      ok.textContent = '確定';
       const cleanup = (result) => {
         modal.classList.remove('open');
         document.body.classList.remove('modal-open');
@@ -961,6 +963,32 @@ const App = {
       };
       ok.addEventListener('click', () => cleanup(true), { once: true });
       cancel.addEventListener('click', () => cleanup(false), { once: true });
+    });
+  },
+
+  /** 自訂提示 Modal（單按鈕，僅顯示訊息，支援 HTML 內容） */
+  appAlert(msg, options = {}) {
+    return new Promise(resolve => {
+      const modal = document.getElementById('app-confirm-modal');
+      const msgEl = document.getElementById('app-confirm-msg');
+      if (options.html) msgEl.innerHTML = msg;
+      else msgEl.textContent = msg;
+      modal.classList.add('open');
+      document.body.classList.add('modal-open');
+      const ok = document.getElementById('app-confirm-ok');
+      const cancel = document.getElementById('app-confirm-cancel');
+      cancel.style.display = 'none';
+      ok.textContent = options.okText || '確定';
+      const cleanup = () => {
+        modal.classList.remove('open');
+        document.body.classList.remove('modal-open');
+        msgEl.innerHTML = '';
+        ok.replaceWith(ok.cloneNode(true));
+        cancel.style.display = '';
+        ok.textContent = '確定';
+        resolve(true);
+      };
+      ok.addEventListener('click', cleanup, { once: true });
     });
   },
 
