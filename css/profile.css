@@ -44,29 +44,25 @@
     transparent var(--att-fill-pct, 0%));
   background-repeat: no-repeat;
 }
-/* Capsule recent no-show bubble: 黑色實心對話泡泡（背景） + 白色鴿子 emoji 壓在中央 */
-/* z-index 低於色衣 badge（色衣 z-index=2/3），分隊活動會被色衣覆蓋 */
+/* Capsule recent no-show bubble: 紅底白鴿，右上偏外，z-index 低於色衣（色衣優先覆蓋） */
 .uc-recent-noshow {
   position: absolute;
   top: -8px;
   right: -3px;
   width: 18px;
   height: 18px;
-  background: url('../img/Chat-Bubble-Oval--Streamline-Plump.png') no-repeat center / contain;
+  border-radius: 50%;
+  background: #ef4444;
+  color: #fff;
+  font-size: .62rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   z-index: 1;
   pointer-events: none;
-}
-/* 鴿子 emoji 用 ::before 渲染，filter 強制變白（不影響 background） */
-/* brightness(0) 讓所有非透明 pixel → 黑，invert(1) 再反轉 → 純白，跨平台 emoji 都能變白 */
-.uc-recent-noshow::before {
-  content: '\1F54A';  /* 🕊 dove */
-  position: absolute;
-  top: 45%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: .58rem;
-  line-height: 1;
-  filter: brightness(0) invert(1);
+  box-shadow: 0 1px 2px rgba(0,0,0,.25);
+  filter: drop-shadow(0 0 1px rgba(0,0,0,.15));
 }
 /* Capsule LV badge */
 .user-capsule { position: relative; margin-top: 7px; }
