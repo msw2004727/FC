@@ -1,5 +1,18 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-11 — Phase 6 V6 第十三輪審計：D11 sentinel 設計邏輯瑕疵修正 [永久]
+- **背景**：前 12 輪審計都沒抓到的根本性瑕疵 — 用戶用 popstate spec 知識 + 直接看 app.js / history-route-flags.js / event-detail.js 程式碼,提出三個疑點全部驗證為真。
+- **核心瑕疵(D11 sentinel 設計)**：原 V6 設計「boot 完成後 pushState sentinel」**無法攔截第一次返回**。瀏覽器 spec 規定 `popstate event.state` 是「返回後到達 entry 的 state」,所以 boot 後 push 的 sentinel 是 active entry(E1),user 按返回時跳到 E0(state=null),sentinel branch 永遠不會觸發。
+- **修正**：
+  - D11 改為 **replaceState + pushState 雙寫**(業界 YouTube/IG/TikTok web 模式):先把當前 E0 改為 sentinel(URL 設 '/'),再 push E1 帶當前頁 state + 原 URL。user 按返回時 E0 變 active,event.state = sentinel ✓ 攔截成功。
+  - 觸發條件從「`history.length===1 || referrer===''`」限縮為「LIFF + PWA standalone」。一般瀏覽器外部進入(Google 搜尋、FB 分享、Twitter 等)按返回**走原生行為**,符合業界慣例,移除原 dark-pattern 風險。
+  - 新增 Commit A 第 3 項:`_setRouteUrl` hash fallback ([app.js:2184-2196](app.js:2184)) 必須帶完整 state(含 detail id),原本寫 `history.replaceState(null, ...)` 導致 LIFF 內所有 detail page entry state 為 null,Phase 6 popstate handler 拿不到 id 無法 reload detail data。
+- **教訓**：
+  - **popstate spec 容易誤解**:`event.state` 是返回目的地 state,不是當前 active state。設計 sentinel 機制時必須考慮這點,先「污染當前 entry 為 sentinel」再「pushState 把真實內容放到新 entry」。
+  - **referrer-based 攔截 = dark pattern**:只在「真正會關 app / 退到桌面」的環境(LIFF / PWA standalone)攔截返回鍵才符合業界慣例,一般瀏覽器尊重原生返回。
+  - **`history.replaceState(null, ...)`**:any path that doesn't set state explicitly will lose state in popstate flow。Phase 4/5 的 hash fallback 路徑漏寫 state,Phase 6 才暴露這個 latent bug。修法:在所有 history write site 都帶完整 state。
+  - **多輪自我審計 vs 用戶 spec 驗證**:前 12 輪審計只能找「描述不一致 / 範例不清楚 / 邊界遺漏」等表面瑕疵。**設計層級的根本邏輯瑕疵(違反瀏覽器 spec)需要用戶用 spec 知識 + 實際代碼交叉驗證**才能抓到。
+
 ### 2026-05-11 — Phase 6 計劃補強：V5 → V6 完整審計 [永久]
 - **背景**：Phase 5.5 完成後用戶要求做 Phase 6 動工前計劃完善度審計。V5 §8.9 只有 6 個簡短步驟 + 8 個 self-check，實際對照 navigation.js / app.js / history-route-flags.js / 4 個 detail handler 後發現 12 個風險點中只有 1 個(D6 page lock)被妥善處理，6 個未覆蓋（goBack push 隱性 bug、hashchange × popstate 雙觸發、Mini App 退出、state=null、LIFF 行為、global popstate race）。
 - **補強**：

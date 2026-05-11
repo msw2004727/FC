@@ -906,7 +906,7 @@ if (window._suppressNextHashchange) {
 
 ---
 
-## D11. Sentinel state push 防退出 Mini App
+## D11. Sentinel state push 防退出 Mini App(2026-05-11 第十三輪審計重大修正)
 
 ### 問題
 
@@ -918,75 +918,111 @@ if (window._suppressNextHashchange) {
 - 經驗值:LINE Mini App 退出後 7 天內回流率約 30% 左右(對比 SPA 內導航留存)
 - 多個社群分享活動連結時用戶滑進來 → 看一眼 → 返回的行為極常見
 
+### 瀏覽器 popstate spec 關鍵事實(直接影響 sentinel 設計)
+
+HTML5 / WHATWG spec 明確:**`popstate` event 的 `event.state` 是「返回後到達的 history entry」的 state**,不是「離開的 entry」的 state。
+
+走查情境:
+```
+E0: state=null (原始外部 entry,active)
+↓ pushState(sentinel)
+E1: state=sentinel (active)
+↓ user 按返回
+E0 變 active
+popstate fire → event.state = E0.state = null   ← 不是 sentinel!
+```
+
+**所以「先進入頁面再 pushState sentinel」的設計無法攔截第一次返回**,因為 sentinel 是「當前 active entry」而非「返回目的地」。
+
 ### 選項
 
-**選項 A:boot 完成後 always push sentinel**
+**選項 A:boot 完成後 always push sentinel(同前文)**
 
-```javascript
-history.pushState({ source: 'sportshub', sentinel: true }, '', location.href);
-```
+優點:所有情境都有保護;缺點:**完全不會生效**(瀏覽器返回時 event.state 不是 sentinel,sentinel 永遠不在「目的地 entry」)
 
-優點:
-- 所有情境都有保護,邏輯簡單
+**選項 B(原 V6 選法):只在 history.length===1 時 pushState sentinel**
 
-缺點:
-- 即使 history.length > 1(站內導航進來)也 push,污染 history stack
-- 用戶在站內按返回會多一個無意義 entry
-
-**選項 B:只在 `window.history.length === 1` 時 push(本決策採用,實作詳計劃書 §8.9.1)**
-
-```javascript
-// 概念範例;最終實作詳計劃書 §8.9.1 _maybePushBootSentinel(),
-// 含 referrer 雙重判定 + _bootSentinelPushed flag 防重複 push
-if (window.history.length === 1 && flags.popstateTakeover) {
-  history.pushState(
-    { source: 'sportshub', sentinel: true, fallbackPageId: 'page-home' },
-    '',
-    location.href
-  );
-}
-```
-
-優點:
-- 只在真正需要保護的情境介入
-- 不污染既有站內導航 history stack
-
-缺點:
-- `window.history.length` 在某些瀏覽器是不精確的(LIFF iOS WebView、PWA standalone、bfcache restore);最終實作補 `document.referrer` 雙重判定降低誤判,詳計劃書 §8.9.1
+優點:條件較精確;缺點:**同樣不會生效**(spec 問題,non-sentinel 的 E0 才是返回目的地)
 
 **選項 C:popstate handler 偵測 state=null 才補 push**
 
+優點:不依賴 pushState 順序;缺點:user 已感受到「按了返回但沒退出」的卡頓;若 handler 失敗 user 真的退出
+
+**選項 D(本決策修正後採用):雙寫 — `replaceState` 把 E0 改成 sentinel,再 `pushState` 把當前頁變 E1**
+
+```javascript
+// 概念範例;最終實作詳計劃書 §8.9.1 _maybePushBootSentinel()
+// 含完整環境判定 + _bootSentinelPushed flag 防重複
+//
+// 1. 先把當前 entry (E0) 的 state 改為 sentinel,URL 變為 home (避免按返回看到原 URL 卻被攔截)
+const currentSpaState = App._buildCurrentRouteState();  // 從 location 反推當前 page state
+history.replaceState(
+  { source: 'sportshub', sentinel: true, fallbackPageId: 'page-home' },
+  '',
+  '/'  // sentinel entry URL 設為 home
+);
+// 2. 再 push 一個新 entry (E1) 回到原本應該在的 URL + state
+history.pushState(currentSpaState, '', originalUrl);
+```
+
+結果 history stack:
+```
+E0: URL='/',           state=sentinel        (返回目的地)
+E1: URL='/events/abc', state=current page    (active,user 看到)
+```
+
+user 按返回 → E0 active → `popstate event.state = sentinel` ✓ 攔截成功
+
 優點:
-- 反應式,不需要預判
+- **真的會生效**(符合瀏覽器 popstate spec)
+- 邊界情境完整(連按 N 次返回都被 sentinel 攔截到 home,因 sentinel branch 內 re-push 維持狀態)
+- 業界 (YouTube / IG / TikTok mobile web) 採用同 pattern
 
 缺點:
-- 已感受到「按了返回但沒退出」的卡頓
-- 若 popstate handler 失敗或 race,使用者真的退出
+- 改寫 history 形狀(E0 URL 從 `/events/abc` 變 `/`),但這正是設計目標(返回應顯示 home,不顯示 detail)
+- 需要 `_buildCurrentRouteState()` helper 從 location 反推當前 SPA state
+- 必須在 SPA fully ready 後執行(否則 currentSpaState 不正確)
+
+### 觸發條件(原 V6 過寬,本次修正限縮)
+
+**原 V6**:`history.length===1 || referrer==='' || referrer 不同 origin` 都觸發 → **任何外部進站都被攔截返回鍵**(包含 Google search、FB 分享、Twitter、直接打字 URL),違反一般網站使用者習慣,接近 dark pattern。
+
+**修正後**:只在「**真正會關 app / 退到桌面**的環境」內觸發:
+
+```javascript
+function _shouldInstallSentinel() {
+  // 1. LIFF / LINE Mini App (退出 = 退回 LINE 訊息)
+  const isLiffInClient = !!(window.liff && typeof window.liff.isInClient === 'function' && window.liff.isInClient());
+  // 2. PWA standalone (退出 = 退回桌面 / app switcher)
+  const isStandalonePWA = !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+  return isLiffInClient || isStandalonePWA;
+}
+```
+
+**不再用 `document.referrer` 判斷**:外部來源在一般瀏覽器內按返回應該尊重原生行為(YouTube/IG/Twitter web 都這樣),不該攔截。
 
 ### 決策
 
-**選 B:`window.history.length === 1` 時 push sentinel,popstate handler 偵測 sentinel 後 navigate 到 fallback 並 re-push**
+**選 D + 限縮觸發條件**
 
-### Sentinel state 形狀
+### Sentinel state 形狀(不變)
 
 ```javascript
 { source: 'sportshub', sentinel: true, fallbackPageId: 'page-home' }
 ```
 
-### popstate handler 處理 sentinel
+### popstate handler 處理 sentinel(不變,但提示 sentinel 現在真的會生效)
 
 ```javascript
-// 完整邏輯詳計劃書 §8.9.1 popstate handler 整體骨架
-// 重點:
-// 1. 必須帶 { bypassPageLock: true } 才能在 detail 進站 10 秒內也能正常返回(D6)
-// 2. fallbackPageId 必須是 list/home page,不允許指向 detail page(防禦性驗證)
+// sentinel 是返回目的地 entry,event.state.sentinel === true 在「按第一次返回」就會 true
 if (event.state?.sentinel === true) {
   const requestedFallback = event.state.fallbackPageId || 'page-home';
   const isDetailPage = /-detail$/.test(requestedFallback);
-  const fallback = isDetailPage ? 'page-home' : requestedFallback;  // detail 不允許
+  const fallback = isDetailPage ? 'page-home' : requestedFallback;
   await this.showPage(fallback, { bypassPageLock: true });
-  if (seq !== App._popstateRequestSeq) return;  // D14 stale check
-  // 再 push 一次撐住下一次返回(pushState 本身不觸發 popstate / hashchange)
+  if (seq !== App._popstateRequestSeq) return;
+  // 連按返回的下一輪 sentinel(E0 active 變回 E_minus1 sentinel...)
+  // 重新 push 一個 sentinel 撐住下一次返回
   history.pushState({ ...event.state, fallbackPageId: fallback }, '', location.href);
   return;
 }
@@ -994,24 +1030,26 @@ if (event.state?.sentinel === true) {
 
 ### 理由
 
-1. 比 A 乾淨(不污染站內導航 history stack)
-2. 比 C 主動(預防,不等使用者試圖退出才反應)
+1. **選 D 真的會生效**:選項 A/B 都因瀏覽器 spec 不生效,選 D 是業界正確 pattern
+2. **觸發條件限縮**:符合一般瀏覽器使用者習慣,不被視為 dark pattern
 3. sentinel 在 popstate handler 內處理 fallback,與 D13 state=null 邏輯解耦但可協作
-4. Hook 點放在 boot 完成 + popstateTakeover=true 的 AND 條件下,避免 Phase 6 flag 關閉時介入
+4. 連按 N 次返回都被攔(每次走 sentinel branch 後 re-push)
 
 ### 影響到的階段
 
-- Phase 6 Commit B:boot 完成 hook 點(`App.init()` 結尾)新增 sentinel push
-- Phase 6 Commit B:popstate handler 偵測 sentinel 並重 push
-- Phase 6 Commit C:自我驗收涵蓋 LIFF 進站 + 一般瀏覽器直開兩種情境
+- Phase 6 Commit B:`_maybePushBootSentinel()` 雙寫實作(replaceState + pushState)+ `_shouldInstallSentinel()` 限縮觸發條件
+- Phase 6 Commit B:新增 `_buildCurrentRouteState()` helper(從 location 反推當前 page state)
+- Phase 6 Commit C:LIFF 五平台實機驗證「**按第一次返回**」就被攔住
 
-### 驗收
+### 驗收(本次修正後)
 
-- [ ] 從 LIFF 點 `/events/abc` 進站 → 按返回 → 顯示首頁,**不退出 Mini App**
-- [ ] 從一般瀏覽器 `/events/abc` 直開 → 按返回 → 顯示首頁,**不關閉 Tab**
-- [ ] 站內導航(history.length > 1)時 boot 不 push sentinel(透過 length 檢查)
-- [ ] sentinel state 在 popstate 後被 re-push,連按 3 次返回都不退出
-- [ ] flag `popstateTakeover=false` 時不 push sentinel,維持 Phase 5 行為
+- [ ] **LIFF 進 `/events/abc` 後按第一次返回**:顯示 home,不退出 Mini App(此項為核心修正驗收)
+- [ ] PWA standalone 進 `/events/abc` 後按第一次返回:顯示 home,不關閉 PWA
+- [ ] **一般瀏覽器(非 LIFF / 非 PWA)外部進來按返回**:**走原生返回行為**(不攔截),回到上一站(Google / FB / 等)
+- [ ] LIFF 站內導航(已不在 history.length===1)不再 install sentinel
+- [ ] sentinel state 在 popstate 後被 re-push,連按 3 次返回都不退出 LIFF
+- [ ] flag `popstateTakeover=false` 時 `_maybePushBootSentinel` 直接 early return,不動 history
+- [ ] LIFF iOS WebView edge-swipe back 與按返回鍵行為一致(都觸發 sentinel)
 
 ---
 
