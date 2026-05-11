@@ -1,5 +1,13 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-11 — Timeline 載入遮罩 Round 3：延遲 150ms + 不擋點擊 + 連點 refresh
+- **問題**：Round 2 修法部署後，用戶回報「有時候點了卡片沒有反應」。Round 2 把遮罩條件收緊到「event 不在快取且 cloud 未 ready」，導致**慢場景**（network slow / Firestore 拉 attendance 久）也不顯示遮罩 → 用戶以為「沒反應」。另外連點同一張卡時 `dataset.tlOpening === '1'` silent return，完全無視覺回饋。
+- **修復**：三管齊下
+  1. **CSS** [css/activity.css](css/activity.css)：`.tl-event-row.tl-pending` 移除 `pointer-events: none` — 遮罩只做視覺提示，不擋點擊（用戶建議方向）。
+  2. **JS** [js/modules/event/event-list-timeline.js](js/modules/event/event-list-timeline.js) `openTimelineEventDetail`：改成「延遲 150ms 才加遮罩」— 快場景（< 150ms 完成）不加遮罩無閃爍；慢場景（> 150ms 還沒完成）才出現遮罩給 feedback。
+  3. **JS** 連點處理：`tlOpening === '1'` 不再 silent return，改成「refresh 遮罩 + return」— 用戶第二次點同一張卡會立刻看到遮罩，知道仍在處理。
+- **教訓**：「載入遮罩 + 點擊鎖」是兩個獨立的 UX 機制，不該綁在同一個 class 上（原本 `tl-pending` 同時控制遮罩視覺和 `pointer-events: none`）。視覺提示應該獨立於互動鎖，避免「為了顯示遮罩而禁用點擊」、「為了不擋點擊而隱藏遮罩」的二難。延遲顯示 + 不擋點擊 + 連點 refresh 的三段式設計，每段各自負責一個職責。
+
 ### 2026-05-11 — Timeline 載入遮罩 Round 2：條件收緊到「event 不在快取」才顯示
 - **問題**：Round 1 修法（sync remove tl-pending）部署後，用戶在 LIFF 環境仍回報「點進去又退出卡片就被黑色遮罩遮住」。
 - **原因**：`shouldHint = this._shouldShowHomeEventLoadingHint()` 條件是看 `_cloudReady`。LIFF 內常見場景：events 已從 Phase 3 快取/IndexedDB 預先 load（用戶能看到卡片），但 `_cloudReady` 還沒 true → `shouldHint = true` → `_markTlCardPending` 加遮罩。Round 1 的 sync remove 雖然能清，但 finally 觸發前若用戶按返回，遮罩仍會殘留一個時間窗。

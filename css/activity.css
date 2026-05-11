@@ -382,7 +382,9 @@
   transform: scale(.98);
 }
 /* ─── Timeline Card Loading ─── */
-.tl-event-row.tl-pending { cursor: wait; pointer-events: none; }
+/* Round 3: 移除 pointer-events: none — 遮罩只做視覺提示，不阻擋點擊。
+   配合 openTimelineEventDetail 內部 tlOpening lock 防止重複觸發 showEventDetail。 */
+.tl-event-row.tl-pending { cursor: wait; }
 .tl-event-row.tl-pending::before {
   content: '';
   position: absolute;

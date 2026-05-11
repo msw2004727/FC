@@ -131,13 +131,22 @@ Object.assign(App, {
       return;
     }
 
-    if (targetCard && targetCard.dataset.tlOpening === '1') return;
-    // 事件已在快取（能渲染卡片代表 events 已 load）→ 點下去能立刻打開詳情頁，
-    // 不需顯示 loading 遮罩。避免「返回後遮罩殘留」UX bug（_doRenderActivityList
-    // 因 fp 短路跳過重繪 → 舊 DOM 上的 tl-pending 黑色遮罩被卡住）。
-    var shouldHint = !extEvent && this._shouldShowHomeEventLoadingHint();
+    // 連點同一張卡：第一次仍在處理 → 立刻刷新遮罩讓用戶看到「處理中」、return 避免重複觸發 showEventDetail
+    if (targetCard && targetCard.dataset.tlOpening === '1') {
+      if (targetCard) this._markTlCardPending(targetCard);
+      return;
+    }
     if (targetCard && targetCard.dataset) targetCard.dataset.tlOpening = '1';
-    if (shouldHint && targetCard) this._markTlCardPending(targetCard);
+
+    // Round 3：延遲 150ms 才加遮罩 — 快場景（< 150ms 完成）不加遮罩、無閃爍；
+    // 慢場景（> 150ms 還沒完成）才出現遮罩、給用戶 feedback。
+    // 配合 css/activity.css 移除 pointer-events: none — 遮罩出現時仍可點。
+    var self = this;
+    var hintTimer = targetCard ? setTimeout(function() {
+      if (targetCard.dataset && targetCard.dataset.tlOpening === '1') {
+        self._markTlCardPending(targetCard);
+      }
+    }, 150) : null;
 
     try {
       var result = await this.showEventDetail(safeEventId);
@@ -148,10 +157,11 @@ Object.assign(App, {
       console.error('[TimelineEventClick] open detail failed:', err);
       this.showToast('活動資料暫時無法開啟，請稍後再試');
     } finally {
-      this._clearTlCardPending(targetCard, shouldHint ? 650 : 0);
+      if (hintTimer) clearTimeout(hintTimer);
+      this._clearTlCardPending(targetCard, 0);
       if (targetCard && targetCard.dataset) {
         var tc = targetCard;
-        setTimeout(function() { delete tc.dataset.tlOpening; }, shouldHint ? 900 : 320);
+        setTimeout(function() { delete tc.dataset.tlOpening; }, 320);
       }
     }
   },
