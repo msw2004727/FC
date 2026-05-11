@@ -1,5 +1,19 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-11 — Phase 6 計劃補強：V5 → V6 完整審計 [永久]
+- **背景**：Phase 5.5 完成後用戶要求做 Phase 6 動工前計劃完善度審計。V5 §8.9 只有 6 個簡短步驟 + 8 個 self-check，實際對照 navigation.js / app.js / history-route-flags.js / 4 個 detail handler 後發現 12 個風險點中只有 1 個(D6 page lock)被妥善處理，6 個未覆蓋（goBack push 隱性 bug、hashchange × popstate 雙觸發、Mini App 退出、state=null、LIFF 行為、global popstate race）。
+- **補強**：
+  - `docs/history-api-dual-route-plan.md` §8.9 完全重寫為 V6，新增 §8.9.0 Pre-Phase 6 / §8.9.1 核心設計 / §8.9.2 三個 Commit 拆分 / §8.9.3 LIFF 五平台測試表 / §8.9.4 30 項驗收 / §8.9.5 回滾細節 / §8.9.6 工量重估 / §8.9.7 完善度評分；§0.45 新增 V5→V6 修正重點；§10.2.1 補 Phase 6 細節回滾；§12 工量表細分為 3 個 commit；§14.6 新增 Phase 6 動工前審計清單；§16.1 新增 Phase 6 動工建議；§A.4 新增 V5→V6 關鍵差異。
+  - `docs/history-route-decisions.md` 新增 D10-D14 五個 Phase 6 專屬決策（D10 hashchange dedupe / D11 sentinel state / D12 goBack 統合 / D13 state=null fallback / D14 global popstate counter），含「決策清單總覽」「決策狀態追蹤」表格、「Phase 6 動工前判定」、附錄 A.2 Phase 6 閱讀範圍。
+- **關鍵發現**：
+  - `goBack()` 已在每次返回時 push browser history（[navigation.js:953-957](js/core/navigation.js:953) `_setRouteUrl(prev)` 預設 push），Phase 6 啟用 popstate 後會變顯性 bug。V6 拆出 Commit A 獨立先修。
+  - 既有 hashchange listener（[app.js:3144](app.js:3144)）無 race protection、無 popstate dedupe，Phase 6 必須補。
+  - 全 repo 無既有 popstate listener，Phase 6 從零新增。
+  - 4 個 detail handler 有 per-detail race counter，但跨頁 popstate 需要 global counter（D14）。
+- **教訓**：
+  - 計劃書 §8.9 V5 對「最後一個 Phase」常見覆蓋不足現象 — V1-V5 一直把它擺到最後沒人細看，動工前必須單獨審計一輪。
+  - 寫計劃時若某個 Phase 寫得「比其他 Phase 短很多」，往往是還沒想清楚的訊號，不是「比較簡單」。
+
 ### 2026-05-11 — Phase 5.5 SEO 對齊：動態 canonical + sitemapindex
 - **問題**：Phase 5 已啟用 detail clean URL（`/events/{id}` 等），但 `index.html` 的 canonical / hreflang / og:url 寫死指向 `/`，且 Worker 對 detail SPA path 加 `X-Robots-Tag: noindex` 暫時擋住索引。等於 clean URL 能用但 Google 不認也不索引。
 - **修復**：

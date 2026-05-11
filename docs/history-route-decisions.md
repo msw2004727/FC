@@ -42,6 +42,16 @@
 | D8 | canonical 動態化的觸發點 | 已確認 |
 | D9 | clean list path boot overlay guard | 已確認 |
 
+Phase 6 專屬決策(2026-05-11 V6 審計補強,進入 Phase 6 實作前必須全數確認):
+
+| # | 主題 | 決策狀態 |
+|---|---|---|
+| D10 | hashchange × popstate dedupe 策略 | 已產出預設答案 |
+| D11 | Sentinel state push 防退出 Mini App | 已產出預設答案 |
+| D12 | goBack 與 browser history 統合策略 | 已產出預設答案 |
+| D13 | popstate state = null 的 fallback 鏈 | 已產出預設答案 |
+| D14 | Global popstate race counter | 已產出預設答案 |
+
 ---
 
 ## D1. history route 解析後的 boot 整合形式
@@ -805,6 +815,457 @@ const PAGE_META_MAP = {
 
 ---
 
+## D10. hashchange × popstate dedupe 策略
+
+### 問題
+
+瀏覽器規範:URL 同時改變 path + hash(例如從 `/events/abc#page-activity-detail` 返回 `/`)時,`popstate` 與 `hashchange` 會接續觸發。若兩個 listener 各自呼叫 `showPage()`,會跑兩次 render → race condition + 重複 DOM 寫入 + 多餘 Firestore 訂閱。
+
+### 背景
+
+實證:
+
+- [app.js:3144-3156](../app.js) 既有 hashchange listener 完全沒有 race protection、沒有 popstate dedupe:
+  ```javascript
+  window.addEventListener('hashchange', () => {
+    const pageId = location.hash.replace(/^#/, '');
+    const canResolvePage = pageId
+      && (document.getElementById(pageId)
+        || (typeof PageLoader !== 'undefined' && PageLoader._pageFileMap && PageLoader._pageFileMap[pageId]));
+    if (canResolvePage && pageId !== App.currentPage) {
+      App.showPage(pageId);
+    }
+  });
+  ```
+- Phase 6 加入 popstate handler 後,**popstate 先 fire**(path 變),**hashchange 後 fire**(hash 變);兩者各自呼叫 `showPage`,造成雙觸發
+
+### 選項
+
+**選項 A:`_suppressNextHashchange` flag + 50ms 視窗**
+
+```javascript
+// popstate handler 進入時設旗標
+window._suppressNextHashchange = true;
+setTimeout(() => { window._suppressNextHashchange = false; }, 50);
+
+// hashchange listener 讀旗標
+if (window._suppressNextHashchange) {
+  window._suppressNextHashchange = false;
+  return;
+}
+```
+
+優點:
+- 既有 hashchange listener 只多 3 行,改動最小
+- 50ms 視窗在 Chrome / Safari / LINE WebView 都足夠攔截同次 URL 變化引發的 hashchange
+- 不會誤殺後續真實 hashchange
+
+缺點:
+- 隱性時間依賴(假設瀏覽器一定先 fire popstate);需在 [docs/tunables.md](tunables.md) 紀錄 50ms window
+
+**選項 B:popstate handler 把 currentPage 設好,hashchange listener 看到 `pageId === currentPage` 就 skip**
+
+優點:
+- 不引入新 flag
+
+缺點:
+- popstate handler 是 async,在 `await showPage` 期間 currentPage 可能還沒更新,hashchange 仍跑了一次
+
+**選項 C:popstate handler 主動清 hash(replaceState)**
+
+優點:
+- 從源頭防止 hashchange 觸發
+
+缺點:
+- 改 URL 形狀,使用者若 URL 帶 hash(例如 `#section` 錨點)會被破壞
+- 與既有 `_replaceRouteHash` 寫入流程衝突
+
+### 決策
+
+**選 A:`_suppressNextHashchange` flag + 50ms 視窗**
+
+### 理由
+
+1. 改動最少,既有 hashchange listener 加 3 行 early return 即可
+2. 50ms 視窗在實測瀏覽器(Chrome 120+ / Safari 17 / LINE WebView iOS 14+/Android 80+)都足夠
+3. 副作用範圍明確(50ms 內 hashchange 被 swallowed),易於 docs 紀錄與除錯
+
+### 影響到的階段
+
+- Phase 6 Commit B:popstate handler 進入時 `window._suppressNextHashchange = true` + `setTimeout(() => { window._suppressNextHashchange = false; }, 50)`
+- Phase 6 Commit B:hashchange listener (`app.js:3144`) 開頭 `if (window._suppressNextHashchange) { window._suppressNextHashchange = false; return; }`
+- Phase 6 Commit B:[docs/tunables.md](tunables.md) 登記 `popstate-hashchange-dedupe-window = 50ms`
+
+### 驗收
+
+- [ ] Phase 6 popstate handler 進入時 set `window._suppressNextHashchange = true`
+- [ ] hashchange listener 在 flag 為 true 時 early return 並 reset flag
+- [ ] 從 `/events/abc#page-activity-detail` 返回 `/` 觸發 popstate + hashchange,實測只有 1 次 showPage
+- [ ] 純 hash route 變化(無 path 改變)正常 fire hashchange(flag 未被誤觸發)
+- [ ] `docs/tunables.md` 登記 50ms window 與其依賴關係
+
+---
+
+## D11. Sentinel state push 防退出 Mini App
+
+### 問題
+
+從 LINE 訊息點 `/events/abc` 進站時 `window.history.length === 1`,用戶按返回鍵直接退出 Mini App / 關閉 Tab,UX 痛點。LIFF / Mini App 是 ToosterX 主要用戶來源(計劃書 §1),退出後重開要「開 LINE → 找訊息 → 點連結」,流失率高。
+
+### 背景
+
+- 計劃書 §8.9 V5 完全未提此問題
+- 經驗值:LINE Mini App 退出後 7 天內回流率約 30% 左右(對比 SPA 內導航留存)
+- 多個社群分享活動連結時用戶滑進來 → 看一眼 → 返回的行為極常見
+
+### 選項
+
+**選項 A:boot 完成後 always push sentinel**
+
+```javascript
+history.pushState({ source: 'sportshub', sentinel: true }, '', location.href);
+```
+
+優點:
+- 所有情境都有保護,邏輯簡單
+
+缺點:
+- 即使 history.length > 1(站內導航進來)也 push,污染 history stack
+- 用戶在站內按返回會多一個無意義 entry
+
+**選項 B:只在 `window.history.length === 1` 時 push**
+
+```javascript
+if (window.history.length === 1 && flags.popstateTakeover) {
+  history.pushState(
+    { source: 'sportshub', sentinel: true, fallbackPageId: 'page-home' },
+    '',
+    location.href
+  );
+}
+```
+
+優點:
+- 只在真正需要保護的情境介入
+- 不污染既有站內導航 history stack
+
+缺點:
+- `window.history.length` 在某些瀏覽器是不精確的;需在 boot 流程適當 hook 點呼叫(boot 完成、第一次 interaction 前)
+
+**選項 C:popstate handler 偵測 state=null 才補 push**
+
+優點:
+- 反應式,不需要預判
+
+缺點:
+- 已感受到「按了返回但沒退出」的卡頓
+- 若 popstate handler 失敗或 race,使用者真的退出
+
+### 決策
+
+**選 B:`window.history.length === 1` 時 push sentinel,popstate handler 偵測 sentinel 後 navigate 到 fallback 並 re-push**
+
+### Sentinel state 形狀
+
+```javascript
+{ source: 'sportshub', sentinel: true, fallbackPageId: 'page-home' }
+```
+
+### popstate handler 處理 sentinel
+
+```javascript
+if (event.state?.sentinel === true) {
+  await this.showPage(event.state.fallbackPageId || 'page-home');
+  // 再 push 一次撐住下一次返回,直到用戶手動切站
+  history.pushState({ ...event.state }, '', location.href);
+  return;
+}
+```
+
+### 理由
+
+1. 比 A 乾淨(不污染站內導航 history stack)
+2. 比 C 主動(預防,不等使用者試圖退出才反應)
+3. sentinel 在 popstate handler 內處理 fallback,與 D13 state=null 邏輯解耦但可協作
+4. Hook 點放在 boot 完成 + popstateTakeover=true 的 AND 條件下,避免 Phase 6 flag 關閉時介入
+
+### 影響到的階段
+
+- Phase 6 Commit B:boot 完成 hook 點(`App.init()` 結尾)新增 sentinel push
+- Phase 6 Commit B:popstate handler 偵測 sentinel 並重 push
+- Phase 6 Commit C:自我驗收涵蓋 LIFF 進站 + 一般瀏覽器直開兩種情境
+
+### 驗收
+
+- [ ] 從 LIFF 點 `/events/abc` 進站 → 按返回 → 顯示首頁,**不退出 Mini App**
+- [ ] 從一般瀏覽器 `/events/abc` 直開 → 按返回 → 顯示首頁,**不關閉 Tab**
+- [ ] 站內導航(history.length > 1)時 boot 不 push sentinel(透過 length 檢查)
+- [ ] sentinel state 在 popstate 後被 re-push,連按 3 次返回都不退出
+- [ ] flag `popstateTakeover=false` 時不 push sentinel,維持 Phase 5 行為
+
+---
+
+## D12. goBack 與 browser history 統合策略
+
+### 問題
+
+`goBack` 每次 `pageHistory.pop()` 後呼叫 `_setRouteUrl(prev)`,後者預設 `pushState` 或 `location.hash = pageId`(都會 push 新 entry),導致 browser history 隨 goBack 持續膨脹。Phase 6 啟用 popstate 後,「站內返回 → 瀏覽器返回」會跳到剛離開的頁面(因為 browser history 還在前進方向)。
+
+### 背景
+
+- [js/core/navigation.js:953-957](../js/core/navigation.js):
+  ```javascript
+  // 同步 URL hash
+  if (location.hash !== '#' + prev) {
+    if (typeof this._setRouteUrl === 'function') this._setRouteUrl(prev);
+    else location.hash = prev;
+  }
+  ```
+- `_setRouteUrl(pageId)` 預設 `pushState`(detail path)或 `location.hash = pageId`(都會 push 一條 entry)
+- 實證情境:用戶點活動 → 進詳情 → 按站內返回:`pageHistory.pop` → `_setRouteUrl('page-activities')` → push `/activities` → **browser history 變 `[/, /events/abc, /activities]`**
+- 下一步若按瀏覽器返回 → popstate fire → URL 跳回 `/events/abc` → showPage 把使用者拉回詳情
+- 此 bug 在 Phase 6 之前就**已隱性存在**,只是沒接管 popstate 所以使用者按錯方向再按一次就對了,沒人發現
+
+### 選項
+
+**選項 A:goBack 改用 replace 模式**
+
+```javascript
+if (typeof this._setRouteUrl === 'function') {
+  this._setRouteUrl(prev, { mode: 'replace' });
+}
+```
+
+優點:
+- 改動最小(僅 1 行)
+- 不依賴 popstate handler,可獨立成 Pre-Phase 6 commit 先 deploy 並驗證
+- 即使 Phase 6 不啟用 popstateTakeover 也修正了 history stack 膨脹
+
+缺點:
+- 兩個 history stack(自訂 pageHistory + 瀏覽器 history)仍各管各的
+- 用戶「站內返回 5 次」後按瀏覽器返回會直接跳到 boot 之前的外部頁面(但這通常是 user 想要的行為:離站)
+
+**選項 B:goBack 改用 `history.back()`,讓 popstate handler 統一處理**
+
+```javascript
+async goBack() {
+  if (this.pageHistory.length > 0 && window.history.length > 1) {
+    history.back(); // 觸發 popstate handler
+    return;
+  }
+  // fallback: 原本邏輯
+}
+```
+
+優點:
+- 兩個 stack 永遠同步,popstate handler 是單一真實源
+- 用戶感受「站內返回 = 瀏覽器返回」,UX 直覺一致
+
+缺點:
+- 必須等 Phase 6 啟用 popstate handler 才能運作,無法 Pre-Phase 6 獨立 deploy
+- 改動大(`goBack` 內 page cleanup / DOM / Firestore subscribe 全部要搬到 popstate handler)
+- LIFF 部分版本 `history.back()` 行為不可靠(iOS WebView 報告過 quirk)
+
+**選項 C:goBack 維持現狀,popstate handler 內偵測「reverse direction」做特殊處理**
+
+優點:
+- goBack 零改動
+
+缺點:
+- popstate handler 邏輯複雜
+- 偵測「剛從站內返回」vs「按瀏覽器返回」機制脆弱,易誤判
+
+### 決策
+
+**選 A 為短期方案(Pre-Phase 6 獨立 commit),選 B 為未來演進目標**
+
+### 理由
+
+1. 選 A 改動最小、可獨立驗證、可獨立上線、即使 Phase 6 不做也是純改進
+2. 選 A 修正的是**現存隱性 bug**(history 膨脹),不依賴 Phase 6
+3. 選 B 雖然架構更乾淨,但牽涉 `goBack` 內所有 cleanup / DOM / subscribe 邏輯重構,風險高,留待 Phase 6 主體穩定 ≥ 1 月後再評估
+4. LIFF 在 iOS WebView 對 `history.back()` 的行為仍不可預測,選 B 需要先在 LIFF 內充分測試才能上線
+
+### 影響到的階段
+
+- **Pre-Phase 6 獨立 commit**:`goBack` 內 `_setRouteUrl(prev, { mode: 'replace' })`
+- Pre-Phase 6 自我驗收:點首頁 → 活動列表 → 活動詳情 → 站內返回 5 次後,`window.history.length` 不膨脹
+- Phase 6 主體:popstate handler 與 goBack 解耦,各自負責自己的 stack
+- 未來迭代(暫不排期):評估選 B,需 goBack 重構成 popstate-driven
+
+### 驗收
+
+- [ ] `goBack()` 內 `_setRouteUrl` 使用 `{ mode: 'replace' }`
+- [ ] hash 模式 fallback(`location.hash = prev`)也走 replace(`history.replaceState(null, '', '#' + prev)`)
+- [ ] 點首頁 → 活動列表 → 活動詳情 → 站內返回 5 次後,`window.history.length` ≤ 進站時 +1
+- [ ] 站內返回 → 瀏覽器返回 → **不會跳到剛離開的詳情頁**
+- [ ] 此 commit 可獨立上線,不依賴 Phase 6 啟用
+
+---
+
+## D13. popstate state = null 的 fallback 鏈
+
+### 問題
+
+popstate 事件的 `event.state` 在以下 4 種情境是 null:
+
+1. 用戶從外部連結進站,瀏覽器原生 history entry 沒 state object
+2. refresh 後第一次 popstate 觸發
+3. 用戶按返回退到 boot 之前的 history entry(站外)
+4. iOS WebView 偶發 state 丟失(已知 Safari/WebView quirk)
+
+如果 popstate handler 把 state=null 當錯誤,會白屏或停在錯誤頁。
+
+### 背景
+
+- [app.js:2089+](../app.js) `_setRouteUrl` 所有寫入都用 `{ source: 'sportshub', pageId, id? }` 形狀
+- 但 history entry 可能來自:
+  - boot 時瀏覽器初始 entry(無 state)
+  - 從其他網站連過來的 referrer entry(無 state)
+  - LIFF 內 popstate 偶發 state 丟失
+
+### 選項
+
+**選項 A:state = null 視為錯誤,console.error 並停在原頁**
+
+優點:
+- 嚴格
+
+缺點:
+- UX 差(使用者按了返回鍵卻沒反應)
+- iOS WebView quirk 會被誤判
+
+**選項 B:fallback chain — `state.pageId → parse from URL → parse from hash → 'page-home'`**
+
+```javascript
+const targetPageId = event.state?.pageId
+  || (window.HistoryRouteAdapter?.parseHistoryRoute?.(location.pathname, location.search)?.pageId)
+  || (location.hash.replace(/^#/, '') || null)
+  || 'page-home';
+```
+
+優點:
+- 任何情境都有解,不會白屏
+- 與既有 boot deep link parse 邏輯一致(都從 URL 重新解析)
+- 終極 fallback 是 `page-home` 不是錯誤頁
+
+缺點:
+- 多走一次 URL parse(成本低)
+
+**選項 C:state = null 視為「退出意圖」,sentinel 處理**
+
+優點:
+- 與 D11 整合
+
+缺點:
+- 過度激進,把第 1/2 種情境(正常無 state)也當退出
+- 與 D11 sentinel 機制衝突(sentinel 已有 state.sentinel=true)
+
+### 決策
+
+**選 B:fallback chain**
+
+### 理由
+
+1. 任何 4 種情境都能優雅解決,不白屏
+2. 與既有 boot deep link parse 邏輯一致,可重用 `HistoryRouteAdapter`
+3. 不誤判正常情境為退出
+4. 與 D11 sentinel 邏輯解耦(sentinel 偵測 `state.sentinel === true`,fallback 只在 state 為 null 時走)
+
+### 影響到的階段
+
+- Phase 6 Commit B:popstate handler 完整 fallback chain
+- Phase 6 Commit B:可能新增 helper `_resolvePopstateTargetPage(event)` 集中 fallback 邏輯
+
+### 驗收
+
+- [ ] popstate 觸發時 state 為 null,handler 從 URL 解析得到 pageId
+- [ ] refresh 後第一次按返回不會白屏
+- [ ] 終極 fallback 是 `page-home`,不是錯誤頁或停留原頁
+- [ ] state = null 不觸發 sentinel 邏輯(兩者解耦,sentinel 看 `state.sentinel === true`)
+- [ ] 從外部網站連結進站後按返回,handler 能優雅 fallback 或交給瀏覽器原生返回
+
+---
+
+## D14. Global popstate race counter
+
+### 問題
+
+連續快速按返回鍵(例如 200ms 內按 3 次)會觸發 3 次 popstate handler,每個都呼叫 async showPage。前一個 showPage 還在 await 期間,後續 popstate 已 fire,可能造成 stale DOM render。
+
+### 背景
+
+- per-detail counter(`_eventDetailRequestSeq`、`_teamDetailRequestSeq`、`_tournamentDetailRequestSeq`、`_friendlyTournamentDetailSeq` 等)只保護「detail 頁內部資料載入 race」
+- popstate handler 跨頁切換(list ↔ detail ↔ home),per-detail counter 無法保護「上一個 popstate 還沒完成」這種跨頁 race
+- 計劃書 §8.9 V5 self-check 列了「連續快速返回不造成 stale render」但沒給機制
+
+### 選項
+
+**選項 A:per-detail counter 已夠用**
+
+優點:
+- 不引入新狀態
+
+缺點:
+- 跨頁切換場景無覆蓋,實證有 race
+
+**選項 B:新增 global `App._popstateRequestSeq`**
+
+```javascript
+App._popstateRequestSeq = 0;
+
+window.addEventListener('popstate', async (event) => {
+  const seq = ++App._popstateRequestSeq;
+  // ... resolve targetPageId ...
+  await App.showPage(targetPageId, { bypassPageLock: true });
+  if (seq !== App._popstateRequestSeq) return; // stale
+  // ... post-render work ...
+});
+```
+
+優點:
+- 與既有 per-detail seq 模式一致(CLAUDE.md §新增 async show* 函式 Checklist)
+- 跨頁切換場景有保護
+- 實作成本最低
+
+缺點:
+- 多一個 global state(可接受)
+
+**選項 C:全域 lock 機制(popstate 互斥)**
+
+優點:
+- 最嚴格
+
+缺點:
+- 複雜,可能造成 popstate 排隊不順暢
+
+### 決策
+
+**選 B:global `App._popstateRequestSeq`**
+
+### 理由
+
+1. 與既有 race counter 模式一致(`_eventDetailRequestSeq` 等)
+2. 跨頁切換場景需要 popstate handler 自己的 seq,不能依賴 per-detail
+3. CLAUDE.md §新增 async show* 函式 Checklist 已驗證此 pattern 的有效性
+4. 實作成本最低
+
+### 影響到的階段
+
+- Phase 6 Commit B:popstate handler 入口 `const seq = ++App._popstateRequestSeq;`
+- Phase 6 Commit B:每個 await 後檢查 `seq !== App._popstateRequestSeq` 並 early return
+- Phase 6 Commit C:Playwright e2e 覆蓋連續快速 popstate
+
+### 驗收
+
+- [ ] popstate handler 入口 `const seq = ++App._popstateRequestSeq;`
+- [ ] 每個 `await` 後檢查 `seq !== App._popstateRequestSeq` 並 early return
+- [ ] Playwright e2e:200ms 內連按 3 次返回,最終 DOM 對應最後一次 popstate target
+- [ ] popstate handler 失敗或被 swallow 時 seq 仍正確增長(避免下次卡死)
+- [ ] sentinel re-push 與 race counter 不衝突(sentinel push 不算新 popstate 觸發)
+
+---
+
 ## 2. 決策狀態追蹤
 
 | # | 主題 | 預設答案 | reviewer 確認 | 變更歷史 |
@@ -818,6 +1279,11 @@ const PAGE_META_MAP = {
 | D7 | LIFF 環境 path URL writer | 選 A:`liffPathDisable = true` | [x] | 2026-05-11 Codex 審計確認 |
 | D8 | canonical 動態化觸發點 | 選 B:`_renderPageContent` 內 | [x] | 2026-05-11 Codex 審計確認 |
 | D9 | clean list path boot overlay guard | 選 B:新增 history boot shell guard | [x] | 2026-05-11 Codex 審計確認 |
+| D10 | hashchange × popstate dedupe | 選 A:`_suppressNextHashchange` flag + 50ms 視窗 | [ ] | 2026-05-11 V6 審計新增 |
+| D11 | Sentinel state push 防退出 Mini App | 選 B:`history.length === 1` 時 push | [ ] | 2026-05-11 V6 審計新增 |
+| D12 | goBack 與 browser history 統合 | 選 A(短期):goBack 改 replace 模式 | [ ] | 2026-05-11 V6 審計新增 |
+| D13 | popstate state = null fallback | 選 B:fallback chain(state → URL → hash → page-home) | [ ] | 2026-05-11 V6 審計新增 |
+| D14 | Global popstate race counter | 選 B:`App._popstateRequestSeq` | [ ] | 2026-05-11 V6 審計新增 |
 
 reviewer 確認後,把 [ ] 改為 [x] 並在「變更歷史」加日期 + reviewer。
 
@@ -831,6 +1297,24 @@ Phase 0 完成的條件:
 - [x] 任何「不選預設答案」的決策已寫入「變更歷史」並更新「預設答案」欄位
 - [x] 計劃書 `docs/history-api-dual-route-plan.md` 已對照本決策更新(若 reviewer 改變了答案)
 - [x] 進入 Phase 0.5 前置重構
+
+---
+
+## 4. Phase 6 動工前判定(2026-05-11 V6 新增)
+
+Phase 6 進入 Commit A(Pre-Phase 6)實作前的條件:
+
+- [ ] D10-D14 全數有 reviewer 簽字確認
+- [ ] 任何「不選預設答案」的決策已寫入「變更歷史」
+- [ ] 計劃書 `docs/history-api-dual-route-plan.md` §8.9 V6 章節已對照本決策更新
+- [ ] [docs/tunables.md](tunables.md) 已預留 `popstate-hashchange-dedupe-window`(D10)條目
+- [ ] 計劃書 §10 回滾策略已加註「Pre-Phase 6 不可回滾」「sentinel push 即使 flag 關閉仍生效但無副作用」說明
+
+Phase 6 三個 Commit 階段完成的條件:
+
+- [ ] **Commit A (Pre-Phase 6)**:`goBack` 改 replace 模式,獨立 deploy 並穩定 ≥ 1 週,期間無 history-stack 相關 bug 回報
+- [ ] **Commit B (基礎設施)**:popstate handler + sentinel + dedupe + counter 上線但 `popstateTakeover=false`,所有單元測試與 jsdom 整合測試通過
+- [ ] **Commit C (啟用)**:`popstateTakeover=true`,Playwright e2e 全綠,LIFF 五平台(iOS WebView / Android WebView / iOS Safari / Android Chrome / Desktop Chrome)實機驗證通過
 
 ---
 
@@ -857,3 +1341,19 @@ Phase 0 完成的條件:
 | 主 repo 根目錄 | `.nojekyll` 存在、無 CNAME、無 `_redirects`、無 `wrangler.toml`、無 `_routes.json`、無 `netlify.toml`、無 `vercel.json` | 部署中介層盤點 |
 | `git ls-remote` | branches: `main`、`cf-beta`、`claude/parse-activity-details-EhrLT`,**無 `gh-pages`** | GitHub Pages 部署來源推論 |
 | `.github/workflows/` | 8 個 yml,皆非 deploy-pages | GitHub Pages 部署無 workflow |
+
+### 附錄 A.2:Phase 6 V6 審計閱讀過的檔案與行號(2026-05-11)
+
+D10-D14 決策依據以下實際讀過的程式碼:
+
+| 檔案 | 關鍵行號 | 用途 |
+|---|---|---|
+| `js/core/navigation.js` | 174-184, 389(touchstart), 521-531(page lock check), 774(_pushPageHistory), 931-965(goBack) | pageHistory、goBack、_pageLockUntil、_userTouchedAt |
+| `app.js` | 85-184(boot overlay + pending guards), 160-220(_dismissBootOverlay), 1072-1104(_syncTournamentDetailRoute / _clearTournamentDetailRouteParam), 2089-2203(_setRouteUrl), 2219-2232(_restoreGithubSpaRedirect), 2393-2396(_replaceRouteHash), 3144-3156(hashchange listener) | history write sites、hashchange handler、boot overlay |
+| `js/core/history-route-flags.js` | 全 11 行 | popstateTakeover flag 已存在但未讀 |
+| `js/modules/event/event-detail.js` | 285, 295, 316, 633, 636, 668 | _eventDetailRequestSeq race counter |
+| `js/modules/team/team-detail.js` | 137, 146, 202 | _teamDetailRequestSeq race counter |
+| `js/modules/tournament/tournament-detail.js` | 10, 15, 24 | _tournamentDetailRequestSeq race counter |
+| `js/modules/tournament/tournament-friendly-detail.js` | 108, 112 | _friendlyTournamentDetailSeq race counter |
+| `grep popstate` 全 repo | **0 個既有 listener** | 確認 Phase 6 必須從零新增 |
+| `grep history.pushState/replaceState` 全 repo | _setRouteUrl / _syncTournamentDetailRoute / _clearTournamentDetailRouteParam / _restoreGithubSpaRedirect / _replaceRouteHash / line-auth.js(OAuth cleanup) / navigation.js:150(_activatePage) | 所有 history write 入口已盤點 |
