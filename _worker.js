@@ -98,7 +98,16 @@ function getSpaRouteKind(pathname) {
 
 async function fetchAsset(request, env) {
   if (env && env.ASSETS && typeof env.ASSETS.fetch === "function") {
-    return env.ASSETS.fetch(request);
+    const incoming = new URL(request.url);
+    const assetUrl = new URL("https://assets.local/");
+    assetUrl.pathname = incoming.pathname === "/" ? "/index.html" : incoming.pathname;
+    assetUrl.search = "";
+    const assetRequest = new Request(assetUrl.toString(), {
+      method: request.method,
+      headers: request.headers,
+      redirect: "follow",
+    });
+    return env.ASSETS.fetch(assetRequest);
   }
   return fetch(request);
 }

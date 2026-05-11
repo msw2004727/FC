@@ -16,6 +16,9 @@ describe('history route hosting fallback contract', () => {
     expect(source).toContain('LIST_SPA_PATHS');
     expect(source).toContain('DETAIL_SPA_ROOTS');
     expect(source).toContain('X-Robots-Tag", "noindex, nofollow"');
+    expect(source).toContain('new URL("https://assets.local/")');
+    expect(source).toContain('assetUrl.pathname = incoming.pathname === "/" ? "/index.html" : incoming.pathname');
+    expect(source).toContain('assetUrl.search = ""');
   });
 
   test('_routes.json includes first-round clean paths and keeps users path out', () => {
