@@ -13,7 +13,7 @@ const LineAuth = {
   _profileCacheMaxAgeMs: 30 * 24 * 60 * 60 * 1000,
 
   _getBaseUrl() {
-    return window.location.origin + window.location.pathname;
+    return window.location.origin + '/';
   },
 
   _cleanUrl() {
@@ -431,13 +431,10 @@ const LineAuth = {
     }
     // v7 R3.4：login 時重設 _pendingStartTime（避免進 APP 30s 後按報名觸發 isPendingLogin 誤判）
     this._pendingStartTime = Date.now();
-    // 只在有 deep link 參數時才帶 redirectUri，否則讓 SDK 使用 Endpoint URL（外部 Safari 相容）
-    const base = this._getBaseUrl();
-    const current = new URL(window.location.href);
-    const url = new URL(base);
-    ['event', 'team', 'tournament', 'profile'].forEach(key => {
-      const val = current.searchParams.get(key);
-      if (val) url.searchParams.set(key, val);
+    const base = new URL(this._getBaseUrl()).toString();
+    const url = new URL(window.location.href);
+    ['code', 'state', 'liffClientId', 'liffRedirectUri', 'error', 'error_description'].forEach(key => {
+      url.searchParams.delete(key);
     });
     const redirectUri = url.toString();
     if (redirectUri === base) {

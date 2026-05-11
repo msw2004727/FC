@@ -136,7 +136,8 @@ Object.assign(App, {
     }
 
     if (!options.suppressHashSync && location.hash !== '#' + pageId) {
-      location.hash = pageId;
+      if (typeof this._setRouteUrl === 'function') this._setRouteUrl(pageId, options);
+      else location.hash = pageId;
     }
 
     // 2026-04-25：離開臨時參與報表頁時清掉 ?rid=、避免 refresh 又被拉回
@@ -718,7 +719,10 @@ Object.assign(App, {
     this._pushPageHistory(pageId, options);
     const activated = this._activatePage(pageId, options);
     if (activated) {
-      if (!options.suppressHashSync && location.hash !== '#' + pageId) location.hash = pageId;
+      if (!options.suppressHashSync && location.hash !== '#' + pageId) {
+        if (typeof this._setRouteUrl === 'function') this._setRouteUrl(pageId, options);
+        else location.hash = pageId;
+      }
       return { ok: true, pageId };
     }
     return { ok: false, reason: 'missing_target' };
@@ -942,7 +946,10 @@ Object.assign(App, {
         FirebaseService.finalizePageScopedRealtimeForPage(prev);
       }
       // 同步 URL hash
-      if (location.hash !== '#' + prev) location.hash = prev;
+      if (location.hash !== '#' + prev) {
+        if (typeof this._setRouteUrl === 'function') this._setRouteUrl(prev);
+        else location.hash = prev;
+      }
       this._syncBottomTabForPage?.(prev);
       if (prev !== 'page-tournament-detail') {
         this._clearTournamentDetailRouteParam?.();

@@ -968,6 +968,15 @@ UID 健康檢查目前會發現：
 
 - 本文件的模組表
 - `docs/structure-guide.md`
+
+## 2026-05-11 History API Dual Route Phase 0-3
+
+- 新增 `js/core/route-flags.js` 作為 History API 雙軌升級的開關中心。第一輪只啟用讀取解析與 boot 入口轉譯,不啟用 URL writer 全面接管、popstate takeover 或 `/users/{uid}`。
+- 新增 `js/core/history-route-adapter.js` 作為純解析層。它只把 `/activities`、`/teams`、`/tournaments`、`/profile`、`/events/{id}`、`/teams/{id}`、`/tournaments/{id}` 解析成既有 page/deep-link intent,不碰 DOM、Firebase 或 App 狀態。
+- `app.js` 只在 boot 階段把 clean URL 轉回既有 `_pendingDeepEventId` / `_pendingDeepTeamId` / `_pendingDeepTournamentId` 或 list page shell,因此原本 `#page-xxx`、`?event=xxx`、`?team=xxx`、`?tournament=xxx` 還是保留為主路由。
+- `_worker.js`、`_routes.json`、`_headers` 組成 Cloudflare Pages clean URL fallback。OG share routes 仍優先處理;第一輪 clean detail path 會回 `index.html` 並加 `X-Robots-Tag: noindex, nofollow`,等 Phase 5.5 動態 canonical/sitemap 完成後再解除。
+- `404.html` 只作 GitHub Pages 備援,把安全的 clean route 轉回 `/?_spa_redirect=...`;正式站由 Worker 回 200。
+- `sw.js` 對 clean SPA navigation 只快取 `/index.html`,避免每個 `/events/{id}` 都形成一份 HTML cache key。
 - `CLAUDE.md` 中的主規則或提醒
 - 若影響載入：`script-loader.js` 與 `source-drift` / `script-deps` 測試
 ## 2026-05-05 活動權限補充

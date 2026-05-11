@@ -4,6 +4,9 @@ const OG_FUNCTION_ORIGIN = "https://asia-east1-fc-football-6c8dc.cloudfunctions.
 const TEAM_SHARE_OG_PATH = "/teamShareOg";
 const EVENT_SHARE_OG_PATH = "/eventShareOg";
 const EDGE_CACHE_TTL = 300; // 5 minutes
+const LIST_SPA_PATHS = new Set(["/activities", "/teams", "/tournaments", "/profile"]);
+const DETAIL_SPA_ROOTS = new Set(["events", "teams", "tournaments"]);
+const SAFE_SEGMENT_RE = /^[A-Za-z0-9_-]{3,80}$/;
 
 function isTeamSharePath(pathname) {
   return pathname === TEAM_SHARE_PATH || pathname.startsWith(`${TEAM_SHARE_PATH}/`);
@@ -67,6 +70,65 @@ async function handleOgShare(request, buildUrlFn) {
   return new Response(upstream.body, upstream);
 }
 
+function stripTrailingSlash(pathname) {
+  if (!pathname || pathname === "/") return "/";
+  return pathname.replace(/\/+$/, "") || "/";
+}
+
+function isSafeRouteSegment(segment) {
+  if (!segment || segment === "." || segment === "..") return false;
+  if (/%2f|%5c/i.test(segment)) return false;
+  try {
+    const decoded = decodeURIComponent(segment);
+    if (decoded.includes("/") || decoded.includes("\\")) return false;
+    return SAFE_SEGMENT_RE.test(decoded);
+  } catch (_) {
+    return false;
+  }
+}
+
+function getSpaRouteKind(pathname) {
+  const path = stripTrailingSlash(pathname);
+  if (LIST_SPA_PATHS.has(path)) return "list";
+  const segments = path.split("/").filter(Boolean);
+  if (segments.length !== 2) return "";
+  if (!DETAIL_SPA_ROOTS.has(segments[0])) return "";
+  return isSafeRouteSegment(segments[1]) ? "detail" : "";
+}
+
+async function fetchAsset(request, env) {
+  if (env && env.ASSETS && typeof env.ASSETS.fetch === "function") {
+    return env.ASSETS.fetch(request);
+  }
+  return fetch(request);
+}
+
+async function handleSpaFallback(request, env, routeKind) {
+  if (!["GET", "HEAD"].includes(request.method)) {
+    return new Response("Method Not Allowed", {
+      status: 405,
+      headers: { "Allow": "GET, HEAD" },
+    });
+  }
+
+  const indexUrl = new URL(request.url);
+  indexUrl.pathname = "/index.html";
+  indexUrl.search = "";
+  indexUrl.hash = "";
+  const indexRequest = new Request(indexUrl.toString(), {
+    method: request.method,
+    headers: request.headers,
+    redirect: "follow",
+  });
+  const upstream = await fetchAsset(indexRequest, env);
+  const response = new Response(upstream.body, upstream);
+  response.headers.set("Cache-Control", "public, max-age=0, must-revalidate");
+  if (routeKind === "detail") {
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  }
+  return response;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -77,9 +139,10 @@ export default {
       return handleOgShare(request, buildEventShareOgUrl);
     }
 
-    if (env && env.ASSETS && typeof env.ASSETS.fetch === "function") {
-      return env.ASSETS.fetch(request);
+    const spaRouteKind = getSpaRouteKind(url.pathname);
+    if (spaRouteKind) {
+      return handleSpaFallback(request, env, spaRouteKind);
     }
-    return fetch(request);
+    return fetchAsset(request, env);
   },
 };

@@ -18,6 +18,30 @@
 /
   Cache-Control: public, max-age=0, must-revalidate
 
+/activities
+  Cache-Control: public, max-age=0, must-revalidate
+
+/teams
+  Cache-Control: public, max-age=0, must-revalidate
+
+/tournaments
+  Cache-Control: public, max-age=0, must-revalidate
+
+/profile
+  Cache-Control: public, max-age=0, must-revalidate
+
+/events/*
+  Cache-Control: public, max-age=0, must-revalidate
+  X-Robots-Tag: noindex, nofollow
+
+/teams/*
+  Cache-Control: public, max-age=0, must-revalidate
+  X-Robots-Tag: noindex, nofollow
+
+/tournaments/*
+  Cache-Control: public, max-age=0, must-revalidate
+  X-Robots-Tag: noindex, nofollow
+
 /game-lab.html
   Cache-Control: public, max-age=0, must-revalidate
   X-Robots-Tag: noindex, nofollow, noarchive

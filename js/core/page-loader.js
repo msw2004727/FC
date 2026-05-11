@@ -139,6 +139,12 @@ const PageLoader = {
     } catch (_) {}
 
     try {
+      const historyPage = String((typeof App !== 'undefined' && App._bootHistoryTargetPageId) || window._bootHistoryTargetPageId || '').trim();
+      if (historyPage && /^page-[\w-]+$/.test(historyPage)) {
+        const historyFile = this._pageFileMap[historyPage];
+        if (this._bootPages.includes(historyFile)) return historyFile;
+      }
+
       const hashPage = (location.hash || '').replace(/^#/, '').trim();
       if (!hashPage || hashPage === 'page-home' || !/^page-[\w-]+$/.test(hashPage)) return null;
       const resolvedHash = (typeof App !== 'undefined' && typeof App._resolveBootPageId === 'function')
@@ -173,6 +179,9 @@ const PageLoader = {
   _keepBootHashTargetActive() {
     if (typeof App !== 'undefined' && typeof App._activateBootHashShell === 'function') {
       try { App._activateBootHashShell(); } catch (_) {}
+    }
+    if (typeof App !== 'undefined' && typeof App._activateBootHistoryShell === 'function') {
+      try { App._activateBootHistoryShell(); } catch (_) {}
     }
   },
 

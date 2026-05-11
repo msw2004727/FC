@@ -298,6 +298,14 @@
 - `js/modules/event/event-manage*.js`、`js/modules/scan/*`：自己的活動管理、掃碼、手動簽到、候補與委託人操作改走細分 capability。
 - `firestore.rules`：`roleActivityCapabilities/{roleId}` 只能 super_admin 寫入；一般 user 建立/編輯活動與現場操作皆有 owner/delegate + capability 檢查。
 - `functions/index.js`：Admin SDK callable 不依賴 Firestore Rules，需同步讀取 `roleActivityCapabilities` 檢查 owner/delegate 現場操作。
+
+## 2026-05-11 History API 雙軌入口結構補充
+
+- 第一輪新增的是「網址入口轉譯層」,不是重寫頁面。使用者可開 `/activities`、`/teams`、`/tournaments`、`/profile` 以及 `/events/{id}`、`/teams/{id}`、`/tournaments/{id}`,系統會轉回既有活動、俱樂部、賽事頁面流程。
+- 舊網址仍保留:`#page-xxx`、`?event=xxx`、`?team=xxx`、`?tournament=xxx` 都繼續有效。LINE Mini App 分享連結本輪不改。
+- 新增的核心檔案為 `js/core/route-flags.js` 與 `js/core/history-route-adapter.js`;前者控管階段開關,後者只做安全解析。
+- 部署入口由 `_worker.js`、`_routes.json`、`_headers` 與 `404.html` 共同支援。Cloudflare 正式站走 Worker,GitHub Pages 走 404 備援。
+- Service Worker 對 clean URL 不建立每個活動/俱樂部/賽事獨立 HTML 快取,只歸一到 `/index.html`,避免 cache 過度膨脹。
 ## 目前暫停功能（2026-05-09）
 
 - 放鴿子功能以 feature flag 軟關閉，主要開關為前端 `js/config.js` 的 `NO_SHOW_FEATURE_ENABLED` 與後端 `functions/index.js` 的同名常數。

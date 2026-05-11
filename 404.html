@@ -7,6 +7,21 @@
   <title>找不到頁面 404 — ToosterX</title>
   <meta name="description" content="找不到你想要的頁面。返回 ToosterX 首頁繼續瀏覽運動活動。">
   <link rel="icon" href="/assets/icons/icon-192x192.png" type="image/png">
+  <script>
+    (function() {
+      try {
+        var path = location.pathname || '/';
+        var safeSegment = '[A-Za-z0-9_-]{3,80}';
+        var spaRoute = new RegExp('^/(activities|teams|tournaments|profile)/?$').test(path)
+          || new RegExp('^/(events|teams|tournaments)/' + safeSegment + '/?$').test(path);
+        if (!spaRoute) return;
+        var target = path.replace(/\/+$/, '') || '/';
+        target += location.search || '';
+        target += location.hash || '';
+        location.replace('/?_spa_redirect=' + encodeURIComponent(target));
+      } catch (_) {}
+    })();
+  </script>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
     body{

@@ -6,7 +6,7 @@
      - Firebase Storage 圖片 → stale-while-revalidate（獨立快取）
    ================================================ */
 
-const CACHE_NAME       = 'sporthub-0.20260510b';
+const CACHE_NAME       = 'sporthub-0.20260511';
 const IMAGE_CACHE_NAME = 'sporthub-images-v2';
 const MAX_IMAGE_CACHE  = 150;                         // 最多快取 150 張圖片
 const MAX_IMAGE_AGE_MS = 7 * 24 * 60 * 60 * 1000;    // 7 天過期
@@ -28,6 +28,8 @@ const STATIC_ASSETS = [
   './js/config.js',
   './js/i18n.js',
   './app.js',
+  './js/core/route-flags.js',
+  './js/core/history-route-adapter.js',
   './js/core/page-loader.js',
   './js/core/navigation.js',
   './js/core/theme.js',
@@ -43,6 +45,33 @@ const STATIC_ASSETS = [
   './img/Thread-Block-Logo--Streamline-Ultimate.png',
   './img/Artificial-Intelligence-Brain--Streamline-Plump-Gradient.png',
 ];
+
+const SPA_LIST_PATHS = new Set(['/activities', '/teams', '/tournaments', '/profile']);
+const SPA_DETAIL_ROOTS = new Set(['events', 'teams', 'tournaments']);
+const SPA_SAFE_SEGMENT_RE = /^[A-Za-z0-9_-]{3,80}$/;
+
+function stripTrailingSlash(pathname) {
+  if (!pathname || pathname === '/') return '/';
+  return pathname.replace(/\/+$/, '') || '/';
+}
+
+function isSpaNavigationPath(pathname) {
+  const path = stripTrailingSlash(pathname);
+  if (SPA_LIST_PATHS.has(path)) return true;
+  const segments = path.split('/').filter(Boolean);
+  if (segments.length !== 2 || !SPA_DETAIL_ROOTS.has(segments[0])) return false;
+  if (/%2f|%5c/i.test(segments[1])) return false;
+  try {
+    const decoded = decodeURIComponent(segments[1]);
+    return SPA_SAFE_SEGMENT_RE.test(decoded) && !decoded.includes('/') && !decoded.includes('\\');
+  } catch (_) {
+    return false;
+  }
+}
+
+function getIndexCacheRequest(url) {
+  return new Request(new URL('/index.html', url.origin).toString());
+}
 
 // ─── 圖片快取工具函式 ───
 
@@ -165,14 +194,21 @@ self.addEventListener('fetch', (event) => {
 
   // ── 3. HTML：Network-first（確保 index.html 不卡舊版）──
   if (event.request.mode === 'navigate' || url.pathname.endsWith('.html')) {
+    const normalizeToIndex = event.request.mode === 'navigate' && isSpaNavigationPath(url.pathname);
+    const cacheRequest = normalizeToIndex ? getIndexCacheRequest(url) : event.request;
     event.respondWith(
       fetch(event.request).then((response) => {
         if (response && response.status === 200) {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          caches.open(CACHE_NAME).then((cache) => cache.put(cacheRequest, clone));
         }
         return response;
-      }).catch(() => caches.match(event.request, { ignoreSearch: true }))
+      }).catch(async () => {
+        const cached = await caches.match(cacheRequest, { ignoreSearch: !normalizeToIndex });
+        if (cached) return cached;
+        if (normalizeToIndex) return caches.match(getIndexCacheRequest(url));
+        return caches.match(event.request, { ignoreSearch: true });
+      })
     );
     return;
   }

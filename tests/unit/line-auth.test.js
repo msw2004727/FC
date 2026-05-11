@@ -40,6 +40,14 @@ function _getLiffParamsToClean(searchParams) {
   return liffParams.filter(p => searchParams.has(p));
 }
 
+function _buildLoginRedirectUri(currentHref, origin) {
+  const base = new URL((origin || new URL(currentHref).origin) + '/').toString();
+  const url = new URL(currentHref);
+  _getLiffParamsToClean(url.searchParams).forEach(p => url.searchParams.delete(p));
+  const redirectUri = url.toString();
+  return redirectUri === base ? null : redirectUri;
+}
+
 // ---------------------------------------------------------------------------
 // Extracted from js/line-auth.js:65-73 (adapted)
 // _matchesFirebaseUid — checks if cached profile matches Firebase UID
@@ -124,6 +132,24 @@ describe('_getLiffParamsToClean (line-auth.js:19-32)', () => {
     );
     const toClean = _getLiffParamsToClean(params);
     expect(toClean.length).toBe(6);
+  });
+});
+
+describe('_buildLoginRedirectUri (line-auth.js login redirect contract)', () => {
+  test('returns null for root URL so LIFF SDK can use endpoint default', () => {
+    expect(_buildLoginRedirectUri('https://toosterx.com/', 'https://toosterx.com')).toBeNull();
+  });
+
+  test('preserves clean path routes for login round-trip', () => {
+    expect(_buildLoginRedirectUri('https://toosterx.com/activities', 'https://toosterx.com'))
+      .toBe('https://toosterx.com/activities');
+    expect(_buildLoginRedirectUri('https://toosterx.com/events/ce_1777307578139_1hw5bj', 'https://toosterx.com'))
+      .toBe('https://toosterx.com/events/ce_1777307578139_1hw5bj');
+  });
+
+  test('removes LIFF OAuth params while keeping app route params', () => {
+    expect(_buildLoginRedirectUri('https://toosterx.com/events/ce_1?code=abc&state=xyz&foo=bar#page-activity-detail', 'https://toosterx.com'))
+      .toBe('https://toosterx.com/events/ce_1?foo=bar#page-activity-detail');
   });
 });
 

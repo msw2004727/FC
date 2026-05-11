@@ -26,6 +26,20 @@ describe('boot hash navigation acceleration contract', () => {
     expect(source).not.toContain('await this.loadAll();\n      if (this._loaded[fileName]) return;\n    }\n\n    if (this._bootPages.includes(fileName))');
   });
 
+  test('history clean list routes use a boot shell guard before overlay dismissal', () => {
+    const appSource = readProjectFile('app.js');
+    const pageLoaderSource = readProjectFile('js/core/page-loader.js');
+
+    expect(appSource).toContain('_primeBootHistoryRoute()');
+    expect(appSource).toContain('App._primeBootHistoryRoute?.();');
+    expect(appSource).toContain('_hasPendingHistoryNav()');
+    expect(appSource).toContain('_dismissBootOverlayAfterHistoryNav');
+    expect(appSource).toContain('_bootHistoryTargetPageId');
+    expect(appSource).toContain("['page-activities', 'page-teams', 'page-tournaments', 'page-profile']");
+    expect(pageLoaderSource).toContain('_bootHistoryTargetPageId');
+    expect(pageLoaderSource).toContain('_activateBootHistoryShell');
+  });
+
   test('activities can activate shell before cloud during boot or cold cache navigation', () => {
     const source = readProjectFile('js/core/navigation.js');
 

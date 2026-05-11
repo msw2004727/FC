@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "include": [
+    "/event-share/*",
+    "/team-share/*",
+    "/activities",
+    "/teams",
+    "/tournaments",
+    "/profile",
+    "/events/*",
+    "/teams/*",
+    "/tournaments/*"
+  ],
+  "exclude": [
+    "/css/*",
+    "/js/*",
+    "/pages/*",
+    "/images/*",
+    "/img/*",
+    "/assets/*",
+    "/sw.js",
+    "/favicon.ico",
+    "/manifest.json",
+    "/robots.txt",
+    "/sitemap.xml",
+    "/index.html",
+    "/privacy.html",
+    "/terms.html",
+    "/game-lab.html",
+    "/docs/*",
+    "/blog/*",
+    "/seo/*",
+    "/changelog/*",
+    "/valuation/*"
+  ]
+}

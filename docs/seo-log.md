@@ -1214,3 +1214,15 @@ SEO 基礎架構完善但內容覆蓋度不足。專案支援 10+ 種運動僅 4
 - [ ] 考慮更多城市專頁（台北足球、高雄足球）
 - [ ] 建立外部反向連結（足球社群、場地方網站）— 階段 B 後排名關鍵
 - [ ] 評估是否需要 Dynamic Rendering 讓 SPA 內容可被爬取
+
+### 2026-05-11 History API Clean URL Phase 0-3
+
+**變更原因**: 第一輪 History API 雙軌升級讓 `/activities`、`/teams`、`/tournaments`、`/profile` 與 detail clean URL 可以 refresh 進站,但 detail 頁的動態 canonical / sitemap 仍排在 Phase 5.5。
+
+**SEO 保護**:
+1. `_worker.js` 對 `/events/{id}`、`/teams/{id}`、`/tournaments/{id}` 回 `index.html` 時加 `X-Robots-Tag: noindex, nofollow`。
+2. `_headers` 同步補 detail clean path 的 `X-Robots-Tag`,避免 Phase 5.5 前被搜尋引擎當成首頁副本索引。
+3. OG 分享路徑 `/event-share/*`、`/team-share/*` 保持優先處理,不受 SPA fallback 影響。
+4. `404.html` 只作 GitHub Pages 備援,正式站 clean path 由 Cloudflare Worker 回 HTTP 200。
+
+**後續事項**: Phase 5.5 完成動態 canonical、sitemap 與 crawler 驗收後,再移除 detail clean path 的 temporary noindex。

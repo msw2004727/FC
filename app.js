@@ -110,6 +110,14 @@ function _hasPendingHashNav() {
   }
 }
 
+function _hasPendingHistoryNav() {
+  try {
+    return !!(window._bootHistoryNavPending && !window._bootHistoryNavCompleted);
+  } catch (_) {
+    return false;
+  }
+}
+
 /**
  * Deep link 跳轉完成（或 fallback / sessionStorage 清除）後呼叫，
  * 強制觸發 boot overlay 隱藏（解除 _hasPendingDeepLink 守衛）。
@@ -135,6 +143,17 @@ function _dismissBootOverlayAfterHashNav(reason) {
   }
   window._bootOverlayForceDismiss = true;
   _dismissBootOverlay(reason || 'hash-nav-done');
+}
+
+function _dismissBootOverlayAfterHistoryNav(reason) {
+  window._bootHistoryNavCompleted = true;
+  window._bootHistoryNavPending = false;
+  if (window._bootOverlayDeferredTimeout) {
+    clearTimeout(window._bootOverlayDeferredTimeout);
+    window._bootOverlayDeferredTimeout = null;
+  }
+  window._bootOverlayForceDismiss = true;
+  _dismissBootOverlay(reason || 'history-nav-done');
 }
 
 /** 隱藏啟動 loading overlay（進度條跳 100% → 150ms 後淡出） */
@@ -170,10 +189,10 @@ function _dismissBootOverlay(reason) {
     // 2026-04-27 調整：5000 → 7000ms。用戶實測 mobile/慢網路下 page-activities 等
     // hash nav 經常需要 5+ 秒（cloud ready + ensureCollectionsForPage），5 秒不夠導致
     // overlay 提早隱藏 → 看到首頁閃過 → 1-2 秒後 nav 完成才跳目標頁。詳見 docs/tunables.md
-    if ((_hasPendingDeepLink() || _hasPendingHashNav()) && !window._bootOverlayForceDismiss) {
+    if ((_hasPendingDeepLink() || _hasPendingHashNav() || _hasPendingHistoryNav()) && !window._bootOverlayForceDismiss) {
       if (!window._bootOverlayDeferredHide) {
         window._bootOverlayDeferredHide = true;
-        const _navType = _hasPendingDeepLink() ? 'deep link' : 'hash navigation';
+        const _navType = _hasPendingDeepLink() ? 'deep link' : (_hasPendingHashNav() ? 'hash navigation' : 'history navigation');
         console.log('[Boot] pending ' + _navType + ' 偵測到，延後隱藏 boot overlay (' + (reason || '') + ')');
         window._bootOverlayDeferredTimeout = setTimeout(function() {
           console.warn('[Boot] ' + _navType + ' 7 秒未完成，強制隱藏 boot overlay');
@@ -276,6 +295,8 @@ const App = {
   _pendingProtectedBootRoutePromise: null,
   _bootHashTargetPageId: null,
   _bootHashShellActivated: false,
+  _bootHistoryTargetPageId: null,
+  _bootHistoryShellActivated: false,
   // 2026-04-20: 用戶「意圖頁面」— showPage 入口立刻更新（不等 _activatePage async 完成）
   // 用於 flush pending boot route 時判斷用戶是否已主動導航到其他頁面
   _userIntendedPage: null,
@@ -1051,6 +1072,7 @@ const App = {
   _syncTournamentDetailRoute(tournamentId) {
     const id = String(tournamentId || '').trim();
     if (!id) return;
+    if (this._isCurrentHistoryRouteForPage?.('page-tournament-detail')) return;
     try {
       const url = new URL(window.location.href);
       url.searchParams.set('tournament', id);
@@ -1957,6 +1979,175 @@ const App = {
     });
   },
 
+  _getHistoryRouteFlags() {
+    return (window.HISTORY_ROUTE_FLAGS && typeof window.HISTORY_ROUTE_FLAGS === 'object')
+      ? window.HISTORY_ROUTE_FLAGS
+      : {};
+  },
+
+  _readCurrentHistoryRoute() {
+    try {
+      const flags = this._getHistoryRouteFlags();
+      if (!flags.parseRead || !window.HistoryRouteAdapter?.parseCurrentLocation) return null;
+      return window.HistoryRouteAdapter.parseCurrentLocation(window.location, {
+        usersPathEnabled: !!flags.usersPathEnabled,
+      });
+    } catch (_) {
+      return null;
+    }
+  },
+
+  _hasLegacyRouteSignal() {
+    try {
+      const url = new URL(window.location.href);
+      if (['event', 'team', 'tournament', 'profile', 'rid', 'news'].some(key => url.searchParams.has(key))) return true;
+      const hash = (location.hash || '').replace(/^#/, '').trim();
+      return !!(hash && hash !== 'page-home');
+    } catch (_) {
+      return false;
+    }
+  },
+
+  _isCurrentHistoryRouteForPage(pageId) {
+    const route = this._readCurrentHistoryRoute();
+    if (!route || !route.pageId || route.pageId !== pageId) return false;
+    return !this._hasLegacyRouteSignal();
+  },
+
+  _setRouteUrl(routeOrPageId, options = {}) {
+    const pageId = typeof routeOrPageId === 'string'
+      ? routeOrPageId
+      : String(routeOrPageId?.pageId || '').trim();
+    if (!pageId) return false;
+
+    if (options.suppressHashSync) return true;
+
+    try {
+      if (this._isCurrentHistoryRouteForPage(pageId)) return true;
+
+      const flags = this._getHistoryRouteFlags();
+      const shouldReplace = options.replace === true || options.mode === 'replace';
+      const targetHash = '#' + pageId;
+      const url = new URL(window.location.href);
+
+      if (flags.cleanHashFallbackPath && url.pathname && url.pathname !== '/') {
+        history.replaceState(null, '', '/' + targetHash);
+        return true;
+      }
+
+      if (location.hash === targetHash) return true;
+      if (shouldReplace && history?.replaceState) {
+        url.hash = targetHash;
+        history.replaceState(null, '', url.pathname + (url.search || '') + (url.hash || ''));
+      } else {
+        location.hash = pageId;
+      }
+      return true;
+    } catch (_) {
+      try {
+        if (pageId && location.hash !== '#' + pageId) location.hash = pageId;
+      } catch (__) {}
+      return false;
+    }
+  },
+
+  _isBootHistoryShellPage(pageId) {
+    return ['page-activities', 'page-teams', 'page-tournaments', 'page-profile'].includes(pageId);
+  },
+
+  _getBootHistoryRoute() {
+    try {
+      const flags = this._getHistoryRouteFlags();
+      if (!flags.bootIntegration || !flags.parseRead) return null;
+      return this._readCurrentHistoryRoute();
+    } catch (_) {
+      return null;
+    }
+  },
+
+  _restoreGithubSpaRedirect() {
+    try {
+      const url = new URL(window.location.href);
+      const raw = String(url.searchParams.get('_spa_redirect') || '').trim();
+      if (!raw || raw.charAt(0) !== '/' || raw.startsWith('//')) return false;
+      const target = new URL(raw, window.location.origin);
+      if (target.origin !== window.location.origin) return false;
+      history.replaceState(null, '', target.pathname + (target.search || '') + (target.hash || ''));
+      return true;
+    } catch (err) {
+      console.warn('[HistoryRoute] restore _spa_redirect failed:', err && err.message || err);
+      return false;
+    }
+  },
+
+  _setPendingDeepLinkFromHistoryRoute(route) {
+    try {
+      if (!route?.id) return false;
+      if (route.kind === 'eventDetail') {
+        sessionStorage.setItem('_pendingDeepEvent', route.id);
+        return true;
+      }
+      if (route.kind === 'teamDetail') {
+        sessionStorage.setItem('_pendingDeepTeam', route.id);
+        return true;
+      }
+      if (route.kind === 'tournamentDetail') {
+        sessionStorage.setItem('_pendingDeepTournament', route.id);
+        return true;
+      }
+      if (route.kind === 'userCard') {
+        sessionStorage.setItem('_pendingDeepProfile', route.id);
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  },
+
+  _primeBootHistoryDeepLink() {
+    try {
+      const route = this._getBootHistoryRoute();
+      if (!route || route.kind === 'page' || route.kind === 'page-home') return null;
+
+      if (this._hasLegacyRouteSignal()) {
+        console.warn('[HistoryRoute] legacy query/hash route takes priority over clean path:', route);
+        return null;
+      }
+
+      if (this._setPendingDeepLinkFromHistoryRoute(route)) {
+        window._bootHistoryDetailRoute = route;
+        return route;
+      }
+    } catch (err) {
+      console.warn('[HistoryRoute] prime deep link failed:', err && err.message || err);
+    }
+    return null;
+  },
+
+  _primeBootHistoryRoute() {
+    try {
+      if (typeof this._getPendingDeepLink === 'function' && this._getPendingDeepLink()) return '';
+      if (this._getBootHashPageId()) return '';
+      const route = this._getBootHistoryRoute();
+      const pageId = route?.kind === 'page' ? this._resolveBootPageId(route.pageId) : '';
+      if (!this._isBootHistoryShellPage(pageId)) return '';
+
+      this._bootHistoryTargetPageId = pageId;
+      window._bootHistoryTargetPageId = pageId;
+      window._bootHistoryNavPending = true;
+      window._bootHistoryNavCompleted = false;
+      this.currentPage = pageId;
+      this._userIntendedPage = pageId;
+      window._bootTargetPageId = pageId;
+      this._syncBottomTabForPage(pageId);
+      document.documentElement.setAttribute('data-boot-target-page', pageId);
+      console.log('[Boot] primed history route:', pageId);
+      return pageId;
+    } catch (err) {
+      console.warn('[Boot] prime history route failed:', err && err.message || err);
+      return '';
+    }
+  },
+
   _primeBootHashRoute() {
     try {
       if (typeof this._getPendingDeepLink === 'function' && this._getPendingDeepLink()) return '';
@@ -2001,6 +2192,29 @@ const App = {
     }
   },
 
+  _activateBootHistoryShell(pageId = this._bootHistoryTargetPageId) {
+    try {
+      if (!this._isBootHistoryShellPage(pageId)) return false;
+      const target = document.getElementById(pageId);
+      if (!target) return false;
+
+      document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
+      target.classList.add('active');
+      if (pageId !== 'page-home') {
+        document.getElementById('page-home')?.classList.add('home-paused');
+      }
+
+      this.currentPage = pageId;
+      this._userIntendedPage = pageId;
+      this._bootHistoryShellActivated = true;
+      this._syncBottomTabForPage(pageId);
+      return true;
+    } catch (err) {
+      console.warn('[Boot] activate history shell failed:', err && err.message || err);
+      return false;
+    }
+  },
+
   _isProtectedBootRestoreRoute(pageId) {
     if (!pageId || pageId === 'page-home' || pageId === 'page-temp-participant-report') return false;
     if (typeof this._findDrawerMenuItem === 'function') {
@@ -2026,13 +2240,15 @@ const App = {
   },
 
   _replaceRouteHash(pageId) {
+    if (pageId && typeof this._setRouteUrl === 'function') {
+      this._setRouteUrl(pageId, { mode: 'replace' });
+      return;
+    }
     try {
       const url = new URL(window.location.href);
-      url.hash = pageId ? `#${pageId}` : '';
-      history.replaceState(null, '', url.pathname + (url.search || '') + (url.hash || ''));
-    } catch (_) {
-      if (pageId) location.hash = pageId;
-    }
+      url.hash = '';
+      history.replaceState(null, '', url.pathname + (url.search || ''));
+    } catch (_) {}
   },
 
   async _flushPendingProtectedBootRoute(options = {}) {
@@ -2455,6 +2671,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 先解析 deep link，避免先看到首頁再跳轉
   try {
+    App._restoreGithubSpaRedirect?.();
     const urlParams = new URLSearchParams(location.search);
     const deepEvent = String(urlParams.get('event') || '').trim();
     const deepTeam = String(urlParams.get('team') || '').trim();
@@ -2469,6 +2686,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (deepNews && App._openNewsArticle) {
       App._openNewsArticle(deepNews);
     }
+    App._primeBootHistoryDeepLink?.();
     // 立即啟動 REST fetch（不等 SDK）— URL 有 ?event= 或 sessionStorage 有殘留（LINE 登入回來）
     const restEventId = deepEvent || String(sessionStorage.getItem('_pendingDeepEvent') || '').trim();
     if (restEventId) {
@@ -2477,6 +2695,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch (_) {}
   App._startDeepLinkGuard();
   try { App._primeBootHashRoute?.(); } catch (_) {}
+  try { App._primeBootHistoryRoute?.(); } catch (_) {}
 
   // ── Phase 1: 載入頁面 HTML 片段（10 秒超時保護）──
   console.log('[Boot] Phase 1: PageLoader.loadAll() 開始（背景執行）');
@@ -2718,36 +2937,53 @@ document.addEventListener('DOMContentLoaded', async () => {
       const rawPageId = (_ridParam && (!_hashOnUrl || _hashOnUrl === 'page-temp-participant-report'))
         ? 'page-temp-participant-report'
         : _hashOnUrl;
-      const bootPageId = App._resolveBootPageId(rawPageId);
+      const historyPageId = (!_hashOnUrl && !_ridParam) ? String(App._bootHistoryTargetPageId || '') : '';
+      const bootPageId = App._resolveBootPageId(rawPageId || historyPageId);
       const isPrimedBootHashShell = !!(bootPageId
         && bootPageId === App.currentPage
         && App._bootHashTargetPageId === bootPageId);
-      if (bootPageId && (bootPageId !== App.currentPage || isPrimedBootHashShell)) {
+      const isPrimedBootHistoryShell = !!(bootPageId
+        && bootPageId === App.currentPage
+        && App._bootHistoryTargetPageId === bootPageId);
+      const dismissBootNavDone = function(reason) {
+        if (isPrimedBootHistoryShell) {
+          try { _dismissBootOverlayAfterHistoryNav(reason || 'history-show-done'); } catch (_) {}
+        } else {
+          try { _dismissBootOverlayAfterHashNav(reason || 'hash-show-done'); } catch (_) {}
+        }
+      };
+      if (bootPageId && (bootPageId !== App.currentPage || isPrimedBootHashShell || isPrimedBootHistoryShell)) {
         // 2026-04-27：navigation 完成後 dismiss boot overlay、解除「先閃首頁」
-        if (!isPrimedBootHashShell && App._isProtectedBootRestoreRoute(bootPageId)) {
+        if (!isPrimedBootHashShell && !isPrimedBootHistoryShell && App._isProtectedBootRestoreRoute(bootPageId)) {
           App._deferProtectedBootRoute(bootPageId);
           App._flushPendingProtectedBootRoute().finally(() => {
             try { _dismissBootOverlayAfterHashNav('protected-flush-done'); } catch (_) {}
           });
         } else {
-          const bootShowOptions = isPrimedBootHashShell
-            ? { resetHistory: true, suppressHashSync: true, resetScroll: false }
+          const bootShowOptions = (isPrimedBootHashShell || isPrimedBootHistoryShell)
+            ? { resetHistory: true, suppressHashSync: true, resetScroll: false, historyRouteSource: isPrimedBootHistoryShell ? 'path' : undefined }
             : undefined;
           App.showPage(bootPageId, bootShowOptions).finally(() => {
-            try { _dismissBootOverlayAfterHashNav('hash-show-done'); } catch (_) {}
+            dismissBootNavDone();
           });
         }
       } else {
         // 沒有 navigation 需要、清除 hash nav 守衛（避免 overlay 永遠卡住）
         window._bootHashNavCompleted = true;
+        window._bootHistoryNavCompleted = true;
+        window._bootHistoryNavPending = false;
       }
     } else {
       // 有 deep link 待處理、由 _clearPendingDeepLink 觸發 dismiss
       window._bootHashNavCompleted = true;
+      window._bootHistoryNavCompleted = true;
+      window._bootHistoryNavPending = false;
     }
   } catch (_) {
     // boot 流程出錯、清除守衛避免 overlay 卡住
     window._bootHashNavCompleted = true;
+    window._bootHistoryNavCompleted = true;
+    window._bootHistoryNavPending = false;
   }
 
   // 定時任務（全部 try-catch 保護）
