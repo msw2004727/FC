@@ -319,16 +319,18 @@ Object.assign(App, {
     const people = summary.people;
     const _t2 = _perfLog ? performance.now() : 0;
     // 放鴿子 🕊 欄位查看權：admin(event.edit_all) / 主辦人 / 委託人 / 查看權持有者 / 放鴿子修改權持有者
+    // 顯示限制：只在「管理名單」模式（tableEditing=true）才顯示，平時瀏覽名單一律隱藏
+    const tableEditing = canManage && this._attendanceEditingEventId === eventId;
     const noShowFeatureEnabled = typeof isNoShowFeatureEnabled === 'function'
       ? isNoShowFeatureEnabled()
       : true;
     const canViewNoShow = canManage
       || (typeof this.hasPermission === 'function' && this.hasPermission('activity.view_noshow'))
       || (typeof this.hasPermission === 'function' && this.hasPermission('admin.repair.no_show_adjust'));
-    const showNoShowColumn = noShowFeatureEnabled && cId === 'detail-attendance-table' && canViewNoShow;
+    const showNoShowColumn = noShowFeatureEnabled && cId === 'detail-attendance-table' && canViewNoShow && tableEditing;
     const noShowCountByUid = showNoShowColumn ? this._buildNoShowCountByUid() : null;
-    // 膠囊出席率染色：權限同步綁定（canViewNoShow），覆蓋所有名單渲染情境（不限 detail-attendance-table）
-    const showAttendanceFill = noShowFeatureEnabled && canViewNoShow;
+    // 膠囊出席率染色：權限同步綁定（canViewNoShow），且只在管理模式渲染
+    const showAttendanceFill = noShowFeatureEnabled && canViewNoShow && tableEditing;
     const endedRegCountByUid = showAttendanceFill ? this._buildEndedRegCountByUid() : null;
     const _t3 = _perfLog ? performance.now() : 0;
 
@@ -365,8 +367,7 @@ Object.assign(App, {
       });
     }
 
-    // 整表編輯模式（編輯簽到）
-    const tableEditing = canManage && this._attendanceEditingEventId === eventId;
+    // 整表編輯模式（編輯簽到）— tableEditing 已於本函式上方宣告
     const isSubmitting = canManage && this._attendanceSubmittingEventId === eventId;
     const pendingStateByUid = (isSubmitting || this._attendancePendingStateByUid) ? (this._attendancePendingStateByUid || Object.create(null)) : null;
 

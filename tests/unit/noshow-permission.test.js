@@ -1,7 +1,7 @@
 /**
  * 放鴿子權限（activity.view_noshow）— unit tests
  *
- * Extracted from: js/modules/event/event-manage-attendance.js L131-135
+ * Extracted from: js/modules/event/event-manage-attendance.js L321-331
  *
  * 重點驗證：
  *   - canManage（主辦人 / admin）可見
@@ -9,14 +9,15 @@
  *   - admin.repair.no_show_adjust（後台放鴿子修改員）可見
  *   - 一般 user + 非主辦人 + 無權限 → 不可見
  *   - 容器 ID 必須是 'detail-attendance-table' 才啟用（其他容器不顯示）
+ *   - tableEditing 必須為 true（即「管理名單」模式）才顯示，平時瀏覽名單不顯示
  */
 
 // ─── 從 event-manage-attendance.js 抽取 ───
-function shouldShowNoShowColumn({ containerId, canManage, hasPermission, featureEnabled = true }) {
+function shouldShowNoShowColumn({ containerId, canManage, hasPermission, featureEnabled = true, tableEditing = true }) {
   const canViewNoShow = canManage
     || (typeof hasPermission === 'function' && hasPermission('activity.view_noshow'))
     || (typeof hasPermission === 'function' && hasPermission('admin.repair.no_show_adjust'));
-  return featureEnabled && containerId === 'detail-attendance-table' && canViewNoShow;
+  return featureEnabled && containerId === 'detail-attendance-table' && canViewNoShow && tableEditing;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -165,6 +166,44 @@ describe('no-show feature flag', () => {
       canManage: true,
       hasPermission: () => true,
       featureEnabled: false,
+    })).toBe(false);
+  });
+});
+
+describe('管理名單模式守衛（tableEditing）', () => {
+  test('tableEditing=false（平時瀏覽名單）→ 不顯示，即使有所有權限', () => {
+    expect(shouldShowNoShowColumn({
+      containerId: 'detail-attendance-table',
+      canManage: true,
+      hasPermission: () => true,
+      tableEditing: false,
+    })).toBe(false);
+  });
+
+  test('tableEditing=true（管理名單模式）+ canManage → 顯示', () => {
+    expect(shouldShowNoShowColumn({
+      containerId: 'detail-attendance-table',
+      canManage: true,
+      hasPermission: () => false,
+      tableEditing: true,
+    })).toBe(true);
+  });
+
+  test('tableEditing=true 但無權限 → 仍不顯示', () => {
+    expect(shouldShowNoShowColumn({
+      containerId: 'detail-attendance-table',
+      canManage: false,
+      hasPermission: () => false,
+      tableEditing: true,
+    })).toBe(false);
+  });
+
+  test('tableEditing=false + 有 view_noshow 權限 → 不顯示（平時模式優先）', () => {
+    expect(shouldShowNoShowColumn({
+      containerId: 'detail-attendance-table',
+      canManage: false,
+      hasPermission: (code) => code === 'activity.view_noshow',
+      tableEditing: false,
     })).toBe(false);
   });
 });
