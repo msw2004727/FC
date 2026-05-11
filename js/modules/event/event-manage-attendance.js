@@ -337,6 +337,8 @@ Object.assign(App, {
     const noShowCountByUidForFill = showAttendanceFill
       ? (noShowCountByUid || this._buildNoShowCountByUid())
       : null;
+    // 最近一場放鴿子泡泡：同條件，平時即顯示
+    const lastNoShowSet = showAttendanceFill ? this._buildLastNoShowSet() : null;
     const _t3 = _perfLog ? performance.now() : 0;
 
     if (people.length === 0) {
@@ -440,9 +442,12 @@ Object.assign(App, {
       const _attFill = (showAttendanceFill && !isProxyOnly && !p.isCompanion && !p.isTeamPlaceholder && p.uid)
         ? this._getParticipantAttendanceFill(p.uid, noShowCountByUidForFill, endedRegCountByUid)
         : null;
+      const _recentNS = (lastNoShowSet && !isProxyOnly && !p.isCompanion && !p.isTeamPlaceholder && p.uid)
+        ? lastNoShowSet.has(String(p.uid).trim())
+        : false;
       const _tagOpts = _tsTeams
-        ? { uid: p.uid, teamKey: _safeTeamKey, teams: _tsTeams, showEmptyJersey: e.teamSplit?.enabled, canPickTeam: canManage && !tableEditing, regDocId: p.regDocId, eventId: eventId, attendanceFill: _attFill }
-        : { uid: p.uid, attendanceFill: _attFill };
+        ? { uid: p.uid, teamKey: _safeTeamKey, teams: _tsTeams, showEmptyJersey: e.teamSplit?.enabled, canPickTeam: canManage && !tableEditing, regDocId: p.regDocId, eventId: eventId, attendanceFill: _attFill, recentNoShow: _recentNS }
+        : { uid: p.uid, attendanceFill: _attFill, recentNoShow: _recentNS };
 
       let nameInner;
       if (isProxyOnly) {

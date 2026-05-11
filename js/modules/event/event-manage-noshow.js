@@ -265,6 +265,20 @@ Object.assign(App, {
     return map;
   },
 
+  // 讀取 Cloud Function 預先寫入的「最近一場是否放鴿子」標記
+  // 用於膠囊上方的紅底鴿子泡泡，視覺上提示主辦人此用戶最近才剛缺席
+  _buildLastNoShowSet() {
+    if (!this._isNoShowFeatureEnabled()) return new Set();
+    const users = ApiService.getAdminUsers() || [];
+    const set = new Set();
+    users.forEach(function (u) {
+      if (!u || !u.lastEventWasNoShow) return;
+      var uid = String(u.uid || u.lineUserId || u._docId || '').trim();
+      if (uid) set.add(uid);
+    });
+    return set;
+  },
+
   // 出席率膠囊填充：返回 { pct, color } 或 null（不渲染）
   // 設計：填充長度 = 放鴿子率（負面比例），完美用戶膠囊保持原色
   // 少樣本豁免：分母 < 3 不渲染（避免新用戶被貼標籤）

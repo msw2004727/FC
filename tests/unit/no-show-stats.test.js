@@ -529,3 +529,179 @@ describe('_getParticipantAttendanceFill — capsule fill renderer', () => {
     expect(fill.pct).toBe(33);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Extracted: calcNoShowCountsBatch 最近一場演算法（functions/index.js step 4）
+// 對每個 uid，找其所有 ended + confirmed + 非 companion 的 reg，按 event.date desc
+// 取第一筆，若無 checkin 則 lastEventWasNoShow=true
+// ---------------------------------------------------------------------------
+function _calcLastEventNoShow({ registrations, attendanceRecords, eventDates }) {
+  const checkinKeys = new Set();
+  (attendanceRecords || []).forEach(r => {
+    const uid = String(r?.uid || '').trim();
+    const eventId = String(r?.eventId || '').trim();
+    const status = String(r?.status || '').trim();
+    if (!uid || !eventId) return;
+    if (status === 'removed' || status === 'cancelled') return;
+    if (r.type === 'checkin') checkinKeys.add(uid + '::' + eventId);
+  });
+
+  const lastByUid = {};
+  const seenKeys = new Set();
+  (registrations || []).forEach(reg => {
+    const uid = String(reg?.userId || '').trim();
+    const eventId = String(reg?.eventId || '').trim();
+    if (!uid || !eventId) return;
+    if (reg.status !== 'confirmed') return;
+    if (reg.participantType === 'companion') return;
+    if (!eventDates.has(eventId)) return;
+
+    const key = uid + '::' + eventId;
+    if (seenKeys.has(key)) return;
+    seenKeys.add(key);
+
+    const evDate = eventDates.get(eventId);
+    const hasCheckin = checkinKeys.has(key);
+    const cur = lastByUid[uid];
+    if (!cur || evDate > cur.eventDate) {
+      lastByUid[uid] = { eventDate: evDate, wasNoShow: !hasCheckin };
+    }
+  });
+
+  const result = {};
+  Object.keys(lastByUid).forEach(uid => {
+    result[uid] = !!lastByUid[uid].wasNoShow;
+  });
+  return result;
+}
+
+describe('最近一場放鴿子標記（lastEventWasNoShow）', () => {
+  test('完全沒紀錄 → 不在結果中', () => {
+    const r = _calcLastEventNoShow({
+      registrations: [],
+      attendanceRecords: [],
+      eventDates: new Map(),
+    });
+    expect(r).toEqual({});
+  });
+
+  test('只有一場 + 沒簽到 → 標記 true', () => {
+    const r = _calcLastEventNoShow({
+      registrations: [{ userId: 'u1', eventId: 'e1', status: 'confirmed' }],
+      attendanceRecords: [],
+      eventDates: new Map([['e1', '2026-03-01']]),
+    });
+    expect(r.u1).toBe(true);
+  });
+
+  test('只有一場 + 有簽到 → 標記 false', () => {
+    const r = _calcLastEventNoShow({
+      registrations: [{ userId: 'u1', eventId: 'e1', status: 'confirmed' }],
+      attendanceRecords: [{ uid: 'u1', eventId: 'e1', type: 'checkin' }],
+      eventDates: new Map([['e1', '2026-03-01']]),
+    });
+    expect(r.u1).toBe(false);
+  });
+
+  test('多場 + 取最新日期那場（最新有簽到）→ 標記 false（即使早期都缺席）', () => {
+    const r = _calcLastEventNoShow({
+      registrations: [
+        { userId: 'u1', eventId: 'e1', status: 'confirmed' },  // 早期沒簽
+        { userId: 'u1', eventId: 'e2', status: 'confirmed' },  // 中期沒簽
+        { userId: 'u1', eventId: 'e3', status: 'confirmed' },  // 最近 → 有簽
+      ],
+      attendanceRecords: [{ uid: 'u1', eventId: 'e3', type: 'checkin' }],
+      eventDates: new Map([
+        ['e1', '2026-01-01'],
+        ['e2', '2026-02-01'],
+        ['e3', '2026-03-01'],
+      ]),
+    });
+    expect(r.u1).toBe(false);
+  });
+
+  test('多場 + 最新一場缺席 → 標記 true（即使前面都有簽）', () => {
+    const r = _calcLastEventNoShow({
+      registrations: [
+        { userId: 'u1', eventId: 'e1', status: 'confirmed' },
+        { userId: 'u1', eventId: 'e2', status: 'confirmed' },
+        { userId: 'u1', eventId: 'e3', status: 'confirmed' },
+      ],
+      attendanceRecords: [
+        { uid: 'u1', eventId: 'e1', type: 'checkin' },
+        { uid: 'u1', eventId: 'e2', type: 'checkin' },
+      ],
+      eventDates: new Map([
+        ['e1', '2026-01-01'],
+        ['e2', '2026-02-01'],
+        ['e3', '2026-03-01'],
+      ]),
+    });
+    expect(r.u1).toBe(true);
+  });
+
+  test('companion 不計入', () => {
+    const r = _calcLastEventNoShow({
+      registrations: [
+        { userId: 'u1', eventId: 'e1', status: 'confirmed' },
+        { userId: 'u1', eventId: 'e2', status: 'confirmed', participantType: 'companion' },
+      ],
+      attendanceRecords: [{ uid: 'u1', eventId: 'e1', type: 'checkin' }],
+      eventDates: new Map([
+        ['e1', '2026-01-01'],
+        ['e2', '2026-03-01'],
+      ]),
+    });
+    // 應取 e1（非 companion），有 checkin → false
+    expect(r.u1).toBe(false);
+  });
+
+  test('cancelled 報名不計入', () => {
+    const r = _calcLastEventNoShow({
+      registrations: [
+        { userId: 'u1', eventId: 'e1', status: 'confirmed' },
+        { userId: 'u1', eventId: 'e2', status: 'cancelled' },
+      ],
+      attendanceRecords: [{ uid: 'u1', eventId: 'e1', type: 'checkin' }],
+      eventDates: new Map([
+        ['e1', '2026-01-01'],
+        ['e2', '2026-03-01'],
+      ]),
+    });
+    expect(r.u1).toBe(false);
+  });
+
+  test('不在 eventDates（未結束活動）不計入', () => {
+    const r = _calcLastEventNoShow({
+      registrations: [
+        { userId: 'u1', eventId: 'e1', status: 'confirmed' },
+        { userId: 'u1', eventId: 'e_future', status: 'confirmed' },  // 未結束
+      ],
+      attendanceRecords: [{ uid: 'u1', eventId: 'e1', type: 'checkin' }],
+      eventDates: new Map([['e1', '2026-01-01']]),  // 只有 e1 結束
+    });
+    expect(r.u1).toBe(false);
+  });
+
+  test('多用戶獨立計算', () => {
+    const r = _calcLastEventNoShow({
+      registrations: [
+        { userId: 'u1', eventId: 'e1', status: 'confirmed' },
+        { userId: 'u2', eventId: 'e1', status: 'confirmed' },
+      ],
+      attendanceRecords: [{ uid: 'u1', eventId: 'e1', type: 'checkin' }],
+      eventDates: new Map([['e1', '2026-03-01']]),
+    });
+    expect(r.u1).toBe(false);
+    expect(r.u2).toBe(true);
+  });
+
+  test('removed/cancelled 的 attendanceRecords 不算 checkin', () => {
+    const r = _calcLastEventNoShow({
+      registrations: [{ userId: 'u1', eventId: 'e1', status: 'confirmed' }],
+      attendanceRecords: [{ uid: 'u1', eventId: 'e1', type: 'checkin', status: 'removed' }],
+      eventDates: new Map([['e1', '2026-03-01']]),
+    });
+    expect(r.u1).toBe(true);
+  });
+});

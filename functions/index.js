@@ -9838,16 +9838,17 @@ async function calcNoShowCountsBatch({ batchSize = 400 } = {}) {
     .select("id", "status", "date")
     .get();
 
-  const endedEventIds = new Set();
+  // Map：eventId → eventDate（取代原 Set，便於 step 4 比較最近一場日期）
+  const eventDateById = new Map();
   eventsSnap.docs.forEach(doc => {
     const data = doc.data();
     const eventDate = String(data.date || "").split(" ")[0].replace(/\//g, "-");
     if (eventDate && eventDate < today) {
-      endedEventIds.add(data.id || doc.id);
+      eventDateById.set(data.id || doc.id, eventDate);
     }
   });
 
-  if (endedEventIds.size === 0) {
+  if (eventDateById.size === 0) {
     return { scannedEvents: 0, totalRegs: 0, totalCheckins: 0, updatedUsers: 0 };
   }
 
@@ -9876,9 +9877,10 @@ async function calcNoShowCountsBatch({ batchSize = 400 } = {}) {
     }
   });
 
-  // Step 4: 計算每位用戶的放鴿子次數 + 已結束活動正取場次（分母，用於前端出席率渲染）
+  // Step 4: 計算每位用戶的放鴿子次數 + 已結束活動正取場次 + 最近一場是否放鴿子
   const countByUid = {};
   const endedRegByUid = {};
+  const lastEventByUid = {};  // uid → { eventDate, wasNoShow }
   const seenRegKeys = new Set();
 
   regsDocs.forEach(doc => {
@@ -9886,7 +9888,7 @@ async function calcNoShowCountsBatch({ batchSize = 400 } = {}) {
     const uid = String(reg.userId || "").trim();
     const eventId = String(reg.eventId || "").trim();
     if (!uid || !eventId) return;
-    if (!endedEventIds.has(eventId)) return;
+    if (!eventDateById.has(eventId)) return;
     if (reg.participantType === "companion") return;
 
     const key = uid + "::" + eventId;
@@ -9894,25 +9896,37 @@ async function calcNoShowCountsBatch({ batchSize = 400 } = {}) {
     seenRegKeys.add(key);
 
     endedRegByUid[uid] = (endedRegByUid[uid] || 0) + 1;
-    if (checkinKeys.has(key)) return;
-    countByUid[uid] = (countByUid[uid] || 0) + 1;
+    const hasCheckin = checkinKeys.has(key);
+    if (!hasCheckin) countByUid[uid] = (countByUid[uid] || 0) + 1;
+
+    // 更新最近一場：比較 event.date（YYYY-MM-DD 字串可直接字典序比較）
+    const evDate = eventDateById.get(eventId);
+    const cur = lastEventByUid[uid];
+    if (!cur || evDate > cur.eventDate) {
+      lastEventByUid[uid] = { eventDate: evDate, wasNoShow: !hasCheckin };
+    }
   });
 
   // Step 5: 比對 users 文件，只更新有差異的
   const usersSnap = await db.collection("users")
-    .select("noShowCount", "endedRegCount").get();
+    .select("noShowCount", "endedRegCount", "lastEventWasNoShow").get();
   const updates = [];
   usersSnap.docs.forEach(doc => {
     const data = doc.data();
     const currentNoShow = Number(data.noShowCount || 0);
     const currentEnded = Number(data.endedRegCount || 0);
+    const currentLastNS = !!data.lastEventWasNoShow;
     const expectedNoShow = countByUid[doc.id] || 0;
     const expectedEnded = endedRegByUid[doc.id] || 0;
-    if (currentNoShow !== expectedNoShow || currentEnded !== expectedEnded) {
+    const expectedLastNS = !!(lastEventByUid[doc.id] && lastEventByUid[doc.id].wasNoShow);
+    if (currentNoShow !== expectedNoShow
+      || currentEnded !== expectedEnded
+      || currentLastNS !== expectedLastNS) {
       updates.push({
         ref: doc.ref,
         noShowCount: expectedNoShow,
         endedRegCount: expectedEnded,
+        lastEventWasNoShow: expectedLastNS,
       });
     }
   });
@@ -9924,13 +9938,14 @@ async function calcNoShowCountsBatch({ batchSize = 400 } = {}) {
     chunk.forEach(u => batch.update(u.ref, {
       noShowCount: u.noShowCount,
       endedRegCount: u.endedRegCount,
+      lastEventWasNoShow: u.lastEventWasNoShow,
     }));
     await batch.commit();
     updatedCount += chunk.length;
   }
 
   return {
-    scannedEvents: endedEventIds.size,
+    scannedEvents: eventDateById.size,
     totalRegs: regsSnap.size,
     totalCheckins: checkinsSnap.size,
     updatedUsers: updatedCount,
