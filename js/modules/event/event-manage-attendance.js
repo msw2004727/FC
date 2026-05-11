@@ -327,11 +327,16 @@ Object.assign(App, {
     const canViewNoShow = canManage
       || (typeof this.hasPermission === 'function' && this.hasPermission('activity.view_noshow'))
       || (typeof this.hasPermission === 'function' && this.hasPermission('admin.repair.no_show_adjust'));
+    // 🕊 次數欄位：只在「管理名單」模式（tableEditing）才顯示，避免平時佔位
     const showNoShowColumn = noShowFeatureEnabled && cId === 'detail-attendance-table' && canViewNoShow && tableEditing;
     const noShowCountByUid = showNoShowColumn ? this._buildNoShowCountByUid() : null;
-    // 膠囊出席率染色：權限同步綁定（canViewNoShow），且只在管理模式渲染
-    const showAttendanceFill = noShowFeatureEnabled && canViewNoShow && tableEditing;
+    // 膠囊出席率染色：權限同步綁定（canViewNoShow），**不**受 tableEditing 限制 — 平時瀏覽名單時也染色
+    const showAttendanceFill = noShowFeatureEnabled && canViewNoShow;
     const endedRegCountByUid = showAttendanceFill ? this._buildEndedRegCountByUid() : null;
+    // 膠囊染色獨立於欄位：即使欄位收起，仍需 noShow map 作為染色資料來源
+    const noShowCountByUidForFill = showAttendanceFill
+      ? (noShowCountByUid || this._buildNoShowCountByUid())
+      : null;
     const _t3 = _perfLog ? performance.now() : 0;
 
     if (people.length === 0) {
@@ -433,7 +438,7 @@ Object.assign(App, {
       const _tsTeams = e.teamSplit?.enabled ? e.teamSplit.teams : null;
       const _safeTeamKey = _tsTeams ? (this._tsSafeTeamKey?.(p.teamKey, e) || null) : null;
       const _attFill = (showAttendanceFill && !isProxyOnly && !p.isCompanion && !p.isTeamPlaceholder && p.uid)
-        ? this._getParticipantAttendanceFill(p.uid, noShowCountByUid, endedRegCountByUid)
+        ? this._getParticipantAttendanceFill(p.uid, noShowCountByUidForFill, endedRegCountByUid)
         : null;
       const _tagOpts = _tsTeams
         ? { uid: p.uid, teamKey: _safeTeamKey, teams: _tsTeams, showEmptyJersey: e.teamSplit?.enabled, canPickTeam: canManage && !tableEditing, regDocId: p.regDocId, eventId: eventId, attendanceFill: _attFill }

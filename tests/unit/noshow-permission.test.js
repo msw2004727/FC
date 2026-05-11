@@ -170,8 +170,8 @@ describe('no-show feature flag', () => {
   });
 });
 
-describe('管理名單模式守衛（tableEditing）', () => {
-  test('tableEditing=false（平時瀏覽名單）→ 不顯示，即使有所有權限', () => {
+describe('🕊 次數欄位的管理名單模式守衛（tableEditing）', () => {
+  test('tableEditing=false（平時瀏覽名單）→ 不顯示欄位，即使有所有權限', () => {
     expect(shouldShowNoShowColumn({
       containerId: 'detail-attendance-table',
       canManage: true,
@@ -180,7 +180,7 @@ describe('管理名單模式守衛（tableEditing）', () => {
     })).toBe(false);
   });
 
-  test('tableEditing=true（管理名單模式）+ canManage → 顯示', () => {
+  test('tableEditing=true（管理名單模式）+ canManage → 顯示欄位', () => {
     expect(shouldShowNoShowColumn({
       containerId: 'detail-attendance-table',
       canManage: true,
@@ -198,12 +198,65 @@ describe('管理名單模式守衛（tableEditing）', () => {
     })).toBe(false);
   });
 
-  test('tableEditing=false + 有 view_noshow 權限 → 不顯示（平時模式優先）', () => {
+  test('tableEditing=false + 有 view_noshow 權限 → 不顯示欄位（平時模式優先）', () => {
     expect(shouldShowNoShowColumn({
       containerId: 'detail-attendance-table',
       canManage: false,
       hasPermission: (code) => code === 'activity.view_noshow',
       tableEditing: false,
     })).toBe(false);
+  });
+});
+
+// ─── 膠囊染色（showAttendanceFill）— 不受 tableEditing 限制，但需 canViewNoShow ───
+// Extracted from: js/modules/event/event-manage-attendance.js (showAttendanceFill)
+function shouldShowAttendanceFill({ canManage, hasPermission, featureEnabled = true }) {
+  const canViewNoShow = canManage
+    || (typeof hasPermission === 'function' && hasPermission('activity.view_noshow'))
+    || (typeof hasPermission === 'function' && hasPermission('admin.repair.no_show_adjust'));
+  return featureEnabled && canViewNoShow;
+}
+
+describe('膠囊染色（showAttendanceFill）— 平時即顯示，獨立於 tableEditing', () => {
+  test('canManage + 平時模式 → 仍染色', () => {
+    expect(shouldShowAttendanceFill({
+      canManage: true,
+      hasPermission: () => false,
+    })).toBe(true);
+  });
+
+  test('view_noshow 權限 + 平時模式 → 仍染色', () => {
+    expect(shouldShowAttendanceFill({
+      canManage: false,
+      hasPermission: (code) => code === 'activity.view_noshow',
+    })).toBe(true);
+  });
+
+  test('admin.repair.no_show_adjust 權限 + 平時模式 → 仍染色', () => {
+    expect(shouldShowAttendanceFill({
+      canManage: false,
+      hasPermission: (code) => code === 'admin.repair.no_show_adjust',
+    })).toBe(true);
+  });
+
+  test('一般 user（無權限）→ 不染色', () => {
+    expect(shouldShowAttendanceFill({
+      canManage: false,
+      hasPermission: () => false,
+    })).toBe(false);
+  });
+
+  test('flag 關閉 → 即使有權限也不染色', () => {
+    expect(shouldShowAttendanceFill({
+      canManage: true,
+      hasPermission: () => true,
+      featureEnabled: false,
+    })).toBe(false);
+  });
+
+  test('🕊 欄位與膠囊染色解耦：平時模式下染色顯示、欄位隱藏', () => {
+    const ctx = { containerId: 'detail-attendance-table', canManage: true, hasPermission: () => false };
+    expect(shouldShowNoShowColumn({ ...ctx, tableEditing: false })).toBe(false);
+    expect(shouldShowAttendanceFill(ctx)).toBe(true);
   });
 });
