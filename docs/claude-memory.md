@@ -1,5 +1,20 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-11 — Phase 6 V6 第十六輪審計(Codex 第二次第三方審計):sentinel branch 同型 bug 復發 + Commit B 範圍清單失同步 [永久]
+- **背景**:第十五輪修完 D13 fallback 與 helper 抽取後,Codex 再次 review,提兩個新發現,**全部驗證為真**。
+- **發現 1 (P2):sentinel branch `await App.showPage(fallback, { bypassPageLock: true })` 漏帶 `skipPageHistory: true`**:
+  - 第十四輪在一般 popstate fallback branch 補了 `skipPageHistory: true`,但**三處 sentinel branch 範例都漏補**(計劃書 line 1156-1166 / 1260-1269 + decisions.md line 1017-1028)
+  - 後果:user 從 detail 被 sentinel 帶回 home 時,`_pushPageHistory` 仍會把 'page-activity-detail' push 進 `App.pageHistory`,user 按站內圓形返回又跳回剛離開的 detail — **與第十四輪修的同型 bug 復發**
+  - **修正**:三處 sentinel branch 範例同步補 `skipPageHistory: true` + `suppressHashSync: true`(後者防止內部 _setRouteUrl replaceState 沖掉 sentinel state);§8.9.4 新增兩項驗收
+- **發現 2 (P3):Commit B 範圍清單寫「3 個欄位 + 1 個 helper」,但 popstate handler 實際依賴更多 helper**:
+  - 第十五輪新增的 `_resolveRouteIntent` / `_buildCurrentRouteState` / `_shouldInstallSentinel` / `_parseLegacyQueryRoute` 都沒加入 Commit B 範圍清單
+  - 實作者照清單做,popstate handler 一跑就會 `App._resolveRouteIntent is not a function`
+  - **修正**:Commit B 範圍重寫為 7 大項(2 個欄位 + 5 個 helper + _maybePushBootSentinel + popstate handler + hashchange dedupe + flag + 測試 + tunables),與 §8.9.1 骨架完全對齊
+- **教訓**:
+  - **每補一個 popstate option 都要 grep 整個計劃書找所有 popstate showPage 呼叫點**:第十四輪只看到 fallback branch,沒注意 sentinel branch 也是同一個 showPage,等於改一處漏一處又一次。Codex 提的「同型 bug 復發」精準命名了這個失誤模式。
+  - **Commit B 範圍清單必須是 popstate handler 骨架的「實作清單」**:每加一個 helper 到骨架,Commit B 清單也要加。若兩處不同步,實作者照清單做出來的 popstate handler 缺 helper、runtime crash。長期解法是「骨架 = 範圍清單」,改一處兩處同步。
+  - **同型 bug 復發是審計循環的盲點**:自我審計傾向「找新東西的問題」,容易漏「上一輪修的邏輯在其他相同 branch 是否也有同問題」。修法:每補一個 option / pattern,寫個 Cross-check todo「全部相同 branch 都套上了嗎」。
+
 ### 2026-05-11 — Phase 6 V6 第十五輪審計(Codex 第三方審計):D11 與 D13 fallback 邏輯不同步 [永久]
 - **背景**:第十四輪修完 D13 popstate fallback 後,Codex review(用戶轉交)發現:
   1. D11 `_buildCurrentRouteState()` 仍寫 `parseHistoryRoute(location.pathname, location.search)`,且無 legacy query parse → 與 D14 修正不同步,LIFF 進站時 sentinel push 的 E1.state 可能丟 detail id。

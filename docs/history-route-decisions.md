@@ -1015,11 +1015,16 @@ function _shouldInstallSentinel() {
 
 ```javascript
 // sentinel 是返回目的地 entry,event.state.sentinel === true 在「按第一次返回」就會 true
+// (Codex 第十六輪審計修正)showPage 必須帶 3 個 popstate option,與一般 fallback branch 對齊
 if (event.state?.sentinel === true) {
   const requestedFallback = event.state.fallbackPageId || 'page-home';
   const isDetailPage = /-detail$/.test(requestedFallback);
   const fallback = isDetailPage ? 'page-home' : requestedFallback;
-  await this.showPage(fallback, { bypassPageLock: true });
+  await this.showPage(fallback, {
+    bypassPageLock: true,
+    skipPageHistory: true,    // popstate 不污染 App.pageHistory(原本漏 → 同型 bug 復發)
+    suppressHashSync: true,   // 避免 _setRouteUrl 沖掉 sentinel state
+  });
   if (seq !== App._popstateRequestSeq) return;
   // 連按返回的下一輪 sentinel(E0 active 變回 E_minus1 sentinel...)
   // 重新 push 一個 sentinel 撐住下一次返回
