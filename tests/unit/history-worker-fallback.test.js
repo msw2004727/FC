@@ -42,9 +42,9 @@ describe('history route hosting fallback contract', () => {
     ]));
 
     const indexSource = readProjectFile('index.html');
-    expect(indexSource).toContain('js/core/app-main.js');
+    expect(indexSource).toContain('js/core/runtime-controller.js');
     expect(indexSource).not.toContain('src="app.js?v=');
-    expect(readProjectFile('js/core/app-main.js')).toBe(readProjectFile('app.js'));
+    expect(readProjectFile('js/core/runtime-controller.js')).toBe(readProjectFile('app.js'));
   });
 
   test('service worker normalizes SPA navigate cache to index instead of every clean path', () => {

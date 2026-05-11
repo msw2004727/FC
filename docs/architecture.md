@@ -17,7 +17,7 @@ ToosterX 是一個 LINE LIFF + Firebase 的 buildless Vanilla JS SPA。前端由
 | 項目 | 現況 |
 |---|---|
 | 前端型態 | Vanilla JS / HTML / CSS，無 webpack、無 build step |
-| 主入口 | `index.html` + `js/core/app-main.js` |
+| 主入口 | `index.html` + `js/core/runtime-controller.js` |
 | HTML fragments | `pages/` 共 20 個頁面片段 |
 | JS 檔案 | `js/` 共 270 個 JS |
 | 功能模組 | `js/modules/` 共 258 個 JS，17 個子資料夾 + 27 個 root-level shared module |
@@ -41,7 +41,7 @@ flowchart TD
     H["靜態站台\nCloudflare Pages / GitHub Pages"]
     IDX["index.html\n核心 script defer + boot data inline"]
     SW["sw.js\nHTML network-first\nJS/CSS cache-first\nStorage image SWR"]
-    APP["js/core/app-main.js\nApp singleton / boot phases / route glue"]
+    APP["js/core/runtime-controller.js\nApp singleton / boot phases / route glue"]
     PL["PageLoader\npages/*.html fragments"]
     SL["ScriptLoader\npage -> module groups"]
     MOD["Feature modules\nObject.assign(App, ...)"]
@@ -82,7 +82,7 @@ flowchart TD
 
 - `index.html` 是唯一主要 SPA 入口，直接 `<script defer>` 載入核心與 boot 必要模組。
 - `pages/*.html` 是頁面片段，不是獨立 route。
-- `js/core/app-main.js` 建立全域 `App` singleton，其他模組透過 `Object.assign(App, {...})` 擴充。
+- `js/core/runtime-controller.js` 建立全域 `App` singleton，其他模組透過 `Object.assign(App, {...})` 擴充。
 - `js/config.js` 保存 runtime 常數、角色、權限 catalog、運動標籤、頁面策略、快取版本。
 - 沒有 npm build。`package.json` 只提供測試腳本。
 
