@@ -132,9 +132,10 @@ Object.assign(App, {
       ? ` title="放鴿子 ${fill.noShow}/${fill.ended} 場 (${fill.pct}%)"`
       : ` title="${ROLES[role]?.label || '一般用戶'}"`;
     // 最近一場放鴿子泡泡（同步綁定 noShow 查看權限）；z-index 低於色衣 badge，色衣優先覆蓋
+    // 純圖示（CSS background），不放任何內容文字避免覆蓋圖案
     const recentNS = !!(options && options.recentNoShow);
     const recentHtml = recentNS
-      ? '<span class="uc-recent-noshow" aria-label="最近一場活動未簽到" title="最近一場活動未簽到">🕊</span>'
+      ? '<span class="uc-recent-noshow" aria-label="最近一場活動未簽到" title="最近一場活動未簽到"></span>'
       : '';
     return `<span class="user-capsule uc-${role}${attClass}"${attStyle} data-no-translate onclick="${_onclick}"${attTitle}><span class="uc-lv">Lv${lvl}</span>${recentHtml}${jerseyHtml}${escapeHTML(name)}</span>`;
   },
