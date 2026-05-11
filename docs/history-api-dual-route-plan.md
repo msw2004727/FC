@@ -1275,6 +1275,12 @@ Phase 5.5 SEO alignment is implemented and self-audited; detail SPA paths are no
 - [x] Tests: `tests/unit/route-meta-tags.test.js` (jsdom) verifies the helper's runtime behaviour + integration contract; `tests/unit/build-sitemap.test.js` covers indexability filters and XML output; `tests/unit/history-worker-fallback.test.js` updated to assert the worker no longer emits `noindex`.
 - [x] `CACHE_VERSION` bumped to `0.20260511i`; `index.html` `app-inline-runtime` re-synced from `app.js`.
 - [x] [docs/seo-log.md](seo-log.md) and [docs/claude-memory.md](claude-memory.md) updated; [docs/history-route-decisions.md](history-route-decisions.md) D8 verification boxes ticked.
-- [ ] GSC sitemap抓取 24 小時內驗證 — 部署後執行。
+- [x] 部署後線上驗收完成（2026-05-11）：
+  - `curl -I https://toosterx.com/events/test123` 回 HTTP 200，無 `X-Robots-Tag` (clean)
+  - `curl -I https://toosterx.com/teams/test123` / `tournaments/test123` 同上
+  - `curl https://toosterx.com/sitemap.xml` 回 sitemapindex 200
+  - `sitemap-static.xml` (8602B) / `sitemap-events.xml` (17 URLs / 3204B) / `sitemap-teams.xml` (7 URLs / 1384B) / `sitemap-tournaments.xml` (1 URL / 298B) 皆 200
+  - `curl -I https://toosterx.com/event-share/test123` 仍由 Cloud Function OG handler 回應（未被 SPA fallback 吞）
+- [ ] GSC sitemap抓取 24 小時內驗證 — 排程 cron + push-trigger 已配置（`submit-sitemap.yml`），24h 後在 Search Console 抓取紀錄面板複核。
 
 Phase 6 popstate takeover remains deferred.

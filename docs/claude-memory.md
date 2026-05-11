@@ -12,6 +12,9 @@
 - **教訓**：
   - `app.js` 的內容被 inline 進 `index.html#app-inline-runtime`，每次改 `app.js` 都要記得手動同步 inline runtime，否則 `tests/unit/history-worker-fallback.test.js` 的 mirror 檢查會失敗。沒有自動 sync 腳本。
   - `parseDateMs('2026/06/01')` 用 local timezone 建構 Date，台灣（UTC+8）跑出來 `toISOString()` 會掉回前一天。寫測試時要用 ISO 串或 regex 容錯，不能寫死預期日期。
+  - **Cloudflare Pages 對 commit message 中 `[skip ci]` 敏感（含內文）**：deploy trigger commit 訊息**內文**只要出現 `[skip ci]` 字串（即使是在說明本意是「給 GitHub Actions 看」），Cloudflare Pages 與 GitHub Actions `on: push` 都會跳過整個觸發鏈。後果：commit 進了 main、檔案在 origin/main 上、`git ls-tree` 看得到，但 Cloudflare 完全不部署、靜態檔線上仍是 404。修法是改寫 commit message 完全不含 `[skip ci]` / `[ci skip]` 等敏感字串。
+  - `git diff --quiet` **對 untracked 新檔案不敏感**：CI workflow 用 `git diff --quiet path` 判斷該不該 commit 時，第一次跑（新檔尚未追蹤）會誤判為「無變更」、跳過 commit。要先 `git add path`、再用 `git diff --cached --quiet` 才能涵蓋新檔。
+  - `_routes.json` 的 `include` 只決定哪些 path 進 Worker，沒列在 include 的 path（如 `/sitemap-events.xml`）仍由 Worker 接後 fall through 到 `env.ASSETS.fetch`；只要 asset 存在就會被服務，所以**新加的靜態檔不需要動 `_routes.json`**。
 
 ### 2026-05-09 — 放鴿子功能暫時軟關閉 [feature-flag]
 - **問題**：放鴿子功能需要暫停，且活動詳細頁報名名單中的放鴿子欄位要先隱藏；同時避免背景排程或管理工具繼續改寫 `noShowCount`。
