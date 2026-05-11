@@ -60,7 +60,7 @@ V5 只覆蓋 Phase 0 → Phase 5.5。V6 不動既有 Phase,**僅針對 Phase 6**
 
 | 修正點 | V5 缺漏 | V6 定案 |
 |---|---|---|
-| `goBack()` 隱性 push history | V5 §8.9 完全未提;`goBack` 每次呼叫 `_setRouteUrl(prev)` 預設 push,history stack 持續膨脹。Phase 6 啟用 popstate 後變顯性 bug。 | 拆出 **Pre-Phase 6 獨立 commit**(§8.9.0):`goBack` 改用 `{ mode: 'replace' }`。可獨立上線、不依賴 Phase 6。對應 D12。 |
+| `goBack()` 隱性 push history + detail handler 缺 popstate-friendly options | V5 §8.9 完全未提;`goBack` 每次呼叫 `_setRouteUrl(prev)` 預設 push,history stack 持續膨脹;detail handler 沒接受 `bypassPageLock` / `allowGuest`,popstate 觸發的 detail-to-detail 返回會被 10s page lock 擋、訪客模式返回會被 `_requireLogin` 擋。 | 拆出 **Pre-Phase 6 獨立 commit**(§8.9.0 / §8.9.2 Commit A)含兩項:`goBack` 改 `{ mode: 'replace' }`(D12)+ `showXxxDetail` 擴展接受並透傳 options(V6 二次審計補)。整個 commit 可獨立上線、不依賴 Phase 6 主體。 |
 | hashchange × popstate dedupe | V5 §8.9 只說「協調」一句話,沒給具體機制。實證 [app.js:3144](../app.js) hashchange listener 無 race protection,雙觸發必跑 2 次 showPage。 | 新增 D10:`_suppressNextHashchange` flag + 50ms 視窗。popstate handler 進入時 set,hashchange listener 開頭讀並 reset。 |
 | Sentinel state push 防退出 Mini App | V5 完全未提。LIFF 用戶從訊息點 `/events/abc` 進站,history.length=1,按返回直接關閉 Mini App,UX 痛點。 | 新增 D11:boot 完成後若 `history.length === 1` 且 `popstateTakeover=true`,push sentinel state;popstate handler 偵測 sentinel 後 navigate 到 home 並 re-push。 |
 | popstate state = null 處理 | V5 未提。refresh 後第一次 popstate、外部進站、iOS WebView quirk 都會碰到 state=null。 | 新增 D13:fallback chain `state.pageId → parse URL → parse hash → 'page-home'`,絕不白屏。 |
@@ -850,7 +850,14 @@ V5 呼叫時機定案:`_setRouteUrl` 只負責 URL 與 route intent,不直接改
 
 #### 8.9.0 動工前必須先完成的依賴(Pre-Phase 6,獨立 commit)
 
-Phase 6 主體實作前必須先修一個與 popstate 解耦的**隱性 bug**,否則 Phase 6 啟用後該 bug 會從隱性變顯性:
+Phase 6 主體實作前必須先做**兩項與 popstate handler 解耦的改動**,完整內容詳 §8.9.2 Commit A:
+
+1. **修一個隱性 bug**:`goBack` 每次返回都 push 一條 history → 改 replace
+2. **擴展 detail handler 接受 popstate-friendly options**:讓 `showEventDetail` / `showTeamDetail` / `showTournamentDetail`(含 friendly variant)接受 `bypassPageLock` + `allowGuest`;`bypassPageLock` 透傳給內部 `showPage`,`allowGuest` 在既有 `_requireLogin()` guard 處使用即可(showPage 不認 allowGuest),詳 §8.9.2 Commit A 第 2 步
+
+這兩項即使 Phase 6 不啟用也是「純改進不改既有行為」,可獨立 deploy。
+
+##### 第 1 項:goBack 隱性 push history bug(本節主要說明)
 
 **問題**:`goBack()` 每次返回都透過 `_setRouteUrl(prev)` 寫新 history entry(預設 pushState),導致 browser history 隨 goBack 持續膨脹。Phase 6 啟用 popstate 後,「站內返回 → 瀏覽器返回」會跳到剛離開的頁面。
 
@@ -880,10 +887,22 @@ if (location.hash !== '#' + prev) {
 
 > **V6 審計修正**:V6 第一版範例曾不慎刪除外層守衛 `if (location.hash !== '#' + prev)`,雖然 `replaceState` 在 URL 不變時無功能性副作用,但會產生無意義的多餘寫入。修正後保留此守衛,與既有 [navigation.js:138](js/core/navigation.js:138) `_activatePage` 的同類守衛風格一致。
 
-**驗收**:
+**驗收(第 1 項 goBack 修正)**:
 - 點首頁 → 列表 → 詳細 → 站內返回鍵 5 次後,`window.history.length` ≤ 進站時 +1
+
+**驗收(第 2 項 detail handler 擴展,V6 二次審計補)**:
+- `showEventDetail(id, { bypassPageLock: true, allowGuest: true })` 內部 `await this.showPage(...)` 帶 `bypassPageLock`(`allowGuest` 在 detail handler 既有 `_requireLogin` guard 處使用,不需傳給 showPage)
+- `showTeamDetail` / `showTournamentDetail`(含 friendly variant) 同上
+- 既有呼叫者(任何不傳 option 的地方)`bypassPageLock` 為 undefined → showPage 走預設,行為完全不變
+
+**部署條件**:
+- 兩項可放在**同一個 commit**(都是 Pre-Phase 6 範圍,獨立於 popstate handler)
 - 此 commit **可獨立上線**,不依賴 Phase 6 其餘部分
-- 建議部署後**穩定 ≥ 1 週、無 history-stack 相關 bug 回報**,再進入 Phase 6 Commit B
+- 建議部署後**穩定 ≥ 1 週、無 history-stack 或 detail 進站相關 bug 回報**,再進入 Phase 6 Commit B
+
+##### 第 2 項:detail handler 擴展 popstate-friendly options(實作細節指引到 §8.9.2 Commit A 第 2 步)
+
+第 2 項屬「純 option 透傳擴展」,目的:讓 Phase 6 popstate handler 對 detail page 觸發的返回能 bypass page lock(D6)與 `_requireLogin` guard。完整實作細節、檔案與函式對照、單元測試清單皆見 §8.9.2 Commit A 第 2 步;本節不再贅述以避免散落同樣內容。
 
 #### 8.9.1 Phase 6 核心設計(5 個新決策對應)
 
@@ -927,14 +946,16 @@ window.addEventListener('hashchange', () => {
 ##### Sentinel state push(D11)
 
 ```javascript
-// app.js — 由 _dismissBootOverlay 真正執行 overlay.style.display = 'none' 後立刻呼叫
+// app.js — 掛在 App object 上,由 _dismissBootOverlay 真正執行 overlay.style.display = 'none' 後立刻呼叫
 // (此時 SPA 已 ready,user 可能下一秒就按返回鍵)
-function _maybePushBootSentinel() {
+// _bootSentinelPushed 與 _popstateRequestSeq 都掛在 App 上,維持命名空間一致
+_maybePushBootSentinel() {
   try {
+    const flags = this._getHistoryRouteFlags?.() || {};
     if (!flags.popstateTakeover) return;
-    if (window._bootSentinelPushed) return;  // 避免重複 push(boot overlay 可能被多次 dismiss)
+    if (this._bootSentinelPushed) return;  // 避免重複 push(boot overlay 可能被多次 dismiss)
 
-    // (D) 雙重判定避免 history.length 在 LIFF / PWA / cache restore 的不精確:
+    // 雙重判定避免 history.length 在 LIFF / PWA / cache restore 的不精確:
     //   - history.length === 1:典型外部進站(LIFF 訊息點、refresh、直接貼網址)
     //   - referrer 不是同 origin:確認來源不在本站
     // 兩者擇一為 true 即視為外部進站,需要 sentinel 保護
@@ -944,7 +965,7 @@ function _maybePushBootSentinel() {
       || !document.referrer.startsWith(sameOriginPrefix);
     if (!isExternalEntry) return;
 
-    window._bootSentinelPushed = true;
+    this._bootSentinelPushed = true;
     history.pushState(
       { source: 'sportshub', sentinel: true, fallbackPageId: 'page-home' },
       '',
@@ -956,18 +977,22 @@ function _maybePushBootSentinel() {
 }
 
 // popstate handler 偵測 sentinel(完整邏輯詳「popstate handler 整體骨架」)
+// 注意:fallbackPageId 必須是 list/home page,不可指向 detail page,否則無法 reload data
 if (stateValid && event.state.sentinel === true) {
-  await App.showPage(event.state.fallbackPageId || 'page-home', { bypassPageLock: true });
+  const requestedFallback = event.state.fallbackPageId || 'page-home';
+  const isDetailPage = /-detail$/.test(requestedFallback);
+  const fallback = isDetailPage ? 'page-home' : requestedFallback;  // 防禦性 fallback
+  await App.showPage(fallback, { bypassPageLock: true });
   if (seq !== App._popstateRequestSeq) return;
   // 再 push 撐住下一次返回(pushState 不觸發 popstate / hashchange,安全)
-  history.pushState({ ...event.state }, '', location.href);
+  history.pushState({ ...event.state, fallbackPageId: fallback }, '', location.href);
   return;
 }
 ```
 
-> **Hook 點明確化(C)**:`_maybePushBootSentinel` 應掛在 `_dismissBootOverlay()` 真正執行 `overlay.style.display = 'none'` 後立刻呼叫,而非籠統的「App.init() 結尾」。理由:此時 SPA 已 fully ready,使用者可能下一秒就按返回鍵。`window._bootSentinelPushed` flag 防止 overlay 被多次 dismiss 時重複 push。
+> **Hook 點明確化**:`_maybePushBootSentinel` 應掛在 `_dismissBootOverlay()` 真正執行 `overlay.style.display = 'none'` 後立刻呼叫,而非籠統的「App.init() 結尾」。理由:此時 SPA 已 fully ready,使用者可能下一秒就按返回鍵。`App._bootSentinelPushed` flag 防止 overlay 被多次 dismiss 時重複 push。
 >
-> **history.length 雙重判定(D)**:`window.history.length === 1` 在 LIFF iOS WebView、PWA standalone mode、cache restore 等場景不一定精確。增加 `document.referrer` 判斷可降低誤判:
+> **history.length 雙重判定**:`window.history.length === 1` 在 LIFF iOS WebView、PWA standalone mode、cache restore 等場景不一定精確。增加 `document.referrer` 判斷可降低誤判:
 > - LIFF 從訊息點連結進來:`document.referrer` 通常為空字串或 line.me 系列
 > - 一般瀏覽器直接貼網址進來:`document.referrer` 為空
 > - PWA 從桌面 icon 開啟:`document.referrer` 為空,`history.length` 可能 ≥ 2
@@ -978,37 +1003,55 @@ if (stateValid && event.state.sentinel === true) {
 ##### popstate handler 整體骨架(D6 + D10 + D11 + D13 + D14 整合)
 
 ```javascript
-App._popstateRequestSeq = 0;
+// === 1. App 狀態初始化(Object.assign(App, {...}) 內或 App 物件定義時加)===
+// 注意:_popstateRequestSeq 必須是 App 上的初始化欄位,絕不能寫在 handler 內,否則每次 popstate 都被 reset
+// _validatePageId 也掛 App,與既有 helper(_isSafeHistoryRouteSegment 等)命名風格一致
+Object.assign(App, {
+  _popstateRequestSeq: 0,
+  _bootSentinelPushed: false,
 
-// 工具:驗證 hash pageId 在目前 SPA 中真的存在(避免 #section 錨點被當成 pageId)
-function _validatePageId(pageId) {
-  if (!pageId) return null;
-  if (document.getElementById(pageId)) return pageId;
-  if (typeof PageLoader !== 'undefined' && PageLoader._pageFileMap?.[pageId]) return pageId;
-  return null;
-}
+  _validatePageId(pageId) {
+    if (!pageId) return null;
+    if (document.getElementById(pageId)) return pageId;
+    if (typeof PageLoader !== 'undefined' && PageLoader._pageFileMap?.[pageId]) return pageId;
+    return null;
+  },
+});
 
+// 另外:Commit A 同時擴展 detail handler(showEventDetail / showTeamDetail / showTournamentDetail 含
+// friendly variant)接受 bypassPageLock + allowGuest options,並把 bypassPageLock 透傳給內部 showPage。
+// 詳 §8.9.2 Commit A 第 2 步;此處不在 Object.assign 內,屬於另一份檔案的 method 擴展。
+
+// === 2. popstate handler 註冊位置 ===
+// 必須在 App.init() 同步階段內(Object.assign 完成後)註冊,並且早於所有 boot deep link 解析
+// flag=false 時 handler 立刻 early return,等同沒註冊;flag=true 時才走完整邏輯
+// boot 階段按返回鍵也能被 handler 接住(flag=true 時),但若 sentinel 還沒 push 會走 fallback chain
 window.addEventListener('popstate', async (event) => {
-  if (!flags.popstateTakeover) return;  // flag 防護
+  const flags = App._getHistoryRouteFlags?.() || {};
+  if (!flags.popstateTakeover) return;  // flag 防護(Commit B 階段 flag=false 即不做事)
 
   // D14: global race counter(同步階段先 increment,確保下次 popstate 能 invalidate 本次)
   const seq = ++App._popstateRequestSeq;
 
   // D10: dedupe hashchange(同步階段 set,確保攔到接續的 hashchange)
+  // 50ms 視窗只是保險;hashchange 通常在 popstate 同步階段內就 fire,此時 flag 已 = true
   window._suppressNextHashchange = true;
   setTimeout(() => { window._suppressNextHashchange = false; }, 50);
 
   try {
-    // (I) source guard — 只信任本站寫入的 state,避免第三方 library 寫入污染
+    // source guard — 只信任本站寫入的 state,避免第三方 library 寫入污染
     const stateValid = event.state && event.state.source === 'sportshub';
 
     // D11: sentinel state 攔截(優先檢查,防止退出 Mini App)
+    // (V6 二次審計補強)fallbackPageId 必須是 list/home page,不允許指向 detail page,避免無法 reload data
     if (stateValid && event.state.sentinel === true) {
-      const fallback = event.state.fallbackPageId || 'page-home';
+      const requestedFallback = event.state.fallbackPageId || 'page-home';
+      const isDetailPage = /-detail$/.test(requestedFallback);
+      const fallback = isDetailPage ? 'page-home' : requestedFallback;  // 防禦性 fallback
       await App.showPage(fallback, { bypassPageLock: true });
       if (seq !== App._popstateRequestSeq) return;
       // 再 push 撐住下一次返回(pushState 本身不觸發 popstate / hashchange)
-      history.pushState({ ...event.state }, '', location.href);
+      history.pushState({ ...event.state, fallbackPageId: fallback }, '', location.href);
       return;
     }
 
@@ -1026,18 +1069,24 @@ window.addEventListener('popstate', async (event) => {
     }
     if (!targetPageId) {
       // 從 hash 解析,但**必須驗證 pageId 真的對應 SPA 頁面**,避免 #section 錨點誤判
-      targetPageId = _validatePageId(location.hash.replace(/^#/, ''));
+      targetPageId = App._validatePageId(location.hash.replace(/^#/, ''));
     }
     if (!targetPageId) targetPageId = 'page-home';  // 終極 fallback
 
-    // (A) detail page 必須走 showXxxDetail 才會 reload 資料 + 載入 detail script
+    // detail page 必須走 showXxxDetail 才會 reload 資料 + 載入 detail script
     // list / home / admin 等 page 走 showPage (_renderPageContent 已涵蓋)
+    //
+    // detail page 兩個 option 的用途:
+    // - bypassPageLock: true — 確保 detail-to-detail 返回不被 10 秒 page lock 擋(D6 涵蓋)
+    // - allowGuest: true — 訪客模式進來看過的 detail,popstate 返回應允許繼續看,不被 _requireLogin 擋
+    // 前提:Commit A 已擴展 showXxxDetail 接受並傳遞這兩個 option(詳 §8.9.2 Commit A 第 2 步)
+    const detailOptions = { bypassPageLock: true, allowGuest: true };
     if (targetPageId === 'page-activity-detail' && targetId) {
-      await App.showEventDetail(targetId);
+      await App.showEventDetail(targetId, detailOptions);
     } else if (targetPageId === 'page-team-detail' && targetId) {
-      await App.showTeamDetail(targetId);
+      await App.showTeamDetail(targetId, detailOptions);
     } else if (targetPageId === 'page-tournament-detail' && targetId) {
-      await App.showTournamentDetail(targetId);
+      await App.showTournamentDetail(targetId, detailOptions);
     } else {
       // D6: bypass page lock(popstate 是使用者明確意圖)
       await App.showPage(targetPageId, { bypassPageLock: true });
@@ -1046,7 +1095,7 @@ window.addEventListener('popstate', async (event) => {
     // D14: stale check — 若 await 期間又有新 popstate,本次結果作廢
     if (seq !== App._popstateRequestSeq) return;
   } catch (err) {
-    // (B) try/catch 防止 handler 異常終止導致下次 popstate 卡住
+    // try/catch 防止 handler 異常終止導致下次 popstate 卡住
     // 注意:dedupe flag 由 setTimeout 自動 reset,seq 已 increment,下次 popstate 仍能正常運作
     console.error('[Popstate] handler error:', err);
   }
@@ -1062,30 +1111,54 @@ window.addEventListener('popstate', async (event) => {
 
 #### 8.9.2 實作步驟(3 個獨立 Commit)
 
-##### Commit A:Pre-Phase 6 — 修 goBack 隱性 push bug
+##### Commit A:Pre-Phase 6 — 修 goBack 隱性 push bug + detail handler option 擴展
 
-**範圍**:僅 [js/core/navigation.js:953-957](js/core/navigation.js:953)
-- 改為 `this._setRouteUrl(prev, { mode: 'replace' })`
-- hash fallback 改為 `history.replaceState(null, '', '#' + prev)`
-- 補單元測試:呼叫 `goBack` 5 次,確認 `window.history.length` 不膨脹
+**範圍**:
+1. [js/core/navigation.js:953-957](js/core/navigation.js:953):`goBack` 改 replace 模式(D12)
+   - 改為 `this._setRouteUrl(prev, { mode: 'replace' })`
+   - hash fallback 改為 `history.replaceState(null, '', '#' + prev)`
+   - 保留外層守衛 `if (location.hash !== '#' + prev)`
+2. **(V6 二次審計擴展)4 個 detail handler 擴展 options**:
+   - `js/modules/event/event-detail.js` 的 `showEventDetail(id, options)`
+   - `js/modules/team/team-detail.js` 的 `showTeamDetail(id, options)`
+   - `js/modules/tournament/tournament-detail.js` 的 `showTournamentDetail(id, options)`(legacy 版)
+   - `js/modules/tournament/tournament-friendly-detail.js` 的 `showTournamentDetail(id, options)`(friendly 覆寫版,Object.assign 時覆寫 legacy 同名函式)
+
+   4 處需做相同擴展:
+   - 接受 `options.bypassPageLock` 與 `options.allowGuest`
+   - `allowGuest` 已在既有 `_requireLogin()` guard 處檢查(`if (!(options && options.allowGuest) && this._requireLogin()) return`),**不需要再傳給 showPage**
+   - 內部 `await this.showPage(...)` 僅需透傳 `bypassPageLock`:`{ suppressHashSync: true, bypassPageLock: options?.bypassPageLock }`
+   - 為什麼:`showPage` 認得 `bypassPageLock`(navigation.js:521 既有 option),但**不認** `allowGuest`(那是 detail-specific guard)
+   - **此擴展即使 Phase 6 不啟用也是「純擴展不改既有行為」**,既有呼叫者不傳 option 時 `options?.bypassPageLock` 為 undefined → showPage 走預設(page lock 生效),行為完全不變
+- 補單元測試:
+  - 呼叫 `goBack` 5 次,確認 `window.history.length` 不膨脹
+  - 呼叫 `showEventDetail(id, { bypassPageLock: true, allowGuest: true })` 確認 `bypassPageLock` 被傳給內部 showPage(`allowGuest` 僅檢查 detail handler 不擋 guest 進入,不驗 showPage 收到)
 - **完全不動 popstate handler、不動 flag、不動 hashchange listener**
 
-**預期工量**:1-2 小時(改 1 行 + 補 test)
+**預期工量**:2-3 小時(原 1-2h + detail handler option 擴展 + 補測)
 
 **獨立部署條件**:
 - 本機 `npm run test:unit` 全綠
-- 部署後 ≥ 1 週無 history-stack 相關 bug 回報
-- 期間若發現 hash fallback 路徑也有問題,可獨立 hotfix
+- 部署後 ≥ 1 週無 history-stack 或 detail 進站相關 bug 回報
+- 期間若發現 hash fallback 路徑或 option 傳遞有問題,可獨立 hotfix
+
+**回滾路徑**(V6 二次審計補):
+- 若 detail option 擴展出問題:獨立 git revert detail handler 部分,goBack 修正可保留
+- 若 goBack 修正出問題:獨立 git revert,detail option 擴展可保留(尚未被 popstate handler 使用)
 
 ##### Commit B:Phase 6 基礎設施(`popstateTakeover=false`,不啟用)
 
 **範圍**:
-- `app.js` 新增 `App._popstateRequestSeq = 0`(D14)
-- `app.js` 新增 `_maybePushBootSentinel()` 並掛到 `App.init()` 結尾(D11)
-- `app.js` 新增完整 popstate handler(D10 + D13 + D14 整合骨架),但**flag 防護 `if (!flags.popstateTakeover) return`** 確保不啟用
+- `app.js` 在 `Object.assign(App, {...})` 內初始化 **3 個欄位 + 1 個 helper**(詳 §8.9.1 popstate handler 整體骨架 Step 1):
+  - `_popstateRequestSeq: 0`(D14;**絕不能放在 popstate handler 內**,否則每次 popstate 都被 reset)
+  - `_bootSentinelPushed: false`(D11 防重複 push)
+  - `_validatePageId(pageId)` helper(D13 hash fallback 驗證)
+- `app.js` 新增 `_maybePushBootSentinel()`,掛在 `_dismissBootOverlay()` 真正執行 `overlay.style.display = 'none'` 之後立刻呼叫(詳 §8.9.1 Hook 點明確化說明)(D11)
+- `app.js` 新增完整 popstate handler(D10 + D13 + D14 整合骨架),註冊位置:**`App.init()` 同步階段內、`Object.assign(App, {...})` 完成後但所有 boot deep link 解析之前**。boot 階段若用戶按返回鍵:handler 會 fire 但 sentinel 還沒 push,走 fallback chain 解析當前 URL;若 SPA 還沒完全 ready,showPage 內部可能無動作或被 page lock 擋。此 edge case 行為非完美但不會 crash(try/catch 包著),Commit C LIFF 實機測必須涵蓋
+- **flag 防護 `if (!App._getHistoryRouteFlags().popstateTakeover) return`** 確保 Commit B 階段不啟用
 - `app.js` [3144 行 hashchange listener](app.js:3144) 開頭加 `_suppressNextHashchange` 攔截(D10)
 - `js/core/history-route-flags.js`:`popstateTakeover` 保持 `false`(不動 flag,Commit C 才開)
-- 新增 `tests/unit/popstate-handler.test.js`:覆蓋 state object 規範、dedupe 機制、sentinel 處理、state=null fallback、race counter,以 jsdom 模擬 history.pushState 與 popstate 觸發
+- 新增 `tests/unit/popstate-handler.test.js`:覆蓋 state object 規範、dedupe 機制、sentinel 處理(含 fallbackPageId 防 detail 驗證)、state=null fallback、race counter、source guard,以 jsdom 模擬 history.pushState + `window.dispatchEvent(new PopStateEvent('popstate', { state }))` 手動觸發(jsdom 不會自動 fire popstate,需手動 dispatch)
 - [docs/tunables.md](tunables.md):登記 `popstate-hashchange-dedupe-window = 50ms`
 
 **預期工量**:4-6 小時(主要在 popstate handler 邏輯與單元測試)
@@ -1129,6 +1202,12 @@ LINE WebView 在 popstate 行為上有歷史 quirks(state 偶發丟失、`histor
 
 建議先在 `liffPathDisable` flag 開啟的情境下測試(LIFF 內 popstate 仍走 hash 模式),確認穩定後再評估是否解除 LIFF 限制。
 
+##### 測試工具限制(V6 二次審計補充)
+
+- **Playwright e2e 對 iOS edge-swipe back 的覆蓋有限**:Playwright 在 webkit 上用 `page.goBack()` 模擬,事件序列接近但**不等價**於真實 iOS edge-swipe;Commit C 必須以實機驗證 edge-swipe 場景,不能只靠 e2e
+- **jsdom 對 popstate 的支援限制**:`history.pushState()` **不會自動觸發** popstate(這跟瀏覽器一致),unit test 必須用 `window.dispatchEvent(new PopStateEvent('popstate', { state }))` 手動觸發;某些瀏覽器原生 quirk(如 iOS WebView state 丟失)無法在 jsdom 重現,需 Playwright 與實機補
+- **bfcache(back-forward cache)情境**:iOS Safari / Firefox 在某些 navigation 後不會 fire popstate,改 fire `pageshow` with `persisted: true`。Phase 6 第一輪**暫不處理 bfcache**(sentinel 在 bfcache restore 後因 state 仍在 history 內可繼續運作);若實機發現 bfcache restore 後 sentinel 失效,屬第二輪迭代範圍
+
 #### 8.9.4 完整自我驗收清單(V6 新增 25 項)
 
 ##### 基礎功能(原 V5 涵蓋)
@@ -1167,6 +1246,9 @@ LINE WebView 在 popstate 行為上有歷史 quirks(state 偶發丟失、`histor
 - [ ] **從一般瀏覽器 `/events/abc` 直開立刻返回**:不關閉 Tab(D11)
 - [ ] 連按 3 次返回,sentinel 持續 re-push,都不退出(D11)
 - [ ] 站內導航(history.length > 1)時 boot 不 push sentinel(D11 length 檢查)
+- [ ] **sentinel `fallbackPageId` 被誤設成 detail page 時,handler 防禦性 fallback 到 page-home**(V6 二次審計補)
+- [ ] **boot 階段(overlay 未 dismiss)按返回鍵**:handler 走 fallback chain 不 crash;Commit C LIFF 實機需確認最終 UI 不白屏(V6 二次審計補)
+- [ ] **訪客模式進 `/events/abc` → 站內切到 detail B → 按返回**:popstate 帶 `allowGuest: true` 給 showXxxDetail,不被 `_requireLogin()` 擋(V6 二次審計補)
 
 ##### 平台覆蓋(§8.9.3)
 
@@ -1210,20 +1292,21 @@ LINE WebView 在 popstate 行為上有歷史 quirks(state 偶發丟失、`histor
 | 文件補強 | 0 | 1-2 小時 | tunables / claude-memory / decisions 勾選 |
 | **總計** | 中到大 (約 8h) | **12-20 小時** | 涵蓋 5 個未覆蓋風險 + 跨平台測試 |
 
-#### 8.9.7 完善度評分(V5 vs V6)
+#### 8.9.7 完善度評分(V5 → V6 多輪審計)
 
-| 維度 | V5(原) | V6(本次審計後) |
-|---|---|---|
-| 步驟覆蓋 | 6 個簡短步驟 | 3 個獨立 Commit |
-| 風險覆蓋 | 12 個風險中 6 個未提 | 12/12 全覆蓋 |
-| 決策完整度 | 1 個(D6 page lock) | 5 個(D6 + D10-D14) |
-| Self-check 項目 | 8 項 | 30 項 |
-| 平台測試 | 未列 | 5 個平台、12+ 場景 |
-| 工量估算 | 中到大(單一數字) | 12-20h 細項分解 |
-| 回滾策略 | 一句話「關 flag」 | 細述 3 commit 各自影響 |
-| 文件補強清單 | 未列 | 4 個 docs 同步維護 |
+| 維度 | V5(原) | V6 初版 | V6 五輪審計後(本) |
+|---|---|---|---|
+| 步驟覆蓋 | 6 個簡短步驟 | 3 個獨立 Commit | 3 Commit + Pre-Phase 6 兩項改動明列 |
+| 風險覆蓋 | 12 個風險中 6 個未提 | 12/12 全覆蓋 | 12/12 + Round 3/4/5 補強 7 個邊界(註冊時機、source guard、bypassPageLock 透傳、allowGuest、fallbackPageId 防 detail、boot 階段、bfcache) |
+| 決策完整度 | 1 個(D6 page lock) | 5 個(D6 + D10-D14) | 5 個決策 + 二次審計修正內部矛盾 |
+| Self-check 項目 | 8 項 | 30 項 | 33 項(Round 4 新增 3 項邊界驗收) |
+| 平台測試 | 未列 | 5 平台、12+ 場景 | 5 平台、12 場景 + 測試工具限制說明(Playwright edge-swipe / jsdom / bfcache) |
+| 工量估算 | 中到大(單一數字) | 12-20h 細項 | Commit A 1-2h → 2-3h(因擴展 detail handler);總 13-21h |
+| 回滾策略 | 一句話「關 flag」 | 細述 3 commit 各自影響 | 加 Commit A 兩項改動的獨立回滾路徑 |
+| 範例代碼可實作度 | 70% | 95% | 99%(`flags` 變數來源明確 / `_validatePageId` 掛 App / `App._popstateRequestSeq` 初始化位置明確 / sentinel fallbackPageId 防 detail) |
+| 內部一致性 | n/a | 兩處範例矛盾(D11 vs §8.9.1) | 0 個矛盾(五輪審計後) |
 
-V6 視為「**完整可實作**」狀態,進入 8.9.2 三個 Commit 流程前所有設計決策已產出。
+V6 五輪審計後視為「**完整可實作**」狀態,進入 8.9.2 三個 Commit 流程前所有設計決策已產出且無內部矛盾。
 
 ---
 

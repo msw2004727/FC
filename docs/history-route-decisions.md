@@ -933,9 +933,11 @@ history.pushState({ source: 'sportshub', sentinel: true }, '', location.href);
 - 即使 history.length > 1(站內導航進來)也 push,污染 history stack
 - 用戶在站內按返回會多一個無意義 entry
 
-**選項 B:只在 `window.history.length === 1` 時 push**
+**選項 B:只在 `window.history.length === 1` 時 push(本決策採用,實作詳計劃書 §8.9.1)**
 
 ```javascript
+// 概念範例;最終實作詳計劃書 §8.9.1 _maybePushBootSentinel(),
+// 含 referrer 雙重判定 + _bootSentinelPushed flag 防重複 push
 if (window.history.length === 1 && flags.popstateTakeover) {
   history.pushState(
     { source: 'sportshub', sentinel: true, fallbackPageId: 'page-home' },
@@ -950,7 +952,7 @@ if (window.history.length === 1 && flags.popstateTakeover) {
 - 不污染既有站內導航 history stack
 
 缺點:
-- `window.history.length` 在某些瀏覽器是不精確的;需在 boot 流程適當 hook 點呼叫(boot 完成、第一次 interaction 前)
+- `window.history.length` 在某些瀏覽器是不精確的(LIFF iOS WebView、PWA standalone、bfcache restore);最終實作補 `document.referrer` 雙重判定降低誤判,詳計劃書 §8.9.1
 
 **選項 C:popstate handler 偵測 state=null 才補 push**
 
@@ -975,12 +977,17 @@ if (window.history.length === 1 && flags.popstateTakeover) {
 
 ```javascript
 // 完整邏輯詳計劃書 §8.9.1 popstate handler 整體骨架
-// 重點:必須帶 { bypassPageLock: true } 才能在 detail 進站 10 秒內也能正常返回(D6)
+// 重點:
+// 1. 必須帶 { bypassPageLock: true } 才能在 detail 進站 10 秒內也能正常返回(D6)
+// 2. fallbackPageId 必須是 list/home page,不允許指向 detail page(防禦性驗證)
 if (event.state?.sentinel === true) {
-  await this.showPage(event.state.fallbackPageId || 'page-home', { bypassPageLock: true });
+  const requestedFallback = event.state.fallbackPageId || 'page-home';
+  const isDetailPage = /-detail$/.test(requestedFallback);
+  const fallback = isDetailPage ? 'page-home' : requestedFallback;  // detail 不允許
+  await this.showPage(fallback, { bypassPageLock: true });
   if (seq !== App._popstateRequestSeq) return;  // D14 stale check
   // 再 push 一次撐住下一次返回(pushState 本身不觸發 popstate / hashchange)
-  history.pushState({ ...event.state }, '', location.href);
+  history.pushState({ ...event.state, fallbackPageId: fallback }, '', location.href);
   return;
 }
 ```
@@ -1127,7 +1134,7 @@ popstate 事件的 `event.state` 在以下 4 種情境是 null:
 
 ### 背景
 
-- [app.js:2089+](../app.js) `_setRouteUrl` 所有寫入都用 `{ source: 'sportshub', pageId, id? }` 形狀
+- [app.js:2134+](../app.js) `_setRouteUrl` 所有寫入都用 `{ source: 'sportshub', pageId, id? }` 形狀(行號為 2026-05-11 V6 撰寫時位置;實作前建議再 grep 一次確認)
 - 但 history entry 可能來自:
   - boot 時瀏覽器初始 entry(無 state)
   - 從其他網站連過來的 referrer entry(無 state)
