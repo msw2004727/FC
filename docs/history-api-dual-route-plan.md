@@ -54,9 +54,9 @@ v1 上線前審計發現 6 個 P1 重大瑕疵與 9 個 P2 中度瑕疵。V2 補
 | SW navigate cache 不夠精確 | V4 只說不要每條 path 都 cache,但未指定實作 key,容易仍以 `/activities` 作 key。 | navigate fallback 一律 normalize 到 `/` 或 `/index.html` cache key;SPA path 不直接 `cache.put(event.request, clone)`。 |
 | SEO meta 呼叫時機矛盾 | `history-route-decisions.md` D8 定案在 `_renderPageContent` 更新 meta,但 V4 §8.8 又寫 `_setRouteUrl` 寫 path 時更新。 | V5 定案:URL sink 只寫 URL 與記錄 route intent;meta 更新在成功 render 後執行,detail 頁在資料載入後用實際 id/name 更新。 |
 
-### 0.45 V6 審計補強重點(2026-05-11,僅針對 Phase 6,經第 1-14 輪審計收斂)
+### 0.45 V6 審計補強重點(2026-05-11,僅針對 Phase 6,經第 1-15 輪審計收斂)
 
-V5 只覆蓋 Phase 0 → Phase 5.5。V6 不動既有 Phase,**僅針對 Phase 6** 重新審計並大幅擴充 §8.9 與 D10-D14。所有改動限縮在 Phase 6 範圍。經過 14 輪審計收斂(其中第 13/14 輪用瀏覽器 spec + 實際代碼交叉驗證,抓出前 12 輪自我審計都漏掉的根本設計瑕疵)。
+V5 只覆蓋 Phase 0 → Phase 5.5。V6 不動既有 Phase,**僅針對 Phase 6** 重新審計並大幅擴充 §8.9 與 D10-D14。所有改動限縮在 Phase 6 範圍。經過 15 輪審計收斂(其中第 13-15 輪用瀏覽器 spec + 實際代碼 + Codex 第三方交叉驗證,抓出前 12 輪自我審計都漏掉的根本設計瑕疵)。
 
 | 修正點 | V5 缺漏 | V6 定案 |
 |---|---|---|
@@ -1067,29 +1067,62 @@ Object.assign(App, {
 
   // 從當前 location + cached SPA state 反推當前 page state
   // 用於 _maybePushBootSentinel 在 push E1 時不丟失原本的 page 資訊
+  // (Codex 第十五輪審計修正)改走共用 _resolveRouteIntent helper,避免再次與 D13 fallback 不同步
   _buildCurrentRouteState() {
-    // 優先沿用既有 history.state(若是 sportshub 寫的)
+    // 優先沿用既有 history.state(若是 sportshub 寫的,且不是 sentinel)
     const existing = history.state;
     if (existing && existing.source === 'sportshub' && !existing.sentinel) {
       return existing;
     }
-    // fallback:從 URL 反推
-    const parsed = window.HistoryRouteAdapter?.parseHistoryRoute?.(
-      location.pathname, location.search
-    );
-    if (parsed && parsed.pageId) {
-      return {
-        source: 'sportshub',
-        pageId: parsed.pageId,
-        id: parsed.id || undefined,
-      };
+    // fallback:從 URL 反推,使用共用 helper 確保與 D13 popstate fallback 順序一致(§5.1)
+    const intent = this._resolveRouteIntent({ skipState: true });
+    return {
+      source: 'sportshub',
+      pageId: intent.pageId,
+      ...(intent.id ? { id: intent.id } : {}),
+    };
+  },
+
+  // (Codex 第十五輪審計新增)共用 route intent 解析器
+  // 順序遵循 §5.1「舊路由永遠先通」:legacy query > clean path > validated hash > page-home
+  // 同時被 D11 _buildCurrentRouteState 與 D13 popstate handler fallback 使用,
+  // 確保兩處邏輯永遠一致;若未來要改順序只需動一個函式
+  //
+  // opts:
+  //   - state: 若提供且 source==='sportshub' 且非 sentinel,優先使用
+  //   - skipState: true 時跳過 state 那層,直接從 URL 解析
+  //   - loc: 預設 window.location,可注入便於 unit test
+  _resolveRouteIntent(opts = {}) {
+    const loc = opts.loc || window.location;
+    const flags = this._getHistoryRouteFlags?.() || {};
+
+    // 1. state 優先(若 source guard 通過且非 sentinel)
+    if (!opts.skipState) {
+      const st = opts.state !== undefined ? opts.state : history.state;
+      if (st && st.source === 'sportshub' && !st.sentinel && st.pageId) {
+        return { pageId: st.pageId, id: st.id || null };
+      }
     }
-    // 終極 fallback:只記 pageId(從 hash)
-    const hashPageId = location.hash.replace(/^#/, '');
-    if (this._validatePageId(hashPageId)) {
-      return { source: 'sportshub', pageId: hashPageId };
+    // 2. legacy query(§5.1 規定先於 clean path,與 boot _hasLegacyRouteSignal 一致)
+    const legacy = this._parseLegacyQueryRoute?.(loc.search);
+    if (legacy && legacy.pageId) {
+      return { pageId: legacy.pageId, id: legacy.id || null };
     }
-    return { source: 'sportshub', pageId: 'page-home' };
+    // 3. clean path(parseHistoryRoute 第二參數是 options 不是 search!)
+    if (window.HistoryRouteAdapter && typeof window.HistoryRouteAdapter.parseHistoryRoute === 'function') {
+      const parsed = window.HistoryRouteAdapter.parseHistoryRoute(
+        loc.pathname,
+        { usersPathEnabled: !!flags.usersPathEnabled }
+      );
+      if (parsed && parsed.pageId && parsed.pageId !== 'page-home') {
+        return { pageId: parsed.pageId, id: parsed.id || null };
+      }
+    }
+    // 4. validated hash(避免 #section 錨點被誤判)
+    const hashPageId = this._validatePageId((loc.hash || '').replace(/^#/, ''));
+    if (hashPageId) return { pageId: hashPageId, id: null };
+    // 5. 終極 fallback
+    return { pageId: 'page-home', id: null };
   },
 
   _maybePushBootSentinel() {
@@ -1236,37 +1269,13 @@ window.addEventListener('popstate', async (event) => {
     }
 
     // D13: fallback chain 解析 targetPageId + targetId
-    // 順序:state.source guard → state.pageId → clean path → **legacy query** → validated hash → page-home
-    let targetPageId = stateValid ? event.state.pageId : null;
-    let targetId = stateValid ? (event.state.id || null) : null;
-
-    if (!targetPageId) {
-      // (第十四輪審計修正:parseHistoryRoute 第二參數是 options,不是 search)
-      // 從 clean path 解析(走 HistoryRouteAdapter,與 boot deep link 邏輯一致)
-      const flags = App._getHistoryRouteFlags?.() || {};
-      const parsed = window.HistoryRouteAdapter?.parseHistoryRoute?.(
-        location.pathname,
-        { usersPathEnabled: flags.usersPathEnabled }
-      );
-      if (parsed && parsed.pageId !== 'page-home') {  // home 留給下一層 fallback 處理
-        targetPageId = parsed.pageId;
-        targetId = parsed.id || targetId;
-      }
-    }
-    if (!targetPageId) {
-      // (第十四輪審計新增)從 legacy query 解析 — LIFF / Mini App 分享連結仍用 ?event= / ?team= / ?tournament= / ?profile=
-      // 即使 path 是 '/',若 URL 帶 query,popstate 仍能正確還原 detail
-      const legacy = App._parseLegacyQueryRoute?.(location.search);
-      if (legacy) {
-        targetPageId = legacy.pageId;
-        targetId = legacy.id;
-      }
-    }
-    if (!targetPageId) {
-      // 從 hash 解析,但**必須驗證 pageId 真的對應 SPA 頁面**,避免 #section 錨點誤判
-      targetPageId = App._validatePageId(location.hash.replace(/^#/, ''));
-    }
-    if (!targetPageId) targetPageId = 'page-home';  // 終極 fallback
+    // (Codex 第十五輪審計修正)改走共用 App._resolveRouteIntent helper,
+    // 與 D11 _buildCurrentRouteState 同一份 fallback chain,順序遵循 §5.1:
+    // state(source guard) → legacy query → clean path → validated hash → page-home
+    // 同時與 boot _primeBootHistoryDeepLink + _hasLegacyRouteSignal 邏輯一致(legacy 優先)
+    const intent = App._resolveRouteIntent({ state: event.state });
+    let targetPageId = intent.pageId;
+    let targetId = intent.id;
 
     // detail page 必須走 showXxxDetail 才會 reload 資料 + 載入 detail script
     // list / home / admin 等 page 走 showPage (_renderPageContent 已涵蓋)
@@ -1503,6 +1512,10 @@ LINE WebView 在 popstate 行為上有歷史 quirks(state 偶發丟失、`histor
 - [ ] **LIFF 內 detail A → detail B → 按返回 → 正確 reload detail A 資料**(Commit A 第 3 項 + popstate handler 完整整合驗收)
 - [ ] **(第十四輪)瀏覽器返回後站內圓形返回鍵不會把使用者拉回剛離開的頁面**(`skipPageHistory` 透傳驗收 — 證明 _pushPageHistory 在 popstate 路徑下不污染 App.pageHistory)
 - [ ] **(第十四輪)LIFF 內 URL=`/?event=abc#page-activity-detail` 且 popstate state=null 時,popstate handler 從 legacy query `?event=abc` 拿到 id 並呼叫 `showEventDetail('abc')` reload data**(_parseLegacyQueryRoute 驗收)
+- [ ] **(第十五輪)`_buildCurrentRouteState()` 在 history.state=null + URL=`/?event=ce_test#page-activity-detail` 情境下回傳 `{ source:'sportshub', pageId:'page-activity-detail', id:'ce_test' }`**(Codex 第十五輪審計驗收,證明 D11 sentinel push 的 E1 currentState 不丟 detail id)
+- [ ] **(第十五輪)`_buildCurrentRouteState()` 在 URL=`/events/ce_test` clean path 情境下回傳 `{ source:'sportshub', pageId:'page-activity-detail', id:'ce_test' }`**(同上,clean path 解析也保 id)
+- [ ] **(第十五輪)Conflict URL `/events/ce_a?event=ce_b#page-activity-detail` 且 state=null 時,popstate handler 與 boot 行為一致(都走 ce_b,因為 §5.1 legacy 優先於 clean path)**(Codex 第十五輪 conflict URL 驗收)
+- [ ] **(第十五輪)`_resolveRouteIntent` 與 boot `_primeBootHistoryDeepLink` + `_hasLegacyRouteSignal` 流程的 fallback 順序一致**(D11/D13/boot 三者邏輯不再各自為政)
 - [ ] **sentinel `fallbackPageId` 被誤設成 detail page 時,handler 防禦性 fallback 到 page-home**(V6 二次審計補)
 - [ ] **boot 階段(overlay 未 dismiss)按返回鍵**:handler 走 fallback chain 不 crash;Commit C LIFF 實機需確認最終 UI 不白屏(V6 二次審計補)
 - [ ] **訪客模式進 `/events/abc` → 站內切到 detail B → 按返回**:popstate 帶 `allowGuest: true` 給 showXxxDetail,不被 `_requireLogin()` 擋(V6 二次審計補)
@@ -1549,22 +1562,22 @@ LINE WebView 在 popstate 行為上有歷史 quirks(state 偶發丟失、`histor
 | 文件補強 | 0 | 1-2 小時 | tunables / claude-memory / decisions 勾選 |
 | **總計** | 中到大 (約 8h) | **12-20 小時** | 涵蓋 5 個未覆蓋風險 + 跨平台測試 |
 
-#### 8.9.7 完善度評分(V5 → V6 多輪審計)
+#### 8.9.7 完善度評分(V5 → V6 多輪審計,經 Codex 第三方審計收斂至第十五輪)
 
-| 維度 | V5(原) | V6 初版 | V6 五輪審計後 | V6 第十三輪審計後(本) |
-|---|---|---|---|---|
-| 步驟覆蓋 | 6 個簡短步驟 | 3 個獨立 Commit | 3 Commit + Pre-Phase 6 兩項改動 | 3 Commit + Pre-Phase 6 **三項**改動(新增 _setRouteUrl hash fallback state) |
-| 風險覆蓋 | 12 個風險中 6 個未提 | 12/12 全覆蓋 | 12/12 + 7 個邊界補強 | 12/12 + 10 個邊界(新增 popstate spec 順序、觸發條件範圍、LIFF detail state) |
-| 決策完整度 | 1 個 | 5 個(D6 + D10-D14) | 5 個 + 二次審計修正 | 5 個 + 第十三輪審計修 D11 重大邏輯瑕疵 |
-| Self-check 項目 | 8 項 | 30 項 | 33 項 | 37 項(新增 Commit A 第 3 項、popstate spec 驗證、觸發限縮驗收) |
-| 平台測試 | 未列 | 5 平台、12+ 場景 | 5 平台 + 工具限制 | 5 平台 + 工具限制 + **一般瀏覽器不攔截** 行為驗證 |
-| 工量估算 | 「中到大」 | 12-20h | 13-21h | Commit A 3-4h(原 2-3h + _setRouteUrl state 修正);總 14-22h |
-| 回滾策略 | 一句話 | 細述 3 commit | 加 Commit A 兩項回滾 | 加 Commit A **三項各自獨立回滾** |
-| 範例代碼可實作度 | 70% | 95% | 99% | 99%(sentinel 設計修正後真正可實作) |
-| **設計邏輯正確性** | n/a | n/a | n/a | **修正:原 V6 sentinel pushState 設計違反瀏覽器 popstate spec、無法攔截第一次返回;改為 replaceState+pushState 雙寫** |
-| 內部一致性 | n/a | 兩處矛盾 | 0 個矛盾(五輪審計後) | 0 個矛盾(十三輪審計後) |
+| 維度 | V5(原) | V6 初版 | V6 五輪審計後 | V6 第十三輪 | V6 第十五輪(本,Codex 審計後) |
+|---|---|---|---|---|---|
+| 步驟覆蓋 | 6 個簡短步驟 | 3 個獨立 Commit | 3 Commit + Pre-Phase 6 兩項改動 | 3 Commit + Pre-Phase 6 三項改動 | 3 Commit + Pre-Phase 6 三項改動(detail handler 透傳 4 option + _pushPageHistory + _setRouteUrl/_syncTournamentDetailRoute 兩處 state) |
+| 風險覆蓋 | 12 個風險中 6 個未提 | 12/12 全覆蓋 | 12/12 + 7 個邊界補強 | 12/12 + 10 個邊界 | **12/12 + 12 個邊界**(新增 fallback 順序統一、_buildCurrentRouteState 補測) |
+| 決策完整度 | 1 個 | 5 個(D6 + D10-D14) | 5 個 + 二次審計修正 | 5 個 + 第十三輪審計 | 5 個 + **抽 `_resolveRouteIntent` 共用 helper 取代多套 fallback chain** |
+| Self-check 項目 | 8 項 | 30 項 | 33 項 | 37 項 | **41 項**(新增 4 項:legacy query 重建 state、clean path 重建 state、conflict URL 一致性、D11/D13/boot 順序一致) |
+| 平台測試 | 未列 | 5 平台、12+ 場景 | 5 平台 + 工具限制 | 5 平台 + 工具限制 + 一般瀏覽器不攔截 | 同前 + **conflict URL 場景** |
+| 工量估算 | 「中到大」 | 12-20h | 13-21h | 14-22h | Commit A 4-5h(原 3-4h + helper 抽取 + 補測)、總 **15-23h** |
+| 回滾策略 | 一句話 | 細述 3 commit | 加 Commit A 兩項回滾 | 加 Commit A 三項各自獨立回滾 | 同前(Commit A 三項解耦不變) |
+| 範例代碼可實作度 | 70% | 95% | 99% | 99% | **99.5%**(`_buildCurrentRouteState` 不再誤用 parseHistoryRoute,D11/D13 走共用 helper) |
+| **設計邏輯正確性** | n/a | n/a | n/a | 修正 sentinel spec | 同前 + **fallback 順序對齊 §5.1 + boot 行為** |
+| 內部一致性 | n/a | 兩處矛盾 | 0 個矛盾(五輪後) | 0 個矛盾(十三輪後) | **D11/D13/boot 三流程透過共用 helper 永久同步** |
 
-V6 第十三輪 + 十四輪審計後視為「**完整可實作且設計邏輯正確**」狀態。前五輪審計只發現「描述不一致 / 變數來源不明 / 範例不清楚」等表面瑕疵;第十三輪 + 十四輪用瀏覽器 spec + 實際代碼交叉驗證,找出 6 個前面所有審計都漏掉的根本性瑕疵:
+V6 第十三 → 十五輪審計後視為「**完整可實作且設計邏輯正確**」狀態。前 12 輪自我審計只發現「描述不一致 / 變數來源不明 / 範例不清楚」等表面瑕疵;第 13-15 輪用瀏覽器 spec + 實際代碼 + Codex 第三方審計交叉驗證,找出 8 個前面所有審計都漏掉的根本性瑕疵:
 
 - (十三輪)D11 sentinel 設計違反 popstate spec — 從根本不會生效
 - (十三輪)sentinel 觸發條件過寬接近 dark pattern
@@ -1572,8 +1585,10 @@ V6 第十三輪 + 十四輪審計後視為「**完整可實作且設計邏輯正
 - (十四輪)popstate handler 呼叫 showPage 會污染 App.pageHistory(造成站內返回循環)
 - (十四輪)parseHistoryRoute 第二參數是 options 非 search;D13 fallback chain 漏掉 legacy query parser
 - (十四輪)_syncTournamentDetailRoute 自己 fallback path 繞過 _setRouteUrl,LIFF 內 state 仍 null
+- (十五輪 Codex)`_buildCurrentRouteState` 仍誤用 parseHistoryRoute(pathname, location.search) 且漏掉 legacy query parse,D11 與 D14 修正不同步
+- (十五輪 Codex)D13 fallback 順序(clean path > legacy query)違反 §5.1「舊路由永遠先通」且與 boot `_primeBootHistoryDeepLink` 行為衝突,conflict URL 會產生不一致
 
-**沒有用戶用瀏覽器 spec 知識 + 直接讀 app.js / history-route-flags.js / event-detail.js / navigation.js / history-route-adapter.js 程式碼交叉驗證,前面再多輪自我審計也抓不到**。這證明審計需要外部視角才能突破自身盲點。
+**沒有用戶用瀏覽器 spec 知識 + Codex 第三方審計交叉驗證,前面再多輪自我審計也抓不到**。這證明審計需要外部視角才能突破自身盲點;且**每次修正都可能引入新的不一致**(第十四輪修 D13 卻沒同步 D11 的 _buildCurrentRouteState),最佳實踐是抽出共用 helper 讓邏輯只存在一處。
 
 ---
 

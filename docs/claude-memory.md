@@ -1,5 +1,23 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-11 — Phase 6 V6 第十五輪審計(Codex 第三方審計):D11 與 D13 fallback 邏輯不同步 [永久]
+- **背景**:第十四輪修完 D13 popstate fallback 後,Codex review(用戶轉交)發現:
+  1. D11 `_buildCurrentRouteState()` 仍寫 `parseHistoryRoute(location.pathname, location.search)`,且無 legacy query parse → 與 D14 修正不同步,LIFF 進站時 sentinel push 的 E1.state 可能丟 detail id。
+  2. D13 fallback 順序 `state → clean path → legacy query → validated hash` **違反 §5.1「舊路由永遠先通」**,且與 boot [app.js:2257-2266 `_primeBootHistoryDeepLink`](app.js:2257) + [app.js:2014-2020 `_hasLegacyRouteSignal`](app.js:2014) 行為衝突 — boot 是 legacy 優先於 clean path。Conflict URL `/events/ce_a?event=ce_b#page-activity-detail` 在 boot 走 ce_b、popstate 走 ce_a,user 觀察行為不一致。
+- **核實**:
+  - `parseHistoryRoute` 簽名確認:[history-route-adapter.js:63](js/core/history-route-adapter.js:63) 第二參數是 `options`,不解析 query
+  - `_primeBootHistoryDeepLink` line 2262 確認:`if (this._hasLegacyRouteSignal()) return null;` — legacy 優先於 clean path
+  - §5.1 規定優先順序:event > team > tournament > profile > hash > history path
+- **修正**:
+  - 抽出 `App._resolveRouteIntent(opts)` 共用 helper,順序遵循 §5.1:**state → legacy query → clean path → validated hash → page-home**
+  - D11 `_buildCurrentRouteState` 與 D13 popstate handler fallback 改走同一份 helper
+  - §8.9.4 新增 4 項驗收(_buildCurrentRouteState legacy query / clean path / conflict URL / 三流程一致)
+- **教訓**:
+  - **每次修正都可能引入新的不一致**:第十四輪修了 D13 popstate handler 內的 parseHistoryRoute 呼叫 + 加 legacy query parse,但**同檔同段的 D11 `_buildCurrentRouteState` 沒同步**。Codex 一眼就看到這個漏掉的位置。
+  - **多套 fallback chain 共存是反模式**:D11 / D13 / boot 三處各自有 fallback 邏輯,改一處沒改其他就會不同步。**正確做法是抽共用 helper,讓邏輯只存在一個地方**。
+  - **計劃書內的優先順序必須相互引用,不能各說各話**:§5.1 已經規定優先順序,D13 設計時直覺寫了「clean path 在前」沒回頭對照 §5.1,於是與 boot 行為衝突。後續審計新規則時必須先 grep §5.1 / boot priority,確認順序對齊。
+  - **Codex review 的價值**:Codex 不受我前面審計記憶的影響,純從「程式碼是不是這樣」角度看,能戳到自我審計的盲區(尤其是「我以為自己修了但漏掉了一處」這類)。
+
 ### 2026-05-11 — 放鴿子功能恢復（軟關閉 → 啟用）
 - **背景**：2026-05-09 commit `bd7c9a36 feat: temporarily disable no-show feature` 將前後端 `NO_SHOW_FEATURE_ENABLED` 設為 `false` 做軟關閉。歷史資料（`users.noShowCount`、`userCorrections.noShow`、相關 opLog）依規範保留未刪除。
 - **本次動作**：

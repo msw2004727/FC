@@ -1189,69 +1189,62 @@ popstate 事件的 `event.state` 在以下 4 種情境是 null:
 - UX 差(使用者按了返回鍵卻沒反應)
 - iOS WebView quirk 會被誤判
 
-**選項 B:fallback chain — `state.pageId → clean path → legacy query → validated hash → 'page-home'`(十四輪審計新增 legacy query 一層)**
+**選項 B:fallback chain 走共用 helper `App._resolveRouteIntent` — 順序遵循 §5.1(Codex 第十五輪審計修正)**
+
+> **第十四 → 十五輪修正**:第十四輪寫的順序是 `state → clean path → legacy query → validated hash → home`,**違反 §5.1「舊路由永遠先通」**且與 boot `_primeBootHistoryDeepLink` + `_hasLegacyRouteSignal`([app.js:2014-2020, 2257-2266](../app.js:2014))不一致。Conflict URL 如 `/events/ce_a?event=ce_b#page-activity-detail` 會在 boot 跑 ce_b 但 popstate 跑 ce_a,user 觀察到的 detail 與 URL 來源行為不一致。第十五輪審計改為:
+>
+> 1. 統一順序:**state → legacy query → clean path → validated hash → page-home**(legacy 優先於 clean path,與 §5.1 + boot 一致)
+> 2. 抽出 `App._resolveRouteIntent(opts)` 共用 helper,D11 `_buildCurrentRouteState` 與 D13 popstate fallback 都用同一份 helper,**避免未來再次不同步**
 
 ```javascript
-// hash 解析必須驗證 pageId 真的對應 SPA 頁面(否則 #section 錨點會被誤當成 pageId)
-App._validatePageId = function(pageId) {
-  if (!pageId) return null;
-  if (document.getElementById(pageId)) return pageId;
-  if (typeof PageLoader !== 'undefined' && PageLoader._pageFileMap?.[pageId]) return pageId;
-  return null;
+// === D11 + D13 共用 route 解析 helper(掛 App 上)===
+App._resolveRouteIntent = function(opts) {
+  opts = opts || {};
+  const loc = opts.loc || window.location;
+  const flags = this._getHistoryRouteFlags?.() || {};
+
+  // 1. state 優先(source guard 通過且非 sentinel)
+  if (!opts.skipState) {
+    const st = opts.state !== undefined ? opts.state : history.state;
+    if (st && st.source === 'sportshub' && !st.sentinel && st.pageId) {
+      return { pageId: st.pageId, id: st.id || null };
+    }
+  }
+  // 2. legacy query(§5.1 規定;與 boot _hasLegacyRouteSignal 一致)
+  const legacy = this._parseLegacyQueryRoute?.(loc.search);
+  if (legacy && legacy.pageId) return { pageId: legacy.pageId, id: legacy.id || null };
+
+  // 3. clean path(parseHistoryRoute 第二參數是 options 不是 search!)
+  if (window.HistoryRouteAdapter?.parseHistoryRoute) {
+    const parsed = window.HistoryRouteAdapter.parseHistoryRoute(
+      loc.pathname,
+      { usersPathEnabled: !!flags.usersPathEnabled }
+    );
+    if (parsed && parsed.pageId && parsed.pageId !== 'page-home') {
+      return { pageId: parsed.pageId, id: parsed.id || null };
+    }
+  }
+  // 4. validated hash(避免 #section 錨點誤判)
+  const hashPageId = this._validatePageId((loc.hash || '').replace(/^#/, ''));
+  if (hashPageId) return { pageId: hashPageId, id: null };
+
+  // 5. 終極 fallback
+  return { pageId: 'page-home', id: null };
 };
 
-// (第十四輪審計新增)解析 legacy query route(LIFF / Mini App 仍用 ?event= / ?team= / ?tournament= / ?profile=)
-App._parseLegacyQueryRoute = function(searchString) {
-  const params = new URLSearchParams(String(searchString || ''));
-  const mapping = [
-    { key: 'event', pageId: 'page-activity-detail' },
-    { key: 'team', pageId: 'page-team-detail' },
-    { key: 'tournament', pageId: 'page-tournament-detail' },
-    { key: 'profile', pageId: 'page-user-card' },
-  ];
-  for (const { key, pageId } of mapping) {
-    const id = params.get(key);
-    if (id && this._isSafeHistoryRouteSegment?.(id)) return { pageId, id };
-  }
-  return null;
-};
-
-// 注意:parseHistoryRoute 第二參數是 options,不是 search!不解析 query。
-// 必須單獨用 _parseLegacyQueryRoute 解析 query。
-const stateValid = event.state && event.state.source === 'sportshub';
-let targetPageId = stateValid ? event.state.pageId : null;
-let targetId = stateValid ? (event.state.id || null) : null;
-
-if (!targetPageId) {
-  const flags = App._getHistoryRouteFlags?.() || {};
-  const parsed = window.HistoryRouteAdapter?.parseHistoryRoute?.(
-    location.pathname,
-    { usersPathEnabled: flags.usersPathEnabled }  // 第二參數是 options 不是 search!
-  );
-  if (parsed && parsed.pageId !== 'page-home') {
-    targetPageId = parsed.pageId;
-    targetId = parsed.id || targetId;
-  }
-}
-if (!targetPageId) {
-  // (第十四輪審計新增)從 legacy query 解析 — 覆蓋 LIFF / Mini App 分享連結情境
-  const legacy = App._parseLegacyQueryRoute(location.search);
-  if (legacy) {
-    targetPageId = legacy.pageId;
-    targetId = legacy.id;
-  }
-}
-if (!targetPageId) targetPageId = App._validatePageId(location.hash.replace(/^#/, ''));
-if (!targetPageId) targetPageId = 'page-home';
+// === D13 popstate handler 使用 ===
+const intent = App._resolveRouteIntent({ state: event.state });
+const targetPageId = intent.pageId;
+const targetId = intent.id;
 ```
 
 優點:
+- **與 §5.1 + boot 流程順序完全一致**,conflict URL 行為可預期
 - 任何情境都有解,不會白屏
-- 與既有 boot deep link parse 邏輯一致
-- 終極 fallback 是 `page-home` 不是錯誤頁
 - `_validatePageId` 避免 `#section`、`#unknown-page` 等錨點被誤判
 - source guard 避免第三方 library 寫入 state 污染
-- **(第十四輪審計新增)legacy query parse 覆蓋 LIFF / Mini App ?event= / ?team= 等情境**,popstate 後仍能還原 detail id
+- legacy query parse 覆蓋 LIFF / Mini App ?event= / ?team= 等情境
+- **(第十五輪審計新增)D11 與 D13 共用同一 helper,未來改順序只需動一個函式**
 
 缺點:
 - 多走一次 URL parse + DOM lookup(成本低)
