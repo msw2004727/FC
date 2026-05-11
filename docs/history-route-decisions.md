@@ -974,9 +974,12 @@ if (window.history.length === 1 && flags.popstateTakeover) {
 ### popstate handler 處理 sentinel
 
 ```javascript
+// 完整邏輯詳計劃書 §8.9.1 popstate handler 整體骨架
+// 重點:必須帶 { bypassPageLock: true } 才能在 detail 進站 10 秒內也能正常返回(D6)
 if (event.state?.sentinel === true) {
-  await this.showPage(event.state.fallbackPageId || 'page-home');
-  // 再 push 一次撐住下一次返回,直到用戶手動切站
+  await this.showPage(event.state.fallbackPageId || 'page-home', { bypassPageLock: true });
+  if (seq !== App._popstateRequestSeq) return;  // D14 stale check
+  // 再 push 一次撐住下一次返回(pushState 本身不觸發 popstate / hashchange)
   history.pushState({ ...event.state }, '', location.href);
   return;
 }
@@ -1031,15 +1034,21 @@ if (event.state?.sentinel === true) {
 **選項 A:goBack 改用 replace 模式**
 
 ```javascript
-if (typeof this._setRouteUrl === 'function') {
-  this._setRouteUrl(prev, { mode: 'replace' });
+// 保留外層守衛(避免 URL 已等於目標時無謂寫入,與 _activatePage:138 風格一致)
+if (location.hash !== '#' + prev) {
+  if (typeof this._setRouteUrl === 'function') {
+    this._setRouteUrl(prev, { mode: 'replace' });
+  } else {
+    history.replaceState(null, '', '#' + prev);
+  }
 }
 ```
 
 優點:
-- 改動最小(僅 1 行)
+- 改動最小(範例 7 行但實質只是 push → replace)
 - 不依賴 popstate handler,可獨立成 Pre-Phase 6 commit 先 deploy 並驗證
 - 即使 Phase 6 不啟用 popstateTakeover 也修正了 history stack 膨脹
+- 保留外層守衛確保不產生無謂的 replaceState 呼叫
 
 缺點:
 - 兩個 history stack(自訂 pageHistory + 瀏覽器 history)仍各管各的
@@ -1135,12 +1144,21 @@ popstate 事件的 `event.state` 在以下 4 種情境是 null:
 - UX 差(使用者按了返回鍵卻沒反應)
 - iOS WebView quirk 會被誤判
 
-**選項 B:fallback chain — `state.pageId → parse from URL → parse from hash → 'page-home'`**
+**選項 B:fallback chain — `state.pageId → parse from URL → validated hash → 'page-home'`**
 
 ```javascript
-const targetPageId = event.state?.pageId
+// hash 解析必須驗證 pageId 真的對應 SPA 頁面(否則 #section 錨點會被誤當成 pageId)
+function _validatePageId(pageId) {
+  if (!pageId) return null;
+  if (document.getElementById(pageId)) return pageId;
+  if (typeof PageLoader !== 'undefined' && PageLoader._pageFileMap?.[pageId]) return pageId;
+  return null;
+}
+
+const stateValid = event.state && event.state.source === 'sportshub';  // source guard
+const targetPageId = (stateValid && event.state.pageId)
   || (window.HistoryRouteAdapter?.parseHistoryRoute?.(location.pathname, location.search)?.pageId)
-  || (location.hash.replace(/^#/, '') || null)
+  || _validatePageId(location.hash.replace(/^#/, ''))  // 驗證後才使用
   || 'page-home';
 ```
 
@@ -1148,9 +1166,11 @@ const targetPageId = event.state?.pageId
 - 任何情境都有解,不會白屏
 - 與既有 boot deep link parse 邏輯一致(都從 URL 重新解析)
 - 終極 fallback 是 `page-home` 不是錯誤頁
+- `_validatePageId` 避免 `#section`、`#unknown-page` 等錨點被誤判
+- source guard 避免第三方 library 寫入 state 污染
 
 缺點:
-- 多走一次 URL parse(成本低)
+- 多走一次 URL parse + DOM lookup(成本低)
 
 **選項 C:state = null 視為「退出意圖」,sentinel 處理**
 
@@ -1184,6 +1204,8 @@ const targetPageId = event.state?.pageId
 - [ ] 終極 fallback 是 `page-home`,不是錯誤頁或停留原頁
 - [ ] state = null 不觸發 sentinel 邏輯(兩者解耦,sentinel 看 `state.sentinel === true`)
 - [ ] 從外部網站連結進站後按返回,handler 能優雅 fallback 或交給瀏覽器原生返回
+- [ ] hash 為 `#section`、`#unknown-pageId` 等錨點時,`_validatePageId` 回 null,fallback chain 走下一層
+- [ ] state.source 不是 'sportshub' 時,handler 不信任 state.pageId,改走 URL parse(source guard)
 
 ---
 

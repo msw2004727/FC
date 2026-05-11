@@ -867,13 +867,18 @@ if (location.hash !== '#' + prev) {
 **修法**(依 D12 決策,選 A 短期方案):
 
 ```javascript
-if (typeof this._setRouteUrl === 'function') {
-  this._setRouteUrl(prev, { mode: 'replace' });  // 改為 replace
-} else {
-  // hash fallback 也走 replace
-  history.replaceState(null, '', '#' + prev);
+// 同步 URL hash — 保留外層守衛(避免目標 URL 已等於當前 URL 時無謂寫入)
+if (location.hash !== '#' + prev) {
+  if (typeof this._setRouteUrl === 'function') {
+    this._setRouteUrl(prev, { mode: 'replace' });  // 改 push → replace
+  } else {
+    // hash fallback 也走 replace
+    history.replaceState(null, '', '#' + prev);
+  }
 }
 ```
+
+> **V6 審計修正**:V6 第一版範例曾不慎刪除外層守衛 `if (location.hash !== '#' + prev)`,雖然 `replaceState` 在 URL 不變時無功能性副作用,但會產生無意義的多餘寫入。修正後保留此守衛,與既有 [navigation.js:138](js/core/navigation.js:138) `_activatePage` 的同類守衛風格一致。
 
 **驗收**:
 - 點首頁 → 列表 → 詳細 → 站內返回鍵 5 次後,`window.history.length` ≤ 進站時 +1
@@ -922,63 +927,138 @@ window.addEventListener('hashchange', () => {
 ##### Sentinel state push(D11)
 
 ```javascript
-// app.js boot 完成 hook 點(App.init() 結尾)
+// app.js — 由 _dismissBootOverlay 真正執行 overlay.style.display = 'none' 後立刻呼叫
+// (此時 SPA 已 ready,user 可能下一秒就按返回鍵)
 function _maybePushBootSentinel() {
-  if (!flags.popstateTakeover) return;
-  if (window.history.length !== 1) return;
-  history.pushState(
-    { source: 'sportshub', sentinel: true, fallbackPageId: 'page-home' },
-    '',
-    location.href  // 不改 URL
-  );
+  try {
+    if (!flags.popstateTakeover) return;
+    if (window._bootSentinelPushed) return;  // 避免重複 push(boot overlay 可能被多次 dismiss)
+
+    // (D) 雙重判定避免 history.length 在 LIFF / PWA / cache restore 的不精確:
+    //   - history.length === 1:典型外部進站(LIFF 訊息點、refresh、直接貼網址)
+    //   - referrer 不是同 origin:確認來源不在本站
+    // 兩者擇一為 true 即視為外部進站,需要 sentinel 保護
+    const sameOriginPrefix = window.location.origin + '/';
+    const isExternalEntry = window.history.length === 1
+      || document.referrer === ''
+      || !document.referrer.startsWith(sameOriginPrefix);
+    if (!isExternalEntry) return;
+
+    window._bootSentinelPushed = true;
+    history.pushState(
+      { source: 'sportshub', sentinel: true, fallbackPageId: 'page-home' },
+      '',
+      location.href  // 不改 URL
+    );
+  } catch (err) {
+    console.warn('[Phase6] _maybePushBootSentinel failed:', err);
+  }
 }
 
-// popstate handler 偵測 sentinel
-if (event.state?.sentinel === true) {
-  await this.showPage(event.state.fallbackPageId || 'page-home', { bypassPageLock: true });
-  // 再 push 撐住下一次返回,直到使用者主動離站
+// popstate handler 偵測 sentinel(完整邏輯詳「popstate handler 整體骨架」)
+if (stateValid && event.state.sentinel === true) {
+  await App.showPage(event.state.fallbackPageId || 'page-home', { bypassPageLock: true });
+  if (seq !== App._popstateRequestSeq) return;
+  // 再 push 撐住下一次返回(pushState 不觸發 popstate / hashchange,安全)
   history.pushState({ ...event.state }, '', location.href);
   return;
 }
 ```
 
-##### popstate handler 整體骨架(D6 + D13 + D14)
+> **Hook 點明確化(C)**:`_maybePushBootSentinel` 應掛在 `_dismissBootOverlay()` 真正執行 `overlay.style.display = 'none'` 後立刻呼叫,而非籠統的「App.init() 結尾」。理由:此時 SPA 已 fully ready,使用者可能下一秒就按返回鍵。`window._bootSentinelPushed` flag 防止 overlay 被多次 dismiss 時重複 push。
+>
+> **history.length 雙重判定(D)**:`window.history.length === 1` 在 LIFF iOS WebView、PWA standalone mode、cache restore 等場景不一定精確。增加 `document.referrer` 判斷可降低誤判:
+> - LIFF 從訊息點連結進來:`document.referrer` 通常為空字串或 line.me 系列
+> - 一般瀏覽器直接貼網址進來:`document.referrer` 為空
+> - PWA 從桌面 icon 開啟:`document.referrer` 為空,`history.length` 可能 ≥ 2
+> 雙重判定下,只要其中一個訊號顯示「外部進站」即觸發 sentinel。Commit C LIFF 五平台實機測試會最終確認此邏輯。
+>
+> **Sentinel 無限攔截的設計選擇**:用戶連按 N 次返回都會被 sentinel 帶回 home,業界主流(YouTube / Facebook / Instagram 等)都是此行為。未來若想加 escape hatch(連續 ≥ 5 次後允許退出),屬第二輪迭代範圍,本次 Phase 6 不處理。
+
+##### popstate handler 整體骨架(D6 + D10 + D11 + D13 + D14 整合)
 
 ```javascript
+App._popstateRequestSeq = 0;
+
+// 工具:驗證 hash pageId 在目前 SPA 中真的存在(避免 #section 錨點被當成 pageId)
+function _validatePageId(pageId) {
+  if (!pageId) return null;
+  if (document.getElementById(pageId)) return pageId;
+  if (typeof PageLoader !== 'undefined' && PageLoader._pageFileMap?.[pageId]) return pageId;
+  return null;
+}
+
 window.addEventListener('popstate', async (event) => {
   if (!flags.popstateTakeover) return;  // flag 防護
 
-  // D14: global race counter
+  // D14: global race counter(同步階段先 increment,確保下次 popstate 能 invalidate 本次)
   const seq = ++App._popstateRequestSeq;
 
-  // D10: dedupe hashchange
+  // D10: dedupe hashchange(同步階段 set,確保攔到接續的 hashchange)
   window._suppressNextHashchange = true;
   setTimeout(() => { window._suppressNextHashchange = false; }, 50);
 
-  // D11: sentinel state 攔截
-  if (event.state?.sentinel === true) {
-    await App.showPage(event.state.fallbackPageId || 'page-home', { bypassPageLock: true });
+  try {
+    // (I) source guard — 只信任本站寫入的 state,避免第三方 library 寫入污染
+    const stateValid = event.state && event.state.source === 'sportshub';
+
+    // D11: sentinel state 攔截(優先檢查,防止退出 Mini App)
+    if (stateValid && event.state.sentinel === true) {
+      const fallback = event.state.fallbackPageId || 'page-home';
+      await App.showPage(fallback, { bypassPageLock: true });
+      if (seq !== App._popstateRequestSeq) return;
+      // 再 push 撐住下一次返回(pushState 本身不觸發 popstate / hashchange)
+      history.pushState({ ...event.state }, '', location.href);
+      return;
+    }
+
+    // D13: fallback chain 解析 targetPageId + targetId
+    let targetPageId = stateValid ? event.state.pageId : null;
+    let targetId = stateValid ? (event.state.id || null) : null;
+
+    if (!targetPageId) {
+      // 從 path 解析 (走 HistoryRouteAdapter,與 boot deep link 邏輯一致)
+      const parsed = window.HistoryRouteAdapter?.parseHistoryRoute?.(location.pathname, location.search);
+      if (parsed) {
+        targetPageId = parsed.pageId;
+        targetId = parsed.id || targetId;
+      }
+    }
+    if (!targetPageId) {
+      // 從 hash 解析,但**必須驗證 pageId 真的對應 SPA 頁面**,避免 #section 錨點誤判
+      targetPageId = _validatePageId(location.hash.replace(/^#/, ''));
+    }
+    if (!targetPageId) targetPageId = 'page-home';  // 終極 fallback
+
+    // (A) detail page 必須走 showXxxDetail 才會 reload 資料 + 載入 detail script
+    // list / home / admin 等 page 走 showPage (_renderPageContent 已涵蓋)
+    if (targetPageId === 'page-activity-detail' && targetId) {
+      await App.showEventDetail(targetId);
+    } else if (targetPageId === 'page-team-detail' && targetId) {
+      await App.showTeamDetail(targetId);
+    } else if (targetPageId === 'page-tournament-detail' && targetId) {
+      await App.showTournamentDetail(targetId);
+    } else {
+      // D6: bypass page lock(popstate 是使用者明確意圖)
+      await App.showPage(targetPageId, { bypassPageLock: true });
+    }
+
+    // D14: stale check — 若 await 期間又有新 popstate,本次結果作廢
     if (seq !== App._popstateRequestSeq) return;
-    history.pushState({ ...event.state }, '', location.href);
-    return;
+  } catch (err) {
+    // (B) try/catch 防止 handler 異常終止導致下次 popstate 卡住
+    // 注意:dedupe flag 由 setTimeout 自動 reset,seq 已 increment,下次 popstate 仍能正常運作
+    console.error('[Popstate] handler error:', err);
   }
-
-  // D13: fallback chain 解析 targetPageId
-  const targetPageId = event.state?.pageId
-    || (window.HistoryRouteAdapter?.parseHistoryRoute?.(location.pathname, location.search)?.pageId)
-    || (location.hash.replace(/^#/, '') || null)
-    || 'page-home';
-
-  // D6: bypass page lock(popstate 是使用者明確意圖)
-  await App.showPage(targetPageId, { bypassPageLock: true });
-
-  // D14: stale check
-  if (seq !== App._popstateRequestSeq) return;
-
-  // 其餘 detail-specific re-render(若 targetPageId 是 detail page,需 reuse 既有 showXxxDetail)
-  // TBD:Commit B 階段細化此分支
 });
 ```
+
+> **骨架設計重點**:
+> 1. **同步階段先 increment seq + set dedupe flag**,確保即使 handler 在 await 期間被新 popstate 中斷,也能正確 invalidate
+> 2. **`source === 'sportshub'` source guard**:即使第三方 library 寫了 state object,也不會誤觸發 sentinel/detail 邏輯
+> 3. **detail page 必須走 `showXxxDetail`**:不能只 `showPage('page-activity-detail')`,否則 detail 資料不會重新載入(因為 `_renderPageContent` 內 detail page 沒有 reload 分支)
+> 4. **hash fallback 必須驗證 pageId 有效性**:`#section`、`#unknown` 等錨點不應被當成 SPA pageId
+> 5. **try/catch 包整個 handler 體**:showPage 失敗時 log error 但不卡住,下次 popstate 仍能正常運作
 
 #### 8.9.2 實作步驟(3 個獨立 Commit)
 
@@ -1020,7 +1100,7 @@ window.addEventListener('popstate', async (event) => {
 
 **範圍**:
 - `js/core/history-route-flags.js`:`popstateTakeover: true`
-- 新增 Playwright e2e `tests/e2e/popstate-back-button.spec.js`:覆蓋 §8.9.3 全部 8 種 timing × 3 nav source × 2 platform 共約 30 個場景
+- 新增 Playwright e2e `tests/e2e/popstate-back-button.spec.js`:覆蓋 §8.9.3 表格列出的 12 個必驗場景(5 平台 × 對應 timing / nav source 組合)
 - LIFF 五平台實機測試清單(§8.9.3)逐一驗證
 - 失敗則改回 `false` 並回報,**不阻擋 Commit A/B 已上線部分**
 
