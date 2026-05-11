@@ -2042,10 +2042,13 @@ const App = {
   },
 
   _getListRoutePath(pageId) {
+    // V5 §6 路由對照表規劃 / / /profile 也走 clean URL,Phase 4 漏掉,2026-05-11 補上
     return ({
+      'page-home':       '/',
       'page-activities': '/activities',
-      'page-teams': '/teams',
+      'page-teams':      '/teams',
       'page-tournaments': '/tournaments',
+      'page-profile':    '/profile',
     })[pageId] || '';
   },
 

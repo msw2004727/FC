@@ -21,16 +21,18 @@ describe('history URL writer phase 4/5/6 contract', () => {
     expect(flagsSource).toContain('liffPathDisable: true');
   });
 
-  test('writes clean paths for the three approved list pages before hash fallback', () => {
+  test('writes clean paths for approved list pages before hash fallback', () => {
     const appSource = readProjectFile('app.js');
     const listWriterIndex = appSource.indexOf('flags.writeListPaths');
     const hashFallbackIndex = appSource.indexOf('flags.cleanHashFallbackPath');
 
     expect(appSource).toContain('_getListRoutePath(pageId)');
+    // 2026-05-11 補:V5 §6 規劃 / 與 /profile 也用 clean URL,Phase 4 漏,本次補上
+    expect(appSource).toContain("'page-home':       '/'");
     expect(appSource).toContain("'page-activities': '/activities'");
-    expect(appSource).toContain("'page-teams': '/teams'");
+    expect(appSource).toContain("'page-teams':      '/teams'");
     expect(appSource).toContain("'page-tournaments': '/tournaments'");
-    expect(appSource).not.toContain("'page-profile': '/profile'");
+    expect(appSource).toContain("'page-profile':    '/profile'");
     expect(listWriterIndex).toBeGreaterThan(-1);
     expect(hashFallbackIndex).toBeGreaterThan(-1);
     expect(listWriterIndex).toBeLessThan(hashFallbackIndex);
