@@ -1,5 +1,21 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-11 — Phase 6 V6 第十四輪審計：popstate handler 三個額外實作瑕疵修正 [永久]
+- **背景**:第十三輪修完 D11 sentinel 根本設計後,用戶繼續用「popstate handler 實際與 navigation.js / history-route-adapter.js / app.js 既有函式互動」的角度,提出三個新疑點,**全部驗證為真**。
+- **三個瑕疵**:
+  1. **popstate handler 呼叫 showPage 會污染 `App.pageHistory`**:[navigation.js:770-776](js/core/navigation.js:770) `_pushPageHistory` 只認 `resetHistory`,不認 `skipPageHistory`。popstate 從 detail 返回 list 時,內部 `_pushPageHistory` 把 'page-activity-detail' push 進 pageHistory,user 按站內圓形返回鍵又被拉回剛離開的 detail。
+  2. **D13 fallback chain 漏掉 legacy query parser + parseHistoryRoute 呼叫方式錯誤**:[history-route-adapter.js:63](js/core/history-route-adapter.js:63) `parseHistoryRoute(pathname, options)` 第二參數是 options 不是 search,且**不解析任何 query**。V6 計劃書原寫法 `parseHistoryRoute(location.pathname, location.search)` — 把字串當 options(無 immediate crash 但 query 完全被忽略)。LIFF URL=`/?event=abc#page-activity-detail` state=null 時拿不到 id。
+  3. **_syncTournamentDetailRoute fallback 完全繞過 _setRouteUrl**:[app.js:1083-1088](app.js:1083) 自己直接 `history.replaceState(null, ...)`,即使 Commit A 第 3 項修了 _setRouteUrl 也救不到 LIFF 內賽事詳情(state 仍 null)。
+- **修正**:
+  - Commit A 第 2 項擴展:detail handler 4 個 option(`bypassPageLock` + `allowGuest` + `skipPageHistory` + `suppressHashSync`);`_pushPageHistory` 新增 `skipPageHistory` 支援
+  - Commit A 第 3 項擴展:同時修 `_setRouteUrl` hash fallback **與** `_syncTournamentDetailRoute` fallback 都帶完整 state
+  - §8.9.1 popstate handler 骨架:修正 parseHistoryRoute 呼叫(第二參數改 `{usersPathEnabled}`)+ 新增 `App._parseLegacyQueryRoute(searchString)` helper + fallback chain 多一層 legacy query parse
+- **教訓**:
+  - **popstate handler 不是只「讀 URL 切頁」,它與 SPA 既有自訂 stack (App.pageHistory) 互動**:站內返回鍵與瀏覽器返回鍵共用 App 的 stack,popstate 不慎污染就會造成「按瀏覽器返回 → 站內返回又拉回」循環。
+  - **HistoryRouteAdapter.parseHistoryRoute API 簽名容易誤用**:第二參數 `options` 名字與其他 web API 很像 `parseHistoryRoute(pathname, search)`(spec convention),容易誤把 `location.search` 字串傳進去。JavaScript 動態型別讓這個錯誤不會 crash,只會默默不解析 query。
+  - **LIFF 環境的 history.replaceState 寫入路徑不只一個**:_setRouteUrl 是主要 sink,但 _syncTournamentDetailRoute(賽事專屬)、_clearTournamentDetailRouteParam、_activatePage line 150 (rid query 清理)、_restoreGithubSpaRedirect、line-auth.js OAuth cleanup 全部都會直接寫 history。要 audit 「state 在 LIFF 內是否完整」必須掃所有寫入路徑,不能只看 _setRouteUrl。
+  - **多輪自我審計仍會漏掉「跨函式互動」的瑕疵**:第十三輪改完 D11 主邏輯就以為 OK,但 popstate handler 與 navigation.js / parseHistoryRoute / _syncTournamentDetailRoute 的互動細節需要逐項展開檢查。用戶提出「請對照實際代碼」三個問題,直接戳到這層細節。
+
 ### 2026-05-11 — Phase 6 V6 第十三輪審計：D11 sentinel 設計邏輯瑕疵修正 [永久]
 - **背景**：前 12 輪審計都沒抓到的根本性瑕疵 — 用戶用 popstate spec 知識 + 直接看 app.js / history-route-flags.js / event-detail.js 程式碼,提出三個疑點全部驗證為真。
 - **核心瑕疵(D11 sentinel 設計)**：原 V6 設計「boot 完成後 pushState sentinel」**無法攔截第一次返回**。瀏覽器 spec 規定 `popstate event.state` 是「返回後到達 entry 的 state」,所以 boot 後 push 的 sentinel 是 active entry(E1),user 按返回時跳到 E0(state=null),sentinel branch 永遠不會觸發。

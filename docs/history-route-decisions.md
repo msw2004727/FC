@@ -1189,30 +1189,69 @@ popstate 事件的 `event.state` 在以下 4 種情境是 null:
 - UX 差(使用者按了返回鍵卻沒反應)
 - iOS WebView quirk 會被誤判
 
-**選項 B:fallback chain — `state.pageId → parse from URL → validated hash → 'page-home'`**
+**選項 B:fallback chain — `state.pageId → clean path → legacy query → validated hash → 'page-home'`(十四輪審計新增 legacy query 一層)**
 
 ```javascript
 // hash 解析必須驗證 pageId 真的對應 SPA 頁面(否則 #section 錨點會被誤當成 pageId)
-function _validatePageId(pageId) {
+App._validatePageId = function(pageId) {
   if (!pageId) return null;
   if (document.getElementById(pageId)) return pageId;
   if (typeof PageLoader !== 'undefined' && PageLoader._pageFileMap?.[pageId]) return pageId;
   return null;
-}
+};
 
-const stateValid = event.state && event.state.source === 'sportshub';  // source guard
-const targetPageId = (stateValid && event.state.pageId)
-  || (window.HistoryRouteAdapter?.parseHistoryRoute?.(location.pathname, location.search)?.pageId)
-  || _validatePageId(location.hash.replace(/^#/, ''))  // 驗證後才使用
-  || 'page-home';
+// (第十四輪審計新增)解析 legacy query route(LIFF / Mini App 仍用 ?event= / ?team= / ?tournament= / ?profile=)
+App._parseLegacyQueryRoute = function(searchString) {
+  const params = new URLSearchParams(String(searchString || ''));
+  const mapping = [
+    { key: 'event', pageId: 'page-activity-detail' },
+    { key: 'team', pageId: 'page-team-detail' },
+    { key: 'tournament', pageId: 'page-tournament-detail' },
+    { key: 'profile', pageId: 'page-user-card' },
+  ];
+  for (const { key, pageId } of mapping) {
+    const id = params.get(key);
+    if (id && this._isSafeHistoryRouteSegment?.(id)) return { pageId, id };
+  }
+  return null;
+};
+
+// 注意:parseHistoryRoute 第二參數是 options,不是 search!不解析 query。
+// 必須單獨用 _parseLegacyQueryRoute 解析 query。
+const stateValid = event.state && event.state.source === 'sportshub';
+let targetPageId = stateValid ? event.state.pageId : null;
+let targetId = stateValid ? (event.state.id || null) : null;
+
+if (!targetPageId) {
+  const flags = App._getHistoryRouteFlags?.() || {};
+  const parsed = window.HistoryRouteAdapter?.parseHistoryRoute?.(
+    location.pathname,
+    { usersPathEnabled: flags.usersPathEnabled }  // 第二參數是 options 不是 search!
+  );
+  if (parsed && parsed.pageId !== 'page-home') {
+    targetPageId = parsed.pageId;
+    targetId = parsed.id || targetId;
+  }
+}
+if (!targetPageId) {
+  // (第十四輪審計新增)從 legacy query 解析 — 覆蓋 LIFF / Mini App 分享連結情境
+  const legacy = App._parseLegacyQueryRoute(location.search);
+  if (legacy) {
+    targetPageId = legacy.pageId;
+    targetId = legacy.id;
+  }
+}
+if (!targetPageId) targetPageId = App._validatePageId(location.hash.replace(/^#/, ''));
+if (!targetPageId) targetPageId = 'page-home';
 ```
 
 優點:
 - 任何情境都有解,不會白屏
-- 與既有 boot deep link parse 邏輯一致(都從 URL 重新解析)
+- 與既有 boot deep link parse 邏輯一致
 - 終極 fallback 是 `page-home` 不是錯誤頁
 - `_validatePageId` 避免 `#section`、`#unknown-page` 等錨點被誤判
 - source guard 避免第三方 library 寫入 state 污染
+- **(第十四輪審計新增)legacy query parse 覆蓋 LIFF / Mini App ?event= / ?team= 等情境**,popstate 後仍能還原 detail id
 
 缺點:
 - 多走一次 URL parse + DOM lookup(成本低)
@@ -1251,6 +1290,8 @@ const targetPageId = (stateValid && event.state.pageId)
 - [ ] 從外部網站連結進站後按返回,handler 能優雅 fallback 或交給瀏覽器原生返回
 - [ ] hash 為 `#section`、`#unknown-pageId` 等錨點時,`_validatePageId` 回 null,fallback chain 走下一層
 - [ ] state.source 不是 'sportshub' 時,handler 不信任 state.pageId,改走 URL parse(source guard)
+- [ ] **(第十四輪審計新增)`parseHistoryRoute` 第二參數是 `{usersPathEnabled}` options 不是 `location.search` 字串(實證 [history-route-adapter.js:63](../js/core/history-route-adapter.js#L63),不解析 query)**
+- [ ] **(第十四輪審計新增)LIFF 內 URL=`/?event=abc#page-activity-detail` 且 state=null 時,fallback chain 走到 `_parseLegacyQueryRoute('?event=abc')` 拿到 `{pageId: 'page-activity-detail', id: 'abc'}` → 呼叫 `showEventDetail('abc')` reload data**(原 V6 設計拿不到 id)
 
 ---
 

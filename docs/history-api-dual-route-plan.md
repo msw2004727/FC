@@ -54,9 +54,9 @@ v1 上線前審計發現 6 個 P1 重大瑕疵與 9 個 P2 中度瑕疵。V2 補
 | SW navigate cache 不夠精確 | V4 只說不要每條 path 都 cache,但未指定實作 key,容易仍以 `/activities` 作 key。 | navigate fallback 一律 normalize 到 `/` 或 `/index.html` cache key;SPA path 不直接 `cache.put(event.request, clone)`。 |
 | SEO meta 呼叫時機矛盾 | `history-route-decisions.md` D8 定案在 `_renderPageContent` 更新 meta,但 V4 §8.8 又寫 `_setRouteUrl` 寫 path 時更新。 | V5 定案:URL sink 只寫 URL 與記錄 route intent;meta 更新在成功 render 後執行,detail 頁在資料載入後用實際 id/name 更新。 |
 
-### 0.45 V6 審計補強重點(2026-05-11,僅針對 Phase 6)
+### 0.45 V6 審計補強重點(2026-05-11,僅針對 Phase 6,經第 1-14 輪審計收斂)
 
-V5 只覆蓋 Phase 0 → Phase 5.5。V6 不動既有 Phase,**僅針對 Phase 6** 重新審計並大幅擴充 §8.9 與 D10-D14。所有改動限縮在 Phase 6 範圍。
+V5 只覆蓋 Phase 0 → Phase 5.5。V6 不動既有 Phase,**僅針對 Phase 6** 重新審計並大幅擴充 §8.9 與 D10-D14。所有改動限縮在 Phase 6 範圍。經過 14 輪審計收斂(其中第 13/14 輪用瀏覽器 spec + 實際代碼交叉驗證,抓出前 12 輪自我審計都漏掉的根本設計瑕疵)。
 
 | 修正點 | V5 缺漏 | V6 定案 |
 |---|---|---|
@@ -850,11 +850,17 @@ V5 呼叫時機定案:`_setRouteUrl` 只負責 URL 與 route intent,不直接改
 
 #### 8.9.0 動工前必須先完成的依賴(Pre-Phase 6,獨立 commit)
 
-Phase 6 主體實作前必須先做**三項與 popstate handler 解耦的改動**(第十三輪審計新增第 3 項),完整內容詳 §8.9.2 Commit A:
+Phase 6 主體實作前必須先做**三項與 popstate handler 解耦的改動**(第十三輪 + 十四輪審計擴增),完整內容詳 §8.9.2 Commit A:
 
 1. **修一個隱性 bug**:`goBack` 每次返回都 push 一條 history → 改 replace
-2. **擴展 detail handler 接受 popstate-friendly options**:讓 `showEventDetail` / `showTeamDetail` / `showTournamentDetail`(含 friendly variant)接受 `bypassPageLock` + `allowGuest`;`bypassPageLock` 透傳給內部 `showPage`,`allowGuest` 在既有 `_requireLogin()` guard 處使用即可(showPage 不認 allowGuest),詳 §8.9.2 Commit A 第 2 步
-3. **(第十三輪審計新增)`_setRouteUrl` hash fallback 路徑必須寫完整 state(含 detail id)**:目前 [app.js:2184-2196](app.js:2184) 的 hash fallback 兩條路徑都寫 `history.replaceState(null, '', ...)`,state 是 null。LIFF 內(`liffPathDisable=true`)所有 detail page 的 history entry 都沒 state,Phase 6 popstate handler 拿不到 detail id,無法呼叫 `showXxxDetail(id)` reload data。修法:hash fallback 也帶完整 state `{source, pageId, id?}`,讓 popstate 能正確還原 detail。
+2. **擴展 detail handler 接受 popstate-friendly options + `_pushPageHistory` 新增 `skipPageHistory` 支援**:
+   - 4 個 detail handler(`showEventDetail` / `showTeamDetail` / `showTournamentDetail` legacy + friendly)接受 **4 個 option** `bypassPageLock` + `allowGuest` + `skipPageHistory` + `suppressHashSync`,並透傳給內部 `showPage`(`allowGuest` 例外:已在 `_requireLogin` guard 處用,不傳給 showPage)
+   - **(第十四輪審計新增)**[navigation.js:770-776](js/core/navigation.js:770) `_pushPageHistory` 新增 `skipPageHistory` 支援:若 `options.skipPageHistory` 為 true 直接 return,避免 popstate 觸發的 showPage 把剛離開的頁面塞進 `App.pageHistory`,造成「瀏覽器返回 → 站內返回又拉回剛離開頁面」循環
+3. **(第十三 + 十四輪審計)所有 history.replaceState 寫入路徑寫完整 state(含 detail id)**:LIFF 內有**兩處**獨立的 history.replaceState 寫入路徑會寫 null state:
+   - (a) [app.js:2184-2196](app.js:2184) `_setRouteUrl` 兩條 hash fallback 路徑(十三輪審計)
+   - (b) **(十四輪審計新發現)**[app.js:1083-1088](app.js:1083) `_syncTournamentDetailRoute` 自己的 fallback path,完全繞過 _setRouteUrl
+
+   兩處都要修為帶完整 state `{source, pageId, id?}`,Phase 6 popstate handler 才能拿到 detail id 呼叫 `showXxxDetail(id)` reload data。
 
 這三項即使 Phase 6 不啟用也是「純改進不改既有行為」,可獨立 deploy。
 
@@ -905,25 +911,36 @@ if (location.hash !== '#' + prev) {
 
 第 2 項屬「純 option 透傳擴展」,目的:讓 Phase 6 popstate handler 對 detail page 觸發的返回能 bypass page lock(D6)與 `_requireLogin` guard。完整實作細節、檔案與函式對照、單元測試清單皆見 §8.9.2 Commit A 第 2 步;本節不再贅述以避免散落同樣內容。
 
-##### 第 3 項:`_setRouteUrl` hash fallback 帶完整 state(第十三輪審計新增)
+##### 第 3 項:所有 history.replaceState 寫入路徑都帶完整 state(第十三輪 + 十四輪審計)
 
-**問題實證**:[app.js:2184-2196](app.js:2184) 兩條 hash fallback 路徑都寫 `history.replaceState(null, '', ...)`,state 是 null。
-- `flags.cleanHashFallbackPath` 路徑(line 2184-2186):URL 改寫為 `/{hash}`,state=null
-- 一般 hash 路徑(line 2189-2195):URL 改 hash,state=null
+**問題實證**:
 
-LIFF 內 `liffPathDisable=true`,所有 detail page 寫 URL 都走 hash fallback → state 全部 null。
+LIFF 內(`liffPathDisable=true`)有**兩處獨立的 history.replaceState 寫入路徑**會寫 state=null,popstate handler 拿不到 detail id:
 
-**popstate handler 走查**(沒修這項時的後果):
-- 用戶 LIFF 內進 detail B(URL=`/#page-activity-detail`,state=null)
-- 按返回 → 上一個 entry(可能是 detail A 或 list)
+(a) [app.js:2184-2196](app.js:2184) `_setRouteUrl` 兩條 hash fallback 路徑(第十三輪審計指出)
+(b) [app.js:1072-1089](app.js:1072) **`_syncTournamentDetailRoute` 自己的 fallback path**(第十四輪審計新發現),完全繞過 _setRouteUrl
+
+`_syncTournamentDetailRoute` 對應路徑:當 `flags.writeDetailPaths=false` 或 LIFF 內 `pathWritesDisabled=true` 時,走獨立 fallback:
+```javascript
+url.searchParams.set('tournament', id);
+url.hash = 'page-tournament-detail';
+history.replaceState(null, '', url.pathname + (url.search || '') + (url.hash || ''));
+//                  ^^^^ state 也是 null!
+```
+
+所以只修 _setRouteUrl 仍無法救 LIFF 內賽事詳情的 popstate flow。**第十四輪審計擴展第 3 項範圍含 _syncTournamentDetailRoute**。
+
+**popstate handler 走查**(沒修這兩處時的後果):
+- 用戶 LIFF 內進賽事詳情 B(URL=`/?tournament=B#page-tournament-detail`,state=null)
+- 按返回 → 上一個 entry(賽事 A)
 - event.state = null → fallback chain
-- `parseHistoryRoute('/')` 解析失敗
-- `_validatePageId('page-activity-detail')` 通過
-- `targetPageId='page-activity-detail'`,但 **`targetId=null`**
-- popstate handler:`if (targetPageId === 'page-activity-detail' && targetId)` → false
-- 走 else 分支:`showPage('page-activity-detail')` → DOM 容器切過去但**不 reload data**,user 看到上次 detail 的內容
+- `parseHistoryRoute('/')` → page-home(因為 path 是 '/')
+- **legacy query parser**(疑點 2 修法後)解析 `?tournament=A` → `{pageId: 'page-tournament-detail', id: 'A'}` ← 此層 cover 了拿不到 id 的問題
+- 但如果 hash 與 query 不一致(_syncTournamentDetailRoute 在跨頁時可能 stale),仍會混亂
 
-**修法**(在 _setRouteUrl 兩條 hash fallback 路徑寫完整 state):
+**修法**(同時修 _setRouteUrl + _syncTournamentDetailRoute):
+
+**(a) `_setRouteUrl` hash fallback 帶 state(同十三輪審計設計)**
 
 ```javascript
 // app.js:2184 附近 — cleanHashFallbackPath 路徑
@@ -931,7 +948,7 @@ if (flags.cleanHashFallbackPath && url.pathname && url.pathname !== '/') {
   const state = detailId
     ? { source: 'sportshub', pageId, id: detailId }
     : { source: 'sportshub', pageId };
-  history.replaceState(state, '', '/' + targetHash);   // ← state 不再 null
+  history.replaceState(state, '', '/' + targetHash);
   return true;
 }
 
@@ -942,24 +959,42 @@ const state = detailId
   : { source: 'sportshub', pageId };
 if (shouldReplace && history?.replaceState) {
   url.hash = targetHash;
-  history.replaceState(state, '', url.pathname + (url.search || '') + (url.hash || ''));  // ← 帶 state
+  history.replaceState(state, '', url.pathname + (url.search || '') + (url.hash || ''));
 } else if (history?.pushState) {
   url.hash = targetHash;
-  history.pushState(state, '', url.pathname + (url.search || '') + (url.hash || ''));     // 也帶 state
+  history.pushState(state, '', url.pathname + (url.search || '') + (url.hash || ''));
 } else {
-  location.hash = pageId;  // 最終 fallback,location.hash 賦值不支援 state,接受 state 丟失
+  location.hash = pageId;
 }
 ```
 
-**driver:** `detailId` 從現有 `_getExplicitDetailRouteId(routeOrPageId)` 取得(已在 _setRouteUrl 開頭呼叫過,可以重用)。
+**(b) `_syncTournamentDetailRoute` fallback 帶 state(第十四輪審計新增)**
 
-**驗收**:
-- LIFF 內進 `/events/abc` → `history.state` 為 `{ source: 'sportshub', pageId: 'page-activity-detail', id: 'abc' }`
-- 此修法即使 Phase 6 不啟用也是「純改進」:既有 Phase 4/5 寫入路徑都用 state object,只有 hash fallback 是漏網之魚
+```javascript
+// app.js:1083-1088 — _syncTournamentDetailRoute 的 fallback path
+try {
+  const url = new URL(window.location.href);
+  url.searchParams.set('tournament', id);
+  url.hash = 'page-tournament-detail';
+  const state = { source: 'sportshub', pageId: 'page-tournament-detail', id };  // ← 新增
+  history.replaceState(state, '', url.pathname + (url.search || '') + (url.hash || ''));
+  //                  ^^^^^ 不再 null
+} catch (_) {}
+```
+
+`_clearTournamentDetailRouteParam` ([app.js:1091-1104](app.js:1091)) 的兩條 replaceState 路徑**暫不強制修**:
+- 第一條 `history.replaceState(null, '', '/')`:這是「離開賽事詳情切到 home」時清 URL,接下來 _activatePage 會走 _setRouteUrl 重寫 state,所以 null 短暫存在不影響 popstate flow
+- 第二條 `searchParams.delete('tournament')` + `history.replaceState(null, ...)`:同上理由
+- 第十四輪審計觀察:這兩條路徑在 _activatePage line 154-156 被呼叫,**呼叫時序在 _setRouteUrl 之後**,所以 _clearTournamentDetailRouteParam 的 null state 會被後續流程覆蓋。低風險,暫不修
+
+**單元測試**:
+- LIFF 內呼叫 `_setRouteUrl({pageId: 'page-activity-detail', id: 'ce_test'})`,`history.state` 等於 `{ source: 'sportshub', pageId: 'page-activity-detail', id: 'ce_test' }`
+- LIFF 內呼叫 `_syncTournamentDetailRoute('ct_test')`,`history.state` 等於 `{ source: 'sportshub', pageId: 'page-tournament-detail', id: 'ct_test' }`
+- 非 LIFF 環境呼叫 `_syncTournamentDetailRoute('ct_test')`(走 _setRouteUrl 分支),`history.state` 仍為對的形狀
 
 **為什麼這項與 Phase 6 解耦但放 Pre-Phase 6**:
-- 不修這個,Phase 6 popstate handler 在 LIFF 內幾乎所有 detail-to-detail 返回都失效
-- 但修這個本身不需要 popstate handler,即使 Phase 6 不啟用也無副作用(只是 history entry 多帶 state 資訊,沒人讀也無所謂)
+- 不修這兩處,Phase 6 popstate handler 在 LIFF 內 detail-to-detail 返回幾乎都失效
+- 但修這個本身不需要 popstate handler;即使 Phase 6 不啟用,既有讀取 history.state 的程式碼很少,state 多帶資訊不會被任何人讀,無副作用
 - 屬於「純擴展不改既有行為」,適合放 Pre-Phase 6 一起 deploy 並單獨穩定 ≥ 1 週
 
 #### 8.9.1 Phase 6 核心設計(5 個新決策對應)
@@ -1128,7 +1163,7 @@ if (stateValid && event.state.sentinel === true) {
 ```javascript
 // === 1. App 狀態初始化(Object.assign(App, {...}) 內或 App 物件定義時加)===
 // 注意:_popstateRequestSeq 必須是 App 上的初始化欄位,絕不能寫在 handler 內,否則每次 popstate 都被 reset
-// _validatePageId 也掛 App,與既有 helper(_isSafeHistoryRouteSegment 等)命名風格一致
+// _validatePageId / _parseLegacyQueryRoute 也掛 App,與既有 helper(_isSafeHistoryRouteSegment 等)命名風格一致
 Object.assign(App, {
   _popstateRequestSeq: 0,
   _bootSentinelPushed: false,
@@ -1137,6 +1172,28 @@ Object.assign(App, {
     if (!pageId) return null;
     if (document.getElementById(pageId)) return pageId;
     if (typeof PageLoader !== 'undefined' && PageLoader._pageFileMap?.[pageId]) return pageId;
+    return null;
+  },
+
+  // (第十四輪審計新增)解析 ToosterX 既有 legacy query deep link
+  // LIFF / Mini App 分享連結仍用 ?event= / ?team= / ?tournament= / ?profile=,
+  // popstate fallback 必須能還原這些 query 路由,否則 LIFF 內進站後返回拿不到 id
+  _parseLegacyQueryRoute(searchString) {
+    try {
+      const params = new URLSearchParams(String(searchString || ''));
+      const mapping = [
+        { key: 'event', pageId: 'page-activity-detail' },
+        { key: 'team', pageId: 'page-team-detail' },
+        { key: 'tournament', pageId: 'page-tournament-detail' },
+        { key: 'profile', pageId: 'page-user-card' },
+      ];
+      for (const { key, pageId } of mapping) {
+        const id = String(params.get(key) || '').trim();
+        if (id && this._isSafeHistoryRouteSegment?.(id)) {
+          return { pageId, id };
+        }
+      }
+    } catch (_) {}
     return null;
   },
 });
@@ -1179,15 +1236,30 @@ window.addEventListener('popstate', async (event) => {
     }
 
     // D13: fallback chain 解析 targetPageId + targetId
+    // 順序:state.source guard → state.pageId → clean path → **legacy query** → validated hash → page-home
     let targetPageId = stateValid ? event.state.pageId : null;
     let targetId = stateValid ? (event.state.id || null) : null;
 
     if (!targetPageId) {
-      // 從 path 解析 (走 HistoryRouteAdapter,與 boot deep link 邏輯一致)
-      const parsed = window.HistoryRouteAdapter?.parseHistoryRoute?.(location.pathname, location.search);
-      if (parsed) {
+      // (第十四輪審計修正:parseHistoryRoute 第二參數是 options,不是 search)
+      // 從 clean path 解析(走 HistoryRouteAdapter,與 boot deep link 邏輯一致)
+      const flags = App._getHistoryRouteFlags?.() || {};
+      const parsed = window.HistoryRouteAdapter?.parseHistoryRoute?.(
+        location.pathname,
+        { usersPathEnabled: flags.usersPathEnabled }
+      );
+      if (parsed && parsed.pageId !== 'page-home') {  // home 留給下一層 fallback 處理
         targetPageId = parsed.pageId;
         targetId = parsed.id || targetId;
+      }
+    }
+    if (!targetPageId) {
+      // (第十四輪審計新增)從 legacy query 解析 — LIFF / Mini App 分享連結仍用 ?event= / ?team= / ?tournament= / ?profile=
+      // 即使 path 是 '/',若 URL 帶 query,popstate 仍能正確還原 detail
+      const legacy = App._parseLegacyQueryRoute?.(location.search);
+      if (legacy) {
+        targetPageId = legacy.pageId;
+        targetId = legacy.id;
       }
     }
     if (!targetPageId) {
@@ -1199,11 +1271,20 @@ window.addEventListener('popstate', async (event) => {
     // detail page 必須走 showXxxDetail 才會 reload 資料 + 載入 detail script
     // list / home / admin 等 page 走 showPage (_renderPageContent 已涵蓋)
     //
-    // detail page 兩個 option 的用途:
+    // popstate 觸發的呼叫必須帶 4 個 option(第十四輪審計補強):
     // - bypassPageLock: true — 確保 detail-to-detail 返回不被 10 秒 page lock 擋(D6 涵蓋)
     // - allowGuest: true — 訪客模式進來看過的 detail,popstate 返回應允許繼續看,不被 _requireLogin 擋
-    // 前提:Commit A 已擴展 showXxxDetail 接受並傳遞這兩個 option(詳 §8.9.2 Commit A 第 2 步)
-    const detailOptions = { bypassPageLock: true, allowGuest: true };
+    // - skipPageHistory: true — popstate 是「瀏覽器返回」,不能再 push 進 App.pageHistory 自訂 stack;
+    //                            否則站內圓形返回鍵會把使用者再拉回剛離開的頁面(實證 [navigation.js:770-776])
+    // - suppressHashSync: true — popstate 後 URL 已是目標;_setRouteUrl 內部有 short-circuit 保護,
+    //                            但帶 suppressHashSync 更明確、不依賴 short-circuit 行為
+    // 前提:Commit A 第 2 項已擴展 showXxxDetail 接受並透傳這四個 option 給內部 showPage(詳 §8.9.2 Commit A 第 2 步)
+    const detailOptions = {
+      bypassPageLock: true,
+      allowGuest: true,
+      skipPageHistory: true,
+      suppressHashSync: true,
+    };
     if (targetPageId === 'page-activity-detail' && targetId) {
       await App.showEventDetail(targetId, detailOptions);
     } else if (targetPageId === 'page-team-detail' && targetId) {
@@ -1212,7 +1293,12 @@ window.addEventListener('popstate', async (event) => {
       await App.showTournamentDetail(targetId, detailOptions);
     } else {
       // D6: bypass page lock(popstate 是使用者明確意圖)
-      await App.showPage(targetPageId, { bypassPageLock: true });
+      // skipPageHistory / suppressHashSync 同上理由
+      await App.showPage(targetPageId, {
+        bypassPageLock: true,
+        skipPageHistory: true,
+        suppressHashSync: true,
+      });
     }
 
     // D14: stale check — 若 await 期間又有新 popstate,本次結果作廢
@@ -1241,40 +1327,74 @@ window.addEventListener('popstate', async (event) => {
    - 改為 `this._setRouteUrl(prev, { mode: 'replace' })`
    - hash fallback 改為 `history.replaceState(null, '', '#' + prev)`
    - 保留外層守衛 `if (location.hash !== '#' + prev)`
-2. **(V6 二次審計擴展)4 個 detail handler 擴展 options**:
+2. **(V6 多輪審計擴展)4 個 detail handler 擴展 options**:
    - `js/modules/event/event-detail.js` 的 `showEventDetail(id, options)`
    - `js/modules/team/team-detail.js` 的 `showTeamDetail(id, options)`
    - `js/modules/tournament/tournament-detail.js` 的 `showTournamentDetail(id, options)`(legacy 版)
    - `js/modules/tournament/tournament-friendly-detail.js` 的 `showTournamentDetail(id, options)`(friendly 覆寫版,Object.assign 時覆寫 legacy 同名函式)
 
-   4 處需做相同擴展:
-   - 接受 `options.bypassPageLock` 與 `options.allowGuest`
-   - `allowGuest` 已在既有 `_requireLogin()` guard 處檢查(`if (!(options && options.allowGuest) && this._requireLogin()) return`),**不需要再傳給 showPage**
-   - 內部 `await this.showPage(...)` 僅需透傳 `bypassPageLock`:`{ suppressHashSync: true, bypassPageLock: options?.bypassPageLock }`
-   - 為什麼:`showPage` 認得 `bypassPageLock`(navigation.js:521 既有 option),但**不認** `allowGuest`(那是 detail-specific guard)
-   - **此擴展即使 Phase 6 不啟用也是「純擴展不改既有行為」**,既有呼叫者不傳 option 時 `options?.bypassPageLock` 為 undefined → showPage 走預設(page lock 生效),行為完全不變
-3. **(第十三輪審計新增)`_setRouteUrl` hash fallback 寫完整 state**([app.js:2184-2196](app.js:2184)):
-   - 兩條 hash fallback 路徑(`cleanHashFallbackPath` 路徑 + 一般 hash 路徑)從 `history.replaceState(null, '', ...)` 改為帶完整 state:`{ source: 'sportshub', pageId, id }`(detail 帶 id,list 不帶)
-   - detailId 從既有 `_getExplicitDetailRouteId(routeOrPageId)` 取得(_setRouteUrl 開頭已呼叫過)
-   - **此修法即使 Phase 6 不啟用也是「純擴展不改既有行為」**:現有讀取 history.state 的程式碼很少,只有 Phase 6 popstate handler 會用;不啟用 popstate handler 時,state 多帶資訊不會被任何人讀,無副作用
+   4 處需做相同擴展(第十四輪審計從 2 個 option 擴展為 4 個):
+   - 接受 `options.bypassPageLock` / `options.allowGuest` / `options.skipPageHistory` / `options.suppressHashSync`
+   - `allowGuest` 已在既有 `_requireLogin()` guard 處檢查,**不需要再傳給 showPage**(showPage 不認 allowGuest)
+   - 其餘三個 option 都要透傳給內部 `await this.showPage(...)`:
+     ```javascript
+     await this.showPage('page-activity-detail', {
+       suppressHashSync: options?.suppressHashSync !== false,  // detail 預設都不重寫 hash(既有行為)
+       bypassPageLock: options?.bypassPageLock,
+       skipPageHistory: options?.skipPageHistory,
+     });
+     ```
+   - 為什麼這三個都要透傳:
+     - `bypassPageLock`(navigation.js:521):popstate 進 detail 時不被 10 秒 page lock 擋
+     - `skipPageHistory`(第十四輪審計新增):popstate 是「瀏覽器返回」,不該再 push 進 App.pageHistory 自訂 stack
+     - `suppressHashSync`(既有 option):popstate 後 URL 已是目標,跳過 _setRouteUrl 二次寫保險(原本 detail handler 內部就傳 `{suppressHashSync: true}`,擴展後允許 caller override 但預設保持 true)
+   - **此擴展即使 Phase 6 不啟用也是「純擴展不改既有行為」**:既有呼叫者不傳 option 時 `options?.xxx` 為 undefined → showPage 走預設
+
+   **同步擴展 `_pushPageHistory`**([navigation.js:770-776](js/core/navigation.js:770))支援 `skipPageHistory` option:
+
+   ```javascript
+   _pushPageHistory(pageId, options) {
+     if (options.skipPageHistory) return;  // (第十四輪審計新增)popstate 進來不污染 App.pageHistory
+     if (options.resetHistory) {
+       this.pageHistory = [];
+     } else if (this.currentPage !== pageId) {
+       this.pageHistory.push(this.currentPage);
+     }
+   },
+   ```
+
+   **為什麼這個改動是必要的(實證)**:
+   - user 在 list,pageHistory=['page-home', 'page-activities'],currentPage='page-activity-detail'
+   - 按瀏覽器返回 → popstate handler 呼叫 `showPage('page-activities', { bypassPageLock: true })`(沒有 skipPageHistory)
+   - `_pushPageHistory`: currentPage !== pageId → **push 'page-activity-detail'**
+   - pageHistory 變 ['page-home', 'page-activities', 'page-activity-detail']
+   - user 按站內圓形返回鍵 → `goBack` pop 'page-activity-detail' → **跳回剛離開的 detail!** 循環
+3. **(第十三 + 十四輪審計)所有 history.replaceState 寫入路徑帶完整 state**:
+   - (a) [app.js:2184-2196](app.js:2184) `_setRouteUrl` 兩條 hash fallback 路徑改為帶 `{ source: 'sportshub', pageId, id }`(detail 帶 id,list 不帶);detailId 從既有 `_getExplicitDetailRouteId(routeOrPageId)` 取得
+   - (b) **(第十四輪審計新增)**[app.js:1083-1088](app.js:1083) `_syncTournamentDetailRoute` 自己的 fallback path 也改為帶 `{ source: 'sportshub', pageId: 'page-tournament-detail', id }`,因為它**完全繞過 _setRouteUrl**,只修 (a) 救不到 LIFF 內賽事詳情
+   - `_clearTournamentDetailRouteParam` 的兩條 replaceState 路徑暫不強制修(呼叫時序在 _setRouteUrl 之後會被覆蓋,低風險)
+   - **此修法即使 Phase 6 不啟用也是「純擴展不改既有行為」**:現有讀取 history.state 的程式碼很少,只有 Phase 6 popstate handler 會用
    - 詳 §8.9.0 第 3 項
 - 補單元測試:
   - 呼叫 `goBack` 5 次,確認 `window.history.length` 不膨脹
-  - 呼叫 `showEventDetail(id, { bypassPageLock: true, allowGuest: true })` 確認 `bypassPageLock` 被傳給內部 showPage(`allowGuest` 僅檢查 detail handler 不擋 guest 進入,不驗 showPage 收到)
-  - **(新增)模擬 LIFF 環境呼叫 `_setRouteUrl({pageId: 'page-activity-detail', id: 'ce_test'})`,確認 `history.state` 為 `{ source: 'sportshub', pageId: 'page-activity-detail', id: 'ce_test' }`(而非 null)**
+  - 呼叫 `showEventDetail(id, { bypassPageLock: true, allowGuest: true, skipPageHistory: true })` 確認:
+    - `bypassPageLock` / `skipPageHistory` 被傳給內部 showPage
+    - **(第十四輪新增)`_pushPageHistory` 在 `skipPageHistory: true` 時直接 return,不污染 pageHistory**
+  - **(第十三輪新增)模擬 LIFF 環境呼叫 `_setRouteUrl({pageId: 'page-activity-detail', id: 'ce_test'})`,確認 `history.state` 為 `{ source: 'sportshub', pageId: 'page-activity-detail', id: 'ce_test' }`(而非 null)**
+  - **(第十四輪新增)模擬 LIFF 環境呼叫 `_syncTournamentDetailRoute('ct_test')`,確認 `history.state` 為 `{ source: 'sportshub', pageId: 'page-tournament-detail', id: 'ct_test' }`(走 fallback path 也帶 state)**
 - **完全不動 popstate handler、不動 flag、不動 hashchange listener**
 
-**預期工量**:3-4 小時(2 項 2-3h + 第 3 項 _setRouteUrl hash fallback state + 補測)
+**預期工量**:4-5 小時(原 3-4h + 第十四輪審計擴增:`_pushPageHistory` skipPageHistory 支援、detail handler 多透傳 2 個 option、_syncTournamentDetailRoute fallback 也帶 state + 補測)
 
 **獨立部署條件**:
 - 本機 `npm run test:unit` 全綠
 - 部署後 ≥ 1 週無 history-stack 或 detail 進站相關 bug 回報
 - 期間若發現 hash fallback 路徑或 option 傳遞或 state 寫入有問題,可獨立 hotfix
 
-**回滾路徑**(三項解耦):
+**回滾路徑**(三項解耦,第十四輪審計補充):
 - 若第 1 項 goBack 修正出問題:獨立 git revert,第 2/3 項可保留
-- 若第 2 項 detail option 擴展出問題:獨立 git revert,第 1/3 項可保留
-- 若第 3 項 _setRouteUrl state 寫入出問題:獨立 git revert,第 1/2 項可保留(尚未被 popstate handler 使用)
+- 若第 2 項 detail option 擴展或 `_pushPageHistory` skipPageHistory 出問題:獨立 git revert,第 1/3 項可保留
+- 若第 3 項 _setRouteUrl 或 _syncTournamentDetailRoute state 寫入出問題:獨立 git revert,第 1/2 項可保留(尚未被 popstate handler 使用)
 
 ##### Commit B:Phase 6 基礎設施(`popstateTakeover=false`,不啟用)
 
@@ -1378,8 +1498,11 @@ LINE WebView 在 popstate 行為上有歷史 quirks(state 偶發丟失、`histor
 - [ ] **從一般 iOS Safari + FB 分享連結進 `/events/abc` 按返回**:走原生返回(回到 FB),不被攔截(D11)
 - [ ] 連按 3 次返回,sentinel 持續 re-push,都不退出 LIFF(D11)
 - [ ] LIFF 站內導航進 detail 時,boot 不重新 install sentinel(`_bootSentinelPushed` flag 防重複)
-- [ ] **LIFF 內進 detail → `history.state` 為 `{ source, pageId, id }`**(Commit A 第 3 項 _setRouteUrl hash fallback state 驗收)
+- [ ] **LIFF 內進 detail → `history.state` 為 `{ source, pageId, id }`**(Commit A 第 3 項 (a) _setRouteUrl hash fallback state 驗收)
+- [ ] **(第十四輪)LIFF 內進賽事詳情 → `history.state` 為 `{ source, pageId: 'page-tournament-detail', id }`**(Commit A 第 3 項 (b) _syncTournamentDetailRoute fallback 也帶 state)
 - [ ] **LIFF 內 detail A → detail B → 按返回 → 正確 reload detail A 資料**(Commit A 第 3 項 + popstate handler 完整整合驗收)
+- [ ] **(第十四輪)瀏覽器返回後站內圓形返回鍵不會把使用者拉回剛離開的頁面**(`skipPageHistory` 透傳驗收 — 證明 _pushPageHistory 在 popstate 路徑下不污染 App.pageHistory)
+- [ ] **(第十四輪)LIFF 內 URL=`/?event=abc#page-activity-detail` 且 popstate state=null 時,popstate handler 從 legacy query `?event=abc` 拿到 id 並呼叫 `showEventDetail('abc')` reload data**(_parseLegacyQueryRoute 驗收)
 - [ ] **sentinel `fallbackPageId` 被誤設成 detail page 時,handler 防禦性 fallback 到 page-home**(V6 二次審計補)
 - [ ] **boot 階段(overlay 未 dismiss)按返回鍵**:handler 走 fallback chain 不 crash;Commit C LIFF 實機需確認最終 UI 不白屏(V6 二次審計補)
 - [ ] **訪客模式進 `/events/abc` → 站內切到 detail B → 按返回**:popstate 帶 `allowGuest: true` 給 showXxxDetail,不被 `_requireLogin()` 擋(V6 二次審計補)
@@ -1441,7 +1564,16 @@ LINE WebView 在 popstate 行為上有歷史 quirks(state 偶發丟失、`histor
 | **設計邏輯正確性** | n/a | n/a | n/a | **修正:原 V6 sentinel pushState 設計違反瀏覽器 popstate spec、無法攔截第一次返回;改為 replaceState+pushState 雙寫** |
 | 內部一致性 | n/a | 兩處矛盾 | 0 個矛盾(五輪審計後) | 0 個矛盾(十三輪審計後) |
 
-V6 第十三輪審計後視為「**完整可實作且設計邏輯正確**」狀態。前五輪審計只發現「描述不一致 / 變數來源不明 / 範例不清楚」等表面瑕疵;第十三輪用 popstate spec 與實際代碼交叉驗證後,發現原 D11 sentinel 設計**從根本不會生效**(無法攔截第一次返回),並修正為業界標準的 replaceState+pushState 雙寫 + 觸發條件限縮為 LIFF/PWA。**沒有用戶提出的 spec 驗證,前面再多輪審計也找不到這個瑕疵**。
+V6 第十三輪 + 十四輪審計後視為「**完整可實作且設計邏輯正確**」狀態。前五輪審計只發現「描述不一致 / 變數來源不明 / 範例不清楚」等表面瑕疵;第十三輪 + 十四輪用瀏覽器 spec + 實際代碼交叉驗證,找出 6 個前面所有審計都漏掉的根本性瑕疵:
+
+- (十三輪)D11 sentinel 設計違反 popstate spec — 從根本不會生效
+- (十三輪)sentinel 觸發條件過寬接近 dark pattern
+- (十三輪)_setRouteUrl hash fallback state=null
+- (十四輪)popstate handler 呼叫 showPage 會污染 App.pageHistory(造成站內返回循環)
+- (十四輪)parseHistoryRoute 第二參數是 options 非 search;D13 fallback chain 漏掉 legacy query parser
+- (十四輪)_syncTournamentDetailRoute 自己 fallback path 繞過 _setRouteUrl,LIFF 內 state 仍 null
+
+**沒有用戶用瀏覽器 spec 知識 + 直接讀 app.js / history-route-flags.js / event-detail.js / navigation.js / history-route-adapter.js 程式碼交叉驗證,前面再多輪自我審計也抓不到**。這證明審計需要外部視角才能突破自身盲點。
 
 ---
 
