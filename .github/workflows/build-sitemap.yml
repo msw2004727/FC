@@ -39,13 +39,14 @@ jobs:
       - name: Commit if changed
         run: |
           set -e
-          if git diff --quiet sitemap-events.xml sitemap-teams.xml sitemap-tournaments.xml; then
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # 把目標檔案加入 staging（包含尚未追蹤的新檔），再用 git diff --cached 判斷有無實質變更
+          git add sitemap-events.xml sitemap-teams.xml sitemap-tournaments.xml
+          if git diff --cached --quiet -- sitemap-events.xml sitemap-teams.xml sitemap-tournaments.xml; then
             echo "[sitemap-bot] 三個 sitemap 內容未變、跳過 commit"
             exit 0
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add sitemap-events.xml sitemap-teams.xml sitemap-tournaments.xml
           git commit -m "chore(seo): 自動重建 dynamic sitemap (UTC $(date -u +%Y-%m-%dT%H:%M)) [skip ci]"
           git pull --rebase origin main || (echo "[sitemap-bot] rebase 失敗、放棄本次 commit"; exit 1)
           git push origin HEAD:main
