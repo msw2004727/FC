@@ -301,6 +301,11 @@
 
 ## 2026-05-11 History API 雙軌入口結構補充
 
+### 2026-05-11 Phase 4 補充
+
+- 列表頁 URL writer 已限縮啟用:活動、俱樂部、賽事列表會寫入 `/activities`、`/teams`、`/tournaments`。
+- 詳細頁 clean URL writer、browser back/popstate 接管、LIFF 內建瀏覽器 path 寫入仍維持關閉。
+
 - 第一輪新增的是「網址入口轉譯層」,不是重寫頁面。使用者可開 `/activities`、`/teams`、`/tournaments`、`/profile` 以及 `/events/{id}`、`/teams/{id}`、`/tournaments/{id}`,系統會轉回既有活動、俱樂部、賽事頁面流程。
 - 舊網址仍保留:`#page-xxx`、`?event=xxx`、`?team=xxx`、`?tournament=xxx` 都繼續有效。LINE Mini App 分享連結本輪不改。
 - 新增的核心檔案為 `js/core/route-flags.js` 與 `js/core/history-route-adapter.js`;前者控管階段開關,後者只做安全解析。

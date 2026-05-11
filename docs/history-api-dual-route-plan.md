@@ -1231,3 +1231,18 @@ Phase 0 → 3 第一輪不執行本段。只有啟用 Phase 5 詳細頁 URL writ
 6. **`/profile` 與 `/users/*` 範圍釐清**:第一輪啟用 `/profile`,`/users/*` 第二輪;Worker、`_headers`、route adapter 與 QA 必須一致。
 7. **SW navigate cache key 明確化**:SPA path 不可 `cache.put(event.request)`,需 normalize 到 `/index.html` 或 `/`。
 8. **SEO meta 時機與 decisions 對齊**:`_setRouteUrl` 不改 meta,成功 render 後才更新 canonical / og:url。
+
+---
+
+## 17. Phase 4 Completion Note (2026-05-11)
+
+Phase 4 is implemented and self-audited for the limited list URL writer scope.
+
+- [x] Enabled `HISTORY_ROUTE_FLAGS.writeListPaths`.
+- [x] `App._setRouteUrl` writes clean paths only for `page-activities`, `page-teams`, and `page-tournaments`.
+- [x] Detail URL writer, popstate takeover, `/users/{uid}`, and LIFF in-client path writes remain disabled.
+- [x] The list writer runs before `cleanHashFallbackPath`, so list-to-list navigation writes a clean list path instead of path plus hash.
+- [x] Added `tests/unit/history-list-url-writer.test.js` to lock flags, mapping, LIFF guard, and ordering.
+- [x] Cache version bumped before deployment.
+
+Phase 5/5.5/6 remain deferred.

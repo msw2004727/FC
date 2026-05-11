@@ -2014,6 +2014,26 @@ const App = {
     return !this._hasLegacyRouteSignal();
   },
 
+  _getListRoutePath(pageId) {
+    return ({
+      'page-activities': '/activities',
+      'page-teams': '/teams',
+      'page-tournaments': '/tournaments',
+    })[pageId] || '';
+  },
+
+  _shouldDisableHistoryPathWrite(flags) {
+    if (!flags?.liffPathDisable) return false;
+    try {
+      const liffClient = window.liff
+        && typeof window.liff.isInClient === 'function'
+        && window.liff.isInClient();
+      return !!liffClient;
+    } catch (_) {
+      return true;
+    }
+  },
+
   _setRouteUrl(routeOrPageId, options = {}) {
     const pageId = typeof routeOrPageId === 'string'
       ? routeOrPageId
@@ -2029,6 +2049,22 @@ const App = {
       const shouldReplace = options.replace === true || options.mode === 'replace';
       const targetHash = '#' + pageId;
       const url = new URL(window.location.href);
+      const listPath = flags.writeListPaths && !this._shouldDisableHistoryPathWrite(flags)
+        ? this._getListRoutePath(pageId)
+        : '';
+
+      if (listPath && (history?.pushState || history?.replaceState)) {
+        if (url.pathname === listPath && !url.search && !url.hash) return true;
+        const state = { source: 'sportshub', pageId };
+        if (shouldReplace && history.replaceState) {
+          history.replaceState(state, '', listPath);
+        } else if (history.pushState) {
+          history.pushState(state, '', listPath);
+        } else {
+          history.replaceState(state, '', listPath);
+        }
+        return true;
+      }
 
       if (flags.cleanHashFallbackPath && url.pathname && url.pathname !== '/') {
         history.replaceState(null, '', '/' + targetHash);

@@ -2330,3 +2330,8 @@
 - **Fix**: Completed the first-round dual-route implementation: Phase 0 decisions were marked confirmed, `HISTORY_ROUTE_FLAGS` and `HistoryRouteAdapter` were added, URL hash writes now go through `App._setRouteUrl`, LIFF login preserves clean paths, GitHub Pages 404 redirects SPA routes through `_spa_redirect`, Cloudflare Worker/_routes/_headers return `index.html` for first-round clean routes, SW navigate cache normalizes SPA paths to `/index.html`, and boot now translates clean list/detail paths back into the existing `showPage` / deep-link flow.
 - **Validation**: Audited each Phase 0 -> 3 separately, ran `npm test` (110 suites / 2864 tests passed), targeted route tests, syntax checks for touched JS, and a mocked Worker fetch check for `/activities` and `/events/{id}`.
 - **Risk**: Old hash/query and LINE Mini App sharing links remain unchanged. Phase 4-6 URL writers, popstate takeover, and Phase 5.5 SEO/canonical work are still deferred; detail SPA paths are temporarily returned with `X-Robots-Tag: noindex, nofollow`.
+
+### 2026-05-11 History API Dual Route Phase 4 [feature]
+- **Issue**: Phase 0-3 could read and boot clean list URLs, but normal in-app navigation still wrote hash URLs.
+- **Fix**: Enabled `writeListPaths` and updated `App._setRouteUrl` so only `page-activities`, `page-teams`, and `page-tournaments` write `/activities`, `/teams`, and `/tournaments` before hash fallback. Detail writer, popstate takeover, `/users/{uid}`, and LIFF in-client path writes remain disabled.
+- **Validation**: Added a Phase 4 contract test covering route flags, list path mapping, LIFF guard, and writer/fallback ordering. Ran targeted History API unit tests and full unit tests before deployment.

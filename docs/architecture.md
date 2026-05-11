@@ -971,6 +971,12 @@ UID 健康檢查目前會發現：
 
 ## 2026-05-11 History API Dual Route Phase 0-3
 
+### 2026-05-11 History API Dual Route Phase 4
+
+- `HISTORY_ROUTE_FLAGS.writeListPaths` is enabled only for list routes: `page-activities` -> `/activities`, `page-teams` -> `/teams`, and `page-tournaments` -> `/tournaments`.
+- `App._setRouteUrl` writes those three clean paths before the old hash fallback. Non-list pages continue using the existing hash/query route behavior.
+- `writeDetailPaths`, `popstateTakeover`, `/users/{uid}`, and LIFF in-client path writing remain disabled.
+
 - 新增 `js/core/route-flags.js` 作為 History API 雙軌升級的開關中心。第一輪只啟用讀取解析與 boot 入口轉譯,不啟用 URL writer 全面接管、popstate takeover 或 `/users/{uid}`。
 - 新增 `js/core/history-route-adapter.js` 作為純解析層。它只把 `/activities`、`/teams`、`/tournaments`、`/profile`、`/events/{id}`、`/teams/{id}`、`/tournaments/{id}` 解析成既有 page/deep-link intent,不碰 DOM、Firebase 或 App 狀態。
 - `app.js` 只在 boot 階段把 clean URL 轉回既有 `_pendingDeepEventId` / `_pendingDeepTeamId` / `_pendingDeepTournamentId` 或 list page shell,因此原本 `#page-xxx`、`?event=xxx`、`?team=xxx`、`?tournament=xxx` 還是保留為主路由。

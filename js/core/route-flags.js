@@ -6,7 +6,7 @@
     parseRead: true,
     cleanHashFallbackPath: true,
     bootIntegration: true,
-    writeListPaths: false,
+    writeListPaths: true,
     writeDetailPaths: false,
     popstateTakeover: false,
     liffPathDisable: true,
