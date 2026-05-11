@@ -4,6 +4,32 @@
 
 ---
 
+### 2026-05-11 — Phase 5.5 SEO 對齊：動態 canonical + sitemapindex + 移除 detail noindex
+
+**問題 / 目標**：Phase 5 已啟用 `/events/{id}`、`/teams/{id}`、`/tournaments/{id}` clean URL 寫入，但 `index.html` 的 canonical / hreflang / og:url 仍寫死指向 `https://toosterx.com/`，且 Worker 對 detail SPA path 加 `X-Robots-Tag: noindex, nofollow` 暫時擋住索引。需讓每個 list / detail 頁的 meta 與實際 URL 同步，並讓 Google 透過 sitemap 抓得到動態 detail 頁。
+
+**執行項目**：
+1. `app.js` 新增 `_getPageMetaMap()` + `_updateRouteMetaTags(pageId, ctx)`，依照 `history-route-decisions.md` D8 對照表更新 canonical / hreflang (`zh-TW`、`x-default`) / og:url / og:type。
+2. `js/core/navigation.js` `_renderPageContent` 末尾呼叫 helper，但跳過 `*-detail` 頁，避免無 id 時誤寫 canonical。
+3. `js/modules/event/event-detail.js`、`js/modules/team/team-detail.js`、`js/modules/tournament/tournament-detail.js`、`js/modules/tournament/tournament-friendly-detail.js` 在資料載入完成、`_setRouteUrl` 之後呼叫 helper，以實際 detail id 組 canonical。
+4. 新增 `scripts/build-sitemap.js`：從 Firestore REST 撈 events / teams / tournaments，過濾私人 / 已結束 / 隱藏 / 30 天前的紀錄，產出 `sitemap-events.xml`、`sitemap-teams.xml`、`sitemap-tournaments.xml`（單檔 5000 URL 上限、URL ID 通過 `isSafeRouteSegment` 驗證）。
+5. `sitemap.xml` 由 `urlset` 改寫為 `sitemapindex`，原內容搬到 `sitemap-static.xml`；index 同時引用四個子 sitemap（static + 三個 dynamic）。
+6. 新增 `.github/workflows/build-sitemap.yml`：每日 UTC 03:17 cron，仿 `inject-hot-events.yml` 套用 `[skip ci]` commit + rebase push 模式。
+7. `.github/workflows/submit-sitemap.yml` `paths:` 補上四個新 sitemap 檔，讓 sitemap 內容變動時自動觸發 GSC re-submit。
+8. 移除 Phase 2 暫時保護：`_worker.js` 不再對 detail SPA path 加 `X-Robots-Tag: noindex, nofollow`；`_headers` 也移除 `/events/*`、`/teams/*`、`/tournaments/*` 的 noindex。
+9. 同步更新 `tests/unit/history-worker-fallback.test.js`（從 expect contains 改為 expect not contains），新增 `tests/unit/route-meta-tags.test.js`（jsdom 環境驗 helper 行為 + PAGE_META_MAP + 接入點 contract）與 `tests/unit/build-sitemap.test.js`（純函式單元測試覆蓋 indexability filter / entry builder / XML 輸出）。
+10. bump CACHE_VERSION 至 `0.20260511i`，並重新同步 `index.html` `app-inline-runtime` 區塊以涵蓋新 helper。
+11. 同步更新 `docs/history-api-dual-route-plan.md` §8.8 / §13 / §16 勾選與 `docs/history-route-decisions.md` D8 驗收勾選。
+
+**關鍵決策**：
+- canonical / og:url 一律走 production origin (`https://toosterx.com`)，不跟著 `window.location.origin` 浮動，避免本地測試 origin 寫進 head。
+- detail handler 在 render 流程末尾自己呼叫 helper，而非靠 `_setRouteUrl` 觸發；這跟 D8「Google 只在乎 meta 與實際內容一致」一致，也避免 helper 與 race-counter stale 流程交叉。
+- 暫不更新 `<title>` / `og:title` / `og:description`：Google index 主要靠 canonical 防重複，title 動態化屬於 nice-to-have 留給後續迭代。
+- 子 sitemap 內每個 URL 一律先過 `isSafeRouteSegment`（與 `HistoryRouteAdapter` 同規格），確保 Worker / `_headers` 能正確處理。
+- Phase 0.5 `404.html` 已能 redirect clean URL，sitemap 寫入後 Google 走正常路徑即可，不需另外開放 `_routes.json` 排除。
+
+---
+
 ### 2026-05-04 — SEO 必修缺失修正：GSC inspection、workflow、公開頁 metadata
 
 **目的 / 背景**：審計發現 GSC URL Inspection 固定清單含不存在的 `/blog/pickleball-rules`，會造成 SEO 後台假錯誤；sitemap 自動提交未涵蓋 `blog/**`、`roles/**`、法務頁；Lighthouse 仍測 `.html` SEO URL，與 clean canonical 策略不一致；`roles/`、`privacy.html`、`terms.html` 已在 sitemap 中，但 metadata 規格不完整。

@@ -63,6 +63,7 @@ Object.assign(App, {
     // 預設為「俱樂部」頁簽
     document.querySelectorAll('#td-tabs .tab').forEach(x => x.classList.toggle('active', x.dataset.ttab === 'teams'));
     this.renderTournamentTab('teams');
+    this._updateRouteMetaTags?.('page-tournament-detail', { id });
     return { ok: true };
   },
 

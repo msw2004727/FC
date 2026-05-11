@@ -15,7 +15,8 @@ describe('history route hosting fallback contract', () => {
     expect(source.indexOf('isEventSharePath(url.pathname)')).toBeLessThan(source.indexOf('getSpaRouteKind(url.pathname)'));
     expect(source).toContain('LIST_SPA_PATHS');
     expect(source).toContain('DETAIL_SPA_ROOTS');
-    expect(source).toContain('X-Robots-Tag", "noindex, nofollow"');
+    // Phase 5.5 (2026-05-11): noindex 暫時保護已移除，detail SPA path 改由動態 canonical 統一
+    expect(source).not.toContain('X-Robots-Tag", "noindex, nofollow"');
     expect(source).toContain('new URL("https://assets.local/")');
     expect(source).toContain('assetUrl.pathname = incoming.pathname === "/" ? "/index.html" : incoming.pathname');
     expect(source).toContain('assetUrl.search = ""');

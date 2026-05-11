@@ -921,6 +921,11 @@ Object.assign(App, {
     if (document.getElementById('content-stall-hint')) {
       document.getElementById('content-stall-hint').remove();
     }
+
+    // Phase 5.5: detail 頁交由 detail handler 在資料載入後呼叫，避免無 id 時誤寫 canonical
+    if (typeof this._updateRouteMetaTags === 'function' && !/-detail$/.test(pageId)) {
+      this._updateRouteMetaTags(pageId);
+    }
   },
 
   async goBack() {

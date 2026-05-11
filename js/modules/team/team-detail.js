@@ -205,6 +205,7 @@ Object.assign(App, {
       this._setRouteUrl?.({ pageId: 'page-team-detail', id }, {
         mode: this._hasLegacyRouteSignal?.() ? 'replace' : undefined,
       });
+      this._updateRouteMetaTags?.('page-team-detail', { id });
       this._markPageSnapshotReady?.('page-team-detail');
       return { ok: true, reason: 'ok' };
     } catch (err) {

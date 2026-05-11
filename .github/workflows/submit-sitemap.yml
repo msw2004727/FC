@@ -5,6 +5,10 @@ on:
     branches: [main]
     paths:
       - 'sitemap.xml'
+      - 'sitemap-static.xml'
+      - 'sitemap-events.xml'
+      - 'sitemap-teams.xml'
+      - 'sitemap-tournaments.xml'
       - 'seo/**'
       - 'blog/**'
       - 'roles/**'

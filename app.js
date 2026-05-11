@@ -2086,6 +2086,51 @@ const App = {
     }
   },
 
+  _getPageMetaMap() {
+    return {
+      'page-home':              { path: '/', ogType: 'website' },
+      'page-activities':        { path: '/activities', ogType: 'website' },
+      'page-teams':             { path: '/teams', ogType: 'website' },
+      'page-tournaments':       { path: '/tournaments', ogType: 'website' },
+      'page-profile':           { path: '/profile', ogType: 'profile' },
+      'page-activity-detail':   { detailRoot: '/events', ogType: 'event' },
+      'page-team-detail':       { detailRoot: '/teams', ogType: 'website' },
+      'page-tournament-detail': { detailRoot: '/tournaments', ogType: 'event' },
+    };
+  },
+
+  _updateRouteMetaTags(pageId, ctx) {
+    const map = this._getPageMetaMap();
+    const entry = map[String(pageId || '').trim()];
+    if (!entry) return false;
+    let path = entry.path || '';
+    if (entry.detailRoot) {
+      const id = String((ctx && ctx.id) || '').trim();
+      if (!id || !this._isSafeHistoryRouteSegment(id)) return false;
+      path = entry.detailRoot + '/' + encodeURIComponent(id);
+    }
+    const canonicalUrl = 'https://toosterx.com' + path;
+    try {
+      const head = document.head;
+      if (!head) return false;
+      const canonical = head.querySelector('link[rel="canonical"]');
+      if (canonical) canonical.setAttribute('href', canonicalUrl);
+      ['zh-TW', 'x-default'].forEach((lang) => {
+        const el = head.querySelector('link[rel="alternate"][hreflang="' + lang + '"]');
+        if (el) el.setAttribute('href', canonicalUrl);
+      });
+      const ogUrl = head.querySelector('meta[property="og:url"]');
+      if (ogUrl) ogUrl.setAttribute('content', canonicalUrl);
+      if (entry.ogType) {
+        const ogType = head.querySelector('meta[property="og:type"]');
+        if (ogType) ogType.setAttribute('content', entry.ogType);
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  },
+
   _setRouteUrl(routeOrPageId, options = {}) {
     const pageId = typeof routeOrPageId === 'string'
       ? routeOrPageId

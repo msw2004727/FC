@@ -816,12 +816,12 @@ V5 呼叫時機定案:`_setRouteUrl` 只負責 URL 與 route intent,不直接改
 
 #### 8.8.3 自我驗收
 
-- [ ] 進 `/events/ce_xxx` 後 `<link rel="canonical">` 變為 `https://toosterx.com/events/ce_xxx`
-- [ ] 進 `/activities` 後 canonical 變為 `https://toosterx.com/activities`
-- [ ] 回首頁 `/` 後 canonical 變回 `https://toosterx.com/`
-- [ ] sitemap.xml 包含至少首頁、5 個列表頁、若干熱門 detail URL
-- [ ] Google Search Console 提交新 sitemap 後 24 小時內有抓取紀錄(部署後驗證)
-- [ ] [docs/seo-log.md](seo-log.md) 已新增本次 SEO 變更紀錄(CLAUDE.md 強制)
+- [x] 進 `/events/ce_xxx` 後 `<link rel="canonical">` 變為 `https://toosterx.com/events/ce_xxx`（2026-05-11 `_updateRouteMetaTags` 由 detail handler 在資料載入後呼叫，unit test 覆蓋）
+- [x] 進 `/activities` 後 canonical 變為 `https://toosterx.com/activities`（2026-05-11 `_renderPageContent` 末尾呼叫 helper）
+- [x] 回首頁 `/` 後 canonical 變回 `https://toosterx.com/`（2026-05-11 unit test 覆蓋 `page-home` 路徑）
+- [x] sitemap.xml 包含首頁、列表頁、若干 detail URL（2026-05-11 sitemap.xml 改為 sitemapindex，引用 `sitemap-static.xml` + 三個 dynamic sub-sitemap）
+- [ ] Google Search Console 提交新 sitemap 後 24 小時內有抓取紀錄（部署後驗證）
+- [x] [docs/seo-log.md](seo-log.md) 已新增本次 SEO 變更紀錄（CLAUDE.md 強制；2026-05-11 紀錄）
 
 ---
 
@@ -1182,12 +1182,13 @@ Phase 0 → 3 第一輪不執行本段。只有啟用 Phase 5 詳細頁 URL writ
 3. [x] Phase 1 Route adapter
 4. [x] Phase 2 Cloudflare Worker SPA fallback
 5. [x] Phase 3 Boot 入口轉譯
+6. [x] Phase 4 列表頁 URL Writer (2026-05-11)
+7. [x] Phase 5 詳情頁 URL Writer (2026-05-11)
+8. [x] Phase 5.5 SEO 對齊 (2026-05-11)
 
 暫緩:
 
-1. Phase 4 / 5 全站 URL writer
-2. Phase 5.5 SEO 對齊(等 detail URL 真正啟用再做)
-3. Phase 6 Browser back / popstate 全面接管
+1. Phase 6 Browser back / popstate 全面接管
 
 這樣能先取得 clean URL 的主要好處(可直接打開、可重新整理、LIFF 登入不丟 path),同時把既有活動報名、Mini App 分享、OG 預覽、返回鍵的風險壓到最低。
 
@@ -1259,3 +1260,21 @@ Phase 5 is implemented and self-audited for the limited detail URL writer scope.
 - [x] `_syncTournamentDetailRoute` keeps the old `?tournament=` + `#page-tournament-detail` fallback when detail path writing is disabled or LIFF in-client path writing is blocked.
 - [x] `popstateTakeover`, `/users/{uid}`, and Phase 5.5 SEO/canonical/sitemap work remain deferred.
 - [x] Existing hash/query routes remain readable; LINE Mini App sharing links are unchanged.
+
+## 19. Phase 5.5 Completion Note (2026-05-11)
+
+Phase 5.5 SEO alignment is implemented and self-audited; detail SPA paths are no longer marked `noindex`.
+
+- [x] `app.js` ships `_getPageMetaMap()` + `_updateRouteMetaTags(pageId, ctx)` which updates `<link rel="canonical">`, both `<link rel="alternate" hreflang>` tags, `<meta property="og:url">`, and `<meta property="og:type">` against an absolute `https://toosterx.com` origin.
+- [x] List page meta tags are written from the end of `_renderPageContent`; detail handlers (event, team, tournament, friendly-tournament) call the helper after the data load + `_setRouteUrl` step so the canonical reflects the actual id.
+- [x] Detail handlers refuse ids that fail `_isSafeHistoryRouteSegment`, so an invalid path never poisons the head.
+- [x] `sitemap.xml` is now a `sitemapindex` pointing at `sitemap-static.xml` (manually maintained) + `sitemap-events.xml` / `sitemap-teams.xml` / `sitemap-tournaments.xml` (rebuilt nightly).
+- [x] `scripts/build-sitemap.js` filters private / ended / hidden / draft / 30-day-stale records and validates ids with `isSafeRouteSegment` before adding them.
+- [x] `.github/workflows/build-sitemap.yml` runs daily at 03:17 UTC and commits with `[skip ci]`; `submit-sitemap.yml` `paths:` includes all four sitemap files so GSC re-submit is triggered when content changes.
+- [x] Phase 2 temporary protections removed: `_worker.js` no longer stamps `X-Robots-Tag: noindex, nofollow` on detail SPA paths and `_headers` drops the same header for `/events/*`, `/teams/*`, `/tournaments/*`.
+- [x] Tests: `tests/unit/route-meta-tags.test.js` (jsdom) verifies the helper's runtime behaviour + integration contract; `tests/unit/build-sitemap.test.js` covers indexability filters and XML output; `tests/unit/history-worker-fallback.test.js` updated to assert the worker no longer emits `noindex`.
+- [x] `CACHE_VERSION` bumped to `0.20260511i`; `index.html` `app-inline-runtime` re-synced from `app.js`.
+- [x] [docs/seo-log.md](seo-log.md) and [docs/claude-memory.md](claude-memory.md) updated; [docs/history-route-decisions.md](history-route-decisions.md) D8 verification boxes ticked.
+- [ ] GSC sitemap抓取 24 小時內驗證 — 部署後執行。
+
+Phase 6 popstate takeover remains deferred.

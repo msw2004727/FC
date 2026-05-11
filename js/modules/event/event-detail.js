@@ -678,6 +678,7 @@ Object.assign(App, {
       this._setRouteUrl?.({ pageId: 'page-activity-detail', id }, {
         mode: this._hasLegacyRouteSignal?.() ? 'replace' : undefined,
       });
+      this._updateRouteMetaTags?.('page-activity-detail', { id });
       this._markPageSnapshotReady?.('page-activity-detail');
       return { ok: true, reason: 'ok' };
     } catch (err) {

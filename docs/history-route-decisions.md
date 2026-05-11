@@ -737,12 +737,12 @@ const PAGE_META_MAP = {
 
 ### 驗收
 
-- [ ] `PAGE_META_MAP` 涵蓋 §6 全部新 route
-- [ ] 進首頁 `/` 後 canonical = `https://toosterx.com/`、og:type = `website`
-- [ ] 進活動詳情 `/events/ce_xxx` 後 canonical = 對應 path、og:type = `event`
-- [ ] 進俱樂部詳情 `/teams/tm_xxx` 後 canonical = 對應 path、og:type = `website`
-- [ ] 切換 path → hash 路由時 canonical 也同步更新
-- [ ] [docs/seo-log.md](seo-log.md) 已新增此次變更紀錄(CLAUDE.md 強制)
+- [x] `PAGE_META_MAP` 涵蓋 §6 全部新 route（2026-05-11 `app.js` `_getPageMetaMap()`）
+- [x] 進首頁 `/` 後 canonical = `https://toosterx.com/`、og:type = `website`（2026-05-11 unit test 覆蓋）
+- [x] 進活動詳情 `/events/ce_xxx` 後 canonical = 對應 path、og:type = `event`（2026-05-11 event-detail.js 在 `_setRouteUrl` 後呼叫 helper）
+- [x] 進俱樂部詳情 `/teams/tm_xxx` 後 canonical = 對應 path、og:type = `website`（2026-05-11 team-detail.js 同上）
+- [x] 切換 path → hash 路由時 canonical 也同步更新（2026-05-11 `_renderPageContent` 末尾呼叫 helper；hash 與 path 進站走同一渲染入口）
+- [x] [docs/seo-log.md](seo-log.md) 已新增此次變更紀錄（CLAUDE.md 強制；2026-05-11 紀錄）
 
 ---
 

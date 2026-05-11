@@ -112,7 +112,7 @@ async function fetchAsset(request, env) {
   return fetch(request);
 }
 
-async function handleSpaFallback(request, env, routeKind) {
+async function handleSpaFallback(request, env, _routeKind) {
   if (!["GET", "HEAD"].includes(request.method)) {
     return new Response("Method Not Allowed", {
       status: 405,
@@ -132,9 +132,8 @@ async function handleSpaFallback(request, env, routeKind) {
   const upstream = await fetchAsset(indexRequest, env);
   const response = new Response(upstream.body, upstream);
   response.headers.set("Cache-Control", "public, max-age=0, must-revalidate");
-  if (routeKind === "detail") {
-    response.headers.set("X-Robots-Tag", "noindex, nofollow");
-  }
+  // Phase 5.5 (2026-05-11): detail SPA path noindex 暫時保護已移除，改由動態 canonical
+  // (App._updateRouteMetaTags) 指向正確 detail URL，搭配 sitemap 開放 Google 索引。
   return response;
 }
 

@@ -1,5 +1,18 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-11 — Phase 5.5 SEO 對齊：動態 canonical + sitemapindex
+- **問題**：Phase 5 已啟用 detail clean URL（`/events/{id}` 等），但 `index.html` 的 canonical / hreflang / og:url 寫死指向 `/`，且 Worker 對 detail SPA path 加 `X-Robots-Tag: noindex` 暫時擋住索引。等於 clean URL 能用但 Google 不認也不索引。
+- **修復**：
+  - `app.js` 新增 `_getPageMetaMap()` + `_updateRouteMetaTags(pageId, ctx)`，依 D8 對照表動態更新 canonical / hreflang(`zh-TW` + `x-default`) / og:url / og:type。
+  - `_renderPageContent` 末尾呼叫 helper（跳過 `*-detail`），detail handler（event / team / tournament / friendly tournament）在資料載入 + `_setRouteUrl` 之後以實際 id 呼叫。
+  - 新增 `scripts/build-sitemap.js` + `.github/workflows/build-sitemap.yml`：每日重建三個動態 sitemap（events / teams / tournaments），過濾私人 / 已結束 / 隱藏 / 30 天前的紀錄。
+  - `sitemap.xml` 改為 sitemapindex，原內容搬到 `sitemap-static.xml`；submit-sitemap workflow `paths:` 補上四個新檔。
+  - 移除 `_worker.js` 與 `_headers` 的 detail SPA path `X-Robots-Tag: noindex` 暫時保護。
+  - 新增 `tests/unit/route-meta-tags.test.js`（jsdom 驗 helper 行為）+ `tests/unit/build-sitemap.test.js`（純函式覆蓋 indexability filter / entry builder）。
+- **教訓**：
+  - `app.js` 的內容被 inline 進 `index.html#app-inline-runtime`，每次改 `app.js` 都要記得手動同步 inline runtime，否則 `tests/unit/history-worker-fallback.test.js` 的 mirror 檢查會失敗。沒有自動 sync 腳本。
+  - `parseDateMs('2026/06/01')` 用 local timezone 建構 Date，台灣（UTC+8）跑出來 `toISOString()` 會掉回前一天。寫測試時要用 ISO 串或 regex 容錯，不能寫死預期日期。
+
 ### 2026-05-09 — 放鴿子功能暫時軟關閉 [feature-flag]
 - **問題**：放鴿子功能需要暫停，且活動詳細頁報名名單中的放鴿子欄位要先隱藏；同時避免背景排程或管理工具繼續改寫 `noShowCount`。
 - **修復**：新增前端 `NO_SHOW_FEATURE_ENABLED=false` / `isNoShowFeatureEnabled()`，活動詳細頁放鴿子欄位、用戶補正管理放鴿子頁籤、資料同步手動重算、Dashboard 放鴿子排行與 Auto EXP 放鴿子扣分都會停用或隱藏。後端 `functions/index.js` 同步新增 `NO_SHOW_FEATURE_ENABLED=false`，`calcNoShowCounts` 排程與手動 callable 直接跳過，`noshow_penalty` 對帳不再執行。

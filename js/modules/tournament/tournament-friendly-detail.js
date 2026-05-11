@@ -141,6 +141,7 @@ Object.assign(App, {
     });
     document.querySelectorAll('#td-tabs .tab').forEach(node => node.classList.toggle('active', node.dataset.ttab === 'teams'));
     this.renderTournamentTab('teams');
+    this._updateRouteMetaTags?.('page-tournament-detail', { id });
   },
 
   async registerTournament(id, actionButton = null) {
