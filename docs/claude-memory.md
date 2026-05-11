@@ -1,5 +1,11 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-11 — Timeline 載入遮罩 Round 2：條件收緊到「event 不在快取」才顯示
+- **問題**：Round 1 修法（sync remove tl-pending）部署後，用戶在 LIFF 環境仍回報「點進去又退出卡片就被黑色遮罩遮住」。
+- **原因**：`shouldHint = this._shouldShowHomeEventLoadingHint()` 條件是看 `_cloudReady`。LIFF 內常見場景：events 已從 Phase 3 快取/IndexedDB 預先 load（用戶能看到卡片），但 `_cloudReady` 還沒 true → `shouldHint = true` → `_markTlCardPending` 加遮罩。Round 1 的 sync remove 雖然能清，但 finally 觸發前若用戶按返回，遮罩仍會殘留一個時間窗。
+- **修復**：[js/modules/event/event-list-timeline.js](js/modules/event/event-list-timeline.js) `openTimelineEventDetail` 把 `shouldHint` 條件改成 `!extEvent && _shouldShowHomeEventLoadingHint()`。事件已在快取（`ApiService.getEvent(safeEventId)` truthy）→ 點下去能立刻打開詳情頁 → 根本不需顯示載入遮罩。
+- **教訓**：「載入遮罩」應該以「點下去到打開詳情頁是否有延遲」為條件，而不是「全站 cloud 是否 ready」。Timeline 卡片本身就是從快取渲染的，能看到卡片 = 對應的 event 一定在快取 = 不需要遮罩。用戶建議「資料沒更新就不要有遮罩」直接命中根因。
+
 ### 2026-05-11 — 從活動詳細頁快速返回時 timeline 卡片殘留 tl-pending、1.4 秒不能點
 - **問題**：用戶在活動頁點卡片進入詳細頁，立刻按瀏覽器返回鍵時，被點過的卡片殘留黑色「載入中」遮罩、`pointer-events: none` 鎖住約 1.4 秒。
 - **原因**：`openTimelineEventDetail` 的 finally 區塊呼叫 `_clearTlCardPending`，內部用 setTimeout 鏈（waitMs → 350ms → 400ms）延遲清掉 `tl-pending` class。但用戶在這 1.4 秒內按返回鍵 → popstate handler 觸發 `showPage('page-activities')` → `_doRenderActivityList` 因資料 fp 未變而 fp 短路跳過重繪 → 舊 DOM 上的 `tl-pending` 沒被沖掉。

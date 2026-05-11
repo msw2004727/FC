@@ -132,7 +132,10 @@ Object.assign(App, {
     }
 
     if (targetCard && targetCard.dataset.tlOpening === '1') return;
-    var shouldHint = this._shouldShowHomeEventLoadingHint();
+    // 事件已在快取（能渲染卡片代表 events 已 load）→ 點下去能立刻打開詳情頁，
+    // 不需顯示 loading 遮罩。避免「返回後遮罩殘留」UX bug（_doRenderActivityList
+    // 因 fp 短路跳過重繪 → 舊 DOM 上的 tl-pending 黑色遮罩被卡住）。
+    var shouldHint = !extEvent && this._shouldShowHomeEventLoadingHint();
     if (targetCard && targetCard.dataset) targetCard.dataset.tlOpening = '1';
     if (shouldHint && targetCard) this._markTlCardPending(targetCard);
 
