@@ -70,7 +70,9 @@ describe('private message feature wiring', () => {
     expect(css).toContain('.pm-dialog-title.is-search-open .pm-dialog-search');
     expect(css).toContain('.pm-dialog-search-toggle.is-active');
     expect(css).toContain('.pm-dialog-avatar:focus-visible');
-    expect(css).toContain('height:var(--pm-vv-height, 100vh)');
+    expect(css).toContain('.pm-dialog-overlay { position:fixed; inset:0;');
+    expect(css).toContain('backdrop-filter:blur(18px) saturate(1.15)');
+    expect(css).toContain('pointer-events:auto');
     expect(css).toContain('.pm-dialog-overlay.is-keyboard-open');
     expect(css).toContain('.pm-dialog-input,');
     expect(css).toContain('.pm-dialog-search { font-size:16px; }');

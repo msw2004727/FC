@@ -91,8 +91,8 @@
 
 /* ─── Private message dialog ─── */
 .pm-dialog-open { overflow:hidden; }
-.pm-dialog-overlay { position:fixed; top:var(--pm-vv-top, 0); left:0; right:0; bottom:auto; height:var(--pm-vv-height, 100vh); z-index:1600; display:none; align-items:center; justify-content:center; padding:1rem; overflow:hidden; overscroll-behavior:contain; background:rgba(15,23,42,.42); -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px); }
-.pm-dialog { width:min(96vw, 430px); height:min(calc(var(--pm-vv-height, 100vh) - 2rem), 680px); min-height:0; max-height:calc(var(--pm-vv-height, 100vh) - 2rem); display:flex; flex-direction:column; overflow:hidden; background:var(--bg-card); border:1px solid rgba(148,163,184,.35); border-radius:18px; box-shadow:0 24px 70px rgba(15,23,42,.28); }
+.pm-dialog-overlay { position:fixed; inset:0; z-index:1600; display:none; align-items:center; justify-content:center; padding:1rem; overflow:hidden; overscroll-behavior:contain; pointer-events:auto; background:rgba(15,23,42,.58); -webkit-backdrop-filter:blur(18px) saturate(1.15); backdrop-filter:blur(18px) saturate(1.15); }
+.pm-dialog { width:min(96vw, 430px); height:min(calc(var(--pm-vv-height, 100vh) - 2rem), 680px); min-height:0; max-height:calc(var(--pm-vv-height, 100vh) - 2rem); display:flex; flex-direction:column; overflow:hidden; pointer-events:auto; background:var(--bg-card); border:1px solid rgba(148,163,184,.35); border-radius:18px; box-shadow:0 24px 70px rgba(15,23,42,.28); }
 .pm-dialog-header { display:flex; align-items:center; gap:.7rem; padding:.85rem .95rem; border-bottom:1px solid var(--border); }
 .pm-dialog-title { flex:1; min-width:0; display:flex; flex-direction:column; gap:.1rem; }
 .pm-dialog-title strong { font-size:.94rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -121,7 +121,7 @@
 .pm-dialog-input { flex:1; min-height:2.5rem; max-height:7rem; resize:vertical; border:1px solid var(--border); border-radius:14px; padding:.56rem .7rem; background:var(--bg-elevated); color:var(--text-primary); font-size:.86rem; line-height:1.45; touch-action:auto; -webkit-user-select:text; user-select:text; }
 .pm-dialog-send { min-width:4.2rem; border:0; border-radius:14px; padding:.7rem .8rem; color:#fff; background:linear-gradient(135deg, #2563eb, #14b8a6); font-weight:800; cursor:pointer; }
 .pm-dialog-send:disabled { opacity:.72; cursor:wait; }
-.pm-dialog-overlay.is-keyboard-open { align-items:stretch; padding:.5rem .75rem max(.5rem, env(safe-area-inset-bottom)); }
+.pm-dialog-overlay.is-keyboard-open { align-items:flex-start; padding:calc(var(--pm-vv-top, 0px) + .5rem) .75rem max(.5rem, env(safe-area-inset-bottom)); }
 .pm-dialog-overlay.is-keyboard-open .pm-dialog { height:calc(var(--pm-vv-height, 100vh) - 1rem); max-height:calc(var(--pm-vv-height, 100vh) - 1rem); }
 
 /* ─── PM audit ─── */
@@ -168,7 +168,7 @@
 @media (max-width:560px) {
   .pm-dialog-overlay { padding:.65rem .5rem; }
   .pm-dialog { width:100%; height:calc(var(--pm-vv-height, 100vh) - 1.3rem); max-height:calc(var(--pm-vv-height, 100vh) - 1.3rem); border-radius:18px; }
-  .pm-dialog-overlay.is-keyboard-open { padding:.35rem .45rem; }
+  .pm-dialog-overlay.is-keyboard-open { padding:calc(var(--pm-vv-top, 0px) + .35rem) .45rem .35rem; }
   .pm-dialog-overlay.is-keyboard-open .pm-dialog { height:calc(var(--pm-vv-height, 100vh) - .7rem); max-height:calc(var(--pm-vv-height, 100vh) - .7rem); }
   .pm-dialog-compose { padding:.6rem .65rem; gap:.45rem; }
   .pm-dialog-input,
