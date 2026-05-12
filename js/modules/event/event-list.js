@@ -231,7 +231,12 @@ Object.assign(App, {
       `; }).join('');
 
     // 方案 B：資料未變時跳過 re-render
-    var _fp = visible.map((e) => e.id + '|' + (e.current||0) + '|' + (e.waitlist||0) + '|' + e.status + '|' + (e.pinned?1:0) + '|' + (this._getEventImageUrl?.(e, 'cover') || e.image || '')).join(',') + '|s:' + (App._activeSport || 'all');
+    var _fp = visible.map((e) => {
+      const s = this._getEventParticipantStats(e);
+      return e.id + '|' + (e.current||0) + '|' + (e.waitlist||0)
+        + '|sc:' + (s?.confirmedCount ?? '') + '|sw:' + (s?.waitlistCount ?? '') + '|sm:' + (s?.maxCount ?? '')
+        + '|' + e.status + '|' + (e.pinned?1:0) + '|' + (this._getEventImageUrl?.(e, 'cover') || e.image || '');
+    }).join(',') + '|s:' + (App._activeSport || 'all');
     if (this._hotEventsLastFp === _fp && container.children.length > 0) return;
     this._hotEventsLastFp = _fp;
 

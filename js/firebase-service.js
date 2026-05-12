@@ -116,6 +116,8 @@ const FirebaseService = {
   _collectionLoadedAt: {},
   _realtimeListenerStarted: {},  // 追蹤已啟動的延遲即時監聽器
   _registrationsFirstSnapshotReceived: false, // Fix A: 首次 snapshot 到達旗標
+  _registrationsServerSnapshotReceived: false,
+  _eventsServerSnapshotReceived: false,
   _authPromise: null,            // Auth 並行 Promise
   _userStatsCache: { uid: null, activityRecords: null, attendanceRecords: null },
   _userAchievementProgress: [],  // Per-user achievement progress from subcollection
@@ -862,6 +864,7 @@ const FirebaseService = {
 
     this._eventSlices.active = (activeResult.docs || []).map(doc => ({ ...doc.data(), _docId: doc.id }));
     this._eventSlices.terminal = (terminalResult.docs || []).map(doc => ({ ...doc.data(), _docId: doc.id }));
+    this._eventsServerSnapshotReceived = true;
     // 記錄 terminal 最後一筆 doc snapshot，供分頁用
     this._terminalLastDoc = (terminalResult.docs && terminalResult.docs.length > 0)
       ? terminalResult.docs[terminalResult.docs.length - 1] : null;
@@ -1435,14 +1438,36 @@ const FirebaseService = {
     }
   },
 
-  _mergeRealtimeEventSlices(shouldRefreshUI = false) {
+  _mergeRealtimeEventSlices(shouldRefreshUI = false, options = {}) {
+    const fromCacheSnapshot = !!options.fromCache;
+    const existingById = new Map();
+    (Array.isArray(this._cache.events) ? this._cache.events : []).forEach(doc => {
+      const key = String(doc?._docId || doc?.id || '').trim();
+      if (key) existingById.set(key, doc);
+    });
+    const maxBootAgeMs = (typeof PERFORMANCE_LIMITS !== 'undefined'
+      && Number(PERFORMANCE_LIMITS.publicBootSnapshotMaxAgeMs) > 0)
+      ? Number(PERFORMANCE_LIMITS.publicBootSnapshotMaxAgeMs)
+      : 30 * 60 * 1000;
+    const preserveFreshBootFields = (doc) => {
+      if (!fromCacheSnapshot || !doc) return doc;
+      const key = String(doc._docId || doc.id || '').trim();
+      const existing = key ? existingById.get(key) : null;
+      if (!existing || existing._bootSnapshot !== true) return doc;
+      const bootTs = Number(existing._bootSnapshotTs || 0);
+      if (!bootTs || Date.now() - bootTs > maxBootAgeMs) return doc;
+      // Firestore persistence may emit an older local cache snapshot before the
+      // server reply. Keep the fresher boot payload for visible fields until the
+      // non-cache snapshot arrives.
+      return { ...doc, ...existing };
+    };
     const merged = [];
     const seen = new Set();
     const pushUnique = (docs) => {
       (docs || []).forEach(doc => {
         if (!doc || !doc._docId || seen.has(doc._docId)) return;
         seen.add(doc._docId);
-        merged.push(doc);
+        merged.push(preserveFreshBootFields(doc));
       });
     };
     // 先放 active，避免同 ID 被 terminal 舊快取覆蓋
@@ -2243,12 +2268,14 @@ const FirebaseService = {
     const unsub = this._getRegistrationsListenerQuery(ctx)
       .onSnapshot(
         snapshot => {
+          const fromCache = !!snapshot.metadata?.fromCache;
           this._replaceCanonicalCollectionCache('registrations', snapshot.docs
             .filter(doc => doc.ref.parent.parent !== null) // Phase 3b: collectionGroup 去重
             .map(doc => {
               return this._mapSubcollectionDoc(doc, 'registrations');
             }));
           this._registrationsFirstSnapshotReceived = true; // Fix A
+          if (!fromCache) this._registrationsServerSnapshotReceived = true;
           this._snapshotReconnectAttempts.registrations = 0; // RC4：成功時重置重連計數
           this._debouncedPersistCache();
           this._debouncedSnapshotRender('registrations');
@@ -2290,6 +2317,7 @@ const FirebaseService = {
     this._realtimeListenerStarted._pendingRegistrations = false;
     this._realtimeListenerStarted._retryNoUid = false;
     this._registrationsFirstSnapshotReceived = false; // Fix A: 重設旗標
+    this._registrationsServerSnapshotReceived = false;
     clearTimeout(this._retryNoUidTimer);
     this._retryNoUidTimer = null;
   },
@@ -2495,6 +2523,8 @@ const FirebaseService = {
     this._bootCollectionLoadFailed = {};
     this._realtimeListenerStarted = {};
     this._registrationsFirstSnapshotReceived = false; // Fix A: init 時重設
+    this._registrationsServerSnapshotReceived = false;
+    this._eventsServerSnapshotReceived = false;
     this._authDependentWorkPromise = null;
     this._authDependentWorkUid = null;
     this._postInitWarmupPromise = null;
@@ -3381,6 +3411,7 @@ const FirebaseService = {
       const oldCount = this._cache.registrations.length;
       this._replaceCanonicalCollectionCache('registrations', fresh);
       this._registrationsFirstSnapshotReceived = true; // Fix A: .get() 也視為新鮮資料
+      this._registrationsServerSnapshotReceived = true;
       this._debouncedPersistCache();
       if (oldCount !== fresh.length) {
         console.log(`[FirebaseService] RC1 stale-while-revalidate: registrations ${oldCount} → ${fresh.length}`);
@@ -3489,6 +3520,8 @@ const FirebaseService = {
         .map(doc => this._mapSubcollectionDoc(doc, 'registrations'));
       const oldLen = this._cache.registrations.length;
       this._replaceCanonicalCollectionCache('registrations', fresh);
+      this._registrationsFirstSnapshotReceived = true;
+      this._registrationsServerSnapshotReceived = true;
       this._debouncedPersistCache();
       if (fresh.length !== oldLen) {
         console.log(`[FirebaseService] registrations 刷新: ${oldLen} → ${fresh.length}`);
@@ -3574,8 +3607,10 @@ const FirebaseService = {
       .limit(this._getRealtimeLimit('eventLimit'))
       .onSnapshot(
         snapshot => {
+          const fromCache = !!snapshot.metadata?.fromCache;
+          if (!fromCache) this._eventsServerSnapshotReceived = true;
           this._eventSlices.active = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-          this._mergeRealtimeEventSlices(true);
+          this._mergeRealtimeEventSlices(true, { fromCache });
           this._snapshotReconnectAttempts.events = 0;
         },
         err => this._reconnectEventsListener(err)
@@ -3588,12 +3623,14 @@ const FirebaseService = {
         .limit(200)
         .onSnapshot(
           snapshot => {
+            const fromCache = !!snapshot.metadata?.fromCache;
+            if (!fromCache) this._eventsServerSnapshotReceived = true;
             this._eventSlices.terminal = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
             this._terminalOrderedByDate = true;
             this._terminalPageSize = 200;
             this._terminalLastDoc = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : null;
             this._terminalAllLoaded = snapshot.docs.length < 200;
-            this._mergeRealtimeEventSlices(true);
+            this._mergeRealtimeEventSlices(true, { fromCache });
           },
           err => {
             console.warn('[onSnapshot] events terminal listener failed:', err);
@@ -3614,6 +3651,7 @@ const FirebaseService = {
       this._pageScopedRealtimeListeners.events = null;
     }
     this._realtimeListenerStarted.events = false;
+    this._eventsServerSnapshotReceived = false;
   },
 
   _reconnectEventsListener(err) {
@@ -3800,6 +3838,9 @@ const FirebaseService = {
     this._bootCollectionLoadFailed = {};
     this._collectionLoadedAt = {};
     this._realtimeListenerStarted = {};
+    this._registrationsFirstSnapshotReceived = false;
+    this._registrationsServerSnapshotReceived = false;
+    this._eventsServerSnapshotReceived = false;
     this._authPromise = null;
     this._authDependentWorkPromise = null;
     this._authDependentWorkUid = null;

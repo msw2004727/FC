@@ -2,17 +2,25 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-function loadEventListStatsModule({ event, registrations = [], hasCompleteRegs = true }) {
+function loadEventListStatsModule({
+  event,
+  registrations = [],
+  hasCompleteRegs = true,
+  serverSnapshot = hasCompleteRegs,
+  eventFetchServer = false,
+}) {
   const state = { registrations };
   const context = {
     App: {},
     ApiService: {
+      _fetchedRegistrationServerIds: eventFetchServer ? new Set([event.id]) : new Set(),
       getEvent: id => (id === event.id ? event : null),
       getRegistrationsByEvent: id => (id === event.id ? state.registrations : []),
     },
     FirebaseService: {
       _realtimeListenerStarted: { registrations: hasCompleteRegs },
       _registrationListenerKey: hasCompleteRegs ? 'all' : '',
+      _registrationsServerSnapshotReceived: serverSnapshot,
     },
     console,
   };
@@ -108,9 +116,66 @@ describe('_getEventParticipantStats', () => {
         status: 'confirmed',
       },
     ];
-    const app = loadEventListStatsModule({ event, registrations, hasCompleteRegs: false });
+    const app = loadEventListStatsModule({
+      event,
+      registrations,
+      hasCompleteRegs: false,
+      eventFetchServer: true,
+    });
 
     expect(app._getEventParticipantStats(event).confirmedCount).toBe(2);
+  });
+
+  test('does not let stale cached registrations downgrade public event count before server snapshot', () => {
+    const event = {
+      id: 'evt-stale-cache',
+      current: 21,
+      waitlist: 0,
+      max: 21,
+      status: 'full',
+      teamReservationSummaries: [],
+    };
+    const registrations = Array.from({ length: 20 }, (_, i) => ({
+      id: `reg-${i}`,
+      userId: `uid-${i}`,
+      userName: `User ${i}`,
+      participantType: 'self',
+      status: 'confirmed',
+    }));
+    const app = loadEventListStatsModule({
+      event,
+      registrations,
+      hasCompleteRegs: true,
+      serverSnapshot: false,
+    });
+
+    expect(app._getEventParticipantStats(event).confirmedCount).toBe(21);
+  });
+
+  test('uses server registration snapshot to correct stale event current upward', () => {
+    const event = {
+      id: 'evt-server-fresh',
+      current: 20,
+      waitlist: 0,
+      max: 21,
+      status: 'open',
+      teamReservationSummaries: [],
+    };
+    const registrations = Array.from({ length: 21 }, (_, i) => ({
+      id: `reg-${i}`,
+      userId: `uid-${i}`,
+      userName: `User ${i}`,
+      participantType: 'self',
+      status: 'confirmed',
+    }));
+    const app = loadEventListStatsModule({
+      event,
+      registrations,
+      hasCompleteRegs: true,
+      serverSnapshot: true,
+    });
+
+    expect(app._getEventParticipantStats(event).confirmedCount).toBe(21);
   });
 
   test('refreshes cached projected count after registrations load', () => {

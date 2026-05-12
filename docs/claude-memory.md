@@ -2545,3 +2545,8 @@
 - **Issue**: When a user had both recent unread PMs and older unread PMs, the recent-message bubble's 6.5-second auto-hide also hid the persistent older-unread reminder.
 - **Fix**: Split the fresh bubble timeout from the generic hide path. When the recent-message timer fires, it now checks the PM thread cache for unread threads older than 30 minutes and switches the same bubble into persistent reminder mode instead of hiding it.
 - **Validation**: Ran `node --check js/modules/message/pm-listener.js` and the targeted private message unit test.
+
+### 2026-05-12 Activity Count Stale Snapshot Flicker [bugfix]
+- **Issue**: Entering the activity page could briefly show the fresh public boot snapshot count, then downgrade to an older count. The downgrade could happen when Firestore persistence emitted an older local-cache `events` snapshot before the server reply, or when stale cached registrations were treated as complete before a server registration snapshot arrived.
+- **Fix**: Preserved fresh public boot event fields while processing cache-only event snapshots, added a server-snapshot marker for registrations, and made activity card stats use registration-derived counts only after the all-registration server snapshot or an explicit per-event server fetch. Activity/home card render fingerprints now include derived participant stats so registration freshness changes can update the DOM even when `event.current` itself is unchanged.
+- **Validation**: Added unit coverage for stale registration cache not downgrading `event.current` and fresh server registrations correcting stale `event.current` upward.

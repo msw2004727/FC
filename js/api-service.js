@@ -1068,6 +1068,7 @@ const ApiService = {
     if (!eventId || typeof db === 'undefined') return;
 
     this._fetchedRegistrationIds = this._fetchedRegistrationIds || new Set();
+    this._fetchedRegistrationServerIds = this._fetchedRegistrationServerIds || new Set();
     const force = options === true || options?.force === true;
     if (!force && this._fetchedRegistrationIds.has(eventId)) return;
 
@@ -1092,6 +1093,7 @@ const ApiService = {
         FirebaseService._upsertCanonicalCacheRecord('registrations', r);
       });
       this._fetchedRegistrationIds.add(eventId);
+      this._fetchedRegistrationServerIds.add(eventId);
     } catch (err) {
       console.warn('[fetchRegistrationsIfMissing]', err);
       if (err && (err.code === 'permission-denied' || err.code === 'unauthenticated')) {

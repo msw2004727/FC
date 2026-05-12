@@ -355,7 +355,12 @@ Object.assign(App, {
     });
 
     // 方案 B：資料未變時跳過 re-render
-    var _fp = events.map((e) => e.id + '|' + e.status + '|' + (e.current||0) + '|' + (e.waitlist||0) + '|' + (e.pinned?1:0) + '|' + (e.title||'') + '|' + (this._getEventImageUrl?.(e, 'cover') || e.image || '')).join(',') + '|tab:' + activeTab + '|f:' + filterType + '|k:' + filterKw + '|s:' + (App._activeSport || 'all');
+    var _fp = events.map((e) => {
+      var s = this._getEventParticipantStats(e);
+      return e.id + '|' + e.status + '|' + (e.current||0) + '|' + (e.waitlist||0)
+        + '|sc:' + (s?.confirmedCount ?? '') + '|sw:' + (s?.waitlistCount ?? '') + '|sm:' + (s?.maxCount ?? '')
+        + '|' + (e.pinned?1:0) + '|' + (e.title||'') + '|' + (this._getEventImageUrl?.(e, 'cover') || e.image || '');
+    }).join(',') + '|tab:' + activeTab + '|f:' + filterType + '|k:' + filterKw + '|s:' + (App._activeSport || 'all');
     if (this._activityListLastFp === _fp && container.children.length > 0) return;
     this._activityListLastFp = _fp;
 

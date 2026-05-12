@@ -127,14 +127,23 @@ Object.assign(App, {
     const _registrationReadyKey = (typeof FirebaseService !== 'undefined'
       && FirebaseService._realtimeListenerStarted?.registrations)
       ? String(FirebaseService._registrationListenerKey || 'started')
+        + ':' + (FirebaseService._registrationsServerSnapshotReceived ? 'server' : 'cache')
       : 'not-started';
+    const _serverFetchedIds = (typeof ApiService !== 'undefined')
+      ? ApiService._fetchedRegistrationServerIds
+      : null;
+    const _eventRegsFetchedFromServer = !!(_serverFetchedIds
+      && typeof _serverFetchedIds.has === 'function'
+      && event.id
+      && _serverFetchedIds.has(event.id));
     const _teamRemainKey = (Array.isArray(event.teamReservationSummaries) ? event.teamReservationSummaries : [])
       .map(s => `${s?.teamId || ''}:${Number(s?.remainingSlots || 0) || 0}:${Number(s?.reservedSlots || 0) || 0}:${Number(s?.usedSlots || 0) || 0}`)
       .join(',');
     const _cacheKey = event.id + '|' + (event.current || 0) + '|' + (event.waitlist || 0)
       + '|' + (event.realCurrent ?? '') + '|' + _teamRemainKey
       + '|' + (event.max || 0) + '|' + (event.status || '')
-      + '|' + _registrationReadyKey + '|' + _eventRegsKey;
+      + '|' + _registrationReadyKey + '|eventFetch:' + (_eventRegsFetchedFromServer ? 'server' : 'none')
+      + '|' + _eventRegsKey;
     if (_cache.has(_cacheKey)) return _cache.get(_cacheKey);
 
     const fallbackConfirmed = this._getEventProjectedConfirmedCount(event);
@@ -147,9 +156,10 @@ Object.assign(App, {
     // 大幅減少 O(N×M) 遍歷成本（首頁 10 卡 × 平均 20 reg = 200+ 次操作 → 0）
     const _hasCompleteRegs = typeof FirebaseService !== 'undefined'
       && FirebaseService._realtimeListenerStarted?.registrations
+      && FirebaseService._registrationsServerSnapshotReceived === true
       && FirebaseService._registrationListenerKey === 'all';
 
-    if (_hasCompleteRegs || _eventRegsForStats.length > 0) {
+    if (_eventRegsForStats.length > 0 && (_hasCompleteRegs || _eventRegsFetchedFromServer)) {
       // admin 全量 listener 啟動時、走精算路徑（不變）
       const registrations = _eventRegsForStats;
       const confirmedSummary = this._buildEventPeopleSummaryByStatus(
