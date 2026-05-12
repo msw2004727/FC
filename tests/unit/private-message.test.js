@@ -51,6 +51,9 @@ describe('private message feature wiring', () => {
     expect(dialog).toContain('_installPmDialogViewportGuard');
     expect(dialog).toContain('window.visualViewport');
     expect(dialog).toContain('_isPmDialogTextControl');
+    expect(dialog).toContain('_getPmDialogUsableViewportHeight');
+    expect(dialog).toContain('--pm-keyboard-reclaim');
+    expect(readProjectFile('js/modules/message/pm-permission.js')).toContain('PM_KEYBOARD_ACCESSORY_GAP_PX');
     expect(dialog).not.toContain('&#128269;');
     expect(listener).toContain('_showPmIncomingBubble');
     expect(listener).toContain('_findPmInitialUnread');

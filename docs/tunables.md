@@ -73,6 +73,7 @@
 |------|---|---------|------|
 | PM read debounce | `500` ms | `js/modules/message/pm-permission.js` `PM_MARK_READ_DEBOUNCE_MS` | 對話視窗收到連續訊息時合併已讀 callable，避免每次 snapshot 都打後端 |
 | PM keyboard restore delay | `320` ms | `js/modules/message/pm-permission.js` `PM_KEYBOARD_RESTORE_DELAY_MS` / `pm-dialog.js` | 手機瀏覽器關閉鍵盤後延遲校正私訊彈窗 viewport，避免 iOS Safari fixed overlay 卡住或點擊失效 |
+| PM keyboard accessory reclaim | up to `96` px after reserving `260` px | `js/modules/message/pm-permission.js` `PM_KEYBOARD_ACCESSORY_GAP_PX` / `PM_KEYBOARD_MIN_KEYBOARD_RESERVE_PX` / `pm-dialog.js` | iOS 鍵盤開啟時回收 Safari 輸入工具列或候選字區多出的可視空間，減少輸入框下方空白，同時保留鍵盤本體高度 |
 | PM edit / recall read lock | 對方已讀後鎖定 | `js/modules/message/pm-dialog.js` / `js/modules/message/pm-dialog-actions.js` / `functions/index.js` | 私訊編輯與撤回不限時間；對方已讀後不可編輯或撤回 |
 
 <a id="sport-icon-svg"></a>

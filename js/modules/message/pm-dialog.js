@@ -116,6 +116,37 @@ Object.assign(App, {
     return ['INPUT', 'TEXTAREA', 'SELECT'].includes(String(el.tagName || '').toUpperCase());
   },
 
+  _isIOSPmViewport() {
+    const nav = window.navigator || {};
+    const platform = String(nav.platform || '');
+    const ua = String(nav.userAgent || '');
+    if (/iP(ad|hone|od)/i.test(platform) || /iP(ad|hone|od)/i.test(ua)) return true;
+    return platform === 'MacIntel' && Number(nav.maxTouchPoints || 0) > 1;
+  },
+
+  _getPmDialogUsableViewportHeight({ layoutHeight, viewportHeight, viewportTop, keyboardOpen }) {
+    const minHeight = Number(this.PM_KEYBOARD_MIN_VIEWPORT_HEIGHT || 320);
+    const safeLayoutHeight = Math.max(0, Number(layoutHeight || 0));
+    const safeViewportHeight = Math.max(minHeight, Number(viewportHeight || minHeight));
+    const safeViewportTop = Math.max(0, Number(viewportTop || 0));
+    const maxUsableHeight = safeLayoutHeight
+      ? Math.max(minHeight, safeLayoutHeight - safeViewportTop)
+      : safeViewportHeight;
+    if (!keyboardOpen || !this._isIOSPmViewport?.()) {
+      return { height: Math.min(safeViewportHeight, maxUsableHeight), reclaimed: 0 };
+    }
+
+    const accessoryMax = Math.max(0, Number(this.PM_KEYBOARD_ACCESSORY_GAP_PX || 0));
+    const keyboardReserve = Math.max(0, Number(this.PM_KEYBOARD_MIN_KEYBOARD_RESERVE_PX || 260));
+    const keyboardDelta = Math.max(0, safeLayoutHeight - safeViewportHeight - safeViewportTop);
+    const reclaimed = Math.min(accessoryMax, Math.max(0, keyboardDelta - keyboardReserve));
+    const height = Math.min(safeViewportHeight + reclaimed, maxUsableHeight);
+    return {
+      height,
+      reclaimed: Math.max(0, height - safeViewportHeight),
+    };
+  },
+
   _installPmDialogViewportGuard(overlay) {
     if (!overlay) return;
     if (typeof this._pmDialogViewportCleanup === 'function') {
@@ -136,7 +167,15 @@ Object.assign(App, {
       const focused = this._isPmDialogTextControl?.(document.activeElement);
       const resizedForKeyboard = !!vv && layoutHeight > 0 && (layoutHeight - viewportHeight) > 80;
       const keyboardOpen = !!focused && (resizedForKeyboard || window.innerWidth <= 560);
-      overlay.style.setProperty('--pm-vv-height', `${viewportHeight}px`);
+      const usable = this._getPmDialogUsableViewportHeight?.({
+        layoutHeight,
+        viewportHeight,
+        viewportTop,
+        keyboardOpen,
+      }) || { height: viewportHeight, reclaimed: 0 };
+      overlay.style.setProperty('--pm-vv-height', `${Math.floor(usable.height)}px`);
+      overlay.style.setProperty('--pm-vv-raw-height', `${viewportHeight}px`);
+      overlay.style.setProperty('--pm-keyboard-reclaim', `${Math.floor(usable.reclaimed || 0)}px`);
       overlay.style.setProperty('--pm-vv-top', `${viewportTop}px`);
       overlay.classList.toggle('is-keyboard-open', keyboardOpen);
       if (keyboardOpen) this._scrollPmDialogToBottomSoon?.();
@@ -190,6 +229,8 @@ Object.assign(App, {
       vv?.removeEventListener?.('scroll', schedule);
       overlay.classList.remove('is-keyboard-open');
       overlay.style.removeProperty('--pm-vv-height');
+      overlay.style.removeProperty('--pm-vv-raw-height');
+      overlay.style.removeProperty('--pm-keyboard-reclaim');
       overlay.style.removeProperty('--pm-vv-top');
       this._pmDialogViewportFrame = 0;
       this._pmDialogViewportCleanup = null;
