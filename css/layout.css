@@ -214,10 +214,15 @@
 #notif-btn { position: relative; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); }
 #notif-btn:hover { background: var(--bg-elevated); }
 .notif-badge { position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--danger); color: #fff; font-size: .6rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }
-.pm-notif-hint { position: absolute; left: 50%; top: calc(100% + 2px); width: 22px; height: 22px; display: none; align-items: center; justify-content: center; color: #ef4444; filter: drop-shadow(0 2px 4px rgba(239,68,68,.28)); transform: translateX(-50%); pointer-events: none; z-index: 2; }
-#notif-btn.has-pm-unread .pm-notif-hint { display: flex; }
-.pm-notif-hint svg { width: 22px; height: 22px; stroke: currentColor; transform: scaleY(-1); transform-box: fill-box; transform-origin: center; }
-[data-theme="dark"] .pm-notif-hint { color: #fb7185; filter: drop-shadow(0 2px 5px rgba(251,113,133,.36)); }
+.pm-notif-hint { --pm-hint-glow: 239,68,68; position: absolute; left: 50%; top: calc(100% - 7px); width: 33px; height: 33px; display: none; align-items: center; justify-content: center; color: #ef4444; filter: drop-shadow(0 0 5px rgba(var(--pm-hint-glow),.72)) drop-shadow(0 4px 9px rgba(var(--pm-hint-glow),.36)); transform: translateX(-50%); pointer-events: none; z-index: 2; }
+#notif-btn.has-pm-unread .pm-notif-hint { display: flex; animation: pmHintGlow 1.9s ease-in-out infinite; }
+.pm-notif-hint::before { content: ''; position: absolute; right: 1px; top: 7px; width: 24px; height: 12px; border-radius: 999px; background: linear-gradient(90deg, rgba(var(--pm-hint-glow),0), rgba(var(--pm-hint-glow),.3), rgba(var(--pm-hint-glow),0)); filter: blur(4px); opacity: .82; transform: rotate(12deg); }
+.pm-notif-hint svg { position: relative; z-index: 1; width: 28px; height: 28px; stroke: currentColor; transform: scaleY(-1) rotate(8deg); transform-box: fill-box; transform-origin: center; }
+[data-theme="dark"] .pm-notif-hint { --pm-hint-glow: 251,113,133; color: #fb7185; }
+@keyframes pmHintGlow {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(var(--pm-hint-glow),.58)) drop-shadow(0 3px 8px rgba(var(--pm-hint-glow),.3)); }
+  50% { filter: drop-shadow(0 0 9px rgba(var(--pm-hint-glow),.92)) drop-shadow(0 5px 14px rgba(var(--pm-hint-glow),.48)); }
+}
 
 /* ─── Sport Picker (Top Bar) ─── */
 .sport-picker-wrapper {
