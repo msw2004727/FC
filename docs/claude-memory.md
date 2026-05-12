@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-12 — Drawer 申請角色提醒強化自由開團重點
+- **問題**：前一版提醒彈窗雖有說明一般用戶可自由開團，但文案層級偏平均，用戶不一定能一眼看出「不用申請也能開一般活動」。
+- **修復**：[js/modules/role.js](js/modules/role.js) 重寫彈窗內容層級，改為「已全面開放」標籤、大標題「一般用戶都可以自由開團」、重點卡片「不用申請身分」、次要說明「進階功能才需要聯繫」。[css/layout.css](css/layout.css) 同步調整深淺主題樣式與重點卡片對比。
+- **驗收**：更新 [tests/unit/role-application-notice.test.js](tests/unit/role-application-notice.test.js) 鎖定新文案、重點樣式與 dark theme 規則。
+
 ### 2026-05-12 — Drawer 申請角色入口改為確認後導向
 - **問題**：左側抽屜「申請（俱樂部/場主/教練）」會直接通知管理員並開啟 roles 頁，沒有先說明目前一般用戶已可自由開團，容易讓用戶誤解必須先申請身分。
 - **修復**：[js/modules/role.js](js/modules/role.js) 將 `_handleApplyRoleClick()` 改成先顯示毛玻璃提醒彈窗；用戶按「確認」後才延續原本流程：通知 admin/super_admin 並開啟 `https://toosterx.com/roles`。[css/layout.css](css/layout.css) 新增獨立彈窗樣式，避免依賴非同步載入的教育模組 CSS。

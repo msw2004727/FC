@@ -320,17 +320,28 @@ Object.assign(App, {
     overlay.className = 'role-application-notice-overlay';
     overlay.setAttribute('role', 'presentation');
     overlay.innerHTML = '<div class="role-application-notice-card" role="dialog" aria-modal="true" aria-labelledby="role-application-notice-title">'
-      + '<div class="role-application-notice-title" id="role-application-notice-title">申請前提醒</div>'
-      + '<div class="role-application-notice-body">'
-      + '<p>目前網站已全面開放一般用戶自由開團。</p>'
-      + '<p>如果還需要創立賽事與俱樂部功能，請進一步聯繫我們。</p>'
+      + '<div class="role-application-notice-kicker">已全面開放</div>'
+      + '<div class="role-application-notice-title" id="role-application-notice-title">一般用戶都可以自由開團</div>'
+      + '<div class="role-application-notice-hero">'
+      + '<strong>不用申請身分</strong>'
+      + '<span>現在就能建立活動、自由開團、自由使用。</span>'
       + '</div>'
-      + '<button type="button" class="role-application-notice-confirm">確認</button>'
+      + '<div class="role-application-notice-body">'
+      + '<p><b>想開一般活動？</b>直接使用即可，不需要先申請俱樂部、場主或教練身分。</p>'
+      + '<p><b>需要進階功能？</b>如果還需要創立賽事或建立俱樂部，請再前往聯繫申請。</p>'
+      + '</div>'
+      + '<button type="button" class="role-application-notice-confirm">了解，前往聯繫</button>'
       + '</div>';
 
     overlay.addEventListener('click', (event) => {
       if (event.target === overlay) overlay.remove();
     });
+    overlay.addEventListener('touchmove', (event) => {
+      const dialog = overlay.querySelector('.role-application-notice-card');
+      if (dialog && dialog.contains(event.target)) return;
+      event.preventDefault();
+      event.stopPropagation();
+    }, { passive: false });
     const confirmButton = overlay.querySelector('.role-application-notice-confirm');
     confirmButton?.addEventListener('click', () => {
       overlay.remove();
