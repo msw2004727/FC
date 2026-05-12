@@ -72,6 +72,7 @@
 | 名稱 | 值 | 檔案位置 | 用途 |
 |------|---|---------|------|
 | PM read debounce | `500` ms | `js/modules/message/pm-permission.js` `PM_MARK_READ_DEBOUNCE_MS` | 對話視窗收到連續訊息時合併已讀 callable，避免每次 snapshot 都打後端 |
+| PM keyboard restore delay | `320` ms | `js/modules/message/pm-permission.js` `PM_KEYBOARD_RESTORE_DELAY_MS` / `pm-dialog.js` | 手機瀏覽器關閉鍵盤後延遲校正私訊彈窗 viewport，避免 iOS Safari fixed overlay 卡住或點擊失效 |
 | PM edit / recall read lock | 對方已讀後鎖定 | `js/modules/message/pm-dialog.js` / `js/modules/message/pm-dialog-actions.js` / `functions/index.js` | 私訊編輯與撤回不限時間；對方已讀後不可編輯或撤回 |
 
 <a id="sport-icon-svg"></a>

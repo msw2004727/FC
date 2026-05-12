@@ -5,6 +5,8 @@
 Object.assign(App, {
   PM_MARK_READ_DEBOUNCE_MS: 500,
   PM_MAX_BODY_LENGTH: 300,
+  PM_KEYBOARD_RESTORE_DELAY_MS: 320,
+  PM_KEYBOARD_MIN_VIEWPORT_HEIGHT: 320,
 
   _pmRoleLevels: {
     user: 0,

@@ -10,6 +10,10 @@ Object.assign(App, {
   _pmOptimisticSeq: 0,
   _pmReadTimers: {},
   _currentPmDialog: null,
+  _pmDialogViewportCleanup: null,
+  _pmDialogViewportFrame: 0,
+  _pmDialogKeyboardRestoreTimer: 0,
+  _pmDialogPageScrollY: 0,
 
   async _openPmDialogImpl(targetUid, options = {}) {
     if (this._requireProtectedActionLogin?.({ type: 'pm_open', uid: targetUid }, { suppressToast: false })) return;
@@ -49,6 +53,7 @@ Object.assign(App, {
     overlay.querySelector('.pm-dialog-input').value = '';
     overlay.style.display = 'flex';
     document.body.classList.add('pm-dialog-open');
+    this._installPmDialogViewportGuard?.(overlay);
     const initialMessages = await this._loadPmMessages(cId, 50);
     this._renderPmDialogMessages(this._getPmDialogRenderMessages(cId, initialMessages));
     this._startPmConversationListener(cId);
@@ -103,6 +108,100 @@ Object.assign(App, {
     });
     document.body.appendChild(overlay);
     return overlay;
+  },
+
+  _isPmDialogTextControl(el) {
+    if (!el || !el.closest?.('#pm-dialog-overlay')) return false;
+    if (el.matches?.('.pm-dialog-input, .pm-dialog-search')) return true;
+    return ['INPUT', 'TEXTAREA', 'SELECT'].includes(String(el.tagName || '').toUpperCase());
+  },
+
+  _installPmDialogViewportGuard(overlay) {
+    if (!overlay) return;
+    if (typeof this._pmDialogViewportCleanup === 'function') {
+      try { this._pmDialogViewportCleanup(); } catch (_) {}
+    }
+    const vv = window.visualViewport || null;
+    const root = document.documentElement;
+    const minHeight = Number(this.PM_KEYBOARD_MIN_VIEWPORT_HEIGHT || 320);
+    const restoreDelay = Number(this.PM_KEYBOARD_RESTORE_DELAY_MS || 320);
+    this._pmDialogPageScrollY = window.scrollY || root.scrollTop || 0;
+    let disposed = false;
+
+    const update = () => {
+      if (disposed || overlay.style.display === 'none') return;
+      const layoutHeight = window.innerHeight || root.clientHeight || 0;
+      const viewportHeight = Math.max(minHeight, Math.floor(vv?.height || layoutHeight || minHeight));
+      const viewportTop = Math.max(0, Math.floor(vv?.offsetTop || 0));
+      const focused = this._isPmDialogTextControl?.(document.activeElement);
+      const resizedForKeyboard = !!vv && layoutHeight > 0 && (layoutHeight - viewportHeight) > 80;
+      const keyboardOpen = !!focused && (resizedForKeyboard || window.innerWidth <= 560);
+      overlay.style.setProperty('--pm-vv-height', `${viewportHeight}px`);
+      overlay.style.setProperty('--pm-vv-top', `${viewportTop}px`);
+      overlay.classList.toggle('is-keyboard-open', keyboardOpen);
+      if (keyboardOpen) this._scrollPmDialogToBottomSoon?.();
+    };
+
+    const schedule = () => {
+      if (disposed) return;
+      if (this._pmDialogViewportFrame) cancelAnimationFrame(this._pmDialogViewportFrame);
+      this._pmDialogViewportFrame = requestAnimationFrame(update);
+    };
+
+    const restore = () => {
+      if (disposed) return;
+      clearTimeout(this._pmDialogKeyboardRestoreTimer);
+      this._pmDialogKeyboardRestoreTimer = setTimeout(() => {
+        schedule();
+        if (!this._isPmDialogTextControl?.(document.activeElement)) {
+          overlay.classList.remove('is-keyboard-open');
+          try { window.scrollTo(0, this._pmDialogPageScrollY || 0); } catch (_) {}
+        }
+      }, restoreDelay);
+    };
+
+    const onFocusIn = event => {
+      if (this._isPmDialogTextControl?.(event.target)) {
+        overlay.classList.add('is-keyboard-open');
+        schedule();
+      }
+    };
+    const onFocusOut = event => {
+      if (this._isPmDialogTextControl?.(event.target)) restore();
+    };
+
+    overlay.addEventListener('focusin', onFocusIn);
+    overlay.addEventListener('focusout', onFocusOut);
+    window.addEventListener('resize', schedule);
+    window.addEventListener('orientationchange', restore);
+    vv?.addEventListener?.('resize', schedule);
+    vv?.addEventListener?.('scroll', schedule);
+    schedule();
+
+    this._pmDialogViewportCleanup = () => {
+      disposed = true;
+      if (this._pmDialogViewportFrame) cancelAnimationFrame(this._pmDialogViewportFrame);
+      clearTimeout(this._pmDialogKeyboardRestoreTimer);
+      overlay.removeEventListener('focusin', onFocusIn);
+      overlay.removeEventListener('focusout', onFocusOut);
+      window.removeEventListener('resize', schedule);
+      window.removeEventListener('orientationchange', restore);
+      vv?.removeEventListener?.('resize', schedule);
+      vv?.removeEventListener?.('scroll', schedule);
+      overlay.classList.remove('is-keyboard-open');
+      overlay.style.removeProperty('--pm-vv-height');
+      overlay.style.removeProperty('--pm-vv-top');
+      this._pmDialogViewportFrame = 0;
+      this._pmDialogViewportCleanup = null;
+    };
+  },
+
+  _scrollPmDialogToBottomSoon() {
+    const list = document.querySelector('#pm-dialog-overlay .pm-dialog-messages');
+    if (!list) return;
+    requestAnimationFrame(() => {
+      list.scrollTop = list.scrollHeight;
+    });
   },
 
   async _loadPmMessages(conversationId, limit = 50) {
@@ -336,6 +435,12 @@ Object.assign(App, {
     this._currentPmDialog = null;
     const overlay = document.getElementById('pm-dialog-overlay');
     if (overlay) overlay.style.display = 'none';
+    if (typeof this._pmDialogViewportCleanup === 'function') {
+      try { this._pmDialogViewportCleanup(); } catch (_) {}
+    }
     document.body.classList.remove('pm-dialog-open');
+    requestAnimationFrame(() => {
+      try { window.scrollTo(0, this._pmDialogPageScrollY || window.scrollY || 0); } catch (_) {}
+    });
   },
 });

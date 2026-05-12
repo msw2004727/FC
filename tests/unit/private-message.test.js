@@ -48,6 +48,9 @@ describe('private message feature wiring', () => {
     expect(dialog).toContain('pm-dialog-search-icon');
     expect(dialog).toContain('_openPmDialogPeerProfile');
     expect(dialog).toContain("showUserProfile?.(peerName || targetUid, { uid: targetUid })");
+    expect(dialog).toContain('_installPmDialogViewportGuard');
+    expect(dialog).toContain('window.visualViewport');
+    expect(dialog).toContain('_isPmDialogTextControl');
     expect(dialog).not.toContain('&#128269;');
     expect(listener).toContain('_showPmIncomingBubble');
     expect(listener).toContain('_findPmInitialUnread');
@@ -64,6 +67,10 @@ describe('private message feature wiring', () => {
     expect(css).toContain('.pm-dialog-title.is-search-open .pm-dialog-search');
     expect(css).toContain('.pm-dialog-search-toggle.is-active');
     expect(css).toContain('.pm-dialog-avatar:focus-visible');
+    expect(css).toContain('height:var(--pm-vv-height, 100vh)');
+    expect(css).toContain('.pm-dialog-overlay.is-keyboard-open');
+    expect(css).toContain('.pm-dialog-input,');
+    expect(css).toContain('.pm-dialog-search { font-size:16px; }');
   });
 
   test('PM audit layout constrains long UID and log rows inside the admin panel', () => {
@@ -155,6 +162,7 @@ describe('private message feature wiring', () => {
     expect(source).toContain('pmBuildConversationId(uidA, uidB)');
     expect(source).toContain('pmIsValidConversationId(cId, uid)');
     expect(source).toContain('PM_MAX_BODY_LENGTH: 300');
+    expect(source).toContain('PM_KEYBOARD_RESTORE_DELAY_MS: 320');
     expect(source).toContain('parsed.uidA === safeUid || parsed.uidB === safeUid');
     expect(source).toContain('allowUserToUserPm');
     expect(source).toContain("normalizedFromRole === 'user' && normalizedToRole === 'user'");
