@@ -1,122 +1,124 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>找不到頁面 | ToosterX</title>
+  <meta name="description" content="找不到指定頁面。你可以回到 ToosterX 首頁，或前往活動列表尋找最新運動揪團。">
   <meta name="robots" content="noindex, nofollow">
-  <title>找不到頁面 404 — ToosterX</title>
-  <meta name="description" content="找不到你想要的頁面。返回 ToosterX 首頁繼續瀏覽運動活動。">
   <link rel="icon" href="/assets/icons/icon-192x192.png" type="image/png">
-  <script>
-    (function() {
-      try {
-        var path = location.pathname || '/';
-        var safeSegment = '[A-Za-z0-9_-]{3,80}';
-        var spaRoute = new RegExp('^/(activities|teams|tournaments|profile)/?$').test(path)
-          || new RegExp('^/(events|teams|tournaments)/' + safeSegment + '/?$').test(path);
-        if (!spaRoute) return;
-        var target = path.replace(/\/+$/, '') || '/';
-        target += location.search || '';
-        target += location.hash || '';
-        location.replace('/?_spa_redirect=' + encodeURIComponent(target));
-      } catch (_) {}
-    })();
-  </script>
   <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{
-      font-family:-apple-system,BlinkMacSystemFont,'Noto Sans TC','Helvetica Neue',Arial,sans-serif;
-      background:linear-gradient(135deg,#0d9488,#065f46);
-      color:#fff;
-      min-height:100vh;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding:1.5rem;
-      line-height:1.6;
+    :root {
+      color-scheme: light;
+      font-family: "Noto Sans TC", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f6f8fb;
+      color: #172033;
     }
-    .container{
-      max-width:440px;
-      width:100%;
-      text-align:center;
-      background:rgba(255,255,255,.08);
-      backdrop-filter:blur(14px);
-      -webkit-backdrop-filter:blur(14px);
-      border-radius:20px;
-      padding:2.5rem 1.8rem;
-      box-shadow:0 16px 40px rgba(0,0,0,.2);
+
+    * {
+      box-sizing: border-box;
     }
-    .code{
-      font-size:4.5rem;
-      font-weight:900;
-      letter-spacing:-.04em;
-      margin-bottom:.3rem;
-      line-height:1;
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 16px;
     }
-    h1{
-      font-size:1.2rem;
-      font-weight:700;
-      margin-bottom:1rem;
+
+    main {
+      width: min(100%, 520px);
+      padding: 32px;
+      border: 1px solid #d9e2ef;
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 16px 40px rgba(23, 32, 51, 0.08);
     }
-    p{
-      font-size:.95rem;
-      opacity:.92;
-      margin-bottom:.6rem;
+
+    .eyebrow {
+      margin: 0 0 10px;
+      color: #3568d4;
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0;
     }
-    .actions{
-      margin-top:1.8rem;
-      display:flex;
-      flex-direction:column;
-      gap:.7rem;
+
+    h1 {
+      margin: 0 0 16px;
+      font-size: clamp(1.75rem, 2vw, 2.25rem);
+      line-height: 1.25;
     }
-    a.btn{
-      display:block;
-      padding:.85rem 1.2rem;
-      border-radius:12px;
-      text-decoration:none;
-      font-weight:600;
-      font-size:.95rem;
-      transition:transform .15s, box-shadow .15s;
+
+    p {
+      margin: 0 0 16px;
+      color: #526174;
+      line-height: 1.7;
     }
-    a.btn-primary{
-      background:#fff;
-      color:#0d9488;
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 24px;
     }
-    a.btn-primary:hover{
-      transform:translateY(-2px);
-      box-shadow:0 8px 20px rgba(0,0,0,.15);
+
+    a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      color: #ffffff;
+      background: #1d5fd1;
+      text-decoration: none;
+      font-weight: 700;
     }
-    a.btn-ghost{
-      border:1px solid rgba(255,255,255,.45);
-      color:#fff;
-    }
-    a.btn-ghost:hover{
-      background:rgba(255,255,255,.1);
-    }
-    .logo{
-      font-size:1.1rem;
-      font-weight:800;
-      letter-spacing:.02em;
-      margin-bottom:1.8rem;
-      opacity:.85;
-    }
-    @media(max-width:480px){
-      .code{font-size:3.6rem}
-      h1{font-size:1.05rem}
+
+    a.secondary {
+      color: #172033;
+      background: #e9eef7;
     }
   </style>
+  <script>
+    (function () {
+      var path = window.location.pathname;
+      var query = window.location.search || "";
+      var hash = window.location.hash || "";
+      var safeSegment = "[A-Za-z0-9_-]{3,80}";
+      var cleanPathPatterns = [
+        /^\/activities\/?$/,
+        /^\/teams\/?$/,
+        /^\/tournaments\/?$/,
+        /^\/profile\/?$/,
+        new RegExp("^/events/" + safeSegment + "/?$"),
+        new RegExp("^/teams/" + safeSegment + "/?$"),
+        new RegExp("^/tournaments/" + safeSegment + "/?$")
+      ];
+
+      var shouldRedirect = cleanPathPatterns.some(function (pattern) {
+        return pattern.test(path);
+      });
+
+      if (shouldRedirect) {
+        var redirectTarget = "/?_spa_redirect=" + encodeURIComponent(path + query + hash);
+        window.location.replace(redirectTarget);
+      }
+    }());
+  </script>
 </head>
 <body>
-  <div class="container">
-    <div class="logo">ToosterX</div>
-    <div class="code">404</div>
+  <main>
+    <p class="eyebrow">404</p>
     <h1>找不到這個頁面</h1>
-    <p>你找的內容可能已被移除，或者網址輸入錯誤。</p>
-    <p>別擔心，從首頁繼續瀏覽最新的運動活動吧！</p>
-    <div class="actions">
-      <a href="/" class="btn btn-primary">回到首頁</a>
-      <a href="/#page-activities" class="btn btn-ghost">瀏覽所有活動</a>
+    <p>這個連結可能已移動、過期，或目前無法公開瀏覽。</p>
+    <p>你可以回到首頁，或直接查看最新活動。</p>
+    <div class="actions" aria-label="頁面導覽">
+      <a href="/">回到首頁</a>
+      <a class="secondary" href="/activities">查看活動</a>
     </div>
-  </div>
+  </main>
 </body>
 </html>

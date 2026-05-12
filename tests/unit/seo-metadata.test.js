@@ -67,6 +67,8 @@ describe('SEO metadata coverage', () => {
 
     expect(title).toBeTruthy();
     expect(description).toBeTruthy();
+    expect(description.length).toBeGreaterThanOrEqual(50);
+    expect(description.length).toBeLessThanOrEqual(160);
     expect(canonical).toMatch(/^https:\/\/toosterx\.com\//);
     expect(normalizeUrl(ogUrl)).toBe(normalizeUrl(canonical));
     expect(normalizeUrl(alternateHref(source, 'zh-TW'))).toBe(normalizeUrl(canonical));

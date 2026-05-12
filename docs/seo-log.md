@@ -4,6 +4,38 @@
 
 ---
 
+### 2026-05-12 — Blog 長尾內容擴充：揪團與場地分類 + 6 篇新文章
+
+**背景 / 目的**：技術 SEO 已完成 canonical、sitemap、metadata 與 JSON-LD 基礎修正後，下一步改補「使用者搜尋前段」內容。重點不是新增 `meta keywords`，而是用可索引的主題群覆蓋台中球局、場地租借、新手入門與足球鞋長尾詞。
+
+**實作內容**：
+1. 新增 `/blog/community/`「揪團與場地」分類頁，承接台中球局、場地租借與成人新手搜尋意圖。
+2. 新增 6 篇 blog：`taichung-basketball-pickup-guide`、`taichung-badminton-pickup-guide`、`taichung-pickleball-pickup-guide`、`taichung-football-field-rental-guide`、`adult-football-beginner-guide`、`football-shoes-ag-vs-tf-guide`。
+3. 每篇文章補完整 canonical、hreflang、OG、Twitter Card、BreadcrumbList、Article 與 FAQPage JSON-LD。
+4. 更新 `/blog/` 首頁、`/blog/equipment/` 分類頁、首頁 noscript 內部連結、`sitemap-static.xml` 與 `scripts/gsc-snapshot.js` URL Inspection seed。
+
+**決策備註**：
+- 新增主題群優先鎖定「台中 + 運動 + 揪團 / 場地 / 新手」與「AG vs TF 足球鞋」這類高意圖長尾詞，避免與既有 `/seo/*` 服務落地頁互搶。
+- 後續若 GSC 顯示 impressions 增長但 CTR 偏低，應優先調整標題與摘要；若 position 卡在 8-20，才再補更細的地區或裝備子題。
+
+---
+
+### 2026-05-12 — SEO 公開頁摘要、404 與 sitemap lastmod 收斂
+
+**背景 / 目的**：完成 2026-05-12 SEO 檢視後，技術 SEO 架構整體健康，但仍有三個可以直接收斂的低風險項目：`roles/`、`privacy.html`、`terms.html` 的 description 偏短，`404.html` 存在亂碼與破損 meta，`sitemap-static.xml` 的公開頁 lastmod 仍停在 2026-04-22 至 2026-04-30，未反映 5 月 metadata/canonical/sitemap 調整。
+
+**實作內容**：
+1. 補強 `privacy.html`、`terms.html`、`roles/index.html` 的 meta description，並同步 OG description、Twitter description 與 `roles/` WebPage JSON-LD description。
+2. 重建 `404.html`，保留 `noindex, nofollow` 與既有 SPA clean URL fallback redirect，修正亂碼、破損 description 與使用者導覽文字。
+3. 將 `sitemap-static.xml` 靜態公開頁 lastmod 對齊 `2026-05-12`，反映本輪 SEO metadata 更新。
+4. 強化 `tests/unit/seo-metadata.test.js`，要求 indexable public HTML 的 description 長度落在 50 至 160 字元，避免後續再出現過短摘要。
+
+**決策備註**：
+- 不新增 `meta keywords`。Google 對該欄位沒有排名價值，且容易造成 keyword stuffing；後續關鍵詞應透過頁面標題、H1/H2、FAQ、內文段落、內部連結與 blog 主題群實作。
+- 本輪不盲目新增大量 blog。應先以 GSC 查詢資料確認 impressions 高但 CTR / position 尚未成熟的主題，再補高意圖長尾文章與落地頁。
+
+---
+
 ### 2026-05-11 — Phase 5.5 SEO 對齊：動態 canonical + sitemapindex + 移除 detail noindex
 
 **問題 / 目標**：Phase 5 已啟用 `/events/{id}`、`/teams/{id}`、`/tournaments/{id}` clean URL 寫入，但 `index.html` 的 canonical / hreflang / og:url 仍寫死指向 `https://toosterx.com/`，且 Worker 對 detail SPA path 加 `X-Robots-Tag: noindex, nofollow` 暫時擋住索引。需讓每個 list / detail 頁的 meta 與實際 URL 同步，並讓 Google 透過 sitemap 抓得到動態 detail 頁。
