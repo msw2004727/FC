@@ -7,49 +7,66 @@ Object.assign(App, {
   _pmListeningUid: '',
   _pmThreadsReady: false,
   _pmIncomingBubbleTimer: null,
+  _pmStartRetryTimer: null,
   PM_INCOMING_BUBBLE_WINDOW_MS: 30 * 60 * 1000,
 
   startPmThreadListener() {
-    if (typeof auth === 'undefined' || !auth?.onAuthStateChanged) return;
+    if (typeof auth === 'undefined' || !auth?.onAuthStateChanged || typeof db === 'undefined' || !db?.collection) {
+      this._schedulePmThreadListenerStart?.();
+      return;
+    }
     if (this._pmAuthListenerStarted) return;
     this._pmAuthListenerStarted = true;
-    auth.onAuthStateChanged(user => {
-      const uid = user?.uid || '';
-      if (!uid) {
-        this._stopPmThreadListener();
-        this._pmListeningUid = '';
-        this._pmThreadsReady = false;
-        this._hidePmIncomingBubble?.();
-        if (typeof FirebaseService !== 'undefined') FirebaseService._cache.pmThreads = [];
-        this._closePmDialog?.();
-        this.updateNotifBadge?.();
-        return;
-      }
-      if (this._pmListeningUid === uid && this._pmThreadsUnsub) return;
+    clearTimeout(this._pmStartRetryTimer);
+    this._pmStartRetryTimer = null;
+    auth.onAuthStateChanged(user => this._handlePmAuthUser?.(user));
+    if (auth.currentUser) this._handlePmAuthUser?.(auth.currentUser);
+  },
+
+  _schedulePmThreadListenerStart() {
+    if (this._pmAuthListenerStarted || this._pmStartRetryTimer) return;
+    this._pmStartRetryTimer = setTimeout(() => {
+      this._pmStartRetryTimer = null;
+      this.startPmThreadListener?.();
+    }, 500);
+  },
+
+  _handlePmAuthUser(user) {
+    const uid = user?.uid || '';
+    if (!uid) {
       this._stopPmThreadListener();
-      this._pmListeningUid = uid;
+      this._pmListeningUid = '';
       this._pmThreadsReady = false;
-      this._pmThreadsUnsub = db.collection('users').doc(uid).collection('pmThreads')
-        .orderBy('lastMessageAt', 'desc')
-        .limit(50)
-        .onSnapshot(snapshot => {
-          if (typeof FirebaseService === 'undefined') return;
-          const previousThreads = FirebaseService._cache?.pmThreads || [];
-          const nextThreads = snapshot.docs.map(doc => ({ id: doc.id, _docId: doc.id, ...doc.data() }));
-          const increasedThread = this._pmThreadsReady
-            ? this._findPmUnreadIncrease(previousThreads, nextThreads)
-            : this._findPmInitialUnread(nextThreads);
-          FirebaseService._cache.pmThreads = nextThreads;
-          this._pmThreadsReady = true;
-          this.updateNotifBadge?.();
-          if (this.currentPage === 'page-messages' && this._msgInboxFilter === 'pm-conversation') {
-            this.renderPmThreadList?.();
-          }
-          if (increasedThread) this._queuePmIncomingBubble?.(increasedThread);
-        }, err => {
-          console.warn('[startPmThreadListener]', err);
-        });
-    });
+      this._hidePmIncomingBubble?.();
+      if (typeof FirebaseService !== 'undefined') FirebaseService._cache.pmThreads = [];
+      this._closePmDialog?.();
+      this.updateNotifBadge?.();
+      return;
+    }
+    if (this._pmListeningUid === uid && this._pmThreadsUnsub) return;
+    this._stopPmThreadListener();
+    this._pmListeningUid = uid;
+    this._pmThreadsReady = false;
+    this._pmThreadsUnsub = db.collection('users').doc(uid).collection('pmThreads')
+      .orderBy('lastMessageAt', 'desc')
+      .limit(50)
+      .onSnapshot(snapshot => {
+        if (typeof FirebaseService === 'undefined') return;
+        const previousThreads = FirebaseService._cache?.pmThreads || [];
+        const nextThreads = snapshot.docs.map(doc => ({ id: doc.id, _docId: doc.id, ...doc.data() }));
+        const increasedThread = this._pmThreadsReady
+          ? this._findPmUnreadIncrease(previousThreads, nextThreads)
+          : this._findPmInitialUnread(nextThreads);
+        FirebaseService._cache.pmThreads = nextThreads;
+        this._pmThreadsReady = true;
+        this.updateNotifBadge?.();
+        if (this.currentPage === 'page-messages' && this._msgInboxFilter === 'pm-conversation') {
+          this.renderPmThreadList?.();
+        }
+        if (increasedThread) this._queuePmIncomingBubble?.(increasedThread);
+      }, err => {
+        console.warn('[startPmThreadListener]', err);
+      });
   },
 
   _stopPmThreadListener() {
@@ -177,6 +194,10 @@ Object.assign(App, {
   },
 
   renderPmThreadList() {
+    this.startPmThreadListener?.();
+    if (typeof auth !== 'undefined' && auth?.currentUser && !this._pmThreadsUnsub) {
+      this._handlePmAuthUser?.(auth.currentUser);
+    }
     const container = document.getElementById('message-list');
     if (!container) return;
     container.classList.add('pm-thread-list');

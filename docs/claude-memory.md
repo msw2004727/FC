@@ -2500,6 +2500,11 @@
 - **Follow-up fix**: Added `<base href="/">` to `index.html` so nested detail paths load root-relative CSS/JS/page assets instead of resolving `js/...` under `/events/`, `/teams/`, or `/tournaments/`.
 - **Validation**: Added Phase 5 URL writer contract coverage for detail path mapping, safe segment validation, LIFF guard, and successful-entry URL sync. Phase 5.5 SEO/canonical work and Phase 6 popstate takeover remain deferred.
 
+### 2026-05-12 Private Message Listener Recovery [bugfix]
+- **Issue**: PM data existed under each user's `users/{uid}/pmThreads/{conversationId}/messages` subcollection, but the message page could still show an empty PM conversation list and the home incoming-message bubble did not appear. Root cause: `pm-listener.js` could execute before Firebase `auth/db` were initialized, returned early, and never retried after delayed cloud boot.
+- **Fix**: Made `startPmThreadListener()` retry until Firebase is ready, starts the listener again from `ensureCloudReady()`, and rechecks the listener when rendering the PM conversation tab. Added optimistic edit/recall local pending overlays with `editing` / `recalling` states and explicit 15-minute edit / 5-minute recall expiry toasts.
+- **Validation**: Confirmed via Firestore REST that U7774e1410479bafff4997f51b2c47b95 and U7a903f2bb2b2815571e02097ca3ddd55 each have the same PM thread and message copies; the recipient copy had an unread message. Ran targeted PM unit tests and syntax checks for touched JS.
+
 ### 2026-05-12 — Private Message V10 Implementation [feature]
 - **問題**：用戶資料卡片的「私訊」仍只是尚未開放提示，缺少一對一私訊、已讀回條、編輯/撤回、訊息搜尋，以及 super_admin 可追查的聊天室稽核能力。
 - **原因**：既有 message 系統只處理站內信與後台廣播，沒有 per-user conversation copy、Cloud Function 寫入入口、稽核副本或前端對話窗。

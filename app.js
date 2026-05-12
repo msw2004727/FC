@@ -2694,6 +2694,7 @@ const App = {
       if (!initFirebaseApp()) {
         throw new Error('FIREBASE_APP_INIT_FAILED');
       }
+      this.startPmThreadListener?.();
 
       if (typeof liff !== 'undefined') {
         LineAuth._ready = false;

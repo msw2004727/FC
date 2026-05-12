@@ -6,6 +6,7 @@ Object.assign(App, {
   _pmDialogUnsub: null,
   _pmDialogMessages: [],
   _pmOptimisticMessages: {},
+  _pmPendingMessageUpdates: {},
   _pmOptimisticSeq: 0,
   _pmReadTimers: {},
   _currentPmDialog: null,
@@ -134,12 +135,34 @@ Object.assign(App, {
 
   _getPmDialogRenderMessages(conversationId, messages = []) {
     const cId = String(conversationId || '').trim();
-    const serverMessages = Array.isArray(messages) ? messages : [];
+    const serverMessages = this._applyPmPendingMessageUpdates(cId, Array.isArray(messages) ? messages : []);
     if (!cId) return serverMessages;
     this._reconcilePmOptimisticMessages(cId, serverMessages);
     const optimistic = this._pmOptimisticMessages[cId] || [];
     const all = serverMessages.concat(optimistic);
     return all.sort((a, b) => this._pmTimeMs(a.createdAt) - this._pmTimeMs(b.createdAt));
+  },
+
+  _applyPmPendingMessageUpdates(conversationId, messages = []) {
+    const cId = String(conversationId || '').trim();
+    const pendingMap = this._pmPendingMessageUpdates?.[cId] || null;
+    if (!cId || !pendingMap || !Object.keys(pendingMap).length) return messages;
+    const merged = messages.map(message => {
+      const messageId = String(message?.messageId || message?.id || message?._docId || '').trim();
+      const pending = messageId ? pendingMap[messageId] : null;
+      if (!pending) return message;
+      const expectedStatus = String(pending._expectedStatus || '').trim();
+      const expectedBody = pending._expectedBody;
+      const statusMatches = !expectedStatus || String(message.status || 'active') === expectedStatus;
+      const bodyMatches = expectedBody == null || expectedStatus === 'recalled' || String(message.body || '') === String(expectedBody);
+      if (statusMatches && bodyMatches) {
+        delete pendingMap[messageId];
+        return message;
+      }
+      return { ...message, ...pending };
+    });
+    if (!Object.keys(pendingMap).length) delete this._pmPendingMessageUpdates[cId];
+    return merged;
   },
 
   _addPmOptimisticMessage(conversationId, targetUid, body) {
@@ -230,15 +253,20 @@ Object.assign(App, {
     const status = message.status || 'active';
     const recalled = status === 'recalled';
     const pending = message._optimistic && status === 'sending';
+    const editing = message._pmPendingAction === 'editing';
+    const recalling = message._pmPendingAction === 'recalling';
     const failed = message._optimistic && status === 'failed';
     const body = recalled ? '訊息已撤回' : (message.body || '');
     const createdMs = this._pmTimeMs(message.createdAt);
     const age = Date.now() - createdMs;
-    const canEdit = own && !message._optimistic && !recalled && createdMs && age <= this.PM_EDIT_WINDOW_MS;
-    const canRecall = own && !message._optimistic && !recalled && createdMs && age <= this.PM_RECALL_WINDOW_MS;
+    const hasPendingAction = editing || recalling;
+    const canEdit = own && !message._optimistic && !recalled && !hasPendingAction && createdMs && age <= this.PM_EDIT_WINDOW_MS;
+    const canRecall = own && !message._optimistic && !recalled && !hasPendingAction && createdMs && age <= this.PM_RECALL_WINDOW_MS;
     const meta = [
       this._pmFormatTime?.(message.createdAt) || '',
       pending ? '\u9001\u51fa\u4e2d' : '',
+      editing ? '\u7de8\u8f2f\u4e2d' : '',
+      recalling ? '\u64a4\u56de\u4e2d' : '',
       failed ? '\u9001\u51fa\u5931\u6557' : '',
       status === 'edited' ? '已編輯' : '',
       own && message.peerRead ? '已讀' : '',
@@ -249,7 +277,7 @@ Object.assign(App, {
         ${canRecall ? `<button type="button" data-pm-action="recall" data-message-id="${escapeHTML(message.messageId || message.id)}">撤回</button>` : ''}
       </span>` : '';
     return `
-      <article class="pm-message${own ? ' is-own' : ' is-peer'}${recalled ? ' is-recalled' : ''}${pending ? ' is-pending' : ''}${failed ? ' is-failed' : ''}">
+      <article class="pm-message${own ? ' is-own' : ' is-peer'}${recalled ? ' is-recalled' : ''}${pending || editing || recalling ? ' is-pending' : ''}${failed ? ' is-failed' : ''}">
         <div class="pm-message-bubble">${escapeHTML(body)}</div>
         <div class="pm-message-meta">${escapeHTML(meta)}${actions}</div>
       </article>`;

@@ -41,11 +41,31 @@ describe('private message feature wiring', () => {
     expect(listener).toContain('_findPmInitialUnread');
     expect(listener).toContain('_resolvePmThreadPeerUid');
     expect(listener).toContain('_queuePmIncomingBubble');
+    expect(listener).toContain('_schedulePmThreadListenerStart');
+    expect(listener).toContain('_handlePmAuthUser');
     expect(listener).toContain('pm-incoming-bubble');
     expect(listener).toContain('data-user-card="pm-thread"');
+    expect(readProjectFile('app.js')).toContain('this.startPmThreadListener?.();');
     expect(readProjectFile('js/modules/message/pm-entry.js')).toContain('_pmParseConversationId(options.conversationId)');
     expect(css).toContain('.pm-incoming-bubble');
     expect(css).toContain('.pm-dialog-tools.is-search-open .pm-dialog-search');
+  });
+
+  test('PM edit and recall use optimistic pending states with expiry notices', () => {
+    const dialog = readProjectFile('js/modules/message/pm-dialog.js');
+    const actions = readProjectFile('js/modules/message/pm-dialog-actions.js');
+
+    expect(dialog).toContain('_pmPendingMessageUpdates');
+    expect(dialog).toContain('_applyPmPendingMessageUpdates');
+    expect(dialog).toContain("_pmPendingAction === 'editing'");
+    expect(dialog).toContain("_pmPendingAction === 'recalling'");
+    expect(dialog).toContain('\\u7de8\\u8f2f\\u4e2d');
+    expect(dialog).toContain('\\u64a4\\u56de\\u4e2d');
+    expect(actions).toContain('_showPmMessageWindowExpired');
+    expect(actions).toContain('\\u8a0a\\u606f\\u8d85\\u904e 15 \\u5206\\u9418');
+    expect(actions).toContain('\\u8a0a\\u606f\\u8d85\\u904e 5 \\u5206\\u9418');
+    expect(actions).toContain("status: 'edited'");
+    expect(actions).toContain("status: 'recalled'");
   });
 
   test('PM permission helper validates canonical conversation participants', () => {
