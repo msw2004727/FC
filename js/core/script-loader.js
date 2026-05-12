@@ -603,4 +603,60 @@ const ScriptLoader = {
     // a cache/version refresh causes visible main-thread jank during navigation.
     console.log('[ScriptLoader] core page scripts prefetched (network hints only)');
   },
+
+  _idlePreloadQueued: false,
+
+  /**
+   * Execute-load the most common navigation modules during browser idle time.
+   * This is intentionally staggered so a first visit does not block the home
+   * first paint, but later taps can enter pages/details without waiting for JS.
+   */
+  preloadCorePagesExecutable() {
+    try {
+      if (typeof PERFORMANCE_FLAGS !== 'undefined'
+        && PERFORMANCE_FLAGS.idleModuleExecutionPreload === false) return;
+    } catch (_) {}
+    if (this._idlePreloadQueued) return;
+    this._idlePreloadQueued = true;
+
+    const pages = [
+      'page-activities',
+      'page-teams',
+      'page-tournaments',
+      'page-activity-detail',
+      'page-team-detail',
+      'page-tournament-detail',
+    ];
+    let index = 0;
+    const delayMs = (typeof PERFORMANCE_LIMITS !== 'undefined'
+      && Number(PERFORMANCE_LIMITS.idlePreloadDelayMs)) || 900;
+    const gapMs = (typeof PERFORMANCE_LIMITS !== 'undefined'
+      && Number(PERFORMANCE_LIMITS.idlePreloadGapMs)) || 450;
+
+    const schedule = (fn, delay) => {
+      const run = () => {
+        if (typeof requestIdleCallback !== 'undefined') {
+          requestIdleCallback(fn, { timeout: Math.max(1200, gapMs * 3) });
+        } else {
+          setTimeout(fn, Math.max(0, delay || 0));
+        }
+      };
+      if (delay > 0) setTimeout(run, delay);
+      else run();
+    };
+
+    const loadNext = () => {
+      if (index >= pages.length) return;
+      const pageId = pages[index++];
+      if (this.isPageReady(pageId)) {
+        schedule(loadNext, gapMs);
+        return;
+      }
+      this.ensureForPage(pageId)
+        .catch(err => console.warn('[ScriptLoader] idle page preload failed:', pageId, err))
+        .finally(() => schedule(loadNext, gapMs));
+    };
+
+    schedule(loadNext, delayMs);
+  },
 };

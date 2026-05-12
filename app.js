@@ -478,6 +478,7 @@ const App = {
       // 仍呼叫 preloadCorePages 保留全域必要副作用
       if (typeof ScriptLoader !== 'undefined' && ScriptLoader.preloadCorePages) {
         try { ScriptLoader.preloadCorePages(); } catch (_) {}
+        try { ScriptLoader.preloadCorePagesExecutable?.(); } catch (_) {}
       }
       return;
     }
@@ -524,6 +525,7 @@ const App = {
     // 首頁渲染完成 → 背景預載入核心頁面 scripts（活動→俱樂部→賽事）
     if (typeof ScriptLoader !== 'undefined' && ScriptLoader.preloadCorePages) {
       ScriptLoader.preloadCorePages();
+      ScriptLoader.preloadCorePagesExecutable?.();
     }
   },
 
@@ -3109,6 +3111,72 @@ document.addEventListener('DOMContentLoaded', async () => {
           document.head.appendChild(preload);
         });
     };
+    const _getPerformanceFlag = function(name, fallback) {
+      try {
+        if (typeof PERFORMANCE_FLAGS !== 'undefined' && Object.prototype.hasOwnProperty.call(PERFORMANCE_FLAGS, name)) {
+          return PERFORMANCE_FLAGS[name] === true;
+        }
+      } catch (_) {}
+      return fallback !== false;
+    };
+    const _getPerformanceLimit = function(name, fallback) {
+      try {
+        if (typeof PERFORMANCE_LIMITS !== 'undefined' && PERFORMANCE_LIMITS[name] != null) {
+          const value = Number(PERFORMANCE_LIMITS[name]);
+          if (Number.isFinite(value)) return value;
+        }
+      } catch (_) {}
+      return fallback;
+    };
+    const _isFreshPublicSnapshot = function(inlineTs) {
+      if (!_getPerformanceFlag('publicBootSnapshot', true)) return false;
+      const maxAgeMs = _getPerformanceLimit('publicBootSnapshotMaxAgeMs', 30 * 60 * 1000);
+      const ageMs = Date.now() - Number(inlineTs || 0);
+      return Number.isFinite(ageMs) && ageMs >= 0 && ageMs <= maxAgeMs;
+    };
+    const _applyInlinePublicCollection = function(collectionName, records, inlineTs) {
+      if (!Array.isArray(records) || !records.length || !_isFreshPublicSnapshot(inlineTs)) return 0;
+      const marked = records.map(function(record) {
+        return Object.assign({}, record, {
+          _bootSnapshot: true,
+          _bootSnapshotTs: inlineTs,
+        });
+      });
+      const current = FirebaseService._cache && FirebaseService._cache[collectionName];
+      const currentEmpty = !Array.isArray(current) || current.length === 0;
+      const currentBootOnly = Array.isArray(current) && current.length > 0
+        && current.every(function(item) { return item && item._bootSnapshot === true; });
+      const cacheTs = (FirebaseService._collectionLoadedAt && FirebaseService._collectionLoadedAt[collectionName]) || 0;
+      if (!currentEmpty && !currentBootOnly && cacheTs >= inlineTs) return 0;
+
+      FirebaseService._cache[collectionName] = marked;
+      if (FirebaseService._collectionLoadedAt) FirebaseService._collectionLoadedAt[collectionName] = inlineTs;
+      if (FirebaseService._lazyLoaded) FirebaseService._lazyLoaded[collectionName] = false;
+
+      if (collectionName === 'teams' && FirebaseService._teamSlices) {
+        FirebaseService._teamSlices.injected = marked;
+        FirebaseService._mergeTeamSlices?.(false);
+      } else if (collectionName === 'tournaments' && FirebaseService._tournamentSlices) {
+        FirebaseService._tournamentSlices.injected = marked;
+        FirebaseService._mergeTournamentSlices?.(false);
+      } else if (collectionName === 'events' && FirebaseService._eventSlices) {
+        FirebaseService._eventSlices.active = marked;
+        FirebaseService._mergeRealtimeEventSlices?.(false);
+      }
+      return marked.length;
+    };
+    const _applyPublicBootSnapshot = function(records, inlineTs) {
+      if (!records || typeof records !== 'object' || !_isFreshPublicSnapshot(inlineTs)) return;
+      const eventCount = _applyInlinePublicCollection('events', records.events, inlineTs);
+      const teamCount = _applyInlinePublicCollection('teams', records.teams, inlineTs);
+      const tournamentCount = _applyInlinePublicCollection('tournaments', records.tournaments, inlineTs);
+      _preloadHomePriorityImages(records.events, 'boot-event', 3, 'low');
+      _preloadHomePriorityImages(records.teams, 'boot-team', 2, 'low');
+      _preloadHomePriorityImages(records.tournaments, 'boot-tournament', 2, 'low');
+      if (eventCount || teamCount || tournamentCount) {
+        console.log(`[Boot] Phase 2.5: public snapshot applied events=${eventCount}, teams=${teamCount}, tournaments=${tournamentCount}`);
+      }
+    };
 
     _loadInlineCollection('boot-home-summary-data', 'homeSummary', function(records) {
       FirebaseService._cache.homeSummary = records;
@@ -3127,6 +3195,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.head.appendChild(preload);
       }
     });
+    _loadInlineCollection('boot-public-lists-data', 'publicLists', _applyPublicBootSnapshot);
   } catch (e) {
     console.warn('[Boot] Phase 2.5 inline home data 解析失敗（不影響後續流程）:', e && e.message || e);
   }

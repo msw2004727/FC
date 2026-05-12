@@ -380,6 +380,7 @@ Object.assign(App, {
     if (_prevWinScroll > 0) window.scrollTo(0, _prevWinScroll);
 
     this._markPageSnapshotReady?.('page-activities');
+    this._scheduleVisibleDetailPrefetch?.('events', events.map(e => e.id || e._docId).filter(Boolean));
 
     // 綁定左右滑動切換頁籤
     this._bindSwipeTabs('activity-list', 'activity-tabs',

@@ -77,6 +77,7 @@ const FirebaseService = {
   },
 
   _singleDocCache: {},  // { 'collection/docId': { ...data } }
+  _detailPrefetchState: {},
 
   _listeners: [],
   _usersUnsub: null,
@@ -1162,6 +1163,96 @@ const FirebaseService = {
       console.warn('[fetchTournamentIfMissing]', err);
       return null;
     }
+  },
+
+  _getCachedDocByAnyId(collectionName, id) {
+    const safeId = String(id || '').trim();
+    if (!safeId) return null;
+    const list = Array.isArray(this._cache[collectionName]) ? this._cache[collectionName] : [];
+    return list.find(item =>
+      String(item?.id || '').trim() === safeId
+      || String(item?._docId || '').trim() === safeId
+      || String(item?.docId || '').trim() === safeId
+    ) || null;
+  },
+
+  async _fetchDocByAnyId(collectionName, id) {
+    const safeId = String(id || '').trim();
+    if (!safeId || typeof db === 'undefined' || !db) return null;
+    let snap = await db.collection(collectionName).doc(safeId).get();
+    if (!snap.exists) {
+      const query = await db.collection(collectionName).where('id', '==', safeId).limit(1).get();
+      if (query.empty) return null;
+      snap = query.docs[0];
+    }
+    return { ...snap.data(), _docId: snap.id, id: snap.data()?.id || snap.id };
+  },
+
+  _upsertCollectionDoc(collectionName, record) {
+    if (!record || !collectionName) return null;
+    if (!Array.isArray(this._cache[collectionName])) this._cache[collectionName] = [];
+    const key = String(record._docId || record.id || record.docId || '').trim();
+    const source = this._cache[collectionName];
+    const idx = source.findIndex(item => {
+      const itemKey = String(item?._docId || item?.id || item?.docId || '').trim();
+      return key && itemKey === key;
+    });
+    const normalized = { ...record, _bootSnapshot: false };
+    if (idx >= 0) source[idx] = { ...source[idx], ...normalized };
+    else source.push(normalized);
+
+    if (collectionName === 'teams') {
+      const injected = Array.isArray(this._teamSlices.injected) ? this._teamSlices.injected : [];
+      const sliceIdx = injected.findIndex(item => String(item?._docId || item?.id || '').trim() === key);
+      if (sliceIdx >= 0) injected[sliceIdx] = { ...injected[sliceIdx], ...normalized };
+      else injected.push(normalized);
+      this._teamSlices.injected = injected;
+      this._mergeTeamSlices(false);
+    } else if (collectionName === 'tournaments') {
+      const injected = Array.isArray(this._tournamentSlices.injected) ? this._tournamentSlices.injected : [];
+      const sliceIdx = injected.findIndex(item => String(item?._docId || item?.id || '').trim() === key);
+      if (sliceIdx >= 0) injected[sliceIdx] = { ...injected[sliceIdx], ...normalized };
+      else injected.push(normalized);
+      this._tournamentSlices.injected = injected;
+      this._mergeTournamentSlices(false);
+    } else if (collectionName === 'events') {
+      this._cache.events = source;
+      this._debouncedPersistCache();
+    }
+    return normalized;
+  },
+
+  async prefetchDocs(collectionName, ids, options = {}) {
+    const allowed = { events: true, teams: true, tournaments: true };
+    if (!allowed[collectionName]) return [];
+    if (typeof db === 'undefined' || !db) return [];
+
+    const limit = Math.max(1, Math.min(20, Number(options.limit || 8)));
+    const now = Date.now();
+    const ttlMs = 5 * 60 * 1000;
+    const uniqueIds = [...new Set((ids || []).map(id => String(id || '').trim()).filter(Boolean))].slice(0, limit);
+    const loaded = [];
+
+    for (const id of uniqueIds) {
+      const stateKey = `${collectionName}/${id}`;
+      const last = this._detailPrefetchState[stateKey] || 0;
+      const cached = this._getCachedDocByAnyId(collectionName, id);
+      if (!options.force && now - last < ttlMs) continue;
+      if (cached && cached._bootSnapshot !== true && !options.force) continue;
+      this._detailPrefetchState[stateKey] = now;
+      try {
+        const record = await this._fetchDocByAnyId(collectionName, id);
+        if (record) loaded.push(this._upsertCollectionDoc(collectionName, record));
+      } catch (err) {
+        console.warn('[FirebaseService] prefetchDocs failed:', collectionName, id, err);
+      }
+    }
+
+    if (loaded.length) {
+      this._collectionLoadedAt[collectionName] = Date.now();
+      this._notifyCacheUpdated(collectionName);
+    }
+    return loaded.filter(Boolean);
   },
 
   /**

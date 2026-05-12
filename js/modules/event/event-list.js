@@ -240,6 +240,7 @@ Object.assign(App, {
 
     container.textContent = '';
     container.insertAdjacentHTML('beforeend', cards);
+    this._scheduleVisibleDetailPrefetch?.('events', visible.map(e => e.id || e._docId).filter(Boolean));
 
     // 方案 A：還原 scrollTop
     if (_prevWinScroll > 0) window.scrollTo(0, _prevWinScroll);

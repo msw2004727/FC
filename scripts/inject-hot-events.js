@@ -38,6 +38,12 @@ const INJECTION_CONFIGS = {
     pageSize: 30,
     orderBy: 'slot',
   },
+  publicLists: {
+    collection: '',
+    markerBegin: '<!-- BOOT_PUBLIC_LISTS_INJECT_BEGIN -->',
+    markerEnd: '<!-- BOOT_PUBLIC_LISTS_INJECT_END -->',
+    scriptId: 'boot-public-lists-data',
+  },
 };
 
 const LEGACY_BLOCKS = [
@@ -55,6 +61,32 @@ const BANNER_KEEP_FIELDS = [
   'id', '_docId', 'title', 'image', 'linkUrl', 'slotName', 'slot',
   'status', 'gradient', 'sortOrder', 'type',
 ];
+
+const PUBLIC_EVENT_KEEP_FIELDS = [
+  'id', '_docId', 'title', 'date', 'location', 'type', 'status',
+  'image', 'imageVariants', 'sportTag', 'current', 'max', 'pinned', 'pinOrder',
+  'privateEvent', 'teamOnly', 'creator', 'creatorTeamName', 'regOpenTime',
+  'feeEnabled', 'fee', 'minAge', 'allowedGender', 'genderRestriction', 'viewCount',
+];
+
+const PUBLIC_TEAM_KEEP_FIELDS = [
+  'id', '_docId', 'name', 'nameEn', 'image', 'imageVariants', 'sportTag',
+  'region', 'type', 'active', 'status', 'pinned', 'pinOrder', 'teamExp',
+  'captain', 'leader',
+];
+
+const PUBLIC_TOURNAMENT_KEEP_FIELDS = [
+  'id', '_docId', 'name', 'type', 'image', 'sportTag', 'region', 'status',
+  'ended', 'teams', 'maxTeams', 'registeredTeams', 'regStart', 'regEnd',
+  'matchDates', 'organizer', 'hostTeamId', 'hostTeamName', 'venues',
+  'createdAt', 'updatedAt',
+];
+
+const PUBLIC_LIST_LIMITS = {
+  events: 80,
+  teams: 36,
+  tournaments: 36,
+};
 
 function base64url(data) {
   return Buffer.from(data).toString('base64')
@@ -302,6 +334,64 @@ function buildHomeSummary({ events, teams, tournaments }) {
   };
 }
 
+function sortEventsForPublicSnapshot(a, b) {
+  const ap = a && a.pinned ? 1 : 0;
+  const bp = b && b.pinned ? 1 : 0;
+  if (ap !== bp) return bp - ap;
+  if (ap && bp) {
+    const ao = Number(a?.pinOrder || 0);
+    const bo = Number(b?.pinOrder || 0);
+    if (ao !== bo) return ao - bo;
+  }
+  return parseDateMs(a?.date || a?.startAt || a?.startTime)
+    - parseDateMs(b?.date || b?.startAt || b?.startTime);
+}
+
+function buildPublicLists({ events, teams, tournaments }) {
+  const nowMs = Date.now();
+  const publicEvents = (events || [])
+    .filter(event => isPublicActiveEvent(event, nowMs))
+    .sort(sortEventsForPublicSnapshot)
+    .slice(0, PUBLIC_LIST_LIMITS.events)
+    .map(event => slimRecord(event, PUBLIC_EVENT_KEEP_FIELDS));
+
+  const publicTeams = (teams || [])
+    .filter(isActiveTeam)
+    .sort((a, b) => {
+      const ap = a && a.pinned ? 1 : 0;
+      const bp = b && b.pinned ? 1 : 0;
+      if (ap !== bp) return bp - ap;
+      if (ap && bp) {
+        const ao = Number(a?.pinOrder || 0);
+        const bo = Number(b?.pinOrder || 0);
+        if (ao !== bo) return ao - bo;
+      }
+      return String(a?.name || '').localeCompare(String(b?.name || ''));
+    })
+    .slice(0, PUBLIC_LIST_LIMITS.teams)
+    .map(team => slimRecord(team, PUBLIC_TEAM_KEEP_FIELDS));
+
+  const publicTournaments = (tournaments || [])
+    .filter(tournament => tournament && (tournament.id || tournament._docId) && !isTournamentEnded(tournament, nowMs))
+    .sort((a, b) => {
+      const ad = parseDateMs(a?.regStart || a?.createdAt || a?.updatedAt);
+      const bd = parseDateMs(b?.regStart || b?.createdAt || b?.updatedAt);
+      if (ad !== bd) return bd - ad;
+      return String(a?.name || '').localeCompare(String(b?.name || ''));
+    })
+    .slice(0, PUBLIC_LIST_LIMITS.tournaments)
+    .map(tournament => slimRecord(tournament, PUBLIC_TOURNAMENT_KEEP_FIELDS));
+
+  return {
+    schemaVersion: 1,
+    generatedAt: new Date(nowMs).toISOString(),
+    scope: 'public-list-snapshot',
+    events: publicEvents,
+    teams: publicTeams,
+    tournaments: publicTournaments,
+  };
+}
+
 function pickActiveBanners(banners) {
   return banners
     .filter(b => b && b.status === 'active' && (b.image || b.gradient))
@@ -399,7 +489,7 @@ async function buildAuth() {
   return { token: '', apiKey };
 }
 
-async function safeHomeSummary(auth) {
+async function safeHomePayloads(auth) {
   try {
     const [events, teams, tournaments] = await Promise.all([
       fetchCollectionAll(auth, SUMMARY_COLLECTIONS.events),
@@ -407,12 +497,22 @@ async function safeHomeSummary(auth) {
       fetchCollectionAll(auth, SUMMARY_COLLECTIONS.tournaments),
     ]);
     const summary = buildHomeSummary({ events, teams, tournaments });
+    const publicLists = buildPublicLists({ events, teams, tournaments });
     console.log(`[inject-hot-events] homeSummary: events=${events.length}, teams=${teams.length}, tournaments=${tournaments.length}`);
     console.log(`[inject-hot-events] homeSummary counts: ${JSON.stringify(summary.counts)}, views=${summary.activityViews.total}`);
-    return { key: 'homeSummary', config: INJECTION_CONFIGS.homeSummary, records: summary };
+    console.log(`[inject-hot-events] publicLists: events=${publicLists.events.length}, teams=${publicLists.teams.length}, tournaments=${publicLists.tournaments.length}`);
+    return [
+      { key: 'homeSummary', config: INJECTION_CONFIGS.homeSummary, records: summary },
+      {
+        key: 'publicLists',
+        config: INJECTION_CONFIGS.publicLists,
+        records: publicLists,
+        anchorMarkerEnd: INJECTION_CONFIGS.banners.markerEnd,
+      },
+    ];
   } catch (err) {
-    console.warn(`[inject-hot-events] homeSummary skipped (${err.message})`);
-    return null;
+    console.warn(`[inject-hot-events] home payloads skipped (${err.message})`);
+    return [];
   }
 }
 
@@ -431,18 +531,21 @@ async function safeBanners(auth) {
 async function main() {
   try {
     const auth = await buildAuth();
-    const homeSummary = await safeHomeSummary(auth);
+    const homePayloads = await safeHomePayloads(auth);
     const banners = await safeBanners(auth);
+    const homeSummary = homePayloads.find(payload => payload && payload.key === 'homeSummary') || null;
+    const publicLists = homePayloads.find(payload => payload && payload.key === 'publicLists') || null;
 
     const payloads = [
       homeSummary,
       banners && Object.assign(banners, { anchorMarkerEnd: INJECTION_CONFIGS.homeSummary.markerEnd }),
+      publicLists && Object.assign(publicLists, { anchorMarkerEnd: INJECTION_CONFIGS.banners.markerEnd }),
     ].filter(Boolean);
 
     const totalJsonBytes = payloads.reduce((sum, payload) => sum + JSON.stringify(payload.records).length, 0);
     console.log(`[inject-hot-events] total inline JSON size: ${totalJsonBytes} bytes`);
-    if (totalJsonBytes > 18000) {
-      console.warn('[inject-hot-events] inline JSON is larger than expected; review homepage payload size');
+    if (totalJsonBytes > 120000) {
+      console.warn('[inject-hot-events] inline JSON is larger than expected; review public boot payload size');
     }
 
     if (!payloads.length) {

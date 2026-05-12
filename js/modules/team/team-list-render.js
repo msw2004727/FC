@@ -85,6 +85,7 @@ Object.assign(App, {
       : '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--text-muted);font-size:.85rem">此類型尚無俱樂部</div>';
     _tlScrollEl.scrollTop = _tlSavedScroll;
     this._markPageSnapshotReady?.('page-teams');
+    this._scheduleVisibleDetailPrefetch?.('teams', sorted.map(t => t.id || t._docId).filter(Boolean));
 
     // ★ 背景載入所有教育俱樂部學員數，完成後重繪
     const eduTeams = sorted.filter(t => t.type === 'education');

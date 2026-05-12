@@ -7,8 +7,7 @@ Object.assign(App, {
 
   /** 動態載入 tournament 群組後開啟賽事詳情（供首頁 / 收藏等尚未載入 tournament-detail.js 時使用） */
   async _openTournamentDetail(id) {
-    await ScriptLoader.ensureForPage('page-tournament-detail');
-    await this.showTournamentDetail(id);
+    return await this.showTournamentDetail(id);
   },
 
   _getTournamentHomeSortTime(tournament) {
@@ -85,6 +84,7 @@ Object.assign(App, {
       </div>
     `;
     }).join('');
+    this._scheduleVisibleDetailPrefetch?.('tournaments', ongoing.map(t => t.id || t._docId).filter(Boolean));
   },
 
   _tcActiveTab: 'active',
@@ -241,6 +241,7 @@ Object.assign(App, {
     }).join('');
     scrollEl.scrollTop = savedScroll;
     this._markPageSnapshotReady?.('page-tournaments');
+    this._scheduleVisibleDetailPrefetch?.('tournaments', tournaments.map(t => t.id || t._docId).filter(Boolean));
   },
 
   /** Phase 2B §8.2A：server-side 全集合搜尋 */

@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260512ze';
+const CACHE_VERSION = '0.20260512zf';
 
 // Temporary feature switch: no-show is paused and hidden, but historical data remains intact.
 const NO_SHOW_FEATURE_ENABLED = true;
@@ -90,6 +90,23 @@ function shouldUseServerRegistrationForCancel() {
   }
   return typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration();
 }
+
+// Runtime performance switches. These only affect read-side navigation and
+// boot/cache warmup; all signup/cancel/write correctness still uses live data.
+const PERFORMANCE_FLAGS = {
+  fastShellNavigation: true,
+  idleModuleExecutionPreload: true,
+  visibleCardPrefetch: true,
+  publicBootSnapshot: true,
+};
+
+const PERFORMANCE_LIMITS = {
+  idlePreloadDelayMs: 900,
+  idlePreloadGapMs: 450,
+  visibleCardPrefetchDelayMs: 650,
+  visibleCardPrefetchLimit: 8,
+  publicBootSnapshotMaxAgeMs: 30 * 60 * 1000,
+};
 
 // ─── Page Strategy Registry ───
 // 唯一策略來源，未列出的頁面預設 fresh-first

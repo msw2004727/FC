@@ -89,6 +89,49 @@ Object.assign(App, {
       || pageId === 'page-teams';
   },
 
+  _getPerformanceFlag(name, fallback = true) {
+    try {
+      if (typeof PERFORMANCE_FLAGS === 'undefined') return fallback;
+      if (Object.prototype.hasOwnProperty.call(PERFORMANCE_FLAGS, name)) {
+        return PERFORMANCE_FLAGS[name] !== false;
+      }
+    } catch (_) {}
+    return fallback;
+  },
+
+  _getPerformanceLimit(name, fallback) {
+    try {
+      if (typeof PERFORMANCE_LIMITS !== 'undefined') {
+        const value = Number(PERFORMANCE_LIMITS[name]);
+        if (Number.isFinite(value)) return value;
+      }
+    } catch (_) {}
+    return fallback;
+  },
+
+  _isFastShellListPage(pageId) {
+    return pageId === 'page-activities'
+      || pageId === 'page-teams'
+      || pageId === 'page-tournaments';
+  },
+
+  _shouldUseShellFirstPage(pageId, options = {}) {
+    if (!this._getPerformanceFlag('fastShellNavigation', true)) return false;
+    if (options.disableShellFirst) return false;
+    if (pageId === this.currentPage) return false;
+    return this._isFastShellListPage(pageId);
+  },
+
+  _escapeShellText(value) {
+    if (typeof escapeHTML === 'function') return escapeHTML(value == null ? '' : String(value));
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  },
+
   _hasCachedDataForPage(pageId) {
     if (this._hasPageSnapshotReady?.(pageId)) return true;
     if (!document.getElementById(pageId)) return false;
@@ -391,6 +434,201 @@ Object.assign(App, {
     document.addEventListener('click', _markTouched, { passive: true, capture: true });
   },
 
+  async _showPageShellFirst(pageId, transitionSeq, options = {}) {
+    try {
+      if (typeof PageLoader !== 'undefined' && PageLoader.ensurePage) {
+        await this._awaitRouteStep(PageLoader.ensurePage(pageId), pageId, 'page');
+      }
+      if (transitionSeq !== this._pageTransitionSeq) return { ok: false, reason: 'stale_transition' };
+      if (!document.getElementById(pageId)) return { ok: false, reason: 'missing_target' };
+
+      this._cleanupBeforePageSwitch(pageId);
+      this._pushPageHistory(pageId, options);
+      const activated = this._activatePage(pageId, { ...options, render: false });
+      if (!activated) return { ok: false, reason: 'missing_target' };
+
+      if (typeof ScriptLoader !== 'undefined'
+        && typeof ScriptLoader.isPageReady === 'function'
+        && ScriptLoader.isPageReady(pageId)) {
+        this._renderPageContent(pageId);
+      }
+
+      void this._continueShellFirstPage(pageId, transitionSeq);
+      return { ok: true, pageId, shellFirst: true };
+    } catch (err) {
+      if (transitionSeq === this._pageTransitionSeq) {
+        console.warn(`[Navigation] shell-first ${pageId} failed:`, err);
+        this.showToast(this._getRouteFailureToast(pageId, 'page', err));
+      }
+      return { ok: false, reason: err?.code === 'route-step-timeout' ? 'route_timeout' : 'load_failed', step: 'page', error: err };
+    }
+  },
+
+  async _continueShellFirstPage(pageId, transitionSeq) {
+    try {
+      if (typeof ScriptLoader !== 'undefined' && ScriptLoader.ensureForPage) {
+        await ScriptLoader.ensureForPage(pageId);
+      }
+      if (transitionSeq !== this._pageTransitionSeq || this.currentPage !== pageId) return;
+      this._renderPageContent(pageId);
+
+      if (this._pageNeedsCloud(pageId)
+        && !this._cloudReady
+        && typeof this.ensureCloudReady === 'function') {
+        await this.ensureCloudReady({ reason: `shell-first:${pageId}` }).catch(err => {
+          console.warn(`[Navigation] shell-first cloud init failed for ${pageId}:`, err);
+        });
+      }
+      if (transitionSeq !== this._pageTransitionSeq || this.currentPage !== pageId) return;
+
+      if (!this._instantDeepLinkMode
+        && typeof FirebaseService !== 'undefined'
+        && typeof FirebaseService.ensureCollectionsForPage === 'function') {
+        const contract = typeof PAGE_DATA_CONTRACT !== 'undefined' && PAGE_DATA_CONTRACT[pageId];
+        const hasRealtime = contract && contract.realtime && contract.realtime.length > 0;
+        const loaded = await FirebaseService.ensureCollectionsForPage(pageId, {
+          skipRealtimeStart: hasRealtime,
+        });
+        if (transitionSeq !== this._pageTransitionSeq || this.currentPage !== pageId) return;
+        if ((loaded || []).length > 0 || hasRealtime) this._renderPageContent(pageId);
+      }
+      if (typeof FirebaseService !== 'undefined'
+        && typeof FirebaseService.schedulePageScopedRealtimeForPage === 'function') {
+        FirebaseService.schedulePageScopedRealtimeForPage(pageId, { delayMs: 0 });
+      }
+    } catch (err) {
+      if (transitionSeq !== this._pageTransitionSeq || this.currentPage !== pageId) return;
+      console.warn(`[Navigation] shell-first continuation failed for ${pageId}:`, err);
+    }
+  },
+
+  _isFastDetailRouteMethod(methodName) {
+    return methodName === 'showEventDetail'
+      || methodName === 'showTeamDetail'
+      || methodName === 'showTournamentDetail';
+  },
+
+  async _showDetailRouteShell(pageId, methodName, args = []) {
+    if (!this._getPerformanceFlag('fastShellNavigation', true)) return { ok: false, reason: 'disabled' };
+    const id = String(args[0] || '').trim();
+    const options = (args[1] && typeof args[1] === 'object') ? args[1] : {};
+    if (!id || options.disableShellFirst) return { ok: false, reason: 'disabled' };
+
+    try {
+      const transitionSeq = ++this._pageTransitionSeq;
+      if (typeof PageLoader !== 'undefined' && PageLoader.ensurePage) {
+        await this._awaitRouteStep(PageLoader.ensurePage(pageId), pageId, 'page');
+      }
+      if (transitionSeq !== this._pageTransitionSeq) return { ok: false, reason: 'stale_transition' };
+      if (!document.getElementById(pageId)) return { ok: false, reason: 'missing_target' };
+
+      this._cleanupBeforePageSwitch(pageId);
+      this._pushPageHistory(pageId, options);
+      const activated = this._activatePage(pageId, { ...options, render: false, suppressHashSync: true });
+      if (!activated) return { ok: false, reason: 'missing_target' };
+      this._renderFastDetailShell(pageId, methodName, id);
+      if (!options.suppressHashSync && typeof this._setRouteUrl === 'function') {
+        this._setRouteUrl({ pageId, id }, { mode: this._hasLegacyRouteSignal?.() ? 'replace' : undefined });
+      }
+      return { ok: true, pageId, id, shellFirst: true };
+    } catch (err) {
+      console.warn(`[Navigation] detail shell failed for ${methodName}:`, err);
+      return { ok: false, reason: 'load_failed', error: err };
+    }
+  },
+
+  _renderShellImage(container, imageUrl, label) {
+    if (!container) return;
+    const safeLabel = this._escapeShellText(label || '');
+    const safeUrl = this._escapeShellText(imageUrl || '');
+    if (safeUrl) {
+      container.innerHTML = `<img src="${safeUrl}" alt="${safeLabel}" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:var(--radius)">`;
+      container.style.border = 'none';
+    } else {
+      container.textContent = label || '';
+      container.style.border = '';
+    }
+  },
+
+  _renderFastDetailShell(pageId, methodName, id) {
+    if (methodName === 'showEventDetail') return this._renderFastEventDetailShell(id);
+    if (methodName === 'showTeamDetail') return this._renderFastTeamDetailShell(id);
+    if (methodName === 'showTournamentDetail') return this._renderFastTournamentDetailShell(id);
+    return null;
+  },
+
+  _renderFastEventDetailShell(id) {
+    const event = (typeof ApiService !== 'undefined' && ApiService.getEvent?.(id)) || null;
+    this._currentDetailEventId = id;
+    this._currentDetailEventRecord = event || null;
+    const title = document.getElementById('detail-title');
+    if (title) title.textContent = event?.title || '活動詳情';
+    const img = document.getElementById('detail-img-placeholder');
+    const imageUrl = event?.imageVariants?.cover || event?.image || '';
+    this._renderShellImage(img, imageUrl, event?.title || '活動封面');
+    const body = document.getElementById('detail-body');
+    if (body) {
+      const location = event?.location ? `<div class="detail-row detail-row-wide"><span class="detail-label">地點</span>${this._escapeShellText(event.location)}</div>` : '';
+      const date = event?.date ? `<div class="detail-row detail-row-wide"><span class="detail-label">時間</span>${this._escapeShellText(event.date)}</div>` : '';
+      body.innerHTML = `${location}${date}<div class="detail-section"><div class="reg-loading">資料更新中...</div><div class="reg-loading-skeleton"><div class="reg-loading-skeleton-row"></div><div class="reg-loading-skeleton-row"></div></div></div>`;
+    }
+    document.getElementById('detail-view-count-num')?.replaceChildren(document.createTextNode(String(event?.viewCount || 0)));
+  },
+
+  _renderFastTeamDetailShell(id) {
+    const team = (typeof ApiService !== 'undefined' && ApiService.getTeam?.(id)) || null;
+    this._teamDetailId = id;
+    const title = document.getElementById('team-detail-title');
+    if (title) title.textContent = team?.name || '俱樂部詳情';
+    const nameEn = document.getElementById('team-detail-name-en');
+    if (nameEn) nameEn.textContent = team?.nameEn || '';
+    const img = document.getElementById('team-detail-img');
+    const imageUrl = team?.imageVariants?.cover || team?.image || '';
+    this._renderShellImage(img, imageUrl, team?.name || '俱樂部封面');
+    const body = document.getElementById('team-detail-body');
+    if (body) {
+      const region = team?.region ? `<div class="detail-row"><span class="detail-label">地區</span>${this._escapeShellText(team.region)}</div>` : '';
+      body.innerHTML = `${region}<div class="detail-section"><div class="reg-loading">資料更新中...</div><div class="reg-loading-skeleton"><div class="reg-loading-skeleton-row"></div><div class="reg-loading-skeleton-row"></div></div></div>`;
+    }
+  },
+
+  _renderFastTournamentDetailShell(id) {
+    const tournament = (typeof ApiService !== 'undefined' && ApiService.getTournament?.(id)) || null;
+    this.currentTournament = id;
+    const title = document.getElementById('td-title');
+    if (title) title.textContent = tournament?.name || '賽事詳情';
+    this._renderShellImage(
+      document.getElementById('td-img-placeholder'),
+      tournament?.image || '',
+      tournament?.name || '賽事封面'
+    );
+    const registerArea = document.getElementById('td-register-area');
+    if (registerArea) registerArea.innerHTML = '<div class="reg-loading">資料更新中...</div>';
+    const info = document.getElementById('td-info-section');
+    if (info) {
+      const type = tournament?.type ? `<div class="detail-row"><span class="detail-label">類型</span>${this._escapeShellText(tournament.type)}</div>` : '';
+      info.innerHTML = `${type}<div class="reg-loading-skeleton"><div class="reg-loading-skeleton-row"></div><div class="reg-loading-skeleton-row"></div></div>`;
+    }
+    const content = document.getElementById('tournament-content');
+    if (content) content.innerHTML = '<div class="reg-loading">資料更新中...</div>';
+  },
+
+  _scheduleVisibleDetailPrefetch(collectionName, ids) {
+    if (!this._getPerformanceFlag('visibleCardPrefetch', true)) return;
+    if (!collectionName || !Array.isArray(ids) || ids.length === 0) return;
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.prefetchDocs !== 'function') return;
+    if (!this._visibleDetailPrefetchTimers) this._visibleDetailPrefetchTimers = {};
+    clearTimeout(this._visibleDetailPrefetchTimers[collectionName]);
+    const delayMs = this._getPerformanceLimit('visibleCardPrefetchDelayMs', 650);
+    const limit = this._getPerformanceLimit('visibleCardPrefetchLimit', 8);
+    this._visibleDetailPrefetchTimers[collectionName] = setTimeout(() => {
+      delete this._visibleDetailPrefetchTimers[collectionName];
+      FirebaseService.prefetchDocs(collectionName, ids, { limit }).catch(err => {
+        console.warn('[Navigation] visible detail prefetch failed:', collectionName, err);
+      });
+    }, delayMs);
+  },
+
   async _ensurePageEntryReady(pageId) {
     // stale-first 快取捷徑：有快取時只載 HTML + JS，跳過 cloud + data 等待
     const canStale = this._getPageStrategy(pageId) === 'stale-first'
@@ -460,6 +698,18 @@ Object.assign(App, {
       return await currentMethod.apply(this, args);
     }
 
+    if (gateway && this._isFastDetailRouteMethod(methodName)) {
+      const shellResult = await this._showDetailRouteShell(pageId, methodName, args);
+      if (shellResult?.ok) {
+        const options = (args[1] && typeof args[1] === 'object') ? args[1] : {};
+        args[1] = {
+          ...options,
+          skipPageHistory: true,
+          bypassPageLock: true,
+        };
+      }
+    }
+
     await this._ensurePageEntryReady(pageId);
 
     const loadedMethod = this[methodName];
@@ -481,6 +731,11 @@ Object.assign(App, {
       return { ok: false, reason: 'auth' };
     }
     return await this._invokeLazyRouteMethod('page-team-detail', 'showTeamDetail', [id, options]);
+  },
+
+  async showTournamentDetail(id, options = {}) {
+    if (!options.allowGuest && this._requireLogin()) return { ok: false, reason: 'auth' };
+    return await this._invokeLazyRouteMethod('page-tournament-detail', 'showTournamentDetail', [id, options]);
   },
 
   goToScanForEvent(eventId) {
@@ -617,6 +872,9 @@ Object.assign(App, {
 
       const transitionSeq = ++this._pageTransitionSeq;
       console.log('[Nav] showPage:', pageId, 'seq=', transitionSeq, 'currentPage=', this.currentPage, 'canUseStale=', canUseStale, 'strategy=', strategy);
+      if (this._shouldUseShellFirstPage(pageId, options)) {
+        return await this._showPageShellFirst(pageId, transitionSeq, options);
+      }
 
       // 策略分派
       if (canUseStale) {
@@ -1118,4 +1376,5 @@ Object.assign(App, {
 App._lazyRouteGateways = Object.assign({}, App._lazyRouteGateways, {
   showEventDetail: App.showEventDetail,
   showTeamDetail: App.showTeamDetail,
+  showTournamentDetail: App.showTournamentDetail,
 });

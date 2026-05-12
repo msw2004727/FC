@@ -3,7 +3,7 @@
 > 專案內所有可調設定（timing / limit / threshold）+ 關鍵流程的順序效果總覽。
 > **強制維護規則（CLAUDE.md §設定追蹤規範）**：修改檔案時若涉及任何可調設定 / 加載順序 / timing / 閾值，必須同步更新本檔對應條目；新增任何可調常數，必須在本檔登記。
 
-**Last Updated: 2026-05-12**（private message read debounce + retention/limits）
+**Last Updated: 2026-05-12**（public navigation warmup + private message read debounce + retention/limits）
 
 ## 目錄
 
@@ -37,6 +37,17 @@
 |------|---|---------|------|
 | `minVisibleMs` | `280` ms | `app.js:715` `_routeLoading` | 最短顯示時間（避免閃爍） |
 | `slowMs` | `3200` ms | `app.js:716` `_routeLoading` | 超過此時間顯示「網路較慢，資料仍在載入中...」 |
+
+### Public Navigation Warmup（公開頁快速切換）
+
+| 名稱 | 值 | 檔案位置 | 用途 |
+|------|---|---------|------|
+| `fastShellNavigation` | `true` | `js/config.js` `PERFORMANCE_FLAGS` / `js/core/navigation.js` | 活動、俱樂部、賽事列表與詳情先切到頁面 shell，再背景補 JS/Firestore，避免第一次點擊看似無反應。 |
+| `idleModuleExecutionPreload` | `true` | `js/config.js` / `js/core/script-loader.js` | 首頁首屏完成後，利用 idle time 逐步執行載入活動/俱樂部/賽事列表與詳情模組。 |
+| `idlePreloadDelayMs` | `900` ms | `js/config.js` / `js/core/script-loader.js` | 首次閒置預載開始延遲，避免搶首頁第一屏資源。 |
+| `idlePreloadGapMs` | `450` ms | `js/config.js` / `js/core/script-loader.js` | 每個核心頁模組預載之間的間隔，降低瞬間下載與執行壓力。 |
+| `visibleCardPrefetchDelayMs` | `650` ms | `js/config.js` / `js/core/navigation.js` | 列表/首頁卡片渲染後延遲預抓可見詳情文件。 |
+| `publicBootSnapshotMaxAgeMs` | `30` 分鐘 | `js/config.js` / `app.js` / `scripts/inject-hot-events.js` | `index.html` 內公開列表快照只在 30 分鐘內作為首屏快取；報名/取消/管理寫入仍必須讀即時資料。 |
 
 ### Visibility Change（背景/前景切換）
 
@@ -127,6 +138,8 @@
 | Operation log altText 截斷 | `400` 字 | `event-share*.js` | LIFF Flex Message altText 上限 |
 | Home summary Firestore REST page size | `300` 筆/頁 | `scripts/inject-hot-events.js` | GitHub Action 產生 `boot-home-summary-data` 時分頁掃描 events / teams / tournaments，避免只取前幾筆造成首頁總量不準 |
 | Home summary max pages | events `25` 頁；teams / tournaments `15` 頁 | `scripts/inject-hot-events.js` | 防止注入腳本在資料異常或 API pagination 異常時無限掃描；超過即保留既有 inline 摘要 |
+| Public boot snapshot limit | events `80`；teams `36`；tournaments `36` | `scripts/inject-hot-events.js` `PUBLIC_LIST_LIMITS` | 首次進站/清快取時先顯示公開列表快照；只保留列表與詳情骨架必要欄位，不含報名名單 UID 或隊員 UID。 |
+| Visible detail prefetch limit | `8` 筆 | `js/config.js` / `js/core/navigation.js` / `js/firebase-service.js` | 首頁/列表渲染後最多預抓 8 筆可見詳情文件，提升點卡片速度但避免大量讀取。 |
 | Home summary client stale age | `5` 分鐘 | `js/modules/home-dashboard.js` | inline `boot-home-summary-data` 超過此時間後，首頁背景讀公開活動快取/Firestore，重算活動數、運動分類數與已記錄瀏覽數 |
 | Home summary client refresh throttle | `5` 分鐘 | `js/modules/home-dashboard.js` | 避免使用者反覆切回首頁時連續觸發活動摘要刷新 |
 | Home summary injection schedule | 每小時第 `17` 分鐘 | `.github/workflows/inject-hot-events.yml` | 定期重建 `index.html` 內的首頁匿名摘要，降低新活動/新運動分類在首屏出現的延遲 |
@@ -190,6 +203,7 @@
 | Phase 0 (DOMContentLoaded) | 解析 deep link query → 寫入 sessionStorage `_pendingDeepXxx` | `app.js:2197-2222` |
 | Phase 1 | `PageLoader.loadAll()` 載入 pages/*.html 片段（10 秒超時） | `app.js:2226-2236` |
 | Phase 2 | `FirebaseService._restoreCache()` 從 localStorage / IndexedDB 恢復快取 | `app.js:2238-2245` |
+| Phase 2.5 | 讀取 inline `boot-home-summary-data` / `boot-banners-data` / `boot-public-lists-data`，公開快照只作首屏與 shell 快取 | `app.js` boot inline block |
 | Phase 3 | `App.init()` 立即顯示頁面（不等 HTML / CDN / Firebase） | `app.js:2247-2253` |
 | Phase 後續 | Cloud bootstrap → bind LineLogin → flush pending boot route → 開啟 deep link | `app.js:1965-1989` |
 
@@ -319,6 +333,25 @@ App renderHomeCritical()
 Firebase 可用後
 ```
 
+### 公開列表快照與詳情預抓（2026-05-12）
+
+```
+scripts/inject-hot-events.js
+  → 掃描公開 events / teams / tournaments
+  → 過濾已結束、取消、私密、俱樂部限定活動
+  → 只保留列表卡片與詳情 shell 需要欄位
+  → 注入 boot-public-lists-data
+  ↓
+App boot Phase 2.5
+  → 若快照 30 分鐘內有效，先放入 FirebaseService cache
+  → 不標記 lazyLoaded=true，後續 Firestore 仍背景刷新
+  ↓
+showPage / showDetail
+  → 先切 shell 與快取畫面
+  → idle 預載模組 + 可見卡片預抓詳情文件
+  → Firestore / listener 回來後重繪成最新資料
+```
+
 <a id="versioning"></a>
 ## 🏷️ Versioning 版號規範
 
@@ -377,5 +410,6 @@ Firebase 可用後
 - **2026-04-28**：boot overlay `MIN_VISIBLE_MS` 2500 → 0；hash reload 改由 early boot route + PageLoader priority 先定位目標頁，不再用固定遮罩等待掩蓋首頁跳轉。
 - **2026-04-28**：俱樂部 `page-teams` 改為 shell-first navigation，並將原 `team` script group 拆為 `teamList` / `teamDetail` / `teamForm`，列表第一屏只載列表必要模組。
 - **2026-05-07**：首頁摘要增加 5 分鐘 stale client refresh，並將 `inject-hot-events` 排程改為每小時，讓運動快速入口可在靜態注入延遲時背景補正。
+- **2026-05-12**：新增公開頁快速切換 tunables：shell-first navigation、idle module execution preload、visible detail prefetch，以及 `boot-public-lists-data` 30 分鐘公開快照。
 - **2026-04-25**：boot overlay `MIN_VISIBLE_MS` 1500 → 2500（用戶反映 1.5 秒仍偏短，調至 2.5 秒看到更完整的進度條動畫）。
 - **2026-04-25**：新增 `SPORT_ICON_SVG_HTML` 對照表 + 匹克球 V4 SVG 圖示（紅色圓角方形拍斜放 + 黃球飛 + 速度線）。Unicode 無匹克球專屬 emoji、🏓 桌球拍視覺誤導，改用自製 SVG。
