@@ -92,4 +92,30 @@ describe('activity timeline effective status label', () => {
     expect(status.className).toContain('open');
     expect(dom.window.document.querySelector('.tl-event-row').textContent).toContain('19/21人');
   });
+
+  test('clears pending card loading state when returning to activity list', () => {
+    const dom = new JSDOM(`
+      <div id="activity-list">
+        <div class="tl-event-row tl-pending tl-loaded" aria-busy="true" data-tl-opening="1" onclick="App.openTimelineEventDetail('e1', this)">
+          <div class="tl-loading-bar"><div class="tl-loading-fill"></div></div>
+        </div>
+      </div>
+    `);
+    const interval = setInterval(() => {}, 1000);
+    const app = {
+      _tlCardLoadingState: { eventId: 'e1', interval },
+    };
+
+    loadTimelineModule(app, dom);
+    app._clearTimelineCardNavigationState('test');
+
+    const row = dom.window.document.querySelector('.tl-event-row');
+    expect(app._tlCardLoadingState).toBe(null);
+    expect(row.classList.contains('tl-pending')).toBe(false);
+    expect(row.classList.contains('tl-loaded')).toBe(false);
+    expect(row.hasAttribute('aria-busy')).toBe(false);
+    expect(row.dataset.tlOpening).toBeUndefined();
+    expect(row.querySelector('.tl-loading-bar')).toBe(null);
+    clearInterval(interval);
+  });
 });

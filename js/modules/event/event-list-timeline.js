@@ -11,6 +11,29 @@ Object.assign(App, {
 
   _tlCardLoadingState: null,
 
+  _clearTimelineCardNavigationState(reason = '') {
+    const state = this._tlCardLoadingState;
+    if (state?.interval) {
+      clearInterval(state.interval);
+      state.interval = null;
+    }
+    this._tlCardLoadingState = null;
+
+    const container = document.getElementById('activity-list');
+    if (!container) return;
+    container.querySelectorAll('.tl-event-row').forEach(row => {
+      row.classList.remove('tl-pending', 'tl-loaded');
+      row.removeAttribute('aria-busy');
+      if (row.dataset) delete row.dataset.tlOpening;
+      const bar = row.querySelector('.tl-loading-bar');
+      if (bar) bar.remove();
+    });
+
+    if (reason && window._raceDebug) {
+      console.log('[TimelineEventClick] cleared pending cards:', reason);
+    }
+  },
+
   _tlFindCardByEventId(eventId) {
     if (!eventId) return null;
     var container = document.getElementById('activity-list');

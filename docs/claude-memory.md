@@ -2550,3 +2550,9 @@
 - **Issue**: Entering the activity page could briefly show the fresh public boot snapshot count, then downgrade to an older count. The downgrade could happen when Firestore persistence emitted an older local-cache `events` snapshot before the server reply, or when stale cached registrations were treated as complete before a server registration snapshot arrived.
 - **Fix**: Preserved fresh public boot event fields while processing cache-only event snapshots, added a server-snapshot marker for registrations, and made activity card stats use registration-derived counts only after the all-registration server snapshot or an explicit per-event server fetch. Activity/home card render fingerprints now include derived participant stats so registration freshness changes can update the DOM even when `event.current` itself is unchanged.
 - **Validation**: Added unit coverage for stale registration cache not downgrading `event.current` and fresh server registrations correcting stale `event.current` upward.
+
+### 2026-05-13 Activity Timeline Pending State Cleanup [bugfix]
+- **問題**：使用者在活動頁點活動卡片進入詳細頁後立刻返回活動頁，原本列表 DOM 可能保留 `tl-pending` / `data-tl-opening` / loading bar；若活動列表 fingerprint 沒變，`renderActivityList` 會跳過重繪，導致卡片呈現加載遮罩且再次點擊被 opening lock 擋住。
+- **原因**：卡片 loading 狀態只在 `openTimelineEventDetail` 的 `finally` 清理；快速返回時，detail 載入流程可能尚未 resolve，且 150ms 延遲 loading timer 仍可能在返回後補上遮罩。
+- **修復**：新增 `App._clearTimelineCardNavigationState()`，在切回 `page-activities` 的 `_cleanupBeforePageSwitch` 與 `_renderPageContent` 入口強制清除 timeline 卡片 pending class、loading bar、`aria-busy`、`data-tl-opening` 與 interval。
+- **驗收**：新增 unit test 覆蓋返回活動列表時 pending 卡片立即解除，避免列表未重繪時殘留遮罩。
