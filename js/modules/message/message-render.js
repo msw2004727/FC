@@ -90,11 +90,35 @@ Object.assign(App, {
   updateNotifBadge() {
     // Phase 3: inbox 已是 per-user，不需 _filterMyMessages
     const messages = ApiService.getMessages() || [];
-    const unreadCount = messages.filter(m => this._isMessageUnread(m)).length + (this._pmUnreadTotal?.() || 0);
+    const pmUnreadCount = Math.max(0, Number(this._pmUnreadTotal?.() || 0));
+    const unreadCount = messages.filter(m => this._isMessageUnread(m)).length + pmUnreadCount;
     const badge = document.getElementById('notif-badge');
-    if (!badge) return;
-    badge.textContent = unreadCount;
-    badge.style.display = unreadCount > 0 ? '' : 'none';
+    if (badge) {
+      badge.textContent = unreadCount;
+      badge.style.display = unreadCount > 0 ? '' : 'none';
+    }
+    this._syncPmUnreadIndicators?.(pmUnreadCount);
+  },
+
+  _syncPmUnreadIndicators(pmUnreadCount = 0) {
+    const count = Math.max(0, Number(pmUnreadCount || 0));
+    const showBellHint = count > 0 && !this._pmIncomingBubbleVisible;
+    const notifBtn = document.getElementById('notif-btn');
+    const hint = document.getElementById('pm-notif-hint');
+    if (notifBtn) notifBtn.classList.toggle('has-pm-unread', showBellHint);
+    if (hint) {
+      hint.hidden = !showBellHint;
+      hint.setAttribute('aria-hidden', showBellHint ? 'false' : 'true');
+      hint.dataset.count = count ? String(Math.min(count, 99)) : '';
+    }
+    const tab = document.querySelector('#msg-inbox-tabs .tab[data-msgtype="pm-conversation"]');
+    if (tab) {
+      tab.classList.toggle('has-pm-unread', count > 0);
+      tab.dataset.pmUnread = count ? (count > 99 ? '99+' : String(count)) : '';
+      tab.setAttribute('aria-label', count > 0
+        ? `\u79c1\u8a0a\u5c0d\u8a71\uff0c\u6709 ${count} \u5247\u672a\u8b80`
+        : '\u79c1\u8a0a\u5c0d\u8a71');
+    }
   },
 
   updateStorageBar() {

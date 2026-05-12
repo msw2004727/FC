@@ -18,6 +18,9 @@
 .msg-preview { font-size: .78rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .msg-time { font-size: .7rem; color: var(--text-muted); margin-top: .2rem; }
 .storage-bar { text-align: center; font-size: .78rem; color: var(--text-muted); padding: .5rem; }
+#msg-inbox-tabs .tab[data-msgtype="pm-conversation"] { position: relative; }
+#msg-inbox-tabs .tab[data-msgtype="pm-conversation"].has-pm-unread::after { content: ''; position: absolute; top: 6px; right: 7px; width: 8px; height: 8px; border-radius: 999px; background: #ef4444; box-shadow: 0 0 0 2px var(--bg-card); }
+[data-theme="dark"] #msg-inbox-tabs .tab[data-msgtype="pm-conversation"].has-pm-unread::after { background: #fb7185; box-shadow: 0 0 0 2px var(--bg-main); }
 
 /* ─── Message Manage ─── */
 .msg-manage-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .75rem; }

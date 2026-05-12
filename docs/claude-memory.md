@@ -2515,3 +2515,8 @@
 - **原因**：既有 message 系統只處理站內信與後台廣播，沒有 per-user conversation copy、Cloud Function 寫入入口、稽核副本或前端對話窗。
 - **修復**：新增私訊 Cloud Functions、per-user `pmThreads/messages` 讀取規則、`pmAuditLogs/pmAuditConversations` 後端稽核副本、訊息中心「私訊對話」頁籤、用戶卡片私訊入口、對話窗、已讀 debounce、編輯/撤回、對話內搜尋與日誌中心「聊天室稽核」頁籤；稽核副本與 log 保留 180 天。
 - **教訓**：高敏感私訊功能不能只靠前端權限；內容查看必須固定後端 `super_admin` 驗證，並把已讀寫入 debounce 化，避免熱對話造成 callable 成本暴增。
+
+### 2026-05-12 PM Unread Reminder Indicators [ux]
+- **Issue**: After the large incoming PM bubble disappeared, users had no persistent PM-specific reminder near the notification bell, and the message page did not mark the private conversation tab separately.
+- **Fix**: Added a small SVG PM hint on the notification bell only when PM unread remains and the large incoming bubble is no longer visible. Added a PM-only red dot on the private conversation tab, both synced from `_pmUnreadTotal()` with no extra Firestore reads.
+- **Validation**: Added source contract coverage for the bell hint, bubble visibility guard, and tab red dot; ran targeted PM tests and full unit tests.

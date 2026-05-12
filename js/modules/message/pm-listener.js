@@ -7,6 +7,7 @@ Object.assign(App, {
   _pmListeningUid: '',
   _pmThreadsReady: false,
   _pmIncomingBubbleTimer: null,
+  _pmIncomingBubbleVisible: false,
   _pmStartRetryTimer: null,
   PM_INCOMING_BUBBLE_WINDOW_MS: 30 * 60 * 1000,
 
@@ -173,15 +174,19 @@ Object.assign(App, {
       this._hidePmIncomingBubble?.();
       this.openPmDialog?.(peerUid, { conversationId: cId });
     };
+    this._pmIncomingBubbleVisible = true;
     bubble.classList.add('is-visible');
+    this.updateNotifBadge?.();
     clearTimeout(this._pmIncomingBubbleTimer);
     this._pmIncomingBubbleTimer = setTimeout(() => this._hidePmIncomingBubble?.(), 6500);
   },
 
   _hidePmIncomingBubble() {
     clearTimeout(this._pmIncomingBubbleTimer);
+    this._pmIncomingBubbleVisible = false;
     const bubble = document.getElementById('pm-incoming-bubble');
     if (bubble) bubble.classList.remove('is-visible');
+    this.updateNotifBadge?.();
   },
 
   _togglePmConversationUI(enabled) {

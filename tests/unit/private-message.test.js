@@ -61,6 +61,29 @@ describe('private message feature wiring', () => {
     expect(css).toContain('@media (max-width:560px)');
   });
 
+  test('PM unread indicators show bell hint after incoming bubble and mark the PM conversation tab', () => {
+    const index = readProjectFile('index.html');
+    const renderer = readProjectFile('js/modules/message/message-render.js');
+    const listener = readProjectFile('js/modules/message/pm-listener.js');
+    const messagePage = readProjectFile('pages/message.html');
+    const layoutCss = readProjectFile('css/layout.css');
+    const messageCss = readProjectFile('css/message.css');
+
+    expect(index).toContain('id="pm-notif-hint"');
+    expect(index).toContain('<svg viewBox="0 0 24 24" width="14" height="14"');
+    expect(messagePage).toContain('data-msgtype="pm-conversation"');
+    expect(renderer).toContain('_syncPmUnreadIndicators');
+    expect(renderer).toContain('const showBellHint = count > 0 && !this._pmIncomingBubbleVisible');
+    expect(renderer).toContain("document.querySelector('#msg-inbox-tabs .tab[data-msgtype=\"pm-conversation\"]')");
+    expect(renderer).toContain("tab.classList.toggle('has-pm-unread', count > 0)");
+    expect(listener).toContain('_pmIncomingBubbleVisible: false');
+    expect(listener).toContain('this._pmIncomingBubbleVisible = true;');
+    expect(listener).toContain('this._pmIncomingBubbleVisible = false;');
+    expect(layoutCss).toContain('.pm-notif-hint');
+    expect(layoutCss).toContain('#notif-btn.has-pm-unread .pm-notif-hint');
+    expect(messageCss).toContain('#msg-inbox-tabs .tab[data-msgtype="pm-conversation"].has-pm-unread::after');
+  });
+
   test('PM edit and recall use optimistic pending states with expiry notices', () => {
     const dialog = readProjectFile('js/modules/message/pm-dialog.js');
     const actions = readProjectFile('js/modules/message/pm-dialog-actions.js');
