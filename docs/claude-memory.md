@@ -2530,3 +2530,8 @@
 - **Issue**: The home page "my next activity" image container uses a different ratio than the activity cover, so reusing only the wide cover can crop poorly or invite stretching.
 - **Fix**: Added activity image variants from one upload: `cover` for 8:3 activity surfaces and `homeNext` for the 4:3 home next-activity card. Existing `image` remains the cover fallback for old data.
 - **Validation**: Added source contract coverage for event variant upload/storage/rendering and a home-next unit test that prefers `imageVariants.homeNext`.
+
+### 2026-05-12 PM Stale Unread Reminder Bubble [ux]
+- **Issue**: The large PM bubble only appeared for unread threads whose latest message was within 30 minutes, so older unread PMs relied only on the bell hint and could be missed on site entry.
+- **Fix**: Kept the current fresh-message bubble for recent unread messages, and added a quieter persistent unread-reminder bubble for older unread PMs. The reminder uses the same bubble surface, shows "you have unread private messages" style copy, stays visible until the user opens it or closes it, and stores a session-only dismissed key built from the current unread batch so the same batch does not keep reappearing.
+- **Validation**: Added source contract coverage for stale unread reminder helpers, sessionStorage dismissal, reminder styling, and close control.

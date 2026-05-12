@@ -57,6 +57,9 @@ describe('private message feature wiring', () => {
     expect(dialog).not.toContain('&#128269;');
     expect(listener).toContain('_showPmIncomingBubble');
     expect(listener).toContain('_findPmInitialUnread');
+    expect(listener).toContain('_buildPmUnreadReminderThread');
+    expect(listener).toContain('_pmBuildUnreadReminderKey');
+    expect(listener).toContain('_dismissPmUnreadReminder');
     expect(listener).toContain('_resolvePmThreadPeerUid');
     expect(listener).toContain('_queuePmIncomingBubble');
     expect(listener).toContain('_schedulePmThreadListenerStart');
@@ -132,6 +135,11 @@ describe('private message feature wiring', () => {
     expect(listener).toContain('_pmOptimisticReadThreads');
     expect(listener).toContain('_optimisticallyMarkPmConversationRead');
     expect(listener).toContain('_clearPmOptimisticReadThread');
+    expect(listener).toContain('sessionStorage.setItem');
+    expect(listener).toContain("thread?._pmBubbleMode === 'reminder'");
+    expect(listener).toContain("bubble.classList.toggle('is-reminder'");
+    expect(messageCss).toContain('.pm-incoming-bubble.is-reminder');
+    expect(messageCss).toContain('.pm-incoming-close');
     expect(readProjectFile('js/modules/message/pm-dialog.js')).toContain('this._optimisticallyMarkPmConversationRead?.(conversationId)');
     expect(layoutCss).toContain('.pm-notif-hint');
     expect(layoutCss).toContain('#notif-btn.has-pm-unread .pm-notif-hint');

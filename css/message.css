@@ -79,8 +79,9 @@
 .pm-thread-time { margin-left:auto; flex-shrink:0; font-size:.7rem; color:var(--text-muted); }
 .pm-thread-preview { color:var(--text-secondary); font-size:.78rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .pm-thread-badge { min-width:1.35rem; height:1.35rem; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; padding:0 .28rem; background:#ef4444; color:#fff; font-size:.68rem; font-weight:800; }
-.pm-incoming-bubble { position:fixed; top:84px; right:14px; z-index:1500; width:min(224px, calc(100vw - 28px)); display:flex; align-items:center; gap:.55rem; padding:.62rem .68rem; border:1px solid rgba(37,99,235,.28); border-radius:18px; background:rgba(255,255,255,.92); color:var(--text-primary); box-shadow:0 18px 45px rgba(15,23,42,.2); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); cursor:pointer; text-align:left; opacity:0; transform:translateY(-10px); pointer-events:none; transition:opacity .18s ease, transform .18s ease; }
+.pm-incoming-bubble { position:fixed; top:84px; right:14px; z-index:1500; width:min(224px, calc(100vw - 28px)); display:flex; align-items:center; gap:.55rem; padding:.62rem .68rem; border:1px solid rgba(37,99,235,.28); border-radius:18px; background:rgba(255,255,255,.92); color:var(--text-primary); box-shadow:0 18px 45px rgba(15,23,42,.2); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); cursor:pointer; text-align:left; opacity:0; transform:translateY(-10px); pointer-events:none; transition:opacity .18s ease, transform .18s ease; box-sizing:border-box; }
 .pm-incoming-bubble.is-visible { opacity:1; transform:translateY(0); pointer-events:auto; }
+.pm-incoming-bubble.is-reminder { border-color:rgba(20,184,166,.32); background:linear-gradient(135deg, rgba(255,255,255,.94), rgba(240,253,250,.9)); box-shadow:0 16px 38px rgba(15,118,110,.16); }
 .pm-incoming-avatar { width:2.1rem; height:2.1rem; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; overflow:hidden; flex:0 0 auto; background:linear-gradient(135deg, #2563eb, #14b8a6); color:#fff; font-weight:800; }
 .pm-incoming-avatar img { width:100%; height:100%; object-fit:cover; display:block; }
 .pm-incoming-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:.12rem; }
@@ -88,6 +89,9 @@
 .pm-incoming-main strong { font-size:.84rem; }
 .pm-incoming-main span { color:var(--text-secondary); font-size:.76rem; }
 .pm-incoming-label { padding:.18rem .42rem; border-radius:999px; background:rgba(37,99,235,.1); color:#2563eb; font-size:.68rem; font-weight:800; }
+.pm-incoming-bubble.is-reminder .pm-incoming-label { background:rgba(20,184,166,.12); color:#0f766e; }
+.pm-incoming-close { width:1.38rem; height:1.38rem; border-radius:999px; border:1px solid rgba(148,163,184,.28); background:rgba(255,255,255,.52); color:var(--text-muted); display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto; font-size:1rem; line-height:1; cursor:pointer; padding:0; }
+.pm-incoming-close:hover { color:var(--text-primary); background:rgba(148,163,184,.14); }
 
 /* ─── Private message dialog ─── */
 .pm-dialog-open { overflow:hidden; }
@@ -188,5 +192,9 @@
 [data-theme="dark"] .pm-thread-card.is-unread { background:linear-gradient(90deg, rgba(59,130,246,.18), rgba(20,184,166,.1)); }
 [data-theme="dark"] .pm-dialog-search-toggle.is-active { border-color:rgba(96,165,250,.5); color:#93c5fd; background:rgba(96,165,250,.14); }
 [data-theme="dark"] .pm-incoming-bubble { background:rgba(15,23,42,.9); border-color:rgba(96,165,250,.36); box-shadow:0 18px 45px rgba(0,0,0,.38); }
+[data-theme="dark"] .pm-incoming-bubble.is-reminder { background:linear-gradient(135deg, rgba(15,23,42,.94), rgba(8,47,73,.88)); border-color:rgba(45,212,191,.28); box-shadow:0 18px 45px rgba(0,0,0,.42); }
 [data-theme="dark"] .pm-incoming-label { background:rgba(96,165,250,.18); color:#93c5fd; }
+[data-theme="dark"] .pm-incoming-bubble.is-reminder .pm-incoming-label { background:rgba(45,212,191,.16); color:#5eead4; }
+[data-theme="dark"] .pm-incoming-close { background:rgba(15,23,42,.5); border-color:rgba(148,163,184,.3); color:#94a3b8; }
+[data-theme="dark"] .pm-incoming-close:hover { color:#e2e8f0; background:rgba(148,163,184,.14); }
 [data-theme="dark"] .pm-dialog-overlay { background:rgba(2,6,23,.62); }

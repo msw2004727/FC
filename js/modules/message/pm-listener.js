@@ -10,6 +10,7 @@ Object.assign(App, {
   _pmIncomingBubbleVisible: false,
   _pmStartRetryTimer: null,
   _pmOptimisticReadThreads: Object.create(null),
+  _pmDismissedUnreadReminderKey: '',
   PM_INCOMING_BUBBLE_WINDOW_MS: 30 * 60 * 1000,
 
   startPmThreadListener() {
@@ -40,6 +41,7 @@ Object.assign(App, {
       this._pmListeningUid = '';
       this._pmThreadsReady = false;
       this._pmOptimisticReadThreads = Object.create(null);
+      this._pmDismissedUnreadReminderKey = '';
       this._hidePmIncomingBubble?.();
       if (typeof FirebaseService !== 'undefined') FirebaseService._cache.pmThreads = [];
       this._closePmDialog?.();
@@ -62,9 +64,11 @@ Object.assign(App, {
         const increasedThread = this._pmThreadsReady
           ? this._findPmUnreadIncrease(previousThreads, nextThreads)
           : this._findPmInitialUnread(nextThreads);
+        const nextUnreadTotal = nextThreads.reduce((sum, t) => sum + Math.max(0, Number(t.unreadCount || 0)), 0);
         FirebaseService._cache.pmThreads = nextThreads;
         this._pmThreadsReady = true;
         this.updateNotifBadge?.();
+        if (nextUnreadTotal <= 0) this._hidePmIncomingBubble?.();
         if (this.currentPage === 'page-messages' && this._msgInboxFilter === 'pm-conversation') {
           this.renderPmThreadList?.();
         }
@@ -170,26 +174,98 @@ Object.assign(App, {
       String(t.conversationId || t.id || t._docId || ''),
       Math.max(0, Number(t.unreadCount || 0)),
     ]));
-    return nextThreads.find(t => {
+    const increased = nextThreads.find(t => {
       const cId = String(t.conversationId || t.id || t._docId || '');
       const unread = Math.max(0, Number(t.unreadCount || 0));
       if (!cId || unread <= 0 || unread <= (previousMap.get(cId) || 0)) return false;
       return !this._isPmDialogOpenForConversation(cId);
     }) || null;
+    return increased ? { ...increased, _pmBubbleMode: 'fresh' } : null;
   },
 
   _findPmInitialUnread(threads = []) {
     if (this.currentPage === 'page-messages' && this._msgInboxFilter === 'pm-conversation') return null;
     const now = Date.now();
-    return threads
+    const unreadThreads = threads
       .filter(t => {
         const cId = String(t.conversationId || t.id || t._docId || '');
         const unread = Math.max(0, Number(t.unreadCount || 0));
-        if (!cId || unread <= 0 || this._isPmDialogOpenForConversation(cId)) return false;
+        return !!cId && unread > 0 && !this._isPmDialogOpenForConversation(cId);
+      })
+      .sort((a, b) => this._pmTimeMs(b.lastMessageAt) - this._pmTimeMs(a.lastMessageAt));
+    if (!unreadThreads.length) return null;
+    const freshThread = unreadThreads.find(t => {
         const lastMs = this._pmTimeMs(t.lastMessageAt);
         return !lastMs || (now - lastMs) <= this.PM_INCOMING_BUBBLE_WINDOW_MS;
+    });
+    if (freshThread) return { ...freshThread, _pmBubbleMode: 'fresh' };
+    const reminder = this._buildPmUnreadReminderThread?.(unreadThreads);
+    if (!reminder || this._isPmUnreadReminderDismissed?.(reminder._pmReminderKey)) return null;
+    return reminder;
+  },
+
+  _pmUnreadReminderStorageKey() {
+    const uid = this._pmCurrentUid?.() || this._pmListeningUid || '';
+    return uid ? `pmUnreadReminderDismissed:${uid}` : 'pmUnreadReminderDismissed';
+  },
+
+  _pmBuildUnreadReminderKey(threads = []) {
+    return (threads || [])
+      .map(t => {
+        const cId = String(t.conversationId || t.id || t._docId || '').trim();
+        const unread = Math.max(0, Number(t.unreadCount || 0));
+        const lastMessageId = String(t.lastMessageId || '').trim();
+        const lastMs = this._pmTimeMs(t.lastMessageAt);
+        return `${cId}:${lastMessageId}:${unread}:${lastMs}`;
       })
-      .sort((a, b) => this._pmTimeMs(b.lastMessageAt) - this._pmTimeMs(a.lastMessageAt))[0] || null;
+      .filter(Boolean)
+      .sort()
+      .join('|');
+  },
+
+  _isPmUnreadReminderDismissed(reminderKey) {
+    const key = String(reminderKey || '').trim();
+    if (!key) return false;
+    if (this._pmDismissedUnreadReminderKey === key) return true;
+    try {
+      return sessionStorage.getItem(this._pmUnreadReminderStorageKey?.() || 'pmUnreadReminderDismissed') === key;
+    } catch (_) {
+      return false;
+    }
+  },
+
+  _dismissPmUnreadReminder(reminderKey) {
+    const key = String(reminderKey || '').trim();
+    if (!key) return;
+    this._pmDismissedUnreadReminderKey = key;
+    try {
+      sessionStorage.setItem(this._pmUnreadReminderStorageKey?.() || 'pmUnreadReminderDismissed', key);
+    } catch (_) {}
+  },
+
+  _buildPmUnreadReminderThread(threads = []) {
+    const unreadThreads = (threads || []).filter(t => Math.max(0, Number(t.unreadCount || 0)) > 0);
+    if (!unreadThreads.length) return null;
+    const first = unreadThreads[0];
+    const totalUnread = unreadThreads.reduce((sum, t) => sum + Math.max(0, Number(t.unreadCount || 0)), 0);
+    const reminderKey = this._pmBuildUnreadReminderKey?.(unreadThreads) || '';
+    const peerNames = unreadThreads
+      .map(t => String(t.peerName || '').trim())
+      .filter(Boolean);
+    const namesText = peerNames.slice(0, 2).join('\u3001');
+    return {
+      ...first,
+      _pmBubbleMode: 'reminder',
+      _pmReminderKey: reminderKey,
+      _pmReminderThreadCount: unreadThreads.length,
+      _pmReminderUnreadCount: totalUnread,
+      _pmReminderTitle: unreadThreads.length > 1
+        ? `\u4f60\u6709 ${totalUnread} \u5247\u672a\u8b80\u79c1\u8a0a`
+        : '\u4f60\u6709\u672a\u8b80\u79c1\u8a0a',
+      _pmReminderText: unreadThreads.length > 1
+        ? `${namesText || '\u591a\u4f4d\u7528\u6236'}${unreadThreads.length > 2 ? '\u7b49\u4eba' : ''}\u50b3\u4f86\u8a0a\u606f`
+        : `${String(first.peerName || '\u5c0d\u65b9').trim()}\u7684\u8a0a\u606f\u5c1a\u672a\u8b80\u53d6`,
+    };
   },
 
   _resolvePmThreadPeerUid(thread) {
@@ -228,38 +304,78 @@ Object.assign(App, {
     const peerUid = this._resolvePmThreadPeerUid?.(thread) || '';
     const cId = String(thread?.conversationId || thread?.id || thread?._docId || '').trim();
     if (!peerUid || !cId) return;
+    const mode = thread?._pmBubbleMode === 'reminder' ? 'reminder' : 'fresh';
+    const reminderKey = String(thread?._pmReminderKey || '').trim();
+    if (mode === 'reminder' && this._isPmUnreadReminderDismissed?.(reminderKey)) return;
     let bubble = document.getElementById('pm-incoming-bubble');
-    if (!bubble) {
-      bubble = document.createElement('button');
+    if (!bubble || bubble.tagName === 'BUTTON') {
+      if (bubble) bubble.remove();
+      bubble = document.createElement('div');
       bubble.id = 'pm-incoming-bubble';
-      bubble.type = 'button';
       bubble.className = 'pm-incoming-bubble';
+      bubble.setAttribute('role', 'button');
+      bubble.tabIndex = 0;
       document.body.appendChild(bubble);
     }
-    const statusText = thread.lastMessageStatus === 'recalled'
+    const statusText = mode === 'reminder'
+      ? (thread._pmReminderText || '\u9ede\u64ca\u67e5\u770b\u5c0d\u8a71')
+      : thread.lastMessageStatus === 'recalled'
       ? '\u8a0a\u606f\u5df2\u64a4\u56de'
       : (thread.lastMessageBody || '\u4f60\u6709\u65b0\u79c1\u8a0a');
+    const titleText = mode === 'reminder'
+      ? (thread._pmReminderTitle || '\u4f60\u6709\u672a\u8b80\u79c1\u8a0a')
+      : (thread.peerName || peerUid);
+    const labelText = mode === 'reminder' ? '\u672a\u8b80' : '\u79c1\u8a0a';
     const avatar = thread.peerAvatar
       ? `<img src="${escapeHTML(thread.peerAvatar)}" alt="">`
       : `<span>${escapeHTML(String(thread.peerName || '?').slice(0, 1))}</span>`;
     bubble.dataset.peerUid = peerUid;
     bubble.dataset.conversationId = cId;
+    bubble.dataset.mode = mode;
+    bubble.dataset.reminderKey = reminderKey;
+    bubble.classList.toggle('is-reminder', mode === 'reminder');
     bubble.innerHTML = `
       <span class="pm-incoming-avatar">${avatar}</span>
       <span class="pm-incoming-main">
-        <strong data-no-translate>${escapeHTML(thread.peerName || peerUid)}</strong>
+        <strong data-no-translate>${escapeHTML(titleText)}</strong>
         <span>${escapeHTML(statusText)}</span>
       </span>
-      <span class="pm-incoming-label">\u79c1\u8a0a</span>`;
+      <span class="pm-incoming-label">${escapeHTML(labelText)}</span>
+      ${mode === 'reminder' ? '<button type="button" class="pm-incoming-close" aria-label="\u95dc\u9589\u672a\u8b80\u79c1\u8a0a\u63d0\u9192">\u00d7</button>' : ''}`;
     bubble.onclick = () => {
       this._hidePmIncomingBubble?.();
-      this.openPmDialog?.(peerUid, { conversationId: cId });
+      if (mode === 'reminder') this._dismissPmUnreadReminder?.(reminderKey);
+      if (mode === 'reminder' && Number(thread?._pmReminderThreadCount || 0) > 1) {
+        this._msgInboxFilter = 'pm-conversation';
+        this.showPage?.('page-messages');
+        setTimeout(() => this.renderMessageList?.('pm-conversation'), 0);
+      } else {
+        this.openPmDialog?.(peerUid, { conversationId: cId });
+      }
     };
+    bubble.onkeydown = event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      bubble.click();
+    };
+    const closeBtn = bubble.querySelector('.pm-incoming-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        this._dismissPmUnreadReminder?.(reminderKey);
+        this._hidePmIncomingBubble?.();
+      });
+    }
     this._pmIncomingBubbleVisible = true;
     bubble.classList.add('is-visible');
     this.updateNotifBadge?.();
     clearTimeout(this._pmIncomingBubbleTimer);
-    this._pmIncomingBubbleTimer = setTimeout(() => this._hidePmIncomingBubble?.(), 6500);
+    if (mode === 'fresh') {
+      this._pmIncomingBubbleTimer = setTimeout(() => this._hidePmIncomingBubble?.(), 6500);
+    } else {
+      this._pmIncomingBubbleTimer = null;
+    }
   },
 
   _hidePmIncomingBubble() {
@@ -291,6 +407,11 @@ Object.assign(App, {
     const threads = ((typeof FirebaseService !== 'undefined' && FirebaseService._cache?.pmThreads) || [])
       .slice()
       .sort((a, b) => this._pmTimeMs(b.lastMessageAt) - this._pmTimeMs(a.lastMessageAt));
+    const activeBubble = document.getElementById('pm-incoming-bubble');
+    if (activeBubble?.dataset?.mode === 'reminder') {
+      this._dismissPmUnreadReminder?.(activeBubble.dataset.reminderKey || this._pmBuildUnreadReminderKey?.(threads));
+      this._hidePmIncomingBubble?.();
+    }
     if (!threads.length) {
       container.innerHTML = '<div class="pm-empty">\u76ee\u524d\u6c92\u6709\u79c1\u8a0a\u5c0d\u8a71</div>';
       return;
