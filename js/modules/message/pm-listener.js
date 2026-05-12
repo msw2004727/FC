@@ -7,6 +7,7 @@ Object.assign(App, {
   _pmListeningUid: '',
   _pmThreadsReady: false,
   _pmIncomingBubbleTimer: null,
+  PM_INCOMING_BUBBLE_WINDOW_MS: 30 * 60 * 1000,
 
   startPmThreadListener() {
     if (typeof auth === 'undefined' || !auth?.onAuthStateChanged) return;
@@ -35,14 +36,16 @@ Object.assign(App, {
           if (typeof FirebaseService === 'undefined') return;
           const previousThreads = FirebaseService._cache?.pmThreads || [];
           const nextThreads = snapshot.docs.map(doc => ({ id: doc.id, _docId: doc.id, ...doc.data() }));
-          const increasedThread = this._pmThreadsReady ? this._findPmUnreadIncrease(previousThreads, nextThreads) : null;
+          const increasedThread = this._pmThreadsReady
+            ? this._findPmUnreadIncrease(previousThreads, nextThreads)
+            : this._findPmInitialUnread(nextThreads);
           FirebaseService._cache.pmThreads = nextThreads;
           this._pmThreadsReady = true;
           this.updateNotifBadge?.();
           if (this.currentPage === 'page-messages' && this._msgInboxFilter === 'pm-conversation') {
             this.renderPmThreadList?.();
           }
-          if (increasedThread) this._showPmIncomingBubble?.(increasedThread);
+          if (increasedThread) this._queuePmIncomingBubble?.(increasedThread);
         }, err => {
           console.warn('[startPmThreadListener]', err);
         });
@@ -76,6 +79,43 @@ Object.assign(App, {
     }) || null;
   },
 
+  _findPmInitialUnread(threads = []) {
+    if (this.currentPage === 'page-messages' && this._msgInboxFilter === 'pm-conversation') return null;
+    const now = Date.now();
+    return threads
+      .filter(t => {
+        const cId = String(t.conversationId || t.id || t._docId || '');
+        const unread = Math.max(0, Number(t.unreadCount || 0));
+        if (!cId || unread <= 0 || this._isPmDialogOpenForConversation(cId)) return false;
+        const lastMs = this._pmTimeMs(t.lastMessageAt);
+        return !lastMs || (now - lastMs) <= this.PM_INCOMING_BUBBLE_WINDOW_MS;
+      })
+      .sort((a, b) => this._pmTimeMs(b.lastMessageAt) - this._pmTimeMs(a.lastMessageAt))[0] || null;
+  },
+
+  _resolvePmThreadPeerUid(thread) {
+    const direct = String(thread?.peerUid || '').trim();
+    if (this.isValidLineUid?.(direct)) return direct;
+    const myUid = this._pmCurrentUid?.() || '';
+    const participants = Array.isArray(thread?.participants) ? thread.participants : [];
+    const fromParticipants = participants.map(uid => String(uid || '').trim())
+      .find(uid => uid && uid !== myUid && this.isValidLineUid?.(uid));
+    if (fromParticipants) return fromParticipants;
+    const cId = String(thread?.conversationId || thread?.id || thread?._docId || '').trim();
+    const parsed = this._pmParseConversationId?.(cId);
+    if (!parsed || !myUid) return direct;
+    return parsed.uidA === myUid ? parsed.uidB : parsed.uidA;
+  },
+
+  _queuePmIncomingBubble(thread) {
+    setTimeout(() => {
+      const cId = String(thread?.conversationId || thread?.id || thread?._docId || '').trim();
+      if (this.currentPage === 'page-messages' && this._msgInboxFilter === 'pm-conversation') return;
+      if (this._isPmDialogOpenForConversation(cId)) return;
+      this._showPmIncomingBubble?.(thread);
+    }, 350);
+  },
+
   _isPmDialogOpenForConversation(conversationId) {
     const overlay = document.getElementById('pm-dialog-overlay');
     return !!(
@@ -86,7 +126,7 @@ Object.assign(App, {
   },
 
   _showPmIncomingBubble(thread) {
-    const peerUid = String(thread?.peerUid || '').trim();
+    const peerUid = this._resolvePmThreadPeerUid?.(thread) || '';
     const cId = String(thread?.conversationId || thread?.id || thread?._docId || '').trim();
     if (!peerUid || !cId) return;
     let bubble = document.getElementById('pm-incoming-bubble');
@@ -149,13 +189,15 @@ Object.assign(App, {
       return;
     }
     container.innerHTML = threads.map(t => {
+      const conversationId = String(t.conversationId || t.id || t._docId || '');
+      const peerUid = this._resolvePmThreadPeerUid?.(t) || '';
       const unread = Math.max(0, Number(t.unreadCount || 0));
       const avatar = t.peerAvatar
         ? `<img src="${escapeHTML(t.peerAvatar)}" alt="" class="pm-thread-avatar-img">`
         : `<span>${escapeHTML(String(t.peerName || '?').slice(0, 1))}</span>`;
       const statusText = t.lastMessageStatus === 'recalled' ? '\u8a0a\u606f\u5df2\u64a4\u56de' : (t.lastMessageBody || '');
       return `
-        <button type="button" role="listitem" class="pm-thread-card${unread ? ' is-unread' : ''}" data-user-card="pm-thread" data-peer-uid="${escapeHTML(t.peerUid || '')}" data-conversation-id="${escapeHTML(t.conversationId || t.id || '')}" aria-label="\u958b\u555f\u79c1\u8a0a\u5c0d\u8a71">
+        <button type="button" role="listitem" class="pm-thread-card${unread ? ' is-unread' : ''}" data-user-card="pm-thread" data-peer-uid="${escapeHTML(peerUid)}" data-conversation-id="${escapeHTML(conversationId)}" aria-label="\u958b\u555f\u79c1\u8a0a\u5c0d\u8a71">
           <span class="pm-thread-avatar">${avatar}</span>
           <span class="pm-thread-main">
             <span class="pm-thread-top">

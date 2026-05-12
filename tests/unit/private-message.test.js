@@ -38,8 +38,12 @@ describe('private message feature wiring', () => {
     expect(search).toContain('togglePmDialogSearch');
     expect(dialog).toContain('pm-dialog-search-toggle');
     expect(listener).toContain('_showPmIncomingBubble');
+    expect(listener).toContain('_findPmInitialUnread');
+    expect(listener).toContain('_resolvePmThreadPeerUid');
+    expect(listener).toContain('_queuePmIncomingBubble');
     expect(listener).toContain('pm-incoming-bubble');
     expect(listener).toContain('data-user-card="pm-thread"');
+    expect(readProjectFile('js/modules/message/pm-entry.js')).toContain('_pmParseConversationId(options.conversationId)');
     expect(css).toContain('.pm-incoming-bubble');
     expect(css).toContain('.pm-dialog-tools.is-search-open .pm-dialog-search');
   });

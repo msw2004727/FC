@@ -6,7 +6,12 @@ Object.assign(App, {
   _pmDialogLoadPromise: null,
 
   async openPmDialog(targetUid, options = {}) {
-    const safeUid = String(targetUid || '').trim();
+    let safeUid = String(targetUid || '').trim();
+    if ((!safeUid || !this.isValidLineUid?.(safeUid)) && options?.conversationId && this._pmParseConversationId) {
+      const parsed = this._pmParseConversationId(options.conversationId);
+      const myUid = this._pmCurrentUid?.() || '';
+      if (parsed) safeUid = parsed.uidA === myUid ? parsed.uidB : parsed.uidA;
+    }
     if (!safeUid || !this.isValidLineUid?.(safeUid)) {
       this.showToast?.('無法開啟私訊');
       return;
