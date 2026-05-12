@@ -2095,6 +2095,9 @@ const FirebaseService = {
           this._cache.adminUsers = snapshot.docs.map(doc => this._mapUserDoc(doc.data(), doc.id));
           this._syncCurrentUserFromUsersSnapshot();
           this._debouncedPersistCache();
+          if (typeof App !== 'undefined' && App.currentPage === 'page-admin-users') {
+            App.filterAdminUsers?.();
+          }
         },
         err => { console.warn('[onSnapshot] users 監聽錯誤:', err); }
       );

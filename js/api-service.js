@@ -888,14 +888,26 @@ const ApiService = {
     return user ? user.role : 'user';
   },
 
-  async updateAdminUser(name, updates) {
-    const user = this._src('adminUsers').find(u => u.name === name);
+  getAdminUserByIdentity(identity) {
+    const key = String(identity || '').trim();
+    if (!key) return null;
+    const users = this._src('adminUsers') || [];
+    return users.find(u => String(u?._docId || '').trim() === key)
+      || users.find(u => String(u?.uid || '').trim() === key)
+      || users.find(u => String(u?.lineUserId || '').trim() === key)
+      || users.find(u => String(u?.name || '').trim() === key)
+      || null;
+  },
+
+  async updateAdminUser(identity, updates) {
+    const user = this.getAdminUserByIdentity(identity);
     if (!user) return null;
     const rollback = { ...user };
     Object.assign(user, updates);
-    if (user._docId) {
+    const targetId = user._docId || user.uid || user.lineUserId;
+    if (targetId) {
       try {
-        await FirebaseService.manageAdminUser(user._docId, updates);
+        await FirebaseService.manageAdminUser(targetId, updates);
       } catch (err) {
         Object.assign(user, rollback);
         console.error('[updateAdminUser]', err);

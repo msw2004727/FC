@@ -210,3 +210,67 @@ describe('_getLockedPermissionRoleHint (user-admin-roles.js:62-70)', () => {
     expect(_getLockedPermissionRoleHint('coach')).toBe('');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Extracted from user-admin-list.js identity/diff helpers.
+// User admin actions must target immutable-ish ids before mutable display names.
+// ---------------------------------------------------------------------------
+function _findAdminUserByKeyForTest(users, userKey) {
+  const key = String(userKey || '').trim();
+  if (!key) return null;
+  return users.find(u => String(u?._docId || '').trim() === key)
+    || users.find(u => String(u?.uid || '').trim() === key)
+    || users.find(u => String(u?.lineUserId || '').trim() === key)
+    || users.find(u => String(u?.name || '').trim() === key)
+    || null;
+}
+
+function _setUpdateIfChangedForTest(updates, user, field, nextValue) {
+  const oldValue = user?.[field];
+  const oldText = oldValue == null ? '' : String(oldValue);
+  const nextText = nextValue == null ? '' : String(nextValue);
+  if (oldText !== nextText) {
+    updates[field] = nextValue;
+  }
+}
+
+describe('user admin identity helpers (user-admin-list.js)', () => {
+  const users = [
+    { _docId: 'doc-1', uid: 'uid-1', lineUserId: 'line-1', name: 'Same Name' },
+    { _docId: 'doc-2', uid: 'uid-2', lineUserId: 'line-2', name: 'Same Name' },
+  ];
+
+  test('prefers doc id over duplicate display names', () => {
+    expect(_findAdminUserByKeyForTest(users, 'doc-2')).toBe(users[1]);
+  });
+
+  test('resolves uid and lineUserId before display name fallback', () => {
+    expect(_findAdminUserByKeyForTest(users, 'uid-2')).toBe(users[1]);
+    expect(_findAdminUserByKeyForTest(users, 'line-1')).toBe(users[0]);
+  });
+
+  test('keeps legacy display-name lookup as last fallback', () => {
+    expect(_findAdminUserByKeyForTest(users, 'Same Name')).toBe(users[0]);
+  });
+});
+
+describe('user admin edit diff helpers (user-admin-list.js)', () => {
+  test('does not write blank defaults over missing profile fields', () => {
+    const updates = {};
+    _setUpdateIfChangedForTest(updates, {}, 'region', '');
+    _setUpdateIfChangedForTest(updates, {}, 'gender', '');
+    expect(updates).toEqual({});
+  });
+
+  test('allows explicit birthday clearing when an old value exists', () => {
+    const updates = {};
+    _setUpdateIfChangedForTest(updates, { birthday: '2026/05/12' }, 'birthday', null);
+    expect(updates).toEqual({ birthday: null });
+  });
+
+  test('preserves existing region values when unchanged', () => {
+    const updates = {};
+    _setUpdateIfChangedForTest(updates, { region: '台中市' }, 'region', '台中市');
+    expect(updates).toEqual({});
+  });
+});
