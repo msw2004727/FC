@@ -56,9 +56,23 @@ describe('private message feature wiring', () => {
 
     expect(css).toContain('[data-admin-log-panel="chat"] { min-width:0; max-width:100%; overflow:hidden; }');
     expect(css).toContain('.pm-audit-layout { display:grid; grid-template-columns:minmax(0,1fr)');
+    expect(css).toContain('.pm-audit-settings-card');
+    expect(css).toContain('.pm-audit-switch input:checked + span');
     expect(css).toContain('.pm-audit-log { display:grid; grid-template-columns:auto minmax(0,1fr) auto');
     expect(css).toContain('.pm-audit-message p { margin:.35rem 0 0; font-size:.8rem; line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere; }');
     expect(css).toContain('@media (max-width:560px)');
+  });
+
+  test('PM audit exposes a super-admin switch for user-to-user private messaging', () => {
+    const audit = readProjectFile('js/modules/message/pm-audit.js');
+
+    expect(audit).toContain('User互相私訊');
+    expect(audit).toContain('id="pm-user-pm-toggle"');
+    expect(audit).toContain('loadPmAuditSettings');
+    expect(audit).toContain('savePmAuditSettings');
+    expect(audit).toContain("this._pmCallable?.('getPrivateMessageSettings')");
+    expect(audit).toContain("this._pmCallable?.('updatePrivateMessageSettings')");
+    expect(audit).toContain("this.loadPmAuditLogs('settings_update')");
   });
 
   test('PM unread indicators show bell hint after incoming bubble and mark the PM conversation tab', () => {
@@ -108,6 +122,8 @@ describe('private message feature wiring', () => {
     expect(source).toContain('pmBuildConversationId(uidA, uidB)');
     expect(source).toContain('pmIsValidConversationId(cId, uid)');
     expect(source).toContain('parsed.uidA === safeUid || parsed.uidB === safeUid');
+    expect(source).toContain('allowUserToUserPm');
+    expect(source).toContain("normalizedFromRole === 'user' && normalizedToRole === 'user'");
     expect(source).toContain('return fromLevel < toLevel');
   });
 
@@ -119,6 +135,12 @@ describe('private message feature wiring', () => {
     expect(functions).toContain('exports.markPrivateConversationRead');
     expect(functions).toContain('exports.editPrivateMessage');
     expect(functions).toContain('exports.recallPrivateMessage');
+    expect(functions).toContain('const PM_SETTINGS_DOC_ID = "privateMessage"');
+    expect(functions).toContain('allowUserToUserPm: false');
+    expect(functions).toContain('exports.getPrivateMessageSettings');
+    expect(functions).toContain('exports.updatePrivateMessageSettings');
+    expect(functions).toContain('pmGetSettingsInTransaction');
+    expect(functions).toContain('normalizedFromRole === "user" && normalizedToRole === "user"');
     expect(functions).toContain('exports.searchPmAuditUsers');
     expect(functions).toContain('exports.getPmAuditConversation');
     expect(functions).toContain('exports.cleanupPmAuditRetention');

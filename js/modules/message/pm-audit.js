@@ -5,6 +5,7 @@
 Object.assign(App, {
   _pmAuditSelectedUid: '',
   _pmAuditSelectedConversationId: '',
+  _pmSettingsSaving: false,
 
   _isPmAuditAllowed() {
     const role = ApiService.getCurrentUser?.()?.role || this.currentRole || 'user';
@@ -22,6 +23,19 @@ Object.assign(App, {
       panel.dataset.pmAuditReady = '1';
       panel.innerHTML = `
         <div class="pm-audit-layout">
+          <section class="pm-audit-card pm-audit-settings-card">
+            <div class="pm-audit-setting-row">
+              <div class="pm-audit-setting-copy">
+                <h3>User互相私訊</h3>
+                <p>開啟後 user 層級可彼此開新私訊；關閉時維持上下層級或既有對話。</p>
+              </div>
+              <label class="pm-audit-switch" aria-label="User互相私訊">
+                <input id="pm-user-pm-toggle" type="checkbox" onchange="App.savePmAuditSettings(this.checked)">
+                <span></span>
+              </label>
+            </div>
+            <div id="pm-audit-settings-status" class="pm-audit-setting-status muted">設定載入中...</div>
+          </section>
           <section class="pm-audit-card">
             <h3>搜尋用戶對話</h3>
             <div class="pm-audit-row">
@@ -51,6 +65,7 @@ Object.assign(App, {
                 <option value="audit_view_thread">查看對話列表</option>
                 <option value="audit_view_conversation">查看對話內容</option>
                 <option value="audit_search_logs">查詢 log</option>
+                <option value="settings_update">設定更新</option>
               </select>
               <button type="button" class="outline-btn small" onclick="App.loadPmAuditLogs()">重新整理</button>
             </div>
@@ -58,7 +73,60 @@ Object.assign(App, {
           </section>
         </div>`;
     }
+    this.loadPmAuditSettings();
     this.loadPmAuditLogs();
+  },
+
+  async loadPmAuditSettings() {
+    const toggle = document.getElementById('pm-user-pm-toggle');
+    const status = document.getElementById('pm-audit-settings-status');
+    if (!toggle || !status) return;
+    try {
+      toggle.disabled = true;
+      status.textContent = '設定載入中...';
+      const fn = this._pmCallable?.('getPrivateMessageSettings');
+      const resp = await fn({});
+      const allowUserToUserPm = resp?.data?.settings?.allowUserToUserPm === true;
+      toggle.checked = allowUserToUserPm;
+      status.textContent = allowUserToUserPm
+        ? '已開啟：user 可以互相建立新私訊。'
+        : '已關閉：user 只能依上下層級或既有對話私訊。';
+    } catch (err) {
+      console.warn('[loadPmAuditSettings]', err);
+      status.textContent = '設定載入失敗';
+    } finally {
+      toggle.disabled = false;
+    }
+  },
+
+  async savePmAuditSettings(allowUserToUserPm) {
+    if (this._pmSettingsSaving) return;
+    const toggle = document.getElementById('pm-user-pm-toggle');
+    const status = document.getElementById('pm-audit-settings-status');
+    this._pmSettingsSaving = true;
+    if (toggle) toggle.disabled = true;
+    if (status) status.textContent = '儲存中...';
+    try {
+      const fn = this._pmCallable?.('updatePrivateMessageSettings');
+      const resp = await fn({ allowUserToUserPm: allowUserToUserPm === true });
+      const saved = resp?.data?.settings?.allowUserToUserPm === true;
+      if (toggle) toggle.checked = saved;
+      if (status) {
+        status.textContent = saved
+          ? '已開啟：user 可以互相建立新私訊。'
+          : '已關閉：user 只能依上下層級或既有對話私訊。';
+      }
+      this.showToast?.('私訊設定已更新');
+      this.loadPmAuditLogs('settings_update');
+    } catch (err) {
+      console.warn('[savePmAuditSettings]', err);
+      if (toggle) toggle.checked = !allowUserToUserPm;
+      if (status) status.textContent = '儲存失敗，設定未變更';
+      this.showToast?.('私訊設定儲存失敗');
+    } finally {
+      this._pmSettingsSaving = false;
+      if (toggle) toggle.disabled = false;
+    }
   },
 
   async searchPmAuditUsers() {

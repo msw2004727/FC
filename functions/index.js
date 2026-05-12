@@ -115,6 +115,10 @@ const PM_DAILY_LIMIT_PER_UID = 100;
 const PM_DAILY_LIMIT_PER_PEER = 30;
 const PM_EDIT_WINDOW_MS = 15 * 60 * 1000;
 const PM_RECALL_WINDOW_MS = 5 * 60 * 1000;
+const PM_SETTINGS_DOC_ID = "privateMessage";
+const PM_DEFAULT_SETTINGS = Object.freeze({
+  allowUserToUserPm: false,
+});
 
 // ── 翻譯配額設定（調整上限只需改這裡，重新 deploy 即可）──
 const TRANSLATE_QUOTA = Object.freeze({
@@ -10101,11 +10105,25 @@ function pmNormalizeRole(role) {
   return Object.prototype.hasOwnProperty.call(PM_BUILTIN_LEVELS, safeRole) ? safeRole : "user";
 }
 
-function pmCanSendTo(fromRole, toRole, hasExistingConversation) {
-  const fromLevel = PM_BUILTIN_LEVELS[pmNormalizeRole(fromRole)] ?? 0;
-  const toLevel = PM_BUILTIN_LEVELS[pmNormalizeRole(toRole)] ?? 0;
+function pmNormalizeSettings(data = {}) {
+  return {
+    allowUserToUserPm: data?.allowUserToUserPm === true,
+  };
+}
+
+async function pmGetSettingsInTransaction(tx) {
+  const snap = await tx.get(db.collection("siteConfig").doc(PM_SETTINGS_DOC_ID));
+  return snap.exists ? pmNormalizeSettings(snap.data() || {}) : { ...PM_DEFAULT_SETTINGS };
+}
+
+function pmCanSendTo(fromRole, toRole, hasExistingConversation, settings = PM_DEFAULT_SETTINGS) {
+  const normalizedFromRole = pmNormalizeRole(fromRole);
+  const normalizedToRole = pmNormalizeRole(toRole);
+  const fromLevel = PM_BUILTIN_LEVELS[normalizedFromRole] ?? 0;
+  const toLevel = PM_BUILTIN_LEVELS[normalizedToRole] ?? 0;
   if (fromLevel >= PM_BUILTIN_LEVELS.admin) return true;
   if (hasExistingConversation) return true;
+  if (settings?.allowUserToUserPm === true && normalizedFromRole === "user" && normalizedToRole === "user") return true;
   return fromLevel < toLevel;
 }
 
@@ -10266,6 +10284,7 @@ exports.sendPrivateMessage = onCall(
       const recipient = await pmGetUserByUid(tx, toUid);
       const senderInfo = pmPublicUser(sender.data, fromUid);
       const recipientInfo = pmPublicUser(recipient.data, toUid);
+      const pmSettings = await pmGetSettingsInTransaction(tx);
       if (senderInfo.isRestricted || recipientInfo.isRestricted) {
         throw new HttpsError("failed-precondition", "restricted user");
       }
@@ -10279,7 +10298,7 @@ exports.sendPrivateMessage = onCall(
       const recipientThreadSnap = await tx.get(recipientThreadRef);
       const rateSnap = await tx.get(rateRef);
       const hasExistingConversation = senderThreadSnap.exists || recipientThreadSnap.exists;
-      if (!pmCanSendTo(senderInfo.role, recipientInfo.role, hasExistingConversation)) {
+      if (!pmCanSendTo(senderInfo.role, recipientInfo.role, hasExistingConversation, pmSettings)) {
         throw new HttpsError("permission-denied", "pm permission denied");
       }
 
@@ -10555,6 +10574,40 @@ exports.editPrivateMessage = onCall(
 exports.recallPrivateMessage = onCall(
   { region: "asia-east1", timeoutSeconds: 20, memory: "256MiB" },
   request => pmUpdateOwnMessage(request, "recall"),
+);
+
+exports.getPrivateMessageSettings = onCall(
+  { region: "asia-east1", timeoutSeconds: 20, memory: "256MiB" },
+  async (request) => {
+    const caller = await pmAssertSuperAdmin(request);
+    const snap = await db.collection("siteConfig").doc(PM_SETTINGS_DOC_ID).get();
+    await pmWriteAuditLog("settings_view", { actorUid: caller.uid, querySummary: "privateMessage" });
+    return {
+      ok: true,
+      settings: snap.exists ? pmNormalizeSettings(snap.data() || {}) : { ...PM_DEFAULT_SETTINGS },
+    };
+  },
+);
+
+exports.updatePrivateMessageSettings = onCall(
+  { region: "asia-east1", timeoutSeconds: 20, memory: "256MiB" },
+  async (request) => {
+    const caller = await pmAssertSuperAdmin(request);
+    const allowUserToUserPm = request.data?.allowUserToUserPm === true;
+    const now = new Date();
+    const nowTs = Timestamp.fromDate(now);
+    await db.collection("siteConfig").doc(PM_SETTINGS_DOC_ID).set({
+      allowUserToUserPm,
+      updatedAt: nowTs,
+      updatedAtIso: pmServerTimestampIso(now),
+      updatedByUid: caller.uid,
+    }, { merge: true });
+    await pmWriteAuditLog("settings_update", {
+      actorUid: caller.uid,
+      querySummary: JSON.stringify({ privateMessage: { allowUserToUserPm } }),
+    });
+    return { ok: true, settings: { allowUserToUserPm } };
+  },
 );
 
 exports.searchPmAuditUsers = onCall(

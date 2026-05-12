@@ -2520,3 +2520,8 @@
 - **Issue**: After the large incoming PM bubble disappeared, users had no persistent PM-specific reminder near the notification bell, and the message page did not mark the private conversation tab separately.
 - **Fix**: Added a small SVG PM hint on the notification bell only when PM unread remains and the large incoming bubble is no longer visible. Added a PM-only red dot on the private conversation tab, both synced from `_pmUnreadTotal()` with no extra Firestore reads.
 - **Validation**: Added source contract coverage for the bell hint, bubble visibility guard, and tab red dot; ran targeted PM tests and full unit tests.
+
+### 2026-05-12 PM User-to-User Toggle [feature]
+- **Issue**: PM permission was fixed in code: user-level accounts could not start new user-to-user conversations unless a conversation already existed, and there was no admin switch to control this behavior.
+- **Fix**: Added `siteConfig/privateMessage.allowUserToUserPm`, super_admin-only callable read/write endpoints, backend enforcement in `sendPrivateMessage`, and a `User互相私訊` slider inside the chat audit panel.
+- **Validation**: Added PM source contract coverage for the audit switch, backend settings callables, default-off behavior, and user-to-user permission path.

@@ -50,11 +50,14 @@ Object.assign(App, {
     return parsed.uidA === safeUid || parsed.uidB === safeUid;
   },
 
-  canSendPMTo(fromRole, toRole, hasExistingConvo = false) {
-    const fromLevel = this._pmRoleLevels[this.normalizeRoleForPM(fromRole)] ?? 0;
-    const toLevel = this._pmRoleLevels[this.normalizeRoleForPM(toRole)] ?? 0;
+  canSendPMTo(fromRole, toRole, hasExistingConvo = false, settings = {}) {
+    const normalizedFromRole = this.normalizeRoleForPM(fromRole);
+    const normalizedToRole = this.normalizeRoleForPM(toRole);
+    const fromLevel = this._pmRoleLevels[normalizedFromRole] ?? 0;
+    const toLevel = this._pmRoleLevels[normalizedToRole] ?? 0;
     if (fromLevel >= this._pmRoleLevels.admin) return true;
     if (hasExistingConvo) return true;
+    if (settings?.allowUserToUserPm === true && normalizedFromRole === 'user' && normalizedToRole === 'user') return true;
     return fromLevel < toLevel;
   },
 
