@@ -15,6 +15,7 @@ describe('user profile card action buttons', () => {
     expect(actionPanel).toContain("App.showToast('功能尚未開放')");
     expect(actionPanel).toContain('>加好友</button>');
     expect(actionPanel).toContain('>私訊</button>');
+    expect(actionPanel).toContain('class="uc-action-btn uc-action-btn-pm"');
     expect(actionPanel).toContain('>關注</button>');
     expect(actionPanel).not.toContain('disabled>加好友');
     expect(actionPanel).not.toContain('disabled>私訊');

@@ -473,7 +473,7 @@ Object.assign(App, {
       : `App.showToast('無法開啟私訊')`;
     return `<div class="uc-action-panel">
       <button type="button" class="uc-action-btn" onclick="App.showToast('功能尚未開放')">加好友</button>
-      <button type="button" class="uc-action-btn" onclick="${pmAction}">私訊</button>
+      <button type="button" class="uc-action-btn uc-action-btn-pm" onclick="${pmAction}">私訊</button>
       <button type="button" class="uc-action-btn" onclick="App.showToast('功能尚未開放')">關注</button>
     </div>`;
   },

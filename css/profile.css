@@ -425,3 +425,19 @@ a.social-btn { text-decoration: none; }
   white-space: nowrap;
 }
 .uc-action-btn:disabled { cursor: default; }
+.uc-action-btn-pm {
+  border-color: rgba(37, 99, 235, .34);
+  background: linear-gradient(135deg, #2563eb, #0891b2);
+  color: #fff;
+  cursor: pointer;
+  opacity: 1;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, .18);
+}
+.uc-action-btn-pm:active {
+  transform: translateY(1px);
+}
+[data-theme="dark"] .uc-action-btn-pm {
+  border-color: rgba(96, 165, 250, .42);
+  background: linear-gradient(135deg, #1d4ed8, #0f766e);
+  box-shadow: 0 8px 18px rgba(14, 165, 233, .16);
+}

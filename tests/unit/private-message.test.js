@@ -24,6 +24,26 @@ describe('private message feature wiring', () => {
     expect(profile).toContain('App.openPmDialog');
   });
 
+  test('PM dialog supports optimistic send, collapsed search, and incoming bubble', () => {
+    const dialog = readProjectFile('js/modules/message/pm-dialog.js');
+    const actions = readProjectFile('js/modules/message/pm-dialog-actions.js');
+    const search = readProjectFile('js/modules/message/pm-dialog-search.js');
+    const listener = readProjectFile('js/modules/message/pm-listener.js');
+    const css = readProjectFile('css/message.css');
+
+    expect(dialog).toContain('_pmOptimisticMessages');
+    expect(dialog).toContain('_getPmDialogRenderMessages');
+    expect(actions).toContain('_addPmOptimisticMessage');
+    expect(actions).toContain('_markPmOptimisticMessage');
+    expect(search).toContain('togglePmDialogSearch');
+    expect(dialog).toContain('pm-dialog-search-toggle');
+    expect(listener).toContain('_showPmIncomingBubble');
+    expect(listener).toContain('pm-incoming-bubble');
+    expect(listener).toContain('data-user-card="pm-thread"');
+    expect(css).toContain('.pm-incoming-bubble');
+    expect(css).toContain('.pm-dialog-tools.is-search-open .pm-dialog-search');
+  });
+
   test('PM permission helper validates canonical conversation participants', () => {
     const source = readProjectFile('js/modules/message/pm-permission.js');
 

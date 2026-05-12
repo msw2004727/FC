@@ -5,6 +5,8 @@
 Object.assign(App, {
   _pmDialogUnsub: null,
   _pmDialogMessages: [],
+  _pmOptimisticMessages: {},
+  _pmOptimisticSeq: 0,
   _pmReadTimers: {},
   _currentPmDialog: null,
 
@@ -25,18 +27,24 @@ Object.assign(App, {
     const overlay = this._ensurePmDialog();
     this._currentPmDialog = { targetUid, conversationId: cId };
     this._pmDialogSearchKeyword = '';
+    this._pmDialogSearchExpanded = false;
     overlay.querySelector('.pm-dialog-peer-name').textContent = peer.name || targetUid;
     overlay.querySelector('.pm-dialog-peer-sub').textContent = targetUid;
     const avatar = overlay.querySelector('.pm-dialog-avatar');
     avatar.innerHTML = peer.pictureUrl
       ? `<img src="${escapeHTML(peer.pictureUrl)}" alt="">`
       : `<span>${escapeHTML(String(peer.name || '?').slice(0, 1))}</span>`;
-    overlay.querySelector('.pm-dialog-search').value = '';
+    const searchTools = overlay.querySelector('.pm-dialog-tools');
+    const searchToggle = overlay.querySelector('.pm-dialog-search-toggle');
+    const searchInput = overlay.querySelector('.pm-dialog-search');
+    if (searchTools) searchTools.classList.remove('is-search-open');
+    if (searchToggle) searchToggle.setAttribute('aria-expanded', 'false');
+    if (searchInput) searchInput.value = '';
     overlay.querySelector('.pm-dialog-input').value = '';
     overlay.style.display = 'flex';
     document.body.classList.add('pm-dialog-open');
     const initialMessages = await this._loadPmMessages(cId, 50);
-    this._renderPmDialogMessages(initialMessages);
+    this._renderPmDialogMessages(this._getPmDialogRenderMessages(cId, initialMessages));
     this._startPmConversationListener(cId);
   },
 
@@ -57,6 +65,7 @@ Object.assign(App, {
           <button type="button" class="pm-dialog-close" aria-label="關閉" onclick="App._closePmDialog()">×</button>
         </header>
         <div class="pm-dialog-tools">
+          <button type="button" class="pm-dialog-search-toggle" aria-label="搜尋對話" aria-expanded="false" onclick="App.togglePmDialogSearch()">&#128269;</button>
           <input class="pm-dialog-search" type="search" placeholder="搜尋本次對話" oninput="App.filterPmDialogMessages(this.value)">
         </div>
         <div class="pm-dialog-messages"></div>
@@ -102,7 +111,7 @@ Object.assign(App, {
       .onSnapshot(snapshot => {
         const messages = snapshot.docs.map(doc => ({ id: doc.id, _docId: doc.id, ...doc.data() }));
         this._pmDialogMessages = messages;
-        this._renderPmDialogMessages(messages);
+        this._renderPmDialogMessages(this._getPmDialogRenderMessages(conversationId, messages));
         if (messages.some(m => m.direction === 'in' && m.read === false)) {
           this._schedulePmMarkRead(conversationId);
         }
@@ -121,6 +130,76 @@ Object.assign(App, {
         console.warn('[_schedulePmMarkRead]', err);
       }
     }, this.PM_MARK_READ_DEBOUNCE_MS || 500);
+  },
+
+  _getPmDialogRenderMessages(conversationId, messages = []) {
+    const cId = String(conversationId || '').trim();
+    const serverMessages = Array.isArray(messages) ? messages : [];
+    if (!cId) return serverMessages;
+    this._reconcilePmOptimisticMessages(cId, serverMessages);
+    const optimistic = this._pmOptimisticMessages[cId] || [];
+    const all = serverMessages.concat(optimistic);
+    return all.sort((a, b) => this._pmTimeMs(a.createdAt) - this._pmTimeMs(b.createdAt));
+  },
+
+  _addPmOptimisticMessage(conversationId, targetUid, body) {
+    const cId = String(conversationId || '').trim();
+    const fromUid = this._pmCurrentUid?.() || '';
+    if (!cId || !fromUid || !body) return '';
+    const localId = `local_pm_${Date.now()}_${++this._pmOptimisticSeq}`;
+    const currentUser = ApiService.getCurrentUser?.() || {};
+    const now = new Date().toISOString();
+    const localMessage = {
+      id: localId,
+      messageId: localId,
+      _localId: localId,
+      _optimistic: true,
+      conversationId: cId,
+      fromUid,
+      toUid: targetUid,
+      direction: 'out',
+      read: true,
+      peerRead: false,
+      body,
+      preview: body,
+      status: 'sending',
+      senderName: currentUser.displayName || currentUser.name || currentUser.lineDisplayName || '',
+      createdAt: now,
+      updatedAt: now,
+    };
+    if (!Array.isArray(this._pmOptimisticMessages[cId])) this._pmOptimisticMessages[cId] = [];
+    this._pmOptimisticMessages[cId].push(localMessage);
+    return localId;
+  },
+
+  _markPmOptimisticMessage(conversationId, localId, updates = {}) {
+    const cId = String(conversationId || '').trim();
+    const list = this._pmOptimisticMessages[cId] || [];
+    const item = list.find(m => m._localId === localId || m.messageId === localId);
+    if (!item) return;
+    Object.assign(item, updates, { updatedAt: new Date().toISOString() });
+  },
+
+  _reconcilePmOptimisticMessages(conversationId, serverMessages = []) {
+    const cId = String(conversationId || '').trim();
+    const list = this._pmOptimisticMessages[cId] || [];
+    if (!list.length) return;
+    const myUid = this._pmCurrentUid?.() || '';
+    const remaining = list.filter(local => {
+      if (local._optimisticFailed) return true;
+      const localMs = this._pmTimeMs(local.createdAt);
+      return !serverMessages.some(server => {
+        const serverId = String(server.messageId || server.id || server._docId || '');
+        if (local._serverMessageId && serverId === local._serverMessageId) return true;
+        const isOwnServer = server.fromUid === myUid || server.direction === 'out';
+        if (!isOwnServer || String(server.body || '') !== String(local.body || '')) return false;
+        const serverMs = this._pmTimeMs(server.createdAt);
+        if (!serverMs || !localMs) return true;
+        return Math.abs(serverMs - localMs) <= 2 * 60 * 1000;
+      });
+    });
+    if (remaining.length) this._pmOptimisticMessages[cId] = remaining;
+    else delete this._pmOptimisticMessages[cId];
   },
 
   _renderPmDialogMessages(messages) {
@@ -150,13 +229,17 @@ Object.assign(App, {
     const own = message.fromUid === myUid || message.direction === 'out';
     const status = message.status || 'active';
     const recalled = status === 'recalled';
+    const pending = message._optimistic && status === 'sending';
+    const failed = message._optimistic && status === 'failed';
     const body = recalled ? '訊息已撤回' : (message.body || '');
     const createdMs = this._pmTimeMs(message.createdAt);
     const age = Date.now() - createdMs;
-    const canEdit = own && !recalled && createdMs && age <= this.PM_EDIT_WINDOW_MS;
-    const canRecall = own && !recalled && createdMs && age <= this.PM_RECALL_WINDOW_MS;
+    const canEdit = own && !message._optimistic && !recalled && createdMs && age <= this.PM_EDIT_WINDOW_MS;
+    const canRecall = own && !message._optimistic && !recalled && createdMs && age <= this.PM_RECALL_WINDOW_MS;
     const meta = [
       this._pmFormatTime?.(message.createdAt) || '',
+      pending ? '\u9001\u51fa\u4e2d' : '',
+      failed ? '\u9001\u51fa\u5931\u6557' : '',
       status === 'edited' ? '已編輯' : '',
       own && message.peerRead ? '已讀' : '',
     ].filter(Boolean).join(' · ');
@@ -166,7 +249,7 @@ Object.assign(App, {
         ${canRecall ? `<button type="button" data-pm-action="recall" data-message-id="${escapeHTML(message.messageId || message.id)}">撤回</button>` : ''}
       </span>` : '';
     return `
-      <article class="pm-message${own ? ' is-own' : ' is-peer'}${recalled ? ' is-recalled' : ''}">
+      <article class="pm-message${own ? ' is-own' : ' is-peer'}${recalled ? ' is-recalled' : ''}${pending ? ' is-pending' : ''}${failed ? ' is-failed' : ''}">
         <div class="pm-message-bubble">${escapeHTML(body)}</div>
         <div class="pm-message-meta">${escapeHTML(meta)}${actions}</div>
       </article>`;
