@@ -19,6 +19,8 @@ describe('private message feature wiring', () => {
     expect(index).toContain('js/modules/message/pm-listener.js');
     expect(scriptLoader).toContain('js/modules/message/pm-audit.js');
     expect(messagePage).toContain('data-msgtype="pm-conversation"');
+    expect(messagePage).toContain('data-msgtype="pm-conversation">私訊</button>');
+    expect(messagePage).not.toContain('私訊對話</button>');
     expect(messagePage).not.toContain('data-msgtype="private"');
     expect(readProjectFile('js/modules/message/message-render.js')).toContain("if (f === 'private') f = 'pm-conversation'");
     expect(profile).toContain('App.openPmDialog');
@@ -33,8 +35,12 @@ describe('private message feature wiring', () => {
 
     expect(dialog).toContain('_pmOptimisticMessages');
     expect(dialog).toContain('_getPmDialogRenderMessages');
+    expect(dialog).toContain('maxlength="${maxLength}"');
+    expect(dialog).toContain('PM_MAX_BODY_LENGTH || 300');
     expect(actions).toContain('_addPmOptimisticMessage');
     expect(actions).toContain('_markPmOptimisticMessage');
+    expect(actions).toContain('PM_MAX_BODY_LENGTH || 300');
+    expect(actions).not.toContain('body.length > 1000');
     expect(search).toContain('togglePmDialogSearch');
     expect(search).toContain("querySelector('.pm-dialog-title')");
     expect(dialog).toContain('pm-dialog-search-toggle');
@@ -54,6 +60,7 @@ describe('private message feature wiring', () => {
     expect(readProjectFile('app.js')).toContain('this.startPmThreadListener?.();');
     expect(readProjectFile('js/modules/message/pm-entry.js')).toContain('_pmParseConversationId(options.conversationId)');
     expect(css).toContain('.pm-incoming-bubble');
+    expect(css).toContain('width:min(224px, calc(100vw - 28px))');
     expect(css).toContain('.pm-dialog-title.is-search-open .pm-dialog-search');
     expect(css).toContain('.pm-dialog-search-toggle.is-active');
     expect(css).toContain('.pm-dialog-avatar:focus-visible');
@@ -61,12 +68,16 @@ describe('private message feature wiring', () => {
 
   test('PM audit layout constrains long UID and log rows inside the admin panel', () => {
     const css = readProjectFile('css/message.css');
+    const audit = readProjectFile('js/modules/message/pm-audit.js');
 
     expect(css).toContain('[data-admin-log-panel="chat"] { min-width:0; max-width:100%; overflow:hidden; }');
     expect(css).toContain('.pm-audit-layout { display:grid; grid-template-columns:minmax(0,1fr)');
     expect(css).toContain('.pm-audit-settings-card');
     expect(css).toContain('.pm-audit-switch input:checked + span');
     expect(css).toContain('.pm-audit-log { display:grid; grid-template-columns:auto minmax(0,1fr) auto');
+    expect(css).toContain('font-size:.74rem');
+    expect(audit).toContain('_pmAuditShortUid');
+    expect(audit).toContain('limit: 30');
     expect(css).toContain('.pm-audit-message p { margin:.35rem 0 0; font-size:.8rem; line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere; }');
     expect(css).toContain('@media (max-width:560px)');
   });
@@ -129,6 +140,7 @@ describe('private message feature wiring', () => {
     expect(source).toContain('_pmParseConversationId(cId)');
     expect(source).toContain('pmBuildConversationId(uidA, uidB)');
     expect(source).toContain('pmIsValidConversationId(cId, uid)');
+    expect(source).toContain('PM_MAX_BODY_LENGTH: 300');
     expect(source).toContain('parsed.uidA === safeUid || parsed.uidB === safeUid');
     expect(source).toContain('allowUserToUserPm');
     expect(source).toContain("normalizedFromRole === 'user' && normalizedToRole === 'user'");
@@ -139,6 +151,7 @@ describe('private message feature wiring', () => {
     const functions = readProjectFile('functions/index.js');
 
     expect(functions).toContain('const PM_AUDIT_RETENTION_DAYS = 180');
+    expect(functions).toContain('const PM_MAX_BODY_LENGTH = 300');
     expect(functions).toContain('exports.sendPrivateMessage');
     expect(functions).toContain('exports.markPrivateConversationRead');
     expect(functions).toContain('exports.editPrivateMessage');

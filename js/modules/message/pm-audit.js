@@ -12,6 +12,37 @@ Object.assign(App, {
     return role === 'super_admin';
   },
 
+  _pmAuditActionLabel(action) {
+    const labels = {
+      send: 'send',
+      read: 'read',
+      edit: 'edit',
+      recall: 'recall',
+      search_user: 'search',
+      audit_view_thread: 'threads',
+      audit_view_conversation: 'view',
+      audit_search_logs: 'logs',
+      settings_update: 'settings',
+    };
+    return labels[String(action || '')] || String(action || '-');
+  },
+
+  _pmAuditShortUid(uid) {
+    const text = String(uid || '').trim();
+    if (!text) return '-';
+    return text.length > 14 ? `${text.slice(0, 6)}...${text.slice(-4)}` : text;
+  },
+
+  _pmAuditShortTime(value) {
+    const text = String(value || '').trim();
+    if (!text) return '';
+    const date = new Date(text);
+    if (!Number.isNaN(date.getTime())) {
+      return date.toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    }
+    return text.slice(0, 16);
+  },
+
   renderPmAuditPanel() {
     const panel = document.querySelector('[data-admin-log-panel="chat"]');
     if (!panel) return;
@@ -53,7 +84,7 @@ Object.assign(App, {
             <div id="pm-audit-conversation" class="pm-audit-conversation muted">尚未選擇對話</div>
           </section>
           <section class="pm-audit-card">
-            <h3>聊天室使用 log</h3>
+            <h3>Log</h3>
             <div class="pm-audit-row">
               <select id="pm-audit-action">
                 <option value="">全部動作</option>
@@ -215,8 +246,23 @@ Object.assign(App, {
     try {
       const action = forceAction || String(document.getElementById('pm-audit-action')?.value || '');
       const fn = this._pmCallable?.('getPmAuditLogs');
-      const resp = await fn({ action, limit: 50 });
+      const resp = await fn({ action, limit: 30 });
       const logs = resp?.data?.logs || [];
+      if (logs.length) {
+        box.innerHTML = logs.map(log => {
+          const actor = this._pmAuditShortUid(log.actorUid);
+          const target = this._pmAuditShortUid(log.targetUid);
+          const route = target && target !== '-' ? `${actor} -> ${target}` : actor;
+          const fullRoute = [log.actorUid, log.targetUid].filter(Boolean).join(' -> ');
+          return `
+        <div class="pm-audit-log" title="${escapeHTML(fullRoute)}">
+          <strong>${escapeHTML(this._pmAuditActionLabel(log.action))}</strong>
+          <span data-no-translate>${escapeHTML(route)}</span>
+          <small>${escapeHTML(this._pmAuditShortTime(log.createdAtIso) || this._pmFormatTime?.(log.createdAt) || '')}</small>
+        </div>`;
+        }).join('');
+        return;
+      }
       box.innerHTML = logs.length ? logs.map(log => `
         <div class="pm-audit-log">
           <strong>${escapeHTML(log.action || '')}</strong>

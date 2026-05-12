@@ -57,6 +57,7 @@ Object.assign(App, {
   _ensurePmDialog() {
     let overlay = document.getElementById('pm-dialog-overlay');
     if (overlay) return overlay;
+    const maxLength = Number(this.PM_MAX_BODY_LENGTH || 300);
     overlay = document.createElement('div');
     overlay.id = 'pm-dialog-overlay';
     overlay.className = 'pm-dialog-overlay';
@@ -81,10 +82,15 @@ Object.assign(App, {
         </header>
         <div class="pm-dialog-messages"></div>
         <form class="pm-dialog-compose">
-          <textarea class="pm-dialog-input" maxlength="1000" rows="2" placeholder="輸入訊息，最多 1000 字"></textarea>
+          <textarea class="pm-dialog-input" maxlength="${maxLength}" rows="2" placeholder=""></textarea>
           <button type="submit" class="pm-dialog-send">送出</button>
         </form>
       </section>`;
+    const input = overlay.querySelector('.pm-dialog-input');
+    if (input) {
+      input.maxLength = maxLength;
+      input.placeholder = `\u8f38\u5165\u8a0a\u606f\uff0c\u6700\u591a ${maxLength} \u5b57`;
+    }
     overlay.addEventListener('click', e => {
       if (e.target === overlay) this._closePmDialog();
     });

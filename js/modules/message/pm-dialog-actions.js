@@ -8,13 +8,14 @@ Object.assign(App, {
     if (!state?.targetUid || !state?.conversationId) return;
     const overlay = document.getElementById('pm-dialog-overlay');
     const input = overlay?.querySelector('.pm-dialog-input');
+    const maxLength = Number(this.PM_MAX_BODY_LENGTH || 300);
     const body = String(input?.value || '').trim();
     if (!body) {
       this.showToast?.('\u8acb\u8f38\u5165\u8a0a\u606f');
       return;
     }
-    if (body.length > 1000) {
-      this.showToast?.('\u8a0a\u606f\u6700\u591a 1000 \u5b57');
+    if (body.length > maxLength) {
+      this.showToast?.(`\u8a0a\u606f\u6700\u591a ${maxLength} \u5b57`);
       return;
     }
 
@@ -133,9 +134,10 @@ Object.assign(App, {
     }
     const nextBody = prompt('\u7de8\u8f2f\u8a0a\u606f', current?.body || '');
     if (nextBody == null) return;
+    const maxLength = Number(this.PM_MAX_BODY_LENGTH || 300);
     const body = String(nextBody || '').trim();
-    if (!body || body.length > 1000) {
-      this.showToast?.('\u8a0a\u606f\u6700\u591a 1000 \u5b57');
+    if (!body || body.length > maxLength) {
+      this.showToast?.(`\u8a0a\u606f\u6700\u591a ${maxLength} \u5b57`);
       return;
     }
     this._setPmPendingMessageUpdate?.(state.conversationId, messageId, {

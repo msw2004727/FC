@@ -79,7 +79,7 @@
 .pm-thread-time { margin-left:auto; flex-shrink:0; font-size:.7rem; color:var(--text-muted); }
 .pm-thread-preview { color:var(--text-secondary); font-size:.78rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .pm-thread-badge { min-width:1.35rem; height:1.35rem; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; padding:0 .28rem; background:#ef4444; color:#fff; font-size:.68rem; font-weight:800; }
-.pm-incoming-bubble { position:fixed; top:84px; right:14px; z-index:1500; width:min(320px, calc(100vw - 28px)); display:flex; align-items:center; gap:.65rem; padding:.7rem .78rem; border:1px solid rgba(37,99,235,.28); border-radius:18px; background:rgba(255,255,255,.92); color:var(--text-primary); box-shadow:0 18px 45px rgba(15,23,42,.2); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); cursor:pointer; text-align:left; opacity:0; transform:translateY(-10px); pointer-events:none; transition:opacity .18s ease, transform .18s ease; }
+.pm-incoming-bubble { position:fixed; top:84px; right:14px; z-index:1500; width:min(224px, calc(100vw - 28px)); display:flex; align-items:center; gap:.55rem; padding:.62rem .68rem; border:1px solid rgba(37,99,235,.28); border-radius:18px; background:rgba(255,255,255,.92); color:var(--text-primary); box-shadow:0 18px 45px rgba(15,23,42,.2); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); cursor:pointer; text-align:left; opacity:0; transform:translateY(-10px); pointer-events:none; transition:opacity .18s ease, transform .18s ease; }
 .pm-incoming-bubble.is-visible { opacity:1; transform:translateY(0); pointer-events:auto; }
 .pm-incoming-avatar { width:2.1rem; height:2.1rem; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; overflow:hidden; flex:0 0 auto; background:linear-gradient(135deg, #2563eb, #14b8a6); color:#fff; font-weight:800; }
 .pm-incoming-avatar img { width:100%; height:100%; object-fit:cover; display:block; }
@@ -154,7 +154,7 @@
 .pm-audit-message div strong { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .pm-audit-message div small { flex:0 0 auto; white-space:nowrap; }
 .pm-audit-message p { margin:.35rem 0 0; font-size:.8rem; line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere; }
-.pm-audit-log { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:.45rem; align-items:center; }
+.pm-audit-log { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:.36rem; align-items:center; padding:.38rem .48rem; font-size:.74rem; }
 .pm-audit-log strong { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .pm-audit-log span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-secondary); }
 .pm-audit-log small { flex:0 0 auto; white-space:nowrap; color:var(--text-muted); }
