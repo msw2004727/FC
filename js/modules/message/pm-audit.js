@@ -6,6 +6,10 @@ Object.assign(App, {
   _pmAuditSelectedUid: '',
   _pmAuditSelectedConversationId: '',
   _pmSettingsSaving: false,
+  _pmAuditLogItems: [],
+  _pmAuditLogNextCursor: null,
+  _pmAuditLogAction: '',
+  _pmAuditLogLoading: false,
 
   _isPmAuditAllowed() {
     const role = ApiService.getCurrentUser?.()?.role || this.currentRole || 'user';
@@ -41,6 +45,38 @@ Object.assign(App, {
       return date.toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
     }
     return text.slice(0, 16);
+  },
+
+  _renderPmAuditLogRows(logs) {
+    return (logs || []).map(log => {
+      const actor = this._pmAuditShortUid(log.actorUid);
+      const target = this._pmAuditShortUid(log.targetUid);
+      const route = target && target !== '-' ? `${actor} -> ${target}` : actor;
+      const fullRoute = [log.actorUid, log.targetUid].filter(Boolean).join(' -> ');
+      return `
+        <div class="pm-audit-log" title="${escapeHTML(fullRoute)}">
+          <strong>${escapeHTML(this._pmAuditActionLabel(log.action))}</strong>
+          <span data-no-translate>${escapeHTML(route)}</span>
+          <small>${escapeHTML(this._pmAuditShortTime(log.createdAtIso) || this._pmFormatTime?.(log.createdAt) || '')}</small>
+        </div>`;
+    }).join('');
+  },
+
+  _renderPmAuditLogList(logs, options = {}) {
+    const box = document.getElementById('pm-audit-logs');
+    if (!box) return;
+    const hasMore = options.hasMore === true;
+    const loading = options.loading === true;
+    const loadingText = '\u8f09\u5165\u4e2d...';
+    if (!Array.isArray(logs) || logs.length === 0) {
+      box.innerHTML = `<div class="muted">${loading ? loadingText : '\u76ee\u524d\u6c92\u6709 log'}</div>`;
+      return;
+    }
+    const buttonText = loading ? loadingText : '\u52a0\u8f09\u66f4\u591a';
+    const footer = hasMore || loading
+      ? `<div class="pm-audit-load-more-row"><button type="button" class="outline-btn small pm-audit-load-more" onclick="App.loadMorePmAuditLogs()" ${loading ? 'disabled' : ''}>${buttonText}</button></div>`
+      : `<div class="pm-audit-log-end muted">${'\u6c92\u6709\u66f4\u591a log'}</div>`;
+    box.innerHTML = this._renderPmAuditLogRows(logs) + footer;
   },
 
   renderPmAuditPanel() {
@@ -239,7 +275,7 @@ Object.assign(App, {
     }
   },
 
-  async loadPmAuditLogs(forceAction) {
+  async _legacyLoadPmAuditLogs(forceAction) {
     const box = document.getElementById('pm-audit-logs');
     if (!box) return;
     box.innerHTML = '<div class="muted">載入中...</div>';
@@ -272,6 +308,58 @@ Object.assign(App, {
     } catch (err) {
       console.warn('[loadPmAuditLogs]', err);
       box.innerHTML = '<div class="muted">載入 log 失敗</div>';
+    }
+  },
+  async loadPmAuditLogs(forceAction) {
+    const box = document.getElementById('pm-audit-logs');
+    if (!box) return;
+    const select = document.getElementById('pm-audit-action');
+    const action = forceAction || String(select?.value || '');
+    if (forceAction && select && Array.from(select.options || []).some(opt => opt.value === forceAction)) {
+      select.value = forceAction;
+    }
+    this._pmAuditLogAction = action;
+    this._pmAuditLogItems = [];
+    this._pmAuditLogNextCursor = null;
+    await this._fetchPmAuditLogsPage({ append: false });
+  },
+
+  async loadMorePmAuditLogs() {
+    if (!this._pmAuditLogNextCursor || this._pmAuditLogLoading) return;
+    await this._fetchPmAuditLogsPage({ append: true });
+  },
+
+  async _fetchPmAuditLogsPage({ append = false } = {}) {
+    const box = document.getElementById('pm-audit-logs');
+    if (!box || this._pmAuditLogLoading) return;
+    this._pmAuditLogLoading = true;
+    if (append) {
+      this._renderPmAuditLogList(this._pmAuditLogItems, { hasMore: !!this._pmAuditLogNextCursor, loading: true });
+    } else {
+      box.innerHTML = '<div class="muted">\u8f09\u5165\u4e2d...</div>';
+    }
+    try {
+      const fn = this._pmCallable?.('getPmAuditLogs');
+      const payload = { action: this._pmAuditLogAction || '', limit: 50 };
+      if (append && this._pmAuditLogNextCursor?.createdAtMs) {
+        payload.cursorCreatedAtMs = Number(this._pmAuditLogNextCursor.createdAtMs);
+      }
+      const resp = await fn(payload);
+      const logs = resp?.data?.logs || [];
+      this._pmAuditLogItems = append ? this._pmAuditLogItems.concat(logs) : logs;
+      this._pmAuditLogNextCursor = resp?.data?.nextCursor || null;
+      this._renderPmAuditLogList(this._pmAuditLogItems, {
+        hasMore: resp?.data?.hasMore === true && !!this._pmAuditLogNextCursor,
+      });
+    } catch (err) {
+      console.warn('[loadPmAuditLogs]', err);
+      if (append) {
+        this._renderPmAuditLogList(this._pmAuditLogItems, { hasMore: !!this._pmAuditLogNextCursor });
+      } else {
+        box.innerHTML = '<div class="muted">頛 log 憭望?</div>';
+      }
+    } finally {
+      this._pmAuditLogLoading = false;
     }
   },
 });

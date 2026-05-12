@@ -68,8 +68,10 @@ describe('private message feature wiring', () => {
 
   test('PM audit layout constrains long UID and log rows inside the admin panel', () => {
     const css = readProjectFile('css/message.css');
+    const adminCss = readProjectFile('css/admin.css');
     const audit = readProjectFile('js/modules/message/pm-audit.js');
 
+    expect(adminCss).toContain('.admin-log-toolbar.is-empty { display: none; }');
     expect(css).toContain('[data-admin-log-panel="chat"] { min-width:0; max-width:100%; overflow:hidden; }');
     expect(css).toContain('.pm-audit-layout { display:grid; grid-template-columns:minmax(0,1fr)');
     expect(css).toContain('.pm-audit-settings-card');
@@ -77,7 +79,10 @@ describe('private message feature wiring', () => {
     expect(css).toContain('.pm-audit-log { display:grid; grid-template-columns:auto minmax(0,1fr) auto');
     expect(css).toContain('font-size:.74rem');
     expect(audit).toContain('_pmAuditShortUid');
-    expect(audit).toContain('limit: 30');
+    expect(audit).toContain('limit: 50');
+    expect(audit).toContain('loadMorePmAuditLogs');
+    expect(audit).toContain('cursorCreatedAtMs');
+    expect(css).toContain('.pm-audit-load-more-row');
     expect(css).toContain('.pm-audit-message p { margin:.35rem 0 0; font-size:.8rem; line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere; }');
     expect(css).toContain('@media (max-width:560px)');
   });
@@ -103,7 +108,7 @@ describe('private message feature wiring', () => {
     const messageCss = readProjectFile('css/message.css');
 
     expect(index).toContain('id="pm-notif-hint"');
-    expect(index).toContain('<svg viewBox="0 0 24 24" width="14" height="14"');
+    expect(index).toContain('<img src="img/chat.png" alt="">');
     expect(messagePage).toContain('data-msgtype="pm-conversation"');
     expect(renderer).toContain('_syncPmUnreadIndicators');
     expect(renderer).toContain('const showBellHint = count > 0 && !this._pmIncomingBubbleVisible');
@@ -164,6 +169,9 @@ describe('private message feature wiring', () => {
     expect(functions).toContain('normalizedFromRole === "user" && normalizedToRole === "user"');
     expect(functions).toContain('exports.searchPmAuditUsers');
     expect(functions).toContain('exports.getPmAuditConversation');
+    expect(functions).toContain('exports.getPmAuditLogs');
+    expect(functions).toContain('limit + 1');
+    expect(functions).toContain('nextCursor');
     expect(functions).toContain('exports.cleanupPmAuditRetention');
     expect(functions).toContain('if (!access.isSuperAdmin) throw new HttpsError("permission-denied", "super_admin only")');
     expect(functions).toContain('retentionDeleteAfter: pmRetentionTimestamp(now)');

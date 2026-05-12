@@ -158,6 +158,9 @@
 .pm-audit-log strong { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .pm-audit-log span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-secondary); }
 .pm-audit-log small { flex:0 0 auto; white-space:nowrap; color:var(--text-muted); }
+.pm-audit-load-more-row { display:flex; justify-content:center; margin-top:.2rem; }
+.pm-audit-load-more { min-width:7rem; justify-content:center; }
+.pm-audit-log-end { text-align:center; padding:.25rem 0; }
 .muted { color:var(--text-muted); font-size:.82rem; }
 
 @media (max-width:560px) {

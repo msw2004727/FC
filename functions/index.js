@@ -10201,12 +10201,18 @@ function pmServerTimestampIso(date = new Date()) {
 function pmMessageSortMs(data) {
   const createdAt = data?.createdAt;
   if (createdAt?.toDate) return createdAt.toDate().getTime();
-  if (createdAt?._seconds) return createdAt._seconds * 1000;
+  if (createdAt?._seconds) return createdAt._seconds * 1000 + Math.floor((createdAt._nanoseconds || 0) / 1000000);
   if (typeof createdAt === "string") {
     const ms = Date.parse(createdAt);
     if (Number.isFinite(ms)) return ms;
   }
   return 0;
+}
+
+function pmAuditLogCursor(docSnap) {
+  const data = docSnap.data() || {};
+  const createdAtMs = pmMessageSortMs(data);
+  return { id: docSnap.id, createdAtMs };
 }
 
 function pmClientMessage(data, id) {
@@ -10692,6 +10698,7 @@ exports.getPmAuditLogs = onCall(
   async (request) => {
     const caller = await pmAssertSuperAdmin(request);
     const limit = Math.min(Math.max(Number(request.data?.limit || 50), 1), 100);
+    const cursorCreatedAtMs = Number(request.data?.cursorCreatedAtMs || 0);
     let query = db.collection("pmAuditLogs");
     const actorUid = pmString(request.data?.actorUid, 80);
     const targetUid = pmString(request.data?.targetUid, 80);
@@ -10701,12 +10708,25 @@ exports.getPmAuditLogs = onCall(
     if (targetUid) query = query.where("targetUid", "==", targetUid);
     if (conversationId) query = query.where("conversationId", "==", conversationId);
     if (action) query = query.where("action", "==", action);
-    const snap = await query.orderBy("createdAt", "desc").limit(limit).get();
+    let ordered = query.orderBy("createdAt", "desc");
+    if (Number.isFinite(cursorCreatedAtMs) && cursorCreatedAtMs > 0) {
+      ordered = ordered.startAfter(Timestamp.fromMillis(cursorCreatedAtMs));
+    }
+    const snap = await ordered.limit(limit + 1).get();
+    const docs = snap.docs.slice(0, limit);
+    const nextCursor = snap.docs.length > limit && docs.length
+      ? pmAuditLogCursor(docs[docs.length - 1])
+      : null;
     await pmWriteAuditLog("audit_search_logs", {
       actorUid: caller.uid,
-      querySummary: JSON.stringify({ actorUid, targetUid, conversationId, action, limit }).slice(0, 300),
+      querySummary: JSON.stringify({ actorUid, targetUid, conversationId, action, limit, hasCursor: cursorCreatedAtMs > 0 }).slice(0, 300),
     });
-    return { ok: true, logs: snap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() })) };
+    return {
+      ok: true,
+      logs: docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data(), _cursor: pmAuditLogCursor(docSnap) })),
+      nextCursor,
+      hasMore: !!nextCursor,
+    };
   },
 );
 
