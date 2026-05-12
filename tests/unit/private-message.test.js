@@ -36,7 +36,11 @@ describe('private message feature wiring', () => {
     expect(actions).toContain('_addPmOptimisticMessage');
     expect(actions).toContain('_markPmOptimisticMessage');
     expect(search).toContain('togglePmDialogSearch');
+    expect(search).toContain("querySelector('.pm-dialog-title')");
     expect(dialog).toContain('pm-dialog-search-toggle');
+    expect(dialog).toContain('pm-dialog-peer-line');
+    expect(dialog).toContain('pm-dialog-search-icon');
+    expect(dialog).not.toContain('&#128269;');
     expect(listener).toContain('_showPmIncomingBubble');
     expect(listener).toContain('_findPmInitialUnread');
     expect(listener).toContain('_resolvePmThreadPeerUid');
@@ -48,7 +52,8 @@ describe('private message feature wiring', () => {
     expect(readProjectFile('app.js')).toContain('this.startPmThreadListener?.();');
     expect(readProjectFile('js/modules/message/pm-entry.js')).toContain('_pmParseConversationId(options.conversationId)');
     expect(css).toContain('.pm-incoming-bubble');
-    expect(css).toContain('.pm-dialog-tools.is-search-open .pm-dialog-search');
+    expect(css).toContain('.pm-dialog-title.is-search-open .pm-dialog-search');
+    expect(css).toContain('.pm-dialog-search-toggle.is-active');
   });
 
   test('PM audit layout constrains long UID and log rows inside the admin panel', () => {

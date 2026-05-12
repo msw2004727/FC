@@ -35,11 +35,12 @@ Object.assign(App, {
     avatar.innerHTML = peer.pictureUrl
       ? `<img src="${escapeHTML(peer.pictureUrl)}" alt="">`
       : `<span>${escapeHTML(String(peer.name || '?').slice(0, 1))}</span>`;
-    const searchTools = overlay.querySelector('.pm-dialog-tools');
+    const searchHost = overlay.querySelector('.pm-dialog-title');
     const searchToggle = overlay.querySelector('.pm-dialog-search-toggle');
     const searchInput = overlay.querySelector('.pm-dialog-search');
-    if (searchTools) searchTools.classList.remove('is-search-open');
+    if (searchHost) searchHost.classList.remove('is-search-open');
     if (searchToggle) searchToggle.setAttribute('aria-expanded', 'false');
+    if (searchToggle) searchToggle.classList.remove('is-active');
     if (searchInput) searchInput.value = '';
     overlay.querySelector('.pm-dialog-input').value = '';
     overlay.style.display = 'flex';
@@ -61,14 +62,19 @@ Object.assign(App, {
           <div class="pm-dialog-avatar"></div>
           <div class="pm-dialog-title">
             <strong class="pm-dialog-peer-name" data-no-translate></strong>
-            <span class="pm-dialog-peer-sub" data-no-translate></span>
+            <div class="pm-dialog-peer-line">
+              <span class="pm-dialog-peer-sub" data-no-translate></span>
+              <button type="button" class="pm-dialog-search-toggle" aria-label="搜尋對話" aria-expanded="false" onclick="App.togglePmDialogSearch()">
+                <svg class="pm-dialog-search-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M10.75 5.25a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"></path>
+                  <path d="m15 15 4 4"></path>
+                </svg>
+              </button>
+              <input class="pm-dialog-search" type="search" placeholder="搜尋" oninput="App.filterPmDialogMessages(this.value)">
+            </div>
           </div>
           <button type="button" class="pm-dialog-close" aria-label="關閉" onclick="App._closePmDialog()">×</button>
         </header>
-        <div class="pm-dialog-tools">
-          <button type="button" class="pm-dialog-search-toggle" aria-label="搜尋對話" aria-expanded="false" onclick="App.togglePmDialogSearch()">&#128269;</button>
-          <input class="pm-dialog-search" type="search" placeholder="搜尋本次對話" oninput="App.filterPmDialogMessages(this.value)">
-        </div>
         <div class="pm-dialog-messages"></div>
         <form class="pm-dialog-compose">
           <textarea class="pm-dialog-input" maxlength="1000" rows="2" placeholder="輸入訊息，最多 1000 字"></textarea>

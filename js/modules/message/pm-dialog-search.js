@@ -8,7 +8,7 @@ Object.assign(App, {
 
   togglePmDialogSearch(expanded) {
     const overlay = document.getElementById('pm-dialog-overlay');
-    const tools = overlay?.querySelector('.pm-dialog-tools');
+    const tools = overlay?.querySelector('.pm-dialog-title');
     const input = overlay?.querySelector('.pm-dialog-search');
     const toggle = overlay?.querySelector('.pm-dialog-search-toggle');
     if (!tools || !input) return;
@@ -16,6 +16,7 @@ Object.assign(App, {
     this._pmDialogSearchExpanded = next;
     tools.classList.toggle('is-search-open', next);
     if (toggle) toggle.setAttribute('aria-expanded', next ? 'true' : 'false');
+    if (toggle) toggle.classList.toggle('is-active', next);
     if (next) {
       setTimeout(() => input.focus(), 0);
       return;
