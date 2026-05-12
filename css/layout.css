@@ -214,10 +214,10 @@
 #notif-btn { position: relative; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); }
 #notif-btn:hover { background: var(--bg-elevated); }
 .notif-badge { position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--danger); color: #fff; font-size: .6rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }
-.pm-notif-hint { position: absolute; right: -7px; bottom: -8px; width: 21px; height: 21px; border-radius: 999px; display: none; align-items: center; justify-content: center; background: #ef4444; color: #fff; box-shadow: 0 0 0 2px var(--bg-card), 0 5px 12px rgba(239,68,68,.32); pointer-events: none; z-index: 2; }
+.pm-notif-hint { position: absolute; left: 50%; top: calc(100% + 2px); width: 22px; height: 22px; display: none; align-items: center; justify-content: center; color: #ef4444; filter: drop-shadow(0 2px 4px rgba(239,68,68,.28)); transform: translateX(-50%); pointer-events: none; z-index: 2; }
 #notif-btn.has-pm-unread .pm-notif-hint { display: flex; }
-.pm-notif-hint svg { width: 14px; height: 14px; stroke: currentColor; }
-[data-theme="dark"] .pm-notif-hint { background: #fb7185; color: #fff; box-shadow: 0 0 0 2px var(--bg-card), 0 5px 14px rgba(251,113,133,.38); }
+.pm-notif-hint svg { width: 22px; height: 22px; stroke: currentColor; transform: scaleY(-1); transform-box: fill-box; transform-origin: center; }
+[data-theme="dark"] .pm-notif-hint { color: #fb7185; filter: drop-shadow(0 2px 5px rgba(251,113,133,.36)); }
 
 /* ─── Sport Picker (Top Bar) ─── */
 .sport-picker-wrapper {
