@@ -475,6 +475,64 @@
 .apply-role-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-bg, rgba(13,148,136,.06)); }
 .apply-role-btn:active { transform: scale(.97); }
 .apply-role-btn svg { flex-shrink: 0; stroke: currentColor; }
+
+/* ─── Role Application Notice ─── */
+.role-application-notice-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, .38);
+  -webkit-backdrop-filter: blur(14px) saturate(145%);
+  backdrop-filter: blur(14px) saturate(145%);
+}
+.role-application-notice-card {
+  width: min(92vw, 380px);
+  padding: 1.15rem;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, .58);
+  background: rgba(255, 255, 255, .9);
+  box-shadow: 0 20px 52px rgba(15, 23, 42, .24);
+  color: var(--text-primary);
+}
+.role-application-notice-title {
+  font-size: 1.02rem;
+  font-weight: 800;
+  text-align: center;
+  margin-bottom: .7rem;
+}
+.role-application-notice-body {
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+  color: var(--text-secondary);
+  font-size: .9rem;
+  line-height: 1.65;
+  text-align: center;
+}
+.role-application-notice-body p { margin: 0; }
+.role-application-notice-confirm {
+  width: 100%;
+  margin-top: 1rem;
+  padding: .78rem 1rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 800;
+  font-size: .92rem;
+  cursor: pointer;
+  transition: transform var(--transition), filter var(--transition);
+}
+.role-application-notice-confirm:hover { filter: brightness(.96); }
+.role-application-notice-confirm:active { transform: scale(.98); }
+[data-theme="dark"] .role-application-notice-card {
+  border-color: rgba(148, 163, 184, .34);
+  background: rgba(15, 23, 42, .88);
+}
 .drawer-font-btn { flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--border); background: var(--bg-elevated); color: var(--text-secondary); font-weight: 900; font-size: .85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all var(--transition); }
 .drawer-font-btn:hover { border-color: var(--accent); color: var(--accent); }
 .drawer-font-btn.font-m { font-size: .95rem; border-color: var(--accent); color: var(--accent); }

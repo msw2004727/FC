@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-12 — Drawer 申請角色入口改為確認後導向
+- **問題**：左側抽屜「申請（俱樂部/場主/教練）」會直接通知管理員並開啟 roles 頁，沒有先說明目前一般用戶已可自由開團，容易讓用戶誤解必須先申請身分。
+- **修復**：[js/modules/role.js](js/modules/role.js) 將 `_handleApplyRoleClick()` 改成先顯示毛玻璃提醒彈窗；用戶按「確認」後才延續原本流程：通知 admin/super_admin 並開啟 `https://toosterx.com/roles`。[css/layout.css](css/layout.css) 新增獨立彈窗樣式，避免依賴非同步載入的教育模組 CSS。
+- **驗收**：新增 [tests/unit/role-application-notice.test.js](tests/unit/role-application-notice.test.js) 鎖定提醒文案、確認後導向與毛玻璃樣式契約。
+
 ### 2026-05-11 — Timeline 載入遮罩 Round 3：延遲 150ms + 不擋點擊 + 連點 refresh
 - **問題**：Round 2 修法部署後，用戶回報「有時候點了卡片沒有反應」。Round 2 把遮罩條件收緊到「event 不在快取且 cloud 未 ready」，導致**慢場景**（network slow / Firestore 拉 attendance 久）也不顯示遮罩 → 用戶以為「沒反應」。另外連點同一張卡時 `dataset.tlOpening === '1'` silent return，完全無視覺回饋。
 - **修復**：三管齊下

@@ -303,13 +303,52 @@ Object.assign(App, {
 
   /**
    * 抽屜「申請（俱樂部/場主/教練）」點擊處理
+   * - 先顯示網站已開放一般用戶自由開團的提醒
+   * - 用戶確認後才延續原本通知與 roles 頁導向流程
+   */
+  _handleApplyRoleClick() {
+    this._showRoleApplicationNotice();
+  },
+
+  _showRoleApplicationNotice() {
+    const oldOverlay = document.getElementById('role-application-notice-overlay');
+    if (oldOverlay) oldOverlay.remove();
+    this.closeDrawer();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'role-application-notice-overlay';
+    overlay.className = 'role-application-notice-overlay';
+    overlay.setAttribute('role', 'presentation');
+    overlay.innerHTML = '<div class="role-application-notice-card" role="dialog" aria-modal="true" aria-labelledby="role-application-notice-title">'
+      + '<div class="role-application-notice-title" id="role-application-notice-title">申請前提醒</div>'
+      + '<div class="role-application-notice-body">'
+      + '<p>目前網站已全面開放一般用戶自由開團。</p>'
+      + '<p>如果還需要創立賽事與俱樂部功能，請進一步聯繫我們。</p>'
+      + '</div>'
+      + '<button type="button" class="role-application-notice-confirm">確認</button>'
+      + '</div>';
+
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) overlay.remove();
+    });
+    const confirmButton = overlay.querySelector('.role-application-notice-confirm');
+    confirmButton?.addEventListener('click', () => {
+      overlay.remove();
+      this._continueApplyRoleRequest();
+    });
+    document.body.appendChild(overlay);
+    setTimeout(() => confirmButton?.focus(), 0);
+  },
+
+  /**
+   * 抽屜「申請（俱樂部/場主/教練）」確認後處理
    * - 先送站內信通知所有 admin + super_admin（範本 role_application）
    * - 再開啟 roles 頁（新分頁）
    * - 關閉抽屜
    * 用戶未登入或通知寫入失敗都不阻擋開啟 roles 頁（降級處理）
    * 不加冷卻、允許用戶重複申請、admins 會多次收到通知（依用戶決議）
    */
-  _handleApplyRoleClick() {
+  _continueApplyRoleRequest() {
     try {
       var u = ApiService.getCurrentUser?.();
       var userName = (u && (u.displayName || u.name)) || '訪客';
@@ -319,7 +358,7 @@ Object.assign(App, {
     } catch (err) {
       console.warn('[applyRole] notify admins failed:', err);
     }
-    window.open('https://toosterx.com/roles/', '_blank');
+    window.open('https://toosterx.com/roles', '_blank');
     this.closeDrawer();
   },
 
