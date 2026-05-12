@@ -26,12 +26,16 @@ Object.assign(App, {
       pictureUrl: thread?.peerAvatar || '',
     };
     const overlay = this._ensurePmDialog();
-    this._currentPmDialog = { targetUid, conversationId: cId };
+    this._currentPmDialog = { targetUid, conversationId: cId, peerName: peer.name || targetUid };
     this._pmDialogSearchKeyword = '';
     this._pmDialogSearchExpanded = false;
     overlay.querySelector('.pm-dialog-peer-name').textContent = peer.name || targetUid;
     overlay.querySelector('.pm-dialog-peer-sub').textContent = targetUid;
     const avatar = overlay.querySelector('.pm-dialog-avatar');
+    if (avatar) {
+      avatar.dataset.peerUid = targetUid;
+      avatar.dataset.peerName = peer.name || targetUid;
+    }
     avatar.innerHTML = peer.pictureUrl
       ? `<img src="${escapeHTML(peer.pictureUrl)}" alt="">`
       : `<span>${escapeHTML(String(peer.name || '?').slice(0, 1))}</span>`;
@@ -59,7 +63,7 @@ Object.assign(App, {
     overlay.innerHTML = `
       <section class="pm-dialog" role="dialog" aria-modal="true" aria-label="私訊對話">
         <header class="pm-dialog-header">
-          <div class="pm-dialog-avatar"></div>
+          <button type="button" class="pm-dialog-avatar" aria-label="Open user profile"></button>
           <div class="pm-dialog-title">
             <strong class="pm-dialog-peer-name" data-no-translate></strong>
             <div class="pm-dialog-peer-line">
@@ -83,6 +87,9 @@ Object.assign(App, {
       </section>`;
     overlay.addEventListener('click', e => {
       if (e.target === overlay) this._closePmDialog();
+    });
+    overlay.querySelector('.pm-dialog-avatar')?.addEventListener('click', e => {
+      this._openPmDialogPeerProfile(e);
     });
     overlay.querySelector('.pm-dialog-compose').addEventListener('submit', e => {
       e.preventDefault();
@@ -287,6 +294,22 @@ Object.assign(App, {
         <div class="pm-message-bubble">${escapeHTML(body)}</div>
         <div class="pm-message-meta">${escapeHTML(meta)}${actions}</div>
       </article>`;
+  },
+
+  async _openPmDialogPeerProfile(event) {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    const avatar = event?.currentTarget || document.querySelector('#pm-dialog-overlay .pm-dialog-avatar');
+    const targetUid = String(avatar?.dataset?.peerUid || this._currentPmDialog?.targetUid || '').trim();
+    if (!targetUid) return;
+    const peerName = String(
+      avatar?.dataset?.peerName ||
+      this._currentPmDialog?.peerName ||
+      document.querySelector('#pm-dialog-overlay .pm-dialog-peer-name')?.textContent ||
+      targetUid
+    ).trim();
+    this._closePmDialog();
+    await this.showUserProfile?.(peerName || targetUid, { uid: targetUid });
   },
 
   _closePmDialog() {

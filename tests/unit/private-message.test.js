@@ -40,6 +40,8 @@ describe('private message feature wiring', () => {
     expect(dialog).toContain('pm-dialog-search-toggle');
     expect(dialog).toContain('pm-dialog-peer-line');
     expect(dialog).toContain('pm-dialog-search-icon');
+    expect(dialog).toContain('_openPmDialogPeerProfile');
+    expect(dialog).toContain("showUserProfile?.(peerName || targetUid, { uid: targetUid })");
     expect(dialog).not.toContain('&#128269;');
     expect(listener).toContain('_showPmIncomingBubble');
     expect(listener).toContain('_findPmInitialUnread');
@@ -54,6 +56,7 @@ describe('private message feature wiring', () => {
     expect(css).toContain('.pm-incoming-bubble');
     expect(css).toContain('.pm-dialog-title.is-search-open .pm-dialog-search');
     expect(css).toContain('.pm-dialog-search-toggle.is-active');
+    expect(css).toContain('.pm-dialog-avatar:focus-visible');
   });
 
   test('PM audit layout constrains long UID and log rows inside the admin panel', () => {
