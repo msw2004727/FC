@@ -582,6 +582,13 @@ tournaments/{tournamentId}/entries/{teamId}/members/{memberUid}
 
 ### image upload wrapper
 
+Activity image variants:
+
+- `bindEventImageVariantUpload()` uses the shared cropper to create two outputs from one source image.
+- `imageVariants.cover`: 8:3, used by activity detail cover, activity cards, hot events, timeline, and share-style fallbacks.
+- `imageVariants.homeNext`: 4:3, used by the home page "my next activity" card so the image is not stretched into the container.
+- `image` remains the legacy fallback and is set to the cover variant for new uploads; old activities without variants continue to render from `image`.
+
 `js/modules/image-upload.js` 負責：
 
 - FileReader 讀取。

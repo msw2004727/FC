@@ -194,6 +194,7 @@ Object.assign(App, {
           ? `<span class="h-card-date-chip">${parseInt(_dp[1])}/${parseInt(_dp[2])}</span>`
           : '';
         const _cornerBadges = `<div class="h-card-corner-badges">${_sportIcon}${_dateTag}</div>`;
+        const _image = this._getEventImageUrl?.(e, 'cover') || e.image || '';
         const _isExternal = e.type === 'external';
         const _genderRibbon = !_isExternal && this._hasEventGenderRestriction(e)
           ? `<span class="h-card-gender-ribbon">${escapeHTML(this._getEventGenderRibbonText(e))}</span>`
@@ -214,8 +215,8 @@ Object.assign(App, {
           : 'loading="lazy" decoding="async"';
         return `
         <div class="h-card" style="${e.pinned ? 'border:1px solid var(--warning);box-shadow:0 0 0 1px rgba(245,158,11,.15)' : ''}" onclick="App.openHomeEventDetailFromCard('${e.id}', this)">
-          ${e.image
-            ? `<div class="h-card-img">${_cornerBadges}${_typeRibbon}<img src="${e.image}" alt="${escapeHTML(e.title)}" ${_imagePriorityAttrs}></div>`
+          ${_image
+            ? `<div class="h-card-img">${_cornerBadges}${_typeRibbon}<img src="${_image}" alt="${escapeHTML(e.title)}" ${_imagePriorityAttrs}></div>`
             : `<div class="h-card-img h-card-placeholder">${_cornerBadges}${_typeRibbon}220 × 90</div>`}
           <div class="h-card-body">
             <div class="h-card-title">${e.pinned ? '<span style="font-size:.62rem;padding:.08rem .35rem;border-radius:999px;border:1px solid var(--warning);color:var(--warning);font-weight:700;margin-right:.3rem">置頂</span>' : ''}${escapeHTML(e.title)}${e.teamOnly ? '<span class="tl-teamonly-badge">俱樂部限定</span>' : ''} ${this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id)}</div>
@@ -230,7 +231,7 @@ Object.assign(App, {
       `; }).join('');
 
     // 方案 B：資料未變時跳過 re-render
-    var _fp = visible.map(function(e){ return e.id + '|' + (e.current||0) + '|' + (e.waitlist||0) + '|' + e.status + '|' + (e.pinned?1:0); }).join(',') + '|s:' + (App._activeSport || 'all');
+    var _fp = visible.map((e) => e.id + '|' + (e.current||0) + '|' + (e.waitlist||0) + '|' + e.status + '|' + (e.pinned?1:0) + '|' + (this._getEventImageUrl?.(e, 'cover') || e.image || '')).join(',') + '|s:' + (App._activeSport || 'all');
     if (this._hotEventsLastFp === _fp && container.children.length > 0) return;
     this._hotEventsLastFp = _fp;
 

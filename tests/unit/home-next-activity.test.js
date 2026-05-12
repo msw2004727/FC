@@ -17,6 +17,14 @@ function runModule(options = {}) {
     openHomeCreateEvent: jest.fn(),
     addEventToCalendar: jest.fn(),
     showToast: jest.fn(),
+    _getEventImageUrl: jest.fn((event, variantKey) => {
+      const variants = event?.imageVariants && typeof event.imageVariants === 'object'
+        ? event.imageVariants
+        : {};
+      if (variantKey && variants[variantKey]) return variants[variantKey];
+      if (variantKey !== 'cover' && variants.cover) return variants.cover;
+      return event?.image || '';
+    }),
   };
   const registrations = options.registrations || [];
   const events = options.events || [];
@@ -78,6 +86,30 @@ describe('home next activity', () => {
     expect(host.querySelector('.home-next-cover img')?.getAttribute('src')).toBe('next.jpg');
     expect(host.querySelector('.home-next-status-pill')?.textContent).toBe('候補');
     expect(host.querySelector('.home-next-status-pill')?.classList.contains('home-next-status-waitlisted')).toBe(true);
+  });
+
+  test('uses the home next image variant before the legacy cover image', async () => {
+    const { app, dom } = runModule({
+      registrations: [
+        { id: 'r1', eventId: 'evt-next', userId: 'u1', status: 'confirmed' },
+      ],
+      events: [
+        {
+          id: 'evt-next',
+          title: 'Variant Match',
+          date: '2099/05/20 18:00~20:00',
+          location: 'Variant Center',
+          status: 'open',
+          image: 'legacy-cover.jpg',
+          imageVariants: { cover: 'wide-cover.jpg', homeNext: 'home-next-4x3.jpg' },
+        },
+      ],
+    });
+
+    await app.renderHomeNextActivity({ force: true });
+
+    const host = dom.window.document.getElementById('home-next-activity');
+    expect(host.querySelector('.home-next-cover img')?.getAttribute('src')).toBe('home-next-4x3.jpg');
   });
 
   test('skips cancelled registrations and already-started events', async () => {

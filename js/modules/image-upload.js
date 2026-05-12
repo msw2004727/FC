@@ -121,6 +121,37 @@ Object.assign(App, {
     return this._getImageVariantUrl(team, variantKey, 'image');
   },
 
+  _getEventImageUrl(eventRecord, variantKey) {
+    return this._getImageVariantUrl(eventRecord, variantKey, 'image');
+  },
+
+  _getEventImageVariantTargets() {
+    return [
+      {
+        key: 'cover',
+        aspectRatio: 8 / 3,
+        outputWidth: 1200,
+        outputHeight: 450,
+        title: '\u6d3b\u52d5\u5c01\u9762',
+        subtitle: '\u6703\u7528\u5728\u6d3b\u52d5\u8a73\u7d30\u9801\u3001\u6d3b\u52d5\u5361\u7247\u8207\u5206\u4eab\u9810\u89bd\u3002',
+        targetLabel: '\u6d3b\u52d5\u5c01\u9762',
+        recommendedSize: '800 x 300',
+        aspectLabel: '8:3',
+      },
+      {
+        key: 'homeNext',
+        aspectRatio: 4 / 3,
+        outputWidth: 1000,
+        outputHeight: 750,
+        title: '\u9996\u9801\u4e0b\u4e00\u5834\u6d3b\u52d5',
+        subtitle: '\u6703\u7528\u5728\u9996\u9801\u300c\u6211\u7684\u4e0b\u4e00\u5834\u6d3b\u52d5\u300d\u5716\u7247\u5340\u3002',
+        targetLabel: '\u9996\u9801\u4e0b\u4e00\u5834',
+        recommendedSize: '800 x 600',
+        aspectLabel: '4:3',
+      },
+    ];
+  },
+
   _getTeamImageVariantTargets() {
     return [
       {
@@ -185,6 +216,49 @@ Object.assign(App, {
       });
     };
     openAt(0);
+  },
+
+  bindEventImageVariantUpload(inputId = 'ce-image', previewId = 'ce-upload-preview') {
+    const input = document.getElementById(inputId);
+    if (!input || input.dataset.eventVariantBound) return;
+    input.dataset.eventVariantBound = '1';
+    input.addEventListener('change', async () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      if (!this._isAllowedImageFile(file)) {
+        this.showToast('\u8acb\u4e0a\u50b3 JPG / PNG / WebP \u5716\u7247');
+        input.value = '';
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        this.showToast('\u5716\u7247\u592a\u5927\uff0c\u4e0d\u80fd\u8d85\u904e 5MB');
+        input.value = '';
+        return;
+      }
+      try {
+        const sourceDataURL = await this._readImageFileAsDataURL(file);
+        this._openImageVariantCropSequence(sourceDataURL, this._getEventImageVariantTargets(), {
+          onConfirm: (variants) => {
+            this._eventImageVariantsData = variants;
+            const previewSrc = variants.cover || variants.homeNext;
+            if (previewSrc) this._setImageUploadPreview(previewId, previewSrc);
+            try {
+              input.dispatchEvent(new CustomEvent('imageupload:preview', {
+                detail: { src: previewSrc, previewId, file, variants },
+              }));
+            } catch (_) {}
+          },
+          onCancel: () => {
+            input.value = '';
+            this._eventImageVariantsData = null;
+          },
+        });
+      } catch (err) {
+        console.error('[EventImageUpload] image processing failed:', err);
+        this.showToast('\u5716\u7247\u8655\u7406\u5931\u6557\uff0c\u8acb\u91cd\u8a66');
+        input.value = '';
+      }
+    });
   },
 
   bindTeamImageVariantUpload(inputId = 'ct-team-image', previewId = 'ct-team-preview') {

@@ -13,6 +13,7 @@ Object.assign(App, {
 
   _editEventId: null,
   _eventSubmitInFlight: false,
+  _eventImageVariantsData: null,
   _defaultEventCoverAssetPath: 'LOGO/Nocoverimage set.png',
   _defaultEventCoverDataUrl: null,
   _defaultEventCoverPromise: null,
@@ -162,6 +163,7 @@ Object.assign(App, {
       return;
     }
     this._editEventId = null;
+    this._eventImageVariantsData = null;
     this._delegates = [];
     // 重置表單欄位，防止編輯後殘留資料
     document.getElementById('ce-title').value = '';
@@ -195,7 +197,7 @@ Object.assign(App, {
     this._eventSubmitInFlight = false;
     this._setCreateEventSubmitIdleLabel('建立活動');
     // 確保事件已綁定（防止 Phase 1 非同步時機導致未綁定）
-    this.bindImageUpload('ce-image', 'ce-upload-preview', 8 / 3);
+    this.bindEventImageVariantUpload?.('ce-image', 'ce-upload-preview');
     this.bindTeamOnlyToggle();
     this.bindEventFeeToggle();
     this.bindGenderRestrictionToggle();
@@ -325,7 +327,13 @@ Object.assign(App, {
 
     const cePreviewEl = document.getElementById('ce-upload-preview');
     const ceImg = cePreviewEl?.querySelector('img');
-    const image = ceImg ? ceImg.src : null;
+    let image = ceImg ? ceImg.src : null;
+    const imageVariants = (this._eventImageVariantsData && typeof this._eventImageVariantsData === 'object')
+      ? { ...this._eventImageVariantsData }
+      : null;
+    if (imageVariants && (imageVariants.cover || imageVariants.homeNext)) {
+      image = imageVariants.cover || image || imageVariants.homeNext;
+    }
 
     const fullDate = `${dateVal.replace(/-/g, '/')} ${timeVal}`;
     const startTimestamp = new Date(`${dateVal}T${tStart}`);
@@ -386,6 +394,7 @@ Object.assign(App, {
         delegates: [...this._delegates],
         delegateUids: this._delegates.map(d => String(d.uid || '').trim()).filter(Boolean),
       };
+      if (imageVariants) updates.imageVariants = imageVariants;
       if (!canUseAddons) {
         [
           'fee', 'feeEnabled', 'teamOnly', 'genderRestrictionEnabled', 'allowedGender',
@@ -429,6 +438,7 @@ Object.assign(App, {
       this.showToast(`活動「${title}」已更新！`);
       const editedId = this._editEventId;
       this._editEventId = null;
+      this._eventImageVariantsData = null;
       // 非關鍵操作：即使失敗也不影響用戶體驗
       try {
         if (this._hasActivityManageEntry?.() || this._canManageAllActivities?.()) {
@@ -491,6 +501,7 @@ Object.assign(App, {
         delegates: [...this._delegates],
         delegateUids: this._delegates.map(d => String(d.uid || '').trim()).filter(Boolean),
       };
+      if (imageVariants) newEvent.imageVariants = imageVariants;
       if (!this._canManageEventDelegates?.(null)) {
         newEvent.delegates = [];
         newEvent.delegateUids = [];
@@ -558,6 +569,7 @@ Object.assign(App, {
 
     // 重置表單
     this._editEventId = null;
+    this._eventImageVariantsData = null;
     document.getElementById('ce-title').value = '';
     document.getElementById('ce-location').value = '';
     this._setEventFeeFormState(false, 0);

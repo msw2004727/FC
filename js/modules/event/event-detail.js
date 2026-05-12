@@ -67,11 +67,12 @@ Object.assign(App, {
     const ribbonMeta = this._getEventDetailRibbonMeta(eventRecord);
     const ribbonHtml = `<span class="detail-cover-ribbon detail-cover-ribbon-${ribbonMeta.typeKey}">${escapeHTML(ribbonMeta.label)}</span>`;
     const editButtonHtml = this._renderEventDetailEditButton(eventRecord);
+    const coverImage = this._getEventImageUrl?.(eventRecord, 'cover') || eventRecord?.image || '';
 
-    if (eventRecord?.image) {
+    if (coverImage) {
       return `
         <div class="detail-cover-media">
-          <img class="detail-cover-image" src="${eventRecord.image}" alt="${escapeHTML(eventRecord.title)}" loading="lazy">
+          <img class="detail-cover-image" src="${coverImage}" alt="${escapeHTML(eventRecord.title)}" loading="lazy">
           ${ribbonHtml}
           ${editButtonHtml}
         </div>`;
@@ -339,10 +340,10 @@ Object.assign(App, {
     this._renderEventPublicToggle(isGuestView ? null : e);
     this._renderEventRefreshButton(isGuestView ? null : e);
     this._renderEventLogButton(isGuestView ? null : e);
-      const detailImg = nodes.image;
+    const detailImg = nodes.image;
     if (detailImg) {
       detailImg.innerHTML = this._renderEventDetailCover(e);
-      if (e.image) {
+      if (this._getEventImageUrl?.(e, 'cover') || e.image) {
         detailImg.style.border = 'none';
       } else {
         detailImg.style.border = '';

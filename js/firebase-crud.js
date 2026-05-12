@@ -412,10 +412,39 @@ Object.assign(FirebaseService, {
     return eventId;
   },
 
+  async _uploadEventImageVariants(eventId, payload) {
+    if (!payload || !payload.imageVariants || typeof payload.imageVariants !== 'object') return;
+    const variants = { ...payload.imageVariants };
+    const keys = ['cover', 'homeNext'];
+    let hasValue = false;
+    for (const key of keys) {
+      const value = variants[key];
+      if (!value) {
+        delete variants[key];
+        continue;
+      }
+      if (typeof value === 'string' && value.startsWith('data:')) {
+        const uploaded = await this._uploadImage(value, `events/${eventId}_${key}`);
+        if (uploaded) variants[key] = uploaded;
+        else delete variants[key];
+      }
+      if (variants[key]) hasValue = true;
+    }
+    if (!hasValue) {
+      delete payload.imageVariants;
+      return;
+    }
+    payload.imageVariants = variants;
+    if (variants.cover && (!payload.image || (typeof payload.image === 'string' && payload.image.startsWith('data:')))) {
+      payload.image = variants.cover;
+    }
+  },
+
   async addEvent(eventData) {
     // 圖片上傳至 Storage
     const eventId = this._normalizeEventDocumentId(eventData);
     eventData.id = eventId;
+    await this._uploadEventImageVariants(eventId, eventData);
     if (eventData.image && eventData.image.startsWith('data:')) {
       eventData.image = await this._uploadImage(eventData.image, `events/${eventId}`);
     }
@@ -453,6 +482,7 @@ Object.assign(FirebaseService, {
       throw new Error('EVENT_DOC_NOT_FOUND: id=' + safeId);
     }
     if (doc && !doc._docId) doc._docId = eventDocId;
+    await this._uploadEventImageVariants(safeId, updates);
     if (updates.image && typeof updates.image === 'string' && updates.image.startsWith('data:')) {
       const uploadedUrl = await this._uploadImage(updates.image, `events/${safeId}`);
       if (uploadedUrl) updates.image = uploadedUrl;

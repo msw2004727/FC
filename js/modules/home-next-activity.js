@@ -116,6 +116,12 @@
       status: normalizeString(event.status),
       location: normalizeString(event.location),
       image: event.image || '',
+      imageVariants: (event.imageVariants && typeof event.imageVariants === 'object')
+        ? {
+            cover: event.imageVariants.cover || '',
+            homeNext: event.imageVariants.homeNext || '',
+          }
+        : null,
       type: normalizeString(event.type),
       externalUrl: event.externalUrl || '',
     };
@@ -681,7 +687,7 @@
     const statusMeta = registrationStatusMeta(registration);
     const title = event?.title || '未命名活動';
     const location = event?.location || '地點待補';
-    const image = event?.image || FALLBACK_IMAGE;
+    const image = app._getEventImageUrl?.(event, 'homeNext') || event?.image || FALLBACK_IMAGE;
     host.innerHTML = cardShell(`
       <div class="home-next-event">
         <button class="home-next-cover" type="button" data-home-next-action="detail" aria-label="查看活動">

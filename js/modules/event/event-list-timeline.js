@@ -312,6 +312,7 @@ Object.assign(App, {
           const sportIcon = this._renderEventSportIcon(e, 'tl-event-sport-corner');
           const favHeart = this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id);
           const iconStack = `<div class="tl-event-icons">${favHeart}${sportIcon}</div>`;
+          const eventImage = this._getEventImageUrl?.(e, 'cover') || e.image || '';
 
           // 報名狀態章
           const isSignedUp = !isExternal && this._isUserSignedUp(e);
@@ -334,7 +335,7 @@ Object.assign(App, {
           html += `
             <div class="tl-event-row ${rowClass}${isEnded ? ' tl-past' : ''}" style="${rowStyle}" onclick="App.openTimelineEventDetail('${e.id}', this)">
               ${genderRibbon}
-              ${e.image ? `<div class="tl-event-thumb"><img src="${e.image}" loading="lazy"></div>` : ''}
+              ${eventImage ? `<div class="tl-event-thumb"><img src="${eventImage}" loading="lazy"></div>` : ''}
               <div class="tl-event-info">
                 <div class="tl-event-title-row"><div class="tl-event-title">${e.pinned ? '<span style="font-size:.62rem;padding:.08rem .35rem;border-radius:999px;border:1px solid var(--warning);color:var(--warning);font-weight:700;margin-right:.3rem">置頂</span>' : ''}${escapeHTML(e.title)}${teamBadge}</div></div>
                 ${progressHtml}
@@ -354,7 +355,7 @@ Object.assign(App, {
     });
 
     // 方案 B：資料未變時跳過 re-render
-    var _fp = events.map(function(e){ return e.id + '|' + e.status + '|' + (e.current||0) + '|' + (e.waitlist||0) + '|' + (e.pinned?1:0) + '|' + (e.title||''); }).join(',') + '|tab:' + activeTab + '|f:' + filterType + '|k:' + filterKw + '|s:' + (App._activeSport || 'all');
+    var _fp = events.map((e) => e.id + '|' + e.status + '|' + (e.current||0) + '|' + (e.waitlist||0) + '|' + (e.pinned?1:0) + '|' + (e.title||'') + '|' + (this._getEventImageUrl?.(e, 'cover') || e.image || '')).join(',') + '|tab:' + activeTab + '|f:' + filterType + '|k:' + filterKw + '|s:' + (App._activeSport || 'all');
     if (this._activityListLastFp === _fp && container.children.length > 0) return;
     this._activityListLastFp = _fp;
 

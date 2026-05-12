@@ -20,8 +20,9 @@ Object.assign(App, {
     // 外部活動走專用編輯流程
     if (e.type === 'external') { this.editExternalActivity(id); return; }
     this._editEventId = id;
+    this._eventImageVariantsData = null;
     // 確保事件已綁定（防止 Phase 1 非同步時機導致未綁定）
-    this.bindImageUpload('ce-image', 'ce-upload-preview', 8 / 3);
+    this.bindEventImageVariantUpload?.('ce-image', 'ce-upload-preview');
     this.bindTeamOnlyToggle();
     this.bindEventFeeToggle?.();
     this.bindGenderRestrictionToggle?.();
@@ -81,8 +82,9 @@ Object.assign(App, {
       this._updateTeamOnlyLabel();
     }
     const preview = document.getElementById('ce-upload-preview');
-    if (e.image && preview) {
-      preview.innerHTML = `<img src="${e.image}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">`;
+    const previewImage = this._getEventImageUrl?.(e, 'cover') || e.image;
+    if (previewImage && preview) {
+      preview.innerHTML = `<img src="${previewImage}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">`;
       preview.classList.add('has-image');
     }
     // 委託人預填

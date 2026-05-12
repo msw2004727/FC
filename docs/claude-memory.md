@@ -2525,3 +2525,8 @@
 - **Issue**: PM permission was fixed in code: user-level accounts could not start new user-to-user conversations unless a conversation already existed, and there was no admin switch to control this behavior.
 - **Fix**: Added `siteConfig/privateMessage.allowUserToUserPm`, super_admin-only callable read/write endpoints, backend enforcement in `sendPrivateMessage`, and a `User互相私訊` slider inside the chat audit panel.
 - **Validation**: Added PM source contract coverage for the audit switch, backend settings callables, default-off behavior, and user-to-user permission path.
+
+### 2026-05-12 Activity Image Variants for Home Next [feature]
+- **Issue**: The home page "my next activity" image container uses a different ratio than the activity cover, so reusing only the wide cover can crop poorly or invite stretching.
+- **Fix**: Added activity image variants from one upload: `cover` for 8:3 activity surfaces and `homeNext` for the 4:3 home next-activity card. Existing `image` remains the cover fallback for old data.
+- **Validation**: Added source contract coverage for event variant upload/storage/rendering and a home-next unit test that prefers `imageVariants.homeNext`.
