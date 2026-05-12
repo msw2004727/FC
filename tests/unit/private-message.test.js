@@ -51,6 +51,16 @@ describe('private message feature wiring', () => {
     expect(css).toContain('.pm-dialog-tools.is-search-open .pm-dialog-search');
   });
 
+  test('PM audit layout constrains long UID and log rows inside the admin panel', () => {
+    const css = readProjectFile('css/message.css');
+
+    expect(css).toContain('[data-admin-log-panel="chat"] { min-width:0; max-width:100%; overflow:hidden; }');
+    expect(css).toContain('.pm-audit-layout { display:grid; grid-template-columns:minmax(0,1fr)');
+    expect(css).toContain('.pm-audit-log { display:grid; grid-template-columns:auto minmax(0,1fr) auto');
+    expect(css).toContain('.pm-audit-message p { margin:.35rem 0 0; font-size:.8rem; line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere; }');
+    expect(css).toContain('@media (max-width:560px)');
+  });
+
   test('PM edit and recall use optimistic pending states with expiry notices', () => {
     const dialog = readProjectFile('js/modules/message/pm-dialog.js');
     const actions = readProjectFile('js/modules/message/pm-dialog-actions.js');
