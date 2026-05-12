@@ -72,8 +72,7 @@
 | 名稱 | 值 | 檔案位置 | 用途 |
 |------|---|---------|------|
 | PM read debounce | `500` ms | `js/modules/message/pm-permission.js` `PM_MARK_READ_DEBOUNCE_MS` | 對話視窗收到連續訊息時合併已讀 callable，避免每次 snapshot 都打後端 |
-| PM edit window | `15 * 60 * 1000` ms | `js/modules/message/pm-permission.js` / `functions/index.js` `PM_EDIT_WINDOW_MS` | 送出後 15 分鐘內可編輯自己訊息 |
-| PM recall window | `5 * 60 * 1000` ms | `js/modules/message/pm-permission.js` / `functions/index.js` `PM_RECALL_WINDOW_MS` | 送出後 5 分鐘內可撤回自己訊息 |
+| PM edit / recall read lock | 對方已讀後鎖定 | `js/modules/message/pm-dialog.js` / `js/modules/message/pm-dialog-actions.js` / `functions/index.js` | 私訊編輯與撤回不限時間；對方已讀後不可編輯或撤回 |
 
 <a id="sport-icon-svg"></a>
 ### Sport Icon（運動圖示對照）
@@ -131,7 +130,7 @@
 | Home summary injection schedule | 每小時第 `17` 分鐘 | `.github/workflows/inject-hot-events.yml` | 定期重建 `index.html` 內的首頁匿名摘要，降低新活動/新運動分類在首屏出現的延遲 |
 | Home next activity revalidate | `10` 分鐘 | `js/modules/home-next-activity.js` | 首頁「我的下一場活動」先顯示同 UID 的本機快取，再背景刷新，避免切回首頁時短暫空白。 |
 | Home next activity max local cache age | `60` 分鐘 | `js/modules/home-next-activity.js` | 快取最長只作為 1 小時內的先顯示資料；活動已過開始時間、已結束或取消時不顯示快取。 |
-| PM body max length | `1000` 字 | `functions/index.js` `PM_MAX_BODY_LENGTH` / `pm-dialog.js` textarea maxlength | 私訊單則內容長度上限 |
+| PM body max length | `300` 字 | `functions/index.js` `PM_MAX_BODY_LENGTH` / `pm-dialog.js` textarea maxlength | 私訊單則內容長度上限 |
 | PM thread listener limit | `50` 筆 | `js/modules/message/pm-listener.js` / `functions/index.js` `PM_THREAD_LIMIT` | 使用者訊息中心私訊對話列表最多載入最近 50 個 thread |
 | PM message load limit | `50` 筆，稽核檢視最多 `100` 筆 | `js/modules/message/pm-dialog.js` / `functions/index.js` `PM_MESSAGE_LIMIT` | 私訊對話窗預設載入最近 50 則；聊天室稽核單次檢視最多 100 則 |
 | PM daily per-user send limit | `100` 則/日 | `functions/index.js` `PM_DAILY_LIMIT_PER_UID` | 防止單一用戶大量發送私訊 |

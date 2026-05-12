@@ -276,11 +276,10 @@ Object.assign(App, {
     const recalling = message._pmPendingAction === 'recalling';
     const failed = message._optimistic && status === 'failed';
     const body = recalled ? '訊息已撤回' : (message.body || '');
-    const createdMs = this._pmTimeMs(message.createdAt);
-    const age = Date.now() - createdMs;
+    const peerRead = own && message.peerRead === true;
     const hasPendingAction = editing || recalling;
-    const canEdit = own && !message._optimistic && !recalled && !hasPendingAction && createdMs && age <= this.PM_EDIT_WINDOW_MS;
-    const canRecall = own && !message._optimistic && !recalled && !hasPendingAction && createdMs && age <= this.PM_RECALL_WINDOW_MS;
+    const canEdit = own && !message._optimistic && !recalled && !hasPendingAction && !peerRead;
+    const canRecall = own && !message._optimistic && !recalled && !hasPendingAction && !peerRead;
     const meta = [
       this._pmFormatTime?.(message.createdAt) || '',
       pending ? '\u9001\u51fa\u4e2d' : '',

@@ -80,17 +80,16 @@ Object.assign(App, {
     return (messages || []).find(m => String(m.messageId || m.id || m._docId || '') === String(messageId || '')) || null;
   },
 
-  _isPmMessageExpired(message, windowMs) {
-    const createdMs = this._pmTimeMs?.(message?.createdAt) || 0;
-    return !createdMs || (Date.now() - createdMs) > windowMs;
+  _isPmMessagePeerRead(message) {
+    return message?.peerRead === true;
   },
 
-  _showPmMessageWindowExpired(mode) {
-    if (mode === 'edit') {
-      this.showToast?.('\u8a0a\u606f\u8d85\u904e 15 \u5206\u9418\uff0c\u7121\u6cd5\u7de8\u8f2f');
-      return;
-    }
-    this.showToast?.('\u8a0a\u606f\u8d85\u904e 5 \u5206\u9418\uff0c\u7121\u6cd5\u64a4\u56de');
+  _showPmMessageAlreadyRead() {
+    this.showToast?.('\u5c0d\u65b9\u5df2\u8b80\uff0c\u7121\u6cd5\u7de8\u8f2f\u6216\u64a4\u56de');
+  },
+
+  _showPmMessageUnavailable() {
+    this.showToast?.('\u8a0a\u606f\u72c0\u614b\u5df2\u8b8a\u66f4\uff0c\u7121\u6cd5\u7de8\u8f2f\u6216\u64a4\u56de');
   },
 
   _setPmPendingMessageUpdate(conversationId, messageId, updates = {}) {
@@ -128,8 +127,8 @@ Object.assign(App, {
       this.showToast?.('\u8a0a\u606f\u9001\u51fa\u5b8c\u6210\u5f8c\u624d\u80fd\u7de8\u8f2f');
       return;
     }
-    if (this._isPmMessageExpired?.(current, this.PM_EDIT_WINDOW_MS)) {
-      this._showPmMessageWindowExpired?.('edit');
+    if (this._isPmMessagePeerRead?.(current)) {
+      this._showPmMessageAlreadyRead?.();
       return;
     }
     const nextBody = prompt('\u7de8\u8f2f\u8a0a\u606f', current?.body || '');
@@ -158,7 +157,9 @@ Object.assign(App, {
       this._clearPmPendingMessageUpdate?.(state.conversationId, messageId);
       this._renderCurrentPmDialogMessages?.();
       const code = String(err?.code || '');
-      if (code.includes('failed-precondition')) this._showPmMessageWindowExpired?.('edit');
+      const message = String(err?.message || '');
+      if (code.includes('failed-precondition') && message.includes('already read')) this._showPmMessageAlreadyRead?.();
+      else if (code.includes('failed-precondition')) this._showPmMessageUnavailable?.();
       else this.showToast?.('\u7de8\u8f2f\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
     }
   },
@@ -171,8 +172,8 @@ Object.assign(App, {
       this.showToast?.('\u8a0a\u606f\u9001\u51fa\u5b8c\u6210\u5f8c\u624d\u80fd\u64a4\u56de');
       return;
     }
-    if (this._isPmMessageExpired?.(current, this.PM_RECALL_WINDOW_MS)) {
-      this._showPmMessageWindowExpired?.('recall');
+    if (this._isPmMessagePeerRead?.(current)) {
+      this._showPmMessageAlreadyRead?.();
       return;
     }
     if (!confirm('\u78ba\u5b9a\u8981\u64a4\u56de\u9019\u5247\u8a0a\u606f\u55ce\uff1f')) return;
@@ -193,7 +194,9 @@ Object.assign(App, {
       this._clearPmPendingMessageUpdate?.(state.conversationId, messageId);
       this._renderCurrentPmDialogMessages?.();
       const code = String(err?.code || '');
-      if (code.includes('failed-precondition')) this._showPmMessageWindowExpired?.('recall');
+      const message = String(err?.message || '');
+      if (code.includes('failed-precondition') && message.includes('already read')) this._showPmMessageAlreadyRead?.();
+      else if (code.includes('failed-precondition')) this._showPmMessageUnavailable?.();
       else this.showToast?.('\u64a4\u56de\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
     }
   },

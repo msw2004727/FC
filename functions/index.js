@@ -113,8 +113,6 @@ const PM_MESSAGE_LIMIT = 50;
 const PM_THREAD_LIMIT = 50;
 const PM_DAILY_LIMIT_PER_UID = 100;
 const PM_DAILY_LIMIT_PER_PEER = 30;
-const PM_EDIT_WINDOW_MS = 15 * 60 * 1000;
-const PM_RECALL_WINDOW_MS = 5 * 60 * 1000;
 const PM_SETTINGS_DOC_ID = "privateMessage";
 const PM_DEFAULT_SETTINGS = Object.freeze({
   allowUserToUserPm: false,
@@ -10506,14 +10504,16 @@ async function pmUpdateOwnMessage(request, mode) {
     const auditMsgSnap = await tx.get(auditMsgRef);
     if (!ownMsgSnap.exists || !peerMsgSnap.exists) throw new HttpsError("not-found", "message not found");
     const oldData = ownMsgSnap.data() || {};
+    const peerData = peerMsgSnap.data() || {};
+    const auditData = auditMsgSnap.exists ? (auditMsgSnap.data() || {}) : {};
     if (oldData.fromUid !== uid) throw new HttpsError("permission-denied", "only sender can modify");
     if (oldData.status === "recalled") throw new HttpsError("failed-precondition", "message recalled");
-    const createdMs = pmMessageSortMs(oldData);
-    const windowMs = mode === "edit" ? PM_EDIT_WINDOW_MS : PM_RECALL_WINDOW_MS;
-    if (!createdMs || now.getTime() - createdMs > windowMs) {
-      throw new HttpsError("failed-precondition", mode === "edit" ? "edit window expired" : "recall window expired");
+    const peerHasRead = oldData.peerRead === true
+      || peerData.read === true
+      || !!auditData.readBy?.[peerUid];
+    if (peerHasRead) {
+      throw new HttpsError("failed-precondition", "message already read");
     }
-    const auditData = auditMsgSnap.exists ? (auditMsgSnap.data() || {}) : {};
     const editHistory = Array.isArray(auditData.editHistory) ? auditData.editHistory.slice(-4) : [];
     const commonUpdate = mode === "edit"
       ? {

@@ -122,7 +122,7 @@ describe('private message feature wiring', () => {
     expect(messageCss).toContain('#msg-inbox-tabs .tab[data-msgtype="pm-conversation"].has-pm-unread::after');
   });
 
-  test('PM edit and recall use optimistic pending states with expiry notices', () => {
+  test('PM edit and recall use optimistic pending states and lock after peer read', () => {
     const dialog = readProjectFile('js/modules/message/pm-dialog.js');
     const actions = readProjectFile('js/modules/message/pm-dialog-actions.js');
 
@@ -132,9 +132,14 @@ describe('private message feature wiring', () => {
     expect(dialog).toContain("_pmPendingAction === 'recalling'");
     expect(dialog).toContain('\\u7de8\\u8f2f\\u4e2d');
     expect(dialog).toContain('\\u64a4\\u56de\\u4e2d');
-    expect(actions).toContain('_showPmMessageWindowExpired');
-    expect(actions).toContain('\\u8a0a\\u606f\\u8d85\\u904e 15 \\u5206\\u9418');
-    expect(actions).toContain('\\u8a0a\\u606f\\u8d85\\u904e 5 \\u5206\\u9418');
+    expect(dialog).toContain('const peerRead = own && message.peerRead === true');
+    expect(dialog).toContain('!peerRead');
+    expect(actions).toContain('_isPmMessagePeerRead');
+    expect(actions).toContain('_showPmMessageAlreadyRead');
+    expect(actions).toContain('\\u5c0d\\u65b9\\u5df2\\u8b80');
+    expect(actions).not.toContain('_showPmMessageWindowExpired');
+    expect(actions).not.toContain('\\u8a0a\\u606f\\u8d85\\u904e 15 \\u5206\\u9418');
+    expect(actions).not.toContain('\\u8a0a\\u606f\\u8d85\\u904e 5 \\u5206\\u9418');
     expect(actions).toContain("status: 'edited'");
     expect(actions).toContain("status: 'recalled'");
   });
@@ -161,6 +166,9 @@ describe('private message feature wiring', () => {
     expect(functions).toContain('exports.markPrivateConversationRead');
     expect(functions).toContain('exports.editPrivateMessage');
     expect(functions).toContain('exports.recallPrivateMessage');
+    expect(functions).toContain('message already read');
+    expect(functions).not.toContain('PM_EDIT_WINDOW_MS');
+    expect(functions).not.toContain('PM_RECALL_WINDOW_MS');
     expect(functions).toContain('const PM_SETTINGS_DOC_ID = "privateMessage"');
     expect(functions).toContain('allowUserToUserPm: false');
     expect(functions).toContain('exports.getPrivateMessageSettings');

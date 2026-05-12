@@ -3,8 +3,6 @@
    ================================================ */
 
 Object.assign(App, {
-  PM_EDIT_WINDOW_MS: 15 * 60 * 1000,
-  PM_RECALL_WINDOW_MS: 5 * 60 * 1000,
   PM_MARK_READ_DEBOUNCE_MS: 500,
   PM_MAX_BODY_LENGTH: 300,
 
