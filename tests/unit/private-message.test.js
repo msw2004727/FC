@@ -117,6 +117,10 @@ describe('private message feature wiring', () => {
     expect(listener).toContain('_pmIncomingBubbleVisible: false');
     expect(listener).toContain('this._pmIncomingBubbleVisible = true;');
     expect(listener).toContain('this._pmIncomingBubbleVisible = false;');
+    expect(listener).toContain('_pmOptimisticReadThreads');
+    expect(listener).toContain('_optimisticallyMarkPmConversationRead');
+    expect(listener).toContain('_clearPmOptimisticReadThread');
+    expect(readProjectFile('js/modules/message/pm-dialog.js')).toContain('this._optimisticallyMarkPmConversationRead?.(conversationId)');
     expect(layoutCss).toContain('.pm-notif-hint');
     expect(layoutCss).toContain('#notif-btn.has-pm-unread .pm-notif-hint');
     expect(messageCss).toContain('#msg-inbox-tabs .tab[data-msgtype="pm-conversation"].has-pm-unread::after');

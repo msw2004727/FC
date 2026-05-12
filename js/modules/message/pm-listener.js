@@ -9,6 +9,7 @@ Object.assign(App, {
   _pmIncomingBubbleTimer: null,
   _pmIncomingBubbleVisible: false,
   _pmStartRetryTimer: null,
+  _pmOptimisticReadThreads: Object.create(null),
   PM_INCOMING_BUBBLE_WINDOW_MS: 30 * 60 * 1000,
 
   startPmThreadListener() {
@@ -38,6 +39,7 @@ Object.assign(App, {
       this._stopPmThreadListener();
       this._pmListeningUid = '';
       this._pmThreadsReady = false;
+      this._pmOptimisticReadThreads = Object.create(null);
       this._hidePmIncomingBubble?.();
       if (typeof FirebaseService !== 'undefined') FirebaseService._cache.pmThreads = [];
       this._closePmDialog?.();
@@ -54,7 +56,9 @@ Object.assign(App, {
       .onSnapshot(snapshot => {
         if (typeof FirebaseService === 'undefined') return;
         const previousThreads = FirebaseService._cache?.pmThreads || [];
-        const nextThreads = snapshot.docs.map(doc => ({ id: doc.id, _docId: doc.id, ...doc.data() }));
+        const rawThreads = snapshot.docs.map(doc => ({ id: doc.id, _docId: doc.id, ...doc.data() }));
+        this._reconcilePmOptimisticReadThreads?.(rawThreads);
+        const nextThreads = this._applyPmOptimisticReadThreads?.(rawThreads) || rawThreads;
         const increasedThread = this._pmThreadsReady
           ? this._findPmUnreadIncrease(previousThreads, nextThreads)
           : this._findPmInitialUnread(nextThreads);
@@ -81,6 +85,83 @@ Object.assign(App, {
   _pmUnreadTotal() {
     const threads = (typeof FirebaseService !== 'undefined' && FirebaseService._cache?.pmThreads) || [];
     return threads.reduce((sum, t) => sum + Math.max(0, Number(t.unreadCount || 0)), 0);
+  },
+
+  _pmConversationKey(value) {
+    return String(value?.conversationId || value?.id || value?._docId || value || '').trim();
+  },
+
+  _applyPmOptimisticReadThreads(threads = []) {
+    const pending = this._pmOptimisticReadThreads || {};
+    if (!Object.keys(pending).length) return threads;
+    return (threads || []).map(thread => {
+      const cId = this._pmConversationKey?.(thread);
+      return cId && pending[cId] ? { ...thread, unreadCount: 0 } : thread;
+    });
+  },
+
+  _reconcilePmOptimisticReadThreads(rawThreads = []) {
+    const pending = this._pmOptimisticReadThreads || {};
+    const keys = Object.keys(pending);
+    if (!keys.length) return;
+    const now = Date.now();
+    const rawMap = new Map((rawThreads || []).map(thread => [this._pmConversationKey?.(thread), thread]));
+    keys.forEach(cId => {
+      const thread = rawMap.get(cId);
+      const isStale = now - Number(pending[cId]?.startedAt || 0) > 10000;
+      if (!thread || isStale || Math.max(0, Number(thread.unreadCount || 0)) <= 0) delete pending[cId];
+    });
+  },
+
+  _optimisticallyMarkPmConversationRead(conversationId) {
+    const cId = String(conversationId || '').trim();
+    if (!cId || typeof FirebaseService === 'undefined') return;
+    if (!this._pmOptimisticReadThreads) this._pmOptimisticReadThreads = Object.create(null);
+    const threads = FirebaseService._cache?.pmThreads || [];
+    const currentThread = threads.find(thread => this._pmConversationKey?.(thread) === cId);
+    const previousUnread = Math.max(0, Number(currentThread?.unreadCount || 0));
+    if (!this._pmOptimisticReadThreads[cId]) {
+      this._pmOptimisticReadThreads[cId] = {
+        previousUnread,
+        startedAt: Date.now(),
+      };
+    }
+    if (Array.isArray(this._pmDialogMessages)) {
+      this._pmDialogMessages = this._pmDialogMessages.map(message => (
+        message?.direction === 'in' && message.read === false
+          ? { ...message, read: true }
+          : message
+      ));
+    }
+    if (Array.isArray(threads) && threads.length) {
+      FirebaseService._cache.pmThreads = threads.map(thread => (
+        this._pmConversationKey?.(thread) === cId
+          ? { ...thread, unreadCount: 0 }
+          : thread
+      ));
+    }
+    this.updateNotifBadge?.();
+    if (this.currentPage === 'page-messages' && this._msgInboxFilter === 'pm-conversation') {
+      this.renderPmThreadList?.();
+    }
+  },
+
+  _clearPmOptimisticReadThread(conversationId, restore = false) {
+    const cId = String(conversationId || '').trim();
+    const pending = cId ? this._pmOptimisticReadThreads?.[cId] : null;
+    if (!cId || !pending) return;
+    delete this._pmOptimisticReadThreads[cId];
+    if (restore && typeof FirebaseService !== 'undefined' && Array.isArray(FirebaseService._cache?.pmThreads)) {
+      FirebaseService._cache.pmThreads = FirebaseService._cache.pmThreads.map(thread => (
+        this._pmConversationKey?.(thread) === cId
+          ? { ...thread, unreadCount: Math.max(Number(thread.unreadCount || 0), Number(pending.previousUnread || 0)) }
+          : thread
+      ));
+    }
+    this.updateNotifBadge?.();
+    if (restore && this.currentPage === 'page-messages' && this._msgInboxFilter === 'pm-conversation') {
+      this.renderPmThreadList?.();
+    }
   },
 
   _findPmUnreadIncrease(previousThreads = [], nextThreads = []) {

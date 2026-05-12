@@ -129,10 +129,18 @@ Object.assign(App, {
       .orderBy('createdAt', 'asc')
       .limit(50)
       .onSnapshot(snapshot => {
-        const messages = snapshot.docs.map(doc => ({ id: doc.id, _docId: doc.id, ...doc.data() }));
+        const rawMessages = snapshot.docs.map(doc => ({ id: doc.id, _docId: doc.id, ...doc.data() }));
+        const shouldMarkRead = rawMessages.some(m => m.direction === 'in' && m.read === false);
+        const messages = this._pmOptimisticReadThreads?.[conversationId]
+          ? rawMessages.map(message => (
+              message?.direction === 'in' && message.read === false
+                ? { ...message, read: true }
+                : message
+            ))
+          : rawMessages;
         this._pmDialogMessages = messages;
         this._renderPmDialogMessages(this._getPmDialogRenderMessages(conversationId, messages));
-        if (messages.some(m => m.direction === 'in' && m.read === false)) {
+        if (shouldMarkRead) {
           this._schedulePmMarkRead(conversationId);
         }
       }, err => {
@@ -141,12 +149,15 @@ Object.assign(App, {
   },
 
   _schedulePmMarkRead(conversationId) {
+    this._optimisticallyMarkPmConversationRead?.(conversationId);
     clearTimeout(this._pmReadTimers[conversationId]);
     this._pmReadTimers[conversationId] = setTimeout(async () => {
       try {
         const fn = this._pmCallable?.('markPrivateConversationRead');
         if (fn) await fn({ conversationId });
+        setTimeout(() => this._clearPmOptimisticReadThread?.(conversationId), 3000);
       } catch (err) {
+        this._clearPmOptimisticReadThread?.(conversationId, true);
         console.warn('[_schedulePmMarkRead]', err);
       }
     }, this.PM_MARK_READ_DEBOUNCE_MS || 500);
