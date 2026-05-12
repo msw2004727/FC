@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <!--
-    Sitemap Index — 2026-05-11
+    Sitemap Index — 2026-05-12
     - sitemap-static.xml      手動維護的首頁、SEO 著陸頁、Blog、政策頁等
     - sitemap-events.xml      由 scripts/build-sitemap.js 每日自動產生（公開活動）
     - sitemap-teams.xml       由 scripts/build-sitemap.js 每日自動產生（公開俱樂部）
