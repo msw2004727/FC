@@ -111,7 +111,7 @@ describe('private message feature wiring', () => {
     expect(index).toContain('<img src="img/chat.png" alt="">');
     expect(messagePage).toContain('data-msgtype="pm-conversation"');
     expect(renderer).toContain('_syncPmUnreadIndicators');
-    expect(renderer).toContain('const showBellHint = count > 0 && !this._pmIncomingBubbleVisible');
+    expect(renderer).toContain('const showBellHint = count > 0');
     expect(renderer).toContain("document.querySelector('#msg-inbox-tabs .tab[data-msgtype=\"pm-conversation\"]')");
     expect(renderer).toContain("tab.classList.toggle('has-pm-unread', count > 0)");
     expect(listener).toContain('_pmIncomingBubbleVisible: false');

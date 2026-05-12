@@ -102,7 +102,7 @@ Object.assign(App, {
 
   _syncPmUnreadIndicators(pmUnreadCount = 0) {
     const count = Math.max(0, Number(pmUnreadCount || 0));
-    const showBellHint = count > 0 && !this._pmIncomingBubbleVisible;
+    const showBellHint = count > 0;
     const notifBtn = document.getElementById('notif-btn');
     const hint = document.getElementById('pm-notif-hint');
     if (notifBtn) notifBtn.classList.toggle('has-pm-unread', showBellHint);
