@@ -227,6 +227,55 @@ describe('private message feature wiring', () => {
     }
   });
 
+  test('PM fresh bubble keeps stale reminder state across repeated fresh messages', () => {
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(new Date('2026-05-13T00:00:00.000Z'));
+      const { App, FirebaseService, document } = loadPmListenerHarness();
+      const myUid = 'U11111111111111111111111111111111';
+      const peerUid = 'U22222222222222222222222222222222';
+      const conversationId = `pm_${myUid}_${peerUid}`;
+      const staleBefore = {
+        conversationId,
+        peerUid,
+        peerName: 'Old unread',
+        unreadCount: 1,
+        lastMessageId: 'old-message',
+        lastMessageAt: new Date(Date.now() - 31 * 60 * 1000).toISOString(),
+      };
+      const firstFresh = {
+        ...staleBefore,
+        unreadCount: 2,
+        lastMessageId: 'fresh-message-1',
+        lastMessageAt: new Date(Date.now()).toISOString(),
+        lastMessageBody: 'first fresh message',
+      };
+      const secondFresh = {
+        ...firstFresh,
+        unreadCount: 3,
+        lastMessageId: 'fresh-message-2',
+        lastMessageBody: 'second fresh message',
+      };
+
+      const firstFreshBubble = App._findPmUnreadIncrease([staleBefore], [firstFresh]);
+      const secondFreshBubble = App._findPmUnreadIncrease([firstFresh], [secondFresh]);
+      expect(firstFreshBubble._pmFollowupReminderKeys).toContain(conversationId);
+      expect(secondFreshBubble._pmFollowupReminderKeys).toEqual([]);
+
+      FirebaseService._cache.pmThreads = [secondFresh];
+      App._showPmIncomingBubble(firstFreshBubble);
+      App._showPmIncomingBubble(secondFreshBubble);
+      App._handlePmFreshBubbleTimeout();
+
+      const bubble = document.getElementById('pm-incoming-bubble');
+      expect(bubble.dataset.mode).toBe('reminder');
+      expect(bubble.classList.contains('is-visible')).toBe(true);
+      expect(bubble.textContent).toContain('未讀');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   test('PM edit and recall use optimistic pending states and lock after peer read', () => {
     const dialog = readProjectFile('js/modules/message/pm-dialog.js');
     const actions = readProjectFile('js/modules/message/pm-dialog-actions.js');

@@ -403,9 +403,15 @@ Object.assign(App, {
       });
     }
     this._pmIncomingBubbleVisible = true;
-    this._pmFreshFollowupReminderKeys = mode === 'fresh'
-      ? Array.from(new Set((thread?._pmFollowupReminderKeys || []).map(key => String(key || '').trim()).filter(Boolean)))
-      : [];
+    if (mode === 'fresh') {
+      const currentFollowupKeys = Array.isArray(this._pmFreshFollowupReminderKeys) ? this._pmFreshFollowupReminderKeys : [];
+      const incomingFollowupKeys = (thread?._pmFollowupReminderKeys || [])
+        .map(key => String(key || '').trim())
+        .filter(Boolean);
+      this._pmFreshFollowupReminderKeys = Array.from(new Set([...currentFollowupKeys, ...incomingFollowupKeys]));
+    } else {
+      this._pmFreshFollowupReminderKeys = [];
+    }
     bubble.classList.add('is-visible');
     this.updateNotifBadge?.();
     clearTimeout(this._pmIncomingBubbleTimer);
