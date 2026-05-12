@@ -11,6 +11,7 @@ Object.assign(App, {
   _pmStartRetryTimer: null,
   _pmOptimisticReadThreads: Object.create(null),
   _pmDismissedUnreadReminderKey: '',
+  _pmFreshFollowupReminderKeys: [],
   PM_INCOMING_BUBBLE_WINDOW_MS: 30 * 60 * 1000,
 
   startPmThreadListener() {
@@ -42,6 +43,7 @@ Object.assign(App, {
       this._pmThreadsReady = false;
       this._pmOptimisticReadThreads = Object.create(null);
       this._pmDismissedUnreadReminderKey = '';
+      this._pmFreshFollowupReminderKeys = [];
       this._hidePmIncomingBubble?.();
       if (typeof FirebaseService !== 'undefined') FirebaseService._cache.pmThreads = [];
       this._closePmDialog?.();
@@ -180,7 +182,19 @@ Object.assign(App, {
       if (!cId || unread <= 0 || unread <= (previousMap.get(cId) || 0)) return false;
       return !this._isPmDialogOpenForConversation(cId);
     }) || null;
-    return increased ? { ...increased, _pmBubbleMode: 'fresh' } : null;
+    if (!increased) return null;
+    const nextUnreadKeys = new Set((nextThreads || [])
+      .filter(t => Math.max(0, Number(t.unreadCount || 0)) > 0)
+      .map(t => this._pmConversationKey?.(t))
+      .filter(Boolean));
+    const followupKeys = (this._getPmUnreadReminderThreads?.(previousThreads, { staleOnly: true }) || [])
+      .map(t => this._pmConversationKey?.(t))
+      .filter(key => key && nextUnreadKeys.has(key));
+    return {
+      ...increased,
+      _pmBubbleMode: 'fresh',
+      _pmFollowupReminderKeys: Array.from(new Set(followupKeys)),
+    };
   },
 
   _findPmInitialUnread(threads = []) {
@@ -239,12 +253,14 @@ Object.assign(App, {
 
   _getPmUnreadReminderThreads(threads = [], options = {}) {
     const staleOnly = !!options.staleOnly;
+    const keyFilter = new Set((options.conversationKeys || []).map(key => String(key || '').trim()).filter(Boolean));
     const now = Date.now();
     return (threads || [])
       .filter(t => {
         const cId = String(t.conversationId || t.id || t._docId || '').trim();
         const unread = Math.max(0, Number(t.unreadCount || 0));
         if (!cId || unread <= 0 || this._isPmDialogOpenForConversation(cId)) return false;
+        if (keyFilter.size) return keyFilter.has(cId);
         if (!staleOnly) return true;
         const lastMs = this._pmTimeMs(t.lastMessageAt);
         return !!lastMs && (now - lastMs) > this.PM_INCOMING_BUBBLE_WINDOW_MS;
@@ -387,6 +403,9 @@ Object.assign(App, {
       });
     }
     this._pmIncomingBubbleVisible = true;
+    this._pmFreshFollowupReminderKeys = mode === 'fresh'
+      ? Array.from(new Set((thread?._pmFollowupReminderKeys || []).map(key => String(key || '').trim()).filter(Boolean)))
+      : [];
     bubble.classList.add('is-visible');
     this.updateNotifBadge?.();
     clearTimeout(this._pmIncomingBubbleTimer);
@@ -402,6 +421,9 @@ Object.assign(App, {
     this._pmIncomingBubbleTimer = null;
     const bubble = document.getElementById('pm-incoming-bubble');
     if (bubble?.dataset?.mode !== 'fresh') return;
+    const followupKeys = Array.isArray(this._pmFreshFollowupReminderKeys) ? this._pmFreshFollowupReminderKeys.slice() : [];
+    this._pmFreshFollowupReminderKeys = [];
+    if (followupKeys.length && this._showPmUnreadReminderFromCache?.({ conversationKeys: followupKeys })) return;
     if (this._showPmUnreadReminderFromCache?.({ staleOnly: true })) return;
     this._hidePmIncomingBubble?.();
   },
@@ -410,6 +432,7 @@ Object.assign(App, {
     clearTimeout(this._pmIncomingBubbleTimer);
     this._pmIncomingBubbleTimer = null;
     this._pmIncomingBubbleVisible = false;
+    this._pmFreshFollowupReminderKeys = [];
     const bubble = document.getElementById('pm-incoming-bubble');
     if (bubble) bubble.classList.remove('is-visible');
     this.updateNotifBadge?.();

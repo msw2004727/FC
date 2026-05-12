@@ -1,10 +1,45 @@
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
+const { JSDOM } = require('jsdom');
 
 const ROOT = path.join(__dirname, '../..');
 
 function readProjectFile(file) {
   return fs.readFileSync(path.join(ROOT, file), 'utf8');
+}
+
+function loadPmListenerHarness(html = '<!doctype html><body></body>') {
+  const dom = new JSDOM(html, { url: 'https://toosterx.test/' });
+  const App = {
+    _pmCurrentUid: () => 'U11111111111111111111111111111111',
+    isValidLineUid: uid => /^U[0-9a-f]{32}$/i.test(String(uid || '')),
+    _pmParseConversationId(cId) {
+      const match = String(cId || '').match(/^pm_(U[0-9a-f]{32})_(U[0-9a-f]{32})$/i);
+      return match ? { uidA: match[1], uidB: match[2] } : null;
+    },
+    updateNotifBadge: jest.fn(),
+    openPmDialog: jest.fn(),
+    showPage: jest.fn(),
+    renderMessageList: jest.fn(),
+  };
+  const FirebaseService = { _cache: { pmThreads: [] } };
+  const context = {
+    App,
+    FirebaseService,
+    document: dom.window.document,
+    window: dom.window,
+    sessionStorage: dom.window.sessionStorage,
+    escapeHTML: value => String(value ?? ''),
+    Date,
+    setTimeout,
+    clearTimeout,
+    console,
+    auth: { onAuthStateChanged: jest.fn(), currentUser: null },
+    db: { collection: jest.fn() },
+  };
+  vm.runInNewContext(readProjectFile('js/modules/message/pm-listener.js'), context);
+  return { App, FirebaseService, document: dom.window.document };
 }
 
 describe('private message feature wiring', () => {
@@ -148,6 +183,48 @@ describe('private message feature wiring', () => {
     expect(layoutCss).toContain('.pm-notif-hint');
     expect(layoutCss).toContain('#notif-btn.has-pm-unread .pm-notif-hint');
     expect(messageCss).toContain('#msg-inbox-tabs .tab[data-msgtype="pm-conversation"].has-pm-unread::after');
+  });
+
+  test('PM fresh bubble timeout keeps a reminder for threads that were stale before the new message', () => {
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(new Date('2026-05-13T00:00:00.000Z'));
+      const { App, FirebaseService, document } = loadPmListenerHarness();
+      const myUid = 'U11111111111111111111111111111111';
+      const peerUid = 'U22222222222222222222222222222222';
+      const conversationId = `pm_${myUid}_${peerUid}`;
+      const staleBefore = {
+        conversationId,
+        peerUid,
+        peerName: 'Old unread',
+        unreadCount: 1,
+        lastMessageId: 'old-message',
+        lastMessageAt: new Date(Date.now() - 31 * 60 * 1000).toISOString(),
+      };
+      const freshAfter = {
+        ...staleBefore,
+        unreadCount: 2,
+        lastMessageId: 'fresh-message',
+        lastMessageAt: new Date(Date.now()).toISOString(),
+        lastMessageBody: 'new message',
+      };
+
+      const freshBubbleThread = App._findPmUnreadIncrease([staleBefore], [freshAfter]);
+      expect(freshBubbleThread._pmBubbleMode).toBe('fresh');
+      expect(freshBubbleThread._pmFollowupReminderKeys).toContain(conversationId);
+
+      FirebaseService._cache.pmThreads = [freshAfter];
+      App._showPmIncomingBubble(freshBubbleThread);
+      expect(document.getElementById('pm-incoming-bubble').dataset.mode).toBe('fresh');
+
+      App._handlePmFreshBubbleTimeout();
+      const bubble = document.getElementById('pm-incoming-bubble');
+      expect(bubble.dataset.mode).toBe('reminder');
+      expect(bubble.classList.contains('is-visible')).toBe(true);
+      expect(bubble.textContent).toContain('未讀');
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   test('PM edit and recall use optimistic pending states and lock after peer read', () => {
