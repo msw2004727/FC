@@ -57,6 +57,10 @@ describe('private message feature wiring', () => {
     expect(dialog).not.toContain('&#128269;');
     expect(listener).toContain('_showPmIncomingBubble');
     expect(listener).toContain('_findPmInitialUnread');
+    expect(listener).toContain('_getPmUnreadReminderThreads');
+    expect(listener).toContain('_showPmUnreadReminderFromCache');
+    expect(listener).toContain('_handlePmFreshBubbleTimeout');
+    expect(listener).toContain("_showPmUnreadReminderFromCache?.({ staleOnly: true })");
     expect(listener).toContain('_buildPmUnreadReminderThread');
     expect(listener).toContain('_pmBuildUnreadReminderKey');
     expect(listener).toContain('_dismissPmUnreadReminder');

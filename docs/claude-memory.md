@@ -2540,3 +2540,8 @@
 - **Issue**: The large PM bubble only appeared for unread threads whose latest message was within 30 minutes, so older unread PMs relied only on the bell hint and could be missed on site entry.
 - **Fix**: Kept the current fresh-message bubble for recent unread messages, and added a quieter persistent unread-reminder bubble for older unread PMs. The reminder uses the same bubble surface, shows "you have unread private messages" style copy, stays visible until the user opens it or closes it, and stores a session-only dismissed key built from the current unread batch so the same batch does not keep reappearing.
 - **Validation**: Added source contract coverage for stale unread reminder helpers, sessionStorage dismissal, reminder styling, and close control.
+
+### 2026-05-12 PM Mixed Fresh/Stale Bubble Timeout [bugfix]
+- **Issue**: When a user had both recent unread PMs and older unread PMs, the recent-message bubble's 6.5-second auto-hide also hid the persistent older-unread reminder.
+- **Fix**: Split the fresh bubble timeout from the generic hide path. When the recent-message timer fires, it now checks the PM thread cache for unread threads older than 30 minutes and switches the same bubble into persistent reminder mode instead of hiding it.
+- **Validation**: Ran `node --check js/modules/message/pm-listener.js` and the targeted private message unit test.

@@ -186,13 +186,7 @@ Object.assign(App, {
   _findPmInitialUnread(threads = []) {
     if (this.currentPage === 'page-messages' && this._msgInboxFilter === 'pm-conversation') return null;
     const now = Date.now();
-    const unreadThreads = threads
-      .filter(t => {
-        const cId = String(t.conversationId || t.id || t._docId || '');
-        const unread = Math.max(0, Number(t.unreadCount || 0));
-        return !!cId && unread > 0 && !this._isPmDialogOpenForConversation(cId);
-      })
-      .sort((a, b) => this._pmTimeMs(b.lastMessageAt) - this._pmTimeMs(a.lastMessageAt));
+    const unreadThreads = this._getPmUnreadReminderThreads?.(threads) || [];
     if (!unreadThreads.length) return null;
     const freshThread = unreadThreads.find(t => {
         const lastMs = this._pmTimeMs(t.lastMessageAt);
@@ -241,6 +235,31 @@ Object.assign(App, {
     try {
       sessionStorage.setItem(this._pmUnreadReminderStorageKey?.() || 'pmUnreadReminderDismissed', key);
     } catch (_) {}
+  },
+
+  _getPmUnreadReminderThreads(threads = [], options = {}) {
+    const staleOnly = !!options.staleOnly;
+    const now = Date.now();
+    return (threads || [])
+      .filter(t => {
+        const cId = String(t.conversationId || t.id || t._docId || '').trim();
+        const unread = Math.max(0, Number(t.unreadCount || 0));
+        if (!cId || unread <= 0 || this._isPmDialogOpenForConversation(cId)) return false;
+        if (!staleOnly) return true;
+        const lastMs = this._pmTimeMs(t.lastMessageAt);
+        return !!lastMs && (now - lastMs) > this.PM_INCOMING_BUBBLE_WINDOW_MS;
+      })
+      .sort((a, b) => this._pmTimeMs(b.lastMessageAt) - this._pmTimeMs(a.lastMessageAt));
+  },
+
+  _showPmUnreadReminderFromCache(options = {}) {
+    if (this.currentPage === 'page-messages' && this._msgInboxFilter === 'pm-conversation') return false;
+    const threads = (typeof FirebaseService !== 'undefined' && FirebaseService._cache?.pmThreads) || [];
+    const unreadThreads = this._getPmUnreadReminderThreads?.(threads, options) || [];
+    const reminder = this._buildPmUnreadReminderThread?.(unreadThreads);
+    if (!reminder || this._isPmUnreadReminderDismissed?.(reminder._pmReminderKey)) return false;
+    this._showPmIncomingBubble?.(reminder);
+    return true;
   },
 
   _buildPmUnreadReminderThread(threads = []) {
@@ -372,14 +391,24 @@ Object.assign(App, {
     this.updateNotifBadge?.();
     clearTimeout(this._pmIncomingBubbleTimer);
     if (mode === 'fresh') {
-      this._pmIncomingBubbleTimer = setTimeout(() => this._hidePmIncomingBubble?.(), 6500);
+      this._pmIncomingBubbleTimer = setTimeout(() => this._handlePmFreshBubbleTimeout?.(), 6500);
     } else {
       this._pmIncomingBubbleTimer = null;
     }
   },
 
+  _handlePmFreshBubbleTimeout() {
+    clearTimeout(this._pmIncomingBubbleTimer);
+    this._pmIncomingBubbleTimer = null;
+    const bubble = document.getElementById('pm-incoming-bubble');
+    if (bubble?.dataset?.mode !== 'fresh') return;
+    if (this._showPmUnreadReminderFromCache?.({ staleOnly: true })) return;
+    this._hidePmIncomingBubble?.();
+  },
+
   _hidePmIncomingBubble() {
     clearTimeout(this._pmIncomingBubbleTimer);
+    this._pmIncomingBubbleTimer = null;
     this._pmIncomingBubbleVisible = false;
     const bubble = document.getElementById('pm-incoming-bubble');
     if (bubble) bubble.classList.remove('is-visible');
