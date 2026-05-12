@@ -275,7 +275,7 @@ I18N.register('zh-TW', {
   'activityPage.searchPlaceholder': '搜尋活動...',
   'activityPage.allTypes': '全部類型',
   'activityPage.manage': '管理',
-  'activityPage.tabNormal': '進行中',
+  'activityPage.tabNormal': '報名中',
   'activityPage.tabEnded': '已結束',
   'activityPage.newEvent': '我要開團',
   // Profile Page
