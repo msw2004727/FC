@@ -6,7 +6,8 @@
 Object.assign(App, {
 
   renderMessageList(filter) {
-    const f = filter || this._msgInboxFilter || 'all';
+    let f = filter || this._msgInboxFilter || 'all';
+    if (f === 'private') f = 'pm-conversation';
     this._msgInboxFilter = f;
     if (f === 'pm-conversation') {
       this._togglePmConversationUI?.(true);

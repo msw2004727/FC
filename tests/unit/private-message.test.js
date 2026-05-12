@@ -19,6 +19,8 @@ describe('private message feature wiring', () => {
     expect(index).toContain('js/modules/message/pm-listener.js');
     expect(scriptLoader).toContain('js/modules/message/pm-audit.js');
     expect(messagePage).toContain('data-msgtype="pm-conversation"');
+    expect(messagePage).not.toContain('data-msgtype="private"');
+    expect(readProjectFile('js/modules/message/message-render.js')).toContain("if (f === 'private') f = 'pm-conversation'");
     expect(profile).toContain('App.openPmDialog');
   });
 
