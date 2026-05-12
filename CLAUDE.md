@@ -91,7 +91,7 @@ FC-github/
 │       ├── team/           # 俱樂部系統（16）：列表、詳情、表單、動態牆、分享、helpers/stats/builders/validate/roles/invite
 │       ├── tournament/     # 賽事系統（19）：渲染、詳情、管理、友誼賽、helpers/builders/state
 │       ├── profile/        # 個人資料（9）：核心、資料、名片、分享
-│       ├── message/        # 訊息系統（9）：渲染、操作、收件匣、管理員
+│       ├── message/        # 訊息系統（17）：渲染、操作、收件匣、私訊、聊天室稽核、管理員
 │       ├── achievement/    # 成就系統（10）：registry / evaluator / badges 等
 │       ├── education/      # 教育型俱樂部（21）：分組、學員、課程、報名、簽到、行事曆
 │       ├── color-cat/      # 養成角色系統（45）：角色、戰鬥、敵人、場景、AI、MBTI、對話

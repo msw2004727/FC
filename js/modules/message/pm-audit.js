@@ -1,0 +1,163 @@
+/* ================================================
+   ToosterX — PM audit center (super_admin only)
+   ================================================ */
+
+Object.assign(App, {
+  _pmAuditSelectedUid: '',
+  _pmAuditSelectedConversationId: '',
+
+  _isPmAuditAllowed() {
+    const role = ApiService.getCurrentUser?.()?.role || this.currentRole || 'user';
+    return role === 'super_admin';
+  },
+
+  renderPmAuditPanel() {
+    const panel = document.querySelector('[data-admin-log-panel="chat"]');
+    if (!panel) return;
+    if (!this._isPmAuditAllowed()) {
+      panel.innerHTML = '<div class="admin-empty-state">聊天室稽核僅限 super_admin 查看</div>';
+      return;
+    }
+    if (panel.dataset.pmAuditReady !== '1') {
+      panel.dataset.pmAuditReady = '1';
+      panel.innerHTML = `
+        <div class="pm-audit-layout">
+          <section class="pm-audit-card">
+            <h3>搜尋用戶對話</h3>
+            <div class="pm-audit-row">
+              <input id="pm-audit-user-query" type="text" placeholder="輸入 UID 或 LINE 名稱">
+              <button type="button" class="primary-btn small" onclick="App.searchPmAuditUsers()">搜尋</button>
+            </div>
+            <div id="pm-audit-users" class="pm-audit-results"></div>
+          </section>
+          <section class="pm-audit-card">
+            <h3>對話列表</h3>
+            <div id="pm-audit-threads" class="pm-audit-results muted">請先搜尋並選擇用戶</div>
+          </section>
+          <section class="pm-audit-card pm-audit-conversation-card">
+            <h3>對話內容</h3>
+            <div id="pm-audit-conversation" class="pm-audit-conversation muted">尚未選擇對話</div>
+          </section>
+          <section class="pm-audit-card">
+            <h3>聊天室使用 log</h3>
+            <div class="pm-audit-row">
+              <select id="pm-audit-action">
+                <option value="">全部動作</option>
+                <option value="send">送出</option>
+                <option value="read">已讀</option>
+                <option value="edit">編輯</option>
+                <option value="recall">撤回</option>
+                <option value="search_user">搜尋用戶</option>
+                <option value="audit_view_thread">查看對話列表</option>
+                <option value="audit_view_conversation">查看對話內容</option>
+                <option value="audit_search_logs">查詢 log</option>
+              </select>
+              <button type="button" class="outline-btn small" onclick="App.loadPmAuditLogs()">重新整理</button>
+            </div>
+            <div id="pm-audit-logs" class="pm-audit-results"></div>
+          </section>
+        </div>`;
+    }
+    this.loadPmAuditLogs();
+  },
+
+  async searchPmAuditUsers() {
+    const query = String(document.getElementById('pm-audit-user-query')?.value || '').trim();
+    if (!query) {
+      this.showToast?.('請輸入 UID 或名稱');
+      return;
+    }
+    const box = document.getElementById('pm-audit-users');
+    if (box) box.innerHTML = '<div class="muted">搜尋中...</div>';
+    try {
+      const fn = this._pmCallable?.('searchPmAuditUsers');
+      const resp = await fn({ query });
+      const users = resp?.data?.users || [];
+      if (!box) return;
+      box.innerHTML = users.length ? users.map(u => `
+        <button type="button" class="pm-audit-user" data-uid="${escapeHTML(u.uid)}">
+          ${u.pictureUrl ? `<img src="${escapeHTML(u.pictureUrl)}" alt="">` : '<span></span>'}
+          <strong data-no-translate>${escapeHTML(u.name || u.uid)}</strong>
+          <small data-no-translate>${escapeHTML(u.uid)} · ${escapeHTML(u.role || 'user')}</small>
+        </button>`).join('') : '<div class="muted">沒有找到用戶</div>';
+      box.querySelectorAll('.pm-audit-user').forEach(btn => {
+        btn.addEventListener('click', () => this.loadPmAuditThreads(btn.dataset.uid || ''));
+      });
+    } catch (err) {
+      console.warn('[searchPmAuditUsers]', err);
+      if (box) box.innerHTML = '<div class="muted">搜尋失敗</div>';
+    }
+  },
+
+  async loadPmAuditThreads(uid) {
+    this._pmAuditSelectedUid = uid;
+    const box = document.getElementById('pm-audit-threads');
+    const convo = document.getElementById('pm-audit-conversation');
+    if (box) box.innerHTML = '<div class="muted">載入中...</div>';
+    if (convo) convo.innerHTML = '<div class="muted">尚未選擇對話</div>';
+    try {
+      const fn = this._pmCallable?.('listPmAuditThreads');
+      const resp = await fn({ uid });
+      const threads = resp?.data?.threads || [];
+      if (!box) return;
+      box.innerHTML = threads.length ? threads.map(t => {
+        const names = t.participantNames || {};
+        const title = (t.participants || []).map(id => names[id] || id).join(' / ');
+        return `
+          <button type="button" class="pm-audit-thread" data-cid="${escapeHTML(t.conversationId || t.id)}">
+            <strong data-no-translate>${escapeHTML(title || t.id)}</strong>
+            <span>${escapeHTML(t.lastMessageBody || '')}</span>
+            <small>${escapeHTML(this._pmFormatTime?.(t.lastMessageAt) || '')}</small>
+          </button>`;
+      }).join('') : '<div class="muted">此用戶沒有私訊稽核對話</div>';
+      box.querySelectorAll('.pm-audit-thread').forEach(btn => {
+        btn.addEventListener('click', () => this.loadPmAuditConversation(btn.dataset.cid || ''));
+      });
+    } catch (err) {
+      console.warn('[loadPmAuditThreads]', err);
+      if (box) box.innerHTML = '<div class="muted">載入對話列表失敗</div>';
+    }
+  },
+
+  async loadPmAuditConversation(conversationId) {
+    this._pmAuditSelectedConversationId = conversationId;
+    const box = document.getElementById('pm-audit-conversation');
+    if (box) box.innerHTML = '<div class="muted">載入中...</div>';
+    try {
+      const fn = this._pmCallable?.('getPmAuditConversation');
+      const resp = await fn({ conversationId, limit: 100 });
+      const messages = resp?.data?.messages || [];
+      if (!box) return;
+      box.innerHTML = messages.length ? messages.map(m => `
+        <article class="pm-audit-message">
+          <div><strong data-no-translate>${escapeHTML(m.senderName || m.fromUid)}</strong><small>${escapeHTML(this._pmFormatTime?.(m.createdAt) || '')}</small></div>
+          <p>${escapeHTML(m.status === 'recalled' ? '訊息已撤回' : (m.body || ''))}</p>
+        </article>`).join('') : '<div class="muted">沒有訊息</div>';
+      this.loadPmAuditLogs('audit_view_conversation');
+    } catch (err) {
+      console.warn('[loadPmAuditConversation]', err);
+      if (box) box.innerHTML = '<div class="muted">載入對話內容失敗</div>';
+    }
+  },
+
+  async loadPmAuditLogs(forceAction) {
+    const box = document.getElementById('pm-audit-logs');
+    if (!box) return;
+    box.innerHTML = '<div class="muted">載入中...</div>';
+    try {
+      const action = forceAction || String(document.getElementById('pm-audit-action')?.value || '');
+      const fn = this._pmCallable?.('getPmAuditLogs');
+      const resp = await fn({ action, limit: 50 });
+      const logs = resp?.data?.logs || [];
+      box.innerHTML = logs.length ? logs.map(log => `
+        <div class="pm-audit-log">
+          <strong>${escapeHTML(log.action || '')}</strong>
+          <span data-no-translate>${escapeHTML(log.actorUid || '')} → ${escapeHTML(log.targetUid || '')}</span>
+          <small>${escapeHTML(log.createdAtIso || this._pmFormatTime?.(log.createdAt) || '')}</small>
+        </div>`).join('') : '<div class="muted">目前沒有 log</div>';
+    } catch (err) {
+      console.warn('[loadPmAuditLogs]', err);
+      box.innerHTML = '<div class="muted">載入 log 失敗</div>';
+    }
+  },
+});

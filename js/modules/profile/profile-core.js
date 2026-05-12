@@ -239,7 +239,7 @@ Object.assign(App, {
         <div class="uc-avatar-circle" style="margin:0 auto .6rem">${avatarHtml}</div>
         <div class="profile-title" data-no-translate>${titleHtml}</div>
         <div style="margin-top:.3rem"><span class="uc-role-tag" style="background:${roleInfo.color}22;color:${roleInfo.color}">${roleInfo.label}</span></div>
-        ${!isSelf ? this._buildUserCardActionPanel() : ''}
+        ${!isSelf ? this._buildUserCardActionPanel(targetUid) : ''}
         <div class="profile-level">
           <span>Lv.${level}</span>
           <div class="exp-bar"><div class="exp-fill" style="width:${expPct}%"></div></div>
@@ -465,10 +465,15 @@ Object.assign(App, {
   },
 
   // 用戶資料卡片三功能按鈕（純裝飾，功能未啟用；身分膠囊下方橫排）
-  _buildUserCardActionPanel() {
+  _buildUserCardActionPanel(targetUid) {
+    const rawUid = String(targetUid || '').trim();
+    const safeUid = this.isValidLineUid?.(rawUid) ? rawUid : '';
+    const pmAction = safeUid
+      ? `App.openPmDialog('${escapeHTML(safeUid)}')`
+      : `App.showToast('無法開啟私訊')`;
     return `<div class="uc-action-panel">
       <button type="button" class="uc-action-btn" onclick="App.showToast('功能尚未開放')">加好友</button>
-      <button type="button" class="uc-action-btn" onclick="App.showToast('功能尚未開放')">私訊</button>
+      <button type="button" class="uc-action-btn" onclick="${pmAction}">私訊</button>
       <button type="button" class="uc-action-btn" onclick="App.showToast('功能尚未開放')">關注</button>
     </div>`;
   },

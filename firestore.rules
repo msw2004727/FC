@@ -924,6 +924,23 @@ service cloud.firestore {
           || isAdmin();
         allow delete: if isOwner(userId) || isAdmin();
       }
+
+      // ── Private Messages（私訊）──
+      // 所有寫入、已讀、編輯、撤回都透過 Cloud Functions；Client 只能讀自己的副本。
+      match /pmThreads/{threadId} {
+        allow read: if isOwner(userId);
+        allow create, update, delete: if false;
+
+        match /messages/{messageId} {
+          allow read: if isOwner(userId);
+          allow create, update, delete: if false;
+        }
+      }
+
+      match /pmMeta/{metaId} {
+        allow read: if isOwner(userId);
+        allow create, update, delete: if false;
+      }
     }
 
     // ═══════════════════════════════════════════
@@ -1430,6 +1447,18 @@ service cloud.firestore {
     match /auditLogsByDay/{dayKey}/auditEntries/{logId} {
       allow read: if isSuperAdmin() || hasPerm('admin.logs.audit_read');
       allow create, update, delete: if false;
+    }
+
+    // ── PM audit copies/logs（聊天室稽核）──
+    // 高敏感資料，固定只透過 super_admin callable 讀取；Client SDK 全拒。
+    match /pmAuditLogs/{logId} {
+      allow read, write: if false;
+    }
+    match /pmAuditConversations/{conversationId} {
+      allow read, write: if false;
+      match /messages/{messageId} {
+        allow read, write: if false;
+      }
     }
 
     match /participantQueryShares/{shareId} {

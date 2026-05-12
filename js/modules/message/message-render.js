@@ -8,6 +8,15 @@ Object.assign(App, {
   renderMessageList(filter) {
     const f = filter || this._msgInboxFilter || 'all';
     this._msgInboxFilter = f;
+    if (f === 'pm-conversation') {
+      this._togglePmConversationUI?.(true);
+      this.renderPmThreadList?.();
+      this.updateNotifBadge();
+      this.updateStorageBar();
+      this._bindMessageInboxTabs?.();
+      return;
+    }
+    this._togglePmConversationUI?.(false);
     // Phase 3: inbox 已是 per-user，不需 _filterMyMessages
     const allMessages = ApiService.getMessages() || [];
     let messages = (f === 'all' ? allMessages : allMessages.filter(m => m.type === f))
@@ -59,7 +68,10 @@ Object.assign(App, {
     _msgScrollEl.scrollTop = _msgSavedScroll;
     this.updateNotifBadge();
     this.updateStorageBar();
+    this._bindMessageInboxTabs();
+  },
 
+  _bindMessageInboxTabs() {
     // 綁定分類 tabs（使用 msgBound 避免被通用 bindTabBars 搶先佔位）
     const tabs = document.getElementById('msg-inbox-tabs');
     if (tabs && !tabs.dataset.msgBound) {
@@ -77,7 +89,7 @@ Object.assign(App, {
   updateNotifBadge() {
     // Phase 3: inbox 已是 per-user，不需 _filterMyMessages
     const messages = ApiService.getMessages() || [];
-    const unreadCount = messages.filter(m => this._isMessageUnread(m)).length;
+    const unreadCount = messages.filter(m => this._isMessageUnread(m)).length + (this._pmUnreadTotal?.() || 0);
     const badge = document.getElementById('notif-badge');
     if (!badge) return;
     badge.textContent = unreadCount;

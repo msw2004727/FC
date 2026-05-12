@@ -107,6 +107,14 @@ const ALLOWED_AUDIT_META_KEYS = new Set([
 ]);
 const AUDIT_RETENTION_DAYS = 180;
 const CHANGE_WATCH_RETENTION_DAYS = 180;
+const PM_AUDIT_RETENTION_DAYS = 180;
+const PM_MAX_BODY_LENGTH = 1000;
+const PM_MESSAGE_LIMIT = 50;
+const PM_THREAD_LIMIT = 50;
+const PM_DAILY_LIMIT_PER_UID = 100;
+const PM_DAILY_LIMIT_PER_PEER = 30;
+const PM_EDIT_WINDOW_MS = 15 * 60 * 1000;
+const PM_RECALL_WINDOW_MS = 5 * 60 * 1000;
 
 // ── 翻譯配額設定（調整上限只需改這裡，重新 deploy 即可）──
 const TRANSLATE_QUOTA = Object.freeze({
@@ -10055,5 +10063,634 @@ exports.recordUserLoginIp = onCall(
       lastLoginIsp: isp,
     });
     return { ok: true, ip, region };
+  },
+);
+
+// ═══════════════════════════════════════════
+//  Private Messages — user-to-user PM
+//  Writes are Cloud Functions only. Client SDK can read own per-user copies.
+// ═══════════════════════════════════════════
+const PM_UID_RE = /^U[0-9a-f]{32}$/i;
+const PM_BUILTIN_LEVELS = Object.freeze({
+  user: 0,
+  coach: 1,
+  captain: 2,
+  venue_owner: 3,
+  admin: 4,
+  super_admin: 5,
+});
+
+function pmString(value, max = 1000) {
+  return String(value || "").trim().slice(0, max);
+}
+
+function pmNormalizeUid(uid) {
+  return pmString(uid, 80);
+}
+
+function pmAssertLineUid(uid, fieldName = "uid") {
+  const safeUid = pmNormalizeUid(uid);
+  if (!PM_UID_RE.test(safeUid)) {
+    throw new HttpsError("invalid-argument", `${fieldName} invalid`);
+  }
+  return safeUid;
+}
+
+function pmNormalizeRole(role) {
+  const safeRole = pmString(role, 40);
+  return Object.prototype.hasOwnProperty.call(PM_BUILTIN_LEVELS, safeRole) ? safeRole : "user";
+}
+
+function pmCanSendTo(fromRole, toRole, hasExistingConversation) {
+  const fromLevel = PM_BUILTIN_LEVELS[pmNormalizeRole(fromRole)] ?? 0;
+  const toLevel = PM_BUILTIN_LEVELS[pmNormalizeRole(toRole)] ?? 0;
+  if (fromLevel >= PM_BUILTIN_LEVELS.admin) return true;
+  if (hasExistingConversation) return true;
+  return fromLevel < toLevel;
+}
+
+function pmBuildConversationId(uidA, uidB) {
+  const a = pmAssertLineUid(uidA, "uidA");
+  const b = pmAssertLineUid(uidB, "uidB");
+  if (a === b) throw new HttpsError("invalid-argument", "self pm denied");
+  return `pm_${[a, b].sort().join("_")}`;
+}
+
+function pmParseConversationId(cId) {
+  const raw = pmString(cId, 180);
+  const match = raw.match(/^pm_(U[0-9a-f]{32})_(U[0-9a-f]{32})$/i);
+  if (!match) return null;
+  const uidA = match[1];
+  const uidB = match[2];
+  if (uidA === uidB) return null;
+  const canonical = pmBuildConversationId(uidA, uidB);
+  if (canonical !== raw) return null;
+  return { uidA, uidB, participants: [uidA, uidB] };
+}
+
+function pmAssertConversationParticipant(cId, uid) {
+  const parsed = pmParseConversationId(cId);
+  const safeUid = pmAssertLineUid(uid, "uid");
+  if (!parsed || !parsed.participants.includes(safeUid)) {
+    throw new HttpsError("permission-denied", "conversation denied");
+  }
+  return parsed;
+}
+
+function pmOtherParticipant(parsed, uid) {
+  return parsed.participants.find(item => item !== uid) || "";
+}
+
+function pmTaipeiDateKey(date = new Date()) {
+  const offsetMs = 8 * 60 * 60 * 1000;
+  const t = new Date(date.getTime() + offsetMs);
+  return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-${String(t.getUTCDate()).padStart(2, "0")}`;
+}
+
+function pmDisplayName(userData, fallbackUid) {
+  return pmString(
+    userData?.displayName || userData?.name || userData?.lineDisplayName || fallbackUid,
+    80,
+  );
+}
+
+function pmPictureUrl(userData) {
+  return pmString(userData?.pictureUrl || userData?.photoURL || userData?.avatar || "", 500);
+}
+
+function pmPublicUser(userData, uid) {
+  return {
+    uid,
+    name: pmDisplayName(userData, uid),
+    pictureUrl: pmPictureUrl(userData),
+    role: pmNormalizeRole(userData?.role),
+    isRestricted: userData?.isRestricted === true,
+  };
+}
+
+function pmMessagePreview(body) {
+  return pmString(body, 80);
+}
+
+function pmRetentionTimestamp(fromDate = new Date()) {
+  return Timestamp.fromDate(new Date(fromDate.getTime() + PM_AUDIT_RETENTION_DAYS * 24 * 60 * 60 * 1000));
+}
+
+function pmServerTimestampIso(date = new Date()) {
+  return date.toISOString();
+}
+
+function pmMessageSortMs(data) {
+  const createdAt = data?.createdAt;
+  if (createdAt?.toDate) return createdAt.toDate().getTime();
+  if (createdAt?._seconds) return createdAt._seconds * 1000;
+  if (typeof createdAt === "string") {
+    const ms = Date.parse(createdAt);
+    if (Number.isFinite(ms)) return ms;
+  }
+  return 0;
+}
+
+function pmClientMessage(data, id) {
+  return {
+    id,
+    messageId: data.messageId || id,
+    conversationId: data.conversationId || "",
+    fromUid: data.fromUid || "",
+    toUid: data.toUid || "",
+    body: data.body || "",
+    status: data.status || "active",
+    direction: data.direction || "",
+    senderName: data.senderName || "",
+    senderAvatar: data.senderAvatar || "",
+    peerRead: data.peerRead === true,
+    peerReadAt: data.peerReadAt || null,
+    editedAt: data.editedAt || null,
+    recalledAt: data.recalledAt || null,
+    createdAt: data.createdAt || null,
+    updatedAt: data.updatedAt || null,
+  };
+}
+
+async function pmGetUserByUid(tx, uid) {
+  const ref = db.collection("users").doc(uid);
+  const snap = await tx.get(ref);
+  if (!snap.exists) throw new HttpsError("not-found", "user not found");
+  return { ref, snap, data: snap.data() || {} };
+}
+
+async function pmAssertSuperAdmin(request) {
+  if (!request.auth?.uid) throw new HttpsError("unauthenticated", "auth required");
+  const access = await getCallerAccessContext(request);
+  if (!access.isSuperAdmin) throw new HttpsError("permission-denied", "super_admin only");
+  return { uid: request.auth.uid, access };
+}
+
+async function pmWriteAuditLog(action, payload = {}) {
+  const now = new Date();
+  const logRef = db.collection("pmAuditLogs").doc(`pmlog_${now.getTime()}_${Math.random().toString(36).slice(2, 8)}`);
+  await logRef.set({
+    action: pmString(action, 50),
+    actorUid: pmString(payload.actorUid, 80),
+    targetUid: pmString(payload.targetUid, 80),
+    conversationId: pmString(payload.conversationId, 180),
+    messageId: pmString(payload.messageId, 80),
+    querySummary: pmString(payload.querySummary, 300),
+    result: pmString(payload.result || "success", 20),
+    source: pmString(payload.source || "cloud_function", 30),
+    createdAt: FieldValue.serverTimestamp(),
+    createdAtIso: pmServerTimestampIso(now),
+    retentionDeleteAfter: pmRetentionTimestamp(now),
+  });
+  return logRef.id;
+}
+
+exports.sendPrivateMessage = onCall(
+  { region: "asia-east1", timeoutSeconds: 20, memory: "256MiB" },
+  async (request) => {
+    if (!request.auth?.uid) throw new HttpsError("unauthenticated", "auth required");
+    const fromUid = pmAssertLineUid(request.auth.uid, "fromUid");
+    const toUid = pmAssertLineUid(request.data?.toUid, "toUid");
+    if (fromUid === toUid) throw new HttpsError("invalid-argument", "不能傳訊息給自己");
+
+    const body = pmString(request.data?.body, PM_MAX_BODY_LENGTH + 1);
+    if (!body) throw new HttpsError("invalid-argument", "message body required");
+    if (body.length > PM_MAX_BODY_LENGTH) throw new HttpsError("invalid-argument", "message body too long");
+
+    const cId = pmBuildConversationId(fromUid, toUid);
+    const now = new Date();
+    const messageId = `pmmsg_${now.getTime()}_${Math.random().toString(36).slice(2, 10)}`;
+    const dateKey = pmTaipeiDateKey(now);
+    const result = await db.runTransaction(async (tx) => {
+      const sender = await pmGetUserByUid(tx, fromUid);
+      const recipient = await pmGetUserByUid(tx, toUid);
+      const senderInfo = pmPublicUser(sender.data, fromUid);
+      const recipientInfo = pmPublicUser(recipient.data, toUid);
+      if (senderInfo.isRestricted || recipientInfo.isRestricted) {
+        throw new HttpsError("failed-precondition", "restricted user");
+      }
+
+      const senderThreadRef = sender.ref.collection("pmThreads").doc(cId);
+      const recipientThreadRef = recipient.ref.collection("pmThreads").doc(cId);
+      const senderStateRef = sender.ref.collection("pmMeta").doc("state");
+      const recipientStateRef = recipient.ref.collection("pmMeta").doc("state");
+      const rateRef = sender.ref.collection("pmMeta").doc(`rateLimit_${dateKey}`);
+      const senderThreadSnap = await tx.get(senderThreadRef);
+      const recipientThreadSnap = await tx.get(recipientThreadRef);
+      const rateSnap = await tx.get(rateRef);
+      const hasExistingConversation = senderThreadSnap.exists || recipientThreadSnap.exists;
+      if (!pmCanSendTo(senderInfo.role, recipientInfo.role, hasExistingConversation)) {
+        throw new HttpsError("permission-denied", "pm permission denied");
+      }
+
+      const rateData = rateSnap.exists ? (rateSnap.data() || {}) : {};
+      const totalSent = Number(rateData.totalSent || 0);
+      const peerSent = Number(rateData.perPeer?.[toUid] || 0);
+      if (totalSent >= PM_DAILY_LIMIT_PER_UID || peerSent >= PM_DAILY_LIMIT_PER_PEER) {
+        throw new HttpsError("resource-exhausted", "pm rate limit exceeded");
+      }
+
+      const senderMsgRef = senderThreadRef.collection("messages").doc(messageId);
+      const recipientMsgRef = recipientThreadRef.collection("messages").doc(messageId);
+      const auditThreadRef = db.collection("pmAuditConversations").doc(cId);
+      const auditMsgRef = auditThreadRef.collection("messages").doc(messageId);
+      const auditLogRef = db.collection("pmAuditLogs").doc(`pmlog_${now.getTime()}_${Math.random().toString(36).slice(2, 8)}`);
+      const nowTs = Timestamp.fromDate(now);
+      const retentionTs = pmRetentionTimestamp(now);
+      const baseMessage = {
+        id: messageId,
+        messageId,
+        conversationId: cId,
+        fromUid,
+        toUid,
+        body,
+        preview: pmMessagePreview(body),
+        status: "active",
+        senderName: senderInfo.name,
+        senderAvatar: senderInfo.pictureUrl,
+        recipientName: recipientInfo.name,
+        recipientAvatar: recipientInfo.pictureUrl,
+        peerRead: false,
+        peerReadAt: null,
+        editedAt: null,
+        editVersion: 0,
+        recalledAt: null,
+        recalledByUid: null,
+        createdAt: nowTs,
+        updatedAt: nowTs,
+      };
+
+      tx.set(senderMsgRef, { ...baseMessage, direction: "out", read: true, readAt: nowTs });
+      tx.set(recipientMsgRef, { ...baseMessage, direction: "in", read: false, readAt: null });
+      tx.set(senderThreadRef, {
+        conversationId: cId,
+        peerUid: toUid,
+        peerName: recipientInfo.name,
+        peerAvatar: recipientInfo.pictureUrl,
+        participants: [fromUid, toUid],
+        lastMessageId: messageId,
+        lastMessageBody: pmMessagePreview(body),
+        lastMessageStatus: "active",
+        lastMessageAt: nowTs,
+        unreadCount: Number(senderThreadSnap.data()?.unreadCount || 0),
+        updatedAt: nowTs,
+        createdAt: senderThreadSnap.exists ? (senderThreadSnap.data()?.createdAt || nowTs) : nowTs,
+      }, { merge: true });
+      tx.set(recipientThreadRef, {
+        conversationId: cId,
+        peerUid: fromUid,
+        peerName: senderInfo.name,
+        peerAvatar: senderInfo.pictureUrl,
+        participants: [fromUid, toUid],
+        lastMessageId: messageId,
+        lastMessageBody: pmMessagePreview(body),
+        lastMessageStatus: "active",
+        lastMessageAt: nowTs,
+        unreadCount: FieldValue.increment(1),
+        updatedAt: nowTs,
+        createdAt: recipientThreadSnap.exists ? (recipientThreadSnap.data()?.createdAt || nowTs) : nowTs,
+      }, { merge: true });
+      if (!senderThreadSnap.exists) tx.set(senderStateRef, { threadCount: FieldValue.increment(1), updatedAt: nowTs }, { merge: true });
+      if (!recipientThreadSnap.exists) tx.set(recipientStateRef, { threadCount: FieldValue.increment(1), unreadTotal: FieldValue.increment(1), updatedAt: nowTs }, { merge: true });
+      if (recipientThreadSnap.exists) tx.set(recipientStateRef, { unreadTotal: FieldValue.increment(1), updatedAt: nowTs }, { merge: true });
+      if (rateSnap.exists) {
+        tx.update(rateRef, {
+          totalSent: FieldValue.increment(1),
+          [`perPeer.${toUid}`]: FieldValue.increment(1),
+          updatedAt: nowTs,
+        });
+      } else {
+        tx.set(rateRef, {
+          dateKey,
+          totalSent: 1,
+          perPeer: { [toUid]: 1 },
+          createdAt: nowTs,
+          updatedAt: nowTs,
+        });
+      }
+      tx.set(auditThreadRef, {
+        conversationId: cId,
+        participants: [fromUid, toUid],
+        participantNames: { [fromUid]: senderInfo.name, [toUid]: recipientInfo.name },
+        lastMessageId: messageId,
+        lastMessageAt: nowTs,
+        updatedAt: nowTs,
+        createdAt: nowTs,
+        retentionDeleteAfter: retentionTs,
+      }, { merge: true });
+      tx.set(auditMsgRef, {
+        ...baseMessage,
+        readBy: { [fromUid]: nowTs },
+        editHistory: [],
+        retentionDeleteAfter: retentionTs,
+      });
+      tx.set(auditLogRef, {
+        action: "send",
+        actorUid: fromUid,
+        targetUid: toUid,
+        conversationId: cId,
+        messageId,
+        result: "success",
+        source: "cloud_function",
+        createdAt: nowTs,
+        createdAtIso: pmServerTimestampIso(now),
+        retentionDeleteAfter: retentionTs,
+      });
+      return { conversationId: cId, messageId };
+    });
+    return { ok: true, ...result };
+  },
+);
+
+exports.markPrivateConversationRead = onCall(
+  { region: "asia-east1", timeoutSeconds: 20, memory: "256MiB" },
+  async (request) => {
+    if (!request.auth?.uid) throw new HttpsError("unauthenticated", "auth required");
+    const uid = pmAssertLineUid(request.auth.uid, "uid");
+    const parsed = pmAssertConversationParticipant(request.data?.conversationId, uid);
+    const peerUid = pmOtherParticipant(parsed, uid);
+    const cId = pmBuildConversationId(uid, peerUid);
+    const now = new Date();
+    const nowTs = Timestamp.fromDate(now);
+    const threadRef = db.collection("users").doc(uid).collection("pmThreads").doc(cId);
+    const threadDoc = await threadRef.get();
+    if (!threadDoc.exists) return { ok: true, readCount: 0 };
+    const unreadSnap = await threadRef.collection("messages")
+      .where("direction", "==", "in")
+      .where("read", "==", false)
+      .limit(PM_MESSAGE_LIMIT)
+      .get();
+    if (unreadSnap.empty) {
+      await threadRef.set({ unreadCount: 0, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      return { ok: true, readCount: 0 };
+    }
+    const batch = db.batch();
+    unreadSnap.docs.forEach((docSnap) => {
+      const data = docSnap.data() || {};
+      const messageId = data.messageId || docSnap.id;
+      batch.set(docSnap.ref, { read: true, readAt: nowTs, updatedAt: nowTs }, { merge: true });
+      batch.set(
+        db.collection("users").doc(peerUid).collection("pmThreads").doc(cId).collection("messages").doc(messageId),
+        { peerRead: true, peerReadAt: nowTs, updatedAt: nowTs },
+        { merge: true },
+      );
+      batch.set(
+        db.collection("pmAuditConversations").doc(cId).collection("messages").doc(messageId),
+        { [`readBy.${uid}`]: nowTs, updatedAt: nowTs },
+        { merge: true },
+      );
+    });
+    batch.set(threadRef, { unreadCount: 0, updatedAt: nowTs }, { merge: true });
+    batch.set(db.collection("users").doc(uid).collection("pmMeta").doc("state"), { unreadTotal: FieldValue.increment(-unreadSnap.size), updatedAt: nowTs }, { merge: true });
+    batch.set(db.collection("pmAuditLogs").doc(`pmlog_${now.getTime()}_${Math.random().toString(36).slice(2, 8)}`), {
+      action: "read",
+      actorUid: uid,
+      targetUid: peerUid,
+      conversationId: cId,
+      result: "success",
+      source: "cloud_function",
+      createdAt: nowTs,
+      createdAtIso: pmServerTimestampIso(now),
+      retentionDeleteAfter: pmRetentionTimestamp(now),
+    });
+    await batch.commit();
+    return { ok: true, readCount: unreadSnap.size };
+  },
+);
+
+async function pmUpdateOwnMessage(request, mode) {
+  if (!request.auth?.uid) throw new HttpsError("unauthenticated", "auth required");
+  const uid = pmAssertLineUid(request.auth.uid, "uid");
+  const parsed = pmAssertConversationParticipant(request.data?.conversationId, uid);
+  const peerUid = pmOtherParticipant(parsed, uid);
+  const cId = pmBuildConversationId(uid, peerUid);
+  const messageId = pmString(request.data?.messageId, 80);
+  if (!messageId) throw new HttpsError("invalid-argument", "messageId required");
+  const nextBody = mode === "edit" ? pmString(request.data?.body, PM_MAX_BODY_LENGTH + 1) : "";
+  if (mode === "edit" && (!nextBody || nextBody.length > PM_MAX_BODY_LENGTH)) {
+    throw new HttpsError("invalid-argument", "message body invalid");
+  }
+  const now = new Date();
+  const nowTs = Timestamp.fromDate(now);
+  return db.runTransaction(async (tx) => {
+    const ownMsgRef = db.collection("users").doc(uid).collection("pmThreads").doc(cId).collection("messages").doc(messageId);
+    const peerMsgRef = db.collection("users").doc(peerUid).collection("pmThreads").doc(cId).collection("messages").doc(messageId);
+    const auditMsgRef = db.collection("pmAuditConversations").doc(cId).collection("messages").doc(messageId);
+    const ownMsgSnap = await tx.get(ownMsgRef);
+    const peerMsgSnap = await tx.get(peerMsgRef);
+    const auditMsgSnap = await tx.get(auditMsgRef);
+    if (!ownMsgSnap.exists || !peerMsgSnap.exists) throw new HttpsError("not-found", "message not found");
+    const oldData = ownMsgSnap.data() || {};
+    if (oldData.fromUid !== uid) throw new HttpsError("permission-denied", "only sender can modify");
+    if (oldData.status === "recalled") throw new HttpsError("failed-precondition", "message recalled");
+    const createdMs = pmMessageSortMs(oldData);
+    const windowMs = mode === "edit" ? PM_EDIT_WINDOW_MS : PM_RECALL_WINDOW_MS;
+    if (!createdMs || now.getTime() - createdMs > windowMs) {
+      throw new HttpsError("failed-precondition", mode === "edit" ? "edit window expired" : "recall window expired");
+    }
+    const auditData = auditMsgSnap.exists ? (auditMsgSnap.data() || {}) : {};
+    const editHistory = Array.isArray(auditData.editHistory) ? auditData.editHistory.slice(-4) : [];
+    const commonUpdate = mode === "edit"
+      ? {
+          body: nextBody,
+          preview: pmMessagePreview(nextBody),
+          status: "edited",
+          editedAt: nowTs,
+          editVersion: Number(oldData.editVersion || 0) + 1,
+          updatedAt: nowTs,
+        }
+      : {
+          body: "",
+          preview: "訊息已撤回",
+          status: "recalled",
+          recalledAt: nowTs,
+          recalledByUid: uid,
+          updatedAt: nowTs,
+        };
+    tx.set(ownMsgRef, commonUpdate, { merge: true });
+    tx.set(peerMsgRef, commonUpdate, { merge: true });
+    tx.set(auditMsgRef, {
+      ...commonUpdate,
+      editHistory: [
+        ...editHistory,
+        {
+          action: mode,
+          oldBody: oldData.body || "",
+          newBody: mode === "edit" ? nextBody : "",
+          editedAt: nowTs,
+          editedByUid: uid,
+        },
+      ],
+      updatedAt: nowTs,
+    }, { merge: true });
+    const threadUpdate = {
+      lastMessageBody: commonUpdate.preview,
+      lastMessageStatus: commonUpdate.status,
+      updatedAt: nowTs,
+    };
+    tx.set(db.collection("users").doc(uid).collection("pmThreads").doc(cId), threadUpdate, { merge: true });
+    tx.set(db.collection("users").doc(peerUid).collection("pmThreads").doc(cId), threadUpdate, { merge: true });
+    tx.set(db.collection("pmAuditConversations").doc(cId), { updatedAt: nowTs }, { merge: true });
+    tx.set(db.collection("pmAuditLogs").doc(`pmlog_${now.getTime()}_${Math.random().toString(36).slice(2, 8)}`), {
+      action: mode,
+      actorUid: uid,
+      targetUid: peerUid,
+      conversationId: cId,
+      messageId,
+      result: "success",
+      source: "cloud_function",
+      createdAt: nowTs,
+      createdAtIso: pmServerTimestampIso(now),
+      retentionDeleteAfter: pmRetentionTimestamp(now),
+    });
+    return { ok: true, conversationId: cId, messageId, status: commonUpdate.status };
+  });
+}
+
+exports.editPrivateMessage = onCall(
+  { region: "asia-east1", timeoutSeconds: 20, memory: "256MiB" },
+  request => pmUpdateOwnMessage(request, "edit"),
+);
+
+exports.recallPrivateMessage = onCall(
+  { region: "asia-east1", timeoutSeconds: 20, memory: "256MiB" },
+  request => pmUpdateOwnMessage(request, "recall"),
+);
+
+exports.searchPmAuditUsers = onCall(
+  { region: "asia-east1", timeoutSeconds: 20, memory: "256MiB" },
+  async (request) => {
+    const caller = await pmAssertSuperAdmin(request);
+    const query = pmString(request.data?.query, 80);
+    if (!query) throw new HttpsError("invalid-argument", "query required");
+    const exactUid = PM_UID_RE.test(query) ? query : "";
+    const results = new Map();
+    if (exactUid) {
+      const snap = await db.collection("users").doc(exactUid).get();
+      if (snap.exists) {
+        const data = snap.data() || {};
+        results.set(exactUid, { uid: exactUid, name: pmDisplayName(data, exactUid), pictureUrl: pmPictureUrl(data), role: pmNormalizeRole(data.role) });
+      }
+    }
+    const byName = await db.collection("users")
+      .orderBy("displayName")
+      .startAt(query)
+      .endAt(`${query}\uf8ff`)
+      .limit(20)
+      .get()
+      .catch(() => ({ docs: [] }));
+    byName.docs.forEach((docSnap) => {
+      const data = docSnap.data() || {};
+      const uid = data.uid || data.lineUserId || docSnap.id;
+      results.set(uid, { uid, name: pmDisplayName(data, uid), pictureUrl: pmPictureUrl(data), role: pmNormalizeRole(data.role) });
+    });
+    await pmWriteAuditLog("search_user", { actorUid: caller.uid, querySummary: query });
+    return { ok: true, users: Array.from(results.values()).slice(0, 20) };
+  },
+);
+
+exports.listPmAuditThreads = onCall(
+  { region: "asia-east1", timeoutSeconds: 20, memory: "256MiB" },
+  async (request) => {
+    const caller = await pmAssertSuperAdmin(request);
+    const targetUid = pmAssertLineUid(request.data?.uid, "uid");
+    const snap = await db.collection("pmAuditConversations")
+      .where("participants", "array-contains", targetUid)
+      .limit(50)
+      .get();
+    const threads = snap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }))
+      .sort((a, b) => pmMessageSortMs(b) - pmMessageSortMs(a))
+      .slice(0, 50);
+    await pmWriteAuditLog("audit_view_thread", { actorUid: caller.uid, targetUid, querySummary: "list threads" });
+    return { ok: true, threads };
+  },
+);
+
+exports.getPmAuditConversation = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB" },
+  async (request) => {
+    const caller = await pmAssertSuperAdmin(request);
+    const cId = pmString(request.data?.conversationId, 180);
+    const parsed = pmParseConversationId(cId);
+    if (!parsed) throw new HttpsError("invalid-argument", "conversationId invalid");
+    const limit = Math.min(Math.max(Number(request.data?.limit || 50), 1), 100);
+    const threadSnap = await db.collection("pmAuditConversations").doc(cId).get();
+    if (!threadSnap.exists) throw new HttpsError("not-found", "conversation not found");
+    const msgSnap = await threadSnap.ref.collection("messages")
+      .orderBy("createdAt", "desc")
+      .limit(limit)
+      .get();
+    await pmWriteAuditLog("audit_view_conversation", {
+      actorUid: caller.uid,
+      targetUid: parsed.participants.join(","),
+      conversationId: cId,
+      querySummary: `limit:${limit}`,
+    });
+    return {
+      ok: true,
+      thread: { id: threadSnap.id, ...threadSnap.data() },
+      messages: msgSnap.docs.map(docSnap => pmClientMessage(docSnap.data() || {}, docSnap.id)).reverse(),
+    };
+  },
+);
+
+exports.getPmAuditLogs = onCall(
+  { region: "asia-east1", timeoutSeconds: 20, memory: "256MiB" },
+  async (request) => {
+    const caller = await pmAssertSuperAdmin(request);
+    const limit = Math.min(Math.max(Number(request.data?.limit || 50), 1), 100);
+    let query = db.collection("pmAuditLogs");
+    const actorUid = pmString(request.data?.actorUid, 80);
+    const targetUid = pmString(request.data?.targetUid, 80);
+    const conversationId = pmString(request.data?.conversationId, 180);
+    const action = pmString(request.data?.action, 50);
+    if (actorUid) query = query.where("actorUid", "==", actorUid);
+    if (targetUid) query = query.where("targetUid", "==", targetUid);
+    if (conversationId) query = query.where("conversationId", "==", conversationId);
+    if (action) query = query.where("action", "==", action);
+    const snap = await query.orderBy("createdAt", "desc").limit(limit).get();
+    await pmWriteAuditLog("audit_search_logs", {
+      actorUid: caller.uid,
+      querySummary: JSON.stringify({ actorUid, targetUid, conversationId, action, limit }).slice(0, 300),
+    });
+    return { ok: true, logs: snap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() })) };
+  },
+);
+
+exports.cleanupPmAuditRetention = onSchedule(
+  { region: "asia-east1", schedule: "every 24 hours", timeZone: "Asia/Taipei", timeoutSeconds: 300, memory: "256MiB" },
+  async () => {
+    const now = Timestamp.now();
+    const expired = await db.collection("pmAuditConversations")
+      .where("retentionDeleteAfter", "<=", now)
+      .limit(50)
+      .get();
+    const expiredLogs = await db.collection("pmAuditLogs")
+      .where("retentionDeleteAfter", "<=", now)
+      .limit(200)
+      .get();
+    let conversations = 0;
+    let messages = 0;
+    let logs = 0;
+    for (const docSnap of expired.docs) {
+      const msgSnap = await docSnap.ref.collection("messages").limit(500).get();
+      const batch = db.batch();
+      msgSnap.docs.forEach((msgDoc) => {
+        batch.delete(msgDoc.ref);
+        messages += 1;
+      });
+      batch.delete(docSnap.ref);
+      await batch.commit();
+      conversations += 1;
+    }
+    if (!expiredLogs.empty) {
+      const batch = db.batch();
+      expiredLogs.docs.forEach((docSnap) => {
+        batch.delete(docSnap.ref);
+        logs += 1;
+      });
+      await batch.commit();
+    }
+    console.log("[cleanupPmAuditRetention]", { conversations, messages, logs });
   },
 );

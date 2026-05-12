@@ -2499,3 +2499,9 @@
 - **Fix**: Enabled `HISTORY_ROUTE_FLAGS.writeDetailPaths` and added explicit detail URL writing through `App._setRouteUrl({ pageId, id })` for `/events/{id}`, `/teams/{id}`, and `/tournaments/{id}`. Detail pages now suppress intermediate hash writes and sync the clean URL only after the detail entry succeeds. Tournament legacy query/hash sync remains as the fallback when detail path writing is disabled or LIFF in-client path writing is blocked.
 - **Follow-up fix**: Added `<base href="/">` to `index.html` so nested detail paths load root-relative CSS/JS/page assets instead of resolving `js/...` under `/events/`, `/teams/`, or `/tournaments/`.
 - **Validation**: Added Phase 5 URL writer contract coverage for detail path mapping, safe segment validation, LIFF guard, and successful-entry URL sync. Phase 5.5 SEO/canonical work and Phase 6 popstate takeover remain deferred.
+
+### 2026-05-12 — Private Message V10 Implementation [feature]
+- **問題**：用戶資料卡片的「私訊」仍只是尚未開放提示，缺少一對一私訊、已讀回條、編輯/撤回、訊息搜尋，以及 super_admin 可追查的聊天室稽核能力。
+- **原因**：既有 message 系統只處理站內信與後台廣播，沒有 per-user conversation copy、Cloud Function 寫入入口、稽核副本或前端對話窗。
+- **修復**：新增私訊 Cloud Functions、per-user `pmThreads/messages` 讀取規則、`pmAuditLogs/pmAuditConversations` 後端稽核副本、訊息中心「私訊對話」頁籤、用戶卡片私訊入口、對話窗、已讀 debounce、編輯/撤回、對話內搜尋與日誌中心「聊天室稽核」頁籤；稽核副本與 log 保留 180 天。
+- **教訓**：高敏感私訊功能不能只靠前端權限；內容查看必須固定後端 `super_admin` 驗證，並把已讀寫入 debounce 化，避免熱對話造成 callable 成本暴增。

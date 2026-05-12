@@ -1,6 +1,6 @@
 # ToosterX 現況架構文件
 
-> Last audited: 2026-05-06
+> Last audited: 2026-05-12
 > 依據實際程式碼盤點：`index.html`、`app.js`、`js/`、`pages/`、`functions/index.js`、`firestore.rules`、`firebase.json`、`package.json`、`tests/`、近期 git history。
 > 本文件描述「目前專案真的怎麼運作」，不是未來計劃書。若與舊文件或記憶有衝突，以目前程式碼為準。
 
@@ -19,17 +19,17 @@ ToosterX 是一個 LINE LIFF + Firebase 的 buildless Vanilla JS SPA。前端由
 | 前端型態 | Vanilla JS / HTML / CSS，無 webpack、無 build step |
 | 主入口 | `index.html` + inline `app.js` runtime |
 | HTML fragments | `pages/` 共 20 個頁面片段 |
-| JS 檔案 | `js/` 共 270 個 JS |
-| 功能模組 | `js/modules/` 共 258 個 JS，17 個子資料夾 + 27 個 root-level shared module |
+| JS 檔案 | `js/` 共 281 個 JS |
+| 功能模組 | `js/modules/` 共 267 個 JS，16 個子資料夾 + 28 個 root-level shared module |
 | CSS | `css/` 共 17 個 CSS |
 | 後端 | Firebase Cloud Functions v2，Node.js 22，主要 region `asia-east1` |
-| Cloud Functions exports | 52 個 |
+| Cloud Functions exports | 62 個 |
 | 資料庫 | Firestore，rules 約 1600 行 |
 | Storage | Firebase Storage，含 default bucket 與 asia-east1 bucket target |
 | 驗證 | LINE LIFF profile + Firebase Custom Token |
 | 佈署 | 前端 push `main` 後由 Cloudflare Pages / GitHub Pages 發佈；functions/rules 需 Firebase deploy |
 | 測試 | Jest unit、Firestore rules emulator、Playwright e2e smoke |
-| 目前快取版本 | `0.20260506a` |
+| 目前快取版本 | `0.20260512d` |
 
 ---
 
@@ -138,7 +138,7 @@ sequenceDiagram
 - `PageLoader._deferredPages`：`scan`、`shop`、admin 系列、`personal-dashboard`、`game`、`kickball`、`education` 等。
 - deep link 會讓 `PageLoader` 優先載入目標頁片段，例如活動、俱樂部、賽事。
 - `ScriptLoader._pageGroups` 把 page id 對應到模組群組，避免所有功能一次載完。
-- `Service Worker` 與 `?v=0.20260506a` 控制前端快取更新。
+- `Service Worker` 與 `?v=0.20260512d` 控制前端快取更新。
 
 ---
 
@@ -176,11 +176,11 @@ sequenceDiagram
 | `tournamentDetail` | 賽事詳情、友誼賽報名、隊伍成員 roster、通知、分享 |
 | `tournamentAdmin` | 建立/編輯賽事、主辦俱樂部、委託人、裁判、host participates |
 | `profile` | 個人資訊、統計、報名紀錄、個人資料編輯 |
-| `message` / `messageAdmin` | 使用者收件匣與後台訊息管理 |
+| `message` / `messageAdmin` | 使用者收件匣、私訊對話、後台訊息管理 |
 | `scan` | QR 掃描、簽到/簽退、家人/代理 |
 | `adminDashboard` | 數據儀表板、用量、drilldown、參與者查詢與分享 |
 | `adminUsers` | 用戶管理、EXP、角色、補正、黑名單、UID 檢查、資料同步 |
-| `adminSystem` | 遊戲設定、log center、error/audit log |
+| `adminSystem` | 遊戲設定、log center、error/audit/chat audit log |
 | `adminContent` | 首頁管理、首頁排版順序、banner、浮動廣告、彈窗贊助、boot brand |
 | `adminSeo` | SEO dashboard / snapshot |
 | `education` | 教學/課程/學生/課表/簽到/家長綁定 |
@@ -197,7 +197,7 @@ sequenceDiagram
 | `team/` | 16 | 俱樂部列表、內頁、動態、俱樂部活動、邀請、分享、建立/編輯、職員與運動標籤 |
 | `tournament/` | 19 | 賽事列表、詳情、友誼賽隊伍報名、主辦俱樂部、運動標籤、委託人/裁判、roster、通知 |
 | `profile/` | 9 | 個人頁、資料編輯、頭像、統計、報名紀錄、個人卡分享 |
-| `message/` | 10 | 收件匣、訊息動作、俱樂部邀請動作、後台發訊息、LINE push |
+| `message/` | 17 | 收件匣、私訊權限/入口/即時列表/對話窗/送出/搜尋/聊天室稽核、訊息動作、俱樂部邀請動作、後台發訊息、LINE push |
 | `achievement/` | 11 | 成就 registry、統計、evaluator、徽章、稱號、個人與後台 view |
 | `dashboard/` | 20 | 後台儀表板、用量、CI、參與者查詢、snapshot、drilldown、個人儀表板 |
 | `user-admin/` | 8 | 使用者列表、EXP、角色權限、補正、活動黑名單、UID 健康檢查與診斷包 |
@@ -212,7 +212,7 @@ sequenceDiagram
 
 ### root-level shared modules
 
-`js/modules` 根目錄目前有 26 個 shared module：
+`js/modules` 根目錄目前有 28 個 shared module：
 
 - 內容與站台：`banner.js`、`announcement.js`、`popup-ad.js`、`news.js`、`site-theme.js`
 - 權限與系統：`role.js`、`sync-status.js`、`multi-tab-guard.js`、`pwa-install.js`
@@ -755,6 +755,15 @@ DATA_SYNC_SETTINGS_PASSWORD = process.env.DATA_SYNC_SETTINGS_PASSWORD || "1121"
 - `processLinePushQueue`
 - `deliverToInbox`
 - `syncGroupActionStatus`
+- `sendPrivateMessage`
+- `markPrivateConversationRead`
+- `editPrivateMessage`
+- `recallPrivateMessage`
+- `searchPmAuditUsers`
+- `listPmAuditThreads`
+- `getPmAuditConversation`
+- `getPmAuditLogs`
+- `cleanupPmAuditRetention`
 
 ### 稽核、log、資料同步
 
@@ -852,11 +861,12 @@ DATA_SYNC_SETTINGS_PASSWORD = process.env.DATA_SYNC_SETTINGS_PASSWORD || "1121"
 | operation logs | `operationLogs` | 使用者/後台操作、活動/賽事/資料修復紀錄 |
 | audit logs | `auditLogsByDay/{day}/auditEntries` | 安全稽核，Cloud Function trusted write |
 | error logs | `errorLogs` | 前端錯誤、context、診斷與 insights |
+| PM audit logs | `pmAuditLogs` / `pmAuditConversations/{conversationId}/messages` | 私訊送出、已讀、編輯、撤回與 super_admin 稽核查詢紀錄；內容副本保留 180 天 |
 | activity repair logs | `siteConfig/realtimeConfig.activityRepairLogs` | activityRecords 修復與設定保存紀錄 |
 | UID health logs | `siteConfig/realtimeConfig.uidHealthCheckLogs` | UID 健康檢查歷史 |
 | game logs | game modules / score collections | 遊戲分數與診斷 |
 
-後台 `page-admin-logs` 由 `admin-log-tabs.js` 統一 operation/audit/error 三類 log。
+後台 `page-admin-logs` 由 `admin-log-tabs.js` 統一 operation/audit/error/chat 四類 log；聊天室稽核頁籤固定只對 `super_admin` 顯示，讀取經 callable 後端驗證。
 
 ---
 

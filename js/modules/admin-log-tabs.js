@@ -11,10 +11,14 @@ Object.assign(App, {
     operation: { title: '操作日誌', desc: '查看後台與系統操作紀錄，可依類型、UID、活動或文件 ID 篩選，並可複製診斷包。' },
     audit:     { title: '稽核日誌', desc: '查看敏感行為與關鍵操作紀錄，可依日期、時段與動作條件過濾。' },
     error:     { title: '錯誤日誌', desc: '集中查看前端與系統錯誤，可依錯誤代碼與關鍵字過濾。' },
+    chat:      { title: '聊天室稽核', desc: '僅限 super_admin 查看私訊使用紀錄與指定用戶的稽核對話內容。' },
   },
 
   _normalizeAdminLogTab(tabKey) {
-    return ['operation', 'audit', 'error'].includes(tabKey) ? tabKey : 'operation';
+    const available = ['operation', 'audit', 'error'];
+    const role = ApiService.getCurrentUser?.()?.role || this.currentRole || 'user';
+    if (role === 'super_admin') available.push('chat');
+    return available.includes(tabKey) ? tabKey : 'operation';
   },
 
   async goBackFromAdminLogs() {
@@ -120,10 +124,15 @@ Object.assign(App, {
     tabs.className = 'tab-bar admin-log-tabs';
     tabs.id = 'admin-log-tabs';
     const operationTabLabel = this._adminLogInfoMap.operation?.title || '操作日誌';
+    const role = ApiService.getCurrentUser?.()?.role || this.currentRole || 'user';
+    const chatTabHtml = role === 'super_admin'
+      ? `<button class="tab" type="button" data-admin-log-tab="chat" onclick="App.showAdminLogTab('chat')">${escapeHTML(this._adminLogInfoMap.chat.title)}</button>`
+      : '';
     tabs.innerHTML = `
       <button class="tab active" type="button" data-admin-log-tab="operation" onclick="App.showAdminLogTab('operation')">${escapeHTML(operationTabLabel)}</button>
       <button class="tab" type="button" data-admin-log-tab="audit" onclick="App.showAdminLogTab('audit')">${typeof t === 'function' ? t('admin.auditLogs') : '稽核日誌'}</button>
       <button class="tab" type="button" data-admin-log-tab="error" onclick="App.showAdminLogTab('error')">${typeof t === 'function' ? t('admin.errorLogs') : '錯誤日誌'}</button>
+      ${chatTabHtml}
       <button class="admin-log-info-btn" type="button" id="admin-log-refresh-btn" onclick="App.refreshActiveLogTab()" title="重新整理"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
       <button class="admin-log-info-btn" type="button" onclick="App.showAdminLogInfo()" title="功能說明"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
     `;
@@ -134,6 +143,7 @@ Object.assign(App, {
     const operationPanel = this._buildAdminLogPanel('operation');
     const auditPanel = this._buildAdminLogPanel('audit');
     const errorPanel = this._buildAdminLogPanel('error');
+    const chatPanel = this._buildAdminLogPanel('chat');
 
     if (clearAllBtn) {
       clearAllBtn.textContent = '清空資料';
@@ -157,6 +167,7 @@ Object.assign(App, {
     panels.appendChild(operationPanel);
     panels.appendChild(auditPanel);
     panels.appendChild(errorPanel);
+    if (role === 'super_admin') panels.appendChild(chatPanel);
 
     header.insertAdjacentElement('afterend', tabs);
     const toolbar = this._ensureAdminLogToolbar(page, tabs);
@@ -199,6 +210,10 @@ Object.assign(App, {
       this.renderAuditLogPage();
       return;
     }
+    if (safeTab === 'chat') {
+      this.renderPmAuditPanel?.();
+      return;
+    }
     this.filterErrorLogs(this._errorLogPage || 1);
   },
 
@@ -211,6 +226,8 @@ Object.assign(App, {
         await this.refreshOperationLogs();
       } else if (tab === 'audit') {
         await this.refreshAuditLogs();
+      } else if (tab === 'chat') {
+        await this.renderPmAuditPanel?.();
       } else {
         await this.refreshErrorLogs();
       }

@@ -65,6 +65,7 @@ const FirebaseService = {
     siteThemes: [],
     gameConfigs: [],
     adminMessages: [],
+    pmThreads: [],
     notifTemplates: [],
     userCorrections: [],
     newsArticles: [],

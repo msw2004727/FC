@@ -1106,6 +1106,42 @@ const ApiService = {
 
   getMessages() { return this._src('messages'); },
 
+  getPmThreads() {
+    const threads = (typeof FirebaseService !== 'undefined' && FirebaseService._cache?.pmThreads) || [];
+    return Array.isArray(threads) ? threads : [];
+  },
+
+  getPmThreadByConversationId(conversationId) {
+    const cId = String(conversationId || '').trim();
+    if (!cId) return null;
+    return this.getPmThreads().find(t => String(t?.conversationId || t?._docId || '') === cId) || null;
+  },
+
+  getUserByUid(uid) {
+    const safeUid = String(uid || '').trim();
+    if (!safeUid) return null;
+    const current = this.getCurrentUser?.();
+    if (current && [current.uid, current.lineUserId, current._docId].map(v => String(v || '').trim()).includes(safeUid)) {
+      return current;
+    }
+    const users = this.getAdminUsers?.() || [];
+    return users.find(u => [u.uid, u.lineUserId, u._docId].map(v => String(v || '').trim()).includes(safeUid)) || null;
+  },
+
+  async getPmMessages(conversationId, limit = 50) {
+    const cId = String(conversationId || '').trim();
+    const myUid = auth?.currentUser?.uid || this.getCurrentUser()?.uid || '';
+    if (!myUid || !cId || !App.pmIsValidConversationId?.(cId, myUid)) return [];
+    const safeLimit = Math.max(1, Math.min(Number(limit) || 50, 100));
+    const snap = await db.collection('users').doc(myUid)
+      .collection('pmThreads').doc(cId)
+      .collection('messages')
+      .orderBy('createdAt', 'desc')
+      .limit(safeLimit)
+      .get();
+    return snap.docs.map(doc => ({ _docId: doc.id, id: doc.id, ...doc.data() })).reverse();
+  },
+
   updateMessage(msgId, updates) { return this._update('messages', msgId, updates, FirebaseService.updateMessage, 'updateMessage'); },
 
   markMessageRead(msgId) {
