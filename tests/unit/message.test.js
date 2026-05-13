@@ -77,6 +77,26 @@ function _claimRecentInboxDeliveryKey(dedupeKey, nowMs, cache) {
   return true;
 }
 
+function _shouldOptimisticallyInsertInboxMessage(ctx, targetType, targetUid, targetTeamId, targetRoles) {
+  const ids = new Set((ctx.ids || []).map(v => String(v || '').trim()).filter(Boolean));
+  const teamIds = new Set((ctx.teamIds || []).map(v => String(v || '').trim()).filter(Boolean));
+  const role = String(ctx.role || '').trim();
+  if (!ids.size) return false;
+
+  const safeTargetUid = String(targetUid || '').trim();
+  if (safeTargetUid) return ids.has(safeTargetUid);
+
+  const safeTeamId = String(targetTeamId || '').trim();
+  if (safeTeamId) return teamIds.has(safeTeamId);
+
+  const roles = Array.isArray(targetRoles)
+    ? targetRoles.map(v => String(v || '').trim()).filter(Boolean)
+    : [];
+  if (roles.length) return !!role && roles.includes(role);
+
+  return String(targetType || '').trim() === 'all';
+}
+
 // ===========================================================================
 // TESTS
 // ===========================================================================
@@ -227,5 +247,33 @@ describe('_claimRecentInboxDeliveryKey (message-notify.js:34-47)', () => {
     _claimRecentInboxDeliveryKey('new_key', 10000, cache);
     expect(cache['old_key']).toBeUndefined();
     expect(cache['new_key']).toBe(10000);
+  });
+});
+
+describe('_shouldOptimisticallyInsertInboxMessage', () => {
+  const ctx = {
+    ids: ['current-uid', 'line-uid'],
+    role: 'admin',
+    teamIds: ['team-a'],
+  };
+
+  test('does not show direct messages sent to another uid in the current local inbox', () => {
+    expect(_shouldOptimisticallyInsertInboxMessage(ctx, 'individual', 'other-uid', null, null)).toBe(false);
+  });
+
+  test('shows direct messages only when the target uid belongs to current user', () => {
+    expect(_shouldOptimisticallyInsertInboxMessage(ctx, 'individual', 'current-uid', null, null)).toBe(true);
+    expect(_shouldOptimisticallyInsertInboxMessage(ctx, 'individual', 'line-uid', null, null)).toBe(true);
+  });
+
+  test('shows team, role, and all-user notifications when current user is a recipient', () => {
+    expect(_shouldOptimisticallyInsertInboxMessage(ctx, 'team', null, 'team-a', null)).toBe(true);
+    expect(_shouldOptimisticallyInsertInboxMessage(ctx, 'role', null, null, ['admin'])).toBe(true);
+    expect(_shouldOptimisticallyInsertInboxMessage(ctx, 'all', null, null, null)).toBe(true);
+  });
+
+  test('does not show team or role notifications for non-recipient current user', () => {
+    expect(_shouldOptimisticallyInsertInboxMessage(ctx, 'team', null, 'team-b', null)).toBe(false);
+    expect(_shouldOptimisticallyInsertInboxMessage(ctx, 'role', null, null, ['coach'])).toBe(false);
   });
 });

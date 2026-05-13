@@ -97,6 +97,80 @@ Object.assign(App, {
     }
   },
 
+  _EVENT_CHANGE_NOTIFY_FIELDS: [
+    'title',
+    'type',
+    'location',
+    'date',
+    'fee',
+    'feeEnabled',
+    'max',
+    'minAge',
+    'notes',
+    'sportTag',
+    'regOpenTime',
+    'teamOnly',
+    'genderRestrictionEnabled',
+    'allowedGender',
+    'privateEvent',
+    'creatorTeamId',
+    'creatorTeamName',
+    'creatorTeamIds',
+    'creatorTeamNames',
+    'delegateUids',
+    'socialLinksEnabled',
+    'socialLinks',
+  ],
+
+  _normalizeEventChangeNotifyValue(value) {
+    if (value == null) return '';
+    if (value instanceof Date) return Number.isFinite(value.getTime()) ? value.toISOString() : '';
+    if (typeof value?.toDate === 'function') {
+      const date = value.toDate();
+      return Number.isFinite(date?.getTime?.()) ? date.toISOString() : '';
+    }
+    if (Array.isArray(value)) return value.map(item => this._normalizeEventChangeNotifyValue(item));
+    if (typeof value === 'object') {
+      return Object.keys(value).sort().reduce((acc, key) => {
+        acc[key] = this._normalizeEventChangeNotifyValue(value[key]);
+        return acc;
+      }, {});
+    }
+    if (typeof value === 'number') return Number.isFinite(value) ? value : '';
+    if (typeof value === 'boolean') return value;
+    return String(value || '').trim();
+  },
+
+  _getEventChangeNotifySnapshot(eventData) {
+    const source = eventData || {};
+    return this._EVENT_CHANGE_NOTIFY_FIELDS.reduce((acc, key) => {
+      acc[key] = this._normalizeEventChangeNotifyValue(source[key]);
+      return acc;
+    }, {});
+  },
+
+  _hasEventChangeNotificationDiff(existingEvent, updates) {
+    if (!existingEvent) return true;
+    const before = this._getEventChangeNotifySnapshot(existingEvent);
+    const after = this._getEventChangeNotifySnapshot({ ...existingEvent, ...(updates || {}) });
+    return JSON.stringify(before) !== JSON.stringify(after);
+  },
+
+  _hashEventChangeNotifyString(text) {
+    let hash = 0;
+    const input = String(text || '');
+    for (let i = 0; i < input.length; i += 1) {
+      hash = ((hash << 5) - hash + input.charCodeAt(i)) | 0;
+    }
+    return (hash >>> 0).toString(36);
+  },
+
+  _getEventChangeNotificationDedupeKey(eventId, targetUid, eventData) {
+    const snapshot = this._getEventChangeNotifySnapshot(eventData);
+    const hash = this._hashEventChangeNotifyString(JSON.stringify(snapshot));
+    return `event_changed:${String(eventId || '').trim()}:${String(targetUid || '').trim()}:${hash}`;
+  },
+
   openCreateEventModal() {
     // v8 M1：開 sheet 前先擋未登入（避免用戶填表單後才被踢）
     if (this._requireProtectedActionLogin?.({ type: 'createEvent' }, { suppressToast: true })) return;
@@ -423,6 +497,8 @@ Object.assign(App, {
         updates.status = this._isEventTrulyFull(existingEvent) ? 'full' : 'open';
       }
       const oldMax = existingEvent ? existingEvent.max : max;
+      const shouldNotifyEventChange = this._hasEventChangeNotificationDiff(existingEvent, updates);
+      const eventChangeNotifyData = { ...(existingEvent || {}), ...updates };
       this._eventSubmitInFlight = true;
       try {
         await ApiService.updateEventAwait(this._editEventId, updates);
@@ -444,12 +520,16 @@ Object.assign(App, {
         if (this._hasActivityManageEntry?.() || this._canManageAllActivities?.()) {
           await this._adjustWaitlistOnCapacityChange(editedId, oldMax, max);
         }
-        notifyUids.forEach(uid => {
-          this._sendNotifFromTemplate('event_changed', {
-            eventName: title, date: fullDate, location,
-          }, uid, 'activity', '活動');
-        });
-        ApiService._writeOpLog('event_edit', '編輯活動', `編輯「${title}」`);
+        if (shouldNotifyEventChange) {
+          notifyUids.forEach(uid => {
+            this._sendNotifFromTemplate('event_changed', {
+              eventName: title, date: fullDate, location,
+            }, uid, 'activity', '活動', {
+              dedupeKey: this._getEventChangeNotificationDedupeKey(editedId, uid, eventChangeNotifyData),
+            });
+          });
+        }
+        ApiService._writeOpLog('event_edit', '編輯活動', `編輯「${title}」`, editedId);
       } catch (postErr) {
         console.warn('[handleCreateEvent] post-edit error:', postErr);
       }

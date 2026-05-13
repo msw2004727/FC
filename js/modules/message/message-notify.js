@@ -52,6 +52,43 @@ Object.assign(App, {
   },
 
   /** 投遞到用戶收件箱（只建立一封） */
+  _getInboxOptimisticRecipientContext() {
+    const currentUser = ApiService.getCurrentUser?.() || null;
+    const ids = [
+      auth?.currentUser?.uid,
+      currentUser?.uid,
+      currentUser?.lineUserId,
+      currentUser?._docId,
+    ].map(v => String(v || '').trim()).filter(Boolean);
+    const role = String(currentUser?.role || this.currentRole || '').trim();
+    const teamIds = (typeof this._getUserTeamIds === 'function')
+      ? this._getUserTeamIds(currentUser)
+      : [currentUser?.teamId, ...(Array.isArray(currentUser?.teamIds) ? currentUser.teamIds : [])];
+    return {
+      ids: new Set(ids),
+      role,
+      teamIds: new Set(teamIds.map(v => String(v || '').trim()).filter(Boolean)),
+    };
+  },
+
+  _shouldOptimisticallyInsertInboxMessage(targetType, targetUid, targetTeamId, targetRoles) {
+    const ctx = this._getInboxOptimisticRecipientContext();
+    if (!ctx.ids.size) return false;
+
+    const safeTargetUid = String(targetUid || '').trim();
+    if (safeTargetUid) return ctx.ids.has(safeTargetUid);
+
+    const safeTeamId = String(targetTeamId || '').trim();
+    if (safeTeamId) return ctx.teamIds.has(safeTeamId);
+
+    const roles = Array.isArray(targetRoles)
+      ? targetRoles.map(v => String(v || '').trim()).filter(Boolean)
+      : [];
+    if (roles.length) return !!ctx.role && roles.includes(ctx.role);
+
+    return String(targetType || '').trim() === 'all';
+  },
+
   _deliverMessageToInbox(title, body, category, categoryName, targetUid, senderName, extra) {
     const preview = body.length > 40 ? body.slice(0, 40) + '...' : body;
     const now = new Date();
@@ -92,19 +129,31 @@ Object.assign(App, {
     };
     // Phase 4: 只寫 per-user inbox（透過 CF），不再寫 messages/ 集合
     const source = FirebaseService._cache.messages;
-    source.unshift(newMsg);
+    const shouldInsertLocal = this._shouldOptimisticallyInsertInboxMessage(
+      targetType,
+      directTargetUid,
+      targetTeamId,
+      targetRoles
+    );
+    if (shouldInsertLocal) source.unshift(newMsg);
     FirebaseService._deliverToInboxCF?.(
       newMsg, directTargetUid, targetTeamId, targetRoles, targetType
     )?.catch(err => {
-      const index = source.indexOf(newMsg);
-      if (index !== -1) source.splice(index, 1);
+      if (shouldInsertLocal) {
+        const index = source.indexOf(newMsg);
+        if (index !== -1) source.splice(index, 1);
+      }
       this._releaseRecentInboxDeliveryKey(dedupeKey);
-      this.renderMessageList?.();
-      this.updateNotifBadge?.();
+      if (shouldInsertLocal) {
+        this.renderMessageList?.();
+        this.updateNotifBadge?.();
+      }
       console.error('[deliverMsg:inbox]', err);
     });
-    this.renderMessageList?.();
-    this.updateNotifBadge?.();
+    if (shouldInsertLocal) {
+      this.renderMessageList?.();
+      this.updateNotifBadge?.();
+    }
     return newMsg;
   },
 
