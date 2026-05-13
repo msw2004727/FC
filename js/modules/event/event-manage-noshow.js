@@ -24,10 +24,8 @@ Object.assign(App, {
       && serverFetchedIds.has(eventId));
     const hasRealtimeRegistrationState = typeof FirebaseService !== 'undefined'
       && !!FirebaseService._realtimeListenerStarted;
-    const hasCompleteRegistrationSnapshot = hasRealtimeRegistrationState
-      && FirebaseService._realtimeListenerStarted?.registrations
-      && FirebaseService._registrationsServerSnapshotReceived === true
-      && FirebaseService._registrationListenerKey === 'all';
+    // The all-registration listener is limit-based; only per-event fetch proves a full roster.
+    const hasCompleteRegistrationSnapshot = false;
     const canUseRegistrationRows = !hasRealtimeRegistrationState
       || hasCompleteRegistrationSnapshot
       || eventRegsFetchedFromServer;

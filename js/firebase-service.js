@@ -427,7 +427,24 @@ const FirebaseService = {
   },
 
   _replaceCanonicalCollectionCache(name, records) {
-    this._cache[name] = this._canonicalizeRecordList(name, records);
+    let nextRecords = records;
+    if (name === 'registrations'
+      && typeof ApiService !== 'undefined'
+      && ApiService._fetchedRegistrationServerIds
+      && typeof ApiService._fetchedRegistrationServerIds.has === 'function') {
+      const source = Array.isArray(this._cache[name]) ? this._cache[name] : [];
+      const activeDetailEventId = (typeof App !== 'undefined'
+        && App.currentPage === 'page-activity-detail')
+        ? String(App._currentDetailEventId || '').trim()
+        : '';
+      const appUnavailable = typeof App === 'undefined';
+      const preserved = source.filter(record =>
+        ApiService._fetchedRegistrationServerIds.has(String(record?.eventId || '').trim())
+        && (appUnavailable || (activeDetailEventId && String(record?.eventId || '').trim() === activeDetailEventId))
+      );
+      nextRecords = (records || []).concat(preserved);
+    }
+    this._cache[name] = this._canonicalizeRecordList(name, nextRecords);
     if (this._initialized) this._notifyCacheUpdated(name);
   },
 

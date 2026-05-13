@@ -154,13 +154,10 @@ Object.assign(App, {
     // 2026-04-27 方案 B：_hasCompleteRegs = false 時跳過 _buildEventPeopleSummaryByStatus
     // 直接用 event.current（由 _rebuildOccupancy 保證、透過 events listener 即時推送）
     // 大幅減少 O(N×M) 遍歷成本（首頁 10 卡 × 平均 20 reg = 200+ 次操作 → 0）
-    const _hasCompleteRegs = typeof FirebaseService !== 'undefined'
-      && FirebaseService._realtimeListenerStarted?.registrations
-      && FirebaseService._registrationsServerSnapshotReceived === true
-      && FirebaseService._registrationListenerKey === 'all';
+    const _hasCompleteRegs = false;
 
     if (_eventRegsForStats.length > 0 && (_hasCompleteRegs || _eventRegsFetchedFromServer)) {
-      // admin 全量 listener 啟動時、走精算路徑（不變）
+      // Only event-specific server fetch proves the roster is complete enough for exact stats.
       const registrations = _eventRegsForStats;
       const confirmedSummary = this._buildEventPeopleSummaryByStatus(
         event,

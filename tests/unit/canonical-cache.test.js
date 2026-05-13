@@ -154,6 +154,91 @@ describe('canonical registration/activity/attendance cache', () => {
     expect(ApiService.getRegistrationsByEvent('e2').map(r => r._docId)).toEqual(['reg_server']);
   });
 
+  test('fetchRegistrationsIfMissing does not trust the limited all-registration listener as per-event proof', async () => {
+    const sandbox = loadServices();
+    const { FirebaseService, ApiService } = sandbox;
+    FirebaseService._cache.events = [{ id: 'e-admin', _docId: 'eventDocAdmin', current: 1, waitlist: 0 }];
+    FirebaseService._cache.registrations = [{
+      eventId: 'e-admin',
+      userId: 'u1',
+      status: 'confirmed',
+      _docId: 'reg_cached',
+      _path: 'events/eventDocAdmin/registrations/reg_cached',
+      _sourceKind: 'subcollection',
+    }];
+    FirebaseService._registrationsServerSnapshotReceived = true;
+    FirebaseService._registrationListenerKey = 'all';
+
+    const get = jest.fn().mockResolvedValue({
+      metadata: { fromCache: false },
+      docs: [mockSubcollectionDoc({ eventId: 'e-admin', userId: 'u1', status: 'confirmed' }, 'reg_server', 'eventDocAdmin')],
+    });
+    const collection = jest.fn(() => ({ get }));
+    const doc = jest.fn(() => ({ collection }));
+    sandbox.db = { collection: jest.fn(() => ({ doc })) };
+
+    await ApiService.fetchRegistrationsIfMissing('e-admin');
+
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(ApiService._fetchedRegistrationServerIds.has('e-admin')).toBe(true);
+  });
+
+  test('fetchRegistrationsIfMissing does not mark cache snapshots as server-fetched', async () => {
+    const sandbox = loadServices();
+    const { FirebaseService, ApiService } = sandbox;
+    FirebaseService._cache.events = [{ id: 'e-cache', _docId: 'eventDocCache', current: 1, waitlist: 0 }];
+
+    const get = jest.fn().mockResolvedValue({
+      metadata: { fromCache: true },
+      docs: [mockSubcollectionDoc({ eventId: 'e-cache', userId: 'u1', status: 'confirmed' }, 'reg_cache', 'eventDocCache')],
+    });
+    const collection = jest.fn(() => ({ get }));
+    const doc = jest.fn(() => ({ collection }));
+    sandbox.db = { collection: jest.fn(() => ({ doc })) };
+
+    await ApiService.fetchRegistrationsIfMissing('e-cache');
+
+    expect(ApiService._fetchedRegistrationIds.has('e-cache')).toBe(false);
+    expect(ApiService._fetchedRegistrationServerIds.has('e-cache')).toBe(false);
+  });
+
+  test('limited registration snapshots preserve event-specific server-fetched rows', () => {
+    const sandbox = loadServices();
+    const { FirebaseService, ApiService } = sandbox;
+    ApiService._fetchedRegistrationServerIds = new Set(['evt-detail']);
+    FirebaseService._cache.registrations = [
+      {
+        eventId: 'evt-detail',
+        userId: 'u1',
+        status: 'confirmed',
+        _docId: 'reg_1',
+        _path: 'events/eventDocDetail/registrations/reg_1',
+        _sourceKind: 'subcollection',
+      },
+      {
+        eventId: 'evt-detail',
+        userId: 'u2',
+        status: 'confirmed',
+        _docId: 'reg_2',
+        _path: 'events/eventDocDetail/registrations/reg_2',
+        _sourceKind: 'subcollection',
+      },
+    ];
+
+    FirebaseService._replaceCanonicalCollectionCache('registrations', [
+      {
+        eventId: 'evt-detail',
+        userId: 'u1',
+        status: 'confirmed',
+        _docId: 'reg_1',
+        _path: 'events/eventDocDetail/registrations/reg_1',
+        _sourceKind: 'subcollection',
+      },
+    ]);
+
+    expect(ApiService.getRegistrationsByEvent('evt-detail').map(r => r._docId).sort()).toEqual(['reg_1', 'reg_2']);
+  });
+
   test('cache-only event snapshots do not overwrite fresher detail-fetched counts', () => {
     const { FirebaseService } = loadServices();
     const fresh = {

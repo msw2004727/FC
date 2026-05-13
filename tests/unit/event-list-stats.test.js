@@ -152,7 +152,7 @@ describe('_getEventParticipantStats', () => {
     expect(app._getEventParticipantStats(event).confirmedCount).toBe(21);
   });
 
-  test('uses server registration snapshot to correct stale event current upward', () => {
+  test('uses event-specific server-fetched registrations to correct stale event current upward', () => {
     const event = {
       id: 'evt-server-fresh',
       current: 20,
@@ -173,6 +173,7 @@ describe('_getEventParticipantStats', () => {
       registrations,
       hasCompleteRegs: true,
       serverSnapshot: true,
+      eventFetchServer: true,
     });
 
     expect(app._getEventParticipantStats(event).confirmedCount).toBe(21);
@@ -188,7 +189,7 @@ describe('_getEventParticipantStats', () => {
       participants: ['Owner Only', 'Guest A', 'Guest B'],
       teamReservationSummaries: [],
     };
-    const app = loadEventListStatsModule({ event, registrations: [], hasCompleteRegs: true });
+    const app = loadEventListStatsModule({ event, registrations: [], hasCompleteRegs: true, eventFetchServer: true });
 
     expect(app._getEventParticipantStats(event).confirmedCount).toBe(3);
 

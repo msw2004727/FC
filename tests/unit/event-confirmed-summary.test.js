@@ -164,6 +164,36 @@ describe('_buildConfirmedParticipantSummary', () => {
     expect(summary.count).toBe(21);
   });
 
+  test('does not treat the limited admin registration listener as a complete event list', () => {
+    const event = {
+      id: 'evt-admin-limited',
+      current: 21,
+      realCurrent: 21,
+      max: 21,
+      participants: Array.from({ length: 21 }, (_, i) => `User ${i}`),
+      participantsWithUid: Array.from({ length: 21 }, (_, i) => ({ uid: `uid-${i}`, name: `User ${i}` })),
+      teamReservationSummaries: [],
+    };
+    const registrations = Array.from({ length: 20 }, (_, i) => ({
+      eventId: 'evt-admin-limited',
+      userId: `uid-${i}`,
+      userName: `User ${i}`,
+      participantType: 'self',
+      status: 'confirmed',
+    }));
+    const app = loadEventNoshowModule({
+      event,
+      registrations,
+      hasRealtimeState: true,
+      serverSnapshot: true,
+      eventFetchServer: false,
+    });
+
+    const summary = app._buildConfirmedParticipantSummary('evt-admin-limited');
+
+    expect(summary.count).toBe(21);
+  });
+
   test('uses event-specific server-fetched registrations for detail counts', () => {
     const event = {
       id: 'evt-server-fetched',

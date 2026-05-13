@@ -1069,18 +1069,19 @@ const ApiService = {
 
     this._fetchedRegistrationIds = this._fetchedRegistrationIds || new Set();
     this._fetchedRegistrationServerIds = this._fetchedRegistrationServerIds || new Set();
-    const force = options === true || options?.force === true;
-    if (!force && this._fetchedRegistrationIds.has(eventId)) return;
-
     var cached = this.getRegistrationsByEvent(eventId);
     var ev = this._findById('events', eventId);
-    const hasServerRegistrationSource = (typeof FirebaseService !== 'undefined'
-      && FirebaseService._registrationsServerSnapshotReceived === true
-      && FirebaseService._registrationListenerKey === 'all')
-      || this._fetchedRegistrationServerIds.has(eventId);
-    if (!force && cached.length > 0 && this._registrationCacheCompleteForEvent(ev, cached)) {
+    const force = options === true || options?.force === true;
+    if (!force && this._fetchedRegistrationIds.has(eventId)) {
+      if (cached.length > 0 && this._registrationCacheCompleteForEvent(ev, cached)) return;
+      this._fetchedRegistrationIds.delete(eventId);
+      this._fetchedRegistrationServerIds.delete(eventId);
+    }
+
+    const hasServerRegistrationSource = this._fetchedRegistrationServerIds.has(eventId);
+    if (!force && cached.length > 0 && this._registrationCacheCompleteForEvent(ev, cached) && hasServerRegistrationSource) {
       this._fetchedRegistrationIds.add(eventId);
-      if (hasServerRegistrationSource) return;
+      return;
     }
 
     if (!ev || !ev._docId) {
@@ -1090,14 +1091,17 @@ const ApiService = {
     try {
       var snap = await db.collection('events').doc(ev._docId)
         .collection('registrations').get();
+      var fromCache = snap?.metadata?.fromCache === true;
       var records = snap.docs.map(function(d) {
         return FirebaseService._mapSubcollectionDoc(d, 'registrations');
       });
       records.forEach(function(r) {
         FirebaseService._upsertCanonicalCacheRecord('registrations', r);
       });
-      this._fetchedRegistrationIds.add(eventId);
-      this._fetchedRegistrationServerIds.add(eventId);
+      if (!fromCache) {
+        this._fetchedRegistrationIds.add(eventId);
+        this._fetchedRegistrationServerIds.add(eventId);
+      }
     } catch (err) {
       console.warn('[fetchRegistrationsIfMissing]', err);
       if (err && (err.code === 'permission-denied' || err.code === 'unauthenticated')) {
