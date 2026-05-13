@@ -523,11 +523,11 @@
 }
 .td-floating-top-btn:active { transform: scale(.97); }
 .team-fast-loading {
-  margin-top: .8rem;
+  margin: .9rem .35rem 0;
   padding: .8rem .95rem;
-  border: 0;
+  border: 1px solid rgba(148, 163, 184, .22);
   border-radius: var(--radius);
-  background: transparent;
+  background: linear-gradient(180deg, rgba(148, 163, 184, .34), rgba(148, 163, 184, .24));
   box-shadow: none;
 }
 .team-fast-loading-status.reg-loading {

@@ -128,7 +128,7 @@ describe('team loading performance contract', () => {
     expect(styleSource).toContain('linear-gradient(90deg, var(--primary), #60a5fa)');
   });
 
-  test('club detail fast loading shell stays minimal in light theme', () => {
+  test('club detail fast loading shell keeps grey panel scoped below cover', () => {
     const navigationSource = readProjectFile('js/core/navigation.js');
     const styleSource = readProjectFile('css/team.css');
     const shellBody = navigationSource.match(/_renderFastTeamDetailShell\(id\) \{([\s\S]*?)\n  \},/);
@@ -138,7 +138,8 @@ describe('team loading performance contract', () => {
     expect(loadingStyle).not.toBeNull();
     expect(shellBody[1]).not.toContain('team?.region');
     expect(shellBody[1]).not.toContain('<div class="detail-row"');
-    expect(loadingStyle[1]).toContain('background: transparent');
+    expect(loadingStyle[1]).toContain('margin: .9rem .35rem 0');
+    expect(loadingStyle[1]).toContain('background: linear-gradient(180deg, rgba(148, 163, 184, .34), rgba(148, 163, 184, .24))');
     expect(loadingStyle[1]).toContain('box-shadow: none');
   });
 });
