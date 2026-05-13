@@ -491,6 +491,7 @@ describe('team detail club activity section', () => {
       students: [
         { id: 'stu-child', name: 'Child', enrollStatus: 'active', courseAttendanceCount: 2, createdAt: '2026/04/20' },
         { id: 'stu-amy', name: 'Amy', selfUid: 'member', enrollStatus: 'active' },
+        { id: 'stu-pending', name: 'Pending Kid', enrollStatus: 'pending' },
       ],
       history: [{ id: 'match1', participants: [{ uid: 'member' }] }],
     };
@@ -507,13 +508,15 @@ describe('team detail club activity section', () => {
     });
 
     const roster = app._getTeamDetailRoster(team);
-    const html = app._buildTeamMembersCard(team, false, false, { keys: new Set(), names: new Set() });
+    const staffIdentity = { keys: new Set(), names: new Set() };
+    const html = app._buildTeamMembersCard(team, false, false, staffIdentity);
 
     expect(app._getTeamDetailMemberCount(team)).toBe(6);
     expect(roster.some(row => row.name === 'Amy' && row.label === 'ALL')).toBe(true);
     expect(roster.some(row => row.name === 'Amy' && row.joinTime === '2026/05/01')).toBe(true);
     expect(roster.some(row => row.name === 'Child' && row.joinTime === '2026/04/20')).toBe(true);
     expect(roster.some(row => row.name === 'Child' && row.label === '學員' && row.isExternalStudent)).toBe(true);
+    expect(roster.some(row => row.name === 'Pending Kid' && row.label === '待審核' && row.isPendingStudent)).toBe(true);
     expect(roster.some(row => row.uid === 'U196b342b78abcdefabcdefabcdefabcd' && row.name === '未設定暱稱')).toBe(true);
     expect(html).toContain('td-member-tabs');
     expect(html).toContain('td-member-table');
@@ -523,16 +526,40 @@ describe('team detail club activity section', () => {
     expect(html).toContain('未設定暱稱');
     expect(html).toContain('td-member-label-pill label-all');
     expect(html).toContain('td-member-label-pill label-student');
+    expect(html).toContain('td-member-label-pill label-pending');
     expect(html).toContain('td-member-role-pill role-manager');
     expect(html).toContain('td-member-role-pill role-leader');
     expect(html).toContain('td-member-role-pill role-coach');
     expect(html).not.toContain('App.toggleProfileSection');
 
-    const manageHtml = app._buildTeamMembersCard(team, true, false, { keys: new Set(), names: new Set() });
-    const editHtml = app._buildTeamMembersCard(team, true, true, { keys: new Set(), names: new Set() });
+    const manageHtml = app._buildTeamMembersCard(team, true, false, staffIdentity);
+    const editHtml = app._buildTeamMembersCard(team, true, true, staffIdentity);
     expect(manageHtml).toContain('\u6210\u54e1\u7ba1\u7406');
     expect(editHtml).toContain('\u5254\u9664');
     expect(editHtml).toContain('<td class="td-member-name-cell"><button class="td-member-remove-btn"');
+    expect((editHtml.match(/td-member-remove-btn/g) || []).length).toBe(2);
+    expect(app._isTeamDetailRemovableMemberRow(team, roster.find(row => row.name === 'Amy'), staffIdentity)).toBe(true);
+    expect(app._isTeamDetailRemovableMemberRow(team, roster.find(row => row.name === 'Coach'), staffIdentity)).toBe(false);
+  });
+
+  test('team member removal row accepts teamIds fallback but rejects staff-only rows', () => {
+    const app = makeApp([]);
+    loadTeamDetailRender(app, []);
+    const team = { id: 'teamA' };
+    const staffIdentity = { keys: new Set(), names: new Set() };
+
+    expect(app._isTeamDetailRemovableMemberRow(team, {
+      uid: 'member',
+      isMember: true,
+      roles: new Set(),
+      user: { uid: 'member', teamIds: ['teamA'] },
+    }, staffIdentity)).toBe(true);
+    expect(app._isTeamDetailRemovableMemberRow(team, {
+      uid: 'coach',
+      isMember: true,
+      roles: new Set(['教練']),
+      user: { uid: 'coach' },
+    }, staffIdentity)).toBe(false);
   });
 
   test('refreshes shared member card from current student cache', () => {

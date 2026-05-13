@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-13 Club detail pale join controls and safe roster removal [bug]
+- **Problem**: The club detail join/leave header button still looked too heavy, record stats kept visible blank gaps, pending students were labeled as approved students, and member-management mode could expose remove buttons for staff-only rows that the removal guard correctly rejected as not in the team.
+- **Fix**: Reduced the join/leave header control footprint and switched it to pale light/dark colors, tightened equal-width record stat spacing, added a pending-student roster label, counted approved roster members separately from pending students, rendered remove buttons only for true regular members currently linked to the club, and kept the remove confirmation wording aligned with the visible action.
+- **Tests**: Extended team detail unit coverage for pending-student labels, removable-row filtering, and teamIds fallback membership.
+
 ### 2026-05-13 Club detail join controls, tournament tabs, and roster columns [ui]
 - **Problem**: Join/leave placement and labels were unclear, join lacked a confirmation step, club tournaments could not be split into active/ended lists, the top button could scroll with the page because of the page animation transform, record cards had too much spacing, and roster management lacked join-time context.
 - **Fix**: Renamed primary actions to `加入` / `退出`, moved the primary action to the top-right of the identity panel, added join/leave confirmations, added `參賽中 / 已結束` tournament tabs, detached the floating top button from the scrolling shell and disabled the team-detail transform, tightened record card spacing, and added roster `加入時間` with tighter nickname width plus visible remove controls in member-management mode.

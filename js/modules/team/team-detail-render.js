@@ -303,7 +303,7 @@ Object.assign(App, {
 
   _getTeamDetailMemberCount(t) {
     if (!t) return 0;
-    return this._getTeamDetailRoster(t).length;
+    return this._getTeamDetailRoster(t).filter(row => row.isMember || row.isStudent).length;
   },
 
   _getTeamDetailEventCount(t) {
@@ -361,6 +361,25 @@ Object.assign(App, {
     if (t.eduSettings?.teachingEnabled === true) return true;
     if (t.eduSettings?.teachingEnabled === false) return false;
     return t.type === 'education';
+  },
+
+  _isTeamDetailPendingStudent(student) {
+    if (!student || typeof student !== 'object') return false;
+    const status = String(student.enrollStatus || student.status || student.approvalStatus || '').trim().toLowerCase();
+    if (!status) return false;
+    return [
+      'pending',
+      'review',
+      'reviewing',
+      'waiting',
+      'wait',
+      'unapproved',
+      'submitted',
+      'applied',
+      '\u5f85\u5be9\u6838',
+      '\u5be9\u6838\u4e2d',
+      '\u5f85\u78ba\u8a8d',
+    ].includes(status);
   },
 
   _getTeamDetailActiveStudents(teamId) {
@@ -630,6 +649,7 @@ Object.assign(App, {
           studentId: '',
           isMember: false,
           isStudent: false,
+          isPendingStudent: false,
           isExternalStudent: false,
           roles: new Set(),
           user: null,
@@ -641,7 +661,9 @@ Object.assign(App, {
       return row;
     };
     users.forEach(user => {
-      const inTeam = typeof this._isUserInTeam === 'function' ? this._isUserInTeam(user, t.id) : user.teamId === t.id;
+      const inTeam = typeof this._isUserInTeam === 'function'
+        ? this._isUserInTeam(user, t.id)
+        : user.teamId === t.id || (Array.isArray(user.teamIds) && user.teamIds.map(String).includes(String(t.id)));
       const key = this._getTeamDetailIdentityKeyFromUser(user);
       if (!key) return;
       const displayName = this._getTeamDetailPersonName(user);
@@ -672,6 +694,7 @@ Object.assign(App, {
     this._getTeamDetailActiveStudents(t.id).forEach(student => {
       const key = this._getTeamDetailIdentityKeyFromStudent(student);
       const displayName = this._getTeamDetailPersonName(student, '未命名學員');
+      const isPendingStudent = this._isTeamDetailPendingStudent(student);
       const row = ensureRow(key, {
         uid: student.selfUid || student.uid || '',
         studentId: student.id || student._docId || student.studentId || '',
@@ -682,14 +705,15 @@ Object.assign(App, {
         row.name = displayName;
         row.isMissingName = displayName === '未命名學員';
       }
-      row.isStudent = true;
+      row.isPendingStudent = row.isPendingStudent || isPendingStudent;
+      if (!isPendingStudent) row.isStudent = true;
     });
-    const result = Array.from(rows.values()).filter(row => row.isMember || row.isStudent);
+    const result = Array.from(rows.values()).filter(row => row.isMember || row.isStudent || row.isPendingStudent);
     result.forEach(row => {
-      row.label = row.isMember && row.isStudent ? 'ALL' : (row.isStudent ? '學員' : '隊員');
+      row.label = row.isMember && row.isStudent ? 'ALL' : (row.isStudent ? '學員' : (row.isPendingStudent ? '待審核' : '隊員'));
       row.identity = Array.from(row.roles).join(' | ');
       row.isMissingName = !!row.isMissingName || !row.name || this._isTeamDetailUidLike(row.name);
-      if (row.isMissingName) row.name = row.isStudent && !row.isMember ? '未命名學員' : '未設定暱稱';
+      if (row.isMissingName) row.name = (row.isStudent || row.isPendingStudent) && !row.isMember ? '未命名學員' : '未設定暱稱';
       row.activityCount = this._getTeamDetailActivityAttendanceCount(t, row);
       row.courseCount = this._getTeamDetailCourseParticipationCount(t, row);
       row.matchCount = this._getTeamDetailMatchParticipationCount(t, row);
@@ -1019,7 +1043,20 @@ Object.assign(App, {
     const value = String(label || '').trim();
     if (value === 'ALL') return 'label-all';
     if (value === '\u5b78\u54e1') return 'label-student';
+    if (value === '\u5f85\u5be9\u6838') return 'label-pending';
     return 'label-member';
+  },
+
+  _isTeamDetailRemovableMemberRow(t, row, staffIdentity) {
+    if (!t || !row?.uid || !row?.user || !row.isMember) return false;
+    const teamId = String(t.id || '');
+    const user = row.user;
+    const isInTeam = typeof this._isUserInTeam === 'function'
+      ? this._isUserInTeam(user, teamId)
+      : user.teamId === teamId || (Array.isArray(user.teamIds) && user.teamIds.map(String).includes(teamId));
+    if (!isInTeam) return false;
+    if (typeof this._isRegularTeamMember === 'function') return this._isRegularTeamMember(user, staffIdentity);
+    return !(row.roles && row.roles.size);
   },
 
   _getTeamDetailMemberRoleClass(role) {
@@ -1057,7 +1094,7 @@ Object.assign(App, {
       const nameClass = 'td-member-name-main'
         + (row.isExternalStudent ? ' external-student' : '')
         + (row.isMissingName ? ' missing-name' : '');
-      const removeBtn = (canManageMembers && memberEditMode && row.uid && row.isMember)
+      const removeBtn = (canManageMembers && memberEditMode && this._isTeamDetailRemovableMemberRow(t, row, staffIdentity))
         ? '<button class="td-member-remove-btn" title="\u5254\u9664\u968a\u54e1" onclick="event.stopPropagation();App.removeTeamMember(this, \'' + t.id + '\',\'' + row.uid + '\')">\u5254\u9664</button>'
         : '';
       const labelClass = this._getTeamDetailMemberLabelClass(row.label);

@@ -416,7 +416,9 @@ Object.assign(App, {
     const users = ApiService.getAdminUsers() || [];
     const member = users.find(u => u.uid === memberUid);
     const isInTeam = member && (
-      (typeof this._isUserInTeam === 'function' ? this._isUserInTeam(member, teamId) : member.teamId === teamId)
+      (typeof this._isUserInTeam === 'function'
+        ? this._isUserInTeam(member, teamId)
+        : member.teamId === teamId || (Array.isArray(member.teamIds) && member.teamIds.map(String).includes(String(teamId))))
     );
     if (!member || !isInTeam) {
       this.showToast('\u968a\u54e1\u8cc7\u6599\u4e0d\u5b58\u5728\u6216\u5df2\u4e0d\u5728\u7403\u968a\u4e2d');
@@ -431,7 +433,7 @@ Object.assign(App, {
     }
 
     const memberName = member.name || member.displayName || member.uid;
-    if (!(await this.appConfirm('\u78ba\u5b9a\u8981\u79fb\u9664\u968a\u54e1\u300c' + memberName + '\u300d\uff1f'))) return;
+    if (!(await this.appConfirm('\u78ba\u5b9a\u8981\u5254\u9664\u300c' + memberName + '\u300d\uff1f'))) return;
 
     return this._withButtonLoading(btn, '\u79fb\u9664\u4e2d...', async () => {
 
