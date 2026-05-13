@@ -4,7 +4,7 @@ Object.assign(App, {
 
   // _applyRoleChange → 已搬至 team-list-helpers.js
 
-  handleJoinTeam(teamId) {
+  async handleJoinTeam(teamId) {
     // v8 M1：加入俱樂部前先擋未登入（寫入動作）
     if (this._requireProtectedActionLogin?.({ type: 'joinTeam', teamId }, { suppressToast: true })) return;
     // 2026-04-19 UX：寫入類動作必須先補齊個人資料（地區等會影響俱樂部判定）
@@ -24,6 +24,7 @@ Object.assign(App, {
     // 2. Get target team
     const t = ApiService.getTeam(teamId);
     if (!t) { this.showToast('找不到此俱樂部'); return; }
+    if (!(await this.appConfirm(`確定要加入「${t.name}」俱樂部？`))) return;
 
     // 特殊類型俱樂部導向專屬申請流程（Phase 4 §10.2 type handler）
     const typeHandler = this._getTeamTypeHandler(t.type);
@@ -159,7 +160,7 @@ Object.assign(App, {
   async handleLeaveTeam(teamId) {
     const t = ApiService.getTeam(teamId);
     if (!t) return;
-    if (!(await this.appConfirm(`確定要退出「${t.name}」俱樂部？此操作無法自行撤回。`))) return;
+    if (!(await this.appConfirm(`確定要退出「${t.name}」俱樂部？退出後如需重新加入，可能需要再次送出申請。`))) return;
 
     const curUser = ApiService.getCurrentUser();
     const userName = curUser?.displayName || '';

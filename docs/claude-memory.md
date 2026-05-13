@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-13 Club detail join controls, tournament tabs, and roster columns [ui]
+- **Problem**: Join/leave placement and labels were unclear, join lacked a confirmation step, club tournaments could not be split into active/ended lists, the top button could scroll with the page because of the page animation transform, record cards had too much spacing, and roster management lacked join-time context.
+- **Fix**: Renamed primary actions to `加入` / `退出`, moved the primary action to the top-right of the identity panel, added join/leave confirmations, added `參賽中 / 已結束` tournament tabs, detached the floating top button from the scrolling shell and disabled the team-detail transform, tightened record card spacing, and added roster `加入時間` with tighter nickname width plus visible remove controls in member-management mode.
+- **Tests**: Updated team detail unit coverage for tournament tab filtering, primary action label, roster join-time rendering, and member management output; verified all unit tests pass.
+
 ### 2026-05-13 Club detail header actions, feed removal, and ended plan tab [ui]
 - **Problem**: The club detail header action row was too tall, join/leave belonged in the header, the feed and match-history sections were no longer part of the desired club detail UI, roster management needed clearer remove controls, and course plans had no ended tab.
 - **Fix**: Moved join/leave into the club header, reduced the secondary action row to share/contact/invite, redesigned overview and record numbers with compact centered digital-style cards, removed the feed and match-history sections from detail rendering and script loading, constrained roster names, renamed edit to member management with left-side remove buttons, and added active/ended course plan tabs.

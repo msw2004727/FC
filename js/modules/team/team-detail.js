@@ -12,6 +12,7 @@ Object.assign(App, {
   _teamFeedPage: {},
   _teamMemberEditModeByTeam: {},
   _teamMemberTabByTeam: {},
+  _teamTournamentTabByTeam: {},
   _FEED_PAGE_SIZE: 20,
   _MAX_PINNED: 5,
 

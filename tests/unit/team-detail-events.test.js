@@ -194,6 +194,7 @@ describe('team detail club activity section', () => {
     const tournaments = [
       { id: 'tour-host', name: '主辦盃', hostTeamId: 'teamA', registeredTeams: ['teamA'], maxTeams: 4, type: '友誼賽', regStart: '2099-01-02' },
       { id: 'tour-join', name: '參賽盃', hostTeamId: 'teamB', registeredTeams: ['teamA'], maxTeams: 4, type: '友誼賽', regStart: '2099-01-01' },
+      { id: 'tour-ended', name: '已結束盃', hostTeamId: 'teamA', registeredTeams: ['teamA'], maxTeams: 4, ended: true, regStart: '2020-01-01' },
       { id: 'tour-other', name: '其他盃', hostTeamId: 'teamB', registeredTeams: ['teamC'], maxTeams: 4, type: '友誼賽', regStart: '2099-01-03' },
     ];
     loadTeamDetailRender(app, [], { tournaments });
@@ -202,10 +203,19 @@ describe('team detail club activity section', () => {
 
     expect(html).toContain('id="team-tournaments-section"');
     expect(html).toContain('俱樂部賽事');
+    expect(html).toContain('td-team-tournament-tabs');
+    expect(html).toContain('參賽中');
+    expect(html).toContain('已結束');
     expect(html).toContain('主辦盃');
     expect(html).toContain('參賽盃');
+    expect(html).not.toContain("App.openTeamDetailTournament('tour-ended')");
     expect(html).not.toContain('其他盃');
     expect(html).toContain("App.openTeamDetailTournament('tour-host')");
+
+    app._teamTournamentTabByTeam = { teamA: 'ended' };
+    const endedHtml = app._renderTeamTournaments('teamA');
+    expect(endedHtml).toContain("App.openTeamDetailTournament('tour-ended')");
+    expect(endedHtml).not.toContain("App.openTeamDetailTournament('tour-host')");
   });
 
   test('orders course, activity, tournament, record, and member sections in the unified detail layout', () => {
@@ -382,7 +392,7 @@ describe('team detail club activity section', () => {
     expect(html).not.toContain('toggleMemberInvite');
 
     const primary = app._buildTeamDetailPrimaryAction({ id: 'teamA' });
-    expect(primary).toContain('teamDetail.leaveTeam');
+    expect(primary).toContain('退出');
   });
 
   test('team settings modal owns member invite switch with redesigned controls', () => {
@@ -479,13 +489,13 @@ describe('team detail club activity section', () => {
       leaderUids: ['leader'],
       coachUids: ['coach'],
       students: [
-        { id: 'stu-child', name: 'Child', enrollStatus: 'active', courseAttendanceCount: 2 },
+        { id: 'stu-child', name: 'Child', enrollStatus: 'active', courseAttendanceCount: 2, createdAt: '2026/04/20' },
         { id: 'stu-amy', name: 'Amy', selfUid: 'member', enrollStatus: 'active' },
       ],
       history: [{ id: 'match1', participants: [{ uid: 'member' }] }],
     };
     const users = [
-      { uid: 'member', name: 'Amy', teamId: 'teamA', activityAttendanceCount: 4 },
+      { uid: 'member', name: 'Amy', teamId: 'teamA', activityAttendanceCount: 4, teamJoinedAt: '2026-05-01' },
       { uid: 'captain', name: 'Captain' },
       { uid: 'leader', name: 'Leader' },
       { uid: 'coach', name: 'Coach' },
@@ -501,10 +511,14 @@ describe('team detail club activity section', () => {
 
     expect(app._getTeamDetailMemberCount(team)).toBe(6);
     expect(roster.some(row => row.name === 'Amy' && row.label === 'ALL')).toBe(true);
+    expect(roster.some(row => row.name === 'Amy' && row.joinTime === '2026/05/01')).toBe(true);
+    expect(roster.some(row => row.name === 'Child' && row.joinTime === '2026/04/20')).toBe(true);
     expect(roster.some(row => row.name === 'Child' && row.label === '學員' && row.isExternalStudent)).toBe(true);
     expect(roster.some(row => row.uid === 'U196b342b78abcdefabcdefabcdefabcd' && row.name === '未設定暱稱')).toBe(true);
     expect(html).toContain('td-member-tabs');
     expect(html).toContain('td-member-table');
+    expect(html).toContain('加入時間');
+    expect(html).toContain('2026/05/01');
     expect(html).toContain('missing-name');
     expect(html).toContain('未設定暱稱');
     expect(html).toContain('td-member-label-pill label-all');

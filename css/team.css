@@ -181,6 +181,10 @@
   --td-club-accent-soft: rgba(247, 198, 0, .16);
   position: relative;
 }
+#page-team-detail.page.active {
+  animation: none;
+  transform: none;
+}
 #page-team-detail .td-detail-topbar {
   position: absolute;
   top: .68rem;
@@ -298,19 +302,22 @@
 .td-club-title-block {
   flex: 1;
   min-width: 0;
+  padding-right: 5.3rem;
   padding-bottom: .18rem;
 }
 .td-club-head-action {
-  flex: 0 0 104px;
-  align-self: flex-end;
-  padding-bottom: .06rem;
+  position: absolute;
+  top: .72rem;
+  right: .78rem;
+  z-index: 3;
+  width: 72px;
 }
 .td-club-head-action .td-action-main {
   width: 100%;
-  min-height: 34px;
-  padding: .28rem .42rem;
+  min-height: 32px;
+  padding: .24rem .38rem;
   border-radius: var(--radius-sm);
-  font-size: .72rem;
+  font-size: .76rem;
   box-shadow: 0 5px 14px rgba(247, 198, 0, .18);
 }
 .td-club-head-action .td-action-danger {
@@ -493,7 +500,7 @@
   position: fixed !important;
   right: max(.9rem, calc((100vw - 560px) / 2 + .9rem));
   bottom: calc(var(--bottombar-h, 64px) + env(safe-area-inset-bottom, 0px) + .8rem);
-  z-index: 1000;
+  z-index: 9999;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -784,10 +791,10 @@
 }
 .td-member-table {
   width: 100%;
-  min-width: 600px;
+  min-width: 640px;
   border-collapse: collapse;
   table-layout: fixed;
-  font-size: .86rem;
+  font-size: .9rem;
 }
 .td-member-table th,
 .td-member-table td {
@@ -804,7 +811,7 @@
 }
 .td-member-table th:first-child,
 .td-member-table td:first-child {
-  width: 118px;
+  width: 92px;
   text-align: left;
 }
 .td-member-table th:nth-child(2),
@@ -821,7 +828,16 @@
 }
 .td-member-table th:nth-child(6),
 .td-member-table td:nth-child(6) {
-  width: 146px;
+  width: 126px;
+}
+.td-member-table th:nth-child(7),
+.td-member-table td:nth-child(7) {
+  width: 82px;
+}
+.td-member-joined {
+  color: var(--text-muted);
+  font-size: .78rem;
+  font-weight: 800;
 }
 .td-member-name-cell {
   display: flex;
@@ -833,6 +849,7 @@
   display: inline-block;
   min-width: 0;
   max-width: 5em;
+  inline-size: 5em;
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--text-primary);
@@ -917,8 +934,8 @@
 .td-record-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(42px, 1fr));
-  gap: .34rem;
-  padding: .05rem 0;
+  gap: .12rem;
+  padding: 0;
 }
 .td-record-history-grid {
   display: grid;
@@ -931,7 +948,7 @@
 }
 .td-record-stat {
   min-width: 0;
-  min-height: 58px;
+  min-height: 56px;
   align-items: center;
   justify-content: center;
   padding: .36rem .2rem;
@@ -1046,6 +1063,35 @@
 .td-team-tournament-list {
   display: grid;
   gap: .46rem;
+}
+.td-team-tournament-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .32rem;
+  margin: -.08rem 0 .55rem;
+}
+.td-team-tournament-tab {
+  min-height: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: .78rem;
+  font-weight: 900;
+}
+.td-team-tournament-tab span {
+  margin-left: .25rem;
+  color: var(--text-muted);
+  font-size: .68rem;
+}
+.td-team-tournament-tab.active {
+  border-color: rgba(15, 23, 42, .18);
+  background: var(--td-club-accent);
+  color: #111827;
+  box-shadow: 0 6px 16px rgba(247, 198, 0, .22);
+}
+.td-team-tournament-tab.active span {
+  color: rgba(17, 24, 39, .72);
 }
 .td-team-tournament-card {
   width: 100%;
@@ -1518,6 +1564,13 @@
 [data-theme="dark"] .td-team-tournament-card {
   box-shadow: 0 6px 18px rgba(0,0,0,.22);
 }
+[data-theme="dark"] .td-team-tournament-tab {
+  background: rgba(31, 41, 55, .92);
+}
+[data-theme="dark"] .td-team-tournament-tab.active {
+  background: var(--td-club-accent);
+  color: #111827;
+}
 [data-theme="dark"] .td-member-tab.active {
   border-color: rgba(255,255,255,.16);
   background: rgba(31, 41, 55, .92);
@@ -1590,12 +1643,18 @@
     flex-basis: 68px;
   }
   .td-club-head-action {
-    flex-basis: 92px;
+    top: .62rem;
+    right: .66rem;
+    width: 64px;
   }
   .td-club-head-action .td-action-main {
     font-size: .66rem;
+    min-height: 30px;
     padding-left: .28rem;
     padding-right: .28rem;
+  }
+  .td-club-title-block {
+    padding-right: 4.65rem;
   }
   .td-club-title-row h1 {
     font-size: 1.12rem;

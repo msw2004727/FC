@@ -551,6 +551,70 @@ Object.assign(App, {
     return seen.size;
   },
 
+  _formatTeamDetailDateValue(value) {
+    if (!value) return '-';
+    let date = null;
+    if (value instanceof Date) date = value;
+    else if (typeof value.toDate === 'function') date = value.toDate();
+    else if (typeof value.seconds === 'number') date = new Date(value.seconds * 1000);
+    else {
+      const raw = String(value).trim();
+      if (!raw) return '-';
+      const normalized = raw.replace(/\./g, '/').replace(/-/g, '/');
+      const match = normalized.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})/);
+      if (match) return match[1] + '/' + match[2].padStart(2, '0') + '/' + match[3].padStart(2, '0');
+      const parsed = Date.parse(raw);
+      if (Number.isFinite(parsed)) date = new Date(parsed);
+      else return raw.slice(0, 10);
+    }
+    if (!date || Number.isNaN(date.getTime())) return '-';
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return y + '/' + m + '/' + d;
+  },
+
+  _readTeamDetailDateValue(source, keys) {
+    if (!source || typeof source !== 'object') return '';
+    for (const key of keys) {
+      const value = source[key];
+      if (!value) continue;
+      if (typeof value === 'object'
+        && !(value instanceof Date)
+        && typeof value.toDate !== 'function'
+        && typeof value.seconds !== 'number') {
+        continue;
+      }
+      const formatted = this._formatTeamDetailDateValue(value);
+      if (formatted && formatted !== '-') return formatted;
+    }
+    return '';
+  },
+
+  _readTeamDetailMappedJoinDate(source, teamId) {
+    if (!source || !teamId || typeof source !== 'object') return '';
+    const mapKeys = ['teamJoinedAtByTeam', 'teamJoinDates', 'teamJoinedAtMap', 'teamMemberSince'];
+    for (const key of mapKeys) {
+      const map = source[key];
+      if (!map || typeof map !== 'object') continue;
+      const value = map[teamId] || map[String(teamId)];
+      const formatted = this._formatTeamDetailDateValue(value);
+      if (formatted && formatted !== '-') return formatted;
+    }
+    return '';
+  },
+
+  _getTeamDetailMemberJoinTime(t, row) {
+    const teamId = String(t?.id || '');
+    const user = row.user || {};
+    const student = row.student || {};
+    return this._readTeamDetailMappedJoinDate(user, teamId)
+      || this._readTeamDetailDateValue(user, ['teamJoinedAt', 'memberJoinedAt', 'joinedAt', 'joinAt', 'memberSince'])
+      || this._readTeamDetailMappedJoinDate(student, teamId)
+      || this._readTeamDetailDateValue(student, ['approvedAt', 'joinedAt', 'enrolledAt', 'createdAt'])
+      || '-';
+  },
+
   _getTeamDetailRoster(t) {
     if (!t) return [];
     const users = ApiService.getAdminUsers?.() || [];
@@ -629,6 +693,7 @@ Object.assign(App, {
       row.activityCount = this._getTeamDetailActivityAttendanceCount(t, row);
       row.courseCount = this._getTeamDetailCourseParticipationCount(t, row);
       row.matchCount = this._getTeamDetailMatchParticipationCount(t, row);
+      row.joinTime = this._getTeamDetailMemberJoinTime(t, row);
     });
     return result.sort((a, b) => {
       const rankA = a.roles.size ? 0 : (a.isMember ? 1 : 2);
@@ -656,8 +721,8 @@ Object.assign(App, {
   _buildTeamDetailPrimaryAction(t) {
     const isMember = this._isTeamMember(t.id);
     return isMember
-      ? '<button class="td-action-main td-action-danger" onclick="App.handleLeaveTeam(\'' + t.id + '\')">' + I18N.t('teamDetail.leaveTeam') + '</button>'
-      : '<button class="td-action-main" onclick="App.handleJoinTeam(\'' + t.id + '\')">' + I18N.t('teamDetail.applyJoin') + '</button>';
+      ? '<button class="td-action-main td-action-danger" onclick="App.handleLeaveTeam(\'' + t.id + '\')">\u9000\u51fa</button>'
+      : '<button class="td-action-main" onclick="App.handleJoinTeam(\'' + t.id + '\')">\u52a0\u5165</button>';
   },
 
   _buildTeamDetailActionBar(t) {
@@ -832,6 +897,26 @@ Object.assign(App, {
     return tournament.status || I18N.t('tournament.status.regOpen');
   },
 
+  _isTeamTournamentEnded(tournament) {
+    if (!tournament) return false;
+    if (typeof this.isTournamentEnded === 'function') return !!this.isTournamentEnded(tournament);
+    if (tournament.ended === true) return true;
+    const statusText = String(tournament.status || tournament.state || tournament.stage || '').toLowerCase();
+    if (/(ended|finished|completed|closed|cancelled|\u5df2\u7d50\u675f|\u7d50\u675f|\u53d6\u6d88)/.test(statusText)) return true;
+    const endValues = [tournament.endDate, tournament.matchEnd, tournament.finishedAt, tournament.completedAt];
+    return endValues.some(value => {
+      if (!value) return false;
+      let time = 0;
+      if (typeof value.toMillis === 'function') time = value.toMillis();
+      else if (typeof value.seconds === 'number') time = value.seconds * 1000;
+      else {
+        const parsed = Date.parse(String(value));
+        time = Number.isFinite(parsed) ? parsed : 0;
+      }
+      return time > 0 && time < Date.now();
+    });
+  },
+
   _renderTeamTournamentCard(tournament) {
     const id = escapeHTML(tournament.id || tournament._docId || '');
     const name = escapeHTML(tournament.name || I18N.t('tournament.detail'));
@@ -862,10 +947,31 @@ Object.assign(App, {
         '<div class="td-empty-state">\u76ee\u524d\u6c92\u6709\u95dc\u806f\u7684\u4ff1\u6a02\u90e8\u8cfd\u4e8b</div>' +
         '</div>';
     }
+    this._teamTournamentTabByTeam = this._teamTournamentTabByTeam || {};
+    const activeTab = this._teamTournamentTabByTeam[teamId] || 'active';
+    const activeTournaments = tournaments.filter(t => !this._isTeamTournamentEnded(t));
+    const endedTournaments = tournaments.filter(t => this._isTeamTournamentEnded(t));
+    const visibleTournaments = activeTab === 'ended' ? endedTournaments : activeTournaments;
+    const tabBtn = (key, label, count) => '<button type="button" class="td-team-tournament-tab' + (activeTab === key ? ' active' : '') + '" onclick="App.switchTeamTournamentTab(\'' + teamId + '\',\'' + key + '\')">' + label + '<span>' + count + '</span></button>';
+    const emptyText = activeTab === 'ended'
+      ? '\u76ee\u524d\u6c92\u6709\u5df2\u7d50\u675f\u7684\u4ff1\u6a02\u90e8\u8cfd\u4e8b'
+      : '\u76ee\u524d\u6c92\u6709\u53c3\u8cfd\u4e2d\u7684\u4ff1\u6a02\u90e8\u8cfd\u4e8b';
     return '<div class="td-card td-section-card" id="team-tournaments-section">' +
       titleHtml +
-      '<div class="td-team-tournament-list">' + tournaments.slice(0, 6).map(t => this._renderTeamTournamentCard(t)).join('') + '</div>' +
+      '<div class="td-team-tournament-tabs">' + tabBtn('active', '\u53c3\u8cfd\u4e2d', activeTournaments.length) + tabBtn('ended', '\u5df2\u7d50\u675f', endedTournaments.length) + '</div>' +
+      (visibleTournaments.length
+        ? '<div class="td-team-tournament-list">' + visibleTournaments.slice(0, 6).map(t => this._renderTeamTournamentCard(t)).join('') + '</div>'
+        : '<div class="td-empty-state">' + emptyText + '</div>') +
       '</div>';
+  },
+
+  switchTeamTournamentTab(teamId, tab) {
+    const allowed = new Set(['active', 'ended']);
+    if (!teamId || !allowed.has(tab)) return;
+    this._teamTournamentTabByTeam = this._teamTournamentTabByTeam || {};
+    this._teamTournamentTabByTeam[teamId] = tab;
+    const target = document.getElementById('team-tournaments-section');
+    if (target) target.outerHTML = this._renderTeamTournaments(teamId);
   },
 
   async openTeamDetailTournament(tournamentId) {
@@ -951,7 +1057,7 @@ Object.assign(App, {
       const nameClass = 'td-member-name-main'
         + (row.isExternalStudent ? ' external-student' : '')
         + (row.isMissingName ? ' missing-name' : '');
-      const removeBtn = (canManageMembers && memberEditMode && row.uid && row.isMember && !row.roles.size)
+      const removeBtn = (canManageMembers && memberEditMode && row.uid && row.isMember)
         ? '<button class="td-member-remove-btn" title="\u5254\u9664\u968a\u54e1" onclick="event.stopPropagation();App.removeTeamMember(this, \'' + t.id + '\',\'' + row.uid + '\')">\u5254\u9664</button>'
         : '';
       const labelClass = this._getTeamDetailMemberLabelClass(row.label);
@@ -963,13 +1069,14 @@ Object.assign(App, {
         + '<td>' + row.courseCount + '</td>'
         + '<td>' + row.matchCount + '</td>'
         + '<td class="td-member-identity">' + roleHtml + '</td>'
+        + '<td class="td-member-joined">' + escapeHTML(row.joinTime || '-') + '</td>'
         + '</tr>';
-    }).join('') : '<tr><td colspan="6" class="td-member-empty">' + I18N.t('teamDetail.none') + '</td></tr>';
+    }).join('') : '<tr><td colspan="7" class="td-member-empty">' + I18N.t('teamDetail.none') + '</td></tr>';
     const editBtn = canManageMembers ? '<button class="outline-btn td-member-edit-btn" onclick="event.stopPropagation();App.toggleTeamMemberEditMode(\'' + t.id + '\')">' + (memberEditMode ? '\u5b8c\u6210' : '\u6210\u54e1\u7ba1\u7406') + '</button>' : '';
     return '<div class="td-card td-section-card" id="team-members-section">'
       + '<div id="team-members-toggle" class="td-card-title td-card-title-row"><span>' + I18N.t('teamDetail.memberList') + '</span><span class="td-card-title-right">' + editBtn + '</span></div>'
       + '<div class="td-member-tabs">' + tabBtn('all', '\u5168\u90e8', counts.all) + tabBtn('member', '\u968a\u54e1', counts.member) + tabBtn('student', '\u5b78\u54e1', counts.student) + '</div>'
-      + '<div class="td-member-table-scroll"><table class="td-member-table"><thead><tr><th>\u66b1\u7a31</th><th>\u6a19\u7c64</th><th>\u6d3b\u52d5</th><th>\u8ab2\u7a0b</th><th>\u8cfd\u4e8b</th><th>\u8eab\u4efd</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+      + '<div class="td-member-table-scroll"><table class="td-member-table"><thead><tr><th>\u66b1\u7a31</th><th>\u6a19\u7c64</th><th>\u6d3b\u52d5</th><th>\u8ab2\u7a0b</th><th>\u8cfd\u4e8b</th><th>\u8eab\u4efd</th><th>\u52a0\u5165\u6642\u9593</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
       + '</div>';
   },
 
@@ -1018,6 +1125,7 @@ Object.assign(App, {
     const viewHtml = '<div class="td-club-view-count" title="\u700f\u89bd\u6578"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path><circle cx="12" cy="12" r="2.8"></circle></svg><span>' + this._getTeamDetailViewCount(t).toLocaleString() + '</span></div>';
     const primaryAction = this._buildTeamDetailPrimaryAction(t);
     return '<div class="td-identity-panel">' +
+      '<div class="td-club-head-action">' + primaryAction + '</div>' +
       '<div class="td-club-head">' +
       logoHtml +
       '<div class="td-club-title-block">' +
@@ -1025,7 +1133,6 @@ Object.assign(App, {
       '<div class="td-club-title-row"><h1>' + escapeHTML(t.name || '') + '</h1>' + teachingBadge + '</div>' +
       '<div class="td-club-meta">' + escapeHTML(metaParts.join('｜')) + '</div>' +
       '</div>' +
-      '<div class="td-club-head-action">' + primaryAction + '</div>' +
       '</div>' +
       this._buildTeamDetailActionBar(t) +
       '</div>';
@@ -1047,8 +1154,8 @@ Object.assign(App, {
       + (this._isTeamDetailSectionVisible(t, 'bio') ? this._buildTeamBioCard(t) : '')
       + this._buildTeamRecordHistorySection(t, totalGames, winRate)
       + (this._isTeamDetailSectionVisible(t, 'members') ? this._buildTeamMembersCard(t, canManageMembers, memberEditMode, staffIdentity) : '')
-      + '<button type="button" class="td-floating-top-btn" aria-label="回到頂部" onclick="App._scrollTeamDetailToTop?.()">↑ 回到頂部</button>'
-      + '</div>';
+      + '</div>'
+      + '<button type="button" class="td-floating-top-btn" aria-label="\u56de\u5230\u9802\u90e8" onclick="App._scrollTeamDetailToTop?.()">\u2191 \u56de\u5230\u9802\u90e8</button>';
   },
 
   // ══════════════════════════════════
