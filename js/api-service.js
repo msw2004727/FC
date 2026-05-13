@@ -1074,9 +1074,13 @@ const ApiService = {
 
     var cached = this.getRegistrationsByEvent(eventId);
     var ev = this._findById('events', eventId);
+    const hasServerRegistrationSource = (typeof FirebaseService !== 'undefined'
+      && FirebaseService._registrationsServerSnapshotReceived === true
+      && FirebaseService._registrationListenerKey === 'all')
+      || this._fetchedRegistrationServerIds.has(eventId);
     if (!force && cached.length > 0 && this._registrationCacheCompleteForEvent(ev, cached)) {
       this._fetchedRegistrationIds.add(eventId);
-      return;
+      if (hasServerRegistrationSource) return;
     }
 
     if (!ev || !ev._docId) {

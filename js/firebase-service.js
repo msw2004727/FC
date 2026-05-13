@@ -91,7 +91,7 @@ const FirebaseService = {
   _lazyLoaded: {},  // 記錄已懶載入的集合
   _bootCollectionLoadFailed: {},
   _persistDebounceTimer: null,
-  _eventSlices: { active: [], terminal: [] },
+  _eventSlices: { active: [], terminal: [], injected: [] },
   _teamSlices: { active: [], injected: [] },       // Phase 2B：active=onSnapshot, injected=fetchIfMissing 注入（防洗掉）
   _tournamentSlices: { active: [], injected: [] },
   _teamLastDoc: null,
@@ -1200,7 +1200,10 @@ const FirebaseService = {
       const itemKey = String(item?._docId || item?.id || item?.docId || '').trim();
       return key && itemKey === key;
     });
-    const normalized = { ...record, _bootSnapshot: false };
+    const nowTs = Date.now();
+    const normalized = collectionName === 'events'
+      ? { ...record, _bootSnapshot: false, _detailSnapshot: true, _detailSnapshotTs: nowTs }
+      : { ...record, _bootSnapshot: false };
     if (idx >= 0) source[idx] = { ...source[idx], ...normalized };
     else source.push(normalized);
 
@@ -1219,6 +1222,11 @@ const FirebaseService = {
       this._tournamentSlices.injected = injected;
       this._mergeTournamentSlices(false);
     } else if (collectionName === 'events') {
+      const injected = Array.isArray(this._eventSlices.injected) ? this._eventSlices.injected : [];
+      const sliceIdx = injected.findIndex(item => String(item?._docId || item?.id || '').trim() === key);
+      if (sliceIdx >= 0) injected[sliceIdx] = { ...injected[sliceIdx], ...normalized };
+      else injected.push(normalized);
+      this._eventSlices.injected = injected;
       this._cache.events = source;
       this._debouncedPersistCache();
     }
@@ -1440,39 +1448,65 @@ const FirebaseService = {
 
   _mergeRealtimeEventSlices(shouldRefreshUI = false, options = {}) {
     const fromCacheSnapshot = !!options.fromCache;
+    const eventKey = doc => String(doc?._docId || doc?.id || '').trim();
     const existingById = new Map();
     (Array.isArray(this._cache.events) ? this._cache.events : []).forEach(doc => {
-      const key = String(doc?._docId || doc?.id || '').trim();
+      const key = eventKey(doc);
       if (key) existingById.set(key, doc);
     });
-    const maxBootAgeMs = (typeof PERFORMANCE_LIMITS !== 'undefined'
+    const sliceDocs = []
+      .concat(Array.isArray(this._eventSlices.active) ? this._eventSlices.active : [])
+      .concat(Array.isArray(this._eventSlices.terminal) ? this._eventSlices.terminal : []);
+    const serverSliceIds = new Set(sliceDocs.map(eventKey).filter(Boolean));
+    if (!fromCacheSnapshot && Array.isArray(this._eventSlices.injected) && this._eventSlices.injected.length > 0) {
+      this._eventSlices.injected = this._eventSlices.injected.filter(doc => {
+        const key = eventKey(doc);
+        return key && !serverSliceIds.has(key);
+      });
+    }
+    const injectedById = new Map();
+    (Array.isArray(this._eventSlices.injected) ? this._eventSlices.injected : []).forEach(doc => {
+      const key = eventKey(doc);
+      if (key) injectedById.set(key, doc);
+    });
+    const maxFreshAgeMs = (typeof PERFORMANCE_LIMITS !== 'undefined'
       && Number(PERFORMANCE_LIMITS.publicBootSnapshotMaxAgeMs) > 0)
       ? Number(PERFORMANCE_LIMITS.publicBootSnapshotMaxAgeMs)
       : 30 * 60 * 1000;
-    const preserveFreshBootFields = (doc) => {
+    const freshTs = doc => Number(doc?._detailSnapshotTs || doc?._bootSnapshotTs || 0);
+    const isFreshLocalEvent = (doc) => {
+      if (!doc || (doc._bootSnapshot !== true && doc._detailSnapshot !== true)) return false;
+      const ts = freshTs(doc);
+      return !!ts && Date.now() - ts <= maxFreshAgeMs;
+    };
+    const preserveFreshLocalFields = (doc) => {
       if (!fromCacheSnapshot || !doc) return doc;
-      const key = String(doc._docId || doc.id || '').trim();
+      const key = eventKey(doc);
       const existing = key ? existingById.get(key) : null;
-      if (!existing || existing._bootSnapshot !== true) return doc;
-      const bootTs = Number(existing._bootSnapshotTs || 0);
-      if (!bootTs || Date.now() - bootTs > maxBootAgeMs) return doc;
+      const injected = key ? injectedById.get(key) : null;
+      const freshest = [existing, injected]
+        .filter(isFreshLocalEvent)
+        .sort((a, b) => freshTs(b) - freshTs(a))[0] || null;
+      if (!freshest) return doc;
       // Firestore persistence may emit an older local cache snapshot before the
-      // server reply. Keep the fresher boot payload for visible fields until the
-      // non-cache snapshot arrives.
-      return { ...doc, ...existing };
+      // server reply. Keep the freshest local/detail payload for visible fields
+      // until the non-cache snapshot arrives.
+      return { ...doc, ...freshest };
     };
     const merged = [];
     const seen = new Set();
     const pushUnique = (docs) => {
       (docs || []).forEach(doc => {
-        if (!doc || !doc._docId || seen.has(doc._docId)) return;
-        seen.add(doc._docId);
-        merged.push(preserveFreshBootFields(doc));
+        const key = eventKey(doc);
+        if (!doc || !key || seen.has(key)) return;
+        seen.add(key);
+        merged.push(preserveFreshLocalFields(doc));
       });
     };
     // 先放 active，避免同 ID 被 terminal 舊快取覆蓋
     pushUnique(this._eventSlices.active);
     pushUnique(this._eventSlices.terminal);
+    pushUnique(this._eventSlices.injected);
     this._cache.events = merged;
     this._debouncedPersistCache();
 
@@ -2534,7 +2568,7 @@ const FirebaseService = {
     this._restoreCache();
 
     // ── Step 2: 並行啟動 — 公開資料 + Auth ──
-    this._eventSlices = { active: [], terminal: [] };
+    this._eventSlices = { active: [], terminal: [], injected: [] };
     this._teamSlices = { injected: [] };
     this._tournamentSlices = { injected: [] };
 
@@ -3848,6 +3882,7 @@ const FirebaseService = {
     Object.values(this._reconnectTimers).forEach(id => clearTimeout(id));
     this._reconnectTimers = {};
     this._snapshotReconnectAttempts = {};
+    this._eventSlices = { active: [], terminal: [], injected: [] };
     // RC3：清除 visibilitychange listener + debounce timer
     clearTimeout(this._visibilityRefreshDebounce);
     if (this._visibilityRefreshHandler) {

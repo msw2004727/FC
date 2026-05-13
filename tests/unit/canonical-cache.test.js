@@ -126,6 +126,96 @@ describe('canonical registration/activity/attendance cache', () => {
     expect(ApiService.getRegistrationsByEvent('e1').map(r => r._docId)).toEqual(['reg_sub']);
   });
 
+  test('fetchRegistrationsIfMissing validates complete-looking cache against server once', async () => {
+    const sandbox = loadServices();
+    const { FirebaseService, ApiService } = sandbox;
+    FirebaseService._cache.events = [{ id: 'e2', _docId: 'eventDocB', current: 1, waitlist: 0 }];
+    FirebaseService._cache.registrations = [{
+      eventId: 'e2',
+      userId: 'u1',
+      status: 'confirmed',
+      _docId: 'reg_cached',
+      _path: 'events/eventDocB/registrations/reg_cached',
+      _sourceKind: 'subcollection',
+    }];
+    FirebaseService._registrationsServerSnapshotReceived = false;
+
+    const get = jest.fn().mockResolvedValue({
+      docs: [mockSubcollectionDoc({ eventId: 'e2', userId: 'u1', status: 'confirmed' }, 'reg_server', 'eventDocB')],
+    });
+    const collection = jest.fn(() => ({ get }));
+    const doc = jest.fn(() => ({ collection }));
+    sandbox.db = { collection: jest.fn(() => ({ doc })) };
+
+    await ApiService.fetchRegistrationsIfMissing('e2');
+
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(ApiService._fetchedRegistrationServerIds.has('e2')).toBe(true);
+    expect(ApiService.getRegistrationsByEvent('e2').map(r => r._docId)).toEqual(['reg_server']);
+  });
+
+  test('cache-only event snapshots do not overwrite fresher detail-fetched counts', () => {
+    const { FirebaseService } = loadServices();
+    const fresh = {
+      id: 'evt-fresh',
+      _docId: 'eventDocFresh',
+      current: 21,
+      max: 21,
+      status: 'full',
+      _detailSnapshot: true,
+      _detailSnapshotTs: Date.now(),
+    };
+    const staleCacheSnapshot = {
+      id: 'evt-fresh',
+      _docId: 'eventDocFresh',
+      current: 20,
+      max: 21,
+      status: 'open',
+    };
+
+    FirebaseService._cache.events = [fresh];
+    FirebaseService._eventSlices = {
+      active: [staleCacheSnapshot],
+      terminal: [],
+      injected: [fresh],
+    };
+    FirebaseService._debouncedPersistCache = jest.fn();
+
+    FirebaseService._mergeRealtimeEventSlices(false, { fromCache: true });
+
+    expect(FirebaseService._cache.events).toHaveLength(1);
+    expect(FirebaseService._cache.events[0].current).toBe(21);
+    expect(FirebaseService._cache.events[0].status).toBe('full');
+  });
+
+  test('server event snapshots replace injected detail records', () => {
+    const { FirebaseService } = loadServices();
+    FirebaseService._cache.events = [{
+      id: 'evt-server',
+      _docId: 'eventDocServer',
+      current: 21,
+      _detailSnapshot: true,
+      _detailSnapshotTs: Date.now(),
+    }];
+    FirebaseService._eventSlices = {
+      active: [{ id: 'evt-server', _docId: 'eventDocServer', current: 20, status: 'open' }],
+      terminal: [],
+      injected: [{
+        id: 'evt-server',
+        _docId: 'eventDocServer',
+        current: 21,
+        _detailSnapshot: true,
+        _detailSnapshotTs: Date.now(),
+      }],
+    };
+    FirebaseService._debouncedPersistCache = jest.fn();
+
+    FirebaseService._mergeRealtimeEventSlices(false, { fromCache: false });
+
+    expect(FirebaseService._cache.events[0].current).toBe(20);
+    expect(FirebaseService._eventSlices.injected).toEqual([]);
+  });
+
   test('same subcollection doc path is merged before status-aware logical dedupe', () => {
     const { FirebaseService } = loadServices();
     const stale = {

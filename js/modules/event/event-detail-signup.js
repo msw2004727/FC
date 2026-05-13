@@ -1363,8 +1363,12 @@ Object.assign(App, {
   _patchDetailCount(eventId) {
     var e = ApiService.getEvent(eventId);
     if (!e) return;
-    var confirmedCount = Number(e.current || 0);
-    var waitlistCount = Number(e.waitlist || 0);
+    var confirmedCount = (typeof this._buildConfirmedParticipantSummary === 'function')
+      ? this._buildConfirmedParticipantSummary(eventId).count
+      : Number(e.current || 0);
+    var waitlistCount = (typeof this._getEventWaitlistDisplayCount === 'function')
+      ? this._getEventWaitlistDisplayCount(eventId, e)
+      : Number(e.waitlist || 0);
     // 人數 row 結構：<div class="detail-row"><span class="detail-label">人數</span>已報 X/Y　候補 Z</div>
     // 文字是直接的 text node（非 span），需用 innerHTML 整行替換
     var labels = document.querySelectorAll('.detail-grid .detail-label');

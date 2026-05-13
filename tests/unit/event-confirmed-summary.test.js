@@ -2,7 +2,14 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-function loadEventNoshowModule({ event, registrations, noShowFeatureEnabled = true }) {
+function loadEventNoshowModule({
+  event,
+  registrations,
+  noShowFeatureEnabled = true,
+  hasRealtimeState = false,
+  serverSnapshot = false,
+  eventFetchServer = false,
+}) {
   const state = {
     event,
     registrations,
@@ -11,6 +18,7 @@ function loadEventNoshowModule({ event, registrations, noShowFeatureEnabled = tr
   const context = {
     App: {},
     ApiService: {
+      _fetchedRegistrationServerIds: eventFetchServer ? new Set([event.id]) : new Set(),
       getEvent: id => (id === event.id ? state.event : null),
       getRegistrationsByEvent: id => (id === event.id ? state.registrations : []),
       getAdminUsers: () => state.adminUsers,
@@ -18,6 +26,11 @@ function loadEventNoshowModule({ event, registrations, noShowFeatureEnabled = tr
     },
     FirebaseService: {
       _normalizeTeamReservationSummaries: e => e.teamReservationSummaries || [],
+      ...(hasRealtimeState ? {
+        _realtimeListenerStarted: { registrations: true },
+        _registrationListenerKey: 'all',
+        _registrationsServerSnapshotReceived: serverSnapshot,
+      } : {}),
     },
     isNoShowFeatureEnabled: () => noShowFeatureEnabled,
     console,
@@ -119,6 +132,78 @@ describe('_buildConfirmedParticipantSummary', () => {
     expect(summary.realCount).toBe(2);
     expect(summary.count).toBe(2);
     expect(summary.people.map(p => p.name)).toEqual(['Owner', 'Guest']);
+  });
+
+  test('does not let cache-only registration rows downgrade the detail count', () => {
+    const event = {
+      id: 'evt-stale',
+      current: 21,
+      realCurrent: 21,
+      max: 21,
+      participants: Array.from({ length: 20 }, (_, i) => `User ${i}`),
+      participantsWithUid: Array.from({ length: 20 }, (_, i) => ({ uid: `uid-${i}`, name: `User ${i}` })),
+      teamReservationSummaries: [],
+    };
+    const registrations = Array.from({ length: 20 }, (_, i) => ({
+      eventId: 'evt-stale',
+      userId: `uid-${i}`,
+      userName: `User ${i}`,
+      participantType: 'self',
+      status: 'confirmed',
+    }));
+    const app = loadEventNoshowModule({
+      event,
+      registrations,
+      hasRealtimeState: true,
+      serverSnapshot: false,
+      eventFetchServer: false,
+    });
+
+    const summary = app._buildConfirmedParticipantSummary('evt-stale');
+
+    expect(summary.count).toBe(21);
+  });
+
+  test('uses event-specific server-fetched registrations for detail counts', () => {
+    const event = {
+      id: 'evt-server-fetched',
+      current: 3,
+      max: 10,
+      participants: ['Owner Only', 'Guest A', 'Guest B'],
+      teamReservationSummaries: [],
+    };
+    const registrations = [
+      {
+        eventId: 'evt-server-fetched',
+        userId: 'owner_uid',
+        userName: 'Owner Only',
+        participantType: 'companion',
+        companionId: 'comp_a',
+        companionName: 'Guest A',
+        status: 'confirmed',
+      },
+      {
+        eventId: 'evt-server-fetched',
+        userId: 'owner_uid',
+        userName: 'Owner Only',
+        participantType: 'companion',
+        companionId: 'comp_b',
+        companionName: 'Guest B',
+        status: 'confirmed',
+      },
+    ];
+    const app = loadEventNoshowModule({
+      event,
+      registrations,
+      hasRealtimeState: true,
+      serverSnapshot: false,
+      eventFetchServer: true,
+    });
+
+    const summary = app._buildConfirmedParticipantSummary('evt-server-fetched');
+
+    expect(summary.count).toBe(2);
+    expect(summary.people.map(p => p.name)).toEqual(['Owner Only', 'Guest A', 'Guest B']);
   });
 
   test('no-show helpers return empty values while feature flag is disabled', () => {

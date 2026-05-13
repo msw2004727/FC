@@ -15,7 +15,23 @@ Object.assign(App, {
     const e = ApiService.getEvent(eventId);
     if (!e) return { people: [], count: 0 };
 
-    const allActiveRegs = ApiService.getRegistrationsByEvent(eventId);
+    const cachedActiveRegs = ApiService.getRegistrationsByEvent(eventId);
+    const serverFetchedIds = (typeof ApiService !== 'undefined')
+      ? ApiService._fetchedRegistrationServerIds
+      : null;
+    const eventRegsFetchedFromServer = !!(serverFetchedIds
+      && typeof serverFetchedIds.has === 'function'
+      && serverFetchedIds.has(eventId));
+    const hasRealtimeRegistrationState = typeof FirebaseService !== 'undefined'
+      && !!FirebaseService._realtimeListenerStarted;
+    const hasCompleteRegistrationSnapshot = hasRealtimeRegistrationState
+      && FirebaseService._realtimeListenerStarted?.registrations
+      && FirebaseService._registrationsServerSnapshotReceived === true
+      && FirebaseService._registrationListenerKey === 'all';
+    const canUseRegistrationRows = !hasRealtimeRegistrationState
+      || hasCompleteRegistrationSnapshot
+      || eventRegsFetchedFromServer;
+    const allActiveRegs = canUseRegistrationRows ? cachedActiveRegs : [];
     const _regTime = (r) => {
       const v = r && r.registeredAt;
       if (!v) return Number.POSITIVE_INFINITY;
@@ -96,8 +112,9 @@ Object.assign(App, {
     const wu = Array.isArray(e.participantsWithUid) ? e.participantsWithUid : [];
     const expectedLen = Number(e.realCurrent || 0) || (Number(e.current || 0) - (Array.isArray(e.teamReservationSummaries) ? e.teamReservationSummaries.reduce((sum, s) => sum + Math.max(0, Number(s.remainingSlots || 0) || 0), 0) : 0));
     const wuValid = wu.length > 0 && wu.length === expectedLen;
+    const useProjectedFallbackPeople = !canUseRegistrationRows || confirmedRegs.length === 0;
 
-    if (wuValid) {
+    if (useProjectedFallbackPeople && wuValid) {
       // 新路徑：直接用 participantsWithUid 的真 UID（消除同暱稱挑錯問題）
       wu.forEach(function (entry) {
         if (!entry || !entry.uid || !entry.name) return;
@@ -113,7 +130,7 @@ Object.assign(App, {
         addedUids.add(entry.uid);
         addedNames.add(entry.name);
       });
-    } else {
+    } else if (useProjectedFallbackPeople) {
       if (wu.length > 0) {
         console.warn('[pwu] inconsistent participantsWithUid', e.id, 'wu=', wu.length, 'current=', expectedLen);
       }
@@ -182,7 +199,9 @@ Object.assign(App, {
     const hasCountSource = orderedPeople.length > 0
       || (Array.isArray(e.participantsWithUid) && e.participantsWithUid.length > 0)
       || (Array.isArray(e.participants) && e.participants.length > 0);
-    const count = hasCountSource ? countablePeople.length : fallbackCount;
+    const count = canUseRegistrationRows
+      ? (hasCountSource ? countablePeople.length : fallbackCount)
+      : Math.max(countablePeople.length, fallbackCount);
     const realCount = people.filter(p => !p.proxyOnly && !p.isProxyOnly).length;
 
     return { people: orderedPeople, count, realCount, teamSummaries };

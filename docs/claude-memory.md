@@ -1,5 +1,11 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-13 Event detail count flicker stale-cache fix [bug]
+- **Problem**: Activity detail could render fresh capacity first (for example 21/21) and then downgrade to stale local-cache data (20/21) after Firestore cache-only events/registrations snapshots arrived.
+- **Root cause**: The events slice merge only protected boot snapshots, not fresh detail-fetched event docs, and detail participant counts trusted cached registration rows before an all/server registration source was available.
+- **Fix**: Track detail-fetched events in an injected event slice, preserve fresh local/detail event fields only during cache-only snapshots, let server snapshots replace injected records, require server-backed registration data before deriving detail counts from registration rows, and force per-event registration fetches when a complete-looking cache has not been validated by server.
+- **Tests**: Added regression coverage in `tests/unit/canonical-cache.test.js`, `tests/unit/event-confirmed-summary.test.js`, and verified existing `tests/unit/event-list-stats.test.js`.
+
 ### 2026-05-12 — 公開頁切換與詳情開啟加速 [performance]
 - **問題**：清快取或第一次進站後，使用者點活動、俱樂部、賽事列表與卡片時，需要等對應 JS 模組與 Firestore 資料載入，視覺上容易像「點了沒反應」。
 - **修復**：新增公開頁 shell-first navigation，列表/詳情先切頁顯示骨架，再背景補模組與資料；首頁 idle time 逐步執行預載活動/俱樂部/賽事列表與詳情模組；列表渲染後最多預抓 8 筆可見卡片詳情文件；`inject-hot-events` 同步注入 30 分鐘內可用的公開列表快照，只保留展示必要欄位，不含報名名單 UID 或隊員 UID。
