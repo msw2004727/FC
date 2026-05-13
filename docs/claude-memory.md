@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-13 Club course plan image-background cards [ui]
+- **Problem**: Course plan cards still treated the course image as a side thumbnail, which made the important plan card feel visually split and did not match the requested banner-style course presentation.
+- **Fix**: Added an inner `edu-cp-visual` card area that uses the course image as a lazy-loaded background layer, applies a dark transparent gradient overlay for text readability, keeps plan tags/title/metrics/signup inside the image-backed area, and leaves staff edit/delete/sort controls on the original outer card background.
+- **Tests**: Extended course-plan render coverage for image-backed visual cards and verified staff controls remain outside the visual area.
+
 ### 2026-05-13 Club detail pale join controls and safe roster removal [bug]
 - **Problem**: The club detail join/leave header button still looked too heavy, record stats kept visible blank gaps, pending students were labeled as approved students, and member-management mode could expose remove buttons for staff-only rows that the removal guard correctly rejected as not in the team.
 - **Fix**: Reduced the join/leave header control footprint and switched it to pale light/dark colors, tightened equal-width record stat spacing, added a pending-student roster label, counted approved roster members separately from pending students, rendered remove buttons only for true regular members currently linked to the club, and kept the remove confirmation wording aligned with the visible action.

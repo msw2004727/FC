@@ -72,10 +72,11 @@ Object.assign(App, {
           ? '<span class="edu-cp-status edu-cp-status-open">招生中</span>'
           : '';
 
-      // 封面圖（右側保留視覺入口，不影響原方案資料）
-      const coverHtml = '<div class="edu-cp-cover">'
-        + (p.coverImage ? '<img src="' + escapeHTML(p.coverImage) + '" alt="">' : '<span style="font-size:.72rem;color:var(--text-muted)">無封面</span>')
-        + '</div>';
+      const coverImage = String(p.coverImage || p.coverUrl || p.imageUrl || p.image || p.imageVariants?.cover || '').trim();
+      const visualClass = 'edu-cp-visual' + (coverImage ? ' has-cover' : ' no-cover');
+      const bgHtml = coverImage
+        ? '<img class="edu-cp-bg-img" src="' + escapeHTML(coverImage) + '" alt="" loading="lazy" decoding="async">'
+        : '';
 
       // 課程是否已結束
       const isEnded = planEnded;
@@ -148,6 +149,9 @@ Object.assign(App, {
         : '';
 
       return '<div class="edu-course-card edu-cp-card-v3 edu-cp-card-' + (p.planType === 'weekly' ? 'weekly' : 'session') + '" data-course-plan-id="' + escapeHTML(p.id || '') + '"' + clickAction + '>'
+        + '<div class="' + visualClass + '">'
+        + bgHtml
+        + '<div class="edu-cp-visual-content">'
         + '<div class="edu-cp-card-head">'
         + '<div class="edu-cp-title-wrap">'
         + '<div class="edu-cp-tags">'
@@ -160,9 +164,10 @@ Object.assign(App, {
         + '</div>'
         + '<div class="edu-cp-body">'
         + '<div class="edu-cp-left">' + infoHtml + '</div>'
-        + coverHtml
         + '</div>'
         + signupBtn
+        + '</div>'
+        + '</div>'
         + manageHtml
         + '</div>';
     };

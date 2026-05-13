@@ -62,6 +62,7 @@ describe('edu course plan render', () => {
         price: 2400,
         maxCapacity: 12,
         allowSignup: true,
+        coverImage: 'https://example.com/course.jpg',
         groupName: '成人班',
       },
       {
@@ -82,6 +83,9 @@ describe('edu course plan render', () => {
     expect(html.indexOf('固定週期課程')).toBeLessThan(html.indexOf('堂數制課程'));
     expect(html).toContain('edu-cp-card-v3 edu-cp-card-weekly');
     expect(html).toContain('edu-cp-card-v3 edu-cp-card-session');
+    expect(html).toContain('edu-cp-visual has-cover');
+    expect(html).toContain('class="edu-cp-bg-img"');
+    expect(html.indexOf('edu-cp-visual')).toBeLessThan(html.indexOf('edu-cp-manage-left'));
     expect(html).toContain('成人固定班');
     expect(html).toContain('週一、週三 19:00-20:30');
     expect(html).toContain('NT$ 2,400');

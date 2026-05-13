@@ -108,11 +108,13 @@
 }
 .edu-course-card.edu-cp-card-v2,
 .edu-course-card.edu-cp-card-v3 {
-  padding: .72rem;
+  padding: .42rem;
   cursor: pointer;
   transition: border-color .15s, transform .15s, box-shadow .15s;
   border-radius: var(--radius);
   margin-bottom: 0;
+  background: var(--bg-card);
+  overflow: hidden;
 }
 .edu-course-card.edu-cp-card-v2:hover,
 .edu-course-card.edu-cp-card-v3:hover {
@@ -126,6 +128,54 @@
 }
 .edu-course-card.edu-cp-card-session {
   background: linear-gradient(135deg, rgba(124, 58, 237, .12), rgba(124, 58, 237, .035));
+}
+.edu-cp-visual {
+  position: relative;
+  min-height: 232px;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: var(--radius-sm);
+  padding: .72rem;
+  color: #fff;
+  background: #0f172a;
+}
+.edu-course-card.edu-cp-card-weekly .edu-cp-visual.no-cover {
+  background:
+    radial-gradient(circle at 92% 2%, rgba(45, 212, 191, .28), transparent 36%),
+    linear-gradient(135deg, #172554, #0f172a 58%, #064e3b);
+}
+.edu-course-card.edu-cp-card-session .edu-cp-visual.no-cover {
+  background:
+    radial-gradient(circle at 92% 2%, rgba(196, 181, 253, .26), transparent 36%),
+    linear-gradient(135deg, #312e81, #111827 58%, #581c87);
+}
+.edu-cp-visual::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(2, 6, 23, .86), rgba(15, 23, 42, .62) 54%, rgba(15, 23, 42, .42)),
+    linear-gradient(180deg, rgba(2, 6, 23, .12), rgba(2, 6, 23, .78));
+}
+.edu-cp-visual.no-cover::before {
+  background:
+    linear-gradient(90deg, rgba(2, 6, 23, .56), rgba(15, 23, 42, .34) 54%, rgba(15, 23, 42, .22)),
+    linear-gradient(180deg, rgba(2, 6, 23, .06), rgba(2, 6, 23, .36));
+}
+.edu-cp-bg-img {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.02);
+}
+.edu-cp-visual-content {
+  position: relative;
+  z-index: 2;
 }
 .edu-cp-card-head {
   display: flex;
@@ -164,6 +214,16 @@
   font-size: .78rem;
   font-weight: 900;
   white-space: nowrap;
+}
+.edu-course-card .edu-cp-visual .edu-course-name {
+  color: #fff;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, .34);
+}
+.edu-course-card .edu-cp-visual .edu-cp-price {
+  border-color: rgba(255, 255, 255, .18);
+  background: rgba(15, 23, 42, .76);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, .16);
 }
 .edu-cp-body {
   display: flex;
@@ -206,6 +266,24 @@
 .edu-cp-status-open { background: rgba(16,185,129,.16); color: #059669; }
 .edu-cp-status-ended { background: rgba(148,163,184,.16); color: #64748b; }
 .edu-cp-group-pill { background: var(--bg-base); color: var(--text-secondary); border: 1px solid var(--border); }
+.edu-course-card .edu-cp-visual .edu-cp-type-weekly {
+  background: rgba(45, 212, 191, .2);
+  color: #99f6e4;
+}
+.edu-course-card .edu-cp-visual .edu-cp-type-session {
+  background: rgba(196, 181, 253, .22);
+  color: #ddd6fe;
+}
+.edu-course-card .edu-cp-visual .edu-cp-status-open {
+  background: rgba(16, 185, 129, .22);
+  color: #86efac;
+}
+.edu-course-card .edu-cp-visual .edu-cp-status-ended,
+.edu-course-card .edu-cp-visual .edu-cp-group-pill {
+  border-color: rgba(255, 255, 255, .16);
+  background: rgba(255, 255, 255, .14);
+  color: rgba(255, 255, 255, .86);
+}
 .edu-cp-metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -223,6 +301,12 @@
   border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, .7);
 }
+.edu-course-card .edu-cp-visual .edu-cp-metric {
+  border-color: rgba(255, 255, 255, .14);
+  background: rgba(15, 23, 42, .68);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
 .edu-cp-metric span {
   color: var(--text-muted);
   font-size: .64rem;
@@ -238,6 +322,12 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.edu-course-card .edu-cp-visual .edu-cp-metric span {
+  color: rgba(226, 232, 240, .82);
+}
+.edu-course-card .edu-cp-visual .edu-cp-metric strong {
+  color: #fff;
 }
 .edu-cp-manage-left { display: flex; gap: .5rem; margin-top: .48rem; }
 .edu-cp-pin-active { font-size: .68rem; padding: .15rem .35rem; border: none; border-radius: var(--radius-sm); background: linear-gradient(135deg, #f59e0b, #fbbf24); color: #fff; font-weight: 700; cursor: pointer; box-shadow: 0 0 8px rgba(245,158,11,.5); }
