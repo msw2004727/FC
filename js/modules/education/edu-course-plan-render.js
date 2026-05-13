@@ -28,6 +28,14 @@ Object.assign(App, {
     }
 
     // 取得當前用戶的報名狀態（用於學員視角按鈕）
+    const today = new Date().toISOString().slice(0, 10);
+    const isPlanEnded = (plan) => !!(plan && plan.endDate && plan.endDate < today);
+    const currentPlans = activePlans.filter(p => !isPlanEnded(p));
+    const endedPlans = activePlans.filter(isPlanEnded);
+    this._eduCoursePlanTabByTeam = this._eduCoursePlanTabByTeam || {};
+    const selectedTab = this._eduCoursePlanTabByTeam[teamId] === 'ended' ? 'ended' : 'active';
+    const displayPlans = selectedTab === 'ended' ? endedPlans : currentPlans;
+
     const curUser = ApiService.getCurrentUser();
     const myUid = curUser?.uid;
     const students = this.getEduStudents(teamId);
@@ -57,8 +65,7 @@ Object.assign(App, {
     const renderMetric = (label, value) => '<div class="edu-cp-metric"><span>' + escapeHTML(label) + '</span><strong>' + escapeHTML(value) + '</strong></div>';
     const renderPlanCard = (p) => {
       const typeLabel = p.planType === 'weekly' ? '固定週期' : '堂數制';
-      const todayCheck = new Date().toISOString().slice(0, 10);
-      const planEnded = p.endDate && p.endDate < todayCheck;
+      const planEnded = isPlanEnded(p);
       const statusBadge = planEnded
         ? '<span class="edu-cp-status edu-cp-status-ended">已結束</span>'
         : p.allowSignup
@@ -71,8 +78,7 @@ Object.assign(App, {
         + '</div>';
 
       // 課程是否已結束
-      const today = new Date().toISOString().slice(0, 10);
-      const isEnded = p.endDate && p.endDate < today;
+      const isEnded = planEnded;
 
       // 資訊小卡片（期間、週期/堂數、費用、人數）
       const dateText = p.startDate ? p.startDate + ' ~ ' + (p.endDate || '') : '未設定';
@@ -166,22 +172,38 @@ Object.assign(App, {
         type: 'weekly',
         title: '固定週期課程',
         hint: '固定日期與時段，適合長期訓練。',
-        plans: activePlans.filter(p => p.planType === 'weekly'),
+        plans: displayPlans.filter(p => p.planType === 'weekly'),
       },
       {
         type: 'session',
         title: '堂數制課程',
         hint: '依堂數安排，適合彈性訓練。',
-        plans: activePlans.filter(p => p.planType !== 'weekly'),
+        plans: displayPlans.filter(p => p.planType !== 'weekly'),
       },
     ].filter(group => group.plans.length);
 
-    container.innerHTML = '<div class="edu-course-plan-sections">'
-      + groupedPlans.map(group => '<section class="edu-course-plan-section edu-course-plan-section-' + group.type + '">'
-        + '<div class="edu-course-plan-section-head"><div><strong>' + group.title + '</strong><span>' + group.hint + '</span></div><em>' + group.plans.length + ' 個方案</em></div>'
-        + '<div class="edu-course-plan-grid">' + group.plans.map(renderPlanCard).join('') + '</div>'
-        + '</section>').join('')
+    const tabHtml = '<div class="edu-cp-view-tabs">'
+      + '<button type="button" class="' + (selectedTab === 'active' ? 'active' : '') + '" onclick="App.switchEduCoursePlanTab(\'' + teamId + '\',\'active\')">\u8ab2\u7a0b\u4e2d <span>' + currentPlans.length + '</span></button>'
+      + '<button type="button" class="' + (selectedTab === 'ended' ? 'active' : '') + '" onclick="App.switchEduCoursePlanTab(\'' + teamId + '\',\'ended\')">\u5df2\u7d50\u675f <span>' + endedPlans.length + '</span></button>'
       + '</div>';
+    const emptyText = selectedTab === 'ended' ? '\u76ee\u524d\u6c92\u6709\u5df2\u7d50\u675f\u8ab2\u7a0b' : '\u76ee\u524d\u6c92\u6709\u9032\u884c\u4e2d\u8ab2\u7a0b';
+    const listHtml = groupedPlans.length
+      ? groupedPlans.map(group => '<section class="edu-course-plan-section edu-course-plan-section-' + group.type + '">'
+          + '<div class="edu-course-plan-section-head"><div><strong>' + group.title + '</strong><span>' + group.hint + '</span></div><em>' + group.plans.length + ' 個方案</em></div>'
+          + '<div class="edu-course-plan-grid">' + group.plans.map(renderPlanCard).join('') + '</div>'
+          + '</section>').join('')
+      : '<div class="edu-empty-state">' + emptyText + '</div>';
+
+    container.innerHTML = tabHtml + '<div class="edu-course-plan-sections">'
+      + listHtml
+      + '</div>';
+  },
+
+  switchEduCoursePlanTab(teamId, tab) {
+    if (!teamId) return;
+    this._eduCoursePlanTabByTeam = this._eduCoursePlanTabByTeam || {};
+    this._eduCoursePlanTabByTeam[teamId] = tab === 'ended' ? 'ended' : 'active';
+    return this.renderEduCoursePlanList(teamId, this.isEduClubStaff?.(teamId));
   },
 
 });

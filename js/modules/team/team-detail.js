@@ -149,11 +149,9 @@ Object.assign(App, {
       { key: 'events', label: '\u6d3b\u52d5', desc: '\u4ff1\u6a02\u90e8\u6d3b\u52d5\u5217\u8868' },
       { key: 'courses', label: '\u4ff1\u6a02\u90e8\u8ab2\u7a0b', desc: '\u8ab2\u7a0b\u3001\u5206\u7d44\u3001\u5b78\u54e1\u8207\u5f85\u5be9\u6838\u9801\u7c64' },
       { key: 'matches', label: '\u4ff1\u6a02\u90e8\u8cfd\u4e8b', desc: '\u8207\u4ff1\u6a02\u90e8\u95dc\u806f\u7684\u8cfd\u4e8b\u5217\u8868' },
-      { key: 'feed', label: '\u52d5\u614b', desc: '\u4ff1\u6a02\u90e8\u8cbc\u6587\u8207\u7559\u8a00' },
       { key: 'info', label: '\u4ff1\u6a02\u90e8\u8cc7\u8a0a', desc: '\u7d93\u7406\u3001\u9818\u968a\u3001\u6559\u7df4\u8207\u5730\u5340' },
       { key: 'bio', label: '\u7c21\u4ecb', desc: '\u4ff1\u6a02\u90e8\u4ecb\u7d39\u6587\u5b57' },
       { key: 'record', label: '\u6230\u7e3e', desc: '\u52dd\u6557\u8207\u9032\u5931\u7403\u8cc7\u6599' },
-      { key: 'history', label: '\u8cfd\u4e8b\u7d00\u9304', desc: '\u6b77\u53f2\u6bd4\u8cfd\u7d00\u9304' },
       { key: 'members', label: '\u6210\u54e1\u5217\u8868', desc: '\u968a\u54e1\u8207\u7ba1\u7406\u540d\u55ae' },
     ];
   },
@@ -369,10 +367,6 @@ Object.assign(App, {
       const totalGames = (t.wins || 0) + (t.draws || 0) + (t.losses || 0);
       const winRate = totalGames > 0 ? Math.round((t.wins || 0) / totalGames * 100) : 0;
 
-      // 載入 feed subcollection 資料；教育型也共用同一套詳細頁 UI。
-      if (this._isTeamDetailSectionVisible?.(t, 'feed') !== false && typeof this._loadTeamFeed === 'function') {
-        await this._loadTeamFeed(id);
-      }
       nodes.body.innerHTML = this._buildTeamDetailBodyHtml(t, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate);
       if (this._isTeamDetailSectionVisible?.(t, 'courses') !== false && typeof this._initEduClubDetailSection === 'function') {
         this._initEduClubDetailSection(id);

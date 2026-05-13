@@ -208,16 +208,14 @@ describe('team detail club activity section', () => {
     expect(html).toContain("App.openTeamDetailTournament('tour-host')");
   });
 
-  test('orders course, activity, tournament, feed, record, and member sections in the unified detail layout', () => {
+  test('orders course, activity, tournament, record, and member sections in the unified detail layout', () => {
     const app = makeApp([]);
     loadTeamDetailRender(app, []);
     Object.assign(app, {
       _buildTeamInfoCard: () => '<section>info</section>',
       _buildTeamBioCard: () => '<section>bio</section>',
       _buildTeamRecordCard: () => '<section>record</section>',
-      _buildTeamHistoryCard: () => '<section>history</section>',
       _buildTeamMembersCard: () => '<section>members</section>',
-      _renderTeamFeed: () => '<section>feed</section>',
       _renderTeamEvents: () => '<section>club events</section>',
       _renderTeamTournaments: () => '<section>club tournaments</section>',
     });
@@ -231,13 +229,14 @@ describe('team detail club activity section', () => {
       0
     );
 
-    expect(html.indexOf('<div id="team-feed-section">')).toBeGreaterThan(-1);
+    const recordBodyIndex = html.lastIndexOf('team-record-history-section');
     expect(html.indexOf('edu-detail-section')).toBeLessThan(html.indexOf('club events'));
-    expect(html.indexOf('club events')).toBeLessThan(html.indexOf('<div id="team-feed-section">'));
     expect(html.indexOf('club events')).toBeLessThan(html.indexOf('club tournaments'));
-    expect(html.indexOf('club tournaments')).toBeLessThan(html.indexOf('<div id="team-feed-section">'));
-    expect(html.indexOf('team-record-history-section')).toBeLessThan(html.indexOf('members'));
-    expect(html).toContain('回到頂部');
+    expect(html.indexOf('club tournaments')).toBeLessThan(recordBodyIndex);
+    expect(recordBodyIndex).toBeLessThan(html.indexOf('<section>members</section>'));
+    expect(html).not.toContain('team-feed-section');
+    expect(html).not.toContain('team-history-section');
+    expect(html).toContain('td-floating-top-btn');
   });
 
   test('renders course section for every club type', () => {
@@ -261,9 +260,7 @@ describe('team detail club activity section', () => {
       _buildTeamInfoCard: () => '',
       _buildTeamBioCard: () => '',
       _buildTeamRecordCard: () => '',
-      _buildTeamHistoryCard: () => '',
       _buildTeamMembersCard: () => '<section id="team-members-section"></section>',
-      _renderTeamFeed: () => '',
       _renderTeamEvents: () => '',
       _renderTeamTournaments: () => '<section id="team-tournaments-section"></section>',
     });
@@ -298,9 +295,7 @@ describe('team detail club activity section', () => {
       _buildTeamInfoCard: () => '',
       _buildTeamBioCard: () => '',
       _buildTeamRecordCard: () => '',
-      _buildTeamHistoryCard: () => '',
       _buildTeamMembersCard: () => '',
-      _renderTeamFeed: () => '',
       _renderTeamEvents: () => '',
     });
 
@@ -317,7 +312,7 @@ describe('team detail club activity section', () => {
     expect(html).toContain('td-overview-grid');
     expect(html).toContain('td-floating-top-btn');
     expect(html).toContain('team-tournaments-section');
-    expect(html).toContain('team-feed-section');
+    expect(html).not.toContain('team-feed-section');
     expect(html).toContain('team-members-section');
     expect(html).not.toContain('td-overview-icon');
     expect(html.indexOf('td-section-nav-panel')).toBeLessThan(html.indexOf('td-overview-grid'));
@@ -330,9 +325,7 @@ describe('team detail club activity section', () => {
       _buildTeamInfoCard: () => '<section id="team-info-section">info</section>',
       _buildTeamBioCard: () => '<section id="team-bio-section">bio</section>',
       _buildTeamRecordCard: () => '<section id="team-record-section">record</section>',
-      _buildTeamHistoryCard: () => '<section id="team-history-section">history</section>',
       _buildTeamMembersCard: () => '<section id="team-members-section">members</section>',
-      _renderTeamFeed: () => '<section>feed</section>',
       _renderTeamEvents: () => '<section id="team-events-section">club events</section>',
       _renderTeamTournaments: () => '<section id="team-tournaments-section">club tournaments</section>',
     });
@@ -343,7 +336,6 @@ describe('team detail club activity section', () => {
       coaches: [],
       detailVisibility: {
         courses: false,
-        feed: false,
         matches: false,
         members: false,
         record: false,
@@ -355,6 +347,7 @@ describe('team detail club activity section', () => {
     expect(html).toContain('team-events-section');
     expect(html).not.toContain('edu-detail-section');
     expect(html).not.toContain('team-feed-section');
+    expect(html).not.toContain('team-history-section');
     expect(html).not.toContain('team-tournaments-section');
     expect(html).not.toContain('team-members-section');
     expect(html).not.toContain('team-record-section');
@@ -365,7 +358,7 @@ describe('team detail club activity section', () => {
     expect(nav).not.toContain('team-record-section');
   });
 
-  test('team detail action bar renders one equal-width row without invite toggle', () => {
+  test('team detail action bar renders secondary buttons and keeps primary action in header', () => {
     const app = makeApp([]);
     Object.assign(app, {
       _isTeamMember: () => true,
@@ -380,17 +373,21 @@ describe('team detail club activity section', () => {
     });
 
     expect(html).toContain('td-action-grid');
-    expect((html.match(/<button/g) || []).length).toBe(4);
-    expect(html).toContain('teamDetail.leaveTeam');
+    expect((html.match(/<button/g) || []).length).toBe(3);
+    expect(html).not.toContain('teamDetail.leaveTeam');
+    expect(html).not.toContain('teamDetail.applyJoin');
     expect(html).toContain('teamDetail.contactCaptain');
     expect(html).toContain('teamDetail.inviteQR');
     expect(html).not.toContain('td-action-toggle');
     expect(html).not.toContain('toggleMemberInvite');
+
+    const primary = app._buildTeamDetailPrimaryAction({ id: 'teamA' });
+    expect(primary).toContain('teamDetail.leaveTeam');
   });
 
   test('team settings modal owns member invite switch with redesigned controls', () => {
     const app = {
-      _getTeamDetailVisibility: () => ({ events: true, courses: true, feed: true, info: true, bio: true, record: true, history: true, members: true }),
+      _getTeamDetailVisibility: () => ({ events: true, courses: true, matches: true, info: true, bio: true, record: true, members: true }),
       _isTeamTeachingTagged: () => false,
     };
     const body = { innerHTML: '' };
@@ -474,21 +471,6 @@ describe('team detail club activity section', () => {
     expect(teamSelect.selectedIds).toEqual(['teamA']);
   });
 
-  test('team feed publish button passes itself for loading feedback', () => {
-    const app = makeApp([]);
-    Object.assign(app, {
-      _isTeamMember: () => true,
-      _teamFeedPage: {},
-      _FEED_PAGE_SIZE: 20,
-      getTeamFeed: () => [],
-    });
-    loadTeamDetailRender(app, []);
-
-    const html = app._renderTeamFeed('teamA');
-
-    expect(html).toContain("App.submitTeamPost('teamA', this)");
-  });
-
   test('team member list merges players, staff, and students into compact tabs', () => {
     const app = makeApp([]);
     const team = {
@@ -531,6 +513,12 @@ describe('team detail club activity section', () => {
     expect(html).toContain('td-member-role-pill role-leader');
     expect(html).toContain('td-member-role-pill role-coach');
     expect(html).not.toContain('App.toggleProfileSection');
+
+    const manageHtml = app._buildTeamMembersCard(team, true, false, { keys: new Set(), names: new Set() });
+    const editHtml = app._buildTeamMembersCard(team, true, true, { keys: new Set(), names: new Set() });
+    expect(manageHtml).toContain('\u6210\u54e1\u7ba1\u7406');
+    expect(editHtml).toContain('\u5254\u9664');
+    expect(editHtml).toContain('<td class="td-member-name-cell"><button class="td-member-remove-btn"');
   });
 
   test('refreshes shared member card from current student cache', () => {
@@ -557,20 +545,23 @@ describe('team detail club activity section', () => {
     expect(target.outerHTML).toContain('td-member-label-pill label-student');
   });
 
-  test('team record and history cards render compact real cards without reserved copy', () => {
+  test('team record card renders compact equal cells without match history', () => {
     const app = makeApp([]);
     loadTeamDetailRender(app, []);
 
-    const html = app._buildTeamRecordCard({ wins: 2, draws: 1, losses: 1 }, 4, 50)
-      + app._buildTeamHistoryCard({ history: [{ id: 'm1', title: '友誼賽', score: '2:1', date: '2026/05/01' }] });
+    const html = app._buildTeamRecordCard({ wins: 2, draws: 1, losses: 1 }, 4, 50);
     const combined = app._buildTeamRecordHistorySection({ wins: 2, draws: 1, losses: 1, history: [] }, 4, 50);
 
     expect(html).toContain('td-record-grid');
     expect(html).toContain('td-record-stat');
-    expect(html).toContain('td-history-list-compact');
-    expect(html).toContain('td-history-row-compact');
+    expect(html).toContain('td-record-total');
+    expect(html).toContain('td-record-win');
+    expect(html).toContain('td-record-rate');
+    expect(html).not.toContain('td-history-list-compact');
+    expect(html).not.toContain('td-history-row-compact');
     expect(combined).toContain('td-record-history-grid');
     expect(combined).toContain('team-record-history-section');
+    expect(combined).not.toContain('team-history-section');
     expect(html).not.toContain('資料位置已預留');
     expect(html).not.toContain('位置已預留');
     expect(html).not.toContain('profile-collapse-toggle');
@@ -610,7 +601,6 @@ describe('team detail club activity section', () => {
     });
 
     const html = [
-      app._buildTeamHistoryCard({ history: [] }),
       app._buildTeamMembersCard(
         { id: 'teamA' },
         false,

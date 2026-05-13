@@ -199,7 +199,6 @@ describe('resolvePageScripts — real project groups', () => {
       'js/modules/event/event-share-builders.js',
       'js/modules/event/event-share.js',
       'js/modules/team/team-detail.js',
-      'js/modules/team/team-feed.js',
       'js/modules/team/team-detail-render.js',
       'js/modules/team/team-detail-invite.js',
       'js/modules/team/team-share-builders.js',

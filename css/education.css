@@ -31,6 +31,33 @@
 .edu-info-dialog-body b { color: var(--text-primary); }
 
 /* ── Course Plan Cards ── */
+.edu-cp-view-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .42rem;
+  margin-bottom: .62rem;
+}
+.edu-cp-view-tabs button {
+  min-height: 34px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: .78rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+.edu-cp-view-tabs button.active {
+  border-color: rgba(13, 148, 136, .42);
+  background: rgba(13, 148, 136, .12);
+  color: var(--accent);
+}
+.edu-cp-view-tabs span {
+  margin-left: .22rem;
+  color: inherit;
+  font-family: var(--font-display), "SFMono-Regular", Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
 .edu-course-plan-sections {
   display: flex;
   flex-direction: column;
@@ -970,6 +997,15 @@
 }
 [data-theme="dark"] .edu-course-plan-section {
   background: rgba(17, 24, 39, .72);
+}
+[data-theme="dark"] .edu-cp-view-tabs button {
+  background: rgba(30, 41, 59, .8);
+  border-color: rgba(148, 163, 184, .28);
+}
+[data-theme="dark"] .edu-cp-view-tabs button.active {
+  background: rgba(45, 212, 191, .14);
+  border-color: rgba(45, 212, 191, .36);
+  color: #5eead4;
 }
 [data-theme="dark"] .edu-course-card.edu-cp-card-weekly {
   background: linear-gradient(135deg, rgba(20, 184, 166, .18), rgba(20, 184, 166, .055));

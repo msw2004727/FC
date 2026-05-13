@@ -16,10 +16,11 @@ function escapeHTML(value) {
     .replace(/'/g, '&#39;');
 }
 
-async function renderPlans(plans, isStaff = true) {
+async function renderPlans(plans, isStaff = true, selectedTab = 'active') {
   const container = { innerHTML: '' };
   const app = {
     _courseEnrollCache: {},
+    _eduCoursePlanTabByTeam: selectedTab === 'ended' ? { teamA: 'ended' } : {},
     isEduClubStaff: jest.fn(() => isStaff),
     _loadEduCoursePlans: jest.fn(() => Promise.resolve(plans)),
     _getCourseEnrollCacheKey: jest.fn(() => null),
@@ -56,8 +57,8 @@ describe('edu course plan render', () => {
         planType: 'weekly',
         weekdays: [1, 3],
         timeSlot: '19:00-20:30',
-        startDate: '2026-05-01',
-        endDate: '2026-06-30',
+        startDate: '2099-05-01',
+        endDate: '2099-06-30',
         price: 2400,
         maxCapacity: 12,
         allowSignup: true,
@@ -93,5 +94,38 @@ describe('edu course plan render', () => {
 
     expect(html).toContain('尚未建立課程方案');
     expect(html).not.toContain('edu-course-plan-section');
+  });
+
+  test('separates ended plans into the ended tab', async () => {
+    const plans = [
+      {
+        id: 'active',
+        name: 'Active Plan',
+        planType: 'weekly',
+        weekdays: [2],
+        startDate: '2099-01-01',
+        endDate: '2099-02-01',
+        allowSignup: true,
+      },
+      {
+        id: 'ended',
+        name: 'Ended Plan',
+        planType: 'session',
+        totalSessions: 4,
+        startDate: '2000-01-01',
+        endDate: '2000-02-01',
+        allowSignup: false,
+      },
+    ];
+
+    const activeHtml = await renderPlans(plans, true, 'active');
+    const endedHtml = await renderPlans(plans, true, 'ended');
+
+    expect(activeHtml).toContain('edu-cp-view-tabs');
+    expect(activeHtml).toContain('Active Plan');
+    expect(activeHtml).not.toContain('Ended Plan');
+    expect(endedHtml).toContain('Ended Plan');
+    expect(endedHtml).not.toContain('Active Plan');
+    expect(endedHtml).toContain('edu-cp-status-ended');
   });
 });

@@ -1,7 +1,6 @@
 /* ================================================
    SportHub — Team Detail: Rendering
-   Split from team-detail.js — team events, feed,
-   reactions, comments rendering & CRUD.
+   Split from team-detail.js — team events and detail cards.
    All dynamic HTML uses escapeHTML() for XSS
    safety per CLAUDE.md project convention.
    ================================================ */
@@ -299,96 +298,6 @@ Object.assign(App, {
   },
 
   // ══════════════════════════════════
-  //  Team Feed
-  // ══════════════════════════════════
-
-  _renderTeamFeed(teamId) {
-    const t = ApiService.getTeam(teamId);
-    if (!t) return '';
-    const feed = (typeof this.getTeamFeed === 'function') ? this.getTeamFeed(teamId) : (t.feed || []);
-    const isMember = this._isTeamMember(teamId);
-    const user = ApiService.getCurrentUser?.();
-    const myUid = user?.uid || '';
-    const myName = user?.displayName || '';
-    const isCaptainOrCoach = (t.captain === myName) || (t.coaches || []).includes(myName);
-
-    // Sort: pinned first, then by time descending
-    const sorted = [...feed].sort((a, b) => {
-      if (a.pinned && !b.pinned) return -1;
-      if (!a.pinned && b.pinned) return 1;
-      return (b.time || '').localeCompare(a.time || '');
-    });
-
-    // Pagination
-    const currentPage = this._teamFeedPage[teamId] || 1;
-    const totalPages = Math.max(1, Math.ceil(sorted.length / this._FEED_PAGE_SIZE));
-    const startIdx = (currentPage - 1) * this._FEED_PAGE_SIZE;
-    const pageItems = sorted.slice(startIdx, startIdx + this._FEED_PAGE_SIZE);
-
-    // Post form
-    const postFormHtml = isMember ? `
-      <div style="margin-bottom:.5rem">
-        <textarea id="team-feed-input" rows="2" maxlength="200" placeholder="${I18N.t('teamDetail.postPlaceholder')}" style="width:100%;font-size:.82rem;padding:.4rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);resize:none;box-sizing:border-box"></textarea>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:.3rem">
-          <button class="primary-btn small" onclick="App.submitTeamPost('${teamId}', this)">${I18N.t('teamDetail.publish')}</button>
-          <div style="display:flex;align-items:center;gap:.3rem">
-            <span id="team-feed-public-label" style="font-size:.72rem;color:var(--text-muted)">${I18N.t('teamDetail.public')}</span>
-            <label class="toggle-switch" style="margin:0;transform:scale(.8)">
-              <input type="checkbox" id="team-feed-public" checked>
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-        </div>
-      </div>` : '';
-
-    const postsHtml = pageItems.length > 0 ? pageItems.map(post => {
-      const isAuthor = post.uid === myUid;
-      const canDelete = isAuthor || isCaptainOrCoach;
-      const canPin = isCaptainOrCoach;
-      const publicTag = post.isPublic === false
-        ? `<span style="font-size:.58rem;padding:.08rem .25rem;border-radius:3px;background:var(--bg-elevated);color:var(--text-muted);font-weight:600">${I18N.t('teamDetail.privateOnly')}</span>`
-        : '';
-      return `
-        <div style="padding:.5rem 0;border-bottom:1px solid var(--border)${post.pinned ? ';background:var(--accent-bg);margin:0 -.5rem;padding-left:.5rem;padding-right:.5rem;border-radius:var(--radius-sm)' : ''}">
-          <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.2rem">
-            ${this._userTag(post.name)}
-            ${post.pinned ? '<span style="font-size:.6rem;padding:.1rem .3rem;border-radius:3px;background:#f59e0b;color:#fff;font-weight:700">' + I18N.t('teamDetail.pinned') + '</span>' : ''}
-            ${publicTag}
-            <span style="margin-left:auto;font-size:.68rem;color:var(--text-muted)">${escapeHTML(post.time)}</span>
-          </div>
-          <div style="font-size:.82rem;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;word-break:break-word">${escapeHTML(post.content)}</div>
-          ${this._renderFeedReactions(teamId, post, myUid)}
-          ${this._renderFeedComments(teamId, post, myUid, isMember)}
-          <div style="display:flex;gap:.3rem;margin-top:.25rem">
-            ${canPin ? `<button style="font-size:.65rem;padding:.15rem .35rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-muted);cursor:pointer" onclick="App.pinTeamPost('${teamId}','${post.id}')">${post.pinned ? I18N.t('teamDetail.unpinPost') : I18N.t('teamDetail.pinPost')}</button>` : ''}
-            ${canDelete ? `<button style="font-size:.65rem;padding:.15rem .35rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--danger);cursor:pointer" onclick="App.deleteTeamPost('${teamId}','${post.id}')">${I18N.t('teamDetail.delete')}</button>` : ''}
-          </div>
-        </div>`;
-    }).join('') : '<div style="font-size:.82rem;color:var(--text-muted);padding:.5rem 0">' + I18N.t('teamDetail.noFeed') + '</div>';
-
-    // Pagination controls
-    let paginationHtml = '';
-    if (totalPages > 1) {
-      const prevDisabled = currentPage <= 1 ? 'opacity:.4;pointer-events:none' : 'cursor:pointer';
-      const nextDisabled = currentPage >= totalPages ? 'opacity:.4;pointer-events:none' : 'cursor:pointer';
-      paginationHtml = `
-        <div style="display:flex;justify-content:center;align-items:center;gap:.5rem;padding:.5rem 0;font-size:.75rem">
-          <button style="padding:.2rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-secondary);${prevDisabled}" onclick="App.goTeamFeedPage('${teamId}',${currentPage - 1})">${I18N.t('teamDetail.prevPage')}</button>
-          <span style="color:var(--text-muted)">${currentPage} / ${totalPages}</span>
-          <button style="padding:.2rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-secondary);${nextDisabled}" onclick="App.goTeamFeedPage('${teamId}',${currentPage + 1})">${I18N.t('teamDetail.nextPage')}</button>
-        </div>`;
-    }
-
-    return `
-      <div class="td-card td-section-card">
-        <div class="td-card-title">${I18N.t('teamDetail.feed')} <span style="font-size:.72rem;color:var(--text-muted);font-weight:400">(${feed.length})</span></div>
-        ${postFormHtml}
-        ${postsHtml}
-        ${paginationHtml}
-      </div>`;
-  },
-
-  // ══════════════════════════════════
   //  Team Detail Body HTML — Helpers
   // ══════════════════════════════════
 
@@ -414,11 +323,9 @@ Object.assign(App, {
       events: source.events !== false,
       courses: source.courses !== false,
       matches: source.matches !== false,
-      feed: source.feed !== false,
       info: source.info !== false,
       bio: source.bio !== false,
       record: source.record !== false,
-      history: source.history !== false,
       members: source.members !== false,
     };
   },
@@ -746,6 +653,13 @@ Object.assign(App, {
     return false;
   },
 
+  _buildTeamDetailPrimaryAction(t) {
+    const isMember = this._isTeamMember(t.id);
+    return isMember
+      ? '<button class="td-action-main td-action-danger" onclick="App.handleLeaveTeam(\'' + t.id + '\')">' + I18N.t('teamDetail.leaveTeam') + '</button>'
+      : '<button class="td-action-main" onclick="App.handleJoinTeam(\'' + t.id + '\')">' + I18N.t('teamDetail.applyJoin') + '</button>';
+  },
+
   _buildTeamDetailActionBar(t) {
     const u = ApiService.getCurrentUser?.();
     const n = u?.displayName || '';
@@ -753,9 +667,6 @@ Object.assign(App, {
     const memberCanInvite = t.allowMemberInvite !== false;
     const isMember = this._isTeamMember(t.id);
     const canInvite = isCaptainCoach || (isMember && memberCanInvite);
-    const primary = isMember
-      ? '<button class="td-action-main td-action-danger" onclick="App.handleLeaveTeam(\'' + t.id + '\')">' + I18N.t('teamDetail.leaveTeam') + '</button>'
-      : '<button class="td-action-main" onclick="App.handleJoinTeam(\'' + t.id + '\')">' + I18N.t('teamDetail.applyJoin') + '</button>';
     const share = '<button class="td-action-secondary" onclick="App.shareTeam(\'' + t.id + '\')">\u5206\u4eab</button>';
     const contact = t.captain
       ? '<button class="td-action-secondary" onclick="App.showUserProfile(\'' + escapeHTML(t.captain) + '\')">' + I18N.t('teamDetail.contactCaptain') + '</button>'
@@ -764,7 +675,7 @@ Object.assign(App, {
       ? '<button class="td-action-secondary" onclick="App.showTeamInviteQR(\'' + t.id + '\')">' + I18N.t('teamDetail.inviteQR') + '</button>'
       : '<button class="td-action-secondary td-action-disabled" type="button" disabled>' + I18N.t('teamDetail.inviteQR') + '</button>';
     return '<div class="td-action-panel">' +
-      '<div class="td-action-grid">' + primary + share + contact + invite + '</div>' +
+      '<div class="td-action-grid">' + share + contact + invite + '</div>' +
       '</div>';
   },
 
@@ -779,10 +690,7 @@ Object.assign(App, {
     if (this._isTeamDetailSectionVisible(t, 'matches')) {
       items.push('<button type="button" onclick="document.getElementById(\'team-tournaments-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u8cfd\u4e8b</button>');
     }
-    if (this._isTeamDetailSectionVisible(t, 'feed')) {
-      items.push('<button type="button" onclick="document.getElementById(\'team-feed-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u52d5\u614b</button>');
-    }
-    if (this._isTeamDetailSectionVisible(t, 'record') || this._isTeamDetailSectionVisible(t, 'history')) {
+    if (this._isTeamDetailSectionVisible(t, 'record')) {
       items.push('<button type="button" onclick="document.getElementById(\'team-record-history-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u6230\u7e3e</button>');
     }
     if (this._isTeamDetailSectionVisible(t, 'members')) {
@@ -798,9 +706,9 @@ Object.assign(App, {
     const coachCount = Array.isArray(t.coaches) ? t.coaches.length : 0;
     const eventCount = this._getTeamDetailEventCount(t);
     return '<div class="td-overview-grid">' +
-      '<div class="td-overview-stat"><span class="td-overview-label">\u6210\u54e1</span><strong>' + memberCount + '</strong></div>' +
-      '<div class="td-overview-stat"><span class="td-overview-label">\u6559\u7df4</span><strong>' + coachCount + '</strong></div>' +
-      '<div class="td-overview-stat"><span class="td-overview-label">\u672c\u9031\u6d3b\u52d5</span><strong>' + eventCount + '</strong></div>' +
+      '<div class="td-overview-stat td-overview-member"><span class="td-overview-label">\u6210\u54e1</span><strong>' + memberCount + '</strong></div>' +
+      '<div class="td-overview-stat td-overview-coach"><span class="td-overview-label">\u6559\u7df4</span><strong>' + coachCount + '</strong></div>' +
+      '<div class="td-overview-stat td-overview-event"><span class="td-overview-label">\u672c\u9031\u6d3b\u52d5</span><strong>' + eventCount + '</strong></div>' +
       '</div>';
   },
 
@@ -978,12 +886,12 @@ Object.assign(App, {
     const safeTotal = Number.isFinite(Number(totalGames)) ? Number(totalGames) : wins + draws + losses;
     const safeRate = Number.isFinite(Number(winRate)) ? Number(winRate) : 0;
     const cells = [
-      [I18N.t('teamDetail.totalGames'), safeTotal],
-      [I18N.t('teamDetail.wins'), wins],
-      [I18N.t('teamDetail.draws'), draws],
-      [I18N.t('teamDetail.losses'), losses],
-      [I18N.t('teamDetail.winRate'), safeRate + '%'],
-    ].map(item => '<div class="td-stat td-record-stat"><span class="td-stat-label">' + item[0] + '</span><span class="td-stat-num">' + item[1] + '</span></div>').join('');
+      ['total', I18N.t('teamDetail.totalGames'), safeTotal],
+      ['win', I18N.t('teamDetail.wins'), wins],
+      ['draw', I18N.t('teamDetail.draws'), draws],
+      ['loss', I18N.t('teamDetail.losses'), losses],
+      ['rate', I18N.t('teamDetail.winRate'), safeRate + '%'],
+    ].map(item => '<div class="td-stat td-record-stat td-record-' + item[0] + '"><span class="td-stat-label">' + item[1] + '</span><span class="td-stat-num">' + item[2] + '</span></div>').join('');
     return '<div class="td-card td-section-card" id="team-record-section">'
       + '<div class="td-card-title">' + I18N.t('teamDetail.record') + '</div>'
       + '<div class="td-stats-row td-record-grid">'
@@ -991,34 +899,10 @@ Object.assign(App, {
       + '</div></div>';
   },
 
-  _buildTeamHistoryCard(t) {
-    const history = Array.isArray(t.history) ? t.history : [];
-    const rows = history.length ? history.slice(0, 5).map((match, idx) => {
-      const name = match.name || match.title || match.opponent || match.teamName || ('#' + (idx + 1));
-      const date = match.date || match.matchDate || match.time || '';
-      let result = match.result || match.score || '';
-      if (!result && (match.homeScore != null || match.awayScore != null)) {
-        result = String(match.homeScore ?? '-') + ' : ' + String(match.awayScore ?? '-');
-      }
-      const meta = date ? escapeHTML(date) : I18N.t('teamDetail.matchHistory');
-      return '<div class="td-history-row td-history-row-compact">'
-        + '<div class="td-history-main"><span class="td-history-name">' + escapeHTML(name) + '</span><span class="td-history-meta">' + meta + '</span></div>'
-        + '<span class="td-history-result">' + (result ? escapeHTML(result) : '-') + '</span>'
-        + '</div>';
-    }).join('') : '<div class="td-history-empty">\u5c1a\u7121\u8cfd\u4e8b\u7d00\u9304</div>';
-    return '<div class="td-card td-section-card" id="team-history-section">'
-      + '<div class="td-card-title">' + I18N.t('teamDetail.matchHistory') + '</div>'
-      + '<div class="td-history-list-compact">' + rows + '</div>'
-      + '</div>';
-  },
-
   _buildTeamRecordHistorySection(t, totalGames, winRate) {
     const parts = [];
     if (this._isTeamDetailSectionVisible(t, 'record')) {
       parts.push(this._buildTeamRecordCard(t, totalGames, winRate));
-    }
-    if (this._isTeamDetailSectionVisible(t, 'history')) {
-      parts.push(this._buildTeamHistoryCard(t));
     }
     return parts.length
       ? '<div class="td-record-history-grid" id="team-record-history-section">' + parts.join('') + '</div>'
@@ -1068,12 +952,12 @@ Object.assign(App, {
         + (row.isExternalStudent ? ' external-student' : '')
         + (row.isMissingName ? ' missing-name' : '');
       const removeBtn = (canManageMembers && memberEditMode && row.uid && row.isMember && !row.roles.size)
-        ? '<button class="td-member-remove-btn" title="\u79fb\u9664\u968a\u54e1" onclick="event.stopPropagation();App.removeTeamMember(this, \'' + t.id + '\',\'' + row.uid + '\')">\u00d7</button>'
+        ? '<button class="td-member-remove-btn" title="\u5254\u9664\u968a\u54e1" onclick="event.stopPropagation();App.removeTeamMember(this, \'' + t.id + '\',\'' + row.uid + '\')">\u5254\u9664</button>'
         : '';
       const labelClass = this._getTeamDetailMemberLabelClass(row.label);
       const roleHtml = this._buildTeamDetailMemberRolePills(row);
       return '<tr>'
-        + '<td class="td-member-name-cell"><span class="' + nameClass + '"' + profileClick + '>' + safeName + '</span>' + removeBtn + '</td>'
+        + '<td class="td-member-name-cell">' + removeBtn + '<span class="' + nameClass + '"' + profileClick + '>' + safeName + '</span></td>'
         + '<td><span class="td-member-label-pill ' + labelClass + '">' + escapeHTML(row.label) + '</span></td>'
         + '<td>' + row.activityCount + '</td>'
         + '<td>' + row.courseCount + '</td>'
@@ -1081,7 +965,7 @@ Object.assign(App, {
         + '<td class="td-member-identity">' + roleHtml + '</td>'
         + '</tr>';
     }).join('') : '<tr><td colspan="6" class="td-member-empty">' + I18N.t('teamDetail.none') + '</td></tr>';
-    const editBtn = canManageMembers ? '<button class="outline-btn td-member-edit-btn" onclick="event.stopPropagation();App.toggleTeamMemberEditMode(\'' + t.id + '\')">' + (memberEditMode ? '\u5b8c\u6210' : '\u7de8\u8f2f') + '</button>' : '';
+    const editBtn = canManageMembers ? '<button class="outline-btn td-member-edit-btn" onclick="event.stopPropagation();App.toggleTeamMemberEditMode(\'' + t.id + '\')">' + (memberEditMode ? '\u5b8c\u6210' : '\u6210\u54e1\u7ba1\u7406') + '</button>' : '';
     return '<div class="td-card td-section-card" id="team-members-section">'
       + '<div id="team-members-toggle" class="td-card-title td-card-title-row"><span>' + I18N.t('teamDetail.memberList') + '</span><span class="td-card-title-right">' + editBtn + '</span></div>'
       + '<div class="td-member-tabs">' + tabBtn('all', '\u5168\u90e8', counts.all) + tabBtn('member', '\u968a\u54e1', counts.member) + tabBtn('student', '\u5b78\u54e1', counts.student) + '</div>'
@@ -1132,6 +1016,7 @@ Object.assign(App, {
       ? '<span class="td-teaching-pill">\u6559\u5b78</span>'
       : '';
     const viewHtml = '<div class="td-club-view-count" title="\u700f\u89bd\u6578"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path><circle cx="12" cy="12" r="2.8"></circle></svg><span>' + this._getTeamDetailViewCount(t).toLocaleString() + '</span></div>';
+    const primaryAction = this._buildTeamDetailPrimaryAction(t);
     return '<div class="td-identity-panel">' +
       '<div class="td-club-head">' +
       logoHtml +
@@ -1140,6 +1025,7 @@ Object.assign(App, {
       '<div class="td-club-title-row"><h1>' + escapeHTML(t.name || '') + '</h1>' + teachingBadge + '</div>' +
       '<div class="td-club-meta">' + escapeHTML(metaParts.join('｜')) + '</div>' +
       '</div>' +
+      '<div class="td-club-head-action">' + primaryAction + '</div>' +
       '</div>' +
       this._buildTeamDetailActionBar(t) +
       '</div>';
@@ -1157,7 +1043,6 @@ Object.assign(App, {
       + (this._isTeamDetailSectionVisible(t, 'courses') ? this._buildTeamEducationSection(t) : '')
       + (this._isTeamDetailSectionVisible(t, 'events') ? this._renderTeamEvents(t.id) : '')
       + (this._isTeamDetailSectionVisible(t, 'matches') ? this._renderTeamTournaments(t.id) : '')
-      + (this._isTeamDetailSectionVisible(t, 'feed') ? '<div id="team-feed-section">' + this._renderTeamFeed(t.id) + '</div>' : '')
       + (this._isTeamDetailSectionVisible(t, 'info') ? this._buildTeamInfoCard(t) : '')
       + (this._isTeamDetailSectionVisible(t, 'bio') ? this._buildTeamBioCard(t) : '')
       + this._buildTeamRecordHistorySection(t, totalGames, winRate)

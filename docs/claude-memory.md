@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-13 Club detail header actions, feed removal, and ended plan tab [ui]
+- **Problem**: The club detail header action row was too tall, join/leave belonged in the header, the feed and match-history sections were no longer part of the desired club detail UI, roster management needed clearer remove controls, and course plans had no ended tab.
+- **Fix**: Moved join/leave into the club header, reduced the secondary action row to share/contact/invite, redesigned overview and record numbers with compact centered digital-style cards, removed the feed and match-history sections from detail rendering and script loading, constrained roster names, renamed edit to member management with left-side remove buttons, and added active/ended course plan tabs.
+- **Tests**: Updated team detail, script-loader, and education course-plan render unit tests for the new section contract and ended-plan tab behavior.
+
 ### 2026-05-13 Club detail compact records and course plan cards [ui]
 - **Problem**: Club detail member columns, record/history blocks, club info, and course plans were still too loose or too placeholder-like for the new mobile-first club detail UI.
 - **Fix**: Tightened section shortcuts and roster columns, enlarged roster text, added color-coded member/identity pills, changed club info facts to a single inline row, removed the member-count info card, made coach span two slots, restored compact record/history cards without reserved-position copy, and redesigned course plans into separate fixed-weekly/session containers with richer metric cards.
