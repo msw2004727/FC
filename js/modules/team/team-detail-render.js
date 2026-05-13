@@ -941,15 +941,20 @@ Object.assign(App, {
     if (!teamId || !allowed.has(tab)) return;
     this._teamMemberTabByTeam = this._teamMemberTabByTeam || {};
     this._teamMemberTabByTeam[teamId] = tab;
+    this._refreshTeamMembersCardFromCache(teamId);
+  },
+
+  _refreshTeamMembersCardFromCache(teamId) {
     const team = ApiService.getTeam?.(teamId);
     const target = document.getElementById('team-members-section');
-    if (!team || !target) return;
+    if (!team || !target) return false;
     const canManageMembers = typeof this._canManageTeamMembers === 'function' ? this._canManageTeamMembers(team) : false;
     const memberEditMode = !!this._teamMemberEditModeByTeam?.[teamId];
     const staffIdentity = typeof this._getTeamStaffIdentity === 'function'
       ? this._getTeamStaffIdentity(team)
       : { keys: new Set(), names: new Set() };
     target.outerHTML = this._buildTeamMembersCard(team, canManageMembers, memberEditMode, staffIdentity);
+    return true;
   },
 
   _getTeamDetailViewCount(t) {

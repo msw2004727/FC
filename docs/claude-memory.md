@@ -2597,3 +2597,9 @@
 - **Issue**: The club detail cover was too tall and still carried sport/teaching overlays. Primary actions were split across multiple rows, and the member-invite toggle lived in the action area with rough switch styling.
 - **Fix**: Reduced the club detail cover height by roughly 30%, removed sport and teaching overlays from the detail cover, made join/leave, share, contact captain, and invite QR render in one equal-width action row, and moved the member invite switch into the three-dot settings panel with a dedicated polished toggle design. Follow-up polish split section tabs into their own container, simplified dashboard stats by removing the `人/教/日` markers, added a permission-gated "新增活動" button to club activities, and made the teaching toggle hide/show the course/student container.
 - **Validation**: Added unit coverage for the four-button action row, settings-owned member invite switch, independent tabs/simplified stats, activity create button permission, current-club event preset, and teaching-toggle course visibility. Ran targeted team detail tests, syntax checks, full `npm test`, and bumped cache version to `0.20260513n`.
+
+### 2026-05-13 Club Detail Student Roster Refresh [bugfix]
+- **Issue**: Entering a club detail page could show the shared member list without student rows until the user clicked inside the student/course area.
+- **Cause**: The shared member list rendered before `teams/{teamId}/students` finished loading. The later student fetch and realtime listener refreshed only the education tab content, not the shared team member card.
+- **Fix**: Added a cache-only member-card refresh helper and called it after initial student load and student realtime snapshots, so the existing member list updates as soon as student data is available.
+- **Validation**: Added unit coverage for the async student-load refresh path and the member-card refresh helper.

@@ -113,6 +113,67 @@ describe('renderEduClubDetail info card', () => {
     expect(app._startEduStudentsListener).toHaveBeenCalledWith(team.id);
   });
 
+  test('refreshes shared member list after async students load', async () => {
+    const bodyEl = { innerHTML: '' };
+    const contentEl = { innerHTML: '', closest: jest.fn(() => ({})) };
+    const tabEl = {
+      dataset: { edutab: 'course' },
+      classList: { toggle: jest.fn() },
+    };
+    const team = {
+      id: 'edu-unified-students',
+      type: 'education',
+      name: 'Unified Edu Club',
+      coaches: [],
+    };
+    const app = {
+      _buildTeamDetailBodyHtml: jest.fn(() => '<div class="td-detail-shell"><div id="edu-detail-tabs"><button class="tab" data-edutab="course"></button></div><div id="edu-detail-tab-content"></div><div id="team-members-section"></div></div>'),
+      _canManageTeamMembers: jest.fn(() => false),
+      _getTeamStaffIdentity: jest.fn(() => ({ keys: new Set(), names: new Set() })),
+      _teamMemberEditModeByTeam: {},
+      isEduClubStaff: jest.fn(() => false),
+      renderEduCoursePlanList: jest.fn(),
+      renderEduGroupList: jest.fn(),
+      _renderEduMemberSection: jest.fn(),
+      _loadEduStudents: jest.fn(() => Promise.resolve([{ id: 'student-1', name: '小麥', enrollStatus: 'active' }])),
+      _startEduStudentsListener: jest.fn(),
+      _updateEduMineBadge: jest.fn(),
+      _bindSwipeTabs: jest.fn(),
+      _refreshTeamMembersCardFromCache: jest.fn(),
+    };
+    const context = {
+      App: app,
+      ApiService: {
+        getTeam: jest.fn(() => team),
+        getCurrentUser: jest.fn(() => null),
+      },
+      document: {
+        getElementById: jest.fn((id) => {
+          if (id === 'team-detail-body') return bodyEl;
+          if (id === 'edu-detail-tab-content') return contentEl;
+          return null;
+        }),
+        querySelectorAll: jest.fn((selector) => selector === '#edu-detail-tabs .tab' ? [tabEl] : []),
+      },
+      escapeHTML,
+      Promise,
+    };
+
+    vm.createContext(context);
+    vm.runInContext(source, context, { filename: 'edu-detail-render.js' });
+    context.App._renderEduMemberSection = jest.fn();
+    context.App._updateEduMineBadge = jest.fn();
+    context.App.renderEduClubDetail(team.id);
+    expect(app._refreshTeamMembersCardFromCache).not.toHaveBeenCalled();
+
+    await Promise.resolve();
+
+    expect(app._renderEduMemberSection).toHaveBeenCalledWith(team.id);
+    expect(app.renderEduGroupList).toHaveBeenCalledWith(team.id);
+    expect(app._updateEduMineBadge).toHaveBeenCalledWith(team.id);
+    expect(app._refreshTeamMembersCardFromCache).toHaveBeenCalledWith(team.id);
+  });
+
   test('shows education club leaders between manager and coach', () => {
     const html = renderWithTeam({
       id: 'edu-team-1',

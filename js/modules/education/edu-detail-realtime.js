@@ -31,6 +31,7 @@ Object.assign(App, {
             this._renderEduMemberSection(teamId);
             this._updateGroupMemberCounts(teamId);
             this.renderEduGroupList(teamId);
+            this._refreshTeamMembersCardFromCache?.(teamId);
           }
           // 分組學員列表頁：即時重繪（快取已更新，直接渲染不需再 fetch）
           if (page === 'page-edu-students' && this._eduCurrentGroupId) {

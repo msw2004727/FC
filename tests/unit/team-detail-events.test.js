@@ -29,7 +29,7 @@ describe('team detail club activity section', () => {
         cancelled: { label: '已取消', css: 'cancelled' },
       },
       I18N: { t: (key) => key },
-      document: {
+      document: options.document || {
         getElementById: () => null,
       },
       requestAnimationFrame: (fn) => fn(),
@@ -491,6 +491,30 @@ describe('team detail club activity section', () => {
     expect(html).toContain('td-member-role-pill role-leader');
     expect(html).toContain('td-member-role-pill role-coach');
     expect(html).not.toContain('App.toggleProfileSection');
+  });
+
+  test('refreshes shared member card from current student cache', () => {
+    const target = { outerHTML: '<section id="team-members-section">old</section>' };
+    const app = makeApp([]);
+    const team = { id: 'teamA', feed: [] };
+    loadTeamDetailRender(app, [], {
+      teams: { teamA: team },
+      adminUsers: [],
+      document: {
+        getElementById: (id) => (id === 'team-members-section' ? target : null),
+      },
+    });
+    Object.assign(app, {
+      _canManageTeamMembers: () => false,
+      _getTeamStaffIdentity: () => ({ keys: new Set(), names: new Set() }),
+      getEduStudents: () => [{ id: 'stu-1', name: '小麥', enrollStatus: 'active' }],
+    });
+
+    const refreshed = app._refreshTeamMembersCardFromCache('teamA');
+
+    expect(refreshed).toBe(true);
+    expect(target.outerHTML).toContain('小麥');
+    expect(target.outerHTML).toContain('td-member-label-pill label-student');
   });
 
   test('team record and history cards render compact real cards without reserved copy', () => {

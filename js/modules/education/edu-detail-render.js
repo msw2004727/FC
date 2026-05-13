@@ -33,6 +33,7 @@ Object.assign(App, {
         this._renderEduMemberSection(teamId);
         this.renderEduGroupList(teamId);
         this._updateEduMineBadge(teamId);
+        this._refreshTeamMembersCardFromCache?.(teamId);
       }
     });
     this._startEduStudentsListener(teamId);
@@ -111,6 +112,7 @@ Object.assign(App, {
         this._renderEduMemberSection(teamId);
         this.renderEduGroupList(teamId);
         this._updateEduMineBadge(teamId);
+        this._refreshTeamMembersCardFromCache?.(teamId);
       }
     });
     this._startEduStudentsListener(teamId);
