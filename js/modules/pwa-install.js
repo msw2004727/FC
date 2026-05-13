@@ -11,12 +11,8 @@ Object.assign(App, {
     var btn = document.getElementById('pwa-install-btn');
     if (!btn) return;
 
-    // 已經以 PWA 模式運行 → 隱藏按鈕
-    var isStandalone = window.matchMedia('(display-mode: standalone)').matches
-                    || window.navigator.standalone === true;
-    if (isStandalone) { btn.style.display = 'none'; return; }
-
     // 2026-04-27：重新啟用「下載 APP」入口
+    // Always keep the drawer install button visible, including installed PWA mode.
     btn.style.display = '';
     btn.removeAttribute('aria-disabled');
     btn.addEventListener('click', function (e) {
