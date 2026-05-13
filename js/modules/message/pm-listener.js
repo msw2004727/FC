@@ -39,6 +39,7 @@ Object.assign(App, {
     const uid = user?.uid || '';
     if (!uid) {
       this._stopPmThreadListener();
+      this._clearPmFreshFollowupReminderKeys?.();
       this._pmListeningUid = '';
       this._pmThreadsReady = false;
       this._pmOptimisticReadThreads = Object.create(null);
@@ -70,7 +71,10 @@ Object.assign(App, {
         FirebaseService._cache.pmThreads = nextThreads;
         this._pmThreadsReady = true;
         this.updateNotifBadge?.();
-        if (nextUnreadTotal <= 0) this._hidePmIncomingBubble?.();
+        if (nextUnreadTotal <= 0) {
+          this._clearPmFreshFollowupReminderKeys?.();
+          this._hidePmIncomingBubble?.();
+        }
         if (this.currentPage === 'page-messages' && this._msgInboxFilter === 'pm-conversation') {
           this.renderPmThreadList?.();
         }
@@ -206,10 +210,68 @@ Object.assign(App, {
         const lastMs = this._pmTimeMs(t.lastMessageAt);
         return !lastMs || (now - lastMs) <= this.PM_INCOMING_BUBBLE_WINDOW_MS;
     });
-    if (freshThread) return { ...freshThread, _pmBubbleMode: 'fresh' };
+    if (freshThread) {
+      const unreadKeys = new Set(unreadThreads.map(t => this._pmConversationKey?.(t)).filter(Boolean));
+      const persistedKeys = this._loadPmFreshFollowupReminderKeys?.() || [];
+      const staleKeys = (this._getPmUnreadReminderThreads?.(threads, { staleOnly: true }) || [])
+        .map(t => this._pmConversationKey?.(t))
+        .filter(Boolean);
+      const followupKeys = Array.from(new Set([...persistedKeys, ...staleKeys]))
+        .filter(key => unreadKeys.has(key));
+      return {
+        ...freshThread,
+        _pmBubbleMode: 'fresh',
+        _pmFollowupReminderKeys: followupKeys,
+      };
+    }
     const reminder = this._buildPmUnreadReminderThread?.(unreadThreads);
     if (!reminder || this._isPmUnreadReminderDismissed?.(reminder._pmReminderKey)) return null;
     return reminder;
+  },
+
+  _pmFreshFollowupStorageKey() {
+    const uid = this._pmCurrentUid?.() || this._pmListeningUid || '';
+    return uid ? `pmFreshFollowupReminder:${uid}` : 'pmFreshFollowupReminder';
+  },
+
+  _savePmFreshFollowupReminderKeys(keys = []) {
+    const uniqueKeys = Array.from(new Set((keys || [])
+      .map(key => String(key || '').trim())
+      .filter(Boolean)));
+    if (!uniqueKeys.length) {
+      this._clearPmFreshFollowupReminderKeys?.();
+      return;
+    }
+    try {
+      sessionStorage.setItem(this._pmFreshFollowupStorageKey?.() || 'pmFreshFollowupReminder', JSON.stringify({
+        keys: uniqueKeys,
+        expiresAt: Date.now() + this.PM_INCOMING_BUBBLE_WINDOW_MS,
+      }));
+    } catch (_) {}
+  },
+
+  _loadPmFreshFollowupReminderKeys() {
+    try {
+      const raw = sessionStorage.getItem(this._pmFreshFollowupStorageKey?.() || 'pmFreshFollowupReminder');
+      if (!raw) return [];
+      const saved = JSON.parse(raw);
+      if (!saved || Number(saved.expiresAt || 0) <= Date.now()) {
+        this._clearPmFreshFollowupReminderKeys?.();
+        return [];
+      }
+      return Array.isArray(saved.keys)
+        ? saved.keys.map(key => String(key || '').trim()).filter(Boolean)
+        : [];
+    } catch (_) {
+      this._clearPmFreshFollowupReminderKeys?.();
+      return [];
+    }
+  },
+
+  _clearPmFreshFollowupReminderKeys() {
+    try {
+      sessionStorage.removeItem(this._pmFreshFollowupStorageKey?.() || 'pmFreshFollowupReminder');
+    } catch (_) {}
   },
 
   _pmUnreadReminderStorageKey() {
@@ -405,10 +467,16 @@ Object.assign(App, {
     this._pmIncomingBubbleVisible = true;
     if (mode === 'fresh') {
       const currentFollowupKeys = Array.isArray(this._pmFreshFollowupReminderKeys) ? this._pmFreshFollowupReminderKeys : [];
+      const persistedFollowupKeys = this._loadPmFreshFollowupReminderKeys?.() || [];
       const incomingFollowupKeys = (thread?._pmFollowupReminderKeys || [])
         .map(key => String(key || '').trim())
         .filter(Boolean);
-      this._pmFreshFollowupReminderKeys = Array.from(new Set([...currentFollowupKeys, ...incomingFollowupKeys]));
+      this._pmFreshFollowupReminderKeys = Array.from(new Set([
+        ...persistedFollowupKeys,
+        ...currentFollowupKeys,
+        ...incomingFollowupKeys,
+      ]));
+      this._savePmFreshFollowupReminderKeys?.(this._pmFreshFollowupReminderKeys);
     } else {
       this._pmFreshFollowupReminderKeys = [];
     }
@@ -430,6 +498,7 @@ Object.assign(App, {
     const followupKeys = Array.isArray(this._pmFreshFollowupReminderKeys) ? this._pmFreshFollowupReminderKeys.slice() : [];
     this._pmFreshFollowupReminderKeys = [];
     if (followupKeys.length && this._showPmUnreadReminderFromCache?.({ conversationKeys: followupKeys })) return;
+    if (followupKeys.length) this._clearPmFreshFollowupReminderKeys?.();
     if (this._showPmUnreadReminderFromCache?.({ staleOnly: true })) return;
     this._hidePmIncomingBubble?.();
   },

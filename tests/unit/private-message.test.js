@@ -227,6 +227,43 @@ describe('private message feature wiring', () => {
     }
   });
 
+  test('PM initial fresh bubble restores saved stale reminder state after browser refresh', () => {
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(new Date('2026-05-13T00:00:00.000Z'));
+      const { App, FirebaseService, document } = loadPmListenerHarness();
+      const myUid = 'U11111111111111111111111111111111';
+      const peerUid = 'U22222222222222222222222222222222';
+      const conversationId = `pm_${myUid}_${peerUid}`;
+      const freshThreadAfterRefresh = {
+        conversationId,
+        peerUid,
+        peerName: 'Reloaded unread',
+        unreadCount: 2,
+        lastMessageId: 'fresh-before-refresh',
+        lastMessageAt: new Date(Date.now()).toISOString(),
+        lastMessageBody: 'message before refresh',
+      };
+
+      App._savePmFreshFollowupReminderKeys([conversationId]);
+      const initialFreshBubble = App._findPmInitialUnread([freshThreadAfterRefresh]);
+      expect(initialFreshBubble._pmBubbleMode).toBe('fresh');
+      expect(initialFreshBubble._pmFollowupReminderKeys).toContain(conversationId);
+
+      FirebaseService._cache.pmThreads = [freshThreadAfterRefresh];
+      App._showPmIncomingBubble(initialFreshBubble);
+      expect(document.getElementById('pm-incoming-bubble').dataset.mode).toBe('fresh');
+
+      App._handlePmFreshBubbleTimeout();
+      const bubble = document.getElementById('pm-incoming-bubble');
+      expect(bubble.dataset.mode).toBe('reminder');
+      expect(bubble.classList.contains('is-visible')).toBe(true);
+      expect(bubble.textContent).toContain('未讀私訊');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   test('PM fresh bubble keeps stale reminder state across repeated fresh messages', () => {
     jest.useFakeTimers();
     try {

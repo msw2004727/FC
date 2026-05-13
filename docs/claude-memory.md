@@ -2556,3 +2556,7 @@
 - **原因**：卡片 loading 狀態只在 `openTimelineEventDetail` 的 `finally` 清理；快速返回時，detail 載入流程可能尚未 resolve，且 150ms 延遲 loading timer 仍可能在返回後補上遮罩。
 - **修復**：新增 `App._clearTimelineCardNavigationState()`，在切回 `page-activities` 的 `_cleanupBeforePageSwitch` 與 `_renderPageContent` 入口強制清除 timeline 卡片 pending class、loading bar、`aria-busy`、`data-tl-opening` 與 interval。
 - **驗收**：新增 unit test 覆蓋返回活動列表時 pending 卡片立即解除，避免列表未重繪時殘留遮罩。
+### 2026-05-13 PM Refresh Follow-up Reminder [bugfix]
+- **Issue**: When a fresh unread PM bubble was restored after a browser refresh, its 6.5-second timeout could hide the bubble without restoring the persistent older-unread reminder. The live snapshot path remembered stale follow-up threads in memory, but a refresh lost that in-memory state.
+- **Fix**: Persist fresh-bubble follow-up conversation keys in sessionStorage for the current user, restore them during the initial PM unread scan, and clear them when unread count reaches zero or the key expires. This keeps the older unread reminder visible after the refreshed fresh bubble times out.
+- **Validation**: Added PM unit coverage for the refresh path and reran the targeted private message test plus `node --check js/modules/message/pm-listener.js`.
