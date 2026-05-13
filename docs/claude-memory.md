@@ -1,5 +1,11 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-13 Club detail roster UI and team view count [ui]
+- **Problem**: Club detail cards still used capsule-style member display, large info cards, full record/history widgets, yellow settings switches, and no club-level view counter.
+- **Fix**: Added a compact roster list with `全部 / 隊員 / 學員` tabs, merged team members/staff/students into a single display count, simplified record/history into placeholders, tightened club info cards, switched settings toggles to green-on/grey-off, and added an SVG eye view count with same-device localStorage de-dupe.
+- **Rules**: Allowed authenticated users to update only `teams.viewCount +1`, matching the existing event view-count rule pattern.
+- **Tests**: Added team detail roster/view-count coverage and Firestore rule regression tests; verified `npm test` and `npm run test:rules`.
+
 ### 2026-05-13 Event detail count flicker stale-cache fix [bug]
 - **Problem**: Activity detail could render fresh capacity first (for example 21/21) and then downgrade to stale local-cache data (20/21) after Firestore cache-only events/registrations snapshots arrived.
 - **Root cause**: The events slice merge only protected boot snapshots, not fresh detail-fetched event docs, and detail participant counts trusted cached registration rows before an all/server registration source was available.

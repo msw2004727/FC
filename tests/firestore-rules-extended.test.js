@@ -3048,6 +3048,34 @@ describe("/inv_announcements — extended", () => {
 // ═══════════════════════════════════════════════════════════════
 //  teams/{teamId}/feed
 // ═══════════════════════════════════════════════════════════════
+describe("/teams/{teamId}", () => {
+  test("viewCount: authenticated user can increment by one only", async () => {
+    await seedDoc("teams", "team_view_ok", { id: "team_view_ok", name: "View OK", viewCount: 3 });
+    await assertSucceeds(
+      updateDoc(doc(user(), "teams", "team_view_ok"), { viewCount: 4 })
+    );
+  });
+
+  test("viewCount: rejects jumps and mixed field updates", async () => {
+    await seedDoc("teams", "team_view_jump", { id: "team_view_jump", name: "View Jump", viewCount: 3 });
+    await assertFails(
+      updateDoc(doc(user(), "teams", "team_view_jump"), { viewCount: 5 })
+    );
+
+    await seedDoc("teams", "team_view_mixed", { id: "team_view_mixed", name: "View Mixed", viewCount: 3 });
+    await assertFails(
+      updateDoc(doc(user(), "teams", "team_view_mixed"), { viewCount: 4, name: "Hacked" })
+    );
+  });
+
+  test("viewCount: guest cannot update", async () => {
+    await seedDoc("teams", "team_view_guest", { id: "team_view_guest", name: "View Guest", viewCount: 3 });
+    await assertFails(
+      updateDoc(doc(guest(), "teams", "team_view_guest"), { viewCount: 4 })
+    );
+  });
+});
+
 describe("/teams/{teamId}/feed/{postId}", () => {
   test("read: authenticated can read", async () => {
     await seedPath(["teams", "teamA", "feed", "post1"], {

@@ -394,8 +394,7 @@ Object.assign(App, {
 
   _getTeamDetailMemberCount(t) {
     if (!t) return 0;
-    if (typeof this._calcTeamMemberCount === 'function') return this._calcTeamMemberCount(t.id);
-    return (ApiService.getAdminUsers?.() || []).filter(u => u.teamId === t.id).length;
+    return this._getTeamDetailRoster(t).length;
   },
 
   _getTeamDetailEventCount(t) {
@@ -438,6 +437,248 @@ Object.assign(App, {
     if (t.eduSettings?.teachingEnabled === true) return true;
     if (t.eduSettings?.teachingEnabled === false) return false;
     return t.type === 'education';
+  },
+
+  _getTeamDetailActiveStudents(teamId) {
+    if (!teamId) return [];
+    const seen = new Set();
+    const students = [];
+    const addStudent = (student) => {
+      if (!student || typeof student !== 'object') return;
+      if (student.enrollStatus === 'inactive' || student.status === 'inactive' || student.status === 'removed') return;
+      const id = String(student.id || student._docId || student.studentId || student.selfUid || student.uid || student.name || '').trim();
+      if (!id) return;
+      const key = student.selfUid || student.uid ? `uid:${student.selfUid || student.uid}` : `student:${id}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      students.push({ ...student, id: student.id || student._docId || student.studentId || id, teamId });
+    };
+    if (typeof this.getEduStudents === 'function') (this.getEduStudents(teamId) || []).forEach(addStudent);
+    if (this._eduStudentsCache && Array.isArray(this._eduStudentsCache[teamId])) this._eduStudentsCache[teamId].forEach(addStudent);
+    const team = ApiService.getTeam?.(teamId);
+    [team?.students, team?.eduStudents, team?.educationStudents, team?.studentList, team?.eduSettings?.students].forEach(list => {
+      if (Array.isArray(list)) list.forEach(addStudent);
+    });
+    return students;
+  },
+
+  _getTeamDetailIdentityKeyFromUser(user) {
+    if (!user) return null;
+    if (typeof this._getUserIdentityKey === 'function') return this._getUserIdentityKey(user);
+    const uid = String(user.uid || user._docId || '').trim();
+    if (uid) return `uid:${uid}`;
+    const name = String(user.name || user.displayName || '').trim().toLowerCase();
+    return name ? `name:${name}` : null;
+  },
+
+  _getTeamDetailIdentityKeyFromStudent(student) {
+    if (!student) return null;
+    const uid = String(student.selfUid || student.uid || '').trim();
+    if (uid) return `uid:${uid}`;
+    const studentId = String(student.id || student._docId || student.studentId || '').trim();
+    if (studentId) return `student:${studentId}`;
+    const name = String(student.name || student.studentName || '').trim().toLowerCase();
+    return name ? `student-name:${name}` : null;
+  },
+
+  _findTeamDetailUserByUidOrName(uidLike, nameLike, users) {
+    const uid = String(uidLike || '').trim();
+    const name = String(nameLike || '').trim();
+    return (users || []).find(u => {
+      const userUid = String(u.uid || '').trim();
+      const docId = String(u._docId || '').trim();
+      const userName = String(u.name || '').trim();
+      const displayName = String(u.displayName || '').trim();
+      return (!!uid && (userUid === uid || docId === uid))
+        || (!!name && (userName === name || displayName === name));
+    }) || null;
+  },
+
+  _getTeamDetailStaffRoleMap(t, users) {
+    const roles = new Map();
+    const addRole = (key, role) => {
+      if (!key || !role) return;
+      const set = roles.get(key) || new Set();
+      set.add(role);
+      roles.set(key, set);
+    };
+    const addByUidOrName = (uidLike, nameLike, role) => {
+      const user = this._findTeamDetailUserByUidOrName(uidLike, nameLike, users);
+      const key = user
+        ? this._getTeamDetailIdentityKeyFromUser(user)
+        : (uidLike ? `uid:${String(uidLike).trim()}` : (nameLike ? `staff:${role}:${String(nameLike).trim().toLowerCase()}` : null));
+      addRole(key, role);
+    };
+    addByUidOrName(t.captainUid, t.captain || t.captainName, '球經');
+    const leaderUids = Array.isArray(t.leaderUids) ? t.leaderUids : (t.leaderUid ? [t.leaderUid] : []);
+    const leaderNames = Array.isArray(t.leaders) ? t.leaders : (t.leader ? [t.leader] : []);
+    leaderUids.forEach((uid, idx) => addByUidOrName(uid, leaderNames[idx], '領隊'));
+    leaderNames.forEach(name => addByUidOrName(null, name, '領隊'));
+    const coachUids = Array.isArray(t.coachUids) ? t.coachUids : [];
+    const coachNames = Array.isArray(t.coaches) ? t.coaches : [];
+    coachUids.forEach((uid, idx) => addByUidOrName(uid, coachNames[idx], '教練'));
+    coachNames.forEach(name => addByUidOrName(null, name, '教練'));
+    return roles;
+  },
+
+  _readTeamDetailCountValue(source, fieldNames) {
+    if (!source || typeof source !== 'object') return 0;
+    for (const field of fieldNames) {
+      const value = Number(source[field]);
+      if (Number.isFinite(value) && value > 0) return value;
+    }
+    return 0;
+  },
+
+  _getTeamDetailActivityAttendanceCount(t, row) {
+    const direct = this._readTeamDetailCountValue(row.user || row.student || row, [
+      'clubActivityAttendanceCount', 'activityAttendanceCount', 'attendanceCount', 'checkinCount',
+    ]);
+    if (direct) return direct;
+    try {
+      const events = typeof this._getTeamFutureEvents === 'function'
+        ? this._getTeamFutureEvents(t.id)
+        : (ApiService.getEvents?.() || []).filter(e => {
+          const ids = typeof this._getEventLimitedTeamIds === 'function'
+            ? this._getEventLimitedTeamIds(e)
+            : [e.creatorTeamId].concat(e.creatorTeamIds || []);
+          return ids.map(String).includes(String(t.id));
+        });
+      const eventIds = new Set((events || []).map(e => String(e.id || e._docId || '')).filter(Boolean));
+      if (!eventIds.size) return 0;
+      const seen = new Set();
+      (ApiService.getAttendanceRecords?.() || []).forEach(r => {
+        if (r.status === 'removed' || r.status === 'cancelled') return;
+        if (String(r.type || '').trim() && String(r.type || '').trim() !== 'checkin') return;
+        const eventId = String(r.eventId || '').trim();
+        if (!eventIds.has(eventId)) return;
+        const uid = String(r.uid || '').trim();
+        const name = String(r.userName || r.name || '').trim();
+        if ((row.uid && uid === row.uid) || (!row.uid && row.name && name === row.name)) seen.add(eventId);
+      });
+      return seen.size;
+    } catch (_) {
+      return 0;
+    }
+  },
+
+  _getTeamDetailCourseParticipationCount(t, row) {
+    const direct = this._readTeamDetailCountValue(row.student || row.user || row, [
+      'courseParticipationCount', 'courseAttendanceCount', 'attendedLessonCount', 'lessonCount',
+    ]);
+    if (direct) return direct;
+    const records = [];
+    if (this._eduAttendanceCache && typeof this._eduAttendanceCache === 'object') {
+      Object.values(this._eduAttendanceCache).forEach(list => { if (Array.isArray(list)) records.push(...list); });
+    }
+    if (typeof FirebaseService !== 'undefined' && Array.isArray(FirebaseService._cache?.eduAttendance)) {
+      records.push(...FirebaseService._cache.eduAttendance);
+    }
+    if (!records.length) return 0;
+    const seen = new Set();
+    records.forEach(r => {
+      if (String(r.teamId || '') !== String(t.id)) return;
+      if (r.status === 'removed' || r.status === 'cancelled') return;
+      const matched = (row.studentId && String(r.studentId || '') === String(row.studentId))
+        || (row.uid && (String(r.selfUid || '') === row.uid || String(r.uid || '') === row.uid));
+      if (matched) seen.add([r.coursePlanId || r.groupId || 'course', r.date || '', r.sessionNumber || ''].join(':'));
+    });
+    return seen.size;
+  },
+
+  _getTeamDetailMatchParticipationCount(t, row) {
+    const direct = this._readTeamDetailCountValue(row.user || row.student || row, [
+      'clubMatchParticipationCount', 'matchParticipationCount', 'matchCount',
+    ]);
+    if (direct) return direct;
+    const seen = new Set();
+    (t.history || []).forEach((match, idx) => {
+      const people = []
+        .concat(match.participants || [])
+        .concat(match.players || [])
+        .concat(match.members || [])
+        .concat(match.roster || []);
+      const matched = people.some(p => {
+        if (typeof p === 'string') return p === row.uid || p === row.name;
+        if (!p || typeof p !== 'object') return false;
+        return (row.uid && (p.uid === row.uid || p.userId === row.uid || p.selfUid === row.uid))
+          || (row.name && (p.name === row.name || p.userName === row.name || p.displayName === row.name));
+      });
+      if (matched) seen.add(match.id || idx);
+    });
+    return seen.size;
+  },
+
+  _getTeamDetailRoster(t) {
+    if (!t) return [];
+    const users = ApiService.getAdminUsers?.() || [];
+    const staffRoles = this._getTeamDetailStaffRoleMap(t, users);
+    const rows = new Map();
+    const ensureRow = (key, base) => {
+      if (!key) return null;
+      if (!rows.has(key)) {
+        rows.set(key, {
+          key,
+          name: '',
+          uid: '',
+          studentId: '',
+          isMember: false,
+          isStudent: false,
+          isExternalStudent: false,
+          roles: new Set(),
+          user: null,
+          student: null,
+        });
+      }
+      const row = rows.get(key);
+      Object.assign(row, base || {});
+      return row;
+    };
+    users.forEach(user => {
+      const inTeam = typeof this._isUserInTeam === 'function' ? this._isUserInTeam(user, t.id) : user.teamId === t.id;
+      const key = this._getTeamDetailIdentityKeyFromUser(user);
+      if (!key) return;
+      const row = ensureRow(key, {
+        name: user.name || user.displayName || user.uid || user._docId || '未命名',
+        uid: user.uid || user._docId || '',
+        user,
+      });
+      if (inTeam) row.isMember = true;
+      (staffRoles.get(key) || new Set()).forEach(role => {
+        row.roles.add(role);
+        row.isMember = true;
+      });
+    });
+    staffRoles.forEach((roleSet, key) => {
+      const row = ensureRow(key, { name: key.replace(/^staff:[^:]+:/, '').replace(/^uid:/, '') || '未命名' });
+      roleSet.forEach(role => row.roles.add(role));
+      row.isMember = true;
+    });
+    this._getTeamDetailActiveStudents(t.id).forEach(student => {
+      const key = this._getTeamDetailIdentityKeyFromStudent(student);
+      const row = ensureRow(key, {
+        name: student.name || student.studentName || student.selfName || '未命名學員',
+        uid: student.selfUid || student.uid || '',
+        studentId: student.id || student._docId || student.studentId || '',
+        student,
+        isExternalStudent: !(student.selfUid || student.uid),
+      });
+      row.isStudent = true;
+    });
+    const result = Array.from(rows.values()).filter(row => row.isMember || row.isStudent);
+    result.forEach(row => {
+      row.label = row.isMember && row.isStudent ? 'ALL' : (row.isStudent ? '學員' : '隊員');
+      row.identity = Array.from(row.roles).join(' | ');
+      row.activityCount = this._getTeamDetailActivityAttendanceCount(t, row);
+      row.courseCount = this._getTeamDetailCourseParticipationCount(t, row);
+      row.matchCount = this._getTeamDetailMatchParticipationCount(t, row);
+    });
+    return result.sort((a, b) => {
+      const rankA = a.roles.size ? 0 : (a.isMember ? 1 : 2);
+      const rankB = b.roles.size ? 0 : (b.isMember ? 1 : 2);
+      if (rankA !== rankB) return rankA - rankB;
+      return String(a.name || '').localeCompare(String(b.name || ''), 'zh-Hant');
+    });
   },
 
   _canCreateTeamDetailActivity() {
@@ -534,20 +775,20 @@ Object.assign(App, {
       ? getSportIconSvg(sportKey)
       : (sportKey && typeof SPORT_ICON_EMOJI !== 'undefined' ? (SPORT_ICON_EMOJI[sportKey] || '') : '');
     const sportInfoHtml = sportKey
-      ? '<div class="td-card-item"><span class="td-card-label">\u904b\u52d5\u985e\u578b</span><span class="td-card-value">' + (sportIcon ? sportIcon + ' ' : '') + escapeHTML(sportLabel) + '</span></div>'
+      ? '<div class="td-card-item td-card-item-compact"><span class="td-card-label">\u904b\u52d5\u985e\u578b</span><span class="td-card-value">' + (sportIcon ? sportIcon + ' ' : '') + escapeHTML(sportLabel) + '</span></div>'
       : '';
     return '<div class="td-card td-section-card" id="team-info-section">'
       + '<div class="td-card-title">' + I18N.t('teamDetail.info') + '</div>'
-      + '<div class="td-card-grid">'
-      + '<div class="td-card-item"><span class="td-card-label">\u7403\u968a\u7d93\u7406</span><span class="td-card-value">' + (t.captain ? this._userTag(t.captain, 'captain') : I18N.t('teamDetail.notSet')) + '</span></div>'
-      + '<div class="td-card-item"><span class="td-card-label">\u9818\u968a</span><span class="td-card-value">' + (() => { const lNames = t.leaders || (t.leader ? [t.leader] : []); return lNames.length ? lNames.map(n => this._teamLeaderTag(n)).join(' ') : I18N.t('teamDetail.notSet'); })() + '</span></div>'
-      + '<div class="td-card-item"><span class="td-card-label">' + I18N.t('teamDetail.coach') + '</span><span class="td-card-value">' + ((t.coaches || []).length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : I18N.t('teamDetail.none')) + '</span></div>'
-      + '<div class="td-card-item"><span class="td-card-label">' + I18N.t('teamDetail.memberCount') + '</span><span class="td-card-value">' + (typeof this._calcTeamMemberCount === 'function' ? this._calcTeamMemberCount(t.id) : (ApiService.getAdminUsers() || []).filter(u => u.teamId === t.id).length) + ' ' + I18N.t('teamDetail.personUnit') + '</span></div>'
+      + '<div class="td-card-grid td-card-grid-compact">'
+      + '<div class="td-card-item td-card-item-compact"><span class="td-card-label">\u7403\u968a\u7d93\u7406</span><span class="td-card-value">' + (t.captain ? this._userTag(t.captain, 'captain') : I18N.t('teamDetail.notSet')) + '</span></div>'
+      + '<div class="td-card-item td-card-item-compact"><span class="td-card-label">\u9818\u968a</span><span class="td-card-value">' + (() => { const lNames = t.leaders || (t.leader ? [t.leader] : []); return lNames.length ? lNames.map(n => this._teamLeaderTag(n)).join(' ') : I18N.t('teamDetail.notSet'); })() + '</span></div>'
+      + '<div class="td-card-item td-card-item-compact"><span class="td-card-label">' + I18N.t('teamDetail.coach') + '</span><span class="td-card-value">' + ((t.coaches || []).length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : I18N.t('teamDetail.none')) + '</span></div>'
+      + '<div class="td-card-item td-card-item-compact"><span class="td-card-label">' + I18N.t('teamDetail.memberCount') + '</span><span class="td-card-value">' + this._getTeamDetailMemberCount(t) + ' ' + I18N.t('teamDetail.personUnit') + '</span></div>'
       + sportInfoHtml
-      + '<div class="td-card-item"><span class="td-card-label">' + I18N.t('teamDetail.region') + '</span><span class="td-card-value">' + escapeHTML(t.region) + '</span></div>'
-      + (t.nationality ? '<div class="td-card-item"><span class="td-card-label">' + I18N.t('teamDetail.nationality') + '</span><span class="td-card-value">' + escapeHTML(t.nationality) + '</span></div>' : '')
-      + (t.founded ? '<div class="td-card-item"><span class="td-card-label">' + I18N.t('teamDetail.founded') + '</span><span class="td-card-value">' + escapeHTML(t.founded) + '</span></div>' : '')
-      + (t.contact ? '<div class="td-card-item"><span class="td-card-label">' + I18N.t('teamDetail.contact') + '</span><span class="td-card-value">' + escapeHTML(t.contact) + '</span></div>' : '')
+      + '<div class="td-card-item td-card-item-compact"><span class="td-card-label">' + I18N.t('teamDetail.region') + '</span><span class="td-card-value">' + escapeHTML(t.region) + '</span></div>'
+      + (t.nationality ? '<div class="td-card-item td-card-item-compact"><span class="td-card-label">' + I18N.t('teamDetail.nationality') + '</span><span class="td-card-value">' + escapeHTML(t.nationality) + '</span></div>' : '')
+      + (t.founded ? '<div class="td-card-item td-card-item-compact"><span class="td-card-label">' + I18N.t('teamDetail.founded') + '</span><span class="td-card-value">' + escapeHTML(t.founded) + '</span></div>' : '')
+      + (t.contact ? '<div class="td-card-item td-card-item-compact"><span class="td-card-label">' + I18N.t('teamDetail.contact') + '</span><span class="td-card-value">' + escapeHTML(t.contact) + '</span></div>' : '')
       + '</div></div>';
   },
 
@@ -558,39 +799,77 @@ Object.assign(App, {
   _buildTeamRecordCard(t, totalGames, winRate) {
     return '<div class="td-card td-section-card" id="team-record-section">'
       + '<div class="td-card-title">' + I18N.t('teamDetail.record') + '</div>'
-      + '<div class="td-stats-row">'
-      + '<div class="td-stat"><span class="td-stat-num" style="color:var(--success)">' + (t.wins || 0) + '</span><span class="td-stat-label">' + I18N.t('teamDetail.wins') + '</span></div>'
-      + '<div class="td-stat"><span class="td-stat-num" style="color:var(--warning)">' + (t.draws || 0) + '</span><span class="td-stat-label">' + I18N.t('teamDetail.draws') + '</span></div>'
-      + '<div class="td-stat"><span class="td-stat-num" style="color:var(--danger)">' + (t.losses || 0) + '</span><span class="td-stat-label">' + I18N.t('teamDetail.losses') + '</span></div>'
-      + '<div class="td-stat"><span class="td-stat-num">' + winRate + '%</span><span class="td-stat-label">' + I18N.t('teamDetail.winRate') + '</span></div>'
-      + '</div>'
-      + '<div class="td-card-grid" style="margin-top:.5rem">'
-      + '<div class="td-card-item"><span class="td-card-label">' + I18N.t('teamDetail.goalsFor') + '</span><span class="td-card-value">' + (t.gf || 0) + '</span></div>'
-      + '<div class="td-card-item"><span class="td-card-label">' + I18N.t('teamDetail.goalsAgainst') + '</span><span class="td-card-value">' + (t.ga || 0) + '</span></div>'
-      + '<div class="td-card-item"><span class="td-card-label">' + I18N.t('teamDetail.goalDiff') + '</span><span class="td-card-value">' + ((t.gf || 0) - (t.ga || 0) > 0 ? '+' : '') + ((t.gf || 0) - (t.ga || 0)) + '</span></div>'
-      + '<div class="td-card-item"><span class="td-card-label">' + I18N.t('teamDetail.totalGames') + '</span><span class="td-card-value">' + totalGames + '</span></div>'
+      + '<div class="td-minimal-record">'
+      + '<span>' + I18N.t('teamDetail.totalGames') + ' ' + totalGames + '</span>'
+      + '<span>' + I18N.t('teamDetail.winRate') + ' ' + winRate + '%</span>'
+      + '<span>\u8cc7\u6599\u4f4d\u7f6e\u5df2\u9810\u7559</span>'
       + '</div></div>';
   },
 
   _buildTeamHistoryCard(t) {
-    const historyRows = (t.history || []).map(h => '<div class="td-history-row"><span class="td-history-name">' + escapeHTML(h.name) + '</span><span class="td-history-result">' + escapeHTML(h.result) + '</span></div>').join('') || '<div style="font-size:.82rem;color:var(--text-muted);padding:.3rem">' + I18N.t('teamDetail.noHistory') + '</div>';
-    return '<div class="td-card td-section-card" id="team-history-section"><div class="td-card-title profile-collapse-toggle" onclick="App.toggleTeamDetailSection(this,\'teamMatch\')"><span>' + I18N.t('teamDetail.matchHistory') + '</span><span class="profile-collapse-arrow">\u25b6</span></div><div class="profile-collapse-content" style="display:none">' + historyRows + '</div></div>';
+    const count = Array.isArray(t.history) ? t.history.length : 0;
+    return '<div class="td-card td-section-card" id="team-history-section">'
+      + '<div class="td-card-title">' + I18N.t('teamDetail.matchHistory') + '</div>'
+      + '<div class="td-minimal-placeholder">\u8cfd\u4e8b\u7d00\u9304\u4f4d\u7f6e\u5df2\u9810\u7559' + (count ? '\uff0c\u76ee\u524d\u7d2f\u8a08 ' + count + ' \u7b46' : '') + '</div>'
+      + '</div>';
   },
 
   _buildTeamMembersCard(t, canManageMembers, memberEditMode, staffIdentity) {
-    const membersContent = (() => {
-      const allUsers = ApiService.getAdminUsers() || [];
-      const teamMembers = allUsers.filter(u => (typeof this._isUserInTeam === 'function') ? this._isUserInTeam(u, t.id) : u.teamId === t.id);
-      const regularMembers = teamMembers.filter(u => this._isRegularTeamMember(u, staffIdentity));
-      if (!regularMembers.length) return '<div style="font-size:.82rem;color:var(--text-muted);padding:.3rem">' + I18N.t('teamDetail.none') + '</div>';
-      return regularMembers.map(u => {
-        const memberName = u.name || u.displayName || u.uid || '\u672a\u77e5';
-        const removeBtn = (canManageMembers && memberEditMode && u.uid) ? '<button class="td-member-remove-btn" title="\u79fb\u9664\u968a\u54e1" onclick="event.stopPropagation();App.removeTeamMember(this, \'' + t.id + '\',\'' + u.uid + '\')">\u00d7</button>' : '';
-        return '<span class="td-member-item-wrap"><span class="user-capsule uc-user" onclick="App.showUserProfile(\'' + escapeHTML(memberName) + '\')">' + escapeHTML(memberName) + '</span>' + removeBtn + '</span>';
-      }).join('');
-    })();
+    this._teamMemberTabByTeam = this._teamMemberTabByTeam || {};
+    const activeTab = this._teamMemberTabByTeam[t.id] || 'all';
+    const roster = this._getTeamDetailRoster(t);
+    const counts = {
+      all: roster.length,
+      member: roster.filter(r => r.isMember).length,
+      student: roster.filter(r => r.isStudent).length,
+    };
+    const filtered = roster.filter(r => activeTab === 'all' || (activeTab === 'member' ? r.isMember : r.isStudent));
+    const tabBtn = (key, label, count) => '<button type="button" class="td-member-tab' + (activeTab === key ? ' active' : '') + '" onclick="App.switchTeamMemberTab(\'' + t.id + '\',\'' + key + '\')">' + label + '<span>' + count + '</span></button>';
+    const rows = filtered.length ? filtered.map(row => {
+      const safeName = escapeHTML(row.name || '未命名');
+      const profileNameArg = escapeHTML(JSON.stringify(row.name || '未命名'));
+      const profileClick = row.uid || !row.isExternalStudent
+        ? " onclick='App.showUserProfile(" + profileNameArg + ")'"
+        : '';
+      const removeBtn = (canManageMembers && memberEditMode && row.uid && row.isMember && !row.roles.size)
+        ? '<button class="td-member-remove-btn" title="\u79fb\u9664\u968a\u54e1" onclick="event.stopPropagation();App.removeTeamMember(this, \'' + t.id + '\',\'' + row.uid + '\')">\u00d7</button>'
+        : '';
+      return '<tr>'
+        + '<td class="td-member-name-cell"><span class="td-member-name-main' + (row.isExternalStudent ? ' external-student' : '') + '"' + profileClick + '>' + safeName + '</span>' + removeBtn + '</td>'
+        + '<td><span class="td-member-label-pill">' + escapeHTML(row.label) + '</span></td>'
+        + '<td>' + row.activityCount + '</td>'
+        + '<td>' + row.courseCount + '</td>'
+        + '<td>' + row.matchCount + '</td>'
+        + '<td class="td-member-identity">' + (row.identity ? escapeHTML(row.identity) : '-') + '</td>'
+        + '</tr>';
+    }).join('') : '<tr><td colspan="6" class="td-member-empty">' + I18N.t('teamDetail.none') + '</td></tr>';
     const editBtn = canManageMembers ? '<button class="outline-btn td-member-edit-btn" onclick="event.stopPropagation();App.toggleTeamMemberEditMode(\'' + t.id + '\')">' + (memberEditMode ? '\u5b8c\u6210' : '\u7de8\u8f2f') + '</button>' : '';
-    return '<div class="td-card td-section-card" id="team-members-section"><div id="team-members-toggle" class="td-card-title td-card-title-row profile-collapse-toggle" onclick="App.toggleTeamDetailSection(this,\'teamMembers\')"><span>' + I18N.t('teamDetail.memberList') + '</span><span class="td-card-title-right">' + editBtn + '<span class="profile-collapse-arrow">\u25b6</span></span></div><div class="profile-collapse-content td-member-tags" style="display:none">' + membersContent + '</div></div>';
+    return '<div class="td-card td-section-card" id="team-members-section">'
+      + '<div id="team-members-toggle" class="td-card-title td-card-title-row"><span>' + I18N.t('teamDetail.memberList') + '</span><span class="td-card-title-right">' + editBtn + '</span></div>'
+      + '<div class="td-member-tabs">' + tabBtn('all', '\u5168\u90e8', counts.all) + tabBtn('member', '\u968a\u54e1', counts.member) + tabBtn('student', '\u5b78\u54e1', counts.student) + '</div>'
+      + '<div class="td-member-table-scroll"><table class="td-member-table"><thead><tr><th>\u66b1\u7a31</th><th>\u6a19\u7c64</th><th>\u6d3b\u52d5</th><th>\u8ab2\u7a0b</th><th>\u8cfd\u4e8b</th><th>\u8eab\u4efd</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+      + '</div>';
+  },
+
+  switchTeamMemberTab(teamId, tab) {
+    const allowed = new Set(['all', 'member', 'student']);
+    if (!teamId || !allowed.has(tab)) return;
+    this._teamMemberTabByTeam = this._teamMemberTabByTeam || {};
+    this._teamMemberTabByTeam[teamId] = tab;
+    const team = ApiService.getTeam?.(teamId);
+    const target = document.getElementById('team-members-section');
+    if (!team || !target) return;
+    const canManageMembers = typeof this._canManageTeamMembers === 'function' ? this._canManageTeamMembers(team) : false;
+    const memberEditMode = !!this._teamMemberEditModeByTeam?.[teamId];
+    const staffIdentity = typeof this._getTeamStaffIdentity === 'function'
+      ? this._getTeamStaffIdentity(team)
+      : { keys: new Set(), names: new Set() };
+    target.outerHTML = this._buildTeamMembersCard(team, canManageMembers, memberEditMode, staffIdentity);
+  },
+
+  _getTeamDetailViewCount(t) {
+    const count = Number(t?.viewCount || t?.views || 0);
+    return Number.isFinite(count) && count > 0 ? count : 0;
   },
 
   _buildTeamDetailIdentityPanel(t, totalGames, winRate) {
@@ -609,10 +888,12 @@ Object.assign(App, {
     const teachingBadge = (typeof this._isTeamTeachingTagged === 'function' && this._isTeamTeachingTagged(t))
       ? '<span class="td-teaching-pill">\u6559\u5b78</span>'
       : '';
+    const viewHtml = '<div class="td-club-view-count" title="\u700f\u89bd\u6578"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path><circle cx="12" cy="12" r="2.8"></circle></svg><span>' + this._getTeamDetailViewCount(t).toLocaleString() + '</span></div>';
     return '<div class="td-identity-panel">' +
       '<div class="td-club-head">' +
       logoHtml +
       '<div class="td-club-title-block">' +
+      viewHtml +
       '<div class="td-club-title-row"><h1>' + escapeHTML(t.name || '') + '</h1>' + teachingBadge + '</div>' +
       '<div class="td-club-meta">' + escapeHTML(metaParts.join('｜')) + '</div>' +
       '</div>' +

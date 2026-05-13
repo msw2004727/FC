@@ -11,6 +11,7 @@ Object.assign(App, {
   _teamDetailRequestSeq: 0,
   _teamFeedPage: {},
   _teamMemberEditModeByTeam: {},
+  _teamMemberTabByTeam: {},
   _FEED_PAGE_SIZE: 20,
   _MAX_PINNED: 5,
 
@@ -98,6 +99,23 @@ Object.assign(App, {
     const result = await this.showTeamDetail(teamId);
     if (result?.ok) this._keepTeamMembersSectionOpen();
     return result;
+  },
+
+  _recordTeamDetailView(team) {
+    try {
+      if (!team?.id || typeof localStorage === 'undefined') return;
+      const key = 'team_view_' + String(team.id);
+      if (localStorage.getItem(key)) return;
+      localStorage.setItem(key, '1');
+      team.viewCount = Number(team.viewCount || team.views || 0) + 1;
+      if (typeof firebase === 'undefined' || !firebase.firestore) return;
+      const docId = team._docId || team.id;
+      const fieldValue = firebase.firestore.FieldValue;
+      if (!docId || !fieldValue?.increment) return;
+      firebase.firestore().collection('teams').doc(docId).update({
+        viewCount: fieldValue.increment(1),
+      }).catch(() => {});
+    } catch (_) {}
   },
 
   async openTeamDetailEdit() {
@@ -319,6 +337,7 @@ Object.assign(App, {
 
       t = ApiService.getTeam(id);
       if (!t) return { ok: false, reason: 'missing' };
+      this._recordTeamDetailView(t);
 
       const nodes = this._getTeamDetailNodes();
       if (!nodes) {

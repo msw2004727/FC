@@ -3,15 +3,20 @@ const path = require('path');
 const vm = require('vm');
 
 describe('team detail club activity section', () => {
-  function loadTeamDetailRender(app, events = []) {
+  function loadTeamDetailRender(app, events = [], options = {}) {
+    const adminUsers = options.adminUsers || [];
+    const teams = options.teams || {};
+    const attendanceRecords = options.attendanceRecords || [];
     const context = {
       App: app,
       ApiService: {
         getCurrentUser: () => ({ uid: 'viewer' }),
         getEvents: () => events,
-        getTeam: () => ({ id: 'teamA', feed: [] }),
-        getAdminUsers: () => [],
+        getTeam: (id) => teams[id] || { id: 'teamA', feed: [] },
+        getAdminUsers: () => adminUsers,
+        getAttendanceRecords: () => attendanceRecords,
       },
+      FirebaseService: { _cache: {} },
       TYPE_CONFIG: {
         friendly: { label: '友誼賽' },
         play: { label: '踢球' },
@@ -37,6 +42,7 @@ describe('team detail club activity section', () => {
       String,
       Array,
       Set,
+      Map,
       escapeHTML: (value) => String(value ?? '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -51,7 +57,7 @@ describe('team detail club activity section', () => {
     vm.runInNewContext(source, context);
   }
 
-  function loadTeamDetailCore(app, documentOverride) {
+  function loadTeamDetailCore(app, documentOverride, extraContext = {}) {
     const context = {
       App: app,
       ApiService: {},
@@ -69,6 +75,7 @@ describe('team detail club activity section', () => {
       Array,
       Set,
       escapeHTML: (value) => String(value ?? ''),
+      ...extraContext,
     };
     const source = fs.readFileSync(
       path.join(__dirname, '../../js/modules/team/team-detail.js'),
@@ -359,6 +366,39 @@ describe('team detail club activity section', () => {
     expect(body.innerHTML).not.toContain('toggleMemberInvite');
   });
 
+  test('team detail view count records once per device and updates teams viewCount', () => {
+    const updates = [];
+    const localValues = new Map();
+    const app = {};
+    const firestoreFn = () => ({
+      collection: (name) => ({
+        doc: (id) => ({
+          update: (payload) => {
+            updates.push({ name, id, payload });
+            return Promise.resolve();
+          },
+        }),
+      }),
+    });
+    firestoreFn.FieldValue = { increment: (value) => ({ increment: value }) };
+    loadTeamDetailCore(app, undefined, {
+      localStorage: {
+        getItem: (key) => localValues.get(key) || null,
+        setItem: (key, value) => localValues.set(key, value),
+      },
+      firebase: {
+        firestore: firestoreFn,
+      },
+    });
+    app._recordTeamDetailView({ id: 'teamA', _docId: 'docA', viewCount: 3 });
+    app._recordTeamDetailView({ id: 'teamA', _docId: 'docA', viewCount: 4 });
+
+    expect(localValues.get('team_view_teamA')).toBe('1');
+    expect(updates).toHaveLength(1);
+    expect(updates[0].name).toBe('teams');
+    expect(updates[0].id).toBe('docA');
+  });
+
   test('club activity create button opens custom event form with current club preselected', async () => {
     const teamOnly = { checked: false };
     const teamSelect = { innerHTML: '', multiple: false };
@@ -408,7 +448,60 @@ describe('team detail club activity section', () => {
     expect(html).toContain("App.submitTeamPost('teamA', this)");
   });
 
-  test('team detail collapsible cards use the team-owned collapse handler', () => {
+  test('team member list merges players, staff, and students into compact tabs', () => {
+    const app = makeApp([]);
+    const team = {
+      id: 'teamA',
+      captainUid: 'captain',
+      leaderUids: ['leader'],
+      coachUids: ['coach'],
+      students: [
+        { id: 'stu-child', name: 'Child', enrollStatus: 'active', courseAttendanceCount: 2 },
+        { id: 'stu-amy', name: 'Amy', selfUid: 'member', enrollStatus: 'active' },
+      ],
+      history: [{ id: 'match1', participants: [{ uid: 'member' }] }],
+    };
+    const users = [
+      { uid: 'member', name: 'Amy', teamId: 'teamA', activityAttendanceCount: 4 },
+      { uid: 'captain', name: 'Captain' },
+      { uid: 'leader', name: 'Leader' },
+      { uid: 'coach', name: 'Coach' },
+    ];
+    loadTeamDetailRender(app, [], { adminUsers: users, teams: { teamA: team } });
+    Object.assign(app, {
+      _isUserInTeam: (u, id) => u.teamId === id,
+    });
+
+    const roster = app._getTeamDetailRoster(team);
+    const html = app._buildTeamMembersCard(team, false, false, { keys: new Set(), names: new Set() });
+
+    expect(app._getTeamDetailMemberCount(team)).toBe(5);
+    expect(roster.some(row => row.name === 'Amy' && row.label === 'ALL')).toBe(true);
+    expect(roster.some(row => row.name === 'Child' && row.label === '學員' && row.isExternalStudent)).toBe(true);
+    expect(html).toContain('td-member-tabs');
+    expect(html).toContain('td-member-table');
+    expect(html).toContain('ALL');
+    expect(html).toContain('球經');
+    expect(html).toContain('領隊');
+    expect(html).toContain('教練');
+    expect(html).not.toContain('App.toggleProfileSection');
+  });
+
+  test('team record and history cards are minimal placeholders', () => {
+    const app = makeApp([]);
+    loadTeamDetailRender(app, []);
+
+    const html = app._buildTeamRecordCard({ wins: 2, draws: 1, losses: 1 }, 4, 50)
+      + app._buildTeamHistoryCard({ history: [{ id: 'm1' }] });
+
+    expect(html).toContain('td-minimal-record');
+    expect(html).toContain('td-minimal-placeholder');
+    expect(html).not.toContain('td-stats-row');
+    expect(html).not.toContain('profile-collapse-toggle');
+    expect(html).not.toContain('App.toggleProfileSection');
+  });
+
+  test('team detail cards no longer depend on profile collapse handlers', () => {
     const app = makeApp([]);
     loadTeamDetailRender(app, []);
     Object.assign(app, {
@@ -425,8 +518,8 @@ describe('team detail club activity section', () => {
       ),
     ].join('');
 
-    expect(html).toContain("App.toggleTeamDetailSection(this,'teamMatch')");
-    expect(html).toContain("App.toggleTeamDetailSection(this,'teamMembers')");
+    expect(html).not.toContain('profile-collapse-toggle');
+    expect(html).not.toContain('App.toggleTeamDetailSection');
     expect(html).not.toContain('App.toggleProfileSection');
   });
 
