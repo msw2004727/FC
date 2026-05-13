@@ -264,6 +264,69 @@ describe('private message feature wiring', () => {
     }
   });
 
+  test('PM fresh bubble timeout keeps unread reminder while the desktop PM list is open', () => {
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(new Date('2026-05-13T00:00:00.000Z'));
+      const { App, FirebaseService, document } = loadPmListenerHarness();
+      const myUid = 'U11111111111111111111111111111111';
+      const peerUid = 'U22222222222222222222222222222222';
+      const conversationId = `pm_${myUid}_${peerUid}`;
+      const freshThread = {
+        conversationId,
+        peerUid,
+        peerName: 'Desktop unread',
+        unreadCount: 1,
+        lastMessageId: 'fresh-desktop-message',
+        lastMessageAt: new Date(Date.now()).toISOString(),
+        lastMessageBody: 'desktop message',
+      };
+
+      App.currentPage = 'page-messages';
+      App._msgInboxFilter = 'pm-conversation';
+      FirebaseService._cache.pmThreads = [freshThread];
+      App._showPmIncomingBubble({ ...freshThread, _pmBubbleMode: 'fresh' });
+      expect(document.getElementById('pm-incoming-bubble').dataset.mode).toBe('fresh');
+
+      App._handlePmFreshBubbleTimeout();
+
+      const bubble = document.getElementById('pm-incoming-bubble');
+      expect(bubble.dataset.mode).toBe('reminder');
+      expect(bubble.classList.contains('is-visible')).toBe(true);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('PM thread list rendering does not dismiss an active unread reminder bubble', () => {
+    const { App, FirebaseService, document } = loadPmListenerHarness('<!doctype html><body><div id="message-list"></div></body>');
+    const myUid = 'U11111111111111111111111111111111';
+    const peerUid = 'U22222222222222222222222222222222';
+    const conversationId = `pm_${myUid}_${peerUid}`;
+    const unreadThread = {
+      conversationId,
+      peerUid,
+      peerName: 'List unread',
+      unreadCount: 1,
+      lastMessageId: 'list-message',
+      lastMessageAt: new Date(Date.now() - 31 * 60 * 1000).toISOString(),
+      lastMessageBody: 'list message',
+    };
+
+    FirebaseService._cache.pmThreads = [unreadThread];
+    const reminder = App._buildPmUnreadReminderThread([unreadThread]);
+    App._showPmIncomingBubble(reminder);
+    expect(document.getElementById('pm-incoming-bubble').dataset.mode).toBe('reminder');
+
+    App.currentPage = 'page-messages';
+    App._msgInboxFilter = 'pm-conversation';
+    App.renderPmThreadList();
+
+    const bubble = document.getElementById('pm-incoming-bubble');
+    expect(bubble.dataset.mode).toBe('reminder');
+    expect(bubble.classList.contains('is-visible')).toBe(true);
+  });
+
   test('PM fresh bubble keeps stale reminder state across repeated fresh messages', () => {
     jest.useFakeTimers();
     try {

@@ -2566,3 +2566,8 @@
 - **Issue**: When a fresh unread PM bubble was restored after a browser refresh, its 6.5-second timeout could hide the bubble without restoring the persistent older-unread reminder. The live snapshot path remembered stale follow-up threads in memory, but a refresh lost that in-memory state.
 - **Fix**: Persist fresh-bubble follow-up conversation keys in sessionStorage for the current user, restore them during the initial PM unread scan, and clear them when unread count reaches zero or the key expires. This keeps the older unread reminder visible after the refreshed fresh bubble times out.
 - **Validation**: Added PM unit coverage for the refresh path and reran the targeted private message test plus `node --check js/modules/message/pm-listener.js`.
+
+### 2026-05-13 PM Desktop Reminder Persistence [bugfix]
+- **Issue**: On desktop, the large PM bubble could disappear while unread PMs still existed. The PM conversation list route and list rerender path suppressed or dismissed the bubble, so the bell hint could remain correct while the larger unread reminder vanished.
+- **Fix**: Removed PM conversation list page state from the bubble suppression path. The bubble is now suppressed only for the currently open same conversation dialog, and a fresh bubble timeout rechecks the PM thread cache by conversation key before hiding. If unread remains, it switches to persistent reminder mode.
+- **Validation**: Added unit coverage for fresh-to-reminder behavior while the desktop PM list is open and for PM list rerender not dismissing an active reminder. Ran targeted PM tests and full `npm test`.
