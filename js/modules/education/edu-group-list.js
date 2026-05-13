@@ -36,6 +36,7 @@ Object.assign(App, {
     if (!container) return;
 
     const isStaff = this.isEduClubStaff(teamId);
+    const isDetailPanel = !!container.closest?.('#edu-detail-section');
     const groups = await this._loadEduGroups(teamId);
 
     if (!groups.length) {
@@ -43,7 +44,7 @@ Object.assign(App, {
         (isStaff ? '<br><button class="primary-btn small" style="margin-top:.5rem" onclick="App.showEduGroupForm(\'' + teamId + '\')">建立第一個分組</button>' : '') +
         '</div>';
       // 即使沒有分組，也要顯示虛擬待審核名單（有未匹配 pending 學員時）
-      if (isStaff) {
+      if (isStaff && !isDetailPanel) {
         const unmatched = this.getUnmatchedPendingStudents(teamId);
         if (unmatched.length > 0) {
           emptyHtml += '<div class="edu-group-card edu-group-card-virtual" style="margin-top:.5rem" onclick="App.showEduStudentList(\'' + teamId + '\',\'__unmatched__\')">'
@@ -117,7 +118,7 @@ Object.assign(App, {
     }).join('');
 
     // ★ 虛擬「待審核名單」卡片（職員可見，有未匹配 pending 學員時顯示）
-    if (isStaff) {
+    if (isStaff && !isDetailPanel) {
       const unmatched = this.getUnmatchedPendingStudents(teamId);
       if (unmatched.length > 0) {
         container.innerHTML += '<div class="edu-group-card edu-group-card-virtual" onclick="App.showEduStudentList(\'' + teamId + '\',\'__unmatched__\')">'

@@ -997,16 +997,21 @@
 
 /* ── 加載動畫（課程/分組載入佔位）── */
 .edu-loading {
-  display: flex; flex-direction: column; align-items: center;
-  justify-content: center; padding: 2rem 1rem; gap: .6rem;
+  display: flex; flex-direction: column; align-items: stretch;
+  justify-content: center; padding: 1rem; gap: .7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  background:
+    linear-gradient(135deg, rgba(13,148,136,.08), rgba(96,165,250,.06)),
+    var(--bg-elevated);
 }
 .edu-loading-bar {
-  width: 60%; max-width: 220px; height: 6px; border-radius: 3px;
+  width: 100%; max-width: none; height: 8px; border-radius: 999px;
   background: var(--border); overflow: hidden; position: relative;
 }
 .edu-loading-fill {
   position: absolute; top: 0; left: -40%; width: 40%; height: 100%;
-  border-radius: 3px;
+  border-radius: 999px;
   background: linear-gradient(90deg, var(--primary), var(--accent, #8b5cf6));
   animation: edu-loading-slide 1.2s ease-in-out infinite;
 }
@@ -1015,5 +1020,10 @@
   100% { left: 100%; }
 }
 .edu-loading-text {
-  font-size: .78rem; color: var(--text-muted); letter-spacing: .02em;
+  font-size: .82rem; color: var(--text-secondary); font-weight: 800; text-align: center;
+}
+[data-theme="dark"] .edu-loading {
+  background:
+    linear-gradient(135deg, rgba(20,184,166,.14), rgba(96,165,250,.1)),
+    var(--bg-elevated);
 }

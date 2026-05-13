@@ -28,9 +28,8 @@ Object.assign(App, {
           const page = this.currentPage;
           // 俱樂部詳情頁：重繪學員區塊 + 分組人數
           if (page === 'page-team-detail' && this._eduDetailTeamId === teamId) {
-            this._renderEduMemberSection(teamId);
+            this._refreshEduActiveTabContent?.(teamId);
             this._updateGroupMemberCounts(teamId);
-            this.renderEduGroupList(teamId);
             this._refreshTeamMembersCardFromCache?.(teamId);
           }
           // 分組學員列表頁：即時重繪（快取已更新，直接渲染不需再 fetch）

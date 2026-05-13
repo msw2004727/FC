@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260513r';
+const CACHE_VERSION = '0.20260513t';
 
 // Temporary feature switch: no-show is paused and hidden, but historical data remains intact.
 const NO_SHOW_FEATURE_ENABLED = true;
@@ -175,7 +175,7 @@ const PAGE_DATA_CONTRACT = {
   'page-personal-dashboard': { required: ['events', 'registrations'], optional: ['attendanceRecords'], realtime: [] },
   'page-leaderboard':        { required: ['leaderboard'], optional: [], realtime: [] },
   'page-profile':            { required: [], optional: ['attendanceRecords', 'activityRecords'], realtime: [] },
-  'page-team-detail':        { required: [], optional: ['teams', 'events'], realtime: [] },
+  'page-team-detail':        { required: [], optional: ['teams', 'events', 'tournaments'], realtime: [] },
   'page-tournament-detail':  { required: [], optional: ['tournaments', 'standings', 'matches'], realtime: [] },
   'page-shop':               { required: ['shopItems'], optional: ['trades'], realtime: [] },
   'page-shop-detail':        { required: ['shopItems'], optional: ['trades'], realtime: [] },

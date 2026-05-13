@@ -2603,3 +2603,8 @@
 - **Cause**: The shared member list rendered before `teams/{teamId}/students` finished loading. The later student fetch and realtime listener refreshed only the education tab content, not the shared team member card.
 - **Fix**: Added a cache-only member-card refresh helper and called it after initial student load and student realtime snapshots, so the existing member list updates as soon as student data is available.
 - **Validation**: Added unit coverage for the async student-load refresh path and the member-card refresh helper.
+
+### 2026-05-13 Club Detail Sections and Course Tabs [ux]
+- **Issue**: Club detail needed a cleaner loading state, wider section navigation, a working fixed "回到頂部" button, a club tournament section, compact side-by-side record/history cards, and clearer course/student tab names with pending applications separated from groups.
+- **Fix**: Reworked the club card pending overlay into a polished spinner/status panel, reordered detail sections to course → activity → club tournaments → feed → info/bio → record/history → members, added `matches` visibility support and tournament data prefetch for team detail, made record/history render inside one two-column wrapper, and renamed education tabs to 課程 / 分組 / 學員 / 待審核 with pending students rendered only in the new pending tab.
+- **Validation**: Added unit coverage for club tournament filtering, detail section order, renamed education tabs, pending tab rendering, and record/history wrapper. Ran JS syntax checks, targeted tests, full `npm test`, and bumped cache version to `0.20260513s`.

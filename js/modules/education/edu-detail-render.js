@@ -30,8 +30,7 @@ Object.assign(App, {
 
     this._loadEduStudents(teamId).then(() => {
       if (this._eduDetailTeamId === teamId) {
-        this._renderEduMemberSection(teamId);
-        this.renderEduGroupList(teamId);
+        this._refreshEduActiveTabContent(teamId);
         this._updateEduMineBadge(teamId);
         this._refreshTeamMembersCardFromCache?.(teamId);
       }
@@ -89,7 +88,8 @@ Object.assign(App, {
       + '<div class="tab-bar" id="edu-detail-tabs" style="flex:0 0 auto">'
       + '<button class="tab active" data-edutab="course" onclick="App.switchEduTab(\'course\')">課程</button>'
       + '<button class="tab" data-edutab="group" onclick="App.switchEduTab(\'group\')">分組</button>'
-      + '<span class="edu-tab-mine-wrap"><button class="tab" data-edutab="mine" onclick="App.switchEduTab(\'mine\')">我的</button><span id="edu-mine-badge" class="edu-tab-badge"></span></span>'
+      + '<span class="edu-tab-mine-wrap"><button class="tab" data-edutab="student" onclick="App.switchEduTab(\'student\')">學員</button><span id="edu-mine-badge" class="edu-tab-badge"></span></span>'
+      + '<button class="tab" data-edutab="pending" onclick="App.switchEduTab(\'pending\')">待審核</button>'
       + '</div>'
       + '<span id="edu-mine-status" class="edu-mine-status"></span>'
       + '</div>';
@@ -109,8 +109,7 @@ Object.assign(App, {
     // ★ Phase 2：背景 fetch + 即時監聽
     this._loadEduStudents(teamId).then(() => {
       if (this._eduDetailTeamId === teamId) {
-        this._renderEduMemberSection(teamId);
-        this.renderEduGroupList(teamId);
+        this._refreshEduActiveTabContent(teamId);
         this._updateEduMineBadge(teamId);
         this._refreshTeamMembersCardFromCache?.(teamId);
       }
@@ -122,11 +121,24 @@ Object.assign(App, {
    * 切換教學俱樂部頁籤
    */
   switchEduTab(tab) {
-    this._eduActiveTab = tab;
+    const nextTab = this._normalizeEduDetailTab(tab);
+    this._eduActiveTab = nextTab;
     document.querySelectorAll('#edu-detail-tabs .tab').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.edutab === tab);
+      btn.classList.toggle('active', this._normalizeEduDetailTab(btn.dataset.edutab) === nextTab);
     });
     this._renderEduTabContent(this._eduDetailTeamId);
+  },
+
+  _normalizeEduDetailTab(tab) {
+    return tab === 'mine' ? 'student' : (tab || 'course');
+  },
+
+  _refreshEduActiveTabContent(teamId) {
+    const tab = this._normalizeEduDetailTab(this._eduActiveTab);
+    if (tab === 'student') this._renderEduMemberSection(teamId);
+    else if (tab === 'group') this.renderEduGroupList(teamId);
+    else if (tab === 'pending') this._renderEduPendingSection(teamId);
+    else if (typeof this.renderEduCoursePlanList === 'function') this.renderEduCoursePlanList(teamId, this.isEduClubStaff(teamId));
   },
 
   /**
@@ -137,7 +149,7 @@ Object.assign(App, {
     if (!container || !teamId) return;
 
     const isStaff = this.isEduClubStaff(teamId);
-    const tab = this._eduActiveTab || 'course';
+    const tab = this._normalizeEduDetailTab(this._eduActiveTab);
     const inlineUnified = !!container.closest?.('#edu-detail-section');
     const panelClass = inlineUnified ? 'td-edu-panel' : 'td-card';
 
@@ -161,10 +173,36 @@ Object.assign(App, {
         + '<div id="edu-group-list"><div class="edu-loading"><div class="edu-loading-bar"><div class="edu-loading-fill"></div></div><div class="edu-loading-text">正在努力加載中請稍後</div></div></div>'
         + '</div>';
       this.renderEduGroupList(teamId);
-    } else if (tab === 'mine') {
+    } else if (tab === 'student') {
       container.innerHTML = '<div id="edu-member-section"></div>';
       this._renderEduMemberSection(teamId);
+    } else if (tab === 'pending') {
+      container.innerHTML = '<div id="edu-pending-section"></div>';
+      this._renderEduPendingSection(teamId);
     }
+  },
+
+  _renderEduPendingSection(teamId) {
+    const container = document.getElementById('edu-pending-section');
+    if (!container) return;
+    const inlineUnified = !!container.closest?.('#edu-detail-section');
+    const panelClass = inlineUnified ? 'td-edu-panel' : 'td-card';
+    const isStaff = this.isEduClubStaff(teamId);
+    if (!isStaff) {
+      container.innerHTML = '<div class="' + panelClass + '"><div class="edu-empty-state">僅俱樂部管理者可查看待審核名單</div></div>';
+      return;
+    }
+    const pending = (this.getEduStudents(teamId) || []).filter(s => s.enrollStatus === 'pending');
+    const rows = pending.length
+      ? pending.map(s => {
+        if (typeof this._renderPendingStudentRow === 'function') return this._renderPendingStudentRow(teamId, '', s);
+        return '<div class="edu-student-card edu-pending-card"><div class="edu-student-header"><span class="edu-student-name">' + escapeHTML(s.name || '未命名學員') + '</span></div></div>';
+      }).join('')
+      : '<div class="edu-empty-state">目前沒有待審核學員</div>';
+    container.innerHTML = '<div class="' + panelClass + '">'
+      + '<div class="td-card-title td-card-title-row"><span>待審核名單</span></div>'
+      + rows
+      + '</div>';
   },
 
   /**
@@ -201,7 +239,7 @@ Object.assign(App, {
 
     let html = '<div class="' + panelClass + '">'
       + '<div class="td-card-title td-card-title-row">'
-      + '<span>我們這一家<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'member\')" title="說明">?</button></span>'
+      + '<span>學員名冊<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'member\')" title="說明">?</button></span>'
       + '</div>';
 
     html += myStudents.map(s => {

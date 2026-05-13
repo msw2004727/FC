@@ -257,6 +257,13 @@ Object.assign(App, {
       bar.appendChild(fill);
       imgArea.appendChild(bar);
     }
+    if (!cardEl.querySelector('.tc-loading-panel')) {
+      var panel = document.createElement('div');
+      panel.className = 'tc-loading-panel';
+      panel.innerHTML = '<span class="tc-loading-spinner" aria-hidden="true"></span>' +
+        '<span class="tc-loading-copy"><strong>資料更新中</strong><span>正在整理俱樂部最新內容</span></span>';
+      cardEl.appendChild(panel);
+    }
     // Start simulated progress
     var loadingTeamId = teamId || cardEl.dataset?.teamId || '';
     if (!this._teamCardLoadingState || this._teamCardLoadingState.teamId !== loadingTeamId) {
@@ -300,6 +307,8 @@ Object.assign(App, {
             cardEl.removeAttribute('aria-busy');
             var bar = cardEl.querySelector('.tc-loading-bar');
             if (bar) bar.remove();
+            var panel = cardEl.querySelector('.tc-loading-panel');
+            if (panel) panel.remove();
           }
           if (ownsState && self._teamCardLoadingState === state) self._teamCardLoadingState = null;
         }, 400);

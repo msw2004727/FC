@@ -588,7 +588,7 @@ Object.assign(App, {
     const body = document.getElementById('team-detail-body');
     if (body) {
       const region = team?.region ? `<div class="detail-row"><span class="detail-label">地區</span>${this._escapeShellText(team.region)}</div>` : '';
-      body.innerHTML = `${region}<div class="detail-section"><div class="reg-loading">資料更新中...</div><div class="reg-loading-skeleton"><div class="reg-loading-skeleton-row"></div><div class="reg-loading-skeleton-row"></div></div></div>`;
+      body.innerHTML = `${region}<div class="detail-section team-fast-loading"><div class="reg-loading team-fast-loading-status"><span class="team-fast-loading-text"><strong>資料更新中</strong><small>正在同步俱樂部最新資料</small></span></div><div class="reg-loading-skeleton team-fast-loading-skeleton"><div class="reg-loading-skeleton-row"></div><div class="reg-loading-skeleton-row"></div><div class="reg-loading-skeleton-row"></div></div></div>`;
     }
   },
 

@@ -7,12 +7,14 @@ describe('team detail club activity section', () => {
     const adminUsers = options.adminUsers || [];
     const teams = options.teams || {};
     const attendanceRecords = options.attendanceRecords || [];
+    const tournaments = options.tournaments || [];
     const context = {
       App: app,
       ApiService: {
         getCurrentUser: () => ({ uid: 'viewer' }),
         getEvents: () => events,
         getTeam: (id) => teams[id] || { id: 'teamA', feed: [] },
+        getTournaments: () => tournaments,
         getAdminUsers: () => adminUsers,
         getAttendanceRecords: () => attendanceRecords,
       },
@@ -187,7 +189,26 @@ describe('team detail club activity section', () => {
     expect(deniedHtml).not.toContain('openTeamDetailCreateEvent');
   });
 
-  test('places club activity before the team feed section in the unified detail layout', () => {
+  test('renders club tournaments that are hosted by or joined by the club', () => {
+    const app = makeApp([]);
+    const tournaments = [
+      { id: 'tour-host', name: '主辦盃', hostTeamId: 'teamA', registeredTeams: ['teamA'], maxTeams: 4, type: '友誼賽', regStart: '2099-01-02' },
+      { id: 'tour-join', name: '參賽盃', hostTeamId: 'teamB', registeredTeams: ['teamA'], maxTeams: 4, type: '友誼賽', regStart: '2099-01-01' },
+      { id: 'tour-other', name: '其他盃', hostTeamId: 'teamB', registeredTeams: ['teamC'], maxTeams: 4, type: '友誼賽', regStart: '2099-01-03' },
+    ];
+    loadTeamDetailRender(app, [], { tournaments });
+
+    const html = app._renderTeamTournaments('teamA');
+
+    expect(html).toContain('id="team-tournaments-section"');
+    expect(html).toContain('俱樂部賽事');
+    expect(html).toContain('主辦盃');
+    expect(html).toContain('參賽盃');
+    expect(html).not.toContain('其他盃');
+    expect(html).toContain("App.openTeamDetailTournament('tour-host')");
+  });
+
+  test('orders course, activity, tournament, feed, record, and member sections in the unified detail layout', () => {
     const app = makeApp([]);
     loadTeamDetailRender(app, []);
     Object.assign(app, {
@@ -198,10 +219,11 @@ describe('team detail club activity section', () => {
       _buildTeamMembersCard: () => '<section>members</section>',
       _renderTeamFeed: () => '<section>feed</section>',
       _renderTeamEvents: () => '<section>club events</section>',
+      _renderTeamTournaments: () => '<section>club tournaments</section>',
     });
 
     const html = app._buildTeamDetailBodyHtml(
-      { id: 'teamA', captain: '', coaches: [] },
+      { id: 'teamA', captain: '', coaches: [], teachingEnabled: true },
       false,
       false,
       { keys: new Set(), names: new Set() },
@@ -210,7 +232,12 @@ describe('team detail club activity section', () => {
     );
 
     expect(html.indexOf('<div id="team-feed-section">')).toBeGreaterThan(-1);
+    expect(html.indexOf('edu-detail-section')).toBeLessThan(html.indexOf('club events'));
     expect(html.indexOf('club events')).toBeLessThan(html.indexOf('<div id="team-feed-section">'));
+    expect(html.indexOf('club events')).toBeLessThan(html.indexOf('club tournaments'));
+    expect(html.indexOf('club tournaments')).toBeLessThan(html.indexOf('<div id="team-feed-section">'));
+    expect(html.indexOf('team-record-history-section')).toBeLessThan(html.indexOf('members'));
+    expect(html).toContain('回到頂部');
   });
 
   test('renders course section for every club type', () => {
@@ -219,6 +246,11 @@ describe('team detail club activity section', () => {
 
     expect(app._buildTeamEducationSection({ id: 'teamA', type: 'general' })).toContain('id="edu-detail-section"');
     expect(app._buildTeamEducationSection({ id: 'teamB', type: 'education' })).toContain('id="edu-detail-section"');
+    expect(app._buildTeamEducationSection({ id: 'teamA' })).toContain('俱樂部課程');
+    expect(app._buildTeamEducationSection({ id: 'teamA' })).toContain('data-edutab="student"');
+    expect(app._buildTeamEducationSection({ id: 'teamA' })).toContain('待審核');
+    expect(app._buildTeamEducationSection({ id: 'teamA' })).not.toContain('我的');
+    expect(app._buildTeamEducationSection({ id: 'teamA' })).not.toContain('班級');
   });
 
   test('teaching tag controls course and student section visibility', () => {
@@ -230,9 +262,10 @@ describe('team detail club activity section', () => {
       _buildTeamBioCard: () => '',
       _buildTeamRecordCard: () => '',
       _buildTeamHistoryCard: () => '',
-      _buildTeamMembersCard: () => '',
+      _buildTeamMembersCard: () => '<section id="team-members-section"></section>',
       _renderTeamFeed: () => '',
       _renderTeamEvents: () => '',
+      _renderTeamTournaments: () => '<section id="team-tournaments-section"></section>',
     });
 
     const disabledHtml = app._buildTeamDetailBodyHtml(
@@ -283,6 +316,9 @@ describe('team detail club activity section', () => {
     expect(html).toContain('td-section-nav-panel');
     expect(html).toContain('td-overview-grid');
     expect(html).toContain('td-floating-top-btn');
+    expect(html).toContain('team-tournaments-section');
+    expect(html).toContain('team-feed-section');
+    expect(html).toContain('team-members-section');
     expect(html).not.toContain('td-overview-icon');
     expect(html.indexOf('td-section-nav-panel')).toBeLessThan(html.indexOf('td-overview-grid'));
   });
@@ -298,6 +334,7 @@ describe('team detail club activity section', () => {
       _buildTeamMembersCard: () => '<section id="team-members-section">members</section>',
       _renderTeamFeed: () => '<section>feed</section>',
       _renderTeamEvents: () => '<section id="team-events-section">club events</section>',
+      _renderTeamTournaments: () => '<section id="team-tournaments-section">club tournaments</section>',
     });
 
     const team = {
@@ -307,6 +344,7 @@ describe('team detail club activity section', () => {
       detailVisibility: {
         courses: false,
         feed: false,
+        matches: false,
         members: false,
         record: false,
       },
@@ -317,10 +355,12 @@ describe('team detail club activity section', () => {
     expect(html).toContain('team-events-section');
     expect(html).not.toContain('edu-detail-section');
     expect(html).not.toContain('team-feed-section');
+    expect(html).not.toContain('team-tournaments-section');
     expect(html).not.toContain('team-members-section');
     expect(html).not.toContain('team-record-section');
     expect(nav).toContain('team-events-section');
     expect(nav).not.toContain('edu-detail-section');
+    expect(nav).not.toContain('team-tournaments-section');
     expect(nav).not.toContain('team-members-section');
     expect(nav).not.toContain('team-record-section');
   });
@@ -523,11 +563,14 @@ describe('team detail club activity section', () => {
 
     const html = app._buildTeamRecordCard({ wins: 2, draws: 1, losses: 1 }, 4, 50)
       + app._buildTeamHistoryCard({ history: [{ id: 'm1', title: '友誼賽', score: '2:1', date: '2026/05/01' }] });
+    const combined = app._buildTeamRecordHistorySection({ wins: 2, draws: 1, losses: 1, history: [] }, 4, 50);
 
     expect(html).toContain('td-record-grid');
     expect(html).toContain('td-record-stat');
     expect(html).toContain('td-history-list-compact');
     expect(html).toContain('td-history-row-compact');
+    expect(combined).toContain('td-record-history-grid');
+    expect(combined).toContain('team-record-history-section');
     expect(html).not.toContain('資料位置已預留');
     expect(html).not.toContain('位置已預留');
     expect(html).not.toContain('profile-collapse-toggle');

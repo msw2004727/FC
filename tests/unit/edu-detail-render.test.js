@@ -113,7 +113,7 @@ describe('renderEduClubDetail info card', () => {
     expect(app._startEduStudentsListener).toHaveBeenCalledWith(team.id);
   });
 
-  test('refreshes shared member list after async students load', async () => {
+  test('refreshes active education tab and shared member list after async students load', async () => {
     const bodyEl = { innerHTML: '' };
     const contentEl = { innerHTML: '', closest: jest.fn(() => ({})) };
     const tabEl = {
@@ -168,10 +168,48 @@ describe('renderEduClubDetail info card', () => {
 
     await Promise.resolve();
 
-    expect(app._renderEduMemberSection).toHaveBeenCalledWith(team.id);
-    expect(app.renderEduGroupList).toHaveBeenCalledWith(team.id);
+    expect(app.renderEduCoursePlanList).toHaveBeenCalledWith(team.id, false);
+    expect(app._renderEduMemberSection).not.toHaveBeenCalled();
+    expect(app.renderEduGroupList).not.toHaveBeenCalled();
     expect(app._updateEduMineBadge).toHaveBeenCalledWith(team.id);
     expect(app._refreshTeamMembersCardFromCache).toHaveBeenCalledWith(team.id);
+  });
+
+  test('renders renamed education tabs and pending review tab content', () => {
+    const contentEl = { innerHTML: '', closest: jest.fn(() => ({})) };
+    const app = {
+      _eduDetailTeamId: 'teamA',
+      _eduActiveTab: 'pending',
+      isEduClubStaff: jest.fn(() => true),
+      getEduStudents: jest.fn(() => [
+        { id: 'pending-1', name: '小麥', enrollStatus: 'pending' },
+        { id: 'active-1', name: '已通過', enrollStatus: 'active' },
+      ]),
+      _renderPendingStudentRow: jest.fn((teamId, groupId, student) => '<div class="pending-row">' + escapeHTML(student.name) + '</div>'),
+    };
+    const context = {
+      App: app,
+      ApiService: {
+        getTeam: jest.fn(),
+        getCurrentUser: jest.fn(() => null),
+      },
+      document: {
+        getElementById: jest.fn((id) => id === 'edu-detail-tab-content' || id === 'edu-pending-section' ? contentEl : null),
+        querySelectorAll: jest.fn(() => []),
+      },
+      escapeHTML,
+      Promise,
+    };
+
+    vm.createContext(context);
+    vm.runInContext(source, context, { filename: 'edu-detail-render.js' });
+    context.App._eduActiveTab = 'pending';
+    context.App._renderEduTabContent('teamA');
+
+    expect(contentEl.innerHTML).toContain('待審核名單');
+    expect(contentEl.innerHTML).toContain('小麥');
+    expect(contentEl.innerHTML).not.toContain('已通過');
+    expect(app._renderPendingStudentRow).toHaveBeenCalledWith('teamA', '', { id: 'pending-1', name: '小麥', enrollStatus: 'pending' });
   });
 
   test('shows education club leaders between manager and coach', () => {

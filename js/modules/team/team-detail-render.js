@@ -413,6 +413,7 @@ Object.assign(App, {
     return {
       events: source.events !== false,
       courses: source.courses !== false,
+      matches: source.matches !== false,
       feed: source.feed !== false,
       info: source.info !== false,
       bio: source.bio !== false,
@@ -426,6 +427,22 @@ Object.assign(App, {
     const visibility = this._getTeamDetailVisibility(t);
     if (key === 'courses' && !this._isTeamDetailTeachingEnabled(t)) return false;
     return visibility[key] !== false;
+  },
+
+  _scrollTeamDetailToTop() {
+    const page = document.getElementById('page-team-detail');
+    const scrollEl = document.scrollingElement || document.documentElement || document.body;
+    try {
+      scrollEl?.scrollTo?.({ top: 0, behavior: 'smooth' });
+    } catch (_) {
+      if (scrollEl) scrollEl.scrollTop = 0;
+    }
+    try {
+      window?.scrollTo?.({ top: 0, behavior: 'smooth' });
+    } catch (_) {}
+    if (page?.scrollIntoView) {
+      try { page.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (_) {}
+    }
   },
 
   _isTeamDetailTeachingEnabled(t) {
@@ -753,17 +770,23 @@ Object.assign(App, {
 
   _buildTeamDetailSectionNav(t) {
     const items = [];
-    if (this._isTeamDetailSectionVisible(t, 'events')) {
-      items.push('<button type="button" onclick="document.getElementById(\'team-events-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u6d3b\u52d5</button>');
-    }
     if (this._isTeamDetailSectionVisible(t, 'courses')) {
       items.push('<button type="button" onclick="document.getElementById(\'edu-detail-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u8ab2\u7a0b</button>');
     }
-    if (this._isTeamDetailSectionVisible(t, 'members')) {
-      items.push('<button type="button" onclick="document.getElementById(\'team-members-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u968a\u4f0d</button>');
+    if (this._isTeamDetailSectionVisible(t, 'events')) {
+      items.push('<button type="button" onclick="document.getElementById(\'team-events-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u6d3b\u52d5</button>');
     }
-    if (this._isTeamDetailSectionVisible(t, 'record')) {
-      items.push('<button type="button" onclick="document.getElementById(\'team-record-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u6230\u7e3e</button>');
+    if (this._isTeamDetailSectionVisible(t, 'matches')) {
+      items.push('<button type="button" onclick="document.getElementById(\'team-tournaments-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u8cfd\u4e8b</button>');
+    }
+    if (this._isTeamDetailSectionVisible(t, 'feed')) {
+      items.push('<button type="button" onclick="document.getElementById(\'team-feed-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u52d5\u614b</button>');
+    }
+    if (this._isTeamDetailSectionVisible(t, 'record') || this._isTeamDetailSectionVisible(t, 'history')) {
+      items.push('<button type="button" onclick="document.getElementById(\'team-record-history-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u6230\u7e3e</button>');
+    }
+    if (this._isTeamDetailSectionVisible(t, 'members')) {
+      items.push('<button type="button" onclick="document.getElementById(\'team-members-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u6210\u54e1</button>');
     }
     return items.length
       ? '<div class="td-section-nav-panel"><div class="td-section-nav" aria-label="club detail sections">' + items.join('') + '</div></div>'
@@ -784,12 +807,13 @@ Object.assign(App, {
   _buildTeamEducationSection(t) {
     if (!t) return '';
     return '<div class="td-card td-section-card td-edu-unified" id="edu-detail-section">' +
-      '<div class="td-card-title td-card-title-row"><span>\u8ab2\u7a0b\u8207\u5b78\u54e1</span></div>' +
+      '<div class="td-card-title td-card-title-row"><span>\u4ff1\u6a02\u90e8\u8ab2\u7a0b</span></div>' +
       '<div class="edu-tab-row td-edu-tab-row">' +
       '<div class="tab-bar" id="edu-detail-tabs" style="flex:0 0 auto">' +
       '<button class="tab active" data-edutab="course" onclick="App.switchEduTab(\'course\')">\u8ab2\u7a0b</button>' +
-      '<button class="tab" data-edutab="group" onclick="App.switchEduTab(\'group\')">\u73ed\u7d1a</button>' +
-      '<span class="edu-tab-mine-wrap"><button class="tab" data-edutab="mine" onclick="App.switchEduTab(\'mine\')">\u6211\u7684</button><span id="edu-mine-badge" class="edu-tab-badge"></span></span>' +
+      '<button class="tab" data-edutab="group" onclick="App.switchEduTab(\'group\')">\u5206\u7d44</button>' +
+      '<span class="edu-tab-mine-wrap"><button class="tab" data-edutab="student" onclick="App.switchEduTab(\'student\')">\u5b78\u54e1</button><span id="edu-mine-badge" class="edu-tab-badge"></span></span>' +
+      '<button class="tab" data-edutab="pending" onclick="App.switchEduTab(\'pending\')">\u5f85\u5be9\u6838</button>' +
       '</div>' +
       '<span id="edu-mine-status" class="edu-mine-status"></span>' +
       '</div>' +
@@ -831,6 +855,122 @@ Object.assign(App, {
     return t.bio ? '<div class="td-card td-section-card" id="team-bio-section"><div class="td-card-title" style="text-align:center">' + I18N.t('teamDetail.bio') + '</div><div style="font-size:.82rem;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;word-break:break-word">' + escapeHTML(t.bio) + '</div></div>' : '';
   },
 
+  _isTeamTournamentForTeam(tournament, teamId) {
+    if (!tournament || !teamId) return false;
+    const target = String(teamId || '').trim();
+    const hasId = (value) => String(value || '').trim() === target;
+    if (hasId(tournament.hostTeamId)) return true;
+    const lists = [
+      tournament.registeredTeams,
+      tournament.teamIds,
+      tournament.approvedTeamIds,
+      tournament.pendingTeamIds,
+    ];
+    if (lists.some(list => Array.isArray(list) && list.some(hasId))) return true;
+    const recordLists = [
+      tournament.teamEntries,
+      tournament.entries,
+      tournament.teamApplications,
+      tournament.applications,
+    ];
+    return recordLists.some(list => Array.isArray(list) && list.some(item => hasId(item?.teamId || item?.id)));
+  },
+
+  _getTeamTournamentDateText(tournament) {
+    const raw = Array.isArray(tournament?.matchDates) && tournament.matchDates.length
+      ? tournament.matchDates[0]
+      : (tournament?.date || tournament?.regStart || tournament?.createdAt || '');
+    if (!raw) return '';
+    if (typeof raw === 'string') return raw.replace('T', ' ').slice(0, 16);
+    if (raw.toDate) return raw.toDate().toISOString().slice(0, 10);
+    if (raw.seconds) return new Date(raw.seconds * 1000).toISOString().slice(0, 10);
+    return String(raw).slice(0, 16);
+  },
+
+  _getTeamTournamentSortTime(tournament) {
+    const values = []
+      .concat(Array.isArray(tournament?.matchDates) ? tournament.matchDates : [])
+      .concat([tournament?.date, tournament?.regStart, tournament?.createdAt, tournament?.updatedAt]);
+    return values.reduce((best, value) => {
+      let time = 0;
+      if (value && typeof value.toMillis === 'function') time = value.toMillis();
+      else if (value && typeof value.seconds === 'number') time = value.seconds * 1000;
+      else if (value) {
+        const parsed = Date.parse(String(value));
+        time = Number.isFinite(parsed) ? parsed : 0;
+      }
+      return best || time || 0;
+    }, 0);
+  },
+
+  _getTeamTournaments(teamId) {
+    const tournaments = ApiService.getTournaments?.() || [];
+    return tournaments
+      .map(item => (typeof this.getFriendlyTournamentRecord === 'function' ? (this.getFriendlyTournamentRecord(item) || item) : item))
+      .filter(item => this._isTeamTournamentForTeam(item, teamId))
+      .sort((a, b) => {
+        const at = this._getTeamTournamentSortTime(a);
+        const bt = this._getTeamTournamentSortTime(b);
+        if (at !== bt) return bt - at;
+        return String(a?.name || '').localeCompare(String(b?.name || ''));
+      });
+  },
+
+  _getTeamTournamentStatusLabel(tournament) {
+    if (!tournament) return '';
+    if (typeof this.isTournamentEnded === 'function' && this.isTournamentEnded(tournament)) return I18N.t('tournament.status.ended');
+    if (tournament.ended) return I18N.t('tournament.status.ended');
+    if (typeof this.getTournamentStatus === 'function') return this.getTournamentStatus(tournament);
+    return tournament.status || I18N.t('tournament.status.regOpen');
+  },
+
+  _renderTeamTournamentCard(tournament) {
+    const id = escapeHTML(tournament.id || tournament._docId || '');
+    const name = escapeHTML(tournament.name || I18N.t('tournament.detail'));
+    const date = this._getTeamTournamentDateText(tournament);
+    const registered = Array.isArray(tournament.registeredTeams) ? tournament.registeredTeams.length : 0;
+    const maxTeams = tournament.maxTeams || tournament.teams || '?';
+    const region = tournament.region ? '<span>' + escapeHTML(tournament.region) + '</span>' : '';
+    const status = escapeHTML(this._getTeamTournamentStatusLabel(tournament));
+    const typeLabel = escapeHTML((typeof this._getTournamentModeLabel === 'function' ? this._getTournamentModeLabel(tournament) : '') || tournament.type || I18N.t('tournament.detail'));
+    return '<button type="button" class="td-team-tournament-card" onclick="App.openTeamDetailTournament(\'' + id + '\')">' +
+      '<span class="td-team-tournament-status">' + status + '</span>' +
+      '<strong>' + name + '</strong>' +
+      '<span class="td-team-tournament-meta">' +
+      '<span>' + typeLabel + '</span>' +
+      region +
+      (date ? '<span>' + escapeHTML(date) + '</span>' : '') +
+      '<span>' + registered + '/' + maxTeams + ' ' + I18N.t('tournament.teamUnit') + '</span>' +
+      '</span>' +
+      '</button>';
+  },
+
+  _renderTeamTournaments(teamId) {
+    const tournaments = this._getTeamTournaments(teamId);
+    const titleHtml = '<div class="td-card-title td-card-title-row"><span>\u4ff1\u6a02\u90e8\u8cfd\u4e8b <span style="font-size:.72rem;color:var(--text-muted);font-weight:400">(' + tournaments.length + ')</span></span></div>';
+    if (!tournaments.length) {
+      return '<div class="td-card td-section-card" id="team-tournaments-section">' +
+        titleHtml +
+        '<div class="td-empty-state">\u76ee\u524d\u6c92\u6709\u95dc\u806f\u7684\u4ff1\u6a02\u90e8\u8cfd\u4e8b</div>' +
+        '</div>';
+    }
+    return '<div class="td-card td-section-card" id="team-tournaments-section">' +
+      titleHtml +
+      '<div class="td-team-tournament-list">' + tournaments.slice(0, 6).map(t => this._renderTeamTournamentCard(t)).join('') + '</div>' +
+      '</div>';
+  },
+
+  async openTeamDetailTournament(tournamentId) {
+    const safeId = String(tournamentId || '').trim();
+    if (!safeId) return;
+    if (typeof this._openTournamentDetail === 'function') return this._openTournamentDetail(safeId);
+    if (typeof ScriptLoader !== 'undefined' && typeof ScriptLoader.ensureForPage === 'function') {
+      try { await ScriptLoader.ensureForPage('page-tournament-detail'); } catch (err) { console.warn('[TeamDetail] tournament scripts failed:', err); }
+    }
+    if (typeof this.showTournamentDetail === 'function') return this.showTournamentDetail(safeId);
+    this.showToast?.('\u8cfd\u4e8b\u529f\u80fd\u5c1a\u672a\u8f09\u5165\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+  },
+
   _buildTeamRecordCard(t, totalGames, winRate) {
     const wins = Number(t?.wins || 0);
     const draws = Number(t?.draws || 0);
@@ -870,6 +1010,19 @@ Object.assign(App, {
       + '<div class="td-card-title">' + I18N.t('teamDetail.matchHistory') + '</div>'
       + '<div class="td-history-list-compact">' + rows + '</div>'
       + '</div>';
+  },
+
+  _buildTeamRecordHistorySection(t, totalGames, winRate) {
+    const parts = [];
+    if (this._isTeamDetailSectionVisible(t, 'record')) {
+      parts.push(this._buildTeamRecordCard(t, totalGames, winRate));
+    }
+    if (this._isTeamDetailSectionVisible(t, 'history')) {
+      parts.push(this._buildTeamHistoryCard(t));
+    }
+    return parts.length
+      ? '<div class="td-record-history-grid" id="team-record-history-section">' + parts.join('') + '</div>'
+      : '';
   },
 
   _getTeamDetailMemberLabelClass(label) {
@@ -1001,15 +1154,15 @@ Object.assign(App, {
       + this._buildTeamDetailIdentityPanel(t, totalGames, winRate)
       + this._buildTeamDetailSectionNav(t)
       + this._buildTeamDetailOverview(t, totalGames, winRate)
-      + (this._isTeamDetailSectionVisible(t, 'events') ? this._renderTeamEvents(t.id) : '')
       + (this._isTeamDetailSectionVisible(t, 'courses') ? this._buildTeamEducationSection(t) : '')
+      + (this._isTeamDetailSectionVisible(t, 'events') ? this._renderTeamEvents(t.id) : '')
+      + (this._isTeamDetailSectionVisible(t, 'matches') ? this._renderTeamTournaments(t.id) : '')
       + (this._isTeamDetailSectionVisible(t, 'feed') ? '<div id="team-feed-section">' + this._renderTeamFeed(t.id) + '</div>' : '')
       + (this._isTeamDetailSectionVisible(t, 'info') ? this._buildTeamInfoCard(t) : '')
       + (this._isTeamDetailSectionVisible(t, 'bio') ? this._buildTeamBioCard(t) : '')
-      + (this._isTeamDetailSectionVisible(t, 'record') ? this._buildTeamRecordCard(t, totalGames, winRate) : '')
-      + (this._isTeamDetailSectionVisible(t, 'history') ? this._buildTeamHistoryCard(t) : '')
+      + this._buildTeamRecordHistorySection(t, totalGames, winRate)
       + (this._isTeamDetailSectionVisible(t, 'members') ? this._buildTeamMembersCard(t, canManageMembers, memberEditMode, staffIdentity) : '')
-      + '<button type="button" class="td-floating-top-btn" aria-label="回到俱樂部頁面上方" onclick="document.getElementById(\'page-team-detail\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">↑ 置頂</button>'
+      + '<button type="button" class="td-floating-top-btn" aria-label="回到頂部" onclick="App._scrollTeamDetailToTop?.()">↑ 回到頂部</button>'
       + '</div>';
   },
 
