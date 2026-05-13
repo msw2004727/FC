@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-14 Club detail light loading shell cleanup [ui]
+- **Problem**: The club detail fast-loading shell showed cached region text and a translucent grey panel in light theme, which made the temporary loading state look like stale detail content.
+- **Fix**: Removed region output from the fast-loading shell and changed the light-theme loading panel to a transparent, shadowless skeleton while preserving the existing dark-theme loading panel.
+- **Tests**: Added a source contract test for the fast-loading shell and light loading panel style.
+
 ### 2026-05-13 Club course plan image-background cards [ui]
 - **Problem**: Course plan cards still treated the course image as a side thumbnail, which made the important plan card feel visually split and did not match the requested banner-style course presentation.
 - **Fix**: Added an inner `edu-cp-visual` card area that uses the course image as a lazy-loaded background layer, applies a dark transparent gradient overlay for text readability, keeps plan tags/title/metrics/signup inside the image-backed area, and leaves staff edit/delete/sort controls on the original outer card background.

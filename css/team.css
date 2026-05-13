@@ -524,13 +524,11 @@
 .td-floating-top-btn:active { transform: scale(.97); }
 .team-fast-loading {
   margin-top: .8rem;
-  padding: .8rem;
-  border: 1px solid rgba(148, 163, 184, .24);
+  padding: .8rem .95rem;
+  border: 0;
   border-radius: var(--radius);
-  background:
-    radial-gradient(circle at 18% 0%, rgba(255, 199, 0, .15), transparent 30%),
-    linear-gradient(180deg, rgba(255,255,255,.96), rgba(248,250,252,.9));
-  box-shadow: 0 10px 26px rgba(15, 23, 42, .08);
+  background: transparent;
+  box-shadow: none;
 }
 .team-fast-loading-status.reg-loading {
   align-items: center;

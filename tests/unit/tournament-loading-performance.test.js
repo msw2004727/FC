@@ -127,4 +127,18 @@ describe('team loading performance contract', () => {
     expect(renderSource).toContain('_clearTeamCardPending?.(cardEl, 650)');
     expect(styleSource).toContain('linear-gradient(90deg, var(--primary), #60a5fa)');
   });
+
+  test('club detail fast loading shell stays minimal in light theme', () => {
+    const navigationSource = readProjectFile('js/core/navigation.js');
+    const styleSource = readProjectFile('css/team.css');
+    const shellBody = navigationSource.match(/_renderFastTeamDetailShell\(id\) \{([\s\S]*?)\n  \},/);
+    const loadingStyle = styleSource.match(/\.team-fast-loading \{([\s\S]*?)\n\}/);
+
+    expect(shellBody).not.toBeNull();
+    expect(loadingStyle).not.toBeNull();
+    expect(shellBody[1]).not.toContain('team?.region');
+    expect(shellBody[1]).not.toContain('<div class="detail-row"');
+    expect(loadingStyle[1]).toContain('background: transparent');
+    expect(loadingStyle[1]).toContain('box-shadow: none');
+  });
 });
