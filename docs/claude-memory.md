@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-13 Club detail compact records and course plan cards [ui]
+- **Problem**: Club detail member columns, record/history blocks, club info, and course plans were still too loose or too placeholder-like for the new mobile-first club detail UI.
+- **Fix**: Tightened section shortcuts and roster columns, enlarged roster text, added color-coded member/identity pills, changed club info facts to a single inline row, removed the member-count info card, made coach span two slots, restored compact record/history cards without reserved-position copy, and redesigned course plans into separate fixed-weekly/session containers with richer metric cards.
+- **Tests**: Added/updated unit coverage for roster pill classes, compact record/history output, compact info facts, and grouped course-plan rendering.
+
 ### 2026-05-13 Club detail nav and roster readability follow-up [ui]
 - **Problem**: Club detail section buttons became hard to access after scrolling, the first shortcut/tab read as overly highlighted, roster names could fall back to raw UID, and roster text was too small.
 - **Fix**: Added a floating top button on club detail, changed shortcut/member selected styling to neutral instead of yellow-first emphasis, enlarged compact roster typography, and replaced UID-as-name fallback with broader display-name resolution plus `未設定暱稱` / `未命名學員`.

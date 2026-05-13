@@ -807,21 +807,23 @@ Object.assign(App, {
     const sportIcon = sportKey && typeof getSportIconSvg === 'function'
       ? getSportIconSvg(sportKey)
       : (sportKey && typeof SPORT_ICON_EMOJI !== 'undefined' ? (SPORT_ICON_EMOJI[sportKey] || '') : '');
-    const sportInfoHtml = sportKey
-      ? '<div class="td-card-item td-card-item-compact"><span class="td-card-label">\u904b\u52d5\u985e\u578b</span><span class="td-card-value">' + (sportIcon ? sportIcon + ' ' : '') + escapeHTML(sportLabel) + '</span></div>'
-      : '';
+    const emptyValue = I18N.t('teamDetail.notSet');
+    const sportValue = sportKey ? (sportIcon ? sportIcon + ' ' : '') + escapeHTML(sportLabel) : emptyValue;
+    const inlineItems = [
+      ['\u904b\u52d5\u985e\u578b', sportValue],
+      [I18N.t('teamDetail.region'), t.region ? escapeHTML(t.region) : emptyValue],
+      [I18N.t('teamDetail.nationality'), t.nationality ? escapeHTML(t.nationality) : emptyValue],
+      [I18N.t('teamDetail.founded'), t.founded ? escapeHTML(t.founded) : emptyValue],
+    ].map(item => '<div class="td-info-inline-item"><span>' + item[0] + '</span><strong>' + item[1] + '</strong></div>').join('');
+    const leaders = t.leaders || (t.leader ? [t.leader] : []);
     return '<div class="td-card td-section-card" id="team-info-section">'
       + '<div class="td-card-title">' + I18N.t('teamDetail.info') + '</div>'
-      + '<div class="td-card-grid td-card-grid-compact">'
+      + '<div class="td-info-inline-row">' + inlineItems + '</div>'
+      + '<div class="td-card-grid td-card-grid-compact td-info-staff-grid">'
       + '<div class="td-card-item td-card-item-compact"><span class="td-card-label">\u7403\u968a\u7d93\u7406</span><span class="td-card-value">' + (t.captain ? this._userTag(t.captain, 'captain') : I18N.t('teamDetail.notSet')) + '</span></div>'
-      + '<div class="td-card-item td-card-item-compact"><span class="td-card-label">\u9818\u968a</span><span class="td-card-value">' + (() => { const lNames = t.leaders || (t.leader ? [t.leader] : []); return lNames.length ? lNames.map(n => this._teamLeaderTag(n)).join(' ') : I18N.t('teamDetail.notSet'); })() + '</span></div>'
-      + '<div class="td-card-item td-card-item-compact"><span class="td-card-label">' + I18N.t('teamDetail.coach') + '</span><span class="td-card-value">' + ((t.coaches || []).length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : I18N.t('teamDetail.none')) + '</span></div>'
-      + '<div class="td-card-item td-card-item-compact"><span class="td-card-label">' + I18N.t('teamDetail.memberCount') + '</span><span class="td-card-value">' + this._getTeamDetailMemberCount(t) + ' ' + I18N.t('teamDetail.personUnit') + '</span></div>'
-      + sportInfoHtml
-      + '<div class="td-card-item td-card-item-compact"><span class="td-card-label">' + I18N.t('teamDetail.region') + '</span><span class="td-card-value">' + escapeHTML(t.region) + '</span></div>'
-      + (t.nationality ? '<div class="td-card-item td-card-item-compact"><span class="td-card-label">' + I18N.t('teamDetail.nationality') + '</span><span class="td-card-value">' + escapeHTML(t.nationality) + '</span></div>' : '')
-      + (t.founded ? '<div class="td-card-item td-card-item-compact"><span class="td-card-label">' + I18N.t('teamDetail.founded') + '</span><span class="td-card-value">' + escapeHTML(t.founded) + '</span></div>' : '')
-      + (t.contact ? '<div class="td-card-item td-card-item-compact"><span class="td-card-label">' + I18N.t('teamDetail.contact') + '</span><span class="td-card-value">' + escapeHTML(t.contact) + '</span></div>' : '')
+      + '<div class="td-card-item td-card-item-compact"><span class="td-card-label">\u9818\u968a</span><span class="td-card-value">' + (leaders.length ? leaders.map(n => this._teamLeaderTag(n)).join(' ') : I18N.t('teamDetail.notSet')) + '</span></div>'
+      + '<div class="td-card-item td-card-item-compact td-info-coach-card"><span class="td-card-label">' + I18N.t('teamDetail.coach') + '</span><span class="td-card-value">' + ((t.coaches || []).length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : I18N.t('teamDetail.none')) + '</span></div>'
+      + (t.contact ? '<div class="td-card-item td-card-item-compact td-info-contact-card"><span class="td-card-label">' + I18N.t('teamDetail.contact') + '</span><span class="td-card-value">' + escapeHTML(t.contact) + '</span></div>' : '')
       + '</div></div>';
   },
 
@@ -830,21 +832,65 @@ Object.assign(App, {
   },
 
   _buildTeamRecordCard(t, totalGames, winRate) {
+    const wins = Number(t?.wins || 0);
+    const draws = Number(t?.draws || 0);
+    const losses = Number(t?.losses || 0);
+    const safeTotal = Number.isFinite(Number(totalGames)) ? Number(totalGames) : wins + draws + losses;
+    const safeRate = Number.isFinite(Number(winRate)) ? Number(winRate) : 0;
+    const cells = [
+      [I18N.t('teamDetail.totalGames'), safeTotal],
+      [I18N.t('teamDetail.wins'), wins],
+      [I18N.t('teamDetail.draws'), draws],
+      [I18N.t('teamDetail.losses'), losses],
+      [I18N.t('teamDetail.winRate'), safeRate + '%'],
+    ].map(item => '<div class="td-stat td-record-stat"><span class="td-stat-label">' + item[0] + '</span><span class="td-stat-num">' + item[1] + '</span></div>').join('');
     return '<div class="td-card td-section-card" id="team-record-section">'
       + '<div class="td-card-title">' + I18N.t('teamDetail.record') + '</div>'
-      + '<div class="td-minimal-record">'
-      + '<span>' + I18N.t('teamDetail.totalGames') + ' ' + totalGames + '</span>'
-      + '<span>' + I18N.t('teamDetail.winRate') + ' ' + winRate + '%</span>'
-      + '<span>\u8cc7\u6599\u4f4d\u7f6e\u5df2\u9810\u7559</span>'
+      + '<div class="td-stats-row td-record-grid">'
+      + cells
       + '</div></div>';
   },
 
   _buildTeamHistoryCard(t) {
-    const count = Array.isArray(t.history) ? t.history.length : 0;
+    const history = Array.isArray(t.history) ? t.history : [];
+    const rows = history.length ? history.slice(0, 5).map((match, idx) => {
+      const name = match.name || match.title || match.opponent || match.teamName || ('#' + (idx + 1));
+      const date = match.date || match.matchDate || match.time || '';
+      let result = match.result || match.score || '';
+      if (!result && (match.homeScore != null || match.awayScore != null)) {
+        result = String(match.homeScore ?? '-') + ' : ' + String(match.awayScore ?? '-');
+      }
+      const meta = date ? escapeHTML(date) : I18N.t('teamDetail.matchHistory');
+      return '<div class="td-history-row td-history-row-compact">'
+        + '<div class="td-history-main"><span class="td-history-name">' + escapeHTML(name) + '</span><span class="td-history-meta">' + meta + '</span></div>'
+        + '<span class="td-history-result">' + (result ? escapeHTML(result) : '-') + '</span>'
+        + '</div>';
+    }).join('') : '<div class="td-history-empty">\u5c1a\u7121\u8cfd\u4e8b\u7d00\u9304</div>';
     return '<div class="td-card td-section-card" id="team-history-section">'
       + '<div class="td-card-title">' + I18N.t('teamDetail.matchHistory') + '</div>'
-      + '<div class="td-minimal-placeholder">\u8cfd\u4e8b\u7d00\u9304\u4f4d\u7f6e\u5df2\u9810\u7559' + (count ? '\uff0c\u76ee\u524d\u7d2f\u8a08 ' + count + ' \u7b46' : '') + '</div>'
+      + '<div class="td-history-list-compact">' + rows + '</div>'
       + '</div>';
+  },
+
+  _getTeamDetailMemberLabelClass(label) {
+    const value = String(label || '').trim();
+    if (value === 'ALL') return 'label-all';
+    if (value === '\u5b78\u54e1') return 'label-student';
+    return 'label-member';
+  },
+
+  _getTeamDetailMemberRoleClass(role) {
+    const value = String(role || '').trim();
+    if (value === '\u6559\u7df4') return 'role-coach';
+    if (value === '\u9818\u968a') return 'role-leader';
+    if (value === '\u7403\u7d93') return 'role-manager';
+    return 'role-default';
+  },
+
+  _buildTeamDetailMemberRolePills(row) {
+    const roles = Array.from(row.roles || []);
+    if (!roles.length) return '<span class="td-member-role-empty">-</span>';
+    return roles.map(role => '<span class="td-member-role-pill ' + this._getTeamDetailMemberRoleClass(role) + '">' + escapeHTML(role) + '</span>').join('');
   },
 
   _buildTeamMembersCard(t, canManageMembers, memberEditMode, staffIdentity) {
@@ -871,13 +917,15 @@ Object.assign(App, {
       const removeBtn = (canManageMembers && memberEditMode && row.uid && row.isMember && !row.roles.size)
         ? '<button class="td-member-remove-btn" title="\u79fb\u9664\u968a\u54e1" onclick="event.stopPropagation();App.removeTeamMember(this, \'' + t.id + '\',\'' + row.uid + '\')">\u00d7</button>'
         : '';
+      const labelClass = this._getTeamDetailMemberLabelClass(row.label);
+      const roleHtml = this._buildTeamDetailMemberRolePills(row);
       return '<tr>'
         + '<td class="td-member-name-cell"><span class="' + nameClass + '"' + profileClick + '>' + safeName + '</span>' + removeBtn + '</td>'
-        + '<td><span class="td-member-label-pill">' + escapeHTML(row.label) + '</span></td>'
+        + '<td><span class="td-member-label-pill ' + labelClass + '">' + escapeHTML(row.label) + '</span></td>'
         + '<td>' + row.activityCount + '</td>'
         + '<td>' + row.courseCount + '</td>'
         + '<td>' + row.matchCount + '</td>'
-        + '<td class="td-member-identity">' + (row.identity ? escapeHTML(row.identity) : '-') + '</td>'
+        + '<td class="td-member-identity">' + roleHtml + '</td>'
         + '</tr>';
     }).join('') : '<tr><td colspan="6" class="td-member-empty">' + I18N.t('teamDetail.none') + '</td></tr>';
     const editBtn = canManageMembers ? '<button class="outline-btn td-member-edit-btn" onclick="event.stopPropagation();App.toggleTeamMemberEditMode(\'' + t.id + '\')">' + (memberEditMode ? '\u5b8c\u6210' : '\u7de8\u8f2f') + '</button>' : '';

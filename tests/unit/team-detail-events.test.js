@@ -485,25 +485,54 @@ describe('team detail club activity section', () => {
     expect(html).toContain('td-member-table');
     expect(html).toContain('missing-name');
     expect(html).toContain('未設定暱稱');
-    expect(html).toContain('ALL');
-    expect(html).toContain('球經');
-    expect(html).toContain('領隊');
-    expect(html).toContain('教練');
+    expect(html).toContain('td-member-label-pill label-all');
+    expect(html).toContain('td-member-label-pill label-student');
+    expect(html).toContain('td-member-role-pill role-manager');
+    expect(html).toContain('td-member-role-pill role-leader');
+    expect(html).toContain('td-member-role-pill role-coach');
     expect(html).not.toContain('App.toggleProfileSection');
   });
 
-  test('team record and history cards are minimal placeholders', () => {
+  test('team record and history cards render compact real cards without reserved copy', () => {
     const app = makeApp([]);
     loadTeamDetailRender(app, []);
 
     const html = app._buildTeamRecordCard({ wins: 2, draws: 1, losses: 1 }, 4, 50)
-      + app._buildTeamHistoryCard({ history: [{ id: 'm1' }] });
+      + app._buildTeamHistoryCard({ history: [{ id: 'm1', title: '友誼賽', score: '2:1', date: '2026/05/01' }] });
 
-    expect(html).toContain('td-minimal-record');
-    expect(html).toContain('td-minimal-placeholder');
-    expect(html).not.toContain('td-stats-row');
+    expect(html).toContain('td-record-grid');
+    expect(html).toContain('td-record-stat');
+    expect(html).toContain('td-history-list-compact');
+    expect(html).toContain('td-history-row-compact');
+    expect(html).not.toContain('資料位置已預留');
+    expect(html).not.toContain('位置已預留');
     expect(html).not.toContain('profile-collapse-toggle');
     expect(html).not.toContain('App.toggleProfileSection');
+  });
+
+  test('team info displays compact inline facts and gives coach card two slots', () => {
+    const app = makeApp([]);
+    loadTeamDetailRender(app, []);
+    Object.assign(app, {
+      _userTag: (name, role) => '<span class="' + role + '">' + name + '</span>',
+      _teamLeaderTag: (name) => '<span class="leader">' + name + '</span>',
+    });
+
+    const html = app._buildTeamInfoCard({
+      id: 'teamA',
+      captain: 'Captain',
+      leaders: ['Leader'],
+      coaches: ['Coach A', 'Coach B'],
+      sportTag: 'football',
+      region: '台中市',
+      nationality: '台灣',
+      founded: '2026',
+    });
+
+    expect(html).toContain('td-info-inline-row');
+    expect(html).toContain('td-info-inline-item');
+    expect(html).toContain('td-info-coach-card');
+    expect(html).not.toContain('teamDetail.memberCount');
   });
 
   test('team detail cards no longer depend on profile collapse handlers', () => {

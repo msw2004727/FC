@@ -50,21 +50,22 @@ Object.assign(App, {
       p._effectiveCount = enrolledIds.size;
     }));
 
-    container.innerHTML = activePlans.map(p => {
+    const formatMoney = (value) => {
+      const amount = Number(value || 0);
+      return Number.isFinite(amount) && amount > 0 ? 'NT$ ' + amount.toLocaleString() : '未設定';
+    };
+    const renderMetric = (label, value) => '<div class="edu-cp-metric"><span>' + escapeHTML(label) + '</span><strong>' + escapeHTML(value) + '</strong></div>';
+    const renderPlanCard = (p) => {
       const typeLabel = p.planType === 'weekly' ? '固定週期' : '堂數制';
-      // 卡片底色依方案類型
-      const cardBg = p.planType === 'weekly'
-        ? 'background:linear-gradient(135deg,rgba(13,148,136,.08),rgba(13,148,136,.03))'
-        : 'background:linear-gradient(135deg,rgba(124,58,237,.08),rgba(124,58,237,.03))';
       const todayCheck = new Date().toISOString().slice(0, 10);
       const planEnded = p.endDate && p.endDate < todayCheck;
       const statusBadge = planEnded
-        ? '<span class="edu-cp-status" style="background:rgba(148,163,184,.15);color:#94a3b8">已結束</span>'
+        ? '<span class="edu-cp-status edu-cp-status-ended">已結束</span>'
         : p.allowSignup
           ? '<span class="edu-cp-status edu-cp-status-open">招生中</span>'
           : '';
 
-      // 封面圖（右側 1/3，寬圖比例 4:3）
+      // 封面圖（右側保留視覺入口，不影響原方案資料）
       const coverHtml = '<div class="edu-cp-cover">'
         + (p.coverImage ? '<img src="' + escapeHTML(p.coverImage) + '" alt="">' : '<span style="font-size:.72rem;color:var(--text-muted)">無封面</span>')
         + '</div>';
@@ -73,18 +74,23 @@ Object.assign(App, {
       const today = new Date().toISOString().slice(0, 10);
       const isEnded = p.endDate && p.endDate < today;
 
-      // 資訊小卡片（由上至下：日期 > 週幾/堂數 > 費用 > 人數）
-      const chips = [];
-      if (p.startDate) chips.push(escapeHTML(p.startDate) + ' ~ ' + escapeHTML(p.endDate || ''));
+      // 資訊小卡片（期間、週期/堂數、費用、人數）
+      const dateText = p.startDate ? p.startDate + ' ~ ' + (p.endDate || '') : '未設定';
+      let scheduleText = '';
       if (p.planType === 'weekly') {
         const wdNames = (p.weekdays || []).map(d => '週' + this._weekdayLabel(d)).join('、');
-        chips.push(wdNames + (p.timeSlot ? ' ' + escapeHTML(p.timeSlot) : ''));
+        scheduleText = (wdNames || '未設定') + (p.timeSlot ? ' ' + p.timeSlot : '');
       } else {
-        chips.push('共 ' + (p.totalSessions || 0) + ' 堂');
+        scheduleText = '共 ' + (p.totalSessions || 0) + ' 堂';
       }
-      if (p.price) chips.push('$' + p.price.toLocaleString());
-      chips.push((p._effectiveCount || 0) + (p.maxCapacity ? '/' + p.maxCapacity : '') + ' 人');
-      const infoHtml = '<div class="edu-cp-chips">' + chips.map(c => '<span class="edu-cp-chip">' + c + '</span>').join('') + '</div>';
+      const countText = (p._effectiveCount || 0) + (p.maxCapacity ? '/' + p.maxCapacity : '') + ' 人';
+      const infoHtml = '<div class="edu-cp-metrics">'
+        + renderMetric('期間', dateText)
+        + renderMetric(p.planType === 'weekly' ? '週期' : '堂數', scheduleText)
+        + renderMetric('費用', formatMoney(p.price))
+        + renderMetric('人數', countText)
+        + '</div>';
+      const groupHtml = '<span class="edu-cp-group-pill">' + escapeHTML(p.groupName || '未分班') + '</span>';
 
       // 學員報名按鈕
       let signupBtn = '';
@@ -135,22 +141,47 @@ Object.assign(App, {
         ? ' onclick="App.showCourseEnrollmentList(\'' + teamId + '\',\'' + p.id + '\')"'
         : '';
 
-      return '<div class="edu-course-card edu-cp-card-v2" style="' + cardBg + '"' + clickAction + '>'
-        + '<div class="edu-cp-body">'
-        + '<div class="edu-cp-left">'
-        + '<div class="edu-cp-top">'
-        + '<span class="edu-course-name">' + escapeHTML(p.name) + '</span>'
+      return '<div class="edu-course-card edu-cp-card-v3 edu-cp-card-' + (p.planType === 'weekly' ? 'weekly' : 'session') + '" data-course-plan-id="' + escapeHTML(p.id || '') + '"' + clickAction + '>'
+        + '<div class="edu-cp-card-head">'
+        + '<div class="edu-cp-title-wrap">'
+        + '<div class="edu-cp-tags">'
         + '<span class="edu-cp-type-text ' + (p.planType === 'weekly' ? 'edu-cp-type-weekly' : 'edu-cp-type-session') + '">' + typeLabel + '</span>'
-        + statusBadge
+        + statusBadge + groupHtml
         + '</div>'
-        + infoHtml
+        + '<span class="edu-course-name">' + escapeHTML(p.name) + '</span>'
         + '</div>'
+        + '<div class="edu-cp-price">' + formatMoney(p.price) + '</div>'
+        + '</div>'
+        + '<div class="edu-cp-body">'
+        + '<div class="edu-cp-left">' + infoHtml + '</div>'
         + coverHtml
         + '</div>'
         + signupBtn
         + manageHtml
         + '</div>';
-    }).join('');
+    };
+
+    const groupedPlans = [
+      {
+        type: 'weekly',
+        title: '固定週期課程',
+        hint: '固定日期與時段，適合長期訓練。',
+        plans: activePlans.filter(p => p.planType === 'weekly'),
+      },
+      {
+        type: 'session',
+        title: '堂數制課程',
+        hint: '依堂數安排，適合彈性訓練。',
+        plans: activePlans.filter(p => p.planType !== 'weekly'),
+      },
+    ].filter(group => group.plans.length);
+
+    container.innerHTML = '<div class="edu-course-plan-sections">'
+      + groupedPlans.map(group => '<section class="edu-course-plan-section edu-course-plan-section-' + group.type + '">'
+        + '<div class="edu-course-plan-section-head"><div><strong>' + group.title + '</strong><span>' + group.hint + '</span></div><em>' + group.plans.length + ' 個方案</em></div>'
+        + '<div class="edu-course-plan-grid">' + group.plans.map(renderPlanCard).join('') + '</div>'
+        + '</section>').join('')
+      + '</div>';
   },
 
 });

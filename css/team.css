@@ -390,12 +390,12 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-card);
-  padding: .58rem .65rem;
+  padding: .42rem .5rem;
   box-shadow: 0 6px 18px rgba(15, 23, 42, .06);
 }
 .td-section-nav {
   display: flex;
-  gap: .45rem;
+  gap: .32rem;
   overflow-x: auto;
   padding: .02rem;
   scrollbar-width: none;
@@ -405,15 +405,15 @@
 }
 .td-section-nav button {
   flex: 0 0 auto;
-  min-height: 36px;
-  padding: .42rem .82rem;
+  min-height: 32px;
+  padding: .32rem .66rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-full);
   background: var(--bg-card);
   color: var(--text-secondary);
-  font-size: .8rem;
+  font-size: .76rem;
   font-weight: 800;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, .05);
+  box-shadow: 0 2px 7px rgba(15, 23, 42, .045);
 }
 .td-section-nav button:active { transform: scale(.98); }
 .td-floating-top-btn {
@@ -521,6 +521,52 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.td-info-inline-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .3rem;
+  margin-bottom: .42rem;
+}
+.td-info-inline-item {
+  min-width: 0;
+  min-height: 42px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: .12rem;
+  padding: .32rem .34rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+.td-info-inline-item span {
+  color: var(--text-muted);
+  font-size: .6rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.td-info-inline-item strong {
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: .72rem;
+  font-weight: 900;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.td-info-inline-item svg {
+  width: 14px;
+  height: 14px;
+  vertical-align: -.18rem;
+}
+.td-info-staff-grid {
+  margin-top: .1rem;
+}
+.td-info-coach-card,
+.td-info-contact-card {
+  grid-column: span 2;
+}
 .td-member-tags { display: flex; flex-wrap: wrap; gap: .4rem; }
 .td-member-item-wrap { display: inline-flex; align-items: center; gap: .25rem; }
 .td-member-remove-btn {
@@ -600,14 +646,14 @@
 }
 .td-member-table {
   width: 100%;
-  min-width: 620px;
+  min-width: 600px;
   border-collapse: collapse;
   table-layout: fixed;
-  font-size: .8rem;
+  font-size: .86rem;
 }
 .td-member-table th,
 .td-member-table td {
-  padding: .46rem .34rem;
+  padding: .42rem .24rem;
   border-bottom: 1px solid var(--border);
   text-align: center;
   white-space: nowrap;
@@ -615,13 +661,29 @@
 }
 .td-member-table th {
   color: var(--text-muted);
-  font-size: .7rem;
+  font-size: .74rem;
   font-weight: 900;
 }
 .td-member-table th:first-child,
 .td-member-table td:first-child {
-  width: 136px;
+  width: 150px;
   text-align: left;
+}
+.td-member-table th:nth-child(2),
+.td-member-table td:nth-child(2) {
+  width: 56px;
+}
+.td-member-table th:nth-child(3),
+.td-member-table td:nth-child(3),
+.td-member-table th:nth-child(4),
+.td-member-table td:nth-child(4),
+.td-member-table th:nth-child(5),
+.td-member-table td:nth-child(5) {
+  width: 48px;
+}
+.td-member-table th:nth-child(6),
+.td-member-table td:nth-child(6) {
+  width: 146px;
 }
 .td-member-name-cell {
   display: flex;
@@ -632,7 +694,7 @@
 .td-member-name-main {
   display: inline-block;
   min-width: 0;
-  max-width: 108px;
+  max-width: 122px;
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--text-primary);
@@ -652,21 +714,90 @@
   align-items: center;
   justify-content: center;
   min-width: 34px;
-  padding: .1rem .28rem;
+  padding: .11rem .3rem;
   border-radius: var(--radius-full);
-  background: rgba(14, 165, 233, .12);
-  color: #0284c7;
-  font-size: .68rem;
+  font-size: .72rem;
   font-weight: 900;
+}
+.td-member-label-pill.label-all {
+  background: rgba(14, 165, 233, .14);
+  color: #0284c7;
+}
+.td-member-label-pill.label-member {
+  background: rgba(16, 185, 129, .14);
+  color: #059669;
+}
+.td-member-label-pill.label-student {
+  background: rgba(245, 158, 11, .16);
+  color: #b45309;
 }
 .td-member-identity {
   color: var(--text-secondary);
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .18rem;
+  overflow: hidden;
+}
+.td-member-role-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: .11rem .32rem;
+  border-radius: var(--radius-full);
+  font-size: .72rem;
+  line-height: 1.1;
+  font-weight: 900;
+}
+.td-member-role-pill.role-coach {
+  background: rgba(124, 58, 237, .14);
+  color: #7c3aed;
+}
+.td-member-role-pill.role-leader {
+  background: rgba(245, 158, 11, .16);
+  color: #b45309;
+}
+.td-member-role-pill.role-manager {
+  background: rgba(236, 72, 153, .13);
+  color: #db2777;
+}
+.td-member-role-pill.role-default {
+  background: rgba(100, 116, 139, .12);
+  color: #64748b;
+}
+.td-member-role-empty {
+  color: var(--text-muted);
   font-weight: 800;
 }
 .td-member-empty {
   padding: .7rem .4rem;
   color: var(--text-muted);
   text-align: center !important;
+}
+.td-record-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: .34rem;
+  padding: .05rem 0;
+}
+.td-record-stat {
+  min-width: 0;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  padding: .38rem .25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+.td-record-stat .td-stat-label {
+  font-size: .62rem;
+  font-weight: 900;
+}
+.td-record-stat .td-stat-num {
+  font-size: 1rem;
 }
 .td-minimal-record {
   display: flex;
@@ -696,6 +827,58 @@
 .td-history-row:last-child { border-bottom: none; }
 .td-history-name { font-weight: 600; color: var(--text-primary); }
 .td-history-result { color: var(--text-secondary); font-size: .78rem; }
+.td-history-list-compact {
+  display: flex;
+  flex-direction: column;
+  gap: .32rem;
+}
+.td-history-row-compact {
+  gap: .5rem;
+  padding: .42rem .5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+.td-history-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .08rem;
+}
+.td-history-row-compact .td-history-name {
+  font-size: .84rem;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.td-history-meta {
+  color: var(--text-muted);
+  font-size: .7rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.td-history-row-compact .td-history-result {
+  flex: 0 0 auto;
+  padding: .14rem .38rem;
+  border-radius: var(--radius-full);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: .76rem;
+  font-weight: 900;
+}
+.td-history-empty {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-size: .82rem;
+  font-weight: 800;
+  padding: .7rem;
+  text-align: center;
+}
 .td-edu-unified .td-card-title {
   margin-bottom: .55rem;
 }
@@ -1066,6 +1249,13 @@
 /* Dark theme */
 [data-theme="dark"] .td-member-role.captain { background: rgba(251,191,36,.18); color: #fcd34d; }
 [data-theme="dark"] .td-member-role.coach { background: rgba(124,58,237,.18); color: #c4b5fd; }
+[data-theme="dark"] .td-member-label-pill.label-all { background: rgba(56, 189, 248, .18); color: #7dd3fc; }
+[data-theme="dark"] .td-member-label-pill.label-member { background: rgba(52, 211, 153, .18); color: #6ee7b7; }
+[data-theme="dark"] .td-member-label-pill.label-student { background: rgba(251, 191, 36, .18); color: #fcd34d; }
+[data-theme="dark"] .td-member-role-pill.role-coach { background: rgba(167, 139, 250, .18); color: #c4b5fd; }
+[data-theme="dark"] .td-member-role-pill.role-leader { background: rgba(251, 191, 36, .18); color: #fcd34d; }
+[data-theme="dark"] .td-member-role-pill.role-manager { background: rgba(244, 114, 182, .18); color: #f9a8d4; }
+[data-theme="dark"] .td-member-role-pill.role-default { background: rgba(148, 163, 184, .18); color: #cbd5e1; }
 [data-theme="dark"] #page-team-detail {
   --td-club-accent: #fbbf24;
   --td-club-accent-strong: #f59e0b;
