@@ -195,7 +195,12 @@ Object.assign(App, {
 
   _renderTeamEvents(teamId) {
     const teamEvents = this._getTeamFutureEvents(teamId);
-    if (!teamEvents.length) return '';
+    if (!teamEvents.length) {
+      return '<div class="td-card td-section-card" id="team-events-section">' +
+        '<div class="td-card-title">\u4ff1\u6a02\u90e8\u6d3b\u52d5 <span style="font-size:.72rem;color:var(--text-muted);font-weight:400">(0)</span></div>' +
+        '<div class="td-empty-state">\u76ee\u524d\u6c92\u6709\u5373\u5c07\u958b\u59cb\u7684\u4ff1\u6a02\u90e8\u6d3b\u52d5</div>' +
+        '</div>';
+    }
 
     const expanded = !!this._teamEventsExpandedByTeam[teamId];
     const visibleEvents = expanded ? teamEvents : teamEvents.slice(0, 10);
@@ -205,7 +210,7 @@ Object.assign(App, {
       ? `<button class="td-team-events-more" onclick="event.stopPropagation();App.toggleTeamEventsExpanded('${teamId}')">${expanded ? '\u6536\u5408' : `\u67e5\u770b\u66f4\u591a${hiddenCount > 0 ? `\uff08\u9084\u6709 ${hiddenCount} \u7b46\uff09` : ''}`}</button>`
       : '';
 
-    return `<div class="td-card" id="team-events-section">
+    return `<div class="td-card td-section-card" id="team-events-section">
       <div class="td-card-title">\u4ff1\u6a02\u90e8\u6d3b\u52d5 <span style="font-size:.72rem;color:var(--text-muted);font-weight:400">(${teamEvents.length})</span></div>
       <div class="td-team-events-list">${cards}</div>
       ${moreButton}
@@ -371,7 +376,7 @@ Object.assign(App, {
     }
 
     return `
-      <div class="td-card">
+      <div class="td-card td-section-card">
         <div class="td-card-title">${I18N.t('teamDetail.feed')} <span style="font-size:.72rem;color:var(--text-muted);font-weight:400">(${feed.length})</span></div>
         ${postFormHtml}
         ${postsHtml}
@@ -382,6 +387,85 @@ Object.assign(App, {
   // ══════════════════════════════════
   //  Team Detail Body HTML — Helpers
   // ══════════════════════════════════
+
+  _getTeamDetailMemberCount(t) {
+    if (!t) return 0;
+    if (typeof this._calcTeamMemberCount === 'function') return this._calcTeamMemberCount(t.id);
+    return (ApiService.getAdminUsers?.() || []).filter(u => u.teamId === t.id).length;
+  },
+
+  _getTeamDetailEventCount(t) {
+    if (!t) return 0;
+    try {
+      return typeof this._getTeamFutureEvents === 'function' ? this._getTeamFutureEvents(t.id).length : 0;
+    } catch (_) {
+      return 0;
+    }
+  },
+
+  _buildTeamDetailActionBar(t) {
+    const u = ApiService.getCurrentUser?.();
+    const n = u?.displayName || '';
+    const isCaptainCoach = (t.captain === n || (t.coaches || []).includes(n));
+    const memberCanInvite = t.allowMemberInvite !== false;
+    const canInvite = isCaptainCoach || (this._isTeamMember(t.id) && memberCanInvite);
+    const isMember = this._isTeamMember(t.id);
+    const primary = isMember
+      ? '<button class="td-action-main td-action-danger" onclick="App.handleLeaveTeam(\'' + t.id + '\')">' + I18N.t('teamDetail.leaveTeam') + '</button>'
+      : '<button class="td-action-main" onclick="App.handleJoinTeam(\'' + t.id + '\')">' + I18N.t('teamDetail.applyJoin') + '</button>';
+    const share = '<button class="td-action-secondary" onclick="App.shareTeam(\'' + t.id + '\')">\u5206\u4eab</button>';
+    const contact = t.captain ? '<button class="td-action-secondary" onclick="App.showUserProfile(\'' + escapeHTML(t.captain) + '\')">' + I18N.t('teamDetail.contactCaptain') + '</button>' : '';
+    const invite = canInvite ? '<button class="td-action-secondary" onclick="App.showTeamInviteQR(\'' + t.id + '\')">' + I18N.t('teamDetail.inviteQR') + '</button>' : '';
+    const inviteToggle = isCaptainCoach
+      ? '<div class="td-action-toggle"><span>' + I18N.t('teamDetail.memberCanInvite') + '</span><label class="toggle-switch" style="margin:0;transform:scale(.82)"><input type="checkbox" ' + (memberCanInvite ? 'checked' : '') + ' onchange="App.toggleMemberInvite(\'' + t.id + '\',this.checked)"><span class="toggle-slider"></span></label></div>'
+      : '';
+    return '<div class="td-action-panel">' +
+      '<div class="td-action-row">' + primary + share + '</div>' +
+      (contact || invite ? '<div class="td-action-row td-action-row-secondary">' + contact + invite + '</div>' : '') +
+      inviteToggle +
+      '</div>';
+  },
+
+  _buildTeamDetailSectionNav(t) {
+    const eduItem = t.type === 'education'
+      ? '<button type="button" onclick="document.getElementById(\'edu-detail-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u8ab2\u7a0b</button>'
+      : '';
+    return '<div class="td-section-nav" aria-label="club detail sections">' +
+      '<button type="button" onclick="document.getElementById(\'team-events-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u6d3b\u52d5</button>' +
+      eduItem +
+      '<button type="button" onclick="document.getElementById(\'team-feed-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u52d5\u614b</button>' +
+      '<button type="button" onclick="document.getElementById(\'team-info-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u8cc7\u8a0a</button>' +
+      '<button type="button" onclick="document.getElementById(\'team-members-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u968a\u4f0d</button>' +
+      '</div>';
+  },
+
+  _buildTeamDetailOverview(t, totalGames, winRate) {
+    const memberCount = this._getTeamDetailMemberCount(t);
+    const coachCount = Array.isArray(t.coaches) ? t.coaches.length : 0;
+    const eventCount = this._getTeamDetailEventCount(t);
+    return '<div class="td-overview-grid">' +
+      '<div class="td-overview-stat"><span class="td-overview-icon">\u4eba</span><span class="td-overview-label">\u6210\u54e1</span><strong>' + memberCount + '</strong></div>' +
+      '<div class="td-overview-stat"><span class="td-overview-icon">\u6559</span><span class="td-overview-label">\u6559\u7df4</span><strong>' + coachCount + '</strong></div>' +
+      '<div class="td-overview-stat"><span class="td-overview-icon">\u65e5</span><span class="td-overview-label">\u6d3b\u52d5</span><strong>' + eventCount + '</strong></div>' +
+      '<div class="td-overview-stat"><span class="td-overview-icon">\u52dd</span><span class="td-overview-label">\u52dd\u7387</span><strong>' + winRate + '%</strong><small>' + totalGames + ' ' + I18N.t('teamDetail.totalGames') + '</small></div>' +
+      '</div>';
+  },
+
+  _buildTeamEducationSection(t) {
+    if (!t || t.type !== 'education') return '';
+    return '<div class="td-card td-section-card td-edu-unified" id="edu-detail-section">' +
+      '<div class="td-card-title td-card-title-row"><span>\u8ab2\u7a0b\u8207\u5b78\u54e1</span></div>' +
+      '<div class="edu-tab-row td-edu-tab-row">' +
+      '<div class="tab-bar" id="edu-detail-tabs" style="flex:0 0 auto">' +
+      '<button class="tab active" data-edutab="course" onclick="App.switchEduTab(\'course\')">\u8ab2\u7a0b</button>' +
+      '<button class="tab" data-edutab="group" onclick="App.switchEduTab(\'group\')">\u73ed\u7d1a</button>' +
+      '<span class="edu-tab-mine-wrap"><button class="tab" data-edutab="mine" onclick="App.switchEduTab(\'mine\')">\u6211\u7684</button><span id="edu-mine-badge" class="edu-tab-badge"></span></span>' +
+      '</div>' +
+      '<span id="edu-mine-status" class="edu-mine-status"></span>' +
+      '</div>' +
+      '<div id="edu-detail-tab-content" class="edu-tab-content td-edu-tab-content"></div>' +
+      '</div>';
+  },
 
   _buildTeamInfoCard(t) {
     const sportKey = typeof getSportKeySafe === 'function'
@@ -396,7 +480,7 @@ Object.assign(App, {
     const sportInfoHtml = sportKey
       ? '<div class="td-card-item"><span class="td-card-label">\u904b\u52d5\u985e\u578b</span><span class="td-card-value">' + (sportIcon ? sportIcon + ' ' : '') + escapeHTML(sportLabel) + '</span></div>'
       : '';
-    return '<div class="td-card">'
+    return '<div class="td-card td-section-card" id="team-info-section">'
       + '<div class="td-card-title">' + I18N.t('teamDetail.info') + '</div>'
       + '<div class="td-card-grid">'
       + '<div class="td-card-item"><span class="td-card-label">\u7403\u968a\u7d93\u7406</span><span class="td-card-value">' + (t.captain ? this._userTag(t.captain, 'captain') : I18N.t('teamDetail.notSet')) + '</span></div>'
@@ -412,11 +496,11 @@ Object.assign(App, {
   },
 
   _buildTeamBioCard(t) {
-    return t.bio ? '<div class="td-card"><div class="td-card-title" style="text-align:center">' + I18N.t('teamDetail.bio') + '</div><div style="font-size:.82rem;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;word-break:break-word">' + escapeHTML(t.bio) + '</div></div>' : '';
+    return t.bio ? '<div class="td-card td-section-card"><div class="td-card-title" style="text-align:center">' + I18N.t('teamDetail.bio') + '</div><div style="font-size:.82rem;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;word-break:break-word">' + escapeHTML(t.bio) + '</div></div>' : '';
   },
 
   _buildTeamRecordCard(t, totalGames, winRate) {
-    return '<div class="td-card">'
+    return '<div class="td-card td-section-card" id="team-record-section">'
       + '<div class="td-card-title">' + I18N.t('teamDetail.record') + '</div>'
       + '<div class="td-stats-row">'
       + '<div class="td-stat"><span class="td-stat-num" style="color:var(--success)">' + (t.wins || 0) + '</span><span class="td-stat-label">' + I18N.t('teamDetail.wins') + '</span></div>'
@@ -434,7 +518,7 @@ Object.assign(App, {
 
   _buildTeamHistoryCard(t) {
     const historyRows = (t.history || []).map(h => '<div class="td-history-row"><span class="td-history-name">' + escapeHTML(h.name) + '</span><span class="td-history-result">' + escapeHTML(h.result) + '</span></div>').join('') || '<div style="font-size:.82rem;color:var(--text-muted);padding:.3rem">' + I18N.t('teamDetail.noHistory') + '</div>';
-    return '<div class="td-card"><div class="td-card-title profile-collapse-toggle" onclick="App.toggleTeamDetailSection(this,\'teamMatch\')"><span>' + I18N.t('teamDetail.matchHistory') + '</span><span class="profile-collapse-arrow">\u25b6</span></div><div class="profile-collapse-content" style="display:none">' + historyRows + '</div></div>';
+    return '<div class="td-card td-section-card"><div class="td-card-title profile-collapse-toggle" onclick="App.toggleTeamDetailSection(this,\'teamMatch\')"><span>' + I18N.t('teamDetail.matchHistory') + '</span><span class="profile-collapse-arrow">\u25b6</span></div><div class="profile-collapse-content" style="display:none">' + historyRows + '</div></div>';
   },
 
   _buildTeamMembersCard(t, canManageMembers, memberEditMode, staffIdentity) {
@@ -450,7 +534,7 @@ Object.assign(App, {
       }).join('');
     })();
     const editBtn = canManageMembers ? '<button class="outline-btn td-member-edit-btn" onclick="event.stopPropagation();App.toggleTeamMemberEditMode(\'' + t.id + '\')">' + (memberEditMode ? '\u5b8c\u6210' : '\u7de8\u8f2f') + '</button>' : '';
-    return '<div class="td-card"><div id="team-members-toggle" class="td-card-title td-card-title-row profile-collapse-toggle" onclick="App.toggleTeamDetailSection(this,\'teamMembers\')"><span>' + I18N.t('teamDetail.memberList') + '</span><span class="td-card-title-right">' + editBtn + '<span class="profile-collapse-arrow">\u25b6</span></span></div><div class="profile-collapse-content td-member-tags" style="display:none">' + membersContent + '</div></div>';
+    return '<div class="td-card td-section-card" id="team-members-section"><div id="team-members-toggle" class="td-card-title td-card-title-row profile-collapse-toggle" onclick="App.toggleTeamDetailSection(this,\'teamMembers\')"><span>' + I18N.t('teamDetail.memberList') + '</span><span class="td-card-title-right">' + editBtn + '<span class="profile-collapse-arrow">\u25b6</span></span></div><div class="profile-collapse-content td-member-tags" style="display:none">' + membersContent + '</div></div>';
   },
 
   // ══════════════════════════════════
@@ -458,38 +542,19 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   _buildTeamDetailBodyHtml(t, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate) {
-    const actionCards = (() => {
-      const u = ApiService.getCurrentUser?.();
-      const n = u?.displayName || '';
-      const isCaptainCoach = (t.captain === n || (t.coaches || []).includes(n));
-      const memberCanInvite = t.allowMemberInvite !== false;
-      const canInvite = isCaptainCoach || (this._isTeamMember(t.id) && memberCanInvite);
-      const isMember = this._isTeamMember(t.id);
-      let html = '';
-      if (canInvite || isCaptainCoach) {
-        html += '<div class="td-card" style="padding:.6rem .8rem"><div style="display:flex;align-items:center;flex-wrap:wrap;gap:.5rem">';
-        if (canInvite) html += '<button class="outline-btn" onclick="App.showTeamInviteQR(\'' + t.id + '\')">' + I18N.t('teamDetail.inviteQR') + '</button>';
-        if (isCaptainCoach) html += '<div style="display:inline-flex;align-items:center;gap:.35rem"><span style="font-size:.72rem;color:var(--text-muted)">' + I18N.t('teamDetail.memberCanInvite') + '</span><label class="toggle-switch" style="margin:0;transform:scale(.8)"><input type="checkbox" ' + (memberCanInvite ? 'checked' : '') + ' onchange="App.toggleMemberInvite(\'' + t.id + '\',this.checked)"><span class="toggle-slider"></span></label></div>';
-        html += '</div></div>';
-      }
-      html += '<div class="td-card" style="padding:.6rem .8rem"><div style="display:flex;align-items:center;flex-wrap:wrap;gap:.5rem">';
-      if (isMember) {
-        html += '<button style="background:var(--danger);color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;font-weight:600;cursor:pointer" onclick="App.handleLeaveTeam(\'' + t.id + '\')">' + I18N.t('teamDetail.leaveTeam') + '</button>';
-      } else {
-        html += '<button class="primary-btn" onclick="App.handleJoinTeam(\'' + t.id + '\')">' + I18N.t('teamDetail.applyJoin') + '</button>';
-      }
-      if (t.captain) html += '<button class="outline-btn" onclick="App.showUserProfile(\'' + escapeHTML(t.captain) + '\')">' + I18N.t('teamDetail.contactCaptain') + '</button>';
-      html += '</div></div>';
-      return html;
-    })();
-    return this._buildTeamInfoCard(t)
+    return '<div class="td-detail-shell">'
+      + this._buildTeamDetailActionBar(t)
+      + this._buildTeamDetailSectionNav(t)
+      + this._buildTeamDetailOverview(t, totalGames, winRate)
+      + this._renderTeamEvents(t.id)
+      + this._buildTeamEducationSection(t)
+      + '<div id="team-feed-section">' + this._renderTeamFeed(t.id) + '</div>'
+      + this._buildTeamInfoCard(t)
       + this._buildTeamBioCard(t)
       + this._buildTeamRecordCard(t, totalGames, winRate)
       + this._buildTeamHistoryCard(t)
       + this._buildTeamMembersCard(t, canManageMembers, memberEditMode, staffIdentity)
-      + '<div id="team-feed-section">' + this._renderTeamFeed(t.id) + '</div>'
-      + this._renderTeamEvents(t.id)
-      + actionCards;
+      + '</div>';
   },
 
   // ══════════════════════════════════

@@ -11,6 +11,33 @@ Object.assign(App, {
   _eduDetailTeamId: null,
   _eduActiveTab: 'course',
 
+  _initEduClubDetailSection(teamId) {
+    this._eduDetailTeamId = teamId;
+    this._eduActiveTab = 'course';
+
+    document.querySelectorAll('#edu-detail-tabs .tab').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.edutab === 'course');
+    });
+
+    this._renderEduTabContent(teamId);
+
+    if (typeof this._bindSwipeTabs === 'function') {
+      this._bindSwipeTabs('edu-detail-tab-content', 'edu-detail-tabs',
+        this.switchEduTab,
+        (btn) => btn.dataset.edutab
+      );
+    }
+
+    this._loadEduStudents(teamId).then(() => {
+      if (this._eduDetailTeamId === teamId) {
+        this._renderEduMemberSection(teamId);
+        this.renderEduGroupList(teamId);
+        this._updateEduMineBadge(teamId);
+      }
+    });
+    this._startEduStudentsListener(teamId);
+  },
+
   /**
    * 為教育型俱樂部建構詳情頁 body HTML
    */
@@ -23,6 +50,19 @@ Object.assign(App, {
 
     this._eduDetailTeamId = teamId;
     this._eduActiveTab = 'course';
+
+    if (typeof this._buildTeamDetailBodyHtml === 'function') {
+      const canManageMembers = typeof this._canManageTeamMembers === 'function' ? this._canManageTeamMembers(team) : false;
+      const memberEditMode = !!this._teamMemberEditModeByTeam?.[team.id];
+      const staffIdentity = typeof this._getTeamStaffIdentity === 'function'
+        ? this._getTeamStaffIdentity(team)
+        : { keys: new Set(), names: new Set() };
+      const totalGames = (team.wins || 0) + (team.draws || 0) + (team.losses || 0);
+      const winRate = totalGames > 0 ? Math.round((team.wins || 0) / totalGames * 100) : 0;
+      bodyEl.innerHTML = this._buildTeamDetailBodyHtml(team, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate);
+      this._initEduClubDetailSection(teamId);
+      return;
+    }
 
     // ── 基本資訊卡 ──
     const acceptingStudents = team.eduSettings && team.eduSettings.acceptingStudents !== false;
@@ -96,9 +136,11 @@ Object.assign(App, {
 
     const isStaff = this.isEduClubStaff(teamId);
     const tab = this._eduActiveTab || 'course';
+    const inlineUnified = !!container.closest?.('#edu-detail-section');
+    const panelClass = inlineUnified ? 'td-edu-panel' : 'td-card';
 
     if (tab === 'course') {
-      container.innerHTML = '<div class="td-card">'
+      container.innerHTML = '<div class="' + panelClass + '">'
         + '<div class="td-card-title td-card-title-row">'
         + '<span>課程方案<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'course\')" title="說明">?</button></span>'
         + (isStaff ? '<button class="primary-btn small" onclick="App.showEduCoursePlanForm(\'' + teamId + '\')">＋ 新增</button>' : '')
@@ -109,7 +151,7 @@ Object.assign(App, {
         this.renderEduCoursePlanList(teamId, isStaff);
       }
     } else if (tab === 'group') {
-      container.innerHTML = '<div class="td-card">'
+      container.innerHTML = '<div class="' + panelClass + '">'
         + '<div class="td-card-title td-card-title-row">'
         + '<span>學員分組<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'group\')" title="說明">?</button></span>'
         + (isStaff ? '<button class="primary-btn small" onclick="App.showEduGroupForm(\'' + teamId + '\')">＋ 新增</button>' : '')
@@ -130,6 +172,8 @@ Object.assign(App, {
     const container = document.getElementById('edu-member-section');
     if (!container) return;
 
+    const inlineUnified = !!container.closest?.('#edu-detail-section');
+    const panelClass = inlineUnified ? 'td-edu-panel' : 'td-card';
     const isStaff = this.isEduClubStaff(teamId);
 
     const curUser = ApiService.getCurrentUser();
@@ -138,7 +182,7 @@ Object.assign(App, {
     const hasPending = myStudents.some(s => s.enrollStatus === 'pending');
 
     if (myStudents.length === 0) {
-      container.innerHTML = '<div class="td-card" style="padding:.6rem .8rem">'
+      container.innerHTML = '<div class="' + panelClass + '" style="padding:.6rem .8rem">'
         + '<button class="primary-btn" style="width:100%" onclick="App.showEduStudentApply(\'' + teamId + '\')">申請加入（本人/代理）</button>'
         + '</div>';
       return;
@@ -153,7 +197,7 @@ Object.assign(App, {
     // 課程標籤顏色
     const courseColors = ['#7c3aed', '#0d9488', '#ec4899', '#f59e0b', '#3b82f6', '#ef4444'];
 
-    let html = '<div class="td-card">'
+    let html = '<div class="' + panelClass + '">'
       + '<div class="td-card-title td-card-title-row">'
       + '<span>我們這一家<button class="edu-info-btn" onclick="App._showEduInfoPopup(\'member\')" title="說明">?</button></span>'
       + '</div>';

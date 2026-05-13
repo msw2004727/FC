@@ -52,6 +52,67 @@ function renderWithTeam(team) {
 }
 
 describe('renderEduClubDetail info card', () => {
+  test('uses unified team detail layout when the shared builder is available', () => {
+    const bodyEl = { innerHTML: '' };
+    const contentEl = { innerHTML: '', closest: jest.fn(() => ({})) };
+    const tabEl = {
+      dataset: { edutab: 'course' },
+      classList: { toggle: jest.fn() },
+    };
+    const team = {
+      id: 'edu-unified-1',
+      type: 'education',
+      name: 'Unified Edu Club',
+      coaches: [],
+    };
+    const app = {
+      _buildTeamDetailBodyHtml: jest.fn(() => '<div class="td-detail-shell"><div id="edu-detail-tabs"><button class="tab" data-edutab="course"></button></div><div id="edu-detail-tab-content"></div></div>'),
+      _canManageTeamMembers: jest.fn(() => false),
+      _getTeamStaffIdentity: jest.fn(() => ({ keys: new Set(), names: new Set() })),
+      _teamMemberEditModeByTeam: {},
+      isEduClubStaff: jest.fn(() => false),
+      renderEduCoursePlanList: jest.fn(),
+      renderEduGroupList: jest.fn(),
+      _loadEduStudents: jest.fn(() => Promise.resolve()),
+      _startEduStudentsListener: jest.fn(),
+      _updateEduMineBadge: jest.fn(),
+      _bindSwipeTabs: jest.fn(),
+    };
+    const context = {
+      App: app,
+      ApiService: {
+        getTeam: jest.fn(() => team),
+        getCurrentUser: jest.fn(() => null),
+      },
+      document: {
+        getElementById: jest.fn((id) => {
+          if (id === 'team-detail-body') return bodyEl;
+          if (id === 'edu-detail-tab-content') return contentEl;
+          return null;
+        }),
+        querySelectorAll: jest.fn((selector) => selector === '#edu-detail-tabs .tab' ? [tabEl] : []),
+      },
+      escapeHTML,
+      Promise,
+    };
+
+    vm.createContext(context);
+    vm.runInContext(source, context, { filename: 'edu-detail-render.js' });
+    context.App.renderEduClubDetail(team.id);
+
+    expect(app._buildTeamDetailBodyHtml).toHaveBeenCalledWith(
+      team,
+      false,
+      false,
+      { keys: expect.any(Set), names: expect.any(Set) },
+      0,
+      0
+    );
+    expect(bodyEl.innerHTML).toContain('td-detail-shell');
+    expect(contentEl.innerHTML).toContain('edu-course-plan-list');
+    expect(app._startEduStudentsListener).toHaveBeenCalledWith(team.id);
+  });
+
   test('shows education club leaders between manager and coach', () => {
     const html = renderWithTeam({
       id: 'edu-team-1',

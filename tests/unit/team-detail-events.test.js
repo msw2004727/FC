@@ -152,7 +152,7 @@ describe('team detail club activity section', () => {
     expect(html).not.toContain('Blocked Event');
   });
 
-  test('places club activity after the team feed section', () => {
+  test('places club activity before the team feed section in the unified detail layout', () => {
     const app = makeApp([]);
     loadTeamDetailRender(app, []);
     Object.assign(app, {
@@ -174,8 +174,8 @@ describe('team detail club activity section', () => {
       0
     );
 
-    expect(html.indexOf('team-feed-section')).toBeGreaterThan(-1);
-    expect(html.indexOf('club events')).toBeGreaterThan(html.indexOf('team-feed-section'));
+    expect(html.indexOf('<div id="team-feed-section">')).toBeGreaterThan(-1);
+    expect(html.indexOf('club events')).toBeLessThan(html.indexOf('<div id="team-feed-section">'));
   });
 
   test('team feed publish button passes itself for loading feedback', () => {

@@ -163,11 +163,7 @@ Object.assign(App, {
       const canManageMembers = this._canManageTeamMembers(t);
       const memberEditMode = !!this._teamMemberEditModeByTeam[t.id];
       const staffIdentity = this._getTeamStaffIdentity(t);
-      if (t.type === 'education') {
-        nodes.title.innerHTML = '<span class="edu-type-badge" style="margin-right:.35rem;vertical-align:middle">教學</span>' + escapeHTML(t.name);
-      } else {
-        nodes.title.textContent = t.name;
-      }
+      nodes.title.textContent = t.name;
       nodes.nameEn.textContent = t.nameEn || '';
 
       const imgEl = nodes.image;
@@ -177,7 +173,7 @@ Object.assign(App, {
       const detailImage = this._getTeamImageUrl?.(t, 'cover') || t.image || '';
       imgEl.style.position = 'relative';
       if (detailImage) {
-        imgEl.innerHTML = detailSportBadge + '<img src="' + escapeHTML(detailImage) + '" loading="lazy" style="width:100%;height:100%;object-fit:cover"><span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
+        imgEl.innerHTML = detailSportBadge + '<img src="' + escapeHTML(detailImage) + '" loading="eager" decoding="async" fetchpriority="high" style="width:100%;height:100%;object-fit:cover"><span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
       } else {
         imgEl.innerHTML = detailSportBadge + '\u7403\u968a\u5c01\u9762 800 \u00d7 300<span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
       }
@@ -185,16 +181,13 @@ Object.assign(App, {
       const totalGames = (t.wins || 0) + (t.draws || 0) + (t.losses || 0);
       const winRate = totalGames > 0 ? Math.round((t.wins || 0) / totalGames * 100) : 0;
 
-      // 教育型俱樂部委派 edu-detail-render.js 渲染（Phase 4 §10.2 type handler）
-      const typeHandler = this._getTeamTypeHandler(t.type);
-      if (typeHandler.detailRenderer) {
-        await typeHandler.detailRenderer(id);
-      } else {
-        // 非教育型：載入 feed subcollection 資料
-        if (typeof this._loadTeamFeed === 'function') {
-          await this._loadTeamFeed(id);
-        }
-        nodes.body.innerHTML = this._buildTeamDetailBodyHtml(t, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate);
+      // 載入 feed subcollection 資料；教育型也共用同一套詳細頁 UI。
+      if (typeof this._loadTeamFeed === 'function') {
+        await this._loadTeamFeed(id);
+      }
+      nodes.body.innerHTML = this._buildTeamDetailBodyHtml(t, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate);
+      if (t.type === 'education' && typeof this._initEduClubDetailSection === 'function') {
+        this._initEduClubDetailSection(id);
       }
 
       // ── 內容已渲染就緒，切換顯示頁面（避免空白模板閃現）──
