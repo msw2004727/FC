@@ -17,10 +17,12 @@ describe('team sport icon rendering', () => {
     expect(source).not.toContain('SPORT_ICON_EMOJI[t.sportTag]');
   });
 
-  test('team detail cover badge uses shared SVG sport icon helper', () => {
+  test('team detail cover intentionally omits sport badge overlays', () => {
     const source = readProjectFile('js/modules/team/team-detail.js');
 
-    expect(source).toContain('getSportIconSvg(t.sportTag)');
+    expect(source).not.toContain('getSportIconSvg(t.sportTag)');
     expect(source).not.toContain('detailSportEmoji');
+    expect(source).not.toContain('tc-sport-badge');
+    expect(source).not.toContain('td-cover-ribbon');
   });
 });

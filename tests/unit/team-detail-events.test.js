@@ -51,12 +51,12 @@ describe('team detail club activity section', () => {
     vm.runInNewContext(source, context);
   }
 
-  function loadTeamDetailCore(app) {
+  function loadTeamDetailCore(app, documentOverride) {
     const context = {
       App: app,
       ApiService: {},
       I18N: { t: (key) => key },
-      document: {
+      document: documentOverride || {
         getElementById: () => null,
       },
       window: {},
@@ -110,6 +110,7 @@ describe('team detail club activity section', () => {
       _hasEventGenderRestriction: () => false,
       _isEventVisibleToUser: (e) => e.id !== 'blocked',
       _canManageEvent: () => false,
+      _canCreateActivityByPermission: () => false,
       _isTeamMember: () => false,
     };
   }
@@ -152,6 +153,33 @@ describe('team detail club activity section', () => {
     expect(html).not.toContain('Blocked Event');
   });
 
+  test('shows club activity create button only when viewer can create activities', () => {
+    const event = {
+      id: 'e01',
+      title: 'Club Event',
+      teamOnly: true,
+      creatorTeamIds: ['teamA'],
+      status: 'open',
+      date: '2099/01/01 19:00',
+      max: 20,
+    };
+    const allowedApp = makeApp([event]);
+    allowedApp._canCreateActivityByPermission = () => true;
+    loadTeamDetailRender(allowedApp, [event]);
+
+    const allowedHtml = allowedApp._renderTeamEvents('teamA');
+    expect(allowedHtml).toContain('\u65b0\u589e\u6d3b\u52d5');
+    expect(allowedHtml).toContain("App.openTeamDetailCreateEvent('teamA')");
+
+    const deniedApp = makeApp([]);
+    deniedApp._canCreateActivityByPermission = () => false;
+    loadTeamDetailRender(deniedApp, []);
+
+    const deniedHtml = deniedApp._renderTeamEvents('teamA');
+    expect(deniedHtml).not.toContain('\u65b0\u589e\u6d3b\u52d5');
+    expect(deniedHtml).not.toContain('openTeamDetailCreateEvent');
+  });
+
   test('places club activity before the team feed section in the unified detail layout', () => {
     const app = makeApp([]);
     loadTeamDetailRender(app, []);
@@ -184,6 +212,71 @@ describe('team detail club activity section', () => {
 
     expect(app._buildTeamEducationSection({ id: 'teamA', type: 'general' })).toContain('id="edu-detail-section"');
     expect(app._buildTeamEducationSection({ id: 'teamB', type: 'education' })).toContain('id="edu-detail-section"');
+  });
+
+  test('teaching tag controls course and student section visibility', () => {
+    const app = makeApp([]);
+    loadTeamDetailRender(app, []);
+    Object.assign(app, {
+      _buildTeamEducationSection: () => '<section id="edu-detail-section">courses</section>',
+      _buildTeamInfoCard: () => '',
+      _buildTeamBioCard: () => '',
+      _buildTeamRecordCard: () => '',
+      _buildTeamHistoryCard: () => '',
+      _buildTeamMembersCard: () => '',
+      _renderTeamFeed: () => '',
+      _renderTeamEvents: () => '',
+    });
+
+    const disabledHtml = app._buildTeamDetailBodyHtml(
+      { id: 'teamA', captain: '', coaches: [], teachingEnabled: false },
+      false,
+      false,
+      { keys: new Set(), names: new Set() },
+      0,
+      0
+    );
+    const disabledNav = app._buildTeamDetailSectionNav({ id: 'teamA', teachingEnabled: false });
+    expect(disabledHtml).not.toContain('edu-detail-section');
+    expect(disabledNav).not.toContain('edu-detail-section');
+
+    const enabledHtml = app._buildTeamDetailBodyHtml(
+      { id: 'teamA', captain: '', coaches: [], teachingEnabled: true },
+      false,
+      false,
+      { keys: new Set(), names: new Set() },
+      0,
+      0
+    );
+    expect(enabledHtml).toContain('edu-detail-section');
+  });
+
+  test('detail tabs are independent from simplified dashboard stats', () => {
+    const app = makeApp([]);
+    loadTeamDetailRender(app, []);
+    Object.assign(app, {
+      _buildTeamInfoCard: () => '',
+      _buildTeamBioCard: () => '',
+      _buildTeamRecordCard: () => '',
+      _buildTeamHistoryCard: () => '',
+      _buildTeamMembersCard: () => '',
+      _renderTeamFeed: () => '',
+      _renderTeamEvents: () => '',
+    });
+
+    const html = app._buildTeamDetailBodyHtml(
+      { id: 'teamA', name: 'Team A', captain: '', coaches: [], teachingEnabled: true },
+      false,
+      false,
+      { keys: new Set(), names: new Set() },
+      0,
+      0
+    );
+
+    expect(html).toContain('td-section-nav-panel');
+    expect(html).toContain('td-overview-grid');
+    expect(html).not.toContain('td-overview-icon');
+    expect(html.indexOf('td-section-nav-panel')).toBeLessThan(html.indexOf('td-overview-grid'));
   });
 
   test('detail visibility settings hide selected containers and nav targets', () => {
@@ -222,6 +315,82 @@ describe('team detail club activity section', () => {
     expect(nav).not.toContain('edu-detail-section');
     expect(nav).not.toContain('team-members-section');
     expect(nav).not.toContain('team-record-section');
+  });
+
+  test('team detail action bar renders one equal-width row without invite toggle', () => {
+    const app = makeApp([]);
+    Object.assign(app, {
+      _isTeamMember: () => true,
+    });
+    loadTeamDetailRender(app, []);
+
+    const html = app._buildTeamDetailActionBar({
+      id: 'teamA',
+      captain: 'Captain',
+      coaches: [],
+      allowMemberInvite: true,
+    });
+
+    expect(html).toContain('td-action-grid');
+    expect((html.match(/<button/g) || []).length).toBe(4);
+    expect(html).toContain('teamDetail.leaveTeam');
+    expect(html).toContain('teamDetail.contactCaptain');
+    expect(html).toContain('teamDetail.inviteQR');
+    expect(html).not.toContain('td-action-toggle');
+    expect(html).not.toContain('toggleMemberInvite');
+  });
+
+  test('team settings modal owns member invite switch with redesigned controls', () => {
+    const app = {
+      _getTeamDetailVisibility: () => ({ events: true, courses: true, feed: true, info: true, bio: true, record: true, history: true, members: true }),
+      _isTeamTeachingTagged: () => false,
+    };
+    const body = { innerHTML: '' };
+    loadTeamDetailCore(app, {
+      getElementById: (id) => (id === 'team-detail-settings-body' ? body : null),
+    });
+
+    app._renderTeamDetailSettingsBody({ id: 'teamA', allowMemberInvite: false });
+
+    expect(body.innerHTML).toContain('td-settings-switch');
+    expect(body.innerHTML).toContain('App.toggleTeamMemberInviteSetting(this.checked, this)');
+    expect(body.innerHTML).toContain('teamDetail.memberCanInvite');
+    expect(body.innerHTML).not.toContain('toggle-switch');
+    expect(body.innerHTML).not.toContain('toggleMemberInvite');
+  });
+
+  test('club activity create button opens custom event form with current club preselected', async () => {
+    const teamOnly = { checked: false };
+    const teamSelect = { innerHTML: '', multiple: false };
+    const app = {
+      _requireProtectedActionLogin: () => false,
+      _canCreateActivityByPermission: () => true,
+      _canCreateBasicActivity: () => true,
+      _openCreateCustomEventModal: jest.fn(),
+      _populateTeamSelect: jest.fn((select, ids, names) => {
+        select.presetIds = ids;
+        select.presetNames = names;
+      }),
+      _setTeamSelectValues: jest.fn((select, ids) => {
+        select.selectedIds = ids;
+      }),
+      _updateTeamOnlyLabel: jest.fn(),
+      showToast: jest.fn(),
+    };
+    loadTeamDetailCore(app, {
+      getElementById: (id) => {
+        if (id === 'ce-team-only') return teamOnly;
+        if (id === 'ce-team-select') return teamSelect;
+        return null;
+      },
+    });
+
+    await app.openTeamDetailCreateEvent('teamA');
+
+    expect(app._openCreateCustomEventModal).toHaveBeenCalled();
+    expect(teamOnly.checked).toBe(true);
+    expect(teamSelect.presetIds).toEqual(['teamA']);
+    expect(teamSelect.selectedIds).toEqual(['teamA']);
   });
 
   test('team feed publish button passes itself for loading feedback', () => {

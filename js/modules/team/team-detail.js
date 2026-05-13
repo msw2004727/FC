@@ -139,6 +139,13 @@ Object.assign(App, {
     ];
   },
 
+  _buildTeamDetailSettingsSwitch(checked, onchange, label) {
+    return '<label class="td-settings-switch" aria-label="' + escapeHTML(label || '') + '">' +
+      '<input type="checkbox"' + (checked ? ' checked' : '') + ' onchange="' + onchange + '">' +
+      '<span class="td-settings-switch-track"><span class="td-settings-switch-thumb"></span></span>' +
+      '</label>';
+  },
+
   _renderTeamDetailSettingsBody(team) {
     const body = document.getElementById('team-detail-settings-body');
     if (!body || !team) return;
@@ -148,17 +155,26 @@ Object.assign(App, {
     const teachingChecked = typeof this._isTeamTeachingTagged === 'function'
       ? this._isTeamTeachingTagged(team)
       : team.type === 'education';
+    const memberInviteChecked = team.allowMemberInvite !== false;
     const rows = this._getTeamDetailSettingsItems().map(item => {
-      const checked = visibility[item.key] !== false ? ' checked' : '';
+      const checked = visibility[item.key] !== false;
       return '<div class="td-settings-row">' +
         '<div><strong>' + item.label + '</strong><span>' + item.desc + '</span></div>' +
-        '<label class="toggle-switch"><input type="checkbox" data-setting-key="' + item.key + '"' + checked + ' onchange="App.toggleTeamDetailVisibility(\'' + item.key + '\', this.checked, this)"><span class="toggle-slider"></span></label>' +
+        this._buildTeamDetailSettingsSwitch(
+          checked,
+          'App.toggleTeamDetailVisibility(\'' + item.key + '\', this.checked, this)',
+          item.label
+        ) +
         '</div>';
     }).join('');
     body.innerHTML = '<div class="td-settings-group">' +
       '<div class="td-settings-row td-settings-row-primary">' +
       '<div><strong>\u6559\u5b78\u6a19\u7c64</strong><span>\u958b\u555f\u5f8c\u6703\u5728\u4ff1\u6a02\u90e8\u6e05\u55ae\u6b78\u985e\u70ba\u6559\u5b78\uff0c\u4e26\u5728\u5c01\u9762\u986f\u793a\u6559\u5b78\u7dde\u5e36\u3002</span></div>' +
-      '<label class="toggle-switch"><input type="checkbox"' + (teachingChecked ? ' checked' : '') + ' onchange="App.toggleTeamTeachingTag(this.checked, this)"><span class="toggle-slider"></span></label>' +
+      this._buildTeamDetailSettingsSwitch(teachingChecked, 'App.toggleTeamTeachingTag(this.checked, this)', '\u6559\u5b78\u6a19\u7c64') +
+      '</div>' +
+      '<div class="td-settings-row">' +
+      '<div><strong>' + I18N.t('teamDetail.memberCanInvite') + '</strong><span>\u958b\u555f\u5f8c\uff0c\u73fe\u6709\u968a\u54e1\u53ef\u4ee5\u7522\u751f\u9080\u8acb QR Code\u3002</span></div>' +
+      this._buildTeamDetailSettingsSwitch(memberInviteChecked, 'App.toggleTeamMemberInviteSetting(this.checked, this)', I18N.t('teamDetail.memberCanInvite')) +
       '</div>' +
       '</div>' +
       '<div class="td-settings-group"><div class="td-settings-title">\u6b04\u4f4d\u5bb9\u5668\u986f\u793a</div>' + rows + '</div>' +
@@ -210,6 +226,10 @@ Object.assign(App, {
     return this._saveTeamDetailSettingsPatch({ teachingEnabled: !!enabled }, inputEl);
   },
 
+  toggleTeamMemberInviteSetting(enabled, inputEl) {
+    return this._saveTeamDetailSettingsPatch({ allowMemberInvite: !!enabled }, inputEl);
+  },
+
   toggleTeamDetailVisibility(key, enabled, inputEl) {
     const allowed = new Set(this._getTeamDetailSettingsItems().map(item => item.key));
     if (!allowed.has(key)) return;
@@ -220,6 +240,57 @@ Object.assign(App, {
       : {};
     current[key] = !!enabled;
     return this._saveTeamDetailSettingsPatch({ detailVisibility: current }, inputEl);
+  },
+
+  async openTeamDetailCreateEvent(teamId) {
+    if (this._requireProtectedActionLogin?.({ type: 'createEvent', teamId }, { suppressToast: true })) return;
+    const team = teamId ? ApiService.getTeam?.(teamId) : null;
+    if (typeof this._canCreateActivityByPermission !== 'function'
+      && typeof ScriptLoader !== 'undefined'
+      && typeof ScriptLoader.ensureGroup === 'function') {
+      try {
+        await ScriptLoader.ensureGroup('activity');
+      } catch (err) {
+        console.warn('[TeamDetail] load activity create failed:', err);
+      }
+    }
+    if (!this._canCreateActivityByPermission?.()) {
+      this.showToast('\u6b0a\u9650\u4e0d\u8db3\uff1a\u9700\u8981\u5efa\u7acb\u6d3b\u52d5\u6b0a\u9650');
+      return;
+    }
+    if (this._canCreateBasicActivity?.() && typeof this._openCreateCustomEventModal === 'function') {
+      this._teamDetailEventPreset = {
+        teamId,
+        teamName: team?.name || teamId,
+      };
+      this._openCreateCustomEventModal();
+      this._applyTeamDetailEventPreset();
+      return;
+    }
+    if (typeof this.openCreateEventModal === 'function') {
+      this.openCreateEventModal();
+      return;
+    }
+    this.showToast('\u6d3b\u52d5\u5efa\u7acb\u529f\u80fd\u5c1a\u672a\u8f09\u5165\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+  },
+
+  _applyTeamDetailEventPreset() {
+    const preset = this._teamDetailEventPreset;
+    if (!preset?.teamId) return false;
+    const teamOnly = document.getElementById('ce-team-only');
+    const teamSelect = document.getElementById('ce-team-select');
+    if (!teamOnly || !teamSelect) return false;
+    teamOnly.checked = true;
+    if (typeof this._populateTeamSelect === 'function') {
+      this._populateTeamSelect(teamSelect, [preset.teamId], [preset.teamName || preset.teamId]);
+    } else {
+      teamSelect.innerHTML = '<option value="' + escapeHTML(preset.teamId) + '" data-name="' + escapeHTML(preset.teamName || preset.teamId) + '" selected>' + escapeHTML(preset.teamName || preset.teamId) + '</option>';
+      teamSelect.multiple = true;
+    }
+    if (typeof this._setTeamSelectValues === 'function') this._setTeamSelectValues(teamSelect, [preset.teamId]);
+    if (typeof this._updateTeamOnlyLabel === 'function') this._updateTeamOnlyLabel();
+    this._teamDetailEventPreset = null;
+    return true;
   },
 
   async showTeamDetail(id, options = {}) {
@@ -267,17 +338,12 @@ Object.assign(App, {
 
       const imgEl = nodes.image;
       const detailRank = this._getTeamRank(t.teamExp);
-      const detailSportIcon = t.sportTag && typeof getSportIconSvg === 'function' ? (getSportIconSvg(t.sportTag) || '') : '';
-      const detailSportBadge = detailSportIcon ? '<span class="tc-sport-badge" style="top:8px;left:8px;padding:3px 9px;font-size:1.3rem">' + detailSportIcon + '</span>' : '';
-      const detailTeachingRibbon = (typeof this._isTeamTeachingTagged === 'function' && this._isTeamTeachingTagged(t))
-        ? '<span class="tc-edu-ribbon td-cover-ribbon">\u6559\u5b78</span>'
-        : '';
       const detailImage = this._getTeamImageUrl?.(t, 'cover') || t.image || '';
       imgEl.style.position = 'relative';
       if (detailImage) {
-        imgEl.innerHTML = detailSportBadge + '<img src="' + escapeHTML(detailImage) + '" loading="eager" decoding="async" fetchpriority="high" style="width:100%;height:100%;object-fit:cover">' + detailTeachingRibbon + '<span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
+        imgEl.innerHTML = '<img src="' + escapeHTML(detailImage) + '" loading="eager" decoding="async" fetchpriority="high" style="width:100%;height:100%;object-fit:cover"><span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
       } else {
-        imgEl.innerHTML = detailSportBadge + '\u7403\u968a\u5c01\u9762 800 \u00d7 300' + detailTeachingRibbon + '<span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
+        imgEl.innerHTML = '\u4ff1\u6a02\u90e8\u5c01\u9762 800 \u00d7 300<span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
       }
 
       const totalGames = (t.wins || 0) + (t.draws || 0) + (t.losses || 0);

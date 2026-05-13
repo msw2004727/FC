@@ -195,9 +195,13 @@ Object.assign(App, {
 
   _renderTeamEvents(teamId) {
     const teamEvents = this._getTeamFutureEvents(teamId);
+    const createButton = this._canCreateTeamDetailActivity()
+      ? '<button type="button" class="td-section-create-btn" onclick="event.stopPropagation();App.openTeamDetailCreateEvent(\'' + teamId + '\')">\u65b0\u589e\u6d3b\u52d5</button>'
+      : '';
+    const titleHtml = '<div class="td-card-title td-card-title-row"><span>\u4ff1\u6a02\u90e8\u6d3b\u52d5 <span style="font-size:.72rem;color:var(--text-muted);font-weight:400">(' + teamEvents.length + ')</span></span>' + createButton + '</div>';
     if (!teamEvents.length) {
       return '<div class="td-card td-section-card" id="team-events-section">' +
-        '<div class="td-card-title">\u4ff1\u6a02\u90e8\u6d3b\u52d5 <span style="font-size:.72rem;color:var(--text-muted);font-weight:400">(0)</span></div>' +
+        titleHtml +
         '<div class="td-empty-state">\u76ee\u524d\u6c92\u6709\u5373\u5c07\u958b\u59cb\u7684\u4ff1\u6a02\u90e8\u6d3b\u52d5</div>' +
         '</div>';
     }
@@ -211,7 +215,7 @@ Object.assign(App, {
       : '';
 
     return `<div class="td-card td-section-card" id="team-events-section">
-      <div class="td-card-title">\u4ff1\u6a02\u90e8\u6d3b\u52d5 <span style="font-size:.72rem;color:var(--text-muted);font-weight:400">(${teamEvents.length})</span></div>
+      ${titleHtml}
       <div class="td-team-events-list">${cards}</div>
       ${moreButton}
     </div>`;
@@ -421,7 +425,34 @@ Object.assign(App, {
 
   _isTeamDetailSectionVisible(t, key) {
     const visibility = this._getTeamDetailVisibility(t);
+    if (key === 'courses' && !this._isTeamDetailTeachingEnabled(t)) return false;
     return visibility[key] !== false;
+  },
+
+  _isTeamDetailTeachingEnabled(t) {
+    if (!t) return false;
+    if (typeof this._isTeamTeachingTagged === 'function') return !!this._isTeamTeachingTagged(t);
+    if (t.teachingEnabled === true) return true;
+    if (t.teachingEnabled === false) return false;
+    if (t.isTeaching === true || t.educationTag === true) return true;
+    if (t.eduSettings?.teachingEnabled === true) return true;
+    if (t.eduSettings?.teachingEnabled === false) return false;
+    return t.type === 'education';
+  },
+
+  _canCreateTeamDetailActivity() {
+    const currentUser = ApiService.getCurrentUser?.();
+    if (!currentUser?.uid) return false;
+    if (typeof this._canCreateActivityByPermission === 'function') return !!this._canCreateActivityByPermission();
+    if (typeof this._canCreateBasicActivity === 'function' && this._canCreateBasicActivity()) return true;
+    if (typeof this._canCreateExternalActivity === 'function' && this._canCreateExternalActivity()) return true;
+    if (typeof this.hasPermission === 'function') {
+      return !!(this.hasPermission('activity.manage.entry')
+        || this.hasPermission('team.create_event')
+        || this.hasPermission('user.activity.basic_create')
+        || this.hasPermission('user.activity.external_create'));
+    }
+    return false;
   },
 
   _buildTeamDetailActionBar(t) {
@@ -429,21 +460,20 @@ Object.assign(App, {
     const n = u?.displayName || '';
     const isCaptainCoach = (t.captain === n || (t.coaches || []).includes(n));
     const memberCanInvite = t.allowMemberInvite !== false;
-    const canInvite = isCaptainCoach || (this._isTeamMember(t.id) && memberCanInvite);
     const isMember = this._isTeamMember(t.id);
+    const canInvite = isCaptainCoach || (isMember && memberCanInvite);
     const primary = isMember
       ? '<button class="td-action-main td-action-danger" onclick="App.handleLeaveTeam(\'' + t.id + '\')">' + I18N.t('teamDetail.leaveTeam') + '</button>'
       : '<button class="td-action-main" onclick="App.handleJoinTeam(\'' + t.id + '\')">' + I18N.t('teamDetail.applyJoin') + '</button>';
     const share = '<button class="td-action-secondary" onclick="App.shareTeam(\'' + t.id + '\')">\u5206\u4eab</button>';
-    const contact = t.captain ? '<button class="td-action-secondary" onclick="App.showUserProfile(\'' + escapeHTML(t.captain) + '\')">' + I18N.t('teamDetail.contactCaptain') + '</button>' : '';
-    const invite = canInvite ? '<button class="td-action-secondary" onclick="App.showTeamInviteQR(\'' + t.id + '\')">' + I18N.t('teamDetail.inviteQR') + '</button>' : '';
-    const inviteToggle = isCaptainCoach
-      ? '<div class="td-action-toggle"><span>' + I18N.t('teamDetail.memberCanInvite') + '</span><label class="toggle-switch" style="margin:0;transform:scale(.82)"><input type="checkbox" ' + (memberCanInvite ? 'checked' : '') + ' onchange="App.toggleMemberInvite(\'' + t.id + '\',this.checked)"><span class="toggle-slider"></span></label></div>'
-      : '';
+    const contact = t.captain
+      ? '<button class="td-action-secondary" onclick="App.showUserProfile(\'' + escapeHTML(t.captain) + '\')">' + I18N.t('teamDetail.contactCaptain') + '</button>'
+      : '<button class="td-action-secondary td-action-disabled" type="button" disabled>' + I18N.t('teamDetail.contactCaptain') + '</button>';
+    const invite = canInvite
+      ? '<button class="td-action-secondary" onclick="App.showTeamInviteQR(\'' + t.id + '\')">' + I18N.t('teamDetail.inviteQR') + '</button>'
+      : '<button class="td-action-secondary td-action-disabled" type="button" disabled>' + I18N.t('teamDetail.inviteQR') + '</button>';
     return '<div class="td-action-panel">' +
-      '<div class="td-action-row">' + primary + share + '</div>' +
-      (contact || invite ? '<div class="td-action-row td-action-row-secondary">' + contact + invite + '</div>' : '') +
-      inviteToggle +
+      '<div class="td-action-grid">' + primary + share + contact + invite + '</div>' +
       '</div>';
   },
 
@@ -462,7 +492,7 @@ Object.assign(App, {
       items.push('<button type="button" onclick="document.getElementById(\'team-record-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u6230\u7e3e</button>');
     }
     return items.length
-      ? '<div class="td-section-nav" aria-label="club detail sections">' + items.join('') + '</div>'
+      ? '<div class="td-section-nav-panel"><div class="td-section-nav" aria-label="club detail sections">' + items.join('') + '</div></div>'
       : '';
   },
 
@@ -471,9 +501,9 @@ Object.assign(App, {
     const coachCount = Array.isArray(t.coaches) ? t.coaches.length : 0;
     const eventCount = this._getTeamDetailEventCount(t);
     return '<div class="td-overview-grid">' +
-      '<div class="td-overview-stat"><span class="td-overview-icon">\u4eba</span><span class="td-overview-label">\u6210\u54e1</span><strong>' + memberCount + '</strong></div>' +
-      '<div class="td-overview-stat"><span class="td-overview-icon">\u6559</span><span class="td-overview-label">\u6559\u7df4</span><strong>' + coachCount + '</strong></div>' +
-      '<div class="td-overview-stat"><span class="td-overview-icon">\u65e5</span><span class="td-overview-label">\u672c\u9031\u6d3b\u52d5</span><strong>' + eventCount + '</strong></div>' +
+      '<div class="td-overview-stat"><span class="td-overview-label">\u6210\u54e1</span><strong>' + memberCount + '</strong></div>' +
+      '<div class="td-overview-stat"><span class="td-overview-label">\u6559\u7df4</span><strong>' + coachCount + '</strong></div>' +
+      '<div class="td-overview-stat"><span class="td-overview-label">\u672c\u9031\u6d3b\u52d5</span><strong>' + eventCount + '</strong></div>' +
       '</div>';
   },
 
@@ -588,8 +618,6 @@ Object.assign(App, {
       '</div>' +
       '</div>' +
       this._buildTeamDetailActionBar(t) +
-      this._buildTeamDetailSectionNav(t) +
-      this._buildTeamDetailOverview(t, totalGames, winRate) +
       '</div>';
   },
 
@@ -600,6 +628,8 @@ Object.assign(App, {
   _buildTeamDetailBodyHtml(t, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate) {
     return '<div class="td-detail-shell">'
       + this._buildTeamDetailIdentityPanel(t, totalGames, winRate)
+      + this._buildTeamDetailSectionNav(t)
+      + this._buildTeamDetailOverview(t, totalGames, winRate)
       + (this._isTeamDetailSectionVisible(t, 'events') ? this._renderTeamEvents(t.id) : '')
       + (this._isTeamDetailSectionVisible(t, 'courses') ? this._buildTeamEducationSection(t) : '')
       + (this._isTeamDetailSectionVisible(t, 'feed') ? '<div id="team-feed-section">' + this._renderTeamFeed(t.id) + '</div>' : '')
