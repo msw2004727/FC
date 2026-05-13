@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-13 Club detail nav and roster readability follow-up [ui]
+- **Problem**: Club detail section buttons became hard to access after scrolling, the first shortcut/tab read as overly highlighted, roster names could fall back to raw UID, and roster text was too small.
+- **Fix**: Added a floating top button on club detail, changed shortcut/member selected styling to neutral instead of yellow-first emphasis, enlarged compact roster typography, and replaced UID-as-name fallback with broader display-name resolution plus `未設定暱稱` / `未命名學員`.
+- **Tests**: Extended team detail unit coverage for the floating top button and UID-less display-name fallback.
+
 ### 2026-05-13 Club detail roster UI and team view count [ui]
 - **Problem**: Club detail cards still used capsule-style member display, large info cards, full record/history widgets, yellow settings switches, and no club-level view counter.
 - **Fix**: Added a compact roster list with `全部 / 隊員 / 學員` tabs, merged team members/staff/students into a single display count, simplified record/history into placeholders, tightened club info cards, switched settings toggles to green-on/grey-off, and added an SVG eye view count with same-device localStorage de-dupe.

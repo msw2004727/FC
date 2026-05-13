@@ -282,6 +282,7 @@ describe('team detail club activity section', () => {
 
     expect(html).toContain('td-section-nav-panel');
     expect(html).toContain('td-overview-grid');
+    expect(html).toContain('td-floating-top-btn');
     expect(html).not.toContain('td-overview-icon');
     expect(html.indexOf('td-section-nav-panel')).toBeLessThan(html.indexOf('td-overview-grid'));
   });
@@ -466,6 +467,7 @@ describe('team detail club activity section', () => {
       { uid: 'captain', name: 'Captain' },
       { uid: 'leader', name: 'Leader' },
       { uid: 'coach', name: 'Coach' },
+      { uid: 'U196b342b78abcdefabcdefabcdefabcd', teamId: 'teamA' },
     ];
     loadTeamDetailRender(app, [], { adminUsers: users, teams: { teamA: team } });
     Object.assign(app, {
@@ -475,11 +477,14 @@ describe('team detail club activity section', () => {
     const roster = app._getTeamDetailRoster(team);
     const html = app._buildTeamMembersCard(team, false, false, { keys: new Set(), names: new Set() });
 
-    expect(app._getTeamDetailMemberCount(team)).toBe(5);
+    expect(app._getTeamDetailMemberCount(team)).toBe(6);
     expect(roster.some(row => row.name === 'Amy' && row.label === 'ALL')).toBe(true);
     expect(roster.some(row => row.name === 'Child' && row.label === '學員' && row.isExternalStudent)).toBe(true);
+    expect(roster.some(row => row.uid === 'U196b342b78abcdefabcdefabcdefabcd' && row.name === '未設定暱稱')).toBe(true);
     expect(html).toContain('td-member-tabs');
     expect(html).toContain('td-member-table');
+    expect(html).toContain('missing-name');
+    expect(html).toContain('未設定暱稱');
     expect(html).toContain('ALL');
     expect(html).toContain('球經');
     expect(html).toContain('領隊');

@@ -415,11 +415,27 @@
   font-weight: 800;
   box-shadow: 0 2px 8px rgba(15, 23, 42, .05);
 }
-.td-section-nav button:first-child {
-  border-color: transparent;
-  background: var(--td-club-accent);
-  color: #171717;
+.td-section-nav button:active { transform: scale(.98); }
+.td-floating-top-btn {
+  position: fixed;
+  right: max(.9rem, calc((100vw - 560px) / 2 + .9rem));
+  bottom: calc(var(--bottombar-h, 64px) + env(safe-area-inset-bottom, 0px) + .8rem);
+  z-index: 80;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: .46rem .7rem;
+  border: 1px solid rgba(148, 163, 184, .34);
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, .92);
+  color: var(--text-primary);
+  font-size: .78rem;
+  font-weight: 900;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, .18);
+  backdrop-filter: blur(12px);
 }
+.td-floating-top-btn:active { transform: scale(.97); }
 .td-overview-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -561,21 +577,22 @@
   border-radius: var(--radius-full);
   background: var(--bg-elevated);
   color: var(--text-secondary);
-  font-size: .74rem;
+  font-size: .78rem;
   font-weight: 900;
   white-space: nowrap;
 }
 .td-member-tab span {
   color: var(--text-muted);
-  font-size: .64rem;
+  font-size: .68rem;
   font-weight: 800;
 }
 .td-member-tab.active {
-  border-color: transparent;
-  background: var(--td-club-accent);
-  color: #171717;
+  border-color: rgba(15, 23, 42, .18);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, .06), 0 3px 10px rgba(15, 23, 42, .08);
 }
-.td-member-tab.active span { color: rgba(23, 23, 23, .72); }
+.td-member-tab.active span { color: var(--text-secondary); }
 .td-member-table-scroll {
   width: 100%;
   overflow-x: auto;
@@ -583,14 +600,14 @@
 }
 .td-member-table {
   width: 100%;
-  min-width: 560px;
+  min-width: 620px;
   border-collapse: collapse;
   table-layout: fixed;
-  font-size: .7rem;
+  font-size: .8rem;
 }
 .td-member-table th,
 .td-member-table td {
-  padding: .38rem .3rem;
+  padding: .46rem .34rem;
   border-bottom: 1px solid var(--border);
   text-align: center;
   white-space: nowrap;
@@ -598,12 +615,12 @@
 }
 .td-member-table th {
   color: var(--text-muted);
-  font-size: .62rem;
+  font-size: .7rem;
   font-weight: 900;
 }
 .td-member-table th:first-child,
 .td-member-table td:first-child {
-  width: 112px;
+  width: 136px;
   text-align: left;
 }
 .td-member-name-cell {
@@ -615,7 +632,7 @@
 .td-member-name-main {
   display: inline-block;
   min-width: 0;
-  max-width: 86px;
+  max-width: 108px;
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--text-primary);
@@ -624,6 +641,10 @@
 }
 .td-member-name-main.external-student {
   color: #047857;
+  cursor: default;
+}
+.td-member-name-main.missing-name {
+  color: var(--text-muted);
   cursor: default;
 }
 .td-member-label-pill {
@@ -635,7 +656,7 @@
   border-radius: var(--radius-full);
   background: rgba(14, 165, 233, .12);
   color: #0284c7;
-  font-size: .62rem;
+  font-size: .68rem;
   font-weight: 900;
 }
 .td-member-identity {
@@ -1071,6 +1092,17 @@
 [data-theme="dark"] .td-action-secondary,
 [data-theme="dark"] .td-section-nav button {
   background: var(--bg-elevated);
+}
+[data-theme="dark"] .td-member-tab.active {
+  border-color: rgba(255,255,255,.16);
+  background: rgba(31, 41, 55, .92);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.04), 0 5px 14px rgba(0,0,0,.22);
+}
+[data-theme="dark"] .td-floating-top-btn {
+  border-color: rgba(255,255,255,.16);
+  background: rgba(17, 24, 39, .9);
+  color: #f8fafc;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .34);
 }
 [data-theme="dark"] .td-settings-switch-track {
   border-color: rgba(148, 163, 184, .36);

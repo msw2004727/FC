@@ -462,12 +462,31 @@ Object.assign(App, {
     return students;
   },
 
+  _isTeamDetailUidLike(value) {
+    const text = String(value || '').trim();
+    if (!text) return false;
+    return /^U[0-9a-f]{20,}$/i.test(text);
+  },
+
+  _getTeamDetailPersonName(source, fallback = '未設定暱稱') {
+    if (!source || typeof source !== 'object') return fallback;
+    const fields = [
+      'displayName', 'name', 'nickname', 'nickName', 'lineName', 'profileName',
+      'userName', 'realName', 'studentName', 'selfName', 'childName',
+    ];
+    for (const field of fields) {
+      const value = String(source[field] || '').trim();
+      if (value && !this._isTeamDetailUidLike(value)) return value;
+    }
+    return fallback;
+  },
+
   _getTeamDetailIdentityKeyFromUser(user) {
     if (!user) return null;
     if (typeof this._getUserIdentityKey === 'function') return this._getUserIdentityKey(user);
     const uid = String(user.uid || user._docId || '').trim();
     if (uid) return `uid:${uid}`;
-    const name = String(user.name || user.displayName || '').trim().toLowerCase();
+    const name = this._getTeamDetailPersonName(user, '').trim().toLowerCase();
     return name ? `name:${name}` : null;
   },
 
@@ -487,10 +506,9 @@ Object.assign(App, {
     return (users || []).find(u => {
       const userUid = String(u.uid || '').trim();
       const docId = String(u._docId || '').trim();
-      const userName = String(u.name || '').trim();
-      const displayName = String(u.displayName || '').trim();
+      const userName = this._getTeamDetailPersonName(u, '');
       return (!!uid && (userUid === uid || docId === uid))
-        || (!!name && (userName === name || displayName === name));
+        || (!!name && userName === name);
     }) || null;
   },
 
@@ -638,8 +656,10 @@ Object.assign(App, {
       const inTeam = typeof this._isUserInTeam === 'function' ? this._isUserInTeam(user, t.id) : user.teamId === t.id;
       const key = this._getTeamDetailIdentityKeyFromUser(user);
       if (!key) return;
+      const displayName = this._getTeamDetailPersonName(user);
       const row = ensureRow(key, {
-        name: user.name || user.displayName || user.uid || user._docId || '未命名',
+        name: displayName,
+        isMissingName: displayName === '未設定暱稱',
         uid: user.uid || user._docId || '',
         user,
       });
@@ -650,25 +670,38 @@ Object.assign(App, {
       });
     });
     staffRoles.forEach((roleSet, key) => {
-      const row = ensureRow(key, { name: key.replace(/^staff:[^:]+:/, '').replace(/^uid:/, '') || '未命名' });
+      const fallbackName = key.startsWith('staff:')
+        ? key.replace(/^staff:[^:]+:/, '')
+        : '未設定暱稱';
+      const row = ensureRow(key, {});
+      if (!row.name || row.isMissingName || this._isTeamDetailUidLike(row.name)) {
+        row.name = fallbackName || '未設定暱稱';
+        row.isMissingName = !fallbackName || fallbackName === '未設定暱稱';
+      }
       roleSet.forEach(role => row.roles.add(role));
       row.isMember = true;
     });
     this._getTeamDetailActiveStudents(t.id).forEach(student => {
       const key = this._getTeamDetailIdentityKeyFromStudent(student);
+      const displayName = this._getTeamDetailPersonName(student, '未命名學員');
       const row = ensureRow(key, {
-        name: student.name || student.studentName || student.selfName || '未命名學員',
         uid: student.selfUid || student.uid || '',
         studentId: student.id || student._docId || student.studentId || '',
         student,
         isExternalStudent: !(student.selfUid || student.uid),
       });
+      if (!row.name || row.isMissingName || this._isTeamDetailUidLike(row.name)) {
+        row.name = displayName;
+        row.isMissingName = displayName === '未命名學員';
+      }
       row.isStudent = true;
     });
     const result = Array.from(rows.values()).filter(row => row.isMember || row.isStudent);
     result.forEach(row => {
       row.label = row.isMember && row.isStudent ? 'ALL' : (row.isStudent ? '學員' : '隊員');
       row.identity = Array.from(row.roles).join(' | ');
+      row.isMissingName = !!row.isMissingName || !row.name || this._isTeamDetailUidLike(row.name);
+      if (row.isMissingName) row.name = row.isStudent && !row.isMember ? '未命名學員' : '未設定暱稱';
       row.activityCount = this._getTeamDetailActivityAttendanceCount(t, row);
       row.courseCount = this._getTeamDetailCourseParticipationCount(t, row);
       row.matchCount = this._getTeamDetailMatchParticipationCount(t, row);
@@ -828,14 +861,18 @@ Object.assign(App, {
     const rows = filtered.length ? filtered.map(row => {
       const safeName = escapeHTML(row.name || '未命名');
       const profileNameArg = escapeHTML(JSON.stringify(row.name || '未命名'));
-      const profileClick = row.uid || !row.isExternalStudent
-        ? " onclick='App.showUserProfile(" + profileNameArg + ")'"
+      const profileUidArg = row.uid ? ',{uid:' + escapeHTML(JSON.stringify(row.uid)) + '}' : '';
+      const profileClick = row.uid || (!row.isExternalStudent && !row.isMissingName)
+        ? " onclick='App.showUserProfile(" + profileNameArg + profileUidArg + ")'"
         : '';
+      const nameClass = 'td-member-name-main'
+        + (row.isExternalStudent ? ' external-student' : '')
+        + (row.isMissingName ? ' missing-name' : '');
       const removeBtn = (canManageMembers && memberEditMode && row.uid && row.isMember && !row.roles.size)
         ? '<button class="td-member-remove-btn" title="\u79fb\u9664\u968a\u54e1" onclick="event.stopPropagation();App.removeTeamMember(this, \'' + t.id + '\',\'' + row.uid + '\')">\u00d7</button>'
         : '';
       return '<tr>'
-        + '<td class="td-member-name-cell"><span class="td-member-name-main' + (row.isExternalStudent ? ' external-student' : '') + '"' + profileClick + '>' + safeName + '</span>' + removeBtn + '</td>'
+        + '<td class="td-member-name-cell"><span class="' + nameClass + '"' + profileClick + '>' + safeName + '</span>' + removeBtn + '</td>'
         + '<td><span class="td-member-label-pill">' + escapeHTML(row.label) + '</span></td>'
         + '<td>' + row.activityCount + '</td>'
         + '<td>' + row.courseCount + '</td>'
@@ -919,6 +956,7 @@ Object.assign(App, {
       + (this._isTeamDetailSectionVisible(t, 'record') ? this._buildTeamRecordCard(t, totalGames, winRate) : '')
       + (this._isTeamDetailSectionVisible(t, 'history') ? this._buildTeamHistoryCard(t) : '')
       + (this._isTeamDetailSectionVisible(t, 'members') ? this._buildTeamMembersCard(t, canManageMembers, memberEditMode, staffIdentity) : '')
+      + '<button type="button" class="td-floating-top-btn" aria-label="回到俱樂部頁面上方" onclick="document.getElementById(\'page-team-detail\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">↑ 置頂</button>'
       + '</div>';
   },
 
