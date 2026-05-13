@@ -154,17 +154,24 @@ Object.assign(App, {
     return this._eduStudentsCache[teamId].filter(s => s.enrollStatus === 'active').length;
   },
 
+  _isTeamTeachingTagged(teamOrId) {
+    const team = typeof teamOrId === 'string'
+      ? ApiService.getTeam(teamOrId)
+      : teamOrId;
+    if (!team) return false;
+    if (team.teachingEnabled === true) return true;
+    if (team.teachingEnabled === false) return false;
+    if (team.isTeaching === true || team.educationTag === true) return true;
+    if (team.eduSettings?.teachingEnabled === true) return true;
+    if (team.eduSettings?.teachingEnabled === false) return false;
+    return team.type === 'education';
+  },
+
   /**
    * 依俱樂部類型回傳對應的 handler（Phase 4 §10.2 type handler pattern）。
    * 新增俱樂部類型時只需在此擴充，無需到各處加 if。
    */
   _getTeamTypeHandler(type) {
-    if (type === 'education') return {
-      memberCount: (teamId) => this._getEduStudentCount(teamId),
-      detailRenderer: (teamId) => this.renderEduClubDetail(teamId),
-      joinHandler: (teamId) => this.showEduStudentApply(teamId),
-      showEduSettings: true,
-    };
     return {
       memberCount: (teamId) => this._calcTeamMemberCount(teamId),
       detailRenderer: null,

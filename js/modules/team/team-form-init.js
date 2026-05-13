@@ -67,7 +67,8 @@ Object.assign(App, {
       this.showToast('目前未開啟建立俱樂部權限');
       return;
     }
-    this.showModal('team-type-select-modal');
+    this._pendingTeamCreateType = 'general';
+    this.showTeamForm(null);
   },
 
   /**
@@ -188,12 +189,7 @@ Object.assign(App, {
       if (typeInput) typeInput.value = t.type || 'general';
       this._onTeamTypeChange(t.type || 'general');
       const typeDisplay = document.getElementById('ct-team-type-display');
-      const typeLabel = document.getElementById('ct-team-type-label');
-      if (typeDisplay && typeLabel) {
-        typeDisplay.style.display = '';
-        const editType = t.type || 'general';
-        typeLabel.textContent = editType === 'education' ? '📚 教學俱樂部' : '⚽ 運動俱樂部';
-      }
+      if (typeDisplay) typeDisplay.style.display = 'none';
       // 教育型設定
       const acceptToggle = document.getElementById('ct-edu-accepting');
       if (acceptToggle && t.eduSettings) {
@@ -270,20 +266,15 @@ Object.assign(App, {
       // 新增模式：自動填入當前用戶為俱樂部經理，鎖定不可更改
       const selectedType = this._pendingTeamCreateType || 'general';
       this._pendingTeamCreateType = null;
-      titleEl.textContent = selectedType === 'education' ? '新增教學俱樂部' : '新增運動俱樂部';
+      titleEl.textContent = '新增俱樂部';
       saveBtn.textContent = '建立俱樂部';
       this._resetTeamForm();
       // 設定類型
       const typeInput = document.getElementById('ct-team-type');
       if (typeInput) typeInput.value = selectedType;
       this._onTeamTypeChange(selectedType);
-      // 顯示類型標籤
       const typeDisplay = document.getElementById('ct-team-type-display');
-      const typeLabel = document.getElementById('ct-team-type-label');
-      if (typeDisplay && typeLabel) {
-        typeDisplay.style.display = '';
-        typeLabel.textContent = selectedType === 'education' ? '📚 教學俱樂部' : '⚽ 運動俱樂部';
-      }
+      if (typeDisplay) typeDisplay.style.display = 'none';
 
       // 自動設定創立者為俱樂部經理
       const me = ApiService.getCurrentUser();

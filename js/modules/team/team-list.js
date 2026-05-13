@@ -61,15 +61,16 @@ Object.assign(App, {
         return;
       }
     }
-    if (typeof this._showTeamTypeSelect === 'function') {
-      this._showTeamTypeSelect();
+    if (typeof this.showTeamForm === 'function') {
+      this._pendingTeamCreateType = 'general';
+      this.showTeamForm(null);
     }
   },
 
   _currentTeamTypeTab: '',
 
   switchTeamTypeTab(type) {
-    this._currentTeamTypeTab = type || '';
+    this._currentTeamTypeTab = type === 'education' ? 'education' : '';
     document.querySelectorAll('.team-type-tab').forEach(btn => {
       btn.classList.toggle('active', (btn.dataset.type || '') === this._currentTeamTypeTab);
     });
@@ -128,8 +129,10 @@ Object.assign(App, {
     }
     if (typeTab) {
       filtered = filtered.filter(t => {
-        const teamType = t.type || 'general';
-        return teamType === typeTab;
+        const isTeaching = typeof this._isTeamTeachingTagged === 'function'
+          ? this._isTeamTeachingTagged(t)
+          : (t.type || 'general') === 'education';
+        return typeTab === 'education' ? isTeaching : !isTeaching;
       });
     }
 

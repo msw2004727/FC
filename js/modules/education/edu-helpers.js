@@ -103,7 +103,7 @@ Object.assign(App, {
     const team = typeof teamOrId === 'string'
       ? ApiService.getTeam(teamOrId)
       : teamOrId;
-    return team && team.type === 'education';
+    return !!team;
   },
 
   /**
@@ -114,7 +114,7 @@ Object.assign(App, {
     const team = typeof teamOrId === 'string'
       ? ApiService.getTeam(teamOrId)
       : teamOrId;
-    return !team || team.type !== 'education';
+    return !!team;
   },
 
   // ══════════════════════════════════

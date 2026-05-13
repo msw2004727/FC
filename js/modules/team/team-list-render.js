@@ -9,19 +9,20 @@ Object.assign(App, {
     const pinnedClass = t.pinned ? ' tc-pinned' : '';
     const color = t.color || '#6b7280';
     const rank = this._getTeamRank(t.teamExp);
-    const isEdu = t.type === 'education';
-    const eduBadge = isEdu ? '<span class="tc-edu-badge">教學</span>' : '';
-    const eduRibbon = isEdu ? '<span class="tc-edu-ribbon">教學</span>' : '';
+    const isTeaching = typeof this._isTeamTeachingTagged === 'function'
+      ? this._isTeamTeachingTagged(t)
+      : t.type === 'education';
+    const eduBadge = isTeaching ? '<span class="tc-edu-badge">教學</span>' : '';
+    const eduRibbon = isTeaching ? '<span class="tc-edu-ribbon">教學</span>' : '';
     const sportIcon = t.sportTag && typeof getSportIconSvg === 'function' ? getSportIconSvg(t.sportTag) : '';
     const sportBadge = sportIcon ? `<span class="tc-sport-badge">${sportIcon}</span>` : '';
     const cardImage = this._getTeamImageUrl?.(t, 'card') || t.image || '';
-    const typeHandler = this._getTeamTypeHandler(t.type);
-    const memberLabel = isEdu ? '學員' : I18N.t('team.memberLabel');
+    const memberLabel = I18N.t('team.memberLabel');
     const memberCountKey = String(t.id || '');
     const memberCountMap = options.memberCountByTeam;
-    const memberCount = !isEdu && memberCountMap && memberCountMap.has(memberCountKey)
+    const memberCount = memberCountMap && memberCountMap.has(memberCountKey)
       ? memberCountMap.get(memberCountKey)
-      : typeHandler.memberCount(t.id);
+      : this._calcTeamMemberCount(t.id);
     return `
       <div class="tc-card${pinnedClass}" data-team-id="${escapeHTML(t.id)}" onclick="App.openTeamDetailFromCard(this, this.dataset.teamId)">
         ${t.pinned ? '<div class="tc-pin-badge">置頂</div>' : ''}
@@ -59,7 +60,12 @@ Object.assign(App, {
     let teams = ApiService.getActiveTeams();
     const typeTab = this._currentTeamTypeTab || '';
     if (typeTab) {
-      teams = teams.filter(t => (t.type || 'general') === typeTab);
+      teams = teams.filter(t => {
+        const isTeaching = typeof this._isTeamTeachingTagged === 'function'
+          ? this._isTeamTeachingTagged(t)
+          : (t.type || 'general') === 'education';
+        return typeTab === 'education' ? isTeaching : !isTeaching;
+      });
     }
     const activeTeamSport = this._syncTeamSportFilterWithGlobal?.() || this._getActiveTeamGlobalSport?.() || '';
     if (activeTeamSport) {
@@ -69,11 +75,12 @@ Object.assign(App, {
     const memberCountByTeam = this._buildTeamMemberCountMap?.(sorted, ApiService.getAdminUsers() || []) || null;
 
     // Phase 2B §8.2B：指紋跳過重繪
-    var fp = sorted.map(function(t) {
+    var fp = sorted.map(t => {
       const memberCount = memberCountByTeam && memberCountByTeam.has(String(t.id || ''))
         ? memberCountByTeam.get(String(t.id || ''))
         : '';
-      return t.id + '|' + (t.name || '') + '|' + (t.sportTag || '') + '|' + (t.image || '') + '|' + (t.imageVariants?.card || '') + '|' + (t.active ? 1 : 0) + '|' + (t.pinned ? 1 : 0) + '|' + (t.teamExp || 0) + '|' + memberCount;
+      const teachingTag = typeof this._isTeamTeachingTagged === 'function' && this._isTeamTeachingTagged(t) ? 1 : 0;
+      return t.id + '|' + (t.name || '') + '|' + (t.sportTag || '') + '|' + (t.image || '') + '|' + (t.imageVariants?.card || '') + '|' + (t.active ? 1 : 0) + '|' + (t.pinned ? 1 : 0) + '|' + teachingTag + '|' + (t.teamExp || 0) + '|' + memberCount;
     }).join(',');
     if (this._teamListLastFp === fp && container.children.length > 0) return;
     this._teamListLastFp = fp;
@@ -87,30 +94,6 @@ Object.assign(App, {
     this._markPageSnapshotReady?.('page-teams');
     this._scheduleVisibleDetailPrefetch?.('teams', sorted.map(t => t.id || t._docId).filter(Boolean));
 
-    // ★ 背景載入所有教育俱樂部學員數，完成後重繪
-    const eduTeams = sorted.filter(t => t.type === 'education');
-    if (eduTeams.length) {
-      Promise.all(eduTeams.map(t => this._loadEduStudents?.(t.id).catch(() => {}))).then(() => {
-        if (this.currentPage !== 'page-teams') return;
-        const c = document.getElementById('team-list');
-        if (!c) return;
-        // 2026-04-25：重新讀取「當下」的 sport / typeTab，避免用閉包過時值覆寫使用者
-        // 切換後的列表（race：切 football → 觸發此 Promise → 切 pickleball →
-        // Promise resolve 用閉包 'football' 覆寫成 5 個足球、看起來像「沒過濾」）
-        // 只讀「當下狀態」，不呼叫 _syncTeamSportFilterWithGlobal（避免在背景 callback 改 DOM）
-        const _curSport = this._getActiveTeamGlobalSport?.() || '';
-        const _curTypeTab = this._currentTeamTypeTab || '';
-        var _s2 = _tlScrollEl.scrollTop;
-        let ts = ApiService.getActiveTeams();
-        if (_curTypeTab) ts = ts.filter(t => (t.type || 'general') === _curTypeTab);
-        if (_curSport) ts = ts.filter(t => t.sportTag === _curSport);
-        this._teamListLastFp = '';
-        const sortedAfterEdu = this._sortTeams(ts);
-        const memberCountAfterEdu = this._buildTeamMemberCountMap?.(sortedAfterEdu, ApiService.getAdminUsers() || []) || null;
-        c.innerHTML = sortedAfterEdu.map(t => this._teamCardHTML(t, { memberCountByTeam: memberCountAfterEdu })).join('') || c.innerHTML;
-        _tlScrollEl.scrollTop = _s2;
-      });
-    }
   },
 
   // ══════════════════════════════════

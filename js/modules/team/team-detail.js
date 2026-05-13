@@ -33,8 +33,10 @@ Object.assign(App, {
 
   _refreshTeamDetailEditButton(team) {
     const btn = document.getElementById('team-detail-edit-btn');
-    if (!btn) return;
-    btn.style.display = this._canEditTeamByRoleOrCaptain?.(team) ? '' : 'none';
+    const settingsBtn = document.getElementById('team-detail-settings-btn');
+    const canEdit = !!this._canEditTeamByRoleOrCaptain?.(team);
+    if (btn) btn.style.display = 'none';
+    if (settingsBtn) settingsBtn.style.display = canEdit ? '' : 'none';
   },
 
   // _canManageTeamMembers → 已搬至 team-list-helpers.js
@@ -87,8 +89,9 @@ Object.assign(App, {
       image: document.getElementById('team-detail-img'),
       body: document.getElementById('team-detail-body'),
       editButton: document.getElementById('team-detail-edit-btn'),
+      settingsButton: document.getElementById('team-detail-settings-btn'),
     };
-    return Object.values(nodes).every(Boolean) ? nodes : null;
+    return [nodes.title, nodes.nameEn, nodes.image, nodes.body, nodes.editButton].every(Boolean) ? nodes : null;
   },
 
   async _refreshTeamDetailMembers(teamId) {
@@ -121,6 +124,102 @@ Object.assign(App, {
       return;
     }
     this.showTeamForm(team.id);
+  },
+
+  _getTeamDetailSettingsItems() {
+    return [
+      { key: 'events', label: '\u6d3b\u52d5', desc: '\u4ff1\u6a02\u90e8\u6d3b\u52d5\u5217\u8868' },
+      { key: 'courses', label: '\u8ab2\u7a0b\u8207\u5b78\u54e1', desc: '\u8ab2\u7a0b\u3001\u73ed\u7d1a\u8207\u5b78\u54e1\u9801\u7c64' },
+      { key: 'feed', label: '\u52d5\u614b', desc: '\u4ff1\u6a02\u90e8\u8cbc\u6587\u8207\u7559\u8a00' },
+      { key: 'info', label: '\u4ff1\u6a02\u90e8\u8cc7\u8a0a', desc: '\u7d93\u7406\u3001\u9818\u968a\u3001\u6559\u7df4\u8207\u5730\u5340' },
+      { key: 'bio', label: '\u7c21\u4ecb', desc: '\u4ff1\u6a02\u90e8\u4ecb\u7d39\u6587\u5b57' },
+      { key: 'record', label: '\u6230\u7e3e', desc: '\u52dd\u6557\u8207\u9032\u5931\u7403\u8cc7\u6599' },
+      { key: 'history', label: '\u8cfd\u4e8b\u7d00\u9304', desc: '\u6b77\u53f2\u6bd4\u8cfd\u7d00\u9304' },
+      { key: 'members', label: '\u6210\u54e1\u5217\u8868', desc: '\u968a\u54e1\u8207\u7ba1\u7406\u540d\u55ae' },
+    ];
+  },
+
+  _renderTeamDetailSettingsBody(team) {
+    const body = document.getElementById('team-detail-settings-body');
+    if (!body || !team) return;
+    const visibility = typeof this._getTeamDetailVisibility === 'function'
+      ? this._getTeamDetailVisibility(team)
+      : {};
+    const teachingChecked = typeof this._isTeamTeachingTagged === 'function'
+      ? this._isTeamTeachingTagged(team)
+      : team.type === 'education';
+    const rows = this._getTeamDetailSettingsItems().map(item => {
+      const checked = visibility[item.key] !== false ? ' checked' : '';
+      return '<div class="td-settings-row">' +
+        '<div><strong>' + item.label + '</strong><span>' + item.desc + '</span></div>' +
+        '<label class="toggle-switch"><input type="checkbox" data-setting-key="' + item.key + '"' + checked + ' onchange="App.toggleTeamDetailVisibility(\'' + item.key + '\', this.checked, this)"><span class="toggle-slider"></span></label>' +
+        '</div>';
+    }).join('');
+    body.innerHTML = '<div class="td-settings-group">' +
+      '<div class="td-settings-row td-settings-row-primary">' +
+      '<div><strong>\u6559\u5b78\u6a19\u7c64</strong><span>\u958b\u555f\u5f8c\u6703\u5728\u4ff1\u6a02\u90e8\u6e05\u55ae\u6b78\u985e\u70ba\u6559\u5b78\uff0c\u4e26\u5728\u5c01\u9762\u986f\u793a\u6559\u5b78\u7dde\u5e36\u3002</span></div>' +
+      '<label class="toggle-switch"><input type="checkbox"' + (teachingChecked ? ' checked' : '') + ' onchange="App.toggleTeamTeachingTag(this.checked, this)"><span class="toggle-slider"></span></label>' +
+      '</div>' +
+      '</div>' +
+      '<div class="td-settings-group"><div class="td-settings-title">\u6b04\u4f4d\u5bb9\u5668\u986f\u793a</div>' + rows + '</div>' +
+      '<button class="outline-btn td-settings-edit-btn" type="button" onclick="App.openTeamDetailEdit()">\u7de8\u8f2f\u57fa\u672c\u8cc7\u6599</button>';
+  },
+
+  openTeamDetailSettings() {
+    const teamId = this._teamDetailId;
+    const team = teamId ? ApiService.getTeam(teamId) : null;
+    if (!team) return;
+    if (!this._canEditTeamByRoleOrCaptain?.(team)) {
+      this.showToast('\u60a8\u6c92\u6709\u7de8\u8f2f\u6b64\u4ff1\u6a02\u90e8\u7684\u6b0a\u9650');
+      return;
+    }
+    this._renderTeamDetailSettingsBody(team);
+    const modal = document.getElementById('team-detail-settings-modal');
+    if (modal && !modal.classList.contains('open')) {
+      this.showModal('team-detail-settings-modal');
+    }
+  },
+
+  async _saveTeamDetailSettingsPatch(updates, inputEl) {
+    const teamId = this._teamDetailId;
+    const team = teamId ? ApiService.getTeam(teamId) : null;
+    if (!team) return;
+    if (!this._canEditTeamByRoleOrCaptain?.(team)) {
+      this.showToast('\u60a8\u6c92\u6709\u7de8\u8f2f\u6b64\u4ff1\u6a02\u90e8\u7684\u6b0a\u9650');
+      return;
+    }
+    if (inputEl) inputEl.disabled = true;
+    try {
+      await ApiService.updateTeamAwait(teamId, updates);
+      this.renderTeamList?.();
+      this.renderTeamManage?.();
+      this.renderAdminTeams?.();
+      await this.showTeamDetail(teamId, { skipPageHistory: true, bypassPageLock: true });
+      this._renderTeamDetailSettingsBody(ApiService.getTeam(teamId));
+      this.showToast('\u8a2d\u5b9a\u5df2\u66f4\u65b0');
+    } catch (err) {
+      console.error('[TeamDetail] settings update failed:', err);
+      if (inputEl) inputEl.checked = !inputEl.checked;
+      if (!err?._toasted) this.showToast('\u8a2d\u5b9a\u66f4\u65b0\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+    } finally {
+      if (inputEl) inputEl.disabled = false;
+    }
+  },
+
+  toggleTeamTeachingTag(enabled, inputEl) {
+    return this._saveTeamDetailSettingsPatch({ teachingEnabled: !!enabled }, inputEl);
+  },
+
+  toggleTeamDetailVisibility(key, enabled, inputEl) {
+    const allowed = new Set(this._getTeamDetailSettingsItems().map(item => item.key));
+    if (!allowed.has(key)) return;
+    const team = this._teamDetailId ? ApiService.getTeam(this._teamDetailId) : null;
+    if (!team) return;
+    const current = team.detailVisibility && typeof team.detailVisibility === 'object'
+      ? { ...team.detailVisibility }
+      : {};
+    current[key] = !!enabled;
+    return this._saveTeamDetailSettingsPatch({ detailVisibility: current }, inputEl);
   },
 
   async showTeamDetail(id, options = {}) {
@@ -170,23 +269,26 @@ Object.assign(App, {
       const detailRank = this._getTeamRank(t.teamExp);
       const detailSportIcon = t.sportTag && typeof getSportIconSvg === 'function' ? (getSportIconSvg(t.sportTag) || '') : '';
       const detailSportBadge = detailSportIcon ? '<span class="tc-sport-badge" style="top:8px;left:8px;padding:3px 9px;font-size:1.3rem">' + detailSportIcon + '</span>' : '';
+      const detailTeachingRibbon = (typeof this._isTeamTeachingTagged === 'function' && this._isTeamTeachingTagged(t))
+        ? '<span class="tc-edu-ribbon td-cover-ribbon">\u6559\u5b78</span>'
+        : '';
       const detailImage = this._getTeamImageUrl?.(t, 'cover') || t.image || '';
       imgEl.style.position = 'relative';
       if (detailImage) {
-        imgEl.innerHTML = detailSportBadge + '<img src="' + escapeHTML(detailImage) + '" loading="eager" decoding="async" fetchpriority="high" style="width:100%;height:100%;object-fit:cover"><span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
+        imgEl.innerHTML = detailSportBadge + '<img src="' + escapeHTML(detailImage) + '" loading="eager" decoding="async" fetchpriority="high" style="width:100%;height:100%;object-fit:cover">' + detailTeachingRibbon + '<span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
       } else {
-        imgEl.innerHTML = detailSportBadge + '\u7403\u968a\u5c01\u9762 800 \u00d7 300<span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
+        imgEl.innerHTML = detailSportBadge + '\u7403\u968a\u5c01\u9762 800 \u00d7 300' + detailTeachingRibbon + '<span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
       }
 
       const totalGames = (t.wins || 0) + (t.draws || 0) + (t.losses || 0);
       const winRate = totalGames > 0 ? Math.round((t.wins || 0) / totalGames * 100) : 0;
 
       // 載入 feed subcollection 資料；教育型也共用同一套詳細頁 UI。
-      if (typeof this._loadTeamFeed === 'function') {
+      if (this._isTeamDetailSectionVisible?.(t, 'feed') !== false && typeof this._loadTeamFeed === 'function') {
         await this._loadTeamFeed(id);
       }
       nodes.body.innerHTML = this._buildTeamDetailBodyHtml(t, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate);
-      if (t.type === 'education' && typeof this._initEduClubDetailSection === 'function') {
+      if (this._isTeamDetailSectionVisible?.(t, 'courses') !== false && typeof this._initEduClubDetailSection === 'function') {
         this._initEduClubDetailSection(id);
       }
 

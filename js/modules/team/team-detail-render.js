@@ -403,6 +403,27 @@ Object.assign(App, {
     }
   },
 
+  _getTeamDetailVisibility(t) {
+    const source = t && typeof t.detailVisibility === 'object' && t.detailVisibility
+      ? t.detailVisibility
+      : {};
+    return {
+      events: source.events !== false,
+      courses: source.courses !== false,
+      feed: source.feed !== false,
+      info: source.info !== false,
+      bio: source.bio !== false,
+      record: source.record !== false,
+      history: source.history !== false,
+      members: source.members !== false,
+    };
+  },
+
+  _isTeamDetailSectionVisible(t, key) {
+    const visibility = this._getTeamDetailVisibility(t);
+    return visibility[key] !== false;
+  },
+
   _buildTeamDetailActionBar(t) {
     const u = ApiService.getCurrentUser?.();
     const n = u?.displayName || '';
@@ -427,16 +448,22 @@ Object.assign(App, {
   },
 
   _buildTeamDetailSectionNav(t) {
-    const eduItem = t.type === 'education'
-      ? '<button type="button" onclick="document.getElementById(\'edu-detail-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u8ab2\u7a0b</button>'
+    const items = [];
+    if (this._isTeamDetailSectionVisible(t, 'events')) {
+      items.push('<button type="button" onclick="document.getElementById(\'team-events-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u6d3b\u52d5</button>');
+    }
+    if (this._isTeamDetailSectionVisible(t, 'courses')) {
+      items.push('<button type="button" onclick="document.getElementById(\'edu-detail-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u8ab2\u7a0b</button>');
+    }
+    if (this._isTeamDetailSectionVisible(t, 'members')) {
+      items.push('<button type="button" onclick="document.getElementById(\'team-members-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u968a\u4f0d</button>');
+    }
+    if (this._isTeamDetailSectionVisible(t, 'record')) {
+      items.push('<button type="button" onclick="document.getElementById(\'team-record-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u6230\u7e3e</button>');
+    }
+    return items.length
+      ? '<div class="td-section-nav" aria-label="club detail sections">' + items.join('') + '</div>'
       : '';
-    return '<div class="td-section-nav" aria-label="club detail sections">' +
-      '<button type="button" onclick="document.getElementById(\'team-events-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u6d3b\u52d5</button>' +
-      eduItem +
-      '<button type="button" onclick="document.getElementById(\'team-feed-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u52d5\u614b</button>' +
-      '<button type="button" onclick="document.getElementById(\'team-info-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u8cc7\u8a0a</button>' +
-      '<button type="button" onclick="document.getElementById(\'team-members-section\')?.scrollIntoView({block:\'start\',behavior:\'smooth\'})">\u968a\u4f0d</button>' +
-      '</div>';
   },
 
   _buildTeamDetailOverview(t, totalGames, winRate) {
@@ -446,13 +473,12 @@ Object.assign(App, {
     return '<div class="td-overview-grid">' +
       '<div class="td-overview-stat"><span class="td-overview-icon">\u4eba</span><span class="td-overview-label">\u6210\u54e1</span><strong>' + memberCount + '</strong></div>' +
       '<div class="td-overview-stat"><span class="td-overview-icon">\u6559</span><span class="td-overview-label">\u6559\u7df4</span><strong>' + coachCount + '</strong></div>' +
-      '<div class="td-overview-stat"><span class="td-overview-icon">\u65e5</span><span class="td-overview-label">\u6d3b\u52d5</span><strong>' + eventCount + '</strong></div>' +
-      '<div class="td-overview-stat"><span class="td-overview-icon">\u52dd</span><span class="td-overview-label">\u52dd\u7387</span><strong>' + winRate + '%</strong><small>' + totalGames + ' ' + I18N.t('teamDetail.totalGames') + '</small></div>' +
+      '<div class="td-overview-stat"><span class="td-overview-icon">\u65e5</span><span class="td-overview-label">\u672c\u9031\u6d3b\u52d5</span><strong>' + eventCount + '</strong></div>' +
       '</div>';
   },
 
   _buildTeamEducationSection(t) {
-    if (!t || t.type !== 'education') return '';
+    if (!t) return '';
     return '<div class="td-card td-section-card td-edu-unified" id="edu-detail-section">' +
       '<div class="td-card-title td-card-title-row"><span>\u8ab2\u7a0b\u8207\u5b78\u54e1</span></div>' +
       '<div class="edu-tab-row td-edu-tab-row">' +
@@ -496,7 +522,7 @@ Object.assign(App, {
   },
 
   _buildTeamBioCard(t) {
-    return t.bio ? '<div class="td-card td-section-card"><div class="td-card-title" style="text-align:center">' + I18N.t('teamDetail.bio') + '</div><div style="font-size:.82rem;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;word-break:break-word">' + escapeHTML(t.bio) + '</div></div>' : '';
+    return t.bio ? '<div class="td-card td-section-card" id="team-bio-section"><div class="td-card-title" style="text-align:center">' + I18N.t('teamDetail.bio') + '</div><div style="font-size:.82rem;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;word-break:break-word">' + escapeHTML(t.bio) + '</div></div>' : '';
   },
 
   _buildTeamRecordCard(t, totalGames, winRate) {
@@ -518,7 +544,7 @@ Object.assign(App, {
 
   _buildTeamHistoryCard(t) {
     const historyRows = (t.history || []).map(h => '<div class="td-history-row"><span class="td-history-name">' + escapeHTML(h.name) + '</span><span class="td-history-result">' + escapeHTML(h.result) + '</span></div>').join('') || '<div style="font-size:.82rem;color:var(--text-muted);padding:.3rem">' + I18N.t('teamDetail.noHistory') + '</div>';
-    return '<div class="td-card td-section-card"><div class="td-card-title profile-collapse-toggle" onclick="App.toggleTeamDetailSection(this,\'teamMatch\')"><span>' + I18N.t('teamDetail.matchHistory') + '</span><span class="profile-collapse-arrow">\u25b6</span></div><div class="profile-collapse-content" style="display:none">' + historyRows + '</div></div>';
+    return '<div class="td-card td-section-card" id="team-history-section"><div class="td-card-title profile-collapse-toggle" onclick="App.toggleTeamDetailSection(this,\'teamMatch\')"><span>' + I18N.t('teamDetail.matchHistory') + '</span><span class="profile-collapse-arrow">\u25b6</span></div><div class="profile-collapse-content" style="display:none">' + historyRows + '</div></div>';
   },
 
   _buildTeamMembersCard(t, canManageMembers, memberEditMode, staffIdentity) {
@@ -537,23 +563,51 @@ Object.assign(App, {
     return '<div class="td-card td-section-card" id="team-members-section"><div id="team-members-toggle" class="td-card-title td-card-title-row profile-collapse-toggle" onclick="App.toggleTeamDetailSection(this,\'teamMembers\')"><span>' + I18N.t('teamDetail.memberList') + '</span><span class="td-card-title-right">' + editBtn + '<span class="profile-collapse-arrow">\u25b6</span></span></div><div class="profile-collapse-content td-member-tags" style="display:none">' + membersContent + '</div></div>';
   },
 
+  _buildTeamDetailIdentityPanel(t, totalGames, winRate) {
+    const sportKey = typeof getSportKeySafe === 'function'
+      ? getSportKeySafe(t.sportTag)
+      : String(t.sportTag || '').trim();
+    const sportLabel = sportKey && typeof EVENT_SPORT_MAP !== 'undefined' && EVENT_SPORT_MAP[sportKey]
+      ? EVENT_SPORT_MAP[sportKey].label
+      : sportKey;
+    const metaParts = [t.region, sportLabel, t.nameEn].filter(Boolean);
+    const logoUrl = this._getTeamImageUrl?.(t, 'card') || t.logoUrl || t.logo || t.avatar || t.image || '';
+    const fallbackInitial = escapeHTML(String(t.name || 'T').trim().charAt(0) || 'T');
+    const logoHtml = logoUrl
+      ? '<div class="td-club-logo"><img src="' + escapeHTML(logoUrl) + '" alt="' + escapeHTML(t.name || '') + '"></div>'
+      : '<div class="td-club-logo td-club-logo-fallback"><span>' + fallbackInitial + '</span></div>';
+    const teachingBadge = (typeof this._isTeamTeachingTagged === 'function' && this._isTeamTeachingTagged(t))
+      ? '<span class="td-teaching-pill">\u6559\u5b78</span>'
+      : '';
+    return '<div class="td-identity-panel">' +
+      '<div class="td-club-head">' +
+      logoHtml +
+      '<div class="td-club-title-block">' +
+      '<div class="td-club-title-row"><h1>' + escapeHTML(t.name || '') + '</h1>' + teachingBadge + '</div>' +
+      '<div class="td-club-meta">' + escapeHTML(metaParts.join('｜')) + '</div>' +
+      '</div>' +
+      '</div>' +
+      this._buildTeamDetailActionBar(t) +
+      this._buildTeamDetailSectionNav(t) +
+      this._buildTeamDetailOverview(t, totalGames, winRate) +
+      '</div>';
+  },
+
   // ══════════════════════════════════
   //  Team Detail Body HTML Builder
   // ══════════════════════════════════
 
   _buildTeamDetailBodyHtml(t, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate) {
     return '<div class="td-detail-shell">'
-      + this._buildTeamDetailActionBar(t)
-      + this._buildTeamDetailSectionNav(t)
-      + this._buildTeamDetailOverview(t, totalGames, winRate)
-      + this._renderTeamEvents(t.id)
-      + this._buildTeamEducationSection(t)
-      + '<div id="team-feed-section">' + this._renderTeamFeed(t.id) + '</div>'
-      + this._buildTeamInfoCard(t)
-      + this._buildTeamBioCard(t)
-      + this._buildTeamRecordCard(t, totalGames, winRate)
-      + this._buildTeamHistoryCard(t)
-      + this._buildTeamMembersCard(t, canManageMembers, memberEditMode, staffIdentity)
+      + this._buildTeamDetailIdentityPanel(t, totalGames, winRate)
+      + (this._isTeamDetailSectionVisible(t, 'events') ? this._renderTeamEvents(t.id) : '')
+      + (this._isTeamDetailSectionVisible(t, 'courses') ? this._buildTeamEducationSection(t) : '')
+      + (this._isTeamDetailSectionVisible(t, 'feed') ? '<div id="team-feed-section">' + this._renderTeamFeed(t.id) + '</div>' : '')
+      + (this._isTeamDetailSectionVisible(t, 'info') ? this._buildTeamInfoCard(t) : '')
+      + (this._isTeamDetailSectionVisible(t, 'bio') ? this._buildTeamBioCard(t) : '')
+      + (this._isTeamDetailSectionVisible(t, 'record') ? this._buildTeamRecordCard(t, totalGames, winRate) : '')
+      + (this._isTeamDetailSectionVisible(t, 'history') ? this._buildTeamHistoryCard(t) : '')
+      + (this._isTeamDetailSectionVisible(t, 'members') ? this._buildTeamMembersCard(t, canManageMembers, memberEditMode, staffIdentity) : '')
       + '</div>';
   },
 

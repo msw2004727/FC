@@ -2571,3 +2571,8 @@
 - **Issue**: On desktop, the large PM bubble could disappear while unread PMs still existed. The PM conversation list route and list rerender path suppressed or dismissed the bubble, so the bell hint could remain correct while the larger unread reminder vanished.
 - **Fix**: Removed PM conversation list page state from the bubble suppression path. The bubble is now suppressed only for the currently open same conversation dialog, and a fresh bubble timeout rechecks the PM thread cache by conversation key before hiding. If unread remains, it switches to persistent reminder mode.
 - **Validation**: Added unit coverage for fresh-to-reminder behavior while the desktop PM list is open and for PM list rerender not dismissing an active reminder. Ran targeted PM tests and full `npm test`.
+
+### 2026-05-13 Club Detail Unified Mobile Header [feature]
+- **Issue**: Club detail still separated general and teaching club behavior, and the top mobile layout did not match the newer club demo direction. Teaching also needed to become a configurable label/category rather than a separate functional club type.
+- **Fix**: Reworked the club detail top area into cover + floating back/settings controls + logo/title/actions/tabs/stats. Added owner settings toggles for teaching label and per-section visibility (`detailVisibility`). Course/student features now render for every club, while the teaching ribbon/category uses `teachingEnabled` with legacy `type=education` as fallback.
+- **Validation**: Added unit coverage for universal course section rendering and visibility-driven container/nav hiding. Ran full `npm test` before version bump, targeted team/education tests after bump, syntax checks for touched JS, and bumped cache version to `0.20260513l`.

@@ -178,6 +178,52 @@ describe('team detail club activity section', () => {
     expect(html.indexOf('club events')).toBeLessThan(html.indexOf('<div id="team-feed-section">'));
   });
 
+  test('renders course section for every club type', () => {
+    const app = makeApp([]);
+    loadTeamDetailRender(app, []);
+
+    expect(app._buildTeamEducationSection({ id: 'teamA', type: 'general' })).toContain('id="edu-detail-section"');
+    expect(app._buildTeamEducationSection({ id: 'teamB', type: 'education' })).toContain('id="edu-detail-section"');
+  });
+
+  test('detail visibility settings hide selected containers and nav targets', () => {
+    const app = makeApp([]);
+    loadTeamDetailRender(app, []);
+    Object.assign(app, {
+      _buildTeamInfoCard: () => '<section id="team-info-section">info</section>',
+      _buildTeamBioCard: () => '<section id="team-bio-section">bio</section>',
+      _buildTeamRecordCard: () => '<section id="team-record-section">record</section>',
+      _buildTeamHistoryCard: () => '<section id="team-history-section">history</section>',
+      _buildTeamMembersCard: () => '<section id="team-members-section">members</section>',
+      _renderTeamFeed: () => '<section>feed</section>',
+      _renderTeamEvents: () => '<section id="team-events-section">club events</section>',
+    });
+
+    const team = {
+      id: 'teamA',
+      captain: '',
+      coaches: [],
+      detailVisibility: {
+        courses: false,
+        feed: false,
+        members: false,
+        record: false,
+      },
+    };
+    const html = app._buildTeamDetailBodyHtml(team, false, false, { keys: new Set(), names: new Set() }, 0, 0);
+    const nav = app._buildTeamDetailSectionNav(team);
+
+    expect(html).toContain('team-events-section');
+    expect(html).not.toContain('edu-detail-section');
+    expect(html).not.toContain('team-feed-section');
+    expect(html).not.toContain('team-members-section');
+    expect(html).not.toContain('team-record-section');
+    expect(nav).toContain('team-events-section');
+    expect(nav).not.toContain('edu-detail-section');
+    expect(nav).not.toContain('team-members-section');
+    expect(nav).not.toContain('team-record-section');
+  });
+
   test('team feed publish button passes itself for loading feedback', () => {
     const app = makeApp([]);
     Object.assign(app, {
