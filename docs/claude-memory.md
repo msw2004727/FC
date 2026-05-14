@@ -2689,3 +2689,9 @@
 - **Issue**: The club edit form presented the manager field like a normal searchable role field, so users could mistake it for a multi-person leader setting and accidentally transfer the single club manager seat.
 - **Fix**: Added an explicit warning block beside the manager search field and inserted a save-time confirmation when the saved manager UID differs from the previous manager UID. The confirmation explains that the manager is single-seat, grants management permission to the new manager, and may remove the old manager's management access.
 - **Validation**: Added source coverage for the warning and transfer confirmation flow, plus JavaScript syntax checks for the touched team form modules.
+
+### 2026-05-14 ColorCat Touchmove Cancelable Guard [bugfix]
+- **Issue**: Mobile browsers could log `[Intervention] Ignored attempt to cancel a touchmove event with cancelable=false` while using the ColorCat canvas.
+- **Cause**: The game tried to call `preventDefault()` on every dragging/charging `touchmove`, including events the browser had already marked non-cancelable after scrolling started.
+- **Fix**: Guarded `preventDefault()` with `event.cancelable` and added `touch-action:none` plus related interaction styles to the main ColorCat canvas so the browser treats it as a game interaction surface earlier.
+- **Validation**: Added source coverage for the cancelable guard and canvas touch-action contract, then ran JavaScript syntax check and the ColorCat unit test.

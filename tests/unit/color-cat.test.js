@@ -11,6 +11,9 @@
  *   - 邊界 case（min/max 不倒反）
  */
 
+const fs = require('fs');
+const path = require('path');
+
 // ─── 從 color-cat-stats.js 抽取 config 結構 ───
 const _ai = {
   cooldownMin: 60,
@@ -212,5 +215,17 @@ describe('ColorCat — 整體平衡檢查', () => {
     expect(_ai.weights.biteBall).not.toBe(0);
     expect(_physics.gravity).not.toBe(0);
     expect(_ball.radius).not.toBe(0);
+  });
+});
+
+describe('ColorCat — 觸控事件防護', () => {
+  test('touchmove preventDefault 前先檢查 cancelable，並鎖定主 canvas touch-action', () => {
+    const sceneSource = fs.readFileSync(
+      path.join(__dirname, '../../js/modules/color-cat/color-cat-scene.js'),
+      'utf8'
+    );
+    expect(sceneSource).toContain('e.cancelable && (_ballDragging || ColorCatCharacter._.ultCharging)');
+    expect(sceneSource).toContain('touch-action:none');
+    expect(sceneSource).toContain('CANVAS_INTERACTION_STYLE');
   });
 });

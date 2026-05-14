@@ -14,6 +14,7 @@ var _isLandscape = false;
 var _forcedPortrait = false;   // 使用者按返回按鈕後鎖定直放，直到實際翻回直放再解除
 var _returnBtn = null;
 var _profileUnlocked = false;  // 密碼解鎖後記住，避免切頁回來被重置
+var CANVAS_INTERACTION_STYLE = 'touch-action:none;overscroll-behavior:contain;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;';
 
 // ── 內部共享狀態（子模組透過 ColorCatScene._ 存取） ──
 var _ = {
@@ -381,7 +382,7 @@ function _resizeCanvas() {
 
     _canvas.width = actualW * _dpr;
     _canvas.height = actualH * _dpr;
-    _canvas.style.cssText = 'width:' + actualW + 'px;height:' + actualH + 'px;display:block;cursor:pointer;image-rendering:pixelated;';
+    _canvas.style.cssText = 'width:' + actualW + 'px;height:' + actualH + 'px;display:block;cursor:pointer;image-rendering:pixelated;' + CANVAS_INTERACTION_STYLE;
     _container.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:9999;max-width:none;border-radius:0;';
   } else {
     C.scaleFactor = 1;
@@ -391,7 +392,7 @@ function _resizeCanvas() {
 
     _canvas.width = _sw * _dpr;
     _canvas.height = _sh * _dpr;
-    _canvas.style.cssText = 'width:100%;height:' + _sh + 'px;display:block;cursor:pointer;image-rendering:pixelated;';
+    _canvas.style.cssText = 'width:100%;height:' + _sh + 'px;display:block;cursor:pointer;image-rendering:pixelated;' + CANVAS_INTERACTION_STYLE;
     _container.style.cssText = '';
   }
 
@@ -457,7 +458,7 @@ function _toggleLandscapeUI(landscape) {
         C.updateSceneSize(_sw, _sh);
         _canvas.width = _sw * _dpr;
         _canvas.height = _sh * _dpr;
-        _canvas.style.cssText = 'width:100%;height:' + _sh + 'px;display:block;cursor:pointer;image-rendering:pixelated;';
+        _canvas.style.cssText = 'width:100%;height:' + _sh + 'px;display:block;cursor:pointer;image-rendering:pixelated;' + CANVAS_INTERACTION_STYLE;
         _container.style.cssText = '';
         _ctx = _canvas.getContext('2d');
         _ctx.setTransform(_dpr, 0, 0, _dpr, 0, 0);
@@ -494,7 +495,7 @@ function initInteractiveScene(containerId) {
   _sh = C.SCENE_H;
   _canvas.width = _sw * _dpr;
   _canvas.height = _sh * _dpr;
-  _canvas.style.cssText = 'width:100%;height:' + _sh + 'px;display:block;cursor:pointer;image-rendering:pixelated;';
+  _canvas.style.cssText = 'width:100%;height:' + _sh + 'px;display:block;cursor:pointer;image-rendering:pixelated;' + CANVAS_INTERACTION_STYLE;
   container.appendChild(_canvas);
   _ctx = _canvas.getContext('2d');
   _ctx.setTransform(_dpr, 0, 0, _dpr, 0, 0);
@@ -525,7 +526,7 @@ function initInteractiveScene(containerId) {
   _canvas.addEventListener('touchcancel', handlePressEnd);
   _canvas.addEventListener('mousemove', handleDragMove);
   _canvas.addEventListener('touchmove', function(e) {
-    if (_ballDragging || ColorCatCharacter._.ultCharging) e.preventDefault();
+    if (e.cancelable && (_ballDragging || ColorCatCharacter._.ultCharging)) e.preventDefault();
     handleDragMove(e);
   }, { passive: false });
 
