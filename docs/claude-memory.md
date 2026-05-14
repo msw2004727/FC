@@ -2684,3 +2684,8 @@
 - **Issue**: Saving edited club basic information from the club detail page updated the data cache and list views, but the open club detail screen could keep showing the old title, image, info, or contact fields until the page was reopened.
 - **Fix**: After a successful edit save, the team form now refreshes the current club detail page only when the user is still on the same `page-team-detail` club. Edits from list/admin pages still stay on their original page and do not force navigation.
 - **Validation**: Added unit coverage asserting the detail edit save refresh guard. Ran `node -c js/modules/team/team-form.js` and full unit tests through `npm test -- tests/unit/team-contact-links.test.js`.
+
+### 2026-05-14 Club Manager Transfer Confirmation [bugfix]
+- **Issue**: The club edit form presented the manager field like a normal searchable role field, so users could mistake it for a multi-person leader setting and accidentally transfer the single club manager seat.
+- **Fix**: Added an explicit warning block beside the manager search field and inserted a save-time confirmation when the saved manager UID differs from the previous manager UID. The confirmation explains that the manager is single-seat, grants management permission to the new manager, and may remove the old manager's management access.
+- **Validation**: Added source coverage for the warning and transfer confirmation flow, plus JavaScript syntax checks for the touched team form modules.

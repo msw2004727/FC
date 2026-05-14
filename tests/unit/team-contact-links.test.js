@@ -65,6 +65,22 @@ describe('club contact links and fallback cover', () => {
     expect(formSource).toContain('await this.showTeamDetail(savedTeamId, { skipPageHistory: true, bypassPageLock: true })');
   });
 
+  test('club manager transfer is warned in the form and confirmed before saving', () => {
+    const teamPage = readProjectFile('pages/team.html');
+    const teamCss = readProjectFile('css/team.css');
+    const formSource = readProjectFile('js/modules/team/team-form.js');
+    const roleSource = readProjectFile('js/modules/team/team-form-roles.js');
+
+    expect(teamPage).toContain('ct-captain-transfer-warning');
+    expect(teamPage).toContain('俱樂部經理只能有一位');
+    expect(teamPage).toContain('不是可複選的領隊欄位');
+    expect(teamCss).toContain('.ct-captain-transfer-warning');
+    expect(formSource).toContain('_confirmTeamManagerTransfer(vals)');
+    expect(roleSource).toContain('_confirmTeamManagerTransfer');
+    expect(roleSource).toContain('確定要轉移俱樂部經理嗎？');
+    expect(roleSource).toContain('原經理可能失去此俱樂部管理權限');
+  });
+
   test('clubs reuse the event no-cover asset when no cover is uploaded', () => {
     const helpers = readProjectFile('js/modules/team/team-list-helpers.js');
     const formSource = readProjectFile('js/modules/team/team-form.js');

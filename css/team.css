@@ -1539,6 +1539,23 @@
 .team-user-suggest-item .tus-name { font-weight: 600; color: var(--text-primary); }
 .team-user-suggest-item .tus-uid { font-size: .72rem; color: var(--text-muted); }
 
+.ct-captain-transfer-warning {
+  margin: .1rem 0 .45rem;
+  padding: .55rem .65rem;
+  border: 1px solid rgba(245, 158, 11, .32);
+  border-radius: 10px;
+  background: rgba(245, 158, 11, .12);
+  color: #92400e;
+  font-size: .78rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+[data-theme="dark"] .ct-captain-transfer-warning {
+  border-color: rgba(251, 191, 36, .32);
+  background: rgba(251, 191, 36, .13);
+  color: #fde68a;
+}
+
 .team-tag {
   display: inline-flex; align-items: center; gap: .3rem;
   background: var(--accent-bg); color: var(--accent); border-radius: 20px;

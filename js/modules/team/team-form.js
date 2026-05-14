@@ -29,6 +29,7 @@ Object.assign(App, {
 
     // ── 降級確認（編輯模式)── 必須在 loading wrapper 前(用戶取消 confirm 不該顯示 loading)
     if (this._teamFormState.editId) {
+      if (typeof this._confirmTeamManagerTransfer === 'function' && !(await this._confirmTeamManagerTransfer(vals))) return;
       if (!(await this._confirmTeamRoleDemotions(vals))) return;
     }
 

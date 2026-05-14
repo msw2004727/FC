@@ -8,6 +8,37 @@
 Object.assign(App, {
 
   /**
+   * Editing a club manager is a single-seat transfer, not a multi-select staff edit.
+   * Confirm explicitly so the current manager does not accidentally transfer ownership.
+   * @param {Object} vals - _extractTeamFormValues() result
+   * @returns {boolean} true=continue save, false=cancel save
+   */
+  async _confirmTeamManagerTransfer(vals) {
+    if (!vals) return true;
+    const { captainUidForSave, oldCaptainUid, captain, users = [] } = vals;
+    const oldUid = String(oldCaptainUid || '').trim();
+    const newUid = String(captainUidForSave || oldUid || '').trim();
+    if (!oldUid || !newUid || oldUid === newUid) return true;
+
+    const findUser = (uid) => users.find(u => u && (u.uid === uid || u._docId === uid || u.id === uid));
+    const oldUser = findUser(oldUid);
+    const newUser = findUser(newUid);
+    const oldName = oldUser?.name || oldUser?.displayName || '原俱樂部經理';
+    const newName = captain || newUser?.name || newUser?.displayName || '新俱樂部經理';
+
+    return await this.appConfirm(
+      `確定要轉移俱樂部經理嗎？\n\n` +
+      `目前經理：${oldName}\n` +
+      `新的經理：${newName}\n\n` +
+      `注意：\n` +
+      `- 俱樂部經理只能有一位，不是可複選的領隊欄位。\n` +
+      `- 儲存後，新的經理會取得俱樂部管理權限。\n` +
+      `- 原經理可能失去此俱樂部管理權限，除非仍保留領隊、教練或其他管理身份。\n\n` +
+      `確定要儲存這次經理轉移？`
+    );
+  },
+
+  /**
    * 編輯模式下，預覽被移除成員的角色變更並詢問確認。
    * @param {Object} vals - _extractTeamFormValues() 的回傳值
    * @returns {boolean} true=繼續儲存, false=使用者取消
