@@ -125,6 +125,36 @@ function isMissingCancelRegistrationError(err) {
     || message.includes('找不到報名');
 }
 
+function isAlreadyCancelledRegistrationError(err) {
+  const code = String(err?.details || err?.code || '').trim();
+  const message = String(err?.message || err || '');
+  return code === 'ALREADY_CANCELLED'
+    || message.includes('已取消此報名')
+    || message.includes('ALREADY_CANCELLED');
+}
+
+function markLocalRegistrationsTerminal(source, eventId, registrationRefs = [], status = 'cancelled') {
+  const ids = new Set();
+  const refs = Array.isArray(registrationRefs) ? registrationRefs : [registrationRefs];
+  refs.forEach(ref => {
+    if (!ref) return;
+    if (typeof ref === 'string') {
+      ids.add(ref);
+      return;
+    }
+    [ref.id, ref._docId, ref.docId].filter(Boolean).forEach(value => ids.add(value));
+  });
+  let changed = 0;
+  source.forEach(reg => {
+    if (reg.eventId !== eventId) return;
+    const candidates = [reg.id, reg._docId, reg.docId].filter(Boolean);
+    if (!candidates.some(value => ids.has(value))) return;
+    reg.status = status;
+    changed++;
+  });
+  return changed;
+}
+
 
 // ═══════════════════════════════════════════════════════
 //  Tests
@@ -552,8 +582,28 @@ describe('signup/cancel rapid-click guard helpers', () => {
     expect(isMissingCancelRegistrationError(new Error('找不到報名資料'))).toBe(true);
   });
 
+  test('already-cancelled registration error is treated as a terminal success signal', () => {
+    expect(isAlreadyCancelledRegistrationError({ details: 'ALREADY_CANCELLED' })).toBe(true);
+    expect(isAlreadyCancelledRegistrationError(new Error('已取消此報名'))).toBe(true);
+    expect(isAlreadyCancelledRegistrationError(new Error('ALREADY_CANCELLED'))).toBe(true);
+  });
+
+  test('terminal cache update mutates the original cached registration by id or docId', () => {
+    const cache = [
+      { id: 'reg_public_1', _docId: 'doc_a', eventId: 'event_1', status: 'confirmed' },
+      { id: 'reg_public_2', _docId: 'doc_b', eventId: 'event_1', status: 'waitlisted' },
+      { id: 'reg_public_3', _docId: 'doc_c', eventId: 'event_2', status: 'confirmed' },
+    ];
+    const changed = markLocalRegistrationsTerminal(cache, 'event_1', [{ id: 'reg_public_1' }, { docId: 'doc_b' }]);
+    expect(changed).toBe(2);
+    expect(cache[0].status).toBe('cancelled');
+    expect(cache[1].status).toBe('cancelled');
+    expect(cache[2].status).toBe('confirmed');
+  });
+
   test('non-benign errors stay reportable', () => {
     expect(isDuplicateSignupError(new Error('permission-denied'))).toBe(false);
     expect(isMissingCancelRegistrationError(new Error('permission-denied'))).toBe(false);
+    expect(isAlreadyCancelledRegistrationError(new Error('permission-denied'))).toBe(false);
   });
 });

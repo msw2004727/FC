@@ -7153,22 +7153,25 @@ exports.cancelRegistration = onCall(
 
       // T3: 驗證 registrationIds 存在且可取消
       const targetRegs = [];
+      const alreadyCancelledRegs = [];
       const idSet = new Set(registrationIds);
       for (const reg of allEventRegs) {
         if (idSet.has(reg.id) || idSet.has(reg._docId)) {
           if (reg.status === "cancelled" || reg.status === "removed") {
-            throw new HttpsError("failed-precondition", "ALREADY_CANCELLED");
+            alreadyCancelledRegs.push(reg);
+            continue;
           }
           targetRegs.push(reg);
         }
       }
-      if (targetRegs.length === 0) {
+      if (targetRegs.length === 0 && alreadyCancelledRegs.length === 0) {
         throw new HttpsError("not-found", "REG_NOT_FOUND");
       }
 
       // 權限檢查：user_cancel 只能取消自己的；manager_remove / capacity_change 需管理者權限
+      const permissionCheckRegs = targetRegs.concat(alreadyCancelledRegs);
       if (cancelReason === "user_cancel") {
-        const unauthorized = targetRegs.find((r) => r.userId !== callerUid);
+        const unauthorized = permissionCheckRegs.find((r) => r.userId !== callerUid);
         if (unauthorized) {
           throw new HttpsError("permission-denied", "PERMISSION_DENIED");
         }
@@ -7177,6 +7180,20 @@ exports.cancelRegistration = onCall(
         if (!hasSingleEventRosterAccess) {
           throw new HttpsError("permission-denied", "PERMISSION_DENIED");
         }
+      }
+
+      if (targetRegs.length === 0) {
+        const allActive = allEventRegs.filter(
+          (r) => r.status === "confirmed" || r.status === "waitlisted"
+        );
+        const occupancy = rebuildOccupancy({ ...ed, max: ed.max || 0, status: ed.status }, allActive);
+        return {
+          cancelled: [],
+          alreadyCancelled: alreadyCancelledRegs.map((r) => ({ id: r.id, docId: r._docId, userId: r.userId })),
+          promoted: [],
+          event: occupancy,
+          eventData: { title: ed.title || "", date: ed.date || "", location: ed.location || "", type: ed.type || "" },
+        };
       }
 
       // T4: 標記取消/移除
@@ -7261,6 +7278,7 @@ exports.cancelRegistration = onCall(
 
       return {
         cancelled: targetRegs.map((r) => ({ id: r.id, docId: r._docId, userId: r.userId })),
+        alreadyCancelled: alreadyCancelledRegs.map((r) => ({ id: r.id, docId: r._docId, userId: r.userId })),
         promoted: promotedCandidates.map((r) => ({ id: r.id, docId: r._docId, userId: r.userId, userName: r.userName })),
         event: occupancy,
         eventData: { title: ed.title || "", date: ed.date || "", location: ed.location || "", type: ed.type || "" },
@@ -7337,7 +7355,13 @@ exports.cancelRegistration = onCall(
         targetLabel: result.eventData.title,
         result: "success",
         source: "cloud_function",
-        meta: { eventId, reason: cancelReason, cancelledCount: result.cancelled.length, promotedCount: result.promoted.length },
+        meta: {
+          eventId,
+          reason: cancelReason,
+          cancelledCount: result.cancelled.length,
+          alreadyCancelledCount: result.alreadyCancelled?.length || 0,
+          promotedCount: result.promoted.length,
+        },
         actorUid: callerUid,
       })
     );
@@ -7366,6 +7390,7 @@ exports.cancelRegistration = onCall(
     return {
       success: true,
       cancelled: result.cancelled,
+      alreadyCancelled: result.alreadyCancelled || [],
       promoted: result.promoted,
       event: result.event,
     };

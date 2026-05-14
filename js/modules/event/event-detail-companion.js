@@ -502,10 +502,9 @@ Object.assign(App, {
         const data = cfResult.data;
         if (!data.deduplicated) {
           // 樂觀更新本地快取
-          for (const regId of checked) {
-            const localReg = (FirebaseService._cache?.registrations || []).find(r => r.id === regId || r._docId === regId);
-            if (localReg) { localReg.status = 'cancelled'; localReg.cancelledAt = new Date().toISOString(); }
-          }
+          this._markLocalRegistrationsTerminal?.(eventId, (data.cancelled || []).concat(data.alreadyCancelled || []).length
+            ? (data.cancelled || []).concat(data.alreadyCancelled || [])
+            : checked, 'cancelled');
           if (data.event) {
             const e = ApiService.getEvent(eventId);
             if (e) {
@@ -585,6 +584,13 @@ Object.assign(App, {
         PERMISSION_DENIED: '無權限執行此操作',
       };
       const errCode = err?.details || err?.message || '';
+      if (this._isAlreadyCancelledRegistrationError?.(err)) {
+        this._markLocalRegistrationsTerminal?.(eventId, checked, 'cancelled');
+        try { await this._syncMyEventRegistrations?.(eventId, userId); } catch (_) {}
+        this.showToast(`已取消 ${checked.length} 筆報名`);
+        this.showEventDetail(eventId);
+        return;
+      }
       const isNetworkOrTimeout = /timeout|network|fetch|ECONNREFUSED|逾時/i.test(err?.message || '');
       this.showToast('取消失敗：' + (cfMsg[errCode] || (isNetworkOrTimeout ? '連線逾時，請檢查網路後重新整理再試' : err.message || '')));
       ApiService._writeErrorLog({
@@ -855,10 +861,9 @@ Object.assign(App, {
           ]);
           const data = cfResult.data || {};
           if (!data.deduplicated) {
-            toCancelIds.forEach(regId => {
-              const localReg = (FirebaseService._cache?.registrations || []).find(r => r.id === regId || r._docId === regId);
-              if (localReg) { localReg.status = 'cancelled'; localReg.cancelledAt = new Date().toISOString(); }
-            });
+            this._markLocalRegistrationsTerminal?.(eventId, (data.cancelled || []).concat(data.alreadyCancelled || []).length
+              ? (data.cancelled || []).concat(data.alreadyCancelled || [])
+              : toCancelIds, 'cancelled');
             if (data.event && e) {
               e.current = data.event.current;
               e.realCurrent = data.event.realCurrent;
@@ -952,7 +957,15 @@ Object.assign(App, {
         GENDER_RESTRICTED: '\u540c\u884c\u8005\u4e0d\u7b26\u5408\u6027\u5225\u9650\u5236',
         TEAM_RESTRICTED: '\u4e0d\u7b26\u5408\u7403\u968a\u9650\u5b9a',
         PROFILE_INCOMPLETE: '\u8acb\u5148\u88dc\u9f4a\u500b\u4eba\u8cc7\u6599',
+        ALREADY_CANCELLED: '\u5831\u540d\u72c0\u614b\u5df2\u66f4\u65b0',
       };
+      if (this._isAlreadyCancelledRegistrationError?.(err) && toCancelIds.length > 0) {
+        this._markLocalRegistrationsTerminal?.(eventId, toCancelIds, 'cancelled');
+        try { await this._syncMyEventRegistrations?.(eventId, userId); } catch (_) {}
+        this.showToast('\u5925\u4f34\u5831\u540d\u5df2\u66f4\u65b0');
+        this.showEventDetail(eventId);
+        return;
+      }
       this.showToast(msgMap[errCode] || err.message || '\u5925\u4f34\u5831\u540d\u8abf\u6574\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
     } finally {
       this._syncEventSignupScrollLock?.();

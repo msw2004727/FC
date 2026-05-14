@@ -60,6 +60,14 @@ Object.assign(App, {
       || message.includes('找不到報名');
   },
 
+  _isAlreadyCancelledRegistrationError(err) {
+    const code = String(err?.details || err?.code || '').trim();
+    const message = String(err?.message || err || '');
+    return code === 'ALREADY_CANCELLED'
+      || message.includes('已取消此報名')
+      || message.includes('ALREADY_CANCELLED');
+  },
+
   // ══════════════════════════════════
   _summarizeEventRegistrationForLog(reg) {
     if (!reg) return null;
@@ -223,6 +231,57 @@ Object.assign(App, {
       console.warn('[cancelSignup] sync registrations fallback failed:', err);
       return ApiService.getMyRegistrationsByEvent(eventId);
     }
+  },
+
+  _markLocalRegistrationsTerminal(eventId, registrationRefs = [], status = 'cancelled') {
+    if (typeof FirebaseService === 'undefined') return 0;
+    const source = FirebaseService._cache?.registrations;
+    if (!Array.isArray(source)) return 0;
+    const safeEventId = String(eventId || '').trim();
+    if (!safeEventId) return 0;
+    const refs = Array.isArray(registrationRefs) ? registrationRefs : [registrationRefs];
+    const ids = new Set();
+    const add = value => {
+      const safeValue = String(value || '').trim();
+      if (safeValue) ids.add(safeValue);
+    };
+    refs.forEach(ref => {
+      if (!ref) return;
+      if (typeof ref === 'string') {
+        add(ref);
+        return;
+      }
+      add(ref.id);
+      add(ref._docId);
+      add(ref.docId);
+    });
+    if (!ids.size) return 0;
+
+    const terminalStatus = status === 'removed' ? 'removed' : 'cancelled';
+    const timestampField = terminalStatus === 'removed' ? 'removedAt' : 'cancelledAt';
+    const nowIso = new Date().toISOString();
+    let changed = 0;
+    source.forEach(reg => {
+      if (!reg || String(reg.eventId || '').trim() !== safeEventId) return;
+      const candidates = [reg.id, reg._docId, reg.docId];
+      const path = String(reg._path || '').trim();
+      if (path) candidates.push(path.split('/').filter(Boolean).pop());
+      const matched = candidates.some(value => ids.has(String(value || '').trim()));
+      if (!matched) return;
+      reg.status = terminalStatus;
+      if (!reg[timestampField]) reg[timestampField] = nowIso;
+      changed++;
+    });
+
+    if (changed > 0) {
+      if (typeof FirebaseService._canonicalizeRecordList === 'function') {
+        FirebaseService._cache.registrations = FirebaseService._canonicalizeRecordList('registrations', source, {
+          requireSubcollection: false,
+        });
+      }
+      FirebaseService._saveToLS?.('registrations', FirebaseService._cache.registrations);
+    }
+    return changed;
   },
 
   _getTeamReservationStaffTeams(e) {
@@ -899,6 +958,9 @@ Object.assign(App, {
     } catch (err) {
       const errCode = err?.details || err?.code || err?.message || '';
       if (this._isDuplicateSignupError(err)) {
+        this._flipAnimating = false;
+        this._flipAnimatingAt = 0;
+        try { await this._syncMyEventRegistrations(id, userId); } catch (_) {}
         this.showToast('你已經報名這場活動');
         this._patchDetailAfterSignup(id);
         if (glowWrap) glowWrap.classList.remove('loading');
@@ -1191,7 +1253,13 @@ Object.assign(App, {
             _cancelTimeout,
           ]);
           const data = cfResult.data;
-          if (data.deduplicated) { this.showToast('取消處理中，請稍候'); return; }
+          if (data.deduplicated) {
+            this.showToast('取消處理中，請稍候');
+            _restoreCancelUI();
+            try { await this._syncMyEventRegistrations(id, userId); } catch (_) {}
+            this._patchDetailAfterCancel(id);
+            return;
+          }
           cancelledReg = { _promotedUserIds: (data.promoted || []).map(p => p.userId) };
           if (cancelledReg._promotedUserIds.length > 0) {
             cancelledReg._promotedUserId = cancelledReg._promotedUserIds[0];
@@ -1201,6 +1269,10 @@ Object.assign(App, {
             cancelledLocalReg.status = 'cancelled';
             cancelledLocalReg.cancelledAt = new Date().toISOString();
           });
+          const terminalRefs = []
+            .concat(data.cancelled || [])
+            .concat(data.alreadyCancelled || []);
+          this._markLocalRegistrationsTerminal(id, terminalRefs.length ? terminalRefs : cancelRegistrationIds, 'cancelled');
           if (data.event && e0) {
             e0.current = data.event.current;
             e0.realCurrent = data.event.realCurrent;
@@ -1321,6 +1393,35 @@ Object.assign(App, {
         this._evaluateAchievements?.(e0?.type);
       } catch (err) {
         const errCode = err?.details || err?.code || err?.message || '';
+        if (this._isAlreadyCancelledRegistrationError(err)) {
+          this._logEventRegistrationFailure('event_cancel_already_terminal', id, err, {
+            fn: 'handleCancelSignup',
+            severity: 'warning',
+            stage: useCF ? 'cloud_function_already_cancelled' : 'firestore_already_cancelled',
+            userId,
+            useCloudFunction: useCF,
+            requestId: cancelRequestId,
+            registrationId: regCancelId,
+            registrationIds: cancelRegistrationIds,
+            targetStatuses,
+            activeRegCount: myRegs.length,
+            activeRegStatuses: myRegs.map(r => r.status),
+            registrations: myRegs,
+            errCode,
+          });
+          [reg, ...extraRegs].filter(Boolean).forEach(cancelledLocalReg => {
+            cancelledLocalReg.status = 'cancelled';
+            cancelledLocalReg.cancelledAt = cancelledLocalReg.cancelledAt || new Date().toISOString();
+          });
+          this._markLocalRegistrationsTerminal(id, cancelRegistrationIds.length ? cancelRegistrationIds : [regCancelId], 'cancelled');
+          try { await this._syncMyEventRegistrations(id, userId); } catch (_) {}
+          this.showToast(isWaitlist ? '已取消候補' : '已取消報名');
+          this._flipAnimating = false;
+          this._flipAnimatingAt = 0;
+          _restoreCancelUI();
+          this._patchDetailAfterCancel(id);
+          return;
+        }
         if (this._isMissingCancelRegistrationError(err)) {
           this._logEventRegistrationFailure('event_cancel_missing_registration', id, err, {
             fn: 'handleCancelSignup',
@@ -1337,6 +1438,9 @@ Object.assign(App, {
             registrations: myRegs,
             errCode,
           });
+          try { await this._syncMyEventRegistrations(id, userId); } catch (_) {}
+          this._flipAnimating = false;
+          this._flipAnimatingAt = 0;
           this.showToast('報名狀態已更新');
           this._patchDetailAfterCancel(id);
           _restoreCancelUI();

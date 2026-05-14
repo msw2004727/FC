@@ -2710,3 +2710,9 @@
 - **Cause**: The game tried to call `preventDefault()` on every dragging/charging `touchmove`, including events the browser had already marked non-cancelable after scrolling started.
 - **Fix**: Guarded `preventDefault()` with `event.cancelable` and added `touch-action:none` plus related interaction styles to the main ColorCat canvas so the browser treats it as a game interaction surface earlier.
 - **Validation**: Added source coverage for the cancelable guard and canvas touch-action contract, then ran JavaScript syntax check and the ColorCat unit test.
+
+### 2026-05-14 Event Cancel Idempotent Button State [bugfix]
+- **Issue**: Cancelling an activity could succeed on the server while the detail-page button stayed on cancel/signup-opposite state, letting users tap again and receive `ALREADY_CANCELLED`.
+- **Cause**: The cancel flow mutated canonicalized registration copies instead of the original `FirebaseService._cache.registrations` entries. Some recoverable states also patched the button while the flip-animation guard was still active.
+- **Fix**: Added a local terminal-state updater keyed by registration id/docId, made duplicate/already-cancelled recovery clear animation locks before patching, and changed the cancel Cloud Function to treat already-cancelled targets as idempotent no-ops.
+- **Validation**: Added unit/source coverage for already-cancelled detection, terminal cache updates, and Cloud Function idempotent cancel handling.

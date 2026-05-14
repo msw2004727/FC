@@ -450,6 +450,14 @@ describe('cancelRegistration CF transaction ordering', () => {
     expect(source).not.toContain('CONFIRMED_MANAGER_RESTRICTED');
     expect(source).not.toContain('touchesConfirmed');
   });
+
+  test('treats already-cancelled targets as idempotent no-ops', () => {
+    const source = readCloudFunctionSource('cancelRegistration');
+    expect(source).toContain('const alreadyCancelledRegs = []');
+    expect(source).toContain('alreadyCancelled: alreadyCancelledRegs.map');
+    expect(source).toContain('alreadyCancelled: result.alreadyCancelled || []');
+    expect(source).not.toContain('throw new HttpsError("failed-precondition", "ALREADY_CANCELLED")');
+  });
 });
 
 describe('team reservation membership sync CF source', () => {
