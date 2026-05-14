@@ -17,6 +17,7 @@ Object.assign(App, {
     const region = document.getElementById('ct-team-region').value.trim();
     const founded = document.getElementById('ct-team-founded').value;
     const contact = document.getElementById('ct-team-contact').value.trim();
+    const contactLinksData = this._getTeamContactLinksFormData?.({ validate: true }) || { enabled: false, links: [] };
     const bio = document.getElementById('ct-team-bio').value.trim();
 
     if (!name) { this.showToast('請輸入俱樂部名稱'); return null; }
@@ -30,6 +31,11 @@ Object.assign(App, {
     }
 
     // ── 記錄舊職位（編輯模式用於降級檢查）──
+    if (contactLinksData.error) {
+      this.showToast(contactLinksData.error);
+      return null;
+    }
+
     let oldCaptainUid = null;
     let oldCoachUids = [];
     let oldLeaderUids = [];
@@ -95,6 +101,7 @@ Object.assign(App, {
 
     return {
       name, nameEn, nationality, region, founded, contact, bio,
+      contactLinksEnabled: !!contactLinksData.enabled, contactLinks: contactLinksData.links || [],
       oldCaptainUid, oldCoachUids, oldLeaderUids,
       realLeaderUids, leaderNames, captain, selectedCaptainUser,
       captainUidForSave, coaches, newCoachUids, users,

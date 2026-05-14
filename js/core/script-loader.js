@@ -175,6 +175,7 @@ const ScriptLoader = {
       'js/modules/event/event-share-builders.js',
       'js/modules/event/event-share.js',
       'js/modules/team/team-detail.js',
+      'js/modules/team/team-contact-links.js',
       'js/modules/team/team-detail-render.js',
       'js/modules/team/team-detail-invite.js',
       'js/modules/team/team-share-builders.js',
@@ -183,6 +184,7 @@ const ScriptLoader = {
     ],
     teamForm: [
       'js/modules/team/team-form-search.js',
+      'js/modules/team/team-contact-links.js',
       'js/modules/team/team-form-init.js',
       'js/modules/team/team-form-validate.js',
       'js/modules/team/team-form-roles.js',
@@ -197,6 +199,7 @@ const ScriptLoader = {
       'js/modules/team/team-list.js',
       'js/modules/team/team-list-render.js',
       'js/modules/team/team-detail.js',
+      'js/modules/team/team-contact-links.js',
       'js/modules/team/team-detail-render.js',
       'js/modules/team/team-detail-invite.js',
       'js/modules/team/team-share-builders.js',

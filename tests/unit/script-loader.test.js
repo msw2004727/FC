@@ -199,6 +199,7 @@ describe('resolvePageScripts — real project groups', () => {
       'js/modules/event/event-share-builders.js',
       'js/modules/event/event-share.js',
       'js/modules/team/team-detail.js',
+      'js/modules/team/team-contact-links.js',
       'js/modules/team/team-detail-render.js',
       'js/modules/team/team-detail-invite.js',
       'js/modules/team/team-share-builders.js',
@@ -207,6 +208,7 @@ describe('resolvePageScripts — real project groups', () => {
     ],
     teamForm: [
       'js/modules/team/team-form-search.js',
+      'js/modules/team/team-contact-links.js',
       'js/modules/team/team-form-init.js',
       'js/modules/team/team-form-validate.js',
       'js/modules/team/team-form-roles.js',

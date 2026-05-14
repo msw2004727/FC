@@ -566,7 +566,7 @@ Object.assign(App, {
 
       const imgEl = nodes.image;
       const detailRank = this._getTeamRank(t.teamExp);
-      const detailImage = this._getTeamImageUrl?.(t, 'cover') || t.image || '';
+      const detailImage = this._getTeamCoverImageUrl?.(t, 'cover') || this._getTeamImageUrl?.(t, 'cover') || t.image || '';
       imgEl.style.position = 'relative';
       if (detailImage) {
         imgEl.innerHTML = '<img src="' + escapeHTML(detailImage) + '" loading="eager" decoding="async" fetchpriority="high" style="width:100%;height:100%;object-fit:cover"><span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';

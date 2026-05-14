@@ -24,6 +24,7 @@ Object.assign(App, {
     document.getElementById('ct-captain-transfer').style.display = 'none';
     document.getElementById('ct-captain-locked').style.display = 'none';
     document.getElementById('ct-team-contact').value = '';
+    this._setTeamContactLinksFormData?.(false, []);
     document.getElementById('ct-coach-search').value = '';
     document.getElementById('ct-coach-tags').innerHTML = '';
     document.getElementById('ct-coach-suggest').innerHTML = '';
@@ -179,6 +180,7 @@ Object.assign(App, {
       document.getElementById('ct-team-region').value = t.region || '';
       document.getElementById('ct-team-founded').value = t.founded || '';
       document.getElementById('ct-team-contact').value = t.contact || '';
+      this._setTeamContactLinksFormData?.(!!t.contactLinksEnabled, t.contactLinks || []);
       document.getElementById('ct-team-bio').value = t.bio || '';
 
       // 編輯模式：載入運動類型
@@ -292,6 +294,7 @@ Object.assign(App, {
         this._teamFormState.captain = null;
       }
     }
+    this.bindTeamContactLinksToggle?.();
     this.showModal('create-team-modal');
   },
 

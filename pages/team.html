@@ -218,6 +218,21 @@
           <label>聯繫方式</label>
           <input type="text" id="ct-team-contact" maxlength="100" placeholder="例：LINE ID、電話、Email">
         </div>
+        <div class="ce-row ce-value-item ce-social-links-row">
+          <div class="ce-label-row"><label>社群聯繫按鈕</label></div>
+          <div class="ce-toggle-control">
+            <label class="toggle-switch" style="margin:0">
+              <input type="checkbox" id="ct-contact-links-enabled">
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="ce-toggle-status" id="ct-contact-links-label">關閉</span>
+          </div>
+          <div class="ce-social-links-options" id="ct-contact-links-options" style="display:none">
+            <div class="ce-social-links-list" id="ct-contact-links-list"></div>
+            <button type="button" class="ce-social-links-add" id="ct-contact-links-add">+ 新增連結</button>
+            <div class="ce-social-links-tip">貼上 LINE、Facebook、Instagram、YouTube 等網址，系統會自動辨識並顯示為聯繫按鈕。最多 5 個。</div>
+          </div>
+        </div>
         <div class="ce-row" style="position:relative">
           <label>教練（可多位）</label>
           <input type="text" id="ct-coach-search" placeholder="搜尋 UID 或暱稱..." oninput="App.searchTeamCoach()" autocomplete="off">

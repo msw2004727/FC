@@ -758,6 +758,32 @@
 .td-info-contact-card {
   grid-column: span 2;
 }
+.td-contact-value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .28rem;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal;
+}
+.td-contact-link-list {
+  gap: .28rem;
+}
+.td-info-contact-card .event-social-link-btn {
+  width: 1.56rem;
+  height: 1.56rem;
+  min-width: 1.56rem;
+  margin-top: 0;
+}
+.td-contact-manual-text {
+  color: var(--text-primary);
+  font-size: .76rem;
+  font-weight: 700;
+  line-height: 1.4;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
 .td-member-tags { display: flex; flex-wrap: wrap; gap: .4rem; }
 .td-member-item-wrap { display: inline-flex; align-items: center; gap: .25rem; }
 .td-member-remove-btn {

@@ -7,8 +7,71 @@
 
 Object.assign(App, {
 
+  _defaultTeamCoverAssetPath: 'LOGO/Nocoverimage set.png',
+  _defaultTeamCoverDataUrl: null,
+  _defaultTeamCoverPromise: null,
+
   _normalizeIdentityValue(value) {
     return String(value || '').trim();
+  },
+
+  _getDefaultTeamCoverUrl() {
+    const version = (typeof CACHE_VERSION !== 'undefined' && CACHE_VERSION) ? CACHE_VERSION : '';
+    try {
+      const baseUrl = (typeof document !== 'undefined' && document.baseURI)
+        || (typeof window !== 'undefined' && window.location?.href)
+        || '';
+      const url = new URL(this._defaultTeamCoverAssetPath, baseUrl);
+      if (version) url.searchParams.set('v', version);
+      return url.toString();
+    } catch (_) {
+      const suffix = version ? `?v=${encodeURIComponent(version)}` : '';
+      return `${encodeURI(this._defaultTeamCoverAssetPath)}${suffix}`;
+    }
+  },
+
+  _getTeamCoverImageUrl(team, variantKey = 'cover') {
+    return this._getTeamImageUrl?.(team, variantKey)
+      || team?.image
+      || team?.coverImage
+      || this._getDefaultTeamCoverUrl?.()
+      || '';
+  },
+
+  async _getDefaultTeamCoverDataUrl() {
+    if (this._defaultTeamCoverDataUrl) return this._defaultTeamCoverDataUrl;
+    if (!this._defaultTeamCoverPromise) {
+      this._defaultTeamCoverPromise = (async () => {
+        if (typeof fetch !== 'function') throw new Error('DEFAULT_TEAM_COVER_FETCH_UNAVAILABLE');
+        if (typeof this._compressImage !== 'function') throw new Error('DEFAULT_TEAM_COVER_COMPRESS_UNAVAILABLE');
+        const response = await fetch(this._getDefaultTeamCoverUrl(), { cache: 'force-cache' });
+        if (!response || !response.ok) {
+          throw new Error(`DEFAULT_TEAM_COVER_NOT_FOUND:${response?.status || 'unknown'}`);
+        }
+        const blob = await response.blob();
+        const dataUrl = await this._compressImage(blob, 1200, 0.9, 'image/webp');
+        this._defaultTeamCoverDataUrl = dataUrl;
+        return dataUrl;
+      })();
+    }
+    try {
+      return await this._defaultTeamCoverPromise;
+    } catch (err) {
+      this._defaultTeamCoverPromise = null;
+      throw err;
+    }
+  },
+
+  async _resolveTeamCoverImage(image) {
+    const currentImage = typeof image === 'string' ? image.trim() : image;
+    if (currentImage) return currentImage;
+    try {
+      return await this._getDefaultTeamCoverDataUrl();
+    } catch (err) {
+      console.error('[TeamForm] default cover failed:', err);
+      this.showToast?.('俱樂部替代封面載入失敗，請重新上傳圖片或稍後再試');
+      throw err;
+    }
   },
 
   _getUserTeamIds(user) {

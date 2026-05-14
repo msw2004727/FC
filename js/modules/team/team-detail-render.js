@@ -837,6 +837,17 @@ Object.assign(App, {
       [I18N.t('teamDetail.founded'), t.founded ? escapeHTML(t.founded) : emptyValue],
     ].map(item => '<div class="td-info-inline-item"><span>' + item[0] + '</span><strong>' + item[1] + '</strong></div>').join('');
     const leaders = t.leaders || (t.leader ? [t.leader] : []);
+    const contactLinksHtml = t.contactLinksEnabled ? (this._renderTeamContactLinksHtml?.(t.contactLinks) || '') : '';
+    const contactParts = [];
+    if (contactLinksHtml) {
+      contactParts.push('<span class="event-social-link-list td-contact-link-list">' + contactLinksHtml + '</span>');
+    }
+    if (t.contact) {
+      contactParts.push('<span class="td-contact-manual-text">' + escapeHTML(t.contact) + '</span>');
+    }
+    const contactCard = contactParts.length
+      ? '<div class="td-card-item td-card-item-compact td-info-contact-card"><span class="td-card-label">' + I18N.t('teamDetail.contact') + '</span><span class="td-card-value td-contact-value">' + contactParts.join('') + '</span></div>'
+      : '';
     return '<div class="td-card td-section-card" id="team-info-section">'
       + '<div class="td-card-title">' + I18N.t('teamDetail.info') + '</div>'
       + '<div class="td-info-inline-row">' + inlineItems + '</div>'
@@ -844,7 +855,7 @@ Object.assign(App, {
       + '<div class="td-card-item td-card-item-compact"><span class="td-card-label">\u7403\u968a\u7d93\u7406</span><span class="td-card-value">' + (t.captain ? this._userTag(t.captain, 'captain') : I18N.t('teamDetail.notSet')) + '</span></div>'
       + '<div class="td-card-item td-card-item-compact"><span class="td-card-label">\u9818\u968a</span><span class="td-card-value">' + (leaders.length ? leaders.map(n => this._teamLeaderTag(n)).join(' ') : I18N.t('teamDetail.notSet')) + '</span></div>'
       + '<div class="td-card-item td-card-item-compact td-info-coach-card"><span class="td-card-label">' + I18N.t('teamDetail.coach') + '</span><span class="td-card-value">' + ((t.coaches || []).length > 0 ? t.coaches.map(c => this._userTag(c, 'coach')).join(' ') : I18N.t('teamDetail.none')) + '</span></div>'
-      + (t.contact ? '<div class="td-card-item td-card-item-compact td-info-contact-card"><span class="td-card-label">' + I18N.t('teamDetail.contact') + '</span><span class="td-card-value">' + escapeHTML(t.contact) + '</span></div>' : '')
+      + contactCard
       + '</div></div>';
   },
 
@@ -1355,7 +1366,7 @@ Object.assign(App, {
     if (!t) return '';
     const explicit = this._readTeamDetailTextValue(t, ['avatarUrl', 'logoUrl', 'logo', 'avatar']);
     if (explicit) return explicit;
-    return this._getTeamImageUrl?.(t, 'cover') || t.image || this._getTeamImageUrl?.(t, 'card') || '';
+    return this._getTeamCoverImageUrl?.(t, 'cover') || this._getTeamImageUrl?.(t, 'cover') || t.image || this._getTeamImageUrl?.(t, 'card') || '';
   },
 
   _buildTeamDetailLogoHtml(t) {

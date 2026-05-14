@@ -22,6 +22,7 @@ Object.assign(App, {
     if (!vals) return;
 
     const { name, nameEn, nationality, region, founded, contact, bio,
+            contactLinksEnabled, contactLinks,
             oldCaptainUid, oldCoachUids, oldLeaderUids,
             realLeaderUids, leaderNames, captain, captainUidForSave,
             coaches, newCoachUids, users } = vals;
@@ -77,12 +78,15 @@ Object.assign(App, {
     if (imageVariants && (imageVariants.cover || imageVariants.card)) {
       image = imageVariants.cover || imageVariants.card || image;
     }
-
     try {
+      if (!this._teamFormState.editId) {
+        image = await this._resolveTeamCoverImage(image);
+      }
       // leader/leaderUid 相容欄位（舊格式）
       if (this._teamFormState.editId) {
         const updates = {
           name, nameEn, nationality, region, founded, contact, bio,
+          contactLinksEnabled, contactLinks,
           leader: leaderCompat, leaderUid: leaderUidCompat,
           leaders: leaderNames, leaderUids: realLeaderUids, leaderNames,
           captain, captainUid: captainUidForSave, captainName: captain,
@@ -147,6 +151,7 @@ Object.assign(App, {
           leaderNames,
           members,
           region, founded, contact, bio, image,
+          contactLinksEnabled, contactLinks,
           active: true, pinned: false, pinOrder: 0,
           wins: 0, draws: 0, losses: 0, gf: 0, ga: 0,
           history: [],

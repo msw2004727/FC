@@ -16,7 +16,7 @@ Object.assign(App, {
     const eduRibbon = isTeaching ? '<span class="tc-edu-ribbon">教學</span>' : '';
     const sportIcon = t.sportTag && typeof getSportIconSvg === 'function' ? getSportIconSvg(t.sportTag) : '';
     const sportBadge = sportIcon ? `<span class="tc-sport-badge">${sportIcon}</span>` : '';
-    const cardImage = this._getTeamImageUrl?.(t, 'card') || t.image || '';
+    const cardImage = this._getTeamCoverImageUrl?.(t, 'card') || this._getTeamImageUrl?.(t, 'card') || t.image || '';
     const memberLabel = I18N.t('team.memberLabel');
     const memberCountKey = String(t.id || '');
     const memberCountMap = options.memberCountByTeam;
