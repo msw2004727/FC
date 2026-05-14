@@ -7,6 +7,10 @@ function readProjectFile(file) {
   return fs.readFileSync(path.join(root, file), 'utf8');
 }
 
+function normalizeNewlines(source) {
+  return String(source || '').replace(/\r\n/g, '\n');
+}
+
 describe('history route hosting fallback contract', () => {
   test('Cloudflare worker preserves OG routes before SPA fallback', () => {
     const source = readProjectFile('_worker.js');
@@ -51,12 +55,12 @@ describe('history route hosting fallback contract', () => {
 
   test('inline runtime mirrors app.js so production does not fetch the failing app asset', () => {
     const indexSource = readProjectFile('index.html');
-    const appSource = readProjectFile('app.js').trim();
+    const appSource = normalizeNewlines(readProjectFile('app.js')).trim();
     // 同時支援 LF 與 CRLF 換行，並容許 </script> 前的縮排寬度變動（Windows checkout 會是 CRLF）
     const match = indexSource.match(/<script id="app-inline-runtime">\r?\n([\s\S]*?)\r?\n\s*<\/script>/);
 
     expect(match).toBeTruthy();
-    expect(match[1].trim()).toBe(appSource);
+    expect(normalizeNewlines(match[1]).trim()).toBe(appSource);
   });
 
   test('service worker normalizes SPA navigate cache to index instead of every clean path', () => {

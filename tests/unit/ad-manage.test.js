@@ -96,6 +96,7 @@ describe('ad edit modal wiring', () => {
     adminContent: read('pages/admin-content.html'),
     apiService: read('js/api-service.js'),
     firebaseService: read('js/firebase-service.js'),
+    index: read('index.html'),
     core: read('js/modules/ad-manage/ad-manage-core.js'),
     banner: read('js/modules/ad-manage/ad-manage-banner.js'),
     float: read('js/modules/ad-manage/ad-manage-float.js'),
@@ -184,6 +185,19 @@ describe('ad edit modal wiring', () => {
       expect(sources.adminContent).toContain(`id="${id}" style="display:none"`);
     });
     expect(sources.bootBrand).toContain('id="boot-brand-form-card" style="display:none"');
+  });
+
+  test('boot brand image upload uses crop template instead of post-upload sliders', () => {
+    expect(sources.bootBrand).toContain('_getBootBrandCropOptions()');
+    expect(sources.bootBrand).toContain("aspectRatio: 13 / 9");
+    expect(sources.bootBrand).toContain("outputWidth: 1040");
+    expect(sources.bootBrand).toContain("bindImageUpload('boot-brand-image', 'boot-brand-upload-area', this._getBootBrandCropOptions())");
+    expect(sources.bootBrand).not.toContain('boot-brand-height');
+    expect(sources.bootBrand).not.toContain('boot-brand-margin');
+    expect(sources.bootBrand).not.toContain('imgHeight');
+    expect(sources.bootBrand).not.toContain('marginTop');
+    expect(sources.index).not.toContain('cfg.imgHeight');
+    expect(sources.index).not.toContain('cfg.marginTop');
   });
 
   test('sponsor management no longer renders inline edit fields', () => {

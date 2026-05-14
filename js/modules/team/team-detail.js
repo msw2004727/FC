@@ -260,6 +260,39 @@ Object.assign(App, {
     });
   },
 
+  _getTeamAvatarCropOptions() {
+    return {
+      aspectRatio: 1,
+      outputWidth: 900,
+      outputHeight: 900,
+      outputType: 'image/webp',
+      quality: 0.9,
+      title: '\u4ff1\u6a02\u90e8\u982d\u50cf',
+      subtitle: '\u8acb\u5c07\u5716\u7247\u653e\u5728\u65b9\u5f62\u7bc4\u570d\u5167\uff0c\u5b8c\u6210\u5f8c\u6703\u76f4\u63a5\u4f5c\u70ba\u4ff1\u6a02\u90e8\u982d\u50cf\u3002',
+      targetLabel: '\u4ff1\u6a02\u90e8\u982d\u50cf',
+      recommendedSize: '900 x 900',
+      aspectLabel: '1:1',
+    };
+  },
+
+  async _prepareTeamAvatarDataUrl(file) {
+    if (typeof this.showImageCropper === 'function') {
+      const sourceDataURL = await this._readTeamAvatarFileAsDataUrl(file);
+      const cropOptions = this._getTeamAvatarCropOptions();
+      return new Promise((resolve) => {
+        this.showImageCropper(sourceDataURL, {
+          ...cropOptions,
+          onConfirm: (dataURL) => resolve(dataURL),
+          onCancel: () => resolve(null),
+        });
+      });
+    }
+    if (typeof this._compressImage === 'function') {
+      return this._compressImage(file, 900, 0.9, 'image/webp');
+    }
+    return this._readTeamAvatarFileAsDataUrl(file);
+  },
+
   async _uploadTeamAvatarFile(btn, team, file) {
     const teamId = String(team?.id || this._teamDetailId || '').trim();
     if (!teamId || !file) return;
@@ -275,6 +308,16 @@ Object.assign(App, {
       return;
     }
 
+    let dataUrl = '';
+    try {
+      dataUrl = await this._prepareTeamAvatarDataUrl(file);
+    } catch (cropErr) {
+      console.error('[TeamDetail] avatar crop failed:', cropErr);
+      this.showToast('\u5716\u7247\u8655\u7406\u5931\u6557\uff0c\u8acb\u91cd\u8a66');
+      return;
+    }
+    if (!dataUrl) return;
+
     const run = async () => {
       try {
         if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._ensureAuth === 'function') {
@@ -287,15 +330,6 @@ Object.assign(App, {
         if (typeof FirebaseService === 'undefined' || typeof FirebaseService._uploadImage !== 'function') {
           throw new Error('TEAM_AVATAR_UPLOAD_UNAVAILABLE');
         }
-        let dataUrl = '';
-        if (typeof this._compressImage === 'function') {
-          try {
-            dataUrl = await this._compressImage(file, 640, 0.88, 'image/webp');
-          } catch (compressErr) {
-            console.warn('[TeamDetail] avatar compression failed, uploading original data URL:', compressErr);
-          }
-        }
-        if (!dataUrl) dataUrl = await this._readTeamAvatarFileAsDataUrl(file);
         const avatarUrl = await FirebaseService._uploadImage(dataUrl, `teams/${teamId}_avatar`);
         if (!avatarUrl) throw new Error('TEAM_AVATAR_UPLOAD_FAILED');
         await ApiService.updateTeamAwait(teamId, { avatarUrl });

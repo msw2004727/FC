@@ -17,8 +17,7 @@ Object.assign(App, {
     const imgUrl = config.imageUrl || 'LOGO/02.png';
     const bgMode = config.bgMode || 'auto';
     const bgColor = config.bgColor || '#1a1a2e';
-    const marginTop = config.marginTop ?? 5;
-    const imgHeight = config.imgHeight ?? 140;
+    const cropRatioLabel = '13:9';
 
     container.innerHTML = `
       <div class="banner-manage-card" style="margin-bottom:.5rem">
@@ -30,7 +29,7 @@ Object.assign(App, {
             <div class="banner-manage-title">開機品牌圖設定</div>
             <span class="banner-manage-status status-active">可編輯</span>
           </div>
-          <div class="banner-manage-meta">縮放 ${imgHeight}% · 垂直 ${marginTop}% · 背景 ${bgMode === 'auto' ? '跟隨主題' : bgMode === 'dark' ? '深色' : '淺色自訂'}</div>
+          <div class="banner-manage-meta">裁切模板 ${cropRatioLabel} · 背景 ${bgMode === 'auto' ? '跟隨主題' : bgMode === 'dark' ? '深色' : '淺色自訂'}</div>
           <div style="display:flex;gap:.3rem;margin-top:.3rem">
             <button class="primary-btn small" onclick="App.showBootBrandForm()">編輯</button>
           </div>
@@ -49,9 +48,7 @@ Object.assign(App, {
             margin:0 auto;
             background:${bgMode === 'light' ? bgColor : bgMode === 'dark' ? '#1e1e2e' : 'var(--bg-card)'}
           ">
-            <img id="boot-brand-preview-img" class="boot-loading__image" src="${escapeHTML(imgUrl)}" alt="" style="
-              transform:scale(${imgHeight / 100}) translateY(${-marginTop}%)
-            ">
+            <img id="boot-brand-preview-img" class="boot-loading__image" src="${escapeHTML(imgUrl)}" alt="">
           </div>
         </div>
 
@@ -64,23 +61,9 @@ Object.assign(App, {
                  onclick="document.getElementById('boot-brand-image').click()">
               <span class="ce-upload-icon">+</span>
               <span class="ce-upload-text">點擊上傳圖片</span>
-              <span class="ce-upload-hint">建議正方形或橫幅圖｜JPG / PNG｜最大 5MB</span>
+              <span class="ce-upload-hint">上傳後會先以 ${cropRatioLabel} 模板裁切，JPG / PNG / WebP，最大 5MB</span>
             </div>
           </div>
-        </div>
-
-        <!-- 圖片縮放 -->
-        <div class="form-row">
-          <label>圖片縮放 <span id="boot-brand-height-val">${imgHeight}%</span></label>
-          <input type="range" id="boot-brand-height" min="60" max="200" value="${imgHeight}"
-                 oninput="App._updateBootBrandPreview()">
-        </div>
-
-        <!-- 垂直位置（正值=往上，負值=往下） -->
-        <div class="form-row">
-          <label>垂直位置 <span id="boot-brand-margin-val">${marginTop}%</span></label>
-          <input type="range" id="boot-brand-margin" min="-30" max="30" value="${marginTop}"
-                 oninput="App._updateBootBrandPreview()">
         </div>
 
         <!-- 背景色模式 -->
@@ -106,7 +89,7 @@ Object.assign(App, {
 
     // 綁定圖片上傳
     if (typeof this.bindImageUpload === 'function') {
-      this.bindImageUpload('boot-brand-image', 'boot-brand-upload-area');
+      this.bindImageUpload('boot-brand-image', 'boot-brand-upload-area', this._getBootBrandCropOptions());
     }
 
     // 監聽圖片變更 → 更新預覽
@@ -131,6 +114,21 @@ Object.assign(App, {
     this._closeAdEditModal('boot-brand-form-card');
   },
 
+  _getBootBrandCropOptions() {
+    return {
+      aspectRatio: 13 / 9,
+      outputWidth: 1040,
+      outputHeight: 720,
+      outputType: 'image/webp',
+      quality: 0.9,
+      title: '\u958b\u6a5f\u54c1\u724c\u5716',
+      subtitle: '\u8acb\u5c07\u5716\u7247\u653e\u5728\u958b\u6a5f\u756b\u9762\u7684\u9810\u89bd\u7bc4\u570d\u5167\uff0c\u5b8c\u6210\u5f8c\u4e0d\u518d\u9700\u8981\u8abf\u6574\u7e2e\u653e\u6216\u4f4d\u7f6e\u3002',
+      targetLabel: '\u958b\u6a5f\u54c1\u724c\u5716',
+      recommendedSize: '1040 x 720',
+      aspectLabel: '13:9',
+    };
+  },
+
   /** 從上傳區同步圖片到預覽框 */
   _syncBootBrandUploadToPreview() {
     const uploadArea = document.getElementById('boot-brand-upload-area');
@@ -142,24 +140,14 @@ Object.assign(App, {
 
   /** 即時更新預覽 */
   _updateBootBrandPreview() {
-    const heightEl = document.getElementById('boot-brand-height');
-    const marginEl = document.getElementById('boot-brand-margin');
     const bgModeEl = document.getElementById('boot-brand-bgmode');
     const bgColorEl = document.getElementById('boot-brand-bgcolor');
     const previewBox = document.getElementById('boot-brand-preview-box');
-    const previewImg = document.getElementById('boot-brand-preview-img');
     const colorRow = document.getElementById('boot-brand-color-row');
 
-    if (!heightEl || !marginEl || !bgModeEl || !previewBox || !previewImg) return;
+    if (!bgModeEl || !previewBox) return;
 
-    const h = heightEl.value;
-    const m = marginEl.value;
     const mode = bgModeEl.value;
-
-    document.getElementById('boot-brand-height-val').textContent = h + '%';
-    document.getElementById('boot-brand-margin-val').textContent = m + '%';
-
-    previewImg.style.transform = 'scale(' + (h / 100) + ') translateY(' + (-m) + '%)';
 
     // 背景色
     if (mode === 'auto') {
@@ -192,14 +180,12 @@ Object.assign(App, {
       this.showToast('權限不足'); return;
     }
 
-    const heightEl = document.getElementById('boot-brand-height');
-    const marginEl = document.getElementById('boot-brand-margin');
     const bgModeEl = document.getElementById('boot-brand-bgmode');
     const bgColorEl = document.getElementById('boot-brand-bgcolor');
     const previewImg = document.getElementById('boot-brand-preview-img');
     const uploadArea = document.getElementById('boot-brand-upload-area');
 
-    if (!heightEl || !marginEl || !bgModeEl) return;
+    if (!bgModeEl) return;
 
     this.showToast('儲存中...');
 
@@ -219,8 +205,6 @@ Object.assign(App, {
       imageUrl: imageUrl,
       bgMode: bgModeEl.value,
       bgColor: bgColorEl ? bgColorEl.value : '#1a1a2e',
-      marginTop: Number(marginEl.value),
-      imgHeight: Number(heightEl.value),
       updatedAt: new Date().toISOString(),
     };
 

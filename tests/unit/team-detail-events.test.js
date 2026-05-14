@@ -675,11 +675,18 @@ describe('team detail club activity section', () => {
       },
     });
     app._readTeamAvatarFileAsDataUrl = jest.fn().mockResolvedValue('data:image/png;base64,avatar');
+    app.showImageCropper = jest.fn((_src, opts) => opts.onConfirm('data:image/webp;base64,cropped-avatar'));
     app.showTeamDetail = jest.fn().mockResolvedValue({ ok: true });
 
     await app._uploadTeamAvatarFile({ disabled: false }, team, { type: 'image/png', size: 1024, name: 'avatar.png' });
 
-    expect(uploadImage).toHaveBeenCalledWith('data:image/png;base64,avatar', 'teams/teamA_avatar');
+    expect(app.showImageCropper).toHaveBeenCalledWith('data:image/png;base64,avatar', expect.objectContaining({
+      aspectRatio: 1,
+      outputWidth: 900,
+      outputHeight: 900,
+      targetLabel: '\u4ff1\u6a02\u90e8\u982d\u50cf',
+    }));
+    expect(uploadImage).toHaveBeenCalledWith('data:image/webp;base64,cropped-avatar', 'teams/teamA_avatar');
     expect(updateTeamAwait).toHaveBeenCalledWith('teamA', { avatarUrl: 'https://cdn.example/uploaded-avatar.webp' });
     expect(team.avatarUrl).toBe('https://cdn.example/uploaded-avatar.webp');
     expect(app.showTeamDetail).toHaveBeenCalledWith('teamA', { skipPageHistory: true, bypassPageLock: true });
