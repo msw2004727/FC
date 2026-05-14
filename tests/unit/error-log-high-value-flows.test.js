@@ -13,6 +13,11 @@ describe('high-value flow error log instrumentation', () => {
     const companion = read('js/modules/event/event-detail-companion.js');
 
     expect(signup).toContain("fn: 'handleSignup'");
+    expect(signup).toContain("category: 'event_registration'");
+    expect(signup).toContain('event_signup_failed');
+    expect(signup).toContain('event_cancel_failed');
+    expect(signup).toContain('registrationIds');
+    expect(signup).toContain('stage: useCF ?');
     expect(signup).toContain('teamReservationTeamId');
     expect(companion).toContain("fn: '_confirmCompanionRegister'");
     expect(companion).toContain("fn: '_confirmCompanionCancel'");

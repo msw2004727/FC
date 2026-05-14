@@ -61,6 +61,64 @@ Object.assign(App, {
   },
 
   // ══════════════════════════════════
+  _summarizeEventRegistrationForLog(reg) {
+    if (!reg) return null;
+    const clip = (value, max = 120) => String(value || '').trim().slice(0, max);
+    return {
+      id: clip(reg.id || ''),
+      docId: clip(reg._docId || reg.docId || ''),
+      status: clip(reg.status || ''),
+      participantType: clip(reg.participantType || ''),
+      companionId: reg.companionId ? clip(reg.companionId, 80) : '',
+      teamKey: clip(reg.teamKey || ''),
+      teamReservationTeamId: clip(reg.teamReservationTeamId || ''),
+      hasDocId: Boolean(reg.id || reg._docId || reg.docId),
+    };
+  },
+
+  _logEventRegistrationFailure(action, eventId, err, extra = {}) {
+    try {
+      if (typeof ApiService === 'undefined' || typeof ApiService._writeErrorLog !== 'function') return;
+      const clip = (value, max = 160) => String(value == null ? '' : value).trim().slice(0, max);
+      const list = (value, maxItems = 20, maxLen = 120) => {
+        const arr = Array.isArray(value) ? value : (value == null ? [] : [value]);
+        return arr.slice(0, maxItems).map(item => clip(item, maxLen)).filter(Boolean);
+      };
+      const user = ApiService.getCurrentUser?.() || {};
+      const event = ApiService.getEvent?.(eventId) || {};
+      const registrations = Array.isArray(extra.registrations)
+        ? extra.registrations.map(reg => this._summarizeEventRegistrationForLog(reg)).filter(Boolean)
+        : [];
+      ApiService._writeErrorLog({
+        fn: extra.fn || action,
+        action,
+        category: 'event_registration',
+        severity: extra.severity || 'error',
+        stage: clip(extra.stage || ''),
+        eventId: clip(eventId || ''),
+        eventDocId: clip(event._docId || event.docId || ''),
+        eventTitle: clip(event.title || event.name || '', 120),
+        eventStatus: clip(event.status || ''),
+        userId: clip(extra.userId || user.uid || ''),
+        userRole: clip(user.role || App.currentRole || ''),
+        useCloudFunction: Boolean(extra.useCloudFunction),
+        requestId: clip(extra.requestId || ''),
+        registrationId: clip(extra.registrationId || ''),
+        registrationIds: list(extra.registrationIds),
+        teamKey: clip(extra.teamKey || ''),
+        teamReservationTeamId: clip(extra.teamReservationTeamId || ''),
+        reason: clip(extra.reason || ''),
+        errCode: clip(extra.errCode || err?.details || err?.code || err?.message || ''),
+        activeRegCount: Number.isFinite(extra.activeRegCount) ? extra.activeRegCount : undefined,
+        activeRegStatuses: list(extra.activeRegStatuses, 20, 40),
+        targetStatuses: list(extra.targetStatuses, 10, 40),
+        registrations,
+      }, err);
+    } catch (_) {
+      // Failure logging must never affect signup/cancel performance or UX.
+    }
+  },
+
   //  Signup & Cancel
   // ══════════════════════════════════
 
@@ -666,6 +724,8 @@ Object.assign(App, {
     const signupBusyKey = 'signup:' + String(id || '') + ':' + String(userId || '');
     if (!this._beginEventActionBusy(signupBusyKey)) return;
     let reservationChoice;
+    let signupUseCF = false;
+    let signupRequestId = '';
     try {
       reservationChoice = await this._resolveTeamReservationSignupChoice(e, opts);
     } catch (err) {
@@ -706,12 +766,14 @@ Object.assign(App, {
 
       let result;
       const useCF = typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration();
+      signupUseCF = useCF;
       if (useCF) {
+        signupRequestId = `${userId}_${id}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
         // ═══ CF 路徑：呼叫 Cloud Function ═══
         const cfPayload = {
           eventId: id,
           participants: [{ userId, userName }],
-          requestId: `${userId}_${id}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+          requestId: signupRequestId,
         };
         if (_tsTeamKey) cfPayload.teamKey = _tsTeamKey;
         if (selectedTeamReservationTeamId) cfPayload.preferredTeamReservationTeamId = selectedTeamReservationTeamId;
@@ -835,7 +897,7 @@ Object.assign(App, {
       }
       this._evaluateAchievements?.(e.type);
     } catch (err) {
-      const errCode = err?.details || err?.message || '';
+      const errCode = err?.details || err?.code || err?.message || '';
       if (this._isDuplicateSignupError(err)) {
         this.showToast('你已經報名這場活動');
         this._patchDetailAfterSignup(id);
@@ -869,14 +931,16 @@ Object.assign(App, {
         signupBtns.forEach(b => { b.disabled = false; b.style.opacity = ''; if (b === activeBtn && b._origText) b.textContent = b._origText; });
         return;
       }
-      ApiService._writeErrorLog({
+      this._logEventRegistrationFailure('event_signup_failed', id, err, {
         fn: 'handleSignup',
-        eventId: id,
+        stage: signupUseCF ? 'cloud_function' : 'firestore_fallback',
         userId,
+        useCloudFunction: signupUseCF,
+        requestId: signupRequestId,
         teamKey: _tsTeamKey || '',
         teamReservationTeamId: selectedTeamReservationTeamId || '',
         errCode,
-      }, err);
+      });
       const isNetworkOrTimeout = /timeout|network|fetch|ECONNREFUSED|逾時/i.test(err?.message || '');
       const friendlyMsg = cfMsg[errCode] || (isNetworkOrTimeout ? '連線逾時，請檢查網路後重新整理再試' : err.message || '報名失敗，請稍後再試');
       this.showToast(friendlyMsg);
@@ -954,6 +1018,13 @@ Object.assign(App, {
         }
       } catch (err) {
         console.warn('[cancelSignup] fallback query failed', err);
+        this._logEventRegistrationFailure('event_cancel_lookup_failed', id, err, {
+          fn: 'handleCancelSignup.lookupFallback',
+          severity: 'warning',
+          stage: 'fallback_query',
+          userId: currentUserId,
+          activeRegCount: myRegs.length,
+        });
       }
     }
 
@@ -963,6 +1034,15 @@ Object.assign(App, {
     const selfRegs = activeRegs.filter(r => this._isActiveSelfRegistrationRecord(r));
     const companionRegs = activeRegs.filter(r => r && !this._isActiveSelfRegistrationRecord(r) && (r.participantType === 'companion' || r.companionId));
     if (selfRegs.length === 0) {
+      this._logEventRegistrationFailure('event_cancel_no_self_registration', id, new Error('NO_ACTIVE_SELF_REGISTRATION'), {
+        fn: 'handleCancelSignup.precheck',
+        severity: 'warning',
+        stage: 'no_active_self_registration',
+        userId: currentUserId,
+        activeRegCount: activeRegs.length,
+        activeRegStatuses: activeRegs.map(r => r.status),
+        registrations: activeRegs,
+      });
       this.showToast('\u4f60\u5c1a\u672a\u5831\u540d\u6b64\u6d3b\u52d5');
       this.showEventDetail(id);
       releaseCancelPrelock();
@@ -1056,6 +1136,8 @@ Object.assign(App, {
     const useCF = typeof shouldUseServerRegistrationForCancel === 'function'
       ? shouldUseServerRegistrationForCancel()
       : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration());
+    let cancelRequestId = '';
+    let cancelRegistrationIds = [];
     // 若有重複的本人報名（資料不一致），直接清掉額外的（不觸發候補遞補）
     const extraRegs = myRegs.filter(r => r !== reg && r._docId && r.status !== 'cancelled' && r.status !== 'removed');
     for (const extra of extraRegs) {
@@ -1072,6 +1154,16 @@ Object.assign(App, {
     }
     if (reg && !regCancelId) {
       console.warn('[cancelSignup] registration id missing', { eventId: id, userId, reg });
+      this._logEventRegistrationFailure('event_cancel_registration_id_missing', id, new Error('REGISTRATION_ID_MISSING'), {
+        fn: 'handleCancelSignup.precheck',
+        stage: 'registration_id_missing',
+        userId,
+        useCloudFunction: useCF,
+        targetStatuses,
+        activeRegCount: myRegs.length,
+        activeRegStatuses: myRegs.map(r => r.status),
+        registrations: myRegs,
+      });
       clearTimeout(_busyTimeout);
       _restoreCancelUI();
       this.showToast('報名資料尚未同步完成，請重新整理後再試');
@@ -1087,13 +1179,14 @@ Object.assign(App, {
 
         if (useCF) {
           // ═══ CF 路徑：呼叫 Cloud Function ═══
-          const cancelRegistrationIds = [regCancelId, ...extraRegs.map(r => r.id || r._docId)].filter(Boolean).slice(0, 20);
+          cancelRegistrationIds = [regCancelId, ...extraRegs.map(r => r.id || r._docId)].filter(Boolean).slice(0, 20);
+          cancelRequestId = `cancel_${userId}_${id}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
           const cfResult = await Promise.race([
             firebase.app().functions('asia-east1').httpsCallable('cancelRegistration')({
               eventId: id,
               registrationIds: cancelRegistrationIds,
               reason: 'user_cancel',
-              requestId: `cancel_${userId}_${id}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+              requestId: cancelRequestId,
             }),
             _cancelTimeout,
           ]);
@@ -1227,8 +1320,23 @@ Object.assign(App, {
         }
         this._evaluateAchievements?.(e0?.type);
       } catch (err) {
-        const errCode = err?.details || err?.message || '';
+        const errCode = err?.details || err?.code || err?.message || '';
         if (this._isMissingCancelRegistrationError(err)) {
+          this._logEventRegistrationFailure('event_cancel_missing_registration', id, err, {
+            fn: 'handleCancelSignup',
+            severity: 'warning',
+            stage: useCF ? 'cloud_function_missing_registration' : 'firestore_missing_registration',
+            userId,
+            useCloudFunction: useCF,
+            requestId: cancelRequestId,
+            registrationId: regCancelId,
+            registrationIds: cancelRegistrationIds,
+            targetStatuses,
+            activeRegCount: myRegs.length,
+            activeRegStatuses: myRegs.map(r => r.status),
+            registrations: myRegs,
+            errCode,
+          });
           this.showToast('報名狀態已更新');
           this._patchDetailAfterCancel(id);
           _restoreCancelUI();
@@ -1244,7 +1352,20 @@ Object.assign(App, {
         };
         const isNetworkOrTimeout = /timeout|network|fetch|ECONNREFUSED|逾時/i.test(err?.message || '');
         this.showToast('取消失敗：' + (cfMsg[errCode] || (isNetworkOrTimeout ? '連線逾時，請檢查網路後重新整理再試' : err.message || '')));
-        ApiService._writeErrorLog({ fn: 'handleCancelSignup', eventId: id }, err);
+        this._logEventRegistrationFailure('event_cancel_failed', id, err, {
+          fn: 'handleCancelSignup',
+          stage: useCF ? 'cloud_function' : 'firestore_fallback',
+          userId,
+          useCloudFunction: useCF,
+          requestId: cancelRequestId,
+          registrationId: regCancelId,
+          registrationIds: cancelRegistrationIds,
+          targetStatuses,
+          activeRegCount: myRegs.length,
+          activeRegStatuses: myRegs.map(r => r.status),
+          registrations: myRegs,
+          errCode,
+        });
         _restoreCancelUI();
       } finally {
         clearTimeout(_busyTimeout);
@@ -1259,6 +1380,16 @@ Object.assign(App, {
         targetStatuses,
         activeRegCount: myRegs.length,
         activeRegStatuses: myRegs.map(r => r.status)
+      });
+      this._logEventRegistrationFailure('event_cancel_active_registration_not_found', id, new Error('ACTIVE_REGISTRATION_NOT_FOUND'), {
+        fn: 'handleCancelSignup.precheck',
+        stage: 'active_registration_not_found',
+        userId,
+        useCloudFunction: useCF,
+        targetStatuses,
+        activeRegCount: myRegs.length,
+        activeRegStatuses: myRegs.map(r => r.status),
+        registrations: myRegs,
       });
       clearTimeout(_busyTimeout);
       _restoreCancelUI();
