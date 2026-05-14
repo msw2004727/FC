@@ -1,6 +1,6 @@
 # ToosterX — Claude Code 專案指引
 
-> **Last Reviewed: 2026-04-21**（每 2 個月審閱一次，或重大架構重構時立即審閱）
+> **Last Reviewed: 2026-05-14**（每 2 個月審閱一次，或重大架構重構時立即審閱）
 
 <!--
   結構文件交叉引用（任一檔案的結構描述更新時，必須同步更新以下所有檔案）：
@@ -242,6 +242,62 @@ grep -rn "CACHE_VERSION\|CACHE_NAME\|var V='" js/config.js sw.js index.html
      - **按鈕與功能一致性**：若 `canManage`（`_canManageEvent`）決定了按鈕顯示，對應的函式守衛必須包含同等的 `_canManageEvent` fallback，否則會出現「看得到按鈕但點不動」的 UX 缺陷。
      - **測試覆蓋**：新增守衛後必須用 `user`（一般用戶）、`coach`、`captain`、以及「一般 user 但為委託人」四種身分驗證行為。
      - **委託人功能範圍**：委託人只需要手動簽到（`_startTableEdit`）+ 現場掃碼（`renderScanPage`），不需要編輯/結束/刪除活動的權限。
+
+---
+
+## 一般 user 活動特殊權限設計（強制）
+
+> 2026-05-14 補充：一般 user 的活動能力是第二套「前台活動能力」，不是傳統 `rolePermissions`。修改活動建立、活動管理、權限管理、Firestore Rules 或權限快取時，必須先檢查本節。
+
+### 兩套權限的責任邊界
+
+- 傳統角色權限：`rolePermissions` / `hasPermission(...)`，用於後台、管理入口、admin/coach/captain/venue_owner 等一般角色權限。**不要直接把 `activity.manage.entry` 或 `event.create` 下放給一般 user**，否則會放大既有活動管理權限。
+- 一般 user 前台活動能力：`roleActivityCapabilities/user.capabilities`，只控制一般 user 在「自己主辦或被委託的活動」範圍內可以做什麼。
+- Firestore Rules 需與前端一致：一般 user 建立/管理自己活動時，應走 owner-scope capability，例如 `hasActivityCap('user.activity.basic_create')`，而不是走全域管理權限。
+- 一般 user 的活動能力可以在權限管理 UI 裡手動啟閉，**不是鎖死預設值**。預設只是初始值，不可覆蓋管理員手動設定。
+
+### 一般 user 活動能力清單
+
+`roleActivityCapabilities/user.capabilities` 目前支援：
+
+- `user.activity.basic_create`：一般 user 可以建立基本活動。
+- `user.activity.external_create`：可以建立外部活動連結。
+- `user.activity.own_manage_entry`：可以看到自己活動的管理入口。
+- `user.activity.own_edit_basic`：可以編輯自己活動基本資料。
+- `user.activity.own_cancel`：可以取消自己主辦的活動。
+- `user.activity.site_operate`：可以操作自己活動的現場簽到與候補相關流程。
+- `user.activity.delegate_assign`：可以設定自己活動的委託人。
+- `user.activity.addons_use`：可以使用新增活動內的進階/加值功能，例如私密活動、收費、女生專屬、社群連結等加值欄位。
+
+### 加值功能規則
+
+- `user.activity.addons_use` 預設關閉，但權限管理中手動開啟後必須保留。
+- 一般 user 未開啟 `user.activity.addons_use` 時，新增活動內的加值/進階開關應阻擋並 Toast：「如需更多功能請聯繫官方Line@」。
+- 一般 user 已開啟 `user.activity.addons_use` 時，可以建立含加值欄位的自己活動；Firestore Rules 必須允許與此 capability 相符的 payload。
+- 測試覆蓋至少要包含：未開啟 add-ons 時加值欄位被拒、開啟 add-ons 時完整前端 payload 可建立、UI 讀取開關刷新後仍保留。
+
+### 權限快取與資料形狀規則
+
+- `roleActivityCapabilities` 在 `FirebaseService._cache`、localStorage、`ApiService.getRoleActivityCapabilities(...)` 中必須維持物件形狀：`{ user: ['capability.code'] }`。
+- Firestore collection 靜態載入會拿到文件陣列，例如 `[{ _docId: 'user', capabilities: [...] }]`；載入後必須立刻正規化為 `{ user: [...] }`，不可直接覆蓋 `_cache.roleActivityCapabilities`。
+- 即時監聽、靜態載入、localStorage 還原、儲存後 optimistic cache，都要走同一套正規化邏輯。參考：`FirebaseService._normalizeRoleActivityCapabilitiesCache(...)`。
+- `ApiService.getRoleActivityCapabilities('user')` 可以容忍舊版陣列快取，但新寫入與新保存不得再產生陣列形狀。
+- `_seedRoleData()` 或 catalog version migration 不得用 default 覆蓋 Firestore 既有 `capabilities`。若 Firestore 已有 `capabilities: []`，也代表管理員手動關閉全部能力，必須保留空陣列。
+- 新增/修改 capability 時，需同步更新：
+  - `js/config.js` 的 `ROLE_ACTIVITY_CAPABILITY_ITEMS`
+  - `functions/index.js` 的 capability allowlist（如有 server side 檢查）
+  - `firestore.rules` 的 `hasActivityCap(...)` / create/update allow 邏輯
+  - 權限管理 UI：`js/modules/user-admin/user-admin-roles.js`
+  - 單元測試與 rules 測試：至少覆蓋快取形狀、讀取 fallback、Firestore allow/deny。
+
+### 審計提醒
+
+- 若權限管理中「一般 user 前台活動能力」刷新後開關變回預設，優先檢查 `roleActivityCapabilities` 是否被陣列形狀覆蓋，或 `_seedRoleData()` 是否用 default 洗掉 Firestore 既有值。
+- 若一般 user 建立私密活動顯示「建立活動失敗」，優先檢查：
+  1. `roleActivityCapabilities/user.capabilities` 是否含 `user.activity.addons_use`
+  2. 前端 `ApiService.hasRoleActivityCapability('user', 'user.activity.addons_use')` 是否讀到 true
+  3. Firestore Rules `hasActivityCap('user.activity.addons_use')` 是否允許該 payload
+  4. payload 是否含其他仍需 admin/coach 權限的欄位，例如 team scope 相關欄位。
 
 ---
 
