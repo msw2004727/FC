@@ -532,6 +532,153 @@ Object.assign(App, {
     });
   },
 
+  _getTeamMemberNoteEditConfig(kind) {
+    if (kind === 'course') {
+      return {
+        dataKey: 'teamCourseData',
+        title: '\u7de8\u8f2f\u8ab2\u7a0b\u5099\u8a3b',
+        logType: 'team_member_course_note_update',
+        logTitle: '\u7de8\u8f2f\u6210\u54e1\u8ab2\u7a0b\u5099\u8a3b',
+        toast: '\u8ab2\u7a0b\u5099\u8a3b\u5df2\u66f4\u65b0',
+      };
+    }
+    return {
+      dataKey: 'teamActivityData',
+      title: '\u7de8\u8f2f\u6d3b\u52d5\u5099\u8a3b',
+      logType: 'team_member_activity_note_update',
+      logTitle: '\u7de8\u8f2f\u6210\u54e1\u6d3b\u52d5\u5099\u8a3b',
+      toast: '\u6d3b\u52d5\u5099\u8a3b\u5df2\u66f4\u65b0',
+    };
+  },
+
+  _promptTeamMemberNoteData(row, currentNote, kind) {
+    const config = this._getTeamMemberNoteEditConfig(kind);
+    const current = currentNote && currentNote !== '-' ? currentNote : '';
+    const fallback = () => {
+      const ask = typeof window !== 'undefined' && typeof window.prompt === 'function'
+        ? window.prompt.bind(window)
+        : null;
+      if (!ask) return Promise.resolve(null);
+      const notes = ask('\u5099\u8a3b', current) || '';
+      return Promise.resolve({ notes: notes.trim() });
+    };
+    const modal = document.getElementById('app-confirm-modal');
+    const msgEl = document.getElementById('app-confirm-msg');
+    const ok = document.getElementById('app-confirm-ok');
+    const cancel = document.getElementById('app-confirm-cancel');
+    if (!modal || !msgEl || !ok || !cancel) return fallback();
+    const name = row?.name || '\u6210\u54e1';
+    msgEl.innerHTML = '<div class="td-member-match-form">'
+      + '<strong>' + config.title + '</strong>'
+      + '<span>' + escapeHTML(name) + '</span>'
+      + '<label>\u5099\u8a3b<textarea id="td-member-note-editor" rows="3" maxlength="120">' + escapeHTML(current) + '</textarea></label>'
+      + '</div>';
+    modal.classList.add('open');
+    document.body.classList.add('modal-open');
+    cancel.style.display = '';
+    ok.textContent = '\u5132\u5b58';
+    cancel.textContent = '\u53d6\u6d88';
+    return new Promise(resolve => {
+      const cleanup = (result) => {
+        modal.classList.remove('open');
+        document.body.classList.remove('modal-open');
+        msgEl.innerHTML = '';
+        ok.replaceWith(ok.cloneNode(true));
+        cancel.replaceWith(cancel.cloneNode(true));
+        resolve(result);
+      };
+      ok.addEventListener('click', () => cleanup({
+        notes: (document.getElementById('td-member-note-editor')?.value || '').trim(),
+      }), { once: true });
+      cancel.addEventListener('click', () => cleanup(null), { once: true });
+    });
+  },
+
+  async editTeamMemberNote(btn, teamId, memberKey, kind) {
+    const t = ApiService.getTeam(teamId);
+    if (!t) return;
+    if (!this._canManageTeamMembers(t)) {
+      this.showToast('\u60a8\u6c92\u6709\u7de8\u8f2f\u968a\u54e1\u7684\u6b0a\u9650');
+      return;
+    }
+    const normalizedKind = kind === 'course' ? 'course' : 'activity';
+    const row = this._findTeamDetailRosterRow(teamId, memberKey);
+    if (!row) {
+      this.showToast('\u627e\u4e0d\u5230\u6210\u54e1\u8cc7\u6599');
+      return;
+    }
+    const canEditSource = this._isTeamDetailMemberNoteEditableRow?.(row)
+      || !!(row?.user?._docId || (row?.studentId && row?.student));
+    if (!canEditSource) {
+      this.showToast('\u6b64\u6210\u54e1\u76ee\u524d\u7121\u53ef\u7de8\u8f2f\u7684\u8cc7\u6599\u4f86\u6e90');
+      return;
+    }
+    const currentData = normalizedKind === 'course'
+      ? (this._getTeamDetailMemberCourseData?.(t, row) || {})
+      : (this._getTeamDetailMemberActivityData?.(t, row) || {});
+    const data = await this._promptTeamMemberNoteData(row, currentData.notes, normalizedKind);
+    if (!data) return;
+    const config = this._getTeamMemberNoteEditConfig(normalizedKind);
+    const save = async () => {
+      try {
+        const nextRecord = {
+          notes: data.notes,
+          updatedAt: new Date().toISOString(),
+        };
+        if (row.user?._docId) {
+          const currentMap = row.user[config.dataKey] && typeof row.user[config.dataKey] === 'object'
+            ? Object.assign({}, row.user[config.dataKey])
+            : {};
+          currentMap[String(teamId)] = Object.assign({}, currentMap[String(teamId)] || {}, nextRecord);
+          if (typeof FirebaseService._ensureAuth === 'function') {
+            const authed = await FirebaseService._ensureAuth();
+            if (!authed) {
+              this.showToast('\u767b\u5165\u5df2\u904e\u671f\uff0c\u8acb\u91cd\u65b0\u6574\u7406\u9801\u9762\u5f8c\u518d\u8a66');
+              return;
+            }
+          }
+          await FirebaseService.updateUser(row.user._docId, { [config.dataKey]: currentMap });
+          row.user[config.dataKey] = currentMap;
+        } else if (row.studentId && row.student && typeof FirebaseService.updateEduStudent === 'function') {
+          const currentMap = row.student[config.dataKey] && typeof row.student[config.dataKey] === 'object'
+            ? Object.assign({}, row.student[config.dataKey])
+            : {};
+          currentMap[String(teamId)] = Object.assign({}, currentMap[String(teamId)] || {}, nextRecord);
+          await FirebaseService.updateEduStudent(teamId, row.studentId, { [config.dataKey]: currentMap });
+          row.student[config.dataKey] = currentMap;
+          const cached = this._eduStudentsCache?.[teamId];
+          const cachedStudent = Array.isArray(cached) ? cached.find(s => String(s.id || s._docId || '') === String(row.studentId)) : null;
+          if (cachedStudent) cachedStudent[config.dataKey] = currentMap;
+        }
+        ApiService._writeOpLog?.(config.logType, config.logTitle, '\u66f4\u65b0\u300c' + (row.name || row.uid || row.studentId) + '\u300d\u5728\u300c' + t.name + '\u300d\u7684\u5099\u8a3b');
+        this.showToast(config.toast);
+        if (typeof this._refreshTeamMembersCardFromCache !== 'function' || !this._refreshTeamMembersCardFromCache(teamId)) {
+          await this._refreshTeamDetailMembers(teamId);
+        }
+      } catch (err) {
+        console.error('[editTeamMemberNote]', err);
+        if (typeof ApiService._writeErrorLog === 'function') {
+          ApiService._writeErrorLog(
+            {
+              fn: 'editTeamMemberNote',
+              teamId,
+              memberKey,
+              kind: normalizedKind,
+              docId: row.user?._docId || row.studentId || '',
+              authUid: (typeof auth !== 'undefined' && auth?.currentUser?.uid) ? auth.currentUser.uid : 'null',
+            },
+            err
+          );
+        }
+        this.showToast('\u66f4\u65b0\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+      }
+    };
+    if (typeof this._withButtonLoading === 'function' && btn) {
+      return this._withButtonLoading(btn, '\u5132\u5b58\u4e2d...', save);
+    }
+    return save();
+  },
+
   async editTeamMemberMatchData(btn, teamId, memberKey) {
     const t = ApiService.getTeam(teamId);
     if (!t) return;

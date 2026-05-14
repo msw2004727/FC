@@ -539,10 +539,16 @@ describe('team detail club activity section', () => {
 
     const manageHtml = app._buildTeamMembersCard(team, true, false, staffIdentity);
     const activityEditHtml = app._buildTeamMembersCard(team, true, true, staffIdentity);
+    app._teamMemberTabByTeam = { teamA: 'course' };
+    const courseHtml = app._buildTeamMembersCard(team, true, false, staffIdentity);
     app._teamMemberTabByTeam = { teamA: 'match' };
     const matchHtml = app._buildTeamMembersCard(team, true, false, staffIdentity);
     const editHtml = app._buildTeamMembersCard(team, true, true, staffIdentity);
     expect(manageHtml).toContain('\u6210\u54e1\u7ba1\u7406');
+    expect(manageHtml).toContain('td-member-note-edit-btn');
+    expect(manageHtml).toContain('App.editTeamMemberNote');
+    expect(courseHtml).toContain('td-member-note-edit-btn');
+    expect(courseHtml).toContain('App.editTeamMemberNote');
     expect(activityEditHtml).toContain('App.removeTeamRosterRow');
     expect((activityEditHtml.match(/td-member-remove-btn/g) || []).length).toBe(7);
     expect(matchHtml).toContain('td-member-match-edit-btn');
@@ -831,6 +837,99 @@ describe('team detail club activity section', () => {
       'team_member_match_data_update',
       expect.any(String),
       expect.stringContaining('Amy')
+    );
+  });
+
+  test('team member note edit writes scoped activity and course notes', async () => {
+    const updateUser = jest.fn().mockResolvedValue();
+    const updateEduStudent = jest.fn().mockResolvedValue();
+    const opLog = jest.fn();
+    const user = {
+      uid: 'member',
+      _docId: 'user-doc',
+      teamActivityData: { teamA: { notes: 'old activity' } },
+    };
+    const student = {
+      id: 'stu-child',
+      teamCourseData: { teamA: { notes: 'old course' } },
+    };
+    const userRow = {
+      key: 'uid:member',
+      uid: 'member',
+      name: 'Amy',
+      user,
+      roles: new Set(),
+    };
+    const studentRow = {
+      key: 'student:stu-child',
+      studentId: 'stu-child',
+      name: 'Child',
+      student,
+      roles: new Set(),
+    };
+    const team = { id: 'teamA', name: 'Club A' };
+    const app = {
+      _getTeamDetailRoster: () => [userRow, studentRow],
+      _canManageTeamMembers: () => true,
+      _isTeamDetailMemberNoteEditableRow: () => true,
+      _getTeamDetailMemberActivityData: () => ({ notes: 'old activity' }),
+      _getTeamDetailMemberCourseData: () => ({ notes: 'old course' }),
+      _promptTeamMemberNoteData: jest.fn()
+        .mockResolvedValueOnce({ notes: 'new activity' })
+        .mockResolvedValueOnce({ notes: 'new course' }),
+      _refreshTeamDetailMembers: jest.fn().mockResolvedValue(),
+      _withButtonLoading: async (_btn, _text, fn) => fn(),
+      _eduStudentsCache: { teamA: [student] },
+      showToast: jest.fn(),
+    };
+    loadTeamDetailCore(app, null, {
+      ApiService: {
+        getTeam: () => team,
+        _writeOpLog: opLog,
+      },
+      FirebaseService: {
+        updateUser,
+        updateEduStudent,
+      },
+    });
+    app._promptTeamMemberNoteData = jest.fn()
+      .mockResolvedValueOnce({ notes: 'new activity' })
+      .mockResolvedValueOnce({ notes: 'new course' });
+    app._refreshTeamMembersCardFromCache = jest.fn().mockReturnValue(true);
+    app._refreshTeamDetailMembers = jest.fn().mockResolvedValue();
+
+    await app.editTeamMemberNote(null, 'teamA', 'uid:member', 'activity');
+    await app.editTeamMemberNote(null, 'teamA', 'student:stu-child', 'course');
+
+    expect(updateUser).toHaveBeenCalledWith('user-doc', {
+      teamActivityData: {
+        teamA: expect.objectContaining({
+          notes: 'new activity',
+          updatedAt: expect.any(String),
+        }),
+      },
+    });
+    expect(updateEduStudent).toHaveBeenCalledWith('teamA', 'stu-child', {
+      teamCourseData: {
+        teamA: expect.objectContaining({
+          notes: 'new course',
+          updatedAt: expect.any(String),
+        }),
+      },
+    });
+    expect(user.teamActivityData.teamA.notes).toBe('new activity');
+    expect(student.teamCourseData.teamA.notes).toBe('new course');
+    expect(app._refreshTeamMembersCardFromCache).toHaveBeenCalledWith('teamA');
+    expect(app._refreshTeamDetailMembers).not.toHaveBeenCalled();
+    expect(opLog).toHaveBeenCalledWith(
+      'team_member_activity_note_update',
+      expect.any(String),
+      expect.stringContaining('Amy')
+    );
+    expect(opLog).toHaveBeenCalledWith(
+      'team_member_course_note_update',
+      expect.any(String),
+      expect.stringContaining('Child')
     );
   });
 

@@ -1017,6 +1017,12 @@
 .td-member-table-match td:nth-child(7) {
   width: 46px;
 }
+.td-member-table-activity th:nth-child(5),
+.td-member-table-activity td:nth-child(5),
+.td-member-table-course th:nth-child(7),
+.td-member-table-course td:nth-child(7) {
+  width: 46px;
+}
 .td-member-tag-cell {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1060,7 +1066,9 @@
 .td-member-action-cell {
   text-align: center;
 }
-.td-member-match-edit-btn {
+.td-member-row-edit-btn,
+.td-member-match-edit-btn,
+.td-member-note-edit-btn {
   height: 20px;
   border: 1px solid rgba(14, 165, 233, .3);
   border-radius: var(--radius-full);

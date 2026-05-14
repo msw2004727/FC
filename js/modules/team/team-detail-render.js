@@ -1212,6 +1212,10 @@ Object.assign(App, {
     return !!(row?.user?._docId || (row?.studentId && row?.student));
   },
 
+  _isTeamDetailMemberNoteEditableRow(row) {
+    return !!(row?.user?._docId || (row?.studentId && row?.student));
+  },
+
   _buildTeamMemberCell(value, className) {
     return '<td' + (className ? ' class="' + className + '"' : '') + '>' + escapeHTML(value == null || value === '' ? '-' : value) + '</td>';
   },
@@ -1220,14 +1224,14 @@ Object.assign(App, {
     this._teamMemberTabByTeam = this._teamMemberTabByTeam || {};
     const activeTab = this._teamMemberTabByTeam[t.id] || 'activity';
     const roster = this._getTeamDetailRoster(t);
-    const showMatchEditColumn = canManageMembers && activeTab === 'match';
+    const showEditColumn = !!canManageMembers;
     const tabBtn = (key, label) => '<button type="button" class="td-member-tab' + (activeTab === key ? ' active' : '') + '" onclick="App.switchTeamMemberTab(\'' + t.id + '\',\'' + key + '\')">' + label + '</button>';
     const columns = activeTab === 'course'
       ? ['\u66b1\u7a31', '\u6a19\u7c64', '\u5206\u7d44', '\u7e73\u8cbb', '\u6b21\u6578', '\u5099\u8a3b']
       : (activeTab === 'match'
         ? ['\u66b1\u7a31', '\u6a19\u7c64', '\u6b21\u6578', '\u80cc\u865f', '\u4f4d\u7f6e', '\u5099\u8a3b']
         : ['\u66b1\u7a31', '\u6a19\u7c64', '\u6b21\u6578', '\u5099\u8a3b']);
-    if (showMatchEditColumn) columns.push('\u7de8\u8f2f');
+    if (showEditColumn) columns.push('\u7de8\u8f2f');
     const header = columns.map(label => '<th>' + label + '</th>').join('');
     const rows = roster.length ? roster.map(row => {
       const safeName = escapeHTML(row.name || '未命名');
@@ -1257,15 +1261,18 @@ Object.assign(App, {
         dataCells = this._buildTeamMemberCell(activity.count, 'td-member-num')
           + this._buildTeamMemberCell(activity.notes, 'td-member-note');
       }
-      const editMatchBtn = (showMatchEditColumn && this._isTeamDetailMatchDataEditableRow(row))
-        ? '<button class="td-member-match-edit-btn" type="button" onclick="event.stopPropagation();App.editTeamMemberMatchData(this,' + escapeHTML(JSON.stringify(t.id)) + ',' + escapeHTML(JSON.stringify(row.key)) + ')">\u7de8\u8f2f</button>'
-        : '';
+      let editActionBtn = '';
+      if (showEditColumn && activeTab === 'match' && this._isTeamDetailMatchDataEditableRow(row)) {
+        editActionBtn = '<button class="td-member-row-edit-btn td-member-match-edit-btn" type="button" onclick="event.stopPropagation();App.editTeamMemberMatchData(this,' + escapeHTML(JSON.stringify(t.id)) + ',' + escapeHTML(JSON.stringify(row.key)) + ')">\u7de8\u8f2f</button>';
+      } else if (showEditColumn && this._isTeamDetailMemberNoteEditableRow(row)) {
+        editActionBtn = '<button class="td-member-row-edit-btn td-member-note-edit-btn" type="button" onclick="event.stopPropagation();App.editTeamMemberNote(this,' + escapeHTML(JSON.stringify(t.id)) + ',' + escapeHTML(JSON.stringify(row.key)) + ',' + escapeHTML(JSON.stringify(activeTab)) + ')">\u7de8\u8f2f</button>';
+      }
       const removalKind = this._getTeamDetailRemovalKind(t, row, staffIdentity);
       const removeBtn = (canManageMembers && memberEditMode && removalKind)
         ? '<button class="td-member-remove-btn" title="\u5254\u9664\u6210\u54e1" onclick="event.stopPropagation();App.removeTeamRosterRow(this, ' + escapeHTML(JSON.stringify(t.id)) + ', ' + escapeHTML(JSON.stringify(row.key)) + ')">\u5254\u9664</button>'
         : '';
-      const actions = showMatchEditColumn
-        ? '<td class="td-member-action-cell">' + (editMatchBtn || '<span class="td-member-role-empty">-</span>') + '</td>'
+      const actions = showEditColumn
+        ? '<td class="td-member-action-cell">' + (editActionBtn || '<span class="td-member-role-empty">-</span>') + '</td>'
         : '';
       return '<tr>'
         + '<td class="td-member-name-cell">' + (removeBtn || '') + '<span class="' + nameClass + '"' + profileClick + '>' + safeName + '</span></td>'
