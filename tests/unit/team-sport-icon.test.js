@@ -25,4 +25,15 @@ describe('team sport icon rendering', () => {
     expect(source).not.toContain('tc-sport-badge');
     expect(source).not.toContain('td-cover-ribbon');
   });
+
+  test('teaching ribbon sits on the top-right corner with the matching diagonal direction', () => {
+    const teamCss = readProjectFile('css/team.css');
+    const ribbonRule = teamCss.match(/\.tc-edu-ribbon\s*\{[\s\S]*?\n\}/)?.[0] || '';
+
+    expect(ribbonRule).toContain('right: -26px');
+    expect(ribbonRule).toContain('top: 12px');
+    expect(ribbonRule).toContain('transform: rotate(35deg)');
+    expect(ribbonRule).not.toContain('bottom: 6px');
+    expect(ribbonRule).not.toContain('transform: rotate(-35deg)');
+  });
 });
