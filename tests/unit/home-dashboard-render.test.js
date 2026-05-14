@@ -15,8 +15,20 @@ const homeHtmlSource = fs.readFileSync(
   path.join(__dirname, "../../pages/home.html"),
   "utf8"
 );
+const indexSource = fs.readFileSync(
+  path.join(__dirname, "../../index.html"),
+  "utf8"
+);
 const apiServiceSource = fs.readFileSync(
   path.join(__dirname, "../../js/api-service.js"),
+  "utf8"
+);
+const eventListHomeSource = fs.readFileSync(
+  path.join(__dirname, "../../js/modules/event/event-list-home.js"),
+  "utf8"
+);
+const homeGameRankPreviewSource = fs.readFileSync(
+  path.join(__dirname, "../../js/modules/home-game-rank-preview.js"),
   "utf8"
 );
 const adminContentSource = fs.readFileSync(
@@ -153,7 +165,19 @@ describe("home-dashboard browser binding", () => {
     expect(homeHtmlSource).toContain("home-sport-views");
     expect(homeHtmlSource).toContain("home-game-divider");
     expect(homeHtmlSource).toContain("home-game-heading");
+    expect(homeHtmlSource).toContain("home-game-rank-shot");
+    expect(homeHtmlSource).toContain("home-game-rank-kick");
     expect(homeHtmlSource).not.toContain("home-watch-party-art");
+    expect(homeCssSource).toContain(".home-game-rank-pill");
+    expect(homeCssSource).toContain(".home-game-rank-month");
+    expect(eventListHomeSource).toContain("_scheduleHomeGameRankPreview");
+    expect(homeGameRankPreviewSource).toContain("_scheduleHomeGameRankPreview");
+    expect(homeGameRankPreviewSource).toContain("getShotGameLeaderboard");
+    expect(homeGameRankPreviewSource).toContain("getKickGameLeaderboard");
+    expect(homeGameRankPreviewSource).toContain("monthly_");
+    expect(indexSource).toContain("js/modules/home-game-rank-preview.js");
+    expect(apiServiceSource).toContain("getKickGameLeaderboard");
+    expect(apiServiceSource).toContain("kickGameRankings");
     expect(homeCssSource).toContain("banner-create-event-btn");
   });
 

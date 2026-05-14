@@ -2237,9 +2237,10 @@ const ApiService = {
    */
   _shotGameLeaderboardCache: {},
 
-  async getShotGameLeaderboard({ period = 'daily', bucket } = {}) {
+  async getShotGameLeaderboard({ period = 'daily', bucket, limit = 50 } = {}) {
     if (!bucket) return [];
-    const cacheKey = bucket;
+    const safeLimit = Math.max(1, Math.min(50, Math.round(Number(limit) || 50)));
+    const cacheKey = `${bucket}:${safeLimit}`;
     const cached = this._shotGameLeaderboardCache[cacheKey];
     if (cached && Date.now() - cached.ts < 5 * 60 * 1000) return cached.data;
 
@@ -2249,7 +2250,7 @@ const ApiService = {
         .doc(bucket)
         .collection('entries')
         .orderBy('bestScore', 'desc')
-        .limit(50)
+        .limit(safeLimit)
         .get();
       const data = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
       this._shotGameLeaderboardCache[cacheKey] = { ts: Date.now(), data };
@@ -2263,6 +2264,32 @@ const ApiService = {
   // ════════════════════════════════
   //  Current User（登入用戶）
   // ════════════════════════════════
+
+  _kickGameLeaderboardCache: {},
+
+  async getKickGameLeaderboard({ period = 'daily', bucket, limit = 50 } = {}) {
+    if (!bucket) return [];
+    const safeLimit = Math.max(1, Math.min(50, Math.round(Number(limit) || 50)));
+    const cacheKey = `${bucket}:${safeLimit}`;
+    const cached = this._kickGameLeaderboardCache[cacheKey];
+    if (cached && Date.now() - cached.ts < 5 * 60 * 1000) return cached.data;
+
+    try {
+      const snap = await db
+        .collection('kickGameRankings')
+        .doc(bucket)
+        .collection('entries')
+        .orderBy('bestDistance', 'desc')
+        .limit(safeLimit)
+        .get();
+      const data = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+      this._kickGameLeaderboardCache[cacheKey] = { ts: Date.now(), data };
+      return data;
+    } catch (err) {
+      console.warn('[ApiService] getKickGameLeaderboard failed:', err?.code, err?.message);
+      return [];
+    }
+  },
 
   _auditLogCallable: null,
   _auditLogBackfillCallable: null,

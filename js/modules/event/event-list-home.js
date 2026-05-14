@@ -70,13 +70,30 @@ Object.assign(App, {
     const kickAvailable = this._isHomeGameVisible('kick-game');
     const anyVisible = shotAvailable || kickAvailable;
 
-    if (shotCard) shotCard.style.display = shotAvailable ? '' : 'none';
-    if (kickCard) kickCard.style.display = kickAvailable ? '' : 'none';
+    if (shotCard) {
+      shotCard.style.display = shotAvailable ? '' : 'none';
+      if (!shotAvailable) {
+        shotCard.classList.remove('has-rank-preview');
+        const preview = shotCard.querySelector('.home-game-rank-preview');
+        if (preview) preview.hidden = true;
+      }
+    }
+    if (kickCard) {
+      kickCard.style.display = kickAvailable ? '' : 'none';
+      if (!kickAvailable) {
+        kickCard.classList.remove('has-rank-preview');
+        const preview = kickCard.querySelector('.home-game-rank-preview');
+        if (preview) preview.hidden = true;
+      }
+    }
 
     // Toggle heading + divider (skip content — cards handled above)
     const firstCard = shotCard || kickCard;
     if (firstCard) {
       this._setHomeSectionVisibility(firstCard, anyVisible, true);
+    }
+    if (anyVisible && typeof this._scheduleHomeGameRankPreview === 'function') {
+      this._scheduleHomeGameRankPreview({ shotAvailable, kickAvailable });
     }
   },
 
