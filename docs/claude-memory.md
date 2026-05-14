@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-14 Club theme color settings [feature]
+- **Problem**: Clubs had no staff-controlled theme color, so card/detail emphasis could not be adjusted per club without hard-coded UI changes.
+- **Fix**: Added a theme color picker/reset in club settings, scoped the selected color to club list cards and detail containers with light/dark readability overlays, and aligned frontend edit eligibility with team owner fields plus `team.manage_all`.
+- **Tests**: Added unit/source coverage for settings controls, detail theme scoping, card theme styling, and ownership-based edit access.
+
 ### 2026-05-14 Club member roster spacing and student removal actions [ui]
 - **Problem**: The activity roster table stretched to the full card width, leaving a wide blank area between nickname and label columns. Member management also showed no remove button when the visible rows were staff or student records because only regular team-member rows were eligible.
 - **Fix**: Changed the member table to shrink to its content, expanded nickname capsules to a 10-character maximum with ellipsis overflow, and routed remove actions through a unified roster remover that can deactivate active/pending student rows while still preserving the safer existing regular-member removal path.

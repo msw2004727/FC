@@ -20,6 +20,15 @@ Object.assign(App, {
     return /^#[0-9a-f]{6}$/i.test(raw) ? raw : '#fbbf24';
   },
 
+  _normalizeTeamThemeColor(value) {
+    const raw = String(value || '').trim();
+    return /^#[0-9a-f]{6}$/i.test(raw) ? raw.toLowerCase() : '';
+  },
+
+  _getTeamThemeColor(team) {
+    return this._normalizeTeamThemeColor?.(team?.themeColor) || '';
+  },
+
   _getDefaultTeamCoverUrl() {
     const version = (typeof CACHE_VERSION !== 'undefined' && CACHE_VERSION) ? CACHE_VERSION : '';
     try {
@@ -193,9 +202,20 @@ Object.assign(App, {
     return !!(team.captainUid && (team.captainUid === currentUser.uid || team.captainUid === currentUser._docId));
   },
 
+  _isTeamOwnerUser(team) {
+    if (!team) return false;
+    const currentUser = ApiService.getCurrentUser?.();
+    if (!currentUser || !currentUser.uid) return false;
+    const currentIds = [currentUser.uid, currentUser._docId].filter(Boolean).map(id => String(id).trim());
+    return ['captainUid', 'creatorUid', 'ownerUid'].some(field => {
+      const ownerId = String(team[field] || '').trim();
+      return ownerId && currentIds.includes(ownerId);
+    });
+  },
+
   _canEditTeamByRoleOrCaptain(team) {
     if (!team) return false;
-    return this._isTeamCaptainUser(team) || this._hasRolePermission('team.manage_all') || this._hasRolePermission('team.manage_self');
+    return this._isTeamOwnerUser(team) || this._hasRolePermission('team.manage_all');
   },
 
   _canCreateTeamByPermission() {

@@ -18,7 +18,12 @@ Object.assign(App, {
     const attentionEnabled = t.attentionEffectEnabled === true;
     const attentionClass = attentionEnabled ? ' tc-attention-effect' : '';
     const attentionColor = this._normalizeTeamAttentionColor?.(t.attentionEffectColor) || '#fbbf24';
-    const attentionStyle = attentionEnabled ? ` style="--tc-attention-color:${escapeHTML(attentionColor)}"` : '';
+    const themeColor = this._getTeamThemeColor?.(t) || '';
+    const themeClass = themeColor ? ' tc-themed' : '';
+    const styleVars = [];
+    if (attentionEnabled) styleVars.push(`--tc-attention-color:${escapeHTML(attentionColor)}`);
+    if (themeColor) styleVars.push(`--team-theme-color:${escapeHTML(themeColor)}`);
+    const cardStyle = styleVars.length ? ` style="${styleVars.join(';')}"` : '';
     const cardImage = this._getTeamCoverImageUrl?.(t, 'card') || this._getTeamImageUrl?.(t, 'card') || t.image || '';
     const memberLabel = I18N.t('team.memberLabel');
     const memberCountKey = String(t.id || '');
@@ -27,7 +32,7 @@ Object.assign(App, {
       ? memberCountMap.get(memberCountKey)
       : this._calcTeamMemberCount(t.id);
     return `
-      <div class="tc-card${pinnedClass}${attentionClass}"${attentionStyle} data-team-id="${escapeHTML(t.id)}" onclick="App.openTeamDetailFromCard(this, this.dataset.teamId)">
+      <div class="tc-card${pinnedClass}${attentionClass}${themeClass}"${cardStyle} data-team-id="${escapeHTML(t.id)}" onclick="App.openTeamDetailFromCard(this, this.dataset.teamId)">
         ${t.pinned ? '<div class="tc-pin-badge">置頂</div>' : ''}
         ${cardImage
           ? `<div style="position:relative;width:100%;aspect-ratio:1;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0">${sportBadge}<img src="${escapeHTML(cardImage)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block"><span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span>${eduRibbon}</div>`
@@ -83,7 +88,7 @@ Object.assign(App, {
         ? memberCountByTeam.get(String(t.id || ''))
         : '';
       const teachingTag = typeof this._isTeamTeachingTagged === 'function' && this._isTeamTeachingTagged(t) ? 1 : 0;
-      return t.id + '|' + (t.name || '') + '|' + (t.sportTag || '') + '|' + (t.image || '') + '|' + (t.imageVariants?.card || '') + '|' + (t.active ? 1 : 0) + '|' + (t.pinned ? 1 : 0) + '|' + teachingTag + '|' + (t.attentionEffectEnabled ? 1 : 0) + '|' + (t.attentionEffectColor || '') + '|' + (t.teamExp || 0) + '|' + memberCount;
+      return t.id + '|' + (t.name || '') + '|' + (t.sportTag || '') + '|' + (t.image || '') + '|' + (t.imageVariants?.card || '') + '|' + (t.active ? 1 : 0) + '|' + (t.pinned ? 1 : 0) + '|' + teachingTag + '|' + (t.attentionEffectEnabled ? 1 : 0) + '|' + (t.attentionEffectColor || '') + '|' + (t.themeColor || '') + '|' + (t.teamExp || 0) + '|' + memberCount;
     }).join(',');
     if (this._teamListLastFp === fp && container.children.length > 0) return;
     this._teamListLastFp = fp;

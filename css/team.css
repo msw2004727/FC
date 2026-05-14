@@ -208,6 +208,23 @@
 .tc-name-en { font-size: .58rem; color: var(--text-muted); font-family: var(--font-display); margin-bottom: .2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tc-info-row { display: flex; justify-content: space-between; align-items: center; font-size: .62rem; padding: .1rem 0; color: var(--text-secondary); }
 .tc-label { font-weight: 600; }
+.tc-card.tc-themed .tc-body {
+  position: relative;
+  isolation: isolate;
+  background: var(--team-theme-color);
+}
+.tc-card.tc-themed .tc-body::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: rgba(255, 255, 255, .78);
+}
+.tc-card.tc-themed .tc-body > * {
+  position: relative;
+  z-index: 1;
+}
 .team-inactive { opacity: .45; }
 .team-section-divider { border: none; border-top: 1px solid var(--border); margin: 1rem 0 .5rem; }
 .team-section-label { font-size: .78rem; color: var(--text-muted); font-weight: 600; margin-bottom: .5rem; }
@@ -779,6 +796,47 @@
   font-size: .58rem;
   font-weight: 700;
   white-space: nowrap;
+}
+.td-detail-shell.has-team-theme .td-identity-panel,
+.td-detail-shell.has-team-theme > .td-card,
+.td-detail-shell.has-team-theme .td-record-history-grid > .td-card,
+.td-detail-shell.has-team-theme .td-section-nav-panel,
+.td-detail-shell.has-team-theme .td-action-panel,
+.td-detail-shell.has-team-theme .td-overview-stat {
+  position: relative;
+  isolation: isolate;
+  background: var(--team-theme-color);
+}
+.td-detail-shell.has-team-theme .td-identity-panel::before,
+.td-detail-shell.has-team-theme > .td-card::before,
+.td-detail-shell.has-team-theme .td-record-history-grid > .td-card::before,
+.td-detail-shell.has-team-theme .td-section-nav-panel::before,
+.td-detail-shell.has-team-theme .td-action-panel::before,
+.td-detail-shell.has-team-theme .td-overview-stat::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: rgba(255, 255, 255, .78);
+}
+.td-detail-shell.has-team-theme .td-identity-panel > *,
+.td-detail-shell.has-team-theme > .td-card > *,
+.td-detail-shell.has-team-theme .td-record-history-grid > .td-card > *,
+.td-detail-shell.has-team-theme .td-section-nav-panel > *,
+.td-detail-shell.has-team-theme .td-action-panel > *,
+.td-detail-shell.has-team-theme .td-overview-stat > * {
+  position: relative;
+  z-index: 1;
+}
+.td-detail-shell.has-team-theme .td-overview-label {
+  background: transparent;
+}
+.td-detail-shell.has-team-theme .td-info-inline-item,
+.td-detail-shell.has-team-theme .td-card-item,
+.td-detail-shell.has-team-theme .td-action-secondary,
+.td-detail-shell.has-team-theme .td-section-nav button {
+  background: rgba(255, 255, 255, .54);
 }
 .td-section-create-btn {
   flex: 0 0 auto;
@@ -1919,6 +1977,49 @@
   flex: 0 0 auto;
   margin: 0;
 }
+.td-theme-settings-row {
+  align-items: stretch;
+}
+.td-theme-control {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .4rem;
+}
+.td-theme-current {
+  width: 22px;
+  height: 22px;
+  border: 1px dashed var(--border);
+  border-radius: 50%;
+  background:
+    linear-gradient(45deg, rgba(148, 163, 184, .36) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(148, 163, 184, .36) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(148, 163, 184, .36) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(148, 163, 184, .36) 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 0 4px, 4px -4px, -4px 0;
+}
+.td-theme-color-input {
+  width: 38px;
+  height: 30px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  cursor: pointer;
+}
+.td-theme-reset-btn {
+  min-height: 30px;
+  padding: .18rem .5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: .72rem;
+  font-weight: 800;
+  cursor: pointer;
+}
 .td-settings-switch {
   position: relative;
   display: inline-flex;
@@ -2003,6 +2104,23 @@
 [data-theme="dark"] .td-member-name-pill.uc-super_admin { border-color: rgba(239,68,68,.4); background: rgba(239,68,68,.20); color: #fca5a5; }
 [data-theme="dark"] .td-member-name-pill.external-student { border-color: rgba(45, 212, 191, .35); background: rgba(20, 184, 166, .18); color: #5eead4; }
 [data-theme="dark"] .td-member-name-pill.missing-name { border-color: rgba(148, 163, 184, .2); background: rgba(148, 163, 184, .12); color: #cbd5e1; }
+[data-theme="dark"] .tc-card.tc-themed .tc-body::before {
+  background: rgba(15, 23, 42, .8);
+}
+[data-theme="dark"] .td-detail-shell.has-team-theme .td-identity-panel::before,
+[data-theme="dark"] .td-detail-shell.has-team-theme > .td-card::before,
+[data-theme="dark"] .td-detail-shell.has-team-theme .td-record-history-grid > .td-card::before,
+[data-theme="dark"] .td-detail-shell.has-team-theme .td-section-nav-panel::before,
+[data-theme="dark"] .td-detail-shell.has-team-theme .td-action-panel::before,
+[data-theme="dark"] .td-detail-shell.has-team-theme .td-overview-stat::before {
+  background: rgba(15, 23, 42, .8);
+}
+[data-theme="dark"] .td-detail-shell.has-team-theme .td-info-inline-item,
+[data-theme="dark"] .td-detail-shell.has-team-theme .td-card-item,
+[data-theme="dark"] .td-detail-shell.has-team-theme .td-action-secondary,
+[data-theme="dark"] .td-detail-shell.has-team-theme .td-section-nav button {
+  background: rgba(15, 23, 42, .52);
+}
 [data-theme="dark"] .team-attention-controls {
   border-color: rgba(255, 255, 255, .12);
   background: rgba(30, 41, 59, .72);

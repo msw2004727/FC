@@ -446,19 +446,51 @@ describe('team detail club activity section', () => {
     const app = {
       _getTeamDetailVisibility: () => ({ events: true, courses: true, matches: true, info: true, bio: true, record: true, members: true }),
       _isTeamTeachingTagged: () => false,
+      _getTeamThemeColor: (team) => team.themeColor || '',
     };
     const body = { innerHTML: '' };
     loadTeamDetailCore(app, {
       getElementById: (id) => (id === 'team-detail-settings-body' ? body : null),
     });
 
-    app._renderTeamDetailSettingsBody({ id: 'teamA', allowMemberInvite: false });
+    app._renderTeamDetailSettingsBody({ id: 'teamA', allowMemberInvite: false, themeColor: '#336699' });
 
     expect(body.innerHTML).toContain('td-settings-switch');
     expect(body.innerHTML).toContain('App.toggleTeamMemberInviteSetting(this.checked, this)');
+    expect(body.innerHTML).toContain('App.changeTeamThemeColor(this.value, this)');
+    expect(body.innerHTML).toContain('App.clearTeamThemeColor(this)');
+    expect(body.innerHTML).toContain('value="#336699"');
     expect(body.innerHTML).toContain('teamDetail.memberCanInvite');
     expect(body.innerHTML).not.toContain('toggle-switch');
     expect(body.innerHTML).not.toContain('toggleMemberInvite');
+  });
+
+  test('team detail theme color adds scoped theme variables only when configured', () => {
+    const app = makeApp([]);
+    loadTeamDetailRender(app, []);
+    app._getTeamThemeColor = (team) => team.themeColor || '';
+
+    const themedHtml = app._buildTeamDetailBodyHtml(
+      { id: 'teamA', name: 'Club A', themeColor: '#336699', coaches: [] },
+      false,
+      false,
+      { keys: new Set(), names: new Set() },
+      0,
+      0
+    );
+    expect(themedHtml).toContain('td-detail-shell has-team-theme');
+    expect(themedHtml).toContain('--team-theme-color:#336699');
+
+    const defaultHtml = app._buildTeamDetailBodyHtml(
+      { id: 'teamA', name: 'Club A', coaches: [] },
+      false,
+      false,
+      { keys: new Set(), names: new Set() },
+      0,
+      0
+    );
+    expect(defaultHtml).not.toContain('has-team-theme');
+    expect(defaultHtml).not.toContain('--team-theme-color');
   });
 
   test('team detail view count records once per device and updates teams viewCount', () => {

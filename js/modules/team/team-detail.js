@@ -384,6 +384,8 @@ Object.assign(App, {
       ? this._isTeamTeachingTagged(team)
       : team.type === 'education';
     const memberInviteChecked = team.allowMemberInvite !== false;
+    const themeColor = this._getTeamThemeColor?.(team) || '';
+    const themePickerValue = themeColor || '#0d9488';
     const rows = this._getTeamDetailSettingsItems().map(item => {
       const checked = visibility[item.key] !== false;
       return '<div class="td-settings-row">' +
@@ -403,6 +405,14 @@ Object.assign(App, {
       '<div class="td-settings-row">' +
       '<div><strong>' + I18N.t('teamDetail.memberCanInvite') + '</strong><span>\u958b\u555f\u5f8c\uff0c\u73fe\u6709\u968a\u54e1\u53ef\u4ee5\u7522\u751f\u9080\u8acb QR Code\u3002</span></div>' +
       this._buildTeamDetailSettingsSwitch(memberInviteChecked, 'App.toggleTeamMemberInviteSetting(this.checked, this)', I18N.t('teamDetail.memberCanInvite')) +
+      '</div>' +
+      '<div class="td-settings-row td-theme-settings-row">' +
+      '<div><strong>\u4ff1\u6a02\u90e8\u4e3b\u984c\u8272</strong><span>\u9078\u64c7\u5f8c\u6703\u5957\u7528\u5728\u4ff1\u6a02\u90e8\u5361\u7247\u8207\u8a73\u60c5\u91cd\u9ede\u5bb9\u5668\uff1b\u7559\u7a7a\u5247\u4f7f\u7528\u7cfb\u7d71\u9810\u8a2d\u914d\u8272\u3002</span></div>' +
+      '<div class="td-theme-control">' +
+      '<span class="td-theme-current" style="' + (themeColor ? 'background:' + escapeHTML(themeColor) : '') + '"></span>' +
+      '<input class="td-theme-color-input" type="color" value="' + escapeHTML(themePickerValue) + '" onchange="App.changeTeamThemeColor(this.value, this)" aria-label="\u4ff1\u6a02\u90e8\u4e3b\u984c\u8272">' +
+      '<button type="button" class="td-theme-reset-btn" onclick="App.clearTeamThemeColor(this)">\u9810\u8a2d</button>' +
+      '</div>' +
       '</div>' +
       '</div>' +
       '<div class="td-settings-group"><div class="td-settings-title">\u6b04\u4f4d\u5bb9\u5668\u986f\u793a</div>' + rows + '</div>' +
@@ -443,7 +453,8 @@ Object.assign(App, {
       this.showToast('\u8a2d\u5b9a\u5df2\u66f4\u65b0');
     } catch (err) {
       console.error('[TeamDetail] settings update failed:', err);
-      if (inputEl) inputEl.checked = !inputEl.checked;
+      if (inputEl && inputEl.type === 'checkbox') inputEl.checked = !inputEl.checked;
+      else this._renderTeamDetailSettingsBody(team);
       if (!err?._toasted) this.showToast('\u8a2d\u5b9a\u66f4\u65b0\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
     } finally {
       if (inputEl) inputEl.disabled = false;
@@ -456,6 +467,19 @@ Object.assign(App, {
 
   toggleTeamMemberInviteSetting(enabled, inputEl) {
     return this._saveTeamDetailSettingsPatch({ allowMemberInvite: !!enabled }, inputEl);
+  },
+
+  changeTeamThemeColor(colorValue, inputEl) {
+    const themeColor = this._normalizeTeamThemeColor?.(colorValue) || '';
+    if (!themeColor) {
+      this.showToast?.('\u4e3b\u984c\u8272\u683c\u5f0f\u4e0d\u6b63\u78ba');
+      return;
+    }
+    return this._saveTeamDetailSettingsPatch({ themeColor }, inputEl);
+  },
+
+  clearTeamThemeColor(btnEl) {
+    return this._saveTeamDetailSettingsPatch({ themeColor: null }, btnEl);
   },
 
   toggleTeamDetailVisibility(key, enabled, inputEl) {

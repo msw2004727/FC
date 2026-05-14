@@ -1472,7 +1472,10 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   _buildTeamDetailBodyHtml(t, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate) {
-    return '<div class="td-detail-shell">'
+    const themeColor = this._getTeamThemeColor?.(t) || '';
+    const themeClass = themeColor ? ' has-team-theme' : '';
+    const themeStyle = themeColor ? ' style="--team-theme-color:' + escapeHTML(themeColor) + '"' : '';
+    return '<div class="td-detail-shell' + themeClass + '"' + themeStyle + '>'
       + this._buildTeamDetailIdentityPanel(t, totalGames, winRate)
       + this._buildTeamDetailSectionNav(t)
       + this._buildTeamDetailOverview(t, totalGames, winRate)

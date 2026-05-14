@@ -311,6 +311,16 @@ describe('team pin management wiring', () => {
     expect(teamCss).toContain('.tc-card.tc-attention-effect::before');
     expect(teamCss).toContain('animation: tc-attention-spin');
   });
+
+  test('club theme color uses scoped card styling and strict edit ownership', () => {
+    expect(teamListHelperSource).toContain('_normalizeTeamThemeColor');
+    expect(teamListHelperSource).toContain("['captainUid', 'creatorUid', 'ownerUid']");
+    expect(teamListHelperSource).toMatch(/_canEditTeamByRoleOrCaptain\(team\)[\s\S]*_isTeamOwnerUser\(team\)[\s\S]*team\.manage_all/);
+    expect(teamListRenderSource).toContain('tc-themed');
+    expect(teamListRenderSource).toContain('--team-theme-color');
+    expect(teamCss).toContain('.tc-card.tc-themed .tc-body::before');
+    expect(teamCss).toContain('[data-theme="dark"] .tc-card.tc-themed .tc-body::before');
+  });
 });
 
 describe('_parseTimeStr (team-form-join.js:73-79)', () => {
