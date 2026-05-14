@@ -254,7 +254,7 @@ Object.assign(App, {
       const datePrefix = dateLabel ? `${dateLabel} ` : '';
       timeSummary.textContent = startValue && endValue
         ? `已選時間：${datePrefix}${startValue} ～ ${endValue}`
-        : '已選時間：請選擇開始與結束時間';
+        : '已選時間：請選擇開始與結束時間（24 小時制）';
     }
 
     const regDateValue = document.getElementById('ce-reg-open-date')?.value || '';
@@ -262,9 +262,13 @@ Object.assign(App, {
     const regDateLabel = this._formatCreateDateValue(regDateValue);
     const regSummary = document.getElementById('ce-reg-open-summary');
     if (regSummary) {
-      regSummary.textContent = regDateLabel && regTimeValue
-        ? `開放報名：${regDateLabel} ${regTimeValue}`
-        : '開放報名：未設定，建立後立即開放';
+      if (regDateLabel && regTimeValue) {
+        regSummary.textContent = `報名開放：${regDateLabel} ${regTimeValue} 後可報名`;
+      } else if (regDateValue || regTimeValue) {
+        regSummary.textContent = '報名開放：請同時選擇日期與時間；不填則立即開放';
+      } else {
+        regSummary.textContent = '報名開放：未指定，建立後立即開放報名';
+      }
     }
   },
 
@@ -427,8 +431,8 @@ Object.assign(App, {
     const location = document.getElementById('ce-location').value.trim();
     const dateVal = document.getElementById('ce-date').value
       || (this._multiDates && this._multiDates.length ? this._multiDates[0] : '');
-    const tStart = document.getElementById('ce-time-start').value;
-    const tEnd = document.getElementById('ce-time-end').value;
+    const tStart = this._formatCreateTimeValue(document.getElementById('ce-time-start').value);
+    const tEnd = this._formatCreateTimeValue(document.getElementById('ce-time-end').value);
     const timeVal = (tStart && tEnd) ? `${tStart}~${tEnd}` : '';
     let feeEnabled = !!document.getElementById('ce-fee-enabled')?.checked;
     let fee = feeEnabled ? (parseInt(document.getElementById('ce-fee').value, 10) || 0) : 0;

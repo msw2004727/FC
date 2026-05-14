@@ -2738,3 +2738,8 @@
 - **Cause**: The create-event catch block did not inspect Firestore error codes, and the shared write handler did not pass create payload context to the UI.
 - **Fix**: Added create-event-specific Firestore error mapping for permission-denied, unauthenticated, timeout/unavailable, invalid data, and sync-conflict cases. The shared ApiService write handler now passes the create payload to App and marks handled errors as toasted to prevent duplicate generic toasts.
 - **Validation**: Added unit coverage for the new create-event error message mapping.
+
+### 2026-05-15 Activity Create Mobile Time Fields [ux]
+- **Issue**: The create-activity modal already stored reliable time values, but the date/start/end fields were visually ambiguous on mobile and the registration-open copy was easy to skim past.
+- **Fix**: Added explicit activity date, start time, end time, registration-open date, and registration-open time labels. Normalized create-event time values through the existing `HH:mm` formatter before saving, clarified immediate-vs-scheduled registration-open copy, and made the existing create-event action bar sticky at the bottom on narrow screens.
+- **Validation**: Ran create-activity and registration-open targeted unit tests, JavaScript syntax check, and `git diff --check`.
