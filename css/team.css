@@ -1515,13 +1515,27 @@
   background: var(--bg-elevated);
   color: var(--text-primary);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) 86px;
   align-items: center;
-  gap: .34rem .5rem;
-  padding: .58rem .65rem;
+  gap: .46rem;
+  min-height: 70px;
+  padding: .48rem .46rem .48rem .65rem;
   text-align: left;
   cursor: pointer;
+  overflow: hidden;
   box-shadow: 0 4px 12px rgba(15, 23, 42, .05);
+}
+.td-team-tournament-main {
+  min-width: 0;
+  display: grid;
+  gap: .28rem;
+}
+.td-team-tournament-title-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: .32rem;
 }
 .td-team-tournament-card strong {
   min-width: 0;
@@ -1533,9 +1547,7 @@
   text-overflow: ellipsis;
 }
 .td-team-tournament-status {
-  grid-column: 2;
-  grid-row: 1 / span 2;
-  justify-self: end;
+  flex: 0 0 auto;
   padding: .16rem .45rem;
   border-radius: var(--radius-full);
   background: rgba(13, 148, 136, .12);
@@ -1553,6 +1565,40 @@
   font-size: .72rem;
   line-height: 1.35;
   font-weight: 700;
+}
+.td-team-tournament-thumb {
+  position: relative;
+  width: 86px;
+  height: 58px;
+  justify-self: end;
+  overflow: hidden;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  clip-path: polygon(18px 0, 100% 0, 100% 100%, 0 100%);
+  background: linear-gradient(135deg, rgba(15, 23, 42, .12), rgba(15, 23, 42, .04));
+}
+.td-team-tournament-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.td-team-tournament-thumb-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(247, 198, 0, .26), rgba(13, 148, 136, .14));
+}
+.td-team-tournament-thumb-placeholder .event-sport-icon,
+.td-team-tournament-thumb-placeholder .td-team-tournament-thumb-icon {
+  transform: translateX(5px);
+}
+.td-team-tournament-thumb-icon {
+  width: 28px;
+  height: 28px;
+}
+.td-team-tournament-thumb-icon svg {
+  width: 18px;
+  height: 18px;
 }
 .td-team-tournament-meta span {
   min-width: 0;
@@ -2017,6 +2063,12 @@
 }
 [data-theme="dark"] .td-team-tournament-card {
   box-shadow: 0 6px 18px rgba(0,0,0,.22);
+}
+[data-theme="dark"] .td-team-tournament-thumb {
+  background: linear-gradient(135deg, rgba(148, 163, 184, .2), rgba(15, 23, 42, .34));
+}
+[data-theme="dark"] .td-team-tournament-thumb-placeholder {
+  background: linear-gradient(135deg, rgba(247, 198, 0, .18), rgba(45, 212, 191, .12));
 }
 [data-theme="dark"] .td-team-tournament-tab {
   background: rgba(31, 41, 55, .92);

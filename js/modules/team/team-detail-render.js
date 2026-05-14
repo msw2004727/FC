@@ -961,15 +961,24 @@ Object.assign(App, {
     const region = tournament.region ? '<span>' + escapeHTML(tournament.region) + '</span>' : '';
     const status = escapeHTML(this._getTeamTournamentStatusLabel(tournament));
     const typeLabel = escapeHTML((typeof this._getTournamentModeLabel === 'function' ? this._getTournamentModeLabel(tournament) : '') || tournament.type || I18N.t('tournament.detail'));
+    const imageUrl = String(tournament.image || tournament.coverImage || tournament.coverUrl || tournament.imageUrl || tournament.hostTeamImage || '').trim();
+    const sportIcon = typeof this._renderTournamentSportIcon === 'function'
+      ? this._renderTournamentSportIcon(tournament, 'td-team-tournament-thumb-icon')
+      : '';
+    const thumbHtml = imageUrl
+      ? '<div class="td-team-tournament-thumb"><img src="' + escapeHTML(imageUrl) + '" loading="lazy" alt="' + name + '"></div>'
+      : '<div class="td-team-tournament-thumb td-team-tournament-thumb-placeholder" aria-hidden="true">' + (sportIcon || '<span>T</span>') + '</div>';
     return '<button type="button" class="td-team-tournament-card" onclick="App.openTeamDetailTournament(\'' + id + '\')">' +
-      '<span class="td-team-tournament-status">' + status + '</span>' +
-      '<strong>' + name + '</strong>' +
+      '<span class="td-team-tournament-main">' +
+      '<span class="td-team-tournament-title-row"><strong>' + name + '</strong><span class="td-team-tournament-status">' + status + '</span></span>' +
       '<span class="td-team-tournament-meta">' +
       '<span>' + typeLabel + '</span>' +
       region +
       (date ? '<span>' + escapeHTML(date) + '</span>' : '') +
       '<span>' + registered + '/' + maxTeams + ' ' + I18N.t('tournament.teamUnit') + '</span>' +
       '</span>' +
+      '</span>' +
+      thumbHtml +
       '</button>';
   },
 

@@ -86,6 +86,35 @@ describe('team detail club activity section', () => {
     vm.runInNewContext(source, context);
   }
 
+  function loadEventCreate(app, documentOverride, extraContext = {}) {
+    const context = {
+      App: app,
+      ApiService: {},
+      document: documentOverride || {
+        getElementById: () => null,
+      },
+      console,
+      Object,
+      Date,
+      Math,
+      Number,
+      String,
+      Array,
+      Set,
+      Map,
+      setTimeout,
+      generateId: () => 'ce_test',
+      getSportKeySafe: (value) => String(value || '').trim(),
+      GRADIENT_MAP: { play: '#3b82f6', friendly: '#10b981' },
+      ...extraContext,
+    };
+    const source = fs.readFileSync(
+      path.join(__dirname, '../../js/modules/event/event-create.js'),
+      'utf8'
+    );
+    vm.runInNewContext(source, context);
+  }
+
   function parseEventDate(dateStr) {
     const [datePart, timePart = '0:0'] = String(dateStr || '').split(' ');
     const [y, m, d] = datePart.split('/').map(Number);
@@ -192,7 +221,7 @@ describe('team detail club activity section', () => {
   test('renders club tournaments that are hosted by or joined by the club', () => {
     const app = makeApp([]);
     const tournaments = [
-      { id: 'tour-host', name: '主辦盃', hostTeamId: 'teamA', registeredTeams: ['teamA'], maxTeams: 4, type: '友誼賽', regStart: '2099-01-02' },
+      { id: 'tour-host', name: '主辦盃', hostTeamId: 'teamA', registeredTeams: ['teamA'], maxTeams: 4, type: '友誼賽', regStart: '2099-01-02', image: 'https://cdn.test/tour-host.jpg' },
       { id: 'tour-join', name: '參賽盃', hostTeamId: 'teamB', registeredTeams: ['teamA'], maxTeams: 4, type: '友誼賽', regStart: '2099-01-01' },
       { id: 'tour-ended', name: '已結束盃', hostTeamId: 'teamA', registeredTeams: ['teamA'], maxTeams: 4, ended: true, regStart: '2020-01-01' },
       { id: 'tour-other', name: '其他盃', hostTeamId: 'teamB', registeredTeams: ['teamC'], maxTeams: 4, type: '友誼賽', regStart: '2099-01-03' },
@@ -204,6 +233,10 @@ describe('team detail club activity section', () => {
     expect(html).toContain('id="team-tournaments-section"');
     expect(html).toContain('俱樂部賽事');
     expect(html).toContain('td-team-tournament-tabs');
+    expect(html).toContain('td-team-tournament-title-row');
+    expect(html).toContain('td-team-tournament-thumb');
+    expect(html).toContain('https://cdn.test/tour-host.jpg');
+    expect(html.indexOf('td-team-tournament-status')).toBeLessThan(html.indexOf('td-team-tournament-thumb'));
     expect(html).toContain('參賽中');
     expect(html).toContain('已結束');
     expect(html).toContain('主辦盃');
@@ -447,14 +480,18 @@ describe('team detail club activity section', () => {
     expect(updates[0].id).toBe('docA');
   });
 
-  test('club activity create button opens custom event form with current club preselected', async () => {
+  test('club activity create button opens custom event form with current club preselected and sport defaulted', async () => {
     const teamOnly = { checked: false };
     const teamSelect = { innerHTML: '', multiple: false };
+    const sportInput = { value: '' };
     const app = {
       _requireProtectedActionLogin: () => false,
       _canCreateActivityByPermission: () => true,
       _canCreateBasicActivity: () => true,
       _openCreateCustomEventModal: jest.fn(),
+      _initSportTagPicker: jest.fn((sportTag) => {
+        sportInput.value = sportTag;
+      }),
       _populateTeamSelect: jest.fn((select, ids, names) => {
         select.presetIds = ids;
         select.presetNames = names;
@@ -469,8 +506,14 @@ describe('team detail club activity section', () => {
       getElementById: (id) => {
         if (id === 'ce-team-only') return teamOnly;
         if (id === 'ce-team-select') return teamSelect;
+        if (id === 'ce-sport-tag') return sportInput;
         return null;
       },
+    }, {
+      ApiService: {
+        getTeam: () => ({ id: 'teamA', name: 'Club A', sportTag: 'basketball' }),
+      },
+      getSportKeySafe: (value) => String(value || '').trim(),
     });
 
     await app.openTeamDetailCreateEvent('teamA');
@@ -478,7 +521,117 @@ describe('team detail club activity section', () => {
     expect(app._openCreateCustomEventModal).toHaveBeenCalled();
     expect(teamOnly.checked).toBe(true);
     expect(teamSelect.presetIds).toEqual(['teamA']);
+    expect(teamSelect.presetNames).toEqual(['Club A']);
     expect(teamSelect.selectedIds).toEqual(['teamA']);
+    expect(app._initSportTagPicker).toHaveBeenCalledWith('basketball');
+    expect(sportInput.value).toBe('basketball');
+  });
+
+  test('refreshes current club detail after a club activity is saved', async () => {
+    const app = {
+      currentPage: 'page-team-detail',
+    };
+    loadTeamDetailCore(app);
+    app._teamDetailId = 'teamA';
+    app.currentPage = 'page-team-detail';
+    app.showTeamDetail = jest.fn().mockResolvedValue({ ok: true });
+
+    await expect(app._refreshTeamDetailAfterEventSave(['teamA'])).resolves.toBe(true);
+    expect(app.showTeamDetail).toHaveBeenCalledWith('teamA', { skipPageHistory: true, bypassPageLock: true });
+
+    app.showTeamDetail.mockClear();
+    await expect(app._refreshTeamDetailAfterEventSave(['teamB'])).resolves.toBe(false);
+    expect(app.showTeamDetail).not.toHaveBeenCalled();
+  });
+
+  test('creating a team-only activity asks the club detail page to refresh', async () => {
+    const elements = {
+      'ce-title': { value: 'Club Event' },
+      'ce-type': { value: 'play' },
+      'ce-location': { value: 'Club Pitch' },
+      'ce-date': { value: '2099-01-01' },
+      'ce-time-start': { value: '14:00' },
+      'ce-time-end': { value: '16:00' },
+      'ce-fee-enabled': { checked: false },
+      'ce-fee': { value: '0' },
+      'ce-max': { value: '20' },
+      'ce-waitlist': { value: '0' },
+      'ce-min-age': { value: '0' },
+      'ce-notes': { value: '' },
+      'ce-sport-tag': { value: 'basketball' },
+      'ce-gender-restriction-enabled': { checked: false },
+      'ce-private-event': { checked: false },
+      'ce-image': { value: '' },
+      'ce-team-only': { checked: true },
+      'ce-team-select': { options: [], selectedIndex: 0 },
+      'ce-upload-preview': {
+        querySelector: () => null,
+        classList: { remove: jest.fn() },
+        innerHTML: '',
+      },
+    };
+    const createEvent = jest.fn().mockResolvedValue();
+    const app = {
+      _editEventId: null,
+      _eventSubmitInFlight: false,
+      _delegates: [],
+      _canCreateBasicActivity: () => true,
+      _requireProfileComplete: () => false,
+      _setCreateEventSubmitting: jest.fn(),
+      _getEventRegOpenTimeValue: () => '',
+      _getAllowedGenderValue: () => '',
+      _tsGetFormData: () => null,
+      _getEventSocialLinksFormData: () => ({ enabled: false, links: [] }),
+      _regionGetFormData: () => ({ regionEnabled: false, region: '', cities: [] }),
+      _canUseActivityAddons: () => true,
+      hasPermission: () => true,
+      _getEventCreatorTeam: () => ({ teamId: 'teamA', teamName: 'Club A' }),
+      _resolveTeamOnlySelection: () => [{ id: 'teamA', name: 'Club A' }],
+      _getEventCreatorName: () => 'Creator',
+      _getEventCreatorUid: () => 'creator_uid',
+      _resolveEventCoverImage: jest.fn().mockResolvedValue('cover-url'),
+      _isMultiDateMode: () => false,
+      _saveInputHistory: jest.fn(),
+      _saveRecentDelegates: jest.fn(),
+      _grantAutoExp: jest.fn(),
+      _refreshTeamDetailAfterEventSave: jest.fn().mockResolvedValue(true),
+      renderActivityList: jest.fn(),
+      renderHotEvents: jest.fn(),
+      renderMyActivities: jest.fn(),
+      closeModal: jest.fn(),
+      showToast: jest.fn(),
+      _setEventFeeFormState: jest.fn(),
+      _setEventRegOpenTimeValue: jest.fn(),
+      _renderDelegateTags: jest.fn(),
+      _updateDelegateInput: jest.fn(),
+      _updateTeamOnlyLabel: jest.fn(),
+      _setGenderRestrictionState: jest.fn(),
+      _setPrivateEventState: jest.fn(),
+      _setEventSocialLinksFormData: jest.fn(),
+      _resetMultiDates: jest.fn(),
+      _initSportTagPicker: jest.fn(),
+    };
+    loadEventCreate(app, {
+      getElementById: (id) => elements[id] || null,
+    }, {
+      ApiService: {
+        createEvent,
+        getCurrentUser: () => ({ uid: 'creator_uid' }),
+        _writeOpLog: jest.fn(),
+      },
+    });
+    app._resolveEventCoverImage = jest.fn().mockResolvedValue('cover-url');
+
+    await app.handleCreateEvent();
+
+    expect(createEvent).toHaveBeenCalledWith(expect.objectContaining({
+      teamOnly: true,
+      creatorTeamId: 'teamA',
+      creatorTeamIds: ['teamA'],
+      creatorTeamNames: ['Club A'],
+      sportTag: 'basketball',
+    }));
+    expect(app._refreshTeamDetailAfterEventSave).toHaveBeenCalledWith(['teamA']);
   });
 
   test('team member list merges players, staff, and students into compact tabs', () => {

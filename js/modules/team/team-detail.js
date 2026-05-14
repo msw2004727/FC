@@ -13,6 +13,7 @@ Object.assign(App, {
   _teamMemberEditModeByTeam: {},
   _teamMemberTabByTeam: {},
   _teamTournamentTabByTeam: {},
+  _teamDetailEventCreateTeamId: null,
   _FEED_PAGE_SIZE: 20,
   _MAX_PINNED: 5,
 
@@ -486,9 +487,15 @@ Object.assign(App, {
       return;
     }
     if (this._canCreateBasicActivity?.() && typeof this._openCreateCustomEventModal === 'function') {
+      const presetTeamId = String(teamId || '').trim();
+      const sportTag = (typeof getSportKeySafe === 'function')
+        ? getSportKeySafe(team?.sportTag || '')
+        : String(team?.sportTag || '').trim();
+      this._teamDetailEventCreateTeamId = presetTeamId;
       this._teamDetailEventPreset = {
-        teamId,
+        teamId: presetTeamId || teamId,
         teamName: team?.name || teamId,
+        sportTag,
       };
       this._openCreateCustomEventModal();
       this._applyTeamDetailEventPreset();
@@ -516,8 +523,40 @@ Object.assign(App, {
     }
     if (typeof this._setTeamSelectValues === 'function') this._setTeamSelectValues(teamSelect, [preset.teamId]);
     if (typeof this._updateTeamOnlyLabel === 'function') this._updateTeamOnlyLabel();
+    const sportTag = String(preset.sportTag || '').trim();
+    if (sportTag) {
+      if (typeof this._initSportTagPicker === 'function') {
+        this._initSportTagPicker(sportTag);
+      } else {
+        const sportInput = document.getElementById('ce-sport-tag');
+        if (sportInput) sportInput.value = sportTag;
+        this._selectedSportTag = sportTag;
+      }
+    }
     this._teamDetailEventPreset = null;
     return true;
+  },
+
+  async _refreshTeamDetailAfterEventSave(teamIds = []) {
+    const targetTeamId = String(this._teamDetailId || this._teamDetailEventCreateTeamId || '').trim();
+    const eventTeamIds = (Array.isArray(teamIds) ? teamIds : [teamIds])
+      .map(id => String(id || '').trim())
+      .filter(Boolean);
+    let refreshed = false;
+    try {
+      if (!targetTeamId || eventTeamIds.length === 0 || !eventTeamIds.includes(targetTeamId)) return false;
+      if (this.currentPage && this.currentPage !== 'page-team-detail') return false;
+      if (typeof this.showTeamDetail !== 'function') return false;
+      await this.showTeamDetail(targetTeamId, { skipPageHistory: true, bypassPageLock: true });
+      refreshed = true;
+      return true;
+    } catch (err) {
+      console.warn('[TeamDetail] refresh after event save failed:', err);
+      return false;
+    } finally {
+      this._teamDetailEventCreateTeamId = null;
+      if (!refreshed && this._teamDetailEventPreset) this._teamDetailEventPreset = null;
+    }
   },
 
   async showTeamDetail(id, options = {}) {

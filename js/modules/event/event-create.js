@@ -537,6 +537,7 @@ Object.assign(App, {
       try { this.renderActivityList(); } catch (_) {}
       try { this.renderHotEvents(); } catch (_) {}
       try { this.renderMyActivities(); } catch (_) {}
+      try { await this._refreshTeamDetailAfterEventSave?.(teamOnly ? resolvedTeamIds : []); } catch (_) {}
     } else {
       const creatorName = this._getEventCreatorName();
       const creatorUid = this._getEventCreatorUid();
@@ -640,6 +641,7 @@ Object.assign(App, {
       try { this.renderActivityList(); } catch (_) {}
       try { this.renderHotEvents(); } catch (_) {}
       try { this.renderMyActivities(); } catch (_) {}
+      try { await this._refreshTeamDetailAfterEventSave?.(teamOnly ? resolvedTeamIds : []); } catch (_) {}
       // 活動建立成功後提示分享到 LINE
       if (newEvent.id && typeof this._promptShareAfterCreate === 'function') {
         const _eid = newEvent.id;
