@@ -1080,8 +1080,16 @@ Object.assign(App, {
     return !(row.roles && row.roles.size);
   },
 
+  _isTeamDetailRemovableStaffRow(t, row) {
+    if (!t || !row?.uid || !row?.user || !row.isMember) return false;
+    const roles = row.roles instanceof Set ? row.roles : new Set();
+    if (roles.has('\u7403\u7d93')) return false;
+    return roles.has('\u6559\u7df4') || roles.has('\u9818\u968a');
+  },
+
   _getTeamDetailRemovalKind(t, row, staffIdentity) {
     if (this._isTeamDetailRemovableMemberRow(t, row, staffIdentity)) return 'member';
+    if (this._isTeamDetailRemovableStaffRow(t, row, staffIdentity)) return 'staff';
     if (row?.studentId && row.student && (row.isStudent || row.isPendingStudent)) return 'student';
     return '';
   },

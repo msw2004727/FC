@@ -67,6 +67,68 @@ Object.assign(App, {
     return true;
   },
 
+  _buildTeamMemberRemovalUpdates(teamId, member) {
+    const teamIds = (typeof this._getUserTeamIds === 'function')
+      ? this._getUserTeamIds(member)
+      : (() => {
+        const ids = [];
+        if (Array.isArray(member?.teamIds)) ids.push(...member.teamIds.map(v => String(v || '').trim()).filter(Boolean));
+        if (member?.teamId) ids.push(String(member.teamId));
+        return Array.from(new Set(ids));
+      })();
+    const nextTeamIds = teamIds.filter(id => id !== String(teamId));
+    const nextTeamNames = nextTeamIds.map(id => {
+      const tm = ApiService.getTeam(id);
+      return tm ? tm.name : id;
+    });
+    return nextTeamIds.length > 0
+      ? { teamId: nextTeamIds[0], teamName: nextTeamNames[0] || '', teamIds: nextTeamIds, teamNames: nextTeamNames }
+      : { teamId: null, teamName: null, teamIds: [], teamNames: [] };
+  },
+
+  _buildTeamStaffRemovalUpdates(team, row) {
+    const uid = String(row?.uid || row?.user?.uid || row?.user?._docId || '').trim();
+    const name = String(row?.name || row?.user?.name || row?.user?.displayName || '').trim();
+    const normalizedName = name.toLowerCase();
+    const roles = row?.roles instanceof Set ? row.roles : new Set();
+    const updates = {};
+    const removeUid = (list) => (Array.isArray(list) ? list : [])
+      .map(v => String(v || '').trim())
+      .filter(v => v && (!uid || v !== uid));
+    const removePairedNames = (names, uids) => (Array.isArray(names) ? names : [])
+      .filter((value, idx) => {
+        const itemName = String(value || '').trim();
+        const itemUid = String((uids || [])[idx] || '').trim();
+        if (uid && itemUid && itemUid === uid) return false;
+        if (normalizedName && itemName.toLowerCase() === normalizedName) return false;
+        return true;
+      });
+
+    if (roles.has('\u9818\u968a')) {
+      const leaderUids = Array.isArray(team?.leaderUids) ? team.leaderUids : (team?.leaderUid ? [team.leaderUid] : []);
+      const leaderNames = Array.isArray(team?.leaders) ? team.leaders : (team?.leader ? [team.leader] : []);
+      const nextLeaderUids = removeUid(leaderUids);
+      const nextLeaderNames = removePairedNames(leaderNames, leaderUids);
+      updates.leaderUids = nextLeaderUids;
+      updates.leaders = nextLeaderNames;
+      updates.leaderNames = nextLeaderNames;
+      if (team?.leaderUid === uid || !nextLeaderUids.includes(team?.leaderUid)) updates.leaderUid = nextLeaderUids[0] || null;
+      if (!team?.leader || !nextLeaderNames.includes(team.leader)) updates.leader = nextLeaderNames[0] || '';
+    }
+
+    if (roles.has('\u6559\u7df4')) {
+      const coachUids = Array.isArray(team?.coachUids) ? team.coachUids : [];
+      const coachNames = Array.isArray(team?.coaches) ? team.coaches : [];
+      const nextCoachUids = removeUid(coachUids);
+      const nextCoachNames = removePairedNames(coachNames, coachUids);
+      updates.coachUids = nextCoachUids;
+      updates.coaches = nextCoachNames;
+      updates.coachNames = nextCoachNames;
+    }
+
+    return updates;
+  },
+
   toggleTeamDetailSection(labelEl) {
     if (!labelEl) return;
     const isOpen = labelEl.classList.toggle('open');
@@ -552,6 +614,79 @@ Object.assign(App, {
     return save();
   },
 
+  async _removeTeamStaffRosterRow(btn, teamId, row) {
+    const t = ApiService.getTeam(teamId);
+    if (!t || !row?.uid || !row?.user) return;
+    const member = row.user;
+    const memberName = row.name || member.name || member.displayName || member.uid || '\u8077\u52d9\u6210\u54e1';
+    const roles = Array.from(row.roles || []).filter(role => role === '\u6559\u7df4' || role === '\u9818\u968a');
+    const roleText = roles.join('\u3001') || '\u8077\u52d9';
+    if (!(await this.appConfirm('\u78ba\u5b9a\u8981\u5c07\u300c' + memberName + '\u300d\u5f9e\u300c' + t.name + '\u300d\u7684' + roleText + '\u8207\u6210\u54e1\u540d\u55ae\u4e2d\u5254\u9664\uff1f'))) return;
+
+    const run = async () => {
+      try {
+        if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._ensureAuth === 'function') {
+          const authed = await FirebaseService._ensureAuth();
+          if (!authed) {
+            this.showToast('\u767b\u5165\u5df2\u904e\u671f\uff0c\u8acb\u91cd\u65b0\u6574\u7406\u9801\u9762\u5f8c\u518d\u8a66');
+            return;
+          }
+        }
+
+        const isInTeam = member && (
+          typeof this._isUserInTeam === 'function'
+            ? this._isUserInTeam(member, teamId)
+            : member.teamId === teamId || (Array.isArray(member.teamIds) && member.teamIds.map(String).includes(String(teamId)))
+        );
+        const userUpdates = isInTeam ? this._buildTeamMemberRemovalUpdates(teamId, member) : null;
+        if (userUpdates && member._docId && typeof FirebaseService !== 'undefined' && FirebaseService.updateUser) {
+          await FirebaseService.updateUser(member._docId, userUpdates);
+          Object.assign(member, userUpdates);
+          const currentUser = ApiService.getCurrentUser?.();
+          if (currentUser && currentUser.uid === member.uid) ApiService.updateCurrentUser?.(userUpdates);
+        }
+
+        const staffUpdates = this._buildTeamStaffRemovalUpdates(t, row);
+        const users = ApiService.getAdminUsers?.() || [];
+        const nextTeam = Object.assign({}, t, staffUpdates);
+        const memberCount = typeof this._calcTeamMemberCountByTeam === 'function'
+          ? this._calcTeamMemberCountByTeam(nextTeam, users)
+          : this._calcTeamMemberCount(teamId);
+        const teamUpdates = Object.assign({}, staffUpdates, { members: memberCount });
+        const updater = ApiService.updateTeamAwait || ApiService.updateTeam;
+        const updateResult = updater.call(ApiService, teamId, teamUpdates);
+        if (updateResult && typeof updateResult.then === 'function') await updateResult;
+
+        ApiService._writeOpLog?.('team_staff_remove', '\u5254\u9664\u8077\u52d9\u6210\u54e1', '\u5c07\u300c' + memberName + '\u300d\u5f9e\u300c' + t.name + '\u300d\u7684' + roleText + '\u8207\u6210\u54e1\u540d\u55ae\u4e2d\u5254\u9664');
+        this.showToast('\u5df2\u5254\u9664\u300c' + memberName + '\u300d');
+        if (typeof this._refreshTeamMembersCardFromCache !== 'function' || !this._refreshTeamMembersCardFromCache(teamId)) {
+          await this._refreshTeamDetailMembers(teamId);
+        }
+      } catch (err) {
+        console.error('[removeTeamStaffRosterRow]', err);
+        if (typeof ApiService._writeErrorLog === 'function') {
+          ApiService._writeErrorLog(
+            {
+              fn: 'removeTeamStaffRosterRow',
+              teamId,
+              memberKey: row.key,
+              memberUid: row.uid,
+              docId: member?._docId || '',
+              roles,
+              authUid: (typeof auth !== 'undefined' && auth?.currentUser?.uid) ? auth.currentUser.uid : 'null',
+            },
+            err
+          );
+        }
+        this.showToast('\u5254\u9664\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+      }
+    };
+    if (typeof this._withButtonLoading === 'function' && btn) {
+      return this._withButtonLoading(btn, '\u79fb\u9664\u4e2d...', run);
+    }
+    return run();
+  },
+
   async removeTeamRosterRow(btn, teamId, memberKey) {
     const t = ApiService.getTeam(teamId);
     if (!t || !memberKey) return;
@@ -570,6 +705,9 @@ Object.assign(App, {
       : '';
     if (removalKind === 'member' && row.uid) {
       return this.removeTeamMember(btn, teamId, row.uid);
+    }
+    if (removalKind === 'staff' && row.uid) {
+      return this._removeTeamStaffRosterRow(btn, teamId, row);
     }
     if (removalKind !== 'student' || !row.studentId || !row.student) {
       this.showToast('\u6b64\u5217\u76ee\u524d\u4e0d\u53ef\u5254\u9664');

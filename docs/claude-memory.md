@@ -2664,3 +2664,8 @@
 - **Cause**: The frontend scoreboard feature was removed locally, but the deployed Cloud Functions were intentionally left online, creating cloud/local source drift.
 - **Fix**: Restored the local scoreboard function source files, translation workflow document, function unit tests, and the `functions/index.js` export hook for `refreshSportsApiProScoreboardScheduled`, `refreshSportsApiProScoreboard`, `fetchSportsApiProMatchDetail`, and `upsertScoreboardTranslations` without re-enabling the removed frontend scoreboard UI.
 - **Validation**: Confirmed all four exports exist locally, ran Node syntax checks, ran full unit tests, and compared Firebase deployed function ids against local exports with no missing cloud-only functions.
+
+### 2026-05-14 Club Staff Roster Removal [bugfix]
+- **Issue**: In club member management, staff rows such as coaches could appear in the roster but have no remove button. This happened because regular member removal intentionally excluded staff identities, and there was no separate path to remove staff role assignments.
+- **Fix**: Added a staff removal route for coach and leader rows while keeping captain/manager rows protected. Removing a staff row now removes the matching `coachUids`/`coaches` or `leaderUids`/`leaders` fields and also removes the user's club membership when the user record is linked to the club. Desktop member tables now expand to the card width while preserving the compact mobile layout.
+- **Validation**: Added unit coverage for staff removal kind detection, staff field cleanup, user membership cleanup, and member-card remove button counts. Ran full `npm test` successfully.

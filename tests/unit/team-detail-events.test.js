@@ -544,7 +544,7 @@ describe('team detail club activity section', () => {
     const editHtml = app._buildTeamMembersCard(team, true, true, staffIdentity);
     expect(manageHtml).toContain('\u6210\u54e1\u7ba1\u7406');
     expect(activityEditHtml).toContain('App.removeTeamRosterRow');
-    expect((activityEditHtml.match(/td-member-remove-btn/g) || []).length).toBe(4);
+    expect((activityEditHtml.match(/td-member-remove-btn/g) || []).length).toBe(6);
     expect(matchHtml).toContain('td-member-match-edit-btn');
     expect(matchHtml).not.toContain('is-editing');
     expect(editHtml).toContain('\u5254\u9664');
@@ -552,11 +552,14 @@ describe('team detail club activity section', () => {
     expect(editHtml).toContain('td-member-match-edit-btn');
     expect(editHtml).toContain('<td class="td-member-action-cell">');
     expect(editHtml).toContain('App.removeTeamRosterRow');
-    expect((editHtml.match(/td-member-remove-btn/g) || []).length).toBe(4);
+    expect((editHtml.match(/td-member-remove-btn/g) || []).length).toBe(6);
     expect(app._isTeamDetailRemovableMemberRow(team, roster.find(row => row.name === 'Amy'), staffIdentity)).toBe(true);
     expect(app._getTeamDetailRemovalKind(team, roster.find(row => row.name === 'Child'), staffIdentity)).toBe('student');
     expect(app._getTeamDetailRemovalKind(team, roster.find(row => row.name === 'Pending Kid'), staffIdentity)).toBe('student');
     expect(app._isTeamDetailRemovableMemberRow(team, roster.find(row => row.name === 'Coach'), staffIdentity)).toBe(false);
+    expect(app._getTeamDetailRemovalKind(team, roster.find(row => row.name === 'Coach'), staffIdentity)).toBe('staff');
+    expect(app._getTeamDetailRemovalKind(team, roster.find(row => row.name === 'Leader'), staffIdentity)).toBe('staff');
+    expect(app._getTeamDetailRemovalKind(team, roster.find(row => row.name === 'Captain'), staffIdentity)).toBe('');
   });
 
   test('team member edit mode re-renders cached card without reloading roster data', async () => {
@@ -583,7 +586,7 @@ describe('team detail club activity section', () => {
     expect(reloadMembers).not.toHaveBeenCalled();
   });
 
-  test('team member removal row accepts teamIds fallback but rejects staff-only rows', () => {
+  test('team member removal row accepts teamIds fallback and routes staff rows separately', () => {
     const app = makeApp([]);
     loadTeamDetailRender(app, []);
     const team = { id: 'teamA' };
@@ -601,6 +604,18 @@ describe('team detail club activity section', () => {
       roles: new Set(['教練']),
       user: { uid: 'coach' },
     }, staffIdentity)).toBe(false);
+    expect(app._getTeamDetailRemovalKind(team, {
+      uid: 'coach',
+      isMember: true,
+      roles: new Set(['\u6559\u7df4']),
+      user: { uid: 'coach' },
+    }, staffIdentity)).toBe('staff');
+    expect(app._getTeamDetailRemovalKind(team, {
+      uid: 'captain',
+      isMember: true,
+      roles: new Set(['\u7403\u7d93']),
+      user: { uid: 'captain' },
+    }, staffIdentity)).toBe('');
   });
 
   test('team roster removal deactivates removable student rows from member management', async () => {
@@ -647,6 +662,83 @@ describe('team detail club activity section', () => {
     expect(app._refreshTeamMembersCardFromCache).toHaveBeenCalledWith('teamA');
     expect(app._refreshTeamDetailMembers).not.toHaveBeenCalled();
     expect(opLog).toHaveBeenCalledWith('team_student_remove', expect.any(String), expect.stringContaining('Child'));
+  });
+
+  test('team roster removal removes staff role fields and user membership together', async () => {
+    const updateUser = jest.fn().mockResolvedValue();
+    const updateTeamAwait = jest.fn().mockImplementation(async (_teamId, updates) => {
+      Object.assign(team, updates);
+      return team;
+    });
+    const opLog = jest.fn();
+    const team = {
+      id: 'teamA',
+      name: 'Club A',
+      coachUids: ['coach', 'coach2'],
+      coaches: ['Coach', 'Coach 2'],
+      coachNames: ['Coach', 'Coach 2'],
+      members: 2,
+    };
+    const user = {
+      uid: 'coach',
+      _docId: 'user-doc',
+      name: 'Coach',
+      teamId: 'teamA',
+      teamIds: ['teamA', 'teamB'],
+    };
+    const row = {
+      key: 'uid:coach',
+      uid: 'coach',
+      name: 'Coach',
+      user,
+      isMember: true,
+      roles: new Set(['\u6559\u7df4']),
+    };
+    const app = {};
+    loadTeamDetailCore(app, null, {
+      ApiService: {
+        getTeam: (id) => id === 'teamA' ? team : { id: 'teamB', name: 'Club B' },
+        getAdminUsers: () => [user],
+        updateTeamAwait,
+        _writeOpLog: opLog,
+      },
+      FirebaseService: {
+        _ensureAuth: jest.fn().mockResolvedValue(true),
+        updateUser,
+      },
+    });
+    Object.assign(app, {
+      _canManageTeamMembers: () => true,
+      _findTeamDetailRosterRow: () => row,
+      _getTeamStaffIdentity: () => ({ keys: new Set(), names: new Set() }),
+      _getTeamDetailRemovalKind: () => 'staff',
+      _isUserInTeam: (u, id) => Array.isArray(u.teamIds) && u.teamIds.includes(id),
+      _calcTeamMemberCountByTeam: jest.fn().mockReturnValue(1),
+      appConfirm: jest.fn().mockResolvedValue(true),
+      _withButtonLoading: async (_btn, _text, fn) => fn(),
+      _refreshTeamMembersCardFromCache: jest.fn().mockReturnValue(true),
+      _refreshTeamDetailMembers: jest.fn().mockResolvedValue(),
+      showToast: jest.fn(),
+    });
+
+    await app.removeTeamRosterRow(null, 'teamA', 'uid:coach');
+
+    expect(updateUser).toHaveBeenCalledWith('user-doc', {
+      teamId: 'teamB',
+      teamName: 'Club B',
+      teamIds: ['teamB'],
+      teamNames: ['Club B'],
+    });
+    expect(updateTeamAwait).toHaveBeenCalledWith('teamA', expect.objectContaining({
+      coachUids: ['coach2'],
+      coaches: ['Coach 2'],
+      coachNames: ['Coach 2'],
+      members: 1,
+    }));
+    expect(team.coachUids).toEqual(['coach2']);
+    expect(user.teamIds).toEqual(['teamB']);
+    expect(app._refreshTeamMembersCardFromCache).toHaveBeenCalledWith('teamA');
+    expect(opLog).toHaveBeenCalledWith('team_staff_remove', expect.any(String), expect.stringContaining('Coach'));
   });
 
   test('team member match data edit writes scoped user match fields', async () => {
