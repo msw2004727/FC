@@ -183,12 +183,22 @@ Object.assign(App, {
     // ── 自動升降級 + 職位通知（委派 team-form-roles.js）──
     this._applyTeamRoleChangesAfterSave(vals, name);
 
+    const savedTeamId = this._teamFormState.editId || nextTeamId;
+    const shouldRefreshCurrentDetail = isEditMode
+      && savedTeamId
+      && this._teamDetailId === savedTeamId
+      && this.currentPage === 'page-team-detail'
+      && typeof this.showTeamDetail === 'function';
+
     this.closeModal();
-    this._teamFormState.editId = null;
-    this._teamImageVariantsData = null;
     this.renderTeamList();
     this.renderAdminTeams();
     this.renderTeamManage();
+    if (shouldRefreshCurrentDetail) {
+      await this.showTeamDetail(savedTeamId, { skipPageHistory: true, bypassPageLock: true });
+    }
+    this._teamFormState.editId = null;
+    this._teamImageVariantsData = null;
 
     });  // _withButtonLoading
   },

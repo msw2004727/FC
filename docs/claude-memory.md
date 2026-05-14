@@ -2679,3 +2679,8 @@
 - **Issue**: When a club had teaching/course functionality turned off, the main course section was hidden but the member list still showed the course tab.
 - **Fix**: Reused the club detail course visibility rule for the member list tabs. If the cached active member tab is `course` after teaching is turned off, the member list now falls back to the activity tab.
 - **Validation**: Added unit coverage for hiding the member course tab when teaching is disabled. Ran JS syntax check, `git diff --check`, and full unit tests through the existing `npm test -- tests/unit/team-detail-events.test.js` path. Bumped cache version to `0.20260514v`.
+
+### 2026-05-14 Club Detail Edit Save Refresh [bugfix]
+- **Issue**: Saving edited club basic information from the club detail page updated the data cache and list views, but the open club detail screen could keep showing the old title, image, info, or contact fields until the page was reopened.
+- **Fix**: After a successful edit save, the team form now refreshes the current club detail page only when the user is still on the same `page-team-detail` club. Edits from list/admin pages still stay on their original page and do not force navigation.
+- **Validation**: Added unit coverage asserting the detail edit save refresh guard. Ran `node -c js/modules/team/team-form.js` and full unit tests through `npm test -- tests/unit/team-contact-links.test.js`.

@@ -57,6 +57,14 @@ describe('club contact links and fallback cover', () => {
     expect(detailSource).toContain('td-contact-manual-text');
   });
 
+  test('club detail edit save refreshes the current detail page after a successful write', () => {
+    const formSource = readProjectFile('js/modules/team/team-form.js');
+
+    expect(formSource).toContain('shouldRefreshCurrentDetail');
+    expect(formSource).toContain("this.currentPage === 'page-team-detail'");
+    expect(formSource).toContain('await this.showTeamDetail(savedTeamId, { skipPageHistory: true, bypassPageLock: true })');
+  });
+
   test('clubs reuse the event no-cover asset when no cover is uploaded', () => {
     const helpers = readProjectFile('js/modules/team/team-list-helpers.js');
     const formSource = readProjectFile('js/modules/team/team-form.js');
