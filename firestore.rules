@@ -585,31 +585,68 @@ service cloud.firestore {
           && request.resource.data.viewCount == resource.data.get('viewCount', 0) + 1;
       }
 
+      function isEmptyOptionalString(value) {
+        return value == null || value == '';
+      }
+
+      function isEmptyOptionalList(value) {
+        return value is list && value.size() == 0;
+      }
+
       function eventCreateHasNoAddons() {
-        return (!request.resource.data.keys().hasAny(['feeEnabled']) || request.resource.data.feeEnabled == false)
-          && (!request.resource.data.keys().hasAny(['fee']) || request.resource.data.fee == 0)
-          && (!request.resource.data.keys().hasAny(['teamOnly']) || request.resource.data.teamOnly == false)
-          && (!request.resource.data.keys().hasAny(['creatorTeamId']) || request.resource.data.creatorTeamId == null || request.resource.data.creatorTeamId == '')
-          && (!request.resource.data.keys().hasAny(['creatorTeamName']) || request.resource.data.creatorTeamName == null || request.resource.data.creatorTeamName == '')
-          && (!request.resource.data.keys().hasAny(['creatorTeamIds']) || (request.resource.data.creatorTeamIds is list && request.resource.data.creatorTeamIds.size() == 0))
-          && (!request.resource.data.keys().hasAny(['creatorTeamNames']) || (request.resource.data.creatorTeamNames is list && request.resource.data.creatorTeamNames.size() == 0))
-          && (!request.resource.data.keys().hasAny(['genderRestrictionEnabled']) || request.resource.data.genderRestrictionEnabled == false)
-          && (!request.resource.data.keys().hasAny(['allowedGender']) || request.resource.data.allowedGender == null || request.resource.data.allowedGender == '')
-          && (!request.resource.data.keys().hasAny(['privateEvent']) || request.resource.data.privateEvent == false)
-          && (!request.resource.data.keys().hasAny(['teamSplit']) || request.resource.data.teamSplit == null)
-          && (!request.resource.data.keys().hasAny(['socialLinksEnabled']) || request.resource.data.socialLinksEnabled == false)
-          && (!request.resource.data.keys().hasAny(['socialLinks']) || (request.resource.data.socialLinks is list && request.resource.data.socialLinks.size() == 0));
+        return request.resource.data.get('feeEnabled', false) == false
+          && request.resource.data.get('fee', 0) == 0
+          && request.resource.data.get('isPublic', false) == false
+          && request.resource.data.get('teamOnly', false) == false
+          && isEmptyOptionalString(request.resource.data.get('creatorTeamId', null))
+          && isEmptyOptionalString(request.resource.data.get('creatorTeamName', null))
+          && isEmptyOptionalList(request.resource.data.get('creatorTeamIds', []))
+          && isEmptyOptionalList(request.resource.data.get('creatorTeamNames', []))
+          && request.resource.data.get('genderRestrictionEnabled', false) == false
+          && isEmptyOptionalString(request.resource.data.get('allowedGender', null))
+          && request.resource.data.get('privateEvent', false) == false
+          && request.resource.data.get('teamSplit', null) == null
+          && request.resource.data.get('socialLinksEnabled', false) == false
+          && isEmptyOptionalList(request.resource.data.get('socialLinks', []));
+      }
+
+      function eventCreateHasTeamScopedAddon() {
+        return request.resource.data.get('teamOnly', false) == true
+          || request.resource.data.get('isPublic', false) == true
+          || !isEmptyOptionalString(request.resource.data.get('creatorTeamId', null))
+          || !isEmptyOptionalString(request.resource.data.get('creatorTeamName', null))
+          || !isEmptyOptionalList(request.resource.data.get('creatorTeamIds', []))
+          || !isEmptyOptionalList(request.resource.data.get('creatorTeamNames', []));
+      }
+
+      function eventCreateAddonsAllowed() {
+        return eventCreateHasNoAddons()
+          || (
+            hasActivityCap('user.activity.addons_use')
+            && (
+              !eventCreateHasTeamScopedAddon()
+              || hasPerm('team.create_event')
+              || hasActivityManageEntry()
+            )
+          );
       }
 
       function eventCreateHasSafeInitialProjection() {
-        return (!request.resource.data.keys().hasAny(['status']) || request.resource.data.status == 'open')
-          && (!request.resource.data.keys().hasAny(['current']) || request.resource.data.current == 0)
-          && (!request.resource.data.keys().hasAny(['realCurrent']) || request.resource.data.realCurrent == 0)
-          && (!request.resource.data.keys().hasAny(['waitlist']) || request.resource.data.waitlist == 0)
-          && (!request.resource.data.keys().hasAny(['participants']) || (request.resource.data.participants is list && request.resource.data.participants.size() == 0))
-          && (!request.resource.data.keys().hasAny(['waitlistNames']) || (request.resource.data.waitlistNames is list && request.resource.data.waitlistNames.size() == 0))
-          && (!request.resource.data.keys().hasAny(['participantsWithUid']) || (request.resource.data.participantsWithUid is list && request.resource.data.participantsWithUid.size() == 0))
-          && (!request.resource.data.keys().hasAny(['waitlistWithUid']) || (request.resource.data.waitlistWithUid is list && request.resource.data.waitlistWithUid.size() == 0));
+        return (
+            request.resource.data.get('status', 'open') == 'open'
+            || (
+              request.resource.data.get('status', '') == 'upcoming'
+              && request.resource.data.get('regOpenTime', '') is string
+              && request.resource.data.get('regOpenTime', '').size() > 0
+            )
+          )
+          && request.resource.data.get('current', 0) == 0
+          && request.resource.data.get('realCurrent', 0) == 0
+          && request.resource.data.get('waitlist', 0) == 0
+          && isEmptyOptionalList(request.resource.data.get('participants', []))
+          && isEmptyOptionalList(request.resource.data.get('waitlistNames', []))
+          && isEmptyOptionalList(request.resource.data.get('participantsWithUid', []))
+          && isEmptyOptionalList(request.resource.data.get('waitlistWithUid', []));
       }
 
       function eventCreateDelegateFieldsAllowed() {
@@ -629,24 +666,17 @@ service cloud.firestore {
           && request.resource.data.creatorUid == request.auth.uid;
       }
 
-      function isUserBasicEventCreate() {
+      function isUserActivityCapEventCreate() {
+        let isExternal = request.resource.data.get('type', '') == 'external';
         return authRole() == 'user'
-          && hasActivityCap('user.activity.basic_create')
           && isUserCreateOwner()
-          && (!request.resource.data.keys().hasAny(['type']) || request.resource.data.type != 'external')
-          && eventCreateHasNoAddons()
+          && eventCreateAddonsAllowed()
           && eventCreateHasSafeInitialProjection()
-          && eventCreateDelegateFieldsAllowed();
-      }
-
-      function isUserExternalEventCreate() {
-        return authRole() == 'user'
-          && hasActivityCap('user.activity.external_create')
-          && isUserCreateOwner()
-          && request.resource.data.type == 'external'
-          && eventCreateHasNoAddons()
-          && eventCreateHasSafeInitialProjection()
-          && eventCreateDelegateFieldsAllowed();
+          && eventCreateDelegateFieldsAllowed()
+          && (
+            (isExternal && hasActivityCap('user.activity.external_create'))
+            || (!isExternal && hasActivityCap('user.activity.basic_create'))
+          );
       }
 
       function isUserOwnerBasicUpdate() {
@@ -686,8 +716,7 @@ service cloud.firestore {
         && (
           hasActivityManageEntry()
           || hasPerm('event.create')
-          || isUserBasicEventCreate()
-          || isUserExternalEventCreate()
+          || isUserActivityCapEventCreate()
         );
       allow update: if isAuth()
         && (

@@ -760,6 +760,49 @@ describe("/events/{eventId}", () => {
     );
   });
 
+  test("user can create upcoming and add-on events only when matching capabilities allow it", async () => {
+    await assertSucceeds(
+      setDoc(doc(user(), "events", "event_user_upcoming_create"), {
+        title: "User Upcoming",
+        creatorUid: "uidUser",
+        status: "upcoming",
+        regOpenTime: "2099-01-01T10:00",
+      })
+    );
+
+    await seedRoleActivityCapabilities([
+      ...DEFAULT_USER_ACTIVITY_CAPABILITIES,
+      "user.activity.addons_use",
+    ]);
+
+    await assertSucceeds(
+      setDoc(doc(user(), "events", "event_user_addon_allowed_create"), {
+        title: "User Add-on Allowed",
+        creatorUid: "uidUser",
+        status: "open",
+        feeEnabled: true,
+        fee: 500,
+        genderRestrictionEnabled: true,
+        allowedGender: "女",
+        privateEvent: true,
+        socialLinksEnabled: true,
+        socialLinks: [{ url: "https://line.me/R/ti/p/test", platform: "line", label: "LINE" }],
+      })
+    );
+
+    await assertFails(
+      setDoc(doc(user(), "events", "event_user_team_scope_addon_denied"), {
+        title: "User Team Scope Denied",
+        creatorUid: "uidUser",
+        status: "open",
+        teamOnly: true,
+        isPublic: true,
+        creatorTeamId: "teamA",
+        creatorTeamIds: ["teamA"],
+      })
+    );
+  });
+
   test("user basic event creation requires safe initial status and empty projection fields", async () => {
     await assertFails(
       setDoc(doc(user(), "events", "event_user_bad_status_create"), {

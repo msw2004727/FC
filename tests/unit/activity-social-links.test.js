@@ -83,8 +83,8 @@ describe('activity social links add-on', () => {
   test('basic user rules treat social links as an add-on field', () => {
     const rulesSource = readProjectFile('firestore.rules');
 
-    expect(rulesSource).toContain("['socialLinksEnabled']");
-    expect(rulesSource).toContain("['socialLinks']");
-    expect(rulesSource).toContain('request.resource.data.socialLinks.size() == 0');
+    expect(rulesSource).toContain("request.resource.data.get('socialLinksEnabled', false) == false");
+    expect(rulesSource).toContain("isEmptyOptionalList(request.resource.data.get('socialLinks', []))");
+    expect(rulesSource).toContain("hasActivityCap('user.activity.addons_use')");
   });
 });
