@@ -846,11 +846,13 @@
   font-weight: 800;
 }
 .td-member-name-cell {
-  display: flex;
-  align-items: center;
-  gap: .16rem;
   min-width: 0;
   overflow: hidden;
+  text-align: left;
+}
+.td-member-name-cell .td-member-remove-btn {
+  margin-right: .16rem;
+  vertical-align: middle;
 }
 .td-member-name-pill {
   display: inline-block;
@@ -871,6 +873,7 @@
   text-align: center;
   white-space: nowrap;
   cursor: pointer;
+  vertical-align: middle;
 }
 .td-member-name-pill.external-student {
   border-color: rgba(245, 158, 11, .28);
