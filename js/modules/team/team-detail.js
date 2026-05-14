@@ -709,6 +709,10 @@ Object.assign(App, {
     if (removalKind === 'staff' && row.uid) {
       return this._removeTeamStaffRosterRow(btn, teamId, row);
     }
+    if (removalKind === 'protected') {
+      this.showToast('\u7403\u7d93/\u968a\u9577\u662f\u4ff1\u6a02\u90e8\u7ba1\u7406\u8077\u52d9\uff0c\u4e0d\u80fd\u76f4\u63a5\u5f9e\u6210\u54e1\u5217\u8868\u5254\u9664\u3002\u8acb\u5148\u5230\u4ff1\u6a02\u90e8\u8a2d\u5b9a\u79fb\u4ea4\u6216\u8abf\u6574\u8077\u52d9\u5f8c\u518d\u64cd\u4f5c\u3002');
+      return;
+    }
     if (removalKind !== 'student' || !row.studentId || !row.student) {
       this.showToast('\u6b64\u5217\u76ee\u524d\u4e0d\u53ef\u5254\u9664');
       return;

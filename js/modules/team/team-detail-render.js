@@ -1087,9 +1087,16 @@ Object.assign(App, {
     return roles.has('\u6559\u7df4') || roles.has('\u9818\u968a');
   },
 
+  _isTeamDetailProtectedStaffRow(t, row) {
+    if (!t || !row?.uid || !row?.user || !row.isMember) return false;
+    const roles = row.roles instanceof Set ? row.roles : new Set();
+    return roles.has('\u7403\u7d93');
+  },
+
   _getTeamDetailRemovalKind(t, row, staffIdentity) {
     if (this._isTeamDetailRemovableMemberRow(t, row, staffIdentity)) return 'member';
     if (this._isTeamDetailRemovableStaffRow(t, row, staffIdentity)) return 'staff';
+    if (this._isTeamDetailProtectedStaffRow(t, row, staffIdentity)) return 'protected';
     if (row?.studentId && row.student && (row.isStudent || row.isPendingStudent)) return 'student';
     return '';
   },

@@ -2669,3 +2669,8 @@
 - **Issue**: In club member management, staff rows such as coaches could appear in the roster but have no remove button. This happened because regular member removal intentionally excluded staff identities, and there was no separate path to remove staff role assignments.
 - **Fix**: Added a staff removal route for coach and leader rows while keeping captain/manager rows protected. Removing a staff row now removes the matching `coachUids`/`coaches` or `leaderUids`/`leaders` fields and also removes the user's club membership when the user record is linked to the club. Desktop member tables now expand to the card width while preserving the compact mobile layout.
 - **Validation**: Added unit coverage for staff removal kind detection, staff field cleanup, user membership cleanup, and member-card remove button counts. Ran full `npm test` successfully.
+
+### 2026-05-14 Club Protected Staff Removal Hint [ux]
+- **Issue**: Captain/manager rows were protected from member-list removal, but the UI gave no reason because those rows did not route through a clickable removal action.
+- **Fix**: Routed protected captain/manager rows through a `protected` removal kind, so the remove button can show a clear toast explaining that the user must first transfer or adjust the club management role in club settings.
+- **Validation**: Added unit coverage for protected removal kind and toast wording. Ran the team-detail test path successfully and bumped cache version to `0.20260514h`.
