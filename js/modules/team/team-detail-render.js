@@ -1080,6 +1080,12 @@ Object.assign(App, {
     return !(row.roles && row.roles.size);
   },
 
+  _getTeamDetailRemovalKind(t, row, staffIdentity) {
+    if (this._isTeamDetailRemovableMemberRow(t, row, staffIdentity)) return 'member';
+    if (row?.studentId && row.student && (row.isStudent || row.isPendingStudent)) return 'student';
+    return '';
+  },
+
   _getTeamDetailMemberRoleClass(role) {
     const value = String(role || '').trim();
     if (value === '\u6559\u7df4') return 'role-coach';
@@ -1239,8 +1245,9 @@ Object.assign(App, {
       const editMatchBtn = (showMatchEditColumn && this._isTeamDetailMatchDataEditableRow(row))
         ? '<button class="td-member-match-edit-btn" type="button" onclick="event.stopPropagation();App.editTeamMemberMatchData(this,' + escapeHTML(JSON.stringify(t.id)) + ',' + escapeHTML(JSON.stringify(row.key)) + ')">\u7de8\u8f2f</button>'
         : '';
-      const removeBtn = (canManageMembers && memberEditMode && this._isTeamDetailRemovableMemberRow(t, row, staffIdentity))
-        ? '<button class="td-member-remove-btn" title="\u5254\u9664\u968a\u54e1" onclick="event.stopPropagation();App.removeTeamMember(this, ' + escapeHTML(JSON.stringify(t.id)) + ', ' + escapeHTML(JSON.stringify(row.uid)) + ')">\u5254\u9664</button>'
+      const removalKind = this._getTeamDetailRemovalKind(t, row, staffIdentity);
+      const removeBtn = (canManageMembers && memberEditMode && removalKind)
+        ? '<button class="td-member-remove-btn" title="\u5254\u9664\u6210\u54e1" onclick="event.stopPropagation();App.removeTeamRosterRow(this, ' + escapeHTML(JSON.stringify(t.id)) + ', ' + escapeHTML(JSON.stringify(row.key)) + ')">\u5254\u9664</button>'
         : '';
       const actions = showMatchEditColumn
         ? '<td class="td-member-action-cell">' + (editMatchBtn || '<span class="td-member-role-empty">-</span>') + '</td>'

@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-14 Club member roster spacing and student removal actions [ui]
+- **Problem**: The activity roster table stretched to the full card width, leaving a wide blank area between nickname and label columns. Member management also showed no remove button when the visible rows were staff or student records because only regular team-member rows were eligible.
+- **Fix**: Changed the member table to shrink to its content, expanded nickname capsules to a 10-character maximum with ellipsis overflow, and routed remove actions through a unified roster remover that can deactivate active/pending student rows while still preserving the safer existing regular-member removal path.
+- **Tests**: Extended team detail coverage for student-row remove buttons and verified student removal updates the education-student record as inactive.
+
 ### 2026-05-14 Club member management visibility and table polish [ui]
 - **Problem**: Member management could hide the remove action at the far edge of the compact table, toggling management mode could briefly flash a partial roster while data reloaded, and match-data editing still depended on management mode.
 - **Fix**: Re-rendered the member card from the current cache when toggling management mode, moved remove buttons into the nickname cell, changed nicknames into compact capsules with a distinct added-student style, made match edit buttons visible directly on the match tab, and tightened member table typography/column widths for mobile.

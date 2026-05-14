@@ -552,6 +552,73 @@ Object.assign(App, {
     return save();
   },
 
+  async removeTeamRosterRow(btn, teamId, memberKey) {
+    const t = ApiService.getTeam(teamId);
+    if (!t || !memberKey) return;
+    if (!this._canManageTeamMembers(t)) {
+      this.showToast('\u60a8\u6c92\u6709\u79fb\u9664\u6210\u54e1\u7684\u6b0a\u9650');
+      return;
+    }
+    const row = this._findTeamDetailRosterRow(teamId, memberKey);
+    if (!row) {
+      this.showToast('\u627e\u4e0d\u5230\u6210\u54e1\u8cc7\u6599');
+      return;
+    }
+    const staffIdentity = this._getTeamStaffIdentity(t);
+    const removalKind = typeof this._getTeamDetailRemovalKind === 'function'
+      ? this._getTeamDetailRemovalKind(t, row, staffIdentity)
+      : '';
+    if (removalKind === 'member' && row.uid) {
+      return this.removeTeamMember(btn, teamId, row.uid);
+    }
+    if (removalKind !== 'student' || !row.studentId || !row.student) {
+      this.showToast('\u6b64\u5217\u76ee\u524d\u4e0d\u53ef\u5254\u9664');
+      return;
+    }
+    const memberName = row.name || row.student.name || '\u5b78\u54e1';
+    if (!(await this.appConfirm('\u78ba\u5b9a\u8981\u5254\u9664\u300c' + memberName + '\u300d\uff1f'))) return;
+    const run = async () => {
+      try {
+        if (!FirebaseService.updateEduStudent) {
+          this.showToast('\u5b78\u54e1\u529f\u80fd\u5c1a\u672a\u8f09\u5165\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+          return;
+        }
+        await FirebaseService.updateEduStudent(teamId, row.studentId, { enrollStatus: 'inactive' });
+        row.student.enrollStatus = 'inactive';
+        const cached = this._eduStudentsCache?.[teamId];
+        const cachedStudent = Array.isArray(cached)
+          ? cached.find(s => String(s.id || s._docId || s.studentId || '') === String(row.studentId))
+          : null;
+        if (cachedStudent) cachedStudent.enrollStatus = 'inactive';
+        if (typeof this._updateGroupMemberCounts === 'function') this._updateGroupMemberCounts(teamId);
+        ApiService._writeOpLog?.('team_student_remove', '\u5254\u9664\u5b78\u54e1', '\u5c07\u300c' + memberName + '\u300d\u79fb\u51fa\u300c' + t.name + '\u300d');
+        this.showToast('\u5df2\u5254\u9664\u300c' + memberName + '\u300d');
+        if (typeof this._refreshTeamMembersCardFromCache !== 'function' || !this._refreshTeamMembersCardFromCache(teamId)) {
+          await this._refreshTeamDetailMembers(teamId);
+        }
+      } catch (err) {
+        console.error('[removeTeamRosterRow]', err);
+        if (typeof ApiService._writeErrorLog === 'function') {
+          ApiService._writeErrorLog(
+            {
+              fn: 'removeTeamRosterRow',
+              teamId,
+              memberKey,
+              studentId: row.studentId,
+              authUid: (typeof auth !== 'undefined' && auth?.currentUser?.uid) ? auth.currentUser.uid : 'null',
+            },
+            err
+          );
+        }
+        this.showToast('\u5254\u9664\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+      }
+    };
+    if (typeof this._withButtonLoading === 'function' && btn) {
+      return this._withButtonLoading(btn, '\u79fb\u9664\u4e2d...', run);
+    }
+    return run();
+  },
+
   async removeTeamMember(btn, teamId, memberUid) {
     const t = ApiService.getTeam(teamId);
     if (!t || !memberUid) return;

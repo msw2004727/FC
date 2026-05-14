@@ -538,18 +538,24 @@ describe('team detail club activity section', () => {
     expect(html).not.toContain('App.toggleProfileSection');
 
     const manageHtml = app._buildTeamMembersCard(team, true, false, staffIdentity);
+    const activityEditHtml = app._buildTeamMembersCard(team, true, true, staffIdentity);
     app._teamMemberTabByTeam = { teamA: 'match' };
     const matchHtml = app._buildTeamMembersCard(team, true, false, staffIdentity);
     const editHtml = app._buildTeamMembersCard(team, true, true, staffIdentity);
     expect(manageHtml).toContain('\u6210\u54e1\u7ba1\u7406');
+    expect(activityEditHtml).toContain('App.removeTeamRosterRow');
+    expect((activityEditHtml.match(/td-member-remove-btn/g) || []).length).toBe(4);
     expect(matchHtml).toContain('td-member-match-edit-btn');
     expect(matchHtml).not.toContain('is-editing');
     expect(editHtml).toContain('\u5254\u9664');
     expect(editHtml).toContain('td-member-table-match is-editing');
     expect(editHtml).toContain('td-member-match-edit-btn');
     expect(editHtml).toContain('<td class="td-member-action-cell">');
-    expect((editHtml.match(/td-member-remove-btn/g) || []).length).toBe(2);
+    expect(editHtml).toContain('App.removeTeamRosterRow');
+    expect((editHtml.match(/td-member-remove-btn/g) || []).length).toBe(4);
     expect(app._isTeamDetailRemovableMemberRow(team, roster.find(row => row.name === 'Amy'), staffIdentity)).toBe(true);
+    expect(app._getTeamDetailRemovalKind(team, roster.find(row => row.name === 'Child'), staffIdentity)).toBe('student');
+    expect(app._getTeamDetailRemovalKind(team, roster.find(row => row.name === 'Pending Kid'), staffIdentity)).toBe('student');
     expect(app._isTeamDetailRemovableMemberRow(team, roster.find(row => row.name === 'Coach'), staffIdentity)).toBe(false);
   });
 
@@ -595,6 +601,52 @@ describe('team detail club activity section', () => {
       roles: new Set(['教練']),
       user: { uid: 'coach' },
     }, staffIdentity)).toBe(false);
+  });
+
+  test('team roster removal deactivates removable student rows from member management', async () => {
+    const updateEduStudent = jest.fn().mockResolvedValue();
+    const opLog = jest.fn();
+    const student = { id: 'stu-child', name: 'Child', enrollStatus: 'active' };
+    const row = {
+      key: 'student:stu-child',
+      studentId: 'stu-child',
+      name: 'Child',
+      student,
+      isStudent: true,
+      roles: new Set(),
+    };
+    const app = {};
+    loadTeamDetailCore(app, null, {
+      ApiService: {
+        getTeam: () => ({ id: 'teamA', name: 'Club A' }),
+        _writeOpLog: opLog,
+      },
+      FirebaseService: {
+        updateEduStudent,
+      },
+    });
+    Object.assign(app, {
+      _canManageTeamMembers: () => true,
+      _findTeamDetailRosterRow: () => row,
+      _getTeamStaffIdentity: () => ({ keys: new Set(), names: new Set() }),
+      _getTeamDetailRemovalKind: () => 'student',
+      appConfirm: jest.fn().mockResolvedValue(true),
+      _withButtonLoading: async (_btn, _text, fn) => fn(),
+      _eduStudentsCache: { teamA: [student] },
+      _updateGroupMemberCounts: jest.fn(),
+      _refreshTeamMembersCardFromCache: jest.fn().mockReturnValue(true),
+      _refreshTeamDetailMembers: jest.fn().mockResolvedValue(),
+      showToast: jest.fn(),
+    });
+
+    await app.removeTeamRosterRow(null, 'teamA', 'student:stu-child');
+
+    expect(updateEduStudent).toHaveBeenCalledWith('teamA', 'stu-child', { enrollStatus: 'inactive' });
+    expect(student.enrollStatus).toBe('inactive');
+    expect(app._updateGroupMemberCounts).toHaveBeenCalledWith('teamA');
+    expect(app._refreshTeamMembersCardFromCache).toHaveBeenCalledWith('teamA');
+    expect(app._refreshTeamDetailMembers).not.toHaveBeenCalled();
+    expect(opLog).toHaveBeenCalledWith('team_student_remove', expect.any(String), expect.stringContaining('Child'));
   });
 
   test('team member match data edit writes scoped user match fields', async () => {
