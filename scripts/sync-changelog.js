@@ -6,7 +6,7 @@
  *
  * 資料結構：
  *   changelog/_index   → { months: ["2026-04", "2026-03", ...] }
- *   changelog/2026-04  → { days: { "2026-04-02": ["msg1","msg2",...] } }
+ *   changelog/2026-04  → { days: { "2026-04-02": [{ message, time, committedAt }] } }
  *
  * 使用方式（在專案根目錄執行）：
  *   GCP_KEY_FILE=path/to/key.json node scripts/sync-changelog.js
@@ -75,41 +75,91 @@ async function firestoreSet(token, docPath, data) {
   if (res.status !== 200) throw new Error(`Firestore PATCH ${docPath} failed (${res.status}): ${res.body}`);
 }
 
+function valueToFirestoreValue(val) {
+  if (Array.isArray(val)) {
+    return { arrayValue: { values: val.map(valueToFirestoreValue) } };
+  }
+  if (val && typeof val === 'object') {
+    return { mapValue: { fields: objectToFirestoreFields(val) } };
+  }
+  if (typeof val === 'string') {
+    return { stringValue: val };
+  }
+  if (typeof val === 'number') {
+    return Number.isInteger(val)
+      ? { integerValue: String(val) }
+      : { doubleValue: val };
+  }
+  if (typeof val === 'boolean') {
+    return { booleanValue: val };
+  }
+  if (val === null) {
+    return { nullValue: null };
+  }
+  return { stringValue: String(val || '') };
+}
+
 function objectToFirestoreFields(obj) {
   const fields = {};
   for (const [key, val] of Object.entries(obj)) {
-    if (Array.isArray(val)) {
-      fields[key] = { arrayValue: { values: val.map(v => {
-        if (typeof v === 'string') return { stringValue: v };
-        return { stringValue: String(v) };
-      })}};
-    } else if (typeof val === 'object' && val !== null) {
-      fields[key] = { mapValue: { fields: objectToFirestoreFields(val) } };
-    } else if (typeof val === 'string') {
-      fields[key] = { stringValue: val };
-    } else if (typeof val === 'number') {
-      fields[key] = { integerValue: String(val) };
-    }
+    if (typeof val === 'undefined') continue;
+    fields[key] = valueToFirestoreValue(val);
   }
   return fields;
 }
 
 // --- Git log ---
+function getTaipeiParts(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+  const parts = {};
+  formatter.formatToParts(date).forEach(part => {
+    if (part.type !== 'literal') parts[part.type] = part.value;
+  });
+  return parts;
+}
+
+function formatTaipeiDate(iso) {
+  const parts = getTaipeiParts(iso);
+  if (!parts) return String(iso).substring(0, 10);
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function formatTaipeiTime(iso) {
+  const parts = getTaipeiParts(iso);
+  if (!parts) return '';
+  return `${parts.hour}:${parts.minute}${String(parts.dayPeriod || '').toLowerCase()}`;
+}
+
 function getGitLog() {
   // 不加 --reverse，git log 預設最新在前
-  const log = execSync('git log --all --format="%ad|%s" --date=short', {
+  const log = execSync('git log --all --format="%cI|%s"', {
     encoding: 'utf8', maxBuffer: 4 * 1024 * 1024
   });
   const grouped = {};
   log.trim().split('\n').filter(l => l.includes('|')).forEach(line => {
     const idx = line.indexOf('|');
-    const date = line.substring(0, idx).trim();
+    const committedAt = line.substring(0, idx).trim();
+    const date = formatTaipeiDate(committedAt);
     const msg = line.substring(idx + 1).trim();
     if (!msg || msg === 'Initial commit' || msg.startsWith('Merge ')) return;
     const ym = date.substring(0, 7);
     if (!grouped[ym]) grouped[ym] = {};
     if (!grouped[ym][date]) grouped[ym][date] = [];
-    grouped[ym][date].push(msg); // 最新 commit 在最前面
+    grouped[ym][date].push({
+      message: msg,
+      time: formatTaipeiTime(committedAt),
+      committedAt
+    }); // 最新 commit 在最前面
   });
   return grouped;
 }

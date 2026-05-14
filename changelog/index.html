@@ -37,11 +37,12 @@
     .tag-test{background:rgba(52,211,153,.15);color:var(--tag-test)}
     .tag-refactor{background:rgba(251,146,60,.15);color:var(--tag-refactor)}
     .tag-other{background:rgba(148,163,184,.1);color:var(--tag-other)}
+    .card-time{color:var(--muted);font-size:.72rem;white-space:nowrap;flex-shrink:0;margin-top:.18rem;line-height:1.5}
     .card-msg{color:var(--text);word-break:break-word}
     .no-results{text-align:center;color:var(--muted);padding:3rem 1rem;font-size:1rem}
     .loading-bar{text-align:center;padding:2rem;color:var(--muted)}
     .stats{text-align:center;color:var(--muted);font-size:.78rem;padding:1rem 0;border-top:1px solid var(--border)}
-    @media(max-width:480px){.header-row{flex-direction:column;align-items:stretch}.header-row h1{text-align:center}.filter-row{justify-content:center}.filter-row input[type=text]{width:120px}.card{font-size:.82rem}}
+    @media(max-width:480px){.header-row{flex-direction:column;align-items:stretch}.header-row h1{text-align:center}.filter-row{justify-content:center}.filter-row input[type=text]{width:120px}.card{font-size:.82rem;gap:.45rem}.card-time{font-size:.68rem}}
   </style>
 </head>
 <body>
@@ -106,7 +107,37 @@
       return {t:'OTHER',c:'tag-other'};
     }
 
-    function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+    function esc(s){return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+    function getEntryMessage(entry) {
+      if (typeof entry === 'string') return entry;
+      if (entry && typeof entry === 'object') {
+        return entry.message || entry.msg || '';
+      }
+      return '';
+    }
+
+    function formatEntryTimeFromISO(iso) {
+      if (!iso) return '';
+      var date = new Date(iso);
+      if (isNaN(date.getTime())) return '';
+      var parts = {};
+      new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Taipei',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      }).formatToParts(date).forEach(function(part){
+        if (part.type !== 'literal') parts[part.type] = part.value;
+      });
+      if (!parts.hour || !parts.minute) return '';
+      return parts.hour + ':' + parts.minute + String(parts.dayPeriod || '').toLowerCase();
+    }
+
+    function getEntryTime(entry) {
+      if (!entry || typeof entry !== 'object') return '';
+      return entry.time || entry.displayTime || formatEntryTimeFromISO(entry.committedAt || entry.commitTime);
+    }
 
     // --- Render entries for current month ---
     function renderMonth(monthData, searchTerm) {
@@ -115,14 +146,16 @@
       var html = '', totalEntries = 0, totalDays = 0;
 
       dates.forEach(function(date){
-        var entries = monthData[date];
-        if (searchTerm) entries = entries.filter(function(e){return e.toLowerCase().indexOf(searchTerm.toLowerCase()) !== -1});
+        var entries = Array.isArray(monthData[date]) ? monthData[date] : [];
+        if (searchTerm) entries = entries.filter(function(e){return getEntryMessage(e).toLowerCase().indexOf(searchTerm.toLowerCase()) !== -1});
         if (entries.length === 0) return;
         totalDays++; totalEntries += entries.length;
         html += '<div class="day-section"><div class="day-header"><span class="day-date">' + date + '</span><span class="day-count">' + entries.length + ' 筆更新</span></div>';
-        entries.forEach(function(msg){
+        entries.forEach(function(entry){
+          var msg = getEntryMessage(entry);
+          var time = getEntryTime(entry);
           var t = classifyTag(msg);
-          html += '<div class="card"><span class="tag ' + t.c + '">' + t.t + '</span><span class="card-msg">' + esc(msg) + '</span></div>';
+          html += '<div class="card"><span class="tag ' + t.c + '">' + t.t + '</span>' + (time ? '<span class="card-time">' + esc(time) + '</span>' : '') + '<span class="card-msg">' + esc(msg) + '</span></div>';
         });
         html += '</div>';
       });
