@@ -1013,76 +1013,23 @@
 }
 @media (min-width: 640px) {
   .td-member-table {
-    display: table;
-    width: 100%;
-    min-width: 100%;
-    table-layout: fixed;
+    display: inline-table;
+    width: auto;
+    min-width: 0;
+    table-layout: auto;
   }
   .td-member-table th:first-child,
   .td-member-table td:first-child {
-    min-width: 0;
-  }
-  .td-member-table-activity th:first-child,
-  .td-member-table-activity td:first-child {
-    width: 25%;
-  }
-  .td-member-table-activity th:nth-child(2),
-  .td-member-table-activity td:nth-child(2) {
-    width: 25%;
-  }
-  .td-member-table-activity th:nth-child(3),
-  .td-member-table-activity td:nth-child(3) {
-    width: 20%;
-  }
-  .td-member-table-activity th:nth-child(4),
-  .td-member-table-activity td:nth-child(4) {
     width: auto;
-  }
-  .td-member-table-course th:first-child,
-  .td-member-table-course td:first-child,
-  .td-member-table-match th:first-child,
-  .td-member-table-match td:first-child {
-    width: 22%;
-  }
-  .td-member-table-course th:nth-child(2),
-  .td-member-table-course td:nth-child(2),
-  .td-member-table-match th:nth-child(2),
-  .td-member-table-match td:nth-child(2) {
-    width: 14%;
-  }
-  .td-member-table-course th:nth-child(3),
-  .td-member-table-course td:nth-child(3),
-  .td-member-table-course th:nth-child(4),
-  .td-member-table-course td:nth-child(4),
-  .td-member-table-match th:nth-child(4),
-  .td-member-table-match td:nth-child(4),
-  .td-member-table-match th:nth-child(5),
-  .td-member-table-match td:nth-child(5) {
-    width: 12%;
-  }
-  .td-member-table-course th:nth-child(5),
-  .td-member-table-course td:nth-child(5),
-  .td-member-table-match th:nth-child(3),
-  .td-member-table-match td:nth-child(3) {
-    width: 10%;
-  }
-  .td-member-table-course th:nth-child(6),
-  .td-member-table-course td:nth-child(6),
-  .td-member-table-match th:nth-child(6),
-  .td-member-table-match td:nth-child(6) {
-    width: auto;
-  }
-  .td-member-table-match th:nth-child(7),
-  .td-member-table-match td:nth-child(7) {
-    width: 10%;
+    min-width: 6em;
   }
   .td-member-table.is-editing th:first-child,
   .td-member-table.is-editing td:first-child {
-    width: 28%;
-    min-width: 0;
+    width: auto;
+    min-width: calc(10em + 42px);
   }
   .td-member-name-pill {
-    max-width: 100%;
+    max-width: 10em;
   }
 }
 .td-member-tag-cell {
