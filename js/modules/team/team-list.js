@@ -198,6 +198,73 @@ Object.assign(App, {
     this.showToast(t.active ? `已上架「${t.name}」` : `已下架「${t.name}」`);
   },
 
+  async toggleTeamAttentionEffect(id, enabled, inputEl) {
+    const t = ApiService.getTeam(id);
+    if (!t) return;
+    if (!this.hasPermission('team.manage_all')) {
+      if (inputEl) inputEl.checked = !enabled;
+      this.showToast('\u53ea\u6709\u7ba1\u7406\u54e1\u53ef\u4ee5\u8abf\u6574\u5149\u8de1\u6548\u679c');
+      return;
+    }
+    const previousEnabled = t.attentionEffectEnabled === true;
+    const color = this._normalizeTeamAttentionColor?.(t.attentionEffectColor) || '#fbbf24';
+    if (inputEl) inputEl.disabled = true;
+    try {
+      await ApiService.updateTeamAwait(id, {
+        attentionEffectEnabled: !!enabled,
+        attentionEffectColor: color,
+      });
+      t.attentionEffectEnabled = !!enabled;
+      t.attentionEffectColor = color;
+      this.renderAdminTeams();
+      this.renderTeamManage();
+      this.renderTeamList();
+      ApiService._writeOpLog?.(
+        'team_attention_effect',
+        '\u5149\u8de1\u6548\u679c',
+        '\u5c07\u300c' + (t.name || id) + '\u300d\u5149\u8de1\u6548\u679c' + (enabled ? '\u958b\u555f' : '\u95dc\u9589')
+      );
+      this.showToast(enabled ? '\u5149\u8de1\u6548\u679c\u5df2\u958b\u555f' : '\u5149\u8de1\u6548\u679c\u5df2\u95dc\u9589');
+    } catch (err) {
+      console.error('[toggleTeamAttentionEffect]', err);
+      if (inputEl) inputEl.checked = previousEnabled;
+      if (!err?._toasted) this.showToast('\u5149\u8de1\u6548\u679c\u66f4\u65b0\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+    } finally {
+      if (inputEl) inputEl.disabled = false;
+    }
+  },
+
+  async changeTeamAttentionEffectColor(id, colorValue, inputEl) {
+    const t = ApiService.getTeam(id);
+    if (!t) return;
+    if (!this.hasPermission('team.manage_all')) {
+      if (inputEl) inputEl.value = this._normalizeTeamAttentionColor?.(t.attentionEffectColor) || '#fbbf24';
+      this.showToast('\u53ea\u6709\u7ba1\u7406\u54e1\u53ef\u4ee5\u8abf\u6574\u5149\u8de1\u984f\u8272');
+      return;
+    }
+    const previousColor = this._normalizeTeamAttentionColor?.(t.attentionEffectColor) || '#fbbf24';
+    const nextColor = this._normalizeTeamAttentionColor?.(colorValue) || previousColor;
+    if (inputEl) {
+      inputEl.value = nextColor;
+      inputEl.disabled = true;
+    }
+    try {
+      await ApiService.updateTeamAwait(id, { attentionEffectColor: nextColor });
+      t.attentionEffectColor = nextColor;
+      this.renderAdminTeams();
+      this.renderTeamManage();
+      this.renderTeamList();
+      ApiService._writeOpLog?.('team_attention_effect_color', '\u5149\u8de1\u984f\u8272', '\u66f4\u65b0\u300c' + (t.name || id) + '\u300d\u5149\u8de1\u984f\u8272');
+      this.showToast('\u5149\u8de1\u984f\u8272\u5df2\u66f4\u65b0');
+    } catch (err) {
+      console.error('[changeTeamAttentionEffectColor]', err);
+      if (inputEl) inputEl.value = previousColor;
+      if (!err?._toasted) this.showToast('\u5149\u8de1\u984f\u8272\u66f4\u65b0\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+    } finally {
+      if (inputEl) inputEl.disabled = false;
+    }
+  },
+
   // ── 從 team-form-search.js 搬入（與 toggleTeamPin/toggleTeamActive 同級）──
 
   async removeTeam(btn, id) {

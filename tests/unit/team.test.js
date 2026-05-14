@@ -275,6 +275,8 @@ describe('_sortTeams (team-list-stats.js:42-49)', () => {
 describe('team pin management wiring', () => {
   const teamListSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-list.js'), 'utf8');
   const teamListRenderSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-list-render.js'), 'utf8');
+  const teamListHelperSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-list-helpers.js'), 'utf8');
+  const teamCss = fs.readFileSync(path.join(__dirname, '../../css/team.css'), 'utf8');
 
   test('toggleTeamPin refreshes the club manage page immediately', () => {
     expect(teamListSource).toMatch(/toggleTeamPin\(id\)[\s\S]*this\.renderTeamManage\(\);/);
@@ -288,6 +290,26 @@ describe('team pin management wiring', () => {
   test('admin team list also keeps pinned teams first', () => {
     expect(teamListRenderSource).toContain('const activeT = this._sortTeams(teams.filter(t => t.active));');
     expect(teamListRenderSource).toContain('const inactiveT = this._sortTeams(teams.filter(t => !t.active));');
+  });
+
+  test('club manage page renders Chinese and English names on separate lines', () => {
+    expect(teamListRenderSource).toContain('_buildTeamManageTitleHtml');
+    expect(teamListRenderSource).toContain('team-manage-title-main');
+    expect(teamListRenderSource).toContain('team-manage-title-en');
+    expect(teamCss).toContain('.team-manage-title');
+    expect(teamCss).toContain('flex-direction: column');
+  });
+
+  test('admin can toggle and color the club card light trail effect', () => {
+    expect(teamListHelperSource).toContain('_normalizeTeamAttentionColor');
+    expect(teamListRenderSource).toContain('_renderTeamAttentionEffectControls');
+    expect(teamListRenderSource).toContain('attentionEffectEnabled');
+    expect(teamListRenderSource).toContain('attentionEffectColor');
+    expect(teamListSource).toContain('toggleTeamAttentionEffect');
+    expect(teamListSource).toContain('changeTeamAttentionEffectColor');
+    expect(teamListSource).toContain("hasPermission('team.manage_all')");
+    expect(teamCss).toContain('.tc-card.tc-attention-effect::before');
+    expect(teamCss).toContain('animation: tc-attention-spin');
   });
 });
 

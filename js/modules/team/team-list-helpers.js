@@ -15,6 +15,11 @@ Object.assign(App, {
     return String(value || '').trim();
   },
 
+  _normalizeTeamAttentionColor(value) {
+    const raw = String(value || '').trim();
+    return /^#[0-9a-f]{6}$/i.test(raw) ? raw : '#fbbf24';
+  },
+
   _getDefaultTeamCoverUrl() {
     const version = (typeof CACHE_VERSION !== 'undefined' && CACHE_VERSION) ? CACHE_VERSION : '';
     try {

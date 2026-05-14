@@ -12,10 +12,13 @@ Object.assign(App, {
     const isTeaching = typeof this._isTeamTeachingTagged === 'function'
       ? this._isTeamTeachingTagged(t)
       : t.type === 'education';
-    const eduBadge = isTeaching ? '<span class="tc-edu-badge">教學</span>' : '';
     const eduRibbon = isTeaching ? '<span class="tc-edu-ribbon">教學</span>' : '';
     const sportIcon = t.sportTag && typeof getSportIconSvg === 'function' ? getSportIconSvg(t.sportTag) : '';
     const sportBadge = sportIcon ? `<span class="tc-sport-badge">${sportIcon}</span>` : '';
+    const attentionEnabled = t.attentionEffectEnabled === true;
+    const attentionClass = attentionEnabled ? ' tc-attention-effect' : '';
+    const attentionColor = this._normalizeTeamAttentionColor?.(t.attentionEffectColor) || '#fbbf24';
+    const attentionStyle = attentionEnabled ? ` style="--tc-attention-color:${escapeHTML(attentionColor)}"` : '';
     const cardImage = this._getTeamCoverImageUrl?.(t, 'card') || this._getTeamImageUrl?.(t, 'card') || t.image || '';
     const memberLabel = I18N.t('team.memberLabel');
     const memberCountKey = String(t.id || '');
@@ -24,13 +27,13 @@ Object.assign(App, {
       ? memberCountMap.get(memberCountKey)
       : this._calcTeamMemberCount(t.id);
     return `
-      <div class="tc-card${pinnedClass}" data-team-id="${escapeHTML(t.id)}" onclick="App.openTeamDetailFromCard(this, this.dataset.teamId)">
+      <div class="tc-card${pinnedClass}${attentionClass}"${attentionStyle} data-team-id="${escapeHTML(t.id)}" onclick="App.openTeamDetailFromCard(this, this.dataset.teamId)">
         ${t.pinned ? '<div class="tc-pin-badge">置頂</div>' : ''}
         ${cardImage
           ? `<div style="position:relative;width:100%;aspect-ratio:1;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0">${sportBadge}<img src="${escapeHTML(cardImage)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block"><span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span>${eduRibbon}</div>`
           : `<div class="tc-img-placeholder" style="position:relative">${sportBadge}俱樂部圖片<span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span>${eduRibbon}</div>`}
         <div class="tc-body">
-          <div class="tc-name">${escapeHTML(t.name)}${eduBadge}</div>
+          <div class="tc-name">${escapeHTML(t.name)}</div>
           <div class="tc-info-row"><span class="tc-label">${memberLabel}</span><span>${memberCount} ${I18N.t('team.personUnit')}</span></div>
           <div class="tc-info-row"><span class="tc-label">${I18N.t('team.regionLabel')}</span><span>${escapeHTML(t.region || '')}</span></div>
         </div>
@@ -80,7 +83,7 @@ Object.assign(App, {
         ? memberCountByTeam.get(String(t.id || ''))
         : '';
       const teachingTag = typeof this._isTeamTeachingTagged === 'function' && this._isTeamTeachingTagged(t) ? 1 : 0;
-      return t.id + '|' + (t.name || '') + '|' + (t.sportTag || '') + '|' + (t.image || '') + '|' + (t.imageVariants?.card || '') + '|' + (t.active ? 1 : 0) + '|' + (t.pinned ? 1 : 0) + '|' + teachingTag + '|' + (t.teamExp || 0) + '|' + memberCount;
+      return t.id + '|' + (t.name || '') + '|' + (t.sportTag || '') + '|' + (t.image || '') + '|' + (t.imageVariants?.card || '') + '|' + (t.active ? 1 : 0) + '|' + (t.pinned ? 1 : 0) + '|' + teachingTag + '|' + (t.attentionEffectEnabled ? 1 : 0) + '|' + (t.attentionEffectColor || '') + '|' + (t.teamExp || 0) + '|' + memberCount;
     }).join(',');
     if (this._teamListLastFp === fp && container.children.length > 0) return;
     this._teamListLastFp = fp;
@@ -99,6 +102,34 @@ Object.assign(App, {
   // ══════════════════════════════════
   //  Team Manage Page (Captain+)
   // ══════════════════════════════════
+
+  _buildTeamManageTitleHtml(t, sportIcon) {
+    const nameEn = String(t?.nameEn || '').trim();
+    return '<div class="event-card-title team-manage-title">' +
+      '<span class="team-manage-title-main">' + (sportIcon ? sportIcon + ' ' : '') + escapeHTML(t?.name || '') + '</span>' +
+      (nameEn ? '<span class="team-manage-title-en">' + escapeHTML(nameEn) + '</span>' : '') +
+      '</div>';
+  },
+
+  _renderTeamAttentionEffectControls(t, isAdmin) {
+    if (!isAdmin || !t) return '';
+    const checked = t.attentionEffectEnabled === true ? ' checked' : '';
+    const color = this._normalizeTeamAttentionColor?.(t.attentionEffectColor) || '#fbbf24';
+    return '<div class="team-attention-controls" onclick="event.stopPropagation()">' +
+      '<div class="team-attention-label-wrap">' +
+        '<span class="team-attention-label">\u5149\u8de1\u6548\u679c</span>' +
+        '<span class="team-attention-hint">\u958b\u555f\u5f8c\u4ff1\u6a02\u90e8\u5361\u7247\u6703\u986f\u793a\u6d41\u52d5\u5149\u8de1</span>' +
+      '</div>' +
+      '<label class="td-settings-switch team-attention-switch" aria-label="\u5149\u8de1\u6548\u679c">' +
+        '<input type="checkbox"' + checked + ' onchange="App.toggleTeamAttentionEffect(\'' + escapeHTML(t.id) + '\', this.checked, this)">' +
+        '<span class="td-settings-switch-track"><span class="td-settings-switch-thumb"></span></span>' +
+      '</label>' +
+      '<label class="team-attention-color" aria-label="\u5149\u8de1\u984f\u8272">' +
+        '<span>\u984f\u8272</span>' +
+        '<input type="color" value="' + escapeHTML(color) + '" onchange="App.changeTeamAttentionEffectColor(\'' + escapeHTML(t.id) + '\', this.value, this)">' +
+      '</label>' +
+    '</div>';
+  },
 
   renderTeamManage() {
     const container = document.getElementById('team-manage-list');
@@ -133,7 +164,7 @@ Object.assign(App, {
       <div class="event-card${dim}" onclick="App.showTeamDetail('${t.id}')" style="cursor:pointer">
         <div class="event-card-body">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <div class="event-card-title">${mSportIcon ? mSportIcon + ' ' : ''}${escapeHTML(t.name)} <span style="font-size:.72rem;color:var(--text-muted)">${escapeHTML(t.nameEn || '')}</span></div>
+            ${this._buildTeamManageTitleHtml(t, mSportIcon)}
             <div style="display:flex;gap:.4rem;align-items:center">
               ${isAdmin && t.pinned ? '<span style="font-size:.72rem;color:var(--warning);font-weight:600">置頂</span>' : ''}
               <span style="font-size:.72rem;color:${t.active ? 'var(--success)' : 'var(--danger)'}">${t.active ? '上架中' : '已下架'}</span>
@@ -145,6 +176,7 @@ Object.assign(App, {
             <span class="event-meta-item">${this._calcTeamMemberCount(t.id)}人</span>
             <span class="event-meta-item">${escapeHTML(t.region)}</span>
           </div>
+          ${this._renderTeamAttentionEffectControls(t, isAdmin)}
           <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem" onclick="event.stopPropagation()">
             ${canEdit ? `<button class="primary-btn small" onclick="App.showTeamForm('${t.id}')">編輯</button>` : ''}
             ${isAdmin ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.toggleTeamPin('${t.id}')">${t.pinned ? '取消置頂' : '置頂'}</button>` : ''}
@@ -194,7 +226,7 @@ Object.assign(App, {
       <div class="event-card${dim}" onclick="App.showTeamDetail('${t.id}')" style="cursor:pointer">
         <div class="event-card-body">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <div class="event-card-title">${aSportIcon ? aSportIcon + ' ' : ''}${escapeHTML(t.name)} <span style="font-size:.72rem;color:var(--text-muted)">${escapeHTML(t.nameEn || '')}</span></div>
+            ${this._buildTeamManageTitleHtml(t, aSportIcon)}
             ${t.pinned ? '<span style="font-size:.72rem;color:var(--warning);font-weight:600">置頂</span>' : ''}
           </div>
           <div class="event-meta">
@@ -204,6 +236,7 @@ Object.assign(App, {
             <span class="event-meta-item">${escapeHTML(t.region)}</span>
             <span class="event-meta-item" style="color:${t.active ? 'var(--success)' : 'var(--danger)'}">${t.active ? '上架中' : '已下架'}</span>
           </div>
+          ${this._renderTeamAttentionEffectControls(t, true)}
           <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem" onclick="event.stopPropagation()">
             <button class="primary-btn small" onclick="App.showTeamForm('${t.id}')">編輯</button>
             <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.toggleTeamPin('${t.id}')">${t.pinned ? '取消置頂' : '置頂'}</button>

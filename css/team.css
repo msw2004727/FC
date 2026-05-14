@@ -20,6 +20,45 @@
   position: relative;
 }
 .tc-card:hover { border-color: var(--accent); box-shadow: var(--shadow); transform: translateY(-2px); }
+.tc-card.tc-attention-effect {
+  --tc-attention-color: #fbbf24;
+  isolation: isolate;
+  border-color: var(--tc-attention-color);
+  box-shadow: 0 0 10px var(--tc-attention-color);
+}
+.tc-card.tc-attention-effect::before {
+  content: '';
+  position: absolute;
+  inset: -46%;
+  z-index: 0;
+  pointer-events: none;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0 38%,
+    var(--tc-attention-color) 50%,
+    #fff 56%,
+    var(--tc-attention-color) 62%,
+    transparent 74% 100%
+  );
+  animation: tc-attention-spin 2.6s linear infinite;
+}
+.tc-card.tc-attention-effect::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--bg-card);
+}
+.tc-card.tc-attention-effect > * {
+  position: relative;
+  z-index: 1;
+}
+.tc-card.tc-attention-effect:hover {
+  box-shadow: 0 0 16px var(--tc-attention-color), var(--shadow);
+}
+@keyframes tc-attention-spin { to { transform: rotate(360deg); } }
 /* §8.2D Loading progress bar */
 .tc-card.is-pending {
   cursor: wait;
@@ -172,6 +211,83 @@
 .team-inactive { opacity: .45; }
 .team-section-divider { border: none; border-top: 1px solid var(--border); margin: 1rem 0 .5rem; }
 .team-section-label { font-size: .78rem; color: var(--text-muted); font-weight: 600; margin-bottom: .5rem; }
+.team-manage-title {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .08rem;
+  min-width: 0;
+  flex: 1 1 auto;
+  line-height: 1.25;
+}
+.team-manage-title-main,
+.team-manage-title-en {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-manage-title-main {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  color: var(--text-primary);
+}
+.team-manage-title-en {
+  display: block;
+  font-size: .72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.team-attention-controls {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  flex-wrap: wrap;
+  margin-top: .55rem;
+  padding: .52rem .6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+.team-attention-label-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: .08rem;
+  min-width: 150px;
+  flex: 1 1 160px;
+}
+.team-attention-label {
+  color: var(--text-primary);
+  font-size: .82rem;
+  font-weight: 800;
+}
+.team-attention-hint {
+  color: var(--text-muted);
+  font-size: .68rem;
+  line-height: 1.35;
+}
+.team-attention-switch {
+  flex: 0 0 auto;
+}
+.team-attention-color {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-size: .72rem;
+  font-weight: 700;
+}
+.team-attention-color input {
+  width: 34px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
 
 /* ─── Team Detail ─── */
 .team-detail-name-en { font-size: .72rem; color: var(--text-muted); font-family: var(--font-display); font-weight: 500; }
@@ -1683,20 +1799,7 @@
 .team-type-select-title { font-size: .92rem; font-weight: 700; color: var(--text-primary); }
 .team-type-select-desc { font-size: .72rem; color: var(--text-muted); line-height: 1.4; }
 
-/* ── Education Type Badge on Team Card ── */
-.tc-edu-badge {
-  display: inline-block;
-  font-size: .62rem;
-  padding: .06rem .3rem;
-  border-radius: 3px;
-  background: #8b5cf6;
-  color: #fff;
-  font-weight: 600;
-  margin-left: .3rem;
-  vertical-align: middle;
-}
-
-/* ── Education Ribbon (diagonal, image bottom-right) ── */
+/* ── Education Ribbon (diagonal, image top-right) ── */
 .tc-edu-ribbon {
   position: absolute;
   right: -26px;
@@ -1850,6 +1953,13 @@
 [data-theme="dark"] .td-member-name-pill.uc-super_admin { border-color: rgba(239,68,68,.4); background: rgba(239,68,68,.20); color: #fca5a5; }
 [data-theme="dark"] .td-member-name-pill.external-student { border-color: rgba(45, 212, 191, .35); background: rgba(20, 184, 166, .18); color: #5eead4; }
 [data-theme="dark"] .td-member-name-pill.missing-name { border-color: rgba(148, 163, 184, .2); background: rgba(148, 163, 184, .12); color: #cbd5e1; }
+[data-theme="dark"] .team-attention-controls {
+  border-color: rgba(255, 255, 255, .12);
+  background: rgba(30, 41, 59, .72);
+}
+[data-theme="dark"] .team-attention-color input {
+  border-color: rgba(255, 255, 255, .16);
+}
 [data-theme="dark"] .td-club-logo-edit-btn { background: rgba(15, 23, 42, .92); color: #f8fafc; box-shadow: 0 8px 18px rgba(0, 0, 0, .34); }
 [data-theme="dark"] .td-club-logo-edit-btn:hover { background: rgba(30, 41, 59, .96); }
 [data-theme="dark"] .td-member-match-edit-btn { border-color: rgba(125, 211, 252, .28); background: rgba(56, 189, 248, .14); color: #7dd3fc; }

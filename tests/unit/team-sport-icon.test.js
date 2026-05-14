@@ -36,4 +36,11 @@ describe('team sport icon rendering', () => {
     expect(ribbonRule).not.toContain('bottom: 6px');
     expect(ribbonRule).not.toContain('transform: rotate(-35deg)');
   });
+
+  test('teaching cards keep only the diagonal ribbon and do not render the purple text badge', () => {
+    const source = readProjectFile('js/modules/team/team-list-render.js');
+
+    expect(source).toContain('tc-edu-ribbon');
+    expect(source).not.toContain('tc-edu-badge');
+  });
 });
