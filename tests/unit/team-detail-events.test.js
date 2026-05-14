@@ -576,6 +576,26 @@ describe('team detail club activity section', () => {
     expect(app._getTeamDetailRemovalKind(team, roster.find(row => row.name === 'Captain'), staffIdentity)).toBe('protected');
   });
 
+  test('team member name pill respects stealth admin role', () => {
+    const app = makeApp([]);
+    loadTeamDetailRender(app, []);
+    app._stealthRole = jest.fn((name, role, user) => {
+      if ((role === 'admin' || role === 'super_admin') && user?.stealth === true) return 'user';
+      return role;
+    });
+
+    const stealthRow = { name: 'Hidden Admin', user: { uid: 'admin-1', role: 'super_admin', stealth: true } };
+    const visibleRow = { name: 'Visible Admin', user: { uid: 'admin-2', role: 'admin', stealth: false } };
+
+    expect(app._getTeamDetailMemberUserRoleClass(stealthRow)).toBe('uc-user');
+    expect(app._getTeamDetailMemberUserRoleClass(visibleRow)).toBe('uc-admin');
+    expect(app._getTeamDetailMemberNameClass(stealthRow)).toContain('td-member-name-pill uc-user');
+    expect(app._stealthRole).toHaveBeenCalledWith('Hidden Admin', 'super_admin', stealthRow.user);
+
+    app._stealthRole = undefined;
+    expect(app._getTeamDetailMemberUserRoleClass(stealthRow)).toBe('uc-user');
+  });
+
   test('team member edit mode re-renders cached card without reloading roster data', async () => {
     const refreshCard = jest.fn().mockReturnValue(true);
     const reloadMembers = jest.fn().mockResolvedValue();

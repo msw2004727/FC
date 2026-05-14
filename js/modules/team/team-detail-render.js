@@ -1089,7 +1089,14 @@ Object.assign(App, {
   _getTeamDetailMemberUserRoleClass(row) {
     if (row?.isExternalStudent && !row?.user) return 'external-student';
     const rawRole = String(row?.user?.role || 'user').trim() || 'user';
-    const safeRole = rawRole.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const displayName = row?.name || row?.user?.displayName || row?.user?.name || '';
+    let effectiveRole = rawRole;
+    if (typeof this._stealthRole === 'function') {
+      effectiveRole = this._stealthRole(displayName, rawRole, row?.user);
+    } else if ((rawRole === 'admin' || rawRole === 'super_admin') && row?.user?.stealth === true) {
+      effectiveRole = 'user';
+    }
+    const safeRole = String(effectiveRole || 'user').replace(/[^a-zA-Z0-9_-]/g, '_');
     return 'uc-' + safeRole;
   },
 
