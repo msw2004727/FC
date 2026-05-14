@@ -79,6 +79,35 @@ const FirebaseService = {
   _singleDocCache: {},  // { 'collection/docId': { ...data } }
   _detailPrefetchState: {},
 
+  _normalizeRoleActivityCapabilitiesCache(value) {
+    const normalized = {};
+    const readCaps = (entry) => {
+      if (Array.isArray(entry)) return entry;
+      if (entry && Array.isArray(entry.capabilities)) return entry.capabilities;
+      return null;
+    };
+    const sanitize = (caps) => (typeof sanitizeRoleActivityCapabilities === 'function')
+      ? sanitizeRoleActivityCapabilities(caps)
+      : (Array.isArray(caps) ? [...new Set(caps.filter(Boolean))] : []);
+
+    if (Array.isArray(value)) {
+      value.forEach(doc => {
+        const roleKey = String(doc?._docId || doc?.roleKey || doc?.role || doc?.id || '').trim();
+        const caps = readCaps(doc);
+        if (roleKey && caps) normalized[roleKey] = sanitize(caps);
+      });
+      return normalized;
+    }
+
+    if (value && typeof value === 'object') {
+      Object.keys(value).forEach(roleKey => {
+        const caps = readCaps(value[roleKey]);
+        if (caps) normalized[roleKey] = sanitize(caps);
+      });
+    }
+    return normalized;
+  },
+
   _listeners: [],
   _usersUnsub: null,
   _userListener: null,
@@ -570,8 +599,10 @@ const FirebaseService = {
     if (Object.keys(this._cache.rolePermissionMeta).length > 0) {
       this._saveToLS('rolePermissionMeta', this._cache.rolePermissionMeta);
     }
-    if (Object.keys(this._cache.roleActivityCapabilities || {}).length > 0) {
-      this._saveToLS('roleActivityCapabilities', this._cache.roleActivityCapabilities);
+    const normalizedRoleActivityCapabilities = this._normalizeRoleActivityCapabilitiesCache(this._cache.roleActivityCapabilities);
+    this._cache.roleActivityCapabilities = normalizedRoleActivityCapabilities;
+    if (Object.keys(normalizedRoleActivityCapabilities).length > 0) {
+      this._saveToLS('roleActivityCapabilities', normalizedRoleActivityCapabilities);
     }
     localStorage.setItem(this._getLSTsKey(), Date.now().toString());
   },
@@ -647,7 +678,7 @@ const FirebaseService = {
       this._cache.rolePermissionMeta = rpMeta;
       restored++;
     }
-    const roleActivityCapabilities = this._loadFromLS('roleActivityCapabilities');
+    const roleActivityCapabilities = this._normalizeRoleActivityCapabilitiesCache(this._loadFromLS('roleActivityCapabilities'));
     if (roleActivityCapabilities && Object.keys(roleActivityCapabilities).length > 0) {
       this._cache.roleActivityCapabilities = roleActivityCapabilities;
       restored++;
@@ -824,6 +855,11 @@ const FirebaseService = {
   },
 
   _replaceCollectionCache(name, docs) {
+    if (name === 'roleActivityCapabilities') {
+      this._cache.roleActivityCapabilities = this._normalizeRoleActivityCapabilitiesCache(docs || []);
+      if (this._initialized) this._notifyCacheUpdated(name);
+      return;
+    }
     if (this._isCanonicalCollection(name)) {
       this._replaceCanonicalCollectionCache(name, docs || []);
       return;
@@ -1728,10 +1764,11 @@ const FirebaseService = {
             }
           });
 
+          const normalizedRoleActivityCapabilities = this._normalizeRoleActivityCapabilitiesCache(nextRoleActivityCapabilities);
           const prev = JSON.stringify(this._cache.roleActivityCapabilities || {});
-          const next = JSON.stringify(nextRoleActivityCapabilities);
-          this._cache.roleActivityCapabilities = nextRoleActivityCapabilities;
-          this._saveToLS('roleActivityCapabilities', this._cache.roleActivityCapabilities);
+          const next = JSON.stringify(normalizedRoleActivityCapabilities);
+          this._cache.roleActivityCapabilities = normalizedRoleActivityCapabilities;
+          this._saveToLS('roleActivityCapabilities', normalizedRoleActivityCapabilities);
 
           if (firstSnapshot) {
             firstSnapshot = false;
@@ -3392,13 +3429,19 @@ const FirebaseService = {
         this._saveToLS('rolePermissionMeta', this._cache.rolePermissionMeta);
       }
 
-      const roleActivitySource = { ...(this._cache.roleActivityCapabilities || {}) };
+      const roleActivitySource = this._normalizeRoleActivityCapabilitiesCache(this._cache.roleActivityCapabilities || {});
+      const hasCachedUserCaps = Object.prototype.hasOwnProperty.call(roleActivitySource, 'user');
       const currentUserCaps = sanitizeRoleActivityCapabilities(roleActivitySource.user || []);
       const defaultUserCaps = sanitizeRoleActivityCapabilities(getDefaultRoleActivityCapabilities('user'));
       const userCapDoc = await db.collection('roleActivityCapabilities').doc('user').get();
       const docData = userCapDoc.exists ? (userCapDoc.data() || {}) : {};
       if (!userCapDoc.exists || docData.catalogVersion !== ROLE_ACTIVITY_CAPABILITY_CATALOG_VERSION) {
-        const seededCaps = currentUserCaps.length ? currentUserCaps : defaultUserCaps;
+        const storedUserCaps = Array.isArray(docData.capabilities)
+          ? sanitizeRoleActivityCapabilities(docData.capabilities)
+          : null;
+        const seededCaps = storedUserCaps !== null
+          ? storedUserCaps
+          : (hasCachedUserCaps ? currentUserCaps : defaultUserCaps);
         await db.collection('roleActivityCapabilities').doc('user').set({
           capabilities: seededCaps,
           defaultCapabilities: defaultUserCaps,

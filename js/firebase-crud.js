@@ -120,6 +120,16 @@ Object.assign(FirebaseService, {
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedBy: auth?.currentUser?.uid || '',
     }, { merge: true });
+    if (this._cache) {
+      const source = typeof this._normalizeRoleActivityCapabilitiesCache === 'function'
+        ? this._normalizeRoleActivityCapabilitiesCache(this._cache.roleActivityCapabilities || {})
+        : { ...(this._cache.roleActivityCapabilities || {}) };
+      source[roleKey] = sanitizedCapabilities;
+      this._cache.roleActivityCapabilities = source;
+      if (typeof this._saveToLS === 'function') {
+        this._saveToLS('roleActivityCapabilities', source);
+      }
+    }
   },
 
   async saveRoleActivityCapabilityDefaults(roleKey, defaultCapabilities) {

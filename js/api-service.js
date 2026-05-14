@@ -979,8 +979,16 @@ const ApiService = {
     const roleKey = role || 'user';
     if (roleKey !== 'user') return [];
     const source = FirebaseService._cache.roleActivityCapabilities || {};
+    if (Array.isArray(source)) {
+      const doc = source.find(item => String(item?._docId || item?.roleKey || item?.role || item?.id || '') === roleKey);
+      const caps = doc && Array.isArray(doc.capabilities) ? doc.capabilities : null;
+      return sanitizeRoleActivityCapabilities(caps || getDefaultRoleActivityCapabilities(roleKey));
+    }
     const hasStored = Object.prototype.hasOwnProperty.call(source, roleKey);
-    const stored = hasStored ? source[roleKey] : getDefaultRoleActivityCapabilities(roleKey);
+    const rawStored = hasStored ? source[roleKey] : getDefaultRoleActivityCapabilities(roleKey);
+    const stored = Array.isArray(rawStored)
+      ? rawStored
+      : (rawStored && Array.isArray(rawStored.capabilities) ? rawStored.capabilities : getDefaultRoleActivityCapabilities(roleKey));
     return sanitizeRoleActivityCapabilities(stored);
   },
 
