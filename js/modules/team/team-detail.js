@@ -403,6 +403,9 @@ Object.assign(App, {
       return;
     }
     this._teamMemberEditModeByTeam[teamId] = !this._teamMemberEditModeByTeam[teamId];
+    if (typeof this._refreshTeamMembersCardFromCache === 'function' && this._refreshTeamMembersCardFromCache(teamId)) {
+      return;
+    }
     await this._refreshTeamDetailMembers(teamId);
   },
 
@@ -523,7 +526,9 @@ Object.assign(App, {
       }
       ApiService._writeOpLog?.('team_member_match_data_update', '\u7de8\u8f2f\u6210\u54e1\u8cfd\u4e8b\u6578\u64da', '\u66f4\u65b0\u300c' + (row.name || row.uid || row.studentId) + '\u300d\u5728\u300c' + t.name + '\u300d\u7684\u8cfd\u4e8b\u6578\u64da');
       this.showToast('\u8cfd\u4e8b\u6578\u64da\u5df2\u66f4\u65b0');
-      await this._refreshTeamDetailMembers(teamId);
+      if (typeof this._refreshTeamMembersCardFromCache !== 'function' || !this._refreshTeamMembersCardFromCache(teamId)) {
+        await this._refreshTeamDetailMembers(teamId);
+      }
       } catch (err) {
         console.error('[editTeamMemberMatchData]', err);
         if (typeof ApiService._writeErrorLog === 'function') {

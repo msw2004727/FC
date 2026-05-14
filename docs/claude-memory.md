@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-14 Club member management visibility and table polish [ui]
+- **Problem**: Member management could hide the remove action at the far edge of the compact table, toggling management mode could briefly flash a partial roster while data reloaded, and match-data editing still depended on management mode.
+- **Fix**: Re-rendered the member card from the current cache when toggling management mode, moved remove buttons into the nickname cell, changed nicknames into compact capsules with a distinct added-student style, made match edit buttons visible directly on the match tab, and tightened member table typography/column widths for mobile.
+- **Tests**: Updated team detail member-list coverage and added a regression test that management-mode toggling does not reload roster data when the cached card can be refreshed.
+
 ### 2026-05-14 Club member data tabs and match metadata editing [ui]
 - **Problem**: The club detail member list still grouped by member/student identity, while the requested workflow needs activity, course, and match data views with shared nickname/tag context and staff-safe management actions.
 - **Fix**: Reworked the member list into `activity / course / match` data tabs, merged role/member tags into one priority pill, added scoped match-data editing for jersey number, position, and notes, and kept removal available only in member-management mode.

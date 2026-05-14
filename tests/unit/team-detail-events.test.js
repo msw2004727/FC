@@ -522,6 +522,8 @@ describe('team detail club activity section', () => {
     expect(html).toContain('td-member-table');
     expect(html).toContain('td-member-table-activity');
     expect(html).toContain('td-member-num');
+    expect(html).toContain('td-member-name-pill');
+    expect(html).toContain('td-member-name-pill external-student');
     expect(html).toContain('App.switchTeamMemberTab(\'teamA\',\'activity\')');
     expect(html).toContain('App.switchTeamMemberTab(\'teamA\',\'course\')');
     expect(html).toContain('App.switchTeamMemberTab(\'teamA\',\'match\')');
@@ -537,15 +539,42 @@ describe('team detail club activity section', () => {
 
     const manageHtml = app._buildTeamMembersCard(team, true, false, staffIdentity);
     app._teamMemberTabByTeam = { teamA: 'match' };
+    const matchHtml = app._buildTeamMembersCard(team, true, false, staffIdentity);
     const editHtml = app._buildTeamMembersCard(team, true, true, staffIdentity);
     expect(manageHtml).toContain('\u6210\u54e1\u7ba1\u7406');
+    expect(matchHtml).toContain('td-member-match-edit-btn');
+    expect(matchHtml).not.toContain('is-editing');
     expect(editHtml).toContain('\u5254\u9664');
     expect(editHtml).toContain('td-member-table-match is-editing');
     expect(editHtml).toContain('td-member-match-edit-btn');
-    expect(editHtml).toContain('<td class="td-member-actions">');
+    expect(editHtml).toContain('<td class="td-member-action-cell">');
     expect((editHtml.match(/td-member-remove-btn/g) || []).length).toBe(2);
     expect(app._isTeamDetailRemovableMemberRow(team, roster.find(row => row.name === 'Amy'), staffIdentity)).toBe(true);
     expect(app._isTeamDetailRemovableMemberRow(team, roster.find(row => row.name === 'Coach'), staffIdentity)).toBe(false);
+  });
+
+  test('team member edit mode re-renders cached card without reloading roster data', async () => {
+    const refreshCard = jest.fn().mockReturnValue(true);
+    const reloadMembers = jest.fn().mockResolvedValue();
+    const app = {
+      _teamMemberEditModeByTeam: {},
+      _canManageTeamMembers: () => true,
+      _refreshTeamMembersCardFromCache: refreshCard,
+      _refreshTeamDetailMembers: reloadMembers,
+      showToast: jest.fn(),
+    };
+
+    loadTeamDetailCore(app, null, {
+      ApiService: {
+        getTeam: () => ({ id: 'teamA' }),
+      },
+    });
+
+    await app.toggleTeamMemberEditMode('teamA');
+
+    expect(app._teamMemberEditModeByTeam.teamA).toBe(true);
+    expect(refreshCard).toHaveBeenCalledWith('teamA');
+    expect(reloadMembers).not.toHaveBeenCalled();
   });
 
   test('team member removal row accepts teamIds fallback but rejects staff-only rows', () => {

@@ -1199,13 +1199,14 @@ Object.assign(App, {
     this._teamMemberTabByTeam = this._teamMemberTabByTeam || {};
     const activeTab = this._teamMemberTabByTeam[t.id] || 'activity';
     const roster = this._getTeamDetailRoster(t);
+    const showMatchEditColumn = canManageMembers && activeTab === 'match';
     const tabBtn = (key, label) => '<button type="button" class="td-member-tab' + (activeTab === key ? ' active' : '') + '" onclick="App.switchTeamMemberTab(\'' + t.id + '\',\'' + key + '\')">' + label + '</button>';
     const columns = activeTab === 'course'
       ? ['\u66b1\u7a31', '\u6a19\u7c64', '\u5206\u7d44', '\u7e73\u8cbb', '\u6b21\u6578', '\u5099\u8a3b']
       : (activeTab === 'match'
         ? ['\u66b1\u7a31', '\u6a19\u7c64', '\u6b21\u6578', '\u80cc\u865f', '\u4f4d\u7f6e', '\u5099\u8a3b']
         : ['\u66b1\u7a31', '\u6a19\u7c64', '\u6b21\u6578', '\u5099\u8a3b']);
-    if (memberEditMode) columns.push('\u64cd\u4f5c');
+    if (showMatchEditColumn) columns.push('\u7de8\u8f2f');
     const header = columns.map(label => '<th>' + label + '</th>').join('');
     const rows = roster.length ? roster.map(row => {
       const safeName = escapeHTML(row.name || '未命名');
@@ -1214,7 +1215,7 @@ Object.assign(App, {
       const profileClick = row.uid || (!row.isExternalStudent && !row.isMissingName)
         ? " onclick='App.showUserProfile(" + profileNameArg + profileUidArg + ")'"
         : '';
-      const nameClass = 'td-member-name-main'
+      const nameClass = 'td-member-name-pill'
         + (row.isExternalStudent ? ' external-student' : '')
         + (row.isMissingName ? ' missing-name' : '');
       let dataCells = '';
@@ -1235,17 +1236,17 @@ Object.assign(App, {
         dataCells = this._buildTeamMemberCell(activity.count, 'td-member-num')
           + this._buildTeamMemberCell(activity.notes, 'td-member-note');
       }
-      const editMatchBtn = (canManageMembers && memberEditMode && activeTab === 'match' && this._isTeamDetailMatchDataEditableRow(row))
+      const editMatchBtn = (showMatchEditColumn && this._isTeamDetailMatchDataEditableRow(row))
         ? '<button class="td-member-match-edit-btn" type="button" onclick="event.stopPropagation();App.editTeamMemberMatchData(this,' + escapeHTML(JSON.stringify(t.id)) + ',' + escapeHTML(JSON.stringify(row.key)) + ')">\u7de8\u8f2f</button>'
         : '';
       const removeBtn = (canManageMembers && memberEditMode && this._isTeamDetailRemovableMemberRow(t, row, staffIdentity))
         ? '<button class="td-member-remove-btn" title="\u5254\u9664\u968a\u54e1" onclick="event.stopPropagation();App.removeTeamMember(this, ' + escapeHTML(JSON.stringify(t.id)) + ', ' + escapeHTML(JSON.stringify(row.uid)) + ')">\u5254\u9664</button>'
         : '';
-      const actions = memberEditMode
-        ? '<td class="td-member-actions">' + (editMatchBtn || '') + (removeBtn || '') + (!editMatchBtn && !removeBtn ? '<span class="td-member-role-empty">-</span>' : '') + '</td>'
+      const actions = showMatchEditColumn
+        ? '<td class="td-member-action-cell">' + (editMatchBtn || '<span class="td-member-role-empty">-</span>') + '</td>'
         : '';
       return '<tr>'
-        + '<td class="td-member-name-cell"><span class="' + nameClass + '"' + profileClick + '>' + safeName + '</span></td>'
+        + '<td class="td-member-name-cell">' + (removeBtn || '') + '<span class="' + nameClass + '"' + profileClick + '>' + safeName + '</span></td>'
         + '<td class="td-member-tag-cell">' + this._buildTeamDetailMemberTagPill(row) + '</td>'
         + dataCells
         + actions
