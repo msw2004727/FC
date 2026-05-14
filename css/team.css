@@ -794,9 +794,9 @@
   scrollbar-width: thin;
 }
 .td-member-table {
-  display: inline-table;
-  width: auto;
-  min-width: 0;
+  display: table;
+  width: 100%;
+  min-width: 100%;
   border-collapse: collapse;
   table-layout: auto;
   font-size: .72rem;
@@ -816,7 +816,7 @@
 }
 .td-member-table th:first-child,
 .td-member-table td:first-child {
-  width: auto;
+  width: 1%;
   min-width: 6em;
   text-align: left;
 }
@@ -969,11 +969,12 @@
 .td-member-table-course td:first-child,
 .td-member-table-match th:first-child,
 .td-member-table-match td:first-child {
-  width: auto;
+  width: 1%;
   min-width: 6em;
 }
 .td-member-table.is-editing th:first-child,
 .td-member-table.is-editing td:first-child {
+  width: 1%;
   min-width: calc(10em + 42px);
 }
 .td-member-table-activity th:nth-child(2),
@@ -1008,47 +1009,13 @@
 .td-member-table-course td:nth-child(6),
 .td-member-table-match th:nth-child(6),
 .td-member-table-match td:nth-child(6) {
-  width: 104px;
+  width: auto;
+  max-width: none;
+  text-align: left;
 }
 .td-member-table-match th:nth-child(7),
 .td-member-table-match td:nth-child(7) {
   width: 46px;
-}
-@media (min-width: 640px) {
-  .td-member-table {
-    display: table;
-    width: 100%;
-    min-width: 0;
-    table-layout: auto;
-  }
-  .td-member-table th:first-child,
-  .td-member-table td:first-child {
-    width: 1%;
-    min-width: 6em;
-  }
-  .td-member-table.is-editing th:first-child,
-  .td-member-table.is-editing td:first-child {
-    width: 1%;
-    min-width: calc(10em + 42px);
-  }
-  .td-member-name-pill {
-    max-width: 10em;
-  }
-  .td-member-table-activity th:nth-child(4),
-  .td-member-table-activity td:nth-child(4),
-  .td-member-table-course th:nth-child(6),
-  .td-member-table-course td:nth-child(6),
-  .td-member-table-match th:nth-child(6),
-  .td-member-table-match td:nth-child(6) {
-    width: auto;
-    text-align: left;
-  }
-  .td-member-note {
-    display: block;
-    max-width: none;
-    width: 100%;
-    text-align: left;
-  }
 }
 .td-member-tag-cell {
   overflow: hidden;
@@ -1081,10 +1048,13 @@
   text-overflow: ellipsis;
 }
 .td-member-note {
-  max-width: 150px;
+  display: table-cell;
+  width: auto;
+  max-width: none;
   color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
+  text-align: left;
 }
 .td-member-actions,
 .td-member-action-cell {
