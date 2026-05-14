@@ -12,9 +12,20 @@ Object.assign(App, {
     return String(value || '').trim();
   },
 
+  _isFirestoreIndexedDbTransientLog(log) {
+    const code = this._normalizeErrorCode(log?.errorCode);
+    const message = this._normalizeErrorMessage(log?.errorMessage).toLowerCase();
+    return code === 'firestore-indexeddb-transient'
+      || message.includes('attempt to get records from database without an in-progress transaction');
+  },
+
   _getErrorSeverity(log) {
     const code = this._normalizeErrorCode(log?.errorCode);
     const message = this._normalizeErrorMessage(log?.errorMessage).toLowerCase();
+
+    if (this._isFirestoreIndexedDbTransientLog(log)) {
+      return { key: 'info', label: '\u4f4e', className: 'severity-info' };
+    }
 
     if (
       ['permission-denied', 'unauthenticated', 'failed-precondition', 'internal', 'unknown', 'data-loss']
@@ -38,6 +49,7 @@ Object.assign(App, {
   _getErrorCodeLabel(code) {
     const normalized = this._normalizeErrorCode(code);
     const map = {
+      'firestore-indexeddb-transient': '\u672c\u5730\u5feb\u53d6\u66ab\u614b\u932f\u8aa4',
       'permission-denied': '權限不足',
       unauthenticated: '登入失效',
       'not-found': '找不到資料',
@@ -61,6 +73,7 @@ Object.assign(App, {
     const message = this._normalizeErrorMessage(log?.errorMessage);
     const lower = message.toLowerCase();
     const codeMap = {
+      'firestore-indexeddb-transient': '\u700f\u89bd\u5668\u672c\u5730\u5feb\u53d6\u66ab\u6642\u4e0d\u7a69\uff0c\u591a\u534a\u767c\u751f\u5728 LINE \u5167\u5efa\u700f\u89bd\u5668\u3002\u9019\u4e0d\u4ee3\u8868\u8cc7\u6599\u58de\u6389\uff0c\u901a\u5e38\u91cd\u65b0\u6574\u7406\u5373\u53ef\u6062\u5fa9\u3002',
       'permission-denied': '權限不足，這個操作被系統拒絕。可能是登入狀態過期，或目前身分沒有這個權限。',
       unauthenticated: '登入狀態失效，請重新登入後再試。',
       'not-found': '找不到要操作的資料，可能已被刪除或尚未同步。',
@@ -76,6 +89,7 @@ Object.assign(App, {
       unknown: '系統發生未知錯誤，請管理員查看詳細紀錄。',
       aborted: '流程中止，請重新整理後再試。',
     };
+    if (this._isFirestoreIndexedDbTransientLog(log)) return codeMap['firestore-indexeddb-transient'];
     if (codeMap[code]) return codeMap[code];
     if (/missing or insufficient permissions|the caller does not have permission|permission denied|insufficient permissions/.test(lower)) return codeMap['permission-denied'];
     if (/authentication required|requires authentication|auth token is expired|id token has expired|user token expired/.test(lower)) return codeMap.unauthenticated;

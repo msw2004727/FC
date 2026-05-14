@@ -92,6 +92,24 @@ const ApiService = {
     } catch (_) {}
   },
 
+  _isFirestoreIndexedDbTransientError(err) {
+    try {
+      const code = String(err?.code || '').toLowerCase();
+      const message = String(err?.message || (err != null ? err : '')).toLowerCase();
+      const stack = String(err?.stack || '').toLowerCase();
+      const text = `${code} ${message} ${stack}`;
+      if (code === 'firestore-indexeddb-transient') return true;
+      if (text.includes('attempt to get records from database without an in-progress transaction')) return true;
+      return (
+        text.includes('indexeddb')
+        && text.includes('transaction')
+        && (text.includes('firestore') || text.includes('firebase') || text.includes('database'))
+      );
+    } catch (_) {
+      return false;
+    }
+  },
+
   async _ensureFirebaseWriteAuth(options = {}) {
     const { forceRefreshToken = false, forceReauth = false } = options;
 
@@ -1402,7 +1420,14 @@ const ApiService = {
       let contextStr;
       try { contextStr = typeof context === 'string' ? context : JSON.stringify(context); }
       catch (_) { contextStr = String(context); }
-      const dedupKey = contextStr + '|' + (err?.code || 'no-code');
+      const isFirestoreIndexedDbTransient = this._isFirestoreIndexedDbTransientError(err);
+      if (isFirestoreIndexedDbTransient && contextStr === 'unhandledrejection') {
+        contextStr = 'firestore-indexeddb-transient';
+      }
+      const normalizedErrorCode = isFirestoreIndexedDbTransient
+        ? 'firestore-indexeddb-transient'
+        : (err?.code || '');
+      const dedupKey = contextStr + '|' + (normalizedErrorCode || 'no-code');
       if (this._errorLogCache.has(dedupKey)) return;
       this._errorLogCache.add(dedupKey);
 
@@ -1421,9 +1446,12 @@ const ApiService = {
         userName: curUser.displayName || curUser.name || curUser.uid,
         role: App.currentRole || curUser.role || '',
         context: contextStr,
-        errorCode: err?.code || '',
+        errorCode: normalizedErrorCode,
         errorMessage: err?.message || (err != null ? String(err) : ''),
         errorStack: err?.stack ? err.stack.slice(0, 1500) : '',
+        errorCategory: isFirestoreIndexedDbTransient ? 'sdk-transient' : '',
+        severityHint: isFirestoreIndexedDbTransient ? 'low' : '',
+        noise: !!isFirestoreIndexedDbTransient,
         page,
         appVersion: CACHE_VERSION,
         url: typeof location !== 'undefined' ? location.href : '',

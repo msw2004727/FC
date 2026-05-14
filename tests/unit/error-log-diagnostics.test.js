@@ -35,6 +35,19 @@ describe('error-log-diagnostics helpers', () => {
     expect(severity).toMatchObject({ key: 'warn', label: '\u8b66\u544a' });
   });
 
+  test('classifies Firestore IndexedDB transaction failures as low-noise transient errors', () => {
+    const App = loadDiagnostics();
+    const log = {
+      errorCode: '',
+      errorMessage: 'Attempt to get records from database without an in-progress transaction',
+    };
+
+    expect(App._getErrorSeverity(log)).toMatchObject({ key: 'info', label: '\u4f4e' });
+    expect(App._getErrorCodeLabel('firestore-indexeddb-transient')).toContain('\u672c\u5730\u5feb\u53d6');
+    expect(App._getErrorChineseMessage(log)).toContain('LINE');
+    expect(App._getErrorChineseMessage(log)).toContain('\u4e0d\u4ee3\u8868\u8cc7\u6599\u58de\u6389');
+  });
+
   test('parses browser, os, and device type from LINE iOS user agent', () => {
     const App = loadDiagnostics();
     const info = App._getErrorDeviceInfo('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Line/14.0.0');
