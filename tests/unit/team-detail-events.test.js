@@ -520,23 +520,29 @@ describe('team detail club activity section', () => {
     expect(roster.some(row => row.uid === 'U196b342b78abcdefabcdefabcdefabcd' && row.name === '未設定暱稱')).toBe(true);
     expect(html).toContain('td-member-tabs');
     expect(html).toContain('td-member-table');
-    expect(html).toContain('加入時間');
-    expect(html).toContain('2026/05/01');
+    expect(html).toContain('td-member-table-activity');
+    expect(html).toContain('td-member-num');
+    expect(html).toContain('App.switchTeamMemberTab(\'teamA\',\'activity\')');
+    expect(html).toContain('App.switchTeamMemberTab(\'teamA\',\'course\')');
+    expect(html).toContain('App.switchTeamMemberTab(\'teamA\',\'match\')');
     expect(html).toContain('missing-name');
     expect(html).toContain('未設定暱稱');
     expect(html).toContain('td-member-label-pill label-all');
     expect(html).toContain('td-member-label-pill label-student');
     expect(html).toContain('td-member-label-pill label-pending');
-    expect(html).toContain('td-member-role-pill role-manager');
-    expect(html).toContain('td-member-role-pill role-leader');
-    expect(html).toContain('td-member-role-pill role-coach');
+    expect(html).toContain('td-member-label-pill tag-role role-manager');
+    expect(html).toContain('td-member-label-pill tag-role role-leader');
+    expect(html).toContain('td-member-label-pill tag-role role-coach');
     expect(html).not.toContain('App.toggleProfileSection');
 
     const manageHtml = app._buildTeamMembersCard(team, true, false, staffIdentity);
+    app._teamMemberTabByTeam = { teamA: 'match' };
     const editHtml = app._buildTeamMembersCard(team, true, true, staffIdentity);
     expect(manageHtml).toContain('\u6210\u54e1\u7ba1\u7406');
     expect(editHtml).toContain('\u5254\u9664');
-    expect(editHtml).toContain('<td class="td-member-name-cell"><button class="td-member-remove-btn"');
+    expect(editHtml).toContain('td-member-table-match is-editing');
+    expect(editHtml).toContain('td-member-match-edit-btn');
+    expect(editHtml).toContain('<td class="td-member-actions">');
     expect((editHtml.match(/td-member-remove-btn/g) || []).length).toBe(2);
     expect(app._isTeamDetailRemovableMemberRow(team, roster.find(row => row.name === 'Amy'), staffIdentity)).toBe(true);
     expect(app._isTeamDetailRemovableMemberRow(team, roster.find(row => row.name === 'Coach'), staffIdentity)).toBe(false);
@@ -560,6 +566,69 @@ describe('team detail club activity section', () => {
       roles: new Set(['教練']),
       user: { uid: 'coach' },
     }, staffIdentity)).toBe(false);
+  });
+
+  test('team member match data edit writes scoped user match fields', async () => {
+    const updateUser = jest.fn().mockResolvedValue();
+    const opLog = jest.fn();
+    const user = {
+      uid: 'member',
+      _docId: 'user-doc',
+      teamMatchData: { teamA: { jerseyNumber: '9', position: 'FW', notes: 'old' } },
+    };
+    const row = {
+      key: 'uid:member',
+      uid: 'member',
+      name: 'Amy',
+      user,
+      roles: new Set(),
+    };
+    const team = { id: 'teamA', name: 'Club A' };
+    const app = {
+      _getTeamDetailRoster: () => [row],
+      _canManageTeamMembers: () => true,
+      _isTeamDetailMatchDataEditableRow: () => true,
+      _getTeamDetailMemberMatchData: () => ({ jerseyNumber: '9', position: 'FW', notes: 'old' }),
+      _promptTeamMemberMatchData: jest.fn().mockResolvedValue({ jerseyNumber: '10', position: 'ST', notes: 'starter' }),
+      _refreshTeamDetailMembers: jest.fn().mockResolvedValue(),
+      _withButtonLoading: async (_btn, _text, fn) => fn(),
+      showToast: jest.fn(),
+    };
+    loadTeamDetailCore(app, null, {
+      ApiService: {
+        getTeam: () => team,
+        _writeOpLog: opLog,
+      },
+      FirebaseService: {
+        updateUser,
+      },
+    });
+    app._promptTeamMemberMatchData = jest.fn().mockResolvedValue({
+      jerseyNumber: '10',
+      position: 'ST',
+      notes: 'starter',
+    });
+    app._refreshTeamDetailMembers = jest.fn().mockResolvedValue();
+
+    await app.editTeamMemberMatchData(null, 'teamA', 'uid:member');
+
+    expect(updateUser).toHaveBeenCalledWith('user-doc', {
+      teamMatchData: {
+        teamA: expect.objectContaining({
+          jerseyNumber: '10',
+          position: 'ST',
+          notes: 'starter',
+          updatedAt: expect.any(String),
+        }),
+      },
+    });
+    expect(user.teamMatchData.teamA.jerseyNumber).toBe('10');
+    expect(app._refreshTeamDetailMembers).toHaveBeenCalledWith('teamA');
+    expect(opLog).toHaveBeenCalledWith(
+      'team_member_match_data_update',
+      expect.any(String),
+      expect.stringContaining('Amy')
+    );
   });
 
   test('refreshes shared member card from current student cache', () => {

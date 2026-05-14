@@ -406,6 +406,147 @@ Object.assign(App, {
     await this._refreshTeamDetailMembers(teamId);
   },
 
+  _findTeamDetailRosterRow(teamId, memberKey) {
+    const t = ApiService.getTeam(teamId);
+    if (!t || typeof this._getTeamDetailRoster !== 'function') return null;
+    const key = String(memberKey || '');
+    return this._getTeamDetailRoster(t).find(row =>
+      String(row.key || '') === key
+      || (row.uid && String(row.uid) === key)
+      || (row.studentId && String(row.studentId) === key)
+    ) || null;
+  },
+
+  _promptTeamMemberMatchData(row, current) {
+    const fallback = () => {
+      const ask = typeof window !== 'undefined' && typeof window.prompt === 'function'
+        ? window.prompt.bind(window)
+        : null;
+      if (!ask) return Promise.resolve(null);
+      const jerseyNumber = ask('\u80cc\u865f', current?.jerseyNumber && current.jerseyNumber !== '-' ? current.jerseyNumber : '') || '';
+      const position = ask('\u4f4d\u7f6e', current?.position && current.position !== '-' ? current.position : '') || '';
+      const notes = ask('\u5099\u8a3b', current?.notes && current.notes !== '-' ? current.notes : '') || '';
+      return Promise.resolve({ jerseyNumber: jerseyNumber.trim(), position: position.trim(), notes: notes.trim() });
+    };
+    const modal = document.getElementById('app-confirm-modal');
+    const msgEl = document.getElementById('app-confirm-msg');
+    const ok = document.getElementById('app-confirm-ok');
+    const cancel = document.getElementById('app-confirm-cancel');
+    if (!modal || !msgEl || !ok || !cancel) return fallback();
+    const name = row?.name || '\u6210\u54e1';
+    const jerseyValue = current?.jerseyNumber && current.jerseyNumber !== '-' ? current.jerseyNumber : '';
+    const positionValue = current?.position && current.position !== '-' ? current.position : '';
+    const notesValue = current?.notes && current.notes !== '-' ? current.notes : '';
+    msgEl.innerHTML = '<div class="td-member-match-form">'
+      + '<strong>\u7de8\u8f2f\u8cfd\u4e8b\u6578\u64da</strong>'
+      + '<span>' + escapeHTML(name) + '</span>'
+      + '<label>\u80cc\u865f<input id="td-member-match-jersey" maxlength="12" value="' + escapeHTML(jerseyValue) + '"></label>'
+      + '<label>\u4f4d\u7f6e<input id="td-member-match-position" maxlength="20" value="' + escapeHTML(positionValue) + '"></label>'
+      + '<label>\u5099\u8a3b<textarea id="td-member-match-notes" rows="2" maxlength="80">' + escapeHTML(notesValue) + '</textarea></label>'
+      + '</div>';
+    modal.classList.add('open');
+    document.body.classList.add('modal-open');
+    cancel.style.display = '';
+    ok.textContent = '\u5132\u5b58';
+    cancel.textContent = '\u53d6\u6d88';
+    return new Promise(resolve => {
+      const cleanup = (result) => {
+        modal.classList.remove('open');
+        document.body.classList.remove('modal-open');
+        msgEl.innerHTML = '';
+        ok.replaceWith(ok.cloneNode(true));
+        cancel.replaceWith(cancel.cloneNode(true));
+        resolve(result);
+      };
+      ok.addEventListener('click', () => cleanup({
+        jerseyNumber: (document.getElementById('td-member-match-jersey')?.value || '').trim(),
+        position: (document.getElementById('td-member-match-position')?.value || '').trim(),
+        notes: (document.getElementById('td-member-match-notes')?.value || '').trim(),
+      }), { once: true });
+      cancel.addEventListener('click', () => cleanup(null), { once: true });
+    });
+  },
+
+  async editTeamMemberMatchData(btn, teamId, memberKey) {
+    const t = ApiService.getTeam(teamId);
+    if (!t) return;
+    if (!this._canManageTeamMembers(t)) {
+      this.showToast('\u60a8\u6c92\u6709\u7de8\u8f2f\u968a\u54e1\u7684\u6b0a\u9650');
+      return;
+    }
+    const row = this._findTeamDetailRosterRow(teamId, memberKey);
+    if (!row) {
+      this.showToast('\u627e\u4e0d\u5230\u6210\u54e1\u8cc7\u6599');
+      return;
+    }
+    if (!this._isTeamDetailMatchDataEditableRow?.(row)) {
+      this.showToast('\u6b64\u6210\u54e1\u76ee\u524d\u7121\u53ef\u7de8\u8f2f\u7684\u8cc7\u6599\u4f86\u6e90');
+      return;
+    }
+    const current = typeof this._getTeamDetailMemberMatchData === 'function'
+      ? this._getTeamDetailMemberMatchData(t, row)
+      : {};
+    const data = await this._promptTeamMemberMatchData(row, current);
+    if (!data) return;
+    const save = async () => {
+      try {
+      const nextRecord = {
+        jerseyNumber: data.jerseyNumber,
+        position: data.position,
+        notes: data.notes,
+        updatedAt: new Date().toISOString(),
+      };
+      if (row.user?._docId) {
+        const currentMap = row.user.teamMatchData && typeof row.user.teamMatchData === 'object'
+          ? Object.assign({}, row.user.teamMatchData)
+          : {};
+        currentMap[String(teamId)] = Object.assign({}, currentMap[String(teamId)] || {}, nextRecord);
+        if (typeof FirebaseService._ensureAuth === 'function') {
+          const authed = await FirebaseService._ensureAuth();
+          if (!authed) {
+            this.showToast('\u767b\u5165\u5df2\u904e\u671f\uff0c\u8acb\u91cd\u65b0\u6574\u7406\u9801\u9762\u5f8c\u518d\u8a66');
+            return;
+          }
+        }
+        await FirebaseService.updateUser(row.user._docId, { teamMatchData: currentMap });
+        row.user.teamMatchData = currentMap;
+      } else if (row.studentId && row.student && typeof FirebaseService.updateEduStudent === 'function') {
+        const currentMap = row.student.teamMatchData && typeof row.student.teamMatchData === 'object'
+          ? Object.assign({}, row.student.teamMatchData)
+          : {};
+        currentMap[String(teamId)] = Object.assign({}, currentMap[String(teamId)] || {}, nextRecord);
+        await FirebaseService.updateEduStudent(teamId, row.studentId, { teamMatchData: currentMap });
+        row.student.teamMatchData = currentMap;
+        const cached = this._eduStudentsCache?.[teamId];
+        const cachedStudent = Array.isArray(cached) ? cached.find(s => String(s.id || s._docId || '') === String(row.studentId)) : null;
+        if (cachedStudent) cachedStudent.teamMatchData = currentMap;
+      }
+      ApiService._writeOpLog?.('team_member_match_data_update', '\u7de8\u8f2f\u6210\u54e1\u8cfd\u4e8b\u6578\u64da', '\u66f4\u65b0\u300c' + (row.name || row.uid || row.studentId) + '\u300d\u5728\u300c' + t.name + '\u300d\u7684\u8cfd\u4e8b\u6578\u64da');
+      this.showToast('\u8cfd\u4e8b\u6578\u64da\u5df2\u66f4\u65b0');
+      await this._refreshTeamDetailMembers(teamId);
+      } catch (err) {
+        console.error('[editTeamMemberMatchData]', err);
+        if (typeof ApiService._writeErrorLog === 'function') {
+          ApiService._writeErrorLog(
+            {
+              fn: 'editTeamMemberMatchData',
+              teamId,
+              memberKey,
+              docId: row.user?._docId || row.studentId || '',
+              authUid: (typeof auth !== 'undefined' && auth?.currentUser?.uid) ? auth.currentUser.uid : 'null',
+            },
+            err
+          );
+        }
+        this.showToast('\u66f4\u65b0\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+      }
+    };
+    if (typeof this._withButtonLoading === 'function' && btn) {
+      return this._withButtonLoading(btn, '\u5132\u5b58\u4e2d...', save);
+    }
+    return save();
+  },
+
   async removeTeamMember(btn, teamId, memberUid) {
     const t = ApiService.getTeam(teamId);
     if (!t || !memberUid) return;

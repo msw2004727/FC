@@ -939,6 +939,142 @@
   color: var(--text-muted);
   text-align: center !important;
 }
+.td-member-table-activity { min-width: 460px; }
+.td-member-table-course,
+.td-member-table-match { min-width: 620px; }
+.td-member-table-activity th:first-child,
+.td-member-table-activity td:first-child,
+.td-member-table-course th:first-child,
+.td-member-table-course td:first-child,
+.td-member-table-match th:first-child,
+.td-member-table-match td:first-child {
+  width: 92px;
+}
+.td-member-table-activity th:nth-child(2),
+.td-member-table-activity td:nth-child(2),
+.td-member-table-course th:nth-child(2),
+.td-member-table-course td:nth-child(2),
+.td-member-table-match th:nth-child(2),
+.td-member-table-match td:nth-child(2) {
+  width: 74px;
+}
+.td-member-table-activity th:nth-child(3),
+.td-member-table-activity td:nth-child(3),
+.td-member-table-course th:nth-child(5),
+.td-member-table-course td:nth-child(5),
+.td-member-table-match th:nth-child(3),
+.td-member-table-match td:nth-child(3) {
+  width: 50px;
+}
+.td-member-table-course th:nth-child(3),
+.td-member-table-course td:nth-child(3),
+.td-member-table-course th:nth-child(4),
+.td-member-table-course td:nth-child(4),
+.td-member-table-match th:nth-child(4),
+.td-member-table-match td:nth-child(4),
+.td-member-table-match th:nth-child(5),
+.td-member-table-match td:nth-child(5) {
+  width: 72px;
+}
+.td-member-table-activity th:nth-child(4),
+.td-member-table-activity td:nth-child(4),
+.td-member-table-course th:nth-child(6),
+.td-member-table-course td:nth-child(6),
+.td-member-table-match th:nth-child(6),
+.td-member-table-match td:nth-child(6) {
+  width: 150px;
+}
+.td-member-table.is-editing th:last-child,
+.td-member-table.is-editing td:last-child {
+  width: 92px;
+}
+.td-member-tag-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.td-member-label-pill.tag-role {
+  min-width: 42px;
+  padding: .14rem .36rem;
+  font-size: .76rem;
+}
+.td-member-label-pill.tag-role.role-coach {
+  background: rgba(124, 58, 237, .14);
+  color: #7c3aed;
+}
+.td-member-label-pill.tag-role.role-leader {
+  background: rgba(245, 158, 11, .16);
+  color: #b45309;
+}
+.td-member-label-pill.tag-role.role-manager {
+  background: rgba(236, 72, 153, .13);
+  color: #db2777;
+}
+.td-member-num {
+  color: var(--text-primary);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+.td-member-compact {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.td-member-note {
+  max-width: 150px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.td-member-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .22rem;
+}
+.td-member-match-edit-btn {
+  height: 20px;
+  border: 1px solid rgba(14, 165, 233, .3);
+  border-radius: var(--radius-full);
+  background: rgba(14, 165, 233, .1);
+  color: #0284c7;
+  font-size: .66rem;
+  font-weight: 900;
+  line-height: 1;
+  padding: 0 .36rem;
+  cursor: pointer;
+}
+.td-member-match-form {
+  display: grid;
+  gap: .55rem;
+  text-align: left;
+}
+.td-member-match-form strong {
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+.td-member-match-form > span {
+  color: var(--text-muted);
+  font-size: .8rem;
+  font-weight: 800;
+}
+.td-member-match-form label {
+  display: grid;
+  gap: .22rem;
+  color: var(--text-secondary);
+  font-size: .76rem;
+  font-weight: 900;
+}
+.td-member-match-form input,
+.td-member-match-form textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: .86rem;
+  padding: .48rem .55rem;
+  box-sizing: border-box;
+}
 .td-record-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -1530,6 +1666,10 @@
 [data-theme="dark"] .td-member-role-pill.role-leader { background: rgba(251, 191, 36, .18); color: #fcd34d; }
 [data-theme="dark"] .td-member-role-pill.role-manager { background: rgba(244, 114, 182, .18); color: #f9a8d4; }
 [data-theme="dark"] .td-member-role-pill.role-default { background: rgba(148, 163, 184, .18); color: #cbd5e1; }
+[data-theme="dark"] .td-member-label-pill.tag-role.role-coach { background: rgba(167, 139, 250, .18); color: #c4b5fd; }
+[data-theme="dark"] .td-member-label-pill.tag-role.role-leader { background: rgba(251, 191, 36, .18); color: #fcd34d; }
+[data-theme="dark"] .td-member-label-pill.tag-role.role-manager { background: rgba(244, 114, 182, .18); color: #f9a8d4; }
+[data-theme="dark"] .td-member-match-edit-btn { border-color: rgba(125, 211, 252, .28); background: rgba(56, 189, 248, .14); color: #7dd3fc; }
 [data-theme="dark"] #page-team-detail {
   --td-club-accent: #fbbf24;
   --td-club-accent-strong: #f59e0b;

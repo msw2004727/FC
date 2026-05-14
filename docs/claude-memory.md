@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-14 Club member data tabs and match metadata editing [ui]
+- **Problem**: The club detail member list still grouped by member/student identity, while the requested workflow needs activity, course, and match data views with shared nickname/tag context and staff-safe management actions.
+- **Fix**: Reworked the member list into `activity / course / match` data tabs, merged role/member tags into one priority pill, added scoped match-data editing for jersey number, position, and notes, and kept removal available only in member-management mode.
+- **Tests**: Updated team detail render coverage and added persistence coverage for editing per-club user match data.
+
 ### 2026-05-14 Club detail light loading shell cleanup [ui]
 - **Problem**: The club detail fast-loading shell showed cached region text and its grey loading treatment could visually feel connected to the cover image.
 - **Fix**: Removed region output from the fast-loading shell and scoped the light-theme grey panel to the loading block below the cover, with inset margin and no shadow overlay touching the cover image.

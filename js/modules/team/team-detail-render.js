@@ -1047,6 +1047,27 @@ Object.assign(App, {
     return 'label-member';
   },
 
+  _getTeamDetailMemberPrimaryTag(row) {
+    const rolePriority = ['\u6559\u7df4', '\u9818\u968a', '\u7403\u7d93'];
+    const roles = row?.roles instanceof Set ? row.roles : new Set();
+    const role = rolePriority.find(item => roles.has(item));
+    if (role) {
+      return {
+        label: role,
+        className: 'tag-role ' + this._getTeamDetailMemberRoleClass(role),
+      };
+    }
+    return {
+      label: row?.label || '\u968a\u54e1',
+      className: this._getTeamDetailMemberLabelClass(row?.label),
+    };
+  },
+
+  _buildTeamDetailMemberTagPill(row) {
+    const tag = this._getTeamDetailMemberPrimaryTag(row);
+    return '<span class="td-member-label-pill ' + tag.className + '">' + escapeHTML(tag.label) + '</span>';
+  },
+
   _isTeamDetailRemovableMemberRow(t, row, staffIdentity) {
     if (!t || !row?.uid || !row?.user || !row.isMember) return false;
     const teamId = String(t.id || '');
@@ -1073,18 +1094,120 @@ Object.assign(App, {
     return roles.map(role => '<span class="td-member-role-pill ' + this._getTeamDetailMemberRoleClass(role) + '">' + escapeHTML(role) + '</span>').join('');
   },
 
+  _readTeamDetailTextValue(source, keys) {
+    if (!source || typeof source !== 'object') return '';
+    for (const key of keys) {
+      const value = source[key];
+      if (value == null) continue;
+      if (Array.isArray(value)) {
+        const joined = value.map(v => String(v || '').trim()).filter(Boolean).join(' / ');
+        if (joined) return joined;
+        continue;
+      }
+      const text = String(value).trim();
+      if (text) return text;
+    }
+    return '';
+  },
+
+  _readTeamDetailScopedObject(source, teamId, mapKeys) {
+    if (!source || !teamId || typeof source !== 'object') return null;
+    const id = String(teamId || '');
+    for (const key of mapKeys) {
+      const map = source[key];
+      if (!map || typeof map !== 'object') continue;
+      const value = map[id] || map[teamId];
+      if (value && typeof value === 'object') return value;
+    }
+    return null;
+  },
+
+  _readTeamDetailScopedText(source, teamId, mapKeys, valueKeys) {
+    const scoped = this._readTeamDetailScopedObject(source, teamId, mapKeys);
+    return this._readTeamDetailTextValue(scoped, valueKeys);
+  },
+
+  _formatTeamDetailPaymentStatus(value) {
+    if (value == null || value === '') return '-';
+    if (value === true) return '\u5df2\u7e73';
+    if (value === false) return '\u672a\u7e73';
+    const text = String(value).trim();
+    if (!text) return '-';
+    const lower = text.toLowerCase();
+    if (['paid', 'complete', 'completed', 'yes', 'true'].includes(lower)) return '\u5df2\u7e73';
+    if (['unpaid', 'pending', 'no', 'false'].includes(lower)) return '\u672a\u7e73';
+    return text;
+  },
+
+  _getTeamDetailMemberActivityData(t, row) {
+    const teamId = String(t?.id || '');
+    const note = this._readTeamDetailScopedText(row.user, teamId, ['teamActivityData', 'clubActivityData'], ['notes', 'note', 'remark', 'activityNotes'])
+      || this._readTeamDetailScopedText(row.student, teamId, ['teamActivityData', 'clubActivityData'], ['notes', 'note', 'remark', 'activityNotes'])
+      || this._readTeamDetailTextValue(row.user, ['activityNotes', 'activityNote', 'teamActivityNotes'])
+      || this._readTeamDetailTextValue(row.student, ['activityNotes', 'activityNote', 'teamActivityNotes']);
+    return {
+      count: row.activityCount || 0,
+      notes: note || '-',
+    };
+  },
+
+  _getTeamDetailMemberCourseData(t, row) {
+    const teamId = String(t?.id || '');
+    const source = row.student || row.user || {};
+    const group = this._readTeamDetailTextValue(source, ['groupNames', 'groupName', 'group', 'className', 'courseGroup'])
+      || this._readTeamDetailScopedText(row.user, teamId, ['teamCourseData', 'clubCourseData'], ['groupName', 'group', 'className'])
+      || '-';
+    const payment = source.paidAt
+      ? '\u5df2\u7e73'
+      : this._formatTeamDetailPaymentStatus(
+          source.paymentStatus ?? source.feeStatus ?? source.tuitionStatus ?? source.paid ?? source.feePaid
+        );
+    const note = this._readTeamDetailScopedText(row.user, teamId, ['teamCourseData', 'clubCourseData'], ['notes', 'note', 'remark', 'courseNotes'])
+      || this._readTeamDetailScopedText(row.student, teamId, ['teamCourseData', 'clubCourseData'], ['notes', 'note', 'remark', 'courseNotes'])
+      || this._readTeamDetailTextValue(source, ['coachNotes', 'courseNotes', 'courseNote', 'notes'])
+      || '-';
+    return {
+      group,
+      payment,
+      count: row.courseCount || 0,
+      notes: note,
+    };
+  },
+
+  _getTeamDetailMemberMatchData(t, row) {
+    const teamId = String(t?.id || '');
+    const userScoped = this._readTeamDetailScopedObject(row.user, teamId, ['teamMatchData', 'clubMatchData', 'matchDataByTeam', 'teamMemberMatchData']) || {};
+    const studentScoped = this._readTeamDetailScopedObject(row.student, teamId, ['teamMatchData', 'clubMatchData', 'matchDataByTeam', 'teamMemberMatchData']) || {};
+    const source = Object.assign({}, row.student || {}, row.user || {}, studentScoped, userScoped);
+    return {
+      count: row.matchCount || 0,
+      jerseyNumber: this._readTeamDetailTextValue(source, ['jerseyNumber', 'jerseyNo', 'shirtNumber', 'number']) || '-',
+      position: this._readTeamDetailTextValue(source, ['matchPosition', 'teamPosition', 'position', 'positionTag']) || '-',
+      notes: this._readTeamDetailTextValue(source, ['matchNotes', 'matchNote', 'matchRemark', 'notes']) || '-',
+    };
+  },
+
+  _isTeamDetailMatchDataEditableRow(row) {
+    return !!(row?.user?._docId || (row?.studentId && row?.student));
+  },
+
+  _buildTeamMemberCell(value, className) {
+    return '<td' + (className ? ' class="' + className + '"' : '') + '>' + escapeHTML(value == null || value === '' ? '-' : value) + '</td>';
+  },
+
   _buildTeamMembersCard(t, canManageMembers, memberEditMode, staffIdentity) {
     this._teamMemberTabByTeam = this._teamMemberTabByTeam || {};
-    const activeTab = this._teamMemberTabByTeam[t.id] || 'all';
+    const activeTab = this._teamMemberTabByTeam[t.id] || 'activity';
     const roster = this._getTeamDetailRoster(t);
-    const counts = {
-      all: roster.length,
-      member: roster.filter(r => r.isMember).length,
-      student: roster.filter(r => r.isStudent).length,
-    };
-    const filtered = roster.filter(r => activeTab === 'all' || (activeTab === 'member' ? r.isMember : r.isStudent));
-    const tabBtn = (key, label, count) => '<button type="button" class="td-member-tab' + (activeTab === key ? ' active' : '') + '" onclick="App.switchTeamMemberTab(\'' + t.id + '\',\'' + key + '\')">' + label + '<span>' + count + '</span></button>';
-    const rows = filtered.length ? filtered.map(row => {
+    const tabBtn = (key, label) => '<button type="button" class="td-member-tab' + (activeTab === key ? ' active' : '') + '" onclick="App.switchTeamMemberTab(\'' + t.id + '\',\'' + key + '\')">' + label + '</button>';
+    const columns = activeTab === 'course'
+      ? ['\u66b1\u7a31', '\u6a19\u7c64', '\u5206\u7d44', '\u7e73\u8cbb', '\u6b21\u6578', '\u5099\u8a3b']
+      : (activeTab === 'match'
+        ? ['\u66b1\u7a31', '\u6a19\u7c64', '\u6b21\u6578', '\u80cc\u865f', '\u4f4d\u7f6e', '\u5099\u8a3b']
+        : ['\u66b1\u7a31', '\u6a19\u7c64', '\u6b21\u6578', '\u5099\u8a3b']);
+    if (memberEditMode) columns.push('\u64cd\u4f5c');
+    const header = columns.map(label => '<th>' + label + '</th>').join('');
+    const rows = roster.length ? roster.map(row => {
       const safeName = escapeHTML(row.name || '未命名');
       const profileNameArg = escapeHTML(JSON.stringify(row.name || '未命名'));
       const profileUidArg = row.uid ? ',{uid:' + escapeHTML(JSON.stringify(row.uid)) + '}' : '';
@@ -1094,31 +1217,50 @@ Object.assign(App, {
       const nameClass = 'td-member-name-main'
         + (row.isExternalStudent ? ' external-student' : '')
         + (row.isMissingName ? ' missing-name' : '');
-      const removeBtn = (canManageMembers && memberEditMode && this._isTeamDetailRemovableMemberRow(t, row, staffIdentity))
-        ? '<button class="td-member-remove-btn" title="\u5254\u9664\u968a\u54e1" onclick="event.stopPropagation();App.removeTeamMember(this, \'' + t.id + '\',\'' + row.uid + '\')">\u5254\u9664</button>'
+      let dataCells = '';
+      if (activeTab === 'course') {
+        const course = this._getTeamDetailMemberCourseData(t, row);
+        dataCells = this._buildTeamMemberCell(course.group, 'td-member-compact')
+          + this._buildTeamMemberCell(course.payment, 'td-member-compact')
+          + this._buildTeamMemberCell(course.count, 'td-member-num')
+          + this._buildTeamMemberCell(course.notes, 'td-member-note');
+      } else if (activeTab === 'match') {
+        const match = this._getTeamDetailMemberMatchData(t, row);
+        dataCells = this._buildTeamMemberCell(match.count, 'td-member-num')
+          + this._buildTeamMemberCell(match.jerseyNumber, 'td-member-compact')
+          + this._buildTeamMemberCell(match.position, 'td-member-compact')
+          + this._buildTeamMemberCell(match.notes, 'td-member-note');
+      } else {
+        const activity = this._getTeamDetailMemberActivityData(t, row);
+        dataCells = this._buildTeamMemberCell(activity.count, 'td-member-num')
+          + this._buildTeamMemberCell(activity.notes, 'td-member-note');
+      }
+      const editMatchBtn = (canManageMembers && memberEditMode && activeTab === 'match' && this._isTeamDetailMatchDataEditableRow(row))
+        ? '<button class="td-member-match-edit-btn" type="button" onclick="event.stopPropagation();App.editTeamMemberMatchData(this,' + escapeHTML(JSON.stringify(t.id)) + ',' + escapeHTML(JSON.stringify(row.key)) + ')">\u7de8\u8f2f</button>'
         : '';
-      const labelClass = this._getTeamDetailMemberLabelClass(row.label);
-      const roleHtml = this._buildTeamDetailMemberRolePills(row);
+      const removeBtn = (canManageMembers && memberEditMode && this._isTeamDetailRemovableMemberRow(t, row, staffIdentity))
+        ? '<button class="td-member-remove-btn" title="\u5254\u9664\u968a\u54e1" onclick="event.stopPropagation();App.removeTeamMember(this, ' + escapeHTML(JSON.stringify(t.id)) + ', ' + escapeHTML(JSON.stringify(row.uid)) + ')">\u5254\u9664</button>'
+        : '';
+      const actions = memberEditMode
+        ? '<td class="td-member-actions">' + (editMatchBtn || '') + (removeBtn || '') + (!editMatchBtn && !removeBtn ? '<span class="td-member-role-empty">-</span>' : '') + '</td>'
+        : '';
       return '<tr>'
-        + '<td class="td-member-name-cell">' + removeBtn + '<span class="' + nameClass + '"' + profileClick + '>' + safeName + '</span></td>'
-        + '<td><span class="td-member-label-pill ' + labelClass + '">' + escapeHTML(row.label) + '</span></td>'
-        + '<td>' + row.activityCount + '</td>'
-        + '<td>' + row.courseCount + '</td>'
-        + '<td>' + row.matchCount + '</td>'
-        + '<td class="td-member-identity">' + roleHtml + '</td>'
-        + '<td class="td-member-joined">' + escapeHTML(row.joinTime || '-') + '</td>'
+        + '<td class="td-member-name-cell"><span class="' + nameClass + '"' + profileClick + '>' + safeName + '</span></td>'
+        + '<td class="td-member-tag-cell">' + this._buildTeamDetailMemberTagPill(row) + '</td>'
+        + dataCells
+        + actions
         + '</tr>';
-    }).join('') : '<tr><td colspan="7" class="td-member-empty">' + I18N.t('teamDetail.none') + '</td></tr>';
+    }).join('') : '<tr><td colspan="' + columns.length + '" class="td-member-empty">' + I18N.t('teamDetail.none') + '</td></tr>';
     const editBtn = canManageMembers ? '<button class="outline-btn td-member-edit-btn" onclick="event.stopPropagation();App.toggleTeamMemberEditMode(\'' + t.id + '\')">' + (memberEditMode ? '\u5b8c\u6210' : '\u6210\u54e1\u7ba1\u7406') + '</button>' : '';
     return '<div class="td-card td-section-card" id="team-members-section">'
       + '<div id="team-members-toggle" class="td-card-title td-card-title-row"><span>' + I18N.t('teamDetail.memberList') + '</span><span class="td-card-title-right">' + editBtn + '</span></div>'
-      + '<div class="td-member-tabs">' + tabBtn('all', '\u5168\u90e8', counts.all) + tabBtn('member', '\u968a\u54e1', counts.member) + tabBtn('student', '\u5b78\u54e1', counts.student) + '</div>'
-      + '<div class="td-member-table-scroll"><table class="td-member-table"><thead><tr><th>\u66b1\u7a31</th><th>\u6a19\u7c64</th><th>\u6d3b\u52d5</th><th>\u8ab2\u7a0b</th><th>\u8cfd\u4e8b</th><th>\u8eab\u4efd</th><th>\u52a0\u5165\u6642\u9593</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+      + '<div class="td-member-tabs">' + tabBtn('activity', '\u6d3b\u52d5') + tabBtn('course', '\u8ab2\u7a0b') + tabBtn('match', '\u8cfd\u4e8b') + '</div>'
+      + '<div class="td-member-table-scroll"><table class="td-member-table td-member-table-' + activeTab + (memberEditMode ? ' is-editing' : '') + '"><thead><tr>' + header + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
       + '</div>';
   },
 
   switchTeamMemberTab(teamId, tab) {
-    const allowed = new Set(['all', 'member', 'student']);
+    const allowed = new Set(['activity', 'course', 'match']);
     if (!teamId || !allowed.has(tab)) return;
     this._teamMemberTabByTeam = this._teamMemberTabByTeam || {};
     this._teamMemberTabByTeam[teamId] = tab;
