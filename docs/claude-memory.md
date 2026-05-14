@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-15 Drawer version tag render timing [bug]
+- **Problem**: The drawer version tag reused the home version element, but its text was only refreshed by the home critical render path. Users entering through deep links or non-home startup flows could open the drawer before that path ran and see no version text.
+- **Fix**: Refresh the version tag whenever the drawer opens, independent of page/role rendering.
+- **Tests**: Added source coverage that `openDrawer()` keeps the version refresh call.
+
 ### 2026-05-14 Club join pending button state [bug]
 - **Problem**: After a user submitted a club join request, the club detail primary button could still display `加入`, making repeated taps look like no response and only surfacing the duplicate-request guard later.
 - **Fix**: Reused the existing 24-hour join-request cooldown logic as a shared state helper, rendered active pending applications as `審核中`, added a pending-state toast for repeated taps, and kept the existing behavior that pending requests older than 24 hours are marked `ignored` before a new application is sent.

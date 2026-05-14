@@ -1236,6 +1236,7 @@ Object.assign(App, {
   },
 
   openDrawer() {
+    this._renderHomeVersionTag?.();
     document.getElementById('side-drawer').classList.add('open');
     document.getElementById('drawer-overlay').classList.add('open');
   },

@@ -3,6 +3,8 @@
  *
  * Source file: js/core/navigation.js
  */
+const fs = require('fs');
+const path = require('path');
 
 // ---------------------------------------------------------------------------
 // Extracted from js/core/navigation.js:71-73
@@ -215,5 +217,14 @@ describe('_pushPageHistory (navigation.js:755-761)', () => {
     const history = ['page-home', 'page-teams'];
     _pushPageHistory('page-profile', { resetHistory: true }, 'page-activities', history);
     expect(history).toEqual([]);
+  });
+});
+
+describe('drawer version tag wiring', () => {
+  test('openDrawer refreshes the version tag independent of home rendering', () => {
+    const source = fs.readFileSync(path.join(__dirname, '../../js/core/navigation.js'), 'utf8');
+    const match = source.match(/openDrawer\(\)\s*\{([\s\S]*?)\n\s*\},/);
+    expect(match && match[1]).toContain('this._renderHomeVersionTag?.()');
+    expect(match && match[1]).toContain("document.getElementById('side-drawer').classList.add('open')");
   });
 });
