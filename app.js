@@ -3094,23 +3094,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     };
 
-    const _preloadHomePriorityImages = function(records, kind, limit, fetchPriority) {
-      if (!document.head || !Array.isArray(records)) return;
-      records
-        .filter(function(item) { return item && item.image; })
-        .slice(0, limit || 3)
-        .forEach(function(item, index) {
-          const href = String(item.image || '').trim();
-          if (!href || document.querySelector('link[data-home-priority-image="' + kind + '-' + index + '"]')) return;
-          const preload = document.createElement('link');
-          preload.rel = 'preload';
-          preload.as = 'image';
-          preload.href = href;
-          if (fetchPriority) preload.setAttribute('fetchpriority', fetchPriority);
-          preload.setAttribute('data-home-priority-image', kind + '-' + index);
-          document.head.appendChild(preload);
-        });
-    };
     const _getPerformanceFlag = function(name, fallback) {
       try {
         if (typeof PERFORMANCE_FLAGS !== 'undefined' && Object.prototype.hasOwnProperty.call(PERFORMANCE_FLAGS, name)) {
@@ -3170,9 +3153,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       const eventCount = _applyInlinePublicCollection('events', records.events, inlineTs);
       const teamCount = _applyInlinePublicCollection('teams', records.teams, inlineTs);
       const tournamentCount = _applyInlinePublicCollection('tournaments', records.tournaments, inlineTs);
-      _preloadHomePriorityImages(records.events, 'boot-event', 3, 'low');
-      _preloadHomePriorityImages(records.teams, 'boot-team', 2, 'low');
-      _preloadHomePriorityImages(records.tournaments, 'boot-tournament', 2, 'low');
       if (eventCount || teamCount || tournamentCount) {
         console.log(`[Boot] Phase 2.5: public snapshot applied events=${eventCount}, teams=${teamCount}, tournaments=${tournamentCount}`);
       }
@@ -3184,17 +3164,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         App._homeSummary = records;
       }
     });
-    _loadInlineCollection('boot-banners-data', 'banners', function(records) {
-      const firstBanner = records.find(function(b) { return b && b.image; });
-      if (firstBanner && firstBanner.image && document.head && !document.querySelector('link[data-boot-banner-preload="1"]')) {
-        const preload = document.createElement('link');
-        preload.rel = 'preload';
-        preload.as = 'image';
-        preload.href = firstBanner.image;
-        preload.setAttribute('data-boot-banner-preload', '1');
-        document.head.appendChild(preload);
-      }
-    });
+    _loadInlineCollection('boot-banners-data', 'banners');
     _loadInlineCollection('boot-public-lists-data', 'publicLists', _applyPublicBootSnapshot);
   } catch (e) {
     console.warn('[Boot] Phase 2.5 inline home data 解析失敗（不影響後續流程）:', e && e.message || e);
