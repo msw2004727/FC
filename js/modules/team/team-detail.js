@@ -470,9 +470,60 @@ Object.assign(App, {
     return this._saveTeamDetailSettingsPatch({ detailVisibility: current }, inputEl);
   },
 
+  _isCurrentUserTeamStaffForCreate(teamOrId) {
+    const team = typeof teamOrId === 'string' ? ApiService.getTeam?.(teamOrId) : teamOrId;
+    const currentUser = ApiService.getCurrentUser?.();
+    if (!team || !currentUser?.uid) return false;
+    if (typeof this._canManageTeamMembers === 'function' && this._canManageTeamMembers(team)) return true;
+
+    const userIds = [currentUser.uid, currentUser._docId]
+      .map(v => String(v || '').trim())
+      .filter(Boolean);
+    const staffIds = [
+      team.captainUid,
+      team.leaderUid,
+      ...(Array.isArray(team.leaderUids) ? team.leaderUids : []),
+      ...(Array.isArray(team.coachUids) ? team.coachUids : []),
+    ].map(v => String(v || '').trim()).filter(Boolean);
+    if (userIds.some(uid => staffIds.includes(uid))) return true;
+
+    const normalizeName = (value) => String(value || '').trim().toLowerCase();
+    const userNames = [currentUser.name, currentUser.displayName].map(normalizeName).filter(Boolean);
+    const staffNames = [
+      team.captain,
+      team.captainName,
+      team.leader,
+      ...(Array.isArray(team.leaders) ? team.leaders : []),
+      ...(Array.isArray(team.leaderNames) ? team.leaderNames : []),
+      ...(Array.isArray(team.coaches) ? team.coaches : []),
+      ...(Array.isArray(team.coachNames) ? team.coachNames : []),
+    ].map(normalizeName).filter(Boolean);
+    return userNames.some(name => staffNames.includes(name));
+  },
+
+  _canCreateTeamDetailActivity(teamOrId) {
+    const currentUser = ApiService.getCurrentUser?.();
+    if (!currentUser?.uid) return false;
+    if (!this._isCurrentUserTeamStaffForCreate(teamOrId)) return false;
+    if (typeof this._canCreateActivityByPermission === 'function') return !!this._canCreateActivityByPermission();
+    if (typeof this._canCreateBasicActivity === 'function' && this._canCreateBasicActivity()) return true;
+    if (typeof this._canCreateExternalActivity === 'function' && this._canCreateExternalActivity()) return true;
+    if (typeof this.hasPermission === 'function') {
+      return !!(this.hasPermission('activity.manage.entry')
+        || this.hasPermission('team.create_event')
+        || this.hasPermission('user.activity.basic_create')
+        || this.hasPermission('user.activity.external_create'));
+    }
+    return false;
+  },
+
   async openTeamDetailCreateEvent(teamId) {
     if (this._requireProtectedActionLogin?.({ type: 'createEvent', teamId }, { suppressToast: true })) return;
     const team = teamId ? ApiService.getTeam?.(teamId) : null;
+    if (!this._canCreateTeamDetailActivity?.(team || teamId)) {
+      this.showToast('\u53ea\u6709\u4ff1\u6a02\u90e8\u8077\u54e1\u53ef\u4ee5\u65b0\u589e\u4ff1\u6a02\u90e8\u6d3b\u52d5');
+      return;
+    }
     if (typeof this._canCreateActivityByPermission !== 'function'
       && typeof ScriptLoader !== 'undefined'
       && typeof ScriptLoader.ensureGroup === 'function') {

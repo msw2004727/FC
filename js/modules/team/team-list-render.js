@@ -170,12 +170,6 @@ Object.assign(App, {
               <span style="font-size:.72rem;color:${t.active ? 'var(--success)' : 'var(--danger)'}">${t.active ? '上架中' : '已下架'}</span>
             </div>
           </div>
-          <div class="event-meta">
-            <span class="event-meta-item">領隊 ${escapeHTML(t.leader || '未設定')}</span>
-            <span class="event-meta-item">俱樂部經理 ${escapeHTML(t.captain || '未設定')}</span>
-            <span class="event-meta-item">${this._calcTeamMemberCount(t.id)}人</span>
-            <span class="event-meta-item">${escapeHTML(t.region)}</span>
-          </div>
           ${this._renderTeamAttentionEffectControls(t, isAdmin)}
           <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem" onclick="event.stopPropagation()">
             ${canEdit ? `<button class="primary-btn small" onclick="App.showTeamForm('${t.id}')">編輯</button>` : ''}
@@ -227,14 +221,10 @@ Object.assign(App, {
         <div class="event-card-body">
           <div style="display:flex;justify-content:space-between;align-items:center">
             ${this._buildTeamManageTitleHtml(t, aSportIcon)}
-            ${t.pinned ? '<span style="font-size:.72rem;color:var(--warning);font-weight:600">置頂</span>' : ''}
-          </div>
-          <div class="event-meta">
-            <span class="event-meta-item">領隊 ${escapeHTML(t.leader || '未設定')}</span>
-            <span class="event-meta-item">俱樂部經理 ${escapeHTML(t.captain || '未設定')}</span>
-            <span class="event-meta-item">${this._calcTeamMemberCount(t.id)}人</span>
-            <span class="event-meta-item">${escapeHTML(t.region)}</span>
-            <span class="event-meta-item" style="color:${t.active ? 'var(--success)' : 'var(--danger)'}">${t.active ? '上架中' : '已下架'}</span>
+            <div style="display:flex;gap:.4rem;align-items:center">
+              ${t.pinned ? '<span style="font-size:.72rem;color:var(--warning);font-weight:600">置頂</span>' : ''}
+              <span style="font-size:.72rem;color:${t.active ? 'var(--success)' : 'var(--danger)'}">${t.active ? '上架中' : '已下架'}</span>
+            </div>
           </div>
           ${this._renderTeamAttentionEffectControls(t, true)}
           <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem" onclick="event.stopPropagation()">

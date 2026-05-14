@@ -191,7 +191,7 @@ describe('team detail club activity section', () => {
     expect(html).not.toContain('Blocked Event');
   });
 
-  test('shows club activity create button only when viewer can create activities', () => {
+  test('shows club activity create button only when viewer can create activities and is club staff', () => {
     const event = {
       id: 'e01',
       title: 'Club Event',
@@ -203,15 +203,29 @@ describe('team detail club activity section', () => {
     };
     const allowedApp = makeApp([event]);
     allowedApp._canCreateActivityByPermission = () => true;
-    loadTeamDetailRender(allowedApp, [event]);
+    loadTeamDetailRender(allowedApp, [event], {
+      teams: { teamA: { id: 'teamA', captainUid: 'viewer' } },
+    });
 
     const allowedHtml = allowedApp._renderTeamEvents('teamA');
     expect(allowedHtml).toContain('\u65b0\u589e\u6d3b\u52d5');
     expect(allowedHtml).toContain("App.openTeamDetailCreateEvent('teamA')");
 
+    const nonStaffApp = makeApp([event]);
+    nonStaffApp._canCreateActivityByPermission = () => true;
+    loadTeamDetailRender(nonStaffApp, [event], {
+      teams: { teamA: { id: 'teamA', captainUid: 'other-user' } },
+    });
+
+    const nonStaffHtml = nonStaffApp._renderTeamEvents('teamA');
+    expect(nonStaffHtml).not.toContain('\u65b0\u589e\u6d3b\u52d5');
+    expect(nonStaffHtml).not.toContain('openTeamDetailCreateEvent');
+
     const deniedApp = makeApp([]);
     deniedApp._canCreateActivityByPermission = () => false;
-    loadTeamDetailRender(deniedApp, []);
+    loadTeamDetailRender(deniedApp, [], {
+      teams: { teamA: { id: 'teamA', captainUid: 'viewer' } },
+    });
 
     const deniedHtml = deniedApp._renderTeamEvents('teamA');
     expect(deniedHtml).not.toContain('\u65b0\u589e\u6d3b\u52d5');
@@ -511,7 +525,8 @@ describe('team detail club activity section', () => {
       },
     }, {
       ApiService: {
-        getTeam: () => ({ id: 'teamA', name: 'Club A', sportTag: 'basketball' }),
+        getCurrentUser: () => ({ uid: 'viewer' }),
+        getTeam: () => ({ id: 'teamA', name: 'Club A', sportTag: 'basketball', captainUid: 'viewer' }),
       },
       getSportKeySafe: (value) => String(value || '').trim(),
     });
@@ -525,6 +540,27 @@ describe('team detail club activity section', () => {
     expect(teamSelect.selectedIds).toEqual(['teamA']);
     expect(app._initSportTagPicker).toHaveBeenCalledWith('basketball');
     expect(sportInput.value).toBe('basketball');
+  });
+
+  test('club activity create entry blocks non-staff even with activity create permission', async () => {
+    const app = {
+      _requireProtectedActionLogin: () => false,
+      _canCreateActivityByPermission: () => true,
+      _canCreateBasicActivity: () => true,
+      _openCreateCustomEventModal: jest.fn(),
+      showToast: jest.fn(),
+    };
+    loadTeamDetailCore(app, null, {
+      ApiService: {
+        getCurrentUser: () => ({ uid: 'viewer' }),
+        getTeam: () => ({ id: 'teamA', name: 'Club A', captainUid: 'captain_uid' }),
+      },
+    });
+
+    await app.openTeamDetailCreateEvent('teamA');
+
+    expect(app._openCreateCustomEventModal).not.toHaveBeenCalled();
+    expect(app.showToast).toHaveBeenCalledWith('\u53ea\u6709\u4ff1\u6a02\u90e8\u8077\u54e1\u53ef\u4ee5\u65b0\u589e\u4ff1\u6a02\u90e8\u6d3b\u52d5');
   });
 
   test('refreshes current club detail after a club activity is saved', async () => {

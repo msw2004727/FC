@@ -194,7 +194,7 @@ Object.assign(App, {
 
   _renderTeamEvents(teamId) {
     const teamEvents = this._getTeamFutureEvents(teamId);
-    const createButton = this._canCreateTeamDetailActivity()
+    const createButton = this._canCreateTeamDetailActivity(teamId)
       ? '<button type="button" class="td-section-create-btn" onclick="event.stopPropagation();App.openTeamDetailCreateEvent(\'' + teamId + '\')">\u65b0\u589e\u6d3b\u52d5</button>'
       : '';
     const titleHtml = '<div class="td-card-title td-card-title-row"><span>\u4ff1\u6a02\u90e8\u6d3b\u52d5 <span style="font-size:.72rem;color:var(--text-muted);font-weight:400">(' + teamEvents.length + ')</span></span>' + createButton + '</div>';
@@ -727,9 +727,41 @@ Object.assign(App, {
     });
   },
 
-  _canCreateTeamDetailActivity() {
+  _isCurrentUserTeamStaffForCreate(teamOrId) {
+    const team = typeof teamOrId === 'string' ? ApiService.getTeam?.(teamOrId) : teamOrId;
+    const currentUser = ApiService.getCurrentUser?.();
+    if (!team || !currentUser?.uid) return false;
+    if (typeof this._canManageTeamMembers === 'function' && this._canManageTeamMembers(team)) return true;
+
+    const userIds = [currentUser.uid, currentUser._docId]
+      .map(v => String(v || '').trim())
+      .filter(Boolean);
+    const staffIds = [
+      team.captainUid,
+      team.leaderUid,
+      ...(Array.isArray(team.leaderUids) ? team.leaderUids : []),
+      ...(Array.isArray(team.coachUids) ? team.coachUids : []),
+    ].map(v => String(v || '').trim()).filter(Boolean);
+    if (userIds.some(uid => staffIds.includes(uid))) return true;
+
+    const normalizeName = (value) => String(value || '').trim().toLowerCase();
+    const userNames = [currentUser.name, currentUser.displayName].map(normalizeName).filter(Boolean);
+    const staffNames = [
+      team.captain,
+      team.captainName,
+      team.leader,
+      ...(Array.isArray(team.leaders) ? team.leaders : []),
+      ...(Array.isArray(team.leaderNames) ? team.leaderNames : []),
+      ...(Array.isArray(team.coaches) ? team.coaches : []),
+      ...(Array.isArray(team.coachNames) ? team.coachNames : []),
+    ].map(normalizeName).filter(Boolean);
+    return userNames.some(name => staffNames.includes(name));
+  },
+
+  _canCreateTeamDetailActivity(teamOrId) {
     const currentUser = ApiService.getCurrentUser?.();
     if (!currentUser?.uid) return false;
+    if (!this._isCurrentUserTeamStaffForCreate(teamOrId)) return false;
     if (typeof this._canCreateActivityByPermission === 'function') return !!this._canCreateActivityByPermission();
     if (typeof this._canCreateBasicActivity === 'function' && this._canCreateBasicActivity()) return true;
     if (typeof this._canCreateExternalActivity === 'function' && this._canCreateExternalActivity()) return true;
