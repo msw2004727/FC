@@ -2721,3 +2721,9 @@
 - **Cause**: The cancel flow mutated canonicalized registration copies instead of the original `FirebaseService._cache.registrations` entries. Some recoverable states also patched the button while the flip-animation guard was still active.
 - **Fix**: Added a local terminal-state updater keyed by registration id/docId, made duplicate/already-cancelled recovery clear animation locks before patching, and changed the cancel Cloud Function to treat already-cancelled targets as idempotent no-ops.
 - **Validation**: Added unit/source coverage for already-cancelled detection, terminal cache updates, and Cloud Function idempotent cancel handling.
+
+### 2026-05-14 Activity Time Picker Confirmation [bugfix]
+- **Issue**: Android Chrome native `input type="time"` could display event times as `7:00` and `10:00` without AM/PM, while iOS Safari/Chrome showed `晚上7:00` style labels. Users could misread whether they selected morning or evening.
+- **Cause**: The create/edit activity modal relied on each browser's native time-input presentation. The stored value was already reliable `HH:mm`, but the visible picker label differed by browser and locale.
+- **Fix**: Kept the native picker unchanged and added app-rendered 24-hour confirmation summaries for activity time and registration-open time. Programmatic resets and edit-prefill now update the confirmation text too.
+- **Validation**: Added source coverage for the summary elements, styling, binding, and programmatic update path.

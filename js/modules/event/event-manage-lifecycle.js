@@ -31,6 +31,7 @@ Object.assign(App, {
     this.bindEventSocialLinksToggle?.();
     this.bindReservedActivityAddonToggles?.();
     this.bindRegionToggle?.();
+    this._bindCreateTimeSummary?.();
     this.showModal('create-event-modal');
     this._eventSubmitInFlight = false;
     this._setCreateEventSubmitIdleLabel('儲存修改');
@@ -96,6 +97,7 @@ Object.assign(App, {
     this._setEventSocialLinksFormData?.(!!e.socialLinksEnabled, e.socialLinks || []);
     // 活動地區還原
     this._regionSetFormData?.(e.regionEnabled !== false, e.region || '', e.cities || []);
+    this._updateCreateTimeSummary?.();
   },
 
   // ── 結束活動 ──

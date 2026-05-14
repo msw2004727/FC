@@ -246,6 +246,7 @@ Object.assign(App, {
     const normalized = this._normalizeEventRegOpenTime(value);
     if (date) date.value = normalized.date;
     if (time) time.value = normalized.time;
+    this._updateCreateTimeSummary?.();
   },
 
   _getEventRegOpenTimeValue() {

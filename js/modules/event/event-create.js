@@ -171,6 +171,55 @@ Object.assign(App, {
     return `event_changed:${String(eventId || '').trim()}:${String(targetUid || '').trim()}:${hash}`;
   },
 
+  _formatCreateTimeValue(value) {
+    const match = String(value || '').trim().match(/^(\d{1,2}):(\d{2})/);
+    if (!match) return '';
+    const hour = Math.max(0, Math.min(23, parseInt(match[1], 10) || 0));
+    const minute = Math.max(0, Math.min(59, parseInt(match[2], 10) || 0));
+    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  },
+
+  _formatCreateDateValue(value) {
+    const match = String(value || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return '';
+    return `${match[1]}/${match[2]}/${match[3]}`;
+  },
+
+  _updateCreateTimeSummary() {
+    const dateValue = document.getElementById('ce-date')?.value || '';
+    const startValue = this._formatCreateTimeValue(document.getElementById('ce-time-start')?.value);
+    const endValue = this._formatCreateTimeValue(document.getElementById('ce-time-end')?.value);
+    const dateLabel = this._formatCreateDateValue(dateValue);
+    const timeSummary = document.getElementById('ce-time-summary');
+    if (timeSummary) {
+      const datePrefix = dateLabel ? `${dateLabel} ` : '';
+      timeSummary.textContent = startValue && endValue
+        ? `已選時間：${datePrefix}${startValue} ～ ${endValue}`
+        : '已選時間：請選擇開始與結束時間';
+    }
+
+    const regDateValue = document.getElementById('ce-reg-open-date')?.value || '';
+    const regTimeValue = this._formatCreateTimeValue(document.getElementById('ce-reg-open-clock')?.value);
+    const regDateLabel = this._formatCreateDateValue(regDateValue);
+    const regSummary = document.getElementById('ce-reg-open-summary');
+    if (regSummary) {
+      regSummary.textContent = regDateLabel && regTimeValue
+        ? `開放報名：${regDateLabel} ${regTimeValue}`
+        : '開放報名：未設定，建立後立即開放';
+    }
+  },
+
+  _bindCreateTimeSummary() {
+    ['ce-date', 'ce-time-start', 'ce-time-end', 'ce-reg-open-date', 'ce-reg-open-clock'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el || el.dataset.timeSummaryBound === '1') return;
+      el.dataset.timeSummaryBound = '1';
+      el.addEventListener('input', () => this._updateCreateTimeSummary());
+      el.addEventListener('change', () => this._updateCreateTimeSummary());
+    });
+    this._updateCreateTimeSummary();
+  },
+
   openCreateEventModal() {
     // v8 M1：開 sheet 前先擋未登入（避免用戶填表單後才被踢）
     if (this._requireProtectedActionLogin?.({ type: 'createEvent' }, { suppressToast: true })) return;
@@ -280,6 +329,7 @@ Object.assign(App, {
     this.bindEventSocialLinksToggle?.();
     this.bindReservedActivityAddonToggles?.();
     this.bindRegionToggle?.();
+    this._bindCreateTimeSummary();
     this._resetMultiDates();
     this._initMultiDatePicker();
     this._initSportTagPicker('');
@@ -665,6 +715,7 @@ Object.assign(App, {
     document.getElementById('ce-date').value = '';
     document.getElementById('ce-time-start').value = '14:00';
     document.getElementById('ce-time-end').value = '16:00';
+    this._updateCreateTimeSummary();
     this._delegates = [];
     this._renderDelegateTags();
     this._updateDelegateInput();

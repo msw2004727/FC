@@ -23,4 +23,21 @@ describe('activity create button', () => {
     expect(activityCss).toContain('display: inline-flex');
     expect(activityCss).toContain('gap: .35rem');
   });
+
+  test('activity create form renders browser-independent 24-hour time summaries', () => {
+    const activityHtml = readProjectFile('pages/activity.html');
+    const baseCss = readProjectFile('css/base.css');
+    const createSource = readProjectFile('js/modules/event/event-create.js');
+    const optionsSource = readProjectFile('js/modules/event/event-create-options.js');
+    const lifecycleSource = readProjectFile('js/modules/event/event-manage-lifecycle.js');
+
+    expect(activityHtml).toContain('id="ce-time-summary"');
+    expect(activityHtml).toContain('id="ce-reg-open-summary"');
+    expect(baseCss).toContain('.ce-time-summary');
+    expect(createSource).toContain('_formatCreateTimeValue');
+    expect(createSource).toContain('_bindCreateTimeSummary');
+    expect(createSource).toContain('this._bindCreateTimeSummary();');
+    expect(optionsSource).toContain('this._updateCreateTimeSummary?.();');
+    expect(lifecycleSource).toContain('this._bindCreateTimeSummary?.();');
+  });
 });
