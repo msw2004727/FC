@@ -189,7 +189,7 @@ Object.assign(App, {
         ApiService._writeOpLog('event_create', '建立活動連結', `建立「${title}」`);
       } catch (err) {
         console.error('[handleCreateExternalEvent:create]', err);
-        this.showToast('建立失敗，請稍後再試');
+        if (!err?._toasted) this.showToast('建立失敗，請稍後再試');
         this._externalEventSubmitInFlight = false;
         if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '建立活動連結'; }
         return;

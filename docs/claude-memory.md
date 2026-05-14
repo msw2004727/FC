@@ -2727,3 +2727,9 @@
 - **Cause**: The create/edit activity modal relied on each browser's native time-input presentation. The stored value was already reliable `HH:mm`, but the visible picker label differed by browser and locale.
 - **Fix**: Kept the native picker unchanged and added app-rendered 24-hour confirmation summaries for activity time and registration-open time. Programmatic resets and edit-prefill now update the confirmation text too.
 - **Validation**: Added source coverage for the summary elements, styling, binding, and programmatic update path.
+
+### 2026-05-15 Activity Create Failure Messages [bugfix]
+- **Issue**: Activity creation failures always fell back to a generic "建立活動失敗，請稍後再試" toast, even when the real cause was permission, login, network, or incomplete activity data.
+- **Cause**: The create-event catch block did not inspect Firestore error codes, and the shared write handler did not pass create payload context to the UI.
+- **Fix**: Added create-event-specific Firestore error mapping for permission-denied, unauthenticated, timeout/unavailable, invalid data, and sync-conflict cases. The shared ApiService write handler now passes the create payload to App and marks handled errors as toasted to prevent duplicate generic toasts.
+- **Validation**: Added unit coverage for the new create-event error message mapping.

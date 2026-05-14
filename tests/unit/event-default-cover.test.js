@@ -76,4 +76,23 @@ describe('event default cover image', () => {
     expect(App.showToast).toHaveBeenCalledWith('預設活動封面載入失敗，請重新整理後再試');
     expect(consoleMock.error).toHaveBeenCalled();
   });
+
+  test('maps create event permission errors to actionable messages', () => {
+    const { App } = loadEventCreateModule();
+
+    expect(App._getCreateEventWriteErrorMessage(
+      { code: 'permission-denied', message: 'Missing or insufficient permissions.' },
+      { teamOnly: true, creatorTeamIds: ['team-1'] },
+    )).toBe('俱樂部限定活動需要俱樂部開團權限，請關閉「俱樂部限定」或聯繫管理員');
+
+    expect(App._getCreateEventWriteErrorMessage(
+      { code: 'permission-denied', message: 'Missing or insufficient permissions.' },
+      { feeEnabled: true, privateEvent: true },
+    )).toBe('你目前沒有使用「費用、私密活動」的權限，請關閉相關進階功能後再試');
+
+    expect(App._getCreateEventWriteErrorMessage(
+      { code: 'deadline-exceeded', message: 'deadline exceeded' },
+      {},
+    )).toBe('連線逾時，請檢查網路後再試');
+  });
 });

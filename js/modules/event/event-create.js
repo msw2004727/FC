@@ -97,6 +97,56 @@ Object.assign(App, {
     }
   },
 
+  _getFirestoreWriteErrorMessageForUser(err, context = {}) {
+    if (context?.label === 'createEvent') {
+      return this._getCreateEventWriteErrorMessage(err, context.payload);
+    }
+    return '';
+  },
+
+  _getCreateEventWriteErrorMessage(err, eventData = {}) {
+    const code = String(err?.code || '').toLowerCase();
+    const raw = String(err?.message || err || '').toLowerCase();
+    const isPermissionDenied = code === 'permission-denied'
+      || raw.includes('permission-denied')
+      || raw.includes('missing or insufficient permissions')
+      || raw.includes('insufficient permissions');
+    if (code === 'unauthenticated' || raw.includes('unauthenticated')) {
+      return '登入狀態已過期，請重新登入後再試';
+    }
+    if (isPermissionDenied) {
+      if (eventData?.teamOnly || eventData?.isPublic || eventData?.creatorTeamId || (Array.isArray(eventData?.creatorTeamIds) && eventData.creatorTeamIds.length > 0)) {
+        return '俱樂部限定活動需要俱樂部開團權限，請關閉「俱樂部限定」或聯繫管理員';
+      }
+      const addonLabels = this._getCreateEventAddonLabels?.(eventData) || [];
+      if (addonLabels.length > 0) {
+        return `你目前沒有使用「${addonLabels.join('、')}」的權限，請關閉相關進階功能後再試`;
+      }
+      return '權限不足，請重新登入或聯繫管理員確認開團權限';
+    }
+    if (code === 'deadline-exceeded' || code === 'unavailable' || raw.includes('network') || raw.includes('timeout') || raw.includes('deadline')) {
+      return '連線逾時，請檢查網路後再試';
+    }
+    if (code === 'invalid-argument' || code === 'failed-precondition' || raw.includes('missingrequiredfields') || raw.includes('missing required')) {
+      return '活動資料不完整，請檢查必填欄位後再試';
+    }
+    if (code === 'aborted') {
+      return '建立活動時資料同步衝突，請重新整理後再試';
+    }
+    return '';
+  },
+
+  _getCreateEventAddonLabels(eventData = {}) {
+    const labels = [];
+    if (eventData?.feeEnabled || Number(eventData?.fee || 0) > 0) labels.push('費用');
+    if (eventData?.teamOnly || eventData?.isPublic || eventData?.creatorTeamId || (Array.isArray(eventData?.creatorTeamIds) && eventData.creatorTeamIds.length > 0)) labels.push('俱樂部限定');
+    if (eventData?.genderRestrictionEnabled || eventData?.allowedGender) labels.push('性別限制');
+    if (eventData?.privateEvent) labels.push('私密活動');
+    if (eventData?.teamSplit) labels.push('分隊功能');
+    if (eventData?.socialLinksEnabled || (Array.isArray(eventData?.socialLinks) && eventData.socialLinks.length > 0)) labels.push('社群連結');
+    return labels;
+  },
+
   _EVENT_CHANGE_NOTIFY_FIELDS: [
     'title',
     'type',
@@ -652,7 +702,11 @@ Object.assign(App, {
           totalCreated = allEvents.length;
         } catch (err) {
           console.error('[handleCreateEvent:multiDate]', err);
-          this.showToast('部分活動建立失敗，請檢查活動列表');
+          if (!err?._toasted) {
+            const msg = this._getCreateEventWriteErrorMessage?.(err, allEvents?.[0])
+              || '部分活動建立失敗，請檢查活動列表';
+            this.showToast(msg);
+          }
           this._eventSubmitInFlight = false;
           this._setCreateEventSubmitting(false);
           return;
@@ -662,7 +716,9 @@ Object.assign(App, {
           await ApiService.createEvent(newEvent);
         } catch (err) {
           console.error('[handleCreateEvent:createEvent]', err);
-          this.showToast('建立活動失敗，請稍後再試');
+          if (!err?._toasted) {
+            this.showToast(this._getCreateEventWriteErrorMessage?.(err, newEvent) || '建立活動失敗，請稍後再試');
+          }
           this._eventSubmitInFlight = false;
           this._setCreateEventSubmitting(false);
           return;

@@ -277,7 +277,8 @@ const ApiService = {
         const idx = source.indexOf(data);
         if (idx >= 0) source.splice(idx, 1);
         console.error(`[${label}]`, err);
-        this._handleFirestoreWriteError(err, label);
+        const toasted = this._handleFirestoreWriteError(err, label, data);
+        err._toasted = toasted;
         throw err;
       }
     }
@@ -285,10 +286,17 @@ const ApiService = {
   },
 
   /** Firestore 寫入失敗統一處理：permission-denied / assertion 給用戶提示。回傳 true 表示已顯示 toast */
-  _handleFirestoreWriteError(err, label) {
+  _handleFirestoreWriteError(err, label, payload = null) {
     const code = (err?.code || '').toLowerCase();
     const msg = (err?.message || '').toLowerCase();
     if (typeof App !== 'undefined' && App.showToast) {
+      const mappedMsg = (typeof App._getFirestoreWriteErrorMessageForUser === 'function')
+        ? App._getFirestoreWriteErrorMessageForUser(err, { label, payload })
+        : '';
+      if (mappedMsg) {
+        App.showToast(mappedMsg);
+        return true;
+      }
       if (code === 'permission-denied') {
         App.showToast('操作失敗：權限不足，請重新登入或聯繫管理員');
         return true;
