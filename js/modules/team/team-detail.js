@@ -207,6 +207,119 @@ Object.assign(App, {
     this.showTeamForm(team.id);
   },
 
+  _getTeamAvatarUploadInput() {
+    if (typeof document === 'undefined') return null;
+    let input = document.getElementById('team-avatar-upload-input');
+    if (input) return input;
+    if (typeof document.createElement !== 'function') return null;
+    input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.id = 'team-avatar-upload-input';
+    input.style.display = 'none';
+    document.body?.appendChild(input);
+    return input;
+  },
+
+  openTeamAvatarUpload(btn) {
+    const teamId = this._teamDetailId;
+    const team = teamId ? ApiService.getTeam(teamId) : null;
+    if (!team) return;
+    if (!this._canEditTeamByRoleOrCaptain?.(team)) {
+      this.showToast('\u60a8\u6c92\u6709\u7de8\u8f2f\u6b64\u4ff1\u6a02\u90e8\u7684\u6b0a\u9650');
+      return;
+    }
+    const input = this._getTeamAvatarUploadInput();
+    if (!input) {
+      this.showToast('\u7121\u6cd5\u958b\u555f\u5716\u7247\u4e0a\u50b3\uff0c\u8acb\u91cd\u65b0\u6574\u7406\u5f8c\u518d\u8a66');
+      return;
+    }
+    input.value = '';
+    input.onchange = async () => {
+      const file = input.files && input.files[0];
+      input.value = '';
+      if (!file) return;
+      await this._uploadTeamAvatarFile(btn, team, file);
+    };
+    input.click();
+  },
+
+  _readTeamAvatarFileAsDataUrl(file) {
+    if (typeof this._readImageFileAsDataURL === 'function') {
+      return this._readImageFileAsDataURL(file);
+    }
+    return new Promise((resolve, reject) => {
+      if (typeof FileReader === 'undefined') {
+        reject(new Error('FILE_READER_UNAVAILABLE'));
+        return;
+      }
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = event => resolve(event.target.result);
+      reader.readAsDataURL(file);
+    });
+  },
+
+  async _uploadTeamAvatarFile(btn, team, file) {
+    const teamId = String(team?.id || this._teamDetailId || '').trim();
+    if (!teamId || !file) return;
+    const isAllowed = typeof this._isAllowedImageFile === 'function'
+      ? this._isAllowedImageFile(file)
+      : /^image\//.test(String(file.type || ''));
+    if (!isAllowed) {
+      this.showToast('\u8acb\u4e0a\u50b3 JPG / PNG / WebP \u5716\u7247');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      this.showToast('\u5716\u7247\u592a\u5927\uff0c\u4e0d\u80fd\u8d85\u904e 5MB');
+      return;
+    }
+
+    const run = async () => {
+      try {
+        if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._ensureAuth === 'function') {
+          const authed = await FirebaseService._ensureAuth();
+          if (!authed) {
+            this.showToast('\u767b\u5165\u5df2\u904e\u671f\uff0c\u8acb\u91cd\u65b0\u6574\u7406\u9801\u9762\u5f8c\u518d\u8a66');
+            return;
+          }
+        }
+        if (typeof FirebaseService === 'undefined' || typeof FirebaseService._uploadImage !== 'function') {
+          throw new Error('TEAM_AVATAR_UPLOAD_UNAVAILABLE');
+        }
+        let dataUrl = '';
+        if (typeof this._compressImage === 'function') {
+          try {
+            dataUrl = await this._compressImage(file, 640, 0.88, 'image/webp');
+          } catch (compressErr) {
+            console.warn('[TeamDetail] avatar compression failed, uploading original data URL:', compressErr);
+          }
+        }
+        if (!dataUrl) dataUrl = await this._readTeamAvatarFileAsDataUrl(file);
+        const avatarUrl = await FirebaseService._uploadImage(dataUrl, `teams/${teamId}_avatar`);
+        if (!avatarUrl) throw new Error('TEAM_AVATAR_UPLOAD_FAILED');
+        await ApiService.updateTeamAwait(teamId, { avatarUrl });
+        if (team) team.avatarUrl = avatarUrl;
+        this.renderTeamList?.();
+        this.renderTeamManage?.();
+        this.renderAdminTeams?.();
+        await this.showTeamDetail(teamId, { skipPageHistory: true, bypassPageLock: true });
+        this.showToast('\u4ff1\u6a02\u90e8\u982d\u50cf\u5df2\u66f4\u65b0');
+      } catch (err) {
+        console.error('[TeamDetail] avatar upload failed:', err);
+        if (typeof ApiService._writeErrorLog === 'function') {
+          ApiService._writeErrorLog({ fn: 'uploadTeamAvatar', teamId }, err);
+        }
+        if (!err?._toasted) this.showToast('\u982d\u50cf\u4e0a\u50b3\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+      }
+    };
+    if (typeof this._withButtonLoading === 'function' && btn) {
+      await this._withButtonLoading(btn, '\u4e0a\u50b3\u4e2d', run);
+    } else {
+      await run();
+    }
+  },
+
   _getTeamDetailSettingsItems() {
     return [
       { key: 'events', label: '\u6d3b\u52d5', desc: '\u4ff1\u6a02\u90e8\u6d3b\u52d5\u5217\u8868' },

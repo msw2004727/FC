@@ -1048,13 +1048,31 @@ Object.assign(App, {
   },
 
   _getTeamDetailMemberPrimaryTag(row) {
-    const rolePriority = ['\u6559\u7df4', '\u9818\u968a', '\u7403\u7d93'];
+    const rolePriority = ['\u7403\u7d93', '\u9818\u968a', '\u6559\u7df4'];
     const roles = row?.roles instanceof Set ? row.roles : new Set();
     const role = rolePriority.find(item => roles.has(item));
     if (role) {
       return {
         label: role,
         className: 'tag-role ' + this._getTeamDetailMemberRoleClass(role),
+      };
+    }
+    if (row?.isMember) {
+      return {
+        label: '\u968a\u54e1',
+        className: this._getTeamDetailMemberLabelClass('\u968a\u54e1'),
+      };
+    }
+    if (row?.isStudent) {
+      return {
+        label: '\u5b78\u54e1',
+        className: this._getTeamDetailMemberLabelClass('\u5b78\u54e1'),
+      };
+    }
+    if (row?.isPendingStudent) {
+      return {
+        label: '\u5f85\u5be9\u6838',
+        className: this._getTeamDetailMemberLabelClass('\u5f85\u5be9\u6838'),
       };
     }
     return {
@@ -1066,6 +1084,19 @@ Object.assign(App, {
   _buildTeamDetailMemberTagPill(row) {
     const tag = this._getTeamDetailMemberPrimaryTag(row);
     return '<span class="td-member-label-pill ' + tag.className + '">' + escapeHTML(tag.label) + '</span>';
+  },
+
+  _getTeamDetailMemberUserRoleClass(row) {
+    if (row?.isExternalStudent && !row?.user) return 'external-student';
+    const rawRole = String(row?.user?.role || 'user').trim() || 'user';
+    const safeRole = rawRole.replace(/[^a-zA-Z0-9_-]/g, '_');
+    return 'uc-' + safeRole;
+  },
+
+  _getTeamDetailMemberNameClass(row) {
+    const classes = ['td-member-name-pill', this._getTeamDetailMemberUserRoleClass(row)];
+    if (row?.isMissingName) classes.push('missing-name');
+    return classes.join(' ');
   },
 
   _isTeamDetailRemovableMemberRow(t, row, staffIdentity) {
@@ -1240,9 +1271,7 @@ Object.assign(App, {
       const profileClick = row.uid || (!row.isExternalStudent && !row.isMissingName)
         ? " onclick='App.showUserProfile(" + profileNameArg + profileUidArg + ")'"
         : '';
-      const nameClass = 'td-member-name-pill'
-        + (row.isExternalStudent ? ' external-student' : '')
-        + (row.isMissingName ? ' missing-name' : '');
+      const nameClass = this._getTeamDetailMemberNameClass(row);
       let dataCells = '';
       if (activeTab === 'course') {
         const course = this._getTeamDetailMemberCourseData(t, row);
@@ -1315,6 +1344,25 @@ Object.assign(App, {
     return Number.isFinite(count) && count > 0 ? count : 0;
   },
 
+  _getTeamDetailAvatarUrl(t) {
+    if (!t) return '';
+    const explicit = this._readTeamDetailTextValue(t, ['avatarUrl', 'logoUrl', 'logo', 'avatar']);
+    if (explicit) return explicit;
+    return this._getTeamImageUrl?.(t, 'cover') || t.image || this._getTeamImageUrl?.(t, 'card') || '';
+  },
+
+  _buildTeamDetailLogoHtml(t) {
+    const logoUrl = this._getTeamDetailAvatarUrl(t);
+    const fallbackInitial = escapeHTML(String(t?.name || 'T').trim().charAt(0) || 'T');
+    const canEditAvatar = !!this._canEditTeamByRoleOrCaptain?.(t);
+    const editButton = canEditAvatar
+      ? '<button type="button" class="td-club-logo-edit-btn" title="\u7de8\u8f2f\u4ff1\u6a02\u90e8\u982d\u50cf" aria-label="\u7de8\u8f2f\u4ff1\u6a02\u90e8\u982d\u50cf" onclick="event.stopPropagation();App.openTeamAvatarUpload(this)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.2 4.8 19.2 8.8 8.6 19.4 4.5 20.1 5.2 16z"></path><path d="M13.8 6.2 17.8 10.2"></path></svg></button>'
+      : '';
+    return logoUrl
+      ? '<div class="td-club-logo"><img src="' + escapeHTML(logoUrl) + '" alt="' + escapeHTML(t?.name || '') + '">' + editButton + '</div>'
+      : '<div class="td-club-logo td-club-logo-fallback"><span>' + fallbackInitial + '</span>' + editButton + '</div>';
+  },
+
   _buildTeamDetailIdentityPanel(t, totalGames, winRate) {
     const sportKey = typeof getSportKeySafe === 'function'
       ? getSportKeySafe(t.sportTag)
@@ -1323,11 +1371,7 @@ Object.assign(App, {
       ? EVENT_SPORT_MAP[sportKey].label
       : sportKey;
     const metaParts = [t.region, sportLabel, t.nameEn].filter(Boolean);
-    const logoUrl = this._getTeamImageUrl?.(t, 'card') || t.logoUrl || t.logo || t.avatar || t.image || '';
-    const fallbackInitial = escapeHTML(String(t.name || 'T').trim().charAt(0) || 'T');
-    const logoHtml = logoUrl
-      ? '<div class="td-club-logo"><img src="' + escapeHTML(logoUrl) + '" alt="' + escapeHTML(t.name || '') + '"></div>'
-      : '<div class="td-club-logo td-club-logo-fallback"><span>' + fallbackInitial + '</span></div>';
+    const logoHtml = this._buildTeamDetailLogoHtml(t);
     const teachingBadge = (typeof this._isTeamTeachingTagged === 'function' && this._isTeamTeachingTagged(t))
       ? '<span class="td-teaching-pill">\u6559\u5b78</span>'
       : '';

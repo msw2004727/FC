@@ -496,11 +496,11 @@ describe('team detail club activity section', () => {
       history: [{ id: 'match1', participants: [{ uid: 'member' }] }],
     };
     const users = [
-      { uid: 'member', name: 'Amy', teamId: 'teamA', activityAttendanceCount: 4, teamJoinedAt: '2026-05-01' },
-      { uid: 'captain', name: 'Captain' },
-      { uid: 'leader', name: 'Leader' },
-      { uid: 'coach', name: 'Coach' },
-      { uid: 'U196b342b78abcdefabcdefabcdefabcd', teamId: 'teamA' },
+      { uid: 'member', name: 'Amy', role: 'user', teamId: 'teamA', activityAttendanceCount: 4, teamJoinedAt: '2026-05-01' },
+      { uid: 'captain', name: 'Captain', role: 'captain' },
+      { uid: 'leader', name: 'Leader', role: 'coach' },
+      { uid: 'coach', name: 'Coach', role: 'coach' },
+      { uid: 'U196b342b78abcdefabcdefabcdefabcd', role: 'venue_owner', teamId: 'teamA' },
     ];
     loadTeamDetailRender(app, [], { adminUsers: users, teams: { teamA: team } });
     Object.assign(app, {
@@ -523,13 +523,21 @@ describe('team detail club activity section', () => {
     expect(html).toContain('td-member-table-activity');
     expect(html).toContain('td-member-num');
     expect(html).toContain('td-member-name-pill');
+    expect(html).toContain('td-member-name-pill uc-user');
+    expect(html).toContain('td-member-name-pill uc-captain');
+    expect(html).toContain('td-member-name-pill uc-coach');
+    expect(html).toContain('td-member-name-pill uc-venue_owner');
     expect(html).toContain('td-member-name-pill external-student');
     expect(html).toContain('App.switchTeamMemberTab(\'teamA\',\'activity\')');
     expect(html).toContain('App.switchTeamMemberTab(\'teamA\',\'course\')');
     expect(html).toContain('App.switchTeamMemberTab(\'teamA\',\'match\')');
     expect(html).toContain('missing-name');
     expect(html).toContain('未設定暱稱');
-    expect(html).toContain('td-member-label-pill label-all');
+    expect(html).not.toContain('td-member-label-pill label-all');
+    expect(app._getTeamDetailMemberPrimaryTag({ roles: new Set(['\u6559\u7df4', '\u9818\u968a', '\u7403\u7d93']), isMember: true }).label).toBe('\u7403\u7d93');
+    expect(app._getTeamDetailMemberPrimaryTag({ roles: new Set(['\u6559\u7df4', '\u9818\u968a']), isMember: true }).label).toBe('\u9818\u968a');
+    expect(app._getTeamDetailMemberPrimaryTag({ roles: new Set(), isMember: true, isStudent: true }).label).toBe('\u968a\u54e1');
+    expect(app._getTeamDetailMemberPrimaryTag({ roles: new Set(), isStudent: true }).label).toBe('\u5b78\u54e1');
     expect(html).toContain('td-member-label-pill label-student');
     expect(html).toContain('td-member-label-pill label-pending');
     expect(html).toContain('td-member-label-pill tag-role role-manager');
@@ -590,6 +598,72 @@ describe('team detail club activity section', () => {
     expect(app._teamMemberEditModeByTeam.teamA).toBe(true);
     expect(refreshCard).toHaveBeenCalledWith('teamA');
     expect(reloadMembers).not.toHaveBeenCalled();
+  });
+
+  test('team detail avatar uses explicit avatar before cover fallback and shows editor for permitted users', () => {
+    const app = makeApp([]);
+    loadTeamDetailRender(app, []);
+    Object.assign(app, {
+      _canEditTeamByRoleOrCaptain: () => true,
+      _getTeamImageUrl: (team, type) => team?.imageVariants?.[type] || '',
+    });
+
+    const avatarHtml = app._buildTeamDetailLogoHtml({
+      id: 'teamA',
+      name: 'Club A',
+      avatarUrl: 'https://cdn.example/avatar.webp',
+      imageVariants: { cover: 'https://cdn.example/cover.webp' },
+    });
+    const fallbackTeam = {
+      id: 'teamB',
+      name: 'Club B',
+      imageVariants: { cover: 'https://cdn.example/cover-b.webp', card: 'https://cdn.example/card-b.webp' },
+    };
+
+    expect(avatarHtml).toContain('https://cdn.example/avatar.webp');
+    expect(avatarHtml).not.toContain('https://cdn.example/cover.webp');
+    expect(avatarHtml).toContain('App.openTeamAvatarUpload(this)');
+    expect(app._getTeamDetailAvatarUrl(fallbackTeam)).toBe('https://cdn.example/cover-b.webp');
+  });
+
+  test('team avatar upload stores a Storage URL in avatarUrl and refreshes detail', async () => {
+    const team = { id: 'teamA', _docId: 'teamA', name: 'Club A' };
+    const updateTeamAwait = jest.fn().mockImplementation(async (_teamId, updates) => {
+      Object.assign(team, updates);
+      return team;
+    });
+    const uploadImage = jest.fn().mockResolvedValue('https://cdn.example/uploaded-avatar.webp');
+    const app = {
+      _teamDetailId: 'teamA',
+      _canEditTeamByRoleOrCaptain: () => true,
+      _withButtonLoading: async (_btn, _text, fn) => fn(),
+      renderTeamList: jest.fn(),
+      renderTeamManage: jest.fn(),
+      renderAdminTeams: jest.fn(),
+      showTeamDetail: jest.fn().mockResolvedValue({ ok: true }),
+      showToast: jest.fn(),
+    };
+    loadTeamDetailCore(app, null, {
+      ApiService: {
+        getTeam: () => team,
+        updateTeamAwait,
+        _writeErrorLog: jest.fn(),
+      },
+      FirebaseService: {
+        _ensureAuth: jest.fn().mockResolvedValue(true),
+        _uploadImage: uploadImage,
+      },
+    });
+    app._readTeamAvatarFileAsDataUrl = jest.fn().mockResolvedValue('data:image/png;base64,avatar');
+    app.showTeamDetail = jest.fn().mockResolvedValue({ ok: true });
+
+    await app._uploadTeamAvatarFile({ disabled: false }, team, { type: 'image/png', size: 1024, name: 'avatar.png' });
+
+    expect(uploadImage).toHaveBeenCalledWith('data:image/png;base64,avatar', 'teams/teamA_avatar');
+    expect(updateTeamAwait).toHaveBeenCalledWith('teamA', { avatarUrl: 'https://cdn.example/uploaded-avatar.webp' });
+    expect(team.avatarUrl).toBe('https://cdn.example/uploaded-avatar.webp');
+    expect(app.showTeamDetail).toHaveBeenCalledWith('teamA', { skipPageHistory: true, bypassPageLock: true });
+    expect(app.showToast).toHaveBeenCalledWith('\u4ff1\u6a02\u90e8\u982d\u50cf\u5df2\u66f4\u65b0');
   });
 
   test('team member removal row accepts teamIds fallback and routes staff rows separately', () => {
