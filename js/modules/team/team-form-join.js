@@ -4,6 +4,159 @@ Object.assign(App, {
 
   // _applyRoleChange → 已搬至 team-list-helpers.js
 
+  _TEAM_JOIN_REQUEST_COOLDOWN_MS: 24 * 60 * 60 * 1000,
+  _teamJoinRequestOptimisticByTeam: {},
+
+  _parseTeamJoinRequestTime(value) {
+    if (!value) return 0;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+    if (value instanceof Date) return value.getTime();
+    if (typeof value.toMillis === 'function') return value.toMillis();
+    if (typeof value.seconds === 'number') {
+      return (value.seconds * 1000) + Math.floor((value.nanoseconds || 0) / 1000000);
+    }
+    const text = String(value || '').trim();
+    if (!text) return 0;
+    const [dp, tp] = text.split(' ');
+    const [y, mo, d] = (dp || '').split('/').map(Number);
+    const [h, mi] = (tp || '0:0').split(':').map(Number);
+    if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return 0;
+    return new Date(y, mo - 1, d, h || 0, mi || 0).getTime();
+  },
+
+  _getTeamJoinMessageTime(message) {
+    if (!message || typeof message !== 'object') return 0;
+    const candidates = [
+      message.sentAt,
+      message.createdAt,
+      message.createdAtMs,
+      message.timestamp,
+      message.time,
+    ];
+    for (const value of candidates) {
+      const parsed = this._parseTeamJoinRequestTime(value);
+      if (parsed > 0) return parsed;
+    }
+    return 0;
+  },
+
+  _getTeamJoinRequestKey(teamId, applicantUid) {
+    const safeTeamId = String(teamId || '').trim();
+    const safeUid = String(applicantUid || '').trim();
+    return safeTeamId && safeUid ? `${safeTeamId}::${safeUid}` : '';
+  },
+
+  _getTeamJoinRequestState(teamId, user = null) {
+    const safeTeamId = String(teamId || '').trim();
+    const applicant = user || ApiService.getCurrentUser?.() || null;
+    const applicantUid = String(applicant?.uid || '').trim();
+    const cooldownMs = this._TEAM_JOIN_REQUEST_COOLDOWN_MS || (24 * 60 * 60 * 1000);
+    const now = Date.now();
+    const result = {
+      status: 'clear',
+      applicantUid,
+      hoursLeft: 0,
+      pendingMessages: [],
+      expiredPendingMessages: [],
+      rejectedMessage: null,
+    };
+    if (!safeTeamId || !applicantUid) return result;
+
+    const matchesRequest = (message) => (
+      message?.actionType === 'team_join_request'
+      && String(message?.meta?.teamId || '').trim() === safeTeamId
+      && String(message?.meta?.applicantUid || '').trim() === applicantUid
+    );
+    const messages = Array.isArray(ApiService.getMessages?.()) ? ApiService.getMessages() : [];
+    const related = messages.filter(matchesRequest);
+    const key = this._getTeamJoinRequestKey(safeTeamId, applicantUid);
+    const optimistic = key ? this._teamJoinRequestOptimisticByTeam?.[key] : null;
+    const reviewedOptimisticGroup = optimistic?.groupId && related.some(message =>
+      String(message?.meta?.groupId || '') === String(optimistic.groupId)
+      && String(message?.actionStatus || '').trim() !== 'pending'
+    );
+    if (reviewedOptimisticGroup && key) {
+      delete this._teamJoinRequestOptimisticByTeam[key];
+    }
+
+    const pendingItems = related
+      .filter(message => String(message?.actionStatus || '').trim() === 'pending')
+      .map(message => ({ message, sentAt: this._getTeamJoinMessageTime(message) }))
+      .filter(item => item.sentAt > 0);
+
+    if (optimistic && !reviewedOptimisticGroup) {
+      pendingItems.push({ message: null, sentAt: Number(optimistic.sentAt || 0) });
+    }
+
+    const activePending = pendingItems.filter(item => now - item.sentAt < cooldownMs);
+    if (activePending.length > 0) {
+      const mostRecent = Math.max(...activePending.map(item => item.sentAt));
+      result.status = 'pending';
+      result.hoursLeft = Math.max(1, Math.ceil((cooldownMs - (now - mostRecent)) / 3600000));
+      result.pendingMessages = activePending.map(item => item.message).filter(Boolean);
+      return result;
+    }
+
+    result.expiredPendingMessages = pendingItems
+      .filter(item => item.message && now - item.sentAt >= cooldownMs)
+      .map(item => item.message);
+
+    const rejectedItems = related
+      .filter(message => String(message?.actionStatus || '').trim() === 'rejected')
+      .map(message => ({
+        message,
+        rejectedAt: this._parseTeamJoinRequestTime(message.rejectedAt),
+      }))
+      .filter(item => item.rejectedAt > 0)
+      .sort((a, b) => b.rejectedAt - a.rejectedAt);
+    const recentRejected = rejectedItems.find(item => now - item.rejectedAt < cooldownMs);
+    if (recentRejected) {
+      result.status = 'rejectedCooldown';
+      result.hoursLeft = Math.max(1, Math.ceil((cooldownMs - (now - recentRejected.rejectedAt)) / 3600000));
+      result.rejectedMessage = recentRejected.message;
+    }
+    return result;
+  },
+
+  _showTeamJoinRequestStateToast(state) {
+    if (state?.status === 'pending') {
+      this.showToast(`\u60a8\u5df2\u7533\u8acb\u6b64\u4ff1\u6a02\u90e8\uff0c\u8acb\u7b49\u5019\u5be9\u6838\uff08\u53ef\u65bc ${state.hoursLeft || 24} \u5c0f\u6642\u5f8c\u518d\u6b21\u7533\u8acb\uff09`);
+      return true;
+    }
+    if (state?.status === 'rejectedCooldown') {
+      this.showToast(`\u60a8\u7684\u7533\u8acb\u5df2\u88ab\u62d2\u7d55\uff0c\u8acb\u65bc ${state.hoursLeft || 24} \u5c0f\u6642\u5f8c\u518d\u6b21\u7533\u8acb`);
+      return true;
+    }
+    return false;
+  },
+
+  showTeamJoinPendingToast(teamId) {
+    const state = this._getTeamJoinRequestState(teamId);
+    if (this._showTeamJoinRequestStateToast(state)) return false;
+    return this.handleJoinTeam(teamId);
+  },
+
+  _markTeamJoinRequestPending(teamId, applicantUid, groupId) {
+    const key = this._getTeamJoinRequestKey(teamId, applicantUid);
+    if (!key) return;
+    this._teamJoinRequestOptimisticByTeam = this._teamJoinRequestOptimisticByTeam || {};
+    this._teamJoinRequestOptimisticByTeam[key] = {
+      sentAt: Date.now(),
+      groupId: groupId || '',
+    };
+  },
+
+  _refreshTeamDetailPrimaryAction(teamId) {
+    if (String(this._teamDetailId || '') !== String(teamId || '')) return false;
+    const team = ApiService.getTeam?.(teamId);
+    const target = typeof document !== 'undefined'
+      ? document.querySelector?.('#page-team-detail .td-club-head-action')
+      : null;
+    if (!team || !target || typeof this._buildTeamDetailPrimaryAction !== 'function') return false;
+    target.innerHTML = this._buildTeamDetailPrimaryAction(team);
+    return true;
+  },
+
   async handleJoinTeam(teamId) {
     // v8 M1：加入俱樂部前先擋未登入（寫入動作）
     if (this._requireProtectedActionLogin?.({ type: 'joinTeam', teamId }, { suppressToast: true })) return;
@@ -24,8 +177,6 @@ Object.assign(App, {
     // 2. Get target team
     const t = ApiService.getTeam(teamId);
     if (!t) { this.showToast('找不到此俱樂部'); return; }
-    if (!(await this.appConfirm(`確定要加入「${t.name}」俱樂部？`))) return;
-
     // 特殊類型俱樂部導向專屬申請流程（Phase 4 §10.2 type handler）
     const typeHandler = this._getTeamTypeHandler(t.type);
     if (typeHandler.joinHandler) {
@@ -51,53 +202,14 @@ Object.assign(App, {
       return;
     }
 
-    const allMessages = ApiService.getMessages();
-    const COOLDOWN_MS = 24 * 60 * 60 * 1000;
+    const joinState = this._getTeamJoinRequestState(teamId, curUser);
+    if (this._showTeamJoinRequestStateToast(joinState)) return;
+    (joinState.expiredPendingMessages || []).forEach(m => {
+      ApiService.updateMessage(m.id, { actionStatus: 'ignored' });
+      m.actionStatus = 'ignored';
+    });
 
-    // helper: parse message time string "YYYY/MM/DD HH:MM" -> ms timestamp
-    const _parseTimeStr = (str) => {
-      if (!str) return 0;
-      const [dp, tp] = str.split(' ');
-      const [y, mo, d] = (dp || '').split('/').map(Number);
-      const [h, mi] = (tp || '0:0').split(':').map(Number);
-      return isNaN(y) ? 0 : new Date(y, mo - 1, d, h || 0, mi || 0).getTime();
-    };
-
-    // Same-team pending request cooldown
-    const pendingMsgs = allMessages.filter(m =>
-      m.actionType === 'team_join_request' &&
-      m.actionStatus === 'pending' &&
-      m.meta && m.meta.teamId === teamId &&
-      m.meta.applicantUid === applicantUid
-    );
-    if (pendingMsgs.length > 0) {
-      const mostRecentSentAt = Math.max(...pendingMsgs.map(m => _parseTimeStr(m.time)));
-      const elapsed = Date.now() - mostRecentSentAt;
-      if (elapsed < COOLDOWN_MS) {
-        const hoursLeft = Math.ceil((COOLDOWN_MS - elapsed) / 3600000);
-        this.showToast(`您已申請此俱樂部，請等候審核（可於 ${hoursLeft} 小時後再次申請）`);
-        return;
-      }
-      // Pending > 24h: mark as ignored (superseded) so staff won't see stale requests
-      pendingMsgs.forEach(m => {
-        ApiService.updateMessage(m.id, { actionStatus: 'ignored' });
-        m.actionStatus = 'ignored';
-      });
-    }
-
-    // Rejected request cooldown (24h)
-    const recentRejected = allMessages.find(m =>
-      m.actionType === 'team_join_request' &&
-      m.actionStatus === 'rejected' &&
-      m.meta && m.meta.teamId === teamId &&
-      m.meta.applicantUid === applicantUid &&
-      m.rejectedAt && (Date.now() - m.rejectedAt) < COOLDOWN_MS
-    );
-    if (recentRejected) {
-      const hoursLeft = Math.ceil((COOLDOWN_MS - (Date.now() - recentRejected.rejectedAt)) / 3600000);
-      this.showToast(`您的申請已被拒絕，請於 ${hoursLeft} 小時後再次申請`);
-      return;
-    }
+    if (!(await this.appConfirm(`確定要加入「${t.name}」俱樂部？`))) return;
 
     // 4. Collect all staff UIDs (captainUid + leaderUids + coaches)
     const allUsers = ApiService.getAdminUsers();
@@ -153,6 +265,8 @@ Object.assign(App, {
         teamId,
       },
     });
+    this._markTeamJoinRequestPending(teamId, applicantUid, groupId);
+    this._refreshTeamDetailPrimaryAction(teamId);
     this._grantAutoExp?.(applicantUid, 'join_team', t.name);
     this.showToast('已送出加入申請！');
   },

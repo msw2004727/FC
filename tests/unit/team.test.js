@@ -276,6 +276,7 @@ describe('team pin management wiring', () => {
   const teamListSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-list.js'), 'utf8');
   const teamListRenderSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-list-render.js'), 'utf8');
   const teamListHelperSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-list-helpers.js'), 'utf8');
+  const teamFormJoinSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-form-join.js'), 'utf8');
   const teamCss = fs.readFileSync(path.join(__dirname, '../../css/team.css'), 'utf8');
 
   test('toggleTeamPin refreshes the club manage page immediately', () => {
@@ -328,6 +329,17 @@ describe('team pin management wiring', () => {
     expect(teamCss).toContain('[data-theme="dark"] .tc-card.tc-themed .tc-body::before');
     expect(teamCss).toContain('.td-detail-shell.has-team-theme .td-identity-panel > .td-club-head-action');
     expect(teamCss).toMatch(/\.td-detail-shell\.has-team-theme \.td-identity-panel > \.td-club-head-action\s*\{[\s\S]*position:\s*absolute/);
+  });
+
+  test('club join pending state reuses the 24h request cooldown', () => {
+    expect(teamFormJoinSource).toContain('_TEAM_JOIN_REQUEST_COOLDOWN_MS: 24 * 60 * 60 * 1000');
+    expect(teamFormJoinSource).toContain('_getTeamJoinRequestState');
+    expect(teamFormJoinSource).toContain("result.status = 'pending'");
+    expect(teamFormJoinSource).toContain("result.status = 'rejectedCooldown'");
+    expect(teamFormJoinSource).toContain("ApiService.updateMessage(m.id, { actionStatus: 'ignored' })");
+    expect(teamFormJoinSource).toContain('_markTeamJoinRequestPending(teamId, applicantUid, groupId)');
+    expect(teamFormJoinSource).toContain('_refreshTeamDetailPrimaryAction(teamId)');
+    expect(teamCss).toContain('.td-club-head-action .td-action-pending');
   });
 });
 

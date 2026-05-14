@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-14 Club join pending button state [bug]
+- **Problem**: After a user submitted a club join request, the club detail primary button could still display `加入`, making repeated taps look like no response and only surfacing the duplicate-request guard later.
+- **Fix**: Reused the existing 24-hour join-request cooldown logic as a shared state helper, rendered active pending applications as `審核中`, added a pending-state toast for repeated taps, and kept the existing behavior that pending requests older than 24 hours are marked `ignored` before a new application is sent.
+- **Tests**: Added render/source coverage for pending join button state, the 24-hour cooldown helper, stale pending cleanup, and immediate detail-button refresh after sending.
+
 ### 2026-05-14 Club detail themed primary action alignment [bug]
 - **Problem**: The club theme-color overlay rule set every direct child of the identity panel to `position: relative`, which overrode the top-right join/leave action wrapper and could make the leave button fall back into normal layout.
 - **Fix**: Restored absolute positioning specifically for `.td-club-head-action` inside themed club detail identity panels, keeping join and leave in the same top-right position.

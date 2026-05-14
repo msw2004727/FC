@@ -508,6 +508,12 @@
   color: #b91c1c;
   box-shadow: 0 3px 8px rgba(185, 28, 28, .08);
 }
+.td-club-head-action .td-action-pending {
+  border-color: rgba(59, 130, 246, .28);
+  background: rgba(219, 234, 254, .9);
+  color: #1d4ed8;
+  box-shadow: 0 3px 8px rgba(29, 78, 216, .08);
+}
 .td-club-title-row {
   display: flex;
   align-items: center;
@@ -2186,6 +2192,11 @@
   border-color: rgba(248, 113, 113, .3);
   background: rgba(248, 113, 113, .16);
   color: #fecaca;
+}
+[data-theme="dark"] .td-club-head-action .td-action-pending {
+  border-color: rgba(96, 165, 250, .3);
+  background: rgba(59, 130, 246, .16);
+  color: #bfdbfe;
 }
 [data-theme="dark"] .td-record-stat {
   background: rgba(30, 41, 59, .8);

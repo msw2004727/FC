@@ -442,6 +442,21 @@ describe('team detail club activity section', () => {
     expect(primary).toContain('退出');
   });
 
+  test('team detail primary action shows pending join request state', () => {
+    const app = makeApp([]);
+    Object.assign(app, {
+      _isTeamMember: () => false,
+      _getTeamJoinRequestState: () => ({ status: 'pending', hoursLeft: 23 }),
+    });
+    loadTeamDetailRender(app, []);
+
+    const primary = app._buildTeamDetailPrimaryAction({ id: 'teamA' });
+    expect(primary).toContain('\u5be9\u6838\u4e2d');
+    expect(primary).toContain('td-action-pending');
+    expect(primary).toContain("App.showTeamJoinPendingToast('teamA')");
+    expect(primary).not.toContain('App.handleJoinTeam');
+  });
+
   test('team settings modal owns member invite switch with redesigned controls', () => {
     const app = {
       _getTeamDetailVisibility: () => ({ events: true, courses: true, matches: true, info: true, bio: true, record: true, members: true }),

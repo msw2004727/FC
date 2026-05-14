@@ -776,6 +776,12 @@ Object.assign(App, {
 
   _buildTeamDetailPrimaryAction(t) {
     const isMember = this._isTeamMember(t.id);
+    const joinState = !isMember && typeof this._getTeamJoinRequestState === 'function'
+      ? this._getTeamJoinRequestState(t.id)
+      : null;
+    if (joinState?.status === 'pending') {
+      return '<button class="td-action-main td-action-pending" onclick="App.showTeamJoinPendingToast(\'' + t.id + '\')">\u5be9\u6838\u4e2d</button>';
+    }
     return isMember
       ? '<button class="td-action-main td-action-danger" onclick="App.handleLeaveTeam(\'' + t.id + '\')">\u9000\u51fa</button>'
       : '<button class="td-action-main" onclick="App.handleJoinTeam(\'' + t.id + '\')">\u52a0\u5165</button>';
