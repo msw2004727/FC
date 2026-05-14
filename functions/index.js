@@ -1149,6 +1149,10 @@ function canOperateEventSiteForAccess(access, eventData, uid) {
     && (eventData.creatorUid === uid || isEventDelegateForUid(eventData, uid));
 }
 
+function canManageSingleEventRosterForAccess(access, eventData, uid) {
+  return canOperateEventSiteForAccess(access, eventData, uid);
+}
+
 async function roleExists(roleKey) {
   const safeRole = normalizeRole(roleKey);
   if (VALID_ROLES.has(safeRole)) return true;
@@ -7168,14 +7172,9 @@ exports.cancelRegistration = onCall(
           throw new HttpsError("permission-denied", "PERMISSION_DENIED");
         }
       } else {
-        const hasSiteOperateAccess = canOperateEventSiteForAccess(callerAccess, ed, callerUid);
-        const hasHighManagerAccess = hasActivityManageEntryAccess(callerAccess);
-        const touchesConfirmed = targetRegs.some((r) => r.status === "confirmed" || r.status === "registered");
-        if (!hasSiteOperateAccess) {
+        const hasSingleEventRosterAccess = canManageSingleEventRosterForAccess(callerAccess, ed, callerUid);
+        if (!hasSingleEventRosterAccess) {
           throw new HttpsError("permission-denied", "PERMISSION_DENIED");
-        }
-        if ((touchesConfirmed || cancelReason === "capacity_change") && !hasHighManagerAccess) {
-          throw new HttpsError("permission-denied", "CONFIRMED_MANAGER_RESTRICTED");
         }
       }
 

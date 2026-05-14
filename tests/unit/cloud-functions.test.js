@@ -443,6 +443,13 @@ describe('cancelRegistration CF transaction ordering', () => {
     expect(activityRecordsReadIndex).toBeLessThan(firstWriteIndex);
     expect(lateReadIndexes).toEqual([]);
   });
+
+  test('allows assigned single-event roster managers to touch confirmed registrations', () => {
+    const source = readCloudFunctionSource('cancelRegistration');
+    expect(source).toContain('canManageSingleEventRosterForAccess(callerAccess, ed, callerUid)');
+    expect(source).not.toContain('CONFIRMED_MANAGER_RESTRICTED');
+    expect(source).not.toContain('touchesConfirmed');
+  });
 });
 
 describe('team reservation membership sync CF source', () => {

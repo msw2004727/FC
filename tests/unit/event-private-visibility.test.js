@@ -46,7 +46,7 @@ function loadEventHelpers() {
   return { App, ApiService };
 }
 
-function makeRuntime({ role = 'user', uid = 'viewer', perms = [], events = [] } = {}) {
+function makeRuntime({ role = 'user', uid = 'viewer', perms = [], events = [], activityCaps = [] } = {}) {
   const { App, ApiService } = loadEventHelpers();
   const app = Object.create(App);
   app.currentRole = role;
@@ -55,7 +55,7 @@ function makeRuntime({ role = 'user', uid = 'viewer', perms = [], events = [] } 
   app._isEventVisibleToUser = () => true;
   ApiService.getCurrentUser = () => ({ uid, role, displayName: uid });
   ApiService.getEvents = () => events;
-  ApiService.hasRoleActivityCapability = () => false;
+  ApiService.hasRoleActivityCapability = (_role, code) => activityCaps.includes(code);
   return app;
 }
 
@@ -123,17 +123,29 @@ describe('private activity visibility for admin-below managers', () => {
     expect(app._canManageEvent(privateOwn)).toBe(true);
   });
 
-  test('delegate can operate direct-linked private activity but does not get list discovery', () => {
+  test('delegate can list and operate assigned private activity', () => {
     const app = makeRuntime({ role: 'coach' });
 
-    expect(app._canListPrivateEvent(privateDelegated)).toBe(false);
+    expect(app._canListPrivateEvent(privateDelegated)).toBe(true);
     expect(app._canManageEvent(privateDelegated)).toBe(true);
   });
 
-  test('_getVisibleEvents hides non-owned private activities but keeps public and own private activities', () => {
+  test('user delegate with site_operate can manage assigned roster but still cannot delete activity', () => {
+    const app = makeRuntime({
+      role: 'user',
+      activityCaps: ['user.activity.site_operate', 'user.activity.own_edit_basic', 'user.activity.own_cancel'],
+    });
+
+    expect(app._canEditOwnActivityBasic(privateDelegated)).toBe(true);
+    expect(app._canCancelOwnActivity(privateDelegated)).toBe(true);
+    expect(app._canRemoveConfirmedParticipant(privateDelegated)).toBe(true);
+    expect(app._canDeleteActivity(privateDelegated)).toBe(false);
+  });
+
+  test('_getVisibleEvents hides non-owned private activities but keeps public, own, and delegated private activities', () => {
     const events = [privateOther, privateOwn, privateDelegated, publicOther];
     const app = makeRuntime({ role: 'coach', events });
 
-    expect(app._getVisibleEvents().map(e => e.id)).toEqual(['private-own', 'public-other']);
+    expect(app._getVisibleEvents().map(e => e.id)).toEqual(['private-own', 'private-delegated', 'public-other']);
   });
 });

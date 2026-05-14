@@ -850,6 +850,43 @@ describe("/events/{eventId}", () => {
     );
   });
 
+  test("user delegate can manage assigned event basics and cancel but cannot change delegate list", async () => {
+    await seedDoc("events", "event_user_delegate_manage", {
+      id: "event_user_delegate_manage",
+      title: "Delegate Managed",
+      creatorUid: "uidOwner",
+      ownerUid: "uidOwner",
+      captainUid: "uidOwner",
+      delegateUids: ["uidDelegate"],
+      delegates: [{ uid: "uidDelegate", name: "Delegate" }],
+      status: "open",
+      current: 1,
+      max: 3,
+    });
+
+    await assertSucceeds(
+      updateDoc(doc(roleContext("uidDelegate", "user"), "events", "event_user_delegate_manage"), {
+        title: "Delegate Updated",
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(roleContext("uidDelegate", "user"), "events", "event_user_delegate_manage"), {
+        status: "cancelled",
+      })
+    );
+    await assertFails(
+      updateDoc(doc(roleContext("uidDelegate", "user"), "events", "event_user_delegate_manage"), {
+        delegates: [{ uid: "uidDelegate" }, { uid: "uidRandom" }],
+        delegateUids: ["uidDelegate", "uidRandom"],
+      })
+    );
+    await assertFails(
+      updateDoc(doc(roleContext("uidRandom", "user"), "events", "event_user_delegate_manage"), {
+        title: "Random Updated",
+      })
+    );
+  });
+
   test("user owner cannot lower capacity below current participant count", async () => {
     await seedDoc("events", "eventUserOwn", {
       id: "eventUserOwn",
@@ -957,6 +994,67 @@ describe("/events/{eventId}", () => {
     await assertFails(
       updateDoc(doc(user(), "registrations", "reg_wait_cap_disabled"), {
         status: "confirmed",
+      })
+    );
+  });
+
+  test("user owner/delegate can demote and remove registrations only when assigned site_operate is enabled", async () => {
+    await seedDoc("events", "event_user_roster_delegate", {
+      id: "event_user_roster_delegate",
+      title: "Roster Delegate",
+      creatorUid: "uidUser",
+      delegateUids: ["uidDelegate"],
+      status: "open",
+    });
+    await seedPath(["events", "event_user_roster_delegate", "registrations", "reg_confirmed"], {
+      id: "reg_confirmed",
+      eventId: "event_user_roster_delegate",
+      userId: "uidA",
+      status: "confirmed",
+    });
+    await seedPath(["events", "event_user_roster_delegate", "registrations", "reg_waitlisted"], {
+      id: "reg_waitlisted",
+      eventId: "event_user_roster_delegate",
+      userId: "uidB",
+      status: "waitlisted",
+    });
+    await seedPath(["events", "event_user_roster_delegate", "registrations", "reg_random_confirmed"], {
+      id: "reg_random_confirmed",
+      eventId: "event_user_roster_delegate",
+      userId: "uidC",
+      status: "confirmed",
+    });
+
+    await assertSucceeds(
+      updateDoc(doc(roleContext("uidDelegate", "user"), "events", "event_user_roster_delegate", "registrations", "reg_confirmed"), {
+        status: "waitlisted",
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(roleContext("uidDelegate", "user"), "events", "event_user_roster_delegate", "registrations", "reg_waitlisted"), {
+        status: "removed",
+        removedAt: serverTimestamp(),
+      })
+    );
+    await assertFails(
+      updateDoc(doc(roleContext("uidRandom", "user"), "events", "event_user_roster_delegate", "registrations", "reg_random_confirmed"), {
+        status: "removed",
+        removedAt: serverTimestamp(),
+      })
+    );
+
+    await seedRoleActivityCapabilities(
+      DEFAULT_USER_ACTIVITY_CAPABILITIES.filter((code) => code !== "user.activity.site_operate")
+    );
+    await seedPath(["events", "event_user_roster_delegate", "registrations", "reg_disabled_confirmed"], {
+      id: "reg_disabled_confirmed",
+      eventId: "event_user_roster_delegate",
+      userId: "uidD",
+      status: "confirmed",
+    });
+    await assertFails(
+      updateDoc(doc(roleContext("uidDelegate", "user"), "events", "event_user_roster_delegate", "registrations", "reg_disabled_confirmed"), {
+        status: "waitlisted",
       })
     );
   });

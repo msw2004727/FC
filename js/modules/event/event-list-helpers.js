@@ -277,7 +277,7 @@ Object.assign(App, {
     if (!e || !e.privateEvent) return true;
     const roleKey = this._getCurrentActivityRoleKey();
     if ((ROLE_LEVEL_MAP[roleKey] || 0) >= (ROLE_LEVEL_MAP.admin || 4)) return true;
-    return this._isEventOwner(e);
+    return this._isEventOwner(e) || this._isEventDelegate(e);
   },
 
   _canOperatePrivateEvent(e) {
@@ -290,6 +290,13 @@ Object.assign(App, {
   _hasUserActivityCapability(code) {
     if (this._getCurrentActivityRoleKey() !== 'user') return false;
     return !!ApiService.hasRoleActivityCapability?.('user', code);
+  },
+
+  _canManageDelegatedActivity(e) {
+    return !!e
+      && this._getCurrentActivityRoleKey() === 'user'
+      && this._isEventDelegate(e)
+      && this._hasUserActivityCapability('user.activity.site_operate');
   },
 
   _showActivityAddonUpsellToast() {
@@ -324,7 +331,7 @@ Object.assign(App, {
     if (!this._canOperatePrivateEvent(e)) return false;
     if (this._canManageAllActivities() || this._hasActivityManageEntry()) return true;
     return this._getCurrentActivityRoleKey() === 'user'
-      && this._isEventOwner(e)
+      && (this._isEventOwner(e) || this._isEventDelegate(e))
       && this._hasUserActivityCapability('user.activity.own_edit_basic');
   },
 
@@ -338,7 +345,7 @@ Object.assign(App, {
     if (!this._canOperatePrivateEvent(e)) return false;
     if (this._canManageAllActivities() || this._hasActivityManageEntry()) return true;
     return this._getCurrentActivityRoleKey() === 'user'
-      && this._isEventOwner(e)
+      && (this._isEventOwner(e) || this._isEventDelegate(e))
       && this._hasUserActivityCapability('user.activity.own_cancel');
   },
 
@@ -375,7 +382,13 @@ Object.assign(App, {
     if (!e) return false;
     if (!this._canOperatePrivateEvent(e)) return false;
     return this._canManageAllActivities()
-      || this._hasActivityManageEntry();
+      || this._hasActivityManageEntry()
+      || this._canManageDelegatedActivity(e)
+      || (
+        this._getCurrentActivityRoleKey() === 'user'
+        && this._isEventOwner(e)
+        && this._hasUserActivityCapability('user.activity.site_operate')
+      );
   },
 
   _canManageEventDelegates(e) {
