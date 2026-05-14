@@ -19,7 +19,8 @@ Object.assign(App, {
     const attentionClass = attentionEnabled ? ' tc-attention-effect' : '';
     const attentionColor = this._normalizeTeamAttentionColor?.(t.attentionEffectColor) || '#fbbf24';
     const themeColor = this._getTeamThemeColor?.(t) || '';
-    const themeClass = themeColor ? ' tc-themed' : '';
+    const themeOverlayEnabled = !themeColor || this._isTeamThemeOverlayEnabled?.(t) !== false;
+    const themeClass = themeColor ? ' tc-themed' + (themeOverlayEnabled ? '' : ' tc-theme-no-overlay') : '';
     const styleVars = [];
     if (attentionEnabled) styleVars.push(`--tc-attention-color:${escapeHTML(attentionColor)}`);
     if (themeColor) styleVars.push(`--team-theme-color:${escapeHTML(themeColor)}`);
@@ -88,7 +89,7 @@ Object.assign(App, {
         ? memberCountByTeam.get(String(t.id || ''))
         : '';
       const teachingTag = typeof this._isTeamTeachingTagged === 'function' && this._isTeamTeachingTagged(t) ? 1 : 0;
-      return t.id + '|' + (t.name || '') + '|' + (t.sportTag || '') + '|' + (t.image || '') + '|' + (t.imageVariants?.card || '') + '|' + (t.active ? 1 : 0) + '|' + (t.pinned ? 1 : 0) + '|' + teachingTag + '|' + (t.attentionEffectEnabled ? 1 : 0) + '|' + (t.attentionEffectColor || '') + '|' + (t.themeColor || '') + '|' + (t.teamExp || 0) + '|' + memberCount;
+      return t.id + '|' + (t.name || '') + '|' + (t.sportTag || '') + '|' + (t.image || '') + '|' + (t.imageVariants?.card || '') + '|' + (t.active ? 1 : 0) + '|' + (t.pinned ? 1 : 0) + '|' + teachingTag + '|' + (t.attentionEffectEnabled ? 1 : 0) + '|' + (t.attentionEffectColor || '') + '|' + (t.themeColor || '') + '|' + (t.themeOverlayEnabled === false ? 0 : 1) + '|' + (t.teamExp || 0) + '|' + memberCount;
     }).join(',');
     if (this._teamListLastFp === fp && container.children.length > 0) return;
     this._teamListLastFp = fp;

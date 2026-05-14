@@ -221,6 +221,9 @@
   pointer-events: none;
   background: rgba(255, 255, 255, .78);
 }
+.tc-card.tc-themed.tc-theme-no-overlay .tc-body::before {
+  display: none;
+}
 .tc-card.tc-themed .tc-body > * {
   position: relative;
   z-index: 1;
@@ -820,6 +823,14 @@
   pointer-events: none;
   background: rgba(255, 255, 255, .78);
 }
+.td-detail-shell.has-team-theme.no-team-theme-overlay .td-identity-panel::before,
+.td-detail-shell.has-team-theme.no-team-theme-overlay > .td-card::before,
+.td-detail-shell.has-team-theme.no-team-theme-overlay .td-record-history-grid > .td-card::before,
+.td-detail-shell.has-team-theme.no-team-theme-overlay .td-section-nav-panel::before,
+.td-detail-shell.has-team-theme.no-team-theme-overlay .td-action-panel::before,
+.td-detail-shell.has-team-theme.no-team-theme-overlay .td-overview-stat::before {
+  display: none;
+}
 .td-detail-shell.has-team-theme .td-identity-panel > *,
 .td-detail-shell.has-team-theme > .td-card > *,
 .td-detail-shell.has-team-theme .td-record-history-grid > .td-card > *,
@@ -828,6 +839,10 @@
 .td-detail-shell.has-team-theme .td-overview-stat > * {
   position: relative;
   z-index: 1;
+}
+.td-detail-shell.has-team-theme .td-identity-panel > .td-club-head-action {
+  position: absolute;
+  z-index: 3;
 }
 .td-detail-shell.has-team-theme .td-overview-label {
   background: transparent;

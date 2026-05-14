@@ -1,5 +1,15 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-14 Club detail themed primary action alignment [bug]
+- **Problem**: The club theme-color overlay rule set every direct child of the identity panel to `position: relative`, which overrode the top-right join/leave action wrapper and could make the leave button fall back into normal layout.
+- **Fix**: Restored absolute positioning specifically for `.td-club-head-action` inside themed club detail identity panels, keeping join and leave in the same top-right position.
+- **Tests**: Added source coverage that the themed identity-panel action override stays absolute.
+
+### 2026-05-14 Club theme overlay toggle [feature]
+- **Problem**: The default readability overlay made selected club theme colors look lighter/darker than the exact picker value, with no staff control over that tradeoff.
+- **Fix**: Added a `themeOverlayEnabled` switch in club settings with explanatory text, defaulting to enabled for old clubs and removing list/detail overlay layers only when explicitly turned off.
+- **Tests**: Added unit/source coverage for the settings switch, detail no-overlay class, list-card no-overlay class, and default-enabled behavior.
+
 ### 2026-05-14 Club theme color settings [feature]
 - **Problem**: Clubs had no staff-controlled theme color, so card/detail emphasis could not be adjusted per club without hard-coded UI changes.
 - **Fix**: Added a theme color picker/reset in club settings, scoped the selected color to club list cards and detail containers with light/dark readability overlays, and aligned frontend edit eligibility with team owner fields plus `team.manage_all`.

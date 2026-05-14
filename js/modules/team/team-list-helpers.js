@@ -29,6 +29,10 @@ Object.assign(App, {
     return this._normalizeTeamThemeColor?.(team?.themeColor) || '';
   },
 
+  _isTeamThemeOverlayEnabled(team) {
+    return team?.themeOverlayEnabled !== false;
+  },
+
   _getDefaultTeamCoverUrl() {
     const version = (typeof CACHE_VERSION !== 'undefined' && CACHE_VERSION) ? CACHE_VERSION : '';
     try {

@@ -385,6 +385,7 @@ Object.assign(App, {
       : team.type === 'education';
     const memberInviteChecked = team.allowMemberInvite !== false;
     const themeColor = this._getTeamThemeColor?.(team) || '';
+    const themeOverlayChecked = this._isTeamThemeOverlayEnabled?.(team) !== false;
     const themePickerValue = themeColor || '#0d9488';
     const rows = this._getTeamDetailSettingsItems().map(item => {
       const checked = visibility[item.key] !== false;
@@ -413,6 +414,10 @@ Object.assign(App, {
       '<input class="td-theme-color-input" type="color" value="' + escapeHTML(themePickerValue) + '" onchange="App.changeTeamThemeColor(this.value, this)" aria-label="\u4ff1\u6a02\u90e8\u4e3b\u984c\u8272">' +
       '<button type="button" class="td-theme-reset-btn" onclick="App.clearTeamThemeColor(this)">\u9810\u8a2d</button>' +
       '</div>' +
+      '</div>' +
+      '<div class="td-settings-row td-theme-overlay-row">' +
+      '<div><strong>\u534a\u900f\u660e\u906e\u7f69</strong><span>\u958b\u555f\u5f8c\u6703\u5728\u4e3b\u984c\u8272\u8207\u6587\u5b57\u4e4b\u9593\u52a0\u4e0a\u6dfa\u8272\u6216\u6df1\u8272\u906e\u7f69\uff0c\u8b93\u6587\u5b57\u66f4\u6e05\u695a\uff1b\u95dc\u9589\u5f8c\u984f\u8272\u6703\u66f4\u63a5\u8fd1\u5be6\u969b\u9078\u8272\uff0c\u4f46\u6587\u5b57\u5c0d\u6bd4\u53ef\u80fd\u964d\u4f4e\u3002</span></div>' +
+      this._buildTeamDetailSettingsSwitch(themeOverlayChecked, 'App.toggleTeamThemeOverlay(this.checked, this)', '\u534a\u900f\u660e\u906e\u7f69') +
       '</div>' +
       '</div>' +
       '<div class="td-settings-group"><div class="td-settings-title">\u6b04\u4f4d\u5bb9\u5668\u986f\u793a</div>' + rows + '</div>' +
@@ -480,6 +485,10 @@ Object.assign(App, {
 
   clearTeamThemeColor(btnEl) {
     return this._saveTeamDetailSettingsPatch({ themeColor: null }, btnEl);
+  },
+
+  toggleTeamThemeOverlay(enabled, inputEl) {
+    return this._saveTeamDetailSettingsPatch({ themeOverlayEnabled: !!enabled }, inputEl);
   },
 
   toggleTeamDetailVisibility(key, enabled, inputEl) {

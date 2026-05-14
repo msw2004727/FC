@@ -314,12 +314,20 @@ describe('team pin management wiring', () => {
 
   test('club theme color uses scoped card styling and strict edit ownership', () => {
     expect(teamListHelperSource).toContain('_normalizeTeamThemeColor');
+    expect(teamListHelperSource).toContain('_isTeamThemeOverlayEnabled');
+    expect(teamListHelperSource).toContain('themeOverlayEnabled !== false');
     expect(teamListHelperSource).toContain("['captainUid', 'creatorUid', 'ownerUid']");
     expect(teamListHelperSource).toMatch(/_canEditTeamByRoleOrCaptain\(team\)[\s\S]*_isTeamOwnerUser\(team\)[\s\S]*team\.manage_all/);
     expect(teamListRenderSource).toContain('tc-themed');
+    expect(teamListRenderSource).toContain('tc-theme-no-overlay');
+    expect(teamListRenderSource).toContain('themeOverlayEnabled === false ? 0 : 1');
     expect(teamListRenderSource).toContain('--team-theme-color');
     expect(teamCss).toContain('.tc-card.tc-themed .tc-body::before');
+    expect(teamCss).toContain('.tc-card.tc-themed.tc-theme-no-overlay .tc-body::before');
+    expect(teamCss).toContain('.td-detail-shell.has-team-theme.no-team-theme-overlay .td-identity-panel::before');
     expect(teamCss).toContain('[data-theme="dark"] .tc-card.tc-themed .tc-body::before');
+    expect(teamCss).toContain('.td-detail-shell.has-team-theme .td-identity-panel > .td-club-head-action');
+    expect(teamCss).toMatch(/\.td-detail-shell\.has-team-theme \.td-identity-panel > \.td-club-head-action\s*\{[\s\S]*position:\s*absolute/);
   });
 });
 

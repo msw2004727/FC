@@ -447,6 +447,7 @@ describe('team detail club activity section', () => {
       _getTeamDetailVisibility: () => ({ events: true, courses: true, matches: true, info: true, bio: true, record: true, members: true }),
       _isTeamTeachingTagged: () => false,
       _getTeamThemeColor: (team) => team.themeColor || '',
+      _isTeamThemeOverlayEnabled: (team) => team.themeOverlayEnabled !== false,
     };
     const body = { innerHTML: '' };
     loadTeamDetailCore(app, {
@@ -459,6 +460,9 @@ describe('team detail club activity section', () => {
     expect(body.innerHTML).toContain('App.toggleTeamMemberInviteSetting(this.checked, this)');
     expect(body.innerHTML).toContain('App.changeTeamThemeColor(this.value, this)');
     expect(body.innerHTML).toContain('App.clearTeamThemeColor(this)');
+    expect(body.innerHTML).toContain('App.toggleTeamThemeOverlay(this.checked, this)');
+    expect(body.innerHTML).toContain('\u534a\u900f\u660e\u906e\u7f69');
+    expect(body.innerHTML).toContain('\u6587\u5b57\u66f4\u6e05\u695a');
     expect(body.innerHTML).toContain('value="#336699"');
     expect(body.innerHTML).toContain('teamDetail.memberCanInvite');
     expect(body.innerHTML).not.toContain('toggle-switch');
@@ -469,6 +473,7 @@ describe('team detail club activity section', () => {
     const app = makeApp([]);
     loadTeamDetailRender(app, []);
     app._getTeamThemeColor = (team) => team.themeColor || '';
+    app._isTeamThemeOverlayEnabled = (team) => team.themeOverlayEnabled !== false;
 
     const themedHtml = app._buildTeamDetailBodyHtml(
       { id: 'teamA', name: 'Club A', themeColor: '#336699', coaches: [] },
@@ -480,6 +485,18 @@ describe('team detail club activity section', () => {
     );
     expect(themedHtml).toContain('td-detail-shell has-team-theme');
     expect(themedHtml).toContain('--team-theme-color:#336699');
+    expect(themedHtml).not.toContain('no-team-theme-overlay');
+
+    const noOverlayHtml = app._buildTeamDetailBodyHtml(
+      { id: 'teamA', name: 'Club A', themeColor: '#336699', themeOverlayEnabled: false, coaches: [] },
+      false,
+      false,
+      { keys: new Set(), names: new Set() },
+      0,
+      0
+    );
+    expect(noOverlayHtml).toContain('td-detail-shell has-team-theme no-team-theme-overlay');
+    expect(noOverlayHtml).toContain('--team-theme-color:#336699');
 
     const defaultHtml = app._buildTeamDetailBodyHtml(
       { id: 'teamA', name: 'Club A', coaches: [] },

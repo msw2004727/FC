@@ -1473,7 +1473,8 @@ Object.assign(App, {
 
   _buildTeamDetailBodyHtml(t, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate) {
     const themeColor = this._getTeamThemeColor?.(t) || '';
-    const themeClass = themeColor ? ' has-team-theme' : '';
+    const themeOverlayEnabled = !themeColor || this._isTeamThemeOverlayEnabled?.(t) !== false;
+    const themeClass = themeColor ? ' has-team-theme' + (themeOverlayEnabled ? '' : ' no-team-theme-overlay') : '';
     const themeStyle = themeColor ? ' style="--team-theme-color:' + escapeHTML(themeColor) + '"' : '';
     return '<div class="td-detail-shell' + themeClass + '"' + themeStyle + '>'
       + this._buildTeamDetailIdentityPanel(t, totalGames, winRate)
