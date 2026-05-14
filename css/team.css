@@ -1013,23 +1013,38 @@
 }
 @media (min-width: 640px) {
   .td-member-table {
-    display: inline-table;
-    width: auto;
+    display: table;
+    width: 100%;
     min-width: 0;
     table-layout: auto;
   }
   .td-member-table th:first-child,
   .td-member-table td:first-child {
-    width: auto;
+    width: 1%;
     min-width: 6em;
   }
   .td-member-table.is-editing th:first-child,
   .td-member-table.is-editing td:first-child {
-    width: auto;
+    width: 1%;
     min-width: calc(10em + 42px);
   }
   .td-member-name-pill {
     max-width: 10em;
+  }
+  .td-member-table-activity th:nth-child(4),
+  .td-member-table-activity td:nth-child(4),
+  .td-member-table-course th:nth-child(6),
+  .td-member-table-course td:nth-child(6),
+  .td-member-table-match th:nth-child(6),
+  .td-member-table-match td:nth-child(6) {
+    width: auto;
+    text-align: left;
+  }
+  .td-member-note {
+    display: block;
+    max-width: none;
+    width: 100%;
+    text-align: left;
   }
 }
 .td-member-tag-cell {
