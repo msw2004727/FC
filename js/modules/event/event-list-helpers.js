@@ -292,6 +292,18 @@ Object.assign(App, {
     return !!ApiService.hasRoleActivityCapability?.('user', code);
   },
 
+  async _ensureActivityRoleCapabilitiesReady(options = {}) {
+    if (this._getCurrentActivityRoleKey?.() !== 'user') return;
+    if (typeof FirebaseService === 'undefined') return;
+    if (typeof FirebaseService.ensureRoleActivityCapabilitiesReady === 'function') {
+      await FirebaseService.ensureRoleActivityCapabilitiesReady(options);
+      return;
+    }
+    if (typeof FirebaseService.ensureStaticCollectionsLoaded === 'function') {
+      await FirebaseService.ensureStaticCollectionsLoaded(['roleActivityCapabilities']);
+    }
+  },
+
   _canManageDelegatedActivity(e) {
     return !!e
       && this._getCurrentActivityRoleKey() === 'user'

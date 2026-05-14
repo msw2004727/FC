@@ -40,4 +40,15 @@ describe('activity create button', () => {
     expect(optionsSource).toContain('this._updateCreateTimeSummary?.();');
     expect(lifecycleSource).toContain('this._bindCreateTimeSummary?.();');
   });
+
+  test('activity create flow refreshes user activity capability settings before permission checks', () => {
+    const createSource = readProjectFile('js/modules/event/event-create.js');
+    const helpersSource = readProjectFile('js/modules/event/event-list-helpers.js');
+    const configSource = readProjectFile('js/config.js');
+
+    expect(createSource).toContain('async openCreateEventModal()');
+    expect(createSource).toContain('await this._ensureActivityRoleCapabilitiesReady?.({ force: true });');
+    expect(helpersSource).toContain('ensureRoleActivityCapabilitiesReady');
+    expect(configSource).toMatch(/'page-activities':\s*\{[^}]*roleActivityCapabilities/);
+  });
 });

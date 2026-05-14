@@ -88,4 +88,13 @@ describe('roleActivityCapabilities cache shape', () => {
     expect(FirebaseService._cache.roleActivityCapabilities.user).toEqual([]);
     expect(ApiService.getRoleActivityCapabilities('user')).toEqual([]);
   });
+
+  test('activity creation pages require fresh role activity capabilities', () => {
+    const { FirebaseService } = loadHarness();
+
+    expect(FirebaseService._collectionPageMap['page-activities']).toContain('roleActivityCapabilities');
+    expect(FirebaseService._collectionPageMap['page-my-activities']).toContain('roleActivityCapabilities');
+    expect(FirebaseService._collectionPageMap['page-team-detail']).toContain('roleActivityCapabilities');
+    expect(FirebaseService._staticReloadMaxAgeMs.roleActivityCapabilities).toBeLessThanOrEqual(60 * 1000);
+  });
 });

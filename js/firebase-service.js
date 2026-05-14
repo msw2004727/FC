@@ -804,15 +804,15 @@ const FirebaseService = {
   _collectionPageMap: {
     'page-home':              ['newsArticles'],
     'page-teams':             ['teams'],
-    'page-team-detail':       ['teams', 'events'],
+    'page-team-detail':       ['teams', 'events', 'roleActivityCapabilities'],
     'page-team-manage':       ['teams'],
     'page-tournaments':       ['tournaments'],
     'page-tournament-detail': ['tournaments', 'standings', 'matches'],
     'page-shop':              ['shopItems', 'trades'],
     'page-shop-detail':       ['shopItems', 'trades'],
-    'page-activities':        ['events', 'attendanceRecords', 'activityRecords', 'registrations'],
+    'page-activities':        ['events', 'attendanceRecords', 'activityRecords', 'registrations', 'roleActivityCapabilities'],
     'page-activity-detail':   ['events', 'teams', 'registrations', 'attendanceRecords', 'activityRecords', 'userCorrections', 'operationLogs'],
-    'page-my-activities':     ['events', 'attendanceRecords', 'registrations'],
+    'page-my-activities':     ['events', 'attendanceRecords', 'registrations', 'roleActivityCapabilities'],
     'page-scan':              ['attendanceRecords', 'registrations'],
     'page-admin-dashboard':   ['expLogs', 'teamExpLogs', 'operationLogs', 'attendanceRecords', 'activityRecords'],
     'page-admin-users':       ['permissions', 'customRoles', 'roleActivityCapabilities'],
@@ -872,6 +872,7 @@ const FirebaseService = {
     userCorrections: 5 * 60 * 1000, // 5 分鐘
     permissions: 10 * 60 * 1000,    // 10 分鐘 — 權限設定少變
     customRoles: 10 * 60 * 1000,    // 10 分鐘
+    roleActivityCapabilities: 60 * 1000, // Keep user activity feature toggles fresh.
     notifTemplates: 10 * 60 * 1000, // 10 分鐘
     siteThemes: 10 * 60 * 1000,     // 10 分鐘 — 佈景主題少變
   },
@@ -1443,6 +1444,25 @@ const FirebaseService = {
     }
 
     return requested.filter(name => !this._shouldReloadCollection(name));
+  },
+
+  async ensureRoleActivityCapabilitiesReady(options = {}) {
+    if (!this._initialized) return [];
+    const getAuthUser = () => (typeof auth !== 'undefined' && auth?.currentUser) ? auth.currentUser : null;
+    if (!getAuthUser() && typeof this._ensureAuth === 'function') {
+      const authed = await this._ensureAuth();
+      if (!authed) return [];
+    }
+    if (!getAuthUser()) return [];
+
+    const force = options.force === true;
+    if (!force && !this._shouldReloadCollection('roleActivityCapabilities')) {
+      return ['roleActivityCapabilities'];
+    }
+
+    const loaded = await this._loadCollectionsByName(['roleActivityCapabilities']);
+    this._persistCache();
+    return loaded;
   },
 
   async refreshCollectionsForPage(pageId) {

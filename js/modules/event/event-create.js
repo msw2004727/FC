@@ -283,9 +283,10 @@ Object.assign(App, {
     this._updateCreateTimeSummary();
   },
 
-  openCreateEventModal() {
+  async openCreateEventModal() {
     // v8 M1：開 sheet 前先擋未登入（避免用戶填表單後才被踢）
     if (this._requireProtectedActionLogin?.({ type: 'createEvent' }, { suppressToast: true })) return;
+    await this._ensureActivityRoleCapabilitiesReady?.({ force: true });
     if (!this._canCreateActivityByPermission?.()) {
       this.showToast('權限不足：需要建立活動權限');
       return;
@@ -417,6 +418,7 @@ Object.assign(App, {
       this.showToast('活動建立中，請勿重複送出');
       return;
     }
+    await this._ensureActivityRoleCapabilitiesReady?.({ force: true });
     const eventBeingEdited = this._editEventId ? ApiService.getEvent(this._editEventId) : null;
     const canSubmitActivity = this._editEventId
       ? this._canEditOwnActivityBasic?.(eventBeingEdited)

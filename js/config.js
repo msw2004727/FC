@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260515d';
+const CACHE_VERSION = '0.20260515e';
 
 // Temporary feature switch: no-show is paused and hidden, but historical data remains intact.
 const NO_SHOW_FEATURE_ENABLED = true;
@@ -169,18 +169,18 @@ const PAGE_STRATEGY = {
 // 每頁的資料依賴定義：required = 必要集合，optional = 可背景補的，realtime = 需即時監聽的
 const PAGE_DATA_CONTRACT = {
   'page-home':               { required: ['banners', 'announcements'], optional: [], realtime: [] },
-  'page-activities':         { required: ['events'], optional: ['registrations'], realtime: ['registrations', 'attendanceRecords', 'events'] },
+  'page-activities':         { required: ['events'], optional: ['registrations', 'roleActivityCapabilities'], realtime: ['registrations', 'attendanceRecords', 'events'] },
   'page-teams':              { required: ['teams'], optional: [], realtime: ['teams'] },
   'page-tournaments':        { required: ['tournaments'], optional: ['standings', 'matches'], realtime: ['tournaments'] },
   'page-personal-dashboard': { required: ['events', 'registrations'], optional: ['attendanceRecords'], realtime: [] },
   'page-leaderboard':        { required: ['leaderboard'], optional: [], realtime: [] },
   'page-profile':            { required: [], optional: ['attendanceRecords', 'activityRecords'], realtime: [] },
-  'page-team-detail':        { required: [], optional: ['teams', 'events', 'tournaments'], realtime: [] },
+  'page-team-detail':        { required: [], optional: ['teams', 'events', 'tournaments', 'roleActivityCapabilities'], realtime: [] },
   'page-tournament-detail':  { required: [], optional: ['tournaments', 'standings', 'matches'], realtime: [] },
   'page-shop':               { required: ['shopItems'], optional: ['trades'], realtime: [] },
   'page-shop-detail':        { required: ['shopItems'], optional: ['trades'], realtime: [] },
   'page-activity-detail':    { required: ['events'], optional: ['teams', 'registrations', 'attendanceRecords', 'activityRecords', 'userCorrections'], realtime: ['registrations', 'attendanceRecords'] },
-  'page-my-activities':      { required: ['events', 'registrations'], optional: ['attendanceRecords'], realtime: ['registrations', 'attendanceRecords'] },
+  'page-my-activities':      { required: ['events', 'registrations'], optional: ['attendanceRecords', 'roleActivityCapabilities'], realtime: ['registrations', 'attendanceRecords'] },
   'page-scan':               { required: ['events', 'attendanceRecords'], optional: [], realtime: ['attendanceRecords'] },
   // 後台管理頁（required: [] 允許首次載入後即走 stale-first）
   'page-admin-dashboard':    { required: [], optional: ['expLogs', 'teamExpLogs', 'operationLogs', 'attendanceRecords', 'activityRecords'], realtime: [] },
