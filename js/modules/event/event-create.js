@@ -107,10 +107,19 @@ Object.assign(App, {
   _getCreateEventWriteErrorMessage(err, eventData = {}) {
     const code = String(err?.code || '').toLowerCase();
     const raw = String(err?.message || err || '').toLowerCase();
+    const isAuthUidMismatch = code === 'auth/uid-mismatch'
+      || raw.includes('auth_uid_mismatch')
+      || raw.includes('uid mismatch');
     const isPermissionDenied = code === 'permission-denied'
       || raw.includes('permission-denied')
       || raw.includes('missing or insufficient permissions')
       || raw.includes('insufficient permissions');
+    if (isAuthUidMismatch) {
+      return '\u767b\u5165\u72c0\u614b\u4e0d\u540c\u6b65\uff0c\u8acb\u91cd\u65b0\u767b\u5165\u5f8c\u518d\u5efa\u7acb\u6d3b\u52d5\u3002';
+    }
+    if (raw.includes('auth_not_ready')) {
+      return '\u767b\u5165\u72c0\u614b\u5c1a\u672a\u5b8c\u6210\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66\uff0c\u6216\u91cd\u65b0\u767b\u5165\u5f8c\u5efa\u7acb\u6d3b\u52d5\u3002';
+    }
     if (code === 'unauthenticated' || raw.includes('unauthenticated')) {
       return '登入狀態已過期，請重新登入後再試';
     }
@@ -716,6 +725,17 @@ Object.assign(App, {
           await ApiService.createEvent(newEvent);
         } catch (err) {
           console.error('[handleCreateEvent:createEvent]', err);
+          ApiService._writeErrorLog?.({
+            fn: 'handleCreateEvent',
+            stage: 'createEvent',
+            eventId: newEvent.id || '',
+            title: newEvent.title || '',
+            authUid: (typeof auth !== 'undefined' && auth?.currentUser?.uid) ? auth.currentUser.uid : '',
+            currentUserUid: ApiService.getCurrentUser?.()?.uid || '',
+            currentUserRole: ApiService.getCurrentUser?.()?.role || this.currentRole || '',
+            canUseAddons,
+            addonLabels: this._getCreateEventAddonLabels?.(newEvent) || [],
+          }, err);
           if (!err?._toasted) {
             this.showToast(this._getCreateEventWriteErrorMessage?.(err, newEvent) || '建立活動失敗，請稍後再試');
           }

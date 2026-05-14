@@ -252,6 +252,27 @@ const ApiService = {
     return merged;
   },
 
+  _getExpectedAuthUidForWrite(key, data) {
+    if (key === 'events') {
+      const creatorUid = String(data?.creatorUid || '').trim();
+      return creatorUid && creatorUid !== 'unknown' ? creatorUid : null;
+    }
+    return null;
+  },
+
+  _buildAuthNotReadyWriteError(expectedUid = null) {
+    const authUid = (typeof auth !== 'undefined' && auth?.currentUser?.uid)
+      ? String(auth.currentUser.uid)
+      : '';
+    const safeExpectedUid = String(expectedUid || '').trim();
+    const isMismatch = !!safeExpectedUid && !!authUid && authUid !== safeExpectedUid;
+    const err = new Error(isMismatch ? 'AUTH_UID_MISMATCH' : 'AUTH_NOT_READY');
+    err.code = isMismatch ? 'auth/uid-mismatch' : 'unauthenticated';
+    err.authUid = authUid;
+    err.expectedUid = safeExpectedUid;
+    return err;
+  },
+
   /** 通用新增：寫入快取 + 非同步寫入 Firebase */
   _create(key, data, firebaseMethod, label, prepend) {
     if (this._handleRestrictedAction()) return null;
@@ -271,7 +292,9 @@ const ApiService = {
     if (prepend !== false) { source.unshift(data); } else { source.push(data); }
     if (firebaseMethod) {
       try {
-        await FirebaseService.ensureAuthReadyForWrite();
+        const expectedUid = this._getExpectedAuthUidForWrite(key, data);
+        const authed = await FirebaseService.ensureAuthReadyForWrite(expectedUid);
+        if (!authed) throw this._buildAuthNotReadyWriteError(expectedUid);
         await firebaseMethod.call(FirebaseService, data);
       } catch (err) {
         const idx = source.indexOf(data);

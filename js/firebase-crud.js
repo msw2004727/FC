@@ -451,6 +451,18 @@ Object.assign(FirebaseService, {
   },
 
   async addEvent(eventData) {
+    const expectedCreatorUid = String(eventData?.creatorUid || '').trim();
+    if (expectedCreatorUid && expectedCreatorUid !== 'unknown') {
+      const authed = await this.ensureAuthReadyForWrite(expectedCreatorUid);
+      if (!authed) {
+        const authUid = (typeof auth !== 'undefined' && auth?.currentUser?.uid) ? String(auth.currentUser.uid) : '';
+        const err = new Error(authUid && authUid !== expectedCreatorUid ? 'AUTH_UID_MISMATCH' : 'AUTH_NOT_READY');
+        err.code = authUid && authUid !== expectedCreatorUid ? 'auth/uid-mismatch' : 'unauthenticated';
+        err.authUid = authUid;
+        err.expectedUid = expectedCreatorUid;
+        throw err;
+      }
+    }
     // 圖片上傳至 Storage
     const eventId = this._normalizeEventDocumentId(eventData);
     eventData.id = eventId;

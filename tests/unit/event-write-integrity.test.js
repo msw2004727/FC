@@ -204,6 +204,37 @@ describe('event write integrity', () => {
     expect(item.status).toBe('open');
   });
 
+  test('_createAwaitWrite checks event creator uid before writing', async () => {
+    const event = { id: 'ce-1', title: 'Private Event', creatorUid: 'actor-1' };
+    const cache = { events: [] };
+    const { ApiService, FirebaseService } = loadApiService({ cache });
+    const firebaseMethod = jest.fn().mockResolvedValue(event);
+
+    await ApiService._createAwaitWrite('events', event, firebaseMethod, 'createEvent');
+
+    expect(FirebaseService.ensureAuthReadyForWrite).toHaveBeenCalledWith('actor-1');
+    expect(firebaseMethod).toHaveBeenCalledWith(event);
+    expect(cache.events).toEqual([event]);
+  });
+
+  test('_createAwaitWrite rolls back event create when auth uid does not match creator uid', async () => {
+    const event = { id: 'ce-1', title: 'Private Event', creatorUid: 'line-uid' };
+    const cache = { events: [] };
+    const { ApiService, FirebaseService } = loadApiService({ cache });
+    FirebaseService.ensureAuthReadyForWrite.mockResolvedValue(false);
+    const firebaseMethod = jest.fn();
+
+    await expect(ApiService._createAwaitWrite('events', event, firebaseMethod, 'createEvent'))
+      .rejects.toMatchObject({
+        code: 'auth/uid-mismatch',
+        authUid: 'actor-1',
+        expectedUid: 'line-uid',
+      });
+
+    expect(firebaseMethod).not.toHaveBeenCalled();
+    expect(cache.events).toEqual([]);
+  });
+
   test('getEvent resolves ended event records by data id or Firestore doc id', () => {
     const item = { id: 'evt-ended-1', _docId: 'doc-ended-1', docId: 'legacy-doc-id', title: 'Ended Event', status: 'ended' };
     const { ApiService } = loadApiService({ cache: { events: [item] } });

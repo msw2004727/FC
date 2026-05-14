@@ -2197,7 +2197,10 @@ const FirebaseService = {
   // ════════════════════════════════
 
   /** 等待 Auth 完成（供寫入操作使用，避免 permission-denied） */
-  async ensureAuthReadyForWrite() {
+  async ensureAuthReadyForWrite(expectedUid = null) {
+    if (expectedUid && typeof this._ensureAuth === 'function') {
+      return this._ensureAuth(expectedUid);
+    }
     if (auth?.currentUser) return true;
     if (this._authPromise) {
       try {
@@ -2207,7 +2210,7 @@ const FirebaseService = {
         ]);
       } catch (_) {}
     }
-    return !!auth?.currentUser;
+    return !!auth?.currentUser && (!expectedUid || auth.currentUser.uid === expectedUid);
   },
 
   // ════════════════════════════════
