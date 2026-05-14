@@ -9,6 +9,7 @@ const { defineSecret } = require("firebase-functions/params");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue, FieldPath, Timestamp } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
+const { createSportsApiProScoreboardExports } = require("./scoreboard-sportsapipro");
 // @line/bot-sdk: lazy-loaded — 只有 processLinePushQueue 使用
 let _messagingApi;
 function getMessagingApi() {
@@ -10766,3 +10767,14 @@ exports.cleanupPmAuditRetention = onSchedule(
     console.log("[cleanupPmAuditRetention]", { conversations, messages, logs });
   },
 );
+
+Object.assign(exports, createSportsApiProScoreboardExports({
+  db,
+  FieldValue,
+  Timestamp,
+  onCall,
+  onSchedule,
+  HttpsError,
+  defineSecret,
+  getCallerAccessContext,
+}));

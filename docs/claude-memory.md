@@ -2658,3 +2658,9 @@
 - **Issue**: When users failed to sign up for or cancel an activity, the admin error log did not always include enough context to reconstruct the failure. Signup failures had partial logging, while cancel failures often recorded only the function name and event id.
 - **Fix**: Added a non-blocking event registration failure logger for signup/cancel paths. Failure logs now include action, stage, event id/title/status, user id/role, Cloud Function path, request id, registration ids, selected team split/reservation context, active registration status summaries, and compact registration metadata. Added warning-level logs for cancel lookup fallback failures and data mismatch early exits.
 - **Validation**: Ran the targeted error-log instrumentation test, event detail/signup-related unit tests, migration path coverage, `node -c js/modules/event/event-detail-signup.js`, and `git diff --check`.
+
+### 2026-05-14 Restore Scoreboard Cloud Function Source [maintenance]
+- **Issue**: Firebase full functions deploy detected four deployed scoreboard functions that were missing from local source and would ask to delete them.
+- **Cause**: The frontend scoreboard feature was removed locally, but the deployed Cloud Functions were intentionally left online, creating cloud/local source drift.
+- **Fix**: Restored the local scoreboard function source files, translation workflow document, function unit tests, and the `functions/index.js` export hook for `refreshSportsApiProScoreboardScheduled`, `refreshSportsApiProScoreboard`, `fetchSportsApiProMatchDetail`, and `upsertScoreboardTranslations` without re-enabling the removed frontend scoreboard UI.
+- **Validation**: Confirmed all four exports exist locally, ran Node syntax checks, ran full unit tests, and compared Firebase deployed function ids against local exports with no missing cloud-only functions.
