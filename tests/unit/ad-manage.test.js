@@ -92,6 +92,7 @@ describe('_remainDays (ad-manage-core.js:15-18)', () => {
 describe('ad edit modal wiring', () => {
   const read = (relativePath) => fs.readFileSync(path.join(process.cwd(), relativePath), 'utf8');
   const sources = {
+    baseCss: read('css/base.css'),
     adminCss: read('css/admin.css'),
     adminContent: read('pages/admin-content.html'),
     apiService: read('js/api-service.js'),
@@ -192,6 +193,12 @@ describe('ad edit modal wiring', () => {
     expect(sources.bootBrand).toContain("aspectRatio: 13 / 9");
     expect(sources.bootBrand).toContain("outputWidth: 1040");
     expect(sources.bootBrand).toContain("bindImageUpload('boot-brand-image', 'boot-brand-upload-area', this._getBootBrandCropOptions())");
+    expect(sources.bootBrand).toContain('<picture>');
+    expect(sources.baseCss).toContain('.boot-loading__image-slot > picture');
+    expect(sources.baseCss).toContain('object-position: center center');
+    expect(sources.index).toContain("brandImg.closest('picture')");
+    expect(sources.index).toContain("brandPicture.querySelectorAll('source')");
+    expect(sources.index).toContain('brandSources[i].remove()');
     expect(sources.bootBrand).not.toContain('boot-brand-height');
     expect(sources.bootBrand).not.toContain('boot-brand-margin');
     expect(sources.bootBrand).not.toContain('imgHeight');

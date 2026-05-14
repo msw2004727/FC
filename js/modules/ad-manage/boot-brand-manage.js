@@ -48,7 +48,9 @@ Object.assign(App, {
             margin:0 auto;
             background:${bgMode === 'light' ? bgColor : bgMode === 'dark' ? '#1e1e2e' : 'var(--bg-card)'}
           ">
-            <img id="boot-brand-preview-img" class="boot-loading__image" src="${escapeHTML(imgUrl)}" alt="">
+            <picture>
+              <img id="boot-brand-preview-img" class="boot-loading__image" src="${escapeHTML(imgUrl)}" alt="">
+            </picture>
           </div>
         </div>
 
