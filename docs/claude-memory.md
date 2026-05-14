@@ -2674,3 +2674,8 @@
 - **Issue**: Captain/manager rows were protected from member-list removal, but the UI gave no reason because those rows did not route through a clickable removal action.
 - **Fix**: Routed protected captain/manager rows through a `protected` removal kind, so the remove button can show a clear toast explaining that the user must first transfer or adjust the club management role in club settings.
 - **Validation**: Added unit coverage for protected removal kind and toast wording. Ran the team-detail test path successfully and bumped cache version to `0.20260514h`.
+
+### 2026-05-14 Club Member Course Tab Visibility [bugfix]
+- **Issue**: When a club had teaching/course functionality turned off, the main course section was hidden but the member list still showed the course tab.
+- **Fix**: Reused the club detail course visibility rule for the member list tabs. If the cached active member tab is `course` after teaching is turned off, the member list now falls back to the activity tab.
+- **Validation**: Added unit coverage for hiding the member course tab when teaching is disabled. Ran JS syntax check, `git diff --check`, and full unit tests through the existing `npm test -- tests/unit/team-detail-events.test.js` path. Bumped cache version to `0.20260514v`.

@@ -1271,10 +1271,19 @@ Object.assign(App, {
 
   _buildTeamMembersCard(t, canManageMembers, memberEditMode, staffIdentity) {
     this._teamMemberTabByTeam = this._teamMemberTabByTeam || {};
-    const activeTab = this._teamMemberTabByTeam[t.id] || 'activity';
+    const showCourseTab = typeof this._isTeamDetailSectionVisible === 'function'
+      ? this._isTeamDetailSectionVisible(t, 'courses')
+      : this._isTeamDetailTeachingEnabled?.(t) !== false;
+    const allowedTabs = new Set(['activity', 'course', 'match']);
+    const rawActiveTab = this._teamMemberTabByTeam[t.id] || 'activity';
+    let activeTab = allowedTabs.has(rawActiveTab) ? rawActiveTab : 'activity';
+    if (activeTab === 'course' && !showCourseTab) activeTab = 'activity';
     const roster = this._getTeamDetailRoster(t);
     const showEditColumn = !!canManageMembers;
     const tabBtn = (key, label) => '<button type="button" class="td-member-tab' + (activeTab === key ? ' active' : '') + '" onclick="App.switchTeamMemberTab(\'' + t.id + '\',\'' + key + '\')">' + label + '</button>';
+    const tabsHtml = tabBtn('activity', '\u6d3b\u52d5')
+      + (showCourseTab ? tabBtn('course', '\u8ab2\u7a0b') : '')
+      + tabBtn('match', '\u8cfd\u4e8b');
     const columns = activeTab === 'course'
       ? ['\u66b1\u7a31', '\u6a19\u7c64', '\u5206\u7d44', '\u7e73\u8cbb', '\u6b21\u6578', '\u5099\u8a3b']
       : (activeTab === 'match'
@@ -1331,7 +1340,7 @@ Object.assign(App, {
     const editBtn = canManageMembers ? '<button class="outline-btn td-member-edit-btn" onclick="event.stopPropagation();App.toggleTeamMemberEditMode(\'' + t.id + '\')">' + (memberEditMode ? '\u5b8c\u6210' : '\u6210\u54e1\u7ba1\u7406') + '</button>' : '';
     return '<div class="td-card td-section-card" id="team-members-section">'
       + '<div id="team-members-toggle" class="td-card-title td-card-title-row"><span>' + I18N.t('teamDetail.memberList') + '</span><span class="td-card-title-right">' + editBtn + '</span></div>'
-      + '<div class="td-member-tabs">' + tabBtn('activity', '\u6d3b\u52d5') + tabBtn('course', '\u8ab2\u7a0b') + tabBtn('match', '\u8cfd\u4e8b') + '</div>'
+      + '<div class="td-member-tabs">' + tabsHtml + '</div>'
       + '<div class="td-member-table-scroll"><table class="td-member-table td-member-table-' + activeTab + (memberEditMode ? ' is-editing' : '') + '"><thead><tr>' + header + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
       + '</div>';
   },
@@ -1339,8 +1348,16 @@ Object.assign(App, {
   switchTeamMemberTab(teamId, tab) {
     const allowed = new Set(['activity', 'course', 'match']);
     if (!teamId || !allowed.has(tab)) return;
+    let nextTab = tab;
+    if (nextTab === 'course') {
+      const team = typeof ApiService !== 'undefined' && ApiService.getTeam ? ApiService.getTeam(teamId) : null;
+      const canShowCourseTab = team && typeof this._isTeamDetailSectionVisible === 'function'
+        ? this._isTeamDetailSectionVisible(team, 'courses')
+        : true;
+      if (!canShowCourseTab) nextTab = 'activity';
+    }
     this._teamMemberTabByTeam = this._teamMemberTabByTeam || {};
-    this._teamMemberTabByTeam[teamId] = tab;
+    this._teamMemberTabByTeam[teamId] = nextTab;
     this._refreshTeamMembersCardFromCache(teamId);
   },
 

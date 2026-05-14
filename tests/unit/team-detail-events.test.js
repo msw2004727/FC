@@ -485,6 +485,7 @@ describe('team detail club activity section', () => {
     const app = makeApp([]);
     const team = {
       id: 'teamA',
+      teachingEnabled: true,
       captainUid: 'captain',
       leaderUids: ['leader'],
       coachUids: ['coach'],
@@ -531,6 +532,13 @@ describe('team detail club activity section', () => {
     expect(html).toContain('App.switchTeamMemberTab(\'teamA\',\'activity\')');
     expect(html).toContain('App.switchTeamMemberTab(\'teamA\',\'course\')');
     expect(html).toContain('App.switchTeamMemberTab(\'teamA\',\'match\')');
+    app._teamMemberTabByTeam = { teamA: 'course' };
+    const noTeachingHtml = app._buildTeamMembersCard({ ...team, teachingEnabled: false }, false, false, staffIdentity);
+    expect(noTeachingHtml).toContain('App.switchTeamMemberTab(\'teamA\',\'activity\')');
+    expect(noTeachingHtml).not.toContain('App.switchTeamMemberTab(\'teamA\',\'course\')');
+    expect(noTeachingHtml).toContain('App.switchTeamMemberTab(\'teamA\',\'match\')');
+    expect(noTeachingHtml).toContain('td-member-table-activity');
+    expect(noTeachingHtml).not.toContain('td-member-table-course');
     expect(html).toContain('missing-name');
     expect(html).toContain('未設定暱稱');
     expect(html).not.toContain('td-member-label-pill label-all');
