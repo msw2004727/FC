@@ -108,6 +108,68 @@ const FirebaseService = {
     return normalized;
   },
 
+  _normalizeRolePermissionsCache(value) {
+    const normalized = {};
+    const readPermissions = (entry) => {
+      if (Array.isArray(entry)) return entry;
+      if (entry && Array.isArray(entry.permissions)) return entry.permissions;
+      return null;
+    };
+    const sanitize = (permissions) => (typeof sanitizePermissionCodeList === 'function')
+      ? sanitizePermissionCodeList(permissions)
+      : (Array.isArray(permissions) ? [...new Set(permissions.filter(Boolean))] : []);
+
+    if (Array.isArray(value)) {
+      value.forEach(doc => {
+        const roleKey = String(doc?._docId || doc?.roleKey || doc?.role || doc?.id || '').trim();
+        const permissions = readPermissions(doc);
+        if (roleKey && permissions) normalized[roleKey] = sanitize(permissions);
+      });
+      return normalized;
+    }
+
+    if (value && typeof value === 'object') {
+      Object.keys(value).forEach(roleKey => {
+        const permissions = readPermissions(value[roleKey]);
+        if (permissions) normalized[roleKey] = sanitize(permissions);
+      });
+    }
+    return normalized;
+  },
+
+  _normalizeRolePermissionMetaCache(value) {
+    const normalized = {};
+    const sanitize = (permissions) => (typeof sanitizePermissionCodeList === 'function')
+      ? sanitizePermissionCodeList(permissions)
+      : (Array.isArray(permissions) ? [...new Set(permissions.filter(Boolean))] : []);
+    const readMeta = (entry) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
+      return {
+        catalogVersion: entry.catalogVersion || '',
+        defaultPermissions: Array.isArray(entry.defaultPermissions)
+          ? sanitize(entry.defaultPermissions)
+          : null,
+      };
+    };
+
+    if (Array.isArray(value)) {
+      value.forEach(doc => {
+        const roleKey = String(doc?._docId || doc?.roleKey || doc?.role || doc?.id || '').trim();
+        const meta = readMeta(doc);
+        if (roleKey && meta) normalized[roleKey] = meta;
+      });
+      return normalized;
+    }
+
+    if (value && typeof value === 'object') {
+      Object.keys(value).forEach(roleKey => {
+        const meta = readMeta(value[roleKey]);
+        if (meta) normalized[roleKey] = meta;
+      });
+    }
+    return normalized;
+  },
+
   _listeners: [],
   _usersUnsub: null,
   _userListener: null,
@@ -593,11 +655,15 @@ const FirebaseService = {
       }
     });
     // rolePermissions 特殊處理
-    if (Object.keys(this._cache.rolePermissions).length > 0) {
-      this._saveToLS('rolePermissions', this._cache.rolePermissions);
+    const normalizedRolePermissions = this._normalizeRolePermissionsCache(this._cache.rolePermissions);
+    this._cache.rolePermissions = normalizedRolePermissions;
+    if (Object.keys(normalizedRolePermissions).length > 0) {
+      this._saveToLS('rolePermissions', normalizedRolePermissions);
     }
-    if (Object.keys(this._cache.rolePermissionMeta).length > 0) {
-      this._saveToLS('rolePermissionMeta', this._cache.rolePermissionMeta);
+    const normalizedRolePermissionMeta = this._normalizeRolePermissionMetaCache(this._cache.rolePermissionMeta);
+    this._cache.rolePermissionMeta = normalizedRolePermissionMeta;
+    if (Object.keys(normalizedRolePermissionMeta).length > 0) {
+      this._saveToLS('rolePermissionMeta', normalizedRolePermissionMeta);
     }
     const normalizedRoleActivityCapabilities = this._normalizeRoleActivityCapabilitiesCache(this._cache.roleActivityCapabilities);
     this._cache.roleActivityCapabilities = normalizedRoleActivityCapabilities;
@@ -668,12 +734,17 @@ const FirebaseService = {
         if (!this._isCanonicalCollection(name) || this._cache[name].length > 0) restored++;
       }
     });
-    const rp = this._loadFromLS('rolePermissions');
+    const rawRolePermissions = this._loadFromLS('rolePermissions');
+    const rp = this._normalizeRolePermissionsCache(rawRolePermissions);
+    const rpMetaFromPermissions = this._normalizeRolePermissionMetaCache(rawRolePermissions);
     if (rp && Object.keys(rp).length > 0) {
       this._cache.rolePermissions = rp;
       restored++;
     }
-    const rpMeta = this._loadFromLS('rolePermissionMeta');
+    const rpMeta = {
+      ...rpMetaFromPermissions,
+      ...this._normalizeRolePermissionMetaCache(this._loadFromLS('rolePermissionMeta')),
+    };
     if (rpMeta && Object.keys(rpMeta).length > 0) {
       this._cache.rolePermissionMeta = rpMeta;
       restored++;
@@ -855,6 +926,12 @@ const FirebaseService = {
   },
 
   _replaceCollectionCache(name, docs) {
+    if (name === 'rolePermissions') {
+      this._cache.rolePermissions = this._normalizeRolePermissionsCache(docs || []);
+      this._cache.rolePermissionMeta = this._normalizeRolePermissionMetaCache(docs || []);
+      if (this._initialized) this._notifyCacheUpdated(name);
+      return;
+    }
     if (name === 'roleActivityCapabilities') {
       this._cache.roleActivityCapabilities = this._normalizeRoleActivityCapabilitiesCache(docs || []);
       if (this._initialized) this._notifyCacheUpdated(name);

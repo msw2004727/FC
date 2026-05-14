@@ -940,9 +940,23 @@ const ApiService = {
       return [];
     }
 
-    const hasStoredRolePermissions = !!(FirebaseService._cache.rolePermissions && Object.prototype.hasOwnProperty.call(FirebaseService._cache.rolePermissions, role));
+    const rolePermissionSource = FirebaseService._cache.rolePermissions || {};
+    let hasStoredRolePermissions = false;
+    let stored = [];
 
-    const stored = ((FirebaseService._cache.rolePermissions || {})[role] || []);
+    if (Array.isArray(rolePermissionSource)) {
+      const doc = rolePermissionSource.find(item =>
+        String(item?._docId || item?.roleKey || item?.role || item?.id || '') === role
+      );
+      hasStoredRolePermissions = !!doc && Object.prototype.hasOwnProperty.call(doc, 'permissions');
+      stored = hasStoredRolePermissions ? (doc.permissions || []) : [];
+    } else {
+      hasStoredRolePermissions = Object.prototype.hasOwnProperty.call(rolePermissionSource, role);
+      const rawStored = hasStoredRolePermissions ? rolePermissionSource[role] : [];
+      stored = Array.isArray(rawStored)
+        ? rawStored
+        : (rawStored && Array.isArray(rawStored.permissions) ? rawStored.permissions : []);
+    }
 
     const resolved = sanitizePermissionCodeList(hasStoredRolePermissions
       ? stored
@@ -969,7 +983,10 @@ const ApiService = {
     }
 
     const meta = (FirebaseService._cache.rolePermissionMeta || {});
-    const savedDefaults = meta?.[role]?.defaultPermissions;
+    const metaEntry = Array.isArray(meta)
+      ? meta.find(item => String(item?._docId || item?.roleKey || item?.role || item?.id || '') === role)
+      : meta?.[role];
+    const savedDefaults = metaEntry?.defaultPermissions;
     if (Array.isArray(savedDefaults)) return [...savedDefaults];
     const builtInDefaults = getDefaultRolePermissions(role);
     return Array.isArray(builtInDefaults) ? [...builtInDefaults] : null;
