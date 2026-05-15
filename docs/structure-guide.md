@@ -47,20 +47,22 @@
 
 ## 二、14 大功能區塊說明
 
-### 活動系統（39 個檔案）
+### 活動系統（42 個檔案）
 **做什麼**：管理所有運動活動的建立、瀏覽、報名、簽到、統計。
 **包含功能**：
-- 活動列表：首頁活動清單、篩選、時間軸瀏覽、**月曆視圖**（2026-04-22 新增、2026-04-28 改為「運動圖示 x 場次」彙總、上下滑切月、置頂高光）
+- 活動列表：首頁活動清單、預設收合篩選、時間軸瀏覽、**月曆視圖**（2026-04-22 新增、2026-04-28 改為「運動圖示 x 場次」彙總、上下滑切月、置頂高光）
 - 活動詳情：查看活動內容、參加人員、候補名單
 - 報名系統：一鍵報名、同行者報名、候補遞補
 - 活動建立：建立新活動、設定費用、人數上限、範本
 - 活動管理：簽到確認、出席統計、結束或取消活動
+- 前台活動頁：只保留月曆、報名中、女生專屬與預留頁籤；「已結束」頁籤已移除，舊 `ended` tab 由 `event-list.js` 正規化回報名中。
+- 終端活動載入：結束/取消活動在結束後 6 小時內仍留在報名中；前台只載 terminal preview，活動管理才升級 history 並分頁載入更多。
 - 分享功能：透過通訊軟體分享活動連結給朋友
 
 ### 俱樂部系統（16 個檔案）
 **做什麼**：讓使用者建立或加入俱樂部，管理隊員名單。
 **包含功能**：
-- 俱樂部列表：瀏覽所有俱樂部、搜尋特定俱樂部（分頁 + 防抖搜尋 + 全集合搜尋）
+- 俱樂部列表：瀏覽所有俱樂部、搜尋特定俱樂部（收合搜尋入口 + 分頁 + 防抖搜尋 + 全集合搜尋）
 - 俱樂部詳情：查看隊員、俱樂部介紹、戰績
 - 俱樂部管理：建立俱樂部、編輯資訊、審核入隊申請
 - 成員管理：邀請加入、移除成員、角色指派（captainUid / leaderUids / coachUids 純 UID 比對）
@@ -70,7 +72,7 @@
 ### 賽事系統（19 個檔案）
 **做什麼**：管理友誼賽、錦標賽等正式比賽的建立與報名。
 **包含功能**：
-- 賽事列表：瀏覽公開賽事、報名參加（分頁 + 防抖搜尋 + 指紋跳過重繪）
+- 賽事列表：瀏覽公開賽事、報名參加（收合篩選/搜尋 + 分頁 + 防抖搜尋 + 指紋跳過重繪）
 - 友誼賽：俱樂部之間發起友誼賽、審核參賽申請（子集合架構，不再使用內嵌陣列；報名狀態會合併同一俱樂部的 id / 文件 id 別名）
 - 賽事表單：主辦俱樂部可設定是否參賽；管理員可在沒有可代表主辦俱樂部時建立空主辦賽事，並強制主辦不參賽；委託人與裁判支援複選
 - 球員名單：各隊上場球員登錄與管理
@@ -298,7 +300,8 @@
 - `js/modules/user-admin/user-admin-roles.js`：權限管理頁在 user 角色內顯示並保存 `roleActivityCapabilities/user`，與既有 `rolePermissions` 分開。
 - `js/firebase-service.js` / `js/api-service.js` / `js/firebase-crud.js`：快取、即時監聽與 CRUD 皆納入 `roleActivityCapabilities`。
 - `js/modules/event/event-list-helpers.js`：集中 owner-scope helper，例如 `_canCreateBasicActivity`、`_canAccessOwnActivityManageEntry`、`_canOperateEventSite`、`_canUseActivityAddons`。
-- `js/modules/event/event-create*.js`：一般 user 建立活動時鎖住加值開關，顯示 `如需更多功能請聯繫官方Line@`，並在送出前移除/保留加值欄位。
+- `event.edit_all` 是全活動可見/可編輯總開關；`activity.manage.entry` 只代表入口，關閉 `event.edit_all` 時活動管理與活動詳細頁編輯入口都只能作用於自己建立或受委託活動。
+- `js/modules/event/event-create*.js`：一般 user 未開啟 `user.activity.addons_use` 時鎖住加值開關並顯示 `如需更多功能請聯繫官方Line@`；開啟後可建立/編輯自己的進階功能欄位，送出前仍需依 capability 移除或保留加值欄位。
 - `js/modules/event/event-manage*.js`、`js/modules/scan/*`：自己的活動管理、掃碼、手動簽到、候補與委託人操作改走細分 capability。
 - `firestore.rules`：`roleActivityCapabilities/{roleId}` 只能 super_admin 寫入；一般 user 建立/編輯活動與現場操作皆有 owner/delegate + capability 檢查。
 - `functions/index.js`：Admin SDK callable 不依賴 Firestore Rules，需同步讀取 `roleActivityCapabilities` 檢查 owner/delegate 現場操作。
@@ -311,6 +314,15 @@
 - CSS：獨立放在 `css/permission-audit.css`，不再混入 `css/admin.css`。
 - 權限碼相容：歷史碼正規化集中在 `js/config.js`，後端同規則放在 `functions/index.js`。權限測試頁會依正規化後的權限判斷未知碼，且教練可保留俱樂部頁內情境操作權限而不顯示後台俱樂部管理入口。
 - 維護規則：新增抽屜入口、管理子權限、一般 user 前台活動能力或高風險權限組合時，必須同步確認此報告可掃描到新項目。
+
+## 2026-05-15 活動 terminal 載入結構補充
+
+- `pages/activity.html`：前台 `data-atab` 不再包含 `ended`；活動管理區 `data-afilter="ended"` 與 `data-afilter="cancelled"` 保留。
+- `js/modules/event/event-list.js`：`_hiddenActivityTabs` 收斂舊 `ended` 狀態，避免舊 hash 或舊 local state 導向不存在的前台頁籤。
+- `js/modules/event/event-list-stats.js`：維持「活動結束時間 + 6 小時」移出前台活動頁的規則，手動取消也走同一條規則。
+- `js/firebase-service.js`：使用 `_terminalPreviewLimit = 50` 與 `_terminalHistoryLimit = 200` 分離前台 preview 與後台 history；`ensureTerminalEventsLoaded()` 與 `loadMoreTerminalEvents()` 提供管理頁延伸載入。
+- `js/modules/event/event-manage.js`：活動管理切到已結束/已取消/全部時才升級 terminal history，避免一般活動頁冷啟讀取大量歷史資料。
+- 測試：`tests/unit/activity-terminal-events-loading.test.js` 鎖住前台移除已結束頁籤、terminal preview/history limit 與管理頁 history lazy-load contract。
 
 ## 2026-05-11 History API 雙軌入口結構補充
 

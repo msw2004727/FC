@@ -33,7 +33,16 @@
   padding-inline: .18rem .34rem;
 }
 #activity-tabs .tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .24rem;
   padding-inline: .46rem;
+}
+#activity-tabs .activity-tab-icon {
+  width: .95em;
+  height: .95em;
+  flex: 0 0 auto;
 }
 #activity-tabs .activity-tab-unavailable {
   color: var(--text-muted);

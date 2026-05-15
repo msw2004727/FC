@@ -48,8 +48,26 @@
         <button class="action-btn" onclick="App.showPage('page-my-activities')">活動管理</button>
       </div>
       <div class="tab-bar" id="activity-tabs">
-        <button class="tab" data-atab="calendar" onclick="App.switchActivityTab('calendar')">月曆</button>
-        <button class="tab active" data-atab="normal" onclick="App.switchActivityTab('normal')">報名中</button>
+        <button class="tab" data-atab="calendar" onclick="App.switchActivityTab('calendar')">
+          <svg class="activity-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3.5" y="4.5" width="17" height="16" rx="3"></rect>
+            <path d="M8 2.8v4"></path>
+            <path d="M16 2.8v4"></path>
+            <path d="M3.8 9h16.4"></path>
+          </svg>
+          <span>月曆</span>
+        </button>
+        <button class="tab active" data-atab="normal" onclick="App.switchActivityTab('normal')">
+          <svg class="activity-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M8 6h12"></path>
+            <path d="M8 12h12"></path>
+            <path d="M8 18h12"></path>
+            <path d="m3.8 6 .9 .9 1.7-1.9"></path>
+            <path d="m3.8 12 .9 .9 1.7-1.9"></path>
+            <path d="m3.8 18 .9 .9 1.7-1.9"></path>
+          </svg>
+          <span>報名中</span>
+        </button>
         <span class="activity-tab-separator" aria-hidden="true">|</span>
         <button class="tab activity-tab-female" data-atab="female" onclick="App.switchActivityTab('female')">女生專屬</button>
         <button class="tab activity-tab-unavailable" data-atab="beginner" aria-disabled="true" title="功能未開放" onclick="App.switchActivityTab('beginner', event)">新手友善</button>

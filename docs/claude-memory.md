@@ -1,5 +1,16 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-15 Activity ended tab removal and terminal lazy loading [perf/ux]
+- **Problem**: 前台活動頁的「已結束」頁籤會誘發大量歷史活動載入，也讓手動取消活動與一般結束活動的 6 小時留存規則容易不一致。
+- **Fix**: 前台活動頁移除「已結束」頁籤，舊 `ended` tab 狀態由 `event-list.js` 正規化回 `normal`；`FirebaseService` 分離 active/terminal slices，前台只載 terminal preview 50 筆，活動管理才升級 history 200 筆並支援載入更多。
+- **Rule**: 手動取消活動也走活動結束規則，活動結束時間 + 6 小時內留在「報名中」，之後才從前台活動頁移出；活動管理仍保留已結束與已取消歷史。
+- **Tests**: 新增 `tests/unit/activity-terminal-events-loading.test.js` 鎖住前台移除已結束頁籤、terminal preview/history limit 與管理頁 history lazy-load contract。
+
+### 2026-05-15 Public list filters collapsed [ux/perf]
+- **Problem**: 活動、俱樂部與賽事列表的搜尋/篩選列佔用首屏高度，也增加冷啟後的初始 DOM 內容。
+- **Fix**: 活動與賽事篩選改為標題旁收合入口；俱樂部搜尋也改為放大鏡收合入口，點擊後才展開精簡搜尋框。
+- **Rule**: 未來新增公開列表頁時，預設採收合搜尋/篩選入口，除非該頁主要任務就是大量篩選。
+
 ### 2026-05-15 Permission legacy code normalization [bug]
 - **Problem**: 權限測試報告會把歷史 `rolePermissions` 權限碼列成未知碼，例如 `event.edit_own`、`team.manage_own`、`admin.teams.entry`、`admin.scoreboard.entry`。同時教練刻意不顯示俱樂部管理入口、但保留俱樂部頁內情境操作權限時，被報告誤判成入口缺失警告。
 - **Fix**: 前端與 Cloud Functions 都加入舊權限碼正規化；可對應的新碼會轉成目前權限碼，已移除的 `admin.scoreboard.entry` 會被丟棄。權限報告也把教練的 `team.manage_self`、`team.review_join`、`team.create_event`、`team.toggle_event_visibility` 視為俱樂部頁內情境權限，不再要求必須同時顯示 `team.manage.entry` 後台入口。

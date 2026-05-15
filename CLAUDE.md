@@ -1,6 +1,6 @@
 # ToosterX — Claude Code 專案指引
 
-> **Last Reviewed: 2026-05-14**（每 2 個月審閱一次，或重大架構重構時立即審閱）
+> **Last Reviewed: 2026-05-15**（每 2 個月審閱一次，或重大架構重構時立即審閱）
 
 <!--
   結構文件交叉引用（任一檔案的結構描述更新時，必須同步更新以下所有檔案）：
@@ -87,7 +87,7 @@ FC-github/
 │   ├── line-auth.js        # LINE LIFF 登入
 │   ├── core/               # 基礎設施（4 個）
 │   └── modules/            # 功能模組（16 子資料夾 + 29 獨立檔案）
-│       ├── event/          # 活動系統（30）：列表、詳情、報名、建立、管理、分享
+│       ├── event/          # 活動系統（42）：列表、詳情、報名、建立、管理、分享、terminal 載入
 │       ├── team/           # 俱樂部系統（16）：列表、詳情、表單、動態牆、分享、helpers/stats/builders/validate/roles/invite
 │       ├── tournament/     # 賽事系統（19）：渲染、詳情、管理、友誼賽、helpers/builders/state
 │       ├── profile/        # 個人資料（9）：核心、資料、名片、分享
@@ -247,6 +247,7 @@ grep -rn "CACHE_VERSION\|CACHE_NAME\|var V='" js/config.js sw.js index.html
    - **新增權限開關**：若該功能需要依層級控制存取，必須在 `js/config.js` 的 `ADMIN_PAGE_EXTRA_PERMISSION_ITEMS` 或 `DRAWER_MENUS` 中新增對應的權限碼（permission code），並在 `getDefaultRolePermissions()` 中設定各層級的預設值。
    - **新增或更新權限說明**：必須在 `js/modules/user-admin/user-admin-perm-info.js` 的 `_PERM_INFO` 對照表中，為新權限碼新增 `{ title, body }` 說明內容，或更新既有權限的說明文字以反映功能變更。說明內容應以白話描述該權限的用途與影響範圍。
    - **同步權限測試報告**：新增、刪除或調整 `DRAWER_MENUS`、`ADMIN_PAGE_EXTRA_PERMISSION_ITEMS`、`ROLE_ACTIVITY_CAPABILITY_ITEMS`、`rolePermissions` 或 `roleActivityCapabilities` 時，必須同步檢查 `js/modules/user-admin/permission-audit/`。此資料夾是「權限管理 > 權限測試」的一次性只讀報告來源，需維持能覆蓋所有角色、抽屜入口、子權限、一般 user 前台活動能力與高風險權限組合。
+   - **`event.edit_all` 是全活動編輯唯一總開關**：沒有 `event.edit_all` 時，活動管理列表與活動詳細頁「活動編輯」只能作用於自己建立或受委託活動；`activity.manage.entry` 只代表入口/管理頁可見，不可當成跨活動編輯授權。
    - **不確定是否需要新增權限時**：應先向用戶說明該功能的存取需求，並建議適合的權限碼命名與層級配置，由用戶決定是否新增。
    - **權限碼命名規則**：入口權限以 `.entry` 結尾（如 `admin.xxx.entry`），子權限以動作命名（如 `xxx.create`、`xxx.edit_all`、`xxx.delete`）。
    - **歷史權限碼正規化**：若權限碼改名，不可只改 UI catalog；必須同步維護 `js/config.js` 與 `functions/index.js` 的 legacy permission normalization，並更新 `permission-audit` 測試，避免資料庫舊 `rolePermissions` 讓前後端判斷不一致。
@@ -315,6 +316,14 @@ grep -rn "CACHE_VERSION\|CACHE_NAME\|var V='" js/config.js sw.js index.html
   4. payload 是否含其他仍需 admin/coach 權限的欄位，例如 team scope 相關欄位。
 
 ---
+
+## 活動頁終端活動載入與已結束規則（2026-05-15）
+
+- 前台活動頁不再提供「已結束」頁籤；舊 hash、舊 state 或舊連結若帶 `ended`，`event-list.js` 必須正規化回 `normal`。
+- 一般結束與手動取消共用同一條前台顯示規則：活動結束時間 + 6 小時後才視為活動頁 terminal；6 小時內仍留在「報名中」列表。
+- 前台只載入少量 terminal preview（目前 50 筆）維持 6 小時判定與最近狀態，不可為了活動頁全量載入歷史已結束/已取消活動。
+- 活動管理仍可看已結束/已取消歷史；需要完整歷史時由 `FirebaseService.ensureTerminalEventsLoaded({ mode: 'history' })` 升級，並用 `loadMoreTerminalEvents()` 分頁。
+- 修改活動列表、取消活動、auto-end、或 terminal event cache 時，必須同步跑 `tests/unit/activity-terminal-events-loading.test.js`、`tests/unit/event-ended-tab-delay.test.js` 與活動列表相關測試。
 
 ## 測試與 CI 規範（強制）
 
