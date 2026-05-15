@@ -90,6 +90,29 @@ Last reviewed: 2026-05-15
 1. E2E `activity-permissions.spec.js` 原本在 `ScriptLoader.ensureForPage` 前寫入 array cache，可能被頁面初始化覆蓋，且形狀不完全等同正式 cache；已改為初始化後寫入 `{ user: { capabilities } }`。
 2. E2E `example.spec.js` 的 profile prompt dismiss 偶發遇到頁面 navigation context 被銷毀；已在測試 helper 內針對該錯誤重試一次。
 
+## 2026-05-15 Phase 5 實作紀錄
+
+狀態：已完成，等待本段 commit。
+
+本階段完成項目：
+1. 複核既有 `private-message.test.js`、`message.test.js`、`message-system.test.js`、`notif-toggle.test.js`，確認 fresh bubble 轉舊未讀、桌機 PM list 不吃掉 reminder、通知小圖、edit / recall / mark read source contract 皆已有 unit coverage。
+2. 新增 `tests/e2e/private-message.spec.js`，用離線 E2E harness 驗證手機 viewport 聊天彈窗：focus input 後套用 keyboard layout、毛玻璃 overlay 位於底層按鈕上方、關閉後 body 不鎖死。
+3. 新增桌機 E2E 驗證：新私訊 fresh bubble timeout 後切成舊未讀 reminder，且鈴鐺下方未讀小圖在 bubble 顯示時仍保持可見。
+4. E2E 私訊模組改用 `page.addScriptTag({ path })` 強制載入測試所需模組，避免 `ScriptLoader` 因 DOM 預掃描把尚未可用的 script 誤判為已載入。
+
+驗收命令：
+1. `npx jest --runInBand --runTestsByPath tests/unit/private-message.test.js tests/unit/message.test.js tests/unit/message-system.test.js tests/unit/notif-toggle.test.js`
+2. `npx playwright test tests/e2e/private-message.spec.js --project=chromium-desktop --workers=1` 搭配本地 HTTP server
+3. `npm run test:e2e:smoke -- --workers=1` 搭配本地 HTTP server
+
+驗收結果：
+1. Phase 5 unit：4 suites / 209 tests passed。
+2. PM E2E：2 tests passed。
+3. E2E smoke：25 tests passed。
+
+本階段審計發現並已修復：
+1. 新增 PM E2E 初版使用 `ScriptLoader._load` 時，因 `_primeLoadedFromDom()` 會把 DOM 既有 script 標為 loaded，導致測試頁中 `pm-listener` 方法尚不可用；已改用 `page.addScriptTag({ path })` 在測試上下文明確執行需要的 PM 模組。
+
 ## 1. 目標
 
 本計劃的目標不是追求測試數量，而是建立能實際攔住回歸 bug 的自動化測試防線。
