@@ -252,3 +252,44 @@ describe('_getEventParticipantStats', () => {
     expect(app._getEventParticipantStats(event).confirmedCount).toBe(4);
   });
 });
+
+describe('_getEventEffectiveStatus', () => {
+  test('treats an activity as ended once its start time has passed', () => {
+    const event = {
+      id: 'evt-started',
+      date: '2026/05/06 12:00~14:00',
+      status: 'open',
+      max: 21,
+      current: 3,
+      teamReservationSummaries: [],
+    };
+    const app = loadEventListStatsModule({ event });
+
+    expect(app._getEventEffectiveStatus(event, new Date(2026, 4, 6, 11, 59, 59))).toBe('open');
+    expect(app._getEventEffectiveStatus(event, new Date(2026, 4, 6, 12, 0, 0))).toBe('ended');
+    expect(app._getEventEffectiveStatus(event, new Date(2026, 4, 6, 13, 0, 0))).toBe('ended');
+  });
+
+  test('preserves cancelled status and keeps future capacity status accurate', () => {
+    const cancelled = {
+      id: 'evt-cancelled',
+      date: '2099/05/06 12:00~14:00',
+      status: 'cancelled',
+      max: 21,
+      current: 0,
+      teamReservationSummaries: [],
+    };
+    const full = {
+      id: 'evt-full',
+      date: '2099/05/06 12:00~14:00',
+      status: 'open',
+      max: 2,
+      current: 2,
+      teamReservationSummaries: [],
+    };
+    const app = loadEventListStatsModule({ event: full });
+
+    expect(app._getEventEffectiveStatus(cancelled, new Date(2026, 4, 6, 12, 0, 0))).toBe('cancelled');
+    expect(app._getEventEffectiveStatus(full, new Date(2026, 4, 6, 12, 0, 0))).toBe('full');
+  });
+});

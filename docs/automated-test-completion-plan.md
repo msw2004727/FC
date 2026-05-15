@@ -49,6 +49,24 @@ Last reviewed: 2026-05-15
 2. `npm run test:rules`：5 suites / 526 tests passed。
 3. `npm run test:e2e:smoke -- --workers=1` 搭配本地 HTTP server：23 tests passed。
 
+## 2026-05-15 Phase 3 實作紀錄
+
+狀態：已完成，等待本段 commit。
+
+本階段完成項目：
+1. 補強 `canonical-cache.test.js` 的活動頁 stale/fresh race：覆蓋「fresh 先到、舊 cache 後到」與「舊 cache 先 render、fresh detail 後注入」兩種順序，確認 `current/status` 最終維持最新 detail 值。
+2. 補強 `event-list-stats.test.js` 的活動狀態判斷：明確驗證「活動開始時間已過即 ended」、取消活動維持 cancelled、未來滿額活動維持 full。
+3. 補強 `event-write-integrity.test.js` 的寫入錯誤防線：`_updateAwaitWrite` / `_createAwaitWrite` 發生 Firestore 寫入失敗時，必須 rollback optimistic cache、觸發 toast、並保留錯誤給呼叫端處理。
+4. 複核既有 `event-confirmed-summary`、`registration-transaction`、`waitlist-sort`、`waitlist-capacity` 與 Firestore Rules 測試，確認 Phase 3 計劃書要求的報名、候補、取消與 attendance 邊界已被覆蓋。
+
+驗收命令：
+1. `npx jest --runInBand --runTestsByPath tests/unit/canonical-cache.test.js tests/unit/event-list-stats.test.js tests/unit/event-confirmed-summary.test.js tests/unit/event-write-integrity.test.js tests/unit/registration-transaction.test.js tests/unit/waitlist-sort.test.js tests/unit/waitlist-capacity.test.js`
+2. `npm run test:rules`
+
+驗收結果：
+1. Phase 3 unit：7 suites / 112 tests passed。
+2. Firestore Rules：5 suites / 526 tests passed。
+
 ## 1. 目標
 
 本計劃的目標不是追求測試數量，而是建立能實際攔住回歸 bug 的自動化測試防線。

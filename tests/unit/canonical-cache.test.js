@@ -273,6 +273,86 @@ describe('canonical registration/activity/attendance cache', () => {
     expect(FirebaseService._cache.events[0].status).toBe('full');
   });
 
+  test('fresh detail count wins when an older cache snapshot arrives after it', () => {
+    const { FirebaseService } = loadServices();
+    const fetchedAt = Date.now();
+    const freshDetail = {
+      id: 'evt-race-after',
+      _docId: 'eventDocRaceAfter',
+      current: 21,
+      max: 21,
+      status: 'full',
+      _detailSnapshot: true,
+      _detailSnapshotTs: fetchedAt,
+    };
+    const staleLocalSnapshot = {
+      id: 'evt-race-after',
+      _docId: 'eventDocRaceAfter',
+      current: 20,
+      max: 21,
+      status: 'open',
+    };
+
+    FirebaseService._cache.events = [freshDetail];
+    FirebaseService._eventSlices = {
+      active: [staleLocalSnapshot],
+      terminal: [],
+      injected: [freshDetail],
+    };
+    FirebaseService._debouncedPersistCache = jest.fn();
+    FirebaseService._debouncedSnapshotRender = jest.fn();
+
+    FirebaseService._mergeRealtimeEventSlices(true, { fromCache: true });
+
+    expect(FirebaseService._cache.events[0]).toMatchObject({
+      id: 'evt-race-after',
+      current: 21,
+      status: 'full',
+    });
+    expect(FirebaseService._debouncedSnapshotRender).toHaveBeenCalledWith('events');
+  });
+
+  test('fresh detail count wins when stale cache is rendered first and detail is injected later', () => {
+    const { FirebaseService } = loadServices();
+    const staleLocalSnapshot = {
+      id: 'evt-race-before',
+      _docId: 'eventDocRaceBefore',
+      current: 20,
+      max: 21,
+      status: 'open',
+    };
+    const freshDetail = {
+      id: 'evt-race-before',
+      _docId: 'eventDocRaceBefore',
+      current: 21,
+      max: 21,
+      status: 'full',
+      _detailSnapshot: true,
+      _detailSnapshotTs: Date.now(),
+    };
+
+    FirebaseService._cache.events = [];
+    FirebaseService._eventSlices = {
+      active: [staleLocalSnapshot],
+      terminal: [],
+      injected: [],
+    };
+    FirebaseService._debouncedPersistCache = jest.fn();
+
+    FirebaseService._mergeRealtimeEventSlices(false, { fromCache: true });
+    expect(FirebaseService._cache.events[0].current).toBe(20);
+
+    FirebaseService._cache.events = [freshDetail];
+    FirebaseService._eventSlices.injected = [freshDetail];
+    FirebaseService._mergeRealtimeEventSlices(false, { fromCache: true });
+
+    expect(FirebaseService._cache.events[0]).toMatchObject({
+      id: 'evt-race-before',
+      current: 21,
+      status: 'full',
+    });
+  });
+
   test('server event snapshots replace injected detail records', () => {
     const { FirebaseService } = loadServices();
     FirebaseService._cache.events = [{

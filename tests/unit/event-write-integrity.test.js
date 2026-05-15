@@ -204,6 +204,37 @@ describe('event write integrity', () => {
     expect(item.status).toBe('open');
   });
 
+  test('_updateAwaitWrite rolls back optimistic cache and surfaces permission toast on write failure', async () => {
+    const item = { id: 'evt-1', title: 'Test Event', status: 'open' };
+    const { ApiService, App } = loadApiService({ cache: { events: [item] } });
+    const err = Object.assign(new Error('Missing or insufficient permissions.'), {
+      code: 'permission-denied',
+    });
+    const firebaseMethod = jest.fn().mockRejectedValue(err);
+
+    await expect(ApiService._updateAwaitWrite('events', 'evt-1', { status: 'cancelled' }, firebaseMethod, 'updateEvent'))
+      .rejects.toBe(err);
+
+    expect(item).toMatchObject({ id: 'evt-1', title: 'Test Event', status: 'open' });
+    expect(App.showToast).toHaveBeenCalledWith(expect.any(String));
+    expect(err._toasted).toBe(true);
+  });
+
+  test('_createAwaitWrite rolls back optimistic cache and surfaces generic internal write toast', async () => {
+    const event = { id: 'ce-1', title: 'Internal Error Event', creatorUid: 'actor-1' };
+    const cache = { events: [] };
+    const { ApiService, App } = loadApiService({ cache });
+    const err = new Error('Firebase internal assertion failed');
+    const firebaseMethod = jest.fn().mockRejectedValue(err);
+
+    await expect(ApiService._createAwaitWrite('events', event, firebaseMethod, 'createEvent'))
+      .rejects.toBe(err);
+
+    expect(cache.events).toEqual([]);
+    expect(App.showToast).toHaveBeenCalled();
+    expect(err._toasted).toBe(true);
+  });
+
   test('_createAwaitWrite checks event creator uid before writing', async () => {
     const event = { id: 'ce-1', title: 'Private Event', creatorUid: 'actor-1' };
     const cache = { events: [] };
