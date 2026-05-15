@@ -1246,6 +1246,15 @@ describe("/events/{eventId}", () => {
     );
     await assertSucceeds(
       updateDoc(doc(user(), "events", "eventUserOwn"), {
+        image: "https://cdn.example.com/events/eventUserOwn_cover.webp",
+        imageVariants: {
+          cover: "https://cdn.example.com/events/eventUserOwn_cover.webp",
+          homeNext: "https://cdn.example.com/events/eventUserOwn_home_next.webp",
+        },
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(user(), "events", "eventUserOwn"), {
         status: "cancelled",
       })
     );

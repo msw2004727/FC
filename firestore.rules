@@ -711,7 +711,7 @@ service cloud.firestore {
 
       function eventUpdateBasicFieldsOnly(changed) {
         return changed.hasOnly([
-          'title', 'type', 'location', 'date', 'startTimestamp', 'endTimestamp', 'externalUrl', 'max', 'minAge', 'notes', 'image',
+          'title', 'type', 'location', 'date', 'startTimestamp', 'endTimestamp', 'externalUrl', 'max', 'minAge', 'notes', 'image', 'imageVariants',
           'sportTag', 'regOpenTime', 'gradient', 'icon', 'countdown',
           'regionEnabled', 'region', 'cities', 'delegates', 'delegateUids',
           'fee', 'feeEnabled', 'genderRestrictionEnabled', 'allowedGender',
@@ -722,7 +722,7 @@ service cloud.firestore {
 
       function eventScopedRoleFieldsOnly(changed) {
         return changed.hasOnly([
-          'title', 'type', 'location', 'date', 'startTimestamp', 'endTimestamp', 'externalUrl', 'max', 'minAge', 'notes', 'image',
+          'title', 'type', 'location', 'date', 'startTimestamp', 'endTimestamp', 'externalUrl', 'max', 'minAge', 'notes', 'image', 'imageVariants',
           'sportTag', 'regOpenTime', 'gradient', 'icon', 'countdown',
           'regionEnabled', 'region', 'cities', 'delegates', 'delegateUids',
           'fee', 'feeEnabled', 'genderRestrictionEnabled', 'allowedGender',
