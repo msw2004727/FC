@@ -113,6 +113,25 @@ Last reviewed: 2026-05-15
 本階段審計發現並已修復：
 1. 新增 PM E2E 初版使用 `ScriptLoader._load` 時，因 `_primeLoadedFromDom()` 會把 DOM 既有 script 標為 loaded，導致測試頁中 `pm-listener` 方法尚不可用；已改用 `page.addScriptTag({ path })` 在測試上下文明確執行需要的 PM 模組。
 
+## 2026-05-15 Phase 6 實作紀錄
+
+狀態：已完成，等待本段 commit。
+
+本階段完成項目：
+1. 補強 `tests/unit/cloud-functions.test.js` 的 Cloud Functions source contract，覆蓋 `registerForEvent`、`cancelRegistration`、`refreshMyActivityRecords` 的身份驗證、UID bridge、transaction、registration lock、activityRecords、候補遞補與 cooldown 防線。
+2. 補強私訊 callable source contract，覆蓋 `sendPrivateMessage`、`markPrivateConversationRead`、`editPrivateMessage`、`recallPrivateMessage`、`updatePrivateMessageSettings` 的參與者驗證、sender-only 修改、已讀後不可改、rate limit、audit copy 與 super_admin 設定權限。
+3. 對 `createSportsApiProScoreboardExports` 建立可注入的 callable fast-layer 測試，驗證 `refreshSportsApiProScoreboard`、`fetchSportsApiProMatchDetail`、`upsertScoreboardTranslations` 的 auth / permission / cooldown / invalid sport 防線。
+4. 補 `fetchJson` 注入式 fetch 測試，確保測試不會打正式 SportsAPI Pro，且會帶 `x-api-key` header。
+5. 複核 `test:functions` script 已存在，沒有新增重複 script。
+
+驗收結果：
+1. `npm run test:functions -- --runInBand`：1 suite / 139 tests passed。
+2. `npm run test:rules`：5 suites / 526 tests passed。
+
+本階段審計決策：
+1. 未抽離 `functions/index.js` 的報名與私訊 runtime helper。原因是這些 callable 目前耦合 Firestore transaction、通知、稽核與歷史資料修補，為了測試大幅抽 helper 會帶來高於測試收益的回歸風險；本階段先用 source contract 鎖住高風險邊界，SportsAPI 則使用既有 dependency injection 做真正 mock 行為測試。
+2. Functions emulator callable 層暫不擴大到完整所有 callable；目前以 Rules emulator + callable fast-layer 補 P0/P1 防線，避免 CI 過慢與 flaky。若未來要測真 callable emulator，應只挑 `registerForEvent` / `cancelRegistration` / `sendPrivateMessage` 三條最核心路徑。
+
 ## 1. 目標
 
 本計劃的目標不是追求測試數量，而是建立能實際攔住回歸 bug 的自動化測試防線。

@@ -10,6 +10,10 @@
 
 const fs = require('fs');
 const path = require('path');
+const {
+  createSportsApiProScoreboardExports,
+  __test: sportsApiProTest,
+} = require('../../functions/scoreboard-sportsapipro');
 
 // ===========================================================================
 // Constants extracted from functions/index.js:27-74
@@ -399,6 +403,57 @@ function findAllIndexes(source, needle) {
   return indexes;
 }
 
+class TestHttpsError extends Error {
+  constructor(code, message, details) {
+    super(message);
+    this.code = code;
+    this.details = details;
+  }
+}
+
+function makeScoreboardDb({ usageData } = {}) {
+  const calls = [];
+  const makeRef = (collectionName, docId) => ({
+    get: jest.fn(async () => ({
+      exists: usageData != null,
+      data: () => usageData || {},
+    })),
+    set: jest.fn(async (payload, options) => {
+      calls.push({ collectionName, docId, payload, options });
+    }),
+  });
+  const db = {
+    collection: jest.fn((collectionName) => ({
+      doc: jest.fn((docId) => makeRef(collectionName, docId)),
+    })),
+  };
+  db.__calls = calls;
+  return db;
+}
+
+function makeScoreboardExports({ access, usageData } = {}) {
+  const db = makeScoreboardDb({ usageData });
+  const exported = createSportsApiProScoreboardExports({
+    db,
+    FieldValue: {
+      serverTimestamp: () => 'SERVER_TIMESTAMP',
+    },
+    Timestamp: {
+      fromMillis: (ms) => ({ ms, toMillis: () => ms }),
+      fromDate: (date) => ({ ms: date.getTime(), toMillis: () => date.getTime() }),
+    },
+    onCall: (options, handler) => ({ options, handler }),
+    onSchedule: (options, handler) => ({ options, handler }),
+    HttpsError: TestHttpsError,
+    defineSecret: (name) => ({ name, value: () => 'TEST_SECRET_VALUE' }),
+    getCallerAccessContext: jest.fn(async () => access || {
+      isSuperAdmin: false,
+      hasPermission: () => false,
+    }),
+  });
+  return { db, exported };
+}
+
 // ===========================================================================
 // TESTS
 // ===========================================================================
@@ -419,6 +474,44 @@ describe('event id lookup source', () => {
     expect(readCloudFunctionSource('registerForEvent')).toContain('getEventDocByPublicIdInTransaction(transaction, eventId)');
     expect(readCloudFunctionSource('cancelRegistration')).toContain('getEventDocByPublicIdInTransaction(transaction, eventId)');
     expect(readCloudFunctionSource('adjustTeamReservation')).toContain('getEventDocByPublicIdInTransaction(transaction, safeEventId)');
+  });
+});
+
+describe('registration callable source contracts', () => {
+  test('registerForEvent keeps auth, caller identity, transaction, lock, and activity record guards', () => {
+    const source = readCloudFunctionSource('registerForEvent');
+    expect(source).toContain('if (!request.auth)');
+    expect(source).toContain('firstParticipant.userId !== callerUid');
+    expect(source).toContain('db.collection("_regDedupe").doc(safeRequestId)');
+    expect(source).toContain('const result = await db.runTransaction');
+    expect(source).toContain('getEventDocByPublicIdInTransaction(transaction, eventId)');
+    expect(source).toContain('eventDoc.ref.collection("registrationLocks").doc(lockId)');
+    expect(source).toContain('transaction.set(regLockRefs[idx]');
+    expect(source).toContain('eventDoc.ref.collection("activityRecords").doc()');
+    expect(source).toContain('transaction.set(arRef, arData)');
+  });
+
+  test('cancelRegistration updates registrations, activityRecords, locks, and waitlist promotion in one transaction', () => {
+    const source = readCloudFunctionSource('cancelRegistration');
+    expect(source).toContain('const result = await db.runTransaction');
+    expect(source).toContain('eventDoc.ref.collection("registrations")');
+    expect(source).toContain('eventDoc.ref.collection("activityRecords")');
+    expect(source).toContain('eventDoc.ref.collection("registrationLocks").doc(registrationLockId(reg))');
+    expect(source).toContain('promoteWaitlistForAvailableSeats(ed, simRegs)');
+    expect(source).toContain('{ status: newStatus }');
+    expect(source).toContain('{ status: "registered" }');
+  });
+
+  test('refreshMyActivityRecords resolves UID bridge, applies cooldown, and repairs activity records by auth UID', () => {
+    const source = readCloudFunctionSource('refreshMyActivityRecords');
+    expect(source).toContain('if (!request.auth?.uid)');
+    expect(source).toContain('findUserDocByUidOrLineUserId(request.auth.uid)');
+    expect(source).toContain('getAuthUidFromUserDoc(found, request.auth.uid)');
+    expect(source).toContain('activityRecordsManualRefreshAt');
+    expect(source).toContain('throw new HttpsError("resource-exhausted", "too soon"');
+    expect(source).toContain('repairActivityRecordsForUserId(targetUid');
+    expect(source).toContain('source: "self_refresh"');
+    expect(source).toContain('activityRecordsManualRefreshCompletedAt');
   });
 });
 
@@ -922,6 +1015,152 @@ describe('registerForEvent CF logic', () => {
 //  adminManageUser — extracted helpers (index.js:1103-1222)
 //  2026-04-27 補強：之前完全沒有此函式的測試
 // ═══════════════════════════════════════════════════════════════
+
+describe('private message callable source contracts', () => {
+  test('sendPrivateMessage authenticates LINE UIDs, enforces PM policy, rate limits, and writes audit copy', () => {
+    const source = readCloudFunctionSource('sendPrivateMessage');
+    expect(source).toContain('if (!request.auth?.uid)');
+    expect(source).toContain('pmAssertLineUid(request.auth.uid, "fromUid")');
+    expect(source).toContain('pmAssertLineUid(request.data?.toUid, "toUid")');
+    expect(source).toContain('if (fromUid === toUid)');
+    expect(source).toContain('const cId = pmBuildConversationId(fromUid, toUid)');
+    expect(source).toContain('const result = await db.runTransaction');
+    expect(source).toContain('pmCanSendTo(senderInfo.role, recipientInfo.role, hasExistingConversation, pmSettings)');
+    expect(source).toContain('PM_DAILY_LIMIT_PER_UID');
+    expect(source).toContain('PM_DAILY_LIMIT_PER_PEER');
+    expect(source).toContain('db.collection("pmAuditConversations").doc(cId)');
+    expect(source).toContain('db.collection("pmAuditLogs").doc');
+  });
+
+  test('markPrivateConversationRead only accepts participant conversation ids and mirrors read state to peer/audit docs', () => {
+    const source = readCloudFunctionSource('markPrivateConversationRead');
+    expect(source).toContain('if (!request.auth?.uid)');
+    expect(source).toContain('pmAssertConversationParticipant(request.data?.conversationId, uid)');
+    expect(source).toContain('pmOtherParticipant(parsed, uid)');
+    expect(source).toContain('.where("direction", "==", "in")');
+    expect(source).toContain('.where("read", "==", false)');
+    expect(source).toContain('{ peerRead: true, peerReadAt: nowTs, updatedAt: nowTs }');
+    expect(source).toContain('{ [`readBy.${uid}`]: nowTs, updatedAt: nowTs }');
+    expect(source).toContain('unreadTotal: FieldValue.increment(-unreadSnap.size)');
+  });
+
+  test('edit and recall share sender-only guard, read guard, and audit trail', () => {
+    const helperSource = readSourceBetween(
+      'async function pmUpdateOwnMessage',
+      'exports.editPrivateMessage'
+    );
+    expect(helperSource).toContain('pmAssertConversationParticipant(request.data?.conversationId, uid)');
+    expect(helperSource).toContain('if (oldData.fromUid !== uid)');
+    expect(helperSource).toContain('if (oldData.status === "recalled")');
+    expect(helperSource).toContain('if (peerHasRead)');
+    expect(helperSource).toContain('editHistory');
+    expect(helperSource).toContain('action: mode');
+    expect(readCloudFunctionSource('editPrivateMessage')).toContain('pmUpdateOwnMessage(request, "edit")');
+    expect(readCloudFunctionSource('recallPrivateMessage')).toContain('pmUpdateOwnMessage(request, "recall")');
+  });
+
+  test('updatePrivateMessageSettings is super-admin gated and audited', () => {
+    const source = readCloudFunctionSource('updatePrivateMessageSettings');
+    expect(source).toContain('const caller = await pmAssertSuperAdmin(request)');
+    expect(source).toContain('db.collection("siteConfig").doc(PM_SETTINGS_DOC_ID).set');
+    expect(source).toContain('allowUserToUserPm');
+    expect(source).toContain('pmWriteAuditLog("settings_update"');
+  });
+});
+
+describe('SportsAPI Pro callable fast layer', () => {
+  test('exports callables with asia-east1, 256MiB memory, and secret binding', () => {
+    const { exported } = makeScoreboardExports({
+      access: { isSuperAdmin: true, hasPermission: () => true },
+    });
+    expect(exported.refreshSportsApiProScoreboard.options).toMatchObject({
+      region: 'asia-east1',
+      timeoutSeconds: 180,
+      memory: '256MiB',
+    });
+    expect(exported.fetchSportsApiProMatchDetail.options).toMatchObject({
+      region: 'asia-east1',
+      timeoutSeconds: 90,
+      memory: '256MiB',
+    });
+    expect(exported.refreshSportsApiProScoreboard.options.secrets[0].name).toBe('SPORTSAPI_PRO_API_KEY');
+    expect(exported.fetchSportsApiProMatchDetail.options.secrets[0].name).toBe('SPORTSAPI_PRO_API_KEY');
+    expect(exported.upsertScoreboardTranslations.options).toMatchObject({
+      region: 'asia-east1',
+      timeoutSeconds: 90,
+      memory: '256MiB',
+    });
+  });
+
+  test('manual refresh rejects unauthenticated callers before Firestore or provider access', async () => {
+    const { db, exported } = makeScoreboardExports();
+    await expect(exported.refreshSportsApiProScoreboard.handler({ auth: null, data: {} }))
+      .rejects.toMatchObject({ code: 'unauthenticated' });
+    expect(db.collection).not.toHaveBeenCalled();
+  });
+
+  test('manual refresh rejects callers without scoreboard permission before provider access', async () => {
+    const { db, exported } = makeScoreboardExports({
+      access: { isSuperAdmin: false, hasPermission: () => false },
+    });
+    await expect(exported.refreshSportsApiProScoreboard.handler({ auth: { uid: 'U123' }, data: {} }))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect(db.collection).not.toHaveBeenCalled();
+  });
+
+  test('manual refresh cooldown stops before collecting scoreboard data', async () => {
+    const { db, exported } = makeScoreboardExports({
+      access: { isSuperAdmin: true, hasPermission: () => true },
+      usageData: { manualRefreshAt: { toMillis: () => Date.now() } },
+    });
+    await expect(exported.refreshSportsApiProScoreboard.handler({ auth: { uid: 'U123' }, data: {} }))
+      .rejects.toMatchObject({ code: 'resource-exhausted' });
+    expect(db.collection).toHaveBeenCalledWith('sportsApiProUsage');
+  });
+
+  test('match detail rejects invalid sport before Firestore or provider access', async () => {
+    const { db, exported } = makeScoreboardExports();
+    await expect(exported.fetchSportsApiProMatchDetail.handler({
+      auth: { uid: 'U123' },
+      data: { sport: 'unknown', matchId: 'm1' },
+    })).rejects.toMatchObject({ code: 'invalid-argument' });
+    expect(db.collection).not.toHaveBeenCalled();
+  });
+
+  test('translation upsert requires scoreboard translation or configure permission', async () => {
+    const { db, exported } = makeScoreboardExports({
+      access: { isSuperAdmin: false, hasPermission: () => false },
+    });
+    await expect(exported.upsertScoreboardTranslations.handler({
+      auth: { uid: 'U123' },
+      data: { items: [] },
+    })).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(db.collection).not.toHaveBeenCalled();
+  });
+
+  test('fetchJson uses injected fetch implementation and x-api-key header', async () => {
+    const fetchImpl = jest.fn(async () => ({
+      ok: true,
+      headers: { forEach: (cb) => cb('89', 'x-ratelimit-remaining') },
+      json: async () => ({ data: [{ id: 1 }] }),
+    }));
+
+    const result = await sportsApiProTest.fetchJson({
+      apiKey: 'KEY_FOR_TEST',
+      baseUrl: 'https://v2.football.sportsapipro.com',
+      path: '/api/live',
+      sport: 'football',
+      kind: 'live',
+      fetchImpl,
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl.mock.calls[0][0]).toBe('https://v2.football.sportsapipro.com/api/live');
+    expect(fetchImpl.mock.calls[0][1].headers['x-api-key']).toBe('KEY_FOR_TEST');
+    expect(result.payload).toEqual({ data: [{ id: 1 }] });
+    expect(result.headers['x-ratelimit-remaining']).toBe('89');
+  });
+});
 
 describe('adjustTeamReservation CF member stamping', () => {
   test('includes club staff UIDs even when users.teamIds is empty', () => {
