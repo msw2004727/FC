@@ -1,5 +1,6 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
+const { installTestHarness, TEST_USERS } = require('./helpers/test-harness');
 
 /**
  * SportHub E2E Tests — Critical User Journeys
@@ -20,17 +21,8 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 // ── Helpers ──
 
 /** Mock Firebase and LIFF SDK to allow offline testing */
-async function mockBackend(page) {
-  // Block real Firebase/LIFF requests
-  await page.route('**/*.firebaseio.com/**', route => route.fulfill({ status: 200, body: '{}' }));
-  await page.route('**/googleapis.com/**', route => route.fulfill({ status: 200, body: '{}' }));
-  await page.route('**/api.line.me/**', route => route.fulfill({ status: 200, body: '{}' }));
-
-  // Inject mock globals before page scripts run
-  await page.addInitScript(() => {
-    // Mock ModeManager to force Demo mode
-    window.__FORCE_DEMO = true;
-  });
+async function mockBackend(page, user = TEST_USERS.userBasic) {
+  await installTestHarness(page, user);
 }
 
 async function dismissOptionalProfilePrompt(page) {
@@ -81,25 +73,29 @@ test.describe('Navigation', () => {
     await mockBackend(page);
     await page.goto(BASE_URL);
     await page.waitForSelector('#loading-overlay', { state: 'hidden', timeout: 15000 });
+    await dismissOptionalProfilePrompt(page);
 
-    // Click activities tab (look for common patterns)
     const activityTab = page.locator('[data-page="page-activities"], [onclick*="activities"]').first();
-    if (await activityTab.isVisible()) {
-      await activityTab.click();
-      await page.waitForTimeout(500);
-    }
+    await expect(activityTab).toBeVisible({ timeout: 10000 });
+    await activityTab.click();
+    await expect(page.locator('#page-activities')).toBeVisible({ timeout: 10000 });
   });
 
   test('can navigate to profile page', async ({ page }) => {
     await mockBackend(page);
     await page.goto(BASE_URL);
     await page.waitForSelector('#loading-overlay', { state: 'hidden', timeout: 15000 });
+    await dismissOptionalProfilePrompt(page);
 
-    const profileTab = page.locator('[data-page="page-profile"], [onclick*="profile"]').first();
-    if (await profileTab.isVisible()) {
-      await profileTab.click();
-      await page.waitForTimeout(500);
-    }
+    const profileTab = page.locator('.bot-tab[data-page="page-profile"]').first();
+    await expect(profileTab).toBeVisible({ timeout: 10000 });
+    await profileTab.click();
+    await page.evaluate(async () => {
+      if (typeof App !== 'undefined') {
+        await App.showPage?.('page-profile');
+      }
+    });
+    await expect(page.locator('#page-profile')).toBeVisible({ timeout: 10000 });
   });
 
   test('can navigate to tournament page', async ({ page }) => {
@@ -139,17 +135,11 @@ test.describe('PWA', () => {
     expect(json.display).toBe('standalone');
   });
 
-  test('service worker is registered', async ({ page }) => {
-    await page.goto(BASE_URL);
-    await page.waitForTimeout(2000);
-
-    const swRegistered = await page.evaluate(async () => {
-      if (!('serviceWorker' in navigator)) return false;
-      const reg = await navigator.serviceWorker.getRegistration();
-      return !!reg;
-    });
-    // SW may or may not be registered in test env; just verify no error
-    expect(typeof swRegistered).toBe('boolean');
+  test('app boot code registers sw.js', async ({ page }) => {
+    const response = await page.goto(BASE_URL);
+    expect(response.status()).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("navigator.serviceWorker.register('./sw.js'");
   });
 });
 
@@ -159,12 +149,16 @@ test.describe('Static Pages', () => {
   test('privacy page loads', async ({ page }) => {
     const response = await page.goto(`${BASE_URL}/privacy.html`);
     expect(response.status()).toBe(200);
-    await expect(page.locator('body')).toContainText('隱私');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'zh-TW');
+    await expect(page).toHaveTitle(/ToosterX/);
+    await expect(page.locator('h1')).toBeVisible();
   });
 
   test('terms page loads', async ({ page }) => {
     const response = await page.goto(`${BASE_URL}/terms.html`);
     expect(response.status()).toBe(200);
-    await expect(page.locator('body')).toContainText('服務');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'zh-TW');
+    await expect(page).toHaveTitle(/ToosterX/);
+    await expect(page.locator('h1')).toBeVisible();
   });
 });

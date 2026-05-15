@@ -79,12 +79,23 @@ async function mockOfflineServices(page) {
     contentType: 'application/json',
     body: '{}',
   });
+  const emptyScript = route => route.fulfill({
+    status: 200,
+    contentType: 'application/javascript',
+    body: '',
+  });
 
   await page.route('**/*.firebaseio.com/**', emptyJson);
   await page.route('**/googleapis.com/**', emptyJson);
   await page.route('**/firestore.googleapis.com/**', emptyJson);
   await page.route('**/api.line.me/**', emptyJson);
   await page.route('**/liff.line.me/**', emptyJson);
+  await page.route('**/static.line-scdn.net/liff/**', route => route.fulfill({
+    status: 200,
+    contentType: 'application/javascript',
+    body: 'window.liff = window.liff || window.__E2E_LIFF_MOCK__;',
+  }));
+  await page.route('**/cdn.jsdelivr.net/npm/@line/liff-inspector**', emptyScript);
   await page.route('**/sportsapipro.com/**', emptyJson);
   await page.route('**/ipwho.is/**', route => route.fulfill({
     status: 200,
@@ -97,12 +108,92 @@ async function installTestHarness(page, user = TEST_USERS.userBasic) {
   await clearBrowserState(page);
   await mockOfflineServices(page);
   await page.addInitScript(({ currentUser, users, events }) => {
+    const currentUserDoc = {
+      _docId: currentUser.uid,
+      uid: currentUser.uid,
+      lineUserId: currentUser.uid,
+      name: currentUser.displayName,
+      displayName: currentUser.displayName,
+      pictureUrl: currentUser.pictureUrl || '',
+      role: currentUser.role || 'user',
+      gender: currentUser.gender || 'other',
+      birthday: currentUser.birthday || '1990-01-01',
+      region: currentUser.region || '中部',
+      city: currentUser.city || '台中市',
+      district: currentUser.district || '西屯區',
+      exp: 0,
+    };
+    const now = Date.now();
+    const userDocs = Object.values(users).map(item => ({
+      _docId: item.uid,
+      uid: item.uid,
+      lineUserId: item.uid,
+      name: item.displayName,
+      displayName: item.displayName,
+      pictureUrl: item.pictureUrl || '',
+      role: item.role || 'user',
+      gender: item.gender || 'other',
+      birthday: item.birthday || '1990-01-01',
+      region: item.region || '中部',
+      city: item.city || '台中市',
+      district: item.district || '西屯區',
+      exp: 0,
+    }));
+    const cacheSeed = {
+      currentUser: currentUserDoc,
+      adminUsers: userDocs,
+      events: Object.values(events),
+      banners: [],
+      announcements: [],
+      siteThemes: [],
+      rolePermissions: {
+        admin: { permissions: ['admin.dashboard.entry'] },
+        super_admin: { permissions: ['admin.dashboard.entry', 'admin.roles.entry'] },
+      },
+      roleActivityCapabilities: {
+        user: { capabilities: ['user.activity.basic_create'] },
+      },
+    };
+
+    Object.entries(cacheSeed).forEach(([key, value]) => {
+      localStorage.setItem(`shub_c_${key}`, JSON.stringify(value));
+    });
+    localStorage.setItem('shub_cache_ts', String(now));
+    localStorage.setItem('liff_profile_cache', JSON.stringify({
+      userId: currentUser.uid,
+      displayName: currentUser.displayName,
+      pictureUrl: currentUser.pictureUrl || '',
+      cachedAt: now,
+    }));
+
+    window.__E2E_LIFF_MOCK__ = {
+      init: () => Promise.resolve(),
+      use: () => {},
+      isLoggedIn: () => true,
+      login: () => {},
+      logout: () => {},
+      isInClient: () => false,
+      getAccessToken: () => 'e2e-access-token',
+      getProfile: () => Promise.resolve({
+        userId: currentUser.uid,
+        displayName: currentUser.displayName,
+        pictureUrl: currentUser.pictureUrl || '',
+      }),
+      getDecodedIDToken: () => ({
+        sub: currentUser.uid,
+        name: currentUser.displayName,
+        picture: currentUser.pictureUrl || '',
+        email: null,
+      }),
+      openWindow: () => {},
+    };
+    window.liff = window.__E2E_LIFF_MOCK__;
     window.__FORCE_DEMO = true;
     window.__E2E_TEST_HARNESS__ = {
-      currentUser,
+      currentUser: currentUserDoc,
       users,
       events,
-      installedAt: Date.now(),
+      installedAt: now,
     };
   }, {
     currentUser: user,

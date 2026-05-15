@@ -1,5 +1,6 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
+const { installTestHarness, TEST_USERS } = require('./helpers/test-harness');
 
 /**
  * SportHub E2E — 新功能 smoke journeys（Phase 4）
@@ -21,16 +22,44 @@ const { test, expect } = require('@playwright/test');
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
 /** Mock Firebase / LIFF / LINE 以允許離線測試 */
-async function mockBackend(page) {
-  await page.route('**/*.firebaseio.com/**', route => route.fulfill({ status: 200, body: '{}' }));
-  await page.route('**/googleapis.com/**', route => route.fulfill({ status: 200, body: '{}' }));
-  await page.route('**/api.line.me/**', route => route.fulfill({ status: 200, body: '{}' }));
-  await page.route('**/liff.line.me/**', route => route.fulfill({ status: 200, body: '{}' }));
-  await page.route('**/ipwho.is/**', route => route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify({ success: true, city: 'Taichung', country: 'Taiwan' }),
-  }));
+async function mockBackend(page, user = TEST_USERS.userBasic) {
+  await installTestHarness(page, user);
+}
+
+async function openAdminDashboard(page) {
+  await mockBackend(page, TEST_USERS.admin);
+  await page.goto(`${BASE_URL}#page-admin-dashboard`);
+  await page.waitForSelector('#loading-overlay', { state: 'hidden', timeout: 15000 });
+  await page.waitForFunction(() => (
+    typeof App !== 'undefined'
+    && typeof ScriptLoader !== 'undefined'
+    && typeof FirebaseService !== 'undefined'
+  ));
+  const result = await page.evaluate(async () => {
+    const user = window.__E2E_TEST_HARNESS__?.currentUser;
+    if (!FirebaseService._cache) FirebaseService._cache = {};
+    if (user) FirebaseService._cache.currentUser = user;
+    FirebaseService._cache.rolePermissions = {
+      admin: { permissions: ['admin.dashboard.entry'] },
+      super_admin: { permissions: ['admin.dashboard.entry', 'admin.roles.entry'] },
+    };
+    if (user?.role) {
+      App.currentRole = user.role;
+    }
+    await ScriptLoader.ensureForPage?.('page-admin-dashboard');
+    document.querySelectorAll('.page').forEach(pageEl => pageEl.classList.remove('active'));
+    const target = document.getElementById('page-admin-dashboard');
+    if (!target) return { ok: false, reason: 'missing_dashboard_page' };
+    target.classList.add('active');
+    App.currentPage = 'page-admin-dashboard';
+    App.renderDashboard?.();
+    return {
+      ok: target.classList.contains('active'),
+      cards: document.querySelectorAll('.dash-card[data-drill-key]').length,
+    };
+  });
+  expect(result.ok, `admin dashboard harness failed: ${JSON.stringify(result)}`).toBe(true);
+  await expect(page.locator('#page-admin-dashboard')).toBeVisible({ timeout: 10000 });
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -39,40 +68,28 @@ async function mockBackend(page) {
 
 test.describe('Dashboard Drilldown', () => {
   test('儀表板卡片帶 data-drill-key 屬性', async ({ page }) => {
-    await mockBackend(page);
-    await page.goto(`${BASE_URL}#page-admin-dashboard`);
-    await page.waitForTimeout(2000);  // 等頁面載入
+    await openAdminDashboard(page);
 
     // 檢查卡片有 data-drill-key（新功能）
     const cards = page.locator('.dash-card[data-drill-key]');
     const count = await cards.count();
-    // 如果 admin 權限 + 頁面成功渲染，應有 8 張
-    // 否則 0 張（未登入情境）— 只要元素存在就算通過
-    expect(count).toBeGreaterThanOrEqual(0);
+    expect(count).toBeGreaterThan(0);
   });
 
   test('儀表板 refresh bar 包含時間區間下拉', async ({ page }) => {
-    await mockBackend(page);
-    await page.goto(`${BASE_URL}#page-admin-dashboard`);
-    await page.waitForTimeout(2000);
+    await openAdminDashboard(page);
 
     const select = page.locator('#dash-months-range');
-    if (await select.isVisible()) {
-      // 驗證選項 1/3/6/12 都存在
-      const options = await select.locator('option').allTextContents();
-      expect(options.some(opt => opt.includes('6'))).toBe(true);
-    }
+    await expect(select).toBeVisible();
+    const values = await select.locator('option').evaluateAll(options => options.map(option => option.value));
+    expect(values).toEqual(expect.arrayContaining(['1', '3', '6', '12']));
   });
 
   test('說明按鈕（?）存在於 refresh bar', async ({ page }) => {
-    await mockBackend(page);
-    await page.goto(`${BASE_URL}#page-admin-dashboard`);
-    await page.waitForTimeout(2000);
+    await openAdminDashboard(page);
 
     const infoBtn = page.locator('.dash-refresh-bar .dash-info-btn');
-    // 若頁面渲染成功應該可見；未登入則整個 dashboard 不渲染
-    const exists = await infoBtn.count() > 0;
-    expect(typeof exists).toBe('boolean');
+    await expect(infoBtn.first()).toBeVisible();
   });
 });
 
@@ -84,15 +101,16 @@ test.describe('Multi-Tab Guard', () => {
   test('multi-tab-guard.js 載入成功', async ({ page }) => {
     await mockBackend(page);
     await page.goto(BASE_URL);
-    await page.waitForFunction(() => {
-      return typeof App !== 'undefined' && typeof App.initMultiTabGuard === 'function';
-    }, null, { timeout: 10000 });
 
-    // 檢查 App.initMultiTabGuard 是否存在（模組已載入）
-    const guardInitialized = await page.evaluate(() => {
-      return typeof App !== 'undefined' && typeof App.initMultiTabGuard === 'function';
-    });
-    expect(guardInitialized).toBe(true);
+    await expect.poll(async () => {
+      try {
+        return await page.evaluate(() => (
+          typeof App !== 'undefined' && typeof App.initMultiTabGuard === 'function'
+        ));
+      } catch (_) {
+        return false;
+      }
+    }, { timeout: 10000 }).toBe(true);
   });
 
   test('BroadcastChannel 不支援時靜默降級（不 throw）', async ({ page }) => {
@@ -123,8 +141,7 @@ test.describe('Theme', () => {
     const theme = await page.evaluate(() => {
       return document.documentElement.getAttribute('data-theme');
     });
-    // 可能尚未設定或為 light/dark 其中之一
-    expect(['light', 'dark', null, '']).toContain(theme);
+    expect(['light', 'dark']).toContain(theme);
   });
 
   test('CSS 變數能正確讀取（--accent 等）', async ({ page }) => {
@@ -174,12 +191,7 @@ test.describe('User Card', () => {
     await page.goto(`${BASE_URL}#page-activity-detail`);
     await page.waitForTimeout(2000);
 
-    // 檢查是否有 detail-view-count-wrap（即使不顯示也應存在於 DOM）
-    const viewCountExists = await page.evaluate(() => {
-      return !!document.getElementById('detail-view-count-wrap');
-    });
-    // 若頁面已渲染則為 true，未渲染為 false；只要不報錯即可
-    expect(typeof viewCountExists).toBe('boolean');
+    await expect(page.locator('#detail-view-count-wrap')).toBeAttached({ timeout: 10000 });
   });
 });
 

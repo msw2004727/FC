@@ -2,6 +2,31 @@
 
 Last reviewed: 2026-05-15
 
+## 2026-05-15 Phase 1 實作紀錄
+
+狀態：已完成，等待本段 commit。
+
+本階段完成項目：
+1. E2E 全面改用 `tests/e2e/helpers/test-harness.js` 注入固定測試身分、固定活動 fixture、LIFF mock、localStorage cache seed 與外部 API 離線攔截。
+2. 移除 E2E 中「只驗證 boolean 型別」與「只驗證數量 >= 0」的無效測試寫法，改成可見性、route、DOM state、select option、service worker boot code 等具體 assertion。
+3. 新增 `tests/unit/e2e-quality.test.js`，禁止 E2E spec 再引入低保護力 assertion，且要求共用 test harness。
+4. 將 ScriptLoader orphan / eager script 風險改為明確 allowlist，未列入原因的新增 orphan 會直接 fail。
+5. 將 source drift 從純 warning 改為 baseline gate，避免新的 stale line range 繼續增加。
+
+驗收結果：
+1. `npx jest --runInBand --runTestsByPath tests/unit/e2e-quality.test.js tests/unit/script-deps.test.js tests/unit/source-drift.test.js`：3 suites / 26 tests passed。
+2. `npm run test:e2e:smoke -- --list`：列出 21 tests。
+3. `npm run test:e2e:smoke -- --workers=1` 搭配本地 HTTP server：21 tests passed。
+
+本階段審計發現並已修復：
+1. `privacy.html` / `terms.html` 原本用 `locator('title')` 讀不到 title，已改為 `page.toHaveTitle()`。
+2. profile 導航原本可能抓到隱藏的 user-menu 項目，已改抓底部 tab 並確認 `#page-profile` 可見。
+3. admin dashboard 原本只切 hash 不保證 dashboard 模組已載入，已新增 `openAdminDashboard()` 測試 helper，明確載入 script、注入 admin user、render dashboard。
+
+剩餘風險：
+1. `source-drift.test.js` 仍有既有 stale baseline，Phase 1 先禁止惡化；後續可另排清理，不在本階段擴大修改。
+2. E2E harness 目前覆蓋主要離線 smoke，後續 Phase 2-9 仍需依功能面補更完整的業務流程。
+
 ## 1. 目標
 
 本計劃的目標不是追求測試數量，而是建立能實際攔住回歸 bug 的自動化測試防線。

@@ -17,6 +17,11 @@ const crypto = require('crypto');
 
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
 const JS_DIR = path.join(PROJECT_ROOT, 'js');
+const SOURCE_DRIFT_BASELINE = Object.freeze({
+  outOfBoundsLineRanges: 2,
+  staleLineRanges: 110,
+});
+const SOURCE_DRIFT_LOG_LIMIT = 10;
 
 /**
  * Read a file and return lines array
@@ -199,14 +204,17 @@ describe('Source-Test Drift Detection', () => {
     });
     // Log drifted annotations for developer awareness
     if (drifted.length > 0) {
-      const details = drifted.map(a =>
+      const details = drifted.slice(0, SOURCE_DRIFT_LOG_LIMIT).map(a =>
         `  ${path.basename(a.testFile)}:${a.testLine} → ${a.resolvedFile}:${a.startLine}-${a.endLine} (file has ${a.fileLength} lines)`
       ).join('\n');
-      console.warn(`\n⚠️  ${drifted.length} annotation(s) have shifted line ranges (source may have been modified):\n${details}\n`);
+      const more = drifted.length > SOURCE_DRIFT_LOG_LIMIT
+        ? `\n  ...and ${drifted.length - SOURCE_DRIFT_LOG_LIMIT} more.`
+        : '';
+      console.warn(`\n⚠️  ${drifted.length} annotation(s) have shifted line ranges (source may have been modified):\n${details}${more}\n`);
     }
-    // This test passes — drift is a warning, not a blocker
-    // The key protection is the file existence check above
-    expect(true).toBe(true);
+    // Existing drift is tracked as a baseline; new drift must be fixed or
+    // consciously added to the baseline with a reason in the phase plan.
+    expect(drifted.length).toBeLessThanOrEqual(SOURCE_DRIFT_BASELINE.outOfBoundsLineRanges);
   });
 
   test('extracted functions match current source content', () => {
@@ -277,14 +285,19 @@ describe('Source-Test Drift Detection', () => {
 
     // Log stale annotations as warnings (line numbers shifted)
     if (staleAnnotations.length > 0) {
-      const details = staleAnnotations.map(s =>
+      const details = staleAnnotations.slice(0, SOURCE_DRIFT_LOG_LIMIT).map(s =>
         `  ${path.basename(s.testFile)}:${s.testLine} -> ${s.resolvedFile}:${s.startLine}-${s.endLine} (looking for '${s.testFuncName}')`
       ).join('\n');
+      const more = staleAnnotations.length > SOURCE_DRIFT_LOG_LIMIT
+        ? `\n  ...and ${staleAnnotations.length - SOURCE_DRIFT_LOG_LIMIT} more.`
+        : '';
       console.warn(
         `\n[WARN] ${staleAnnotations.length} annotation(s) have stale line ranges ` +
-        `(source at annotated lines contains different function):\n${details}\n`
+        `(source at annotated lines contains different function):\n${details}${more}\n`
       );
     }
+
+    expect(staleAnnotations.length).toBeLessThanOrEqual(SOURCE_DRIFT_BASELINE.staleLineRanges);
 
     // Hard fail only on confirmed content mismatches
     if (mismatches.length > 0) {

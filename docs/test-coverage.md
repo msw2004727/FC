@@ -22,6 +22,14 @@ Phase 0 已建立的治理項目：
 4. E2E helper skeleton 集中固定測試身分、固定活動 fixture、離線第三方 API mock 與瀏覽器狀態清理。
 5. 後續 E2E 不可使用瀏覽器殘留登入狀態或正式 Firebase/LINE/SportsAPI 資料。
 
+Phase 1 已建立的治理項目：
+1. `tests/e2e/example.spec.js` 與 `tests/e2e/smoke-journeys.spec.js` 均使用共用 E2E harness。
+2. `tests/unit/e2e-quality.test.js` 會阻擋低保護力 assertion：`expect(typeof ...).toBe('boolean')` 與 `.toBeGreaterThanOrEqual(0)`。
+3. `tests/unit/script-deps.test.js` 的 orphan module / eager script 只允許明確 allowlist，且 allowlist 每筆都必須有存在的檔案與原因。
+4. `tests/unit/source-drift.test.js` 以目前既有 drift 作 baseline；新增 drift 會 fail。
+5. 驗收命令：`npx jest --runInBand --runTestsByPath tests/unit/e2e-quality.test.js tests/unit/script-deps.test.js tests/unit/source-drift.test.js` 通過 3 suites / 26 tests。
+6. 驗收命令：`npm run test:e2e:smoke -- --workers=1` 搭配本地 HTTP server 通過 21 tests。
+
 ## 1. 概覽
 
 | 類別 | 測試數量 | 執行指令 |

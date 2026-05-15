@@ -209,6 +209,24 @@ function extractHtmlOnclickCalls() {
   return calls;
 }
 
+const INTENTIONAL_ORPHAN_MODULES = Object.freeze({
+  'js/modules/shot-game/shot-game-engine.js': 'Private shot-game lab runtime, loaded by the lab page instead of the app shell.',
+  'js/modules/shot-game/shot-game-lab-page.js': 'Private shot-game lab page entry, not part of the production app shell.',
+  'js/modules/shot-game/shot-game-loop.js': 'Private shot-game lab runtime, loaded by the lab page instead of the app shell.',
+  'js/modules/shot-game/shot-lab-controls.js': 'Private shot-game lab controls, loaded by the lab page instead of the app shell.',
+  'js/modules/shot-game/shot-lab-ui.js': 'Private shot-game lab UI, loaded by the lab page instead of the app shell.',
+  'js/modules/shot-game/shot-physics.js': 'Shared shot-game physics for the private lab runtime.',
+  'js/modules/shot-game/shot-renderer.js': 'Shared shot-game renderer for the private lab runtime.',
+  'js/modules/shot-game/shot-scoring.js': 'Shared shot-game scoring for the private lab runtime.',
+});
+
+const PHASE_B_EAGER_NOT_GROUPED_ALLOWLIST = Object.freeze({
+  'js/modules/message/message-line-push.js': 'Still eager by design until message notification lazy-load phase is implemented.',
+  'js/modules/message/message-notify.js': 'Still eager by design until message notification lazy-load phase is implemented.',
+  'js/modules/favorites.js': 'Still eager by design because global reminder and favorite actions are available across pages.',
+  'js/modules/news.js': 'Still eager by design because home news visibility is evaluated during boot.',
+});
+
 // ═══════════════════════════════════════════════════════
 //  Tests
 // ═══════════════════════════════════════════════════════
@@ -486,15 +504,9 @@ describe('ScriptLoader groups — no orphaned scripts', () => {
       'js/core/theme.js',
     ];
     const realOrphans = orphaned.filter(mod => !coreExclusions.includes(mod));
+    const unexpectedOrphans = realOrphans.filter(mod => !INTENTIONAL_ORPHAN_MODULES[mod]);
 
-    if (realOrphans.length > 0) {
-      console.warn('Orphaned modules (not in index.html or any ScriptLoader group):');
-      realOrphans.forEach(m => console.warn(`  ${m}`));
-    }
-    // This is a warning, not a hard failure — some modules may be intentionally
-    // loaded only in specific contexts (e.g., game-lab.html)
-    // But we track it to prevent accidental omissions
-    expect(realOrphans.length).toBeLessThanOrEqual(10); // Allow special cases (e.g., shot-game scripts for game-lab.html)
+    expect(unexpectedOrphans).toEqual([]);
   });
 });
 
@@ -503,6 +515,22 @@ describe('Eager script file existence', () => {
     const scripts = getEagerScripts();
     const missing = scripts.filter(s => !fs.existsSync(path.join(ROOT, s)));
     expect(missing).toEqual([]);
+  });
+});
+
+describe('Script dependency allowlists are explicit', () => {
+  test('intentional orphan modules have files and reasons', () => {
+    Object.entries(INTENTIONAL_ORPHAN_MODULES).forEach(([modulePath, reason]) => {
+      expect(fs.existsSync(path.join(ROOT, modulePath))).toBe(true);
+      expect(reason.length).toBeGreaterThan(20);
+    });
+  });
+
+  test('Phase B eager allowlist has files and reasons', () => {
+    Object.entries(PHASE_B_EAGER_NOT_GROUPED_ALLOWLIST).forEach(([modulePath, reason]) => {
+      expect(fs.existsSync(path.join(ROOT, modulePath))).toBe(true);
+      expect(reason.length).toBeGreaterThan(20);
+    });
   });
 });
 
@@ -581,17 +609,10 @@ describe('Step 9: Phase B scripts must be in ScriptLoader groups before removal'
     Object.values(loaderData.groups).forEach(scripts => {
       scripts.forEach(s => allGroupScripts.add(s));
     });
-    const inGroup = PHASE_B_CANDIDATES.filter(p => allGroupScripts.has(p));
-
     // Any candidate NOT in a group would be orphaned if removed from index.html
     const wouldBeOrphaned = stillEager.filter(p => !allGroupScripts.has(p));
-    if (wouldBeOrphaned.length > 0) {
-      console.warn('Phase B scripts still in index.html but NOT in any group (must add before removing):');
-      wouldBeOrphaned.forEach(p => console.warn(`  ${p}`));
-    }
-    // This is informational — not a hard failure until Phase B is executed
-    // After Phase B, this should be empty
-    expect(wouldBeOrphaned.length).toBeLessThanOrEqual(PHASE_B_CANDIDATES.length);
+    const unexpected = wouldBeOrphaned.filter(p => !PHASE_B_EAGER_NOT_GROUPED_ALLOWLIST[p]);
+    expect(unexpected).toEqual([]);
   });
 });
 
