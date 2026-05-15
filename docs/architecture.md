@@ -29,7 +29,7 @@ ToosterX 是一個 LINE LIFF + Firebase 的 buildless Vanilla JS SPA。前端由
 | 驗證 | LINE LIFF profile + Firebase Custom Token |
 | 佈署 | 前端 push `main` 後由 Cloudflare Pages / GitHub Pages 發佈；functions/rules 需 Firebase deploy |
 | 測試 | Jest unit、Firestore rules emulator、Playwright e2e smoke |
-| 目前快取版本 | `0.20260515e` |
+| 目前快取版本 | `0.20260515i` |
 
 ---
 
@@ -138,7 +138,7 @@ sequenceDiagram
 - `PageLoader._deferredPages`：`scan`、`shop`、admin 系列、`personal-dashboard`、`game`、`kickball`、`education` 等。
 - deep link 會讓 `PageLoader` 優先載入目標頁片段，例如活動、俱樂部、賽事。
 - `ScriptLoader._pageGroups` 把 page id 對應到模組群組，避免所有功能一次載完。
-- `Service Worker` 與 `?v=0.20260515e` 控制前端快取更新。
+- `Service Worker` 與 `?v=0.20260515i` 控制前端快取更新。
 
 ---
 
@@ -200,7 +200,7 @@ sequenceDiagram
 | `message/` | 17 | 收件匣、私訊權限/入口/即時列表/對話窗/送出/搜尋/聊天室稽核、訊息動作、俱樂部邀請動作、後台發訊息、LINE push |
 | `achievement/` | 11 | 成就 registry、統計、evaluator、徽章、稱號、個人與後台 view |
 | `dashboard/` | 20 | 後台儀表板、用量、CI、參與者查詢、snapshot、drilldown、個人儀表板 |
-| `user-admin/` | 8 | 使用者列表、EXP、角色權限、補正、活動黑名單、UID 健康檢查與診斷包 |
+| `user-admin/` | 10 | 使用者列表、EXP、角色權限、補正、活動黑名單、UID 健康檢查與診斷包、權限測試報告 |
 | `education/` | 21 | 教學團體、學生、課程、報名、簽到、月曆、家長綁定、通知 |
 | `ad-manage/` | 6 | 首頁管理、首頁排版順序、banner、浮動廣告、popup sponsor、shot game 廣告、boot brand |
 | `scan/` | 5 | QR camera、掃描流程、UI、家人模式 |
@@ -625,6 +625,8 @@ Firestore / Functions 也有一份權限判斷，尤其 `INHERENT_ROLE_PERMISSIO
 - record-scope 行為應檢查：建立者、主辦者、委託人、俱樂部職員、admin/super_admin。
 - `admin.tournaments.entry` 只代表能進入賽事管理頁，不應自動擁有所有賽事的審核/編輯權。
 - `admin.repair.data_sync` 是資料同步、UID 檢查、修復工具的主要入口權限。
+- `page-admin-roles` 內的「權限測試」是一次性只讀報告，不改資料。前端實作獨立放在 `js/modules/user-admin/permission-audit/`，樣式放在 `css/permission-audit.css`。
+- 未來新增或變更權限碼、抽屜入口、管理子權限、一般 user 前台活動能力時，必須同步確認權限測試報告仍會收錄該項，避免權限開關跑掉後無法自查。
 
 ### 後台分區
 
@@ -632,6 +634,7 @@ Firestore / Functions 也有一份權限判斷，尤其 `INHERENT_ROLE_PERMISSIO
 |---|---|
 | `page-admin-dashboard` | 數據儀表板、使用者成長、參與者查詢、用量、drilldown |
 | `page-admin-users` | 用戶列表、角色、EXP |
+| `page-admin-roles` | 權限設定、一次性權限測試報告 |
 | `page-admin-repair` | 用戶補正、系統資料同步、UID 檢查、活動黑名單 |
 | `page-admin-logs` | operation / audit / error log center |
 | `page-admin-banners` | 首頁管理 / homepage layout / banner / ads / sponsor / boot brand |
@@ -843,7 +846,7 @@ DATA_SYNC_SETTINGS_PASSWORD = process.env.DATA_SYNC_SETTINGS_PASSWORD || "1121"
 
 `sw.js` 現況：
 
-- `CACHE_NAME = sporthub-0.20260515e`
+- `CACHE_NAME = sporthub-0.20260515i`
 - HTML：network-first。
 - JS/CSS：cache-first，靠 `?v=` cache busting。
 - Firebase Storage 圖片：stale-while-revalidate，獨立圖片快取。
@@ -915,6 +918,7 @@ DATA_SYNC_SETTINGS_PASSWORD = process.env.DATA_SYNC_SETTINGS_PASSWORD || "1121"
 - `cloud-functions.test.js`
 - `source-drift.test.js`
 - `script-deps.test.js`
+- `permission-audit-page.test.js`
 
 ---
 

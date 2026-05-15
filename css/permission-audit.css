@@ -1,0 +1,48 @@
+/* ================================================
+   ToosterX Permission Audit
+   Scope: page-admin-roles permission audit tab only.
+   ================================================ */
+
+.role-admin-tabs { display: flex; align-items: center; gap: .4rem; padding: .25rem; margin-bottom: .65rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); overflow-x: auto; }
+.role-admin-tab { border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); font-size: .8rem; font-weight: 700; padding: .45rem .85rem; cursor: pointer; white-space: nowrap; }
+.role-admin-tab.active { background: var(--bg-card); color: var(--accent); box-shadow: 0 2px 8px rgba(15, 23, 42, .08); }
+.role-admin-pane { min-width: 0; }
+
+.permission-audit-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .85rem; margin-bottom: .75rem; }
+.permission-audit-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .8rem; padding-bottom: .75rem; border-bottom: 1px solid var(--border); }
+.permission-audit-title { font-size: .95rem; font-weight: 800; color: var(--text-primary); margin-bottom: .25rem; }
+.permission-audit-note { font-size: .76rem; line-height: 1.55; color: var(--text-muted); }
+.permission-audit-actions { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; justify-content: flex-end; flex-shrink: 0; }
+.permission-audit-report { padding-top: .75rem; min-width: 0; }
+.permission-audit-empty { padding: 1.2rem .5rem; text-align: center; color: var(--text-muted); font-size: .82rem; }
+.permission-audit-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(126px, 1fr)); gap: .55rem; margin-bottom: .75rem; }
+.permission-audit-stat { border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-elevated); padding: .65rem .7rem; min-width: 0; }
+.permission-audit-stat-value { font-family: var(--font-display); font-size: 1.15rem; font-weight: 800; color: var(--text-primary); line-height: 1.15; }
+.permission-audit-stat-label { font-size: .7rem; color: var(--text-muted); margin-top: .15rem; }
+.permission-audit-section { border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: .7rem; background: var(--bg-card); }
+.permission-audit-section-title { display: flex; align-items: center; justify-content: space-between; gap: .6rem; padding: .55rem .65rem; background: var(--bg-elevated); border-bottom: 1px solid var(--border); font-size: .82rem; font-weight: 800; color: var(--text-primary); }
+.permission-audit-section-meta { color: var(--text-muted); font-size: .68rem; font-weight: 600; white-space: nowrap; }
+.permission-audit-scroll { overflow-x: auto; max-width: 100%; }
+.permission-audit-table { width: 100%; border-collapse: collapse; min-width: 720px; font-size: .74rem; }
+.permission-audit-table th, .permission-audit-table td { padding: .48rem .55rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; white-space: nowrap; }
+.permission-audit-table th { background: var(--bg-main); color: var(--text-muted); font-size: .68rem; font-weight: 800; }
+.permission-audit-table tr:last-child td { border-bottom: 0; }
+.permission-audit-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .68rem; color: var(--text-muted); }
+.permission-audit-badge { display: inline-flex; align-items: center; justify-content: center; gap: .2rem; min-height: 1.25rem; padding: .12rem .45rem; border-radius: var(--radius-full); font-size: .68rem; font-weight: 800; border: 1px solid transparent; }
+.permission-audit-badge.ok { color: #047857; background: rgba(16, 185, 129, .12); border-color: rgba(16, 185, 129, .24); }
+.permission-audit-badge.warn { color: #b45309; background: rgba(245, 158, 11, .14); border-color: rgba(245, 158, 11, .28); }
+.permission-audit-badge.error { color: #b91c1c; background: rgba(239, 68, 68, .12); border-color: rgba(239, 68, 68, .25); }
+.permission-audit-badge.neutral { color: var(--text-secondary); background: var(--bg-elevated); border-color: var(--border); }
+.permission-audit-list { display: flex; flex-direction: column; gap: .45rem; padding: .65rem; }
+.permission-audit-issue { display: grid; grid-template-columns: auto 1fr; gap: .45rem; align-items: flex-start; padding: .55rem .6rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-elevated); }
+.permission-audit-issue-title { font-size: .76rem; font-weight: 800; color: var(--text-primary); line-height: 1.45; }
+.permission-audit-issue-detail { font-size: .72rem; color: var(--text-muted); line-height: 1.5; margin-top: .08rem; word-break: break-word; }
+.permission-audit-footnote { padding: .6rem .7rem; border: 1px dashed var(--border); border-radius: var(--radius-sm); background: var(--bg-elevated); color: var(--text-muted); font-size: .72rem; line-height: 1.55; }
+
+@media (max-width: 640px) {
+  .permission-audit-head { flex-direction: column; align-items: stretch; }
+  .permission-audit-actions { justify-content: stretch; }
+  .permission-audit-actions > button { flex: 1; }
+  .permission-audit-section-title { align-items: flex-start; flex-direction: column; }
+  .permission-audit-table { min-width: 640px; }
+}

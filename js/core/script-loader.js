@@ -417,6 +417,8 @@ const ScriptLoader = {
       'js/modules/user-admin/user-admin-exp.js',
       'js/modules/user-admin/user-admin-roles.js',
       'js/modules/user-admin/user-admin-perm-info.js',
+      'js/modules/user-admin/permission-audit/permission-audit.js',
+      'js/modules/user-admin/permission-audit/permission-audit-render.js',
       'js/modules/user-admin/user-admin-corrections.js',
       'js/modules/user-admin/user-admin-event-blocklist.js',
       'js/modules/user-admin/user-admin-uid-health.js',

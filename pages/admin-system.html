@@ -166,6 +166,11 @@
         <h2>權限管理</h2>
         <a href="permissions/" target="_blank" class="page-header-doc-btn" title="權限說明文件"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="14" y2="11"/></svg></a>
       </div>
+      <div class="role-admin-tabs">
+        <button class="role-admin-tab active" id="role-admin-tab-settings" type="button" onclick="App.switchPermissionAdminTab('settings')">權限設定</button>
+        <button class="role-admin-tab" id="role-admin-tab-audit" type="button" onclick="App.switchPermissionAdminTab('audit')">權限測試</button>
+      </div>
+      <div class="role-admin-pane" id="role-admin-settings-pane">
       <div class="role-hierarchy-card">
         <div class="role-hierarchy-title">目前層級架構 <span style="font-size:.68rem;font-weight:400;color:var(--text-muted)">（點擊查看權限）</span><button class="perm-info-btn" style="margin-left:auto" onclick="App._showPermInfoPopup('_hierarchy')" title="說明">?</button></div>
         <div class="role-hierarchy-list" id="role-hierarchy-list"></div>
@@ -200,6 +205,24 @@
         </div>
         <div class="role-perm-lock-hint" id="role-perm-lock-hint" style="display:none"></div>
         <div class="permissions-list" id="permissions-list" style="display:none"></div>
+      </div>
+      </div>
+      <div class="role-admin-pane" id="role-admin-audit-pane" style="display:none">
+        <div class="permission-audit-card">
+          <div class="permission-audit-head">
+            <div>
+              <div class="permission-audit-title">一次性權限測試報告</div>
+              <div class="permission-audit-note">掃描目前角色、抽屜入口、管理子權限、一般 user 前台活動能力與高風險權限組合。此報表只讀取設定，不修改資料。</div>
+            </div>
+            <div class="permission-audit-actions">
+              <button class="outline-btn" type="button" onclick="App.copyPermissionAuditReport()">複製報告</button>
+              <button class="primary-btn" type="button" id="permission-audit-run-btn" onclick="App.runPermissionAuditReport()">立即檢查</button>
+            </div>
+          </div>
+          <div id="permission-audit-report" class="permission-audit-report">
+            <div class="permission-audit-empty">尚未檢查。按「立即檢查」後會產生完整報表。</div>
+          </div>
+        </div>
       </div>
 
     </section>

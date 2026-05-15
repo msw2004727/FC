@@ -117,7 +117,7 @@ ToosterX 不是展示用 demo，而是面向實際運動社群營運的產品。
 | `shot-game` | 10 | 蓄力射門 engine、renderer、physics、scoring、lab controls |
 | `team` | 16 | 俱樂部列表、詳情、表單、動態、邀請、分享、加入 |
 | `tournament` | 19 | 賽事核心、詳情、渲染、管理、友誼賽名單 / 申請 / 分享 |
-| `user-admin` | 8 | 使用者列表、角色、權限、EXP、修正、UID health、黑名單 |
+| `user-admin` | 10 | 使用者列表、角色、權限、EXP、修正、UID health、黑名單、權限測試報告 |
 
 另有獨立模組，例如 `error-log`、`admin-log-tabs`、`favorites`、`image-upload`、`image-cropper`、`leaderboard`、`multi-tab-guard`、`pwa-install`、`registration-audit`、`role`、`shop`、`sync-status`、`translate`。
 

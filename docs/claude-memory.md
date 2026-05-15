@@ -1,5 +1,11 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-15 Permission audit report page [權限/架構]
+- **Problem**: 權限管理開關多次出現前後端或第二套 user 活動能力不同步，管理員缺少一次性自查頁面確認各層級實際權限範圍。
+- **Fix**: 在 `權限管理` 內新增 `權限測試` 頁籤，產生只讀報告，覆蓋角色矩陣、抽屜入口、管理子權限、一般 user 前台活動能力與高風險權限組合。前端模組獨立放到 `js/modules/user-admin/permission-audit/`，樣式獨立為 `css/permission-audit.css`。
+- **Guardrail**: `CLAUDE.md`、`docs/architecture.md`、`docs/structure-guide.md` 已補上規則：未來新增或調整權限 catalog / drawer / roleActivityCapabilities 時，必須同步檢查權限測試報告覆蓋。
+- **Tests**: 新增 `tests/unit/permission-audit-page.test.js` 鎖住資料夾邊界、載入路徑、CSS 載入與規則文件要求；完整 `npm test -- --runInBand` 通過 129 suites / 3161 tests；前端版本 bump 至 `0.20260515i`。
+
 ### 2026-05-15 Activity edit-all permission scope [bug]
 - **Problem**: Turning off `event.edit_all` did not actually remove broad activity edit scope. Frontend helpers and Firestore rules still treated `activity.manage.entry` / coach-plus roles as able to view and update non-owned activities from Activity Management.
 - **Fix**: Split activity entry from edit-all scope. `event.edit_all` now controls all-activity visibility/editing; users without it are limited to their own or delegated activities. Firestore root event updates and event operator checks now enforce the same scoped rule.

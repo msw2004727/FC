@@ -114,13 +114,14 @@
 - 計分排行：記錄最高分，可查看排行榜
 - 實驗室版本：獨立測試頁面，用於遊戲調校
 
-### 用戶管理（8 個檔案）
+### 用戶管理（10 個檔案）
 **做什麼**：管理員查看、管理所有使用者帳號。
 **包含功能**：
 - 用戶列表：搜尋用戶、查看用戶資料
 - 經驗值管理：調整用戶經驗值
 - 角色權限：指派管理員或其他角色
 - 資料補正：修正用戶資料中的錯誤
+- 權限測試：產生一次性只讀報告，檢查角色權限、抽屜入口、一般 user 活動能力與高風險權限組合
 
 ### 首頁管理（6 個檔案）
 **做什麼**：管理首頁排版順序，以及首頁與各頁面上的廣告版位。
@@ -178,6 +179,7 @@
 | 小遊戲管理 | 控制首頁是否顯示小遊戲入口 |
 | 資料同步 | 重新計算俱樂部成員數、清理過期資料等維護工具 |
 | 報名審計 | 檢查並修復報名資料的不一致問題 |
+| 權限測試 | 在權限管理內產生只讀報告，協助確認目前各層級權限範圍 |
 | 成就批次更新 | 一鍵為所有用戶重新計算成就進度 |
 
 ### 日誌與監控
@@ -300,6 +302,14 @@
 - `js/modules/event/event-manage*.js`、`js/modules/scan/*`：自己的活動管理、掃碼、手動簽到、候補與委託人操作改走細分 capability。
 - `firestore.rules`：`roleActivityCapabilities/{roleId}` 只能 super_admin 寫入；一般 user 建立/編輯活動與現場操作皆有 owner/delegate + capability 檢查。
 - `functions/index.js`：Admin SDK callable 不依賴 Firestore Rules，需同步讀取 `roleActivityCapabilities` 檢查 owner/delegate 現場操作。
+
+## 2026-05-15 權限測試報告結構補充
+
+- 入口：`權限管理 > 權限測試`。
+- HTML：仍在 `pages/admin-system.html` 的 `page-admin-roles` 內，以頁籤切換權限設定與權限測試。
+- JS：獨立放在 `js/modules/user-admin/permission-audit/`，目前分為報告資料組裝與畫面渲染。
+- CSS：獨立放在 `css/permission-audit.css`，不再混入 `css/admin.css`。
+- 維護規則：新增抽屜入口、管理子權限、一般 user 前台活動能力或高風險權限組合時，必須同步確認此報告可掃描到新項目。
 
 ## 2026-05-11 History API 雙軌入口結構補充
 

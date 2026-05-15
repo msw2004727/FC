@@ -100,7 +100,7 @@ FC-github/
 │       ├── scan/           # QR 掃描（5）：掃描、處理、家庭成員
 │       ├── dashboard/      # 儀表板（6）：管理員、個人、報表分享、用量
 │       ├── ad-manage/      # 廣告管理（6）：輪播、浮動、贊助、小遊戲、品牌開機
-│       ├── user-admin/     # 用戶後台（5）：列表、EXP、角色、補正、權限說明
+│       ├── user-admin/     # 用戶後台（10）：列表、EXP、角色、補正、權限說明、UID 檢查、權限測試
 │       └── [29 獨立模組]   # banner / home-dashboard / shop / leaderboard / role / pwa-install 等
 ├── pages/                  # HTML 片段（20 個）
 ├── docs/                   # 專案文件
@@ -246,6 +246,7 @@ grep -rn "CACHE_VERSION\|CACHE_NAME\|var V='" js/config.js sw.js index.html
 9. **權限系統同步維護（強制）**：當新增或變更任何後台功能時，必須同步評估並執行以下事項：
    - **新增權限開關**：若該功能需要依層級控制存取，必須在 `js/config.js` 的 `ADMIN_PAGE_EXTRA_PERMISSION_ITEMS` 或 `DRAWER_MENUS` 中新增對應的權限碼（permission code），並在 `getDefaultRolePermissions()` 中設定各層級的預設值。
    - **新增或更新權限說明**：必須在 `js/modules/user-admin/user-admin-perm-info.js` 的 `_PERM_INFO` 對照表中，為新權限碼新增 `{ title, body }` 說明內容，或更新既有權限的說明文字以反映功能變更。說明內容應以白話描述該權限的用途與影響範圍。
+   - **同步權限測試報告**：新增、刪除或調整 `DRAWER_MENUS`、`ADMIN_PAGE_EXTRA_PERMISSION_ITEMS`、`ROLE_ACTIVITY_CAPABILITY_ITEMS`、`rolePermissions` 或 `roleActivityCapabilities` 時，必須同步檢查 `js/modules/user-admin/permission-audit/`。此資料夾是「權限管理 > 權限測試」的一次性只讀報告來源，需維持能覆蓋所有角色、抽屜入口、子權限、一般 user 前台活動能力與高風險權限組合。
    - **不確定是否需要新增權限時**：應先向用戶說明該功能的存取需求，並建議適合的權限碼命名與層級配置，由用戶決定是否新增。
    - **權限碼命名規則**：入口權限以 `.entry` 結尾（如 `admin.xxx.entry`），子權限以動作命名（如 `xxx.create`、`xxx.edit_all`、`xxx.delete`）。
    - **`INHERENT_ROLE_PERMISSIONS` 兩地同步（強制）**：此常數同時定義於 `js/config.js` 與 `functions/index.js`（無 build process 故無法共用）。修改任一邊時**必須同步更新另一邊**，否則前端 UI 顯示與後端驗證行為將出現無錯誤訊息的靜默分歧。
