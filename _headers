@@ -30,6 +30,14 @@
 /profile
   Cache-Control: public, max-age=0, must-revalidate
 
+/ops-report
+  Cache-Control: public, max-age=0, must-revalidate
+  X-Robots-Tag: noindex, nofollow, noarchive
+
+/ops-report.html
+  Cache-Control: public, max-age=0, must-revalidate
+  X-Robots-Tag: noindex, nofollow, noarchive
+
 /events/*
   Cache-Control: public, max-age=0, must-revalidate
 

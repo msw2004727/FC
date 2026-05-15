@@ -10,6 +10,13 @@ const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue, FieldPath, Timestamp } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
 const { createSportsApiProScoreboardExports } = require("./scoreboard-sportsapipro");
+const {
+  addDaysKey,
+  buildOpsLtvReport,
+  clampDateRange,
+  listDateKeys,
+  msToTaipeiDateKey,
+} = require("./ops-ltv-report");
 // @line/bot-sdk: lazy-loaded — 只有 processLinePushQueue 使用
 let _messagingApi;
 function getMessagingApi() {
@@ -7913,6 +7920,100 @@ exports.fetchUsageMetrics = onSchedule(
   { schedule: "every 6 hours", region: "asia-east1", timeoutSeconds: 120 },
   async () => {
     await collectUsageMetrics();
+  }
+);
+
+// Temporary standalone operations LTV report（admin 以上）
+async function fetchOpsLtvActiveEntriesByDay(startDate, endDate) {
+  const dayKeys = listDateKeys(startDate, endDate);
+  const activeEntriesByDay = {};
+  let auditEntryReads = 0;
+  const batchSize = 8;
+
+  for (let i = 0; i < dayKeys.length; i += batchSize) {
+    const slice = dayKeys.slice(i, i + batchSize);
+    const results = await Promise.all(slice.map(async (dayKey) => {
+      const auditDayKey = String(dayKey || "").replace(/-/g, "");
+      const snap = await db.collection("auditLogsByDay")
+        .doc(auditDayKey)
+        .collection("auditEntries")
+        .where("action", "==", "login_success")
+        .get();
+      return { dayKey, snap };
+    }));
+
+    results.forEach(({ dayKey, snap }) => {
+      auditEntryReads += snap.size;
+      activeEntriesByDay[dayKey] = snap.docs
+        .map((doc) => {
+          const data = doc.data() || {};
+          return String(data.actorUid || data.targetId || data.uid || "").trim();
+        })
+        .filter(Boolean);
+    });
+  }
+
+  return {
+    activeEntriesByDay,
+    auditEntryReads,
+    queriedAuditDays: dayKeys.length,
+  };
+}
+
+exports.getOpsLtvReport = onCall(
+  { region: "asia-east1", timeoutSeconds: 180, memory: "512MiB" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "請先登入");
+    }
+
+    const access = await getCallerAccessContext(request);
+    if ((ROLE_LEVELS[access.role] || 0) < ROLE_LEVELS.admin) {
+      throw new HttpsError("permission-denied", "只有 admin 以上可以查看營運報表");
+    }
+
+    let range;
+    try {
+      range = clampDateRange({
+        startDate: String(request.data?.startDate || "").trim(),
+        endDate: String(request.data?.endDate || "").trim(),
+      });
+    } catch (err) {
+      const message = err?.message === "DATE_RANGE_TOO_LARGE"
+        ? "查詢區間最多 180 天"
+        : "日期區間格式不正確";
+      const code = err?.message === "DATE_RANGE_TOO_LARGE" ? "out-of-range" : "invalid-argument";
+      throw new HttpsError(code, message);
+    }
+
+    const todayKey = msToTaipeiDateKey(Date.now());
+    const activeStart = addDaysKey(range.startDate, -29);
+    const activeEnd = [addDaysKey(range.endDate, 30), todayKey].sort()[0];
+    const [usersSnap, activePack] = await Promise.all([
+      db.collection("users").get(),
+      fetchOpsLtvActiveEntriesByDay(activeStart, activeEnd),
+    ]);
+
+    const users = usersSnap.docs.map((doc) => ({
+      id: doc.id,
+      data: doc.data() || {},
+    }));
+    const report = buildOpsLtvReport({
+      users,
+      activeEntriesByDay: activePack.activeEntriesByDay,
+      startDate: range.startDate,
+      endDate: range.endDate,
+      source: {
+        usersRead: usersSnap.size,
+        auditEntryReads: activePack.auditEntryReads,
+        queriedAuditDays: activePack.queriedAuditDays,
+        estimatedReads: usersSnap.size + activePack.auditEntryReads,
+        checkedByUid: request.auth.uid,
+        checkedByRole: access.role,
+      },
+    });
+
+    return { ok: true, report };
   }
 );
 

@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>ToosterX LTV 營運報表</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f3f6fb;
+      --panel: #ffffff;
+      --panel-soft: #eef5ff;
+      --text: #1d2738;
+      --muted: #66758c;
+      --line: #d9e2ef;
+      --brand: #0f9f8f;
+      --brand-2: #2563eb;
+      --danger: #dc2626;
+      --shadow: 0 16px 42px rgba(15, 23, 42, 0.10);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --bg: #101622;
+        --panel: #171f2d;
+        --panel-soft: #122938;
+        --text: #e8edf5;
+        --muted: #9ba9bb;
+        --line: #2b3648;
+        --brand: #2dd4bf;
+        --brand-2: #60a5fa;
+        --danger: #f87171;
+        --shadow: 0 16px 42px rgba(0, 0, 0, 0.30);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+      line-height: 1.5;
+    }
+
+    .page {
+      width: min(1180px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 28px 0 44px;
+    }
+
+    .hero {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(24px, 4vw, 34px);
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 7px 12px;
+      color: var(--muted);
+      background: var(--panel);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+
+    .filters {
+      display: grid;
+      grid-template-columns: minmax(150px, 1fr) minmax(150px, 1fr) auto;
+      align-items: end;
+      gap: 12px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    input[type="date"] {
+      width: 100%;
+      height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 0 12px;
+      background: var(--bg);
+      color: var(--text);
+      font: inherit;
+    }
+
+    button {
+      height: 42px;
+      border: 0;
+      border-radius: 10px;
+      padding: 0 18px;
+      background: linear-gradient(135deg, var(--brand), var(--brand-2));
+      color: #fff;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .status {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .status.error { color: var(--danger); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: linear-gradient(180deg, var(--panel), var(--panel-soft));
+      padding: 14px;
+      min-height: 102px;
+    }
+
+    .card .label {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .card .value {
+      margin-top: 6px;
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
+    .card .hint {
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0 0 12px;
+      font-size: 17px;
+    }
+
+    .note {
+      color: var(--muted);
+      font-size: 13px;
+      margin: 10px 0 0;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 620px;
+      background: var(--panel);
+    }
+
+    th, td {
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    th:first-child, td:first-child { text-align: left; }
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      background: var(--panel-soft);
+    }
+    tr:last-child td { border-bottom: 0; }
+
+    .empty {
+      padding: 18px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    @media (max-width: 760px) {
+      .hero { display: block; }
+      .badge { margin-top: 12px; }
+      .filters { grid-template-columns: 1fr; }
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .panel { padding: 14px; border-radius: 14px; }
+      .card .value { font-size: 23px; }
+    }
+
+    @media (max-width: 420px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <div>
+        <h1>ToosterX LTV 營運報表</h1>
+        <p class="subtitle">統計 DNU、DAU、WAU、MAU 與區間留存。僅 admin 以上層級可查看。</p>
+      </div>
+      <div class="badge" id="auth-status">準備登入</div>
+    </header>
+
+    <section class="panel">
+      <div class="filters">
+        <label>
+          開始日期
+          <input id="start-date" type="date" autocomplete="off">
+        </label>
+        <label>
+          結束日期
+          <input id="end-date" type="date" autocomplete="off">
+        </label>
+        <button id="load-report" type="button">更新報表</button>
+      </div>
+      <div class="status" id="status-text">區間最多 180 天。活躍數以登入成功紀錄為主，並用使用者 lastLogin 補強。</div>
+    </section>
+
+    <section class="panel">
+      <h2 class="section-title">核心指標 <span class="badge" id="range-label">尚未載入</span></h2>
+      <div class="grid" id="summary-grid"></div>
+      <p class="note" id="source-note"></p>
+    </section>
+
+    <section class="panel">
+      <h2 class="section-title">區間留存</h2>
+      <div class="grid" id="retention-grid"></div>
+      <p class="note">留存用白話看法：這段時間新進用戶，有多少人在後續指定時間內回來使用。</p>
+    </section>
+
+    <section class="panel">
+      <h2 class="section-title">每日趨勢</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>日期</th>
+              <th>DNU 新用戶</th>
+              <th>DAU 日活躍</th>
+              <th>WAU 近 7 日活躍</th>
+              <th>MAU 近 30 日活躍</th>
+            </tr>
+          </thead>
+          <tbody id="series-body">
+            <tr><td class="empty" colspan="5">尚未載入報表</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
+  <script>
+    const LIFF_ID = "2009525300-AuPGQ0sh";
+    const firebaseConfig = {
+      apiKey: "AIzaSyA5TzRM_7XHaD8iQlrr3jZXrtXc-a5RXkE",
+      authDomain: "fc-football-6c8dc.firebaseapp.com",
+      projectId: "fc-football-6c8dc",
+      storageBucket: "fc-football-6c8dc.firebasestorage.app",
+      messagingSenderId: "468419387978",
+      appId: "1:468419387978:web:7975c83c9ce7eb60d2bcb3",
+      measurementId: "G-2673ME04J7"
+    };
+
+    const state = {
+      authReady: false,
+      loading: false,
+      functions: null,
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const nf = new Intl.NumberFormat("zh-Hant-TW");
+
+    function taipeiDateKey(date) {
+      const t = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+      const y = t.getUTCFullYear();
+      const m = String(t.getUTCMonth() + 1).padStart(2, "0");
+      const d = String(t.getUTCDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+
+    function addDays(dateKey, days) {
+      const [y, m, d] = dateKey.split("-").map(Number);
+      const utc = Date.UTC(y, m - 1, d) - 8 * 60 * 60 * 1000;
+      return taipeiDateKey(new Date(utc + days * 24 * 60 * 60 * 1000));
+    }
+
+    function setStatus(text, isError = false) {
+      $("status-text").textContent = text;
+      $("status-text").classList.toggle("error", !!isError);
+    }
+
+    function setLoading(loading) {
+      state.loading = loading;
+      $("load-report").disabled = loading;
+      $("load-report").textContent = loading ? "讀取中" : "更新報表";
+    }
+
+    function initDefaultDates() {
+      const today = taipeiDateKey(new Date());
+      $("end-date").value = today;
+      $("start-date").value = addDays(today, -29);
+      $("end-date").max = today;
+      $("start-date").max = today;
+    }
+
+    async function ensureAuth() {
+      if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+      state.functions = firebase.app().functions("asia-east1");
+      if (firebase.auth().currentUser) return firebase.auth().currentUser;
+
+      if (!window.liff || typeof liff.init !== "function") {
+        throw new Error("LIFF SDK 尚未載入，請重新整理後再試");
+      }
+
+      await liff.init({ liffId: LIFF_ID });
+      if (!liff.isLoggedIn()) {
+        $("auth-status").textContent = "需要 LINE 登入";
+        setStatus("請先用 LINE 登入後查看報表。");
+        liff.login({ redirectUri: window.location.href });
+        return null;
+      }
+
+      const accessToken = liff.getAccessToken();
+      if (!accessToken) throw new Error("無法取得 LINE 登入憑證");
+      const createCustomToken = state.functions.httpsCallable("createCustomToken");
+      const result = await createCustomToken({ accessToken });
+      await firebase.auth().signInWithCustomToken(result.data.customToken);
+      return firebase.auth().currentUser;
+    }
+
+    function card(label, value, hint = "") {
+      return `
+        <article class="card">
+          <div class="label">${label}</div>
+          <div class="value">${value}</div>
+          <div class="hint">${hint}</div>
+        </article>
+      `;
+    }
+
+    function renderReport(report) {
+      const s = report.summary || {};
+      const r = report.retention || {};
+      $("range-label").textContent = `${report.range.startDate} 至 ${report.range.endDate}`;
+      $("summary-grid").innerHTML = [
+        card("DNU 新用戶", nf.format(s.dnu || 0), `平均 ${nf.format(s.avgDnu || 0)} / 日`),
+        card("DAU 平均", nf.format(s.avgDau || 0), `最高 ${nf.format(s.peakDau || 0)}（${s.peakDauDate || "-"}）`),
+        card("WAU", nf.format(s.wau || 0), "結束日往前 7 日"),
+        card("MAU", nf.format(s.mau || 0), "結束日往前 30 日"),
+        card("區間活躍用戶", nf.format(s.activeUsers || 0), "區間內至少登入一次"),
+        card("區間回訪率", `${s.rangeReturnRate || 0}%`, "新用戶隔日後曾回來"),
+        card("總用戶基數", nf.format(s.totalUsers || 0), "users 文件總數"),
+        card("讀取估算", nf.format(report.source?.estimatedReads || 0), "users + login audit docs"),
+      ].join("");
+
+      $("retention-grid").innerHTML = [
+        card("次日留存", `${r.nextDay?.rate || 0}%`, `${nf.format(r.nextDay?.retained || 0)} / ${nf.format(r.nextDay?.denominator || 0)}`),
+        card("7 日內回訪", `${r.day7?.rate || 0}%`, `${nf.format(r.day7?.retained || 0)} / ${nf.format(r.day7?.denominator || 0)}`),
+        card("30 日內回訪", `${r.day30?.rate || 0}%`, `${nf.format(r.day30?.retained || 0)} / ${nf.format(r.day30?.denominator || 0)}`),
+      ].join("");
+
+      const rows = Array.isArray(report.series) ? [...report.series].reverse() : [];
+      $("series-body").innerHTML = rows.length
+        ? rows.map(row => `
+          <tr>
+            <td>${row.date}</td>
+            <td>${nf.format(row.dnu || 0)}</td>
+            <td>${nf.format(row.dau || 0)}</td>
+            <td>${nf.format(row.wau || 0)}</td>
+            <td>${nf.format(row.mau || 0)}</td>
+          </tr>
+        `).join("")
+        : `<tr><td class="empty" colspan="5">這個區間沒有資料</td></tr>`;
+
+      $("source-note").textContent = `資料來源：${report.source?.primaryActiveSource || "login audit"}；補強：${report.source?.fallbackActiveSource || "無"}。本次估算讀取 ${nf.format(report.source?.estimatedReads || 0)} 筆。`;
+    }
+
+    async function loadReport() {
+      if (state.loading) return;
+      setLoading(true);
+      setStatus("正在確認身份並產生報表...");
+      try {
+        const user = await ensureAuth();
+        if (!user) return;
+        state.authReady = true;
+        $("auth-status").textContent = `已登入：${user.uid.slice(0, 8)}...`;
+        const fn = state.functions.httpsCallable("getOpsLtvReport");
+        const result = await fn({
+          startDate: $("start-date").value,
+          endDate: $("end-date").value,
+        });
+        renderReport(result.data.report);
+        setStatus("報表已更新。");
+      } catch (err) {
+        const code = err?.code || "";
+        let message = err?.message || "讀取報表失敗";
+        if (code.includes("permission-denied")) message = "僅 admin 以上層級可以查看這份報表。";
+        if (String(message).includes("LIFF")) message += " 若使用子域名，請確認 LINE LIFF Endpoint 已加入該子域名，或改用 toosterx.com/ops-report.html。";
+        $("auth-status").textContent = "無法載入";
+        setStatus(message, true);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      initDefaultDates();
+      $("load-report").addEventListener("click", loadReport);
+      loadReport();
+    });
+  </script>
+</body>
+</html>

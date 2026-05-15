@@ -6,6 +6,8 @@ const EVENT_SHARE_OG_PATH = "/eventShareOg";
 const EDGE_CACHE_TTL = 300; // 5 minutes
 const LIST_SPA_PATHS = new Set(["/activities", "/teams", "/tournaments", "/profile"]);
 const DETAIL_SPA_ROOTS = new Set(["events", "teams", "tournaments"]);
+const OPS_REPORT_HOSTS = new Set(["ops.toosterx.com", "ltv.toosterx.com", "report.toosterx.com"]);
+const OPS_REPORT_PATHS = new Set(["/ops-report", "/ops-report.html"]);
 const SAFE_SEGMENT_RE = /^[A-Za-z0-9_-]{3,80}$/;
 
 function isTeamSharePath(pathname) {
@@ -14,6 +16,14 @@ function isTeamSharePath(pathname) {
 
 function isEventSharePath(pathname) {
   return pathname === EVENT_SHARE_PATH || pathname.startsWith(`${EVENT_SHARE_PATH}/`);
+}
+
+function isOpsReportHost(hostname) {
+  return OPS_REPORT_HOSTS.has(String(hostname || "").toLowerCase());
+}
+
+function isOpsReportPath(pathname) {
+  return OPS_REPORT_PATHS.has(stripTrailingSlash(pathname));
 }
 
 function buildTeamShareOgUrl(requestUrl) {
@@ -137,9 +147,37 @@ async function handleSpaFallback(request, env, _routeKind) {
   return response;
 }
 
+async function handleOpsReport(request, env) {
+  if (!["GET", "HEAD"].includes(request.method)) {
+    return new Response("Method Not Allowed", {
+      status: 405,
+      headers: { "Allow": "GET, HEAD" },
+    });
+  }
+
+  const reportUrl = new URL(request.url);
+  reportUrl.pathname = "/ops-report.html";
+  reportUrl.search = "";
+  reportUrl.hash = "";
+  const reportRequest = new Request(reportUrl.toString(), {
+    method: request.method,
+    headers: request.headers,
+    redirect: "follow",
+  });
+  const upstream = await fetchAsset(reportRequest, env);
+  const response = new Response(upstream.body, upstream);
+  response.headers.set("Cache-Control", "public, max-age=0, must-revalidate");
+  response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+  return response;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if ((isOpsReportHost(url.hostname) && (url.pathname === "/" || url.pathname === "/index.html" || isOpsReportPath(url.pathname)))
+      || isOpsReportPath(url.pathname)) {
+      return handleOpsReport(request, env);
+    }
     if (isTeamSharePath(url.pathname)) {
       return handleOgShare(request, buildTeamShareOgUrl);
     }
