@@ -29,7 +29,7 @@ ToosterX 是一個 LINE LIFF + Firebase 的 buildless Vanilla JS SPA。前端由
 | 驗證 | LINE LIFF profile + Firebase Custom Token |
 | 佈署 | 前端 push `main` 後由 Cloudflare Pages / GitHub Pages 發佈；functions/rules 需 Firebase deploy |
 | 測試 | Jest unit、Firestore rules emulator、Playwright e2e smoke |
-| 目前快取版本 | `0.20260515q` |
+| 目前快取版本 | `0.20260516` |
 
 ---
 
@@ -138,7 +138,7 @@ sequenceDiagram
 - `PageLoader._deferredPages`：`scan`、`shop`、admin 系列、`personal-dashboard`、`game`、`kickball`、`education` 等。
 - deep link 會讓 `PageLoader` 優先載入目標頁片段，例如活動、俱樂部、賽事。
 - `ScriptLoader._pageGroups` 把 page id 對應到模組群組，避免所有功能一次載完。
-- `Service Worker` 與 `?v=0.20260515q` 控制前端快取更新。
+- `Service Worker` 與 `?v=0.20260516` 控制前端快取更新。
 
 ---
 
@@ -466,7 +466,7 @@ current = realCurrent + sum(remainingSlots)
 - 首頁不再 inline 活動卡清單；改由 `scripts/inject-hot-events.js` 產生 `boot-home-summary-data`，只保存匿名公開摘要（活動數、俱樂部數、賽事數、運動分類數、已記錄瀏覽數），提升冷啟速度並避免把完整活動資料塞進首頁。
 - 前台活動頁已移除「已結束」頁籤；`event-list.js` 以 `_hiddenActivityTabs = ['ended']` 把舊 hash/state 正規化回 `normal`，避免舊連結進入不存在的前台 tab。
 - 結束與手動取消活動共用 `event-list-stats.js` 的 6 小時延遲規則：活動結束時間 + 6 小時內仍顯示在「報名中」，之後才進 terminal 集合；前台不提供 terminal tab。
-- `FirebaseService._loadEventsStatic({ terminalMode })` 分離 active 與 terminal slices。前台使用 `preview` 模式只載最近 50 筆 terminal 活動；活動管理需要歷史時用 `ensureTerminalEventsLoaded({ mode: 'history' })` 升級到 200 筆並支援 `loadMoreTerminalEvents()` 分頁。
+- `FirebaseService._loadEventsStatic({ terminalMode })` 分離 active 與 terminal slices。前台使用 `preview` 模式只載最近 50 筆 terminal 活動；活動管理需要歷史時用 `ensureTerminalEventsLoaded({ mode: 'history' })` 升級到每批 10 筆並支援 `loadMoreTerminalEvents()` 分頁。
 
 ### 首頁摘要儀表
 
@@ -851,7 +851,7 @@ DATA_SYNC_SETTINGS_PASSWORD = process.env.DATA_SYNC_SETTINGS_PASSWORD || "1121"
 
 `sw.js` 現況：
 
-- `CACHE_NAME = sporthub-0.20260515q`
+- `CACHE_NAME = sporthub-0.20260516`
 - HTML：network-first。
 - JS/CSS：cache-first，靠 `?v=` cache busting。
 - Firebase Storage 圖片：stale-while-revalidate，獨立圖片快取。

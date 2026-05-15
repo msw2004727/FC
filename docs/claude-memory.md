@@ -1,8 +1,13 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-15 Activity management page-size cap [perf/cost]
+- **Problem**: Activity Management rendered every filtered card at once, and terminal history mode could upgrade to a large history slice before the user explicitly asked for more.
+- **Fix**: `page-my-activities` now renders 10 cards per tab scope first. The shared「查看更多」button expands the visible list by 10; when the cached terminal slice is exhausted it calls `loadMoreTerminalEvents()` for the next 10 history records.
+- **Tests**: Updated `tests/unit/activity-terminal-events-loading.test.js` to lock `_terminalHistoryLimit = 10`, the management page-size cap, and the new「查看更多」handler.
+
 ### 2026-05-15 Activity ended tab removal and terminal lazy loading [perf/ux]
 - **Problem**: 前台活動頁的「已結束」頁籤會誘發大量歷史活動載入，也讓手動取消活動與一般結束活動的 6 小時留存規則容易不一致。
-- **Fix**: 前台活動頁移除「已結束」頁籤，舊 `ended` tab 狀態由 `event-list.js` 正規化回 `normal`；`FirebaseService` 分離 active/terminal slices，前台只載 terminal preview 50 筆，活動管理才升級 history 200 筆並支援載入更多。
+- **Fix**: 前台活動頁移除「已結束」頁籤，舊 `ended` tab 狀態由 `event-list.js` 正規化回 `normal`；`FirebaseService` 分離 active/terminal slices，前台只載 terminal preview 50 筆，活動管理以每批 10 筆 history 載入更多。
 - **Rule**: 手動取消活動也走活動結束規則，活動結束時間 + 6 小時內留在「報名中」，之後才從前台活動頁移出；活動管理仍保留已結束與已取消歷史。
 - **Tests**: 新增 `tests/unit/activity-terminal-events-loading.test.js` 鎖住前台移除已結束頁籤、terminal preview/history limit 與管理頁 history lazy-load contract。
 

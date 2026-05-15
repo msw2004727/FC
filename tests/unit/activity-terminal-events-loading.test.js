@@ -24,7 +24,7 @@ describe('activity terminal events loading strategy', () => {
     const manageSource = readProjectFile('js/modules/event/event-manage.js');
 
     expect(firebaseSource).toContain('_terminalPreviewLimit: 50');
-    expect(firebaseSource).toContain('_terminalHistoryLimit: 200');
+    expect(firebaseSource).toContain('_terminalHistoryLimit: 10');
     expect(firebaseSource).toContain('async _loadEventsStatic(options = {})');
     expect(firebaseSource).toContain("const requestedTerminalMode = options.terminalMode || 'preview'");
     expect(firebaseSource).toContain('this._fetchTerminalEventsSnapshot(terminalLimit)');
@@ -33,6 +33,9 @@ describe('activity terminal events loading strategy', () => {
     expect(firebaseSource).toContain('this._startEventsRealtimeListener({ terminalMode })');
 
     expect(manageSource).toContain('_ensureManageHistoryEventsLoaded(filter)');
+    expect(manageSource).toContain('_myActivityPageSize: 10');
+    expect(manageSource).toContain('const visibleEvents = filtered.slice(0, visibleLimit);');
+    expect(manageSource).toContain('onclick="App._loadMoreMyActivities()">查看更多</button>');
     expect(manageSource).toContain("if (!['all', 'ended', 'cancelled'].includes(f)) return");
     expect(manageSource).toContain("FirebaseService.ensureTerminalEventsLoaded({ mode: 'history' })");
   });

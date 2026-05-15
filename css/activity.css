@@ -1689,6 +1689,23 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
   content: '\8cc7\6599\8f09\5165\4e2d';
 }
 
+.my-activity-load-more {
+  padding: .85rem 0 1rem;
+  text-align: center;
+}
+
+.my-activity-load-more-note {
+  margin-bottom: .45rem;
+  color: var(--text-muted);
+  font-size: .7rem;
+}
+
+.my-activity-load-more-btn {
+  min-width: 8rem;
+  padding: .45rem 1.25rem;
+  font-size: .8rem;
+}
+
 /* ─── Registration Badge Display ─── */
 .reg-name-badges-wrap {
   position: relative;

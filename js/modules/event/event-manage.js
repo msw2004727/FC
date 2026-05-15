@@ -14,6 +14,8 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   _myActivityFilter: 'all',
+  _myActivityPageSize: 10,
+  _myActivityVisibleCounts: Object.create(null),
 
   // ── 活動統計彈窗 ──
   _showActivityStatsModal() {
@@ -207,6 +209,27 @@ Object.assign(App, {
     this.renderMyActivities(this._myActivityFilter);
   },
 
+  _getMyActivityPagingKey(filter) {
+    const f = filter || this._myActivityFilter || 'all';
+    const creator = this._myActivityCreatorFilter || '';
+    return `${f}::${creator}`;
+  },
+
+  _getMyActivityVisibleLimit(filter) {
+    const pageSize = Math.max(1, Number(this._myActivityPageSize) || 10);
+    const key = this._getMyActivityPagingKey(filter);
+    const current = Number(this._myActivityVisibleCounts?.[key] || 0);
+    return Math.max(pageSize, current || pageSize);
+  },
+
+  _hasMoreManageHistoryEvents(filter) {
+    const f = filter || this._myActivityFilter || 'all';
+    return (f === 'ended' || f === 'cancelled' || f === 'all')
+      && typeof FirebaseService !== 'undefined'
+      && !FirebaseService._terminalAllLoaded
+      && !!FirebaseService._terminalLastDoc;
+  },
+
   _ensureManageHistoryEventsLoaded(filter) {
     const f = filter || this._myActivityFilter || 'all';
     if (!['all', 'ended', 'cancelled'].includes(f)) return;
@@ -295,9 +318,20 @@ Object.assign(App, {
 
     const s = 'font-size:.72rem;padding:.2rem .5rem';
     // 方案 B：資料未變時跳過 re-render
-    var _fp = filtered.map(function(e){ return e.id + '|' + e.status + '|' + (e.current||0) + '|' + (e.waitlist||0) + '|' + (e.pinned?1:0); }).join(',') + '|f:' + f + '|c:' + (creatorFilter||'');
+    const visibleLimit = this._getMyActivityVisibleLimit(f);
+    const visibleEvents = filtered.slice(0, visibleLimit);
+    const hiddenLocalCount = Math.max(0, filtered.length - visibleEvents.length);
+    const hasRemoteMore = this._hasMoreManageHistoryEvents(f);
+    var _fp = filtered.map(function(e){ return e.id + '|' + e.status + '|' + (e.current||0) + '|' + (e.waitlist||0) + '|' + (e.pinned?1:0); }).join(',') + '|f:' + f + '|c:' + (creatorFilter||'') + '|limit:' + visibleLimit + '|remote:' + (hasRemoteMore ? 1 : 0);
     if (this._myActivitiesLastFp === _fp && container.children.length > 0) return;
     this._myActivitiesLastFp = _fp;
+    this._myActivityLastRenderMeta = {
+      filter: f,
+      totalCount: filtered.length,
+      visibleCount: visibleEvents.length,
+      hiddenLocalCount,
+      hasRemoteMore,
+    };
 
     // 方案 A：存 scrollTop
     var _page = document.getElementById('page-my-activities');
@@ -306,7 +340,7 @@ Object.assign(App, {
 
     /* innerHTML — safe: all dynamic values pass through escapeHTML() */
     container.innerHTML = filtered.length > 0
-      ? filtered.map(e => {
+      ? visibleEvents.map(e => {
         const statusConf = STATUS_CONFIG[e.status] || STATUS_CONFIG.open;
         const isExternal = e.type === 'external';
         const canManage = this._canManageEvent(e);
@@ -421,15 +455,14 @@ Object.assign(App, {
       : '<div style="padding:1rem;font-size:.82rem;color:var(--text-muted);text-align:center">此分類沒有活動</div>';
 
     // 「載入更多歷史活動」按鈕（已結束/已取消/全部 tab，且尚未全部載完）
-    var _showLoadMore = (f === 'ended' || f === 'cancelled' || f === 'all')
-      && typeof FirebaseService !== 'undefined'
-      && !FirebaseService._terminalAllLoaded
-      && FirebaseService._terminalLastDoc;
-    if (_showLoadMore) {
+    const showLoadMore = hiddenLocalCount > 0 || hasRemoteMore;
+    if (showLoadMore) {
+      const displayedCount = Math.min(visibleEvents.length, filtered.length);
+      const totalLabel = hasRemoteMore && hiddenLocalCount <= 0 ? `${filtered.length}+` : String(filtered.length);
       container.insertAdjacentHTML('beforeend',
-        '<div style="text-align:center;padding:.8rem 0">'
-        + '<div style="font-size:.68rem;color:var(--text-muted);margin-bottom:.4rem">目前顯示近 ' + filtered.length + ' 場活動</div>'
-        + '<button class="outline-btn" style="font-size:.78rem;padding:.4rem 1.2rem" onclick="App._loadMoreHistoryEvents()">載入更多歷史活動</button>'
+        '<div class="my-activity-load-more">'
+        + '<div class="my-activity-load-more-note">已顯示 ' + displayedCount + ' / ' + totalLabel + '</div>'
+        + '<button class="outline-btn my-activity-load-more-btn" onclick="App._loadMoreMyActivities()">查看更多</button>'
         + '</div>'
       );
     }
@@ -603,7 +636,35 @@ Object.assign(App, {
     this.renderMyActivities();
   },
 
+  async _loadMoreMyActivities() {
+    const f = this._myActivityFilter || 'all';
+    const key = this._getMyActivityPagingKey(f);
+    const pageSize = Math.max(1, Number(this._myActivityPageSize) || 10);
+    const currentLimit = this._getMyActivityVisibleLimit(f);
+    const meta = this._myActivityLastRenderMeta || {};
+    const shouldFetchRemote = !!(meta.hasRemoteMore && meta.visibleCount >= meta.totalCount);
+    const btn = document.querySelector('#my-activity-list .my-activity-load-more-btn');
+
+    this._myActivityVisibleCounts[key] = currentLimit + pageSize;
+
+    if (shouldFetchRemote && typeof FirebaseService !== 'undefined' && typeof FirebaseService.loadMoreTerminalEvents === 'function') {
+      if (btn) { btn.disabled = true; btn.textContent = '讀取中...'; }
+      try {
+        await FirebaseService.loadMoreTerminalEvents();
+      } catch (err) {
+        console.error('[_loadMoreMyActivities]', err);
+        this.showToast('載入失敗，請稍後再試');
+        if (btn) { btn.disabled = false; btn.textContent = '查看更多'; }
+        return;
+      }
+    }
+
+    this._myActivitiesLastFp = '';
+    this.renderMyActivities(f);
+  },
+
   async _loadMoreHistoryEvents() {
+    return this._loadMoreMyActivities();
     var btn = document.querySelector('#my-activity-list .outline-btn[onclick*="loadMore"]');
     if (btn) { btn.disabled = true; btn.textContent = '載入中…'; }
     try {

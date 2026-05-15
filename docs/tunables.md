@@ -140,7 +140,7 @@
 | Home summary max pages | events `25` 頁；teams / tournaments `15` 頁 | `scripts/inject-hot-events.js` | 防止注入腳本在資料異常或 API pagination 異常時無限掃描；超過即保留既有 inline 摘要 |
 | Public boot snapshot limit | events `80`；teams `36`；tournaments `36` | `scripts/inject-hot-events.js` `PUBLIC_LIST_LIMITS` | 首次進站/清快取時先顯示公開列表快照；只保留列表與詳情骨架必要欄位，不含報名名單 UID 或隊員 UID。 |
 | Activity terminal preview limit | `50` 筆 | `js/firebase-service.js` `_terminalPreviewLimit` | 前台活動頁只載少量已結束/已取消活動，用來維持 6 小時留存判定與最近狀態，不讀完整歷史。 |
-| Activity terminal history limit | `200` 筆 + load more | `js/firebase-service.js` `_terminalHistoryLimit` / `loadMoreTerminalEvents()` | 活動管理切到已結束、已取消或全部時才升級 history 載入；更多歷史由管理頁分頁延伸。 |
+| Activity terminal history limit | `10` 筆 + load more | `js/firebase-service.js` `_terminalHistoryLimit` / `loadMoreTerminalEvents()` | 活動管理切到已結束、已取消或全部時才升級 history 載入；每次「查看更多」最多延伸 10 筆，降低歷史活動讀取成本。 |
 | Visible detail prefetch limit | `8` 筆 | `js/config.js` / `js/core/navigation.js` / `js/firebase-service.js` | 首頁/列表渲染後最多預抓 8 筆可見詳情文件，提升點卡片速度但避免大量讀取。 |
 | Home summary client stale age | `5` 分鐘 | `js/modules/home-dashboard.js` | inline `boot-home-summary-data` 超過此時間後，首頁背景讀公開活動快取/Firestore，重算活動數、運動分類數與已記錄瀏覽數 |
 | Home summary client refresh throttle | `5` 分鐘 | `js/modules/home-dashboard.js` | 避免使用者反覆切回首頁時連續觸發活動摘要刷新 |

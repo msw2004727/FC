@@ -320,7 +320,7 @@
 - `pages/activity.html`：前台 `data-atab` 不再包含 `ended`；活動管理區 `data-afilter="ended"` 與 `data-afilter="cancelled"` 保留。
 - `js/modules/event/event-list.js`：`_hiddenActivityTabs` 收斂舊 `ended` 狀態，避免舊 hash 或舊 local state 導向不存在的前台頁籤。
 - `js/modules/event/event-list-stats.js`：維持「活動結束時間 + 6 小時」移出前台活動頁的規則，手動取消也走同一條規則。
-- `js/firebase-service.js`：使用 `_terminalPreviewLimit = 50` 與 `_terminalHistoryLimit = 200` 分離前台 preview 與後台 history；`ensureTerminalEventsLoaded()` 與 `loadMoreTerminalEvents()` 提供管理頁延伸載入。
+- `js/firebase-service.js`：使用 `_terminalPreviewLimit = 50` 與 `_terminalHistoryLimit = 10` 分離前台 preview 與後台 history；`ensureTerminalEventsLoaded()` 與 `loadMoreTerminalEvents()` 提供管理頁每次 10 筆的延伸載入。
 - `js/modules/event/event-manage.js`：活動管理切到已結束/已取消/全部時才升級 terminal history，避免一般活動頁冷啟讀取大量歷史資料。
 - 測試：`tests/unit/activity-terminal-events-loading.test.js` 鎖住前台移除已結束頁籤、terminal preview/history limit 與管理頁 history lazy-load contract。
 

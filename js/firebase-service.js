@@ -188,7 +188,7 @@ const FirebaseService = {
   _eventsTerminalMode: 'none',
   _terminalLoadedMode: 'none',
   _terminalPreviewLimit: 50,
-  _terminalHistoryLimit: 200,
+  _terminalHistoryLimit: 10,
   _teamSlices: { active: [], injected: [] },       // Phase 2B：active=onSnapshot, injected=fetchIfMissing 注入（防洗掉）
   _tournamentSlices: { active: [], injected: [] },
   _teamLastDoc: null,
