@@ -207,12 +207,28 @@ Object.assign(App, {
     this.renderMyActivities(this._myActivityFilter);
   },
 
+  _ensureManageHistoryEventsLoaded(filter) {
+    const f = filter || this._myActivityFilter || 'all';
+    if (!['all', 'ended', 'cancelled'].includes(f)) return;
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.ensureTerminalEventsLoaded !== 'function') return;
+    if (FirebaseService._terminalLoadedMode === 'history') return;
+    if (this._manageHistoryEventsLoadPromise) return;
+    this._manageHistoryEventsLoadPromise = FirebaseService.ensureTerminalEventsLoaded({ mode: 'history' })
+      .then(() => {
+        this._myActivitiesLastFp = '';
+        this.renderMyActivities(this._myActivityFilter);
+      })
+      .catch(err => console.warn('[event-manage] load history events failed:', err))
+      .finally(() => { this._manageHistoryEventsLoadPromise = null; });
+  },
+
   renderMyActivities(filter) {
     this._autoEndExpiredEvents();
     const container = document.getElementById('my-activity-list');
     if (!container) return;
     const f = filter || this._myActivityFilter || 'all';
     this._myActivityFilter = f;
+    this._ensureManageHistoryEventsLoaded(f);
 
     const isAdmin = this._canManageAllActivities?.() || this.hasPermission('event.edit_all');
 

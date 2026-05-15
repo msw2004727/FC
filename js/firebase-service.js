@@ -183,6 +183,12 @@ const FirebaseService = {
   _bootCollectionLoadFailed: {},
   _persistDebounceTimer: null,
   _eventSlices: { active: [], terminal: [], injected: [] },
+  _eventsActiveUnsub: null,
+  _eventsTerminalUnsub: null,
+  _eventsTerminalMode: 'none',
+  _terminalLoadedMode: 'none',
+  _terminalPreviewLimit: 50,
+  _terminalHistoryLimit: 200,
   _teamSlices: { active: [], injected: [] },       // Phase 2B：active=onSnapshot, injected=fetchIfMissing 注入（防洗掉）
   _tournamentSlices: { active: [], injected: [] },
   _teamLastDoc: null,
@@ -953,31 +959,39 @@ const FirebaseService = {
     if (this._initialized) this._notifyCacheUpdated(name);
   },
 
-  async _fetchTerminalEventsSnapshot() {
+  async _fetchTerminalEventsSnapshot(limitCount = 200) {
+    const safeLimit = Math.max(1, Number(limitCount) || 200);
     const orderedResult = await this._fetchQuerySnapshot(
       'events:terminal:recent',
       db.collection('events')
         .where('status', 'in', ['ended', 'cancelled'])
         .orderBy('date', 'desc')
-        .limit(200)
+        .limit(safeLimit)
     );
     if (orderedResult.ok) {
       this._terminalOrderedByDate = true;
-      this._terminalPageSize = 200;
+      this._terminalPageSize = safeLimit;
       return orderedResult;
     }
 
     this._terminalOrderedByDate = false;
-    this._terminalPageSize = 100;
+    this._terminalPageSize = Math.min(safeLimit, 100);
     return await this._fetchQuerySnapshot(
       'events:terminal:fallback',
       db.collection('events')
         .where('status', 'in', ['ended', 'cancelled'])
-        .limit(100)
+        .limit(this._terminalPageSize)
     );
   },
 
-  async _loadEventsStatic() {
+  async _loadEventsStatic(options = {}) {
+    const requestedTerminalMode = options.terminalMode || 'preview';
+    const shouldLoadTerminal = requestedTerminalMode !== 'none'
+      && requestedTerminalMode !== false
+      && !(requestedTerminalMode === 'preview' && this._terminalLoadedMode === 'history' && !options.forceTerminalRefresh);
+    const terminalLimit = requestedTerminalMode === 'history'
+      ? this._terminalHistoryLimit
+      : this._terminalPreviewLimit;
     const [activeResult, terminalResult] = await Promise.all([
       this._fetchQuerySnapshot(
         'events:active',
@@ -985,25 +999,42 @@ const FirebaseService = {
           .where('status', 'in', ['open', 'full', 'upcoming'])
           .limit(200)
       ),
-      this._fetchTerminalEventsSnapshot(),
+      shouldLoadTerminal
+        ? this._fetchTerminalEventsSnapshot(terminalLimit)
+        : Promise.resolve({ ok: true, docs: [] }),
     ]);
 
-    if (!activeResult.ok && !terminalResult.ok) {
+    if (!activeResult.ok && (shouldLoadTerminal && !terminalResult.ok)) {
       console.warn('[FirebaseService] Skip cache overwrite for "events" due to load failure.');
       return [];
     }
 
-    this._eventSlices.active = (activeResult.docs || []).map(doc => ({ ...doc.data(), _docId: doc.id }));
-    this._eventSlices.terminal = (terminalResult.docs || []).map(doc => ({ ...doc.data(), _docId: doc.id }));
+    if (activeResult.ok) {
+      this._eventSlices.active = (activeResult.docs || []).map(doc => ({ ...doc.data(), _docId: doc.id }));
+    }
+    if (shouldLoadTerminal && terminalResult.ok) {
+      this._eventSlices.terminal = (terminalResult.docs || []).map(doc => ({ ...doc.data(), _docId: doc.id }));
+      this._terminalLoadedMode = requestedTerminalMode;
+      this._terminalLastDoc = (terminalResult.docs && terminalResult.docs.length > 0)
+        ? terminalResult.docs[terminalResult.docs.length - 1] : null;
+      this._terminalAllLoaded = !terminalResult.docs || terminalResult.docs.length < (this._terminalPageSize || terminalLimit);
+    }
     this._eventsServerSnapshotReceived = true;
     // 記錄 terminal 最後一筆 doc snapshot，供分頁用
-    this._terminalLastDoc = (terminalResult.docs && terminalResult.docs.length > 0)
-      ? terminalResult.docs[terminalResult.docs.length - 1] : null;
-    this._terminalAllLoaded = !terminalResult.docs || terminalResult.docs.length < (this._terminalPageSize || 100);
     this._mergeRealtimeEventSlices(false);
     this._markCollectionsLoaded(['events']);
     this._saveToLS('events', this._cache.events);
     return ['events'];
+  },
+
+  async ensureTerminalEventsLoaded(options = {}) {
+    const mode = options.mode || 'history';
+    if (mode === 'history' && this._terminalLoadedMode === 'history' && !options.force) return ['events'];
+    if (mode === 'preview' && this._terminalLoadedMode !== 'none' && !options.force) return ['events'];
+    return this._loadEventsStatic({
+      terminalMode: mode,
+      forceTerminalRefresh: true,
+    });
   },
 
   /**
@@ -1011,6 +1042,9 @@ const FirebaseService = {
    * @returns {number} 本次載入的筆數（0 = 已全部載完）
    */
   async loadMoreTerminalEvents() {
+    if (!this._terminalLastDoc && this._terminalLoadedMode !== 'history') {
+      await this.ensureTerminalEventsLoaded({ mode: 'history', force: true });
+    }
     if (this._terminalAllLoaded || !this._terminalLastDoc) return 0;
     if (this._loadingMoreTerminal) return -1;
     this._loadingMoreTerminal = true;
@@ -1131,7 +1165,10 @@ const FirebaseService = {
     const needed = new Set(this._getPageScopedRealtimeCollections(pageId));
     if (needed.has('registrations')) this._startRegistrationsListener();
     if (needed.has('attendanceRecords')) this._startAttendanceRecordsListener();
-    if (needed.has('events')) this._startEventsRealtimeListener();
+    if (needed.has('events')) {
+      const terminalMode = pageId === 'page-my-activities' ? 'history' : 'preview';
+      this._startEventsRealtimeListener({ terminalMode });
+    }
     if (needed.has('teams')) this._startTeamsRealtimeListener();
     if (needed.has('tournaments')) this._startTournamentsRealtimeListener();
   },
@@ -2723,6 +2760,10 @@ const FirebaseService = {
 
     // ── Step 2: 並行啟動 — 公開資料 + Auth ──
     this._eventSlices = { active: [], terminal: [], injected: [] };
+    this._eventsActiveUnsub = null;
+    this._eventsTerminalUnsub = null;
+    this._eventsTerminalMode = 'none';
+    this._terminalLoadedMode = 'none';
     this._teamSlices = { injected: [] };
     this._tournamentSlices = { injected: [] };
 
@@ -3742,7 +3783,8 @@ const FirebaseService = {
   _refreshEventsOnResume() {
     if (this._eventsRevalidating) return;
     this._eventsRevalidating = true;
-    this._loadEventsStatic().then(() => {
+    const terminalMode = (typeof App !== 'undefined' && App.currentPage === 'page-my-activities') ? 'history' : 'preview';
+    this._loadEventsStatic({ terminalMode }).then(() => {
       this._eventsRevalidating = false;
       // 觸發首頁重新渲染（保留捲動位置）
       if (typeof App !== 'undefined') {
@@ -3791,51 +3833,67 @@ const FirebaseService = {
   //  Events 即時監聽（首頁活動卡片即時更新）
   // ════════════════════════════════
 
-  _startEventsRealtimeListener() {
-    if (this._realtimeListenerStarted.events) return;
+  _startEventsRealtimeListener(options = {}) {
+    const terminalMode = options.terminalMode || 'preview';
     this._realtimeListenerStarted.events = true;
     this._lazyLoaded.events = true;
-    const activeUnsub = db.collection('events')
-      .where('status', 'in', ['open', 'full', 'upcoming'])
-      .orderBy('createdAt', 'desc')
-      .limit(this._getRealtimeLimit('eventLimit'))
-      .onSnapshot(
-        snapshot => {
-          const fromCache = !!snapshot.metadata?.fromCache;
-          if (!fromCache) this._eventsServerSnapshotReceived = true;
-          this._eventSlices.active = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-          this._mergeRealtimeEventSlices(true, { fromCache });
-          this._snapshotReconnectAttempts.events = 0;
-        },
-        err => this._reconnectEventsListener(err)
-      );
-    let terminalUnsub = null;
-    try {
-      terminalUnsub = db.collection('events')
-        .where('status', 'in', ['ended', 'cancelled'])
-        .orderBy('date', 'desc')
-        .limit(200)
+
+    if (!this._eventsActiveUnsub) {
+      this._eventsActiveUnsub = db.collection('events')
+        .where('status', 'in', ['open', 'full', 'upcoming'])
+        .orderBy('createdAt', 'desc')
+        .limit(this._getRealtimeLimit('eventLimit'))
         .onSnapshot(
           snapshot => {
             const fromCache = !!snapshot.metadata?.fromCache;
             if (!fromCache) this._eventsServerSnapshotReceived = true;
-            this._eventSlices.terminal = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
-            this._terminalOrderedByDate = true;
-            this._terminalPageSize = 200;
-            this._terminalLastDoc = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : null;
-            this._terminalAllLoaded = snapshot.docs.length < 200;
+            this._eventSlices.active = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
             this._mergeRealtimeEventSlices(true, { fromCache });
+            this._snapshotReconnectAttempts.events = 0;
           },
-          err => {
-            console.warn('[onSnapshot] events terminal listener failed:', err);
-          }
+          err => this._reconnectEventsListener(err)
         );
-    } catch (err) {
-      console.warn('[onSnapshot] events terminal listener setup failed:', err);
     }
-    this._pageScopedRealtimeListeners.events = function() {
-      try { activeUnsub?.(); } catch (_) {}
-      try { terminalUnsub?.(); } catch (_) {}
+
+    const wantsTerminal = terminalMode !== 'none' && terminalMode !== false;
+    const needsHistoryUpgrade = wantsTerminal && terminalMode === 'history' && this._eventsTerminalMode !== 'history';
+    if (wantsTerminal && (!this._eventsTerminalUnsub || needsHistoryUpgrade)) {
+      try { this._eventsTerminalUnsub?.(); } catch (_) {}
+      this._eventsTerminalUnsub = null;
+      const terminalLimit = terminalMode === 'history' ? this._terminalHistoryLimit : this._terminalPreviewLimit;
+      try {
+        this._eventsTerminalUnsub = db.collection('events')
+          .where('status', 'in', ['ended', 'cancelled'])
+          .orderBy('date', 'desc')
+          .limit(terminalLimit)
+          .onSnapshot(
+            snapshot => {
+              const fromCache = !!snapshot.metadata?.fromCache;
+              if (!fromCache) this._eventsServerSnapshotReceived = true;
+              this._eventSlices.terminal = snapshot.docs.map(doc => ({ ...doc.data(), _docId: doc.id }));
+              this._eventsTerminalMode = terminalMode;
+              this._terminalLoadedMode = terminalMode;
+              this._terminalOrderedByDate = true;
+              this._terminalPageSize = terminalLimit;
+              this._terminalLastDoc = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : null;
+              this._terminalAllLoaded = snapshot.docs.length < terminalLimit;
+              this._mergeRealtimeEventSlices(true, { fromCache });
+            },
+            err => {
+              console.warn('[onSnapshot] events terminal listener failed:', err);
+            }
+          );
+      } catch (err) {
+        console.warn('[onSnapshot] events terminal listener setup failed:', err);
+      }
+    }
+
+    this._pageScopedRealtimeListeners.events = () => {
+      try { this._eventsActiveUnsub?.(); } catch (_) {}
+      try { this._eventsTerminalUnsub?.(); } catch (_) {}
+      this._eventsActiveUnsub = null;
+      this._eventsTerminalUnsub = null;
+      this._eventsTerminalMode = 'none';
     };
   },
 
@@ -3867,7 +3925,8 @@ const FirebaseService = {
       delete this._reconnectTimers.events;
       const pageId = typeof App !== 'undefined' ? App.currentPage : '';
       if (this._getPageScopedRealtimeCollections(pageId).includes('events')) {
-        this._startEventsRealtimeListener();
+        const terminalMode = pageId === 'page-my-activities' ? 'history' : 'preview';
+        this._startEventsRealtimeListener({ terminalMode });
       }
     }, delay);
   },
@@ -4043,6 +4102,10 @@ const FirebaseService = {
     this._reconnectTimers = {};
     this._snapshotReconnectAttempts = {};
     this._eventSlices = { active: [], terminal: [], injected: [] };
+    this._eventsActiveUnsub = null;
+    this._eventsTerminalUnsub = null;
+    this._eventsTerminalMode = 'none';
+    this._terminalLoadedMode = 'none';
     // RC3：清除 visibilitychange listener + debounce timer
     clearTimeout(this._visibilityRefreshDebounce);
     if (this._visibilityRefreshHandler) {

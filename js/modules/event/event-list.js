@@ -9,6 +9,11 @@ Object.assign(App, {
 
   _activityActiveTab: 'normal',
   _unavailableActivityTabs: ['beginner', 'high-intensity'],
+  _hiddenActivityTabs: ['ended'],
+
+  _normalizeActivityTab(tab) {
+    return this._hiddenActivityTabs.includes(tab) ? 'normal' : (tab || 'normal');
+  },
 
   _canCreateActivityByPermission() {
     const currentUser = ApiService.getCurrentUser?.();
@@ -38,6 +43,7 @@ Object.assign(App, {
 
   _setActivityTab(tab, options = {}) {
     const { render = true } = options;
+    tab = this._normalizeActivityTab(tab);
     this._activityActiveTab = tab;
     document.querySelectorAll('#activity-tabs .tab').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.atab === tab);
@@ -83,6 +89,7 @@ Object.assign(App, {
   },
 
   switchActivityTab(tab, event) {
+    tab = this._normalizeActivityTab(tab);
     if (this._unavailableActivityTabs.includes(tab)) {
       event?.preventDefault?.();
       event?.stopImmediatePropagation?.();

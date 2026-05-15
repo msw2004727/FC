@@ -272,7 +272,10 @@ Object.assign(App, {
     events = this._filterBySportTag(events);
 
     // 頁簽篩選：取消立即進已結束；其他活動結束後 6 小時才移入已結束
-    const activeTab = this._activityActiveTab || 'normal';
+    const activeTab = typeof this._normalizeActivityTab === 'function'
+      ? this._normalizeActivityTab(this._activityActiveTab)
+      : (this._activityActiveTab || 'normal');
+    this._activityActiveTab = activeTab;
     const nowDateForEndedTab = new Date();
     const endedTabHelper = typeof this._isEventInActivityEndedTab === 'function'
       ? this._isEventInActivityEndedTab.bind(this)
