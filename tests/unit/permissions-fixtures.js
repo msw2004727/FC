@@ -198,7 +198,9 @@ function getDefaultRolePermissions(roleKey) {
 
   // Admin+ gets additional team/event codes
   if (roleLevel >= ROLE_LEVEL_MAP.admin) {
-    defaults.push('team.create', 'team.manage_all', 'event.edit_all');
+    defaults.push('team.create', 'team.manage_all', 'event.edit_all',
+      'admin.tournaments.manage_all', 'admin.tournaments.end',
+      'admin.tournaments.reopen', 'admin.tournaments.delete');
   }
 
   if (roleLevel >= ROLE_LEVEL_MAP.super_admin) {

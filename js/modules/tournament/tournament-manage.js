@@ -24,6 +24,8 @@ Object.assign(App, {
     this._refreshTournamentCenterCreateButton();
     const currentUser = ApiService.getCurrentUser?.();
     const isAdmin = this._isTournamentGlobalAdmin(currentUser);
+    const canReopenGlobal = this._canReopenTournamentGlobal?.(currentUser);
+    const canDeleteGlobal = this._canDeleteTournamentGlobal?.(currentUser);
     const all = (ApiService.getTournaments() || [])
       .map(t => this.getFriendlyTournamentRecord?.(t) || t)
       .filter(t => isAdmin || this._canManageTournamentRecord(t, currentUser));
@@ -94,6 +96,12 @@ Object.assign(App, {
           </div>
         </div>`;
     }).join('');
+    if (!canReopenGlobal) {
+      container.querySelectorAll('button[onclick^="App.handleReopenTournament"]').forEach(btn => btn.remove());
+    }
+    if (!canDeleteGlobal) {
+      container.querySelectorAll('button[onclick^="App.handleDeleteTournament"]').forEach(btn => btn.remove());
+    }
     this._markPageSnapshotReady?.('page-admin-tournaments');
   },
 
@@ -438,7 +446,7 @@ Object.assign(App, {
   },
   async handleReopenTournament(id) {
     // 重開賽事 — 僅全域權限（管理員）
-    if (!this._isTournamentGlobalAdmin()) {
+    if (!this._canReopenTournamentGlobal?.()) {
       this.showToast('權限不足'); return;
     }
     const t = ApiService.getTournament(id);
@@ -488,7 +496,7 @@ Object.assign(App, {
     const t = ApiService.getTournament(id);
     if (!t) return;
     // 刪除賽事 — 僅全域權限（管理員）
-    if (!this._isTournamentGlobalAdmin()) {
+    if (!this._canDeleteTournamentGlobal?.()) {
       this.showToast('僅管理員可刪除賽事'); return;
     }
     if (!(await this.appConfirm(`確定要永久刪除賽事「${t.name}」？此操作無法復原。`))) return;

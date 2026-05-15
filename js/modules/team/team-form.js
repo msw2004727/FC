@@ -27,6 +27,14 @@ Object.assign(App, {
             realLeaderUids, leaderNames, captain, captainUidForSave,
             coaches, newCoachUids, users } = vals;
 
+    if (this._teamFormState.editId) {
+      const targetTeam = ApiService.getTeam?.(this._teamFormState.editId);
+      if (!targetTeam || !this._canEditTeamByRoleOrCaptain?.(targetTeam)) {
+        this.showToast('\u6b0a\u9650\u4e0d\u8db3');
+        return;
+      }
+    }
+
     // ── 降級確認（編輯模式)── 必須在 loading wrapper 前(用戶取消 confirm 不該顯示 loading)
     if (this._teamFormState.editId) {
       if (typeof this._confirmTeamManagerTransfer === 'function' && !(await this._confirmTeamManagerTransfer(vals))) return;

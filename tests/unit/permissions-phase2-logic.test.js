@@ -54,6 +54,8 @@ describe('getDefaultRolePermissions', () => {
     expect(perms).toContain('team.create');
     expect(perms).toContain('team.manage_all');
     expect(perms).toContain('event.edit_all');
+    expect(perms).toContain('admin.tournaments.manage_all');
+    expect(perms).toContain('admin.tournaments.delete');
   });
 
   test('admin does NOT get super_admin-only entries by default', () => {

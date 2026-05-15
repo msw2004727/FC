@@ -2180,8 +2180,8 @@ function validateTournamentIdForDelete(tournamentId) {
   return safeId;
 }
 
-function assertCanDeleteTournament(callerRole) {
-  if (!isRoleAdminOrAbove(callerRole)) {
+function assertCanDeleteTournament(callerAccess) {
+  if (!callerAccess?.hasPermission("admin.tournaments.delete")) {
     throw new HttpsError("permission-denied", "TOURNAMENT_DELETE_ADMIN_REQUIRED");
   }
 }
@@ -2223,8 +2223,8 @@ exports.deleteTournament = onCall(
     }
 
     const tournamentId = validateTournamentIdForDelete(request.data?.tournamentId);
-    const callerRole = await getCallerRoleWithFallback(request);
-    assertCanDeleteTournament(callerRole);
+    const callerAccess = await getCallerAccessContext(request);
+    assertCanDeleteTournament(callerAccess);
 
     const tournamentRef = db.collection("tournaments").doc(tournamentId);
     const tournamentSnap = await tournamentRef.get();

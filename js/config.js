@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260516a';
+const CACHE_VERSION = '0.20260516b';
 
 // Temporary feature switch: no-show is paused and hidden, but historical data remains intact.
 const NO_SHOW_FEATURE_ENABLED = true;
@@ -968,7 +968,8 @@ function getDefaultRolePermissions(roleKey) {
 
   if (roleLevel >= getRuntimeRoleLevel('admin')) {
     defaults.push('team.create', 'team.manage_all', 'event.edit_all',
-      'admin.tournaments.end', 'admin.tournaments.reopen', 'admin.tournaments.delete');
+      'admin.tournaments.manage_all', 'admin.tournaments.end',
+      'admin.tournaments.reopen', 'admin.tournaments.delete');
   }
 
   if (roleLevel >= getRuntimeRoleLevel('super_admin')) {

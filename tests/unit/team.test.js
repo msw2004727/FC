@@ -332,6 +332,15 @@ describe('team pin management wiring', () => {
     expect(teamCss).toMatch(/\.td-detail-shell\.has-team-theme \.td-identity-panel > \.td-club-head-action\s*\{[\s\S]*position:\s*absolute/);
   });
 
+  test('club manage records and direct actions use edit/staff permission guards', () => {
+    expect(teamListHelperSource).toContain('_canAccessTeamManageRecord');
+    expect(teamListRenderSource).toContain('this._canAccessTeamManageRecord?.(t)');
+    expect(teamListRenderSource).toContain('this._canEditTeamByRoleOrCaptain?.(t)');
+    expect(teamListSource).toMatch(/toggleTeamPin\(id\)[\s\S]*hasPermission\('team\.manage_all'\)/);
+    expect(teamListSource).toMatch(/toggleTeamActive\(id\)[\s\S]*hasPermission\('team\.manage_all'\)/);
+    expect(teamListSource).toMatch(/removeTeam\(btn, id\)[\s\S]*_canEditTeamByRoleOrCaptain\?\.\(t\)/);
+  });
+
   test('club join pending state reuses the 24h request cooldown', () => {
     expect(teamFormJoinSource).toContain('_TEAM_JOIN_REQUEST_COOLDOWN_MS: 24 * 60 * 60 * 1000');
     expect(teamFormJoinSource).toContain('_getTeamJoinRequestState');

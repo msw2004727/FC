@@ -149,7 +149,7 @@ Object.assign(App, {
     if (isAdmin) {
       teams = ApiService.getTeams();
     } else {
-      teams = ApiService.getTeams().filter(t => this._isTeamOwner(t));
+      teams = ApiService.getTeams().filter(t => this._canAccessTeamManageRecord?.(t));
     }
 
     // 2026-04-25：管理頁尊重全域 sport picker（與 renderTeamList 一致）
@@ -164,7 +164,7 @@ Object.assign(App, {
     const activeTeams = this._sortTeams(teams.filter(t => t.active));
     const inactiveTeams = this._sortTeams(teams.filter(t => !t.active));
     const renderCard = (t) => {
-      const canEdit = isAdmin || this._isTeamOwner(t);
+      const canEdit = this._canEditTeamByRoleOrCaptain?.(t);
       const dim = !t.active ? ' team-inactive' : '';
       const mSportIcon = t.sportTag && typeof getSportIconSvg === 'function' ? (getSportIconSvg(t.sportTag, 'team-title-sport-icon') || '') : '';
       return `

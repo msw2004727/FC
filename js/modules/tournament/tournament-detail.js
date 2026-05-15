@@ -77,7 +77,7 @@ Object.assign(App, {
 
     const currentUser = ApiService.getCurrentUser?.();
     const canManage = this._canManageTournamentRecord?.(tournament, currentUser);
-    const canDelete = this._isTournamentGlobalAdmin?.(currentUser);
+    const canDelete = this._canDeleteTournamentGlobal?.(currentUser);
     if (!canManage && !canDelete) {
       // Safety: clearing toolbar
       toolbar.innerHTML = '';

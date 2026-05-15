@@ -17,6 +17,7 @@ describe('tournament delete navigation', () => {
       _getTournamentRouteParam: jest.fn(() => 'ct_dead'),
       _clearTournamentDetailRouteParam: jest.fn(),
       _isTournamentGlobalAdmin: jest.fn(() => true),
+      _canDeleteTournamentGlobal: jest.fn(() => true),
       appConfirm: jest.fn(() => Promise.resolve(true)),
       renderTournamentTimeline: jest.fn(),
       renderOngoingTournaments: jest.fn(),

@@ -222,6 +222,11 @@ Object.assign(App, {
     return this._isTeamOwnerUser(team) || this._hasRolePermission('team.manage_all');
   },
 
+  _canAccessTeamManageRecord(team) {
+    if (!team) return false;
+    return this._canEditTeamByRoleOrCaptain(team) || this._canManageTeamMembers(team);
+  },
+
   _canCreateTeamByPermission() {
     return this._hasRolePermission('team.create');
   },

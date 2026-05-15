@@ -211,6 +211,11 @@ Object.assign(App, {
   toggleTeamPin(id) {
     const t = ApiService.getTeam(id);
     if (!t) return;
+    if (!this.hasPermission('team.manage_all')) {
+      this.showToast('\u6b0a\u9650\u4e0d\u8db3');
+      this.renderTeamManage();
+      return;
+    }
     t.pinned = !t.pinned;
     if (t.pinned) {
       this._pinCounter++;
@@ -228,6 +233,11 @@ Object.assign(App, {
   toggleTeamActive(id) {
     const t = ApiService.getTeam(id);
     if (!t) return;
+    if (!this.hasPermission('team.manage_all')) {
+      this.showToast('\u6b0a\u9650\u4e0d\u8db3');
+      this.renderTeamManage();
+      return;
+    }
     t.active = !t.active;
     ApiService.updateTeam(id, { active: t.active });
     this.renderAdminTeams();
@@ -308,6 +318,11 @@ Object.assign(App, {
   async removeTeam(btn, id) {
     const t = ApiService.getTeam(id);
     if (!t) return;
+    if (!this._canEditTeamByRoleOrCaptain?.(t)) {
+      this.showToast('\u6b0a\u9650\u4e0d\u8db3');
+      this.renderTeamManage();
+      return;
+    }
     if (!(await this.appConfirm(`確定要刪除「${t.name}」？此操作無法復原。`))) return;
 
     return this._withButtonLoading(btn, '刪除中...', async () => {

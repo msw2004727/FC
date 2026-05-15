@@ -374,7 +374,9 @@ function getDefaultRolePermissions(roleKey) {
   });
 
   if (roleLevel >= getRuntimeRoleLevel('admin')) {
-    defaults.push('team.create', 'team.manage_all', 'event.edit_all');
+    defaults.push('team.create', 'team.manage_all', 'event.edit_all',
+      'admin.tournaments.manage_all', 'admin.tournaments.end',
+      'admin.tournaments.reopen', 'admin.tournaments.delete');
   }
 
   if (roleLevel >= getRuntimeRoleLevel('super_admin')) {
@@ -985,6 +987,8 @@ describe('Permission System', () => {
       expect(perms).toContain('team.create');
       expect(perms).toContain('team.manage_all');
       expect(perms).toContain('event.edit_all');
+      expect(perms).toContain('admin.tournaments.manage_all');
+      expect(perms).toContain('admin.tournaments.delete');
     });
 
     test('super_admin gets all drawer permission codes', () => {

@@ -2810,3 +2810,8 @@
 - **原因**：活動篩選綁定仍沿用舊的「篩選」文字按鈕與搜尋按鈕，賽事中心也沿用固定顯示的搜尋列。
 - **修復**：活動與賽事中心改為標題旁放大鏡按鈕，預設收合、點擊才展開搜尋/篩選欄位。活動關鍵字改成輸入即時套用，並支援名稱、地點、地區、日期、主辦、類型與運動標籤的模糊比對。
 - **教訓**：公開列表的搜尋互動應共用一致模式；搜尋欄位改版時要同步處理列表與月曆兩條渲染路徑。
+
+### 2026-05-16 Club And Tournament Manage-All Permission Gates [bugfix]
+- **Issue**: Club and tournament management still had several role-based or membership-based shortcuts. A role with the management page entry but without `team.manage_all` or `admin.tournaments.manage_all` could reach more records than intended, and some direct actions relied on late Firestore rejection.
+- **Fix**: Club management now lists only globally managed clubs or clubs where the current user is owner/staff, and edit/delete/pin/active/save paths re-check the precise permission. Firestore rules now restrict club root, course, enrollment, and student writes to team staff or `team.manage_all`. Tournament global management now uses `admin.tournaments.manage_all`, while delete/reopen use their own dedicated permissions in frontend and Cloud Functions.
+- **Validation**: Added unit and Firestore-rules regression coverage for blocked admin-without-manage-all cases, team whitelist tampering, tournament root/entry/member writes, default admin permissions, and callable tournament delete permission checks. Ran full unit tests and `npm run test:rules` successfully.

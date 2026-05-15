@@ -368,10 +368,10 @@ async function seedBaseDocs() {
     });
 
     await setDoc(doc(db, "rolePermissions", "admin"), {
-      permissions: ["event.edit_all", "team.manage_all"],
+      permissions: ["event.edit_all", "team.manage_all", "admin.tournaments.manage_all"],
     });
     await setDoc(doc(db, "rolePermissions", "super_admin"), {
-      permissions: ["event.edit_all", "team.manage_all", "admin.repair.no_show_adjust"],
+      permissions: ["event.edit_all", "team.manage_all", "admin.tournaments.manage_all", "admin.repair.no_show_adjust"],
     });
 
     await setDoc(doc(db, "expLogs", "expA"), { targetUid: "uidA", amount: 1 });
@@ -2305,6 +2305,12 @@ describe("/teams/{teamId}", () => {
     await assertSucceeds(updateDoc(doc(superAdmin(), "teams", "teamB"), { name: "updated-by-super-admin" }));
   });
 
+  test("update: non-staff cannot update team member/feed/coaches whitelist on another team", async () => {
+    await assertFails(updateDoc(doc(user(), "teams", "teamA"), { members: 99 }));
+    await assertFails(updateDoc(doc(user(), "teams", "teamA"), { coaches: ["uidUser"] }));
+    await assertFails(updateDoc(doc(user(), "teams", "teamA"), { feed: [] }));
+  });
+
   test("delete (current): owner or admin/superAdmin", async () => {
     await assertFails(deleteDoc(doc(guest(), "teams", "teamA")));
 
@@ -2345,6 +2351,12 @@ describe("/teams/{teamId}", () => {
 
     await seedDoc("teams", "team_sa_del", { name: "SA Del", ownerUid: "uidB" });
     await assertSucceeds(deleteDoc(doc(superAdmin(), "teams", "team_sa_del")));
+  });
+
+  test("delete: admin without team.manage_all cannot delete another club", async () => {
+    await seedRolePermissions("admin", []);
+    await seedDoc("teams", "team_admin_no_manage_del", { name: "Admin No Manage Del", ownerUid: "uidB" });
+    await assertFails(deleteDoc(doc(admin(), "teams", "team_admin_no_manage_del")));
   });
 });
 

@@ -10,15 +10,17 @@
  *   - Coach (has admin.tournaments.entry)
  *   - Captain of a team
  *   - Delegate of a tournament
- *   - Admin (role-based, aligned with Firestore rules isAdmin())
+ *   - Admin (permission-based, aligned with admin.tournaments.manage_all)
  */
 
 // ---------------------------------------------------------------------------
 // Extracted from tournament-core.js:186-201
 // ---------------------------------------------------------------------------
-function _isTournamentGlobalAdmin(user) {
+function _isTournamentGlobalAdmin(user, permissions = []) {
   const role = String(user?.role || '').trim().toLowerCase();
-  return role === 'admin' || role === 'super_admin';
+  if (role === 'super_admin') return true;
+  if (role === 'user') return false;
+  return (permissions || []).includes('admin.tournaments.manage_all');
 }
 
 function _isTournamentTeamOfficerForTeam(team, user) {
@@ -87,14 +89,14 @@ function _hasTournamentCreatePermission(user, permissions) {
 function _canCreateFriendlyTournament(user, allTeams, permissions) {
   if (!user) return false;
   if (!_hasTournamentCreatePermission(user, permissions)) return false;
-  if (_isTournamentGlobalAdmin(user)) return true;
+  if (_isTournamentGlobalAdmin(user, permissions)) return true;
   return _getFriendlyResponsibleTeams(user, allTeams).length > 0;
 }
 
 // ---------------------------------------------------------------------------
 // Extracted from tournament-manage-host.js:11-33
 // ---------------------------------------------------------------------------
-function _getTournamentSelectableHostTeams(user, allTeams, selectedId = '') {
+function _getTournamentSelectableHostTeams(user, allTeams, selectedId = '', permissions = []) {
   const joinedIds = new Set([
     ...(Array.isArray(user?.teamIds) ? user.teamIds : []),
     user?.teamId,
@@ -103,7 +105,7 @@ function _getTournamentSelectableHostTeams(user, allTeams, selectedId = '') {
     .map(item => String(item || '').trim())
     .filter(Boolean)
     .some(id => joinedIds.has(id));
-  const source = _isTournamentGlobalAdmin(user)
+  const source = _isTournamentGlobalAdmin(user, permissions)
     ? (allTeams || []).filter(team => isJoinedTeam(team) || _isTournamentTeamOfficerForTeam(team, user))
     : _getFriendlyResponsibleTeams(user, allTeams);
   const teams = [];
@@ -143,7 +145,7 @@ function _isTournamentDelegate(tournament, user) {
 // ---------------------------------------------------------------------------
 function _canManageTournamentRecord(tournament, user, allTeams, permissions) {
   if (!tournament || !user) return false;
-  if (_isTournamentGlobalAdmin(user)) return true;
+  if (_isTournamentGlobalAdmin(user, permissions)) return true;
   const currentUid = String(user.uid || user.lineUserId || '').trim();
   const creatorUid = String(tournament.creatorUid || '').trim();
   if (currentUid && creatorUid && currentUid === creatorUid) return true;
@@ -155,9 +157,8 @@ function _canManageTournamentRecord(tournament, user, allTeams, permissions) {
 
 // ---------------------------------------------------------------------------
 // Review-application guard logic
-// (mirror of tournament-friendly-detail.js reviewFriendlyTournamentApplication
-//  post 2026-04-28: role-based global admin OR _canManageTournamentRecord)
-// admin.tournaments.entry/manage_all permissions must NOT independently authorize record-scope action.
+// (mirror of tournament-friendly-detail.js reviewFriendlyTournamentApplication)
+// admin.tournaments.manage_all authorizes global scope; entry alone does not.
 // ---------------------------------------------------------------------------
 function _canReviewFriendlyApplication(tournament, user, allTeams, permissions) {
   if (!tournament || !user) return false;
@@ -292,8 +293,12 @@ describe('_canCreateFriendlyTournament', () => {
     expect(_canCreateFriendlyTournament(superAdminUser, [], [])).toBe(true);
   });
 
-  test('manage_all permission alone is not treated as global admin', () => {
+  test('manage_all permission without create permission still cannot create', () => {
     expect(_canCreateFriendlyTournament({ uid: 'permOnly', role: 'user' }, [], ['admin.tournaments.manage_all'])).toBe(false);
+  });
+
+  test('create plus manage_all permission can create without teams', () => {
+    expect(_canCreateFriendlyTournament({ uid: 'permOnly', role: 'content_manager' }, [], ['admin.tournaments.manage_all', 'admin.tournaments.create'])).toBe(true);
   });
 
   test('create permission alone still needs admin role or responsible team', () => {
@@ -310,13 +315,13 @@ describe('_canCreateFriendlyTournament', () => {
 });
 
 describe('_getTournamentSelectableHostTeams', () => {
-  test('admin role can select joined and officer teams only', () => {
+  test('admin with manage_all can select joined and officer teams only', () => {
     const admin = { uid: 'admin2', role: 'admin', teamIds: ['teamB'] };
     const result = _getTournamentSelectableHostTeams(admin, [
       ...allTeams,
       { id: 'teamAdminOfficer', name: 'Admin Officer', ownerUid: 'admin2' },
       { id: 'teamStranger', name: 'Stranger', ownerUid: 'someoneElse' },
-    ]);
+    ], '', adminPermissions);
     expect(result.map(team => team.id)).toEqual(['teamB', 'teamAdminOfficer']);
   });
 
@@ -368,10 +373,14 @@ describe('_isTournamentDelegate', () => {
 });
 
 describe('_canManageTournamentRecord', () => {
-  test('admin can manage any tournament', () => {
+  test('admin with manage_all can manage any tournament', () => {
     expect(_canManageTournamentRecord(tournamentHostedByA, adminUser, allTeams, adminPermissions)).toBe(true);
     expect(_canManageTournamentRecord(tournamentHostedByB, adminUser, allTeams, adminPermissions)).toBe(true);
     expect(_canManageTournamentRecord(tournamentNoHost, adminUser, [], adminPermissions)).toBe(true);
+  });
+
+  test('admin without manage_all cannot manage arbitrary tournament', () => {
+    expect(_canManageTournamentRecord(tournamentHostedByB, adminUser, allTeams, [])).toBe(false);
   });
 
   test('delegate can manage their assigned tournament', () => {
@@ -415,9 +424,9 @@ describe('_canManageTournamentRecord', () => {
     expect(_canManageTournamentRecord(tournamentHostedByA, coach, allTeams, coachPermissions)).toBe(false);
   });
 
-  test('manage_all permission alone cannot manage arbitrary tournament without admin role', () => {
-    const permOnly = { uid: 'permOnly', role: 'user' };
-    expect(_canManageTournamentRecord(tournamentHostedByA, permOnly, allTeams, ['admin.tournaments.manage_all'])).toBe(false);
+  test('manage_all permission can manage arbitrary tournament for non-user delegated roles', () => {
+    const permOnly = { uid: 'permOnly', role: 'content_manager' };
+    expect(_canManageTournamentRecord(tournamentHostedByA, permOnly, allTeams, ['admin.tournaments.manage_all'])).toBe(true);
   });
 
   // Creator branch (added 2026-04-28)
@@ -442,15 +451,15 @@ describe('_canManageTournamentRecord', () => {
 
 // ═══════════════════════════════════════════════════════
 //  Review-application guard
-//  (review = role-based global admin OR _canManageTournamentRecord;
-//   admin.tournaments.entry/manage_all must NOT bypass record scope)
+//  (review = admin.tournaments.manage_all OR _canManageTournamentRecord;
+//   admin.tournaments.entry must NOT bypass record scope)
 // ═══════════════════════════════════════════════════════
 describe('_canReviewFriendlyApplication', () => {
   test('creator-only user CAN review applications for tournament they created', () => {
     expect(_canReviewFriendlyApplication(tournamentCreatedByCreatorOnly, creatorOnlyUser, allTeams, [])).toBe(true);
   });
 
-  test('admin role can review any application', () => {
+  test('admin with manage_all can review any application', () => {
     expect(_canReviewFriendlyApplication(tournamentHostedByA, adminUser, allTeams, adminPermissions)).toBe(true);
     expect(_canReviewFriendlyApplication(tournamentHostedByB, adminUser, allTeams, adminPermissions)).toBe(true);
   });

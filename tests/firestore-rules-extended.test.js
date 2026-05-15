@@ -287,6 +287,7 @@ async function seedBaseDocs() {
       permissions: [
         "event.edit_all",
         "team.manage_all",
+        "admin.tournaments.manage_all",
         "admin.shop.entry",
         "admin.announcements.entry",
         "admin.achievements.entry",
@@ -304,6 +305,7 @@ async function seedBaseDocs() {
       permissions: [
         "event.edit_all",
         "team.manage_all",
+        "admin.tournaments.manage_all",
         "admin.shop.entry",
         "admin.announcements.entry",
         "admin.achievements.entry",
@@ -1118,6 +1120,18 @@ describe("/tournaments/{tournamentId}", () => {
     );
   });
 
+  test("update: admin without admin.tournaments.manage_all cannot update arbitrary tournament", async () => {
+    await seedRolePermissions("admin", []);
+    await assertFails(
+      updateDoc(doc(admin(), "tournaments", "tourA"), {
+        name: "Blocked Admin Tournament",
+        hostTeamId: "teamA",
+        creatorUid: "uidCaptain",
+        mode: "knockout",
+      })
+    );
+  });
+
   test("update: delegate can update (preserving immutable fields)", async () => {
     // uidA is in delegateUids
     await assertSucceeds(
@@ -1451,6 +1465,16 @@ describe("/tournaments/{id}/entries/{teamId}", () => {
     );
   });
 
+  test("create: admin without admin.tournaments.manage_all cannot create entry", async () => {
+    await seedRolePermissions("admin", []);
+    await assertFails(
+      setDoc(
+        doc(admin(), "tournaments", "tourA", "entries", "teamNoPerm"),
+        { teamId: "teamNoPerm", status: "confirmed" }
+      )
+    );
+  });
+
   test("create: non-scope cannot create", async () => {
     await assertFails(
       setDoc(
@@ -1503,6 +1527,16 @@ describe("/tournaments/{id}/entries/{teamId}/members/{memberUid}", () => {
       setDoc(
         doc(admin(), "tournaments", "tourA", "entries", "teamA", "members", "uidNew"),
         { name: "New Member" }
+      )
+    );
+  });
+
+  test("create: admin without admin.tournaments.manage_all cannot add member", async () => {
+    await seedRolePermissions("admin", []);
+    await assertFails(
+      setDoc(
+        doc(admin(), "tournaments", "tourA", "entries", "teamA", "members", "uidNoPerm"),
+        { name: "No Permission" }
       )
     );
   });

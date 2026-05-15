@@ -1694,14 +1694,16 @@ describe('adjustExp operator label + reason sanitization', () => {
 });
 
 describe('deleteTournament callable source', () => {
-  test('uses v2 callable, admin role guard, and root-last helper flow', () => {
+  test('uses v2 callable, permission guard, and root-last helper flow', () => {
     const source = readCloudFunctionSource('deleteTournament');
     expect(source).toContain('onCall(');
     expect(source).toContain('region: "asia-east1"');
     expect(source).toContain('timeoutSeconds: 60');
     expect(source).toContain('memory: "512MiB"');
-    expect(source).toContain('getCallerRoleWithFallback(request)');
-    expect(source).toContain('assertCanDeleteTournament(callerRole)');
+    expect(source).toContain('getCallerAccessContext(request)');
+    expect(source).toContain('assertCanDeleteTournament(callerAccess)');
+    const guardSource = readSourceBetween('function assertCanDeleteTournament', 'async function listTournamentDeleteRefs');
+    expect(guardSource).toContain('admin.tournaments.delete');
     expect(source).toContain('listTournamentDeleteRefs(tournamentRef)');
     expect(source).toContain('commitDeleteRefsInChunks(childRefs)');
     expect(source).toContain('rootBatch.delete(tournamentRef)');

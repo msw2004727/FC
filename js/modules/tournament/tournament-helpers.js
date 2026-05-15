@@ -125,10 +125,28 @@ Object.assign(App, {
   },
 
   _isTournamentGlobalAdmin(user = null) {
+    return this._hasTournamentAdminPermission('admin.tournaments.manage_all', user);
+  },
+
+  _hasTournamentAdminPermission(code, user = null) {
     const currentUser = user || ApiService.getCurrentUser?.();
-    if (!currentUser) return false;
+    if (!currentUser || !code) return false;
     const role = String(currentUser.role || '').trim().toLowerCase();
-    return role === 'admin' || role === 'super_admin';
+    if (role === 'super_admin') return true;
+    if (role === 'user') return false;
+    if (typeof this.hasPermission === 'function') {
+      return this.hasPermission(code, role);
+    }
+    const perms = ApiService.getRolePermissions?.(role) || [];
+    return perms.includes(code);
+  },
+
+  _canDeleteTournamentGlobal(user = null) {
+    return this._hasTournamentAdminPermission('admin.tournaments.delete', user);
+  },
+
+  _canReopenTournamentGlobal(user = null) {
+    return this._hasTournamentAdminPermission('admin.tournaments.reopen', user);
   },
 
   _isTournamentTeamOfficerForTeam(team, user = null) {
