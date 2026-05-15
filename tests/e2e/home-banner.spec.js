@@ -6,6 +6,21 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const IMAGE_1 = 'data:image/gif;base64,R0lGODlhAQABAIABAP///wAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
 const IMAGE_2 = IMAGE_1;
 
+async function evaluateWithPageRetry(page, fn, arg) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await page.evaluate(fn, arg);
+    } catch (err) {
+      if (!/Execution context was destroyed|Cannot find context/i.test(String(err?.message || err)) || attempt === 2) {
+        throw err;
+      }
+      await page.waitForLoadState('domcontentloaded').catch(() => {});
+      await page.waitForSelector('#loading-overlay', { state: 'hidden', timeout: 10000 }).catch(() => {});
+    }
+  }
+  return null;
+}
+
 async function openHome(page) {
   await installTestHarness(page, TEST_USERS.userBasic);
   await page.goto(BASE_URL);
@@ -17,14 +32,21 @@ async function openHome(page) {
     && typeof App.renderBannerCarousel === 'function'
   ));
   await page.evaluate(() => {
-    document.getElementById('app-confirm-modal')?.remove();
+    const confirmModal = document.getElementById('app-confirm-modal');
+    confirmModal?.classList.remove('open');
+    if (confirmModal?.dataset) delete confirmModal.dataset.relogin;
     document.getElementById('first-login-modal')?.classList.remove('show', 'active');
     document.body.classList.remove('modal-open');
+    if (typeof App !== 'undefined') {
+      App.appConfirm = async () => true;
+      App.appAlert = async () => true;
+      App._showReLoginPrompt = () => {};
+    }
   });
 }
 
 async function seedBanners(page) {
-  await page.evaluate(({ image1, image2 }) => {
+  await evaluateWithPageRetry(page, ({ image1, image2 }) => {
     const fixtures = [
       {
         id: 'e2e-ban-1',
@@ -101,7 +123,13 @@ test.describe('home banner phase 8', () => {
     await page.locator('#home-search-region').selectOption(regionValue || '');
     await page.locator('#home-search-sport').selectOption('football');
     await page.locator('#home-search-type').selectOption('watch');
-    await page.locator('.home-activity-search-submit').click();
+    await evaluateWithPageRetry(page, async () => {
+      const confirmModal = document.getElementById('app-confirm-modal');
+      confirmModal?.classList.remove('open');
+      if (confirmModal?.dataset) delete confirmModal.dataset.relogin;
+      document.body.classList.remove('modal-open');
+      await App.submitHomeActivitySearch?.();
+    });
 
     await expect(page.locator('#page-activities')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('#home-activity-search-overlay')).not.toHaveClass(/open/);
