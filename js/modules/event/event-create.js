@@ -37,7 +37,7 @@ Object.assign(App, {
       submitBtn.disabled = true;
       submitBtn.style.opacity = '0.72';
       submitBtn.style.cursor = 'not-allowed';
-      submitBtn.textContent = this._editEventId ? '儲存中...' : '建立中...';
+      submitBtn.textContent = this._editEventId ? '儲存中' : '建立中...';
       return;
     }
     submitBtn.disabled = false;
@@ -415,9 +415,25 @@ Object.assign(App, {
 
   async handleCreateEvent() {
     if (this._eventSubmitInFlight) {
-      this.showToast('活動建立中，請勿重複送出');
+      this.showToast('系統已在處理中');
       return;
     }
+    const isEditSubmit = !!this._editEventId;
+    let earlyEditSubmitBusy = false;
+    const startEarlyEditSubmitBusy = () => {
+      if (!isEditSubmit || earlyEditSubmitBusy) return;
+      earlyEditSubmitBusy = true;
+      this._eventSubmitInFlight = true;
+      this._setCreateEventSubmitting?.(true);
+    };
+    const stopEarlyEditSubmitBusy = () => {
+      if (!earlyEditSubmitBusy) return;
+      earlyEditSubmitBusy = false;
+      this._eventSubmitInFlight = false;
+      this._setCreateEventSubmitting?.(false);
+    };
+    startEarlyEditSubmitBusy();
+    try {
     await this._ensureActivityRoleCapabilitiesReady?.({ force: true });
     const eventBeingEdited = this._editEventId ? ApiService.getEvent(this._editEventId) : null;
     const canSubmitActivity = this._editEventId
@@ -826,6 +842,9 @@ Object.assign(App, {
       cePreview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
     }
     this._initSportTagPicker('');
+    } finally {
+      stopEarlyEditSubmitBusy();
+    }
   },
 
   /** 同步活動計數至 Firebase */

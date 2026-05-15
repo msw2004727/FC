@@ -51,4 +51,14 @@ describe('activity create button', () => {
     expect(helpersSource).toContain('ensureRoleActivityCapabilitiesReady');
     expect(configSource).toMatch(/'page-activities':\s*\{[^}]*roleActivityCapabilities/);
   });
+
+  test('activity edit save button enters busy state immediately and blocks double submit', () => {
+    const createSource = readProjectFile('js/modules/event/event-create.js');
+
+    expect(createSource).toContain('const isEditSubmit = !!this._editEventId;');
+    expect(createSource).toContain('startEarlyEditSubmitBusy();');
+    expect(createSource).toContain("submitBtn.textContent = this._editEventId ? '儲存中' : '建立中...';");
+    expect(createSource).toContain("this.showToast('系統已在處理中');");
+    expect(createSource).toContain('stopEarlyEditSubmitBusy();');
+  });
 });
