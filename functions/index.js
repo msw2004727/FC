@@ -35,6 +35,18 @@ const VALID_ROLES = new Set([
   "super_admin",
 ]);
 const DISABLED_PERMISSION_CODES = new Set(["admin.roles.entry"]);
+const LEGACY_PERMISSION_CODE_REPLACEMENTS = Object.freeze({
+  "event.edit_own": "event.edit_self",
+  "event.delete_own": "event.delete_self",
+  "event.scan_qr": "event.scan",
+  "event.view_participants": "event.view_registrations",
+  "team.manage_own": "team.manage_self",
+  "team.approve_join": "team.review_join",
+  "team.create_team_event": "team.create_event",
+  "team.toggle_event_public": "team.toggle_event_visibility",
+  "admin.teams.entry": "team.manage.entry",
+  "admin.scoreboard.entry": "",
+});
 const ADMIN_USER_EDIT_PROFILE_PERMISSION = "admin.users.edit_profile";
 const ADMIN_USER_CHANGE_ROLE_PERMISSION = "admin.users.change_role";
 const ADMIN_USER_RESTRICT_PERMISSION = "admin.users.restrict";
@@ -341,12 +353,21 @@ function normalizeBuiltInRole(role) {
   return VALID_ROLES.has(normalized) ? normalized : "user";
 }
 
+function normalizePermissionCode(code) {
+  if (typeof code !== "string") return "";
+  const trimmed = code.trim();
+  if (!trimmed || DISABLED_PERMISSION_CODES.has(trimmed)) return "";
+  if (Object.prototype.hasOwnProperty.call(LEGACY_PERMISSION_CODE_REPLACEMENTS, trimmed)) {
+    return LEGACY_PERMISSION_CODE_REPLACEMENTS[trimmed] || "";
+  }
+  return trimmed;
+}
+
 function sanitizePermissionCodeList(codes) {
   return Array.from(new Set(
     (Array.isArray(codes) ? codes : [])
-      .filter(code => typeof code === "string")
-      .map(code => code.trim())
-      .filter(code => code && !DISABLED_PERMISSION_CODES.has(code))
+      .map(code => normalizePermissionCode(code))
+      .filter(Boolean)
   ));
 }
 
@@ -1117,7 +1138,8 @@ async function getCallerAccessContext(request) {
     activityCapabilities,
     isSuperAdmin: role === "super_admin",
     hasPermission(code) {
-      return role === "super_admin" || permissions.includes(code);
+      const normalized = normalizePermissionCode(code);
+      return role === "super_admin" || (!!normalized && permissions.includes(normalized));
     },
     hasActivityCapability(code) {
       return role === "user" && activityCapabilities.includes(code);

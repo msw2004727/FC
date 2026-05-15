@@ -231,6 +231,7 @@ Object.assign(App, {
       const subOnly = [...perms].filter(code => !code.endsWith('.entry'));
       subOnly.forEach(code => {
         const parent = this._guessPermissionEntryCode(code);
+        if (this._isAllowedContextualPermissionWithoutEntry(role, code, parent)) return;
         if (parent && !perms.has(parent)) issues.push({
           level: 'warn',
           title: '有操作權限但沒有入口權限',
@@ -245,5 +246,18 @@ Object.assign(App, {
     const defs = typeof getAdminDrawerPermissionDefinitions === 'function' ? getAdminDrawerPermissionDefinitions() : [];
     const def = defs.find(group => group.items.some(item => item.code === code));
     return def?.entryCode || '';
+  },
+
+  _isAllowedContextualPermissionWithoutEntry(role, code, parent) {
+    if (parent !== 'team.manage.entry') return false;
+    const roleKey = role?.key || '';
+    const contextualTeamCodes = new Set([
+      'team.manage_self',
+      'team.review_join',
+      'team.create_event',
+      'team.toggle_event_visibility',
+    ]);
+    if (!contextualTeamCodes.has(code)) return false;
+    return roleKey === 'coach';
   },
 });

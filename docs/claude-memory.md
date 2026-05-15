@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-15 Permission legacy code normalization [bug]
+- **Problem**: 權限測試報告會把歷史 `rolePermissions` 權限碼列成未知碼，例如 `event.edit_own`、`team.manage_own`、`admin.teams.entry`、`admin.scoreboard.entry`。同時教練刻意不顯示俱樂部管理入口、但保留俱樂部頁內情境操作權限時，被報告誤判成入口缺失警告。
+- **Fix**: 前端與 Cloud Functions 都加入舊權限碼正規化；可對應的新碼會轉成目前權限碼，已移除的 `admin.scoreboard.entry` 會被丟棄。權限報告也把教練的 `team.manage_self`、`team.review_join`、`team.create_event`、`team.toggle_event_visibility` 視為俱樂部頁內情境權限，不再要求必須同時顯示 `team.manage.entry` 後台入口。
+- **Tests**: 新增/更新權限單元測試覆蓋舊權限碼正規化與教練情境權限報告規則。
+
 ### 2026-05-15 Permission audit report page [權限/架構]
 - **Problem**: 權限管理開關多次出現前後端或第二套 user 活動能力不同步，管理員缺少一次性自查頁面確認各層級實際權限範圍。
 - **Fix**: 在 `權限管理` 內新增 `權限測試` 頁籤，產生只讀報告，覆蓋角色矩陣、抽屜入口、管理子權限、一般 user 前台活動能力與高風險權限組合。前端模組獨立放到 `js/modules/user-admin/permission-audit/`，樣式獨立為 `css/permission-audit.css`。

@@ -31,7 +31,9 @@ Object.assign(App, {
 
   hasPermission(code, role) {
     if (!code) return false;
-    return this._getRolePermissionList(role).includes(code);
+    const normalized = typeof normalizePermissionCode === 'function' ? normalizePermissionCode(code) : code;
+    if (!normalized) return false;
+    return this._getRolePermissionList(role).includes(normalized);
   },
 
   _usesAdminDrawerPermissionMode(role) {

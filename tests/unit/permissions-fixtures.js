@@ -17,12 +17,24 @@ const ROLE_LEVEL_MAP = { user: 0, coach: 1, captain: 2, venue_owner: 3, admin: 4
 
 const INHERENT_ROLE_PERMISSIONS = Object.freeze({
   coach:       ['activity.manage.entry', 'admin.tournaments.entry'],
-  captain:     ['activity.manage.entry', 'admin.tournaments.entry'],
-  venue_owner: ['activity.manage.entry', 'admin.tournaments.entry'],
+  captain:     ['activity.manage.entry', 'admin.tournaments.entry', 'team.manage.entry'],
+  venue_owner: ['activity.manage.entry', 'admin.tournaments.entry', 'team.manage.entry'],
   super_admin: ['admin.repair.event_blocklist', 'admin.seo.entry'],
 });
 
 const DISABLED_PERMISSION_CODES = new Set(['admin.roles.entry']);
+const LEGACY_PERMISSION_CODE_REPLACEMENTS = Object.freeze({
+  'event.edit_own': 'event.edit_self',
+  'event.delete_own': 'event.delete_self',
+  'event.scan_qr': 'event.scan',
+  'event.view_participants': 'event.view_registrations',
+  'team.manage_own': 'team.manage_self',
+  'team.approve_join': 'team.review_join',
+  'team.create_team_event': 'team.create_event',
+  'team.toggle_event_public': 'team.toggle_event_visibility',
+  'admin.teams.entry': 'team.manage.entry',
+  'admin.scoreboard.entry': '',
+});
 
 // All entry permission codes from DRAWER_MENUS (js/config.js:514-541)
 const ENTRY_PERMISSION_CODES = [
@@ -33,7 +45,7 @@ const ENTRY_PERMISSION_CODES = [
   'admin.banners.entry',
   'admin.shop.entry',
   'admin.messages.entry',
-  'admin.teams.entry',
+  'team.manage.entry',
   'admin.dashboard.entry',
   'admin.themes.entry',
   'admin.exp.entry',
@@ -72,7 +84,7 @@ const DRAWER_PAGE_ENTRIES = [
   { page: 'page-admin-banners',        minRole: 'admin',       permissionCode: 'admin.banners.entry' },
   { page: 'page-admin-shop',           minRole: 'admin',       permissionCode: 'admin.shop.entry' },
   { page: 'page-admin-messages',       minRole: 'admin',       permissionCode: 'admin.messages.entry' },
-  { page: 'page-admin-teams',          minRole: 'admin',       permissionCode: 'admin.teams.entry' },
+  { page: 'page-team-manage',          minRole: 'captain',     permissionCode: 'team.manage.entry' },
   { page: 'page-admin-dashboard',      minRole: 'super_admin', permissionCode: 'admin.dashboard.entry' },
   { page: 'page-admin-seo',            minRole: 'admin',       permissionCode: 'admin.seo.entry' },
   { page: 'page-admin-themes',         minRole: 'super_admin', permissionCode: 'admin.themes.entry' },
@@ -94,7 +106,6 @@ const DATA_MIN_ROLE_PAGES = [
   { page: 'page-admin-tournaments',   minRole: 'coach',       file: 'admin-content.html' },
   { page: 'page-admin-banners',       minRole: 'admin',       file: 'admin-content.html' },
   { page: 'page-admin-shop',          minRole: 'admin',       file: 'admin-content.html' },
-  { page: 'page-admin-teams',         minRole: 'admin',       file: 'admin-content.html' },
   { page: 'page-admin-messages',      minRole: 'admin',       file: 'admin-content.html' },
   { page: 'page-admin-users',         minRole: 'admin',       file: 'admin-users.html' },
   { page: 'page-admin-exp',           minRole: 'super_admin', file: 'admin-users.html' },
@@ -120,7 +131,7 @@ const ROLE_ONLY_PAGES = [
   'page-admin-audit-logs',  // not in DRAWER_MENUS (sub-page of logs)
   'page-admin-error-logs',  // not in DRAWER_MENUS (sub-page of logs)
   'page-scan',              // not in DRAWER_MENUS (launched from deep link, has JS fallback)
-  'page-team-manage',       // not in DRAWER_MENUS (launched from team detail)
+  'page-team-manage',       // keeps data-min-role guard in team.html and also has drawer permissionCode
 ];
 
 // Non-page elements with data-min-role (visibility-only, not access control)
@@ -134,17 +145,30 @@ const DATA_MIN_ROLE_DIVS = [
 // =========================================================================
 
 // ---------------------------------------------------------------------------
-// from js/config.js:544-556 — sanitizePermissionCodeList, isPermissionCodeEnabled
+// from js/config.js — sanitizePermissionCodeList, isPermissionCodeEnabled
 // ---------------------------------------------------------------------------
+function normalizePermissionCode(code) {
+  if (typeof code !== 'string') return '';
+  const trimmed = code.trim();
+  if (!trimmed || DISABLED_PERMISSION_CODES.has(trimmed)) return '';
+  if (Object.prototype.hasOwnProperty.call(LEGACY_PERMISSION_CODE_REPLACEMENTS, trimmed)) {
+    return LEGACY_PERMISSION_CODE_REPLACEMENTS[trimmed] || '';
+  }
+  return trimmed;
+}
+
 function isPermissionCodeEnabled(code) {
-  return typeof code === 'string'
-    && !!code
-    && !DISABLED_PERMISSION_CODES.has(code);
+  if (typeof code !== 'string') return false;
+  const trimmed = code.trim();
+  return !!trimmed
+    && normalizePermissionCode(trimmed) === trimmed;
 }
 
 function sanitizePermissionCodeList(codes) {
   return Array.from(new Set(
-    (Array.isArray(codes) ? codes : []).filter(code => isPermissionCodeEnabled(code))
+    (Array.isArray(codes) ? codes : [])
+      .map(code => normalizePermissionCode(code))
+      .filter(Boolean)
   ));
 }
 
@@ -209,7 +233,9 @@ function getRolePermissions(roleKey, storedPermissions) {
 // ---------------------------------------------------------------------------
 function hasPermission(roleKey, storedPermissions, code) {
   if (!code) return false;
-  return getRolePermissions(roleKey, storedPermissions).includes(code);
+  const normalized = normalizePermissionCode(code);
+  if (!normalized) return false;
+  return getRolePermissions(roleKey, storedPermissions).includes(normalized);
 }
 
 // ---------------------------------------------------------------------------

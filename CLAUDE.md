@@ -249,6 +249,7 @@ grep -rn "CACHE_VERSION\|CACHE_NAME\|var V='" js/config.js sw.js index.html
    - **同步權限測試報告**：新增、刪除或調整 `DRAWER_MENUS`、`ADMIN_PAGE_EXTRA_PERMISSION_ITEMS`、`ROLE_ACTIVITY_CAPABILITY_ITEMS`、`rolePermissions` 或 `roleActivityCapabilities` 時，必須同步檢查 `js/modules/user-admin/permission-audit/`。此資料夾是「權限管理 > 權限測試」的一次性只讀報告來源，需維持能覆蓋所有角色、抽屜入口、子權限、一般 user 前台活動能力與高風險權限組合。
    - **不確定是否需要新增權限時**：應先向用戶說明該功能的存取需求，並建議適合的權限碼命名與層級配置，由用戶決定是否新增。
    - **權限碼命名規則**：入口權限以 `.entry` 結尾（如 `admin.xxx.entry`），子權限以動作命名（如 `xxx.create`、`xxx.edit_all`、`xxx.delete`）。
+   - **歷史權限碼正規化**：若權限碼改名，不可只改 UI catalog；必須同步維護 `js/config.js` 與 `functions/index.js` 的 legacy permission normalization，並更新 `permission-audit` 測試，避免資料庫舊 `rolePermissions` 讓前後端判斷不一致。
    - **`INHERENT_ROLE_PERMISSIONS` 兩地同步（強制）**：此常數同時定義於 `js/config.js` 與 `functions/index.js`（無 build process 故無法共用）。修改任一邊時**必須同步更新另一邊**，否則前端 UI 顯示與後端驗證行為將出現無錯誤訊息的靜默分歧。
    - **`hasPermission` 守衛新增規則（強制，歷史教訓）**：新增 `hasPermission()` 前端守衛時，**禁止**使用 `if (!hasPermission(...)) return` 直接擋回的寫法。必須遵守以下規則：
      - **「查看」類功能不加守衛**：報名名單（`_renderAttendanceTable`）、活動詳情等查看類渲染函式，預設所有登入用戶可見，不加權限守衛。管理操作（編輯/刪除/簽到）才需要守衛。

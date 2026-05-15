@@ -309,6 +309,7 @@
 - HTML：仍在 `pages/admin-system.html` 的 `page-admin-roles` 內，以頁籤切換權限設定與權限測試。
 - JS：獨立放在 `js/modules/user-admin/permission-audit/`，目前分為報告資料組裝與畫面渲染。
 - CSS：獨立放在 `css/permission-audit.css`，不再混入 `css/admin.css`。
+- 權限碼相容：歷史碼正規化集中在 `js/config.js`，後端同規則放在 `functions/index.js`。權限測試頁會依正規化後的權限判斷未知碼，且教練可保留俱樂部頁內情境操作權限而不顯示後台俱樂部管理入口。
 - 維護規則：新增抽屜入口、管理子權限、一般 user 前台活動能力或高風險權限組合時，必須同步確認此報告可掃描到新項目。
 
 ## 2026-05-11 History API 雙軌入口結構補充

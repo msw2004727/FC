@@ -627,6 +627,7 @@ Firestore / Functions 也有一份權限判斷，尤其 `INHERENT_ROLE_PERMISSIO
 - `admin.repair.data_sync` 是資料同步、UID 檢查、修復工具的主要入口權限。
 - `page-admin-roles` 內的「權限測試」是一次性只讀報告，不改資料。前端實作獨立放在 `js/modules/user-admin/permission-audit/`，樣式放在 `css/permission-audit.css`。
 - 未來新增或變更權限碼、抽屜入口、管理子權限、一般 user 前台活動能力時，必須同步確認權限測試報告仍會收錄該項，避免權限開關跑掉後無法自查。
+- 歷史權限碼會在前端 `js/config.js` 與 Cloud Functions `functions/index.js` 讀取時正規化；例如 `event.edit_own` 轉為 `event.edit_self`、`admin.teams.entry` 轉為 `team.manage.entry`，已移除的 `admin.scoreboard.entry` 會被丟棄。權限測試報告對教練的俱樂部頁內情境權限不要求同時顯示 `team.manage.entry` 後台入口。
 
 ### 後台分區
 

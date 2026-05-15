@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260515i';
+const CACHE_VERSION = '0.20260515j';
 
 // Temporary feature switch: no-show is paused and hidden, but historical data remains intact.
 const NO_SHOW_FEATURE_ENABLED = true;
@@ -700,18 +700,43 @@ const DRAWER_MENUS = [
   { icon: '', label: '無效資料查詢', i18nKey: 'admin.inactive', page: 'page-admin-inactive', minRole: 'super_admin', permissionCode: 'admin.inactive.entry' },
 ];
 
-const ROLE_PERMISSION_CATALOG_VERSION = '20260506b';
+const ROLE_PERMISSION_CATALOG_VERSION = '20260515j';
 const DISABLED_PERMISSION_CODES = new Set(['admin.roles.entry']);
+const LEGACY_PERMISSION_CODE_REPLACEMENTS = Object.freeze({
+  'event.edit_own': 'event.edit_self',
+  'event.delete_own': 'event.delete_self',
+  'event.scan_qr': 'event.scan',
+  'event.view_participants': 'event.view_registrations',
+  'team.manage_own': 'team.manage_self',
+  'team.approve_join': 'team.review_join',
+  'team.create_team_event': 'team.create_event',
+  'team.toggle_event_public': 'team.toggle_event_visibility',
+  'admin.teams.entry': 'team.manage.entry',
+  'admin.scoreboard.entry': '',
+});
+
+function normalizePermissionCode(code) {
+  if (typeof code !== 'string') return '';
+  const trimmed = code.trim();
+  if (!trimmed || DISABLED_PERMISSION_CODES.has(trimmed)) return '';
+  if (Object.prototype.hasOwnProperty.call(LEGACY_PERMISSION_CODE_REPLACEMENTS, trimmed)) {
+    return LEGACY_PERMISSION_CODE_REPLACEMENTS[trimmed] || '';
+  }
+  return trimmed;
+}
 
 function isPermissionCodeEnabled(code) {
-  return typeof code === 'string'
-    && !!code
-    && !DISABLED_PERMISSION_CODES.has(code);
+  if (typeof code !== 'string') return false;
+  const trimmed = code.trim();
+  return !!trimmed
+    && normalizePermissionCode(trimmed) === trimmed;
 }
 
 function sanitizePermissionCodeList(codes) {
   return Array.from(new Set(
-    (Array.isArray(codes) ? codes : []).filter(code => isPermissionCodeEnabled(code))
+    (Array.isArray(codes) ? codes : [])
+      .map(code => normalizePermissionCode(code))
+      .filter(Boolean)
   ));
 }
 

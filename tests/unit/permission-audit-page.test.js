@@ -45,6 +45,16 @@ describe('permission audit page wiring', () => {
     expect(audit).toContain('DRAWER_MENUS');
   });
 
+  test('coach contextual team permissions are not treated as missing entry warnings', () => {
+    const audit = read('js/modules/user-admin/permission-audit/permission-audit.js');
+    expect(audit).toContain('_isAllowedContextualPermissionWithoutEntry');
+    expect(audit).toContain("parent !== 'team.manage.entry'");
+    expect(audit).toContain("'team.review_join'");
+    expect(audit).toContain("'team.create_event'");
+    expect(audit).toContain("'team.toggle_event_visibility'");
+    expect(audit).toContain("roleKey === 'coach'");
+  });
+
   test('project rules require future permission changes to keep audit coverage updated', () => {
     const claude = read('CLAUDE.md');
     expect(claude).toContain('permission-audit');

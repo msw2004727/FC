@@ -49,7 +49,7 @@
     └ 刪除站內信            admin.messages.delete                        ✅ 已接線
 
 俱樂部管理
-    ├ 顯示入口              admin.teams.entry                            🔗 抽屜入口
+    ├ 顯示入口              team.manage.entry                            🔗 抽屜入口
     ├ 建立俱樂部             team.create                                  ✅ 已接線
     ├ 管理所有俱樂部         team.manage_all                               ✅ 已接線
     ├ 管理自己的俱樂部       team.manage_self                              ✅ 已接線

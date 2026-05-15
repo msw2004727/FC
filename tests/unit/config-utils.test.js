@@ -79,6 +79,7 @@ const DRAWER_MENUS = [
   { divider: true },
   { icon: '', label: '\u6d3b\u52d5\u7ba1\u7406', page: 'page-my-activities', minRole: 'coach', permissionCode: 'activity.manage.entry' },
   { icon: '', label: '\u8cfd\u4e8b\u7ba1\u7406', page: 'page-admin-tournaments', minRole: 'coach', permissionCode: 'admin.tournaments.entry' },
+  { icon: '', label: '\u4ff1\u6a02\u90e8\u7ba1\u7406', page: 'page-team-manage', minRole: 'captain', permissionCode: 'team.manage.entry' },
   { divider: true, minRole: 'admin' },
   { sectionLabel: '\u5f8c\u53f0\u7ba1\u7406', minRole: 'admin' },
   { icon: '', label: '\u5c0f\u904a\u6232\u7ba1\u7406', page: 'page-admin-games', minRole: 'admin', permissionCode: 'admin.games.entry' },
@@ -86,7 +87,6 @@ const DRAWER_MENUS = [
   { icon: '', label: '\u9996\u9801\u7ba1\u7406', page: 'page-admin-banners', minRole: 'admin', permissionCode: 'admin.banners.entry' },
   { icon: '', label: '\u4e8c\u624b\u5546\u54c1\u7ba1\u7406', page: 'page-admin-shop', minRole: 'admin', permissionCode: 'admin.shop.entry' },
   { icon: '', label: '\u7ad9\u5167\u4fe1\u7ba1\u7406', page: 'page-admin-messages', minRole: 'admin', permissionCode: 'admin.messages.entry' },
-  { icon: '', label: '\u7403\u968a\u7ba1\u7406', page: 'page-admin-teams', minRole: 'admin', permissionCode: 'admin.teams.entry' },
   { icon: '', label: '\u6578\u64da\u5100\u8868\u677f', page: 'page-admin-dashboard', minRole: 'super_admin', permissionCode: 'admin.dashboard.entry' },
   { icon: '', label: 'SEO \u5100\u8868\u677f', page: 'page-admin-seo', minRole: 'admin', permissionCode: 'admin.seo.entry', highlight: 'red' },
   { icon: '', label: '\u4f48\u666f\u4e3b\u984c', page: 'page-admin-themes', minRole: 'super_admin', permissionCode: 'admin.themes.entry' },
@@ -110,9 +110,14 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
   'page-my-activities': [
     { code: 'event.edit_all', name: 'Edit All Events' },
   ],
-  'page-admin-teams': [
+  'page-team-manage': [
     { code: 'team.create', name: 'Create Team' },
     { code: 'team.manage_all', name: 'Manage All Teams' },
+    { code: 'team.manage_self', name: 'Manage Own Teams' },
+    { code: 'team.review_join', name: 'Review Join Requests' },
+    { code: 'team.assign_coach', name: 'Assign Coach' },
+    { code: 'team.create_event', name: 'Create Team Event' },
+    { code: 'team.toggle_event_visibility', name: 'Toggle Event Visibility' },
   ],
   'page-admin-repair': [
     { code: 'admin.repair.team_join_repair', name: 'Team Join Repair' },
@@ -205,22 +210,48 @@ function getSportIconSvg(key, className = '') {
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/config.js:559-563 — isPermissionCodeEnabled
+const LEGACY_PERMISSION_CODE_REPLACEMENTS = Object.freeze({
+  'event.edit_own': 'event.edit_self',
+  'event.delete_own': 'event.delete_self',
+  'event.scan_qr': 'event.scan',
+  'event.view_participants': 'event.view_registrations',
+  'team.manage_own': 'team.manage_self',
+  'team.approve_join': 'team.review_join',
+  'team.create_team_event': 'team.create_event',
+  'team.toggle_event_public': 'team.toggle_event_visibility',
+  'admin.teams.entry': 'team.manage.entry',
+  'admin.scoreboard.entry': '',
+});
+
+// Extracted from js/config.js — normalizePermissionCode / isPermissionCodeEnabled
 // Checks if permission code is active (not in disabled set)
 // ---------------------------------------------------------------------------
+function normalizePermissionCode(code) {
+  if (typeof code !== 'string') return '';
+  const trimmed = code.trim();
+  if (!trimmed || DISABLED_PERMISSION_CODES.has(trimmed)) return '';
+  if (Object.prototype.hasOwnProperty.call(LEGACY_PERMISSION_CODE_REPLACEMENTS, trimmed)) {
+    return LEGACY_PERMISSION_CODE_REPLACEMENTS[trimmed] || '';
+  }
+  return trimmed;
+}
+
 function isPermissionCodeEnabled(code) {
-  return typeof code === 'string'
-    && !!code
-    && !DISABLED_PERMISSION_CODES.has(code);
+  if (typeof code !== 'string') return false;
+  const trimmed = code.trim();
+  return !!trimmed
+    && normalizePermissionCode(trimmed) === trimmed;
 }
 
 // ---------------------------------------------------------------------------
-// Extracted from js/config.js:565-569 — sanitizePermissionCodeList
+// Extracted from js/config.js — sanitizePermissionCodeList
 // Removes duplicates & disabled codes from a list
 // ---------------------------------------------------------------------------
 function sanitizePermissionCodeList(codes) {
   return Array.from(new Set(
-    (Array.isArray(codes) ? codes : []).filter(code => isPermissionCodeEnabled(code))
+    (Array.isArray(codes) ? codes : [])
+      .map(code => normalizePermissionCode(code))
+      .filter(Boolean)
   ));
 }
 
@@ -661,6 +692,32 @@ describe('Permission System', () => {
       ]);
       expect(result).toEqual(['admin.users.entry', 'admin.shop.entry']);
       expect(result).not.toContain('admin.roles.entry');
+    });
+
+    test('normalizes legacy permission codes and drops removed legacy entries', () => {
+      const result = sanitizePermissionCodeList([
+        'event.edit_own',
+        'event.delete_own',
+        'event.scan_qr',
+        'event.view_participants',
+        'team.manage_own',
+        'team.approve_join',
+        'team.create_team_event',
+        'team.toggle_event_public',
+        'admin.teams.entry',
+        'admin.scoreboard.entry',
+      ]);
+      expect(result).toEqual([
+        'event.edit_self',
+        'event.delete_self',
+        'event.scan',
+        'event.view_registrations',
+        'team.manage_self',
+        'team.review_join',
+        'team.create_event',
+        'team.toggle_event_visibility',
+        'team.manage.entry',
+      ]);
     });
 
     test('returns empty array for non-array input', () => {
