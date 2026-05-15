@@ -315,7 +315,7 @@
 }
 .tl-stamp-confirmed {
   position: absolute;
-  right: 6%;
+  right: calc(6% + 12px);
   bottom: -10px;
   width: 46px;
   height: 46px;
