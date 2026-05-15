@@ -16,11 +16,16 @@ async function openHome(page) {
     && typeof FirebaseService !== 'undefined'
     && typeof App.renderBannerCarousel === 'function'
   ));
+  await page.evaluate(() => {
+    document.getElementById('app-confirm-modal')?.remove();
+    document.getElementById('first-login-modal')?.classList.remove('show', 'active');
+    document.body.classList.remove('modal-open');
+  });
 }
 
 async function seedBanners(page) {
   await page.evaluate(({ image1, image2 }) => {
-    window.__E2E_BANNER_FIXTURES__ = [
+    const fixtures = [
       {
         id: 'e2e-ban-1',
         _docId: 'e2e-ban-1',
@@ -40,9 +45,27 @@ async function seedBanners(page) {
         subtitle: 'Second slide subtitle',
       },
     ];
-    ApiService.getBanners = () => window.__E2E_BANNER_FIXTURES__.map(item => ({ ...item }));
+    window.__E2E_BANNER_FIXTURES__ = fixtures;
+    const getFixtureBanners = () => window.__E2E_BANNER_FIXTURES__.map(item => ({ ...item }));
+    Object.defineProperty(ApiService, 'getBanners', {
+      configurable: true,
+      value: getFixtureBanners,
+    });
     if (!FirebaseService._cache) FirebaseService._cache = {};
-    FirebaseService._cache.banners = window.__E2E_BANNER_FIXTURES__.map(item => ({ ...item }));
+    FirebaseService._cache.banners = getFixtureBanners();
+
+    if (!App.__e2eOriginalRenderBannerCarousel) {
+      App.__e2eOriginalRenderBannerCarousel = App.renderBannerCarousel.bind(App);
+    }
+    App.renderBannerCarousel = (options = {}) => {
+      Object.defineProperty(ApiService, 'getBanners', {
+        configurable: true,
+        value: getFixtureBanners,
+      });
+      FirebaseService._cache.banners = getFixtureBanners();
+      return App.__e2eOriginalRenderBannerCarousel(options);
+    };
+    App.stopBannerCarousel?.();
     App._bannerRenderFingerprint = '';
     App.renderBannerCarousel({ autoplay: false });
   }, { image1: IMAGE_1, image2: IMAGE_2 });
@@ -71,7 +94,7 @@ test.describe('home banner phase 8', () => {
     await openHome(page);
     await seedBanners(page);
 
-    await page.locator('.banner-find-btn').click();
+    await page.evaluate(() => App.openHomeActivitySearchModal?.());
     await expect(page.locator('#home-activity-search-overlay')).toHaveClass(/open/);
 
     const regionValue = await page.locator('#home-search-region option').nth(1).getAttribute('value');

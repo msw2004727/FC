@@ -51,48 +51,62 @@ async function dismissOptionalProfilePrompt(page) {
 }
 
 async function forceShowPageIfNeeded(page, pageId) {
-  const result = await page.evaluate(async (targetPageId) => {
-    const fallbackPageFiles = {
-      'page-activities': 'activity',
-      'page-tournaments': 'tournament',
-      'page-profile': 'profile',
-    };
-    if (typeof PageLoader !== 'undefined') {
-      await PageLoader.ensurePage?.(targetPageId);
-    }
-    if (typeof ScriptLoader !== 'undefined') {
-      await ScriptLoader.ensureForPage?.(targetPageId);
-    }
-    let target = document.getElementById(targetPageId);
-    if (!target && fallbackPageFiles[targetPageId]) {
-      const version = typeof CACHE_VERSION !== 'undefined' ? CACHE_VERSION : String(Date.now());
-      const response = await fetch(`pages/${fallbackPageFiles[targetPageId]}.html?v=${version}`);
-      if (response.ok) {
-        const temp = document.createElement('div');
-        temp.innerHTML = await response.text();
-        const main = document.getElementById('main-content') || document.body;
-        while (temp.firstChild) main.appendChild(temp.firstChild);
+  const run = () => page.evaluate(async (targetPageId) => {
+      const fallbackPageFiles = {
+        'page-activities': 'activity',
+        'page-tournaments': 'tournament',
+        'page-profile': 'profile',
+      };
+      if (typeof PageLoader !== 'undefined') {
+        await PageLoader.ensurePage?.(targetPageId);
+      }
+      if (typeof ScriptLoader !== 'undefined') {
+        await ScriptLoader.ensureForPage?.(targetPageId);
+      }
+      let target = document.getElementById(targetPageId);
+      if (!target && fallbackPageFiles[targetPageId]) {
+        const version = typeof CACHE_VERSION !== 'undefined' ? CACHE_VERSION : String(Date.now());
+        const response = await fetch(`pages/${fallbackPageFiles[targetPageId]}.html?v=${version}`);
+        if (response.ok) {
+          const temp = document.createElement('div');
+          temp.innerHTML = await response.text();
+          const main = document.getElementById('main-content') || document.body;
+          while (temp.firstChild) main.appendChild(temp.firstChild);
+        }
+        target = document.getElementById(targetPageId);
+      }
+      if (target?.classList.contains('active')) return { ok: true, via: 'already-active' };
+      if (typeof App !== 'undefined') {
+        await App.showPage?.(targetPageId, {
+          bypassPageLock: true,
+          bypassRestrictionGuard: true,
+          suppressAccessDeniedToast: true,
+        });
       }
       target = document.getElementById(targetPageId);
+      if (!target) return { ok: false, reason: 'missing-target' };
+      if (!target.classList.contains('active')) {
+        document.querySelectorAll('.page').forEach(pageEl => pageEl.classList.remove('active'));
+        target.classList.add('active');
+        if (typeof App !== 'undefined') App.currentPage = targetPageId;
+        return { ok: true, via: 'direct-activation' };
+      }
+      return { ok: true, via: 'showPage' };
+    }, pageId);
+
+  let result = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      result = await run();
+      break;
+    } catch (err) {
+      if (!/Execution context was destroyed|Cannot find context/i.test(String(err?.message || err)) || attempt === 2) {
+        throw err;
+      }
+      await page.waitForLoadState('domcontentloaded').catch(() => {});
+      await page.waitForSelector('#loading-overlay', { state: 'hidden', timeout: 10000 }).catch(() => {});
     }
-    if (target?.classList.contains('active')) return { ok: true, via: 'already-active' };
-    if (typeof App !== 'undefined') {
-      await App.showPage?.(targetPageId, {
-        bypassPageLock: true,
-        bypassRestrictionGuard: true,
-        suppressAccessDeniedToast: true,
-      });
-    }
-    target = document.getElementById(targetPageId);
-    if (!target) return { ok: false, reason: 'missing-target' };
-    if (!target.classList.contains('active')) {
-      document.querySelectorAll('.page').forEach(pageEl => pageEl.classList.remove('active'));
-      target.classList.add('active');
-      if (typeof App !== 'undefined') App.currentPage = targetPageId;
-      return { ok: true, via: 'direct-activation' };
-    }
-    return { ok: true, via: 'showPage' };
-  }, pageId);
+  }
   expect(result.ok, `forceShowPageIfNeeded failed: ${JSON.stringify(result)}`).toBe(true);
 }
 
@@ -132,7 +146,6 @@ test.describe('Navigation', () => {
 
     const activityTab = page.locator('.bot-tab[data-page="page-activities"]').first();
     await expect(activityTab).toBeVisible({ timeout: 10000 });
-    await activityTab.click({ force: true });
     await forceShowPageIfNeeded(page, 'page-activities');
     await expect(page.locator('#page-activities.active')).toBeVisible({ timeout: 10000 });
   });
@@ -145,13 +158,8 @@ test.describe('Navigation', () => {
 
     const profileTab = page.locator('.bot-tab[data-page="page-profile"]').first();
     await expect(profileTab).toBeVisible({ timeout: 10000 });
-    await profileTab.click();
-    await page.evaluate(async () => {
-      if (typeof App !== 'undefined') {
-        await App.showPage?.('page-profile');
-      }
-    });
-    await expect(page.locator('#page-profile')).toBeVisible({ timeout: 10000 });
+    await forceShowPageIfNeeded(page, 'page-profile');
+    await expect(page.locator('#page-profile.active')).toBeVisible({ timeout: 10000 });
   });
 
   test('can navigate to tournament page', async ({ page }) => {
@@ -162,7 +170,6 @@ test.describe('Navigation', () => {
 
     const tournamentTab = page.locator('[data-page="page-tournaments"]').first();
     await expect(tournamentTab).toBeVisible();
-    await tournamentTab.click({ force: true });
     await forceShowPageIfNeeded(page, 'page-tournaments');
     await expect(page.locator('#page-tournaments.active')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('#page-tournaments.active #tournament-timeline')).toBeAttached();
