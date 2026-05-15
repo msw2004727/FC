@@ -273,6 +273,7 @@ describe('_sortTeams (team-list-stats.js:42-49)', () => {
 });
 
 describe('team pin management wiring', () => {
+  const teamPageSource = fs.readFileSync(path.join(__dirname, '../../pages/team.html'), 'utf8');
   const teamListSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-list.js'), 'utf8');
   const teamListRenderSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-list-render.js'), 'utf8');
   const teamListHelperSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-list-helpers.js'), 'utf8');
@@ -340,6 +341,20 @@ describe('team pin management wiring', () => {
     expect(teamFormJoinSource).toContain('_markTeamJoinRequestPending(teamId, applicantUid, groupId)');
     expect(teamFormJoinSource).toContain('_refreshTeamDetailPrimaryAction(teamId)');
     expect(teamCss).toContain('.td-club-head-action .td-action-pending');
+  });
+
+  test('club page search filters are collapsed behind the title magnifier', () => {
+    expect(teamPageSource).toContain('id="team-filter-toggle-btn"');
+    expect(teamPageSource).toContain('onclick="App.toggleTeamFilterPanel()"');
+    expect(teamPageSource).toContain('id="team-filter-panel" hidden');
+    expect(teamPageSource).toContain('id="team-search"');
+    expect(teamPageSource).toContain('id="team-sport-filter"');
+    expect(teamPageSource).toContain('id="team-region-filter"');
+    expect(teamListSource).toContain('toggleTeamFilterPanel(force)');
+    expect(teamListSource).toContain('_syncTeamFilterPanelState');
+    expect(teamListRenderSource).toContain('this._syncTeamFilterPanelState?.();');
+    expect(teamCss).toContain('.team-filter-toggle-btn');
+    expect(teamCss).toContain('.team-search-bar[hidden]');
   });
 });
 

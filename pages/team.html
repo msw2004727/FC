@@ -3,7 +3,23 @@
     <section class="page" id="page-teams">
       <div class="page-header">
         <button class="back-btn" type="button" onclick="App.goBack()" aria-label="返回">&#8249;</button>
-        <h2 class="page-header-title">俱樂部</h2>
+        <div class="team-page-title-wrap">
+          <h2 class="page-header-title">俱樂部</h2>
+          <button
+            class="team-filter-toggle-btn"
+            id="team-filter-toggle-btn"
+            type="button"
+            onclick="App.toggleTeamFilterPanel()"
+            aria-label="搜尋與篩選俱樂部"
+            aria-expanded="false"
+            aria-controls="team-filter-panel"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7"></circle>
+              <path d="m16.2 16.2 4 4"></path>
+            </svg>
+          </button>
+        </div>
         <button
           class="primary-btn small"
           id="team-page-create-btn"
@@ -11,7 +27,7 @@
           style="display:none"
         >新增俱樂部</button>
       </div>
-      <div class="team-search-bar">
+      <div class="team-search-bar team-filter-panel" id="team-filter-panel" hidden aria-hidden="true">
         <input type="text" id="team-search" placeholder="搜尋俱樂部名稱..." oninput="App.filterTeams()">
         <select id="team-sport-filter" onchange="App.filterTeams()">
           <option value="">全部運動</option>

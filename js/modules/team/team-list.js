@@ -68,6 +68,7 @@ Object.assign(App, {
   },
 
   _currentTeamTypeTab: '',
+  _teamFilterExpanded: false,
 
   switchTeamTypeTab(type) {
     this._currentTeamTypeTab = type === 'education' ? 'education' : '';
@@ -77,9 +78,46 @@ Object.assign(App, {
     this.filterTeams();
   },
 
+  _hasActiveTeamListFilters() {
+    return !!(
+      (document.getElementById('team-search')?.value || '').trim() ||
+      (document.getElementById('team-sport-filter')?.value || '') ||
+      (document.getElementById('team-region-filter')?.value || '')
+    );
+  },
+
+  _syncTeamFilterPanelState() {
+    const panel = document.getElementById('team-filter-panel');
+    const btn = document.getElementById('team-filter-toggle-btn');
+    const isOpen = !!panel && panel.hidden !== true;
+    const isActive = isOpen || this._hasActiveTeamListFilters();
+    this._teamFilterExpanded = isOpen;
+    if (panel) panel.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+    if (btn) {
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    }
+  },
+
+  toggleTeamFilterPanel(force) {
+    const panel = document.getElementById('team-filter-panel');
+    if (!panel) return;
+    const nextOpen = typeof force === 'boolean' ? force : panel.hidden === true;
+    panel.hidden = !nextOpen;
+    this._teamFilterExpanded = nextOpen;
+    this._syncTeamFilterPanelState();
+    if (nextOpen) {
+      this._initTeamListSportFilter?.();
+      requestAnimationFrame(() => {
+        document.getElementById('team-search')?.focus?.({ preventScroll: true });
+      });
+    }
+  },
+
   _teamFilterTimer: null,
 
   filterTeams() {
+    this._syncTeamFilterPanelState?.();
     clearTimeout(this._teamFilterTimer);
     this._teamFilterTimer = setTimeout(() => this._doFilterTeams(), 300);
   },

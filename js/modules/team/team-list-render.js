@@ -65,6 +65,7 @@ Object.assign(App, {
     const container = document.getElementById('team-list');
     if (!container) return;
     this._initTeamListSportFilter?.();
+    this._syncTeamFilterPanelState?.();
     this._refreshTeamCreateButtons();
     let teams = ApiService.getActiveTeams();
     const typeTab = this._currentTeamTypeTab || '';

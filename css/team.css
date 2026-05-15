@@ -4,9 +4,66 @@
    ================================================ */
 
 /* ─── Team Search Bar ─── */
-.team-search-bar { display: flex; gap: .4rem; padding: .2rem 0 .5rem; }
-.team-search-bar input { flex: 2; }
-.team-search-bar select { flex: 1; }
+.team-page-title-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: .38rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.team-page-title-wrap .page-header-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+.team-filter-toggle-btn {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, .06);
+  cursor: pointer;
+  transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+}
+.team-filter-toggle-btn svg {
+  width: 17px;
+  height: 17px;
+}
+.team-filter-toggle-btn:hover,
+.team-filter-toggle-btn.active {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-card));
+}
+.team-filter-toggle-btn:active { transform: scale(.96); }
+.team-search-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: .45rem;
+  padding: .48rem;
+  margin: .1rem 0 .55rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--bg-card) 92%, transparent);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, .06);
+}
+.team-search-bar[hidden] { display: none !important; }
+.team-search-bar input,
+.team-search-bar select {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 520px) {
+  .team-search-bar { grid-template-columns: 1fr; }
+}
 
 /* ─── Team Grid (vertical cards — 3 per row) ─── */
 .team-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .55rem; padding-bottom: 1rem; }
