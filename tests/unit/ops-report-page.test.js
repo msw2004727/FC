@@ -34,14 +34,16 @@ describe('ops report temporary standalone page', () => {
     expect(source).toContain('buildOpsLtvReport');
   });
 
-  test('worker and headers expose noindex report routes and subdomain entry', () => {
+  test('worker and headers expose noindex report path routes without subdomain host routing', () => {
     const worker = read('_worker.js');
     const routes = read('_routes.json');
     const headers = read('_headers');
 
-    expect(worker).toContain('ops.toosterx.com');
+    expect(worker).not.toContain('ops.toosterx.com');
+    expect(worker).not.toContain('OPS_REPORT_HOSTS');
     expect(worker).toContain('/ops-report.html');
     expect(worker).toContain('X-Robots-Tag');
+    expect(routes).not.toContain('"/"');
     expect(routes).toContain('"/ops-report"');
     expect(routes).toContain('"/ops-report.html"');
     expect(headers).toContain('/ops-report');

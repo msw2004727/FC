@@ -447,7 +447,7 @@
         const code = err?.code || "";
         let message = err?.message || "讀取報表失敗";
         if (code.includes("permission-denied")) message = "僅 admin 以上層級可以查看這份報表。";
-        if (String(message).includes("LIFF")) message += " 若使用子域名，請確認 LINE LIFF Endpoint 已加入該子域名，或改用 toosterx.com/ops-report.html。";
+        if (String(message).includes("LIFF")) message += " 請改用 https://toosterx.com/ops-report.html 後重新整理。";
         $("auth-status").textContent = "無法載入";
         setStatus(message, true);
       } finally {

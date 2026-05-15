@@ -5,6 +5,14 @@
   - CLAUDE.md                  ← 目錄結構概覽（§ 目錄結構）
 -->
 
+## 2026-05-16 臨時營運 LTV 報表
+
+- `ops-report.html` 是主網域下的臨時獨立營運報表頁，只保留 `https://toosterx.com/ops-report` / `/ops-report.html` 入口。
+- 不再保留 `ops.toosterx.com` 子域名 routing；不要在 `_worker.js` 增加 `OPS_REPORT_HOSTS` 或 root host 分流。
+- `functions/ops-ltv-report.js` 放純統計 helper；`functions/index.js#getOpsLtvReport` 負責 admin 以上權限檢查、Firestore 讀取與聚合。
+- 報表資料來源：`users` + `auditLogsByDay/{YYYYMMDD}/auditEntries` 的 `login_success`，查詢區間最多 180 天。
+- 若未來把報表正式化，應先討論是否移入後台頁籤、是否建立彙總 collection，避免每次手動查詢都全量讀 `users`。
+
 # 系統功能導覽（中文版）
 
 本文件以非技術角度說明系統的整體結構與各功能區塊，適合新加入的團隊成員或非工程背景的人員閱讀。

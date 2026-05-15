@@ -1,5 +1,11 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-16 Ops LTV report path cleanup [ops/docs]
+- **Problem**: `ops.toosterx.com` was prepared as a possible subdomain entry, but it is not usable in the current domain/LIFF setup and should not remain as a supported route.
+- **Fix**: Removed the Worker host-based subdomain routing and the root route include. The temporary operations report now only supports `https://toosterx.com/ops-report` and `/ops-report.html`.
+- **Docs**: Documented the report in `docs/architecture.md` and `docs/structure-guide.md`: admin-only callable access, `users` + `auditLogsByDay login_success` data sources, 180-day range cap, and estimated read count.
+- **Guardrail**: Do not re-add `OPS_REPORT_HOSTS` unless the subdomain, DNS, Cloudflare Pages custom domain, and LINE LIFF endpoint have been explicitly configured and tested.
+
 ### 2026-05-15 Activity management page-size cap [perf/cost]
 - **Problem**: Activity Management rendered every filtered card at once, and terminal history mode could upgrade to a large history slice before the user explicitly asked for more.
 - **Fix**: `page-my-activities` now renders 10 cards per tab scope first. The shared「查看更多」button expands the visible list by 10; when the cached terminal slice is exhausted it calls `loadMoreTerminalEvents()` for the next 10 history records.

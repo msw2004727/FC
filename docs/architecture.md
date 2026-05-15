@@ -1,6 +1,15 @@
 # ToosterX 現況架構文件
 
-> Last audited: 2026-05-15
+## 2026-05-16 臨時營運 LTV 報表
+
+- **入口**：`https://toosterx.com/ops-report`（同頁也可用 `/ops-report.html`）。專案不維護 `ops.toosterx.com`、`ltv.toosterx.com`、`report.toosterx.com` 等子域名路由。
+- **用途**：提供臨時獨立 HTML 營運報表，用來查看 DNU、DAU、WAU、MAU、區間活躍、新用戶回訪率、次日 / 7 日 / 30 日留存與每日趨勢。
+- **權限**：前端頁面只負責登入與呈現；真正資料讀取一律透過 `getOpsLtvReport` Callable Function，由後端 `getCallerAccessContext()` 檢查 `admin` 以上層級。
+- **資料來源**：後端讀 `users` 取得建立日與 `lastLogin` 補強，讀 `auditLogsByDay/{YYYYMMDD}/auditEntries` 的 `login_success` 作為主要活躍來源。前端不得直接掃描 Firestore 產生報表。
+- **成本控制**：查詢區間最多 180 天；回傳內容包含估算讀取量（`usersRead + auditEntryReads`），供營運判斷報表成本。
+- **檔案**：`ops-report.html`、`functions/ops-ltv-report.js`、`functions/index.js#getOpsLtvReport`、`_worker.js`、`_routes.json`、`_headers`。
+
+> Last audited: 2026-05-16
 > 依據實際程式碼盤點：`index.html`、`app.js`、`js/`、`pages/`、`functions/index.js`、`firestore.rules`、`firebase.json`、`package.json`、`tests/`、近期 git history。
 > 本文件描述「目前專案真的怎麼運作」，不是未來計劃書。若與舊文件或記憶有衝突，以目前程式碼為準。
 

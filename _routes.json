@@ -1,7 +1,6 @@
 {
   "version": 1,
   "include": [
-    "/",
     "/ops-report",
     "/ops-report.html",
     "/event-share/*",
