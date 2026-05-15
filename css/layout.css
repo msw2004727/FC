@@ -784,6 +784,74 @@
 .page-header-doc-btn { display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:var(--bg-elevated);color:var(--text-secondary);border:1px solid var(--border);flex-shrink:0;transition:background .15s,color .15s; }
 .page-header-doc-btn:hover { background:var(--accent-bg);color:var(--accent); }
 
+/* ─── Collapsible Page Search ─── */
+.page-search-title-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: .38rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.page-search-title-wrap .page-header-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+.page-search-toggle-btn {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, .06);
+  cursor: pointer;
+  transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+}
+.page-search-toggle-btn svg {
+  width: 17px;
+  height: 17px;
+}
+.page-search-toggle-btn:hover,
+.page-search-toggle-btn.active {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-card));
+}
+.page-search-toggle-btn:active { transform: scale(.96); }
+.collapsible-search-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: .45rem;
+  width: 100%;
+  padding: .48rem;
+  margin: .1rem 0 .55rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--bg-card) 92%, transparent);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, .06);
+}
+.collapsible-search-panel[hidden] { display: none !important; }
+.filter-bar.collapsible-search-panel.visible { display: grid; }
+.collapsible-search-panel input,
+.collapsible-search-panel select {
+  width: 100%;
+  min-width: 0;
+  font-size: .8rem;
+  padding: .45rem .6rem;
+}
+.activity-filter-panel { grid-template-columns: minmax(108px, .7fr) minmax(0, 1.6fr); }
+
+@media (max-width: 520px) {
+  .collapsible-search-panel,
+  .activity-filter-panel { grid-template-columns: 1fr; }
+}
+
 /* ─── Filter Bar ─── */
 .filter-bar { display: none; gap: .4rem; padding: .4rem .2rem .8rem; width: 100%; }
 .filter-bar.visible { display: flex; }
@@ -793,6 +861,18 @@
 .filter-search-btn { padding: .45rem .7rem; font-size: .78rem; font-weight: 600; background: var(--accent); color: #fff; border: none; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
 .filter-btn { font-size: .8rem; color: var(--accent); font-weight: 600; padding: .3rem .6rem; border-radius: var(--radius-sm); }
 .filter-btn:hover { background: var(--accent-bg); }
+.filter-bar.collapsible-search-panel {
+  gap: .45rem;
+  padding: .48rem;
+  margin: .1rem 0 .55rem;
+}
+.filter-bar.collapsible-search-panel input,
+.filter-bar.collapsible-search-panel select {
+  width: 100%;
+  flex: initial;
+  flex-shrink: 1;
+  border-radius: var(--radius-sm);
+}
 
 /* ─── Mode Badge ─── */
 /* ─── LINE Login (Top Bar) ─── */

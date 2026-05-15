@@ -283,9 +283,9 @@ Object.assign(App, {
     const filterKw = (document.getElementById('activity-filter-keyword')?.value || '').trim().toLowerCase();
     if (filterType) events = events.filter(e => e.type === filterType);
     if (filterKw) {
-      events = events.filter(e =>
-        (e.title || '').toLowerCase().includes(filterKw) ||
-        (e.location || '').toLowerCase().includes(filterKw)
+      events = events.filter(e => typeof this._matchesActivityKeyword === 'function'
+        ? this._matchesActivityKeyword(e, filterKw)
+        : ((e.title || '').toLowerCase().includes(filterKw) || (e.location || '').toLowerCase().includes(filterKw))
       );
     }
     const map = new Map();

@@ -2788,3 +2788,9 @@
 - **Icon**: Uses `img/winner.png` through the shared sport icon helper, so activity, club, tournament, homepage, calendar, and card sport-tag surfaces inherit the same icon path where HTML sport icons are supported.
 - **Scope**: Added fallback emoji/color metadata and sports-news keyword matching for esports terms.
 - **Validation**: Added source contract and utility coverage for the new sport option order and custom image icon.
+
+### 2026-05-15 Public List Search Collapse [ux]
+- **問題**：俱樂部頁已改成放大鏡展開搜尋，但活動與賽事列表仍直接露出篩選列，三個公開列表的操作不一致；活動搜尋也只做名稱/地點連續字串比對。
+- **原因**：活動篩選綁定仍沿用舊的「篩選」文字按鈕與搜尋按鈕，賽事中心也沿用固定顯示的搜尋列。
+- **修復**：活動與賽事中心改為標題旁放大鏡按鈕，預設收合、點擊才展開搜尋/篩選欄位。活動關鍵字改成輸入即時套用，並支援名稱、地點、地區、日期、主辦、類型與運動標籤的模糊比對。
+- **教訓**：公開列表的搜尋互動應共用一致模式；搜尋欄位改版時要同步處理列表與月曆兩條渲染路徑。

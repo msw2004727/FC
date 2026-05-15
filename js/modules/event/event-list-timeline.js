@@ -195,6 +195,59 @@ Object.assign(App, {
 
   _activityListRenderTimer: null,
 
+  _normalizeActivitySearchValue(value) {
+    return String(value || '')
+      .replace(/\u81fa/g, '\u53f0')
+      .toLowerCase()
+      .replace(/[^\w\u3400-\u9fff]+/g, '');
+  },
+
+  _fuzzyTextContains(text, keyword) {
+    const hay = this._normalizeActivitySearchValue(text);
+    const needle = this._normalizeActivitySearchValue(keyword);
+    if (!needle) return true;
+    if (!hay) return false;
+    if (hay.includes(needle)) return true;
+    let pos = 0;
+    for (let i = 0; i < needle.length; i++) {
+      pos = hay.indexOf(needle[i], pos);
+      if (pos === -1) return false;
+      pos++;
+    }
+    return true;
+  },
+
+  _getActivitySearchText(e) {
+    const sportLabel = typeof getSportLabelByKey === 'function'
+      ? getSportLabelByKey(e?.sportTag || e?.sport || '')
+      : '';
+    return [
+      e?.title,
+      e?.location,
+      e?.venue,
+      e?.region,
+      e?.date,
+      e?.hostName,
+      e?.creatorName,
+      e?.organizer,
+      e?.host,
+      e?.type,
+      e?.sportTag,
+      sportLabel,
+    ].filter(Boolean).join(' ');
+  },
+
+  _matchesActivityKeyword(e, keyword) {
+    const tokens = String(keyword || '')
+      .trim()
+      .split(/\s+/)
+      .map(token => this._normalizeActivitySearchValue(token))
+      .filter(Boolean);
+    if (!tokens.length) return true;
+    const text = this._getActivitySearchText(e);
+    return tokens.every(token => this._fuzzyTextContains(text, token));
+  },
+
   renderActivityList() {
     // 防抖 + 頁面守衛：多條路徑（onSnapshot / seed / revalidate / visibilitychange）
     // 可能在短時間內連續觸發，統一收束為 100ms 內只渲染一次，避免 DOM 連續替換導致捲動跳頂
@@ -237,10 +290,7 @@ Object.assign(App, {
     }
 
     if (filterType) events = events.filter(e => e.type === filterType);
-    if (filterKw) events = events.filter(e =>
-      (e.title || '').toLowerCase().includes(filterKw) ||
-      (e.location || '').toLowerCase().includes(filterKw)
-    );
+    if (filterKw) events = events.filter(e => this._matchesActivityKeyword(e, filterKw));
 
     const monthGroups = {};
     events.forEach(e => {

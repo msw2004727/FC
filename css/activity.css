@@ -86,6 +86,9 @@
 .activity-page-heading .filter-btn {
   flex-shrink: 0;
 }
+.activity-page-heading .page-search-toggle-btn {
+  flex-shrink: 0;
+}
 .activity-page-actions {
   display: inline-flex;
   align-items: center;

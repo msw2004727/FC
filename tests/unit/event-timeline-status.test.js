@@ -118,4 +118,22 @@ describe('activity timeline effective status label', () => {
     expect(row.querySelector('.tl-loading-bar')).toBe(null);
     clearInterval(interval);
   });
+
+  test('activity keyword search supports fuzzy multi-field matching', () => {
+    const dom = new JSDOM('<div></div>');
+    const app = {};
+    loadTimelineModule(app, dom);
+    const event = {
+      title: '週五晚間足球友誼賽',
+      location: '台中市西屯足球場',
+      date: '2026/05/22 20:00',
+      hostName: '金小麥',
+      sportTag: 'football',
+    };
+
+    expect(app._matchesActivityKeyword(event, '西屯')).toBe(true);
+    expect(app._matchesActivityKeyword(event, '週五 金小麥')).toBe(true);
+    expect(app._matchesActivityKeyword(event, '晚足')).toBe(true);
+    expect(app._matchesActivityKeyword(event, '台南')).toBe(false);
+  });
 });

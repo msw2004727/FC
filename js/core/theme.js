@@ -64,19 +64,44 @@ Object.assign(App, {
     const toggle = document.getElementById('filter-toggle');
     if (!toggle || toggle.dataset.bound) return;
     toggle.dataset.bound = '1';
+    const panel = document.getElementById('filter-bar');
+    const typeSelect = document.getElementById('activity-filter-type');
+    const keywordInput = document.getElementById('activity-filter-keyword');
+    const syncFilterState = () => {
+      const isOpen = !!panel && panel.hidden !== true;
+      const hasFilters = !!(
+        (typeSelect?.value || '') ||
+        (keywordInput?.value || '').trim()
+      );
+      toggle.classList.toggle('active', isOpen || hasFilters);
+      toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      if (panel) panel.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+    };
     toggle.addEventListener('click', () => {
-      document.getElementById('filter-bar').classList.toggle('visible');
+      if (!panel) return;
+      const nextOpen = panel.hidden === true;
+      panel.hidden = !nextOpen;
+      panel.classList.toggle('visible', nextOpen);
+      syncFilterState();
+      if (nextOpen) {
+        const focusKeyword = () => keywordInput?.focus?.({ preventScroll: true });
+        if (typeof requestAnimationFrame === 'function') requestAnimationFrame(focusKeyword);
+        else setTimeout(focusKeyword, 0);
+      }
     });
     // filter 變化時 timeline + 月曆都要同步重 render（見 calendar-view-plan §12.O）
     const _rerenderBoth = () => {
+      syncFilterState();
       this.renderActivityList();
       if (this._activityActiveTab === 'calendar') this._renderActivityCalendar?.();
     };
-    document.getElementById('activity-filter-type')?.addEventListener('change', _rerenderBoth);
+    typeSelect?.addEventListener('change', _rerenderBoth);
     document.getElementById('activity-filter-search-btn')?.addEventListener('click', _rerenderBoth);
-    document.getElementById('activity-filter-keyword')?.addEventListener('keydown', (e) => {
+    keywordInput?.addEventListener('input', _rerenderBoth);
+    keywordInput?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') _rerenderBoth();
     });
+    syncFilterState();
   },
 
   bindTabBars() {

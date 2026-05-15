@@ -3,9 +3,25 @@
 <section class="page" id="page-tournaments">
   <div class="page-header">
     <button class="back-btn" type="button" onclick="App.goBack()" aria-label="返回">&#8249;</button>
-    <h2 class="page-header-title">賽事中心</h2>
+    <div class="page-search-title-wrap tournament-page-title-wrap">
+      <h2 class="page-header-title">賽事中心</h2>
+      <button
+        class="page-search-toggle-btn tournament-filter-toggle-btn"
+        id="tc-filter-toggle-btn"
+        type="button"
+        onclick="App.toggleTournamentCenterFilterPanel()"
+        aria-label="搜尋與篩選賽事"
+        aria-expanded="false"
+        aria-controls="tc-filter-panel"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"></circle>
+          <path d="m16.2 16.2 4 4"></path>
+        </svg>
+      </button>
+    </div>
   </div>
-  <div class="team-search-bar">
+  <div class="collapsible-search-panel tournament-filter-panel" id="tc-filter-panel" hidden aria-hidden="true">
     <input type="text" id="tc-search" placeholder="搜尋賽事名稱..." oninput="App.filterTournamentCenter()">
     <select id="tc-region-filter" onchange="App.filterTournamentCenter()">
       <option value="">全部地區</option>

@@ -6,7 +6,19 @@
         <button class="back-btn" type="button" onclick="App.goBack()" aria-label="返回">&#8249;</button>
         <div class="activity-page-heading">
           <h2 class="page-header-title">活動行事曆</h2>
-          <button type="button" class="filter-btn" id="filter-toggle">篩選 ▾</button>
+          <button
+            type="button"
+            class="page-search-toggle-btn activity-filter-toggle-btn"
+            id="filter-toggle"
+            aria-label="搜尋與篩選活動"
+            aria-expanded="false"
+            aria-controls="filter-bar"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7"></circle>
+              <path d="m16.2 16.2 4 4"></path>
+            </svg>
+          </button>
         </div>
         <div class="activity-page-actions">
           <button type="button" class="page-header-doc-btn" onclick="App.openHostList()" title="主辦方排行" style="display:none;">
@@ -21,7 +33,7 @@
           </button>
         </div>
       </div>
-      <div class="filter-bar" id="filter-bar">
+      <div class="filter-bar collapsible-search-panel activity-filter-panel" id="filter-bar" hidden aria-hidden="true">
         <select id="activity-filter-type">
           <option value="">全部類別</option>
           <option value="play">PLAY</option>
@@ -29,10 +41,7 @@
           <option value="watch">觀賽</option>
           <option value="external">外部</option>
         </select>
-        <div class="filter-search-wrap">
-          <input type="text" id="activity-filter-keyword" placeholder="搜尋名稱 / 地點..." style="border-radius:var(--radius-sm) 0 0 var(--radius-sm);border-right:none">
-          <button id="activity-filter-search-btn" class="filter-search-btn">搜尋</button>
-        </div>
+        <input type="text" id="activity-filter-keyword" placeholder="模糊搜尋名稱 / 地點 / 主辦 / 日期..." autocomplete="off">
       </div>
       <!-- Coach+ : My Activity Management -->
       <div class="my-section" id="own-activity-manage-entry" data-min-role="coach">

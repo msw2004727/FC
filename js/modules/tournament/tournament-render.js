@@ -98,8 +98,44 @@ Object.assign(App, {
   },
 
   _tcFilterTimer: null,
+  _tcFilterExpanded: false,
+
+  _hasActiveTournamentCenterFilters() {
+    return !!(
+      (document.getElementById('tc-search')?.value || '').trim() ||
+      (document.getElementById('tc-region-filter')?.value || '')
+    );
+  },
+
+  _syncTournamentCenterFilterPanelState() {
+    const panel = document.getElementById('tc-filter-panel');
+    const btn = document.getElementById('tc-filter-toggle-btn');
+    const isOpen = !!panel && panel.hidden !== true;
+    const isActive = isOpen || this._hasActiveTournamentCenterFilters();
+    this._tcFilterExpanded = isOpen;
+    if (panel) panel.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+    if (btn) {
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    }
+  },
+
+  toggleTournamentCenterFilterPanel(force) {
+    const panel = document.getElementById('tc-filter-panel');
+    if (!panel) return;
+    const nextOpen = typeof force === 'boolean' ? force : panel.hidden === true;
+    panel.hidden = !nextOpen;
+    this._tcFilterExpanded = nextOpen;
+    this._syncTournamentCenterFilterPanelState();
+    if (nextOpen) {
+      const focusSearch = () => document.getElementById('tc-search')?.focus?.({ preventScroll: true });
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(focusSearch);
+      else setTimeout(focusSearch, 0);
+    }
+  },
 
   filterTournamentCenter() {
+    this._syncTournamentCenterFilterPanelState?.();
     clearTimeout(this._tcFilterTimer);
     this._tcFilterTimer = setTimeout(() => this.renderTournamentTimeline(), 300);
   },
@@ -111,6 +147,7 @@ Object.assign(App, {
     const container = document.getElementById('tournament-timeline');
     if (!container) return;
     this._refreshTournamentCenterCreateButton?.();
+    this._syncTournamentCenterFilterPanelState?.();
 
     const tab = this._tcActiveTab || 'active';
     const query = (document.getElementById('tc-search')?.value || '').trim().toLowerCase();
