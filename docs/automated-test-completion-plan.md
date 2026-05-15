@@ -170,6 +170,23 @@ Last reviewed: 2026-05-15
 2. 已覆蓋 mobile/desktop 的 banner overlay、dots、找活動 modal 與活動頁 filter 狀態。
 3. 沒新增 screenshot snapshot，避免版面小改造成大量無意義更新；本階段用 DOM 狀態、class、filter 值與頁面可見性驗收。
 
+## 2026-05-15 Phase 9 實作紀錄
+
+本階段補最終 smoke E2E，目的不是截圖比對，而是快速檢查首頁主容器在 mobile/desktop 下不水平破框、banner CTA 可見、截圖不是空白。
+
+實作項目：
+1. 新增 `home-layout-smoke.spec.js`，用 test harness seed banner、觀賽聚會、即時資訊與首頁統計資料。
+2. 驗證 `.banner-carousel`、`.banner-fixed-content`、`.home-hero-actions`、公告、我的下一場活動、運動快速入口、即時資訊、觀賽聚會卡片都在 viewport 內。
+3. 執行 `page.screenshot({ fullPage:false })` 並確認 screenshot bytes 非空，避免首頁白屏仍被 DOM assertion 誤判通過。
+
+驗收指令：
+1. `BASE_URL=http://127.0.0.1:3000 npx playwright test tests/e2e/home-layout-smoke.spec.js --project=chromium-desktop --project=chromium-mobile --workers=1`
+
+審計結論：
+1. 沒有新增 brittle screenshot snapshot。
+2. Desktop / mobile 各跑一次，能攔住近期首頁容器寬度、banner overlay、CTA 可見性與白屏問題。
+3. 仍保留最終部署後完整自動化測試一次，作為 Phase 0-9 全部完成後的總驗收。
+
 ## 1. 目標
 
 本計劃的目標不是追求測試數量，而是建立能實際攔住回歸 bug 的自動化測試防線。
