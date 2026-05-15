@@ -55,6 +55,6 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: |
-          python3 -m http.server 3000 --bind 127.0.0.1 &
+          node tests/e2e/static-server.cjs 3000 &
           sleep 2
           BASE_URL=http://127.0.0.1:3000 npm run test:e2e:smoke -- --workers=1
