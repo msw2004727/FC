@@ -916,6 +916,267 @@ describe("/events/{eventId}", () => {
     );
   });
 
+  test("user can create full frontend-shaped fee add-on event payload when add-ons capability is enabled", async () => {
+    await seedRoleActivityCapabilities([
+      ...DEFAULT_USER_ACTIVITY_CAPABILITIES,
+      "user.activity.addons_use",
+    ]);
+
+    await assertSucceeds(
+      setDoc(doc(user(), "events", "ce_test_full_fee_addon_payload"), {
+        id: "ce_test_full_fee_addon_payload",
+        title: "Fee Payload",
+        type: "friendly",
+        status: "open",
+        location: "Test Field",
+        date: "2099/01/02 10:00~12:00",
+        startTimestamp: new Date("2099-01-02T10:00:00.000Z"),
+        endTimestamp: new Date("2099-01-02T12:00:00.000Z"),
+        fee: 200,
+        feeEnabled: true,
+        max: 20,
+        current: 0,
+        realCurrent: 0,
+        waitlist: 0,
+        minAge: 0,
+        notes: "",
+        image: "images/default.jpg",
+        sportTag: "football",
+        regOpenTime: null,
+        creator: "General User",
+        creatorUid: "uidUser",
+        contact: "",
+        gradient: "linear-gradient(135deg,#0d9488,#14b8a6)",
+        icon: "",
+        countdown: "",
+        participants: [],
+        waitlistNames: [],
+        participantsWithUid: [],
+        waitlistWithUid: [],
+        teamOnly: false,
+        isPublic: false,
+        genderRestrictionEnabled: false,
+        allowedGender: "",
+        privateEvent: false,
+        socialLinksEnabled: false,
+        socialLinks: [],
+        regionEnabled: true,
+        region: "central",
+        cities: ["taichung"],
+        creatorTeamId: null,
+        creatorTeamName: null,
+        creatorTeamIds: [],
+        creatorTeamNames: [],
+        delegates: [],
+        delegateUids: [],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  test("user can create full frontend-shaped gender add-on event payload when add-ons capability is enabled", async () => {
+    await seedRoleActivityCapabilities([
+      ...DEFAULT_USER_ACTIVITY_CAPABILITIES,
+      "user.activity.addons_use",
+    ]);
+
+    await assertSucceeds(
+      setDoc(doc(user(), "events", "ce_test_full_gender_addon_payload"), {
+        id: "ce_test_full_gender_addon_payload",
+        title: "Gender Payload",
+        type: "friendly",
+        status: "open",
+        location: "Test Field",
+        date: "2099/01/02 10:00~12:00",
+        startTimestamp: new Date("2099-01-02T10:00:00.000Z"),
+        endTimestamp: new Date("2099-01-02T12:00:00.000Z"),
+        fee: 0,
+        feeEnabled: false,
+        max: 20,
+        current: 0,
+        realCurrent: 0,
+        waitlist: 0,
+        minAge: 0,
+        notes: "",
+        image: "images/default.jpg",
+        sportTag: "football",
+        regOpenTime: null,
+        creator: "General User",
+        creatorUid: "uidUser",
+        contact: "",
+        gradient: "linear-gradient(135deg,#0d9488,#14b8a6)",
+        icon: "",
+        countdown: "",
+        participants: [],
+        waitlistNames: [],
+        participantsWithUid: [],
+        waitlistWithUid: [],
+        teamOnly: false,
+        isPublic: false,
+        genderRestrictionEnabled: true,
+        allowedGender: "female",
+        privateEvent: false,
+        socialLinksEnabled: false,
+        socialLinks: [],
+        regionEnabled: true,
+        region: "central",
+        cities: ["taichung"],
+        creatorTeamId: null,
+        creatorTeamName: null,
+        creatorTeamIds: [],
+        creatorTeamNames: [],
+        delegates: [],
+        delegateUids: [],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  test("user can create full frontend-shaped team split add-on event payload when add-ons capability is enabled", async () => {
+    await seedRoleActivityCapabilities([
+      ...DEFAULT_USER_ACTIVITY_CAPABILITIES,
+      "user.activity.addons_use",
+    ]);
+
+    await assertSucceeds(
+      setDoc(doc(user(), "events", "ce_test_full_team_split_addon_payload"), {
+        id: "ce_test_full_team_split_addon_payload",
+        title: "Split Payload",
+        type: "friendly",
+        status: "open",
+        location: "Test Field",
+        date: "2099/01/02 10:00~12:00",
+        startTimestamp: new Date("2099-01-02T10:00:00.000Z"),
+        endTimestamp: new Date("2099-01-02T12:00:00.000Z"),
+        fee: 0,
+        feeEnabled: false,
+        max: 20,
+        current: 0,
+        realCurrent: 0,
+        waitlist: 0,
+        minAge: 0,
+        notes: "",
+        image: "images/default.jpg",
+        sportTag: "football",
+        regOpenTime: null,
+        creator: "General User",
+        creatorUid: "uidUser",
+        contact: "",
+        gradient: "linear-gradient(135deg,#0d9488,#14b8a6)",
+        icon: "",
+        countdown: "",
+        participants: [],
+        waitlistNames: [],
+        participantsWithUid: [],
+        waitlistWithUid: [],
+        teamOnly: false,
+        isPublic: false,
+        genderRestrictionEnabled: false,
+        allowedGender: "",
+        privateEvent: false,
+        teamSplit: {
+          enabled: true,
+          mode: "random",
+          balanceCap: true,
+          selfSelectLockHours: 0,
+          lockAt: null,
+          teams: [
+            { key: "A", color: "#ef4444", name: "Red" },
+            { key: "B", color: "#3b82f6", name: "Blue" },
+          ],
+        },
+        socialLinksEnabled: false,
+        socialLinks: [],
+        regionEnabled: true,
+        region: "central",
+        cities: ["taichung"],
+        creatorTeamId: null,
+        creatorTeamName: null,
+        creatorTeamIds: [],
+        creatorTeamNames: [],
+        delegates: [],
+        delegateUids: [],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  test("user can create full frontend-shaped combined non-team add-ons payload when add-ons capability is enabled", async () => {
+    await seedRoleActivityCapabilities([
+      ...DEFAULT_USER_ACTIVITY_CAPABILITIES,
+      "user.activity.addons_use",
+    ]);
+
+    await assertSucceeds(
+      setDoc(doc(user(), "events", "ce_test_full_combined_addons_payload"), {
+        id: "ce_test_full_combined_addons_payload",
+        title: "Combined Payload",
+        type: "friendly",
+        status: "open",
+        location: "Test Field",
+        date: "2099/01/02 10:00~12:00",
+        startTimestamp: new Date("2099-01-02T10:00:00.000Z"),
+        endTimestamp: new Date("2099-01-02T12:00:00.000Z"),
+        fee: 200,
+        feeEnabled: true,
+        max: 20,
+        current: 0,
+        realCurrent: 0,
+        waitlist: 0,
+        minAge: 0,
+        notes: "",
+        image: "images/default.jpg",
+        sportTag: "football",
+        regOpenTime: null,
+        creator: "General User",
+        creatorUid: "uidUser",
+        contact: "",
+        gradient: "linear-gradient(135deg,#0d9488,#14b8a6)",
+        icon: "",
+        countdown: "",
+        participants: [],
+        waitlistNames: [],
+        participantsWithUid: [],
+        waitlistWithUid: [],
+        teamOnly: false,
+        isPublic: false,
+        genderRestrictionEnabled: true,
+        allowedGender: "female",
+        privateEvent: true,
+        teamSplit: {
+          enabled: true,
+          mode: "random",
+          balanceCap: true,
+          selfSelectLockHours: 0,
+          lockAt: null,
+          teams: [
+            { key: "A", color: "#ef4444", name: "Red" },
+            { key: "B", color: "#3b82f6", name: "Blue" },
+          ],
+        },
+        socialLinksEnabled: true,
+        socialLinks: [
+          { url: "https://line.me/R/ti/p/test", platform: "line", label: "LINE" },
+          { url: "https://instagram.com/toosterx", platform: "instagram", label: "Instagram" },
+        ],
+        regionEnabled: true,
+        region: "central",
+        cities: ["taichung"],
+        creatorTeamId: null,
+        creatorTeamName: null,
+        creatorTeamIds: [],
+        creatorTeamNames: [],
+        delegates: [],
+        delegateUids: [],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
   test("user basic event creation requires safe initial status and empty projection fields", async () => {
     await assertFails(
       setDoc(doc(user(), "events", "event_user_bad_status_create"), {
@@ -977,7 +1238,7 @@ describe("/events/{eventId}", () => {
     );
   });
 
-  test("user owner can edit basic fields and cancel own event, but cannot update add-ons", async () => {
+  test("user owner can edit basic fields and cancel own event, but cannot update add-ons without add-ons capability", async () => {
     await assertSucceeds(
       updateDoc(doc(user(), "events", "eventUserOwn"), {
         title: "User Event Updated",
@@ -1002,6 +1263,91 @@ describe("/events/{eventId}", () => {
       updateDoc(doc(user(), "events", "eventUserOwn"), {
         socialLinksEnabled: true,
         socialLinks: [{ url: "https://instagram.com/toosterx", platform: "instagram", label: "Instagram" }],
+      })
+    );
+  });
+
+  test("user owner can edit non-team add-ons when add-ons capability is enabled", async () => {
+    await seedRoleActivityCapabilities([
+      ...DEFAULT_USER_ACTIVITY_CAPABILITIES,
+      "user.activity.addons_use",
+    ]);
+    await seedDoc("events", "event_user_addon_edit_allowed", {
+      id: "event_user_addon_edit_allowed",
+      title: "User Add-on Edit",
+      creatorUid: "uidUser",
+      ownerUid: "uidUser",
+      captainUid: "uidUser",
+      status: "open",
+      current: 0,
+      max: 20,
+      teamOnly: false,
+      isPublic: false,
+      creatorTeamId: null,
+      creatorTeamName: null,
+      creatorTeamIds: [],
+      creatorTeamNames: [],
+    });
+
+    await assertSucceeds(
+      updateDoc(doc(user(), "events", "event_user_addon_edit_allowed"), {
+        feeEnabled: true,
+        fee: 200,
+        genderRestrictionEnabled: true,
+        allowedGender: "female",
+        privateEvent: true,
+        teamSplit: {
+          enabled: true,
+          mode: "random",
+          balanceCap: true,
+          selfSelectLockHours: 0,
+          lockAt: null,
+          teams: [
+            { key: "A", color: "#ef4444", name: "Red" },
+            { key: "B", color: "#3b82f6", name: "Blue" },
+          ],
+        },
+        socialLinksEnabled: true,
+        socialLinks: [{ url: "https://instagram.com/toosterx", platform: "instagram", label: "Instagram" }],
+        updatedAt: serverTimestamp(),
+      })
+    );
+
+    await assertFails(
+      updateDoc(doc(user(), "events", "event_user_addon_edit_allowed"), {
+        teamOnly: true,
+        isPublic: true,
+        creatorTeamId: "teamA",
+        creatorTeamIds: ["teamA"],
+      })
+    );
+  });
+
+  test("user delegate cannot edit add-ons even when add-ons capability is enabled", async () => {
+    await seedRoleActivityCapabilities([
+      ...DEFAULT_USER_ACTIVITY_CAPABILITIES,
+      "user.activity.addons_use",
+    ]);
+    await seedDoc("events", "event_user_delegate_addon_denied", {
+      id: "event_user_delegate_addon_denied",
+      title: "Delegate Add-on Denied",
+      creatorUid: "uidOwner",
+      ownerUid: "uidOwner",
+      captainUid: "uidOwner",
+      delegateUids: ["uidUser"],
+      delegates: [{ uid: "uidUser", name: "General User" }],
+      status: "open",
+    });
+
+    await assertSucceeds(
+      updateDoc(doc(user(), "events", "event_user_delegate_addon_denied"), {
+        title: "Delegate Basic Updated",
+      })
+    );
+    await assertFails(
+      updateDoc(doc(user(), "events", "event_user_delegate_addon_denied"), {
+        feeEnabled: true,
+        fee: 200,
       })
     );
   });

@@ -2754,3 +2754,9 @@
 - **Issue**: The create-activity modal already stored reliable time values, but the date/start/end fields were visually ambiguous on mobile and the registration-open copy was easy to skim past.
 - **Fix**: Added explicit activity date, start time, end time, registration-open date, and registration-open time labels. Normalized create-event time values through the existing `HH:mm` formatter before saving, clarified immediate-vs-scheduled registration-open copy, and made the existing create-event action bar sticky at the bottom on narrow screens.
 - **Validation**: Ran create-activity and registration-open targeted unit tests, JavaScript syntax check, and `git diff --check`.
+
+### 2026-05-15 User Activity Add-ons Create/Edit Rules [bugfix]
+- **Issue**: Regular `user` accounts with the activity add-ons capability could still hit Firestore `permission-denied` when creating or editing events with non-team add-ons such as fee, gender restriction, private event, team split, or social links.
+- **Cause**: The event-create rule checked the expensive "no add-ons are enabled" condition before honoring `user.activity.addons_use`, and the user owner edit rule still treated add-on fields as forbidden basic-edit fields.
+- **Fix**: Reordered `eventCreateAddonsAllowed()` so users with `user.activity.addons_use` first take the low-cost add-on path. Added owner-only edit permission for non-team add-on fields when the same capability is enabled. Team-scoped/club-only fields still require team/event management permission.
+- **Validation**: Added regression coverage for fee, gender restriction, team split, combined non-team add-on create payloads, owner add-on edit, no-capability denial, delegate denial, and club-only denial. Ran `npm run test:rules` successfully.

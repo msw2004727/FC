@@ -620,15 +620,13 @@ service cloud.firestore {
       }
 
       function eventCreateAddonsAllowed() {
-        return eventCreateHasNoAddons()
-          || (
-            hasActivityCap('user.activity.addons_use')
-            && (
-              !eventCreateHasTeamScopedAddon()
-              || hasPerm('team.create_event')
-              || hasActivityManageEntry()
-            )
-          );
+        return hasActivityCap('user.activity.addons_use')
+          ? (
+            !eventCreateHasTeamScopedAddon()
+            || hasPerm('team.create_event')
+            || hasActivityManageEntry()
+          )
+          : eventCreateHasNoAddons();
       }
 
       function eventCreateHasSafeInitialProjection() {
@@ -686,6 +684,24 @@ service cloud.firestore {
           : (hasActivityManageEntry() || hasPerm('event.create'));
       }
 
+      function eventUpdateChangedAddonFields(changed) {
+        return changed.hasAny([
+          'fee', 'feeEnabled',
+          'genderRestrictionEnabled', 'allowedGender',
+          'privateEvent',
+          'teamSplit',
+          'socialLinksEnabled', 'socialLinks'
+        ]);
+      }
+
+      function eventUpdateAddonFieldsAllowed(changed) {
+        return !eventUpdateChangedAddonFields(changed)
+          || (
+            isEventOwner()
+            && hasActivityCap('user.activity.addons_use')
+          );
+      }
+
       function isUserOwnerBasicUpdate() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
         return authRole() == 'user'
@@ -696,12 +712,16 @@ service cloud.firestore {
               && changed.hasOnly([
                 'title', 'type', 'location', 'date', 'startTimestamp', 'endTimestamp', 'externalUrl', 'max', 'minAge', 'notes', 'image',
                 'sportTag', 'regOpenTime', 'gradient', 'icon', 'countdown',
-                'regionEnabled', 'region', 'cities', 'delegates', 'delegateUids', 'updatedAt'
+                'regionEnabled', 'region', 'cities', 'delegates', 'delegateUids',
+                'fee', 'feeEnabled', 'genderRestrictionEnabled', 'allowedGender',
+                'privateEvent', 'teamSplit', 'socialLinksEnabled', 'socialLinks',
+                'updatedAt'
               ])
               && (!changed.hasAny(['max']) || (
                 request.resource.data.max is number
                 && (!(resource.data.current is number) || request.resource.data.max >= resource.data.current)
               ))
+              && eventUpdateAddonFieldsAllowed(changed)
               && (!changed.hasAny(['delegates', 'delegateUids']) || (isEventOwner() && hasActivityCap('user.activity.delegate_assign')))
             )
             || (
