@@ -77,6 +77,26 @@ describe('roleActivityCapabilities cache shape', () => {
     expect(ApiService.hasRoleActivityCapability('user', 'user.activity.addons_use')).toBe(true);
   });
 
+  test('missing user capability doc falls back to default basic activity capabilities', () => {
+    const { FirebaseService, ApiService } = loadHarness();
+    FirebaseService._cache.roleActivityCapabilities = {};
+
+    expect(ApiService.getRoleActivityCapabilities('user')).toEqual(DEFAULT_CAPS);
+    expect(ApiService.hasRoleActivityCapability('user', 'user.activity.basic_create')).toBe(true);
+    expect(ApiService.hasRoleActivityCapability('user', 'user.activity.addons_use')).toBe(false);
+  });
+
+  test('object map cache resolves manual add-on capability and strips unknown codes', () => {
+    const { FirebaseService, ApiService } = loadHarness();
+    FirebaseService._cache.roleActivityCapabilities = {
+      user: {
+        capabilities: [...DEFAULT_CAPS, 'user.activity.addons_use', 'user.activity.unknown'],
+      },
+    };
+
+    expect(ApiService.getRoleActivityCapabilities('user')).toEqual([...DEFAULT_CAPS, 'user.activity.addons_use']);
+  });
+
   test('explicitly empty user capabilities do not fall back to defaults', () => {
     const { FirebaseService, ApiService } = loadHarness();
 

@@ -27,6 +27,28 @@ Last reviewed: 2026-05-15
 1. `source-drift.test.js` 仍有既有 stale baseline，Phase 1 先禁止惡化；後續可另排清理，不在本階段擴大修改。
 2. E2E harness 目前覆蓋主要離線 smoke，後續 Phase 2-9 仍需依功能面補更完整的業務流程。
 
+## 2026-05-15 Phase 2 實作紀錄
+
+狀態：已完成，等待本段 commit。
+
+本階段完成項目：
+1. 補強 `role-permissions-cache.test.js`，覆蓋 object map cache、missing role fallback、explicit empty 不回填預設值。
+2. 補強 `role-activity-capabilities-cache.test.js`，覆蓋 missing `roleActivityCapabilities/user` fallback、object map override、unknown capability sanitization。
+3. 新增 `tests/e2e/activity-permissions.spec.js`，在瀏覽器 runtime 使用固定 user harness 驗證：
+   - 一般 user 可建立基本活動。
+   - 無 `user.activity.addons_use` 時不可使用加值功能，且 Toast 為「如需更多功能請聯繫官方Line@」。
+   - 開啟 `user.activity.addons_use` 後 owner 可用加值，delegate 仍不可用加值。
+
+驗收目標：
+1. `npm run test:unit -- --runTestsByPath tests/unit/role-permissions-cache.test.js tests/unit/role-activity-capabilities-cache.test.js tests/unit/permissions-phase2-logic.test.js tests/unit/activity-create-button.test.js tests/unit/activity-social-links.test.js`。
+2. `npm run test:rules`。
+3. `npm run test:e2e:smoke -- --workers=1`。
+
+驗收結果：
+1. `npx jest --runInBand --runTestsByPath tests/unit/role-permissions-cache.test.js tests/unit/role-activity-capabilities-cache.test.js tests/unit/permissions-phase2-logic.test.js tests/unit/activity-create-button.test.js tests/unit/activity-social-links.test.js tests/unit/e2e-quality.test.js`：6 suites / 354 tests passed。
+2. `npm run test:rules`：5 suites / 526 tests passed。
+3. `npm run test:e2e:smoke -- --workers=1` 搭配本地 HTTP server：23 tests passed。
+
 ## 1. 目標
 
 本計劃的目標不是追求測試數量，而是建立能實際攔住回歸 bug 的自動化測試防線。

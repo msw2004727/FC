@@ -30,6 +30,13 @@ Phase 1 已建立的治理項目：
 5. 驗收命令：`npx jest --runInBand --runTestsByPath tests/unit/e2e-quality.test.js tests/unit/script-deps.test.js tests/unit/source-drift.test.js` 通過 3 suites / 26 tests。
 6. 驗收命令：`npm run test:e2e:smoke -- --workers=1` 搭配本地 HTTP server 通過 21 tests。
 
+Phase 2 已建立的治理項目：
+1. `role-permissions-cache.test.js` 覆蓋 role permission cache 的 array、object map、missing role fallback、explicit empty 不回填預設值。
+2. `role-activity-capabilities-cache.test.js` 覆蓋 user activity capability 的 default fallback、Firestore override、explicit empty、object map sanitization。
+3. `firestore.rules.test.js` 覆蓋 user basic create、add-ons create/edit allow/deny、delegate deny、team-scoped add-ons deny、private event 與現場操作相關邊界。
+4. `tests/e2e/activity-permissions.spec.js` 使用 E2E harness 在瀏覽器 runtime 驗證 user basic create、add-ons Toast、owner/delegate add-ons 區隔。
+5. 驗收命令：Phase 2 精準 unit 通過 6 suites / 354 tests，`npm run test:rules` 通過 5 suites / 526 tests，E2E smoke 通過 23 tests。
+
 ## 1. 概覽
 
 | 類別 | 測試數量 | 執行指令 |

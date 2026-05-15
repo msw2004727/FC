@@ -110,4 +110,31 @@ describe('rolePermissions cache shape', () => {
 
     expect(ApiService.getRolePermissions('admin')).toEqual([]);
   });
+
+  test('object map cache resolves stored permissions and strips unknown codes', () => {
+    const { FirebaseService, ApiService } = loadHarness();
+    FirebaseService._cache.rolePermissions = {
+      admin: {
+        permissions: ['team.create', 'admin.users.entry', 'unknown.permission'],
+      },
+    };
+
+    expect(ApiService.getRolePermissions('admin')).toEqual(['team.create', 'admin.users.entry']);
+  });
+
+  test('missing stored role falls back to current default permissions', () => {
+    const { FirebaseService, ApiService } = loadHarness();
+    FirebaseService._cache.rolePermissions = {};
+
+    expect(ApiService.getRolePermissions('admin')).toEqual(['team.create', 'event.edit_all']);
+  });
+
+  test('explicitly empty object-map permissions do not get repopulated by defaults after refresh', () => {
+    const { FirebaseService, ApiService } = loadHarness();
+    FirebaseService._cache.rolePermissions = {
+      admin: { permissions: [] },
+    };
+
+    expect(ApiService.getRolePermissions('admin')).toEqual([]);
+  });
 });
