@@ -1,5 +1,9 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-15 User activity add-on create rules budget [bug]
+- **Problem**: A regular `user` could have `user.activity.addons_use` enabled, but creating a full frontend-shaped event payload with add-ons such as `privateEvent` still failed. The root cause was Firestore rules evaluating the admin/general permission branches before the user activity capability branch, which pushed the request over the 1000 expression evaluation limit and returned `permission-denied`.
+- **Fix**: Split `events/{eventId}` create rules by `authRole()`: `user` now goes directly through `isUserActivityCapEventCreate()`, while non-user roles continue through `hasActivityManageEntry()` / `event.create`.
+- **Tests**: Added a Firestore rules regression test for a full frontend-shaped private add-on event payload with `user.activity.addons_use`; `npm run test:rules` passes 520 tests.
 ### 2026-05-15 Drawer version tag render timing [bug]
 - **Problem**: The drawer version tag reused the home version element, but its text was only refreshed by the home critical render path. Users entering through deep links or non-home startup flows could open the drawer before that path ran and see no version text.
 - **Fix**: Refresh the version tag whenever the drawer opens, independent of page/role rendering.

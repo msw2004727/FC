@@ -857,6 +857,65 @@ describe("/events/{eventId}", () => {
     );
   });
 
+  test("user can create full frontend-shaped private add-on event payload when add-ons capability is enabled", async () => {
+    await seedRoleActivityCapabilities([
+      ...DEFAULT_USER_ACTIVITY_CAPABILITIES,
+      "user.activity.addons_use",
+    ]);
+
+    await assertSucceeds(
+      setDoc(doc(user(), "events", "ce_test_full_private_addon_payload"), {
+        id: "ce_test_full_private_addon_payload",
+        title: "Private Payload",
+        type: "friendly",
+        status: "open",
+        location: "Test Field",
+        date: "2099/01/02 10:00~12:00",
+        startTimestamp: new Date("2099-01-02T10:00:00.000Z"),
+        endTimestamp: new Date("2099-01-02T12:00:00.000Z"),
+        fee: 0,
+        feeEnabled: false,
+        max: 20,
+        current: 0,
+        realCurrent: 0,
+        waitlist: 0,
+        minAge: 0,
+        notes: "",
+        image: "images/default.jpg",
+        sportTag: "football",
+        regOpenTime: null,
+        creator: "General User",
+        creatorUid: "uidUser",
+        contact: "",
+        gradient: "linear-gradient(135deg,#0d9488,#14b8a6)",
+        icon: "",
+        countdown: "",
+        participants: [],
+        waitlistNames: [],
+        participantsWithUid: [],
+        waitlistWithUid: [],
+        teamOnly: false,
+        isPublic: false,
+        genderRestrictionEnabled: false,
+        allowedGender: "",
+        privateEvent: true,
+        socialLinksEnabled: false,
+        socialLinks: [],
+        regionEnabled: true,
+        region: "central",
+        cities: ["taichung"],
+        creatorTeamId: null,
+        creatorTeamName: null,
+        creatorTeamIds: [],
+        creatorTeamNames: [],
+        delegates: [],
+        delegateUids: [],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
   test("user basic event creation requires safe initial status and empty projection fields", async () => {
     await assertFails(
       setDoc(doc(user(), "events", "event_user_bad_status_create"), {

@@ -679,6 +679,13 @@ service cloud.firestore {
           );
       }
 
+      function canCreateEventRoot() {
+        let role = authRole();
+        return role == 'user'
+          ? isUserActivityCapEventCreate()
+          : (hasActivityManageEntry() || hasPerm('event.create'));
+      }
+
       function isUserOwnerBasicUpdate() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
         return authRole() == 'user'
@@ -713,11 +720,7 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAuth()
         && hasString('title')
-        && (
-          hasActivityManageEntry()
-          || hasPerm('event.create')
-          || isUserActivityCapEventCreate()
-        );
+        && canCreateEventRoot();
       allow update: if isAuth()
         && (
           isUserOwnerBasicUpdate()
