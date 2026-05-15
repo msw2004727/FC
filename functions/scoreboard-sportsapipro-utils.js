@@ -195,9 +195,11 @@ function normalizeScoreboardConfig(raw = {}) {
     };
   }
   applySportToggleList(sports, input.enabledSports, "enabled");
+  const hasExplicitHomepageToggle = Object.values(inputSports)
+    .some((src) => src && typeof src === "object" && typeof src.homepageEnabled === "boolean");
   if (Array.isArray(input.homepageSports)) {
     applySportToggleList(sports, input.homepageSports, "homepageEnabled");
-  } else {
+  } else if (!hasExplicitHomepageToggle) {
     for (const sport of Object.keys(sports)) {
       sports[sport].homepageEnabled = sports[sport].enabled;
     }

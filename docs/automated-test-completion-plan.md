@@ -132,6 +132,25 @@ Last reviewed: 2026-05-15
 1. 未抽離 `functions/index.js` 的報名與私訊 runtime helper。原因是這些 callable 目前耦合 Firestore transaction、通知、稽核與歷史資料修補，為了測試大幅抽 helper 會帶來高於測試收益的回歸風險；本階段先用 source contract 鎖住高風險邊界，SportsAPI 則使用既有 dependency injection 做真正 mock 行為測試。
 2. Functions emulator callable 層暫不擴大到完整所有 callable；目前以 Rules emulator + callable fast-layer 補 P0/P1 防線，避免 CI 過慢與 flaky。若未來要測真 callable emulator，應只挑 `registerForEvent` / `cancelRegistration` / `sendPrivateMessage` 三條最核心路徑。
 
+## 2026-05-15 Phase 7 實作紀錄
+
+本階段已補 SportsAPI / 比分 / 中文詞庫的自動化測試，重點放在「不打真 API、不消耗 quota、不讓錯誤分類或翻譯狀態污染快取」。
+
+實作項目：
+1. `scoreboard-sportsapipro-normalizer.test.js` 補齊台灣日期邊界、quota usage key、request budget 上限、sport card 開關、首頁/即時/賽程/detail 開關、priority order、featured source、detail cache key、homepage sections 24H 範圍與 status payload sanitize。
+2. `scoreboard-translations.test.js` 補齊 needs_review / conflict / ignored / keep_original / approved 統計、sport/type coverage、top pending 排序、candidate merge、final-status skip、translation upsert 不覆蓋已核准資料、AI 翻譯指引內容。
+3. 測試抓到 `planRequests()` 二次 normalize 會覆蓋已保存的 `sports.*.homepageEnabled`，已修正為只有舊格式沒有明確 sport card homepage 開關時才用 enabled 回填。
+4. 自我審計修正 Phase 7 計劃：目前 source 僅保留 scoreboard Functions 與資料層，前台/後台 scoreboard UI 先前已被移除，`docs/claude-memory.md` 有明確紀錄「未重新啟用 removed frontend scoreboard UI」。因此本階段不新增 scoreboard control E2E，避免為測試重啟已移除功能；待 UI 正式恢復時再補對應 E2E。
+
+驗收指令：
+1. `npm run test:unit -- --runTestsByPath tests/unit/scoreboard-sportsapipro-normalizer.test.js tests/unit/scoreboard-translations.test.js`
+2. `npm run test:functions -- --runInBand`
+
+審計結論：
+1. 不會連線 `sportsapipro.com` 或使用正式 API key。
+2. 已覆蓋首頁資料分區、運動頁籤、重點聯賽、detail cache key、台灣日期、中文詞庫狀態與 AI 維護流程。
+3. UI E2E 暫不補是刻意決策，不屬漏測；原因是目前沒有 scoreboard UI source，測試應避免幻想式 selectors。
+
 ## 1. 目標
 
 本計劃的目標不是追求測試數量，而是建立能實際攔住回歸 bug 的自動化測試防線。
