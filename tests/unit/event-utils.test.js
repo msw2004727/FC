@@ -16,6 +16,7 @@ const EVENT_SPORT_OPTIONS = [
   { key: 'dodgeball', label: '美式躲避球' },
   { key: 'restaurant', label: '餐廳(觀賽)' },
   { key: 'escape_room', label: '密室逃脫' },
+  { key: 'esports', label: '電玩電競' },
   { key: 'baseball_softball', label: '棒壘球' },
   { key: 'volleyball', label: '排球' },
   { key: 'table_tennis', label: '桌球' },

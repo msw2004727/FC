@@ -145,12 +145,15 @@ describe('_buildCalendarSportCounts', () => {
 });
 
 describe('sport option source contracts', () => {
-  test('keeps escape room in the shared sport list before baseball-softball with its custom icon', () => {
+  test('keeps escape room then esports in the shared sport list before baseball-softball with custom icons', () => {
     const escapeIndex = configSource.indexOf("{ key: 'escape_room', label: '密室逃脫' }");
+    const esportsIndex = configSource.indexOf("{ key: 'esports', label: '電玩電競' }");
     const baseballIndex = configSource.indexOf("{ key: 'baseball_softball', label: '棒壘球' }");
 
     expect(escapeIndex).toBeGreaterThan(0);
-    expect(baseballIndex).toBeGreaterThan(escapeIndex);
+    expect(esportsIndex).toBeGreaterThan(escapeIndex);
+    expect(baseballIndex).toBeGreaterThan(esportsIndex);
     expect(configSource).toContain("escape_room: '<img src=\"./img/Artificial-Intelligence-Brain--Streamline-Plump-Gradient.png\"");
+    expect(configSource).toContain("esports: '<img src=\"./img/winner.png\"");
   });
 });

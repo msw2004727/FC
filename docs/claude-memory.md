@@ -2766,3 +2766,9 @@
 - **Cause**: The edit-save success path refreshed activity list/home/profile views only. It did not re-render the active `page-activity-detail` screen for the edited event.
 - **Fix**: After a successful edit write, the local event cache is re-applied with the final update payload and the current activity detail page is re-rendered when it is still showing the edited event.
 - **Validation**: Ran JavaScript syntax check and the activity detail render unit test path.
+
+### 2026-05-15 Esports Sport Category [feature]
+- **Change**: Added the `esports` sport tag with label `電玩電競`, ordered immediately after `escape_room` and before `baseball_softball`.
+- **Icon**: Uses `img/winner.png` through the shared sport icon helper, so activity, club, tournament, homepage, calendar, and card sport-tag surfaces inherit the same icon path where HTML sport icons are supported.
+- **Scope**: Added fallback emoji/color metadata and sports-news keyword matching for esports terms.
+- **Validation**: Added source contract and utility coverage for the new sport option order and custom image icon.

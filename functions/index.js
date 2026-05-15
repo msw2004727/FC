@@ -4887,6 +4887,7 @@ const SPORT_TAG_KEYWORDS = {
   ],
   basketball: ["籃球", "NBA", "CBA", "PLG", "T1"],
   escape_room: ["密室逃脫", "逃脫遊戲", "實境解謎", "解謎", "escape room"],
+  esports: ["電玩電競", "電競", "電子競技", "esports", "e-sports", "gaming"],
   baseball_softball: ["棒球", "壘球", "MLB", "中職", "CPBL", "大聯盟"],
   volleyball: ["排球"],
   table_tennis: ["桌球", "乒乓"],

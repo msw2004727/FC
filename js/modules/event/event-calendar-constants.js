@@ -22,6 +22,7 @@ const SPORT_COLORS = Object.freeze({
   tennis:       { var: '--sport-tennis',       emoji: '🎾', label: '網球',     enabled: false },
   table_tennis: { var: '--sport-table-tennis', emoji: '🏓', label: '桌球',     enabled: false },
   escape_room:  { var: '--sport-escape-room',  emoji: '🧠', label: '密室逃脫', enabled: false },
+  esports:      { var: '--sport-esports',      emoji: '🎮', label: '電玩電競', enabled: false },
   baseball_softball: { var: '--sport-baseball-softball', emoji: '⚾', label: '棒壘球', enabled: false },
   baseball:     { var: '--sport-baseball',     emoji: '⚾', label: '棒球',     enabled: false },
   softball:     { var: '--sport-softball',     emoji: '🥎', label: '壘球',     enabled: false },
