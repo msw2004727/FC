@@ -1,5 +1,27 @@
 # ToosterX 測試覆蓋文件
 
+## 2026-05-15 自動化測試補完基線
+
+本節作為 `docs/automated-test-completion-plan.md` 的執行基準。後續補測試時，優先保護真實風險，不追求灌水式覆蓋率。
+
+| 類型 | 目前基線 | 執行指令 |
+|---|---:|---|
+| Unit | 126 suites / 3098 tests passed | `npm run test:unit` |
+| Firestore Rules | 5 suites / 526 tests passed | `npm run test:rules` |
+| E2E smoke listed | 21 tests / 2 files | `npm run test:e2e:smoke -- --list` |
+| E2E full project executions | 63 tests / 2 files x 3 projects | `npm run test:e2e -- --list` |
+| Unit coverage statements | 1.38% | `npm run test:unit:coverage -- --coverageReporters=text-summary --coverageReporters=json-summary` |
+| Unit coverage branches | 1.42% | 同上 |
+| Unit coverage functions | 1.76% | 同上 |
+| Unit coverage lines | 1.56% | 同上 |
+
+Phase 0 已建立的治理項目：
+1. CI 產出 unit coverage summary artifact。
+2. Playwright projects 拆成 desktop、mobile、admin desktop。
+3. npm scripts 補上 `test:e2e:smoke`、`test:e2e:full`、`test:e2e:visual`、`test:e2e:admin`、`test:functions`。
+4. E2E helper skeleton 集中固定測試身分、固定活動 fixture、離線第三方 API mock 與瀏覽器狀態清理。
+5. 後續 E2E 不可使用瀏覽器殘留登入狀態或正式 Firebase/LINE/SportsAPI 資料。
+
 ## 1. 概覽
 
 | 類別 | 測試數量 | 執行指令 |

@@ -69,8 +69,8 @@ CI 結構是對的，但目前缺：
 
 | 類型 | 結果 |
 |---|---:|
-| Unit | 126 suites / 3091 tests passed |
-| Firestore Rules | 5 suites / 519 tests passed |
+| Unit | 126 suites / 3098 tests passed |
+| Firestore Rules | 5 suites / 526 tests passed |
 | E2E listed | 21 tests / 2 files |
 | Unit coverage statements | 1.38% |
 | Unit coverage branches | 1.42% |
@@ -363,21 +363,35 @@ Unit 補強：
    - private event 依 capability 成功/失敗
    - teamOnly / club-only 權限提示
 
+4. `user.activity.addons_use` 加值 create/edit 權限矩陣：
+   - capability 關閉：前端顯示 toast，Firestore Rules 也必須 deny。
+   - capability 開啟：一般 user owner 可建立/編輯非團隊範圍加值欄位。
+   - 非團隊範圍加值欄位至少覆蓋 `feeEnabled/fee`、`privateEvent`、`genderRestrictionEnabled/allowedGender`、`teamSplit`、`socialLinksEnabled/socialLinks`。
+   - 團隊範圍加值欄位 `teamOnly/isPublic/creatorTeamId/creatorTeamIds` 不可只靠 `user.activity.addons_use` 放行，仍需 `team.create_event` 或管理權限。
+   - owner 與 delegate 必須分開測：owner 可依能力改加值；delegate 只能改基本欄位，不可改加值欄位。
+
 Rules 補強：
 
 1. user basic create allow。
 2. user addons create deny。
-3. user private create 依 capability allow/deny。
-4. coach/captain/venue_owner/admin 以下看不到非自己私密活動。
-5. owner/delegate 現場簽到與取消活動權限。
+3. user add-ons create 依 `user.activity.addons_use` allow/deny。
+4. user owner add-ons edit 依 `user.activity.addons_use` allow/deny。
+5. delegate add-ons edit deny，即使該角色有基本活動管理能力也不可放大。
+6. team-scoped add-ons create/edit 必須另外測 deny/allow 邊界。
+7. user private create 依 capability allow/deny。
+8. coach/captain/venue_owner/admin 以下看不到非自己私密活動。
+9. owner/delegate 現場簽到與取消活動權限。
 
 E2E 補強：
 
 1. 權限管理開啟 user 進階能力。
 2. 刷新後開關仍保留。
 3. user 建立基本活動成功。
-4. user 開加值功能顯示 toast。
-5. 每個案例都使用固定測試身分與固定 fixture，不使用瀏覽器殘留登入狀態。
+4. capability 關閉時 user 開加值功能顯示 toast，且後端寫入失敗。
+5. capability 開啟後 user 建立/編輯允許的非團隊加值欄位成功。
+6. capability 開啟後 user 仍不可建立/編輯 team-scoped add-ons，除非另外具備團隊或管理權限。
+7. delegate 編輯活動時不可改加值欄位。
+8. 每個案例都使用固定測試身分與固定 fixture，不使用瀏覽器殘留登入狀態。
 
 驗收：
 
@@ -861,6 +875,9 @@ Playwright project 建議：
 | 測 `roleActivityCapabilities/user` override | fallback 與 Firestore override 優先序寫錯，造成刷新後回預設 | 高 | 測 array/object/missing/stale 四種資料形狀，且驗證刷新後仍保留 |
 | user basic create allowed | 規則放太寬，可能讓 user 開到不該開的功能 | 高 | Rules 測試同時寫 allow 與 deny；只允許基本欄位 |
 | addons denied | 前端 toast 有但後端仍可寫入，造成繞過 | 高 | 前端 toast + Firestore Rules/Callable deny 都要測 |
+| add-ons capability create allow | `user.activity.addons_use` 放太寬，讓 user 開到 team-scoped 或管理級功能 | 高 | 分開測非團隊加值 allow 與 `teamOnly/isPublic/creatorTeamId` deny |
+| owner add-ons edit | owner 編輯加值欄位時 create 規則通過但 update 規則拒絕，造成「建立可行、編輯失敗」 | 高 | 同一 fixture 同時測 create 與 update，欄位覆蓋 fee/private/gender/teamSplit/socialLinks |
+| delegate add-ons edit deny | delegate 基本編輯權被誤放大成加值編輯權 | 高 | delegate 可改 title/location，但改 fee/private/teamSplit/socialLinks 必須 deny |
 | private event capability | capability 路徑或 key 命名不一致，導致 user 建立失敗 | 高 | 測權限管理開關、刷新、建立活動三段完整鏈路 |
 | coach/captain/venue_owner 私密活動可見性 | 過度收緊導致 owner/delegate 看不到自己活動 | 高 | 測「非自己不可見」與「自己/委託可見」兩邊 |
 | 權限管理 E2E | 假登入或殘留角色導致測試假通過 | 中 | 必須使用 E2E harness 固定角色與清理瀏覽器狀態 |

@@ -7,7 +7,12 @@
     "test:rules:watch": "cross-env CI=true NO_UPDATE_NOTIFIER=1 FIREBASE_SKIP_UPDATE_CHECK=true XDG_CONFIG_HOME=.firebase-config firebase emulators:exec --only firestore --project demo-rules-test \"npm run test:rules:unit -- --watch\"",
     "test:unit": "jest tests/unit/",
     "test:unit:coverage": "jest tests/unit/ --coverage",
+    "test:functions": "jest tests/unit/cloud-functions.test.js",
     "test:e2e": "npx playwright test tests/e2e/",
+    "test:e2e:smoke": "npx playwright test tests/e2e/ --project=chromium-desktop",
+    "test:e2e:full": "npx playwright test tests/e2e/",
+    "test:e2e:visual": "npx playwright test tests/e2e/ --project=chromium-mobile --grep @visual",
+    "test:e2e:admin": "npx playwright test tests/e2e/ --project=admin-desktop --grep @admin",
     "test": "jest tests/unit/"
   },
   "devDependencies": {

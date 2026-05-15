@@ -20,6 +20,13 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run test:unit
+      - run: npm run test:unit:coverage -- --coverageReporters=text-summary --coverageReporters=json-summary
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-coverage-summary
+          path: coverage/coverage-summary.json
+          if-no-files-found: warn
 
   firestore-rules-tests:
     runs-on: ubuntu-latest
@@ -50,4 +57,4 @@ jobs:
       - run: |
           python3 -m http.server 3000 --bind 127.0.0.1 &
           sleep 2
-          BASE_URL=http://127.0.0.1:3000 npm run test:e2e -- --workers=1
+          BASE_URL=http://127.0.0.1:3000 npm run test:e2e:smoke -- --workers=1
