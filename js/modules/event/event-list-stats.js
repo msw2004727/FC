@@ -276,9 +276,8 @@ Object.assign(App, {
 
   _isEventInActivityEndedTab(event, nowDate = new Date()) {
     if (!event) return true;
-    if (event.status === 'cancelled') return true;
     const moveAt = this._getActivityEndedTabDate(event);
-    if (!moveAt) return event.status === 'ended';
+    if (!moveAt) return event.status === 'ended' || event.status === 'cancelled';
     return moveAt <= nowDate;
   },
 
