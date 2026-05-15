@@ -13,8 +13,9 @@ async function openHarnessPage(page, options = {}) {
     await page.setViewportSize(options.viewport);
   }
   await installTestHarness(page, TEST_USERS.userBasic);
-  await page.goto(BASE_URL);
+  await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#loading-overlay', { state: 'hidden', timeout: 15000 });
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
   await page.waitForFunction(() => (
     typeof App !== 'undefined'
     && typeof ScriptLoader !== 'undefined'
@@ -24,13 +25,31 @@ async function openHarnessPage(page, options = {}) {
 }
 
 async function forceLoadModule(page, file) {
-  await page.addScriptTag({ path: path.join(ROOT, file) });
+  const scriptPath = path.join(ROOT, file);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await page.addScriptTag({ path: scriptPath });
+      return;
+    } catch (err) {
+      if (!/Execution context was destroyed|Cannot find context/i.test(String(err?.message || err)) || attempt === 2) {
+        throw err;
+      }
+      await page.waitForLoadState('domcontentloaded').catch(() => {});
+      await page.waitForTimeout(250);
+    }
+  }
 }
 
 async function loadPmDialogRuntime(page) {
   await forceLoadModule(page, 'js/modules/message/pm-permission.js');
   await forceLoadModule(page, 'js/modules/message/pm-dialog.js');
   await forceLoadModule(page, 'js/modules/message/pm-dialog-actions.js');
+  await expect.poll(async () => page.evaluate(() => (
+    typeof App !== 'undefined'
+    && typeof App._ensurePmDialog === 'function'
+    && typeof App._renderPmDialogMessages === 'function'
+    && typeof App._installPmDialogViewportGuard === 'function'
+  )), { timeout: 5000 }).toBe(true);
 
   await page.evaluate(async ({ myUid, peerUid }) => {
     Object.defineProperty(window.navigator, 'platform', { value: 'iPhone', configurable: true });
@@ -115,6 +134,11 @@ test.describe('Private message runtime', () => {
     await openHarnessPage(page, { viewport: { width: 1280, height: 720 } });
     await forceLoadModule(page, 'js/modules/message/pm-permission.js');
     await forceLoadModule(page, 'js/modules/message/pm-listener.js');
+    await expect.poll(async () => page.evaluate(() => (
+      typeof App !== 'undefined'
+      && typeof App._showPmIncomingBubble === 'function'
+      && typeof App._handlePmFreshBubbleTimeout === 'function'
+    )), { timeout: 5000 }).toBe(true);
 
     await page.evaluate(async ({ myUid, peerUid }) => {
       App._pmCurrentUid = () => myUid;

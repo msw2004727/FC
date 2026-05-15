@@ -46,6 +46,9 @@ async function openAdminDashboard(page) {
     if (user?.role) {
       App.currentRole = user.role;
     }
+    if (typeof PageLoader !== 'undefined') {
+      await PageLoader.ensurePage?.('page-admin-dashboard');
+    }
     await ScriptLoader.ensureForPage?.('page-admin-dashboard');
     document.querySelectorAll('.page').forEach(pageEl => pageEl.classList.remove('active'));
     const target = document.getElementById('page-admin-dashboard');

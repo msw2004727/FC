@@ -20,8 +20,7 @@ async function openHome(page) {
 
 async function seedBanners(page) {
   await page.evaluate(({ image1, image2 }) => {
-    if (!FirebaseService._cache) FirebaseService._cache = {};
-    FirebaseService._cache.banners = [
+    window.__E2E_BANNER_FIXTURES__ = [
       {
         id: 'e2e-ban-1',
         _docId: 'e2e-ban-1',
@@ -41,9 +40,13 @@ async function seedBanners(page) {
         subtitle: 'Second slide subtitle',
       },
     ];
+    ApiService.getBanners = () => window.__E2E_BANNER_FIXTURES__.map(item => ({ ...item }));
+    if (!FirebaseService._cache) FirebaseService._cache = {};
+    FirebaseService._cache.banners = window.__E2E_BANNER_FIXTURES__.map(item => ({ ...item }));
     App._bannerRenderFingerprint = '';
     App.renderBannerCarousel({ autoplay: false });
   }, { image1: IMAGE_1, image2: IMAGE_2 });
+  await expect(page.locator('.banner-dot')).toHaveCount(2);
 }
 
 test.describe('home banner phase 8', () => {
