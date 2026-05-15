@@ -191,6 +191,48 @@
       margin: 10px 0 0;
     }
 
+    .guide {
+      display: grid;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .guide-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .guide-item {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel-soft);
+      padding: 12px;
+      min-height: 92px;
+    }
+
+    .guide-term {
+      display: block;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    .guide-copy {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .guide-list {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .guide-list li + li { margin-top: 4px; }
+
     .table-wrap {
       overflow-x: auto;
       border: 1px solid var(--line);
@@ -230,12 +272,14 @@
       .badge { margin-top: 12px; }
       .filters { grid-template-columns: 1fr; }
       .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .guide-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .panel { padding: 14px; border-radius: 14px; }
       .card .value { font-size: 23px; }
     }
 
     @media (max-width: 420px) {
       .grid { grid-template-columns: 1fr; }
+      .guide-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -265,6 +309,36 @@
     </section>
 
     <section class="panel">
+      <h2 class="section-title">怎麼看這份報表</h2>
+      <div class="guide">
+        <div class="guide-grid">
+          <div class="guide-item">
+            <strong class="guide-term">DNU｜每日新增用戶</strong>
+            <p class="guide-copy">看拉新能力。數字越高，代表這段時間每天新加入的人越多。</p>
+          </div>
+          <div class="guide-item">
+            <strong class="guide-term">DAU｜每日活躍用戶</strong>
+            <p class="guide-copy">看每天有多少人回來用。這裡以成功登入紀錄作為主要判斷。</p>
+          </div>
+          <div class="guide-item">
+            <strong class="guide-term">WAU｜近 7 日活躍用戶</strong>
+            <p class="guide-copy">看最近一週還有多少人有回來，適合觀察短期熱度。</p>
+          </div>
+          <div class="guide-item">
+            <strong class="guide-term">MAU｜近 30 日活躍用戶</strong>
+            <p class="guide-copy">看最近一個月還有多少人有回來，適合觀察整體用戶盤。</p>
+          </div>
+        </div>
+        <ul class="guide-list">
+          <li>先看 DNU：判斷最近有沒有持續帶進新用戶。</li>
+          <li>再看 DAU / WAU / MAU：判斷用戶只是註冊，還是真的會回來使用。</li>
+          <li>接著看留存：判斷新用戶隔天、7 天、30 天後是否還會回來。</li>
+          <li>最後看每日趨勢：找出哪一天突然上升或下降，再回頭對照活動、通知或營運操作。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel">
       <h2 class="section-title">核心指標 <span class="badge" id="range-label">尚未載入</span></h2>
       <div class="grid" id="summary-grid"></div>
       <p class="note" id="source-note"></p>
@@ -283,10 +357,10 @@
           <thead>
             <tr>
               <th>日期</th>
-              <th>DNU 新用戶</th>
-              <th>DAU 日活躍</th>
-              <th>WAU 近 7 日活躍</th>
-              <th>MAU 近 30 日活躍</th>
+              <th>DNU｜新增用戶</th>
+              <th>DAU｜日活躍</th>
+              <th>WAU｜近 7 日活躍</th>
+              <th>MAU｜近 30 日活躍</th>
             </tr>
           </thead>
           <tbody id="series-body">
@@ -395,10 +469,10 @@
       const r = report.retention || {};
       $("range-label").textContent = `${report.range.startDate} 至 ${report.range.endDate}`;
       $("summary-grid").innerHTML = [
-        card("DNU 新用戶", nf.format(s.dnu || 0), `平均 ${nf.format(s.avgDnu || 0)} / 日`),
-        card("DAU 平均", nf.format(s.avgDau || 0), `最高 ${nf.format(s.peakDau || 0)}（${s.peakDauDate || "-"}）`),
-        card("WAU", nf.format(s.wau || 0), "結束日往前 7 日"),
-        card("MAU", nf.format(s.mau || 0), "結束日往前 30 日"),
+        card("DNU｜每日新增用戶", nf.format(s.dnu || 0), `平均 ${nf.format(s.avgDnu || 0)} / 日`),
+        card("DAU｜每日活躍用戶", nf.format(s.avgDau || 0), `平均日活躍；最高 ${nf.format(s.peakDau || 0)}（${s.peakDauDate || "-"}）`),
+        card("WAU｜近 7 日活躍用戶", nf.format(s.wau || 0), "結束日往前 7 日至少登入一次"),
+        card("MAU｜近 30 日活躍用戶", nf.format(s.mau || 0), "結束日往前 30 日至少登入一次"),
         card("區間活躍用戶", nf.format(s.activeUsers || 0), "區間內至少登入一次"),
         card("區間回訪率", `${s.rangeReturnRate || 0}%`, "新用戶隔日後曾回來"),
         card("總用戶基數", nf.format(s.totalUsers || 0), "users 文件總數"),

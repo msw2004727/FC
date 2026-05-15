@@ -13,6 +13,13 @@ describe('ops report temporary standalone page', () => {
     expect(html).toContain('DAU');
     expect(html).toContain('WAU');
     expect(html).toContain('MAU');
+    expect(html).toContain('怎麼看這份報表');
+    expect(html).toContain('DNU｜每日新增用戶');
+    expect(html).toContain('DAU｜每日活躍用戶');
+    expect(html).toContain('WAU｜近 7 日活躍用戶');
+    expect(html).toContain('MAU｜近 30 日活躍用戶');
+    expect(html).toContain('先看 DNU');
+    expect(html).toContain('再看 DAU / WAU / MAU');
     expect(html).toContain('firebase-functions-compat.js');
     expect(html).toContain('liff.init');
     expect(html).toContain('liff.login');
@@ -48,5 +55,17 @@ describe('ops report temporary standalone page', () => {
     expect(routes).toContain('"/ops-report.html"');
     expect(headers).toContain('/ops-report');
     expect(headers).toContain('noindex, nofollow, noarchive');
+  });
+
+  test('admin dashboard exposes a chart shortcut to ops report before changelog', () => {
+    const html = read('pages/admin-dashboard.html');
+    const reportIndex = html.indexOf('href="/ops-report"');
+    const changelogIndex = html.indexOf('href="/changelog/"');
+
+    expect(reportIndex).toBeGreaterThan(-1);
+    expect(changelogIndex).toBeGreaterThan(-1);
+    expect(reportIndex).toBeLessThan(changelogIndex);
+    expect(html).toContain('aria-label="營運報表"');
+    expect(html).toContain('M7 15l3.2-3.2 2.8 2.1L18 7');
   });
 });
