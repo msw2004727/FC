@@ -617,6 +617,8 @@ Object.assign(App, {
       this._eventSubmitInFlight = true;
       try {
         await ApiService.updateEventAwait(this._editEventId, updates);
+        const updatedEvent = ApiService.getEvent(this._editEventId);
+        if (updatedEvent) Object.assign(updatedEvent, updates);
       } catch (err) {
         this._eventSubmitInFlight = false;
         this._setCreateEventSubmitting?.(false);
@@ -652,6 +654,15 @@ Object.assign(App, {
       try { this.renderActivityList(); } catch (_) {}
       try { this.renderHotEvents(); } catch (_) {}
       try { this.renderMyActivities(); } catch (_) {}
+      try {
+        if (this.currentPage === 'page-activity-detail'
+          && this._currentDetailEventId === editedId
+          && typeof this.showEventDetail === 'function') {
+          await this.showEventDetail(editedId);
+        }
+      } catch (detailRefreshErr) {
+        console.warn('[handleCreateEvent] post-edit detail refresh failed:', detailRefreshErr);
+      }
       try { await this._refreshTeamDetailAfterEventSave?.(teamOnly ? resolvedTeamIds : []); } catch (_) {}
     } else {
       const creatorName = this._getEventCreatorName();

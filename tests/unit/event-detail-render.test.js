@@ -428,3 +428,14 @@ describe('Activity detail host contact and companion action labels', () => {
     expect(activityCss).toContain('.detail-action-toolbar .signup-glow-wrap');
   });
 });
+
+describe('Activity edit save refresh', () => {
+  test('event edit save re-renders the current activity detail page', () => {
+    const createSource = readProjectFile('js/modules/event/event-create.js');
+
+    expect(createSource).toContain("this.currentPage === 'page-activity-detail'");
+    expect(createSource).toContain('this._currentDetailEventId === editedId');
+    expect(createSource).toContain('await this.showEventDetail(editedId)');
+    expect(createSource).toContain("post-edit detail refresh failed");
+  });
+});

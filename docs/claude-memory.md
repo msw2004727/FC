@@ -2760,3 +2760,9 @@
 - **Cause**: The event-create rule checked the expensive "no add-ons are enabled" condition before honoring `user.activity.addons_use`, and the user owner edit rule still treated add-on fields as forbidden basic-edit fields.
 - **Fix**: Reordered `eventCreateAddonsAllowed()` so users with `user.activity.addons_use` first take the low-cost add-on path. Added owner-only edit permission for non-team add-on fields when the same capability is enabled. Team-scoped/club-only fields still require team/event management permission.
 - **Validation**: Added regression coverage for fee, gender restriction, team split, combined non-team add-on create payloads, owner add-on edit, no-capability denial, delegate denial, and club-only denial. Ran `npm run test:rules` successfully.
+
+### 2026-05-15 Activity Detail Refresh After Edit [bugfix]
+- **Issue**: Saving an activity edit from the detail page could close the modal but leave the visible detail screen on old values until the user manually refreshed or reopened the activity.
+- **Cause**: The edit-save success path refreshed activity list/home/profile views only. It did not re-render the active `page-activity-detail` screen for the edited event.
+- **Fix**: After a successful edit write, the local event cache is re-applied with the final update payload and the current activity detail page is re-rendered when it is still showing the edited event.
+- **Validation**: Ran JavaScript syntax check and the activity detail render unit test path.
