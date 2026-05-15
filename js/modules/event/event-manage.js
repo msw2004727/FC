@@ -214,7 +214,7 @@ Object.assign(App, {
     const f = filter || this._myActivityFilter || 'all';
     this._myActivityFilter = f;
 
-    const isAdmin = this._canManageAllActivities?.() || this._hasActivityManageEntry?.() || this.hasPermission('event.edit_all');
+    const isAdmin = this._canManageAllActivities?.() || this.hasPermission('event.edit_all');
 
     // 場主(含)以下只看自己的活動或受委託的活動
     let allEvents = ApiService.getEvents();
@@ -298,7 +298,7 @@ Object.assign(App, {
         const canCancel = this._canCancelOwnActivity?.(e);
         const canReopenRelist = this._canReopenOrRelistActivity?.(e);
         const canDelete = this._canDeleteActivity?.(e);
-        const canPin = (this._hasActivityManageEntry?.() || this._canManageAllActivities?.()) && canManage;
+        const canPin = this._canManageAllActivities?.() && canManage;
         let btns = '';
         const pinBtn = canPin
           ? `<button class="outline-btn" style="${s};opacity:.6;cursor:not-allowed" title="功能未開放" onclick="App.toggleMyActivityPin('${e.id}')">${e.pinned ? '已置頂' : '置頂'}</button>`

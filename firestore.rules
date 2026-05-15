@@ -218,8 +218,14 @@ service cloud.firestore {
     }
 
     function canBroadManageEventData(eventData) {
-      return (hasActivityManageEntry() || hasPerm('event.edit_all'))
+      return (isSuperAdmin() || hasPerm('event.edit_all'))
         && canOperatePrivateEventData(eventData);
+    }
+
+    function canScopedManageEventData(eventData) {
+      return hasActivityManageEntry()
+        && canOperatePrivateEventData(eventData)
+        && isEventOwnerOrDelegateForData(eventData);
     }
 
     function canBroadManageEventUpdate() {
@@ -232,6 +238,7 @@ service cloud.firestore {
         && eventData != null
         && (
           canBroadManageEventData(eventData)
+          || canScopedManageEventData(eventData)
           || (
             authRole() == 'user'
             && hasActivityCap('user.activity.site_operate')
@@ -702,6 +709,35 @@ service cloud.firestore {
           );
       }
 
+      function eventUpdateBasicFieldsOnly(changed) {
+        return changed.hasOnly([
+          'title', 'type', 'location', 'date', 'startTimestamp', 'endTimestamp', 'externalUrl', 'max', 'minAge', 'notes', 'image',
+          'sportTag', 'regOpenTime', 'gradient', 'icon', 'countdown',
+          'regionEnabled', 'region', 'cities', 'delegates', 'delegateUids',
+          'fee', 'feeEnabled', 'genderRestrictionEnabled', 'allowedGender',
+          'privateEvent', 'teamSplit', 'socialLinksEnabled', 'socialLinks',
+          'updatedAt'
+        ]);
+      }
+
+      function eventScopedRoleFieldsOnly(changed) {
+        return changed.hasOnly([
+          'title', 'type', 'location', 'date', 'startTimestamp', 'endTimestamp', 'externalUrl', 'max', 'minAge', 'notes', 'image',
+          'sportTag', 'regOpenTime', 'gradient', 'icon', 'countdown',
+          'regionEnabled', 'region', 'cities', 'delegates', 'delegateUids',
+          'fee', 'feeEnabled', 'genderRestrictionEnabled', 'allowedGender',
+          'privateEvent', 'teamSplit', 'socialLinksEnabled', 'socialLinks',
+          'status', 'updatedAt'
+        ]);
+      }
+
+      function eventUpdateCapacityAllowed(changed) {
+        return !changed.hasAny(['max']) || (
+          request.resource.data.max is number
+          && (!(resource.data.current is number) || request.resource.data.max >= resource.data.current)
+        );
+      }
+
       function isUserOwnerBasicUpdate() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
         return authRole() == 'user'
@@ -709,18 +745,8 @@ service cloud.firestore {
           && (
             (
               hasActivityCap('user.activity.own_edit_basic')
-              && changed.hasOnly([
-                'title', 'type', 'location', 'date', 'startTimestamp', 'endTimestamp', 'externalUrl', 'max', 'minAge', 'notes', 'image',
-                'sportTag', 'regOpenTime', 'gradient', 'icon', 'countdown',
-                'regionEnabled', 'region', 'cities', 'delegates', 'delegateUids',
-                'fee', 'feeEnabled', 'genderRestrictionEnabled', 'allowedGender',
-                'privateEvent', 'teamSplit', 'socialLinksEnabled', 'socialLinks',
-                'updatedAt'
-              ])
-              && (!changed.hasAny(['max']) || (
-                request.resource.data.max is number
-                && (!(resource.data.current is number) || request.resource.data.max >= resource.data.current)
-              ))
+              && eventUpdateBasicFieldsOnly(changed)
+              && eventUpdateCapacityAllowed(changed)
               && eventUpdateAddonFieldsAllowed(changed)
               && (!changed.hasAny(['delegates', 'delegateUids']) || (isEventOwner() && hasActivityCap('user.activity.delegate_assign')))
             )
@@ -737,6 +763,17 @@ service cloud.firestore {
           );
       }
 
+      function isScopedRoleBasicUpdate() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return authRole() != 'user'
+          && canScopedManageEventData(resource.data)
+          && canOperatePrivateEventData(request.resource.data)
+          && eventScopedRoleFieldsOnly(changed)
+          && eventUpdateCapacityAllowed(changed)
+          && (!changed.hasAny(['status']) || request.resource.data.status in ['upcoming', 'open', 'full', 'ended', 'cancelled'])
+          && (!changed.hasAny(['delegates', 'delegateUids']) || isEventOwner());
+      }
+
       allow read: if true;
       allow create: if isAuth()
         && hasString('title')
@@ -744,6 +781,7 @@ service cloud.firestore {
       allow update: if isAuth()
         && (
           isUserOwnerBasicUpdate()
+          || isScopedRoleBasicUpdate()
           || canBroadManageEventUpdate()
           || (isEventOwner() && hasPerm('event.edit_self'))
           || isSignupFieldsOnly()

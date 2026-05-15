@@ -109,11 +109,26 @@ describe('private activity visibility for admin-below managers', () => {
     expect(app._canManageEvent(privateOther)).toBe(false);
   });
 
-  test.each(['admin', 'super_admin'])('%s can list and manage private activities', (role) => {
-    const app = makeRuntime({ role });
+  test.each(['admin', 'super_admin'])('%s with event.edit_all can list and manage private activities', (role) => {
+    const app = makeRuntime({ role, perms: ['event.edit_all'] });
 
     expect(app._canListPrivateEvent(privateOther)).toBe(true);
     expect(app._canManageEvent(privateOther)).toBe(true);
+  });
+
+  test('admin with event.edit_all disabled cannot manage non-owned activity', () => {
+    const app = makeRuntime({ role: 'admin' });
+
+    expect(app._canManageEvent(publicOther)).toBe(false);
+    expect(app._canEditOwnActivityBasic(publicOther)).toBe(false);
+  });
+
+  test('coach activity entry does not grant edit-all scope', () => {
+    const app = makeRuntime({ role: 'coach', events: [privateOwn, privateDelegated, publicOther] });
+
+    expect(app._canManageEvent(publicOther)).toBe(false);
+    expect(app._canEditOwnActivityBasic(publicOther)).toBe(false);
+    expect(app._getVisibleEvents().map(e => e.id)).toEqual(['private-own', 'private-delegated', 'public-other']);
   });
 
   test('admin-below owner can list and manage own private activities', () => {

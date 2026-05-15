@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-15 Activity edit-all permission scope [bug]
+- **Problem**: Turning off `event.edit_all` did not actually remove broad activity edit scope. Frontend helpers and Firestore rules still treated `activity.manage.entry` / coach-plus roles as able to view and update non-owned activities from Activity Management.
+- **Fix**: Split activity entry from edit-all scope. `event.edit_all` now controls all-activity visibility/editing; users without it are limited to their own or delegated activities. Firestore root event updates and event operator checks now enforce the same scoped rule.
+- **Tests**: Added/updated frontend permission coverage and Firestore rules regressions; `npm run test:rules` and targeted event permission unit tests pass.
+
 ### 2026-05-15 Repository structure cleanup [docs]
 - **Problem**: Historical plan documents, preview HTML, and local generated outputs were mixed into active project surfaces, making repo navigation and future AI handoff noisier.
 - **Fix**: Archived completed/historical plan documents under `docs/archive/`, moved visual preview HTML into `docs/previews/`, kept `docs/automated-test-completion-plan.md` active, and documented the docs layout in `README.md`, `CLAUDE.md`, `docs/structure-guide.md`, and `docs/architecture.md`.

@@ -1625,7 +1625,7 @@ describe("/events/{eventId}", () => {
         status: "removed",
       })
     );
-    await assertSucceeds(
+    await assertFails(
       setDoc(doc(coach(), "events", "event_user_attendance", "attendanceRecords", "att_coach"), {
         eventId: "event_user_attendance",
         uid: "uidCoach",
@@ -1686,9 +1686,9 @@ describe("/events/{eventId}", () => {
         privateEvent: true,
       })
     );
-    await assertSucceeds(
+    await assertFails(
       updateDoc(doc(coach(), "events", "eventB"), {
-        title: "Public Event Managed By Coach",
+        title: "Public Other Updated By Coach",
       })
     );
     await assertSucceeds(
@@ -2494,7 +2494,7 @@ describe("Role usability smoke tests", () => {
   test("coach can update own created event", async () => {
     await assertSucceeds(
       updateDoc(doc(coach(), "events", "eventCoachOwn"), {
-        status: "closed",
+        status: "ended",
       })
     );
   });

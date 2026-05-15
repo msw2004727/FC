@@ -265,8 +265,11 @@ Object.assign(App, {
   },
 
   _canManageAllActivities() {
-    const roleKey = this._getCurrentActivityRoleKey();
-    return this.hasPermission('event.edit_all') || (ROLE_LEVEL_MAP[roleKey] || 0) >= (ROLE_LEVEL_MAP.admin || 4);
+    return this.hasPermission('event.edit_all');
+  },
+
+  _canManageScopedActivity(e) {
+    return !!e && (this._isEventOwner(e) || this._isEventDelegate(e));
   },
 
   _hasActivityManageEntry() {
@@ -341,9 +344,10 @@ Object.assign(App, {
   _canEditOwnActivityBasic(e) {
     if (!e) return false;
     if (!this._canOperatePrivateEvent(e)) return false;
-    if (this._canManageAllActivities() || this._hasActivityManageEntry()) return true;
+    if (this._canManageAllActivities()) return true;
+    if (!this._canManageScopedActivity(e)) return false;
+    if (this._hasActivityManageEntry() || this.hasPermission('event.edit_self')) return true;
     return this._getCurrentActivityRoleKey() === 'user'
-      && (this._isEventOwner(e) || this._isEventDelegate(e))
       && this._hasUserActivityCapability('user.activity.own_edit_basic');
   },
 
@@ -355,9 +359,10 @@ Object.assign(App, {
   _canCancelOwnActivity(e) {
     if (!e) return false;
     if (!this._canOperatePrivateEvent(e)) return false;
-    if (this._canManageAllActivities() || this._hasActivityManageEntry()) return true;
+    if (this._canManageAllActivities()) return true;
+    if (!this._canManageScopedActivity(e)) return false;
+    if (this._hasActivityManageEntry()) return true;
     return this._getCurrentActivityRoleKey() === 'user'
-      && (this._isEventOwner(e) || this._isEventDelegate(e))
       && this._hasUserActivityCapability('user.activity.own_cancel');
   },
 
@@ -379,10 +384,11 @@ Object.assign(App, {
   _canOperateEventSite(e) {
     if (!e) return false;
     if (!this._canOperatePrivateEvent(e)) return false;
+    if (this._canManageAllActivities()) return true;
+    if (this._hasActivityManageEntry() && this._canManageScopedActivity(e)) return true;
     if (this.hasPermission('event.scan') || this.hasPermission('event.manual_checkin')) return true;
-    if (this._hasActivityManageEntry()) return true;
     return this._getCurrentActivityRoleKey() === 'user'
-      && (this._isEventOwner(e) || this._isEventDelegate(e))
+      && this._canManageScopedActivity(e)
       && this._hasUserActivityCapability('user.activity.site_operate');
   },
 
@@ -394,7 +400,7 @@ Object.assign(App, {
     if (!e) return false;
     if (!this._canOperatePrivateEvent(e)) return false;
     return this._canManageAllActivities()
-      || this._hasActivityManageEntry()
+      || (this._hasActivityManageEntry() && this._canManageScopedActivity(e))
       || this._canManageDelegatedActivity(e)
       || (
         this._getCurrentActivityRoleKey() === 'user'
@@ -405,7 +411,7 @@ Object.assign(App, {
 
   _canManageEventDelegates(e) {
     if (e && !this._canOperatePrivateEvent(e)) return false;
-    if (e && !this._isEventOwner(e) && !this._canManageAllActivities() && !this._hasActivityManageEntry()) return false;
+    if (e && !this._isEventOwner(e) && !this._canManageAllActivities()) return false;
     if (this._canManageAllActivities() || this._hasActivityManageEntry()) return true;
     return this._getCurrentActivityRoleKey() === 'user'
       && (!e || this._isEventOwner(e))
@@ -414,20 +420,23 @@ Object.assign(App, {
 
   _canUseActivityAddons(e = null) {
     if (e && !this._canOperatePrivateEvent(e)) return false;
-    if (this._canManageAllActivities() || this._hasActivityManageEntry() || this.hasPermission('team.create_event')) return true;
+    if (this._canManageAllActivities()) return true;
+    if (e && (this._hasActivityManageEntry() || this.hasPermission('team.create_event'))) return this._canManageScopedActivity(e);
+    if (!e && (this._hasActivityManageEntry() || this.hasPermission('team.create_event'))) return true;
     if (this._getCurrentActivityRoleKey() !== 'user') return false;
     if (!this._hasUserActivityCapability('user.activity.addons_use')) return false;
     return !e || this._isEventOwner(e);
   },
 
   _canManageTeamSplit(e) {
-    return !!e && this._canUseActivityAddons(e) && (this._canManageAllActivities() || this._isEventOwner(e) || this._hasActivityManageEntry());
+    return !!e && this._canUseActivityAddons(e) && (this._canManageAllActivities() || this._canManageScopedActivity(e));
   },
 
   _canManageTeamOnlyVisibility(e) {
     if (!e || !e.teamOnly) return false;
     if (!this._canOperatePrivateEvent(e)) return false;
-    if (this._canManageAllActivities() || this._hasActivityManageEntry() || this.hasPermission('team.toggle_event_visibility')) return true;
+    if (this._canManageAllActivities()) return true;
+    if ((this._hasActivityManageEntry() || this.hasPermission('team.toggle_event_visibility')) && this._canManageScopedActivity(e)) return true;
     if (!this._canUseActivityAddons(e)) return false;
     const eventTeamIds = this._getEventLimitedTeamIds(e);
     if (eventTeamIds.length === 0) return this._isEventOwner(e);
@@ -436,7 +445,7 @@ Object.assign(App, {
 
   _canViewEventOperationLog(e) {
     if (!this._canOperatePrivateEvent(e)) return false;
-    return !!e && (this._canManageAllActivities() || this._hasActivityManageEntry());
+    return !!e && (this._canManageAllActivities() || (this._hasActivityManageEntry() && this._canManageScopedActivity(e)));
   },
 
   _isAnyActiveEventOperator() {
@@ -461,8 +470,8 @@ Object.assign(App, {
   /** 場主(含)以下只能管理自己的活動或受委託的活動，admin+ 可管理全部 */
   _canManageEvent(e) {
     if (!this._canOperatePrivateEvent(e)) return false;
-    if (this._canManageAllActivities() || this._hasActivityManageEntry()) return true;
-    return this._isEventOwner(e) || this._isEventDelegate(e);
+    if (this._canManageAllActivities()) return true;
+    return this._canManageScopedActivity(e);
   },
 
   /** 取得當前用戶可見的活動列表（過濾俱樂部限定 + 私密活動 + 黑名單） */
