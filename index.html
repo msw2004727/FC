@@ -1431,7 +1431,7 @@ const App = {
     // 解決:用戶 reload `#page-activities` 等帶 hash 場景時,boot overlay 隱藏後
     // 用戶會先看到「banner + 熱門活動」的完整首頁,過幾秒才跳目標頁的瑕疵。
     // 守衛邏輯:URL 有 hash navigation 或 sessionStorage 有 deep link → 跳過首頁渲染
-    // 設計依據:docs/boot-skip-home-downgrade-plan.md(8 輪自審 + 2 輪 QA 審計)
+    // 設計依據:docs/archive/boot-skip-home-downgrade-plan.md(8 輪自審 + 2 輪 QA 審計)
     // 注意:仍呼叫 ScriptLoader.preloadCorePages() 保留全域必要副作用(預載 core pages)
     const bootHash = (location.hash || '').replace(/^#/, '').trim();
     const isHashNav = bootHash && /^page-[\w-]+$/.test(bootHash) && bootHash !== 'page-home';

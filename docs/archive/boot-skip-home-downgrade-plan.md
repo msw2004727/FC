@@ -41,7 +41,7 @@ renderAll() {
 
   // 2026-04-27:hash navigation 或 deep link 時跳過首頁渲染
   // 避免 boot overlay 隱藏後用戶看到「banner + 熱門活動」的完整首頁
-  // 詳見 docs/boot-skip-home-downgrade-plan.md
+  // 詳見 docs/archive/boot-skip-home-downgrade-plan.md
   const bootHash = (location.hash || '').replace(/^#/, '').trim();
   const isHashNav = bootHash && /^page-[\w-]+$/.test(bootHash) && bootHash !== 'page-home';
   let isDeepLink = false;

@@ -384,7 +384,7 @@ if (!isGuestView && typeof this._canViewEventByTeamScope === 'function' && !this
 
 - `docs/architecture.md` 標註延遲登入架構
 - `docs/claude-memory.md` `[永久]` 標記
-- `docs/lazy-auth-plan.md`（本檔）
+- `docs/archive/lazy-auth-plan.md`（本檔）
 
 ### 不改動
 
@@ -1416,4 +1416,4 @@ async cancelRegistration(registrationId) {
 **最終交付**：
 - 計畫書 v8（946 行主文 + v6/v7/v8 三層附錄）
 - `tests/unit/lazy-auth-uid-assertion.test.js`（19 測試 / 2381 passed）
-- `docs/lazy-auth-plan.md`（完整 commit 歷史可追歷）
+- `docs/archive/lazy-auth-plan.md`（完整 commit 歷史可追歷）

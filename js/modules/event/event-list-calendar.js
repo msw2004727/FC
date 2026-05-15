@@ -1,7 +1,7 @@
 /* ================================================
    ToosterX — Event List: Calendar View (主入口 / lifecycle)
    依賴：event-calendar-constants.js、event-list-calendar-build.js、event-list-calendar-nav.js
-   計畫書：docs/calendar-view-plan.md
+   計畫書：docs/archive/calendar-view-plan.md
    ================================================ */
 
 Object.assign(App, {

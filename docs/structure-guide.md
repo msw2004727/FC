@@ -318,3 +318,14 @@
 - 放鴿子功能以 feature flag 軟關閉，主要開關為前端 `js/config.js` 的 `NO_SHOW_FEATURE_ENABLED` 與後端 `functions/index.js` 的同名常數。
 - 活動詳細頁放鴿子欄位、用戶補正管理放鴿子頁籤、資料同步放鴿子重算、Dashboard 放鴿子排行、Auto EXP `noshow_penalty` 都應在 flag 關閉時隱藏或跳過。
 - 歷史資料與計畫書不刪除；若要恢復功能，先同步開啟前後端 flag，再更新 cache version 與部署 functions。
+
+---
+
+## 文件與臨時檔整理規則（2026-05-15）
+
+- `docs/` 根目錄只放目前仍需要被優先閱讀的文件，例如架構、測試覆蓋、調校參數、SEO log、active workflow 或正在執行的計畫。
+- `docs/archive/` 放已結束、歷史審計或暫不執行的計畫書。
+- `docs/completed/` 放已完成且仍需保留驗收脈絡的計畫。
+- `docs/specs/` 放正式規格與長期設計文件。
+- `docs/previews/` 放 AI 或人工用來快速呈現視覺結果的 HTML 預覽檔，例如 `demo.html` 與 `team-split-preview.html`。
+- `.gcloud/`、`debug.log`、`test-results/` 屬本機輸出，不進 Git。

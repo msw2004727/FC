@@ -171,4 +171,4 @@ match /images/{allPaths=**} {
 
 **建立日期**：2026-04-17
 **來源**：custom-claims-migration-plan.md V6 Round 14
-**相關計劃書**：[custom-claims-migration-plan.md](custom-claims-migration-plan.md)（不依賴此 task，可並行）
+**相關計劃書**：[custom-claims-migration-plan.md](archive/custom-claims-migration-plan.md)（不依賴此 task，可並行）

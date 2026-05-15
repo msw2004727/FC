@@ -419,7 +419,7 @@ function getRuntimeRoleInfo(roleKey) {
  * 延遲登入（Lazy Auth）— 點擊 bot-tab / drawer 時需要登入的頁面白名單。
  * 2026-04-23 v8 導入：從「活動/俱樂部/賽事/訊息/個人」精簡為「訊息/個人」。
  * 活動/俱樂部/賽事改為訪客可瀏覽、只有寫入動作（報名/建立/加入）才彈登入。
- * 詳見 docs/lazy-auth-plan.md。
+ * 詳見 docs/archive/lazy-auth-plan.md。
  */
 const AUTH_REQUIRED_PAGES = Object.freeze([
   'page-profile',

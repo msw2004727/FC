@@ -117,7 +117,7 @@ Object.assign(App, {
       // v8 延遲登入（2026-04-23）：移除 boot 時的自動跳轉 LINE 登入邏輯
       // 原邏輯：未登入 + 無錯誤 + 首頁 → 強制 liff.login() 跳轉
       // 新行為：未登入訪客自由瀏覽首頁、只有點報名/收藏/建立動作才觸發登入
-      // 相關機制：_requireProtectedActionLogin + _resumePendingAuthAction（見 docs/lazy-auth-plan.md）
+      // 相關機制：_requireProtectedActionLogin + _resumePendingAuthAction（見 docs/archive/lazy-auth-plan.md）
 
       if (LineAuth.isLoggedIn()) {
         const profile = LineAuth.getProfile();

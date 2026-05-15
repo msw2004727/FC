@@ -29,6 +29,11 @@ nul
 # Local settings
 settings.local.json
 
+# Local generated outputs
+.gcloud/
+debug.log
+test-results/
+
 # Node
 node_modules/
 functions/node_modules/

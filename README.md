@@ -3,7 +3,7 @@
 ToosterX 是一套以 LINE LIFF 為主要入口的台灣運動社群平台，核心涵蓋活動報名、俱樂部、賽事、課程、通知、後台管理、日誌診斷與 SEO 內容。
 
 - 正式站: <https://toosterx.com>
-- 目前前端快取版本: `0.20260501`
+- 目前前端快取版本: `0.20260515e`
 - 專案狀態: Source-available, All Rights Reserved
 - 主部署方式: push 到 `main` 後由 Cloudflare Pages / GitHub Pages 靜態部署流程發布
 
@@ -68,21 +68,30 @@ ToosterX 不是展示用 demo，而是面向實際運動社群營運的產品。
 | `firestore.rules` | Firestore security rules，目前約 1,481 行 |
 | `storage.rules` | Firebase Storage 圖片讀寫規則 |
 | `tests/` | Unit、Firestore rules、E2E 測試 |
-| `docs/` | 架構、測試覆蓋、調校參數、遷移計畫、SEO log 等文件 |
+| `docs/` | 架構、測試覆蓋、調校參數、SEO log、活躍計畫、歸檔計畫與預覽檔 |
 | `blog/` | SEO blog 文章頁 |
 | `seo/` | SEO landing pages |
 | `scripts/` | 版本 bump、GSC、sitemap、migration、維護腳本 |
 | `_headers` | Cloudflare Pages cache 與 robots headers |
 | `robots.txt`、`sitemap.xml` | 搜尋引擎爬取控制 |
 
+文件整理規則:
+
+- `docs/` 根目錄只放目前仍需要被優先閱讀的文件，例如架構、測試覆蓋、調校參數、SEO log、active workflow 或正在執行的計畫。
+- `docs/archive/` 放已結束、歷史審計或不再主動執行的計畫書，保留追溯價值但不混在根目錄。
+- `docs/completed/` 放已完成且仍有驗收價值的修復計畫。
+- `docs/specs/` 放正式規格或長期設計文件。
+- `docs/previews/` 放 AI 或人工用來快速呈現視覺結果的 HTML 預覽檔，例如 `demo.html`，預覽檔需避免被當成正式入口。
+- 本機輸出如 `.gcloud/`、`debug.log`、`test-results/` 不進 Git。
+
 依目前 repo 盤點:
 
-- `rg --files` 回傳 982 個專案檔案。
-- `js/` 底下目前有 267 個 JavaScript 檔。
+- `rg --files` 回傳 1070 個專案檔案。
+- `js/` 底下目前有 282 個 JavaScript 檔。
 - `js/modules/` 底下有 16 個主要功能模組資料夾。
-- `tests/unit/` 目前有 86 個 unit test 檔。
-- `functions/index.js` 目前有 52 個 exported Cloud Functions。
-- `blog/` 目前有 15 個 HTML 文章 / 索引頁。
+- `tests/unit/` 目前有 126 個 unit test 檔。
+- `functions/index.js` 目前有 64 個 exported Cloud Functions。
+- `blog/` 目前有 22 個 HTML 文章 / 索引頁。
 - `seo/` 目前有 10 個 HTML landing pages。
 
 ---
@@ -323,6 +332,10 @@ firebase deploy --only functions --project fc-football-6c8dc
 - `docs/tunables.md`: timing、limit、threshold、load order、sequence effects。
 - `docs/seo-log.md`: SEO 與 GSC 變更紀錄。
 - `docs/claude-memory.md`: 重要修補歷史與長期注意事項。
+- `docs/archive/`: 已結束或歷史審計計畫書。
+- `docs/completed/`: 已完成且仍需保留驗收脈絡的計畫。
+- `docs/specs/`: 正式規格與長期設計文件。
+- `docs/previews/`: 臨時或低風險的視覺預覽 HTML。
 
 ---
 

@@ -891,7 +891,7 @@ if (requestSeq !== this._xxxRequestSeq || this.currentPage !== 'page-xxx') {
 - [ ] 若持有資源（相機 / timer / listener）、stale 時必清理
 - [ ] 若同一個 page 有多個入口（例：`page-edu-checkin` 有 batch + scan）、入口間**共用同一 counter**（避免雙重檢查失效）
 
-參考模板：`js/modules/event/event-detail.js:219` `showEventDetail` 或 `docs/page-race-fix-plan.md`
+參考模板：`js/modules/event/event-detail.js:219` `showEventDetail` 或 `docs/archive/page-race-fix-plan.md`
 ```
 
 ## 審計認可摘要（3 輪 10 位專家）

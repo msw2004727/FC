@@ -788,7 +788,7 @@ App._calendarCache = {
 
 #### 若未來 events 量過大（> 1000 場活動）
 
-那時才需要真正的 Firestore 按月 query，但 **本期不實作**（增加 complexity、現況資料量不需要）。在 `docs/calendar-view-plan.md` §11 後續擴充點已加此項。
+那時才需要真正的 Firestore 按月 query，但 **本期不實作**（增加 complexity、現況資料量不需要）。在 `docs/archive/calendar-view-plan.md` §11 後續擴充點已加此項。
 
 #### 成本評估（以現況規模）
 

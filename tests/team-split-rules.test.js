@@ -14,7 +14,7 @@
  *    Run with: npm run test:rules
  *    Requires: Firebase Emulator (Firestore)
  *
- * Plan reference: docs/team-split-plan.md L383-455
+ * Plan reference: docs/archive/team-split-plan.md L383-455
  */
 
 const fs = require("fs");

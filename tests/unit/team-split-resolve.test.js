@@ -6,8 +6,8 @@
  *   - js/modules/event/event-team-split.js (_resolveTeamKey)
  *   - js/firebase-crud.js (_assignTeamKeyForPromotion)
  *
- * Plan reference: docs/team-split-plan.md L591-607 (_resolveTeamKey)
- *                 docs/team-split-plan.md L460-481 (_assignTeamKeyForPromotion)
+ * Plan reference: docs/archive/team-split-plan.md L591-607 (_resolveTeamKey)
+ *                 docs/archive/team-split-plan.md L460-481 (_assignTeamKeyForPromotion)
  */
 
 // ─── Extracted from plan L591-607 ───

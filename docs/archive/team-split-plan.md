@@ -800,7 +800,7 @@ Demo 種子資料的 event 物件不含 `teamSplit` 欄位。所有存取 `event
 
 ## 預覽檔案
 
-`docs/team-split-preview.html`（瀏覽器直接開啟）：主辦視角 + 用戶視角 + 深色模式。
+`docs/previews/team-split-preview.html`（瀏覽器直接開啟）：主辦視角 + 用戶視角 + 深色模式。
 
 ---
 
@@ -813,7 +813,7 @@ Demo 種子資料的 event 物件不含 `teamSplit` 欄位。所有存取 `event
 - [x] 第一輪審計問題修進計畫書
 - [x] 第二輪五方審計（UX 7 / Firestore 7.5 / 前端 8 / 報名 7 / 無障礙 5）
 - [x] 第二輪審計問題全面修進計畫書（含 CF 同步、i18n、Rules 重構、對比度、鍵盤導航）
-- [x] 設計原型預覽 (docs/team-split-preview.html)
+- [x] 設計原型預覽 (docs/previews/team-split-preview.html)
 - [x] 第三輪深度審計（2026-04-01，交叉驗證現有程式碼 × 計畫書，含擴大影響分析）
 - [x] 第四輪審計（2026-04-01，Firestore Rules 白名單安全驗證 — 發現 3 項高嚴重度瑕疵並修正）
 - [x] 第五輪審計（2026-04-01，teamKey 值驗證 + isBadgeOnlyUpdate 權限收斂 — 深度調查 3 項外部專家指摘）

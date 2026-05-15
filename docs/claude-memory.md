@@ -1,9 +1,16 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-15 Repository structure cleanup [docs]
+- **Problem**: Historical plan documents, preview HTML, and local generated outputs were mixed into active project surfaces, making repo navigation and future AI handoff noisier.
+- **Fix**: Archived completed/historical plan documents under `docs/archive/`, moved visual preview HTML into `docs/previews/`, kept `docs/automated-test-completion-plan.md` active, and documented the docs layout in `README.md`, `CLAUDE.md`, `docs/structure-guide.md`, and `docs/architecture.md`.
+- **Guardrail**: Added `.gcloud/`, `debug.log`, and `test-results/` to `.gitignore` so local deployment/test output is not committed.
+- **Tests**: Documentation/path cleanup only; ran path search and syntax checks before commit.
+
 ### 2026-05-15 User activity add-on create rules budget [bug]
 - **Problem**: A regular `user` could have `user.activity.addons_use` enabled, but creating a full frontend-shaped event payload with add-ons such as `privateEvent` still failed. The root cause was Firestore rules evaluating the admin/general permission branches before the user activity capability branch, which pushed the request over the 1000 expression evaluation limit and returned `permission-denied`.
 - **Fix**: Split `events/{eventId}` create rules by `authRole()`: `user` now goes directly through `isUserActivityCapEventCreate()`, while non-user roles continue through `hasActivityManageEntry()` / `event.create`.
 - **Tests**: Added a Firestore rules regression test for a full frontend-shaped private add-on event payload with `user.activity.addons_use`; `npm run test:rules` passes 520 tests.
+
 ### 2026-05-15 Drawer version tag render timing [bug]
 - **Problem**: The drawer version tag reused the home version element, but its text was only refreshed by the home critical render path. Users entering through deep links or non-home startup flows could open the drawer before that path ran and see no version text.
 - **Fix**: Refresh the version tag whenever the drawer opens, independent of page/role rendering.
@@ -879,7 +886,7 @@
   - B3:極端 PageLoader 10s timeout 時退化為「全空畫面」(看門狗 8s reload 兜底)
 - **保留**:`ScriptLoader.preloadCorePages()` 保留全域必要副作用(避免後續 page 切換變慢)
 - **依規 §每次新增功能時的規範第 8 條**:`docs/tunables.md` 同步更新 Last Updated
-- **完整計劃書**:`docs/boot-skip-home-downgrade-plan.md`(243 行,含 11 個測試 checkpoint)
+- **完整計劃書**:`docs/archive/boot-skip-home-downgrade-plan.md`(243 行,含 11 個測試 checkpoint)
 - **教訓**:
   - **動手前先審計救了 2 個 BLOCKER**:原計劃 4 階段方案的階段 2(手動 swap class)會踩到「PageLoader 未完成 DOM 不存在」+「破壞 _activatePage 不變式」雙雷
   - **跟 F 方案(用戶推的 inline events)互補**:用戶修法加速首頁渲染,我修法跳過 hash nav 場景的渲染,結合效果比單做更好
@@ -1167,7 +1174,7 @@
   - `catch` 分支：`err.code === 'permission-denied' / 'unauthenticated'` 時**標記 Set 避免無限重試**（QA BLOCKER 修正；網路錯誤保留不標記、允許重試）
   - 新增 19 個單元測試（`tests/unit/api-fetch-if-missing.test.js`）涵蓋 `decideAttendanceFetch` / `decideRegistrationsFetch` 決策樹 + `mergeDedupByDocId` 邏輯
 - **審計流程**（3 輪）：
-  1. 計畫書草稿（`docs/fetch-if-missing-fix-plan.md` v1）列出 10 項自我瑕疵
+  1. 計畫書草稿（`docs/archive/fetch-if-missing-fix-plan.md` v1）列出 10 項自我瑕疵
   2. 第三方 agent 審計找出 5 項新瑕疵（P11-P15），經驗證 4 項為誤判（Firestore docId 固定機制、CF schedule 5 分鐘實測誤讀），僅 P13 採納
   3. 實作後 QA agent 給 CONDITIONAL GO，2 項必修採納後 commit：catch 錯誤處理 + status 判斷邊界註解
 - **更新 2026-04-23 教訓**：當時標記「fetchIfMissing 有短路、通常不慢」的結論是基於「活動已有紀錄」的假設，不適用於未開始活動（cached 永遠 0）。本次透過實測 log 打破假設 → **「先實測再優化」的教訓再次驗證，但也要注意實測條件要完整涵蓋各 status 的活動**

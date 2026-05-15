@@ -404,7 +404,7 @@
 
 ### 相關文件
 
-- [docs/permission-refactor-plan.md](permission-refactor-plan.md)
+- [docs/archive/permission-refactor-plan.md](permission-refactor-plan.md)
 - [docs/claude-memory.md](claude-memory.md)（實作完成後的記錄）
 - Firebase 官方文件：[Custom Claims](https://firebase.google.com/docs/auth/admin/custom-claims)
 

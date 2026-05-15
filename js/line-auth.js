@@ -352,7 +352,7 @@ const LineAuth = {
   /**
    * v8 Blocker 2 Part 1：檢查當前 LIFF profile 與 Firebase Auth uid 是否一致。
    * Tier 2 換帳號污染防線第一層——若不一致、代表 Firebase Auth 殘留舊帳號。
-   * 詳見 docs/lazy-auth-plan.md §2 Blocker 2 + §R5.1 修正後版本。
+   * 詳見 docs/archive/lazy-auth-plan.md §2 Blocker 2 + §R5.1 修正後版本。
    */
   _isActiveAuthUidConsistent() {
     if (typeof auth === 'undefined' || !auth?.currentUser) return false;

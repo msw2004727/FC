@@ -86,7 +86,7 @@ FC-github/
 │   ├── api-service.js      # Demo / Prod 抽象層
 │   ├── line-auth.js        # LINE LIFF 登入
 │   ├── core/               # 基礎設施（4 個）
-│   └── modules/            # 功能模組（17 子資料夾 + 27 獨立檔案）
+│   └── modules/            # 功能模組（16 子資料夾 + 29 獨立檔案）
 │       ├── event/          # 活動系統（30）：列表、詳情、報名、建立、管理、分享
 │       ├── team/           # 俱樂部系統（16）：列表、詳情、表單、動態牆、分享、helpers/stats/builders/validate/roles/invite
 │       ├── tournament/     # 賽事系統（19）：渲染、詳情、管理、友誼賽、helpers/builders/state
@@ -101,9 +101,13 @@ FC-github/
 │       ├── dashboard/      # 儀表板（6）：管理員、個人、報表分享、用量
 │       ├── ad-manage/      # 廣告管理（6）：輪播、浮動、贊助、小遊戲、品牌開機
 │       ├── user-admin/     # 用戶後台（5）：列表、EXP、角色、補正、權限說明
-│       └── [27 獨立模組]   # banner / home-dashboard / shop / leaderboard / role / pwa-install 等
-├── pages/                  # HTML 片段（18 個）
+│       └── [29 獨立模組]   # banner / home-dashboard / shop / leaderboard / role / pwa-install 等
+├── pages/                  # HTML 片段（20 個）
 ├── docs/                   # 專案文件
+│   ├── archive/            # 歷史/已結束計畫書歸檔
+│   ├── completed/          # 已完成且保留驗收脈絡的計畫
+│   ├── specs/              # 正式規格與長期設計文件
+│   └── previews/           # AI/設計視覺預覽 HTML，不當正式入口
 └── functions/              # Cloud Functions
 ```
 
@@ -192,6 +196,15 @@ grep -rn "CACHE_VERSION\|CACHE_NAME\|var V='" js/config.js sw.js index.html
 
 - 模組依賴關係圖與各層說明：[docs/architecture.md](docs/architecture.md)
 - **可調設定 / Timing / 流程順序總覽：[docs/tunables.md](docs/tunables.md)** — 記錄專案內所有可調常數（timeout、debounce、interval、limit、threshold）+ 加載順序 + 關鍵流程的 sequence effect。修改檔案時若涉及任何上述項目，必須同步更新此檔對應條目（規則見 §每次新增功能時的規範 第 9 條）
+
+### 文件結構整理規則
+
+- `docs/` 根目錄只保留仍需優先閱讀的活躍文件、active workflow 或正在執行的計畫。
+- 已結束、歷史審計或暫不執行的計畫書放 `docs/archive/`，避免根目錄堆積。
+- 已實作完成但仍需保留驗收脈絡的計畫放 `docs/completed/`。
+- 正式規格與長期設計文件放 `docs/specs/`。
+- AI 或人工用來快速呈現視覺結果的 HTML 預覽檔放 `docs/previews/`；例如 `docs/previews/demo.html`，不得當成正式產品入口。
+- 本機輸出與暫存檔如 `.gcloud/`、`debug.log`、`test-results/` 必須忽略，不進 Git。
 
 ---
 
@@ -712,7 +725,7 @@ async showXxx(args) {
 - 完整範例：`js/modules/event/event-detail.js:219` `showEventDetail`
 - Helper + counter 共用：`js/modules/education/edu-checkin.js` + `edu-checkin-scan.js`
 - State 清 null 模式：`js/modules/education/edu-student-list.js:27` `showEduStudentList`
-- 計畫書：`docs/page-race-fix-plan.md`
+- 計畫書：`docs/archive/page-race-fix-plan.md`
 
 ---
 

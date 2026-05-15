@@ -1,7 +1,7 @@
 /* ================================================
    SportHub — Team Split (分隊色衣) Module
    ================================================
-   Plan: docs/team-split-plan.md
+   Plan: docs/archive/team-split-plan.md
    Dependencies: App, ApiService, FirebaseService, I18N
    ================================================ */
 
