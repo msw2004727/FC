@@ -291,6 +291,35 @@ describe("home-dashboard browser binding", () => {
     expect(dom.window.document.querySelector('[data-stat="activities"] .home-stat-views')).toBeNull();
   });
 
+  test("orders sport quick entry by active count and uses configured order for ties", () => {
+    const { app, dom } = runHomeDashboardModule({
+      sports: [
+        { key: "football", label: "足球" },
+        { key: "restaurant", label: "餐廳(觀賽)" },
+        { key: "escape_room", label: "密室逃脫" },
+        { key: "baseball_softball", label: "棒壘球" },
+      ],
+    });
+    app._homeSummary = {
+      counts: { activities: 7, teams: 0, tournaments: 0 },
+      activityViews: { total: 0, label: "已記錄瀏覽" },
+      sportCounts: [
+        { sportTag: "football", count: 0 },
+        { sportTag: "baseball_softball", count: 2 },
+        { sportTag: "escape_room", count: 2 },
+        { sportTag: "restaurant", count: 3 },
+      ],
+    };
+
+    app.renderHomeDashboard();
+
+    const chips = Array.from(dom.window.document.querySelectorAll("#home-sport-entry [data-home-sport]"))
+      .map(el => el.getAttribute("data-home-sport"));
+    expect(chips).toEqual(["restaurant", "escape_room", "baseball_softball"]);
+    expect(dom.window.document.querySelector('[data-home-sport="football"]')).toBeNull();
+    expect(dom.window.document.querySelector(".home-sport-chip-more")?.textContent).toContain("查看更多");
+  });
+
   test("keeps home info hidden until the managed visibility setting is loaded", () => {
     const { app, dom } = runHomeDashboardModule();
 

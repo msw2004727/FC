@@ -37,6 +37,12 @@ function runModule(options = {}) {
       JSON.stringify(options.storedCache)
     );
   }
+  if (options.rawStoredCache) {
+    dom.window.localStorage.setItem(
+      `toosterx.homeNextActivity.v1.${options.rawStoredCache.keyUid}`,
+      JSON.stringify(options.rawStoredCache.record)
+    );
+  }
   const context = vm.createContext({
     window: dom.window,
     globalThis: dom.window,
@@ -276,6 +282,94 @@ describe('home next activity', () => {
     expect(host.textContent).toContain('Stored Match');
     expect(host.textContent).toContain('Stored Center');
     expect(context.ApiService.getRegistrations).not.toHaveBeenCalled();
+  });
+
+  test('does not reuse a stored cache record from another uid even when it is under the current uid key', async () => {
+    const { app, dom, context } = runModule({
+      registrations: [
+        { id: 'r1', eventId: 'evt-live', userId: 'u1', status: 'confirmed' },
+      ],
+      events: [
+        { id: 'evt-live', title: 'Live User Match', date: '2099/05/20 18:00~20:00', location: 'Live Center', status: 'open' },
+      ],
+      rawStoredCache: {
+        keyUid: 'u1',
+        record: {
+          uid: 'other-user',
+          loadedAt: Date.now(),
+          next: {
+            event: { id: 'evt-other', title: 'Other User Match', date: '2099/05/20 18:00~20:00', status: 'open' },
+            registration: { status: 'confirmed', eventId: 'evt-other', userId: 'other-user' },
+          },
+        },
+      },
+    });
+
+    await app.renderHomeNextActivity({ force: true });
+
+    const host = dom.window.document.getElementById('home-next-activity');
+    expect(host.textContent).toContain('Live User Match');
+    expect(host.textContent).not.toContain('Other User Match');
+    expect(context.ApiService.getRegistrations).toHaveBeenCalled();
+  });
+
+  test('ignores display-expired stored cache and resolves the next activity again', async () => {
+    const { app, dom, context } = runModule({
+      registrations: [
+        { id: 'r1', eventId: 'evt-refreshed', userId: 'u1', status: 'confirmed' },
+      ],
+      events: [
+        { id: 'evt-refreshed', title: 'Refreshed Match', date: '2099/05/20 18:00~20:00', location: 'Refresh Center', status: 'open' },
+      ],
+      storedCache: {
+        uid: 'u1',
+        loadedAt: Date.now() - (61 * 60 * 1000),
+        next: {
+          event: { id: 'evt-expired', title: 'Expired Match', date: '2099/05/20 18:00~20:00', status: 'open' },
+          registration: { status: 'confirmed', eventId: 'evt-expired', userId: 'u1' },
+        },
+      },
+    });
+
+    await app.renderHomeNextActivity({ force: true });
+
+    const host = dom.window.document.getElementById('home-next-activity');
+    expect(host.textContent).toContain('Refreshed Match');
+    expect(host.textContent).not.toContain('Expired Match');
+    expect(context.ApiService.getRegistrations).toHaveBeenCalled();
+  });
+
+  test('renders displayable stale cache first and refreshes it in the background', async () => {
+    const { app, dom, context } = runModule({
+      registrations: [
+        { id: 'r1', eventId: 'evt-updated', userId: 'u1', status: 'confirmed' },
+      ],
+      events: [
+        { id: 'evt-updated', title: 'Updated Match', date: '2099/05/20 18:00~20:00', location: 'Updated Center', status: 'open' },
+      ],
+      storedCache: {
+        uid: 'u1',
+        loadedAt: Date.now() - (11 * 60 * 1000),
+        next: {
+          event: { id: 'evt-stale', title: 'Stale Match', date: '2099/05/20 18:00~20:00', location: 'Stale Center', status: 'open' },
+          registration: { status: 'confirmed', eventId: 'evt-stale', userId: 'u1' },
+        },
+      },
+    });
+
+    await app.renderHomeNextActivity({ force: true });
+
+    const host = dom.window.document.getElementById('home-next-activity');
+    expect(host.textContent).toContain('Stale Match');
+    expect(host.textContent).not.toContain('Updated Match');
+
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(host.textContent).toContain('Updated Match');
+    expect(host.textContent).not.toContain('Stale Match');
+    expect(context.ApiService.getRegistrations).toHaveBeenCalled();
   });
 
   test('invalidateHomeNextActivityCache clears memory and stored cache', async () => {

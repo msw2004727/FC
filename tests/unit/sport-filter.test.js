@@ -5,6 +5,14 @@
  * js/modules/event/event-list-helpers.js:280-284
  */
 
+const fs = require('fs');
+const path = require('path');
+
+const configSource = fs.readFileSync(
+  path.join(__dirname, '../../js/config.js'),
+  'utf8'
+);
+
 // Extracted logic (matches source)
 function _filterBySportTag(events, activeSport) {
   const tag = activeSport || 'all';
@@ -133,5 +141,16 @@ describe('_buildCalendarSportCounts', () => {
     expect(result).toEqual([
       { sportKey: 'football', count: 3 },
     ]);
+  });
+});
+
+describe('sport option source contracts', () => {
+  test('keeps escape room in the shared sport list before baseball-softball with its custom icon', () => {
+    const escapeIndex = configSource.indexOf("{ key: 'escape_room', label: '密室逃脫' }");
+    const baseballIndex = configSource.indexOf("{ key: 'baseball_softball', label: '棒壘球' }");
+
+    expect(escapeIndex).toBeGreaterThan(0);
+    expect(baseballIndex).toBeGreaterThan(escapeIndex);
+    expect(configSource).toContain("escape_room: '<img src=\"./img/Artificial-Intelligence-Brain--Streamline-Plump-Gradient.png\"");
   });
 });

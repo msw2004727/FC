@@ -26,9 +26,9 @@ async function openActivityRuntime(page, capabilities = DEFAULT_USER_ACTIVITY_CA
     const user = window.__E2E_TEST_HARNESS__?.currentUser;
     if (!FirebaseService._cache) FirebaseService._cache = {};
     FirebaseService._cache.currentUser = user;
-    FirebaseService._cache.roleActivityCapabilities = { user: caps };
     App.currentRole = 'user';
     await ScriptLoader.ensureForPage?.('page-activities');
+    FirebaseService._cache.roleActivityCapabilities = { user: { capabilities: caps } };
   }, { caps: capabilities });
 }
 

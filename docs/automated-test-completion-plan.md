@@ -67,6 +67,29 @@ Last reviewed: 2026-05-15
 1. Phase 3 unit：7 suites / 112 tests passed。
 2. Firestore Rules：5 suites / 526 tests passed。
 
+## 2026-05-15 Phase 4 實作紀錄
+
+狀態：已完成，等待本段 commit。
+
+本階段完成項目：
+1. 補強 `home-next-activity.test.js`，覆蓋「切換 UID 不沿用他人 cache」、「超過 1 小時 cache 直接失效」、「10 分鐘以上但 1 小時內 cache 先顯示舊卡再背景刷新」。
+2. 補強 `home-dashboard-render.test.js`，驗證運動快速入口只顯示活動數大於 0 的項目、先依活動數排序、同數時依 `EVENT_SPORT_OPTIONS` 順序，並確認密室逃脫排在棒壘球前。
+3. 補強 `sport-filter.test.js` 的 sport config source contract，確保密室逃脫存在、位於棒壘球前，且使用指定自訂圖示資源。
+4. 新增 `home-game-rank-preview.test.js`，覆蓋小遊戲首頁排行榜月份、TOP4、頭像、暱稱、分數排序、踢球距離格式與無資料 fallback。
+5. 修復 E2E harness 兩個測試層瑕疵：一般 user 前台能力 fixture 改成正式 cache 使用的 `{ capabilities: [...] }` 形狀；個人資料提示關閉遇到 navigation context 重建時會重試，降低瀏覽器導航 flaky。
+
+驗收命令：
+1. `npx jest --runInBand --runTestsByPath tests/unit/home-next-activity.test.js tests/unit/home-dashboard-render.test.js tests/unit/home-summary.test.js tests/unit/sport-filter.test.js tests/unit/home-game-rank-preview.test.js`
+2. `npm run test:e2e:smoke -- --workers=1` 搭配本地 HTTP server
+
+驗收結果：
+1. Phase 4 unit：5 suites / 49 tests passed。
+2. E2E smoke：23 tests passed。
+
+本階段審計發現並已修復：
+1. E2E `activity-permissions.spec.js` 原本在 `ScriptLoader.ensureForPage` 前寫入 array cache，可能被頁面初始化覆蓋，且形狀不完全等同正式 cache；已改為初始化後寫入 `{ user: { capabilities } }`。
+2. E2E `example.spec.js` 的 profile prompt dismiss 偶發遇到頁面 navigation context 被銷毀；已在測試 helper 內針對該錯誤重試一次。
+
 ## 1. 目標
 
 本計劃的目標不是追求測試數量，而是建立能實際攔住回歸 bug 的自動化測試防線。

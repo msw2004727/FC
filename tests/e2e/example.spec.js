@@ -26,7 +26,7 @@ async function mockBackend(page, user = TEST_USERS.userBasic) {
 }
 
 async function dismissOptionalProfilePrompt(page) {
-  await page.evaluate(() => {
+  const dismiss = () => page.evaluate(() => {
     const modal = document.getElementById('first-login-modal');
     if (!modal) return;
 
@@ -39,6 +39,15 @@ async function dismissOptionalProfilePrompt(page) {
     modal.style.display = 'none';
     document.body.classList.remove('modal-open');
   });
+  try {
+    await dismiss();
+  } catch (err) {
+    if (!/Execution context was destroyed|Cannot find context/i.test(String(err?.message || err))) {
+      throw err;
+    }
+    await page.waitForLoadState('domcontentloaded').catch(() => {});
+    await dismiss();
+  }
 }
 
 // ── Journey 1: Homepage loads and shows key sections ──
