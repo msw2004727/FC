@@ -70,6 +70,12 @@ async function clearBrowserState(page) {
   await page.addInitScript(() => {
     localStorage.clear();
     sessionStorage.clear();
+    try {
+      Object.defineProperty(navigator, 'serviceWorker', {
+        configurable: true,
+        value: undefined,
+      });
+    } catch (_) {}
   });
 }
 
