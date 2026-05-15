@@ -216,6 +216,39 @@ describe("home-dashboard browser binding", () => {
     expect(app.switchRegionTab).not.toHaveBeenCalled();
   });
 
+  test("home activity search modal submits region sport and type filters to activities", async () => {
+    const { app, dom, context } = runHomeDashboardModule({
+      sports: [
+        { key: "all", label: "All" },
+        { key: "football", label: "Football" },
+        { key: "restaurant", label: "Restaurant" },
+      ],
+    });
+    app.currentPage = "page-home";
+    app.switchRegionTab = jest.fn();
+
+    app.openHomeActivitySearchModal();
+    const overlay = dom.window.document.getElementById("home-activity-search-overlay");
+    const region = dom.window.document.getElementById("home-search-region").querySelectorAll("option")[1].value;
+    dom.window.document.getElementById("home-search-region").value = region;
+    dom.window.document.getElementById("home-search-sport").value = "football";
+    dom.window.document.getElementById("home-search-type").value = "watch";
+
+    await app.submitHomeActivitySearch();
+
+    expect(overlay.classList.contains("open")).toBe(false);
+    expect(dom.window.document.body.classList.contains("home-activity-search-open")).toBe(false);
+    expect(app.showPage).toHaveBeenCalledWith("page-activities");
+    expect(context.ScriptLoader.ensureForPage).toHaveBeenCalledWith("page-activities");
+    expect(app.resetActivityTab).toHaveBeenCalledWith({ render: false });
+    expect(app.switchRegionTab).toHaveBeenCalledWith(region);
+    expect(app._activeSport).toBe("football");
+    expect(dom.window.localStorage.getItem("sporthub_active_sport")).toBe("football");
+    expect(dom.window.localStorage.getItem("toosterx_home_activity_region")).toBe(region);
+    expect(dom.window.document.getElementById("activity-filter-type").value).toBe("watch");
+    expect(dom.window.document.getElementById("activity-filter-keyword").value).toBe("");
+  });
+
   test("renders active watch party background onto the home card", () => {
     const { app, dom } = runHomeDashboardModule({
       apiService: {
@@ -493,5 +526,32 @@ describe("home-dashboard browser binding", () => {
 
     expect(app.showPage).toHaveBeenCalledWith("page-tournaments");
     expect(context.ScriptLoader.ensureForPage).toHaveBeenCalledWith("page-tournaments");
+  });
+
+  test("watch party shortcut opens configured external urls and rejects empty urls", async () => {
+    const opened = [];
+    const { app, dom } = runHomeDashboardModule({
+      apiService: {
+        getWatchPartyBg: () => ({ id: "watch-party-bg", status: "active", linkType: "url", linkUrl: "https://example.test/watch" }),
+      },
+    });
+    dom.window.open = jest.fn((url, target, features) => opened.push({ url, target, features }));
+
+    await app.openHomeWatchParty();
+
+    expect(opened).toEqual([{ url: "https://example.test/watch", target: "_blank", features: "noopener" }]);
+    expect(app.showPage).not.toHaveBeenCalled();
+    expect(app.trackAdClick).toHaveBeenCalledWith("watchparty", "watch-party-bg");
+
+    const emptyCase = runHomeDashboardModule({
+      apiService: {
+        getWatchPartyBg: () => ({ id: "watch-party-bg", status: "active", linkType: "url", linkUrl: "" }),
+      },
+    });
+
+    await emptyCase.app.openHomeWatchParty();
+
+    expect(emptyCase.app.showToast).toHaveBeenCalled();
+    expect(emptyCase.app.trackAdClick).toHaveBeenCalledWith("watchparty", "watch-party-bg");
   });
 });

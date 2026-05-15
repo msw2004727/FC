@@ -151,6 +151,25 @@ Last reviewed: 2026-05-15
 2. 已覆蓋首頁資料分區、運動頁籤、重點聯賽、detail cache key、台灣日期、中文詞庫狀態與 AI 維護流程。
 3. UI E2E 暫不補是刻意決策，不屬漏測；原因是目前沒有 scoreboard UI source，測試應避免幻想式 selectors。
 
+## 2026-05-15 Phase 8 實作紀錄
+
+本階段已補首頁 banner / 廣告管理 / 觀賽聚會 / 找活動入口的自動化測試，重點放在近期 UI 改版最容易回歸的固定 overlay、右下 dots、查詢帶參數、觀賽聚會設定與隱藏邏輯。
+
+實作項目：
+1. `banner-carousel.test.js` 補固定 overlay 只渲染一次、插在 dots 前方、切換輪播不跟著換文字、非首圖不留 loading、首圖 high priority / 其他 low priority。
+2. `home-dashboard-render.test.js` 補找活動彈窗送出後會帶地區、運動、活動類型到活動頁；補觀賽聚會外部網址與空網址 toast。
+3. `home-banner.spec.js` 新增 E2E，desktop/mobile 都驗證首頁 banner 固定 CTA overlay 與找活動彈窗流程。
+4. `ad-manage.test.js` 既有測試已覆蓋 banner/觀賽聚會/即時資訊編輯欄位與比例，本階段以 targeted run 納入驗收。
+
+驗收指令：
+1. `npm run test:unit -- --runTestsByPath tests/unit/ad-manage.test.js tests/unit/banner-carousel.test.js tests/unit/home-dashboard-render.test.js`
+2. `BASE_URL=http://127.0.0.1:3000 npx playwright test tests/e2e/home-banner.spec.js --project=chromium-desktop --project=chromium-mobile --workers=1`
+
+審計結論：
+1. E2E 使用 test harness 與本地靜態 server，不讀正式 Firebase/LINE。
+2. 已覆蓋 mobile/desktop 的 banner overlay、dots、找活動 modal 與活動頁 filter 狀態。
+3. 沒新增 screenshot snapshot，避免版面小改造成大量無意義更新；本階段用 DOM 狀態、class、filter 值與頁面可見性驗收。
+
 ## 1. 目標
 
 本計劃的目標不是追求測試數量，而是建立能實際攔住回歸 bug 的自動化測試防線。

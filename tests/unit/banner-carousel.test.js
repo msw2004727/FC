@@ -22,6 +22,8 @@ describe('home banner carousel image loading', () => {
     createdImages = [];
     class MockImage {
       constructor() {
+        this.fetchPriority = '';
+        this.decoding = '';
         createdImages.push(this);
       }
 
@@ -51,9 +53,9 @@ describe('home banner carousel image loading', () => {
       .replace(/'/g, '&#39;');
     global.ApiService = {
       getBanners: () => [
-        { id: 'ban1', status: 'active', image: 'https://cdn.test/one.jpg', slot: 1 },
-        { id: 'ban2', status: 'active', image: 'https://cdn.test/two.jpg', slot: 2 },
-        { id: 'ban3', status: 'active', image: 'https://cdn.test/three.jpg', slot: 3 },
+        { id: 'ban1', status: 'active', image: 'https://cdn.test/one.jpg', slot: 1, title: 'First banner', subtitle: 'First subtitle' },
+        { id: 'ban2', status: 'active', image: 'https://cdn.test/two.jpg', slot: 2, title: 'Second banner', subtitle: 'Second subtitle' },
+        { id: 'ban3', status: 'active', image: 'https://cdn.test/three.jpg', slot: 3, title: 'Third banner', subtitle: 'Third subtitle' },
       ],
     };
     global.App = {
@@ -88,6 +90,7 @@ describe('home banner carousel image loading', () => {
     expect(document.querySelector('.banner-fixed-content')).not.toBeNull();
     expect(document.querySelectorAll('.banner-slide .banner-content')).toHaveLength(0);
     expect(createdImages).toHaveLength(3);
+    expect(createdImages.map(img => img.fetchPriority)).toEqual(['high', 'low', 'low']);
     expect(createdImages.some(img => img.loading === 'lazy')).toBe(false);
 
     App.goToBanner(1);
@@ -95,5 +98,34 @@ describe('home banner carousel image loading', () => {
 
     expect(slides[1].classList.contains('banner-slide--loading')).toBe(false);
     expect(slides[1].style.backgroundImage).toContain('two.jpg');
+  });
+
+  test('fixed overlay is rendered once before dots and does not follow slide content', () => {
+    App.renderBannerCarousel({ autoplay: false });
+
+    const carousel = document.querySelector('.banner-carousel');
+    const fixed = document.querySelector('.banner-fixed-content');
+    const dots = document.getElementById('banner-dots');
+
+    expect(document.querySelectorAll('.banner-fixed-content')).toHaveLength(1);
+    expect(Array.from(carousel.children).indexOf(fixed)).toBeLessThan(Array.from(carousel.children).indexOf(dots));
+    expect(fixed.textContent).toContain('First banner');
+    expect(fixed.textContent).toContain('First subtitle');
+    expect(document.querySelectorAll('.banner-slide .banner-content')).toHaveLength(0);
+
+    App.goToBanner(2);
+
+    expect(document.querySelectorAll('.banner-fixed-content')).toHaveLength(1);
+    expect(fixed.textContent).toContain('First banner');
+    expect(fixed.textContent).not.toContain('Third banner');
+    expect(document.querySelectorAll('.banner-dot')[2].classList.contains('active')).toBe(true);
+  });
+
+  test('rerendering with the same data refreshes fixed overlay without duplicating it', () => {
+    App.renderBannerCarousel({ autoplay: false });
+    App.renderBannerCarousel({ autoplay: false });
+
+    expect(document.querySelectorAll('.banner-fixed-content')).toHaveLength(1);
+    expect(document.querySelectorAll('.banner-dot')).toHaveLength(3);
   });
 });
