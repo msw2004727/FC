@@ -36,12 +36,14 @@ describe('activity detail comments source contracts', () => {
     expect(comments).toContain('_mapEventCommentLikeDoc');
     expect(comments).toContain('_renderEventCommentLikeAvatars');
     expect(comments).toContain('comment.likers');
-    expect(actions).toContain('authorName: author.authorName');
-    expect(actions).toContain("authorPhoto: author.authorPhoto || ''");
+    expect(actions).toContain('_setEventCommentLikeDoc');
+    expect(actions).toContain('_isEventCommentPermissionDenied');
+    expect(actions).toContain("authorPhoto: String(author.authorPhoto || '').trim().slice(0, 1200)");
+    expect(actions).toContain('existing?.exists');
     expect(actions).toContain('_setEventCommentLikeButtonState(btn, nextLiked, nextCount)');
     expect(actions).toContain('_setEventCommentLikeButtonState(btn, wasLiked, oldCount)');
     expect(actions.indexOf('_setEventCommentLikeButtonState(btn, nextLiked, nextCount)'))
-      .toBeLessThan(actions.indexOf("await likeRef.set"));
+      .toBeLessThan(actions.indexOf('await this._setEventCommentLikeDoc'));
     expect(css).toContain('.event-comment-avatar');
     expect(css).toContain('.event-comment-like-avatars');
     expect(css).toContain('.event-comment-like-avatar');

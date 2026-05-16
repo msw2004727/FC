@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-16 Activity comment likes and waitlist detail visibility [bug]
+- **Problem**: Activity detail comments could be pushed out of sight when a waitlist section was present. The new like-avatar snapshot write also failed against older deployed Firestore rules or when a stale UI attempted to `set()` an already-existing like document.
+- **Fix**: Render the comments placeholder before the waitlist container so the message board section is always visible. Like writes now try the snapshot payload first, fall back to the legacy payload on permission-denied, and treat an already-existing like doc as success.
+- **Deploy note**: Firestore rules must be deployed with the frontend when like document fields change; otherwise the frontend fallback protects users but liker avatars only appear for snapshot-capable writes.
+
 ### 2026-05-16 Ops LTV report path cleanup [ops/docs]
 - **Problem**: `ops.toosterx.com` was prepared as a possible subdomain entry, but it is not usable in the current domain/LIFF setup and should not remain as a supported route.
 - **Fix**: Removed the Worker host-based subdomain routing and the root route include. The temporary operations report now only supports `https://toosterx.com/ops-report` and `/ops-report.html`.

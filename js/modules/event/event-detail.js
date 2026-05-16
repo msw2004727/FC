@@ -667,8 +667,13 @@ Object.assign(App, {
       <div class="detail-section" id="detail-unreg-section" style="display:none">
         <div id="detail-unreg-table"></div>
       </div>
+      <div id="detail-comments-container">
+        <div class="detail-section event-comments-section">
+          <div class="detail-section-title">\u7559\u8a00</div>
+          <div class="reg-loading">\u7559\u8a00\u8f09\u5165\u4e2d...</div>
+        </div>
+      </div>
       <div id="detail-waitlist-container"></div>
-      <div id="detail-comments-container"></div>
     `;
     // ── 防跳頂：解鎖高度 + 多重 scroll 恢復 ──
     // 內容已填入，解鎖 minHeight

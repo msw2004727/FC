@@ -131,6 +131,35 @@ Object.assign(App, {
     if (span) span.textContent = '+' + Math.max(0, count);
   },
 
+  _isEventCommentPermissionDenied(err) {
+    const code = String(err?.code || '').toLowerCase();
+    const msg = String(err?.message || '').toLowerCase();
+    return code === 'permission-denied' || msg.includes('permission') || msg.includes('insufficient');
+  },
+
+  async _setEventCommentLikeDoc(likeRef, eventId, commentId, author) {
+    const base = {
+      eventId,
+      commentId,
+      uid: author.uid,
+    };
+    const snapshotPayload = {
+      ...base,
+      authorName: String(author.authorName || '用戶').trim().slice(0, 80) || '用戶',
+      authorPhoto: String(author.authorPhoto || '').trim().slice(0, 1200),
+      createdAt: this._eventCommentServerTimestamp(),
+    };
+    try {
+      await likeRef.set(snapshotPayload);
+    } catch (err) {
+      if (!this._isEventCommentPermissionDenied(err)) throw err;
+      await likeRef.set({
+        ...base,
+        createdAt: this._eventCommentServerTimestamp(),
+      });
+    }
+  },
+
   async _toggleEventCommentLike(eventId, commentId) {
     const author = this._requireEventCommentUser();
     if (!author) return;
@@ -146,22 +175,20 @@ Object.assign(App, {
     const nextCount = oldCount + (nextLiked ? 1 : -1);
     this._setEventCommentLikeButtonState(btn, nextLiked, nextCount);
     this._eventCommentLikeBusy.add(key);
+    let likeRef = null;
     try {
       const { commentRef, eventRecord } = await this._getEventCommentRefs(eventId, commentId);
-      const likeRef = commentRef.collection('likes').doc(author.uid);
+      likeRef = commentRef.collection('likes').doc(author.uid);
       if (nextLiked) {
-        await likeRef.set({
-          eventId: eventRecord?.id || eventId,
-          commentId,
-          uid: author.uid,
-          authorName: author.authorName,
-          authorPhoto: author.authorPhoto || '',
-          createdAt: this._eventCommentServerTimestamp(),
-        });
+        await this._setEventCommentLikeDoc(likeRef, eventRecord?.id || eventId, commentId, author);
       } else {
         await likeRef.delete();
       }
     } catch (err) {
+      if (nextLiked && likeRef && this._isEventCommentPermissionDenied(err)) {
+        const existing = await likeRef.get().catch(() => null);
+        if (existing?.exists) return;
+      }
       console.error('[event-comments] like failed', err);
       this._setEventCommentLikeButtonState(btn, wasLiked, oldCount);
       this.showToast?.('按讚更新失敗，請稍後再試');

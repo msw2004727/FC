@@ -111,10 +111,10 @@ Object.assign(App, {
   _mapEventCommentLikeDoc(docSnap) {
     const data = docSnap.data() || {};
     const uid = String(data.uid || docSnap.id || '').trim();
-    const authorName = String(data.authorName || data.displayName || data.name || uid || '?冽').trim();
+    const authorName = String(data.authorName || data.displayName || data.name || uid || '用戶').trim();
     return {
       uid,
-      authorName: authorName || '?冽',
+      authorName: authorName || '用戶',
       authorPhoto: String(data.authorPhoto || data.pictureUrl || data.photoURL || '').trim(),
       createdAt: data.createdAt || null,
     };
@@ -207,7 +207,7 @@ Object.assign(App, {
     const stackWidth = 24 + Math.max(0, likers.length - 1) * step;
     const countLabel = comment.likeCount || likers.length;
     const avatars = likers.map((liker, index) => {
-      const safeName = escapeHTML(liker.authorName || '?冽');
+      const safeName = escapeHTML(liker.authorName || '用戶');
       const safePhoto = String(liker.authorPhoto || '').trim();
       const initial = escapeHTML(String(liker.authorName || '?').trim().charAt(0) || '?');
       const style = `--i:${index};z-index:${80 - index}`;
