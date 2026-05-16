@@ -314,7 +314,11 @@ Object.assign(App, {
 
   _tsToggleJerseyPicker(evt, regDocId, eventId) {
     this._tsCloseJerseyPicker();
-    if (!regDocId || !eventId) return;
+    if (!eventId) return;
+    if (!regDocId) {
+      this.showToast?.('\u5206\u968a\u8cc7\u6599\u5c1a\u672a\u8f09\u5165\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+      return;
+    }
     const event = ApiService.getEvent(eventId);
     if (!event?.teamSplit?.enabled) return;
     if (!this._canManageTeamSplit?.(event)) { this.showToast('\u6b0a\u9650\u4e0d\u8db3'); return; }
@@ -370,16 +374,21 @@ Object.assign(App, {
 
   async _tsPickTeam(regDocId, eventId, teamKey) {
     this._tsCloseJerseyPicker();
-    if (!regDocId) return;
+    if (!regDocId || !eventId) {
+      this.showToast?.('\u5206\u968a\u8cc7\u6599\u5c1a\u672a\u8f09\u5165\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+      return;
+    }
     const event = ApiService.getEvent(eventId);
     if (!this._canManageTeamSplit?.(event)) { this.showToast('\u6b0a\u9650\u4e0d\u8db3'); return; }
     const newKey = teamKey || null;
     try {
+      const regs = ApiService.getRegistrationsByEvent?.(eventId) || [];
+      const targetReg = regs.find(r => r?._docId === regDocId || r?.id === regDocId);
+      const targetDocId = targetReg?._docId || regDocId;
       var _dwDocId = await FirebaseService._getEventDocIdAsync(eventId);
       if (!_dwDocId) { console.error('[_tsPickTeam] missing eventDocId for:', eventId); throw new Error('eventDocId missing'); }
-      await db.collection('events').doc(_dwDocId).collection('registrations').doc(regDocId).update({ teamKey: newKey });
-      const regs = ApiService.getRegistrationsByEvent?.(eventId) || [];
-      const reg = regs.find(r => (r._docId || r.id) === regDocId);
+      await db.collection('events').doc(_dwDocId).collection('registrations').doc(targetDocId).update({ teamKey: newKey });
+      const reg = regs.find(r => r?._docId === targetDocId || r?.id === regDocId);
       if (reg) reg.teamKey = newKey;
       this._saveToLS?.('registrations', FirebaseService?._cache?.registrations);
       this._renderAttendanceTable?.(eventId, 'detail-attendance-table');

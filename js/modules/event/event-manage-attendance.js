@@ -364,6 +364,7 @@ Object.assign(App, {
 
     // 分隊活動：依球衣顏色排序（toggle）
     const _tsEnabled = e.teamSplit?.enabled && Array.isArray(e.teamSplit.teams) && e.teamSplit.teams.length > 0;
+    const canPickTeam = _tsEnabled && !tableEditing && this._canManageTeamSplit?.(e) === true;
     if (_tsEnabled && this._attendanceSortByTeam) {
       const teamOrder = {};
       e.teamSplit.teams.forEach((t, i) => { teamOrder[t.key] = i; });
@@ -459,18 +460,22 @@ Object.assign(App, {
       const _recentNS = (lastNoShowSet && !isProxyOnly && !p.isCompanion && !p.isTeamPlaceholder && p.uid)
         ? lastNoShowSet.has(String(p.uid).trim())
         : false;
+      const _canRenderTeamPicker = !!(_tsTeams && p.regDocId && !isProxyOnly && !p.isTeamPlaceholder);
       const _tagOpts = _tsTeams
-        ? { uid: p.uid, teamKey: _safeTeamKey, teams: _tsTeams, showEmptyJersey: e.teamSplit?.enabled, canPickTeam: canManage && !tableEditing, regDocId: p.regDocId, eventId: eventId, attendanceFill: _attFill, recentNoShow: _recentNS }
+        ? { uid: p.uid, teamKey: _safeTeamKey, teams: _tsTeams, showEmptyJersey: e.teamSplit?.enabled, canPickTeam: canPickTeam && !!p.regDocId, regDocId: p.regDocId, eventId: eventId, attendanceFill: _attFill, recentNoShow: _recentNS }
         : { uid: p.uid, attendanceFill: _attFill, recentNoShow: _recentNS };
 
       let nameInner;
       if (isProxyOnly) {
         nameInner = `<span class="reg-name-text" style="color:var(--text-muted);font-weight:600">${escapeHTML(p.displayName)}</span>`;
       } else if (p.isCompanion) {
-        nameInner = `<span class="reg-name-text" style="padding-left:1.2rem;color:var(--text-secondary)">↳ ${escapeHTML(p.displayName)}</span>`;
+        const companionName = _canRenderTeamPicker
+          ? this._userTag(p.displayName, null, _tagOpts)
+          : escapeHTML(p.displayName);
+        nameInner = `<span class="reg-name-text" style="padding-left:1.2rem;color:var(--text-secondary)">↳ ${companionName}</span>`;
       } else if (p.isTeamPlaceholder) {
         nameInner = `<span class="reg-name-text team-reservation-placeholder-name">${escapeHTML(p.displayName)}</span>`;
-      } else if (p.hasSelfReg) {
+      } else if (p.hasSelfReg || _canRenderTeamPicker) {
         nameInner = `<span class="reg-name-text">${this._userTag(p.displayName, null, _tagOpts)}</span>`;
       } else {
         nameInner = `<span class="reg-name-text">${escapeHTML(p.displayName)}</span>`;

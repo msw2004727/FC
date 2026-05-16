@@ -236,6 +236,68 @@ describe('_buildConfirmedParticipantSummary', () => {
     expect(summary.people.map(p => p.name)).toEqual(['Owner Only', 'Guest A', 'Guest B']);
   });
 
+  test('backfills team split doc ids when projected fallback rows are used', () => {
+    const event = {
+      id: 'evt-team-split-fallback',
+      current: 2,
+      realCurrent: 2,
+      max: 10,
+      participants: ['Owner', 'Guest'],
+      participantsWithUid: [
+        { uid: 'owner_uid', name: 'Owner' },
+        { uid: 'guest_uid', name: 'Guest' },
+      ],
+      teamSplit: {
+        enabled: true,
+        teams: [
+          { key: 'A', name: 'A Team' },
+          { key: 'B', name: 'B Team' },
+        ],
+      },
+      teamReservationSummaries: [],
+    };
+    const registrations = [
+      {
+        _docId: 'reg-owner-doc',
+        eventId: 'evt-team-split-fallback',
+        userId: 'owner_uid',
+        userName: 'Owner',
+        participantType: 'self',
+        status: 'confirmed',
+        teamKey: 'A',
+      },
+      {
+        _docId: 'reg-guest-doc',
+        eventId: 'evt-team-split-fallback',
+        userId: 'owner_uid',
+        userName: 'Owner',
+        participantType: 'companion',
+        companionId: 'guest_uid',
+        companionName: 'Guest',
+        status: 'confirmed',
+        teamKey: 'B',
+      },
+    ];
+    const app = loadEventNoshowModule({
+      event,
+      registrations,
+      hasRealtimeState: true,
+      serverSnapshot: true,
+      eventFetchServer: false,
+    });
+
+    const summary = app._buildConfirmedParticipantSummary('evt-team-split-fallback');
+
+    expect(summary.people.find(p => p.uid === 'owner_uid')).toMatchObject({
+      regDocId: 'reg-owner-doc',
+      teamKey: 'A',
+    });
+    expect(summary.people.find(p => p.uid === 'guest_uid')).toMatchObject({
+      regDocId: 'reg-guest-doc',
+      teamKey: 'B',
+    });
+  });
+
   test('no-show helpers return empty values while feature flag is disabled', () => {
     const event = { id: 'evt3', current: 0, realCurrent: 0, max: 10, teamReservationSummaries: [] };
     const app = loadEventNoshowModule({ event, registrations: [], noShowFeatureEnabled: false });

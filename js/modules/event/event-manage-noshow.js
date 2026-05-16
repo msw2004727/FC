@@ -15,7 +15,7 @@ Object.assign(App, {
     const e = ApiService.getEvent(eventId);
     if (!e) return { people: [], count: 0 };
 
-    const cachedActiveRegs = ApiService.getRegistrationsByEvent(eventId);
+    const cachedActiveRegs = ApiService.getRegistrationsByEvent(eventId) || [];
     const serverFetchedIds = (typeof ApiService !== 'undefined')
       ? ApiService._fetchedRegistrationServerIds
       : null;
@@ -111,19 +111,53 @@ Object.assign(App, {
     const expectedLen = Number(e.realCurrent || 0) || (Number(e.current || 0) - (Array.isArray(e.teamReservationSummaries) ? e.teamReservationSummaries.reduce((sum, s) => sum + Math.max(0, Number(s.remainingSlots || 0) || 0), 0) : 0));
     const wuValid = wu.length > 0 && wu.length === expectedLen;
     const useProjectedFallbackPeople = !canUseRegistrationRows || confirmedRegs.length === 0;
+    const cachedConfirmedRegs = (Array.isArray(cachedActiveRegs) ? cachedActiveRegs : [])
+      .filter(r => String(r?.status || 'confirmed').toLowerCase() === 'confirmed');
+    const _projectionUidForReg = (reg) => {
+      if (!reg) return '';
+      const isCompanion = reg.participantType === 'companion' || !!reg.companionId;
+      if (isCompanion) {
+        const ownerUid = String(reg.userId || reg.uid || '').trim();
+        const companionName = String(reg.companionName || reg.userName || reg.name || '').trim();
+        return String(reg.companionId || (ownerUid && companionName ? `${ownerUid}_${companionName}` : '')).trim();
+      }
+      return String(reg.userId || reg.uid || '').trim();
+    };
+    const _projectionNameForReg = (reg) => {
+      if (!reg) return '';
+      const isCompanion = reg.participantType === 'companion' || !!reg.companionId;
+      return String(isCompanion ? (reg.companionName || reg.userName || reg.name || '') : (reg.userName || reg.name || '')).trim();
+    };
+    const _lookupProjectedRegistration = (entry) => {
+      if (!entry) return null;
+      const uid = String(entry.uid || '').trim();
+      const name = String(entry.name || entry.displayName || '').trim();
+      if (uid) {
+        const uidMatches = cachedConfirmedRegs.filter(r => _projectionUidForReg(r) === uid);
+        if (uidMatches.length === 1) return uidMatches[0];
+      }
+      if (name) {
+        const nameMatches = cachedConfirmedRegs.filter(r => _projectionNameForReg(r) === name);
+        if (nameMatches.length === 1) return nameMatches[0];
+      }
+      return null;
+    };
 
     if (useProjectedFallbackPeople && wuValid) {
       // 新路徑：直接用 participantsWithUid 的真 UID（消除同暱稱挑錯問題）
       wu.forEach(function (entry) {
         if (!entry || !entry.uid || !entry.name) return;
         if (addedUids.has(entry.uid) || addedNames.has(entry.name)) return;
+        const matchedReg = _lookupProjectedRegistration(entry);
         people.push({
           name: entry.name, uid: entry.uid, isCompanion: false, displayName: entry.name,
           hasSelfReg: true, proxyOnly: false, uidResolved: true,
-          teamKey: entry.teamKey || null, displayBadges: badgeCache[entry.uid] || [],
-          teamReservationTeamId: entry.teamReservationTeamId || null,
-          teamReservationTeamName: entry.teamReservationTeamName || null,
-          teamSeatSource: entry.teamSeatSource || null,
+          teamKey: entry.teamKey || matchedReg?.teamKey || null,
+          regDocId: matchedReg?._docId || null,
+          displayBadges: badgeCache[entry.uid] || matchedReg?.displayBadges || [],
+          teamReservationTeamId: entry.teamReservationTeamId || matchedReg?.teamReservationTeamId || null,
+          teamReservationTeamName: entry.teamReservationTeamName || matchedReg?.teamReservationTeamName || null,
+          teamSeatSource: entry.teamSeatSource || matchedReg?.teamSeatSource || null,
         });
         addedUids.add(entry.uid);
         addedNames.add(entry.name);
@@ -143,7 +177,17 @@ Object.assign(App, {
         const resolvedUid = (userDoc && (userDoc.uid || userDoc.lineUserId)) || p;
         if (addedUids.has(resolvedUid)) return;
         const uidResolved = resolvedUid !== p;
-        people.push({ name: p, uid: resolvedUid, isCompanion: false, displayName: p, hasSelfReg: true, proxyOnly: false, uidResolved, displayBadges: badgeCache[resolvedUid] || [] });
+        const matchedReg = _lookupProjectedRegistration({ uid: resolvedUid, name: p });
+        people.push({
+          name: p, uid: resolvedUid, isCompanion: false, displayName: p,
+          hasSelfReg: true, proxyOnly: false, uidResolved,
+          teamKey: matchedReg?.teamKey || null,
+          regDocId: matchedReg?._docId || null,
+          displayBadges: badgeCache[resolvedUid] || matchedReg?.displayBadges || [],
+          teamReservationTeamId: matchedReg?.teamReservationTeamId || null,
+          teamReservationTeamName: matchedReg?.teamReservationTeamName || null,
+          teamSeatSource: matchedReg?.teamSeatSource || null,
+        });
         addedUids.add(resolvedUid);
         addedNames.add(p);
       });

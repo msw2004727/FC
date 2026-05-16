@@ -436,6 +436,10 @@ describe('Team reservation button loading contract', () => {
     expect(attendanceSource).toContain('team-reservation-general-row');
     expect(attendanceSource).toContain('team-reservation-placeholder-row');
     expect(attendanceSource).toContain('team-reservation-placeholder-name');
+    expect(attendanceSource).toContain('const canPickTeam = _tsEnabled && !tableEditing && this._canManageTeamSplit?.(e) === true');
+    expect(attendanceSource).toContain('const _canRenderTeamPicker = !!(_tsTeams && p.regDocId');
+    expect(attendanceSource).toContain('canPickTeam: canPickTeam && !!p.regDocId');
+    expect(attendanceSource).toContain('p.hasSelfReg || _canRenderTeamPicker');
     expect(attendanceSource).toContain('loading="lazy"');
     expect(attendanceSource).not.toContain("document.createTextNode('🚩')");
     expect(attendanceSource).not.toContain('background:#f8fbff');
