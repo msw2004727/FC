@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260516e';
+const CACHE_VERSION = '0.20260516f';
 
 // Temporary feature switch: no-show is paused and hidden, but historical data remains intact.
 const NO_SHOW_FEATURE_ENABLED = true;
@@ -103,8 +103,8 @@ const PERFORMANCE_FLAGS = {
 const PERFORMANCE_LIMITS = {
   idlePreloadDelayMs: 900,
   idlePreloadGapMs: 450,
-  visibleCardPrefetchDelayMs: 650,
-  visibleCardPrefetchLimit: 8,
+  visibleCardPrefetchDelayMs: 250,
+  visibleCardPrefetchLimit: 10,
   publicBootSnapshotMaxAgeMs: 30 * 60 * 1000,
 };
 

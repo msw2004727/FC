@@ -307,6 +307,20 @@ describe('Team reservation button loading contract', () => {
     expect(firebaseSource).toContain("'page-activity-detail':   ['events', 'teams', 'registrations'");
   });
 
+  test('activity detail shows the fast shell before heavier team and roster hydration', () => {
+    const detailSource = readProjectFile('js/modules/event/event-detail.js');
+    const shellCall = detailSource.indexOf('_showFastEventDetailShellNow?.(id, options)');
+    const staffHydrate = detailSource.indexOf('await this._ensureTeamReservationStaffTeamsLoaded()');
+    const rosterRender = detailSource.indexOf("await this._renderAttendanceTable(id, 'detail-attendance-table')");
+
+    expect(shellCall).toBeGreaterThan(-1);
+    expect(staffHydrate).toBeGreaterThan(-1);
+    expect(rosterRender).toBeGreaterThan(-1);
+    expect(shellCall).toBeLessThan(staffHydrate);
+    expect(shellCall).toBeLessThan(rosterRender);
+    expect(detailSource).toContain('_warmEventDetailFreshData?.(id)');
+  });
+
   test('team reservation modal does not close from backdrop clicks', () => {
     const signupSource = readProjectFile('js/modules/event/event-detail-signup.js');
 

@@ -21,6 +21,62 @@ Object.assign(App, {
     return Object.values(nodes).every(Boolean) ? nodes : null;
   },
 
+  _showFastEventDetailShellNow(id, options = {}) {
+    if (!this._getPerformanceFlag?.('fastShellNavigation', true)) return false;
+    if (!id || !document.getElementById('page-activity-detail')) return false;
+    if (this.currentPage === 'page-activity-detail' && this._currentDetailEventId === id) return false;
+
+    try {
+      if (typeof this._renderFastEventDetailShell === 'function') {
+        this._renderFastEventDetailShell(id);
+      } else {
+        this._currentDetailEventId = id;
+      }
+
+      this._cleanupBeforePageSwitch?.('page-activity-detail');
+      this._pushPageHistory?.('page-activity-detail', options || {});
+      const activated = this._activatePage?.('page-activity-detail', {
+        ...(options || {}),
+        render: false,
+        suppressHashSync: true,
+      });
+      if (!activated) return false;
+
+      if (!options?.suppressHashSync && typeof this._setRouteUrl === 'function') {
+        this._setRouteUrl({ pageId: 'page-activity-detail', id }, {
+          mode: this._hasLegacyRouteSignal?.() ? 'replace' : undefined,
+        });
+      }
+      return true;
+    } catch (err) {
+      console.warn('[EventDetail] fast shell activation failed:', err);
+      return false;
+    }
+  },
+
+  _warmEventDetailFreshData(id) {
+    if (!id) return;
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.prefetchDocs === 'function') {
+      FirebaseService.prefetchDocs('events', [id], { limit: 1, force: true })
+        .then((loaded) => {
+          if (!loaded?.length) return;
+          if (this.currentPage !== 'page-activity-detail' || this._currentDetailEventId !== id) return;
+          this._currentDetailEventRecord = ApiService.getEvent?.(id) || this._currentDetailEventRecord;
+          this._patchDetailCount?.(id);
+        })
+        .catch(err => console.warn('[EventDetail] event detail prefetch failed:', err));
+    }
+    if (typeof ApiService !== 'undefined' && typeof ApiService.fetchRegistrationsIfMissing === 'function') {
+      ApiService.fetchRegistrationsIfMissing(id)
+        .then(() => {
+          if (this.currentPage !== 'page-activity-detail' || this._currentDetailEventId !== id) return;
+          this._patchDetailTables?.(id);
+          this._refreshSignupButton?.(id);
+        })
+        .catch(err => console.warn('[EventDetail] registration prefetch failed:', err));
+    }
+  },
+
   _renderEventPublicToggle(e) {
     const wrap = document.getElementById('detail-public-toggle-wrap');
     if (!wrap) return;
@@ -312,9 +368,19 @@ Object.assign(App, {
         }
       }
       e = this._syncEventEffectiveStatus?.(e) || e;
+      const _shellShownEarly = !_isSameEventRerender
+        && this.currentPage !== 'page-activity-detail'
+        && this._showFastEventDetailShellNow?.(id, options);
+      if (_shellShownEarly) {
+        this._warmEventDetailFreshData?.(id);
+      }
+      if (_shellShownEarly && (requestSeq !== this._eventDetailRequestSeq || this.currentPage !== 'page-activity-detail')) {
+        return { ok: false, reason: 'stale' };
+      }
       if (!isGuestView && typeof this._ensureTeamReservationStaffTeamsLoaded === 'function') {
         await this._ensureTeamReservationStaffTeamsLoaded();
-        if (requestSeq !== this._eventDetailRequestSeq) {
+        if (requestSeq !== this._eventDetailRequestSeq
+          || (_shellShownEarly && this.currentPage !== 'page-activity-detail')) {
           return { ok: false, reason: 'stale' };
         }
         e = ApiService.getEvent(id);

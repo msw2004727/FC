@@ -1146,6 +1146,11 @@ const ApiService = {
     var cached = this.getRegistrationsByEvent(eventId);
     var ev = this._findById('events', eventId);
     const force = options === true || options?.force === true;
+    this._fetchingRegistrationPromises = this._fetchingRegistrationPromises || {};
+    const inflightKey = String(eventId);
+    if (!force && this._fetchingRegistrationPromises[inflightKey]) {
+      return this._fetchingRegistrationPromises[inflightKey];
+    }
     if (!force && this._fetchedRegistrationIds.has(eventId)) {
       if (cached.length > 0 && this._registrationCacheCompleteForEvent(ev, cached)) return;
       this._fetchedRegistrationIds.delete(eventId);
@@ -1162,7 +1167,7 @@ const ApiService = {
       if (ev) console.warn('[fetchRegistrationsIfMissing] missing _docId:', eventId);
       return;
     }
-    try {
+    const loadPromise = (async () => {
       var snap = await db.collection('events').doc(ev._docId)
         .collection('registrations').get();
       var fromCache = snap?.metadata?.fromCache === true;
@@ -1176,10 +1181,18 @@ const ApiService = {
         this._fetchedRegistrationIds.add(eventId);
         this._fetchedRegistrationServerIds.add(eventId);
       }
+    })();
+    if (!force) this._fetchingRegistrationPromises[inflightKey] = loadPromise;
+    try {
+      await loadPromise;
     } catch (err) {
       console.warn('[fetchRegistrationsIfMissing]', err);
       if (err && (err.code === 'permission-denied' || err.code === 'unauthenticated')) {
         this._fetchedRegistrationIds.add(eventId);
+      }
+    } finally {
+      if (this._fetchingRegistrationPromises[inflightKey] === loadPromise) {
+        delete this._fetchingRegistrationPromises[inflightKey];
       }
     }
   },
