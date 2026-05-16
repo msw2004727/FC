@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-16 Activity cache and load-order docs refresh [docs]
+- **Problem**: Activity cache/display rules, detail-page load order, terminal history limits, and comment like-avatar constraints were split across implementation notes, with architecture docs still referencing an older cache version.
+- **Fix**: Updated `docs/architecture.md` and `docs/tunables.md` to record the current activity cache windows, admin/user cache differences, list/detail/comment load order, terminal preview/history limits, comment/reply/like fetch caps, and like-avatar overlap behavior.
+- **Deploy note**: Documentation-only change; no `CACHE_VERSION` bump or Firebase rules/functions deploy required. Frontend deployment is still handled by pushing the docs commit to `main`.
+
 ### 2026-05-16 Activity comment like avatars follow-up [bug]
 - **Problem**: Comment like avatars were only available after the whole comment board reloaded, so a successful like updated the count but did not render the current user's avatar in-place. The previous waitlist visibility fix also placed comments above waitlist, but the desired order is comments last.
 - **Fix**: Keep the waitlist before the comments mount point and sync the clicked comment card's avatar stack after like/unlike success, preserving existing liker avatars from the DOM.

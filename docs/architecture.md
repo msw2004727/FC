@@ -38,7 +38,7 @@ ToosterX 是一個 LINE LIFF + Firebase 的 buildless Vanilla JS SPA。前端由
 | 驗證 | LINE LIFF profile + Firebase Custom Token |
 | 佈署 | 前端 push `main` 後由 Cloudflare Pages / GitHub Pages 發佈；functions/rules 需 Firebase deploy |
 | 測試 | Jest unit、Firestore rules emulator、Playwright e2e smoke |
-| 目前快取版本 | `0.20260516` |
+| 目前快取版本 | `0.20260516k` |
 
 ---
 
@@ -147,7 +147,7 @@ sequenceDiagram
 - `PageLoader._deferredPages`：`scan`、`shop`、admin 系列、`personal-dashboard`、`game`、`kickball`、`education` 等。
 - deep link 會讓 `PageLoader` 優先載入目標頁片段，例如活動、俱樂部、賽事。
 - `ScriptLoader._pageGroups` 把 page id 對應到模組群組，避免所有功能一次載完。
-- `Service Worker` 與 `?v=0.20260516` 控制前端快取更新。
+- `Service Worker` 與目前 `CACHE_VERSION`（現行 `0.20260516k`）控制前端快取更新。
 
 ---
 
@@ -280,6 +280,8 @@ sequenceDiagram
 | `events/{eventDocId}/attendanceRecords/{recId}` | 簽到/簽退 | 現行權威簽到資料 |
 | `events/{eventDocId}/activityRecords/{recId}` | 個人活動紀錄 | 個人報名紀錄來源，透過即時寫入 + 修復保持一致 |
 | `events/{eventDocId}/comments/{commentId}` | 活動留言 | 活動詳情留言來源；支援公開/私密、回覆、按讚、鎖回覆與軟刪除 |
+| `events/{eventDocId}/comments/{commentId}/replies/{replyId}` | 活動留言回覆 | 留言板回覆資料，隨留言板載入，不進活動列表快取 |
+| `events/{eventDocId}/comments/{commentId}/likes/{uid}` | 活動留言按讚 | 每位使用者一筆 like doc，保存 liker 顯示名稱與頭像 snapshot |
 | `events/{eventDocId}/registrationLocks/{lockId}` | 報名防重鎖 | 防止同一 UID/同行者/活動重複佔位 |
 | `events/{eventDocId}/teamReservations/{teamId}` | 俱樂部團隊席位鏡像 | 由 Cloud Function 寫入，前端唯讀 |
 | `teams/{teamId}` | 俱樂部 | 成員、職員、運動標籤、圖片 variants、動態 |
@@ -476,6 +478,17 @@ current = realCurrent + sum(remainingSlots)
 - 前台活動頁已移除「已結束」頁籤；`event-list.js` 以 `_hiddenActivityTabs = ['ended']` 把舊 hash/state 正規化回 `normal`，避免舊連結進入不存在的前台 tab。
 - 結束與手動取消活動共用 `event-list-stats.js` 的 6 小時延遲規則：活動結束時間 + 6 小時內仍顯示在「報名中」，之後才進 terminal 集合；前台不提供 terminal tab。
 - `FirebaseService._loadEventsStatic({ terminalMode })` 分離 active 與 terminal slices。前台使用 `preview` 模式只載最近 50 筆 terminal 活動；活動管理需要歷史時用 `ensureTerminalEventsLoaded({ mode: 'history' })` 升級到每批 10 筆並支援 `loadMoreTerminalEvents()` 分頁。
+
+### 活動快取與載入順序（現行規則）
+
+- App boot Phase 2 會先嘗試 `FirebaseService._restoreCache()`。一般 user 的可展示 localStorage cache 上限是 7 天，30 分鐘內視為 fresh；超過 30 分鐘但未超過 7 天仍可先畫面顯示並背景刷新。`admin` / `super_admin` 的可展示上限維持 60 分鐘，避免後台資料與權限設定沿用過舊快取。
+- Phase 2.5 的 `boot-public-lists-data` 只保存公開列表與詳情 shell 需要欄位，且 30 分鐘內才注入 `_cache`；它不會標記 Firestore collection 已完成載入，後續仍由 Firestore / realtime 補正。
+- 活動列表優先用可展示 cache 畫出列表；若尚無可展示活動且 `events` 尚未載入完成，才顯示 `activity-list-loading-bar`。卡片點擊時會顯示藍色 loading bar，並由可見卡片詳情預抓降低點開延遲。
+- 活動詳細頁先呈現封面、標題、主操作按鈕與按鈕以下的 loading skeleton。報名名單/未報名單/候補區依 registrations cache 與必要的 per-event fetch 補齊後局部替換，避免把整頁卡住。
+- 詳情頁 DOM 順序固定為報名資訊與操作區、簽到/報名名單、未報名單、候補名單、留言板。留言板是最後順位，會先顯示「留言載入中...」，等主詳細資訊與名單區可見後再查 comments / replies / likes。
+- 留言板不是全站 realtime cache：管理者最多讀 80 則留言；一般使用者讀公開 60 則 + 自己私密 30 則後去重，畫面最多 80 則。每則留言讀 replies 20 筆、likes 500 筆。按讚頭像最多 render 32 個 liker，超過 6 人後以 8px step 疊放，容器寬度不足時自然裁掉最舊頭像。
+- 活動列表人數統計使用 `event-list-stats.js` 的 200 筆 LRU cache；key 包含 `current` / `waitlist` / `max` / `status` 與 registrations freshness，避免 local cache 降級覆蓋 server-derived 人數。
+- 報名/候補/名額的真實來源仍是 `events/{eventDocId}/registrations/{regId}`。`events/{eventDocId}` 的 `participantsWithUid`、`waitlistWithUid`、`current` 等欄位只作顯示投影與快取加速，不可當成唯一寫入依據。
 
 ### 首頁摘要儀表
 
@@ -860,9 +873,11 @@ DATA_SYNC_SETTINGS_PASSWORD = process.env.DATA_SYNC_SETTINGS_PASSWORD || "1121"
 
 `sw.js` 現況：
 
-- `CACHE_NAME = sporthub-0.20260516`
+- `CACHE_NAME = sporthub-0.20260516k`
 - HTML：network-first。
 - JS/CSS：cache-first，靠 `?v=` cache busting。
+- `pages/*.html`、動態載入的 JS/CSS 都帶目前 `CACHE_VERSION`。
+- `/events/{id}`、`/teams/{id}`、`/tournaments/{id}` 等 SPA detail navigation 會正規化用 `/index.html` 做 navigate fallback cache，避免 clean URL refresh 讀到錯誤路徑。
 - Firebase Storage 圖片：stale-while-revalidate，獨立圖片快取。
 - 圖片快取上限：150 張。
 - 圖片過期：7 天。

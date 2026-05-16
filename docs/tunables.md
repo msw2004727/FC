@@ -3,7 +3,7 @@
 > 專案內所有可調設定（timing / limit / threshold）+ 關鍵流程的順序效果總覽。
 > **強制維護規則（CLAUDE.md §設定追蹤規範）**：修改檔案時若涉及任何可調設定 / 加載順序 / timing / 閾值，必須同步更新本檔對應條目；新增任何可調常數，必須在本檔登記。
 
-**Last Updated: 2026-05-16**（activity comment like avatar stack + detail below-fold loading）
+**Last Updated: 2026-05-16**（activity cache/load order + comment like avatar stack）
 
 ## 目錄
 
@@ -137,7 +137,12 @@
 | `MAX_IMAGE_CACHE` | `150` 張 | `sw.js:10` | Service Worker 圖片快取上限 |
 | `REALTIME_LIMIT_DEFAULTS` | 動態 (siteConfig/realtimeConfig) | `js/config.js` | 即時監聽預設 limit（events/registrations/attendanceRecords/etc，可在儀表板調整） |
 | Attendance / Registration query 預設 | `500` (典型值) | `firebase-service.js` | onSnapshot listener limit。超過 500 筆的老活動需 fallback fetch |
-| Event comment like avatar stack | `32` likers rendered per comment | `js/modules/event/event-comments.js` `_renderEventCommentLikeAvatars` | UI render cap only. The like count still uses the fetched likes collection; newest likers render first and older avatars are clipped first when horizontal space runs out. |
+| Event comments manager fetch | `80` 則留言 | `js/modules/event/event-comments.js` `_loadEventComments` | 主辦、委託、admin+ 可讀活動留言上限；留言板隨活動詳情最後載入，不進活動列表首屏。 |
+| Event comments user fetch | public `60` + own private `30`，去重後最多 `80` | `js/modules/event/event-comments.js` `_loadEventComments` | 一般 user 只讀公開留言與自己私密留言，避免每次打開活動就掃完整留言集合。 |
+| Event comment replies fetch | `20` replies / comment | `js/modules/event/event-comments.js` `_loadEventComments` | 每則留言的回覆讀取上限。若未來要展開更多回覆，應改成「查看更多」分頁，不要提高首批讀取。 |
+| Event comment likes fetch | `500` likes / comment | `js/modules/event/event-comments.js` `_loadEventComments` | 用於計算 like count 與 liker avatar stack；按讚文件保存顯示名稱與頭像 snapshot。 |
+| Event comment like avatar stack | `32` likers rendered per comment | `js/modules/event/event-comments.js` `_renderEventCommentLikeAvatars` | UI render cap only. Like count still uses fetched likes. Newest likers render first; older avatars are clipped first when horizontal space runs out. |
+| Event comment avatar overlap threshold | `> 6` 人改用 `8px` step；否則 `26px` step | `js/modules/event/event-comments.js` `_renderEventCommentLikeAvatars` / `css/activity.css` | 對應目前「新頭像蓋舊頭像約 2/3」的視覺規則；CSS 容器 `overflow:hidden` 讓寬度不足時自然隱藏最舊頭像。 |
 | Event blocklist `blockedUidsLog` | 無上限 | `firestore.rules` | 黑名單審計軌跡，建議手動清理超過 100 筆的活動 |
 | Operation log altText 截斷 | `400` 字 | `event-share*.js` | LIFF Flex Message altText 上限 |
 | Home summary Firestore REST page size | `300` 筆/頁 | `scripts/inject-hot-events.js` | GitHub Action 產生 `boot-home-summary-data` 時分頁掃描 events / teams / tournaments，避免只取前幾筆造成首頁總量不準 |
@@ -234,6 +239,17 @@
 | `adminContent` | 6 | `script-loader.js:325-332` |
 
 **新模組註冊規則**：放在對應頁面清單的合理位置（依賴前 / 同類後）；event-manage 系列放在 `event` 清單的後段。
+
+### 活動列表 / 詳情 / 留言板載入順序
+
+| 順序 | 內容 | 檔案位置 | 規則 |
+|------|------|---------|------|
+| 1 | 活動列表 shell | `page-loader.js` / `event-list-timeline.js` | `activity` page fragment 屬 boot pages；列表先用可展示 cache 畫面，沒有可展示活動且 Firestore 尚未載入完成時才顯示 `activity-list-loading-bar`。 |
+| 2 | 活動 collection | `firebase-service.js` `_loadEventsStatic` | active events 首批 `200`；terminal preview 首批 `50`，管理頁 history 模式才每批 `10` 延伸。 |
+| 3 | 卡片詳情預抓 | `navigation.js` / `firebase-service.js` | 可見卡片最多預抓 `8` 筆 detail 文件；只改善點擊速度，不取代 Firestore refresh。 |
+| 4 | 詳細頁主視覺與操作按鈕 | `event-detail.js` `showEventDetail` | 先呈現封面、標題、主操作按鈕與基本欄位；按鈕以下先放 `_renderEventDetailBelowFoldLoadingHtml()`，避免使用者誤判為沒有內容。 |
+| 5 | 報名/簽到/未報名/候補 | `event-detail.js` / `event-manage-attendance.js` | registrations cache 先用；必要時針對該活動補抓 registrations。候補區在留言板前，且候補存在時不得蓋掉留言板 mount point。 |
+| 6 | 留言板 | `event-comments.js` | 留言板固定最後載入，先顯示「留言載入中...」。comments / replies / likes 不阻塞活動主內容與報名操作。 |
 
 ---
 
