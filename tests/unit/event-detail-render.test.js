@@ -413,13 +413,21 @@ describe('Team reservation button loading contract', () => {
 
   test('team reservation marker uses club thumbnail with flag fallback', () => {
     const attendanceSource = readProjectFile('js/modules/event/event-manage-attendance.js');
+    const noShowSource = readProjectFile('js/modules/event/event-manage-noshow.js');
     const activityCss = readProjectFile('css/activity.css');
 
+    expect(noShowSource).toContain('isTeamGeneralSeparator');
+    expect(noShowSource).toContain("name: '一般報名'");
+    expect(noShowSource).toContain('!p.isTeamGeneralSeparator');
     expect(attendanceSource).toContain('_getTeamReservationMarkerImage');
     expect(attendanceSource).toContain('class="team-seat-club-marker"');
     expect(attendanceSource).toContain('class="team-seat-club-marker-img"');
     expect(attendanceSource).toContain('team-reservation-header-cell');
+    expect(attendanceSource).toContain('team-reservation-section-title');
+    expect(attendanceSource).toContain('team-reservation-section-avatar');
     expect(attendanceSource).toContain('team-reservation-summary');
+    expect(attendanceSource).toContain('team-reservation-member-row');
+    expect(attendanceSource).toContain('team-reservation-general-row');
     expect(attendanceSource).toContain('team-reservation-placeholder-row');
     expect(attendanceSource).toContain('team-reservation-placeholder-name');
     expect(attendanceSource).toContain('loading="lazy"');
@@ -431,9 +439,16 @@ describe('Team reservation button loading contract', () => {
     expect(attendanceSource).not.toContain('<svg class="team-seat-flag-icon"');
     expect(activityCss).toContain('.team-seat-club-marker');
     expect(activityCss).toContain('.team-seat-club-marker-img');
+    expect(activityCss).toContain('.team-reservation-section-title');
+    expect(activityCss).toContain('.team-reservation-section-avatar');
+    expect(activityCss).toContain('.team-reservation-member-row');
+    expect(activityCss).toContain('.team-reservation-general-divider');
+    expect(activityCss).toContain('border-left: 3px solid #2563eb');
     expect(activityCss).toContain('height: 1rem');
     expect(activityCss).toContain('object-fit: cover');
     expect(activityCss).toContain('[data-theme="dark"] .team-reservation-header-cell');
+    expect(activityCss).toContain('[data-theme="dark"] .team-reservation-section-title');
+    expect(activityCss).toContain('[data-theme="dark"] .team-reservation-member-row');
     expect(activityCss).toContain('[data-theme="dark"] .team-reservation-placeholder-row');
     expect(activityCss).toContain('[data-theme="dark"] .team-reservation-placeholder-name');
   });

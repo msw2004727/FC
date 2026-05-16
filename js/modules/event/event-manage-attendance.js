@@ -392,15 +392,32 @@ Object.assign(App, {
       + (showNoShowColumn ? 1 : 0)
       + 3;
     let rows = people.map(p => {
+      if (p.isTeamGeneralSeparator) {
+        return `<tr class="team-reservation-general-row"><td colspan="${tableColspan}">
+          <div class="team-reservation-general-divider"><span>一般報名</span></div>
+        </td></tr>`;
+      }
       if (p.isTeamHeader) {
         const canAdjustTeam = !isSubmitting && this._isCurrentUserTeamStaff?.(p.teamReservationTeamId);
         const adjustBtn = canAdjustTeam
           ? `<button class="team-reservation-adjust-btn" onclick="App.openTeamReservationModal('${escapeHTML(eventId)}','${escapeHTML(p.teamReservationTeamId)}')">快速調整</button>`
           : '';
+        const teamHeaderImageUrl = p.teamReservationTeamId ? this._getTeamReservationMarkerImage?.(p.teamReservationTeamId) : '';
+        const teamHeaderAvatar = `<span class="team-reservation-section-avatar" aria-hidden="true">${
+          teamHeaderImageUrl
+            ? `<img class="team-reservation-section-avatar-img" src="${escapeHTML(teamHeaderImageUrl)}" alt="" loading="lazy" onerror="this.replaceWith(document.createTextNode('俱'))">`
+            : '俱'
+        }</span>`;
         return `<tr class="team-reservation-header-row"><td colspan="${tableColspan}" class="team-reservation-header-cell">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap">
-            <strong>${escapeHTML(p.teamReservationTeamName || p.displayName)}</strong>
-            <span class="team-reservation-summary">原團隊佔位：${Number(p.reservedSlots || 0)}　已使用：${Number(p.usedSlots || 0)}　剩餘：${Number(p.remainingSlots || 0)}</span>
+          <div class="team-reservation-section-title">
+            <div class="team-reservation-section-main">
+              ${teamHeaderAvatar}
+              <span class="team-reservation-section-text">
+                <span class="team-reservation-section-label">俱樂部保留席位</span>
+                <strong>${escapeHTML(p.teamReservationTeamName || p.displayName)}</strong>
+              </span>
+            </div>
+            <span class="team-reservation-summary">已用 ${Number(p.usedSlots || 0)} / ${Number(p.reservedSlots || 0)}　剩 ${Number(p.remainingSlots || 0)}</span>
             ${adjustBtn}
           </div>
         </td></tr>`;
@@ -467,6 +484,7 @@ Object.assign(App, {
 
       const safeUid = escapeHTML(p.uid);
       const safeName = escapeHTML(p.name);
+      const teamReservationRowAttr = p.teamReservationTeamId ? ' class="team-reservation-member-row"' : '';
 
       if (tableEditing) {
         if (isProxyOnly) {
@@ -495,7 +513,7 @@ Object.assign(App, {
         const demoteTd = hasDemote && !p.isCompanion
           ? `<td style="padding:.35rem .2rem;text-align:center"><button style="${demoteStyle}" ${disabledAttr} onclick="App._forceDemoteToWaitlist('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">候</button></td>`
           : (hasDemote ? `<td style="padding:.35rem .2rem"></td>` : '');
-        return `<tr data-uid="${safeUid}" style="border-bottom:1px solid var(--border)">
+        return `<tr data-uid="${safeUid}"${teamReservationRowAttr} style="border-bottom:1px solid var(--border)">
           ${kickTd}${demoteTd}
           <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
           ${noShowCell}
@@ -522,7 +540,7 @@ Object.assign(App, {
         <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">僅代報</td>
       </tr>`;
       }
-      return `<tr style="border-bottom:1px solid var(--border)">
+      return `<tr${teamReservationRowAttr} style="border-bottom:1px solid var(--border)">
         <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
         ${noShowCell}
         <td style="padding:.35rem .2rem;text-align:center">${hasCheckin ? '<span style="color:var(--success);font-size:1rem">✓</span>' : ''}</td>
