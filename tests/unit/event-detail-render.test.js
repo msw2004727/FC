@@ -343,7 +343,7 @@ describe('Team reservation button loading contract', () => {
     expect(detailSource).toContain('data-detail-info-loading="true"');
     expect(detailSource).toContain('_preservedAttHtml || this._renderEventDetailBelowFoldLoadingHtml()');
     expect(detailSource.indexOf('id="detail-comments-container"'))
-      .toBeLessThan(detailSource.indexOf('id="detail-waitlist-container"'));
+      .toBeGreaterThan(detailSource.indexOf('id="detail-waitlist-container"'));
     expect(detailSource).toContain('<div class="detail-section-title">\\u7559\\u8a00</div>');
     expect(activityCss).toContain('.event-detail-belowfold-loading');
     expect(activityCss).toContain('.event-detail-belowfold-loading .activity-list-loading-bar');

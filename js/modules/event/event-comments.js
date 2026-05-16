@@ -207,14 +207,16 @@ Object.assign(App, {
     const stackWidth = 24 + Math.max(0, likers.length - 1) * step;
     const countLabel = comment.likeCount || likers.length;
     const avatars = likers.map((liker, index) => {
+      const safeUid = escapeHTML(liker.uid || '');
       const safeName = escapeHTML(liker.authorName || '用戶');
       const safePhoto = String(liker.authorPhoto || '').trim();
+      const safePhotoAttr = escapeHTML(safePhoto);
       const initial = escapeHTML(String(liker.authorName || '?').trim().charAt(0) || '?');
       const style = `--i:${index};z-index:${80 - index}`;
       if (safePhoto) {
-        return `<img class="event-comment-like-avatar" src="${escapeHTML(safePhoto)}" alt="${safeName}" title="${safeName}" referrerpolicy="no-referrer" loading="lazy" decoding="async" style="${style}" onerror="var s=document.createElement('span');s.className='event-comment-like-avatar event-comment-like-avatar-fallback';s.textContent='${initial}';s.setAttribute('style','${style}');this.replaceWith(s)">`;
+        return `<img class="event-comment-like-avatar" data-uid="${safeUid}" data-author-photo="${safePhotoAttr}" src="${safePhotoAttr}" alt="${safeName}" title="${safeName}" referrerpolicy="no-referrer" loading="lazy" decoding="async" style="${style}" onerror="var s=document.createElement('span');s.className='event-comment-like-avatar event-comment-like-avatar-fallback';s.textContent='${initial}';s.setAttribute('title','${safeName}');s.setAttribute('data-uid','${safeUid}');s.setAttribute('style','${style}');this.replaceWith(s)">`;
       }
-      return `<span class="event-comment-like-avatar event-comment-like-avatar-fallback" title="${safeName}" style="${style}">${initial}</span>`;
+      return `<span class="event-comment-like-avatar event-comment-like-avatar-fallback" data-uid="${safeUid}" title="${safeName}" style="${style}">${initial}</span>`;
     }).join('');
     return `<div class="event-comment-like-avatars" aria-label="${escapeHTML(countLabel + ' likes')}" style="--stack-width:${stackWidth}px;--step:${step}px">${avatars}</div>`;
   },

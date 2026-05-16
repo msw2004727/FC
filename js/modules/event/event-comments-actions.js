@@ -131,6 +131,42 @@ Object.assign(App, {
     if (span) span.textContent = '+' + Math.max(0, count);
   },
 
+  _readEventCommentLikeAvatarsFromDom(stack) {
+    return Array.from(stack?.querySelectorAll('.event-comment-like-avatar') || [])
+      .map(el => ({
+        uid: String(el.dataset.uid || '').trim(),
+        authorName: String(el.getAttribute('title') || el.getAttribute('alt') || el.textContent || '用戶').trim(),
+        authorPhoto: String(el.dataset.authorPhoto || (el.tagName === 'IMG' ? el.getAttribute('src') : '') || '').trim(),
+      }))
+      .filter(liker => liker.uid);
+  },
+
+  _syncEventCommentLikeAvatars(card, author, liked, count) {
+    if (!card || typeof this._renderEventCommentLikeAvatars !== 'function') return;
+    const btn = card.querySelector('.event-comment-like');
+    if (!btn) return;
+    const uid = String(author?.uid || '').trim();
+    const stack = card.querySelector('.event-comment-like-avatars');
+    let likers = this._readEventCommentLikeAvatarsFromDom(stack)
+      .filter(liker => liker.uid !== uid);
+    if (liked && uid) {
+      likers.unshift({
+        uid,
+        authorName: String(author.authorName || '用戶').trim() || '用戶',
+        authorPhoto: String(author.authorPhoto || '').trim(),
+      });
+    }
+    likers = likers.slice(0, 32);
+    const safeCount = Math.max(0, Number(count) || 0);
+    const html = this._renderEventCommentLikeAvatars({ likers, likeCount: safeCount });
+    if (stack) {
+      if (html) stack.outerHTML = html;
+      else stack.remove();
+    } else if (html) {
+      btn.insertAdjacentHTML('afterend', html);
+    }
+  },
+
   _isEventCommentPermissionDenied(err) {
     const code = String(err?.code || '').toLowerCase();
     const msg = String(err?.message || '').toLowerCase();
@@ -184,10 +220,14 @@ Object.assign(App, {
       } else {
         await likeRef.delete();
       }
+      this._syncEventCommentLikeAvatars(card, author, nextLiked, nextCount);
     } catch (err) {
       if (nextLiked && likeRef && this._isEventCommentPermissionDenied(err)) {
         const existing = await likeRef.get().catch(() => null);
-        if (existing?.exists) return;
+        if (existing?.exists) {
+          this._syncEventCommentLikeAvatars(card, author, true, nextCount);
+          return;
+        }
       }
       console.error('[event-comments] like failed', err);
       this._setEventCommentLikeButtonState(btn, wasLiked, oldCount);

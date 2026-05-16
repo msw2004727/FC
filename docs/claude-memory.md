@@ -1,8 +1,13 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-16 Activity comment like avatars follow-up [bug]
+- **Problem**: Comment like avatars were only available after the whole comment board reloaded, so a successful like updated the count but did not render the current user's avatar in-place. The previous waitlist visibility fix also placed comments above waitlist, but the desired order is comments last.
+- **Fix**: Keep the waitlist before the comments mount point and sync the clicked comment card's avatar stack after like/unlike success, preserving existing liker avatars from the DOM.
+- **Deploy note**: Persisted liker photos for future page loads still depend on deploying the Firestore rules that allow `authorName` and `authorPhoto` on comment like documents.
+
 ### 2026-05-16 Activity comment likes and waitlist detail visibility [bug]
 - **Problem**: Activity detail comments could be pushed out of sight when a waitlist section was present. The new like-avatar snapshot write also failed against older deployed Firestore rules or when a stale UI attempted to `set()` an already-existing like document.
-- **Fix**: Render the comments placeholder before the waitlist container so the message board section is always visible. Like writes now try the snapshot payload first, fall back to the legacy payload on permission-denied, and treat an already-existing like doc as success.
+- **Fix**: Render an explicit comments placeholder in the detail body so the message board has a stable mount point. Like writes now try the snapshot payload first, fall back to the legacy payload on permission-denied, and treat an already-existing like doc as success.
 - **Deploy note**: Firestore rules must be deployed with the frontend when like document fields change; otherwise the frontend fallback protects users but liker avatars only appear for snapshot-capable writes.
 
 ### 2026-05-16 Ops LTV report path cleanup [ops/docs]
