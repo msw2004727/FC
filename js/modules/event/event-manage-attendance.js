@@ -443,10 +443,6 @@ Object.assign(App, {
 
       // 徽章縮圖
       const badges = p.displayBadges || [];
-      const teamSeatImageUrl = p.teamReservationTeamId ? this._getTeamReservationMarkerImage?.(p.teamReservationTeamId) : '';
-      const teamSeatMarker = p.teamReservationTeamId
-        ? `<button type="button" class="team-seat-club-marker" title="俱樂部席位" aria-label="俱樂部席位" onclick="event.stopPropagation();App.showToast('${escapeHTML(p.teamReservationTeamName || '俱樂部')}俱樂部席位')">${teamSeatImageUrl ? `<img class="team-seat-club-marker-img" src="${escapeHTML(teamSeatImageUrl)}" alt="" loading="lazy" onerror="this.replaceWith(document.createTextNode('🚩'))">` : '🚩'}</button>`
-        : '';
       const badgeHtml = badges.length
         ? '<span class="reg-badge-list">' + badges.map(b =>
             `<img class="reg-badge-icon" src="${escapeHTML(b.image || '')}" alt="${escapeHTML(b.name || '')}" loading="lazy">`
@@ -473,11 +469,11 @@ Object.assign(App, {
       } else if (p.isCompanion) {
         nameInner = `<span class="reg-name-text" style="padding-left:1.2rem;color:var(--text-secondary)">↳ ${escapeHTML(p.displayName)}</span>`;
       } else if (p.isTeamPlaceholder) {
-        nameInner = `<span class="reg-name-text team-reservation-placeholder-name">${teamSeatMarker}${escapeHTML(p.displayName)}</span>`;
+        nameInner = `<span class="reg-name-text team-reservation-placeholder-name">${escapeHTML(p.displayName)}</span>`;
       } else if (p.hasSelfReg) {
-        nameInner = `<span class="reg-name-text">${teamSeatMarker}${this._userTag(p.displayName, null, _tagOpts)}</span>`;
+        nameInner = `<span class="reg-name-text">${this._userTag(p.displayName, null, _tagOpts)}</span>`;
       } else {
-        nameInner = `<span class="reg-name-text">${teamSeatMarker}${escapeHTML(p.displayName)}</span>`;
+        nameInner = `<span class="reg-name-text">${escapeHTML(p.displayName)}</span>`;
       }
       const nameHtml = badgeHtml
         ? `<div class="reg-name-badges-wrap"><div class="reg-name-badges">${nameInner}${badgeHtml}</div></div>`
