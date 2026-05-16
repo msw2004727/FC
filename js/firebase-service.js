@@ -223,8 +223,9 @@ const FirebaseService = {
   // ─── localStorage 快取設定 ───
   _LS_PREFIX: 'shub_c_',
   _LS_TS_KEY: 'shub_cache_ts',
-  _LS_TTL: 60 * 60 * 1000, // admin/super_admin 60 分鐘
-  _LS_TTL_LONG: 24 * 60 * 60 * 1000, // 一般用戶 24 小時（隔夜仍可恢復快取）
+  _LS_TTL: 60 * 60 * 1000, // admin/super_admin display cache TTL: 60 minutes
+  _LS_TTL_LONG: 7 * 24 * 60 * 60 * 1000, // normal user display cache TTL: 7 days
+  _LS_FRESH_TTL: 30 * 60 * 1000, // fresh cache fast path: 30 minutes
   _visibilityRefreshDebounce: null, // visibilitychange 防抖 timer
   _snapshotReconnectAttempts: {},   // onSnapshot 重連計數
   _reconnectTimers: {},             // onSnapshot 重連 setTimeout ID
@@ -682,7 +683,11 @@ const FirebaseService = {
   /** 根據快取中的用戶角色決定 TTL */
   _getEffectiveTTL() {
     try {
-      const saved = this._loadFromLS('currentUser');
+      let saved = this._loadFromLS('currentUser');
+      if (!saved && this._lsUidPrefix) {
+        const raw = localStorage.getItem(this._LS_PREFIX + 'currentUser');
+        saved = raw ? JSON.parse(raw) : null;
+      }
       const role = saved?.role || 'user';
       if (role === 'admin' || role === 'super_admin') return this._LS_TTL;
     } catch (_) {}
@@ -706,22 +711,25 @@ const FirebaseService = {
       } catch (_) {}
     }
 
-    const ts = parseInt(localStorage.getItem(this._getLSTsKey()) || '0', 10);
+    let ts = parseInt(localStorage.getItem(this._getLSTsKey()) || '0', 10);
     const ttl = this._getEffectiveTTL();
     // 嘗試 UID-scoped key 失敗時，回退到 legacy key
-    if (Date.now() - ts > ttl) {
+    if (!ts || Date.now() - ts > ttl) {
       if (this._lsUidPrefix) {
         const legacyTs = parseInt(localStorage.getItem(this._LS_TS_KEY) || '0', 10);
-        if (Date.now() - legacyTs <= ttl) {
+        if (legacyTs && Date.now() - legacyTs <= ttl) {
           this._setLSUidPrefix(''); // 暫時用 legacy key 讀取
+          ts = legacyTs;
           console.log('[FirebaseService] UID-scoped 快取過期，回退 legacy key');
         } else {
-          // 快取已過期但仍恢復作為 Firestore 失敗的兜底（不 return false）
-          console.log('[FirebaseService] 快取已過期（' + Math.round((Date.now() - ts) / 60000) + '分鐘），仍恢復作為兜底');
+          // Expired display cache is discarded; Firestore load/realtime will refill it.
+          console.log('[FirebaseService] 快取已超過可展示上限（' + Math.round((Date.now() - ts) / 60000) + '分鐘），改走 Firestore 載入');
+          return false;
         }
       } else {
-        // 快取已過期但仍恢復作為 Firestore 失敗的兜底
-        console.log('[FirebaseService] 快取已過期（' + Math.round((Date.now() - ts) / 60000) + '分鐘），仍恢復作為兜底');
+        // Expired display cache is discarded; Firestore load/realtime will refill it.
+        console.log('[FirebaseService] 快取已超過可展示上限（' + Math.round((Date.now() - ts) / 60000) + '分鐘），改走 Firestore 載入');
+        return false;
       }
     }
 
@@ -2796,14 +2804,17 @@ const FirebaseService = {
       this._listeners.push(unsubAuthObserver);
     }
 
-    // Step 2.5: 若 localStorage 快取夠新（< 15 分鐘），直接用快取渲染，Firestore 背景更新
-    const _FRESH_CACHE_TTL = 15 * 60 * 1000;
+    // Step 2.5: If localStorage cache is still displayable, render first and refresh Firestore in the background.
+    const _FRESH_CACHE_TTL = this._LS_FRESH_TTL || (30 * 60 * 1000);
     const _cacheTs = parseInt(localStorage.getItem(this._getLSTsKey()) || '0', 10);
-    const _cacheAge = Date.now() - _cacheTs;
-    if (_cacheAge < _FRESH_CACHE_TTL && this._cache.events.length > 0) {
+    const _cacheAge = Math.max(0, Date.now() - _cacheTs);
+    const _DISPLAY_CACHE_TTL = this._getEffectiveTTL();
+    const _hasDisplayCache = !!_cacheTs && _cacheAge < _DISPLAY_CACHE_TTL && this._cache.events.length > 0;
+    if (_hasDisplayCache) {
       this._initialized = true;
       this._setupVisibilityRefresh();
-      console.log(`[FirebaseService] Fresh cache hit (${Math.round(_cacheAge / 1000)}s old) — skip boot wait`);
+      const _cacheLabel = _cacheAge < _FRESH_CACHE_TTL ? 'Fresh' : 'Display';
+      console.log(`[FirebaseService] ${_cacheLabel} cache hit (${Math.round(_cacheAge / 1000)}s old) — skip boot wait`);
       this._loadRealtimeLimits().catch(function() {}); // 背景載入，不阻塞快取路徑
       this._startAuthDependentWork();
       this._schedulePostInitWarmups();

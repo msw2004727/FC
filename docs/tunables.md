@@ -3,7 +3,7 @@
 > 專案內所有可調設定（timing / limit / threshold）+ 關鍵流程的順序效果總覽。
 > **強制維護規則（CLAUDE.md §設定追蹤規範）**：修改檔案時若涉及任何可調設定 / 加載順序 / timing / 閾值，必須同步更新本檔對應條目；新增任何可調常數，必須在本檔登記。
 
-**Last Updated: 2026-05-15**（activity terminal preview/history limits + public navigation warmup + private message read debounce + retention/limits）
+**Last Updated: 2026-05-16**（activity display cache TTL + fresh cache fast path）
 
 ## 目錄
 
@@ -48,6 +48,9 @@
 | `idlePreloadGapMs` | `450` ms | `js/config.js` / `js/core/script-loader.js` | 每個核心頁模組預載之間的間隔，降低瞬間下載與執行壓力。 |
 | `visibleCardPrefetchDelayMs` | `650` ms | `js/config.js` / `js/core/navigation.js` | 列表/首頁卡片渲染後延遲預抓可見詳情文件。 |
 | `publicBootSnapshotMaxAgeMs` | `30` 分鐘 | `js/config.js` / `app.js` / `scripts/inject-hot-events.js` | `index.html` 內公開列表快照只在 30 分鐘內作為首屏快取；報名/取消/管理寫入仍必須讀即時資料。 |
+| `FirebaseService._LS_FRESH_TTL` | `30` 分鐘 | `js/firebase-service.js` | localStorage 快取在 30 分鐘內標記為 fresh；超過 30 分鐘但仍在可展示上限內，也會先進畫面並立刻背景刷新。 |
+| `FirebaseService._LS_TTL_LONG` | `7` 天 | `js/firebase-service.js` | 一般用戶的可展示快取上限。7 天內可直接先顯示舊列表降低冷啟動空白感；報名人數、名單與詳情仍由 realtime / 背景刷新校正。 |
+| `FirebaseService._LS_TTL` | `60` 分鐘 | `js/firebase-service.js` | admin / super_admin 的可展示快取上限較短，避免後台與權限資料長時間沿用舊狀態。 |
 
 ### Visibility Change（背景/前景切換）
 

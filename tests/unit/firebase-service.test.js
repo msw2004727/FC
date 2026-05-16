@@ -5,6 +5,34 @@
  * The project uses Object.assign(App, {...}) (not ES modules), so each
  * function body is copied here as a standalone testable function.
  */
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+
+function loadFirebaseServiceWithStorage(initialStorage = {}) {
+  const storage = new Map(Object.entries(initialStorage));
+  const sandbox = {
+    console: { log: jest.fn(), warn: jest.fn(), error: jest.fn() },
+    setTimeout,
+    clearTimeout,
+    Promise,
+    Date,
+    Math,
+    localStorage: {
+      getItem: jest.fn(key => (storage.has(key) ? storage.get(key) : null)),
+      setItem: jest.fn((key, value) => storage.set(key, String(value))),
+      removeItem: jest.fn(key => storage.delete(key)),
+      key: jest.fn(index => Array.from(storage.keys())[index] || null),
+      get length() { return storage.size; },
+    },
+  };
+  vm.createContext(sandbox);
+  const source = fs.readFileSync(path.join(__dirname, '../../js/firebase-service.js'), 'utf8');
+  vm.runInContext(`${source}\nglobalThis.FirebaseService = FirebaseService;`, sandbox, {
+    filename: 'js/firebase-service.js',
+  });
+  return { FirebaseService: sandbox.FirebaseService, storage, sandbox, source };
+}
 
 // ===========================================================================
 // Extracted from js/firebase-service.js:16-19
@@ -401,6 +429,60 @@ describe('_getEffectiveTTL (firebase-service.js:180-187)', () => {
 
   test('undefined role gets long TTL', () => {
     expect(_getEffectiveTTL(undefined, SHORT, LONG)).toBe(LONG);
+  });
+});
+
+describe('localStorage display cache TTL wiring', () => {
+  test('normal user display cache is capped at 7 days and fresh cache fast path is 30 minutes', () => {
+    const { FirebaseService, source } = loadFirebaseServiceWithStorage();
+
+    expect(FirebaseService._LS_TTL_LONG).toBe(7 * 24 * 60 * 60 * 1000);
+    expect(FirebaseService._LS_FRESH_TTL).toBe(30 * 60 * 1000);
+    expect(source).toContain('const _FRESH_CACHE_TTL = this._LS_FRESH_TTL || (30 * 60 * 1000);');
+    expect(source).toContain('const _DISPLAY_CACHE_TTL = this._getEffectiveTTL();');
+    expect(source).toContain('const _hasDisplayCache = !!_cacheTs && _cacheAge < _DISPLAY_CACHE_TTL');
+  });
+
+  test('expired UID-scoped cache is not restored after the display cache cap', () => {
+    const now = Date.now();
+    const expiredTs = now - (8 * 24 * 60 * 60 * 1000);
+    const { FirebaseService } = loadFirebaseServiceWithStorage({
+      shub_c_currentUser: JSON.stringify({ uid: 'U-cache-1', role: 'user' }),
+      'shub_ts_U-cache-1': String(expiredTs),
+      'shub_c_U-cache-1_events': JSON.stringify([{ id: 'old-event' }]),
+    });
+
+    expect(FirebaseService._restoreCache()).toBe(false);
+    expect(FirebaseService._cache.events).toEqual([]);
+  });
+
+  test('expired UID-scoped cache may still fall back to valid legacy cache', () => {
+    const now = Date.now();
+    const expiredTs = now - (8 * 24 * 60 * 60 * 1000);
+    const legacyTs = now - (2 * 60 * 1000);
+    const { FirebaseService } = loadFirebaseServiceWithStorage({
+      shub_c_currentUser: JSON.stringify({ uid: 'U-cache-2', role: 'user' }),
+      'shub_ts_U-cache-2': String(expiredTs),
+      shub_cache_ts: String(legacyTs),
+      shub_c_events: JSON.stringify([{ id: 'legacy-event' }]),
+    });
+
+    FirebaseService._restoreCache();
+    expect(FirebaseService._cache.events).toEqual([{ id: 'legacy-event' }]);
+    expect(FirebaseService._collectionLoadedAt.events).toBe(legacyTs);
+  });
+
+  test('legacy admin cache still uses the shorter admin display cache cap', () => {
+    const now = Date.now();
+    const legacyTs = now - (2 * 60 * 60 * 1000);
+    const { FirebaseService } = loadFirebaseServiceWithStorage({
+      shub_c_currentUser: JSON.stringify({ uid: 'U-admin-cache', role: 'admin' }),
+      shub_cache_ts: String(legacyTs),
+      shub_c_events: JSON.stringify([{ id: 'admin-old-event' }]),
+    });
+
+    expect(FirebaseService._restoreCache()).toBe(false);
+    expect(FirebaseService._cache.events).toEqual([]);
   });
 });
 
