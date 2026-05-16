@@ -392,14 +392,22 @@ Object.assign(App, {
       + (showNoShowColumn ? 1 : 0)
       + 3;
     let rows = people.map(p => {
+      if (p.isTeamGeneralSeparator) {
+        return `<tr class="team-reservation-general-separator-row"><td colspan="${tableColspan}">
+          <div class="team-reservation-general-separator"><span>一般報名名單</span></div>
+        </td></tr>`;
+      }
       if (p.isTeamHeader) {
         const canAdjustTeam = !isSubmitting && this._isCurrentUserTeamStaff?.(p.teamReservationTeamId);
         const adjustBtn = canAdjustTeam
           ? `<button class="team-reservation-adjust-btn" onclick="App.openTeamReservationModal('${escapeHTML(eventId)}','${escapeHTML(p.teamReservationTeamId)}')">快速調整</button>`
           : '';
         return `<tr class="team-reservation-header-row"><td colspan="${tableColspan}" class="team-reservation-header-cell">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap">
-            <strong>${escapeHTML(p.teamReservationTeamName || p.displayName)}</strong>
+          <div class="team-reservation-roster-card">
+            <div class="team-reservation-roster-main">
+              <span class="team-reservation-roster-kicker">俱樂部保留席位</span>
+              <strong>${escapeHTML(p.teamReservationTeamName || p.displayName)}</strong>
+            </div>
             <span class="team-reservation-summary">原團隊佔位：${Number(p.reservedSlots || 0)}　已使用：${Number(p.usedSlots || 0)}　剩餘：${Number(p.remainingSlots || 0)}</span>
             ${adjustBtn}
           </div>
@@ -467,6 +475,7 @@ Object.assign(App, {
 
       const safeUid = escapeHTML(p.uid);
       const safeName = escapeHTML(p.name);
+      const teamReservationRowAttr = p.teamReservationTeamId ? ' class="team-reservation-member-row"' : '';
 
       if (tableEditing) {
         if (isProxyOnly) {
@@ -495,7 +504,7 @@ Object.assign(App, {
         const demoteTd = hasDemote && !p.isCompanion
           ? `<td style="padding:.35rem .2rem;text-align:center"><button style="${demoteStyle}" ${disabledAttr} onclick="App._forceDemoteToWaitlist('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">候</button></td>`
           : (hasDemote ? `<td style="padding:.35rem .2rem"></td>` : '');
-        return `<tr data-uid="${safeUid}" style="border-bottom:1px solid var(--border)">
+        return `<tr data-uid="${safeUid}"${teamReservationRowAttr} style="border-bottom:1px solid var(--border)">
           ${kickTd}${demoteTd}
           <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
           ${noShowCell}
@@ -522,7 +531,7 @@ Object.assign(App, {
         <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">僅代報</td>
       </tr>`;
       }
-      return `<tr style="border-bottom:1px solid var(--border)">
+      return `<tr${teamReservationRowAttr} style="border-bottom:1px solid var(--border)">
         <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
         ${noShowCell}
         <td style="padding:.35rem .2rem;text-align:center">${hasCheckin ? '<span style="color:var(--success);font-size:1rem">✓</span>' : ''}</td>

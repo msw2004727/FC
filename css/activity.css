@@ -1757,40 +1757,135 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
 .reg-name-badges::-webkit-scrollbar { display: none; }
 .reg-name-badges { scrollbar-width: none; }
 .reg-name-text { flex-shrink: 0; white-space: nowrap; }
+.team-reservation-header-row {
+  border-top: 8px solid var(--bg-main);
+}
 .team-reservation-header-cell {
-  padding: .45rem .55rem;
-  background: #eff6ff;
-  border-bottom: 1px solid #bfdbfe;
+  padding: .45rem .35rem .5rem;
+  background: transparent;
+  border-bottom: 0;
   color: #1e3a8a;
 }
+.team-reservation-roster-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: .55rem;
+  width: 100%;
+  padding: .68rem .82rem;
+  border: 1px solid rgba(37, 99, 235, .36);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, .16), rgba(20, 184, 166, .12)), rgba(255, 255, 255, .9);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, .10), inset 0 1px 0 rgba(255, 255, 255, .72);
+  overflow: hidden;
+}
+.team-reservation-roster-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, #2563eb, #14b8a6);
+}
+.team-reservation-roster-main {
+  min-width: 0;
+  display: grid;
+  gap: .12rem;
+}
+.team-reservation-roster-main strong {
+  font-size: .9rem;
+  font-weight: 850;
+  color: #1d4ed8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-reservation-roster-kicker {
+  font-size: .66rem;
+  font-weight: 850;
+  color: #0f766e;
+  letter-spacing: 0;
+}
 .team-reservation-summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: max-content;
+  padding: .2rem .5rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .68);
   font-size: .76rem;
+  font-weight: 750;
   color: #1d4ed8;
 }
 .team-reservation-adjust-btn {
   font-size: .72rem;
-  padding: .18rem .5rem;
-  border: 1px solid #0f766e;
+  padding: .24rem .55rem;
+  border: 1px solid rgba(15, 118, 110, .42);
   color: #0f766e;
-  background: #fff;
-  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, .76);
+  border-radius: 999px;
   cursor: pointer;
   white-space: nowrap;
 }
+.team-reservation-member-row {
+  background: linear-gradient(90deg, rgba(37, 99, 235, .055), rgba(20, 184, 166, .035));
+}
+.team-reservation-member-row > td:first-child {
+  box-shadow: inset 3px 0 0 rgba(37, 99, 235, .26);
+}
 .team-reservation-placeholder-row {
   border-bottom: 1px solid var(--border);
-  background: #f8fbff;
+  background: linear-gradient(90deg, rgba(37, 99, 235, .09), rgba(20, 184, 166, .055));
+}
+.team-reservation-placeholder-row > td:first-child {
+  box-shadow: inset 3px 0 0 rgba(20, 184, 166, .34);
 }
 .team-reservation-placeholder-name {
   color: #1d4ed8;
-  font-weight: 600;
+  font-weight: 750;
+}
+.team-reservation-general-separator-row td {
+  padding: .72rem .35rem .46rem;
+  background: var(--bg-card);
+}
+.team-reservation-general-separator {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  color: var(--text-muted);
+  font-size: .72rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+.team-reservation-general-separator::before,
+.team-reservation-general-separator::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: linear-gradient(90deg, transparent, rgba(148, 163, 184, .65));
+}
+.team-reservation-general-separator::after {
+  background: linear-gradient(90deg, rgba(148, 163, 184, .65), transparent);
 }
 [data-theme="dark"] .team-reservation-header-cell {
-  background: linear-gradient(90deg, rgba(30, 58, 138, .34), rgba(15, 118, 110, .16) 56%, rgba(15, 23, 42, .2));
-  border-bottom-color: rgba(96, 165, 250, .24);
+  background: transparent;
+  border-bottom-color: transparent;
   color: #c7d2fe;
 }
+[data-theme="dark"] .team-reservation-roster-card {
+  border-color: rgba(96, 165, 250, .46);
+  background: linear-gradient(135deg, rgba(37, 99, 235, .34), rgba(20, 184, 166, .20)), rgba(34, 40, 56, .86);
+  box-shadow: 0 14px 34px rgba(37, 99, 235, .2), inset 0 1px 0 rgba(255, 255, 255, .08);
+}
+[data-theme="dark"] .team-reservation-roster-main strong {
+  color: #bfdbfe;
+}
+[data-theme="dark"] .team-reservation-roster-kicker {
+  color: #5eead4;
+}
 [data-theme="dark"] .team-reservation-summary {
+  background: rgba(15, 23, 42, .34);
   color: #7dd3fc;
 }
 [data-theme="dark"] .team-reservation-adjust-btn {
@@ -1798,16 +1893,38 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
   color: #5eead4;
   background: rgba(15, 118, 110, .16);
 }
+[data-theme="dark"] .team-reservation-member-row {
+  background: linear-gradient(90deg, rgba(30, 58, 138, .18), rgba(15, 118, 110, .10));
+}
+[data-theme="dark"] .team-reservation-member-row > td:first-child {
+  box-shadow: inset 3px 0 0 rgba(96, 165, 250, .38);
+}
 [data-theme="dark"] .team-reservation-placeholder-row {
   background: linear-gradient(90deg, rgba(30, 58, 138, .24), rgba(15, 118, 110, .12) 48%, rgba(15, 23, 42, .08));
   border-bottom-color: rgba(148, 163, 184, .18);
 }
+[data-theme="dark"] .team-reservation-placeholder-row > td:first-child {
+  box-shadow: inset 3px 0 0 rgba(45, 212, 191, .36);
+}
 [data-theme="dark"] .team-reservation-placeholder-name {
   color: #93c5fd;
+}
+[data-theme="dark"] .team-reservation-general-separator-row td {
+  background: var(--bg-card);
 }
 [data-theme="dark"] .team-seat-club-marker-img {
   background: rgba(15, 23, 42, .86);
   box-shadow: 0 0 0 1px rgba(148, 163, 184, .28);
+}
+@media (max-width: 560px) {
+  .team-reservation-roster-card {
+    grid-template-columns: minmax(0, 1fr);
+    gap: .42rem;
+  }
+  .team-reservation-summary,
+  .team-reservation-adjust-btn {
+    justify-self: start;
+  }
 }
 .team-seat-club-marker {
   display: inline-flex;

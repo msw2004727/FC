@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-16 Team reservation roster separation [ux]
+- **Problem**: Activity detail rosters mixed club reserved seats and general signups too tightly, making it hard to see where reserved-seat groups ended or to distinguish multiple club reservation groups.
+- **Fix**: Added a general roster separator after reservation groups, changed each club reservation header into a choice-card-like gradient block, and gave reserved-seat member/placeholders a matching tinted row with a left accent stripe.
+- **Tests**: Ran JS syntax checks for attendance/no-show modules and targeted event detail + team reservation occupancy tests. Bumped frontend cache version to `0.20260516l`.
+
 ### 2026-05-16 Activity cache and load-order docs refresh [docs]
 - **Problem**: Activity cache/display rules, detail-page load order, terminal history limits, and comment like-avatar constraints were split across implementation notes, with architecture docs still referencing an older cache version.
 - **Fix**: Updated `docs/architecture.md` and `docs/tunables.md` to record the current activity cache windows, admin/user cache differences, list/detail/comment load order, terminal preview/history limits, comment/reply/like fetch caps, and like-avatar overlap behavior.

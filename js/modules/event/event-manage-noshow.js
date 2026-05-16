@@ -189,8 +189,16 @@ Object.assign(App, {
         }
       });
     const normalRows = people.filter(p => !p.teamReservationTeamId || !groupedTeamIds.has(String(p.teamReservationTeamId)));
-    const orderedPeople = teamRows.concat(normalRows);
-    const countablePeople = orderedPeople.filter(p => !p.isTeamHeader && !p.proxyOnly && !p.isProxyOnly);
+    const hasTeamReservationRows = teamRows.length > 0;
+    const orderedPeople = hasTeamReservationRows && normalRows.length > 0
+      ? teamRows.concat([{
+          isTeamGeneralSeparator: true,
+          uid: 'team-reservation-general-separator',
+          name: '一般報名名單',
+          displayName: '一般報名名單',
+        }], normalRows)
+      : teamRows.concat(normalRows);
+    const countablePeople = orderedPeople.filter(p => !p.isTeamHeader && !p.isTeamGeneralSeparator && !p.proxyOnly && !p.isProxyOnly);
     const fallbackCount = typeof this._getEventProjectedConfirmedCount === 'function'
       ? this._getEventProjectedConfirmedCount(e)
       : Math.max(0, Number(e.realCurrent ?? e.current ?? 0) || 0);
