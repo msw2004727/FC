@@ -38,7 +38,7 @@ ToosterX 是一個 LINE LIFF + Firebase 的 buildless Vanilla JS SPA。前端由
 | 驗證 | LINE LIFF profile + Firebase Custom Token |
 | 佈署 | 前端 push `main` 後由 Cloudflare Pages / GitHub Pages 發佈；functions/rules 需 Firebase deploy |
 | 測試 | Jest unit、Firestore rules emulator、Playwright e2e smoke |
-| 目前快取版本 | `0.20260516l` |
+| 目前快取版本 | `0.20260516k` |
 
 ---
 
@@ -147,7 +147,7 @@ sequenceDiagram
 - `PageLoader._deferredPages`：`scan`、`shop`、admin 系列、`personal-dashboard`、`game`、`kickball`、`education` 等。
 - deep link 會讓 `PageLoader` 優先載入目標頁片段，例如活動、俱樂部、賽事。
 - `ScriptLoader._pageGroups` 把 page id 對應到模組群組，避免所有功能一次載完。
-- `Service Worker` 與目前 `CACHE_VERSION`（現行 `0.20260516l`）控制前端快取更新。
+- `Service Worker` 與目前 `CACHE_VERSION`（現行 `0.20260516k`）控制前端快取更新。
 
 ---
 
@@ -873,7 +873,7 @@ DATA_SYNC_SETTINGS_PASSWORD = process.env.DATA_SYNC_SETTINGS_PASSWORD || "1121"
 
 `sw.js` 現況：
 
-- `CACHE_NAME = sporthub-0.20260516l`
+- `CACHE_NAME = sporthub-0.20260516k`
 - HTML：network-first。
 - JS/CSS：cache-first，靠 `?v=` cache busting。
 - `pages/*.html`、動態載入的 JS/CSS 都帶目前 `CACHE_VERSION`。
