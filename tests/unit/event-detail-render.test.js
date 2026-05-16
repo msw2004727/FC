@@ -425,7 +425,12 @@ describe('Team reservation button loading contract', () => {
     expect(attendanceSource).toContain('team-reservation-header-cell');
     expect(attendanceSource).toContain('team-reservation-section-title');
     expect(attendanceSource).toContain('team-reservation-section-avatar');
+    expect(attendanceSource).toContain('team-reservation-section-name');
     expect(attendanceSource).toContain('team-reservation-summary');
+    expect(attendanceSource).toContain('佔位:');
+    expect(attendanceSource).toContain('已使用:');
+    expect(attendanceSource).toContain('剩餘:');
+    expect(attendanceSource).not.toContain('原團隊佔位：');
     expect(attendanceSource).toContain('team-reservation-member-row');
     expect(attendanceSource).toContain('team-reservation-general-row');
     expect(attendanceSource).toContain('team-reservation-placeholder-row');
@@ -441,6 +446,9 @@ describe('Team reservation button loading contract', () => {
     expect(activityCss).toContain('.team-seat-club-marker-img');
     expect(activityCss).toContain('.team-reservation-section-title');
     expect(activityCss).toContain('.team-reservation-section-avatar');
+    expect(activityCss).toContain('.team-reservation-section-name');
+    expect(activityCss).toContain('flex-wrap: nowrap');
+    expect(activityCss).toContain('text-overflow: ellipsis');
     expect(activityCss).toContain('.team-reservation-member-row');
     expect(activityCss).toContain('.team-reservation-general-divider');
     expect(activityCss).toContain('border-left: 3px solid #2563eb');

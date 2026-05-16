@@ -412,12 +412,13 @@ Object.assign(App, {
           <div class="team-reservation-section-title">
             <div class="team-reservation-section-main">
               ${teamHeaderAvatar}
-              <span class="team-reservation-section-text">
-                <span class="team-reservation-section-label">俱樂部保留席位</span>
-                <strong>${escapeHTML(p.teamReservationTeamName || p.displayName)}</strong>
-              </span>
+              <strong class="team-reservation-section-name">${escapeHTML(p.teamReservationTeamName || p.displayName)}</strong>
             </div>
-            <span class="team-reservation-summary">已用 ${Number(p.usedSlots || 0)} / ${Number(p.reservedSlots || 0)}　剩 ${Number(p.remainingSlots || 0)}</span>
+            <span class="team-reservation-summary">
+              <span>佔位: ${Number(p.reservedSlots || 0)}</span>
+              <span>已使用: ${Number(p.usedSlots || 0)}</span>
+              <span>剩餘: ${Number(p.remainingSlots || 0)}</span>
+            </span>
             ${adjustBtn}
           </div>
         </td></tr>`;
