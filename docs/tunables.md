@@ -3,7 +3,7 @@
 > 專案內所有可調設定（timing / limit / threshold）+ 關鍵流程的順序效果總覽。
 > **強制維護規則（CLAUDE.md §設定追蹤規範）**：修改檔案時若涉及任何可調設定 / 加載順序 / timing / 閾值，必須同步更新本檔對應條目；新增任何可調常數，必須在本檔登記。
 
-**Last Updated: 2026-05-16**（activity display cache TTL + fresh cache fast path）
+**Last Updated: 2026-05-16**（activity comment like avatar stack + detail below-fold loading）
 
 ## 目錄
 
@@ -137,6 +137,7 @@
 | `MAX_IMAGE_CACHE` | `150` 張 | `sw.js:10` | Service Worker 圖片快取上限 |
 | `REALTIME_LIMIT_DEFAULTS` | 動態 (siteConfig/realtimeConfig) | `js/config.js` | 即時監聽預設 limit（events/registrations/attendanceRecords/etc，可在儀表板調整） |
 | Attendance / Registration query 預設 | `500` (典型值) | `firebase-service.js` | onSnapshot listener limit。超過 500 筆的老活動需 fallback fetch |
+| Event comment like avatar stack | `32` likers rendered per comment | `js/modules/event/event-comments.js` `_renderEventCommentLikeAvatars` | UI render cap only. The like count still uses the fetched likes collection; newest likers render first and older avatars are clipped first when horizontal space runs out. |
 | Event blocklist `blockedUidsLog` | 無上限 | `firestore.rules` | 黑名單審計軌跡，建議手動清理超過 100 筆的活動 |
 | Operation log altText 截斷 | `400` 字 | `event-share*.js` | LIFF Flex Message altText 上限 |
 | Home summary Firestore REST page size | `300` 筆/頁 | `scripts/inject-hot-events.js` | GitHub Action 產生 `boot-home-summary-data` 時分頁掃描 events / teams / tournaments，避免只取前幾筆造成首頁總量不準 |

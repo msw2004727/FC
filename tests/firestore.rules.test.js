@@ -3288,6 +3288,26 @@ describe("event comments subcollections", () => {
         eventId: "commentReply",
         commentId: "c1",
         uid: "uidB",
+        authorName: "Reply User",
+        authorPhoto: "https://example.com/reply.png",
+        createdAt: serverTimestamp(),
+      })
+    );
+    await assertSucceeds(
+      setDoc(doc(memberA(), "events", "commentReply", "comments", "c1", "likes", "uidA"), {
+        eventId: "commentReply",
+        commentId: "c1",
+        uid: "uidA",
+        createdAt: serverTimestamp(),
+      })
+    );
+    await assertFails(
+      setDoc(doc(user("uidLong"), "events", "commentReply", "comments", "c1", "likes", "uidLong"), {
+        eventId: "commentReply",
+        commentId: "c1",
+        uid: "uidLong",
+        authorName: "x".repeat(81),
+        authorPhoto: "",
         createdAt: serverTimestamp(),
       })
     );

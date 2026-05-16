@@ -154,6 +154,8 @@ Object.assign(App, {
           eventId: eventRecord?.id || eventId,
           commentId,
           uid: author.uid,
+          authorName: author.authorName,
+          authorPhoto: author.authorPhoto || '',
           createdAt: this._eventCommentServerTimestamp(),
         });
       } else {

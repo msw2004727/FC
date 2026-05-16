@@ -335,6 +335,17 @@ describe('Team reservation button loading contract', () => {
     expect(activityCss).toContain('.activity-list-loading-bar');
   });
 
+  test('activity detail keeps a below-button loading state until detail sections hydrate', () => {
+    const detailSource = readProjectFile('js/modules/event/event-detail.js');
+    const activityCss = readProjectFile('css/activity.css');
+
+    expect(detailSource).toContain('_renderEventDetailBelowFoldLoadingHtml');
+    expect(detailSource).toContain('data-detail-info-loading="true"');
+    expect(detailSource).toContain('_preservedAttHtml || this._renderEventDetailBelowFoldLoadingHtml()');
+    expect(activityCss).toContain('.event-detail-belowfold-loading');
+    expect(activityCss).toContain('.event-detail-belowfold-loading .activity-list-loading-bar');
+  });
+
   test('team reservation modal does not close from backdrop clicks', () => {
     const signupSource = readProjectFile('js/modules/event/event-detail-signup.js');
 

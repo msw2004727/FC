@@ -33,11 +33,18 @@ describe('activity detail comments source contracts', () => {
     expect(comments).toContain('私密留言（僅主辦與委託能見）');
     expect(comments).toContain("visibility === 'private'");
     expect(comments).toContain('replyLocked');
+    expect(comments).toContain('_mapEventCommentLikeDoc');
+    expect(comments).toContain('_renderEventCommentLikeAvatars');
+    expect(comments).toContain('comment.likers');
+    expect(actions).toContain('authorName: author.authorName');
+    expect(actions).toContain("authorPhoto: author.authorPhoto || ''");
     expect(actions).toContain('_setEventCommentLikeButtonState(btn, nextLiked, nextCount)');
     expect(actions).toContain('_setEventCommentLikeButtonState(btn, wasLiked, oldCount)');
     expect(actions.indexOf('_setEventCommentLikeButtonState(btn, nextLiked, nextCount)'))
       .toBeLessThan(actions.indexOf("await likeRef.set"));
     expect(css).toContain('.event-comment-avatar');
+    expect(css).toContain('.event-comment-like-avatars');
+    expect(css).toContain('.event-comment-like-avatar');
     expect(css).toContain('[data-theme="dark"] .event-comment-body');
     expect(css).toContain('[data-theme="dark"] .event-comment-card');
   });

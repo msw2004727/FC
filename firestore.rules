@@ -2173,10 +2173,17 @@ service cloud.firestore {
         function likeCreateIsSafe() {
           let parent = parentCommentData();
           return uid == request.auth.uid
-            && request.resource.data.keys().hasOnly(['eventId', 'commentId', 'uid', 'createdAt'])
+            && request.resource.data.keys().hasOnly(['eventId', 'commentId', 'uid', 'authorName', 'authorPhoto', 'createdAt'])
             && requestEventIdMatchesPath(eventId)
             && request.resource.data.commentId == commentId
             && request.resource.data.uid == request.auth.uid
+            && (!('authorName' in request.resource.data)
+              || (request.resource.data.authorName is string
+                && request.resource.data.authorName.size() > 0
+                && request.resource.data.authorName.size() <= 80))
+            && (!('authorPhoto' in request.resource.data)
+              || (request.resource.data.authorPhoto is string
+                && request.resource.data.authorPhoto.size() <= 1200))
             && request.resource.data.createdAt == request.time
             && parent != null
             && parent.deleted != true;

@@ -91,6 +91,7 @@ Object.assign(App, {
       replies: [],
       likeCount: 0,
       likedByMe: false,
+      likers: [],
     };
   },
 
@@ -103,6 +104,18 @@ Object.assign(App, {
       authorPhoto: data.authorPhoto || '',
       body: data.body || '',
       deleted: data.deleted === true,
+      createdAt: data.createdAt || null,
+    };
+  },
+
+  _mapEventCommentLikeDoc(docSnap) {
+    const data = docSnap.data() || {};
+    const uid = String(data.uid || docSnap.id || '').trim();
+    const authorName = String(data.authorName || data.displayName || data.name || uid || '?冽').trim();
+    return {
+      uid,
+      authorName: authorName || '?冽',
+      authorPhoto: String(data.authorPhoto || data.pictureUrl || data.photoURL || '').trim(),
       createdAt: data.createdAt || null,
     };
   },
@@ -134,8 +147,12 @@ Object.assign(App, {
       ]);
       c.replies = replySnap.docs.map(d => this._mapEventCommentReplyDoc(d))
         .sort((a, b) => this._eventCommentTimeMs(a.createdAt) - this._eventCommentTimeMs(b.createdAt));
-      c.likeCount = likeSnap.docs.length;
-      c.likedByMe = likeSnap.docs.some(d => d.id === user.uid || d.data()?.uid === user.uid);
+      c.likers = likeSnap.docs
+        .map(d => this._mapEventCommentLikeDoc(d))
+        .filter(liker => liker.uid)
+        .sort((a, b) => this._eventCommentTimeMs(b.createdAt) - this._eventCommentTimeMs(a.createdAt));
+      c.likeCount = c.likers.length;
+      c.likedByMe = c.likers.some(liker => liker.uid === user.uid);
     }));
     return { eventDocId, comments };
   },
@@ -182,6 +199,26 @@ Object.assign(App, {
     </div>`;
   },
 
+  _renderEventCommentLikeAvatars(comment) {
+    const likers = Array.isArray(comment?.likers) ? comment.likers.slice(0, 32) : [];
+    if (!likers.length) return '';
+    const stacked = likers.length > 6;
+    const step = stacked ? 8 : 26;
+    const stackWidth = 24 + Math.max(0, likers.length - 1) * step;
+    const countLabel = comment.likeCount || likers.length;
+    const avatars = likers.map((liker, index) => {
+      const safeName = escapeHTML(liker.authorName || '?冽');
+      const safePhoto = String(liker.authorPhoto || '').trim();
+      const initial = escapeHTML(String(liker.authorName || '?').trim().charAt(0) || '?');
+      const style = `--i:${index};z-index:${80 - index}`;
+      if (safePhoto) {
+        return `<img class="event-comment-like-avatar" src="${escapeHTML(safePhoto)}" alt="${safeName}" title="${safeName}" referrerpolicy="no-referrer" loading="lazy" decoding="async" style="${style}" onerror="var s=document.createElement('span');s.className='event-comment-like-avatar event-comment-like-avatar-fallback';s.textContent='${initial}';s.setAttribute('style','${style}');this.replaceWith(s)">`;
+      }
+      return `<span class="event-comment-like-avatar event-comment-like-avatar-fallback" title="${safeName}" style="${style}">${initial}</span>`;
+    }).join('');
+    return `<div class="event-comment-like-avatars" aria-label="${escapeHTML(countLabel + ' likes')}" style="--stack-width:${stackWidth}px;--step:${step}px">${avatars}</div>`;
+  },
+
   _renderEventCommentCard(eventRecord, comment, ctx) {
     const safeEventId = escapeHTML(eventRecord.id || '');
     const safeCommentId = escapeHTML(comment.id);
@@ -210,6 +247,7 @@ Object.assign(App, {
       ${bodyHtml}
       <div class="event-comment-actions">
         <button type="button" class="event-comment-action event-comment-like${comment.likedByMe ? ' active' : ''}" onclick="App._toggleEventCommentLike('${safeEventId}','${safeCommentId}')" aria-pressed="${comment.likedByMe ? 'true' : 'false'}">${this._eventCommentLikeIcon()}<span>+${comment.likeCount || 0}</span></button>
+        ${this._renderEventCommentLikeAvatars(comment)}
         ${replyBtn}
       </div>
       ${replyForm}

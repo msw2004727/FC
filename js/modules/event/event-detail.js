@@ -21,6 +21,18 @@ Object.assign(App, {
     return Object.values(nodes).every(Boolean) ? nodes : null;
   },
 
+  _renderEventDetailBelowFoldLoadingHtml() {
+    return `<div class="event-detail-belowfold-loading activity-list-loading" data-detail-info-loading="true" aria-live="polite" aria-busy="true">
+      <div class="activity-list-loading-bar"><span></span></div>
+      <div class="reg-loading">\u6d3b\u52d5\u8cc7\u8a0a\u8f09\u5165\u4e2d...</div>
+      <div class="reg-loading-skeleton" aria-hidden="true">
+        <div class="reg-loading-skeleton-row"></div>
+        <div class="reg-loading-skeleton-row"></div>
+        <div class="reg-loading-skeleton-row"></div>
+      </div>
+    </div>`;
+  },
+
   _showFastEventDetailShellNow(id, options = {}) {
     if (!this._getPerformanceFlag?.('fastShellNavigation', true)) return false;
     if (!id || !document.getElementById('page-activity-detail')) return false;
@@ -650,7 +662,7 @@ Object.assign(App, {
         <div class="detail-action-primary">${signupBtn}</div>
       </div>
       <div class="detail-section">
-        <div id="detail-attendance-table"></div>
+        <div id="detail-attendance-table">${isGuestView ? '' : (_preservedAttHtml || this._renderEventDetailBelowFoldLoadingHtml())}</div>
       </div>
       <div class="detail-section" id="detail-unreg-section" style="display:none">
         <div id="detail-unreg-table"></div>
@@ -721,18 +733,7 @@ Object.assign(App, {
             // Re-render：還原舊內容（稍後由 _renderAttendanceTable 原子替換為新資料）
             _attSkel.innerHTML = _preservedAttHtml;
           } else if (!_isReRender) {
-            // 首次進入（不同活動或來自其他頁面）：skeleton 載入中
-            const _expected = Number(e.current || 0)
-              || (Array.isArray(e.participantsWithUid) ? e.participantsWithUid.length : 0)
-              || (Array.isArray(e.participants) ? e.participants.length : 0);
-            if (_expected > 0) {
-              const _rowCount = Math.min(3, _expected);
-              const _rows = Array(_rowCount).fill('<div class="reg-loading-skeleton-row"></div>').join('');
-              _attSkel.innerHTML = '<div class="reg-loading">報名名單載入中...</div>'
-                + '<div class="reg-loading-skeleton">' + _rows + '</div>';
-            } else {
-              _attSkel.innerHTML = '';
-            }
+            _attSkel.innerHTML = this._renderEventDetailBelowFoldLoadingHtml();
           }
         }
       }
