@@ -310,7 +310,7 @@ describe('Team reservation button loading contract', () => {
   test('activity detail shows the fast shell before heavier team and roster hydration', () => {
     const detailSource = readProjectFile('js/modules/event/event-detail.js');
     const shellCall = detailSource.indexOf('_showFastEventDetailShellNow?.(id, options)');
-    const staffHydrate = detailSource.indexOf('await this._ensureTeamReservationStaffTeamsLoaded()');
+    const staffHydrate = detailSource.indexOf('const _staffTeamsHydratePromise');
     const rosterRender = detailSource.indexOf("await this._renderAttendanceTable(id, 'detail-attendance-table')");
 
     expect(shellCall).toBeGreaterThan(-1);
@@ -319,6 +319,20 @@ describe('Team reservation button loading contract', () => {
     expect(shellCall).toBeLessThan(staffHydrate);
     expect(shellCall).toBeLessThan(rosterRender);
     expect(detailSource).toContain('_warmEventDetailFreshData?.(id)');
+    expect(detailSource).not.toContain('await this._ensureTeamReservationStaffTeamsLoaded()');
+    expect(detailSource).toContain('_staffTeamsHydratePromise.then');
+  });
+
+  test('activity list ships and preserves an initial loading bar until events finish loading', () => {
+    const activityPage = readProjectFile('pages/activity.html');
+    const timelineSource = readProjectFile('js/modules/event/event-list-timeline.js');
+    const activityCss = readProjectFile('css/activity.css');
+
+    expect(activityPage).toContain('data-activity-loading="initial"');
+    expect(activityPage).toContain('activity-list-loading-bar');
+    expect(timelineSource).toContain('_isActivityListInitialLoading');
+    expect(timelineSource).toContain('_renderActivityListLoading(container)');
+    expect(activityCss).toContain('.activity-list-loading-bar');
   });
 
   test('team reservation modal does not close from backdrop clicks', () => {

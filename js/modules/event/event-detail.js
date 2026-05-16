@@ -377,16 +377,12 @@ Object.assign(App, {
       if (_shellShownEarly && (requestSeq !== this._eventDetailRequestSeq || this.currentPage !== 'page-activity-detail')) {
         return { ok: false, reason: 'stale' };
       }
-      if (!isGuestView && typeof this._ensureTeamReservationStaffTeamsLoaded === 'function') {
-        await this._ensureTeamReservationStaffTeamsLoaded();
-        if (requestSeq !== this._eventDetailRequestSeq
-          || (_shellShownEarly && this.currentPage !== 'page-activity-detail')) {
-          return { ok: false, reason: 'stale' };
-        }
-        e = ApiService.getEvent(id);
-        if (!e) return { ok: false, reason: 'missing' };
-        e = this._syncEventEffectiveStatus?.(e) || e;
-      }
+      const _staffTeamsHydratePromise = (!isGuestView && typeof this._ensureTeamReservationStaffTeamsLoaded === 'function')
+        ? this._ensureTeamReservationStaffTeamsLoaded().catch(err => {
+            console.warn('[EventDetail] team reservation staff teams hydrate failed:', err);
+            return null;
+          })
+        : null;
 
       // 驗證 DOM 節點存在（頁面已載入 DOM 但尚未切換顯示）
       const nodes = this._getEventDetailNodes();
@@ -706,6 +702,14 @@ Object.assign(App, {
       }
       if (requestSeq !== this._eventDetailRequestSeq || this.currentPage !== 'page-activity-detail') {
         return { ok: false, reason: 'stale' };
+      }
+      if (_staffTeamsHydratePromise) {
+        _staffTeamsHydratePromise.then(() => {
+          if (requestSeq !== this._eventDetailRequestSeq
+            || this.currentPage !== 'page-activity-detail'
+            || this._currentDetailEventId !== id) return;
+          this._refreshSignupButton?.(id);
+        });
       }
       // 2026-04-19 UX：attendance-table 初始狀態處理
       //  - 同活動 re-render：還原舊名單 DOM（避免 100ms debounce + fetch 期間閃空白）

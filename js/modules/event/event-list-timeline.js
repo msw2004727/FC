@@ -258,6 +258,44 @@ Object.assign(App, {
     this._activityListRenderTimer = setTimeout(() => { this._doRenderActivityList(); }, 100);
   },
 
+  _hasActivitySourceFinishedInitialLoad() {
+    if (typeof FirebaseService === 'undefined') return true;
+    if (FirebaseService._eventsServerSnapshotReceived) return true;
+    if (FirebaseService._collectionLoadedAt?.events) return true;
+    const source = FirebaseService._cache?.events || [];
+    if (Array.isArray(source) && source.length > 0) return true;
+    const slices = FirebaseService._eventSlices || {};
+    return ['active', 'terminal', 'injected'].some(key => {
+      const list = slices[key];
+      return Array.isArray(list) && list.length > 0;
+    });
+  },
+
+  _isActivityListInitialLoading() {
+    const allEvents = (typeof ApiService !== 'undefined' && ApiService.getEvents)
+      ? (ApiService.getEvents() || [])
+      : [];
+    if (Array.isArray(allEvents) && allEvents.length > 0) return false;
+    return !this._hasActivitySourceFinishedInitialLoad?.();
+  },
+
+  _renderActivityListLoading(container) {
+    if (!container) return;
+    const fp = 'loading:activity-list';
+    if (this._activityListLastFp === fp && container.querySelector('[data-activity-loading]')) return;
+    this._activityListLastFp = fp;
+    container.innerHTML = `
+      <div class="activity-list-loading" data-activity-loading="runtime" aria-live="polite" aria-busy="true">
+        <div class="activity-list-loading-bar" aria-hidden="true"><span></span></div>
+        <div class="reg-loading">&#27963;&#21205;&#36039;&#26009;&#36617;&#20837;&#20013;...</div>
+        <div class="reg-loading-skeleton">
+          <div class="reg-loading-skeleton-row"></div>
+          <div class="reg-loading-skeleton-row"></div>
+          <div class="reg-loading-skeleton-row"></div>
+        </div>
+      </div>`;
+  },
+
   _doRenderActivityList() {
     this._autoEndExpiredEvents();
     const container = document.getElementById('activity-list');
@@ -294,6 +332,11 @@ Object.assign(App, {
 
     if (filterType) events = events.filter(e => e.type === filterType);
     if (filterKw) events = events.filter(e => this._matchesActivityKeyword(e, filterKw));
+
+    if (!events.length && this._isActivityListInitialLoading?.()) {
+      this._renderActivityListLoading(container);
+      return;
+    }
 
     const monthGroups = {};
     events.forEach(e => {
