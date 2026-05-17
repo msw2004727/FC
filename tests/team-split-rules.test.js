@@ -48,6 +48,19 @@ async function seedDoc(collection, id, data) {
   });
 }
 
+async function seedPath(pathSegments, data) {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), ...pathSegments), data);
+  });
+}
+
+async function seedRoleActivityCapabilities(capabilities = []) {
+  await seedDoc("roleActivityCapabilities", "user", {
+    capabilities: [...capabilities],
+    catalogVersion: "test",
+  });
+}
+
 // ─── Seed data helpers ───
 async function seedEvent(eventId, overrides = {}) {
   await seedDoc("events", eventId, {
@@ -76,6 +89,17 @@ async function seedReg(regId, overrides = {}) {
   await seedDoc("registrations", regId, {
     id: regId,
     eventId: "evt1",
+    userId: "uidPlayer",
+    status: "confirmed",
+    teamKey: null,
+    ...overrides,
+  });
+}
+
+async function seedSubReg(eventId, regId, overrides = {}) {
+  await seedPath(["events", eventId, "registrations", regId], {
+    id: regId,
+    eventId,
     userId: "uidPlayer",
     status: "confirmed",
     teamKey: null,
@@ -320,7 +344,40 @@ describe("Step 2: teamKey write validation", () => {
       );
     });
 
+    test("user organizer with add-ons capability can assign teamKey", async () => {
+      await seedRoleActivityCapabilities(["user.activity.addons_use"]);
+      await seedEvent("evt1", { creatorUid: "uidOrganizer" });
+      await seedReg("reg1", { eventId: "evt1" });
+      await assertSucceeds(
+        updateDoc(doc(authed("uidOrganizer"), "registrations", "reg1"), {
+          teamKey: "A",
+        })
+      );
+    });
+
+    test("user organizer without add-ons capability cannot assign teamKey", async () => {
+      await seedRoleActivityCapabilities(["user.activity.basic_create"]);
+      await seedEvent("evt1", { creatorUid: "uidOrganizer" });
+      await seedReg("reg1", { eventId: "evt1" });
+      await assertFails(
+        updateDoc(doc(authed("uidOrganizer"), "registrations", "reg1"), {
+          teamKey: "A",
+        })
+      );
+    });
+
     test("user delegate cannot assign team-split teamKey add-on", async () => {
+      await seedEvent("evt1", { delegateUids: ["uidDelegate"] });
+      await seedReg("reg1", { eventId: "evt1" });
+      await assertFails(
+        updateDoc(doc(authed("uidDelegate"), "registrations", "reg1"), {
+          teamKey: "B",
+        })
+      );
+    });
+
+    test("user delegate with add-ons capability still cannot assign teamKey", async () => {
+      await seedRoleActivityCapabilities(["user.activity.addons_use"]);
       await seedEvent("evt1", { delegateUids: ["uidDelegate"] });
       await seedReg("reg1", { eventId: "evt1" });
       await assertFails(
@@ -347,6 +404,40 @@ describe("Step 2: teamKey write validation", () => {
         updateDoc(doc(authed("uidOrganizer", "coach"), "registrations", "reg1"), {
           teamKey: "A",
           status: "cancelled",
+        })
+      );
+    });
+  });
+
+  describe("subcollection teamKey writes", () => {
+    test("user organizer with add-ons capability can assign subcollection teamKey", async () => {
+      await seedRoleActivityCapabilities(["user.activity.addons_use"]);
+      await seedEvent("evt1", { creatorUid: "uidOrganizer" });
+      await seedSubReg("evt1", "reg1");
+      await assertSucceeds(
+        updateDoc(doc(authed("uidOrganizer"), "events", "evt1", "registrations", "reg1"), {
+          teamKey: "A",
+        })
+      );
+    });
+
+    test("coach delegate can assign subcollection teamKey", async () => {
+      await seedEvent("evt1", { delegateUids: ["uidDelegate"] });
+      await seedSubReg("evt1", "reg1");
+      await assertSucceeds(
+        updateDoc(doc(authed("uidDelegate", "coach"), "events", "evt1", "registrations", "reg1"), {
+          teamKey: "B",
+        })
+      );
+    });
+
+    test("random user cannot assign subcollection teamKey", async () => {
+      await seedRoleActivityCapabilities(["user.activity.addons_use"]);
+      await seedEvent("evt1", { creatorUid: "uidOrganizer" });
+      await seedSubReg("evt1", "reg1");
+      await assertFails(
+        updateDoc(doc(authed("uidRandom"), "events", "evt1", "registrations", "reg1"), {
+          teamKey: "A",
         })
       );
     });

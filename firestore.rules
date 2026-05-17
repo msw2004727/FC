@@ -204,6 +204,24 @@ service cloud.firestore {
         );
     }
 
+    function isEventOwnerForData(eventData) {
+      return isAuth()
+        && eventData != null
+        && (
+          eventData.creatorUid == request.auth.uid
+          || eventData.ownerUid == request.auth.uid
+          || eventData.captainUid == request.auth.uid
+        );
+    }
+
+    function canUserManageTeamSplitData(eventData) {
+      return authRole() == 'user'
+        && hasActivityCap('user.activity.addons_use')
+        && isEventOwnerForData(eventData)
+        && eventData.get('teamSplit', null) is map
+        && eventData.get('teamSplit', {}).get('enabled', false) == true;
+    }
+
     function isPrivateEventData(eventData) {
       return eventData != null
         && ('privateEvent' in eventData)
@@ -1125,9 +1143,14 @@ service cloud.firestore {
         return eventData != null
           && isAuth()
           && isTeamKeyOnlyUpdate()
-          && hasActivityManageEntry()
-          && (eventData.creatorUid == request.auth.uid
-              || (eventData.delegateUids is list && request.auth.uid in eventData.delegateUids));
+          && (
+            (
+              hasActivityManageEntry()
+              && (eventData.creatorUid == request.auth.uid
+                  || (eventData.delegateUids is list && request.auth.uid in eventData.delegateUids))
+            )
+            || canUserManageTeamSplitData(eventData)
+          );
       }
 
       // 用戶自選隊伍（self-select 模式 + 未鎖定）
@@ -1933,9 +1956,14 @@ service cloud.firestore {
         return eventData != null
           && isAuth()
           && isSubTeamKeyOnlyUpdate()
-          && hasActivityManageEntry()
-          && (eventData.creatorUid == request.auth.uid
-              || (eventData.delegateUids is list && request.auth.uid in eventData.delegateUids));
+          && (
+            (
+              hasActivityManageEntry()
+              && (eventData.creatorUid == request.auth.uid
+                  || (eventData.delegateUids is list && request.auth.uid in eventData.delegateUids))
+            )
+            || canUserManageTeamSplitData(eventData)
+          );
       }
 
       function isSubSelfSelectTeamKeyUpdate() {
