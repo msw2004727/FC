@@ -13,7 +13,17 @@ function createRegistrationDoc(eventDocId, row) {
   };
 }
 
-function createDbMock(eventDocId, serverRows) {
+function createDeferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+function createDbMock(eventDocId, serverRows, options = {}) {
   const writes = [];
   const get = jest.fn(async () => ({
     docs: serverRows.map(row => createRegistrationDoc(eventDocId, row)),
@@ -41,15 +51,15 @@ function createDbMock(eventDocId, serverRows) {
     }),
     batch: jest.fn(() => ({
       update: jest.fn((ref, payload) => writes.push({ ref, payload })),
-      commit: jest.fn(async () => {}),
+      commit: jest.fn(() => options.commitImpl?.() || Promise.resolve()),
     })),
   };
 }
 
-function loadTeamSplitModule({ event, cacheRows = [], serverRows, random = Math.random }) {
+function loadTeamSplitModule({ event, cacheRows = [], serverRows, random = Math.random, commitImpl = null }) {
   const eventDocId = event._docId || 'event-doc';
   const timestampSentinel = { __type: 'serverTimestamp' };
-  const db = createDbMock(eventDocId, serverRows);
+  const db = createDbMock(eventDocId, serverRows, { commitImpl });
   const context = {
     App: {
       appConfirm: jest.fn(async () => true),
@@ -150,6 +160,64 @@ describe('event team split writes', () => {
     expect(updatedCache.find(row => row._docId === 'reg-doc-a').teamKey).toBe('B');
     expect(app.showEventDetail).toHaveBeenCalledWith(event.id);
     expect(app._renderAttendanceTable).not.toHaveBeenCalled();
+  });
+
+  test('manual picker applies the selected team before the backend commit resolves', async () => {
+    const event = createEvent();
+    const deferred = createDeferred();
+    const commitImpl = jest.fn(() => deferred.promise);
+    const serverRows = [
+      {
+        _docId: 'reg-doc-a',
+        id: 'display-reg-a',
+        eventId: event.id,
+        userId: 'user-a',
+        status: 'confirmed',
+        teamKey: 'A',
+      },
+    ];
+    const { app, cacheRows: updatedCache } = loadTeamSplitModule({ event, serverRows, commitImpl });
+
+    await app._tsPickTeam('display-reg-a', event.id, 'B');
+
+    expect(updatedCache.find(row => row._docId === 'reg-doc-a').teamKey).toBe('B');
+    expect(app.showEventDetail).toHaveBeenCalledWith(event.id);
+    expect(app.showToast).not.toHaveBeenCalled();
+    const pending = app._tsTeamSplitPendingOps.get(event.id);
+    expect(pending).toBeTruthy();
+
+    deferred.resolve();
+    await pending;
+  });
+
+  test('manual picker rolls back the optimistic team when the backend commit fails', async () => {
+    const event = createEvent();
+    const deferred = createDeferred();
+    const commitImpl = jest.fn(() => deferred.promise);
+    const serverRows = [
+      {
+        _docId: 'reg-doc-a',
+        id: 'display-reg-a',
+        eventId: event.id,
+        userId: 'user-a',
+        status: 'confirmed',
+        teamKey: 'A',
+      },
+    ];
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const { app, cacheRows: updatedCache } = loadTeamSplitModule({ event, serverRows, commitImpl });
+
+    await app._tsPickTeam('display-reg-a', event.id, 'B');
+    expect(updatedCache.find(row => row._docId === 'reg-doc-a').teamKey).toBe('B');
+    const pending = app._tsTeamSplitPendingOps.get(event.id);
+    expect(pending).toBeTruthy();
+
+    deferred.reject(Object.assign(new Error('denied'), { code: 'permission-denied' }));
+    await pending;
+
+    expect(updatedCache.find(row => row._docId === 'reg-doc-a').teamKey).toBe('A');
+    expect(app.showToast).toHaveBeenCalledWith(expect.stringContaining('\u5206\u968a\u6b0a\u9650'));
+    consoleErrorSpy.mockRestore();
   });
 
   test('reset writes only assigned confirmed or waitlisted registrations by real doc id', async () => {

@@ -752,6 +752,7 @@ Object.assign(App, {
           return { ok: false, reason: 'stale' };
         }
         this._refreshRegistrationBadges?.(id, 'detail-attendance-table')?.catch?.(() => {});
+        this._tsPreloadWritableRegistrations?.(id, e);
       }
       const attTable = document.getElementById('detail-attendance-table');
       this._markBadgeRowOverflow?.(attTable);

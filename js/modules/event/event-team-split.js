@@ -123,6 +123,11 @@ Object.assign(App, {
 
   // ── 批次操作實作 ──
 
+  _tsWritableRegistrationCache: Object.create(null),
+  _tsTeamSplitPendingOps: new Map(),
+  _tsTeamSplitPendingTokens: Object.create(null),
+  _tsTeamSplitOptimisticSeq: 0,
+
   _tsTeamKeyUpdatePayload(teamKey) {
     const payload = { teamKey: teamKey || null };
     try {
@@ -149,10 +154,33 @@ Object.assign(App, {
     return this._tsRegistrationCollection(eventDocId).doc(regDocId);
   },
 
-  async _tsLoadWritableRegistrations(eventId, event = null) {
+  _tsGetWritableRegistrationCache(eventId) {
+    const records = this._tsWritableRegistrationCache?.[eventId];
+    return Array.isArray(records) && records.some(record => String(record?._docId || '').trim())
+      ? records
+      : null;
+  },
+
+  _tsCacheWritableRegistrations(eventId, records) {
+    if (!Array.isArray(records) || !records.length) return records || [];
+    if (!this._tsWritableRegistrationCache) this._tsWritableRegistrationCache = Object.create(null);
+    this._tsWritableRegistrationCache[eventId] = records;
+    return records;
+  },
+
+  async _tsLoadWritableRegistrations(eventId, event = null, options = {}) {
+    const cached = this._tsGetWritableRegistrationCache(eventId);
+    if (options?.preferCache && cached) return cached;
+
     const fallback = () => ApiService.getRegistrationsByEvent?.(eventId) || [];
     const eventDocId = await this._tsResolveEventDocId(eventId, event || ApiService.getEvent?.(eventId));
-    if (!eventDocId || typeof db === 'undefined') return fallback();
+    if (!eventDocId || typeof db === 'undefined') {
+      const fallbackRecords = fallback();
+      if (fallbackRecords.some(record => String(record?._docId || '').trim())) {
+        this._tsCacheWritableRegistrations(eventId, fallbackRecords);
+      }
+      return fallbackRecords;
+    }
 
     const snap = await this._tsRegistrationCollection(eventDocId).get();
     const records = snap.docs.map(doc => {
@@ -172,7 +200,12 @@ Object.assign(App, {
     if (typeof FirebaseService !== 'undefined') {
       FirebaseService._saveToLS?.('registrations', FirebaseService._cache?.registrations);
     }
-    return records.length ? records : fallback();
+    if (records.length) return this._tsCacheWritableRegistrations(eventId, records);
+    const fallbackRecords = fallback();
+    if (fallbackRecords.some(record => String(record?._docId || '').trim())) {
+      this._tsCacheWritableRegistrations(eventId, fallbackRecords);
+    }
+    return fallbackRecords;
   },
 
   _tsFindWritableRegistration(regs, regDocId) {
@@ -186,10 +219,119 @@ Object.assign(App, {
     }) || null;
   },
 
+  _tsNormalizeTeamAssignment(item) {
+    const reg = item?.reg;
+    const docId = String(reg?._docId || '').trim();
+    if (!reg || !docId) return null;
+    return { reg, teamKey: item.teamKey || null, docId };
+  },
+
+  _tsApplyTeamAssignments(assignments) {
+    const validAssignments = (assignments || [])
+      .map(item => this._tsNormalizeTeamAssignment(item))
+      .filter(Boolean);
+    validAssignments.forEach(item => {
+      item.reg.teamKey = item.teamKey;
+      const cachedRegistrations = (typeof FirebaseService !== 'undefined' && FirebaseService._cache?.registrations) || [];
+      const cached = cachedRegistrations.find(r =>
+        String(r?._docId || '').trim() === item.docId
+        || String(r?._path || '').trim() === String(item.reg._path || '').trim()
+        || String(r?.id || '').trim() === String(item.reg.id || '').trim()
+      );
+      if (cached) cached.teamKey = item.teamKey;
+    });
+    if (typeof FirebaseService !== 'undefined') {
+      FirebaseService._saveToLS?.('registrations', FirebaseService._cache?.registrations);
+    }
+    return validAssignments.length;
+  },
+
+  _tsSnapshotTeamAssignments(assignments) {
+    return (assignments || [])
+      .map(item => this._tsNormalizeTeamAssignment(item))
+      .filter(Boolean)
+      .map(item => ({ reg: item.reg, teamKey: item.reg.teamKey || null }));
+  },
+
+  _tsRestoreTeamAssignments(snapshot) {
+    return this._tsApplyTeamAssignments((snapshot || []).map(item => ({
+      reg: item.reg,
+      teamKey: item.teamKey || null,
+    })));
+  },
+
+  _tsBeginTeamSplitWrite(eventId) {
+    if (!this._tsTeamSplitPendingTokens) this._tsTeamSplitPendingTokens = Object.create(null);
+    if (this._tsTeamSplitPendingTokens[eventId]) {
+      this.showToast?.('\u5206\u968a\u66f4\u65b0\u4e2d\uff0c\u8acb\u7a0d\u5019');
+      return null;
+    }
+    const token = `${++this._tsTeamSplitOptimisticSeq}:${Date.now()}`;
+    this._tsTeamSplitPendingTokens[eventId] = token;
+    return token;
+  },
+
+  _tsIsCurrentTeamSplitWrite(eventId, token) {
+    return Boolean(token) && this._tsTeamSplitPendingTokens?.[eventId] === token;
+  },
+
+  _tsEndTeamSplitWrite(eventId, token) {
+    if (this._tsIsCurrentTeamSplitWrite(eventId, token)) {
+      delete this._tsTeamSplitPendingTokens[eventId];
+      this._tsTeamSplitPendingOps?.delete?.(eventId);
+    }
+  },
+
+  _tsRenderOptimisticTeamSplit(eventId) {
+    try {
+      const refresh = this._tsRefreshTeamSplitUi?.(eventId);
+      refresh?.catch?.(err => console.warn('[teamSplit] optimistic refresh failed:', err));
+    } catch (err) {
+      console.warn('[teamSplit] optimistic refresh failed:', err);
+    }
+  },
+
+  _tsStartOptimisticTeamAssignments(eventId, event, assignments, token) {
+    const validAssignments = (assignments || [])
+      .map(item => this._tsNormalizeTeamAssignment(item))
+      .filter(Boolean);
+    if (!validAssignments.length) {
+      this._tsEndTeamSplitWrite(eventId, token);
+      return false;
+    }
+
+    const snapshot = this._tsSnapshotTeamAssignments(validAssignments);
+    this._tsApplyTeamAssignments(validAssignments);
+    this._tsRenderOptimisticTeamSplit(eventId);
+
+    const writePromise = this._tsCommitTeamAssignments(eventId, event, validAssignments)
+      .then(written => {
+        if (!written) throw new Error('registration write skipped');
+        return true;
+      })
+      .catch(err => {
+        if (this._tsIsCurrentTeamSplitWrite(eventId, token)) {
+          this._tsRestoreTeamAssignments(snapshot);
+          this._tsRenderOptimisticTeamSplit(eventId);
+        }
+        this._tsHandleTeamSplitWriteError(err);
+        return false;
+      })
+      .finally(() => {
+        this._tsEndTeamSplitWrite(eventId, token);
+      });
+
+    if (!this._tsTeamSplitPendingOps) this._tsTeamSplitPendingOps = new Map();
+    this._tsTeamSplitPendingOps.set(eventId, writePromise);
+    return true;
+  },
+
   async _tsCommitTeamAssignments(eventId, event, assignments) {
     const eventDocId = await this._tsResolveEventDocId(eventId, event);
     if (!eventDocId) throw new Error('eventDocId missing');
-    const validAssignments = (assignments || []).filter(item => item?.reg && String(item.reg._docId || '').trim());
+    const validAssignments = (assignments || [])
+      .map(item => this._tsNormalizeTeamAssignment(item))
+      .filter(Boolean);
     if (!validAssignments.length) return 0;
 
     const chunkSize = 450;
@@ -205,18 +347,7 @@ Object.assign(App, {
       await batch.commit();
     }
 
-    validAssignments.forEach(item => {
-      item.reg.teamKey = item.teamKey || null;
-      const cachedRegistrations = (typeof FirebaseService !== 'undefined' && FirebaseService._cache?.registrations) || [];
-      const cached = cachedRegistrations.find(r =>
-        String(r?._docId || '').trim() === String(item.reg._docId || '').trim()
-        || String(r?._path || '').trim() === String(item.reg._path || '').trim()
-      );
-      if (cached) cached.teamKey = item.teamKey || null;
-    });
-    if (typeof FirebaseService !== 'undefined') {
-      FirebaseService._saveToLS?.('registrations', FirebaseService._cache?.registrations);
-    }
+    this._tsApplyTeamAssignments(validAssignments);
     return validAssignments.length;
   },
 
@@ -226,6 +357,16 @@ Object.assign(App, {
       return;
     }
     await this._renderAttendanceTable?.(eventId, 'detail-attendance-table');
+  },
+
+  async _tsPreloadWritableRegistrations(eventId, event = null) {
+    if (this._tsTeamSplitPendingTokens?.[eventId]) return null;
+    try {
+      return await this._tsLoadWritableRegistrations(eventId, event);
+    } catch (err) {
+      console.warn('[teamSplit] writable registration preload failed:', err);
+      return null;
+    }
   },
 
   _tsHandleTeamSplitWriteError(err) {
@@ -238,6 +379,7 @@ Object.assign(App, {
   },
 
   async _tsBatchRandom(eventId) {
+    let token = null;
     try {
       const event = ApiService.getEvent(eventId);
       if (!event?.teamSplit?.enabled) return;
@@ -245,25 +387,32 @@ Object.assign(App, {
       if (!await this.appConfirm(I18N?.t?.('teamSplit.batch.confirmRandom') || '重新分隊不會通知參加者，確認繼續？')) return;
       const teams = event.teamSplit.teams || [];
       if (!teams.length) return;
-      const regs = (await this._tsLoadWritableRegistrations(eventId, event))
+      token = this._tsBeginTeamSplitWrite(eventId);
+      if (!token) return;
+      const regs = (await this._tsLoadWritableRegistrations(eventId, event, { preferCache: true }))
         .filter(r => r.status === 'confirmed' || r.status === 'waitlisted');
-      if (!regs.length) { this.showToast?.('\u6c92\u6709\u53ef\u5206\u968a\u7684\u540d\u55ae'); return; }
+      if (!regs.length) {
+        this._tsEndTeamSplitWrite(eventId, token);
+        this.showToast?.('\u6c92\u6709\u53ef\u5206\u968a\u7684\u540d\u55ae');
+        return;
+      }
       const shuffled = [...regs].sort(() => Math.random() - 0.5);
       let assignments = shuffled.map((reg, i) => ({ reg, teamKey: teams[i % teams.length].key }));
       const unchanged = assignments.length > 1 && assignments.every(item => (item.reg.teamKey || null) === item.teamKey);
       if (unchanged && teams.length > 1) {
         assignments = shuffled.map((reg, i) => ({ reg, teamKey: teams[(i + 1) % teams.length].key }));
       }
-      const written = await this._tsCommitTeamAssignments(eventId, event, assignments);
-      if (!written) { this.showToast?.('\u5206\u968a\u8cc7\u6599\u5c1a\u672a\u8f09\u5165\uff0c\u8acb\u91cd\u65b0\u958b\u555f\u6d3b\u52d5\u5f8c\u518d\u8a66'); return; }
-      this.showToast?.('\u5206\u968a\u5df2\u66f4\u65b0');
-      await this._tsRefreshTeamSplitUi(eventId);
+      if (!this._tsStartOptimisticTeamAssignments(eventId, event, assignments, token)) {
+        this.showToast?.('\u5206\u968a\u8cc7\u6599\u5c1a\u672a\u8f09\u5165\uff0c\u8acb\u91cd\u65b0\u958b\u555f\u6d3b\u52d5\u5f8c\u518d\u8a66');
+      }
     } catch (err) {
+      if (token) this._tsEndTeamSplitWrite(eventId, token);
       this._tsHandleTeamSplitWriteError(err);
     }
   },
 
   async _tsBatchFill(eventId) {
+    let token = null;
     try {
       const event = ApiService.getEvent(eventId);
       if (!event?.teamSplit?.enabled) return;
@@ -271,10 +420,16 @@ Object.assign(App, {
       const teams = event.teamSplit.teams || [];
       if (!teams.length) return;
       const validKeys = new Set(teams.map(t => t.key));
-      const regs = (await this._tsLoadWritableRegistrations(eventId, event))
+      token = this._tsBeginTeamSplitWrite(eventId);
+      if (!token) return;
+      const regs = (await this._tsLoadWritableRegistrations(eventId, event, { preferCache: true }))
         .filter(r => r.status === 'confirmed' || r.status === 'waitlisted');
       const unassigned = regs.filter(r => !r.teamKey || !validKeys.has(r.teamKey));
-      if (!unassigned.length) { this.showToast?.('\u76ee\u524d\u6c92\u6709\u672a\u5206\u968a\u540d\u55ae'); return; }
+      if (!unassigned.length) {
+        this._tsEndTeamSplitWrite(eventId, token);
+        this.showToast?.('\u76ee\u524d\u6c92\u6709\u672a\u5206\u968a\u540d\u55ae');
+        return;
+      }
       const counts = {};
       teams.forEach(t => { counts[t.key] = 0; });
       regs.filter(r => r.teamKey && validKeys.has(r.teamKey))
@@ -284,33 +439,41 @@ Object.assign(App, {
         counts[minKey]++;
         return { reg, teamKey: minKey };
       });
-      const written = await this._tsCommitTeamAssignments(eventId, event, assignments);
-      if (!written) { this.showToast?.('\u5206\u968a\u8cc7\u6599\u5c1a\u672a\u8f09\u5165\uff0c\u8acb\u91cd\u65b0\u958b\u555f\u6d3b\u52d5\u5f8c\u518d\u8a66'); return; }
-      this.showToast?.('\u5206\u968a\u5df2\u88dc\u9f4a');
-      await this._tsRefreshTeamSplitUi(eventId);
+      if (!this._tsStartOptimisticTeamAssignments(eventId, event, assignments, token)) {
+        this.showToast?.('\u5206\u968a\u8cc7\u6599\u5c1a\u672a\u8f09\u5165\uff0c\u8acb\u91cd\u65b0\u958b\u555f\u6d3b\u52d5\u5f8c\u518d\u8a66');
+      }
     } catch (err) {
+      if (token) this._tsEndTeamSplitWrite(eventId, token);
       this._tsHandleTeamSplitWriteError(err);
     }
   },
 
   async _tsBatchReset(eventId) {
+    let token = null;
     try {
       const event = ApiService.getEvent(eventId);
       if (!event?.teamSplit?.enabled) return;
       if (!this._canManageTeamSplit?.(event)) { this.showToast('\u6b0a\u9650\u4e0d\u8db3'); return; }
       if (!await this.appConfirm(I18N?.t?.('teamSplit.batch.confirmReset') || '確定清除所有隊伍分配？')) return;
-      const regs = (await this._tsLoadWritableRegistrations(eventId, event))
+      token = this._tsBeginTeamSplitWrite(eventId);
+      if (!token) return;
+      const regs = (await this._tsLoadWritableRegistrations(eventId, event, { preferCache: true }))
         .filter(r => (r.status === 'confirmed' || r.status === 'waitlisted') && r.teamKey);
-      if (!regs.length) { this.showToast?.('\u76ee\u524d\u6c92\u6709\u5df2\u5206\u968a\u540d\u55ae'); return; }
-      const written = await this._tsCommitTeamAssignments(
+      if (!regs.length) {
+        this._tsEndTeamSplitWrite(eventId, token);
+        this.showToast?.('\u76ee\u524d\u6c92\u6709\u5df2\u5206\u968a\u540d\u55ae');
+        return;
+      }
+      if (!this._tsStartOptimisticTeamAssignments(
         eventId,
         event,
-        regs.map(reg => ({ reg, teamKey: null }))
-      );
-      if (!written) { this.showToast?.('\u5206\u968a\u8cc7\u6599\u5c1a\u672a\u8f09\u5165\uff0c\u8acb\u91cd\u65b0\u958b\u555f\u6d3b\u52d5\u5f8c\u518d\u8a66'); return; }
-      this.showToast?.('\u5206\u968a\u5df2\u91cd\u7f6e');
-      await this._tsRefreshTeamSplitUi(eventId);
+        regs.map(reg => ({ reg, teamKey: null })),
+        token
+      )) {
+        this.showToast?.('\u5206\u968a\u8cc7\u6599\u5c1a\u672a\u8f09\u5165\uff0c\u8acb\u91cd\u65b0\u958b\u555f\u6d3b\u52d5\u5f8c\u518d\u8a66');
+      }
     } catch (err) {
+      if (token) this._tsEndTeamSplitWrite(eventId, token);
       this._tsHandleTeamSplitWriteError(err);
     }
   },
@@ -570,6 +733,7 @@ Object.assign(App, {
       this.showToast?.('\u5206\u968a\u8cc7\u6599\u5c1a\u672a\u8f09\u5165\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
       return;
     }
+    let token = null;
     try {
       const event = ApiService.getEvent(eventId);
       if (!this._canManageTeamSplit?.(event)) { this.showToast('\u6b0a\u9650\u4e0d\u8db3'); return; }
@@ -579,14 +743,16 @@ Object.assign(App, {
         this.showToast?.('\u7121\u6548\u7684\u5206\u968a');
         return;
       }
-      const regs = await this._tsLoadWritableRegistrations(eventId, event);
+      token = this._tsBeginTeamSplitWrite(eventId);
+      if (!token) return;
+      const regs = await this._tsLoadWritableRegistrations(eventId, event, { preferCache: true });
       const targetReg = this._tsFindWritableRegistration(regs, regDocId);
       if (!targetReg?._docId) throw new Error('registration docId missing');
-      const written = await this._tsCommitTeamAssignments(eventId, event, [{ reg: targetReg, teamKey: newKey }]);
-      if (!written) throw new Error('registration write skipped');
-      this.showToast?.('\u5206\u968a\u5df2\u66f4\u65b0');
-      await this._tsRefreshTeamSplitUi(eventId);
+      if (!this._tsStartOptimisticTeamAssignments(eventId, event, [{ reg: targetReg, teamKey: newKey }], token)) {
+        throw new Error('registration write skipped');
+      }
     } catch (err) {
+      if (token) this._tsEndTeamSplitWrite(eventId, token);
       this._tsHandleTeamSplitWriteError(err);
     }
   },
