@@ -30,6 +30,7 @@ const {
   updateDoc,
   setLogLevel,
   Timestamp,
+  serverTimestamp,
 } = require("firebase/firestore");
 
 const PROJECT_ID = "demo-rules-test";
@@ -427,6 +428,17 @@ describe("Step 2: teamKey write validation", () => {
       await assertSucceeds(
         updateDoc(doc(authed("uidDelegate", "coach"), "events", "evt1", "registrations", "reg1"), {
           teamKey: "B",
+        })
+      );
+    });
+
+    test("coach delegate can assign subcollection teamKey with updatedAt transform", async () => {
+      await seedEvent("evt1", { delegateUids: ["uidDelegate"] });
+      await seedSubReg("evt1", "reg1");
+      await assertSucceeds(
+        updateDoc(doc(authed("uidDelegate", "coach"), "events", "evt1", "registrations", "reg1"), {
+          teamKey: "B",
+          updatedAt: serverTimestamp(),
         })
       );
     });

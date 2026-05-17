@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-17 Activity team split write path [bug]
+- **Problem**: Activity detail team split controls could appear clickable while manual jersey changes, blank assignment, random split, fill, and reset produced no visible result. The failing path depended on cached/projected registration rows whose displayed IDs were not guaranteed to be the real `events/{event}/registrations/{docId}` document IDs.
+- **Fix**: Team split operations now fetch the event registration subcollection before writing, resolve displayed/cache IDs to the writable Firestore doc ID, write `teamKey + updatedAt`, update canonical cache, and refresh the full detail UI after success. Firestore registration path references are centralized through `_tsRegistrationCollection`.
+- **Tests**: Added `tests/unit/event-team-split-write.test.js` for manual, reset, and random writes; added a rules regression for `teamKey + updatedAt`; `npm test` and `npm run test:rules` pass.
+
 ### 2026-05-16 Activity cache and load-order docs refresh [docs]
 - **Problem**: Activity cache/display rules, detail-page load order, terminal history limits, and comment like-avatar constraints were split across implementation notes, with architecture docs still referencing an older cache version.
 - **Fix**: Updated `docs/architecture.md` and `docs/tunables.md` to record the current activity cache windows, admin/user cache differences, list/detail/comment load order, terminal preview/history limits, comment/reply/like fetch caps, and like-avatar overlap behavior.

@@ -123,7 +123,199 @@ Object.assign(App, {
 
   // ── 批次操作實作 ──
 
+  _tsTeamKeyUpdatePayload(teamKey) {
+    const payload = { teamKey: teamKey || null };
+    try {
+      const serverTimestamp = firebase?.firestore?.FieldValue?.serverTimestamp?.();
+      if (serverTimestamp) payload.updatedAt = serverTimestamp;
+    } catch (_) {}
+    return payload;
+  },
+
+  async _tsResolveEventDocId(eventId, event) {
+    const cachedDocId = String(event?._docId || event?.docId || '').trim();
+    if (cachedDocId) return cachedDocId;
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._getEventDocIdAsync === 'function') {
+      return await FirebaseService._getEventDocIdAsync(eventId);
+    }
+    return '';
+  },
+
+  _tsRegistrationCollection(eventDocId) {
+    return db.collection('events').doc(eventDocId).collection('registrations');
+  },
+
+  _tsRegistrationDocRef(eventDocId, regDocId) {
+    return this._tsRegistrationCollection(eventDocId).doc(regDocId);
+  },
+
+  async _tsLoadWritableRegistrations(eventId, event = null) {
+    const fallback = () => ApiService.getRegistrationsByEvent?.(eventId) || [];
+    const eventDocId = await this._tsResolveEventDocId(eventId, event || ApiService.getEvent?.(eventId));
+    if (!eventDocId || typeof db === 'undefined') return fallback();
+
+    const snap = await this._tsRegistrationCollection(eventDocId).get();
+    const records = snap.docs.map(doc => {
+      if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._mapSubcollectionDoc === 'function') {
+        return FirebaseService._mapSubcollectionDoc(doc, 'registrations', { eventId });
+      }
+      return { ...doc.data(), eventId, _docId: doc.id, _sourceKind: 'subcollection' };
+    });
+
+    records.forEach(record => {
+      if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._upsertCanonicalCacheRecord === 'function') {
+        FirebaseService._upsertCanonicalCacheRecord('registrations', record);
+      }
+    });
+    ApiService._fetchedRegistrationIds?.add?.(eventId);
+    ApiService._fetchedRegistrationServerIds?.add?.(eventId);
+    if (typeof FirebaseService !== 'undefined') {
+      FirebaseService._saveToLS?.('registrations', FirebaseService._cache?.registrations);
+    }
+    return records.length ? records : fallback();
+  },
+
+  _tsFindWritableRegistration(regs, regDocId) {
+    const target = String(regDocId || '').trim();
+    if (!target) return null;
+    return (regs || []).find(r => {
+      const docId = String(r?._docId || '').trim();
+      const id = String(r?.id || '').trim();
+      const path = String(r?._path || '').trim();
+      return docId === target || id === target || path.endsWith(`/registrations/${target}`);
+    }) || null;
+  },
+
+  async _tsCommitTeamAssignments(eventId, event, assignments) {
+    const eventDocId = await this._tsResolveEventDocId(eventId, event);
+    if (!eventDocId) throw new Error('eventDocId missing');
+    const validAssignments = (assignments || []).filter(item => item?.reg && String(item.reg._docId || '').trim());
+    if (!validAssignments.length) return 0;
+
+    const chunkSize = 450;
+    for (let start = 0; start < validAssignments.length; start += chunkSize) {
+      const batch = db.batch();
+      validAssignments.slice(start, start + chunkSize).forEach(item => {
+        const docId = String(item.reg._docId || '').trim();
+        batch.update(
+          this._tsRegistrationDocRef(eventDocId, docId),
+          this._tsTeamKeyUpdatePayload(item.teamKey)
+        );
+      });
+      await batch.commit();
+    }
+
+    validAssignments.forEach(item => {
+      item.reg.teamKey = item.teamKey || null;
+      const cachedRegistrations = (typeof FirebaseService !== 'undefined' && FirebaseService._cache?.registrations) || [];
+      const cached = cachedRegistrations.find(r =>
+        String(r?._docId || '').trim() === String(item.reg._docId || '').trim()
+        || String(r?._path || '').trim() === String(item.reg._path || '').trim()
+      );
+      if (cached) cached.teamKey = item.teamKey || null;
+    });
+    if (typeof FirebaseService !== 'undefined') {
+      FirebaseService._saveToLS?.('registrations', FirebaseService._cache?.registrations);
+    }
+    return validAssignments.length;
+  },
+
+  async _tsRefreshTeamSplitUi(eventId) {
+    if (typeof this.showEventDetail === 'function') {
+      await this.showEventDetail(eventId);
+      return;
+    }
+    await this._renderAttendanceTable?.(eventId, 'detail-attendance-table');
+  },
+
+  _tsHandleTeamSplitWriteError(err) {
+    console.error('[teamSplit] write failed:', err);
+    const code = String(err?.code || '');
+    const msg = code === 'permission-denied'
+      ? '\u5206\u968a\u6b0a\u9650\u88ab\u62d2\u7d55\uff0c\u8acb\u78ba\u8a8d\u4f60\u662f\u6d3b\u52d5\u4e3b\u8fa6\u6216\u6709\u64cd\u4f5c\u6b0a\u9650'
+      : '\u5206\u968a\u66f4\u65b0\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66';
+    this.showToast?.(msg);
+  },
+
   async _tsBatchRandom(eventId) {
+    try {
+      const event = ApiService.getEvent(eventId);
+      if (!event?.teamSplit?.enabled) return;
+      if (!this._canManageTeamSplit?.(event)) { this.showToast('\u6b0a\u9650\u4e0d\u8db3'); return; }
+      if (!await this.appConfirm(I18N?.t?.('teamSplit.batch.confirmRandom') || '重新分隊不會通知參加者，確認繼續？')) return;
+      const teams = event.teamSplit.teams || [];
+      if (!teams.length) return;
+      const regs = (await this._tsLoadWritableRegistrations(eventId, event))
+        .filter(r => r.status === 'confirmed' || r.status === 'waitlisted');
+      if (!regs.length) { this.showToast?.('\u6c92\u6709\u53ef\u5206\u968a\u7684\u540d\u55ae'); return; }
+      const shuffled = [...regs].sort(() => Math.random() - 0.5);
+      let assignments = shuffled.map((reg, i) => ({ reg, teamKey: teams[i % teams.length].key }));
+      const unchanged = assignments.length > 1 && assignments.every(item => (item.reg.teamKey || null) === item.teamKey);
+      if (unchanged && teams.length > 1) {
+        assignments = shuffled.map((reg, i) => ({ reg, teamKey: teams[(i + 1) % teams.length].key }));
+      }
+      const written = await this._tsCommitTeamAssignments(eventId, event, assignments);
+      if (!written) { this.showToast?.('\u5206\u968a\u8cc7\u6599\u5c1a\u672a\u8f09\u5165\uff0c\u8acb\u91cd\u65b0\u958b\u555f\u6d3b\u52d5\u5f8c\u518d\u8a66'); return; }
+      this.showToast?.('\u5206\u968a\u5df2\u66f4\u65b0');
+      await this._tsRefreshTeamSplitUi(eventId);
+    } catch (err) {
+      this._tsHandleTeamSplitWriteError(err);
+    }
+  },
+
+  async _tsBatchFill(eventId) {
+    try {
+      const event = ApiService.getEvent(eventId);
+      if (!event?.teamSplit?.enabled) return;
+      if (!this._canManageTeamSplit?.(event)) { this.showToast('\u6b0a\u9650\u4e0d\u8db3'); return; }
+      const teams = event.teamSplit.teams || [];
+      if (!teams.length) return;
+      const validKeys = new Set(teams.map(t => t.key));
+      const regs = (await this._tsLoadWritableRegistrations(eventId, event))
+        .filter(r => r.status === 'confirmed' || r.status === 'waitlisted');
+      const unassigned = regs.filter(r => !r.teamKey || !validKeys.has(r.teamKey));
+      if (!unassigned.length) { this.showToast?.('\u76ee\u524d\u6c92\u6709\u672a\u5206\u968a\u540d\u55ae'); return; }
+      const counts = {};
+      teams.forEach(t => { counts[t.key] = 0; });
+      regs.filter(r => r.teamKey && validKeys.has(r.teamKey))
+        .forEach(r => { counts[r.teamKey]++; });
+      const assignments = unassigned.map(reg => {
+        const minKey = teams.reduce((min, t) => (counts[t.key] || 0) < (counts[min.key] || 0) ? t : min).key;
+        counts[minKey]++;
+        return { reg, teamKey: minKey };
+      });
+      const written = await this._tsCommitTeamAssignments(eventId, event, assignments);
+      if (!written) { this.showToast?.('\u5206\u968a\u8cc7\u6599\u5c1a\u672a\u8f09\u5165\uff0c\u8acb\u91cd\u65b0\u958b\u555f\u6d3b\u52d5\u5f8c\u518d\u8a66'); return; }
+      this.showToast?.('\u5206\u968a\u5df2\u88dc\u9f4a');
+      await this._tsRefreshTeamSplitUi(eventId);
+    } catch (err) {
+      this._tsHandleTeamSplitWriteError(err);
+    }
+  },
+
+  async _tsBatchReset(eventId) {
+    try {
+      const event = ApiService.getEvent(eventId);
+      if (!event?.teamSplit?.enabled) return;
+      if (!this._canManageTeamSplit?.(event)) { this.showToast('\u6b0a\u9650\u4e0d\u8db3'); return; }
+      if (!await this.appConfirm(I18N?.t?.('teamSplit.batch.confirmReset') || '確定清除所有隊伍分配？')) return;
+      const regs = (await this._tsLoadWritableRegistrations(eventId, event))
+        .filter(r => (r.status === 'confirmed' || r.status === 'waitlisted') && r.teamKey);
+      if (!regs.length) { this.showToast?.('\u76ee\u524d\u6c92\u6709\u5df2\u5206\u968a\u540d\u55ae'); return; }
+      const written = await this._tsCommitTeamAssignments(
+        eventId,
+        event,
+        regs.map(reg => ({ reg, teamKey: null }))
+      );
+      if (!written) { this.showToast?.('\u5206\u968a\u8cc7\u6599\u5c1a\u672a\u8f09\u5165\uff0c\u8acb\u91cd\u65b0\u958b\u555f\u6d3b\u52d5\u5f8c\u518d\u8a66'); return; }
+      this.showToast?.('\u5206\u968a\u5df2\u91cd\u7f6e');
+      await this._tsRefreshTeamSplitUi(eventId);
+    } catch (err) {
+      this._tsHandleTeamSplitWriteError(err);
+    }
+  },
+
+  async _tsBatchRandomLegacy(eventId) {
     const event = ApiService.getEvent(eventId);
     if (!event?.teamSplit?.enabled) return;
     if (!this._canManageTeamSplit?.(event)) { this.showToast('\u6b0a\u9650\u4e0d\u8db3'); return; }
@@ -141,7 +333,7 @@ Object.assign(App, {
     shuffled.forEach((r, i) => {
       if (!r._docId) return;
       const key = teams[i % teams.length].key;
-      batch.update(db.collection('events').doc(_eventDocId).collection('registrations').doc(r._docId), { teamKey: key });
+      batch.update(this._tsRegistrationDocRef(_eventDocId, r._docId), { teamKey: key });
       r.teamKey = key;
     });
     await batch.commit();
@@ -149,7 +341,7 @@ Object.assign(App, {
     this.showEventDetail?.(eventId);
   },
 
-  async _tsBatchFill(eventId) {
+  async _tsBatchFillLegacy(eventId) {
     const event = ApiService.getEvent(eventId);
     if (!event?.teamSplit?.enabled) return;
     if (!this._canManageTeamSplit?.(event)) { this.showToast('\u6b0a\u9650\u4e0d\u8db3'); return; }
@@ -170,7 +362,7 @@ Object.assign(App, {
     unassigned.forEach(r => {
       if (!r._docId) return;
       const minKey = teams.reduce((min, t) => (counts[t.key] || 0) < (counts[min.key] || 0) ? t : min).key;
-      batch.update(db.collection('events').doc(_eventDocId).collection('registrations').doc(r._docId), { teamKey: minKey });
+      batch.update(this._tsRegistrationDocRef(_eventDocId, r._docId), { teamKey: minKey });
       r.teamKey = minKey;
       counts[minKey]++;
     });
@@ -179,7 +371,7 @@ Object.assign(App, {
     this.showEventDetail?.(eventId);
   },
 
-  async _tsBatchReset(eventId) {
+  async _tsBatchResetLegacy(eventId) {
     const event = ApiService.getEvent(eventId);
     if (!event?.teamSplit?.enabled) return;
     if (!this._canManageTeamSplit?.(event)) { this.showToast('\u6b0a\u9650\u4e0d\u8db3'); return; }
@@ -193,7 +385,7 @@ Object.assign(App, {
     const batch = db.batch();
     regs.forEach(r => {
       if (!r._docId) return;
-      batch.update(db.collection('events').doc(_eventDocId).collection('registrations').doc(r._docId), { teamKey: null });
+      batch.update(this._tsRegistrationDocRef(_eventDocId, r._docId), { teamKey: null });
       r.teamKey = null;
     });
     await batch.commit();
@@ -378,6 +570,33 @@ Object.assign(App, {
       this.showToast?.('\u5206\u968a\u8cc7\u6599\u5c1a\u672a\u8f09\u5165\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
       return;
     }
+    try {
+      const event = ApiService.getEvent(eventId);
+      if (!this._canManageTeamSplit?.(event)) { this.showToast('\u6b0a\u9650\u4e0d\u8db3'); return; }
+      const teams = event?.teamSplit?.teams || [];
+      const newKey = teamKey || null;
+      if (newKey && !teams.some(t => t.key === newKey)) {
+        this.showToast?.('\u7121\u6548\u7684\u5206\u968a');
+        return;
+      }
+      const regs = await this._tsLoadWritableRegistrations(eventId, event);
+      const targetReg = this._tsFindWritableRegistration(regs, regDocId);
+      if (!targetReg?._docId) throw new Error('registration docId missing');
+      const written = await this._tsCommitTeamAssignments(eventId, event, [{ reg: targetReg, teamKey: newKey }]);
+      if (!written) throw new Error('registration write skipped');
+      this.showToast?.('\u5206\u968a\u5df2\u66f4\u65b0');
+      await this._tsRefreshTeamSplitUi(eventId);
+    } catch (err) {
+      this._tsHandleTeamSplitWriteError(err);
+    }
+  },
+
+  async _tsPickTeamLegacy(regDocId, eventId, teamKey) {
+    this._tsCloseJerseyPicker();
+    if (!regDocId || !eventId) {
+      this.showToast?.('\u5206\u968a\u8cc7\u6599\u5c1a\u672a\u8f09\u5165\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+      return;
+    }
     const event = ApiService.getEvent(eventId);
     if (!this._canManageTeamSplit?.(event)) { this.showToast('\u6b0a\u9650\u4e0d\u8db3'); return; }
     const newKey = teamKey || null;
@@ -387,7 +606,7 @@ Object.assign(App, {
       const targetDocId = targetReg?._docId || regDocId;
       var _dwDocId = await FirebaseService._getEventDocIdAsync(eventId);
       if (!_dwDocId) { console.error('[_tsPickTeam] missing eventDocId for:', eventId); throw new Error('eventDocId missing'); }
-      await db.collection('events').doc(_dwDocId).collection('registrations').doc(targetDocId).update({ teamKey: newKey });
+      await this._tsRegistrationDocRef(_dwDocId, targetDocId).update({ teamKey: newKey });
       const reg = regs.find(r => r?._docId === targetDocId || r?.id === regDocId);
       if (reg) reg.teamKey = newKey;
       this._saveToLS?.('registrations', FirebaseService?._cache?.registrations);

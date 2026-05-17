@@ -333,7 +333,7 @@ commit + push。
 | `event-manage-lifecycle.js:257` | activityRecords batch.delete | activityRecords 雙寫 |
 | `event-manage-lifecycle.js:402,408` | 移除/遞補 registrations | registrations 雙寫 |
 | `event-manage-lifecycle.js:405,410` | 移除/遞補 activityRecords | activityRecords 雙寫 |
-| `event-team-split.js:140,165,182,355` | teamKey 更新 | registrations 雙寫 |
+| `event-team-split.js:_tsRegistrationCollection` | teamKey 讀取/更新 | 使用活動子集合 registrations；2026-05-17 起批次與手動分隊先讀實際 registration docId，再集中寫入 |
 | `event-manage-badges.js:93` | 徽章更新 | registrations 雙寫（:19 為 READ，見 Phase 3a） |
 | `registration-audit.js:269,277` | 審計修復 | registrations 雙寫 |
 | `achievement-batch.js:305` | displayBadges 更新 | registrations 雙寫 |
