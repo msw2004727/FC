@@ -1,12 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://toosterx.com/events/ce_1777123624789_8ryo_2</loc>
-    <lastmod>2026-05-16</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://toosterx.com/events/ce_1777122210989_izab_3</loc>
     <lastmod>2026-04-28</lastmod>
     <changefreq>daily</changefreq>
@@ -19,20 +13,8 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://toosterx.com/events/ce_1777122210989_ya34_2</loc>
-    <lastmod>2026-04-25</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://toosterx.com/events/ce_1777379740742_b0nv_2</loc>
     <lastmod>2026-05-16</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://toosterx.com/events/ce_1777381643046_ku2w_1</loc>
-    <lastmod>2026-04-28</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -103,12 +85,6 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://toosterx.com/events/ce_1778789255654_tkel1s</loc>
-    <lastmod>2026-05-16</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://toosterx.com/events/ce_1778822007960_vi5di0</loc>
     <lastmod>2026-05-16</lastmod>
     <changefreq>daily</changefreq>
@@ -121,13 +97,13 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://toosterx.com/events/ce_1777126425427_mql5_3</loc>
-    <lastmod>2026-04-25</lastmod>
+    <loc>https://toosterx.com/events/ce_1778948192366_5yz5qx</loc>
+    <lastmod>2026-05-16</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://toosterx.com/events/ce_1777126425427_9bvl_2</loc>
+    <loc>https://toosterx.com/events/ce_1777126425427_mql5_3</loc>
     <lastmod>2026-04-25</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
