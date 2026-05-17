@@ -96,6 +96,10 @@ const PageLoader = {
     const mainEl = document.getElementById('main-content');
     const temp = document.createElement('div');
     temp.innerHTML = html;
+    const hasActivePage = !!mainEl.querySelector('.page.active');
+    if (hasActivePage) {
+      temp.querySelectorAll('.page.active').forEach(page => page.classList.remove('active'));
+    }
     while (temp.firstChild) mainEl.appendChild(temp.firstChild);
   },
 

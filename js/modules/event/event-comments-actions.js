@@ -52,7 +52,7 @@ Object.assign(App, {
     if (btn) { btn.disabled = true; btn.textContent = '送出中'; }
     try {
       const { commentsRef, eventRecord: currentEvent } = await this._getEventCommentRefs(eventId);
-      await commentsRef.add({
+      const commentPayload = {
         eventId: currentEvent?.id || eventId,
         authorUid: author.uid,
         authorName: author.authorName,
@@ -61,9 +61,19 @@ Object.assign(App, {
         visibility: privateInput?.checked ? 'private' : 'public',
         replyLocked: false,
         deleted: false,
+        replyCount: 0,
+        likeCount: 0,
+        recentLikers: [],
         createdAt: this._eventCommentServerTimestamp(),
         updatedAt: this._eventCommentServerTimestamp(),
-      });
+      };
+      try {
+        await commentsRef.add(commentPayload);
+      } catch (err) {
+        if (!this._isEventCommentPermissionDenied(err)) throw err;
+        const { replyCount, likeCount, recentLikers, ...legacyPayload } = commentPayload;
+        await commentsRef.add(legacyPayload);
+      }
       if (input) input.value = '';
       if (privateInput) privateInput.checked = false;
       this.showToast?.('留言已送出');
@@ -129,6 +139,63 @@ Object.assign(App, {
     btn.setAttribute('aria-pressed', liked ? 'true' : 'false');
     const span = btn.querySelector('span');
     if (span) span.textContent = '+' + Math.max(0, count);
+  },
+
+  _buildEventCommentLikerSummary(author) {
+    return {
+      uid: String(author?.uid || '').trim(),
+      authorName: String(author?.authorName || '?冽').trim().slice(0, 80) || '?冽',
+      authorPhoto: String(author?.authorPhoto || '').trim().slice(0, 1200),
+    };
+  },
+
+  _normalizeEventCommentLikeCount(value, fallback = 0) {
+    const count = Number(value);
+    if (!Number.isFinite(count)) return Math.max(0, Math.floor(Number(fallback) || 0));
+    return Math.max(0, Math.floor(count));
+  },
+
+  async _writeEventCommentLikeWithSummary(commentRef, likeRef, eventId, commentId, author, liked) {
+    const serverTimestamp = this._eventCommentServerTimestamp();
+    const summaryLiker = this._buildEventCommentLikerSummary(author);
+    await db.runTransaction(async tx => {
+      const commentSnap = await tx.get(commentRef);
+      if (!commentSnap.exists) throw new Error('comment_missing');
+      const likeSnap = await tx.get(likeRef);
+      const commentData = commentSnap.data() || {};
+      const currentLikers = this._normalizeEventCommentLikers?.(commentData.recentLikers) || [];
+      const currentCount = this._normalizeEventCommentLikeCount(commentData.likeCount, currentLikers.length);
+      let nextLikers = currentLikers.filter(liker => liker.uid !== author.uid);
+      let nextCount = currentCount;
+
+      if (liked) {
+        if (!likeSnap.exists) {
+          tx.set(likeRef, {
+            eventId,
+            commentId,
+            uid: author.uid,
+            authorName: summaryLiker.authorName,
+            authorPhoto: summaryLiker.authorPhoto,
+            createdAt: serverTimestamp,
+          });
+          nextCount += 1;
+        } else if (nextCount === 0) {
+          nextCount = 1;
+        }
+        nextLikers.unshift(summaryLiker);
+      } else if (likeSnap.exists) {
+        tx.delete(likeRef);
+        nextCount = Math.max(0, nextCount - 1);
+      } else {
+        return;
+      }
+
+      tx.update(commentRef, {
+        likeCount: nextCount,
+        recentLikers: nextLikers.slice(0, 32),
+        updatedAt: serverTimestamp,
+      });
+    });
   },
 
   _readEventCommentLikeAvatarsFromDom(stack) {
@@ -215,10 +282,15 @@ Object.assign(App, {
     try {
       const { commentRef, eventRecord } = await this._getEventCommentRefs(eventId, commentId);
       likeRef = commentRef.collection('likes').doc(author.uid);
-      if (nextLiked) {
-        await this._setEventCommentLikeDoc(likeRef, eventRecord?.id || eventId, commentId, author);
-      } else {
-        await likeRef.delete();
+      try {
+        await this._writeEventCommentLikeWithSummary(commentRef, likeRef, eventRecord?.id || eventId, commentId, author, nextLiked);
+      } catch (err) {
+        if (!this._isEventCommentPermissionDenied(err)) throw err;
+        if (nextLiked) {
+          await this._setEventCommentLikeDoc(likeRef, eventRecord?.id || eventId, commentId, author);
+        } else {
+          await likeRef.delete();
+        }
       }
       this._syncEventCommentLikeAvatars(card, author, nextLiked, nextCount);
     } catch (err) {

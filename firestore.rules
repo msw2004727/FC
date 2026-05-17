@@ -2077,7 +2077,7 @@ service cloud.firestore {
       function commentCreateIsSafe() {
         return request.resource.data.keys().hasOnly([
             'eventId', 'authorUid', 'authorName', 'authorPhoto', 'body', 'visibility',
-            'replyLocked', 'deleted', 'createdAt', 'updatedAt'
+            'replyLocked', 'deleted', 'replyCount', 'likeCount', 'recentLikers', 'createdAt', 'updatedAt'
           ])
           && requestEventIdMatchesPath(eventId)
           && request.resource.data.authorUid == request.auth.uid
@@ -2092,6 +2092,11 @@ service cloud.firestore {
           && request.resource.data.visibility in ['public', 'private']
           && request.resource.data.replyLocked == false
           && request.resource.data.deleted == false
+          && (!('replyCount' in request.resource.data) || request.resource.data.replyCount == 0)
+          && (!('likeCount' in request.resource.data) || request.resource.data.likeCount == 0)
+          && (!('recentLikers' in request.resource.data)
+            || (request.resource.data.recentLikers is list
+              && request.resource.data.recentLikers.size() == 0))
           && request.resource.data.createdAt == request.time
           && request.resource.data.updatedAt == request.time;
       }
@@ -2111,13 +2116,54 @@ service cloud.firestore {
           && (!changed.hasAny(['deletedAt']) || request.resource.data.deletedAt == request.time)
           && (!changed.hasAny(['deletedByUid']) || request.resource.data.deletedByUid == request.auth.uid);
       }
+      function commentCoreFieldsUnchanged() {
+        return request.resource.data.eventId == resource.data.eventId
+          && request.resource.data.authorUid == resource.data.authorUid
+          && request.resource.data.authorName == resource.data.authorName
+          && request.resource.data.authorPhoto == resource.data.authorPhoto
+          && request.resource.data.body == resource.data.body
+          && request.resource.data.visibility == resource.data.visibility
+          && request.resource.data.replyLocked == resource.data.replyLocked
+          && request.resource.data.deleted == resource.data.deleted
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt == request.time;
+      }
+      function commentLikeSummaryUpdateIsSafe() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        let oldLikeCount = ('likeCount' in resource.data && resource.data.likeCount is int) ? resource.data.likeCount : 0;
+        let selfLikePath = /databases/$(database)/documents/events/$(eventId)/comments/$(commentId)/likes/$(request.auth.uid);
+        return isAuth()
+          && canReadCommentData(resource.data)
+          && changed.hasOnly(['likeCount', 'recentLikers', 'updatedAt'])
+          && commentCoreFieldsUnchanged()
+          && request.resource.data.likeCount is int
+          && request.resource.data.likeCount >= 0
+          && request.resource.data.likeCount <= 100000
+          && request.resource.data.recentLikers is list
+          && request.resource.data.recentLikers.size() <= 32
+          && (
+            (!exists(selfLikePath)
+              && existsAfter(selfLikePath)
+              && request.resource.data.likeCount == oldLikeCount + 1)
+            || (exists(selfLikePath)
+              && !existsAfter(selfLikePath)
+              && ((oldLikeCount > 0 && request.resource.data.likeCount == oldLikeCount - 1)
+                || (oldLikeCount == 0 && request.resource.data.likeCount == 0)))
+            || (exists(selfLikePath)
+              && existsAfter(selfLikePath)
+              && ((oldLikeCount == 0 && request.resource.data.likeCount == 1)
+                || request.resource.data.likeCount == oldLikeCount))
+          );
+      }
 
       allow read: if canReadCommentData(resource.data);
       allow create: if isAuth()
         && eventAcceptsCommentWrites()
         && commentCreateIsSafe();
-      allow update: if isCommentManager()
-        && commentManagerUpdateIsSafe();
+      allow update: if isAuth()
+        && ((isCommentManager()
+            && commentManagerUpdateIsSafe())
+          || commentLikeSummaryUpdateIsSafe());
       allow delete: if isCommentManager();
 
       match /replies/{replyId} {

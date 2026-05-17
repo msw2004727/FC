@@ -11,6 +11,7 @@ const {
   setDoc,
   updateDoc,
   deleteDoc,
+  writeBatch,
   setLogLevel,
   serverTimestamp,
 } = require("firebase/firestore");
@@ -3204,6 +3205,47 @@ describe("event comments subcollections", () => {
     await assertSucceeds(
       setDoc(doc(user(), "events", "commentFuture", "comments", "c1"), {
         ...commentData("commentFuture", "uidUser", "x".repeat(300)),
+      })
+    );
+  });
+
+  test("comment create and likes can maintain lightweight summary fields", async () => {
+    await seedCommentEvent("commentSummary");
+    await assertSucceeds(
+      setDoc(doc(user(), "events", "commentSummary", "comments", "c1"), {
+        ...commentData("commentSummary", "uidUser", "summary"),
+        replyCount: 0,
+        likeCount: 0,
+        recentLikers: [],
+      })
+    );
+
+    const dbB = memberB();
+    const batch = writeBatch(dbB);
+    batch.set(doc(dbB, "events", "commentSummary", "comments", "c1", "likes", "uidB"), {
+      eventId: "commentSummary",
+      commentId: "c1",
+      uid: "uidB",
+      authorName: "Reply User",
+      authorPhoto: "https://example.com/reply.png",
+      createdAt: serverTimestamp(),
+    });
+    batch.update(doc(dbB, "events", "commentSummary", "comments", "c1"), {
+      likeCount: 1,
+      recentLikers: [{
+        uid: "uidB",
+        authorName: "Reply User",
+        authorPhoto: "https://example.com/reply.png",
+      }],
+      updatedAt: serverTimestamp(),
+    });
+    await assertSucceeds(batch.commit());
+
+    await assertFails(
+      updateDoc(doc(memberB(), "events", "commentSummary", "comments", "c1"), {
+        likeCount: 9,
+        recentLikers: [],
+        updatedAt: serverTimestamp(),
       })
     );
   });

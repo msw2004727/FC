@@ -75,8 +75,29 @@ Object.assign(App, {
     return `<span class="event-comment-avatar event-comment-avatar-fallback">${escapeHTML(String(name || '?').trim().charAt(0) || '?')}</span>`;
   },
 
+  _normalizeEventCommentLikers(value) {
+    if (!Array.isArray(value)) return [];
+    const seen = new Set();
+    return value
+      .map(liker => ({
+        uid: String(liker?.uid || '').trim(),
+        authorName: String(liker?.authorName || liker?.displayName || liker?.name || liker?.uid || '?冽').trim(),
+        authorPhoto: String(liker?.authorPhoto || liker?.pictureUrl || liker?.photoURL || '').trim(),
+      }))
+      .filter(liker => {
+        if (!liker.uid || seen.has(liker.uid)) return false;
+        seen.add(liker.uid);
+        return true;
+      })
+      .slice(0, 32);
+  },
+
   _mapEventCommentDoc(docSnap) {
     const data = docSnap.data() || {};
+    const recentLikers = this._normalizeEventCommentLikers(data.recentLikers);
+    const rawLikeCount = Number(data.likeCount);
+    const rawReplyCount = Number(data.replyCount);
+    const user = ApiService.getCurrentUser?.();
     return {
       id: docSnap.id,
       eventId: data.eventId || '',
@@ -89,9 +110,12 @@ Object.assign(App, {
       deleted: data.deleted === true,
       createdAt: data.createdAt || null,
       replies: [],
-      likeCount: 0,
-      likedByMe: false,
-      likers: [],
+      repliesLoaded: false,
+      replyCount: Number.isFinite(rawReplyCount) ? Math.max(0, Math.floor(rawReplyCount)) : 0,
+      likeCount: Number.isFinite(rawLikeCount) ? Math.max(0, Math.floor(rawLikeCount)) : recentLikers.length,
+      likedByMe: !!user?.uid && recentLikers.some(liker => liker.uid === user.uid),
+      likers: recentLikers,
+      hasLikeSummary: Object.prototype.hasOwnProperty.call(data, 'likeCount') || Array.isArray(data.recentLikers),
     };
   },
 
@@ -139,21 +163,6 @@ Object.assign(App, {
     const comments = Array.from(byId.values())
       .sort((a, b) => this._eventCommentTimeMs(b.createdAt) - this._eventCommentTimeMs(a.createdAt))
       .slice(0, 80);
-    await Promise.all(comments.map(async c => {
-      const cRef = commentsRef.doc(c.id);
-      const [replySnap, likeSnap] = await Promise.all([
-        cRef.collection('replies').limit(20).get().catch(() => ({ docs: [] })),
-        cRef.collection('likes').limit(500).get().catch(() => ({ docs: [] })),
-      ]);
-      c.replies = replySnap.docs.map(d => this._mapEventCommentReplyDoc(d))
-        .sort((a, b) => this._eventCommentTimeMs(a.createdAt) - this._eventCommentTimeMs(b.createdAt));
-      c.likers = likeSnap.docs
-        .map(d => this._mapEventCommentLikeDoc(d))
-        .filter(liker => liker.uid)
-        .sort((a, b) => this._eventCommentTimeMs(b.createdAt) - this._eventCommentTimeMs(a.createdAt));
-      c.likeCount = c.likers.length;
-      c.likedByMe = c.likers.some(liker => liker.uid === user.uid);
-    }));
     return { eventDocId, comments };
   },
 
@@ -171,9 +180,66 @@ Object.assign(App, {
       const state = await this._loadEventComments(eventRecord);
       if (this.currentPage !== 'page-activity-detail' || this._currentDetailEventId !== eventId) return;
       container.innerHTML = this._renderEventCommentsHtml(eventRecord, state.comments);
+      this._hydrateEventCommentLikeState?.(eventId, state.eventDocId, state.comments);
     } catch (err) {
       console.error('[event-comments] render failed', err);
       container.innerHTML = '<div class="detail-section event-comments-section"><div class="detail-section-title">留言</div><div class="event-comments-empty">留言載入失敗，請重新整理後再試</div></div>';
+    }
+  },
+
+  _patchEventCommentLikeUi(commentId, likedByMe, likeCount, likers) {
+    const card = Array.from(document.querySelectorAll('.event-comment-card'))
+      .find(el => el.getAttribute('data-comment-id') === commentId);
+    if (!card) return;
+    const btn = card.querySelector('.event-comment-like');
+    const safeCount = Math.max(0, Number(likeCount) || 0);
+    this._setEventCommentLikeButtonState?.(btn, !!likedByMe, safeCount);
+
+    const normalizedLikers = this._normalizeEventCommentLikers(likers);
+    const stack = card.querySelector('.event-comment-like-avatars');
+    const html = this._renderEventCommentLikeAvatars({ likers: normalizedLikers, likeCount: safeCount });
+    if (stack) {
+      if (html) stack.outerHTML = html;
+      else stack.remove();
+    } else if (html && btn) {
+      btn.insertAdjacentHTML('afterend', html);
+    }
+  },
+
+  async _hydrateEventCommentLikeState(eventId, eventDocId, comments) {
+    const user = ApiService.getCurrentUser?.();
+    if (!user?.uid || !eventDocId || !Array.isArray(comments) || !comments.length) return;
+    const commentsRef = db.collection('events').doc(eventDocId).collection('comments');
+    const targets = comments.slice(0, 80);
+
+    for (let i = 0; i < targets.length; i += 8) {
+      if (this.currentPage !== 'page-activity-detail' || this._currentDetailEventId !== eventId) return;
+      const batch = targets.slice(i, i + 8);
+      await Promise.all(batch.map(async comment => {
+        const likeRef = commentsRef.doc(comment.id).collection('likes');
+        let likedByMe = !!comment.likedByMe;
+        let likers = Array.isArray(comment.likers) ? comment.likers : [];
+        let likeCount = Math.max(0, Number(comment.likeCount) || 0);
+
+        const ownLikePromise = likedByMe
+          ? Promise.resolve(null)
+          : likeRef.doc(user.uid).get().catch(() => null);
+        const legacyLikesPromise = comment.hasLikeSummary
+          ? Promise.resolve(null)
+          : likeRef.orderBy('createdAt', 'desc').limit(32).get()
+            .catch(() => likeRef.limit(32).get().catch(() => null));
+
+        const [ownLikeSnap, legacyLikeSnap] = await Promise.all([ownLikePromise, legacyLikesPromise]);
+        if (ownLikeSnap?.exists) likedByMe = true;
+        if (legacyLikeSnap?.docs?.length) {
+          likers = legacyLikeSnap.docs
+            .map(d => this._mapEventCommentLikeDoc(d))
+            .filter(liker => liker.uid);
+          likeCount = Math.max(likeCount, likers.length);
+        }
+        if (likedByMe) likeCount = Math.max(likeCount, 1);
+        this._patchEventCommentLikeUi(comment.id, likedByMe, likeCount, likers);
+      }));
     }
   },
 
@@ -235,6 +301,10 @@ Object.assign(App, {
     const replyBtn = (!ctx.closed && !comment.replyLocked && !comment.deleted)
       ? `<button type="button" class="event-comment-action" onclick="App._toggleEventCommentReplyBox('${safeCommentId}')">回覆</button>`
       : '';
+    const replyCount = Math.max(0, Number(comment.replyCount) || 0);
+    const loadRepliesBtn = !comment.deleted && !comment.repliesLoaded
+      ? `<button type="button" class="event-comment-action event-comment-load-replies" onclick="App._loadEventCommentReplies('${safeEventId}','${safeCommentId}')">${replyCount ? `查看 ${replyCount} 則回覆` : '查看回覆'}</button>`
+      : '';
     const replyForm = (!ctx.closed && !comment.replyLocked && !comment.deleted)
       ? `<form class="event-comment-reply-form" id="event-comment-reply-${safeCommentId}" onsubmit="App._submitEventCommentReply('${safeEventId}','${safeCommentId}');return false;" hidden><input maxlength="100" placeholder="回覆留言，最多 100 字"><button type="submit">送出</button></form>`
       : '';
@@ -251,6 +321,7 @@ Object.assign(App, {
         <button type="button" class="event-comment-action event-comment-like${comment.likedByMe ? ' active' : ''}" onclick="App._toggleEventCommentLike('${safeEventId}','${safeCommentId}')" aria-pressed="${comment.likedByMe ? 'true' : 'false'}">${this._eventCommentLikeIcon()}<span>+${comment.likeCount || 0}</span></button>
         ${this._renderEventCommentLikeAvatars(comment)}
         ${replyBtn}
+        ${loadRepliesBtn}
       </div>
       ${replyForm}
       ${this._renderEventCommentReplies(eventRecord, comment, ctx)}
@@ -266,6 +337,38 @@ Object.assign(App, {
       const manage = ctx.canManage && !r.deleted ? `<button type="button" class="event-comment-mini-btn danger" onclick="App._deleteEventCommentReply('${eventId}','${commentId}','${escapeHTML(r.id)}')">刪除</button>` : '';
       return `<div class="event-comment-reply">${this._renderEventCommentAvatar(r.authorName, r.authorPhoto)}<div class="event-comment-reply-main"><div class="event-comment-reply-meta"><span>${escapeHTML(r.authorName)}</span><small>${escapeHTML(this._eventCommentTimeLabel(r.createdAt))}</small>${manage}</div><div class="event-comment-reply-body">${del}</div></div></div>`;
     }).join('')}</div>`;
+  },
+
+  async _loadEventCommentReplies(eventId, commentId) {
+    const card = Array.from(document.querySelectorAll('.event-comment-card'))
+      .find(el => el.getAttribute('data-comment-id') === commentId);
+    if (!card || card.dataset.repliesLoaded === 'true') return;
+    const btn = card.querySelector('.event-comment-load-replies');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '載入回覆中...';
+    }
+    try {
+      const { commentRef, eventRecord } = await this._getEventCommentRefs(eventId, commentId);
+      const snap = await commentRef.collection('replies').limit(20).get();
+      const replies = snap.docs.map(d => this._mapEventCommentReplyDoc(d))
+        .sort((a, b) => this._eventCommentTimeMs(a.createdAt) - this._eventCommentTimeMs(b.createdAt));
+      const comment = { id: commentId, replies };
+      const html = this._renderEventCommentReplies(eventRecord || ApiService.getEvent?.(eventId) || { id: eventId }, comment, {
+        canManage: this._canManageEventComments(eventRecord || ApiService.getEvent?.(eventId)),
+      });
+      card.querySelector('.event-comment-replies')?.remove();
+      if (html) card.insertAdjacentHTML('beforeend', html);
+      card.dataset.repliesLoaded = 'true';
+      btn?.remove();
+    } catch (err) {
+      console.error('[event-comments] load replies failed', err);
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '查看回覆';
+      }
+      this.showToast?.('回覆載入失敗，請稍後再試');
+    }
   },
 
   _eventCommentLikeIcon() {

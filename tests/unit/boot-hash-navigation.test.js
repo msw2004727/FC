@@ -26,6 +26,17 @@ describe('boot hash navigation acceleration contract', () => {
     expect(source).not.toContain('await this.loadAll();\n      if (this._loaded[fileName]) return;\n    }\n\n    if (this._bootPages.includes(fileName))');
   });
 
+  test('lazy fragments cannot leave multiple active pages visible', () => {
+    const pageLoaderSource = readProjectFile('js/core/page-loader.js');
+    const navSource = readProjectFile('js/core/navigation.js');
+
+    expect(pageLoaderSource).toContain("mainEl.querySelector('.page.active')");
+    expect(pageLoaderSource).toContain("temp.querySelectorAll('.page.active')");
+    expect(navSource).toContain("document.querySelectorAll('.page.active')");
+    expect(navSource).toContain('if (p !== target) p.classList.remove');
+    expect(navSource).not.toContain("if (!target.classList.contains('active'))");
+  });
+
   test('history clean list routes use a boot shell guard before overlay dismissal', () => {
     const appSource = readProjectFile('app.js');
     const pageLoaderSource = readProjectFile('js/core/page-loader.js');

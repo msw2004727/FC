@@ -37,7 +37,13 @@ describe('activity detail comments source contracts', () => {
     expect(comments).toContain('_renderEventCommentLikeAvatars');
     expect(comments).toContain('comment.likers');
     expect(comments).toContain('data-uid="${safeUid}"');
+    expect(comments).toContain('_hydrateEventCommentLikeState');
+    expect(comments).toContain('_loadEventCommentReplies');
+    expect(comments).toContain('recentLikers');
+    expect(comments).not.toContain("cRef.collection('likes').limit(500)");
+    expect(comments).not.toContain("cRef.collection('replies').limit(20)");
     expect(actions).toContain('_setEventCommentLikeDoc');
+    expect(actions).toContain('_writeEventCommentLikeWithSummary');
     expect(actions).toContain('_syncEventCommentLikeAvatars');
     expect(actions).toContain('_readEventCommentLikeAvatarsFromDom');
     expect(actions).toContain('_isEventCommentPermissionDenied');
@@ -46,8 +52,8 @@ describe('activity detail comments source contracts', () => {
     expect(actions).toContain('_setEventCommentLikeButtonState(btn, nextLiked, nextCount)');
     expect(actions).toContain('_setEventCommentLikeButtonState(btn, wasLiked, oldCount)');
     expect(actions.indexOf('_setEventCommentLikeButtonState(btn, nextLiked, nextCount)'))
-      .toBeLessThan(actions.indexOf('await this._setEventCommentLikeDoc'));
-    expect(actions.indexOf('await this._setEventCommentLikeDoc'))
+      .toBeLessThan(actions.indexOf('await this._writeEventCommentLikeWithSummary'));
+    expect(actions.indexOf('await this._writeEventCommentLikeWithSummary'))
       .toBeLessThan(actions.indexOf('this._syncEventCommentLikeAvatars(card, author, nextLiked, nextCount)'));
     expect(css).toContain('.event-comment-avatar');
     expect(css).toContain('.event-comment-like-avatars');

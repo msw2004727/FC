@@ -165,11 +165,11 @@ Object.assign(App, {
       console.log('[Nav] _activatePage:', _prevPage, '→', pageId, '| caller stack:', _stack);
     }
 
-    // 如果目標頁面已經 active，跳過 class toggle 避免 display:none→block 瞬間丟失捲動位置
-    if (!target.classList.contains('active')) {
-      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-      target.classList.add('active');
-    }
+    // Lazy fragments can carry stale active classes; keep exactly one active page.
+    document.querySelectorAll('.page.active').forEach(p => {
+      if (p !== target) p.classList.remove('active');
+    });
+    target.classList.add('active');
     this.currentPage = pageId;
     this._syncBottomTabForPage?.(pageId);
 
