@@ -3,6 +3,7 @@
 ### 2026-05-17 Activity team split write path [bug]
 - **Problem**: Activity detail team split controls could appear clickable while manual jersey changes, blank assignment, random split, fill, and reset produced no visible result. The failing path depended on cached/projected registration rows whose displayed IDs were not guaranteed to be the real `events/{event}/registrations/{docId}` document IDs.
 - **Fix**: Team split operations now fetch the event registration subcollection before writing, resolve displayed/cache IDs to the writable Firestore doc ID, write `teamKey + updatedAt`, update canonical cache, and refresh the full detail UI after success. Firestore registration path references are centralized through `_tsRegistrationCollection`.
+- **Guardrail**: Never write activity team split changes from `ApiService.getRegistrationsByEvent()` rows alone. Manual pick, blank assignment, random, fill, and reset must first load `events/{eventDocId}/registrations`, resolve the real registration `_docId`, then write through `_tsCommitTeamAssignments()`. Keep `tests/unit/event-team-split-write.test.js` and the `teamKey + updatedAt` Firestore rules regression when changing this flow.
 - **Tests**: Added `tests/unit/event-team-split-write.test.js` for manual, reset, and random writes; added a rules regression for `teamKey + updatedAt`; `npm test` and `npm run test:rules` pass.
 
 ### 2026-05-16 Activity cache and load-order docs refresh [docs]
