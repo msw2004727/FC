@@ -485,8 +485,8 @@ current = realCurrent + sum(remainingSlots)
 - Phase 2.5 的 `boot-public-lists-data` 只保存公開列表與詳情 shell 需要欄位，且 30 分鐘內才注入 `_cache`；它不會標記 Firestore collection 已完成載入，後續仍由 Firestore / realtime 補正。
 - 活動列表優先用可展示 cache 畫出列表；若尚無可展示活動且 `events` 尚未載入完成，才顯示 `activity-list-loading-bar`。卡片點擊時會顯示藍色 loading bar，並由可見卡片詳情預抓降低點開延遲。
 - 活動詳細頁先呈現封面、標題、主操作按鈕與按鈕以下的 loading skeleton。報名名單/未報名單/候補區依 registrations cache 與必要的 per-event fetch 補齊後局部替換，避免把整頁卡住。
-- 詳情頁 DOM 順序固定為報名資訊與操作區、簽到/報名名單、未報名單、候補名單、留言板。留言板是最後順位，會先顯示「留言載入中...」，等主詳細資訊與名單區可見後再查 comments / replies / likes。
-- 留言板不是全站 realtime cache：管理者最多讀 80 則留言；一般使用者讀公開 60 則 + 自己私密 30 則後去重，畫面最多 80 則。每則留言讀 replies 20 筆、likes 500 筆。按讚頭像最多 render 32 個 liker，超過 6 人後以 8px step 疊放，容器寬度不足時自然裁掉最舊頭像。
+- 詳情頁 DOM 順序固定為報名資訊與操作區、簽到/報名名單、未報名單、候補名單、留言板。留言板是最後順位，會先顯示「留言載入中...」，等主詳細資訊與名單區可見後才查 comments；查詢超過 9 秒會改成可重試狀態，背景最多重試到 45 秒，不讓 spinner 無限停住。
+- 留言板不是全站 realtime cache：管理者最多讀 80 則留言；一般使用者並行讀公開 60 則 + 自己私密 30 則後去重，畫面最多 80 則。replies 改為點擊後每則最多讀 20 筆；likes 先用 `likeCount/recentLikers` summary，legacy 資料才背景補最多 32 筆。按讚頭像最多 render 32 個 liker，超過 6 人後以 8px step 疊放，容器寬度不足時自然裁掉最舊頭像。
 - 活動列表人數統計使用 `event-list-stats.js` 的 200 筆 LRU cache；key 包含 `current` / `waitlist` / `max` / `status` 與 registrations freshness，避免 local cache 降級覆蓋 server-derived 人數。
 - 報名/候補/名額的真實來源仍是 `events/{eventDocId}/registrations/{regId}`。`events/{eventDocId}` 的 `participantsWithUid`、`waitlistWithUid`、`current` 等欄位只作顯示投影與快取加速，不可當成唯一寫入依據。
 

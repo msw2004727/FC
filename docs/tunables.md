@@ -138,10 +138,13 @@
 | `REALTIME_LIMIT_DEFAULTS` | 動態 (siteConfig/realtimeConfig) | `js/config.js` | 即時監聽預設 limit（events/registrations/attendanceRecords/etc，可在儀表板調整） |
 | Attendance / Registration query 預設 | `500` (典型值) | `firebase-service.js` | onSnapshot listener limit。超過 500 筆的老活動需 fallback fetch |
 | Event comments manager fetch | `80` 則留言 | `js/modules/event/event-comments.js` `_loadEventComments` | 主辦、委託、admin+ 可讀活動留言上限；留言板隨活動詳情最後載入，不進活動列表首屏。 |
-| Event comments user fetch | public `60` + own private `30`，去重後最多 `80` | `js/modules/event/event-comments.js` `_loadEventComments` | 一般 user 只讀公開留言與自己私密留言，避免每次打開活動就掃完整留言集合。 |
-| Event comment replies fetch | `20` replies / comment | `js/modules/event/event-comments.js` `_loadEventComments` | 每則留言的回覆讀取上限。若未來要展開更多回覆，應改成「查看更多」分頁，不要提高首批讀取。 |
-| Event comment likes fetch | `500` likes / comment | `js/modules/event/event-comments.js` `_loadEventComments` | 用於計算 like count 與 liker avatar stack；按讚文件保存顯示名稱與頭像 snapshot。 |
-| Event comment like avatar stack | `32` likers rendered per comment | `js/modules/event/event-comments.js` `_renderEventCommentLikeAvatars` | UI render cap only. Like count still uses fetched likes. Newest likers render first; older avatars are clipped first when horizontal space runs out. |
+| Event comments user fetch | public `60` + own private `30` 並行查詢，去重後最多 `80` | `js/modules/event/event-comments.js` `_loadEventComments` | 一般 user 只讀公開留言與自己私密留言，避免每次打開活動就掃完整留言集合；兩條 query 用 `Promise.all` 並行，縮短留言板最後載入等待。 |
+| Event comments soft timeout | `9000` ms | `js/modules/event/event-comments.js` `_eventCommentLoadTimeoutMs` | 留言板最後載入仍不可無限 spinner；超過 9 秒改顯示「留言載入較久」與重新載入按鈕，原查詢若稍後成功仍可補上內容。 |
+| Event comments retry delays | `[3000, 15000]` ms | `js/modules/event/event-comments.js` `_eventCommentRetryDelaysMs` | 留言板局部背景重試，不重整整個活動頁；舊請求用 `_eventCommentLoadSeq` 防止覆蓋新活動頁。 |
+| Event comments hard stop | `45000` ms | `js/modules/event/event-comments.js` `_eventCommentHardStopMs` | 最多約 45 秒後停止自動重試，顯示「留言暫時無法載入」與手動重新載入，避免十分鐘仍在載入中。 |
+| Event comment replies fetch | `20` replies / comment，點擊後 lazy load | `js/modules/event/event-comments.js` `_loadEventCommentReplies` | 回覆不再進入留言主查詢；只有使用者點「查看回覆」才查 replies，避免拖慢活動詳情。 |
+| Event comment likes hydration | recent summary 優先；legacy 最多 `32` likes / comment 背景補齊 | `js/modules/event/event-comments.js` `_hydrateEventCommentLikeState` | 主列表先用 comment 上的 `likeCount/recentLikers` 顯示；舊資料才背景讀 likes 子集合，按讚頭像不阻塞留言主列表。 |
+| Event comment like avatar stack | `32` likers rendered per comment | `js/modules/event/event-comments.js` `_renderEventCommentLikeAvatars` | UI render cap only. Like count comes from summary or background hydration. Newest likers render first; older avatars are clipped first when horizontal space runs out. |
 | Event comment avatar overlap threshold | `> 6` 人改用 `8px` step；否則 `26px` step | `js/modules/event/event-comments.js` `_renderEventCommentLikeAvatars` / `css/activity.css` | 對應目前「新頭像蓋舊頭像約 2/3」的視覺規則；CSS 容器 `overflow:hidden` 讓寬度不足時自然隱藏最舊頭像。 |
 | Event blocklist `blockedUidsLog` | 無上限 | `firestore.rules` | 黑名單審計軌跡，建議手動清理超過 100 筆的活動 |
 | Operation log altText 截斷 | `400` 字 | `event-share*.js` | LIFF Flex Message altText 上限 |

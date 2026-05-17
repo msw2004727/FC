@@ -2286,6 +2286,12 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
 .event-comment-submit:disabled{opacity:.65;cursor:not-allowed}
 .event-comments-list{display:flex;flex-direction:column;gap:.65rem}
 .event-comments-empty,.event-comments-closed{padding:.75rem;border-radius:10px;background:var(--bg-elevated);color:var(--text-muted);font-size:.82rem;text-align:center}
+.event-comments-load-state{display:flex;flex-direction:column;align-items:center;gap:.45rem;line-height:1.5}
+.event-comments-load-title{font-weight:850;color:var(--text-primary);font-size:.86rem}
+.event-comments-load-note{max-width:22rem;color:var(--text-muted);font-size:.78rem}
+.event-comments-load-actions{display:flex;align-items:center;justify-content:center}
+.event-comment-retry-btn{border:1px solid rgba(37,99,235,.35);border-radius:999px;background:rgba(37,99,235,.08);color:var(--primary);font-size:.78rem;font-weight:800;padding:.38rem .85rem;cursor:pointer}
+.event-comment-retry-btn:hover{background:rgba(37,99,235,.14)}
 .event-comment-card{border:1px solid var(--border);border-radius:12px;background:linear-gradient(135deg,rgba(37,99,235,.05),rgba(13,148,136,.04) 42%,var(--bg-card) 100%);padding:.75rem .8rem}
 .event-comment-head{display:flex;align-items:center;gap:.45rem;min-width:0}
 .event-comment-avatar{width:30px;height:30px;flex:0 0 30px;border-radius:50%;object-fit:cover;display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#e0f2fe,#ccfbf1);color:#0f766e;font-size:.78rem;font-weight:800}

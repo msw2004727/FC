@@ -40,6 +40,15 @@ describe('activity detail comments source contracts', () => {
     expect(comments).toContain('_hydrateEventCommentLikeState');
     expect(comments).toContain('_loadEventCommentReplies');
     expect(comments).toContain('recentLikers');
+    expect(comments).toContain('_eventCommentLoadTimeoutMs: 9000');
+    expect(comments).toContain('_eventCommentRetryDelaysMs: [3000, 15000]');
+    expect(comments).toContain('_eventCommentHardStopMs: 45000');
+    expect(comments).toContain('_waitForEventCommentsLoad');
+    expect(comments).toContain("err.code = 'event-comments-timeout'");
+    expect(comments).toContain('_renderEventCommentsLoadIssue');
+    expect(comments).toContain('_scheduleEventCommentAutoRetry');
+    expect(comments).toContain('_retryEventComments');
+    expect(comments).toContain('Promise.all([');
     expect(comments).not.toContain("cRef.collection('likes').limit(500)");
     expect(comments).not.toContain("cRef.collection('replies').limit(20)");
     expect(actions).toContain('_setEventCommentLikeDoc');
@@ -58,6 +67,8 @@ describe('activity detail comments source contracts', () => {
     expect(css).toContain('.event-comment-avatar');
     expect(css).toContain('.event-comment-like-avatars');
     expect(css).toContain('.event-comment-like-avatar');
+    expect(css).toContain('.event-comments-load-state');
+    expect(css).toContain('.event-comment-retry-btn');
     expect(css).toContain('[data-theme="dark"] .event-comment-body');
     expect(css).toContain('[data-theme="dark"] .event-comment-card');
   });

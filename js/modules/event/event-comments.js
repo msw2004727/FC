@@ -5,6 +5,11 @@
 
 Object.assign(App, {
   _eventCommentLikeBusy: new Set(),
+  _eventCommentLoadSeq: 0,
+  _eventCommentRetryTimer: null,
+  _eventCommentLoadTimeoutMs: 9000,
+  _eventCommentRetryDelaysMs: [3000, 15000],
+  _eventCommentHardStopMs: 45000,
 
   _getEventCommentAuthor() {
     const user = ApiService.getCurrentUser?.() || {};
@@ -155,8 +160,11 @@ Object.assign(App, {
     if (canManage) {
       snaps.push(await commentsRef.limit(80).get());
     } else {
-      snaps.push(await commentsRef.where('visibility', '==', 'public').limit(60).get());
-      snaps.push(await commentsRef.where('authorUid', '==', user.uid).limit(30).get());
+      const [publicSnap, ownSnap] = await Promise.all([
+        commentsRef.where('visibility', '==', 'public').limit(60).get(),
+        commentsRef.where('authorUid', '==', user.uid).limit(30).get(),
+      ]);
+      snaps.push(publicSnap, ownSnap);
     }
     const byId = new Map();
     snaps.forEach(snap => snap.docs.forEach(docSnap => byId.set(docSnap.id, this._mapEventCommentDoc(docSnap))));
@@ -166,24 +174,143 @@ Object.assign(App, {
     return { eventDocId, comments };
   },
 
-  async _renderEventComments(eventId) {
+  _isCurrentEventCommentLoad(eventId, requestSeq) {
+    return requestSeq === this._eventCommentLoadSeq
+      && this.currentPage === 'page-activity-detail'
+      && this._currentDetailEventId === eventId;
+  },
+
+  _clearEventCommentRetryTimer() {
+    if (this._eventCommentRetryTimer) {
+      clearTimeout(this._eventCommentRetryTimer);
+      this._eventCommentRetryTimer = null;
+    }
+  },
+
+  _waitForEventCommentsLoad(loadPromise, timeoutMs) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        const err = new Error(`event comments timeout after ${timeoutMs}ms`);
+        err.code = 'event-comments-timeout';
+        reject(err);
+      }, timeoutMs);
+      loadPromise.then(
+        value => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        err => {
+          clearTimeout(timer);
+          reject(err);
+        },
+      );
+    });
+  },
+
+  _renderLoadedEventComments(eventId, eventRecord, requestSeq, state) {
+    if (!this._isCurrentEventCommentLoad(eventId, requestSeq)) return false;
+    const container = document.getElementById('detail-comments-container');
+    if (!container) return false;
+    this._clearEventCommentRetryTimer();
+    container.innerHTML = this._renderEventCommentsHtml(eventRecord, state?.comments || []);
+    this._hydrateEventCommentLikeState?.(eventId, state?.eventDocId || '', state?.comments || []);
+    return true;
+  },
+
+  _renderEventCommentsLoadIssue(eventId, options = {}) {
+    const container = document.getElementById('detail-comments-container');
+    if (!container) return;
+    const final = options.final === true;
+    const safeEventId = escapeHTML(eventId || '');
+    const title = final
+      ? '\u7559\u8a00\u66ab\u6642\u7121\u6cd5\u8f09\u5165'
+      : '\u7559\u8a00\u8f09\u5165\u8f03\u4e45';
+    const note = final
+      ? '\u53ef\u4ee5\u5148\u700f\u89bd\u6d3b\u52d5\u8cc7\u8a0a\uff0c\u7a0d\u5f8c\u518d\u91cd\u65b0\u8f09\u5165\u7559\u8a00\u3002'
+      : '\u7db2\u8def\u53ef\u80fd\u8f03\u6162\uff0c\u7cfb\u7d71\u6703\u5728\u80cc\u666f\u518d\u8a66\u4e00\u6b21\u3002';
+    container.innerHTML = `<div class="detail-section event-comments-section">
+      <div class="detail-section-title">\u7559\u8a00</div>
+      <div class="event-comments-empty event-comments-load-state">
+        <div class="event-comments-load-title">${title}</div>
+        <div class="event-comments-load-note">${note}</div>
+        <div class="event-comments-load-actions">
+          <button type="button" class="event-comment-retry-btn" onclick="App._retryEventComments('${safeEventId}')">\u91cd\u65b0\u8f09\u5165\u7559\u8a00</button>
+        </div>
+      </div>
+    </div>`;
+  },
+
+  _scheduleEventCommentAutoRetry(eventId, requestSeq, attempt, startedAt) {
+    const delays = Array.isArray(this._eventCommentRetryDelaysMs) ? this._eventCommentRetryDelaysMs : [];
+    const hardStopMs = Number(this._eventCommentHardStopMs) || 45000;
+    const elapsed = Date.now() - startedAt;
+    if (attempt >= delays.length || elapsed >= hardStopMs) {
+      if (this._isCurrentEventCommentLoad(eventId, requestSeq)) {
+        this._renderEventCommentsLoadIssue(eventId, { final: true });
+      }
+      return;
+    }
+    this._clearEventCommentRetryTimer();
+    const remaining = Math.max(0, hardStopMs - elapsed);
+    const delay = Math.min(Math.max(0, Number(delays[attempt]) || 0), remaining);
+    this._eventCommentRetryTimer = setTimeout(() => {
+      this._eventCommentRetryTimer = null;
+      if (!this._isCurrentEventCommentLoad(eventId, requestSeq)) return;
+      if ((Date.now() - startedAt) >= hardStopMs) {
+        this._renderEventCommentsLoadIssue(eventId, { final: true });
+        return;
+      }
+      this._renderEventComments(eventId, {
+        autoRetryAttempt: attempt + 1,
+        startedAt,
+      });
+    }, delay);
+  },
+
+  _retryEventComments(eventId) {
+    this._clearEventCommentRetryTimer();
+    return this._renderEventComments(eventId, { manualRetry: true });
+  },
+
+  async _renderEventComments(eventId, options = {}) {
     const container = document.getElementById('detail-comments-container');
     const eventRecord = ApiService.getEvent?.(eventId);
     if (!container || !eventRecord) return;
+    const requestSeq = ++this._eventCommentLoadSeq;
+    this._clearEventCommentRetryTimer();
     const user = ApiService.getCurrentUser?.();
     if (!user?.uid) {
       container.innerHTML = '<div class="detail-section event-comments-section"><div class="detail-section-title">留言</div><div class="event-comments-empty">登入後可查看與留言</div></div>';
       return;
     }
-    container.innerHTML = '<div class="detail-section event-comments-section"><div class="detail-section-title">留言</div><div class="reg-loading">留言載入中...</div></div>';
+    const retryAttempt = Math.max(0, Number(options?.autoRetryAttempt) || 0);
+    const startedAt = Number(options?.startedAt) || Date.now();
+    const loadingText = retryAttempt > 0 || options?.manualRetry
+      ? '\u7559\u8a00\u91cd\u65b0\u8f09\u5165\u4e2d...'
+      : '\u7559\u8a00\u8f09\u5165\u4e2d...';
+    container.innerHTML = `<div class="detail-section event-comments-section"><div class="detail-section-title">\u7559\u8a00</div><div class="reg-loading">${loadingText}</div></div>`;
+    const loadPromise = Promise.resolve().then(() => this._loadEventComments(eventRecord));
     try {
-      const state = await this._loadEventComments(eventRecord);
-      if (this.currentPage !== 'page-activity-detail' || this._currentDetailEventId !== eventId) return;
-      container.innerHTML = this._renderEventCommentsHtml(eventRecord, state.comments);
-      this._hydrateEventCommentLikeState?.(eventId, state.eventDocId, state.comments);
+      const state = await this._waitForEventCommentsLoad(loadPromise, Number(this._eventCommentLoadTimeoutMs) || 9000);
+      this._renderLoadedEventComments(eventId, eventRecord, requestSeq, state);
     } catch (err) {
+      if (!this._isCurrentEventCommentLoad(eventId, requestSeq)) return;
+      if (err?.code === 'event-comments-timeout') {
+        console.warn('[event-comments] load timeout', {
+          eventId,
+          attempt: retryAttempt,
+          timeoutMs: this._eventCommentLoadTimeoutMs,
+        });
+        this._renderEventCommentsLoadIssue(eventId);
+        loadPromise.then(
+          state => this._renderLoadedEventComments(eventId, eventRecord, requestSeq, state),
+          lateErr => console.error('[event-comments] late load failed', lateErr),
+        );
+        this._scheduleEventCommentAutoRetry(eventId, requestSeq, retryAttempt, startedAt);
+        return;
+      }
       console.error('[event-comments] render failed', err);
-      container.innerHTML = '<div class="detail-section event-comments-section"><div class="detail-section-title">留言</div><div class="event-comments-empty">留言載入失敗，請重新整理後再試</div></div>';
+      this._renderEventCommentsLoadIssue(eventId, { final: true });
     }
   },
 
