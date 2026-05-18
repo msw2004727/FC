@@ -8,6 +8,8 @@ Object.assign(App, {
   _activityMapGooglePromise: null,
   _activityMapGoogleMap: null,
   _activityMapGoogleMarkers: [],
+  _activityMapGoogleRenderSeq: 0,
+  _activityMapGoogleTileTimer: null,
 
   _ensureActivityMapState() {
     if (!this._activityMapState) {
@@ -67,10 +69,12 @@ Object.assign(App, {
     const root = document.getElementById('activity-map-overlay');
     if (root) root.classList.remove('open');
     document.body.classList.remove('activity-map-open');
+    this._clearActivityMapGoogleTileTimer();
     this._activityMapGoogleMarkers?.forEach(marker => {
       try { marker.setMap(null); } catch (_) {}
     });
     this._activityMapGoogleMarkers = [];
+    this._activityMapGoogleMap = null;
   },
 
   _ensureActivityMapRoot() {
@@ -297,6 +301,7 @@ Object.assign(App, {
     if (cfg.googleApiKey && data.mapReady.length > 0) {
       try {
         await this._ensureGoogleMapsLoaded(cfg.googleApiKey);
+        await this._waitForActivityMapLayout(stage);
         this._renderGoogleActivityMap(stage, data, cfg);
         return;
       } catch (err) {
@@ -325,6 +330,96 @@ Object.assign(App, {
     return this._activityMapGooglePromise;
   },
 
+  _waitForActivityMapLayout(stage) {
+    return new Promise(resolve => {
+      const finish = () => {
+        if (!stage?.isConnected || (stage.offsetWidth > 0 && stage.offsetHeight > 0)) {
+          resolve();
+          return;
+        }
+        setTimeout(resolve, 50);
+      };
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => requestAnimationFrame(finish));
+      } else {
+        setTimeout(finish, 0);
+      }
+    });
+  },
+
+  _clearActivityMapGoogleTileTimer() {
+    if (this._activityMapGoogleTileTimer) {
+      clearTimeout(this._activityMapGoogleTileTimer);
+      this._activityMapGoogleTileTimer = null;
+    }
+  },
+
+  _getActivityMapGoogleTileFallbackMs(cfg) {
+    const value = Number(cfg?.googleTileFallbackMs);
+    return Number.isFinite(value) && value >= 1000 ? value : 7000;
+  },
+
+  _getActivityMapGoogleSettleDelaysMs(cfg) {
+    const values = Array.isArray(cfg?.googleLayoutSettleDelaysMs)
+      ? cfg.googleLayoutSettleDelaysMs
+      : [120, 450];
+    return values
+      .map(value => Number(value))
+      .filter(value => Number.isFinite(value) && value >= 0 && value <= 2000)
+      .slice(0, 4);
+  },
+
+  _scheduleActivityMapGoogleSettle(map, bounds, shouldFitBounds, cfg) {
+    const mapEl = map?.getDiv?.();
+    const settle = () => {
+      if (!mapEl?.isConnected || !window.google?.maps?.event) return;
+      try {
+        const center = map.getCenter?.();
+        google.maps.event.trigger(map, 'resize');
+        if (shouldFitBounds) {
+          map.fitBounds(bounds, 48);
+        } else if (center) {
+          map.setCenter(center);
+        }
+      } catch (_) {}
+    };
+
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(settle);
+    }
+    this._getActivityMapGoogleSettleDelaysMs(cfg).forEach(delay => {
+      setTimeout(settle, delay);
+    });
+  },
+
+  _watchActivityMapGoogleTiles(stage, data, cfg, map) {
+    this._clearActivityMapGoogleTileTimer();
+    const renderSeq = ++this._activityMapGoogleRenderSeq;
+    let tileReady = false;
+    const clearForCurrentMap = () => {
+      if (this._activityMapGoogleRenderSeq !== renderSeq) return;
+      tileReady = true;
+      this._clearActivityMapGoogleTileTimer();
+    };
+
+    try {
+      google.maps.event.addListenerOnce(map, 'tilesloaded', clearForCurrentMap);
+    } catch (_) {}
+
+    this._activityMapGoogleTileTimer = setTimeout(() => {
+      if (tileReady || this._activityMapGoogleRenderSeq !== renderSeq) return;
+      const root = document.getElementById('activity-map-overlay');
+      if (!stage?.isConnected || !root?.classList.contains('open')) return;
+      console.warn('[ActivityMap] Google base tiles timed out, using static fallback');
+      this._activityMapGoogleMarkers?.forEach(marker => {
+        try { marker.setMap(null); } catch (_) {}
+      });
+      this._activityMapGoogleMarkers = [];
+      this._activityMapGoogleMap = null;
+      this._renderStaticActivityMap(stage, data);
+    }, this._getActivityMapGoogleTileFallbackMs(cfg));
+  },
+
   _renderGoogleActivityMap(stage, data, cfg) {
     stage.innerHTML = '<div id="activity-google-map" class="activity-google-map"></div>';
     const mapEl = document.getElementById('activity-google-map');
@@ -338,6 +433,7 @@ Object.assign(App, {
     };
     if (cfg.googleMapId) mapOptions.mapId = cfg.googleMapId;
     const map = new google.maps.Map(mapEl, mapOptions);
+    this._activityMapGoogleMap = map;
     const bounds = new google.maps.LatLngBounds();
     this._activityMapGoogleMarkers?.forEach(marker => {
       try { marker.setMap(null); } catch (_) {}
@@ -372,7 +468,10 @@ Object.assign(App, {
       this._activityMapGoogleMarkers.push(marker);
       bounds.extend(item.point);
     });
-    if (data.mapReady.length > 1 || data.userLocation) map.fitBounds(bounds, 48);
+    const shouldFitBounds = data.mapReady.length > 1 || !!data.userLocation;
+    if (shouldFitBounds) map.fitBounds(bounds, 48);
+    this._scheduleActivityMapGoogleSettle(map, bounds, shouldFitBounds, cfg);
+    this._watchActivityMapGoogleTiles(stage, data, cfg, map);
   },
 
   _renderStaticActivityMap(stage, data) {
