@@ -1488,6 +1488,30 @@ body.ad-edit-modal-open {
   min-width: 0;
   font-variant-numeric: tabular-nums;
 }
+.dash-region-more-btn {
+  width: 100%;
+  min-height: 2.35rem;
+  border: 1px dashed color-mix(in srgb, var(--accent) 52%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-card));
+  color: var(--accent);
+  font-size: .78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.dash-region-more-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 68%, transparent);
+  outline-offset: 2px;
+}
+.dash-region-more-note,
+.dash-region-empty {
+  padding: .55rem .65rem;
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-size: .74rem;
+  line-height: 1.45;
+}
 
 .dash-usage-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -3,6 +3,9 @@
    依賴：config.js, api-service.js, i18n.js, dashboard-widgets.js
    ================================================ */
 Object.assign(App, {
+  _dashRegionVisibleLimit: 3,
+  _dashRegionRows: [],
+  _dashRegionTotalEvents: 0,
 
   renderDashboard() {
     const container = document.getElementById('dashboard-content');
@@ -125,16 +128,7 @@ Object.assign(App, {
 
       <div class="info-card">
         <div class="info-title">${t('dash.regionDistribution')}</div>
-        <div class="dash-bar-list">
-          ${Object.entries(regionCounts).sort((a, b) => b[1] - a[1]).map(([region, count]) => {
-            const pct = Math.round((count / totalEvents) * 100);
-            return `<div class="dash-bar-row">
-              <span class="dash-bar-label">${escapeHTML(region)}</span>
-              <div class="dash-bar-track"><div class="dash-bar-fill" style="width:${pct}%;background:var(--accent)"></div></div>
-              <span class="dash-bar-val">${count}</span>
-            </div>`;
-          }).join('')}
-        </div>
+        ${this._renderDashRegionDistribution(regionCounts, totalEvents)}
       </div>
 
       <div class="info-card">
@@ -211,6 +205,53 @@ Object.assign(App, {
     // 更新「最後撈取」資訊列 + 進入時自動提示（Q3=B）
     this._updateDashRefreshInfo?.();
     this._maybePromptDashRefresh?.();
+  },
+
+  _renderDashRegionDistribution(regionCounts = {}, totalEvents = 0) {
+    this._dashRegionVisibleLimit = 3;
+    this._dashRegionTotalEvents = Number(totalEvents) || 0;
+    this._dashRegionRows = Object.entries(regionCounts || {})
+      .map(([region, count]) => [String(region || '').trim(), Number(count) || 0])
+      .filter(([region, count]) => region && count > 0)
+      .sort((a, b) => b[1] - a[1]);
+
+    return `<div id="dash-region-list" class="dash-bar-list dash-region-list">
+      ${this._renderDashRegionRows()}
+    </div>`;
+  },
+
+  _renderDashRegionRows() {
+    const rows = Array.isArray(this._dashRegionRows) ? this._dashRegionRows : [];
+    if (!rows.length) {
+      return '<div class="dash-region-empty">尚無地區資料</div>';
+    }
+
+    const totalEvents = Number(this._dashRegionTotalEvents) || 0;
+    const visibleLimit = Math.max(3, Number(this._dashRegionVisibleLimit) || 3);
+    const visibleRows = rows.slice(0, visibleLimit);
+    const remaining = Math.max(0, rows.length - visibleRows.length);
+    const rowHtml = visibleRows.map(([region, count]) => {
+      const pct = totalEvents > 0 ? Math.round((count / totalEvents) * 100) : 0;
+      return `<div class="dash-bar-row">
+        <span class="dash-bar-label">${escapeHTML(region)}</span>
+        <div class="dash-bar-track"><div class="dash-bar-fill" style="width:${pct}%;background:var(--accent)"></div></div>
+        <span class="dash-bar-val">${count.toLocaleString()}</span>
+      </div>`;
+    }).join('');
+
+    if (!remaining) {
+      const completeText = rows.length > 3 ? `<div class="dash-region-more-note">已顯示全部 ${rows.length.toLocaleString()} 個地區</div>` : '';
+      return rowHtml + completeText;
+    }
+
+    return rowHtml + `<button class="dash-region-more-btn" type="button" onclick="App._showMoreDashRegions?.()" aria-label="查看更多地區分佈">查看更多（剩餘 ${remaining.toLocaleString()}）</button>`;
+  },
+
+  _showMoreDashRegions() {
+    const rows = Array.isArray(this._dashRegionRows) ? this._dashRegionRows : [];
+    this._dashRegionVisibleLimit = Math.min(rows.length, Math.max(3, Number(this._dashRegionVisibleLimit) || 3) + 5);
+    const list = document.getElementById('dash-region-list');
+    if (list) list.innerHTML = this._renderDashRegionRows();
   },
 
   async clearAllData() {
