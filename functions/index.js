@@ -7762,6 +7762,115 @@ function extractDistributionCount(data) {
   return total;
 }
 
+function extractMonitoringPointNumber(point) {
+  const v = point && point.value ? point.value : {};
+  if (v.int64Value != null) return parseInt(v.int64Value, 10) || 0;
+  if (v.doubleValue != null) return Number(v.doubleValue) || 0;
+  if (v.distributionValue && v.distributionValue.count != null) {
+    return parseInt(v.distributionValue.count, 10) || 0;
+  }
+  return 0;
+}
+
+function incrementMetricBucket(target, key, value) {
+  const safeKey = key == null || key === "" ? "unknown" : String(key);
+  target[safeKey] = (target[safeKey] || 0) + (Number(value) || 0);
+}
+
+function metricBucketToRows(bucket, limit = 12) {
+  return Object.entries(bucket || {})
+    .map(([key, requests]) => ({ key, requests: Math.round(Number(requests) || 0) }))
+    .sort((a, b) => b.requests - a.requests)
+    .slice(0, limit);
+}
+
+function classifyMapsSku(metricLabels, resourceLabels) {
+  const haystack = [
+    metricLabels && metricLabels.maps_api,
+    metricLabels && metricLabels.platform_type,
+    resourceLabels && resourceLabels.api,
+    resourceLabels && resourceLabels.method,
+    resourceLabels && resourceLabels.version,
+  ].filter(Boolean).join(" ").toLowerCase();
+
+  if (haystack.includes("geocod")) return "geocoding";
+  if (
+    haystack.includes("maps javascript")
+    || haystack.includes("javascript")
+    || haystack.includes("maps-backend")
+    || haystack.includes("dynamic")
+    || haystack.includes("map load")
+  ) {
+    return "dynamicMaps";
+  }
+  return "other";
+}
+
+function isMapsErrorResponse(responseCode) {
+  const code = String(responseCode || "").toLowerCase();
+  if (!code || code === "unknown") return false;
+  if (code === "ok" || code === "success") return false;
+  if (/^2\d\d$/.test(code)) return false;
+  return true;
+}
+
+function summarizeMapsUsage(data) {
+  const byApi = {};
+  const byPlatform = {};
+  const byResponseCode = {};
+  const byCredential = {};
+  const skuRequests = { dynamicMaps: 0, geocoding: 0, other: 0 };
+  let totalRequests = 0;
+  let successRequests = 0;
+  let errorRequests = 0;
+
+  const seriesList = data && data.timeSeries ? data.timeSeries : [];
+  for (const series of seriesList) {
+    const metricLabels = (series.metric && series.metric.labels) || {};
+    const resourceLabels = (series.resource && series.resource.labels) || {};
+    const apiKey = metricLabels.maps_api || resourceLabels.api || resourceLabels.method || "unknown";
+    const platformKey = metricLabels.platform_type || "unknown";
+    const responseKey = metricLabels.response_code || "unknown";
+    const credentialKey = metricLabels.credential_id || "unknown";
+    let seriesTotal = 0;
+
+    for (const point of (series.points || [])) {
+      seriesTotal += extractMonitoringPointNumber(point);
+    }
+
+    if (!seriesTotal) continue;
+    totalRequests += seriesTotal;
+    if (isMapsErrorResponse(responseKey)) errorRequests += seriesTotal;
+    else successRequests += seriesTotal;
+
+    incrementMetricBucket(byApi, apiKey, seriesTotal);
+    incrementMetricBucket(byPlatform, platformKey, seriesTotal);
+    incrementMetricBucket(byResponseCode, responseKey, seriesTotal);
+    incrementMetricBucket(byCredential, credentialKey, seriesTotal);
+    const skuKey = classifyMapsSku(metricLabels, resourceLabels);
+    skuRequests[skuKey] = (skuRequests[skuKey] || 0) + seriesTotal;
+  }
+
+  return {
+    totalRequests: Math.round(totalRequests),
+    successRequests: Math.round(successRequests),
+    errorRequests: Math.round(errorRequests),
+    skuRequests: {
+      dynamicMaps: Math.round(skuRequests.dynamicMaps || 0),
+      geocoding: Math.round(skuRequests.geocoding || 0),
+      other: Math.round(skuRequests.other || 0),
+    },
+    byApi: metricBucketToRows(byApi),
+    byPlatform: metricBucketToRows(byPlatform, 8),
+    byResponseCode: metricBucketToRows(byResponseCode, 8),
+    byCredential: metricBucketToRows(byCredential, 8),
+    rawSeriesCount: seriesList.length,
+    periodHours: 24,
+    source: "cloud_monitoring",
+    metricType: "maps.googleapis.com/service/v2/request_count",
+  };
+}
+
 /**
  * fetchUsageMetrics — 每小時自動抓取用量指標
  * 也可透過 onCall 手動觸發
@@ -7769,6 +7878,7 @@ function extractDistributionCount(data) {
 async function collectUsageMetrics() {
   const metrics = {};
   const errors = [];
+  let mapsUsage = null;
 
   // 定義要抓的指標
   const metricQueries = [
@@ -7828,8 +7938,29 @@ async function collectUsageMetrics() {
     metrics.firestoreStorageBytes = null;
   }
 
+  try {
+    const mapsCountData = await queryMonitoringMetric("maps.googleapis.com/service/v2/request_count", 24);
+    mapsUsage = summarizeMapsUsage(mapsCountData);
+  } catch (err) {
+    errors.push(`googleMapsUsage: ${err.message || err}`);
+    mapsUsage = {
+      totalRequests: null,
+      successRequests: null,
+      errorRequests: null,
+      skuRequests: { dynamicMaps: null, geocoding: null, other: null },
+      byApi: [],
+      byPlatform: [],
+      byResponseCode: [],
+      byCredential: [],
+      periodHours: 24,
+      source: "cloud_monitoring",
+      metricType: "maps.googleapis.com/service/v2/request_count",
+      error: String(err.message || err),
+    };
+  }
+
   // ── BigQuery Billing Export：取得本月實際費用 ──
-  const billingData = { totalCost: null, costByService: null, currency: "USD", billingPeriod: null };
+  const billingData = { totalCost: null, costByService: null, currency: "USD", billingPeriod: null, googleMaps: null };
   try {
     const { BigQuery } = require("@google-cloud/bigquery");
     const bq = new BigQuery({ projectId: USAGE_PROJECT_ID });
@@ -7872,9 +8003,69 @@ async function collectUsageMetrics() {
       billingData.totalCost = Math.round((totalCost + totalCredits) * 100) / 100;
       billingData.costByService = costByService;
     }
+
+    const mapsBillingQuery = `
+      SELECT
+        sku.description AS sku_name,
+        SUM(cost) AS cost,
+        SUM(IFNULL((SELECT SUM(c.amount) FROM UNNEST(credits) c), 0)) AS credits,
+        SUM(IFNULL(usage.amount, 0)) AS usage_amount,
+        ANY_VALUE(usage.unit) AS usage_unit,
+        ANY_VALUE(currency) AS currency
+      FROM \`${USAGE_PROJECT_ID}.billing_export.gcp_billing_export_v1_017F3E_4F4035_320E24\`
+      WHERE invoice.month = @invoiceMonth
+        AND project.id = @projectId
+        AND LOWER(service.description) LIKE '%maps%'
+      GROUP BY sku_name
+      ORDER BY cost DESC
+    `;
+
+    const [mapsRows] = await bq.query({
+      query: mapsBillingQuery,
+      params: { invoiceMonth, projectId: USAGE_PROJECT_ID },
+    });
+
+    const mapsCostBySku = {};
+    const mapsUsageBySku = {};
+    let mapsTotalCost = 0;
+    let mapsTotalCredits = 0;
+    let mapsCurrency = billingData.currency || "USD";
+
+    for (const row of (mapsRows || [])) {
+      const sku = row.sku_name || "other";
+      const cost = Number(row.cost) || 0;
+      const credits = Number(row.credits) || 0;
+      const netCost = Math.round((cost + credits) * 100) / 100;
+      mapsCostBySku[sku] = netCost;
+      mapsUsageBySku[sku] = {
+        amount: Math.round((Number(row.usage_amount) || 0) * 10000) / 10000,
+        unit: row.usage_unit || "",
+      };
+      mapsTotalCost += cost;
+      mapsTotalCredits += credits;
+      if (row.currency) mapsCurrency = row.currency;
+    }
+
+    billingData.googleMaps = {
+      totalCost: Math.round((mapsTotalCost + mapsTotalCredits) * 100) / 100,
+      costBySku: mapsCostBySku,
+      usageBySku: mapsUsageBySku,
+      currency: mapsCurrency,
+      billingPeriod: billingData.billingPeriod,
+      source: "bigquery_billing_export",
+    };
   } catch (err) {
     console.warn("[fetchUsageMetrics] BigQuery billing fetch failed:", err.message || err);
     billingData.totalCost = null;
+    billingData.googleMaps = {
+      totalCost: null,
+      costBySku: null,
+      usageBySku: null,
+      currency: "USD",
+      billingPeriod: billingData.billingPeriod,
+      source: "bigquery_billing_export",
+      error: String(err.message || err),
+    };
   }
 
   // ── 用量估算費用（作為 Billing API 的即時備援） ──
@@ -7902,6 +8093,7 @@ async function collectUsageMetrics() {
 
   const docData = {
     ...metrics,
+    mapsUsage,
     billing: billingData,
     estimated,
     collectedAt: FieldValue.serverTimestamp(),
@@ -7911,8 +8103,8 @@ async function collectUsageMetrics() {
   };
 
   await db.collection("usageMetrics").doc(dateKey).set(docData, { merge: true });
-  console.log(`[fetchUsageMetrics] ${dateKey} written:`, JSON.stringify(metrics));
-  return { dateKey, metrics, billing: billingData, estimated, errors };
+  console.log(`[fetchUsageMetrics] ${dateKey} written:`, JSON.stringify({ ...metrics, mapsUsage }));
+  return { dateKey, metrics: { ...metrics, mapsUsage }, billing: billingData, estimated, errors };
 }
 
 // 定時排程：每 6 小時執行

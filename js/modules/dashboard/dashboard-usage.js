@@ -13,6 +13,33 @@ Object.assign(App, {
     functionsInvocations: 66666, // 2M/month ≈ 66K/day
   },
 
+  _MAPS_USAGE_PRICING: {
+    dynamicMaps: {
+      label: 'Maps JavaScript API',
+      freeMonthly: 10000,
+      tiers: [
+        { upTo: 10000, pricePer1000: 0 },
+        { upTo: 100000, pricePer1000: 7 },
+        { upTo: 500000, pricePer1000: 5.6 },
+        { upTo: 1000000, pricePer1000: 4.2 },
+        { upTo: 5000000, pricePer1000: 2.1 },
+        { upTo: Infinity, pricePer1000: 0.53 },
+      ],
+    },
+    geocoding: {
+      label: 'Geocoding API',
+      freeMonthly: 10000,
+      tiers: [
+        { upTo: 10000, pricePer1000: 0 },
+        { upTo: 100000, pricePer1000: 5 },
+        { upTo: 500000, pricePer1000: 4 },
+        { upTo: 1000000, pricePer1000: 3 },
+        { upTo: 5000000, pricePer1000: 1.5 },
+        { upTo: Infinity, pricePer1000: 0.38 },
+      ],
+    },
+  },
+
   /** 格式化數字為易讀字串 */
   _fmtUsageNum(n) {
     if (n == null) return '--';
@@ -201,6 +228,7 @@ Object.assign(App, {
 
       // ── 費用區塊（傳入所有 docs 以累計當月估算） ──
       html += this._renderCostSection(latest, docs);
+      html += this._renderMapsUsageSection(latest, docs);
 
       // 錯誤提示
       if (latest.errors && latest.errors.length > 0) {
@@ -263,6 +291,226 @@ Object.assign(App, {
     if (isNaN(num)) return '--';
     const sym = currency === 'TWD' ? 'NT$' : currency === 'USD' ? 'US$' : (currency || '') + ' ';
     return sym + num.toFixed(2);
+  },
+
+  _formatMapsMetricLabel(raw) {
+    const val = String(raw || '').trim();
+    if (!val || val === 'unknown') return '未分類';
+    const lower = val.toLowerCase();
+    if (lower.includes('geocod')) return 'Geocoding API';
+    if (lower.includes('maps javascript') || lower.includes('maps-backend') || lower.includes('dynamic')) return 'Maps JavaScript API';
+    if (lower === 'web') return 'Web';
+    if (lower === 'android') return 'Android';
+    if (lower === 'ios') return 'iOS';
+    if (lower === 'ok') return 'OK';
+    return val;
+  },
+
+  _renderMapsMetricCard(label, value, sub, color) {
+    const displayVal = (typeof value === 'number')
+      ? this._fmtUsageNum(value)
+      : String(value == null ? '--' : value);
+    const colorStyle = color ? ` style="color:${color}"` : '';
+    return `<div class="dash-usage-card">
+      <div class="dash-usage-label">${escapeHTML(label)}</div>
+      <div class="dash-usage-num"${colorStyle}>${escapeHTML(displayVal)}</div>
+      <div class="dash-usage-sub">${escapeHTML(sub || '')}</div>
+    </div>`;
+  },
+
+  _calcMapsMonthlyUsage(docs) {
+    const result = {
+      days: 0,
+      totalRequests: 0,
+      successRequests: 0,
+      errorRequests: 0,
+      skuRequests: { dynamicMaps: 0, geocoding: 0, other: 0 },
+    };
+    if (!docs || docs.length === 0) return result;
+    for (const doc of docs) {
+      const usage = doc && doc.mapsUsage;
+      if (!usage) continue;
+      const hasValue = usage.totalRequests != null || usage.skuRequests || usage.billableRequests;
+      if (!hasValue) continue;
+      result.days += 1;
+      result.totalRequests += Number(usage.totalRequests) || 0;
+      result.successRequests += Number(usage.successRequests) || 0;
+      result.errorRequests += Number(usage.errorRequests) || 0;
+      const sku = usage.skuRequests || usage.billableRequests || {};
+      result.skuRequests.dynamicMaps += Number(sku.dynamicMaps) || 0;
+      result.skuRequests.geocoding += Number(sku.geocoding) || 0;
+      result.skuRequests.other += Number(sku.other) || 0;
+    }
+    result.totalRequests = Math.round(result.totalRequests);
+    result.successRequests = Math.round(result.successRequests);
+    result.errorRequests = Math.round(result.errorRequests);
+    result.skuRequests.dynamicMaps = Math.round(result.skuRequests.dynamicMaps);
+    result.skuRequests.geocoding = Math.round(result.skuRequests.geocoding);
+    result.skuRequests.other = Math.round(result.skuRequests.other);
+    return result;
+  },
+
+  _calcMapsEstimated(monthly) {
+    if (!monthly) return null;
+    const breakdown = {};
+    let totalCost = 0;
+    for (const [key, pricing] of Object.entries(this._MAPS_USAGE_PRICING)) {
+      const used = Number(monthly.skuRequests?.[key]) || 0;
+      const free = Number(pricing.freeMonthly) || 0;
+      const overage = Math.max(0, used - free);
+      const cost = this._calcMapsTieredCost(used, pricing);
+      breakdown[key] = { label: pricing.label, used, free, overage, cost };
+      totalCost += cost;
+    }
+    return {
+      totalCost: Math.round(totalCost * 100) / 100,
+      breakdown,
+      currency: 'USD',
+    };
+  },
+
+  _calcMapsTieredCost(used, pricing) {
+    const tiers = Array.isArray(pricing && pricing.tiers) ? pricing.tiers : [];
+    if (!tiers.length) return 0;
+    let previousCap = 0;
+    let total = 0;
+    const normalizedUsed = Math.max(0, Number(used) || 0);
+    for (const tier of tiers) {
+      const cap = Number.isFinite(tier.upTo) ? Number(tier.upTo) : Infinity;
+      const tierUnits = Math.max(0, Math.min(normalizedUsed, cap) - previousCap);
+      if (tierUnits > 0) {
+        total += (tierUnits / 1000) * (Number(tier.pricePer1000) || 0);
+      }
+      previousCap = cap;
+      if (normalizedUsed <= cap) break;
+    }
+    return Math.round(total * 100) / 100;
+  },
+
+  _renderMapsBreakdownRows(rows, emptyLabel) {
+    const list = Array.isArray(rows) ? rows.filter(r => Number(r.requests) > 0) : [];
+    if (list.length === 0) {
+      return `<div class="dash-map-empty">${escapeHTML(emptyLabel || '尚無資料')}</div>`;
+    }
+    const max = Math.max(...list.map(r => Number(r.requests) || 0), 1);
+    return list.slice(0, 6).map(row => {
+      const requests = Number(row.requests) || 0;
+      const pct = Math.max(2, Math.round((requests / max) * 100));
+      const label = this._formatMapsMetricLabel(row.label || row.key);
+      return `<div class="dash-map-breakdown-row">
+        <div class="dash-map-breakdown-head">
+          <span>${escapeHTML(label)}</span>
+          <strong>${escapeHTML(this._fmtUsageNum(requests))}</strong>
+        </div>
+        <div class="dash-map-breakdown-track">
+          <div class="dash-map-breakdown-fill" style="width:${pct}%"></div>
+        </div>
+      </div>`;
+    }).join('');
+  },
+
+  _renderMapsUsageSection(latest, docs) {
+    const usage = latest && latest.mapsUsage;
+    const mapsBilling = latest && latest.billing && latest.billing.googleMaps;
+    const monthly = this._calcMapsMonthlyUsage(docs);
+    const est = this._calcMapsEstimated(monthly);
+    const hasUsage = usage && usage.totalRequests != null;
+    const hasBilling = mapsBilling && mapsBilling.totalCost != null;
+    const latestTotal = hasUsage ? Number(usage.totalRequests) || 0 : null;
+    const latestErrors = hasUsage ? Number(usage.errorRequests) || 0 : null;
+    const latestErrorRate = latestTotal ? Math.round((latestErrors / latestTotal) * 1000) / 10 : 0;
+
+    let html = `<div class="dash-map-section">
+      <div class="dash-map-section-head">
+        <div>
+          <div class="dash-map-section-title">Google Maps Platform</div>
+          <div class="dash-map-section-sub">Monitoring 用量、Billing SKU 費用與公開級距估算</div>
+        </div>
+        <button class="edu-info-btn" onclick="App._showMapsUsageInfoPopup()" title="地圖用量說明">?</button>
+      </div>`;
+
+    if (!hasUsage && !mapsBilling) {
+      html += `<div class="dash-map-empty" style="padding:.75rem 0">
+        尚無地圖用量資料。請點上方「重新抓取」，或等待排程同步 Google Cloud Monitoring。
+      </div></div>`;
+      return html;
+    }
+
+    const actualCurrency = (mapsBilling && mapsBilling.currency) || (latest.billing && latest.billing.currency) || 'USD';
+    const actualCostText = hasBilling ? this._fmtCurrency(mapsBilling.totalCost, actualCurrency) : '--';
+    const actualCostColor = hasBilling && Number(mapsBilling.totalCost) > 0 ? '#ef4444' : '#10b981';
+    const estimatedColor = est && est.totalCost > 0 ? '#f59e0b' : '#10b981';
+
+    html += `<div class="dash-usage-grid">`;
+    html += this._renderMapsMetricCard('近 24 小時請求', latestTotal, 'Cloud Monitoring request_count');
+    html += this._renderMapsMetricCard('本月累計請求', monthly.totalRequests, `${monthly.days || 0} 天資料`);
+    html += this._renderMapsMetricCard('錯誤率', hasUsage ? `${latestErrorRate}%` : '--', '近 24 小時 response_code');
+    html += this._renderUsageCard('Maps JS 本月', monthly.skuRequests.dynamicMaps, this._MAPS_USAGE_PRICING.dynamicMaps.freeMonthly);
+    html += this._renderUsageCard('Geocoding 本月', monthly.skuRequests.geocoding, this._MAPS_USAGE_PRICING.geocoding.freeMonthly);
+    html += this._renderMapsMetricCard('未分類 Maps 請求', monthly.skuRequests.other, '無法對應 SKU 的請求');
+    html += this._renderMapsMetricCard('實際地圖帳單', actualCostText, hasBilling ? 'BigQuery Billing Export' : '尚未同步或未產生費用', actualCostColor);
+    html += this._renderMapsMetricCard('地圖估算費用', this._fmtCurrency(est.totalCost, 'USD'), '扣除每月免費額度後估算', estimatedColor);
+    html += `</div>`;
+
+    if (est && est.breakdown) {
+      html += `<div class="dash-map-estimate">`;
+      for (const info of Object.values(est.breakdown)) {
+        html += `<div class="dash-cost-row dash-cost-detail">
+          <span class="dash-cost-label">${escapeHTML(info.label)}（已用 ${escapeHTML(this._fmtUsageNum(info.used))} / 免費 ${escapeHTML(this._fmtUsageNum(info.free))}）</span>
+          <span class="dash-cost-val">${escapeHTML(this._fmtCurrency(info.cost, 'USD'))}</span>
+        </div>`;
+      }
+      html += `</div>`;
+    }
+
+    if (mapsBilling && mapsBilling.costBySku) {
+      const skuEntries = Object.entries(mapsBilling.costBySku).sort((a, b) => (Number(b[1]) || 0) - (Number(a[1]) || 0)).slice(0, 6);
+      if (skuEntries.length > 0) {
+        html += `<div class="dash-map-sku">
+          <div class="dash-map-block-title">Billing SKU</div>`;
+        for (const [sku, cost] of skuEntries) {
+          const skuUsage = mapsBilling.usageBySku && mapsBilling.usageBySku[sku];
+          const usageText = skuUsage && Number(skuUsage.amount) > 0
+            ? `，用量 ${this._fmtUsageNum(Number(skuUsage.amount))}${skuUsage.unit ? ' ' + skuUsage.unit : ''}`
+            : '';
+          html += `<div class="dash-cost-row dash-cost-detail">
+            <span class="dash-cost-label">${escapeHTML(sku + usageText)}</span>
+            <span class="dash-cost-val">${escapeHTML(this._fmtCurrency(cost, mapsBilling.currency || actualCurrency))}</span>
+          </div>`;
+        }
+        html += `</div>`;
+      }
+    }
+
+    if (mapsBilling && mapsBilling.error) {
+      html += `<div class="dash-map-warning">Billing Export 讀取失敗：${escapeHTML(mapsBilling.error)}</div>`;
+    }
+    if (usage && usage.error) {
+      html += `<div class="dash-map-warning">Monitoring 讀取失敗：${escapeHTML(usage.error)}</div>`;
+    }
+
+    html += `<div class="dash-map-breakdown-grid">
+      <div class="dash-map-breakdown-card">
+        <div class="dash-map-block-title">API 分佈（近 24 小時）</div>
+        ${this._renderMapsBreakdownRows(usage && usage.byApi, '尚無 API 分佈')}
+      </div>
+      <div class="dash-map-breakdown-card">
+        <div class="dash-map-block-title">狀態碼（近 24 小時）</div>
+        ${this._renderMapsBreakdownRows(usage && usage.byResponseCode, '尚無狀態碼資料')}
+      </div>
+      <div class="dash-map-breakdown-card">
+        <div class="dash-map-block-title">平台（近 24 小時）</div>
+        ${this._renderMapsBreakdownRows(usage && usage.byPlatform, '尚無平台資料')}
+      </div>
+      <div class="dash-map-breakdown-card">
+        <div class="dash-map-block-title">憑證 ID（近 24 小時）</div>
+        ${this._renderMapsBreakdownRows(usage && usage.byCredential, '尚無憑證資料')}
+      </div>
+    </div>`;
+
+    html += `<div class="dash-map-note">* 地圖費用以 BigQuery Billing Export 為準；估算值使用目前公開級距與 Monitoring 請求分類，未知 SKU 會列為未分類。</div>`;
+    html += `</div>`;
+    return html;
   },
 
   /** 渲染費用區塊（Billing API 實際 + 近 N 天累計估算） */
@@ -569,6 +817,34 @@ Object.assign(App, {
     overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
     overlay.innerHTML = '<div class="edu-info-dialog">'
       + '<div class="edu-info-dialog-title">雲端用量說明</div>'
+      + '<div class="edu-info-dialog-body">' + body + '</div>'
+      + '<button class="primary-btn" style="width:100%;margin-top:.8rem" onclick="this.closest(\'.edu-info-overlay\').remove()">了解</button>'
+      + '</div>';
+    document.body.appendChild(overlay);
+  },
+
+  _showMapsUsageInfoPopup() {
+    const body = ''
+      + '<p style="margin-bottom:.6rem">此區塊只在管理儀表板讀取已收集好的 usageMetrics，不會讓一般用戶開啟首頁或活動列表時多載入 Google 帳單資料。</p>'
+      + '<div style="font-weight:700;margin:.7rem 0 .3rem">用量來源</div>'
+      + '<ul>'
+      + '<li><b>近 24 小時請求</b> — 由 Google Cloud Monitoring 的 maps.googleapis.com/service/v2/request_count 指標取得。</li>'
+      + '<li><b>API / 狀態碼 / 平台 / 憑證 ID</b> — 來自 Monitoring time series 標籤，用來判斷主要消耗來源與錯誤率。</li>'
+      + '<li><b>本月累計</b> — 加總 usageMetrics 當月已收集到的每日資料；若某天沒有資料，畫面會以已收集天數標示。</li>'
+      + '</ul>'
+      + '<div style="font-weight:700;margin:.7rem 0 .3rem">費用來源</div>'
+      + '<ul>'
+      + '<li><b>實際地圖帳單</b> — 從 BigQuery Billing Export 依 Google Maps Platform 的 SKU 彙總，這個數字才是帳單準據。</li>'
+      + '<li><b>地圖估算費用</b> — 以 Maps JavaScript API 與 Geocoding API 的本月請求量扣除免費額度後估算，只作為預警。</li>'
+      + '<li><b>未分類 Maps 請求</b> — Monitoring 標籤無法明確對應到目前前端估算 SKU 時會列在這裡，不會硬算費用。</li>'
+      + '</ul>'
+      + '<p style="color:var(--text-muted);font-size:.78rem;margin-top:.6rem">提醒：瀏覽器 API key 本身不是機密，但必須在 Google Cloud Console 保持 HTTP referrer、API 類型與用量配額限制。</p>';
+
+    const overlay = document.createElement('div');
+    overlay.className = 'edu-info-overlay';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.innerHTML = '<div class="edu-info-dialog">'
+      + '<div class="edu-info-dialog-title">Google Maps 用量說明</div>'
       + '<div class="edu-info-dialog-body">' + body + '</div>'
       + '<button class="primary-btn" style="width:100%;margin-top:.8rem" onclick="this.closest(\'.edu-info-overlay\').remove()">了解</button>'
       + '</div>';

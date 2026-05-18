@@ -1117,6 +1117,111 @@ body.ad-edit-modal-open {
 .dash-cost-label { flex: 1; }
 .dash-cost-val { font-weight: 600; font-variant-numeric: tabular-nums; }
 
+.dash-map-section {
+  margin-top: .85rem;
+  padding-top: .85rem;
+  border-top: 1px solid var(--border);
+}
+.dash-map-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .7rem;
+  margin-bottom: .55rem;
+}
+.dash-map-section-title {
+  font-size: .86rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+.dash-map-section-sub,
+.dash-map-note {
+  font-size: .68rem;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+.dash-map-estimate,
+.dash-map-sku {
+  margin-top: .45rem;
+}
+.dash-map-warning {
+  margin-top: .5rem;
+  padding: .45rem .6rem;
+  border-radius: 8px;
+  border: 1px solid rgba(245, 158, 11, .35);
+  background: rgba(245, 158, 11, .1);
+  color: #b45309;
+  font-size: .72rem;
+  line-height: 1.5;
+}
+.dash-map-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .55rem;
+  margin-top: .65rem;
+}
+.dash-map-breakdown-card {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  padding: .55rem .6rem;
+}
+.dash-map-block-title {
+  font-size: .73rem;
+  font-weight: 800;
+  color: var(--text-secondary);
+  margin-bottom: .42rem;
+}
+.dash-map-breakdown-row {
+  display: flex;
+  flex-direction: column;
+  gap: .18rem;
+  margin-bottom: .42rem;
+}
+.dash-map-breakdown-row:last-child {
+  margin-bottom: 0;
+}
+.dash-map-breakdown-head {
+  display: flex;
+  justify-content: space-between;
+  gap: .45rem;
+  min-width: 0;
+  font-size: .7rem;
+  color: var(--text-secondary);
+}
+.dash-map-breakdown-head span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dash-map-breakdown-head strong {
+  flex-shrink: 0;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.dash-map-breakdown-track {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+}
+.dash-map-breakdown-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #0d9488;
+}
+.dash-map-empty {
+  color: var(--text-muted);
+  font-size: .72rem;
+  line-height: 1.5;
+}
+@media (max-width: 560px) {
+  .dash-map-breakdown-grid { grid-template-columns: 1fr; }
+  .dash-map-section-head { align-items: center; }
+}
+
 /* ═══════════════════════════════════════════════════
    Dashboard Drilldown（八大卡片點擊彈窗 + 進度 modal）
    ═══════════════════════════════════════════════════ */
