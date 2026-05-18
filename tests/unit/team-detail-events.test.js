@@ -766,6 +766,8 @@ describe('team detail club activity section', () => {
     const html = app._buildTeamMembersCard(team, false, false, staffIdentity);
 
     expect(app._getTeamDetailMemberCount(team)).toBe(6);
+    expect(app._getTeamDetailCoachPlusCount(team)).toBe(4);
+    expect(app._buildTeamDetailOverview(team, 0, 0)).toMatch(/td-overview-coach[\s\S]*<strong>4<\/strong>/);
     expect(roster.some(row => row.name === 'Amy' && row.label === 'ALL')).toBe(true);
     expect(roster.some(row => row.name === 'Amy' && row.joinTime === '2026/05/01')).toBe(true);
     expect(roster.some(row => row.name === 'Child' && row.joinTime === '2026/04/20')).toBe(true);

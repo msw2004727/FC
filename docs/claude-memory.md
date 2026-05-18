@@ -1,5 +1,11 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-18 Club detail coach-plus overview count [bug]
+- **Problem**: The club detail overview coach stat only used the explicit coach list, so captain/leader assignments and roster members whose user role was coach-level or higher were not included.
+- **Cause**: `_buildTeamDetailOverview()` read `team.coaches.length` directly instead of using the same roster/staff identity model as the club member list.
+- **Fix**: Added `_getTeamDetailCoachPlusCount()` to count roster rows with a club staff identity or an effective user role at `coach` level or above, while preserving stealth-admin role masking.
+- **Tests**: Updated `tests/unit/team-detail-events.test.js` to require captain, coach, leader, and venue-owner roster rows to be included in the overview coach stat.
+
 ### 2026-05-18 Club member staff edit permission failure [bug]
 - **Problem**: Club staff could see the member-list edit buttons on the club detail page, but editing activity notes, course notes, or match data for user-backed roster rows failed with the generic update-failed toast.
 - **Cause**: The UI wrote club-scoped member annotations directly to the target member's `users/{uid}` document (`teamActivityData`, `teamCourseData`, `teamMatchData`). Firestore user rules do not allow a club staff member to update another user's profile document, so non-admin staff hit `permission-denied`.
