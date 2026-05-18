@@ -4,6 +4,21 @@
 
 ---
 
+### 2026-05-18 — 朝馬足球場地圖圖片 SEO：WebP、頁面嵌入與 image sitemap
+
+**目的 / 背景**：使用者提供自有版權的朝馬足球場地圖 `img/Chaoma.png`，圖中包含 A1、A2、B1、B2、C、D 場區、免費停車場、付費停車場、洗手間與朝馬國民運動中心。依 2026-05-12 決策，本階段不另開薄型「朝馬足球場」單頁，先把圖資併入既有 `/seo/football-taichung`，集中承接「朝馬足球場、朝馬足球場地圖、朝馬足球場停車、集合點」搜尋意圖。
+
+**修正內容**：
+1. 將原始 PNG 轉出 `img/seo/chaoma-football-field-map-1200.webp` 與 `img/seo/chaoma-football-field-map-720.webp`，頁面載入使用 WebP 與 `srcset`，避免 2.1MB PNG 直接拖慢 SEO 頁。
+2. 在 `/seo/football-taichung#chaoma-football-field-map` 新增朝馬足球場地圖 figure、描述性 alt、figcaption、寬高、lazy loading 與周邊文字，補強場區、停車與集合點資訊。
+3. 將 `/seo/football-taichung` 的 OG/Twitter image 與 WebPage JSON-LD `image`、`primaryImageOfPage` 改為朝馬地圖，讓頁面主圖與搜尋意圖一致。
+4. 在 `/blog/taichung-football-field-rental-guide` 的朝馬段落補入「朝馬足球場地圖與集合點」內鏈。
+5. 更新 `sitemap-static.xml`：`/seo/football-taichung` lastmod 改為 2026-05-18，並新增 image sitemap 的 `<image:loc>`。
+
+**預期影響**：提升 `/seo/football-taichung` 對朝馬場地型長尾詞的相關性與圖片搜尋可發現性，同時避免另開薄頁造成權重分散。後續觀察 GSC 中「朝馬足球場 地圖 / 停車 / 地址 / A1 A2」是否開始出現曝光；若 2-4 週後曝光成長但排名仍卡在 8-15，再評估獨立完整場地指南頁。
+
+---
+
 ### 2026-05-18 — 南屯足球園區收錄補強：最新進度、交通停車 blog 與 sitemap 更新
 
 **目的 / 背景**：GSC URL Inspection 顯示 `/seo/nantun-football-park` 為 `Crawled - currently not indexed`，canonical 與 robots 皆正常，判斷不是技術阻擋，而是頁面需要更明確的最新性、資料可信度、第一屏資訊密度與內部連結支援。

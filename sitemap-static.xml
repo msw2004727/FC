@@ -71,9 +71,12 @@
   <!-- ═══════════════════════════════════════════════ -->
   <url>
     <loc>https://toosterx.com/seo/football-taichung</loc>
-    <lastmod>2026-05-12</lastmod>
+    <lastmod>2026-05-18</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.75</priority>
+    <image:image>
+      <image:loc>https://toosterx.com/img/seo/chaoma-football-field-map-1200.webp</image:loc>
+    </image:image>
   </url>
   <url>
     <loc>https://toosterx.com/seo/nantun-football-park</loc>
