@@ -171,4 +171,12 @@ describe('Phase 5.5 hook integration (source-level contract)', () => {
     expect(sitemap).toContain('sitemap-teams.xml');
     expect(sitemap).toContain('sitemap-tournaments.xml');
   });
+
+  test('static sitemap uses clean canonical URLs for legal pages', () => {
+    const sitemap = readProjectFile('sitemap-static.xml');
+    expect(sitemap).toContain('<loc>https://toosterx.com/privacy</loc>');
+    expect(sitemap).toContain('<loc>https://toosterx.com/terms</loc>');
+    expect(sitemap).not.toContain('<loc>https://toosterx.com/privacy.html</loc>');
+    expect(sitemap).not.toContain('<loc>https://toosterx.com/terms.html</loc>');
+  });
 });

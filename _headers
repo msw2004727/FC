@@ -68,7 +68,11 @@
   Cache-Control: public, max-age=86400
 
 # Privacy & Terms
+/privacy
+  Cache-Control: public, max-age=86400
 /privacy.html
+  Cache-Control: public, max-age=86400
+/terms
   Cache-Control: public, max-age=86400
 /terms.html
   Cache-Control: public, max-age=86400

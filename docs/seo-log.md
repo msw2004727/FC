@@ -4,6 +4,20 @@
 
 ---
 
+### 2026-05-18 — 法務頁 clean URL canonical 收斂
+
+**目的 / 背景**：擴大 SEO 健檢發現 Cloudflare Pages 會將 `privacy.html`、`terms.html` 實際服務成 `/privacy`、`/terms`，但 sitemap 與頁面 canonical 仍指向 `.html`。這不會造成主要收錄失敗，但容易讓 GSC 出現「替代頁面／適當標準標記」與 clean URL 策略不一致的訊號。
+
+**修正內容**：
+1. 將 `privacy.html`、`terms.html` 的 canonical、hreflang、OG URL 與 BreadcrumbList JSON-LD item 統一改為 `/privacy`、`/terms`。
+2. 將 `sitemap-static.xml` 的法務頁 `<loc>` 改為 clean URL，避免 sitemap 主動提交 `.html` 版本。
+3. 在 `_headers` 補上 `/privacy`、`/terms` 的 24 小時快取規則，保留 `.html` 規則作為舊入口相容。
+4. 更新 SEO metadata 與 sitemap 單元測試，防止法務頁 canonical 或 sitemap 退回 `.html`。
+
+**驗收重點**：需確認 `/privacy`、`/terms` 回 200，頁面 canonical/og:url 指向 clean URL，GSC 後續不再將法務頁視為 `.html` 與 clean URL 混用。
+
+---
+
 ### 2026-05-12 — GSC 第一頁候選詞補強：台中足球場 / 朝馬 / 西屯
 
 **背景 / 目的**：使用 GSC `sc-domain:toosterx.com` 近 28 天資料確認，品牌詞 `toosterx` 穩定第 1 名；非品牌詞中「室內足球場」已進平均第 5.5 名，「台中朝馬足球場」「朝馬足球場」「台中市足球場」「西屯足球場」落在平均第 10.75-12 名，屬於可優先推進第一頁的在地場地詞群。

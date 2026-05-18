@@ -74,7 +74,7 @@ describe('SEO metadata coverage', () => {
     expect(normalizeUrl(alternateHref(source, 'zh-TW'))).toBe(normalizeUrl(canonical));
     expect(normalizeUrl(alternateHref(source, 'x-default'))).toBe(normalizeUrl(canonical));
 
-    if (rel.startsWith('seo/') || rel.startsWith('blog/')) {
+    if (rel.startsWith('seo/') || rel.startsWith('blog/') || rel === 'privacy.html' || rel === 'terms.html') {
       expect(canonical).not.toMatch(/\.html$/);
       expect(ogUrl).not.toMatch(/\.html$/);
     }

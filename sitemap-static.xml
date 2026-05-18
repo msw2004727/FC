@@ -248,13 +248,13 @@
   <!-- 政策頁（priority 0.3 — 必要但非主流量）-->
   <!-- ═══════════════════════════════════════════════ -->
   <url>
-    <loc>https://toosterx.com/privacy.html</loc>
+    <loc>https://toosterx.com/privacy</loc>
     <lastmod>2026-05-12</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://toosterx.com/terms.html</loc>
+    <loc>https://toosterx.com/terms</loc>
     <lastmod>2026-05-12</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
