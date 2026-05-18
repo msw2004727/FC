@@ -18,7 +18,9 @@ describe('activity advanced add-on wording', () => {
     expect(activityHtml).not.toContain('>加值功能</summary>');
     expect(configSource).toContain('使用進階功能（加值服務）');
     expect(configSource).toContain('進階功能（加值服務）');
+    expect(configSource).toContain('社群連結與早鳥報名等進階功能（加值服務）');
     expect(rolesSource).toContain('使用進階功能（加值服務）');
     expect(rolesSource).toContain('進階功能（加值服務）');
+    expect(rolesSource).toContain('社群連結與早鳥報名功能');
   });
 });

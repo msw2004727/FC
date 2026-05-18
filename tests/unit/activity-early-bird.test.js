@@ -27,6 +27,9 @@ describe('activity early bird registration add-on', () => {
     const createSource = readProjectFile('js/modules/event/event-create.js');
     const lifecycleSource = readProjectFile('js/modules/event/event-manage-lifecycle.js');
     const templateSource = readProjectFile('js/modules/event/event-create-template.js');
+    const helpersSource = readProjectFile('js/modules/event/event-list-helpers.js');
+    const configSource = readProjectFile('js/config.js');
+    const rolesSource = readProjectFile('js/modules/user-admin/user-admin-roles.js');
 
     expect(optionsSource).toContain('_getEventEarlyBirdFormData');
     expect(optionsSource).toContain('_setEventEarlyBirdFormData');
@@ -39,6 +42,10 @@ describe('activity early bird registration add-on', () => {
     expect(createSource).toContain('earlyBirdCost');
     expect(createSource).toContain('earlyBirdPolicyVersion');
     expect(createSource).toContain('早鳥報名');
+    expect(createSource).toContain('_canUseActivityAddons');
+    expect(helpersSource).toContain("user.activity.addons_use");
+    expect(configSource).toContain('社群連結與早鳥報名等進階功能（加值服務）');
+    expect(rolesSource).toContain('社群連結與早鳥報名功能');
     expect(lifecycleSource).toContain('this._setEventEarlyBirdFormData?.(!!e.earlyBirdEnabled, e.earlyBirdCost || 10)');
     expect(templateSource).toContain('earlyBirdData');
     expect(templateSource).toContain('this._setEventEarlyBirdFormData?.(canUseAddons && !!tpl.earlyBirdEnabled');
@@ -78,6 +85,7 @@ describe('activity early bird registration add-on', () => {
 
     expect(rulesSource).toContain("request.resource.data.get('earlyBirdEnabled', false) == false");
     expect(rulesSource).toContain("request.resource.data.get('earlyBirdCost', 0) == 0");
+    expect(rulesSource).toContain("hasActivityCap('user.activity.addons_use')");
     expect(rulesSource).toContain('function eventEarlyBirdFieldsValid(data)');
     expect(rulesSource).toContain("data.get('earlyBirdCost', 0) >= 10");
     expect(rulesSource).toContain("data.get('earlyBirdCost', 0) <= 500");

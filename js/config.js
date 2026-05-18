@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260518zc';
+const CACHE_VERSION = '0.20260518zd';
 
 const GOOGLE_MAPS_BROWSER_API_KEY = '';
 
@@ -836,7 +836,7 @@ const ROLE_ACTIVITY_CAPABILITY_ITEMS = Object.freeze([
   {
     code: 'user.activity.addons_use',
     name: '使用進階功能（加值服務）',
-    description: '預設關閉。開啟後一般 user 才能使用收費、隊伍限定、性別限定、私密活動與分隊等進階功能（加值服務）開關。',
+    description: '預設關閉。開啟後一般 user 才能使用收費、隊伍限定、性別限定、私密活動、分隊、社群連結與早鳥報名等進階功能（加值服務）開關。',
     defaultEnabled: false,
   },
 ]);

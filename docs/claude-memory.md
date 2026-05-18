@@ -2877,3 +2877,8 @@
 - **Cause**: `_renderAttendanceTable()` debounced repeated table renders by clearing the old timer, but the promise returned to the first caller was never resolved. `showEventDetail()` awaited that first promise before calling `_renderEventComments()`, so a later roster patch could render the list while the original detail flow stayed permanently parked.
 - **Fix**: Coalesced per-container attendance render jobs so all superseded callers resolve after the latest debounced render completes. Render failures now resolve with an error result after logging instead of leaving callers pending forever.
 - **Validation**: Added regression coverage for superseded debounce callers and render exceptions. Ran `node --check js/modules/event/event-manage-attendance.js`, `node --check js/modules/event/event-comments.js`, `npm test -- --runTestsByPath tests/unit/event-detail-render.test.js`, and `npm test -- --runTestsByPath tests/unit/event-comments.test.js`.
+
+### 2026-05-18 User Activity Capability Wording For Early Bird [bugfix]
+- **Issue**: Early bird registration was already controlled by `user.activity.addons_use`, but the user activity capability catalog and permission info copy did not explicitly mention early bird, so operators could miss that the second user permission set covers this switch.
+- **Fix**: Updated the `user.activity.addons_use` description and user-admin info dialog to list social links and early bird registration as advanced add-ons. Added unit assertions so the wording and Rules gating stay tied together.
+- **Validation**: Ran targeted unit tests for early bird and add-on wording after the update.
