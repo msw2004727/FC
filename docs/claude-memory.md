@@ -1,10 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
-### 2026-05-18 Club detail coach-plus overview count [bug]
-- **Problem**: The club detail overview coach stat only used the explicit coach list, so captain/leader assignments and roster members whose user role was coach-level or higher were not included.
-- **Cause**: `_buildTeamDetailOverview()` read `team.coaches.length` directly instead of using the same roster/staff identity model as the club member list.
-- **Fix**: Added `_getTeamDetailCoachPlusCount()` to count roster rows with a club staff identity or an effective user role at `coach` level or above, while preserving stealth-admin role masking.
-- **Tests**: Updated `tests/unit/team-detail-events.test.js` to require captain, coach, leader, and venue-owner roster rows to be included in the overview coach stat.
+### 2026-05-18 Club detail coach-only overview count [bug]
+- **Problem**: The club detail overview coach stat briefly counted coach-level-and-above roles, but the intended stat is only actual coach assignments.
+- **Cause**: The coach overview helper used role hierarchy/member roster state instead of the club's `coachUids` / `coaches` assignment fields.
+- **Fix**: Replaced the coach-plus helper with `_getTeamDetailCoachCount()`, which counts only unique club coach identities. Captain, leader, venue-owner, admin, and super-admin rows are excluded unless they are also explicitly assigned as a coach.
+- **Tests**: Updated `tests/unit/team-detail-events.test.js` to lock coach-only counting and the multi-identity case where a captain is also assigned as a coach.
 
 ### 2026-05-18 Club member staff edit permission failure [bug]
 - **Problem**: Club staff could see the member-list edit buttons on the club detail page, but editing activity notes, course notes, or match data for user-backed roster rows failed with the generic update-failed toast.

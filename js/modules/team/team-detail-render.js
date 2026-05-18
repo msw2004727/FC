@@ -306,34 +306,30 @@ Object.assign(App, {
     return this._getTeamDetailRoster(t).filter(row => row.isMember || row.isStudent).length;
   },
 
-  _getTeamDetailCoachPlusCount(t) {
+  _getTeamDetailCoachCount(t) {
     if (!t) return 0;
-    const fallbackRoleLevels = { user: 0, coach: 1, captain: 2, venue_owner: 3, admin: 4, super_admin: 5 };
-    const getRoleLevel = (role) => {
-      const key = String(role || '').trim().toLowerCase();
-      if (!key) return 0;
-      try {
-        if (typeof ROLE_LEVEL_MAP !== 'undefined' && ROLE_LEVEL_MAP) {
-          const runtimeLevel = Number(ROLE_LEVEL_MAP[key]);
-          if (Number.isFinite(runtimeLevel)) return runtimeLevel;
-        }
-      } catch (_) {}
-      return Number(fallbackRoleLevels[key] || 0);
+    const users = ApiService.getAdminUsers?.() || [];
+    const seen = new Set();
+    const addCoachIdentity = (uidLike, nameLike) => {
+      const uid = String(uidLike || '').trim();
+      const name = String(nameLike || '').trim();
+      if (!uid && !name) return;
+      const user = typeof this._findTeamDetailUserByUidOrName === 'function'
+        ? this._findTeamDetailUserByUidOrName(uid, name, users)
+        : null;
+      const key = user && typeof this._getTeamDetailIdentityKeyFromUser === 'function'
+        ? this._getTeamDetailIdentityKeyFromUser(user)
+        : (uid ? `uid:${uid}` : `coach:${name.toLowerCase()}`);
+      if (key) seen.add(key);
     };
-    const coachLevel = getRoleLevel('coach') || 1;
-    const rows = typeof this._getTeamDetailRoster === 'function' ? this._getTeamDetailRoster(t) : [];
-    return rows.filter(row => {
-      const hasStaffIdentity = !!(row?.roles && typeof row.roles.size === 'number' && row.roles.size > 0);
-      if (hasStaffIdentity) return true;
-      let role = String(row?.user?.role || '').trim().toLowerCase();
-      if (!role) return false;
-      if (typeof this._stealthRole === 'function') {
-        role = String(this._stealthRole(row?.name || row?.user?.name || '', role, row?.user) || 'user').trim().toLowerCase();
-      } else if ((role === 'admin' || role === 'super_admin') && row?.user?.stealth === true) {
-        role = 'user';
-      }
-      return getRoleLevel(role) >= coachLevel;
-    }).length;
+    const coachUids = Array.isArray(t.coachUids) ? t.coachUids : [];
+    const coachNames = Array.isArray(t.coaches) ? t.coaches : [];
+    coachUids.forEach((uid, idx) => addCoachIdentity(uid, coachNames[idx]));
+    coachNames.forEach((name, idx) => {
+      if (String(coachUids[idx] || '').trim()) return;
+      addCoachIdentity(null, name);
+    });
+    return seen.size;
   },
 
   _getTeamDetailEventCount(t) {
@@ -860,7 +856,7 @@ Object.assign(App, {
 
   _buildTeamDetailOverview(t, totalGames, winRate) {
     const memberCount = this._getTeamDetailMemberCount(t);
-    const coachCount = this._getTeamDetailCoachPlusCount(t);
+    const coachCount = this._getTeamDetailCoachCount(t);
     const eventCount = this._getTeamDetailEventCount(t);
     return '<div class="td-overview-grid">' +
       '<div class="td-overview-stat td-overview-member"><span class="td-overview-label">\u6210\u54e1</span><strong>' + memberCount + '</strong></div>' +
