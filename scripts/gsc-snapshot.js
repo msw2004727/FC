@@ -50,6 +50,7 @@ const URLS_TO_INSPECT = [
   'https://toosterx.com/blog/hiking-shoes-guide',
   'https://toosterx.com/blog/football-rules',
   'https://toosterx.com/blog/taichung-football-field-rental-guide',
+  'https://toosterx.com/blog/nantun-football-park-transport-guide',
   'https://toosterx.com/blog/adult-football-beginner-guide',
   'https://toosterx.com/blog/basketball-rules',
   'https://toosterx.com/blog/taichung-basketball-pickup-guide',

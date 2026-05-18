@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
-  <!-- 最後更新：2026-05-12 -->
+  <!-- 最後更新：2026-05-18 -->
 
   <!-- ═══════════════════════════════════════════════ -->
   <!-- 首頁與核心入口（priority 1.0）-->
@@ -77,7 +77,7 @@
   </url>
   <url>
     <loc>https://toosterx.com/seo/nantun-football-park</loc>
-    <lastmod>2026-05-12</lastmod>
+    <lastmod>2026-05-18</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.85</priority>
   </url>
@@ -103,7 +103,7 @@
   <!-- ═══════════════════════════════════════════════ -->
   <url>
     <loc>https://toosterx.com/blog/</loc>
-    <lastmod>2026-05-12</lastmod>
+    <lastmod>2026-05-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -121,7 +121,7 @@
   </url>
   <url>
     <loc>https://toosterx.com/blog/community/</loc>
-    <lastmod>2026-05-12</lastmod>
+    <lastmod>2026-05-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -145,7 +145,13 @@
   </url>
   <url>
     <loc>https://toosterx.com/blog/taichung-football-field-rental-guide</loc>
-    <lastmod>2026-05-12</lastmod>
+    <lastmod>2026-05-18</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.75</priority>
+  </url>
+  <url>
+    <loc>https://toosterx.com/blog/nantun-football-park-transport-guide</loc>
+    <lastmod>2026-05-18</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.75</priority>
   </url>

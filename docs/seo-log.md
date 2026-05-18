@@ -4,6 +4,21 @@
 
 ---
 
+### 2026-05-18 — 南屯足球園區收錄補強：最新進度、交通停車 blog 與 sitemap 更新
+
+**目的 / 背景**：GSC URL Inspection 顯示 `/seo/nantun-football-park` 為 `Crawled - currently not indexed`，canonical 與 robots 皆正常，判斷不是技術阻擋，而是頁面需要更明確的最新性、資料可信度、第一屏資訊密度與內部連結支援。
+
+**修正內容**：
+1. 補強 `/seo/nantun-football-park` 的 title、description、OG/Twitter description、Article JSON-LD `dateModified` 與 FAQ answers，改用 2026-05-18 核對後的現況表述。
+2. 在南屯頁第一屏後新增「2026 最新現況速查」，標明官方預計 2026-07-31 完工、2026 年 4 月實際進度 84.15%、啟用與租借仍待正式公告。
+3. 將租借費用、課程與一般民眾開放資訊改成「尚未公告，以營運單位公告為準」，降低推測性內容，提升 E-E-A-T 訊號。
+4. 新增 `/blog/nantun-football-park-transport-guide`，承接「南屯足球園區怎麼去、停車、地址、啟用時間、周邊球場」長尾搜尋，並回鏈主頁。
+5. 更新 `/blog/`、`/blog/community/`、`/blog/taichung-football-field-rental-guide` 內鏈，補入新 blog；同步更新 `sitemap-static.xml` lastmod 與 `scripts/gsc-snapshot.js` URL Inspection seed。
+
+**預期影響**：讓 Google 重新爬取後看到更清楚的最新官方進度、可驗證來源與支援內容矩陣，提升從「已爬但未收錄」轉為收錄的機率。短期觀察重點是 URL Inspection coverage、南屯頁 impressions 是否增加，以及「南屯足球園區交通 / 停車 / 什麼時候啟用」長尾詞是否出現曝光。
+
+---
+
 ### 2026-05-18 — 法務頁 clean URL canonical 收斂
 
 **目的 / 背景**：擴大 SEO 健檢發現 Cloudflare Pages 會將 `privacy.html`、`terms.html` 實際服務成 `/privacy`、`/terms`，但 sitemap 與頁面 canonical 仍指向 `.html`。這不會造成主要收錄失敗，但容易讓 GSC 出現「替代頁面／適當標準標記」與 clean URL 策略不一致的訊號。
