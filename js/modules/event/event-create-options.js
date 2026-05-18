@@ -218,9 +218,65 @@ Object.assign(App, {
 
   _getEventRegOpenNodes() {
     return {
+      toggle: document.getElementById('ce-reg-open-enabled'),
+      label: document.getElementById('ce-reg-open-enabled-label'),
+      fields: document.getElementById('ce-reg-open-fields'),
+      absolute: document.getElementById('ce-reg-open-absolute'),
+      relative: document.getElementById('ce-reg-open-relative'),
+      hint: document.getElementById('ce-reg-open-hint'),
       date: document.getElementById('ce-reg-open-date'),
       time: document.getElementById('ce-reg-open-clock'),
     };
+  },
+
+  _isEventRegOpenEnabled() {
+    const nodes = this._getEventRegOpenNodes();
+    if (nodes.toggle) return !!nodes.toggle.checked;
+    return !!(nodes.date?.value || nodes.time?.value);
+  },
+
+  _syncEventRegOpenTimeUI(options = {}) {
+    const nodes = this._getEventRegOpenNodes();
+    const enabled = this._isEventRegOpenEnabled();
+    const isMultiDate = typeof this._isMultiDateMode === 'function' && this._isMultiDateMode();
+
+    if (!enabled && options.clear !== false) {
+      if (nodes.date) nodes.date.value = '';
+      if (nodes.time) nodes.time.value = '';
+    }
+
+    if (nodes.label) {
+      nodes.label.textContent = enabled ? '指定開放時間' : '立即開放報名';
+      nodes.label.style.color = enabled ? 'var(--accent)' : 'var(--text-muted)';
+    }
+    if (nodes.fields) nodes.fields.hidden = !enabled;
+    if (nodes.date) nodes.date.disabled = !enabled || isMultiDate;
+    if (nodes.time) nodes.time.disabled = !enabled || isMultiDate;
+    if (nodes.absolute) nodes.absolute.style.display = enabled && !isMultiDate ? '' : 'none';
+    if (nodes.relative) nodes.relative.style.display = enabled && isMultiDate ? '' : 'none';
+    if (nodes.hint) {
+      if (!enabled) {
+        nodes.hint.textContent = '關閉時建立後立即開放報名；開啟後可指定開放日期與時間。';
+      } else if (isMultiDate) {
+        nodes.hint.textContent = '每場活動的報名開放時間將依此設定個別計算。';
+      } else {
+        nodes.hint.textContent = '報名時間未到會顯示「即將開放」，到達時間後自動開放報名。';
+      }
+    }
+    this._updateCreateTimeSummary?.();
+  },
+
+  _handleEventRegOpenToggle() {
+    const nodes = this._getEventRegOpenNodes();
+    if (!nodes.toggle?.checked) {
+      if (nodes.date) nodes.date.value = '';
+      if (nodes.time) nodes.time.value = '';
+      const daysSel = document.getElementById('ce-reg-rel-days');
+      const hoursSel = document.getElementById('ce-reg-rel-hours');
+      if (daysSel) daysSel.value = '0';
+      if (hoursSel) hoursSel.value = '0';
+    }
+    this._syncEventRegOpenTimeUI({ clear: false });
   },
 
   _normalizeEventRegOpenTime(value) {
@@ -242,20 +298,23 @@ Object.assign(App, {
   },
 
   _setEventRegOpenTimeValue(value = '') {
-    const { date, time } = this._getEventRegOpenNodes();
+    const nodes = this._getEventRegOpenNodes();
+    const { date, time } = nodes;
     const normalized = this._normalizeEventRegOpenTime(value);
+    if (nodes.toggle) nodes.toggle.checked = !!(normalized.date && normalized.time);
     if (date) date.value = normalized.date;
     if (time) time.value = normalized.time;
-    this._updateCreateTimeSummary?.();
+    this._syncEventRegOpenTimeUI?.({ clear: false });
   },
 
   _getEventRegOpenTimeValue() {
+    if (!this._isEventRegOpenEnabled?.()) return '';
     // 多日期模式：跳過絕對時間驗證，由 _buildMultiDateEvents 個別計算
     if (typeof this._isMultiDateMode === 'function' && this._isMultiDateMode()) return '';
     const { date, time } = this._getEventRegOpenNodes();
     const dateVal = date?.value || '';
     const timeVal = time?.value || '';
-    if (!dateVal && !timeVal) return '';
+    if (!dateVal && !timeVal) return null;
     if (!dateVal || !timeVal) return null;
     return `${dateVal}T${timeVal}`;
   },

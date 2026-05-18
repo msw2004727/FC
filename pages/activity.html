@@ -351,26 +351,36 @@
           </div>
         </div>
         <div class="ce-row">
-          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('regOpen')" title="說明">?</button><label>開放報名時間</label> <span style="font-size:.68rem;color:var(--text-muted);font-weight:400">（不填＝建立後立即開放）</span></div>
-          <div id="ce-reg-open-absolute" class="ce-reg-open-row">
-            <label class="ce-time-field ce-reg-open-field">
-              <span class="ce-time-field-label">開放日期</span>
-              <input type="date" id="ce-reg-open-date" class="ce-reg-open-date" placeholder="報名開放日期">
+          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('regOpen')" title="說明">?</button><label>開放報名時間</label></div>
+          <div class="ce-toggle-control ce-reg-open-toggle-control">
+            <label class="toggle-switch" style="margin:0">
+              <input type="checkbox" id="ce-reg-open-enabled">
+              <span class="toggle-slider"></span>
             </label>
-            <label class="ce-time-field ce-reg-open-field">
-              <span class="ce-time-field-label">開放時間</span>
-              <input type="time" id="ce-reg-open-clock" class="ce-reg-open-clock" step="1800" placeholder="報名開放時間">
-            </label>
+            <span id="ce-reg-open-enabled-label" class="ce-toggle-status">立即開放報名</span>
           </div>
-          <div id="ce-reg-open-summary" class="ce-time-summary ce-time-summary-muted" aria-live="polite">報名開放：未指定，建立後立即開放報名</div>
-          <div id="ce-reg-open-relative" class="ce-reg-open-relative" style="display:none">
-            <span class="ce-reg-rel-label">活動開始前</span>
-            <select id="ce-reg-rel-days" class="ce-reg-rel-select"></select>
-            <span>日</span>
-            <select id="ce-reg-rel-hours" class="ce-reg-rel-select"></select>
-            <span>時</span>
+          <div id="ce-reg-open-fields" class="ce-reg-open-fields" hidden>
+            <div id="ce-reg-open-absolute" class="ce-reg-open-row">
+              <label class="ce-time-field ce-reg-open-field">
+                <span class="ce-time-field-label">開放日期</span>
+                <input type="date" id="ce-reg-open-date" class="ce-reg-open-date" placeholder="報名開放日期">
+              </label>
+              <label class="ce-time-field ce-reg-open-field">
+                <span class="ce-time-field-label">開放時間</span>
+                <input type="time" id="ce-reg-open-clock" class="ce-reg-open-clock" step="1800" placeholder="報名開放時間">
+              </label>
+            </div>
+            <div id="ce-reg-open-relative" class="ce-reg-open-relative" style="display:none">
+              <span class="ce-reg-rel-label">活動開始前</span>
+              <select id="ce-reg-rel-days" class="ce-reg-rel-select"></select>
+              <span>日</span>
+              <select id="ce-reg-rel-hours" class="ce-reg-rel-select"></select>
+              <span>時</span>
+            </div>
           </div>
-          <div id="ce-reg-open-hint" style="font-size:.68rem;color:var(--text-muted);margin-top:.2rem">不填日期與時間＝建立後立即開放；有填日期與時間＝到指定時間才開放。</div>
+          <div id="ce-reg-open-summary" class="ce-time-summary ce-time-summary-muted" aria-live="polite">報名開放：建立後立即開放報名</div>
+          <div id="ce-reg-open-hint" class="ce-reg-open-hint">關閉時建立後立即開放報名；開啟後可指定開放日期與時間。</div>
+          <div id="ce-reg-open-early-bird-hint" class="ce-early-bird-reg-hint">如需在正式開放前提供早鳥報名，請到「進階功能」開啟早鳥報名並設定消耗積分。</div>
         </div>
         <div class="ce-row">
           <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('max')" title="說明">?</button><label>人數上限</label> <span class="required">*必填</span></div>

@@ -22,6 +22,7 @@ describe('activity early bird registration add-on', () => {
     expect(activityHtml).toContain('id="ce-early-bird-cost"');
     expect(activityHtml).not.toContain('id="ce-reserved-gps"');
     expect(activityHtml).toContain("App._showCeInfo('gps')");
+    expect(activityHtml).toContain('請到「進階功能」開啟早鳥報名');
     expect(activityHtml).toContain('min="10"');
     expect(activityHtml).toContain('max="500"');
   });
@@ -54,6 +55,7 @@ describe('activity early bird registration add-on', () => {
     expect(createSource).toContain("title: 'GPS功能'");
     expect(createSource).toContain('開啟後才可使用「設定地圖座標」');
     expect(createSource).toContain('早鳥報名');
+    expect(createSource).toContain('此開關位於「進階功能」');
     expect(createSource).toContain('_canUseActivityAddons');
     expect(helpersSource).toContain("user.activity.addons_use");
     expect(configSource).toContain('早鳥報名與 GPS 地圖座標');

@@ -2932,3 +2932,8 @@
 - **Issue**: Some EXP changes updated `currentUser.exp` or arrived through the current-user Firestore listener without refreshing every visible EXP field, so the top-bar points or profile EXP progress could remain stale until another render.
 - **Fix**: `updatePointsDisplay()` now refreshes both the top-bar points value and profile level/progress fields. Local manual/batch EXP mutations synchronize the current user and notify the renderer immediately, and current-user realtime snapshots trigger the same renderer when `exp` changes.
 - **Validation**: Added source assertions for the shared EXP renderer and local/realtime notification wiring. Ran targeted/full unit tests successfully; browser plugin verification was attempted, but localhost loading was blocked by the in-app browser URL policy.
+
+### 2026-05-18 Activity Registration Open Toggle [ux]
+- **Issue**: The create-activity form always displayed registration-open date/time fields, so "leave empty for immediate open" was easy to miss and made the field look mandatory.
+- **Fix**: Added a default-off sliding switch. Off now means immediate registration open and hides the fields; on reveals the absolute date/time fields, while multi-date mode reveals the existing relative "before activity" controls. Added early-bird guidance that points operators to the "進階功能" switch.
+- **Validation**: Added source assertions for the toggle, hidden field container, summary copy, and early-bird guidance. Ran `node --check` on touched event modules and targeted activity create/early-bird unit tests.

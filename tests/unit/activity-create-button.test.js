@@ -44,11 +44,19 @@ describe('activity create button', () => {
     const lifecycleSource = readProjectFile('js/modules/event/event-manage-lifecycle.js');
 
     expect(activityHtml).toContain('id="ce-time-summary"');
+    expect(activityHtml).toContain('id="ce-reg-open-enabled"');
+    expect(activityHtml).toContain('id="ce-reg-open-fields"');
+    expect(activityHtml).toContain('id="ce-reg-open-early-bird-hint"');
     expect(activityHtml).toContain('id="ce-reg-open-summary"');
+    expect(activityHtml).toContain('請到「進階功能」開啟早鳥報名');
     expect(baseCss).toContain('.ce-time-summary');
+    expect(baseCss).toContain('.ce-reg-open-fields[hidden]');
     expect(createSource).toContain('_formatCreateTimeValue');
     expect(createSource).toContain('_bindCreateTimeSummary');
+    expect(createSource).toContain('ce-reg-open-enabled');
     expect(createSource).toContain('this._bindCreateTimeSummary();');
+    expect(optionsSource).toContain('_isEventRegOpenEnabled');
+    expect(optionsSource).toContain('_syncEventRegOpenTimeUI');
     expect(optionsSource).toContain('this._updateCreateTimeSummary?.();');
     expect(lifecycleSource).toContain('this._bindCreateTimeSummary?.();');
   });

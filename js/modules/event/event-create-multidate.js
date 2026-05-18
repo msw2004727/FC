@@ -140,6 +140,10 @@ Object.assign(App, {
   // ═══════════════════════════════
 
   _switchToRelativeRegOpen() {
+    if (typeof this._syncEventRegOpenTimeUI === 'function') {
+      this._syncEventRegOpenTimeUI({ clear: false });
+      return;
+    }
     const abs = document.getElementById('ce-reg-open-absolute');
     const rel = document.getElementById('ce-reg-open-relative');
     const hint = document.getElementById('ce-reg-open-hint');
@@ -149,6 +153,10 @@ Object.assign(App, {
   },
 
   _switchToAbsoluteRegOpen() {
+    if (typeof this._syncEventRegOpenTimeUI === 'function') {
+      this._syncEventRegOpenTimeUI({ clear: false });
+      return;
+    }
     const abs = document.getElementById('ce-reg-open-absolute');
     const rel = document.getElementById('ce-reg-open-relative');
     const hint = document.getElementById('ce-reg-open-hint');
@@ -166,6 +174,9 @@ Object.assign(App, {
   // ═══════════════════════════════
 
   _getRelativeRegOpen() {
+    if (typeof this._isEventRegOpenEnabled === 'function' && !this._isEventRegOpenEnabled()) {
+      return { days: 0, hours: 0 };
+    }
     const days = parseInt(document.getElementById('ce-reg-rel-days')?.value, 10) || 0;
     const hours = parseInt(document.getElementById('ce-reg-rel-hours')?.value, 10) || 0;
     return { days, hours };

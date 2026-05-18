@@ -270,29 +270,51 @@ Object.assign(App, {
         : '已選時間：請選擇開始與結束時間（24 小時制）';
     }
 
-    const regDateValue = document.getElementById('ce-reg-open-date')?.value || '';
-    const regTimeValue = this._formatCreateTimeValue(document.getElementById('ce-reg-open-clock')?.value);
-    const regDateLabel = this._formatCreateDateValue(regDateValue);
     const regSummary = document.getElementById('ce-reg-open-summary');
     if (regSummary) {
-      if (regDateLabel && regTimeValue) {
-        regSummary.textContent = `報名開放：${regDateLabel} ${regTimeValue} 後可報名`;
-      } else if (regDateValue || regTimeValue) {
-        regSummary.textContent = '報名開放：請同時選擇日期與時間；不填則立即開放';
+      const regOpenEnabled = this._isEventRegOpenEnabled?.() === true;
+      const isMultiDate = typeof this._isMultiDateMode === 'function' && this._isMultiDateMode();
+      if (!regOpenEnabled) {
+        regSummary.textContent = '報名開放：建立後立即開放報名';
+      } else if (isMultiDate) {
+        const rel = this._getRelativeRegOpen?.() || { days: 0, hours: 0 };
+        const days = Number(rel.days || 0);
+        const hours = Number(rel.hours || 0);
+        if (days || hours) {
+          const parts = [];
+          if (days) parts.push(`${days} 日`);
+          if (hours) parts.push(`${hours} 小時`);
+          regSummary.textContent = `報名開放：每場活動開始前 ${parts.join(' ')} 開放`;
+        } else {
+          regSummary.textContent = '報名開放：未指定提前時間，建立後立即開放報名';
+        }
       } else {
-        regSummary.textContent = '報名開放：未指定，建立後立即開放報名';
+        const regDateValue = document.getElementById('ce-reg-open-date')?.value || '';
+        const regTimeValue = this._formatCreateTimeValue(document.getElementById('ce-reg-open-clock')?.value);
+        const regDateLabel = this._formatCreateDateValue(regDateValue);
+        if (regDateLabel && regTimeValue) {
+          regSummary.textContent = `報名開放：${regDateLabel} ${regTimeValue} 後可報名`;
+        } else {
+          regSummary.textContent = '報名開放：請選擇完整的開放日期與時間';
+        }
       }
     }
   },
 
   _bindCreateTimeSummary() {
-    ['ce-date', 'ce-time-start', 'ce-time-end', 'ce-reg-open-date', 'ce-reg-open-clock'].forEach(id => {
+    ['ce-date', 'ce-time-start', 'ce-time-end', 'ce-reg-open-date', 'ce-reg-open-clock', 'ce-reg-rel-days', 'ce-reg-rel-hours'].forEach(id => {
       const el = document.getElementById(id);
       if (!el || el.dataset.timeSummaryBound === '1') return;
       el.dataset.timeSummaryBound = '1';
       el.addEventListener('input', () => this._updateCreateTimeSummary());
       el.addEventListener('change', () => this._updateCreateTimeSummary());
     });
+    const regOpenToggle = document.getElementById('ce-reg-open-enabled');
+    if (regOpenToggle && regOpenToggle.dataset.timeSummaryBound !== '1') {
+      regOpenToggle.dataset.timeSummaryBound = '1';
+      regOpenToggle.addEventListener('change', () => this._handleEventRegOpenToggle?.());
+    }
+    this._syncEventRegOpenTimeUI?.({ clear: false });
     this._updateCreateTimeSummary();
   },
 
@@ -956,7 +978,7 @@ Object.assign(App, {
     },
     regOpen: {
       title: '開放報名時間',
-      body: '設定報名開始的日期與時間。<p style="margin:.3rem 0 0"><b>未設定</b>：活動建立後立即開放報名。</p><p style="margin:.3rem 0 0"><b>已設定</b>：時間未到前顯示「即將開放」。</p><p style="margin:.3rem 0 0;color:var(--text-muted);font-size:.8rem">多日期模式下可設「活動開始前 N 天 N 時」，系統會自動為每場計算各自的開放時間。</p>',
+      body: '開關預設關閉，代表活動建立後立即開放報名。<p style="margin:.3rem 0 0"><b>開啟後</b>：需填寫完整的開放日期與時間，時間未到前顯示「即將開放」。</p><p style="margin:.3rem 0 0;color:var(--text-muted);font-size:.8rem">多日期模式下可設「活動開始前 N 天 N 時」，系統會自動為每場計算各自的開放時間。若要讓用戶在正式開放前提前報名，請到「進階功能」開啟早鳥報名。</p>',
     },
     fee: {
       title: '費用',
@@ -1000,7 +1022,7 @@ Object.assign(App, {
     },
     earlyBird: {
       title: '早鳥報名',
-      body: '開啟後，活動在正式開放報名前會顯示早鳥報名按鈕。用戶確認後會扣除設定積分並報名正取；活動取消時系統退回積分，用戶自行取消則不退回。<p style="margin:.3rem 0 0;color:var(--text-muted);font-size:.8rem">積分範圍 10～500 分。早鳥不支援同行者，避免一人扣一次卻帶多人提前卡位。</p>',
+      body: '此開關位於「進階功能」。開啟後，活動在正式開放報名前會顯示早鳥報名按鈕。用戶確認後會扣除設定積分並報名正取；活動取消時系統退回積分，用戶自行取消則不退回。<p style="margin:.3rem 0 0;color:var(--text-muted);font-size:.8rem">積分範圍 10～500 分。早鳥不支援同行者，避免一人扣一次卻帶多人提前卡位。</p>',
     },
     gps: {
       title: 'GPS功能',

@@ -508,6 +508,16 @@ body.modal-open { overflow: hidden; }
   width: 100%;
   min-width: 0;
 }
+.ce-reg-open-toggle-control {
+  margin-top: .1rem;
+  justify-content: flex-start;
+}
+.ce-reg-open-fields {
+  margin-top: .45rem;
+}
+.ce-reg-open-fields[hidden] {
+  display: none !important;
+}
 .ce-reg-open-field {
   width: 100%;
 }
@@ -515,6 +525,17 @@ body.modal-open { overflow: hidden; }
   min-width: 0;
   padding: .45rem .35rem;
   font-size: .82rem;
+}
+.ce-reg-open-hint,
+.ce-early-bird-reg-hint {
+  margin-top: .25rem;
+  color: var(--text-muted);
+  font-size: .68rem;
+  line-height: 1.5;
+}
+.ce-early-bird-reg-hint {
+  padding-left: .55rem;
+  border-left: 3px solid rgba(245, 158, 11, .48);
 }
 .ce-row-half { flex-direction: row; gap: .4rem; }
 .ce-row-half > div { flex: 1; display: flex; flex-direction: column; gap: .3rem; min-width: 0; overflow: hidden; }
