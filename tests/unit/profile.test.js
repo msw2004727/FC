@@ -178,7 +178,7 @@ describe('first login profile completion modal', () => {
 
     expect(indexHtml).toContain('id="fl-email"');
     expect(indexHtml).toContain('電子郵件 <span class="fl-optional">非必填</span>');
-    expect(indexHtml).toContain('優先收到最新運動活動情報');
+    expect(indexHtml).toContain('填寫 Email 後，未來可收到第一手運動活動通知、早鳥名額提醒、候補釋出與平台重要訊息');
     expect(layoutCss).toContain('#modal-overlay[data-profile-complete="1"]');
     expect(layoutCss).toContain('-webkit-backdrop-filter: blur(16px) saturate(135%)');
     expect(layoutCss).toContain('.fl-actions');
