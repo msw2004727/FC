@@ -19,6 +19,7 @@ Object.assign(App, {
       titleEl.style.display = 'none';
       if (tabsEl) tabsEl.style.display = 'none';
       if (dividerEl) dividerEl.style.display = 'none';
+      listEl.style.display = 'none';
       listEl.innerHTML = '';
       return;
     }
@@ -31,11 +32,13 @@ Object.assign(App, {
       titleEl.style.display = 'none';
       if (tabsEl) tabsEl.style.display = 'none';
       if (dividerEl) dividerEl.style.display = 'none';
+      listEl.style.display = 'none';
       listEl.innerHTML = '';
       return;
     }
 
     titleEl.style.display = '';
+    listEl.style.display = '';
     if (dividerEl) dividerEl.style.display = '';
     if (tabsEl) {
       tabsEl.style.display = '';

@@ -2900,3 +2900,9 @@
 - **Cause**: GPS was still a disabled reserved row, while the active map-location draft flow only checked the global map feature flag.
 - **Fix**: Promoted GPS to a real advanced add-on directly under early bird. The map coordinate button now greys out when GPS is off, remains clickable for the requested "請先開啟GPS功能" toast, and submit/template paths clear marker fields when GPS is off. Firestore rules now treat GPS/map fields as `user.activity.addons_use` data.
 - **Validation**: Ran `node --check` on touched event modules, targeted GPS/early-bird/template unit tests, full `npm test -- --runInBand`, and `npm run test:rules`.
+
+### 2026-05-18 Home News Disabled Container [bugfix]
+- **Issue**: Turning off homepage daily sports news still left the empty card-list container edge visible below the mini-game section.
+- **Cause**: `renderNews()` cleared the news list content and hid the title/tabs/divider, but left `#news-card-list` displayed; its padding, border, background, and shadow rendered as a blank strip.
+- **Fix**: Hide the news card-list container whenever news is disabled or has no articles, and restore it only when visible articles are rendered.
+- **Validation**: Added unit coverage for disabled news hiding the container and visible articles restoring it.
