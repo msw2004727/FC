@@ -31,6 +31,9 @@
   --accent: #34d399;
   --accent-hover: #6ee7b7;
   --accent-bg: rgba(52,211,153,.16);
+  --primary-btn-bg: #10b981;
+  --primary-btn-hover: #059669;
+  --primary-btn-active: #047857;
   --danger: #f87171;
   --warning: #fbbf24;
   --info: #60a5fa;
@@ -149,8 +152,9 @@ img.img-preloaded, img[src=""], img:not([src]) { opacity: 1; transition: none; }
 .info-row > span:first-child { color: var(--text-muted); font-size: .78rem; }
 
 /* ─── Buttons ─── */
-.primary-btn { background: var(--accent); color: #fff; padding: .55rem 1.2rem; border-radius: var(--radius-sm); font-weight: 600; font-size: .85rem; transition: all var(--transition); }
-.primary-btn:hover { background: var(--accent-hover); transform: translateY(-1px); }
+.primary-btn { background: var(--primary-btn-bg, var(--accent)); color: #fff; padding: .55rem 1.2rem; border-radius: var(--radius-sm); font-weight: 600; font-size: .85rem; transition: all var(--transition); }
+.primary-btn:hover { background: var(--primary-btn-hover, var(--accent-hover)); transform: translateY(-1px); }
+.primary-btn:active { background: var(--primary-btn-active, var(--primary-btn-hover, var(--accent-hover))); }
 .primary-btn.small { padding: .35rem .75rem; font-size: .78rem; }
 .primary-btn.full-width { width: 100%; text-align: center; margin-top: .5rem; }
 .outline-btn { border: 1.5px solid var(--border); padding: .5rem 1rem; border-radius: var(--radius-sm); font-weight: 600; font-size: .82rem; color: var(--text-secondary); transition: all var(--transition); }

@@ -24,6 +24,18 @@ describe('activity create button', () => {
     expect(activityCss).toContain('gap: .35rem');
   });
 
+  test('dark mode lowers brightness for primary create buttons', () => {
+    const baseCss = readProjectFile('css/base.css');
+    const activityCss = readProjectFile('css/activity.css');
+
+    expect(baseCss).toContain('--primary-btn-bg: #10b981;');
+    expect(baseCss).toContain('--primary-btn-hover: #059669;');
+    expect(baseCss).toContain('--primary-btn-active: #047857;');
+    expect(baseCss).toContain('background: var(--primary-btn-bg, var(--accent))');
+    expect(activityCss).toContain('[data-theme="dark"] #activity-create-btn::after');
+    expect(activityCss).toContain('activity-create-glow-dark');
+  });
+
   test('activity create form renders browser-independent 24-hour time summaries', () => {
     const activityHtml = readProjectFile('pages/activity.html');
     const baseCss = readProjectFile('css/base.css');

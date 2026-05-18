@@ -2911,3 +2911,8 @@
 - **Issue**: The newly promoted GPS advanced add-on had no field help button, and the disabled map-coordinate toast did not point users back to the advanced feature section.
 - **Fix**: Added the standard create-activity help button and GPS help modal copy. Updated the disabled map-coordinate toast to `請先至【進階功能】開啟GPS功能` and synced architecture notes/tests.
 - **Validation**: Ran targeted activity GPS tests and full unit tests. Browser plugin verification was attempted, but the in-app browser URL policy blocked both localhost and file URL loading.
+
+### 2026-05-18 Dark Primary Button Brightness [bugfix]
+- **Issue**: In dark mode, create-activity primary buttons used a bright accent green/glow that was visually too strong.
+- **Fix**: Added dark-mode primary button colors with lower brightness and applied matching darker gradient/glow treatment to the activity/home create buttons.
+- **Validation**: Added source assertions for dark primary button colors and create-button gradient overrides. Ran targeted/full unit tests; browser plugin verification was attempted, but localhost loading was blocked by the in-app browser URL policy.

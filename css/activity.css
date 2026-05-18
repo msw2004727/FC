@@ -174,9 +174,33 @@
 .home-create-event-btn:active::after {
   background: linear-gradient(135deg, var(--accent-hover), #1e40af);
 }
+[data-theme="dark"] #activity-create-btn,
+[data-theme="dark"] .home-create-event-btn {
+  animation: activity-create-glow-dark 2s ease-in-out infinite;
+}
+[data-theme="dark"] #activity-create-btn::before,
+[data-theme="dark"] .home-create-event-btn::before {
+  background: conic-gradient(from 0deg, transparent 40%, #7c5b08 60%, #c8911d 75%, #e8cf84 82%, #c8911d 90%, #7c5b08 97%, transparent 100%);
+}
+[data-theme="dark"] #activity-create-btn::after,
+[data-theme="dark"] .home-create-event-btn::after {
+  background: linear-gradient(135deg, var(--primary-btn-bg, #10b981), #1e40af);
+}
+[data-theme="dark"] #activity-create-btn:hover::after,
+[data-theme="dark"] .home-create-event-btn:hover::after {
+  background: linear-gradient(135deg, var(--primary-btn-hover, #059669), #1e3a8a);
+}
+[data-theme="dark"] #activity-create-btn:active::after,
+[data-theme="dark"] .home-create-event-btn:active::after {
+  background: linear-gradient(135deg, var(--primary-btn-active, #047857), #172554);
+}
 @keyframes activity-create-glow {
   0%, 100% { box-shadow: 0 0 4px rgba(255,215,0,.28); }
   50% { box-shadow: 0 0 10px rgba(255,215,0,.48), 0 0 20px rgba(37,99,235,.22); }
+}
+@keyframes activity-create-glow-dark {
+  0%, 100% { box-shadow: 0 0 3px rgba(200,145,29,.20); }
+  50% { box-shadow: 0 0 7px rgba(200,145,29,.30), 0 0 14px rgba(30,64,175,.16); }
 }
 
 @media (max-width: 420px) {
