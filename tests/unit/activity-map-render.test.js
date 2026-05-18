@@ -183,3 +183,81 @@ describe('activity map Google render hardening', () => {
     expect(tileImageRule).toContain('transition:none!important');
   });
 });
+
+describe('activity map location and radius controls', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    delete window.navigator.permissions;
+  });
+
+  test('renders a persistent reopen location button in the map modal', () => {
+    const App = loadActivityMapModule();
+    App._ensureActivityMapRoot();
+
+    const button = document.getElementById('activity-map-location-btn');
+    expect(button).not.toBeNull();
+    expect(button.getAttribute('onclick')).toBe('App.reopenActivityMapLocation()');
+    expect(button.textContent).toMatch(/定位/);
+  });
+
+  test('renders 10/20/30km radius choices and updates the selected range', () => {
+    const App = loadActivityMapModule();
+    App._renderActivityMap = jest.fn().mockResolvedValue(undefined);
+    App._ensureActivityMapRoot();
+
+    const labels = Array.from(document.querySelectorAll('.activity-map-radius-btn')).map(btn => btn.textContent);
+    expect(labels).toEqual(['10km', '20km', '30km']);
+    expect(document.querySelector('.activity-map-radius-btn.active')?.textContent).toBe('10km');
+
+    App.setActivityMapRadius(20);
+
+    expect(App._ensureActivityMapState().radiusKm).toBe(20);
+    expect(localStorage.getItem('toosterx.activityMap.radiusKm.v1')).toBe('20');
+    expect(document.querySelector('.activity-map-radius-btn.active')?.textContent).toBe('20km');
+  });
+
+  test('filters positioned activities by the selected radius when location is available', () => {
+    const App = loadActivityMapModule();
+    App._getVisibleEvents = () => [
+      { id: 'near', status: 'open', pointKey: 'near' },
+      { id: 'far', status: 'open', pointKey: 'far' },
+    ];
+    App._activityMapGetEventPoint = event => ({ lat: event.pointKey === 'near' ? 1 : 2, lng: 121 });
+    App._activityMapDistanceMeters = (_userLocation, point) => point.lat === 1 ? 9000 : 25000;
+    App._ensureActivityMapState().userLocation = { lat: 25, lng: 121 };
+
+    expect(App._getActivityMapData().mapReady.map(item => item.event.id)).toEqual(['near']);
+
+    App._ensureActivityMapState().radiusKm = 30;
+
+    expect(App._getActivityMapData().mapReady.map(item => item.event.id)).toEqual(['near', 'far']);
+  });
+
+  test('does not request geolocation again when the browser reports denied permission', async () => {
+    const App = loadActivityMapModule();
+    App._renderActivityMap = jest.fn().mockResolvedValue(undefined);
+    App.showToast = jest.fn();
+    App.refreshActivityMapLocation = jest.fn();
+    App._ensureActivityMapRoot();
+    App._ensureActivityMapState().userLocation = { lat: 25, lng: 121 };
+
+    const permissionStatus = { state: 'denied', onchange: null };
+    Object.defineProperty(window.navigator, 'permissions', {
+      configurable: true,
+      value: { query: jest.fn().mockResolvedValue(permissionStatus) },
+    });
+
+    const result = await App.reopenActivityMapLocation();
+
+    expect(result).toBeNull();
+    expect(App.refreshActivityMapLocation).not.toHaveBeenCalled();
+    expect(App._ensureActivityMapState().locationStatus).toBe('blocked');
+    expect(App._ensureActivityMapState().userLocation).toBeNull();
+    expect(document.getElementById('activity-map-location-btn')?.dataset.permission).toBe('denied');
+    expect(App.showToast).toHaveBeenCalled();
+  });
+});

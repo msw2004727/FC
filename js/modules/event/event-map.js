@@ -10,12 +10,15 @@ Object.assign(App, {
   _activityMapGoogleMarkers: [],
   _activityMapGoogleRenderSeq: 0,
   _activityMapGoogleTileTimer: null,
+  _activityMapPermissionStatus: null,
 
   _ensureActivityMapState() {
     if (!this._activityMapState) {
       this._activityMapState = {
         userLocation: null,
         locationStatus: 'idle',
+        permissionState: 'unknown',
+        radiusKm: this._getActivityMapStoredRadiusKm(),
         openedAt: 0,
       };
     }
@@ -40,6 +43,83 @@ Object.assign(App, {
     try { localStorage.setItem(this._activityMapLocationChoiceKey(), choice); } catch (_) {}
   },
 
+  _activityMapRadiusChoiceKey() {
+    return 'toosterx.activityMap.radiusKm.v1';
+  },
+
+  _getActivityMapRadiusOptions() {
+    const cfg = typeof ACTIVITY_MAP_CONFIG !== 'undefined' ? ACTIVITY_MAP_CONFIG : {};
+    const raw = Array.isArray(cfg.nearRadiusOptionsKm) ? cfg.nearRadiusOptionsKm : [10, 20, 30];
+    const values = raw
+      .map(value => Number(value))
+      .filter(value => Number.isFinite(value) && value >= 1 && value <= 100)
+      .map(value => Math.round(value));
+    const unique = Array.from(new Set(values));
+    return unique.length ? unique : [10, 20, 30];
+  },
+
+  _getActivityMapDefaultRadiusKm() {
+    const cfg = typeof ACTIVITY_MAP_CONFIG !== 'undefined' ? ACTIVITY_MAP_CONFIG : {};
+    const options = this._getActivityMapRadiusOptions();
+    const configured = Number(cfg.nearRadiusKm);
+    if (Number.isFinite(configured) && options.includes(Math.round(configured))) {
+      return Math.round(configured);
+    }
+    return options.includes(10) ? 10 : options[0];
+  },
+
+  _normalizeActivityMapRadiusKm(value) {
+    const options = this._getActivityMapRadiusOptions();
+    const radius = Math.round(Number(value));
+    return options.includes(radius) ? radius : this._getActivityMapDefaultRadiusKm();
+  },
+
+  _getActivityMapStoredRadiusKm() {
+    try {
+      const stored = localStorage.getItem(this._activityMapRadiusChoiceKey());
+      if (stored) return this._normalizeActivityMapRadiusKm(stored);
+    } catch (_) {}
+    return this._getActivityMapDefaultRadiusKm();
+  },
+
+  _setActivityMapStoredRadiusKm(radiusKm) {
+    const radius = this._normalizeActivityMapRadiusKm(radiusKm);
+    try { localStorage.setItem(this._activityMapRadiusChoiceKey(), String(radius)); } catch (_) {}
+    return radius;
+  },
+
+  _getActivityMapSelectedRadiusKm() {
+    const state = this._ensureActivityMapState();
+    state.radiusKm = this._normalizeActivityMapRadiusKm(state.radiusKm);
+    return state.radiusKm;
+  },
+
+  _renderActivityMapRadiusButtons() {
+    const current = this._getActivityMapSelectedRadiusKm();
+    return this._getActivityMapRadiusOptions().map(radius => {
+      const active = radius === current;
+      return `<button class="activity-map-radius-btn${active ? ' active' : ''}" type="button" aria-pressed="${active ? 'true' : 'false'}" onclick="App.setActivityMapRadius(${radius})">${radius}km</button>`;
+    }).join('');
+  },
+
+  _updateActivityMapRadiusControls() {
+    const group = document.getElementById('activity-map-radius-options');
+    if (group) group.innerHTML = this._renderActivityMapRadiusButtons();
+  },
+
+  setActivityMapRadius(radiusKm) {
+    const state = this._ensureActivityMapState();
+    const next = this._setActivityMapStoredRadiusKm(radiusKm);
+    if (state.radiusKm === next) {
+      this._updateActivityMapRadiusControls();
+      return next;
+    }
+    state.radiusKm = next;
+    this._updateActivityMapRadiusControls();
+    Promise.resolve(this._renderActivityMap?.()).catch(err => console.warn('[ActivityMap] radius render failed:', err));
+    return next;
+  },
+
   async showActivityMap() {
     if (!this._isActivityMapFeatureEnabled?.()) {
       this.showToast?.('附近活動地圖尚未開啟');
@@ -52,13 +132,16 @@ Object.assign(App, {
     root.classList.add('open');
     document.body.classList.add('activity-map-open');
     this._renderActivityMapLoading('準備附近活動...');
+    await this._syncActivityMapPermissionState();
 
-    if (!state.userLocation) {
+    if (!state.userLocation && state.permissionState !== 'denied') {
       let choice = this._getActivityMapLocationChoice();
       if (!choice) choice = await this._showActivityMapLocationNotice();
       if (choice === 'allow') {
         await this.refreshActivityMapLocation({ silent: true });
       }
+    } else if (!state.userLocation && state.permissionState === 'denied') {
+      state.locationStatus = 'blocked';
     }
 
     await this._renderActivityMap();
@@ -75,6 +158,10 @@ Object.assign(App, {
     });
     this._activityMapGoogleMarkers = [];
     this._activityMapGoogleMap = null;
+    if (this._activityMapPermissionStatus) {
+      try { this._activityMapPermissionStatus.onchange = null; } catch (_) {}
+      this._activityMapPermissionStatus = null;
+    }
   },
 
   _ensureActivityMapRoot() {
@@ -95,8 +182,12 @@ Object.assign(App, {
           <button class="activity-map-close" type="button" onclick="App.closeActivityMap()" aria-label="關閉">×</button>
         </div>
         <div class="activity-map-toolbar">
-          <button class="outline-btn small" type="button" onclick="App.refreshActivityMapLocation()">使用定位排序</button>
+          <button id="activity-map-location-btn" class="outline-btn small activity-map-location-btn" type="button" onclick="App.reopenActivityMapLocation()">重新開啟定位</button>
           <span id="activity-map-status" class="activity-map-status"></span>
+          <div class="activity-map-radius" role="group" aria-label="搜尋範圍">
+            <span class="activity-map-radius-label">搜尋範圍</span>
+            <span id="activity-map-radius-options" class="activity-map-radius-options"></span>
+          </div>
         </div>
         <div class="activity-map-stage" id="activity-map-stage"></div>
         <div class="activity-map-sheet">
@@ -111,6 +202,8 @@ Object.assign(App, {
       if (event.target === root) this.closeActivityMap();
     });
     document.body.appendChild(root);
+    this._updateActivityMapRadiusControls();
+    this._updateActivityMapLocationButton();
     return root;
   },
 
@@ -119,6 +212,7 @@ Object.assign(App, {
     const list = document.getElementById('activity-map-list');
     const status = document.getElementById('activity-map-status');
     if (status) status.textContent = message || '';
+    this._updateActivityMapLocationButton();
     if (stage) {
       stage.innerHTML = `
         <div class="activity-map-empty">
@@ -130,21 +224,117 @@ Object.assign(App, {
     }
   },
 
+  _normalizeActivityMapPermissionState(value) {
+    return value === 'granted' || value === 'prompt' || value === 'denied' ? value : 'unknown';
+  },
+
+  async _syncActivityMapPermissionState() {
+    const state = this._ensureActivityMapState();
+    const permissions = typeof navigator !== 'undefined' ? navigator.permissions : null;
+    if (!permissions || typeof permissions.query !== 'function') {
+      state.permissionState = 'unknown';
+      this._updateActivityMapLocationButton();
+      return state.permissionState;
+    }
+
+    try {
+      const status = await permissions.query({ name: 'geolocation' });
+      state.permissionState = this._normalizeActivityMapPermissionState(status?.state);
+      if (state.permissionState === 'denied') {
+        state.userLocation = null;
+        state.locationStatus = 'blocked';
+      } else if (state.locationStatus === 'blocked') {
+        state.locationStatus = state.userLocation ? 'ready' : 'idle';
+      }
+      if (this._activityMapPermissionStatus !== status && status) {
+        this._activityMapPermissionStatus = status;
+        status.onchange = () => {
+          const latestState = this._ensureActivityMapState();
+          latestState.permissionState = this._normalizeActivityMapPermissionState(status.state);
+          if (latestState.permissionState === 'denied' && latestState.locationStatus !== 'requesting') {
+            latestState.userLocation = null;
+            latestState.locationStatus = 'blocked';
+          } else if (latestState.permissionState !== 'denied' && latestState.locationStatus === 'blocked') {
+            latestState.locationStatus = latestState.userLocation ? 'ready' : 'idle';
+          }
+          this._updateActivityMapLocationButton();
+          const root = document.getElementById('activity-map-overlay');
+          if (root?.classList.contains('open')) {
+            Promise.resolve(this._renderActivityMap?.()).catch(err => console.warn('[ActivityMap] permission render failed:', err));
+          }
+        };
+      }
+    } catch (err) {
+      state.permissionState = 'unknown';
+    }
+    this._updateActivityMapLocationButton();
+    return state.permissionState;
+  },
+
+  _isActivityMapPermissionDeniedError(err) {
+    const code = Number(err?.code);
+    const name = String(err?.name || '');
+    const message = String(err?.message || '');
+    return code === 1 || name === 'NotAllowedError' || /permission|denied|blocked/i.test(message);
+  },
+
+  _updateActivityMapLocationButton() {
+    const button = document.getElementById('activity-map-location-btn');
+    if (!button) return;
+    const state = this._ensureActivityMapState();
+    const blocked = state.permissionState === 'denied' || state.locationStatus === 'blocked';
+    const requesting = state.locationStatus === 'requesting';
+    const ready = !!state.userLocation || state.permissionState === 'granted';
+    button.disabled = requesting;
+    button.textContent = requesting ? '定位中...' : (ready ? '更新定位' : '重新開啟定位');
+    button.title = blocked
+      ? '瀏覽器已封鎖定位，請到瀏覽器網站設定或系統定位權限重新開啟。'
+      : '重新取得目前位置，用於排序與篩選附近活動。';
+    button.dataset.permission = blocked ? 'denied' : (state.permissionState || 'unknown');
+  },
+
+  async reopenActivityMapLocation() {
+    const state = this._ensureActivityMapState();
+    const permissionState = await this._syncActivityMapPermissionState();
+    if (permissionState === 'denied') {
+      state.userLocation = null;
+      state.locationStatus = 'blocked';
+      this._setActivityMapLocationChoice('skip');
+      this._updateActivityMapLocationButton();
+      this.showToast?.('瀏覽器已封鎖定位，請到瀏覽器網站設定或系統定位權限重新開啟。');
+      await this._renderActivityMap?.();
+      return null;
+    }
+    return this.refreshActivityMapLocation({ silent: false });
+  },
+
   async refreshActivityMapLocation(options = {}) {
     const state = this._ensureActivityMapState();
     this._setActivityMapLocationChoice('allow');
     state.locationStatus = 'requesting';
+    this._updateActivityMapLocationButton();
     if (!options.silent) this._renderActivityMapLoading('正在取得定位...');
     try {
       state.userLocation = await this._requestActivityMapLocation();
       state.locationStatus = 'ready';
+      state.permissionState = 'granted';
+      this._updateActivityMapLocationButton();
       if (!options.silent) await this._renderActivityMap();
       return state.userLocation;
     } catch (err) {
-      state.locationStatus = 'failed';
+      const blocked = this._isActivityMapPermissionDeniedError(err);
+      state.locationStatus = blocked ? 'blocked' : 'failed';
+      if (blocked) {
+        state.userLocation = null;
+        state.permissionState = 'denied';
+        this._setActivityMapLocationChoice('skip');
+      }
+      this._updateActivityMapLocationButton();
       console.warn('[ActivityMap] geolocation failed:', err);
       if (!options.silent) {
-        this.showToast?.('無法取得定位，已改用地區活動');
+        this.showToast?.(blocked
+          ? '瀏覽器已封鎖定位，請到瀏覽器網站設定或系統定位權限重新開啟。'
+          : '無法取得定位，已改用地區活動');
         await this._renderActivityMap();
       }
       return null;
@@ -251,12 +441,12 @@ Object.assign(App, {
       })
       .filter(Boolean);
 
-    const radiusKm = Number((typeof ACTIVITY_MAP_CONFIG !== 'undefined' && ACTIVITY_MAP_CONFIG.nearRadiusKm) || 10);
+    const radiusKm = this._getActivityMapSelectedRadiusKm();
     const radiusMeters = Math.max(1, radiusKm) * 1000;
     const nearby = userLocation
       ? mapReady.filter(item => item.distance !== null && item.distance <= radiusMeters)
       : mapReady;
-    const displayMapItems = (userLocation && nearby.length > 0 ? nearby : mapReady)
+    const displayMapItems = (userLocation ? nearby : mapReady)
       .sort((a, b) => {
         if (a.distance !== null && b.distance !== null && a.distance !== b.distance) return a.distance - b.distance;
         return this._compareActivityMapEventTime(a.event, b.event);
@@ -266,7 +456,15 @@ Object.assign(App, {
       .filter(event => !this._activityMapGetEventPoint?.(event))
       .sort((a, b) => this._compareActivityMapEventTime(a, b));
 
-    return { userLocation, mapReady: displayMapItems, fallbackEvents, totalCandidates: events.length };
+    return {
+      userLocation,
+      mapReady: displayMapItems,
+      fallbackEvents,
+      totalCandidates: events.length,
+      radiusKm,
+      nearbyCount: nearby.length,
+      allMapReadyCount: mapReady.length,
+    };
   },
 
   _compareActivityMapEventTime(a, b) {
@@ -275,14 +473,24 @@ Object.assign(App, {
     return (da || 0) - (db || 0);
   },
 
+  _getActivityMapStatusText(data) {
+    const state = this._ensureActivityMapState();
+    if (state.locationStatus === 'requesting') return '\u6b63\u5728\u53d6\u5f97\u5b9a\u4f4d...';
+    if (state.permissionState === 'denied' || state.locationStatus === 'blocked') {
+      return '\u5b9a\u4f4d\u6b0a\u9650\u5df2\u95dc\u9589\uff0c\u53ef\u7528\u6309\u9215\u67e5\u770b\u91cd\u65b0\u958b\u555f\u65b9\u5f0f\u3002';
+    }
+    if (data.userLocation) {
+      if (data.mapReady.length) return `\u5df2\u4f7f\u7528\u76ee\u524d\u4f4d\u7f6e\uff0c\u986f\u793a ${data.radiusKm}km \u5167\u6d3b\u52d5`;
+      return `${data.radiusKm}km \u5167\u66ab\u7121\u5df2\u5b9a\u4f4d\u6d3b\u52d5\uff0c\u53ef\u653e\u5bec\u641c\u5c0b\u7bc4\u570d`;
+    }
+    return '\u672a\u958b\u555f\u5b9a\u4f4d\uff0c\u5148\u986f\u793a\u76ee\u524d\u5730\u5340\u6d3b\u52d5';
+  },
   async _renderActivityMap() {
     const data = this._getActivityMapData();
     const status = document.getElementById('activity-map-status');
     const subtitle = document.getElementById('activity-map-subtitle');
     if (status) {
-      status.textContent = data.userLocation
-        ? '已使用目前定位排序'
-        : '未使用定位，顯示目前地區活動';
+      status.textContent = this._getActivityMapStatusText(data);
     }
     if (subtitle) {
       subtitle.textContent = data.mapReady.length
@@ -486,14 +694,19 @@ Object.assign(App, {
 
   _renderStaticActivityMap(stage, data) {
     if (!data.mapReady.length) {
+      const emptyTitle = data.userLocation
+        ? `${data.radiusKm}km \u5167\u66ab\u7121\u5df2\u5b9a\u4f4d\u6d3b\u52d5`
+        : '\u76ee\u524d\u6c92\u6709\u53ef\u986f\u793a\u5728\u5730\u5716\u4e0a\u7684\u6d3b\u52d5';
+      const emptyBody = data.userLocation
+        ? '\u8acb\u5207\u63db 20km \u6216 30km \u653e\u5bec\u7bc4\u570d\uff0c\u6216\u8abf\u6574\u7be9\u9078\u689d\u4ef6\u3002'
+        : '\u6d3b\u52d5\u9700\u8981\u5b8c\u6210\u5834\u5730\u5b9a\u4f4d\u5f8c\u624d\u6703\u51fa\u73fe\u5728\u5730\u5716\u3002';
       stage.innerHTML = `
         <div class="activity-map-empty">
-          <div class="activity-map-empty-title">目前沒有可顯示在地圖上的活動</div>
-          <div class="activity-map-empty-body">活動需要完成場地定位後才會出現在地圖。下方仍可查看符合目前條件的活動。</div>
+          <div class="activity-map-empty-title">${escapeHTML(emptyTitle)}</div>
+          <div class="activity-map-empty-body">${escapeHTML(emptyBody)}</div>
         </div>`;
       return;
     }
-
     const points = data.mapReady.map(item => item.point);
     if (data.userLocation) points.push(data.userLocation);
     const bounds = this._activityMapBuildBounds?.(points);
@@ -523,13 +736,15 @@ Object.assign(App, {
     if (!list) return;
     const rows = data.mapReady.length
       ? data.mapReady.map((item, index) => this._renderActivityMapReadyCard(item, index))
-      : data.fallbackEvents.slice(0, 20).map(event => this._renderActivityMapFallbackCard(event));
+      : (data.userLocation ? [] : data.fallbackEvents.slice(0, 20).map(event => this._renderActivityMapFallbackCard(event)));
     if (count) count.textContent = String(rows.length);
+    const emptyText = data.userLocation
+      ? `${data.radiusKm}km \u5167\u66ab\u7121\u7b26\u5408\u689d\u4ef6\u7684\u6d3b\u52d5`
+      : '\u76ee\u524d\u6c92\u6709\u7b26\u5408\u689d\u4ef6\u7684\u6d3b\u52d5';
     list.innerHTML = rows.length
       ? rows.join('')
-      : '<div class="activity-map-empty-list">目前沒有符合條件的活動</div>';
+      : `<div class="activity-map-empty-list">${escapeHTML(emptyText)}</div>`;
   },
-
   _renderActivityMapReadyCard(item, index) {
     const event = item.event;
     const typeMap = typeof TYPE_CONFIG !== 'undefined' ? TYPE_CONFIG : {};

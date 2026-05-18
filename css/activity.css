@@ -2295,9 +2295,17 @@ body.activity-map-open{overflow:hidden}
 .activity-map-close{margin-left:auto}
 .activity-map-title{font-size:.98rem;font-weight:800;color:var(--text-primary);line-height:1.25}
 .activity-map-subtitle{font-size:.72rem;color:var(--text-muted);margin-top:.1rem;line-height:1.35}
-.activity-map-toolbar{display:flex;align-items:center;gap:.55rem;padding:.55rem .85rem;border-bottom:1px solid var(--border);flex-shrink:0}
+.activity-map-toolbar{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;padding:.55rem .85rem;border-bottom:1px solid var(--border);flex-shrink:0}
 .activity-map-toolbar .outline-btn{white-space:nowrap}
-.activity-map-status{font-size:.72rem;color:var(--text-muted);min-width:0;line-height:1.35}
+.activity-map-location-btn{flex:0 0 auto}
+.activity-map-location-btn:disabled{opacity:.65;cursor:wait}
+.activity-map-status{font-size:.72rem;color:var(--text-muted);min-width:0;line-height:1.35;flex:1 1 150px}
+.activity-map-radius{display:flex;align-items:center;gap:.4rem;width:100%;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.activity-map-radius::-webkit-scrollbar{display:none}
+.activity-map-radius-label{font-size:.7rem;font-weight:800;color:var(--text-muted);white-space:nowrap;flex:0 0 auto}
+.activity-map-radius-options{display:flex;align-items:center;gap:.35rem;min-width:max-content}
+.activity-map-radius-btn{min-height:30px;border:1px solid var(--border);border-radius:999px;background:var(--bg-elevated);color:var(--text-secondary);font-size:.74rem;font-weight:850;padding:.28rem .68rem;cursor:pointer;white-space:nowrap}
+.activity-map-radius-btn.active{background:#0f766e;border-color:#0f766e;color:#fff;box-shadow:0 6px 14px rgba(15,118,110,.2)}
 .activity-map-stage{position:relative;min-height:300px;background:#e8f1ee;overflow:hidden;flex:1 1 auto}
 [data-theme="dark"] .activity-map-stage{background:#17211f}
 .activity-google-map{position:absolute;inset:0}
@@ -2338,6 +2346,9 @@ body.activity-map-open{overflow:hidden}
 
 @media (max-width:420px){
   .activity-map-stage{min-height:260px}
+  .activity-map-toolbar{align-items:stretch}
+  .activity-map-location-btn{width:auto;max-width:48%}
+  .activity-map-status{flex-basis:46%}
   .activity-map-card-title,.activity-map-card-meta{white-space:normal}
   .activity-map-notice-actions{flex-direction:column-reverse}
   .activity-map-notice-actions .primary-btn,.activity-map-notice-actions .outline-btn{width:100%}

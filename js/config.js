@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260518m';
+const CACHE_VERSION = '0.20260518n';
 
 const GOOGLE_MAPS_BROWSER_API_KEY = '';
 
@@ -17,6 +17,7 @@ const ACTIVITY_MAP_CONFIG = {
   defaultCenter: { lat: 23.6978, lng: 120.9605 },
   defaultZoom: 8,
   nearRadiusKm: 10,
+  nearRadiusOptionsKm: [10, 20, 30],
   geolocationTimeoutMs: 7000,
   geolocationMaxAgeMs: 5 * 60 * 1000,
   googleMapsVersion: 'quarterly',
