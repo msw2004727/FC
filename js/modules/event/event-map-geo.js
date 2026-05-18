@@ -1,6 +1,6 @@
 /* ================================================
    Activity Map: Geo Helpers
-   Loaded only through ScriptLoader.ensureGroup('activityMap').
+   Loaded through manual-only activity map and event location picker groups.
    ================================================ */
 
 (function(root) {
@@ -20,9 +20,9 @@
   }
 
   function getEventPoint(event) {
+    if (!event || event.mapLocationConfirmed !== true) return null;
     const point = normalizePoint(event);
     if (!point) return null;
-    if (event.mapLocationConfirmed === false) return null;
     return point;
   }
 

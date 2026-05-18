@@ -28,8 +28,8 @@ ToosterX 是一個 LINE LIFF + Firebase 的 buildless Vanilla JS SPA。前端由
 | 前端型態 | Vanilla JS / HTML / CSS，無 webpack、無 build step |
 | 主入口 | `index.html` + inline `app.js` runtime |
 | HTML fragments | `pages/` 共 20 個頁面片段 |
-| JS 檔案 | `js/` 共 284 個 JS |
-| 功能模組 | `js/modules/` 共 270 個 JS，16 個子資料夾 + 29 個 root-level shared module |
+| JS 檔案 | `js/` 共 288 個 JS |
+| 功能模組 | `js/modules/` 共 274 個 JS，16 個子資料夾 + 29 個 root-level shared module |
 | CSS | `css/` 共 18 個 CSS |
 | 後端 | Firebase Cloud Functions v2，Node.js 22，主要 region `asia-east1` |
 | Cloud Functions exports | 64 個 |
@@ -178,6 +178,7 @@ sequenceDiagram
 |---|---|
 | `activity` | 活動列表、活動詳情、報名/取消/候補、同行者、活動建立、分隊、簽到管理、報名稽核 |
 | `activityCalendar` | 活動行事曆、月曆格、日期導覽、運動數量標籤 |
+| `activityMap` / `eventLocationPicker` | 手動觸發的附近活動地圖與活動場地定位 picker；列入 manual-only group，不進 idle preload |
 | `teamList` | 俱樂部列表與卡片 |
 | `teamDetail` | 俱樂部內頁、俱樂部動態、俱樂部活動、邀請、分享 |
 | `teamForm` | 建立/編輯俱樂部表單、搜尋、驗證、職員欄位 |
@@ -202,7 +203,7 @@ sequenceDiagram
 
 | 目錄 | JS 數 | 角色 |
 |---|---:|---|
-| `event/` | 42 | 活動列表、行事曆、詳情、建立、報名、候補、同行者、團隊席位、分隊、簽到管理、活動生命週期 |
+| `event/` | 46 | 活動列表、行事曆、詳情、建立、場地定位、附近活動地圖、報名、候補、同行者、團隊席位、分隊、簽到管理、活動生命週期 |
 | `team/` | 16 | 俱樂部列表、內頁、動態、俱樂部活動、邀請、分享、建立/編輯、職員與運動標籤 |
 | `tournament/` | 19 | 賽事列表、詳情、友誼賽隊伍報名、主辦俱樂部、運動標籤、委託人/裁判、roster、通知 |
 | `profile/` | 9 | 個人頁、資料編輯、頭像、統計、報名紀錄、個人卡分享 |
@@ -464,6 +465,7 @@ current = realCurrent + sum(remainingSlots)
 - 多日期活動
 - 活動範本
 - 外部活動轉換
+- 場地地圖定位草稿與手動/Google geocode picker（`event-location-draft.js` / `event-location-picker.js`）
 - input history
 
 「進階功能」區塊預設收合，琥珀色底；其中社群連結可儲存最多 5 個 URL，前端依網域判斷 LINE、Facebook、Instagram、YouTube 等平台並在活動詳情頁主辦/委託資訊下方顯示圓形連結按鈕。部分預留開關目前無實際作用。

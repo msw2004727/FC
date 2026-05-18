@@ -38,6 +38,8 @@ Object.assign(App, {
     document.getElementById('ce-title').value = e.title || '';
     document.getElementById('ce-type').value = e.type || 'friendly';
     document.getElementById('ce-location').value = e.location || '';
+    this._resetEventLocationDraft?.('ce', e);
+    this._bindEventLocationInputs?.('ce');
     // 解析儲存格式 YYYY/MM/DD HH:mm~HH:mm → datetime-local
     const dateTime = (e.date || '').split(' ');
     const dateParts = (dateTime[0] || '').split('/');

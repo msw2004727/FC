@@ -35,6 +35,8 @@ Object.assign(App, {
     if (startEl) startEl.value = '14:00';
     if (endEl) endEl.value = '16:00';
     if (locEl) locEl.value = '';
+    this._resetEventLocationDraft?.('cee', null);
+    this._bindEventLocationInputs?.('cee');
     if (urlEl) urlEl.value = '';
     if (sportEl) sportEl.value = '';
     if (imgEl) imgEl.value = '';
@@ -59,6 +61,8 @@ Object.assign(App, {
       if (e) {
         if (titleEl) titleEl.value = e.title || '';
         if (locEl) locEl.value = e.location || '';
+        this._resetEventLocationDraft?.('cee', e);
+        this._bindEventLocationInputs?.('cee');
         if (urlEl) urlEl.value = e.externalUrl || '';
         // 解析日期時間
         const dateTime = (e.date || '').split(' ');
@@ -105,6 +109,7 @@ Object.assign(App, {
     const location = (document.getElementById('cee-location')?.value || '').trim();
     const externalUrl = (document.getElementById('cee-external-url')?.value || '').trim();
     const sportTag = getSportKeySafe(document.getElementById('cee-sport-tag')?.value || '');
+    const locationPayload = this._buildEventLocationPayload?.('cee', location) || {};
 
     // 驗證必填欄位
     if (!title) { this.showToast('請輸入活動名稱'); return; }
@@ -133,6 +138,7 @@ Object.assign(App, {
         await ApiService.updateEvent(this._editExternalEventId, {
           title, date: fullDate, location, externalUrl, sportTag, image,
           gradient: GRADIENT_MAP.external,
+          ...locationPayload,
         });
         this.closeModal();
         this.showToast(`活動連結「${title}」已更新！`);
@@ -180,6 +186,7 @@ Object.assign(App, {
         // 外部活動不需要的欄位
         max: 0, current: 0, waitlist: 0, fee: 0, feeEnabled: false,
         participants: [], waitlistNames: [],
+        ...locationPayload,
       };
 
       try {
@@ -202,6 +209,7 @@ Object.assign(App, {
     try { this.renderActivityList(); } catch (_) {}
     try { this.renderHotEvents(); } catch (_) {}
     try { this.renderMyActivities(); } catch (_) {}
+    this._clearEventLocationDraft?.('cee');
     this._editExternalEventId = null;
   },
 

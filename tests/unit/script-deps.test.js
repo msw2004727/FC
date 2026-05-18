@@ -51,6 +51,16 @@ function getEagerScripts() {
 function parseScriptLoader() {
   const src = readFile('js/core/script-loader.js');
 
+  const manualOnlyGroups = {};
+  const manualOnlyMatch = src.match(/_manualOnlyGroups:\s*\{([\s\S]*?)\n\s*\},/);
+  if (manualOnlyMatch) {
+    const entryRe = /(\w+):\s*true/g;
+    let mm;
+    while ((mm = entryRe.exec(manualOnlyMatch[1])) !== null) {
+      manualOnlyGroups[mm[1]] = true;
+    }
+  }
+
   // Extract _groups
   const groups = {};
   const groupsMatch = src.match(/_groups:\s*\{([\s\S]*?)\n  \},/);
@@ -92,7 +102,7 @@ function parseScriptLoader() {
     }
   }
 
-  return { groups, pageGroups };
+  return { groups, pageGroups, manualOnlyGroups };
 }
 
 // ─────────────────────────────────────────────
@@ -459,6 +469,26 @@ describe('ScriptLoader groups — no orphaned scripts', () => {
       });
     });
     expect(invalidRefs).toEqual([]);
+  });
+
+  test('activity map picker stays manual-only and out of page groups', () => {
+    expect(loaderData.groups.activityMap).toContain('js/modules/event/event-map.js');
+    expect(loaderData.groups.eventLocationPicker).toEqual([
+      'js/modules/event/event-location-draft.js',
+      'js/modules/event/event-map-geo.js',
+      'js/modules/event/event-location-picker.js',
+    ]);
+    expect(loaderData.manualOnlyGroups.activityMap).toBe(true);
+    expect(loaderData.manualOnlyGroups.eventLocationPicker).toBe(true);
+    expect(
+      Object.values(loaderData.pageGroups).some(groupNames => groupNames.includes('eventLocationPicker'))
+    ).toBe(false);
+
+    const preloadScripts = Object.entries(loaderData.groups)
+      .filter(([groupName]) => !loaderData.manualOnlyGroups[groupName])
+      .flatMap(([, scripts]) => scripts);
+    expect(preloadScripts).not.toContain('js/modules/event/event-map.js');
+    expect(preloadScripts).not.toContain('js/modules/event/event-location-picker.js');
   });
 
   test('scripts not in index.html must be in at least one ScriptLoader group', () => {

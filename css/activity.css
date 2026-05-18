@@ -2254,6 +2254,36 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
 .region-tab-icon{display:inline-block;vertical-align:middle;flex-shrink:0}
 @keyframes region-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}40%{transform:translateX(4px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
 
+/* Event location picker */
+.event-location-control{margin-top:.45rem;border:1px solid var(--border);border-radius:8px;background:var(--bg-elevated);padding:.5rem .55rem;display:flex;flex-direction:column;gap:.35rem}
+.event-location-state-row{display:flex;align-items:center;justify-content:space-between;gap:.5rem}
+.event-location-status{font-size:.75rem;font-weight:800;color:var(--text-secondary);line-height:1.35}
+.event-location-status[data-state="ready"]{color:#0f766e}
+.event-location-status[data-state="stale"]{color:#b45309}
+.event-location-status[data-state="disabled"]{color:var(--text-muted)}
+.event-location-summary{font-size:.72rem;color:var(--text-muted);line-height:1.45;word-break:break-word}
+.event-location-clear{align-self:flex-start;border:0;background:transparent;color:#dc2626;font-size:.72rem;font-weight:800;padding:0;cursor:pointer}
+.event-location-picker-overlay{position:fixed;inset:0;z-index:1320;display:none;align-items:center;justify-content:center;background:rgba(15,23,42,.48);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);padding:1rem}
+.event-location-picker-overlay.open{display:flex}
+.event-location-picker-dialog{width:min(94vw,430px);max-height:88vh;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;box-shadow:0 18px 52px rgba(15,23,42,.28);display:flex;flex-direction:column;overflow:hidden}
+.event-location-picker-header{display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;padding:.85rem .95rem;border-bottom:1px solid var(--border)}
+.event-location-picker-title{font-size:.96rem;font-weight:900;color:var(--text-primary);line-height:1.35}
+.event-location-picker-subtitle{font-size:.72rem;color:var(--text-muted);line-height:1.45;margin-top:.1rem}
+.event-location-picker-close{width:32px;height:32px;border:1px solid var(--border);border-radius:50%;background:var(--bg-elevated);color:var(--text-primary);font-size:1.25rem;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.event-location-picker-body{padding:.85rem .95rem;overflow:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:.7rem}
+.event-location-picker-field{display:flex;flex-direction:column;gap:.28rem;font-size:.75rem;font-weight:800;color:var(--text-secondary)}
+.event-location-picker-field input{width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:8px;background:var(--bg-elevated);color:var(--text-primary);font-size:.84rem;padding:.55rem .65rem;outline:none}
+.event-location-picker-field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(20,184,166,.12)}
+.event-location-search-row{display:flex;gap:.45rem;align-items:center}
+.event-location-search-row input{min-width:0;flex:1}
+.event-location-coordinate-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.55rem}
+.event-location-result{min-height:1.1rem;font-size:.73rem;line-height:1.45;color:var(--text-muted)}
+.event-location-result[data-state="ready"]{color:#0f766e;font-weight:800}
+.event-location-result[data-state="error"]{color:#dc2626;font-weight:800}
+.event-location-current-btn{width:100%;border:1px dashed rgba(20,184,166,.55);border-radius:8px;background:rgba(20,184,166,.08);color:#0f766e;font-size:.78rem;font-weight:850;padding:.55rem .65rem;cursor:pointer}
+.event-location-picker-actions{display:flex;justify-content:flex-end;gap:.55rem;padding:.75rem .95rem;border-top:1px solid var(--border);background:var(--bg-card)}
+[data-theme="dark"] .event-location-status[data-state="ready"],[data-theme="dark"] .event-location-result[data-state="ready"],[data-theme="dark"] .event-location-current-btn{color:#5eead4}
+
 /* Activity map overlay */
 body.activity-map-open{overflow:hidden}
 .activity-map-overlay{position:fixed;inset:0;z-index:1250;display:none;background:rgba(15,23,42,.42);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);align-items:stretch;justify-content:center}

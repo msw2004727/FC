@@ -858,6 +858,84 @@ describe("/events/{eventId}", () => {
     );
   });
 
+  test("event map fields require confirmed numeric coordinates", async () => {
+    await assertSucceeds(
+      setDoc(doc(user(), "events", "event_user_map_create"), {
+        title: "User Map",
+        creatorUid: "uidUser",
+        status: "open",
+        location: "Test Field",
+        lat: 25.026,
+        lng: 121.543,
+        mapAddress: "Test Field",
+        mapProvider: "manual",
+        mapLocationConfirmed: true,
+        mapLocationUpdatedAt: "2026-05-18T00:00:00.000Z",
+      })
+    );
+
+    await assertFails(
+      setDoc(doc(user(), "events", "event_user_map_bad_lat"), {
+        title: "Bad Lat",
+        creatorUid: "uidUser",
+        status: "open",
+        lat: "25.026",
+        lng: 121.543,
+        mapLocationConfirmed: true,
+      })
+    );
+
+    await assertFails(
+      setDoc(doc(user(), "events", "event_user_map_missing_lng"), {
+        title: "Missing Lng",
+        creatorUid: "uidUser",
+        status: "open",
+        lat: 25.026,
+        mapLocationConfirmed: true,
+      })
+    );
+
+    await assertSucceeds(
+      updateDoc(doc(user(), "events", "eventUserOwn"), {
+        lat: 25.026,
+        lng: 121.543,
+        mapAddress: "Test Field",
+        mapProvider: "manual",
+        mapLocationConfirmed: true,
+        mapLocationUpdatedAt: "2026-05-18T00:00:00.000Z",
+      })
+    );
+
+    await assertFails(
+      updateDoc(doc(user(), "events", "eventUserOwn"), {
+        lat: 91,
+        lng: 121.543,
+        mapLocationConfirmed: true,
+      })
+    );
+
+    await assertFails(
+      updateDoc(doc(admin(), "events", "eventB"), {
+        lat: 25.026,
+        lng: 121.543,
+        mapProvider: "unknown",
+        mapLocationConfirmed: true,
+      })
+    );
+
+    await assertSucceeds(
+      updateDoc(doc(user(), "events", "eventUserOwn"), {
+        lat: null,
+        lng: null,
+        mapAddress: null,
+        mapPlaceId: null,
+        mapProvider: null,
+        mapLocationConfirmed: false,
+        mapLocationUpdatedAt: null,
+      })
+    );
+  });
+
   test("user can create full frontend-shaped private add-on event payload when add-ons capability is enabled", async () => {
     await seedRoleActivityCapabilities([
       ...DEFAULT_USER_ACTIVITY_CAPABILITIES,

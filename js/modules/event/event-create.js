@@ -356,6 +356,8 @@ Object.assign(App, {
     document.getElementById('ce-title').value = '';
     document.getElementById('ce-type').value = 'play';
     document.getElementById('ce-location').value = '';
+    this._resetEventLocationDraft?.('ce', null);
+    this._bindEventLocationInputs?.('ce');
     document.getElementById('ce-date').value = '';
     document.getElementById('ce-time-start').value = '14:00';
     document.getElementById('ce-time-end').value = '16:00';
@@ -500,6 +502,7 @@ Object.assign(App, {
     if (!sportTag) { this.showToast('請先選擇運動 / 場景標籤（必選）'); return; }
     if (genderRestrictionEnabled && !allowedGender) { this.showToast('請選擇限定性別'); return; }
     if (regionData.regionEnabled && !regionData.region) { this.showToast('請選擇活動地區'); return; }
+    const locationPayload = this._buildEventLocationPayload?.('ce', location) || {};
     // 俱樂部限定：決定 teamId / teamName
     let resolvedTeamId = null, resolvedTeamName = null;
     if (teamOnly && !this.hasPermission('team.create_event') && !this.hasPermission('activity.manage.entry')) {
@@ -599,6 +602,7 @@ Object.assign(App, {
         delegates: [...this._delegates],
         delegateUids: this._delegates.map(d => String(d.uid || '').trim()).filter(Boolean),
       };
+      Object.assign(updates, locationPayload);
       if (imageVariants) updates.imageVariants = imageVariants;
       if (!canUseAddons) {
         [
@@ -724,6 +728,7 @@ Object.assign(App, {
         delegates: [...this._delegates],
         delegateUids: this._delegates.map(d => String(d.uid || '').trim()).filter(Boolean),
       };
+      Object.assign(newEvent, locationPayload);
       if (imageVariants) newEvent.imageVariants = imageVariants;
       if (!this._canManageEventDelegates?.(null)) {
         newEvent.delegates = [];
@@ -813,6 +818,7 @@ Object.assign(App, {
     this._eventImageVariantsData = null;
     document.getElementById('ce-title').value = '';
     document.getElementById('ce-location').value = '';
+    this._clearEventLocationDraft?.('ce');
     this._setEventFeeFormState(false, 0);
     document.getElementById('ce-max').value = '20';
     document.getElementById('ce-waitlist').value = '0';

@@ -28,6 +28,13 @@ function filterToLoad(scripts, loaded) {
   return scripts.filter(s => !loaded[s]);
 }
 
+function collectPreloadScripts(groups, manualOnlyGroups, loaded = {}) {
+  return Object.entries(groups)
+    .filter(([groupName]) => !manualOnlyGroups[groupName])
+    .flatMap(([, scripts]) => scripts)
+    .filter(src => !loaded[src]);
+}
+
 // ---------------------------------------------------------------------------
 // Simulated ensureForPage deduplication logic (script-loader.js:250-267)
 // ---------------------------------------------------------------------------
@@ -118,6 +125,29 @@ describe('filterToLoad', () => {
 
   test('handles empty input', () => {
     expect(filterToLoad([], {})).toEqual([]);
+  });
+});
+
+describe('manual-only preload filtering', () => {
+  test('excludes public activity map and event location picker groups from idle preload', () => {
+    const groups = {
+      activity: ['js/modules/event/event-location-draft.js', 'js/modules/event/event-create.js'],
+      activityMap: ['js/modules/event/event-map-geo.js', 'js/modules/event/event-map.js'],
+      eventLocationPicker: [
+        'js/modules/event/event-location-draft.js',
+        'js/modules/event/event-map-geo.js',
+        'js/modules/event/event-location-picker.js',
+      ],
+    };
+    const preload = collectPreloadScripts(groups, {
+      activityMap: true,
+      eventLocationPicker: true,
+    });
+
+    expect(preload).toContain('js/modules/event/event-location-draft.js');
+    expect(preload).not.toContain('js/modules/event/event-map.js');
+    expect(preload).not.toContain('js/modules/event/event-map-geo.js');
+    expect(preload).not.toContain('js/modules/event/event-location-picker.js');
   });
 });
 

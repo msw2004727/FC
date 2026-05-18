@@ -23,7 +23,9 @@ describe('ActivityMapGeo', () => {
   });
 
   test('filters unconfirmed event map locations', () => {
+    expect(geo.getEventPoint({ lat: 24, lng: 121 })).toBeNull();
     expect(geo.getEventPoint({ lat: 24, lng: 121, mapLocationConfirmed: false })).toBeNull();
+    expect(geo.getEventPoint({ lat: 24, mapLocationConfirmed: true })).toBeNull();
     expect(geo.getEventPoint({ lat: 24, lng: 121, mapLocationConfirmed: true })).toEqual({ lat: 24, lng: 121 });
   });
 

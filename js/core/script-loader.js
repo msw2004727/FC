@@ -12,6 +12,7 @@ const ScriptLoader = {
   _domPrimed: false,
   _manualOnlyGroups: {
     activityMap: true,
+    eventLocationPicker: true,
   },
 
   _normalizeLocalSrc(src) {
@@ -150,6 +151,7 @@ const ScriptLoader = {
       'js/modules/event/event-create-delegates.js',
       'js/modules/event/event-create-options.js',
       'js/modules/event/event-create-team-picker.js',
+      'js/modules/event/event-location-draft.js',
       'js/modules/event/event-create-external.js',
       'js/modules/event/event-create-template.js',
       'js/modules/event/event-create-waitlist.js',
@@ -415,6 +417,11 @@ const ScriptLoader = {
     activityMap: [
       'js/modules/event/event-map-geo.js',
       'js/modules/event/event-map.js',
+    ],
+    eventLocationPicker: [
+      'js/modules/event/event-location-draft.js',
+      'js/modules/event/event-map-geo.js',
+      'js/modules/event/event-location-picker.js',
     ],
     adminUsers: [
       'js/modules/auto-exp/index.js',

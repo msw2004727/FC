@@ -214,6 +214,14 @@
         <div class="ce-row">
           <label>地點</label>
           <input type="text" id="cee-location" placeholder="選填，例：台北市大安運動中心">
+          <div class="event-location-control" data-prefix="cee">
+            <div class="event-location-state-row">
+              <span id="cee-location-status" class="event-location-status" data-state="empty">尚未設定地圖位置</span>
+              <button type="button" id="cee-location-btn" class="outline-btn small" onclick="App.openEventLocationPickerFor('cee')">設定地圖位置</button>
+            </div>
+            <div id="cee-location-summary" class="event-location-summary"></div>
+            <button type="button" id="cee-location-clear" class="event-location-clear" onclick="App.clearEventLocationDraft('cee')" style="display:none">清除定位</button>
+          </div>
         </div>
         <div class="ce-row">
           <label>運動 / 場景標籤 <span class="required">*必選</span></label>
@@ -310,6 +318,14 @@
         <div class="ce-row">
           <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('location')" title="說明">?</button><label>地點</label> <span class="required">*必填</span></div>
           <input type="text" id="ce-location" placeholder="例：台北市大安運動中心">
+          <div class="event-location-control" data-prefix="ce">
+            <div class="event-location-state-row">
+              <span id="ce-location-status" class="event-location-status" data-state="empty">尚未設定地圖位置</span>
+              <button type="button" id="ce-location-btn" class="outline-btn small" onclick="App.openEventLocationPickerFor('ce')">設定地圖位置</button>
+            </div>
+            <div id="ce-location-summary" class="event-location-summary"></div>
+            <button type="button" id="ce-location-clear" class="event-location-clear" onclick="App.clearEventLocationDraft('ce')" style="display:none">清除定位</button>
+          </div>
         </div>
         <div class="ce-row">
           <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('time')" title="說明">?</button><label>活動時間</label> <span class="required">*必填</span></div>

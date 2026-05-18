@@ -3,7 +3,7 @@
 > 專案內所有可調設定（timing / limit / threshold）+ 關鍵流程的順序效果總覽。
 > **強制維護規則（CLAUDE.md §設定追蹤規範）**：修改檔案時若涉及任何可調設定 / 加載順序 / timing / 閾值，必須同步更新本檔對應條目；新增任何可調常數，必須在本檔登記。
 
-**Last Updated: 2026-05-16**（activity cache/load order + comment like avatar stack）
+**Last Updated: 2026-05-18**（activity map venue picker lazy/manual-only path）
 
 ## 目錄
 
@@ -232,7 +232,9 @@
 
 | Page | 模組數 | 檔案位置 |
 |------|-------|---------|
-| `event` | 30+ | `script-loader.js:115-135` |
+| `event` | 30+ | `script-loader.js`；含輕量 `event-location-draft.js`，但不含 Google/地圖 picker UI |
+| `activityMap` | manual-only | 使用者點「尋找附近活動」才執行；不進 `preloadAll()` / `preloadCorePages()` |
+| `eventLocationPicker` | manual-only | 建立/編輯活動點「設定地圖位置」才執行；Google Maps JS 只在 picker 內搜尋且 key 存在時才動態載入 |
 | `teamList` | 4 | `page-teams` first screen only：helpers/stats/list/render |
 | `teamDetail` | 10 | `page-team-detail` lazy detail/share/join flow |
 | `teamForm` | 5 | create/edit modal lazy loaded from list/detail/manage |

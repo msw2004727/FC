@@ -683,6 +683,27 @@ service cloud.firestore {
           ));
       }
 
+      function hasValidEventMapPoint(data) {
+        return data.keys().hasAll(['lat', 'lng'])
+          && data.lat is number
+          && data.lat >= -90
+          && data.lat <= 90
+          && data.lng is number
+          && data.lng >= -180
+          && data.lng <= 180;
+      }
+
+      function isValidEventMapFields(data) {
+        return (!data.keys().hasAny(['lat']) || data.lat == null || (data.lat is number && data.lat >= -90 && data.lat <= 90))
+          && (!data.keys().hasAny(['lng']) || data.lng == null || (data.lng is number && data.lng >= -180 && data.lng <= 180))
+          && (!data.keys().hasAny(['mapAddress']) || data.mapAddress == null || (data.mapAddress is string && data.mapAddress.size() <= 240))
+          && (!data.keys().hasAny(['mapPlaceId']) || data.mapPlaceId == null || (data.mapPlaceId is string && data.mapPlaceId.size() <= 180))
+          && (!data.keys().hasAny(['mapProvider']) || data.mapProvider == null || data.mapProvider in ['google', 'manual'])
+          && (!data.keys().hasAny(['mapLocationConfirmed']) || data.mapLocationConfirmed is bool)
+          && (!data.keys().hasAny(['mapLocationUpdatedAt']) || data.mapLocationUpdatedAt == null || data.mapLocationUpdatedAt is string)
+          && (data.get('mapLocationConfirmed', false) != true || hasValidEventMapPoint(data));
+      }
+
       function isUserCreateOwner() {
         return isAuth()
           && request.resource.data.creatorUid is string
@@ -732,6 +753,7 @@ service cloud.firestore {
           'title', 'type', 'location', 'date', 'startTimestamp', 'endTimestamp', 'externalUrl', 'max', 'minAge', 'notes', 'image', 'imageVariants',
           'sportTag', 'regOpenTime', 'gradient', 'icon', 'countdown',
           'regionEnabled', 'region', 'cities', 'delegates', 'delegateUids',
+          'lat', 'lng', 'mapAddress', 'mapPlaceId', 'mapProvider', 'mapLocationConfirmed', 'mapLocationUpdatedAt',
           'fee', 'feeEnabled', 'genderRestrictionEnabled', 'allowedGender',
           'privateEvent', 'teamSplit', 'socialLinksEnabled', 'socialLinks',
           'updatedAt'
@@ -743,6 +765,7 @@ service cloud.firestore {
           'title', 'type', 'location', 'date', 'startTimestamp', 'endTimestamp', 'externalUrl', 'max', 'minAge', 'notes', 'image', 'imageVariants',
           'sportTag', 'regOpenTime', 'gradient', 'icon', 'countdown',
           'regionEnabled', 'region', 'cities', 'delegates', 'delegateUids',
+          'lat', 'lng', 'mapAddress', 'mapPlaceId', 'mapProvider', 'mapLocationConfirmed', 'mapLocationUpdatedAt',
           'fee', 'feeEnabled', 'genderRestrictionEnabled', 'allowedGender',
           'privateEvent', 'teamSplit', 'socialLinksEnabled', 'socialLinks',
           'status', 'updatedAt'
@@ -795,8 +818,10 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAuth()
         && hasString('title')
-        && canCreateEventRoot();
+        && canCreateEventRoot()
+        && isValidEventMapFields(request.resource.data);
       allow update: if isAuth()
+        && isValidEventMapFields(request.resource.data)
         && (
           isUserOwnerBasicUpdate()
           || isScopedRoleBasicUpdate()
