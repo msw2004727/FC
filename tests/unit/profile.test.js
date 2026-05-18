@@ -7,6 +7,15 @@
  *   js/modules/profile/profile-data.js
  */
 
+const fs = require('fs');
+const path = require('path');
+
+const ROOT = path.join(__dirname, '../..');
+
+function readProjectFile(file) {
+  return fs.readFileSync(path.join(ROOT, file), 'utf8');
+}
+
 // ---------------------------------------------------------------------------
 // Extracted from js/modules/profile/profile-core.js:17-26
 // _calcLevelFromExp — quadratic formula: level from cumulative EXP
@@ -133,6 +142,30 @@ describe('_calcLevelFromExp (profile-core.js:17-26)', () => {
     expect(_calcLevelFromExp(300).level).toBe(2);
     expect(_calcLevelFromExp(599).level).toBe(2);
     expect(_calcLevelFromExp(600).level).toBe(3);
+  });
+});
+
+describe('profile EXP display refresh wiring', () => {
+  test('points display refreshes top bar and profile exp fields', () => {
+    const profileCoreSource = readProjectFile('js/modules/profile/profile-core.js');
+
+    expect(profileCoreSource).toContain("const pointsEl = document.getElementById('points-value');");
+    expect(profileCoreSource).toContain("const expTextEl = document.getElementById('profile-exp-text');");
+    expect(profileCoreSource).toContain("const expFillEl = document.getElementById('profile-exp-fill');");
+    expect(profileCoreSource).toContain("if (lvEl) lvEl.textContent = `Lv.${level}`;");
+  });
+
+  test('local and realtime EXP changes notify the shared points renderer', () => {
+    const apiSource = readProjectFile('js/api-service.js');
+    const crudSource = readProjectFile('js/firebase-crud.js');
+    const profileFormSource = readProjectFile('js/modules/profile/profile-form.js');
+
+    expect(apiSource).toContain('_syncCurrentUserExpFromUser(user)');
+    expect(apiSource).toContain('App.updatePointsDisplay();');
+    expect(apiSource).toContain('this._syncCurrentUserExpFromUser(user);');
+    expect(crudSource).toContain('const expChanged = prev && (prev.exp || 0) !== (next.exp || 0);');
+    expect(crudSource).toContain('App.updatePointsDisplay();');
+    expect(profileFormSource).toContain('this.updatePointsDisplay?.();');
   });
 });
 

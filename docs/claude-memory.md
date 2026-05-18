@@ -2921,3 +2921,8 @@
 - **Issue**: Users with incomplete first-login profile data could still see normal-looking activity create entry points on the home and activity pages, so the block only happened later in the write flow.
 - **Fix**: Activity create buttons now keep permission visibility but enter a grey locked state when gender, birthday, or region is missing. Clicking a locked home or activity create button shows `請先完成個人資料，再建立活動。` and opens the existing first-login profile modal before the create flow. Profile saves immediately refresh the button state.
 - **Validation**: Added source assertions covering home/activity buttons, banner refresh, create-flow guard, profile save refresh, and locked-button styling. Ran targeted/full unit tests successfully; browser plugin verification was attempted, but localhost loading was blocked by the in-app browser URL policy.
+
+### 2026-05-18 EXP Display Refresh On Change [bugfix]
+- **Issue**: Some EXP changes updated `currentUser.exp` or arrived through the current-user Firestore listener without refreshing every visible EXP field, so the top-bar points or profile EXP progress could remain stale until another render.
+- **Fix**: `updatePointsDisplay()` now refreshes both the top-bar points value and profile level/progress fields. Local manual/batch EXP mutations synchronize the current user and notify the renderer immediately, and current-user realtime snapshots trigger the same renderer when `exp` changes.
+- **Validation**: Added source assertions for the shared EXP renderer and local/realtime notification wiring. Ran targeted/full unit tests successfully; browser plugin verification was attempted, but localhost loading was blocked by the in-app browser URL policy.

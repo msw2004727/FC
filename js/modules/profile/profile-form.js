@@ -230,6 +230,7 @@ Object.assign(App, {
         : (promptText.dataset.defaultText || promptText.textContent);
       if (drawerAvatar) { drawerAvatar.className = 'drawer-avatar'; drawerAvatar.innerHTML = '?'; }
       if (drawerName) drawerName.textContent = isLoginPending ? '登入確認中...' : '未登入';
+      this.updatePointsDisplay?.();
       // currentRole 不在此處重設 — 由 applyRole() 從權威來源管理
       // 直接賦值會在 LIFF session 瞬間失效時覆蓋已驗證的角色
       const roleTag = document.getElementById('drawer-role-tag');
@@ -253,6 +254,7 @@ Object.assign(App, {
     this._setTopbarAvatar(userTopbar, avatarImg, profile, {
       candidateUrls: avatarCandidates,
     });
+    this.updatePointsDisplay?.();
 
     // 更新 profile 頁面（資料由 renderProfileData() 統一處理）
     if (profileContent) profileContent.style.display = '';

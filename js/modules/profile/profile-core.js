@@ -76,16 +76,23 @@ Object.assign(App, {
   },
 
   updatePointsDisplay() {
-    const el = document.getElementById('points-value');
-    if (!el) return;
+    const pointsEl = document.getElementById('points-value');
     const isLoggedIn = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
     if (!isLoggedIn) {
-      el.textContent = '-';
+      if (pointsEl) pointsEl.textContent = '-';
       return;
     }
     const user = ApiService.getCurrentUser();
-    const exp = (user && user.exp) || 0;
-    el.textContent = exp.toLocaleString();
+    const exp = Math.max(0, Number((user && user.exp) || 0) || 0);
+    if (pointsEl) pointsEl.textContent = exp.toLocaleString();
+
+    const { level, progress, needed } = this._calcLevelFromExp(exp);
+    const lvEl = document.getElementById('profile-lv');
+    const expTextEl = document.getElementById('profile-exp-text');
+    const expFillEl = document.getElementById('profile-exp-fill');
+    if (lvEl) lvEl.textContent = `Lv.${level}`;
+    if (expTextEl) expTextEl.textContent = `${progress.toLocaleString()} / ${needed.toLocaleString()}`;
+    if (expFillEl) expFillEl.style.width = `${Math.min(100, Math.round((progress / needed) * 100))}%`;
   },
 
   _userTag(name, forceRole, options) {

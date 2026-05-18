@@ -2068,8 +2068,12 @@ Object.assign(FirebaseService, {
         if (doc.exists) {
           const prev = this._cache.currentUser || null;
           const next = { ...doc.data(), _docId: doc.id };
+          const expChanged = prev && (prev.exp || 0) !== (next.exp || 0);
           this._cache.currentUser = next;
           this._saveToLS('currentUser', next);
+          if (expChanged && typeof App !== 'undefined' && typeof App.updatePointsDisplay === 'function') {
+            App.updatePointsDisplay();
+          }
 
           const roleChanged = prev?.role !== next.role;
           if (
