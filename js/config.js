@@ -4,7 +4,36 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260517e';
+const CACHE_VERSION = '0.20260518';
+
+const ACTIVITY_MAP_CONFIG = {
+  googleApiKey: (typeof window !== 'undefined' && window.__SPORTHUB_GOOGLE_MAPS_API_KEY__) || '',
+  googleMapId: (typeof window !== 'undefined' && window.__SPORTHUB_GOOGLE_MAP_ID__) || '',
+  defaultCenter: { lat: 23.6978, lng: 120.9605 },
+  defaultZoom: 8,
+  nearRadiusKm: 10,
+  geolocationTimeoutMs: 7000,
+  geolocationMaxAgeMs: 5 * 60 * 1000,
+};
+
+function isActivityMapDiagnosticOverride() {
+  try {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('activityMap') !== '1') return false;
+    const host = window.location.hostname || '';
+    return host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local');
+  } catch (_) {
+    return false;
+  }
+}
+
+function isActivityMapEnabled() {
+  if (isActivityMapDiagnosticOverride()) return true;
+  const flags = (typeof FirebaseService !== 'undefined' && typeof FirebaseService.getCachedDoc === 'function')
+    ? FirebaseService.getCachedDoc('siteConfig', 'featureFlags')
+    : null;
+  return !!(flags && flags.activityMapEnabled === true);
+}
 
 // Temporary feature switch: no-show is paused and hidden, but historical data remains intact.
 const NO_SHOW_FEATURE_ENABLED = true;

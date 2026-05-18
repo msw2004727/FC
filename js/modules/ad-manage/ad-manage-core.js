@@ -186,6 +186,38 @@ Object.assign(App, {
     this.showToast(visible ? '已開啟首頁新聞' : '已關閉首頁新聞');
   },
 
+  renderActivityMapToggle() {
+    var toggle = document.getElementById('activity-map-enabled-toggle');
+    if (!toggle) return;
+    toggle.checked = typeof isActivityMapEnabled === 'function' && isActivityMapEnabled();
+  },
+
+  async toggleActivityMapEnabled(visible) {
+    if (!this.hasPermission('admin.banners.entry')) {
+      this.showToast('權限不足');
+      this.renderActivityMapToggle?.();
+      return;
+    }
+    const enabled = !!visible;
+    try {
+      if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.ensureAuthReadyForWrite === 'function') {
+        await FirebaseService.ensureAuthReadyForWrite();
+      }
+      if (typeof db === 'undefined') throw new Error('Firestore unavailable');
+      await db.collection('siteConfig').doc('featureFlags').set({
+        activityMapEnabled: enabled,
+        activityMapUpdatedAt: new Date().toISOString(),
+      }, { merge: true });
+      FirebaseService.setActivityMapEnabledCache?.(enabled);
+      this._syncActivityMapEntry?.();
+      this.showToast(enabled ? '已開啟附近活動地圖' : '已關閉附近活動地圖');
+    } catch (err) {
+      console.error('[ActivityMap] toggle failed:', err);
+      this.showToast('附近活動地圖設定儲存失敗');
+      this.renderActivityMapToggle?.();
+    }
+  },
+
   _homeLayoutSections() {
     const utils = (typeof window !== 'undefined' && window.HomeDashboardUtils) || {};
     const fallback = [

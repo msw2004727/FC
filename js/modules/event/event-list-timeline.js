@@ -253,6 +253,7 @@ Object.assign(App, {
     // 可能在短時間內連續觸發，統一收束為 100ms 內只渲染一次，避免 DOM 連續替換導致捲動跳頂
     if (this.currentPage !== 'page-activities') return;
     this._syncActivityFemaleTheme?.(this._activityActiveTab);
+    this._syncActivityMapEntry?.();
     this._refreshActivityCreateButton?.();
     clearTimeout(this._activityListRenderTimer);
     this._activityListRenderTimer = setTimeout(() => { this._doRenderActivityList(); }, 100);

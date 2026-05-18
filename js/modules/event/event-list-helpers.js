@@ -509,6 +509,43 @@ Object.assign(App, {
     return events.filter(e => (e.sportTag || 'football') === tag);
   },
 
+  _isActivityMapFeatureEnabled() {
+    return typeof isActivityMapEnabled === 'function' && isActivityMapEnabled();
+  },
+
+  _syncActivityMapEntry() {
+    const button = document.getElementById('region-tab-nearby-activity');
+    if (!button) return;
+    const enabled = this._isActivityMapFeatureEnabled();
+    button.classList.toggle('region-tab-disabled', !enabled);
+    button.classList.toggle('region-tab-map-enabled', enabled);
+    button.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+    button.title = enabled ? '尋找附近活動' : '附近活動地圖尚未開啟';
+  },
+
+  async openActivityMapEntry(event) {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    if (!this._isActivityMapFeatureEnabled()) {
+      this._syncActivityMapEntry?.();
+      this.showToast?.('附近活動地圖尚未開啟');
+      return false;
+    }
+    try {
+      if (typeof ScriptLoader === 'undefined' || typeof ScriptLoader.ensureGroup !== 'function') {
+        throw new Error('ScriptLoader unavailable');
+      }
+      await ScriptLoader.ensureGroup('activityMap');
+      if (typeof this.showActivityMap !== 'function') throw new Error('activity map module unavailable');
+      await this.showActivityMap();
+      return true;
+    } catch (err) {
+      console.error('[ActivityMap] open failed:', err);
+      this.showToast?.('附近活動地圖載入失敗，請稍後再試');
+      return false;
+    }
+  },
+
   _activeRegionTab: '全部',
 
   switchRegionTab(region) {
@@ -521,6 +558,7 @@ Object.assign(App, {
       btn.classList.toggle('active', btnRegion === decoded);
     });
     // 重新渲染（頁面未載入時靜默跳過）
+    try { this._syncActivityMapEntry?.(); } catch (_) {}
     try { this.renderHotEvents(); } catch (_) {}
     try { this.renderActivityList(); } catch (_) {}
     // 月曆 tab 下也要同步重 render（見 calendar-view-plan §12.D）

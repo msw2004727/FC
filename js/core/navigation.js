@@ -1097,6 +1097,7 @@ Object.assign(App, {
     if (pageId === 'page-activities') {
       // 不重設頁籤 — 保留用戶離開前的 _activityActiveTab（如「已結束」/「月曆」）
       this._clearTimelineCardNavigationState?.('render-activities');
+      this._syncActivityMapEntry?.();
       this.renderActivityList?.();
       // 月曆 tab 下返回頁面時重設到今日（用戶要求 2026-04-22、見 calendar-view-plan §12.M）
       if (this._activityActiveTab === 'calendar') {
@@ -1139,7 +1140,7 @@ Object.assign(App, {
     if (pageId === 'page-shop') this.renderShop();
     if (pageId === 'page-leaderboard') this.renderLeaderboard?.();
     if (pageId === 'page-admin-users') this.renderAdminUsers();
-    if (pageId === 'page-admin-banners') { this.renderHomeLayoutManage?.({ resetFromData: true }); this.renderBannerManage(); this.renderWatchPartyBgManage?.(); this.renderHomeInfoManage?.(); this.renderFloatingAdManage(); this.renderPopupAdManage(); this.renderSponsorManage(); this.renderShotGameAdManage(); this.renderBootBrandManage?.(); this.renderNewsToggle(); }
+    if (pageId === 'page-admin-banners') { this.renderHomeLayoutManage?.({ resetFromData: true }); this.renderBannerManage(); this.renderWatchPartyBgManage?.(); this.renderHomeInfoManage?.(); this.renderFloatingAdManage(); this.renderPopupAdManage(); this.renderSponsorManage(); this.renderShotGameAdManage(); this.renderBootBrandManage?.(); this.renderNewsToggle(); this.renderActivityMapToggle?.(); }
     if (pageId === 'page-admin-shop') this.renderShopManage();
     if (pageId === 'page-admin-messages') this.renderMsgManage();
     if (pageId === 'page-admin-notif') this.renderNotifSettings?.();

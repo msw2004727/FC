@@ -10,6 +10,9 @@ const ScriptLoader = {
   _loaded: {},
   _loading: {},
   _domPrimed: false,
+  _manualOnlyGroups: {
+    activityMap: true,
+  },
 
   _normalizeLocalSrc(src) {
     try {
@@ -409,6 +412,10 @@ const ScriptLoader = {
       'js/modules/event/event-list-calendar-build.js',
       'js/modules/event/event-list-calendar-nav.js',
     ],
+    activityMap: [
+      'js/modules/event/event-map-geo.js',
+      'js/modules/event/event-map.js',
+    ],
     adminUsers: [
       'js/modules/auto-exp/index.js',
       'js/modules/auto-exp/rules.js',
@@ -565,7 +572,10 @@ const ScriptLoader = {
   /** 預載入所有群組（背景，不阻塞） */
   preloadAll() {
     this._primeLoadedFromDom();
-    const allScripts = Object.values(this._groups).flat();
+    const manualOnly = this._manualOnlyGroups || {};
+    const allScripts = Object.entries(this._groups)
+      .filter(([groupName]) => !manualOnly[groupName])
+      .flatMap(([, scripts]) => scripts);
     const toLoad = allScripts.filter(s => !this._loaded[s]);
     if (toLoad.length === 0) return;
     // 用低優先級預載入

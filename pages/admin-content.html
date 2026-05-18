@@ -236,6 +236,27 @@
         </div>
       </div>
 
+      <!-- 附近活動地圖開關 -->
+      <div class="ad-collapse-section">
+        <div class="admin-section-label ad-collapse-toggle" onclick="App.toggleAdSection(this)">
+          <span>附近活動地圖</span><span class="ad-collapse-arrow">▶</span>
+        </div>
+        <div class="ad-collapse-content" style="display:none">
+          <div class="form-card" style="padding:.8rem 1rem">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:.8rem">
+              <div>
+                <div style="font-size:.82rem;font-weight:600;color:var(--text-primary)">啟用尋找附近活動</div>
+                <div style="font-size:.72rem;color:var(--text-muted);margin-top:.15rem">關閉後活動頁不會載入地圖模組，也不會要求定位權限</div>
+              </div>
+              <label class="toggle-switch" style="margin:0">
+                <input type="checkbox" id="activity-map-enabled-toggle" onchange="App.toggleActivityMapEnabled(this.checked)">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 開機品牌圖 -->
       <div class="ad-collapse-section">
         <div class="admin-section-label ad-collapse-toggle" onclick="App.toggleAdSection(this)">

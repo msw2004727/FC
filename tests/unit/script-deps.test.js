@@ -327,6 +327,7 @@ describe('Eager scripts — no unguarded calls to dynamic-only functions', () =>
     'renderSponsorManage',
     'renderShotGameAdManage',
     'renderNewsToggle',
+    'renderActivityMapToggle',
     'renderAutoExpRules',
     'renderMessageList',
     'renderTournamentTimeline',

@@ -2109,6 +2109,17 @@ const FirebaseService = {
     return this._singleDocCache[cacheKey];
   },
 
+  setActivityMapEnabledCache(enabled) {
+    const cacheKey = 'siteConfig/featureFlags';
+    const current = this._singleDocCache[cacheKey] || {};
+    this._singleDocCache[cacheKey] = {
+      ...current,
+      activityMapEnabled: !!enabled,
+      activityMapUpdatedAt: new Date().toISOString(),
+    };
+    return this._singleDocCache[cacheKey];
+  },
+
   /**
    * 載入單一 Firestore 文件到快取
    * @param {string} collection
@@ -2124,6 +2135,10 @@ const FirebaseService = {
       const snap = await db.collection(collection).doc(docId).get();
       if (snap.exists) {
         this._singleDocCache[collection + '/' + docId] = snap.data();
+        if (collection === 'siteConfig' && docId === 'featureFlags') {
+          try { App?._syncActivityMapEntry?.(); } catch (_) {}
+          try { App?.renderActivityMapToggle?.(); } catch (_) {}
+        }
       }
     } catch (err) {
       console.warn('[FirebaseService] Failed to fetch ' + collection + '/' + docId + ':', err);
