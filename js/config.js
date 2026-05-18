@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260518c';
+const CACHE_VERSION = '0.20260518e';
 
 const GOOGLE_MAPS_BROWSER_API_KEY = 'AIzaSyBhjop3QJ16gagDMkUtdeV150Nj0U2egw0';
 

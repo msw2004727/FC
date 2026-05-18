@@ -117,7 +117,7 @@ Object.assign(App, {
     if (this._eventLocationGooglePromise) return this._eventLocationGooglePromise;
     this._eventLocationGooglePromise = new Promise((resolve, reject) => {
       const script = document.createElement('script');
-      const params = new URLSearchParams({ key: apiKey, v: 'weekly' });
+      const params = new URLSearchParams({ key: apiKey, v: 'weekly', auth_referrer_policy: 'origin' });
       script.src = `https://maps.googleapis.com/maps/api/js?${params.toString()}`;
       script.async = true;
       script.onload = () => resolve(true);

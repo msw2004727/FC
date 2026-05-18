@@ -233,8 +233,8 @@
 | Page | 模組數 | 檔案位置 |
 |------|-------|---------|
 | `event` | 30+ | `script-loader.js`；含輕量 `event-location-draft.js`，但不含 Google/地圖 picker UI |
-| `activityMap` | manual-only | 使用者點「尋找附近活動」才執行；不進 `preloadAll()` / `preloadCorePages()` |
-| `eventLocationPicker` | manual-only | 建立/編輯活動點「設定地圖位置」才執行；Google Maps JS 只在 picker 內搜尋且 key 存在時才動態載入 |
+| `activityMap` | manual-only | 使用者點「尋找附近活動」才執行；不進 `preloadAll()` / `preloadCorePages()`；Maps JS 載入帶 `auth_referrer_policy=origin`，避免 `/events/{id}` 等 clean path 被當成未授權 referrer |
+| `eventLocationPicker` | manual-only | 建立/編輯活動點「設定地圖位置」才執行；Google Maps JS 只在 picker 內搜尋且 key 存在時才動態載入，並帶 `auth_referrer_policy=origin` |
 | `teamList` | 4 | `page-teams` first screen only：helpers/stats/list/render |
 | `teamDetail` | 10 | `page-team-detail` lazy detail/share/join flow |
 | `teamForm` | 5 | create/edit modal lazy loaded from list/detail/manage |

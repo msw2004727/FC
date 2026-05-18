@@ -60,6 +60,19 @@ describe('event location picker lazy behavior', () => {
     expect(googleScriptCount()).toBe(0);
   });
 
+  test('Google Maps loaders use origin referrer policy for clean event routes', async () => {
+    const App = loadEventLocationModules();
+    window.ACTIVITY_MAP_CONFIG.googleApiKey = 'test-key';
+
+    const loadPromise = App._ensureEventLocationGoogleMapsLoaded().catch(() => false);
+    const script = document.querySelector('script[src*="maps.googleapis.com"]');
+    expect(script).not.toBeNull();
+    expect(new URL(script.src).searchParams.get('auth_referrer_policy')).toBe('origin');
+    expect(readModule('js/modules/event/event-map.js')).toContain("auth_referrer_policy: 'origin'");
+    script.onerror();
+    await loadPromise;
+  });
+
   test('manual coordinates confirm into the event location draft', async () => {
     const App = loadEventLocationModules();
     await App.openEventLocationPicker({ formPrefix: 'ce', locationText: 'Test Field' });
