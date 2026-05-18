@@ -1139,8 +1139,11 @@ describe('team detail club activity section', () => {
     expect(app.showToast).toHaveBeenCalledWith(expect.stringContaining('\u4ff1\u6a02\u90e8\u8a2d\u5b9a'));
   });
 
-  test('team member match data edit writes scoped user match fields', async () => {
-    const updateUser = jest.fn().mockResolvedValue();
+  test('team member match data edit writes scoped club match fields', async () => {
+    const updateTeamAwait = jest.fn().mockImplementation(async (_teamId, updates) => {
+      Object.assign(team, updates);
+      return team;
+    });
     const opLog = jest.fn();
     const user = {
       uid: 'member',
@@ -1154,7 +1157,11 @@ describe('team detail club activity section', () => {
       user,
       roles: new Set(),
     };
-    const team = { id: 'teamA', name: 'Club A' };
+    const team = {
+      id: 'teamA',
+      name: 'Club A',
+      memberMatchData: { member: { jerseyNumber: '9', position: 'FW', notes: 'old' } },
+    };
     const app = {
       _getTeamDetailRoster: () => [row],
       _canManageTeamMembers: () => true,
@@ -1168,11 +1175,10 @@ describe('team detail club activity section', () => {
     loadTeamDetailCore(app, null, {
       ApiService: {
         getTeam: () => team,
+        updateTeamAwait,
         _writeOpLog: opLog,
       },
-      FirebaseService: {
-        updateUser,
-      },
+      FirebaseService: {},
     });
     app._promptTeamMemberMatchData = jest.fn().mockResolvedValue({
       jerseyNumber: '10',
@@ -1183,9 +1189,9 @@ describe('team detail club activity section', () => {
 
     await app.editTeamMemberMatchData(null, 'teamA', 'uid:member');
 
-    expect(updateUser).toHaveBeenCalledWith('user-doc', {
-      teamMatchData: {
-        teamA: expect.objectContaining({
+    expect(updateTeamAwait).toHaveBeenCalledWith('teamA', {
+      memberMatchData: {
+        member: expect.objectContaining({
           jerseyNumber: '10',
           position: 'ST',
           notes: 'starter',
@@ -1193,7 +1199,7 @@ describe('team detail club activity section', () => {
         }),
       },
     });
-    expect(user.teamMatchData.teamA.jerseyNumber).toBe('10');
+    expect(team.memberMatchData.member.jerseyNumber).toBe('10');
     expect(app._refreshTeamDetailMembers).toHaveBeenCalledWith('teamA');
     expect(opLog).toHaveBeenCalledWith(
       'team_member_match_data_update',
@@ -1203,7 +1209,10 @@ describe('team detail club activity section', () => {
   });
 
   test('team member note edit writes scoped activity and course notes', async () => {
-    const updateUser = jest.fn().mockResolvedValue();
+    const updateTeamAwait = jest.fn().mockImplementation(async (_teamId, updates) => {
+      Object.assign(team, updates);
+      return team;
+    });
     const updateEduStudent = jest.fn().mockResolvedValue();
     const opLog = jest.fn();
     const user = {
@@ -1229,7 +1238,7 @@ describe('team detail club activity section', () => {
       student,
       roles: new Set(),
     };
-    const team = { id: 'teamA', name: 'Club A' };
+    const team = { id: 'teamA', name: 'Club A', memberActivityData: { member: { notes: 'old activity' } } };
     const app = {
       _getTeamDetailRoster: () => [userRow, studentRow],
       _canManageTeamMembers: () => true,
@@ -1247,10 +1256,10 @@ describe('team detail club activity section', () => {
     loadTeamDetailCore(app, null, {
       ApiService: {
         getTeam: () => team,
+        updateTeamAwait,
         _writeOpLog: opLog,
       },
       FirebaseService: {
-        updateUser,
         updateEduStudent,
       },
     });
@@ -1263,9 +1272,9 @@ describe('team detail club activity section', () => {
     await app.editTeamMemberNote(null, 'teamA', 'uid:member', 'activity');
     await app.editTeamMemberNote(null, 'teamA', 'student:stu-child', 'course');
 
-    expect(updateUser).toHaveBeenCalledWith('user-doc', {
-      teamActivityData: {
-        teamA: expect.objectContaining({
+    expect(updateTeamAwait).toHaveBeenCalledWith('teamA', {
+      memberActivityData: {
+        member: expect.objectContaining({
           notes: 'new activity',
           updatedAt: expect.any(String),
         }),
@@ -1279,7 +1288,7 @@ describe('team detail club activity section', () => {
         }),
       },
     });
-    expect(user.teamActivityData.teamA.notes).toBe('new activity');
+    expect(team.memberActivityData.member.notes).toBe('new activity');
     expect(student.teamCourseData.teamA.notes).toBe('new course');
     expect(app._refreshTeamMembersCardFromCache).toHaveBeenCalledWith('teamA');
     expect(app._refreshTeamDetailMembers).not.toHaveBeenCalled();

@@ -1,5 +1,11 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-18 Club member staff edit permission failure [bug]
+- **Problem**: Club staff could see the member-list edit buttons on the club detail page, but editing activity notes, course notes, or match data for user-backed roster rows failed with the generic update-failed toast.
+- **Cause**: The UI wrote club-scoped member annotations directly to the target member's `users/{uid}` document (`teamActivityData`, `teamCourseData`, `teamMatchData`). Firestore user rules do not allow a club staff member to update another user's profile document, so non-admin staff hit `permission-denied`.
+- **Fix**: User-backed roster edits now write to club-owned `teams/{teamId}` maps (`memberActivityData`, `memberCourseData`, `memberMatchData`) and the detail renderer reads those maps before legacy user/student fields. Firestore team rules allow only team staff or `team.manage_all` to update these club-scoped fields, without granting broad user-doc write access.
+- **Tests**: Updated team detail unit coverage for club-scoped writes and added Firestore rules coverage for staff success, non-staff denial, and root-field tamper denial. `npm test -- tests/unit/team-detail-events.test.js --runInBand` and `npm run test:rules` passed.
+
 ### 2026-05-17 Activity team split write path [bug]
 - **Problem**: Activity detail team split controls could appear clickable while manual jersey changes, blank assignment, random split, fill, and reset produced no visible result. The failing path depended on cached/projected registration rows whose displayed IDs were not guaranteed to be the real `events/{event}/registrations/{docId}` document IDs.
 - **Fix**: Team split operations now fetch the event registration subcollection before writing, resolve displayed/cache IDs to the writable Firestore doc ID, write `teamKey + updatedAt`, update canonical cache, and refresh the full detail UI after success. Firestore registration path references are centralized through `_tsRegistrationCollection`.

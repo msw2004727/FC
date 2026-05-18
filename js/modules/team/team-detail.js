@@ -806,6 +806,7 @@ Object.assign(App, {
     if (kind === 'course') {
       return {
         dataKey: 'teamCourseData',
+        teamDataKey: 'memberCourseData',
         title: '\u7de8\u8f2f\u8ab2\u7a0b\u5099\u8a3b',
         logType: 'team_member_course_note_update',
         logTitle: '\u7de8\u8f2f\u6210\u54e1\u8ab2\u7a0b\u5099\u8a3b',
@@ -814,11 +815,41 @@ Object.assign(App, {
     }
     return {
       dataKey: 'teamActivityData',
+      teamDataKey: 'memberActivityData',
       title: '\u7de8\u8f2f\u6d3b\u52d5\u5099\u8a3b',
       logType: 'team_member_activity_note_update',
       logTitle: '\u7de8\u8f2f\u6210\u54e1\u6d3b\u52d5\u5099\u8a3b',
       toast: '\u6d3b\u52d5\u5099\u8a3b\u5df2\u66f4\u65b0',
     };
+  },
+
+  _getTeamMemberScopedDataKey(row) {
+    const candidates = [
+      row?.uid,
+      row?.user?.uid,
+      row?.user?._docId,
+      row?.key,
+    ];
+    for (const value of candidates) {
+      const safe = String(value || '').trim();
+      if (!safe) continue;
+      return safe.replace(/^uid:/, '').replace(/^doc:/, '');
+    }
+    return '';
+  },
+
+  async _saveTeamMemberScopedTeamData(teamId, fieldName, memberDataKey, nextRecord) {
+    const team = ApiService.getTeam(teamId);
+    if (!team || !fieldName || !memberDataKey) return false;
+    const currentMap = team[fieldName] && typeof team[fieldName] === 'object'
+      ? Object.assign({}, team[fieldName])
+      : {};
+    currentMap[String(memberDataKey)] = Object.assign({}, currentMap[String(memberDataKey)] || {}, nextRecord);
+    const updater = ApiService.updateTeamAwait || ApiService.updateTeam;
+    const result = updater.call(ApiService, teamId, { [fieldName]: currentMap });
+    if (result && typeof result.then === 'function') await result;
+    team[fieldName] = currentMap;
+    return true;
   },
 
   _promptTeamMemberNoteData(row, currentNote, kind) {
@@ -895,11 +926,12 @@ Object.assign(App, {
           notes: data.notes,
           updatedAt: new Date().toISOString(),
         };
-        if (row.user?._docId) {
-          const currentMap = row.user[config.dataKey] && typeof row.user[config.dataKey] === 'object'
-            ? Object.assign({}, row.user[config.dataKey])
-            : {};
-          currentMap[String(teamId)] = Object.assign({}, currentMap[String(teamId)] || {}, nextRecord);
+        if (row.user?._docId || row.uid) {
+          const memberDataKey = this._getTeamMemberScopedDataKey(row);
+          if (!memberDataKey) {
+            this.showToast('\u627e\u4e0d\u5230\u6210\u54e1\u8cc7\u6599');
+            return;
+          }
           if (typeof FirebaseService._ensureAuth === 'function') {
             const authed = await FirebaseService._ensureAuth();
             if (!authed) {
@@ -907,8 +939,7 @@ Object.assign(App, {
               return;
             }
           }
-          await FirebaseService.updateUser(row.user._docId, { [config.dataKey]: currentMap });
-          row.user[config.dataKey] = currentMap;
+          await this._saveTeamMemberScopedTeamData(teamId, config.teamDataKey, memberDataKey, nextRecord);
         } else if (row.studentId && row.student && typeof FirebaseService.updateEduStudent === 'function') {
           const currentMap = row.student[config.dataKey] && typeof row.student[config.dataKey] === 'object'
             ? Object.assign({}, row.student[config.dataKey])
@@ -978,11 +1009,12 @@ Object.assign(App, {
         notes: data.notes,
         updatedAt: new Date().toISOString(),
       };
-      if (row.user?._docId) {
-        const currentMap = row.user.teamMatchData && typeof row.user.teamMatchData === 'object'
-          ? Object.assign({}, row.user.teamMatchData)
-          : {};
-        currentMap[String(teamId)] = Object.assign({}, currentMap[String(teamId)] || {}, nextRecord);
+      if (row.user?._docId || row.uid) {
+        const memberDataKey = this._getTeamMemberScopedDataKey(row);
+        if (!memberDataKey) {
+          this.showToast('\u627e\u4e0d\u5230\u6210\u54e1\u8cc7\u6599');
+          return;
+        }
         if (typeof FirebaseService._ensureAuth === 'function') {
           const authed = await FirebaseService._ensureAuth();
           if (!authed) {
@@ -990,8 +1022,7 @@ Object.assign(App, {
             return;
           }
         }
-        await FirebaseService.updateUser(row.user._docId, { teamMatchData: currentMap });
-        row.user.teamMatchData = currentMap;
+        await this._saveTeamMemberScopedTeamData(teamId, 'memberMatchData', memberDataKey, nextRecord);
       } else if (row.studentId && row.student && typeof FirebaseService.updateEduStudent === 'function') {
         const currentMap = row.student.teamMatchData && typeof row.student.teamMatchData === 'object'
           ? Object.assign({}, row.student.teamMatchData)

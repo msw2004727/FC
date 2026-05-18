@@ -2390,6 +2390,42 @@ describe("/teams/{teamId}", () => {
     await assertFails(updateDoc(doc(user(), "teams", "teamA"), { feed: [] }));
   });
 
+  test("update: club staff can update club-scoped member data fields only", async () => {
+    await seedDoc("teams", "team_member_data", {
+      id: "team_member_data",
+      name: "Member Data Team",
+      captainUid: "uidA",
+      creatorUid: "uidA",
+      ownerUid: "uidA",
+      leaderUids: ["uidLeader"],
+      coachUids: ["uidCoach"],
+      memberMatchData: {},
+      memberActivityData: {},
+    });
+
+    await assertFails(
+      updateDoc(doc(user(), "teams", "team_member_data"), {
+        memberMatchData: { uidB: { jerseyNumber: "10", position: "ST", notes: "blocked" } },
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(coach(), "teams", "team_member_data"), {
+        memberMatchData: { uidB: { jerseyNumber: "10", position: "ST", notes: "starter" } },
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(leader(), "teams", "team_member_data"), {
+        memberActivityData: { uidB: { notes: "attends weekends" } },
+      })
+    );
+    await assertFails(
+      updateDoc(doc(coach(), "teams", "team_member_data"), {
+        name: "Coach renamed club",
+        memberCourseData: { uidB: { notes: "not allowed with root edit" } },
+      })
+    );
+  });
+
   test("delete (current): owner or admin/superAdmin", async () => {
     await assertFails(deleteDoc(doc(guest(), "teams", "teamA")));
 

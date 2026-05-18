@@ -1256,9 +1256,32 @@ Object.assign(App, {
     return text;
   },
 
+  _readTeamDetailMemberData(t, row, fieldNames) {
+    if (!t || !row || !Array.isArray(fieldNames)) return {};
+    const memberKeys = [
+      row.uid,
+      row.user?.uid,
+      row.user?._docId,
+      row.key,
+    ].map(value => String(value || '').trim())
+      .filter(Boolean)
+      .map(value => value.replace(/^uid:/, '').replace(/^doc:/, ''));
+    for (const fieldName of fieldNames) {
+      const map = t[fieldName];
+      if (!map || typeof map !== 'object') continue;
+      for (const key of memberKeys) {
+        const value = map[key];
+        if (value && typeof value === 'object') return value;
+      }
+    }
+    return {};
+  },
+
   _getTeamDetailMemberActivityData(t, row) {
     const teamId = String(t?.id || '');
-    const note = this._readTeamDetailScopedText(row.user, teamId, ['teamActivityData', 'clubActivityData'], ['notes', 'note', 'remark', 'activityNotes'])
+    const teamScoped = this._readTeamDetailMemberData(t, row, ['memberActivityData']);
+    const note = this._readTeamDetailTextValue(teamScoped, ['notes', 'note', 'remark', 'activityNotes'])
+      || this._readTeamDetailScopedText(row.user, teamId, ['teamActivityData', 'clubActivityData'], ['notes', 'note', 'remark', 'activityNotes'])
       || this._readTeamDetailScopedText(row.student, teamId, ['teamActivityData', 'clubActivityData'], ['notes', 'note', 'remark', 'activityNotes'])
       || this._readTeamDetailTextValue(row.user, ['activityNotes', 'activityNote', 'teamActivityNotes'])
       || this._readTeamDetailTextValue(row.student, ['activityNotes', 'activityNote', 'teamActivityNotes']);
@@ -1271,7 +1294,9 @@ Object.assign(App, {
   _getTeamDetailMemberCourseData(t, row) {
     const teamId = String(t?.id || '');
     const source = row.student || row.user || {};
+    const teamScoped = this._readTeamDetailMemberData(t, row, ['memberCourseData']);
     const group = this._readTeamDetailTextValue(source, ['groupNames', 'groupName', 'group', 'className', 'courseGroup'])
+      || this._readTeamDetailTextValue(teamScoped, ['groupName', 'group', 'className'])
       || this._readTeamDetailScopedText(row.user, teamId, ['teamCourseData', 'clubCourseData'], ['groupName', 'group', 'className'])
       || '-';
     const payment = source.paidAt
@@ -1279,7 +1304,8 @@ Object.assign(App, {
       : this._formatTeamDetailPaymentStatus(
           source.paymentStatus ?? source.feeStatus ?? source.tuitionStatus ?? source.paid ?? source.feePaid
         );
-    const note = this._readTeamDetailScopedText(row.user, teamId, ['teamCourseData', 'clubCourseData'], ['notes', 'note', 'remark', 'courseNotes'])
+    const note = this._readTeamDetailTextValue(teamScoped, ['notes', 'note', 'remark', 'courseNotes'])
+      || this._readTeamDetailScopedText(row.user, teamId, ['teamCourseData', 'clubCourseData'], ['notes', 'note', 'remark', 'courseNotes'])
       || this._readTeamDetailScopedText(row.student, teamId, ['teamCourseData', 'clubCourseData'], ['notes', 'note', 'remark', 'courseNotes'])
       || this._readTeamDetailTextValue(source, ['coachNotes', 'courseNotes', 'courseNote', 'notes'])
       || '-';
@@ -1293,9 +1319,10 @@ Object.assign(App, {
 
   _getTeamDetailMemberMatchData(t, row) {
     const teamId = String(t?.id || '');
+    const teamScoped = this._readTeamDetailMemberData(t, row, ['memberMatchData']);
     const userScoped = this._readTeamDetailScopedObject(row.user, teamId, ['teamMatchData', 'clubMatchData', 'matchDataByTeam', 'teamMemberMatchData']) || {};
     const studentScoped = this._readTeamDetailScopedObject(row.student, teamId, ['teamMatchData', 'clubMatchData', 'matchDataByTeam', 'teamMemberMatchData']) || {};
-    const source = Object.assign({}, row.student || {}, row.user || {}, studentScoped, userScoped);
+    const source = Object.assign({}, row.student || {}, row.user || {}, studentScoped, userScoped, teamScoped);
     return {
       count: row.matchCount || 0,
       jerseyNumber: this._readTeamDetailTextValue(source, ['jerseyNumber', 'jerseyNo', 'shirtNumber', 'number']) || '-',

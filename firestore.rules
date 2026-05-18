@@ -1216,7 +1216,11 @@ service cloud.firestore {
 
       function isTeamStaffFieldsOnly() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
-        return changed.hasOnly(['members', 'feed', 'coaches', 'updatedAt']);
+        return changed.hasOnly([
+          'members', 'feed', 'coaches',
+          'memberActivityData', 'memberCourseData', 'memberMatchData',
+          'updatedAt'
+        ]);
       }
 
       function canManageAnyTeam() {
