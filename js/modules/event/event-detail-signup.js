@@ -595,10 +595,10 @@ Object.assign(App, {
     if (!this._isEventEarlyBirdWindow?.(eventRecord)) return '';
     const eventId = escapeHTML(eventRecord.id || eventRecord._docId || '');
     const cost = this._getEventEarlyBirdCost(eventRecord);
-    const disabledStyle = 'background:#64748b;color:#fff;padding:.63rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.72';
+    const disabledClass = 'event-early-bird-btn event-early-bird-btn-disabled';
     if (opts.isMainFull) {
       return '<div class="event-early-bird-cta">'
-        + '<button style="' + disabledStyle + '" disabled>早鳥名額已滿</button>'
+        + '<button class="' + disabledClass + '" disabled>早鳥名額已滿</button>'
         + '<div class="event-early-bird-subtext">正式開放後可依活動狀態候補報名</div>'
         + '</div>';
     }
@@ -611,7 +611,7 @@ Object.assign(App, {
     const balance = this._getCurrentUserExpBalance();
     if (balance < cost) {
       return '<div class="event-early-bird-cta">'
-        + '<button style="' + disabledStyle + '" disabled>積分不足 · 需 ' + cost + ' 分</button>'
+        + '<button class="' + disabledClass + '" disabled>積分不足 · 需 ' + cost + ' 分</button>'
         + '<div class="event-early-bird-subtext">目前積分不足，可等正式開放後報名</div>'
         + '</div>';
     }

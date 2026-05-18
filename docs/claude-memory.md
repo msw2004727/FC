@@ -2882,3 +2882,9 @@
 - **Issue**: Early bird registration was already controlled by `user.activity.addons_use`, but the user activity capability catalog and permission info copy did not explicitly mention early bird, so operators could miss that the second user permission set covers this switch.
 - **Fix**: Updated the `user.activity.addons_use` description and user-admin info dialog to list social links and early bird registration as advanced add-ons. Added unit assertions so the wording and Rules gating stay tied together.
 - **Validation**: Ran targeted unit tests for early bird and add-on wording after the update.
+
+### 2026-05-18 Early Bird Disabled CTA Width [bugfix]
+- **Issue**: The early-bird insufficient-points CTA rendered as a short content-width pill instead of filling the action row.
+- **Cause**: Disabled early-bird branches used inline styles and skipped the shared `.event-early-bird-btn` width and min-height rules.
+- **Fix**: Reused the early-bird button class for disabled CTA states and added a disabled modifier style for the grey unavailable state.
+- **Validation**: Added source assertions for the disabled button class and CSS disabled rules.

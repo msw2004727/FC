@@ -765,6 +765,7 @@
   width: 100%;
 }
 .event-early-bird-btn {
+  display: block;
   width: 100%;
   min-height: 46px;
   padding: .63rem 1.2rem;
@@ -775,6 +776,12 @@
   font-size: .85rem;
   font-weight: 700;
   cursor: pointer;
+}
+.event-early-bird-btn:disabled,
+.event-early-bird-btn-disabled {
+  background: #64748b;
+  cursor: not-allowed;
+  opacity: .72;
 }
 .event-early-bird-btn:active {
   transform: translateY(1px);
