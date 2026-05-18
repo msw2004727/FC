@@ -23,4 +23,16 @@ describe('activity advanced add-on wording', () => {
     expect(rolesSource).toContain('進階功能（加值服務）');
     expect(rolesSource).toContain('社群連結、早鳥報名與 GPS 地圖座標功能');
   });
+
+  test('places advanced features between registration opening and capacity', () => {
+    const activityHtml = readProjectFile('pages/activity.html');
+
+    const regOpenIndex = activityHtml.indexOf("App._showCeInfo('regOpen')");
+    const advancedIndex = activityHtml.indexOf('id="ce-value-section"');
+    const maxIndex = activityHtml.indexOf("App._showCeInfo('max')");
+
+    expect(regOpenIndex).toBeGreaterThanOrEqual(0);
+    expect(advancedIndex).toBeGreaterThan(regOpenIndex);
+    expect(maxIndex).toBeGreaterThan(advancedIndex);
+  });
 });

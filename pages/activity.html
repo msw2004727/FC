@@ -382,15 +382,6 @@
           <div id="ce-reg-open-hint" class="ce-reg-open-hint">關閉時建立後立即開放報名；開啟後可指定開放日期與時間。</div>
           <div id="ce-reg-open-early-bird-hint" class="ce-early-bird-reg-hint">如需在正式開放前提供早鳥報名，請到「進階功能」開啟早鳥報名並設定消耗積分。</div>
         </div>
-        <div class="ce-row">
-          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('max')" title="說明">?</button><label>人數上限</label> <span class="required">*必填</span></div>
-          <input type="number" id="ce-max" placeholder="20" value="20">
-        </div>
-        <input type="hidden" id="ce-waitlist" value="0">
-        <div class="ce-row">
-          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('age')" title="說明">?</button><label>年齡限制</label>（歲以上，0 為不限）</div>
-          <input type="number" id="ce-min-age" placeholder="0" value="0" min="0">
-        </div>
         <details class="ce-value-section" id="ce-value-section" aria-labelledby="ce-value-section-title">
           <summary class="ce-value-section-title" id="ce-value-section-title">進階功能</summary>
           <div class="ce-value-section-body">
@@ -596,6 +587,16 @@
             </div>
           </div>
         </details>
+        <div class="ce-row">
+          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('max')" title="說明">?</button><label>人數上限</label> <span class="required">*必填</span></div>
+          <input type="number" id="ce-max" placeholder="20" value="20">
+        </div>
+        <input type="hidden" id="ce-waitlist" value="0">
+        <div class="ce-row">
+          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('age')" title="說明">?</button><label>年齡限制</label>（歲以上，0 為不限）</div>
+          <input type="number" id="ce-min-age" placeholder="0" value="0" min="0">
+        </div>
+
         <div class="ce-row">
           <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('delegate')" title="說明">?</button><label>委託人</label>（最多 3 人）</div>
           <div class="ce-delegate-wrap">
