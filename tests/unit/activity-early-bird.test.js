@@ -62,6 +62,7 @@ describe('activity early bird registration add-on', () => {
     expect(signupSource).toContain('目前積分不足，可等正式開放後報名');
     expect(signupSource).toContain('若活動取消，系統會退回積分；若你自行取消報名，已扣除的早鳥積分不會退回。');
     expect(signupSource).toContain('event-early-bird-btn event-early-bird-btn-disabled');
+    expect(signupSource).toContain('shouldUseServerRegistrationForEarlyBird');
     expect(signupSource).toContain('earlyBirdAccepted = true');
     expect(signupSource).toContain('earlyBirdExpectedCost = earlyBirdCost');
     expect(activityCss).toContain('.event-early-bird-btn');

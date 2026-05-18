@@ -872,7 +872,9 @@ Object.assign(App, {
     }
 
     if (isEarlyBirdSignup) {
-      const useServerRegistration = typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration();
+      const useServerRegistration = typeof shouldUseServerRegistrationForEarlyBird === 'function'
+        ? shouldUseServerRegistrationForEarlyBird()
+        : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration());
       if (!useServerRegistration) {
         this.showToast('早鳥報名需使用新版報名系統，請稍後再試');
         return;
@@ -937,7 +939,9 @@ Object.assign(App, {
         setTimeout(() => reject(new Error('報名操作逾時，請重新整理後再試')), 15000));
 
       let result;
-      const useCF = typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration();
+      const useCF = isEarlyBirdSignup && typeof shouldUseServerRegistrationForEarlyBird === 'function'
+        ? shouldUseServerRegistrationForEarlyBird()
+        : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration());
       signupUseCF = useCF;
       if (useCF) {
         signupRequestId = `${userId}_${id}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;

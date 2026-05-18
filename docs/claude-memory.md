@@ -2888,3 +2888,9 @@
 - **Cause**: Disabled early-bird branches used inline styles and skipped the shared `.event-early-bird-btn` width and min-height rules.
 - **Fix**: Reused the early-bird button class for disabled CTA states and added a disabled modifier style for the grey unavailable state.
 - **Validation**: Added source assertions for the disabled button class and CSS disabled rules.
+
+### 2026-05-18 Early Bird Confirm Cancel Rollout Gate [bugfix]
+- **Issue**: After opening the early-bird confirmation modal and cancelling, a second tap could show "早鳥報名需使用新版報名系統，請稍後再試".
+- **Cause**: The first tap could happen before feature flags were cached, so production defaulted to the Cloud Function path and showed the confirmation. While the modal was open, the general registration rollout flag could load and return false, causing the second early-bird attempt to be blocked even though early bird requires the server path.
+- **Fix**: Added an early-bird-specific server-registration helper that forces the Cloud Function path in production, matching the server-only requirement for early-bird charging.
+- **Validation**: Added helper coverage for production and non-production behavior plus early-bird source assertions.
