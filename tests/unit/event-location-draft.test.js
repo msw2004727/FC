@@ -217,7 +217,7 @@ describe('event location draft state', () => {
     });
 
     await App.openEventLocationPickerFor('ce');
-    expect(App.showToast).toHaveBeenCalledWith('請先開啟GPS功能');
+    expect(App.showToast).toHaveBeenCalledWith('請先至【進階功能】開啟GPS功能');
   });
 
   test('stores GPS state with confirmed map payload when the GPS toggle exists', () => {

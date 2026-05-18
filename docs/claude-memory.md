@@ -2906,3 +2906,8 @@
 - **Cause**: `renderNews()` cleared the news list content and hid the title/tabs/divider, but left `#news-card-list` displayed; its padding, border, background, and shadow rendered as a blank strip.
 - **Fix**: Hide the news card-list container whenever news is disabled or has no articles, and restore it only when visible articles are rendered.
 - **Validation**: Added unit coverage for disabled news hiding the container and visible articles restoring it.
+
+### 2026-05-18 Activity GPS Help Copy [bugfix]
+- **Issue**: The newly promoted GPS advanced add-on had no field help button, and the disabled map-coordinate toast did not point users back to the advanced feature section.
+- **Fix**: Added the standard create-activity help button and GPS help modal copy. Updated the disabled map-coordinate toast to `請先至【進階功能】開啟GPS功能` and synced architecture notes/tests.
+- **Validation**: Ran targeted activity GPS tests and full unit tests. Browser plugin verification was attempted, but the in-app browser URL policy blocked both localhost and file URL loading.

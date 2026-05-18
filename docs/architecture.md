@@ -466,7 +466,7 @@ current = realCurrent + sum(remainingSlots)
 - 活動範本
 - 外部活動轉換
 - 場地地圖定位草稿與手動/Google geocode picker（`event-location-draft.js` / `event-location-picker.js`）
-- GPS 進階開關控制自建活動的「設定地圖座標」可用狀態；未開啟時按鈕反灰並提示先開啟 GPS，送出時會清除 map marker 欄位。
+- GPS 進階開關控制自建活動的「設定地圖座標」可用狀態；未開啟時按鈕反灰並提示「請先至【進階功能】開啟GPS功能」，送出時會清除 map marker 欄位。
 - input history
 
 「進階功能」區塊預設收合，琥珀色底；其中社群連結可儲存最多 5 個 URL，前端依網域判斷 LINE、Facebook、Instagram、YouTube 等平台並在活動詳情頁主辦/委託資訊下方顯示圓形連結按鈕。部分預留開關目前無實際作用。

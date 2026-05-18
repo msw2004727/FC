@@ -266,7 +266,7 @@
       const input = this._getEventLocationInput(formPrefix);
       const locationText = normalizeLocationText(input?.value || '');
       if (!this._isEventLocationGpsEnabled(formPrefix)) {
-        this.showToast?.('請先開啟GPS功能');
+        this.showToast?.('請先至【進階功能】開啟GPS功能');
         return false;
       }
       if (!locationText) {
