@@ -3,6 +3,7 @@
   "include": [
     "/ops-report",
     "/ops-report.html",
+    "/runtime-config.json",
     "/event-share/*",
     "/team-share/*",
     "/activities",

@@ -33,6 +33,7 @@ const authAdmin = getAuth();
 
 const LINE_CHANNEL_ACCESS_TOKEN = defineSecret("LINE_CHANNEL_ACCESS_TOKEN");
 const NEWS_API_KEY = defineSecret("NEWS_API_KEY");
+const GOOGLE_MAPS_BROWSER_API_KEY = defineSecret("GOOGLE_MAPS_BROWSER_API_KEY");
 const VALID_ROLES = new Set([
   "user",
   "coach",
@@ -4532,6 +4533,51 @@ exports.teamShareOg = onRequest(
 // ═══════════════════════════════════════════════════════════════
 //  eventShareOg — 活動分享 OG 中繼頁（動態縮圖）
 // ═══════════════════════════════════════════════════════════════
+
+function setRuntimeConfigHeaders(req, res) {
+  const origin = String(req.get("origin") || "").trim();
+  if (
+    origin === "https://toosterx.com"
+    || origin === "https://www.toosterx.com"
+    || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+  ) {
+    res.set("Access-Control-Allow-Origin", origin);
+    res.set("Vary", "Origin");
+  }
+  res.set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
+  res.set("Content-Type", "application/json; charset=utf-8");
+  res.set("Cache-Control", "no-store, max-age=0");
+  res.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+}
+
+exports.runtimeConfig = onRequest(
+  {
+    region: "asia-east1",
+    timeoutSeconds: 10,
+    secrets: [GOOGLE_MAPS_BROWSER_API_KEY],
+  },
+  async (req, res) => {
+    setRuntimeConfigHeaders(req, res);
+
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+
+    if (!["GET", "HEAD"].includes(req.method)) {
+      res.set("Allow", "GET, HEAD, OPTIONS");
+      res.status(405).send(JSON.stringify({ error: "Method Not Allowed" }));
+      return;
+    }
+
+    const googleMapsBrowserApiKey = String(GOOGLE_MAPS_BROWSER_API_KEY.value() || "").trim();
+    res.status(200).send(JSON.stringify({
+      googleMapsBrowserApiKey,
+      googleMapsVersion: "quarterly",
+    }));
+  }
+);
 
 function sanitizeEventImageUrl(rawUrl) {
   if (typeof rawUrl !== "string") return DEFAULT_EVENT_SHARE_OG_IMAGE;

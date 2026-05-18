@@ -112,7 +112,9 @@ Object.assign(App, {
   async _ensureEventLocationGoogleMapsLoaded() {
     if (window.google?.maps?.Geocoder) return true;
     const cfg = typeof ACTIVITY_MAP_CONFIG !== 'undefined' ? ACTIVITY_MAP_CONFIG : {};
-    const apiKey = String(cfg.googleApiKey || '').trim();
+    const apiKey = typeof this._getActivityMapGoogleApiKey === 'function'
+      ? await this._getActivityMapGoogleApiKey()
+      : String(cfg.googleApiKey || '').trim();
     if (!apiKey) return false;
     if (this._eventLocationGooglePromise) return this._eventLocationGooglePromise;
     this._eventLocationGooglePromise = new Promise((resolve, reject) => {

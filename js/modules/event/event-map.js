@@ -298,9 +298,14 @@ Object.assign(App, {
     const stage = document.getElementById('activity-map-stage');
     if (!stage) return;
     const cfg = typeof ACTIVITY_MAP_CONFIG !== 'undefined' ? ACTIVITY_MAP_CONFIG : {};
-    if (cfg.googleApiKey && data.mapReady.length > 0) {
+    const apiKey = data.mapReady.length > 0
+      ? await (typeof this._getActivityMapGoogleApiKey === 'function'
+        ? this._getActivityMapGoogleApiKey()
+        : Promise.resolve(String(cfg.googleApiKey || '').trim()))
+      : '';
+    if (apiKey && data.mapReady.length > 0) {
       try {
-        await this._ensureGoogleMapsLoaded(cfg.googleApiKey);
+        await this._ensureGoogleMapsLoaded(apiKey);
         await this._waitForActivityMapLayout(stage);
         this._renderGoogleActivityMap(stage, data, cfg);
         return;

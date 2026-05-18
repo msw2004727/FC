@@ -6,7 +6,7 @@
      - Firebase Storage 圖片 → stale-while-revalidate（獨立快取）
    ================================================ */
 
-const CACHE_NAME       = 'sporthub-0.20260518k';
+const CACHE_NAME       = 'sporthub-0.20260518l';
 const IMAGE_CACHE_NAME = 'sporthub-images-v2';
 const MAX_IMAGE_CACHE  = 150;                         // 最多快取 150 張圖片
 const MAX_IMAGE_AGE_MS = 7 * 24 * 60 * 60 * 1000;    // 7 天過期
@@ -146,6 +146,21 @@ self.addEventListener('fetch', (event) => {
 
   // 只處理 GET
   if (event.request.method !== 'GET') return;
+
+  if (url.origin === location.origin && url.pathname === '/runtime-config.json') {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-store' }).catch(() =>
+        new Response('{}', {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Cache-Control': 'no-store, max-age=0',
+          },
+        })
+      )
+    );
+    return;
+  }
 
   // ── 1. Firebase Storage 圖片：Stale-While-Revalidate ──
   if (url.hostname === 'firebasestorage.googleapis.com') {

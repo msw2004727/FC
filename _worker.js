@@ -3,6 +3,8 @@ const EVENT_SHARE_PATH = "/event-share";
 const OG_FUNCTION_ORIGIN = "https://asia-east1-fc-football-6c8dc.cloudfunctions.net";
 const TEAM_SHARE_OG_PATH = "/teamShareOg";
 const EVENT_SHARE_OG_PATH = "/eventShareOg";
+const RUNTIME_CONFIG_PATH = "/runtime-config.json";
+const RUNTIME_CONFIG_FUNCTION_PATH = "/runtimeConfig";
 const EDGE_CACHE_TTL = 300; // 5 minutes
 const LIST_SPA_PATHS = new Set(["/activities", "/teams", "/tournaments", "/profile"]);
 const DETAIL_SPA_ROOTS = new Set(["events", "teams", "tournaments"]);
@@ -19,6 +21,10 @@ function isEventSharePath(pathname) {
 
 function isOpsReportPath(pathname) {
   return OPS_REPORT_PATHS.has(stripTrailingSlash(pathname));
+}
+
+function isRuntimeConfigPath(pathname) {
+  return stripTrailingSlash(pathname) === RUNTIME_CONFIG_PATH;
 }
 
 function buildTeamShareOgUrl(requestUrl) {
@@ -166,9 +172,40 @@ async function handleOpsReport(request, env) {
   return response;
 }
 
+async function handleRuntimeConfig(request) {
+  if (!["GET", "HEAD"].includes(request.method)) {
+    return new Response("Method Not Allowed", {
+      status: 405,
+      headers: { "Allow": "GET, HEAD" },
+    });
+  }
+
+  const target = new URL(OG_FUNCTION_ORIGIN);
+  target.pathname = RUNTIME_CONFIG_FUNCTION_PATH;
+  const upstream = await fetch(target.toString(), {
+    method: request.method,
+    headers: {
+      "Accept": "application/json",
+      "X-ToosterX-Edge": "runtime-config",
+    },
+    redirect: "follow",
+  }).catch(() => null);
+
+  const response = upstream && upstream.ok
+    ? new Response(upstream.body, upstream)
+    : new Response("{}", { status: 200 });
+  response.headers.set("Content-Type", "application/json; charset=utf-8");
+  response.headers.set("Cache-Control", "no-store, max-age=0");
+  response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+  return response;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (isRuntimeConfigPath(url.pathname)) {
+      return handleRuntimeConfig(request);
+    }
     if (isOpsReportPath(url.pathname)) {
       return handleOpsReport(request, env);
     }

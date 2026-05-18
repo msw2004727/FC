@@ -86,6 +86,66 @@
     };
   }
 
+  const runtimeConfigState = {
+    apiKey: '',
+    promise: null,
+  };
+
+  function readActivityMapConfig() {
+    return root.ACTIVITY_MAP_CONFIG && typeof root.ACTIVITY_MAP_CONFIG === 'object'
+      ? root.ACTIVITY_MAP_CONFIG
+      : {};
+  }
+
+  function getConfiguredGoogleApiKey() {
+    const cfg = readActivityMapConfig();
+    const direct = String(
+      cfg.googleApiKey
+      || root.__SPORTHUB_GOOGLE_MAPS_API_KEY__
+      || ''
+    ).trim();
+    if (direct) return direct;
+    return runtimeConfigState.apiKey;
+  }
+
+  async function getActivityMapGoogleApiKey() {
+    const direct = getConfiguredGoogleApiKey();
+    if (direct) return direct;
+
+    const cfg = readActivityMapConfig();
+    const runtimeConfigUrl = String(cfg.runtimeConfigUrl || '/runtime-config.json').trim();
+    if (!runtimeConfigUrl || typeof root.fetch !== 'function') return '';
+
+    if (!runtimeConfigState.promise) {
+      runtimeConfigState.promise = root.fetch(runtimeConfigUrl, {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      })
+        .then(response => response && response.ok ? response.json() : null)
+        .then(data => {
+          const key = String(data?.googleMapsBrowserApiKey || '').trim();
+          const version = String(data?.googleMapsVersion || '').trim();
+          if (key) {
+            runtimeConfigState.apiKey = key;
+            root.__SPORTHUB_GOOGLE_MAPS_API_KEY__ = key;
+            const latestCfg = readActivityMapConfig();
+            latestCfg.googleApiKey = key;
+            if (version) latestCfg.googleMapsVersion = version;
+          }
+          return runtimeConfigState.apiKey || '';
+        })
+        .catch(err => {
+          console.warn('[ActivityMap] runtime config unavailable:', err);
+          return '';
+        })
+        .finally(() => {
+          runtimeConfigState.promise = null;
+        });
+    }
+
+    return runtimeConfigState.promise;
+  }
+
   root.ActivityMapGeo = {
     toFiniteNumber,
     normalizePoint,
@@ -94,6 +154,7 @@
     formatDistance,
     buildBounds,
     projectPoint,
+    getActivityMapGoogleApiKey,
   };
 
   if (root.App) {
@@ -104,6 +165,7 @@
       _activityMapFormatDistance: formatDistance,
       _activityMapBuildBounds: buildBounds,
       _activityMapProjectPoint: projectPoint,
+      _getActivityMapGoogleApiKey: getActivityMapGoogleApiKey,
     });
   }
 })(window);
