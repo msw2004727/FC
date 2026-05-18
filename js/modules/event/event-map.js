@@ -19,6 +19,10 @@ Object.assign(App, {
         locationStatus: 'idle',
         permissionState: 'unknown',
         radiusKm: this._getActivityMapStoredRadiusKm(),
+        sportKey: this._getActivityMapStoredSportKey(),
+        dateMode: this._getActivityMapStoredDateFilter().mode,
+        dateStart: this._getActivityMapStoredDateFilter().start,
+        dateEnd: this._getActivityMapStoredDateFilter().end,
         openedAt: 0,
       };
     }
@@ -120,6 +124,172 @@ Object.assign(App, {
     return next;
   },
 
+  _activityMapSportChoiceKey() {
+    return 'toosterx.activityMap.sportKey.v1';
+  },
+
+  _activityMapDateChoiceKey() {
+    return 'toosterx.activityMap.dateFilter.v1';
+  },
+
+  _getActivityMapSportOptions() {
+    const rawOptions = (typeof EVENT_SPORT_OPTIONS !== 'undefined' && Array.isArray(EVENT_SPORT_OPTIONS))
+      ? EVENT_SPORT_OPTIONS
+      : [{ key: 'football', label: '足球' }];
+    const seen = new Set(['all']);
+    const options = [{ key: 'all', label: '全部運動' }];
+    rawOptions.forEach(item => {
+      const key = String(item?.key || '').trim();
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      options.push({ key, label: String(item?.label || key) });
+    });
+    return options;
+  },
+
+  _normalizeActivityMapSportKey(value) {
+    const raw = String(value || '').trim();
+    if (!raw || raw === 'all') return 'all';
+    const safe = typeof getSportKeySafe === 'function' ? getSportKeySafe(raw) : raw;
+    return this._getActivityMapSportOptions().some(item => item.key === safe) ? safe : 'all';
+  },
+
+  _getActivityMapDefaultSportKey() {
+    const active = this._activeSport || (() => {
+      try { return localStorage.getItem('sporthub_active_sport') || ''; } catch (_) { return ''; }
+    })();
+    return this._normalizeActivityMapSportKey(active);
+  },
+
+  _getActivityMapStoredSportKey() {
+    try {
+      const stored = localStorage.getItem(this._activityMapSportChoiceKey());
+      if (stored) return this._normalizeActivityMapSportKey(stored);
+    } catch (_) {}
+    return this._getActivityMapDefaultSportKey();
+  },
+
+  _setActivityMapStoredSportKey(sportKey) {
+    const safe = this._normalizeActivityMapSportKey(sportKey);
+    try { localStorage.setItem(this._activityMapSportChoiceKey(), safe); } catch (_) {}
+    return safe;
+  },
+
+  _normalizeActivityMapDateMode(value) {
+    const raw = String(value || '').trim();
+    return raw === '7' || raw === '15' || raw === '30' || raw === 'custom' ? raw : 'all';
+  },
+
+  _normalizeActivityMapDateInput(value) {
+    const raw = String(value || '').trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : '';
+  },
+
+  _getActivityMapStoredDateFilter() {
+    try {
+      const raw = localStorage.getItem(this._activityMapDateChoiceKey());
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          mode: this._normalizeActivityMapDateMode(parsed?.mode),
+          start: this._normalizeActivityMapDateInput(parsed?.start),
+          end: this._normalizeActivityMapDateInput(parsed?.end),
+        };
+      }
+    } catch (_) {}
+    return { mode: 'all', start: '', end: '' };
+  },
+
+  _setActivityMapStoredDateFilter(filter) {
+    const normalized = {
+      mode: this._normalizeActivityMapDateMode(filter?.mode),
+      start: this._normalizeActivityMapDateInput(filter?.start),
+      end: this._normalizeActivityMapDateInput(filter?.end),
+    };
+    try { localStorage.setItem(this._activityMapDateChoiceKey(), JSON.stringify(normalized)); } catch (_) {}
+    return normalized;
+  },
+
+  _renderActivityMapSportOptions() {
+    const state = this._ensureActivityMapState();
+    const current = this._normalizeActivityMapSportKey(state.sportKey);
+    return this._getActivityMapSportOptions().map(item => {
+      const selected = item.key === current ? ' selected' : '';
+      return `<option value="${escapeHTML(item.key)}"${selected}>${escapeHTML(item.label)}</option>`;
+    }).join('');
+  },
+
+  _renderActivityMapDateModeOptions() {
+    const state = this._ensureActivityMapState();
+    const current = this._normalizeActivityMapDateMode(state.dateMode);
+    const options = [
+      { value: 'all', label: '全部未結束' },
+      { value: '7', label: '7 日內' },
+      { value: '15', label: '15 日內' },
+      { value: '30', label: '30 日內' },
+      { value: 'custom', label: '自訂區間' },
+    ];
+    return options.map(item => {
+      const selected = item.value === current ? ' selected' : '';
+      return `<option value="${escapeHTML(item.value)}"${selected}>${escapeHTML(item.label)}</option>`;
+    }).join('');
+  },
+
+  _updateActivityMapFilterControls() {
+    const state = this._ensureActivityMapState();
+    const sportSelect = document.getElementById('activity-map-sport-filter');
+    const dateSelect = document.getElementById('activity-map-date-mode');
+    const custom = document.getElementById('activity-map-custom-dates');
+    const start = document.getElementById('activity-map-date-start');
+    const end = document.getElementById('activity-map-date-end');
+    if (sportSelect) sportSelect.innerHTML = this._renderActivityMapSportOptions();
+    if (dateSelect) dateSelect.innerHTML = this._renderActivityMapDateModeOptions();
+    if (custom) custom.hidden = this._normalizeActivityMapDateMode(state.dateMode) !== 'custom';
+    if (start) start.value = this._normalizeActivityMapDateInput(state.dateStart);
+    if (end) end.value = this._normalizeActivityMapDateInput(state.dateEnd);
+  },
+
+  setActivityMapSport(sportKey) {
+    const state = this._ensureActivityMapState();
+    state.sportKey = this._setActivityMapStoredSportKey(sportKey);
+    this._updateActivityMapFilterControls();
+    Promise.resolve(this._renderActivityMap?.()).catch(err => console.warn('[ActivityMap] sport render failed:', err));
+    return state.sportKey;
+  },
+
+  setActivityMapDateMode(mode) {
+    const state = this._ensureActivityMapState();
+    const saved = this._setActivityMapStoredDateFilter({
+      mode,
+      start: state.dateStart,
+      end: state.dateEnd,
+    });
+    state.dateMode = saved.mode;
+    state.dateStart = saved.start;
+    state.dateEnd = saved.end;
+    this._updateActivityMapFilterControls();
+    Promise.resolve(this._renderActivityMap?.()).catch(err => console.warn('[ActivityMap] date mode render failed:', err));
+    return state.dateMode;
+  },
+
+  setActivityMapCustomDate(which, value) {
+    const state = this._ensureActivityMapState();
+    const normalized = this._normalizeActivityMapDateInput(value);
+    if (which === 'start') state.dateStart = normalized;
+    if (which === 'end') state.dateEnd = normalized;
+    const saved = this._setActivityMapStoredDateFilter({
+      mode: state.dateMode,
+      start: state.dateStart,
+      end: state.dateEnd,
+    });
+    state.dateStart = saved.start;
+    state.dateEnd = saved.end;
+    this._updateActivityMapFilterControls();
+    if (state.dateMode === 'custom') {
+      Promise.resolve(this._renderActivityMap?.()).catch(err => console.warn('[ActivityMap] custom date render failed:', err));
+    }
+  },
+
   async showActivityMap() {
     if (!this._isActivityMapFeatureEnabled?.()) {
       this.showToast?.('附近活動地圖尚未開啟');
@@ -131,6 +301,7 @@ Object.assign(App, {
     const root = this._ensureActivityMapRoot();
     root.classList.add('open');
     document.body.classList.add('activity-map-open');
+    this._updateActivityMapFilterControls();
     this._renderActivityMapLoading('準備附近活動...');
     await this._syncActivityMapPermissionState();
 
@@ -166,7 +337,8 @@ Object.assign(App, {
 
   _ensureActivityMapRoot() {
     let root = document.getElementById('activity-map-overlay');
-    if (root) return root;
+    if (root && root.querySelector('#activity-map-sport-filter')) return root;
+    if (root) root.remove();
     root = document.createElement('div');
     root.id = 'activity-map-overlay';
     root.className = 'activity-map-overlay';
@@ -188,6 +360,21 @@ Object.assign(App, {
             <span class="activity-map-radius-label">搜尋範圍</span>
             <span id="activity-map-radius-options" class="activity-map-radius-options"></span>
           </div>
+          <div class="activity-map-filter-row">
+            <label class="activity-map-filter-field">
+              <span>運動</span>
+              <select id="activity-map-sport-filter" aria-label="運動篩選" onchange="App.setActivityMapSport(this.value)"></select>
+            </label>
+            <label class="activity-map-filter-field">
+              <span>日期</span>
+              <select id="activity-map-date-mode" aria-label="日期範圍" onchange="App.setActivityMapDateMode(this.value)"></select>
+            </label>
+            <div class="activity-map-custom-dates" id="activity-map-custom-dates" hidden>
+              <input id="activity-map-date-start" type="date" aria-label="開始日期" onchange="App.setActivityMapCustomDate('start', this.value)">
+              <span>至</span>
+              <input id="activity-map-date-end" type="date" aria-label="結束日期" onchange="App.setActivityMapCustomDate('end', this.value)">
+            </div>
+          </div>
         </div>
         <div class="activity-map-stage" id="activity-map-stage"></div>
         <div class="activity-map-sheet">
@@ -203,6 +390,7 @@ Object.assign(App, {
     });
     document.body.appendChild(root);
     this._updateActivityMapRadiusControls();
+    this._updateActivityMapFilterControls();
     this._updateActivityMapLocationButton();
     return root;
   },
@@ -401,11 +589,72 @@ Object.assign(App, {
     });
   },
 
+  _getActivityMapEventSportKey(event) {
+    const raw = event?.sportTag || event?.sport || '';
+    const safe = typeof getSportKeySafe === 'function' ? getSportKeySafe(raw) : String(raw || '').trim();
+    return safe || 'football';
+  },
+
+  _filterActivityMapBySport(events) {
+    const state = this._ensureActivityMapState();
+    const sportKey = this._normalizeActivityMapSportKey(state.sportKey);
+    state.sportKey = sportKey;
+    if (sportKey === 'all') return events;
+    return events.filter(event => this._getActivityMapEventSportKey(event) === sportKey);
+  },
+
+  _activityMapDateInputToTime(value, endOfDay = false) {
+    const dateText = this._normalizeActivityMapDateInput(value);
+    if (!dateText) return null;
+    const date = new Date(`${dateText}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}`);
+    const time = date.getTime();
+    return Number.isFinite(time) ? time : null;
+  },
+
+  _getActivityMapDateRange() {
+    const state = this._ensureActivityMapState();
+    const mode = this._normalizeActivityMapDateMode(state.dateMode);
+    state.dateMode = mode;
+    if (mode === 'all') return null;
+
+    if (mode === 'custom') {
+      const startMs = this._activityMapDateInputToTime(state.dateStart, false);
+      const endMs = this._activityMapDateInputToTime(state.dateEnd, true);
+      if (startMs === null && endMs === null) return null;
+      if (startMs !== null && endMs !== null && startMs > endMs) {
+        return { startMs: endMs, endMs: startMs };
+      }
+      return { startMs, endMs };
+    }
+
+    const days = Number(mode);
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(start.getDate() + Math.max(1, days) - 1);
+    end.setHours(23, 59, 59, 999);
+    return { startMs: start.getTime(), endMs: end.getTime() };
+  },
+
+  _filterActivityMapByDate(events) {
+    const range = this._getActivityMapDateRange();
+    if (!range) return events;
+    return events.filter(event => {
+      const date = this._parseEventStartDate?.(event?.date);
+      const time = date instanceof Date ? date.getTime() : NaN;
+      if (!Number.isFinite(time)) return false;
+      if (range.startMs !== null && time < range.startMs) return false;
+      if (range.endMs !== null && time > range.endMs) return false;
+      return true;
+    });
+  },
+
   _getActivityMapCandidateEvents() {
     let events = typeof this._getVisibleEvents === 'function'
       ? this._getVisibleEvents()
       : (ApiService.getEvents?.() || []);
-    events = this._filterBySportTag ? this._filterBySportTag(events) : events;
+    events = this._filterActivityMapBySport(events);
+    events = this._filterActivityMapByDate(events);
 
     const filterType = document.getElementById('activity-filter-type')?.value || '';
     const filterKw = (document.getElementById('activity-filter-keyword')?.value || '').trim().toLowerCase();

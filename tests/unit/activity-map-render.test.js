@@ -12,8 +12,21 @@ function readModule(relPath) {
 function loadActivityMapModule() {
   window.App = {};
   window.escapeHTML = value => String(value ?? '');
+  window.EVENT_SPORT_OPTIONS = [
+    { key: 'football', label: '足球' },
+    { key: 'basketball', label: '籃球' },
+    { key: 'running', label: '跑步' },
+  ];
+  window.getSportKeySafe = key => {
+    const raw = String(key || '').trim();
+    return window.EVENT_SPORT_OPTIONS.some(item => item.key === raw) ? raw : '';
+  };
+  window.getSportLabelByKey = key => window.EVENT_SPORT_OPTIONS.find(item => item.key === key)?.label || '足球';
   window.eval('var App = window.App;');
   window.eval('var escapeHTML = window.escapeHTML;');
+  window.eval('var EVENT_SPORT_OPTIONS = window.EVENT_SPORT_OPTIONS;');
+  window.eval('var getSportKeySafe = window.getSportKeySafe;');
+  window.eval('var getSportLabelByKey = window.getSportLabelByKey;');
   window.eval(readModule('js/modules/event/event-map.js'));
   return window.App;
 }
@@ -182,6 +195,14 @@ describe('activity map Google render hardening', () => {
     expect(tileImageRule).toContain('opacity:1!important');
     expect(tileImageRule).toContain('transition:none!important');
   });
+
+  test('nearby activity list is constrained to an internal scroll area', () => {
+    const css = readModule('css/activity.css');
+
+    expect(css).toContain('.activity-map-panel{width:100%;max-width:560px;height:100%;min-height:0');
+    expect(css).toContain('.activity-map-sheet{flex:0 1 min(42vh,360px);min-height:128px;max-height:min(42vh,360px)');
+    expect(css).toContain('.activity-map-list{flex:1 1 auto;min-height:0;overflow:auto');
+  });
 });
 
 describe('activity map location and radius controls', () => {
@@ -220,6 +241,22 @@ describe('activity map location and radius controls', () => {
     expect(document.querySelector('.activity-map-radius-btn.active')?.textContent).toBe('20km');
   });
 
+  test('renders sport and date filters in the map modal', () => {
+    const App = loadActivityMapModule();
+    App._renderActivityMap = jest.fn().mockResolvedValue(undefined);
+    App._ensureActivityMapRoot();
+
+    const sportOptions = Array.from(document.querySelectorAll('#activity-map-sport-filter option')).map(option => option.textContent);
+    const dateOptions = Array.from(document.querySelectorAll('#activity-map-date-mode option')).map(option => option.value);
+    expect(sportOptions).toEqual(['全部運動', '足球', '籃球', '跑步']);
+    expect(dateOptions).toEqual(['all', '7', '15', '30', 'custom']);
+    expect(document.getElementById('activity-map-custom-dates').hidden).toBe(true);
+
+    App.setActivityMapDateMode('custom');
+
+    expect(document.getElementById('activity-map-custom-dates').hidden).toBe(false);
+  });
+
   test('filters positioned activities by the selected radius when location is available', () => {
     const App = loadActivityMapModule();
     App._getVisibleEvents = () => [
@@ -235,6 +272,33 @@ describe('activity map location and radius controls', () => {
     App._ensureActivityMapState().radiusKm = 30;
 
     expect(App._getActivityMapData().mapReady.map(item => item.event.id)).toEqual(['near', 'far']);
+  });
+
+  test('filters map candidates by modal sport and date range', () => {
+    const App = loadActivityMapModule();
+    const datePlus = days => {
+      const date = new Date();
+      date.setHours(10, 0, 0, 0);
+      date.setDate(date.getDate() + days);
+      return date.toISOString();
+    };
+    App._getVisibleEvents = () => [
+      { id: 'football-soon', status: 'open', sportTag: 'football', date: datePlus(2), point: { lat: 1, lng: 1 } },
+      { id: 'basket-soon', status: 'open', sportTag: 'basketball', date: datePlus(3), point: { lat: 2, lng: 2 } },
+      { id: 'basket-later', status: 'open', sportTag: 'basketball', date: datePlus(9), point: { lat: 3, lng: 3 } },
+    ];
+    App._activityMapGetEventPoint = event => event.point;
+    App._parseEventStartDate = value => new Date(value);
+    App._ensureActivityMapState().sportKey = 'basketball';
+    App._ensureActivityMapState().dateMode = '7';
+
+    expect(App._getActivityMapData().mapReady.map(item => item.event.id)).toEqual(['basket-soon']);
+
+    App._ensureActivityMapState().dateMode = 'custom';
+    App._ensureActivityMapState().dateStart = datePlus(8).slice(0, 10);
+    App._ensureActivityMapState().dateEnd = datePlus(10).slice(0, 10);
+
+    expect(App._getActivityMapData().mapReady.map(item => item.event.id)).toEqual(['basket-later']);
   });
 
   test('does not request geolocation again when the browser reports denied permission', async () => {
