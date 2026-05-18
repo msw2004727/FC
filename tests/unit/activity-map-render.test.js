@@ -22,11 +22,13 @@ function loadActivityMapModule() {
     return window.EVENT_SPORT_OPTIONS.some(item => item.key === raw) ? raw : '';
   };
   window.getSportLabelByKey = key => window.EVENT_SPORT_OPTIONS.find(item => item.key === key)?.label || '足球';
+  window.getSportIconSvg = (key, className = '') => `<span class="sport-emoji ${className}" aria-hidden="true">${key}</span>`;
   window.eval('var App = window.App;');
   window.eval('var escapeHTML = window.escapeHTML;');
   window.eval('var EVENT_SPORT_OPTIONS = window.EVENT_SPORT_OPTIONS;');
   window.eval('var getSportKeySafe = window.getSportKeySafe;');
   window.eval('var getSportLabelByKey = window.getSportLabelByKey;');
+  window.eval('var getSportIconSvg = window.getSportIconSvg;');
   window.eval(readModule('js/modules/event/event-map.js'));
   return window.App;
 }
@@ -255,6 +257,60 @@ describe('activity map location and radius controls', () => {
     App.setActivityMapDateMode('custom');
 
     expect(document.getElementById('activity-map-custom-dates').hidden).toBe(false);
+  });
+
+  test('renders sport tag icons on nearby activity cards', () => {
+    const App = loadActivityMapModule();
+    App._ensureActivityMapRoot();
+
+    App._renderActivityMapList({
+      mapReady: [{
+        event: {
+          id: 'ready',
+          title: 'Ready event',
+          type: 'play',
+          sportTag: 'basketball',
+          date: '2026/05/18 10:00',
+          location: 'Court',
+        },
+        point: { lat: 1, lng: 1 },
+        distance: null,
+      }],
+      fallbackEvents: [],
+      userLocation: null,
+      radiusKm: 10,
+    });
+
+    const readyCard = document.querySelector('.activity-map-card');
+    const readyIcon = readyCard.querySelector('.activity-map-card-sport');
+    expect(readyIcon).not.toBeNull();
+    expect(readyIcon.getAttribute('aria-label')).toBe(window.getSportLabelByKey('basketball'));
+    expect(readyIcon.innerHTML).toContain('basketball');
+    expect(Array.from(readyCard.children).map(el => el.className)).toEqual([
+      'activity-map-card-index',
+      'activity-map-card-sport',
+      'activity-map-card-main',
+      'activity-map-card-distance',
+    ]);
+
+    App._renderActivityMapList({
+      mapReady: [],
+      fallbackEvents: [{
+        id: 'fallback',
+        title: 'Fallback event',
+        type: 'play',
+        sportTag: 'running',
+        date: '2026/05/18 11:00',
+        location: 'Track',
+      }],
+      userLocation: null,
+      radiusKm: 10,
+    });
+
+    const fallbackIcon = document.querySelector('.activity-map-card-fallback .activity-map-card-sport');
+    expect(fallbackIcon).not.toBeNull();
+    expect(fallbackIcon.getAttribute('aria-label')).toBe(window.getSportLabelByKey('running'));
+    expect(fallbackIcon.innerHTML).toContain('running');
   });
 
   test('filters positioned activities by the selected radius when location is available', () => {

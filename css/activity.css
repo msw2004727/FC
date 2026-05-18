@@ -2333,6 +2333,9 @@ body.activity-map-open{overflow:hidden}
 .activity-map-card{width:100%;border:1px solid var(--border);background:var(--bg-card);border-radius:8px;padding:.62rem .65rem;display:flex;align-items:center;gap:.55rem;text-align:left;color:var(--text-primary)}
 .activity-map-card:active{transform:scale(.992)}
 .activity-map-card-index{width:25px;height:25px;border-radius:50%;background:#0f766e;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:800;flex-shrink:0}
+.activity-map-card-sport{width:28px;height:28px;border-radius:8px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.activity-map-card-sport .sport-emoji{font-size:16px;line-height:1;display:inline-flex;align-items:center;justify-content:center}
+.activity-map-card-sport svg,.activity-map-card-sport img{width:18px;height:18px;display:block}
 .activity-map-card-main{min-width:0;flex:1;display:flex;flex-direction:column;gap:.18rem}
 .activity-map-card-title{font-size:.82rem;font-weight:800;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .activity-map-card-meta{font-size:.7rem;color:var(--text-muted);line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

@@ -667,6 +667,17 @@ Object.assign(App, {
     });
   },
 
+  _renderActivityMapSportIcon(event) {
+    const sportKey = this._getActivityMapEventSportKey(event);
+    const label = typeof getSportLabelByKey === 'function'
+      ? getSportLabelByKey(sportKey)
+      : sportKey;
+    const icon = typeof getSportIconSvg === 'function'
+      ? getSportIconSvg(sportKey, 'activity-map-card-sport-glyph')
+      : `<span class="sport-emoji activity-map-card-sport-glyph" aria-hidden="true">${escapeHTML(String(label || '').slice(0, 1) || '?')}</span>`;
+    return `<span class="activity-map-card-sport" title="${escapeHTML(label)}" aria-label="${escapeHTML(label)}">${icon}</span>`;
+  },
+
   _getActivityMapCandidateEvents() {
     let events = typeof this._getVisibleEvents === 'function'
       ? this._getVisibleEvents()
@@ -1028,6 +1039,7 @@ Object.assign(App, {
     return `
       <button class="activity-map-card" type="button" onclick="App.openActivityMapEvent('${escapeHTML(event.id || event._docId || '')}')">
         <span class="activity-map-card-index">${index + 1}</span>
+        ${this._renderActivityMapSportIcon(event)}
         <span class="activity-map-card-main">
           <span class="activity-map-card-title">${escapeHTML(event.title || '未命名活動')}</span>
           <span class="activity-map-card-meta">${escapeHTML(meta)}</span>
@@ -1043,6 +1055,7 @@ Object.assign(App, {
     const meta = [typeConf.label || '活動', time, event.location || ''].filter(Boolean).join(' · ');
     return `
       <button class="activity-map-card activity-map-card-fallback" type="button" onclick="App.openActivityMapEvent('${escapeHTML(event.id || event._docId || '')}')">
+        ${this._renderActivityMapSportIcon(event)}
         <span class="activity-map-card-main">
           <span class="activity-map-card-title">${escapeHTML(event.title || '未命名活動')}</span>
           <span class="activity-map-card-meta">${escapeHTML(meta)}</span>
