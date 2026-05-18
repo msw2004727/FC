@@ -895,7 +895,7 @@ service cloud.firestore {
       function isSafeSelfProfileUpdate() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
         return changed.hasOnly([
-            'displayName', 'photoURL', 'pictureUrl', 'phone', 'updatedAt',
+            'displayName', 'photoURL', 'pictureUrl', 'phone', 'email', 'updatedAt',
             'gender', 'birthday', 'region', 'sports',
             'favorites', 'socialLinks',
             'titleBig', 'titleNormal',
@@ -924,6 +924,14 @@ service cloud.firestore {
           && (!changed.hasAny(['phone']) || (
               request.resource.data.phone == null
               || request.resource.data.phone is string
+          ))
+          && (!changed.hasAny(['email']) || (
+              request.resource.data.email == null
+              || (
+                request.resource.data.email is string
+                && request.resource.data.email.size() > 0
+                && request.resource.data.email.size() <= 254
+              )
           ))
           && (!changed.hasAny(['gender']) || (
               request.resource.data.gender == null

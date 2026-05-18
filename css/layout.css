@@ -946,8 +946,151 @@
 .login-prompt-content p { font-size: .82rem; color: var(--text-muted); margin-bottom: 1rem; }
 
 /* ─── First Login Modal ─── */
-.fl-hint { font-size: .82rem; color: var(--text-secondary); margin-bottom: .8rem; text-align: center; }
-#first-login-modal .modal-header { justify-content: center; }
+#modal-overlay[data-profile-complete="1"] {
+  background: rgba(15, 23, 42, .44);
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
+  backdrop-filter: blur(16px) saturate(135%);
+  overscroll-behavior: contain;
+}
+#first-login-modal {
+  max-height: min(88vh, 720px);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(255,255,255,.94)),
+    var(--bg-card);
+  border: 1px solid rgba(148, 163, 184, .35);
+  box-shadow: 0 -18px 50px rgba(15, 23, 42, .2);
+  -webkit-overflow-scrolling: touch;
+}
+[data-theme="dark"] #first-login-modal {
+  background:
+    linear-gradient(180deg, rgba(17,24,39,.98), rgba(17,24,39,.94)),
+    var(--bg-card);
+  border-color: rgba(148, 163, 184, .22);
+}
+#first-login-modal .modal-header {
+  justify-content: center;
+  padding: 1.05rem 1.25rem .85rem;
+  border-bottom: 0;
+}
+#first-login-modal .modal-header h3 { font-size: 1.08rem; letter-spacing: 0; }
+#first-login-modal .modal-body { padding: .2rem 1.2rem 1rem; color: var(--text-secondary); }
+.fl-hint {
+  font-size: .86rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  margin: 0 0 .8rem;
+  text-align: center;
+}
+.fl-alert {
+  margin: 0 0 .85rem;
+  padding: .65rem .75rem;
+  color: #b45309;
+  background: rgba(245, 158, 11, .12);
+  border: 1px solid rgba(245, 158, 11, .28);
+  border-radius: 8px;
+  font-size: .8rem;
+  font-weight: 700;
+  line-height: 1.55;
+}
+.fl-form { gap: .72rem; }
+.fl-field {
+  padding: .68rem .72rem;
+  border: 1px solid rgba(148, 163, 184, .24);
+  border-radius: 8px;
+  background: rgba(248, 250, 252, .78);
+}
+[data-theme="dark"] .fl-field { background: rgba(31, 41, 55, .62); }
+.fl-field label {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  color: var(--text-primary);
+  font-size: .8rem;
+  font-weight: 800;
+}
+.fl-field input,
+.fl-field select {
+  min-height: 42px;
+  padding: .55rem .6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: .9rem;
+  outline: none;
+}
+.fl-field input:focus,
+.fl-field select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(0, 166, 126, .16);
+}
+.fl-birthday-row { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: .38rem; }
+#fl-region-list {
+  max-height: 140px;
+  overflow-y: auto;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 8px;
+  background: var(--bg-card, #fff);
+  margin-top: 4px;
+}
+.fl-optional {
+  margin-left: auto;
+  padding: .12rem .42rem;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, .1);
+  color: #2563eb;
+  font-size: .68rem;
+  font-weight: 800;
+}
+.fl-field-hint {
+  margin: .38rem 0 0;
+  color: var(--text-muted);
+  font-size: .76rem;
+  line-height: 1.5;
+}
+#fl-error-msg {
+  display: none;
+  color: var(--danger);
+  font-size: .8rem;
+  line-height: 1.5;
+  padding: .5rem .65rem;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, .1);
+  margin: 0 1.2rem .35rem;
+}
+.fl-actions { display: flex; gap: .55rem; padding: .85rem 1.2rem 1rem; }
+.fl-secondary-btn,
+.fl-submit-btn {
+  min-height: 44px;
+  border-radius: 8px;
+  font-weight: 800;
+  font-size: .9rem;
+  cursor: pointer;
+}
+.fl-secondary-btn {
+  flex: 1;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.fl-submit-btn { flex: 1.25; }
+html.profile-complete-scroll-lock,
+body.profile-complete-scroll-lock { overscroll-behavior: none; }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  #modal-overlay[data-profile-complete="1"] { background: rgba(15, 23, 42, .72); }
+}
+@media (min-width: 680px) {
+  #first-login-modal {
+    left: 50%;
+    right: auto;
+    bottom: 24px;
+    width: min(92vw, 480px);
+    border-radius: 18px;
+    transform: translate(-50%, calc(100% + 24px));
+    box-shadow: 0 24px 70px rgba(15, 23, 42, .26);
+  }
+  #first-login-modal.open { transform: translate(-50%, 0); }
+}
 
 /* ─── Desktop: 限寬置中（top-bar / bottom-tabs / sync-bar / swr-bar / translate-banner）─── */
 @media (min-width: 800px) {

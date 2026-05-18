@@ -175,6 +175,7 @@ const CHANGE_WATCH_USER_SAFE_PROFILE_FIELDS = new Set([
   "photoURL",
   "pictureUrl",
   "phone",
+  "email",
   "updatedAt",
   "gender",
   "birthday",

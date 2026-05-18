@@ -380,13 +380,15 @@ Object.assign(App, {
   async saveFirstLoginProfile() {
     var genderEl = document.getElementById('fl-gender');
     var regionEl = document.getElementById('fl-region-input');
+    var emailEl = document.getElementById('fl-email');
     var gender = genderEl ? genderEl.value : '';
     var birthday = this._getBirthdayFromSelects('fl-birthday-y', 'fl-birthday-m', 'fl-birthday-d');
     var region = regionEl ? regionEl.value.trim() : '';
+    var email = emailEl ? emailEl.value.trim() : '';
     var errEl = document.getElementById('fl-error-msg');
     var self = this;
     var showErr = function(msg) {
-      if (errEl) { errEl.textContent = msg; errEl.style.display = ''; }
+      if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
       else self.showToast(msg);
     };
     if (errEl) errEl.style.display = 'none';
@@ -394,11 +396,17 @@ Object.assign(App, {
       showErr('請填寫所有必填欄位（性別、生日、地區）');
       return;
     }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      showErr('請輸入有效的電子郵件，或留空略過。');
+      return;
+    }
     // 禁用按鈕防連點
     var btn = document.querySelector('#first-login-modal .primary-btn');
     if (btn) { btn.disabled = true; btn.textContent = '儲存中...'; }
     try {
-      await ApiService.updateCurrentUserAwait({ gender: gender, birthday: birthday, region: region });
+      var updates = { gender: gender, birthday: birthday, region: region };
+      if (email) updates.email = email;
+      await ApiService.updateCurrentUserAwait(updates);
     } catch (err) {
       console.error('[saveFirstLoginProfile]', err);
       showErr('儲存失敗，請檢查網路後重試。若持續失敗可重新整理頁面。');
@@ -408,11 +416,12 @@ Object.assign(App, {
     if (btn) { btn.disabled = false; btn.textContent = '確認送出'; }
     this._pendingFirstLogin = false;
     this._firstLoginShowing = false;
-    var overlay = document.getElementById('modal-overlay');
-    if (overlay) delete overlay.dataset.locked;
+    this._setFirstLoginOverlayState?.(false);
     var input = document.getElementById('fl-region-input');
     if (input) input.value = '';
+    if (emailEl) emailEl.value = '';
     this.closeModal();
+    this._unlockFirstLoginScroll?.();
     if (typeof this.renderProfileData === 'function') this.renderProfileData();
     this._refreshActivityCreateButton?.();
     this.showToast('個人資料已儲存');
@@ -424,11 +433,11 @@ Object.assign(App, {
    */
   dismissFirstLoginModal() {
     this._firstLoginShowing = false;
-    var overlay = document.getElementById('modal-overlay');
-    if (overlay) delete overlay.dataset.locked;
+    this._setFirstLoginOverlayState?.(false);
     var errMsg = document.getElementById('fl-error-msg');
     if (errMsg) { errMsg.style.display = 'none'; errMsg.textContent = ''; }
     this.closeModal();
+    this._unlockFirstLoginScroll?.();
   },
 
 });

@@ -1250,21 +1250,94 @@ Object.assign(App, {
     document.getElementById('drawer-overlay').classList.remove('open');
   },
 
+  _setFirstLoginOverlayState(enabled) {
+    var overlay = document.getElementById('modal-overlay');
+    if (!overlay) return;
+    if (enabled) {
+      overlay.dataset.locked = '1';
+      overlay.dataset.profileComplete = '1';
+      return;
+    }
+    delete overlay.dataset.locked;
+    delete overlay.dataset.profileComplete;
+  },
+
+  _prefillFirstLoginModal(user) {
+    user = user || ((typeof ApiService !== 'undefined' && ApiService.getCurrentUser) ? ApiService.getCurrentUser() : null);
+    if (!user) return;
+
+    var genderEl = document.getElementById('fl-gender');
+    var regionEl = document.getElementById('fl-region-input');
+    var emailEl = document.getElementById('fl-email');
+    if (genderEl && !genderEl.value && user.gender) genderEl.value = user.gender;
+    if (regionEl && !regionEl.value && user.region) regionEl.value = user.region;
+    if (emailEl && !emailEl.value && user.email) emailEl.value = user.email;
+  },
+
+  _lockFirstLoginScroll() {
+    if (this._firstLoginScrollLocked) return;
+    var body = document.body;
+    var docEl = document.documentElement;
+    if (!body || !docEl) return;
+
+    var scrollY = window.pageYOffset || docEl.scrollTop || body.scrollTop || 0;
+    this._firstLoginScrollLocked = true;
+    this._firstLoginScrollY = scrollY;
+    this._firstLoginBodyStyleSnapshot = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+    };
+
+    docEl.classList.add('profile-complete-scroll-lock');
+    body.classList.add('modal-open', 'profile-complete-scroll-lock');
+    body.style.position = 'fixed';
+    body.style.top = '-' + scrollY + 'px';
+    body.style.left = '0';
+    body.style.right = '0';
+    body.style.width = '100%';
+  },
+
+  _unlockFirstLoginScroll() {
+    var body = document.body;
+    var docEl = document.documentElement;
+    if (docEl) docEl.classList.remove('profile-complete-scroll-lock');
+    if (body) body.classList.remove('profile-complete-scroll-lock', 'modal-open');
+
+    if (!this._firstLoginScrollLocked || !body) return;
+    var snapshot = this._firstLoginBodyStyleSnapshot || {};
+    body.style.position = snapshot.position || '';
+    body.style.top = snapshot.top || '';
+    body.style.left = snapshot.left || '';
+    body.style.right = snapshot.right || '';
+    body.style.width = snapshot.width || '';
+
+    var scrollY = Number(this._firstLoginScrollY || 0);
+    this._firstLoginScrollLocked = false;
+    this._firstLoginScrollY = 0;
+    this._firstLoginBodyStyleSnapshot = null;
+    try { window.scrollTo(0, scrollY); } catch (_) {}
+  },
+
   // ── 首次登入 modal 顯示（Plan B：內聯到 index.html，不依賴 ScriptLoader）──
   _tryShowFirstLoginModal() {
     if (this._firstLoginShowing) return;
     var modal = document.getElementById('first-login-modal');
     if (!modal) { return; }  // 內聯後理論上永遠存在
     this._firstLoginShowing = true;
+    var user = (typeof ApiService !== 'undefined' && ApiService.getCurrentUser) ? ApiService.getCurrentUser() : null;
     try {
       this.initFirstLoginRegionPicker?.();
-      this._populateBirthdaySelects?.('fl-birthday-y', 'fl-birthday-m', 'fl-birthday-d');
+      this._populateBirthdaySelects?.('fl-birthday-y', 'fl-birthday-m', 'fl-birthday-d', user?.birthday || '');
+      this._prefillFirstLoginModal?.(user);
     } catch (e) {
       console.warn('[_tryShowFirstLoginModal] init error:', e);
     }
     this.showModal('first-login-modal');
-    var overlay = document.getElementById('modal-overlay');
-    if (overlay) overlay.dataset.locked = '1';
+    this._setFirstLoginOverlayState?.(true);
+    this._lockFirstLoginScroll?.();
   },
 
   showModal(id) { this.toggleModal(id); },
@@ -1297,7 +1370,7 @@ Object.assign(App, {
     const overlay = document.getElementById('modal-overlay');
     if (overlay && overlay.dataset.locked === '1') return;
     document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open'));
-    overlay.classList.remove('open');
+    if (overlay) overlay.classList.remove('open');
   },
 
   /**

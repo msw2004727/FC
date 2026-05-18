@@ -169,6 +169,25 @@ describe('profile EXP display refresh wiring', () => {
   });
 });
 
+describe('first login profile completion modal', () => {
+  test('renders optional email benefits and uses the dedicated frosted scroll lock path', () => {
+    const indexHtml = readProjectFile('index.html');
+    const layoutCss = readProjectFile('css/layout.css');
+    const navigationSource = readProjectFile('js/core/navigation.js');
+    const profileFormSource = readProjectFile('js/modules/profile/profile-form.js');
+
+    expect(indexHtml).toContain('id="fl-email"');
+    expect(indexHtml).toContain('電子郵件 <span class="fl-optional">非必填</span>');
+    expect(indexHtml).toContain('優先收到最新運動活動情報');
+    expect(layoutCss).toContain('#modal-overlay[data-profile-complete="1"]');
+    expect(layoutCss).toContain('-webkit-backdrop-filter: blur(16px) saturate(135%)');
+    expect(navigationSource).toContain('_lockFirstLoginScroll()');
+    expect(navigationSource).toContain('_unlockFirstLoginScroll()');
+    expect(profileFormSource).toContain("var emailEl = document.getElementById('fl-email');");
+    expect(profileFormSource).toContain('updates.email = email;');
+  });
+});
+
 describe('_getAvatarCandidateUrls (profile-avatar.js:63-73)', () => {
   test('deduplicates URLs', () => {
     const result = _getAvatarCandidateUrls('http://a.com', 'http://a.com', 'http://b.com');

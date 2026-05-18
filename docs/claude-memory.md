@@ -1,5 +1,11 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-18 Profile completion modal email and scroll lock [bug/ux]
+- **Problem**: The required profile completion modal had a plain overlay, allowed the background page to scroll on mobile WebViews, and adding an email field would have failed without Firestore rule support.
+- **Cause**: The first-login modal used only the shared modal overlay lock flag, while the body was not fixed during this locked flow. Safe self-profile Firestore updates also did not include `email`.
+- **Fix**: Added a dedicated frosted overlay state, iOS-safe body scroll lock/unlock helpers, an optional email field with priority sports activity notification copy, and email validation before saving. Firestore self-profile rules now allow non-empty string email values up to 254 chars, and change-watch treats self email profile updates as safe.
+- **Tests**: Added unit coverage for the modal email/backdrop contract and Firestore rules coverage for email profile updates.
+
 ### 2026-05-18 Club manage pin unavailable state [ux]
 - **Problem**: Club management still showed an active pin/unpin control while activity management already treats pinning as unavailable.
 - **Cause**: `toggleTeamPin()` still updated `teams/{teamId}.pinned` / `pinOrder`, and the club manage/admin buttons were styled as normal actions.

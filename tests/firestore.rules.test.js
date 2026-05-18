@@ -2908,6 +2908,7 @@ describe("/users/{userId} self-update security boundaries", () => {
       updateDoc(doc(user(), "users", "uidUser"), {
         displayName: "New Name",
         phone: "0912345678",
+        email: "member@example.com",
         gender: "male",
         birthday: "1990-01-01",
         region: "Taipei",
@@ -2945,6 +2946,7 @@ describe("/users/{userId} self-update security boundaries", () => {
     await assertSucceeds(
       updateDoc(doc(user(), "users", "uidUser"), {
         phone: null,
+        email: null,
         gender: null,
         birthday: null,
         photoURL: null,
@@ -2957,6 +2959,15 @@ describe("/users/{userId} self-update security boundaries", () => {
         titleNormal: null,
         lineNotify: null,
         companions: null,
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  test("owner CANNOT update email to a non-string value", async () => {
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        email: 123,
         updatedAt: serverTimestamp(),
       })
     );
