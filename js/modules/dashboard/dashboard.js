@@ -62,9 +62,23 @@ Object.assign(App, {
 
     // ── 俱樂部排名 Top 5 ──
     const topTeams = [...teams].sort((a, b) => (b.teamExp || 0) - (a.teamExp || 0)).slice(0, 5);
+    const dashboardScopeLabel = hasSnapshot
+      ? (isAllSnapshot ? '全部資料快照' : `近 ${selectedRange} 個月快照`)
+      : `目前顯示近 ${selectedRange} 個月`;
 
     // Build HTML
     container.innerHTML = `
+      <div class="dash-mobile-hero">
+        <div class="dash-hero-copy">
+          <span class="dash-hero-kicker">Analytics</span>
+          <h3>數據儀表板</h3>
+          <p>${escapeHTML(dashboardScopeLabel)} · ${totalEvents.toLocaleString()} 活動 · ${totalRecords.toLocaleString()} 筆紀錄</p>
+        </div>
+        <button class="dash-hero-metric" type="button" onclick="App._openDashDrilldown?.('attendance')" aria-label="查看出席率明細">
+          <span>${t('dash.attendRate')}</span>
+          <strong>${attendRate}%</strong>
+        </button>
+      </div>
       <div class="dash-refresh-bar">
         <span class="dash-refresh-info" id="dash-refresh-info">尚未撈取完整資料（點擊卡片前請先撈取）</span>
         <select id="dash-months-range" onchange="App._onDashMonthsRangeChange?.()">
@@ -77,6 +91,13 @@ Object.assign(App, {
         <button class="outline-btn" type="button" onclick="App._restoreDashboardAllData?.()" ${hasSnapshot && !isAllSnapshot ? '' : 'disabled'}>恢復全部</button>
         <button class="dash-info-btn" type="button" onclick="App._showDashInfo?.('refresh')" title="說明" aria-label="撈取資料說明">?</button>
       </div>
+      <nav class="dash-section-tabs" aria-label="數據儀表板快速跳轉">
+        <button type="button" onclick="document.getElementById('dash-chart-user-growth')?.scrollIntoView({ behavior: 'smooth', block: 'start' })">成長</button>
+        <button type="button" onclick="document.getElementById('dash-chart-type')?.scrollIntoView({ behavior: 'smooth', block: 'start' })">類型</button>
+        <button type="button" onclick="document.getElementById('dash-chart-month')?.scrollIntoView({ behavior: 'smooth', block: 'start' })">趨勢</button>
+        <button type="button" onclick="document.getElementById('usage-metrics-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })">用量</button>
+        <button type="button" onclick="document.getElementById('ci-usage-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })">CI</button>
+      </nav>
       <div class="dash-summary">
         <div class="dash-card" data-drill-key="users" onclick="App._openDashDrilldown?.('users')"><div class="dash-num">${totalUsers}</div><div class="dash-label">${t('dash.totalUsers')}</div></div>
         <div class="dash-card" data-drill-key="events" onclick="App._openDashDrilldown?.('events')"><div class="dash-num">${totalEvents}</div><div class="dash-label">${t('dash.totalEvents')}</div></div>
