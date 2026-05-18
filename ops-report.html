@@ -8,35 +8,38 @@
   <style>
     :root {
       color-scheme: light;
-      --bg: #f3f6fb;
+      --bg: #f5f7fb;
       --panel: #ffffff;
-      --panel-soft: #eef5ff;
-      --text: #1d2738;
-      --muted: #66758c;
-      --line: #d9e2ef;
-      --brand: #0f9f8f;
-      --brand-2: #2563eb;
+      --panel-soft: #eef6f5;
+      --text: #172033;
+      --muted: #66748a;
+      --line: #d9e1ec;
+      --brand: #0f766e;
+      --brand-2: #1d4ed8;
       --danger: #dc2626;
-      --shadow: 0 16px 42px rgba(15, 23, 42, 0.10);
+      --warning: #b45309;
+      --shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
     }
 
     @media (prefers-color-scheme: dark) {
       :root {
         color-scheme: dark;
-        --bg: #101622;
-        --panel: #171f2d;
-        --panel-soft: #122938;
-        --text: #e8edf5;
+        --bg: #101621;
+        --panel: #171f2c;
+        --panel-soft: #112b2d;
+        --text: #edf2f7;
         --muted: #9ba9bb;
-        --line: #2b3648;
+        --line: #2c3849;
         --brand: #2dd4bf;
         --brand-2: #60a5fa;
         --danger: #f87171;
-        --shadow: 0 16px 42px rgba(0, 0, 0, 0.30);
+        --warning: #fbbf24;
+        --shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
       }
     }
 
     * { box-sizing: border-box; }
+
     body {
       margin: 0;
       min-height: 100vh;
@@ -53,16 +56,16 @@
     }
 
     .hero {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: start;
       gap: 16px;
       margin-bottom: 18px;
     }
 
     h1 {
       margin: 0;
-      font-size: clamp(24px, 4vw, 34px);
+      font-size: 32px;
       letter-spacing: 0;
     }
 
@@ -70,14 +73,16 @@
       margin: 6px 0 0;
       color: var(--muted);
       font-size: 14px;
+      max-width: 760px;
     }
 
     .badge {
       display: inline-flex;
       align-items: center;
+      min-height: 32px;
       border: 1px solid var(--line);
       border-radius: 999px;
-      padding: 7px 12px;
+      padding: 6px 11px;
       color: var(--muted);
       background: var(--panel);
       font-size: 13px;
@@ -87,7 +92,7 @@
     .panel {
       background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 16px;
+      border-radius: 8px;
       box-shadow: var(--shadow);
       padding: 18px;
       margin-bottom: 16px;
@@ -95,7 +100,7 @@
 
     .filters {
       display: grid;
-      grid-template-columns: minmax(150px, 1fr) minmax(150px, 1fr) auto;
+      grid-template-columns: minmax(150px, 1fr) minmax(150px, 1fr) auto auto;
       align-items: end;
       gap: 12px;
     }
@@ -112,7 +117,7 @@
       width: 100%;
       height: 42px;
       border: 1px solid var(--line);
-      border-radius: 10px;
+      border-radius: 8px;
       padding: 0 12px;
       background: var(--bg);
       color: var(--text);
@@ -122,12 +127,19 @@
     button {
       height: 42px;
       border: 0;
-      border-radius: 10px;
-      padding: 0 18px;
-      background: linear-gradient(135deg, var(--brand), var(--brand-2));
+      border-radius: 8px;
+      padding: 0 16px;
+      background: var(--brand);
       color: #fff;
       font-weight: 800;
       cursor: pointer;
+      white-space: nowrap;
+    }
+
+    button.secondary {
+      border: 1px solid var(--line);
+      background: var(--panel-soft);
+      color: var(--text);
     }
 
     button:disabled {
@@ -143,46 +155,46 @@
 
     .status.error { color: var(--danger); }
 
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 12px;
-    }
-
-    .card {
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: linear-gradient(180deg, var(--panel), var(--panel-soft));
-      padding: 14px;
-      min-height: 102px;
-    }
-
-    .card .label {
-      color: var(--muted);
-      font-size: 13px;
-      font-weight: 800;
-    }
-
-    .card .value {
-      margin-top: 6px;
-      font-size: 28px;
-      font-weight: 900;
-      letter-spacing: 0;
-    }
-
-    .card .hint {
-      margin-top: 2px;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
     .section-title {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
       margin: 0 0 12px;
-      font-size: 17px;
+      font-size: 18px;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 10px;
+    }
+
+    .metric-card {
+      min-height: 108px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel-soft);
+      padding: 13px;
+    }
+
+    .metric-card .label {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .metric-card .value {
+      margin-top: 6px;
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
+    .metric-card .hint {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 12px;
     }
 
     .note {
@@ -191,74 +203,58 @@
       margin: 10px 0 0;
     }
 
-    .guide {
+    .definition-grid {
       display: grid;
-      gap: 12px;
-      margin-top: 14px;
-    }
-
-    .guide-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 10px;
     }
 
-    .guide-item {
+    .definition {
       border: 1px solid var(--line);
-      border-radius: 12px;
+      border-radius: 8px;
       background: var(--panel-soft);
       padding: 12px;
-      min-height: 92px;
     }
 
-    .guide-term {
+    .definition strong {
       display: block;
-      color: var(--text);
       font-size: 14px;
-      font-weight: 900;
     }
 
-    .guide-copy {
+    .definition p {
       margin: 5px 0 0;
       color: var(--muted);
       font-size: 12px;
     }
 
-    .guide-list {
-      margin: 0;
-      padding-left: 18px;
-      color: var(--muted);
-      font-size: 13px;
-    }
-
-    .guide-list li + li { margin-top: 4px; }
-
     .table-wrap {
       overflow-x: auto;
       border: 1px solid var(--line);
-      border-radius: 14px;
+      border-radius: 8px;
     }
 
     table {
       width: 100%;
       border-collapse: collapse;
-      min-width: 620px;
+      min-width: 980px;
       background: var(--panel);
     }
 
     th, td {
-      padding: 11px 12px;
+      padding: 10px 11px;
       border-bottom: 1px solid var(--line);
       text-align: right;
       white-space: nowrap;
     }
 
     th:first-child, td:first-child { text-align: left; }
+
     th {
       color: var(--muted);
       font-size: 12px;
       background: var(--panel-soft);
     }
+
     tr:last-child td { border-bottom: 0; }
 
     .empty {
@@ -267,19 +263,15 @@
       color: var(--muted);
     }
 
-    @media (max-width: 760px) {
-      .hero { display: block; }
-      .badge { margin-top: 12px; }
-      .filters { grid-template-columns: 1fr; }
-      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .guide-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .panel { padding: 14px; border-radius: 14px; }
-      .card .value { font-size: 23px; }
-    }
+    .warning { color: var(--warning); }
 
-    @media (max-width: 420px) {
-      .grid { grid-template-columns: 1fr; }
-      .guide-grid { grid-template-columns: 1fr; }
+    @media (max-width: 760px) {
+      .page { width: min(100% - 20px, 1180px); padding-top: 20px; }
+      .hero { grid-template-columns: 1fr; }
+      h1 { font-size: 26px; }
+      .filters { grid-template-columns: 1fr; }
+      .panel { padding: 14px; }
+      .metric-card .value { font-size: 23px; }
     }
   </style>
 </head>
@@ -288,15 +280,15 @@
     <header class="hero">
       <div>
         <h1>ToosterX LTV 營運報表</h1>
-        <p class="subtitle">統計 DNU、DAU、WAU、MAU 與區間留存。僅 admin 以上層級可查看。</p>
+        <p class="subtitle">用登入活躍、活動報名、簽到簽退完成三層資料判斷用戶加入後是否真的參與活動。</p>
       </div>
-      <div class="badge" id="auth-status">準備登入</div>
+      <div class="badge" id="auth-status">等待登入</div>
     </header>
 
     <section class="panel">
       <div class="filters">
         <label>
-          開始日期
+          起始日期
           <input id="start-date" type="date" autocomplete="off">
         </label>
         <label>
@@ -304,69 +296,74 @@
           <input id="end-date" type="date" autocomplete="off">
         </label>
         <button id="load-report" type="button">更新報表</button>
+        <button id="export-csv" class="secondary" type="button" disabled>匯出 CSV</button>
       </div>
-      <div class="status" id="status-text">區間最多 180 天。活躍數以登入成功紀錄為主，並用使用者 lastLogin 補強。</div>
+      <div class="status" id="status-text">預設查詢近 30 天，最多 180 天。報表僅開放 admin 以上角色。</div>
     </section>
 
     <section class="panel">
-      <h2 class="section-title">怎麼看這份報表</h2>
-      <div class="guide">
-        <div class="guide-grid">
-          <div class="guide-item">
-            <strong class="guide-term">DNU｜每日新增用戶</strong>
-            <p class="guide-copy">看拉新能力。數字越高，代表這段時間每天新加入的人越多。</p>
-          </div>
-          <div class="guide-item">
-            <strong class="guide-term">DAU｜每日活躍用戶</strong>
-            <p class="guide-copy">看每天有多少人回來用。這裡以成功登入紀錄作為主要判斷。</p>
-          </div>
-          <div class="guide-item">
-            <strong class="guide-term">WAU｜近 7 日活躍用戶</strong>
-            <p class="guide-copy">看最近一週還有多少人有回來，適合觀察短期熱度。</p>
-          </div>
-          <div class="guide-item">
-            <strong class="guide-term">MAU｜近 30 日活躍用戶</strong>
-            <p class="guide-copy">看最近一個月還有多少人有回來，適合觀察整體用戶盤。</p>
-          </div>
-        </div>
-        <ul class="guide-list">
-          <li>先看 DNU：判斷最近有沒有持續帶進新用戶。</li>
-          <li>再看 DAU / WAU / MAU：判斷用戶只是註冊，還是真的會回來使用。</li>
-          <li>接著看留存：判斷新用戶隔天、7 天、30 天後是否還會回來。</li>
-          <li>最後看每日趨勢：找出哪一天突然上升或下降，再回頭對照活動、通知或營運操作。</li>
-        </ul>
-      </div>
-    </section>
-
-    <section class="panel">
-      <h2 class="section-title">核心指標 <span class="badge" id="range-label">尚未載入</span></h2>
-      <div class="grid" id="summary-grid"></div>
+      <h2 class="section-title">指標總覽 <span class="badge" id="range-label">尚未載入</span></h2>
+      <div class="metric-grid" id="summary-grid"></div>
       <p class="note" id="source-note"></p>
     </section>
 
     <section class="panel">
-      <h2 class="section-title">區間留存</h2>
-      <div class="grid" id="retention-grid"></div>
-      <p class="note">留存用白話看法：這段時間新進用戶，有多少人在後續指定時間內回來使用。</p>
+      <h2 class="section-title">加入後轉化</h2>
+      <div class="metric-grid" id="cohort-grid"></div>
+      <p class="note">新用戶轉化以用戶建立日為 cohort；7 日報名率與 30 日完成率只計入已成熟 cohort，避免把剛加入的人過早判定未轉化。</p>
     </section>
 
     <section class="panel">
-      <h2 class="section-title">每日趨勢</h2>
+      <h2 class="section-title">回訪留存</h2>
+      <div class="metric-grid" id="retention-grid"></div>
+      <p class="note">回訪以 login_success audit log 為主；audit 缺漏時用 users.lastLogin 補足單日活躍點。</p>
+    </section>
+
+    <section class="panel">
+      <h2 class="section-title">每日序列</h2>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
               <th>日期</th>
-              <th>DNU｜新增用戶</th>
-              <th>DAU｜日活躍</th>
-              <th>WAU｜近 7 日活躍</th>
-              <th>MAU｜近 30 日活躍</th>
+              <th>DNU</th>
+              <th>DAU</th>
+              <th>WAU</th>
+              <th>MAU</th>
+              <th>參與用戶</th>
+              <th>參與次數</th>
+              <th>完成用戶</th>
+              <th>完成次數</th>
+              <th>完成率</th>
+              <th>No-show</th>
             </tr>
           </thead>
           <tbody id="series-body">
-            <tr><td class="empty" colspan="5">尚未載入報表</td></tr>
+            <tr><td class="empty" colspan="11">尚未載入報表</td></tr>
           </tbody>
         </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="section-title">資料口徑</h2>
+      <div class="definition-grid">
+        <div class="definition">
+          <strong>活躍</strong>
+          <p>每日 login_success audit log 的唯一用戶，必要時補 users.lastLogin。</p>
+        </div>
+        <div class="definition">
+          <strong>參與</strong>
+          <p>events/{eventDoc}/registrations 中 confirmed、registered、completed 的本人報名，排除陪同者。</p>
+        </div>
+        <div class="definition">
+          <strong>完成</strong>
+          <p>同一 uid + eventId 同時存在有效 checkin 與 checkout attendanceRecords。</p>
+        </div>
+        <div class="definition">
+          <strong>No-show</strong>
+          <p>已過活動日且有有效參與報名，但沒有有效 checkin 的人次。</p>
+        </div>
       </div>
     </section>
   </main>
@@ -388,9 +385,9 @@
     };
 
     const state = {
-      authReady: false,
       loading: false,
       functions: null,
+      report: null,
     };
 
     const $ = (id) => document.getElementById(id);
@@ -408,6 +405,14 @@
       const [y, m, d] = dateKey.split("-").map(Number);
       const utc = Date.UTC(y, m - 1, d) - 8 * 60 * 60 * 1000;
       return taipeiDateKey(new Date(utc + days * 24 * 60 * 60 * 1000));
+    }
+
+    function fmt(value) {
+      return nf.format(Number(value || 0));
+    }
+
+    function pct(value) {
+      return `${Number(value || 0).toFixed(Number(value || 0) % 1 ? 1 : 0)}%`;
     }
 
     function setStatus(text, isError = false) {
@@ -435,19 +440,19 @@
       if (firebase.auth().currentUser) return firebase.auth().currentUser;
 
       if (!window.liff || typeof liff.init !== "function") {
-        throw new Error("LIFF SDK 尚未載入，請重新整理後再試");
+        throw new Error("LIFF SDK 尚未載入，請重新整理後再試。");
       }
 
       await liff.init({ liffId: LIFF_ID });
       if (!liff.isLoggedIn()) {
-        $("auth-status").textContent = "需要 LINE 登入";
-        setStatus("請先用 LINE 登入後查看報表。");
+        $("auth-status").textContent = "等待 LINE 登入";
+        setStatus("請先完成 LINE 登入，登入後會自動回到報表。");
         liff.login({ redirectUri: window.location.href });
         return null;
       }
 
       const accessToken = liff.getAccessToken();
-      if (!accessToken) throw new Error("無法取得 LINE 登入憑證");
+      if (!accessToken) throw new Error("無法取得 LINE 登入 token。");
       const createCustomToken = state.functions.httpsCallable("createCustomToken");
       const result = await createCustomToken({ accessToken });
       await firebase.auth().signInWithCustomToken(result.data.customToken);
@@ -456,7 +461,7 @@
 
     function card(label, value, hint = "") {
       return `
-        <article class="card">
+        <article class="metric-card">
           <div class="label">${label}</div>
           <div class="value">${value}</div>
           <div class="hint">${hint}</div>
@@ -464,64 +469,95 @@
       `;
     }
 
+    function renderCards(id, cards) {
+      $(id).innerHTML = cards.map(item => card(item.label, item.value, item.hint)).join("");
+    }
+
     function renderReport(report) {
       const s = report.summary || {};
+      const c = s.newUserParticipation || {};
       const r = report.retention || {};
+      state.report = report;
+      $("export-csv").disabled = !Array.isArray(report.series) || report.series.length === 0;
       $("range-label").textContent = `${report.range.startDate} 至 ${report.range.endDate}`;
-      $("summary-grid").innerHTML = [
-        card("DNU｜每日新增用戶", nf.format(s.dnu || 0), `平均 ${nf.format(s.avgDnu || 0)} / 日`),
-        card("DAU｜每日活躍用戶", nf.format(s.avgDau || 0), `平均日活躍；最高 ${nf.format(s.peakDau || 0)}（${s.peakDauDate || "-"}）`),
-        card("WAU｜近 7 日活躍用戶", nf.format(s.wau || 0), "結束日往前 7 日至少登入一次"),
-        card("MAU｜近 30 日活躍用戶", nf.format(s.mau || 0), "結束日往前 30 日至少登入一次"),
-        card("區間活躍用戶", nf.format(s.activeUsers || 0), "區間內至少登入一次"),
-        card("區間回訪率", `${s.rangeReturnRate || 0}%`, "新用戶隔日後曾回來"),
-        card("總用戶基數", nf.format(s.totalUsers || 0), "users 文件總數"),
-        card("讀取估算", nf.format(report.source?.estimatedReads || 0), "users + login audit docs"),
-      ].join("");
 
-      $("retention-grid").innerHTML = [
-        card("次日留存", `${r.nextDay?.rate || 0}%`, `${nf.format(r.nextDay?.retained || 0)} / ${nf.format(r.nextDay?.denominator || 0)}`),
-        card("7 日內回訪", `${r.day7?.rate || 0}%`, `${nf.format(r.day7?.retained || 0)} / ${nf.format(r.day7?.denominator || 0)}`),
-        card("30 日內回訪", `${r.day30?.rate || 0}%`, `${nf.format(r.day30?.retained || 0)} / ${nf.format(r.day30?.denominator || 0)}`),
-      ].join("");
+      renderCards("summary-grid", [
+        { label: "總用戶", value: fmt(s.totalUsers), hint: "users 文件總數" },
+        { label: "新增用戶 DNU", value: fmt(s.dnu), hint: `平均 ${fmt(s.avgDnu)} / 日` },
+        { label: "活躍用戶", value: fmt(s.activeUsers), hint: `DAU 平均 ${fmt(s.avgDau)}，高峰 ${fmt(s.peakDau)} (${s.peakDauDate || "-"})` },
+        { label: "參與用戶", value: fmt(s.participationUsers), hint: `${fmt(s.participationEvents)} 次有效參與` },
+        { label: "完成用戶", value: fmt(s.completedUsers), hint: `${fmt(s.completedEvents)} 次完成活動` },
+        { label: "活躍轉參與", value: pct(s.participantToActiveRate), hint: "參與用戶 / 活躍用戶" },
+        { label: "參與完成率", value: pct(s.completionRate), hint: "完成活動 / 有效參與活動" },
+        { label: "No-show 風險", value: pct(s.noShowRate), hint: `${fmt(s.noShowEvents)} / ${fmt(s.endedParticipationEvents)} 已過活動參與` },
+      ]);
+
+      renderCards("cohort-grid", [
+        { label: "Cohort 新用戶", value: fmt(c.cohortSize), hint: "本區間建立帳號者" },
+        { label: "區間內已報名", value: pct(c.registeredByRangeRate), hint: `${fmt(c.registeredByRange)} / ${fmt(c.cohortSize)}` },
+        { label: "7 日內首報名", value: pct(c.signup7d?.rate), hint: `${fmt(c.signup7d?.converted)} / ${fmt(c.signup7d?.denominator)} 已成熟新用戶` },
+        { label: "30 日內完成", value: pct(c.complete30d?.rate), hint: `${fmt(c.complete30d?.converted)} / ${fmt(c.complete30d?.denominator)} 已成熟新用戶` },
+        { label: "首報名中位天數", value: fmt(c.medianDaysToFirstRegistration), hint: "從建立帳號到第一次有效報名" },
+        { label: "平均參與深度", value: fmt(s.avgEventsPerParticipant), hint: "有效參與次數 / 參與用戶" },
+      ]);
+
+      renderCards("retention-grid", [
+        { label: "次日回訪", value: pct(r.nextDay?.rate), hint: `${fmt(r.nextDay?.retained)} / ${fmt(r.nextDay?.denominator)}` },
+        { label: "7 日內回訪", value: pct(r.day7?.rate), hint: `${fmt(r.day7?.retained)} / ${fmt(r.day7?.denominator)}` },
+        { label: "30 日內回訪", value: pct(r.day30?.rate), hint: `${fmt(r.day30?.retained)} / ${fmt(r.day30?.denominator)}` },
+        { label: "區間回訪率", value: pct(s.rangeReturnRate), hint: "新用戶隔日後再次活躍" },
+      ]);
 
       const rows = Array.isArray(report.series) ? [...report.series].reverse() : [];
       $("series-body").innerHTML = rows.length
         ? rows.map(row => `
           <tr>
             <td>${row.date}</td>
-            <td>${nf.format(row.dnu || 0)}</td>
-            <td>${nf.format(row.dau || 0)}</td>
-            <td>${nf.format(row.wau || 0)}</td>
-            <td>${nf.format(row.mau || 0)}</td>
+            <td>${fmt(row.dnu)}</td>
+            <td>${fmt(row.dau)}</td>
+            <td>${fmt(row.wau)}</td>
+            <td>${fmt(row.mau)}</td>
+            <td>${fmt(row.participationUsers)}</td>
+            <td>${fmt(row.participationEvents)}</td>
+            <td>${fmt(row.completedUsers)}</td>
+            <td>${fmt(row.completedEvents)}</td>
+            <td>${pct(row.completionRate)}</td>
+            <td>${fmt(row.noShowEvents)}</td>
           </tr>
         `).join("")
-        : `<tr><td class="empty" colspan="5">這個區間沒有資料</td></tr>`;
+        : `<tr><td class="empty" colspan="11">此區間沒有資料</td></tr>`;
 
-      $("source-note").textContent = `資料來源：${report.source?.primaryActiveSource || "login audit"}；補強：${report.source?.fallbackActiveSource || "無"}。本次估算讀取 ${nf.format(report.source?.estimatedReads || 0)} 筆。`;
+      const source = report.source || {};
+      const quality = [];
+      if (Number(s.orphanCompletedEvents || 0) > 0) quality.push(`${fmt(s.orphanCompletedEvents)} 筆完成缺少對應有效報名`);
+      if (Number(s.participationWithoutEventDate || 0) > 0) quality.push(`${fmt(s.participationWithoutEventDate)} 筆參與缺少活動日期`);
+      $("source-note").innerHTML = [
+        `資料來源：${source.primaryActiveSource || "login audit"}；參與/完成來源：${source.primaryEngagementSource || "registrations + attendanceRecords"}。`,
+        `估計讀取 ${fmt(source.estimatedReads)} 筆，含 users ${fmt(source.usersRead)}、events ${fmt(source.eventsRead)}、registrations ${fmt(source.registrationReads)}、attendance ${fmt(source.attendanceReads)}、audit ${fmt(source.auditEntryReads)}。`,
+        quality.length ? `<span class="warning">資料品質提醒：${quality.join("；")}。</span>` : "資料品質提醒：本次未偵測到明顯口徑缺口。",
+      ].join(" ");
     }
 
     async function loadReport() {
       if (state.loading) return;
       setLoading(true);
-      setStatus("正在確認身份並產生報表...");
+      setStatus("正在讀取後端營運資料...");
       try {
         const user = await ensureAuth();
         if (!user) return;
-        state.authReady = true;
-        $("auth-status").textContent = `已登入：${user.uid.slice(0, 8)}...`;
+        $("auth-status").textContent = `已登入 ${user.uid.slice(0, 8)}...`;
         const fn = state.functions.httpsCallable("getOpsLtvReport");
         const result = await fn({
           startDate: $("start-date").value,
           endDate: $("end-date").value,
         });
         renderReport(result.data.report);
-        setStatus("報表已更新。");
+        setStatus(`報表已更新：${new Date(result.data.report.generatedAt).toLocaleString("zh-Hant-TW")}`);
       } catch (err) {
         const code = err?.code || "";
-        let message = err?.message || "讀取報表失敗";
-        if (code.includes("permission-denied")) message = "僅 admin 以上層級可以查看這份報表。";
-        if (String(message).includes("LIFF")) message += " 請改用 https://toosterx.com/ops-report.html 後重新整理。";
+        let message = err?.message || "讀取報表失敗。";
+        if (code.includes("permission-denied")) message = "此報表僅開放 admin 以上角色。";
+        if (String(message).includes("LIFF")) message += " 請使用 https://toosterx.com/ops-report 開啟。";
         $("auth-status").textContent = "無法載入";
         setStatus(message, true);
       } finally {
@@ -529,9 +565,32 @@
       }
     }
 
+    function csvEscape(value) {
+      const text = String(value ?? "");
+      return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    }
+
+    function exportCsv() {
+      const report = state.report;
+      if (!report || !Array.isArray(report.series)) return;
+      const headers = ["date", "dnu", "dau", "wau", "mau", "participationUsers", "participationEvents", "completedUsers", "completedEvents", "completionRate", "noShowEvents"];
+      const rows = report.series.map(row => headers.map(key => csvEscape(row[key])).join(","));
+      const csv = [headers.join(","), ...rows].join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `toosterx-ltv-${report.range.startDate}-${report.range.endDate}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
     document.addEventListener("DOMContentLoaded", () => {
       initDefaultDates();
       $("load-report").addEventListener("click", loadReport);
+      $("export-csv").addEventListener("click", exportCsv);
       loadReport();
     });
   </script>

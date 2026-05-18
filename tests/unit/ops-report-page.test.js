@@ -13,19 +13,19 @@ describe('ops report temporary standalone page', () => {
     expect(html).toContain('DAU');
     expect(html).toContain('WAU');
     expect(html).toContain('MAU');
-    expect(html).toContain('怎麼看這份報表');
-    expect(html).toContain('DNU｜每日新增用戶');
-    expect(html).toContain('DAU｜每日活躍用戶');
-    expect(html).toContain('WAU｜近 7 日活躍用戶');
-    expect(html).toContain('MAU｜近 30 日活躍用戶');
-    expect(html).toContain('先看 DNU');
-    expect(html).toContain('再看 DAU / WAU / MAU');
+    expect(html).toContain('參與用戶');
+    expect(html).toContain('完成用戶');
+    expect(html).toContain('加入後轉化');
+    expect(html).toContain('7 日內首報名');
+    expect(html).toContain('30 日內完成');
+    expect(html).toContain('No-show 風險');
+    expect(html).toContain('匯出 CSV');
     expect(html).toContain('firebase-functions-compat.js');
     expect(html).toContain('liff.init');
     expect(html).toContain('liff.login');
     expect(html).toContain('createCustomToken');
     expect(html).toContain('getOpsLtvReport');
-    expect(html).toContain('僅 admin 以上');
+    expect(html).toContain('admin 以上角色');
     expect(html).toContain('最多 180 天');
   });
 
@@ -37,7 +37,11 @@ describe('ops report temporary standalone page', () => {
     expect(source).toContain('ROLE_LEVELS.admin');
     expect(source).toContain('auditLogsByDay');
     expect(source).toContain('login_success');
-    expect(source).toContain('usersSnap.size + activePack.auditEntryReads');
+    expect(source).toContain('fetchOpsLtvEngagementSources');
+    expect(source).toContain('collectionGroup("registrations")');
+    expect(source).toContain('collectionGroup("attendanceRecords")');
+    expect(source).toContain('registrationReads');
+    expect(source).toContain('attendanceReads');
     expect(source).toContain('buildOpsLtvReport');
   });
 

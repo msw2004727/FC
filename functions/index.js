@@ -8198,6 +8198,35 @@ async function fetchOpsLtvActiveEntriesByDay(startDate, endDate) {
   };
 }
 
+async function fetchOpsLtvEngagementSources() {
+  const [eventsSnap, registrationsSnap, attendanceSnap] = await Promise.all([
+    db.collection("events")
+      .select("id", "title", "date", "status", "type", "sportTag")
+      .get(),
+    db.collectionGroup("registrations")
+      .select("userId", "eventId", "status", "participantType", "companionId", "registeredAt", "createdAt", "updatedAt")
+      .get(),
+    db.collectionGroup("attendanceRecords")
+      .select("uid", "eventId", "type", "status", "participantType", "companionId", "time", "checkInTime", "checkOutTime", "createdAt", "updatedAt")
+      .get(),
+  ]);
+
+  const isSubcollectionDoc = (doc) => doc.ref.path.split("/").length > 2;
+
+  return {
+    events: eventsSnap.docs.map((doc) => ({ id: doc.id, data: doc.data() || {} })),
+    registrations: registrationsSnap.docs
+      .filter(isSubcollectionDoc)
+      .map((doc) => ({ id: doc.id, data: doc.data() || {} })),
+    attendanceRecords: attendanceSnap.docs
+      .filter(isSubcollectionDoc)
+      .map((doc) => ({ id: doc.id, data: doc.data() || {} })),
+    eventsRead: eventsSnap.size,
+    registrationReads: registrationsSnap.size,
+    attendanceReads: attendanceSnap.size,
+  };
+}
+
 exports.getOpsLtvReport = onCall(
   { region: "asia-east1", timeoutSeconds: 180, memory: "512MiB" },
   async (request) => {
@@ -8227,9 +8256,10 @@ exports.getOpsLtvReport = onCall(
     const todayKey = msToTaipeiDateKey(Date.now());
     const activeStart = addDaysKey(range.startDate, -29);
     const activeEnd = [addDaysKey(range.endDate, 30), todayKey].sort()[0];
-    const [usersSnap, activePack] = await Promise.all([
+    const [usersSnap, activePack, engagementPack] = await Promise.all([
       db.collection("users").get(),
       fetchOpsLtvActiveEntriesByDay(activeStart, activeEnd),
+      fetchOpsLtvEngagementSources(),
     ]);
 
     const users = usersSnap.docs.map((doc) => ({
@@ -8239,13 +8269,23 @@ exports.getOpsLtvReport = onCall(
     const report = buildOpsLtvReport({
       users,
       activeEntriesByDay: activePack.activeEntriesByDay,
+      events: engagementPack.events,
+      registrations: engagementPack.registrations,
+      attendanceRecords: engagementPack.attendanceRecords,
       startDate: range.startDate,
       endDate: range.endDate,
       source: {
         usersRead: usersSnap.size,
         auditEntryReads: activePack.auditEntryReads,
         queriedAuditDays: activePack.queriedAuditDays,
-        estimatedReads: usersSnap.size + activePack.auditEntryReads,
+        eventsRead: engagementPack.eventsRead,
+        registrationReads: engagementPack.registrationReads,
+        attendanceReads: engagementPack.attendanceReads,
+        estimatedReads: usersSnap.size
+          + activePack.auditEntryReads
+          + engagementPack.eventsRead
+          + engagementPack.registrationReads
+          + engagementPack.attendanceReads,
         checkedByUid: request.auth.uid,
         checkedByRole: access.role,
       },
