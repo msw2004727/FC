@@ -102,5 +102,6 @@ describe('event location draft state', () => {
 
     expect(elements['ce-location-btn'].disabled).toBe(true);
     expect(elements['ce-location-status'].dataset.state).toBe('disabled');
+    expect(App._buildEventLocationPayload('ce', 'Test Field')).toEqual({});
   });
 });

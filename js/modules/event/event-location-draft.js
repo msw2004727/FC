@@ -137,7 +137,7 @@
       if (typeof isActivityMapLocationPickerEnabled === 'function') {
         return isActivityMapLocationPickerEnabled();
       }
-      return true;
+      return false;
     },
 
     _syncEventLocationUi(prefix) {
@@ -181,6 +181,7 @@
     },
 
     _buildEventLocationPayload(prefix, locationText) {
+      if (!this._isEventLocationPickerFeatureEnabled()) return {};
       const draft = this._getEventLocationDraft(prefix);
       const point = draft.mapLocationConfirmed ? normalizePoint(draft) : null;
       const currentLocation = normalizeLocationText(locationText);

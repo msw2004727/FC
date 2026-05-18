@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260518a';
+const CACHE_VERSION = '0.20260518b';
 
 const ACTIVITY_MAP_CONFIG = {
   googleApiKey: (typeof window !== 'undefined' && window.__SPORTHUB_GOOGLE_MAPS_API_KEY__) || '',
@@ -40,7 +40,7 @@ function isActivityMapLocationPickerEnabled() {
   const flags = (typeof FirebaseService !== 'undefined' && typeof FirebaseService.getCachedDoc === 'function')
     ? FirebaseService.getCachedDoc('siteConfig', 'featureFlags')
     : null;
-  return !(flags && flags.activityMapLocationPickerEnabled === false);
+  return !!(flags && flags.activityMapLocationPickerEnabled === true);
 }
 
 // Temporary feature switch: no-show is paused and hidden, but historical data remains intact.

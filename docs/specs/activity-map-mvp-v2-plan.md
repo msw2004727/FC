@@ -9,6 +9,7 @@ Status: V2.1 first implementation completed
 - `event-location-draft.js` 只保存輕量表單草稿與 stale 判斷，會隨 activity group 載入。
 - `event-location-picker.js` 被放在 `eventLocationPicker` manual-only group，只有使用者點擊後才載入。
 - Google Maps JS 不在開啟 picker 時自動載入；只有使用者執行地點搜尋且 key 存在時才載入。
+- `activityMapLocationPickerEnabled` 採 opt-in；Firestore rules 尚未成功部署前，關閉狀態不會送出任何 map 欄位，避免舊 rules 擋住既有建立/更新活動。
 - `event-map-geo.js#getEventPoint()` 改為只接受 `mapLocationConfirmed === true` 的座標。
 - Firestore rules 已加入 `lat/lng/mapAddress/mapPlaceId/mapProvider/mapLocationConfirmed/mapLocationUpdatedAt` 驗證。
 - 已補 unit/rules 測試覆蓋 lazy/manual-only、stale payload、map-ready contract 與 rules 欄位驗證。

@@ -21,8 +21,10 @@ function loadEventLocationModules() {
     },
   };
   window.ACTIVITY_MAP_CONFIG = { googleApiKey: '' };
+  window.isActivityMapLocationPickerEnabled = () => true;
   window.eval('var App = window.App;');
   window.eval('var ACTIVITY_MAP_CONFIG = window.ACTIVITY_MAP_CONFIG;');
+  window.eval('var isActivityMapLocationPickerEnabled = window.isActivityMapLocationPickerEnabled;');
   window.eval(readModule('js/modules/event/event-location-draft.js'));
   window.eval(readModule('js/modules/event/event-location-picker.js'));
   return window.App;
