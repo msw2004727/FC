@@ -117,9 +117,14 @@ Object.assign(App, {
     if (this._eventLocationGooglePromise) return this._eventLocationGooglePromise;
     this._eventLocationGooglePromise = new Promise((resolve, reject) => {
       const script = document.createElement('script');
-      const params = new URLSearchParams({ key: apiKey, v: 'weekly', auth_referrer_policy: 'origin' });
+      const params = new URLSearchParams({
+        key: apiKey,
+        v: String(cfg.googleMapsVersion || 'quarterly'),
+        auth_referrer_policy: 'origin',
+      });
       script.src = `https://maps.googleapis.com/maps/api/js?${params.toString()}`;
       script.async = true;
+      script.referrerPolicy = 'origin';
       script.onload = () => resolve(true);
       script.onerror = () => reject(new Error('Google Maps script failed'));
       document.head.appendChild(script);

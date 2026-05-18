@@ -63,12 +63,16 @@ describe('event location picker lazy behavior', () => {
   test('Google Maps loaders use origin referrer policy for clean event routes', async () => {
     const App = loadEventLocationModules();
     window.ACTIVITY_MAP_CONFIG.googleApiKey = 'test-key';
+    window.ACTIVITY_MAP_CONFIG.googleMapsVersion = 'quarterly';
 
     const loadPromise = App._ensureEventLocationGoogleMapsLoaded().catch(() => false);
     const script = document.querySelector('script[src*="maps.googleapis.com"]');
     expect(script).not.toBeNull();
     expect(new URL(script.src).searchParams.get('auth_referrer_policy')).toBe('origin');
+    expect(new URL(script.src).searchParams.get('v')).toBe('quarterly');
+    expect(script.referrerPolicy).toBe('origin');
     expect(readModule('js/modules/event/event-map.js')).toContain("auth_referrer_policy: 'origin'");
+    expect(readModule('js/modules/event/event-map.js')).toContain('googleMapsVersion');
     script.onerror();
     await loadPromise;
   });

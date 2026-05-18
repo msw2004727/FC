@@ -57,6 +57,8 @@ function installGoogleMapsStub() {
       Map: MapStub,
       Marker: MarkerStub,
       LatLngBounds: LatLngBoundsStub,
+      MapTypeId: { ROADMAP: 'roadmap' },
+      RenderingType: { RASTER: 'RASTER' },
       SymbolPath: { CIRCLE: 'CIRCLE' },
       event: {
         trigger: jest.fn(),
@@ -118,6 +120,27 @@ describe('activity map Google render hardening', () => {
     expect(App._activityMapGoogleMap).toBeNull();
   });
 
+  test('uses stable raster roadmap rendering in the modal map', () => {
+    const App = loadActivityMapModule();
+    const { maps } = installGoogleMapsStub();
+    const stage = document.getElementById('activity-map-stage');
+    const data = {
+      userLocation: null,
+      mapReady: [
+        { point: { lat: 25.1, lng: 121.1 }, event: { id: 'evt1', title: 'Test Event' } },
+      ],
+    };
+
+    App._renderGoogleActivityMap(stage, data, {
+      defaultCenter: { lat: 23.7, lng: 120.9 },
+      googleTileFallbackMs: 1000,
+      googleLayoutSettleDelaysMs: [],
+    });
+
+    expect(maps[0].options.mapTypeId).toBe('roadmap');
+    expect(maps[0].options.renderingType).toBe('RASTER');
+  });
+
   test('keeps Google map when tilesloaded fires before the fallback timeout', () => {
     const App = loadActivityMapModule();
     const { listeners } = installGoogleMapsStub();
@@ -139,5 +162,13 @@ describe('activity map Google render hardening', () => {
 
     expect(stage.querySelector('.activity-google-map')).not.toBeNull();
     expect(stage.querySelector('.activity-map-static')).toBeNull();
+  });
+
+  test('activity map overlay avoids backdrop filters around Google map canvas', () => {
+    const css = readModule('css/activity.css');
+    const overlayRule = css.match(/\.activity-map-overlay\{([^}]+)\}/)?.[1] || '';
+
+    expect(overlayRule).not.toContain('backdrop-filter');
+    expect(overlayRule).not.toContain('-webkit-backdrop-filter');
   });
 });

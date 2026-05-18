@@ -318,11 +318,12 @@ Object.assign(App, {
       const script = document.createElement('script');
       const params = new URLSearchParams({
         key: apiKey,
-        v: 'weekly',
+        v: String((typeof ACTIVITY_MAP_CONFIG !== 'undefined' && ACTIVITY_MAP_CONFIG.googleMapsVersion) || 'quarterly'),
         auth_referrer_policy: 'origin',
       });
       script.src = `https://maps.googleapis.com/maps/api/js?${params.toString()}`;
       script.async = true;
+      script.referrerPolicy = 'origin';
       script.onload = resolve;
       script.onerror = () => reject(new Error('Google Maps script failed'));
       document.head.appendChild(script);
@@ -427,10 +428,14 @@ Object.assign(App, {
     const mapOptions = {
       center: first,
       zoom: data.userLocation ? 12 : (Number(cfg.defaultZoom) || 8),
+      mapTypeId: google.maps.MapTypeId?.ROADMAP || 'roadmap',
       mapTypeControl: false,
       fullscreenControl: false,
       streetViewControl: false,
     };
+    if (google.maps.RenderingType?.RASTER) {
+      mapOptions.renderingType = google.maps.RenderingType.RASTER;
+    }
     if (cfg.googleMapId) mapOptions.mapId = cfg.googleMapId;
     const map = new google.maps.Map(mapEl, mapOptions);
     this._activityMapGoogleMap = map;

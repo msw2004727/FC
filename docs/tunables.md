@@ -30,7 +30,9 @@
 | Loading overlay safety timeout | `20000` ms | `index.html:820` | 終極兜底：若 boot overlay 超過 20 秒仍未消失強制隱藏 |
 | 進度條 tick interval | `180` ms | `index.html:789` | 進度條動畫每 180ms 跑一次，從 0% → 92% 約 2.7 秒 |
 | Boot overlay fade out delay | `150` ms | `app.js` `_dismissBootOverlay` | 跳到 100% → 等 150ms → 設 `display:none` |
+| Activity map Google Maps JS version | `quarterly` | `ACTIVITY_MAP_CONFIG.googleMapsVersion` | 附近活動地圖與活動地點搜尋共用較穩定的 Maps JS channel，避免 weekly channel 在行動 WebView 出現臨時 renderer regression。 |
 | Activity map Google layout settle | `requestAnimationFrame` + `[120, 450]` ms | `js/modules/event/event-map.js` / `ACTIVITY_MAP_CONFIG.googleLayoutSettleDelaysMs` | Google Maps 在附近活動彈窗內建立後，補做尺寸同步與中心/邊界重套，避免彈窗剛展開時底圖 canvas 灰底但標記已出現。 |
+| Activity map Google render mode | `roadmap` + `RenderingType.RASTER` | `js/modules/event/event-map.js` | 附近活動地圖固定使用 raster roadmap，避免 WebGL/vector canvas 在 modal/GPU compositing 環境下只顯示灰底但 marker 和控制項正常。 |
 | Activity map Google tile fallback | `7000` ms | `js/modules/event/event-map.js` / `ACTIVITY_MAP_CONFIG.googleTileFallbackMs` | Google `tilesloaded` 未完成時切回現有輕量靜態地圖，避免使用者停在灰底地圖；標記與列表仍以本機活動資料呈現。 |
 
 ### Route Loading Hint（頁面切換載入提示）
