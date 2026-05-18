@@ -11,9 +11,9 @@ describe('event template map location integration', () => {
   test('normal event templates save and restore confirmed map coordinates', () => {
     const source = readProjectFile('js/modules/event/event-create-template.js');
 
-    expect(source).toContain("const locationPayload = this._buildEventLocationTemplatePayload?.('ce', location) || {};");
+    expect(source).toContain("const locationPayload = this._buildEventLocationTemplatePayload?.('ce', location, { gpsEnabled: !!gpsData.enabled }) || {};");
     expect(source).toContain('...locationPayload,');
-    expect(source).toContain("this._restoreEventLocationTemplateDraft?.('ce', tpl);");
+    expect(source).toContain("this._restoreEventLocationTemplateDraft?.('ce', canUseAddons && templateGpsEnabled ? tpl : { location: tpl.location, mapLocationConfirmed: false });");
   });
 
   test('external event templates save and restore confirmed map coordinates', () => {

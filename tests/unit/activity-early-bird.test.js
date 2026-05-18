@@ -12,12 +12,15 @@ describe('activity early bird registration add-on', () => {
     const activityHtml = readProjectFile('pages/activity.html');
     const socialIndex = activityHtml.indexOf('id="ce-social-links-enabled"');
     const earlyBirdIndex = activityHtml.indexOf('id="ce-early-bird-enabled"');
+    const gpsIndex = activityHtml.indexOf('id="ce-gps-enabled"');
     const reservedIndex = activityHtml.indexOf('id="ce-reserved-noshow-detection"');
 
     expect(socialIndex).toBeGreaterThan(-1);
     expect(earlyBirdIndex).toBeGreaterThan(socialIndex);
-    expect(reservedIndex).toBeGreaterThan(earlyBirdIndex);
+    expect(gpsIndex).toBeGreaterThan(earlyBirdIndex);
+    expect(reservedIndex).toBeGreaterThan(gpsIndex);
     expect(activityHtml).toContain('id="ce-early-bird-cost"');
+    expect(activityHtml).not.toContain('id="ce-reserved-gps"');
     expect(activityHtml).toContain('min="10"');
     expect(activityHtml).toContain('max="500"');
   });
@@ -36,18 +39,26 @@ describe('activity early bird registration add-on', () => {
     expect(optionsSource).toContain('bindEventEarlyBirdToggle');
     expect(optionsSource).toContain('_earlyBirdMinCost: 10');
     expect(optionsSource).toContain('_earlyBirdMaxCost: 500');
+    expect(optionsSource).toContain('_getEventGpsFormData');
+    expect(optionsSource).toContain('_setEventGpsFormData');
+    expect(optionsSource).toContain('bindEventGpsToggle');
 
     expect(createSource).toContain('this._getEventEarlyBirdFormData?.({ validate: true })');
+    expect(createSource).toContain('this._getEventGpsFormData?.()');
     expect(createSource).toContain('earlyBirdEnabled');
     expect(createSource).toContain('earlyBirdCost');
     expect(createSource).toContain('earlyBirdPolicyVersion');
+    expect(createSource).toContain('gpsEnabled');
+    expect(createSource).toContain('GPS定位');
     expect(createSource).toContain('早鳥報名');
     expect(createSource).toContain('_canUseActivityAddons');
     expect(helpersSource).toContain("user.activity.addons_use");
-    expect(configSource).toContain('社群連結與早鳥報名等進階功能（加值服務）');
-    expect(rolesSource).toContain('社群連結與早鳥報名功能');
+    expect(configSource).toContain('早鳥報名與 GPS 地圖座標');
+    expect(rolesSource).toContain('早鳥報名與 GPS 地圖座標功能');
     expect(lifecycleSource).toContain('this._setEventEarlyBirdFormData?.(!!e.earlyBirdEnabled, e.earlyBirdCost || 10)');
+    expect(lifecycleSource).toContain('this._setEventGpsFormData?.(!!this._canUseActivityAddons?.(e) && (!!e.gpsEnabled || e.mapLocationConfirmed === true))');
     expect(templateSource).toContain('earlyBirdData');
+    expect(templateSource).toContain('gpsData');
     expect(templateSource).toContain('this._setEventEarlyBirdFormData?.(canUseAddons && !!tpl.earlyBirdEnabled');
   });
 
@@ -89,10 +100,12 @@ describe('activity early bird registration add-on', () => {
 
     expect(rulesSource).toContain("request.resource.data.get('earlyBirdEnabled', false) == false");
     expect(rulesSource).toContain("request.resource.data.get('earlyBirdCost', 0) == 0");
+    expect(rulesSource).toContain("request.resource.data.get('gpsEnabled', false) == false");
     expect(rulesSource).toContain("hasActivityCap('user.activity.addons_use')");
     expect(rulesSource).toContain('function eventEarlyBirdFieldsValid(data)');
     expect(rulesSource).toContain("data.get('earlyBirdCost', 0) >= 10");
     expect(rulesSource).toContain("data.get('earlyBirdCost', 0) <= 500");
     expect(rulesSource).toContain("'earlyBirdEnabled', 'earlyBirdCost', 'earlyBirdPolicyVersion'");
+    expect(rulesSource).toContain("'gpsEnabled', 'lat', 'lng', 'mapAddress'");
   });
 });

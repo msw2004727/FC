@@ -2,14 +2,19 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-function createElement(value = '') {
+function createElement(value = '', options = {}) {
   const listeners = {};
   return {
     value,
+    checked: !!options.checked,
     dataset: {},
     style: {},
     textContent: '',
     disabled: false,
+    classList: {
+      toggle: jest.fn(),
+    },
+    setAttribute: jest.fn(),
     listeners,
     addEventListener: jest.fn((type, handler) => {
       listeners[type] = handler;
@@ -18,7 +23,7 @@ function createElement(value = '') {
   };
 }
 
-function loadDraft(featureEnabled = true) {
+function loadDraft(featureEnabled = true, gpsEnabled = null) {
   const source = fs.readFileSync(
     path.join(__dirname, '../../js/modules/event/event-location-draft.js'),
     'utf8'
@@ -30,6 +35,9 @@ function loadDraft(featureEnabled = true) {
     'ce-location-summary': createElement(),
     'ce-location-clear': createElement(),
   };
+  if (gpsEnabled !== null) {
+    elements['ce-gps-enabled'] = createElement('', { checked: !!gpsEnabled });
+  }
   const document = {
     getElementById: jest.fn(id => elements[id] || null),
   };
@@ -181,5 +189,57 @@ describe('event location draft state', () => {
     expect(elements['ce-location-status'].dataset.state).toBe('disabled');
     expect(App._buildEventLocationPayload('ce', 'Test Field')).toEqual({});
     expect(App._buildEventLocationTemplatePayload('ce', 'Test Field')).toEqual({});
+  });
+
+  test('keeps the map button clickable but greyed out when GPS is off', async () => {
+    const { App, elements } = loadDraft(true, false);
+
+    App._setEventLocationDraft('ce', {
+      lat: '25.026',
+      lng: '121.543',
+      mapAddress: 'Test Field',
+      mapProvider: 'manual',
+    });
+
+    expect(elements['ce-location-btn'].disabled).toBe(false);
+    expect(elements['ce-location-btn'].classList.toggle).toHaveBeenCalledWith('event-location-btn-disabled', true);
+    expect(elements['ce-location-btn'].setAttribute).toHaveBeenCalledWith('aria-disabled', 'true');
+    expect(elements['ce-location-status'].dataset.state).toBe('disabled');
+    expect(App._buildEventLocationPayload('ce', 'Test Field')).toEqual({
+      gpsEnabled: false,
+      lat: null,
+      lng: null,
+      mapAddress: null,
+      mapPlaceId: null,
+      mapProvider: null,
+      mapLocationConfirmed: false,
+      mapLocationUpdatedAt: null,
+    });
+
+    await App.openEventLocationPickerFor('ce');
+    expect(App.showToast).toHaveBeenCalledWith('請先開啟GPS功能');
+  });
+
+  test('stores GPS state with confirmed map payload when the GPS toggle exists', () => {
+    const { App } = loadDraft(true, true);
+
+    App._setEventLocationDraft('ce', {
+      lat: '25.026',
+      lng: '121.543',
+      mapAddress: 'Test Field',
+      mapProvider: 'manual',
+      mapLocationUpdatedAt: '2026-05-18T00:00:00.000Z',
+    });
+
+    expect(App._buildEventLocationPayload('ce', 'Test Field')).toEqual({
+      gpsEnabled: true,
+      lat: 25.026,
+      lng: 121.543,
+      mapAddress: 'Test Field',
+      mapPlaceId: null,
+      mapProvider: 'manual',
+      mapLocationConfirmed: true,
+      mapLocationUpdatedAt: '2026-05-18T00:00:00.000Z',
+    });
   });
 });

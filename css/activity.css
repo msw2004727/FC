@@ -2304,6 +2304,7 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
 .event-location-status[data-state="ready"]{color:#0f766e}
 .event-location-status[data-state="stale"]{color:#b45309}
 .event-location-status[data-state="disabled"]{color:var(--text-muted)}
+.event-location-btn-disabled{opacity:.52;filter:grayscale(1);cursor:not-allowed!important;background:var(--bg-elevated)!important;color:var(--text-muted)!important;border-color:var(--border)!important}
 .event-location-summary{font-size:.72rem;color:var(--text-muted);line-height:1.45;word-break:break-word}
 .event-location-clear{align-self:flex-start;border:0;background:transparent;color:#dc2626;font-size:.72rem;font-weight:800;padding:0;cursor:pointer}
 .event-location-picker-overlay{position:fixed;inset:0;z-index:1320;display:none;align-items:center;justify-content:center;background:rgba(15,23,42,.48);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);padding:1rem}

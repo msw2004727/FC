@@ -128,7 +128,10 @@ Object.assign(App, {
     const genderRestrictionEnabled = canUseAddons && !!document.getElementById('ce-gender-restriction-enabled')?.checked;
     const feeEnabled = canUseAddons && !!document.getElementById('ce-fee-enabled')?.checked;
     const location = document.getElementById('ce-location')?.value?.trim() || '';
-    const locationPayload = this._buildEventLocationTemplatePayload?.('ce', location) || {};
+    const gpsData = canUseAddons
+      ? (this._getEventGpsFormData?.() || { enabled: false })
+      : { enabled: false };
+    const locationPayload = this._buildEventLocationTemplatePayload?.('ce', location, { gpsEnabled: !!gpsData.enabled }) || {};
     const socialLinksData = canUseAddons
       ? (this._getEventSocialLinksFormData?.({ validate: false }) || { enabled: false, links: [] })
       : { enabled: false, links: [] };
@@ -233,12 +236,14 @@ Object.assign(App, {
     setVal('ce-title', tpl.title);
     setVal('ce-type', tpl.type);
     setVal('ce-location', tpl.location);
-    this._restoreEventLocationTemplateDraft?.('ce', tpl);
     // 活動時間與開放報名時間不從範本還原（一次性欄位）
     const canUseAddons = !!this._isActivityAddonAllowedForCurrentEdit?.();
-    if (!canUseAddons && (tpl.feeEnabled || Number(tpl.fee || 0) > 0 || tpl.genderRestrictionEnabled || tpl.privateEvent || tpl.socialLinksEnabled || tpl.earlyBirdEnabled)) {
+    const templateGpsEnabled = !!tpl.gpsEnabled || tpl.mapLocationConfirmed === true;
+    if (!canUseAddons && (tpl.feeEnabled || Number(tpl.fee || 0) > 0 || tpl.genderRestrictionEnabled || tpl.privateEvent || tpl.socialLinksEnabled || tpl.earlyBirdEnabled || templateGpsEnabled)) {
       this._showActivityAddonUpsellToast?.();
     }
+    this._setEventGpsFormData?.(canUseAddons && templateGpsEnabled);
+    this._restoreEventLocationTemplateDraft?.('ce', canUseAddons && templateGpsEnabled ? tpl : { location: tpl.location, mapLocationConfirmed: false });
     const feeEnabled = typeof tpl.feeEnabled === 'boolean' ? tpl.feeEnabled : Number(tpl.fee || 0) > 0;
     this._setEventFeeFormState(canUseAddons && feeEnabled, canUseAddons && Number(tpl.fee || 0) > 0 ? tpl.fee : 0);
     setVal('ce-max', tpl.max);

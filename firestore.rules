@@ -634,7 +634,15 @@ service cloud.firestore {
           && request.resource.data.get('socialLinksEnabled', false) == false
           && isEmptyOptionalList(request.resource.data.get('socialLinks', []))
           && request.resource.data.get('earlyBirdEnabled', false) == false
-          && request.resource.data.get('earlyBirdCost', 0) == 0;
+          && request.resource.data.get('earlyBirdCost', 0) == 0
+          && request.resource.data.get('gpsEnabled', false) == false
+          && request.resource.data.get('lat', null) == null
+          && request.resource.data.get('lng', null) == null
+          && request.resource.data.get('mapAddress', null) == null
+          && request.resource.data.get('mapPlaceId', null) == null
+          && request.resource.data.get('mapProvider', null) == null
+          && request.resource.data.get('mapLocationConfirmed', false) == false
+          && request.resource.data.get('mapLocationUpdatedAt', null) == null;
       }
 
       function eventEarlyBirdFieldsValid(data) {
@@ -711,12 +719,14 @@ service cloud.firestore {
       function isValidEventMapFields(data) {
         return (!data.keys().hasAny(['lat']) || data.lat == null || (data.lat is number && data.lat >= -90 && data.lat <= 90))
           && (!data.keys().hasAny(['lng']) || data.lng == null || (data.lng is number && data.lng >= -180 && data.lng <= 180))
+          && (!data.keys().hasAny(['gpsEnabled']) || data.gpsEnabled is bool)
           && (!data.keys().hasAny(['mapAddress']) || data.mapAddress == null || (data.mapAddress is string && data.mapAddress.size() <= 240))
           && (!data.keys().hasAny(['mapPlaceId']) || data.mapPlaceId == null || (data.mapPlaceId is string && data.mapPlaceId.size() <= 180))
           && (!data.keys().hasAny(['mapProvider']) || data.mapProvider == null || data.mapProvider in ['google', 'manual'])
           && (!data.keys().hasAny(['mapLocationConfirmed']) || data.mapLocationConfirmed is bool)
           && (!data.keys().hasAny(['mapLocationUpdatedAt']) || data.mapLocationUpdatedAt == null || data.mapLocationUpdatedAt is string)
-          && (data.get('mapLocationConfirmed', false) != true || hasValidEventMapPoint(data));
+          && (data.get('mapLocationConfirmed', false) != true || hasValidEventMapPoint(data))
+          && (data.get('mapLocationConfirmed', false) != true || data.get('gpsEnabled', true) == true);
       }
 
       function isUserCreateOwner() {
@@ -752,7 +762,8 @@ service cloud.firestore {
           'privateEvent',
           'teamSplit',
           'socialLinksEnabled', 'socialLinks',
-          'earlyBirdEnabled', 'earlyBirdCost', 'earlyBirdPolicyVersion'
+          'earlyBirdEnabled', 'earlyBirdCost', 'earlyBirdPolicyVersion',
+          'gpsEnabled', 'lat', 'lng', 'mapAddress', 'mapPlaceId', 'mapProvider', 'mapLocationConfirmed', 'mapLocationUpdatedAt'
         ]);
       }
 
@@ -769,7 +780,7 @@ service cloud.firestore {
           'title', 'type', 'location', 'date', 'startTimestamp', 'endTimestamp', 'externalUrl', 'max', 'minAge', 'notes', 'image', 'imageVariants',
           'sportTag', 'regOpenTime', 'gradient', 'icon', 'countdown',
           'regionEnabled', 'region', 'cities', 'delegates', 'delegateUids',
-          'lat', 'lng', 'mapAddress', 'mapPlaceId', 'mapProvider', 'mapLocationConfirmed', 'mapLocationUpdatedAt',
+          'gpsEnabled', 'lat', 'lng', 'mapAddress', 'mapPlaceId', 'mapProvider', 'mapLocationConfirmed', 'mapLocationUpdatedAt',
           'fee', 'feeEnabled', 'genderRestrictionEnabled', 'allowedGender',
           'privateEvent', 'teamSplit', 'socialLinksEnabled', 'socialLinks',
           'earlyBirdEnabled', 'earlyBirdCost', 'earlyBirdPolicyVersion',
@@ -782,7 +793,7 @@ service cloud.firestore {
           'title', 'type', 'location', 'date', 'startTimestamp', 'endTimestamp', 'externalUrl', 'max', 'minAge', 'notes', 'image', 'imageVariants',
           'sportTag', 'regOpenTime', 'gradient', 'icon', 'countdown',
           'regionEnabled', 'region', 'cities', 'delegates', 'delegateUids',
-          'lat', 'lng', 'mapAddress', 'mapPlaceId', 'mapProvider', 'mapLocationConfirmed', 'mapLocationUpdatedAt',
+          'gpsEnabled', 'lat', 'lng', 'mapAddress', 'mapPlaceId', 'mapProvider', 'mapLocationConfirmed', 'mapLocationUpdatedAt',
           'fee', 'feeEnabled', 'genderRestrictionEnabled', 'allowedGender',
           'privateEvent', 'teamSplit', 'socialLinksEnabled', 'socialLinks',
           'earlyBirdEnabled', 'earlyBirdCost', 'earlyBirdPolicyVersion',

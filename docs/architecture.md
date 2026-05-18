@@ -461,11 +461,12 @@ current = realCurrent + sum(remainingSlots)
 
 - 活動類型、活動地區、地點、日期時間、主辦/委託人、裁判類欄位
 - 運動標籤選擇器
-- 費用、俱樂部限定、性別限定、私密活動、分隊、社群連結、候補、預留開關等進階功能
+- 費用、俱樂部限定、性別限定、私密活動、分隊、社群連結、早鳥報名、GPS 地圖座標、候補、預留開關等進階功能
 - 多日期活動
 - 活動範本
 - 外部活動轉換
 - 場地地圖定位草稿與手動/Google geocode picker（`event-location-draft.js` / `event-location-picker.js`）
+- GPS 進階開關控制自建活動的「設定地圖座標」可用狀態；未開啟時按鈕反灰並提示先開啟 GPS，送出時會清除 map marker 欄位。
 - input history
 
 「進階功能」區塊預設收合，琥珀色底；其中社群連結可儲存最多 5 個 URL，前端依網域判斷 LINE、Facebook、Instagram、YouTube 等平台並在活動詳情頁主辦/委託資訊下方顯示圓形連結按鈕。部分預留開關目前無實際作用。

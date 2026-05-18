@@ -140,6 +140,15 @@
       return false;
     },
 
+    _isEventLocationGpsEnabled(prefix) {
+      if (prefix !== 'ce') return true;
+      if (typeof this._isEventGpsEnabled === 'function') {
+        return this._isEventGpsEnabled(prefix);
+      }
+      const toggle = document.getElementById('ce-gps-enabled');
+      return toggle ? !!toggle.checked : true;
+    },
+
     _syncEventLocationUi(prefix) {
       const statusEl = document.getElementById(`${prefix}-location-status`);
       const summaryEl = document.getElementById(`${prefix}-location-summary`);
@@ -147,13 +156,25 @@
       const clearButton = document.getElementById(`${prefix}-location-clear`);
       if (!statusEl || !button) return;
 
-      const enabled = this._isEventLocationPickerFeatureEnabled();
+      const featureEnabled = this._isEventLocationPickerFeatureEnabled();
+      const gpsEnabled = this._isEventLocationGpsEnabled(prefix);
+      const enabled = featureEnabled && gpsEnabled;
       const draft = this._getEventLocationDraft(prefix);
       const point = draft.mapLocationConfirmed ? normalizePoint(draft) : null;
-      button.disabled = !enabled;
+      button.disabled = !featureEnabled;
+      button.classList?.toggle?.('event-location-btn-disabled', !enabled);
+      button.setAttribute?.('aria-disabled', enabled ? 'false' : 'true');
       button.textContent = point ? '重新設定地圖座標' : '設定地圖座標';
 
-      if (!enabled) {
+      if (!gpsEnabled) {
+        statusEl.textContent = 'GPS功能未開啟';
+        statusEl.dataset.state = 'disabled';
+        if (summaryEl) summaryEl.textContent = '';
+        if (clearButton) clearButton.style.display = 'none';
+        return;
+      }
+
+      if (!featureEnabled) {
         statusEl.textContent = '地圖定位未開啟';
         statusEl.dataset.state = 'disabled';
         if (summaryEl) summaryEl.textContent = '';
@@ -180,13 +201,32 @@
       if (clearButton) clearButton.style.display = 'none';
     },
 
-    _buildEventLocationPayload(prefix, locationText) {
+    _buildEventLocationPayload(prefix, locationText, options = {}) {
       if (!this._isEventLocationPickerFeatureEnabled()) return {};
+      const gpsOptionProvided = typeof options.gpsEnabled === 'boolean';
+      const gpsEnabled = gpsOptionProvided ? options.gpsEnabled : this._isEventLocationGpsEnabled(prefix);
+      const gpsToggleExists = prefix === 'ce' && !!document.getElementById('ce-gps-enabled');
+      const gpsPayload = (prefix === 'ce' && (gpsOptionProvided || gpsToggleExists))
+        ? { gpsEnabled: !!gpsEnabled }
+        : {};
+      if (!gpsEnabled) {
+        return {
+          ...gpsPayload,
+          lat: null,
+          lng: null,
+          mapAddress: null,
+          mapPlaceId: null,
+          mapProvider: null,
+          mapLocationConfirmed: false,
+          mapLocationUpdatedAt: null,
+        };
+      }
       const draft = this._getEventLocationDraft(prefix);
       const point = draft.mapLocationConfirmed ? normalizePoint(draft) : null;
       const currentLocation = normalizeLocationText(locationText);
       if (!point || currentLocation !== normalizeLocationText(draft.sourceLocationText)) {
         return {
+          ...gpsPayload,
           lat: null,
           lng: null,
           mapAddress: null,
@@ -197,6 +237,7 @@
         };
       }
       return {
+        ...gpsPayload,
         lat: point.lat,
         lng: point.lng,
         mapAddress: draft.mapAddress || currentLocation || null,
@@ -207,16 +248,16 @@
       };
     },
 
-    _buildEventLocationTemplatePayload(prefix, locationText) {
-      return this._buildEventLocationPayload(prefix, locationText);
+    _buildEventLocationTemplatePayload(prefix, locationText, options = {}) {
+      return this._buildEventLocationPayload(prefix, locationText, options);
     },
 
     _restoreEventLocationTemplateDraft(prefix, template) {
       this._resetEventLocationDraft(prefix, template);
     },
 
-    _applyEventLocationPayload(target, prefix, locationText) {
-      Object.assign(target, this._buildEventLocationPayload(prefix, locationText));
+    _applyEventLocationPayload(target, prefix, locationText, options = {}) {
+      Object.assign(target, this._buildEventLocationPayload(prefix, locationText, options));
       return target;
     },
 
@@ -224,6 +265,10 @@
       const formPrefix = prefix || 'ce';
       const input = this._getEventLocationInput(formPrefix);
       const locationText = normalizeLocationText(input?.value || '');
+      if (!this._isEventLocationGpsEnabled(formPrefix)) {
+        this.showToast?.('請先開啟GPS功能');
+        return false;
+      }
       if (!locationText) {
         this.showToast?.('請先輸入地點文字');
         input?.focus?.();

@@ -2894,3 +2894,9 @@
 - **Cause**: The first tap could happen before feature flags were cached, so production defaulted to the Cloud Function path and showed the confirmation. While the modal was open, the general registration rollout flag could load and return false, causing the second early-bird attempt to be blocked even though early bird requires the server path.
 - **Fix**: Added an early-bird-specific server-registration helper that forces the Cloud Function path in production, matching the server-only requirement for early-bird charging.
 - **Validation**: Added helper coverage for production and non-production behavior plus early-bird source assertions.
+
+### 2026-05-18 Activity GPS Add-On Gate [bugfix]
+- **Issue**: The custom activity form had map coordinate controls without an explicit GPS add-on switch, so operators could not clearly control whether the activity should use GPS/map marker data.
+- **Cause**: GPS was still a disabled reserved row, while the active map-location draft flow only checked the global map feature flag.
+- **Fix**: Promoted GPS to a real advanced add-on directly under early bird. The map coordinate button now greys out when GPS is off, remains clickable for the requested "請先開啟GPS功能" toast, and submit/template paths clear marker fields when GPS is off. Firestore rules now treat GPS/map fields as `user.activity.addons_use` data.
+- **Validation**: Ran `node --check` on touched event modules, targeted GPS/early-bird/template unit tests, full `npm test -- --runInBand`, and `npm run test:rules`.

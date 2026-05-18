@@ -154,6 +154,7 @@ Object.assign(App, {
     if (eventData?.teamSplit) labels.push('分隊功能');
     if (eventData?.socialLinksEnabled || (Array.isArray(eventData?.socialLinks) && eventData.socialLinks.length > 0)) labels.push('社群連結');
     if (eventData?.earlyBirdEnabled) labels.push('早鳥報名');
+    if (eventData?.gpsEnabled || eventData?.mapLocationConfirmed) labels.push('GPS定位');
     return labels;
   },
 
@@ -183,6 +184,14 @@ Object.assign(App, {
     'earlyBirdEnabled',
     'earlyBirdCost',
     'earlyBirdPolicyVersion',
+    'gpsEnabled',
+    'lat',
+    'lng',
+    'mapAddress',
+    'mapPlaceId',
+    'mapProvider',
+    'mapLocationConfirmed',
+    'mapLocationUpdatedAt',
   ],
 
   _normalizeEventChangeNotifyValue(value) {
@@ -382,6 +391,7 @@ Object.assign(App, {
     this._tsSetFormData?.(null);
     this._setEventSocialLinksFormData?.(false, []);
     this._setEventEarlyBirdFormData?.(false, 10);
+    this._setEventGpsFormData?.(false);
     this._regionSetFormData?.(true, '中部', typeof REGION_MAP !== 'undefined' && REGION_MAP['中部'] ? [...REGION_MAP['中部']] : []);
     const cePreview = document.getElementById('ce-upload-preview');
     if (cePreview) {
@@ -399,6 +409,7 @@ Object.assign(App, {
     this.bindTeamSplitToggle?.();
     this.bindEventSocialLinksToggle?.();
     this.bindEventEarlyBirdToggle?.();
+    this.bindEventGpsToggle?.();
     this.bindReservedActivityAddonToggles?.();
     this.bindRegionToggle?.();
     this._bindCreateTimeSummary();
@@ -480,9 +491,11 @@ Object.assign(App, {
     if (earlyBirdData.error) { this.showToast(earlyBirdData.error); return; }
     let earlyBirdEnabled = !!earlyBirdData.enabled;
     let earlyBirdCost = earlyBirdEnabled ? Number(earlyBirdData.cost || 0) : 0;
+    let gpsData = this._getEventGpsFormData?.() || { enabled: false };
+    let gpsEnabled = !!gpsData.enabled;
     const regionData = this._regionGetFormData?.() || { regionEnabled: true, region: '', cities: [] };
     const canUseAddons = !!this._canUseActivityAddons?.(eventBeingEdited || null);
-    if (!canUseAddons && (feeEnabled || teamOnly || genderRestrictionEnabled || privateEvent || teamSplitData || socialLinksEnabled || earlyBirdEnabled)) {
+    if (!canUseAddons && (feeEnabled || teamOnly || genderRestrictionEnabled || privateEvent || teamSplitData || socialLinksEnabled || earlyBirdEnabled || gpsEnabled)) {
       this._showActivityAddonUpsellToast?.();
       feeEnabled = false;
       fee = 0;
@@ -495,6 +508,7 @@ Object.assign(App, {
       socialLinks = [];
       earlyBirdEnabled = false;
       earlyBirdCost = 0;
+      gpsEnabled = false;
     }
 
     if (!title) { this.showToast('請輸入活動名稱'); return; }
@@ -526,7 +540,7 @@ Object.assign(App, {
     if (!sportTag) { this.showToast('請先選擇運動 / 場景標籤（必選）'); return; }
     if (genderRestrictionEnabled && !allowedGender) { this.showToast('請選擇限定性別'); return; }
     if (regionData.regionEnabled && !regionData.region) { this.showToast('請選擇活動地區'); return; }
-    const locationPayload = this._buildEventLocationPayload?.('ce', location) || {};
+    const locationPayload = this._buildEventLocationPayload?.('ce', location, { gpsEnabled }) || {};
     // 俱樂部限定：決定 teamId / teamName
     let resolvedTeamId = null, resolvedTeamName = null;
     if (teamOnly && !this.hasPermission('team.create_event') && !this.hasPermission('activity.manage.entry')) {
@@ -637,6 +651,8 @@ Object.assign(App, {
           'privateEvent', 'creatorTeamId', 'creatorTeamName', 'creatorTeamIds',
           'creatorTeamNames', 'teamSplit', 'socialLinksEnabled', 'socialLinks',
           'earlyBirdEnabled', 'earlyBirdCost', 'earlyBirdPolicyVersion',
+          'gpsEnabled', 'lat', 'lng', 'mapAddress', 'mapPlaceId', 'mapProvider',
+          'mapLocationConfirmed', 'mapLocationUpdatedAt',
         ].forEach(key => { delete updates[key]; });
       }
       if (!this._canManageEventDelegates?.(existingEvent)) {
@@ -873,6 +889,7 @@ Object.assign(App, {
     this._setPrivateEventState(false);
     this._setEventSocialLinksFormData?.(false, []);
     this._setEventEarlyBirdFormData?.(false, 10);
+    this._setEventGpsFormData?.(false);
     this._resetMultiDates();
     const cePreview = document.getElementById('ce-upload-preview');
     if (cePreview) {

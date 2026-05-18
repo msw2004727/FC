@@ -888,4 +888,53 @@ Object.assign(App, {
     this._updateEventEarlyBirdUI();
   },
 
+  _getEventGpsNodes() {
+    return {
+      toggle: document.getElementById('ce-gps-enabled'),
+      label: document.getElementById('ce-gps-label'),
+    };
+  },
+
+  _isEventGpsEnabled(prefix = 'ce') {
+    if (prefix !== 'ce') return true;
+    const nodes = this._getEventGpsNodes?.() || {};
+    return nodes.toggle ? !!nodes.toggle.checked : true;
+  },
+
+  _updateEventGpsUI() {
+    const nodes = this._getEventGpsNodes();
+    if (!nodes.toggle) return;
+    const enabled = !!nodes.toggle.checked;
+    if (nodes.label) {
+      nodes.label.textContent = enabled ? '開啟' : '關閉';
+      nodes.label.style.color = enabled ? 'var(--accent)' : 'var(--text-muted)';
+    }
+    this._syncEventLocationUi?.('ce');
+  },
+
+  _getEventGpsFormData() {
+    return { enabled: this._isEventGpsEnabled?.('ce') === true };
+  },
+
+  _setEventGpsFormData(enabled) {
+    const nodes = this._getEventGpsNodes();
+    if (nodes.toggle) nodes.toggle.checked = !!enabled;
+    this._updateEventGpsUI();
+  },
+
+  bindEventGpsToggle() {
+    const nodes = this._getEventGpsNodes();
+    if (nodes.toggle && nodes.toggle.dataset.bound !== '1') {
+      nodes.toggle.dataset.bound = '1';
+      nodes.toggle.addEventListener('change', () => {
+        if (!this._guardActivityAddonToggle(nodes.toggle)) {
+          this._setEventGpsFormData(false);
+          return;
+        }
+        this._updateEventGpsUI();
+      });
+    }
+    this._updateEventGpsUI();
+  },
+
 });

@@ -769,6 +769,13 @@ describe("/events/{eventId}", () => {
         earlyBirdCost: 100,
       })
     );
+    await assertFails(
+      setDoc(doc(user(), "events", "event_user_gps_addon_create"), {
+        title: "User GPS Add-on",
+        creatorUid: "uidUser",
+        gpsEnabled: true,
+      })
+    );
   });
 
   test("user can create upcoming and add-on events only when matching capabilities allow it", async () => {
@@ -801,6 +808,13 @@ describe("/events/{eventId}", () => {
         earlyBirdEnabled: true,
         earlyBirdCost: 120,
         earlyBirdPolicyVersion: 1,
+        gpsEnabled: true,
+        lat: 25.026,
+        lng: 121.543,
+        mapAddress: "Test Field",
+        mapProvider: "manual",
+        mapLocationConfirmed: true,
+        mapLocationUpdatedAt: "2026-05-18T00:00:00.000Z",
       })
     );
 
@@ -893,13 +907,35 @@ describe("/events/{eventId}", () => {
     );
   });
 
-  test("event map fields require confirmed numeric coordinates", async () => {
+  test("event map fields require add-on capability and confirmed numeric coordinates", async () => {
+    await assertFails(
+      setDoc(doc(user(), "events", "event_user_map_create_without_addon"), {
+        title: "User Map No Add-on",
+        creatorUid: "uidUser",
+        status: "open",
+        location: "Test Field",
+        gpsEnabled: true,
+        lat: 25.026,
+        lng: 121.543,
+        mapAddress: "Test Field",
+        mapProvider: "manual",
+        mapLocationConfirmed: true,
+        mapLocationUpdatedAt: "2026-05-18T00:00:00.000Z",
+      })
+    );
+
+    await seedRoleActivityCapabilities([
+      ...DEFAULT_USER_ACTIVITY_CAPABILITIES,
+      "user.activity.addons_use",
+    ]);
+
     await assertSucceeds(
       setDoc(doc(user(), "events", "event_user_map_create"), {
         title: "User Map",
         creatorUid: "uidUser",
         status: "open",
         location: "Test Field",
+        gpsEnabled: true,
         lat: 25.026,
         lng: 121.543,
         mapAddress: "Test Field",
@@ -914,6 +950,7 @@ describe("/events/{eventId}", () => {
         title: "Bad Lat",
         creatorUid: "uidUser",
         status: "open",
+        gpsEnabled: true,
         lat: "25.026",
         lng: 121.543,
         mapLocationConfirmed: true,
@@ -925,6 +962,7 @@ describe("/events/{eventId}", () => {
         title: "Missing Lng",
         creatorUid: "uidUser",
         status: "open",
+        gpsEnabled: true,
         lat: 25.026,
         mapLocationConfirmed: true,
       })
@@ -932,6 +970,7 @@ describe("/events/{eventId}", () => {
 
     await assertSucceeds(
       updateDoc(doc(user(), "events", "eventUserOwn"), {
+        gpsEnabled: true,
         lat: 25.026,
         lng: 121.543,
         mapAddress: "Test Field",
@@ -943,6 +982,7 @@ describe("/events/{eventId}", () => {
 
     await assertFails(
       updateDoc(doc(user(), "events", "eventUserOwn"), {
+        gpsEnabled: true,
         lat: 91,
         lng: 121.543,
         mapLocationConfirmed: true,
@@ -951,6 +991,7 @@ describe("/events/{eventId}", () => {
 
     await assertFails(
       updateDoc(doc(admin(), "events", "eventB"), {
+        gpsEnabled: true,
         lat: 25.026,
         lng: 121.543,
         mapProvider: "unknown",
@@ -960,6 +1001,7 @@ describe("/events/{eventId}", () => {
 
     await assertSucceeds(
       updateDoc(doc(user(), "events", "eventUserOwn"), {
+        gpsEnabled: false,
         lat: null,
         lng: null,
         mapAddress: null,
