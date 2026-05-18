@@ -36,6 +36,7 @@ const calendarSportOptions = [
   { key: 'pickleball', label: '匹克球' },
   { key: 'dodgeball', label: '美式躲避球' },
   { key: 'running', label: '跑步' },
+  { key: 'other', label: '其他' },
 ];
 
 function _getSportKeySafe(key) {
@@ -155,5 +156,17 @@ describe('sport option source contracts', () => {
     expect(baseballIndex).toBeGreaterThan(esportsIndex);
     expect(configSource).toContain("escape_room: '<img src=\"./img/Artificial-Intelligence-Brain--Streamline-Plump-Gradient.png\"");
     expect(configSource).toContain("esports: '<img src=\"./img/winner.png\"");
+  });
+
+  test('keeps other as the last shared sport option with the uploaded image icon', () => {
+    const martialArtsIndex = configSource.indexOf("{ key: 'martial_arts', label: '武術' }");
+    const otherIndex = configSource.indexOf("{ key: 'other', label: '其他' }");
+    const listEndIndex = configSource.indexOf('];', otherIndex);
+
+    expect(martialArtsIndex).toBeGreaterThan(0);
+    expect(otherIndex).toBeGreaterThan(martialArtsIndex);
+    expect(configSource.slice(otherIndex + 1, listEndIndex)).not.toContain("{ key:");
+    expect(configSource).toContain("other: '<img src=\"./img/1more.png\"");
+    expect(fs.existsSync(path.join(__dirname, '../../img/1more.png'))).toBe(true);
   });
 });

@@ -30,6 +30,7 @@ const EVENT_SPORT_OPTIONS = [
   { key: 'dance', label: '舞蹈' },
   { key: 'yoga', label: '瑜伽' },
   { key: 'martial_arts', label: '武術' },
+  { key: 'other', label: '其他' },
 ];
 
 const EVENT_SPORT_MAP = EVENT_SPORT_OPTIONS.reduce((acc, item) => {
