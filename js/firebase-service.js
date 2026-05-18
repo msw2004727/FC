@@ -2137,6 +2137,7 @@ const FirebaseService = {
         this._singleDocCache[collection + '/' + docId] = snap.data();
         if (collection === 'siteConfig' && docId === 'featureFlags') {
           try { App?._syncActivityMapEntry?.(); } catch (_) {}
+          try { App?._syncHomeBannerMapEntry?.(); } catch (_) {}
           try { App?.renderActivityMapToggle?.(); } catch (_) {}
         }
       }

@@ -27,7 +27,7 @@
 .banner-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.35); cursor: pointer; transition: all var(--transition); }
 .banner-dot.active { background: #fff; width: 20px; border-radius: 4px; }
 
-.banner-region-control {
+.banner-nearby-activity-btn {
   pointer-events: auto;
   height: 34px;
   display: inline-flex;
@@ -41,29 +41,22 @@
   backdrop-filter: blur(12px);
   color: #fff;
   box-shadow: 0 8px 20px rgba(0,0,0,.12);
+  font-size: .78rem;
+  font-weight: 900;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
-.banner-region-control svg {
+.banner-nearby-activity-btn svg {
   width: 15px;
   height: 15px;
   flex: 0 0 auto;
 }
 
-.banner-region-select {
-  width: auto;
-  max-width: 8.2rem;
-  border: 0;
-  outline: 0;
-  padding: 0 1.1rem 0 0;
-  background: transparent;
-  color: inherit;
-  font-size: .78rem;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.banner-region-select option {
-  color: #111827;
+.banner-nearby-activity-btn.is-disabled,
+.banner-nearby-activity-btn:disabled {
+  opacity: .58;
+  cursor: not-allowed;
 }
 
 .banner-copy {
@@ -1254,13 +1247,9 @@ body.home-activity-search-open {
     padding: .62rem;
   }
 
-  .banner-region-control {
+  .banner-nearby-activity-btn {
     height: 31px;
     padding: 0 .48rem;
-  }
-
-  .banner-region-select {
-    max-width: 6.8rem;
     font-size: .72rem;
   }
 

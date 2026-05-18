@@ -97,18 +97,55 @@ Object.assign(App, {
     return /^#[0-9a-fA-F]{6}$/.test(raw) ? raw : fallback;
   },
 
-  _renderBannerRegionSelect() {
-    const regions = ['全部', '北部', '中部', '南部', '東部&外島'];
-    const current = typeof this.getHomeBannerRegion === 'function'
-      ? this.getHomeBannerRegion()
-      : '全部';
-    const options = regions.map(region =>
-      `<option value="${escapeHTML(region)}"${region === current ? ' selected' : ''}>${escapeHTML(region)}</option>`
-    ).join('');
-    return `<label class="banner-region-control" onclick="event.stopPropagation()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-4.6 7-11a7 7 0 1 0-14 0c0 6.4 7 11 7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg>
-      <select class="banner-region-select" aria-label="首頁活動地區" onchange="App.setHomeBannerRegion(this.value, { persist: true })">${options}</select>
-    </label>`;
+  _isHomeBannerMapEntryEnabled() {
+    if (typeof this._isActivityMapFeatureEnabled === 'function') {
+      return this._isActivityMapFeatureEnabled();
+    }
+    return typeof isActivityMapEnabled === 'function' && isActivityMapEnabled();
+  },
+
+  _syncHomeBannerMapEntry() {
+    const enabled = this._isHomeBannerMapEntryEnabled();
+    document.querySelectorAll('.banner-nearby-activity-btn').forEach(button => {
+      button.disabled = !enabled;
+      button.classList.toggle('is-disabled', !enabled);
+      button.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+      button.title = enabled ? '\u5c0b\u627e\u9644\u8fd1\u6d3b\u52d5' : '\u9644\u8fd1\u6d3b\u52d5\u5730\u5716\u5c1a\u672a\u958b\u555f';
+    });
+  },
+
+  async openHomeBannerActivityMapEntry(event) {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    if (!this._isHomeBannerMapEntryEnabled()) {
+      this._syncHomeBannerMapEntry?.();
+      this.showToast?.('\u9644\u8fd1\u6d3b\u52d5\u5730\u5716\u5c1a\u672a\u958b\u555f');
+      return false;
+    }
+    if (typeof this.openActivityMapEntry === 'function') {
+      return this.openActivityMapEntry(event);
+    }
+    try {
+      if (typeof ScriptLoader === 'undefined' || typeof ScriptLoader.ensureGroup !== 'function') {
+        throw new Error('ScriptLoader unavailable');
+      }
+      await ScriptLoader.ensureGroup('activityMap');
+      if (typeof this.showActivityMap !== 'function') throw new Error('activity map module unavailable');
+      await this.showActivityMap();
+      return true;
+    } catch (err) {
+      console.error('[HomeBannerMap] open failed:', err);
+      this.showToast?.('\u9644\u8fd1\u6d3b\u52d5\u5730\u5716\u8f09\u5165\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+      return false;
+    }
+  },
+
+  _renderBannerNearbyActivityButton() {
+    const enabled = this._isHomeBannerMapEntryEnabled();
+    return `<button class="banner-nearby-activity-btn${enabled ? '' : ' is-disabled'}" type="button" onclick="App.openHomeBannerActivityMapEntry?.(event)" aria-disabled="${enabled ? 'false' : 'true'}" title="${enabled ? '\u5c0b\u627e\u9644\u8fd1\u6d3b\u52d5' : '\u9644\u8fd1\u6d3b\u52d5\u5730\u5716\u5c1a\u672a\u958b\u555f'}"${enabled ? '' : ' disabled'}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3Z"/><path d="M9 3v15"/><path d="M15 6v15"/></svg>
+      <span>\u5c0b\u627e\u9644\u8fd1\u6d3b\u52d5</span>
+    </button>`;
   },
 
   _renderBannerActions() {
@@ -130,7 +167,7 @@ Object.assign(App, {
     const titleColor = this._safeBannerColor(b.titleColor, '#ffffff');
     const subtitleColor = this._safeBannerColor(b.subtitleColor, '#e5edf8');
     return `<div class="banner-content" style="--banner-title-color:${titleColor};--banner-subtitle-color:${subtitleColor}">
-      ${this._renderBannerRegionSelect()}
+      ${this._renderBannerNearbyActivityButton()}
       <div class="banner-copy">
         <h2>${escapeHTML(title)}</h2>
         <p>${escapeHTML(subtitle)}</p>
@@ -145,7 +182,7 @@ Object.assign(App, {
     const titleColor = this._safeBannerColor(b.titleColor, '#ffffff');
     const subtitleColor = this._safeBannerColor(b.subtitleColor, '#e5edf8');
     return `<div class="banner-content banner-fixed-content" style="--banner-title-color:${titleColor};--banner-subtitle-color:${subtitleColor}">
-      ${this._renderBannerRegionSelect()}
+      ${this._renderBannerNearbyActivityButton()}
       <div class="banner-copy">
         <h2>${escapeHTML(title)}</h2>
         <p>${escapeHTML(subtitle)}</p>

@@ -117,7 +117,8 @@ describe("home-dashboard browser binding", () => {
     expect(homeCssSource).toMatch(/\.banner-slide\s*\{[\s\S]*aspect-ratio:\s*2\.2\s*\/\s*1/);
     expect(homeCssSource).toContain(".banner-fixed-content");
     expect(homeCssSource).toMatch(/\.banner-dots\s*\{[\s\S]*right:\s*\.72rem[\s\S]*left:\s*auto[\s\S]*transform:\s*none/);
-    expect(homeCssSource).toContain(".banner-region-control");
+    expect(homeCssSource).toContain(".banner-nearby-activity-btn");
+    expect(homeCssSource).not.toContain(".banner-region-control");
     expect(homeCssSource).toContain(".banner-find-btn");
     expect(homeCssSource).toContain(".home-activity-search-overlay");
     expect(homeCssSource).toMatch(/\.home-hero-actions\s*\{[\s\S]*margin:\s*0 0 \.6rem/);
@@ -156,6 +157,11 @@ describe("home-dashboard browser binding", () => {
     expect(adManageBannerSource).toContain("outputWidth: 1200");
     expect(bannerSource).toContain("_ensureBannerFixedOverlay(banners)");
     expect(bannerSource).toContain("banner-content banner-fixed-content");
+    expect(bannerSource).toContain("_renderBannerNearbyActivityButton()");
+    expect(bannerSource).toContain("openHomeBannerActivityMapEntry(event)");
+    expect(bannerSource).toContain("ScriptLoader.ensureGroup('activityMap')");
+    expect(bannerSource).not.toContain("banner-region-select");
+    expect(source).not.toContain("banner-region-select");
     expect(homeHtmlSource).toContain("home-watch-party-card");
     expect(homeHtmlSource).toContain("home-watch-party-card is-hidden");
     expect(homeHtmlSource).toContain("App.openHomeWatchParty()");

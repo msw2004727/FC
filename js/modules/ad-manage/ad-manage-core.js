@@ -210,6 +210,7 @@ Object.assign(App, {
       }, { merge: true });
       FirebaseService.setActivityMapEnabledCache?.(enabled);
       this._syncActivityMapEntry?.();
+      this._syncHomeBannerMapEntry?.();
       this.showToast(enabled ? '已開啟附近活動地圖' : '已關閉附近活動地圖');
     } catch (err) {
       console.error('[ActivityMap] toggle failed:', err);

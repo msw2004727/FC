@@ -528,9 +528,6 @@
       if (options.persist !== false) {
         try { localStorage.setItem(HOME_ACTIVITY_REGION_KEY, safeRegion); } catch (_) {}
       }
-      document.querySelectorAll('.banner-region-select').forEach(select => {
-        select.value = safeRegion;
-      });
       const modalRegion = document.getElementById('home-search-region');
       if (modalRegion) modalRegion.value = safeRegion;
       if (options.syncActivities !== false && this.currentPage === 'page-activities' && typeof this.switchRegionTab === 'function') {
