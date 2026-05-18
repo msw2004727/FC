@@ -2301,6 +2301,7 @@ body.activity-map-open{overflow:hidden}
 .activity-map-stage{position:relative;min-height:300px;background:#e8f1ee;overflow:hidden;flex:1 1 auto}
 [data-theme="dark"] .activity-map-stage{background:#17211f}
 .activity-google-map{position:absolute;inset:0}
+.activity-google-map .gm-style img,.activity-google-map img{max-width:none!important;opacity:1!important;transition:none!important}
 .activity-map-static{position:absolute;inset:0;background:#e8f1ee}
 [data-theme="dark"] .activity-map-static{background:#17211f}
 .activity-map-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(51,65,85,.12) 1px,transparent 1px),linear-gradient(90deg,rgba(51,65,85,.12) 1px,transparent 1px);background-size:42px 42px}

@@ -33,6 +33,7 @@
 | Activity map Google Maps JS version | `quarterly` | `ACTIVITY_MAP_CONFIG.googleMapsVersion` | 附近活動地圖與活動地點搜尋共用較穩定的 Maps JS channel，避免 weekly channel 在行動 WebView 出現臨時 renderer regression。 |
 | Activity map Google layout settle | `requestAnimationFrame` + `[120, 450]` ms | `js/modules/event/event-map.js` / `ACTIVITY_MAP_CONFIG.googleLayoutSettleDelaysMs` | Google Maps 在附近活動彈窗內建立後，補做尺寸同步與中心/邊界重套，避免彈窗剛展開時底圖 canvas 灰底但標記已出現。 |
 | Activity map Google render mode | `roadmap` + `RenderingType.RASTER` | `js/modules/event/event-map.js` | 附近活動地圖固定使用 raster roadmap，避免 WebGL/vector canvas 在 modal/GPU compositing 環境下只顯示灰底但 marker 和控制項正常。 |
+| Activity map Google tile image style | scoped `.activity-google-map img` override | `css/activity.css` | 專案全域圖片淡入會讓未被 `.img-loaded` 標記的動態 `<img>` 維持透明；附近活動地圖內強制 Google raster tile 可見，避免短暫出圖後變灰底。 |
 | Activity map Google tile fallback | `7000` ms | `js/modules/event/event-map.js` / `ACTIVITY_MAP_CONFIG.googleTileFallbackMs` | Google `tilesloaded` 未完成時切回現有輕量靜態地圖，避免使用者停在灰底地圖；標記與列表仍以本機活動資料呈現。 |
 
 ### Route Loading Hint（頁面切換載入提示）

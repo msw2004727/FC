@@ -171,4 +171,15 @@ describe('activity map Google render hardening', () => {
     expect(overlayRule).not.toContain('backdrop-filter');
     expect(overlayRule).not.toContain('-webkit-backdrop-filter');
   });
+
+  test('activity map neutralizes global image fade on Google map tile images', () => {
+    const baseCss = readModule('css/base.css');
+    const css = readModule('css/activity.css');
+    const tileImageRule = css.match(/\.activity-google-map\s+\.gm-style\s+img,\s*\.activity-google-map\s+img\{([^}]+)\}/)?.[1] || '';
+
+    expect(baseCss).toMatch(/img\s*\{[^}]*opacity:\s*0/);
+    expect(tileImageRule).toContain('max-width:none!important');
+    expect(tileImageRule).toContain('opacity:1!important');
+    expect(tileImageRule).toContain('transition:none!important');
+  });
 });
