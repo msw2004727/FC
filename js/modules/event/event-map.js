@@ -177,7 +177,14 @@ Object.assign(App, {
 
   _normalizeActivityMapDateMode(value) {
     const raw = String(value || '').trim();
-    return raw === '7' || raw === '15' || raw === '30' || raw === 'custom' ? raw : 'all';
+    return raw === 'today'
+      || raw === 'tomorrow'
+      || raw === '7'
+      || raw === '15'
+      || raw === '30'
+      || raw === 'custom'
+      ? raw
+      : 'all';
   },
 
   _normalizeActivityMapDateInput(value) {
@@ -224,6 +231,8 @@ Object.assign(App, {
     const current = this._normalizeActivityMapDateMode(state.dateMode);
     const options = [
       { value: 'all', label: '全部未結束' },
+      { value: 'today', label: '今日' },
+      { value: 'tomorrow', label: '明日' },
       { value: '7', label: '7 日內' },
       { value: '15', label: '15 日內' },
       { value: '30', label: '30 日內' },
@@ -625,6 +634,15 @@ Object.assign(App, {
         return { startMs: endMs, endMs: startMs };
       }
       return { startMs, endMs };
+    }
+
+    if (mode === 'today' || mode === 'tomorrow') {
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      if (mode === 'tomorrow') start.setDate(start.getDate() + 1);
+      const end = new Date(start);
+      end.setHours(23, 59, 59, 999);
+      return { startMs: start.getTime(), endMs: end.getTime() };
     }
 
     const days = Number(mode);

@@ -249,7 +249,7 @@ describe('activity map location and radius controls', () => {
     const sportOptions = Array.from(document.querySelectorAll('#activity-map-sport-filter option')).map(option => option.textContent);
     const dateOptions = Array.from(document.querySelectorAll('#activity-map-date-mode option')).map(option => option.value);
     expect(sportOptions).toEqual(['全部運動', '足球', '籃球', '跑步']);
-    expect(dateOptions).toEqual(['all', '7', '15', '30', 'custom']);
+    expect(dateOptions).toEqual(['all', 'today', 'tomorrow', '7', '15', '30', 'custom']);
     expect(document.getElementById('activity-map-custom-dates').hidden).toBe(true);
 
     App.setActivityMapDateMode('custom');
@@ -299,6 +299,30 @@ describe('activity map location and radius controls', () => {
     App._ensureActivityMapState().dateEnd = datePlus(10).slice(0, 10);
 
     expect(App._getActivityMapData().mapReady.map(item => item.event.id)).toEqual(['basket-later']);
+  });
+
+  test('filters map candidates by today and tomorrow date ranges', () => {
+    const App = loadActivityMapModule();
+    const datePlus = days => {
+      const date = new Date();
+      date.setHours(10, 0, 0, 0);
+      date.setDate(date.getDate() + days);
+      return date.toISOString();
+    };
+    App._getVisibleEvents = () => [
+      { id: 'basket-today', status: 'open', sportTag: 'basketball', date: datePlus(0), point: { lat: 1, lng: 1 } },
+      { id: 'basket-tomorrow', status: 'open', sportTag: 'basketball', date: datePlus(1), point: { lat: 2, lng: 2 } },
+      { id: 'basket-day-two', status: 'open', sportTag: 'basketball', date: datePlus(2), point: { lat: 3, lng: 3 } },
+    ];
+    App._activityMapGetEventPoint = event => event.point;
+    App._parseEventStartDate = value => new Date(value);
+    App._ensureActivityMapState().sportKey = 'basketball';
+
+    App._ensureActivityMapState().dateMode = 'today';
+    expect(App._getActivityMapData().mapReady.map(item => item.event.id)).toEqual(['basket-today']);
+
+    App._ensureActivityMapState().dateMode = 'tomorrow';
+    expect(App._getActivityMapData().mapReady.map(item => item.event.id)).toEqual(['basket-tomorrow']);
   });
 
   test('does not request geolocation again when the browser reports denied permission', async () => {
