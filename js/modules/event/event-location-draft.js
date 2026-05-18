@@ -207,6 +207,14 @@
       };
     },
 
+    _buildEventLocationTemplatePayload(prefix, locationText) {
+      return this._buildEventLocationPayload(prefix, locationText);
+    },
+
+    _restoreEventLocationTemplateDraft(prefix, template) {
+      this._resetEventLocationDraft(prefix, template);
+    },
+
     _applyEventLocationPayload(target, prefix, locationText) {
       Object.assign(target, this._buildEventLocationPayload(prefix, locationText));
       return target;

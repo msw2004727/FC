@@ -127,6 +127,8 @@ Object.assign(App, {
     const canUseAddons = !!this._isActivityAddonAllowedForCurrentEdit?.();
     const genderRestrictionEnabled = canUseAddons && !!document.getElementById('ce-gender-restriction-enabled')?.checked;
     const feeEnabled = canUseAddons && !!document.getElementById('ce-fee-enabled')?.checked;
+    const location = document.getElementById('ce-location')?.value?.trim() || '';
+    const locationPayload = this._buildEventLocationTemplatePayload?.('ce', location) || {};
     const socialLinksData = canUseAddons
       ? (this._getEventSocialLinksFormData?.({ validate: false }) || { enabled: false, links: [] })
       : { enabled: false, links: [] };
@@ -135,7 +137,8 @@ Object.assign(App, {
       name,
       title: document.getElementById('ce-title')?.value?.trim() || '',
       type: document.getElementById('ce-type')?.value || 'play',
-      location: document.getElementById('ce-location')?.value?.trim() || '',
+      location,
+      ...locationPayload,
       fee: feeEnabled ? (parseInt(document.getElementById('ce-fee')?.value, 10) || 0) : 0,
       feeEnabled,
       max: parseInt(document.getElementById('ce-max')?.value) || 20,
@@ -225,6 +228,7 @@ Object.assign(App, {
     setVal('ce-title', tpl.title);
     setVal('ce-type', tpl.type);
     setVal('ce-location', tpl.location);
+    this._restoreEventLocationTemplateDraft?.('ce', tpl);
     // 活動時間與開放報名時間不從範本還原（一次性欄位）
     const canUseAddons = !!this._isActivityAddonAllowedForCurrentEdit?.();
     if (!canUseAddons && (tpl.feeEnabled || Number(tpl.fee || 0) > 0 || tpl.genderRestrictionEnabled || tpl.privateEvent || tpl.socialLinksEnabled)) {

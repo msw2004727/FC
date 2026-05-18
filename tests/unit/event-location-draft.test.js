@@ -71,6 +71,29 @@ describe('event location draft state', () => {
     expect(elements['ce-location-clear'].style.display).toBe('');
   });
 
+  test('builds a confirmed template payload from the current draft', () => {
+    const { App } = loadDraft();
+
+    App._setEventLocationDraft('ce', {
+      lat: '25.026',
+      lng: '121.543',
+      mapAddress: 'Saved Field',
+      mapPlaceId: 'place-1',
+      mapProvider: 'google',
+      mapLocationUpdatedAt: '2026-05-18T00:00:00.000Z',
+    });
+
+    expect(App._buildEventLocationTemplatePayload('ce', ' Test   Field ')).toEqual({
+      lat: 25.026,
+      lng: 121.543,
+      mapAddress: 'Saved Field',
+      mapPlaceId: 'place-1',
+      mapProvider: 'google',
+      mapLocationConfirmed: true,
+      mapLocationUpdatedAt: '2026-05-18T00:00:00.000Z',
+    });
+  });
+
   test('marks confirmed coordinates stale after the location text changes', () => {
     const { App, elements } = loadDraft();
 
@@ -95,6 +118,60 @@ describe('event location draft state', () => {
     });
   });
 
+  test('restores confirmed coordinates from an activity template', () => {
+    const { App, elements } = loadDraft();
+
+    elements['ce-location'].value = 'Saved Field';
+    App._restoreEventLocationTemplateDraft('ce', {
+      location: 'Saved Field',
+      lat: '24.151',
+      lng: '120.681',
+      mapAddress: 'Saved Field',
+      mapPlaceId: 'place-2',
+      mapProvider: 'google',
+      mapLocationConfirmed: true,
+      mapLocationUpdatedAt: '2026-05-18T01:00:00.000Z',
+    });
+
+    expect(App._buildEventLocationPayload('ce', 'Saved Field')).toEqual({
+      lat: 24.151,
+      lng: 120.681,
+      mapAddress: 'Saved Field',
+      mapPlaceId: 'place-2',
+      mapProvider: 'google',
+      mapLocationConfirmed: true,
+      mapLocationUpdatedAt: '2026-05-18T01:00:00.000Z',
+    });
+    expect(elements['ce-location-status'].dataset.state).toBe('ready');
+  });
+
+  test('clears the draft when a loaded template has no confirmed coordinates', () => {
+    const { App, elements } = loadDraft();
+
+    App._setEventLocationDraft('ce', {
+      lat: 25.026,
+      lng: 121.543,
+      mapAddress: 'Test Field',
+      mapProvider: 'manual',
+    });
+    elements['ce-location'].value = 'Plain Field';
+    App._restoreEventLocationTemplateDraft('ce', {
+      location: 'Plain Field',
+      mapLocationConfirmed: false,
+    });
+
+    expect(App._buildEventLocationPayload('ce', 'Plain Field')).toEqual({
+      lat: null,
+      lng: null,
+      mapAddress: null,
+      mapPlaceId: null,
+      mapProvider: null,
+      mapLocationConfirmed: false,
+      mapLocationUpdatedAt: null,
+    });
+    expect(elements['ce-location-status'].dataset.state).toBe('empty');
+  });
+
   test('disables picker controls when the preparation flag is off', () => {
     const { App, elements } = loadDraft(false);
 
@@ -103,5 +180,6 @@ describe('event location draft state', () => {
     expect(elements['ce-location-btn'].disabled).toBe(true);
     expect(elements['ce-location-status'].dataset.state).toBe('disabled');
     expect(App._buildEventLocationPayload('ce', 'Test Field')).toEqual({});
+    expect(App._buildEventLocationTemplatePayload('ce', 'Test Field')).toEqual({});
   });
 });

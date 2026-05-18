@@ -221,12 +221,15 @@ Object.assign(App, {
   },
 
   _buildCurrentExternalTemplate(name, image) {
+    const location = (document.getElementById('cee-location')?.value || '').trim();
+    const locationPayload = this._buildEventLocationTemplatePayload?.('cee', location) || {};
     return {
       id: 'tpl_' + Date.now(),
       name,
       templateType: 'external',
       title: (document.getElementById('cee-title')?.value || '').trim(),
-      location: (document.getElementById('cee-location')?.value || '').trim(),
+      location,
+      ...locationPayload,
       externalUrl: (document.getElementById('cee-external-url')?.value || '').trim(),
       sportTag: getSportKeySafe(document.getElementById('cee-sport-tag')?.value || '') || '',
       timeStart: document.getElementById('cee-start-time')?.value || '14:00',
@@ -288,6 +291,7 @@ Object.assign(App, {
     const setVal = (elId, val) => { const el = document.getElementById(elId); if (el && val != null && val !== '') el.value = val; };
     setVal('cee-title', tpl.title);
     setVal('cee-location', tpl.location);
+    this._restoreEventLocationTemplateDraft?.('cee', tpl);
     setVal('cee-external-url', tpl.externalUrl);
     setVal('cee-start-time', tpl.timeStart);
     setVal('cee-end-time', tpl.timeEnd);
