@@ -43,6 +43,11 @@ describe('activity detail comments source contracts', () => {
     expect(comments).toContain('_eventCommentLoadTimeoutMs: 9000');
     expect(comments).toContain('_eventCommentRetryDelaysMs: [3000, 15000]');
     expect(comments).toContain('_eventCommentHardStopMs: 45000');
+    expect(comments).toContain('_eventCommentCacheTtlMs: 120000');
+    expect(comments).toContain('_getEventCommentsCachedState');
+    expect(comments).toContain('_clearEventCommentsCacheForEvent');
+    expect(comments).toContain('_eventCommentCacheInvalidatedAt');
+    expect(comments).toContain('_perfCommentLog');
     expect(comments).toContain('_waitForEventCommentsLoad');
     expect(comments).toContain("err.code = 'event-comments-timeout'");
     expect(comments).toContain('_renderEventCommentsLoadIssue');
@@ -60,6 +65,8 @@ describe('activity detail comments source contracts', () => {
     expect(actions).toContain('existing?.exists');
     expect(actions).toContain('_setEventCommentLikeButtonState(btn, nextLiked, nextCount)');
     expect(actions).toContain('_setEventCommentLikeButtonState(btn, wasLiked, oldCount)');
+    expect(actions).toContain('_clearEventCommentsCacheForEvent?.(eventId)');
+    expect(actions).toContain('this._renderEventComments?.(eventId, { forceRefresh: true })');
     expect(actions.indexOf('_setEventCommentLikeButtonState(btn, nextLiked, nextCount)'))
       .toBeLessThan(actions.indexOf('await this._writeEventCommentLikeWithSummary'));
     expect(actions.indexOf('await this._writeEventCommentLikeWithSummary'))

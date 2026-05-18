@@ -10,6 +10,11 @@ Object.assign(App, {
   _eventCommentLoadTimeoutMs: 9000,
   _eventCommentRetryDelaysMs: [3000, 15000],
   _eventCommentHardStopMs: 45000,
+  _eventCommentCacheTtlMs: 120000,
+  _eventCommentCacheMaxEntries: 20,
+  _eventCommentCache: new Map(),
+  _eventCommentActiveLoads: new Map(),
+  _eventCommentCacheInvalidatedAt: new Map(),
 
   _getEventCommentAuthor() {
     const user = ApiService.getCurrentUser?.() || {};
@@ -149,7 +154,96 @@ Object.assign(App, {
     };
   },
 
-  async _loadEventComments(eventRecord) {
+  _isEventCommentPerfLogEnabled() {
+    return !!(typeof window !== 'undefined'
+      && (window._perfCommentLog || (typeof localStorage !== 'undefined' && localStorage.getItem('_perfCommentLog'))));
+  },
+
+  _eventCommentPerfNow() {
+    return (typeof performance !== 'undefined' && typeof performance.now === 'function')
+      ? performance.now()
+      : Date.now();
+  },
+
+  _logEventCommentPerf(label, payload = {}) {
+    if (!this._isEventCommentPerfLogEnabled?.()) return;
+    console.info('[event-comments:perf]', label, payload);
+  },
+
+  _getEventCommentsCacheKey(eventRecord) {
+    const user = ApiService.getCurrentUser?.();
+    if (!user?.uid || !eventRecord) return '';
+    const eventKey = String(eventRecord._docId || eventRecord.docId || eventRecord.id || '').trim();
+    if (!eventKey) return '';
+    const role = String(this._getCurrentActivityRoleKey?.() || this.currentRole || user.role || 'user').trim() || 'user';
+    const scope = this._canManageEventComments(eventRecord) ? 'manage' : 'member';
+    return [eventKey, user.uid, role, scope].join('|');
+  },
+
+  _cloneEventCommentsState(state) {
+    return {
+      eventDocId: String(state?.eventDocId || ''),
+      comments: Array.isArray(state?.comments)
+        ? state.comments.map(comment => ({
+          ...comment,
+          replies: Array.isArray(comment.replies) ? comment.replies.map(reply => ({ ...reply })) : [],
+          likers: Array.isArray(comment.likers) ? comment.likers.map(liker => ({ ...liker })) : [],
+        }))
+        : [],
+    };
+  },
+
+  _getEventCommentsCachedState(cacheKey) {
+    if (!cacheKey || !(this._eventCommentCache instanceof Map)) return null;
+    const entry = this._eventCommentCache.get(cacheKey);
+    const ttl = Math.max(0, Number(this._eventCommentCacheTtlMs) || 0);
+    const invalidatedAt = Math.max(
+      Number(this._eventCommentCacheInvalidatedAt?.get(entry?.eventId) || 0),
+      Number(this._eventCommentCacheInvalidatedAt?.get(entry?.eventDocId) || 0),
+    );
+    if (!entry || !ttl || (Date.now() - entry.cachedAt) > ttl || (invalidatedAt && entry.cachedAt <= invalidatedAt)) {
+      if (entry) this._eventCommentCache.delete(cacheKey);
+      return null;
+    }
+    return this._cloneEventCommentsState(entry.state);
+  },
+
+  _setEventCommentsCacheState(cacheKey, eventRecord, state) {
+    if (!cacheKey || !(this._eventCommentCache instanceof Map)) return;
+    this._eventCommentCache.set(cacheKey, {
+      cachedAt: Date.now(),
+      eventId: String(eventRecord?.id || ''),
+      eventDocId: String(state?.eventDocId || eventRecord?._docId || eventRecord?.docId || ''),
+      state: this._cloneEventCommentsState(state),
+    });
+    const maxEntries = Math.max(1, Number(this._eventCommentCacheMaxEntries) || 20);
+    while (this._eventCommentCache.size > maxEntries) {
+      const oldestKey = this._eventCommentCache.keys().next().value;
+      this._eventCommentCache.delete(oldestKey);
+    }
+  },
+
+  _clearEventCommentsCacheForEvent(eventId) {
+    const target = String(eventId || '').trim();
+    if (!target) return;
+    if (this._eventCommentCacheInvalidatedAt instanceof Map) {
+      this._eventCommentCacheInvalidatedAt.set(target, Date.now());
+    }
+    if (this._eventCommentCache instanceof Map) {
+      for (const [key, entry] of this._eventCommentCache.entries()) {
+        if (key.startsWith(target + '|') || entry?.eventId === target || entry?.eventDocId === target) {
+          this._eventCommentCache.delete(key);
+        }
+      }
+    }
+    if (this._eventCommentActiveLoads instanceof Map) {
+      for (const key of this._eventCommentActiveLoads.keys()) {
+        if (key.startsWith(target + '|')) this._eventCommentActiveLoads.delete(key);
+      }
+    }
+  },
+
+  async _fetchEventComments(eventRecord) {
     const user = ApiService.getCurrentUser?.();
     if (!user?.uid) return { eventDocId: '', comments: [] };
     const eventDocId = await this._resolveEventCommentsDocId(eventRecord);
@@ -172,6 +266,51 @@ Object.assign(App, {
       .sort((a, b) => this._eventCommentTimeMs(b.createdAt) - this._eventCommentTimeMs(a.createdAt))
       .slice(0, 80);
     return { eventDocId, comments };
+  },
+
+  async _loadEventComments(eventRecord, options = {}) {
+    const cacheKey = this._getEventCommentsCacheKey(eventRecord);
+    const forceRefresh = options?.forceRefresh === true;
+    if (!forceRefresh) {
+      const cached = this._getEventCommentsCachedState(cacheKey);
+      if (cached) return { ...cached, fromCache: true };
+      const activeLoad = this._eventCommentActiveLoads instanceof Map
+        ? this._eventCommentActiveLoads.get(cacheKey)
+        : null;
+      if (activeLoad) return activeLoad;
+    }
+
+    const startedAt = this._eventCommentPerfNow();
+    const startedWallAt = Date.now();
+    const loadPromise = this._fetchEventComments(eventRecord)
+      .then(state => {
+        const invalidatedAt = Math.max(
+          Number(this._eventCommentCacheInvalidatedAt?.get(eventRecord?.id) || 0),
+          Number(this._eventCommentCacheInvalidatedAt?.get(eventRecord?._docId) || 0),
+          Number(this._eventCommentCacheInvalidatedAt?.get(eventRecord?.docId) || 0),
+          Number(this._eventCommentCacheInvalidatedAt?.get(state?.eventDocId) || 0),
+        );
+        if (!invalidatedAt || invalidatedAt <= startedWallAt) {
+          this._setEventCommentsCacheState(cacheKey, eventRecord, state);
+        }
+        this._logEventCommentPerf('fetch', {
+          eventId: eventRecord?.id || '',
+          forceRefresh,
+          comments: state.comments?.length || 0,
+          ms: +(this._eventCommentPerfNow() - startedAt).toFixed(1),
+        });
+        return state;
+      })
+      .finally(() => {
+        if (!forceRefresh && cacheKey && this._eventCommentActiveLoads instanceof Map) {
+          this._eventCommentActiveLoads.delete(cacheKey);
+        }
+      });
+
+    if (!forceRefresh && cacheKey && this._eventCommentActiveLoads instanceof Map) {
+      this._eventCommentActiveLoads.set(cacheKey, loadPromise);
+    }
+    return loadPromise;
   },
 
   _isCurrentEventCommentLoad(eventId, requestSeq) {
@@ -207,13 +346,15 @@ Object.assign(App, {
     });
   },
 
-  _renderLoadedEventComments(eventId, eventRecord, requestSeq, state) {
+  _renderLoadedEventComments(eventId, eventRecord, requestSeq, state, options = {}) {
     if (!this._isCurrentEventCommentLoad(eventId, requestSeq)) return false;
     const container = document.getElementById('detail-comments-container');
     if (!container) return false;
     this._clearEventCommentRetryTimer();
     container.innerHTML = this._renderEventCommentsHtml(eventRecord, state?.comments || []);
-    this._hydrateEventCommentLikeState?.(eventId, state?.eventDocId || '', state?.comments || []);
+    if (options.hydrateLikes !== false) {
+      this._hydrateEventCommentLikeState?.(eventId, state?.eventDocId || '', state?.comments || []);
+    }
     return true;
   },
 
@@ -285,11 +426,41 @@ Object.assign(App, {
     }
     const retryAttempt = Math.max(0, Number(options?.autoRetryAttempt) || 0);
     const startedAt = Number(options?.startedAt) || Date.now();
+    const forceRefresh = options?.forceRefresh === true || retryAttempt > 0 || options?.manualRetry === true;
+    const cacheKey = this._getEventCommentsCacheKey(eventRecord);
+    const cachedState = forceRefresh ? null : this._getEventCommentsCachedState(cacheKey);
+    if (cachedState) {
+      this._renderLoadedEventComments(eventId, eventRecord, requestSeq, cachedState, { hydrateLikes: false });
+      this._logEventCommentPerf('cache-hit', {
+        eventId,
+        comments: cachedState.comments?.length || 0,
+      });
+      const refreshPromise = Promise.resolve().then(() => this._loadEventComments(eventRecord, { forceRefresh: true }));
+      try {
+        const freshState = await this._waitForEventCommentsLoad(refreshPromise, Number(this._eventCommentLoadTimeoutMs) || 9000);
+        this._renderLoadedEventComments(eventId, eventRecord, requestSeq, freshState);
+      } catch (err) {
+        if (!this._isCurrentEventCommentLoad(eventId, requestSeq)) return;
+        if (err?.code === 'event-comments-timeout') {
+          console.warn('[event-comments] background refresh timeout', {
+            eventId,
+            timeoutMs: this._eventCommentLoadTimeoutMs,
+          });
+          refreshPromise.then(
+            state => this._renderLoadedEventComments(eventId, eventRecord, requestSeq, state),
+            lateErr => console.error('[event-comments] late background refresh failed', lateErr),
+          );
+          return;
+        }
+        console.warn('[event-comments] background refresh failed', err);
+      }
+      return;
+    }
     const loadingText = retryAttempt > 0 || options?.manualRetry
       ? '\u7559\u8a00\u91cd\u65b0\u8f09\u5165\u4e2d...'
       : '\u7559\u8a00\u8f09\u5165\u4e2d...';
     container.innerHTML = `<div class="detail-section event-comments-section"><div class="detail-section-title">\u7559\u8a00</div><div class="reg-loading">${loadingText}</div></div>`;
-    const loadPromise = Promise.resolve().then(() => this._loadEventComments(eventRecord));
+    const loadPromise = Promise.resolve().then(() => this._loadEventComments(eventRecord, { forceRefresh }));
     try {
       const state = await this._waitForEventCommentsLoad(loadPromise, Number(this._eventCommentLoadTimeoutMs) || 9000);
       this._renderLoadedEventComments(eventId, eventRecord, requestSeq, state);

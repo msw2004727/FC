@@ -671,7 +671,7 @@ Object.assign(App, {
       <div id="detail-comments-container">
         <div class="detail-section event-comments-section">
           <div class="detail-section-title">\u7559\u8a00</div>
-          <div class="reg-loading">\u7559\u8a00\u8f09\u5165\u4e2d...</div>
+          <div class="reg-loading">\u7559\u8a00\u5c07\u5728\u5831\u540d\u540d\u55ae\u5b8c\u6210\u5f8c\u8f09\u5165...</div>
         </div>
       </div>
     `;

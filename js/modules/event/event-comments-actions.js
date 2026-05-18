@@ -77,7 +77,8 @@ Object.assign(App, {
       if (input) input.value = '';
       if (privateInput) privateInput.checked = false;
       this.showToast?.('留言已送出');
-      await this._renderEventComments?.(eventId);
+      this._clearEventCommentsCacheForEvent?.(eventId);
+      await this._renderEventComments?.(eventId, { forceRefresh: true });
     } catch (err) {
       console.error('[event-comments] submit failed', err);
       this.showToast?.('留言送出失敗，請稍後再試');
@@ -123,7 +124,8 @@ Object.assign(App, {
       if (input) input.value = '';
       if (form) form.hidden = true;
       this.showToast?.('回覆已送出');
-      await this._renderEventComments?.(eventId);
+      this._clearEventCommentsCacheForEvent?.(eventId);
+      await this._renderEventComments?.(eventId, { forceRefresh: true });
     } catch (err) {
       console.error('[event-comments] reply failed', err);
       this.showToast?.('回覆送出失敗，請稍後再試');
@@ -293,6 +295,7 @@ Object.assign(App, {
         }
       }
       this._syncEventCommentLikeAvatars(card, author, nextLiked, nextCount);
+      this._clearEventCommentsCacheForEvent?.(eventId);
     } catch (err) {
       if (nextLiked && likeRef && this._isEventCommentPermissionDenied(err)) {
         const existing = await likeRef.get().catch(() => null);
@@ -316,7 +319,8 @@ Object.assign(App, {
       const { commentRef } = await this._getEventCommentRefs(eventId, commentId);
       await commentRef.update({ replyLocked: !!locked, updatedAt: this._eventCommentServerTimestamp() });
       this.showToast?.(locked ? '已鎖定回覆' : '已解除鎖定');
-      await this._renderEventComments?.(eventId);
+      this._clearEventCommentsCacheForEvent?.(eventId);
+      await this._renderEventComments?.(eventId, { forceRefresh: true });
     } catch (err) {
       console.error('[event-comments] lock failed', err);
       this.showToast?.('更新失敗，請稍後再試');
@@ -336,7 +340,8 @@ Object.assign(App, {
         updatedAt: this._eventCommentServerTimestamp(),
       });
       this.showToast?.('留言已刪除');
-      await this._renderEventComments?.(eventId);
+      this._clearEventCommentsCacheForEvent?.(eventId);
+      await this._renderEventComments?.(eventId, { forceRefresh: true });
     } catch (err) {
       console.error('[event-comments] delete failed', err);
       this.showToast?.('刪除失敗，請稍後再試');
@@ -356,7 +361,8 @@ Object.assign(App, {
         updatedAt: this._eventCommentServerTimestamp(),
       });
       this.showToast?.('回覆已刪除');
-      await this._renderEventComments?.(eventId);
+      this._clearEventCommentsCacheForEvent?.(eventId);
+      await this._renderEventComments?.(eventId, { forceRefresh: true });
     } catch (err) {
       console.error('[event-comments] delete reply failed', err);
       this.showToast?.('刪除失敗，請稍後再試');
