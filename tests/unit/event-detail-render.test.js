@@ -43,6 +43,23 @@ function loadEventDetailModule({ currentUser = null, canEdit = false } = {}) {
   return app;
 }
 
+function loadEventManageAttendanceModule() {
+  const app = {};
+  vm.runInNewContext(readProjectFile('js/modules/event/event-manage-attendance.js'), {
+    App: app,
+    Object,
+    console,
+    setTimeout,
+    clearTimeout,
+    escapeHTML: (value) => String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;'),
+  });
+  return app;
+}
+
 // ===========================================================================
 // Extracted logic: button state decision (event-detail.js:295-350)
 // ===========================================================================
@@ -465,6 +482,52 @@ describe('Team reservation button loading contract', () => {
     expect(activityCss).toContain('[data-theme="dark"] .team-reservation-member-row');
     expect(activityCss).toContain('[data-theme="dark"] .team-reservation-placeholder-row');
     expect(activityCss).toContain('[data-theme="dark"] .team-reservation-placeholder-name');
+  });
+});
+
+describe('Attendance table debounce contract', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  test('resolves superseded callers after the latest debounced render completes', async () => {
+    jest.useFakeTimers();
+    const app = loadEventManageAttendanceModule();
+    app._doRenderAttendanceTable = jest.fn(async (eventId, containerId) => `${eventId}:${containerId}`);
+
+    const first = app._renderAttendanceTable('old-event', 'detail-attendance-table');
+    const second = app._renderAttendanceTable('new-event', 'detail-attendance-table');
+    const firstDone = jest.fn();
+    const secondDone = jest.fn();
+    first.then(firstDone);
+    second.then(secondDone);
+
+    await jest.advanceTimersByTimeAsync(100);
+    await Promise.resolve();
+
+    expect(app._doRenderAttendanceTable).toHaveBeenCalledTimes(1);
+    expect(app._doRenderAttendanceTable).toHaveBeenCalledWith('new-event', 'detail-attendance-table', 0);
+    expect(firstDone).toHaveBeenCalledWith('new-event:detail-attendance-table');
+    expect(secondDone).toHaveBeenCalledWith('new-event:detail-attendance-table');
+  });
+
+  test('resolves callers when the debounced render throws', async () => {
+    jest.useFakeTimers();
+    const app = loadEventManageAttendanceModule();
+    const err = new Error('boom');
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    app._doRenderAttendanceTable = jest.fn(async () => { throw err; });
+
+    let result;
+    const promise = app._renderAttendanceTable('event-1', 'detail-attendance-table');
+    promise.then(value => { result = value; });
+
+    await jest.advanceTimersByTimeAsync(100);
+    await promise;
+
+    expect(result).toMatchObject({ ok: false, reason: 'error', error: err });
+    expect(errorSpy).toHaveBeenCalledWith('[AttendanceTable] render failed:', err);
   });
 });
 

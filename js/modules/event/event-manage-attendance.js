@@ -231,6 +231,7 @@ Object.assign(App, {
   },
 
   _attRenderTimers: {},
+  _attRenderJobs: {},
 
   /**
    * 2026-04-28 Plan B：用 event.participants / waitlistNames 陣列產出瞬間預覽 HTML
@@ -274,10 +275,32 @@ Object.assign(App, {
     var key = containerId || 'attendance-table-container';
     // 啟用：window._perfAttLog = 1 或 localStorage.setItem('_perfAttLog','1')
     var _perfCallTs = (typeof window !== 'undefined' && (window._perfAttLog || (typeof localStorage !== 'undefined' && localStorage.getItem('_perfAttLog')))) ? performance.now() : 0;
+    self._attRenderJobs = self._attRenderJobs || {};
+    var job = self._attRenderJobs[key];
+    if (!job) {
+      job = { waiters: [] };
+      self._attRenderJobs[key] = job;
+    }
+    job.eventId = eventId;
+    job.containerId = key;
+    job.perfCallTs = _perfCallTs;
     return new Promise(function (resolve) {
+      job.waiters.push(resolve);
       clearTimeout(self._attRenderTimers[key]);
       self._attRenderTimers[key] = setTimeout(function () {
-        self._doRenderAttendanceTable(eventId, key, _perfCallTs).then(resolve);
+        var runJob = self._attRenderJobs[key] || job;
+        delete self._attRenderJobs[key];
+        self._attRenderTimers[key] = null;
+        Promise.resolve(self._doRenderAttendanceTable(runJob.eventId, runJob.containerId, runJob.perfCallTs))
+          .then(function(result) {
+            runJob.waiters.splice(0).forEach(function(done) { done(result); });
+          })
+          .catch(function(err) {
+            console.error('[AttendanceTable] render failed:', err);
+            runJob.waiters.splice(0).forEach(function(done) {
+              done({ ok: false, reason: 'error', error: err });
+            });
+          });
       }, 100);
     });
   },
