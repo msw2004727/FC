@@ -4,12 +4,14 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260518j';
+const CACHE_VERSION = '0.20260518k';
 
-const GOOGLE_MAPS_BROWSER_API_KEY = 'AIzaSyBhjop3QJ16gagDMkUtdeV150Nj0U2egw0';
+const GOOGLE_MAPS_BROWSER_API_KEY = '';
 
 const ACTIVITY_MAP_CONFIG = {
-  googleApiKey: (typeof window !== 'undefined' && window.__SPORTHUB_GOOGLE_MAPS_API_KEY__) || GOOGLE_MAPS_BROWSER_API_KEY,
+  googleApiKey: (typeof window !== 'undefined' && typeof window.__SPORTHUB_GOOGLE_MAPS_API_KEY__ === 'string'
+    ? window.__SPORTHUB_GOOGLE_MAPS_API_KEY__.trim()
+    : GOOGLE_MAPS_BROWSER_API_KEY),
   googleMapId: (typeof window !== 'undefined' && window.__SPORTHUB_GOOGLE_MAP_ID__) || '',
   defaultCenter: { lat: 23.6978, lng: 120.9605 },
   defaultZoom: 8,
