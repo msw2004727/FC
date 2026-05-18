@@ -152,7 +152,7 @@ Object.assign(App, {
     const canEditProfile = this._canEditUserProfile() && this._canManageTargetSuperAdmin(user);
     const canChangeRole = this._canChangeUserRole() && this._canManageTargetSuperAdmin(user);
     const roleSelect = document.getElementById('ue-role');
-    const profileFieldIds = ['ue-region', 'ue-gender', 'ue-birthday', 'ue-sports', 'ue-phone'];
+    const profileFieldIds = ['ue-region', 'ue-gender', 'ue-birthday', 'ue-sports', 'ue-phone', 'ue-email'];
 
     this._renderUserRoleSelectOptions(user?.role || 'user');
     if (roleSelect) {
@@ -180,7 +180,8 @@ Object.assign(App, {
       users = users.filter(u => {
         const name = String(u?.name || u?.displayName || '').toLowerCase();
         const uid = String(u?.uid || u?.lineUserId || u?._docId || '').toLowerCase();
-        return name.includes(keyword) || uid.includes(keyword);
+        const email = String(u?.email || '').toLowerCase();
+        return name.includes(keyword) || uid.includes(keyword) || email.includes(keyword);
       });
     }
     if (roleFilter) {
@@ -203,7 +204,8 @@ Object.assign(App, {
       users = users.filter(u => {
         const name = String(u?.name || u?.displayName || '').toLowerCase();
         const uid = String(u?.uid || u?.lineUserId || u?._docId || '').toLowerCase();
-        return name.includes(keyword) || uid.includes(keyword);
+        const email = String(u?.email || '').toLowerCase();
+        return name.includes(keyword) || uid.includes(keyword) || email.includes(keyword);
       });
     }
     if (roleFilter) users = users.filter(u => u.role === roleFilter);
@@ -242,6 +244,7 @@ Object.assign(App, {
       const genderIcon = u.gender === '男' ? '♂' : u.gender === '女' ? '♀' : '';
       const safeName = escapeHTML(u.name || '').replace(/'/g, "\\'");
       const safeUserKey = this._escapeAdminUserArg(this._getAdminUserKey(u));
+      const emailText = String(u.email || '').trim();
       const canEditThisUser = this._canOpenUserEditor(u);
       const isRestricted = !!u.isRestricted;
       const restrictBtnHtml = this._canToggleUserRestrictionFor(u)
@@ -256,6 +259,7 @@ Object.assign(App, {
               <div class="admin-user-name">${this._userTag(u.name, u.role, { uid: u.uid || '' })}</div>
               <div class="admin-user-meta">${escapeHTML(u.uid)} ・${ROLES[u.role]?.label || u.role} ・Lv.${App._calcLevelFromExp(u.exp || 0).level} ・${escapeHTML(u.region || '—')}${genderIcon ? ' ' + genderIcon : ''}${teamInfo}</div>
               <div class="admin-user-meta">${escapeHTML(u.sports || '—')} ・EXP ${(u.exp || 0).toLocaleString()}</div>
+              <div class="admin-user-meta" style="word-break:break-all">Email：${escapeHTML(emailText || '—')}</div>
               <div class="admin-user-meta">限制狀態：${isRestricted ? '限制中' : '正常'}</div>
               <div class="admin-user-meta" style="word-break:break-all">最後登入：${this._formatLastLoginMeta(u)}</div>
             </div>
@@ -415,6 +419,7 @@ Object.assign(App, {
     this._setSelectValuePreservingUnknown('ue-gender', user.gender || '');
     document.getElementById('ue-sports').value = Array.isArray(user.sports) ? user.sports.join(', ') : (user.sports || '');
     document.getElementById('ue-phone').value = user.phone || '';
+    document.getElementById('ue-email').value = user.email || '';
 
     const bdInput = document.getElementById('ue-birthday');
     bdInput.value = this._normalizeUserEditBirthday(user.birthday);
@@ -448,6 +453,12 @@ Object.assign(App, {
       this._setUpdateIfChanged(updates, oldUser, 'gender', document.getElementById('ue-gender').value);
       this._setUpdateIfChanged(updates, oldUser, 'sports', document.getElementById('ue-sports').value.trim());
       this._setUpdateIfChanged(updates, oldUser, 'phone', document.getElementById('ue-phone').value.trim());
+      const email = document.getElementById('ue-email').value.trim();
+      if (email && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)) {
+        this.showToast('請輸入有效的電子郵件，或留空清除。');
+        return;
+      }
+      this._setUpdateIfChanged(updates, oldUser, 'email', email || null);
 
       const bdVal = document.getElementById('ue-birthday').value;
       const nextBirthday = bdVal ? bdVal.replace(/-/g, '/') : null;

@@ -2143,7 +2143,7 @@ Object.assign(FirebaseService, {
 
     const payload = { targetUid: docId };
     const profileUpdates = {};
-    ['region', 'gender', 'birthday', 'sports', 'phone'].forEach(field => {
+    ['region', 'gender', 'birthday', 'sports', 'phone', 'email'].forEach(field => {
       if (!Object.prototype.hasOwnProperty.call(updates, field)) return;
       profileUpdates[field] = updates[field];
     });

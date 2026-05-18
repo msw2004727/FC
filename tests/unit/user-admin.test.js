@@ -5,6 +5,11 @@
  *   js/modules/user-admin/user-admin-corrections.js
  *   js/modules/user-admin/user-admin-roles.js
  */
+const fs = require('fs');
+const path = require('path');
+
+const ROOT = path.resolve(__dirname, '../..');
+const readProjectFile = relPath => fs.readFileSync(path.join(ROOT, relPath), 'utf8');
 
 // ---------------------------------------------------------------------------
 // Extracted from user-admin-corrections.js:8-15
@@ -272,5 +277,20 @@ describe('user admin edit diff helpers (user-admin-list.js)', () => {
     const updates = {};
     _setUpdateIfChangedForTest(updates, { region: '台中市' }, 'region', '台中市');
     expect(updates).toEqual({});
+  });
+});
+
+describe('user admin email field wiring', () => {
+  test('renders, edits, searches, and sends email through admin user management', () => {
+    const pageHtml = readProjectFile('pages/admin-users.html');
+    const listSource = readProjectFile('js/modules/user-admin/user-admin-list.js');
+    const crudSource = readProjectFile('js/firebase-crud.js');
+
+    expect(pageHtml).toContain('id="ue-email"');
+    expect(listSource).toContain("'ue-email'");
+    expect(listSource).toContain("const email = String(u?.email || '').toLowerCase();");
+    expect(listSource).toContain("document.getElementById('ue-email').value = user.email || '';");
+    expect(listSource).toContain("this._setUpdateIfChanged(updates, oldUser, 'email', email || null);");
+    expect(crudSource).toContain("['region', 'gender', 'birthday', 'sports', 'phone', 'email']");
   });
 });

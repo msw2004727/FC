@@ -64,6 +64,7 @@ const ADMIN_MANAGED_USER_PROFILE_FIELDS = Object.freeze([
   "birthday",
   "sports",
   "phone",
+  "email",
 ]);
 const ROLE_LEVELS = Object.freeze({
   user: 0, coach: 1, captain: 2, venue_owner: 3, admin: 4, super_admin: 5,
@@ -403,6 +404,16 @@ function sanitizeAdminManagedProfileUpdates(rawUpdates) {
     const trimmed = value.trim();
     if (field === "birthday") {
       next[field] = trimmed ? trimmed.replace(/-/g, "/") : null;
+      return;
+    }
+    if (field === "email") {
+      if (!trimmed) {
+        next[field] = null;
+        return;
+      }
+      if (trimmed.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+        next[field] = trimmed;
+      }
       return;
     }
     next[field] = trimmed;

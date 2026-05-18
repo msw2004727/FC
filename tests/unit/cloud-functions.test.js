@@ -1221,7 +1221,7 @@ describe('adjustTeamReservation CF member stamping', () => {
 const ADMIN_USER_EDIT_PROFILE_PERMISSION = 'admin.users.edit_profile';
 const ADMIN_USER_CHANGE_ROLE_PERMISSION = 'admin.users.change_role';
 const ADMIN_USER_RESTRICT_PERMISSION = 'admin.users.restrict';
-const ADMIN_MANAGED_USER_PROFILE_FIELDS = ['region', 'gender', 'birthday', 'sports', 'phone'];
+const ADMIN_MANAGED_USER_PROFILE_FIELDS = ['region', 'gender', 'birthday', 'sports', 'phone', 'email'];
 
 /** Mirror of sanitizeAdminManagedProfileUpdates (index.js:318-341) */
 function sanitizeAdminManagedProfileUpdates(rawUpdates) {
@@ -1240,6 +1240,16 @@ function sanitizeAdminManagedProfileUpdates(rawUpdates) {
     const trimmed = value.trim();
     if (field === 'birthday') {
       next[field] = trimmed ? trimmed.replace(/-/g, '/') : null;
+      return;
+    }
+    if (field === 'email') {
+      if (!trimmed) {
+        next[field] = null;
+        return;
+      }
+      if (trimmed.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+        next[field] = trimmed;
+      }
       return;
     }
     next[field] = trimmed;
@@ -1331,9 +1341,10 @@ describe('sanitizeAdminManagedProfileUpdates', () => {
   });
 
   test('trims string values', () => {
-    const result = sanitizeAdminManagedProfileUpdates({ region: '  台北  ', phone: ' 0912345678 ' });
+    const result = sanitizeAdminManagedProfileUpdates({ region: '  台北  ', phone: ' 0912345678 ', email: ' admin@example.com ' });
     expect(result.region).toBe('台北');
     expect(result.phone).toBe('0912345678');
+    expect(result.email).toBe('admin@example.com');
   });
 
   test('normalizes birthday format (- → /)', () => {
@@ -1352,6 +1363,11 @@ describe('sanitizeAdminManagedProfileUpdates', () => {
 
   test('empty birthday string sets null', () => {
     expect(sanitizeAdminManagedProfileUpdates({ birthday: '   ' }).birthday).toBeNull();
+  });
+
+  test('empty email string clears email and invalid email is dropped', () => {
+    expect(sanitizeAdminManagedProfileUpdates({ email: '   ' }).email).toBeNull();
+    expect(sanitizeAdminManagedProfileUpdates({ email: 'not-an-email' })).toEqual({});
   });
 });
 
