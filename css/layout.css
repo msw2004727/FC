@@ -1058,7 +1058,24 @@
   background: rgba(239, 68, 68, .1);
   margin: 0 1.2rem .35rem;
 }
-.fl-actions { display: flex; gap: .55rem; padding: .85rem 1.2rem 1rem; }
+.fl-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  display: flex;
+  gap: .55rem;
+  justify-content: stretch;
+  padding: .85rem 1.2rem calc(1rem + env(safe-area-inset-bottom, 0px));
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.9), rgba(255,255,255,.98)),
+    var(--bg-card);
+  box-shadow: 0 -10px 24px rgba(15, 23, 42, .10);
+}
+[data-theme="dark"] .fl-actions {
+  background:
+    linear-gradient(180deg, rgba(17,24,39,.9), rgba(17,24,39,.98)),
+    var(--bg-card);
+}
 .fl-secondary-btn,
 .fl-submit-btn {
   min-height: 44px;

@@ -181,6 +181,9 @@ describe('first login profile completion modal', () => {
     expect(indexHtml).toContain('優先收到最新運動活動情報');
     expect(layoutCss).toContain('#modal-overlay[data-profile-complete="1"]');
     expect(layoutCss).toContain('-webkit-backdrop-filter: blur(16px) saturate(135%)');
+    expect(layoutCss).toContain('.fl-actions');
+    expect(layoutCss).toContain('position: sticky;');
+    expect(layoutCss).toContain('bottom: 0;');
     expect(navigationSource).toContain('_lockFirstLoginScroll()');
     expect(navigationSource).toContain('_unlockFirstLoginScroll()');
     expect(profileFormSource).toContain("var emailEl = document.getElementById('fl-email');");
