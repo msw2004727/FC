@@ -1,5 +1,11 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-18 Club manage pin unavailable state [ux]
+- **Problem**: Club management still showed an active pin/unpin control while activity management already treats pinning as unavailable.
+- **Cause**: `toggleTeamPin()` still updated `teams/{teamId}.pinned` / `pinOrder`, and the club manage/admin buttons were styled as normal actions.
+- **Fix**: Club pin controls now render gray with `title="功能未開放"` and `toggleTeamPin()` only shows the `功能未開放` toast without writing data.
+- **Tests**: Updated `tests/unit/team.test.js` to lock the unavailable button styling and toast-only pin handler.
+
 ### 2026-05-18 Club detail coach-only overview count [bug]
 - **Problem**: The club detail overview coach stat briefly counted coach-level-and-above roles, but the intended stat is only actual coach assignments.
 - **Cause**: The coach overview helper used role hierarchy/member roster state instead of the club's `coachUids` / `coaches` assignment fields.

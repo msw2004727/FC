@@ -209,25 +209,8 @@ Object.assign(App, {
   },
 
   toggleTeamPin(id) {
-    const t = ApiService.getTeam(id);
-    if (!t) return;
-    if (!this.hasPermission('team.manage_all')) {
-      this.showToast('\u6b0a\u9650\u4e0d\u8db3');
-      this.renderTeamManage();
-      return;
-    }
-    t.pinned = !t.pinned;
-    if (t.pinned) {
-      this._pinCounter++;
-      t.pinOrder = this._pinCounter;
-    } else {
-      t.pinOrder = 0;
-    }
-    ApiService.updateTeam(id, { pinned: t.pinned, pinOrder: t.pinOrder });
-    this.renderAdminTeams();
-    this.renderTeamManage();
-    this.renderTeamList();
-    this.showToast(t.pinned ? `已置頂「${t.name}」` : `已取消置頂「${t.name}」`);
+    this.showToast('功能未開放');
+    return false;
   },
 
   toggleTeamActive(id) {
