@@ -151,7 +151,7 @@
       const draft = this._getEventLocationDraft(prefix);
       const point = draft.mapLocationConfirmed ? normalizePoint(draft) : null;
       button.disabled = !enabled;
-      button.textContent = point ? '重新設定地圖位置' : '設定地圖位置';
+      button.textContent = point ? '重新設定地圖座標' : '設定地圖座標';
 
       if (!enabled) {
         statusEl.textContent = '地圖定位未開啟';
@@ -162,7 +162,7 @@
       }
 
       if (point) {
-        statusEl.textContent = '已設定地圖位置';
+        statusEl.textContent = '已設定地圖座標';
         statusEl.dataset.state = 'ready';
         if (summaryEl) summaryEl.textContent = draft.mapAddress || formatPoint(point);
         if (clearButton) clearButton.style.display = '';
@@ -173,7 +173,7 @@
         statusEl.textContent = '地點文字已變更，請重新確認';
         statusEl.dataset.state = 'stale';
       } else {
-        statusEl.textContent = '尚未設定地圖位置';
+        statusEl.textContent = '尚未設定地圖座標';
         statusEl.dataset.state = 'empty';
       }
       if (summaryEl) summaryEl.textContent = '';

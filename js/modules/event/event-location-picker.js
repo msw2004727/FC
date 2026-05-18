@@ -1,6 +1,6 @@
 /* ================================================
    SportHub — Event Location Picker
-   Manual-only module loaded after user clicks "設定地圖位置".
+   Manual-only module loaded after user clicks "設定地圖座標".
    ================================================ */
 
 Object.assign(App, {
@@ -45,10 +45,10 @@ Object.assign(App, {
     root.id = 'event-location-picker-overlay';
     root.className = 'event-location-picker-overlay';
     root.innerHTML = `
-      <div class="event-location-picker-dialog" role="dialog" aria-modal="true" aria-label="設定地圖位置">
+      <div class="event-location-picker-dialog" role="dialog" aria-modal="true" aria-label="設定地圖座標">
         <div class="event-location-picker-header">
           <div>
-            <div class="event-location-picker-title">設定地圖位置</div>
+            <div class="event-location-picker-title">設定地圖座標</div>
             <div class="event-location-picker-subtitle">確認後，此活動才會出現在附近活動地圖</div>
           </div>
           <button type="button" class="event-location-picker-close" onclick="App.closeEventLocationPicker()" aria-label="關閉">×</button>
@@ -226,6 +226,6 @@ Object.assign(App, {
     });
     this._eventLocationGooglePlaceId = '';
     this.closeEventLocationPicker();
-    this.showToast?.('已設定活動地圖位置');
+    this.showToast?.('已設定活動地圖座標');
   },
 });
