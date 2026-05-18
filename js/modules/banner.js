@@ -233,6 +233,7 @@ Object.assign(App, {
       this._ensureBannerFixedOverlay(banners);
       this._ensureBannerSlideImages(track);
       this._bindBannerCarouselControls();
+      this._refreshActivityCreateButton?.();
       if (autoplay) {
         this.startBannerCarousel();
       } else {
@@ -279,6 +280,7 @@ Object.assign(App, {
     }
     track.style.transform = 'translateX(0)';
     this._bindBannerCarouselControls();
+    this._refreshActivityCreateButton?.();
     if (autoplay) {
       this.startBannerCarousel();
     } else {

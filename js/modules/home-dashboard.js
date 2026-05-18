@@ -712,6 +712,7 @@
         this._requestLoginForAction({ type: 'createEvent' });
         return;
       }
+      if (this._requireActivityCreateProfileComplete?.()) return;
       await this.showPage?.('page-activities');
       await scriptLoader?.ensureForPage?.('page-activities');
       if (typeof this.openCreateEventModal === 'function') {

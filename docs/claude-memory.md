@@ -2916,3 +2916,8 @@
 - **Issue**: In dark mode, create-activity primary buttons used a bright accent green/glow that was visually too strong.
 - **Fix**: Added dark-mode primary button colors with lower brightness and applied matching darker gradient/glow treatment to the activity/home create buttons.
 - **Validation**: Added source assertions for dark primary button colors and create-button gradient overrides. Ran targeted/full unit tests; browser plugin verification was attempted, but localhost loading was blocked by the in-app browser URL policy.
+
+### 2026-05-18 Activity Create Profile Completion Gate [bugfix]
+- **Issue**: Users with incomplete first-login profile data could still see normal-looking activity create entry points on the home and activity pages, so the block only happened later in the write flow.
+- **Fix**: Activity create buttons now keep permission visibility but enter a grey locked state when gender, birthday, or region is missing. Clicking a locked home or activity create button shows `請先完成個人資料，再建立活動。` and opens the existing first-login profile modal before the create flow. Profile saves immediately refresh the button state.
+- **Validation**: Added source assertions covering home/activity buttons, banner refresh, create-flow guard, profile save refresh, and locked-button styling. Ran targeted/full unit tests successfully; browser plugin verification was attempted, but localhost loading was blocked by the in-app browser URL policy.

@@ -147,8 +147,8 @@ Object.assign(App, {
           if (user && user._isNewUser) {
             this._sendNotifFromTemplate('welcome', { userName: profile.displayName }, user.uid);
           }
-          if (user && (!user.gender || !user.birthday || !user.region)) {
-            this._pendingFirstLogin = true;
+          if (user) {
+            this._pendingFirstLogin = !user.gender || !user.birthday || !user.region;
           }
           refreshAfterUserReady();
         } catch (err) {
@@ -412,6 +412,7 @@ Object.assign(App, {
     if (input) input.value = '';
     this.closeModal();
     if (typeof this.renderProfileData === 'function') this.renderProfileData();
+    this._refreshActivityCreateButton?.();
     this.showToast('個人資料已儲存');
   },
 

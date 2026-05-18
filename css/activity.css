@@ -194,6 +194,55 @@
 [data-theme="dark"] .home-create-event-btn:active::after {
   background: linear-gradient(135deg, var(--primary-btn-active, #047857), #172554);
 }
+#activity-create-btn.activity-create-profile-locked,
+#my-activity-create-btn.activity-create-profile-locked,
+.home-create-event-btn.activity-create-profile-locked {
+  cursor: not-allowed;
+  opacity: .56;
+  filter: grayscale(1) saturate(.35);
+  animation: none;
+  box-shadow: none;
+}
+#activity-create-btn.activity-create-profile-locked::before,
+#my-activity-create-btn.activity-create-profile-locked::before,
+.home-create-event-btn.activity-create-profile-locked::before {
+  opacity: .22;
+  animation: none;
+}
+#activity-create-btn.activity-create-profile-locked::after,
+#my-activity-create-btn.activity-create-profile-locked::after,
+.home-create-event-btn.activity-create-profile-locked::after {
+  background: linear-gradient(135deg, #64748b, #475569);
+}
+#activity-create-btn.activity-create-profile-locked:hover,
+#my-activity-create-btn.activity-create-profile-locked:hover,
+.home-create-event-btn.activity-create-profile-locked:hover,
+#activity-create-btn.activity-create-profile-locked:active,
+#my-activity-create-btn.activity-create-profile-locked:active,
+.home-create-event-btn.activity-create-profile-locked:active {
+  transform: none;
+}
+#activity-create-btn.activity-create-profile-locked:hover::after,
+#my-activity-create-btn.activity-create-profile-locked:hover::after,
+.home-create-event-btn.activity-create-profile-locked:hover::after,
+#activity-create-btn.activity-create-profile-locked:active::after,
+#my-activity-create-btn.activity-create-profile-locked:active::after,
+.home-create-event-btn.activity-create-profile-locked:active::after {
+  background: linear-gradient(135deg, #64748b, #475569);
+}
+[data-theme="dark"] #activity-create-btn.activity-create-profile-locked,
+[data-theme="dark"] #my-activity-create-btn.activity-create-profile-locked,
+[data-theme="dark"] .home-create-event-btn.activity-create-profile-locked {
+  opacity: .50;
+}
+[data-theme="dark"] #activity-create-btn.activity-create-profile-locked::after,
+[data-theme="dark"] #my-activity-create-btn.activity-create-profile-locked::after,
+[data-theme="dark"] .home-create-event-btn.activity-create-profile-locked::after,
+[data-theme="dark"] #activity-create-btn.activity-create-profile-locked:hover::after,
+[data-theme="dark"] #my-activity-create-btn.activity-create-profile-locked:hover::after,
+[data-theme="dark"] .home-create-event-btn.activity-create-profile-locked:hover::after {
+  background: linear-gradient(135deg, #475569, #334155);
+}
 @keyframes activity-create-glow {
   0%, 100% { box-shadow: 0 0 4px rgba(255,215,0,.28); }
   50% { box-shadow: 0 0 10px rgba(255,215,0,.48), 0 0 20px rgba(37,99,235,.22); }

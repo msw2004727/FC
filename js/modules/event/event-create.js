@@ -304,6 +304,7 @@ Object.assign(App, {
       this.showToast('權限不足：需要建立活動權限');
       return;
     }
+    if (this._requireActivityCreateProfileComplete?.()) return;
     // 彈底部 Action Sheet：選擇建立自訂活動或活動連結
     this._showCreateEventTypeSheet();
   },

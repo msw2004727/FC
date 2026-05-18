@@ -21,11 +21,51 @@ Object.assign(App, {
     return this._canCreateBasicActivity?.() || this._canCreateExternalActivity?.();
   },
 
+  _isActivityCreateProfileComplete(user = null) {
+    const currentUser = user || ApiService.getCurrentUser?.();
+    if (!currentUser) return false;
+    return ['gender', 'birthday', 'region'].every(key => String(currentUser[key] || '').trim());
+  },
+
+  _isActivityCreateProfileLocked() {
+    const currentUser = ApiService.getCurrentUser?.();
+    if (!currentUser) return false;
+    return !!this._pendingFirstLogin || !this._isActivityCreateProfileComplete(currentUser);
+  },
+
+  _showActivityCreateProfileRequired() {
+    this.showToast?.('請先完成個人資料，再建立活動。');
+    this._pendingFirstLogin = true;
+    this._tryShowFirstLoginModal?.();
+  },
+
+  _requireActivityCreateProfileComplete() {
+    if (!this._isActivityCreateProfileLocked()) return false;
+    this._showActivityCreateProfileRequired();
+    return true;
+  },
+
   _refreshActivityCreateButton() {
     const canCreate = this._canCreateActivityByPermission();
-    ['activity-create-btn', 'my-activity-create-btn'].forEach(id => {
-      const button = document.getElementById(id);
-      if (button) button.style.display = canCreate ? '' : 'none';
+    const profileLocked = canCreate && this._isActivityCreateProfileLocked();
+    const buttonSet = new Set([
+      ...['activity-create-btn', 'my-activity-create-btn']
+        .map(id => document.getElementById(id))
+        .filter(Boolean),
+      ...document.querySelectorAll('.home-create-event-btn'),
+    ]);
+
+    buttonSet.forEach(button => {
+      button.style.display = canCreate ? '' : 'none';
+      button.classList.toggle('activity-create-profile-locked', !!profileLocked);
+      button.setAttribute('aria-disabled', profileLocked ? 'true' : 'false');
+      if (profileLocked) {
+        button.dataset.profileIncomplete = '1';
+        button.title = '請先完成個人資料，再建立活動';
+      } else {
+        delete button.dataset.profileIncomplete;
+        button.removeAttribute('title');
+      }
     });
   },
 

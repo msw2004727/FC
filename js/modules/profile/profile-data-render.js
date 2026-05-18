@@ -232,9 +232,13 @@ Object.assign(App, {
     }
     if (regionInput) updates.region = regionVal || null;
     if (phoneInput) updates.phone = phoneInput.value.trim() || null;
-    ApiService.updateCurrentUser(updates);
+    const updatedUser = ApiService.updateCurrentUser(updates);
+    if (updatedUser) {
+      this._pendingFirstLogin = !['gender', 'birthday', 'region'].every(key => String(updatedUser[key] || '').trim());
+    }
     this.toggleProfileEdit();
     this.renderProfileData();
+    this._refreshActivityCreateButton?.();
     this.showToast('個人資料已更新');
   },
 

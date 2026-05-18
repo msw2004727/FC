@@ -64,6 +64,31 @@ describe('activity create button', () => {
     expect(configSource).toMatch(/'page-activities':\s*\{[^}]*roleActivityCapabilities/);
   });
 
+  test('home and activity create buttons require completed profile before opening create flow', () => {
+    const listSource = readProjectFile('js/modules/event/event-list.js');
+    const createSource = readProjectFile('js/modules/event/event-create.js');
+    const homeSource = readProjectFile('js/modules/home-dashboard.js');
+    const bannerSource = readProjectFile('js/modules/banner.js');
+    const profileFormSource = readProjectFile('js/modules/profile/profile-form.js');
+    const profileDataSource = readProjectFile('js/modules/profile/profile-data-render.js');
+    const activityCss = readProjectFile('css/activity.css');
+
+    expect(listSource).toContain('_isActivityCreateProfileComplete');
+    expect(listSource).toContain('_requireActivityCreateProfileComplete');
+    expect(listSource).toContain("this.showToast?.('請先完成個人資料，再建立活動。');");
+    expect(listSource).toContain("...document.querySelectorAll('.home-create-event-btn')");
+    expect(listSource).toContain("button.dataset.profileIncomplete = '1';");
+    expect(listSource).toContain("button.setAttribute('aria-disabled', profileLocked ? 'true' : 'false');");
+    expect(createSource).toContain('if (this._requireActivityCreateProfileComplete?.()) return;');
+    expect(homeSource).toContain('if (this._requireActivityCreateProfileComplete?.()) return;');
+    expect(bannerSource).toContain('this._refreshActivityCreateButton?.();');
+    expect(profileFormSource).toContain('this._pendingFirstLogin = !user.gender || !user.birthday || !user.region;');
+    expect(profileFormSource).toContain('this._refreshActivityCreateButton?.();');
+    expect(profileDataSource).toContain("this._pendingFirstLogin = !['gender', 'birthday', 'region'].every");
+    expect(activityCss).toContain('.activity-create-profile-locked');
+    expect(activityCss).toContain('cursor: not-allowed');
+  });
+
   test('activity edit save button enters busy state immediately and blocks double submit', () => {
     const createSource = readProjectFile('js/modules/event/event-create.js');
 
