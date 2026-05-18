@@ -506,6 +506,24 @@
                 <div class="ce-social-links-tip">最多 5 個。系統會依網址自動判斷 LINE、Facebook、Instagram、YouTube 等常見社群圖示。</div>
               </div>
             </div>
+            <div class="ce-row ce-value-item ce-early-bird-row">
+              <div class="ce-label-row"><button type="button" class="edu-info-btn" onclick="event.stopPropagation();App._showCeInfo('earlyBird')" title="說明">?</button><label>早鳥報名</label></div>
+              <div class="ce-toggle-control">
+                <label class="toggle-switch" style="margin:0">
+                  <input type="checkbox" id="ce-early-bird-enabled">
+                  <span class="toggle-slider"></span>
+                </label>
+                <span id="ce-early-bird-label" class="ce-toggle-status">關閉</span>
+              </div>
+              <div id="ce-early-bird-options" class="ce-early-bird-options" style="display:none">
+                <label class="ce-early-bird-cost-row" for="ce-early-bird-cost">
+                  <span>消耗積分</span>
+                  <input type="number" id="ce-early-bird-cost" min="10" max="500" step="10" value="10" inputmode="numeric">
+                  <span>分</span>
+                </label>
+                <div class="ce-early-bird-tip">正式開放報名前可提前報名。扣點只套用在本人正取報名；活動取消會退回，用戶自行取消不退回。</div>
+              </div>
+            </div>
             <div class="ce-row ce-value-item ce-value-reserved">
               <div class="ce-label-row"><label for="ce-reserved-noshow-detection">放鴿子偵測</label></div>
               <div class="ce-toggle-control">

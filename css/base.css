@@ -381,11 +381,41 @@ body.modal-open { overflow: hidden; }
   font-size: .72rem;
   line-height: 1.5;
 }
+.ce-early-bird-options {
+  border: 1px solid rgba(217, 119, 6, .22);
+  border-radius: 8px;
+  padding: .55rem .6rem;
+  background: var(--bg-elevated);
+}
+.ce-early-bird-cost-row {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  color: var(--text-secondary);
+  font-size: .78rem;
+  font-weight: 600;
+}
+.ce-early-bird-cost-row input {
+  width: 5.6rem;
+  min-width: 0;
+  padding: .42rem .5rem;
+  font-size: .82rem;
+  text-align: center;
+}
+.ce-early-bird-tip {
+  margin-top: .4rem;
+  color: var(--text-muted);
+  font-size: .72rem;
+  line-height: 1.5;
+}
 [data-theme="dark"] .ce-value-section {
   border-color: rgba(251, 191, 36, .28);
   background: rgba(245, 158, 11, .14);
 }
 [data-theme="dark"] .ce-social-links-options {
+  border-color: rgba(251, 191, 36, .18);
+}
+[data-theme="dark"] .ce-early-bird-options {
   border-color: rgba(251, 191, 36, .18);
 }
 @media (max-width: 420px) {

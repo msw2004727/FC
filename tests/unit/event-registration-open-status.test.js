@@ -39,10 +39,10 @@ describe('event registration open status', () => {
 
     expect(source).toContain('function parseEventRegOpenTimeInTaipei(value)');
     expect(source).toContain('function isEventRegistrationNotOpen(data, now = new Date())');
-    expect(registerSource).toContain('if (isEventRegistrationNotOpen(ed, now))');
-    expect(registerSource).toContain('if (ed.status === "upcoming")');
-    expect(registerSource.indexOf('if (isEventRegistrationNotOpen(ed, now))'))
-      .toBeLessThan(registerSource.indexOf('if (ed.status === "upcoming")'));
+    expect(registerSource).toContain('const registrationNotOpen = isEventRegistrationNotOpen(ed, now);');
+    expect(registerSource).toContain('if (!registrationNotOpen && ed.status === "upcoming")');
+    expect(registerSource.indexOf('const registrationNotOpen = isEventRegistrationNotOpen(ed, now);'))
+      .toBeLessThan(registerSource.indexOf('if (!registrationNotOpen && ed.status === "upcoming")'));
     expect(registerSource).not.toContain('if (ed.status === "upcoming") throw new HttpsError("failed-precondition", "REG_NOT_OPEN");');
   });
 });

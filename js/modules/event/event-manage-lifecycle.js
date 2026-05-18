@@ -29,6 +29,7 @@ Object.assign(App, {
     this.bindPrivateEventToggle?.();
     this.bindTeamSplitToggle?.();
     this.bindEventSocialLinksToggle?.();
+    this.bindEventEarlyBirdToggle?.();
     this.bindReservedActivityAddonToggles?.();
     this.bindRegionToggle?.();
     this._bindCreateTimeSummary?.();
@@ -97,6 +98,8 @@ Object.assign(App, {
     this._tsSetFormData?.(e.teamSplit || null);
     // 社群連結還原
     this._setEventSocialLinksFormData?.(!!e.socialLinksEnabled, e.socialLinks || []);
+    // 早鳥報名還原
+    this._setEventEarlyBirdFormData?.(!!e.earlyBirdEnabled, e.earlyBirdCost || 10);
     // 活動地區還原
     this._regionSetFormData?.(e.regionEnabled !== false, e.region || '', e.cities || []);
     this._updateCreateTimeSummary?.();

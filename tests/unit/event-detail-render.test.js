@@ -92,9 +92,6 @@ function determineButtonState({
   if (regsLoading) {
     return { type: 'loading', disabled: true, text: '載入中…' };
   }
-  if (isUpcoming) {
-    return { type: 'upcoming', disabled: true, text: '報名尚未開放' };
-  }
   if (isEnded) {
     return { type: 'ended', disabled: true, text: '已結束' };
   }
@@ -103,6 +100,9 @@ function determineButtonState({
   }
   if (isSignedUp) {
     return { type: 'cancelSignup', disabled: false, text: '取消報名' };
+  }
+  if (isUpcoming) {
+    return { type: 'upcoming', disabled: true, text: '報名尚未開放' };
   }
   if (teamOnlyBlocked) {
     return { type: 'teamOnly', disabled: true, text: '球隊限定' };
@@ -243,9 +243,9 @@ describe('Button state: priority order', () => {
     expect(state.type).toBe('ended');
   });
 
-  test('upcoming takes priority over signed up', () => {
+  test('signed up takes priority over upcoming after early bird signup', () => {
     const state = determineButtonState({ ...base, isUpcoming: true, isSignedUp: true });
-    expect(state.type).toBe('upcoming');
+    expect(state.type).toBe('cancelSignup');
   });
 
   test('waitlist takes priority over signup status', () => {

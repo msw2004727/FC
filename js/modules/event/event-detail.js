@@ -216,6 +216,8 @@ Object.assign(App, {
       return `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>球隊限定</button>`;
     }
     if (isUpcoming) {
+      const earlyBirdHtml = this._buildEventEarlyBirdSignupHtml?.(eventRecord, { isGuestView: true, isMainFull });
+      if (earlyBirdHtml) return earlyBirdHtml;
       return `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed" disabled>\u5831\u540d\u5c1a\u672a\u958b\u653e</button>`;
     }
     if (isEnded) {
@@ -538,14 +540,14 @@ Object.assign(App, {
       signupBtn = this._buildGuestEventSignupButton(e, isUpcoming, isEnded, isMainFull);
     } else if (regsLoading) {
       signupBtn = `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>載入中…</button>`;
-    } else if (isUpcoming) {
-      signupBtn = `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed" disabled>報名尚未開放</button>`;
     } else if (isEnded) {
       signupBtn = `<button style="background:#333;color:#999;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed" disabled>已結束</button>`;
     } else if (isOnWaitlist) {
       signupBtn = _glowWrap(`<button style="background:#7c3aed;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.handleCancelSignup('${e.id}')">取消候補</button>`, '#7c3aed', '#a78bfa', '正在取消候補');
     } else if (isSignedUp) {
       signupBtn = _glowWrap(`<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.handleCancelSignup('${e.id}')">取消報名</button>`, '#dc2626', '#f87171', '正在取消報名');
+    } else if (isUpcoming) {
+      signupBtn = this._buildEventEarlyBirdSignupHtml?.(e, { isGuestView, isMainFull }) || `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed" disabled>報名尚未開放</button>`;
     } else if (e.teamOnly && !canTeamOnlySignup) {
       signupBtn = `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>球隊限定</button>`;
     } else if (genderSignupState.restricted && !genderSignupState.requiresLogin && !genderSignupState.canSignup) {

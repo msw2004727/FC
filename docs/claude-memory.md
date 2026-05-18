@@ -2866,6 +2866,12 @@
 - **Fix**: Normal users now keep localStorage display cache for up to 7 days and can enter the app from any displayable cache while Firestore refreshes in the background. The 30-minute window is still tracked as the fresh-cache threshold. Expired display cache is discarded instead of restored indefinitely. Admin/super_admin display cache remains capped at 60 minutes.
 - **Validation**: Added unit coverage for the 7-day cap, 30-minute fast-path constant, expired UID cache rejection, and valid legacy-cache fallback.
 
+### 2026-05-18 — Activity Early Bird Registration [feature]
+- **問題**：活動已能設定未來開放報名時間，但時間未到前只能顯示「報名尚未開放」，無法讓高意願用戶用積分提前報名，也沒有早鳥扣點與活動取消退款紀錄。
+- **原因**：活動進階設定、前台報名按鈕、Cloud Function 原子報名交易、Firestore Rules 都沒有早鳥欄位與扣點/退款契約。
+- **修復**：新增早鳥報名開關與 10～500 分設定；尚未開放但符合早鳥條件時顯示早鳥報名或積分不足提示；Cloud Function 在同一筆報名交易內扣點並寫入 expLogs / operationLogs / audit meta；活動取消時由 events watcher 冪等退回早鳥積分；用戶自行取消不退點。
+- **教訓**：提前報名不能只改前端按鈕，必須維持報名、扣點、log 與退款同一套後端資料契約，且早鳥成功後活動狀態仍要保持 upcoming，避免正式開放前被誤判為一般報名中。
+
 ### 2026-05-18 Activity Detail Comments Stuck After Roster [bugfix]
 - **Issue**: The activity detail roster could finish rendering while the comments block stayed on "comments will load after the registration list completes".
 - **Cause**: `_renderAttendanceTable()` debounced repeated table renders by clearing the old timer, but the promise returned to the first caller was never resolved. `showEventDetail()` awaited that first promise before calling `_renderEventComments()`, so a later roster patch could render the list while the original detail flow stayed permanently parked.

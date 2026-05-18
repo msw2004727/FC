@@ -568,6 +568,96 @@ Object.assign(App, {
       + '</div>';
   },
 
+  _getEventEarlyBirdCost(eventRecord) {
+    if (!eventRecord?.earlyBirdEnabled) return 0;
+    const cost = Math.floor(Number(eventRecord.earlyBirdCost || 0));
+    return Number.isFinite(cost) && cost >= 10 && cost <= 500 ? cost : 0;
+  },
+
+  _isEventEarlyBirdWindow(eventRecord, nowDate = new Date()) {
+    if (!eventRecord || eventRecord.status === 'ended' || eventRecord.status === 'cancelled') return false;
+    if (!this._getEventEarlyBirdCost(eventRecord)) return false;
+    if (!eventRecord.regOpenTime) return false;
+    const regOpen = new Date(eventRecord.regOpenTime);
+    if (Number.isNaN(regOpen.getTime()) || regOpen <= nowDate) return false;
+    const start = this._parseEventStartDate?.(eventRecord.date);
+    if (start && start <= nowDate) return false;
+    return true;
+  },
+
+  _getCurrentUserExpBalance() {
+    const user = ApiService.getCurrentUser?.() || {};
+    const exp = Number(user.exp ?? user.points ?? 0);
+    return Number.isFinite(exp) ? Math.max(0, Math.floor(exp)) : 0;
+  },
+
+  _buildEventEarlyBirdSignupHtml(eventRecord, opts = {}) {
+    if (!this._isEventEarlyBirdWindow?.(eventRecord)) return '';
+    const eventId = escapeHTML(eventRecord.id || eventRecord._docId || '');
+    const cost = this._getEventEarlyBirdCost(eventRecord);
+    const disabledStyle = 'background:#64748b;color:#fff;padding:.63rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.72';
+    if (opts.isMainFull) {
+      return '<div class="event-early-bird-cta">'
+        + '<button style="' + disabledStyle + '" disabled>早鳥名額已滿</button>'
+        + '<div class="event-early-bird-subtext">正式開放後可依活動狀態候補報名</div>'
+        + '</div>';
+    }
+    if (opts.isGuestView) {
+      return '<div class="event-early-bird-cta">'
+        + '<button class="event-early-bird-btn" onclick="App.requestProtectedEventAction(\'eventSignup\',\'' + eventId + '\')">早鳥報名 · ' + cost + ' 積分</button>'
+        + '<div class="event-early-bird-subtext">登入後確認積分並完成報名</div>'
+        + '</div>';
+    }
+    const balance = this._getCurrentUserExpBalance();
+    if (balance < cost) {
+      return '<div class="event-early-bird-cta">'
+        + '<button style="' + disabledStyle + '" disabled>積分不足 · 需 ' + cost + ' 分</button>'
+        + '<div class="event-early-bird-subtext">目前積分不足，可等正式開放後報名</div>'
+        + '</div>';
+    }
+    return '<div class="signup-glow-wrap event-early-bird-cta" style="--glow-c:#d97706;--glow-c-light:#fbbf24">'
+      + '<div class="signup-glow-border"></div><div class="signup-glow-shadow"></div>'
+      + '<div class="signup-flipper"><button class="event-early-bird-btn" onclick="App.handleSignup(\'' + eventId + '\',{earlyBird:true})">早鳥報名 · ' + cost + ' 積分</button></div>'
+      + '<div class="signup-loading-hint"><div class="mini-spinner"></div><span class="mini-text">早鳥報名中</span></div>'
+      + '</div>';
+  },
+
+  _confirmEarlyBirdSignup(eventRecord, cost) {
+    return new Promise(resolve => {
+      const modal = document.getElementById('app-confirm-modal');
+      const msgEl = document.getElementById('app-confirm-msg');
+      const ok = document.getElementById('app-confirm-ok');
+      const cancel = document.getElementById('app-confirm-cancel');
+      if (!modal || !msgEl || !ok || !cancel) {
+        resolve(false);
+        return;
+      }
+      const title = escapeHTML(eventRecord?.title || '此活動');
+      msgEl.innerHTML = '<div class="app-confirm-warning">早鳥報名確認</div>'
+        + '<div class="early-bird-confirm-body">'
+        + '<div>你將使用 <b>' + cost + ' 積分</b> 提前報名「' + title + '」。</div>'
+        + '<div class="early-bird-confirm-note">若活動取消，系統會退回積分；若你自行取消報名，已扣除的早鳥積分不會退回。</div>'
+        + '</div>';
+      ok.textContent = '確認扣除並報名';
+      cancel.textContent = '取消';
+      cancel.style.display = '';
+      modal.classList.add('open');
+      document.body.classList.add('modal-open');
+      const cleanup = (result) => {
+        modal.classList.remove('open');
+        document.body.classList.remove('modal-open');
+        msgEl.innerHTML = '';
+        ok.textContent = '確定';
+        cancel.textContent = '取消';
+        ok.replaceWith(ok.cloneNode(true));
+        cancel.replaceWith(cancel.cloneNode(true));
+        resolve(result);
+      };
+      ok.addEventListener('click', () => cleanup(true), { once: true });
+      cancel.addEventListener('click', () => cleanup(false), { once: true });
+    });
+  },
+
   _getTeamReservationModalState(eventId, preferredTeamId) {
     const e = ApiService.getEvent(eventId);
     const teams = this._getTeamReservationStaffTeams(e);
@@ -721,7 +811,10 @@ Object.assign(App, {
       this.showEventDetail(id);
       return;
     }
-    if (e.status === 'upcoming') {
+    const earlyBirdWindow = !!this._isEventEarlyBirdWindow?.(e);
+    const earlyBirdCost = earlyBirdWindow ? (this._getEventEarlyBirdCost?.(e) || 0) : 0;
+    const isEarlyBirdSignup = earlyBirdWindow && (opts?.earlyBird === true || e.status === 'upcoming');
+    if (e.status === 'upcoming' && !earlyBirdWindow) {
       this.showToast('\u5831\u540d\u5c1a\u672a\u958b\u653e\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
       return;
     }
@@ -743,7 +836,6 @@ Object.assign(App, {
       this.showEventDetail(id);
       return;
     }
-    if (e.status === 'upcoming') { this.showToast('報名尚未開放，請稍後再試'); return; }
 
     // team-split: 自選模式需先選隊
     const _tsEnabled = e.teamSplit?.enabled;
@@ -777,6 +869,27 @@ Object.assign(App, {
       this.showToast('系統載入中，請稍候再試');
       void this.ensureCloudReady?.({ reason: 'signup' });
       return;
+    }
+
+    if (isEarlyBirdSignup) {
+      const useServerRegistration = typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration();
+      if (!useServerRegistration) {
+        this.showToast('早鳥報名需使用新版報名系統，請稍後再試');
+        return;
+      }
+      const confirmedCount = (typeof this._buildConfirmedParticipantSummary === 'function')
+        ? this._buildConfirmedParticipantSummary(id).count
+        : Number(e.current || 0);
+      if (confirmedCount >= (Number(e.max || 0) || 0)) {
+        this.showToast('早鳥名額已滿，正式開放後可依活動狀態候補報名');
+        return;
+      }
+      if (this._getCurrentUserExpBalance() < earlyBirdCost) {
+        this.showToast('目前積分不足，可等正式開放後報名');
+        return;
+      }
+      const confirmed = await this._confirmEarlyBirdSignup(e, earlyBirdCost);
+      if (!confirmed) return;
     }
 
     // 防幽靈 UI 層：報名期間禁用按鈕，啟動光跡載入特效
@@ -834,6 +947,10 @@ Object.assign(App, {
           participants: [{ userId, userName }],
           requestId: signupRequestId,
         };
+        if (isEarlyBirdSignup) {
+          cfPayload.earlyBirdAccepted = true;
+          cfPayload.earlyBirdExpectedCost = earlyBirdCost;
+        }
         if (_tsTeamKey) cfPayload.teamKey = _tsTeamKey;
         if (selectedTeamReservationTeamId) cfPayload.preferredTeamReservationTeamId = selectedTeamReservationTeamId;
         const cfResult = await Promise.race([
@@ -856,7 +973,12 @@ Object.assign(App, {
         const selfReg = (data.registrations || []).find(r => r.participantType === 'self') || data.registrations?.[0];
         // 若 CF 回傳 waitlisted 計數 > 0 且 selfReg 未定義，使用 waitlisted 狀態以避免誤報
         const inferredStatus = (!selfReg && data.waitlisted > 0) ? 'waitlisted' : (selfReg?.status || 'confirmed');
-        result = { status: inferredStatus };
+        result = {
+          status: inferredStatus,
+          registration: selfReg || null,
+          earlyBirdCharged: !!data.earlyBirdCharged,
+          earlyBirdCost: Number(data.earlyBirdCost || 0) || 0,
+        };
         // 樂觀更新本地快取（onSnapshot 到來時會以 Firestore 為準覆蓋）
         if (data.event && e) {
           e.current = data.event.current;
@@ -879,6 +1001,9 @@ Object.assign(App, {
             teamReservationTeamId: selfReg?.teamReservationTeamId || null,
             teamReservationTeamName: selfReg?.teamReservationTeamName || null,
             teamSeatSource: selfReg?.teamSeatSource || null,
+            earlyBird: !!selfReg?.earlyBird,
+            earlyBirdCost: Number(selfReg?.earlyBirdCost || 0) || 0,
+            earlyBirdRefunded: !!selfReg?.earlyBirdRefunded,
             registeredAt: new Date().toISOString(),
             _docId: selfReg?._docId || selfReg?.id || ('reg_optimistic_' + Date.now()),
           }, 'registrations', e?._docId || id), { requireSubcollection: false });
@@ -896,8 +1021,18 @@ Object.assign(App, {
 
       // ── 即時回饋：翻牌動畫 + toast ──
       this.invalidateHomeNextActivityCache?.(userId);
+      if (result.earlyBirdCharged) {
+        const currentUser = ApiService.getCurrentUser?.();
+        if (currentUser && Number.isFinite(Number(currentUser.exp))) {
+          currentUser.exp = Math.max(0, Math.floor(Number(currentUser.exp || 0)) - Number(result.earlyBirdCost || 0));
+          FirebaseService?._saveToLS?.('currentUser', currentUser);
+        }
+      }
       const isWL = result.status === 'waitlisted';
       let toastMsg = isWL ? '已加入候補名單' : '報名成功！';
+      if (!isWL && result.earlyBirdCharged) {
+        toastMsg = `早鳥報名成功，已扣除 ${result.earlyBirdCost} 積分`;
+      }
       // team-split: random 模式顯示分配結果
       if (!isWL && _tsEnabled && _tsMode === 'random' && result.registration?.teamKey) {
         const _assignedTeam = e.teamSplit?.teams?.find(t => t.key === result.registration.teamKey);
@@ -978,6 +1113,12 @@ Object.assign(App, {
         EVENT_ENDED: '活動已開始，報名已結束',
         EVENT_CANCELLED: '活動已取消',
         REG_NOT_OPEN: '報名尚未開放，請稍後再試',
+        EARLY_BIRD_NOT_AVAILABLE: '早鳥報名目前不可用，請稍後再試',
+        EARLY_BIRD_CONFIRM_REQUIRED: '請先確認早鳥報名扣點說明',
+        EARLY_BIRD_SELF_ONLY: '早鳥報名僅支援本人報名',
+        EARLY_BIRD_COST_CHANGED: '早鳥報名積分已更新，請重新確認',
+        EARLY_BIRD_INSUFFICIENT_EXP: '目前積分不足，可等正式開放後報名',
+        EARLY_BIRD_FULL: '早鳥名額已滿，正式開放後可依活動狀態候補報名',
         GENDER_RESTRICTED: '此活動不符合目前性別限制',
         TEAM_RESTRICTED: '俱樂部限定活動，僅限該隊成員報名',
         PROFILE_INCOMPLETE: '請先完善個人資料後再報名',
@@ -1566,14 +1707,14 @@ Object.assign(App, {
     };
 
     var html = '';
-    if (isUpcoming) {
-      html = _btn('#64748b', '報名尚未開放', '', true);
-    } else if (isEnded) {
+    if (isEnded) {
       html = _btn('#333', '已結束', '', true);
     } else if (isOnWaitlist) {
       html = _gw(_btn('#d97706', '取消候補', "App.handleCancelSignup('" + eventId + "')"), '#d97706', '#f59e0b', '正在取消候補');
     } else if (isSignedUp) {
       html = _gw(_btn('#dc2626', '取消報名', "App.handleCancelSignup('" + eventId + "')"), '#dc2626', '#f87171', '正在取消報名');
+    } else if (isUpcoming) {
+      html = this._buildEventEarlyBirdSignupHtml?.(e, { isMainFull }) || _btn('#64748b', '報名尚未開放', '', true);
     } else if (teamBlocked) {
       html = _btn('#64748b', '球隊限定', '', true);
     } else if (genderBlocked) {

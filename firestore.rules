@@ -632,7 +632,22 @@ service cloud.firestore {
           && request.resource.data.get('privateEvent', false) == false
           && request.resource.data.get('teamSplit', null) == null
           && request.resource.data.get('socialLinksEnabled', false) == false
-          && isEmptyOptionalList(request.resource.data.get('socialLinks', []));
+          && isEmptyOptionalList(request.resource.data.get('socialLinks', []))
+          && request.resource.data.get('earlyBirdEnabled', false) == false
+          && request.resource.data.get('earlyBirdCost', 0) == 0;
+      }
+
+      function eventEarlyBirdFieldsValid(data) {
+        return (!data.keys().hasAny(['earlyBirdEnabled']) || data.earlyBirdEnabled is bool)
+          && (!data.keys().hasAny(['earlyBirdPolicyVersion']) || data.earlyBirdPolicyVersion == null || data.earlyBirdPolicyVersion is number)
+          && (
+            data.get('earlyBirdEnabled', false) == false
+            || (
+              data.get('earlyBirdCost', 0) is int
+              && data.get('earlyBirdCost', 0) >= 10
+              && data.get('earlyBirdCost', 0) <= 500
+            )
+          );
       }
 
       function eventCreateHasTeamScopedAddon() {
@@ -736,7 +751,8 @@ service cloud.firestore {
           'genderRestrictionEnabled', 'allowedGender',
           'privateEvent',
           'teamSplit',
-          'socialLinksEnabled', 'socialLinks'
+          'socialLinksEnabled', 'socialLinks',
+          'earlyBirdEnabled', 'earlyBirdCost', 'earlyBirdPolicyVersion'
         ]);
       }
 
@@ -756,6 +772,7 @@ service cloud.firestore {
           'lat', 'lng', 'mapAddress', 'mapPlaceId', 'mapProvider', 'mapLocationConfirmed', 'mapLocationUpdatedAt',
           'fee', 'feeEnabled', 'genderRestrictionEnabled', 'allowedGender',
           'privateEvent', 'teamSplit', 'socialLinksEnabled', 'socialLinks',
+          'earlyBirdEnabled', 'earlyBirdCost', 'earlyBirdPolicyVersion',
           'updatedAt'
         ]);
       }
@@ -768,6 +785,7 @@ service cloud.firestore {
           'lat', 'lng', 'mapAddress', 'mapPlaceId', 'mapProvider', 'mapLocationConfirmed', 'mapLocationUpdatedAt',
           'fee', 'feeEnabled', 'genderRestrictionEnabled', 'allowedGender',
           'privateEvent', 'teamSplit', 'socialLinksEnabled', 'socialLinks',
+          'earlyBirdEnabled', 'earlyBirdCost', 'earlyBirdPolicyVersion',
           'status', 'updatedAt'
         ]);
       }
@@ -819,9 +837,11 @@ service cloud.firestore {
       allow create: if isAuth()
         && hasString('title')
         && canCreateEventRoot()
+        && eventEarlyBirdFieldsValid(request.resource.data)
         && isValidEventMapFields(request.resource.data);
       allow update: if isAuth()
         && isValidEventMapFields(request.resource.data)
+        && eventEarlyBirdFieldsValid(request.resource.data)
         && (
           isUserOwnerBasicUpdate()
           || isScopedRoleBasicUpdate()

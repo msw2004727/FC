@@ -132,6 +132,9 @@ Object.assign(App, {
     const socialLinksData = canUseAddons
       ? (this._getEventSocialLinksFormData?.({ validate: false }) || { enabled: false, links: [] })
       : { enabled: false, links: [] };
+    const earlyBirdData = canUseAddons
+      ? (this._getEventEarlyBirdFormData?.({ validate: false }) || { enabled: false, cost: 0 })
+      : { enabled: false, cost: 0 };
     return {
       id: 'tpl_' + Date.now(),
       name,
@@ -150,6 +153,8 @@ Object.assign(App, {
       privateEvent: canUseAddons && !!document.getElementById('ce-private-event')?.checked,
       socialLinksEnabled: !!socialLinksData.enabled,
       socialLinks: Array.isArray(socialLinksData.links) ? socialLinksData.links : [],
+      earlyBirdEnabled: !!earlyBirdData.enabled,
+      earlyBirdCost: earlyBirdData.enabled ? Number(earlyBirdData.cost || 10) : 0,
       regionEnabled: !!document.getElementById('ce-region-enabled')?.checked,
       region: document.getElementById('ce-region-radios')?.querySelector('input[name="ce-region"]:checked')?.value || '',
       cities: this._regionSelectedCities ? [...this._regionSelectedCities] : [],
@@ -231,7 +236,7 @@ Object.assign(App, {
     this._restoreEventLocationTemplateDraft?.('ce', tpl);
     // 活動時間與開放報名時間不從範本還原（一次性欄位）
     const canUseAddons = !!this._isActivityAddonAllowedForCurrentEdit?.();
-    if (!canUseAddons && (tpl.feeEnabled || Number(tpl.fee || 0) > 0 || tpl.genderRestrictionEnabled || tpl.privateEvent || tpl.socialLinksEnabled)) {
+    if (!canUseAddons && (tpl.feeEnabled || Number(tpl.fee || 0) > 0 || tpl.genderRestrictionEnabled || tpl.privateEvent || tpl.socialLinksEnabled || tpl.earlyBirdEnabled)) {
       this._showActivityAddonUpsellToast?.();
     }
     const feeEnabled = typeof tpl.feeEnabled === 'boolean' ? tpl.feeEnabled : Number(tpl.fee || 0) > 0;
@@ -243,6 +248,7 @@ Object.assign(App, {
     this._setGenderRestrictionState(canUseAddons && !!tpl.genderRestrictionEnabled, canUseAddons ? (tpl.allowedGender || '') : '');
     this._setPrivateEventState?.(canUseAddons && !!tpl.privateEvent);
     this._setEventSocialLinksFormData?.(canUseAddons && !!tpl.socialLinksEnabled, canUseAddons ? (tpl.socialLinks || []) : []);
+    this._setEventEarlyBirdFormData?.(canUseAddons && !!tpl.earlyBirdEnabled, canUseAddons ? (tpl.earlyBirdCost || 10) : 10);
     this._regionSetFormData?.(tpl.regionEnabled !== false, tpl.region || '', tpl.cities || []);
     if (tpl.image) {
       const preview = document.getElementById('ce-upload-preview');

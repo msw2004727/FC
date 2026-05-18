@@ -759,6 +759,16 @@ describe("/events/{eventId}", () => {
         socialLinks: [{ url: "https://line.me/R/ti/p/test", platform: "line", label: "LINE" }],
       })
     );
+    await assertFails(
+      setDoc(doc(user(), "events", "event_user_early_bird_addon_create"), {
+        title: "User Early Bird Add-on",
+        creatorUid: "uidUser",
+        status: "upcoming",
+        regOpenTime: "2099-01-01T10:00",
+        earlyBirdEnabled: true,
+        earlyBirdCost: 100,
+      })
+    );
   });
 
   test("user can create upcoming and add-on events only when matching capabilities allow it", async () => {
@@ -788,6 +798,31 @@ describe("/events/{eventId}", () => {
         privateEvent: true,
         socialLinksEnabled: true,
         socialLinks: [{ url: "https://line.me/R/ti/p/test", platform: "line", label: "LINE" }],
+        earlyBirdEnabled: true,
+        earlyBirdCost: 120,
+        earlyBirdPolicyVersion: 1,
+      })
+    );
+
+    await assertFails(
+      setDoc(doc(user(), "events", "event_user_early_bird_cost_low"), {
+        title: "User Early Bird Low Cost",
+        creatorUid: "uidUser",
+        status: "upcoming",
+        regOpenTime: "2099-01-01T10:00",
+        earlyBirdEnabled: true,
+        earlyBirdCost: 5,
+      })
+    );
+
+    await assertFails(
+      setDoc(doc(user(), "events", "event_user_early_bird_cost_high"), {
+        title: "User Early Bird High Cost",
+        creatorUid: "uidUser",
+        status: "upcoming",
+        regOpenTime: "2099-01-01T10:00",
+        earlyBirdEnabled: true,
+        earlyBirdCost: 501,
       })
     );
 

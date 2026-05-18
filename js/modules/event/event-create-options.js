@@ -814,4 +814,78 @@ Object.assign(App, {
     this._updateEventSocialLinksUI();
   },
 
+  _earlyBirdMinCost: 10,
+  _earlyBirdMaxCost: 500,
+
+  _getEventEarlyBirdNodes() {
+    return {
+      toggle: document.getElementById('ce-early-bird-enabled'),
+      label: document.getElementById('ce-early-bird-label'),
+      options: document.getElementById('ce-early-bird-options'),
+      cost: document.getElementById('ce-early-bird-cost'),
+    };
+  },
+
+  _normalizeEarlyBirdCost(value) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return this._earlyBirdMinCost || 10;
+    return Math.max(this._earlyBirdMinCost || 10, Math.min(this._earlyBirdMaxCost || 500, Math.floor(num)));
+  },
+
+  _updateEventEarlyBirdUI() {
+    const nodes = this._getEventEarlyBirdNodes();
+    if (!nodes.toggle || !nodes.options) return;
+    const enabled = !!nodes.toggle.checked;
+    if (nodes.label) {
+      nodes.label.textContent = enabled ? '開啟' : '關閉';
+      nodes.label.style.color = enabled ? 'var(--accent)' : 'var(--text-muted)';
+    }
+    nodes.options.style.display = enabled ? '' : 'none';
+    if (nodes.cost) {
+      nodes.cost.disabled = !enabled;
+      if (enabled) nodes.cost.value = String(this._normalizeEarlyBirdCost(nodes.cost.value));
+    }
+  },
+
+  _getEventEarlyBirdFormData(options = {}) {
+    const validate = !!options.validate;
+    const nodes = this._getEventEarlyBirdNodes();
+    const enabled = !!nodes.toggle?.checked;
+    if (!enabled) return { enabled: false, cost: 0 };
+    const raw = Number(nodes.cost?.value);
+    const cost = this._normalizeEarlyBirdCost(raw);
+    if (validate && (!Number.isFinite(raw) || raw < (this._earlyBirdMinCost || 10) || raw > (this._earlyBirdMaxCost || 500))) {
+      return { enabled: true, cost, error: `早鳥報名積分需介於 ${this._earlyBirdMinCost || 10}～${this._earlyBirdMaxCost || 500} 分` };
+    }
+    return { enabled: true, cost };
+  },
+
+  _setEventEarlyBirdFormData(enabled, cost = 10) {
+    const nodes = this._getEventEarlyBirdNodes();
+    if (nodes.toggle) nodes.toggle.checked = !!enabled;
+    if (nodes.cost) nodes.cost.value = String(this._normalizeEarlyBirdCost(cost));
+    this._updateEventEarlyBirdUI();
+  },
+
+  bindEventEarlyBirdToggle() {
+    const nodes = this._getEventEarlyBirdNodes();
+    if (nodes.toggle && nodes.toggle.dataset.bound !== '1') {
+      nodes.toggle.dataset.bound = '1';
+      nodes.toggle.addEventListener('change', () => {
+        if (!this._guardActivityAddonToggle(nodes.toggle)) {
+          this._setEventEarlyBirdFormData(false, 10);
+          return;
+        }
+        this._updateEventEarlyBirdUI();
+      });
+    }
+    if (nodes.cost && nodes.cost.dataset.bound !== '1') {
+      nodes.cost.dataset.bound = '1';
+      nodes.cost.addEventListener('blur', () => {
+        nodes.cost.value = String(this._normalizeEarlyBirdCost(nodes.cost.value));
+      });
+    }
+    this._updateEventEarlyBirdUI();
+  },
+
 });

@@ -153,6 +153,7 @@ Object.assign(App, {
     if (eventData?.privateEvent) labels.push('私密活動');
     if (eventData?.teamSplit) labels.push('分隊功能');
     if (eventData?.socialLinksEnabled || (Array.isArray(eventData?.socialLinks) && eventData.socialLinks.length > 0)) labels.push('社群連結');
+    if (eventData?.earlyBirdEnabled) labels.push('早鳥報名');
     return labels;
   },
 
@@ -179,6 +180,9 @@ Object.assign(App, {
     'delegateUids',
     'socialLinksEnabled',
     'socialLinks',
+    'earlyBirdEnabled',
+    'earlyBirdCost',
+    'earlyBirdPolicyVersion',
   ],
 
   _normalizeEventChangeNotifyValue(value) {
@@ -377,6 +381,7 @@ Object.assign(App, {
     this._setPrivateEventState(false);
     this._tsSetFormData?.(null);
     this._setEventSocialLinksFormData?.(false, []);
+    this._setEventEarlyBirdFormData?.(false, 10);
     this._regionSetFormData?.(true, '中部', typeof REGION_MAP !== 'undefined' && REGION_MAP['中部'] ? [...REGION_MAP['中部']] : []);
     const cePreview = document.getElementById('ce-upload-preview');
     if (cePreview) {
@@ -393,6 +398,7 @@ Object.assign(App, {
     this.bindPrivateEventToggle();
     this.bindTeamSplitToggle?.();
     this.bindEventSocialLinksToggle?.();
+    this.bindEventEarlyBirdToggle?.();
     this.bindReservedActivityAddonToggles?.();
     this.bindRegionToggle?.();
     this._bindCreateTimeSummary();
@@ -470,9 +476,13 @@ Object.assign(App, {
     if (socialLinksData.error) { this.showToast(socialLinksData.error); return; }
     let socialLinksEnabled = !!socialLinksData.enabled;
     let socialLinks = Array.isArray(socialLinksData.links) ? socialLinksData.links : [];
+    let earlyBirdData = this._getEventEarlyBirdFormData?.({ validate: true }) || { enabled: false, cost: 0 };
+    if (earlyBirdData.error) { this.showToast(earlyBirdData.error); return; }
+    let earlyBirdEnabled = !!earlyBirdData.enabled;
+    let earlyBirdCost = earlyBirdEnabled ? Number(earlyBirdData.cost || 0) : 0;
     const regionData = this._regionGetFormData?.() || { regionEnabled: true, region: '', cities: [] };
     const canUseAddons = !!this._canUseActivityAddons?.(eventBeingEdited || null);
-    if (!canUseAddons && (feeEnabled || teamOnly || genderRestrictionEnabled || privateEvent || teamSplitData || socialLinksEnabled)) {
+    if (!canUseAddons && (feeEnabled || teamOnly || genderRestrictionEnabled || privateEvent || teamSplitData || socialLinksEnabled || earlyBirdEnabled)) {
       this._showActivityAddonUpsellToast?.();
       feeEnabled = false;
       fee = 0;
@@ -483,6 +493,8 @@ Object.assign(App, {
       teamSplitData = null;
       socialLinksEnabled = false;
       socialLinks = [];
+      earlyBirdEnabled = false;
+      earlyBirdCost = 0;
     }
 
     if (!title) { this.showToast('請輸入活動名稱'); return; }
@@ -491,6 +503,18 @@ Object.assign(App, {
     if (!dateVal) { this.showToast('請選擇活動日期'); return; }
     if (!tStart || !tEnd) { this.showToast('請選擇開始與結束時間'); return; }
     if (regOpenTime === null) { this.showToast('請完整選擇開放報名日期與時間'); return; }
+    if (earlyBirdEnabled) {
+      if (this._isMultiDateMode?.()) {
+        const rel = this._getRelativeRegOpen?.() || { days: 0, hours: 0 };
+        if (!Number(rel.days || 0) && !Number(rel.hours || 0)) {
+          this.showToast('早鳥報名需先設定活動開始前的開放報名時間');
+          return;
+        }
+      } else if (!regOpenTime || new Date(regOpenTime) <= new Date()) {
+        this.showToast('早鳥報名需搭配未來的開放報名時間');
+        return;
+      }
+    }
     // 新增模式：不允許選擇過去的日期時間
     if (feeEnabled && fee <= 0) { this.showToast('請輸入活動費用'); return; }
     if (!this._editEventId) {
@@ -592,6 +616,9 @@ Object.assign(App, {
         privateEvent,
         socialLinksEnabled,
         socialLinks,
+        earlyBirdEnabled,
+        earlyBirdCost,
+        earlyBirdPolicyVersion: earlyBirdEnabled ? 1 : null,
         regionEnabled: regionData.regionEnabled,
         region: regionData.region,
         cities: regionData.cities,
@@ -609,6 +636,7 @@ Object.assign(App, {
           'fee', 'feeEnabled', 'teamOnly', 'genderRestrictionEnabled', 'allowedGender',
           'privateEvent', 'creatorTeamId', 'creatorTeamName', 'creatorTeamIds',
           'creatorTeamNames', 'teamSplit', 'socialLinksEnabled', 'socialLinks',
+          'earlyBirdEnabled', 'earlyBirdCost', 'earlyBirdPolicyVersion',
         ].forEach(key => { delete updates[key]; });
       }
       if (!this._canManageEventDelegates?.(existingEvent)) {
@@ -718,6 +746,9 @@ Object.assign(App, {
         privateEvent,
         socialLinksEnabled,
         socialLinks,
+        earlyBirdEnabled,
+        earlyBirdCost,
+        earlyBirdPolicyVersion: earlyBirdEnabled ? 1 : null,
         regionEnabled: regionData.regionEnabled,
         region: regionData.region,
         cities: regionData.cities,
@@ -841,6 +872,7 @@ Object.assign(App, {
     this._setGenderRestrictionState(false, '');
     this._setPrivateEventState(false);
     this._setEventSocialLinksFormData?.(false, []);
+    this._setEventEarlyBirdFormData?.(false, 10);
     this._resetMultiDates();
     const cePreview = document.getElementById('ce-upload-preview');
     if (cePreview) {
@@ -947,6 +979,10 @@ Object.assign(App, {
     socialLinks: {
       title: '社群連結',
       body: '開啟後可放最多 5 個社群或外部連結。系統會依網址自動判斷 LINE、Facebook、Instagram、YouTube 等常見平台，並在活動詳情頁顯示成圓形連結按鈕。<p style="margin:.3rem 0 0;color:var(--text-muted);font-size:.8rem">適合放社團公告、主辦社群、活動相簿或其他補充資訊。</p>',
+    },
+    earlyBird: {
+      title: '早鳥報名',
+      body: '開啟後，活動在正式開放報名前會顯示早鳥報名按鈕。用戶確認後會扣除設定積分並報名正取；活動取消時系統退回積分，用戶自行取消則不退回。<p style="margin:.3rem 0 0;color:var(--text-muted);font-size:.8rem">積分範圍 10～500 分。早鳥不支援同行者，避免一人扣一次卻帶多人提前卡位。</p>',
     },
     teamSplit: {
       title: '分隊功能（色衣分組）',

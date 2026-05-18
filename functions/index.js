@@ -125,6 +125,12 @@ const ALLOWED_AUDIT_META_KEYS = new Set([
   "reason",
   "cancelledCount",
   "promotedCount",
+  "earlyBird",
+  "earlyBirdCost",
+  "pointsSpent",
+  "refundPolicy",
+  "refundedCount",
+  "refundedPoints",
 ]);
 const AUDIT_RETENTION_DAYS = 180;
 const CHANGE_WATCH_RETENTION_DAYS = 180;
@@ -3355,6 +3361,23 @@ function isEventRegistrationNotOpen(data, now = new Date()) {
   return regOpen instanceof Date && !Number.isNaN(regOpen.getTime()) && regOpen.getTime() > now.getTime();
 }
 
+function normalizeEventEarlyBirdCost(value) {
+  const cost = Math.floor(Number(value || 0));
+  return Number.isFinite(cost) && cost >= 10 && cost <= 500 ? cost : 0;
+}
+
+function isEventEarlyBirdAvailable(data, now = new Date()) {
+  return data?.earlyBirdEnabled === true
+    && normalizeEventEarlyBirdCost(data?.earlyBirdCost) > 0
+    && isEventRegistrationNotOpen(data, now);
+}
+
+function safeDedupeIdPart(value) {
+  return String(value || "")
+    .replace(/[^A-Za-z0-9_-]/g, "_")
+    .slice(0, 120) || "unknown";
+}
+
 function shouldAutoEndEvent(data, now = new Date()) {
   const status = String(data?.status || "").trim();
   if (!["open", "full", "upcoming"].includes(status)) return false;
@@ -4247,7 +4270,25 @@ exports.watchEventsChanges = onDocumentWrittenWithAuthContext(
     memory: "256MiB",
     document: "events/{eventId}",
   },
-  async (event) => processChangeWatchEvent(event, "events", classifyEventsChange),
+  async (event) => {
+    const watchResult = await processChangeWatchEvent(event, "events", classifyEventsChange);
+    try {
+      const refundResult = await refundEarlyBirdRegistrationsForCancelledEvent(event);
+      if (refundResult.refundedCount > 0) {
+        console.log("[earlyBirdRefund]", {
+          eventId: event?.params?.eventId || "",
+          ...refundResult,
+        });
+      }
+    } catch (err) {
+      console.error("[earlyBirdRefund] failed", {
+        eventId: event?.params?.eventId || "",
+        error: err?.message || String(err),
+      });
+      throw err;
+    }
+    return watchResult;
+  },
 );
 
 exports.watchRegistrationsChanges = onDocumentWrittenWithAuthContext(
@@ -6641,6 +6682,140 @@ async function adjustExpInternal({ targetUid, amount, reason, ruleKey, operatorU
   return { targetUid, amount };
 }
 
+async function refundEarlyBirdRegistrationInternal({
+  eventDocId,
+  eventPublicId,
+  eventTitle,
+  regRef,
+  regData,
+}) {
+  const cost = normalizeEventEarlyBirdCost(regData?.earlyBirdCost);
+  const userId = String(regData?.userId || "").trim();
+  if (!regRef || !userId || !cost || regData?.earlyBirdRefunded === true) {
+    return { refunded: false, points: 0 };
+  }
+  if (regData?.status === "cancelled" || regData?.status === "removed") {
+    return { refunded: false, points: 0 };
+  }
+
+  const targetUser = await findUserDocByUidOrLineUserId(userId);
+  if (!targetUser?.docId) return { refunded: false, points: 0 };
+
+  const userData = targetUser.data || {};
+  const userRef = db.collection("users").doc(targetUser.docId);
+  const eventKey = safeDedupeIdPart(eventDocId || eventPublicId);
+  const regKey = safeDedupeIdPart(regRef.id);
+  const dedupeRef = db.collection("_expDedupe").doc(`early_bird_refund_${eventKey}_${regKey}`);
+  const expLogRef = db.collection("expLogs").doc();
+  const opLogRef = db.collection("operationLogs").doc();
+  const now = new Date();
+  const timeStr =
+    `${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")} ` +
+    `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const safeTitle = String(eventTitle || eventPublicId || eventDocId || "活動").trim().slice(0, 80);
+  let refunded = false;
+
+  await db.runTransaction(async (transaction) => {
+    const dedupeSnap = await transaction.get(dedupeRef);
+    if (dedupeSnap.exists) return;
+
+    const freshRegSnap = await transaction.get(regRef);
+    if (!freshRegSnap.exists) return;
+    const freshReg = freshRegSnap.data() || {};
+    const freshCost = normalizeEventEarlyBirdCost(freshReg.earlyBirdCost);
+    if (freshReg.earlyBird !== true || freshReg.earlyBirdRefunded === true || freshCost !== cost) return;
+    if (freshReg.status === "cancelled" || freshReg.status === "removed") return;
+
+    transaction.update(userRef, {
+      exp: FieldValue.increment(cost),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    transaction.update(regRef, {
+      earlyBirdRefunded: true,
+      earlyBirdRefundedAt: FieldValue.serverTimestamp(),
+      earlyBirdRefundReason: "event_cancelled",
+    });
+    transaction.create(dedupeRef, {
+      eventDocId: eventDocId || "",
+      eventId: eventPublicId || "",
+      regId: regRef.id,
+      userId,
+      amount: cost,
+      reason: "event_cancelled",
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    transaction.create(expLogRef, {
+      time: timeStr,
+      uid: userData.uid || userData.lineUserId || targetUser.docId,
+      target: userData.displayName || userData.name || userId,
+      amount: `+${cost}`,
+      reason: `活動取消退回早鳥報名：${safeTitle}`,
+      operator: "系統",
+      operatorUid: "cloud_function",
+      ruleKey: "early_bird_refund",
+      eventId: eventPublicId || eventDocId || "",
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    transaction.create(opLogRef, buildOperationLogPayload({
+      operator: "系統",
+      type: "early_bird_refund",
+      typeName: "早鳥退款",
+      content: `活動「${safeTitle}」取消，退回「${regData.userName || userId}」早鳥報名 ${cost} 積分`,
+      now,
+    }));
+    refunded = true;
+  });
+
+  return { refunded, points: refunded ? cost : 0 };
+}
+
+async function refundEarlyBirdRegistrationsForCancelledEvent(event) {
+  const beforeData = event?.data?.before?.exists ? (event.data.before.data() || {}) : null;
+  const afterSnap = event?.data?.after;
+  const afterData = afterSnap?.exists ? (afterSnap.data() || {}) : null;
+  if (!afterData || beforeData?.status === "cancelled" || afterData.status !== "cancelled") {
+    return { refundedCount: 0, refundedPoints: 0 };
+  }
+
+  const eventDocId = event?.params?.eventId || afterSnap?.id || "";
+  const eventPublicId = afterData.id || eventDocId;
+  const regsSnap = await afterSnap.ref.collection("registrations")
+    .where("earlyBird", "==", true)
+    .get();
+  let refundedCount = 0;
+  let refundedPoints = 0;
+
+  for (const doc of regsSnap.docs) {
+    const result = await refundEarlyBirdRegistrationInternal({
+      eventDocId,
+      eventPublicId,
+      eventTitle: afterData.title || "",
+      regRef: doc.ref,
+      regData: doc.data() || {},
+    });
+    if (result.refunded) {
+      refundedCount += 1;
+      refundedPoints += result.points || 0;
+    }
+  }
+
+  if (refundedCount > 0) {
+    await writeAuditEntryInternal({
+      action: "event_cancel_signup",
+      targetType: "event",
+      targetId: eventPublicId,
+      targetLabel: afterData.title || eventPublicId,
+      result: "success",
+      source: "cloud_function",
+      meta: { eventId: eventPublicId, refundedCount, refundedPoints },
+      actorUid: "system",
+      actorName: "系統",
+    });
+  }
+
+  return { refundedCount, refundedPoints };
+}
+
 // ── 寫入 auditLog 的內部 helper ──
 async function writeAuditEntryInternal({ action, targetType, targetId, targetLabel, result, source, meta, actorUid, actorName }) {
   try {
@@ -6758,8 +6933,17 @@ exports.registerForEvent = onCall(
     }
     const callerUid = request.auth.uid;
 
-    const { eventId, participants, requestId, preferredTeamReservationTeamId } = request.data || {};
+    const {
+      eventId,
+      participants,
+      requestId,
+      preferredTeamReservationTeamId,
+      earlyBirdAccepted,
+      earlyBirdExpectedCost,
+    } = request.data || {};
     const safePreferredTeamReservationTeamId = sanitizeStr(preferredTeamReservationTeamId || "", 100);
+    const earlyBirdAcceptedFlag = earlyBirdAccepted === true;
+    const expectedEarlyBirdCost = Math.floor(Number(earlyBirdExpectedCost || 0));
 
     // ── 參數驗證 ──
     if (typeof eventId !== "string" || !eventId.trim()) {
@@ -6855,11 +7039,28 @@ exports.registerForEvent = onCall(
         }
       }
 
-      // 報名開放時間檢查
-      if (isEventRegistrationNotOpen(ed, now)) {
-        throw new HttpsError("failed-precondition", "REG_NOT_OPEN");
+      // 報名開放時間檢查：早鳥報名可在開放前通過，但必須明確確認扣點。
+      const registrationNotOpen = isEventRegistrationNotOpen(ed, now);
+      const earlyBirdCost = normalizeEventEarlyBirdCost(ed.earlyBirdCost);
+      const earlyBirdAvailable = isEventEarlyBirdAvailable(ed, now);
+      const earlyBirdMode = registrationNotOpen && earlyBirdAcceptedFlag === true;
+      if (registrationNotOpen) {
+        if (!earlyBirdAcceptedFlag) {
+          throw new HttpsError("failed-precondition", "REG_NOT_OPEN");
+        }
+        if (!earlyBirdAvailable) {
+          throw new HttpsError("failed-precondition", "EARLY_BIRD_NOT_AVAILABLE");
+        }
+        if (expectedEarlyBirdCost !== earlyBirdCost) {
+          throw new HttpsError("failed-precondition", "EARLY_BIRD_COST_CHANGED");
+        }
+        if (sanitizedParticipants.length !== 1 || sanitizedParticipants[0]?.participantType !== "self") {
+          throw new HttpsError("failed-precondition", "EARLY_BIRD_SELF_ONLY");
+        }
+      } else if (earlyBirdAcceptedFlag && expectedEarlyBirdCost > 0 && expectedEarlyBirdCost !== earlyBirdCost) {
+        throw new HttpsError("failed-precondition", "EARLY_BIRD_COST_CHANGED");
       }
-      if (ed.status === "upcoming") {
+      if (!registrationNotOpen && ed.status === "upcoming") {
         ed.status = "open";
       }
 
@@ -6944,6 +7145,8 @@ exports.registerForEvent = onCall(
       const nowISOString = nowTimestamp.toDate().toISOString();
       const plannedKeys = new Set(firestoreActiveRegs.map((r) => registrationUniqueKey(r)));
       const plannedActiveRegs = firestoreActiveRegs.map((r) => ({ ...r }));
+      let earlyBirdCharged = false;
+      let earlyBirdChargedCost = 0;
 
       for (let idx = 0; idx < sanitizedParticipants.length; idx++) {
         const p = sanitizedParticipants[idx];
@@ -7012,6 +7215,56 @@ exports.registerForEvent = onCall(
         const status = seatDecision.status;
         if (teamKey !== undefined) reg.teamKey = teamKey;
 
+        if (earlyBirdMode && p.participantType === "self") {
+          if (status !== "confirmed") {
+            throw new HttpsError("failed-precondition", "EARLY_BIRD_FULL");
+          }
+          const callerUserDocId = callerUserDoc?.docId || "";
+          if (!callerUserDocId) {
+            throw new HttpsError("failed-precondition", "EARLY_BIRD_NOT_AVAILABLE");
+          }
+          const callerUserRef = db.collection("users").doc(callerUserDocId);
+          const callerUserSnap = await transaction.get(callerUserRef);
+          const balance = Math.floor(Number(callerUserSnap.exists ? (callerUserSnap.data()?.exp || 0) : 0));
+          if (!Number.isFinite(balance) || balance < earlyBirdCost) {
+            throw new HttpsError("failed-precondition", "EARLY_BIRD_INSUFFICIENT_EXP");
+          }
+          const timeStr =
+            `${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")} ` +
+            `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+          const safeEventTitle = String(ed.title || eventId || "活動").trim().slice(0, 80);
+          reg.earlyBird = true;
+          reg.earlyBirdCost = earlyBirdCost;
+          reg.earlyBirdChargedAt = nowTimestamp;
+          reg.earlyBirdRefunded = false;
+          reg.earlyBirdPolicyVersion = 1;
+          transaction.update(callerUserRef, {
+            exp: FieldValue.increment(-earlyBirdCost),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+          transaction.create(db.collection("expLogs").doc(), {
+            time: timeStr,
+            uid: callerUserSnap.data()?.uid || callerUserSnap.data()?.lineUserId || callerUserDocId,
+            target: callerUserSnap.data()?.displayName || callerUserSnap.data()?.name || callerUid,
+            amount: `-${earlyBirdCost}`,
+            reason: `早鳥報名：${safeEventTitle}`,
+            operator: "系統",
+            operatorUid: callerUid,
+            ruleKey: "early_bird_registration",
+            eventId,
+            createdAt: FieldValue.serverTimestamp(),
+          });
+          transaction.create(db.collection("operationLogs").doc(), buildOperationLogPayload({
+            operator: "系統",
+            type: "early_bird_registration",
+            typeName: "早鳥報名",
+            content: `「${p.userName || callerUid}」早鳥報名「${safeEventTitle}」扣除 ${earlyBirdCost} 積分`,
+            now,
+          }));
+          earlyBirdCharged = true;
+          earlyBirdChargedCost = earlyBirdCost;
+        }
+
         transaction.set(regDocRefs[idx], reg);
         transaction.set(regLockRefs[idx], {
           key: regLockIds[idx],
@@ -7059,18 +7312,22 @@ exports.registerForEvent = onCall(
       // T7: 更新 event occupancy
       const allRegsForRebuild = [...firestoreActiveRegs, ...registrations];
       const occupancy = rebuildOccupancy({ ...ed, max: maxCount, status: ed.status }, allRegsForRebuild);
+      const eventProjection = {
+        ...occupancy,
+        status: earlyBirdMode ? "upcoming" : occupancy.status,
+      };
 
       transaction.update(eventRef, {
-        current: occupancy.current,
-        realCurrent: occupancy.realCurrent,
-        waitlist: occupancy.waitlist,
-        participants: occupancy.participants,
-        waitlistNames: occupancy.waitlistNames,
-        participantsWithUid: occupancy.participantsWithUid,
-        waitlistWithUid: occupancy.waitlistWithUid,
-        teamReservationSummaries: occupancy.teamReservationSummaries,
+        current: eventProjection.current,
+        realCurrent: eventProjection.realCurrent,
+        waitlist: eventProjection.waitlist,
+        participants: eventProjection.participants,
+        waitlistNames: eventProjection.waitlistNames,
+        participantsWithUid: eventProjection.participantsWithUid,
+        waitlistWithUid: eventProjection.waitlistWithUid,
+        teamReservationSummaries: eventProjection.teamReservationSummaries,
         schemaVersion: 2,
-        status: occupancy.status,
+        status: eventProjection.status,
       });
 
       return {
@@ -7083,12 +7340,17 @@ exports.registerForEvent = onCall(
           teamReservationTeamId: r.teamReservationTeamId || null,
           teamReservationTeamName: r.teamReservationTeamName || null,
           teamSeatSource: r.teamSeatSource || null,
+          earlyBird: r.earlyBird === true,
+          earlyBirdCost: Number(r.earlyBirdCost || 0) || 0,
+          earlyBirdRefunded: r.earlyBirdRefunded === true,
         })),
-        event: occupancy,
+        event: eventProjection,
         confirmed: newConfirmed,
         waitlisted: newWaitlisted,
         activityRecordDocId,
         eventData: { title: ed.title || "", date: ed.date || "", location: ed.location || "", type: ed.type || "" },
+        earlyBirdCharged,
+        earlyBirdCost: earlyBirdChargedCost,
       };
     });
 
@@ -7104,7 +7366,14 @@ exports.registerForEvent = onCall(
         targetLabel: result.eventData.title,
         result: "success",
         source: "cloud_function",
-        meta: { eventId, statusTo: result.registrations[0]?.status || "confirmed" },
+        meta: {
+          eventId,
+          statusTo: result.registrations[0]?.status || "confirmed",
+          earlyBird: result.earlyBirdCharged === true,
+          earlyBirdCost: result.earlyBirdCost || 0,
+          pointsSpent: result.earlyBirdCharged ? result.earlyBirdCost : 0,
+          refundPolicy: result.earlyBirdCharged ? "event_cancel_refund_user_cancel_no_refund" : "",
+        },
         actorUid: callerUid,
       })
     );
@@ -7119,6 +7388,7 @@ exports.registerForEvent = onCall(
           title: "報名成功通知",
           body:
             `報名結果：${statusLabel}\n\n` +
+            (result.earlyBirdCharged ? `早鳥報名扣除：${result.earlyBirdCost} 積分\n\n` : "") +
             `活動名稱：${result.eventData.title}\n` +
             `活動時間：${result.eventData.date}\n` +
             `活動地點：${result.eventData.location}`,
@@ -7129,7 +7399,7 @@ exports.registerForEvent = onCall(
     }
 
     // P3: adjustExp（僅 confirmed 才加分）
-    if (selfReg && selfReg.status === "confirmed") {
+    if (selfReg && selfReg.status === "confirmed" && !result.earlyBirdCharged) {
       postOps.push(
         adjustExpInternal({
           targetUid: callerUid,
@@ -7150,6 +7420,8 @@ exports.registerForEvent = onCall(
       event: result.event,
       confirmed: result.confirmed,
       waitlisted: result.waitlisted,
+      earlyBirdCharged: result.earlyBirdCharged === true,
+      earlyBirdCost: result.earlyBirdCost || 0,
     };
   }
 );
