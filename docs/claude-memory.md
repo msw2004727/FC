@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-19 Activity region tabs compact restore [ux]
+- **Problem**: Moving the nearby-activity map entry into the activity page header made the header too crowded on 320px screens.
+- **Fix**: Restored the map entry to the region tab row, removed header-only nearby button styling, and tightened region tab padding/font sizes with a 360px compact breakpoint.
+- **Tests**: Verified the nearby button has a single DOM ID in the region row, cache version bump, and diff whitespace checks before deploy.
+
 ### 2026-05-19 Service worker versioned static cache hotfix [bug]
 - **Problem**: Returning users could receive a new HTML shell while their old Service Worker served stale `script-loader.js` / `config.js` because versioned static requests were matched with `ignoreSearch`. That stale loader requested removed legacy paths such as `js/modules/auto-exp.js`, which production returned as 404 HTML and Chrome refused to execute as JavaScript.
 - **Fix**: Changed the Service Worker static cache branch to exact cache-key matching for `?v=` assets, kept an offline unversioned fallback only after network failure, and added legacy `auto-exp.js` / `auto-exp-rules.js` shims for clients still controlled by stale loaders.

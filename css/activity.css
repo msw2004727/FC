@@ -105,24 +105,6 @@
   margin-left: auto;
   flex-shrink: 0;
 }
-.activity-nearby-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: .28rem;
-  min-height: 32px;
-  max-width: 9.5rem;
-  white-space: nowrap;
-  flex: 0 0 auto;
-  border: 0;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-.activity-nearby-btn span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 #activity-create-btn,
 .home-create-event-btn {
   display: inline-flex;
@@ -280,20 +262,6 @@
   #activity-create-btn,
   .home-create-event-btn {
     padding: .38rem .5rem;
-  }
-  .activity-nearby-btn {
-    padding-inline: .52rem;
-    max-width: 7.2rem;
-  }
-}
-@media (max-width: 360px) {
-  .activity-nearby-btn {
-    width: 32px;
-    height: 32px;
-    padding: 0 !important;
-  }
-  .activity-nearby-btn span {
-    display: none;
   }
 }
 
@@ -2376,49 +2344,48 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
 }
 
 /* ─── Region Tabs ─── */
-.region-tabs{display:flex;justify-content:center;gap:0;padding:0 1rem;margin:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.region-tabs{display:flex;justify-content:flex-start;gap:0;padding:0 .35rem;margin:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .region-tabs::-webkit-scrollbar{display:none}
-.region-tabs .region-tab:first-child{margin-left:auto}
-.region-tabs .region-tab:last-child{margin-right:auto}
-.region-tab{flex-shrink:0;padding:.45rem .8rem;font-size:.8rem;font-weight:500;color:var(--text-secondary);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;transition:color .2s,border-color .2s;display:inline-flex;align-items:center;gap:.25rem}
+.region-tab{flex-shrink:0;padding:.38rem .52rem;font-size:.76rem;font-weight:500;color:var(--text-secondary);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;transition:color .2s,border-color .2s;display:inline-flex;align-items:center;gap:.16rem}
 .region-tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:700}
 /* 2026-04-27：反灰按鈕（如「附近活動」尚未開放）— 加按鈕框 + 底色與 tab 視覺區隔 */
 .region-tab-disabled{
   opacity:.6;
   cursor:not-allowed;
-  margin-left:.45rem;
-  padding:.32rem .65rem;
+  margin-left:.18rem;
+  padding:.3rem .48rem;
   background:var(--bg-elevated);
   border:1px solid var(--border) !important;       /* 覆蓋 .region-tab 的 border:none */
   border-bottom:1px solid var(--border) !important;/* 覆蓋 .region-tab 的 border-bottom:2px transparent */
   border-radius:999px;
-  font-size:.75rem;
+  font-size:.72rem;
 }
 .region-tab-disabled:hover{color:var(--text-secondary);background:var(--bg-elevated)}
 [data-theme="dark"] .region-tab-disabled{background:rgba(255,255,255,.04)}
 .region-tab-map-enabled{
-  margin-left:.45rem;
-  padding:.32rem .68rem;
+  margin-left:.18rem;
+  padding:.3rem .5rem;
   border:1px solid rgba(20,184,166,.32) !important;
   border-bottom:1px solid rgba(20,184,166,.32) !important;
   border-radius:999px;
   color:#0f766e;
   background:rgba(20,184,166,.08);
   font-weight:700;
+  font-size:.72rem;
 }
 .region-tab-map-enabled:hover{background:rgba(20,184,166,.14);color:#0f766e}
 [data-theme="dark"] .region-tab-map-enabled{color:#5eead4;background:rgba(20,184,166,.14);border-color:rgba(94,234,212,.28)!important}
-.activity-nearby-btn.region-tab-disabled,
-.activity-nearby-btn.region-tab-map-enabled{
-  margin-left:0;
-  border-radius:999px;
-  font-size:.75rem;
-  font-weight:800;
-}
-.activity-nearby-btn.region-tab-disabled{
-  opacity:.72;
-}
 .region-tab-icon{display:inline-block;vertical-align:middle;flex-shrink:0}
+@media (min-width: 420px){
+  .region-tabs{justify-content:center;padding:0 .5rem}
+}
+@media (max-width: 360px){
+  .region-tabs{padding:0 .22rem}
+  .region-tab{padding:.32rem .38rem;font-size:.7rem;gap:.12rem}
+  .region-tab-disabled,
+  .region-tab-map-enabled{margin-left:.12rem;padding:.26rem .34rem;font-size:.68rem}
+  .region-tab-icon{width:12px;height:12px}
+}
 @keyframes region-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}40%{transform:translateX(4px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
 
 /* Event location picker */
