@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-19 Activity region tabs centered spacing [ux]
+- **Problem**: The restored activity region tabs fit 320px screens but felt too tight and were left-aligned on narrow layouts.
+- **Fix**: Relaxed region tab padding slightly, restored centered alignment by default, and kept a 360px compact breakpoint that still fits the full region row plus nearby map entry.
+- **Tests**: Verified with a 320px Playwright layout measurement and cache version bump before deploy.
+
 ### 2026-05-19 Activity region tabs compact restore [ux]
 - **Problem**: Moving the nearby-activity map entry into the activity page header made the header too crowded on 320px screens.
 - **Fix**: Restored the map entry to the region tab row, removed header-only nearby button styling, and tightened region tab padding/font sizes with a 360px compact breakpoint.

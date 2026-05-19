@@ -2344,16 +2344,16 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
 }
 
 /* ─── Region Tabs ─── */
-.region-tabs{display:flex;justify-content:flex-start;gap:0;padding:0 .35rem;margin:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.region-tabs{display:flex;justify-content:center;gap:0;padding:0 .4rem;margin:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .region-tabs::-webkit-scrollbar{display:none}
-.region-tab{flex-shrink:0;padding:.38rem .52rem;font-size:.76rem;font-weight:500;color:var(--text-secondary);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;transition:color .2s,border-color .2s;display:inline-flex;align-items:center;gap:.16rem}
+.region-tab{flex-shrink:0;padding:.4rem .56rem;font-size:.76rem;font-weight:500;color:var(--text-secondary);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;transition:color .2s,border-color .2s;display:inline-flex;align-items:center;gap:.18rem}
 .region-tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:700}
 /* 2026-04-27：反灰按鈕（如「附近活動」尚未開放）— 加按鈕框 + 底色與 tab 視覺區隔 */
 .region-tab-disabled{
   opacity:.6;
   cursor:not-allowed;
-  margin-left:.18rem;
-  padding:.3rem .48rem;
+  margin-left:.22rem;
+  padding:.32rem .54rem;
   background:var(--bg-elevated);
   border:1px solid var(--border) !important;       /* 覆蓋 .region-tab 的 border:none */
   border-bottom:1px solid var(--border) !important;/* 覆蓋 .region-tab 的 border-bottom:2px transparent */
@@ -2363,8 +2363,8 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
 .region-tab-disabled:hover{color:var(--text-secondary);background:var(--bg-elevated)}
 [data-theme="dark"] .region-tab-disabled{background:rgba(255,255,255,.04)}
 .region-tab-map-enabled{
-  margin-left:.18rem;
-  padding:.3rem .5rem;
+  margin-left:.22rem;
+  padding:.32rem .56rem;
   border:1px solid rgba(20,184,166,.32) !important;
   border-bottom:1px solid rgba(20,184,166,.32) !important;
   border-radius:999px;
@@ -2377,13 +2377,13 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
 [data-theme="dark"] .region-tab-map-enabled{color:#5eead4;background:rgba(20,184,166,.14);border-color:rgba(94,234,212,.28)!important}
 .region-tab-icon{display:inline-block;vertical-align:middle;flex-shrink:0}
 @media (min-width: 420px){
-  .region-tabs{justify-content:center;padding:0 .5rem}
+  .region-tabs{padding:0 .65rem}
 }
 @media (max-width: 360px){
-  .region-tabs{padding:0 .22rem}
-  .region-tab{padding:.32rem .38rem;font-size:.7rem;gap:.12rem}
+  .region-tabs{padding:0 .25rem}
+  .region-tab{padding:.34rem .42rem;font-size:.7rem;gap:.13rem}
   .region-tab-disabled,
-  .region-tab-map-enabled{margin-left:.12rem;padding:.26rem .34rem;font-size:.68rem}
+  .region-tab-map-enabled{margin-left:.14rem;padding:.28rem .38rem;font-size:.68rem}
   .region-tab-icon{width:12px;height:12px}
 }
 @keyframes region-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}40%{transform:translateX(4px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
