@@ -691,7 +691,7 @@
     host.innerHTML = cardShell(`
       <div class="home-next-event">
         <button class="home-next-cover" type="button" data-home-next-action="detail" aria-label="查看活動">
-          <img src="${esc(image)}" alt="${esc(title)}" loading="lazy" onerror="this.onerror=null;this.src='${FALLBACK_IMAGE}'">
+          <img src="${esc(image)}" alt="${esc(title)}" width="1000" height="750" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${FALLBACK_IMAGE}'">
         </button>
         <div class="home-next-event-main">
           <h4>${esc(title)}</h4>

@@ -36,7 +36,7 @@ Object.assign(App, {
       <div class="tc-card${pinnedClass}${attentionClass}${themeClass}"${cardStyle} data-team-id="${escapeHTML(t.id)}" onclick="App.openTeamDetailFromCard(this, this.dataset.teamId)">
         ${t.pinned ? '<div class="tc-pin-badge">置頂</div>' : ''}
         ${cardImage
-          ? `<div style="position:relative;width:100%;aspect-ratio:1;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0">${sportBadge}<img src="${escapeHTML(cardImage)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block"><span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span>${eduRibbon}</div>`
+          ? `<div style="position:relative;width:100%;aspect-ratio:1;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0">${sportBadge}<img src="${escapeHTML(cardImage)}" width="1000" height="1000" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"><span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span>${eduRibbon}</div>`
           : `<div class="tc-img-placeholder" style="position:relative">${sportBadge}俱樂部圖片<span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span>${eduRibbon}</div>`}
         <div class="tc-body">
           <div class="tc-name">${escapeHTML(t.name)}</div>

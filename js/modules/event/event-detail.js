@@ -140,7 +140,7 @@ Object.assign(App, {
     if (coverImage) {
       return `
         <div class="detail-cover-media">
-          <img class="detail-cover-image" src="${coverImage}" alt="${escapeHTML(eventRecord.title)}" loading="lazy">
+          <img class="detail-cover-image" src="${escapeHTML(coverImage)}" alt="${escapeHTML(eventRecord.title)}" width="1200" height="450" loading="lazy" decoding="async">
           ${ribbonHtml}
           ${editButtonHtml}
         </div>`;

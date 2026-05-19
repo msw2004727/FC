@@ -72,7 +72,7 @@ Object.assign(App, {
       return `
       <div class="h-card" onclick="App._openTournamentDetail('${t.id}')">
         ${t.image
-          ? `<div class="h-card-img">${cornerBadges}<img src="${escapeHTML(t.image)}" alt="${escapeHTML(t.name)}" ${imagePriorityAttrs}></div>`
+          ? `<div class="h-card-img">${cornerBadges}<img src="${escapeHTML(t.image)}" alt="${escapeHTML(t.name)}" width="1200" height="450" ${imagePriorityAttrs}></div>`
           : `<div class="h-card-img h-card-placeholder">${cornerBadges}220 × 90</div>`}
         <div class="h-card-body">
           <div class="h-card-title">${escapeHTML(t.name)}</div>

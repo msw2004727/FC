@@ -40,7 +40,7 @@ Object.assign(App, {
     if (tdImg) {
       if (t.image) {
         // Safety: t.image is admin-uploaded URL, t.name is escaped
-        tdImg.innerHTML = `<img src="${t.image}" alt="${escapeHTML(t.name)}" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:var(--radius)">`;
+        tdImg.innerHTML = `<img src="${escapeHTML(t.image)}" alt="${escapeHTML(t.name)}" width="1200" height="450" loading="eager" decoding="async" fetchpriority="high" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:var(--radius)">`;
         tdImg.style.border = 'none';
       } else {
         tdImg.textContent = '賽事圖片 800 × 300';

@@ -455,7 +455,7 @@ Object.assign(App, {
           html += `
             <div class="tl-event-row ${rowClass}${isEnded ? ' tl-past' : ''}" style="${rowStyle}" onclick="App.openTimelineEventDetail('${e.id}', this)">
               ${genderRibbon}
-              ${eventImage ? `<div class="tl-event-thumb"><img src="${eventImage}" loading="lazy"></div>` : ''}
+              ${eventImage ? `<div class="tl-event-thumb"><img src="${escapeHTML(eventImage)}" alt="${escapeHTML(e.title || '')}" width="48" height="48" loading="lazy" decoding="async"></div>` : ''}
               <div class="tl-event-info">
                 <div class="tl-event-title-row"><div class="tl-event-title">${e.pinned ? '<span style="font-size:.62rem;padding:.08rem .35rem;border-radius:999px;border:1px solid var(--warning);color:var(--warning);font-weight:700;margin-right:.3rem">置頂</span>' : ''}${escapeHTML(e.title)}${teamBadge}</div></div>
                 ${progressHtml}

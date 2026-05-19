@@ -1273,9 +1273,24 @@ body.modal-open { overflow: hidden; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html:focus-within {
+    scroll-behavior: auto;
+  }
+
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
   .boot-loading__scan,
-  .boot-loading__fill {
-    animation: none;
+  .boot-loading__fill,
+  .loading-spinner,
+  .status-hint__spinner,
+  .deep-link-spinner,
+  .reg-loading::before,
+  .tc-loading-spinner {
+    animation: none !important;
   }
 }
 

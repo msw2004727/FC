@@ -205,7 +205,7 @@ Object.assign(App, {
     sorted.forEach(function(h) {
       var _oc = 'event.stopPropagation();App.showUserProfile(\'' + escapeHTML(h.name) + '\',{uid:\'' + escapeHTML(h.uid) + '\'})';
       var avatarHtml = h.avatar
-        ? '<img src="' + escapeHTML(h.avatar) + '" class="hl-avatar" loading="lazy" onclick="' + _oc + '">'
+        ? '<img src="' + escapeHTML(h.avatar) + '" class="hl-avatar" alt="' + escapeHTML(h.name || '') + '" width="32" height="32" loading="lazy" decoding="async" onclick="' + _oc + '">'
         : '<div class="hl-avatar hl-avatar-fallback" onclick="' + _oc + '">?</div>';
       html += '<tr>'
         + '<td>' + avatarHtml + '</td>'

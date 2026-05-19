@@ -76,6 +76,12 @@
   overflow: hidden;
   position: relative;
 }
+@supports (content-visibility: auto) {
+  .tc-card {
+    content-visibility: auto;
+    contain-intrinsic-size: 0 230px;
+  }
+}
 .tc-card:hover { border-color: var(--accent); box-shadow: var(--shadow); transform: translateY(-2px); }
 .tc-card.tc-attention-effect {
   --tc-attention-color: #fbbf24;
