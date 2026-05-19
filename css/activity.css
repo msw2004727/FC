@@ -105,6 +105,24 @@
   margin-left: auto;
   flex-shrink: 0;
 }
+.activity-nearby-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .28rem;
+  min-height: 32px;
+  max-width: 9.5rem;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.activity-nearby-btn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 #activity-create-btn,
 .home-create-event-btn {
   display: inline-flex;
@@ -262,6 +280,20 @@
   #activity-create-btn,
   .home-create-event-btn {
     padding: .38rem .5rem;
+  }
+  .activity-nearby-btn {
+    padding-inline: .52rem;
+    max-width: 7.2rem;
+  }
+}
+@media (max-width: 360px) {
+  .activity-nearby-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0 !important;
+  }
+  .activity-nearby-btn span {
+    display: none;
   }
 }
 
@@ -2345,6 +2377,8 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
 /* ─── Region Tabs ─── */
 .region-tabs{display:flex;justify-content:center;gap:0;padding:0 1rem;margin:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .region-tabs::-webkit-scrollbar{display:none}
+.region-tabs .region-tab:first-child{margin-left:auto}
+.region-tabs .region-tab:last-child{margin-right:auto}
 .region-tab{flex-shrink:0;padding:.45rem .8rem;font-size:.8rem;font-weight:500;color:var(--text-secondary);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;transition:color .2s,border-color .2s;display:inline-flex;align-items:center;gap:.25rem}
 .region-tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:700}
 /* 2026-04-27：反灰按鈕（如「附近活動」尚未開放）— 加按鈕框 + 底色與 tab 視覺區隔 */
@@ -2373,6 +2407,16 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
 }
 .region-tab-map-enabled:hover{background:rgba(20,184,166,.14);color:#0f766e}
 [data-theme="dark"] .region-tab-map-enabled{color:#5eead4;background:rgba(20,184,166,.14);border-color:rgba(94,234,212,.28)!important}
+.activity-nearby-btn.region-tab-disabled,
+.activity-nearby-btn.region-tab-map-enabled{
+  margin-left:0;
+  border-radius:999px;
+  font-size:.75rem;
+  font-weight:800;
+}
+.activity-nearby-btn.region-tab-disabled{
+  opacity:.72;
+}
 .region-tab-icon{display:inline-block;vertical-align:middle;flex-shrink:0}
 @keyframes region-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}40%{transform:translateX(4px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
 

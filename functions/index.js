@@ -1715,10 +1715,6 @@ exports.createFriendlyTournament = onCall(
 
     const tournamentId = validateClientTournamentId(tournamentInput.id);
     const callerUserDoc = await findUserDocByUidOrLineUserId(callerUid);
-    const callerMainIdentitySnapshot = buildMainPublicIdentitySnapshot(callerUserDoc?.data || {}, callerUid);
-    if (sanitizedParticipants[0]?.participantType === "self") {
-      sanitizedParticipants[0].userName = callerMainIdentitySnapshot.displayName;
-    }
     const callerRole = await getCallerRoleWithFallback(request);
     const callerName = String(
       callerUserDoc?.data?.displayName
@@ -7596,7 +7592,7 @@ exports.registerForEvent = onCall(
           registeredAt: nowTimestamp,
         };
         if (p.participantType === "self") {
-          reg.identitySnapshot = callerMainIdentitySnapshot;
+          reg.identitySnapshot = buildMainPublicIdentitySnapshot(callerUserDoc?.data || {}, callerUid);
         }
         const seatDecision = decideRegistrationSeat(
           { ...ed, id: eventId, max: maxCount },

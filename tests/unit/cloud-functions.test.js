@@ -496,6 +496,8 @@ describe('registration callable source contracts', () => {
     expect(source).toContain('transaction.set(regLockRefs[idx]');
     expect(source).toContain('eventDoc.ref.collection("activityRecords").doc()');
     expect(source).toContain('transaction.set(arRef, arData)');
+    expect(source).toContain('reg.identitySnapshot = buildMainPublicIdentitySnapshot(callerUserDoc?.data || {}, callerUid)');
+    expect(source).not.toContain('callerMainIdentitySnapshot');
   });
 
   test('cancelRegistration updates registrations, activityRecords, locks, and waitlist promotion in one transaction', () => {

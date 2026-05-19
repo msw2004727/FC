@@ -1,5 +1,16 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-19 Activity nearby action placement [ux]
+- **Problem**: The activity page mixed the "find nearby activities" map entry into the region tab row, which made the five region tabs read off-center and placed the map action away from the primary "我要開團" action.
+- **Fix**: Moved the nearby-activity button into the activity page header action group immediately before "我要開團", kept the same feature flag sync by preserving `region-tab-nearby-activity`, and centered the five region tabs with flex auto margins.
+- **Tests**: Verified source structure and cache version bump before deploy.
+
+### 2026-05-19 Register callable identity snapshot internal [bug]
+- **Problem**: Live activity signup repeatedly failed as `INTERNAL` from `registerForEvent` for normal self registrations, while frontend diagnostics had empty `registrationIds` because the transaction aborted before creating the registration.
+- **Cause**: The secondary-identity MVP added `reg.identitySnapshot = callerMainIdentitySnapshot` inside `registerForEvent`, but `callerMainIdentitySnapshot` was declared in the unrelated `createFriendlyTournament` scope. Reading the undefined variable throws a `ReferenceError`, which callable clients receive as generic `INTERNAL`.
+- **Fix**: `registerForEvent` now builds the main public identity snapshot from `callerUserDoc` at the write site, and the misplaced `sanitizedParticipants` snippet was removed from `createFriendlyTournament`.
+- **Tests**: Added Cloud Functions source-contract coverage to assert the registration callable builds the snapshot locally and no longer references `callerMainIdentitySnapshot`.
+
 ### 2026-05-19 Profile incomplete signup diagnostics [bug/ops]
 - **Problem**: Signup failures caused by missing required profile fields could appear in admin error logs as generic Firebase Functions errors, making it harder to distinguish an expected profile-completion block from a real backend fault.
 - **Fix**: Preserved `PROFILE_INCOMPLETE` through signup error-code resolution, normalized `functions/` prefixes, classified profile-incomplete logs as low/info severity, and updated error-log display/grouping/export helpers to show the business code and user-facing fix.

@@ -24,6 +24,16 @@
           <button type="button" class="page-header-doc-btn" onclick="App.openHostList()" title="主辦方排行" style="display:none;">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="#F59E0B" stroke="#D97706" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
           </button>
+          <button type="button" class="activity-nearby-btn region-tab-disabled" id="region-tab-nearby-activity" aria-disabled="true" title="尋找附近活動" aria-label="尋找附近活動" onclick="App.openActivityMapEntry(event)">
+            <svg class="region-tab-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 7l5-2 5 2 5-2v12l-5 2-5-2-5 2z" opacity="0.55"/>
+              <line x1="8" y1="5" x2="8" y2="19" opacity="0.55"/>
+              <line x1="13" y1="7" x2="13" y2="21" opacity="0.55"/>
+              <path d="M12 8c-1.5 0-2.7 1.2-2.7 2.7 0 1.8 2.7 4 2.7 4s2.7-2.2 2.7-4c0-1.5-1.2-2.7-2.7-2.7z" fill="currentColor" stroke="none"/>
+              <circle cx="12" cy="10.7" r="0.8" fill="#fff" stroke="none"/>
+            </svg>
+            <span>尋找附近活動</span>
+          </button>
           <button type="button" class="primary-btn small" id="activity-create-btn" onclick="App.openCreateEventModal()" style="display:none" aria-label="＋我要開團">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
               <path d="M12 5v14"></path>
@@ -79,14 +89,6 @@
         <button class="region-tab" data-region="南部" onclick="App.switchRegionTab('南部')">南部</button>
         <button class="region-tab" data-region="東部&外島" onclick="App.switchRegionTab('東部&amp;外島')">東部&amp;外島</button>
         <button class="region-tab active" data-region="全部" onclick="App.switchRegionTab('全部')">全部</button>
-        <button class="region-tab region-tab-nearby region-tab-disabled" id="region-tab-nearby-activity" aria-disabled="true" title="尋找附近活動" onclick="App.openActivityMapEntry(event)">
-          <svg class="region-tab-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M3 7l5-2 5 2 5-2v12l-5 2-5-2-5 2z" opacity="0.55"/>
-            <line x1="8" y1="5" x2="8" y2="19" opacity="0.55"/>
-            <line x1="13" y1="7" x2="13" y2="21" opacity="0.55"/>
-            <path d="M12 8c-1.5 0-2.7 1.2-2.7 2.7 0 1.8 2.7 4 2.7 4s2.7-2.2 2.7-4c0-1.5-1.2-2.7-2.7-2.7z" fill="currentColor" stroke="none"/>
-            <circle cx="12" cy="10.7" r="0.8" fill="#fff" stroke="none"/>
-          </svg>尋找附近活動</button>
       </div>
       <div class="timeline-calendar" id="activity-list">
         <div class="activity-list-loading" data-activity-loading="initial" aria-live="polite" aria-busy="true">
