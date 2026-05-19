@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-19 Secondary identity comment/profile polish [bug/ux]
+- **Problem**: Activity comments still exposed a per-form identity picker, switching to secondary identity could leave chrome avatars stale, and the user-card page still exposed role, level, contact, badges, and records while the secondary identity was active.
+- **Fix**: Comments now resolve the author from the current global display identity only. Identity save/avatar mutations refresh the login chrome immediately. Self user cards in secondary mode show only the secondary avatar and display name, while all remaining card content is covered by a frosted privacy layer. The profile page header now uses `profile.myProfile` so the top-left title reads "我的資料" without changing the bottom tab label.
+- **Tests**: Updated source-contract tests for comment identity removal, chrome refresh wiring, secondary card privacy, the self-card avatar source, and the profile header i18n key.
+
 ### 2026-05-19 Secondary identity UI and avatar cropper [ux/bug]
 - **Problem**: The secondary identity card exposed both an active-identity radio group and an enable toggle, making the flow redundant. Avatar uploads also bypassed the shared cropper and rejected common phone photos before the user could crop them.
 - **Fix**: Simplified the profile card to one enable toggle plus one edit/save button. Enabling secondary identity now maps directly to `profileActiveIdentityId: "secondary"` on save, while the nickname/avatar editor appears only in edit mode. Secondary avatar upload now uses the shared `showImageCropper` flow with a 1:1 512px WebP output and the same 5MB pre-crop file guard as activity cover uploads.

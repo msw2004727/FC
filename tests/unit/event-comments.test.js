@@ -25,7 +25,9 @@ describe('activity detail comments source contracts', () => {
     const actions = readProjectFile('js/modules/event/event-comments-actions.js');
     const css = readProjectFile('css/activity.css');
 
-    expect(comments).toContain('_renderEventCommentIdentityPicker');
+    expect(comments).toContain("ApiService.getCurrentIdentity?.('comment')");
+    expect(comments).not.toContain('_renderEventCommentIdentityPicker');
+    expect(comments).not.toContain('event-comment-identity-picker');
     expect(comments).toContain('IdentityResolver.buildPublicSnapshot');
     expect(comments).toContain('identitySnapshot');
     expect(comments).toContain('event-comment-author-static');
@@ -75,6 +77,8 @@ describe('activity detail comments source contracts', () => {
     expect(actions).toContain('_setEventCommentLikeButtonState(btn, wasLiked, oldCount)');
     expect(actions).toContain('_clearEventCommentsCacheForEvent?.(eventId)');
     expect(actions).toContain('this._renderEventComments?.(eventId, { forceRefresh: true })');
+    expect(actions).toContain('const author = this._requireEventCommentUser();');
+    expect(actions).not.toContain('_getEventCommentIdentityChoice');
     expect(actions.indexOf('_setEventCommentLikeButtonState(btn, nextLiked, nextCount)'))
       .toBeLessThan(actions.indexOf('await this._writeEventCommentLikeWithSummary'));
     expect(actions.indexOf('await this._writeEventCommentLikeWithSummary'))
@@ -84,7 +88,7 @@ describe('activity detail comments source contracts', () => {
     expect(css).toContain('.event-comment-like-avatar');
     expect(css).toContain('.event-comments-load-state');
     expect(css).toContain('.event-comment-retry-btn');
-    expect(css).toContain('.event-comment-identity-picker');
+    expect(css).not.toContain('.event-comment-identity-picker');
     expect(css).toContain('.event-comment-author-static');
     expect(css).toContain('.event-comment-audit-trace');
     expect(css).toContain('[data-theme="dark"] .event-comment-body');

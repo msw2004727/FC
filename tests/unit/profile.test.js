@@ -206,6 +206,7 @@ describe('secondary identity profile controls', () => {
     expect(profileCss).toContain('#profile-identity-card.is-identity-editing .profile-identity-editor');
     expect(profileRenderSource).toContain("const activeId = enabled ? 'secondary' : 'main';");
     expect(profileRenderSource).toContain("profileActiveIdentityId: activeId");
+    expect(profileRenderSource).toContain('this.renderLoginUI?.();');
     expect(profileRenderSource).toContain('this.showImageCropper(sourceDataURL, {');
     expect(profileRenderSource).toContain('aspectRatio: 1');
     expect(profileRenderSource).toContain('outputWidth: 512');
@@ -216,6 +217,35 @@ describe('secondary identity profile controls', () => {
     expect(crudSource).toContain("httpsCallable('commitSecondaryIdentityAvatar')");
     expect(crudSource).toContain('_normalizeStorageBucketName');
     expect(crudSource).toContain('users/${uid}/identities/secondary/avatar');
+  });
+
+  test('secondary identity profile card keeps only avatar and nickname visible', () => {
+    const profileCardSource = readProjectFile('js/modules/profile/profile-card.js');
+    const profileCoreSource = readProjectFile('js/modules/profile/profile-core.js');
+    const profileCss = readProjectFile('css/profile.css');
+
+    expect(profileCardSource).toContain("const isSecondaryIdentity = identity?.identityId === 'secondary';");
+    expect(profileCoreSource).toContain("const isSecondaryIdentity = isSelf && currentIdentity?.identityId === 'secondary';");
+    expect(profileCoreSource).toContain("this._getAvatarCandidateUrls(...identityCandidates)");
+    expect(profileCoreSource).not.toContain('lineProfile && lineProfile.pictureUrl');
+    expect(profileCardSource).toContain('uc-secondary-private-wrap');
+    expect(profileCoreSource).toContain('uc-secondary-private-wrap');
+    expect(profileCardSource).toContain('isSecondaryIdentity ?');
+    expect(profileCoreSource).toContain('userCardContainer.classList.toggle');
+    expect(profileCss).toContain('.uc-secondary-private-overlay');
+    expect(profileCss).toContain('backdrop-filter: blur(16px) saturate(130%)');
+    expect(profileCss).toContain('.uc-secondary-private-content');
+    expect(profileCss).toContain('filter: blur(12px)');
+  });
+
+  test('profile page header uses the full my profile label without renaming the bottom tab', () => {
+    const profileHtml = readProjectFile('pages/profile.html');
+    const navigationSource = readProjectFile('js/core/navigation.js');
+
+    expect(profileHtml).toContain('data-i18n="profile.myProfile"');
+    expect(profileHtml).toContain('&#25105;&#30340;&#36039;&#26009;');
+    expect(navigationSource).toContain("profilePageHeader.textContent = t('profile.myProfile')");
+    expect(navigationSource).toContain("'nav.profile'");
   });
 });
 

@@ -187,8 +187,10 @@ Object.assign(App, {
     const user = isSelf
       ? currentUser
       : (this._findUserByUid(uidHint) || this._findUserByName(name));
+    const displayName = isSelf && currentIdentity?.displayName ? currentIdentity.displayName : name;
+    const isSecondaryIdentity = isSelf && currentIdentity?.identityId === 'secondary';
     const rawRole = user ? user.role : ApiService.getUserRole(name);
-    const role = this._stealthRole(name, rawRole);
+    const role = this._stealthRole(displayName, rawRole, user);
     const roleInfo = ROLES[role] || ROLES.user;
     const achievementProfile = this._getAchievementProfile?.();
 
@@ -204,19 +206,22 @@ Object.assign(App, {
     const joinDate = _ca
       ? (() => { const d = (_ca.toDate ? _ca.toDate() : (_ca.seconds ? new Date(_ca.seconds * 1000) : new Date(_ca))); return isNaN(d) ? '-' : `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`; })()
       : '-';
-    // 頭像：自己用 LINE 頭像，他人用資料庫 pictureUrl
+    // 頭像：自己用當前顯示身份，他人用資料庫 pictureUrl
+    const identityCandidates = Array.isArray(currentIdentity?.avatarCandidates) ? currentIdentity.avatarCandidates : [];
     const picCandidates = isSelf
-      ? this._getAvatarCandidateUrls(lineProfile && lineProfile.pictureUrl, user && user.pictureUrl)
+      ? (isSecondaryIdentity
+        ? this._getAvatarCandidateUrls(...identityCandidates)
+        : this._getAvatarCandidateUrls(...identityCandidates, user && user.pictureUrl))
       : this._getAvatarCandidateUrls(user && user.pictureUrl);
     const pic = picCandidates[0] || null;
 
-    const avatarHtml = this._buildAvatarImageMarkup(pic, name, '', 'uc-avatar-circle');
+    const avatarHtml = this._buildAvatarImageMarkup(pic, displayName, '', 'uc-avatar-circle');
     const teamHtml = user ? this._getUserTeamHtml(user) : '無';
 
     // 稱號顯示（HTML 版：金色/銀色標籤）
     const titleHtml = user
-      ? (achievementProfile?.buildTitleDisplayHtml?.(user, name) || this._buildTitleDisplayHtml(user, name))
-      : escapeHTML(name);
+      ? (achievementProfile?.buildTitleDisplayHtml?.(user, displayName) || this._buildTitleDisplayHtml(user, displayName))
+      : escapeHTML(displayName);
     // 同步先顯示（當前用戶快取 or 空狀態），異步再更新（其他用戶）
     let badgeHtml = achievementProfile?.buildEarnedBadgeListHtml?.({
       useCategoryBorder: true,
@@ -234,25 +239,35 @@ Object.assign(App, {
     const _badgeCacheUid = (typeof FirebaseService !== 'undefined') ? FirebaseService._userAchievementProgressUid : null;
     const _badgeCacheHit = targetUid && _badgeCacheUid === targetUid;
     // isSelf 不遮徽章（本地 cache 已有，同步計算）；非 self 才考慮遮
-    const _showStatsBlur = targetUid && !_statsCacheHit;
-    const _showBadgesBlur = targetUid && !isSelf && !_badgeCacheHit;
+    const _showStatsBlur = targetUid && !isSecondaryIdentity && !_statsCacheHit;
+    const _showBadgesBlur = targetUid && !isSecondaryIdentity && !isSelf && !_badgeCacheHit;
 
     const _blurOnClick = `App._loadUserCardUncovered('${escapeHTML(targetUid || '')}')`;
     const _statsBlurHtml = _showStatsBlur ? `<div class="uc-blur-overlay" onclick="${_blurOnClick}"><div class="uc-blur-text">點擊載入活動記錄</div></div>` : '';
     const _badgeBlurHtml = _showBadgesBlur ? `<div class="uc-blur-overlay" onclick="${_blurOnClick}"><div class="uc-blur-text">點擊載入此用戶的徽章</div></div>` : '';
+    const userCardContainer = document.getElementById('user-card-full');
+    if (!userCardContainer) return { ok: false, reason: 'missing-container' };
+    userCardContainer.classList.toggle('is-secondary-private', isSecondaryIdentity);
+    const privateBodyStart = isSecondaryIdentity
+      ? '<div class="uc-secondary-private-wrap"><div class="uc-secondary-private-content">'
+      : '';
+    const privateBodyEnd = isSecondaryIdentity
+      ? '</div><div class="uc-secondary-private-overlay" aria-hidden="true"><span>&#27425;&#36523;&#20221;&#24050;&#38577;&#34255;&#35443;&#32048;&#36039;&#26009;</span></div></div>'
+      : '';
 
-    document.getElementById('user-card-full').innerHTML = `
+    userCardContainer.innerHTML = `
       <div class="uc-header">
         <div class="uc-avatar-circle" style="margin:0 auto .6rem">${avatarHtml}</div>
         <div class="profile-title" data-no-translate>${titleHtml}</div>
-        <div style="margin-top:.3rem"><span class="uc-role-tag" style="background:${roleInfo.color}22;color:${roleInfo.color}">${roleInfo.label}</span></div>
+        ${isSecondaryIdentity ? '' : `<div style="margin-top:.3rem"><span class="uc-role-tag" style="background:${roleInfo.color}22;color:${roleInfo.color}">${roleInfo.label}</span></div>
         ${!isSelf ? this._buildUserCardActionPanel(targetUid) : ''}
         <div class="profile-level">
           <span>Lv.${level}</span>
           <div class="exp-bar"><div class="exp-fill" style="width:${expPct}%"></div></div>
           <span class="exp-text">${progress.toLocaleString()} / ${needed.toLocaleString()}</span>
-        </div>
+        </div>`}
       </div>
+      ${privateBodyStart}
       ${this._buildSocialLinksHtml(user)}
       <div class="info-card">
         <div class="info-title">基本資料</div>
@@ -286,13 +301,14 @@ Object.assign(App, {
         ${_statsBlurHtml}
       </div>
       <div style="text-align:center;padding:.5rem 0 1rem">
-        <button class="outline-btn" style="font-size:.78rem;padding:.4rem 1rem;display:inline-flex;align-items:center;gap:.3rem" onclick="App._shareUserCard('${escapeHTML(name)}')">
+        <button class="outline-btn" style="font-size:.78rem;padding:.4rem 1rem;display:inline-flex;align-items:center;gap:.3rem" onclick="App._shareUserCard('${escapeHTML(displayName)}')">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
           分享名片
         </button>
       </div>
+      ${privateBodyEnd}
     `;
-    this._bindAvatarFallbacks(document.getElementById('user-card-full'));
+    this._bindAvatarFallbacks(userCardContainer);
 
     // 切頁前檢查 seq（避免已 stale 還硬把用戶拉回 user-card）
     if (requestSeq !== this._userProfileRequestSeq) {
@@ -302,7 +318,7 @@ Object.assign(App, {
       return { ok: false, reason: 'stale' };
     }
     // 顯示頁面（若 cache 命中則直接渲染；否則由毛玻璃遮蔽提示用戶點擊載入）
-    this._ucRecordUid = targetUid || null;
+    this._ucRecordUid = isSecondaryIdentity ? null : (targetUid || null);
     await this.showPage('page-user-card');
     if (requestSeq !== this._userProfileRequestSeq || this.currentPage !== 'page-user-card') {
       if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
@@ -313,7 +329,7 @@ Object.assign(App, {
 
     // 徽章異步載入：只在 cache 命中時才跑（避免自動讀取 Firestore）
     // 非 self 且 cache 未命中時，等用戶點擊遮蔽觸發 _loadUserCardUncovered
-    if (!isSelf && user && _badgeCacheHit && achievementProfile?.buildEarnedBadgeListHtmlAsync) {
+    if (!isSecondaryIdentity && !isSelf && user && _badgeCacheHit && achievementProfile?.buildEarnedBadgeListHtmlAsync) {
       achievementProfile.buildEarnedBadgeListHtmlAsync({
         useCategoryBorder: true,
         emptyText: '尚未獲得徽章',
@@ -326,7 +342,7 @@ Object.assign(App, {
     }
 
     // 活動紀錄：只在 cache 命中時才渲染（否則遮蔽已在 HTML，等用戶點擊）
-    if (targetUid && _statsCacheHit) {
+    if (!isSecondaryIdentity && targetUid && _statsCacheHit) {
       this.renderUserCardRecords('all', 1);
     }
     return { ok: true };

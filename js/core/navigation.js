@@ -1424,7 +1424,7 @@ Object.assign(App, {
     const actPageHeader = document.querySelector('#page-activities .page-header-title');
     if (actPageHeader) actPageHeader.textContent = t('nav.activities');
     const profilePageHeader = document.querySelector('#page-profile .page-header-title');
-    if (profilePageHeader) profilePageHeader.textContent = t('nav.profile');
+    if (profilePageHeader) profilePageHeader.textContent = t('profile.myProfile');
 
     // Search placeholders
     const teamSearch = document.getElementById('team-search');

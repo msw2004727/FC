@@ -9,6 +9,7 @@ Object.assign(App, {
 
     const user = ApiService.getCurrentUser();
     const identity = ApiService.getCurrentIdentity?.('profile') || null;
+    const isSecondaryIdentity = identity?.identityId === 'secondary';
 
     const displayName = identity?.displayName || (user ? user.displayName : '-');
     const achievementProfile = this._getAchievementProfile?.();
@@ -41,6 +42,13 @@ Object.assign(App, {
 
     const avatarHtml = this._buildAvatarImageMarkup(pic, displayName, '', 'uc-avatar-circle');
     const teamHtml = user ? this._getUserTeamHtml(user) : '無';
+    container.classList.toggle('is-secondary-private', isSecondaryIdentity);
+    const privateBodyStart = isSecondaryIdentity
+      ? '<div class="uc-secondary-private-wrap"><div class="uc-secondary-private-content">'
+      : '';
+    const privateBodyEnd = isSecondaryIdentity
+      ? '</div><div class="uc-secondary-private-overlay" aria-hidden="true"><span>&#27425;&#36523;&#20221;&#24050;&#38577;&#34255;&#35443;&#32048;&#36039;&#26009;</span></div></div>'
+      : '';
 
     const badgeHtml = achievementProfile?.buildEarnedBadgeListHtml?.({
       imageFallbackHtml: '<span style="font-size:1.2rem">--</span>',
@@ -51,13 +59,14 @@ Object.assign(App, {
       <div class="uc-header">
         <div class="uc-avatar-circle" style="margin:0 auto .6rem">${avatarHtml}</div>
         <div class="profile-title" data-no-translate>${titleHtml}</div>
-        <div style="margin-top:.3rem"><span class="uc-role-tag" style="background:${roleInfo.color}22;color:${roleInfo.color}">${roleInfo.label}</span></div>
+        ${isSecondaryIdentity ? '' : `<div style="margin-top:.3rem"><span class="uc-role-tag" style="background:${roleInfo.color}22;color:${roleInfo.color}">${roleInfo.label}</span></div>
         <div class="profile-level">
           <span>Lv.${level}</span>
           <div class="exp-bar"><div class="exp-fill" style="width:${expPct}%"></div></div>
           <span class="exp-text">${progress.toLocaleString()} / ${needed.toLocaleString()}</span>
-        </div>
+        </div>`}
       </div>
+      ${privateBodyStart}
       ${this._buildSocialLinksHtml(user)}
       <div class="info-card">
         <div class="info-title">基本資料</div>
@@ -92,13 +101,16 @@ Object.assign(App, {
         <div class="info-title">交易價值紀錄</div>
         <div style="font-size:.82rem;color:var(--text-muted)">目前無交易紀錄</div>
       </div>
+      ${privateBodyEnd}
     `;
     this._bindAvatarFallbacks(container);
     // 渲染活動紀錄
     const targetUid = user ? (user.uid || user.lineUserId) : null;
-    if (targetUid) {
+    if (targetUid && !isSecondaryIdentity) {
       this._ucRecordUid = targetUid;
       this.renderUserCardRecords('all', 1);
+    } else if (isSecondaryIdentity) {
+      this._ucRecordUid = null;
     }
   },
 

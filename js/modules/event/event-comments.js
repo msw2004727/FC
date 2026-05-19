@@ -16,29 +16,20 @@ Object.assign(App, {
   _eventCommentActiveLoads: new Map(),
   _eventCommentCacheInvalidatedAt: new Map(),
 
-  _getEventCommentIdentityChoice(selectId = 'event-comment-identity') {
-    const value = String(document.getElementById(selectId)?.value || 'main').trim();
-    return value === 'secondary' ? 'secondary' : 'main';
-  },
-
-  _renderEventCommentIdentityPicker(selectId = 'event-comment-identity') {
-    if (typeof IdentityResolver === 'undefined') return '';
-    const user = ApiService.getCurrentUser?.() || null;
-    const settings = ApiService.getCurrentIdentitySettings?.() || null;
-    const secondary = IdentityResolver.getSecondaryIdentity(user, settings);
-    if (!secondary?.displayName) return '';
-    const safeId = escapeHTML(selectId);
-    return `<label class="event-comment-identity-picker"><span>身份</span><select id="${safeId}"><option value="main" selected>主身份</option><option value="secondary">${escapeHTML(secondary.displayName)}</option></select></label>`;
-  },
-
-  _getEventCommentAuthor(requestedIdentityId = 'main') {
+  _getEventCommentAuthor(requestedIdentityId = '') {
     const user = ApiService.getCurrentUser?.() || {};
     const uid = String(user.uid || user.lineUserId || '').trim();
     const rootIdentity = (typeof IdentityResolver !== 'undefined')
       ? IdentityResolver.getMainIdentity(user)
       : null;
+    const currentIdentity = (!requestedIdentityId && typeof ApiService !== 'undefined')
+      ? (ApiService.getCurrentIdentity?.('comment') || null)
+      : null;
+    const resolvedIdentityId = requestedIdentityId === 'secondary' || requestedIdentityId === 'main'
+      ? requestedIdentityId
+      : (currentIdentity?.identityId === 'secondary' ? 'secondary' : 'main');
     const snapshot = (typeof IdentityResolver !== 'undefined')
-      ? IdentityResolver.buildPublicSnapshot({ user, requestedIdentityId })
+      ? IdentityResolver.buildPublicSnapshot({ user, requestedIdentityId: resolvedIdentityId })
       : null;
     const rootName = String(rootIdentity?.displayName || user.displayName || user.name || '用戶').trim();
     const rootPhoto = String(rootIdentity?.pictureUrl || user.pictureUrl || user.photoURL || '').trim();
@@ -633,12 +624,10 @@ Object.assign(App, {
     const closed = this._isEventCommentsClosed(eventRecord);
     const canManage = this._canManageEventComments(eventRecord);
     const eventId = escapeHTML(eventRecord.id || '');
-    const identityPicker = this._renderEventCommentIdentityPicker?.() || '';
     const inputHtml = closed ? '<div class="event-comments-closed">活動已結束，留言輸入已關閉</div>' : `
       <form class="event-comment-form" onsubmit="App._submitEventComment('${eventId}');return false;">
         <textarea id="event-comment-input" maxlength="300" rows="3" placeholder="輸入留言，最多 300 字"></textarea>
         <div class="event-comment-form-foot">
-          ${identityPicker}
           <label class="event-comment-private-toggle"><input type="checkbox" id="event-comment-private"> 私密留言（僅主辦與委託能見）</label>
           <button type="submit" class="event-comment-submit">送出</button>
         </div>

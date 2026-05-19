@@ -35,7 +35,7 @@ Object.assign(App, {
       this.showToast?.('系統已在處理中');
       return;
     }
-    const author = this._requireEventCommentUser(this._getEventCommentIdentityChoice?.() || 'main');
+    const author = this._requireEventCommentUser();
     if (!author) return;
     const eventRecord = ApiService.getEvent?.(eventId);
     if (this._isEventCommentsClosed(eventRecord)) {

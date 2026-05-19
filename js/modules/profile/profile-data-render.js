@@ -357,6 +357,7 @@ Object.assign(App, {
       }
       this._identityFormBaseline = { enabled, displayName };
       this._identitySettingsEditing = options.exitEdit !== false ? false : !!this._identitySettingsEditing;
+      this.renderLoginUI?.();
       this._syncIdentityFormState();
       this.showToast('身份顯示已儲存');
     } catch (err) {
@@ -418,6 +419,7 @@ Object.assign(App, {
         containerImageClass: 'profile-identity-avatar',
         candidateUrls: [avatarUrl],
       });
+      this.renderLoginUI?.();
       this.showToast('次身份頭像已更新');
     } catch (err) {
       console.error('[uploadSecondaryIdentityAvatar]', err);
@@ -442,6 +444,7 @@ Object.assign(App, {
         containerImageClass: 'profile-identity-avatar',
         candidateUrls: [],
       });
+      this.renderLoginUI?.();
       this.showToast('次身份頭像已清除');
     } catch (err) {
       console.error('[clearSecondaryIdentityAvatar]', err);
