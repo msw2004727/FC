@@ -5,7 +5,7 @@
 
 Object.assign(App, {
   _normalizeErrorCode(value) {
-    return String(value || '').trim().toLowerCase();
+    return String(value || '').trim().replace(/^functions\//i, '').toLowerCase();
   },
 
   _normalizeErrorMessage(value) {
@@ -19,12 +19,28 @@ Object.assign(App, {
       || message.includes('attempt to get records from database without an in-progress transaction');
   },
 
+  _isProfileIncompleteLog(log) {
+    const context = this._getErrorContextObject(log?.context) || {};
+    const text = [
+      log?.errorCode,
+      log?.errorMessage,
+      context.errCode,
+      context.reason,
+      context.action,
+    ].map(value => String(value || '')).join(' ').toUpperCase();
+    return text.includes('PROFILE_INCOMPLETE');
+  },
+
   _getErrorSeverity(log) {
     const code = this._normalizeErrorCode(log?.errorCode);
     const message = this._normalizeErrorMessage(log?.errorMessage).toLowerCase();
 
     if (this._isFirestoreIndexedDbTransientLog(log)) {
       return { key: 'info', label: '\u4f4e', className: 'severity-info' };
+    }
+
+    if (this._isProfileIncompleteLog(log)) {
+      return { key: 'info', label: '一般', className: 'severity-info' };
     }
 
     if (
@@ -61,11 +77,22 @@ Object.assign(App, {
       unavailable: '服務不可用',
       'network-request-failed': '網路錯誤',
       'invalid-argument': '參數錯誤',
+      profile_incomplete: '個人資料未補齊',
       internal: '系統錯誤',
       unknown: '未知錯誤',
       aborted: '流程中止',
     };
     return map[normalized] || (normalized ? normalized : '未分類');
+  },
+
+  _getErrorDisplayCode(log) {
+    if (this._isProfileIncompleteLog(log)) return 'PROFILE_INCOMPLETE';
+    return this._normalizeErrorCode(log?.errorCode);
+  },
+
+  _getErrorDisplayCodeLabel(log) {
+    if (this._isProfileIncompleteLog(log)) return '個人資料未補齊';
+    return this._getErrorCodeLabel(log?.errorCode);
   },
 
   _getErrorChineseMessage(log) {
@@ -90,6 +117,7 @@ Object.assign(App, {
       aborted: '流程中止，請重新整理後再試。',
     };
     if (this._isFirestoreIndexedDbTransientLog(log)) return codeMap['firestore-indexeddb-transient'];
+    if (this._isProfileIncompleteLog(log)) return '請先補齊個人資料（性別、生日、地區）後再報名。';
     if (codeMap[code]) return codeMap[code];
     if (/missing or insufficient permissions|the caller does not have permission|permission denied|insufficient permissions/.test(lower)) return codeMap['permission-denied'];
     if (/authentication required|requires authentication|auth token is expired|id token has expired|user token expired/.test(lower)) return codeMap.unauthenticated;
@@ -207,8 +235,8 @@ Object.assign(App, {
     const contextSummary = this._parseErrorContext(log?.context);
     return [
       log?.userName, log?.uid, log?.role, this._getErrorPage(log),
-      this._getErrorFunctionName(log), this._getErrorCodeLabel(log?.errorCode),
-      log?.errorCode, this._getErrorChineseMessage(log), log?.errorMessage,
+      this._getErrorFunctionName(log), this._getErrorDisplayCodeLabel(log),
+      this._getErrorDisplayCode(log), log?.errorCode, this._getErrorChineseMessage(log), log?.errorMessage,
       contextSummary, log?.url, log?.hash, log?.appVersion,
       this._getErrorDeviceLabel(log), log?.userAgent, log?.errorStack,
     ].filter(Boolean).join(' ').toLowerCase();

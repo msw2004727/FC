@@ -187,7 +187,7 @@ Object.assign(App, {
 
   _renderErrorLogItem(log, copyId) {
     const severity = this._getErrorSeverity(log);
-    const codeLabel = this._getErrorCodeLabel(log?.errorCode);
+    const codeLabel = this._getErrorDisplayCodeLabel(log);
     const message = this._getErrorChineseMessage(log);
     const page = this._getErrorPage(log);
     const fn = this._getErrorFunctionName(log);
@@ -224,7 +224,7 @@ Object.assign(App, {
       ['UID', log?.uid, true],
       ['功能位置', this._parseErrorContext(log?.context), true],
       ['頁面', this._getErrorPage(log), true],
-      ['錯誤碼', this._normalizeErrorCode(log?.errorCode), true],
+      ['錯誤碼', this._getErrorDisplayCode(log), true],
       ['原始錯誤', log?.errorMessage, true],
       ['Context', rawContext, true],
       ['Stack', log?.errorStack, true],

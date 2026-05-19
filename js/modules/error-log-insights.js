@@ -10,7 +10,7 @@ Object.assign(App, {
   _getErrorLogGroupKey(log) {
     return [
       this._getErrorSeverity(log).key,
-      this._normalizeErrorCode(log?.errorCode),
+      this._getErrorDisplayCode(log),
       this._getErrorPage(log),
       this._getErrorFunctionName(log),
       this._getErrorChineseMessage(log),
@@ -26,7 +26,7 @@ Object.assign(App, {
         map.set(key, {
           key,
           severity,
-          codeLabel: this._getErrorCodeLabel(log?.errorCode),
+          codeLabel: this._getErrorDisplayCodeLabel(log),
           message: this._getErrorChineseMessage(log),
           page: this._getErrorPage(log),
           fn: this._getErrorFunctionName(log),
@@ -122,7 +122,7 @@ Object.assign(App, {
       `時間：${this._formatErrorLogTime(log) || ''}`,
       `嚴重度：${this._getErrorSeverity(log).label}`,
       `白話錯誤：${this._getErrorChineseMessage(log)}`,
-      `錯誤類型：${this._getErrorCodeLabel(log?.errorCode)} (${this._normalizeErrorCode(log?.errorCode) || 'no-code'})`,
+      `錯誤類型：${this._getErrorDisplayCodeLabel(log)} (${this._getErrorDisplayCode(log) || 'no-code'})`,
       `用戶：${log?.userName || ''} / ${log?.uid || ''}`,
       `頁面/功能：${this._getErrorPage(log)} / ${this._getErrorFunctionName(log) || ''}`,
       `版本/裝置：${this._getErrorVersion(log) || ''} / ${this._getErrorDeviceLabel(log) || ''}`,

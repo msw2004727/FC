@@ -127,6 +127,15 @@ Object.assign(App, {
     }
   },
 
+  _getEventRegistrationErrorCode(err) {
+    const values = [err?.details, err?.message, err?.code]
+      .map(value => String(value || '').trim())
+      .filter(Boolean);
+    if (values.some(value => value.toUpperCase() === 'PROFILE_INCOMPLETE')) return 'PROFILE_INCOMPLETE';
+    const raw = values[0] || '';
+    return raw.replace(/^functions\//i, '');
+  },
+
   //  Signup & Cancel
   // ══════════════════════════════════
 
@@ -1095,7 +1104,7 @@ Object.assign(App, {
       }
       this._evaluateAchievements?.(e.type);
     } catch (err) {
-      const errCode = err?.details || err?.code || err?.message || '';
+      const errCode = this._getEventRegistrationErrorCode(err);
       if (this._isDuplicateSignupError(err)) {
         this._flipAnimating = false;
         this._flipAnimatingAt = 0;
@@ -1131,6 +1140,16 @@ Object.assign(App, {
       cfMsg.TEAM_RESERVATION_TEAM_NOT_AVAILABLE = '此俱樂部席位已變更，請重新選擇';
       // Plan C：PROFILE_INCOMPLETE → 自動彈出首登表單
       if (errCode === 'PROFILE_INCOMPLETE') {
+        this._logEventRegistrationFailure('event_signup_profile_incomplete', id, err, {
+          fn: 'handleSignup',
+          severity: 'info',
+          stage: signupUseCF ? 'cloud_function' : 'firestore_fallback',
+          userId,
+          useCloudFunction: signupUseCF,
+          requestId: signupRequestId,
+          errCode,
+        });
+        this.showToast?.(cfMsg.PROFILE_INCOMPLETE);
         this._pendingFirstLogin = true;
         this._firstLoginShowing = false;
         this._tryShowFirstLoginModal?.();
@@ -1537,7 +1556,7 @@ Object.assign(App, {
         }
         this._evaluateAchievements?.(e0?.type);
       } catch (err) {
-        const errCode = err?.details || err?.code || err?.message || '';
+        const errCode = this._getEventRegistrationErrorCode(err);
         if (this._isAlreadyCancelledRegistrationError(err)) {
           this._logEventRegistrationFailure('event_cancel_already_terminal', id, err, {
             fn: 'handleCancelSignup',

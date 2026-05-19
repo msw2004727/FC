@@ -48,6 +48,21 @@ describe('error-log-diagnostics helpers', () => {
     expect(App._getErrorChineseMessage(log)).toContain('\u4e0d\u4ee3\u8868\u8cc7\u6599\u58de\u6389');
   });
 
+  test('recognizes callable profile incomplete failures as normal user-action diagnostics', () => {
+    const App = loadDiagnostics();
+    const log = {
+      errorCode: 'functions/failed-precondition',
+      errorMessage: 'PROFILE_INCOMPLETE',
+      context: JSON.stringify({ fn: 'handleSignup', errCode: 'PROFILE_INCOMPLETE' }),
+    };
+
+    expect(App._normalizeErrorCode(log.errorCode)).toBe('failed-precondition');
+    expect(App._getErrorSeverity(log)).toMatchObject({ key: 'info', label: '\u4e00\u822c' });
+    expect(App._getErrorDisplayCode(log)).toBe('PROFILE_INCOMPLETE');
+    expect(App._getErrorDisplayCodeLabel(log)).toBe('\u500b\u4eba\u8cc7\u6599\u672a\u88dc\u9f4a');
+    expect(App._getErrorChineseMessage(log)).toContain('\u8acb\u5148\u88dc\u9f4a\u500b\u4eba\u8cc7\u6599');
+  });
+
   test('parses browser, os, and device type from LINE iOS user agent', () => {
     const App = loadDiagnostics();
     const info = App._getErrorDeviceInfo('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Line/14.0.0');

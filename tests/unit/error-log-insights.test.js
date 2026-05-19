@@ -75,4 +75,22 @@ describe('error-log insights helpers', () => {
     expect(text).toContain('evt1');
     expect(text).toContain('uidA');
   });
+
+  test('diagnostic package names profile incomplete signup failures directly', () => {
+    const App = loadInsights();
+    const text = App._buildErrorLogDiagnosticText({
+      errorCode: 'functions/failed-precondition',
+      errorMessage: 'PROFILE_INCOMPLETE',
+      page: 'page-activity-detail',
+      context: JSON.stringify({ fn: 'handleSignup', errCode: 'PROFILE_INCOMPLETE', eventId: 'evt1' }),
+      uid: 'uidA',
+      userName: 'Tester',
+      appVersion: '0.test',
+      userAgent: 'Mozilla/5.0 (iPhone) Line/14.0.0',
+    });
+
+    expect(text).toContain('\u932f\u8aa4\u985e\u578b\uff1a\u500b\u4eba\u8cc7\u6599\u672a\u88dc\u9f4a (PROFILE_INCOMPLETE)');
+    expect(text).toContain('\u767d\u8a71\u932f\u8aa4\uff1a\u8acb\u5148\u88dc\u9f4a\u500b\u4eba\u8cc7\u6599');
+    expect(text).toContain('\u56b4\u91cd\u5ea6\uff1a\u4e00\u822c');
+  });
 });
