@@ -38,7 +38,9 @@ ToosterX 是一個 LINE LIFF + Firebase 的 buildless Vanilla JS SPA。前端由
 | 驗證 | LINE LIFF profile + Firebase Custom Token |
 | 佈署 | 前端 push `main` 後由 Cloudflare Pages / GitHub Pages 發佈；functions/rules 需 Firebase deploy |
 | 測試 | Jest unit、Firestore rules emulator、Playwright e2e smoke |
-| 目前快取版本 | `0.20260519m` |
+| 目前快取版本 | `0.20260519zb` |
+
+近期身份、權限與錯誤診斷變更索引：`docs/specs/recent-updates-20260519.md`。
 
 ---
 
@@ -147,7 +149,7 @@ sequenceDiagram
 - `PageLoader._deferredPages`：`scan`、`shop`、admin 系列、`personal-dashboard`、`game`、`kickball`、`education` 等。
 - deep link 會讓 `PageLoader` 優先載入目標頁片段，例如活動、俱樂部、賽事。
 - `ScriptLoader._pageGroups` 把 page id 對應到模組群組，避免所有功能一次載完。
-- `Service Worker` 與目前 `CACHE_VERSION`（現行 `0.20260519m`）控制前端快取更新。
+- `Service Worker` 與目前 `CACHE_VERSION`（現行 `0.20260519zb`）控制前端快取更新。
 
 ---
 
@@ -259,6 +261,7 @@ sequenceDiagram
 
 - 主身份即時由 `users/{uid}` root profile 計算；MVP 不持久化 `identities.main`。
 - 第二身份只讀目前登入者的 `identityPrivate/settings.identities.secondary`，公開 profile、私訊、活動建立與排行榜仍維持主身份語意。
+- 第二身份必須通過 `profile.secondary_identity` 權限閘門；權限關閉時 `IdentityResolver` 會回退主身份，且不建立 secondary public snapshot。
 - `buildPublicSnapshot()` 只輸出 `identityId`、`displayName`、`avatarUrl`；不輸出 role、permissions、claims 或真實 actor 欄位。
 - 未明確支援 identity snapshot 的寫入點不得自動套用 `profileActiveIdentityId`。
 
@@ -271,7 +274,7 @@ sequenceDiagram
 - 提供 fetch-if-missing 補資料，例如熱門活動超出 listener limit 時，直接查單場子集合。
 - 個人資料、報名紀錄、統計查詢應優先走 canonical source。
 
-第二身份 API 只包裝 `identityPrivate/settings` 與 avatar callable：`getCurrentIdentitySettings()`、`updateCurrentIdentitySettings()`、`uploadSecondaryIdentityAvatar()`、`clearSecondaryIdentityAvatar()`。
+第二身份 API 只包裝 `identityPrivate/settings` 與 avatar callable：`getCurrentIdentitySettings()`、`updateCurrentIdentitySettings()`、`uploadSecondaryIdentityAvatar()`、`clearSecondaryIdentityAvatar()`。`canUseSecondaryIdentityFeature(role)` 是前端共同閘門；`user` 固定 false，`super_admin` 透過 all-permissions 固定 true。
 
 ### `firebase-crud.js`
 
@@ -306,9 +309,9 @@ sequenceDiagram
 | `tournaments/{id}/entries/{teamId}` | 已參賽隊伍 | callable 管理 |
 | `tournaments/{id}/entries/{teamId}/members/{uid}` | 隊伍參賽 roster | callable 管理 |
 | `users/{uid}` | 使用者 | LINE UID 為主鍵，保存 role、profile、team fields；不保存第二身份完整資料 |
-| `users/{uid}/identityPrivate/settings` | 第二身份設定 | owner/admin-only；保存 `profileActiveIdentityId` 與 `identities.secondary`，不進公開 user root |
+| `users/{uid}/identityPrivate/settings` | 第二身份設定 | read 為 owner/admin；write 需 `profile.secondary_identity` 或 super_admin，保存 `profileActiveIdentityId` 與 `identities.secondary`，不進公開 user root |
 | `users/{uid}/inbox/{msgId}` | 使用者收件匣 | Cloud Function 寫入，使用者讀/標記 |
-| `rolePermissions/{roleId}` | runtime 權限 | super_admin 寫，前端讀 |
+| `rolePermissions/{roleId}` | runtime 權限 | super_admin 寫，前端讀；`profile.secondary_identity` 控制第二身份顯示與寫入 |
 | `operationLogs/{logId}` | 操作 log | 前端/後端寫入，管理頁讀 |
 | `auditLogsByDay/{yyyyMMdd}/auditEntries/{logId}` | 安全稽核 log | Cloud Function 寫入，super_admin/權限讀 |
 | `errorLogs/{docId}` | 前端錯誤 log | 使用者可寫，後台可讀 |
@@ -322,7 +325,7 @@ sequenceDiagram
 ### 第二身份 MVP 資料邊界
 
 - `users/{uid}` 仍是真實身份、統計與權限主鍵；公開 profile 永遠顯示主身份。
-- `users/{uid}/identityPrivate/settings` 僅本人與管理者可讀寫，保存第二身份啟用狀態、暱稱、頭像 Storage metadata 與我的頁面顯示偏好。
+- `users/{uid}/identityPrivate/settings` 僅 owner/admin 可讀；寫入必須通過 `profile.secondary_identity` 或 super_admin，保存第二身份啟用狀態、暱稱、頭像 Storage metadata 與我的頁面顯示偏好。
 - 第二身份頭像固定走 `images/users/{uid}/identities/secondary/{fileName}`，Storage rules 只允許 owner 寫入；`commitSecondaryIdentityAvatar` callable 驗證 bucket/path/contentType/size 後才 commit metadata。
 - 公開紀錄若支援第二身份，只能保存 `identitySnapshot.identityId/displayName/avatarUrl`；Firestore rules 會對照 root user 或 `identityPrivate/settings` 驗證，且建立後 immutable。
 - 活動留言是 MVP 第一個公開第二身份 surface。管理者看到第二身份留言時，前端以 `authorUid` join `adminUsers` 顯示 root displayName、root role 與 UID；這些稽核欄位不寫入公開留言文件。
@@ -884,6 +887,7 @@ DATA_SYNC_SETTINGS_PASSWORD = process.env.DATA_SYNC_SETTINGS_PASSWORD || "1121"
 - tournament scope helpers
 - registration owner / safe update helpers
 - identityPrivate settings / public identity snapshot validation helpers
+- secondary identity permission gate: `canUseSecondaryIdentity()`
 
 ### 高風險規則
 
@@ -894,7 +898,7 @@ DATA_SYNC_SETTINGS_PASSWORD = process.env.DATA_SYNC_SETTINGS_PASSWORD || "1121"
 - `siteConfig/realtimeConfig`：前端 rules 不允許直接修改，設定保存走 `saveRealtimeConfig` callable。
 - `auditLogsByDay`：前端不可寫，讀取需 super_admin 或 audit read 權限。
 - `participantQueryShares`：公開讀取只允許已完成、未過期且 public-safe 的 snapshot。
-- `users/{uid}/identityPrivate/settings`：只允許 owner/admin 讀寫；client 只能改第二身份安全欄位，avatar metadata 必須由 callable commit。
+- `users/{uid}/identityPrivate/settings`：owner/admin 可讀；寫入需 `profile.secondary_identity` 或 super_admin。client 只能改第二身份安全欄位，avatar metadata 必須由 callable commit。
 - `events/{eventId}/comments` / `replies`：`identitySnapshot` 建立時需對照 root user 或第二身份設定，後續更新不可改寫 snapshot。
 
 ---
@@ -903,7 +907,7 @@ DATA_SYNC_SETTINGS_PASSWORD = process.env.DATA_SYNC_SETTINGS_PASSWORD || "1121"
 
 `sw.js` 現況：
 
-- `CACHE_NAME = sporthub-0.20260519m`
+- `CACHE_NAME = sporthub-0.20260519zb`
 - HTML：network-first。
 - JS/CSS：cache-first，靠 `?v=` cache busting。
 - `pages/*.html`、動態載入的 JS/CSS 都帶目前 `CACHE_VERSION`。
@@ -929,7 +933,7 @@ DATA_SYNC_SETTINGS_PASSWORD = process.env.DATA_SYNC_SETTINGS_PASSWORD || "1121"
 |---|---|---|
 | operation logs | `operationLogs` | 使用者/後台操作、活動/賽事/資料修復紀錄 |
 | audit logs | `auditLogsByDay/{day}/auditEntries` | 安全稽核，Cloud Function trusted write |
-| error logs | `errorLogs` | 前端錯誤、context、診斷與 insights |
+| error logs | `errorLogs` | 前端錯誤、context、診斷與 insights；`PROFILE_INCOMPLETE` 會被保留為業務錯誤碼 |
 | PM audit logs | `pmAuditLogs` / `pmAuditConversations/{conversationId}/messages` | 私訊送出、已讀、編輯、撤回與 super_admin 稽核查詢紀錄；內容副本保留 180 天 |
 | activity repair logs | `siteConfig/realtimeConfig.activityRepairLogs` | activityRecords 修復與設定保存紀錄 |
 | UID health logs | `siteConfig/realtimeConfig.uidHealthCheckLogs` | UID 健康檢查歷史 |

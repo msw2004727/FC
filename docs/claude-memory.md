@@ -1,5 +1,15 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-19 Profile incomplete signup diagnostics [bug/ops]
+- **Problem**: Signup failures caused by missing required profile fields could appear in admin error logs as generic Firebase Functions errors, making it harder to distinguish an expected profile-completion block from a real backend fault.
+- **Fix**: Preserved `PROFILE_INCOMPLETE` through signup error-code resolution, normalized `functions/` prefixes, classified profile-incomplete logs as low/info severity, and updated error-log display/grouping/export helpers to show the business code and user-facing fix.
+- **Tests**: Added/updated signup error-code, error-log diagnostics, and error-log insights unit coverage. Full unit suite passed after the change.
+
+### 2026-05-19 Documentation index for identity and diagnostics [docs]
+- **Problem**: The second identity permission gate and profile-incomplete diagnostics touched config, profile UI, IdentityResolver, callable functions, Firestore Rules, schema, and tests, but the lookup path was spread across commits.
+- **Fix**: Added `docs/specs/recent-updates-20260519.md` as a focused lookup map and refreshed architecture/schema/test notes so future debugging can start from permission code, collection path, callable name, or test file.
+- **Tests**: Docs-only change; validated with diff checks and repository status before deploy.
+
 ### 2026-05-19 Secondary identity role permission gate [feature/security]
 - **Problem**: Secondary identity was controlled only by profile UI state, so the feature could not be enabled/disabled from the normal role permission panel and owner writes could still reach `identityPrivate/settings`.
 - **Fix**: Added `profile.secondary_identity` to the first `rolePermissions` catalog as a profile feature permission. `user` remains locked without the permission, `super_admin` is locked with it, and normal roles can use the second identity only when the permission is granted. Profile UI visibility, current identity resolution, callable commits, comment snapshots, and Firestore direct writes now all share this gate.

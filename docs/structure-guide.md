@@ -5,6 +5,13 @@
   - CLAUDE.md                  ← 目錄結構概覽（§ 目錄結構）
 -->
 
+## 2026-05-19 第二身份權限與報名診斷查找入口
+
+- 第二身份現在是正式角色權限 `profile.secondary_identity`，位置在「權限管理」第一套 `rolePermissions`。`user` 固定無權限，`super_admin` 固定有權限，其他角色依開關決定。
+- 權限關閉時，「我的資料」頁不顯示第二身份欄位，前端身份解析會回到主身份，Cloud Functions 與 Firestore Rules 也會拒絕第二身份設定/頭像/留言快照寫入。
+- 報名時若缺少 gender、birthday、region，錯誤診斷會保留 `PROFILE_INCOMPLETE`，後台錯誤中心會顯示「個人資料未補齊」而不是只看到 generic Firebase Functions code。
+- 技術索引與檔案地圖見 `docs/specs/recent-updates-20260519.md`；資料結構見 `docs/specs/firestore-schema.md` 的 `identityPrivate/settings`、`rolePermissions/{roleId}`、`errorLogs`。
+
 ## 2026-05-16 臨時營運 LTV 報表
 
 - `ops-report.html` 是主網域下的臨時獨立營運報表頁，只保留 `https://toosterx.com/ops-report` / `/ops-report.html` 入口。

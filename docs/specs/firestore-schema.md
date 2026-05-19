@@ -123,6 +123,61 @@
 
 ---
 
+## users/{uid}/identityPrivate/settings
+
+第二身份私人設定文件。這份資料不得寫回 `users/{uid}` root profile，避免公開資料與授權身份混在一起。
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| profileActiveIdentityId | string | `main` 或 `secondary`。實際可否使用 secondary 仍由 `profile.secondary_identity` 權限決定。 |
+| identities.secondary.displayName | string | 第二身份公開暱稱。 |
+| identities.secondary.avatarUrl | string | 第二身份公開頭像 URL。 |
+| identities.secondary.avatarStoragePath | string | 頭像 Storage path，固定在 `images/users/{uid}/identities/secondary/{fileName}`。 |
+| identities.secondary.avatarBucket | string | 已驗證的 Storage bucket。 |
+| identities.secondary.updatedAt | Timestamp/string | 第二身份資料更新時間。 |
+
+Rules 摘要：
+
+- `read`: owner 或 admin。
+- `create/update`: owner 必須有 `profile.secondary_identity`；admin 也必須有同權限；super_admin 固定允許。
+- `delete`: 不允許。
+- 公開文件只能保存 `identitySnapshot.identityId/displayName/avatarUrl`，且建立後不可改。
+
+---
+
+## rolePermissions/{roleId}
+
+角色權限文件。第二身份使用第一套權限，不走 user 第二套活動能力權限。
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| permissions | array\<string\> \| map | 一般角色權限碼集合。 |
+| profile.secondary_identity | string | 權限碼，控制第二身份欄位顯示、啟用、設定寫入、頭像 commit 與 secondary public snapshot。 |
+
+角色預設：
+
+- `user`: 鎖死無 `profile.secondary_identity`。
+- `super_admin`: 鎖死有 `profile.secondary_identity`。
+- 其他角色：依 `rolePermissions/{roleId}` 的權限開關。
+
+---
+
+## errorLogs
+
+前端錯誤與診斷紀錄。管理頁的 error log diagnostics 會保留業務錯誤碼，避免被 Firebase Functions 包裝碼覆蓋。
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| errorCode | string | Firebase 或業務錯誤碼。`functions/failed-precondition` 會正規化為 `failed-precondition`。 |
+| errorMessage | string | 原始錯誤訊息。報名個資未補齊會保留 `PROFILE_INCOMPLETE`。 |
+| context | object/string | 呼叫端、活動、使用者、原因等除錯上下文。 |
+| appVersion | string | 前端版本。 |
+| createdAt | Timestamp | 建立時間。 |
+
+`PROFILE_INCOMPLETE` 代表報名者缺少必要 profile 欄位：gender、birthday、region。後台會將它視為一般/低嚴重度，並顯示補齊資料的白話處理方式。
+
+---
+
 ## tournaments
 
 | 欄位 | 型別 | 說明 |

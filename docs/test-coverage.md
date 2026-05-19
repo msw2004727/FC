@@ -6,8 +6,8 @@
 
 | 類型 | 目前基線 | 執行指令 |
 |---|---:|---|
-| Unit | 126 suites / 3098 tests passed | `npm run test:unit` |
-| Firestore Rules | 5 suites / 526 tests passed | `npm run test:rules` |
+| Unit | 145 suites / 3301 tests passed | `npm test -- --runInBand` |
+| Firestore Rules | 5 suites / 552 tests passed | `npm run test:rules` |
 | E2E smoke listed | 21 tests / 2 files | `npm run test:e2e:smoke -- --list` |
 | E2E full project executions | 63 tests / 2 files x 3 projects | `npm run test:e2e -- --list` |
 | Unit coverage statements | 1.38% | `npm run test:unit:coverage -- --coverageReporters=text-summary --coverageReporters=json-summary` |
@@ -37,14 +37,19 @@ Phase 2 已建立的治理項目：
 4. `tests/e2e/activity-permissions.spec.js` 使用 E2E harness 在瀏覽器 runtime 驗證 user basic create、add-ons Toast、owner/delegate add-ons 區隔。
 5. 驗收命令：Phase 2 精準 unit 通過 6 suites / 354 tests，`npm run test:rules` 通過 5 suites / 526 tests，E2E smoke 通過 23 tests。
 
+2026-05-19 補強：
+1. 第二身份權限化覆蓋 `profile.test.js`、`identity-resolver.test.js`、`permissions-phase2-logic.test.js`、`config-utils.test.js`、`permission-audit-page.test.js`、`cloud-functions.test.js` 與 Firestore Rules。
+2. 報名個資未補齊診斷覆蓋 `event-signup-error-code.test.js`、`error-log-diagnostics.test.js`、`error-log-insights.test.js`。
+3. 最近完整驗收：targeted identity/permission unit 6 suites / 640 tests，Rules 5 suites / 552 tests，full unit 145 suites / 3301 tests。
+
 ## 1. 概覽
 
 | 類別 | 測試數量 | 執行指令 |
 |------|----------|----------|
-| 純函式單元測試 | 2534 | `npm run test:unit` |
-| Firestore 規則測試 | 487 | `npm run test:rules` |
+| 純函式單元測試 | 3301 | `npm test -- --runInBand` |
+| Firestore 規則測試 | 552 | `npm run test:rules` |
 | Playwright E2E smoke | 21 | `npm run test:e2e` |
-| **總計** | **3042** | — |
+| **總計** | **3874** | 含 E2E smoke |
 
 > 2026-04-29 更新：Jest 已排除 `.claude/` worktree，避免本機測試誤掃歷史工作樹；`test:rules` 只包含目前可穩定驗證正式 `firestore.rules` 的測試檔。舊的 pre-migration subcollection proposed-rules 測試已移至 `tests/archive/subcollection-rules.pre-migration.js`，不再視為 CI 覆蓋。
 
