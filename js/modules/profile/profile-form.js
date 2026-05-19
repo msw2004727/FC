@@ -486,26 +486,12 @@ Object.assign(App, {
 
   /**
    * 2026-04-19 UX：首次登入 modal 關閉（「稍後填寫」按鈕）
-   * 用戶可先關閉繼續瀏覽，但 _pendingFirstLogin 保留，下次寫入類動作仍會彈出
+   * 用戶可先關閉繼續瀏覽；此動作代表暫不同意，不寫入任何個資或條款同意紀錄。
    */
-  async dismissFirstLoginModal() {
+  dismissFirstLoginModal() {
     var errEl = document.getElementById('fl-error-msg');
     if (errEl) errEl.style.display = 'none';
 
-    var consentEl = document.getElementById('fl-legal-consent');
-    var laterBtn = document.querySelector('#first-login-modal .fl-secondary-btn');
-    var submitBtn = document.querySelector('#first-login-modal .primary-btn');
-    if (consentEl && consentEl.checked) {
-      if (laterBtn) { laterBtn.disabled = true; laterBtn.textContent = '儲存中...'; }
-      if (submitBtn) submitBtn.disabled = true;
-      try {
-        await ApiService.updateCurrentUserAwait(this._buildFirstLoginLegalUpdates('profile_completion_later'));
-      } catch (err) {
-        console.warn('[dismissFirstLoginModal] legal consent save failed:', err);
-      }
-      if (laterBtn) { laterBtn.disabled = false; laterBtn.textContent = '稍後填寫'; }
-      if (submitBtn) submitBtn.disabled = false;
-    }
     this._firstLoginShowing = false;
     this._setFirstLoginOverlayState?.(false);
     var errMsg = document.getElementById('fl-error-msg');

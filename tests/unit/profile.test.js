@@ -211,9 +211,9 @@ describe('first login profile completion modal', () => {
     expect(profileFormSource).toContain("if (typeof this.showToast === 'function') this.showToast(requiredMsg);");
     expect(profileFormSource).toContain('var firstMissingEl = !gender ? genderEl');
     expect(profileFormSource).toContain("if (typeof this.showToast === 'function') this.showToast(msg);");
-    expect(profileFormSource).toContain('if (consentEl && consentEl.checked)');
     expect(profileFormSource).toContain("this._buildFirstLoginLegalUpdates('profile_completion_submit')");
-    expect(profileFormSource).toContain("this._buildFirstLoginLegalUpdates('profile_completion_later')");
+    expect(profileFormSource).not.toContain("this._buildFirstLoginLegalUpdates('profile_completion_later')");
+    expect(profileFormSource).toContain('此動作代表暫不同意，不寫入任何個資或條款同意紀錄。');
     expect(e2eSource).toContain('return App.dismissFirstLoginModal();');
     expect(e2eSource).not.toContain('consent.checked = true');
   });
