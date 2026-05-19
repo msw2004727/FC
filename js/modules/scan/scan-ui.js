@@ -167,7 +167,7 @@ Object.assign(App, {
     const records = ApiService.getAttendanceRecords(this._scanSelectedEventId);
     const sorted = [...records].sort((a, b) => (b.time || '').localeCompare(a.time || ''));
     container.innerHTML = sorted.map(r => {
-      const name = r.companionName || r.userName || r.uid;
+      const name = this._displayNameOrUidFallback?.(r.companionName || r.userName, r.uid, '用戶') || '用戶';
       let cls, msg;
       if (r.type === 'checkin')  { cls = 'success'; msg = `${name} 簽到成功`; }
       else if (r.type === 'checkout') { cls = 'success'; msg = `${name} 簽退成功`; }
@@ -211,8 +211,9 @@ Object.assign(App, {
     records.forEach(r => {
       const key = r.companionId ? `${r.uid}_${r.companionId}` : r.uid;
       if (!personMap.has(key)) {
+        const displayName = this._displayNameOrUidFallback?.(r.companionId ? (r.companionName || r.userName) : r.userName, r.uid, '用戶') || '用戶';
         personMap.set(key, {
-          name: r.companionId ? (r.companionName || r.userName) : r.userName,
+          name: displayName,
           uid: r.uid, companionId: r.companionId || null,
           checkin: false, checkout: false, unreg: false,
         });

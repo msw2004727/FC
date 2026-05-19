@@ -54,7 +54,8 @@ Object.assign(App, {
   },
 
   _getAdminUserLabel(user) {
-    return String(user?.name || user?.displayName || user?.uid || user?._docId || '').trim();
+    const uid = user?.uid || user?._docId || user?.lineUserId || '';
+    return String(this._displayNameOrUidFallback?.(user?.name || user?.displayName, uid, '') || '').trim();
   },
 
   _escapeAdminUserArg(value) {
@@ -244,6 +245,13 @@ Object.assign(App, {
       const genderIcon = u.gender === '男' ? '♂' : u.gender === '女' ? '♀' : '';
       const safeName = escapeHTML(u.name || '').replace(/'/g, "\\'");
       const safeUserKey = this._escapeAdminUserArg(this._getAdminUserKey(u));
+      const uidMetaText = this._formatUidForDisplay ? this._formatUidForDisplay(u.uid) : u.uid;
+      const primaryMeta = [
+        uidMetaText ? escapeHTML(uidMetaText) : '',
+        escapeHTML(ROLES[u.role]?.label || u.role),
+        `Lv.${App._calcLevelFromExp(u.exp || 0).level}`,
+        escapeHTML(u.region || '—') + (genderIcon ? ' ' + genderIcon : '') + teamInfo,
+      ].filter(Boolean);
       const emailText = String(u.email || '').trim();
       const canEditThisUser = this._canOpenUserEditor(u);
       const isRestricted = !!u.isRestricted;
@@ -257,7 +265,7 @@ Object.assign(App, {
           <div class="admin-user-body">
             <div class="admin-user-info">
               <div class="admin-user-name">${this._userTag(u.name, u.role, { uid: u.uid || '' })}</div>
-              <div class="admin-user-meta">${escapeHTML(u.uid)} ・${ROLES[u.role]?.label || u.role} ・Lv.${App._calcLevelFromExp(u.exp || 0).level} ・${escapeHTML(u.region || '—')}${genderIcon ? ' ' + genderIcon : ''}${teamInfo}</div>
+              <div class="admin-user-meta">${primaryMeta.join(' ・')}</div>
               <div class="admin-user-meta">${escapeHTML(u.sports || '—')} ・EXP ${(u.exp || 0).toLocaleString()}</div>
               <div class="admin-user-meta" style="word-break:break-all">Email：${escapeHTML(emailText || '—')}</div>
               <div class="admin-user-meta">限制狀態：${isRestricted ? '限制中' : '正常'}</div>

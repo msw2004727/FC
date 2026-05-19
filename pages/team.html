@@ -218,7 +218,7 @@
               轉移俱樂部經理前請確認：俱樂部經理只能有一位，不是可複選的領隊欄位。儲存後管理權限會轉給新經理，原經理可能失去此俱樂部管理權限。
             </div>
             <div class="ct-captain-hint" style="font-size:.75rem;color:var(--text-muted);margin-bottom:.3rem">如需轉移，請搜尋新任俱樂部經理（暱稱或 UID）並點選；未選擇新用戶則維持目前經理。</div>
-            <input type="text" id="ct-captain-search" placeholder="搜尋 UID 或暱稱..." oninput="App.searchTeamCaptain()" autocomplete="off">
+            <input type="text" id="ct-captain-search" placeholder="搜尋用戶..." oninput="App.searchTeamCaptain()" autocomplete="off">
             <div class="team-user-suggest" id="ct-captain-suggest"></div>
             <div id="ct-captain-selected"></div>
           </div>
@@ -229,7 +229,7 @@
           <div id="ct-leaders-tags" style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.4rem"></div>
           <div id="ct-leader-add-section">
             <div class="ct-leader-hint" style="font-size:.75rem;color:var(--text-muted);margin-bottom:.3rem">搜尋俱樂部領隊：輸入暱稱後點選加入（可複數）</div>
-            <input type="text" id="ct-leader-search" placeholder="搜尋 UID 或暱稱..." oninput="App.searchTeamLeader()" autocomplete="off">
+            <input type="text" id="ct-leader-search" placeholder="搜尋用戶..." oninput="App.searchTeamLeader()" autocomplete="off">
             <div class="team-user-suggest" id="ct-leader-suggest"></div>
           </div>
         </div>
@@ -254,7 +254,7 @@
         </div>
         <div class="ce-row" style="position:relative">
           <label>教練（可多位）</label>
-          <input type="text" id="ct-coach-search" placeholder="搜尋 UID 或暱稱..." oninput="App.searchTeamCoach()" autocomplete="off">
+          <input type="text" id="ct-coach-search" placeholder="搜尋用戶..." oninput="App.searchTeamCoach()" autocomplete="off">
           <div class="team-user-suggest" id="ct-coach-suggest"></div>
           <div id="ct-coach-tags"></div>
         </div>

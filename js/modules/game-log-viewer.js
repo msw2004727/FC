@@ -204,6 +204,7 @@ Object.assign(App, {
         }).join('<br>');
       }
     }
+    const uidLabel = this._formatUidForDisplay ? this._formatUidForDisplay(profile.uid) : profile.uid;
 
     el.innerHTML = `
       <div style="margin-bottom:.5rem">
@@ -212,7 +213,7 @@ Object.assign(App, {
 
       <div class="banner-manage-card" style="flex-direction:column;gap:.5rem;margin-bottom:.6rem">
         <div style="font-weight:800;font-size:1rem" data-no-translate>${name}</div>
-        <div style="font-size:.72rem;color:var(--text-muted)">UID: ${escapeHTML(profile.uid)}</div>
+        ${uidLabel ? `<div style="font-size:.72rem;color:var(--text-muted)">UID: ${escapeHTML(uidLabel)}</div>` : ''}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem .8rem;font-size:.78rem">
           <div>皮膚：${escapeHTML(ch.skin || profile.skin || '-')}</div>
           <div>等級：Lv.${ch.level || profile.level || 1}</div>

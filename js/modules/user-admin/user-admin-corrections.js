@@ -6,7 +6,8 @@ Object.assign(App, {
   _adminRepairActiveTab: 'team-joins',
   _userCorrectionSelectedUid: '',
   _getUserCorrectionPrimaryLabel(user) {
-    const candidates = [user?.name, user?.displayName, user?.uid, user?.lineUserId];
+    const uid = String(user?.uid || user?.lineUserId || '').trim();
+    const candidates = [user?.name, user?.displayName, this._formatUidForDisplay ? this._formatUidForDisplay(uid) : uid];
     for (const value of candidates) {
       const text = String(value || '').trim();
       if (text) return text;
@@ -16,7 +17,8 @@ Object.assign(App, {
   _getUserCorrectionIdentityText(user) {
     const primaryLabel = this._getUserCorrectionPrimaryLabel(user);
     const uid = String(user?.uid || '').trim();
-    return uid && primaryLabel !== uid ? `${primaryLabel}（${uid}）` : primaryLabel;
+    const uidLabel = this._formatUidForDisplay ? this._formatUidForDisplay(uid) : uid;
+    return uidLabel && primaryLabel !== uidLabel ? `${primaryLabel}（${uidLabel}）` : primaryLabel;
   },
   _getAdminRepairTabAccess() {
     const noShowFeatureEnabled = typeof isNoShowFeatureEnabled === 'function'
@@ -147,10 +149,12 @@ Object.assign(App, {
       const roleLabel = ROLES[user.role]?.label || user.role || '使用者';
       const uid = String(user?.uid || '').trim();
       const lineUserId = String(user?.lineUserId || '').trim();
+      const canViewRawUid = this._canViewRawUid ? this._canViewRawUid() : true;
       const metaParts = [];
-      if (uid && primaryLabel !== uid) metaParts.push(escapeHTML(uid));
+      const uidLabel = this._formatUidForDisplay ? this._formatUidForDisplay(uid) : uid;
+      if (uidLabel && primaryLabel !== uid) metaParts.push(escapeHTML(uidLabel));
       metaParts.push(escapeHTML(roleLabel));
-      if (lineUserId && primaryLabel !== lineUserId && uid !== lineUserId) {
+      if (canViewRawUid && lineUserId && primaryLabel !== lineUserId && uid !== lineUserId) {
         metaParts.push(`LINE ID ${escapeHTML(lineUserId)}`);
       }
       return `<div class="ce-delegate-item" data-uid="${escapeHTML(user.uid)}">
@@ -329,7 +333,8 @@ Object.assign(App, {
       return;
     }
 
-    const ok = await this.appConfirm(`確定要將「${user.name || user.uid}」的放鴿子顯示次數補正為 ${targetCount} 次嗎？`);
+    const userLabel = this._displayNameOrUidFallback?.(user.name || user.displayName, user.uid, '未命名') || '未命名';
+    const ok = await this.appConfirm(`確定要將「${userLabel}」的放鴿子顯示次數補正為 ${targetCount} 次嗎？`);
     if (!ok) return;
 
     const currentUser = ApiService.getCurrentUser() || {};
@@ -347,7 +352,7 @@ Object.assign(App, {
       ApiService._writeOpLog(
         'user_no_show_adjust',
         '放鴿子補正',
-        `${user.name || user.uid}：原始 ${rawCount} 次，補正 ${adjustment >= 0 ? '+' : ''}${adjustment}，顯示 ${targetCount} 次`
+        `${userLabel}：原始 ${rawCount} 次，補正 ${adjustment >= 0 ? '+' : ''}${adjustment}，顯示 ${targetCount} 次`
       );
       if (targetInput) targetInput.value = String(targetCount);
       this._renderSelectedUserNoShowSummary();
@@ -379,12 +384,13 @@ Object.assign(App, {
       return;
     }
 
-    const ok = await this.appConfirm(`確定要清除「${user.name || user.uid}」的放鴿子補正嗎？`);
+    const userLabel = this._displayNameOrUidFallback?.(user.name || user.displayName, user.uid, '未命名') || '未命名';
+    const ok = await this.appConfirm(`確定要清除「${userLabel}」的放鴿子補正嗎？`);
     if (!ok) return;
 
     try {
       await ApiService.clearUserNoShowCorrection(user.uid);
-      ApiService._writeOpLog('user_no_show_clear', '清除放鴿子補正', `${user.name || user.uid}：清除放鴿子補正`);
+      ApiService._writeOpLog('user_no_show_clear', '清除放鴿子補正', `${userLabel}：清除放鴿子補正`);
       if (targetInput) targetInput.value = String(this._getRawNoShowCount(user.uid));
       this._renderSelectedUserNoShowSummary();
       this.showToast('已清除放鴿子補正');

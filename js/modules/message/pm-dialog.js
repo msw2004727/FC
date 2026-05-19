@@ -34,7 +34,7 @@ Object.assign(App, {
     this._pmDialogSearchKeyword = '';
     this._pmDialogSearchExpanded = false;
     overlay.querySelector('.pm-dialog-peer-name').textContent = peer.name || targetUid;
-    overlay.querySelector('.pm-dialog-peer-sub').textContent = targetUid;
+    overlay.querySelector('.pm-dialog-peer-sub').textContent = this._formatUidForDisplay ? this._formatUidForDisplay(targetUid) : targetUid;
     const avatar = overlay.querySelector('.pm-dialog-avatar');
     if (avatar) {
       avatar.dataset.peerUid = targetUid;

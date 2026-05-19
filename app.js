@@ -311,6 +311,48 @@ const App = {
 
   _qrPopupLoading: false,
 
+  _isAdminPlusRole(roleKey) {
+    const explicitRole = String(roleKey || '').trim();
+    const userRole = (() => {
+      try {
+        const currentUser = typeof ApiService !== 'undefined' && ApiService.getCurrentUser ? ApiService.getCurrentUser() : null;
+        return String(currentUser?.role || '').trim();
+      } catch (_) {
+        return '';
+      }
+    })();
+    const role = explicitRole || userRole || this.currentRole || 'user';
+    try {
+      if (typeof getRuntimeRoleLevel === 'function') {
+        return getRuntimeRoleLevel(role) >= getRuntimeRoleLevel('admin');
+      }
+    } catch (_) {}
+    try {
+      if (typeof ROLE_LEVEL_MAP !== 'undefined') {
+        return Number(ROLE_LEVEL_MAP[role] || 0) >= Number(ROLE_LEVEL_MAP.admin || 4);
+      }
+    } catch (_) {}
+    return role === 'admin' || role === 'super_admin';
+  },
+
+  _canViewRawUid() {
+    return this._isAdminPlusRole();
+  },
+
+  _formatUidForDisplay(uid, options = {}) {
+    const value = String(uid || '').trim();
+    if (!value) return options.emptyText != null ? options.emptyText : '';
+    if (this._canViewRawUid()) return value;
+    return options.hiddenText != null ? options.hiddenText : '';
+  },
+
+  _displayNameOrUidFallback(name, uid, fallback = '用戶') {
+    const displayName = String(name || '').trim();
+    if (displayName) return displayName;
+    const uidText = this._formatUidForDisplay ? this._formatUidForDisplay(uid) : String(uid || '').trim();
+    return uidText || fallback;
+  },
+
   /** 首頁 QR 按鈕入口：確保 profile script 已載入後再顯示 */
   async _openQrPopup() {
     if (this._qrPopupLoading) return;
@@ -323,14 +365,22 @@ const App = {
         const content = document.getElementById('uid-qr-content');
         if (modal && content) {
           const safeUid = escapeHTML(cachedUid);
-          content.innerHTML = '<div style="font-size:.85rem;font-weight:700;margin-bottom:.8rem">\u6211\u7684 UID QR Code</div>'
+          const showRawUid = this._canViewRawUid();
+          const titleText = showRawUid ? '\u6211\u7684 UID QR Code' : '\u6211\u7684\u7c3d\u5230 QR Code';
+          const uidHtml = showRawUid
+            ? '<div style="margin-top:.7rem;font-size:.75rem;color:var(--text-muted);word-break:break-all">' + safeUid + '</div>'
+            : '';
+          const copyHtml = showRawUid
+            ? '<button onclick="App._copyUidSafe(\'' + safeUid + '\')" style="margin-top:.6rem;padding:.45rem 1.2rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-elevated);color:var(--text-primary);font-size:.8rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:.3rem">'
+              + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>'
+              + '\u8907\u88FD UID</button>'
+            : '';
+          content.innerHTML = '<div style="font-size:.85rem;font-weight:700;margin-bottom:.8rem">' + titleText + '</div>'
             + '<div style="background:#fff;display:inline-block;padding:4px;border-radius:var(--radius)">'
             + '<img src="' + cachedData + '" width="270" height="270" alt="QR Code" style="display:block">'
             + '</div>'
-            + '<div style="margin-top:.7rem;font-size:.75rem;color:var(--text-muted);word-break:break-all">' + safeUid + '</div>'
-            + '<button onclick="App._copyUidSafe(\'' + safeUid + '\')" style="margin-top:.6rem;padding:.45rem 1.2rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-elevated);color:var(--text-primary);font-size:.8rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:.3rem">'
-            + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>'
-            + '\u8907\u88FD UID</button>';
+            + uidHtml
+            + copyHtml;
           modal.style.display = 'flex';
           return;
         }

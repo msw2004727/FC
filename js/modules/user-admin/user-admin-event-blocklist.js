@@ -89,9 +89,10 @@ Object.assign(App, {
       return;
     }
     dropdown.innerHTML = matches.map(u => {
-      const label = u.displayName || u.name || u.uid || '未命名';
+      const label = this._displayNameOrUidFallback?.(u.displayName || u.name, u.uid, '未命名') || '未命名';
       const metaParts = [];
-      if (u.uid) metaParts.push(escapeHTML(u.uid));
+      const uidLabel = this._formatUidForDisplay ? this._formatUidForDisplay(u.uid) : u.uid;
+      if (uidLabel) metaParts.push(escapeHTML(uidLabel));
       if (u.region) metaParts.push(escapeHTML(u.region));
       return `<div class="ce-delegate-item" data-uid="${escapeHTML(u.uid)}">
         <span class="ce-delegate-item-name">${escapeHTML(label)}</span>
@@ -117,8 +118,10 @@ Object.assign(App, {
     if (input) input.value = '';
     if (selected) {
       if (u) {
-        const label = u.displayName || u.name || u.uid;
-        selected.innerHTML = `已選：<strong>${escapeHTML(label)}</strong> · ${escapeHTML(u.uid || '')} · ${escapeHTML(u.region || '—')}`;
+        const label = this._displayNameOrUidFallback?.(u.displayName || u.name, u.uid, '未命名') || '未命名';
+        const uidLabel = this._formatUidForDisplay ? this._formatUidForDisplay(u.uid) : u.uid;
+        const selectedParts = [uidLabel ? escapeHTML(uidLabel) : '', escapeHTML(u.region || '—')].filter(Boolean);
+        selected.innerHTML = `已選：<strong>${escapeHTML(label)}</strong>${selectedParts.length ? ' · ' + selectedParts.join(' · ') : ''}`;
         selected.style.color = 'var(--text-primary)';
       } else {
         selected.textContent = '找不到該用戶';
@@ -161,7 +164,7 @@ Object.assign(App, {
       e.blockedUids.push(uid);
       if (!Array.isArray(e.blockedUidsLog)) e.blockedUidsLog = [];
       e.blockedUidsLog.push(logEntry);
-      this.showToast(`已將 ${u.displayName || u.name || uid} 加入活動黑名單`);
+      this.showToast(`已將 ${this._displayNameOrUidFallback?.(u.displayName || u.name, uid, '未命名') || '未命名'} 加入活動黑名單`);
       // 清表
       if (reasonInput) reasonInput.value = '';
       this._ebSelectedEventId = '';
@@ -183,7 +186,9 @@ Object.assign(App, {
     const e = ApiService.getEvent?.(eventId);
     if (!e || !e._docId) { this.showToast('找不到活動'); return; }
     const u = (ApiService.getAdminUsers?.() || []).find(x => String(x.uid || '').trim() === uid);
-    const label = u ? (u.displayName || u.name || uid) : uid;
+    const label = u
+      ? (this._displayNameOrUidFallback?.(u.displayName || u.name, uid, '未命名') || '未命名')
+      : (this._formatUidForDisplay?.(uid) || '未命名');
     // 二段式確認
     const ok = window.confirm(`確定要將「${label}」從活動「${e.title || eventId}」的黑名單中移除嗎？`);
     if (!ok) return;
@@ -229,11 +234,16 @@ Object.assign(App, {
     container.innerHTML = events.map(e => {
       const rows = (e.blockedUids || []).map(uid => {
         const u = userByUid.get(String(uid).trim());
-        const label = u ? (u.displayName || u.name || uid) : uid;
+        const label = u
+          ? (this._displayNameOrUidFallback?.(u.displayName || u.name, uid, '未命名') || '未命名')
+          : (this._formatUidForDisplay?.(uid) || '未命名');
         // 從 log 找到最後一筆 action=add 的紀錄
         const logs = Array.isArray(e.blockedUidsLog) ? e.blockedUidsLog : [];
         const addLog = logs.filter(l => l && l.uid === uid && l.action === 'add').pop();
-        const byLabel = addLog?.by ? (userByUid.get(String(addLog.by).trim())?.displayName || addLog.by) : '—';
+        const byUser = addLog?.by ? userByUid.get(String(addLog.by).trim()) : null;
+        const byLabel = addLog?.by
+          ? (this._displayNameOrUidFallback?.(byUser?.displayName || byUser?.name, addLog.by, '未命名') || '未命名')
+          : '—';
         const atLabel = addLog?.at ? new Date(addLog.at).toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
         const reasonLabel = addLog?.reason ? `・理由：${escapeHTML(addLog.reason)}` : '';
         return `<div style="padding:.4rem .5rem;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:.5rem">

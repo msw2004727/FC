@@ -223,7 +223,7 @@ Object.assign(App, {
     const input = document.getElementById('scan-manual-uid');
     if (!input) return;
     const uid = (input.value || '').trim();
-    if (!uid) { this.showToast('請輸入 UID'); return; }
+    if (!uid) { this.showToast('請輸入識別碼'); return; }
     if (!this._scanSelectedEventId) { this.showToast('請先選擇活動'); return; }
     input.value = '';
     this._processAttendance(uid, this._scanMode);

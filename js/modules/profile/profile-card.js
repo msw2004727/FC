@@ -169,7 +169,9 @@ Object.assign(App, {
     const container = document.getElementById('page-qr-canvas');
     const uidText = document.getElementById('page-qr-uid');
     if (!container) return;
-    if (uidText) uidText.textContent = `UID: ${uid}`;
+    if (uidText) {
+      uidText.textContent = this._canViewRawUid?.() ? `UID: ${uid}` : '簽到 QR Code';
+    }
     container.style.display = 'flex';
     container.style.alignItems = 'center';
     container.style.justifyContent = 'center';
@@ -324,14 +326,22 @@ Object.assign(App, {
     const modal = document.getElementById('uid-qr-modal');
     const content = document.getElementById('uid-qr-content');
     if (!modal || !content) return;
-    content.innerHTML = `
-      <div style="font-size:.85rem;font-weight:700;margin-bottom:.8rem">我的 UID QR Code</div>
-      <div id="uid-qr-canvas" style="background:#fff;display:inline-block;padding:4px;border-radius:var(--radius)"></div>
-      <div style="margin-top:.7rem;font-size:.75rem;color:var(--text-muted);word-break:break-all">${escapeHTML(uid)}</div>
-      <button onclick="App._copyUidToClipboard('${escapeHTML(uid)}')" style="margin-top:.6rem;padding:.45rem 1.2rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-elevated);color:var(--text-primary);font-size:.8rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:.3rem">
+    const showRawUid = this._canViewRawUid?.() !== false;
+    const titleText = showRawUid ? '我的 UID QR Code' : '我的簽到 QR Code';
+    const uidHtml = showRawUid
+      ? `<div style="margin-top:.7rem;font-size:.75rem;color:var(--text-muted);word-break:break-all">${escapeHTML(uid)}</div>`
+      : '';
+    const copyHtml = showRawUid
+      ? `<button onclick="App._copyUidToClipboard('${escapeHTML(uid)}')" style="margin-top:.6rem;padding:.45rem 1.2rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-elevated);color:var(--text-primary);font-size:.8rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:.3rem">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
         複製 UID
-      </button>
+      </button>`
+      : '';
+    content.innerHTML = `
+      <div style="font-size:.85rem;font-weight:700;margin-bottom:.8rem">${titleText}</div>
+      <div id="uid-qr-canvas" style="background:#fff;display:inline-block;padding:4px;border-radius:var(--radius)"></div>
+      ${uidHtml}
+      ${copyHtml}
     `;
     this._generateQrCode(document.getElementById('uid-qr-canvas'), uid, 270);
     modal.style.display = 'flex';

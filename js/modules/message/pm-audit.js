@@ -106,7 +106,7 @@ Object.assign(App, {
           <section class="pm-audit-card">
             <h3>搜尋用戶對話</h3>
             <div class="pm-audit-row">
-              <input id="pm-audit-user-query" type="text" placeholder="輸入 UID 或 LINE 名稱">
+              <input id="pm-audit-user-query" type="text" placeholder="輸入暱稱或識別碼">
               <button type="button" class="primary-btn small" onclick="App.searchPmAuditUsers()">搜尋</button>
             </div>
             <div id="pm-audit-users" class="pm-audit-results"></div>
@@ -199,7 +199,7 @@ Object.assign(App, {
   async searchPmAuditUsers() {
     const query = String(document.getElementById('pm-audit-user-query')?.value || '').trim();
     if (!query) {
-      this.showToast?.('請輸入 UID 或名稱');
+      this.showToast?.('請輸入暱稱或識別碼');
       return;
     }
     const box = document.getElementById('pm-audit-users');
@@ -209,12 +209,17 @@ Object.assign(App, {
       const resp = await fn({ query });
       const users = resp?.data?.users || [];
       if (!box) return;
-      box.innerHTML = users.length ? users.map(u => `
+      box.innerHTML = users.length ? users.map(u => {
+        const uidLabel = this._formatUidForDisplay ? this._formatUidForDisplay(u.uid) : u.uid;
+        const displayName = u.name || uidLabel || '未命名';
+        const metaParts = [uidLabel, u.role || 'user'].filter(Boolean).map(part => escapeHTML(part));
+        return `
         <button type="button" class="pm-audit-user" data-uid="${escapeHTML(u.uid)}">
           ${u.pictureUrl ? `<img src="${escapeHTML(u.pictureUrl)}" alt="">` : '<span></span>'}
-          <strong data-no-translate>${escapeHTML(u.name || u.uid)}</strong>
-          <small data-no-translate>${escapeHTML(u.uid)} · ${escapeHTML(u.role || 'user')}</small>
-        </button>`).join('') : '<div class="muted">沒有找到用戶</div>';
+          <strong data-no-translate>${escapeHTML(displayName)}</strong>
+          <small data-no-translate>${metaParts.join(' · ')}</small>
+        </button>`;
+      }).join('') : '<div class="muted">沒有找到用戶</div>';
       box.querySelectorAll('.pm-audit-user').forEach(btn => {
         btn.addEventListener('click', () => this.loadPmAuditThreads(btn.dataset.uid || ''));
       });

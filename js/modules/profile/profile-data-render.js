@@ -70,8 +70,10 @@ Object.assign(App, {
     const uidWrap = el('profile-uid-wrap');
     if (uidWrap) {
       const uid = user.uid || user.lineUserId || '-';
-      uidWrap.innerHTML = `<span style="font-size:.72rem;color:var(--text-muted);letter-spacing:.3px">${escapeHTML(uid)}</span>`
-        + `<button onclick="App.showUidQrCode()" style="background:none;border:none;cursor:pointer;padding:2px;display:flex;align-items:center" title="顯示 UID QR Code">`
+      const uidText = this._formatUidForDisplay ? this._formatUidForDisplay(uid) : uid;
+      const uidHtml = uidText ? `<span style="font-size:.72rem;color:var(--text-muted);letter-spacing:.3px">${escapeHTML(uidText)}</span>` : '';
+      uidWrap.innerHTML = uidHtml
+        + `<button onclick="App.showUidQrCode()" style="background:none;border:none;cursor:pointer;padding:2px;display:flex;align-items:center" title="顯示簽到 QR Code">`
         + `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><line x1="21" y1="14" x2="21" y2="17"/><line x1="17" y1="21" x2="21" y2="21"/></svg>`
         + `</button>`;
     }

@@ -17,12 +17,13 @@ Object.assign(App, {
   _renderSuggestList(containerId, results, onSelectFn) {
     const el = document.getElementById(containerId);
     if (!results.length) { el.innerHTML = ''; el.classList.remove('show'); return; }
-    el.innerHTML = results.map(u =>
-      `<div class="team-user-suggest-item" onclick="App.${onSelectFn}('${escapeHTML(u.uid)}')">
+    el.innerHTML = results.map(u => {
+      const uidLabel = this._formatUidForDisplay ? this._formatUidForDisplay(u.uid) : u.uid;
+      return `<div class="team-user-suggest-item" onclick="App.${onSelectFn}('${escapeHTML(u.uid)}')">
         <span class="tus-name">${escapeHTML(u.name)}</span>
-        <span class="tus-uid">${escapeHTML(u.uid)}</span>
-      </div>`
-    ).join('');
+        ${uidLabel ? `<span class="tus-uid">${escapeHTML(uidLabel)}</span>` : ''}
+      </div>`;
+    }).join('');
     el.classList.add('show');
   },
 

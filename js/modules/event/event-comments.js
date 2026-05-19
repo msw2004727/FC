@@ -91,7 +91,7 @@ Object.assign(App, {
     return value
       .map(liker => ({
         uid: String(liker?.uid || '').trim(),
-        authorName: String(liker?.authorName || liker?.displayName || liker?.name || liker?.uid || '?冽').trim(),
+        authorName: String(this._displayNameOrUidFallback?.(liker?.authorName || liker?.displayName || liker?.name, liker?.uid, '用戶') || '用戶').trim(),
         authorPhoto: String(liker?.authorPhoto || liker?.pictureUrl || liker?.photoURL || '').trim(),
       }))
       .filter(liker => {
@@ -145,7 +145,7 @@ Object.assign(App, {
   _mapEventCommentLikeDoc(docSnap) {
     const data = docSnap.data() || {};
     const uid = String(data.uid || docSnap.id || '').trim();
-    const authorName = String(data.authorName || data.displayName || data.name || uid || '用戶').trim();
+    const authorName = String(this._displayNameOrUidFallback?.(data.authorName || data.displayName || data.name, uid, '用戶') || '用戶').trim();
     return {
       uid,
       authorName: authorName || '用戶',

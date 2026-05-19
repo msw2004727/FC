@@ -1066,7 +1066,8 @@ Object.assign(App, {
     const t = ApiService.getTeam(teamId);
     if (!t || !row?.uid || !row?.user) return;
     const member = row.user;
-    const memberName = row.name || member.name || member.displayName || member.uid || '\u8077\u52d9\u6210\u54e1';
+    const memberName = this._displayNameOrUidFallback?.(row.name || member.name || member.displayName, member.uid, '\u8077\u52d9\u6210\u54e1') || '\u8077\u52d9\u6210\u54e1';
+    const memberLogName = row.name || member.name || member.displayName || member.uid || '\u8077\u52d9\u6210\u54e1';
     const roles = Array.from(row.roles || []).filter(role => role === '\u6559\u7df4' || role === '\u9818\u968a');
     const roleText = roles.join('\u3001') || '\u8077\u52d9';
     if (!(await this.appConfirm('\u78ba\u5b9a\u8981\u5c07\u300c' + memberName + '\u300d\u5f9e\u300c' + t.name + '\u300d\u7684' + roleText + '\u8207\u6210\u54e1\u540d\u55ae\u4e2d\u5254\u9664\uff1f'))) return;
@@ -1105,7 +1106,7 @@ Object.assign(App, {
         const updateResult = updater.call(ApiService, teamId, teamUpdates);
         if (updateResult && typeof updateResult.then === 'function') await updateResult;
 
-        ApiService._writeOpLog?.('team_staff_remove', '\u5254\u9664\u8077\u52d9\u6210\u54e1', '\u5c07\u300c' + memberName + '\u300d\u5f9e\u300c' + t.name + '\u300d\u7684' + roleText + '\u8207\u6210\u54e1\u540d\u55ae\u4e2d\u5254\u9664');
+        ApiService._writeOpLog?.('team_staff_remove', '\u5254\u9664\u8077\u52d9\u6210\u54e1', '\u5c07\u300c' + memberLogName + '\u300d\u5f9e\u300c' + t.name + '\u300d\u7684' + roleText + '\u8207\u6210\u54e1\u540d\u55ae\u4e2d\u5254\u9664');
         this.showToast('\u5df2\u5254\u9664\u300c' + memberName + '\u300d');
         if (typeof this._refreshTeamMembersCardFromCache !== 'function' || !this._refreshTeamMembersCardFromCache(teamId)) {
           await this._refreshTeamDetailMembers(teamId);
@@ -1235,7 +1236,7 @@ Object.assign(App, {
       return;
     }
 
-    const memberName = member.name || member.displayName || member.uid;
+    const memberName = this._displayNameOrUidFallback?.(member.name || member.displayName, member.uid, '\u968a\u54e1') || '\u968a\u54e1';
     if (!(await this.appConfirm('\u78ba\u5b9a\u8981\u5254\u9664\u300c' + memberName + '\u300d\uff1f'))) return;
 
     return this._withButtonLoading(btn, '\u79fb\u9664\u4e2d...', async () => {

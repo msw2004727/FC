@@ -70,9 +70,11 @@ Object.assign(App, {
       const roleLabels = typeof ROLES !== 'undefined' ? ROLES : {};
       dropdown.innerHTML = results.map(u => {
         const roleLabel = roleLabels[u.role]?.label || u.role || '';
-        return `<div class="ce-delegate-item" data-uid="${u.uid}" data-name="${escapeHTML(u.name)}">
+        const uidLabel = this._formatUidForDisplay ? this._formatUidForDisplay(u.uid) : u.uid;
+        const metaParts = [uidLabel, roleLabel].filter(Boolean).map(part => escapeHTML(part));
+        return `<div class="ce-delegate-item" data-uid="${escapeHTML(u.uid)}" data-name="${escapeHTML(u.name)}">
           <span class="ce-delegate-item-name">${escapeHTML(u.name)}</span>
-          <span class="ce-delegate-item-meta">${u.uid} · ${roleLabel}</span>
+          <span class="ce-delegate-item-meta">${metaParts.join(' · ')}</span>
         </div>`;
       }).join('');
 
@@ -132,7 +134,7 @@ Object.assign(App, {
       input.placeholder = '\u7121\u6b0a\u8a2d\u5b9a\u59d4\u8a17\u4eba';
       return;
     }
-    input.placeholder = this._delegates.length >= 3 ? '已達上限 3 人' : '搜尋 UID 或暱稱...';
+    input.placeholder = this._delegates.length >= 3 ? '已達上限 3 人' : '搜尋用戶...';
   },
 
 });

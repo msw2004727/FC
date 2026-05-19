@@ -75,9 +75,11 @@ Object.assign(App, {
         const roleLabels = typeof ROLES !== 'undefined' ? ROLES : {};
         dropdown.innerHTML = matches.map(u => {
           const roleLabel = roleLabels[u.role]?.label || u.role || '';
-          return `<div class="ce-delegate-item" data-uid="${u.uid}" data-name="${escapeHTML(u.name)}">
+          const uidLabel = this._formatUidForDisplay ? this._formatUidForDisplay(u.uid) : u.uid;
+          const metaParts = [uidLabel, roleLabel].filter(Boolean).map(part => escapeHTML(part));
+          return `<div class="ce-delegate-item" data-uid="${escapeHTML(u.uid)}" data-name="${escapeHTML(u.name)}">
             <span class="ce-delegate-item-name">${escapeHTML(u.name)}</span>
-            <span class="ce-delegate-item-meta">${escapeHTML(u.uid)} · ${escapeHTML(roleLabel)}</span>
+            <span class="ce-delegate-item-meta">${metaParts.join(' · ')}</span>
           </div>`;
         }).join('');
         dropdown.querySelectorAll('.ce-delegate-item').forEach(item => {
@@ -96,7 +98,9 @@ Object.assign(App, {
     const exact = users.find(u => u.uid === input || u.name === input);
     if (exact) {
       this._msgMatchedUser = exact;
-      result.innerHTML = `<span style="color:var(--success)" data-no-translate>&#10003; 找到：${escapeHTML(exact.name)}（${escapeHTML(exact.uid)}）・ ${escapeHTML(exact.role)}</span>`;
+      const uidLabel = this._formatUidForDisplay ? this._formatUidForDisplay(exact.uid) : exact.uid;
+      const suffix = uidLabel ? `（${escapeHTML(uidLabel)}）` : '';
+      result.innerHTML = `<span style="color:var(--success)" data-no-translate>&#10003; 找到：${escapeHTML(exact.name)}${suffix}・ ${escapeHTML(exact.role)}</span>`;
     } else {
       this._msgMatchedUser = null;
       result.textContent = '';
@@ -113,7 +117,11 @@ Object.assign(App, {
     const dropdown = document.getElementById('msg-user-dropdown');
     if (dropdown) dropdown.classList.remove('open');
     const result = document.getElementById('msg-target-result');
-    if (result) result.innerHTML = `<span style="color:var(--success)" data-no-translate>&#10003; 已選取：${escapeHTML(match.name)}（${escapeHTML(match.uid)}）・ ${escapeHTML(match.role)}</span>`;
+    if (result) {
+      const uidLabel = this._formatUidForDisplay ? this._formatUidForDisplay(match.uid) : match.uid;
+      const suffix = uidLabel ? `（${escapeHTML(uidLabel)}）` : '';
+      result.innerHTML = `<span style="color:var(--success)" data-no-translate>&#10003; 已選取：${escapeHTML(match.name)}${suffix}・ ${escapeHTML(match.role)}</span>`;
+    }
   },
 
   // ── 搜尋俱樂部（模糊搜尋 + 下拉選單）──

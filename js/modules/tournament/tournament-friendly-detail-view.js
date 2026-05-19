@@ -356,7 +356,7 @@ Object.assign(App, {
       const roster = !isRosterHydrated
         ? '<span class="tfd-empty-text">隊員名單載入中</span>'
         : Array.isArray(entry.memberRoster) && entry.memberRoster.length
-        ? entry.memberRoster.map(member => `<span class="tfd-member-chip">${escapeHTML(member.name || member.uid)}</span>`).join('')
+        ? entry.memberRoster.map(member => `<span class="tfd-member-chip">${escapeHTML(this._displayNameOrUidFallback?.(member.name, member.uid, '成員') || '成員')}</span>`).join('')
         : '<span class="tfd-empty-text">尚無隊員報名</span>';
       const isViewerTeamOfficer = this._isFriendlyTournamentViewerTeamOfficer?.(entry.teamId, viewer);
       const rosterAction = this._isFriendlyTournamentViewerOnEntryTeam(entry, viewer)

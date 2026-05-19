@@ -74,9 +74,11 @@ Object.assign(App, {
       const roleLabels = typeof ROLES !== 'undefined' ? ROLES : {};
       dropdown.innerHTML = results.map(u => {
         const roleLabel = roleLabels[u.role]?.label || u.role || '';
+        const uidLabel = this._formatUidForDisplay ? this._formatUidForDisplay(u.uid) : u.uid;
+        const metaParts = [uidLabel, roleLabel].filter(Boolean).map(part => escapeHTML(part));
         return `<div class="ce-delegate-item" data-uid="${escapeHTML(u.uid)}" data-name="${escapeHTML(u.name)}">
           <span class="ce-delegate-item-name">${escapeHTML(u.name)}</span>
-          <span class="ce-delegate-item-meta">${escapeHTML(u.uid)} · ${escapeHTML(roleLabel)}</span>
+          <span class="ce-delegate-item-meta">${metaParts.join(' · ')}</span>
         </div>`;
       }).join('');
 
@@ -132,7 +134,7 @@ Object.assign(App, {
     if (!input) return;
     const count = (this._tournamentFormState[cfg.stateKey] || []).length;
     input.disabled = count >= cfg.limit;
-    input.placeholder = count >= cfg.limit ? `已達上限 ${cfg.limit} 人` : '搜尋 UID 或暱稱...';
+    input.placeholder = count >= cfg.limit ? `已達上限 ${cfg.limit} 人` : '搜尋用戶...';
   },
 
   _initTournamentDelegateSearch(prefix) { this._initTournamentPersonSearch('delegate', prefix); },
