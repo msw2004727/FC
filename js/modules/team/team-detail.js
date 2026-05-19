@@ -21,6 +21,14 @@ Object.assign(App, {
     return '<span class="user-capsule uc-team-leader" data-no-translate onclick="App.showUserProfile(\'' + escapeHTML(name) + '\')" title="\u7403\u968a\u9818\u968a">' + escapeHTML(name) + '</span>';
   },
 
+  _completeTeamMemberManagement(teamId) {
+    const modes = this._teamMemberEditModeByTeam || {};
+    const key = String(teamId || this._teamDetailId || '').trim();
+    if (!key || !modes[key]) return false;
+    delete modes[key];
+    return true;
+  },
+
   _isTeamMember(teamId) {
     const user = ApiService.getCurrentUser();
     if (user && typeof this._isUserInTeam === 'function' && this._isUserInTeam(user, teamId)) return true;

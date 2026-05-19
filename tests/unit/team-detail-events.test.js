@@ -894,6 +894,24 @@ describe('team detail club activity section', () => {
     expect(reloadMembers).not.toHaveBeenCalled();
   });
 
+  test('team member edit mode can be completed when leaving team detail', () => {
+    const app = {};
+
+    loadTeamDetailCore(app);
+    Object.assign(app, {
+      _teamDetailId: 'teamA',
+      _teamMemberEditModeByTeam: {
+        teamA: true,
+        teamB: true,
+      },
+    });
+
+    expect(app._completeTeamMemberManagement()).toBe(true);
+    expect(app._teamMemberEditModeByTeam.teamA).toBeUndefined();
+    expect(app._teamMemberEditModeByTeam.teamB).toBe(true);
+    expect(app._completeTeamMemberManagement('teamA')).toBe(false);
+  });
+
   test('team detail avatar uses explicit avatar before cover fallback and shows editor for permitted users', () => {
     const app = makeApp([]);
     loadTeamDetailRender(app, []);

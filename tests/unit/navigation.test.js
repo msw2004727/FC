@@ -220,6 +220,15 @@ describe('_pushPageHistory (navigation.js:755-761)', () => {
   });
 });
 
+describe('navigation source contracts', () => {
+  test('leaving team detail completes member management mode', () => {
+    const source = fs.readFileSync(path.join(__dirname, '../../js/core/navigation.js'), 'utf8');
+
+    expect(source).toContain("this.currentPage === 'page-team-detail' && pageId !== 'page-team-detail'");
+    expect(source).toContain('this._completeTeamMemberManagement?.(this._teamDetailId)');
+  });
+});
+
 describe('drawer version tag wiring', () => {
   test('openDrawer refreshes the version tag independent of home rendering', () => {
     const source = fs.readFileSync(path.join(__dirname, '../../js/core/navigation.js'), 'utf8');
