@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260519zh';
+const CACHE_VERSION = '0.20260519zi';
 
 const GOOGLE_MAPS_BROWSER_API_KEY = '';
 
@@ -573,6 +573,7 @@ const SPORT_ICON_EMOJI = {
 // ⚠️ 2026-04-27：此區塊曾被 commit dcb2c0ea (LINE 登入 hint) 意外移除（基於更早版本工作未保留）。
 //                修改 config.js 時請務必檢查 SPORT_ICON_SVG_HTML 是否仍存在,避免再次被合併衝突覆蓋
 const SPORT_ICON_SVG_HTML = {
+  football: '<img src="./img/Socce.png" alt="" width="20" height="20" loading="lazy" decoding="async">',
   // 匹克球：V4 動感版（紅色圓角方形拍斜放 + 黃色飛球 + 速度線）
   pickleball: '<svg viewBox="0 0 100 100" width="1em" height="1em" style="vertical-align:-0.1em" xmlns="http://www.w3.org/2000/svg"><g transform="rotate(-30 50 50)"><rect x="32" y="62" width="14" height="30" rx="3" fill="#0f172a"/><rect x="34" y="64" width="10" height="26" rx="2" fill="#334155"/><rect x="14" y="6" width="52" height="58" rx="13" fill="#dc2626" stroke="#7f1d1d" stroke-width="2.5"/></g><circle cx="78" cy="22" r="11" fill="#fde047" stroke="#713f12" stroke-width="2"/><g fill="#713f12"><circle cx="74" cy="18" r="1.3"/><circle cx="82" cy="18" r="1.3"/><circle cx="78" cy="22" r="1.3"/><circle cx="74" cy="26" r="1.3"/><circle cx="82" cy="26" r="1.3"/></g><path d="M 60 24 L 67 22 M 58 30 L 65 30 M 60 36 L 67 36" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg>',
   escape_room: '<img src="./img/Artificial-Intelligence-Brain--Streamline-Plump-Gradient.png" alt="" width="20" height="20" loading="lazy" decoding="async">',

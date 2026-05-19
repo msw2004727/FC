@@ -101,7 +101,7 @@
 | 名稱 | 值 / 內容 | 檔案位置 | 用途 |
 |------|----------|---------|------|
 | `SPORT_ICON_EMOJI` | 19 個運動 → emoji 字符對照表 | `js/config.js:437` | LINE Flex Message / textContent 等不支援 HTML 的場景使用 |
-| `SPORT_ICON_SVG_HTML` | 自製 HTML 圖示對照（目前 2 項：pickleball、escape_room）| `js/config.js:458` | 網頁 UI 渲染時優先使用，否則 fallback 到 emoji |
+| `SPORT_ICON_SVG_HTML` | 自製 HTML 圖示對照（目前 5 項：football、pickleball、escape_room、esports、other）| `js/config.js` | 網頁 UI 渲染時優先使用，否則 fallback 到 emoji |
 | `getSportIconSvg(key, className)` | 渲染 `<span class="sport-emoji">` 包裹的圖示 | `js/config.js:481` | 統一入口：先查 SVG_HTML，否則用 EMOJI |
 | 匹克球 SVG 設計 | V4 動感版（圓角方形拍 + 飛球 + 速度線）| `js/config.js:461` | 因 Unicode 無匹克球專屬 emoji，且 🏓（桌球橢圓拍）會誤導視覺 |
 

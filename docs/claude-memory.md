@@ -3060,3 +3060,9 @@
 - **原因**：靜態頁片段各自直接寫入文字箭頭，只有外層圓形樣式共用，圖形本身沒有統一。
 - **修復**：將 `pages/*.html` 內所有 `.back-btn` 的箭頭文字改為共用 inline SVG chevron，活動地圖 overlay 返回鍵同步改用同一 SVG，並補上 icon 尺寸、邊框、陰影與 hover 樣式；單元測試也鎖定不可再出現文字箭頭。
 - **教訓**：共用控制元件不應只共用外框，圖示本體也要用可測試的共用標記，避免不同頁面逐步漂移。
+
+### 2026-05-19 — Football Sport Tag Image [ux]
+- **問題**：足球運動標籤仍使用 emoji，未套用指定的新足球圖檔。
+- **原因**：網頁運動標籤統一走 `getSportIconSvg()`，足球沒有登錄在 `SPORT_ICON_SVG_HTML`，所以 fallback 到 `SPORT_ICON_EMOJI.football`。
+- **修復**：將 `football` 加入 `SPORT_ICON_SVG_HTML` 並指向 `img/Socce.png`，同步補上 config helper 測試與 tunables 說明。
+- **教訓**：更換運動標籤圖示應走共用 helper 對照表，才能讓活動、俱樂部、賽事與首頁標籤同步套用。
