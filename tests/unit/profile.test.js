@@ -172,6 +172,7 @@ describe('profile EXP display refresh wiring', () => {
 describe('first login profile completion modal', () => {
   test('renders optional email benefits and uses the dedicated frosted scroll lock path', () => {
     const indexHtml = readProjectFile('index.html');
+    const baseCss = readProjectFile('css/base.css');
     const layoutCss = readProjectFile('css/layout.css');
     const navigationSource = readProjectFile('js/core/navigation.js');
     const profileFormSource = readProjectFile('js/modules/profile/profile-form.js');
@@ -186,6 +187,10 @@ describe('first login profile completion modal', () => {
     expect(indexHtml).toContain('href="/privacy"');
     expect(indexHtml).toContain('稍後填寫');
     expect(indexHtml).toContain('同意並送出');
+    expect(indexHtml).toContain('const textLen = msg ? Array.from(String(msg).replace(/\\s/g, \'\')).length : 0;');
+    expect(baseCss).toContain('width: max-content;');
+    expect(baseCss).toContain('max-width: min(360px, calc(100vw - 32px));');
+    expect(baseCss).toContain('overflow-wrap: anywhere;');
     expect(layoutCss).toContain('#modal-overlay[data-profile-complete="1"]');
     expect(layoutCss).toContain('-webkit-backdrop-filter: blur(16px) saturate(135%)');
     expect(layoutCss).toContain('.fl-actions');
@@ -202,6 +207,9 @@ describe('first login profile completion modal', () => {
     expect(profileFormSource).toContain("_legalTermsVersion: '2026-05-19'");
     expect(profileFormSource).toContain("_legalPrivacyVersion: '2026-05-19'");
     expect(profileFormSource).toContain('_requireFirstLoginLegalConsent(showErr)');
+    expect(profileFormSource).toContain("var requiredMsg = '請填寫所有必填欄位（性別、生日、地區）';");
+    expect(profileFormSource).toContain("if (typeof this.showToast === 'function') this.showToast(requiredMsg);");
+    expect(profileFormSource).toContain('var firstMissingEl = !gender ? genderEl');
     expect(profileFormSource).toContain("if (typeof this.showToast === 'function') this.showToast(msg);");
     expect(profileFormSource).toContain('if (consentEl && consentEl.checked)');
     expect(profileFormSource).toContain("this._buildFirstLoginLegalUpdates('profile_completion_submit')");

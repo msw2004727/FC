@@ -420,6 +420,9 @@ Object.assign(App, {
     var genderEl = document.getElementById('fl-gender');
     var regionEl = document.getElementById('fl-region-input');
     var emailEl = document.getElementById('fl-email');
+    var birthdayYearEl = document.getElementById('fl-birthday-y');
+    var birthdayMonthEl = document.getElementById('fl-birthday-m');
+    var birthdayDayEl = document.getElementById('fl-birthday-d');
     var gender = genderEl ? genderEl.value : '';
     var birthday = this._getBirthdayFromSelects('fl-birthday-y', 'fl-birthday-m', 'fl-birthday-d');
     var region = regionEl ? regionEl.value.trim() : '';
@@ -433,7 +436,14 @@ Object.assign(App, {
     if (errEl) errEl.style.display = 'none';
     if (!this._requireFirstLoginLegalConsent(showErr)) return;
     if (!gender || !birthday || !region) {
-      showErr('請填寫所有必填欄位（性別、生日、地區）');
+      var requiredMsg = '請填寫所有必填欄位（性別、生日、地區）';
+      if (typeof this.showToast === 'function') this.showToast(requiredMsg);
+      else showErr(requiredMsg);
+      var firstMissingEl = !gender ? genderEl
+        : (!birthdayYearEl?.value ? birthdayYearEl
+          : (!birthdayMonthEl?.value ? birthdayMonthEl
+            : (!birthdayDayEl?.value ? birthdayDayEl : regionEl)));
+      try { firstMissingEl?.focus({ preventScroll: false }); } catch (_) { try { firstMissingEl?.focus(); } catch (__) {} }
       return;
     }
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {

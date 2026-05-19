@@ -988,13 +988,15 @@ body.modal-open { overflow: hidden; }
   position: fixed; bottom: calc(var(--bottombar-h) + 16px); left: 50%; transform: translateX(-50%) translateY(100px);
   background: var(--bg-elevated); color: var(--text-primary);
   padding: .65rem 1.2rem; border-radius: var(--radius-full);
-  font-size: .82rem; font-weight: 500;
+  width: max-content;
+  max-width: min(360px, calc(100vw - 32px));
+  font-size: .82rem; font-weight: 500; line-height: 1.45;
   box-shadow: var(--shadow-lg);
   border: 1px solid var(--border);
   z-index: 10001;
   opacity: 0; pointer-events: none;
   transition: all .4s cubic-bezier(.4,0,.2,1);
-  white-space: pre-line; max-width: min(420px, 94vw); text-align: center;
+  white-space: pre-line; overflow-wrap: anywhere; text-align: center;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
 
