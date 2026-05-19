@@ -61,6 +61,59 @@ service cloud.firestore {
         && authRole() == 'super_admin';
     }
 
+    function userRootPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function identityPrivateSettingsPath(uid) {
+      return /databases/$(database)/documents/users/$(uid)/identityPrivate/settings;
+    }
+
+    function isPublicIdentitySnapshotShape(snapshot) {
+      return snapshot is map
+        && snapshot.keys().hasOnly(['identityId', 'displayName', 'avatarUrl'])
+        && snapshot.identityId in ['main', 'secondary']
+        && snapshot.displayName is string
+        && snapshot.displayName.size() > 0
+        && snapshot.displayName.size() <= 80
+        && (!('avatarUrl' in snapshot)
+          || snapshot.avatarUrl == null
+          || (snapshot.avatarUrl is string && snapshot.avatarUrl.size() <= 1200));
+    }
+
+    function publicIdentitySnapshotMatchesMain(uid, snapshot) {
+      let path = userRootPath(uid);
+      let data = get(path).data;
+      return exists(path)
+        && snapshot.identityId == 'main'
+        && snapshot.displayName == data.get('displayName', data.get('name', uid))
+        && snapshot.get('avatarUrl', '') == data.get('pictureUrl', data.get('photoURL', ''));
+    }
+
+    function publicIdentitySnapshotMatchesSecondary(uid, snapshot) {
+      let path = identityPrivateSettingsPath(uid);
+      let data = get(path).data;
+      let secondary = data.get('identities', {}).get('secondary', {});
+      return exists(path)
+        && snapshot.identityId == 'secondary'
+        && secondary is map
+        && secondary.get('enabled', false) == true
+        && snapshot.displayName == secondary.get('displayName', '')
+        && snapshot.get('avatarUrl', '') == secondary.get('avatarUrl', '');
+    }
+
+    function isValidPublicIdentitySnapshotFor(uid, snapshot) {
+      return isPublicIdentitySnapshotShape(snapshot)
+        && (
+          publicIdentitySnapshotMatchesMain(uid, snapshot)
+          || publicIdentitySnapshotMatchesSecondary(uid, snapshot)
+        );
+    }
+
+    function identitySnapshotImmutable() {
+      return request.resource.data.get('identitySnapshot', null) == resource.data.get('identitySnapshot', null);
+    }
+
     function isPublicParticipantQueryShareData(data) {
       return ('reportType' in data)
         && data.reportType is string
@@ -892,6 +945,166 @@ service cloud.firestore {
     //  禁止前端刪除（審計軌跡）
     // ═══════════════════════════════════════════
     match /users/{userId} {
+      function forbiddenUserRootCreateKeys() {
+        return [
+          'identities',
+          'profileActiveIdentityId',
+          'identityPrivate',
+          'activeIdentity',
+          'selectedIdentity',
+          'permissions',
+          'permissionCodes',
+          'rolePermissions',
+          'claims',
+          'manualRole',
+          'isAdmin',
+          'isSuperAdmin',
+          'admin',
+          'super_admin',
+          'customClaims'
+        ];
+      }
+
+      function userRootCreateAllowedKeys() {
+        return [
+          'uid', 'lineUserId', 'displayName', 'photoURL', 'pictureUrl', 'phone', 'email',
+          'role', 'exp', 'level',
+          'gender', 'birthday', 'region', 'sports',
+          'teamId', 'teamName', 'teamIds', 'teamNames',
+          'titleBig', 'titleNormal',
+          'totalGames', 'completedGames', 'attendanceRate', 'badgeCount',
+          'profileCompleted',
+          'createdAt', 'lastLogin', 'updatedAt',
+          'termsAcceptedAt', 'privacyAcceptedAt', 'termsVersion', 'privacyVersion', 'legalAcceptedSource',
+          'favorites', 'socialLinks', 'lineNotify', 'companions', 'eduChildren', 'stealth'
+        ];
+      }
+
+      function isSafeUserRootCreate() {
+        return isOwner(userId)
+          && hasString('uid')
+          && request.resource.data.uid == userId
+          && hasString('displayName')
+          && request.resource.data.keys().hasOnly(userRootCreateAllowedKeys())
+          && !request.resource.data.keys().hasAny(forbiddenUserRootCreateKeys())
+          && (!('lineUserId' in request.resource.data) || request.resource.data.lineUserId == userId)
+          && (!('role' in request.resource.data) || request.resource.data.role == 'user')
+          && (!('exp' in request.resource.data) || request.resource.data.exp == 0)
+          && (!('level' in request.resource.data) || request.resource.data.level == 1)
+          && (!('photoURL' in request.resource.data) || request.resource.data.photoURL == null || request.resource.data.photoURL is string)
+          && (!('pictureUrl' in request.resource.data) || request.resource.data.pictureUrl == null || request.resource.data.pictureUrl is string)
+          && (!('phone' in request.resource.data) || request.resource.data.phone == null || request.resource.data.phone is string)
+          && (!('email' in request.resource.data) || request.resource.data.email == null || request.resource.data.email is string)
+          && (!('gender' in request.resource.data) || request.resource.data.gender == null || request.resource.data.gender is string)
+          && (!('birthday' in request.resource.data) || request.resource.data.birthday == null || request.resource.data.birthday is string)
+          && (!('region' in request.resource.data) || request.resource.data.region == null || request.resource.data.region is string)
+          && (!('sports' in request.resource.data) || request.resource.data.sports == null || request.resource.data.sports is string)
+          && (!('teamId' in request.resource.data) || request.resource.data.teamId == null || request.resource.data.teamId is string)
+          && (!('teamName' in request.resource.data) || request.resource.data.teamName == null || request.resource.data.teamName is string)
+          && (!('teamIds' in request.resource.data) || request.resource.data.teamIds == null || request.resource.data.teamIds is list)
+          && (!('teamNames' in request.resource.data) || request.resource.data.teamNames == null || request.resource.data.teamNames is list)
+          && (!('titleBig' in request.resource.data) || request.resource.data.titleBig == null || request.resource.data.titleBig is string)
+          && (!('titleNormal' in request.resource.data) || request.resource.data.titleNormal == null || request.resource.data.titleNormal is string)
+          && (!('totalGames' in request.resource.data) || request.resource.data.totalGames is int)
+          && (!('completedGames' in request.resource.data) || request.resource.data.completedGames is int)
+          && (!('attendanceRate' in request.resource.data) || request.resource.data.attendanceRate is number)
+          && (!('badgeCount' in request.resource.data) || request.resource.data.badgeCount is int)
+          && (!('profileCompleted' in request.resource.data) || request.resource.data.profileCompleted is bool)
+          && (!('favorites' in request.resource.data) || request.resource.data.favorites == null || request.resource.data.favorites is map || request.resource.data.favorites is list)
+          && (!('socialLinks' in request.resource.data) || request.resource.data.socialLinks == null || request.resource.data.socialLinks is map)
+          && (!('lineNotify' in request.resource.data) || request.resource.data.lineNotify == null || request.resource.data.lineNotify is map)
+          && (!('companions' in request.resource.data) || request.resource.data.companions == null || request.resource.data.companions is list)
+          && (!('eduChildren' in request.resource.data) || request.resource.data.eduChildren == null || request.resource.data.eduChildren is list)
+          && (!('stealth' in request.resource.data) || request.resource.data.stealth == null || request.resource.data.stealth is bool)
+          && (!('createdAt' in request.resource.data) || request.resource.data.createdAt == request.time)
+          && (!('lastLogin' in request.resource.data) || request.resource.data.lastLogin == request.time)
+          && (!('updatedAt' in request.resource.data) || request.resource.data.updatedAt == request.time);
+      }
+
+      function existingSecondaryAvatarUrlMatches(value) {
+        let secondary = resource.data.get('identities', {}).get('secondary', {});
+        return secondary is map && secondary.get('avatarUrl', null) == value;
+      }
+
+      function existingSecondaryAvatarStoragePathMatches(value) {
+        let secondary = resource.data.get('identities', {}).get('secondary', {});
+        return secondary is map && secondary.get('avatarStoragePath', null) == value;
+      }
+
+      function existingSecondaryAvatarStorageBucketMatches(value) {
+        let secondary = resource.data.get('identities', {}).get('secondary', {});
+        return secondary is map && secondary.get('avatarStorageBucket', null) == value;
+      }
+
+      function isValidSecondaryIdentityClientData(secondary, allowExistingAvatarMetadata) {
+        return secondary is map
+          && secondary.keys().hasOnly([
+            'identityId',
+            'enabled',
+            'displayName',
+            'avatarUrl',
+            'avatarStoragePath',
+            'avatarStorageBucket',
+            'displayRoleLabel',
+            'isPrimary',
+            'editable',
+            'updatedAt'
+          ])
+          && (!('identityId' in secondary) || secondary.identityId == 'secondary')
+          && (!('enabled' in secondary) || secondary.enabled is bool)
+          && (!('displayName' in secondary) || (
+            secondary.displayName is string
+            && secondary.displayName.size() > 0
+            && secondary.displayName.size() <= 40
+          ))
+          && (!('avatarUrl' in secondary)
+            || secondary.avatarUrl == null
+            || (allowExistingAvatarMetadata && existingSecondaryAvatarUrlMatches(secondary.avatarUrl)))
+          && (!('avatarStoragePath' in secondary)
+            || secondary.avatarStoragePath == null
+            || (allowExistingAvatarMetadata && existingSecondaryAvatarStoragePathMatches(secondary.avatarStoragePath)))
+          && (!('avatarStorageBucket' in secondary)
+            || secondary.avatarStorageBucket == null
+            || (allowExistingAvatarMetadata && existingSecondaryAvatarStorageBucketMatches(secondary.avatarStorageBucket)))
+          && (!('displayRoleLabel' in secondary) || (
+            secondary.displayRoleLabel is string
+            && secondary.displayRoleLabel.size() <= 40
+          ))
+          && (!('isPrimary' in secondary) || secondary.isPrimary == false)
+          && (!('editable' in secondary) || secondary.editable == true)
+          && (!('updatedAt' in secondary) || secondary.updatedAt is timestamp);
+      }
+
+      function isValidIdentityPrivateMap(identities, allowExistingAvatarMetadata) {
+        return identities is map
+          && identities.keys().hasOnly(['secondary'])
+          && (!identities.keys().hasAny(['secondary'])
+            || isValidSecondaryIdentityClientData(identities.secondary, allowExistingAvatarMetadata));
+      }
+
+      function requestHasEnabledSecondaryIdentity() {
+        let identities = request.resource.data.get('identities', {});
+        return identities is map
+          && identities.keys().hasAny(['secondary'])
+          && identities.secondary is map
+          && identities.secondary.enabled == true;
+      }
+
+      function isSafeIdentityPrivateSettingsWrite(settingsId, allowExistingAvatarMetadata) {
+        return settingsId == 'settings'
+          && request.resource.data.keys().hasOnly(['profileActiveIdentityId', 'identities', 'createdAt', 'updatedAt'])
+          && ('updatedAt' in request.resource.data)
+          && request.resource.data.updatedAt == request.time
+          && (!('createdAt' in request.resource.data) || request.resource.data.createdAt == request.time)
+          && (!('profileActiveIdentityId' in request.resource.data)
+            || request.resource.data.profileActiveIdentityId in ['main', 'secondary'])
+          && (!('identities' in request.resource.data)
+            || isValidIdentityPrivateMap(request.resource.data.identities, allowExistingAvatarMetadata))
+          && (!('profileActiveIdentityId' in request.resource.data)
+            || request.resource.data.profileActiveIdentityId != 'secondary'
+            || requestHasEnabledSecondaryIdentity());
+      }
+
       function isSafeSelfProfileUpdate() {
         let changed = request.resource.data.diff(resource.data).affectedKeys();
         return changed.hasOnly([
@@ -1071,9 +1284,7 @@ service cloud.firestore {
       }
 
       allow read: if isAuth();
-      allow create: if isOwner(userId)
-        && hasString('uid')
-        && hasString('displayName');
+      allow create: if isSafeUserRootCreate();
       allow update: if (isOwner(userId) && isSafeSelfProfileUpdate())
         || (isOwner(userId) && isSafeLoginUpdate())
         || (isOwner(userId) && isTeamFieldShrinkOrClear())
@@ -1081,6 +1292,15 @@ service cloud.firestore {
         || (canRunTeamJoinRepair() && isSafeTeamMembershipUpdateByStaff())
         || (isCoachPlus() && !isOwner(userId) && isSafeTeamMembershipUpdateByStaff());
       allow delete: if false;
+
+      match /identityPrivate/{settingsId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if (isOwner(userId) || isAdmin())
+          && isSafeIdentityPrivateSettingsWrite(settingsId, false);
+        allow update: if (isOwner(userId) || isAdmin())
+          && isSafeIdentityPrivateSettingsWrite(settingsId, true);
+        allow delete: if false;
+      }
 
       // Per-user achievement progress subcollection
       match /achievements/{achId} {
@@ -2167,7 +2387,8 @@ service cloud.firestore {
       function commentCreateIsSafe() {
         return request.resource.data.keys().hasOnly([
             'eventId', 'authorUid', 'authorName', 'authorPhoto', 'body', 'visibility',
-            'replyLocked', 'deleted', 'replyCount', 'likeCount', 'recentLikers', 'createdAt', 'updatedAt'
+            'replyLocked', 'deleted', 'replyCount', 'likeCount', 'recentLikers',
+            'identitySnapshot', 'createdAt', 'updatedAt'
           ])
           && requestEventIdMatchesPath(eventId)
           && request.resource.data.authorUid == request.auth.uid
@@ -2176,6 +2397,8 @@ service cloud.firestore {
           && request.resource.data.authorName.size() <= 80
           && request.resource.data.authorPhoto is string
           && request.resource.data.authorPhoto.size() <= 1200
+          && (!('identitySnapshot' in request.resource.data)
+            || isValidPublicIdentitySnapshotFor(request.auth.uid, request.resource.data.identitySnapshot))
           && request.resource.data.body is string
           && request.resource.data.body.size() > 0
           && request.resource.data.body.size() <= 300
@@ -2197,6 +2420,7 @@ service cloud.firestore {
           && request.resource.data.authorUid == resource.data.authorUid
           && request.resource.data.authorName == resource.data.authorName
           && request.resource.data.authorPhoto == resource.data.authorPhoto
+          && identitySnapshotImmutable()
           && request.resource.data.body == resource.data.body
           && request.resource.data.visibility == resource.data.visibility
           && request.resource.data.createdAt == resource.data.createdAt
@@ -2211,6 +2435,7 @@ service cloud.firestore {
           && request.resource.data.authorUid == resource.data.authorUid
           && request.resource.data.authorName == resource.data.authorName
           && request.resource.data.authorPhoto == resource.data.authorPhoto
+          && identitySnapshotImmutable()
           && request.resource.data.body == resource.data.body
           && request.resource.data.visibility == resource.data.visibility
           && request.resource.data.replyLocked == resource.data.replyLocked
@@ -2274,7 +2499,7 @@ service cloud.firestore {
           let parent = parentCommentData();
           return request.resource.data.keys().hasOnly([
               'eventId', 'commentId', 'authorUid', 'authorName', 'authorPhoto',
-              'body', 'deleted', 'createdAt', 'updatedAt'
+              'identitySnapshot', 'body', 'deleted', 'createdAt', 'updatedAt'
             ])
             && requestEventIdMatchesPath(eventId)
             && request.resource.data.commentId == commentId
@@ -2284,6 +2509,8 @@ service cloud.firestore {
             && request.resource.data.authorName.size() <= 80
             && request.resource.data.authorPhoto is string
             && request.resource.data.authorPhoto.size() <= 1200
+            && (!('identitySnapshot' in request.resource.data)
+              || isValidPublicIdentitySnapshotFor(request.auth.uid, request.resource.data.identitySnapshot))
             && request.resource.data.body is string
             && request.resource.data.body.size() > 0
             && request.resource.data.body.size() <= 100
@@ -2302,6 +2529,7 @@ service cloud.firestore {
             && request.resource.data.authorUid == resource.data.authorUid
             && request.resource.data.authorName == resource.data.authorName
             && request.resource.data.authorPhoto == resource.data.authorPhoto
+            && identitySnapshotImmutable()
             && request.resource.data.body == resource.data.body
             && request.resource.data.createdAt == resource.data.createdAt
             && request.resource.data.updatedAt == request.time

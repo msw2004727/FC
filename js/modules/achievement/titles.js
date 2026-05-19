@@ -102,10 +102,8 @@ Object.assign(App, {
 
     const renderTitlePage = () => {
       const user = ApiService.getCurrentUser?.();
-      const lineProfile = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn())
-        ? LineAuth.getProfile()
-        : null;
-      const lineName = lineProfile ? lineProfile.displayName : (user ? user.displayName : '-');
+      const identity = ApiService.getCurrentIdentity?.('profile') || null;
+      const lineName = identity?.displayName || (user ? user.displayName : '-');
       const titleOptions = getCurrentTitleOptions(user);
       const bigTitles = titleOptions.bigTitles || [];
       const normalTitles = titleOptions.normalTitles || [];

@@ -145,6 +145,70 @@ a.social-btn { text-decoration: none; }
 [data-theme="dark"] .social-btn.active[data-platform="threads"] { color: #ffffff; background: rgba(255,255,255,.1); }
 [data-theme="dark"] .social-btn.active[data-platform="twitter"] { color: #ffffff; background: rgba(255,255,255,.1); }
 .social-btn.active[data-platform="line"] { color: #06C755; background: rgba(6,199,85,.1); }
+
+/* ─── Profile Identity ─── */
+.profile-identity-active {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .45rem;
+  margin-bottom: .6rem;
+}
+.profile-identity-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+  min-height: 38px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: .82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.profile-identity-option:has(input:checked),
+.profile-identity-option.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+.profile-identity-option input { margin: 0; accent-color: var(--accent); }
+.profile-identity-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .55rem .65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  font-size: .82rem;
+  font-weight: 700;
+}
+.profile-identity-editor {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: .75rem;
+  align-items: center;
+  margin-top: .65rem;
+}
+.profile-identity-avatar {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0ea5e9, #14b8a6);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  overflow: hidden;
+}
+.profile-identity-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.profile-identity-fields { min-width: 0; display: flex; flex-direction: column; gap: .45rem; }
+.profile-identity-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
+.profile-avatar-upload-btn { display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
 .social-copy-btn {
   width: 22px; height: 22px; border: none; border-radius: 50%;
   background: transparent; color: var(--text-muted); cursor: pointer;

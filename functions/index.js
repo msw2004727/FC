@@ -9,6 +9,7 @@ const { defineSecret } = require("firebase-functions/params");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue, FieldPath, Timestamp } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
+const { getStorage } = require("firebase-admin/storage");
 const { createSportsApiProScoreboardExports } = require("./scoreboard-sportsapipro");
 const {
   addDaysKey,
@@ -30,6 +31,7 @@ const https = require("https");
 initializeApp();
 const db = getFirestore();
 const authAdmin = getAuth();
+const storageAdmin = getStorage();
 
 const LINE_CHANNEL_ACCESS_TOKEN = defineSecret("LINE_CHANNEL_ACCESS_TOKEN");
 const NEWS_API_KEY = defineSecret("NEWS_API_KEY");
@@ -58,6 +60,8 @@ const LEGACY_PERMISSION_CODE_REPLACEMENTS = Object.freeze({
 const ADMIN_USER_EDIT_PROFILE_PERMISSION = "admin.users.edit_profile";
 const ADMIN_USER_CHANGE_ROLE_PERMISSION = "admin.users.change_role";
 const ADMIN_USER_RESTRICT_PERMISSION = "admin.users.restrict";
+const SECONDARY_IDENTITY_SETTINGS_DOC_ID = "settings";
+const SECONDARY_IDENTITY_AVATAR_MAX_URL_LENGTH = 2000;
 const ADMIN_MANAGED_USER_PROFILE_FIELDS = Object.freeze([
   "region",
   "gender",
@@ -420,6 +424,124 @@ function sanitizeAdminManagedProfileUpdates(rawUpdates) {
   });
 
   return next;
+}
+
+function normalizeCallableString(value, maxLength) {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > maxLength) return "";
+  return trimmed;
+}
+
+function isSecondaryIdentityAvatarStoragePathForUid(pathValue, uid) {
+  const safePath = normalizeCallableString(pathValue, 512);
+  const safeUid = normalizeCallableString(uid, 128);
+  if (!safePath || !safeUid) return false;
+  const expectedPrefix = `images/users/${safeUid}/identities/secondary/`;
+  const fileName = safePath.startsWith(expectedPrefix)
+    ? safePath.slice(expectedPrefix.length)
+    : "";
+  return !!fileName && !fileName.includes("/");
+}
+
+function isAllowedProjectStorageBucket(bucketValue) {
+  const bucket = normalizeCallableString(bucketValue, 160);
+  if (!bucket || bucket.includes("/")) return false;
+  const allowList = getProjectStorageBucketAllowList();
+  return allowList.size > 0 && allowList.has(bucket);
+}
+
+function isFirebaseStorageDownloadUrl(urlValue) {
+  const url = normalizeCallableString(urlValue, SECONDARY_IDENTITY_AVATAR_MAX_URL_LENGTH);
+  return /^https:\/\/firebasestorage\.googleapis\.com\//i.test(url)
+    || /^https:\/\/storage\.googleapis\.com\//i.test(url);
+}
+
+function getProjectStorageBucketAllowList() {
+  const buckets = new Set();
+  const projectId = normalizeCallableString(
+    process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || "",
+    128
+  );
+  if (projectId) {
+    buckets.add(`${projectId}.appspot.com`);
+    buckets.add(`${projectId}.firebasestorage.app`);
+  }
+  try {
+    const config = JSON.parse(process.env.FIREBASE_CONFIG || "{}");
+    const configBucket = normalizeCallableString(config.storageBucket, 160);
+    if (configBucket) buckets.add(configBucket);
+  } catch (_) {}
+  return buckets;
+}
+
+function firebaseStorageUrlMatchesObject(urlValue, bucketValue, pathValue) {
+  const url = normalizeCallableString(urlValue, SECONDARY_IDENTITY_AVATAR_MAX_URL_LENGTH);
+  const expectedBucket = normalizeCallableString(bucketValue, 160);
+  const expectedPath = normalizeCallableString(pathValue, 512);
+  if (!url || !expectedBucket || !expectedPath) return false;
+
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname === "firebasestorage.googleapis.com") {
+      const parts = parsed.pathname.split("/");
+      const bucketIndex = parts.indexOf("b");
+      const objectIndex = parts.indexOf("o");
+      if (bucketIndex < 0 || objectIndex < 0 || objectIndex <= bucketIndex) return false;
+      const bucket = decodeURIComponent(parts[bucketIndex + 1] || "");
+      const objectPath = decodeURIComponent(parts.slice(objectIndex + 1).join("/"));
+      return bucket === expectedBucket && objectPath === expectedPath;
+    }
+    if (parsed.hostname === "storage.googleapis.com") {
+      const parts = parsed.pathname.split("/").filter(Boolean);
+      const bucket = decodeURIComponent(parts[0] || "");
+      const objectPath = decodeURIComponent(parts.slice(1).join("/"));
+      return bucket === expectedBucket && objectPath === expectedPath;
+    }
+  } catch (_) {}
+
+  return false;
+}
+
+function normalizeSecondaryIdentityAvatarCommit(data, uid) {
+  const payload = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  if (payload.clear === true) {
+    return { clear: true };
+  }
+
+  const avatarUrl = normalizeCallableString(payload.avatarUrl, SECONDARY_IDENTITY_AVATAR_MAX_URL_LENGTH);
+  const avatarStoragePath = normalizeCallableString(payload.avatarStoragePath, 512);
+  const avatarStorageBucket = normalizeCallableString(payload.avatarStorageBucket, 160);
+
+  if (!avatarUrl || !isFirebaseStorageDownloadUrl(avatarUrl)) {
+    throw new HttpsError("invalid-argument", "avatarUrl invalid");
+  }
+  if (!isSecondaryIdentityAvatarStoragePathForUid(avatarStoragePath, uid)) {
+    throw new HttpsError("permission-denied", "avatar path must belong to caller");
+  }
+  if (!isAllowedProjectStorageBucket(avatarStorageBucket)) {
+    throw new HttpsError("invalid-argument", "avatarStorageBucket invalid");
+  }
+  if (!firebaseStorageUrlMatchesObject(avatarUrl, avatarStorageBucket, avatarStoragePath)) {
+    throw new HttpsError("invalid-argument", "avatarUrl does not match storage object");
+  }
+
+  return {
+    clear: false,
+    avatarUrl,
+    avatarStoragePath,
+    avatarStorageBucket,
+  };
+}
+
+function buildMainPublicIdentitySnapshot(userData = {}, fallbackUid = "") {
+  const displayName = sanitizeStr(userData.displayName || userData.name || fallbackUid || "User", 80);
+  const avatarUrl = sanitizeStr(userData.pictureUrl || userData.photoURL || "", 1200);
+  return {
+    identityId: "main",
+    displayName,
+    avatarUrl,
+  };
 }
 
 function hasAnyOwnKeys(value) {
@@ -1474,6 +1596,10 @@ exports.createFriendlyTournament = onCall(
 
     const tournamentId = validateClientTournamentId(tournamentInput.id);
     const callerUserDoc = await findUserDocByUidOrLineUserId(callerUid);
+    const callerMainIdentitySnapshot = buildMainPublicIdentitySnapshot(callerUserDoc?.data || {}, callerUid);
+    if (sanitizedParticipants[0]?.participantType === "self") {
+      sanitizedParticipants[0].userName = callerMainIdentitySnapshot.displayName;
+    }
     const callerRole = await getCallerRoleWithFallback(request);
     const callerName = String(
       callerUserDoc?.data?.displayName
@@ -2673,6 +2799,82 @@ exports.adminManageUser = onCall(
       targetDocId: targetUser.docId,
       role: typeof nextUpdates.role === "string" ? nextUpdates.role : targetRole,
       forceRefreshToken: typeof nextUpdates.role === "string" && resolvedTargetUid === callerUid,
+    };
+  }
+);
+
+exports.commitSecondaryIdentityAvatar = onCall(
+  { region: "asia-east1", timeoutSeconds: 15, memory: "256MiB" },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+
+    const uid = request.auth.uid;
+    const commit = normalizeSecondaryIdentityAvatarCommit(request.data, uid);
+    const settingsRef = db
+      .collection("users")
+      .doc(uid)
+      .collection("identityPrivate")
+      .doc(SECONDARY_IDENTITY_SETTINGS_DOC_ID);
+
+    if (commit.clear) {
+      await settingsRef.set({
+        identities: {
+          secondary: {
+            identityId: "secondary",
+            avatarUrl: null,
+            avatarStoragePath: null,
+            avatarStorageBucket: null,
+            isPrimary: false,
+            editable: true,
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+        },
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      return { success: true, cleared: true };
+    }
+
+    const file = storageAdmin
+      .bucket(commit.avatarStorageBucket)
+      .file(commit.avatarStoragePath);
+    let metadata;
+    try {
+      [metadata] = await file.getMetadata();
+    } catch (err) {
+      if (err?.code === 404 || err?.code === "404") {
+        throw new HttpsError("failed-precondition", "avatar storage object not found");
+      }
+      throw err;
+    }
+
+    const contentType = String(metadata?.contentType || "");
+    const sizeBytes = Number(metadata?.size || 0);
+    if (!contentType.match(/^image\//i) || !Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > 2 * 1024 * 1024) {
+      throw new HttpsError("failed-precondition", "avatar storage object invalid");
+    }
+
+    await settingsRef.set({
+      identities: {
+        secondary: {
+          identityId: "secondary",
+          avatarUrl: commit.avatarUrl,
+          avatarStoragePath: commit.avatarStoragePath,
+          avatarStorageBucket: commit.avatarStorageBucket,
+          isPrimary: false,
+          editable: true,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+      },
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    return {
+      success: true,
+      avatarUrl: commit.avatarUrl,
+      avatarStoragePath: commit.avatarStoragePath,
     };
   }
 );
@@ -7217,6 +7419,9 @@ exports.registerForEvent = onCall(
           promotionOrder: idx,
           registeredAt: nowTimestamp,
         };
+        if (p.participantType === "self") {
+          reg.identitySnapshot = callerMainIdentitySnapshot;
+        }
         const seatDecision = decideRegistrationSeat(
           { ...ed, id: eventId, max: maxCount },
           plannedActiveRegs,
@@ -7349,6 +7554,7 @@ exports.registerForEvent = onCall(
           status: r.status,
           userId: r.userId,
           participantType: r.participantType,
+          identitySnapshot: r.identitySnapshot || null,
           teamReservationTeamId: r.teamReservationTeamId || null,
           teamReservationTeamName: r.teamReservationTeamName || null,
           teamSeatSource: r.teamSeatSource || null,

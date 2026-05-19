@@ -58,11 +58,6 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   _getMsgSenderName() {
-    // 優先用 LINE 暱稱
-    if (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) {
-      const profile = LineAuth.getProfile();
-      if (profile && profile.displayName) return profile.displayName;
-    }
     // 其次用 currentUser
     const user = ApiService.getCurrentUser?.() || null;
     if (user && user.displayName) return user.displayName;

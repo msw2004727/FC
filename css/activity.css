@@ -2519,6 +2519,8 @@ body.activity-map-open{overflow:hidden}
 .event-comment-form textarea{width:100%;box-sizing:border-box;resize:vertical;min-height:76px;max-height:160px;border:1px solid var(--border);border-radius:10px;background:var(--bg-elevated);color:var(--text-primary);padding:.7rem .75rem;font-size:.86rem;line-height:1.55;outline:none}
 .event-comment-form textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
 .event-comment-form-foot{display:flex;align-items:center;justify-content:space-between;gap:.6rem}
+.event-comment-identity-picker{display:inline-flex;align-items:center;gap:.35rem;font-size:.78rem;color:var(--text-secondary);font-weight:700}
+.event-comment-identity-picker select{height:28px;border:1px solid var(--border);border-radius:8px;background:var(--bg-elevated);color:var(--text-primary);font-size:.78rem;font-weight:700;padding:0 .45rem;max-width:9rem}
 .event-comment-private-toggle{display:inline-flex;align-items:center;gap:.35rem;font-size:.8rem;color:var(--text-secondary);font-weight:650}
 .event-comment-private-toggle input{width:16px;height:16px;accent-color:var(--primary)}
 .event-comment-submit{border:0;border-radius:999px;background:linear-gradient(135deg,#2563eb,#0d9488);color:#fff;font-weight:800;font-size:.82rem;padding:.48rem 1rem;min-width:76px;cursor:pointer}
@@ -2535,10 +2537,15 @@ body.activity-map-open{overflow:hidden}
 .event-comment-head{display:flex;align-items:center;gap:.45rem;min-width:0}
 .event-comment-avatar{width:30px;height:30px;flex:0 0 30px;border-radius:50%;object-fit:cover;display:inline-flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#e0f2fe,#ccfbf1);color:#0f766e;font-size:.78rem;font-weight:800}
 .event-comment-author{border:0;background:transparent;color:var(--text-primary);font-weight:800;font-size:.86rem;padding:0;min-width:0;max-width:42%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;text-align:left}
+.event-comment-author-static{cursor:default}
 .event-comment-time{font-size:.72rem;color:var(--text-muted);white-space:nowrap}
 .event-comment-badge{font-size:.68rem;font-weight:800;border-radius:999px;padding:.08rem .42rem;white-space:nowrap}
 .event-comment-badge.private{background:rgba(124,58,237,.12);color:#7c3aed}
 .event-comment-badge.locked{background:rgba(245,158,11,.14);color:#b45309}
+.event-comment-audit-trace{display:inline-flex;align-items:center;gap:.25rem;min-width:0;max-width:min(100%,28rem);border:1px solid rgba(14,165,233,.28);border-radius:999px;background:rgba(14,165,233,.08);color:#0369a1;font-size:.68rem;font-weight:800;padding:.08rem .42rem;line-height:1.35}
+.event-comment-audit-trace span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.event-comment-audit-label{color:#0f766e}
+.event-comment-audit-uid{max-width:9rem;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;font-size:.64rem}
 .event-comment-manage{margin-left:auto;display:inline-flex;gap:.25rem;align-items:center}
 .event-comment-mini-btn{border:1px solid var(--border);background:var(--bg-card);color:var(--text-secondary);border-radius:999px;padding:.18rem .45rem;font-size:.68rem;font-weight:700;cursor:pointer;white-space:nowrap}
 .event-comment-mini-btn.danger{border-color:rgba(220,38,38,.35);color:#dc2626}
@@ -2569,10 +2576,13 @@ body.activity-map-open{overflow:hidden}
 [data-theme="dark"] .event-comment-body{border-color:rgba(148,163,184,.22);background:linear-gradient(135deg,rgba(59,130,246,.18),rgba(20,184,166,.12) 62%,rgba(15,23,42,.20) 100%)}
 [data-theme="dark"] .event-comment-badge.private{background:rgba(167,139,250,.18);color:#c4b5fd}
 [data-theme="dark"] .event-comment-badge.locked{background:rgba(251,191,36,.18);color:#fbbf24}
+[data-theme="dark"] .event-comment-audit-trace{border-color:rgba(125,211,252,.24);background:rgba(56,189,248,.12);color:#bae6fd}
+[data-theme="dark"] .event-comment-audit-label{color:#99f6e4}
 [data-theme="dark"] .event-comment-action.active{color:#5eead4}
 @media (max-width:520px){
   .event-comment-head{flex-wrap:wrap}
   .event-comment-author{max-width:58%}
+  .event-comment-audit-trace{max-width:calc(100% - 2.2rem);margin-left:2.2rem}
   .event-comment-manage{width:100%;margin-left:2.2rem}
   .event-comment-body{margin-left:0;padding:.5rem .65rem}
   .event-comment-deleted,.event-comment-actions,.event-comment-replies,.event-comment-reply-form{padding-left:0;margin-left:0}

@@ -8,15 +8,18 @@ Object.assign(App, {
     if (!container) return;
 
     const user = ApiService.getCurrentUser();
-    const lineProfile = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) ? LineAuth.getProfile() : null;
+    const identity = ApiService.getCurrentIdentity?.('profile') || null;
 
-    const displayName = (lineProfile && lineProfile.displayName) ? lineProfile.displayName : (user ? user.displayName : '-');
+    const displayName = identity?.displayName || (user ? user.displayName : '-');
     const achievementProfile = this._getAchievementProfile?.();
     const titleHtml = user
-      ? (achievementProfile?.buildTitleDisplayHtml?.(user, lineProfile ? lineProfile.displayName : null)
-        || this._buildTitleDisplayHtml(user, lineProfile ? lineProfile.displayName : null))
+      ? (achievementProfile?.buildTitleDisplayHtml?.(user, displayName)
+        || this._buildTitleDisplayHtml(user, displayName))
       : escapeHTML(displayName);
-    const avatarCandidates = this._getAvatarCandidateUrls(lineProfile && lineProfile.pictureUrl, user && user.pictureUrl);
+    const identityCandidates = Array.isArray(identity?.avatarCandidates) ? identity.avatarCandidates : [];
+    const avatarCandidates = identity?.identityId === 'secondary'
+      ? this._getAvatarCandidateUrls(...identityCandidates)
+      : this._getAvatarCandidateUrls(...identityCandidates, user && user.pictureUrl);
     const pic = avatarCandidates[0] || null;
     const rawRole = (user && user.role) || 'user';
     const role = (typeof App._stealthRole === 'function') ? App._stealthRole(displayName, rawRole, user) : rawRole;

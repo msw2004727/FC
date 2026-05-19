@@ -176,14 +176,14 @@ Object.assign(App, {
     // 判斷是否為當前用戶（比對 UID / displayName / name）
     const isLoggedIn = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
     const currentUser = isLoggedIn ? ApiService.getCurrentUser() : null;
-    const lineProfile = isLoggedIn ? LineAuth.getProfile() : null;
-    const currentName = (lineProfile && lineProfile.displayName) || (currentUser && currentUser.displayName) || '';
+    const currentIdentity = isLoggedIn ? ApiService.getCurrentIdentity?.('profile') : null;
+    const currentName = currentIdentity?.displayName || (currentUser && currentUser.displayName) || '';
     const isSelf = currentUser && (
       (uidHint && (uidHint === currentUser.uid || uidHint === currentUser.lineUserId)) ||
       name === currentName || name === currentUser.displayName || name === currentUser.name
     );
 
-    // 如果是自己，優先用 currentUser + LINE 資料；否則 UID 查找 → name 查找
+    // 如果是自己，優先用 currentUser + identityPrivate 資料；否則 UID 查找 → name 查找
     const user = isSelf
       ? currentUser
       : (this._findUserByUid(uidHint) || this._findUserByName(name));

@@ -50,9 +50,12 @@ Object.assign(App, {
     const user = ApiService.getCurrentUser();
     if (!user) return;
 
-    const lineProfile = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) ? LineAuth.getProfile() : null;
-    const lineName = (lineProfile && lineProfile.displayName) || user.displayName;
-    const avatarCandidates = this._getAvatarCandidateUrls(lineProfile && lineProfile.pictureUrl, user.pictureUrl);
+    const identity = ApiService.getCurrentIdentity?.('profile') || null;
+    const lineName = identity?.displayName || user.displayName;
+    const identityCandidates = Array.isArray(identity?.avatarCandidates) ? identity.avatarCandidates : [];
+    const avatarCandidates = identity?.identityId === 'secondary'
+      ? this._getAvatarCandidateUrls(...identityCandidates)
+      : this._getAvatarCandidateUrls(...identityCandidates, user.pictureUrl);
     const pic = avatarCandidates[0] || null;
 
     // 頭像
@@ -63,7 +66,7 @@ Object.assign(App, {
     });
 
     // 稱號（HTML 版：金色/銀色標籤）
-    const titleHtml = this._buildTitleDisplayHtml(user, lineProfile ? lineProfile.displayName : null);
+    const titleHtml = this._buildTitleDisplayHtml(user, lineName);
     if (el('profile-title')) el('profile-title').innerHTML = titleHtml;
 
     // UID 顯示 + 迷你 QR 按鈕
@@ -138,6 +141,7 @@ Object.assign(App, {
 
     // LINE 推播通知卡片
     this.renderLineNotifyCard?.();
+    this.renderIdentitySettings?.();
 
     // 編輯模式的靜態欄位
     if (el('profile-edit-gender')) el('profile-edit-gender').value = user.gender || '';
@@ -157,6 +161,131 @@ Object.assign(App, {
       setTimeout(() => this._checkTitleSuggestion(), 800);
     }
     this._markPageSnapshotReady?.('page-profile');
+  },
+
+  _getCurrentIdentitySettingsNormalized() {
+    if (typeof IdentityResolver === 'undefined') return null;
+    return IdentityResolver.normalizeSettings(ApiService.getCurrentIdentitySettings?.());
+  },
+
+  _syncIdentityFormState() {
+    const enabledEl = document.getElementById('profile-secondary-enabled');
+    const mainEl = document.getElementById('profile-identity-main');
+    const secondaryEl = document.getElementById('profile-identity-secondary');
+    const nameEl = document.getElementById('profile-secondary-display-name');
+    const enabled = !!enabledEl?.checked;
+    if (secondaryEl) secondaryEl.disabled = !enabled;
+    if (!enabled && secondaryEl?.checked && mainEl) mainEl.checked = true;
+    if (nameEl) nameEl.disabled = !enabled;
+    document.querySelectorAll('.profile-identity-option').forEach(label => {
+      const input = label.querySelector('input[type="radio"]');
+      label.classList.toggle('active', !!input?.checked);
+      label.classList.toggle('disabled', !!input?.disabled);
+    });
+  },
+
+  renderIdentitySettings() {
+    const card = document.getElementById('profile-identity-card');
+    if (!card || typeof IdentityResolver === 'undefined') return;
+    const user = ApiService.getCurrentUser();
+    if (!user) return;
+    const settings = this._getCurrentIdentitySettingsNormalized();
+    const secondary = settings?.identities?.secondary || null;
+    const enabled = !!(secondary?.enabled && secondary?.displayName);
+    const activeId = IdentityResolver.getActiveIdentityId(settings);
+    const mainEl = document.getElementById('profile-identity-main');
+    const secondaryEl = document.getElementById('profile-identity-secondary');
+    const enabledEl = document.getElementById('profile-secondary-enabled');
+    const nameEl = document.getElementById('profile-secondary-display-name');
+    const preview = document.getElementById('profile-secondary-avatar-preview');
+
+    if (mainEl) mainEl.checked = activeId !== 'secondary';
+    if (secondaryEl) secondaryEl.checked = activeId === 'secondary';
+    if (enabledEl) enabledEl.checked = !!secondary?.enabled;
+    if (nameEl && document.activeElement !== nameEl) nameEl.value = secondary?.displayName || '';
+
+    const previewName = secondary?.displayName || nameEl?.value || '次身份';
+    const previewUrl = secondary?.avatarUrl || '';
+    this._setAvatarContent?.(preview, previewUrl, previewName, {
+      fallbackClass: 'profile-identity-avatar',
+      containerImageClass: 'profile-identity-avatar',
+      candidateUrls: previewUrl ? [previewUrl] : [],
+    });
+    this._syncIdentityFormState();
+  },
+
+  async saveIdentitySettings() {
+    const enabledEl = document.getElementById('profile-secondary-enabled');
+    const secondaryEl = document.getElementById('profile-identity-secondary');
+    const nameEl = document.getElementById('profile-secondary-display-name');
+    const enabled = !!enabledEl?.checked;
+    const displayName = String(nameEl?.value || '').trim();
+    if (enabled && !displayName) {
+      this.showToast('請輸入次身份暱稱');
+      try { nameEl?.focus(); } catch (_) {}
+      return;
+    }
+    if (displayName.length > 40) {
+      this.showToast('次身份暱稱不能超過 40 字');
+      return;
+    }
+
+    const activeId = enabled && secondaryEl?.checked ? 'secondary' : 'main';
+    const secondary = {
+      identityId: 'secondary',
+      enabled,
+      displayName: displayName || '次身份',
+      displayRoleLabel: '一般用戶',
+      isPrimary: false,
+      editable: true,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    };
+
+    try {
+      await ApiService.updateCurrentIdentitySettings({
+        profileActiveIdentityId: activeId,
+        identities: { secondary },
+      });
+      this.showToast('身份顯示已儲存');
+    } catch (err) {
+      console.error('[saveIdentitySettings]', err);
+      this.showToast('身份顯示儲存失敗');
+    }
+  },
+
+  async uploadSecondaryIdentityAvatar(input) {
+    const file = input?.files?.[0] || null;
+    if (!file) return;
+    if (!this._isAllowedImageFile?.(file)) {
+      this.showToast('請上傳 JPG / PNG / WebP 圖片');
+      input.value = '';
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      this.showToast('圖片不能超過 2MB');
+      input.value = '';
+      return;
+    }
+    try {
+      const dataUrl = await this._compressImage(file, 512, 0.88, 'image/webp');
+      await ApiService.uploadSecondaryIdentityAvatar(dataUrl);
+      this.showToast('次身份頭像已更新');
+    } catch (err) {
+      console.error('[uploadSecondaryIdentityAvatar]', err);
+      this.showToast('次身份頭像更新失敗');
+    } finally {
+      if (input) input.value = '';
+    }
+  },
+
+  async clearSecondaryIdentityAvatar() {
+    try {
+      await ApiService.clearSecondaryIdentityAvatar();
+      this.showToast('次身份頭像已清除');
+    } catch (err) {
+      console.error('[clearSecondaryIdentityAvatar]', err);
+      this.showToast('次身份頭像清除失敗');
+    }
   },
 
   toggleProfileEdit() {

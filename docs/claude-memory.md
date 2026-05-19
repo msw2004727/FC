@@ -1,5 +1,11 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-19 Secondary identity MVP [feature/security]
+- **Problem**: A secondary display identity needs to coexist with the existing single-UID authorization, stats, event, PM, and audit model without letting aliases become real actors or leaking private identity settings through public user documents.
+- **Fix**: Added owner/admin-only `users/{uid}/identityPrivate/settings`, `IdentityResolver`, profile controls, secondary avatar upload plus `commitSecondaryIdentityAvatar`, owner-scoped Storage rules, and Firestore validation for create-time immutable public `identitySnapshot`. Public profile, PM, activity creation, and game leaderboards remain rooted in the main identity unless a surface explicitly supports snapshots.
+- **Audit guardrail**: Public snapshots may contain only `identityId`, `displayName`, and `avatarUrl`; no role, permissions, claims, real UID, or root actor fields. Activity comments are the MVP public surface; manager-only trace UI joins `authorUid` to `adminUsers` for root displayName, role, and UID instead of writing those fields into public comment docs.
+- **Tests**: Added/updated unit, Cloud Functions, Firestore rules, and source-contract coverage for identity resolver behavior, private settings rules, avatar metadata commit, comment snapshot validation, immutable snapshots, and management trace display.
+
 ### 2026-05-18 Profile completion modal email and scroll lock [bug/ux]
 - **Problem**: The required profile completion modal had a plain overlay, allowed the background page to scroll on mobile WebViews, and adding an email field would have failed without Firestore rule support.
 - **Cause**: The first-login modal used only the shared modal overlay lock flag, while the body was not fixed during this locked flow. Safe self-profile Firestore updates also did not include `email`.

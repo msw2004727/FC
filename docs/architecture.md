@@ -28,17 +28,17 @@ ToosterX 是一個 LINE LIFF + Firebase 的 buildless Vanilla JS SPA。前端由
 | 前端型態 | Vanilla JS / HTML / CSS，無 webpack、無 build step |
 | 主入口 | `index.html` + inline `app.js` runtime |
 | HTML fragments | `pages/` 共 20 個頁面片段 |
-| JS 檔案 | `js/` 共 288 個 JS |
+| JS 檔案 | `js/` 共 289 個 JS |
 | 功能模組 | `js/modules/` 共 274 個 JS，16 個子資料夾 + 29 個 root-level shared module |
 | CSS | `css/` 共 18 個 CSS |
 | 後端 | Firebase Cloud Functions v2，Node.js 22，主要 region `asia-east1` |
-| Cloud Functions exports | 64 個 |
+| Cloud Functions exports | 67 個 |
 | 資料庫 | Firestore，rules 約 1600 行 |
 | Storage | Firebase Storage，含 default bucket 與 asia-east1 bucket target |
 | 驗證 | LINE LIFF profile + Firebase Custom Token |
 | 佈署 | 前端 push `main` 後由 Cloudflare Pages / GitHub Pages 發佈；functions/rules 需 Firebase deploy |
 | 測試 | Jest unit、Firestore rules emulator、Playwright e2e smoke |
-| 目前快取版本 | `0.20260516k` |
+| 目前快取版本 | `0.20260519m` |
 
 ---
 
@@ -147,7 +147,7 @@ sequenceDiagram
 - `PageLoader._deferredPages`：`scan`、`shop`、admin 系列、`personal-dashboard`、`game`、`kickball`、`education` 等。
 - deep link 會讓 `PageLoader` 優先載入目標頁片段，例如活動、俱樂部、賽事。
 - `ScriptLoader._pageGroups` 把 page id 對應到模組群組，避免所有功能一次載完。
-- `Service Worker` 與目前 `CACHE_VERSION`（現行 `0.20260516k`）控制前端快取更新。
+- `Service Worker` 與目前 `CACHE_VERSION`（現行 `0.20260519m`）控制前端快取更新。
 
 ---
 
@@ -163,13 +163,14 @@ sequenceDiagram
 4. `js/firebase-service.js`
 5. `js/firebase-crud.js`
 6. `js/api-service.js`
-7. `js/line-auth.js`
-8. `js/core/page-loader.js`
-9. `js/core/script-loader.js`
-10. `app.js`
-11. `js/core/navigation.js`
-12. `js/core/theme.js`
-13. `js/core/button-loading.js`
+7. `js/identity-resolver.js`
+8. `js/line-auth.js`
+9. `js/core/page-loader.js`
+10. `js/core/script-loader.js`
+11. `app.js`
+12. `js/core/navigation.js`
+13. `js/core/theme.js`
+14. `js/core/button-loading.js`
 14. 常用 shared modules：PWA、多分頁 guard、圖片裁切/上傳、sync-status、role、profile core、banner、popup、announcement、site theme、首頁摘要儀表與 message 基礎等。
 
 ### ScriptLoader 主要群組
@@ -250,6 +251,17 @@ sequenceDiagram
 - `fetchTeamIfMissing()` / `fetchTournamentIfMissing()` 會把冷門資料注入 injected bucket，避免 onSnapshot active slice 洗掉。
 - `ensureUserStatsLoaded(uid)` 會針對個人頁完整載入該 UID 的 `activityRecords` / `attendanceRecords`，避免 limit 導致個人統計缺漏。
 
+目前登入者另有 owner-only `users/{uid}/identityPrivate/settings` listener，快取於 `_cache.currentUserIdentitySettings`，不寫入 localStorage。
+
+### `IdentityResolver`
+
+`js/identity-resolver.js` 是顯示身份解析層。
+
+- 主身份即時由 `users/{uid}` root profile 計算；MVP 不持久化 `identities.main`。
+- 第二身份只讀目前登入者的 `identityPrivate/settings.identities.secondary`，公開 profile、私訊、活動建立與排行榜仍維持主身份語意。
+- `buildPublicSnapshot()` 只輸出 `identityId`、`displayName`、`avatarUrl`；不輸出 role、permissions、claims 或真實 actor 欄位。
+- 未明確支援 identity snapshot 的寫入點不得自動套用 `profileActiveIdentityId`。
+
 ### `ApiService`
 
 `js/api-service.js` 是讀取 facade。
@@ -258,6 +270,8 @@ sequenceDiagram
 - 對外提供 `getEvents()`、`getTeams()`、`getTournaments()`、`getRegistrations()` 等 UI 讀取 API。
 - 提供 fetch-if-missing 補資料，例如熱門活動超出 listener limit 時，直接查單場子集合。
 - 個人資料、報名紀錄、統計查詢應優先走 canonical source。
+
+第二身份 API 只包裝 `identityPrivate/settings` 與 avatar callable：`getCurrentIdentitySettings()`、`updateCurrentIdentitySettings()`、`uploadSecondaryIdentityAvatar()`、`clearSecondaryIdentityAvatar()`。
 
 ### `firebase-crud.js`
 
@@ -280,7 +294,7 @@ sequenceDiagram
 | `events/{eventDocId}/registrations/{regId}` | 報名真實來源 | 現行權威報名資料 |
 | `events/{eventDocId}/attendanceRecords/{recId}` | 簽到/簽退 | 現行權威簽到資料 |
 | `events/{eventDocId}/activityRecords/{recId}` | 個人活動紀錄 | 個人報名紀錄來源，透過即時寫入 + 修復保持一致 |
-| `events/{eventDocId}/comments/{commentId}` | 活動留言 | 活動詳情留言來源；支援公開/私密、回覆、按讚、鎖回覆與軟刪除 |
+| `events/{eventDocId}/comments/{commentId}` | 活動留言 | 活動詳情留言來源；支援公開/私密、回覆、按讚、鎖回覆、軟刪除與 create-time immutable `identitySnapshot` |
 | `events/{eventDocId}/comments/{commentId}/replies/{replyId}` | 活動留言回覆 | 留言板回覆資料，隨留言板載入，不進活動列表快取 |
 | `events/{eventDocId}/comments/{commentId}/likes/{uid}` | 活動留言按讚 | 每位使用者一筆 like doc，保存 liker 顯示名稱與頭像 snapshot |
 | `events/{eventDocId}/registrationLocks/{lockId}` | 報名防重鎖 | 防止同一 UID/同行者/活動重複佔位 |
@@ -291,7 +305,8 @@ sequenceDiagram
 | `tournaments/{id}/applications/{applicationId}` | 賽事申請 | callable 管理，前端不可直接寫 |
 | `tournaments/{id}/entries/{teamId}` | 已參賽隊伍 | callable 管理 |
 | `tournaments/{id}/entries/{teamId}/members/{uid}` | 隊伍參賽 roster | callable 管理 |
-| `users/{uid}` | 使用者 | LINE UID 為主鍵，保存 role、profile、team fields |
+| `users/{uid}` | 使用者 | LINE UID 為主鍵，保存 role、profile、team fields；不保存第二身份完整資料 |
+| `users/{uid}/identityPrivate/settings` | 第二身份設定 | owner/admin-only；保存 `profileActiveIdentityId` 與 `identities.secondary`，不進公開 user root |
 | `users/{uid}/inbox/{msgId}` | 使用者收件匣 | Cloud Function 寫入，使用者讀/標記 |
 | `rolePermissions/{roleId}` | runtime 權限 | super_admin 寫，前端讀 |
 | `operationLogs/{logId}` | 操作 log | 前端/後端寫入，管理頁讀 |
@@ -303,6 +318,14 @@ sequenceDiagram
 | `usageMetrics` / `translateUsage` | 用量統計 | schedule / callable 寫入，super_admin 讀 |
 | `seoSnapshots` / `ciUsageSnapshots` | SEO/CI snapshot | 後台讀，寫入由後端或工具負責 |
 | `inv_*` collections | inventory 子系統 | 獨立 rules 區塊，inventory admin 管理 |
+
+### 第二身份 MVP 資料邊界
+
+- `users/{uid}` 仍是真實身份、統計與權限主鍵；公開 profile 永遠顯示主身份。
+- `users/{uid}/identityPrivate/settings` 僅本人與管理者可讀寫，保存第二身份啟用狀態、暱稱、頭像 Storage metadata 與我的頁面顯示偏好。
+- 第二身份頭像固定走 `images/users/{uid}/identities/secondary/{fileName}`，Storage rules 只允許 owner 寫入；`commitSecondaryIdentityAvatar` callable 驗證 bucket/path/contentType/size 後才 commit metadata。
+- 公開紀錄若支援第二身份，只能保存 `identitySnapshot.identityId/displayName/avatarUrl`；Firestore rules 會對照 root user 或 `identityPrivate/settings` 驗證，且建立後 immutable。
+- 活動留言是 MVP 第一個公開第二身份 surface。管理者看到第二身份留言時，前端以 `authorUid` join `adminUsers` 顯示 root displayName、root role 與 UID；這些稽核欄位不寫入公開留言文件。
 
 ### 舊 root collection 狀態
 
@@ -783,6 +806,7 @@ DATA_SYNC_SETTINGS_PASSWORD = process.env.DATA_SYNC_SETTINGS_PASSWORD || "1121"
 - `createCustomToken`
 - `syncUserRole`
 - `adminManageUser`
+- `commitSecondaryIdentityAvatar`
 - `adjustExp`
 - `autoPromoteTeamRole`
 - `backfillRoleClaims`
@@ -859,6 +883,7 @@ DATA_SYNC_SETTINGS_PASSWORD = process.env.DATA_SYNC_SETTINGS_PASSWORD || "1121"
 - `isSafeTeamMembershipUpdateByStaff()`
 - tournament scope helpers
 - registration owner / safe update helpers
+- identityPrivate settings / public identity snapshot validation helpers
 
 ### 高風險規則
 
@@ -869,6 +894,8 @@ DATA_SYNC_SETTINGS_PASSWORD = process.env.DATA_SYNC_SETTINGS_PASSWORD || "1121"
 - `siteConfig/realtimeConfig`：前端 rules 不允許直接修改，設定保存走 `saveRealtimeConfig` callable。
 - `auditLogsByDay`：前端不可寫，讀取需 super_admin 或 audit read 權限。
 - `participantQueryShares`：公開讀取只允許已完成、未過期且 public-safe 的 snapshot。
+- `users/{uid}/identityPrivate/settings`：只允許 owner/admin 讀寫；client 只能改第二身份安全欄位，avatar metadata 必須由 callable commit。
+- `events/{eventId}/comments` / `replies`：`identitySnapshot` 建立時需對照 root user 或第二身份設定，後續更新不可改寫 snapshot。
 
 ---
 
@@ -876,7 +903,7 @@ DATA_SYNC_SETTINGS_PASSWORD = process.env.DATA_SYNC_SETTINGS_PASSWORD || "1121"
 
 `sw.js` 現況：
 
-- `CACHE_NAME = sporthub-0.20260516k`
+- `CACHE_NAME = sporthub-0.20260519m`
 - HTML：network-first。
 - JS/CSS：cache-first，靠 `?v=` cache busting。
 - `pages/*.html`、動態載入的 JS/CSS 都帶目前 `CACHE_VERSION`。

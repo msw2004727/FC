@@ -16,15 +16,95 @@ Object.assign(App, {
   _eventCommentActiveLoads: new Map(),
   _eventCommentCacheInvalidatedAt: new Map(),
 
-  _getEventCommentAuthor() {
+  _getEventCommentIdentityChoice(selectId = 'event-comment-identity') {
+    const value = String(document.getElementById(selectId)?.value || 'main').trim();
+    return value === 'secondary' ? 'secondary' : 'main';
+  },
+
+  _renderEventCommentIdentityPicker(selectId = 'event-comment-identity') {
+    if (typeof IdentityResolver === 'undefined') return '';
+    const user = ApiService.getCurrentUser?.() || null;
+    const settings = ApiService.getCurrentIdentitySettings?.() || null;
+    const secondary = IdentityResolver.getSecondaryIdentity(user, settings);
+    if (!secondary?.displayName) return '';
+    const safeId = escapeHTML(selectId);
+    return `<label class="event-comment-identity-picker"><span>身份</span><select id="${safeId}"><option value="main" selected>主身份</option><option value="secondary">${escapeHTML(secondary.displayName)}</option></select></label>`;
+  },
+
+  _getEventCommentAuthor(requestedIdentityId = 'main') {
     const user = ApiService.getCurrentUser?.() || {};
-    const lineProfile = (typeof LineAuth !== 'undefined' && LineAuth.getProfile)
-      ? LineAuth.getProfile()
+    const uid = String(user.uid || user.lineUserId || '').trim();
+    const rootIdentity = (typeof IdentityResolver !== 'undefined')
+      ? IdentityResolver.getMainIdentity(user)
       : null;
-    const uid = String(user.uid || user.lineUserId || lineProfile?.userId || '').trim();
-    const authorName = String(lineProfile?.displayName || user.displayName || user.name || '用戶').trim();
-    const authorPhoto = String(lineProfile?.pictureUrl || user.pictureUrl || user.photoURL || '').trim();
-    return { uid, authorName: authorName || '用戶', authorPhoto };
+    const snapshot = (typeof IdentityResolver !== 'undefined')
+      ? IdentityResolver.buildPublicSnapshot({ user, requestedIdentityId })
+      : null;
+    const rootName = String(rootIdentity?.displayName || user.displayName || user.name || '用戶').trim();
+    const rootPhoto = String(rootIdentity?.pictureUrl || user.pictureUrl || user.photoURL || '').trim();
+    return {
+      uid,
+      authorName: rootName || '用戶',
+      authorPhoto: rootPhoto,
+      identitySnapshot: snapshot || {
+        identityId: 'main',
+        displayName: rootName || '用戶',
+        avatarUrl: rootPhoto,
+      },
+    };
+  },
+
+  _normalizePublicIdentitySnapshot(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const identityId = value.identityId === 'secondary' ? 'secondary' : (value.identityId === 'main' ? 'main' : '');
+    const displayName = String(value.displayName || '').trim();
+    const avatarUrl = String(value.avatarUrl || '').trim();
+    if (!identityId || !displayName) return null;
+    return {
+      identityId,
+      displayName,
+      avatarUrl,
+    };
+  },
+
+  _resolveEventCommentDisplay(data) {
+    const identitySnapshot = this._normalizePublicIdentitySnapshot(data?.identitySnapshot);
+    const displayName = String(identitySnapshot?.displayName || data?.authorName || '用戶').trim() || '用戶';
+    const displayPhoto = String(identitySnapshot ? identitySnapshot.avatarUrl : (data?.authorPhoto || '')).trim();
+    return {
+      identitySnapshot,
+      displayName,
+      displayPhoto,
+      rootAuthorName: String(data?.authorName || '').trim(),
+      rootAuthorPhoto: String(data?.authorPhoto || '').trim(),
+    };
+  },
+
+  _findEventCommentRootUser(authorUid, rootAuthorName = '') {
+    const uid = String(authorUid || '').trim();
+    const rootName = String(rootAuthorName || '').trim();
+    const users = (typeof ApiService !== 'undefined' && typeof ApiService.getAdminUsers === 'function')
+      ? (ApiService.getAdminUsers() || [])
+      : [];
+    return users.find(user => {
+      const userUid = String(user?.uid || user?._docId || user?.lineUserId || '').trim();
+      if (uid && userUid === uid) return true;
+      const userName = String(user?.displayName || user?.name || '').trim();
+      return !uid && rootName && userName === rootName;
+    }) || null;
+  },
+
+  _renderEventCommentAuditTrace(comment, ctx = {}) {
+    if (!ctx?.canManage || comment?.identitySnapshot?.identityId !== 'secondary') return '';
+    const rootUser = this._findEventCommentRootUser(comment.authorUid, comment.rootAuthorName);
+    const rootUid = String(comment.authorUid || rootUser?.uid || rootUser?._docId || rootUser?.lineUserId || '').trim();
+    const rootName = String(rootUser?.displayName || rootUser?.name || comment.rootAuthorName || rootUid || 'unknown').trim();
+    const roleKey = String(rootUser?.role || '').trim();
+    const roleLabel = (typeof ROLES !== 'undefined' && roleKey && ROLES[roleKey]?.label)
+      ? ROLES[roleKey].label
+      : (roleKey || 'unknown');
+    const title = `Root: ${rootName} / ${roleLabel} / ${rootUid || 'unknown'}`;
+    return `<span class="event-comment-audit-trace" title="${escapeHTML(title)}"><span class="event-comment-audit-label">&#20027;&#24115;&#34399;</span><span>${escapeHTML(rootName)}</span><span>${escapeHTML(roleLabel)}</span><span class="event-comment-audit-uid">${escapeHTML(rootUid || 'unknown')}</span></span>`;
   },
 
   _isEventCommentsClosed(eventRecord) {
@@ -108,12 +188,16 @@ Object.assign(App, {
     const rawLikeCount = Number(data.likeCount);
     const rawReplyCount = Number(data.replyCount);
     const user = ApiService.getCurrentUser?.();
+    const display = this._resolveEventCommentDisplay(data);
     return {
       id: docSnap.id,
       eventId: data.eventId || '',
       authorUid: data.authorUid || '',
-      authorName: data.authorName || '用戶',
-      authorPhoto: data.authorPhoto || '',
+      authorName: display.displayName,
+      authorPhoto: display.displayPhoto,
+      rootAuthorName: display.rootAuthorName,
+      rootAuthorPhoto: display.rootAuthorPhoto,
+      identitySnapshot: display.identitySnapshot,
       body: data.body || '',
       visibility: data.visibility === 'private' ? 'private' : 'public',
       replyLocked: data.replyLocked === true,
@@ -131,11 +215,15 @@ Object.assign(App, {
 
   _mapEventCommentReplyDoc(docSnap) {
     const data = docSnap.data() || {};
+    const display = this._resolveEventCommentDisplay(data);
     return {
       id: docSnap.id,
       authorUid: data.authorUid || '',
-      authorName: data.authorName || '用戶',
-      authorPhoto: data.authorPhoto || '',
+      authorName: display.displayName,
+      authorPhoto: display.displayPhoto,
+      rootAuthorName: display.rootAuthorName,
+      rootAuthorPhoto: display.rootAuthorPhoto,
+      identitySnapshot: display.identitySnapshot,
       body: data.body || '',
       deleted: data.deleted === true,
       createdAt: data.createdAt || null,
@@ -545,10 +633,12 @@ Object.assign(App, {
     const closed = this._isEventCommentsClosed(eventRecord);
     const canManage = this._canManageEventComments(eventRecord);
     const eventId = escapeHTML(eventRecord.id || '');
+    const identityPicker = this._renderEventCommentIdentityPicker?.() || '';
     const inputHtml = closed ? '<div class="event-comments-closed">活動已結束，留言輸入已關閉</div>' : `
       <form class="event-comment-form" onsubmit="App._submitEventComment('${eventId}');return false;">
         <textarea id="event-comment-input" maxlength="300" rows="3" placeholder="輸入留言，最多 300 字"></textarea>
         <div class="event-comment-form-foot">
+          ${identityPicker}
           <label class="event-comment-private-toggle"><input type="checkbox" id="event-comment-private"> 私密留言（僅主辦與委託能見）</label>
           <button type="submit" class="event-comment-submit">送出</button>
         </div>
@@ -606,12 +696,17 @@ Object.assign(App, {
     const replyForm = (!ctx.closed && !comment.replyLocked && !comment.deleted)
       ? `<form class="event-comment-reply-form" id="event-comment-reply-${safeCommentId}" onsubmit="App._submitEventCommentReply('${safeEventId}','${safeCommentId}');return false;" hidden><input maxlength="100" placeholder="回覆留言，最多 100 字"><button type="submit">送出</button></form>`
       : '';
+    const isSecondarySnapshot = comment.identitySnapshot?.identityId === 'secondary';
+    const authorHtml = isSecondarySnapshot
+      ? `<span class="event-comment-author event-comment-author-static">${escapeHTML(comment.authorName)}</span>`
+      : `<button type="button" class="event-comment-author" onclick="App.showUserProfile('${escapeHTML(comment.authorName)}',{uid:'${escapeHTML(comment.authorUid)}',allowGuest:true})">${escapeHTML(comment.authorName)}</button>`;
+    const auditTraceHtml = this._renderEventCommentAuditTrace(comment, ctx);
     return `<article class="event-comment-card" data-comment-id="${safeCommentId}">
       <div class="event-comment-head">
         ${this._renderEventCommentAvatar(comment.authorName, comment.authorPhoto)}
-        <button type="button" class="event-comment-author" onclick="App.showUserProfile('${escapeHTML(comment.authorName)}',{uid:'${escapeHTML(comment.authorUid)}',allowGuest:true})">${escapeHTML(comment.authorName)}</button>
+        ${authorHtml}
         <span class="event-comment-time">${escapeHTML(this._eventCommentTimeLabel(comment.createdAt))}</span>
-        ${privateBadge}${lockedBadge}
+        ${privateBadge}${lockedBadge}${auditTraceHtml}
         <span class="event-comment-manage">${manageHtml}</span>
       </div>
       ${bodyHtml}

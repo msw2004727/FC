@@ -74,6 +74,7 @@ const FirebaseService = {
     roleActivityCapabilities: {},
     customRoles: [],
     currentUser: null,
+    currentUserIdentitySettings: null,
   },
 
   _singleDocCache: {},  // { 'collection/docId': { ...data } }
@@ -173,6 +174,7 @@ const FirebaseService = {
   _listeners: [],
   _usersUnsub: null,
   _userListener: null,
+  _identityPrivateListener: null,
   _onUserChanged: null,
   _initialized: false,
   _initInFlight: false,
@@ -2298,6 +2300,50 @@ const FirebaseService = {
   //  延遲即時監聯器（Auth 完成後 / 進入頁面時啟動）
   // ════════════════════════════════
 
+  _normalizeIdentityPrivateSettings(data) {
+    const raw = data && typeof data === 'object' ? { ...data } : null;
+    if (!raw) return null;
+    if (typeof IdentityResolver !== 'undefined' && typeof IdentityResolver.normalizeSettings === 'function') {
+      return IdentityResolver.normalizeSettings(raw);
+    }
+    return raw;
+  },
+
+  _setupIdentityPrivateListener(uid) {
+    const safeUid = String(uid || '').trim();
+    if (!safeUid) return;
+    this._stopIdentityPrivateListener();
+
+    const ref = db.collection('users').doc(safeUid).collection('identityPrivate').doc('settings');
+    this._identityPrivateListener = ref.onSnapshot(
+      snapshot => {
+        const next = snapshot.exists
+          ? this._normalizeIdentityPrivateSettings({ ...snapshot.data(), _docId: snapshot.id })
+          : null;
+        const prevJson = JSON.stringify(this._cache.currentUserIdentitySettings || null);
+        const nextJson = JSON.stringify(next || null);
+        if (prevJson === nextJson) return;
+        this._cache.currentUserIdentitySettings = next;
+        if (this._onUserChanged) this._onUserChanged();
+        if (typeof App !== 'undefined') {
+          App.renderLoginUI?.();
+          if (App.currentPage === 'page-profile') App.renderProfileData?.();
+        }
+      },
+      err => {
+        console.warn('[FirebaseService] identityPrivate/settings listener failed:', err?.code || err?.message || err);
+      }
+    );
+  },
+
+  _stopIdentityPrivateListener() {
+    if (this._identityPrivateListener) {
+      try { this._identityPrivateListener(); } catch (_) {}
+      this._identityPrivateListener = null;
+    }
+    this._cache.currentUserIdentitySettings = null;
+  },
+
   /** 啟動 messages 監聽器（需 Auth） */
   // ── Phase 3: Per-user inbox — 單一 listener 取代 7+ 條 ──
   _startMessagesListener() {
@@ -2676,6 +2722,7 @@ const FirebaseService = {
 
       this._startMessagesListener();
       this._startUsersListener();
+      this._setupIdentityPrivateListener(authUid);
 
       // Fix 2：Auth 就緒後，若當前頁需要 registrations listener 則主動補啟動
       if (typeof App !== 'undefined'
@@ -3706,6 +3753,7 @@ const FirebaseService = {
     if (this._listenersSuspended) return;
     this._listenersSuspended = true;
     this._stopUsersListener();
+    this._stopIdentityPrivateListener();
     this._stopMessagesListener();
     this._stopRegistrationsListener();
     this._stopAttendanceRecordsListener();
@@ -4144,6 +4192,7 @@ const FirebaseService = {
     // 重置快取到初始空白狀態
     Object.keys(this._cache).forEach(k => {
       if (k === 'currentUser') { this._cache[k] = null; }
+      else if (k === 'currentUserIdentitySettings') { this._cache[k] = null; }
       else if (k === 'rolePermissions' || k === 'rolePermissionMeta' || k === 'roleActivityCapabilities') { this._cache[k] = {}; }
       else { this._cache[k] = []; }
     });

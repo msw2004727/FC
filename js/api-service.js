@@ -2846,6 +2846,35 @@ const ApiService = {
     return FirebaseService._cache.currentUser || null;
   },
 
+  getCurrentIdentitySettings() {
+    return FirebaseService._cache.currentUserIdentitySettings || null;
+  },
+
+  getCurrentIdentity(surface = 'default') {
+    if (typeof IdentityResolver === 'undefined') return null;
+    return IdentityResolver.getEffectiveIdentity({ surface });
+  },
+
+  getCurrentDisplayUser(surface = 'default') {
+    if (typeof IdentityResolver === 'undefined') return this.getCurrentUser();
+    return IdentityResolver.getDisplayUser({ surface });
+  },
+
+  async updateCurrentIdentitySettings(payload) {
+    if (this._handleRestrictedAction()) return null;
+    return await FirebaseService.updateCurrentIdentitySettings(payload);
+  },
+
+  async uploadSecondaryIdentityAvatar(base64DataUrl) {
+    if (this._handleRestrictedAction()) return null;
+    return await FirebaseService.uploadSecondaryIdentityAvatar(base64DataUrl);
+  },
+
+  async clearSecondaryIdentityAvatar() {
+    if (this._handleRestrictedAction()) return null;
+    return await FirebaseService.clearSecondaryIdentityAvatar();
+  },
+
   async loginUser(lineProfile) {
     return await FirebaseService.createOrUpdateUser(lineProfile);
   },

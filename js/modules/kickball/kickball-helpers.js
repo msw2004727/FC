@@ -23,13 +23,6 @@ window._KickballHelpers = (function () {
   }
   function getPreferredPlayerDisplayName(user) {
     function isPlaceholder(n) { return /^玩家[\w-]{2,}$/u.test(String(n || '').trim()); }
-    try {
-      if (typeof LineAuth !== 'undefined' && LineAuth && typeof LineAuth.getProfile === 'function') {
-        var p = LineAuth.getProfile();
-        var ln = String(p && p.displayName ? p.displayName : '').trim();
-        if (ln && !isPlaceholder(ln)) return ln;
-      }
-    } catch (_) {}
     var an = String(user && user.displayName ? user.displayName : '').trim();
     if (an && !isPlaceholder(an)) return an;
     return an || '';

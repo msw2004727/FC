@@ -77,13 +77,6 @@
     function isPlaceholderName(name) {
       return /^玩家[\w-]{2,}$/u.test(String(name || '').trim());
     }
-    try {
-      if (typeof LineAuth !== 'undefined' && LineAuth && typeof LineAuth.getProfile === 'function') {
-        var profile = LineAuth.getProfile();
-        var lineName = String(profile && profile.displayName ? profile.displayName : '').trim();
-        if (lineName && !isPlaceholderName(lineName)) return lineName;
-      }
-    } catch (_) {}
     var authName = String(user && user.displayName ? user.displayName : '').trim();
     if (authName && !isPlaceholderName(authName)) return authName;
     if (authName) return authName;

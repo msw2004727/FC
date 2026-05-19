@@ -2063,6 +2063,7 @@ Object.assign(FirebaseService, {
       this._userListener();
       this._userListener = null;
     }
+    this._setupIdentityPrivateListener?.(docId);
     this._userListener = db.collection('users').doc(docId).onSnapshot(
       doc => {
         if (doc.exists) {
@@ -2182,6 +2183,49 @@ Object.assign(FirebaseService, {
     }
   },
 
+  async updateCurrentIdentitySettings(payload = {}) {
+    await this.ensureAuthReadyForWrite();
+    const uid = auth?.currentUser?.uid || this._cache.currentUser?.uid || '';
+    if (!uid) throw new Error('Missing current user uid');
+    const ref = db.collection('users').doc(uid).collection('identityPrivate').doc('settings');
+    const next = {
+      ...payload,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    };
+    if (!this._cache.currentUserIdentitySettings) {
+      next.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+    }
+    await ref.set(next, { merge: true });
+  },
+
+  async uploadSecondaryIdentityAvatar(base64DataUrl) {
+    await this.ensureAuthReadyForWrite();
+    const uid = auth?.currentUser?.uid || this._cache.currentUser?.uid || '';
+    if (!uid) throw new Error('Missing current user uid');
+    const uploaded = await this._uploadImageWithRef(
+      base64DataUrl,
+      `users/${uid}/identities/secondary/avatar`
+    );
+    const avatarStoragePath = uploaded?.ref?.fullPath || '';
+    const avatarStorageBucket = uploaded?.bucket || uploaded?.ref?.bucket || '';
+    if (!uploaded?.url || !avatarStoragePath || !avatarStorageBucket) {
+      throw new Error('Secondary identity avatar upload metadata missing');
+    }
+    const callable = firebase.app().functions('asia-east1').httpsCallable('commitSecondaryIdentityAvatar');
+    await callable({
+      avatarUrl: uploaded.url,
+      avatarStoragePath,
+      avatarStorageBucket,
+    });
+    return uploaded.url;
+  },
+
+  async clearSecondaryIdentityAvatar() {
+    await this.ensureAuthReadyForWrite();
+    const callable = firebase.app().functions('asia-east1').httpsCallable('commitSecondaryIdentityAvatar');
+    await callable({ clear: true });
+  },
+
   // ════════════════════════════════
   //  Image Upload（Firebase Storage）
   // ════════════════════════════════
@@ -2205,6 +2249,8 @@ Object.assign(FirebaseService, {
       const metadata = {
         cacheControl: 'public, max-age=31536000',
       };
+      const contentType = String(/^data:([^;,]+)/.exec(base64DataUrl || '')?.[1] || '').trim();
+      if (contentType) metadata.contentType = contentType;
       let lastError = null;
       for (const target of uploadTargets) {
         try {
@@ -2248,6 +2294,8 @@ Object.assign(FirebaseService, {
       const metadata = {
         cacheControl: 'public, max-age=31536000',
       };
+      const contentType = String(/^data:([^;,]+)/.exec(base64DataUrl || '')?.[1] || '').trim();
+      if (contentType) metadata.contentType = contentType;
       let lastError = null;
       for (const target of uploadTargets) {
         try {

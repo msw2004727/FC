@@ -499,7 +499,224 @@ afterAll(async () => {
   if (testEnv) await testEnv.cleanup();
 });
 
+function newUserPayload(uid, overrides = {}) {
+  return {
+    uid,
+    lineUserId: uid,
+    displayName: `New ${uid}`,
+    pictureUrl: null,
+    email: null,
+    role: "user",
+    exp: 0,
+    level: 1,
+    gender: null,
+    birthday: null,
+    region: null,
+    sports: null,
+    teamId: null,
+    teamName: null,
+    phone: null,
+    titleBig: null,
+    titleNormal: null,
+    totalGames: 0,
+    completedGames: 0,
+    attendanceRate: 0,
+    badgeCount: 0,
+    createdAt: serverTimestamp(),
+    lastLogin: serverTimestamp(),
+    ...overrides,
+  };
+}
+
+function identitySettingsPayload(overrides = {}) {
+  return {
+    profileActiveIdentityId: "main",
+    identities: {
+      secondary: {
+        identityId: "secondary",
+        enabled: false,
+        displayName: "次身份",
+        avatarUrl: null,
+        avatarStoragePath: null,
+        avatarStorageBucket: null,
+        displayRoleLabel: "一般用戶",
+        isPrimary: false,
+        editable: true,
+        updatedAt: serverTimestamp(),
+        ...(overrides.secondary || {}),
+      },
+    },
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    ...Object.fromEntries(
+      Object.entries(overrides).filter(([key]) => key !== "secondary")
+    ),
+  };
+}
+
 describe("/users/{userId}", () => {
+  test("[SECONDARY_IDENTITY] root create permits only login/profile seed fields", async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(user("uidCreate"), "users", "uidCreate"),
+        newUserPayload("uidCreate")
+      )
+    );
+
+    await assertFails(
+      setDoc(
+        doc(user("uidCreateIdentities"), "users", "uidCreateIdentities"),
+        newUserPayload("uidCreateIdentities", {
+          identities: { secondary: { displayName: "leak" } },
+        })
+      )
+    );
+
+    await assertFails(
+      setDoc(
+        doc(user("uidCreateActiveIdentity"), "users", "uidCreateActiveIdentity"),
+        newUserPayload("uidCreateActiveIdentity", {
+          profileActiveIdentityId: "secondary",
+        })
+      )
+    );
+
+    await assertFails(
+      setDoc(
+        doc(user("uidCreateClaims"), "users", "uidCreateClaims"),
+        newUserPayload("uidCreateClaims", {
+          claims: { role: "admin" },
+        })
+      )
+    );
+  });
+
+  test("[SECONDARY_IDENTITY] root create cannot self-assign privilege-shaped fields", async () => {
+    await assertFails(
+      setDoc(
+        doc(user("uidCreateRole"), "users", "uidCreateRole"),
+        newUserPayload("uidCreateRole", { role: "admin" })
+      )
+    );
+
+    await assertFails(
+      setDoc(
+        doc(user("uidCreateExp"), "users", "uidCreateExp"),
+        newUserPayload("uidCreateExp", { exp: 9999 })
+      )
+    );
+
+    await assertFails(
+      setDoc(
+        doc(user("uidCreateManualRole"), "users", "uidCreateManualRole"),
+        newUserPayload("uidCreateManualRole", { manualRole: "admin" })
+      )
+    );
+  });
+
+  test("[SECONDARY_IDENTITY] identityPrivate settings are owner/admin readable only", async () => {
+    const ownerRef = doc(user(), "users", "uidUser", "identityPrivate", "settings");
+    await assertSucceeds(setDoc(ownerRef, identitySettingsPayload()));
+
+    await assertSucceeds(getDoc(ownerRef));
+    await assertSucceeds(
+      getDoc(doc(admin(), "users", "uidUser", "identityPrivate", "settings"))
+    );
+    await assertFails(
+      getDoc(doc(memberA(), "users", "uidUser", "identityPrivate", "settings"))
+    );
+  });
+
+  test("[SECONDARY_IDENTITY] identityPrivate settings reject cross-user writes and invalid activation", async () => {
+    await assertFails(
+      setDoc(
+        doc(memberA(), "users", "uidUser", "identityPrivate", "settings"),
+        identitySettingsPayload()
+      )
+    );
+
+    await assertFails(
+      setDoc(
+        doc(user(), "users", "uidUser", "identityPrivate", "settings"),
+        identitySettingsPayload({
+          profileActiveIdentityId: "secondary",
+          secondary: { enabled: false },
+        })
+      )
+    );
+
+    await assertSucceeds(
+      setDoc(
+        doc(user(), "users", "uidUser", "identityPrivate", "settings"),
+        identitySettingsPayload({
+          profileActiveIdentityId: "secondary",
+          secondary: { enabled: true },
+        })
+      )
+    );
+  });
+
+  test("[SECONDARY_IDENTITY] client cannot directly commit non-null avatar metadata", async () => {
+    await assertFails(
+      setDoc(
+        doc(user(), "users", "uidUser", "identityPrivate", "settings"),
+        identitySettingsPayload({
+          secondary: {
+            enabled: true,
+            avatarUrl: "https://firebasestorage.googleapis.com/v0/b/demo/o/avatar.png?alt=media",
+          },
+        })
+      )
+    );
+
+    await assertFails(
+      setDoc(
+        doc(user(), "users", "uidUser", "identityPrivate", "settings"),
+        identitySettingsPayload({
+          secondary: {
+            enabled: true,
+            avatarStoragePath: "images/users/uidUser/identities/secondary/avatar.png",
+          },
+        })
+      )
+    );
+  });
+
+  test("[SECONDARY_IDENTITY] client can preserve server-committed avatar metadata but cannot change it", async () => {
+    await seedPath(["users", "uidUser", "identityPrivate", "settings"], {
+      profileActiveIdentityId: "secondary",
+      identities: {
+        secondary: {
+          identityId: "secondary",
+          enabled: true,
+          displayName: "次身份",
+          avatarUrl: "https://firebasestorage.googleapis.com/v0/b/demo-project.firebasestorage.app/o/images%2Fusers%2FuidUser%2Fidentities%2Fsecondary%2Fa.png?alt=media",
+          avatarStoragePath: "images/users/uidUser/identities/secondary/a.png",
+          avatarStorageBucket: "demo-project.firebasestorage.app",
+          displayRoleLabel: "一般用戶",
+          isPrimary: false,
+          editable: true,
+          updatedAt: new Date(),
+        },
+      },
+      updatedAt: new Date(),
+    });
+
+    await assertSucceeds(
+      updateDoc(doc(user(), "users", "uidUser", "identityPrivate", "settings"), {
+        "identities.secondary.displayName": "新次身份",
+        updatedAt: serverTimestamp(),
+      })
+    );
+
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidUser", "identityPrivate", "settings"), {
+        "identities.secondary.avatarUrl": "https://firebasestorage.googleapis.com/v0/b/demo-project.firebasestorage.app/o/images%2Fusers%2FuidUser%2Fidentities%2Fsecondary%2Fb.png?alt=media",
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
   test("[SECURITY_HARDENED] own profile update requires server timestamp for updatedAt when provided", async () => {
     await assertSucceeds(
       updateDoc(doc(user(), "users", "uidUser"), {
@@ -3428,6 +3645,25 @@ describe("event comments subcollections", () => {
     };
   }
 
+  async function seedSecondaryIdentity(uid, overrides = {}) {
+    await seedPath(["users", uid, "identityPrivate", "settings"], {
+      profileActiveIdentityId: "main",
+      identities: {
+        secondary: {
+          identityId: "secondary",
+          enabled: true,
+          displayName: "Comment Alias",
+          avatarUrl: "",
+          displayRoleLabel: "Public",
+          isPrimary: false,
+          editable: true,
+          ...overrides,
+        },
+      },
+      updatedAt: new Date(),
+    });
+  }
+
   test("authenticated user can create a 300-character public comment before event end", async () => {
     await seedCommentEvent("commentFuture");
     await assertSucceeds(
@@ -3473,6 +3709,71 @@ describe("event comments subcollections", () => {
       updateDoc(doc(memberB(), "events", "commentSummary", "comments", "c1"), {
         likeCount: 9,
         recentLikers: [],
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  test("[SECONDARY_IDENTITY] comment identitySnapshot is verified and public-only", async () => {
+    await seedCommentEvent("commentIdentitySnapshot");
+    await seedSecondaryIdentity("uidUser");
+
+    await assertSucceeds(
+      setDoc(doc(user(), "events", "commentIdentitySnapshot", "comments", "c1"), {
+        ...commentData("commentIdentitySnapshot", "uidUser", "secondary"),
+        identitySnapshot: {
+          identityId: "secondary",
+          displayName: "Comment Alias",
+          avatarUrl: "",
+        },
+      })
+    );
+
+    await assertFails(
+      setDoc(doc(user(), "events", "commentIdentitySnapshot", "comments", "fakeName"), {
+        ...commentData("commentIdentitySnapshot", "uidUser", "fake"),
+        identitySnapshot: {
+          identityId: "secondary",
+          displayName: "Forged Alias",
+          avatarUrl: "",
+        },
+      })
+    );
+
+    await assertFails(
+      setDoc(doc(user(), "events", "commentIdentitySnapshot", "comments", "leaky"), {
+        ...commentData("commentIdentitySnapshot", "uidUser", "leaky"),
+        identitySnapshot: {
+          identityId: "main",
+          displayName: "General User",
+          avatarUrl: "",
+          role: "admin",
+        },
+      })
+    );
+  });
+
+  test("[SECONDARY_IDENTITY] comment identitySnapshot is immutable after create", async () => {
+    await seedCommentEvent("commentIdentityImmutable");
+    await seedPath(["events", "commentIdentityImmutable", "comments", "c1"], {
+      ...commentData("commentIdentityImmutable", "uidUser", "snapshot"),
+      identitySnapshot: {
+        identityId: "main",
+        displayName: "General User",
+        avatarUrl: "",
+      },
+    });
+
+    await assertFails(
+      updateDoc(doc(memberA(), "events", "commentIdentityImmutable", "comments", "c1"), {
+        deleted: true,
+        deletedByUid: "uidA",
+        deletedAt: serverTimestamp(),
+        identitySnapshot: {
+          identityId: "secondary",
+          displayName: "Changed",
+          avatarUrl: "",
+        },
         updatedAt: serverTimestamp(),
       })
     );

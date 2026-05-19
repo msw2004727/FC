@@ -169,6 +169,35 @@ describe('profile EXP display refresh wiring', () => {
   });
 });
 
+describe('secondary identity profile controls', () => {
+  test('profile page exposes active identity, secondary toggle, alias, and avatar controls', () => {
+    const profileHtml = readProjectFile('pages/profile.html');
+
+    expect(profileHtml).toContain('id="profile-identity-card"');
+    expect(profileHtml).toContain('name="profile-active-identity" value="main"');
+    expect(profileHtml).toContain('name="profile-active-identity" value="secondary"');
+    expect(profileHtml).toContain('id="profile-secondary-enabled"');
+    expect(profileHtml).toContain('id="profile-secondary-display-name"');
+    expect(profileHtml).toContain('id="profile-secondary-avatar-input"');
+  });
+
+  test('profile UI writes identityPrivate settings and commits avatar through callable', () => {
+    const profileRenderSource = readProjectFile('js/modules/profile/profile-data-render.js');
+    const apiSource = readProjectFile('js/api-service.js');
+    const crudSource = readProjectFile('js/firebase-crud.js');
+
+    expect(profileRenderSource).toContain('renderIdentitySettings()');
+    expect(profileRenderSource).toContain('saveIdentitySettings()');
+    expect(profileRenderSource).toContain('uploadSecondaryIdentityAvatar(input)');
+    expect(profileRenderSource).toContain("profileActiveIdentityId: activeId");
+    expect(apiSource).toContain('updateCurrentIdentitySettings(payload)');
+    expect(apiSource).toContain('uploadSecondaryIdentityAvatar(base64DataUrl)');
+    expect(crudSource).toContain(".collection('identityPrivate').doc('settings')");
+    expect(crudSource).toContain("httpsCallable('commitSecondaryIdentityAvatar')");
+    expect(crudSource).toContain('users/${uid}/identities/secondary/avatar');
+  });
+});
+
 describe('first login profile completion modal', () => {
   test('renders optional email benefits and uses the dedicated frosted scroll lock path', () => {
     const indexHtml = readProjectFile('index.html');

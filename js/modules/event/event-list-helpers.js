@@ -10,10 +10,6 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   _getEventCreatorName() {
-    if (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) {
-      const profile = LineAuth.getProfile();
-      if (profile && profile.displayName) return profile.displayName;
-    }
     const user = ApiService.getCurrentUser?.() || null;
     if (user && user.displayName) return user.displayName;
     return ROLES[this.currentRole]?.label || '一般用戶';

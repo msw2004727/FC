@@ -21,8 +21,8 @@ Object.assign(App, {
     return { eventRecord, eventDocId, eventRef, commentsRef, commentRef, replyRef };
   },
 
-  _requireEventCommentUser() {
-    const author = this._getEventCommentAuthor?.();
+  _requireEventCommentUser(requestedIdentityId = 'main') {
+    const author = this._getEventCommentAuthor?.(requestedIdentityId);
     if (!author?.uid) {
       this.showToast?.('請先登入');
       return null;
@@ -35,7 +35,7 @@ Object.assign(App, {
       this.showToast?.('系統已在處理中');
       return;
     }
-    const author = this._requireEventCommentUser();
+    const author = this._requireEventCommentUser(this._getEventCommentIdentityChoice?.() || 'main');
     if (!author) return;
     const eventRecord = ApiService.getEvent?.(eventId);
     if (this._isEventCommentsClosed(eventRecord)) {
@@ -57,6 +57,7 @@ Object.assign(App, {
         authorUid: author.uid,
         authorName: author.authorName,
         authorPhoto: author.authorPhoto || '',
+        identitySnapshot: author.identitySnapshot,
         body,
         visibility: privateInput?.checked ? 'private' : 'public',
         replyLocked: false,
@@ -116,6 +117,7 @@ Object.assign(App, {
         authorUid: author.uid,
         authorName: author.authorName,
         authorPhoto: author.authorPhoto || '',
+        identitySnapshot: author.identitySnapshot,
         body,
         deleted: false,
         createdAt: this._eventCommentServerTimestamp(),

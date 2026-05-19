@@ -243,15 +243,23 @@ Object.assign(App, {
       return;
     }
 
-    // 已登入
-    const profile = LineAuth.getProfile();
+    // 已登入：顯示身份一律取自 Firestore currentUser + identityPrivate resolver。
     const currentUser = ApiService.getCurrentUser();
+    const identity = ApiService.getCurrentIdentity?.('chrome') || null;
+    const displayName = identity?.displayName || currentUser?.displayName || currentUser?.name || '同步中...';
+    const identityCandidates = Array.isArray(identity?.avatarCandidates) ? identity.avatarCandidates : [];
+    const avatarCandidates = identity?.identityId === 'secondary'
+      ? this._getAvatarCandidateUrls(...identityCandidates)
+      : this._getAvatarCandidateUrls(...identityCandidates, currentUser && currentUser.pictureUrl);
+    const displayProfile = {
+      displayName,
+      pictureUrl: avatarCandidates[0] || '',
+    };
     if (loginBtn) loginBtn.style.display = 'none';
     if (userTopbar) userTopbar.style.display = '';
-    const avatarCandidates = this._getAvatarCandidateUrls(profile && profile.pictureUrl, currentUser && currentUser.pictureUrl);
     // 登入時取得的最新 LINE 頭像 URL，從壞圖記錄移除，讓它有機會重新載入
     avatarCandidates.forEach(function(url) { App._forgetBrokenAvatarUrl(url); });
-    this._setTopbarAvatar(userTopbar, avatarImg, profile, {
+    this._setTopbarAvatar(userTopbar, avatarImg, displayProfile, {
       candidateUrls: avatarCandidates,
     });
     this.updatePointsDisplay?.();
@@ -261,8 +269,8 @@ Object.assign(App, {
     if (loginPrompt) loginPrompt.style.display = 'none';
 
     // 更新 drawer
-    if (drawerName) drawerName.textContent = profile.displayName;
-    this._setAvatarContent(drawerAvatar, avatarCandidates[0] || null, profile.displayName, {
+    if (drawerName) drawerName.textContent = displayName;
+    this._setAvatarContent(drawerAvatar, avatarCandidates[0] || null, displayName, {
       fallbackClass: 'drawer-avatar',
       containerImageClass: 'drawer-avatar drawer-avatar-img',
       candidateUrls: avatarCandidates,

@@ -96,10 +96,8 @@ Object.assign(App, {
     if (titles?.renderTitlePage) return titles.renderTitlePage();
 
     const user = ApiService.getCurrentUser();
-    const lineProfile = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn())
-      ? LineAuth.getProfile()
-      : null;
-    const lineName = lineProfile ? lineProfile.displayName : (user ? user.displayName : '-');
+    const identity = ApiService.getCurrentIdentity?.('profile') || null;
+    const lineName = identity?.displayName || (user ? user.displayName : '-');
     const achievements = ApiService.getAchievements?.() || [];
     const registry = this._getAchievementRegistry?.();
     const earned = achievements.filter(achievement => {
@@ -180,8 +178,8 @@ Object.assign(App, {
     if (!isOpen) {
       // 填入用戶名稱
       const nameEl = document.getElementById('user-menu-name');
-      const profile = (typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn()) ? LineAuth.getProfile() : null;
-      if (nameEl && profile) nameEl.textContent = profile.displayName;
+      const identity = ApiService.getCurrentIdentity?.('chrome') || null;
+      if (nameEl && identity) nameEl.textContent = identity.displayName;
       // 點擊外部關閉
       setTimeout(() => {
         const close = (e) => {

@@ -1,11 +1,29 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    function isImageUpload() {
+      return request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    function isSecondaryIdentityAvatarPath(path) {
+      return path.matches('users/[^/]+/identities/secondary/[^/]+');
+    }
+
+    match /images/users/{uid}/identities/secondary/{fileName} {
+      allow read: if true;
+      allow create, update: if request.auth != null
+        && request.auth.uid == uid
+        && isImageUpload();
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+
     match /images/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null
-                   && request.resource.size < 2 * 1024 * 1024
-                   && request.resource.contentType.matches('image/.*');
+      allow create, update: if request.auth != null
+        && !isSecondaryIdentityAvatarPath(allPaths)
+        && isImageUpload();
+      allow delete: if false;
     }
   }
 }

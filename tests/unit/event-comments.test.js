@@ -20,13 +20,20 @@ describe('activity detail comments source contracts', () => {
     expect(detail).toContain('this._renderEventComments?.(id)');
   });
 
-  test('comments support LINE author identity, private visibility, 300 limit, replies, and optimistic likes', () => {
+  test('comments support resolved author identity, private visibility, 300 limit, replies, and optimistic likes', () => {
     const comments = readProjectFile('js/modules/event/event-comments.js');
     const actions = readProjectFile('js/modules/event/event-comments-actions.js');
     const css = readProjectFile('css/activity.css');
 
-    expect(comments).toContain('lineProfile?.displayName');
-    expect(comments).toContain('lineProfile?.pictureUrl');
+    expect(comments).toContain('_renderEventCommentIdentityPicker');
+    expect(comments).toContain('IdentityResolver.buildPublicSnapshot');
+    expect(comments).toContain('identitySnapshot');
+    expect(comments).toContain('event-comment-author-static');
+    expect(comments).toContain('_renderEventCommentAuditTrace');
+    expect(comments).toContain('ApiService.getAdminUsers');
+    expect(comments).toContain('rootAuthorName');
+    expect(comments).toContain('ROLES[roleKey]');
+    expect(comments).toContain('event-comment-audit-trace');
     expect(comments).toContain('authorPhoto');
     expect(comments).toContain('maxlength="300"');
     expect(comments).toContain('maxlength="100"');
@@ -57,6 +64,7 @@ describe('activity detail comments source contracts', () => {
     expect(comments).not.toContain("cRef.collection('likes').limit(500)");
     expect(comments).not.toContain("cRef.collection('replies').limit(20)");
     expect(actions).toContain('_setEventCommentLikeDoc');
+    expect(actions).toContain('identitySnapshot: author.identitySnapshot');
     expect(actions).toContain('_writeEventCommentLikeWithSummary');
     expect(actions).toContain('_syncEventCommentLikeAvatars');
     expect(actions).toContain('_readEventCommentLikeAvatarsFromDom');
@@ -76,6 +84,9 @@ describe('activity detail comments source contracts', () => {
     expect(css).toContain('.event-comment-like-avatar');
     expect(css).toContain('.event-comments-load-state');
     expect(css).toContain('.event-comment-retry-btn');
+    expect(css).toContain('.event-comment-identity-picker');
+    expect(css).toContain('.event-comment-author-static');
+    expect(css).toContain('.event-comment-audit-trace');
     expect(css).toContain('[data-theme="dark"] .event-comment-body');
     expect(css).toContain('[data-theme="dark"] .event-comment-card');
   });
