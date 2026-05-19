@@ -1144,6 +1144,147 @@ describe('team detail club activity section', () => {
     expect(app.showToast).toHaveBeenCalledWith(expect.stringContaining('\u4ff1\u6a02\u90e8\u8a2d\u5b9a'));
   });
 
+  test('member management renders quick promote actions only for eligible role targets', () => {
+    const app = {
+      _canQuickPromoteTeamMember: () => true,
+      _isUserInTeam: (user, teamId) => Array.isArray(user.teamIds) && user.teamIds.includes(teamId),
+    };
+    loadTeamDetailRender(app);
+    const team = { id: 'teamA', name: 'Club A' };
+    const memberRow = {
+      key: 'uid:member',
+      uid: 'member',
+      user: { uid: 'member', teamIds: ['teamA'] },
+      isMember: true,
+      roles: new Set(),
+    };
+    const leaderRow = {
+      key: 'uid:leader',
+      uid: 'leader',
+      user: { uid: 'leader', teamIds: ['teamA'] },
+      isMember: true,
+      roles: new Set(['\u9818\u968a']),
+    };
+    const managerRow = {
+      key: 'uid:manager',
+      uid: 'manager',
+      user: { uid: 'manager', teamIds: ['teamA'] },
+      isMember: true,
+      roles: new Set(['\u7403\u7d93']),
+    };
+
+    expect(app._getTeamMemberQuickPromoteTargets(team, memberRow).map(item => item.key)).toEqual(['leader', 'coach']);
+    expect(app._getTeamMemberQuickPromoteTargets(team, leaderRow).map(item => item.key)).toEqual(['coach']);
+    expect(app._getTeamMemberQuickPromoteTargets(team, managerRow)).toEqual([]);
+    const html = app._buildTeamMemberQuickPromoteControls(team, memberRow);
+    expect(html).toContain('td-member-promote-btn');
+    expect(html).toContain('quickPromoteTeamMember');
+    expect(html).toContain('svg viewBox="0 0 24 24"');
+  });
+
+  test('quick promote adds leader fields and refreshes the member card', async () => {
+    const team = { id: 'teamA', name: 'Club A', leaderUids: [], leaders: [], members: 1 };
+    const row = {
+      key: 'uid:member',
+      uid: 'member',
+      name: 'Amy',
+      user: { uid: 'member', _docId: 'user-doc', name: 'Amy', teamIds: ['teamA'] },
+      isMember: true,
+      roles: new Set(),
+    };
+    const updateTeamAwait = jest.fn().mockImplementation(async (_teamId, updates) => {
+      Object.assign(team, updates);
+      return team;
+    });
+    const roleChange = { uid: 'member', oldRole: 'user', newRole: 'coach', userName: 'Amy' };
+    const app = {};
+    loadTeamDetailCore(app, null, {
+      ApiService: {
+        getTeam: () => team,
+        getAdminUsers: () => [row.user],
+        updateTeamAwait,
+        _recalcUserRole: jest.fn().mockReturnValue(roleChange),
+        _writeOpLog: jest.fn(),
+      },
+      FirebaseService: {
+        _ensureAuth: jest.fn().mockResolvedValue(true),
+      },
+    });
+    Object.assign(app, {
+      _canEditTeamByRoleOrCaptain: () => true,
+      _getTeamMemberQuickPromoteTargets: () => [{ key: 'leader', label: '\u9818\u968a' }],
+      _findTeamDetailRosterRow: () => row,
+      _calcTeamMemberCountByTeam: jest.fn().mockReturnValue(2),
+      appConfirm: jest.fn().mockResolvedValue(true),
+      _withButtonLoading: async (_btn, _text, fn) => fn(),
+      _applyRoleChange: jest.fn(),
+      _deliverMessageWithLinePush: jest.fn(),
+      _refreshTeamMembersCardFromCache: jest.fn().mockReturnValue(true),
+      _refreshTeamDetailMembers: jest.fn().mockResolvedValue(),
+      showToast: jest.fn(),
+    });
+
+    await app.quickPromoteTeamMember(null, 'teamA', 'uid:member', 'leader');
+
+    expect(updateTeamAwait).toHaveBeenCalledWith('teamA', expect.objectContaining({
+      leaderUids: ['member'],
+      leaders: ['Amy'],
+      leaderNames: ['Amy'],
+      leaderUid: 'member',
+      leader: 'Amy',
+      members: 2,
+    }));
+    expect(app._applyRoleChange).toHaveBeenCalledWith(roleChange);
+    expect(app._deliverMessageWithLinePush).toHaveBeenCalledWith(
+      '\u4ff1\u6a02\u90e8\u8077\u4f4d\u6307\u6d3e',
+      expect.stringContaining('Club A'),
+      'system',
+      '\u7cfb\u7d71',
+      'member',
+      '\u7cfb\u7d71',
+      null,
+      { lineOptions: { source: 'team_role_assignment:leader' } }
+    );
+    expect(app._refreshTeamMembersCardFromCache).toHaveBeenCalledWith('teamA');
+    expect(app._refreshTeamDetailMembers).not.toHaveBeenCalled();
+  });
+
+  test('quick promote is hidden and blocked for non-manager staff', async () => {
+    const team = { id: 'teamA', name: 'Club A' };
+    const row = {
+      key: 'uid:member',
+      uid: 'member',
+      user: { uid: 'member', teamIds: ['teamA'] },
+      isMember: true,
+      roles: new Set(),
+    };
+    const app = {
+      _canQuickPromoteTeamMember: () => false,
+      _isUserInTeam: () => true,
+    };
+    loadTeamDetailRender(app);
+    expect(app._getTeamMemberQuickPromoteTargets(team, row)).toEqual([]);
+
+    const updateTeamAwait = jest.fn();
+    loadTeamDetailCore(app, null, {
+      ApiService: {
+        getTeam: () => team,
+        updateTeamAwait,
+      },
+      FirebaseService: {},
+    });
+    Object.assign(app, {
+      _canEditTeamByRoleOrCaptain: () => false,
+      _findTeamDetailRosterRow: () => row,
+      showToast: jest.fn(),
+    });
+
+    await app.quickPromoteTeamMember(null, 'teamA', 'uid:member', 'leader');
+
+    expect(updateTeamAwait).not.toHaveBeenCalled();
+    expect(app.showToast).toHaveBeenCalledWith(expect.stringContaining('\u4ff1\u6a02\u90e8\u7d93\u7406'));
+  });
+
   test('team member match data edit writes scoped club match fields', async () => {
     const updateTeamAwait = jest.fn().mockImplementation(async (_teamId, updates) => {
       Object.assign(team, updates);

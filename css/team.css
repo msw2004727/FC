@@ -1171,6 +1171,53 @@
   overflow: hidden;
   text-align: left;
 }
+.td-member-promote-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: .22rem;
+  margin-right: .22rem;
+  vertical-align: middle;
+}
+.td-member-promote-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .18rem;
+  min-width: 34px;
+  height: 24px;
+  padding: 0 .34rem;
+  border: 1px solid rgba(20, 184, 166, .42);
+  border-radius: var(--radius-full);
+  background: rgba(20, 184, 166, .12);
+  color: #0f766e;
+  font-size: .66rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform .15s ease, background .15s ease, border-color .15s ease;
+  vertical-align: middle;
+}
+.td-member-promote-btn svg {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.td-member-promote-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(20, 184, 166, .2);
+  border-color: rgba(20, 184, 166, .62);
+}
+.td-member-promote-btn:disabled {
+  opacity: .55;
+  cursor: wait;
+  transform: none;
+}
 .td-member-name-cell .td-member-remove-btn {
   margin-right: .16rem;
   vertical-align: middle;
@@ -2169,6 +2216,15 @@
 [data-theme="dark"] .td-member-role-pill.role-leader { background: rgba(251, 191, 36, .18); color: #fcd34d; }
 [data-theme="dark"] .td-member-role-pill.role-manager { background: rgba(244, 114, 182, .18); color: #f9a8d4; }
 [data-theme="dark"] .td-member-role-pill.role-default { background: rgba(148, 163, 184, .18); color: #cbd5e1; }
+[data-theme="dark"] .td-member-promote-btn {
+  border-color: rgba(45, 212, 191, .35);
+  background: rgba(20, 184, 166, .18);
+  color: #5eead4;
+}
+[data-theme="dark"] .td-member-promote-btn:hover {
+  border-color: rgba(94, 234, 212, .5);
+  background: rgba(20, 184, 166, .28);
+}
 [data-theme="dark"] .td-member-label-pill.tag-role.role-coach { background: rgba(167, 139, 250, .18); color: #c4b5fd; }
 [data-theme="dark"] .td-member-label-pill.tag-role.role-leader { background: rgba(251, 191, 36, .18); color: #fcd34d; }
 [data-theme="dark"] .td-member-label-pill.tag-role.role-manager { background: rgba(244, 114, 182, .18); color: #f9a8d4; }

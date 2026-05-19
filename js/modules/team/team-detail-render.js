@@ -1357,6 +1357,39 @@ Object.assign(App, {
     };
   },
 
+  _getTeamMemberQuickPromoteTargets(t, row) {
+    if (!t || !row?.uid || !row?.user || !row.isMember) return [];
+    const canPromote = typeof this._canQuickPromoteTeamMember === 'function'
+      ? this._canQuickPromoteTeamMember(t)
+      : !!this._canEditTeamByRoleOrCaptain?.(t);
+    if (!canPromote) return [];
+    const isInTeam = typeof this._isUserInTeam === 'function'
+      ? this._isUserInTeam(row.user, t.id)
+      : row.user.teamId === t.id || (Array.isArray(row.user.teamIds) && row.user.teamIds.map(String).includes(String(t.id)));
+    if (!isInTeam) return [];
+    const roles = row.roles instanceof Set ? row.roles : new Set();
+    if (roles.has('\u7403\u7d93')) return [];
+    return [
+      { key: 'leader', label: '\u9818\u968a' },
+      { key: 'coach', label: '\u6559\u7df4' },
+    ].filter(target => !roles.has(target.label));
+  },
+
+  _buildTeamMemberQuickPromoteControls(t, row) {
+    const targets = this._getTeamMemberQuickPromoteTargets(t, row);
+    if (!targets.length) return '';
+    const icon = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 19V5"></path><path d="M5 12l7-7 7 7"></path></svg>';
+    return '<span class="td-member-promote-actions" aria-label="\u5feb\u901f\u6649\u5347">'
+      + targets.map(target => {
+        const label = escapeHTML(target.label);
+        return '<button class="td-member-promote-btn" type="button" title="\u6649\u5347\u70ba' + label + '" onclick="event.stopPropagation();App.quickPromoteTeamMember(this,' + escapeHTML(JSON.stringify(t.id)) + ',' + escapeHTML(JSON.stringify(row.key)) + ',' + escapeHTML(JSON.stringify(target.key)) + ')">'
+          + icon
+          + '<span>' + label + '</span>'
+          + '</button>';
+      }).join('')
+      + '</span>';
+  },
+
   _isTeamDetailMatchDataEditableRow(row) {
     return !!(row?.user?._docId || (row?.studentId && row?.student));
   },
@@ -1427,11 +1460,14 @@ Object.assign(App, {
       const removeBtn = (canManageMembers && memberEditMode && removalKind)
         ? '<button class="td-member-remove-btn" title="\u5254\u9664\u6210\u54e1" onclick="event.stopPropagation();App.removeTeamRosterRow(this, ' + escapeHTML(JSON.stringify(t.id)) + ', ' + escapeHTML(JSON.stringify(row.key)) + ')">\u5254\u9664</button>'
         : '';
+      const quickPromoteControls = (canManageMembers && memberEditMode && typeof this._buildTeamMemberQuickPromoteControls === 'function')
+        ? this._buildTeamMemberQuickPromoteControls(t, row)
+        : '';
       const actions = showEditColumn
         ? '<td class="td-member-action-cell">' + (editActionBtn || '<span class="td-member-role-empty">-</span>') + '</td>'
         : '';
       return '<tr>'
-        + '<td class="td-member-name-cell">' + (removeBtn || '') + '<span class="' + nameClass + '"' + profileClick + '>' + safeName + '</span></td>'
+        + '<td class="td-member-name-cell">' + (removeBtn || '') + quickPromoteControls + '<span class="' + nameClass + '"' + profileClick + '>' + safeName + '</span></td>'
         + '<td class="td-member-tag-cell">' + this._buildTeamDetailMemberTagPill(row) + '</td>'
         + dataCells
         + actions

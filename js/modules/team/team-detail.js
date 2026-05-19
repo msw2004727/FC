@@ -752,6 +752,199 @@ Object.assign(App, {
     ) || null;
   },
 
+  _canQuickPromoteTeamMember(team) {
+    if (!team) return false;
+    return !!this._canEditTeamByRoleOrCaptain?.(team);
+  },
+
+  _getTeamQuickPromoteTargetConfig(targetRole) {
+    const key = String(targetRole || '').trim();
+    if (key === 'leader') {
+      return {
+        key,
+        label: '\u9818\u968a',
+        roleName: '\u9818\u968a',
+        logType: 'team_quick_promote_leader',
+        lineSource: 'team_role_assignment:leader',
+      };
+    }
+    if (key === 'coach') {
+      return {
+        key,
+        label: '\u6559\u7df4',
+        roleName: '\u6559\u7df4',
+        logType: 'team_quick_promote_coach',
+        lineSource: 'team_role_assignment:coach',
+      };
+    }
+    return null;
+  },
+
+  _buildTeamQuickPromoteUpdates(team, row, targetRole) {
+    const target = this._getTeamQuickPromoteTargetConfig(targetRole);
+    if (!team || !row || !target) return null;
+    const uid = String(row.uid || row.user?.uid || row.user?._docId || '').trim();
+    if (!uid) return null;
+    const displayName = String(row.name || row.user?.name || row.user?.displayName || '').trim() || uid;
+    const unique = (values) => {
+      const seen = new Set();
+      return (Array.isArray(values) ? values : [])
+        .map(v => String(v || '').trim())
+        .filter(v => {
+          if (!v || seen.has(v)) return false;
+          seen.add(v);
+          return true;
+        });
+    };
+    const pairedNames = (names, fallbackNames = []) => {
+      const list = (Array.isArray(names) ? names : fallbackNames)
+        .map(v => String(v || '').trim())
+        .filter(Boolean);
+      return list;
+    };
+
+    if (target.key === 'leader') {
+      const leaderUids = unique(Array.isArray(team.leaderUids) ? team.leaderUids : (team.leaderUid ? [team.leaderUid] : []));
+      if (leaderUids.includes(uid)) return null;
+      const leaders = pairedNames(team.leaders, team.leader ? [team.leader] : []);
+      leaderUids.push(uid);
+      leaders.push(displayName);
+      const firstLeaderUid = leaderUids[0] || null;
+      const firstLeaderName = leaders[0] || '';
+      return {
+        leaderUids,
+        leaders,
+        leaderNames: leaders,
+        leaderUid: firstLeaderUid,
+        leader: firstLeaderName,
+      };
+    }
+
+    if (target.key === 'coach') {
+      const coachUids = unique(team.coachUids);
+      if (coachUids.includes(uid)) return null;
+      const coaches = pairedNames(team.coaches, team.coachNames);
+      coachUids.push(uid);
+      coaches.push(displayName);
+      return {
+        coachUids,
+        coaches,
+        coachNames: coaches,
+      };
+    }
+    return null;
+  },
+
+  _sendTeamQuickPromoteNotice(team, row, target) {
+    const uid = String(row?.uid || row?.user?.uid || row?.user?._docId || '').trim();
+    if (!uid || typeof this._deliverMessageWithLinePush !== 'function') return;
+    const teamName = team?.name || '\u4ff1\u6a02\u90e8';
+    this._deliverMessageWithLinePush(
+      '\u4ff1\u6a02\u90e8\u8077\u4f4d\u6307\u6d3e',
+      `\u60a8\u5df2\u88ab\u8a2d\u70ba\u300c${teamName}\u300d\u7684${target.roleName}\u3002`,
+      'system', '\u7cfb\u7d71', uid, '\u7cfb\u7d71', null,
+      { lineOptions: { source: target.lineSource } }
+    );
+  },
+
+  async quickPromoteTeamMember(btn, teamId, memberKey, targetRole) {
+    const t = ApiService.getTeam(teamId);
+    const target = this._getTeamQuickPromoteTargetConfig(targetRole);
+    if (!t || !memberKey || !target) return;
+    if (!this._canQuickPromoteTeamMember(t)) {
+      this.showToast('\u53ea\u6709\u4ff1\u6a02\u90e8\u7d93\u7406\u53ef\u8abf\u6574\u8077\u52d9');
+      return;
+    }
+    const row = this._findTeamDetailRosterRow(teamId, memberKey);
+    if (!row?.uid || !row?.user) {
+      this.showToast('\u627e\u4e0d\u5230\u6210\u54e1\u8cc7\u6599');
+      return;
+    }
+    const options = typeof this._getTeamMemberQuickPromoteTargets === 'function'
+      ? this._getTeamMemberQuickPromoteTargets(t, row)
+      : [];
+    if (!options.some(option => option.key === target.key)) {
+      this.showToast('\u6b64\u6210\u54e1\u5df2\u662f\u8a72\u8077\u52d9\u6216\u7121\u6cd5\u6649\u5347');
+      return;
+    }
+    const memberName = this._displayNameOrUidFallback?.(row.name || row.user.name || row.user.displayName, row.uid, '\u6210\u54e1')
+      || row.name || row.user.name || row.user.displayName || '\u6210\u54e1';
+    const confirmed = typeof this.appConfirm === 'function'
+      ? await this.appConfirm('\u78ba\u5b9a\u8981\u5c07\u300c' + memberName + '\u300d\u6649\u5347\u70ba\u300c' + t.name + '\u300d\u7684' + target.roleName + '\uff1f')
+      : true;
+    if (!confirmed) return;
+
+    const run = async () => {
+      try {
+        if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._ensureAuth === 'function') {
+          const authed = await FirebaseService._ensureAuth();
+          if (!authed) {
+            this.showToast('\u767b\u5165\u5df2\u904e\u671f\uff0c\u8acb\u91cd\u65b0\u6574\u7406\u9801\u9762\u5f8c\u518d\u8a66');
+            return;
+          }
+        }
+        const currentTeam = ApiService.getTeam(teamId) || t;
+        if (!this._canQuickPromoteTeamMember(currentTeam)) {
+          this.showToast('\u53ea\u6709\u4ff1\u6a02\u90e8\u7d93\u7406\u53ef\u8abf\u6574\u8077\u52d9');
+          return;
+        }
+        const currentRow = this._findTeamDetailRosterRow(teamId, memberKey) || row;
+        const currentOptions = typeof this._getTeamMemberQuickPromoteTargets === 'function'
+          ? this._getTeamMemberQuickPromoteTargets(currentTeam, currentRow)
+          : [];
+        if (!currentOptions.some(option => option.key === target.key)) {
+          this.showToast('\u6b64\u6210\u54e1\u5df2\u662f\u8a72\u8077\u52d9\u6216\u7121\u6cd5\u6649\u5347');
+          if (typeof this._refreshTeamMembersCardFromCache === 'function') this._refreshTeamMembersCardFromCache(teamId);
+          return;
+        }
+        const updates = this._buildTeamQuickPromoteUpdates(currentTeam, currentRow, target.key);
+        if (!updates) {
+          this.showToast('\u6b64\u6210\u54e1\u5df2\u662f\u8a72\u8077\u52d9');
+          return;
+        }
+        const nextTeam = Object.assign({}, currentTeam, updates);
+        const users = ApiService.getAdminUsers?.() || [];
+        if (typeof this._calcTeamMemberCountByTeam === 'function') {
+          updates.members = this._calcTeamMemberCountByTeam(nextTeam, users);
+        }
+        const updater = ApiService.updateTeamAwait || ApiService.updateTeam;
+        const result = updater.call(ApiService, teamId, updates);
+        if (result && typeof result.then === 'function') await result;
+
+        const roleChange = ApiService._recalcUserRole?.(currentRow.uid);
+        this._applyRoleChange?.(roleChange);
+        this._sendTeamQuickPromoteNotice(currentTeam, currentRow, target);
+        ApiService._writeOpLog?.(
+          target.logType,
+          '\u4ff1\u6a02\u90e8\u8077\u4f4d\u8b8a\u66f4',
+          '\u65b0\u589e\u300c' + memberName + '\u300d\u70ba\u300c' + currentTeam.name + '\u300d' + target.roleName
+        );
+        this.showToast('\u5df2\u6649\u5347\u70ba' + target.roleName);
+        if (typeof this._refreshTeamMembersCardFromCache !== 'function' || !this._refreshTeamMembersCardFromCache(teamId)) {
+          await this._refreshTeamDetailMembers(teamId);
+        }
+      } catch (err) {
+        console.error('[quickPromoteTeamMember]', err);
+        ApiService._writeErrorLog?.(
+          {
+            fn: 'quickPromoteTeamMember',
+            teamId,
+            memberKey,
+            targetRole: target.key,
+            memberUid: row?.uid || '',
+            authUid: (typeof auth !== 'undefined' && auth?.currentUser?.uid) ? auth.currentUser.uid : 'null',
+          },
+          err
+        );
+        if (!err?._toasted) this.showToast('\u6649\u5347\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+      }
+    };
+    if (typeof this._withButtonLoading === 'function' && btn) {
+      return this._withButtonLoading(btn, '\u6649\u5347\u4e2d...', run);
+    }
+    return run();
+  },
+
   _promptTeamMemberMatchData(row, current) {
     const fallback = () => {
       const ask = typeof window !== 'undefined' && typeof window.prompt === 'function'

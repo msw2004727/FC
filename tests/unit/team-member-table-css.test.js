@@ -35,4 +35,16 @@ describe('team member table CSS contract', () => {
     expect(noteBlock).not.toContain('display: block');
     expect(noteBlock).not.toContain('max-width: 150px');
   });
+
+  test('quick promote button keeps a stable icon-sized control beside names', () => {
+    const css = readCss();
+    const buttonBlock = ruleBlock(css, '.td-member-promote-btn');
+    const iconBlock = ruleBlock(css, '.td-member-promote-btn svg');
+
+    expect(buttonBlock).toContain('display: inline-flex');
+    expect(buttonBlock).toContain('height: 24px');
+    expect(buttonBlock).toContain('white-space: nowrap');
+    expect(iconBlock).toContain('width: 12px');
+    expect(iconBlock).toContain('stroke: currentColor');
+  });
 });
