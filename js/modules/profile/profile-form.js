@@ -376,6 +376,45 @@ Object.assign(App, {
     return y + '/' + m + '/' + d;
   },
 
+  _legalTermsVersion: '2026-05-19',
+  _legalPrivacyVersion: '2026-05-19',
+
+  _hasAcceptedCurrentLegalVersions: function(user) {
+    user = user || ((typeof ApiService !== 'undefined' && ApiService.getCurrentUser) ? ApiService.getCurrentUser() : null);
+    return !!(user
+      && user.termsVersion === this._legalTermsVersion
+      && user.privacyVersion === this._legalPrivacyVersion
+      && user.termsAcceptedAt
+      && user.privacyAcceptedAt);
+  },
+
+  _buildFirstLoginLegalUpdates: function(source) {
+    var user = (typeof ApiService !== 'undefined' && ApiService.getCurrentUser) ? ApiService.getCurrentUser() : null;
+    var nowIso = new Date().toISOString();
+    var updates = {
+      termsVersion: this._legalTermsVersion,
+      privacyVersion: this._legalPrivacyVersion,
+      legalAcceptedSource: source || 'profile_completion_modal',
+    };
+    if (!(user && user.termsVersion === this._legalTermsVersion && user.termsAcceptedAt)) {
+      updates.termsAcceptedAt = nowIso;
+    }
+    if (!(user && user.privacyVersion === this._legalPrivacyVersion && user.privacyAcceptedAt)) {
+      updates.privacyAcceptedAt = nowIso;
+    }
+    return updates;
+  },
+
+  _requireFirstLoginLegalConsent: function(showErr) {
+    var consentEl = document.getElementById('fl-legal-consent');
+    if (!consentEl || consentEl.checked) return true;
+    var msg = '請先勾選同意服務條款與隱私權政策。';
+    if (typeof showErr === 'function') showErr(msg);
+    else this.showToast(msg);
+    try { consentEl.focus({ preventScroll: false }); } catch (_) { try { consentEl.focus(); } catch (__) {} }
+    return false;
+  },
+
   // Plan B+C：改用 await 確保存檔完成才關 modal（修正 fire-and-forget bug）
   async saveFirstLoginProfile() {
     var genderEl = document.getElementById('fl-gender');
@@ -392,6 +431,7 @@ Object.assign(App, {
       else self.showToast(msg);
     };
     if (errEl) errEl.style.display = 'none';
+    if (!this._requireFirstLoginLegalConsent(showErr)) return;
     if (!gender || !birthday || !region) {
       showErr('請填寫所有必填欄位（性別、生日、地區）');
       return;
@@ -402,18 +442,25 @@ Object.assign(App, {
     }
     // 禁用按鈕防連點
     var btn = document.querySelector('#first-login-modal .primary-btn');
+    var laterBtn = document.querySelector('#first-login-modal .fl-secondary-btn');
     if (btn) { btn.disabled = true; btn.textContent = '儲存中...'; }
+    if (laterBtn) laterBtn.disabled = true;
     try {
-      var updates = { gender: gender, birthday: birthday, region: region };
+      var updates = this._buildFirstLoginLegalUpdates('profile_completion_submit');
+      updates.gender = gender;
+      updates.birthday = birthday;
+      updates.region = region;
       if (email) updates.email = email;
       await ApiService.updateCurrentUserAwait(updates);
     } catch (err) {
       console.error('[saveFirstLoginProfile]', err);
       showErr('儲存失敗，請檢查網路後重試。若持續失敗可重新整理頁面。');
-      if (btn) { btn.disabled = false; btn.textContent = '確認送出'; }
+      if (btn) { btn.disabled = false; btn.textContent = '同意並送出'; }
+      if (laterBtn) laterBtn.disabled = false;
       return;  // 不關 modal，overlay 保持 locked 讓用戶重試（重整頁面可重置狀態）
     }
-    if (btn) { btn.disabled = false; btn.textContent = '確認送出'; }
+    if (btn) { btn.disabled = false; btn.textContent = '同意並送出'; }
+    if (laterBtn) laterBtn.disabled = false;
     this._pendingFirstLogin = false;
     this._firstLoginShowing = false;
     this._setFirstLoginOverlayState?.(false);
@@ -431,7 +478,31 @@ Object.assign(App, {
    * 2026-04-19 UX：首次登入 modal 關閉（「稍後填寫」按鈕）
    * 用戶可先關閉繼續瀏覽，但 _pendingFirstLogin 保留，下次寫入類動作仍會彈出
    */
-  dismissFirstLoginModal() {
+  async dismissFirstLoginModal() {
+    var errEl = document.getElementById('fl-error-msg');
+    var self = this;
+    var showErr = function(msg) {
+      if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+      else self.showToast(msg);
+    };
+    if (errEl) errEl.style.display = 'none';
+    if (!this._requireFirstLoginLegalConsent(showErr)) return;
+
+    var laterBtn = document.querySelector('#first-login-modal .fl-secondary-btn');
+    var submitBtn = document.querySelector('#first-login-modal .primary-btn');
+    if (laterBtn) { laterBtn.disabled = true; laterBtn.textContent = '儲存中...'; }
+    if (submitBtn) submitBtn.disabled = true;
+    try {
+      await ApiService.updateCurrentUserAwait(this._buildFirstLoginLegalUpdates('profile_completion_later'));
+    } catch (err) {
+      console.error('[dismissFirstLoginModal]', err);
+      showErr('同意紀錄儲存失敗，請檢查網路後重試。');
+      if (laterBtn) { laterBtn.disabled = false; laterBtn.textContent = '同意，稍後填寫'; }
+      if (submitBtn) submitBtn.disabled = false;
+      return;
+    }
+    if (laterBtn) { laterBtn.disabled = false; laterBtn.textContent = '同意，稍後填寫'; }
+    if (submitBtn) submitBtn.disabled = false;
     this._firstLoginShowing = false;
     this._setFirstLoginOverlayState?.(false);
     var errMsg = document.getElementById('fl-error-msg');

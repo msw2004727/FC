@@ -897,6 +897,7 @@ service cloud.firestore {
         return changed.hasOnly([
             'displayName', 'photoURL', 'pictureUrl', 'phone', 'email', 'updatedAt',
             'gender', 'birthday', 'region', 'sports',
+            'termsAcceptedAt', 'privacyAcceptedAt', 'termsVersion', 'privacyVersion', 'legalAcceptedSource',
             'favorites', 'socialLinks',
             'titleBig', 'titleNormal',
             'lineNotify',
@@ -932,6 +933,27 @@ service cloud.firestore {
                 && request.resource.data.email.size() > 0
                 && request.resource.data.email.size() <= 254
               )
+          ))
+          && (!changed.hasAny(['termsAcceptedAt']) || (
+              request.resource.data.termsAcceptedAt is string
+              && request.resource.data.termsAcceptedAt.size() > 0
+              && request.resource.data.termsAcceptedAt.size() <= 40
+          ))
+          && (!changed.hasAny(['privacyAcceptedAt']) || (
+              request.resource.data.privacyAcceptedAt is string
+              && request.resource.data.privacyAcceptedAt.size() > 0
+              && request.resource.data.privacyAcceptedAt.size() <= 40
+          ))
+          && (!changed.hasAny(['termsVersion']) || (
+              request.resource.data.termsVersion == '2026-05-19'
+          ))
+          && (!changed.hasAny(['privacyVersion']) || (
+              request.resource.data.privacyVersion == '2026-05-19'
+          ))
+          && (!changed.hasAny(['legalAcceptedSource']) || (
+              request.resource.data.legalAcceptedSource is string
+              && request.resource.data.legalAcceptedSource.size() > 0
+              && request.resource.data.legalAcceptedSource.size() <= 64
           ))
           && (!changed.hasAny(['gender']) || (
               request.resource.data.gender == null

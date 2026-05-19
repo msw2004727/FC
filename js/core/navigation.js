@@ -1269,9 +1269,13 @@ Object.assign(App, {
     var genderEl = document.getElementById('fl-gender');
     var regionEl = document.getElementById('fl-region-input');
     var emailEl = document.getElementById('fl-email');
+    var legalEl = document.getElementById('fl-legal-consent');
     if (genderEl && !genderEl.value && user.gender) genderEl.value = user.gender;
     if (regionEl && !regionEl.value && user.region) regionEl.value = user.region;
     if (emailEl && !emailEl.value && user.email) emailEl.value = user.email;
+    if (legalEl) {
+      legalEl.checked = !!(this._hasAcceptedCurrentLegalVersions && this._hasAcceptedCurrentLegalVersions(user));
+    }
   },
 
   _lockFirstLoginScroll() {

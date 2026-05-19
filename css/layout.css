@@ -1063,8 +1063,8 @@
   bottom: 0;
   z-index: 4;
   display: flex;
-  gap: .55rem;
-  justify-content: stretch;
+  flex-direction: column;
+  gap: .65rem;
   padding: .85rem 1.2rem calc(1rem + env(safe-area-inset-bottom, 0px));
   background:
     linear-gradient(180deg, rgba(255,255,255,.9), rgba(255,255,255,.98)),
@@ -1075,6 +1075,50 @@
   background:
     linear-gradient(180deg, rgba(17,24,39,.9), rgba(17,24,39,.98)),
     var(--bg-card);
+}
+.fl-legal-consent {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: .52rem;
+  align-items: flex-start;
+  padding: .6rem .68rem;
+  border: 1px solid rgba(148, 163, 184, .28);
+  border-radius: 8px;
+  background: rgba(248, 250, 252, .86);
+}
+[data-theme="dark"] .fl-legal-consent { background: rgba(31, 41, 55, .68); }
+.fl-legal-consent input {
+  width: 18px;
+  height: 18px;
+  margin-top: .1rem;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.fl-legal-copy {
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: .76rem;
+  line-height: 1.55;
+}
+.fl-legal-copy label {
+  display: inline;
+  color: var(--text-primary);
+  font-weight: 800;
+}
+.fl-legal-copy a {
+  color: var(--primary);
+  font-weight: 900;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.fl-legal-copy p {
+  margin: .22rem 0 0;
+  color: var(--text-muted);
+}
+.fl-action-buttons {
+  display: flex;
+  gap: .55rem;
+  justify-content: stretch;
 }
 .fl-secondary-btn,
 .fl-submit-btn {

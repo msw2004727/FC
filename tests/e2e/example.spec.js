@@ -31,8 +31,9 @@ async function dismissOptionalProfilePrompt(page) {
     if (!modal) return;
 
     if (typeof App !== 'undefined' && typeof App.dismissFirstLoginModal === 'function') {
-      App.dismissFirstLoginModal();
-      return;
+      const consent = document.getElementById('fl-legal-consent');
+      if (consent) consent.checked = true;
+      return App.dismissFirstLoginModal();
     }
 
     modal.classList.remove('show', 'active');

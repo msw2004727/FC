@@ -2918,6 +2918,32 @@ describe("/users/{userId} self-update security boundaries", () => {
     );
   });
 
+  test("owner can record profile modal legal consent", async () => {
+    await assertSucceeds(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        termsAcceptedAt: "2026-05-19T12:00:00.000Z",
+        privacyAcceptedAt: "2026-05-19T12:00:00.000Z",
+        termsVersion: "2026-05-19",
+        privacyVersion: "2026-05-19",
+        legalAcceptedSource: "profile_completion_submit",
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  test("owner CANNOT spoof unsupported legal policy versions", async () => {
+    await assertFails(
+      updateDoc(doc(user(), "users", "uidUser"), {
+        termsAcceptedAt: "2026-05-19T12:00:00.000Z",
+        privacyAcceptedAt: "2026-05-19T12:00:00.000Z",
+        termsVersion: "2099-01-01",
+        privacyVersion: "2026-05-19",
+        legalAcceptedSource: "profile_completion_submit",
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
   test("owner can update photoURL, pictureUrl, favorites, socialLinks", async () => {
     await assertSucceeds(
       updateDoc(doc(user(), "users", "uidUser"), {
