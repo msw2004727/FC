@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-19 Mobile low-end font stack optimization [perf]
+- **Problem**: The main app loaded Noto Sans TC from Google Fonts for Chinese body text, adding extra first-load font traffic and font application work on low-end mobile devices and LINE WebView.
+- **Fix**: Removed the Noto Sans TC Google Font request from `index.html`, kept Outfit for brand/English/numeric display text, and changed `css/base.css` body/display font stacks to prefer native system Chinese fonts.
+- **Tests**: `node --check js/config.js sw.js`, full unit suite, smoke suite plus targeted profile navigation rerun. Cache version bumped with `scripts/bump-version.js`.
+
 ### 2026-05-19 Activity nearby action placement [ux]
 - **Problem**: The activity page mixed the "find nearby activities" map entry into the region tab row, which made the five region tabs read off-center and placed the map action away from the primary "我要開團" action.
 - **Fix**: Moved the nearby-activity button into the activity page header action group immediately before "我要開團", kept the same feature flag sync by preserving `region-tab-nearby-activity`, and centered the five region tabs with flex auto margins.

@@ -5,8 +5,10 @@
 
 /* ─── CSS Variables / Theme ─── */
 :root {
-  --font-display: 'Outfit', 'Noto Sans TC', sans-serif;
-  --font-body: 'Noto Sans TC', 'Outfit', sans-serif;
+  --font-display: 'Outfit', -apple-system, BlinkMacSystemFont, "PingFang TC",
+    "Noto Sans CJK TC", "Microsoft JhengHei", "Segoe UI", sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "PingFang TC",
+    "Noto Sans CJK TC", "Microsoft JhengHei", "Segoe UI", sans-serif;
   --radius: 14px;
   --radius-sm: 8px;
   --radius-full: 999px;
