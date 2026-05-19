@@ -2949,3 +2949,9 @@
 - **原因**：toast 只設 `max-width`，固定定位元素仍可能被瀏覽器 shrink-to-fit 算成較窄寬度；必填欄位驗證沿用 inline error 路徑。
 - **修復**：toast 改為 `width: max-content` 搭配 `max-width: min(360px, calc(100vw - 32px))` 與較穩定行距，長文案延長顯示時間；首次完善資料缺少性別、生日或地區時改用 toast 提醒並聚焦第一個缺漏欄位。
 - **教訓**：短暫提示應有穩定可預期的寬度規格；重要阻擋提示不應只放在容易被忽略的表單區塊內。
+
+### 2026-05-19 — Inline Runtime App Drift [bugfix]
+- **問題**：GitHub Actions 的 `history-worker-fallback.test.js` 失敗，指出 `index.html` 的 inline runtime 與 `app.js` 不一致。
+- **原因**：toast 顯示時間調整只更新了 `index.html` 內嵌 runtime，沒有同步更新同源的 `app.js`。
+- **修復**：將 `app.js` 的 `showToast` 顯示時間邏輯同步為與 inline runtime 完全一致，並重新 bump 快取版號。
+- **教訓**：修改 `app-inline-runtime` 內的 App 核心方法時，必須同步修改 `app.js`，否則 hosting fallback contract 會在 CI 擋下。

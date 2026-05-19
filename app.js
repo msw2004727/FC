@@ -837,7 +837,8 @@ const App = {
     toast.textContent = msg;
     toast.classList.add('show');
     clearTimeout(this._toastTimer);
-    const ms = duration || (msg && msg.includes('\n') ? 4000 : 2500);
+    const textLen = msg ? Array.from(String(msg).replace(/\s/g, '')).length : 0;
+    const ms = duration || (msg && msg.includes('\n') ? 4000 : (textLen > 24 ? 3500 : 2500));
     this._toastTimer = setTimeout(() => toast.classList.remove('show'), ms);
   },
 
