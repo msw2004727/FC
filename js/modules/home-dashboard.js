@@ -701,24 +701,58 @@
       card.style.setProperty('--home-watch-party-bg', bg);
     },
 
-    async openHomeCreateEvent() {
+    _homeCreateEventRequestSeq: 0,
+
+    async _waitForHomeCreateEventReady(requestSeq, options = {}) {
+      const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 8000;
+      const startTime = Date.now();
+      while (Date.now() - startTime < timeoutMs) {
+        if (requestSeq !== this._homeCreateEventRequestSeq) return false;
+        if (this.currentPage && this.currentPage !== 'page-activities') return false;
+        if (typeof this.openCreateEventModal === 'function'
+          && document.getElementById('create-event-modal')) {
+          return true;
+        }
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      return false;
+    },
+
+    async openHomeCreateEvent(options = {}) {
+      const requestSeq = ++this._homeCreateEventRequestSeq;
       const lineAuth = (typeof LineAuth !== 'undefined') ? LineAuth : root.LineAuth;
       const apiService = (typeof ApiService !== 'undefined') ? ApiService : root.ApiService;
       const firebaseService = (typeof FirebaseService !== 'undefined') ? FirebaseService : root.FirebaseService;
       const scriptLoader = (typeof ScriptLoader !== 'undefined') ? ScriptLoader : root.ScriptLoader;
       const isLoggedIn = typeof lineAuth !== 'undefined' && lineAuth.isLoggedIn?.();
       const currentUser = apiService?.getCurrentUser?.() || firebaseService?._cache?.currentUser || null;
-      if (this._requestLoginForAction && !isLoggedIn && !currentUser) {
+      if (!options.skipLoginRequest && this._requestLoginForAction && !isLoggedIn && !currentUser) {
         this._requestLoginForAction({ type: 'createEvent' });
         return;
       }
       if (this._requireActivityCreateProfileComplete?.()) return;
-      await this.showPage?.('page-activities');
-      await scriptLoader?.ensureForPage?.('page-activities');
-      if (typeof this.openCreateEventModal === 'function') {
-        this.openCreateEventModal();
-      } else {
-        this.showToast?.('請從活動頁右上角「我要開團」進入');
+      try {
+        const showOptions = { disableShellFirst: true };
+        if (options.resetHistory) showOptions.resetHistory = true;
+        const showResult = await this.showPage?.('page-activities', showOptions);
+        if (requestSeq !== this._homeCreateEventRequestSeq) return false;
+        if (showResult && showResult.ok === false) {
+          throw new Error(`showPage failed: ${showResult.reason || 'unknown'}`);
+        }
+        await scriptLoader?.ensureForPage?.('page-activities');
+        if (requestSeq !== this._homeCreateEventRequestSeq) return false;
+
+        const ready = await this._waitForHomeCreateEventReady(requestSeq);
+        if (!ready) {
+          this.showToast?.('\u6d3b\u52d5\u5efa\u7acb\u529f\u80fd\u8f09\u5165\u5931\u6557\uff0c\u8acb\u518d\u9ede\u4e00\u6b21\u300c\u6211\u8981\u958b\u5718\u300d');
+          return false;
+        }
+        await this.openCreateEventModal();
+        return true;
+      } catch (err) {
+        console.warn('[HomeCreateEvent] failed to open:', err);
+        this.showToast?.('\u6d3b\u52d5\u5efa\u7acb\u529f\u80fd\u8f09\u5165\u5931\u6557\uff0c\u8acb\u518d\u9ede\u4e00\u6b21\u300c\u6211\u8981\u958b\u5718\u300d');
+        return false;
       }
     },
 

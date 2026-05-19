@@ -75,4 +75,32 @@ test.describe('phase 9 home layout smoke', () => {
 
     expect(overflow).toEqual([]);
   });
+
+  test('home create CTA opens the activity create sheet on mobile chromium', async ({ page }) => {
+    await openSeededHome(page);
+
+    await page.evaluate(() => {
+      const user = window.__E2E_TEST_HARNESS__?.currentUser;
+      if (!FirebaseService._cache) FirebaseService._cache = {};
+      FirebaseService._cache.currentUser = user;
+      FirebaseService._cache.roleActivityCapabilities = {
+        user: { capabilities: ['user.activity.basic_create', 'user.activity.own_manage_entry'] },
+      };
+      App.currentRole = 'user';
+      App.hasPermission = code => code === 'event.create';
+      App._hasActivityManageEntry = () => true;
+      App._refreshActivityCreateButton?.();
+      document.querySelectorAll('.home-create-event-btn').forEach(button => {
+        button.style.display = 'inline-flex';
+      });
+    });
+
+    const createButton = page.locator('.home-hero-actions .home-create-event-btn');
+    await expect(createButton).toBeVisible();
+    await createButton.click();
+
+    await expect(page.locator('#create-event-type-sheet')).toBeVisible({ timeout: 10000 });
+    await page.locator('#cets-custom').click();
+    await expect(page.locator('#create-event-modal')).toBeVisible({ timeout: 10000 });
+  });
 });

@@ -89,6 +89,7 @@ describe('activity create button', () => {
     expect(listSource).toContain("button.setAttribute('aria-disabled', profileLocked ? 'true' : 'false');");
     expect(createSource).toContain('if (this._requireActivityCreateProfileComplete?.()) return;');
     expect(homeSource).toContain('if (this._requireActivityCreateProfileComplete?.()) return;');
+    expect(homeSource).toContain("const showOptions = { disableShellFirst: true };");
     expect(bannerSource).toContain('this._refreshActivityCreateButton?.();');
     expect(profileFormSource).toContain('this._pendingFirstLogin = !user.gender || !user.birthday || !user.region;');
     expect(profileFormSource).toContain('this._refreshActivityCreateButton?.();');

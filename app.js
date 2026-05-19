@@ -1547,8 +1547,19 @@ const App = {
             return true;
           // v8 M1：延遲登入新增的 4 種寫入 action type
           case 'createEvent':
+            if (typeof this.openHomeCreateEvent === 'function') {
+              await this.openHomeCreateEvent({ resetHistory: true, skipLoginRequest: true });
+              return true;
+            }
             // 只回活動頁、不自動開 modal（避免用戶填一半表單遺失）
-            await this.showPage?.('page-activities', { resetHistory: true });
+            await this.showPage?.('page-activities', { resetHistory: true, disableShellFirst: true });
+            if (typeof ScriptLoader !== 'undefined' && ScriptLoader.ensureForPage) {
+              await ScriptLoader.ensureForPage('page-activities');
+            }
+            if (typeof this.openCreateEventModal === 'function') {
+              await this.openCreateEventModal();
+              return true;
+            }
             this.showToast?.('登入成功、請再點一次「我要開團」');
             return true;
           case 'createTeam':

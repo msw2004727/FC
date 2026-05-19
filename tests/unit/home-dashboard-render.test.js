@@ -255,6 +255,47 @@ describe("home-dashboard browser binding", () => {
     expect(dom.window.document.getElementById("activity-filter-keyword").value).toBe("");
   });
 
+  test("home create CTA waits for the activity page runtime before opening create flow", async () => {
+    const { app, dom, context } = runHomeDashboardModule({
+      apiService: {
+        getCurrentUser: () => ({ uid: "user-1", gender: "other", birthday: "1990-01-01", region: "north" }),
+      },
+    });
+    const modal = dom.window.document.createElement("div");
+    modal.id = "create-event-modal";
+    dom.window.document.body.appendChild(modal);
+    app.openCreateEventModal = jest.fn().mockResolvedValue(undefined);
+    app._requireActivityCreateProfileComplete = jest.fn(() => false);
+
+    await expect(app.openHomeCreateEvent()).resolves.toBe(true);
+
+    expect(app.showPage).toHaveBeenCalledWith("page-activities", { disableShellFirst: true });
+    expect(context.ScriptLoader.ensureForPage).toHaveBeenCalledWith("page-activities");
+    expect(app.openCreateEventModal).toHaveBeenCalledTimes(1);
+  });
+
+  test("home create CTA reports a failed activity runtime load instead of silently stopping on activities", async () => {
+    const { app, context } = runHomeDashboardModule({
+      apiService: {
+        getCurrentUser: () => ({ uid: "user-1", gender: "other", birthday: "1990-01-01", region: "north" }),
+      },
+    });
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    context.ScriptLoader.ensureForPage.mockRejectedValueOnce(new Error("load failed"));
+    app.openCreateEventModal = jest.fn();
+    app._requireActivityCreateProfileComplete = jest.fn(() => false);
+
+    try {
+      await expect(app.openHomeCreateEvent()).resolves.toBe(false);
+    } finally {
+      warnSpy.mockRestore();
+    }
+
+    expect(app.showPage).toHaveBeenCalledWith("page-activities", { disableShellFirst: true });
+    expect(app.openCreateEventModal).not.toHaveBeenCalled();
+    expect(app.showToast).toHaveBeenCalledWith(expect.stringContaining("\u6d3b\u52d5\u5efa\u7acb\u529f\u80fd\u8f09\u5165\u5931\u6557"));
+  });
+
   test("renders active watch party background onto the home card", () => {
     const { app, dom } = runHomeDashboardModule({
       apiService: {
