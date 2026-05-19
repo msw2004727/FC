@@ -136,6 +136,13 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
   ],
 };
 
+const PROFILE_FEATURE_PERMISSION_CATEGORY = Object.freeze({
+  cat: '\u500b\u4eba\u8cc7\u6599\u529f\u80fd',
+  items: Object.freeze([
+    { code: 'profile.secondary_identity', name: '\u7b2c\u4e8c\u8eab\u4efd' },
+  ]),
+});
+
 const INHERENT_ROLE_PERMISSIONS = Object.freeze({
   coach:       ['activity.manage.entry', 'admin.tournaments.entry'],
   captain:     ['activity.manage.entry', 'admin.tournaments.entry', 'team.manage.entry'],
@@ -306,6 +313,13 @@ function getAdminPagePermissionCode(pageId) {
 // Extracted from js/config.js:659-694 — getMergedPermissionCatalog
 // Merges built-in + remote permission categories
 // ---------------------------------------------------------------------------
+function getProfileFeaturePermissionDefinitions() {
+  return [{
+    cat: PROFILE_FEATURE_PERMISSION_CATEGORY.cat,
+    items: PROFILE_FEATURE_PERMISSION_CATEGORY.items.map(item => ({ ...item })),
+  }];
+}
+
 function getMergedPermissionCatalog(remoteCategories = []) {
   const result = [];
   const assignedCodes = new Set();
@@ -313,10 +327,27 @@ function getMergedPermissionCatalog(remoteCategories = []) {
     cat: def.label,
     items: def.items.map(item => ({ ...item })),
   }));
+  const profileFeatureCategories = getProfileFeaturePermissionDefinitions();
 
   builtInCategories.forEach(category => {
     category.items.forEach(item => assignedCodes.add(item.code));
     result.push(category);
+  });
+
+  profileFeatureCategories.forEach(category => {
+    const items = Array.isArray(category?.items)
+      ? category.items.filter(item =>
+        item
+        && isPermissionCodeEnabled(item.code)
+        && !assignedCodes.has(item.code)
+      )
+      : [];
+    if (!items.length) return;
+    items.forEach(item => assignedCodes.add(item.code));
+    result.push({
+      ...category,
+      items: items.map(item => ({ ...item })),
+    });
   });
 
   (remoteCategories || []).forEach(category => {
@@ -891,6 +922,13 @@ describe('Permission System', () => {
       expect(codes).toContain('admin.notif.toggle');
     });
 
+    test('includes profile feature permissions outside drawer pages', () => {
+      const catalog = getMergedPermissionCatalog();
+      const profileCat = catalog.find(c => c.items.some(i => i.code === 'profile.secondary_identity'));
+      expect(profileCat).toBeDefined();
+      expect(profileCat.items.map(i => i.code)).toContain('profile.secondary_identity');
+    });
+
     test('merges remote categories without duplicating built-in codes', () => {
       const remote = [
         {
@@ -967,6 +1005,7 @@ describe('Permission System', () => {
       expect(codes).toContain('team.create');
       expect(codes).toContain('admin.notif.entry');
       expect(codes).toContain('admin.notif.toggle');
+      expect(codes).toContain('profile.secondary_identity');
     });
 
     test('does not include disabled codes', () => {
@@ -1046,6 +1085,12 @@ describe('Permission System', () => {
       const perms = getDefaultRolePermissions('admin');
       expect(perms).not.toContain('admin.notif.entry');
       expect(perms).not.toContain('admin.notif.toggle');
+    });
+
+    test('second identity is controlled by explicit profile permission', () => {
+      expect(getDefaultRolePermissions('user')).not.toContain('profile.secondary_identity');
+      expect(getDefaultRolePermissions('admin')).not.toContain('profile.secondary_identity');
+      expect(getAllPermissionCodes()).toContain('profile.secondary_identity');
     });
   });
 });

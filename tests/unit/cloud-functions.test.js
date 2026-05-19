@@ -58,6 +58,7 @@ const LINE_NOTIFICATION_TOGGLE_ALLOWED_KEYS = new Set([
   "type_role_upgrade",
   "type_welcome",
 ]);
+const SECONDARY_IDENTITY_PERMISSION = "profile.secondary_identity";
 
 // ===========================================================================
 // Extracted validation logic
@@ -113,6 +114,12 @@ function hasPermission(userRole, dynamicPermissions, permCode) {
   const inherent = INHERENT_ROLE_PERMISSIONS[userRole] || [];
   if (inherent.includes(permCode)) return true;
   return (dynamicPermissions || []).includes(permCode);
+}
+
+function canUseSecondaryIdentityAccess(access) {
+  return !!access
+    && access.role !== 'user'
+    && access.hasPermission(SECONDARY_IDENTITY_PERMISSION);
 }
 
 function normalizeRole(role) {
@@ -1456,6 +1463,25 @@ function validateSecondaryIdentityAvatarCommit(data, uid, projectId = 'demo-proj
 }
 
 describe('commitIdentitySettings validation', () => {
+  test('second identity callable access is locked off for user and on for super_admin', () => {
+    expect(canUseSecondaryIdentityAccess({
+      role: 'user',
+      hasPermission: () => true,
+    })).toBe(false);
+    expect(canUseSecondaryIdentityAccess({
+      role: 'admin',
+      hasPermission: (code) => code === SECONDARY_IDENTITY_PERMISSION,
+    })).toBe(true);
+    expect(canUseSecondaryIdentityAccess({
+      role: 'admin',
+      hasPermission: () => false,
+    })).toBe(false);
+    expect(canUseSecondaryIdentityAccess({
+      role: 'super_admin',
+      hasPermission: () => true,
+    })).toBe(true);
+  });
+
   test('accepts main and enabled secondary identity settings payloads', () => {
     expect(validateIdentitySettingsCommit({
       profileActiveIdentityId: 'main',

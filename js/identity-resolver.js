@@ -17,6 +17,10 @@ const IdentityResolver = {
     return identityId === this.MAIN_IDENTITY_ID || identityId === this.SECONDARY_IDENTITY_ID;
   },
 
+  _canUseSecondaryIdentity(options = {}) {
+    return options.allowSecondaryIdentity !== false;
+  },
+
   getSettings() {
     try {
       return FirebaseService?._cache?.currentUserIdentitySettings || null;
@@ -63,7 +67,8 @@ const IdentityResolver = {
     return !!(secondary && secondary.enabled === true && secondary.displayName);
   },
 
-  getActiveIdentityId(settings = this.getSettings()) {
+  getActiveIdentityId(settings = this.getSettings(), options = {}) {
+    if (!this._canUseSecondaryIdentity(options)) return this.MAIN_IDENTITY_ID;
     const normalized = this.normalizeSettings(settings);
     if (
       normalized?.profileActiveIdentityId === this.SECONDARY_IDENTITY_ID
@@ -92,8 +97,9 @@ const IdentityResolver = {
     };
   },
 
-  getSecondaryIdentity(user, settings = this.getSettings()) {
+  getSecondaryIdentity(user, settings = this.getSettings(), options = {}) {
     if (!user) return null;
+    if (!this._canUseSecondaryIdentity(options)) return null;
     const normalized = this.normalizeSettings(settings);
     const secondary = normalized?.identities?.secondary || null;
     if (!secondary || secondary.enabled !== true || !secondary.displayName) return null;
@@ -124,8 +130,8 @@ const IdentityResolver = {
     if (this._privateMessageSurfaces.has(surface)) {
       return this.getMainIdentity(user);
     }
-    if (this.getActiveIdentityId(settings) === this.SECONDARY_IDENTITY_ID) {
-      return this.getSecondaryIdentity(user, settings) || this.getMainIdentity(user);
+    if (this.getActiveIdentityId(settings, options) === this.SECONDARY_IDENTITY_ID) {
+      return this.getSecondaryIdentity(user, settings, options) || this.getMainIdentity(user);
     }
     return this.getMainIdentity(user);
   },
@@ -156,12 +162,12 @@ const IdentityResolver = {
         : null
     );
     if (!user) return null;
-    const requestedIdentityId = this._isValidIdentityId(options.requestedIdentityId)
+    const requestedIdentityId = this._canUseSecondaryIdentity(options) && this._isValidIdentityId(options.requestedIdentityId)
       ? options.requestedIdentityId
       : this.MAIN_IDENTITY_ID;
     const settings = options.settings || this.getSettings();
     const identity = requestedIdentityId === this.SECONDARY_IDENTITY_ID
-      ? this.getSecondaryIdentity(user, settings)
+      ? this.getSecondaryIdentity(user, settings, options)
       : this.getMainIdentity(user);
     const resolved = identity || this.getMainIdentity(user);
     if (!resolved) return null;

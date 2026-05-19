@@ -61,6 +61,19 @@ service cloud.firestore {
         && authRole() == 'super_admin';
     }
 
+    function hasPerm(perm) {
+      let role = authRole();
+      let rpPath = /databases/$(database)/documents/rolePermissions/$(role);
+      return role != 'user'
+        && exists(rpPath)
+        && get(rpPath).data.permissions is list
+        && perm in get(rpPath).data.permissions;
+    }
+
+    function canUseSecondaryIdentity() {
+      return isSuperAdmin() || hasPerm('profile.secondary_identity');
+    }
+
     function userRootPath(uid) {
       return /databases/$(database)/documents/users/$(uid);
     }
@@ -95,6 +108,7 @@ service cloud.firestore {
       let data = get(path).data;
       let secondary = data.get('identities', {}).get('secondary', {});
       return exists(path)
+        && canUseSecondaryIdentity()
         && snapshot.identityId == 'secondary'
         && secondary is map
         && secondary.get('enabled', false) == true
@@ -135,15 +149,6 @@ service cloud.firestore {
     }
 
     // ── 動態權限檢查（即時讀取 rolePermissions collection）──
-    function hasPerm(perm) {
-      let role = authRole();
-      let rpPath = /databases/$(database)/documents/rolePermissions/$(role);
-      return role != 'user'
-        && exists(rpPath)
-        && get(rpPath).data.permissions is list
-        && perm in get(rpPath).data.permissions;
-    }
-
     function canRunTeamJoinRepair() {
       return isSuperAdmin() || hasPerm('admin.repair.team_join_repair');
     }
@@ -1283,6 +1288,12 @@ service cloud.firestore {
           && (!changed.hasAny(['updatedAt']) || request.resource.data.updatedAt == request.time);
       }
 
+      function canWriteIdentityPrivateSettings() {
+        return (isOwner(userId) && canUseSecondaryIdentity())
+          || isSuperAdmin()
+          || (isAdmin() && hasPerm('profile.secondary_identity'));
+      }
+
       allow read: if isAuth();
       allow create: if isSafeUserRootCreate();
       allow update: if (isOwner(userId) && isSafeSelfProfileUpdate())
@@ -1295,9 +1306,9 @@ service cloud.firestore {
 
       match /identityPrivate/{settingsId} {
         allow read: if isOwner(userId) || isAdmin();
-        allow create: if (isOwner(userId) || isAdmin())
+        allow create: if canWriteIdentityPrivateSettings()
           && isSafeIdentityPrivateSettingsWrite(settingsId, false);
-        allow update: if (isOwner(userId) || isAdmin())
+        allow update: if canWriteIdentityPrivateSettings()
           && isSafeIdentityPrivateSettingsWrite(settingsId, true);
         allow delete: if false;
       }

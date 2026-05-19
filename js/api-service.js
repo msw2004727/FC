@@ -2846,32 +2846,59 @@ const ApiService = {
     return FirebaseService._cache.currentUser || null;
   },
 
+  canUseSecondaryIdentityFeature(role = null) {
+    const roleKey = role || this.getCurrentUser()?.role || 'user';
+    if (roleKey === 'user') return false;
+    return this.getRolePermissions(roleKey).includes('profile.secondary_identity');
+  },
+
   getCurrentIdentitySettings() {
     return FirebaseService._cache.currentUserIdentitySettings || null;
   },
 
   getCurrentIdentity(surface = 'default') {
     if (typeof IdentityResolver === 'undefined') return null;
-    return IdentityResolver.getEffectiveIdentity({ surface });
+    return IdentityResolver.getEffectiveIdentity({
+      surface,
+      allowSecondaryIdentity: this.canUseSecondaryIdentityFeature(),
+    });
   },
 
   getCurrentDisplayUser(surface = 'default') {
     if (typeof IdentityResolver === 'undefined') return this.getCurrentUser();
-    return IdentityResolver.getDisplayUser({ surface });
+    return IdentityResolver.getDisplayUser({
+      surface,
+      allowSecondaryIdentity: this.canUseSecondaryIdentityFeature(),
+    });
   },
 
   async updateCurrentIdentitySettings(payload) {
     if (this._handleRestrictedAction()) return null;
+    if (!this.canUseSecondaryIdentityFeature()) {
+      const err = new Error('Secondary identity permission denied');
+      err.code = 'permission-denied';
+      throw err;
+    }
     return await FirebaseService.updateCurrentIdentitySettings(payload);
   },
 
   async uploadSecondaryIdentityAvatar(base64DataUrl) {
     if (this._handleRestrictedAction()) return null;
+    if (!this.canUseSecondaryIdentityFeature()) {
+      const err = new Error('Secondary identity permission denied');
+      err.code = 'permission-denied';
+      throw err;
+    }
     return await FirebaseService.uploadSecondaryIdentityAvatar(base64DataUrl);
   },
 
   async clearSecondaryIdentityAvatar() {
     if (this._handleRestrictedAction()) return null;
+    if (!this.canUseSecondaryIdentityFeature()) {
+      const err = new Error('Secondary identity permission denied');
+      err.code = 'permission-denied';
+      throw err;
+    }
     return await FirebaseService.clearSecondaryIdentityAvatar();
   },
 

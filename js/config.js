@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260519z';
+const CACHE_VERSION = '0.20260519zb';
 
 const GOOGLE_MAPS_BROWSER_API_KEY = '';
 
@@ -762,7 +762,7 @@ const DRAWER_MENUS = [
   { icon: '', label: '無效資料查詢', i18nKey: 'admin.inactive', page: 'page-admin-inactive', minRole: 'super_admin', permissionCode: 'admin.inactive.entry' },
 ];
 
-const ROLE_PERMISSION_CATALOG_VERSION = '20260515j';
+const ROLE_PERMISSION_CATALOG_VERSION = '20260519a';
 const DISABLED_PERMISSION_CODES = new Set(['admin.roles.entry']);
 const LEGACY_PERMISSION_CODE_REPLACEMENTS = Object.freeze({
   'event.edit_own': 'event.edit_self',
@@ -853,6 +853,20 @@ const ROLE_ACTIVITY_CAPABILITY_ITEMS = Object.freeze([
     defaultEnabled: false,
   },
 ]);
+
+const PROFILE_FEATURE_PERMISSION_CATEGORY = Object.freeze({
+  cat: '\u500b\u4eba\u8cc7\u6599\u529f\u80fd',
+  items: Object.freeze([
+    { code: 'profile.secondary_identity', name: '\u7b2c\u4e8c\u8eab\u4efd' },
+  ]),
+});
+
+function getProfileFeaturePermissionDefinitions() {
+  return [{
+    cat: PROFILE_FEATURE_PERMISSION_CATEGORY.cat,
+    items: PROFILE_FEATURE_PERMISSION_CATEGORY.items.map(item => ({ ...item })),
+  }];
+}
 
 function getRoleActivityCapabilityCodes() {
   return ROLE_ACTIVITY_CAPABILITY_ITEMS.map(item => item.code);
@@ -975,10 +989,27 @@ function getMergedPermissionCatalog(remoteCategories = []) {
     cat: def.label,
     items: def.items.map(item => ({ ...item })),
   }));
+  const profileFeatureCategories = getProfileFeaturePermissionDefinitions();
 
   builtInCategories.forEach(category => {
     category.items.forEach(item => assignedCodes.add(item.code));
     result.push(category);
+  });
+
+  profileFeatureCategories.forEach(category => {
+    const items = Array.isArray(category?.items)
+      ? category.items.filter(item =>
+        item
+        && isPermissionCodeEnabled(item.code)
+        && !assignedCodes.has(item.code)
+      )
+      : [];
+    if (!items.length) return;
+    items.forEach(item => assignedCodes.add(item.code));
+    result.push({
+      ...category,
+      items: items.map(item => ({ ...item })),
+    });
   });
 
   (remoteCategories || []).forEach(category => {

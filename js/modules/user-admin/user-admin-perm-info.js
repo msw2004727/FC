@@ -155,6 +155,11 @@ Object.assign(App, {
     },
 
     // ─ 站內信管理 ─
+    'profile.secondary_identity': {
+      title: '\u7b2c\u4e8c\u8eab\u4efd',
+      body: '\u63a7\u5236\u500b\u4eba\u8cc7\u6599\u9801\u662f\u5426\u986f\u793a\u7b2c\u4e8c\u8eab\u4efd\u6b04\u4f4d\u3002\u95dc\u9589\u5f8c\u4f7f\u7528\u8005\u770b\u4e0d\u5230\u8a72\u6b04\u4f4d\uff0c\u4e5f\u4e0d\u6703\u4ee5\u7b2c\u4e8c\u8eab\u4efd\u986f\u793a\u3002',
+    },
+
     'admin.messages.entry': {
       title: '站內信管理（入口）',
       body: '控制是否能在側邊選單中看到並進入「站內信管理」功能區。',

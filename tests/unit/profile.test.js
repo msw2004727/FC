@@ -174,6 +174,7 @@ describe('secondary identity profile controls', () => {
     const profileHtml = readProjectFile('pages/profile.html');
 
     expect(profileHtml).toContain('id="profile-identity-card"');
+    expect(profileHtml).toContain('data-permission-code="profile.secondary_identity"');
     expect(profileHtml).toContain('\u7b2c\u4e8c\u8eab\u4efd');
     expect(profileHtml).toContain("_showProfileInfo('secondaryIdentity')");
     expect(profileHtml).toContain('id="profile-secondary-enabled"');
@@ -196,8 +197,13 @@ describe('secondary identity profile controls', () => {
     const profileCss = readProjectFile('css/profile.css');
     const apiSource = readProjectFile('js/api-service.js');
     const crudSource = readProjectFile('js/firebase-crud.js');
+    const roleSource = readProjectFile('js/modules/role.js');
 
     expect(profileRenderSource).toContain('renderIdentitySettings()');
+    expect(profileRenderSource).toContain('_canUseSecondaryIdentityFeature()');
+    expect(profileRenderSource).toContain('_syncSecondaryIdentityFeatureVisibility()');
+    expect(profileRenderSource).toContain("card.style.display = allowed ? '' : 'none';");
+    expect(profileRenderSource).toContain("this.showToast('\\u6c92\\u6709\\u7b2c\\u4e8c\\u8eab\\u4efd\\u6b0a\\u9650')");
     expect(profileRenderSource).toContain('saveIdentitySettings(options = {})');
     expect(profileRenderSource).toContain('async handleSecondaryIdentityToggleChange()');
     expect(profileRenderSource).toContain('toggleIdentitySettingsEdit()');
@@ -231,7 +237,11 @@ describe('secondary identity profile controls', () => {
     expect(profileRenderSource).toContain('outputWidth: 512');
     expect(profileRenderSource).toContain('outputHeight: 512');
     expect(apiSource).toContain('updateCurrentIdentitySettings(payload)');
+    expect(apiSource).toContain('canUseSecondaryIdentityFeature(role = null)');
+    expect(apiSource).toContain("includes('profile.secondary_identity')");
     expect(apiSource).toContain('uploadSecondaryIdentityAvatar(base64DataUrl)');
+    expect(roleSource).toContain("document.querySelectorAll('[data-permission-code]')");
+    expect(roleSource).toContain('this.hasPermission(code, role)');
     expect(crudSource).toContain("httpsCallable('commitIdentitySettings')");
     expect(crudSource).toContain("httpsCallable('commitSecondaryIdentityAvatar')");
     expect(crudSource).toContain('_normalizeStorageBucketName');

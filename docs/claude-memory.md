@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-19 Secondary identity role permission gate [feature/security]
+- **Problem**: Secondary identity was controlled only by profile UI state, so the feature could not be enabled/disabled from the normal role permission panel and owner writes could still reach `identityPrivate/settings`.
+- **Fix**: Added `profile.secondary_identity` to the first `rolePermissions` catalog as a profile feature permission. `user` remains locked without the permission, `super_admin` is locked with it, and normal roles can use the second identity only when the permission is granted. Profile UI visibility, current identity resolution, callable commits, comment snapshots, and Firestore direct writes now all share this gate.
+- **Tests**: Added/updated permission matrix, profile, IdentityResolver, Cloud Functions, permission-audit, and Firestore rules coverage. Full unit suite and Firestore rules suite pass.
+
 ### 2026-05-19 Secondary identity comment/profile polish [bug/ux]
 - **Problem**: Activity comments still exposed a per-form identity picker, switching to secondary identity could leave chrome avatars stale, and the user-card page still exposed role, level, contact, badges, and records while the secondary identity was active.
 - **Fix**: Comments now resolve the author from the current global display identity only. Identity save/avatar mutations refresh the login chrome immediately. Self user cards in secondary mode show only the secondary avatar and display name, while all remaining card content is covered by a frosted privacy layer. The profile page header now uses `profile.myProfile` so the top-left title reads "我的資料" without changing the bottom tab label.

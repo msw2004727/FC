@@ -81,6 +81,33 @@ describe('IdentityResolver', () => {
     });
   });
 
+  test('secondary identity permission gate forces main identity', () => {
+    const settings = {
+      profileActiveIdentityId: 'secondary',
+      identities: {
+        secondary: {
+          enabled: true,
+          displayName: 'Public Alias',
+          avatarUrl: 'https://example.com/alias.png',
+        },
+      },
+    };
+    const resolver = loadResolver({ user: mainUser, settings });
+
+    expect(resolver.getEffectiveIdentity({ allowSecondaryIdentity: false })).toMatchObject({
+      identityId: 'main',
+      displayName: 'Main Name',
+    });
+    expect(resolver.buildPublicSnapshot({
+      requestedIdentityId: 'secondary',
+      allowSecondaryIdentity: false,
+    })).toEqual({
+      identityId: 'main',
+      displayName: 'Main Name',
+      avatarUrl: 'https://example.com/main.png',
+    });
+  });
+
   test('falls back to main when secondary is selected but incomplete', () => {
     const resolver = loadResolver({
       user: mainUser,

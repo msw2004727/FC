@@ -615,22 +615,24 @@ describe("/users/{userId}", () => {
   });
 
   test("[SECONDARY_IDENTITY] identityPrivate settings are owner/admin readable only", async () => {
-    const ownerRef = doc(user(), "users", "uidUser", "identityPrivate", "settings");
+    await seedRolePermissions("coach", ["profile.secondary_identity"]);
+    const ownerRef = doc(coach(), "users", "uidCoach", "identityPrivate", "settings");
     await assertSucceeds(setDoc(ownerRef, identitySettingsPayload()));
 
     await assertSucceeds(getDoc(ownerRef));
     await assertSucceeds(
-      getDoc(doc(admin(), "users", "uidUser", "identityPrivate", "settings"))
+      getDoc(doc(admin(), "users", "uidCoach", "identityPrivate", "settings"))
     );
     await assertFails(
-      getDoc(doc(memberA(), "users", "uidUser", "identityPrivate", "settings"))
+      getDoc(doc(memberA(), "users", "uidCoach", "identityPrivate", "settings"))
     );
   });
 
   test("[SECONDARY_IDENTITY] identityPrivate settings reject cross-user writes and invalid activation", async () => {
+    await seedRolePermissions("coach", ["profile.secondary_identity"]);
     await assertFails(
       setDoc(
-        doc(memberA(), "users", "uidUser", "identityPrivate", "settings"),
+        doc(memberA(), "users", "uidCoach", "identityPrivate", "settings"),
         identitySettingsPayload()
       )
     );
@@ -638,6 +640,13 @@ describe("/users/{userId}", () => {
     await assertFails(
       setDoc(
         doc(user(), "users", "uidUser", "identityPrivate", "settings"),
+        identitySettingsPayload()
+      )
+    );
+
+    await assertFails(
+      setDoc(
+        doc(coach(), "users", "uidCoach", "identityPrivate", "settings"),
         identitySettingsPayload({
           profileActiveIdentityId: "secondary",
           secondary: { enabled: false },
@@ -647,7 +656,7 @@ describe("/users/{userId}", () => {
 
     await assertSucceeds(
       setDoc(
-        doc(user(), "users", "uidUser", "identityPrivate", "settings"),
+        doc(coach(), "users", "uidCoach", "identityPrivate", "settings"),
         identitySettingsPayload({
           profileActiveIdentityId: "secondary",
           secondary: { enabled: true },
@@ -657,9 +666,10 @@ describe("/users/{userId}", () => {
   });
 
   test("[SECONDARY_IDENTITY] client cannot directly commit non-null avatar metadata", async () => {
+    await seedRolePermissions("coach", ["profile.secondary_identity"]);
     await assertFails(
       setDoc(
-        doc(user(), "users", "uidUser", "identityPrivate", "settings"),
+        doc(coach(), "users", "uidCoach", "identityPrivate", "settings"),
         identitySettingsPayload({
           secondary: {
             enabled: true,
@@ -671,11 +681,11 @@ describe("/users/{userId}", () => {
 
     await assertFails(
       setDoc(
-        doc(user(), "users", "uidUser", "identityPrivate", "settings"),
+        doc(coach(), "users", "uidCoach", "identityPrivate", "settings"),
         identitySettingsPayload({
           secondary: {
             enabled: true,
-            avatarStoragePath: "images/users/uidUser/identities/secondary/avatar.png",
+            avatarStoragePath: "images/users/uidCoach/identities/secondary/avatar.png",
           },
         })
       )
@@ -683,15 +693,16 @@ describe("/users/{userId}", () => {
   });
 
   test("[SECONDARY_IDENTITY] client can preserve server-committed avatar metadata but cannot change it", async () => {
-    await seedPath(["users", "uidUser", "identityPrivate", "settings"], {
+    await seedRolePermissions("coach", ["profile.secondary_identity"]);
+    await seedPath(["users", "uidCoach", "identityPrivate", "settings"], {
       profileActiveIdentityId: "secondary",
       identities: {
         secondary: {
           identityId: "secondary",
           enabled: true,
           displayName: "次身份",
-          avatarUrl: "https://firebasestorage.googleapis.com/v0/b/demo-project.firebasestorage.app/o/images%2Fusers%2FuidUser%2Fidentities%2Fsecondary%2Fa.png?alt=media",
-          avatarStoragePath: "images/users/uidUser/identities/secondary/a.png",
+          avatarUrl: "https://firebasestorage.googleapis.com/v0/b/demo-project.firebasestorage.app/o/images%2Fusers%2FuidCoach%2Fidentities%2Fsecondary%2Fa.png?alt=media",
+          avatarStoragePath: "images/users/uidCoach/identities/secondary/a.png",
           avatarStorageBucket: "demo-project.firebasestorage.app",
           displayRoleLabel: "一般用戶",
           isPrimary: false,
@@ -703,7 +714,7 @@ describe("/users/{userId}", () => {
     });
 
     await assertSucceeds(
-      updateDoc(doc(user(), "users", "uidUser", "identityPrivate", "settings"), {
+      updateDoc(doc(coach(), "users", "uidCoach", "identityPrivate", "settings"), {
         "identities.secondary.displayName": "新次身份",
         updatedAt: serverTimestamp(),
       })
@@ -711,7 +722,7 @@ describe("/users/{userId}", () => {
 
     await assertSucceeds(
       setDoc(
-        doc(user(), "users", "uidUser", "identityPrivate", "settings"),
+        doc(coach(), "users", "uidCoach", "identityPrivate", "settings"),
         {
           profileActiveIdentityId: "secondary",
           identities: {
@@ -732,8 +743,8 @@ describe("/users/{userId}", () => {
     );
 
     await assertFails(
-      updateDoc(doc(user(), "users", "uidUser", "identityPrivate", "settings"), {
-        "identities.secondary.avatarUrl": "https://firebasestorage.googleapis.com/v0/b/demo-project.firebasestorage.app/o/images%2Fusers%2FuidUser%2Fidentities%2Fsecondary%2Fb.png?alt=media",
+      updateDoc(doc(coach(), "users", "uidCoach", "identityPrivate", "settings"), {
+        "identities.secondary.avatarUrl": "https://firebasestorage.googleapis.com/v0/b/demo-project.firebasestorage.app/o/images%2Fusers%2FuidCoach%2Fidentities%2Fsecondary%2Fb.png?alt=media",
         updatedAt: serverTimestamp(),
       })
     );
@@ -3738,11 +3749,12 @@ describe("event comments subcollections", () => {
 
   test("[SECONDARY_IDENTITY] comment identitySnapshot is verified and public-only", async () => {
     await seedCommentEvent("commentIdentitySnapshot");
-    await seedSecondaryIdentity("uidUser");
+    await seedRolePermissions("coach", ["profile.secondary_identity"]);
+    await seedSecondaryIdentity("uidCoach");
 
     await assertSucceeds(
-      setDoc(doc(user(), "events", "commentIdentitySnapshot", "comments", "c1"), {
-        ...commentData("commentIdentitySnapshot", "uidUser", "secondary"),
+      setDoc(doc(coach(), "events", "commentIdentitySnapshot", "comments", "c1"), {
+        ...commentData("commentIdentitySnapshot", "uidCoach", "secondary"),
         identitySnapshot: {
           identityId: "secondary",
           displayName: "Comment Alias",
@@ -3752,8 +3764,8 @@ describe("event comments subcollections", () => {
     );
 
     await assertFails(
-      setDoc(doc(user(), "events", "commentIdentitySnapshot", "comments", "fakeName"), {
-        ...commentData("commentIdentitySnapshot", "uidUser", "fake"),
+      setDoc(doc(coach(), "events", "commentIdentitySnapshot", "comments", "fakeName"), {
+        ...commentData("commentIdentitySnapshot", "uidCoach", "fake"),
         identitySnapshot: {
           identityId: "secondary",
           displayName: "Forged Alias",
@@ -3770,6 +3782,18 @@ describe("event comments subcollections", () => {
           displayName: "General User",
           avatarUrl: "",
           role: "admin",
+        },
+      })
+    );
+
+    await seedSecondaryIdentity("uidUser");
+    await assertFails(
+      setDoc(doc(user(), "events", "commentIdentitySnapshot", "comments", "noPermission"), {
+        ...commentData("commentIdentitySnapshot", "uidUser", "no permission"),
+        identitySnapshot: {
+          identityId: "secondary",
+          displayName: "Comment Alias",
+          avatarUrl: "",
         },
       })
     );

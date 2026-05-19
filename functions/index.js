@@ -27,6 +27,7 @@ function getMessagingApi() {
   return _messagingApi;
 }
 const https = require("https");
+const crypto = require("crypto");
 
 initializeApp();
 const db = getFirestore();
@@ -60,6 +61,7 @@ const LEGACY_PERMISSION_CODE_REPLACEMENTS = Object.freeze({
 const ADMIN_USER_EDIT_PROFILE_PERMISSION = "admin.users.edit_profile";
 const ADMIN_USER_CHANGE_ROLE_PERMISSION = "admin.users.change_role";
 const ADMIN_USER_RESTRICT_PERMISSION = "admin.users.restrict";
+const SECONDARY_IDENTITY_PERMISSION = "profile.secondary_identity";
 const SECONDARY_IDENTITY_SETTINGS_DOC_ID = "settings";
 const SECONDARY_IDENTITY_AVATAR_MAX_URL_LENGTH = 2000;
 const IDENTITY_SETTINGS_TOP_LEVEL_FIELDS = new Set(["profileActiveIdentityId", "identities"]);
@@ -149,6 +151,7 @@ const ALLOWED_AUDIT_META_KEYS = new Set([
   "refundedPoints",
 ]);
 const AUDIT_RETENTION_DAYS = 180;
+const LOGIN_FAILURE_AUDIT_DEDUPE_WINDOW_MS = 60 * 1000;
 const CHANGE_WATCH_RETENTION_DAYS = 180;
 const PM_AUDIT_RETENTION_DAYS = 180;
 const PM_MAX_BODY_LENGTH = 300;
@@ -1368,6 +1371,12 @@ async function getCallerAccessContext(request) {
   };
 }
 
+function canUseSecondaryIdentityAccess(access) {
+  return !!access
+    && access.role !== "user"
+    && access.hasPermission(SECONDARY_IDENTITY_PERMISSION);
+}
+
 function isEventDelegateForUid(eventData, uid) {
   const safeUid = String(uid || "").trim();
   if (!safeUid || !eventData) return false;
@@ -1627,6 +1636,43 @@ function getLineUserIdByAccessToken(accessToken) {
     req.on("error", reject);
     req.end();
   });
+}
+
+const invalidLineAccessTokenCache = new Map();
+
+function getLineAccessTokenFingerprint(accessToken) {
+  return crypto.createHash("sha256").update(String(accessToken || "")).digest("hex");
+}
+
+function getLineProfileApiStatusFromError(err) {
+  const match = String(err?.message || "").match(/LINE profile API error:\s*(\d+)/);
+  return match ? Number(match[1]) : null;
+}
+
+function isInvalidLineAccessTokenStatus(status) {
+  return status === 400 || status === 401 || status === 403;
+}
+
+function assertLineAccessTokenNotRecentlyRejected(accessToken) {
+  const fingerprint = getLineAccessTokenFingerprint(accessToken);
+  const now = Date.now();
+  const cachedUntil = invalidLineAccessTokenCache.get(fingerprint) || 0;
+  if (cachedUntil > now) {
+    const err = new Error("Cached invalid LINE access token");
+    err.code = "line_access_token_invalid_cached";
+    throw err;
+  }
+  return fingerprint;
+}
+
+function rememberRejectedLineAccessToken(fingerprint) {
+  if (!fingerprint) return;
+  const now = Date.now();
+  invalidLineAccessTokenCache.set(fingerprint, now + LOGIN_FAILURE_AUDIT_DEDUPE_WINDOW_MS);
+  if (invalidLineAccessTokenCache.size <= 1000) return;
+  for (const [key, expiresAt] of invalidLineAccessTokenCache.entries()) {
+    if (expiresAt <= now) invalidLineAccessTokenCache.delete(key);
+  }
 }
 
 /**
@@ -2509,12 +2555,18 @@ exports.createCustomToken = onCall(
     }
 
     let lineUserId;
+    let accessTokenFingerprint = "";
     try {
+      accessTokenFingerprint = assertLineAccessTokenNotRecentlyRejected(accessToken);
       lineUserId = await getLineUserIdByAccessToken(accessToken);
     } catch (err) {
       console.error("[createCustomToken] LINE Access Token 驗證失敗:", err.message);
       try {
-        await writeAuditEntry({
+        const profileStatus = getLineProfileApiStatusFromError(err);
+        if (err?.code === "line_access_token_invalid_cached" || isInvalidLineAccessTokenStatus(profileStatus)) {
+          rememberRejectedLineAccessToken(accessTokenFingerprint || getLineAccessTokenFingerprint(accessToken));
+        }
+        await writeDedupedAuditEntry({
           action: "login_failure",
           actorRole: "user",
           targetType: "system",
@@ -2522,7 +2574,7 @@ exports.createCustomToken = onCall(
           result: "failure",
           source: "cloud_function",
           meta: { reasonCode: "line_access_token_invalid" },
-        });
+        }, "login_failure_line_access_token_invalid");
       } catch (auditErr) {
         console.warn("[createCustomToken] failed to write login_failure audit log:", auditErr);
       }
@@ -2884,6 +2936,10 @@ exports.commitIdentitySettings = onCall(
     }
 
     const uid = request.auth.uid;
+    const access = await getCallerAccessContext(request);
+    if (!canUseSecondaryIdentityAccess(access)) {
+      throw new HttpsError("permission-denied", "Secondary identity permission required");
+    }
     const commit = normalizeIdentitySettingsCommit(request.data);
     await db
       .collection("users")
@@ -2907,6 +2963,10 @@ exports.commitSecondaryIdentityAvatar = onCall(
     }
 
     const uid = request.auth.uid;
+    const access = await getCallerAccessContext(request);
+    if (!canUseSecondaryIdentityAccess(access)) {
+      throw new HttpsError("permission-denied", "Secondary identity permission required");
+    }
     const commit = normalizeSecondaryIdentityAvatarCommit(request.data, uid);
     const settingsRef = db
       .collection("users")
@@ -3768,6 +3828,26 @@ async function writeAuditEntry(payload) {
     .collection("auditEntries")
     .add(entry);
   return entry;
+}
+
+async function writeDedupedAuditEntry(payload, dedupeKey, windowMs = LOGIN_FAILURE_AUDIT_DEDUPE_WINDOW_MS) {
+  const now = new Date();
+  const entry = buildAuditEntryPayload({ ...payload, now });
+  const bucket = Math.floor(now.getTime() / windowMs);
+  const docId = `${safeDedupeIdPart(dedupeKey)}_${bucket}`;
+  try {
+    await db.collection("auditLogsByDay")
+      .doc(entry.dayKey)
+      .collection("auditEntries")
+      .doc(docId)
+      .create(entry);
+    return { written: true, entry };
+  } catch (err) {
+    if (err?.code === 6 || err?.code === "already-exists") {
+      return { written: false, entry };
+    }
+    throw err;
+  }
 }
 
 function getChangeWatchDayInfo(now) {

@@ -119,6 +119,12 @@ Object.assign(App, {
       el.style.display = level >= minLevel ? '' : 'none';
     });
 
+    document.querySelectorAll('[data-permission-code]').forEach(el => {
+      const code = String(el.dataset.permissionCode || '').trim();
+      if (!code) return;
+      el.style.display = this.hasPermission(code, role) ? '' : 'none';
+    });
+
     document.querySelectorAll('.contact-row').forEach(el => {
       el.style.display = level >= ROLE_LEVEL_MAP.coach ? 'flex' : 'none';
     });

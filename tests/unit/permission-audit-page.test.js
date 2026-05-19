@@ -38,11 +38,14 @@ describe('permission audit page wiring', () => {
 
   test('report builder reads the same catalogs used by permission management', () => {
     const audit = read('js/modules/user-admin/permission-audit/permission-audit.js');
+    const config = read('js/config.js');
     expect(audit).toContain('ApiService.getPermissions()');
     expect(audit).toContain('getAdminDrawerPermissionDefinitions()');
     expect(audit).toContain('ROLE_ACTIVITY_CAPABILITY_ITEMS');
     expect(audit).toContain('ADMIN_PAGE_EXTRA_PERMISSION_ITEMS');
     expect(audit).toContain('DRAWER_MENUS');
+    expect(config).toContain('PROFILE_FEATURE_PERMISSION_CATEGORY');
+    expect(config).toContain('profile.secondary_identity');
   });
 
   test('coach contextual team permissions are not treated as missing entry warnings', () => {

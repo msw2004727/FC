@@ -168,6 +168,29 @@ Object.assign(App, {
     return IdentityResolver.normalizeSettings(ApiService.getCurrentIdentitySettings?.());
   },
 
+  _canUseSecondaryIdentityFeature() {
+    if (typeof ApiService === 'undefined' || typeof ApiService.canUseSecondaryIdentityFeature !== 'function') {
+      return false;
+    }
+    return ApiService.canUseSecondaryIdentityFeature();
+  },
+
+  _syncSecondaryIdentityFeatureVisibility() {
+    const card = document.getElementById('profile-identity-card');
+    if (!card) return false;
+    const allowed = this._canUseSecondaryIdentityFeature();
+    card.hidden = !allowed;
+    card.style.display = allowed ? '' : 'none';
+    if (!allowed) this._identitySettingsEditing = false;
+    return allowed;
+  },
+
+  _warnSecondaryIdentityPermissionDenied(input = null) {
+    if (input) input.value = '';
+    this._syncSecondaryIdentityFeatureVisibility();
+    this.showToast('\u6c92\u6709\u7b2c\u4e8c\u8eab\u4efd\u6b0a\u9650');
+  },
+
   _getIdentityFormValues() {
     const enabledEl = document.getElementById('profile-secondary-enabled');
     const nameEl = document.getElementById('profile-secondary-display-name');
@@ -217,6 +240,7 @@ Object.assign(App, {
   },
 
   _syncIdentityFormState() {
+    if (!this._syncSecondaryIdentityFeatureVisibility()) return;
     const card = document.getElementById('profile-identity-card');
     const enabledEl = document.getElementById('profile-secondary-enabled');
     const nameEl = document.getElementById('profile-secondary-display-name');
@@ -264,6 +288,11 @@ Object.assign(App, {
 
   async handleSecondaryIdentityToggleChange() {
     const enabledEl = document.getElementById('profile-secondary-enabled');
+    if (!this._canUseSecondaryIdentityFeature()) {
+      if (enabledEl) enabledEl.checked = !!this._identityFormBaseline?.enabled;
+      this._warnSecondaryIdentityPermissionDenied();
+      return;
+    }
     const previousEnabled = !!this._identityFormBaseline?.enabled;
     const { enabled } = this._getIdentityFormValues();
     this._identitySettingsEditing = false;
@@ -295,6 +324,10 @@ Object.assign(App, {
   },
 
   async toggleIdentitySettingsEdit() {
+    if (!this._canUseSecondaryIdentityFeature()) {
+      this._warnSecondaryIdentityPermissionDenied();
+      return;
+    }
     const { enabled } = this._getIdentityFormValues();
     if (enabled) {
       this.showToast('\u8acb\u5148\u95dc\u9589\u7b2c\u4e8c\u8eab\u4efd\u624d\u53ef\u4ee5\u7de8\u8f2f');
@@ -314,6 +347,7 @@ Object.assign(App, {
   renderIdentitySettings() {
     const card = document.getElementById('profile-identity-card');
     if (!card || typeof IdentityResolver === 'undefined') return;
+    if (!this._syncSecondaryIdentityFeatureVisibility()) return;
     const user = ApiService.getCurrentUser();
     if (!user) return;
     const settings = this._getCurrentIdentitySettingsNormalized();
@@ -341,6 +375,10 @@ Object.assign(App, {
   },
 
   async saveIdentitySettings(options = {}) {
+    if (!this._canUseSecondaryIdentityFeature()) {
+      this._warnSecondaryIdentityPermissionDenied();
+      return false;
+    }
     const enabledEl = document.getElementById('profile-secondary-enabled');
     const nameEl = document.getElementById('profile-secondary-display-name');
     const enabled = !!enabledEl?.checked;
@@ -412,6 +450,10 @@ Object.assign(App, {
   },
 
   async uploadSecondaryIdentityAvatar(input) {
+    if (!this._canUseSecondaryIdentityFeature()) {
+      this._warnSecondaryIdentityPermissionDenied(input);
+      return;
+    }
     const { enabled } = this._getIdentityFormValues();
     if (enabled) {
       this.showToast('\u8acb\u5148\u95dc\u9589\u7b2c\u4e8c\u8eab\u4efd\u624d\u53ef\u4ee5\u7de8\u8f2f');
@@ -454,6 +496,10 @@ Object.assign(App, {
   },
 
   async clearSecondaryIdentityAvatar() {
+    if (!this._canUseSecondaryIdentityFeature()) {
+      this._warnSecondaryIdentityPermissionDenied();
+      return;
+    }
     const { enabled } = this._getIdentityFormValues();
     if (enabled) {
       this.showToast('\u8acb\u5148\u95dc\u9589\u7b2c\u4e8c\u8eab\u4efd\u624d\u53ef\u4ee5\u7de8\u8f2f');

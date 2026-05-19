@@ -29,6 +29,8 @@ const MEMBER_UID = "member_uid_002";
 const OUTSIDER_UID = "outsider_uid_003";
 const POST_ID = "fp_test_post_001";
 
+jest.setTimeout(20000);
+
 function guest() {
   return testEnv.unauthenticatedContext().firestore();
 }

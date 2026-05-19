@@ -17,6 +17,7 @@ const {
   DISABLED_PERMISSION_CODES,
   ENTRY_PERMISSION_CODES,
   SUB_PERMISSION_CODES,
+  PROFILE_FEATURE_PERMISSION_CODES,
   ALL_PERMISSION_CODES,
   DRAWER_PAGE_ENTRIES,
   isPermissionCodeEnabled,
@@ -86,6 +87,13 @@ describe('getDefaultRolePermissions', () => {
     expect(perms).not.toContain('admin.notif.toggle');
   });
 
+  test('second identity is not a default normal-role permission', () => {
+    ['user', 'coach', 'captain', 'venue_owner', 'admin'].forEach(role => {
+      const perms = getDefaultRolePermissions(role) || [];
+      expect(perms).not.toContain('profile.secondary_identity');
+    });
+  });
+
   test('returns null for unknown role keys', () => {
     expect(getDefaultRolePermissions('custom_123')).toBeNull();
     expect(getDefaultRolePermissions('unknown')).toBeNull();
@@ -145,6 +153,11 @@ describe('getRolePermissions', () => {
     expect(getRolePermissions('user', ['admin.users.entry'])).toEqual([]);
   });
 
+  test('user cannot receive second identity through normal role permissions', () => {
+    expect(getRolePermissions('user', PROFILE_FEATURE_PERMISSION_CODES)).toEqual([]);
+    expect(hasPermission('user', PROFILE_FEATURE_PERMISSION_CODES, 'profile.secondary_identity')).toBe(false);
+  });
+
   test('super_admin gets ALL enabled permission codes', () => {
     const perms = getRolePermissions('super_admin', []);
     ALL_PERMISSION_CODES.forEach(code => {
@@ -152,6 +165,7 @@ describe('getRolePermissions', () => {
         expect(perms).toContain(code);
       }
     });
+    expect(perms).toContain('profile.secondary_identity');
   });
 
   test('super_admin does NOT get disabled codes', () => {
@@ -219,6 +233,11 @@ describe('hasPermission — custom permission granting', () => {
     const withExtra = [...adminDefaults, 'admin.logs.error_read', 'admin.logs.audit_read'];
     expect(hasPermission('admin', withExtra, 'admin.logs.error_read')).toBe(true);
     expect(hasPermission('admin', withExtra, 'admin.logs.audit_read')).toBe(true);
+  });
+
+  test('normal roles can use second identity only when explicitly granted', () => {
+    expect(hasPermission('admin', getDefaultRolePermissions('admin'), 'profile.secondary_identity')).toBe(false);
+    expect(hasPermission('admin', ['profile.secondary_identity'], 'profile.secondary_identity')).toBe(true);
   });
 
   test('revoking a non-inherent permission works for normal roles', () => {
