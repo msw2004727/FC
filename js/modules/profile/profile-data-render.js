@@ -226,7 +226,7 @@ Object.assign(App, {
     const { enabled, displayName } = this._getIdentityFormValues();
     const editing = !!this._identitySettingsEditing;
     const dirty = this._isIdentityFormDirty();
-    const canEditDetails = enabled && editing;
+    const canEditDetails = !enabled && editing;
     const toggle = enabledEl?.closest?.('.profile-identity-toggle') || null;
     const uploadBtn = card?.querySelector?.('.profile-avatar-upload-btn') || null;
     const clearBtn = card?.querySelector?.('.profile-identity-actions button') || null;
@@ -244,49 +244,71 @@ Object.assign(App, {
     }
     if (clearBtn) clearBtn.disabled = !canEditDetails;
     if (editBtn) {
-      const saveMode = editing || dirty;
+      const saveMode = !enabled && (editing || dirty);
       editBtn.textContent = saveMode ? '\u5132\u5b58' : '\u7de8\u8f2f';
       editBtn.classList.toggle('is-save-mode', saveMode);
     }
     if (summaryNameEl) {
-      summaryNameEl.textContent = displayName || (enabled
-        ? '\u5c1a\u672a\u8a2d\u5b9a\u6b21\u8eab\u4efd\u66b1\u7a31'
-        : '\u4f7f\u7528\u4e3b\u8eab\u4efd');
+      summaryNameEl.textContent = enabled
+        ? this._getResolvedSecondaryDisplayName(displayName)
+        : (displayName || '\u4f7f\u7528\u4e3b\u8eab\u4efd');
     }
     if (summaryStatusEl) {
-      summaryStatusEl.textContent = enabled
-        ? (dirty
-          ? '\u6309\u5132\u5b58\u5f8c\u6703\u4ee5\u6b21\u8eab\u4efd\u986f\u793a'
-          : '\u76ee\u524d\u4ee5\u6b21\u8eab\u4efd\u986f\u793a')
+      summaryStatusEl.innerHTML = enabled
+        ? '\u76ee\u524d\u8eab\u4efd\u5df2\u555f\u7528<ul class="profile-identity-capability-list"><li>\u6d3b\u52d5\u7559\u8a00\u8207\u56de\u8986</li><li>\u7528\u6236\u8cc7\u6599\u5361\u7247</li><li>\u53f3\u4e0a\u89d2\u8207\u6211\u7684\u8cc7\u6599\u986f\u793a</li></ul>'
         : (dirty
-          ? '\u6309\u5132\u5b58\u5f8c\u6703\u6539\u56de\u4e3b\u8eab\u4efd'
-          : '\u555f\u7528\u5f8c\u6703\u76f4\u63a5\u4ee5\u6b21\u8eab\u4efd\u986f\u793a');
+          ? '\u6309\u5132\u5b58\u5f8c\u66f4\u65b0\u7b2c\u4e8c\u8eab\u4efd\u8cc7\u6599'
+          : '\u555f\u7528\u5f8c\u6703\u76f4\u63a5\u4ee5\u7b2c\u4e8c\u8eab\u4efd\u986f\u793a');
     }
   },
 
-  handleSecondaryIdentityToggleChange() {
-    const { enabled, displayName } = this._getIdentityFormValues();
-    if (enabled && !displayName) {
-      this._identitySettingsEditing = true;
-      setTimeout(() => {
-        try { document.getElementById('profile-secondary-display-name')?.focus(); } catch (_) {}
-      }, 0);
+  async handleSecondaryIdentityToggleChange() {
+    const enabledEl = document.getElementById('profile-secondary-enabled');
+    const previousEnabled = !!this._identityFormBaseline?.enabled;
+    const { enabled } = this._getIdentityFormValues();
+    this._identitySettingsEditing = false;
+    if (enabledEl) enabledEl.disabled = true;
+    this._syncIdentityFormState();
+    const ok = await this.saveIdentitySettings({
+      exitEdit: true,
+      toastMessage: enabled ? '\u7b2c\u4e8c\u8eab\u4efd\u5df2\u555f\u7528' : '\u5df2\u6062\u5fa9\u4e3b\u8eab\u4efd\u986f\u793a',
+    });
+    if (!ok && enabledEl) {
+      enabledEl.checked = previousEnabled;
     }
+    if (enabledEl) enabledEl.disabled = false;
     this._syncIdentityFormState();
   },
 
+  _getResolvedSecondaryDisplayName(value) {
+    const text = String(value || '').trim();
+    return text || '\u6b21\u8eab\u4efd';
+  },
+
+  _syncSecondaryIdentityInputValue(value, options = {}) {
+    const nameEl = document.getElementById('profile-secondary-display-name');
+    const resolved = this._getResolvedSecondaryDisplayName(value);
+    if (nameEl && (options.force || document.activeElement !== nameEl)) {
+      nameEl.value = resolved;
+    }
+    return resolved;
+  },
+
   async toggleIdentitySettingsEdit() {
+    const { enabled } = this._getIdentityFormValues();
+    if (enabled) {
+      this.showToast('\u8acb\u5148\u95dc\u9589\u7b2c\u4e8c\u8eab\u4efd\u624d\u53ef\u4ee5\u7de8\u8f2f');
+      return;
+    }
     if (this._identitySettingsEditing || this._isIdentityFormDirty()) {
       await this.saveIdentitySettings({ exitEdit: true });
       return;
     }
     this._identitySettingsEditing = true;
     this._syncIdentityFormState();
-    if (this._getIdentityFormValues().enabled) {
-      setTimeout(() => {
-        try { document.getElementById('profile-secondary-display-name')?.focus(); } catch (_) {}
-      }, 0);
-    }
+    setTimeout(() => {
+      try { document.getElementById('profile-secondary-display-name')?.focus(); } catch (_) {}
+    }, 0);
   },
 
   renderIdentitySettings() {
@@ -322,24 +344,17 @@ Object.assign(App, {
     const enabledEl = document.getElementById('profile-secondary-enabled');
     const nameEl = document.getElementById('profile-secondary-display-name');
     const enabled = !!enabledEl?.checked;
-    const displayName = String(nameEl?.value || '').trim();
-    if (enabled && !displayName) {
-      this.showToast('請輸入次身份暱稱');
-      this._identitySettingsEditing = true;
-      this._syncIdentityFormState();
-      try { nameEl?.focus(); } catch (_) {}
-      return;
-    }
+    const displayName = this._getResolvedSecondaryDisplayName(nameEl?.value);
     if (displayName.length > 40) {
       this.showToast('次身份暱稱不能超過 40 字');
-      return;
+      return false;
     }
 
     const activeId = enabled ? 'secondary' : 'main';
     const secondary = {
       identityId: 'secondary',
       enabled,
-      displayName: displayName || '次身份',
+      displayName,
       displayRoleLabel: '一般用戶',
       isPrimary: false,
       editable: true,
@@ -356,13 +371,16 @@ Object.assign(App, {
         FirebaseService._cache.currentUserIdentitySettings.profileActiveIdentityId = activeId;
       }
       this._identityFormBaseline = { enabled, displayName };
+      this._syncSecondaryIdentityInputValue(displayName, { force: true });
       this._identitySettingsEditing = options.exitEdit !== false ? false : !!this._identitySettingsEditing;
       this.renderLoginUI?.();
       this._syncIdentityFormState();
-      this.showToast('身份顯示已儲存');
+      this.showToast(options.toastMessage || '第二身份已儲存');
+      return true;
     } catch (err) {
       console.error('[saveIdentitySettings]', err);
-      this.showToast('身份顯示儲存失敗');
+      this.showToast('第二身份儲存失敗');
+      return false;
     }
   },
 
@@ -394,6 +412,12 @@ Object.assign(App, {
   },
 
   async uploadSecondaryIdentityAvatar(input) {
+    const { enabled } = this._getIdentityFormValues();
+    if (enabled) {
+      this.showToast('\u8acb\u5148\u95dc\u9589\u7b2c\u4e8c\u8eab\u4efd\u624d\u53ef\u4ee5\u7de8\u8f2f');
+      if (input) input.value = '';
+      return;
+    }
     const file = input?.files?.[0] || null;
     if (!file) return;
     if (!this._isAllowedImageFile?.(file)) {
@@ -430,6 +454,11 @@ Object.assign(App, {
   },
 
   async clearSecondaryIdentityAvatar() {
+    const { enabled } = this._getIdentityFormValues();
+    if (enabled) {
+      this.showToast('\u8acb\u5148\u95dc\u9589\u7b2c\u4e8c\u8eab\u4efd\u624d\u53ef\u4ee5\u7de8\u8f2f');
+      return;
+    }
     try {
       await ApiService.clearSecondaryIdentityAvatar();
       this._mergeSecondaryIdentityLocalCache({

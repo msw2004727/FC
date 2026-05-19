@@ -66,23 +66,23 @@
         </div>
         <div class="info-card" id="profile-identity-card">
           <div class="info-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,'identity')">
-            <span>身份顯示</span>
+            <span style="display:flex;align-items:center;gap:.35rem"><button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('secondaryIdentity')" title="說明">?</button><span>第二身份</span></span>
             <span class="profile-collapse-arrow">▶</span>
           </div>
           <div class="profile-collapse-content" style="display:none">
             <div class="profile-identity-control">
               <label class="profile-identity-toggle">
-                <span>啟用次身份</span>
+                <span>啟用</span>
                 <span class="toggle-switch"><input type="checkbox" id="profile-secondary-enabled" onchange="App.handleSecondaryIdentityToggleChange()"><span class="toggle-slider"></span></span>
               </label>
-              <button type="button" class="outline-btn small profile-identity-edit-btn" id="profile-identity-edit-btn" onclick="App.toggleIdentitySettingsEdit()">編輯</button>
             </div>
             <div class="profile-identity-summary">
               <div class="profile-identity-avatar" id="profile-secondary-avatar-preview"></div>
               <div class="profile-identity-summary-copy">
                 <div class="profile-identity-summary-name" id="profile-secondary-summary-name">使用主身份</div>
-                <div class="profile-identity-summary-status" id="profile-secondary-summary-status">啟用後會直接以次身份顯示</div>
+                <div class="profile-identity-summary-status" id="profile-secondary-summary-status">啟用後會直接以第二身份顯示</div>
               </div>
+              <button type="button" class="outline-btn small profile-identity-edit-btn" id="profile-identity-edit-btn" onclick="App.toggleIdentitySettingsEdit()">編輯</button>
             </div>
             <div class="profile-identity-editor">
               <input type="text" id="profile-secondary-display-name" class="profile-edit-input" maxlength="40" placeholder="次身份暱稱" oninput="App._syncIdentityFormState()">

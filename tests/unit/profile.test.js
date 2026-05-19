@@ -174,11 +174,17 @@ describe('secondary identity profile controls', () => {
     const profileHtml = readProjectFile('pages/profile.html');
 
     expect(profileHtml).toContain('id="profile-identity-card"');
+    expect(profileHtml).toContain('\u7b2c\u4e8c\u8eab\u4efd');
+    expect(profileHtml).toContain("_showProfileInfo('secondaryIdentity')");
     expect(profileHtml).toContain('id="profile-secondary-enabled"');
+    expect(profileHtml).toContain('<span>\u555f\u7528</span>');
     expect(profileHtml).toContain('handleSecondaryIdentityToggleChange()');
     expect(profileHtml).toContain('id="profile-identity-edit-btn"');
     expect(profileHtml).toContain('toggleIdentitySettingsEdit()');
     expect(profileHtml).toContain('class="profile-identity-summary"');
+    expect(profileHtml.indexOf('id="profile-identity-edit-btn"')).toBeGreaterThan(
+      profileHtml.indexOf('class="profile-identity-summary"'),
+    );
     expect(profileHtml).toContain('id="profile-secondary-display-name"');
     expect(profileHtml).toContain('id="profile-secondary-avatar-input"');
     expect(profileHtml).not.toContain('name="profile-active-identity"');
@@ -193,10 +199,20 @@ describe('secondary identity profile controls', () => {
 
     expect(profileRenderSource).toContain('renderIdentitySettings()');
     expect(profileRenderSource).toContain('saveIdentitySettings(options = {})');
-    expect(profileRenderSource).toContain('handleSecondaryIdentityToggleChange()');
+    expect(profileRenderSource).toContain('async handleSecondaryIdentityToggleChange()');
     expect(profileRenderSource).toContain('toggleIdentitySettingsEdit()');
     expect(profileRenderSource).toContain('uploadSecondaryIdentityAvatar(input)');
     expect(profileRenderSource).toContain('_cropSecondaryIdentityAvatarFile(file)');
+    expect(profileRenderSource).toContain('const canEditDetails = !enabled && editing;');
+    expect(profileRenderSource).toContain('const saveMode = !enabled && (editing || dirty);');
+    expect(profileRenderSource).toContain('this._getResolvedSecondaryDisplayName(displayName)');
+    expect(profileRenderSource).toContain('summaryStatusEl.innerHTML = enabled');
+    expect(profileRenderSource).toContain('\\u76ee\\u524d\\u8eab\\u4efd\\u5df2\\u555f\\u7528');
+    expect(profileRenderSource).toContain('profile-identity-capability-list');
+    expect(profileRenderSource).toContain("toastMessage: enabled ?");
+    expect(profileRenderSource).toContain('\\u8acb\\u5148\\u95dc\\u9589\\u7b2c\\u4e8c\\u8eab\\u4efd\\u624d\\u53ef\\u4ee5\\u7de8\\u8f2f');
+    expect(profileRenderSource).toContain('return true;');
+    expect(profileRenderSource).toContain('return false;');
     expect(profileRenderSource).toContain("card?.classList.toggle('is-secondary-enabled', enabled)");
     expect(profileRenderSource).toContain("card?.classList.toggle('is-identity-editing', editing)");
     expect(profileRenderSource).toContain("uploadBtn.classList.toggle('disabled', !canEditDetails)");
@@ -204,6 +220,9 @@ describe('secondary identity profile controls', () => {
     expect(profileCss).toContain('.profile-identity-control');
     expect(profileCss).toContain('.profile-identity-summary');
     expect(profileCss).toContain('#profile-identity-card.is-identity-editing .profile-identity-editor');
+    expect(profileCss).toContain('#profile-identity-card:not(.is-secondary-enabled) .profile-identity-avatar');
+    expect(profileCss).toContain('filter: grayscale(1) brightness(.62) saturate(.45);');
+    expect(profileCss).toContain('#profile-identity-card.is-secondary-enabled .profile-identity-avatar');
     expect(profileRenderSource).toContain("const activeId = enabled ? 'secondary' : 'main';");
     expect(profileRenderSource).toContain("profileActiveIdentityId: activeId");
     expect(profileRenderSource).toContain('this.renderLoginUI?.();');

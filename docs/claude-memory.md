@@ -3006,3 +3006,9 @@
 - **Cause**: The implementation modeled promotion targets as inline chips instead of table-level role movement controls.
 - **Fix**: In member management mode, the member table now prepends two fixed columns, `promote` and `demote`, before the name column. Each eligible row shows only the valid arrow for one-step movement: member -> coach, coach -> leader, leader -> coach, coach -> member. Manager-level rows, max/min rows, and insufficient-permission viewers show no arrow.
 - **Validation**: Added render/core/CSS unit coverage for column order, one-step role updates, demotion field synchronization, and blocked non-manager actions.
+
+### 2026-05-19 Secondary Identity Immediate Toggle UX [ux]
+- **Issue**: The second-identity settings card still read like a deferred save form: the enable switch had old "secondary identity" wording, the edit action was visually separated from the identity summary, and users could attempt editing while the second identity was active.
+- **Cause**: The profile UI treated enable/disable and detail editing as the same save workflow, so the copy, controls, and affordance states did not match the requested direct-toggle behavior.
+- **Fix**: Renamed the card to "第二身份" with help copy, made the switch label "啟用", moved the edit/save button into the summary row, made the switch commit immediately, blocked edit/avatar actions while active with a toast, and applied a grayscale/dim avatar filter only when the second identity is off.
+- **Validation**: Added profile source-contract coverage for immediate toggle, active-state copy, edit blocking, and avatar filter styling.

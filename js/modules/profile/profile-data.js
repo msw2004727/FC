@@ -16,6 +16,16 @@ Object.assign(App, {
         + '• 部分活動可能依性別或年齡設定報名限制'
         + '<p style="margin:.4rem 0 0;font-size:.78rem;color:var(--text-muted)">資料僅用於平台功能，不會對外公開。</p>',
     },
+    secondaryIdentity: {
+      title: '第二身份',
+      body: '第二身份是公開顯示用的暱稱與頭像，不會改變你的帳號、權限、報名資料或主身份紀錄。'
+        + '<p style="margin:.4rem 0 .15rem;font-weight:600">目前可用於</p>'
+        + '• 右上角與我的資料頁顯示<br>'
+        + '• 活動留言與回覆<br>'
+        + '• 用戶資料卡片的公開顯示'
+        + '<p style="margin:.4rem 0 .15rem;font-weight:600">注意</p>'
+        + '私訊、報名、主辦管理、權限判斷與後台稽核仍使用主身份。若要編輯第二身份暱稱或頭像，請先關閉第二身份。',
+    },
     lineNotify: {
       title: 'LINE 推播通知',
       body: '綁定 LINE 帳號並加入官方好友後，系統會透過 LINE 推送即時通知。'
