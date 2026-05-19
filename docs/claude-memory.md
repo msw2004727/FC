@@ -2937,3 +2937,9 @@
 - **Issue**: The create-activity form always displayed registration-open date/time fields, so "leave empty for immediate open" was easy to miss and made the field look mandatory.
 - **Fix**: Added a default-off sliding switch. Off now means immediate registration open and hides the fields; on reveals the absolute date/time fields, while multi-date mode reveals the existing relative "before activity" controls. Added early-bird guidance that points operators to the "進階功能" switch.
 - **Validation**: Added source assertions for the toggle, hidden field container, summary copy, and early-bird guidance. Ran `node --check` on touched event modules and targeted activity create/early-bird unit tests.
+
+### 2026-05-19 — First Login Terms Consent Toast [bugfix]
+- **問題**：首次完善個人資料彈窗中，未勾選服務條款與隱私權政策時仍使用表單內錯誤提示，且「稍後填寫」流程不應被條款勾選狀態阻擋。
+- **原因**：條款同意驗證與稍後填寫共用同一個表單錯誤提示路徑，沒有區分「同意並送出」與「稍後填寫」兩種意圖。
+- **修復**：條款預設保持未勾選；按「同意並送出」未勾選時改用 toast 顯示 `請先勾選同意服務條款與隱私權政策。`；按「稍後填寫」即使未勾選也可關閉彈窗，只有已勾選時才補記同意狀態。
+- **教訓**：法律同意提示要跟實際送出行為綁定，暫緩填寫流程應維持低阻力，避免讓使用者以為必須同意才能先離開。

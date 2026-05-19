@@ -183,7 +183,7 @@ describe('first login profile completion modal', () => {
     expect(indexHtml).toContain('我已閱讀並同意');
     expect(indexHtml).toContain('href="/terms"');
     expect(indexHtml).toContain('href="/privacy"');
-    expect(indexHtml).toContain('同意，稍後填寫');
+    expect(indexHtml).toContain('稍後填寫');
     expect(indexHtml).toContain('同意並送出');
     expect(layoutCss).toContain('#modal-overlay[data-profile-complete="1"]');
     expect(layoutCss).toContain('-webkit-backdrop-filter: blur(16px) saturate(135%)');
@@ -195,11 +195,14 @@ describe('first login profile completion modal', () => {
     expect(navigationSource).toContain('_lockFirstLoginScroll()');
     expect(navigationSource).toContain('_unlockFirstLoginScroll()');
     expect(navigationSource).toContain("document.getElementById('fl-legal-consent')");
+    expect(navigationSource).toContain('if (legalEl) legalEl.checked = false;');
     expect(profileFormSource).toContain("var emailEl = document.getElementById('fl-email');");
     expect(profileFormSource).toContain('updates.email = email;');
     expect(profileFormSource).toContain("_legalTermsVersion: '2026-05-19'");
     expect(profileFormSource).toContain("_legalPrivacyVersion: '2026-05-19'");
     expect(profileFormSource).toContain('_requireFirstLoginLegalConsent(showErr)');
+    expect(profileFormSource).toContain("if (typeof this.showToast === 'function') this.showToast(msg);");
+    expect(profileFormSource).toContain('if (consentEl && consentEl.checked)');
     expect(profileFormSource).toContain("this._buildFirstLoginLegalUpdates('profile_completion_submit')");
     expect(profileFormSource).toContain("this._buildFirstLoginLegalUpdates('profile_completion_later')");
   });

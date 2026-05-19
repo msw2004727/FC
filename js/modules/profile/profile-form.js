@@ -409,8 +409,8 @@ Object.assign(App, {
     var consentEl = document.getElementById('fl-legal-consent');
     if (!consentEl || consentEl.checked) return true;
     var msg = '請先勾選同意服務條款與隱私權政策。';
-    if (typeof showErr === 'function') showErr(msg);
-    else this.showToast(msg);
+    if (typeof this.showToast === 'function') this.showToast(msg);
+    else if (typeof showErr === 'function') showErr(msg);
     try { consentEl.focus({ preventScroll: false }); } catch (_) { try { consentEl.focus(); } catch (__) {} }
     return false;
   },
@@ -480,29 +480,22 @@ Object.assign(App, {
    */
   async dismissFirstLoginModal() {
     var errEl = document.getElementById('fl-error-msg');
-    var self = this;
-    var showErr = function(msg) {
-      if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
-      else self.showToast(msg);
-    };
     if (errEl) errEl.style.display = 'none';
-    if (!this._requireFirstLoginLegalConsent(showErr)) return;
 
+    var consentEl = document.getElementById('fl-legal-consent');
     var laterBtn = document.querySelector('#first-login-modal .fl-secondary-btn');
     var submitBtn = document.querySelector('#first-login-modal .primary-btn');
-    if (laterBtn) { laterBtn.disabled = true; laterBtn.textContent = '儲存中...'; }
-    if (submitBtn) submitBtn.disabled = true;
-    try {
-      await ApiService.updateCurrentUserAwait(this._buildFirstLoginLegalUpdates('profile_completion_later'));
-    } catch (err) {
-      console.error('[dismissFirstLoginModal]', err);
-      showErr('同意紀錄儲存失敗，請檢查網路後重試。');
-      if (laterBtn) { laterBtn.disabled = false; laterBtn.textContent = '同意，稍後填寫'; }
+    if (consentEl && consentEl.checked) {
+      if (laterBtn) { laterBtn.disabled = true; laterBtn.textContent = '儲存中...'; }
+      if (submitBtn) submitBtn.disabled = true;
+      try {
+        await ApiService.updateCurrentUserAwait(this._buildFirstLoginLegalUpdates('profile_completion_later'));
+      } catch (err) {
+        console.warn('[dismissFirstLoginModal] legal consent save failed:', err);
+      }
+      if (laterBtn) { laterBtn.disabled = false; laterBtn.textContent = '稍後填寫'; }
       if (submitBtn) submitBtn.disabled = false;
-      return;
     }
-    if (laterBtn) { laterBtn.disabled = false; laterBtn.textContent = '同意，稍後填寫'; }
-    if (submitBtn) submitBtn.disabled = false;
     this._firstLoginShowing = false;
     this._setFirstLoginOverlayState?.(false);
     var errMsg = document.getElementById('fl-error-msg');

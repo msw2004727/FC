@@ -1273,9 +1273,7 @@ Object.assign(App, {
     if (genderEl && !genderEl.value && user.gender) genderEl.value = user.gender;
     if (regionEl && !regionEl.value && user.region) regionEl.value = user.region;
     if (emailEl && !emailEl.value && user.email) emailEl.value = user.email;
-    if (legalEl) {
-      legalEl.checked = !!(this._hasAcceptedCurrentLegalVersions && this._hasAcceptedCurrentLegalVersions(user));
-    }
+    if (legalEl) legalEl.checked = false;
   },
 
   _lockFirstLoginScroll() {
