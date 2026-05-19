@@ -355,7 +355,7 @@ Object.assign(App, {
     root.innerHTML = `
       <div class="activity-map-panel" role="dialog" aria-modal="true" aria-label="尋找附近活動">
         <div class="activity-map-header">
-          <button class="activity-map-back" type="button" onclick="App.closeActivityMap()" aria-label="返回">‹</button>
+          <button class="activity-map-back" type="button" onclick="App.closeActivityMap()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
           <div>
             <div class="activity-map-title">尋找附近活動</div>
             <div class="activity-map-subtitle" id="activity-map-subtitle">依目前篩選顯示可定位活動</div>

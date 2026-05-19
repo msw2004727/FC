@@ -52,7 +52,24 @@ describe('page header back buttons', () => {
       const header = firstPageHeader(section.html);
       expect(header).toContain('class="back-btn"');
       expect(header).toContain('onclick="App.goBack()"');
-      expect(header).toContain('&#8249;');
+      expect(header).toContain('class="back-btn-icon"');
     }
+  });
+
+  test('static back buttons use the shared SVG icon instead of text glyphs', () => {
+    const missingSvg = [];
+    const oldGlyphs = [];
+    const pageFiles = fs.readdirSync(PAGES_DIR).filter(file => file.endsWith('.html'));
+
+    for (const file of pageFiles) {
+      const buttons = [...readPage(file).matchAll(/<button\b[^>]*class="[^"]*\bback-btn\b[^"]*"[^>]*>([\s\S]*?)<\/button>/g)];
+      for (const [fullButton, content] of buttons) {
+        if (!/class="back-btn-icon"/.test(content)) missingSvg.push(`${file}: ${fullButton}`);
+        if (/(?:&#8249;|←|‹|&lt;)/.test(content)) oldGlyphs.push(`${file}: ${fullButton}`);
+      }
+    }
+
+    expect(missingSvg).toEqual([]);
+    expect(oldGlyphs).toEqual([]);
   });
 });

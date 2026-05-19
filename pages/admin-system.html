@@ -2,7 +2,7 @@
     <!-- PAGE: Backend - Achievement Management (Super Admin) -->
     <section class="page" id="page-admin-achievements">
       <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()">←</button>
+        <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <h2>成就 / 徽章管理</h2>
       </div>
       <div id="admin-ach-list"></div>
@@ -73,7 +73,7 @@
     <!-- PAGE: Backend - Game Management (Admin+) -->
     <section class="page" id="page-admin-games">
       <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()">←</button>
+        <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <h2>小遊戲管理</h2>
       </div>
       <div style="font-size:.78rem;color:var(--text-muted);padding:0 .3rem .1rem">
@@ -96,7 +96,7 @@
     <!-- PAGE: Backend - Site Theme Management (Super Admin) -->
     <section class="page" id="page-admin-themes">
       <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()">←</button>
+        <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <h2>佈景主題</h2>
       </div>
       <div style="font-size:.78rem;color:var(--text-muted);padding:0 .3rem .1rem">替換網站元素背景圖片，打造節慶氛圍。</div>
@@ -133,7 +133,7 @@
     <!-- PAGE: Backend - Announcement Management (Super Admin) -->
     <section class="page" id="page-admin-announcements">
       <div class="page-header announcement-admin-header">
-        <button class="back-btn" onclick="App.goBack()">←</button>
+        <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <h2>系統公告管理</h2>
         <button class="primary-btn announcement-create-btn" type="button" onclick="App.showAnnouncementForm()">＋ 新增公告</button>
       </div>
@@ -162,7 +162,7 @@
     <!-- PAGE: Backend - Custom Roles (Super Admin) -->
     <section class="page" id="page-admin-roles" data-min-role="super_admin">
       <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()">←</button>
+        <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <h2>權限管理</h2>
         <a href="permissions/" target="_blank" class="page-header-doc-btn" title="權限說明文件"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="14" y2="11"/></svg></a>
       </div>
@@ -230,7 +230,7 @@
     <!-- PAGE: Backend - Inactive Data (Super Admin) -->
     <section class="page" id="page-admin-inactive">
       <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()">←</button>
+        <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <h2>無效資料查詢</h2>
       </div>
       <div class="tab-bar">
@@ -245,7 +245,7 @@
     <!-- PAGE: Backend - Operation Logs (Super Admin) -->
     <section class="page" id="page-admin-logs">
       <div class="page-header">
-        <button class="back-btn" onclick="App.goBackFromAdminLogs()">←</button>
+        <button class="back-btn" onclick="App.goBackFromAdminLogs()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <h2>操作日誌</h2>
         <button class="header-action-btn" onclick="App.clearAllData()" style="margin-left:auto;font-size:.72rem;padding:.3rem .7rem;background:#dc2626;color:#fff;border:none;border-radius:var(--radius);cursor:pointer;font-weight:600">一鍵清除</button>
       </div>
@@ -305,7 +305,7 @@
 
     <section class="page" id="page-admin-audit-logs" data-min-role="super_admin">
       <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()">←</button>
+        <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <h2>稽核日誌</h2>
       </div>
       <div class="form-card audit-log-filter-card" id="auditlog-filter-card">
@@ -356,7 +356,7 @@
     <!-- PAGE: Backend - Error Logs (Super Admin) -->
     <section class="page" id="page-admin-error-logs" data-min-role="super_admin">
       <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()">←</button>
+        <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <h2>錯誤日誌</h2>
         <button class="outline-btn" style="font-size:.7rem;padding:.25rem .55rem;color:#dc2626;border-color:#dc2626;margin-left:auto" onclick="App.clearOldErrorLogs()">清除 30 天前</button>
       </div>
@@ -374,7 +374,7 @@
     <!-- PAGE: Backend - Data Repair Tools (Super Admin) -->
     <section class="page" id="page-admin-repair">
       <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()">←</button>
+        <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <h2>用戶補正管理</h2>
       </div>
       <div class="tab-bar" id="admin-repair-tabs">
