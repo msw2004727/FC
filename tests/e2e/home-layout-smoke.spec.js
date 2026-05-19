@@ -76,7 +76,8 @@ test.describe('phase 9 home layout smoke', () => {
     expect(overflow).toEqual([]);
   });
 
-  test('home create CTA opens the activity create sheet on mobile chromium', async ({ page }) => {
+  test('home create CTA opens the activity create sheet on mobile chromium', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'chromium-mobile', 'mobile-only CTA coverage');
     await openSeededHome(page);
 
     await page.evaluate(() => {
