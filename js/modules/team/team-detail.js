@@ -934,6 +934,97 @@ Object.assign(App, {
     this._sendTeamRoleLevelChangeNotice(team, row, target);
   },
 
+  _getTeamMemberClubRoleLabel(row) {
+    const roles = row?.roles instanceof Set ? row.roles : new Set();
+    if (roles.has('\u7403\u7d93')) return '\u7403\u7d93';
+    if (roles.has('\u9818\u968a')) return '\u9818\u968a';
+    if (roles.has('\u6559\u7df4')) return '\u6559\u7df4';
+    if (row?.isStudent && !row?.isMember) return '\u5b78\u54e1';
+    return '\u968a\u54e1';
+  },
+
+  _getTeamMemberClubRoleClass(roleOrKey) {
+    const value = String(roleOrKey || '').trim();
+    if (value === 'manager' || value === '\u7403\u7d93') return 'role-manager';
+    if (value === 'leader' || value === '\u9818\u968a') return 'role-leader';
+    if (value === 'coach' || value === '\u6559\u7df4') return 'role-coach';
+    return 'role-default';
+  },
+
+  _buildTeamRoleChangeConfirmText(memberName, actionText, targetRoleName) {
+    return '\u78ba\u8a8d\u5c07\u300c' + memberName + '\u300d' + actionText + '\u70ba\u300c' + targetRoleName + '\u300d\u5c64\u7d1a\uff1f';
+  },
+
+  _buildTeamRoleChangeConfirmHtml(row, memberName, target) {
+    const direction = target?.direction === 'demote' ? 'demote' : 'promote';
+    const currentRoleLabel = this._getTeamMemberClubRoleLabel(row);
+    const currentRoleClass = this._getTeamMemberClubRoleClass(currentRoleLabel);
+    const targetRoleName = target?.roleName || target?.label || '\u76ee\u6a19\u5c64\u7d1a';
+    const targetRoleClass = this._getTeamMemberClubRoleClass(target?.key || targetRoleName);
+    const actionText = target?.actionText || (direction === 'demote' ? '\u964d\u7d1a' : '\u6649\u5347');
+    const actionLabel = direction === 'demote' ? '\u964d\u7d1a\u78ba\u8a8d' : '\u6649\u5347\u78ba\u8a8d';
+    return '<div class="td-role-confirm-card">'
+      + '<div class="td-role-confirm-heading">'
+      + '<span class="td-role-confirm-kicker">\u4ff1\u6a02\u90e8\u6210\u54e1\u5c64\u7d1a\u8abf\u6574</span>'
+      + '<span class="td-role-confirm-action ' + direction + '">' + actionLabel + '</span>'
+      + '</div>'
+      + '<div class="td-role-confirm-flow">'
+      + '<span class="td-role-confirm-name-pill ' + currentRoleClass + '" data-no-translate>' + escapeHTML(memberName) + '</span>'
+      + '<span class="td-role-confirm-role-pill ' + currentRoleClass + '">\u76ee\u524d ' + escapeHTML(currentRoleLabel) + '</span>'
+      + '<span class="td-role-confirm-arrow ' + direction + '" aria-hidden="true">\u2192</span>'
+      + '<span class="td-role-confirm-role-pill ' + targetRoleClass + '">' + escapeHTML(actionText) + '\u70ba ' + escapeHTML(targetRoleName) + '</span>'
+      + '</div>'
+      + '<div class="td-role-confirm-meta">\u78ba\u8a8d\u5f8c\u5c07\u7acb\u5373\u540c\u6b65\u66f4\u65b0\u6210\u54e1\u540d\u55ae\u8207\u4ff1\u6a02\u90e8\u8a2d\u5b9a\u3002</div>'
+      + '</div>';
+  },
+
+  _confirmTeamMemberRoleLevelChange(row, memberName, target) {
+    const direction = target?.direction === 'demote' ? 'demote' : 'promote';
+    const targetRoleName = target?.roleName || target?.label || '\u76ee\u6a19\u5c64\u7d1a';
+    const actionText = target?.actionText || (direction === 'demote' ? '\u964d\u7d1a' : '\u6649\u5347');
+    const fallbackText = this._buildTeamRoleChangeConfirmText(memberName, actionText, targetRoleName);
+    const modal = document.getElementById('app-confirm-modal');
+    const msgEl = document.getElementById('app-confirm-msg');
+    const ok = document.getElementById('app-confirm-ok');
+    const cancel = document.getElementById('app-confirm-cancel');
+    if (!modal || !msgEl || !ok || !cancel) {
+      return typeof this.appConfirm === 'function'
+        ? this.appConfirm(fallbackText)
+        : Promise.resolve(true);
+    }
+    const box = modal.querySelector?.('.app-confirm-box') || null;
+    const originalOkText = ok.textContent;
+    const originalCancelText = cancel.textContent;
+    const originalCancelDisplay = cancel.style?.display || '';
+    msgEl.innerHTML = this._buildTeamRoleChangeConfirmHtml(row, memberName, Object.assign({}, target, { roleName: targetRoleName, actionText }));
+    ok.textContent = direction === 'demote' ? '\u78ba\u8a8d\u964d\u7d1a' : '\u78ba\u8a8d\u6649\u5347';
+    cancel.textContent = '\u53d6\u6d88';
+    modal.classList.add('open');
+    modal.classList.add('td-role-confirm-open');
+    box?.classList?.add('td-role-confirm-box');
+    document.body?.classList?.add('modal-open');
+
+    return new Promise(resolve => {
+      const cleanup = (value) => {
+        ok.removeEventListener?.('click', onOk);
+        cancel.removeEventListener?.('click', onCancel);
+        modal.classList.remove('open');
+        modal.classList.remove('td-role-confirm-open');
+        box?.classList?.remove('td-role-confirm-box');
+        document.body?.classList?.remove('modal-open');
+        msgEl.innerHTML = '';
+        ok.textContent = originalOkText;
+        cancel.textContent = originalCancelText;
+        if (cancel.style) cancel.style.display = originalCancelDisplay;
+        resolve(value);
+      };
+      const onOk = () => cleanup(true);
+      const onCancel = () => cleanup(false);
+      ok.addEventListener('click', onOk);
+      cancel.addEventListener('click', onCancel);
+    });
+  },
+
   async changeTeamMemberRoleLevel(btn, teamId, memberKey, direction) {
     const t = ApiService.getTeam(teamId);
     const actionDirection = String(direction || '');
@@ -955,9 +1046,11 @@ Object.assign(App, {
     const targetRoleName = target.roleName || target.label || '\u76ee\u6a19\u5c64\u7d1a';
     const memberName = this._displayNameOrUidFallback?.(row.name || row.user.name || row.user.displayName, row.uid, '\u6210\u54e1')
       || row.name || row.user.name || row.user.displayName || '\u6210\u54e1';
-    const confirmed = typeof this.appConfirm === 'function'
-      ? await this.appConfirm('\u662f\u5426\u5c07\u300c' + memberName + '\u300d' + target.actionText + '\u70ba\u300c' + targetRoleName + '\u300d\u5c64\u7d1a\uff1f')
-      : true;
+    const confirmed = typeof this._confirmTeamMemberRoleLevelChange === 'function'
+      ? await this._confirmTeamMemberRoleLevelChange(row, memberName, Object.assign({}, target, { roleName: targetRoleName }))
+      : (typeof this.appConfirm === 'function'
+        ? await this.appConfirm(this._buildTeamRoleChangeConfirmText(memberName, target.actionText, targetRoleName))
+        : true);
     if (!confirmed) return;
 
     const run = async () => {

@@ -44,4 +44,17 @@ describe('team member table CSS contract', () => {
     expect(css).toMatch(/\.td-member-role-action-btn,\s*\.td-member-promote-btn\s*\{[\s\S]*display: inline-flex[\s\S]*width: 28px[\s\S]*height: 28px/);
     expect(css).toMatch(/\.td-member-role-action-btn svg,\s*\.td-member-promote-btn svg\s*\{[\s\S]*width: 15px[\s\S]*stroke: currentColor/);
   });
+
+  test('member management button and role confirm modal use styled stable controls', () => {
+    const css = readCss();
+
+    expect(css).toMatch(/\.td-member-edit-btn\s*\{[\s\S]*display: inline-flex[\s\S]*min-width: 106px[\s\S]*white-space: nowrap/);
+    expect(css).toContain('.td-member-edit-btn.is-active');
+    expect(css).toContain('.app-confirm-overlay.td-role-confirm-open .app-confirm-box');
+    expect(css).toMatch(/\.td-role-confirm-flow\s*\{[\s\S]*overflow-x: auto[\s\S]*white-space: nowrap/);
+    expect(css).toMatch(/\.td-role-confirm-name-pill,\s*\.td-role-confirm-role-pill\s*\{[\s\S]*display: inline-flex[\s\S]*border-radius: var\(--radius-full\)/);
+    expect(css).toContain('.td-role-confirm-name-pill.role-coach');
+    expect(css).toContain('.td-role-confirm-name-pill.role-leader');
+    expect(css).toContain('.td-role-confirm-name-pill.role-default');
+  });
 });

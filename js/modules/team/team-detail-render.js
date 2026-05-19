@@ -1548,7 +1548,11 @@ Object.assign(App, {
         + actions
         + '</tr>';
     }).join('') : '<tr><td colspan="' + columns.length + '" class="td-member-empty">' + I18N.t('teamDetail.none') + '</td></tr>';
-    const editBtn = canManageMembers ? '<button class="outline-btn td-member-edit-btn" onclick="event.stopPropagation();App.toggleTeamMemberEditMode(\'' + t.id + '\')">' + (memberEditMode ? '\u5b8c\u6210' : '\u6210\u54e1\u7ba1\u7406') + '</button>' : '';
+    const editBtnIcon = memberEditMode
+      ? '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 6L9 17l-5-5"></path></svg>'
+      : '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="9.5" cy="7" r="4"></circle><path d="M19 8v6"></path><path d="M22 11h-6"></path></svg>';
+    const editBtnLabel = memberEditMode ? '\u5b8c\u6210' : '\u6210\u54e1\u7ba1\u7406';
+    const editBtn = canManageMembers ? '<button class="td-member-edit-btn' + (memberEditMode ? ' is-active' : '') + '" type="button" aria-pressed="' + (memberEditMode ? 'true' : 'false') + '" onclick="event.stopPropagation();App.toggleTeamMemberEditMode(' + escapeHTML(JSON.stringify(t.id)) + ')"><span class="td-member-edit-icon">' + editBtnIcon + '</span><span class="td-member-edit-text">' + editBtnLabel + '</span></button>' : '';
     return '<div class="td-card td-section-card" id="team-members-section">'
       + '<div id="team-members-toggle" class="td-card-title td-card-title-row"><span>' + I18N.t('teamDetail.memberList') + '</span><span class="td-card-title-right">' + editBtn + '</span></div>'
       + '<div class="td-member-tabs">' + tabsHtml + '</div>'

@@ -819,11 +819,15 @@ describe('team detail club activity section', () => {
     const matchHtml = app._buildTeamMembersCard(team, true, false, staffIdentity);
     const editHtml = app._buildTeamMembersCard(team, true, true, staffIdentity);
     expect(manageHtml).toContain('\u6210\u54e1\u7ba1\u7406');
+    expect(manageHtml).toContain('td-member-edit-btn');
+    expect(manageHtml).toContain('aria-pressed="false"');
     expect(manageHtml).toContain('td-member-note-edit-btn');
     expect(manageHtml).toContain('App.editTeamMemberNote');
     expect(courseHtml).toContain('td-member-note-edit-btn');
     expect(courseHtml).toContain('App.editTeamMemberNote');
     expect(activityEditHtml).toContain('App.removeTeamRosterRow');
+    expect(activityEditHtml).toContain('td-member-edit-btn is-active');
+    expect(activityEditHtml).toContain('aria-pressed="true"');
     expect(activityEditHtml).toContain('<th class="td-member-remove-head">\u5254\u9664</th><th class="td-member-role-action-head">\u6649\u5347</th><th class="td-member-role-action-head">\u964d\u7d1a</th>');
     expect(activityEditHtml.indexOf('td-member-remove-cell')).toBeLessThan(activityEditHtml.indexOf('td-member-promote-cell'));
     expect(activityEditHtml.indexOf('td-member-promote-cell')).toBeLessThan(activityEditHtml.indexOf('td-member-name-cell'));
@@ -1305,6 +1309,77 @@ describe('team detail club activity section', () => {
 
     expect(app.appConfirm).toHaveBeenCalledWith(expect.stringContaining('\u6559\u7df4'));
     expect(app.appConfirm).toHaveBeenCalledWith(expect.not.stringContaining('undefined'));
+  });
+
+  test('role level confirmation renders formal colored pills for promotion and demotion', async () => {
+    const makeConfirmDom = () => {
+      const makeClassList = () => ({ add: jest.fn(), remove: jest.fn() });
+      const makeButton = (handlers, text) => ({
+        textContent: text,
+        style: { display: '' },
+        addEventListener: jest.fn((type, handler) => { handlers[type] = handler; }),
+        removeEventListener: jest.fn(),
+      });
+      const okHandlers = {};
+      const cancelHandlers = {};
+      const box = { classList: makeClassList() };
+      const modal = { classList: makeClassList(), querySelector: jest.fn(() => box) };
+      const msgEl = { innerHTML: '', textContent: '' };
+      const ok = makeButton(okHandlers, '\u78ba\u5b9a');
+      const cancel = makeButton(cancelHandlers, '\u53d6\u6d88');
+      const body = { classList: makeClassList() };
+      const document = {
+        body,
+        getElementById: (id) => ({
+          'app-confirm-modal': modal,
+          'app-confirm-msg': msgEl,
+          'app-confirm-ok': ok,
+          'app-confirm-cancel': cancel,
+        })[id] || null,
+      };
+      return { document, msgEl, ok, okHandlers, cancelHandlers, modal, box, body };
+    };
+
+    const promoteDom = makeConfirmDom();
+    const promoteApp = {};
+    loadTeamDetailCore(promoteApp, promoteDom.document);
+    const promotePromise = promoteApp._confirmTeamMemberRoleLevelChange(
+      { isMember: true, roles: new Set() },
+      'Amy',
+      { key: 'coach', direction: 'promote', actionText: '\u6649\u5347', roleName: '\u6559\u7df4' }
+    );
+
+    expect(promoteDom.msgEl.innerHTML).toContain('td-role-confirm-card');
+    expect(promoteDom.msgEl.innerHTML).toContain('td-role-confirm-action promote');
+    expect(promoteDom.msgEl.innerHTML).toContain('\u6649\u5347\u78ba\u8a8d');
+    expect(promoteDom.msgEl.innerHTML).toContain('td-role-confirm-name-pill role-default');
+    expect(promoteDom.msgEl.innerHTML).toContain('td-role-confirm-role-pill role-default');
+    expect(promoteDom.msgEl.innerHTML).toContain('td-role-confirm-role-pill role-coach');
+    expect(promoteDom.msgEl.innerHTML).toContain('\u6649\u5347\u70ba \u6559\u7df4');
+    expect(promoteDom.msgEl.innerHTML).not.toContain('undefined');
+    expect(promoteDom.ok.textContent).toBe('\u78ba\u8a8d\u6649\u5347');
+    promoteDom.okHandlers.click();
+    await expect(promotePromise).resolves.toBe(true);
+
+    const demoteDom = makeConfirmDom();
+    const demoteApp = {};
+    loadTeamDetailCore(demoteApp, demoteDom.document);
+    const demotePromise = demoteApp._confirmTeamMemberRoleLevelChange(
+      { isMember: true, roles: new Set(['\u9818\u968a']) },
+      'Lee',
+      { key: 'coach', direction: 'demote', actionText: '\u964d\u7d1a', roleName: '\u6559\u7df4' }
+    );
+
+    expect(demoteDom.msgEl.innerHTML).toContain('td-role-confirm-action demote');
+    expect(demoteDom.msgEl.innerHTML).toContain('\u964d\u7d1a\u78ba\u8a8d');
+    expect(demoteDom.msgEl.innerHTML).toContain('td-role-confirm-name-pill role-leader');
+    expect(demoteDom.msgEl.innerHTML).toContain('td-role-confirm-role-pill role-leader');
+    expect(demoteDom.msgEl.innerHTML).toContain('td-role-confirm-role-pill role-coach');
+    expect(demoteDom.msgEl.innerHTML).toContain('\u964d\u7d1a\u70ba \u6559\u7df4');
+    expect(demoteDom.msgEl.innerHTML).not.toContain('undefined');
+    expect(demoteDom.ok.textContent).toBe('\u78ba\u8a8d\u964d\u7d1a');
+    demoteDom.cancelHandlers.click();
+    await expect(demotePromise).resolves.toBe(false);
   });
 
   test('role level action demotes leader to coach and updates edit-club fields', async () => {
