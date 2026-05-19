@@ -1357,37 +1357,80 @@ Object.assign(App, {
     };
   },
 
-  _getTeamMemberQuickPromoteTargets(t, row) {
-    if (!t || !row?.uid || !row?.user || !row.isMember) return [];
-    const canPromote = typeof this._canQuickPromoteTeamMember === 'function'
+  _getTeamMemberClubRoleLevel(row) {
+    const roles = row?.roles instanceof Set ? row.roles : new Set();
+    if (roles.has('\u7403\u7d93')) return 3;
+    if (roles.has('\u9818\u968a')) return 2;
+    if (roles.has('\u6559\u7df4')) return 1;
+    return 0;
+  },
+
+  _getTeamMemberRoleActionTarget(t, row, direction) {
+    if (!t || !row?.uid || !row?.user || !row.isMember) return null;
+    const canChangeRole = typeof this._canQuickPromoteTeamMember === 'function'
       ? this._canQuickPromoteTeamMember(t)
       : !!this._canEditTeamByRoleOrCaptain?.(t);
-    if (!canPromote) return [];
+    if (!canChangeRole) return null;
     const isInTeam = typeof this._isUserInTeam === 'function'
       ? this._isUserInTeam(row.user, t.id)
       : row.user.teamId === t.id || (Array.isArray(row.user.teamIds) && row.user.teamIds.map(String).includes(String(t.id)));
-    if (!isInTeam) return [];
-    const roles = row.roles instanceof Set ? row.roles : new Set();
-    if (roles.has('\u7403\u7d93')) return [];
-    return [
-      { key: 'leader', label: '\u9818\u968a' },
-      { key: 'coach', label: '\u6559\u7df4' },
-    ].filter(target => !roles.has(target.label));
+    if (!isInTeam) return null;
+
+    const currentLevel = typeof this._getTeamMemberClubRoleLevel === 'function'
+      ? this._getTeamMemberClubRoleLevel(row)
+      : 0;
+    if (currentLevel >= 3) return null;
+
+    const actorLevel = typeof this._getCurrentTeamRoleLevel === 'function'
+      ? this._getCurrentTeamRoleLevel(t)
+      : (canChangeRole ? 3 : 0);
+    const configs = {
+      promote: {
+        actionText: '\u6649\u5347',
+        targetByLevel: {
+          0: { key: 'coach', label: '\u6559\u7df4', level: 1 },
+          1: { key: 'leader', label: '\u9818\u968a', level: 2 },
+        },
+      },
+      demote: {
+        actionText: '\u964d\u7d1a',
+        targetByLevel: {
+          2: { key: 'coach', label: '\u6559\u7df4', level: 1 },
+          1: { key: 'member', label: '\u968a\u54e1', level: 0 },
+        },
+      },
+    };
+    const config = configs[String(direction || '')];
+    const target = config?.targetByLevel?.[currentLevel] || null;
+    if (!target || target.level >= actorLevel) return null;
+    return Object.assign({ direction, actionText: config.actionText }, target);
+  },
+
+  _getTeamMemberQuickPromoteTargets(t, row) {
+    const target = this._getTeamMemberRoleActionTarget(t, row, 'promote');
+    return target ? [target] : [];
+  },
+
+  _buildTeamMemberRoleActionButton(t, row, direction) {
+    const target = this._getTeamMemberRoleActionTarget(t, row, direction);
+    if (!target) return '<span class="td-member-role-empty">-</span>';
+    const isDemote = target.direction === 'demote';
+    const icon = isDemote
+      ? '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14"></path><path d="M19 12l-7 7-7-7"></path></svg>'
+      : '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 19V5"></path><path d="M5 12l7-7 7 7"></path></svg>';
+    const label = target.actionText + '\u70ba' + target.label;
+    return '<button class="td-member-role-action-btn ' + escapeHTML(target.direction) + '" type="button" title="' + escapeHTML(label) + '" aria-label="' + escapeHTML(label) + '" onclick="event.stopPropagation();App.changeTeamMemberRoleLevel(this,' + escapeHTML(JSON.stringify(t.id)) + ',' + escapeHTML(JSON.stringify(row.key)) + ',' + escapeHTML(JSON.stringify(target.direction)) + ')">'
+      + icon
+      + '</button>';
+  },
+
+  _buildTeamMemberRoleActionCell(t, row, direction) {
+    const cellClass = direction === 'demote' ? 'td-member-demote-cell' : 'td-member-promote-cell';
+    return '<td class="td-member-role-action-cell ' + cellClass + '">' + this._buildTeamMemberRoleActionButton(t, row, direction) + '</td>';
   },
 
   _buildTeamMemberQuickPromoteControls(t, row) {
-    const targets = this._getTeamMemberQuickPromoteTargets(t, row);
-    if (!targets.length) return '';
-    const icon = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 19V5"></path><path d="M5 12l7-7 7 7"></path></svg>';
-    return '<span class="td-member-promote-actions" aria-label="\u5feb\u901f\u6649\u5347">'
-      + targets.map(target => {
-        const label = escapeHTML(target.label);
-        return '<button class="td-member-promote-btn" type="button" title="\u6649\u5347\u70ba' + label + '" onclick="event.stopPropagation();App.quickPromoteTeamMember(this,' + escapeHTML(JSON.stringify(t.id)) + ',' + escapeHTML(JSON.stringify(row.key)) + ',' + escapeHTML(JSON.stringify(target.key)) + ')">'
-          + icon
-          + '<span>' + label + '</span>'
-          + '</button>';
-      }).join('')
-      + '</span>';
+    return this._buildTeamMemberRoleActionButton(t, row, 'promote');
   },
 
   _isTeamDetailMatchDataEditableRow(row) {
@@ -1417,13 +1460,39 @@ Object.assign(App, {
     const tabsHtml = tabBtn('activity', '\u6d3b\u52d5')
       + (showCourseTab ? tabBtn('course', '\u8ab2\u7a0b') : '')
       + tabBtn('match', '\u8cfd\u4e8b');
+    const showRoleActionColumns = !!(canManageMembers && memberEditMode);
     const columns = activeTab === 'course'
-      ? ['\u66b1\u7a31', '\u6a19\u7c64', '\u5206\u7d44', '\u7e73\u8cbb', '\u6b21\u6578', '\u5099\u8a3b']
+      ? [
+        { label: '\u66b1\u7a31', className: 'td-member-name-head' },
+        { label: '\u6a19\u7c64', className: 'td-member-tag-head' },
+        { label: '\u5206\u7d44', className: 'td-member-compact-head' },
+        { label: '\u7e73\u8cbb', className: 'td-member-compact-head' },
+        { label: '\u6b21\u6578', className: 'td-member-num-head' },
+        { label: '\u5099\u8a3b', className: 'td-member-note-head' },
+      ]
       : (activeTab === 'match'
-        ? ['\u66b1\u7a31', '\u6a19\u7c64', '\u6b21\u6578', '\u80cc\u865f', '\u4f4d\u7f6e', '\u5099\u8a3b']
-        : ['\u66b1\u7a31', '\u6a19\u7c64', '\u6b21\u6578', '\u5099\u8a3b']);
-    if (showEditColumn) columns.push('\u7de8\u8f2f');
-    const header = columns.map(label => '<th>' + label + '</th>').join('');
+        ? [
+          { label: '\u66b1\u7a31', className: 'td-member-name-head' },
+          { label: '\u6a19\u7c64', className: 'td-member-tag-head' },
+          { label: '\u6b21\u6578', className: 'td-member-num-head' },
+          { label: '\u80cc\u865f', className: 'td-member-compact-head' },
+          { label: '\u4f4d\u7f6e', className: 'td-member-compact-head' },
+          { label: '\u5099\u8a3b', className: 'td-member-note-head' },
+        ]
+        : [
+          { label: '\u66b1\u7a31', className: 'td-member-name-head' },
+          { label: '\u6a19\u7c64', className: 'td-member-tag-head' },
+          { label: '\u6b21\u6578', className: 'td-member-num-head' },
+          { label: '\u5099\u8a3b', className: 'td-member-note-head' },
+        ]);
+    if (showRoleActionColumns) {
+      columns.unshift(
+        { label: '\u6649\u5347', className: 'td-member-role-action-head' },
+        { label: '\u964d\u7d1a', className: 'td-member-role-action-head' }
+      );
+    }
+    if (showEditColumn) columns.push({ label: '\u7de8\u8f2f', className: 'td-member-action-head' });
+    const header = columns.map(col => '<th' + (col.className ? ' class="' + col.className + '"' : '') + '>' + col.label + '</th>').join('');
     const rows = roster.length ? roster.map(row => {
       const safeName = escapeHTML(row.name || '未命名');
       const profileNameArg = escapeHTML(JSON.stringify(row.name || '未命名'));
@@ -1460,14 +1529,15 @@ Object.assign(App, {
       const removeBtn = (canManageMembers && memberEditMode && removalKind)
         ? '<button class="td-member-remove-btn" title="\u5254\u9664\u6210\u54e1" onclick="event.stopPropagation();App.removeTeamRosterRow(this, ' + escapeHTML(JSON.stringify(t.id)) + ', ' + escapeHTML(JSON.stringify(row.key)) + ')">\u5254\u9664</button>'
         : '';
-      const quickPromoteControls = (canManageMembers && memberEditMode && typeof this._buildTeamMemberQuickPromoteControls === 'function')
-        ? this._buildTeamMemberQuickPromoteControls(t, row)
+      const roleActionCells = showRoleActionColumns
+        ? this._buildTeamMemberRoleActionCell(t, row, 'promote') + this._buildTeamMemberRoleActionCell(t, row, 'demote')
         : '';
       const actions = showEditColumn
         ? '<td class="td-member-action-cell">' + (editActionBtn || '<span class="td-member-role-empty">-</span>') + '</td>'
         : '';
       return '<tr>'
-        + '<td class="td-member-name-cell">' + (removeBtn || '') + quickPromoteControls + '<span class="' + nameClass + '"' + profileClick + '>' + safeName + '</span></td>'
+        + roleActionCells
+        + '<td class="td-member-name-cell">' + (removeBtn || '') + '<span class="' + nameClass + '"' + profileClick + '>' + safeName + '</span></td>'
         + '<td class="td-member-tag-cell">' + this._buildTeamDetailMemberTagPill(row) + '</td>'
         + dataCells
         + actions

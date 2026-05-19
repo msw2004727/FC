@@ -757,35 +757,86 @@ Object.assign(App, {
     return !!this._canEditTeamByRoleOrCaptain?.(team);
   },
 
-  _getTeamQuickPromoteTargetConfig(targetRole) {
-    const key = String(targetRole || '').trim();
-    if (key === 'leader') {
-      return {
-        key,
-        label: '\u9818\u968a',
-        roleName: '\u9818\u968a',
-        logType: 'team_quick_promote_leader',
-        lineSource: 'team_role_assignment:leader',
-      };
-    }
-    if (key === 'coach') {
-      return {
-        key,
-        label: '\u6559\u7df4',
-        roleName: '\u6559\u7df4',
-        logType: 'team_quick_promote_coach',
-        lineSource: 'team_role_assignment:coach',
-      };
-    }
-    return null;
+  _getCurrentTeamRoleLevel(team) {
+    if (!team) return 0;
+    const currentUser = ApiService.getCurrentUser?.();
+    const currentIds = [currentUser?.uid, currentUser?._docId]
+      .map(v => String(v || '').trim())
+      .filter(Boolean);
+    if (this._hasRolePermission?.('team.manage_all')) return 4;
+    if (!currentIds.length) return 0;
+    const hasCurrentId = (value) => {
+      const id = String(value || '').trim();
+      return !!id && currentIds.includes(id);
+    };
+    if (['captainUid', 'creatorUid', 'ownerUid'].some(field => hasCurrentId(team[field]))) return 3;
+    const leaderUids = Array.isArray(team.leaderUids) ? team.leaderUids : (team.leaderUid ? [team.leaderUid] : []);
+    if (leaderUids.some(hasCurrentId)) return 2;
+    if (Array.isArray(team.coachUids) && team.coachUids.some(hasCurrentId)) return 1;
+    return 0;
   },
 
-  _buildTeamQuickPromoteUpdates(team, row, targetRole) {
-    const target = this._getTeamQuickPromoteTargetConfig(targetRole);
+  _getTeamMemberClubRoleLevel(row) {
+    const roles = row?.roles instanceof Set ? row.roles : new Set();
+    if (roles.has('\u7403\u7d93')) return 3;
+    if (roles.has('\u9818\u968a')) return 2;
+    if (roles.has('\u6559\u7df4')) return 1;
+    return 0;
+  },
+
+  _getTeamRoleLevelTargetConfig(targetRole) {
+    const key = String(targetRole || '').trim();
+    const configs = {
+      member: { key: 'member', label: '\u968a\u54e1', roleName: '\u968a\u54e1', level: 0, lineSource: 'team_role_assignment:member' },
+      coach: { key: 'coach', label: '\u6559\u7df4', roleName: '\u6559\u7df4', level: 1, lineSource: 'team_role_assignment:coach' },
+      leader: { key: 'leader', label: '\u9818\u968a', roleName: '\u9818\u968a', level: 2, lineSource: 'team_role_assignment:leader' },
+    };
+    return configs[key] || null;
+  },
+
+  _getTeamQuickPromoteTargetConfig(targetRole) {
+    return this._getTeamRoleLevelTargetConfig(targetRole);
+  },
+
+  _getTeamMemberRoleActionTarget(team, row, direction) {
+    if (!team || !row?.uid || !row?.user || !row.isMember) return null;
+    if (!this._canQuickPromoteTeamMember(team)) return null;
+    const isInTeam = typeof this._isUserInTeam === 'function'
+      ? this._isUserInTeam(row.user, team.id)
+      : row.user.teamId === team.id || (Array.isArray(row.user.teamIds) && row.user.teamIds.map(String).includes(String(team.id)));
+    if (!isInTeam) return null;
+    const currentLevel = this._getTeamMemberClubRoleLevel(row);
+    if (currentLevel >= 3) return null;
+    const actorLevel = this._getCurrentTeamRoleLevel(team);
+    const targetByDirection = {
+      promote: {
+        actionText: '\u6649\u5347',
+        targetByLevel: {
+          0: 'coach',
+          1: 'leader',
+        },
+      },
+      demote: {
+        actionText: '\u964d\u7d1a',
+        targetByLevel: {
+          2: 'coach',
+          1: 'member',
+        },
+      },
+    };
+    const action = targetByDirection[String(direction || '')];
+    const target = this._getTeamRoleLevelTargetConfig(action?.targetByLevel?.[currentLevel]);
+    if (!action || !target || target.level >= actorLevel) return null;
+    return Object.assign({ direction, actionText: action.actionText }, target);
+  },
+
+  _buildTeamRoleLevelUpdates(team, row, targetRole) {
+    const target = this._getTeamRoleLevelTargetConfig(targetRole);
     if (!team || !row || !target) return null;
     const uid = String(row.uid || row.user?.uid || row.user?._docId || '').trim();
     if (!uid) return null;
     const displayName = String(row.name || row.user?.name || row.user?.displayName || '').trim() || uid;
+    const normalizedName = displayName.toLowerCase();
     const unique = (values) => {
       const seen = new Set();
       return (Array.isArray(values) ? values : [])
@@ -796,63 +847,98 @@ Object.assign(App, {
           return true;
         });
     };
-    const pairedNames = (names, fallbackNames = []) => {
-      const list = (Array.isArray(names) ? names : fallbackNames)
+    const uniqueNames = (values) => {
+      const seen = new Set();
+      return (Array.isArray(values) ? values : [])
         .map(v => String(v || '').trim())
-        .filter(Boolean);
-      return list;
+        .filter(v => {
+          const key = v.toLowerCase();
+          if (!v || seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+    };
+    const namesFrom = (primary, fallback) => {
+      if (Array.isArray(primary)) return uniqueNames(primary);
+      return uniqueNames(fallback);
+    };
+    const removePerson = (uids, names) => {
+      const nextUids = unique(uids).filter(itemUid => itemUid !== uid);
+      const nextNames = uniqueNames(names).filter(name => name.toLowerCase() !== normalizedName);
+      return { uids: nextUids, names: nextNames };
+    };
+    const addPerson = (uids, names) => {
+      const nextUids = unique(uids);
+      const nextNames = uniqueNames(names);
+      if (!nextUids.includes(uid)) nextUids.push(uid);
+      if (!nextNames.some(name => name.toLowerCase() === normalizedName)) nextNames.push(displayName);
+      return { uids: nextUids, names: nextNames };
     };
 
+    let leaderUids = unique(Array.isArray(team.leaderUids) ? team.leaderUids : (team.leaderUid ? [team.leaderUid] : []));
+    let leaders = namesFrom(team.leaders, Array.isArray(team.leaderNames) ? team.leaderNames : (team.leader ? [team.leader] : []));
+    let coachUids = unique(team.coachUids);
+    let coaches = namesFrom(team.coaches, team.coachNames);
+
     if (target.key === 'leader') {
-      const leaderUids = unique(Array.isArray(team.leaderUids) ? team.leaderUids : (team.leaderUid ? [team.leaderUid] : []));
-      if (leaderUids.includes(uid)) return null;
-      const leaders = pairedNames(team.leaders, team.leader ? [team.leader] : []);
-      leaderUids.push(uid);
-      leaders.push(displayName);
-      const firstLeaderUid = leaderUids[0] || null;
-      const firstLeaderName = leaders[0] || '';
-      return {
-        leaderUids,
-        leaders,
-        leaderNames: leaders,
-        leaderUid: firstLeaderUid,
-        leader: firstLeaderName,
-      };
+      const removedCoach = removePerson(coachUids, coaches);
+      coachUids = removedCoach.uids;
+      coaches = removedCoach.names;
+      const addedLeader = addPerson(leaderUids, leaders);
+      leaderUids = addedLeader.uids;
+      leaders = addedLeader.names;
+    } else if (target.key === 'coach') {
+      const removedLeader = removePerson(leaderUids, leaders);
+      leaderUids = removedLeader.uids;
+      leaders = removedLeader.names;
+      const addedCoach = addPerson(coachUids, coaches);
+      coachUids = addedCoach.uids;
+      coaches = addedCoach.names;
+    } else if (target.key === 'member') {
+      const removedLeader = removePerson(leaderUids, leaders);
+      const removedCoach = removePerson(coachUids, coaches);
+      leaderUids = removedLeader.uids;
+      leaders = removedLeader.names;
+      coachUids = removedCoach.uids;
+      coaches = removedCoach.names;
+    } else {
+      return null;
     }
 
-    if (target.key === 'coach') {
-      const coachUids = unique(team.coachUids);
-      if (coachUids.includes(uid)) return null;
-      const coaches = pairedNames(team.coaches, team.coachNames);
-      coachUids.push(uid);
-      coaches.push(displayName);
-      return {
-        coachUids,
-        coaches,
-        coachNames: coaches,
-      };
-    }
-    return null;
+    return {
+      leaderUids,
+      leaders,
+      leaderNames: leaders,
+      leaderUid: leaderUids[0] || null,
+      leader: leaders[0] || '',
+      coachUids,
+      coaches,
+      coachNames: coaches,
+    };
   },
 
-  _sendTeamQuickPromoteNotice(team, row, target) {
+  _sendTeamRoleLevelChangeNotice(team, row, target) {
     const uid = String(row?.uid || row?.user?.uid || row?.user?._docId || '').trim();
     if (!uid || typeof this._deliverMessageWithLinePush !== 'function') return;
     const teamName = team?.name || '\u4ff1\u6a02\u90e8';
     this._deliverMessageWithLinePush(
-      '\u4ff1\u6a02\u90e8\u8077\u4f4d\u6307\u6d3e',
-      `\u60a8\u5df2\u88ab\u8a2d\u70ba\u300c${teamName}\u300d\u7684${target.roleName}\u3002`,
+      '\u4ff1\u6a02\u90e8\u5c64\u7d1a\u8abf\u6574',
+      `\u60a8\u5728\u300c${teamName}\u300d\u7684\u4ff1\u6a02\u90e8\u5c64\u7d1a\u5df2\u8abf\u6574\u70ba${target.roleName}\u3002`,
       'system', '\u7cfb\u7d71', uid, '\u7cfb\u7d71', null,
       { lineOptions: { source: target.lineSource } }
     );
   },
 
-  async quickPromoteTeamMember(btn, teamId, memberKey, targetRole) {
+  _sendTeamQuickPromoteNotice(team, row, target) {
+    this._sendTeamRoleLevelChangeNotice(team, row, target);
+  },
+
+  async changeTeamMemberRoleLevel(btn, teamId, memberKey, direction) {
     const t = ApiService.getTeam(teamId);
-    const target = this._getTeamQuickPromoteTargetConfig(targetRole);
-    if (!t || !memberKey || !target) return;
+    const actionDirection = String(direction || '');
+    if (!t || !memberKey) return;
     if (!this._canQuickPromoteTeamMember(t)) {
-      this.showToast('\u53ea\u6709\u4ff1\u6a02\u90e8\u7d93\u7406\u53ef\u8abf\u6574\u8077\u52d9');
+      this.showToast('\u53ea\u6709\u4ff1\u6a02\u90e8\u7d93\u7406\u53ef\u8abf\u6574\u6210\u54e1\u5c64\u7d1a');
       return;
     }
     const row = this._findTeamDetailRosterRow(teamId, memberKey);
@@ -860,17 +946,15 @@ Object.assign(App, {
       this.showToast('\u627e\u4e0d\u5230\u6210\u54e1\u8cc7\u6599');
       return;
     }
-    const options = typeof this._getTeamMemberQuickPromoteTargets === 'function'
-      ? this._getTeamMemberQuickPromoteTargets(t, row)
-      : [];
-    if (!options.some(option => option.key === target.key)) {
-      this.showToast('\u6b64\u6210\u54e1\u5df2\u662f\u8a72\u8077\u52d9\u6216\u7121\u6cd5\u6649\u5347');
+    const target = this._getTeamMemberRoleActionTarget(t, row, actionDirection);
+    if (!target) {
+      this.showToast(actionDirection === 'demote' ? '\u6b64\u6210\u54e1\u76ee\u524d\u7121\u6cd5\u964d\u7d1a' : '\u6b64\u6210\u54e1\u76ee\u524d\u7121\u6cd5\u6649\u5347');
       return;
     }
     const memberName = this._displayNameOrUidFallback?.(row.name || row.user.name || row.user.displayName, row.uid, '\u6210\u54e1')
       || row.name || row.user.name || row.user.displayName || '\u6210\u54e1';
     const confirmed = typeof this.appConfirm === 'function'
-      ? await this.appConfirm('\u78ba\u5b9a\u8981\u5c07\u300c' + memberName + '\u300d\u6649\u5347\u70ba\u300c' + t.name + '\u300d\u7684' + target.roleName + '\uff1f')
+      ? await this.appConfirm('\u662f\u5426\u5c07\u300c' + memberName + '\u300d' + target.actionText + '\u70ba\u300c' + target.roleName + '\u300d\u5c64\u7d1a\uff1f')
       : true;
     if (!confirmed) return;
 
@@ -885,21 +969,19 @@ Object.assign(App, {
         }
         const currentTeam = ApiService.getTeam(teamId) || t;
         if (!this._canQuickPromoteTeamMember(currentTeam)) {
-          this.showToast('\u53ea\u6709\u4ff1\u6a02\u90e8\u7d93\u7406\u53ef\u8abf\u6574\u8077\u52d9');
+          this.showToast('\u53ea\u6709\u4ff1\u6a02\u90e8\u7d93\u7406\u53ef\u8abf\u6574\u6210\u54e1\u5c64\u7d1a');
           return;
         }
         const currentRow = this._findTeamDetailRosterRow(teamId, memberKey) || row;
-        const currentOptions = typeof this._getTeamMemberQuickPromoteTargets === 'function'
-          ? this._getTeamMemberQuickPromoteTargets(currentTeam, currentRow)
-          : [];
-        if (!currentOptions.some(option => option.key === target.key)) {
-          this.showToast('\u6b64\u6210\u54e1\u5df2\u662f\u8a72\u8077\u52d9\u6216\u7121\u6cd5\u6649\u5347');
+        const currentTarget = this._getTeamMemberRoleActionTarget(currentTeam, currentRow, actionDirection);
+        if (!currentTarget || currentTarget.key !== target.key) {
+          this.showToast(actionDirection === 'demote' ? '\u6b64\u6210\u54e1\u76ee\u524d\u7121\u6cd5\u964d\u7d1a' : '\u6b64\u6210\u54e1\u76ee\u524d\u7121\u6cd5\u6649\u5347');
           if (typeof this._refreshTeamMembersCardFromCache === 'function') this._refreshTeamMembersCardFromCache(teamId);
           return;
         }
-        const updates = this._buildTeamQuickPromoteUpdates(currentTeam, currentRow, target.key);
+        const updates = this._buildTeamRoleLevelUpdates(currentTeam, currentRow, target.key);
         if (!updates) {
-          this.showToast('\u6b64\u6210\u54e1\u5df2\u662f\u8a72\u8077\u52d9');
+          this.showToast('\u6b64\u6210\u54e1\u5c64\u7d1a\u5df2\u662f\u6700\u65b0\u72c0\u614b');
           return;
         }
         const nextTeam = Object.assign({}, currentTeam, updates);
@@ -913,36 +995,45 @@ Object.assign(App, {
 
         const roleChange = ApiService._recalcUserRole?.(currentRow.uid);
         this._applyRoleChange?.(roleChange);
-        this._sendTeamQuickPromoteNotice(currentTeam, currentRow, target);
+        this._sendTeamRoleLevelChangeNotice(currentTeam, currentRow, target);
         ApiService._writeOpLog?.(
-          target.logType,
-          '\u4ff1\u6a02\u90e8\u8077\u4f4d\u8b8a\u66f4',
-          '\u65b0\u589e\u300c' + memberName + '\u300d\u70ba\u300c' + currentTeam.name + '\u300d' + target.roleName
+          actionDirection === 'demote' ? 'team_member_level_demote' : 'team_member_level_promote',
+          '\u4ff1\u6a02\u90e8\u5c64\u7d1a\u8b8a\u66f4',
+          target.actionText + '\u300c' + memberName + '\u300d\u70ba\u300c' + currentTeam.name + '\u300d' + target.roleName
         );
-        this.showToast('\u5df2\u6649\u5347\u70ba' + target.roleName);
+        this.showToast('\u5df2' + target.actionText + '\u70ba' + target.roleName);
         if (typeof this._refreshTeamMembersCardFromCache !== 'function' || !this._refreshTeamMembersCardFromCache(teamId)) {
           await this._refreshTeamDetailMembers(teamId);
         }
       } catch (err) {
-        console.error('[quickPromoteTeamMember]', err);
+        console.error('[changeTeamMemberRoleLevel]', err);
         ApiService._writeErrorLog?.(
           {
-            fn: 'quickPromoteTeamMember',
+            fn: 'changeTeamMemberRoleLevel',
             teamId,
             memberKey,
+            direction: actionDirection,
             targetRole: target.key,
             memberUid: row?.uid || '',
             authUid: (typeof auth !== 'undefined' && auth?.currentUser?.uid) ? auth.currentUser.uid : 'null',
           },
           err
         );
-        if (!err?._toasted) this.showToast('\u6649\u5347\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+        if (!err?._toasted) this.showToast(target.actionText + '\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
       }
     };
     if (typeof this._withButtonLoading === 'function' && btn) {
-      return this._withButtonLoading(btn, '\u6649\u5347\u4e2d...', run);
+      return this._withButtonLoading(btn, target.actionText + '\u4e2d...', run);
     }
     return run();
+  },
+
+  async quickPromoteTeamMember(btn, teamId, memberKey) {
+    return this.changeTeamMemberRoleLevel(btn, teamId, memberKey, 'promote');
+  },
+
+  async quickDemoteTeamMember(btn, teamId, memberKey) {
+    return this.changeTeamMemberRoleLevel(btn, teamId, memberKey, 'demote');
   },
 
   _promptTeamMemberMatchData(row, current) {

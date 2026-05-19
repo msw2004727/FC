@@ -2984,3 +2984,9 @@
 - **原因**：成員管理只處理剔除與成員備註/賽事資料，職務指派只存在編輯俱樂部流程並寫入 `leaderUids` / `coachUids`。
 - **修復**：成員管理模式加入僅俱樂部經理/管理員可見的 SVG 上箭頭快速晉升按鈕；一般隊員會依既有職務顯示可用的「領隊」「教練」目標，已是該層級或球經列不顯示。確認後更新同一組職務欄位、重算使用者角色、發送職位指派通知、寫入操作日誌並局部刷新名單。
 - **驗收**：新增單元測試覆蓋目標顯示、低層級阻擋、領隊欄位寫入、通知/日誌串接與按鈕 CSS 穩定尺寸；同時同步 `index.html` inline runtime，避免 hosting fallback contract 再因 `app.js` 漂移失敗。
+
+### 2026-05-19 Club Member Role Action Columns [ux]
+- **Issue**: The first quick-promotion UI placed action buttons inside the name cell, so member rows did not gain separate aligned columns and there was no demotion path.
+- **Cause**: The implementation modeled promotion targets as inline chips instead of table-level role movement controls.
+- **Fix**: In member management mode, the member table now prepends two fixed columns, `promote` and `demote`, before the name column. Each eligible row shows only the valid arrow for one-step movement: member -> coach, coach -> leader, leader -> coach, coach -> member. Manager-level rows, max/min rows, and insufficient-permission viewers show no arrow.
+- **Validation**: Added render/core/CSS unit coverage for column order, one-step role updates, demotion field synchronization, and blocked non-manager actions.

@@ -36,15 +36,11 @@ describe('team member table CSS contract', () => {
     expect(noteBlock).not.toContain('max-width: 150px');
   });
 
-  test('quick promote button keeps a stable icon-sized control beside names', () => {
+  test('member role action columns keep stable arrow controls before names', () => {
     const css = readCss();
-    const buttonBlock = ruleBlock(css, '.td-member-promote-btn');
-    const iconBlock = ruleBlock(css, '.td-member-promote-btn svg');
 
-    expect(buttonBlock).toContain('display: inline-flex');
-    expect(buttonBlock).toContain('height: 24px');
-    expect(buttonBlock).toContain('white-space: nowrap');
-    expect(iconBlock).toContain('width: 12px');
-    expect(iconBlock).toContain('stroke: currentColor');
+    expect(css).toMatch(/\.td-member-role-action-head,\s*\.td-member-role-action-cell\s*\{[\s\S]*width: 44px[\s\S]*text-align: center/);
+    expect(css).toMatch(/\.td-member-role-action-btn,\s*\.td-member-promote-btn\s*\{[\s\S]*display: inline-flex[\s\S]*width: 28px[\s\S]*height: 28px/);
+    expect(css).toMatch(/\.td-member-role-action-btn svg,\s*\.td-member-promote-btn svg\s*\{[\s\S]*width: 15px[\s\S]*stroke: currentColor/);
   });
 });

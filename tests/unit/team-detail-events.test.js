@@ -824,6 +824,8 @@ describe('team detail club activity section', () => {
     expect(courseHtml).toContain('td-member-note-edit-btn');
     expect(courseHtml).toContain('App.editTeamMemberNote');
     expect(activityEditHtml).toContain('App.removeTeamRosterRow');
+    expect(activityEditHtml).toContain('<th class="td-member-role-action-head">\u6649\u5347</th><th class="td-member-role-action-head">\u964d\u7d1a</th>');
+    expect(activityEditHtml.indexOf('td-member-promote-cell')).toBeLessThan(activityEditHtml.indexOf('td-member-name-cell'));
     expect((activityEditHtml.match(/td-member-remove-btn/g) || []).length).toBe(7);
     expect(matchHtml).toContain('td-member-match-edit-btn');
     expect(matchHtml).not.toContain('is-editing');
@@ -1144,9 +1146,10 @@ describe('team detail club activity section', () => {
     expect(app.showToast).toHaveBeenCalledWith(expect.stringContaining('\u4ff1\u6a02\u90e8\u8a2d\u5b9a'));
   });
 
-  test('member management renders quick promote actions only for eligible role targets', () => {
+  test('member management renders promote and demote columns only with eligible arrow actions', () => {
     const app = {
       _canQuickPromoteTeamMember: () => true,
+      _getCurrentTeamRoleLevel: () => 3,
       _isUserInTeam: (user, teamId) => Array.isArray(user.teamIds) && user.teamIds.includes(teamId),
     };
     loadTeamDetailRender(app);
@@ -1157,6 +1160,13 @@ describe('team detail club activity section', () => {
       user: { uid: 'member', teamIds: ['teamA'] },
       isMember: true,
       roles: new Set(),
+    };
+    const coachRow = {
+      key: 'uid:coach',
+      uid: 'coach',
+      user: { uid: 'coach', teamIds: ['teamA'] },
+      isMember: true,
+      roles: new Set(['\u6559\u7df4']),
     };
     const leaderRow = {
       key: 'uid:leader',
@@ -1173,17 +1183,22 @@ describe('team detail club activity section', () => {
       roles: new Set(['\u7403\u7d93']),
     };
 
-    expect(app._getTeamMemberQuickPromoteTargets(team, memberRow).map(item => item.key)).toEqual(['leader', 'coach']);
-    expect(app._getTeamMemberQuickPromoteTargets(team, leaderRow).map(item => item.key)).toEqual(['coach']);
-    expect(app._getTeamMemberQuickPromoteTargets(team, managerRow)).toEqual([]);
-    const html = app._buildTeamMemberQuickPromoteControls(team, memberRow);
-    expect(html).toContain('td-member-promote-btn');
-    expect(html).toContain('quickPromoteTeamMember');
+    expect(app._getTeamMemberRoleActionTarget(team, memberRow, 'promote').key).toBe('coach');
+    expect(app._getTeamMemberRoleActionTarget(team, memberRow, 'demote')).toBeNull();
+    expect(app._getTeamMemberRoleActionTarget(team, coachRow, 'promote').key).toBe('leader');
+    expect(app._getTeamMemberRoleActionTarget(team, coachRow, 'demote').key).toBe('member');
+    expect(app._getTeamMemberRoleActionTarget(team, leaderRow, 'promote')).toBeNull();
+    expect(app._getTeamMemberRoleActionTarget(team, leaderRow, 'demote').key).toBe('coach');
+    expect(app._getTeamMemberRoleActionTarget(team, managerRow, 'promote')).toBeNull();
+    const html = app._buildTeamMemberRoleActionCell(team, memberRow, 'promote');
+    expect(html).toContain('td-member-role-action-cell td-member-promote-cell');
+    expect(html).toContain('td-member-role-action-btn promote');
+    expect(html).toContain('changeTeamMemberRoleLevel');
     expect(html).toContain('svg viewBox="0 0 24 24"');
   });
 
-  test('quick promote adds leader fields and refreshes the member card', async () => {
-    const team = { id: 'teamA', name: 'Club A', leaderUids: [], leaders: [], members: 1 };
+  test('role level action promotes member to coach and refreshes the member card', async () => {
+    const team = { id: 'teamA', name: 'Club A', captainUid: 'captain', leaderUids: [], leaders: [], coachUids: [], coaches: [], members: 1 };
     const row = {
       key: 'uid:member',
       uid: 'member',
@@ -1200,6 +1215,7 @@ describe('team detail club activity section', () => {
     const app = {};
     loadTeamDetailCore(app, null, {
       ApiService: {
+        getCurrentUser: () => ({ uid: 'captain' }),
         getTeam: () => team,
         getAdminUsers: () => [row.user],
         updateTeamAwait,
@@ -1212,7 +1228,6 @@ describe('team detail club activity section', () => {
     });
     Object.assign(app, {
       _canEditTeamByRoleOrCaptain: () => true,
-      _getTeamMemberQuickPromoteTargets: () => [{ key: 'leader', label: '\u9818\u968a' }],
       _findTeamDetailRosterRow: () => row,
       _calcTeamMemberCountByTeam: jest.fn().mockReturnValue(2),
       appConfirm: jest.fn().mockResolvedValue(true),
@@ -1224,32 +1239,98 @@ describe('team detail club activity section', () => {
       showToast: jest.fn(),
     });
 
-    await app.quickPromoteTeamMember(null, 'teamA', 'uid:member', 'leader');
+    await app.changeTeamMemberRoleLevel(null, 'teamA', 'uid:member', 'promote');
 
     expect(updateTeamAwait).toHaveBeenCalledWith('teamA', expect.objectContaining({
-      leaderUids: ['member'],
-      leaders: ['Amy'],
-      leaderNames: ['Amy'],
-      leaderUid: 'member',
-      leader: 'Amy',
+      leaderUids: [],
+      leaders: [],
+      leaderNames: [],
+      leaderUid: null,
+      leader: '',
+      coachUids: ['member'],
+      coaches: ['Amy'],
+      coachNames: ['Amy'],
       members: 2,
     }));
     expect(app._applyRoleChange).toHaveBeenCalledWith(roleChange);
     expect(app._deliverMessageWithLinePush).toHaveBeenCalledWith(
-      '\u4ff1\u6a02\u90e8\u8077\u4f4d\u6307\u6d3e',
+      '\u4ff1\u6a02\u90e8\u5c64\u7d1a\u8abf\u6574',
       expect.stringContaining('Club A'),
       'system',
       '\u7cfb\u7d71',
       'member',
       '\u7cfb\u7d71',
       null,
-      { lineOptions: { source: 'team_role_assignment:leader' } }
+      { lineOptions: { source: 'team_role_assignment:coach' } }
     );
     expect(app._refreshTeamMembersCardFromCache).toHaveBeenCalledWith('teamA');
     expect(app._refreshTeamDetailMembers).not.toHaveBeenCalled();
   });
 
-  test('quick promote is hidden and blocked for non-manager staff', async () => {
+  test('role level action demotes leader to coach and updates edit-club fields', async () => {
+    const team = {
+      id: 'teamA',
+      name: 'Club A',
+      captainUid: 'captain',
+      leaderUid: 'leader',
+      leader: 'Lee',
+      leaderUids: ['leader'],
+      leaders: ['Lee'],
+      coachUids: [],
+      coaches: [],
+    };
+    const row = {
+      key: 'uid:leader',
+      uid: 'leader',
+      name: 'Lee',
+      user: { uid: 'leader', _docId: 'leader-doc', name: 'Lee', teamIds: ['teamA'] },
+      isMember: true,
+      roles: new Set(['\u9818\u968a']),
+    };
+    const updateTeamAwait = jest.fn().mockImplementation(async (_teamId, updates) => {
+      Object.assign(team, updates);
+      return team;
+    });
+    const app = {};
+    loadTeamDetailCore(app, null, {
+      ApiService: {
+        getCurrentUser: () => ({ uid: 'captain' }),
+        getTeam: () => team,
+        getAdminUsers: () => [row.user],
+        updateTeamAwait,
+        _recalcUserRole: jest.fn(),
+        _writeOpLog: jest.fn(),
+      },
+      FirebaseService: {
+        _ensureAuth: jest.fn().mockResolvedValue(true),
+      },
+    });
+    Object.assign(app, {
+      _canEditTeamByRoleOrCaptain: () => true,
+      _findTeamDetailRosterRow: () => row,
+      _calcTeamMemberCountByTeam: jest.fn().mockReturnValue(1),
+      appConfirm: jest.fn().mockResolvedValue(true),
+      _applyRoleChange: jest.fn(),
+      _refreshTeamMembersCardFromCache: jest.fn().mockReturnValue(true),
+      _refreshTeamDetailMembers: jest.fn().mockResolvedValue(),
+      showToast: jest.fn(),
+    });
+
+    await app.changeTeamMemberRoleLevel(null, 'teamA', 'uid:leader', 'demote');
+
+    expect(updateTeamAwait).toHaveBeenCalledWith('teamA', expect.objectContaining({
+      leaderUids: [],
+      leaders: [],
+      leaderNames: [],
+      leaderUid: null,
+      leader: '',
+      coachUids: ['leader'],
+      coaches: ['Lee'],
+      coachNames: ['Lee'],
+    }));
+  });
+
+  test('role level actions are hidden and blocked for non-manager staff', async () => {
     const team = { id: 'teamA', name: 'Club A' };
     const row = {
       key: 'uid:member',
@@ -1263,7 +1344,7 @@ describe('team detail club activity section', () => {
       _isUserInTeam: () => true,
     };
     loadTeamDetailRender(app);
-    expect(app._getTeamMemberQuickPromoteTargets(team, row)).toEqual([]);
+    expect(app._getTeamMemberRoleActionTarget(team, row, 'promote')).toBeNull();
 
     const updateTeamAwait = jest.fn();
     loadTeamDetailCore(app, null, {
@@ -1279,7 +1360,7 @@ describe('team detail club activity section', () => {
       showToast: jest.fn(),
     });
 
-    await app.quickPromoteTeamMember(null, 'teamA', 'uid:member', 'leader');
+    await app.changeTeamMemberRoleLevel(null, 'teamA', 'uid:member', 'promote');
 
     expect(updateTeamAwait).not.toHaveBeenCalled();
     expect(app.showToast).toHaveBeenCalledWith(expect.stringContaining('\u4ff1\u6a02\u90e8\u7d93\u7406'));
