@@ -71,4 +71,12 @@ describe('history route hosting fallback contract', () => {
     expect(source).toContain('cache.put(cacheRequest, clone)');
     expect(source).not.toContain('cache.put(event.request, clone));\n        }\n        return response;\n      }).catch(() => caches.match(event.request, { ignoreSearch: true }))');
   });
+
+  test('service worker keeps versioned static assets on exact cache keys', () => {
+    const source = readProjectFile('sw.js');
+
+    expect(source).toContain('const cached = await cache.match(event.request)');
+    expect(source).toContain('cache.put(event.request, response.clone())');
+    expect(source).not.toContain('ignoreSearch: isVersionedStaticRequest(url)');
+  });
 });

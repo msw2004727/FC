@@ -6,7 +6,7 @@
      - Firebase Storage 圖片 → stale-while-revalidate（獨立快取）
    ================================================ */
 
-const CACHE_NAME       = 'sporthub-0.20260519zg';
+const CACHE_NAME       = 'sporthub-0.20260519zh';
 const IMAGE_CACHE_NAME = 'sporthub-images-v2';
 const MAX_IMAGE_CACHE  = 150;                         // 最多快取 150 張圖片
 const MAX_IMAGE_AGE_MS = 7 * 24 * 60 * 60 * 1000;    // 7 天過期
@@ -246,15 +246,24 @@ self.addEventListener('fetch', (event) => {
   // ── 4. 同源有版號資源（?v=）：Cache-first ──
   if (url.origin === location.origin) {
     event.respondWith(
-      caches.match(event.request, { ignoreSearch: isVersionedStaticRequest(url) }).then((cached) => {
+      caches.open(CACHE_NAME).then(async (cache) => {
+        const cached = await cache.match(event.request);
         if (cached) return cached;
-        return fetch(event.request).then((response) => {
+
+        try {
+          const response = await fetch(event.request);
           if (response && response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+            await cache.put(event.request, response.clone());
           }
           return response;
-        });
+        } catch (err) {
+          if (isVersionedStaticRequest(url)) {
+            const fallbackUrl = new URL(url.pathname, url.origin).toString();
+            const fallback = await cache.match(fallbackUrl) || await caches.match(fallbackUrl);
+            if (fallback) return fallback;
+          }
+          throw err;
+        }
       })
     );
   }

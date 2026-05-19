@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-19 Service worker versioned static cache hotfix [bug]
+- **Problem**: Returning users could receive a new HTML shell while their old Service Worker served stale `script-loader.js` / `config.js` because versioned static requests were matched with `ignoreSearch`. That stale loader requested removed legacy paths such as `js/modules/auto-exp.js`, which production returned as 404 HTML and Chrome refused to execute as JavaScript.
+- **Fix**: Changed the Service Worker static cache branch to exact cache-key matching for `?v=` assets, kept an offline unversioned fallback only after network failure, and added legacy `auto-exp.js` / `auto-exp-rules.js` shims for clients still controlled by stale loaders.
+- **Tests**: Added unit coverage for exact Service Worker static cache keys and legacy shim allowlisting. Cache version bumped with `scripts/bump-version.js`.
+
 ### 2026-05-19 Mobile low-end font stack optimization [perf]
 - **Problem**: The main app loaded Noto Sans TC from Google Fonts for Chinese body text, adding extra first-load font traffic and font application work on low-end mobile devices and LINE WebView.
 - **Fix**: Removed the Noto Sans TC Google Font request from `index.html`, kept Outfit for brand/English/numeric display text, and changed `css/base.css` body/display font stacks to prefer native system Chinese fonts.

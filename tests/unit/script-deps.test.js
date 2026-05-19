@@ -220,6 +220,8 @@ function extractHtmlOnclickCalls() {
 }
 
 const INTENTIONAL_ORPHAN_MODULES = Object.freeze({
+  'js/modules/auto-exp.js': 'Legacy compatibility shim for stale Service Workers that still request the pre-folder auto-exp module path.',
+  'js/modules/auto-exp-rules.js': 'Legacy compatibility shim for stale Service Workers that still request the pre-folder auto-exp rules path.',
   'js/modules/shot-game/shot-game-engine.js': 'Private shot-game lab runtime, loaded by the lab page instead of the app shell.',
   'js/modules/shot-game/shot-game-lab-page.js': 'Private shot-game lab page entry, not part of the production app shell.',
   'js/modules/shot-game/shot-game-loop.js': 'Private shot-game lab runtime, loaded by the lab page instead of the app shell.',
