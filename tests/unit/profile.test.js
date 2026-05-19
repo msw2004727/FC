@@ -175,6 +175,7 @@ describe('first login profile completion modal', () => {
     const layoutCss = readProjectFile('css/layout.css');
     const navigationSource = readProjectFile('js/core/navigation.js');
     const profileFormSource = readProjectFile('js/modules/profile/profile-form.js');
+    const e2eSource = readProjectFile('tests/e2e/example.spec.js');
 
     expect(indexHtml).toContain('id="fl-email"');
     expect(indexHtml).toContain('電子郵件 <span class="fl-optional">非必填</span>');
@@ -205,6 +206,8 @@ describe('first login profile completion modal', () => {
     expect(profileFormSource).toContain('if (consentEl && consentEl.checked)');
     expect(profileFormSource).toContain("this._buildFirstLoginLegalUpdates('profile_completion_submit')");
     expect(profileFormSource).toContain("this._buildFirstLoginLegalUpdates('profile_completion_later')");
+    expect(e2eSource).toContain('return App.dismissFirstLoginModal();');
+    expect(e2eSource).not.toContain('consent.checked = true');
   });
 });
 

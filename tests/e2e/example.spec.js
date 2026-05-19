@@ -31,14 +31,27 @@ async function dismissOptionalProfilePrompt(page) {
     if (!modal) return;
 
     if (typeof App !== 'undefined' && typeof App.dismissFirstLoginModal === 'function') {
-      const consent = document.getElementById('fl-legal-consent');
-      if (consent) consent.checked = true;
+      // "稍後填寫" must not imply legal consent or wait for consent persistence.
       return App.dismissFirstLoginModal();
     }
 
-    modal.classList.remove('show', 'active');
+    const overlay = document.getElementById('modal-overlay');
+    modal.classList.remove('show', 'active', 'open');
     modal.style.display = 'none';
-    document.body.classList.remove('modal-open');
+    if (overlay) {
+      overlay.classList.remove('open');
+      delete overlay.dataset.locked;
+      delete overlay.dataset.profileComplete;
+    }
+    document.documentElement.classList.remove('profile-complete-scroll-lock');
+    document.body.classList.remove('modal-open', 'profile-complete-scroll-lock');
+    Object.assign(document.body.style, {
+      position: '',
+      top: '',
+      left: '',
+      right: '',
+      width: '',
+    });
   });
   try {
     await dismiss();
