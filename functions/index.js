@@ -1255,6 +1255,54 @@ function getDisplayNameFromAuthRecord(userRecord, fallbackUid) {
   return fallbackUid;
 }
 
+function isGamePlaceholderDisplayName(name) {
+  return /^玩家[\w-]{2,}$/u.test(String(name || "").trim());
+}
+
+function pickGameDisplayName(candidates) {
+  const names = (Array.isArray(candidates) ? candidates : [])
+    .map((name) => String(name || "").trim())
+    .filter(Boolean);
+  return names.find((name) => !isGamePlaceholderDisplayName(name))
+    || names[0]
+    || "";
+}
+
+async function resolveGameDisplayName({ uid, request, inputDisplayName, fallbackPrefix = "玩家" }) {
+  const rawDisplayName =
+    typeof inputDisplayName === "string" ? inputDisplayName.trim() : "";
+  const tokenDisplayName =
+    typeof request.auth?.token?.name === "string" ? request.auth.token.name.trim() : "";
+
+  let userData = null;
+  try {
+    const found = uid ? await findUserDocByUidOrLineUserId(uid) : null;
+    userData = found?.data || null;
+  } catch (err) {
+    console.warn("[resolveGameDisplayName] user profile lookup failed", { uid, code: err?.code || err?.message });
+  }
+
+  let authDisplayName = "";
+  try {
+    const authUser = uid ? await authAdmin.getUser(uid) : null;
+    authDisplayName = getDisplayNameFromAuthRecord(authUser, "");
+  } catch (err) {
+    if (getAuthErrorCode(err) !== "auth/user-not-found") {
+      console.warn("[resolveGameDisplayName] auth profile lookup failed", { uid, code: err?.code || err?.message });
+    }
+  }
+
+  const safeDisplayNameCandidate = pickGameDisplayName([
+    userData?.displayName,
+    userData?.name,
+    userData?.lineDisplayName,
+    tokenDisplayName,
+    authDisplayName,
+    rawDisplayName,
+  ]) || `${fallbackPrefix}${String(uid).slice(-4)}`;
+  return safeDisplayNameCandidate.slice(0, 50);
+}
+
 async function resolveAuditActorName(uidOrDocId, fallbackUid = "") {
   const safeFallback = String(fallbackUid || uidOrDocId || "").trim();
   const found = uidOrDocId ? await findUserDocByUidOrLineUserId(uidOrDocId) : null;
@@ -1673,6 +1721,53 @@ function rememberRejectedLineAccessToken(fingerprint) {
   for (const [key, expiresAt] of invalidLineAccessTokenCache.entries()) {
     if (expiresAt <= now) invalidLineAccessTokenCache.delete(key);
   }
+}
+
+function getCallableRequestHeader(request, headerName) {
+  const rawRequest = request?.rawRequest;
+  const lowerName = String(headerName || "").toLowerCase();
+  const value = rawRequest?.headers?.[lowerName]
+    ?? rawRequest?.headers?.[headerName]
+    ?? (typeof rawRequest?.get === "function" ? rawRequest.get(headerName) : "");
+  if (Array.isArray(value)) return String(value[0] || "").trim();
+  return String(value || "").trim();
+}
+
+function getUrlHostname(urlLike) {
+  const value = String(urlLike || "").trim();
+  if (!value) return "";
+  try {
+    return new URL(value).hostname.toLowerCase();
+  } catch (_) {
+    return "";
+  }
+}
+
+function isLocalDevelopmentHostname(hostname) {
+  const host = String(hostname || "").toLowerCase();
+  return host === "localhost"
+    || host.endsWith(".localhost")
+    || host === "127.0.0.1"
+    || host === "0.0.0.0"
+    || host === "::1"
+    || host === "[::1]";
+}
+
+function getCreateCustomTokenRequestContext(request) {
+  const origin = getCallableRequestHeader(request, "origin");
+  const referer = getCallableRequestHeader(request, "referer");
+  const userAgent = getCallableRequestHeader(request, "user-agent");
+  return {
+    originHost: getUrlHostname(origin),
+    refererHost: getUrlHostname(referer),
+    userAgent: userAgent.slice(0, 160),
+  };
+}
+
+function isLocalDevelopmentCreateCustomTokenRequest(request) {
+  const context = getCreateCustomTokenRequestContext(request);
+  return isLocalDevelopmentHostname(context.originHost)
+    || isLocalDevelopmentHostname(context.refererHost);
 }
 
 /**
@@ -2548,6 +2643,14 @@ exports.createCustomToken = onCall(
     const { accessToken } = request.data;
     if (!accessToken || typeof accessToken !== "string") {
       throw new HttpsError("invalid-argument", "accessToken is required");
+    }
+
+    if (isLocalDevelopmentCreateCustomTokenRequest(request)) {
+      console.warn(
+        "[createCustomToken] blocked local development origin",
+        getCreateCustomTokenRequestContext(request)
+      );
+      throw new HttpsError("failed-precondition", "LOCAL_DEVELOPMENT_ORIGIN_NOT_ALLOWED");
     }
 
     let lineUserId;
@@ -4757,16 +4860,6 @@ exports.submitShotGameScore = onCall(
     if (!Number.isFinite(durationMs) || durationMs < 5000) {
       throw new HttpsError("invalid-argument", "durationMs 必須 >= 5000");
     }
-    const rawDisplayName =
-      typeof displayName === "string" ? displayName.trim() : "";
-    const tokenDisplayName =
-      typeof request.auth?.token?.name === "string" ? request.auth.token.name.trim() : "";
-    const isPlaceholderDisplayName = (name) => /^玩家[\w-]{2,}$/u.test(String(name || "").trim());
-    const safeDisplayNameCandidate = [rawDisplayName, tokenDisplayName]
-      .find((name) => name && !isPlaceholderDisplayName(name))
-      || [rawDisplayName, tokenDisplayName].find((name) => !!name)
-      || `玩家${String(uid).slice(-4)}`;
-    const safeDisplayName = safeDisplayNameCandidate.slice(0, 50);
     const safeStreak =
       Number.isInteger(streak) && streak >= 0 ? streak : 0;
     const safeDurationMs = Math.round(durationMs);
@@ -4807,6 +4900,12 @@ exports.submitShotGameScore = onCall(
         }
       }
     }
+    const safeDisplayName = await resolveGameDisplayName({
+      uid,
+      request,
+      inputDisplayName: displayName,
+      fallbackPrefix: "玩家",
+    });
 
     // 5. 稽核 flags（純記錄，不阻擋正常玩家）
     const flags = [];
@@ -5222,16 +5321,6 @@ exports.submitKickGameScore = onCall(
     if (!Number.isFinite(durationMs) || durationMs < 3000) {
       throw new HttpsError("invalid-argument", "durationMs 必須 >= 3000");
     }
-    const rawDisplayName =
-      typeof displayName === "string" ? displayName.trim() : "";
-    const tokenDisplayName =
-      typeof request.auth?.token?.name === "string" ? request.auth.token.name.trim() : "";
-    const isPlaceholderDisplayName = (name) => /^玩家[\w-]{2,}$/u.test(String(name || "").trim());
-    const safeDisplayNameCandidate = [rawDisplayName, tokenDisplayName]
-      .find((name) => name && !isPlaceholderDisplayName(name))
-      || [rawDisplayName, tokenDisplayName].find((name) => !!name)
-      || `玩家${String(uid).slice(-4)}`;
-    const safeDisplayName = safeDisplayNameCandidate.slice(0, 50);
     const safeMaxSpeed = Math.round(maxSpeed * 100) / 100;
     const safeDistance = Math.round(distance * 100) / 100;
     const safeDurationMs = Math.round(durationMs);
@@ -5274,6 +5363,12 @@ exports.submitKickGameScore = onCall(
     }
 
     // 5. 稽核 flags — 超出物理合理值直接拒絕
+    const safeDisplayName = await resolveGameDisplayName({
+      uid,
+      request,
+      inputDisplayName: displayName,
+      fallbackPrefix: "玩家",
+    });
     const flags = [];
     if (safeDistance > 500) flags.push("extreme_distance");
     if (safeDurationMs < 5000) flags.push("fast_game");

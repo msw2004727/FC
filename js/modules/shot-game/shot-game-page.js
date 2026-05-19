@@ -120,6 +120,50 @@
     }
   }
 
+  function _pickUserDisplayName(data) {
+    return String(data?.displayName || data?.name || data?.lineDisplayName || '').trim();
+  }
+
+  async function _resolveLeaderboardDisplayName(identity) {
+    const safeIdentity = String(identity || '').trim();
+    if (!safeIdentity || typeof UI.isPlaceholderName !== 'function') return '';
+    const cachedName = typeof UI.getCachedLeaderboardDisplayName === 'function'
+      ? UI.getCachedLeaderboardDisplayName(safeIdentity)
+      : '';
+    if (cachedName && !UI.isPlaceholderName(cachedName)) return cachedName;
+    if (typeof firebase === 'undefined' || !firebase || typeof firebase.firestore !== 'function') return '';
+    const db = firebase.firestore();
+    try {
+      const directSnap = await db.collection('users').doc(safeIdentity).get();
+      if (directSnap.exists) {
+        const name = _pickUserDisplayName(directSnap.data() || {});
+        if (name && !UI.isPlaceholderName(name)) return name;
+      }
+      const uidSnap = await db.collection('users').where('uid', '==', safeIdentity).limit(1).get();
+      if (!uidSnap.empty) {
+        const name = _pickUserDisplayName(uidSnap.docs[0].data() || {});
+        if (name && !UI.isPlaceholderName(name)) return name;
+      }
+      const lineUidSnap = await db.collection('users').where('lineUserId', '==', safeIdentity).limit(1).get();
+      if (!lineUidSnap.empty) {
+        const name = _pickUserDisplayName(lineUidSnap.docs[0].data() || {});
+        if (name && !UI.isPlaceholderName(name)) return name;
+      }
+    } catch (_) {}
+    return '';
+  }
+
+  async function _hydrateLeaderboardDisplayNames(rows) {
+    if (!Array.isArray(rows) || typeof UI.isPlaceholderName !== 'function') return rows;
+    const targets = rows.filter(row => row && UI.isPlaceholderName(row.nick)).slice(0, 50);
+    if (!targets.length) return rows;
+    await Promise.all(targets.map(async row => {
+      const name = await _resolveLeaderboardDisplayName(row.uid || row.id);
+      if (name) row.nick = name;
+    }));
+    return rows;
+  }
+
   async function _renderLeaderboard(period) {
     const isPrev = period === 'monthly-prev';
     const key = isPrev ? 'monthly' : (period in UI.LEADERBOARD_PERIOD_LABELS ? period : 'daily');
@@ -143,6 +187,7 @@
       const bucket = UI.getTaipeiDateBucket(queryKey);
       const snap = await firebase.firestore().collection('shotGameRankings').doc(bucket).collection('entries').orderBy('bestScore', 'desc').limit(50).get();
       rows = snap.docs.map(d => UI.normalizeLeaderboardRow(d.id, d.data())).filter(r => !UI.isAnonymousLeaderboardRow(r));
+      await _hydrateLeaderboardDisplayNames(rows);
     } catch (_) { bodyEl.textContent = ''; UI.appendStatusRow(bodyEl, '讀取失敗，請稍後再試'); return; }
     rows = UI.dedupeLeaderboardRows(rows);
     const skipLocal = isPrev;

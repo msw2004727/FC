@@ -37,13 +37,42 @@
       return String(auth.currentUser.uid);
     } catch (_) { return ''; }
   }
+  function isPlaceholderName(name) {
+    return /^玩家[\w-]{2,}$/u.test(String(name || '').trim());
+  }
   function getPreferredPlayerDisplayName(user) {
-    function isPlaceholderName(name) {
-      return /^玩家[\w-]{2,}$/u.test(String(name || '').trim());
-    }
     var authName = String(user && user.displayName ? user.displayName : '').trim();
     if (authName && !isPlaceholderName(authName)) return authName;
     if (authName) return authName;
+    return '';
+  }
+  function getCachedLeaderboardDisplayName(identity) {
+    var safeIdentity = String(identity || '').trim();
+    if (!safeIdentity) return '';
+    var candidates = [];
+    try {
+      if (typeof FirebaseService !== 'undefined' && FirebaseService && FirebaseService._cache) {
+        if (FirebaseService._cache.currentUser) candidates.push(FirebaseService._cache.currentUser);
+        if (Array.isArray(FirebaseService._cache.adminUsers)) {
+          candidates = candidates.concat(FirebaseService._cache.adminUsers);
+        }
+      }
+    } catch (_) {}
+    try {
+      if (typeof ApiService !== 'undefined' && ApiService && typeof ApiService.getCurrentUser === 'function') {
+        var currentUser = ApiService.getCurrentUser();
+        if (currentUser) candidates.push(currentUser);
+      }
+    } catch (_) {}
+    for (var i = 0; i < candidates.length; i += 1) {
+      var user = candidates[i] || {};
+      var ids = [user._docId, user.uid, user.lineUserId].map(function (value) {
+        return String(value || '').trim();
+      });
+      if (!ids.includes(safeIdentity)) continue;
+      var name = String(user.displayName || user.name || user.lineDisplayName || '').trim();
+      if (name && !isPlaceholderName(name)) return name;
+    }
     return '';
   }
   function getLeaderboardIdentity(row) {
@@ -75,6 +104,11 @@
     var row = data || {};
     var rawUid = typeof row.uid === 'string' ? row.uid.trim() : '';
     var rawName = typeof row.displayName === 'string' ? row.displayName.trim() : '';
+    var resolvedName = rawName;
+    if (!resolvedName || isPlaceholderName(resolvedName)) {
+      var cachedName = getCachedLeaderboardDisplayName(rawUid || String(id));
+      if (cachedName) resolvedName = cachedName;
+    }
     var rawDurationSec = Number(row.bestDurationSec);
     var rawDurationMs = Number(row.bestDurationMs);
     var durationSec = Number.isFinite(rawDurationSec) && rawDurationSec > 0
@@ -82,7 +116,7 @@
       : (Number.isFinite(rawDurationMs) && rawDurationMs > 0 ? Math.round(rawDurationMs / 1000) : 0);
     return {
       id: String(id), uid: rawUid,
-      nick: rawName || ('\u73A9\u5BB6' + String(id).slice(-4)),
+      nick: resolvedName || ('\u73A9\u5BB6' + String(id).slice(-4)),
       score: Number.isFinite(row.bestScore) ? row.bestScore : 0,
       streak: Number.isFinite(row.bestStreak) ? row.bestStreak : 0,
       durationSec: durationSec,
@@ -237,6 +271,8 @@
     compareRows: compareRows,
     isLocalSessionBetter: isLocalSessionBetter,
     getCurrentAuthUid: getCurrentAuthUid,
+    isPlaceholderName: isPlaceholderName,
+    getCachedLeaderboardDisplayName: getCachedLeaderboardDisplayName,
     getPreferredPlayerDisplayName: getPreferredPlayerDisplayName,
     dedupeLeaderboardRows: dedupeLeaderboardRows,
     normalizeLeaderboardRow: normalizeLeaderboardRow,

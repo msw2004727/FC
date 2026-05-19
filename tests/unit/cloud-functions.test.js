@@ -524,6 +524,27 @@ describe('registration callable source contracts', () => {
   });
 });
 
+describe('game leaderboard display name source contracts', () => {
+  test('game score submissions resolve the canonical users profile before fallback names', () => {
+    const helperSource = readSourceBetween(
+      'function isGamePlaceholderDisplayName',
+      'async function resolveAuditActorName'
+    );
+    expect(helperSource).toContain('findUserDocByUidOrLineUserId(uid)');
+    expect(helperSource).toContain('userData?.displayName');
+    expect(helperSource).toContain('userData?.name');
+    expect(helperSource).toContain('isGamePlaceholderDisplayName');
+
+    const shotSource = readCloudFunctionSource('submitShotGameScore');
+    expect(shotSource).toContain('const safeDisplayName = await resolveGameDisplayName({');
+    expect(shotSource).toContain('inputDisplayName: displayName');
+
+    const kickSource = readCloudFunctionSource('submitKickGameScore');
+    expect(kickSource).toContain('const safeDisplayName = await resolveGameDisplayName({');
+    expect(kickSource).toContain('inputDisplayName: displayName');
+  });
+});
+
 describe('cancelRegistration CF transaction ordering', () => {
   test('performs transaction reads before writes', () => {
     const txSource = readCancelRegistrationTransactionSource();

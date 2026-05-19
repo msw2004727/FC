@@ -9,6 +9,16 @@
  *   - 分數設定常數（SCORE_MAP / STREAK_MILESTONES）
  */
 
+const fs = require('fs');
+const path = require('path');
+
+function readShotGameModuleSource(fileName) {
+  return fs.readFileSync(
+    path.join(__dirname, '..', '..', 'js', 'modules', 'shot-game', fileName),
+    'utf8'
+  );
+}
+
 // ─── 從 shot-scoring.js 抽取 ───
 const LIGHT_THEME_MESSAGE_COLORS = Object.freeze({
   '#ffffff': '#13283b',
@@ -63,6 +73,21 @@ describe('Shot Game — 訊息顏色解析', () => {
   test('大小寫不敏感', () => {
     expect(resolveMessageColor('#FFD166', () => false)).toBe('#6b4b00');
     expect(resolveMessageColor('  #ffd166  ', () => false)).toBe('#6b4b00');
+  });
+});
+
+describe('Shot Game leaderboard display names', () => {
+  test('leaderboard UI can replace stored player fallback names from user profiles', () => {
+    const uiSource = readShotGameModuleSource('shot-page-ui.js');
+    const pageSource = readShotGameModuleSource('shot-game-page.js');
+
+    expect(uiSource).toContain('function isPlaceholderName(name)');
+    expect(uiSource).toContain('getCachedLeaderboardDisplayName');
+    expect(uiSource).toContain('resolvedName = cachedName');
+
+    expect(pageSource).toContain('async function _hydrateLeaderboardDisplayNames');
+    expect(pageSource).toContain("db.collection('users').doc(safeIdentity).get()");
+    expect(pageSource).toContain("where('lineUserId', '==', safeIdentity)");
   });
 });
 
