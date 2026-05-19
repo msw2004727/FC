@@ -1,5 +1,10 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-19 Secondary identity UI and avatar cropper [ux/bug]
+- **Problem**: The secondary identity card exposed both an active-identity radio group and an enable toggle, making the flow redundant. Avatar uploads also bypassed the shared cropper and rejected common phone photos before the user could crop them.
+- **Fix**: Simplified the profile card to one enable toggle plus one edit/save button. Enabling secondary identity now maps directly to `profileActiveIdentityId: "secondary"` on save, while the nickname/avatar editor appears only in edit mode. Secondary avatar upload now uses the shared `showImageCropper` flow with a 1:1 512px WebP output and the same 5MB pre-crop file guard as activity cover uploads.
+- **Tests**: Updated profile source-contract coverage for the simplified UI, direct active identity mapping, edit-state gating, and shared cropper parameters.
+
 ### 2026-05-19 Secondary identity save/avatar production fix [bug/security]
 - **Problem**: Production secondary identity changes still returned `permission-denied` on save, and avatar upload reached the callable with Storage metadata that could be rejected as `internal`.
 - **Cause**: The save path depended on client-side writes to `users/{uid}/identityPrivate/settings`, so any deployed-rule/cache/auth edge case blocked the profile UI. Avatar commit also accepted only default project buckets and did not normalize `gs://` upload bucket names before callable validation.

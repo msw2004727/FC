@@ -70,33 +70,27 @@
             <span class="profile-collapse-arrow">▶</span>
           </div>
           <div class="profile-collapse-content" style="display:none">
-            <div class="profile-identity-active" role="radiogroup" aria-label="目前顯示身份">
-              <label class="profile-identity-option">
-                <input type="radio" name="profile-active-identity" value="main" id="profile-identity-main" onchange="App._syncIdentityFormState()">
-                <span>主身份</span>
+            <div class="profile-identity-control">
+              <label class="profile-identity-toggle">
+                <span>啟用次身份</span>
+                <span class="toggle-switch"><input type="checkbox" id="profile-secondary-enabled" onchange="App.handleSecondaryIdentityToggleChange()"><span class="toggle-slider"></span></span>
               </label>
-              <label class="profile-identity-option">
-                <input type="radio" name="profile-active-identity" value="secondary" id="profile-identity-secondary" onchange="App._syncIdentityFormState()">
-                <span>次身份</span>
-              </label>
+              <button type="button" class="outline-btn small profile-identity-edit-btn" id="profile-identity-edit-btn" onclick="App.toggleIdentitySettingsEdit()">編輯</button>
             </div>
-            <label class="profile-identity-toggle">
-              <span>啟用次身份</span>
-              <span class="toggle-switch"><input type="checkbox" id="profile-secondary-enabled" onchange="App._syncIdentityFormState()"><span class="toggle-slider"></span></span>
-            </label>
-            <div class="profile-identity-editor">
+            <div class="profile-identity-summary">
               <div class="profile-identity-avatar" id="profile-secondary-avatar-preview"></div>
-              <div class="profile-identity-fields">
-                <input type="text" id="profile-secondary-display-name" class="profile-edit-input" maxlength="40" placeholder="次身份暱稱">
-                <div class="profile-identity-actions">
-                  <label class="outline-btn small profile-avatar-upload-btn" for="profile-secondary-avatar-input">上傳頭像</label>
-                  <button type="button" class="outline-btn small" onclick="App.clearSecondaryIdentityAvatar()">清除頭像</button>
-                  <input type="file" id="profile-secondary-avatar-input" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" style="display:none" onchange="App.uploadSecondaryIdentityAvatar(this)">
-                </div>
+              <div class="profile-identity-summary-copy">
+                <div class="profile-identity-summary-name" id="profile-secondary-summary-name">使用主身份</div>
+                <div class="profile-identity-summary-status" id="profile-secondary-summary-status">啟用後會直接以次身份顯示</div>
               </div>
             </div>
-            <div class="profile-identity-save-row">
-              <button type="button" class="primary-btn small" onclick="App.saveIdentitySettings()">儲存</button>
+            <div class="profile-identity-editor">
+              <input type="text" id="profile-secondary-display-name" class="profile-edit-input" maxlength="40" placeholder="次身份暱稱" oninput="App._syncIdentityFormState()">
+              <div class="profile-identity-actions">
+                <label class="outline-btn small profile-avatar-upload-btn" for="profile-secondary-avatar-input">上傳頭像</label>
+                <button type="button" class="outline-btn small" onclick="App.clearSecondaryIdentityAvatar()">清除頭像</button>
+                <input type="file" id="profile-secondary-avatar-input" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" style="display:none" onchange="App.uploadSecondaryIdentityAvatar(this)">
+              </div>
             </div>
           </div>
         </div>
