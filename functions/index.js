@@ -62,6 +62,17 @@ const ADMIN_USER_CHANGE_ROLE_PERMISSION = "admin.users.change_role";
 const ADMIN_USER_RESTRICT_PERMISSION = "admin.users.restrict";
 const SECONDARY_IDENTITY_SETTINGS_DOC_ID = "settings";
 const SECONDARY_IDENTITY_AVATAR_MAX_URL_LENGTH = 2000;
+const IDENTITY_SETTINGS_TOP_LEVEL_FIELDS = new Set(["profileActiveIdentityId", "identities"]);
+const IDENTITY_SETTINGS_IDENTITIES_FIELDS = new Set(["secondary"]);
+const IDENTITY_SETTINGS_SECONDARY_FIELDS = new Set([
+  "identityId",
+  "enabled",
+  "displayName",
+  "displayRoleLabel",
+  "isPrimary",
+  "editable",
+]);
+const IDENTITY_ACTIVE_IDS = new Set(["main", "secondary"]);
 const ADMIN_MANAGED_USER_PROFILE_FIELDS = Object.freeze([
   "region",
   "gender",
@@ -433,6 +444,67 @@ function normalizeCallableString(value, maxLength) {
   return trimmed;
 }
 
+function isPlainRecord(value) {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function assertAllowedKeys(value, allowedKeys, message) {
+  if (!isPlainRecord(value)) return;
+  const hasUnexpectedKey = Object.keys(value).some((key) => !allowedKeys.has(key));
+  if (hasUnexpectedKey) {
+    throw new HttpsError("invalid-argument", message);
+  }
+}
+
+function normalizeStorageBucketName(value) {
+  const bucket = normalizeCallableString(value, 180)
+    .replace(/^gs:\/\//i, "")
+    .replace(/\/+$/g, "");
+  if (!bucket || bucket.includes("/")) return "";
+  return bucket;
+}
+
+function normalizeIdentitySettingsCommit(data) {
+  const payload = isPlainRecord(data) ? data : {};
+  assertAllowedKeys(payload, IDENTITY_SETTINGS_TOP_LEVEL_FIELDS, "identity settings payload invalid");
+
+  const activeId = normalizeCallableString(payload.profileActiveIdentityId, 24);
+  if (!IDENTITY_ACTIVE_IDS.has(activeId)) {
+    throw new HttpsError("invalid-argument", "profileActiveIdentityId invalid");
+  }
+
+  const identities = isPlainRecord(payload.identities) ? payload.identities : {};
+  assertAllowedKeys(identities, IDENTITY_SETTINGS_IDENTITIES_FIELDS, "identity settings identities invalid");
+
+  const secondaryInput = isPlainRecord(identities.secondary) ? identities.secondary : {};
+  assertAllowedKeys(secondaryInput, IDENTITY_SETTINGS_SECONDARY_FIELDS, "secondary identity settings invalid");
+
+  const enabled = secondaryInput.enabled === true;
+  const displayName = normalizeCallableString(secondaryInput.displayName, 40);
+  if (enabled && !displayName) {
+    throw new HttpsError("invalid-argument", "secondary displayName required");
+  }
+  if (activeId === "secondary" && !enabled) {
+    throw new HttpsError("failed-precondition", "secondary identity must be enabled before activation");
+  }
+
+  return {
+    profileActiveIdentityId: activeId,
+    identities: {
+      secondary: {
+        identityId: "secondary",
+        enabled,
+        displayName: displayName || "Secondary",
+        displayRoleLabel: normalizeCallableString(secondaryInput.displayRoleLabel, 40) || "User",
+        isPrimary: false,
+        editable: true,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+    },
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+}
+
 function isSecondaryIdentityAvatarStoragePathForUid(pathValue, uid) {
   const safePath = normalizeCallableString(pathValue, 512);
   const safeUid = normalizeCallableString(uid, 128);
@@ -445,8 +517,8 @@ function isSecondaryIdentityAvatarStoragePathForUid(pathValue, uid) {
 }
 
 function isAllowedProjectStorageBucket(bucketValue) {
-  const bucket = normalizeCallableString(bucketValue, 160);
-  if (!bucket || bucket.includes("/")) return false;
+  const bucket = normalizeStorageBucketName(bucketValue);
+  if (!bucket) return false;
   const allowList = getProjectStorageBucketAllowList();
   return allowList.size > 0 && allowList.has(bucket);
 }
@@ -466,10 +538,11 @@ function getProjectStorageBucketAllowList() {
   if (projectId) {
     buckets.add(`${projectId}.appspot.com`);
     buckets.add(`${projectId}.firebasestorage.app`);
+    buckets.add(`${projectId}-asia-east1`);
   }
   try {
     const config = JSON.parse(process.env.FIREBASE_CONFIG || "{}");
-    const configBucket = normalizeCallableString(config.storageBucket, 160);
+    const configBucket = normalizeStorageBucketName(config.storageBucket);
     if (configBucket) buckets.add(configBucket);
   } catch (_) {}
   return buckets;
@@ -477,7 +550,7 @@ function getProjectStorageBucketAllowList() {
 
 function firebaseStorageUrlMatchesObject(urlValue, bucketValue, pathValue) {
   const url = normalizeCallableString(urlValue, SECONDARY_IDENTITY_AVATAR_MAX_URL_LENGTH);
-  const expectedBucket = normalizeCallableString(bucketValue, 160);
+  const expectedBucket = normalizeStorageBucketName(bucketValue);
   const expectedPath = normalizeCallableString(pathValue, 512);
   if (!url || !expectedBucket || !expectedPath) return false;
 
@@ -511,7 +584,7 @@ function normalizeSecondaryIdentityAvatarCommit(data, uid) {
 
   const avatarUrl = normalizeCallableString(payload.avatarUrl, SECONDARY_IDENTITY_AVATAR_MAX_URL_LENGTH);
   const avatarStoragePath = normalizeCallableString(payload.avatarStoragePath, 512);
-  const avatarStorageBucket = normalizeCallableString(payload.avatarStorageBucket, 160);
+  const avatarStorageBucket = normalizeStorageBucketName(payload.avatarStorageBucket);
 
   if (!avatarUrl || !isFirebaseStorageDownloadUrl(avatarUrl)) {
     throw new HttpsError("invalid-argument", "avatarUrl invalid");
@@ -2799,6 +2872,29 @@ exports.adminManageUser = onCall(
       targetDocId: targetUser.docId,
       role: typeof nextUpdates.role === "string" ? nextUpdates.role : targetRole,
       forceRefreshToken: typeof nextUpdates.role === "string" && resolvedTargetUid === callerUid,
+    };
+  }
+);
+
+exports.commitIdentitySettings = onCall(
+  { region: "asia-east1", timeoutSeconds: 15, memory: "256MiB" },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+
+    const uid = request.auth.uid;
+    const commit = normalizeIdentitySettingsCommit(request.data);
+    await db
+      .collection("users")
+      .doc(uid)
+      .collection("identityPrivate")
+      .doc(SECONDARY_IDENTITY_SETTINGS_DOC_ID)
+      .set(commit, { merge: true });
+
+    return {
+      success: true,
+      profileActiveIdentityId: commit.profileActiveIdentityId,
     };
   }
 );

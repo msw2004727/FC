@@ -1223,6 +1223,17 @@ const ADMIN_USER_CHANGE_ROLE_PERMISSION = 'admin.users.change_role';
 const ADMIN_USER_RESTRICT_PERMISSION = 'admin.users.restrict';
 const ADMIN_MANAGED_USER_PROFILE_FIELDS = ['region', 'gender', 'birthday', 'sports', 'phone', 'email'];
 const SECONDARY_IDENTITY_AVATAR_MAX_URL_LENGTH = 2000;
+const IDENTITY_SETTINGS_TOP_LEVEL_FIELDS = new Set(['profileActiveIdentityId', 'identities']);
+const IDENTITY_SETTINGS_IDENTITIES_FIELDS = new Set(['secondary']);
+const IDENTITY_SETTINGS_SECONDARY_FIELDS = new Set([
+  'identityId',
+  'enabled',
+  'displayName',
+  'displayRoleLabel',
+  'isPrimary',
+  'editable',
+]);
+const IDENTITY_ACTIVE_IDS = new Set(['main', 'secondary']);
 
 /** Mirror of sanitizeAdminManagedProfileUpdates (index.js:318-341) */
 function sanitizeAdminManagedProfileUpdates(rawUpdates) {
@@ -1333,6 +1344,51 @@ function normalizeCallableString(value, maxLength) {
   return trimmed;
 }
 
+function isPlainRecord(value) {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function hasOnlyAllowedKeys(value, allowedKeys) {
+  if (!isPlainRecord(value)) return true;
+  return Object.keys(value).every((key) => allowedKeys.has(key));
+}
+
+function normalizeStorageBucketName(value) {
+  const bucket = normalizeCallableString(value, 180)
+    .replace(/^gs:\/\//i, '')
+    .replace(/\/+$/g, '');
+  if (!bucket || bucket.includes('/')) return '';
+  return bucket;
+}
+
+function validateIdentitySettingsCommit(data) {
+  const payload = isPlainRecord(data) ? data : {};
+  if (!hasOnlyAllowedKeys(payload, IDENTITY_SETTINGS_TOP_LEVEL_FIELDS)) {
+    return { error: 'invalid-argument', field: 'payload' };
+  }
+  const activeId = normalizeCallableString(payload.profileActiveIdentityId, 24);
+  if (!IDENTITY_ACTIVE_IDS.has(activeId)) {
+    return { error: 'invalid-argument', field: 'profileActiveIdentityId' };
+  }
+  const identities = isPlainRecord(payload.identities) ? payload.identities : {};
+  if (!hasOnlyAllowedKeys(identities, IDENTITY_SETTINGS_IDENTITIES_FIELDS)) {
+    return { error: 'invalid-argument', field: 'identities' };
+  }
+  const secondary = isPlainRecord(identities.secondary) ? identities.secondary : {};
+  if (!hasOnlyAllowedKeys(secondary, IDENTITY_SETTINGS_SECONDARY_FIELDS)) {
+    return { error: 'invalid-argument', field: 'secondary' };
+  }
+  const enabled = secondary.enabled === true;
+  const displayName = normalizeCallableString(secondary.displayName, 40);
+  if (enabled && !displayName) {
+    return { error: 'invalid-argument', field: 'displayName' };
+  }
+  if (activeId === 'secondary' && !enabled) {
+    return { error: 'failed-precondition', field: 'enabled' };
+  }
+  return null;
+}
+
 function isSecondaryIdentityAvatarStoragePathForUid(pathValue, uid) {
   const safePath = normalizeCallableString(pathValue, 512);
   const safeUid = normalizeCallableString(uid, 128);
@@ -1352,7 +1408,7 @@ function isFirebaseStorageDownloadUrl(urlValue) {
 
 function firebaseStorageUrlMatchesObject(urlValue, bucketValue, pathValue) {
   const url = normalizeCallableString(urlValue, SECONDARY_IDENTITY_AVATAR_MAX_URL_LENGTH);
-  const expectedBucket = normalizeCallableString(bucketValue, 160);
+  const expectedBucket = normalizeStorageBucketName(bucketValue);
   const expectedPath = normalizeCallableString(pathValue, 512);
   if (!url || !expectedBucket || !expectedPath) return false;
   try {
@@ -1381,14 +1437,15 @@ function validateSecondaryIdentityAvatarCommit(data, uid, projectId = 'demo-proj
   if (payload.clear === true) return null;
   const avatarUrl = normalizeCallableString(payload.avatarUrl, SECONDARY_IDENTITY_AVATAR_MAX_URL_LENGTH);
   const avatarStoragePath = normalizeCallableString(payload.avatarStoragePath, 512);
-  const avatarStorageBucket = normalizeCallableString(payload.avatarStorageBucket, 160);
+  const avatarStorageBucket = normalizeStorageBucketName(payload.avatarStorageBucket);
   if (!avatarUrl || !isFirebaseStorageDownloadUrl(avatarUrl)) return { error: 'invalid-argument', field: 'avatarUrl' };
   if (!isSecondaryIdentityAvatarStoragePathForUid(avatarStoragePath, uid)) return { error: 'permission-denied', field: 'avatarStoragePath' };
-  if (!avatarStorageBucket || avatarStorageBucket.includes('/')) return { error: 'invalid-argument', field: 'avatarStorageBucket' };
+  if (!avatarStorageBucket) return { error: 'invalid-argument', field: 'avatarStorageBucket' };
   if (
     projectId
     && avatarStorageBucket !== `${projectId}.appspot.com`
     && avatarStorageBucket !== `${projectId}.firebasestorage.app`
+    && avatarStorageBucket !== `${projectId}-asia-east1`
   ) {
     return { error: 'invalid-argument', field: 'avatarStorageBucket' };
   }
@@ -1398,6 +1455,60 @@ function validateSecondaryIdentityAvatarCommit(data, uid, projectId = 'demo-proj
   return null;
 }
 
+describe('commitIdentitySettings validation', () => {
+  test('accepts main and enabled secondary identity settings payloads', () => {
+    expect(validateIdentitySettingsCommit({
+      profileActiveIdentityId: 'main',
+      identities: {
+        secondary: {
+          identityId: 'secondary',
+          enabled: false,
+          displayName: 'Alias',
+          displayRoleLabel: 'User',
+          isPrimary: false,
+          editable: true,
+        },
+      },
+    })).toBeNull();
+
+    expect(validateIdentitySettingsCommit({
+      profileActiveIdentityId: 'secondary',
+      identities: {
+        secondary: {
+          identityId: 'secondary',
+          enabled: true,
+          displayName: 'Alias',
+          displayRoleLabel: 'User',
+          isPrimary: false,
+          editable: true,
+        },
+      },
+    })).toBeNull();
+  });
+
+  test('rejects activating disabled secondary identity and unexpected fields', () => {
+    expect(validateIdentitySettingsCommit({
+      profileActiveIdentityId: 'secondary',
+      identities: {
+        secondary: {
+          enabled: false,
+          displayName: 'Alias',
+        },
+      },
+    })).toMatchObject({ error: 'failed-precondition', field: 'enabled' });
+
+    expect(validateIdentitySettingsCommit({
+      profileActiveIdentityId: 'main',
+      identities: {
+        secondary: {
+          enabled: false,
+          avatarUrl: 'https://example.com/avatar.png',
+        },
+      },
+    })).toMatchObject({ error: 'invalid-argument', field: 'secondary' });
+  });
+});
+
 describe('commitSecondaryIdentityAvatar validation', () => {
   test('accepts own secondary identity avatar object in project bucket', () => {
     const result = validateSecondaryIdentityAvatarCommit({
@@ -1406,6 +1517,20 @@ describe('commitSecondaryIdentityAvatar validation', () => {
       avatarStorageBucket: 'demo-project.firebasestorage.app',
     }, 'uidUser', 'demo-project');
     expect(result).toBeNull();
+  });
+
+  test('accepts asia-east1 upload bucket and gs:// bucket input after normalization', () => {
+    expect(validateSecondaryIdentityAvatarCommit({
+      avatarUrl: 'https://firebasestorage.googleapis.com/v0/b/demo-project-asia-east1/o/images%2Fusers%2FuidUser%2Fidentities%2Fsecondary%2Fa.png?alt=media',
+      avatarStoragePath: 'images/users/uidUser/identities/secondary/a.png',
+      avatarStorageBucket: 'gs://demo-project-asia-east1',
+    }, 'uidUser', 'demo-project')).toBeNull();
+
+    expect(validateSecondaryIdentityAvatarCommit({
+      avatarUrl: 'https://storage.googleapis.com/demo-project-asia-east1/images/users/uidUser/identities/secondary/a.png',
+      avatarStoragePath: 'images/users/uidUser/identities/secondary/a.png',
+      avatarStorageBucket: 'demo-project-asia-east1',
+    }, 'uidUser', 'demo-project')).toBeNull();
   });
 
   test('rejects cross-user, nested, external-url, and cross-project commits', () => {

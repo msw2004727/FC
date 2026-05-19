@@ -1,5 +1,11 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-19 Secondary identity save/avatar production fix [bug/security]
+- **Problem**: Production secondary identity changes still returned `permission-denied` on save, and avatar upload reached the callable with Storage metadata that could be rejected as `internal`.
+- **Cause**: The save path depended on client-side writes to `users/{uid}/identityPrivate/settings`, so any deployed-rule/cache/auth edge case blocked the profile UI. Avatar commit also accepted only default project buckets and did not normalize `gs://` upload bucket names before callable validation.
+- **Fix**: Added `commitIdentitySettings` callable to validate and write private identity settings server-side for `request.auth.uid`. Normalized avatar bucket names on the client and server, and allowed the project asia-east1 upload bucket in `commitSecondaryIdentityAvatar`.
+- **Tests**: Added Cloud Functions validation coverage for identity settings and asia-east1/`gs://` avatar bucket inputs; added Firestore rules coverage for merge writes preserving server-committed avatar metadata.
+
 ### 2026-05-19 Secondary identity MVP [feature/security]
 - **Problem**: A secondary display identity needs to coexist with the existing single-UID authorization, stats, event, PM, and audit model without letting aliases become real actors or leaking private identity settings through public user documents.
 - **Fix**: Added owner/admin-only `users/{uid}/identityPrivate/settings`, `IdentityResolver`, profile controls, secondary avatar upload plus `commitSecondaryIdentityAvatar`, owner-scoped Storage rules, and Firestore validation for create-time immutable public `identitySnapshot`. Public profile, PM, activity creation, and game leaderboards remain rooted in the main identity unless a surface explicitly supports snapshots.

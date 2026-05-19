@@ -2183,19 +2183,38 @@ Object.assign(FirebaseService, {
     }
   },
 
+  _buildIdentitySettingsCallablePayload(payload = {}) {
+    const rawSecondary = payload?.identities?.secondary || {};
+    const secondary = {};
+    ['identityId', 'displayName', 'displayRoleLabel'].forEach((field) => {
+      if (typeof rawSecondary[field] === 'string') {
+        secondary[field] = rawSecondary[field];
+      }
+    });
+    ['enabled', 'isPrimary', 'editable'].forEach((field) => {
+      if (typeof rawSecondary[field] === 'boolean') {
+        secondary[field] = rawSecondary[field];
+      }
+    });
+    return {
+      profileActiveIdentityId: payload?.profileActiveIdentityId === 'secondary' ? 'secondary' : 'main',
+      identities: { secondary },
+    };
+  },
+
+  _normalizeStorageBucketName(value) {
+    return String(value || '')
+      .trim()
+      .replace(/^gs:\/\//i, '')
+      .replace(/\/+$/g, '');
+  },
+
   async updateCurrentIdentitySettings(payload = {}) {
     await this.ensureAuthReadyForWrite();
     const uid = auth?.currentUser?.uid || this._cache.currentUser?.uid || '';
     if (!uid) throw new Error('Missing current user uid');
-    const ref = db.collection('users').doc(uid).collection('identityPrivate').doc('settings');
-    const next = {
-      ...payload,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-    };
-    if (!this._cache.currentUserIdentitySettings) {
-      next.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-    }
-    await ref.set(next, { merge: true });
+    const callable = firebase.app().functions('asia-east1').httpsCallable('commitIdentitySettings');
+    await callable(this._buildIdentitySettingsCallablePayload(payload));
   },
 
   async uploadSecondaryIdentityAvatar(base64DataUrl) {
@@ -2207,7 +2226,7 @@ Object.assign(FirebaseService, {
       `users/${uid}/identities/secondary/avatar`
     );
     const avatarStoragePath = uploaded?.ref?.fullPath || '';
-    const avatarStorageBucket = uploaded?.bucket || uploaded?.ref?.bucket || '';
+    const avatarStorageBucket = this._normalizeStorageBucketName(uploaded?.bucket || uploaded?.ref?.bucket || '');
     if (!uploaded?.url || !avatarStoragePath || !avatarStorageBucket) {
       throw new Error('Secondary identity avatar upload metadata missing');
     }
@@ -2304,7 +2323,11 @@ Object.assign(FirebaseService, {
           const url = await snapshot.ref.getDownloadURL();
           console.log('[Storage] upload target bucket:', target.bucket || '(default)');
           console.log('[Storage] 圖片上傳成功:', path);
-          return { url, ref: snapshot.ref, bucket: target.bucket || '' };
+          return {
+            url,
+            ref: snapshot.ref,
+            bucket: this._normalizeStorageBucketName(target.bucket || snapshot?.ref?.bucket || ''),
+          };
         } catch (uploadErr) {
           lastError = uploadErr;
           console.warn('[Storage] upload attempt failed:', target.bucket || '(default)', uploadErr.code, uploadErr.message);

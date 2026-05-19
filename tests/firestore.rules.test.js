@@ -709,6 +709,28 @@ describe("/users/{userId}", () => {
       })
     );
 
+    await assertSucceeds(
+      setDoc(
+        doc(user(), "users", "uidUser", "identityPrivate", "settings"),
+        {
+          profileActiveIdentityId: "secondary",
+          identities: {
+            secondary: {
+              identityId: "secondary",
+              enabled: true,
+              displayName: "Alias",
+              displayRoleLabel: "User",
+              isPrimary: false,
+              editable: true,
+              updatedAt: serverTimestamp(),
+            },
+          },
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      )
+    );
+
     await assertFails(
       updateDoc(doc(user(), "users", "uidUser", "identityPrivate", "settings"), {
         "identities.secondary.avatarUrl": "https://firebasestorage.googleapis.com/v0/b/demo-project.firebasestorage.app/o/images%2Fusers%2FuidUser%2Fidentities%2Fsecondary%2Fb.png?alt=media",

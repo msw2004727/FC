@@ -199,8 +199,9 @@ describe('secondary identity profile controls', () => {
     expect(profileRenderSource).toContain("profileActiveIdentityId: activeId");
     expect(apiSource).toContain('updateCurrentIdentitySettings(payload)');
     expect(apiSource).toContain('uploadSecondaryIdentityAvatar(base64DataUrl)');
-    expect(crudSource).toContain(".collection('identityPrivate').doc('settings')");
+    expect(crudSource).toContain("httpsCallable('commitIdentitySettings')");
     expect(crudSource).toContain("httpsCallable('commitSecondaryIdentityAvatar')");
+    expect(crudSource).toContain('_normalizeStorageBucketName');
     expect(crudSource).toContain('users/${uid}/identities/secondary/avatar');
   });
 });
