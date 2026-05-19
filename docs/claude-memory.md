@@ -2968,6 +2968,12 @@
 - **修復**：`dismissFirstLoginModal()` 改為純關閉彈窗，不再讀取條款勾選狀態、不禁用按鈕、不呼叫 `ApiService.updateCurrentUserAwait()`。
 - **教訓**：次要離開按鈕不可偷帶資料寫入；只有明確送出按鈕才能代表同意條款與儲存個資。
 
+### 2026-05-19 Secondary Identity Settings Rules Deploy [bugfix]
+- **Issue**: Production profile save for secondary identity returned `FirebaseError: Missing or insufficient permissions` at `saveIdentitySettings`.
+- **Cause**: The frontend was already writing `users/{uid}/identityPrivate/settings`, but the production Firestore rules release had not caught up with the local secondary identity allowlist.
+- **Fix**: Deployed the current `firestore.rules` to `fc-football-6c8dc`, including owner/admin read and owner create/update for `identityPrivate/settings` with constrained secondary identity fields.
+- **Validation**: `firestore.rules.test.js` passed inside the rules emulator during `npm run test:rules`; the full rules run still has an unrelated existing `team-feed-rules.test.js` hook timeout.
+
 ### 2026-05-19 Secondary Identity Settings UI Polish [ux]
 - **Issue**: The secondary identity settings card looked cramped and visually flat; disabled secondary controls still felt editable, and the save action sat as an inline style outside the profile UI system.
 - **Fix**: Restyled the identity selector as a compact segmented control, promoted enable/disabled state styling into CSS, enlarged and stabilized the avatar/editor layout, disabled upload/clear affordances when the secondary identity is off, and moved the save row into a reusable class.
