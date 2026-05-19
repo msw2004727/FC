@@ -98,7 +98,7 @@ Object.assign(App, {
     return null;
   },
 
-  _enqueuePrivilegedLinePush(uid, category, title, body, options = {}) {
+  async _enqueuePrivilegedLinePush(uid, category, title, body, options = {}) {
     const payload = {
       uid,
       category,
@@ -108,7 +108,7 @@ Object.assign(App, {
     };
     if (options.dedupeKey) payload.dedupeKey = options.dedupeKey;
 
-    return firebase.app().functions('asia-east1').httpsCallable('enqueuePrivilegedLineNotification')(payload)
+    return (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('enqueuePrivilegedLineNotification')(payload)
       .then(result => {
         const data = result?.data || {};
         if (data.skipped) {

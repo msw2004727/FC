@@ -380,7 +380,7 @@ Object.assign(App, {
       btn.classList.add('spinning');
     }
     try {
-      const fn = firebase.app().functions('asia-east1');
+      const fn = (await ensureFirebaseFunctionsSdk('asia-east1'));
       const callable = fn.httpsCallable('refreshMyActivityRecords');
       const resp = await callable({});
       const data = resp.data || {};

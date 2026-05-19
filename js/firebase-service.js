@@ -1967,7 +1967,8 @@ const FirebaseService = {
 
     try {
       console.log('[FirebaseService] 呼叫 createCustomToken Cloud Function...');
-      const fn = firebase.app().functions('asia-east1').httpsCallable('createCustomToken');
+      const functionsApi = await ensureFirebaseFunctionsSdk('asia-east1');
+      const fn = functionsApi.httpsCallable('createCustomToken');
       const result = await fn({ accessToken });
       const { customToken } = result.data;
       console.log('[FirebaseService] 收到 Custom Token, 執行 signInWithCustomToken...');
@@ -2788,7 +2789,9 @@ const FirebaseService = {
       // fire-and-forget：記錄登入 IP + 地區（供用戶管理後台稽核）
       try {
         if (typeof firebase !== 'undefined' && firebase.app) {
-          firebase.app().functions('asia-east1').httpsCallable('recordUserLoginIp')().catch((err) => {
+          ensureFirebaseFunctionsSdk('asia-east1').then(function(functionsApi) {
+            return functionsApi.httpsCallable('recordUserLoginIp')();
+          }).catch((err) => {
             console.warn('[FirebaseService] recordUserLoginIp failed:', err?.message);
           });
         }

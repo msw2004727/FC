@@ -65,7 +65,8 @@ Object.assign(App, {
   },
 
   _pmCallable(name) {
-    return firebase.app().functions('asia-east1').httpsCallable(name);
+    return ensureFirebaseFunctionsSdk('asia-east1')
+      .then(functionsApi => functionsApi.httpsCallable(name));
   },
 
   _pmCurrentUid() {

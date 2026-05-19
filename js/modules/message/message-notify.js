@@ -233,8 +233,8 @@ Object.assign(App, {
 
   _ensureNotifTemplatesBackfilled() {
     if (this._notifTemplateEnsurePromise) return this._notifTemplateEnsurePromise;
-    const callable = firebase.app().functions('asia-east1').httpsCallable('ensureNotificationTemplates');
-    this._notifTemplateEnsurePromise = callable({})
+    this._notifTemplateEnsurePromise = ensureFirebaseFunctionsSdk('asia-east1')
+      .then(functionsApi => functionsApi.httpsCallable('ensureNotificationTemplates')({}))
       .then(result => {
         const templates = Array.isArray(result?.data?.templates) ? result.data.templates : [];
         if (!templates.length) return [];

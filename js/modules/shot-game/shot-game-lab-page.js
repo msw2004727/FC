@@ -159,7 +159,7 @@
         if (!scorePayload || scorePayload.score <= 0 || !isRankingEligibleUser(gameUser)) return;
         leaderboardSubmitPending = true;
         try {
-          await firebase.app().functions('asia-east1').httpsCallable('submitShotGameScore')({
+          await (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('submitShotGameScore')({
             score: scorePayload.score,
             shots: scorePayload.shots,
             streak: scorePayload.streak,

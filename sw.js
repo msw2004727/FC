@@ -6,7 +6,7 @@
      - Firebase Storage 圖片 → stale-while-revalidate（獨立快取）
    ================================================ */
 
-const CACHE_NAME       = 'sporthub-0.20260519zd';
+const CACHE_NAME       = 'sporthub-0.20260519ze';
 const IMAGE_CACHE_NAME = 'sporthub-images-v2';
 const MAX_IMAGE_CACHE  = 150;                         // 最多快取 150 張圖片
 const MAX_IMAGE_AGE_MS = 7 * 24 * 60 * 60 * 1000;    // 7 天過期
@@ -25,6 +25,12 @@ const STATIC_ASSETS = [
   './css/shop.css',
   './css/scan.css',
   './css/admin.css',
+  './css/calendar.css',
+  './css/calendar-sport-counts.css',
+  './css/admin-seo.css',
+  './css/game.css',
+  './css/image-cropper.css',
+  './css/education.css',
   './css/permission-audit.css',
   './js/config.js',
   './js/i18n.js',
@@ -51,6 +57,7 @@ const STATIC_ASSETS = [
 const SPA_LIST_PATHS = new Set(['/activities', '/teams', '/tournaments', '/profile']);
 const SPA_DETAIL_ROOTS = new Set(['events', 'teams', 'tournaments']);
 const SPA_SAFE_SEGMENT_RE = /^[A-Za-z0-9_-]{3,80}$/;
+const VERSIONED_STATIC_RE = /\.(?:css|js|png|jpe?g|webp|gif|svg|ico|woff2?)$/i;
 
 function stripTrailingSlash(pathname) {
   if (!pathname || pathname === '/') return '/';
@@ -73,6 +80,12 @@ function isSpaNavigationPath(pathname) {
 
 function getIndexCacheRequest(url) {
   return new Request(new URL('/index.html', url.origin).toString());
+}
+
+function isVersionedStaticRequest(url) {
+  return url.origin === location.origin
+    && url.searchParams.has('v')
+    && VERSIONED_STATIC_RE.test(url.pathname);
 }
 
 // ─── 圖片快取工具函式 ───
@@ -233,7 +246,7 @@ self.addEventListener('fetch', (event) => {
   // ── 4. 同源有版號資源（?v=）：Cache-first ──
   if (url.origin === location.origin) {
     event.respondWith(
-      caches.match(event.request).then((cached) => {
+      caches.match(event.request, { ignoreSearch: isVersionedStaticRequest(url) }).then((cached) => {
         if (cached) return cached;
         return fetch(event.request).then((response) => {
           if (response && response.status === 200) {

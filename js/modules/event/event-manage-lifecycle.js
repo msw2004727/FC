@@ -336,7 +336,7 @@ Object.assign(App, {
         const _removeTimeout = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('移除操作逾時，請重新整理後再試')), 15000));
         const cfResult = await Promise.race([
-          firebase.app().functions('asia-east1').httpsCallable('cancelRegistration')({
+          (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('cancelRegistration')({
             eventId,
             registrationIds: [reg.id],
             reason: 'manager_remove',

@@ -270,7 +270,7 @@ Object.assign(App, {
         if (_pendingTk) { cfPayload.teamKey = _pendingTk; this._tsPendingTeamKey = null; }
         if (selectedTeamReservationTeamId) cfPayload.preferredTeamReservationTeamId = selectedTeamReservationTeamId;
         const cfResult = await Promise.race([
-          firebase.app().functions('asia-east1').httpsCallable('registerForEvent')(cfPayload),
+          (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('registerForEvent')(cfPayload),
           _cfTimeout,
         ]);
         const data = cfResult.data;
@@ -491,7 +491,7 @@ Object.assign(App, {
         const _cfCancelTimeout = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('取消操作逾時，請重新整理後再試')), 15000));
         const cfResult = await Promise.race([
-          firebase.app().functions('asia-east1').httpsCallable('cancelRegistration')({
+          (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('cancelRegistration')({
             eventId,
             registrationIds: checked,
             reason: 'user_cancel',
@@ -851,7 +851,7 @@ Object.assign(App, {
           : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration());
         if (useCancelCF) {
           const cfResult = await Promise.race([
-            firebase.app().functions('asia-east1').httpsCallable('cancelRegistration')({
+            (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('cancelRegistration')({
               eventId,
               registrationIds: toCancelIds,
               reason: 'companion_toggle',
@@ -899,7 +899,7 @@ Object.assign(App, {
           };
           if (selectedTeamKey) cfPayload.teamKey = selectedTeamKey;
           const cfResult = await Promise.race([
-            firebase.app().functions('asia-east1').httpsCallable('registerForEvent')(cfPayload),
+            (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('registerForEvent')(cfPayload),
             new Promise((_, reject) => setTimeout(() => reject(new Error('register timeout')), 15000)),
           ]);
           const data = cfResult.data || {};

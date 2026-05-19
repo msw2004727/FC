@@ -2056,7 +2056,7 @@ const ApiService = {
   // ── Cloud Function 呼叫 adjustExp ──
   async _callAdjustExpCF(payload) {
     await FirebaseService.ensureAuthReadyForWrite();
-    const fn = firebase.app().functions('asia-east1').httpsCallable('adjustExp');
+    const fn = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('adjustExp');
     return await fn(payload);
   },
 
@@ -2294,7 +2294,7 @@ const ApiService = {
   async submitShotGameScore(payload) {
     if (!auth?.currentUser) return null;
     try {
-      const fn = firebase.app().functions('asia-east1').httpsCallable('submitShotGameScore');
+      const fn = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('submitShotGameScore');
       const result = await fn(payload);
       return result.data;
     } catch (err) {
@@ -2374,7 +2374,7 @@ const ApiService = {
       if (!authed) return null;
 
       if (!this._auditLogCallable) {
-        this._auditLogCallable = firebase.app().functions('asia-east1').httpsCallable('writeAuditLog');
+        this._auditLogCallable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('writeAuditLog');
       }
 
       const result = await this._auditLogCallable({
@@ -2399,7 +2399,7 @@ const ApiService = {
       if (!authed) return null;
 
       if (!this._auditLogBackfillCallable) {
-        this._auditLogBackfillCallable = firebase.app().functions('asia-east1').httpsCallable('backfillAuditActorNames');
+        this._auditLogBackfillCallable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('backfillAuditActorNames');
       }
 
       const safeDayKey = String(dayKey || '').replace(/\D/g, '').slice(0, 8);

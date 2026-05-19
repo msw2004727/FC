@@ -204,7 +204,7 @@ Object.assign(App, {
     }
     this._setUidHealthProgress(1, 5, '送出後端驗證...', 'running');
     try {
-      const fn = firebase.app().functions('asia-east1');
+      const fn = (await ensureFirebaseFunctionsSdk('asia-east1'));
       const callable = fn.httpsCallable('runUidHealthCheck', { timeout: 300000 });
       this._setUidHealthProgress(2, 5, '掃描 UID 關聯資料...', 'running');
       const resp = await callable({ password });
@@ -310,7 +310,7 @@ Object.assign(App, {
     }
     this._setUidHealthProgress(1, 4, applyMode ? '準備修復...' : '準備預覽...', 'running');
     try {
-      const fn = firebase.app().functions('asia-east1');
+      const fn = (await ensureFirebaseFunctionsSdk('asia-east1'));
       const callable = fn.httpsCallable('repairCompanionAttendanceRecords', { timeout: 300000 });
       this._setUidHealthProgress(2, 4, '掃描簽到紀錄...', 'running');
       const resp = await callable({

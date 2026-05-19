@@ -89,30 +89,8 @@ function initFirebaseApp() {
     }
     window._firestoreUsingLongPolling = useLongPolling;
 
-    storage = (typeof firebase.storage === 'function') ? firebase.storage() : null;
-    if (!storage) {
-      console.warn('[Firebase] Storage SDK not loaded; storage features disabled.');
-      uploadStorage = null;
-      window._firebaseDefaultStorageBucket = '';
-      window._firebaseUploadStorageBucket = '';
-    } else {
-      const defaultBucketUrl = _normalizeStorageBucketUrl(firebaseConfig.storageBucket);
-      const uploadBucketUrl = _normalizeStorageBucketUrl(firebaseStorageConfig.uploadBucket);
-      window._firebaseDefaultStorageBucket = defaultBucketUrl;
-      window._firebaseUploadStorageBucket = uploadBucketUrl || defaultBucketUrl;
-
-      if (uploadBucketUrl && uploadBucketUrl !== defaultBucketUrl) {
-        try {
-          uploadStorage = firebase.app().storage(uploadBucketUrl);
-          console.log('[Firebase] Upload bucket ready:', uploadBucketUrl);
-        } catch (err) {
-          uploadStorage = storage;
-          window._firebaseUploadStorageBucket = defaultBucketUrl;
-          console.error('[Firebase] Upload bucket init failed, fallback to default bucket:', err.message);
-        }
-      } else {
-        uploadStorage = storage;
-      }
+    if (!initFirebaseStorageServices()) {
+      console.log('[Firebase] Storage SDK will lazy-load before image upload.');
     }
     auth = firebase.auth();
 
@@ -157,6 +135,36 @@ function initFirebaseApp() {
     console.error('[Firebase] 初始化失敗:', e.message);
     return false;
   }
+}
+
+function initFirebaseStorageServices() {
+  if (typeof firebase === 'undefined' || typeof firebase.storage !== 'function') {
+    storage = null;
+    uploadStorage = null;
+    window._firebaseDefaultStorageBucket = '';
+    window._firebaseUploadStorageBucket = '';
+    return false;
+  }
+
+  storage = firebase.storage();
+  const defaultBucketUrl = _normalizeStorageBucketUrl(firebaseConfig.storageBucket);
+  const uploadBucketUrl = _normalizeStorageBucketUrl(firebaseStorageConfig.uploadBucket);
+  window._firebaseDefaultStorageBucket = defaultBucketUrl;
+  window._firebaseUploadStorageBucket = uploadBucketUrl || defaultBucketUrl;
+
+  if (uploadBucketUrl && uploadBucketUrl !== defaultBucketUrl) {
+    try {
+      uploadStorage = firebase.app().storage(uploadBucketUrl);
+      console.log('[Firebase] Upload bucket ready:', uploadBucketUrl);
+    } catch (err) {
+      uploadStorage = storage;
+      window._firebaseUploadStorageBucket = defaultBucketUrl;
+      console.error('[Firebase] Upload bucket init failed, fallback to default bucket:', err.message);
+    }
+  } else {
+    uploadStorage = storage;
+  }
+  return true;
 }
 
 // 嘗試立即初始化（CDN 若已被瀏覽器快取則可能已可用）

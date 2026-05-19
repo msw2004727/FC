@@ -967,7 +967,7 @@ Object.assign(App, {
         if (_tsTeamKey) cfPayload.teamKey = _tsTeamKey;
         if (selectedTeamReservationTeamId) cfPayload.preferredTeamReservationTeamId = selectedTeamReservationTeamId;
         const cfResult = await Promise.race([
-          firebase.app().functions('asia-east1').httpsCallable('registerForEvent')(cfPayload),
+          (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('registerForEvent')(cfPayload),
           _signupTimeout,
         ]);
         const data = cfResult.data;
@@ -1408,7 +1408,7 @@ Object.assign(App, {
           cancelRegistrationIds = [regCancelId, ...extraRegs.map(r => r.id || r._docId)].filter(Boolean).slice(0, 20);
           cancelRequestId = `cancel_${userId}_${id}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
           const cfResult = await Promise.race([
-            firebase.app().functions('asia-east1').httpsCallable('cancelRegistration')({
+            (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('cancelRegistration')({
               eventId: id,
               registrationIds: cancelRegistrationIds,
               reason: 'user_cancel',

@@ -163,7 +163,7 @@ Object.assign(App, {
     if (executeBtn) executeBtn.disabled = true;
 
     try {
-      var fn = firebase.app().functions('asia-east1').httpsCallable('backfillAutoExp', { timeout: 540000 });
+      var fn = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('backfillAutoExp', { timeout: 540000 });
       var res = await fn({ dryRun: !!dryRun });
       var d = res.data || {};
       var stats = d.stats || {};

@@ -2042,7 +2042,7 @@ describe('ApiService tournament delete source', () => {
     expect(start).toBeGreaterThanOrEqual(0);
     const end = crudSource.indexOf('\n  },', start);
     const source = crudSource.slice(start, end);
-    expect(source).toContain("functions('asia-east1')");
+    expect(source).toContain("ensureFirebaseFunctionsSdk('asia-east1')");
     expect(source).toContain("httpsCallable('deleteTournament')");
   });
 });

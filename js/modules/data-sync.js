@@ -168,7 +168,7 @@ Object.assign(App, {
       return '';
     }
     try {
-      const callable = firebase.app().functions('asia-east1').httpsCallable('verifyDataSyncPassword');
+      const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('verifyDataSyncPassword');
       await callable({ password });
       return password;
     } catch (err) {
@@ -533,7 +533,7 @@ Object.assign(App, {
     ui.log('開始 UID 欄位修正...');
     ui.log('呼叫 Cloud Function（dry-run 預覽）...');
 
-    const fn = firebase.app().functions('asia-east1').httpsCallable('migrateUidFields');
+    const fn = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('migrateUidFields');
     const passwordPayload = verifiedPassword ? { password: verifiedPassword } : {};
     let dryResult;
     try {
@@ -870,7 +870,7 @@ Object.assign(App, {
     var startTime = Date.now();
 
     try {
-      var fn = firebase.app().functions('asia-east1');
+      var fn = (await ensureFirebaseFunctionsSdk('asia-east1'));
       var callable = fn.httpsCallable('calcNoShowCountsManual');
       var resp = await callable({ password: password });
       var r = resp.data || {};

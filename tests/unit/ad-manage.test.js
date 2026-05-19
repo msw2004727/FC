@@ -195,9 +195,9 @@ describe('ad edit modal wiring', () => {
     expect(sources.bootBrand).toContain("bindImageUpload('boot-brand-image', 'boot-brand-upload-area', this._getBootBrandCropOptions())");
     expect(sources.bootBrand).toContain('<picture>');
     expect(sources.baseCss).toContain('.boot-loading__image-slot > picture');
-    expect(sources.baseCss).toContain('.boot-loading__image-slot {\n  position: relative;');
-    expect(sources.baseCss).toContain('.boot-loading__image-slot > picture {\n  position: absolute;\n  inset: 0;');
-    expect(sources.baseCss).toContain('.boot-loading__image {\n  position: absolute;\n  inset: 0;');
+    expect(sources.baseCss).toMatch(/\.boot-loading__image-slot\s*\{\s*position:\s*relative;/);
+    expect(sources.baseCss).toMatch(/\.boot-loading__image-slot\s*>\s*picture\s*\{\s*position:\s*absolute;\s*inset:\s*0;/);
+    expect(sources.baseCss).toMatch(/\.boot-loading__image\s*\{\s*position:\s*absolute;\s*inset:\s*0;/);
     expect(sources.baseCss).toContain('object-position: center center');
     expect(sources.index).toContain("brandImg.closest('picture')");
     expect(sources.index).toContain("brandPicture.querySelectorAll('source')");

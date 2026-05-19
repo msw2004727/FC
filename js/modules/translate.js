@@ -179,7 +179,7 @@ Object.assign(App, {
     // Cloud Function 翻譯
     if (needApi.length > 0) {
       try {
-        const fn = firebase.app().functions('asia-east1').httpsCallable('translateTexts');
+        const fn = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('translateTexts');
         for (let start = 0; start < needApi.length; start += 128) {
           const batch = needApi.slice(start, start + 128);
           const batchIdx = needApiIdx.slice(start, start + 128);

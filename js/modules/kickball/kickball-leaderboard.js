@@ -274,13 +274,13 @@ window._KickballLeaderboard = (function () {
     var user = typeof auth !== 'undefined' ? auth.currentUser : null;
     if (!payload || payload.distance <= 0 || !user) return;
     _lbSubmitPending = true;
-    firebase.app().functions('asia-east1').httpsCallable('submitKickGameScore')({
+    ensureFirebaseFunctionsSdk('asia-east1').then(functionsApi => functionsApi.httpsCallable('submitKickGameScore')({
       distance: payload.distance,
       maxSpeed: payload.maxSpeed,
       kicks: payload.kicks || 3,
       durationMs: payload.durationMs,
       displayName: H.getPreferredPlayerDisplayName(user),
-    }).then(function (result) {
+    })).then(function (result) {
       console.log('[kickball] 成績提交成功', result && result.data);
     }).catch(function (err) {
       console.error('[kickball] 成績提交失敗', err && err.code, err && err.message);

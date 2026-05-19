@@ -262,7 +262,7 @@ Object.assign(App, {
         btn.disabled = true;
         btn.textContent = '抓取中...';
         try {
-          const fn = firebase.app().functions('asia-east1').httpsCallable('fetchUsageMetricsManual');
+          const fn = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('fetchUsageMetricsManual');
           const res = await fn();
           this.showToast('用量數據已更新');
           // 重新渲染
@@ -1177,7 +1177,7 @@ Object.assign(App, {
         saveBtn.disabled = true;
         saveBtn.textContent = '儲存中...';
         try {
-          var fn = firebase.app().functions('asia-east1');
+          var fn = (await ensureFirebaseFunctionsSdk('asia-east1'));
           var callable = fn.httpsCallable('saveRealtimeConfig');
           await callable({
             password: password,
@@ -1441,7 +1441,7 @@ Object.assign(App, {
       candidateEvents: 0,
     };
     try {
-      var fn = firebase.app().functions('asia-east1');
+      var fn = (await ensureFirebaseFunctionsSdk('asia-east1'));
       var callable = fn.httpsCallable('repairActivityRecordsManual', { timeout: 300000 });
       var startIndex = 0;
       var hasMore = true;

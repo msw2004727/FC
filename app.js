@@ -2948,6 +2948,14 @@ const App = {
 // ── CDN SDK 動態載入器（不阻塞 DOMContentLoaded）──
 const _dynamicScriptPromises = {};
 let _cdnScriptsPromise = null;
+const FIREBASE_SDK_URLS = Object.freeze({
+  app: 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js',
+  firestore: 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js',
+  auth: 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js',
+  storage: 'https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js',
+  functions: 'https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js',
+  liff: 'https://static.line-scdn.net/liff/edge/2/sdk.js',
+});
 
 function _loadScript(src) {
   if (_dynamicScriptPromises[src]) return _dynamicScriptPromises[src];
@@ -3011,14 +3019,44 @@ function _loadScript(src) {
   return _dynamicScriptPromises[src];
 }
 
+async function ensureFirebaseStorageSdk() {
+  await _loadCDNScripts();
+  if (typeof firebase === 'undefined') throw new Error('Firebase SDK not loaded');
+  if ((!firebase.apps || firebase.apps.length === 0) && typeof initFirebaseApp === 'function') {
+    initFirebaseApp();
+  }
+  if (typeof firebase.storage !== 'function') {
+    await _loadScript(FIREBASE_SDK_URLS.storage);
+  }
+  if (typeof initFirebaseStorageServices === 'function') {
+    initFirebaseStorageServices();
+  }
+  if (typeof storage === 'undefined' || (!storage && !uploadStorage)) {
+    throw new Error('Storage SDK not initialized');
+  }
+  return uploadStorage || storage;
+}
+
+async function ensureFirebaseFunctionsSdk(region = 'asia-east1') {
+  await _loadCDNScripts();
+  if (typeof firebase === 'undefined' || !firebase.app) {
+    throw new Error('Firebase SDK not loaded');
+  }
+  if ((!firebase.apps || firebase.apps.length === 0) && typeof initFirebaseApp === 'function') {
+    initFirebaseApp();
+  }
+  if (typeof firebase.app().functions !== 'function') {
+    await _loadScript(FIREBASE_SDK_URLS.functions);
+  }
+  return firebase.app().functions(region);
+}
+
 async function _loadCDNScriptsOnce() {
-  await _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');
+  await _loadScript(FIREBASE_SDK_URLS.app);
   await Promise.all([
-    _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js'),
-    _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js'),
-    _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js'),
-    _loadScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js'),
-    _loadScript('https://static.line-scdn.net/liff/edge/2/sdk.js'),
+    _loadScript(FIREBASE_SDK_URLS.firestore),
+    _loadScript(FIREBASE_SDK_URLS.auth),
+    _loadScript(FIREBASE_SDK_URLS.liff),
   ]);
 }
 

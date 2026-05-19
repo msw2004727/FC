@@ -281,14 +281,14 @@ Object.assign(FirebaseService, {
 
   async applyFriendlyTournamentAtomic(tournamentId, teamId) {
     await this.ensureAuthReadyForWrite();
-    const callable = firebase.app().functions('asia-east1').httpsCallable('applyFriendlyTournament');
+    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('applyFriendlyTournament');
     const result = await callable({ tournamentId, teamId });
     return result.data;
   },
 
   async withdrawFriendlyTournamentTeamAtomic(tournamentId, teamId) {
     await this.ensureAuthReadyForWrite();
-    const callable = firebase.app().functions('asia-east1').httpsCallable('withdrawFriendlyTournamentTeam');
+    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('withdrawFriendlyTournamentTeam');
     const result = await callable({ tournamentId, teamId });
     return result.data;
   },
@@ -305,21 +305,21 @@ Object.assign(FirebaseService, {
 
   async reviewFriendlyTournamentApplicationAtomic(tournamentId, applicationId, action) {
     await this.ensureAuthReadyForWrite();
-    const callable = firebase.app().functions('asia-east1').httpsCallable('reviewFriendlyTournamentApplication');
+    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('reviewFriendlyTournamentApplication');
     const result = await callable({ tournamentId, applicationId, action });
     return result.data;
   },
 
   async removeFriendlyTournamentEntryAtomic(tournamentId, teamId) {
     await this.ensureAuthReadyForWrite();
-    const callable = firebase.app().functions('asia-east1').httpsCallable('removeFriendlyTournamentEntry');
+    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('removeFriendlyTournamentEntry');
     const result = await callable({ tournamentId, teamId });
     return result.data;
   },
 
   async deleteTournamentAtomic(tournamentId) {
     await this.ensureAuthReadyForWrite();
-    const callable = firebase.app().functions('asia-east1').httpsCallable('deleteTournament');
+    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('deleteTournament');
     const result = await callable({ tournamentId });
     return result.data;
   },
@@ -388,14 +388,14 @@ Object.assign(FirebaseService, {
 
   async joinFriendlyTournamentRosterAtomic(tournamentId, teamId) {
     await this.ensureAuthReadyForWrite();
-    const callable = firebase.app().functions('asia-east1').httpsCallable('joinFriendlyTournamentRoster');
+    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('joinFriendlyTournamentRoster');
     const result = await callable({ tournamentId, teamId });
     return result.data;
   },
 
   async leaveFriendlyTournamentRosterAtomic(tournamentId) {
     await this.ensureAuthReadyForWrite();
-    const callable = firebase.app().functions('asia-east1').httpsCallable('leaveFriendlyTournamentRoster');
+    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('leaveFriendlyTournamentRoster');
     const result = await callable({ tournamentId });
     return result.data;
   },
@@ -1309,7 +1309,7 @@ Object.assign(FirebaseService, {
         .get({ source: 'server' });
       const allEventRegs = allRegsSnap.docs.map(d => this._mapSubcollectionDoc(d, 'registrations'));
       const lockDoc = await transaction.get(lockRef);
-      if (lockDoc.exists) throw new Error('撌脣?迨瘣餃?');
+      if (lockDoc.exists) throw new Error('已報名此活動');
 
       // 防幽靈：在 transaction 內再次檢查重複報名
       const hasActive = allEventRegs.some(r =>
@@ -1710,7 +1710,7 @@ Object.assign(FirebaseService, {
         uploadedImageRefs.push(uploaded.ref || firebase.storage().refFromURL(uploaded.url));
       }
 
-      const callable = firebase.app().functions('asia-east1').httpsCallable('createFriendlyTournament');
+      const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('createFriendlyTournament');
       const result = await callable({ tournament });
       return result.data;
     } catch (err) {
@@ -2128,7 +2128,7 @@ Object.assign(FirebaseService, {
 
   async _syncUserRoleClaims(uid) {
     if (!uid || typeof firebase === 'undefined' || !firebase.app) return;
-    const fn = firebase.app().functions('asia-east1').httpsCallable('syncUserRole');
+    const fn = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('syncUserRole');
     await fn({ targetUid: uid });
 
     // Refresh current user's token immediately if their own role changed.
@@ -2165,7 +2165,7 @@ Object.assign(FirebaseService, {
       return null;
     }
 
-    const fn = firebase.app().functions('asia-east1').httpsCallable('adminManageUser');
+    const fn = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('adminManageUser');
     const result = await fn(payload);
     if (result?.data?.forceRefreshToken && typeof auth !== 'undefined' && auth?.currentUser) {
       await auth.currentUser.getIdToken(true);
@@ -2213,7 +2213,7 @@ Object.assign(FirebaseService, {
     await this.ensureAuthReadyForWrite();
     const uid = auth?.currentUser?.uid || this._cache.currentUser?.uid || '';
     if (!uid) throw new Error('Missing current user uid');
-    const callable = firebase.app().functions('asia-east1').httpsCallable('commitIdentitySettings');
+    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('commitIdentitySettings');
     await callable(this._buildIdentitySettingsCallablePayload(payload));
   },
 
@@ -2230,7 +2230,7 @@ Object.assign(FirebaseService, {
     if (!uploaded?.url || !avatarStoragePath || !avatarStorageBucket) {
       throw new Error('Secondary identity avatar upload metadata missing');
     }
-    const callable = firebase.app().functions('asia-east1').httpsCallable('commitSecondaryIdentityAvatar');
+    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('commitSecondaryIdentityAvatar');
     await callable({
       avatarUrl: uploaded.url,
       avatarStoragePath,
@@ -2241,7 +2241,7 @@ Object.assign(FirebaseService, {
 
   async clearSecondaryIdentityAvatar() {
     await this.ensureAuthReadyForWrite();
-    const callable = firebase.app().functions('asia-east1').httpsCallable('commitSecondaryIdentityAvatar');
+    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('commitSecondaryIdentityAvatar');
     await callable({ clear: true });
   },
 
@@ -2251,6 +2251,9 @@ Object.assign(FirebaseService, {
 
   async _uploadImage(base64DataUrl, path) {
     try {
+      if (typeof ensureFirebaseStorageSdk === 'function') {
+        await ensureFirebaseStorageSdk();
+      }
       if (!storage && !uploadStorage) { console.error('[Storage] storage 未初始化'); return null; }
       const activeStorage = uploadStorage || storage;
       const uploadTargets = [
@@ -2296,6 +2299,9 @@ Object.assign(FirebaseService, {
 
   async _uploadImageWithRef(base64DataUrl, path) {
     try {
+      if (typeof ensureFirebaseStorageSdk === 'function') {
+        await ensureFirebaseStorageSdk();
+      }
       if (!storage && !uploadStorage) throw new Error('Storage not initialized');
       const activeStorage = uploadStorage || storage;
       const uploadTargets = [
@@ -2602,7 +2608,7 @@ Object.assign(FirebaseService, {
   async _deliverToInboxCF(message, targetUid, targetTeamId, targetRoles, targetType) {
     if (typeof firebase === 'undefined' || !firebase.app) return;
     try {
-      const fn = firebase.app().functions('asia-east1').httpsCallable('deliverToInbox');
+      const fn = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('deliverToInbox');
       await fn({ message, targetUid, targetTeamId, targetRoles, targetType });
     } catch (err) {
       // Phase 1: inbox 寫入失敗不影響主流程（舊 messages/ 已寫入）
@@ -2614,7 +2620,7 @@ Object.assign(FirebaseService, {
   async _syncGroupActionStatusCF(groupId, newStatus, reviewerName) {
     if (typeof firebase === 'undefined' || !firebase.app) return;
     try {
-      const fn = firebase.app().functions('asia-east1').httpsCallable('syncGroupActionStatus');
+      const fn = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('syncGroupActionStatus');
       await fn({ groupId, newStatus, reviewerName });
     } catch (err) {
       console.warn('[syncGroupActionStatusCF] sync failed (non-blocking):', err.message || err);
@@ -2711,7 +2717,7 @@ Object.assign(FirebaseService, {
   // ════════════════════════════════
 
   async updateUserRole(docId, newRole) {
-    const fn = firebase.app().functions('asia-east1').httpsCallable('autoPromoteTeamRole');
+    const fn = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('autoPromoteTeamRole');
     const result = await fn({ targetUid: docId, newRole });
     // Refresh current user's token if their own role changed
     if (result?.data?.newRole && typeof auth !== 'undefined' && auth?.currentUser?.uid === result.data.targetUid) {
@@ -2787,7 +2793,7 @@ Object.assign(FirebaseService, {
       throw new Error('Firebase 登入尚未完成，請稍候再試');
     }
     const safeSlots = Math.max(0, Math.trunc(Number(reservedSlots || 0) || 0));
-    const callable = firebase.app().functions('asia-east1').httpsCallable('adjustTeamReservation');
+    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('adjustTeamReservation');
     const result = await callable({
       eventId,
       teamId,
@@ -2942,7 +2948,7 @@ Object.assign(FirebaseService, {
           return rKey === dupKey;
         });
         if (existing || plannedKeys.has(dupKey) || lockDocs[refIdx]?.exists) {
-          if (entryType !== 'companion') throw new Error('撌脣?迨瘣餃?');
+          if (entryType !== 'companion') throw new Error('已報名此活動');
           refIdx++;
           promotionIdx++;
           continue;
@@ -3331,6 +3337,9 @@ Object.assign(FirebaseService, {
    * Recursively lists all prefixes (subdirectories) and deletes every file.
    */
   async clearAllStorageImages() {
+    if (typeof ensureFirebaseStorageSdk === 'function') {
+      await ensureFirebaseStorageSdk();
+    }
     const storageTargets = [];
     const seenBuckets = new Set();
 

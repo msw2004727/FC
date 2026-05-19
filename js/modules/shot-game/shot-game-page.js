@@ -190,7 +190,7 @@
     const user = typeof auth !== 'undefined' ? auth.currentUser : null;
     if (!sp || sp.score <= 0 || !user) return;
     _lbSubmitPending = true;
-    try { await firebase.app().functions('asia-east1').httpsCallable('submitShotGameScore')({ score: sp.score, shots: sp.shots, streak: sp.streak, durationMs: sp.durationMs, displayName: UI.getPreferredPlayerDisplayName(user) }); }
+    try { await (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('submitShotGameScore')({ score: sp.score, shots: sp.shots, streak: sp.streak, durationMs: sp.durationMs, displayName: UI.getPreferredPlayerDisplayName(user) }); }
     catch (_) {} finally { _lbSubmitPending = false; if (_lbOpen) _renderLeaderboard(_lbPeriod); }
   }
 
