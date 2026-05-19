@@ -2968,6 +2968,11 @@
 - **修復**：`dismissFirstLoginModal()` 改為純關閉彈窗，不再讀取條款勾選狀態、不禁用按鈕、不呼叫 `ApiService.updateCurrentUserAwait()`。
 - **教訓**：次要離開按鈕不可偷帶資料寫入；只有明確送出按鈕才能代表同意條款與儲存個資。
 
+### 2026-05-19 Secondary Identity Settings UI Polish [ux]
+- **Issue**: The secondary identity settings card looked cramped and visually flat; disabled secondary controls still felt editable, and the save action sat as an inline style outside the profile UI system.
+- **Fix**: Restyled the identity selector as a compact segmented control, promoted enable/disabled state styling into CSS, enlarged and stabilized the avatar/editor layout, disabled upload/clear affordances when the secondary identity is off, and moved the save row into a reusable class.
+- **Validation**: Ran profile/script dependency unit coverage, `node --check` for the touched profile renderer, `git diff --check`, and a localhost browser preview for enabled/disabled states with no card overflow.
+
 ### 2026-05-19 — Club Member Quick Promotion [feature]
 - **問題**：俱樂部經理要把既有成員設為領隊或教練時，必須進入完整編輯俱樂部表單，成員管理名單本身不能快速晉升。
 - **原因**：成員管理只處理剔除與成員備註/賽事資料，職務指派只存在編輯俱樂部流程並寫入 `leaderUids` / `coachUids`。

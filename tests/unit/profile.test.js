@@ -179,16 +179,23 @@ describe('secondary identity profile controls', () => {
     expect(profileHtml).toContain('id="profile-secondary-enabled"');
     expect(profileHtml).toContain('id="profile-secondary-display-name"');
     expect(profileHtml).toContain('id="profile-secondary-avatar-input"');
+    expect(profileHtml).toContain('class="profile-identity-save-row"');
   });
 
   test('profile UI writes identityPrivate settings and commits avatar through callable', () => {
     const profileRenderSource = readProjectFile('js/modules/profile/profile-data-render.js');
+    const profileCss = readProjectFile('css/profile.css');
     const apiSource = readProjectFile('js/api-service.js');
     const crudSource = readProjectFile('js/firebase-crud.js');
 
     expect(profileRenderSource).toContain('renderIdentitySettings()');
     expect(profileRenderSource).toContain('saveIdentitySettings()');
     expect(profileRenderSource).toContain('uploadSecondaryIdentityAvatar(input)');
+    expect(profileRenderSource).toContain("card?.classList.toggle('is-secondary-enabled', enabled)");
+    expect(profileRenderSource).toContain("uploadBtn.classList.toggle('disabled', !enabled)");
+    expect(profileRenderSource).toContain('if (clearBtn) clearBtn.disabled = !enabled');
+    expect(profileCss).toContain('#profile-identity-card:not(.is-secondary-enabled) .profile-identity-editor');
+    expect(profileCss).toContain('.profile-identity-save-row');
     expect(profileRenderSource).toContain("profileActiveIdentityId: activeId");
     expect(apiSource).toContain('updateCurrentIdentitySettings(payload)');
     expect(apiSource).toContain('uploadSecondaryIdentityAvatar(base64DataUrl)');

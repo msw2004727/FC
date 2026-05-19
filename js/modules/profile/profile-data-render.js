@@ -169,14 +169,26 @@ Object.assign(App, {
   },
 
   _syncIdentityFormState() {
+    const card = document.getElementById('profile-identity-card');
     const enabledEl = document.getElementById('profile-secondary-enabled');
     const mainEl = document.getElementById('profile-identity-main');
     const secondaryEl = document.getElementById('profile-identity-secondary');
     const nameEl = document.getElementById('profile-secondary-display-name');
     const enabled = !!enabledEl?.checked;
+    const toggle = enabledEl?.closest?.('.profile-identity-toggle') || null;
+    const uploadBtn = card?.querySelector?.('.profile-avatar-upload-btn') || null;
+    const clearBtn = card?.querySelector?.('.profile-identity-actions button') || null;
+    card?.classList.toggle('is-secondary-enabled', enabled);
+    toggle?.classList.toggle('active', enabled);
     if (secondaryEl) secondaryEl.disabled = !enabled;
     if (!enabled && secondaryEl?.checked && mainEl) mainEl.checked = true;
     if (nameEl) nameEl.disabled = !enabled;
+    if (uploadBtn) {
+      uploadBtn.classList.toggle('disabled', !enabled);
+      uploadBtn.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+      uploadBtn.tabIndex = enabled ? 0 : -1;
+    }
+    if (clearBtn) clearBtn.disabled = !enabled;
     document.querySelectorAll('.profile-identity-option').forEach(label => {
       const input = label.querySelector('input[type="radio"]');
       label.classList.toggle('active', !!input?.checked);
