@@ -921,9 +921,10 @@ Object.assign(App, {
     const uid = String(row?.uid || row?.user?.uid || row?.user?._docId || '').trim();
     if (!uid || typeof this._deliverMessageWithLinePush !== 'function') return;
     const teamName = team?.name || '\u4ff1\u6a02\u90e8';
+    const targetRoleName = target?.roleName || target?.label || '\u76ee\u6a19\u5c64\u7d1a';
     this._deliverMessageWithLinePush(
       '\u4ff1\u6a02\u90e8\u5c64\u7d1a\u8abf\u6574',
-      `\u60a8\u5728\u300c${teamName}\u300d\u7684\u4ff1\u6a02\u90e8\u5c64\u7d1a\u5df2\u8abf\u6574\u70ba${target.roleName}\u3002`,
+      `\u60a8\u5728\u300c${teamName}\u300d\u7684\u4ff1\u6a02\u90e8\u5c64\u7d1a\u5df2\u8abf\u6574\u70ba${targetRoleName}\u3002`,
       'system', '\u7cfb\u7d71', uid, '\u7cfb\u7d71', null,
       { lineOptions: { source: target.lineSource } }
     );
@@ -951,10 +952,11 @@ Object.assign(App, {
       this.showToast(actionDirection === 'demote' ? '\u6b64\u6210\u54e1\u76ee\u524d\u7121\u6cd5\u964d\u7d1a' : '\u6b64\u6210\u54e1\u76ee\u524d\u7121\u6cd5\u6649\u5347');
       return;
     }
+    const targetRoleName = target.roleName || target.label || '\u76ee\u6a19\u5c64\u7d1a';
     const memberName = this._displayNameOrUidFallback?.(row.name || row.user.name || row.user.displayName, row.uid, '\u6210\u54e1')
       || row.name || row.user.name || row.user.displayName || '\u6210\u54e1';
     const confirmed = typeof this.appConfirm === 'function'
-      ? await this.appConfirm('\u662f\u5426\u5c07\u300c' + memberName + '\u300d' + target.actionText + '\u70ba\u300c' + target.roleName + '\u300d\u5c64\u7d1a\uff1f')
+      ? await this.appConfirm('\u662f\u5426\u5c07\u300c' + memberName + '\u300d' + target.actionText + '\u70ba\u300c' + targetRoleName + '\u300d\u5c64\u7d1a\uff1f')
       : true;
     if (!confirmed) return;
 
@@ -999,9 +1001,9 @@ Object.assign(App, {
         ApiService._writeOpLog?.(
           actionDirection === 'demote' ? 'team_member_level_demote' : 'team_member_level_promote',
           '\u4ff1\u6a02\u90e8\u5c64\u7d1a\u8b8a\u66f4',
-          target.actionText + '\u300c' + memberName + '\u300d\u70ba\u300c' + currentTeam.name + '\u300d' + target.roleName
+          target.actionText + '\u300c' + memberName + '\u300d\u70ba\u300c' + currentTeam.name + '\u300d' + targetRoleName
         );
-        this.showToast('\u5df2' + target.actionText + '\u70ba' + target.roleName);
+        this.showToast('\u5df2' + target.actionText + '\u70ba' + targetRoleName);
         if (typeof this._refreshTeamMembersCardFromCache !== 'function' || !this._refreshTeamMembersCardFromCache(teamId)) {
           await this._refreshTeamDetailMembers(teamId);
         }

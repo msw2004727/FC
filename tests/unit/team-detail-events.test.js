@@ -824,8 +824,10 @@ describe('team detail club activity section', () => {
     expect(courseHtml).toContain('td-member-note-edit-btn');
     expect(courseHtml).toContain('App.editTeamMemberNote');
     expect(activityEditHtml).toContain('App.removeTeamRosterRow');
-    expect(activityEditHtml).toContain('<th class="td-member-role-action-head">\u6649\u5347</th><th class="td-member-role-action-head">\u964d\u7d1a</th>');
+    expect(activityEditHtml).toContain('<th class="td-member-remove-head">\u5254\u9664</th><th class="td-member-role-action-head">\u6649\u5347</th><th class="td-member-role-action-head">\u964d\u7d1a</th>');
+    expect(activityEditHtml.indexOf('td-member-remove-cell')).toBeLessThan(activityEditHtml.indexOf('td-member-promote-cell'));
     expect(activityEditHtml.indexOf('td-member-promote-cell')).toBeLessThan(activityEditHtml.indexOf('td-member-name-cell'));
+    expect(activityEditHtml).not.toContain('td-member-name-cell"><button class="td-member-remove-btn');
     expect((activityEditHtml.match(/td-member-remove-btn/g) || []).length).toBe(7);
     expect(matchHtml).toContain('td-member-match-edit-btn');
     expect(matchHtml).not.toContain('is-editing');
@@ -1184,9 +1186,11 @@ describe('team detail club activity section', () => {
     };
 
     expect(app._getTeamMemberRoleActionTarget(team, memberRow, 'promote').key).toBe('coach');
+    expect(app._getTeamMemberRoleActionTarget(team, memberRow, 'promote').roleName).toBe('\u6559\u7df4');
     expect(app._getTeamMemberRoleActionTarget(team, memberRow, 'demote')).toBeNull();
     expect(app._getTeamMemberRoleActionTarget(team, coachRow, 'promote').key).toBe('leader');
     expect(app._getTeamMemberRoleActionTarget(team, coachRow, 'demote').key).toBe('member');
+    expect(app._getTeamMemberRoleActionTarget(team, coachRow, 'demote').roleName).toBe('\u968a\u54e1');
     expect(app._getTeamMemberRoleActionTarget(team, leaderRow, 'promote')).toBeNull();
     expect(app._getTeamMemberRoleActionTarget(team, leaderRow, 'demote').key).toBe('coach');
     expect(app._getTeamMemberRoleActionTarget(team, managerRow, 'promote')).toBeNull();
@@ -1265,6 +1269,42 @@ describe('team detail club activity section', () => {
     );
     expect(app._refreshTeamMembersCardFromCache).toHaveBeenCalledWith('teamA');
     expect(app._refreshTeamDetailMembers).not.toHaveBeenCalled();
+  });
+
+  test('role level confirmation never renders undefined when a target only has label', async () => {
+    const team = { id: 'teamA', name: 'Club A' };
+    const row = {
+      key: 'uid:member',
+      uid: 'member',
+      name: 'Amy',
+      user: { uid: 'member', _docId: 'user-doc', name: 'Amy', teamIds: ['teamA'] },
+      isMember: true,
+      roles: new Set(),
+    };
+    const app = {};
+    loadTeamDetailCore(app, null, {
+      ApiService: {
+        getTeam: () => team,
+      },
+      FirebaseService: {},
+    });
+    Object.assign(app, {
+      _canEditTeamByRoleOrCaptain: () => true,
+      _findTeamDetailRosterRow: () => row,
+      _getTeamMemberRoleActionTarget: () => ({
+        key: 'coach',
+        label: '\u6559\u7df4',
+        actionText: '\u6649\u5347',
+        lineSource: 'team_role_assignment:coach',
+      }),
+      appConfirm: jest.fn().mockResolvedValue(false),
+      showToast: jest.fn(),
+    });
+
+    await app.changeTeamMemberRoleLevel(null, 'teamA', 'uid:member', 'promote');
+
+    expect(app.appConfirm).toHaveBeenCalledWith(expect.stringContaining('\u6559\u7df4'));
+    expect(app.appConfirm).toHaveBeenCalledWith(expect.not.stringContaining('undefined'));
   });
 
   test('role level action demotes leader to coach and updates edit-club fields', async () => {

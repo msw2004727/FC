@@ -1171,6 +1171,13 @@
   overflow: hidden;
   text-align: left;
 }
+.td-member-remove-head,
+.td-member-remove-cell {
+  width: 48px;
+  min-width: 48px;
+  max-width: 48px;
+  text-align: center !important;
+}
 .td-member-role-action-head,
 .td-member-role-action-cell {
   width: 44px;
@@ -1178,6 +1185,7 @@
   max-width: 44px;
   text-align: center !important;
 }
+.td-member-remove-cell,
 .td-member-role-action-cell {
   padding-left: .06rem;
   padding-right: .06rem;
@@ -1403,13 +1411,15 @@
 }
 .td-member-table.is-editing th:first-child,
 .td-member-table.is-editing td:first-child {
-  width: 44px;
-  min-width: 44px;
-  max-width: 44px;
+  width: 48px;
+  min-width: 48px;
+  max-width: 48px;
   text-align: center;
 }
 .td-member-table.is-editing th:nth-child(2),
-.td-member-table.is-editing td:nth-child(2) {
+.td-member-table.is-editing td:nth-child(2),
+.td-member-table.is-editing th:nth-child(3),
+.td-member-table.is-editing td:nth-child(3) {
   width: 44px;
   min-width: 44px;
   max-width: 44px;
@@ -1466,6 +1476,13 @@
   width: 44px;
   min-width: 44px;
   max-width: 44px;
+  text-align: center;
+}
+.td-member-table.is-editing th.td-member-remove-head,
+.td-member-table.is-editing td.td-member-remove-cell {
+  width: 48px;
+  min-width: 48px;
+  max-width: 48px;
   text-align: center;
 }
 .td-member-table.is-editing th.td-member-name-head,

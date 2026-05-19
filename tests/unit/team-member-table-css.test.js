@@ -39,6 +39,7 @@ describe('team member table CSS contract', () => {
   test('member role action columns keep stable arrow controls before names', () => {
     const css = readCss();
 
+    expect(css).toMatch(/\.td-member-remove-head,\s*\.td-member-remove-cell\s*\{[\s\S]*width: 48px[\s\S]*text-align: center/);
     expect(css).toMatch(/\.td-member-role-action-head,\s*\.td-member-role-action-cell\s*\{[\s\S]*width: 44px[\s\S]*text-align: center/);
     expect(css).toMatch(/\.td-member-role-action-btn,\s*\.td-member-promote-btn\s*\{[\s\S]*display: inline-flex[\s\S]*width: 28px[\s\S]*height: 28px/);
     expect(css).toMatch(/\.td-member-role-action-btn svg,\s*\.td-member-promote-btn svg\s*\{[\s\S]*width: 15px[\s\S]*stroke: currentColor/);

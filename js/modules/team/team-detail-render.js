@@ -1388,15 +1388,15 @@ Object.assign(App, {
       promote: {
         actionText: '\u6649\u5347',
         targetByLevel: {
-          0: { key: 'coach', label: '\u6559\u7df4', level: 1 },
-          1: { key: 'leader', label: '\u9818\u968a', level: 2 },
+          0: { key: 'coach', label: '\u6559\u7df4', roleName: '\u6559\u7df4', level: 1 },
+          1: { key: 'leader', label: '\u9818\u968a', roleName: '\u9818\u968a', level: 2 },
         },
       },
       demote: {
         actionText: '\u964d\u7d1a',
         targetByLevel: {
-          2: { key: 'coach', label: '\u6559\u7df4', level: 1 },
-          1: { key: 'member', label: '\u968a\u54e1', level: 0 },
+          2: { key: 'coach', label: '\u6559\u7df4', roleName: '\u6559\u7df4', level: 1 },
+          1: { key: 'member', label: '\u968a\u54e1', roleName: '\u968a\u54e1', level: 0 },
         },
       },
     };
@@ -1427,6 +1427,10 @@ Object.assign(App, {
   _buildTeamMemberRoleActionCell(t, row, direction) {
     const cellClass = direction === 'demote' ? 'td-member-demote-cell' : 'td-member-promote-cell';
     return '<td class="td-member-role-action-cell ' + cellClass + '">' + this._buildTeamMemberRoleActionButton(t, row, direction) + '</td>';
+  },
+
+  _buildTeamMemberRemoveActionCell(removeBtn) {
+    return '<td class="td-member-remove-cell">' + (removeBtn || '<span class="td-member-role-empty">-</span>') + '</td>';
   },
 
   _buildTeamMemberQuickPromoteControls(t, row) {
@@ -1487,6 +1491,7 @@ Object.assign(App, {
         ]);
     if (showRoleActionColumns) {
       columns.unshift(
+        { label: '\u5254\u9664', className: 'td-member-remove-head' },
         { label: '\u6649\u5347', className: 'td-member-role-action-head' },
         { label: '\u964d\u7d1a', className: 'td-member-role-action-head' }
       );
@@ -1529,15 +1534,15 @@ Object.assign(App, {
       const removeBtn = (canManageMembers && memberEditMode && removalKind)
         ? '<button class="td-member-remove-btn" title="\u5254\u9664\u6210\u54e1" onclick="event.stopPropagation();App.removeTeamRosterRow(this, ' + escapeHTML(JSON.stringify(t.id)) + ', ' + escapeHTML(JSON.stringify(row.key)) + ')">\u5254\u9664</button>'
         : '';
-      const roleActionCells = showRoleActionColumns
-        ? this._buildTeamMemberRoleActionCell(t, row, 'promote') + this._buildTeamMemberRoleActionCell(t, row, 'demote')
+      const managementActionCells = showRoleActionColumns
+        ? this._buildTeamMemberRemoveActionCell(removeBtn) + this._buildTeamMemberRoleActionCell(t, row, 'promote') + this._buildTeamMemberRoleActionCell(t, row, 'demote')
         : '';
       const actions = showEditColumn
         ? '<td class="td-member-action-cell">' + (editActionBtn || '<span class="td-member-role-empty">-</span>') + '</td>'
         : '';
       return '<tr>'
-        + roleActionCells
-        + '<td class="td-member-name-cell">' + (removeBtn || '') + '<span class="' + nameClass + '"' + profileClick + '>' + safeName + '</span></td>'
+        + managementActionCells
+        + '<td class="td-member-name-cell"><span class="' + nameClass + '"' + profileClick + '>' + safeName + '</span></td>'
         + '<td class="td-member-tag-cell">' + this._buildTeamDetailMemberTagPill(row) + '</td>'
         + dataCells
         + actions
