@@ -12,6 +12,8 @@ Object.assign(App, {
   _eventCommentHardStopMs: 45000,
   _eventCommentCacheTtlMs: 120000,
   _eventCommentCacheMaxEntries: 20,
+  _eventCommentRepliesPerComment: 20,
+  _eventCommentReplyFetchBatchSize: 8,
   _eventCommentCache: new Map(),
   _eventCommentActiveLoads: new Map(),
   _eventCommentCacheInvalidatedAt: new Map(),
@@ -344,7 +346,36 @@ Object.assign(App, {
     const comments = Array.from(byId.values())
       .sort((a, b) => this._eventCommentTimeMs(b.createdAt) - this._eventCommentTimeMs(a.createdAt))
       .slice(0, 80);
+    await this._loadEventCommentRepliesForList(eventDocId, comments);
     return { eventDocId, comments };
+  },
+
+  async _loadEventCommentRepliesForList(eventDocId, comments) {
+    if (!eventDocId || !Array.isArray(comments) || !comments.length) return comments || [];
+    const commentsRef = db.collection('events').doc(eventDocId).collection('comments');
+    const replyLimit = Math.max(1, Number(this._eventCommentRepliesPerComment) || 20);
+    const batchSize = Math.max(1, Number(this._eventCommentReplyFetchBatchSize) || 8);
+    const targets = comments.filter(comment => comment?.id && !comment.deleted);
+    comments.forEach(comment => {
+      if (!comment) return;
+      comment.replies = Array.isArray(comment.replies) ? comment.replies : [];
+      comment.repliesLoaded = true;
+    });
+
+    for (let i = 0; i < targets.length; i += batchSize) {
+      const batch = targets.slice(i, i + batchSize);
+      await Promise.all(batch.map(async comment => {
+        try {
+          const snap = await commentsRef.doc(comment.id).collection('replies').limit(replyLimit).get();
+          comment.replies = snap.docs.map(d => this._mapEventCommentReplyDoc(d))
+            .sort((a, b) => this._eventCommentTimeMs(a.createdAt) - this._eventCommentTimeMs(b.createdAt));
+          comment.replyCount = Math.max(Math.max(0, Number(comment.replyCount) || 0), comment.replies.length);
+        } catch (err) {
+          console.warn('[event-comments] replies auto load failed', { commentId: comment.id, err });
+        }
+      }));
+    }
+    return comments;
   },
 
   async _loadEventComments(eventRecord, options = {}) {
@@ -678,10 +709,6 @@ Object.assign(App, {
     const replyBtn = (!ctx.closed && !comment.replyLocked && !comment.deleted)
       ? `<button type="button" class="event-comment-action" onclick="App._toggleEventCommentReplyBox('${safeCommentId}')">回覆</button>`
       : '';
-    const replyCount = Math.max(0, Number(comment.replyCount) || 0);
-    const loadRepliesBtn = !comment.deleted && !comment.repliesLoaded
-      ? `<button type="button" class="event-comment-action event-comment-load-replies" onclick="App._loadEventCommentReplies('${safeEventId}','${safeCommentId}')">${replyCount ? `查看 ${replyCount} 則回覆` : '查看回覆'}</button>`
-      : '';
     const replyForm = (!ctx.closed && !comment.replyLocked && !comment.deleted)
       ? `<form class="event-comment-reply-form" id="event-comment-reply-${safeCommentId}" onsubmit="App._submitEventCommentReply('${safeEventId}','${safeCommentId}');return false;" hidden><input maxlength="100" placeholder="回覆留言，最多 100 字"><button type="submit">送出</button></form>`
       : '';
@@ -703,7 +730,6 @@ Object.assign(App, {
         <button type="button" class="event-comment-action event-comment-like${comment.likedByMe ? ' active' : ''}" onclick="App._toggleEventCommentLike('${safeEventId}','${safeCommentId}')" aria-pressed="${comment.likedByMe ? 'true' : 'false'}">${this._eventCommentLikeIcon()}<span>+${comment.likeCount || 0}</span></button>
         ${this._renderEventCommentLikeAvatars(comment)}
         ${replyBtn}
-        ${loadRepliesBtn}
       </div>
       ${replyForm}
       ${this._renderEventCommentReplies(eventRecord, comment, ctx)}
@@ -719,38 +745,6 @@ Object.assign(App, {
       const manage = ctx.canManage && !r.deleted ? `<button type="button" class="event-comment-mini-btn danger" onclick="App._deleteEventCommentReply('${eventId}','${commentId}','${escapeHTML(r.id)}')">刪除</button>` : '';
       return `<div class="event-comment-reply">${this._renderEventCommentAvatar(r.authorName, r.authorPhoto)}<div class="event-comment-reply-main"><div class="event-comment-reply-meta"><span>${escapeHTML(r.authorName)}</span><small>${escapeHTML(this._eventCommentTimeLabel(r.createdAt))}</small>${manage}</div><div class="event-comment-reply-body">${del}</div></div></div>`;
     }).join('')}</div>`;
-  },
-
-  async _loadEventCommentReplies(eventId, commentId) {
-    const card = Array.from(document.querySelectorAll('.event-comment-card'))
-      .find(el => el.getAttribute('data-comment-id') === commentId);
-    if (!card || card.dataset.repliesLoaded === 'true') return;
-    const btn = card.querySelector('.event-comment-load-replies');
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = '載入回覆中...';
-    }
-    try {
-      const { commentRef, eventRecord } = await this._getEventCommentRefs(eventId, commentId);
-      const snap = await commentRef.collection('replies').limit(20).get();
-      const replies = snap.docs.map(d => this._mapEventCommentReplyDoc(d))
-        .sort((a, b) => this._eventCommentTimeMs(a.createdAt) - this._eventCommentTimeMs(b.createdAt));
-      const comment = { id: commentId, replies };
-      const html = this._renderEventCommentReplies(eventRecord || ApiService.getEvent?.(eventId) || { id: eventId }, comment, {
-        canManage: this._canManageEventComments(eventRecord || ApiService.getEvent?.(eventId)),
-      });
-      card.querySelector('.event-comment-replies')?.remove();
-      if (html) card.insertAdjacentHTML('beforeend', html);
-      card.dataset.repliesLoaded = 'true';
-      btn?.remove();
-    } catch (err) {
-      console.error('[event-comments] load replies failed', err);
-      if (btn) {
-        btn.disabled = false;
-        btn.textContent = '查看回覆';
-      }
-      this.showToast?.('回覆載入失敗，請稍後再試');
-    }
   },
 
   _eventCommentLikeIcon() {

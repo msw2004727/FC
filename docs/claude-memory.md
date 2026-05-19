@@ -3027,3 +3027,9 @@
 - **Cause**: The profile UI treated enable/disable and detail editing as the same save workflow, so the copy, controls, and affordance states did not match the requested direct-toggle behavior.
 - **Fix**: Renamed the card to "第二身份" with help copy, made the switch label "啟用", moved the edit/save button into the summary row, made the switch commit immediately, blocked edit/avatar actions while active with a toast, and applied a grayscale/dim avatar filter only when the second identity is off.
 - **Validation**: Added profile source-contract coverage for immediate toggle, active-state copy, edit blocking, and avatar filter styling.
+
+### 2026-05-19 — Activity Comment Replies Default Expanded [ux]
+- **問題**：活動詳細頁留言板的回覆預設被隱藏，使用者必須點「查看回覆」才看得到。
+- **原因**：回覆原本採手動 lazy load，而且 `replyCount` 沒有在新增回覆時同步更新，不能可靠判斷哪則留言已有回覆。
+- **修復**：留言板載入可見留言時自動逐批抓取各留言的 replies，每則最多 20 則，卡片直接渲染回覆清單並移除「查看回覆」按鈕；同步更新 tunables 與單元測試契約。
+- **教訓**：若摘要計數不是可靠資料來源，顯示邏輯不能依賴它來決定是否載入子集合；預設展開需求應以實際 replies 查詢結果為準。

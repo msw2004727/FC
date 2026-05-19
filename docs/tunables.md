@@ -147,7 +147,7 @@
 | Event comments soft timeout | `9000` ms | `js/modules/event/event-comments.js` `_eventCommentLoadTimeoutMs` | 留言板最後載入仍不可無限 spinner；超過 9 秒改顯示「留言載入較久」與重新載入按鈕，原查詢若稍後成功仍可補上內容。 |
 | Event comments retry delays | `[3000, 15000]` ms | `js/modules/event/event-comments.js` `_eventCommentRetryDelaysMs` | 留言板局部背景重試，不重整整個活動頁；舊請求用 `_eventCommentLoadSeq` 防止覆蓋新活動頁。 |
 | Event comments hard stop | `45000` ms | `js/modules/event/event-comments.js` `_eventCommentHardStopMs` | 最多約 45 秒後停止自動重試，顯示「留言暫時無法載入」與手動重新載入，避免十分鐘仍在載入中。 |
-| Event comment replies fetch | `20` replies / comment，點擊後 lazy load | `js/modules/event/event-comments.js` `_loadEventCommentReplies` | 回覆不再進入留言主查詢；只有使用者點「查看回覆」才查 replies，避免拖慢活動詳情。 |
+| Event comment replies fetch | `20` replies / comment，`8` comments / batch | `js/modules/event/event-comments.js` `_loadEventCommentRepliesForList` | 留言板載入時自動逐批查每則可見留言的 replies，回覆預設展開且不再顯示「查看回覆」按鈕；留言板仍固定在活動主內容後載入。 |
 | Event comment likes hydration | recent summary 優先；legacy 最多 `32` likes / comment 背景補齊 | `js/modules/event/event-comments.js` `_hydrateEventCommentLikeState` | 主列表先用 comment 上的 `likeCount/recentLikers` 顯示；舊資料才背景讀 likes 子集合，按讚頭像不阻塞留言主列表。 |
 | Event comment like avatar stack | `32` likers rendered per comment | `js/modules/event/event-comments.js` `_renderEventCommentLikeAvatars` | UI render cap only. Like count comes from summary or background hydration. Newest likers render first; older avatars are clipped first when horizontal space runs out. |
 | Event comment avatar overlap threshold | `> 6` 人改用 `8px` step；否則 `26px` step | `js/modules/event/event-comments.js` `_renderEventCommentLikeAvatars` / `css/activity.css` | 對應目前「新頭像蓋舊頭像約 2/3」的視覺規則；CSS 容器 `overflow:hidden` 讓寬度不足時自然隱藏最舊頭像。 |

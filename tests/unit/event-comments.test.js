@@ -47,7 +47,11 @@ describe('activity detail comments source contracts', () => {
     expect(comments).toContain('comment.likers');
     expect(comments).toContain('data-uid="${safeUid}"');
     expect(comments).toContain('_hydrateEventCommentLikeState');
-    expect(comments).toContain('_loadEventCommentReplies');
+    expect(comments).toContain('_loadEventCommentRepliesForList');
+    expect(comments).toContain('_eventCommentRepliesPerComment: 20');
+    expect(comments).toContain('_eventCommentReplyFetchBatchSize: 8');
+    expect(comments).not.toContain('event-comment-load-replies');
+    expect(comments).not.toContain('查看回覆');
     expect(comments).toContain('recentLikers');
     expect(comments).toContain('_eventCommentLoadTimeoutMs: 9000');
     expect(comments).toContain('_eventCommentRetryDelaysMs: [3000, 15000]');
