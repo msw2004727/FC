@@ -302,6 +302,7 @@ const App = {
   _bootHistoryTargetPageId: null,
   _bootHistoryShellActivated: false,
   _bootActivityFilterSearch: '',
+  _bootHistoryActivityShellReadyPromise: null,
   // 2026-04-20: 用戶「意圖頁面」— showPage 入口立刻更新（不等 _activatePage async 完成）
   // 用於 flush pending boot route 時判斷用戶是否已主動導航到其他頁面
   _userIntendedPage: null,
@@ -2462,6 +2463,138 @@ const App = {
     }
   },
 
+  _readActivityBootShellFilters(searchString) {
+    const fallback = {
+      hasExplicit: false,
+      region: '\u5168\u90e8',
+      sport: 'all',
+      tab: 'normal',
+      type: '',
+    };
+    try {
+      const search = String(searchString || this._bootActivityFilterSearch || window.location.search || '');
+      const params = new URLSearchParams(search);
+      const hasExplicit = ['region', 'sport', 'tab', 'type'].some(key => params.has(key));
+      const regionMap = {
+        all: '\u5168\u90e8',
+        north: '\u5317\u90e8',
+        central: '\u4e2d\u90e8',
+        south: '\u5357\u90e8',
+        'east-islands': '\u6771\u90e8&\u5916\u5cf6',
+      };
+      const normalizeRegion = (value) => {
+        const raw = String(value || '').trim().replace(/&amp;/g, '&');
+        if (!raw) return regionMap.all;
+        const lower = raw.toLowerCase();
+        if (regionMap[lower]) return regionMap[lower];
+        return Object.values(regionMap).includes(raw) ? raw : regionMap.all;
+      };
+      const normalizeSport = (value) => {
+        const raw = String(value || '').trim();
+        if (!raw || raw === 'all') return 'all';
+        if (typeof getSportKeySafe === 'function') return getSportKeySafe(raw) || 'all';
+        const options = (typeof window !== 'undefined' && Array.isArray(window.EVENT_SPORT_OPTIONS))
+          ? window.EVENT_SPORT_OPTIONS
+          : (typeof EVENT_SPORT_OPTIONS !== 'undefined' && Array.isArray(EVENT_SPORT_OPTIONS) ? EVENT_SPORT_OPTIONS : []);
+        return options.some(item => item && item.key === raw) ? raw : 'all';
+      };
+      const normalizeTab = (value) => {
+        const raw = String(value || '').trim();
+        return ['normal', 'calendar', 'female'].includes(raw) ? raw : 'normal';
+      };
+      const normalizeType = (value) => {
+        const raw = String(value || '').trim();
+        return ['play', 'camp', 'watch', 'external'].includes(raw) ? raw : '';
+      };
+      return {
+        hasExplicit,
+        region: normalizeRegion(params.get('region')),
+        sport: normalizeSport(params.get('sport')),
+        tab: normalizeTab(params.get('tab')),
+        type: normalizeType(params.get('type')),
+      };
+    } catch (_) {
+      return fallback;
+    }
+  },
+
+  _applyActivityBootShellFilters(filters = this._readActivityBootShellFilters?.()) {
+    const target = document.getElementById('page-activities');
+    if (!target || !filters || !filters.hasExplicit) return false;
+
+    this._activityActiveTab = filters.tab;
+    this._activeRegionTab = filters.region;
+    this._activeSport = filters.sport;
+
+    target.querySelectorAll('#activity-tabs .tab').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.atab === filters.tab);
+    });
+
+    const listEl = target.querySelector('#activity-list');
+    const calendarEl = target.querySelector('#activity-calendar');
+    if (listEl) listEl.hidden = filters.tab === 'calendar';
+    if (calendarEl) calendarEl.hidden = filters.tab !== 'calendar';
+
+    const typeFilter = target.querySelector('#activity-filter-type');
+    const keywordFilter = target.querySelector('#activity-filter-keyword');
+    if (typeFilter) typeFilter.value = filters.type;
+    if (keywordFilter) keywordFilter.value = '';
+
+    target.querySelectorAll('#activity-region-tabs .region-tab').forEach(btn => {
+      const btnRegion = String(btn.getAttribute('data-region') || '').replace(/&amp;/g, '&');
+      btn.classList.toggle('active', btnRegion === filters.region);
+    });
+
+    document.querySelectorAll('.sport-picker-item[data-sport]').forEach(item => {
+      const active = item.dataset.sport === filters.sport;
+      item.classList.toggle('active', active);
+      item.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    const iconEl = document.querySelector('#sport-picker-wrapper .sport-picker-icon');
+    if (iconEl && filters.sport === 'all') {
+      iconEl.innerHTML = '<span class="sp-all-label" aria-hidden="true">All</span>';
+    } else if (iconEl && typeof getSportIconSvg === 'function') {
+      iconEl.innerHTML = getSportIconSvg(filters.sport);
+    }
+    return true;
+  },
+
+  _finishActivityBootHistoryShellFirstPaint() {
+    try {
+      if (this._bootHistoryTargetPageId !== 'page-activities') return false;
+      if (!window._bootHistoryNavPending && window._bootHistoryNavCompleted) return false;
+      if (typeof _dismissBootOverlayAfterHistoryNav !== 'function') return false;
+      _dismissBootOverlayAfterHistoryNav('activity-shell-ready');
+      return true;
+    } catch (_) {
+      return false;
+    }
+  },
+
+  _prepareActivityBootHistoryShell() {
+    if (this._bootHistoryTargetPageId !== 'page-activities') return false;
+    if (!document.getElementById('page-activities')) return false;
+
+    this._applyActivityBootShellFilters?.();
+    if (this._bootHistoryActivityShellReadyPromise) return true;
+    if (typeof ScriptLoader === 'undefined' || typeof ScriptLoader.ensureForPage !== 'function') return true;
+
+    this._bootHistoryActivityShellReadyPromise = Promise.resolve()
+      .then(() => ScriptLoader.ensureForPage('page-activities'))
+      .then(() => {
+        if (this.currentPage !== 'page-activities' || this._bootHistoryTargetPageId !== 'page-activities') return;
+        try { this._applyActivityUrlFilters?.({ replace: true }); } catch (_) {}
+        this._finishActivityBootHistoryShellFirstPaint?.();
+      })
+      .catch(err => {
+        console.warn('[Boot] activity history shell preparation failed:', err && err.message || err);
+      })
+      .finally(() => {
+        this._bootHistoryActivityShellReadyPromise = null;
+      });
+    return true;
+  },
+
   _getBootHistoryRoute() {
     try {
       const flags = this._getHistoryRouteFlags();
@@ -2616,6 +2749,9 @@ const App = {
       this._userIntendedPage = pageId;
       this._bootHistoryShellActivated = true;
       this._syncBottomTabForPage(pageId);
+      if (pageId === 'page-activities') {
+        this._prepareActivityBootHistoryShell?.();
+      }
       return true;
     } catch (err) {
       console.warn('[Boot] activate history shell failed:', err && err.message || err);

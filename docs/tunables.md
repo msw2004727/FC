@@ -255,6 +255,7 @@
 | 順序 | 內容 | 檔案位置 | 規則 |
 |------|------|---------|------|
 | 1 | 活動列表 shell | `page-loader.js` / `event-list-timeline.js` | `activity` page fragment 屬 boot pages；列表先用可展示 cache 畫面，沒有可展示活動且 Firestore 尚未載入完成時才顯示 `activity-list-loading-bar`。 |
+| 1a | Direct `/activities?...` history boot shell | `app.js` `_prepareActivityBootHistoryShell` | Clean activity URLs mirror `region` / `sport` / `tab` / `type` onto the static activity fragment, ensure activity scripts are ready, then dismiss the boot overlay before Firestore/live data finishes. Full cards still render through the normal live/cache render path. |
 | 2 | 活動 collection | `firebase-service.js` `_loadEventsStatic` | active events 首批 `200`；terminal preview 首批 `50`，管理頁 history 模式才每批 `10` 延伸。 |
 | 3 | 卡片詳情預抓 | `navigation.js` / `firebase-service.js` | 可見卡片最多預抓 `8` 筆 detail 文件；只改善點擊速度，不取代 Firestore refresh。 |
 | 4 | 詳細頁主視覺與操作按鈕 | `event-detail.js` `showEventDetail` | 先呈現封面、標題、主操作按鈕與基本欄位；按鈕以下先放 `_renderEventDetailBelowFoldLoadingHtml()`，避免使用者誤判為沒有內容。 |
@@ -438,6 +439,7 @@ showPage / showDetail
 
 ## 變更歷史
 
+- **2026-05-20**: activity clean URL boot mirrors shared filters into the activity shell and dismisses the boot overlay after activity scripts are ready, while Firestore/live data continues through the existing render path.
 - **2026-04-25**：建立檔案。初始登錄 Boot Overlay / Route Loading / Visibility / LIFF / Instant Save / SW / Limit / Threshold / Load Order / Sequence Effects / Versioning 共 11 大類。
 - **2026-04-28**：boot overlay `MIN_VISIBLE_MS` 2500 → 0；hash reload 改由 early boot route + PageLoader priority 先定位目標頁，不再用固定遮罩等待掩蓋首頁跳轉。
 - **2026-04-28**：俱樂部 `page-teams` 改為 shell-first navigation，並將原 `team` script group 拆為 `teamList` / `teamDetail` / `teamForm`，列表第一屏只載列表必要模組。
