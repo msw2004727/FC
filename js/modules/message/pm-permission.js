@@ -65,8 +65,12 @@ Object.assign(App, {
   },
 
   _pmCallable(name) {
-    return ensureFirebaseFunctionsSdk('asia-east1')
-      .then(functionsApi => functionsApi.httpsCallable(name));
+    return async (payload = {}) => {
+      const functionsApi = await ensureFirebaseFunctionsSdk('asia-east1');
+      const fn = functionsApi?.httpsCallable?.(name);
+      if (typeof fn !== 'function') throw new Error(`${name} callable missing`);
+      return fn(payload);
+    };
   },
 
   _pmCurrentUid() {

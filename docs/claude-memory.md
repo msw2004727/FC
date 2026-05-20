@@ -5,6 +5,11 @@
 - **Fix**: Relaxed region tab padding slightly, restored centered alignment by default, and kept a 360px compact breakpoint that still fits the full region row plus nearby map entry.
 - **Tests**: Verified with a 320px Playwright layout measurement and cache version bump before deploy.
 
+### 2026-05-20 Private Message Send Callable Wrapper [bugfix]
+- **Issue**: Private message send showed the generic send-failed toast before reaching the backend callable.
+- **Cause**: `_pmCallable()` returned the Promise from `ensureFirebaseFunctionsSdk(...)`, but send/read/edit/recall/audit callers treated that return value as the callable function itself.
+- **Fix**: `_pmCallable()` now returns an async wrapper function. The wrapper loads the Functions SDK, resolves `httpsCallable(name)`, validates it is callable, and forwards the payload.
+- **Validation**: Added unit coverage that calls `_pmCallable('sendPrivateMessage')` as a function and verifies the asia-east1 SDK load plus payload forwarding. Ran `node --check` on PM modules and `npm run test:unit -- --runTestsByPath tests\unit\private-message.test.js`.
 ### 2026-05-19 Activity region tabs compact restore [ux]
 - **Problem**: Moving the nearby-activity map entry into the activity page header made the header too crowded on 320px screens.
 - **Fix**: Restored the map entry to the region tab row, removed header-only nearby button styling, and tightened region tab padding/font sizes with a 360px compact breakpoint.

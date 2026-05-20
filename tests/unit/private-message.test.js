@@ -412,6 +412,29 @@ describe('private message feature wiring', () => {
     expect(source).toContain('return fromLevel < toLevel');
   });
 
+  test('PM callable helper returns an async callable wrapper', async () => {
+    const App = {};
+    const callable = jest.fn(async payload => ({ data: { ok: true, payload } }));
+    const httpsCallable = jest.fn(() => callable);
+    const ensureFirebaseFunctionsSdk = jest.fn(async region => ({ httpsCallable }));
+    vm.runInNewContext(readProjectFile('js/modules/message/pm-permission.js'), {
+      App,
+      ensureFirebaseFunctionsSdk,
+      auth: { currentUser: null },
+      ApiService: { getCurrentUser: () => null },
+      console,
+    });
+
+    const fn = App._pmCallable('sendPrivateMessage');
+    expect(typeof fn).toBe('function');
+    const resp = await fn({ toUid: 'U22222222222222222222222222222222', body: 'hi' });
+
+    expect(ensureFirebaseFunctionsSdk).toHaveBeenCalledWith('asia-east1');
+    expect(httpsCallable).toHaveBeenCalledWith('sendPrivateMessage');
+    expect(callable).toHaveBeenCalledWith({ toUid: 'U22222222222222222222222222222222', body: 'hi' });
+    expect(resp.data.ok).toBe(true);
+  });
+
   test('backend functions enforce super admin audit and 180-day retention', () => {
     const functions = readProjectFile('functions/index.js');
 
