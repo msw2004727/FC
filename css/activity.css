@@ -2346,7 +2346,7 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
 /* ─── Region Tabs ─── */
 .region-tabs{display:flex;justify-content:flex-start;gap:0;padding:0 .35rem;margin:0;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .region-tabs::-webkit-scrollbar{display:none}
-.region-tab{flex-shrink:0;padding:.38rem .52rem;font-size:.78rem;font-weight:500;color:var(--text-secondary);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;transition:color .2s,border-color .2s;display:inline-flex;align-items:center;gap:.16rem}
+.region-tab{flex-shrink:0;padding:.38rem .52rem;font-size:.82rem;font-weight:500;color:var(--text-secondary);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;transition:color .2s,border-color .2s;display:inline-flex;align-items:center;gap:.16rem}
 .region-tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:700}
 /* 2026-04-27：反灰按鈕（如「附近活動」尚未開放）— 加按鈕框 + 底色與 tab 視覺區隔 */
 .region-tab-disabled{
@@ -2358,7 +2358,7 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
   border:1px solid var(--border) !important;       /* 覆蓋 .region-tab 的 border:none */
   border-bottom:1px solid var(--border) !important;/* 覆蓋 .region-tab 的 border-bottom:2px transparent */
   border-radius:999px;
-  font-size:.78rem;
+  font-size:.82rem;
 }
 .region-tab-disabled:hover{color:var(--text-secondary);background:var(--bg-elevated)}
 [data-theme="dark"] .region-tab-disabled{background:rgba(255,255,255,.04)}
@@ -2371,7 +2371,7 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
   color:#0f766e;
   background:rgba(20,184,166,.08);
   font-weight:700;
-  font-size:.78rem;
+  font-size:.82rem;
 }
 .region-tab-map-enabled:hover{background:rgba(20,184,166,.14);color:#0f766e}
 [data-theme="dark"] .region-tab-map-enabled{color:#5eead4;background:rgba(20,184,166,.14);border-color:rgba(94,234,212,.28)!important}
@@ -2381,9 +2381,9 @@ tr.att-row-failed { animation: att-flash-err 1.2s ease-out; }
 }
 @media (max-width: 360px){
   .region-tabs{padding:0 .22rem}
-  .region-tab{padding:.32rem .38rem;font-size:.78rem;gap:.12rem}
+  .region-tab{padding:.32rem .38rem;font-size:.82rem;gap:.12rem}
   .region-tab-disabled,
-  .region-tab-map-enabled{margin-left:.12rem;padding:.26rem .34rem;font-size:.78rem}
+  .region-tab-map-enabled{margin-left:.12rem;padding:.26rem .34rem;font-size:.82rem}
   .region-tab-icon{width:12px;height:12px}
 }
 @keyframes region-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}40%{transform:translateX(4px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
