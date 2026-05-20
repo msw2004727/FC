@@ -10,6 +10,7 @@ Object.assign(App, {
   _eventDetailRequestSeq: 0,
   _regsLoadingRetryTimer: null,
   _regsLoadingRetryCount: 0,
+  _teamReservationStaffTeamsHydrateState: null,
 
   _getEventDetailNodes() {
     const nodes = {
@@ -391,12 +392,24 @@ Object.assign(App, {
       if (_shellShownEarly && (requestSeq !== this._eventDetailRequestSeq || this.currentPage !== 'page-activity-detail')) {
         return { ok: false, reason: 'stale' };
       }
+      const _shouldHoldSignupForTeamStaffHydrate = !isGuestView
+        && typeof this._shouldHoldSignupActionsForTeamReservationStaffHydrate === 'function'
+        && this._shouldHoldSignupActionsForTeamReservationStaffHydrate(e);
       const _staffTeamsHydratePromise = (!isGuestView && typeof this._ensureTeamReservationStaffTeamsLoaded === 'function')
         ? this._ensureTeamReservationStaffTeamsLoaded().catch(err => {
             console.warn('[EventDetail] team reservation staff teams hydrate failed:', err);
             return null;
           })
         : null;
+      if (_shouldHoldSignupForTeamStaffHydrate && _staffTeamsHydratePromise) {
+        this._teamReservationStaffTeamsHydrateState = {
+          eventId: id,
+          requestSeq,
+          pending: true,
+        };
+      } else if (this._teamReservationStaffTeamsHydrateState?.eventId === id) {
+        this._teamReservationStaffTeamsHydrateState = null;
+      }
 
       // 驗證 DOM 節點存在（頁面已載入 DOM 但尚未切換顯示）
       const nodes = this._getEventDetailNodes();
@@ -453,7 +466,11 @@ Object.assign(App, {
       ? this._getEventParticipantStats(e)
       : null;
     const isMainFull = capacityStats ? capacityStats.isCapacityFull : confirmedCount >= e.max;
-    const hasTeamReservationSignup = !isGuestView
+    const teamReservationIdentityLoading = !isGuestView
+      && typeof this._isTeamReservationStaffTeamsHydratingForEvent === 'function'
+      && this._isTeamReservationStaffTeamsHydratingForEvent(id);
+    const hasTeamReservationSignup = !teamReservationIdentityLoading
+      && !isGuestView
       && typeof this._hasAvailableTeamReservationSignup === 'function'
       && this._hasAvailableTeamReservationSignup(e);
     // Fix A+1：首次 snapshot 到達前視為「載入中」；9 秒（3 次重試）後強制解除
@@ -484,7 +501,8 @@ Object.assign(App, {
       clearTimeout(this._regsLoadingRetryTimer);
       this._regsLoadingRetryCount = 0;
     }
-    var isSignedUp = isGuestView ? false : (regsLoading ? false : this._isUserSignedUp(e));
+    const signupActionsLoading = regsLoading || teamReservationIdentityLoading;
+    var isSignedUp = isGuestView ? false : (signupActionsLoading ? false : this._isUserSignedUp(e));
     var isOnWaitlist = isSignedUp && this._isUserOnWaitlist(e);
 
     // Phase 3 安全網：快取說「未報名」但可能是監聽器尚未同步。
@@ -544,8 +562,8 @@ Object.assign(App, {
     let signupBtn = '';
     if (isGuestView) {
       signupBtn = this._buildGuestEventSignupButton(e, isUpcoming, isEnded, isMainFull);
-    } else if (regsLoading) {
-      signupBtn = `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>載入中…</button>`;
+    } else if (signupActionsLoading) {
+      signupBtn = this._buildEventSignupLoadingButton?.() || `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>載入中…</button>`;
     } else if (isEnded) {
       signupBtn = `<button style="background:#333;color:#999;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed" disabled>已結束</button>`;
     } else if (isOnWaitlist) {
@@ -572,6 +590,7 @@ Object.assign(App, {
         isEnded,
         isUpcoming,
         regsLoading,
+        teamReservationIdentityLoading,
         teamBlocked: e.teamOnly && !canTeamOnlySignup,
       });
     }
@@ -733,6 +752,10 @@ Object.assign(App, {
       }
       if (_staffTeamsHydratePromise) {
         _staffTeamsHydratePromise.then(() => {
+          const hydrateState = this._teamReservationStaffTeamsHydrateState;
+          if (hydrateState?.eventId === id && hydrateState?.requestSeq === requestSeq) {
+            this._teamReservationStaffTeamsHydrateState = null;
+          }
           if (requestSeq !== this._eventDetailRequestSeq
             || this.currentPage !== 'page-activity-detail'
             || this._currentDetailEventId !== id) return;

@@ -335,6 +335,48 @@ Object.assign(App, {
     return ids;
   },
 
+  _buildEventSignupLoadingButton() {
+    return '<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>載入中…</button>';
+  },
+
+  _isTeamReservationStaffTeamsHydratingForEvent(eventId) {
+    const state = this._teamReservationStaffTeamsHydrateState;
+    return !!state
+      && state.pending === true
+      && String(state.eventId || '') === String(eventId || '');
+  },
+
+  _shouldHoldSignupActionsForTeamReservationStaffHydrate(e) {
+    if (!e) return false;
+    const status = String(e.status || '');
+    if (status === 'ended' || status === 'cancelled' || status === 'upcoming') return false;
+    if (e.teamOnly
+      && typeof this._canSignupTeamOnlyEvent === 'function'
+      && !this._canSignupTeamOnlyEvent(e)) {
+      return false;
+    }
+
+    const user = ApiService.getCurrentUser?.() || null;
+    if (!user?.uid) return false;
+    if (this._getTeamReservationStaffTeams?.(e).length > 0) return false;
+
+    const role = String(user.role || '').trim();
+    if (['coach', 'captain', 'venue_owner', 'admin', 'super_admin'].includes(role)) return true;
+
+    const candidateIds = (typeof this._getTeamReservationCandidateTeamIds === 'function')
+      ? this._getTeamReservationCandidateTeamIds()
+      : [];
+    if (!candidateIds.length) return false;
+
+    const teams = ApiService.getTeams?.() || [];
+    return candidateIds.some(id => {
+      const targetId = String(id || '').trim();
+      if (!targetId) return false;
+      return !teams.some(t => [t?.id, t?._docId, t?.docId]
+        .some(teamId => String(teamId || '').trim() === targetId));
+    });
+  },
+
   async _ensureTeamReservationStaffTeamsLoaded() {
     if (this._getTeamReservationStaffTeams().length > 0) {
       return this._getTeamReservationStaffTeams();
@@ -555,7 +597,7 @@ Object.assign(App, {
   },
 
   _renderTeamReservationActionButton(e, opts = {}) {
-    if (!e || opts.regsLoading || opts.isGuestView || opts.isEnded || opts.isUpcoming || opts.teamBlocked) return '';
+    if (!e || opts.regsLoading || opts.teamReservationIdentityLoading || opts.isGuestView || opts.isEnded || opts.isUpcoming || opts.teamBlocked) return '';
     const teams = this._getTeamReservationStaffTeams(e);
     if (!teams.length) return '';
     const active = teams.find(t => {
@@ -1702,6 +1744,11 @@ Object.assign(App, {
     e = this._syncEventEffectiveStatus?.(e) || e;
     var actionZone = document.querySelector('.detail-action-primary');
     if (!actionZone) return;
+    if (typeof this._isTeamReservationStaffTeamsHydratingForEvent === 'function'
+      && this._isTeamReservationStaffTeamsHydratingForEvent(eventId)) {
+      actionZone.innerHTML = this._buildEventSignupLoadingButton?.() || '<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>載入中…</button>';
+      return;
+    }
 
     var isEnded = e.status === 'ended' || e.status === 'cancelled';
     var isUpcoming = e.status === 'upcoming';

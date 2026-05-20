@@ -340,6 +340,20 @@ describe('Team reservation button loading contract', () => {
     expect(detailSource).toContain('_staffTeamsHydratePromise.then');
   });
 
+  test('activity detail keeps signup actions loading until team staff identity resolves', () => {
+    const detailSource = readProjectFile('js/modules/event/event-detail.js');
+    const signupSource = readProjectFile('js/modules/event/event-detail-signup.js');
+
+    expect(detailSource).toContain('_teamReservationStaffTeamsHydrateState');
+    expect(detailSource).toContain('const signupActionsLoading = regsLoading || teamReservationIdentityLoading');
+    expect(detailSource).toContain('this._isTeamReservationStaffTeamsHydratingForEvent(id)');
+    expect(signupSource).toContain('_shouldHoldSignupActionsForTeamReservationStaffHydrate');
+    expect(signupSource).toContain('_isTeamReservationStaffTeamsHydratingForEvent(eventId)');
+    expect(signupSource).toContain('_buildEventSignupLoadingButton');
+    expect(signupSource).toContain('opts.teamReservationIdentityLoading');
+    expect(signupSource).toContain('this._isTeamReservationStaffTeamsHydratingForEvent(eventId)');
+  });
+
   test('activity list ships and preserves an initial loading bar until events finish loading', () => {
     const activityPage = readProjectFile('pages/activity.html');
     const timelineSource = readProjectFile('js/modules/event/event-list-timeline.js');
