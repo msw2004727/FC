@@ -3116,3 +3116,9 @@
 - **Cause**: The topbar avatar fallback always rendered the first character of `displayName`, including temporary loading labels.
 - **Fix**: When login is valid but no display name and no avatar candidate are available yet, render the topbar avatar fallback as a spinner with an accessible `同步中` label instead of text.
 - **Validation**: Added profile source-contract coverage for the syncing avatar state, ran syntax checks for touched profile modules, targeted profile unit tests, and diff whitespace checks.
+
+### 2026-05-20 Secondary Identity Comment Likes [bugfix]
+- **Issue**: Activity comment likes made while using the secondary identity still displayed the main account avatar/name, and the manager-only main-account capsule exposed the root UID.
+- **Cause**: Like summaries and optimistic like avatars used the root `authorName`/`authorPhoto` fields instead of the public `identitySnapshot`, while the audit capsule rendered the root UID as a visible segment.
+- **Fix**: Build comment like summaries from the normalized public identity snapshot, reuse that summary for optimistic avatars and permission fallback writes, keep the Firestore like document shape unchanged, and remove the visible UID from the audit capsule.
+- **Validation**: Ran node --check for the touched comment modules, targeted unit tests for event comments and identity resolver, and git diff --check for touched files.

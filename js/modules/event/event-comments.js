@@ -99,8 +99,8 @@ Object.assign(App, {
     const roleLabel = (typeof ROLES !== 'undefined' && roleKey && ROLES[roleKey]?.label)
       ? ROLES[roleKey].label
       : (roleKey || 'unknown');
-    const title = `Root: ${rootName} / ${roleLabel} / ${rootUid || 'unknown'}`;
-    return `<span class="event-comment-audit-trace" title="${escapeHTML(title)}"><span class="event-comment-audit-label">&#20027;&#24115;&#34399;</span><span>${escapeHTML(rootName)}</span><span>${escapeHTML(roleLabel)}</span><span class="event-comment-audit-uid">${escapeHTML(rootUid || 'unknown')}</span></span>`;
+    const title = `Root: ${rootName} / ${roleLabel}`;
+    return `<span class="event-comment-audit-trace" title="${escapeHTML(title)}"><span class="event-comment-audit-label">&#20027;&#24115;&#34399;</span><span>${escapeHTML(rootName)}</span><span>${escapeHTML(roleLabel)}</span></span>`;
   },
 
   _isEventCommentsClosed(eventRecord) {

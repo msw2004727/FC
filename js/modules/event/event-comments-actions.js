@@ -146,10 +146,14 @@ Object.assign(App, {
   },
 
   _buildEventCommentLikerSummary(author) {
+    const identitySnapshot = this._normalizePublicIdentitySnapshot?.(author?.identitySnapshot) || null;
+    const fallbackName = '\u7528\u6236';
+    const displayName = identitySnapshot?.displayName || author?.authorName || fallbackName;
+    const displayPhoto = identitySnapshot?.avatarUrl || author?.authorPhoto || '';
     return {
       uid: String(author?.uid || '').trim(),
-      authorName: String(author?.authorName || '?冽').trim().slice(0, 80) || '?冽',
-      authorPhoto: String(author?.authorPhoto || '').trim().slice(0, 1200),
+      authorName: String(displayName).trim().slice(0, 80) || fallbackName,
+      authorPhoto: String(displayPhoto).trim().slice(0, 1200),
     };
   },
 
@@ -221,11 +225,8 @@ Object.assign(App, {
     let likers = this._readEventCommentLikeAvatarsFromDom(stack)
       .filter(liker => liker.uid !== uid);
     if (liked && uid) {
-      likers.unshift({
-        uid,
-        authorName: String(author.authorName || '用戶').trim() || '用戶',
-        authorPhoto: String(author.authorPhoto || '').trim(),
-      });
+      const summaryLiker = this._buildEventCommentLikerSummary(author);
+      likers.unshift({ ...summaryLiker, uid });
     }
     likers = likers.slice(0, 32);
     const safeCount = Math.max(0, Number(count) || 0);
@@ -245,6 +246,7 @@ Object.assign(App, {
   },
 
   async _setEventCommentLikeDoc(likeRef, eventId, commentId, author) {
+    const summaryLiker = this._buildEventCommentLikerSummary(author);
     const base = {
       eventId,
       commentId,
@@ -252,8 +254,8 @@ Object.assign(App, {
     };
     const snapshotPayload = {
       ...base,
-      authorName: String(author.authorName || '用戶').trim().slice(0, 80) || '用戶',
-      authorPhoto: String(author.authorPhoto || '').trim().slice(0, 1200),
+      authorName: summaryLiker.authorName,
+      authorPhoto: summaryLiker.authorPhoto,
       createdAt: this._eventCommentServerTimestamp(),
     };
     try {

@@ -36,6 +36,7 @@ describe('activity detail comments source contracts', () => {
     expect(comments).toContain('rootAuthorName');
     expect(comments).toContain('ROLES[roleKey]');
     expect(comments).toContain('event-comment-audit-trace');
+    expect(comments).not.toContain('event-comment-audit-uid');
     expect(comments).toContain('authorPhoto');
     expect(comments).toContain('maxlength="300"');
     expect(comments).toContain('maxlength="100"');
@@ -75,7 +76,10 @@ describe('activity detail comments source contracts', () => {
     expect(actions).toContain('_syncEventCommentLikeAvatars');
     expect(actions).toContain('_readEventCommentLikeAvatarsFromDom');
     expect(actions).toContain('_isEventCommentPermissionDenied');
-    expect(actions).toContain("authorPhoto: String(author.authorPhoto || '').trim().slice(0, 1200)");
+    expect(actions).toContain('_normalizePublicIdentitySnapshot?.(author?.identitySnapshot)');
+    expect(actions).toContain('identitySnapshot?.avatarUrl || author?.authorPhoto');
+    expect(actions).toContain('authorName: summaryLiker.authorName');
+    expect(actions).toContain('authorPhoto: summaryLiker.authorPhoto');
     expect(actions).toContain('existing?.exists');
     expect(actions).toContain('_setEventCommentLikeButtonState(btn, nextLiked, nextCount)');
     expect(actions).toContain('_setEventCommentLikeButtonState(btn, wasLiked, oldCount)');
