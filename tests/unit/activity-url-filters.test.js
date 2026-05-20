@@ -55,6 +55,7 @@ function loadActivityHelpers(href = 'https://toosterx.com/activities') {
     localStorage: {
       setItem: jest.fn(),
     },
+    navigator: {},
   };
   context.window = {
     location: new URL(href),
@@ -160,6 +161,39 @@ describe('activity URL filters', () => {
 
     expect(app._syncActivityUrlFilters({ replace: true })).toBe(true);
     expect(context.__lastHistoryTarget).toBe('/activities?region=south&sport=basketball');
+  });
+
+  test('builds a canonical long share URL from current activity filters', () => {
+    const { app, typeInput } = loadActivityHelpers('https://fc-3g8.pages.dev/activities?debug=1');
+    app.currentPage = 'page-activities';
+    app._activeRegionTab = '\u5317\u90e8';
+    app._activeSport = 'basketball';
+    app._activityActiveTab = 'calendar';
+    typeInput.value = 'play';
+
+    expect(app._getCurrentActivityShareUrl()).toBe(
+      'https://toosterx.com/activities?region=north&sport=basketball&tab=calendar&type=play'
+    );
+  });
+
+  test('copies the current long activity share URL when native share is unavailable', async () => {
+    const { app, typeInput } = loadActivityHelpers('http://localhost:8787/activities');
+    const event = { preventDefault: jest.fn(), stopPropagation: jest.fn() };
+    app.currentPage = 'page-activities';
+    app._activeRegionTab = '\u5357\u90e8';
+    app._activeSport = 'all';
+    app._activityActiveTab = 'normal';
+    app._copyToClipboard = jest.fn().mockResolvedValue(true);
+    app.showToast = jest.fn();
+    typeInput.value = '';
+
+    await expect(app.shareCurrentActivityUrl(event)).resolves.toBe(true);
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(event.stopPropagation).toHaveBeenCalled();
+    expect(app._copyToClipboard).toHaveBeenCalledWith(
+      'http://localhost:8787/activities?region=south&sport=all'
+    );
+    expect(app.showToast).toHaveBeenCalledWith('\u5206\u4eab\u9023\u7d50\u5df2\u8907\u88fd');
   });
 
   test('applies shared URL filters without triggering render-time URL recursion', () => {

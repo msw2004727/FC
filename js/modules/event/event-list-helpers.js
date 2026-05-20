@@ -623,6 +623,50 @@ Object.assign(App, {
     return this._composeActivityRoutePath(basePath, filters, { preserveExisting: true });
   },
 
+  _getActivityShareOrigin() {
+    try {
+      const loc = typeof window !== 'undefined' ? window.location : null;
+      const host = String(loc?.hostname || '').toLowerCase();
+      if (!host || host === 'localhost' || host === '127.0.0.1' || host === '::1') {
+        return loc?.origin || 'https://toosterx.com';
+      }
+      return 'https://toosterx.com';
+    } catch (_) {
+      return 'https://toosterx.com';
+    }
+  },
+
+  _getCurrentActivityShareUrl() {
+    const path = this._composeActivityRoutePath(
+      '/activities',
+      this._getCurrentActivityUrlFilters(),
+      { preserveExisting: false }
+    );
+    return new URL(path, this._getActivityShareOrigin()).toString();
+  },
+
+  async shareCurrentActivityUrl(event) {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    this._syncActivityUrlFilters?.({ replace: true });
+    const url = this._getCurrentActivityShareUrl();
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({ title: 'ToosterX \u6d3b\u52d5', url });
+        return true;
+      } catch (err) {
+        if (err?.name === 'AbortError') return false;
+      }
+    }
+    const ok = typeof this._copyToClipboard === 'function'
+      ? await this._copyToClipboard(url)
+      : false;
+    this.showToast?.(ok
+      ? '\u5206\u4eab\u9023\u7d50\u5df2\u8907\u88fd'
+      : '\u8907\u88fd\u5931\u6557\uff0c\u8acb\u624b\u52d5\u8907\u88fd');
+    return ok;
+  },
+
   _setActivityRegionTab(region) {
     const decoded = this._normalizeActivityUrlRegion(region);
     this._activeRegionTab = decoded;
