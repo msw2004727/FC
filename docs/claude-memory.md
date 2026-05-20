@@ -1,5 +1,11 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-20 Static UI i18n additional locales [feature]
+- **Problem**: The first low-risk static UI i18n package had English coverage, but Japanese, Korean, Thai, and Vietnamese still fell back to source text for the same marked UI keys.
+- **Fix**: Added ja/ko/th/vi overlays for the 410 first-package source-text keys and matching drawer semantic keys, keeping the existing leaf-only static i18n mechanism unchanged.
+- **Validation**: Audited 620 marked HTML uses across 415 keys, 27 config `i18nKey` values, locale-table column counts, mixed-script mistakes, option-value usage, and leaf-only rules.
+- **Lesson**: Additional locales are low functional risk when they reuse the same key surface, but each locale still needs script/column audits to catch visual copy errors before deploy.
+
 ### 2026-05-20 Mobile low-end performance implementation final sync [perf/docs]
 - **Problem**: The mobile low-end optimization plan had been implemented across several commits and hotfixes, but the final architecture was split across git history, the completed plan, cache version bumps, and production incident notes.
 - **Fix**: Synced the final lookup path into docs: the completed plan now records implementation outcome, `docs/architecture.md` records the current runtime/cache/font/SDK architecture, and `docs/tunables.md` records the tunable values and versioning notes.
