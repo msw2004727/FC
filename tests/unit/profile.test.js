@@ -178,7 +178,7 @@ describe('secondary identity profile controls', () => {
     expect(profileHtml).toContain('\u7b2c\u4e8c\u8eab\u4efd');
     expect(profileHtml).toContain("_showProfileInfo('secondaryIdentity')");
     expect(profileHtml).toContain('id="profile-secondary-enabled"');
-    expect(profileHtml).toContain('<span>\u555f\u7528</span>');
+    expect(profileHtml).toMatch(/<span[^>]*>\u555f\u7528<\/span>/);
     expect(profileHtml).toContain('handleSecondaryIdentityToggleChange()');
     expect(profileHtml).toContain('id="profile-identity-edit-btn"');
     expect(profileHtml).toContain('toggleIdentitySettingsEdit()');
@@ -310,7 +310,7 @@ describe('first login profile completion modal', () => {
     const e2eSource = readProjectFile('tests/e2e/example.spec.js');
 
     expect(indexHtml).toContain('id="fl-email"');
-    expect(indexHtml).toContain('電子郵件 <span class="fl-optional">非必填</span>');
+    expect(indexHtml).toMatch(/電子郵件\s*<span class="fl-optional"[^>]*>非必填<\/span>/);
     expect(indexHtml).toContain('填寫 Email 後，未來可收到第一手運動活動通知、早鳥名額提醒、候補釋出與平台重要訊息');
     expect(indexHtml).toContain('id="fl-legal-consent"');
     expect(indexHtml).toContain('我已閱讀並同意');

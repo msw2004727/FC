@@ -12,8 +12,8 @@ describe('activity region default', () => {
     const activityHtml = readProjectFile('pages/activity.html');
     const helperSource = readProjectFile('js/modules/event/event-list-helpers.js');
 
-    expect(activityHtml).toContain('<button class="region-tab" data-region="中部" onclick="App.switchRegionTab(\'中部\')">中部</button>');
-    expect(activityHtml).toContain('<button class="region-tab active" data-region="全部" onclick="App.switchRegionTab(\'全部\')">全部</button>');
+    expect(activityHtml).toMatch(/<button class="region-tab" data-region="中部" onclick="App\.switchRegionTab\('中部'\)"[^>]*>中部<\/button>/);
+    expect(activityHtml).toMatch(/<button class="region-tab active" data-region="全部" onclick="App\.switchRegionTab\('全部'\)"[^>]*>全部<\/button>/);
     expect(helperSource).toContain("_activeRegionTab: '全部'");
     expect(helperSource).toContain("this._activeRegionTab || '全部'");
     expect(helperSource).toContain('_normalizeActivityUrlRegion(region)');
@@ -31,9 +31,9 @@ describe('activity region default', () => {
     expect(activityHtml).toContain('id="activity-female-petals"');
     expect(activityHtml).toContain('<span class="activity-tab-separator" aria-hidden="true">|</span>');
     expect(activityHtml).not.toContain('data-atab="ended"');
-    expect(activityHtml).toContain('class="tab activity-tab-female" data-atab="female" onclick="App.switchActivityTab(\'female\')">女生專屬</button>');
-    expect(activityHtml).toContain('class="tab activity-tab-unavailable" data-atab="beginner" aria-disabled="true" title="功能未開放" onclick="App.switchActivityTab(\'beginner\', event)">新手友善</button>');
-    expect(activityHtml).toContain('class="tab activity-tab-unavailable" data-atab="high-intensity" aria-disabled="true" title="功能未開放" onclick="App.switchActivityTab(\'high-intensity\', event)">高強度</button>');
+    expect(activityHtml).toMatch(/class="tab activity-tab-female" data-atab="female" onclick="App\.switchActivityTab\('female'\)"[^>]*>女生專屬<\/button>/);
+    expect(activityHtml).toMatch(/class="tab activity-tab-unavailable" data-atab="beginner" aria-disabled="true" title="功能未開放" onclick="App\.switchActivityTab\('beginner', event\)"[^>]*>新手友善<\/button>/);
+    expect(activityHtml).toMatch(/class="tab activity-tab-unavailable" data-atab="high-intensity" aria-disabled="true" title="功能未開放" onclick="App\.switchActivityTab\('high-intensity', event\)"[^>]*>高強度<\/button>/);
     expect(activityCss).toContain('#page-activities.activity-female-theme');
     expect(activityCss).toContain('#activity-tabs .activity-tab-female.active');
     expect(activityCss).toContain('#activity-tabs .tab');

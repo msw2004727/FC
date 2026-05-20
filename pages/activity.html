@@ -3,9 +3,9 @@
     <section class="page" id="page-activities">
       <canvas id="activity-female-petals" class="activity-female-petals" aria-hidden="true"></canvas>
       <div class="page-header activity-page-header">
-        <button class="back-btn" type="button" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button class="back-btn" type="button" onclick="App.goBack()" aria-label="返回" data-i18n-aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <div class="activity-page-heading">
-          <h2 class="page-header-title">活動行事曆</h2>
+          <h2 class="page-header-title" data-i18n="活動行事曆">活動行事曆</h2>
           <button
             type="button"
             class="page-search-toggle-btn activity-filter-toggle-btn"
@@ -13,7 +13,7 @@
             aria-label="搜尋與篩選活動"
             aria-expanded="false"
             aria-controls="filter-bar"
-          >
+           data-i18n-aria-label="搜尋與篩選活動">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <circle cx="11" cy="11" r="7"></circle>
               <path d="m16.2 16.2 4 4"></path>
@@ -26,7 +26,7 @@
             onclick="App.shareCurrentActivityUrl(event)"
             aria-label="&#20998;&#20139;&#30070;&#21069;&#27963;&#21205;&#20998;&#39006;&#32178;&#22336;"
             title="&#20998;&#20139;&#30070;&#21069;&#27963;&#21205;&#20998;&#39006;&#32178;&#22336;"
-          >
+           data-i18n-aria-label="分享當前活動分類網址" data-i18n-title="分享當前活動分類網址">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <circle cx="18" cy="5" r="3"></circle>
               <circle cx="6" cy="12" r="3"></circle>
@@ -37,31 +37,31 @@
           </button>
         </div>
         <div class="activity-page-actions">
-          <button type="button" class="page-header-doc-btn" onclick="App.openHostList()" title="主辦方排行" style="display:none;">
+          <button type="button" class="page-header-doc-btn" onclick="App.openHostList()" title="主辦方排行" style="display:none;" data-i18n-title="主辦方排行">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="#F59E0B" stroke="#D97706" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
           </button>
-          <button type="button" class="primary-btn small" id="activity-create-btn" onclick="App.openCreateEventModal()" style="display:none" aria-label="＋我要開團">
+          <button type="button" class="primary-btn small" id="activity-create-btn" onclick="App.openCreateEventModal()" style="display:none" aria-label="＋我要開團" data-i18n-aria-label="＋我要開團">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
               <path d="M12 5v14"></path>
               <path d="M5 12h14"></path>
             </svg>
-            <span>我要開團</span>
+            <span data-i18n="我要開團">我要開團</span>
           </button>
         </div>
       </div>
       <div class="filter-bar collapsible-search-panel activity-filter-panel" id="filter-bar" hidden aria-hidden="true">
         <select id="activity-filter-type">
-          <option value="">全部類別</option>
+          <option value="" data-i18n="全部類別">全部類別</option>
           <option value="play">PLAY</option>
-          <option value="camp">教學</option>
-          <option value="watch">觀賽</option>
-          <option value="external">外部</option>
+          <option value="camp" data-i18n="教學">教學</option>
+          <option value="watch" data-i18n="觀賽">觀賽</option>
+          <option value="external" data-i18n="外部">外部</option>
         </select>
-        <input type="text" id="activity-filter-keyword" placeholder="模糊搜尋名稱 / 地點 / 主辦 / 日期..." autocomplete="off">
+        <input type="text" id="activity-filter-keyword" placeholder="模糊搜尋名稱 / 地點 / 主辦 / 日期..." autocomplete="off" data-i18n-placeholder="模糊搜尋名稱 / 地點 / 主辦 / 日期...">
       </div>
       <!-- Coach+ : My Activity Management -->
       <div class="my-section" id="own-activity-manage-entry" data-min-role="coach">
-        <button class="action-btn" onclick="App.showPage('page-my-activities')">活動管理</button>
+        <button class="action-btn" onclick="App.showPage('page-my-activities')" data-i18n="活動管理">活動管理</button>
       </div>
       <div class="tab-bar" id="activity-tabs">
         <button class="tab" data-atab="calendar" onclick="App.switchActivityTab('calendar')">
@@ -71,7 +71,7 @@
             <path d="M16 2.8v4"></path>
             <path d="M3.8 9h16.4"></path>
           </svg>
-          <span>月曆</span>
+          <span data-i18n="月曆">月曆</span>
         </button>
         <button class="tab active" data-atab="normal" onclick="App.switchActivityTab('normal')">
           <svg class="activity-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -82,20 +82,20 @@
             <path d="m3.8 12 .9 .9 1.7-1.9"></path>
             <path d="m3.8 18 .9 .9 1.7-1.9"></path>
           </svg>
-          <span>報名中</span>
+          <span data-i18n="報名中">報名中</span>
         </button>
         <span class="activity-tab-separator" aria-hidden="true">|</span>
-        <button class="tab activity-tab-female" data-atab="female" onclick="App.switchActivityTab('female')">女生專屬</button>
-        <button class="tab activity-tab-unavailable" data-atab="beginner" aria-disabled="true" title="功能未開放" onclick="App.switchActivityTab('beginner', event)">新手友善</button>
-        <button class="tab activity-tab-unavailable" data-atab="high-intensity" aria-disabled="true" title="功能未開放" onclick="App.switchActivityTab('high-intensity', event)">高強度</button>
+        <button class="tab activity-tab-female" data-atab="female" onclick="App.switchActivityTab('female')" data-i18n="女生專屬">女生專屬</button>
+        <button class="tab activity-tab-unavailable" data-atab="beginner" aria-disabled="true" title="功能未開放" onclick="App.switchActivityTab('beginner', event)" data-i18n-title="功能未開放" data-i18n="新手友善">新手友善</button>
+        <button class="tab activity-tab-unavailable" data-atab="high-intensity" aria-disabled="true" title="功能未開放" onclick="App.switchActivityTab('high-intensity', event)" data-i18n-title="功能未開放" data-i18n="高強度">高強度</button>
       </div>
       <div class="region-tabs" id="activity-region-tabs">
-        <button class="region-tab" data-region="中部" onclick="App.switchRegionTab('中部')">中部</button>
-        <button class="region-tab" data-region="北部" onclick="App.switchRegionTab('北部')">北部</button>
-        <button class="region-tab" data-region="南部" onclick="App.switchRegionTab('南部')">南部</button>
-        <button class="region-tab" data-region="東部&外島" onclick="App.switchRegionTab('東部&amp;外島')">東部&amp;外島</button>
-        <button class="region-tab active" data-region="全部" onclick="App.switchRegionTab('全部')">全部</button>
-        <button class="region-tab region-tab-nearby region-tab-disabled" id="region-tab-nearby-activity" aria-disabled="true" title="尋找附近活動" onclick="App.openActivityMapEntry(event)">
+        <button class="region-tab" data-region="中部" onclick="App.switchRegionTab('中部')" data-i18n="中部">中部</button>
+        <button class="region-tab" data-region="北部" onclick="App.switchRegionTab('北部')" data-i18n="北部">北部</button>
+        <button class="region-tab" data-region="南部" onclick="App.switchRegionTab('南部')" data-i18n="南部">南部</button>
+        <button class="region-tab" data-region="東部&外島" onclick="App.switchRegionTab('東部&amp;外島')" data-i18n="東部&amp;外島">東部&amp;外島</button>
+        <button class="region-tab active" data-region="全部" onclick="App.switchRegionTab('全部')" data-i18n="全部">全部</button>
+        <button class="region-tab region-tab-nearby region-tab-disabled" id="region-tab-nearby-activity" aria-disabled="true" title="尋找附近活動" onclick="App.openActivityMapEntry(event)" data-i18n-title="尋找附近活動">
           <svg class="region-tab-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M3 7l5-2 5 2 5-2v12l-5 2-5-2-5 2z" opacity="0.55"/>
             <line x1="8" y1="5" x2="8" y2="19" opacity="0.55"/>
@@ -107,7 +107,7 @@
       <div class="timeline-calendar" id="activity-list">
         <div class="activity-list-loading" data-activity-loading="initial" aria-live="polite" aria-busy="true">
           <div class="activity-list-loading-bar" aria-hidden="true"><span></span></div>
-          <div class="reg-loading">&#27963;&#21205;&#36039;&#26009;&#36617;&#20837;&#20013;...</div>
+          <div class="reg-loading" data-i18n="活動資料載入中...">&#27963;&#21205;&#36039;&#26009;&#36617;&#20837;&#20013;...</div>
           <div class="reg-loading-skeleton">
             <div class="reg-loading-skeleton-row"></div>
             <div class="reg-loading-skeleton-row"></div>
@@ -132,11 +132,11 @@
     <!-- PAGE: Activity Detail -->
     <section class="page" id="page-activity-detail">
       <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button class="back-btn" onclick="App.goBack()" aria-label="返回" data-i18n-aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex:1;min-width:0">
-          <h2 id="detail-title" style="margin:0;min-width:0;flex:1">活動名稱</h2>
+          <h2 id="detail-title" style="margin:0;min-width:0;flex:1" data-i18n="活動名稱">活動名稱</h2>
           <div id="detail-public-toggle-wrap" style="display:none;flex-shrink:0"></div>
-          <div id="detail-view-count-wrap" class="event-view-count" style="flex-shrink:0" aria-label="瀏覽次數" title="瀏覽次數">
+          <div id="detail-view-count-wrap" class="event-view-count" style="flex-shrink:0" aria-label="瀏覽次數" title="瀏覽次數" data-i18n-aria-label="瀏覽次數" data-i18n-title="瀏覽次數">
             <svg aria-hidden="true" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             <span id="detail-view-count-num">0</span>
           </div>
@@ -144,7 +144,7 @@
           <div id="detail-log-btn-wrap" style="display:none;flex-shrink:0"></div>
         </div>
       </div>
-      <div class="td-img-placeholder" id="detail-img-placeholder">活動圖片 800 × 300</div>
+      <div class="td-img-placeholder" id="detail-img-placeholder" data-i18n="活動圖片 800 × 300">活動圖片 800 × 300</div>
       <div class="detail-body" id="detail-body">
         <!-- Populated by JS -->
       </div>
@@ -153,7 +153,7 @@
     <div id="event-reg-log-modal" class="event-reg-log-overlay" onclick="if(event.target===this)App.closeEventRegLogModal()">
       <div class="event-reg-log-box">
         <div class="event-reg-log-header">
-          <span>報名紀錄</span>
+          <span data-i18n="報名紀錄">報名紀錄</span>
           <button class="event-reg-log-close" onclick="App.closeEventRegLogModal()">&times;</button>
         </div>
         <div class="event-reg-log-body" id="event-reg-log-body"></div>
@@ -162,23 +162,23 @@
 
     <section class="page" id="page-my-activities">
       <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        <h2>活動管理</h2><button type="button" class="page-header-doc-btn" onclick="event.stopPropagation();App._showActivityStatsModal()" title="活動統計" style="margin-left:.35rem;width:28px;height:28px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
+        <button class="back-btn" onclick="App.goBack()" aria-label="返回" data-i18n-aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <h2 data-i18n="活動管理">活動管理</h2><button type="button" class="page-header-doc-btn" onclick="event.stopPropagation();App._showActivityStatsModal()" title="活動統計" style="margin-left:.35rem;width:28px;height:28px" data-i18n-title="活動統計"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
         <div id="my-activity-creator-wrap" style="display:none;position:relative">
-          <input type="text" id="my-activity-creator-input" placeholder="篩選主辦人..." autocomplete="off" oninput="App.searchCreatorFilter()" style="font-size:.72rem;padding:.25rem 1.4rem .25rem .4rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);width:110px">
+          <input type="text" id="my-activity-creator-input" placeholder="篩選主辦人..." autocomplete="off" oninput="App.searchCreatorFilter()" style="font-size:.72rem;padding:.25rem 1.4rem .25rem .4rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary);width:110px" data-i18n-placeholder="篩選主辦人...">
           <span id="my-activity-creator-clear" onclick="App.clearCreatorFilter()" style="display:none;position:absolute;right:4px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:.7rem;color:var(--text-muted);line-height:1">✕</span>
           <div id="my-activity-creator-dropdown" class="ce-delegate-dropdown" style="min-width:140px"></div>
         </div>
-        <button class="primary-btn small" id="my-activity-create-btn" onclick="App.openCreateEventModal()" style="display:none">＋ 新增</button>
+        <button class="primary-btn small" id="my-activity-create-btn" onclick="App.openCreateEventModal()" style="display:none" data-i18n="＋ 新增">＋ 新增</button>
       </div>
       <!-- stats moved to modal: _showActivityStatsModal -->
       <div class="tab-bar" id="my-activity-tabs">
-        <button class="tab active" data-afilter="all" onclick="App.switchMyActivityTab('all')">全部</button>
-        <button class="tab" data-afilter="upcoming" onclick="App.switchMyActivityTab('upcoming')">即將開放</button>
-        <button class="tab" data-afilter="open" onclick="App.switchMyActivityTab('open')">報名中</button>
-        <button class="tab" data-afilter="full" onclick="App.switchMyActivityTab('full')">已額滿</button>
-        <button class="tab" data-afilter="ended" onclick="App.switchMyActivityTab('ended')">已結束</button>
-        <button class="tab" data-afilter="cancelled" onclick="App.switchMyActivityTab('cancelled')">已取消</button>
+        <button class="tab active" data-afilter="all" onclick="App.switchMyActivityTab('all')" data-i18n="全部">全部</button>
+        <button class="tab" data-afilter="upcoming" onclick="App.switchMyActivityTab('upcoming')" data-i18n="即將開放">即將開放</button>
+        <button class="tab" data-afilter="open" onclick="App.switchMyActivityTab('open')" data-i18n="報名中">報名中</button>
+        <button class="tab" data-afilter="full" onclick="App.switchMyActivityTab('full')" data-i18n="已額滿">已額滿</button>
+        <button class="tab" data-afilter="ended" onclick="App.switchMyActivityTab('ended')" data-i18n="已結束">已結束</button>
+        <button class="tab" data-afilter="cancelled" onclick="App.switchMyActivityTab('cancelled')" data-i18n="已取消">已取消</button>
       </div>
       <div class="card-list" id="my-activity-list"></div>
       <!-- 查看名單彈窗 -->
@@ -193,33 +193,33 @@
   <!-- Create External Event Modal -->
   <div class="modal" id="create-external-event-modal" data-no-backdrop-close="1">
     <div class="modal-header">
-      <h3 id="cee-modal-title">新增活動連結</h3>
+      <h3 id="cee-modal-title" data-i18n="新增活動連結">新增活動連結</h3>
       <button class="modal-close" onclick="App.closeModal()">✕</button>
     </div>
     <div class="modal-body">
       <div class="ce-form">
         <!-- 範本選擇器 -->
         <div class="ce-row" id="cee-template-area">
-          <label>從範本建立</label>
+          <label data-i18n="從範本建立">從範本建立</label>
           <div id="cee-template-selector" style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center"></div>
         </div>
         <div class="ce-row">
-          <label>活動封面圖片</label>
+          <label data-i18n="活動封面圖片">活動封面圖片</label>
           <div class="ce-upload" id="cee-upload-area">
             <input type="file" id="cee-image" accept="image/*" hidden>
             <div class="ce-upload-placeholder" id="cee-upload-preview" onclick="document.getElementById('cee-image').click()">
               <span class="ce-upload-icon">+</span>
-              <span class="ce-upload-text">點擊上傳圖片</span>
-              <span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>
+              <span class="ce-upload-text" data-i18n="點擊上傳圖片">點擊上傳圖片</span>
+              <span class="ce-upload-hint" data-i18n="建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>
             </div>
           </div>
         </div>
         <div class="ce-row">
-          <label>活動名稱 <span class="required">*必填</span></label>
-          <input type="text" id="cee-title" placeholder="例：XX 平台足球活動" maxlength="16">
+          <label>活動名稱 <span class="required" data-i18n="*必填">*必填</span></label>
+          <input type="text" id="cee-title" placeholder="例：XX 平台足球活動" maxlength="16" data-i18n-placeholder="例：XX 平台足球活動">
         </div>
         <div class="ce-row">
-          <label>活動時間 <span class="required">*必填</span></label>
+          <label>活動時間 <span class="required" data-i18n="*必填">*必填</span></label>
           <div class="ce-time-row">
             <input type="date" id="cee-date" class="ce-time-date">
             <input type="time" id="cee-start-time" class="ce-time-clock ce-time-start" step="1800" value="14:00">
@@ -228,23 +228,23 @@
           </div>
         </div>
         <div class="ce-row">
-          <label>地點</label>
-          <input type="text" id="cee-location" placeholder="選填，例：台北市大安運動中心">
+          <label data-i18n="地點">地點</label>
+          <input type="text" id="cee-location" placeholder="選填，例：台北市大安運動中心" data-i18n-placeholder="選填，例：台北市大安運動中心">
           <div class="event-location-control" data-prefix="cee">
             <div class="event-location-state-row">
-              <span id="cee-location-status" class="event-location-status" data-state="empty">尚未設定地圖座標</span>
-              <button type="button" id="cee-location-btn" class="outline-btn small" onclick="App.openEventLocationPickerFor('cee')">設定地圖座標</button>
+              <span id="cee-location-status" class="event-location-status" data-state="empty" data-i18n="尚未設定地圖座標">尚未設定地圖座標</span>
+              <button type="button" id="cee-location-btn" class="outline-btn small" onclick="App.openEventLocationPickerFor('cee')" data-i18n="設定地圖座標">設定地圖座標</button>
             </div>
             <div id="cee-location-summary" class="event-location-summary"></div>
-            <button type="button" id="cee-location-clear" class="event-location-clear" onclick="App.clearEventLocationDraft('cee')" style="display:none">清除定位</button>
+            <button type="button" id="cee-location-clear" class="event-location-clear" onclick="App.clearEventLocationDraft('cee')" style="display:none" data-i18n="清除定位">清除定位</button>
           </div>
         </div>
         <div class="ce-row">
-          <label>運動 / 場景標籤 <span class="required">*必選</span></label>
+          <label>運動 / 場景標籤 <span class="required" data-i18n="*必選">*必選</span></label>
           <div class="ce-sport-picker" id="cee-sport-picker">
             <button type="button" class="ce-sport-selected" id="cee-sport-selected" aria-haspopup="listbox" aria-expanded="false">
               <span class="ce-sport-selected-inner" id="cee-sport-selected-inner">
-                <span class="ce-sport-placeholder">請選擇運動 / 場景標籤</span>
+                <span class="ce-sport-placeholder" data-i18n="請選擇運動 / 場景標籤">請選擇運動 / 場景標籤</span>
               </span>
               <span class="ce-sport-arrow" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -253,78 +253,78 @@
               </span>
             </button>
             <div class="ce-sport-dropdown" id="cee-sport-dropdown">
-              <input type="text" id="cee-sport-search" class="ce-sport-search" placeholder="搜尋運動 / 場景標籤">
+              <input type="text" id="cee-sport-search" class="ce-sport-search" placeholder="搜尋運動 / 場景標籤" data-i18n-placeholder="搜尋運動 / 場景標籤">
               <div id="cee-sport-list" class="ce-sport-list" role="listbox"></div>
             </div>
             <input type="hidden" id="cee-sport-tag" value="">
           </div>
-          <div class="ce-sport-required-tip">* 必選，未選擇運動 / 場景標籤將無法儲存</div>
+          <div class="ce-sport-required-tip" data-i18n="* 必選，未選擇運動 / 場景標籤將無法儲存">* 必選，未選擇運動 / 場景標籤將無法儲存</div>
         </div>
         <div class="ce-row">
-          <label>活動連結 <span class="required">*必填</span></label>
+          <label>活動連結 <span class="required" data-i18n="*必填">*必填</span></label>
           <input type="url" id="cee-external-url" placeholder="https://..." maxlength="500">
-          <div style="font-size:.68rem;color:var(--text-muted);margin-top:.2rem">僅限 https:// 開頭的連結</div>
+          <div style="font-size:.68rem;color:var(--text-muted);margin-top:.2rem" data-i18n="僅限 https:// 開頭的連結">僅限 https:// 開頭的連結</div>
         </div>
         <div class="ce-row" style="border-top:1px solid var(--border);padding-top:.6rem;margin-top:.3rem">
-          <label>儲存為範本</label>
+          <label data-i18n="儲存為範本">儲存為範本</label>
           <div style="display:flex;gap:.3rem;align-items:center">
-            <input type="text" id="cee-template-name" placeholder="範本名稱（例：XX 平台足球活動）" maxlength="20" style="flex:1;min-width:0;font-size:.78rem;padding:.3rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary)">
-            <button class="outline-btn" style="font-size:.72rem;padding:.28rem .5rem;flex-shrink:0" onclick="App._saveExternalEventTemplate()">儲存</button>
+            <input type="text" id="cee-template-name" placeholder="範本名稱（例：XX 平台足球活動）" maxlength="20" style="flex:1;min-width:0;font-size:.78rem;padding:.3rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary)" data-i18n-placeholder="範本名稱（例：XX 平台足球活動）">
+            <button class="outline-btn" style="font-size:.72rem;padding:.28rem .5rem;flex-shrink:0" onclick="App._saveExternalEventTemplate()" data-i18n="儲存">儲存</button>
           </div>
         </div>
       </div>
     </div>
     <div class="modal-actions">
-      <button class="outline-btn" onclick="App.closeModal()">取消</button>
-      <button class="primary-btn" id="cee-submit-btn" onclick="App.handleCreateExternalEvent()">建立活動連結</button>
+      <button class="outline-btn" onclick="App.closeModal()" data-i18n="取消">取消</button>
+      <button class="primary-btn" id="cee-submit-btn" onclick="App.handleCreateExternalEvent()" data-i18n="建立活動連結">建立活動連結</button>
     </div>
   </div>
 
   <!-- Create Event Modal -->
   <div class="modal" id="create-event-modal" data-no-backdrop-close="1">
     <div class="modal-header">
-      <h3>新增活動</h3>
+      <h3 data-i18n="新增活動">新增活動</h3>
       <button class="modal-close" onclick="App.closeModal()">✕</button>
     </div>
     <div class="modal-body">
       <div class="ce-form">
         <!-- 範本選擇器 -->
         <div class="ce-row" id="ce-template-area">
-          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('template')" title="說明">?</button><label>從範本建立</label></div>
+          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('template')" title="說明" data-i18n-title="說明">?</button><label data-i18n="從範本建立">從範本建立</label></div>
           <div id="ce-template-selector" style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center"></div>
         </div>
         <div class="ce-row">
-          <label>活動封面圖片</label>
+          <label data-i18n="活動封面圖片">活動封面圖片</label>
           <div class="ce-upload" id="ce-upload-area">
             <input type="file" id="ce-image" accept="image/*" hidden>
             <div class="ce-upload-placeholder" id="ce-upload-preview" onclick="document.getElementById('ce-image').click()">
               <span class="ce-upload-icon">+</span>
-              <span class="ce-upload-text">點擊上傳圖片</span>
-              <span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>
+              <span class="ce-upload-text" data-i18n="點擊上傳圖片">點擊上傳圖片</span>
+              <span class="ce-upload-hint" data-i18n="建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>
             </div>
           </div>
         </div>
         <div class="ce-row">
-          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('title')" title="說明">?</button><label>活動名稱</label> <span class="required">*必填</span></div>
-          <input type="text" id="ce-title" placeholder="例：週六足球友誼賽" maxlength="16">
+          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('title')" title="說明" data-i18n-title="說明">?</button><label data-i18n="活動名稱">活動名稱</label> <span class="required" data-i18n="*必填">*必填</span></div>
+          <input type="text" id="ce-title" placeholder="例：週六足球友誼賽" maxlength="16" data-i18n-placeholder="例：週六足球友誼賽">
         </div>
         <div class="ce-row">
-          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('type')" title="說明">?</button><label>活動類型</label></div>
+          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('type')" title="說明" data-i18n-title="說明">?</button><label data-i18n="活動類型">活動類型</label></div>
           <select id="ce-type">
             <option value="play">PLAY</option>
-            <option value="camp">教學</option>
-            <option value="watch">觀賽</option>
+            <option value="camp" data-i18n="教學">教學</option>
+            <option value="watch" data-i18n="觀賽">觀賽</option>
           </select>
         </div>
         <!-- 活動地區 -->
         <div class="ce-row" id="ce-region-row">
-          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('region')" title="說明">?</button><label>活動地區</label> <span class="required">*必填</span></div>
+          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('region')" title="說明" data-i18n-title="說明">?</button><label data-i18n="活動地區">活動地區</label> <span class="required" data-i18n="*必填">*必填</span></div>
           <div id="ce-region-toggle-row" style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
             <label class="toggle-switch" style="margin:0">
               <input type="checkbox" id="ce-region-enabled" checked>
               <span class="toggle-slider"></span>
             </label>
-            <span id="ce-region-enabled-label" style="font-size:.78rem;color:var(--text-muted)">開啟 — 指定活動地區</span>
+            <span id="ce-region-enabled-label" style="font-size:.78rem;color:var(--text-muted)" data-i18n="開啟 — 指定活動地區">開啟 — 指定活動地區</span>
           </div>
           <div id="ce-region-options" style="margin-top:.6rem">
             <div id="ce-region-radios"></div>
@@ -332,84 +332,84 @@
           </div>
         </div>
         <div class="ce-row">
-          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('location')" title="說明">?</button><label>地點</label> <span class="required">*必填</span></div>
-          <input type="text" id="ce-location" placeholder="例：台北市大安運動中心">
+          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('location')" title="說明" data-i18n-title="說明">?</button><label data-i18n="地點">地點</label> <span class="required" data-i18n="*必填">*必填</span></div>
+          <input type="text" id="ce-location" placeholder="例：台北市大安運動中心" data-i18n-placeholder="例：台北市大安運動中心">
           <div class="event-location-control" data-prefix="ce">
             <div class="event-location-state-row">
-              <span id="ce-location-status" class="event-location-status" data-state="empty">尚未設定地圖座標</span>
-              <button type="button" id="ce-location-btn" class="outline-btn small" onclick="App.openEventLocationPickerFor('ce')">設定地圖座標</button>
+              <span id="ce-location-status" class="event-location-status" data-state="empty" data-i18n="尚未設定地圖座標">尚未設定地圖座標</span>
+              <button type="button" id="ce-location-btn" class="outline-btn small" onclick="App.openEventLocationPickerFor('ce')" data-i18n="設定地圖座標">設定地圖座標</button>
             </div>
             <div id="ce-location-summary" class="event-location-summary"></div>
-            <button type="button" id="ce-location-clear" class="event-location-clear" onclick="App.clearEventLocationDraft('ce')" style="display:none">清除定位</button>
+            <button type="button" id="ce-location-clear" class="event-location-clear" onclick="App.clearEventLocationDraft('ce')" style="display:none" data-i18n="清除定位">清除定位</button>
           </div>
         </div>
         <div class="ce-row">
-          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('time')" title="說明">?</button><label>活動時間</label> <span class="required">*必填</span></div>
+          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('time')" title="說明" data-i18n-title="說明">?</button><label data-i18n="活動時間">活動時間</label> <span class="required" data-i18n="*必填">*必填</span></div>
           <div class="ce-time-row">
             <label class="ce-time-field ce-time-field-date">
-              <span class="ce-time-field-label">活動日期</span>
-              <input type="date" id="ce-date" class="ce-time-date" placeholder="選擇日期">
+              <span class="ce-time-field-label" data-i18n="活動日期">活動日期</span>
+              <input type="date" id="ce-date" class="ce-time-date" placeholder="選擇日期" data-i18n-placeholder="選擇日期">
             </label>
             <label class="ce-time-field ce-time-field-start">
-              <span class="ce-time-field-label">開始時間</span>
-              <input type="time" id="ce-time-start" class="ce-time-clock ce-time-start" step="1800" placeholder="開始">
+              <span class="ce-time-field-label" data-i18n="開始時間">開始時間</span>
+              <input type="time" id="ce-time-start" class="ce-time-clock ce-time-start" step="1800" placeholder="開始" data-i18n-placeholder="開始">
             </label>
             <span class="ce-time-separator">~</span>
             <label class="ce-time-field ce-time-field-end">
-              <span class="ce-time-field-label">結束時間</span>
-              <input type="time" id="ce-time-end" class="ce-time-clock ce-time-end" step="1800" placeholder="結束">
+              <span class="ce-time-field-label" data-i18n="結束時間">結束時間</span>
+              <input type="time" id="ce-time-end" class="ce-time-clock ce-time-end" step="1800" placeholder="結束" data-i18n-placeholder="結束">
             </label>
           </div>
-          <div id="ce-time-summary" class="ce-time-summary" aria-live="polite">已選時間：14:00 ～ 16:00</div>
+          <div id="ce-time-summary" class="ce-time-summary" aria-live="polite" data-i18n="已選時間：14:00 ～ 16:00">已選時間：14:00 ～ 16:00</div>
           <div id="ce-multi-date-area" style="display:none">
             <div id="ce-multi-date-tags" class="ce-multi-date-tags"></div>
             <div id="ce-multi-date-count" class="ce-multi-date-count"></div>
           </div>
         </div>
         <div class="ce-row">
-          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('regOpen')" title="說明">?</button><label>開放報名時間</label></div>
+          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('regOpen')" title="說明" data-i18n-title="說明">?</button><label data-i18n="開放報名時間">開放報名時間</label></div>
           <div class="ce-toggle-control ce-reg-open-toggle-control">
             <label class="toggle-switch" style="margin:0">
               <input type="checkbox" id="ce-reg-open-enabled">
               <span class="toggle-slider"></span>
             </label>
-            <span id="ce-reg-open-enabled-label" class="ce-toggle-status">立即開放報名</span>
+            <span id="ce-reg-open-enabled-label" class="ce-toggle-status" data-i18n="立即開放報名">立即開放報名</span>
           </div>
           <div id="ce-reg-open-fields" class="ce-reg-open-fields" hidden>
             <div id="ce-reg-open-absolute" class="ce-reg-open-row">
               <label class="ce-time-field ce-reg-open-field">
-                <span class="ce-time-field-label">開放日期</span>
-                <input type="date" id="ce-reg-open-date" class="ce-reg-open-date" placeholder="報名開放日期">
+                <span class="ce-time-field-label" data-i18n="開放日期">開放日期</span>
+                <input type="date" id="ce-reg-open-date" class="ce-reg-open-date" placeholder="報名開放日期" data-i18n-placeholder="報名開放日期">
               </label>
               <label class="ce-time-field ce-reg-open-field">
-                <span class="ce-time-field-label">開放時間</span>
-                <input type="time" id="ce-reg-open-clock" class="ce-reg-open-clock" step="1800" placeholder="報名開放時間">
+                <span class="ce-time-field-label" data-i18n="開放時間">開放時間</span>
+                <input type="time" id="ce-reg-open-clock" class="ce-reg-open-clock" step="1800" placeholder="報名開放時間" data-i18n-placeholder="報名開放時間">
               </label>
             </div>
             <div id="ce-reg-open-relative" class="ce-reg-open-relative" style="display:none">
-              <span class="ce-reg-rel-label">活動開始前</span>
+              <span class="ce-reg-rel-label" data-i18n="活動開始前">活動開始前</span>
               <select id="ce-reg-rel-days" class="ce-reg-rel-select"></select>
-              <span>日</span>
+              <span data-i18n="日">日</span>
               <select id="ce-reg-rel-hours" class="ce-reg-rel-select"></select>
-              <span>時</span>
+              <span data-i18n="時">時</span>
             </div>
           </div>
-          <div id="ce-reg-open-summary" class="ce-time-summary ce-time-summary-muted" aria-live="polite">報名開放：建立後立即開放報名</div>
-          <div id="ce-reg-open-hint" class="ce-reg-open-hint">關閉時建立後立即開放報名；開啟後可指定開放日期與時間。</div>
-          <div id="ce-reg-open-early-bird-hint" class="ce-early-bird-reg-hint">如需在正式開放前提供早鳥報名，請到「進階功能」開啟早鳥報名並設定消耗積分。</div>
+          <div id="ce-reg-open-summary" class="ce-time-summary ce-time-summary-muted" aria-live="polite" data-i18n="報名開放：建立後立即開放報名">報名開放：建立後立即開放報名</div>
+          <div id="ce-reg-open-hint" class="ce-reg-open-hint" data-i18n="關閉時建立後立即開放報名；開啟後可指定開放日期與時間。">關閉時建立後立即開放報名；開啟後可指定開放日期與時間。</div>
+          <div id="ce-reg-open-early-bird-hint" class="ce-early-bird-reg-hint" data-i18n="如需在正式開放前提供早鳥報名，請到「進階功能」開啟早鳥報名並設定消耗積分。">如需在正式開放前提供早鳥報名，請到「進階功能」開啟早鳥報名並設定消耗積分。</div>
         </div>
         <details class="ce-value-section" id="ce-value-section" aria-labelledby="ce-value-section-title">
-          <summary class="ce-value-section-title" id="ce-value-section-title">進階功能</summary>
+          <summary class="ce-value-section-title" id="ce-value-section-title" data-i18n="進階功能">進階功能</summary>
           <div class="ce-value-section-body">
             <div class="ce-row ce-value-item">
               <div class="ce-fee-toggle-wrap">
-                <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('fee')" title="說明">?</button><label for="ce-fee-enabled" class="ce-fee-title">費用 ($)</label></div>
+                <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('fee')" title="說明" data-i18n-title="說明">?</button><label for="ce-fee-enabled" class="ce-fee-title" data-i18n="費用 ($)">費用 ($)</label></div>
                 <div class="ce-toggle-control">
                   <label class="toggle-switch" style="margin:0">
                     <input type="checkbox" id="ce-fee-enabled">
                     <span class="toggle-slider"></span>
                   </label>
-                  <span id="ce-fee-enabled-label" class="ce-toggle-status">關閉 — 不收費</span>
+                  <span id="ce-fee-enabled-label" class="ce-toggle-status" data-i18n="關閉 — 不收費">關閉 — 不收費</span>
                 </div>
                 <div id="ce-fee-input-wrap" class="ce-fee-input-wrap" style="display:none">
                   <input type="number" id="ce-fee" placeholder="0" value="0" min="0" inputmode="numeric">
@@ -417,58 +417,58 @@
               </div>
             </div>
             <div class="ce-row ce-value-item">
-              <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('teamOnly')" title="說明">?</button><label>俱樂部限定</label></div>
+              <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('teamOnly')" title="說明" data-i18n-title="說明">?</button><label data-i18n="俱樂部限定">俱樂部限定</label></div>
               <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
                 <label class="toggle-switch" style="margin:0">
                   <input type="checkbox" id="ce-team-only">
                   <span class="toggle-slider"></span>
                 </label>
-                <span id="ce-team-only-label" style="font-size:.78rem;color:var(--text-muted)">關閉 — 所有人可見</span>
+                <span id="ce-team-only-label" style="font-size:.78rem;color:var(--text-muted)" data-i18n="關閉 — 所有人可見">關閉 — 所有人可見</span>
                 <select id="ce-team-select" multiple size="4" style="display:none"></select>
                 <div id="ce-team-picker" class="ce-team-picker" style="display:none">
                   <div id="ce-team-chips" class="ce-team-chips"></div>
-                  <input id="ce-team-search" class="ce-team-search" type="text" placeholder="搜尋俱樂部名稱">
+                  <input id="ce-team-search" class="ce-team-search" type="text" placeholder="搜尋俱樂部名稱" data-i18n-placeholder="搜尋俱樂部名稱">
                   <div id="ce-team-list" class="ce-team-list"></div>
                 </div>
               </div>
             </div>
             <div class="ce-row ce-value-item">
-              <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('gender')" title="說明">?</button><label>性別限定</label></div>
+              <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('gender')" title="說明" data-i18n-title="說明">?</button><label data-i18n="性別限定">性別限定</label></div>
               <div class="ce-gender-limit-wrap">
                 <div class="ce-gender-limit-header">
                   <label class="toggle-switch" style="margin:0">
                     <input type="checkbox" id="ce-gender-restriction-enabled">
                     <span class="toggle-slider"></span>
                   </label>
-                  <span id="ce-gender-restriction-label" style="font-size:.78rem;color:var(--text-muted)">關閉 — 不限制性別</span>
+                  <span id="ce-gender-restriction-label" style="font-size:.78rem;color:var(--text-muted)" data-i18n="關閉 — 不限制性別">關閉 — 不限制性別</span>
                 </div>
                 <div id="ce-gender-restriction-options" class="ce-gender-limit-options" style="display:none">
-                  <button type="button" class="ce-gender-chip" data-value="男">男</button>
-                  <button type="button" class="ce-gender-chip" data-value="女">女</button>
+                  <button type="button" class="ce-gender-chip" data-value="男" data-i18n="男">男</button>
+                  <button type="button" class="ce-gender-chip" data-value="女" data-i18n="女">女</button>
                 </div>
                 <input type="hidden" id="ce-allowed-gender" value="">
-                <div class="ce-gender-limit-tip">非必選；開啟後僅限所選性別報名，性別空白或其他不可報名</div>
+                <div class="ce-gender-limit-tip" data-i18n="非必選；開啟後僅限所選性別報名，性別空白或其他不可報名">非必選；開啟後僅限所選性別報名，性別空白或其他不可報名</div>
               </div>
             </div>
             <div class="ce-row ce-value-item">
-              <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('private')" title="說明">?</button><label>私密活動</label></div>
+              <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('private')" title="說明" data-i18n-title="說明">?</button><label data-i18n="私密活動">私密活動</label></div>
               <div style="display:flex;align-items:center;gap:.5rem">
                 <label class="toggle-switch" style="margin:0">
                   <input type="checkbox" id="ce-private-event">
                   <span class="toggle-slider"></span>
                 </label>
-                <span id="ce-private-event-label" style="font-size:.78rem;color:var(--text-muted)">關閉 — 所有人可見</span>
+                <span id="ce-private-event-label" style="font-size:.78rem;color:var(--text-muted)" data-i18n="關閉 — 所有人可見">關閉 — 所有人可見</span>
               </div>
-              <div class="ce-gender-limit-tip">開啟後活動不會顯示在列表中，僅能透過分享連結查看</div>
+              <div class="ce-gender-limit-tip" data-i18n="開啟後活動不會顯示在列表中，僅能透過分享連結查看">開啟後活動不會顯示在列表中，僅能透過分享連結查看</div>
             </div>
             <div class="ce-row ce-value-item">
-              <div class="ce-label-row"><button type="button" class="edu-info-btn" onclick="event.stopPropagation();App._showCeInfo('teamSplit')" title="說明">?</button><label>分隊功能</label></div>
+              <div class="ce-label-row"><button type="button" class="edu-info-btn" onclick="event.stopPropagation();App._showCeInfo('teamSplit')" title="說明" data-i18n-title="說明">?</button><label data-i18n="分隊功能">分隊功能</label></div>
               <div style="display:flex;align-items:center;gap:.5rem">
                 <label class="toggle-switch" style="margin:0">
                   <input type="checkbox" id="ce-team-split-enabled">
                   <span class="toggle-slider"></span>
                 </label>
-                <span id="ce-team-split-label" style="font-size:.78rem;color:var(--text-muted)">關閉</span>
+                <span id="ce-team-split-label" style="font-size:.78rem;color:var(--text-muted)" data-i18n="關閉">關閉</span>
               </div>
               <div id="ce-team-split-options" style="display:none;margin-top:.5rem;background:var(--bg-elevated);border-radius:8px;padding:.55rem .6rem;font-size:.78rem">
                 <!-- 隊伍數量 + 色衣 + 均分（全部同行） -->
@@ -478,159 +478,159 @@
                     <option value="3">3</option>
                     <option value="4">4</option>
                   </select>
-                  <span style="color:var(--text-muted)">隊</span>
+                  <span style="color:var(--text-muted)" data-i18n="隊">隊</span>
                   <div id="ce-team-split-colors" style="display:flex;gap:.25rem;align-items:center"></div>
-                  <span style="font-size:.62rem;color:var(--text-muted);white-space:nowrap">點擊換色</span>
+                  <span style="font-size:.62rem;color:var(--text-muted);white-space:nowrap" data-i18n="點擊換色">點擊換色</span>
                   <label id="ce-team-split-balance-card" for="ce-team-split-balance" style="display:flex;align-items:center;gap:.3rem;padding:.2rem .5rem;border-radius:6px;border:1.5px solid var(--accent);background:rgba(13,148,136,.08);cursor:pointer;white-space:nowrap;margin-left:auto;transition:all .15s">
                     <input type="checkbox" id="ce-team-split-balance" checked style="display:none">
                     <span id="ce-team-split-balance-icon" style="font-size:.85rem;line-height:1">✅</span>
-                    <span style="font-size:.7rem;font-weight:600;color:var(--accent)">均分上限</span>
+                    <span style="font-size:.7rem;font-weight:600;color:var(--accent)" data-i18n="均分上限">均分上限</span>
                   </label>
                 </div>
                 <!-- 分隊方式 -->
                 <div style="margin-bottom:.45rem">
-                  <div style="font-size:.7rem;color:var(--text-muted);margin-bottom:.2rem">報名時用戶可以</div>
+                  <div style="font-size:.7rem;color:var(--text-muted);margin-bottom:.2rem" data-i18n="報名時用戶可以">報名時用戶可以</div>
                   <div id="ce-team-split-mode" style="display:flex;gap:.2rem;flex-wrap:wrap">
-                    <button type="button" class="ce-gender-chip active" data-value="random" onclick="App._tsSetMode('random')">🎲 隨機</button>
-                    <button type="button" class="ce-gender-chip" data-value="self-select" onclick="App._tsSetMode('self-select')">👆 自選</button>
-                    <button type="button" class="ce-gender-chip" data-value="manual" onclick="App._tsSetMode('manual')">📋 主辦</button>
+                    <button type="button" class="ce-gender-chip active" data-value="random" onclick="App._tsSetMode('random')" data-i18n="🎲 隨機">🎲 隨機</button>
+                    <button type="button" class="ce-gender-chip" data-value="self-select" onclick="App._tsSetMode('self-select')" data-i18n="👆 自選">👆 自選</button>
+                    <button type="button" class="ce-gender-chip" data-value="manual" onclick="App._tsSetMode('manual')" data-i18n="📋 主辦">📋 主辦</button>
                   </div>
                 </div>
                 <!-- 自選鎖定（同行緊湊） -->
                 <div id="ce-team-split-lock-wrap" style="display:none">
                   <div style="display:flex;align-items:center;gap:.25rem;white-space:nowrap">
-                    <span>開始前</span>
+                    <span data-i18n="開始前">開始前</span>
                     <select id="ce-team-split-lock-hours" style="font-size:.78rem;padding:.2rem .25rem;border:1px solid var(--border);border-radius:4px;background:var(--bg-card);color:var(--text-primary);width:4.5rem;text-align:center">
                       <option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="6">6</option><option value="12">12</option><option value="24">24</option>
                     </select>
-                    <span>小時鎖定</span>
+                    <span data-i18n="小時鎖定">小時鎖定</span>
                   </div>
                 </div>
               </div>
             </div>
             <div class="ce-row ce-value-item ce-social-links-row">
-              <div class="ce-label-row"><button type="button" class="edu-info-btn" onclick="event.stopPropagation();App._showCeInfo('socialLinks')" title="說明">?</button><label>社群連結</label></div>
+              <div class="ce-label-row"><button type="button" class="edu-info-btn" onclick="event.stopPropagation();App._showCeInfo('socialLinks')" title="說明" data-i18n-title="說明">?</button><label data-i18n="社群連結">社群連結</label></div>
               <div class="ce-toggle-control">
                 <label class="toggle-switch" style="margin:0">
                   <input type="checkbox" id="ce-social-links-enabled">
                   <span class="toggle-slider"></span>
                 </label>
-                <span id="ce-social-links-label" class="ce-toggle-status">關閉</span>
+                <span id="ce-social-links-label" class="ce-toggle-status" data-i18n="關閉">關閉</span>
               </div>
               <div id="ce-social-links-options" class="ce-social-links-options" style="display:none">
                 <div id="ce-social-links-list" class="ce-social-links-list"></div>
-                <button type="button" id="ce-social-links-add" class="ce-social-links-add">+ 新增連結</button>
-                <div class="ce-social-links-tip">最多 5 個。系統會依網址自動判斷 LINE、Facebook、Instagram、YouTube 等常見社群圖示。</div>
+                <button type="button" id="ce-social-links-add" class="ce-social-links-add" data-i18n="+ 新增連結">+ 新增連結</button>
+                <div class="ce-social-links-tip" data-i18n="最多 5 個。系統會依網址自動判斷 LINE、Facebook、Instagram、YouTube 等常見社群圖示。">最多 5 個。系統會依網址自動判斷 LINE、Facebook、Instagram、YouTube 等常見社群圖示。</div>
               </div>
             </div>
             <div class="ce-row ce-value-item ce-early-bird-row">
-              <div class="ce-label-row"><button type="button" class="edu-info-btn" onclick="event.stopPropagation();App._showCeInfo('earlyBird')" title="說明">?</button><label>早鳥報名</label></div>
+              <div class="ce-label-row"><button type="button" class="edu-info-btn" onclick="event.stopPropagation();App._showCeInfo('earlyBird')" title="說明" data-i18n-title="說明">?</button><label data-i18n="早鳥報名">早鳥報名</label></div>
               <div class="ce-toggle-control">
                 <label class="toggle-switch" style="margin:0">
                   <input type="checkbox" id="ce-early-bird-enabled">
                   <span class="toggle-slider"></span>
                 </label>
-                <span id="ce-early-bird-label" class="ce-toggle-status">關閉</span>
+                <span id="ce-early-bird-label" class="ce-toggle-status" data-i18n="關閉">關閉</span>
               </div>
               <div id="ce-early-bird-options" class="ce-early-bird-options" style="display:none">
                 <label class="ce-early-bird-cost-row" for="ce-early-bird-cost">
-                  <span>消耗積分</span>
+                  <span data-i18n="消耗積分">消耗積分</span>
                   <input type="number" id="ce-early-bird-cost" min="10" max="500" step="10" value="10" inputmode="numeric">
-                  <span>分</span>
+                  <span data-i18n="分">分</span>
                 </label>
-                <div class="ce-early-bird-tip">正式開放報名前可提前報名。扣點只套用在本人正取報名；活動取消會退回，用戶自行取消不退回。</div>
+                <div class="ce-early-bird-tip" data-i18n="正式開放報名前可提前報名。扣點只套用在本人正取報名；活動取消會退回，用戶自行取消不退回。">正式開放報名前可提前報名。扣點只套用在本人正取報名；活動取消會退回，用戶自行取消不退回。</div>
               </div>
             </div>
             <div class="ce-row ce-value-item ce-gps-row">
-              <div class="ce-label-row"><button type="button" class="edu-info-btn" onclick="event.stopPropagation();App._showCeInfo('gps')" title="說明">?</button><label for="ce-gps-enabled">GPS功能</label></div>
+              <div class="ce-label-row"><button type="button" class="edu-info-btn" onclick="event.stopPropagation();App._showCeInfo('gps')" title="說明" data-i18n-title="說明">?</button><label for="ce-gps-enabled" data-i18n="GPS功能">GPS功能</label></div>
               <div class="ce-toggle-control">
                 <label class="toggle-switch" style="margin:0">
                   <input type="checkbox" id="ce-gps-enabled">
                   <span class="toggle-slider"></span>
                 </label>
-                <span id="ce-gps-label" class="ce-toggle-status">關閉</span>
+                <span id="ce-gps-label" class="ce-toggle-status" data-i18n="關閉">關閉</span>
               </div>
             </div>
             <div class="ce-row ce-value-item ce-value-reserved">
-              <div class="ce-label-row"><label for="ce-reserved-noshow-detection">放鴿子偵測</label></div>
+              <div class="ce-label-row"><label for="ce-reserved-noshow-detection" data-i18n="放鴿子偵測">放鴿子偵測</label></div>
               <div class="ce-toggle-control">
                 <label class="toggle-switch" style="margin:0">
                   <input type="checkbox" id="ce-reserved-noshow-detection" disabled>
                   <span class="toggle-slider"></span>
                 </label>
-                <span class="ce-toggle-status">預留 — 尚未啟用</span>
+                <span class="ce-toggle-status" data-i18n="預留 — 尚未啟用">預留 — 尚未啟用</span>
               </div>
             </div>
             <div class="ce-row ce-value-item ce-value-reserved">
-              <div class="ce-label-row"><label for="ce-reserved-cancel-limit">取消報名限制</label></div>
+              <div class="ce-label-row"><label for="ce-reserved-cancel-limit" data-i18n="取消報名限制">取消報名限制</label></div>
               <div class="ce-toggle-control">
                 <label class="toggle-switch" style="margin:0">
                   <input type="checkbox" id="ce-reserved-cancel-limit" disabled>
                   <span class="toggle-slider"></span>
                 </label>
-                <span class="ce-toggle-status">預留 — 尚未啟用</span>
+                <span class="ce-toggle-status" data-i18n="預留 — 尚未啟用">預留 — 尚未啟用</span>
               </div>
             </div>
             <div class="ce-row ce-value-item ce-value-reserved">
-              <div class="ce-label-row"><label for="ce-reserved-questionnaire">報名前問卷</label></div>
+              <div class="ce-label-row"><label for="ce-reserved-questionnaire" data-i18n="報名前問卷">報名前問卷</label></div>
               <div class="ce-toggle-control">
                 <label class="toggle-switch" style="margin:0">
                   <input type="checkbox" id="ce-reserved-questionnaire" disabled>
                   <span class="toggle-slider"></span>
                 </label>
-                <span class="ce-toggle-status">預留 — 尚未啟用</span>
+                <span class="ce-toggle-status" data-i18n="預留 — 尚未啟用">預留 — 尚未啟用</span>
               </div>
             </div>
             <div class="ce-row ce-value-item ce-value-reserved">
-              <div class="ce-label-row"><label for="ce-reserved-reminder">行前提醒</label></div>
+              <div class="ce-label-row"><label for="ce-reserved-reminder" data-i18n="行前提醒">行前提醒</label></div>
               <div class="ce-toggle-control">
                 <label class="toggle-switch" style="margin:0">
                   <input type="checkbox" id="ce-reserved-reminder" disabled>
                   <span class="toggle-slider"></span>
                 </label>
-                <span class="ce-toggle-status">預留 — 尚未啟用</span>
+                <span class="ce-toggle-status" data-i18n="預留 — 尚未啟用">預留 — 尚未啟用</span>
               </div>
             </div>
             <div class="ce-row ce-value-item ce-value-reserved">
-              <div class="ce-label-row"><label for="ce-reserved-feedback">活動後評分</label></div>
+              <div class="ce-label-row"><label for="ce-reserved-feedback" data-i18n="活動後評分">活動後評分</label></div>
               <div class="ce-toggle-control">
                 <label class="toggle-switch" style="margin:0">
                   <input type="checkbox" id="ce-reserved-feedback" disabled>
                   <span class="toggle-slider"></span>
                 </label>
-                <span class="ce-toggle-status">預留 — 尚未啟用</span>
+                <span class="ce-toggle-status" data-i18n="預留 — 尚未啟用">預留 — 尚未啟用</span>
               </div>
             </div>
           </div>
         </details>
         <div class="ce-row">
-          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('max')" title="說明">?</button><label>人數上限</label> <span class="required">*必填</span></div>
+          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('max')" title="說明" data-i18n-title="說明">?</button><label data-i18n="人數上限">人數上限</label> <span class="required" data-i18n="*必填">*必填</span></div>
           <input type="number" id="ce-max" placeholder="20" value="20">
         </div>
         <input type="hidden" id="ce-waitlist" value="0">
         <div class="ce-row">
-          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('age')" title="說明">?</button><label>年齡限制</label>（歲以上，0 為不限）</div>
+          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('age')" title="說明" data-i18n-title="說明">?</button><label data-i18n="年齡限制">年齡限制</label>（歲以上，0 為不限）</div>
           <input type="number" id="ce-min-age" placeholder="0" value="0" min="0">
         </div>
 
         <div class="ce-row">
-          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('delegate')" title="說明">?</button><label>委託人</label>（最多 3 人）</div>
+          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('delegate')" title="說明" data-i18n-title="說明">?</button><label data-i18n="委託人">委託人</label>（最多 3 人）</div>
           <div class="ce-delegate-wrap">
             <div class="ce-delegate-tags" id="ce-delegate-tags"></div>
-            <input type="text" id="ce-delegate-search" placeholder="搜尋用戶..." autocomplete="off">
+            <input type="text" id="ce-delegate-search" placeholder="搜尋用戶..." autocomplete="off" data-i18n-placeholder="搜尋用戶...">
             <div class="ce-delegate-dropdown" id="ce-delegate-dropdown"></div>
           </div>
         </div>
         <div class="ce-row">
-          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('notes')" title="說明">?</button><label>注意事項</label>（上限 500 字）</div>
-          <textarea id="ce-notes" rows="3" maxlength="500" placeholder="例如：請自備球鞋、飲用水，遲到15分鐘以上視為缺席..."></textarea>
+          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('notes')" title="說明" data-i18n-title="說明">?</button><label data-i18n="注意事項">注意事項</label>（上限 500 字）</div>
+          <textarea id="ce-notes" rows="3" maxlength="500" placeholder="例如：請自備球鞋、飲用水，遲到15分鐘以上視為缺席..." data-i18n-placeholder="例如：請自備球鞋、飲用水，遲到15分鐘以上視為缺席..."></textarea>
         </div>
         <div class="ce-row">
-          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('sport')" title="說明">?</button><label>運動 / 場景標籤</label> <span class="required">*必選</span></div>
+          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('sport')" title="說明" data-i18n-title="說明">?</button><label data-i18n="運動 / 場景標籤">運動 / 場景標籤</label> <span class="required" data-i18n="*必選">*必選</span></div>
           <div class="ce-sport-picker" id="ce-sport-picker">
             <button type="button" class="ce-sport-selected" id="ce-sport-selected" aria-haspopup="listbox" aria-expanded="false">
               <span class="ce-sport-selected-inner" id="ce-sport-selected-inner">
-                <span class="ce-sport-placeholder">請選擇運動 / 場景標籤</span>
+                <span class="ce-sport-placeholder" data-i18n="請選擇運動 / 場景標籤">請選擇運動 / 場景標籤</span>
               </span>
               <span class="ce-sport-arrow" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -639,24 +639,24 @@
               </span>
             </button>
             <div class="ce-sport-dropdown" id="ce-sport-dropdown">
-              <input type="text" id="ce-sport-search" class="ce-sport-search" placeholder="搜尋運動 / 場景標籤">
+              <input type="text" id="ce-sport-search" class="ce-sport-search" placeholder="搜尋運動 / 場景標籤" data-i18n-placeholder="搜尋運動 / 場景標籤">
               <div id="ce-sport-list" class="ce-sport-list" role="listbox"></div>
             </div>
             <input type="hidden" id="ce-sport-tag" value="">
           </div>
-          <div class="ce-sport-required-tip">* 必選，未選擇運動 / 場景標籤將無法儲存活動</div>
+          <div class="ce-sport-required-tip" data-i18n="* 必選，未選擇運動 / 場景標籤將無法儲存活動">* 必選，未選擇運動 / 場景標籤將無法儲存活動</div>
         </div>
         <div class="ce-row" style="border-top:1px solid var(--border);padding-top:.6rem;margin-top:.3rem">
-          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('saveTemplate')" title="說明">?</button><label>儲存為範本</label></div>
+          <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('saveTemplate')" title="說明" data-i18n-title="說明">?</button><label data-i18n="儲存為範本">儲存為範本</label></div>
           <div style="display:flex;gap:.3rem;align-items:center">
-            <input type="text" id="ce-template-name" placeholder="範本名稱（例：週六友誼賽）" maxlength="20" style="flex:1;min-width:0;font-size:.78rem;padding:.3rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary)">
-            <button class="outline-btn" style="font-size:.72rem;padding:.28rem .5rem;flex-shrink:0" onclick="App._saveEventTemplate()">儲存</button>
+            <input type="text" id="ce-template-name" placeholder="範本名稱（例：週六友誼賽）" maxlength="20" style="flex:1;min-width:0;font-size:.78rem;padding:.3rem .5rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);color:var(--text-primary)" data-i18n-placeholder="範本名稱（例：週六友誼賽）">
+            <button class="outline-btn" style="font-size:.72rem;padding:.28rem .5rem;flex-shrink:0" onclick="App._saveEventTemplate()" data-i18n="儲存">儲存</button>
           </div>
         </div>
       </div>
     </div>
     <div class="modal-actions">
-      <button class="outline-btn" onclick="App.closeModal()">取消</button>
-      <button class="primary-btn" id="ce-submit-btn" onclick="App.handleCreateEvent()">建立活動</button>
+      <button class="outline-btn" onclick="App.closeModal()" data-i18n="取消">取消</button>
+      <button class="primary-btn" id="ce-submit-btn" onclick="App.handleCreateEvent()" data-i18n="建立活動">建立活動</button>
     </div>
   </div>

@@ -3128,3 +3128,9 @@
 - **Cause**: Background listener suspension stopped `users/{uid}/identityPrivate/settings` and cleared the in-memory identity settings, but foreground resume only restarted global/page-scoped data listeners. The first settings snapshot could also render before role permissions made the secondary identity feature available.
 - **Fix**: Added a one-document identity settings refresh path that reads `identityPrivate/settings` from the server on auth start and foreground resume, restarts the identity listener on resume, guards stale fetches by uid, and repaints chrome/profile after role permission availability changes.
 - **Validation**: Ran node --check for `js/firebase-service.js`, targeted unit tests for profile, identity resolver, and Firebase service, version grep for `0.20260520n`, and git diff --check for touched files.
+
+### 2026-05-20 — Static UI i18n First Wave [feature]
+- **問題**：多個靜態 HTML 頁面仍有固定中文 UI 文案，切換英文時無法完整套用既有 i18n 機制。
+- **原因**：頁面片段沒有統一的 `data-i18n*` 靜態套用流程，抽屜入口也缺少少數英文語系鍵。
+- **修復**：新增靜態 i18n attribute 套用器，只處理 leaf text 與 placeholder/title/aria-label 等低風險屬性；第一包標記首頁、活動、俱樂部、賽事、個人、教育、商店與共用 modal 的固定文字，並補上英文語系對照。
+- **教訓**：靜態頁面 i18n 應先從純展示文字與 accessibility 屬性開始，避開 option value、狀態值、資料欄位與動態流程，才能把回歸風險壓低。

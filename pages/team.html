@@ -2,9 +2,9 @@
     <!-- PAGE: Teams -->
     <section class="page" id="page-teams">
       <div class="page-header">
-        <button class="back-btn" type="button" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button class="back-btn" type="button" onclick="App.goBack()" aria-label="返回" data-i18n-aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <div class="team-page-title-wrap">
-          <h2 class="page-header-title">俱樂部</h2>
+          <h2 class="page-header-title" data-i18n="俱樂部">俱樂部</h2>
           <button
             class="team-filter-toggle-btn"
             id="team-filter-toggle-btn"
@@ -13,7 +13,7 @@
             aria-label="搜尋與篩選俱樂部"
             aria-expanded="false"
             aria-controls="team-filter-panel"
-          >
+           data-i18n-aria-label="搜尋與篩選俱樂部">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <circle cx="11" cy="11" r="7"></circle>
               <path d="m16.2 16.2 4 4"></path>
@@ -25,48 +25,48 @@
           id="team-page-create-btn"
           onclick="App.openTeamCreateFromTeamsPage()"
           style="display:none"
-        >新增俱樂部</button>
+         data-i18n="新增俱樂部">新增俱樂部</button>
       </div>
       <div class="team-search-bar team-filter-panel" id="team-filter-panel" hidden aria-hidden="true">
-        <input type="text" id="team-search" placeholder="搜尋俱樂部名稱..." oninput="App.filterTeams()">
+        <input type="text" id="team-search" placeholder="搜尋俱樂部名稱..." oninput="App.filterTeams()" data-i18n-placeholder="搜尋俱樂部名稱...">
         <select id="team-sport-filter" onchange="App.filterTeams()">
-          <option value="">全部運動</option>
+          <option value="" data-i18n="全部運動">全部運動</option>
         </select>
         <select id="team-region-filter" onchange="App.filterTeams()">
-          <option value="">全部地區</option>
+          <option value="" data-i18n="全部地區">全部地區</option>
           <!-- 2026-04-25：順序統一為 6 都優先（與表單 picker 一致） -->
-          <option value="台北市">台北市</option>
-          <option value="新北市">新北市</option>
-          <option value="桃園市">桃園市</option>
-          <option value="台中市">台中市</option>
-          <option value="台南市">台南市</option>
-          <option value="高雄市">高雄市</option>
-          <option value="基隆市">基隆市</option>
-          <option value="新竹市">新竹市</option>
-          <option value="嘉義市">嘉義市</option>
-          <option value="新竹縣">新竹縣</option>
-          <option value="苗栗縣">苗栗縣</option>
-          <option value="彰化縣">彰化縣</option>
-          <option value="南投縣">南投縣</option>
-          <option value="雲林縣">雲林縣</option>
-          <option value="嘉義縣">嘉義縣</option>
-          <option value="屏東縣">屏東縣</option>
-          <option value="宜蘭縣">宜蘭縣</option>
-          <option value="花蓮縣">花蓮縣</option>
-          <option value="台東縣">台東縣</option>
-          <option value="澎湖縣">澎湖縣</option>
-          <option value="金門縣">金門縣</option>
-          <option value="連江縣">連江縣</option>
+          <option value="台北市" data-i18n="台北市">台北市</option>
+          <option value="新北市" data-i18n="新北市">新北市</option>
+          <option value="桃園市" data-i18n="桃園市">桃園市</option>
+          <option value="台中市" data-i18n="台中市">台中市</option>
+          <option value="台南市" data-i18n="台南市">台南市</option>
+          <option value="高雄市" data-i18n="高雄市">高雄市</option>
+          <option value="基隆市" data-i18n="基隆市">基隆市</option>
+          <option value="新竹市" data-i18n="新竹市">新竹市</option>
+          <option value="嘉義市" data-i18n="嘉義市">嘉義市</option>
+          <option value="新竹縣" data-i18n="新竹縣">新竹縣</option>
+          <option value="苗栗縣" data-i18n="苗栗縣">苗栗縣</option>
+          <option value="彰化縣" data-i18n="彰化縣">彰化縣</option>
+          <option value="南投縣" data-i18n="南投縣">南投縣</option>
+          <option value="雲林縣" data-i18n="雲林縣">雲林縣</option>
+          <option value="嘉義縣" data-i18n="嘉義縣">嘉義縣</option>
+          <option value="屏東縣" data-i18n="屏東縣">屏東縣</option>
+          <option value="宜蘭縣" data-i18n="宜蘭縣">宜蘭縣</option>
+          <option value="花蓮縣" data-i18n="花蓮縣">花蓮縣</option>
+          <option value="台東縣" data-i18n="台東縣">台東縣</option>
+          <option value="澎湖縣" data-i18n="澎湖縣">澎湖縣</option>
+          <option value="金門縣" data-i18n="金門縣">金門縣</option>
+          <option value="連江縣" data-i18n="連江縣">連江縣</option>
         </select>
       </div>
       <div class="team-type-tabs" id="team-type-tabs">
         <button class="team-type-tab active" data-type="" onclick="App.switchTeamTypeTab('')">
           <svg class="team-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-          <span>全部</span>
+          <span data-i18n="全部">全部</span>
         </button>
         <button class="team-type-tab" data-type="education" onclick="App.switchTeamTypeTab('education')">
           <svg class="team-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-          <span>教學</span>
+          <span data-i18n="教學">教學</span>
         </button>
       </div>
       <div class="team-grid" id="team-list">
@@ -78,9 +78,9 @@
     <!-- PAGE: Team Detail -->
     <section class="page" id="page-team-detail">
       <div class="page-header td-detail-topbar">
-        <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button class="back-btn" onclick="App.goBack()" aria-label="返回" data-i18n-aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <div class="td-detail-title-sr" style="flex:1;min-width:0;display:flex;flex-direction:column;gap:.1rem">
-          <h2 id="team-detail-title" style="margin:0;line-height:1.2">俱樂部名稱</h2>
+          <h2 id="team-detail-title" style="margin:0;line-height:1.2" data-i18n="俱樂部名稱">俱樂部名稱</h2>
           <span id="team-detail-name-en" style="font-size:.75rem;color:var(--text-muted);line-height:1.2"></span>
         </div>
         <button
@@ -90,24 +90,24 @@
           onclick="App.openTeamDetailSettings()"
           aria-label="俱樂部設定"
           style="display:none"
-        >⋯</button>
+         data-i18n-aria-label="俱樂部設定">⋯</button>
         <button
           class="primary-btn small"
           id="team-detail-edit-btn"
           onclick="App.openTeamDetailEdit()"
           style="display:none;flex-shrink:0"
-        >編輯俱樂部</button>
+         data-i18n="編輯俱樂部">編輯俱樂部</button>
       </div>
-      <div class="td-img-placeholder" id="team-detail-img">俱樂部封面 800 × 300</div>
+      <div class="td-img-placeholder" id="team-detail-img" data-i18n="俱樂部封面 800 × 300">俱樂部封面 800 × 300</div>
       <div class="detail-body" id="team-detail-body"></div>
     </section>
 
     <!-- PAGE: Team Manage (Captain+) -->
     <section class="page" id="page-team-manage" data-min-role="captain">
       <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        <h2>俱樂部管理</h2>
-        <button class="primary-btn small" id="team-manage-create-btn" onclick="App.openTeamCreateFromTeamsPage()">＋ 新增俱樂部</button>
+        <button class="back-btn" onclick="App.goBack()" aria-label="返回" data-i18n-aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <h2 data-i18n="俱樂部管理">俱樂部管理</h2>
+        <button class="primary-btn small" id="team-manage-create-btn" onclick="App.openTeamCreateFromTeamsPage()" data-i18n="＋ 新增俱樂部">＋ 新增俱樂部</button>
       </div>
       <div class="card-list" id="team-manage-list"></div>
     </section>
@@ -115,7 +115,7 @@
   <!-- Team Detail Settings Modal -->
   <div class="modal" id="team-detail-settings-modal" data-no-backdrop-close="1">
     <div class="modal-header">
-      <h3>俱樂部設定</h3>
+      <h3 data-i18n="俱樂部設定">俱樂部設定</h3>
       <button class="modal-close" onclick="App.closeModal()">✕</button>
     </div>
     <div class="modal-body">
@@ -126,20 +126,20 @@
   <!-- Team Type Selection Modal -->
   <div class="modal" id="team-type-select-modal">
     <div class="modal-header">
-      <h3>選擇俱樂部類型</h3>
+      <h3 data-i18n="選擇俱樂部類型">選擇俱樂部類型</h3>
       <button class="modal-close" onclick="App.closeModal()">✕</button>
     </div>
     <div class="modal-body">
       <div class="team-type-select-grid">
         <div class="team-type-select-card" onclick="App._selectTeamCreateType('general')">
           <div class="team-type-select-icon">⚽</div>
-          <div class="team-type-select-title">運動俱樂部</div>
-          <div class="team-type-select-desc">組建競技團隊，管理成員、賽事與戰績</div>
+          <div class="team-type-select-title" data-i18n="運動俱樂部">運動俱樂部</div>
+          <div class="team-type-select-desc" data-i18n="組建競技團隊，管理成員、賽事與戰績">組建競技團隊，管理成員、賽事與戰績</div>
         </div>
         <div class="team-type-select-card" onclick="App._selectTeamCreateType('education')">
           <div class="team-type-select-icon">📚</div>
-          <div class="team-type-select-title">教學俱樂部</div>
-          <div class="team-type-select-desc">開設課程教學，管理學員報名與課程排程</div>
+          <div class="team-type-select-title" data-i18n="教學俱樂部">教學俱樂部</div>
+          <div class="team-type-select-desc" data-i18n="開設課程教學，管理學員報名與課程排程">開設課程教學，管理學員報名與課程排程</div>
         </div>
       </div>
     </div>
@@ -148,124 +148,124 @@
   <!-- Create Team Modal -->
   <div class="modal" id="create-team-modal" data-no-backdrop-close="1">
     <div class="modal-header">
-      <h3 id="ct-team-modal-title">新增俱樂部</h3>
+      <h3 id="ct-team-modal-title" data-i18n="新增俱樂部">新增俱樂部</h3>
       <button class="modal-close" onclick="App.closeModal()">✕</button>
     </div>
     <div class="modal-body">
       <div class="ce-form">
         <div class="ce-row">
-          <label>俱樂部封面</label>
+          <label data-i18n="俱樂部封面">俱樂部封面</label>
           <div class="ce-upload-placeholder" id="ct-team-preview" onclick="document.getElementById('ct-team-image').click()">
             <span class="ce-upload-icon">+</span>
-            <span class="ce-upload-text">上傳俱樂部圖片</span>
-            <span class="ce-upload-hint">一張原圖裁切封面 800 x 300 與卡片 800 x 800</span>
+            <span class="ce-upload-text" data-i18n="上傳俱樂部圖片">上傳俱樂部圖片</span>
+            <span class="ce-upload-hint" data-i18n="一張原圖裁切封面 800 x 300 與卡片 800 x 800">一張原圖裁切封面 800 x 300 與卡片 800 x 800</span>
           </div>
           <input type="file" id="ct-team-image" accept=".jpg,.jpeg,.png,.webp" hidden>
         </div>
         <input type="hidden" id="ct-team-type" value="general">
         <div class="ce-row" id="ct-team-type-display" style="display:none">
-          <label>俱樂部類型</label>
+          <label data-i18n="俱樂部類型">俱樂部類型</label>
           <div id="ct-team-type-label" style="font-size:.85rem;font-weight:600;color:var(--accent);padding:.3rem 0"></div>
         </div>
         <div id="ct-edu-settings" class="ce-row" style="display:none">
-          <label>學員招募狀態</label>
+          <label data-i18n="學員招募狀態">學員招募狀態</label>
           <div class="ct-edu-toggle-wrap">
             <div class="ct-edu-toggle-row">
-              <span class="ct-edu-toggle-label">接受新學員報名</span>
+              <span class="ct-edu-toggle-label" data-i18n="接受新學員報名">接受新學員報名</span>
               <label class="toggle-switch" style="margin:0;transform:scale(.85)">
                 <input type="checkbox" id="ct-edu-accepting" checked>
                 <span class="toggle-slider"></span>
               </label>
             </div>
-            <div class="ct-edu-toggle-hint">開啟後新學員可透過俱樂部頁面申請加入，關閉後將暫停招收新學員，已報名學員不受影響。</div>
+            <div class="ct-edu-toggle-hint" data-i18n="開啟後新學員可透過俱樂部頁面申請加入，關閉後將暫停招收新學員，已報名學員不受影響。">開啟後新學員可透過俱樂部頁面申請加入，關閉後將暫停招收新學員，已報名學員不受影響。</div>
           </div>
         </div>
         <div class="ce-row">
-          <label>運動類型 <span class="required">*必填</span></label>
+          <label>運動類型 <span class="required" data-i18n="*必填">*必填</span></label>
           <select id="ct-team-sport-tag" style="width:100%;padding:.45rem .6rem;border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem;background:var(--surface);color:var(--text-primary)">
-            <option value="">未指定</option>
+            <option value="" data-i18n="未指定">未指定</option>
           </select>
         </div>
         <div class="ce-row">
-          <label>俱樂部名稱（最多 15 字） <span class="required">*必填</span></label>
-          <input type="text" id="ct-team-name" maxlength="15" placeholder="例：雷霆隊">
+          <label>俱樂部名稱（最多 15 字） <span class="required" data-i18n="*必填">*必填</span></label>
+          <input type="text" id="ct-team-name" maxlength="15" placeholder="例：雷霆隊" data-i18n-placeholder="例：雷霆隊">
         </div>
         <div class="ce-row">
-          <label>英文名稱</label>
-          <input type="text" id="ct-team-name-en" placeholder="例：Thunder FC">
+          <label data-i18n="英文名稱">英文名稱</label>
+          <input type="text" id="ct-team-name-en" placeholder="例：Thunder FC" data-i18n-placeholder="例：Thunder FC">
         </div>
         <div class="ce-row" style="display:flex;gap:.5rem">
           <div style="flex:1">
-            <label>國籍</label>
-            <input type="text" id="ct-team-nationality" maxlength="20" placeholder="例：台灣" value="台灣">
+            <label data-i18n="國籍">國籍</label>
+            <input type="text" id="ct-team-nationality" maxlength="20" placeholder="例：台灣" value="台灣" data-i18n-placeholder="例：台灣">
           </div>
           <div style="flex:1;position:relative">
-            <label>地區 <span class="required">*必填</span></label>
+            <label>地區 <span class="required" data-i18n="*必填">*必填</span></label>
             <input type="text" id="ct-team-region" maxlength="20" placeholder="輸入或選擇縣市" autocomplete="off"
-                   oninput="App._onTeamRegionInput()" onfocus="App._onTeamRegionFocus()" onblur="App._onTeamRegionBlur()">
+                   oninput="App._onTeamRegionInput()" onfocus="App._onTeamRegionFocus()" onblur="App._onTeamRegionBlur()" data-i18n-placeholder="輸入或選擇縣市">
             <div id="ct-team-region-suggest" class="team-user-suggest"></div>
           </div>
         </div>
         <div class="ce-row">
-          <label>創立年份</label>
-          <input type="number" id="ct-team-founded" min="1900" max="2099" placeholder="例：2024">
+          <label data-i18n="創立年份">創立年份</label>
+          <input type="number" id="ct-team-founded" min="1900" max="2099" placeholder="例：2024" data-i18n-placeholder="例：2024">
         </div>
         <div class="ce-row" id="ct-captain-row" style="position:relative">
-          <label>俱樂部經理 <span class="required">*必填</span></label>
+          <label>俱樂部經理 <span class="required" data-i18n="*必填">*必填</span></label>
           <div id="ct-captain-display" style="font-size:.85rem;font-weight:600;color:var(--text-primary);padding:.3rem 0"></div>
           <div id="ct-captain-transfer" style="display:none">
-            <div class="ct-captain-transfer-warning">
+            <div class="ct-captain-transfer-warning" data-i18n="轉移俱樂部經理前請確認：俱樂部經理只能有一位，不是可複選的領隊欄位。儲存後管理權限會轉給新經理，原經理可能失去此俱樂部管理權限。">
               轉移俱樂部經理前請確認：俱樂部經理只能有一位，不是可複選的領隊欄位。儲存後管理權限會轉給新經理，原經理可能失去此俱樂部管理權限。
             </div>
-            <div class="ct-captain-hint" style="font-size:.75rem;color:var(--text-muted);margin-bottom:.3rem">如需轉移，請搜尋新任俱樂部經理（暱稱或 UID）並點選；未選擇新用戶則維持目前經理。</div>
-            <input type="text" id="ct-captain-search" placeholder="搜尋用戶..." oninput="App.searchTeamCaptain()" autocomplete="off">
+            <div class="ct-captain-hint" style="font-size:.75rem;color:var(--text-muted);margin-bottom:.3rem" data-i18n="如需轉移，請搜尋新任俱樂部經理（暱稱或 UID）並點選；未選擇新用戶則維持目前經理。">如需轉移，請搜尋新任俱樂部經理（暱稱或 UID）並點選；未選擇新用戶則維持目前經理。</div>
+            <input type="text" id="ct-captain-search" placeholder="搜尋用戶..." oninput="App.searchTeamCaptain()" autocomplete="off" data-i18n-placeholder="搜尋用戶...">
             <div class="team-user-suggest" id="ct-captain-suggest"></div>
             <div id="ct-captain-selected"></div>
           </div>
-          <div id="ct-captain-locked" style="display:none;font-size:.8rem;color:var(--text-muted);padding:.3rem 0">（僅俱樂部經理或管理員可轉移經理職位）</div>
+          <div id="ct-captain-locked" style="display:none;font-size:.8rem;color:var(--text-muted);padding:.3rem 0" data-i18n="（僅俱樂部經理或管理員可轉移經理職位）">（僅俱樂部經理或管理員可轉移經理職位）</div>
         </div>
         <div class="ce-row" id="ct-leader-row" style="position:relative">
-          <label>俱樂部領隊 <span class="required">*必填</span></label>
+          <label>俱樂部領隊 <span class="required" data-i18n="*必填">*必填</span></label>
           <div id="ct-leaders-tags" style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.4rem"></div>
           <div id="ct-leader-add-section">
-            <div class="ct-leader-hint" style="font-size:.75rem;color:var(--text-muted);margin-bottom:.3rem">搜尋俱樂部領隊：輸入暱稱後點選加入（可複數）</div>
-            <input type="text" id="ct-leader-search" placeholder="搜尋用戶..." oninput="App.searchTeamLeader()" autocomplete="off">
+            <div class="ct-leader-hint" style="font-size:.75rem;color:var(--text-muted);margin-bottom:.3rem" data-i18n="搜尋俱樂部領隊：輸入暱稱後點選加入（可複數）">搜尋俱樂部領隊：輸入暱稱後點選加入（可複數）</div>
+            <input type="text" id="ct-leader-search" placeholder="搜尋用戶..." oninput="App.searchTeamLeader()" autocomplete="off" data-i18n-placeholder="搜尋用戶...">
             <div class="team-user-suggest" id="ct-leader-suggest"></div>
           </div>
         </div>
         <div class="ce-row">
-          <label>聯繫方式</label>
-          <input type="text" id="ct-team-contact" maxlength="100" placeholder="例：LINE ID、電話、Email">
+          <label data-i18n="聯繫方式">聯繫方式</label>
+          <input type="text" id="ct-team-contact" maxlength="100" placeholder="例：LINE ID、電話、Email" data-i18n-placeholder="例：LINE ID、電話、Email">
         </div>
         <div class="ce-row ce-value-item ce-social-links-row">
-          <div class="ce-label-row"><label>社群聯繫按鈕</label></div>
+          <div class="ce-label-row"><label data-i18n="社群聯繫按鈕">社群聯繫按鈕</label></div>
           <div class="ce-toggle-control">
             <label class="toggle-switch" style="margin:0">
               <input type="checkbox" id="ct-contact-links-enabled">
               <span class="toggle-slider"></span>
             </label>
-            <span class="ce-toggle-status" id="ct-contact-links-label">關閉</span>
+            <span class="ce-toggle-status" id="ct-contact-links-label" data-i18n="關閉">關閉</span>
           </div>
           <div class="ce-social-links-options" id="ct-contact-links-options" style="display:none">
             <div class="ce-social-links-list" id="ct-contact-links-list"></div>
-            <button type="button" class="ce-social-links-add" id="ct-contact-links-add">+ 新增連結</button>
-            <div class="ce-social-links-tip">貼上 LINE、Facebook、Instagram、YouTube 等網址，系統會自動辨識並顯示為聯繫按鈕。最多 5 個。</div>
+            <button type="button" class="ce-social-links-add" id="ct-contact-links-add" data-i18n="+ 新增連結">+ 新增連結</button>
+            <div class="ce-social-links-tip" data-i18n="貼上 LINE、Facebook、Instagram、YouTube 等網址，系統會自動辨識並顯示為聯繫按鈕。最多 5 個。">貼上 LINE、Facebook、Instagram、YouTube 等網址，系統會自動辨識並顯示為聯繫按鈕。最多 5 個。</div>
           </div>
         </div>
         <div class="ce-row" style="position:relative">
-          <label>教練（可多位）</label>
-          <input type="text" id="ct-coach-search" placeholder="搜尋用戶..." oninput="App.searchTeamCoach()" autocomplete="off">
+          <label data-i18n="教練（可多位）">教練（可多位）</label>
+          <input type="text" id="ct-coach-search" placeholder="搜尋用戶..." oninput="App.searchTeamCoach()" autocomplete="off" data-i18n-placeholder="搜尋用戶...">
           <div class="team-user-suggest" id="ct-coach-suggest"></div>
           <div id="ct-coach-tags"></div>
         </div>
         <div class="ce-row">
-          <label>俱樂部簡介</label>
-          <textarea id="ct-team-bio" maxlength="500" rows="3" placeholder="簡短介紹俱樂部（最多 500 字）"></textarea>
+          <label data-i18n="俱樂部簡介">俱樂部簡介</label>
+          <textarea id="ct-team-bio" maxlength="500" rows="3" placeholder="簡短介紹俱樂部（最多 500 字）" data-i18n-placeholder="簡短介紹俱樂部（最多 500 字）"></textarea>
         </div>
       </div>
     </div>
     <div class="modal-actions">
-      <button class="outline-btn" onclick="App.closeModal()">取消</button>
-      <button class="primary-btn" id="ct-team-save-btn" onclick="App.handleSaveTeam()">建立俱樂部</button>
+      <button class="outline-btn" onclick="App.closeModal()" data-i18n="取消">取消</button>
+      <button class="primary-btn" id="ct-team-save-btn" onclick="App.handleSaveTeam()" data-i18n="建立俱樂部">建立俱樂部</button>
     </div>
   </div>

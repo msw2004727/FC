@@ -2,9 +2,9 @@
 <!-- PAGE: Tournament Center -->
 <section class="page" id="page-tournaments">
   <div class="page-header">
-    <button class="back-btn" type="button" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button class="back-btn" type="button" onclick="App.goBack()" aria-label="返回" data-i18n-aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <div class="page-search-title-wrap tournament-page-title-wrap">
-      <h2 class="page-header-title">賽事中心</h2>
+      <h2 class="page-header-title" data-i18n="賽事中心">賽事中心</h2>
       <button
         class="page-search-toggle-btn tournament-filter-toggle-btn"
         id="tc-filter-toggle-btn"
@@ -13,7 +13,7 @@
         aria-label="搜尋與篩選賽事"
         aria-expanded="false"
         aria-controls="tc-filter-panel"
-      >
+       data-i18n-aria-label="搜尋與篩選賽事">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="11" cy="11" r="7"></circle>
           <path d="m16.2 16.2 4 4"></path>
@@ -22,37 +22,37 @@
     </div>
   </div>
   <div class="collapsible-search-panel tournament-filter-panel" id="tc-filter-panel" hidden aria-hidden="true">
-    <input type="text" id="tc-search" placeholder="搜尋賽事名稱..." oninput="App.filterTournamentCenter()">
+    <input type="text" id="tc-search" placeholder="搜尋賽事名稱..." oninput="App.filterTournamentCenter()" data-i18n-placeholder="搜尋賽事名稱...">
     <select id="tc-region-filter" onchange="App.filterTournamentCenter()">
-      <option value="">全部地區</option>
+      <option value="" data-i18n="全部地區">全部地區</option>
       <!-- 2026-04-25：順序統一為 6 都優先（與表單 picker 一致） -->
-      <option value="台北市">台北市</option>
-      <option value="新北市">新北市</option>
-      <option value="桃園市">桃園市</option>
-      <option value="台中市">台中市</option>
-      <option value="台南市">台南市</option>
-      <option value="高雄市">高雄市</option>
-      <option value="基隆市">基隆市</option>
-      <option value="新竹市">新竹市</option>
-      <option value="嘉義市">嘉義市</option>
-      <option value="新竹縣">新竹縣</option>
-      <option value="苗栗縣">苗栗縣</option>
-      <option value="彰化縣">彰化縣</option>
-      <option value="南投縣">南投縣</option>
-      <option value="雲林縣">雲林縣</option>
-      <option value="嘉義縣">嘉義縣</option>
-      <option value="屏東縣">屏東縣</option>
-      <option value="宜蘭縣">宜蘭縣</option>
-      <option value="花蓮縣">花蓮縣</option>
-      <option value="台東縣">台東縣</option>
-      <option value="澎湖縣">澎湖縣</option>
-      <option value="金門縣">金門縣</option>
-      <option value="連江縣">連江縣</option>
+      <option value="台北市" data-i18n="台北市">台北市</option>
+      <option value="新北市" data-i18n="新北市">新北市</option>
+      <option value="桃園市" data-i18n="桃園市">桃園市</option>
+      <option value="台中市" data-i18n="台中市">台中市</option>
+      <option value="台南市" data-i18n="台南市">台南市</option>
+      <option value="高雄市" data-i18n="高雄市">高雄市</option>
+      <option value="基隆市" data-i18n="基隆市">基隆市</option>
+      <option value="新竹市" data-i18n="新竹市">新竹市</option>
+      <option value="嘉義市" data-i18n="嘉義市">嘉義市</option>
+      <option value="新竹縣" data-i18n="新竹縣">新竹縣</option>
+      <option value="苗栗縣" data-i18n="苗栗縣">苗栗縣</option>
+      <option value="彰化縣" data-i18n="彰化縣">彰化縣</option>
+      <option value="南投縣" data-i18n="南投縣">南投縣</option>
+      <option value="雲林縣" data-i18n="雲林縣">雲林縣</option>
+      <option value="嘉義縣" data-i18n="嘉義縣">嘉義縣</option>
+      <option value="屏東縣" data-i18n="屏東縣">屏東縣</option>
+      <option value="宜蘭縣" data-i18n="宜蘭縣">宜蘭縣</option>
+      <option value="花蓮縣" data-i18n="花蓮縣">花蓮縣</option>
+      <option value="台東縣" data-i18n="台東縣">台東縣</option>
+      <option value="澎湖縣" data-i18n="澎湖縣">澎湖縣</option>
+      <option value="金門縣" data-i18n="金門縣">金門縣</option>
+      <option value="連江縣" data-i18n="連江縣">連江縣</option>
     </select>
   </div>
   <div class="tab-bar" id="tc-tabs">
-    <button class="tab active" data-tctab="active" onclick="App.switchTournamentCenterTab('active')">進行中</button>
-    <button class="tab" data-tctab="ended" onclick="App.switchTournamentCenterTab('ended')">已結束</button>
+    <button class="tab active" data-tctab="active" onclick="App.switchTournamentCenterTab('active')" data-i18n="進行中">進行中</button>
+    <button class="tab" data-tctab="ended" onclick="App.switchTournamentCenterTab('ended')" data-i18n="已結束">已結束</button>
   </div>
   <div id="tournament-timeline"></div>
 </section>
@@ -60,21 +60,21 @@
 <!-- PAGE: Tournament Detail -->
 <section class="page" id="page-tournament-detail">
   <div class="page-header">
-    <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-    <h2 id="td-title">賽事名稱</h2>
+    <button class="back-btn" onclick="App.goBack()" aria-label="返回" data-i18n-aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <h2 id="td-title" data-i18n="賽事名稱">賽事名稱</h2>
     <div id="td-toolbar" class="td-toolbar" style="display:none"></div>
   </div>
-  <div class="td-img-placeholder" id="td-img-placeholder">賽事圖片 800 × 300</div>
+  <div class="td-img-placeholder" id="td-img-placeholder" data-i18n="賽事圖片 800 × 300">賽事圖片 800 × 300</div>
   <!-- 報名按鈕區 -->
   <div id="td-register-area" style="padding:.6rem .8rem"></div>
   <!-- 賽事資訊區 -->
   <div id="td-info-section" style="padding:0 .8rem .5rem"></div>
   <!-- 新頁簽 -->
   <div class="tab-bar" id="td-tabs">
-    <button class="tab" data-ttab="info">說明</button>
-    <button class="tab active" data-ttab="teams">俱樂部</button>
-    <button class="tab" data-ttab="schedule">賽程</button>
-    <button class="tab" data-ttab="stats">統計</button>
+    <button class="tab" data-ttab="info" data-i18n="說明">說明</button>
+    <button class="tab active" data-ttab="teams" data-i18n="俱樂部">俱樂部</button>
+    <button class="tab" data-ttab="schedule" data-i18n="賽程">賽程</button>
+    <button class="tab" data-ttab="stats" data-i18n="統計">統計</button>
   </div>
   <div class="tournament-content" id="tournament-content"></div>
 </section>
@@ -82,15 +82,15 @@
 <!-- Rules Modal -->
 <div class="modal" id="rules-modal">
   <div class="modal-header">
-    <h3>賽事規則</h3>
+    <h3 data-i18n="賽事規則">賽事規則</h3>
     <button class="modal-close" onclick="App.closeModal()">✕</button>
   </div>
   <div class="modal-body">
-    <h4>積分規則</h4>
-    <p>勝利：3分 ・ 平手：1分 ・ 落敗：0分</p>
-    <h4>紅黃牌規則（預設英超）</h4>
+    <h4 data-i18n="積分規則">積分規則</h4>
+    <p data-i18n="勝利：3分 ・ 平手：1分 ・ 落敗：0分">勝利：3分 ・ 平手：1分 ・ 落敗：0分</p>
+    <h4 data-i18n="紅黃牌規則（預設英超）">紅黃牌規則（預設英超）</h4>
     <p>累計 5 張黃牌 → 停賽 1 場<br>累計 10 張黃牌 → 停賽 2 場<br>直接紅牌 → 停賽 3 場（最低）</p>
-    <h4>交易窗口</h4>
+    <h4 data-i18n="交易窗口">交易窗口</h4>
     <p>2026/03/01 ~ 2026/03/20</p>
   </div>
 </div>
@@ -98,108 +98,108 @@
 <!-- Tournament Form Modal (unified create / edit) -->
 <div class="modal" id="tournament-form-modal" data-no-backdrop-close="1">
   <div class="modal-header">
-    <h3 id="tf-modal-title">新增賽事</h3>
+    <h3 id="tf-modal-title" data-i18n="新增賽事">新增賽事</h3>
     <button class="modal-close" onclick="App.closeModal()">✕</button>
   </div>
   <div class="modal-body">
     <div class="ce-form">
       <div class="ce-row">
-        <label>賽事名稱 <span class="required">*必填</span></label>
-        <input type="text" id="tf-name" placeholder="例：2026 春季盃足球賽" maxlength="15">
+        <label>賽事名稱 <span class="required" data-i18n="*必填">*必填</span></label>
+        <input type="text" id="tf-name" placeholder="例：2026 春季盃足球賽" maxlength="15" data-i18n-placeholder="例：2026 春季盃足球賽">
       </div>
       <div class="ce-row">
-        <label>賽事類型</label>
+        <label data-i18n="賽事類型">賽事類型</label>
         <select id="tf-type">
-          <option value="盃賽">盃賽</option>
+          <option value="盃賽" data-i18n="盃賽">盃賽</option>
         </select>
       </div>
       <div class="ce-row">
-        <label>參賽隊伍數</label>
+        <label data-i18n="參賽隊伍數">參賽隊伍數</label>
         <input type="number" id="tf-teams" value="8" min="2">
       </div>
       <div class="ce-row">
-        <label>比賽日期（可複選）</label>
-        <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.3rem">點擊月曆勾選所有比賽日</div>
+        <label data-i18n="比賽日期（可複選）">比賽日期（可複選）</label>
+        <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.3rem" data-i18n="點擊月曆勾選所有比賽日">點擊月曆勾選所有比賽日</div>
         <div id="tf-match-dates-wrap" style="display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.3rem"></div>
         <input type="date" id="tf-match-date-picker" onchange="App.addMatchDate(this.value)">
       </div>
       <div class="ce-row" style="position:relative">
-        <label>舉辦地區 <span class="required">*必填</span></label>
+        <label>舉辦地區 <span class="required" data-i18n="*必填">*必填</span></label>
         <input type="text" id="tf-region" placeholder="輸入或選擇縣市..." autocomplete="off"
-               oninput="App._onTournamentRegionInput()" onfocus="App._onTournamentRegionFocus()" onblur="App._onTournamentRegionBlur()">
+               oninput="App._onTournamentRegionInput()" onfocus="App._onTournamentRegionFocus()" onblur="App._onTournamentRegionBlur()" data-i18n-placeholder="輸入或選擇縣市...">
         <div id="tf-region-suggest" class="team-user-suggest"></div>
       </div>
       <div class="ce-row">
-        <label>場地（可新增多個）</label>
+        <label data-i18n="場地（可新增多個）">場地（可新增多個）</label>
         <div style="display:flex;gap:.3rem;margin-bottom:.3rem">
-          <input type="text" id="tf-venue-input" placeholder="例：大安運動中心" style="flex:1">
-          <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;white-space:nowrap" onclick="App.addTournamentVenue()">新增</button>
+          <input type="text" id="tf-venue-input" placeholder="例：大安運動中心" style="flex:1" data-i18n-placeholder="例：大安運動中心">
+          <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;white-space:nowrap" onclick="App.addTournamentVenue()" data-i18n="新增">新增</button>
         </div>
         <div id="tf-venue-tags" style="display:flex;flex-wrap:wrap;gap:.3rem"></div>
       </div>
       <div class="ce-row">
-        <label>報名費（每隊）</label>
-        <input type="number" id="tf-fee" value="0" min="0" placeholder="0 為免費">
+        <label data-i18n="報名費（每隊）">報名費（每隊）</label>
+        <input type="number" id="tf-fee" value="0" min="0" placeholder="0 為免費" data-i18n-placeholder="0 為免費">
       </div>
       <div class="ce-row">
-        <label>委託人（最多 10 人）</label>
+        <label data-i18n="委託人（最多 10 人）">委託人（最多 10 人）</label>
         <div class="ce-delegate-wrap">
           <div class="ce-delegate-tags" id="tf-delegate-tags"></div>
-          <input type="text" id="tf-delegate-search" placeholder="搜尋用戶..." autocomplete="off">
+          <input type="text" id="tf-delegate-search" placeholder="搜尋用戶..." autocomplete="off" data-i18n-placeholder="搜尋用戶...">
           <div class="ce-delegate-dropdown" id="tf-delegate-dropdown"></div>
         </div>
       </div>
       <div class="ce-row">
-        <label>裁判（最多 10 人）</label>
+        <label data-i18n="裁判（最多 10 人）">裁判（最多 10 人）</label>
         <div class="ce-delegate-wrap">
           <div class="ce-delegate-tags" id="tf-referee-tags"></div>
-          <input type="text" id="tf-referee-search" placeholder="搜尋用戶..." autocomplete="off">
+          <input type="text" id="tf-referee-search" placeholder="搜尋用戶..." autocomplete="off" data-i18n-placeholder="搜尋用戶...">
           <div class="ce-delegate-dropdown" id="tf-referee-dropdown"></div>
         </div>
       </div>
       <div class="ce-row ce-row-half">
         <div>
-          <label>報名開始 <span class="required">*必填</span></label>
+          <label>報名開始 <span class="required" data-i18n="*必填">*必填</span></label>
           <input type="datetime-local" id="tf-reg-start">
         </div>
         <div>
-          <label>報名截止 <span class="required">*必填</span></label>
+          <label>報名截止 <span class="required" data-i18n="*必填">*必填</span></label>
           <input type="datetime-local" id="tf-reg-end">
         </div>
       </div>
-      <div style="font-size:.72rem;color:var(--text-muted);margin:-.2rem 0 .4rem">區間前＝準備中，區間內＝報名中，區間後＝截止報名</div>
+      <div style="font-size:.72rem;color:var(--text-muted);margin:-.2rem 0 .4rem" data-i18n="區間前＝準備中，區間內＝報名中，區間後＝截止報名">區間前＝準備中，區間內＝報名中，區間後＝截止報名</div>
       <div class="ce-row">
-        <label>活動說明（上限 500 字）</label>
-        <textarea id="tf-desc" rows="4" maxlength="500" placeholder="賽事規則、注意事項..." oninput="document.getElementById('tf-desc-count').textContent=this.value.length+'/500'"></textarea>
+        <label data-i18n="活動說明（上限 500 字）">活動說明（上限 500 字）</label>
+        <textarea id="tf-desc" rows="4" maxlength="500" placeholder="賽事規則、注意事項..." oninput="document.getElementById('tf-desc-count').textContent=this.value.length+'/500'" data-i18n-placeholder="賽事規則、注意事項..."></textarea>
         <span id="tf-desc-count" style="font-size:.68rem;color:var(--text-muted);text-align:right">0/500</span>
       </div>
       <div class="ce-row">
-        <label>賽事封面圖片</label>
+        <label data-i18n="賽事封面圖片">賽事封面圖片</label>
         <div class="ce-upload" id="tf-upload-area">
           <input type="file" id="tf-image" accept=".jpg,.jpeg,.png" hidden>
           <div class="ce-upload-placeholder" id="tf-upload-preview" onclick="document.getElementById('tf-image').click()">
             <span class="ce-upload-icon">+</span>
-            <span class="ce-upload-text">點擊上傳圖片</span>
-            <span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>
+            <span class="ce-upload-text" data-i18n="點擊上傳圖片">點擊上傳圖片</span>
+            <span class="ce-upload-hint" data-i18n="建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>
           </div>
         </div>
       </div>
       <div class="ce-row">
-        <label>賽事內容圖片</label>
-        <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.3rem">顯示於說明頁文字下方，用於圖片補充說明</div>
+        <label data-i18n="賽事內容圖片">賽事內容圖片</label>
+        <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.3rem" data-i18n="顯示於說明頁文字下方，用於圖片補充說明">顯示於說明頁文字下方，用於圖片補充說明</div>
         <div class="ce-upload" id="tf-content-upload-area">
           <input type="file" id="tf-content-image" accept=".jpg,.jpeg,.png" hidden>
           <div class="ce-upload-placeholder" id="tf-content-upload-preview" onclick="document.getElementById('tf-content-image').click()">
             <span class="ce-upload-icon">+</span>
-            <span class="ce-upload-text">點擊上傳圖片</span>
-            <span class="ce-upload-hint">建議尺寸 800 × 600 px｜JPG / PNG｜最大 2MB</span>
+            <span class="ce-upload-text" data-i18n="點擊上傳圖片">點擊上傳圖片</span>
+            <span class="ce-upload-hint" data-i18n="建議尺寸 800 × 600 px｜JPG / PNG｜最大 2MB">建議尺寸 800 × 600 px｜JPG / PNG｜最大 2MB</span>
           </div>
         </div>
       </div>
     </div>
   </div>
   <div class="modal-actions">
-    <button class="outline-btn" onclick="App.closeModal()">取消</button>
-    <button class="primary-btn" id="tf-save-btn" onclick="App.handleSaveTournament()">建立賽事</button>
+    <button class="outline-btn" onclick="App.closeModal()" data-i18n="取消">取消</button>
+    <button class="primary-btn" id="tf-save-btn" onclick="App.handleSaveTournament()" data-i18n="建立賽事">建立賽事</button>
   </div>
 </div>

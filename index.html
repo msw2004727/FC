@@ -572,7 +572,7 @@
 
   <!-- ============ TOP BAR ============ -->
   <header id="top-bar">
-    <button id="menu-toggle" aria-label="選單">
+    <button id="menu-toggle" aria-label="選單" data-i18n-aria-label="選單">
       <span></span><span></span><span></span>
     </button>
     <div class="logo">
@@ -580,20 +580,20 @@
       <img src="assets/logo-black.png" alt="ToosterX" class="logo-img logo-img--light">
     </div>
     <div class="top-bar-right">
-      <div id="points-display" class="points-display" title="我的 EXP">
+      <div id="points-display" class="points-display" title="我的 EXP" data-i18n-title="我的 EXP">
         <span class="points-icon">P</span>
         <span class="points-value" id="points-value">0</span>
       </div>
       <div class="sport-picker-wrapper" id="sport-picker-wrapper">
-        <button class="sport-picker-btn" id="sport-picker-btn" aria-label="切換運動項目" aria-haspopup="listbox" aria-expanded="false" aria-controls="sport-picker-dropdown">
+        <button class="sport-picker-btn" id="sport-picker-btn" aria-label="切換運動項目" aria-haspopup="listbox" aria-expanded="false" aria-controls="sport-picker-dropdown" data-i18n-aria-label="切換運動項目">
           <span class="sport-picker-icon"><span class="sp-all-label" aria-hidden="true">All</span></span>
         </button>
         <div class="sport-picker-dropdown" id="sport-picker-dropdown" role="listbox">
-          <div class="sport-picker-header">切換運動項目</div>
+          <div class="sport-picker-header" data-i18n="切換運動項目">切換運動項目</div>
           <div id="sport-picker-list"></div>
         </div>
       </div>
-      <button id="notif-btn" aria-label="通知">
+      <button id="notif-btn" aria-label="通知" data-i18n-aria-label="通知">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
         <span class="notif-badge" id="notif-badge" style="display:none"></span>
         <span class="pm-notif-hint" id="pm-notif-hint" aria-hidden="true" hidden>
@@ -610,8 +610,8 @@
           <div id="user-menu-dropdown" class="user-menu-dropdown" style="display:none">
             <div class="user-menu-name" id="user-menu-name"></div>
             <div class="user-menu-divider"></div>
-            <button class="user-menu-item" onclick="App.showPage('page-profile'); App.toggleUserMenu()">個人檔案</button>
-            <button class="user-menu-item user-menu-logout" onclick="App.logoutLine()">登出</button>
+            <button class="user-menu-item" onclick="App.showPage('page-profile'); App.toggleUserMenu()" data-i18n="個人檔案">個人檔案</button>
+            <button class="user-menu-item user-menu-logout" onclick="App.logoutLine()" data-i18n="登出">登出</button>
           </div>
         </div>
       </div>
@@ -623,7 +623,7 @@
     <div class="sync-bar__track"></div>
     <div class="sync-bar__msg">
       <span class="sync-bar__text"></span>
-      <button class="sync-bar__retry" type="button" style="display:none">重試</button>
+      <button class="sync-bar__retry" type="button" style="display:none" data-i18n="重試">重試</button>
     </div>
   </div>
 
@@ -638,9 +638,9 @@
           <div class="drawer-role-tag" id="drawer-role-tag"></div>
         </div>
         <div class="drawer-actions">
-          <button class="drawer-font-btn" id="drawer-font-btn" onclick="App.cycleFontSize()" title="字型大小" style="font-size:0.85rem">字</button>
+          <button class="drawer-font-btn" id="drawer-font-btn" onclick="App.cycleFontSize()" title="字型大小" style="font-size:0.85rem" data-i18n-title="字型大小" data-i18n="字">字</button>
           <div class="drawer-action-stack">
-            <button class="drawer-pwa-btn" id="pwa-install-btn" title="下載APP" style="display:none"><span>下載APP</span></button>
+            <button class="drawer-pwa-btn" id="pwa-install-btn" title="下載APP" style="display:none" data-i18n-title="下載APP"><span data-i18n="下載APP">下載APP</span></button>
             <div class="home-version-tag" id="home-version-tag"></div>
           </div>
         </div>
@@ -650,22 +650,22 @@
     <div class="drawer-footer">
       <div class="drawer-theme-row">
         <button id="theme-toggle">
-          <span>深色模式</span>
+          <span data-i18n="深色模式">深色模式</span>
           <div class="toggle-switch"><div class="toggle-knob"></div></div>
         </button>
         <div class="drawer-legal-row">
-          <a class="drawer-legal-btn" href="privacy.html" target="_blank"><span>隱私權政策</span></a>
-          <a class="drawer-legal-btn" href="terms.html" target="_blank"><span>服務條款</span></a>
+          <a class="drawer-legal-btn" href="privacy.html" target="_blank"><span data-i18n="隱私權政策">隱私權政策</span></a>
+          <a class="drawer-legal-btn" href="terms.html" target="_blank"><span data-i18n="服務條款">服務條款</span></a>
         </div>
       </div>
       <div class="drawer-footer-bottom">
         <div id="lang-switcher" class="lang-switcher">
-          <span class="lang-label">語言</span>
+          <span class="lang-label" data-i18n="語言">語言</span>
           <select id="lang-select" onchange="App.switchLanguage(this.value)"></select>
         </div>
-        <button class="drawer-clear-btn" onclick="App.confirmClearCache()" title="清除快取">
+        <button class="drawer-clear-btn" onclick="App.confirmClearCache()" title="清除快取" data-i18n-title="清除快取">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M19 6l-.867 12.142A2 2 0 0116.138 20H7.862a2 2 0 01-1.995-1.858L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg>
-          <span>清除快取</span>
+          <span data-i18n="清除快取">清除快取</span>
         </button>
       </div>
     </div>
@@ -678,61 +678,61 @@
   <nav id="bottom-tabs">
     <button class="bot-tab" data-page="page-tournaments">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 010-5C7 4 7 7 7 7"/><path d="M18 9h1.5a2.5 2.5 0 000-5C17 4 17 7 17 7"/><path d="M4 22h16"/><path d="M10 14.66V22"/><path d="M14 14.66V22"/><path d="M8 6v4a4 4 0 008 0V6H8z"/></svg>
-      <span>賽事</span>
+      <span data-i18n="賽事">賽事</span>
     </button>
     <button class="bot-tab" data-page="page-teams">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
-      <span>俱樂部</span>
+      <span data-i18n="俱樂部">俱樂部</span>
     </button>
     <div class="bot-tab-center-wrap">
-      <button class="bot-tab-qr" onclick="App._openQrPopup()" aria-label="我的 QR Code">
+      <button class="bot-tab-qr" onclick="App._openQrPopup()" aria-label="我的 QR Code" data-i18n-aria-label="我的 QR Code">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="8" height="8" rx="1"/><rect x="14" y="2" width="8" height="8" rx="1"/><rect x="2" y="14" width="8" height="8" rx="1"/><rect x="14" y="14" width="4" height="4"/><line x1="22" y1="14" x2="22" y2="18"/><line x1="18" y1="22" x2="22" y2="22"/></svg>
       </button>
       <button class="bot-tab active" data-page="page-home">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
-        <span>首頁</span>
+        <span data-i18n="首頁">首頁</span>
       </button>
     </div>
     <button class="bot-tab" data-page="page-activities">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      <span>活動</span>
+      <span data-i18n="活動">活動</span>
     </button>
     <button class="bot-tab" data-page="page-profile">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-      <span>我的</span>
+      <span data-i18n="我的">我的</span>
     </button>
   </nav>
 
   <!-- ============ 首次登入 Modal（內聯，不依賴 ScriptLoader） ============ -->
   <div class="modal profile-complete-modal" id="first-login-modal" role="dialog" aria-modal="true" aria-labelledby="first-login-title" data-no-backdrop-close="1">
-    <div class="modal-header"><h3 id="first-login-title">完善個人資料</h3></div>
+    <div class="modal-header"><h3 id="first-login-title" data-i18n="完善個人資料">完善個人資料</h3></div>
     <div class="modal-body">
-      <p class="fl-hint">完成基本資料後，即可報名活動、加入俱樂部與使用互動功能。</p>
-      <p class="fl-alert">
+      <p class="fl-hint" data-i18n="完成基本資料後，即可報名活動、加入俱樂部與使用互動功能。">完成基本資料後，即可報名活動、加入俱樂部與使用互動功能。</p>
+      <p class="fl-alert" data-i18n="部分活動可能會依性別、年齡或地區設定參與條件，請協助填寫相關資料以利系統判定。">
         部分活動可能會依性別、年齡或地區設定參與條件，請協助填寫相關資料以利系統判定。
       </p>
       <div class="ce-form fl-form">
         <div class="ce-row fl-field">
-          <label for="fl-gender">性別 <span class="required">*必填</span></label>
-          <select id="fl-gender"><option value="">請選擇</option><option value="男">男</option><option value="女">女</option><option value="其他">其他</option></select>
+          <label for="fl-gender">性別 <span class="required" data-i18n="*必填">*必填</span></label>
+          <select id="fl-gender"><option value="" data-i18n="請選擇">請選擇</option><option value="男" data-i18n="男">男</option><option value="女" data-i18n="女">女</option><option value="其他" data-i18n="其他">其他</option></select>
         </div>
         <div class="ce-row fl-field">
-          <label>生日 <span class="required">*必填</span></label>
+          <label>生日 <span class="required" data-i18n="*必填">*必填</span></label>
           <div class="fl-birthday-row">
-            <select id="fl-birthday-y"><option value="">年</option></select>
-            <select id="fl-birthday-m"><option value="">月</option></select>
-            <select id="fl-birthday-d"><option value="">日</option></select>
+            <select id="fl-birthday-y"><option value="" data-i18n="年">年</option></select>
+            <select id="fl-birthday-m"><option value="" data-i18n="月">月</option></select>
+            <select id="fl-birthday-d"><option value="" data-i18n="日">日</option></select>
           </div>
         </div>
         <div class="ce-row fl-field">
-          <label for="fl-region-input">地區 <span class="required">*必填</span></label>
-          <input type="text" id="fl-region-input" placeholder="輸入縣市名稱" autocomplete="off" oninput="App.flRenderList(this.value)">
+          <label for="fl-region-input">地區 <span class="required" data-i18n="*必填">*必填</span></label>
+          <input type="text" id="fl-region-input" placeholder="輸入縣市名稱" autocomplete="off" oninput="App.flRenderList(this.value)" data-i18n-placeholder="輸入縣市名稱">
           <div id="fl-region-list" onclick="App.flSelectRegion(event)"></div>
         </div>
         <div class="ce-row fl-field fl-email-field">
-          <label for="fl-email">電子郵件 <span class="fl-optional">非必填</span></label>
+          <label for="fl-email">電子郵件 <span class="fl-optional" data-i18n="非必填">非必填</span></label>
           <input type="email" id="fl-email" placeholder="you@example.com" autocomplete="email" inputmode="email" spellcheck="false" maxlength="254">
-          <p class="fl-field-hint">填寫 Email 後，未來可收到第一手運動活動通知、早鳥名額提醒、候補釋出與平台重要訊息；不填也可以完成資料。</p>
+          <p class="fl-field-hint" data-i18n="填寫 Email 後，未來可收到第一手運動活動通知、早鳥名額提醒、候補釋出與平台重要訊息；不填也可以完成資料。">填寫 Email 後，未來可收到第一手運動活動通知、早鳥名額提醒、候補釋出與平台重要訊息；不填也可以完成資料。</p>
         </div>
       </div>
     </div>
@@ -741,16 +741,16 @@
       <div class="fl-legal-consent">
         <input type="checkbox" id="fl-legal-consent" autocomplete="off">
         <div class="fl-legal-copy">
-          <label for="fl-legal-consent">我已閱讀並同意</label>
-          <a href="/terms" target="_blank" rel="noopener noreferrer">服務條款</a>
+          <label for="fl-legal-consent" data-i18n="我已閱讀並同意">我已閱讀並同意</label>
+          <a href="/terms" target="_blank" rel="noopener noreferrer" data-i18n="服務條款">服務條款</a>
           與
-          <a href="/privacy" target="_blank" rel="noopener noreferrer">隱私權政策</a>
-          <p>包含個人資料蒐集、處理與利用告知；勾選後按下下方按鈕，即表示同意平台依上述條款處理資料。</p>
+          <a href="/privacy" target="_blank" rel="noopener noreferrer" data-i18n="隱私權政策">隱私權政策</a>
+          <p data-i18n="包含個人資料蒐集、處理與利用告知；勾選後按下下方按鈕，即表示同意平台依上述條款處理資料。">包含個人資料蒐集、處理與利用告知；勾選後按下下方按鈕，即表示同意平台依上述條款處理資料。</p>
         </div>
       </div>
       <div class="fl-action-buttons">
-        <button type="button" class="fl-secondary-btn" onclick="App.dismissFirstLoginModal()">稍後填寫</button>
-        <button type="button" class="primary-btn fl-submit-btn" onclick="App.saveFirstLoginProfile()">同意並送出</button>
+        <button type="button" class="fl-secondary-btn" onclick="App.dismissFirstLoginModal()" data-i18n="稍後填寫">稍後填寫</button>
+        <button type="button" class="primary-btn fl-submit-btn" onclick="App.saveFirstLoginProfile()" data-i18n="同意並送出">同意並送出</button>
       </div>
     </div>
   </div>
@@ -762,7 +762,7 @@
   <div id="toast" class="toast"></div>
   <div id="status-hint" class="status-hint" style="display:none" aria-live="polite" aria-busy="true">
     <span class="status-hint__spinner" aria-hidden="true"></span>
-    <span class="status-hint__text" data-status-hint-text>正在載入資料中..</span>
+    <span class="status-hint__text" data-status-hint-text data-i18n="正在載入資料中..">正在載入資料中..</span>
   </div>
 
   <!-- Loading Overlay -->
@@ -785,7 +785,7 @@
         <span class="boot-loading__scan" aria-hidden="true"></span>
         <div class="boot-loading__fill"></div>
       </div>
-      <div class="boot-loading__sub">偵測網路環境中..</div>
+      <div class="boot-loading__sub" data-i18n="偵測網路環境中..">偵測網路環境中..</div>
     </div>
   </div>
   <!-- Deep link overlay：等待 LIFF 與資料 ready 後自動跳轉 -->
@@ -793,8 +793,8 @@
     <div class="deep-link-card">
       <div class="deep-link-spinner" aria-hidden="true"></div>
       <div class="deep-link-copy">
-        <div class="deep-link-title" data-deep-link-title>正在為您跳轉頁面</div>
-        <div class="deep-link-sub" data-deep-link-sub>請稍候，正在載入相關資料..</div>
+        <div class="deep-link-title" data-deep-link-title data-i18n="正在為您跳轉頁面">正在為您跳轉頁面</div>
+        <div class="deep-link-sub" data-deep-link-sub data-i18n="請稍候，正在載入相關資料..">請稍候，正在載入相關資料..</div>
       </div>
     </div>
   </div>

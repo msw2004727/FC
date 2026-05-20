@@ -1181,11 +1181,9 @@ Object.assign(App, {
       this.renderAdminLogCenter('error');
     }
 
-    /* 非預設語系時套用 data-i18n 翻譯 */
+    /* 非預設語系時套用靜態 i18n 翻譯 */
     if (typeof I18N !== 'undefined' && I18N.getLocale() !== 'zh-TW') {
-      document.querySelectorAll('[data-i18n]').forEach(el => {
-        el.textContent = t(el.dataset.i18n);
-      });
+      this._applyStaticI18n?.(document);
     }
     /* 白屏卡住偵測：標記頁面內容已開始渲染 */
     window._contentReady = true;
@@ -1405,6 +1403,30 @@ Object.assign(App, {
     this.showToast(t('toast.langChanged'));
   },
 
+  _applyStaticI18n(root) {
+    if (typeof I18N === 'undefined' || typeof t !== 'function') return;
+    const scope = root && typeof root.querySelectorAll === 'function' ? root : document;
+    const resolveText = (key, fallback) => {
+      if (!key) return fallback || '';
+      const translated = t(key);
+      return translated === key && fallback != null ? fallback : translated;
+    };
+
+    scope.querySelectorAll('[data-i18n]').forEach(el => {
+      if (el.children && el.children.length > 0) return;
+      const key = el.getAttribute('data-i18n');
+      el.textContent = resolveText(key, el.textContent);
+    });
+
+    ['placeholder', 'title', 'aria-label', 'value'].forEach(attr => {
+      const dataAttr = `data-i18n-${attr}`;
+      scope.querySelectorAll(`[${dataAttr}]`).forEach(el => {
+        const key = el.getAttribute(dataAttr);
+        el.setAttribute(attr, resolveText(key, el.getAttribute(attr)));
+      });
+    });
+  },
+
   /** 將 t() 套用到底部頁籤與 drawer 等靜態 UI */
   _applyI18nToUI() {
     // Bottom tabs
@@ -1439,10 +1461,7 @@ Object.assign(App, {
       teamRegion.options[0].textContent = t('teamPage.allRegions');
     }
 
-    // data-i18n 通用掃描器
-    document.querySelectorAll('[data-i18n]').forEach(el => {
-      el.textContent = t(el.dataset.i18n);
-    });
+    this._applyStaticI18n(document);
 
     // Re-render drawer menu & dashboard if visible
     this.renderDrawerMenu();

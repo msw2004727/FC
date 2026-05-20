@@ -13,7 +13,7 @@ describe('activity advanced add-on wording', () => {
     const configSource = readProjectFile('js/config.js');
     const rolesSource = readProjectFile('js/modules/user-admin/user-admin-roles.js');
 
-    expect(activityHtml).toContain('<summary class="ce-value-section-title" id="ce-value-section-title">進階功能</summary>');
+    expect(activityHtml).toMatch(/<summary class="ce-value-section-title" id="ce-value-section-title"[^>]*>進階功能<\/summary>/);
     expect(activityHtml).not.toContain('進階功能（加值服務）</summary>');
     expect(activityHtml).not.toContain('>加值功能</summary>');
     expect(configSource).toContain('使用進階功能（加值服務）');

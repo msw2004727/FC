@@ -2,7 +2,7 @@
     <!-- PAGE: Profile (My) -->
     <section class="page" id="page-profile">
       <div class="page-header profile-page-nav-header">
-        <button class="back-btn" type="button" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button class="back-btn" type="button" onclick="App.goBack()" aria-label="返回" data-i18n-aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <h2 class="page-header-title" data-i18n="profile.myProfile">&#25105;&#30340;&#36039;&#26009;</h2>
       </div>
       <!-- 未登入提示（正式版用） -->
@@ -10,7 +10,7 @@
         <div class="login-prompt-content">
           <div class="login-prompt-icon">👤</div>
           <h3 data-i18n="profilePage.notLoggedIn">尚未登入</h3>
-          <p>請先使用 LINE 帳號登入以查看個人資料</p>
+          <p data-i18n="請先使用 LINE 帳號登入以查看個人資料">請先使用 LINE 帳號登入以查看個人資料</p>
           <button class="line-login-btn large" onclick="LineAuth.login()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M12 2C6.48 2 2 5.83 2 10.5c0 4.18 3.66 7.68 8.58 8.38.33.07.78.22.9.5.1.26.07.66.03.92l-.15.86c-.04.26-.2 1.01.88.55s5.88-3.47 8.03-5.93C22.08 13.79 22 12.18 22 10.5 22 5.83 17.52 2 12 2z"/></svg>
             LINE 登入
@@ -33,8 +33,8 @@
         <!-- 預留插入區（廣告/公告/快捷功能等） -->
         <div id="profile-slot-banner" style="height:127px;border-radius:var(--radius-sm);box-sizing:border-box"></div>
         <div class="profile-stats">
-          <div class="stat-item"><span class="stat-num" id="profile-stat-total">0</span><span class="stat-label">應到場次</span></div>
-          <div class="stat-item"><span class="stat-num" id="profile-stat-done">0</span><span class="stat-label">完成場次</span></div>
+          <div class="stat-item"><span class="stat-num" id="profile-stat-total">0</span><span class="stat-label" data-i18n="應到場次">應到場次</span></div>
+          <div class="stat-item"><span class="stat-num" id="profile-stat-done">0</span><span class="stat-label" data-i18n="完成場次">完成場次</span></div>
           <div class="stat-item"><span class="stat-num" id="profile-stat-rate">0%</span><span class="stat-label" data-i18n="profile.attendanceRate">出席率</span></div>
           <div class="stat-item"><span class="stat-num" id="profile-stat-badges">0</span><span class="stat-label" data-i18n="profile.badges">徽章</span></div>
         </div>
@@ -66,29 +66,29 @@
         </div>
         <div class="info-card" id="profile-identity-card" data-permission-code="profile.secondary_identity">
           <div class="info-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,'identity')">
-            <span style="display:flex;align-items:center;gap:.35rem"><button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('secondaryIdentity')" title="說明">?</button><span>第二身份</span></span>
+            <span style="display:flex;align-items:center;gap:.35rem"><button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('secondaryIdentity')" title="說明" data-i18n-title="說明">?</button><span data-i18n="第二身份">第二身份</span></span>
             <span class="profile-collapse-arrow">▶</span>
           </div>
           <div class="profile-collapse-content" style="display:none">
             <div class="profile-identity-control">
               <label class="profile-identity-toggle">
-                <span>啟用</span>
+                <span data-i18n="啟用">啟用</span>
                 <span class="toggle-switch"><input type="checkbox" id="profile-secondary-enabled" onchange="App.handleSecondaryIdentityToggleChange()"><span class="toggle-slider"></span></span>
               </label>
             </div>
             <div class="profile-identity-summary">
               <div class="profile-identity-avatar" id="profile-secondary-avatar-preview"></div>
               <div class="profile-identity-summary-copy">
-                <div class="profile-identity-summary-name" id="profile-secondary-summary-name">使用主身份</div>
-                <div class="profile-identity-summary-status" id="profile-secondary-summary-status">啟用後會直接以第二身份顯示</div>
+                <div class="profile-identity-summary-name" id="profile-secondary-summary-name" data-i18n="使用主身份">使用主身份</div>
+                <div class="profile-identity-summary-status" id="profile-secondary-summary-status" data-i18n="啟用後會直接以第二身份顯示">啟用後會直接以第二身份顯示</div>
               </div>
-              <button type="button" class="outline-btn small profile-identity-edit-btn" id="profile-identity-edit-btn" onclick="App.toggleIdentitySettingsEdit()">編輯</button>
+              <button type="button" class="outline-btn small profile-identity-edit-btn" id="profile-identity-edit-btn" onclick="App.toggleIdentitySettingsEdit()" data-i18n="編輯">編輯</button>
             </div>
             <div class="profile-identity-editor">
-              <input type="text" id="profile-secondary-display-name" class="profile-edit-input" maxlength="40" placeholder="次身份暱稱" oninput="App._syncIdentityFormState()">
+              <input type="text" id="profile-secondary-display-name" class="profile-edit-input" maxlength="40" placeholder="次身份暱稱" oninput="App._syncIdentityFormState()" data-i18n-placeholder="次身份暱稱">
               <div class="profile-identity-actions">
-                <label class="outline-btn small profile-avatar-upload-btn" for="profile-secondary-avatar-input">上傳頭像</label>
-                <button type="button" class="outline-btn small" onclick="App.clearSecondaryIdentityAvatar()">清除頭像</button>
+                <label class="outline-btn small profile-avatar-upload-btn" for="profile-secondary-avatar-input" data-i18n="上傳頭像">上傳頭像</label>
+                <button type="button" class="outline-btn small" onclick="App.clearSecondaryIdentityAvatar()" data-i18n="清除頭像">清除頭像</button>
                 <input type="file" id="profile-secondary-avatar-input" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" style="display:none" onchange="App.uploadSecondaryIdentityAvatar(this)">
               </div>
             </div>
@@ -96,7 +96,7 @@
         </div>
         <div class="info-card" id="profile-info-card">
           <div class="info-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,'profileInfo')">
-            <span style="display:flex;align-items:center;gap:.35rem"><button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('myProfile')" title="說明">?</button><span data-i18n="profile.myProfile">我的資料</span></span>
+            <span style="display:flex;align-items:center;gap:.35rem"><button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('myProfile')" title="說明" data-i18n-title="說明">?</button><span data-i18n="profile.myProfile">我的資料</span></span>
             <span class="profile-collapse-arrow">▶</span>
           </div>
           <div class="profile-collapse-content" style="display:none">
@@ -110,7 +110,7 @@
             <div class="info-row"><span data-i18n="profile.phone">聯繫方式</span><span id="profile-phone">-</span></div>
             <div class="info-row"><span data-i18n="profile.joinDate">加入時間</span><span id="profile-join-date">-</span></div>
             <div style="display:flex;justify-content:flex-end;margin-top:.4rem">
-              <button class="outline-btn" style="font-size:.7rem;padding:.2rem .6rem" id="profile-edit-btn" onclick="App.toggleProfileEdit()">編輯</button>
+              <button class="outline-btn" style="font-size:.7rem;padding:.2rem .6rem" id="profile-edit-btn" onclick="App.toggleProfileEdit()" data-i18n="編輯">編輯</button>
             </div>
           </div>
           <!-- 編輯模式 -->
@@ -118,22 +118,22 @@
             <div class="info-row">
               <span data-i18n="profile.gender">性別</span>
               <select id="profile-edit-gender" class="profile-edit-input">
-                <option value="">請選擇</option>
-                <option value="男">男</option>
-                <option value="女">女</option>
-                <option value="其他">其他</option>
+                <option value="" data-i18n="請選擇">請選擇</option>
+                <option value="男" data-i18n="男">男</option>
+                <option value="女" data-i18n="女">女</option>
+                <option value="其他" data-i18n="其他">其他</option>
               </select>
             </div>
-            <div class="info-row"><span data-i18n="profile.birthday">生日</span><div style="display:flex;gap:.2rem;flex:1"><select id="profile-edit-birthday-y" class="profile-edit-input" style="flex:1.2"><option value="">年</option></select><select id="profile-edit-birthday-m" class="profile-edit-input" style="flex:1"><option value="">月</option></select><select id="profile-edit-birthday-d" class="profile-edit-input" style="flex:1"><option value="">日</option></select></div></div>
-            <div class="info-row"><span data-i18n="profile.region">地區</span><input type="text" id="profile-edit-region" class="profile-edit-input" placeholder="輸入搜尋縣市..." autocomplete="off" oninput="App._filterProfileRegion(this.value)"></div>
+            <div class="info-row"><span data-i18n="profile.birthday">生日</span><div style="display:flex;gap:.2rem;flex:1"><select id="profile-edit-birthday-y" class="profile-edit-input" style="flex:1.2"><option value="" data-i18n="年">年</option></select><select id="profile-edit-birthday-m" class="profile-edit-input" style="flex:1"><option value="" data-i18n="月">月</option></select><select id="profile-edit-birthday-d" class="profile-edit-input" style="flex:1"><option value="" data-i18n="日">日</option></select></div></div>
+            <div class="info-row"><span data-i18n="profile.region">地區</span><input type="text" id="profile-edit-region" class="profile-edit-input" placeholder="輸入搜尋縣市..." autocomplete="off" oninput="App._filterProfileRegion(this.value)" data-i18n-placeholder="輸入搜尋縣市..."></div>
             <div id="profile-region-list" onclick="App._selectProfileRegion(event)" style="max-height:120px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-card);display:none"></div>
             <div class="info-row"><span data-i18n="profile.sports">運動類別</span><span id="profile-sports-display">-</span></div>
             <div class="info-row"><span data-i18n="profile.team">所屬俱樂部</span><span id="profile-team-display">-</span></div>
-            <div class="info-row"><span data-i18n="profile.phone">聯繫方式</span><input type="tel" id="profile-edit-phone" class="profile-edit-input" placeholder="例：0912-345-678"></div>
+            <div class="info-row"><span data-i18n="profile.phone">聯繫方式</span><input type="tel" id="profile-edit-phone" class="profile-edit-input" placeholder="例：0912-345-678" data-i18n-placeholder="例：0912-345-678"></div>
             <div class="info-row"><span data-i18n="profile.joinDate">加入時間</span><span id="profile-join-date-edit">-</span></div>
             <div style="display:flex;gap:.5rem;margin-top:.5rem;justify-content:flex-end">
-              <button class="outline-btn" style="font-size:.75rem;padding:.3rem .8rem" onclick="App.toggleProfileEdit()">取消</button>
-              <button class="primary-btn small" onclick="App.saveProfileInfo()">儲存</button>
+              <button class="outline-btn" style="font-size:.75rem;padding:.3rem .8rem" onclick="App.toggleProfileEdit()" data-i18n="取消">取消</button>
+              <button class="primary-btn small" onclick="App.saveProfileInfo()" data-i18n="儲存">儲存</button>
             </div>
           </div>
           </div><!-- /profile-collapse-content -->
@@ -141,22 +141,22 @@
         <!-- LINE 推播通知綁定 -->
         <div class="info-card" id="profile-line-notify">
           <div class="info-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,'lineNotify')">
-            <span style="display:flex;align-items:center;gap:.35rem"><button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('lineNotify')" title="說明">?</button><span data-i18n="profile.lineNotify">LINE 推播通知</span> <span class="line-notify-status" id="line-notify-badge"></span></span>
+            <span style="display:flex;align-items:center;gap:.35rem"><button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('lineNotify')" title="說明" data-i18n-title="說明">?</button><span data-i18n="profile.lineNotify">LINE 推播通知</span> <span class="line-notify-status" id="line-notify-badge"></span></span>
             <span class="profile-collapse-arrow">▶</span>
           </div>
           <div class="profile-collapse-content" style="display:none">
           <!-- 已綁定 -->
           <div id="line-notify-bound" style="display:none">
             <div class="line-notify-row">
-              <span>LINE 帳號</span>
+              <span data-i18n="LINE 帳號">LINE 帳號</span>
               <span id="line-notify-name">-</span>
             </div>
             <div class="line-notify-row">
-              <span>綁定時間</span>
+              <span data-i18n="綁定時間">綁定時間</span>
               <span id="line-notify-time">-</span>
             </div>
             <div style="border-top:1px solid var(--border);margin:.5rem 0"></div>
-            <div style="font-size:.78rem;font-weight:600;margin-bottom:.35rem">通知設定</div>
+            <div style="font-size:.78rem;font-weight:600;margin-bottom:.35rem" data-i18n="通知設定">通知設定</div>
             <div class="line-notify-row">
               <span>活動提醒（報名成功/開始前）<span class="line-notify-sub"></span></span>
               <label class="toggle-switch"><input type="checkbox" id="line-toggle-activity" onchange="App.toggleLineNotify('activity')"><span class="toggle-slider"></span></label>
@@ -170,7 +170,7 @@
               <label class="toggle-switch"><input type="checkbox" id="line-toggle-tournament" onchange="App.toggleLineNotify('tournament')"><span class="toggle-slider"></span></label>
             </div>
             <div style="text-align:center;margin-top:.7rem">
-              <button class="outline-btn" style="color:var(--danger);border-color:var(--danger);font-size:.75rem;padding:.3rem .8rem" onclick="App.unbindLineNotify()">解除綁定</button>
+              <button class="outline-btn" style="color:var(--danger);border-color:var(--danger);font-size:.75rem;padding:.3rem .8rem" onclick="App.unbindLineNotify()" data-i18n="解除綁定">解除綁定</button>
             </div>
           </div>
           <!-- 未綁定 -->
@@ -191,7 +191,7 @@
         <!-- 我的收藏 -->
         <div class="info-card" id="profile-favorites-card" style="display:none">
           <div class="info-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,'favorites')">
-            <span style="display:flex;align-items:center;gap:.35rem"><button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('favorites')" title="說明">?</button><span data-i18n="profile.favorites">我的收藏</span> <span class="fav-count-badge" id="fav-count-badge">0</span></span>
+            <span style="display:flex;align-items:center;gap:.35rem"><button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('favorites')" title="說明" data-i18n-title="說明">?</button><span data-i18n="profile.favorites">我的收藏</span> <span class="fav-count-badge" id="fav-count-badge">0</span></span>
             <span class="profile-collapse-arrow">▶</span>
           </div>
           <div class="profile-collapse-content" id="profile-favorites-list" style="display:none"></div>
@@ -206,25 +206,25 @@
         <!-- 我的運動夥伴 -->
         <div class="info-card" id="my-companions-card">
           <div class="info-title profile-collapse-toggle" onclick="App.toggleCompanionsSection(this)">
-            <span style="display:flex;align-items:center;gap:.35rem"><button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('companions')" title="說明">?</button><span>我的運動夥伴</span> <span class="fav-count-badge" id="companions-count">0</span></span>
+            <span style="display:flex;align-items:center;gap:.35rem"><button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('companions')" title="說明" data-i18n-title="說明">?</button><span data-i18n="我的運動夥伴">我的運動夥伴</span> <span class="fav-count-badge" id="companions-count">0</span></span>
             <span class="profile-collapse-arrow">▶</span>
           </div>
           <div class="profile-collapse-content" id="companions-list" style="display:none">
             <div id="companions-inner-list"></div>
-            <button class="outline-btn" style="width:100%;margin-top:.5rem;font-size:.8rem" onclick="App.openCompanionModal()">+ 新增同行者</button>
+            <button class="outline-btn" style="width:100%;margin-top:.5rem;font-size:.8rem" onclick="App.openCompanionModal()" data-i18n="+ 新增同行者">+ 新增同行者</button>
           </div>
         </div>
         <div class="info-card">
           <div class="info-title profile-collapse-toggle" onclick="App.toggleProfileSection(this,'records')">
-            <span style="display:flex;align-items:center;gap:.35rem"><button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('records')" title="說明">?</button><span data-i18n="profile.activityRecords">報名紀錄</span><button id="my-records-refresh" type="button" class="profile-record-refresh-btn" onclick="event.stopPropagation();App.refreshMyActivityRecords()" title="&#x91CD;&#x65B0;&#x6574;&#x7406;" aria-label="&#x91CD;&#x65B0;&#x6574;&#x7406;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg></button></span>
+            <span style="display:flex;align-items:center;gap:.35rem"><button class="edu-info-btn" onclick="event.stopPropagation();App._showProfileInfo('records')" title="說明" data-i18n-title="說明">?</button><span data-i18n="profile.activityRecords">報名紀錄</span><button id="my-records-refresh" type="button" class="profile-record-refresh-btn" onclick="event.stopPropagation();App.refreshMyActivityRecords()" title="&#x91CD;&#x65B0;&#x6574;&#x7406;" aria-label="&#x91CD;&#x65B0;&#x6574;&#x7406;" data-i18n-title="重新整理" data-i18n-aria-label="重新整理"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg></button></span>
             <span class="profile-collapse-arrow">▶</span>
           </div>
           <div class="profile-collapse-content" style="display:none">
             <div class="tab-bar compact" id="record-tabs">
               <button class="tab" data-filter="all" data-i18n="profilePage.recordAll">全部</button>
-              <button class="tab" data-filter="registered">報名</button>
-              <button class="tab" data-filter="completed">完成</button>
-              <button class="tab" data-filter="cancelled">取消</button>
+              <button class="tab" data-filter="registered" data-i18n="報名">報名</button>
+              <button class="tab" data-filter="completed" data-i18n="完成">完成</button>
+              <button class="tab" data-filter="cancelled" data-i18n="取消">取消</button>
             </div>
             <div class="mini-activity-list" id="my-activity-records"></div>
           </div>
@@ -235,14 +235,14 @@
     <!-- PAGE: QR Code -->
     <section class="page" id="page-qrcode">
       <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        <h2>我的 QR Code</h2>
+        <button class="back-btn" onclick="App.goBack()" aria-label="返回" data-i18n-aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <h2 data-i18n="我的 QR Code">我的 QR Code</h2>
       </div>
       <div class="center-content">
         <div class="qr-placeholder">
           <div class="qr-box" id="page-qr-canvas">QR<br>CODE</div>
-          <p class="uid-text" id="page-qr-uid">簽到 QR Code</p>
-          <p class="qr-hint">掃碼查看個人資料卡片</p>
+          <p class="uid-text" id="page-qr-uid" data-i18n="簽到 QR Code">簽到 QR Code</p>
+          <p class="qr-hint" data-i18n="掃碼查看個人資料卡片">掃碼查看個人資料卡片</p>
         </div>
       </div>
     </section>
@@ -252,8 +252,8 @@
     <!-- PAGE: Achievements & Badges (合併) -->
     <section class="page" id="page-achievements">
       <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        <h2>成就與徽章</h2>
+        <button class="back-btn" onclick="App.goBack()" aria-label="返回" data-i18n-aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <h2 data-i18n="成就與徽章">成就與徽章</h2>
       </div>
       <div id="achievement-grid"></div>
     </section>
@@ -261,32 +261,32 @@
     <!-- PAGE: Titles -->
     <section class="page" id="page-titles">
       <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        <h2>稱號設定</h2>
+        <button class="back-btn" onclick="App.goBack()" aria-label="返回" data-i18n-aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <h2 data-i18n="稱號設定">稱號設定</h2>
       </div>
       <div class="title-config">
         <div class="title-preview" id="title-preview">-</div>
         <div class="title-row">
-          <label>大成就稱號</label>
-          <select id="title-big"><option value="">（無）</option></select>
+          <label data-i18n="大成就稱號">大成就稱號</label>
+          <select id="title-big"><option value="" data-i18n="（無）">（無）</option></select>
         </div>
         <div class="title-row">
-          <label>普通稱號</label>
-          <select id="title-normal"><option value="">（無）</option></select>
+          <label data-i18n="普通稱號">普通稱號</label>
+          <select id="title-normal"><option value="" data-i18n="（無）">（無）</option></select>
         </div>
         <div class="title-row">
-          <label>LINE 暱稱</label>
+          <label data-i18n="LINE 暱稱">LINE 暱稱</label>
           <input type="text" id="title-line-name" value="" disabled>
         </div>
-        <button class="primary-btn full-width" onclick="App.saveTitles()">儲存稱號</button>
+        <button class="primary-btn full-width" onclick="App.saveTitles()" data-i18n="儲存稱號">儲存稱號</button>
       </div>
     </section>
 
     <!-- PAGE: User Card (Scan result) -->
     <section class="page" id="page-user-card">
       <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        <h2>用戶資料卡片</h2>
+        <button class="back-btn" onclick="App.goBack()" aria-label="返回" data-i18n-aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <h2 data-i18n="用戶資料卡片">用戶資料卡片</h2>
       </div>
       <div class="user-card-full" id="user-card-full"></div>
     </section>
@@ -296,13 +296,13 @@
   <!-- Social Link Edit Modal -->
   <div class="modal" id="social-link-modal">
     <div class="modal-header">
-      <h3 id="social-modal-title">編輯社群連結</h3>
+      <h3 id="social-modal-title" data-i18n="編輯社群連結">編輯社群連結</h3>
       <button class="modal-close" onclick="App.closeModal()">✕</button>
     </div>
     <div class="modal-body">
       <div class="ce-form">
         <div class="ce-row">
-          <label id="social-modal-label">你的帳號 ID</label>
+          <label id="social-modal-label" data-i18n="你的帳號 ID">你的帳號 ID</label>
           <div class="social-url-row">
             <span class="social-url-prefix" id="social-url-prefix"></span>
             <input type="text" id="social-link-input" placeholder="your_id">
@@ -311,7 +311,7 @@
       </div>
     </div>
     <div class="modal-actions">
-      <button class="outline-btn" id="social-clear-btn" onclick="App.clearSocialLink()" style="color:var(--danger);border-color:var(--danger)">清除</button>
-      <button class="primary-btn" onclick="App.saveSocialLink()">儲存</button>
+      <button class="outline-btn" id="social-clear-btn" onclick="App.clearSocialLink()" style="color:var(--danger);border-color:var(--danger)" data-i18n="清除">清除</button>
+      <button class="primary-btn" onclick="App.saveSocialLink()" data-i18n="儲存">儲存</button>
     </div>
   </div>

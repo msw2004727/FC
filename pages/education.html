@@ -2,8 +2,8 @@
     <!-- PAGE: Education Groups (分組管理) -->
     <section class="page" id="page-edu-groups">
       <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        <h2>分組管理</h2>
+        <button class="back-btn" onclick="App.goBack()" aria-label="返回" data-i18n-aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <h2 data-i18n="分組管理">分組管理</h2>
       </div>
       <div id="edu-group-list-page"></div>
     </section>
@@ -11,8 +11,8 @@
     <!-- PAGE: Education Students (學員列表) -->
     <section class="page" id="page-edu-students">
       <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        <h2 id="edu-students-title">學員列表</h2>
+        <button class="back-btn" onclick="App.goBack()" aria-label="返回" data-i18n-aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <h2 id="edu-students-title" data-i18n="學員列表">學員列表</h2>
       </div>
       <div id="edu-student-list"></div>
     </section>
@@ -20,8 +20,8 @@
     <!-- PAGE: Education Course Plan (課程方案) -->
     <section class="page" id="page-edu-course-plan">
       <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        <h2>課程方案</h2>
+        <button class="back-btn" onclick="App.goBack()" aria-label="返回" data-i18n-aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <h2 data-i18n="課程方案">課程方案</h2>
       </div>
       <div id="edu-course-plan-page"></div>
     </section>
@@ -29,14 +29,14 @@
     <!-- PAGE: Course Enrollment List (方案名單) -->
     <section class="page" id="page-edu-course-enrollment">
       <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        <h2 id="edu-ce-title">方案名單</h2>
+        <button class="back-btn" onclick="App.goBack()" aria-label="返回" data-i18n-aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <h2 id="edu-ce-title" data-i18n="方案名單">方案名單</h2>
       </div>
       <div id="edu-ce-subtitle" style="text-align:center;font-size:.82rem;color:var(--text-muted);margin-bottom:.5rem"></div>
       <div class="scan-mode-toggle" style="margin:0 .5rem .8rem" id="edu-ce-staff-actions">
-        <button class="scan-mode active" onclick="App.showEduCheckin(App._ceTeamId, App._cePlanId)">手動簽到</button>
-        <button class="scan-mode" disabled style="opacity:.45" title="功能建構中">現場簽到</button>
-        <button class="scan-mode" onclick="App._showCourseAttendanceInfo(App._ceTeamId, App._cePlanId)">簽到資訊</button>
+        <button class="scan-mode active" onclick="App.showEduCheckin(App._ceTeamId, App._cePlanId)" data-i18n="手動簽到">手動簽到</button>
+        <button class="scan-mode" disabled style="opacity:.45" title="功能建構中" data-i18n-title="功能建構中" data-i18n="現場簽到">現場簽到</button>
+        <button class="scan-mode" onclick="App._showCourseAttendanceInfo(App._ceTeamId, App._cePlanId)" data-i18n="簽到資訊">簽到資訊</button>
       </div>
       <div id="edu-ce-list"></div>
     </section>
@@ -44,8 +44,8 @@
     <!-- PAGE: Education Check-in (批次簽到) -->
     <section class="page" id="page-edu-checkin">
       <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        <h2>課程簽到</h2>
+        <button class="back-btn" onclick="App.goBack()" aria-label="返回" data-i18n-aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <h2 data-i18n="課程簽到">課程簽到</h2>
       </div>
       <div id="edu-checkin-container"></div>
     </section>
@@ -53,12 +53,12 @@
     <!-- PAGE: Education Calendar (行事曆) -->
     <section class="page" id="page-edu-calendar">
       <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        <h2 id="edu-calendar-title">出席紀錄</h2>
+        <button class="back-btn" onclick="App.goBack()" aria-label="返回" data-i18n-aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <h2 id="edu-calendar-title" data-i18n="出席紀錄">出席紀錄</h2>
       </div>
       <div id="edu-calendar-toggle" style="display:flex;justify-content:center;gap:.5rem;margin:.5rem 0">
-        <button class="outline-btn small edu-view-btn active" data-view="stamp" onclick="App.switchEduCalendarView('stamp')">集點卡</button>
-        <button class="outline-btn small edu-view-btn" data-view="monthly" onclick="App.switchEduCalendarView('monthly')">月曆</button>
+        <button class="outline-btn small edu-view-btn active" data-view="stamp" onclick="App.switchEduCalendarView('stamp')" data-i18n="集點卡">集點卡</button>
+        <button class="outline-btn small edu-view-btn" data-view="monthly" onclick="App.switchEduCalendarView('monthly')" data-i18n="月曆">月曆</button>
       </div>
       <div id="edu-calendar-content"></div>
     </section>
@@ -66,35 +66,35 @@
     <!-- PAGE: Education Student Apply (學員申請) -->
     <section class="page" id="page-edu-student-apply">
       <div class="page-header">
-        <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        <h2 id="edu-apply-title">申請加入</h2>
+        <button class="back-btn" onclick="App.goBack()" aria-label="返回" data-i18n-aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <h2 id="edu-apply-title" data-i18n="申請加入">申請加入</h2>
       </div>
       <div class="ce-form" style="padding:1rem">
         <input type="hidden" id="edu-apply-team-id">
         <div class="ce-row">
-          <label>您的身份 <span class="required">*必填</span></label>
+          <label>您的身份 <span class="required" data-i18n="*必填">*必填</span></label>
           <select id="edu-apply-relation" onchange="App._onEduApplyRelationChange()">
-            <option value="self">本人</option>
-            <option value="parent">代理（為他人報名）</option>
+            <option value="self" data-i18n="本人">本人</option>
+            <option value="parent" data-i18n="代理（為他人報名）">代理（為他人報名）</option>
           </select>
         </div>
         <div class="ce-row">
-          <label>學員姓名 <span class="required">*必填</span></label>
-          <input type="text" id="edu-apply-name" maxlength="20" placeholder="學員的姓名">
+          <label>學員姓名 <span class="required" data-i18n="*必填">*必填</span></label>
+          <input type="text" id="edu-apply-name" maxlength="20" placeholder="學員的姓名" data-i18n-placeholder="學員的姓名">
         </div>
         <div class="ce-row">
-          <label>生日 <span class="required">*必填</span></label>
+          <label>生日 <span class="required" data-i18n="*必填">*必填</span></label>
           <input type="date" id="edu-apply-birthday">
         </div>
         <div class="ce-row">
-          <label>性別 <span class="required">*必填</span></label>
+          <label>性別 <span class="required" data-i18n="*必填">*必填</span></label>
           <select id="edu-apply-gender">
-            <option value="male">男</option>
-            <option value="female">女</option>
+            <option value="male" data-i18n="男">男</option>
+            <option value="female" data-i18n="女">女</option>
           </select>
         </div>
         <div style="margin-top:1rem">
-          <button class="primary-btn" style="width:100%" onclick="App.handleEduStudentApply()">送出申請</button>
+          <button class="primary-btn" style="width:100%" onclick="App.handleEduStudentApply()" data-i18n="送出申請">送出申請</button>
         </div>
       </div>
     </section>
@@ -102,88 +102,88 @@
     <!-- MODAL: Education Group Form -->
     <div class="modal" id="edu-group-modal">
       <div class="modal-header">
-        <h3 id="edu-group-modal-title">建立分組</h3>
+        <h3 id="edu-group-modal-title" data-i18n="建立分組">建立分組</h3>
         <button class="modal-close" onclick="App.closeModal()">✕</button>
       </div>
       <div class="modal-body">
         <div class="ce-form">
           <div class="ce-row">
-            <label>分組名稱 <span class="required">*必填</span></label>
-            <input type="text" id="edu-grp-name" maxlength="20" placeholder="例：U8、競技班">
+            <label>分組名稱 <span class="required" data-i18n="*必填">*必填</span></label>
+            <input type="text" id="edu-grp-name" maxlength="20" placeholder="例：U8、競技班" data-i18n-placeholder="例：U8、競技班">
           </div>
           <div class="ce-row">
-            <label>說明</label>
-            <input type="text" id="edu-grp-desc" maxlength="100" placeholder="選填說明">
+            <label data-i18n="說明">說明</label>
+            <input type="text" id="edu-grp-desc" maxlength="100" placeholder="選填說明" data-i18n-placeholder="選填說明">
           </div>
           <div class="ce-row" style="display:flex;gap:.5rem">
             <div style="flex:1">
-              <label>最小年齡</label>
-              <input type="number" id="edu-grp-age-min" min="1" max="99" placeholder="例：6">
+              <label data-i18n="最小年齡">最小年齡</label>
+              <input type="number" id="edu-grp-age-min" min="1" max="99" placeholder="例：6" data-i18n-placeholder="例：6">
             </div>
             <div style="flex:1">
-              <label>最大年齡</label>
-              <input type="number" id="edu-grp-age-max" min="1" max="99" placeholder="例：8">
+              <label data-i18n="最大年齡">最大年齡</label>
+              <input type="number" id="edu-grp-age-max" min="1" max="99" placeholder="例：8" data-i18n-placeholder="例：8">
             </div>
           </div>
           <div class="ce-row">
-            <label>性別限制</label>
+            <label data-i18n="性別限制">性別限制</label>
             <select id="edu-grp-gender">
-              <option value="all">不限</option>
-              <option value="male">限男生</option>
-              <option value="female">限女生</option>
+              <option value="all" data-i18n="不限">不限</option>
+              <option value="male" data-i18n="限男生">限男生</option>
+              <option value="female" data-i18n="限女生">限女生</option>
             </select>
           </div>
           <div class="ce-row">
-            <label>上課時間</label>
-            <input type="text" id="edu-grp-schedule" maxlength="50" placeholder="例：每週六 09:00-10:30">
+            <label data-i18n="上課時間">上課時間</label>
+            <input type="text" id="edu-grp-schedule" maxlength="50" placeholder="例：每週六 09:00-10:30" data-i18n-placeholder="例：每週六 09:00-10:30">
           </div>
         </div>
       </div>
       <div class="modal-actions">
-        <button class="outline-btn" onclick="App.closeModal()">取消</button>
-        <button class="primary-btn" id="edu-group-save-btn" onclick="App.handleSaveEduGroup()">建立分組</button>
+        <button class="outline-btn" onclick="App.closeModal()" data-i18n="取消">取消</button>
+        <button class="primary-btn" id="edu-group-save-btn" onclick="App.handleSaveEduGroup()" data-i18n="建立分組">建立分組</button>
       </div>
     </div>
 
     <!-- MODAL: Education Student Form (編輯用) -->
     <div class="modal" id="edu-student-modal">
       <div class="modal-header">
-        <h3 id="edu-student-modal-title">編輯學員</h3>
+        <h3 id="edu-student-modal-title" data-i18n="編輯學員">編輯學員</h3>
         <button class="modal-close" onclick="App.closeModal()">✕</button>
       </div>
       <div class="modal-body">
         <div class="ce-form">
           <div class="ce-row">
-            <label>學員姓名 <span class="required">*必填</span></label>
-            <input type="text" id="edu-stu-name" maxlength="20" placeholder="學員姓名">
+            <label>學員姓名 <span class="required" data-i18n="*必填">*必填</span></label>
+            <input type="text" id="edu-stu-name" maxlength="20" placeholder="學員姓名" data-i18n-placeholder="學員姓名">
           </div>
           <div class="ce-row">
-            <label>生日</label>
+            <label data-i18n="生日">生日</label>
             <input type="date" id="edu-stu-birthday">
           </div>
           <div class="ce-row">
-            <label>性別</label>
+            <label data-i18n="性別">性別</label>
             <select id="edu-stu-gender">
-              <option value="male">男</option>
-              <option value="female">女</option>
+              <option value="male" data-i18n="男">男</option>
+              <option value="female" data-i18n="女">女</option>
             </select>
           </div>
           <div class="ce-row">
-            <label>分組（可多選）</label>
+            <label data-i18n="分組（可多選）">分組（可多選）</label>
             <div id="edu-stu-groups" class="edu-checkbox-group"></div>
           </div>
         </div>
       </div>
       <div class="modal-actions">
-        <button class="outline-btn" onclick="App.closeModal()">取消</button>
-        <button class="primary-btn" id="edu-student-save-btn" onclick="App.handleSaveEduStudent()">儲存</button>
+        <button class="outline-btn" onclick="App.closeModal()" data-i18n="取消">取消</button>
+        <button class="primary-btn" id="edu-student-save-btn" onclick="App.handleSaveEduStudent()" data-i18n="儲存">儲存</button>
       </div>
     </div>
 
     <!-- MODAL: Assign Student to Group (指派學員到分組) -->
     <div class="modal" id="edu-assign-student-modal">
       <div class="modal-header">
-        <h3 id="edu-assign-modal-title">指派學員到分組</h3>
+        <h3 id="edu-assign-modal-title" data-i18n="指派學員到分組">指派學員到分組</h3>
         <button class="modal-close" onclick="App.closeModal()">✕</button>
       </div>
       <div class="modal-body">
