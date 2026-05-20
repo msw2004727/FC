@@ -45,11 +45,10 @@ Object.assign(App, {
     if (!btn) return;
     btn.classList.remove('font-m', 'font-l');
     if (this._fontLabels[idx]) btn.classList.add(this._fontLabels[idx]);
-    var labels = ['字', '中', '大'];
-    var btnSizes = ['0.85rem', '1rem', '1.15rem'];
-    btn.textContent = labels[idx];
-    btn.style.fontSize = btnSizes[idx];
-    btn.title = '字型大小：' + labels[idx];
+    btn.dataset.fontLevel = String(idx);
+    var label = (typeof t === 'function') ? t('字型大小') : '字型大小';
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
   },
 
   initFontSize() {

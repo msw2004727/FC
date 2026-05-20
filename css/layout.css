@@ -466,7 +466,7 @@
 .drawer-avatar { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #0d9488); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 1.1rem; flex-shrink: 0; }
 .drawer-user-info { min-width: 0; flex-shrink: 1; }
 .drawer-name { font-weight: 700; font-size: .95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.drawer-actions { display: flex; align-items: center; gap: .5rem; flex-shrink: 0; margin-left: auto; }
+.drawer-actions { display: flex; align-items: flex-start; gap: .5rem; flex-shrink: 0; margin-left: auto; }
 .drawer-action-stack { display: flex; flex-direction: column; align-items: flex-end; gap: .18rem; min-width: 0; }
 .drawer-clear-btn { flex-shrink: 0; display: inline-flex; align-items: center; gap: .3rem; padding: .28rem .6rem; border-radius: var(--radius-full); border: 1px solid var(--border); background: var(--bg-elevated); color: var(--text-muted); font-size: .72rem; font-weight: 500; cursor: pointer; transition: all var(--transition); line-height: 1; }
 .drawer-clear-btn svg { flex-shrink: 0; opacity: .7; }
@@ -579,12 +579,22 @@
   background: rgba(45, 212, 191, .12);
 }
 [data-theme="dark"] .role-application-notice-hero strong { color: #5eead4; }
-.drawer-font-btn { flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--border); background: var(--bg-elevated); color: var(--text-secondary); font-weight: 900; font-size: .85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all var(--transition); }
+.drawer-font-btn { flex-shrink: 0; width: 30px; height: 30px; padding: 0; border-radius: 50%; border: 2px solid var(--border); background: var(--bg-elevated); color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all var(--transition); line-height: 1; }
 .drawer-font-btn:hover { border-color: var(--accent); color: var(--accent); }
-.drawer-font-btn.font-m { font-size: .95rem; border-color: var(--accent); color: var(--accent); }
-.drawer-font-btn.font-l { font-size: 1.08rem; border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+.drawer-font-btn.font-m { border-color: var(--accent); color: var(--accent); }
+.drawer-font-btn.font-l { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+.drawer-font-icon { width: 22px; height: 22px; display: block; overflow: visible; }
+.font-icon-a { fill: currentColor; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-weight: 900; line-height: 1; }
+.font-icon-a-large { font-size: 15px; }
+.font-icon-a-small { font-size: 9px; opacity: .72; }
+.font-step { fill: currentColor; opacity: .28; transition: opacity var(--transition), transform var(--transition); transform-origin: center; }
+.drawer-font-btn .font-step-1,
+.drawer-font-btn.font-m .font-step-2,
+.drawer-font-btn.font-l .font-step-3 { opacity: 1; }
+.drawer-font-btn.font-m .font-step-2,
+.drawer-font-btn.font-l .font-step-3 { transform: scale(1.16); }
 /* ─── PWA Install Button (Drawer) ─── */
-.drawer-pwa-btn { flex-shrink: 0; height: 30px; padding: 0 .55rem; border-radius: var(--radius-full); border: none; background: transparent; color: #fff; font-weight: 700; font-size: .68rem; cursor: pointer; white-space: nowrap; transition: all var(--transition); letter-spacing: .02em; position: relative; overflow: hidden; animation: pwa-glow 2s ease-in-out infinite; }
+.drawer-pwa-btn { flex-shrink: 0; height: 30px; padding: 0 .55rem; border-radius: var(--radius-full); border: none; background: transparent; color: #fff; font-weight: 700; font-size: .68rem; cursor: pointer; white-space: nowrap; transition: all var(--transition); letter-spacing: .02em; position: relative; overflow: hidden; animation: pwa-glow 2s ease-in-out infinite; display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
 .drawer-pwa-btn > span { position: relative; z-index: 3; }
 .drawer-pwa-btn::before { content: ''; position: absolute; top: 50%; left: 50%; width: 300%; aspect-ratio: 1; margin-left: -150%; margin-top: -150%; background: conic-gradient(from 0deg, transparent 40%, #b8860b 60%, #ffd700 75%, #fff8dc 82%, #ffd700 90%, #b8860b 97%, transparent 100%); animation: pwa-border-spin 2s linear infinite; z-index: 1; }
 .drawer-pwa-btn::after { content: ''; position: absolute; inset: 2px; border-radius: inherit; background: #22c55e; z-index: 2; }
