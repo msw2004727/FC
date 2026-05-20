@@ -655,10 +655,11 @@ Object.assign(App, {
 
     const feeEnabled = this._isEventFeeEnabled?.(e) ?? Number(e?.fee || 0) > 0;
     const fee = this._getEventFeeAmount?.(e) ?? (feeEnabled ? (Number(e?.fee || 0) || 0) : 0);
-    const confirmedCount = (typeof this._buildConfirmedParticipantSummary === 'function')
-      ? this._buildConfirmedParticipantSummary(eventId).count
-      : Number(e.current || 0);
-    const remaining = Math.max(0, Number(e.max || 0) - confirmedCount);
+    const capacityStats = typeof this._getEventParticipantStats === 'function'
+      ? this._getEventParticipantStats(e)
+      : null;
+    const occupiedCount = capacityStats ? capacityStats.occupiedCount : Number(e.current || 0);
+    const remaining = Math.max(0, Number(e.max || 0) - occupiedCount);
     const allowedGender = this._getEventAllowedGender?.(e) || '';
 
     const infoEl = document.getElementById('companion-select-event-info');
@@ -736,10 +737,11 @@ Object.assign(App, {
     });
     const feeEnabled = this._isEventFeeEnabled?.(e) ?? Number(e?.fee || 0) > 0;
     const fee = this._getEventFeeAmount?.(e) ?? (feeEnabled ? (Number(e?.fee || 0) || 0) : 0);
-    const confirmedCount = e && typeof this._buildConfirmedParticipantSummary === 'function'
-      ? this._buildConfirmedParticipantSummary(eventId).count
-      : Number(e?.current || 0);
-    const remaining = Math.max(0, Number(e?.max || 0) - confirmedCount);
+    const capacityStats = e && typeof this._getEventParticipantStats === 'function'
+      ? this._getEventParticipantStats(e)
+      : null;
+    const occupiedCount = capacityStats ? capacityStats.occupiedCount : Number(e?.current || 0);
+    const remaining = Math.max(0, Number(e?.max || 0) - occupiedCount);
     const summaryEl = document.getElementById('companion-select-summary');
     if (summaryEl) {
       const feeHtml = feeEnabled && fee > 0 && toRegister > 0

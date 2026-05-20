@@ -236,6 +236,32 @@ describe('_buildConfirmedParticipantSummary', () => {
     expect(summary.people.map(p => p.name)).toEqual(['Owner Only', 'Guest A', 'Guest B']);
   });
 
+  test('does not count remaining team reserved placeholders as real signups', () => {
+    const event = {
+      id: 'evt-team-reserved',
+      current: 24,
+      realCurrent: 23,
+      max: 24,
+      participants: Array.from({ length: 23 }, (_, i) => `User ${i}`),
+      participantsWithUid: Array.from({ length: 23 }, (_, i) => ({ uid: `uid-${i}`, name: `User ${i}` })),
+      teamReservationSummaries: [
+        { teamId: 'teamA', teamName: 'Team A', reservedSlots: 9, usedSlots: 8, remainingSlots: 1 },
+      ],
+    };
+    const app = loadEventNoshowModule({
+      event,
+      registrations: [],
+      hasRealtimeState: true,
+      serverSnapshot: false,
+      eventFetchServer: false,
+    });
+
+    const summary = app._buildConfirmedParticipantSummary('evt-team-reserved');
+
+    expect(summary.count).toBe(23);
+    expect(summary.people.filter(p => p.isTeamPlaceholder)).toHaveLength(1);
+  });
+
   test('backfills team split doc ids when projected fallback rows are used', () => {
     const event = {
       id: 'evt-team-split-fallback',

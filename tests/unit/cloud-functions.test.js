@@ -1246,6 +1246,22 @@ describe('adjustTeamReservation CF member stamping', () => {
       teamSeatSource: 'reserved',
     });
   });
+
+  test('uses shared waitlist promotion after reservation changes', () => {
+    const source = readCloudFunctionSource('adjustTeamReservation');
+
+    expect(source).toContain('promoteWaitlistForAvailableSeats(eventForRebuild, activeRegs)');
+    expect(source).not.toContain('const candidate = sortWaitlistCandidates(activeRegs).find');
+  });
+
+  test('notifies and grants signup exp for reservation-driven promotions', () => {
+    const source = readCloudFunctionSource('adjustTeamReservation');
+
+    expect(source).toContain('writeInboxNotification({');
+    expect(source).toContain('title: "候補遞補通知"');
+    expect(source).toContain('adjustExpInternal({');
+    expect(source).toContain('ruleKey: "register_activity"');
+  });
 });
 
 const ADMIN_USER_EDIT_PROFILE_PERMISSION = 'admin.users.edit_profile';

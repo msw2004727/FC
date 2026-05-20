@@ -150,4 +150,56 @@ describe('team reservation occupancy helpers', () => {
     expect(regs.find(r => r.id === 'r2').teamSeatSource).toBe('reserved');
     expect(regs.find(r => r.id === 'r3').status).toBe('waitlisted');
   });
+
+  test('general waitlist promotion leaves remaining reserved team slots occupied as placeholders', () => {
+    const regs = [
+      ...Array.from({ length: 8 }, (_, i) => ({
+        id: `team-${i}`,
+        userId: `teamUser${i}`,
+        userName: `Team ${i}`,
+        participantType: 'self',
+        status: 'confirmed',
+        teamReservationTeamId: 'teamA',
+      })),
+      ...Array.from({ length: 12 }, (_, i) => ({
+        id: `general-${i}`,
+        userId: `generalUser${i}`,
+        userName: `General ${i}`,
+        participantType: 'self',
+        status: 'confirmed',
+      })),
+      ...Array.from({ length: 3 }, (_, i) => ({
+        id: `wait-${i}`,
+        userId: `waitUser${i}`,
+        userName: `Wait ${i}`,
+        participantType: 'self',
+        status: 'waitlisted',
+        registeredAt: `2026-01-01T00:0${i}:00.000Z`,
+      })),
+    ];
+
+    const promoted = service._promoteWaitlistForAvailableSeats(
+      {
+        max: 24,
+        teamReservationSummaries: [{ teamId: 'teamA', teamName: 'Team A', reservedSlots: 9 }],
+      },
+      regs,
+    );
+    const occupancy = service._rebuildOccupancy(
+      {
+        max: 24,
+        teamReservationSummaries: [{ teamId: 'teamA', teamName: 'Team A', reservedSlots: 9 }],
+      },
+      regs.filter(r => r.status === 'confirmed' || r.status === 'waitlisted'),
+    );
+
+    expect(promoted.map(r => r.id)).toEqual(['wait-0', 'wait-1', 'wait-2']);
+    expect(occupancy.realCurrent).toBe(23);
+    expect(occupancy.current).toBe(24);
+    expect(occupancy.waitlist).toBe(0);
+    expect(occupancy.teamReservationSummaries[0]).toMatchObject({
+      usedSlots: 8,
+      remainingSlots: 1,
+    });
+  });
 });

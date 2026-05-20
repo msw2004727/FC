@@ -1,5 +1,17 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-20 Team reservation display capacity split [bugfix]
+- **Problem**: After normal waitlist promotion filled the non-reserved capacity, activities with one remaining team reservation showed `24/24`, making it look like the reserved seat had been consumed.
+- **Cause**: UI stats reused the projected occupied count (`realCurrent + remaining team reservations`) as the displayed confirmed signup count and as the full-capacity signal.
+- **Fix**: Split actual confirmed signups from projected occupied capacity in activity stats. Cards/details now display actual signups and the remaining team reservation count, while full/waitlist decisions still use projected occupied capacity. Team members with an available reservation see a team-reservation signup CTA even when public capacity is full.
+- **Validation**: Added tests for the `23 actual + 1 reserved = 24 occupied` case, detail summary placeholder counting, team-reservation CTA source contract, and the exact waitlist-promotion scenario.
+
+### 2026-05-20 Team reservation waitlist promotion [bugfix]
+- **Problem**: Adjusting team reservation slots could leave normal waitlisted users in waitlist even when the projected event count was below capacity.
+- **Cause**: `adjustTeamReservation` used a local promotion loop that only promoted waitlisted users from the adjusted team reservation, while `cancelRegistration` already used the shared helper that also fills normal available seats.
+- **Fix**: Reused `promoteWaitlistForAvailableSeats(eventForRebuild, activeRegs)` in `adjustTeamReservation`, preserving reserved-seat priority and filling general seats when capacity is available; reservation-driven promotions now also send the waitlist promotion inbox notice and grant signup EXP.
+- **Validation**: Added Cloud Functions source-contract tests to keep reservation changes on the shared promotion helper and promotion side effects.
+
 ### 2026-05-20 Static UI i18n additional locales [feature]
 - **Problem**: The first low-risk static UI i18n package had English coverage, but Japanese, Korean, Thai, and Vietnamese still fell back to source text for the same marked UI keys.
 - **Fix**: Added ja/ko/th/vi overlays for the 410 first-package source-text keys and matching drawer semantic keys, keeping the existing leaf-only static i18n mechanism unchanged.

@@ -435,7 +435,7 @@ Object.assign(App, {
     const confirmedSummary = isGuestView
       ? {
           // Phase 3：count 優先取 e.current，次序 participantsWithUid.length，最後 participants[].length
-          count: Number(e.current
+          count: Number((typeof this._getEventActualConfirmedCount === 'function' ? this._getEventActualConfirmedCount(e) : e.current)
             || (Array.isArray(e.participantsWithUid) ? e.participantsWithUid.length : 0)
             || (Array.isArray(e.participants) ? e.participants.length : 0)),
           people: this._buildGuestEventPeople(e, 'participants'),
@@ -449,7 +449,13 @@ Object.assign(App, {
       : (typeof this._getEventWaitlistDisplayCount === 'function' ? this._getEventWaitlistDisplayCount(e.id, e) : Number(e.waitlist || 0));
     const isEnded = e.status === 'ended' || e.status === 'cancelled';
     const isUpcoming = e.status === 'upcoming';
-    const isMainFull = confirmedCount >= e.max;
+    const capacityStats = typeof this._getEventParticipantStats === 'function'
+      ? this._getEventParticipantStats(e)
+      : null;
+    const isMainFull = capacityStats ? capacityStats.isCapacityFull : confirmedCount >= e.max;
+    const hasTeamReservationSignup = !isGuestView
+      && typeof this._hasAvailableTeamReservationSignup === 'function'
+      && this._hasAvailableTeamReservationSignup(e);
     // Fix A+1：首次 snapshot 到達前視為「載入中」；9 秒（3 次重試）後強制解除
     const regsLoading = !isGuestView
       && !FirebaseService._registrationsFirstSnapshotReceived
@@ -552,6 +558,8 @@ Object.assign(App, {
       signupBtn = `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>球隊限定</button>`;
     } else if (genderSignupState.restricted && !genderSignupState.requiresLogin && !genderSignupState.canSignup) {
       signupBtn = `<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick='App._handleGenderRestrictedClick(${JSON.stringify(genderBlockedMessage)})'>${escapeHTML(this._getEventGenderRibbonText?.(e) || '性別限定')}</button>`;
+    } else if (isMainFull && hasTeamReservationSignup) {
+      signupBtn = _glowWrap(`<button class="primary-btn" onclick="App.handleSignup('${e.id}')">團隊預留報名</button>`, 'var(--accent)', 'var(--accent-hover)', '報名中');
     } else if (isMainFull) {
       signupBtn = _glowWrap(`<button style="background:#7c3aed;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App.handleSignup('${e.id}')">報名候補</button>`, '#7c3aed', '#a78bfa', '報名候補中');
     } else {
@@ -612,7 +620,8 @@ Object.assign(App, {
       // 短文字組（雙欄 grid 流排）
       const _shortCells = [];
       if (feeRow) _shortCells.push(feeRow);
-      _shortCells.push(`<div class="detail-row"><span class="detail-label">\u4EBA\u6578</span>\u5DF2\u5831 ${confirmedCount}/${e.max}${waitlistDisplayCount > 0 ? '\u3000\u5019\u88DC ' + waitlistDisplayCount : ''}</div>`);
+      const reservedDetailText = capacityStats?.reservedRemainingCount > 0 ? `\u3000\u5718\u968a\u9810\u7559 ${capacityStats.reservedRemainingCount}` : '';
+      _shortCells.push(`<div class="detail-row"><span class="detail-label">\u4EBA\u6578</span>\u5DF2\u5831 ${confirmedCount}/${e.max}${reservedDetailText}${waitlistDisplayCount > 0 ? '\u3000\u5019\u88DC ' + waitlistDisplayCount : ''}</div>`);
       _shortCells.push(`<div class="detail-row"><span class="detail-label">\u5012\u6578</span><span style="color:${isEnded ? 'var(--text-muted)' : 'var(--primary)'};font-weight:600">${countdown}</span></div>`);
       const _heatHtml = this._renderHeatPrediction(e);
       if (_heatHtml) _shortCells.push(_heatHtml);

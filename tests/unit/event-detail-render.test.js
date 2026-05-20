@@ -428,6 +428,17 @@ describe('Team reservation button loading contract', () => {
     expect(functionsSource).toContain('safePreferredTeamReservationTeamId');
   });
 
+  test('team reservation members keep a signup CTA even when projected capacity is full', () => {
+    const detailSource = readProjectFile('js/modules/event/event-detail.js');
+    const signupSource = readProjectFile('js/modules/event/event-detail-signup.js');
+
+    expect(signupSource).toContain('_hasAvailableTeamReservationSignup');
+    expect(detailSource).toContain('isMainFull && hasTeamReservationSignup');
+    expect(signupSource).toContain('isMainFull && hasTeamReservationSignup');
+    expect(detailSource).toContain('團隊預留報名');
+    expect(signupSource).toContain('團隊預留報名');
+  });
+
   test('team reservation header keeps the club marker while member rows stay plain', () => {
     const attendanceSource = readProjectFile('js/modules/event/event-manage-attendance.js');
     const noShowSource = readProjectFile('js/modules/event/event-manage-noshow.js');

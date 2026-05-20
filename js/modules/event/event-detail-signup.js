@@ -402,6 +402,11 @@ Object.assign(App, {
       .filter(Boolean);
   },
 
+  _hasAvailableTeamReservationSignup(e) {
+    return this._getTeamReservationSignupChoices(e)
+      .some(item => Math.max(0, Number(item.remainingSlots || 0) || 0) > 0);
+  },
+
   async _resolveTeamReservationSignupChoice(e, opts = {}) {
     await this._ensureTeamReservationStaffTeamsLoaded?.();
     const choices = this._getTeamReservationSignupChoices(e);
@@ -1478,7 +1483,9 @@ Object.assign(App, {
           const flipper = cancelGlowWrap.querySelector('.signup-flipper');
           if (flipper) {
             const ev = ApiService.getEvent(id);
-            const stillFull = ev && ev.current >= ev.max;
+            const stillFull = ev && (typeof this._isEventTrulyFull === 'function'
+              ? this._isEventTrulyFull(ev)
+              : ev.current >= ev.max);
             const backEl = document.createElement('div');
             backEl.className = 'signup-flip-back';
             backEl.style.cssText = stillFull
@@ -1703,7 +1710,12 @@ Object.assign(App, {
     var confirmedCount = (typeof this._buildConfirmedParticipantSummary === 'function')
       ? this._buildConfirmedParticipantSummary(eventId).count
       : Number(e.current || 0);
-    var isMainFull = confirmedCount >= (e.max || 0);
+    var capacityStats = typeof this._getEventParticipantStats === 'function'
+      ? this._getEventParticipantStats(e)
+      : null;
+    var isMainFull = capacityStats ? capacityStats.isCapacityFull : confirmedCount >= (e.max || 0);
+    var hasTeamReservationSignup = typeof this._hasAvailableTeamReservationSignup === 'function'
+      && this._hasAvailableTeamReservationSignup(e);
 
     // 性別限定
     var genderState = (typeof this._getEventGenderSignupState === 'function')
@@ -1743,6 +1755,8 @@ Object.assign(App, {
     } else if (genderBlocked) {
       html = '<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick=\'App._handleGenderRestrictedClick(' +
         JSON.stringify(genderMsg) + ')\'>' + escapeHTML(this._getEventGenderRibbonText?.(e) || '性別限定') + '</button>';
+    } else if (isMainFull && hasTeamReservationSignup) {
+      html = _gw('<button class="primary-btn" onclick="App.handleSignup(\'' + eventId + '\')">團隊預留報名</button>', 'var(--accent)', 'var(--accent-hover)', '報名中');
     } else if (isMainFull) {
       html = _gw(_btn('#7c3aed', '報名候補', "App.handleSignup('" + eventId + "')"), '#7c3aed', '#a78bfa', '報名候補中');
     } else {
@@ -1768,6 +1782,12 @@ Object.assign(App, {
     var waitlistCount = (typeof this._getEventWaitlistDisplayCount === 'function')
       ? this._getEventWaitlistDisplayCount(eventId, e)
       : Number(e.waitlist || 0);
+    var capacityStats = typeof this._getEventParticipantStats === 'function'
+      ? this._getEventParticipantStats(e)
+      : null;
+    var reservedDetailText = capacityStats?.reservedRemainingCount > 0
+      ? '\u3000\u5718\u968a\u9810\u7559 ' + capacityStats.reservedRemainingCount
+      : '';
     // 人數 row 結構：<div class="detail-row"><span class="detail-label">人數</span>已報 X/Y　候補 Z</div>
     // 文字是直接的 text node（非 span），需用 innerHTML 整行替換
     var labels = document.querySelectorAll('.detail-grid .detail-label');
@@ -1777,6 +1797,7 @@ Object.assign(App, {
         if (row) {
           row.innerHTML = '<span class="detail-label">\u4EBA\u6578</span>\u5DF2\u5831 ' +
             confirmedCount + '/' + (e.max || 0) +
+            reservedDetailText +
             (waitlistCount > 0 ? '\u3000\u5019\u88DC ' + waitlistCount : '');
         }
         break;

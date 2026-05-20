@@ -93,6 +93,21 @@ Object.assign(App, {
     return Math.max(0, Number(event.current || 0) || 0);
   },
 
+  _getEventRemainingTeamReservationCount(event) {
+    return (Array.isArray(event?.teamReservationSummaries) ? event.teamReservationSummaries : [])
+      .reduce((sum, summary) => sum + Math.max(0, Number(summary?.remainingSlots || 0) || 0), 0);
+  },
+
+  _getEventActualConfirmedCount(event) {
+    if (!event) return 0;
+    const realCurrent = Number(event.realCurrent);
+    if (Number.isFinite(realCurrent) && realCurrent >= 0) {
+      return Math.max(0, realCurrent);
+    }
+    const projected = Math.max(0, Number(event.current || 0) || 0);
+    return Math.max(0, projected - this._getEventRemainingTeamReservationCount(event));
+  },
+
   _getEventParticipantStats(eventInput) {
     const event = typeof eventInput === 'string' ? ApiService.getEvent(eventInput) : eventInput;
     if (!event) {
@@ -146,9 +161,12 @@ Object.assign(App, {
       + '|' + _eventRegsKey;
     if (_cache.has(_cacheKey)) return _cache.get(_cacheKey);
 
-    const fallbackConfirmed = this._getEventProjectedConfirmedCount(event);
+    const reservedRemainingCount = this._getEventRemainingTeamReservationCount(event);
+    const fallbackConfirmed = this._getEventActualConfirmedCount(event);
+    const fallbackOccupied = this._getEventProjectedConfirmedCount(event);
     const fallbackWaitlist = Math.max(0, Number(event.waitlist || 0));
     let confirmedCount = fallbackConfirmed;
+    let occupiedCount = fallbackOccupied;
     let waitlistCount = fallbackWaitlist;
 
     // 2026-04-27 方案 B：_hasCompleteRegs = false 時跳過 _buildEventPeopleSummaryByStatus
@@ -173,24 +191,27 @@ Object.assign(App, {
       );
       if (confirmedSummary.hasSource) confirmedCount = confirmedSummary.count;
       if (waitlistSummary.hasSource) waitlistCount = waitlistSummary.count;
+      if (confirmedSummary.hasSource) occupiedCount = confirmedCount + reservedRemainingCount;
     }
 
     const maxCount = Math.max(0, Number(event.max || 0));
-    const remainingCount = maxCount > 0 ? Math.max(0, maxCount - confirmedCount) : 0;
-    const isCapacityFull = maxCount > 0 && confirmedCount >= maxCount;
+    const remainingCount = maxCount > 0 ? Math.max(0, maxCount - occupiedCount) : 0;
+    const isCapacityFull = maxCount > 0 && occupiedCount >= maxCount;
     const isTerminal = event.status === 'ended' || event.status === 'cancelled';
 
     const _result = {
       confirmedCount,
+      occupiedCount,
       waitlistCount,
       maxCount,
       remainingCount,
+      reservedRemainingCount,
       isCapacityFull,
       showFullBadge: !isTerminal && isCapacityFull,
       showAlmostFullBadge: !isTerminal
         && event.status === 'open'
         && maxCount > 0
-        && confirmedCount < maxCount
+        && occupiedCount < maxCount
         && (remainingCount / maxCount) < 0.2,
     };
 

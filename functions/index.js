@@ -8381,19 +8381,7 @@ exports.adjustTeamReservation = onCall(
       }
 
       const eventForRebuild = { ...ed, max: maxCount, teamReservationSummaries: nextSummaries };
-      const promotedCandidates = [];
-      while (true) {
-        const teamOccupancy = rebuildOccupancy(eventForRebuild, activeRegs);
-        const teamSummary = teamOccupancy.teamReservationSummaries.find((item) => item.teamId === safeTeamId);
-        if (!teamSummary || Number(teamSummary.remainingSlots || 0) <= 0) break;
-        const candidate = sortWaitlistCandidates(activeRegs).find((reg) =>
-          reg.status === "waitlisted" && registrationTeamReservationTeamId(reg) === safeTeamId
-        );
-        if (!candidate) break;
-        candidate.status = "confirmed";
-        candidate.teamSeatSource = "reserved";
-        promotedCandidates.push(candidate);
-      }
+      const promotedCandidates = promoteWaitlistForAvailableSeats(eventForRebuild, activeRegs);
       const occupancy = rebuildOccupancy(eventForRebuild, activeRegs);
       const arSnap = await transaction.get(eventRef.collection("activityRecords"));
       const allArs = arSnap.docs.map((doc) => ({ ...doc.data(), _docId: doc.id }));
@@ -8461,6 +8449,7 @@ exports.adjustTeamReservation = onCall(
         event: occupancy,
         teamId: safeTeamId,
         teamName,
+        eventData: { title: ed.title || "", date: ed.date || "", location: ed.location || "", type: ed.type || "" },
         before: beforeSummary,
         after: afterSummary,
         promoted: promotedCandidates.map((item) => ({
@@ -8480,7 +8469,32 @@ exports.adjustTeamReservation = onCall(
     const logType = beforeSlots === 0 && afterSlots > 0
       ? "team_reservation_create"
       : (afterSlots === 0 ? "team_reservation_cancel" : "team_reservation_update");
-    Promise.allSettled([
+    const postOps = [];
+    for (const candidate of result.promoted) {
+      postOps.push(
+        writeInboxNotification({
+          recipientUid: candidate.userId,
+          title: "候補遞補通知",
+          body:
+            `恭喜！您已從候補名單自動遞補為正式參加者。\n\n` +
+            `活動名稱：${result.eventData.title}\n` +
+            `活動時間：${result.eventData.date}\n` +
+            `活動地點：${result.eventData.location}`,
+          category: "activity",
+          categoryLabel: "活動",
+        })
+      );
+      postOps.push(
+        adjustExpInternal({
+          targetUid: candidate.userId,
+          amount: 10,
+          reason: `候補遞補報名：${result.eventData.title}`,
+          ruleKey: "register_activity",
+          operatorUid: callerUid,
+        })
+      );
+    }
+    postOps.push(
       db.collection("operationLogs").add({
         type: logType,
         typeName: "俱樂部席位",
@@ -8497,8 +8511,9 @@ exports.adjustTeamReservation = onCall(
         promotedCount: result.promoted.length,
         time: timeStr,
         createdAt: FieldValue.serverTimestamp(),
-      }),
-    ]).catch((err) => console.error("[adjustTeamReservation postOps]", err));
+      })
+    );
+    Promise.allSettled(postOps).catch((err) => console.error("[adjustTeamReservation postOps]", err));
 
     return {
       success: true,

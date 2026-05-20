@@ -415,7 +415,8 @@ Object.assign(App, {
             statusLabel = statusConf.label;
             statusCss = statusConf.css;
             const waitlistTag = stats.waitlistCount > 0 ? ` · 候補(${stats.waitlistCount})` : '';
-            metaText = `${typeConf.label} · ${time} · ${escapeHTML((e.location || '').split('市')[1] || e.location)} · ${stats.confirmedCount}/${stats.maxCount}人${waitlistTag}`;
+            const reservationTag = stats.reservedRemainingCount > 0 ? ` · 團隊預留${stats.reservedRemainingCount}` : '';
+            metaText = `${typeConf.label} · ${time} · ${escapeHTML((e.location || '').split('市')[1] || e.location)} · ${stats.confirmedCount}/${stats.maxCount}人${reservationTag}${waitlistTag}`;
           }
 
           // 俱樂部限定用特殊色
@@ -446,10 +447,11 @@ Object.assign(App, {
           let progressHtml = '';
           if (!isExternal && !isEnded) {
             const _ps = this._getEventParticipantStats(e);
-            const _pPct = _ps.maxCount > 0 ? Math.min(100, Math.round(_ps.confirmedCount / _ps.maxCount * 100)) : 0;
+            const _pPct = _ps.maxCount > 0 ? Math.min(100, Math.round((_ps.occupiedCount ?? _ps.confirmedCount) / _ps.maxCount * 100)) : 0;
             const _pClr = _pPct >= 100 ? 'var(--danger)' : _pPct >= 70 ? 'var(--warning)' : 'var(--success)';
             const _wTag = _ps.waitlistCount > 0 ? ` · 候補 ${_ps.waitlistCount}` : '';
-            progressHtml = `<div style="display:flex;align-items:center;gap:.4rem;margin-top:.2rem"><div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${_pPct}%;height:100%;background:${_pClr};border-radius:3px"></div></div><span style="font-size:.65rem;color:var(--text-muted);white-space:nowrap">${_ps.confirmedCount}/${_ps.maxCount}人${_wTag}</span></div>`;
+            const _rTag = _ps.reservedRemainingCount > 0 ? ` · 預留 ${_ps.reservedRemainingCount}` : '';
+            progressHtml = `<div style="display:flex;align-items:center;gap:.4rem;margin-top:.2rem"><div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${_pPct}%;height:100%;background:${_pClr};border-radius:3px"></div></div><span style="font-size:.65rem;color:var(--text-muted);white-space:nowrap">${_ps.confirmedCount}/${_ps.maxCount}人${_rTag}${_wTag}</span></div>`;
           }
 
           html += `

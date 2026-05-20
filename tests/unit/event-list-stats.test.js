@@ -249,7 +249,33 @@ describe('_getEventParticipantStats', () => {
     };
     const app = loadEventListStatsModule({ event, hasCompleteRegs: false });
 
-    expect(app._getEventParticipantStats(event).confirmedCount).toBe(4);
+    const stats = app._getEventParticipantStats(event);
+    expect(stats.confirmedCount).toBe(2);
+    expect(stats.occupiedCount).toBe(4);
+    expect(stats.reservedRemainingCount).toBe(2);
+    expect(stats.isCapacityFull).toBe(false);
+  });
+
+  test('marks capacity full when only team reserved seats remain but displays actual signups', () => {
+    const event = {
+      id: 'evt-team-reserved-full',
+      current: 24,
+      realCurrent: 23,
+      waitlist: 0,
+      max: 24,
+      status: 'full',
+      teamReservationSummaries: [
+        { teamId: 'teamA', reservedSlots: 9, usedSlots: 8, remainingSlots: 1 },
+      ],
+    };
+    const app = loadEventListStatsModule({ event, hasCompleteRegs: false });
+    const stats = app._getEventParticipantStats(event);
+
+    expect(stats.confirmedCount).toBe(23);
+    expect(stats.occupiedCount).toBe(24);
+    expect(stats.reservedRemainingCount).toBe(1);
+    expect(stats.isCapacityFull).toBe(true);
+    expect(app._getEventEffectiveStatus(event, new Date(2026, 4, 20, 12, 0, 0))).toBe('full');
   });
 });
 

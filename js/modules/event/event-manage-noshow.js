@@ -241,10 +241,14 @@ Object.assign(App, {
           displayName: '一般報名',
         }], normalRows)
       : teamRows.concat(normalRows);
-    const countablePeople = orderedPeople.filter(p => !p.isTeamHeader && !p.isTeamGeneralSeparator && !p.proxyOnly && !p.isProxyOnly);
+    const countablePeople = orderedPeople.filter(p => !p.isTeamHeader && !p.isTeamGeneralSeparator && !p.isTeamPlaceholder && !p.proxyOnly && !p.isProxyOnly);
+    const remainingReservedSlots = (Array.isArray(e.teamReservationSummaries) ? e.teamReservationSummaries : [])
+      .reduce((sum, s) => sum + Math.max(0, Number(s.remainingSlots || 0) || 0), 0);
     const fallbackCount = typeof this._getEventProjectedConfirmedCount === 'function'
-      ? this._getEventProjectedConfirmedCount(e)
-      : Math.max(0, Number(e.realCurrent ?? e.current ?? 0) || 0);
+      ? (typeof this._getEventActualConfirmedCount === 'function'
+        ? this._getEventActualConfirmedCount(e)
+        : Math.max(0, this._getEventProjectedConfirmedCount(e) - remainingReservedSlots))
+      : Math.max(0, Number(e.realCurrent ?? (Number(e.current || 0) - remainingReservedSlots) ?? 0) || 0);
     const hasCountSource = orderedPeople.length > 0
       || (Array.isArray(e.participantsWithUid) && e.participantsWithUid.length > 0)
       || (Array.isArray(e.participants) && e.participants.length > 0);
