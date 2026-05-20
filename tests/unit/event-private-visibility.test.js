@@ -131,6 +131,30 @@ describe('private activity visibility for admin-below managers', () => {
     expect(app._getVisibleEvents().map(e => e.id)).toEqual(['private-own', 'private-delegated', 'public-other']);
   });
 
+  test('boot snapshot without creatorUid does not fall back to display-name ownership', () => {
+    const app = makeRuntime({ role: 'coach', uid: 'viewer' });
+    const bootSnapshotEvent = {
+      id: 'boot-snapshot-event',
+      title: 'Boot Snapshot Event',
+      creator: 'viewer',
+      status: 'open',
+    };
+
+    expect(app._isEventOwner(bootSnapshotEvent)).toBe(false);
+    expect(app._canManageEvent(bootSnapshotEvent)).toBe(false);
+    expect(app._canOperateEventSite(bootSnapshotEvent)).toBe(false);
+  });
+
+  test('site action permissions do not grant operation on non-owned activity', () => {
+    const app = makeRuntime({
+      role: 'coach',
+      perms: ['activity.manage.entry', 'event.scan', 'event.manual_checkin'],
+    });
+
+    expect(app._canOperateEventSite(publicOther)).toBe(false);
+    expect(app._canOperateEventSite(privateOwn)).toBe(true);
+  });
+
   test('admin-below owner can list and manage own private activities', () => {
     const app = makeRuntime({ role: 'coach' });
 

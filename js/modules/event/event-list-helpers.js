@@ -233,14 +233,16 @@ Object.assign(App, {
     return this._canManageTeamOnlyVisibility(e);
   },
 
-  /** 判斷當前用戶是否為該活動建立者 */
+  /** 判斷當前用戶是否為該活動主辦或 owner 欄位持有人 */
   _isEventOwner(e) {
-    if (!e.creatorUid) {
-      // 舊資料無 creatorUid，用 creator 名稱比對
-      const name = this._getEventCreatorName();
-      return e.creator === name;
-    }
-    return e.creatorUid === this._getEventCreatorUid();
+    if (!e) return false;
+    const myUid = String(this._getEventCreatorUid() || '').trim();
+    if (!myUid || myUid === 'unknown') return false;
+    const ownerIds = [e.creatorUid, e.ownerUid, e.captainUid]
+      .map(uid => String(uid || '').trim())
+      .filter(Boolean);
+    if (ownerIds.length === 0) return false;
+    return ownerIds.includes(myUid);
   },
 
   /** 判斷當前用戶是否為該活動委託人 */
@@ -382,7 +384,7 @@ Object.assign(App, {
     if (!this._canOperatePrivateEvent(e)) return false;
     if (this._canManageAllActivities()) return true;
     if (this._hasActivityManageEntry() && this._canManageScopedActivity(e)) return true;
-    if (this.hasPermission('event.scan') || this.hasPermission('event.manual_checkin')) return true;
+    if ((this.hasPermission('event.scan') || this.hasPermission('event.manual_checkin')) && this._canManageScopedActivity(e)) return true;
     return this._getCurrentActivityRoleKey() === 'user'
       && this._canManageScopedActivity(e)
       && this._hasUserActivityCapability('user.activity.site_operate');

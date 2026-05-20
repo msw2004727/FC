@@ -1,5 +1,11 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-20 Activity site-operation scope guard [bugfix]
+- **Problem**: UID `U210473e818fbc6ce639606b9e83efdd1` could see the on-site check-in action on `ce_1779011299321_f46aob` even though the event owner is `U66498cff225aa900d73f390932af53fe` and there are no delegates.
+- **Cause**: The frontend treated legacy `event.scan` / `event.manual_checkin` role permissions as global site-operation scope. Public boot event snapshots also omitted `creatorUid`, leaving a risky name-based owner fallback.
+- **Fix**: Site-operation permissions now require owner/delegate scope unless the user has `event.edit_all`; owner checks use UID fields only, and public event boot snapshots include owner/delegate UID fields.
+- **Validation**: Added unit coverage for non-owner coach site permissions and missing-`creatorUid` boot snapshots. Ran targeted event permission tests plus syntax checks for the touched files.
+
 ### 2026-05-20 Team reservation display capacity split [bugfix]
 - **Problem**: After normal waitlist promotion filled the non-reserved capacity, activities with one remaining team reservation showed `24/24`, making it look like the reserved seat had been consumed.
 - **Cause**: UI stats reused the projected occupied count (`realCurrent + remaining team reservations`) as the displayed confirmed signup count and as the full-capacity signal.

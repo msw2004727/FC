@@ -65,7 +65,8 @@ const BANNER_KEEP_FIELDS = [
 const PUBLIC_EVENT_KEEP_FIELDS = [
   'id', '_docId', 'title', 'date', 'location', 'type', 'status',
   'image', 'imageVariants', 'sportTag', 'current', 'max', 'pinned', 'pinOrder',
-  'privateEvent', 'teamOnly', 'creator', 'creatorTeamName', 'regOpenTime',
+  'privateEvent', 'teamOnly', 'creator', 'creatorUid', 'ownerUid', 'captainUid',
+  'delegateUids', 'delegates', 'creatorTeamName', 'regOpenTime',
   'feeEnabled', 'fee', 'minAge', 'allowedGender', 'genderRestriction', 'viewCount',
 ];
 
