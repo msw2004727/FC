@@ -3122,3 +3122,9 @@
 - **Cause**: Like summaries and optimistic like avatars used the root `authorName`/`authorPhoto` fields instead of the public `identitySnapshot`, while the audit capsule rendered the root UID as a visible segment.
 - **Fix**: Build comment like summaries from the normalized public identity snapshot, reuse that summary for optimistic avatars and permission fallback writes, keep the Firestore like document shape unchanged, and remove the visible UID from the audit capsule.
 - **Validation**: Ran node --check for the touched comment modules, targeted unit tests for event comments and identity resolver, and git diff --check for touched files.
+
+### 2026-05-20 Secondary Identity Settings Refresh [bugfix]
+- **Issue**: The secondary identity avatar/name sometimes disappeared until a full refresh happened to reload it.
+- **Cause**: Background listener suspension stopped `users/{uid}/identityPrivate/settings` and cleared the in-memory identity settings, but foreground resume only restarted global/page-scoped data listeners. The first settings snapshot could also render before role permissions made the secondary identity feature available.
+- **Fix**: Added a one-document identity settings refresh path that reads `identityPrivate/settings` from the server on auth start and foreground resume, restarts the identity listener on resume, guards stale fetches by uid, and repaints chrome/profile after role permission availability changes.
+- **Validation**: Ran node --check for `js/firebase-service.js`, targeted unit tests for profile, identity resolver, and Firebase service, version grep for `0.20260520n`, and git diff --check for touched files.

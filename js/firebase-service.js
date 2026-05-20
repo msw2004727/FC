@@ -175,6 +175,11 @@ const FirebaseService = {
   _usersUnsub: null,
   _userListener: null,
   _identityPrivateListener: null,
+  _identityPrivateListenerUid: '',
+  _identityPrivateFetchPromise: null,
+  _identityPrivateFetchUid: '',
+  _identityPrivateLastFetchAt: 0,
+  _identityPrivateLastFetchUid: '',
   _onUserChanged: null,
   _initialized: false,
   _initInFlight: false,
@@ -1594,6 +1599,8 @@ const FirebaseService = {
     if (typeof App === 'undefined') return;
     try {
       App.applyRole?.(App.currentRole || 'user', true);
+      App.renderLoginUI?.();
+      if (App.currentPage === 'page-profile') App.renderProfileData?.();
       App._refreshActivityCreateButton?.();
       App._refreshOwnActivityManageEntry?.();
       if (App.currentPage === 'page-teams') {
@@ -2301,6 +2308,12 @@ const FirebaseService = {
   //  延遲即時監聯器（Auth 完成後 / 進入頁面時啟動）
   // ════════════════════════════════
 
+  _getIdentityPrivateSettingsRef(uid) {
+    const safeUid = String(uid || '').trim();
+    if (!safeUid) return null;
+    return db.collection('users').doc(safeUid).collection('identityPrivate').doc('settings');
+  },
+
   _normalizeIdentityPrivateSettings(data) {
     const raw = data && typeof data === 'object' ? { ...data } : null;
     if (!raw) return null;
@@ -2310,31 +2323,88 @@ const FirebaseService = {
     return raw;
   },
 
+  _applyIdentityPrivateSettingsSnapshot(snapshot, options = {}) {
+    const next = snapshot?.exists
+      ? this._normalizeIdentityPrivateSettings({ ...snapshot.data(), _docId: snapshot.id })
+      : null;
+    const prevJson = JSON.stringify(this._cache.currentUserIdentitySettings || null);
+    const nextJson = JSON.stringify(next || null);
+    if (prevJson === nextJson) return false;
+    this._cache.currentUserIdentitySettings = next;
+    if (this._onUserChanged) this._onUserChanged();
+    if (options.render !== false && typeof App !== 'undefined') {
+      App.renderLoginUI?.();
+      if (App.currentPage === 'page-profile') App.renderProfileData?.();
+    }
+    return true;
+  },
+
+  async ensureCurrentIdentitySettingsLoaded(options = {}) {
+    const safeUid = String(options.uid || auth?.currentUser?.uid || this._cache.currentUser?.uid || '').trim();
+    if (!safeUid) return this._cache.currentUserIdentitySettings || null;
+    const maxAgeMs = Math.max(0, Number(options.maxAgeMs ?? 60000) || 0);
+    const now = Date.now();
+    if (!options.force
+      && this._identityPrivateLastFetchUid === safeUid
+      && this._cache.currentUserIdentitySettings
+      && maxAgeMs > 0
+      && (now - this._identityPrivateLastFetchAt) < maxAgeMs) {
+      return this._cache.currentUserIdentitySettings;
+    }
+    if (this._identityPrivateFetchPromise && this._identityPrivateFetchUid === safeUid) {
+      return this._identityPrivateFetchPromise;
+    }
+
+    const ref = this._getIdentityPrivateSettingsRef(safeUid);
+    if (!ref) return this._cache.currentUserIdentitySettings || null;
+
+    this._identityPrivateFetchUid = safeUid;
+    this._identityPrivateFetchPromise = (async () => {
+      let snapshot = null;
+      try {
+        snapshot = await ref.get({ source: options.source || 'server' });
+      } catch (serverErr) {
+        if ((options.source || 'server') === 'server') {
+          console.warn('[FirebaseService] identityPrivate/settings server fetch failed:', serverErr?.code || serverErr?.message || serverErr);
+        }
+        snapshot = await ref.get();
+      }
+      this._identityPrivateLastFetchAt = Date.now();
+      this._identityPrivateLastFetchUid = safeUid;
+      const activeUid = String(auth?.currentUser?.uid || this._cache.currentUser?.uid || '').trim();
+      if (!activeUid || activeUid !== safeUid) return this._cache.currentUserIdentitySettings || null;
+      this._applyIdentityPrivateSettingsSnapshot(snapshot, { render: options.render !== false });
+      return this._cache.currentUserIdentitySettings || null;
+    })().catch(err => {
+      console.warn('[FirebaseService] identityPrivate/settings fetch failed:', err?.code || err?.message || err);
+      return this._cache.currentUserIdentitySettings || null;
+    }).finally(() => {
+      if (this._identityPrivateFetchUid === safeUid) {
+        this._identityPrivateFetchPromise = null;
+        this._identityPrivateFetchUid = '';
+      }
+    });
+    return this._identityPrivateFetchPromise;
+  },
+
   _setupIdentityPrivateListener(uid) {
     const safeUid = String(uid || '').trim();
     if (!safeUid) return;
+    if (this._identityPrivateListener && this._identityPrivateListenerUid === safeUid) return;
     this._stopIdentityPrivateListener();
 
-    const ref = db.collection('users').doc(safeUid).collection('identityPrivate').doc('settings');
+    const ref = this._getIdentityPrivateSettingsRef(safeUid);
     this._identityPrivateListener = ref.onSnapshot(
       snapshot => {
-        const next = snapshot.exists
-          ? this._normalizeIdentityPrivateSettings({ ...snapshot.data(), _docId: snapshot.id })
-          : null;
-        const prevJson = JSON.stringify(this._cache.currentUserIdentitySettings || null);
-        const nextJson = JSON.stringify(next || null);
-        if (prevJson === nextJson) return;
-        this._cache.currentUserIdentitySettings = next;
-        if (this._onUserChanged) this._onUserChanged();
-        if (typeof App !== 'undefined') {
-          App.renderLoginUI?.();
-          if (App.currentPage === 'page-profile') App.renderProfileData?.();
-        }
+        this._identityPrivateLastFetchAt = Date.now();
+        this._identityPrivateLastFetchUid = safeUid;
+        this._applyIdentityPrivateSettingsSnapshot(snapshot);
       },
       err => {
         console.warn('[FirebaseService] identityPrivate/settings listener failed:', err?.code || err?.message || err);
       }
     );
+    this._identityPrivateListenerUid = safeUid;
   },
 
   _stopIdentityPrivateListener() {
@@ -2342,6 +2412,9 @@ const FirebaseService = {
       try { this._identityPrivateListener(); } catch (_) {}
       this._identityPrivateListener = null;
     }
+    this._identityPrivateListenerUid = '';
+    this._identityPrivateFetchPromise = null;
+    this._identityPrivateFetchUid = '';
     this._cache.currentUserIdentitySettings = null;
   },
 
@@ -2724,6 +2797,8 @@ const FirebaseService = {
       this._startMessagesListener();
       this._startUsersListener();
       this._setupIdentityPrivateListener(authUid);
+      this.ensureCurrentIdentitySettingsLoaded({ uid: authUid, force: true, maxAgeMs: 0 })
+        .catch(err => console.warn('[FirebaseService] identityPrivate/settings initial load failed:', err?.code || err?.message || err));
 
       // Fix 2：Auth 就緒後，若當前頁需要 registrations listener 則主動補啟動
       if (typeof App !== 'undefined'
@@ -2752,6 +2827,8 @@ const FirebaseService = {
       // 一律套用權威角色（不限自訂角色），確保 boot 後 UI 與 auth 一致
       if (typeof App !== 'undefined' && typeof App.applyRole === 'function') {
         App.applyRole(authRole, true);
+        App.renderLoginUI?.();
+        if (App.currentPage === 'page-profile') App.renderProfileData?.();
       }
       const canAdminSeed = this._roleLevel(authRole) >= this._roleLevel('admin');
       const canSuperAdminSeed = this._roleLevel(authRole) >= this._roleLevel('super_admin');
@@ -3773,6 +3850,9 @@ const FirebaseService = {
     // 重啟全域 listeners
     this._startUsersListener();
     this._startMessagesListener();
+    this._setupIdentityPrivateListener(auth.currentUser.uid);
+    this.ensureCurrentIdentitySettingsLoaded({ uid: auth.currentUser.uid, force: true, maxAgeMs: 0 })
+      .catch(err => console.warn('[FirebaseService] identityPrivate/settings resume load failed:', err?.code || err?.message || err));
     // 重啟當前頁面需要的 page-scoped listeners
     if (typeof App !== 'undefined') {
       const pageId = App.currentPage;

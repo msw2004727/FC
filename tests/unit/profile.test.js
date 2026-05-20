@@ -197,6 +197,7 @@ describe('secondary identity profile controls', () => {
     const profileCss = readProjectFile('css/profile.css');
     const apiSource = readProjectFile('js/api-service.js');
     const crudSource = readProjectFile('js/firebase-crud.js');
+    const firebaseSource = readProjectFile('js/firebase-service.js');
     const roleSource = readProjectFile('js/modules/role.js');
 
     expect(profileRenderSource).toContain('renderIdentitySettings()');
@@ -241,6 +242,11 @@ describe('secondary identity profile controls', () => {
     expect(apiSource).toContain('canUseSecondaryIdentityFeature(role = null)');
     expect(apiSource).toContain("includes('profile.secondary_identity')");
     expect(apiSource).toContain('uploadSecondaryIdentityAvatar(base64DataUrl)');
+    expect(firebaseSource).toContain('ensureCurrentIdentitySettingsLoaded(options = {})');
+    expect(firebaseSource).toContain("ref.get({ source: options.source || 'server' })");
+    expect(firebaseSource).toContain('_applyIdentityPrivateSettingsSnapshot(snapshot');
+    expect(firebaseSource).toContain('this._setupIdentityPrivateListener(auth.currentUser.uid);');
+    expect(firebaseSource).toContain("identityPrivate/settings resume load failed");
     expect(roleSource).toContain("document.querySelectorAll('[data-permission-code]')");
     expect(roleSource).toContain('this.hasPermission(code, role)');
     expect(crudSource).toContain("httpsCallable('commitIdentitySettings')");
