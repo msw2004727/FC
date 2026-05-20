@@ -449,8 +449,10 @@ describe('Team reservation button loading contract', () => {
     expect(signupSource).toContain('_hasAvailableTeamReservationSignup');
     expect(detailSource).toContain('isMainFull && hasTeamReservationSignup');
     expect(signupSource).toContain('isMainFull && hasTeamReservationSignup');
-    expect(detailSource).toContain('預留報名');
-    expect(signupSource).toContain('預留報名');
+    expect(detailSource).not.toContain('預留報名');
+    expect(signupSource).not.toContain('預留報名');
+    expect(detailSource).toContain('立即報名');
+    expect(signupSource).toContain('立即報名');
   });
 
   test('team reservation header keeps the club marker while member rows stay plain', () => {

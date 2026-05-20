@@ -1803,7 +1803,7 @@ Object.assign(App, {
       html = '<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick=\'App._handleGenderRestrictedClick(' +
         JSON.stringify(genderMsg) + ')\'>' + escapeHTML(this._getEventGenderRibbonText?.(e) || '性別限定') + '</button>';
     } else if (isMainFull && hasTeamReservationSignup) {
-      html = _gw('<button class="primary-btn" onclick="App.handleSignup(\'' + eventId + '\')">預留報名</button>', 'var(--accent)', 'var(--accent-hover)', '報名中');
+      html = _gw('<button class="primary-btn" onclick="App.handleSignup(\'' + eventId + '\')">立即報名</button>', 'var(--accent)', 'var(--accent-hover)', '報名中');
     } else if (isMainFull) {
       html = _gw(_btn('#7c3aed', '報名候補', "App.handleSignup('" + eventId + "')"), '#7c3aed', '#a78bfa', '報名候補中');
     } else {
