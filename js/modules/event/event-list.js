@@ -256,7 +256,7 @@ Object.assign(App, {
           const _stats = this._getEventParticipantStats(e);
           const _capacityBadge = this._renderEventCapacityBadge(e, _stats);
           const _participantCountClass = _stats.isCapacityFull ? 'h-card-meta-count h-card-meta-count-full' : 'h-card-meta-count';
-          const _reservationTag = _stats.reservedRemainingCount > 0 ? ` 團隊預留${_stats.reservedRemainingCount}` : '';
+          const _reservationTag = _stats.reservedRemainingCount > 0 ? ` 預留 ${_stats.reservedRemainingCount}` : '';
           const _participantCount = `${_stats.confirmedCount}/${_stats.maxCount}${t('activity.participants')}${_reservationTag}${_stats.waitlistCount > 0 ? ' 候補' + _stats.waitlistCount : ''}`;
           const _metaBottomClass = _genderRibbon ? 'h-card-meta-bottom h-card-meta-bottom-has-ribbon' : 'h-card-meta-bottom';
           _metaBottom = `<div class="${_metaBottomClass}"><span class="${_participantCountClass}">${_participantCount}</span>${_capacityBadge}</div>`;

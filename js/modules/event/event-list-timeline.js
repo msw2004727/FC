@@ -415,7 +415,7 @@ Object.assign(App, {
             statusLabel = statusConf.label;
             statusCss = statusConf.css;
             const waitlistTag = stats.waitlistCount > 0 ? ` · 候補(${stats.waitlistCount})` : '';
-            const reservationTag = stats.reservedRemainingCount > 0 ? ` · 團隊預留${stats.reservedRemainingCount}` : '';
+            const reservationTag = stats.reservedRemainingCount > 0 ? ` · 預留 ${stats.reservedRemainingCount}` : '';
             metaText = `${typeConf.label} · ${time} · ${escapeHTML((e.location || '').split('市')[1] || e.location)} · ${stats.confirmedCount}/${stats.maxCount}人${reservationTag}${waitlistTag}`;
           }
 
