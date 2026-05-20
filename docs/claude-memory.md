@@ -1,5 +1,16 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-20 Mobile low-end performance implementation final sync [perf/docs]
+- **Problem**: The mobile low-end optimization plan had been implemented across several commits and hotfixes, but the final architecture was split across git history, the completed plan, cache version bumps, and production incident notes.
+- **Fix**: Synced the final lookup path into docs: the completed plan now records implementation outcome, `docs/architecture.md` records the current runtime/cache/font/SDK architecture, and `docs/tunables.md` records the tunable values and versioning notes.
+- **Final design**: Critical CSS stays render-blocking only for base/layout/home/activity; non-critical CSS remains async. Firebase app/firestore/auth/LIFF load at boot, while Storage and Functions load through `ensureFirebaseStorageSdk()` / `ensureFirebaseFunctionsSdk()` only when needed. Body text uses system Chinese fonts; Outfit remains for display/brand text. Service Worker versioned JS/CSS cache matching is exact, with an unversioned fallback only for offline recovery.
+- **Current frontend version**: `0.20260520`.
+
+### 2026-05-20 Activity nearby map tab final placement [ux]
+- **Problem**: The nearby map entry competed with top header actions and could make the activity header controls feel crowded on mobile after the optimization work.
+- **Fix**: The final layout keeps the create/open action in the header and places the nearby map entry as a compact region-tab action after `全部`. Region tabs were tightened and left-aligned on narrow screens, then centered again from 420px upward.
+- **Guardrail**: Keep `#region-tab-nearby-activity` as the stable id because activity-map feature flag sync depends on it.
+
 ### 2026-05-19 Activity region tabs centered spacing [ux]
 - **Problem**: The restored activity region tabs fit 320px screens but felt too tight and were left-aligned on narrow layouts.
 - **Fix**: Relaxed region tab padding slightly, restored centered alignment by default, and kept a 360px compact breakpoint that still fits the full region row plus nearby map entry.
@@ -10,10 +21,22 @@
 - **Cause**: `_pmCallable()` returned the Promise from `ensureFirebaseFunctionsSdk(...)`, but send/read/edit/recall/audit callers treated that return value as the callable function itself.
 - **Fix**: `_pmCallable()` now returns an async wrapper function. The wrapper loads the Functions SDK, resolves `httpsCallable(name)`, validates it is callable, and forwards the payload.
 - **Validation**: Added unit coverage that calls `_pmCallable('sendPrivateMessage')` as a function and verifies the asia-east1 SDK load plus payload forwarding. Ran `node --check` on PM modules and `npm run test:unit -- --runTestsByPath tests\unit\private-message.test.js`.
+
 ### 2026-05-19 Activity region tabs compact restore [ux]
 - **Problem**: Moving the nearby-activity map entry into the activity page header made the header too crowded on 320px screens.
 - **Fix**: Restored the map entry to the region tab row, removed header-only nearby button styling, and tightened region tab padding/font sizes with a 360px compact breakpoint.
 - **Tests**: Verified the nearby button has a single DOM ID in the region row, cache version bump, and diff whitespace checks before deploy.
+
+### 2026-05-20 createCustomToken local origin block [security]
+- **Problem**: A production `createCustomToken` callable request from localhost / local development origins should not be accepted, because it mixes local LIFF/Firebase testing with production token issuance.
+- **Fix**: Added request header parsing for `Origin` / `Referer`, normalized hostnames, and reject localhost-style origins with `LOCAL_DEVELOPMENT_ORIGIN_NOT_ALLOWED` before validating LINE access tokens.
+- **Tests**: No dedicated unit contract exists yet for this guard; add one before changing the login callable path again.
+
+### 2026-05-20 Shot game leaderboard fallback names [bug]
+- **Problem**: Some shot-game leaderboard entries displayed fallback names like `玩家bae0` even for real LINE users.
+- **Cause**: `submitShotGameScore` only trusted the callable payload / Firebase Auth token display name. When LINE Auth had an empty or placeholder display name, the ranking document persisted the `玩家xxxx` fallback and the leaderboard rendered that stored value directly.
+- **Fix**: Added server-side game display-name resolution from the canonical `users/{uid}` profile before token/payload fallbacks, shared it with the kick-game score callable, and let the shot-game leaderboard UI repair existing placeholder rows from users cache or direct user lookups.
+- **Tests**: Added Cloud Functions source-contract coverage for canonical profile resolution; ran targeted syntax and unit checks.
 
 ### 2026-05-19 Service worker versioned static cache hotfix [bug]
 - **Problem**: Returning users could receive a new HTML shell while their old Service Worker served stale `script-loader.js` / `config.js` because versioned static requests were matched with `ignoreSearch`. That stale loader requested removed legacy paths such as `js/modules/auto-exp.js`, which production returned as 404 HTML and Chrome refused to execute as JavaScript.
@@ -3081,3 +3104,15 @@
 - **原因**：網頁運動標籤統一走 `getSportIconSvg()`，足球沒有登錄在 `SPORT_ICON_SVG_HTML`，所以 fallback 到 `SPORT_ICON_EMOJI.football`。
 - **修復**：將 `football` 加入 `SPORT_ICON_SVG_HTML` 並指向 `img/Socce.png`，同步補上 config helper 測試與 tunables 說明。
 - **教訓**：更換運動標籤圖示應走共用 helper 對照表，才能讓活動、俱樂部、賽事與首頁標籤同步套用。
+
+### 2026-05-20 Secondary Identity Live Rendering [bugfix]
+- **Issue**: Disabling the secondary identity did not immediately update the profile header avatar/name, the edit button briefly entered save mode during direct toggles, avatar/name drafts could be overwritten by identity snapshots, and activity comments still posted with the main identity.
+- **Cause**: The profile toggle waited for the Firestore round-trip before repainting current identity, dirty toggle state reused edit/save UI state, identity settings render always reset edit state and input values, and comment writes requested the main identity by default.
+- **Fix**: Optimistically update identity settings cache with rollback on failure, repaint profile/login UI immediately, keep save mode tied only to detail editing, preserve secondary draft names through avatar-only updates/snapshots, and let comments/replies/likes resolve the current identity by default with the permission gate preserved.
+- **Validation**: Ran node --check for touched identity/comment modules and targeted unit tests: npm test -- --runTestsByPath tests/unit/profile.test.js tests/unit/event-comments.test.js tests/unit/identity-resolver.test.js.
+
+### 2026-05-20 Topbar Avatar Sync Spinner [bugfix]
+- **Issue**: After LINE login but before the user profile import/cache finished, the top-right avatar showed a green circle with the first character of the fallback label `同步中...`, so users saw an ambiguous `同`.
+- **Cause**: The topbar avatar fallback always rendered the first character of `displayName`, including temporary loading labels.
+- **Fix**: When login is valid but no display name and no avatar candidate are available yet, render the topbar avatar fallback as a spinner with an accessible `同步中` label instead of text.
+- **Validation**: Added profile source-contract coverage for the syncing avatar state, ran syntax checks for touched profile modules, targeted profile unit tests, and diff whitespace checks.

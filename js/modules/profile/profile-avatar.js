@@ -82,6 +82,15 @@ Object.assign(App, {
     return escapeHTML(text ? text.charAt(0) : '?');
   },
 
+  _buildTopbarAvatarFallback(initial, isSyncing = false) {
+    const loadingClass = isSyncing ? ' line-avatar-loading' : '';
+    const label = isSyncing ? '同步中' : '使用者選單';
+    const content = isSyncing
+      ? '<span class="line-avatar-spinner" aria-hidden="true"></span>'
+      : initial;
+    return `<div id="line-avatar-topbar" class="line-avatar-topbar line-avatar-fallback${loadingClass}" aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}" onclick="App.toggleUserMenu()">${content}</div>`;
+  },
+
   _buildAvatarFallbackMarkup(name, fallbackClass = 'profile-avatar') {
     return `<div class="${escapeHTML(fallbackClass)}">${this._getAvatarInitial(name)}</div>`;
   },
@@ -208,11 +217,12 @@ Object.assign(App, {
     const displayName = profile?.displayName || '?';
     const candidateUrls = this._getAvatarCandidateUrls(options.candidateUrls || profile?.pictureUrl);
     const initial = this._getAvatarInitial(displayName);
+    const isSyncing = !!options.isSyncing && !candidateUrls.length;
 
     // 永遠先顯示 fallback（文字頭像），避免出現破圖
     const dropdown = document.getElementById('user-menu-dropdown');
     const dropdownHtml = dropdown ? dropdown.outerHTML : '';
-    userTopbar.innerHTML = `<div id="line-avatar-topbar" class="line-avatar-topbar line-avatar-fallback" onclick="App.toggleUserMenu()">${initial}</div>${dropdownHtml}`;
+    userTopbar.innerHTML = `${this._buildTopbarAvatarFallback(initial, isSyncing)}${dropdownHtml}`;
 
     const candidates = this._getRenderableAvatarCandidateUrls(candidateUrls);
     if (!candidates.length) return;
@@ -243,8 +253,14 @@ Object.assign(App, {
           this._rememberBrokenAvatarUrl(url);
           const fb = document.createElement('div');
           fb.id = 'line-avatar-topbar';
-          fb.className = 'line-avatar-topbar line-avatar-fallback';
-          fb.textContent = initial;
+          fb.className = `line-avatar-topbar line-avatar-fallback${isSyncing ? ' line-avatar-loading' : ''}`;
+          fb.setAttribute('aria-label', isSyncing ? '同步中' : '使用者選單');
+          fb.setAttribute('title', isSyncing ? '同步中' : '使用者選單');
+          if (isSyncing) {
+            fb.innerHTML = '<span class="line-avatar-spinner" aria-hidden="true"></span>';
+          } else {
+            fb.textContent = initial;
+          }
           fb.onclick = () => App.toggleUserMenu();
           if (img.parentNode) img.replaceWith(fb);
         };

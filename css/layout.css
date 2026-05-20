@@ -899,6 +899,20 @@
   display: flex; align-items: center; justify-content: center;
   color: #fff; font-weight: 700; font-size: .9rem;
 }
+.line-avatar-loading {
+  cursor: wait;
+}
+.line-avatar-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, .42);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: line-avatar-spin .78s linear infinite;
+}
+@keyframes line-avatar-spin {
+  to { transform: rotate(360deg); }
+}
 
 /* ─── Profile Avatar (LINE image override) ─── */
 .profile-avatar-img {

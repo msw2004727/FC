@@ -81,6 +81,27 @@ describe('IdentityResolver', () => {
     });
   });
 
+  test('comment surface uses the active secondary identity', () => {
+    const resolver = loadResolver({
+      user: mainUser,
+      settings: {
+        profileActiveIdentityId: 'secondary',
+        identities: {
+          secondary: {
+            enabled: true,
+            displayName: 'Comment Alias',
+            avatarUrl: 'https://example.com/comment-alias.png',
+          },
+        },
+      },
+    });
+    expect(resolver.getEffectiveIdentity({ surface: 'comment' })).toMatchObject({
+      identityId: 'secondary',
+      displayName: 'Comment Alias',
+      pictureUrl: 'https://example.com/comment-alias.png',
+    });
+  });
+
   test('secondary identity permission gate forces main identity', () => {
     const settings = {
       profileActiveIdentityId: 'secondary',

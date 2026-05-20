@@ -246,11 +246,13 @@ Object.assign(App, {
     // 已登入：顯示身份一律取自 Firestore currentUser + identityPrivate resolver。
     const currentUser = ApiService.getCurrentUser();
     const identity = ApiService.getCurrentIdentity?.('chrome') || null;
+    const hasResolvedDisplayName = !!(identity?.displayName || currentUser?.displayName || currentUser?.name);
     const displayName = identity?.displayName || currentUser?.displayName || currentUser?.name || '同步中...';
     const identityCandidates = Array.isArray(identity?.avatarCandidates) ? identity.avatarCandidates : [];
     const avatarCandidates = identity?.identityId === 'secondary'
       ? this._getAvatarCandidateUrls(...identityCandidates)
       : this._getAvatarCandidateUrls(...identityCandidates, currentUser && currentUser.pictureUrl);
+    const isAvatarSyncing = !hasResolvedDisplayName && !avatarCandidates.length;
     const displayProfile = {
       displayName,
       pictureUrl: avatarCandidates[0] || '',
@@ -261,6 +263,7 @@ Object.assign(App, {
     avatarCandidates.forEach(function(url) { App._forgetBrokenAvatarUrl(url); });
     this._setTopbarAvatar(userTopbar, avatarImg, displayProfile, {
       candidateUrls: avatarCandidates,
+      isSyncing: isAvatarSyncing,
     });
     this.updatePointsDisplay?.();
 

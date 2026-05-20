@@ -81,6 +81,7 @@ describe('activity detail comments source contracts', () => {
     expect(actions).toContain('_setEventCommentLikeButtonState(btn, wasLiked, oldCount)');
     expect(actions).toContain('_clearEventCommentsCacheForEvent?.(eventId)');
     expect(actions).toContain('this._renderEventComments?.(eventId, { forceRefresh: true })');
+    expect(actions).toContain("_requireEventCommentUser(requestedIdentityId = '')");
     expect(actions).toContain('const author = this._requireEventCommentUser();');
     expect(actions).not.toContain('_getEventCommentIdentityChoice');
     expect(actions.indexOf('_setEventCommentLikeButtonState(btn, nextLiked, nextCount)'))

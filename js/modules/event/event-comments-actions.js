@@ -21,7 +21,7 @@ Object.assign(App, {
     return { eventRecord, eventDocId, eventRef, commentsRef, commentRef, replyRef };
   },
 
-  _requireEventCommentUser(requestedIdentityId = 'main') {
+  _requireEventCommentUser(requestedIdentityId = '') {
     const author = this._getEventCommentAuthor?.(requestedIdentityId);
     if (!author?.uid) {
       this.showToast?.('請先登入');

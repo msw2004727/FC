@@ -24,6 +24,9 @@ Object.assign(App, {
     const rootIdentity = (typeof IdentityResolver !== 'undefined')
       ? IdentityResolver.getMainIdentity(user)
       : null;
+    const allowSecondaryIdentity = (typeof ApiService !== 'undefined' && typeof ApiService.canUseSecondaryIdentityFeature === 'function')
+      ? ApiService.canUseSecondaryIdentityFeature()
+      : true;
     const currentIdentity = (!requestedIdentityId && typeof ApiService !== 'undefined')
       ? (ApiService.getCurrentIdentity?.('comment') || null)
       : null;
@@ -31,7 +34,7 @@ Object.assign(App, {
       ? requestedIdentityId
       : (currentIdentity?.identityId === 'secondary' ? 'secondary' : 'main');
     const snapshot = (typeof IdentityResolver !== 'undefined')
-      ? IdentityResolver.buildPublicSnapshot({ user, requestedIdentityId: resolvedIdentityId })
+      ? IdentityResolver.buildPublicSnapshot({ user, requestedIdentityId: resolvedIdentityId, allowSecondaryIdentity })
       : null;
     const rootName = String(rootIdentity?.displayName || user.displayName || user.name || '用戶').trim();
     const rootPhoto = String(rootIdentity?.pictureUrl || user.pictureUrl || user.photoURL || '').trim();

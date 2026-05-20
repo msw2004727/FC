@@ -210,7 +210,7 @@ describe('secondary identity profile controls', () => {
     expect(profileRenderSource).toContain('uploadSecondaryIdentityAvatar(input)');
     expect(profileRenderSource).toContain('_cropSecondaryIdentityAvatarFile(file)');
     expect(profileRenderSource).toContain('const canEditDetails = !enabled && editing;');
-    expect(profileRenderSource).toContain('const saveMode = !enabled && (editing || dirty);');
+    expect(profileRenderSource).toContain('const saveMode = !enabled && editing;');
     expect(profileRenderSource).toContain('this._getResolvedSecondaryDisplayName(displayName)');
     expect(profileRenderSource).toContain('summaryStatusEl.innerHTML = enabled');
     expect(profileRenderSource).toContain('\\u76ee\\u524d\\u8eab\\u4efd\\u5df2\\u555f\\u7528');
@@ -232,6 +232,7 @@ describe('secondary identity profile controls', () => {
     expect(profileRenderSource).toContain("const activeId = enabled ? 'secondary' : 'main';");
     expect(profileRenderSource).toContain("profileActiveIdentityId: activeId");
     expect(profileRenderSource).toContain('this.renderLoginUI?.();');
+    expect(profileRenderSource).toContain('this.renderProfileData?.();');
     expect(profileRenderSource).toContain('this.showImageCropper(sourceDataURL, {');
     expect(profileRenderSource).toContain('aspectRatio: 1');
     expect(profileRenderSource).toContain('outputWidth: 512');
@@ -275,6 +276,21 @@ describe('secondary identity profile controls', () => {
     expect(profileHtml).toContain('&#25105;&#30340;&#36039;&#26009;');
     expect(navigationSource).toContain("profilePageHeader.textContent = t('profile.myProfile')");
     expect(navigationSource).toContain("'nav.profile'");
+  });
+
+  test('topbar avatar shows a spinner while logged-in profile data is still syncing', () => {
+    const profileFormSource = readProjectFile('js/modules/profile/profile-form.js');
+    const profileAvatarSource = readProjectFile('js/modules/profile/profile-avatar.js');
+    const layoutCss = readProjectFile('css/layout.css');
+
+    expect(profileFormSource).toContain('const hasResolvedDisplayName = !!(identity?.displayName || currentUser?.displayName || currentUser?.name);');
+    expect(profileFormSource).toContain('const isAvatarSyncing = !hasResolvedDisplayName && !avatarCandidates.length;');
+    expect(profileFormSource).toContain('isSyncing: isAvatarSyncing');
+    expect(profileAvatarSource).toContain('_buildTopbarAvatarFallback(initial, isSyncing = false)');
+    expect(profileAvatarSource).toContain('line-avatar-spinner');
+    expect(profileAvatarSource).toContain("const isSyncing = !!options.isSyncing && !candidateUrls.length;");
+    expect(layoutCss).toContain('.line-avatar-loading');
+    expect(layoutCss).toContain('@keyframes line-avatar-spin');
   });
 });
 

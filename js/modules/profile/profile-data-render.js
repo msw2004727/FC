@@ -211,6 +211,11 @@ Object.assign(App, {
   _mergeSecondaryIdentityLocalCache(updates = {}) {
     try {
       if (typeof FirebaseService === 'undefined' || !FirebaseService?._cache) return null;
+      const safeUpdates = { ...(updates || {}) };
+      const draftName = String(document.getElementById('profile-secondary-display-name')?.value || '').trim();
+      if (!Object.prototype.hasOwnProperty.call(safeUpdates, 'displayName') && draftName) {
+        safeUpdates.displayName = draftName;
+      }
       const current = this._getCurrentIdentitySettingsNormalized?.() || {
         profileActiveIdentityId: 'main',
         identities: { secondary: null },
@@ -228,7 +233,7 @@ Object.assign(App, {
             isPrimary: false,
             editable: true,
             ...previousSecondary,
-            ...updates,
+            ...safeUpdates,
           },
         },
       };
@@ -268,7 +273,7 @@ Object.assign(App, {
     }
     if (clearBtn) clearBtn.disabled = !canEditDetails;
     if (editBtn) {
-      const saveMode = !enabled && (editing || dirty);
+      const saveMode = !enabled && editing;
       editBtn.textContent = saveMode ? '\u5132\u5b58' : '\u7de8\u8f2f';
       editBtn.classList.toggle('is-save-mode', saveMode);
     }
@@ -356,15 +361,21 @@ Object.assign(App, {
     const nameEl = document.getElementById('profile-secondary-display-name');
     const preview = document.getElementById('profile-secondary-avatar-preview');
 
-    if (enabledEl) enabledEl.checked = !!secondary?.enabled;
-    if (nameEl && document.activeElement !== nameEl) nameEl.value = secondary?.displayName || '';
-    this._identitySettingsEditing = false;
-    this._identityFormBaseline = {
-      enabled: !!secondary?.enabled,
-      displayName: secondary?.displayName || '',
-    };
+    const editing = !!this._identitySettingsEditing;
+    const draftName = String(nameEl?.value || '').trim();
+    const secondaryName = secondary?.displayName || '';
+    const preserveDraft = editing && draftName && draftName !== secondaryName;
 
-    const previewName = secondary?.displayName || nameEl?.value || '次身份';
+    if (enabledEl) enabledEl.checked = !!secondary?.enabled;
+    if (nameEl && !preserveDraft && document.activeElement !== nameEl) nameEl.value = secondaryName;
+    if (!editing || !this._identityFormBaseline) {
+      this._identityFormBaseline = {
+        enabled: !!secondary?.enabled,
+        displayName: secondaryName,
+      };
+    }
+
+    const previewName = (preserveDraft ? draftName : secondaryName) || nameEl?.value || '次身份';
     const previewUrl = secondary?.avatarUrl || '';
     this._setAvatarContent?.(preview, previewUrl, previewName, {
       fallbackClass: 'profile-identity-avatar',
@@ -399,11 +410,11 @@ Object.assign(App, {
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     };
 
+    const previousSettings = this._getCurrentIdentitySettingsNormalized?.() || null;
+    const previousBaseline = this._identityFormBaseline ? { ...this._identityFormBaseline } : null;
+    const previousEditing = !!this._identitySettingsEditing;
+
     try {
-      await ApiService.updateCurrentIdentitySettings({
-        profileActiveIdentityId: activeId,
-        identities: { secondary },
-      });
       this._mergeSecondaryIdentityLocalCache(secondary);
       if (typeof FirebaseService !== 'undefined' && FirebaseService?._cache?.currentUserIdentitySettings) {
         FirebaseService._cache.currentUserIdentitySettings.profileActiveIdentityId = activeId;
@@ -412,11 +423,30 @@ Object.assign(App, {
       this._syncSecondaryIdentityInputValue(displayName, { force: true });
       this._identitySettingsEditing = options.exitEdit !== false ? false : !!this._identitySettingsEditing;
       this.renderLoginUI?.();
-      this._syncIdentityFormState();
+      if (this.currentPage === 'page-profile') {
+        this.renderProfileData?.();
+      } else {
+        this._syncIdentityFormState();
+      }
+      await ApiService.updateCurrentIdentitySettings({
+        profileActiveIdentityId: activeId,
+        identities: { secondary },
+      });
       this.showToast(options.toastMessage || '第二身份已儲存');
       return true;
     } catch (err) {
       console.error('[saveIdentitySettings]', err);
+      if (typeof FirebaseService !== 'undefined' && FirebaseService?._cache) {
+        FirebaseService._cache.currentUserIdentitySettings = previousSettings;
+      }
+      this._identityFormBaseline = previousBaseline;
+      this._identitySettingsEditing = previousEditing;
+      this.renderLoginUI?.();
+      if (this.currentPage === 'page-profile') {
+        this.renderProfileData?.();
+      } else {
+        this._syncIdentityFormState();
+      }
       this.showToast('第二身份儲存失敗');
       return false;
     }
