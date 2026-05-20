@@ -498,6 +498,9 @@
         item.classList.toggle('active', item.dataset.sport === safeKey);
       });
       try { this._syncTeamSportFilterWithGlobal?.({ force: true }); } catch (_) {}
+      if (options.syncUrl !== false && this.currentPage === 'page-activities' && !this._applyingActivityUrlFilters) {
+        this._syncActivityUrlFilters?.({ replace: true });
+      }
       if (options.render !== false) {
         try { this.renderActivityList?.(); } catch (_) {}
         try { this.renderTeamList?.(); } catch (_) {}
@@ -617,7 +620,7 @@
 
       await this.showPage?.('page-activities');
       await scriptLoader?.ensureForPage?.('page-activities');
-      this.resetActivityTab?.({ render: false });
+      this.resetActivityTab?.({ render: false, syncUrl: false });
 
       const typeFilter = document.getElementById('activity-filter-type');
       const keywordFilter = document.getElementById('activity-filter-keyword');
@@ -626,6 +629,7 @@
       if (typeof this.switchRegionTab === 'function') {
         this.switchRegionTab(region);
       } else {
+        this._syncActivityUrlFilters?.({ replace: true });
         try { this.renderActivityList?.(); } catch (_) {}
       }
       return { region, sport, type };
@@ -660,7 +664,7 @@
       }
       await this.showPage?.('page-activities');
       await scriptLoader?.ensureForPage?.('page-activities');
-      this.resetActivityTab?.({ render: false });
+      this.resetActivityTab?.({ render: false, syncUrl: false });
 
       const typeFilter = document.getElementById('activity-filter-type');
       const keywordFilter = document.getElementById('activity-filter-keyword');

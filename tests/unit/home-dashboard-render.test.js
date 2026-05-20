@@ -246,7 +246,7 @@ describe("home-dashboard browser binding", () => {
     expect(dom.window.document.body.classList.contains("home-activity-search-open")).toBe(false);
     expect(app.showPage).toHaveBeenCalledWith("page-activities");
     expect(context.ScriptLoader.ensureForPage).toHaveBeenCalledWith("page-activities");
-    expect(app.resetActivityTab).toHaveBeenCalledWith({ render: false });
+    expect(app.resetActivityTab).toHaveBeenCalledWith({ render: false, syncUrl: false });
     expect(app.switchRegionTab).toHaveBeenCalledWith(region);
     expect(app._activeSport).toBe("football");
     expect(dom.window.localStorage.getItem("sporthub_active_sport")).toBe("football");
@@ -553,7 +553,7 @@ describe("home-dashboard browser binding", () => {
 
     expect(app.showPage).toHaveBeenCalledWith("page-activities");
     expect(context.ScriptLoader.ensureForPage).toHaveBeenCalledWith("page-activities");
-    expect(app.resetActivityTab).toHaveBeenCalledWith({ render: false });
+    expect(app.resetActivityTab).toHaveBeenCalledWith({ render: false, syncUrl: false });
     expect(app._activeSport).toBe("restaurant");
     expect(dom.window.localStorage.getItem("sporthub_active_sport")).toBe("restaurant");
     expect(dom.window.document.getElementById("activity-filter-type").value).toBe("");

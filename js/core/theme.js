@@ -90,12 +90,13 @@ Object.assign(App, {
       }
     });
     // filter 變化時 timeline + 月曆都要同步重 render（見 calendar-view-plan §12.O）
-    const _rerenderBoth = () => {
+    const _rerenderBoth = (options = {}) => {
       syncFilterState();
+      if (options.syncUrl) this._syncActivityUrlFilters?.({ replace: true });
       this.renderActivityList();
       if (this._activityActiveTab === 'calendar') this._renderActivityCalendar?.();
     };
-    typeSelect?.addEventListener('change', _rerenderBoth);
+    typeSelect?.addEventListener('change', () => _rerenderBoth({ syncUrl: true }));
     document.getElementById('activity-filter-search-btn')?.addEventListener('click', _rerenderBoth);
     keywordInput?.addEventListener('input', _rerenderBoth);
     keywordInput?.addEventListener('keydown', (e) => {
@@ -143,7 +144,17 @@ Object.assign(App, {
 
     // 從 localStorage 還原上次選擇（預設 all）
     const savedSport = localStorage.getItem('sporthub_active_sport');
-    const initialSport = savedSport !== null ? savedSport : 'all';
+    let initialSport = savedSport !== null ? savedSport : 'all';
+    try {
+      const activityUrlSport = new URLSearchParams(
+        window.location.search || App._bootActivityFilterSearch || ''
+      ).get('sport');
+      if (activityUrlSport) {
+        initialSport = activityUrlSport === 'all'
+          ? 'all'
+          : (getSportKeySafe(activityUrlSport) || initialSport);
+      }
+    } catch (_) {}
     App._activeSport = initialSport;
 
     const _allSportLabel = '<span class="sp-all-label" aria-hidden="true">All</span>';
@@ -159,9 +170,9 @@ Object.assign(App, {
       </button>`;
     }).join('');
 
-    const setActiveSport = (sportKey) => {
+    const setActiveSport = (sportKey, options = {}) => {
       if (typeof App.setActiveSportFilter === 'function') {
-        return App.setActiveSportFilter(sportKey, { render: false });
+        return App.setActiveSportFilter(sportKey, { render: false, syncUrl: options.syncUrl !== false });
       }
       const safeKey = sportKey === 'all' ? 'all' : (getSportKeySafe(sportKey) || 'football');
       App._activeSport = safeKey;
@@ -178,7 +189,7 @@ Object.assign(App, {
       try { App._syncTeamSportFilterWithGlobal?.({ force: true }); } catch (_) {}
     };
 
-    setActiveSport(initialSport);
+    setActiveSport(initialSport, { syncUrl: false });
 
     const setPickerOpen = (open) => {
       btn.classList.toggle('open', open);

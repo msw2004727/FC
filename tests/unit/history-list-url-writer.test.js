@@ -36,8 +36,10 @@ describe('history URL writer phase 4/5/6 contract', () => {
     expect(listWriterIndex).toBeGreaterThan(-1);
     expect(hashFallbackIndex).toBeGreaterThan(-1);
     expect(listWriterIndex).toBeLessThan(hashFallbackIndex);
+    expect(appSource).toContain('_getActivityListRoutePath(listPath)');
+    expect(appSource).toContain('_captureBootActivityFilterSearch');
     expect(appSource).toContain("const state = { source: 'sportshub', pageId }");
-    expect(appSource).toContain("history.pushState(state, '', listPath)");
+    expect(appSource).toContain("history.pushState(state, '', listTargetPath)");
   });
 
   test('writes clean paths for approved detail pages only after an explicit detail id is provided', () => {

@@ -89,6 +89,9 @@ Object.assign(App, {
       btn.classList.toggle('active', btn.dataset.atab === tab);
     });
     this._syncActivityFemaleTheme?.(tab);
+    if (options.syncUrl !== false && this.currentPage === 'page-activities' && !this._applyingActivityUrlFilters) {
+      this._syncActivityUrlFilters?.({ replace: true });
+    }
     // 容器顯示切換（timeline 與月曆互斥）
     const listEl = document.getElementById('activity-list');
     const calEl = document.getElementById('activity-calendar');
@@ -310,3 +313,21 @@ Object.assign(App, {
   },
 
 });
+
+try {
+  if (App.currentPage === 'page-activities' && App._readActivityUrlFilters?.().hasExplicit) {
+    App._applyActivityUrlFilters?.({ replace: true });
+    App.renderActivityList?.();
+    if (App._activityActiveTab === 'calendar') {
+      App._calendarCurrentMonthKey = null;
+      App._calendarRenderedMonths?.clear?.();
+      if (typeof App._renderActivityCalendar === 'function') {
+        App._renderActivityCalendar();
+      } else if (typeof App._loadAndRenderCalendar === 'function') {
+        App._loadAndRenderCalendar();
+      }
+    }
+  }
+} catch (err) {
+  console.warn('[ActivityUrl] post-load apply failed:', err);
+}

@@ -1100,6 +1100,7 @@ Object.assign(App, {
     if (pageId === 'page-activities') {
       // 不重設頁籤 — 保留用戶離開前的 _activityActiveTab（如「已結束」/「月曆」）
       this._clearTimelineCardNavigationState?.('render-activities');
+      this._applyActivityUrlFilters?.({ replace: true });
       this._syncActivityMapEntry?.();
       this.renderActivityList?.();
       // 月曆 tab 下返回頁面時重設到今日（用戶要求 2026-04-22、見 calendar-view-plan §12.M）

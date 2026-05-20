@@ -301,6 +301,7 @@ const App = {
   _bootHashShellActivated: false,
   _bootHistoryTargetPageId: null,
   _bootHistoryShellActivated: false,
+  _bootActivityFilterSearch: '',
   // 2026-04-20: 用戶「意圖頁面」— showPage 入口立刻更新（不等 _activatePage async 完成）
   // 用於 flush pending boot route 時判斷用戶是否已主動導航到其他頁面
   _userIntendedPage: null,
@@ -2395,14 +2396,22 @@ const App = {
       }
 
       if (listPath && (history?.pushState || history?.replaceState)) {
-        if (url.pathname === listPath && !url.search && !url.hash) return true;
+        let listTargetPath = listPath;
+        if (pageId === 'page-activities') {
+          if (typeof this._getActivityListRoutePath === 'function') {
+            listTargetPath = this._getActivityListRoutePath(listPath);
+          } else if (url.pathname === listPath && url.search && !this._hasLegacyRouteSignal?.()) {
+            listTargetPath = listPath + url.search;
+          }
+        }
+        if ((url.pathname + (url.search || '')) === listTargetPath && !url.hash) return true;
         const state = { source: 'sportshub', pageId };
         if (shouldReplace && history.replaceState) {
-          history.replaceState(state, '', listPath);
+          history.replaceState(state, '', listTargetPath);
         } else if (history.pushState) {
-          history.pushState(state, '', listPath);
+          history.pushState(state, '', listTargetPath);
         } else {
-          history.replaceState(state, '', listPath);
+          history.replaceState(state, '', listTargetPath);
         }
         return true;
       }
@@ -2439,6 +2448,18 @@ const App = {
 
   _isBootHistoryShellPage(pageId) {
     return ['page-activities', 'page-teams', 'page-tournaments', 'page-profile'].includes(pageId);
+  },
+
+  _captureBootActivityFilterSearch(searchString = window.location.search) {
+    try {
+      const params = new URLSearchParams(String(searchString || ''));
+      const hasActivityFilter = ['region', 'sport', 'tab', 'type'].some(key => params.has(key));
+      this._bootActivityFilterSearch = hasActivityFilter ? String(searchString || '') : '';
+      return this._bootActivityFilterSearch;
+    } catch (_) {
+      this._bootActivityFilterSearch = '';
+      return '';
+    }
   },
 
   _getBootHistoryRoute() {
@@ -2518,6 +2539,7 @@ const App = {
       if (!this._isBootHistoryShellPage(pageId)) return '';
 
       this._bootHistoryTargetPageId = pageId;
+      if (pageId === 'page-activities') this._captureBootActivityFilterSearch?.();
       window._bootHistoryTargetPageId = pageId;
       window._bootHistoryNavPending = true;
       window._bootHistoryNavCompleted = false;

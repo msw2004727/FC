@@ -16,7 +16,7 @@ describe('activity region default', () => {
     expect(activityHtml).toContain('<button class="region-tab active" data-region="全部" onclick="App.switchRegionTab(\'全部\')">全部</button>');
     expect(helperSource).toContain("_activeRegionTab: '全部'");
     expect(helperSource).toContain("this._activeRegionTab || '全部'");
-    expect(helperSource).toContain("region || '全部'");
+    expect(helperSource).toContain('_normalizeActivityUrlRegion(region)');
   });
 
   test('activity feature tabs include female-only filter and unavailable placeholders', () => {

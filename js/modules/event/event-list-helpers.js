@@ -505,6 +505,197 @@ Object.assign(App, {
     return events.filter(e => (e.sportTag || 'football') === tag);
   },
 
+  _activityUrlDefaultRegion: '\u5168\u90e8',
+  _activityUrlRegionSlugs: {
+    all: '\u5168\u90e8',
+    north: '\u5317\u90e8',
+    central: '\u4e2d\u90e8',
+    south: '\u5357\u90e8',
+    'east-islands': '\u6771\u90e8&\u5916\u5cf6',
+  },
+  _activityUrlTabs: ['normal', 'calendar', 'female'],
+  _activityUrlTypes: ['play', 'camp', 'watch', 'external'],
+  _activityUrlFilterKeys: ['region', 'sport', 'tab', 'type'],
+  _activityUrlDropQueryKeys: ['event', 'team', 'tournament', 'profile', 'rid', 'news'],
+  _applyingActivityUrlFilters: false,
+
+  _normalizeActivityUrlRegion(value) {
+    const fallback = this._activityUrlDefaultRegion || '\u5168\u90e8';
+    const raw = String(value || '').trim().replace(/&amp;/g, '&');
+    if (!raw) return fallback;
+    const lower = raw.toLowerCase();
+    const map = this._activityUrlRegionSlugs || {};
+    if (map[lower]) return map[lower];
+    return Object.values(map).includes(raw) ? raw : fallback;
+  },
+
+  _getActivityRegionSlug(region) {
+    const normalized = this._normalizeActivityUrlRegion(region);
+    const map = this._activityUrlRegionSlugs || {};
+    const found = Object.entries(map).find(([, label]) => label === normalized);
+    return found ? found[0] : 'all';
+  },
+
+  _normalizeActivityUrlSport(value) {
+    const raw = String(value || '').trim();
+    if (!raw || raw === 'all') return 'all';
+    if (typeof getSportKeySafe === 'function') return getSportKeySafe(raw) || 'all';
+    if (typeof window !== 'undefined'
+      && Array.isArray(window.EVENT_SPORT_OPTIONS)
+      && window.EVENT_SPORT_OPTIONS.some(item => item?.key === raw)) return raw;
+    if (typeof EVENT_SPORT_OPTIONS !== 'undefined'
+      && Array.isArray(EVENT_SPORT_OPTIONS)
+      && EVENT_SPORT_OPTIONS.some(item => item?.key === raw)) return raw;
+    return 'all';
+  },
+
+  _normalizeActivityUrlTab(value) {
+    const raw = String(value || '').trim();
+    return this._activityUrlTabs.includes(raw) ? raw : 'normal';
+  },
+
+  _normalizeActivityUrlType(value) {
+    const raw = String(value || '').trim();
+    return this._activityUrlTypes.includes(raw) ? raw : '';
+  },
+
+  _readActivityUrlFilters(locationLike) {
+    const loc = locationLike || (typeof window !== 'undefined' ? window.location : { search: '' });
+    const search = String(loc?.search || '') || String(this._bootActivityFilterSearch || '');
+    const params = new URLSearchParams(search);
+    const hasExplicit = this._activityUrlFilterKeys.some(key => params.has(key));
+    return {
+      hasExplicit,
+      region: this._normalizeActivityUrlRegion(params.get('region')),
+      sport: this._normalizeActivityUrlSport(params.get('sport')),
+      tab: this._normalizeActivityUrlTab(params.get('tab')),
+      type: this._normalizeActivityUrlType(params.get('type')),
+    };
+  },
+
+  _getCurrentActivityUrlFilters() {
+    const pickerSport = document.querySelector?.('.sport-picker-item.active[data-sport]')?.getAttribute('data-sport') || '';
+    return {
+      region: this._normalizeActivityUrlRegion(this._activeRegionTab),
+      sport: this._normalizeActivityUrlSport(pickerSport || this._activeSport || 'all'),
+      tab: this._normalizeActivityUrlTab(this._activityActiveTab || 'normal'),
+      type: this._normalizeActivityUrlType(document.getElementById('activity-filter-type')?.value || ''),
+    };
+  },
+
+  _composeActivityRoutePath(basePath = '/activities', filters = {}, options = {}) {
+    const keepExisting = options.preserveExisting !== false;
+    const normalized = {
+      region: this._normalizeActivityUrlRegion(filters.region),
+      sport: this._normalizeActivityUrlSport(filters.sport),
+      tab: this._normalizeActivityUrlTab(filters.tab),
+      type: this._normalizeActivityUrlType(filters.type),
+    };
+    const params = new URLSearchParams();
+    if (keepExisting) {
+      try {
+        const current = new URL(window.location.href);
+        current.searchParams.forEach((value, key) => {
+          if (!this._activityUrlFilterKeys.includes(key) && !this._activityUrlDropQueryKeys.includes(key)) {
+            params.append(key, value);
+          }
+        });
+      } catch (_) {}
+    }
+
+    const hasSharedFilter = normalized.region !== this._activityUrlDefaultRegion
+      || normalized.sport !== 'all'
+      || normalized.tab !== 'normal'
+      || !!normalized.type;
+    if (hasSharedFilter) {
+      params.set('region', this._getActivityRegionSlug(normalized.region));
+      params.set('sport', normalized.sport);
+      if (normalized.tab !== 'normal') params.set('tab', normalized.tab);
+      if (normalized.type) params.set('type', normalized.type);
+    }
+    const query = params.toString();
+    return String(basePath || '/activities') + (query ? '?' + query : '');
+  },
+
+  _getActivityListRoutePath(basePath = '/activities') {
+    const urlFilters = this._readActivityUrlFilters?.();
+    const filters = urlFilters?.hasExplicit ? urlFilters : this._getCurrentActivityUrlFilters();
+    return this._composeActivityRoutePath(basePath, filters, { preserveExisting: true });
+  },
+
+  _setActivityRegionTab(region) {
+    const decoded = this._normalizeActivityUrlRegion(region);
+    this._activeRegionTab = decoded;
+    document.querySelectorAll('.region-tab').forEach(function(btn) {
+      var btnRegion = (btn.getAttribute('data-region') || '').replace(/&amp;/g, '&');
+      btn.classList.toggle('active', btnRegion === decoded);
+    });
+    try { this._syncActivityMapEntry?.(); } catch (_) {}
+    return decoded;
+  },
+
+  _applyActivityUrlFilters(options = {}) {
+    let filters;
+    try {
+      filters = this._readActivityUrlFilters?.();
+    } catch (_) {
+      return false;
+    }
+    if (!filters?.hasExplicit) return false;
+
+    this._applyingActivityUrlFilters = true;
+    try {
+      if (typeof this.setActiveSportFilter === 'function') {
+        this.setActiveSportFilter(filters.sport, { render: false, syncUrl: false });
+      } else {
+        this._activeSport = filters.sport;
+        try { localStorage.setItem('sporthub_active_sport', filters.sport); } catch (_) {}
+      }
+      if (typeof this._setActivityTab === 'function') {
+        this._setActivityTab(filters.tab, { render: false, syncUrl: false });
+      } else {
+        this._activityActiveTab = filters.tab;
+      }
+      const typeFilter = document.getElementById('activity-filter-type');
+      const keywordFilter = document.getElementById('activity-filter-keyword');
+      if (typeFilter) typeFilter.value = filters.type;
+      if (keywordFilter) keywordFilter.value = '';
+      this._setActivityRegionTab?.(filters.region);
+    } finally {
+      this._applyingActivityUrlFilters = false;
+    }
+    this._bootActivityFilterSearch = '';
+    this._syncActivityUrlFilters?.({ replace: options.replace !== false });
+    return true;
+  },
+
+  _syncActivityUrlFilters(options = {}) {
+    if (this._applyingActivityUrlFilters) return false;
+    if (this.currentPage !== 'page-activities') return false;
+    if (typeof history === 'undefined' || (!history.replaceState && !history.pushState)) return false;
+    try {
+      const flags = this._getHistoryRouteFlags?.() || {};
+      const pathWritesDisabled = this._shouldDisableHistoryPathWrite?.(flags);
+      const url = new URL(window.location.href);
+      const canWriteListPath = flags.writeListPaths !== false && !pathWritesDisabled;
+      const basePath = canWriteListPath ? '/activities' : (url.pathname || '/');
+      const target = this._composeActivityRoutePath(
+        basePath,
+        this._getCurrentActivityUrlFilters(),
+        { preserveExisting: true }
+      ) + (canWriteListPath ? '' : '#page-activities');
+      const current = url.pathname + (url.search || '') + (url.hash || '');
+      if (current === target) return true;
+      const state = { source: 'sportshub', pageId: 'page-activities' };
+      const writer = options.replace === false && history.pushState ? 'pushState' : 'replaceState';
+      history[writer](state, '', target);
+      return true;
+    } catch (err) {
+      console.warn('[ActivityUrl] sync failed:', err);
+      return false;
+    }
+  },
+
   _isActivityMapFeatureEnabled() {
     return typeof isActivityMapEnabled === 'function' && isActivityMapEnabled();
   },
@@ -545,16 +736,9 @@ Object.assign(App, {
   _activeRegionTab: '全部',
 
   switchRegionTab(region) {
-    // HTML entity decode（onclick 傳入的 &amp; 需還原為 &）
-    var decoded = (region || '全部').replace(/&amp;/g, '&');
-    this._activeRegionTab = decoded;
-    // 同步所有地區頁籤 UI（首頁 + 活動頁）
-    document.querySelectorAll('.region-tab').forEach(function(btn) {
-      var btnRegion = (btn.getAttribute('data-region') || '').replace(/&amp;/g, '&');
-      btn.classList.toggle('active', btnRegion === decoded);
-    });
+    this._setActivityRegionTab(region);
+    this._syncActivityUrlFilters?.({ replace: true });
     // 重新渲染（頁面未載入時靜默跳過）
-    try { this._syncActivityMapEntry?.(); } catch (_) {}
     try { this.renderHotEvents(); } catch (_) {}
     try { this.renderActivityList(); } catch (_) {}
     // 月曆 tab 下也要同步重 render（見 calendar-view-plan §12.D）
