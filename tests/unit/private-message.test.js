@@ -42,6 +42,31 @@ function loadPmListenerHarness(html = '<!doctype html><body></body>') {
   return { App, FirebaseService, document: dom.window.document };
 }
 
+function loadPmDialogHarness() {
+  const dom = new JSDOM('<!doctype html><body></body>', { url: 'https://toosterx.test/' });
+  const App = {
+    _pmCurrentUid: () => 'U11111111111111111111111111111111',
+    _pmFormatTime: () => '剛剛',
+  };
+  const context = {
+    App,
+    document: dom.window.document,
+    window: dom.window,
+    URL: dom.window.URL,
+    escapeHTML: value => String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;'),
+    console,
+    setTimeout,
+    clearTimeout,
+  };
+  vm.runInNewContext(readProjectFile('js/modules/message/pm-dialog.js'), context);
+  return { App, document: dom.window.document };
+}
+
 describe('private message feature wiring', () => {
   test('frontend registers PM modules, inbox tab, and profile entry point', () => {
     const index = readProjectFile('index.html');
@@ -183,6 +208,29 @@ describe('private message feature wiring', () => {
     expect(layoutCss).toContain('.pm-notif-hint');
     expect(layoutCss).toContain('#notif-btn.has-pm-unread .pm-notif-hint');
     expect(messageCss).toContain('#msg-inbox-tabs .tab[data-msgtype="pm-conversation"].has-pm-unread::after');
+  });
+
+  test('PM dialog safely linkifies https links with an external-link warning', () => {
+    const { App } = loadPmDialogHarness();
+    const html = App._buildPmMessageHtml({
+      fromUid: 'U22222222222222222222222222222222',
+      body: '請看 https://example.com/path?a=1&b=2，<script>alert(1)</script> http://plain.test',
+      createdAt: new Date('2026-05-20T00:00:00.000Z').toISOString(),
+      status: 'active',
+      messageId: 'pm-1',
+    }, 'U11111111111111111111111111111111');
+
+    expect(html).toContain('class="pm-message-link"');
+    expect(html).toContain('href="https://example.com/path?a=1&amp;b=2"');
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain('rel="noopener noreferrer nofollow ugc"');
+    expect(html).toContain('https://example.com/path?a=1&amp;b=2</a>，');
+    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(html).toContain('http://plain.test');
+    expect(html).toContain('pm-message-link-safety');
+    expect(html).toContain('ToosterX');
+    expect(html).toContain('密碼');
+    expect(html).not.toContain('<script>');
   });
 
   test('PM fresh bubble timeout keeps a reminder for threads that were stale before the new message', () => {

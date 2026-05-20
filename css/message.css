@@ -115,6 +115,9 @@
 .pm-message.is-peer { align-items:flex-start; }
 .pm-message-bubble { max-width:78%; padding:.55rem .72rem; border-radius:16px; font-size:.86rem; line-height:1.55; white-space:pre-wrap; word-break:break-word; background:var(--bg-elevated); color:var(--text-primary); }
 .pm-message.is-own .pm-message-bubble { background:linear-gradient(135deg, #2563eb, #14b8a6); color:#fff; }
+.pm-message-link { color:#2563eb; font-weight:700; text-decoration:underline; text-underline-offset:2px; overflow-wrap:anywhere; word-break:break-word; }
+.pm-message.is-own .pm-message-link { color:#fff; text-decoration-color:rgba(255,255,255,.82); }
+.pm-message-link-safety { max-width:78%; margin-top:.2rem; color:var(--text-muted); font-size:.68rem; line-height:1.45; text-align:left; overflow-wrap:anywhere; }
 .pm-message.is-recalled .pm-message-bubble { color:var(--text-muted); background:transparent; border:1px dashed var(--border); }
 .pm-message.is-pending .pm-message-bubble { opacity:.82; }
 .pm-message.is-failed .pm-message-bubble { background:rgba(239,68,68,.12); color:var(--danger); border:1px solid rgba(239,68,68,.25); }

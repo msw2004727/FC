@@ -418,6 +418,52 @@ Object.assign(App, {
     list.scrollTop = list.scrollHeight;
   },
 
+  _pmNormalizeExternalHttpsUrl(value) {
+    try {
+      const raw = String(value || '').trim();
+      if (!raw || !/^https:\/\//i.test(raw)) return '';
+      const url = new URL(raw);
+      return url.protocol === 'https:' ? url.href : '';
+    } catch (_) {
+      return '';
+    }
+  },
+
+  _pmSplitUrlTrailingPunctuation(value) {
+    let urlText = String(value || '');
+    let suffix = '';
+    while (urlText && /[.,!?;:\u3001\u3002\uff0c\uff01\uff1f\uff1b\uff1a)\]\}]/.test(urlText.slice(-1))) {
+      suffix = urlText.slice(-1) + suffix;
+      urlText = urlText.slice(0, -1);
+    }
+    return { urlText, suffix };
+  },
+
+  _pmRenderMessageBodyHtml(body) {
+    const text = String(body || '');
+    const urlPattern = /https:\/\/[^\s<>"'`]+/gi;
+    let html = '';
+    let lastIndex = 0;
+    let hasExternalLink = false;
+
+    for (const match of text.matchAll(urlPattern)) {
+      const rawUrl = match[0] || '';
+      const offset = Number(match.index || 0);
+      const { urlText, suffix } = this._pmSplitUrlTrailingPunctuation(rawUrl);
+      const href = this._pmNormalizeExternalHttpsUrl(urlText);
+      if (!href) continue;
+
+      html += escapeHTML(text.slice(lastIndex, offset));
+      html += `<a class="pm-message-link" href="${escapeHTML(href)}" target="_blank" rel="noopener noreferrer nofollow ugc" data-no-translate>${escapeHTML(urlText)}</a>`;
+      html += escapeHTML(suffix);
+      lastIndex = offset + rawUrl.length;
+      hasExternalLink = true;
+    }
+
+    html += escapeHTML(text.slice(lastIndex));
+    return { html, hasExternalLink };
+  },
+
   _buildPmMessageHtml(message, myUid) {
     const own = message.fromUid === myUid || message.direction === 'out';
     const status = message.status || 'active';
@@ -427,6 +473,10 @@ Object.assign(App, {
     const recalling = message._pmPendingAction === 'recalling';
     const failed = message._optimistic && status === 'failed';
     const body = recalled ? '訊息已撤回' : (message.body || '');
+    const renderedBody = this._pmRenderMessageBodyHtml(body);
+    const safetyNotice = !recalled && renderedBody.hasExternalLink
+      ? '<div class="pm-message-link-safety" role="note">\u5b89\u5168\u63d0\u9192\uff1a\u6b64\u9023\u7d50\u7531\u7528\u6236\u63d0\u4f9b\uff0c\u958b\u555f\u524d\u8acb\u78ba\u8a8d\u7db2\u5740\u8207\u5c0d\u65b9\u8eab\u5206\u3002ToosterX \u4e0d\u6703\u900f\u904e\u79c1\u8a0a\u8981\u6c42\u4f60\u63d0\u4f9b\u5bc6\u78bc\u3001\u9a57\u8b49\u78bc\u6216\u4ed8\u6b3e\u8cc7\u8a0a\u3002</div>'
+      : '';
     const peerRead = own && message.peerRead === true;
     const hasPendingAction = editing || recalling;
     const canEdit = own && !message._optimistic && !recalled && !hasPendingAction && !peerRead;
@@ -447,7 +497,8 @@ Object.assign(App, {
       </span>` : '';
     return `
       <article class="pm-message${own ? ' is-own' : ' is-peer'}${recalled ? ' is-recalled' : ''}${pending || editing || recalling ? ' is-pending' : ''}${failed ? ' is-failed' : ''}">
-        <div class="pm-message-bubble">${escapeHTML(body)}</div>
+        <div class="pm-message-bubble">${renderedBody.html}</div>
+        ${safetyNotice}
         <div class="pm-message-meta">${escapeHTML(meta)}${actions}</div>
       </article>`;
   },
