@@ -345,13 +345,21 @@ describe('Team reservation button loading contract', () => {
     const signupSource = readProjectFile('js/modules/event/event-detail-signup.js');
 
     expect(detailSource).toContain('_teamReservationStaffTeamsHydrateState');
-    expect(detailSource).toContain('const signupActionsLoading = regsLoading || teamReservationIdentityLoading');
+    expect(detailSource).toContain('_eventSignupRegistrationHydrateState');
+    expect(detailSource).toContain('const registrationIdentityLoading = !isGuestView');
+    expect(detailSource).toContain('const signupActionsLoading = regsLoading || registrationIdentityLoading || teamReservationIdentityLoading');
     expect(detailSource).toContain('this._isTeamReservationStaffTeamsHydratingForEvent(id)');
+    expect(detailSource).toContain('!signupActionsLoading && !isSignedUp');
+    expect(signupSource).toContain('_shouldHoldSignupActionsForEventRegistrations');
+    expect(signupSource).toContain('_ensureEventSignupRegistrationStateLoaded');
+    expect(signupSource).toContain('_fetchedRegistrationServerIds');
+    expect(signupSource).toContain('_registrationsServerSnapshotReceived');
     expect(signupSource).toContain('_shouldHoldSignupActionsForTeamReservationStaffHydrate');
     expect(signupSource).toContain('_isTeamReservationStaffTeamsHydratingForEvent(eventId)');
     expect(signupSource).toContain('_buildEventSignupLoadingButton');
+    expect(signupSource).toContain('opts.registrationIdentityLoading');
     expect(signupSource).toContain('opts.teamReservationIdentityLoading');
-    expect(signupSource).toContain('this._isTeamReservationStaffTeamsHydratingForEvent(eventId)');
+    expect(signupSource).toContain('this._ensureEventSignupRegistrationStateLoaded(e) === true');
   });
 
   test('activity list ships and preserves an initial loading bar until events finish loading', () => {

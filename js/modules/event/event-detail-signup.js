@@ -346,6 +346,98 @@ Object.assign(App, {
       && String(state.eventId || '') === String(eventId || '');
   },
 
+  _getCurrentSignupRegistrationUid() {
+    const user = ApiService.getCurrentUser?.() || null;
+    return String(user?.uid || user?.lineUserId || '').trim();
+  },
+
+  _hasEventSignupRegistrationServerProof(e, uid) {
+    const eventId = String(e?.id || '').trim();
+    const userId = String(uid || '').trim();
+    if (!eventId || !userId) return false;
+
+    const fetchedEventIds = ApiService?._fetchedRegistrationServerIds;
+    if (fetchedEventIds && typeof fetchedEventIds.has === 'function' && fetchedEventIds.has(eventId)) {
+      return true;
+    }
+
+    return !!(typeof FirebaseService !== 'undefined'
+      && FirebaseService._registrationsServerSnapshotReceived
+      && String(FirebaseService._registrationListenerKey || '') === `user:${userId}`);
+  },
+
+  _shouldHoldSignupActionsForEventRegistrations(e) {
+    if (!e) return false;
+    const status = String(e.status || '');
+    if (status === 'ended' || status === 'cancelled') return false;
+
+    const uid = this._getCurrentSignupRegistrationUid?.() || '';
+    if (!uid) return false;
+
+    const currentState = typeof this._getCurrentUserEventRegistrationState === 'function'
+      ? this._getCurrentUserEventRegistrationState(e)
+      : { signedUp: false };
+    if (currentState?.signedUp) return false;
+    if (this._hasEventSignupRegistrationServerProof?.(e, uid)) return false;
+
+    if (typeof ApiService === 'undefined' || typeof ApiService.fetchRegistrationsIfMissing !== 'function') {
+      return false;
+    }
+
+    const eventDocId = String(e?._docId || ApiService.getEvent?.(e.id)?._docId || '').trim();
+    return !!eventDocId;
+  },
+
+  _ensureEventSignupRegistrationStateLoaded(e, opts = {}) {
+    const eventId = String(e?.id || '').trim();
+    const uid = this._getCurrentSignupRegistrationUid?.() || '';
+    const shouldHold = this._shouldHoldSignupActionsForEventRegistrations?.(e) === true;
+
+    if (!shouldHold) {
+      if (this._eventSignupRegistrationHydrateState?.eventId === eventId) {
+        this._eventSignupRegistrationHydrateState = null;
+      }
+      return false;
+    }
+
+    const current = this._eventSignupRegistrationHydrateState;
+    if (current?.pending === true && current.eventId === eventId && current.uid === uid) {
+      return true;
+    }
+
+    const promise = Promise.resolve(ApiService.fetchRegistrationsIfMissing(eventId))
+      .catch(err => {
+        console.warn('[EventDetail] signup registration hydrate failed:', err);
+      });
+
+    this._eventSignupRegistrationHydrateState = {
+      eventId,
+      uid,
+      pending: true,
+      promise,
+      requestSeq: opts?.requestSeq || null,
+    };
+
+    promise.then(() => {
+      const state = this._eventSignupRegistrationHydrateState;
+      if (state?.eventId === eventId && state?.uid === uid && state?.promise === promise) {
+        if (this._shouldHoldSignupActionsForEventRegistrations?.(e) === true) {
+          state.promise = null;
+        } else {
+          this._eventSignupRegistrationHydrateState = null;
+        }
+      }
+
+      if (this.currentPage === 'page-activity-detail'
+        && this._currentDetailEventId === eventId
+        && !this._flipAnimating) {
+        this._refreshSignupButton?.(eventId);
+      }
+    });
+
+    return true;
+  },
+
   _shouldHoldSignupActionsForTeamReservationStaffHydrate(e) {
     if (!e) return false;
     const status = String(e.status || '');
@@ -597,7 +689,14 @@ Object.assign(App, {
   },
 
   _renderTeamReservationActionButton(e, opts = {}) {
-    if (!e || opts.regsLoading || opts.teamReservationIdentityLoading || opts.isGuestView || opts.isEnded || opts.isUpcoming || opts.teamBlocked) return '';
+    if (!e
+      || opts.regsLoading
+      || opts.registrationIdentityLoading
+      || opts.teamReservationIdentityLoading
+      || opts.isGuestView
+      || opts.isEnded
+      || opts.isUpcoming
+      || opts.teamBlocked) return '';
     const teams = this._getTeamReservationStaffTeams(e);
     if (!teams.length) return '';
     const active = teams.find(t => {
@@ -1744,8 +1843,11 @@ Object.assign(App, {
     e = this._syncEventEffectiveStatus?.(e) || e;
     var actionZone = document.querySelector('.detail-action-primary');
     if (!actionZone) return;
-    if (typeof this._isTeamReservationStaffTeamsHydratingForEvent === 'function'
-      && this._isTeamReservationStaffTeamsHydratingForEvent(eventId)) {
+    var registrationIdentityLoading = typeof this._ensureEventSignupRegistrationStateLoaded === 'function'
+      && this._ensureEventSignupRegistrationStateLoaded(e) === true;
+    var teamReservationIdentityLoading = typeof this._isTeamReservationStaffTeamsHydratingForEvent === 'function'
+      && this._isTeamReservationStaffTeamsHydratingForEvent(eventId);
+    if (registrationIdentityLoading || teamReservationIdentityLoading) {
       actionZone.innerHTML = this._buildEventSignupLoadingButton?.() || '<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>載入中…</button>';
       return;
     }
@@ -1813,6 +1915,8 @@ Object.assign(App, {
       html = this._composeEventSignupActions(e, html, {
         isEnded,
         isUpcoming,
+        registrationIdentityLoading,
+        teamReservationIdentityLoading,
         teamBlocked,
       });
     }

@@ -11,6 +11,7 @@ Object.assign(App, {
   _regsLoadingRetryTimer: null,
   _regsLoadingRetryCount: 0,
   _teamReservationStaffTeamsHydrateState: null,
+  _eventSignupRegistrationHydrateState: null,
 
   _getEventDetailNodes() {
     const nodes = {
@@ -466,10 +467,14 @@ Object.assign(App, {
       ? this._getEventParticipantStats(e)
       : null;
     const isMainFull = capacityStats ? capacityStats.isCapacityFull : confirmedCount >= e.max;
+    const registrationIdentityLoading = !isGuestView
+      && typeof this._ensureEventSignupRegistrationStateLoaded === 'function'
+      && this._ensureEventSignupRegistrationStateLoaded(e, { requestSeq }) === true;
     const teamReservationIdentityLoading = !isGuestView
       && typeof this._isTeamReservationStaffTeamsHydratingForEvent === 'function'
       && this._isTeamReservationStaffTeamsHydratingForEvent(id);
-    const hasTeamReservationSignup = !teamReservationIdentityLoading
+    const hasTeamReservationSignup = !registrationIdentityLoading
+      && !teamReservationIdentityLoading
       && !isGuestView
       && typeof this._hasAvailableTeamReservationSignup === 'function'
       && this._hasAvailableTeamReservationSignup(e);
@@ -501,13 +506,13 @@ Object.assign(App, {
       clearTimeout(this._regsLoadingRetryTimer);
       this._regsLoadingRetryCount = 0;
     }
-    const signupActionsLoading = regsLoading || teamReservationIdentityLoading;
+    const signupActionsLoading = regsLoading || registrationIdentityLoading || teamReservationIdentityLoading;
     var isSignedUp = isGuestView ? false : (signupActionsLoading ? false : this._isUserSignedUp(e));
     var isOnWaitlist = isSignedUp && this._isUserOnWaitlist(e);
 
     // Phase 3 安全網：快取說「未報名」但可能是監聽器尚未同步。
     // 對子集合做一次即時查詢確認，若實際已報名則立刻重新渲染。
-    if (!isGuestView && !regsLoading && !isSignedUp && !isEnded && e._docId) {
+    if (!isGuestView && !signupActionsLoading && !isSignedUp && !isEnded && e._docId) {
       var _safetyUid = ApiService.getCurrentUser?.()?.uid;
       if (_safetyUid && typeof db !== 'undefined') {
         var _self = this;
@@ -590,6 +595,7 @@ Object.assign(App, {
         isEnded,
         isUpcoming,
         regsLoading,
+        registrationIdentityLoading,
         teamReservationIdentityLoading,
         teamBlocked: e.teamOnly && !canTeamOnlySignup,
       });
