@@ -168,6 +168,7 @@ Object.assign(App, {
     const pendingCount = enrollments.filter(e => e.status === 'pending').length;
     const nextSession = sessions.find(s => this._getCourseSessionSortValue(s) >= Date.now()) || sessions[0] || null;
     const plannedSeats = sessions.reduce((sum, s) => sum + ((s.studentIds || []).length || 0), 0);
+    const rosterCountText = roster.length + ' 位核准學員' + (pendingCount ? '，' + pendingCount + ' 位待審核' : '');
     const planCover = String(plan?.coverImage || plan?.coverUrl || plan?.imageUrl || plan?.image || '').trim();
     const heroStyle = planCover ? ' style="--edu-session-cover:url(\'' + escapeHTML(planCover) + '\')"' : '';
 
@@ -213,7 +214,7 @@ Object.assign(App, {
         + '<div class="edu-session-list">' + sessionCards + '</div>'
       + '</section>'
       + '<section class="edu-session-roster-panel">'
-        + '<div class="edu-session-section-title edu-session-roster-title"><strong>方案學員</strong>' + this._renderCourseSessionRosterHeader() + '<span>' + roster.length + ' 位核准學員' + (pendingCount ? '，' + pendingCount + ' 位待審核' : '') + '</span></div>'
+        + '<div class="edu-session-section-title edu-session-roster-title"><div class="edu-session-roster-title-copy"><strong>方案學員</strong><span>(' + escapeHTML(rosterCountText) + ')</span></div>' + this._renderCourseSessionRosterHeader() + '</div>'
         + '<div class="edu-session-roster">' + (roster.length ? roster.map(item => {
             const student = item.student || {};
             const name = student.name || '未命名學員';

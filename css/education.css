@@ -471,6 +471,13 @@
   background: var(--bg-card);
   padding: .68rem;
 }
+.edu-session-roster-panel {
+  --edu-roster-card-pad-x: .5rem;
+  --edu-roster-avatar-size: 30px;
+  --edu-roster-avatar-gap: .48rem;
+  --edu-roster-name-width: clamp(132px, 22vw, 176px);
+  --edu-roster-name-gap: .52rem;
+}
 .edu-session-section-title {
   display: flex;
   justify-content: space-between;
@@ -491,14 +498,30 @@
 }
 .edu-session-roster-title {
   display: grid;
-  grid-template-columns: auto minmax(280px, 1fr) auto;
-  align-items: center;
-  gap: .55rem;
+  grid-template-columns: calc(var(--edu-roster-card-pad-x, .5rem) + var(--edu-roster-avatar-size, 30px) + var(--edu-roster-avatar-gap, .48rem) + var(--edu-roster-name-width, 176px) + var(--edu-roster-name-gap, .52rem)) minmax(0, 1fr);
+  align-items: end;
+  gap: 0;
 }
-.edu-session-roster-title strong {
+.edu-session-roster-title-copy {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: .12rem .24rem;
+  line-height: 1.08;
+}
+.edu-session-roster-title-copy strong {
   white-space: nowrap;
 }
+.edu-session-roster-title-copy span {
+  color: var(--text-muted);
+  font-size: .62rem;
+  font-weight: 850;
+  line-height: 1.05;
+  text-align: left;
+}
 .edu-session-roster-head {
+  grid-column: 2;
   min-width: 0;
   display: grid;
   grid-template-columns: 42px 48px minmax(92px, 1fr) 54px 54px;
@@ -714,9 +737,9 @@
   min-width: 0;
   flex: 1 1 auto;
   display: grid;
-  grid-template-columns: minmax(72px, 1fr) minmax(296px, 2.8fr);
+  grid-template-columns: var(--edu-roster-name-width, clamp(132px, 22vw, 176px)) minmax(0, 1fr);
   align-items: center;
-  gap: .52rem;
+  gap: var(--edu-roster-name-gap, .52rem);
 }
 .edu-session-student strong,
 .edu-session-roster-item strong {
@@ -917,12 +940,13 @@
     gap: .34rem;
   }
   .edu-session-roster-title {
-    grid-template-columns: 1fr auto;
-    align-items: start;
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    gap: .38rem;
   }
   .edu-session-roster-title .edu-session-roster-head {
-    grid-column: 1 / -1;
-    grid-row: 2;
+    grid-column: 1;
+    grid-row: auto;
   }
   .edu-session-student-tags,
   .edu-session-pick-item em,
