@@ -4,6 +4,16 @@
 
 ---
 
+### 2026-05-21 — 根網址活動 query 跳轉規則調整
+
+**背景 / 決策**：已分享出去的 `https://toosterx.com/?event=...` 活動舊網址不再跳轉到 `miniapp.line.me`，改為留在網站端由 SPA deep link 開啟活動。這讓舊活動網址不需重新分享，也避免根網址活動連結被 LINE Mini App 網域縮圖接管。
+
+**變更內容**：1. `index.html` 根網址 query bridge 的跳轉清單由 `event/team/tournament/profile` 改為 `team/tournament/profile`。2. `?team=...`、`?tournament=...`、`?profile=...` 仍會導向 `https://miniapp.line.me/2009525300-AuPGQ0sh?...`。3. `?event=...` 保留在 `toosterx.com`，交由既有 SPA deep link 開活動。4. 同步更新 `CLAUDE.md`、`docs/architecture.md`、`docs/structure-guide.md` 的跳轉規則說明。
+
+**影響 / 注意事項**：舊 `?event=...` 連結不用重發；點擊行為會跟著新版網站邏輯走。社群平台已產生的預覽卡片仍可能受平台快取影響，縮圖不一定立刻刷新。活動「複製連結」仍建議使用 `/event-share/{id}`，因為該路徑可提供活動分類 OG 圖，crawler 不會被 redirect。
+
+---
+
 ### 2026-05-18 — 朝馬足球場地圖圖片 SEO：WebP、頁面嵌入與 image sitemap
 
 **目的 / 背景**：使用者提供自有版權的朝馬足球場地圖 `img/Chaoma.png`，圖中包含 A1、A2、B1、B2、C、D 場區、免費停車場、付費停車場、洗手間與朝馬國民運動中心。依 2026-05-12 決策，本階段不另開薄型「朝馬足球場」單頁，先把圖資併入既有 `/seo/football-taichung`，集中承接「朝馬足球場、朝馬足球場地圖、朝馬足球場停車、集合點」搜尋意圖。

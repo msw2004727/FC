@@ -453,10 +453,21 @@ https://miniapp.line.me/2009525300-AuPGQ0sh?{deepLinkParam}={id}
 
 **全域常數**：`MINI_APP_BASE_URL`（定義於 `js/config.js`），所有分享 URL 統一使用此常數。
 
+### 根網址 Query 跳轉規則
+
+| 網址形式 | 目前行為 | 用途 |
+|----------|----------|------|
+| `https://toosterx.com/?event={eventId}` | **不跳轉 Mini App**，保留在網站端並由 SPA deep link 開啟活動 | 已分享出去的活動舊網址可繼續使用，不需重分享 |
+| `https://toosterx.com/?team={teamId}` | `index.html` 會跳轉到 `https://miniapp.line.me/2009525300-AuPGQ0sh?team={teamId}` | 俱樂部 / 球隊 deep link |
+| `https://toosterx.com/?tournament={tournamentId}` | `index.html` 會跳轉到 `https://miniapp.line.me/2009525300-AuPGQ0sh?tournament={tournamentId}` | 賽事 deep link |
+| `https://toosterx.com/?profile={uid}` | `index.html` 會跳轉到 `https://miniapp.line.me/2009525300-AuPGQ0sh?profile={uid}` | 個人名片 deep link |
+| `https://toosterx.com/event-share/{eventId}` | OG crawler 停留讀取活動縮圖；一般使用者點擊後導向 Mini App `?event={eventId}` | 活動「複製連結」與社群預覽 |
+
 ### 向後相容
 
 - **舊 LIFF URL**（`liff.line.me/2009084941-zgn7tQOp?...`）：LIFF App 仍在運作，舊連結不受影響
-- **舊 toosterx.com 中繼跳轉**（`toosterx.com/?event=xxx`）：`index.html` 保留中繼跳轉邏輯，自動導向 Mini App URL
+- **根網址 toosterx.com 中繼跳轉**：`toosterx.com/?team=xxx`、`?tournament=xxx`、`?profile=xxx` 保留 `index.html` 中繼跳轉邏輯，自動導向 Mini App URL
+- **活動根網址 query 例外**（`toosterx.com/?event=xxx`）：2026-05-21 起不再由 `index.html` 跳轉 Mini App；舊連結保留在網站端，由 SPA deep link 開啟活動
 - 各分享模組中保留 `// [備用]` 註解標記舊 URL，需要時可快速切回
 
 ### 強制規則
@@ -470,7 +481,7 @@ https://miniapp.line.me/2009525300-AuPGQ0sh?{deepLinkParam}={id}
    - 兜底：`navigator.share()` / `_copyToClipboard()` fallback
 3. **新增分享功能時必須比照 `event-share.js` 的模式**：底部選單（Action Sheet）+ Flex Message + 防連點 + altText 截斷（400 字）+ 各級 fallback。
 4. **QR Code 內容也必須使用 Mini App URL**：QR Code 掃描後在 LINE 開啟 Mini App。
-5. **Cloud Function OG 頁面**：`/event-share/{id}` / `/team-share/{id}` 等 OG 預覽用的中繼頁直連 URL（社群平台爬蟲無法解析 Mini App URL），最終 redirect 目標為 Mini App URL。
+5. **Cloud Function OG 頁面**：`/event-share/{id}` / `/team-share/{id}` 等 OG 預覽用的中繼頁直連 URL（社群平台爬蟲無法解析 Mini App URL）。`/event-share/{id}` 對 OG crawler 不 redirect，保留在 ToosterX 讀取活動分類縮圖；一般使用者點擊才 redirect 到 Mini App URL。`/team-share/{id}` 目前仍會導向 Mini App URL。
 6. **LINE Developers Console 設定**：任何使用 `shareTargetPicker` 的 LIFF App，必須確認 Console 中 Share Target Picker 開關為 ON。
 
 ### 分享功能遷移狀態
@@ -482,8 +493,8 @@ https://miniapp.line.me/2009525300-AuPGQ0sh?{deepLinkParam}={id}
 | 賽事分享 | ✅ Mini App URL + Flex Message |
 | 個人名片分享 | ✅ Mini App URL |
 | 角色頁複製連結 | ✅ Mini App URL |
-| index.html 中繼跳轉 | ✅ 跳轉目標改為 Mini App URL |
-| Cloud Function OG | ✅ redirect 目標改為 Mini App URL |
+| index.html 中繼跳轉 | ✅ 僅 `?team` / `?tournament` / `?profile` 跳 Mini App；`?event` 不跳轉 |
+| Cloud Function OG | ✅ `/event-share` crawler 留在 OG 頁，一般使用者 redirect Mini App；`/team-share` redirect Mini App |
 | Dashboard 報表 | ⚠️ 維持現狀（管理功能，非面向一般用戶） |
 
 ---

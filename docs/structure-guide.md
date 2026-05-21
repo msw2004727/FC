@@ -347,7 +347,7 @@
 - 詳細頁 clean URL writer、browser back/popstate 接管、LIFF 內建瀏覽器 path 寫入仍維持關閉。
 
 - 第一輪新增的是「網址入口轉譯層」,不是重寫頁面。使用者可開 `/activities`、`/teams`、`/tournaments`、`/profile` 以及 `/events/{id}`、`/teams/{id}`、`/tournaments/{id}`,系統會轉回既有活動、俱樂部、賽事頁面流程。
-- 舊網址仍保留:`#page-xxx`、`?event=xxx`、`?team=xxx`、`?tournament=xxx` 都繼續有效。LINE Mini App 分享連結本輪不改。
+- 舊網址仍保留:`#page-xxx`、`?event=xxx`、`?team=xxx`、`?tournament=xxx`、`?profile=xxx` 都繼續有效。2026-05-21 起根網址 `?event=xxx` 不再跳 Mini App，留在網站端由 SPA 開活動；`?team=xxx`、`?tournament=xxx`、`?profile=xxx` 仍由 `index.html` 中繼跳 Mini App。
 - 新增的核心檔案為 `js/core/history-route-flags.js` 與 `js/core/history-route-adapter.js`;前者控管階段開關,後者只做安全解析。
 - 部署入口由 `_worker.js`、`_routes.json`、`_headers` 與 `404.html` 共同支援。Cloudflare 正式站走 Worker,GitHub Pages 走 404 備援。
 - Service Worker 對 clean URL 不建立每個活動/俱樂部/賽事獨立 HTML 快取,只歸一到 `/index.html`,避免 cache 過度膨脹。
