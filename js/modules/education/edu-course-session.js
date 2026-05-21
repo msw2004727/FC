@@ -37,6 +37,251 @@ Object.assign(App, {
     return teams.find(t => String(t.id || t._docId || '') === String(teamId)) || null;
   },
 
+  _getCourseSessionStaffUserByUidOrName(uidLike, nameLike, users) {
+    const normalize = value => String(value || '').trim();
+    const uid = normalize(uidLike);
+    const name = normalize(nameLike).toLowerCase();
+    const userList = Array.isArray(users) ? users : [];
+    if (uid) {
+      const found = userList.find(user => [user.uid, user.lineUserId, user._docId, user.id]
+        .map(normalize)
+        .filter(Boolean)
+        .includes(uid));
+      if (found) return found;
+    }
+    if (name) {
+      return userList.find(user => [user.displayName, user.name, user.nickname]
+        .map(value => normalize(value).toLowerCase())
+        .some(value => value && value === name)) || null;
+    }
+    return null;
+  },
+
+  _getCourseSessionStaffContact(user) {
+    if (!user || typeof user !== 'object') return '';
+    const direct = [
+      user.contactUrl, user.lineUrl, user.lineLink, user.lineLinkUrl, user.socialUrl, user.website,
+      user.phone, user.mobile, user.email,
+    ].map(value => String(value || '').trim()).find(Boolean);
+    if (direct) return direct;
+    const socialLinks = user.socialLinks || {};
+    const platformMap = this._socialPlatforms || {
+      fb: { prefix: 'https://www.facebook.com/' },
+      ig: { prefix: 'https://www.instagram.com/' },
+      threads: { prefix: 'https://www.threads.net/@' },
+      yt: { prefix: 'https://www.youtube.com/@' },
+      twitter: { prefix: 'https://x.com/' },
+      line: { prefix: 'https://line.me/ti/p/' },
+    };
+    for (const key of ['line', 'ig', 'fb', 'threads', 'twitter', 'yt']) {
+      const value = String(socialLinks[key] || '').trim();
+      if (!value) continue;
+      if (/^https?:\/\//i.test(value)) return value;
+      const prefix = platformMap[key]?.prefix || '';
+      if (prefix) return prefix + encodeURIComponent(value.replace(/^@/, ''));
+    }
+    return '';
+  },
+
+  _getCourseSessionStaffCandidates(teamId) {
+    const team = this._getEduTeamRecord(teamId);
+    if (!team) return [];
+    const users = typeof ApiService !== 'undefined' && ApiService.getAdminUsers ? (ApiService.getAdminUsers() || []) : [];
+    const map = new Map();
+    const normalize = value => String(value || '').trim();
+    const add = (uidLike, nameLike, roleLabel, roleRank) => {
+      const user = this._getCourseSessionStaffUserByUidOrName(uidLike, nameLike, users);
+      const uid = normalize(user?.uid || user?.lineUserId || uidLike);
+      const name = normalize(user?.displayName || user?.name || nameLike || uid);
+      if (!name && !uid) return;
+      const key = uid ? 'uid:' + uid : 'name:' + name.toLowerCase();
+      const existing = map.get(key);
+      const candidate = existing || {
+        key,
+        uid,
+        name,
+        roleLabel,
+        roleRank,
+        contact: this._getCourseSessionStaffContact(user),
+        searchText: '',
+      };
+      if (!existing || roleRank > candidate.roleRank) {
+        candidate.roleLabel = roleLabel;
+        candidate.roleRank = roleRank;
+      }
+      candidate.searchText = [candidate.name, candidate.uid, candidate.roleLabel]
+        .map(value => String(value || '').toLowerCase())
+        .join(' ');
+      map.set(key, candidate);
+    };
+
+    add(team.captainUid, team.captain || team.captainName, '負責人', 3);
+    const leaderUids = Array.isArray(team.leaderUids) ? team.leaderUids : (team.leaderUid ? [team.leaderUid] : []);
+    const leaderNames = Array.isArray(team.leaderNames) ? team.leaderNames : (Array.isArray(team.leaders) ? team.leaders : (team.leader ? [team.leader] : []));
+    leaderUids.forEach((uid, index) => add(uid, leaderNames[index], '領隊', 2));
+    leaderNames.forEach(name => add(null, name, '領隊', 2));
+    const coachUids = Array.isArray(team.coachUids) ? team.coachUids : [];
+    const coachNames = Array.isArray(team.coachNames) ? team.coachNames : (Array.isArray(team.coaches) ? team.coaches : []);
+    coachUids.forEach((uid, index) => add(uid, coachNames[index], '教練', 1));
+    coachNames.forEach(name => add(null, name, '教練', 1));
+
+    return Array.from(map.values())
+      .filter(item => item.roleRank >= 1)
+      .sort((a, b) => b.roleRank - a.roleRank || a.name.localeCompare(b.name, 'zh-Hant'));
+  },
+
+  _renderCourseSessionStaffSuggestList(kind, results) {
+    const container = document.getElementById('edu-session-' + kind + '-suggest');
+    if (!container) return;
+    if (!results.length) {
+      container.innerHTML = '';
+      container.classList.remove('show');
+      return;
+    }
+    container.innerHTML = results.map(item => {
+      const role = item.roleLabel ? '<span class="tus-uid">' + escapeHTML(item.roleLabel) + '</span>' : '';
+      return '<div class="team-user-suggest-item" onmousedown="event.preventDefault();App.selectCourseSessionStaff(\'' + kind + '\',\'' + encodeURIComponent(item.key) + '\')">'
+        + '<span class="tus-name">' + escapeHTML(item.name) + '</span>'
+        + role
+        + '</div>';
+    }).join('');
+    container.classList.add('show');
+  },
+
+  searchCourseSessionStaff(kind) {
+    const ctx = this._eduCourseSessionEditContext;
+    if (!ctx) return;
+    const inputId = kind === 'assistant' ? 'edu-session-assistant-search' : 'edu-session-' + kind;
+    const query = document.getElementById(inputId)?.value.trim().toLowerCase() || '';
+    const container = document.getElementById('edu-session-' + kind + '-suggest');
+    if (!query) {
+      if (container) {
+        container.innerHTML = '';
+        container.classList.remove('show');
+      }
+      return;
+    }
+    const candidates = this._getCourseSessionStaffCandidates(ctx.teamId);
+    const exclude = kind === 'assistant'
+      ? new Set((this._eduCourseSessionAssistantCoaches || []).map(item => item.key || (item.uid ? 'uid:' + item.uid : 'name:' + String(item.name || '').toLowerCase())))
+      : new Set();
+    const results = candidates
+      .filter(item => !exclude.has(item.key) && item.searchText.includes(query))
+      .slice(0, 6);
+    this._renderCourseSessionStaffSuggestList(kind, results);
+  },
+
+  selectCourseSessionStaff(kind, encodedKey) {
+    const ctx = this._eduCourseSessionEditContext;
+    if (!ctx) return;
+    const key = decodeURIComponent(encodedKey || '');
+    const candidate = this._getCourseSessionStaffCandidates(ctx.teamId).find(item => item.key === key);
+    if (!candidate) return;
+    if (kind === 'assistant') {
+      this._addCourseSessionAssistantCoach(candidate);
+      const input = document.getElementById('edu-session-assistant-search');
+      if (input) input.value = '';
+    } else {
+      const input = document.getElementById('edu-session-' + kind);
+      const contact = document.getElementById(kind === 'manager' ? 'edu-session-manager-contact' : 'edu-session-coach-contact');
+      if (input) input.value = candidate.name || '';
+      if (contact && candidate.contact && !contact.value.trim()) contact.value = candidate.contact;
+      this.previewCourseSessionContact?.(kind);
+    }
+    const container = document.getElementById('edu-session-' + kind + '-suggest');
+    if (container) {
+      container.innerHTML = '';
+      container.classList.remove('show');
+    }
+  },
+
+  _normalizeCourseSessionAssistantCoaches(value) {
+    const list = Array.isArray(value) ? value : [];
+    const seen = new Set();
+    return list.map(item => {
+      if (typeof item === 'string') return { uid: '', name: item.trim(), roleLabel: '助理教練', contact: '' };
+      return {
+        uid: String(item?.uid || '').trim(),
+        name: String(item?.name || item?.displayName || '').trim(),
+        roleLabel: String(item?.roleLabel || '助理教練').trim(),
+        contact: String(item?.contact || '').trim(),
+      };
+    }).filter(item => item.name).map(item => {
+      const key = item.uid ? 'uid:' + item.uid : 'name:' + item.name.toLowerCase();
+      return { ...item, key };
+    }).filter(item => {
+      if (seen.has(item.key)) return false;
+      seen.add(item.key);
+      return true;
+    }).slice(0, 5);
+  },
+
+  _addCourseSessionAssistantCoach(candidate) {
+    const list = this._normalizeCourseSessionAssistantCoaches(this._eduCourseSessionAssistantCoaches || []);
+    if (list.length >= 5) {
+      this.showToast?.('助理教練最多 5 位');
+      return;
+    }
+    const item = {
+      uid: String(candidate?.uid || '').trim(),
+      name: String(candidate?.name || '').trim(),
+      roleLabel: String(candidate?.roleLabel || '助理教練').trim(),
+      contact: String(candidate?.contact || '').trim(),
+    };
+    if (!item.name) return;
+    item.key = item.uid ? 'uid:' + item.uid : 'name:' + item.name.toLowerCase();
+    if (list.some(existing => existing.key === item.key)) return;
+    this._eduCourseSessionAssistantCoaches = [...list, item];
+    this._renderCourseSessionAssistantCoachTags?.();
+  },
+
+  addCourseSessionAssistantCoachFromInput() {
+    const input = document.getElementById('edu-session-assistant-search');
+    const name = input?.value.trim() || '';
+    if (!name) return;
+    const ctx = this._eduCourseSessionEditContext;
+    const exact = ctx ? this._getCourseSessionStaffCandidates(ctx.teamId).find(item => item.name === name) : null;
+    this._addCourseSessionAssistantCoach(exact || { uid: '', name, roleLabel: '助理教練', contact: '' });
+    if (input) input.value = '';
+    const container = document.getElementById('edu-session-assistant-suggest');
+    if (container) {
+      container.innerHTML = '';
+      container.classList.remove('show');
+    }
+  },
+
+  removeCourseSessionAssistantCoach(encodedKey) {
+    const key = decodeURIComponent(encodedKey || '');
+    this._eduCourseSessionAssistantCoaches = this._normalizeCourseSessionAssistantCoaches(this._eduCourseSessionAssistantCoaches || [])
+      .filter(item => item.key !== key);
+    this._renderCourseSessionAssistantCoachTags?.();
+  },
+
+  _renderCourseSessionAssistantCoachTags() {
+    const container = document.getElementById('edu-session-assistant-tags');
+    if (!container) return;
+    const list = this._normalizeCourseSessionAssistantCoaches(this._eduCourseSessionAssistantCoaches || []);
+    if (!list.length) {
+      container.innerHTML = '<span class="edu-session-assistant-empty">未加入助理教練</span>';
+      return;
+    }
+    container.innerHTML = list.map(item => '<span class="team-tag edu-session-assistant-tag" data-no-translate>'
+      + escapeHTML(item.name)
+      + '<small>' + escapeHTML(item.roleLabel || '助理教練') + '</small>'
+      + '<span class="team-tag-x" onclick="App.removeCourseSessionAssistantCoach(\'' + encodeURIComponent(item.key) + '\')">×</span>'
+      + '</span>').join('');
+  },
+
+  _getCourseSessionAssistantCoachPayload() {
+    return this._normalizeCourseSessionAssistantCoaches(this._eduCourseSessionAssistantCoaches || [])
+      .map(item => ({
+        uid: item.uid || '',
+        name: item.name || '',
+        roleLabel: item.roleLabel || '助理教練',
+        contact: item.contact || '',
+      }));
+  },
+
   _getCourseSessionStudentInitial(name) {
     const chars = Array.from(String(name || '學員').trim());
     return chars[0] || '學';
@@ -170,6 +415,118 @@ Object.assign(App, {
     return { label: '已排課', cls: 'scheduled' };
   },
 
+  _isCourseSessionContactUrlLike(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return false;
+    return /^https?:\/\//i.test(raw)
+      || /^www\./i.test(raw)
+      || /^[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(raw);
+  },
+
+  _normalizeCourseSessionContactUrl(value) {
+    if (!this._isCourseSessionContactUrlLike(value)) return '';
+    const shared = this._normalizeEventSocialUrl?.(value) || this._normalizeTeamContactUrl?.(value) || '';
+    if (shared) return shared;
+    const raw = String(value || '').trim();
+    const withProtocol = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`;
+    try {
+      const url = new URL(withProtocol);
+      if (url.protocol !== 'https:' && url.protocol !== 'http:') return '';
+      url.hash = '';
+      return url.href;
+    } catch (_) {
+      return '';
+    }
+  },
+
+  _detectCourseSessionContactPlatform(value) {
+    const normalized = this._normalizeCourseSessionContactUrl(value);
+    let host = '';
+    try {
+      host = normalized ? new URL(normalized).hostname.toLowerCase().replace(/^www\./, '') : '';
+    } catch (_) {}
+    const matches = (...domains) => domains.some(domain => host === domain || host.endsWith(`.${domain}`));
+    if (matches('line.me', 'lin.ee')) return { key: 'line', label: 'LINE', icon: 'LINE', host };
+    if (matches('facebook.com', 'fb.com', 'messenger.com', 'm.me')) return { key: 'facebook', label: 'Facebook', icon: 'f', host };
+    if (matches('instagram.com')) return { key: 'instagram', label: 'Instagram', icon: 'IG', host };
+    if (matches('threads.net', 'threads.com')) return { key: 'threads', label: 'Threads', icon: '@', host };
+    if (matches('x.com', 'twitter.com')) return { key: 'x', label: 'X', icon: 'X', host };
+    if (matches('youtube.com', 'youtu.be')) return { key: 'youtube', label: 'YouTube', icon: '▶', host };
+    if (matches('tiktok.com')) return { key: 'tiktok', label: 'TikTok', icon: '♪', host };
+    if (matches('discord.gg', 'discord.com')) return { key: 'discord', label: 'Discord', icon: 'D', host };
+    if (matches('telegram.org', 'telegram.me', 't.me')) return { key: 'telegram', label: 'Telegram', icon: 'TG', host };
+    if (matches('linktr.ee', 'linktree.com')) return { key: 'linktree', label: 'Linktree', icon: 'LT', host };
+    return { key: 'link', label: host || '連結', icon: '↗', host };
+  },
+
+  _renderCourseSessionContactIcon(meta) {
+    const key = meta?.key || 'link';
+    const iconClass = `event-social-link-icon event-social-link-icon-${escapeHTML(key)}`;
+    const imageIcons = {
+      instagram: 'img/Instagram-Logo--Streamline-Plump-Gradient.png',
+      threads: 'img/Thread-Block-Logo--Streamline-Ultimate.png',
+    };
+    if (imageIcons[key]) {
+      return `<span class="${iconClass}" aria-hidden="true"><img src="${escapeHTML(imageIcons[key])}" alt=""></span>`;
+    }
+    return `<span class="${iconClass}" aria-hidden="true">${escapeHTML(meta?.icon || '↗')}</span>`;
+  },
+
+  _renderCourseSessionContactValue(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '<em>未填聯繫方式</em>';
+    const normalized = this._normalizeCourseSessionContactUrl(raw);
+    if (!normalized) return '<em>' + escapeHTML(raw) + '</em>';
+    const meta = this._detectCourseSessionContactPlatform(normalized);
+    const linksHtml = '<a class="event-social-link-btn" data-platform="' + escapeHTML(meta.key) + '" href="' + escapeHTML(normalized) + '" target="sporthub_social" rel="noopener noreferrer" aria-label="' + escapeHTML(meta.label) + '" title="' + escapeHTML(meta.label) + '">'
+      + this._renderCourseSessionContactIcon(meta)
+      + '</a>';
+    return '<span class="event-social-link-list edu-session-contact-links">' + linksHtml + '</span>';
+  },
+
+  previewCourseSessionContact(kind) {
+    const inputId = kind === 'manager' ? 'edu-session-manager-contact' : 'edu-session-coach-contact';
+    const previewId = kind === 'manager' ? 'edu-session-manager-contact-preview' : 'edu-session-coach-contact-preview';
+    const preview = document.getElementById(previewId);
+    if (!preview) return;
+    const value = document.getElementById(inputId)?.value.trim() || '';
+    if (!value) {
+      preview.innerHTML = '<span>輸入網址會自動顯示社群按鈕</span>';
+      preview.classList.remove('has-link');
+      return;
+    }
+    const normalized = this._normalizeCourseSessionContactUrl(value);
+    if (!normalized) {
+      preview.innerHTML = '<span>手動聯繫：' + escapeHTML(value) + '</span>';
+      preview.classList.remove('has-link');
+      return;
+    }
+    preview.innerHTML = this._renderCourseSessionContactValue(normalized);
+    preview.classList.add('has-link');
+  },
+
+  _getCourseSessionMapUrl(location) {
+    const text = String(location || '').trim();
+    if (!text) return '';
+    return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(text);
+  },
+
+  _renderCourseSessionContactCard(label, name, contact) {
+    return '<div class="edu-session-contact-row">'
+      + '<span>' + escapeHTML(label) + '</span>'
+      + '<strong>' + escapeHTML(name || '未設定') + '</strong>'
+      + this._renderCourseSessionContactValue(contact)
+      + '</div>';
+  },
+
+  _renderCourseSessionAssistantList(session) {
+    const assistants = this._normalizeCourseSessionAssistantCoaches(session?.assistantCoaches || session?.assistantCoachNames || []);
+    if (!assistants.length) return '<span class="edu-session-detail-muted">未安排</span>';
+    return '<div class="edu-session-detail-assistants">'
+      + assistants.map(item => '<span>' + escapeHTML(item.name) + '</span>').join('')
+      + '</div>';
+  },
+
   _getCourseApprovedRoster(teamId, plan, enrollments) {
     const allStudents = this.getEduStudents(teamId) || [];
     const byId = new Map(allStudents.map(s => [String(s.id || s._docId || ''), s]));
@@ -194,7 +551,21 @@ Object.assign(App, {
     return roster.sort((a, b) => String(a.student?.name || '').localeCompare(String(b.student?.name || ''), 'zh-Hant'));
   },
 
-  _renderCourseSessionStudentTags(student, enrollment, plan) {
+  _renderCourseSessionRosterNoteCell(student, enrollment, options = {}) {
+    const note = String(enrollment?.coachNotes || '').trim();
+    const studentId = String(student?.id || student?._docId || enrollment?.studentId || '').trim();
+    const enrollId = String(enrollment?.id || '').trim();
+    const text = note || '—';
+    const editBtn = options.isStaff
+      ? '<button type="button" class="edu-session-note-edit" onclick="event.stopPropagation();App.editCourseSessionRosterNote(\'' + escapeHTML(options.teamId || '') + '\',\'' + escapeHTML(options.planId || '') + '\',\'' + escapeHTML(studentId) + '\',\'' + escapeHTML(enrollId) + '\')">編輯</button>'
+      : '';
+    return '<span class="edu-session-student-slot edu-session-student-slot-note" aria-label="備註">'
+      + '<span class="edu-session-note-text" title="' + escapeHTML(text) + '">' + escapeHTML(text) + '</span>'
+      + editBtn
+      + '</span>';
+  },
+
+  _renderCourseSessionStudentTags(student, enrollment, plan, options = {}) {
     const gender = student?.gender === 'male' ? '男' : student?.gender === 'female' ? '女' : '';
     const age = student?.birthday ? this.calcAge(student.birthday) : null;
     const group = (student?.groupNames || []).join('、');
@@ -210,9 +581,13 @@ Object.assign(App, {
       { cls: 'paid', label: '繳費', value: paidStatus },
       { cls: 'remain', label: '剩餘', value: remaining },
     ];
-    return fields.map(field => '<span class="edu-session-student-slot edu-session-student-slot-' + field.cls + '" aria-label="' + escapeHTML(field.label) + '">'
+    let html = fields.map(field => '<span class="edu-session-student-slot edu-session-student-slot-' + field.cls + '" aria-label="' + escapeHTML(field.label) + '">'
       + escapeHTML(field.value)
       + '</span>').join('');
+    if (options.showNotes) {
+      html += this._renderCourseSessionRosterNoteCell(student, enrollment, options);
+    }
+    return html;
   },
 
   _renderCourseSessionRosterHeader() {
@@ -222,6 +597,7 @@ Object.assign(App, {
       + '<span>分組</span>'
       + '<span>繳費</span>'
       + '<span>剩餘</span>'
+      + '<span>備註</span>'
       + '</div>';
   },
 
@@ -242,8 +618,87 @@ Object.assign(App, {
           + '<strong>' + escapeHTML(name) + '</strong>'
           + '<span class="edu-session-student-tags">' + this._renderCourseSessionStudentTags(student, item.enrollment, plan) + '</span>'
         + '</span>'
-        + '</div>';
+      + '</div>';
     }).join('');
+  },
+
+  async editCourseSessionRosterNote(teamId, planId, studentId, enrollId) {
+    if (!this.isEduClubStaff?.(teamId)) {
+      this.showToast?.('權限不足');
+      return;
+    }
+    const enrollments = await this._loadCourseEnrollments(teamId, planId);
+    const enrollment = enrollments.find(e => String(e.id || '') === String(enrollId || ''))
+      || enrollments.find(e => String(e.studentId || '') === String(studentId || '') && e.status !== 'rejected')
+      || null;
+    const student = (this.getEduStudents(teamId) || []).find(s => String(s.id || s._docId || '') === String(studentId || '')) || {};
+    const current = String(enrollment?.coachNotes || '').slice(0, 30);
+    const overlay = document.createElement('div');
+    overlay.className = 'edu-info-overlay edu-session-note-overlay';
+    overlay.onclick = (event) => { if (event.target === overlay) overlay.remove(); };
+    overlay.innerHTML = '<div class="edu-info-dialog edu-session-note-dialog">'
+      + '<div class="edu-info-dialog-title">編輯學員備註</div>'
+      + '<div class="edu-session-note-student">' + escapeHTML(student.name || enrollment?.studentName || '學員') + '</div>'
+      + '<textarea id="edu-session-note-input" maxlength="30" rows="2" placeholder="最多 30 字">' + escapeHTML(current) + '</textarea>'
+      + '<div class="edu-session-note-count"><span id="edu-session-note-count">' + current.length + '</span>/30</div>'
+      + '<div class="modal-actions">'
+        + '<button class="outline-btn" onclick="this.closest(\'.edu-info-overlay\').remove()">取消</button>'
+        + '<button class="primary-btn" id="edu-session-note-save">儲存備註</button>'
+      + '</div>'
+      + '</div>';
+    document.body.appendChild(overlay);
+    const input = document.getElementById('edu-session-note-input');
+    const count = document.getElementById('edu-session-note-count');
+    input?.addEventListener('input', () => { if (count) count.textContent = String((input.value || '').length); });
+    document.getElementById('edu-session-note-save')?.addEventListener('click', async () => {
+      const notes = (input?.value || '').trim().slice(0, 30);
+      const buttonState = this._setEduBtnLoading('#edu-session-note-save');
+      try {
+        await this._saveCourseSessionRosterNote(teamId, planId, studentId, enrollId, notes);
+        overlay.remove();
+        this.showToast?.('備註已更新');
+        await this._renderCourseSessionBoard(teamId, planId);
+      } catch (err) {
+        console.error('[editCourseSessionRosterNote]', err);
+        this.showToast?.('儲存備註失敗');
+      } finally {
+        buttonState.restore();
+      }
+    });
+  },
+
+  async _saveCourseSessionRosterNote(teamId, planId, studentId, enrollId, notes) {
+    const key = this._getCourseEnrollCacheKey(teamId, planId);
+    let enrollments = this._courseEnrollCache[key] || await this._loadCourseEnrollments(teamId, planId);
+    let enrollment = enrollments.find(e => String(e.id || '') === String(enrollId || ''))
+      || enrollments.find(e => String(e.studentId || '') === String(studentId || '') && e.status !== 'rejected')
+      || null;
+    const isAuto = enrollment && String(enrollment.id || '').startsWith('_auto_');
+    if (!enrollment || isAuto) {
+      const student = (this.getEduStudents(teamId) || []).find(s => String(s.id || s._docId || '') === String(studentId || '')) || {};
+      const realId = this._generateEduId('enr');
+      const doc = {
+        id: realId,
+        studentId,
+        studentName: student.name || enrollment?.studentName || '',
+        selfUid: student.selfUid || enrollment?.selfUid || null,
+        parentUid: student.parentUid || enrollment?.parentUid || null,
+        status: 'approved',
+        paidAt: enrollment?.paidAt || null,
+        coachNotes: notes,
+        reviewerName: enrollment?.reviewerName || null,
+        reviewedAt: enrollment?.reviewedAt || null,
+      };
+      const created = await FirebaseService.createCourseEnrollment(teamId, planId, doc);
+      const autoIndex = enrollments.findIndex(e => String(e.id || '') === String(enrollId || ''));
+      if (autoIndex >= 0) enrollments[autoIndex] = created;
+      else enrollments.push(created);
+      this._courseEnrollCache[key] = enrollments;
+      return created;
+    }
+    await FirebaseService.updateCourseEnrollment(teamId, planId, enrollment.id, { coachNotes: notes });
+    enrollment.coachNotes = notes;
+    return enrollment;
   },
 
   async _renderCourseSessionBoard(teamId, planId, requestSeq) {
@@ -280,12 +735,12 @@ Object.assign(App, {
         })).join('')
       : '<div class="edu-session-empty">'
           + '<strong>尚未建立課堂卡片</strong>'
-          + '<span>點擊「新增課堂」後，這裡會以橫向附圖卡片顯示每一堂課的時間、人數、教練與學員名單。</span>'
+          + '<span>點擊「新增課堂」後，這裡會以精簡橫式卡片顯示每一堂課的名稱、時間、地點與人數。</span>'
         + '</div>';
 
     const contactHtml = nextSession
-      ? '<div class="edu-session-contact-row"><span>負責人</span><strong>' + escapeHTML(nextSession.managerName || '未設定') + '</strong><em>' + escapeHTML(nextSession.managerContact || '未填聯繫方式') + '</em></div>'
-        + '<div class="edu-session-contact-row"><span>執課教練</span><strong>' + escapeHTML(nextSession.coachName || '未設定') + '</strong><em>' + escapeHTML(nextSession.coachContact || '未填聯繫方式') + '</em></div>'
+      ? this._renderCourseSessionContactCard('負責人', nextSession.managerName, nextSession.managerContact)
+        + this._renderCourseSessionContactCard('執課教練', nextSession.coachName, nextSession.coachContact)
       : '<div class="edu-session-contact-row"><span>負責人 / 教練</span><strong>尚未建立課堂</strong><em>新增課堂時填寫聯繫方式</em></div>';
 
     container.innerHTML = '<div class="edu-session-board">'
@@ -312,7 +767,7 @@ Object.assign(App, {
         + '<div class="edu-session-contact-grid">' + contactHtml + '</div>'
       + '</section>'
       + '<section class="edu-session-list-panel">'
-        + '<div class="edu-session-section-title"><strong>課堂卡片</strong><span>教練、時間、地點與上課人數</span></div>'
+        + '<div class="edu-session-section-title"><strong>課堂卡片</strong><span>點卡片查看教練、聯繫、助理與完整課務資訊</span></div>'
         + '<div class="edu-session-list">' + sessionCards + '</div>'
       + '</section>'
       + '<section class="edu-session-roster-panel">'
@@ -324,13 +779,62 @@ Object.assign(App, {
               + this._renderCourseSessionStudentAvatar(student, name)
               + '<span class="edu-session-list-main">'
                 + '<strong>' + escapeHTML(name) + '</strong>'
-                + '<span class="edu-session-student-tags">' + this._renderCourseSessionStudentTags(student, item.enrollment, plan) + '</span>'
+                + '<span class="edu-session-student-tags edu-session-student-tags-notes">' + this._renderCourseSessionStudentTags(student, item.enrollment, plan, { showNotes: true, isStaff, teamId, planId }) + '</span>'
               + '</span>'
             + '</div>';
           }).join('') : '<div class="edu-session-empty-students">尚未有核准學員</div>') + '</div>'
       + '</section>'
       + '</div>';
     this._bindCourseSessionStudentAvatarFallbacks(container);
+  },
+
+  async openCourseSessionDetail(teamId, planId, sessionId) {
+    const plan = this.getEduCoursePlans(teamId).find(p => p.id === planId);
+    const sessions = await this._loadCourseSessions(teamId, planId);
+    const session = sessions.find(item => String(item.id || '') === String(sessionId || ''));
+    if (!session) {
+      this.showToast?.('找不到課堂資料');
+      return;
+    }
+    const enrollments = await this._loadCourseEnrollments(teamId, planId);
+    const roster = this._getCourseApprovedRoster(teamId, plan, enrollments);
+    const status = this._getCourseSessionStatusMeta(session);
+    const capacity = session.capacity ? '/' + session.capacity : '';
+    const current = (session.studentIds || []).length;
+    const location = session.location || '地點未設定';
+    const mapUrl = this._getCourseSessionMapUrl(location);
+    const mapLink = mapUrl
+      ? '<a class="outline-btn small edu-session-map-link" href="' + escapeHTML(mapUrl) + '" target="sporthub_map" rel="noopener noreferrer">Google Map</a>'
+      : '';
+    const overlay = document.createElement('div');
+    overlay.className = 'edu-info-overlay edu-session-detail-overlay';
+    overlay.onclick = (event) => { if (event.target === overlay) overlay.remove(); };
+    overlay.innerHTML = '<div class="edu-info-dialog edu-session-detail-dialog">'
+      + '<div class="edu-session-detail-head">'
+        + '<div>'
+          + '<span class="edu-session-status edu-session-status-' + status.cls + '">' + escapeHTML(status.label) + '</span>'
+          + '<h3>' + escapeHTML(session.title || '未命名課堂') + '</h3>'
+          + '<p>' + escapeHTML(plan?.name || '課程方案') + '</p>'
+        + '</div>'
+        + '<button class="modal-close-btn" onclick="this.closest(\'.edu-info-overlay\').remove()">×</button>'
+      + '</div>'
+      + '<div class="edu-session-detail-grid">'
+        + '<div class="edu-session-detail-item"><span>日期時間</span><strong>' + escapeHTML(this._formatCourseSessionDate(session) + ' ' + this._formatCourseSessionTime(session)) + '</strong></div>'
+        + '<div class="edu-session-detail-item"><span>上課人數</span><strong>' + current + capacity + ' 人</strong></div>'
+        + '<div class="edu-session-detail-item edu-session-detail-wide"><span>地點</span><strong>' + escapeHTML(location) + '</strong>' + mapLink + '</div>'
+        + '<div class="edu-session-detail-item"><span>負責人</span><strong>' + escapeHTML(session.managerName || '未設定') + '</strong>' + this._renderCourseSessionContactValue(session.managerContact) + '</div>'
+        + '<div class="edu-session-detail-item"><span>執課教練</span><strong>' + escapeHTML(session.coachName || '未設定') + '</strong>' + this._renderCourseSessionContactValue(session.coachContact) + '</div>'
+        + '<div class="edu-session-detail-item edu-session-detail-wide"><span>助理教練</span>' + this._renderCourseSessionAssistantList(session) + '</div>'
+        + '<div class="edu-session-detail-item edu-session-detail-wide"><span>課堂重點</span><strong>' + escapeHTML(session.focus || '未填寫') + '</strong></div>'
+        + '<div class="edu-session-detail-item edu-session-detail-wide"><span>備註</span><em>' + escapeHTML(session.notes || '未填寫') + '</em></div>'
+      + '</div>'
+      + '<div class="edu-session-detail-students">'
+        + '<div class="edu-session-section-title"><strong>本堂學員</strong><span>' + current + ' 位</span></div>'
+        + this._renderCourseSessionStudents(session.studentIds || [], roster, plan)
+      + '</div>'
+      + '</div>';
+    document.body.appendChild(overlay);
+    this._bindCourseSessionStudentAvatarFallbacks(overlay);
   },
 
   _renderCourseSessionCard(session, ctx) {
@@ -345,7 +849,7 @@ Object.assign(App, {
           + '<button class="outline-btn small danger" onclick="event.stopPropagation();App.deleteCourseSession(\'' + ctx.teamId + '\',\'' + ctx.planId + '\',\'' + session.id + '\')">刪除</button>'
         + '</div>'
       : '';
-    return '<article class="edu-session-card edu-session-card-' + status.cls + '">'
+    return '<article class="edu-session-card edu-session-card-' + status.cls + '" role="button" tabindex="0" onclick="App.openCourseSessionDetail(\'' + ctx.teamId + '\',\'' + ctx.planId + '\',\'' + session.id + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();App.openCourseSessionDetail(\'' + ctx.teamId + '\',\'' + ctx.planId + '\',\'' + session.id + '\')}">'
       + '<div class="edu-session-card-main">'
         + '<div class="edu-session-card-head">'
           + '<span class="edu-session-number">第 ' + ctx.index + ' 堂</span>'
@@ -353,7 +857,6 @@ Object.assign(App, {
           + '<h4>' + escapeHTML(session.title || '未命名課堂') + '</h4>'
         + '</div>'
         + '<div class="edu-session-card-line">'
-          + '<span><b>教練</b><em>' + escapeHTML(session.coachName || '未設定') + '</em></span>'
           + '<span><b>時間</b><em>' + escapeHTML(sessionDateTime) + '</em></span>'
           + '<span><b>地點</b><em>' + escapeHTML(location) + '</em></span>'
           + '<span><b>人數</b><em>' + current + capacity + ' 人</em></span>'

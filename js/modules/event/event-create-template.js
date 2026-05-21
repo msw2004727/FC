@@ -59,13 +59,14 @@ Object.assign(App, {
   },
 
   _getEventTemplates() {
+    const isDefaultEventTemplate = t => !t?.templateType || t.templateType === 'event' || t.templateType === 'normal';
     if (this._isCloudTemplateEnabled()) {
       const cloud = ApiService.getEventTemplates?.() || [];
       if (cloud.length > 0 || this._templatesLoadedUid === this._getEventCreatorUid()) {
-        return cloud;
+        return cloud.filter(isDefaultEventTemplate);
       }
     }
-    return this._getEventTemplatesFromLocal();
+    return this._getEventTemplatesFromLocal().filter(isDefaultEventTemplate);
   },
 
   async _migrateLegacyLocalTemplates(uid) {
