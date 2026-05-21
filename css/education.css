@@ -684,15 +684,15 @@
 .edu-session-list-main {
   min-width: 0;
   flex: 1 1 auto;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(72px, 1fr) minmax(296px, 2.8fr);
   align-items: center;
-  justify-content: space-between;
-  gap: .5rem;
+  gap: .52rem;
 }
 .edu-session-student strong,
 .edu-session-roster-item strong {
   display: block;
-  min-width: 64px;
+  min-width: 0;
   color: var(--text-primary);
   font-size: .78rem;
   font-weight: 950;
@@ -702,20 +702,43 @@
   text-overflow: ellipsis;
 }
 .edu-session-student-tags {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: .22rem;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 42px 48px minmax(92px, 1fr) 54px 54px;
+  align-items: stretch;
+  gap: .24rem;
   margin-top: 0;
 }
-.edu-session-student-tags span {
-  min-height: 18px;
-  padding: .08rem .32rem;
-  border-radius: var(--radius-full);
+.edu-session-student-tags > span {
+  min-width: 0;
+  min-height: 34px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: .02rem;
+  padding: .16rem .34rem;
+  border: 1px solid rgba(15, 118, 110, .1);
+  border-radius: 8px;
   background: rgba(15, 118, 110, .1);
-  color: #0f766e;
-  font-size: .62rem;
+}
+.edu-session-student-tags small {
+  display: block;
+  color: var(--text-muted);
+  font-size: .52rem;
   font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+.edu-session-student-tags b {
+  min-width: 0;
+  display: block;
+  color: #0f766e;
+  font-size: .64rem;
+  font-weight: 950;
+  line-height: 1.18;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .edu-session-empty,
 .edu-session-empty-students {
@@ -831,21 +854,13 @@
   text-overflow: ellipsis;
 }
 .edu-session-pick-item em {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: .18rem;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 42px 48px minmax(92px, 1fr) 54px 54px;
+  align-items: stretch;
+  gap: .24rem;
   margin-top: 0;
   font-style: normal;
-}
-.edu-session-pick-item em span {
-  min-height: 17px;
-  padding: .06rem .28rem;
-  border-radius: var(--radius-full);
-  background: rgba(15, 118, 110, .1);
-  color: #0f766e;
-  font-size: .6rem;
-  font-weight: 900;
 }
 
 @media (max-width: 560px) {
@@ -882,12 +897,17 @@
     gap: .32rem;
   }
   .edu-session-list-main {
+    grid-template-columns: 1fr;
     gap: .34rem;
+  }
+  .edu-session-student-tags,
+  .edu-session-pick-item em {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .edu-session-student strong,
   .edu-session-roster-item strong,
   .edu-session-pick-item strong {
-    min-width: 54px;
+    min-width: 0;
   }
 }
 
@@ -1695,9 +1715,16 @@
   border-color: rgba(148, 163, 184, .22);
 }
 [data-theme="dark"] .edu-session-number,
-[data-theme="dark"] .edu-session-student-tags span,
-[data-theme="dark"] .edu-session-pick-item em span {
+[data-theme="dark"] .edu-session-student-tags > span,
+[data-theme="dark"] .edu-session-pick-item em > span {
   background: rgba(45, 212, 191, .14);
+  border-color: rgba(45, 212, 191, .14);
+}
+[data-theme="dark"] .edu-session-number {
+  color: #5eead4;
+}
+[data-theme="dark"] .edu-session-student-tags b,
+[data-theme="dark"] .edu-session-pick-item em b {
   color: #5eead4;
 }
 [data-theme="dark"] .edu-session-avatar {

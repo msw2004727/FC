@@ -93,19 +93,25 @@ Object.assign(App, {
   },
 
   _renderCourseSessionStudentTags(student, enrollment, plan) {
-    const tags = [];
     const gender = student?.gender === 'male' ? '男' : student?.gender === 'female' ? '女' : '';
     const age = student?.birthday ? this.calcAge(student.birthday) : null;
-    if (gender) tags.push(gender);
-    if (age != null) tags.push(age + '歲');
     const group = (student?.groupNames || []).join('、');
-    if (group) tags.push(group);
-    if (enrollment?.paidAt) tags.push('已繳費');
     const attended = (this._courseAttendanceCount || {})[student?.id] || 0;
-    if (plan?.planType === 'session' && plan.totalSessions) {
-      tags.push('剩 ' + Math.max(0, (plan.totalSessions || 0) - attended) + ' 堂');
-    }
-    return tags.map(tag => '<span>' + escapeHTML(tag) + '</span>').join('');
+    const remaining = plan?.planType === 'session' && plan.totalSessions
+      ? Math.max(0, (plan.totalSessions || 0) - attended) + '堂'
+      : '—';
+    const paidStatus = enrollment?.paidAt ? '已繳費' : (enrollment ? '未繳' : '—');
+    const fields = [
+      { cls: 'gender', label: '性別', value: gender || '—' },
+      { cls: 'age', label: '年齡', value: age != null ? age + '歲' : '—' },
+      { cls: 'group', label: '分組', value: group || '未分組' },
+      { cls: 'paid', label: '繳費', value: paidStatus },
+      { cls: 'remain', label: '剩餘', value: remaining },
+    ];
+    return fields.map(field => '<span class="edu-session-student-slot edu-session-student-slot-' + field.cls + '">'
+      + '<small>' + escapeHTML(field.label) + '</small>'
+      + '<b>' + escapeHTML(field.value) + '</b>'
+      + '</span>').join('');
   },
 
   _renderCourseSessionStudents(studentIds, roster, plan) {
