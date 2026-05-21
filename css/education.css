@@ -642,37 +642,64 @@
   font-weight: 760;
 }
 .edu-session-card-students {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
-  gap: .36rem;
+  display: flex;
+  flex-direction: column;
+  gap: .38rem;
   margin-top: .56rem;
 }
 .edu-session-student,
 .edu-session-roster-item {
   min-width: 0;
-  padding: .38rem .45rem;
+  display: flex;
+  align-items: center;
+  gap: .48rem;
+  padding: .46rem .5rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-base);
 }
+.edu-session-avatar {
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(15, 118, 110, .16), rgba(37, 99, 235, .14));
+  color: #0f766e;
+  font-size: .78rem;
+  font-weight: 950;
+  line-height: 1;
+}
+.edu-session-list-main {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+}
 .edu-session-student strong,
 .edu-session-roster-item strong {
   display: block;
+  min-width: 64px;
   color: var(--text-primary);
   font-size: .78rem;
   font-weight: 950;
   line-height: 1.25;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.edu-session-student-tags,
-.edu-session-roster-item > span {
+.edu-session-student-tags {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: .22rem;
-  margin-top: .22rem;
+  margin-top: 0;
 }
-.edu-session-student-tags span,
-.edu-session-roster-item > span span {
+.edu-session-student-tags span {
   min-height: 18px;
   padding: .08rem .32rem;
   border-radius: var(--radius-full);
@@ -707,12 +734,12 @@
   border-color: rgba(220, 38, 38, .36);
 }
 .edu-session-roster {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(142px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: .42rem;
 }
 .edu-session-form-dialog {
-  max-width: 560px;
+  max-width: 640px;
 }
 .edu-session-form-grid {
   display: grid;
@@ -751,19 +778,19 @@
   margin-right: auto;
 }
 .edu-session-pick-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: .4rem;
-  max-height: 260px;
+  max-height: min(42vh, 420px);
   overflow-y: auto;
   padding-right: .15rem;
 }
 .edu-session-pick-item {
   min-width: 0;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: .45rem;
-  padding: .5rem .55rem;
+  padding: .52rem .6rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-base);
@@ -772,24 +799,32 @@
 .edu-session-pick-item:hover {
   border-color: rgba(15, 118, 110, .42);
 }
-.edu-session-pick-item input {
-  margin-top: .12rem;
-  flex: 0 0 auto;
+.edu-session-pick-item:has(input:checked) {
+  border-color: rgba(15, 118, 110, .42);
+  background: linear-gradient(135deg, rgba(15, 118, 110, .08), rgba(37, 99, 235, .06));
 }
-.edu-session-pick-item span {
-  min-width: 0;
+.edu-session-pick-item input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex: 0 0 auto;
 }
 .edu-session-pick-item strong {
   display: block;
+  min-width: 72px;
   color: var(--text-primary);
   font-size: .8rem;
   font-weight: 950;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .edu-session-pick-item em {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: .18rem;
-  margin-top: .2rem;
+  margin-top: 0;
   font-style: normal;
 }
 .edu-session-pick-item em span {
@@ -820,7 +855,15 @@
     min-height: 100%;
   }
   .edu-session-card-students {
-    grid-template-columns: 1fr;
+    gap: .32rem;
+  }
+  .edu-session-list-main {
+    gap: .34rem;
+  }
+  .edu-session-student strong,
+  .edu-session-roster-item strong,
+  .edu-session-pick-item strong {
+    min-width: 54px;
   }
 }
 
@@ -1595,9 +1638,12 @@
 }
 [data-theme="dark"] .edu-session-number,
 [data-theme="dark"] .edu-session-student-tags span,
-[data-theme="dark"] .edu-session-roster-item > span span,
 [data-theme="dark"] .edu-session-pick-item em span {
   background: rgba(45, 212, 191, .14);
+  color: #5eead4;
+}
+[data-theme="dark"] .edu-session-avatar {
+  background: linear-gradient(135deg, rgba(45, 212, 191, .18), rgba(96, 165, 250, .16));
   color: #5eead4;
 }
 [data-theme="dark"] .edu-session-status-scheduled { background: rgba(96, 165, 250, .16); color: #93c5fd; }

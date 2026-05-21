@@ -24,9 +24,14 @@ Object.assign(App, {
           const student = item.student || {};
           const id = String(student.id || student._docId || '');
           const checked = selected.has(id) ? ' checked' : '';
+          const name = student.name || '未命名學員';
           return '<label class="edu-session-pick-item">'
             + '<input type="checkbox" value="' + escapeHTML(id) + '"' + checked + '>'
-            + '<span><strong>' + escapeHTML(student.name || '未命名學員') + '</strong><em>' + this._renderCourseSessionStudentTags(student, item.enrollment, plan) + '</em></span>'
+            + '<span class="edu-session-avatar">' + escapeHTML(this._getCourseSessionStudentInitial(name)) + '</span>'
+            + '<span class="edu-session-list-main">'
+              + '<strong>' + escapeHTML(name) + '</strong>'
+              + '<em class="edu-session-student-tags">' + this._renderCourseSessionStudentTags(student, item.enrollment, plan) + '</em>'
+            + '</span>'
           + '</label>';
         }).join('')
       : '<div class="edu-session-empty-students">尚未有核准學員，仍可先建立課堂。</div>';
@@ -125,7 +130,11 @@ Object.assign(App, {
       await this._renderCourseSessionBoard(ctx.teamId, ctx.planId);
     } catch (err) {
       console.error('[handleSaveCourseSession]', err);
-      this.showToast('儲存課堂失敗：' + (err.message || '請稍後再試'));
+      const code = String(err?.code || '');
+      const permissionDenied = code.includes('permission-denied') || /permission|insufficient/i.test(err?.message || '');
+      this.showToast(permissionDenied
+        ? '儲存課堂失敗：權限不足，請確認 Firestore 規則已部署且你是負責職員'
+        : '儲存課堂失敗：' + (err.message || '請稍後再試'));
     } finally {
       buttonState.restore();
     }

@@ -37,6 +37,11 @@ Object.assign(App, {
     return teams.find(t => String(t.id || t._docId || '') === String(teamId)) || null;
   },
 
+  _getCourseSessionStudentInitial(name) {
+    const chars = Array.from(String(name || '學員').trim());
+    return chars[0] || '學';
+  },
+
   _formatCourseSessionDate(session) {
     if (!session?.date) return '未排定日期';
     const parts = String(session.date).split('-').map(v => parseInt(v, 10));
@@ -113,9 +118,13 @@ Object.assign(App, {
     }
     return visibleRoster.map(item => {
       const student = item.student || {};
+      const name = student.name || '未命名學員';
       return '<div class="edu-session-student">'
-        + '<strong>' + escapeHTML(student.name || '未命名學員') + '</strong>'
-        + '<span class="edu-session-student-tags">' + this._renderCourseSessionStudentTags(student, item.enrollment, plan) + '</span>'
+        + '<span class="edu-session-avatar">' + escapeHTML(this._getCourseSessionStudentInitial(name)) + '</span>'
+        + '<span class="edu-session-list-main">'
+          + '<strong>' + escapeHTML(name) + '</strong>'
+          + '<span class="edu-session-student-tags">' + this._renderCourseSessionStudentTags(student, item.enrollment, plan) + '</span>'
+        + '</span>'
         + '</div>';
     }).join('');
   },
@@ -192,7 +201,14 @@ Object.assign(App, {
         + '<div class="edu-session-section-title"><strong>方案學員</strong><span>' + roster.length + ' 位核准學員' + (pendingCount ? '，' + pendingCount + ' 位待審核' : '') + '</span></div>'
         + '<div class="edu-session-roster">' + (roster.length ? roster.map(item => {
             const student = item.student || {};
-            return '<div class="edu-session-roster-item"><strong>' + escapeHTML(student.name || '未命名學員') + '</strong><span>' + this._renderCourseSessionStudentTags(student, item.enrollment, plan) + '</span></div>';
+            const name = student.name || '未命名學員';
+            return '<div class="edu-session-roster-item">'
+              + '<span class="edu-session-avatar">' + escapeHTML(this._getCourseSessionStudentInitial(name)) + '</span>'
+              + '<span class="edu-session-list-main">'
+                + '<strong>' + escapeHTML(name) + '</strong>'
+                + '<span class="edu-session-student-tags">' + this._renderCourseSessionStudentTags(student, item.enrollment, plan) + '</span>'
+              + '</span>'
+            + '</div>';
           }).join('') : '<div class="edu-session-empty-students">尚未有核准學員</div>') + '</div>'
       + '</section>'
       + '</div>';
