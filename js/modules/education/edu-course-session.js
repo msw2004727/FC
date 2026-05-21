@@ -559,6 +559,13 @@ Object.assign(App, {
     const editBtn = options.isStaff
       ? '<button type="button" class="edu-session-note-edit" aria-label="編輯備註" title="編輯備註" onclick="event.stopPropagation();App.editCourseSessionRosterNote(\'' + escapeHTML(options.teamId || '') + '\',\'' + escapeHTML(options.planId || '') + '\',\'' + escapeHTML(studentId) + '\',\'' + escapeHTML(enrollId) + '\')"></button>'
       : '';
+    if (options.inline) {
+      if (!note && !editBtn) return '';
+      return '<span class="edu-session-roster-note-inline" aria-label="備註">'
+        + (note ? '<span class="edu-session-note-text" title="' + escapeHTML(text) + '">' + escapeHTML(text) + '</span>' : '')
+        + editBtn
+        + '</span>';
+    }
     return '<span class="edu-session-student-slot edu-session-student-slot-note" aria-label="備註">'
       + '<span class="edu-session-note-text" title="' + escapeHTML(text) + '">' + escapeHTML(text) + '</span>'
       + editBtn
@@ -597,7 +604,6 @@ Object.assign(App, {
       + '<span>分組</span>'
       + '<span>繳費</span>'
       + '<span>剩餘</span>'
-      + '<span>備註</span>'
       + '</div>';
   },
 
@@ -778,8 +784,8 @@ Object.assign(App, {
             return '<div class="edu-session-roster-item">'
               + this._renderCourseSessionStudentAvatar(student, name)
               + '<span class="edu-session-list-main">'
-                + '<strong>' + escapeHTML(name) + '</strong>'
-                + '<span class="edu-session-student-tags edu-session-student-tags-notes">' + this._renderCourseSessionStudentTags(student, item.enrollment, plan, { showNotes: true, isStaff, teamId, planId }) + '</span>'
+                + '<span class="edu-session-roster-name-line"><strong>' + escapeHTML(name) + '</strong>' + this._renderCourseSessionRosterNoteCell(student, item.enrollment, { inline: true, isStaff, teamId, planId }) + '</span>'
+                + '<span class="edu-session-student-tags edu-session-student-tags-notes">' + this._renderCourseSessionStudentTags(student, item.enrollment, plan, { isStaff, teamId, planId }) + '</span>'
               + '</span>'
             + '</div>';
           }).join('') : '<div class="edu-session-empty-students">尚未有核准學員</div>') + '</div>'

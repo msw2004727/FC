@@ -477,6 +477,7 @@
 .edu-session-form-dialog,
 .edu-session-detail-dialog {
   --edu-session-edit-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z'/%3E%3C/svg%3E");
+  --edu-session-trash-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6h18'/%3E%3Cpath d='M8 6V4h8v2'/%3E%3Cpath d='M6 6l1 14h10l1-14'/%3E%3Cpath d='M10 11v5'/%3E%3Cpath d='M14 11v5'/%3E%3C/svg%3E");
 }
 .edu-session-roster-panel {
   --edu-roster-card-pad-x: .48rem;
@@ -484,9 +485,8 @@
   --edu-roster-avatar-gap: .48rem;
   --edu-roster-name-width: clamp(116px, 20vw, 154px);
   --edu-roster-name-gap: .52rem;
-  --edu-roster-note-width: clamp(72px, 10vw, 92px);
   --edu-roster-base-columns: 36px 44px minmax(82px, 1fr) 54px 42px;
-  --edu-roster-columns: 36px 44px minmax(82px, 1fr) 54px 42px var(--edu-roster-note-width, 82px);
+  --edu-roster-columns: var(--edu-roster-base-columns);
 }
 .edu-session-section-title {
   display: flex;
@@ -831,6 +831,35 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.edu-session-roster-name-line {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  overflow: hidden;
+}
+.edu-session-roster-name-line strong {
+  flex: 0 1 auto;
+}
+.edu-session-roster-note-inline {
+  flex: 0 1 auto;
+  min-width: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: .18rem;
+  overflow: hidden;
+}
+.edu-session-roster-note-inline .edu-session-note-text {
+  max-width: clamp(56px, 10vw, 108px);
+  padding: .08rem .34rem;
+  border: 1px solid rgba(15, 118, 110, .16);
+  border-radius: var(--radius-full);
+  background: rgba(15, 118, 110, .06);
+  color: var(--text-secondary);
+  font-size: .68rem;
+  line-height: 1.15;
+  white-space: nowrap;
+}
 .edu-session-student-tags {
   width: 100%;
   display: grid;
@@ -856,7 +885,7 @@
   text-overflow: ellipsis;
 }
 .edu-session-student-tags-notes {
-  grid-template-columns: var(--edu-roster-columns);
+  grid-template-columns: var(--edu-roster-base-columns);
 }
 .edu-session-student-slot-note {
   display: inline-grid !important;
@@ -924,9 +953,14 @@
   justify-content: flex-end;
   margin-top: 0;
 }
+.edu-session-card-actions .edu-session-card-edit,
+.edu-session-card-actions .edu-session-card-delete {
+  white-space: nowrap;
+}
 .edu-session-card-actions .danger {
   color: var(--danger);
   border-color: rgba(220, 38, 38, .36);
+  background: rgba(220, 38, 38, .05);
 }
 .edu-session-roster {
   display: flex;
@@ -947,14 +981,13 @@
   grid-column: 1 / -1;
 }
 .edu-session-template-panel {
-  display: flex;
-  flex-direction: column;
-  gap: .38rem;
-  margin-bottom: .72rem;
-  padding: .52rem .58rem;
-  border: 1px solid rgba(15, 118, 110, .16);
-  border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, rgba(15, 118, 110, .06), rgba(37, 99, 235, .045));
+  margin: 0 0 .55rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.edu-session-template-panel .ce-label-row {
+  margin-bottom: .25rem;
 }
 .edu-session-template-main {
   display: flex;
@@ -981,12 +1014,16 @@
   line-height: 1.2;
 }
 .edu-session-template-save {
-  flex: 1 1 320px;
-  max-width: 420px;
+  width: 100%;
   display: grid;
   grid-template-columns: minmax(110px, 1fr) auto;
   align-items: center;
-  gap: .38rem;
+  gap: .3rem;
+}
+.edu-session-template-save-row {
+  border-top: 1px solid var(--border);
+  padding-top: .5rem;
+  margin-top: .18rem;
 }
 .edu-session-template-save input {
   min-width: 0;
@@ -1010,11 +1047,11 @@
   display: inline-flex;
   align-items: center;
   gap: .18rem;
-  padding: .18rem .48rem;
-  border: 1px solid rgba(15, 118, 110, .25);
+  padding: .18rem .5rem;
+  border: 1px solid var(--accent);
   border-radius: var(--radius-full);
-  background: rgba(15, 118, 110, .08);
-  color: #0f766e;
+  background: var(--accent-bg);
+  color: var(--accent);
   font-size: .72rem;
   font-weight: 900;
   cursor: pointer;
@@ -1258,12 +1295,25 @@
   color: var(--text-muted);
   font-weight: 900;
 }
+.edu-session-pick-section {
+  margin-top: .7rem;
+  padding: .6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
 .edu-session-pick-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: .4rem;
-  flex-wrap: wrap;
-  margin: .6rem 0 .35rem;
+  margin: 0 0 .45rem;
+}
+.edu-session-pick-head-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .08rem;
 }
 .edu-session-pick-head strong {
   color: var(--text-primary);
@@ -1274,7 +1324,13 @@
   color: var(--text-muted);
   font-size: .72rem;
   font-weight: 800;
-  margin-right: auto;
+  line-height: 1.35;
+}
+.edu-session-pick-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: .3rem;
 }
 .edu-session-pick-list {
   display: flex;
@@ -1368,6 +1424,18 @@
   .edu-session-hero-stats span {
     font-size: .6rem;
   }
+  .edu-session-pick-section {
+    padding: .5rem;
+  }
+  .edu-session-pick-head {
+    flex-direction: column;
+    gap: .34rem;
+  }
+  .edu-session-pick-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .edu-session-contact-grid,
   .edu-session-form-grid,
   .edu-session-detail-grid {
@@ -1435,7 +1503,6 @@
     gap: .24rem;
   }
   .edu-session-card-actions .outline-btn.small {
-    --edu-session-trash-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6h18'/%3E%3Cpath d='M8 6V4h8v2'/%3E%3Cpath d='M6 6l1 14h10l1-14'/%3E%3Cpath d='M10 11v5'/%3E%3Cpath d='M14 11v5'/%3E%3C/svg%3E");
     width: 28px;
     min-width: 28px;
     height: 28px;
@@ -1447,17 +1514,27 @@
     align-items: center;
     justify-content: center;
   }
-  .edu-session-card-actions .outline-btn.small::before {
+  .edu-session-card-actions .edu-session-card-edit::before,
+  .edu-session-card-actions .edu-session-card-delete::before {
     content: "";
     width: 14px;
     height: 14px;
     background: currentColor;
+  }
+  .edu-session-card-actions .edu-session-card-edit::before {
     -webkit-mask: var(--edu-session-edit-icon) center / contain no-repeat;
     mask: var(--edu-session-edit-icon) center / contain no-repeat;
   }
   .edu-session-card-actions .edu-session-card-delete::before {
-    -webkit-mask-image: var(--edu-session-trash-icon);
-    mask-image: var(--edu-session-trash-icon);
+    width: 15px;
+    height: 15px;
+    -webkit-mask: var(--edu-session-trash-icon) center / contain no-repeat;
+    mask: var(--edu-session-trash-icon) center / contain no-repeat;
+  }
+  .edu-session-card-actions .edu-session-card-delete {
+    border-color: rgba(220, 38, 38, .38);
+    background: rgba(220, 38, 38, .08);
+    color: #dc2626;
   }
   .edu-session-card-students {
     gap: .32rem;
@@ -1535,6 +1612,13 @@
   .edu-session-pick-item strong {
     font-size: .92rem;
     line-height: 1.12;
+  }
+  .edu-session-roster-name-line {
+    gap: .22rem;
+  }
+  .edu-session-roster-note-inline .edu-session-note-text {
+    max-width: 5.6em;
+    font-size: .66rem;
   }
   .edu-session-student-slot-group {
     grid-column: auto;
@@ -2424,7 +2508,7 @@
 [data-theme="dark"] .edu-session-student,
 [data-theme="dark"] .edu-session-roster-item,
 [data-theme="dark"] .edu-session-pick-item,
-[data-theme="dark"] .edu-session-template-panel,
+[data-theme="dark"] .edu-session-pick-section,
 [data-theme="dark"] .edu-session-detail-item,
 [data-theme="dark"] .edu-session-empty,
 [data-theme="dark"] .edu-session-empty-students {
@@ -2441,6 +2525,11 @@
 [data-theme="dark"] .edu-session-student-tags > span,
 [data-theme="dark"] .edu-session-pick-item em > span {
   color: #5eead4;
+}
+[data-theme="dark"] .edu-session-roster-note-inline .edu-session-note-text {
+  background: rgba(45, 212, 191, .1);
+  border-color: rgba(45, 212, 191, .18);
+  color: #cbd5e1;
 }
 [data-theme="dark"] .edu-session-location-link {
   color: #5eead4;
@@ -2532,4 +2621,23 @@
   background:
     linear-gradient(135deg, rgba(20,184,166,.14), rgba(96,165,250,.1)),
     var(--bg-elevated);
+}
+
+/* Native, regular-weight typography for club education content. */
+.edu-course-plan-section,
+.edu-course-plan-section *,
+.edu-course-card,
+.edu-course-card *,
+.edu-session-board,
+.edu-session-board *,
+.edu-session-form-dialog,
+.edu-session-form-dialog *,
+.edu-session-detail-dialog,
+.edu-session-detail-dialog *,
+.edu-session-note-dialog,
+.edu-session-note-dialog *,
+#page-edu-course-enrollment,
+#page-edu-course-enrollment * {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "Noto Sans CJK TC", "Microsoft JhengHei", "Segoe UI", Arial, sans-serif !important;
+  font-weight: 400 !important;
 }
