@@ -471,6 +471,8 @@ const ScriptLoader = {
       'js/modules/education/edu-course-plan-attendance.js',
       'js/modules/education/edu-course-enrollment.js',
       'js/modules/education/edu-course-enrollment-render.js',
+      'js/modules/education/edu-course-session.js',
+      'js/modules/education/edu-course-session-form.js',
       'js/modules/education/edu-checkin.js',
       'js/modules/education/edu-checkin-scan.js',
       'js/modules/education/edu-calendar-core.js',

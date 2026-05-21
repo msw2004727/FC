@@ -360,6 +360,470 @@
 .edu-ce-notes-label { font-size: .78rem; font-weight: 600; margin-bottom: .25rem; color: var(--text-secondary); }
 .edu-ce-notes { width: 100%; border: 1px solid var(--border); border-radius: var(--radius); padding: .4rem .6rem; font-size: .82rem; resize: vertical; background: var(--bg-base); color: var(--text-primary); }
 
+/* ── Course Session Board (堂數制課堂) ── */
+.edu-session-board {
+  display: flex;
+  flex-direction: column;
+  gap: .72rem;
+  padding: 0 .5rem 1rem;
+}
+.edu-session-hero {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(15, 118, 110, .18);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, rgba(15, 118, 110, .92), rgba(30, 64, 175, .9)),
+    var(--bg-card);
+  color: #fff;
+  padding: .86rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(118px, .45fr);
+  gap: .8rem;
+}
+.edu-session-hero[style*="--edu-session-cover"]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(90deg, rgba(8, 47, 73, .88), rgba(15, 118, 110, .68)),
+    var(--edu-session-cover);
+  background-size: cover;
+  background-position: center;
+  z-index: 0;
+}
+.edu-session-hero > * {
+  position: relative;
+  z-index: 1;
+}
+.edu-session-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  min-height: 22px;
+  padding: .12rem .44rem;
+  border: 1px solid rgba(255, 255, 255, .28);
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, .16);
+  color: rgba(255, 255, 255, .9);
+  font-size: .68rem;
+  font-weight: 900;
+}
+.edu-session-hero h3 {
+  margin: .38rem 0 .12rem;
+  color: #fff;
+  font-size: 1.08rem;
+  line-height: 1.25;
+  font-weight: 950;
+}
+.edu-session-hero p {
+  margin: 0;
+  color: rgba(255, 255, 255, .78);
+  font-size: .76rem;
+  line-height: 1.45;
+  font-weight: 750;
+}
+.edu-session-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .42rem;
+  margin-top: .65rem;
+}
+.edu-session-hero-actions .outline-btn {
+  background: rgba(255, 255, 255, .12);
+  border-color: rgba(255, 255, 255, .26);
+  color: #fff;
+}
+.edu-session-hero-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .42rem;
+}
+.edu-session-hero-stats div {
+  min-height: 58px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: .12rem;
+  padding: .42rem;
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: var(--radius-sm);
+  background: rgba(15, 23, 42, .36);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.edu-session-hero-stats span {
+  color: rgba(226, 232, 240, .82);
+  font-size: .62rem;
+  font-weight: 900;
+}
+.edu-session-hero-stats strong {
+  color: #fff;
+  font-size: 1.08rem;
+  font-weight: 950;
+  font-variant-numeric: tabular-nums;
+}
+.edu-session-contact-panel,
+.edu-session-list-panel,
+.edu-session-roster-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  padding: .68rem;
+}
+.edu-session-section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: .6rem;
+  margin-bottom: .55rem;
+}
+.edu-session-section-title strong {
+  color: var(--text-primary);
+  font-size: .92rem;
+  font-weight: 950;
+}
+.edu-session-section-title span {
+  color: var(--text-muted);
+  font-size: .7rem;
+  font-weight: 800;
+  text-align: right;
+}
+.edu-session-contact-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .5rem;
+}
+.edu-session-contact-row {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .16rem;
+  padding: .55rem .6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+.edu-session-contact-row span,
+.edu-session-people-grid span {
+  color: var(--text-muted);
+  font-size: .64rem;
+  font-weight: 900;
+}
+.edu-session-contact-row strong,
+.edu-session-people-grid strong {
+  color: var(--text-primary);
+  font-size: .86rem;
+  font-weight: 950;
+  line-height: 1.25;
+}
+.edu-session-contact-row em,
+.edu-session-people-grid em {
+  color: var(--text-secondary);
+  font-size: .7rem;
+  font-style: normal;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+.edu-session-list {
+  display: flex;
+  flex-direction: column;
+  gap: .58rem;
+}
+.edu-session-card {
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr);
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+.edu-session-card:hover {
+  border-color: rgba(15, 118, 110, .42);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, .1);
+  transform: translateY(-1px);
+}
+.edu-session-card-img {
+  min-height: 100%;
+  background: #0f766e;
+  position: relative;
+}
+.edu-session-card-img img {
+  width: 100%;
+  height: 100%;
+  min-height: 184px;
+  object-fit: cover;
+  display: block;
+}
+.edu-session-card-img-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0f766e, #1d4ed8);
+}
+.edu-session-card-img-empty span {
+  color: rgba(255, 255, 255, .82);
+  font-size: .72rem;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+.edu-session-card-body {
+  min-width: 0;
+  padding: .68rem .72rem;
+}
+.edu-session-card-top,
+.edu-session-meta-row,
+.edu-session-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .34rem;
+}
+.edu-session-number,
+.edu-session-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 21px;
+  padding: .1rem .42rem;
+  border-radius: var(--radius-full);
+  font-size: .68rem;
+  font-weight: 950;
+  line-height: 1;
+}
+.edu-session-number {
+  background: rgba(15, 118, 110, .12);
+  color: #0f766e;
+}
+.edu-session-status-scheduled { background: rgba(37, 99, 235, .12); color: #2563eb; }
+.edu-session-status-soon { background: rgba(217, 119, 6, .14); color: #b45309; }
+.edu-session-status-done { background: rgba(100, 116, 139, .13); color: #64748b; }
+.edu-session-status-cancelled { background: rgba(220, 38, 38, .13); color: #dc2626; }
+.edu-session-card h4 {
+  margin: .34rem 0 .3rem;
+  color: var(--text-primary);
+  font-size: .98rem;
+  font-weight: 950;
+  line-height: 1.3;
+}
+.edu-session-meta-row {
+  color: var(--text-secondary);
+  font-size: .73rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+.edu-session-meta-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.edu-session-people-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .4rem;
+  margin-top: .52rem;
+}
+.edu-session-people-grid div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .12rem;
+  padding: .42rem .48rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+.edu-session-focus {
+  margin: .5rem 0 0;
+  color: var(--text-secondary);
+  font-size: .76rem;
+  line-height: 1.5;
+  font-weight: 760;
+}
+.edu-session-card-students {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: .36rem;
+  margin-top: .56rem;
+}
+.edu-session-student,
+.edu-session-roster-item {
+  min-width: 0;
+  padding: .38rem .45rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-base);
+}
+.edu-session-student strong,
+.edu-session-roster-item strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: .78rem;
+  font-weight: 950;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.edu-session-student-tags,
+.edu-session-roster-item > span {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .22rem;
+  margin-top: .22rem;
+}
+.edu-session-student-tags span,
+.edu-session-roster-item > span span {
+  min-height: 18px;
+  padding: .08rem .32rem;
+  border-radius: var(--radius-full);
+  background: rgba(15, 118, 110, .1);
+  color: #0f766e;
+  font-size: .62rem;
+  font-weight: 900;
+}
+.edu-session-empty,
+.edu-session-empty-students {
+  display: flex;
+  flex-direction: column;
+  gap: .18rem;
+  padding: .75rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  font-size: .78rem;
+  line-height: 1.5;
+}
+.edu-session-empty strong {
+  color: var(--text-primary);
+  font-size: .86rem;
+}
+.edu-session-card-actions {
+  justify-content: flex-end;
+  margin-top: .52rem;
+}
+.edu-session-card-actions .danger {
+  color: var(--danger);
+  border-color: rgba(220, 38, 38, .36);
+}
+.edu-session-roster {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(142px, 1fr));
+  gap: .42rem;
+}
+.edu-session-form-dialog {
+  max-width: 560px;
+}
+.edu-session-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .15rem .55rem;
+}
+.edu-session-form-wide {
+  grid-column: 1 / -1;
+}
+.edu-session-time-row > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: .32rem;
+}
+.edu-session-time-row span {
+  color: var(--text-muted);
+  font-weight: 900;
+}
+.edu-session-pick-head {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  flex-wrap: wrap;
+  margin: .6rem 0 .35rem;
+}
+.edu-session-pick-head strong {
+  color: var(--text-primary);
+  font-size: .84rem;
+  font-weight: 950;
+}
+.edu-session-pick-head span {
+  color: var(--text-muted);
+  font-size: .72rem;
+  font-weight: 800;
+  margin-right: auto;
+}
+.edu-session-pick-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
+  gap: .4rem;
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: .15rem;
+}
+.edu-session-pick-item {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: .45rem;
+  padding: .5rem .55rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-base);
+  cursor: pointer;
+}
+.edu-session-pick-item:hover {
+  border-color: rgba(15, 118, 110, .42);
+}
+.edu-session-pick-item input {
+  margin-top: .12rem;
+  flex: 0 0 auto;
+}
+.edu-session-pick-item span {
+  min-width: 0;
+}
+.edu-session-pick-item strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: .8rem;
+  font-weight: 950;
+}
+.edu-session-pick-item em {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .18rem;
+  margin-top: .2rem;
+  font-style: normal;
+}
+.edu-session-pick-item em span {
+  min-height: 17px;
+  padding: .06rem .28rem;
+  border-radius: var(--radius-full);
+  background: rgba(15, 118, 110, .1);
+  color: #0f766e;
+  font-size: .6rem;
+  font-weight: 900;
+}
+
+@media (max-width: 560px) {
+  .edu-session-board { padding-inline: .35rem; }
+  .edu-session-hero {
+    grid-template-columns: 1fr;
+  }
+  .edu-session-hero-stats,
+  .edu-session-contact-grid,
+  .edu-session-people-grid,
+  .edu-session-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .edu-session-card {
+    grid-template-columns: 92px minmax(0, 1fr);
+  }
+  .edu-session-card-img img {
+    min-height: 100%;
+  }
+  .edu-session-card-students {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── Group Staff Right (待審核+編輯刪除 同行置右) ── */
 .edu-grp-staff-right { margin-left: auto; display: flex; align-items: center; gap: .3rem; flex-shrink: 0; }
 
@@ -1112,6 +1576,34 @@
 [data-theme="dark"] .edu-cp-type-session { background: rgba(196, 181, 253, .16); color: #c4b5fd; }
 [data-theme="dark"] .edu-cp-status-open { background: rgba(52, 211, 153, .16); color: #6ee7b7; }
 [data-theme="dark"] .edu-cp-status-ended { background: rgba(148, 163, 184, .18); color: #cbd5e1; }
+[data-theme="dark"] .edu-session-contact-panel,
+[data-theme="dark"] .edu-session-list-panel,
+[data-theme="dark"] .edu-session-roster-panel,
+[data-theme="dark"] .edu-session-card {
+  background: rgba(15, 23, 42, .72);
+  border-color: rgba(148, 163, 184, .22);
+}
+[data-theme="dark"] .edu-session-contact-row,
+[data-theme="dark"] .edu-session-people-grid div,
+[data-theme="dark"] .edu-session-student,
+[data-theme="dark"] .edu-session-roster-item,
+[data-theme="dark"] .edu-session-pick-item,
+[data-theme="dark"] .edu-session-empty,
+[data-theme="dark"] .edu-session-empty-students {
+  background: rgba(30, 41, 59, .68);
+  border-color: rgba(148, 163, 184, .22);
+}
+[data-theme="dark"] .edu-session-number,
+[data-theme="dark"] .edu-session-student-tags span,
+[data-theme="dark"] .edu-session-roster-item > span span,
+[data-theme="dark"] .edu-session-pick-item em span {
+  background: rgba(45, 212, 191, .14);
+  color: #5eead4;
+}
+[data-theme="dark"] .edu-session-status-scheduled { background: rgba(96, 165, 250, .16); color: #93c5fd; }
+[data-theme="dark"] .edu-session-status-soon { background: rgba(251, 191, 36, .16); color: #fcd34d; }
+[data-theme="dark"] .edu-session-status-done { background: rgba(148, 163, 184, .18); color: #cbd5e1; }
+[data-theme="dark"] .edu-session-status-cancelled { background: rgba(248, 113, 113, .16); color: #fca5a5; }
 [data-theme="dark"] .edu-scan-success {
   background: #064e3b;
   color: #6ee7b7;

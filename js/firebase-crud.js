@@ -3643,6 +3643,54 @@ Object.assign(FirebaseService, {
   },
 
   // ════════════════════════════════
+  //  Education: Course Sessions CRUD
+  // ════════════════════════════════
+
+  async listCourseSessions(teamId, planId) {
+    const teamRef = await this._getTeamDocRefById(teamId);
+    const snapshot = await teamRef.collection('coursePlans').doc(planId)
+      .collection('sessions').get();
+    return this._mapCollectionDocs(snapshot);
+  },
+
+  async createCourseSession(teamId, planId, data) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase 登入失敗');
+    const teamRef = await this._getTeamDocRefById(teamId);
+    const collRef = teamRef.collection('coursePlans').doc(planId).collection('sessions');
+    const docRef = data.id ? collRef.doc(data.id) : collRef.doc();
+    const payload = { ..._stripDocId(data), id: data.id || docRef.id };
+    await docRef.set({
+      ...payload,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    payload._docId = docRef.id;
+    return payload;
+  },
+
+  async updateCourseSession(teamId, planId, sessionId, updates) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase 登入失敗');
+    const teamRef = await this._getTeamDocRefById(teamId);
+    await teamRef.collection('coursePlans').doc(planId)
+      .collection('sessions').doc(sessionId).update({
+        ..._stripDocId(updates),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    return { id: sessionId, ...updates, _docId: sessionId };
+  },
+
+  async deleteCourseSession(teamId, planId, sessionId) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase 登入失敗');
+    const teamRef = await this._getTeamDocRefById(teamId);
+    await teamRef.collection('coursePlans').doc(planId)
+      .collection('sessions').doc(sessionId).delete();
+    return true;
+  },
+
+  // ════════════════════════════════
   //  Education: Course Enrollments CRUD
   // ════════════════════════════════
 

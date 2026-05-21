@@ -3300,6 +3300,140 @@ describe("/teams/{teamId}/coursePlans/{planId}", () => {
   });
 });
 
+describe("/teams/{teamId}/coursePlans/{planId}/sessions/{sessionId}", () => {
+  beforeEach(async () => {
+    await seedPath(["teams", "teamA", "coursePlans", "plan1"], {
+      name: "Football 101",
+      planType: "session",
+    });
+  });
+
+  test("read: public", async () => {
+    await seedPath(
+      ["teams", "teamA", "coursePlans", "plan1", "sessions", "sess1"],
+      {
+        title: "Session 1",
+        date: "2026-05-22",
+        capacity: 12,
+      }
+    );
+    await assertSucceeds(
+      getDoc(
+        doc(
+          guest(),
+          "teams",
+          "teamA",
+          "coursePlans",
+          "plan1",
+          "sessions",
+          "sess1"
+        )
+      )
+    );
+  });
+
+  test("CUD: captain/admin can manage", async () => {
+    const captainSessionRef = doc(
+      captain(),
+      "teams",
+      "teamA",
+      "coursePlans",
+      "plan1",
+      "sessions",
+      "sess_captain"
+    );
+
+    await assertSucceeds(
+      setDoc(captainSessionRef, {
+        title: "Staff Session",
+        capacity: 12,
+      })
+    );
+    await assertSucceeds(
+      updateDoc(captainSessionRef, {
+        title: "Updated Staff Session",
+      })
+    );
+    await assertSucceeds(deleteDoc(captainSessionRef));
+
+    await assertSucceeds(
+      setDoc(
+        doc(
+          admin(),
+          "teams",
+          "teamA",
+          "coursePlans",
+          "plan1",
+          "sessions",
+          "sess_admin"
+        ),
+        {
+          title: "Admin Session",
+          capacity: 18,
+        }
+      )
+    );
+  });
+
+  test("CUD: regular user cannot manage", async () => {
+    await assertFails(
+      setDoc(
+        doc(
+          user(),
+          "teams",
+          "teamA",
+          "coursePlans",
+          "plan1",
+          "sessions",
+          "sess_user"
+        ),
+        {
+          title: "User Session",
+          capacity: 8,
+        }
+      )
+    );
+
+    await seedPath(
+      ["teams", "teamA", "coursePlans", "plan1", "sessions", "sess_locked"],
+      {
+        title: "Locked Session",
+        capacity: 10,
+      }
+    );
+
+    await assertFails(
+      updateDoc(
+        doc(
+          user(),
+          "teams",
+          "teamA",
+          "coursePlans",
+          "plan1",
+          "sessions",
+          "sess_locked"
+        ),
+        {
+          title: "Unauthorized Update",
+        }
+      )
+    );
+    await assertFails(
+      deleteDoc(
+        doc(
+          user(),
+          "teams",
+          "teamA",
+          "coursePlans",
+          "plan1",
+          "sessions",
+          "sess_locked"
+        )
+      )
+    );
+  });
+});
+
 describe("/teams/{teamId}/coursePlans/{planId}/enrollments/{enrollId}", () => {
   beforeEach(async () => {
     await seedPath(["teams", "teamA", "coursePlans", "plan1"], {
