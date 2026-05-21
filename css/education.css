@@ -723,15 +723,57 @@
   flex: 0 0 30px;
   width: 30px;
   height: 30px;
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+  box-sizing: border-box;
   border-radius: 50%;
   background: linear-gradient(135deg, rgba(15, 118, 110, .16), rgba(37, 99, 235, .14));
   color: #0f766e;
   font-size: .78rem;
   font-weight: 950;
   line-height: 1;
+}
+.edu-session-avatar-photo {
+  padding: 0;
+  border: 1px solid rgba(15, 118, 110, .16);
+  background: rgba(255, 255, 255, .86);
+}
+.edu-session-avatar-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.edu-session-avatar-student {
+  background: linear-gradient(135deg, rgba(15, 118, 110, .14), rgba(37, 99, 235, .12));
+}
+.edu-session-avatar-svg {
+  display: block;
+  width: 21px;
+  height: 21px;
+  color: currentColor;
+}
+.edu-session-avatar-svg .edu-session-avatar-cap {
+  fill: rgba(15, 118, 110, .16);
+  stroke: currentColor;
+  stroke-width: 1.55;
+  stroke-linejoin: round;
+}
+.edu-session-avatar-svg .edu-session-avatar-cap-line,
+.edu-session-avatar-svg .edu-session-avatar-body {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.55;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.edu-session-avatar-svg .edu-session-avatar-head {
+  fill: rgba(255, 255, 255, .7);
+  stroke: currentColor;
+  stroke-width: 1.45;
 }
 .edu-session-list-main {
   min-width: 0;
@@ -1782,6 +1824,19 @@
 [data-theme="dark"] .edu-session-avatar {
   background: linear-gradient(135deg, rgba(45, 212, 191, .18), rgba(96, 165, 250, .16));
   color: #5eead4;
+}
+[data-theme="dark"] .edu-session-avatar-photo {
+  border-color: rgba(45, 212, 191, .24);
+  background: rgba(15, 23, 42, .72);
+}
+[data-theme="dark"] .edu-session-avatar-student {
+  background: linear-gradient(135deg, rgba(45, 212, 191, .16), rgba(96, 165, 250, .13));
+}
+[data-theme="dark"] .edu-session-avatar-svg .edu-session-avatar-cap {
+  fill: rgba(45, 212, 191, .13);
+}
+[data-theme="dark"] .edu-session-avatar-svg .edu-session-avatar-head {
+  fill: rgba(15, 23, 42, .62);
 }
 [data-theme="dark"] .edu-session-status-scheduled { background: rgba(96, 165, 250, .16); color: #93c5fd; }
 [data-theme="dark"] .edu-session-status-soon { background: rgba(251, 191, 36, .16); color: #fcd34d; }

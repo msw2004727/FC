@@ -42,6 +42,108 @@ Object.assign(App, {
     return chars[0] || '學';
   },
 
+  _getCourseSessionStudentLinkedUser(student) {
+    if (!student || typeof ApiService === 'undefined' || !ApiService.getUserByUid) return null;
+    const ids = [student.selfUid, student.uid, student.lineUserId, student.userId]
+      .map(v => String(v || '').trim())
+      .filter(Boolean);
+    for (const id of ids) {
+      const user = ApiService.getUserByUid(id);
+      if (user) return user;
+    }
+    return null;
+  },
+
+  _getCourseSessionStudentAvatarUrl(student) {
+    if (!student) return '';
+    const linkedUser = this._getCourseSessionStudentLinkedUser(student);
+    const urls = [
+      student.linePictureUrl,
+      student.lineAvatarUrl,
+      student.lineProfile?.pictureUrl,
+      student.lineProfile?.pictureURL,
+      student.pictureUrl,
+      student.photoURL,
+      student.photoUrl,
+      student.avatarUrl,
+      student.avatar,
+      student.profileImage,
+      student.profileImageUrl,
+      student.profilePictureUrl,
+      student.image,
+      student.imageUrl,
+      linkedUser?.linePictureUrl,
+      linkedUser?.lineAvatarUrl,
+      linkedUser?.lineProfile?.pictureUrl,
+      linkedUser?.lineProfile?.pictureURL,
+      linkedUser?.pictureUrl,
+      linkedUser?.photoURL,
+      linkedUser?.photoUrl,
+      linkedUser?.avatarUrl,
+      linkedUser?.avatar,
+    ];
+    if (Array.isArray(student.avatarCandidates)) urls.push(...student.avatarCandidates);
+    if (Array.isArray(linkedUser?.avatarCandidates)) urls.push(...linkedUser.avatarCandidates);
+    if (typeof this._getRenderableAvatarCandidateUrls === 'function') {
+      return this._getRenderableAvatarCandidateUrls(urls)[0] || '';
+    }
+    const seen = new Set();
+    return urls
+      .flat()
+      .map(url => (typeof url === 'string' ? url.trim() : ''))
+      .find(url => {
+        if (!url || seen.has(url)) return false;
+        seen.add(url);
+        return true;
+      }) || '';
+  },
+
+  _renderCourseSessionStudentAvatarIcon() {
+    return '<svg class="edu-session-avatar-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false">'
+      + '<path class="edu-session-avatar-cap" d="M6.8 10.4 16 6.4l9.2 4-9.2 4-9.2-4Z"></path>'
+      + '<path class="edu-session-avatar-cap-line" d="M10.8 13v3.2c1.44 1.12 3.17 1.68 5.2 1.68s3.76-.56 5.2-1.68V13"></path>'
+      + '<circle class="edu-session-avatar-head" cx="16" cy="17.2" r="4.25"></circle>'
+      + '<path class="edu-session-avatar-body" d="M8.8 26.2c1.45-3.8 3.85-5.7 7.2-5.7s5.75 1.9 7.2 5.7"></path>'
+      + '</svg>';
+  },
+
+  _renderCourseSessionStudentAvatar(student, name) {
+    const avatarUrl = this._getCourseSessionStudentAvatarUrl(student);
+    if (!avatarUrl) {
+      return '<span class="edu-session-avatar edu-session-avatar-student" aria-hidden="true">'
+        + this._renderCourseSessionStudentAvatarIcon()
+        + '</span>';
+    }
+    return '<span class="edu-session-avatar edu-session-avatar-photo">'
+      + '<img class="edu-session-avatar-img" src="' + escapeHTML(avatarUrl) + '" alt="' + escapeHTML(name || 'student') + '" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-edu-session-avatar-fallback="1">'
+      + '</span>';
+  },
+
+  _bindCourseSessionStudentAvatarFallbacks(root = document) {
+    if (!root || typeof root.querySelectorAll !== 'function') return;
+    root.querySelectorAll('img[data-edu-session-avatar-fallback="1"]').forEach(img => {
+      if (img.dataset.eduSessionAvatarBound === '1') return;
+      img.dataset.eduSessionAvatarBound = '1';
+      const handleBroken = () => {
+        if (img.dataset.eduSessionAvatarFallbackDone === '1') return;
+        img.dataset.eduSessionAvatarFallbackDone = '1';
+        if (typeof this._rememberBrokenAvatarUrl === 'function') {
+          this._rememberBrokenAvatarUrl(img.currentSrc || img.src || '');
+        }
+        const parent = img.closest('.edu-session-avatar');
+        if (!parent) return;
+        parent.className = 'edu-session-avatar edu-session-avatar-student';
+        parent.setAttribute('aria-hidden', 'true');
+        parent.innerHTML = this._renderCourseSessionStudentAvatarIcon();
+      };
+      img.addEventListener('error', handleBroken, { once: true });
+      const isBroken = typeof this._isImgBroken === 'function'
+        ? this._isImgBroken(img)
+        : (img.complete && img.naturalWidth < 2);
+      if (isBroken) handleBroken();
+    });
+  },
+
   _formatCourseSessionDate(session) {
     if (!session?.date) return '未排定日期';
     const parts = String(session.date).split('-').map(v => parseInt(v, 10));
@@ -135,7 +237,7 @@ Object.assign(App, {
       const student = item.student || {};
       const name = student.name || '未命名學員';
       return '<div class="edu-session-student">'
-        + '<span class="edu-session-avatar">' + escapeHTML(this._getCourseSessionStudentInitial(name)) + '</span>'
+        + this._renderCourseSessionStudentAvatar(student, name)
         + '<span class="edu-session-list-main">'
           + '<strong>' + escapeHTML(name) + '</strong>'
           + '<span class="edu-session-student-tags">' + this._renderCourseSessionStudentTags(student, item.enrollment, plan) + '</span>'
@@ -219,7 +321,7 @@ Object.assign(App, {
             const student = item.student || {};
             const name = student.name || '未命名學員';
             return '<div class="edu-session-roster-item">'
-              + '<span class="edu-session-avatar">' + escapeHTML(this._getCourseSessionStudentInitial(name)) + '</span>'
+              + this._renderCourseSessionStudentAvatar(student, name)
               + '<span class="edu-session-list-main">'
                 + '<strong>' + escapeHTML(name) + '</strong>'
                 + '<span class="edu-session-student-tags">' + this._renderCourseSessionStudentTags(student, item.enrollment, plan) + '</span>'
@@ -228,6 +330,7 @@ Object.assign(App, {
           }).join('') : '<div class="edu-session-empty-students">尚未有核准學員</div>') + '</div>'
       + '</section>'
       + '</div>';
+    this._bindCourseSessionStudentAvatarFallbacks(container);
   },
 
   _renderCourseSessionCard(session, ctx) {

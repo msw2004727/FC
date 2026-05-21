@@ -27,7 +27,7 @@ Object.assign(App, {
           const name = student.name || '未命名學員';
           return '<label class="edu-session-pick-item">'
             + '<input type="checkbox" value="' + escapeHTML(id) + '"' + checked + '>'
-            + '<span class="edu-session-avatar">' + escapeHTML(this._getCourseSessionStudentInitial(name)) + '</span>'
+            + this._renderCourseSessionStudentAvatar(student, name)
             + '<span class="edu-session-list-main">'
               + '<strong>' + escapeHTML(name) + '</strong>'
               + '<em class="edu-session-student-tags">' + this._renderCourseSessionStudentTags(student, item.enrollment, plan) + '</em>'
@@ -63,6 +63,7 @@ Object.assign(App, {
       + '</div>'
     + '</div>';
     document.body.appendChild(overlay);
+    this._bindCourseSessionStudentAvatarFallbacks(overlay);
     const statusEl = document.getElementById('edu-session-status');
     if (statusEl) statusEl.value = session?.status || 'scheduled';
   },
