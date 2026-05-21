@@ -158,7 +158,7 @@ Object.assign(App, {
 
     const sessionCards = sessions.length
       ? sessions.map((session, idx) => this._renderCourseSessionCard(session, {
-          index: idx + 1, teamId, planId, plan, roster, isStaff, planCover,
+          index: idx + 1, teamId, planId, isStaff,
         })).join('')
       : '<div class="edu-session-empty">'
           + '<strong>尚未建立課堂卡片</strong>'
@@ -194,7 +194,7 @@ Object.assign(App, {
         + '<div class="edu-session-contact-grid">' + contactHtml + '</div>'
       + '</section>'
       + '<section class="edu-session-list-panel">'
-        + '<div class="edu-session-section-title"><strong>課堂卡片</strong><span>每一堂課的時間、人數與學員標籤</span></div>'
+        + '<div class="edu-session-section-title"><strong>課堂卡片</strong><span>教練、時間、地點與上課人數</span></div>'
         + '<div class="edu-session-list">' + sessionCards + '</div>'
       + '</section>'
       + '<section class="edu-session-roster-panel">'
@@ -218,12 +218,8 @@ Object.assign(App, {
     const status = this._getCourseSessionStatusMeta(session);
     const capacity = session.capacity ? '/' + session.capacity : '';
     const current = (session.studentIds || []).length;
-    const cover = session.coverImage || ctx.planCover || '';
-    const visual = cover
-      ? '<div class="edu-session-card-img"><img src="' + escapeHTML(cover) + '" alt="" loading="lazy" decoding="async"></div>'
-      : '<div class="edu-session-card-img edu-session-card-img-empty"><span>Lesson</span></div>';
-    const focus = session.focus ? '<p class="edu-session-focus">' + escapeHTML(session.focus) + '</p>' : '';
-    const location = session.location ? '<span>' + escapeHTML(session.location) + '</span>' : '<span>地點未設定</span>';
+    const location = session.location || '地點未設定';
+    const sessionDateTime = this._formatCourseSessionDate(session) + ' ' + this._formatCourseSessionTime(session);
     const actions = ctx.isStaff
       ? '<div class="edu-session-card-actions">'
           + '<button class="outline-btn small" onclick="event.stopPropagation();App.openCourseSessionForm(\'' + ctx.teamId + '\',\'' + ctx.planId + '\',\'' + session.id + '\')">編輯</button>'
@@ -231,27 +227,20 @@ Object.assign(App, {
         + '</div>'
       : '';
     return '<article class="edu-session-card edu-session-card-' + status.cls + '">'
-      + visual
-      + '<div class="edu-session-card-body">'
-        + '<div class="edu-session-card-top">'
+      + '<div class="edu-session-card-main">'
+        + '<div class="edu-session-card-head">'
           + '<span class="edu-session-number">第 ' + ctx.index + ' 堂</span>'
           + '<span class="edu-session-status edu-session-status-' + status.cls + '">' + escapeHTML(status.label) + '</span>'
+          + '<h4>' + escapeHTML(session.title || '未命名課堂') + '</h4>'
         + '</div>'
-        + '<h4>' + escapeHTML(session.title || '未命名課堂') + '</h4>'
-        + '<div class="edu-session-meta-row">'
-          + '<span>' + escapeHTML(this._formatCourseSessionDate(session)) + '</span>'
-          + '<span>' + escapeHTML(this._formatCourseSessionTime(session)) + '</span>'
-          + location
-          + '<span>' + current + capacity + ' 人</span>'
+        + '<div class="edu-session-card-line">'
+          + '<span><b>教練</b><em>' + escapeHTML(session.coachName || '未設定') + '</em></span>'
+          + '<span><b>時間</b><em>' + escapeHTML(sessionDateTime) + '</em></span>'
+          + '<span><b>地點</b><em>' + escapeHTML(location) + '</em></span>'
+          + '<span><b>人數</b><em>' + current + capacity + ' 人</em></span>'
         + '</div>'
-        + '<div class="edu-session-people-grid">'
-          + '<div><span>負責人</span><strong>' + escapeHTML(session.managerName || '未設定') + '</strong><em>' + escapeHTML(session.managerContact || '未填聯繫') + '</em></div>'
-          + '<div><span>執課教練</span><strong>' + escapeHTML(session.coachName || '未設定') + '</strong><em>' + escapeHTML(session.coachContact || '未填聯繫') + '</em></div>'
-        + '</div>'
-        + focus
-        + '<div class="edu-session-card-students">' + this._renderCourseSessionStudents(session.studentIds, ctx.roster, ctx.plan) + '</div>'
-        + actions
       + '</div>'
+      + actions
       + '</article>';
   },
 });
