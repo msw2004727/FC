@@ -239,6 +239,86 @@ function _setUpdateIfChangedForTest(updates, user, field, nextValue) {
   }
 }
 
+function _coerceAdminUserTimeMsForTest(value) {
+  if (!value) return null;
+  try {
+    if (typeof value.toMillis === 'function') {
+      const ms = value.toMillis();
+      return Number.isFinite(ms) ? ms : null;
+    }
+    if (typeof value.toDate === 'function') {
+      const date = value.toDate();
+      return date instanceof Date && !Number.isNaN(date.getTime()) ? date.getTime() : null;
+    }
+    if (typeof value.seconds === 'number') {
+      return value.seconds * 1000;
+    }
+    if (value instanceof Date) {
+      return !Number.isNaN(value.getTime()) ? value.getTime() : null;
+    }
+    if (typeof value === 'number') {
+      const ms = value < 1000000000000 ? value * 1000 : value;
+      return Number.isFinite(ms) ? ms : null;
+    }
+    const parsed = Date.parse(String(value));
+    return Number.isNaN(parsed) ? null : parsed;
+  } catch (_) {
+    return null;
+  }
+}
+
+function _getAdminUserDaysSinceForTest(value, nowMs) {
+  const timeMs = _coerceAdminUserTimeMsForTest(value);
+  if (timeMs == null) return null;
+  const diff = nowMs - timeMs;
+  if (!Number.isFinite(diff)) return null;
+  return Math.max(0, Math.floor(diff / 86400000));
+}
+
+function _matchesAdminUserDayRangeForTest(value, minDays, maxDays, nowMs) {
+  if (minDays === null && maxDays === null) return true;
+  const days = _getAdminUserDaysSinceForTest(value, nowMs);
+  if (days == null) return false;
+  let min = minDays;
+  let max = maxDays;
+  if (min !== null && max !== null && min > max) {
+    [min, max] = [max, min];
+  }
+  if (min !== null && days < min) return false;
+  if (max !== null && days > max) return false;
+  return true;
+}
+
+function _applyAdminUserFiltersForTest(users, filters, nowMs) {
+  const merged = {
+    keyword: '',
+    role: '',
+    gender: '',
+    joinedMinDays: null,
+    joinedMaxDays: null,
+    loginMinDays: null,
+    loginMaxDays: null,
+    region: '',
+    email: '',
+    ...filters,
+  };
+  return users.filter(user => {
+    if (merged.keyword) {
+      const haystack = [user.name, user.displayName, user.uid, user.lineUserId, user._docId, user.email]
+        .map(value => String(value || '').toLowerCase())
+        .join(' ');
+      if (!haystack.includes(merged.keyword)) return false;
+    }
+    if (merged.role && user.role !== merged.role) return false;
+    if (merged.gender && user.gender !== merged.gender) return false;
+    if (merged.region && !String(user.region || '').toLowerCase().includes(merged.region)) return false;
+    if (merged.email && !String(user.email || '').toLowerCase().includes(merged.email)) return false;
+    if (!_matchesAdminUserDayRangeForTest(user.createdAt || user.joinedAt || user.registeredAt, merged.joinedMinDays, merged.joinedMaxDays, nowMs)) return false;
+    if (!_matchesAdminUserDayRangeForTest(user.lastLogin || user.lastActive, merged.loginMinDays, merged.loginMaxDays, nowMs)) return false;
+    return true;
+  });
+}
+
 describe('user admin identity helpers (user-admin-list.js)', () => {
   const users = [
     { _docId: 'doc-1', uid: 'uid-1', lineUserId: 'line-1', name: 'Same Name' },
@@ -280,6 +360,74 @@ describe('user admin edit diff helpers (user-admin-list.js)', () => {
   });
 });
 
+describe('user admin advanced filters (user-admin-list.js)', () => {
+  const nowMs = Date.parse('2026-05-21T00:00:00Z');
+  const users = [
+    {
+      name: 'Amy',
+      uid: 'uid-a',
+      role: 'user',
+      gender: '女',
+      region: '台中市',
+      email: 'amy@example.com',
+      createdAt: '2026-05-11T00:00:00Z',
+      lastLogin: '2026-05-20T00:00:00Z',
+    },
+    {
+      name: 'Ben',
+      uid: 'uid-b',
+      role: 'coach',
+      gender: '男',
+      region: '台北市',
+      email: 'ben@example.com',
+      createdAt: '2026-04-01T00:00:00Z',
+      lastLogin: '2026-05-01T00:00:00Z',
+    },
+    {
+      name: 'Cara',
+      uid: 'uid-c',
+      role: 'user',
+      gender: '其他',
+      region: '高雄市',
+      email: '',
+      createdAt: { seconds: Date.parse('2026-05-18T00:00:00Z') / 1000 },
+      lastLogin: null,
+    },
+  ];
+
+  test('combines keyword, role, gender, region, email, joined days, and login days', () => {
+    const result = _applyAdminUserFiltersForTest(users, {
+      keyword: 'uid-a',
+      role: 'user',
+      gender: '女',
+      region: '台中',
+      email: 'amy@',
+      joinedMinDays: 0,
+      joinedMaxDays: 14,
+      loginMinDays: 0,
+      loginMaxDays: 3,
+    }, nowMs);
+    expect(result.map(user => user.uid)).toEqual(['uid-a']);
+  });
+
+  test('day ranges exclude users without the requested timestamp', () => {
+    const result = _applyAdminUserFiltersForTest(users, {
+      role: 'user',
+      loginMinDays: 0,
+      loginMaxDays: 30,
+    }, nowMs);
+    expect(result.map(user => user.uid)).toEqual(['uid-a']);
+  });
+
+  test('inverted day ranges are normalized', () => {
+    const result = _applyAdminUserFiltersForTest(users, {
+      joinedMinDays: 14,
+      joinedMaxDays: 0,
+    }, nowMs);
+    expect(result.map(user => user.uid)).toEqual(['uid-a', 'uid-c']);
+  });
+});
+
 describe('user admin email field wiring', () => {
   test('renders, edits, searches, and sends email through admin user management', () => {
     const pageHtml = readProjectFile('pages/admin-users.html');
@@ -288,9 +436,30 @@ describe('user admin email field wiring', () => {
 
     expect(pageHtml).toContain('id="ue-email"');
     expect(listSource).toContain("'ue-email'");
-    expect(listSource).toContain("const email = String(u?.email || '').toLowerCase();");
+    expect(pageHtml).toContain('id="admin-user-email-filter"');
+    expect(listSource).toContain("filters.email && !String(user?.email || '').toLowerCase().includes(filters.email)");
     expect(listSource).toContain("document.getElementById('ue-email').value = user.email || '';");
     expect(listSource).toContain("this._setUpdateIfChanged(updates, oldUser, 'email', email || null);");
     expect(crudSource).toContain("['region', 'gender', 'birthday', 'sports', 'phone', 'email']");
+  });
+});
+
+describe('user admin filter panel wiring', () => {
+  test('uses activity-style magnifier toggle and advanced filter fields', () => {
+    const pageHtml = readProjectFile('pages/admin-users.html');
+    const listSource = readProjectFile('js/modules/user-admin/user-admin-list.js');
+    const adminCss = readProjectFile('css/admin.css');
+
+    expect(pageHtml).toContain('id="admin-user-filter-toggle"');
+    expect(pageHtml).toContain('class="page-search-toggle-btn admin-user-filter-toggle-btn"');
+    expect(pageHtml).toContain('id="admin-user-filter-panel" hidden');
+    expect(pageHtml).toContain('id="admin-user-gender-filter"');
+    expect(pageHtml).toContain('id="admin-user-joined-min-days"');
+    expect(pageHtml).toContain('id="admin-user-login-max-days"');
+    expect(pageHtml).toContain('id="admin-user-region-filter"');
+    expect(pageHtml).toContain('id="admin-user-email-filter"');
+    expect(listSource).toContain('toggleAdminUserFilterPanel(force)');
+    expect(listSource).toContain('_applyAdminUserFilters(users');
+    expect(adminCss).toContain('.admin-user-filter-panel.admin-search');
   });
 });

@@ -1,16 +1,45 @@
 <meta name="robots" content="noindex, nofollow">
     <!-- PAGE: Backend - User Management (Admin+) -->
     <section class="page" id="page-admin-users">
-      <div class="page-header">
+      <div class="page-header admin-user-page-header">
         <button class="back-btn" onclick="App.goBack()" aria-label="返回"><svg class="back-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        <h2>用戶管理</h2>
-      </div>
-      <div class="admin-search">
-        <input type="text" id="admin-user-search" placeholder="搜尋用戶..." oninput="App.filterAdminUsers()">
-        <div class="admin-filters">
-          <select id="admin-user-role-filter" onchange="App.filterAdminUsers()"><option value="">全部身份</option><option value="user">一般用戶</option><option value="coach">教練</option><option value="captain">領隊</option><option value="venue_owner">場主</option></select>
-
+        <div class="page-search-title-wrap admin-user-page-heading">
+          <h2 class="page-header-title">用戶管理</h2>
+          <button
+            type="button"
+            class="page-search-toggle-btn admin-user-filter-toggle-btn"
+            id="admin-user-filter-toggle"
+            aria-label="搜尋與篩選用戶"
+            aria-expanded="false"
+            aria-controls="admin-user-filter-panel"
+            onclick="App.toggleAdminUserFilterPanel()">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="7"></circle>
+              <path d="M20 20l-3.5-3.5"></path>
+            </svg>
+          </button>
         </div>
+      </div>
+      <div class="admin-search collapsible-search-panel admin-user-filter-panel" id="admin-user-filter-panel" hidden aria-hidden="true">
+        <input type="text" id="admin-user-search" placeholder="搜尋用戶..." oninput="App.filterAdminUsers()">
+        <select id="admin-user-role-filter" onchange="App.filterAdminUsers()"><option value="">全部身份</option><option value="user">一般用戶</option><option value="coach">教練</option><option value="captain">領隊</option><option value="venue_owner">場主</option></select>
+        <select id="admin-user-gender-filter" onchange="App.filterAdminUsers()"><option value="">全部性別</option><option value="男">男</option><option value="女">女</option><option value="其他">其他</option><option value="不透露">不透露</option></select>
+        <label class="admin-user-range-field">
+          <span>加入區間（日）</span>
+          <span class="admin-user-range-inputs">
+            <input type="number" id="admin-user-joined-min-days" min="0" inputmode="numeric" placeholder="起" oninput="App.filterAdminUsers()">
+            <input type="number" id="admin-user-joined-max-days" min="0" inputmode="numeric" placeholder="迄" oninput="App.filterAdminUsers()">
+          </span>
+        </label>
+        <label class="admin-user-range-field">
+          <span>最後登入區間（日）</span>
+          <span class="admin-user-range-inputs">
+            <input type="number" id="admin-user-login-min-days" min="0" inputmode="numeric" placeholder="起" oninput="App.filterAdminUsers()">
+            <input type="number" id="admin-user-login-max-days" min="0" inputmode="numeric" placeholder="迄" oninput="App.filterAdminUsers()">
+          </span>
+        </label>
+        <input type="text" id="admin-user-region-filter" placeholder="地區" oninput="App.filterAdminUsers()">
+        <input type="email" id="admin-user-email-filter" placeholder="Email" autocomplete="off" inputmode="email" oninput="App.filterAdminUsers()">
       </div>
       <div class="admin-card-list" id="admin-user-list"></div>
     </section>

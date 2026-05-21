@@ -171,23 +171,187 @@ Object.assign(App, {
   },
 
   // ─── Step 1: 搜尋與篩選 ───
+  _bindAdminUserFilterPanel() {
+    const toggle = document.getElementById('admin-user-filter-toggle');
+    const panel = document.getElementById('admin-user-filter-panel');
+    if (!toggle || !panel) return;
+    this._populateAdminUserRoleFilter();
+    if (!toggle.dataset.bound) {
+      toggle.dataset.bound = '1';
+      panel.addEventListener('input', () => this._syncAdminUserFilterPanelState());
+      panel.addEventListener('change', () => this._syncAdminUserFilterPanelState());
+    }
+    this._syncAdminUserFilterPanelState();
+  },
+
+  toggleAdminUserFilterPanel(force) {
+    const panel = document.getElementById('admin-user-filter-panel');
+    if (!panel) return;
+    const nextOpen = typeof force === 'boolean' ? force : panel.hidden === true;
+    panel.hidden = !nextOpen;
+    panel.classList.toggle('visible', nextOpen);
+    panel.setAttribute('aria-hidden', nextOpen ? 'false' : 'true');
+    this._syncAdminUserFilterPanelState();
+    if (nextOpen) {
+      const keywordInput = document.getElementById('admin-user-search');
+      const focusKeyword = () => keywordInput?.focus?.({ preventScroll: true });
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(focusKeyword);
+      else setTimeout(focusKeyword, 0);
+    }
+  },
+
+  _syncAdminUserFilterPanelState() {
+    const toggle = document.getElementById('admin-user-filter-toggle');
+    const panel = document.getElementById('admin-user-filter-panel');
+    if (!toggle || !panel) return;
+    const isOpen = panel.hidden !== true;
+    const hasFilters = this._hasAdminUserActiveFilters(this._getAdminUserFilters());
+    toggle.classList.toggle('active', isOpen || hasFilters);
+    toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    panel.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+  },
+
+  _populateAdminUserRoleFilter() {
+    const select = document.getElementById('admin-user-role-filter');
+    if (!select) return;
+    const currentValue = select.value || '';
+    const roleKeys = typeof getRuntimeRoleSequence === 'function'
+      ? getRuntimeRoleSequence()
+      : Object.keys(typeof ROLES !== 'undefined' ? ROLES : {});
+    const userRoleKeys = (ApiService.getAdminUsers?.() || [])
+      .map(user => String(user?.role || '').trim())
+      .filter(Boolean);
+    const seen = new Set(['']);
+    const keys = [...roleKeys, ...userRoleKeys].filter(roleKey => {
+      if (!roleKey || seen.has(roleKey)) return false;
+      seen.add(roleKey);
+      return true;
+    });
+    const options = ['<option value="">全部身份</option>'].concat(keys.map(roleKey => {
+      const label = (typeof ROLES !== 'undefined' && ROLES[roleKey]?.label) || roleKey;
+      return `<option value="${escapeHTML(roleKey)}">${escapeHTML(label)}</option>`;
+    }));
+    select.innerHTML = options.join('');
+    select.value = seen.has(currentValue) ? currentValue : '';
+  },
+
+  _getAdminUserFilters() {
+    const readText = id => String(document.getElementById(id)?.value || '').trim();
+    const readNumber = id => {
+      const raw = readText(id);
+      if (!raw) return null;
+      const value = Number(raw);
+      return Number.isFinite(value) && value >= 0 ? Math.floor(value) : null;
+    };
+    return {
+      keyword: readText('admin-user-search').toLowerCase(),
+      role: readText('admin-user-role-filter'),
+      gender: readText('admin-user-gender-filter'),
+      joinedMinDays: readNumber('admin-user-joined-min-days'),
+      joinedMaxDays: readNumber('admin-user-joined-max-days'),
+      loginMinDays: readNumber('admin-user-login-min-days'),
+      loginMaxDays: readNumber('admin-user-login-max-days'),
+      region: readText('admin-user-region-filter').toLowerCase(),
+      email: readText('admin-user-email-filter').toLowerCase(),
+    };
+  },
+
+  _hasAdminUserActiveFilters(filters) {
+    if (!filters) return false;
+    return !!(
+      filters.keyword ||
+      filters.role ||
+      filters.gender ||
+      filters.region ||
+      filters.email ||
+      filters.joinedMinDays !== null ||
+      filters.joinedMaxDays !== null ||
+      filters.loginMinDays !== null ||
+      filters.loginMaxDays !== null
+    );
+  },
+
+  _coerceAdminUserTimeMs(value) {
+    if (!value) return null;
+    try {
+      if (typeof value.toMillis === 'function') {
+        const ms = value.toMillis();
+        return Number.isFinite(ms) ? ms : null;
+      }
+      if (typeof value.toDate === 'function') {
+        const date = value.toDate();
+        return date instanceof Date && !Number.isNaN(date.getTime()) ? date.getTime() : null;
+      }
+      if (typeof value.seconds === 'number') {
+        return value.seconds * 1000;
+      }
+      if (value instanceof Date) {
+        return !Number.isNaN(value.getTime()) ? value.getTime() : null;
+      }
+      if (typeof value === 'number') {
+        const ms = value < 1000000000000 ? value * 1000 : value;
+        return Number.isFinite(ms) ? ms : null;
+      }
+      const parsed = Date.parse(String(value));
+      return Number.isNaN(parsed) ? null : parsed;
+    } catch (_) {
+      return null;
+    }
+  },
+
+  _getAdminUserDaysSince(value, nowMs = Date.now()) {
+    const timeMs = this._coerceAdminUserTimeMs(value);
+    if (timeMs == null) return null;
+    const diff = nowMs - timeMs;
+    if (!Number.isFinite(diff)) return null;
+    return Math.max(0, Math.floor(diff / 86400000));
+  },
+
+  _matchesAdminUserDayRange(value, minDays, maxDays, nowMs = Date.now()) {
+    if (minDays === null && maxDays === null) return true;
+    const days = this._getAdminUserDaysSince(value, nowMs);
+    if (days == null) return false;
+    let min = minDays;
+    let max = maxDays;
+    if (min !== null && max !== null && min > max) {
+      [min, max] = [max, min];
+    }
+    if (min !== null && days < min) return false;
+    if (max !== null && days > max) return false;
+    return true;
+  },
+
+  _applyAdminUserFilters(users, filters = this._getAdminUserFilters()) {
+    const list = Array.isArray(users) ? users : [];
+    const nowMs = Date.now();
+    return list.filter(user => {
+      if (filters.keyword) {
+        const haystack = [
+          user?.name,
+          user?.displayName,
+          user?.uid,
+          user?.lineUserId,
+          user?._docId,
+          user?.email,
+        ].map(value => String(value || '').toLowerCase()).join(' ');
+        if (!haystack.includes(filters.keyword)) return false;
+      }
+      if (filters.role && user?.role !== filters.role) return false;
+      if (filters.gender && user?.gender !== filters.gender) return false;
+      if (filters.region && !String(user?.region || '').toLowerCase().includes(filters.region)) return false;
+      if (filters.email && !String(user?.email || '').toLowerCase().includes(filters.email)) return false;
+      if (!this._matchesAdminUserDayRange(user?.createdAt || user?.joinedAt || user?.registeredAt, filters.joinedMinDays, filters.joinedMaxDays, nowMs)) return false;
+      if (!this._matchesAdminUserDayRange(user?.lastLogin || user?.lastActive, filters.loginMinDays, filters.loginMaxDays, nowMs)) return false;
+      return true;
+    });
+  },
+
+  _getFilteredAdminUsers() {
+    return this._applyAdminUserFilters(ApiService.getAdminUsers?.() || []);
+  },
+
   filterAdminUsers() {
-    const keyword = (document.getElementById('admin-user-search')?.value || '').trim().toLowerCase();
-    const roleFilter = document.getElementById('admin-user-role-filter')?.value || '';
-
-    let users = ApiService.getAdminUsers();
-
-    if (keyword) {
-      users = users.filter(u => {
-        const name = String(u?.name || u?.displayName || '').toLowerCase();
-        const uid = String(u?.uid || u?.lineUserId || u?._docId || '').toLowerCase();
-        const email = String(u?.email || '').toLowerCase();
-        return name.includes(keyword) || uid.includes(keyword) || email.includes(keyword);
-      });
-    }
-    if (roleFilter) {
-      users = users.filter(u => u.role === roleFilter);
-    }
+    const users = this._getFilteredAdminUsers();
 
     // 篩選/搜尋時 reset 分頁、避免「載入更多到 90 個 → 篩選後仍渲染 90 個」誤判
     this._adminUserPageSize = 30;
@@ -198,18 +362,7 @@ Object.assign(App, {
   _loadMoreAdminUsers() {
     this._adminUserPageSize = (this._adminUserPageSize || 30) + 30;
     // 重新讀篩選後的結果但**不**走 filterAdminUsers（避免 reset pageSize）
-    const keyword = (document.getElementById('admin-user-search')?.value || '').trim().toLowerCase();
-    const roleFilter = document.getElementById('admin-user-role-filter')?.value || '';
-    let users = ApiService.getAdminUsers();
-    if (keyword) {
-      users = users.filter(u => {
-        const name = String(u?.name || u?.displayName || '').toLowerCase();
-        const uid = String(u?.uid || u?.lineUserId || u?._docId || '').toLowerCase();
-        const email = String(u?.email || '').toLowerCase();
-        return name.includes(keyword) || uid.includes(keyword) || email.includes(keyword);
-      });
-    }
-    if (roleFilter) users = users.filter(u => u.role === roleFilter);
+    const users = this._getFilteredAdminUsers();
     this.renderAdminUsers(users);
   },
 
@@ -217,8 +370,9 @@ Object.assign(App, {
   renderAdminUsers(users) {
     const container = document.getElementById('admin-user-list');
     if (!container) return;
+    this._bindAdminUserFilterPanel();
 
-    if (!users) users = ApiService.getAdminUsers();
+    if (!users) users = this._getFilteredAdminUsers();
     users = [...users].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
     if (users.length === 0) {
