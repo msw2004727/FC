@@ -801,11 +801,12 @@ Object.assign(App, {
     const status = this._getCourseSessionStatusMeta(session);
     const capacity = session.capacity ? '/' + session.capacity : '';
     const current = (session.studentIds || []).length;
-    const location = session.location || '地點未設定';
-    const mapUrl = this._getCourseSessionMapUrl(location);
+    const locationValue = String(session.location || '').trim();
+    const location = locationValue || '地點未設定';
+    const mapUrl = locationValue ? this._getCourseSessionMapUrl(locationValue) : '';
     const mapLink = mapUrl
-      ? '<a class="outline-btn small edu-session-map-link" href="' + escapeHTML(mapUrl) + '" target="sporthub_map" rel="noopener noreferrer">Google Map</a>'
-      : '';
+      ? '<a class="edu-session-location-link edu-session-detail-location-link" href="' + escapeHTML(mapUrl) + '" target="sporthub_map" rel="noopener noreferrer">' + escapeHTML(location) + '</a>'
+      : escapeHTML(location);
     const overlay = document.createElement('div');
     overlay.className = 'edu-info-overlay edu-session-detail-overlay';
     overlay.onclick = (event) => { if (event.target === overlay) overlay.remove(); };
@@ -821,7 +822,7 @@ Object.assign(App, {
       + '<div class="edu-session-detail-grid">'
         + '<div class="edu-session-detail-item"><span>日期時間</span><strong>' + escapeHTML(this._formatCourseSessionDate(session) + ' ' + this._formatCourseSessionTime(session)) + '</strong></div>'
         + '<div class="edu-session-detail-item"><span>上課人數</span><strong>' + current + capacity + ' 人</strong></div>'
-        + '<div class="edu-session-detail-item edu-session-detail-wide"><span>地點</span><strong>' + escapeHTML(location) + '</strong>' + mapLink + '</div>'
+        + '<div class="edu-session-detail-item edu-session-detail-wide"><span>地點</span><strong>' + mapLink + '</strong></div>'
         + '<div class="edu-session-detail-item"><span>負責人</span><strong>' + escapeHTML(session.managerName || '未設定') + '</strong>' + this._renderCourseSessionContactValue(session.managerContact) + '</div>'
         + '<div class="edu-session-detail-item"><span>執課教練</span><strong>' + escapeHTML(session.coachName || '未設定') + '</strong>' + this._renderCourseSessionContactValue(session.coachContact) + '</div>'
         + '<div class="edu-session-detail-item edu-session-detail-wide"><span>助理教練</span>' + this._renderCourseSessionAssistantList(session) + '</div>'
@@ -841,7 +842,12 @@ Object.assign(App, {
     const status = this._getCourseSessionStatusMeta(session);
     const capacity = session.capacity ? '/' + session.capacity : '';
     const current = (session.studentIds || []).length;
-    const location = session.location || '地點未設定';
+    const locationValue = String(session.location || '').trim();
+    const location = locationValue || '地點未設定';
+    const mapUrl = locationValue ? this._getCourseSessionMapUrl(locationValue) : '';
+    const locationHtml = mapUrl
+      ? '<a class="edu-session-location-link" href="' + escapeHTML(mapUrl) + '" target="sporthub_map" rel="noopener noreferrer" onclick="event.stopPropagation()">' + escapeHTML(location) + '</a>'
+      : '<em>' + escapeHTML(location) + '</em>';
     const sessionDateTime = this._formatCourseSessionDate(session) + ' ' + this._formatCourseSessionTime(session);
     const actions = ctx.isStaff
       ? '<div class="edu-session-card-actions">'
@@ -858,7 +864,7 @@ Object.assign(App, {
         + '</div>'
         + '<div class="edu-session-card-line">'
           + '<span><b>時間</b><em>' + escapeHTML(sessionDateTime) + '</em></span>'
-          + '<span><b>地點</b><em>' + escapeHTML(location) + '</em></span>'
+          + '<span class="edu-session-card-location"><b>地點</b>' + locationHtml + '</span>'
           + '<span><b>人數</b><em>' + current + capacity + ' 人</em></span>'
         + '</div>'
       + '</div>'
