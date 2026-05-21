@@ -535,9 +535,9 @@
 .edu-session-roster-head span {
   min-width: 0;
   color: #0f766e;
-  font-size: .58rem;
+  font-size: .86rem;
   font-weight: 950;
-  line-height: 1;
+  line-height: 1.12;
   text-align: left;
   white-space: nowrap;
 }
@@ -746,7 +746,7 @@
   display: block;
   min-width: 0;
   color: var(--text-primary);
-  font-size: .78rem;
+  font-size: .86rem;
   font-weight: 950;
   line-height: 1.25;
   white-space: nowrap;
@@ -770,7 +770,7 @@
   border-radius: 0;
   background: transparent;
   color: #0f766e;
-  font-size: .64rem;
+  font-size: .86rem;
   font-weight: 950;
   line-height: 1.2;
   white-space: nowrap;
@@ -884,7 +884,7 @@
   display: block;
   min-width: 72px;
   color: var(--text-primary);
-  font-size: .8rem;
+  font-size: .86rem;
   font-weight: 950;
   white-space: nowrap;
   overflow: hidden;
