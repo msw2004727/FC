@@ -5202,7 +5202,7 @@ function buildEventShareHtml({ ogTitle, ogDescription, ogImage, ogUrl, redirectU
     : "";
   const redirectScript = shouldRedirect
     ? `  <script>\n    location.replace(${scriptRedirectUrl});\n  </script>\n`
-    : `  <main style="font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:24px;line-height:1.6;">\n    <h1 style="font-size:20px;margin:0 0 12px;">${escapedTitle}</h1>\n    <p style="margin:0 0 16px;color:#555;">${escapedDescription}</p>\n    <a href="${escapedRedirectUrl}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;padding:10px 14px;border-radius:8px;">Open ToosterX</a>\n  </main>\n`;
+    : `  <main aria-hidden="true" hidden></main>\n`;
 
   return `<!doctype html>
 <html lang="zh-Hant">
@@ -5332,9 +5332,8 @@ exports.eventShareOg = onRequest(
       ? descParts.join(" · ")
       : "在 ToosterX Hub 上瀏覽並報名運動活動";
     const ogImage = resolveEventShareOgImage(event);
-    const MINI_APP_ID = "2009525300-AuPGQ0sh";
     const redirectUrl = (eventId && event)
-      ? `https://miniapp.line.me/${MINI_APP_ID}?event=${encodedEventId}`
+      ? `${SHARE_SITE_ORIGIN}/events/${encodedEventId}`
       : `${SHARE_SITE_ORIGIN}/`;
     const shouldRedirect = !isOgCrawlerRequest(req);
     const html = buildEventShareHtml({

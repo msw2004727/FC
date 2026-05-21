@@ -33,6 +33,19 @@ describe('event share OG assets', () => {
     expect(source).toContain('location.replace');
   });
 
+  test('event-share sends humans to the web event detail, not Mini App', () => {
+    const source = readProjectFile('functions/index.js');
+    expect(source).toContain('`${SHARE_SITE_ORIGIN}/events/${encodedEventId}`');
+    expect(source).not.toContain('`https://miniapp.line.me/${MINI_APP_ID}?event=${encodedEventId}`');
+    expect(source).not.toContain('Open ToosterX');
+  });
+
+  test('legacy root event query remains in the Mini App bridge', () => {
+    const source = readProjectFile('index.html');
+    expect(source).toContain("var keys=['event','team','tournament','profile']");
+    expect(source).toContain("location.replace('https://miniapp.line.me/2009525300-AuPGQ0sh'+s)");
+  });
+
   test('LINE Flex event cards use the same sport share images', () => {
     const source = readProjectFile('js/modules/event/event-share-builders.js');
     for (const sport of ['football', 'basketball', 'pickleball', 'dodgeball']) {
