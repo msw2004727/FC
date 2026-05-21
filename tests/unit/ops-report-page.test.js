@@ -20,6 +20,17 @@ describe('ops report temporary standalone page', () => {
     expect(html).toContain('30 日內完成');
     expect(html).toContain('No-show 風險');
     expect(html).toContain('匯出 CSV');
+    expect(html).toContain('複製AI分析提示詞');
+    expect(html).toContain('下載AI分析JSON');
+    expect(html).toContain('copy-ai-prompt');
+    expect(html).toContain('download-ai-json');
+    expect(html).toContain('buildAiPackage');
+    expect(html).toContain('buildAiPrompt');
+    expect(html).toContain('只能使用本提示詞內提供的資料與數值做分析');
+    expect(html).toContain('不得引用外部市場資料');
+    expect(html).toContain('結構化 AI 分析資料包 JSON');
+    expect(html).toContain('完整報表 JSON');
+    expect(html).toContain('每日序列 CSV');
     expect(html).toContain('firebase-functions-compat.js');
     expect(html).toContain('liff.init');
     expect(html).toContain('liff.login');

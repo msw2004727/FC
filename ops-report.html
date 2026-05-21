@@ -89,6 +89,21 @@
       white-space: nowrap;
     }
 
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .hero-actions button {
+      height: 36px;
+      min-height: 36px;
+      padding: 0 13px;
+      font-size: 13px;
+    }
+
     .panel {
       background: var(--panel);
       border: 1px solid var(--line);
@@ -268,6 +283,7 @@
     @media (max-width: 760px) {
       .page { width: min(100% - 20px, 1180px); padding-top: 20px; }
       .hero { grid-template-columns: 1fr; }
+      .hero-actions { justify-content: flex-start; }
       h1 { font-size: 26px; }
       .filters { grid-template-columns: 1fr; }
       .panel { padding: 14px; }
@@ -282,7 +298,11 @@
         <h1>ToosterX LTV 營運報表</h1>
         <p class="subtitle">用登入活躍、活動報名、簽到簽退完成三層資料判斷用戶加入後是否真的參與活動。</p>
       </div>
-      <div class="badge" id="auth-status">等待登入</div>
+      <div class="hero-actions">
+        <button id="copy-ai-prompt" class="secondary" type="button" disabled>複製AI分析提示詞</button>
+        <button id="download-ai-json" class="secondary" type="button" disabled>下載AI分析JSON</button>
+        <div class="badge" id="auth-status">等待登入</div>
+      </div>
     </header>
 
     <section class="panel">
@@ -424,6 +444,8 @@
       state.loading = loading;
       $("load-report").disabled = loading;
       $("load-report").textContent = loading ? "讀取中" : "更新報表";
+      $("copy-ai-prompt").disabled = loading || !state.report;
+      $("download-ai-json").disabled = loading || !state.report;
     }
 
     function initDefaultDates() {
@@ -479,6 +501,8 @@
       const r = report.retention || {};
       state.report = report;
       $("export-csv").disabled = !Array.isArray(report.series) || report.series.length === 0;
+      $("copy-ai-prompt").disabled = false;
+      $("download-ai-json").disabled = false;
       $("range-label").textContent = `${report.range.startDate} 至 ${report.range.endDate}`;
 
       renderCards("summary-grid", [
@@ -570,12 +594,162 @@
       return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
     }
 
+    function buildSeriesCsv(report) {
+      const headers = ["date", "dnu", "dau", "wau", "mau", "participationUsers", "participationEvents", "completedUsers", "completedEvents", "completionRate", "noShowEvents"];
+      const rows = Array.isArray(report?.series)
+        ? report.series.map(row => headers.map(key => csvEscape(row[key])).join(","))
+        : [];
+      return [headers.join(","), ...rows].join("\n");
+    }
+
+    function buildAiPackage(report) {
+      return {
+        packageName: "ToosterX LTV 營運報表 AI 分析資料包",
+        packageVersion: "1.0",
+        createdAt: new Date().toISOString(),
+        locale: "zh-Hant-TW",
+        strictInstructions: [
+          "只能使用此 JSON 資料包內提供的資料與數值做分析。",
+          "不得引用外部市場資料、常識假設、產業平均、未提供的歷史數據或任何推測數字。",
+          "如果資料不足以支持某個結論，必須明確說「目前資料不足，無法判斷」。",
+          "可以做比例、差異、排序、趨勢與異常值解讀，但計算必須能從 report 或 dailySeriesCsv 推導。",
+          "回覆時請區分「資料直接顯示」、「由資料推導」、「資料不足」三類結論。"
+        ],
+        analysisFocus: [
+          "新用戶 DNU、活躍 DAU/WAU/MAU、活躍轉參與、參與完成率、No-show 風險。",
+          "新用戶加入後轉化：區間內報名率、7 日內首報名、30 日內完成、首報名中位天數。",
+          "回訪留存：次日、7 日、30 日與區間回訪率。",
+          "每日序列中的高峰、低谷、異常波動與可能需要營運追蹤的日期。",
+          "資料品質提醒與讀取來源對解讀可信度的影響。"
+        ],
+        metricDefinitions: {
+          active: "每日 login_success audit log 的唯一用戶，必要時補 users.lastLogin。",
+          participation: "events/{eventDoc}/registrations 中 confirmed、registered、completed 的本人報名，排除陪同者。",
+          completion: "同一 uid + eventId 同時存在有效 checkin 與 checkout attendanceRecords。",
+          noShow: "已過活動日且有有效參與報名，但沒有有效 checkin 的人次。",
+          newUserConversion: "以用戶建立日為 cohort；7 日報名率與 30 日完成率只計入已成熟 cohort。",
+          retention: "以 login_success audit log 為主；audit 缺漏時用 users.lastLogin 補足單日活躍點。"
+        },
+        reportMeta: {
+          reportName: "ToosterX LTV 營運報表",
+          range: report?.range || null,
+          generatedAt: report?.generatedAt || "",
+          source: report?.source || null
+        },
+        report,
+        dailySeriesCsv: buildSeriesCsv(report)
+      };
+    }
+
+    function buildAiPrompt(report) {
+      const aiPackage = buildAiPackage(report);
+      const generatedAt = report?.generatedAt
+        ? new Date(report.generatedAt).toLocaleString("zh-Hant-TW")
+        : "未提供";
+      return [
+        "你是 ToosterX 營運數據分析助理。請根據下方我貼上的 ToosterX LTV 營運報表資料進行分析、解釋、洞察整理與可行建議。",
+        "",
+        "嚴格限制：",
+        "1. 只能使用本提示詞內提供的資料與數值做分析。",
+        "2. 不得引用外部市場資料、常識假設、產業平均、未提供的歷史數據或任何推測數字。",
+        "3. 如果資料不足以支持某個結論，請明確說「目前資料不足，無法判斷」。",
+        "4. 可以做比例、差異、排序、趨勢與異常值解讀，但計算必須能從下方資料推導。",
+        "5. 回覆時請區分「資料直接顯示」、「由資料推導」、「資料不足」三類結論。",
+        "",
+        "請優先分析：",
+        "- 新用戶 DNU、活躍 DAU/WAU/MAU、活躍轉參與、參與完成率、No-show 風險。",
+        "- 新用戶加入後轉化：區間內報名率、7 日內首報名、30 日內完成、首報名中位天數。",
+        "- 回訪留存：次日、7 日、30 日與區間回訪率。",
+        "- 每日序列中的高峰、低谷、異常波動與可能需要營運追蹤的日期。",
+        "- 資料品質提醒與讀取來源對解讀可信度的影響。",
+        "",
+        "報表基本資訊：",
+        `- 報表名稱：ToosterX LTV 營運報表`,
+        `- 資料區間：${report?.range?.startDate || "未提供"} 至 ${report?.range?.endDate || "未提供"}`,
+        `- 報表產生時間：${generatedAt}`,
+        `- 打包時間：${new Date().toLocaleString("zh-Hant-TW")}`,
+        "",
+        "資料口徑：",
+        "- 活躍：每日 login_success audit log 的唯一用戶，必要時補 users.lastLogin。",
+        "- 參與：events/{eventDoc}/registrations 中 confirmed、registered、completed 的本人報名，排除陪同者。",
+        "- 完成：同一 uid + eventId 同時存在有效 checkin 與 checkout attendanceRecords。",
+        "- No-show：已過活動日且有有效參與報名，但沒有有效 checkin 的人次。",
+        "- 新用戶轉化：以用戶建立日為 cohort；7 日報名率與 30 日完成率只計入已成熟 cohort。",
+        "- 回訪：以 login_success audit log 為主；audit 缺漏時用 users.lastLogin 補足單日活躍點。",
+        "",
+        "結構化 AI 分析資料包 JSON：",
+        "```json",
+        JSON.stringify(aiPackage, null, 2),
+        "```",
+        "",
+        "完整報表 JSON：",
+        "```json",
+        JSON.stringify(report, null, 2),
+        "```",
+        "",
+        "每日序列 CSV：",
+        "```csv",
+        buildSeriesCsv(report),
+        "```",
+      ].join("\n");
+    }
+
+    async function copyText(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return;
+      }
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      textarea.style.top = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      const ok = document.execCommand("copy");
+      textarea.remove();
+      if (!ok) throw new Error("COPY_FAILED");
+    }
+
+    async function copyAiPrompt() {
+      if (!state.report) return;
+      const button = $("copy-ai-prompt");
+      const originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = "打包中";
+      try {
+        await copyText(buildAiPrompt(state.report));
+        button.textContent = originalText;
+        button.disabled = state.loading || !state.report;
+        setStatus("AI 分析提示詞已複製，可直接貼給其他 AI 分析。");
+      } catch (err) {
+        button.textContent = originalText;
+        button.disabled = state.loading || !state.report;
+        setStatus("複製失敗，請確認瀏覽器允許剪貼簿操作後再試。", true);
+      }
+    }
+
+    function downloadAiJson() {
+      const report = state.report;
+      if (!report) return;
+      const payload = JSON.stringify(buildAiPackage(report), null, 2);
+      const blob = new Blob([payload], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `toosterx-ltv-ai-${report.range?.startDate || "start"}-${report.range?.endDate || "end"}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setStatus("AI 分析 JSON 已下載，可作為檔案匯入支援附件的 AI。");
+    }
+
     function exportCsv() {
       const report = state.report;
       if (!report || !Array.isArray(report.series)) return;
-      const headers = ["date", "dnu", "dau", "wau", "mau", "participationUsers", "participationEvents", "completedUsers", "completedEvents", "completionRate", "noShowEvents"];
-      const rows = report.series.map(row => headers.map(key => csvEscape(row[key])).join(","));
-      const csv = [headers.join(","), ...rows].join("\n");
+      const csv = buildSeriesCsv(report);
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -591,6 +765,8 @@
       initDefaultDates();
       $("load-report").addEventListener("click", loadReport);
       $("export-csv").addEventListener("click", exportCsv);
+      $("copy-ai-prompt").addEventListener("click", copyAiPrompt);
+      $("download-ai-json").addEventListener("click", downloadAiJson);
       loadReport();
     });
   </script>
