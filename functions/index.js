@@ -373,8 +373,18 @@ const DEFAULT_NOTIFICATION_TEMPLATES = Object.freeze([
   },
 ]);
 const SHARE_SITE_ORIGIN = "https://toosterx.com";
-const DEFAULT_TEAM_SHARE_OG_IMAGE = "https://firebasestorage.googleapis.com/v0/b/fc-football-6c8dc.firebasestorage.app/o/images%2Ftest%2FS__174522375.jpg?alt=media&token=73eb0e3f-a94a-4368-a6df-d4afafaa4ea0";
-const DEFAULT_EVENT_SHARE_OG_IMAGE = "https://toosterx.com/assets/icons/icon-512x512.png";
+const OG_ASSET_VERSION = "20260521";
+const EVENT_SHARE_URL_VERSION = OG_ASSET_VERSION;
+const DEFAULT_SHARE_OG_IMAGE = `${SHARE_SITE_ORIGIN}/assets/og/default.png?v=${OG_ASSET_VERSION}`;
+const DEFAULT_TEAM_SHARE_OG_IMAGE = DEFAULT_SHARE_OG_IMAGE;
+const DEFAULT_EVENT_SHARE_OG_IMAGE = DEFAULT_SHARE_OG_IMAGE;
+const EVENT_SPORT_SHARE_OG_IMAGES = Object.freeze({
+  football: `${SHARE_SITE_ORIGIN}/assets/og/sports/football.jpg?v=${OG_ASSET_VERSION}`,
+  basketball: `${SHARE_SITE_ORIGIN}/assets/og/sports/basketball.jpg?v=${OG_ASSET_VERSION}`,
+  pickleball: `${SHARE_SITE_ORIGIN}/assets/og/sports/pickleball.jpg?v=${OG_ASSET_VERSION}`,
+  dodgeball: `${SHARE_SITE_ORIGIN}/assets/og/sports/dodgeball.jpg?v=${OG_ASSET_VERSION}`,
+});
+const OG_CRAWLER_USER_AGENT_RE = /(facebookexternalhit|facebot|twitterbot|linkedinbot|slackbot|telegrambot|discordbot|whatsapp|pinterest|skypeuripreview|linespider|googlebot|google-inspectiontool|applebot|embedly|quora link preview|outbrain|vkshare|tumblr|threads)/i;
 
 function normalizeRole(role) {
   if (typeof role !== "string") return "user";
@@ -5106,11 +5116,40 @@ exports.runtimeConfig = onRequest(
 );
 
 function sanitizeEventImageUrl(rawUrl) {
-  if (typeof rawUrl !== "string") return DEFAULT_EVENT_SHARE_OG_IMAGE;
+  return sanitizeEventImageCandidate(rawUrl) || DEFAULT_EVENT_SHARE_OG_IMAGE;
+}
+
+function sanitizeEventImageCandidate(rawUrl) {
+  if (typeof rawUrl !== "string") return "";
   const trimmed = rawUrl.trim();
-  if (!trimmed) return DEFAULT_EVENT_SHARE_OG_IMAGE;
+  if (!trimmed) return "";
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  return DEFAULT_EVENT_SHARE_OG_IMAGE;
+  return "";
+}
+
+function getEventSportShareOgImage(sportTag) {
+  const safeSportTag = String(sportTag || "").trim().toLowerCase();
+  return EVENT_SPORT_SHARE_OG_IMAGES[safeSportTag] || "";
+}
+
+function resolveEventShareOgImage(event = {}) {
+  const explicitShareImage = sanitizeEventImageCandidate(
+    event?.shareImageUrl || event?.shareImage || event?.ogImageUrl || event?.ogImage || event?.socialImageUrl || event?.socialImage
+  );
+  if (explicitShareImage) return explicitShareImage;
+
+  const sportImage = getEventSportShareOgImage(event?.sportTag || event?.sport);
+  if (sportImage) return sportImage;
+
+  const coverImage = sanitizeEventImageCandidate(
+    event?.imageVariants?.cover || event?.coverImage || event?.cover || event?.image
+  );
+  return coverImage || DEFAULT_EVENT_SHARE_OG_IMAGE;
+}
+
+function isOgCrawlerRequest(req) {
+  const userAgent = String(req.get?.("user-agent") || req.headers?.["user-agent"] || "").trim();
+  return OG_CRAWLER_USER_AGENT_RE.test(userAgent);
 }
 
 function parseEventShareId(req) {
@@ -5133,13 +5172,37 @@ function parseEventShareId(req) {
   }
 }
 
-function buildEventShareHtml({ ogTitle, ogDescription, ogImage, ogUrl, redirectUrl }) {
+function getEventShareUrlVersion(req) {
+  const rawVersion = req?.query?.v || req?.query?.version || EVENT_SHARE_URL_VERSION;
+  const versionValue = Array.isArray(rawVersion) ? rawVersion[0] : rawVersion;
+  const safeVersion = String(versionValue || "")
+    .trim()
+    .replace(/[^0-9A-Za-z._-]/g, "")
+    .slice(0, 48);
+  return safeVersion || EVENT_SHARE_URL_VERSION;
+}
+
+function buildEventShareUrl(eventId, req) {
+  const encodedEventId = encodeURIComponent(eventId || "");
+  const baseUrl = eventId
+    ? `${SHARE_SITE_ORIGIN}/event-share/${encodedEventId}`
+    : `${SHARE_SITE_ORIGIN}/event-share`;
+  return `${baseUrl}?v=${encodeURIComponent(getEventShareUrlVersion(req))}`;
+}
+
+function buildEventShareHtml({ ogTitle, ogDescription, ogImage, ogUrl, redirectUrl, shouldRedirect = true }) {
   const escapedTitle = escapeHtml(ogTitle);
   const escapedDescription = escapeHtml(ogDescription);
   const escapedImage = escapeHtml(ogImage);
   const escapedOgUrl = escapeHtml(ogUrl);
   const escapedRedirectUrl = escapeHtml(redirectUrl);
   const scriptRedirectUrl = JSON.stringify(redirectUrl);
+  const redirectMeta = shouldRedirect
+    ? `  <meta http-equiv="refresh" content="0;url=${escapedRedirectUrl}">\n`
+    : "";
+  const redirectScript = shouldRedirect
+    ? `  <script>\n    location.replace(${scriptRedirectUrl});\n  </script>\n`
+    : `  <main style="font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:24px;line-height:1.6;">\n    <h1 style="font-size:20px;margin:0 0 12px;">${escapedTitle}</h1>\n    <p style="margin:0 0 16px;color:#555;">${escapedDescription}</p>\n    <a href="${escapedRedirectUrl}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;padding:10px 14px;border-radius:8px;">Open ToosterX</a>\n  </main>\n`;
 
   return `<!doctype html>
 <html lang="zh-Hant">
@@ -5157,12 +5220,10 @@ function buildEventShareHtml({ ogTitle, ogDescription, ogImage, ogUrl, redirectU
   <meta name="twitter:description" content="${escapedDescription}">
   <meta name="twitter:image" content="${escapedImage}">
   <meta name="robots" content="noindex,nofollow">
-  <meta http-equiv="refresh" content="0;url=${escapedRedirectUrl}">
+${redirectMeta.trimEnd()}
 </head>
 <body>
-  <script>
-    location.replace(${scriptRedirectUrl});
-  </script>
+${redirectScript.trimEnd()}
 </body>
 </html>`;
 }
@@ -5247,9 +5308,7 @@ exports.eventShareOg = onRequest(
 
     const eventId = parseEventShareId(req);
     const encodedEventId = encodeURIComponent(eventId || "");
-    const eventShareUrl = eventId
-      ? `${SHARE_SITE_ORIGIN}/event-share/${encodedEventId}`
-      : `${SHARE_SITE_ORIGIN}/event-share`;
+    const eventShareUrl = buildEventShareUrl(eventId, req);
 
     let event = null;
     if (eventId) {
@@ -5272,17 +5331,19 @@ exports.eventShareOg = onRequest(
     const ogDescription = descParts.length > 0
       ? descParts.join(" · ")
       : "在 ToosterX Hub 上瀏覽並報名運動活動";
-    const ogImage = sanitizeEventImageUrl(event?.image);
+    const ogImage = resolveEventShareOgImage(event);
     const MINI_APP_ID = "2009525300-AuPGQ0sh";
     const redirectUrl = (eventId && event)
       ? `https://miniapp.line.me/${MINI_APP_ID}?event=${encodedEventId}`
       : `${SHARE_SITE_ORIGIN}/`;
+    const shouldRedirect = !isOgCrawlerRequest(req);
     const html = buildEventShareHtml({
       ogTitle,
       ogDescription,
       ogImage,
       ogUrl: eventShareUrl,
       redirectUrl,
+      shouldRedirect,
     });
 
     res.set("Content-Type", "text/html; charset=utf-8");

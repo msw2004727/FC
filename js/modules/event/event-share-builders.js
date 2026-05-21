@@ -19,6 +19,10 @@ Object.assign(App, {
     return MINI_APP_BASE_URL + '?' + paramKey + '=' + encodeURIComponent(String(paramValue || '').trim());
   },
 
+  _getEventShareVersion() {
+    return '20260521';
+  },
+
   /**
    * 活動專用社群分享 URL（toosterx.com/event-share/{id} OG 中繼頁）
    * - 貼到 FB / IG / Twitter / Telegram 等會顯示活動封面卡片
@@ -27,7 +31,9 @@ Object.assign(App, {
    * - LINE 好友 / LINE 群組 仍走 Mini App URL（由 `_buildEventLiffUrl` 提供）
    */
   _buildEventShareOgUrl(eventId) {
-    return 'https://toosterx.com/event-share/' + encodeURIComponent(String(eventId || '').trim());
+    var version = encodeURIComponent(String(this._getEventShareVersion?.() || '20260521').trim());
+    var suffix = version ? '?v=' + version : '';
+    return 'https://toosterx.com/event-share/' + encodeURIComponent(String(eventId || '').trim()) + suffix;
   },
 
   // ══════════════════════════════════
@@ -52,6 +58,33 @@ Object.assign(App, {
       text = Array.from(text).slice(0, 397).join('') + '...';
     }
     return text;
+  },
+
+  _sanitizeEventShareImageUrl(rawUrl) {
+    if (typeof rawUrl !== 'string') return '';
+    const trimmed = rawUrl.trim();
+    return /^https?:\/\//i.test(trimmed) ? trimmed : '';
+  },
+
+  _getEventSportShareImageUrl(sportTag) {
+    const version = this._getEventShareVersion();
+    const sportImages = {
+      football: 'https://toosterx.com/assets/og/sports/football.jpg?v=' + version,
+      basketball: 'https://toosterx.com/assets/og/sports/basketball.jpg?v=' + version,
+      pickleball: 'https://toosterx.com/assets/og/sports/pickleball.jpg?v=' + version,
+      dodgeball: 'https://toosterx.com/assets/og/sports/dodgeball.jpg?v=' + version,
+    };
+    return sportImages[String(sportTag || '').trim().toLowerCase()] || '';
+  },
+
+  _getEventShareImageUrl(event) {
+    const explicit = this._sanitizeEventShareImageUrl(
+      event?.shareImageUrl || event?.shareImage || event?.ogImageUrl || event?.ogImage || event?.socialImageUrl || event?.socialImage
+    );
+    if (explicit) return explicit;
+    const sportImage = this._getEventSportShareImageUrl(event?.sportTag || event?.sport);
+    if (sportImage) return sportImage;
+    return this._sanitizeEventShareImageUrl(event?.imageVariants?.cover || event?.coverImage || event?.cover || event?.image);
   },
 
   // ══════════════════════════════════
@@ -160,10 +193,11 @@ Object.assign(App, {
       footer: footer,
     };
 
-    // Hero image (only if event has image)
-    if (event.image) {
+    // Hero image
+    const shareImageUrl = this._getEventShareImageUrl(event);
+    if (shareImageUrl) {
       bubble.hero = {
-        type: 'image', url: event.image,
+        type: 'image', url: shareImageUrl,
         size: 'full', aspectRatio: '20:13', aspectMode: 'cover',
       };
     }
@@ -278,9 +312,10 @@ Object.assign(App, {
       footer: footer,
     };
 
-    if (event.image) {
+    var externalShareImageUrl = this._getEventShareImageUrl(event);
+    if (externalShareImageUrl) {
       bubble.hero = {
-        type: 'image', url: event.image,
+        type: 'image', url: externalShareImageUrl,
         size: 'full', aspectRatio: '20:13', aspectMode: 'cover',
       };
     }

@@ -1,5 +1,7 @@
 const TEAM_SHARE_PATH = "/team-share";
 const EVENT_SHARE_PATH = "/event-share";
+const LEGACY_OG_IMAGE_PATH = "/og.png";
+const DEFAULT_OG_IMAGE_PATH = "/assets/og/default.png";
 const OG_FUNCTION_ORIGIN = "https://asia-east1-fc-football-6c8dc.cloudfunctions.net";
 const TEAM_SHARE_OG_PATH = "/teamShareOg";
 const EVENT_SHARE_OG_PATH = "/eventShareOg";
@@ -25,6 +27,10 @@ function isOpsReportPath(pathname) {
 
 function isRuntimeConfigPath(pathname) {
   return stripTrailingSlash(pathname) === RUNTIME_CONFIG_PATH;
+}
+
+function isLegacyOgImagePath(pathname) {
+  return stripTrailingSlash(pathname) === LEGACY_OG_IMAGE_PATH;
 }
 
 function buildTeamShareOgUrl(requestUrl) {
@@ -123,6 +129,27 @@ async function fetchAsset(request, env) {
   return fetch(request);
 }
 
+async function handleLegacyOgImage(request, env) {
+  if (!["GET", "HEAD"].includes(request.method)) {
+    return new Response("Method Not Allowed", {
+      status: 405,
+      headers: { "Allow": "GET, HEAD" },
+    });
+  }
+
+  const target = new URL(request.url);
+  target.pathname = DEFAULT_OG_IMAGE_PATH;
+  const targetRequest = new Request(target.toString(), {
+    method: request.method,
+    headers: request.headers,
+    redirect: "follow",
+  });
+  const upstream = await fetchAsset(targetRequest, env);
+  const response = new Response(upstream.body, upstream);
+  response.headers.set("Cache-Control", "public, max-age=86400");
+  return response;
+}
+
 async function handleSpaFallback(request, env, _routeKind) {
   if (!["GET", "HEAD"].includes(request.method)) {
     return new Response("Method Not Allowed", {
@@ -205,6 +232,9 @@ export default {
     const url = new URL(request.url);
     if (isRuntimeConfigPath(url.pathname)) {
       return handleRuntimeConfig(request);
+    }
+    if (isLegacyOgImagePath(url.pathname)) {
+      return handleLegacyOgImage(request, env);
     }
     if (isOpsReportPath(url.pathname)) {
       return handleOpsReport(request, env);

@@ -11,6 +11,9 @@
 /images/*
   Cache-Control: public, max-age=86400
 
+/assets/og/*
+  Cache-Control: public, max-age=86400
+
 # HTML entry points
 /index.html
   Cache-Control: public, max-age=0, must-revalidate
