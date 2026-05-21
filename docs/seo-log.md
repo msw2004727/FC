@@ -4,6 +4,28 @@
 
 ---
 
+### 2026-05-21 — SEO 現況深度檢查：朝馬 / 台中踢球能見度與 GSC 趨勢
+
+**背景 / 問題**：使用者回報近期感覺 SEO 退步，特別是「台中朝馬足球場」、「台中踢球」等詞好像變得搜不到。此次先做外部搜尋結果、正式站 HTTP 訊號、GSC workflow 摘要與本地 SEO 檔案交叉檢查，避免只憑單次手動搜尋判斷。
+
+**檢查結果**：
+1. 正式站技術訊號正常：`robots.txt`、`sitemap.xml`、`sitemap-static.xml`、`/seo/football-taichung`、`/blog/taichung-football-field-rental-guide` 皆為 200；`/seo/football-taichung` 沒有 `X-Robots-Tag: noindex`，canonical 指向 `https://toosterx.com/seo/football-taichung`。
+2. Clean URL 相容正常：`/seo/football-taichung.html`、`/blog/taichung-football-field-rental-guide.html`、`/privacy.html`、`/terms.html` 皆 308 到 clean URL；`www.toosterx.com` 最終導到 `https://toosterx.com/`，canonical 正常。搜尋結果仍可看到一筆 `www.toosterx.com` 舊標題，但實測已導正，判斷是搜尋快取殘留。
+3. 搜尋能見度並非全面退步：外部搜尋結果顯示「朝馬足球場」ToosterX `/seo/football-taichung` 在前段且本次查到第 1；「台中朝馬足球場」查到第 2；「台中足球揪團」查到首頁第 1、`/seo/football-taichung` 第 2、`/blog/community/` 第 3；「台中踢足球」查到 `/seo/football-taichung` 第 1。
+4. 問題詞為泛查詢「台中踢球」：不加引號時，搜尋結果被近期新聞、政府、論壇與教學類頁面洗掉；但精確查詢 `"台中踢球"` 時 `/seo/football-taichung` 仍查到第 1、首頁第 2。判斷目前不是掉索引，而是泛詞 query intent 與新聞新鮮度競爭。
+5. GSC Daily Snapshot 持續成功。近 8 次摘要顯示 28 天曝光由 2026-05-14 的 575 增至 2026-05-21 的 1311，點擊由 73 增至 96，平均排名約 8.8 → 8.7；CTR 由 12.7% 降至 7.3%，較像曝光擴張後的 CTR 稀釋，不是平均排名崩跌。
+6. Sitemap submit workflow 於 2026-05-21 09:15 UTC 成功提交 `https://toosterx.com/sitemap.xml` 給 GSC；Build dynamic sitemaps workflow 近期每日成功。
+7. 本地 SEO 單元測試通過：`npm test -- tests/unit/seo-metadata.test.js tests/unit/seo-jsonld.test.js tests/unit/route-meta-tags.test.js tests/unit/build-sitemap.test.js` 實際因 npm script 規則跑完整 `tests/unit/`，149 suites / 3341 tests 全過；僅保留既有 source-drift warning。
+
+**判斷 / 影響**：目前沒有看到整站 SEO 近期惡化或主要朝馬詞掉出搜尋的證據。比較明顯的是曝光快速擴大、CTR 被稀釋，以及「台中踢球」這種泛詞在不加引號時被近期新聞與非報名意圖內容搶走。`/seo/football-taichung` 對朝馬與台中足球揪團仍具可見度。
+
+**後續建議**：
+1. 先不要急著大改 `/seo/football-taichung` title，因「朝馬足球場」「台中朝馬足球場」「台中足球揪團」目前表現不差；若要補「台中踢球」泛詞，建議小幅 A/B：把 title 或第一屏副標題加入「台中踢球」但保留朝馬/西屯主詞。
+2. 補一個 query-level GSC 匯出或後台視圖，直接列出近 7/28 天「台中踢球、台中朝馬足球場、朝馬足球場、台中足球揪團」的 impressions/clicks/position，比手動搜尋更準。
+3. 修正 `scripts/gsc-snapshot.js` inspection seed 噪音：`privacy.html` / `terms.html` 應改成 clean URL；`buildInspectionUrlList()` 目前只讀 sitemap index 的子 sitemap URL，若要監控動態頁應遞迴讀 child sitemap 的 `<loc>`，否則 `URL indexed: 17/41` 的分母混入 sitemap 檔與舊入口，判讀價值有限。
+
+---
+
 ### 2026-05-21 — 根網址活動 query 與 event-share 最終跳轉規則
 
 **背景 / 決策**：根網址 `https://toosterx.com/?event=...` 保留作為舊 deep link / Mini App 開啟入口，繼續由 `index.html` bridge 導向 `miniapp.line.me`。活動社群分享改以 `https://toosterx.com/event-share/{id}?v=...` 承接，讓 crawler 讀取 ToosterX OG 圖，真人點擊後直接進網站活動頁 `/events/{id}`，不跳 Mini App，也不顯示手動開啟按鈕。
