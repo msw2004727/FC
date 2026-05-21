@@ -10,7 +10,7 @@
 
 **變更內容**：1. `index.html` 根網址 query bridge 的跳轉清單為 `event/team/tournament/profile`，四者都導向 `https://miniapp.line.me/2009525300-AuPGQ0sh?...`。2. `/event-share/{id}` Cloud Function 的真人 redirect 目標由 Mini App `?event={id}` 改為網站 clean URL `/events/{id}`。3. `/event-share/{id}` 的 OG crawler 分支仍不 redirect，並保留活動分類 OG 圖。4. 移除 crawler 分支 HTML body 內的 `Open ToosterX` 手動按鈕，避免形成「用 LINE 開啟」按鈕方案。
 
-**驗收 / 影響**：部署後正式站 `0.20260521h` 已驗證：`/?event=...` bridge 包含 `event`；`/event-share/ce_1776687412238_ghe2_2?v=20260521` 一般 UA 不含 `miniapp.line.me`，會導向 `https://toosterx.com/events/ce_1776687412238_ghe2_2`；crawler UA 不含 refresh / `location.replace`，OG 圖為足球分類圖。社群平台已產生的預覽卡片仍可能受平台快取影響，縮圖不一定立刻刷新。
+**驗收 / 影響**：部署後正式站 `0.20260521i` 已驗證：`/?event=...` bridge 包含 `event`；`/event-share/ce_1776687412238_ghe2_2?v=20260521` 一般 UA 不含 `miniapp.line.me`，會導向 `https://toosterx.com/events/ce_1776687412238_ghe2_2`；crawler UA 不含 refresh / `location.replace`，OG 圖為足球分類圖。社群平台已產生的預覽卡片仍可能受平台快取影響，縮圖不一定立刻刷新。
 
 ---
 
