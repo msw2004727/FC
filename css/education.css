@@ -489,6 +489,35 @@
   font-weight: 800;
   text-align: right;
 }
+.edu-session-roster-title {
+  display: grid;
+  grid-template-columns: auto minmax(280px, 1fr) auto;
+  align-items: center;
+  gap: .55rem;
+}
+.edu-session-roster-title strong {
+  white-space: nowrap;
+}
+.edu-session-roster-head {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 42px 48px minmax(92px, 1fr) 54px 54px;
+  align-items: center;
+  gap: .24rem;
+  padding: .16rem .34rem;
+  border: 1px solid rgba(15, 118, 110, .16);
+  border-radius: 7px;
+  background: linear-gradient(135deg, rgba(15, 118, 110, .07), rgba(37, 99, 235, .045));
+}
+.edu-session-roster-head span {
+  min-width: 0;
+  color: #0f766e;
+  font-size: .58rem;
+  font-weight: 950;
+  line-height: 1;
+  text-align: left;
+  white-space: nowrap;
+}
 .edu-session-contact-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -711,31 +740,18 @@
 }
 .edu-session-student-tags > span {
   min-width: 0;
-  min-height: 34px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: .02rem;
-  padding: .16rem .34rem;
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: .12rem .34rem;
   border: 1px solid rgba(15, 118, 110, .1);
   border-radius: 8px;
   background: rgba(15, 118, 110, .1);
-}
-.edu-session-student-tags small {
-  display: block;
-  color: var(--text-muted);
-  font-size: .52rem;
-  font-weight: 900;
-  line-height: 1;
-  white-space: nowrap;
-}
-.edu-session-student-tags b {
-  min-width: 0;
-  display: block;
   color: #0f766e;
   font-size: .64rem;
   font-weight: 950;
-  line-height: 1.18;
+  line-height: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -900,8 +916,17 @@
     grid-template-columns: 1fr;
     gap: .34rem;
   }
+  .edu-session-roster-title {
+    grid-template-columns: 1fr auto;
+    align-items: start;
+  }
+  .edu-session-roster-title .edu-session-roster-head {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
   .edu-session-student-tags,
-  .edu-session-pick-item em {
+  .edu-session-pick-item em,
+  .edu-session-roster-head {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .edu-session-student strong,
@@ -1723,8 +1748,15 @@
 [data-theme="dark"] .edu-session-number {
   color: #5eead4;
 }
-[data-theme="dark"] .edu-session-student-tags b,
-[data-theme="dark"] .edu-session-pick-item em b {
+[data-theme="dark"] .edu-session-student-tags > span,
+[data-theme="dark"] .edu-session-pick-item em > span {
+  color: #5eead4;
+}
+[data-theme="dark"] .edu-session-roster-head {
+  background: linear-gradient(135deg, rgba(45, 212, 191, .105), rgba(96, 165, 250, .07));
+  border-color: rgba(45, 212, 191, .18);
+}
+[data-theme="dark"] .edu-session-roster-head span {
   color: #5eead4;
 }
 [data-theme="dark"] .edu-session-avatar {

@@ -108,10 +108,19 @@ Object.assign(App, {
       { cls: 'paid', label: '繳費', value: paidStatus },
       { cls: 'remain', label: '剩餘', value: remaining },
     ];
-    return fields.map(field => '<span class="edu-session-student-slot edu-session-student-slot-' + field.cls + '">'
-      + '<small>' + escapeHTML(field.label) + '</small>'
-      + '<b>' + escapeHTML(field.value) + '</b>'
+    return fields.map(field => '<span class="edu-session-student-slot edu-session-student-slot-' + field.cls + '" aria-label="' + escapeHTML(field.label) + '">'
+      + escapeHTML(field.value)
       + '</span>').join('');
+  },
+
+  _renderCourseSessionRosterHeader() {
+    return '<div class="edu-session-roster-head" aria-hidden="true">'
+      + '<span>性別</span>'
+      + '<span>年齡</span>'
+      + '<span>分組</span>'
+      + '<span>繳費</span>'
+      + '<span>剩餘</span>'
+      + '</div>';
   },
 
   _renderCourseSessionStudents(studentIds, roster, plan) {
@@ -204,7 +213,7 @@ Object.assign(App, {
         + '<div class="edu-session-list">' + sessionCards + '</div>'
       + '</section>'
       + '<section class="edu-session-roster-panel">'
-        + '<div class="edu-session-section-title"><strong>方案學員</strong><span>' + roster.length + ' 位核准學員' + (pendingCount ? '，' + pendingCount + ' 位待審核' : '') + '</span></div>'
+        + '<div class="edu-session-section-title edu-session-roster-title"><strong>方案學員</strong>' + this._renderCourseSessionRosterHeader() + '<span>' + roster.length + ' 位核准學員' + (pendingCount ? '，' + pendingCount + ' 位待審核' : '') + '</span></div>'
         + '<div class="edu-session-roster">' + (roster.length ? roster.map(item => {
             const student = item.student || {};
             const name = student.name || '未命名學員';
