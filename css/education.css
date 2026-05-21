@@ -534,14 +534,42 @@
   gap: .68rem;
   min-width: 0;
   padding: .52rem .62rem;
-  border: 1px solid var(--border);
+  border: 1px solid rgba(15, 118, 110, .18);
   border-radius: var(--radius-md);
-  background: var(--bg-card);
+  background:
+    linear-gradient(135deg, rgba(15, 118, 110, .11), rgba(37, 99, 235, .075) 52%, rgba(255, 255, 255, .52)),
+    rgba(255, 255, 255, .72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .72), 0 4px 14px rgba(15, 23, 42, .045);
+  backdrop-filter: blur(8px);
   transition: border-color .15s, box-shadow .15s;
+}
+.edu-session-card-scheduled {
+  border-color: rgba(37, 99, 235, .2);
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, .12), rgba(15, 118, 110, .075) 54%, rgba(255, 255, 255, .55)),
+    rgba(255, 255, 255, .72);
+}
+.edu-session-card-soon {
+  border-color: rgba(217, 119, 6, .25);
+  background:
+    linear-gradient(135deg, rgba(217, 119, 6, .14), rgba(15, 118, 110, .08) 54%, rgba(255, 255, 255, .56)),
+    rgba(255, 255, 255, .72);
+}
+.edu-session-card-done {
+  border-color: rgba(100, 116, 139, .22);
+  background:
+    linear-gradient(135deg, rgba(100, 116, 139, .11), rgba(15, 118, 110, .055) 52%, rgba(255, 255, 255, .6)),
+    rgba(255, 255, 255, .74);
+}
+.edu-session-card-cancelled {
+  border-color: rgba(220, 38, 38, .22);
+  background:
+    linear-gradient(135deg, rgba(220, 38, 38, .11), rgba(100, 116, 139, .07) 52%, rgba(255, 255, 255, .58)),
+    rgba(255, 255, 255, .74);
 }
 .edu-session-card:hover {
   border-color: rgba(15, 118, 110, .42);
-  box-shadow: 0 6px 18px rgba(15, 23, 42, .08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .82), 0 7px 20px rgba(15, 23, 42, .08);
 }
 .edu-session-card-main {
   min-width: 0;
@@ -1621,6 +1649,41 @@
 [data-theme="dark"] .edu-session-card {
   background: rgba(15, 23, 42, .72);
   border-color: rgba(148, 163, 184, .22);
+}
+[data-theme="dark"] .edu-session-card {
+  border-color: rgba(45, 212, 191, .18);
+  background:
+    linear-gradient(135deg, rgba(45, 212, 191, .12), rgba(96, 165, 250, .075) 54%, rgba(15, 23, 42, .56)),
+    rgba(15, 23, 42, .66);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .055), 0 8px 22px rgba(0, 0, 0, .18);
+}
+[data-theme="dark"] .edu-session-card-scheduled {
+  border-color: rgba(96, 165, 250, .24);
+  background:
+    linear-gradient(135deg, rgba(96, 165, 250, .13), rgba(45, 212, 191, .075) 54%, rgba(15, 23, 42, .58)),
+    rgba(15, 23, 42, .68);
+}
+[data-theme="dark"] .edu-session-card-soon {
+  border-color: rgba(251, 191, 36, .28);
+  background:
+    linear-gradient(135deg, rgba(251, 191, 36, .14), rgba(45, 212, 191, .07) 54%, rgba(15, 23, 42, .58)),
+    rgba(15, 23, 42, .68);
+}
+[data-theme="dark"] .edu-session-card-done {
+  border-color: rgba(148, 163, 184, .24);
+  background:
+    linear-gradient(135deg, rgba(148, 163, 184, .11), rgba(45, 212, 191, .055) 54%, rgba(15, 23, 42, .6)),
+    rgba(15, 23, 42, .7);
+}
+[data-theme="dark"] .edu-session-card-cancelled {
+  border-color: rgba(248, 113, 113, .26);
+  background:
+    linear-gradient(135deg, rgba(248, 113, 113, .12), rgba(148, 163, 184, .07) 54%, rgba(15, 23, 42, .6)),
+    rgba(15, 23, 42, .7);
+}
+[data-theme="dark"] .edu-session-card:hover {
+  border-color: rgba(45, 212, 191, .34);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .075), 0 10px 26px rgba(0, 0, 0, .24);
 }
 [data-theme="dark"] .edu-session-contact-row,
 [data-theme="dark"] .edu-session-student,
