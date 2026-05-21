@@ -44,9 +44,11 @@ Object.assign(App, {
       + '<div class="edu-info-dialog-title">' + (session ? '編輯課堂' : '新增課堂') + '</div>'
       + '<div class="edu-session-template-panel">'
         + '<div class="edu-session-template-main">'
-          + '<label>課堂範本</label>'
-          + '<input id="edu-session-template-name" type="text" maxlength="24" placeholder="輸入名稱後儲存目前欄位">'
-          + '<button class="outline-btn small" type="button" onclick="App._saveCourseSessionTemplate()">儲存範本</button>'
+          + '<div class="edu-session-template-copy"><strong>課堂範本</strong><span>儲存常用欄位，之後一鍵套用</span></div>'
+          + '<div class="edu-session-template-save">'
+            + '<input id="edu-session-template-name" type="text" maxlength="24" placeholder="範本名稱">'
+            + '<button class="outline-btn small" type="button" onclick="App._saveCourseSessionTemplate()">儲存範本</button>'
+          + '</div>'
         + '</div>'
         + '<div class="edu-session-template-list" id="edu-session-template-selector"><span>載入範本中...</span></div>'
       + '</div>'
@@ -281,7 +283,7 @@ Object.assign(App, {
     const seen = new Set(cloud.map(t => t.id));
     const templates = [...cloud, ...local.filter(t => !seen.has(t.id))];
     if (!templates.length) {
-      container.innerHTML = '<span>尚無範本</span>';
+      container.innerHTML = '<span class="edu-session-template-empty">尚無範本</span>';
       return;
     }
     container.innerHTML = templates.map(t => '<span class="edu-session-template-chip" onclick="App._loadCourseSessionTemplate(\'' + escapeHTML(t.id) + '\')">'

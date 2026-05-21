@@ -473,15 +473,20 @@
   background: var(--bg-card);
   padding: .68rem;
 }
+.edu-session-board,
+.edu-session-form-dialog,
+.edu-session-detail-dialog {
+  --edu-session-edit-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z'/%3E%3C/svg%3E");
+}
 .edu-session-roster-panel {
-  --edu-roster-card-pad-x: .5rem;
+  --edu-roster-card-pad-x: .48rem;
   --edu-roster-avatar-size: 30px;
   --edu-roster-avatar-gap: .48rem;
-  --edu-roster-name-width: clamp(132px, 22vw, 176px);
+  --edu-roster-name-width: clamp(116px, 20vw, 154px);
   --edu-roster-name-gap: .52rem;
-  --edu-roster-note-width: clamp(104px, 16vw, 138px);
-  --edu-roster-base-columns: 42px 48px minmax(92px, 1fr) 58px 54px;
-  --edu-roster-columns: 42px 48px minmax(92px, 1fr) 58px 54px var(--edu-roster-note-width, 118px);
+  --edu-roster-note-width: clamp(72px, 10vw, 92px);
+  --edu-roster-base-columns: 36px 44px minmax(82px, 1fr) 54px 42px;
+  --edu-roster-columns: 36px 44px minmax(82px, 1fr) 54px 42px var(--edu-roster-note-width, 82px);
 }
 .edu-session-section-title {
   display: flex;
@@ -747,6 +752,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-base);
+  overflow: hidden;
 }
 .edu-session-avatar {
   flex: 0 0 30px;
@@ -811,6 +817,7 @@
   grid-template-columns: var(--edu-roster-name-width, clamp(132px, 22vw, 176px)) minmax(0, 1fr);
   align-items: center;
   gap: var(--edu-roster-name-gap, .52rem);
+  overflow: hidden;
 }
 .edu-session-student strong,
 .edu-session-roster-item strong {
@@ -852,26 +859,47 @@
   grid-template-columns: var(--edu-roster-columns);
 }
 .edu-session-student-slot-note {
-  display: inline-flex !important;
+  display: inline-grid !important;
+  grid-template-columns: minmax(0, 1fr) 24px;
   align-items: center;
-  gap: .28rem;
+  gap: .2rem;
 }
 .edu-session-note-text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.edu-session-note-edit {
+.edu-session-note-edit,
+.edu-session-icon-btn {
+  --edu-session-edit-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z'/%3E%3C/svg%3E");
   flex: 0 0 auto;
-  padding: .08rem .34rem;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border: 1px solid rgba(15, 118, 110, .28);
-  border-radius: var(--radius-full);
+  border-radius: 50%;
   background: rgba(15, 118, 110, .07);
   color: #0f766e;
-  font-size: .68rem;
-  font-weight: 900;
-  line-height: 1.15;
+  font-size: 0;
+  line-height: 1;
   cursor: pointer;
+}
+.edu-session-note-edit::before,
+.edu-session-detail-edit::before {
+  content: "";
+  width: 13px;
+  height: 13px;
+  background: currentColor;
+  -webkit-mask: var(--edu-session-edit-icon) center / contain no-repeat;
+  mask: var(--edu-session-edit-icon) center / contain no-repeat;
+}
+.edu-session-note-edit:hover,
+.edu-session-icon-btn:hover {
+  border-color: rgba(15, 118, 110, .46);
+  background: rgba(15, 118, 110, .12);
 }
 .edu-session-empty,
 .edu-session-empty-students {
@@ -907,6 +935,8 @@
 }
 .edu-session-form-dialog {
   max-width: 760px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .edu-session-form-grid {
   display: grid;
@@ -919,25 +949,46 @@
 .edu-session-template-panel {
   display: flex;
   flex-direction: column;
-  gap: .45rem;
+  gap: .38rem;
   margin-bottom: .72rem;
-  padding: .55rem .6rem;
+  padding: .52rem .58rem;
   border: 1px solid rgba(15, 118, 110, .16);
   border-radius: var(--radius-sm);
   background: linear-gradient(135deg, rgba(15, 118, 110, .06), rgba(37, 99, 235, .045));
 }
 .edu-session-template-main {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
-  gap: .45rem;
+  justify-content: space-between;
+  gap: .55rem;
 }
-.edu-session-template-main label {
+.edu-session-template-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .08rem;
+}
+.edu-session-template-copy strong {
   color: var(--text-primary);
   font-size: .78rem;
   font-weight: 950;
+  line-height: 1.15;
 }
-.edu-session-template-main input {
+.edu-session-template-copy span {
+  color: var(--text-muted);
+  font-size: .66rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.edu-session-template-save {
+  flex: 1 1 320px;
+  max-width: 420px;
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) auto;
+  align-items: center;
+  gap: .38rem;
+}
+.edu-session-template-save input {
   min-width: 0;
 }
 .edu-session-template-list {
@@ -949,6 +1000,11 @@
   color: var(--text-muted);
   font-size: .72rem;
   font-weight: 800;
+}
+.edu-session-template-empty {
+  color: var(--text-muted);
+  font-size: .75rem;
+  font-weight: 850;
 }
 .edu-session-template-chip {
   display: inline-flex;
@@ -1033,13 +1089,32 @@
 }
 .edu-session-detail-dialog {
   max-width: 720px;
+  max-height: min(86vh, 720px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 .edu-session-detail-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: .8rem;
-  margin-bottom: .8rem;
+  margin-bottom: .74rem;
+  padding-bottom: .62rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+}
+.edu-session-detail-head-main {
+  min-width: 0;
+}
+.edu-session-detail-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: .36rem;
 }
 .edu-session-detail-head h3 {
   margin: .35rem 0 .12rem;
@@ -1066,6 +1141,17 @@
   font-weight: 700;
   line-height: 1;
   cursor: pointer;
+}
+.edu-session-detail-edit {
+  width: 32px;
+  height: 32px;
+  border-color: var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+}
+.edu-session-detail-edit::before {
+  width: 15px;
+  height: 15px;
 }
 .edu-session-detail-grid {
   display: grid;
@@ -1131,6 +1217,9 @@
 }
 .edu-session-note-dialog {
   max-width: 360px;
+  max-height: min(84vh, 420px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .edu-session-note-student {
   margin-bottom: .45rem;
@@ -1148,6 +1237,16 @@
   font-size: .72rem;
   font-weight: 850;
   text-align: right;
+}
+.edu-session-note-dialog .modal-actions,
+.edu-session-form-dialog .modal-actions {
+  position: sticky;
+  bottom: -1.2rem;
+  z-index: 4;
+  margin: .65rem -1.4rem -1.2rem;
+  background: var(--bg-card);
+  box-shadow: 0 -10px 24px rgba(15, 23, 42, .08);
+  padding-bottom: calc(.75rem + env(safe-area-inset-bottom));
 }
 .edu-session-time-row > div {
   display: grid;
@@ -1234,6 +1333,21 @@
     gap: .58rem;
     padding-inline: .3rem;
   }
+  .edu-session-contact-panel,
+  .edu-session-list-panel,
+  .edu-session-roster-panel {
+    padding: .5rem;
+  }
+  .edu-session-section-title {
+    gap: .35rem;
+    margin-bottom: .42rem;
+  }
+  .edu-session-section-title strong {
+    font-size: .9rem;
+  }
+  .edu-session-section-title span {
+    font-size: .62rem;
+  }
   .edu-session-hero {
     grid-template-columns: 1fr;
     gap: .54rem;
@@ -1263,69 +1377,146 @@
   .edu-session-assistant-control {
     grid-template-columns: 1fr;
   }
-  .edu-session-card {
+  .edu-session-template-main {
     align-items: stretch;
     flex-direction: column;
-    gap: .45rem;
-    padding: .52rem .56rem;
+    gap: .35rem;
+  }
+  .edu-session-template-save {
+    max-width: none;
+    grid-template-columns: 1fr;
+    gap: .3rem;
+  }
+  .edu-session-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: .32rem;
+    padding: .43rem .5rem;
+  }
+  .edu-session-card-main {
+    grid-column: 1;
+    min-width: 0;
+    gap: .2rem;
   }
   .edu-session-card-head {
     flex-wrap: wrap;
-    gap: .26rem;
+    gap: .22rem;
+  }
+  .edu-session-number,
+  .edu-session-status {
+    min-height: 19px;
+    padding: .08rem .34rem;
+    font-size: .66rem;
   }
   .edu-session-card h4 {
-    flex-basis: 100%;
+    flex-basis: auto;
+    font-size: .98rem;
+    line-height: 1.14;
   }
   .edu-session-card-line {
-    grid-template-columns: minmax(0, 1fr) minmax(58px, max-content);
-    gap: .22rem .46rem;
+    grid-template-columns: minmax(0, 1fr);
+    gap: .12rem;
+    font-size: .82rem;
+    line-height: 1.18;
+  }
+  .edu-session-card-line b {
+    font-size: .68rem;
   }
   .edu-session-card-location {
-    grid-column: 1 / -1;
+    grid-column: auto;
   }
   .edu-session-card-actions {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+    flex-direction: column;
     justify-content: flex-start;
+    gap: .24rem;
+  }
+  .edu-session-card-actions .outline-btn.small {
+    --edu-session-trash-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6h18'/%3E%3Cpath d='M8 6V4h8v2'/%3E%3Cpath d='M6 6l1 14h10l1-14'/%3E%3Cpath d='M10 11v5'/%3E%3Cpath d='M14 11v5'/%3E%3C/svg%3E");
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+    min-height: 28px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .edu-session-card-actions .outline-btn.small::before {
+    content: "";
+    width: 14px;
+    height: 14px;
+    background: currentColor;
+    -webkit-mask: var(--edu-session-edit-icon) center / contain no-repeat;
+    mask: var(--edu-session-edit-icon) center / contain no-repeat;
+  }
+  .edu-session-card-actions .edu-session-card-delete::before {
+    -webkit-mask-image: var(--edu-session-trash-icon);
+    mask-image: var(--edu-session-trash-icon);
   }
   .edu-session-card-students {
     gap: .32rem;
   }
   .edu-session-list-main {
     grid-template-columns: 1fr;
-    gap: .45rem;
+    gap: .2rem;
   }
   .edu-session-roster-title {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    gap: .5rem;
+    gap: .32rem;
+  }
+  .edu-session-roster-title-copy {
+    gap: .08rem .2rem;
   }
   .edu-session-roster-title .edu-session-roster-head {
     display: none;
   }
   .edu-session-student,
   .edu-session-roster-item {
-    align-items: flex-start;
-    gap: .55rem;
-    padding: .58rem;
+    align-items: center;
+    gap: .42rem;
+    padding: .42rem .46rem;
+    border-radius: .55rem;
+  }
+  .edu-session-avatar {
+    flex-basis: 28px;
+    width: 28px;
+    height: 28px;
+    font-size: .74rem;
+  }
+  .edu-session-avatar-svg {
+    width: 19px;
+    height: 19px;
   }
   .edu-session-student-tags,
   .edu-session-student-tags-notes,
   .edu-session-pick-item em {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: .32rem .42rem;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .12rem .45rem;
   }
   .edu-session-student-tags > span,
   .edu-session-pick-item em > span {
     min-height: 0;
     display: flex;
-    align-items: flex-start;
+    align-items: baseline;
     justify-content: flex-start;
     flex-direction: column;
-    gap: .06rem;
+    gap: .04rem;
     padding: 0;
     border: 0;
     border-radius: 0;
     background: transparent;
+    font-size: .92rem;
+    line-height: 1.1;
     white-space: normal;
     overflow: visible;
     text-overflow: clip;
@@ -1335,29 +1526,71 @@
     content: attr(aria-label);
     flex: 0 0 auto;
     color: var(--text-muted);
-    font-size: .58rem;
+    font-size: .56rem;
     font-weight: 950;
     line-height: 1;
-  }
-  .edu-session-student-slot-group {
-    grid-column: auto;
-  }
-  .edu-session-student-slot-note {
-    grid-column: 1 / -1;
-    flex-direction: row;
-    align-items: center;
-    justify-content: flex-start;
-    gap: .32rem;
-    padding-top: .18rem;
-    border-top: 1px solid rgba(15, 118, 110, .12);
-  }
-  .edu-session-detail-wide {
-    grid-column: auto;
   }
   .edu-session-student strong,
   .edu-session-roster-item strong,
   .edu-session-pick-item strong {
-    min-width: 0;
+    font-size: .92rem;
+    line-height: 1.12;
+  }
+  .edu-session-student-slot-group {
+    grid-column: auto;
+    min-width: 6.4em;
+  }
+  .edu-session-student-slot-note {
+    grid-column: auto;
+    grid-template-columns: minmax(0, max-content) 22px;
+    align-items: center;
+    justify-content: flex-start;
+    gap: .14rem;
+    padding-top: 0;
+    border-top: 0;
+  }
+  .edu-session-note-text {
+    max-width: 4.2em;
+  }
+  .edu-session-note-edit {
+    width: 22px;
+    height: 22px;
+  }
+  .edu-session-detail-wide {
+    grid-column: auto;
+  }
+  .edu-session-detail-dialog {
+    width: min(100%, calc(100vw - .7rem));
+    max-height: calc(100vh - .7rem);
+    padding: .88rem;
+    border-radius: 14px;
+  }
+  .edu-session-detail-head {
+    gap: .5rem;
+    margin-bottom: .5rem;
+    padding-bottom: .5rem;
+  }
+  .edu-session-detail-head h3 {
+    font-size: 1rem;
+  }
+  .edu-session-detail-grid {
+    gap: .4rem;
+  }
+  .edu-session-detail-item {
+    padding: .48rem .5rem;
+  }
+  .edu-session-note-dialog .modal-actions,
+  .edu-session-form-dialog .modal-actions {
+    bottom: -.88rem;
+    margin: .55rem -.88rem -.88rem;
+    justify-content: stretch;
+  }
+  .edu-session-note-dialog .modal-actions .outline-btn,
+  .edu-session-note-dialog .modal-actions .primary-btn,
+  .edu-session-form-dialog .modal-actions .outline-btn,
+  .edu-session-form-dialog .modal-actions .primary-btn {
+    flex: 1;
+    min-height: 42px;
   }
 }
 
@@ -2214,6 +2447,7 @@
   text-decoration-color: rgba(94, 234, 212, .36);
 }
 [data-theme="dark"] .edu-session-note-edit,
+[data-theme="dark"] .edu-session-icon-btn,
 [data-theme="dark"] .edu-session-template-chip,
 [data-theme="dark"] .edu-session-detail-assistants span {
   background: rgba(45, 212, 191, .12);

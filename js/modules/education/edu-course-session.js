@@ -557,7 +557,7 @@ Object.assign(App, {
     const enrollId = String(enrollment?.id || '').trim();
     const text = note || '—';
     const editBtn = options.isStaff
-      ? '<button type="button" class="edu-session-note-edit" onclick="event.stopPropagation();App.editCourseSessionRosterNote(\'' + escapeHTML(options.teamId || '') + '\',\'' + escapeHTML(options.planId || '') + '\',\'' + escapeHTML(studentId) + '\',\'' + escapeHTML(enrollId) + '\')">編輯</button>'
+      ? '<button type="button" class="edu-session-note-edit" aria-label="編輯備註" title="編輯備註" onclick="event.stopPropagation();App.editCourseSessionRosterNote(\'' + escapeHTML(options.teamId || '') + '\',\'' + escapeHTML(options.planId || '') + '\',\'' + escapeHTML(studentId) + '\',\'' + escapeHTML(enrollId) + '\')"></button>'
       : '';
     return '<span class="edu-session-student-slot edu-session-student-slot-note" aria-label="備註">'
       + '<span class="edu-session-note-text" title="' + escapeHTML(text) + '">' + escapeHTML(text) + '</span>'
@@ -807,17 +807,21 @@ Object.assign(App, {
     const mapLink = mapUrl
       ? '<a class="edu-session-location-link edu-session-detail-location-link" href="' + escapeHTML(mapUrl) + '" target="sporthub_map" rel="noopener noreferrer">' + escapeHTML(location) + '</a>'
       : escapeHTML(location);
+    const isStaff = this.isEduClubStaff?.(teamId);
     const overlay = document.createElement('div');
     overlay.className = 'edu-info-overlay edu-session-detail-overlay';
     overlay.onclick = (event) => { if (event.target === overlay) overlay.remove(); };
     overlay.innerHTML = '<div class="edu-info-dialog edu-session-detail-dialog">'
       + '<div class="edu-session-detail-head">'
-        + '<div>'
+        + '<div class="edu-session-detail-head-main">'
           + '<span class="edu-session-status edu-session-status-' + status.cls + '">' + escapeHTML(status.label) + '</span>'
           + '<h3>' + escapeHTML(session.title || '未命名課堂') + '</h3>'
           + '<p>' + escapeHTML(plan?.name || '課程方案') + '</p>'
         + '</div>'
-        + '<button class="modal-close-btn" onclick="this.closest(\'.edu-info-overlay\').remove()">×</button>'
+        + '<div class="edu-session-detail-actions">'
+          + (isStaff ? '<button type="button" class="edu-session-icon-btn edu-session-detail-edit" aria-label="編輯課堂" title="編輯課堂" onclick="event.stopPropagation();var overlay=this.closest(\'.edu-info-overlay\');if(overlay)overlay.remove();App.openCourseSessionForm(\'' + escapeHTML(teamId) + '\',\'' + escapeHTML(planId) + '\',\'' + escapeHTML(session.id || '') + '\')"></button>' : '')
+          + '<button class="modal-close-btn" onclick="this.closest(\'.edu-info-overlay\').remove()">×</button>'
+        + '</div>'
       + '</div>'
       + '<div class="edu-session-detail-grid">'
         + '<div class="edu-session-detail-item"><span>日期時間</span><strong>' + escapeHTML(this._formatCourseSessionDate(session) + ' ' + this._formatCourseSessionTime(session)) + '</strong></div>'
@@ -851,8 +855,8 @@ Object.assign(App, {
     const sessionDateTime = this._formatCourseSessionDate(session) + ' ' + this._formatCourseSessionTime(session);
     const actions = ctx.isStaff
       ? '<div class="edu-session-card-actions">'
-          + '<button class="outline-btn small" onclick="event.stopPropagation();App.openCourseSessionForm(\'' + ctx.teamId + '\',\'' + ctx.planId + '\',\'' + session.id + '\')">編輯</button>'
-          + '<button class="outline-btn small danger" onclick="event.stopPropagation();App.deleteCourseSession(\'' + ctx.teamId + '\',\'' + ctx.planId + '\',\'' + session.id + '\')">刪除</button>'
+          + '<button class="outline-btn small edu-session-card-edit" aria-label="編輯課堂" title="編輯課堂" onclick="event.stopPropagation();App.openCourseSessionForm(\'' + ctx.teamId + '\',\'' + ctx.planId + '\',\'' + session.id + '\')">編輯</button>'
+          + '<button class="outline-btn small danger edu-session-card-delete" aria-label="刪除課堂" title="刪除課堂" onclick="event.stopPropagation();App.deleteCourseSession(\'' + ctx.teamId + '\',\'' + ctx.planId + '\',\'' + session.id + '\')">刪除</button>'
         + '</div>'
       : '';
     return '<article class="edu-session-card edu-session-card-' + status.cls + '" role="button" tabindex="0" onclick="App.openCourseSessionDetail(\'' + ctx.teamId + '\',\'' + ctx.planId + '\',\'' + session.id + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();App.openCourseSessionDetail(\'' + ctx.teamId + '\',\'' + ctx.planId + '\',\'' + session.id + '\')}">'
