@@ -527,10 +527,10 @@
   grid-template-columns: 42px 48px minmax(92px, 1fr) 54px 54px;
   align-items: center;
   gap: .24rem;
-  padding: .16rem .34rem;
-  border: 1px solid rgba(15, 118, 110, .16);
-  border-radius: 7px;
-  background: linear-gradient(135deg, rgba(15, 118, 110, .07), rgba(37, 99, 235, .045));
+  padding: 0 .34rem .12rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 .edu-session-roster-head span {
   min-width: 0;
@@ -757,24 +757,22 @@
   width: 100%;
   display: grid;
   grid-template-columns: 42px 48px minmax(92px, 1fr) 54px 54px;
-  align-items: stretch;
+  align-items: center;
   gap: .24rem;
   margin-top: 0;
 }
 .edu-session-student-tags > span {
   min-width: 0;
-  min-height: 28px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-start;
-  padding: .12rem .34rem;
-  border: 1px solid rgba(15, 118, 110, .1);
-  border-radius: 8px;
-  background: rgba(15, 118, 110, .1);
+  min-height: 0;
+  display: block;
+  padding: 0 .34rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: #0f766e;
   font-size: .64rem;
   font-weight: 950;
-  line-height: 1;
+  line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -896,7 +894,7 @@
   width: 100%;
   display: grid;
   grid-template-columns: 42px 48px minmax(92px, 1fr) 54px 54px;
-  align-items: stretch;
+  align-items: center;
   gap: .24rem;
   margin-top: 0;
   font-style: normal;
@@ -1763,9 +1761,7 @@
   background: rgba(30, 41, 59, .68);
   border-color: rgba(148, 163, 184, .22);
 }
-[data-theme="dark"] .edu-session-number,
-[data-theme="dark"] .edu-session-student-tags > span,
-[data-theme="dark"] .edu-session-pick-item em > span {
+[data-theme="dark"] .edu-session-number {
   background: rgba(45, 212, 191, .14);
   border-color: rgba(45, 212, 191, .14);
 }
@@ -1777,8 +1773,8 @@
   color: #5eead4;
 }
 [data-theme="dark"] .edu-session-roster-head {
-  background: linear-gradient(135deg, rgba(45, 212, 191, .105), rgba(96, 165, 250, .07));
-  border-color: rgba(45, 212, 191, .18);
+  background: transparent;
+  border-color: transparent;
 }
 [data-theme="dark"] .edu-session-roster-head span {
   color: #5eead4;
