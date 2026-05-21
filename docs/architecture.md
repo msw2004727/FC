@@ -1070,7 +1070,7 @@ UID 健康檢查目前會發現：
 - Event, team, and tournament detail flows suppress the intermediate hash sync and update the URL after the detail page succeeds. This keeps failed or stale detail attempts from publishing the wrong clean URL.
 - `index.html` declares `<base href="/">` so nested detail URLs keep resolving CSS, JS, page fragments, and Service Worker assets from the site root.
 - Tournament detail keeps the legacy `?tournament=` + `#page-tournament-detail` fallback when detail path writing is disabled or blocked inside LIFF.
-- Root query Mini App bridge now redirects only `?team=`, `?tournament=`, and `?profile=` on official hosts. `?event=` remains on the web origin and is handled as an SPA activity deep link.
+- Root query Mini App bridge redirects `?event=`, `?team=`, `?tournament=`, and `?profile=` on official hosts to Mini App. `/event-share/{id}` is the activity OG route: crawlers stay on the OG HTML, while human visitors are sent to the web detail path `/events/{id}` instead of Mini App.
 - Popstate takeover, `/users/{uid}`, and SEO/canonical/sitemap detail publishing remain deferred.
 
 - 新增 `js/core/history-route-flags.js` 作為 History API 雙軌升級的開關中心。第一輪只啟用讀取解析與 boot 入口轉譯,不啟用 URL writer 全面接管、popstate takeover 或 `/users/{uid}`。

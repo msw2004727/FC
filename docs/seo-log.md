@@ -4,13 +4,13 @@
 
 ---
 
-### 2026-05-21 — 根網址活動 query 跳轉規則調整
+### 2026-05-21 — 根網址活動 query 與 event-share 最終跳轉規則
 
-**背景 / 決策**：已分享出去的 `https://toosterx.com/?event=...` 活動舊網址不再跳轉到 `miniapp.line.me`，改為留在網站端由 SPA deep link 開啟活動。這讓舊活動網址不需重新分享，也避免根網址活動連結被 LINE Mini App 網域縮圖接管。
+**背景 / 決策**：根網址 `https://toosterx.com/?event=...` 保留作為舊 deep link / Mini App 開啟入口，繼續由 `index.html` bridge 導向 `miniapp.line.me`。活動社群分享改以 `https://toosterx.com/event-share/{id}?v=...` 承接，讓 crawler 讀取 ToosterX OG 圖，真人點擊後直接進網站活動頁 `/events/{id}`，不跳 Mini App，也不顯示手動開啟按鈕。
 
-**變更內容**：1. `index.html` 根網址 query bridge 的跳轉清單由 `event/team/tournament/profile` 改為 `team/tournament/profile`。2. `?team=...`、`?tournament=...`、`?profile=...` 仍會導向 `https://miniapp.line.me/2009525300-AuPGQ0sh?...`。3. `?event=...` 保留在 `toosterx.com`，交由既有 SPA deep link 開活動。4. 同步更新 `CLAUDE.md`、`docs/architecture.md`、`docs/structure-guide.md` 的跳轉規則說明。
+**變更內容**：1. `index.html` 根網址 query bridge 的跳轉清單為 `event/team/tournament/profile`，四者都導向 `https://miniapp.line.me/2009525300-AuPGQ0sh?...`。2. `/event-share/{id}` Cloud Function 的真人 redirect 目標由 Mini App `?event={id}` 改為網站 clean URL `/events/{id}`。3. `/event-share/{id}` 的 OG crawler 分支仍不 redirect，並保留活動分類 OG 圖。4. 移除 crawler 分支 HTML body 內的 `Open ToosterX` 手動按鈕，避免形成「用 LINE 開啟」按鈕方案。
 
-**影響 / 注意事項**：舊 `?event=...` 連結不用重發；點擊行為會跟著新版網站邏輯走。社群平台已產生的預覽卡片仍可能受平台快取影響，縮圖不一定立刻刷新。活動「複製連結」仍建議使用 `/event-share/{id}`，因為該路徑可提供活動分類 OG 圖，crawler 不會被 redirect。
+**驗收 / 影響**：部署後正式站 `0.20260521h` 已驗證：`/?event=...` bridge 包含 `event`；`/event-share/ce_1776687412238_ghe2_2?v=20260521` 一般 UA 不含 `miniapp.line.me`，會導向 `https://toosterx.com/events/ce_1776687412238_ghe2_2`；crawler UA 不含 refresh / `location.replace`，OG 圖為足球分類圖。社群平台已產生的預覽卡片仍可能受平台快取影響，縮圖不一定立刻刷新。
 
 ---
 
@@ -74,13 +74,13 @@
 
 ---
 
-### 2026-05-21 OG ??????????????
+### 2026-05-21 — OG 圖片整理與活動分類縮圖
 
-**?? / ??**??????? OG ??? `assets/og/default.png`??????????????????????????????????????? LINE Mini App ?? icon ????
+**背景 / 問題**：首頁與分享預覽原本主要使用根目錄 `og.png`，容易讓 LINE Mini App icon 或預設圖在社群卡片中被重複使用，活動分類也無法呈現不同縮圖。
 
-**????**?1. ???? `og.png` ?? `assets/og/default.png`???? OG/Twitter ???? `https://toosterx.com/assets/og/default.png?v=20260521`?2. ??????? `assets/og/sports/{football,basketball,pickleball,dodgeball}.jpg`??? SEO/Blog ?????? Flex ????????3. `/event-share/{id}` Cloud Function ? `event.sportTag` ???? OG ???????????? OG ????? redirect ? `miniapp.line.me`????????? Mini App?4. Worker ?? `/og.png` ????????????????
+**變更內容**：1. 將預設 OG 圖整理為 `assets/og/default.png`，並保留根目錄 `og.png` 作為相容入口。2. 新增 `assets/og/sports/{football,basketball,pickleball,dodgeball}.jpg`，供活動分享與相關 SEO/Flex 預覽使用。3. `/event-share/{id}` Cloud Function 依 `event.sportTag` / `event.sport` 選擇活動分類 OG 圖。4. `/event-share/{id}` 對 crawler 不 refresh / 不 `location.replace`，讓 crawler 能讀到 ToosterX OG tags；真人點擊則進網站 `/events/{id}`。5. Worker 保留 `/og.png` 到 organized asset path 的相容處理。
 
-**????**??? `og.png` ???????`/event-share/{id}` ? crawler ? refresh redirect?????? redirect????????? 5 ?????????? OG cache?
+**驗收 / 注意事項**：`og.png` 相容入口仍可用；`/event-share/{id}` 的 crawler 分支可讀活動分類圖；社群平台 OG cache 可能需要數分鐘到數天才會刷新。
 
 ---
 
