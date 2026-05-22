@@ -141,6 +141,7 @@ Object.assign(App, {
 
     // LINE 推播通知卡片
     this.renderLineNotifyCard?.();
+    this.renderProfileRelatedActivities?.();
     this.renderIdentitySettings?.();
 
     // 編輯模式的靜態欄位
@@ -653,6 +654,9 @@ Object.assign(App, {
       if (section === 'applications') this._renderMyApplications();
       if (section === 'companions') this.renderCompanions();
       if (section === 'records') this.renderActivityRecords('all');
+      if (section === 'registeredActivities' || section === 'hostedActivities') {
+        this.renderProfileRelatedActivities?.();
+      }
     }
   },
 

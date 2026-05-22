@@ -514,6 +514,102 @@ a.social-btn { text-decoration: none; }
   padding-top: .4rem;
 }
 
+.profile-related-card .profile-collapse-content {
+  padding-top: .55rem;
+}
+
+.profile-related-activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+}
+
+.profile-related-empty {
+  padding: .85rem .25rem .75rem;
+  color: var(--text-muted);
+  font-size: .82rem;
+  text-align: center;
+}
+
+.profile-related-event-card {
+  align-items: flex-start;
+  gap: .5rem;
+  padding: .55rem .65rem .6rem;
+}
+
+.profile-related-event-card .tl-event-thumb {
+  margin-top: .05rem;
+}
+
+.profile-related-event-card .tl-event-status {
+  margin-top: .05rem;
+}
+
+.profile-related-event-card .tl-event-meta {
+  white-space: normal;
+  line-height: 1.45;
+}
+
+.profile-related-event-progress {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  margin-top: .25rem;
+}
+
+.profile-related-progress-track {
+  flex: 1;
+  min-width: 44px;
+  height: 5px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--border);
+}
+
+.profile-related-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  transition: width .25s ease;
+}
+
+.profile-related-event-progress span {
+  color: var(--text-muted);
+  font-size: .65rem;
+  white-space: nowrap;
+}
+
+.profile-related-event-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .35rem;
+  margin-top: .45rem;
+}
+
+.profile-related-action {
+  min-height: 28px;
+  padding: .2rem .6rem;
+  font-size: .72rem;
+  line-height: 1.2;
+}
+
+.profile-related-action.danger {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 48%, var(--border));
+}
+
+@media (max-width: 480px) {
+  .profile-related-event-card {
+    gap: .45rem;
+    padding-right: .55rem;
+  }
+  .profile-related-event-card .tl-event-status,
+  .profile-related-event-card .tl-event-arrow,
+  .profile-related-event-card .tl-event-icons {
+    align-self: flex-start;
+  }
+}
+
 .profile-record-refresh-btn {
   width: 1.65rem;
   height: 1.65rem;

@@ -300,6 +300,47 @@ describe('secondary identity profile controls', () => {
   });
 });
 
+describe('profile related activity shortcuts', () => {
+  test('profile page renders open registered and hosted activity containers before secondary identity', () => {
+    const profileHtml = readProjectFile('pages/profile.html');
+
+    expect(profileHtml).toContain('id="profile-registered-activities-card"');
+    expect(profileHtml).toContain('id="profile-hosted-activities-card"');
+    expect(profileHtml).toContain("App.toggleProfileSection(this,'registeredActivities')");
+    expect(profileHtml).toContain("App.toggleProfileSection(this,'hostedActivities')");
+    expect(profileHtml).toContain('id="profile-registered-activities-list"');
+    expect(profileHtml).toContain('id="profile-hosted-activities-list"');
+    expect(profileHtml).toContain('profile-collapse-toggle open');
+    expect(profileHtml.indexOf('id="profile-registered-activities-card"')).toBeLessThan(
+      profileHtml.indexOf('id="profile-identity-card"'),
+    );
+    expect(profileHtml.indexOf('id="profile-hosted-activities-card"')).toBeLessThan(
+      profileHtml.indexOf('id="profile-identity-card"'),
+    );
+  });
+
+  test('profile data renders activity cards and wires detail, cancel, edit, and cancel-event actions', () => {
+    const profileRenderSource = readProjectFile('js/modules/profile/profile-data-render.js');
+    const profileHistorySource = readProjectFile('js/modules/profile/profile-data-history.js');
+    const profileCss = readProjectFile('css/profile.css');
+
+    expect(profileRenderSource).toContain('this.renderProfileRelatedActivities?.();');
+    expect(profileRenderSource).toContain("section === 'registeredActivities' || section === 'hostedActivities'");
+    expect(profileHistorySource).toContain('renderProfileRelatedActivities()');
+    expect(profileHistorySource).toContain('_getProfileRegisteredActivityItems()');
+    expect(profileHistorySource).toContain('_getProfileHostedActivityItems()');
+    expect(profileHistorySource).toContain('data-event-id="${safeId}" onclick="App.openProfileRelatedActivity(this.dataset.eventId)"');
+    expect(profileHistorySource).toContain('App.cancelProfileRegisteredActivity(this.dataset.eventId)');
+    expect(profileHistorySource).toContain('App.editProfileHostedActivity(this.dataset.eventId)');
+    expect(profileHistorySource).toContain('App.cancelProfileHostedActivity(this.dataset.eventId)');
+    expect(profileHistorySource).toContain("ScriptLoader._groups.activity");
+    expect(profileHistorySource).toContain("new Set(['confirmed', 'registered', 'waitlisted'])");
+    expect(profileCss).toContain('.profile-related-activity-list');
+    expect(profileCss).toContain('.profile-related-event-card');
+    expect(profileCss).toContain('.profile-related-event-actions');
+  });
+});
+
 describe('first login profile completion modal', () => {
   test('renders optional email benefits and uses the dedicated frosted scroll lock path', () => {
     const indexHtml = readProjectFile('index.html');

@@ -144,6 +144,282 @@ Object.assign(App, {
     }).join('');
   },
 
+  renderProfileRelatedActivities() {
+    const registeredItems = this._getProfileRegisteredActivityItems();
+    const hostedItems = this._getProfileHostedActivityItems();
+    this._renderProfileRelatedActivitySection('registered', registeredItems);
+    this._renderProfileRelatedActivitySection('hosted', hostedItems);
+  },
+
+  _getProfileActivityUserContext() {
+    const user = ApiService.getCurrentUser?.() || null;
+    const uidSet = new Set();
+    const nameSet = new Set();
+    const addUid = (value) => {
+      const uid = String(value || '').trim();
+      if (uid && uid !== 'unknown') uidSet.add(uid);
+    };
+    const addName = (value) => {
+      const name = String(value || '').trim();
+      if (name) nameSet.add(name.toLowerCase());
+    };
+    addUid(user?.uid);
+    addUid(user?.lineUserId);
+    addUid(user?._docId);
+    addUid(user?.userId);
+    addName(user?.displayName);
+    addName(user?.name);
+    return {
+      user,
+      uidSet,
+      uidList: Array.from(uidSet),
+      nameSet,
+    };
+  },
+
+  _getProfileRegisteredActivityItems() {
+    const ctx = this._getProfileActivityUserContext();
+    if (!ctx.uidList.length) return [];
+    const activeStatuses = new Set(['confirmed', 'registered', 'waitlisted']);
+    const statusRank = { confirmed: 3, registered: 2, waitlisted: 1 };
+    const byEventId = new Map();
+
+    ctx.uidList.forEach(uid => {
+      const records = ApiService.getRegistrationsByUser?.(uid) || [];
+      records.forEach(reg => {
+        if (!reg) return;
+        const recordUid = String(reg.userId || reg.uid || reg.ownerUid || '').trim();
+        if (recordUid && !ctx.uidSet.has(recordUid)) return;
+        const participantType = String(reg.participantType || '').trim();
+        if (participantType === 'companion' || String(reg.companionId || '').trim()) return;
+        const status = String(reg.status || '').trim();
+        if (!activeStatuses.has(status)) return;
+        const eventId = String(reg.eventId || reg.activityId || '').trim();
+        if (!eventId) return;
+
+        const eventRecord = ApiService.getEvent?.(eventId) || {
+          id: eventId,
+          title: reg.eventTitle || reg.title || '未命名活動',
+          date: reg.eventDate || reg.date || '',
+          location: reg.eventLocation || reg.location || '',
+          type: reg.eventType || 'friendly',
+          status: reg.eventStatus || 'open',
+        };
+        const effectiveStatus = this._getProfileActivityEffectiveStatus(eventRecord);
+        if (effectiveStatus === 'cancelled' || effectiveStatus === 'ended') return;
+
+        const previous = byEventId.get(eventId);
+        if (!previous || (statusRank[status] || 0) > (statusRank[previous.registrationStatus] || 0)) {
+          byEventId.set(eventId, {
+            event: eventRecord,
+            registration: reg,
+            registrationStatus: status,
+          });
+        }
+      });
+    });
+
+    return Array.from(byEventId.values()).sort((a, b) => {
+      const diff = this._profileActivityDateMs(a.event) - this._profileActivityDateMs(b.event);
+      if (diff !== 0) return diff;
+      return String(a.event?.title || '').localeCompare(String(b.event?.title || ''));
+    });
+  },
+
+  _getProfileHostedActivityItems() {
+    const ctx = this._getProfileActivityUserContext();
+    if (!ctx.uidList.length) return [];
+    const nowMs = Date.now();
+    const items = (ApiService.getEvents?.() || [])
+      .filter(eventRecord => this._isProfileHostedActivity(eventRecord, ctx))
+      .map(eventRecord => ({ event: eventRecord }));
+
+    return items.sort((a, b) => {
+      const aMs = this._profileActivityDateMs(a.event);
+      const bMs = this._profileActivityDateMs(b.event);
+      const aFuture = aMs >= nowMs;
+      const bFuture = bMs >= nowMs;
+      if (aFuture !== bFuture) return aFuture ? -1 : 1;
+      const diff = aFuture ? aMs - bMs : bMs - aMs;
+      if (diff !== 0) return diff;
+      return String(a.event?.title || '').localeCompare(String(b.event?.title || ''));
+    });
+  },
+
+  _isProfileHostedActivity(eventRecord, ctx = this._getProfileActivityUserContext()) {
+    if (!eventRecord || !ctx?.uidSet?.size) return false;
+    if (typeof this._isEventOwner === 'function' && this._isEventOwner(eventRecord)) return true;
+    const ownerUidFields = [
+      eventRecord.creatorUid,
+      eventRecord.ownerUid,
+      eventRecord.createdByUid,
+      eventRecord.organizerUid,
+      eventRecord.captainUid,
+    ].map(uid => String(uid || '').trim()).filter(Boolean);
+    if (ownerUidFields.length > 0) return ownerUidFields.some(uid => ctx.uidSet.has(uid));
+    const ownerNameFields = [
+      eventRecord.creator,
+      eventRecord.creatorName,
+      eventRecord.ownerName,
+      eventRecord.organizer,
+      eventRecord.hostName,
+    ];
+    return ownerNameFields.some(name => ctx.nameSet.has(String(name || '').trim().toLowerCase()));
+  },
+
+  _getProfileActivityEffectiveStatus(eventRecord) {
+    if (!eventRecord) return 'open';
+    if (typeof this._getEventEffectiveStatus === 'function') {
+      return this._getEventEffectiveStatus(eventRecord);
+    }
+    return eventRecord.status || 'open';
+  },
+
+  _profileActivityDateMs(eventRecord) {
+    const parsed = typeof this._parseEventStartDate === 'function'
+      ? this._parseEventStartDate(eventRecord?.date || '')
+      : null;
+    if (parsed instanceof Date && Number.isFinite(parsed.getTime())) return parsed.getTime();
+    const fallback = Date.parse(String(eventRecord?.date || '').replace(/\//g, '-'));
+    return Number.isFinite(fallback) ? fallback : Number.MAX_SAFE_INTEGER;
+  },
+
+  _renderProfileRelatedActivitySection(kind, items) {
+    const isHosted = kind === 'hosted';
+    const list = document.getElementById(isHosted ? 'profile-hosted-activities-list' : 'profile-registered-activities-list');
+    const count = document.getElementById(isHosted ? 'profile-hosted-activities-count' : 'profile-registered-activities-count');
+    if (!list) return;
+    if (count) count.textContent = String(items.length);
+    if (!items.length) {
+      list.innerHTML = `<div class="profile-related-empty">${isHosted ? '目前沒有你主辦的活動' : '目前沒有正取或候補中的報名活動'}</div>`;
+      return;
+    }
+    list.innerHTML = items.map(item => this._renderProfileRelatedActivityCard(item, kind)).join('');
+  },
+
+  _renderProfileRelatedActivityCard(item, kind) {
+    const e = item?.event || {};
+    const safeId = escapeHTML(e.id || '');
+    const typeMap = typeof TYPE_CONFIG !== 'undefined' ? TYPE_CONFIG : {};
+    const statusMap = typeof STATUS_CONFIG !== 'undefined' ? STATUS_CONFIG : {};
+    const typeConf = typeMap[e.type] || typeMap.friendly || { label: '活動' };
+    const effectiveStatus = this._getProfileActivityEffectiveStatus(e);
+    const statusConf = statusMap[effectiveStatus] || statusMap[e.status] || statusMap.open || { label: '開放', css: 'open' };
+    const isExternal = e.type === 'external';
+    const isEnded = effectiveStatus === 'ended' || effectiveStatus === 'cancelled';
+    const eventImage = this._getEventImageUrl?.(e, 'cover') || e.image || '';
+    const title = escapeHTML(e.title || '未命名活動');
+    const dateParts = String(e.date || '').split(' ');
+    const dateText = dateParts[0] || '';
+    const timeText = (dateParts[1] || '').trim();
+    const locationText = String(e.location || '');
+    const teamBadge = e.teamOnly ? '<span class="tl-teamonly-badge">限定</span>' : '';
+    const sportIcon = typeof this._renderEventSportIcon === 'function'
+      ? this._renderEventSportIcon(e, 'tl-event-sport-corner')
+      : '';
+    const iconStack = sportIcon ? `<div class="tl-event-icons">${sportIcon}</div>` : '';
+    const rowBaseClass = e.teamOnly ? 'tl-type-teamonly' : `tl-type-${e.type || 'friendly'}`;
+    const metaParts = [typeConf.label, timeText, locationText].filter(Boolean);
+    let progressHtml = '';
+
+    if (!isExternal) {
+      const stats = typeof this._getEventParticipantStats === 'function'
+        ? this._getEventParticipantStats(e)
+        : {
+            confirmedCount: Math.max(0, Number(e.current || 0) || 0),
+            occupiedCount: Math.max(0, Number(e.current || 0) || 0),
+            waitlistCount: Math.max(0, Number(e.waitlist || 0) || 0),
+            maxCount: Math.max(0, Number(e.max || 0) || 0),
+          };
+      const capacityText = `${stats.confirmedCount}/${stats.maxCount}人${stats.waitlistCount > 0 ? ` ・ 候補 ${stats.waitlistCount}` : ''}`;
+      metaParts.push(capacityText);
+      if (!isEnded) {
+        const progressBase = stats.occupiedCount ?? stats.confirmedCount;
+        const progressPct = stats.maxCount > 0 ? Math.min(100, Math.round(progressBase / stats.maxCount * 100)) : 0;
+        const progressColor = progressPct >= 100 ? 'var(--danger)' : progressPct >= 70 ? 'var(--warning)' : 'var(--success)';
+        progressHtml = `<div class="profile-related-event-progress"><div class="profile-related-progress-track"><div class="profile-related-progress-fill" style="width:${progressPct}%;background:${progressColor}"></div></div><span>${escapeHTML(capacityText)}</span></div>`;
+      }
+    }
+
+    const registrationStamp = kind === 'registered'
+      ? (item.registrationStatus === 'waitlisted'
+        ? '<span class="tl-stamp-waitlisted">候補</span>'
+        : '<span class="tl-stamp-confirmed">正取</span>')
+      : '';
+    const actionsHtml = this._renderProfileRelatedActivityActions(item, kind, effectiveStatus);
+
+    return `
+      <div class="tl-event-row profile-related-event-card ${rowBaseClass}${isEnded ? ' tl-past' : ''}" data-event-id="${safeId}" onclick="App.openProfileRelatedActivity(this.dataset.eventId)">
+        ${eventImage ? `<div class="tl-event-thumb"><img src="${escapeHTML(eventImage)}" alt="${title}" width="48" height="48" loading="lazy" decoding="async"></div>` : ''}
+        <div class="tl-event-info">
+          <div class="tl-event-title-row"><div class="tl-event-title">${title}${teamBadge}</div></div>
+          ${progressHtml}
+          <div class="tl-event-meta">${dateText ? `${escapeHTML(dateText)} ・ ` : ''}${metaParts.map(escapeHTML).join(' ・ ')}</div>
+          ${actionsHtml}
+        </div>
+        <span class="tl-event-status ${statusConf.css || 'open'}">${escapeHTML(statusConf.label || '開放')}</span>
+        ${iconStack}
+        <span class="tl-event-arrow">›</span>
+        ${registrationStamp}
+      </div>`;
+  },
+
+  _renderProfileRelatedActivityActions(item, kind, effectiveStatus) {
+    const eventRecord = item?.event || {};
+    const safeId = escapeHTML(eventRecord.id || '');
+    if (!safeId) return '';
+    if (kind === 'registered') {
+      const label = item.registrationStatus === 'waitlisted' ? '取消候補' : '取消報名';
+      return `<div class="profile-related-event-actions"><button type="button" class="outline-btn profile-related-action danger" data-event-id="${safeId}" onclick="event.stopPropagation();App.cancelProfileRegisteredActivity(this.dataset.eventId)">${label}</button></div>`;
+    }
+
+    const isTerminal = effectiveStatus === 'cancelled' || effectiveStatus === 'ended';
+    const cancelBtn = isTerminal ? '' : `<button type="button" class="outline-btn profile-related-action danger" data-event-id="${safeId}" onclick="event.stopPropagation();App.cancelProfileHostedActivity(this.dataset.eventId)">取消活動</button>`;
+    return `<div class="profile-related-event-actions"><button type="button" class="outline-btn profile-related-action" data-event-id="${safeId}" onclick="event.stopPropagation();App.editProfileHostedActivity(this.dataset.eventId)">編輯</button>${cancelBtn}</div>`;
+  },
+
+  async _ensureProfileActivityModulesReady() {
+    if (typeof ScriptLoader !== 'undefined' && ScriptLoader?.loadGroup && ScriptLoader?._groups?.activity) {
+      await ScriptLoader.loadGroup(ScriptLoader._groups.activity);
+    }
+  },
+
+  async openProfileRelatedActivity(eventId) {
+    const id = String(eventId || '').trim();
+    if (!id) return;
+    await this._ensureProfileActivityModulesReady();
+    return this.showEventDetail?.(id);
+  },
+
+  async cancelProfileRegisteredActivity(eventId) {
+    const id = String(eventId || '').trim();
+    if (!id) return;
+    await this._ensureProfileActivityModulesReady();
+    try {
+      await this.handleCancelSignup?.(id);
+    } finally {
+      this.renderProfileRelatedActivities?.();
+    }
+  },
+
+  async editProfileHostedActivity(eventId) {
+    const id = String(eventId || '').trim();
+    if (!id) return;
+    await this._ensureProfileActivityModulesReady();
+    return this.editMyActivity?.(id);
+  },
+
+  async cancelProfileHostedActivity(eventId) {
+    const id = String(eventId || '').trim();
+    if (!id) return;
+    await this._ensureProfileActivityModulesReady();
+    try {
+      await this.cancelMyActivity?.(id);
+    } finally {
+      this.renderProfileRelatedActivities?.();
+    }
+  },
+
   // ── 同行者管理 ──
 
   renderCompanions() {
