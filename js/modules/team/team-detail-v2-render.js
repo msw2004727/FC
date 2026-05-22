@@ -80,10 +80,10 @@ Object.assign(App, {
       + (coverUrl ? '<img class="td-v2-hero-cover" src="' + escapeHTML(coverUrl) + '" alt="" loading="eager" decoding="async" fetchpriority="high">' : '')
       + '<div class="td-v2-hero-shade"></div>'
       + (canEdit ? '<button class="td-v2-cover-edit" type="button" data-td-v2-action="edit-cover" aria-label="更換俱樂部封面" title="更換俱樂部封面">' + this._svgIcon('camera') + '</button>' : '')
-      + '<div class="td-v2-hero-rank" style="--td-v2-rank-color:' + escapeHTML(detailRank.color || '#94a3b8') + '"><span>' + exp.toLocaleString() + '</span><strong>' + escapeHTML(detailRank.rank || 'E') + '</strong></div>'
       + '<div class="td-v2-hero-inner">' + logoWrap
       + '<div class="td-v2-hero-text"><div class="td-v2-hero-meta">' + chips + '</div></div></div>'
-      + '<div class="td-v2-hero-status"><span class="td-v2-pulse"></span><span>' + escapeHTML(this._getTeamDetailV2RecruitText(t)) + '</span></div>'
+      + '<div class="td-v2-hero-status"><span class="td-v2-pulse"></span><span class="td-v2-hero-status-text">' + escapeHTML(this._getTeamDetailV2RecruitText(t)) + '</span>'
+      + '<span class="td-v2-hero-rank" style="--td-v2-rank-color:' + escapeHTML(detailRank.color || '#94a3b8') + '"><span>' + exp.toLocaleString() + '</span><strong>' + escapeHTML(detailRank.rank || 'E') + '</strong></span></div>'
       + '</section>';
   },
 

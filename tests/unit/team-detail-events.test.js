@@ -597,6 +597,7 @@ describe('team detail club activity section', () => {
     expect(html).toContain('data-td-v2-action="edit-avatar"');
     expect(html).toContain('data-td-v2-action="edit-cover"');
     expect(html).toContain('td-v2-hero-rank');
+    expect(html.indexOf('td-v2-hero-status')).toBeLessThan(html.indexOf('td-v2-hero-rank'));
     expect(html).toContain('data-td-v2-action="more"');
     expect(html).not.toContain('data-td-v2-action="settings"');
     expect(html).not.toContain('td-v2-hero-name');
@@ -627,6 +628,7 @@ describe('team detail club activity section', () => {
     expect(app._userTag).toHaveBeenCalledWith('張老榕');
     expect(app._userTag).toHaveBeenCalledWith('雷兒');
     expect(html).toContain('td-v2-person-tags');
+    expect(html).toContain('td-v2-info-card');
     expect(html).toContain('td-v2-contact-actions');
     expect(html).toContain('event-social-link-list td-contact-link-list');
     expect(html).not.toContain('<strong><span class="event-social-link-list');

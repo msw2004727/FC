@@ -97,7 +97,7 @@ Object.assign(App, {
     const contact = contactLinks || t.contact
       ? '<div class="td-v2-kv td-v2-contact-kv full"><span>聯繫方式</span><div class="td-v2-contact-actions">' + (contactLinks ? '<span class="event-social-link-list td-contact-link-list">' + contactLinks + '</span>' : '<strong>' + escapeHTML(t.contact || '') + '</strong>') + '</div></div>'
       : '';
-    return '<div class="td-v2-card"><div class="td-v2-section-head"><h3>俱樂部資訊</h3></div><div class="td-v2-kv-grid">' + rows + contact + '</div></div>';
+    return '<div class="td-v2-card td-v2-info-card"><div class="td-v2-section-head"><h3>俱樂部資訊</h3></div><div class="td-v2-kv-grid">' + rows + contact + '</div></div>';
   },
 
   _buildTeamDetailV2FeaturedCourses(t) {
