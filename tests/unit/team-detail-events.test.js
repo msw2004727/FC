@@ -665,6 +665,31 @@ describe('team detail club activity section', () => {
     expect(html).not.toContain('成員<span class="td-v2-tab-badge">4</span>');
   });
 
+  test('team detail v2 course count only includes current plans', () => {
+    const app = makeApp([]);
+    loadTeamDetailRender(app, [], {
+      extraFiles: [
+        'js/modules/team/team-detail-v2-render.js',
+        'js/modules/team/team-detail-v2-panels.js',
+      ],
+    });
+    Object.assign(app, {
+      _isTeamDetailSectionVisible: (_team, key) => key === 'courses',
+      _isTeamDetailTeachingEnabled: () => true,
+      getEduCoursePlans: () => [
+        { id: 'current', active: true, endDate: '2099-01-01', name: '進行中' },
+        { id: 'ended', active: true, endDate: '2000-01-01', name: '已結束' },
+        { id: 'inactive', active: false, endDate: '2099-01-01', name: '停用' },
+      ],
+    });
+
+    expect(app._getTeamDetailV2CourseCount({ id: 'teamA' })).toBe(1);
+    expect(app._getTeamDetailV2RecruitText({ id: 'teamA', eduSettings: { acceptingStudents: true } })).toContain('1 個課程接受報名');
+    const featured = app._buildTeamDetailV2FeaturedCourses({ id: 'teamA' });
+    expect(featured).toContain('進行中');
+    expect(featured).not.toContain('已結束');
+  });
+
   test('team detail v2 events and members use requested card and management-only layouts', () => {
     const app = makeApp([]);
     loadTeamDetailRender(app, [], {
@@ -1948,6 +1973,24 @@ describe('team detail club activity section', () => {
     expect(refreshed).toBe(true);
     expect(target.outerHTML).toContain('小麥');
     expect(target.outerHTML).toContain('td-member-label-pill label-student');
+  });
+
+  test('team detail v2 restores shell class on in-app back navigation', () => {
+    const navigationSource = fs.readFileSync(path.join(__dirname, '../../js/core/navigation.js'), 'utf8');
+    const actionsSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-detail-v2-actions.js'), 'utf8');
+
+    expect(actionsSource).toContain('_restoreTeamDetailV2ShellIfPresent(teamId)');
+    expect(navigationSource).toContain("if (prev === 'page-team-detail')");
+    expect(navigationSource).toContain('this._restoreTeamDetailV2ShellIfPresent?.(this._teamDetailId)');
+  });
+
+  test('team detail v2 info capsules are constrained to ellipsis', () => {
+    const css = fs.readFileSync(path.join(__dirname, '../../css/team-detail-v2.css'), 'utf8');
+
+    expect(css).toContain('.td-v2-info-card .user-capsule');
+    expect(css).toContain('overflow:hidden');
+    expect(css).toContain('white-space:nowrap');
+    expect(css).toContain('text-overflow:ellipsis');
   });
 
   test('team record card renders compact equal cells without match history', () => {

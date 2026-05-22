@@ -1224,6 +1224,9 @@ Object.assign(App, {
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
       document.getElementById(prev).classList.add('active');
       this.currentPage = prev;
+      if (prev === 'page-team-detail') {
+        this._restoreTeamDetailV2ShellIfPresent?.(this._teamDetailId);
+      }
       if (typeof FirebaseService !== 'undefined'
         && typeof FirebaseService.finalizePageScopedRealtimeForPage === 'function') {
         FirebaseService.finalizePageScopedRealtimeForPage(prev);

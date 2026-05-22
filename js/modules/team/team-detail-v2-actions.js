@@ -11,6 +11,39 @@ Object.assign(App, {
     if (page?.classList) page.classList.toggle('td-v2-active', !!active);
   },
 
+  _restoreTeamDetailV2ShellIfPresent(teamId) {
+    const enabled = typeof isTeamDetailV2Enabled === 'function' && isTeamDetailV2Enabled();
+    const shell = enabled && typeof document !== 'undefined'
+      ? document.querySelector('#team-detail-body .td-v2-shell')
+      : null;
+    if (!shell) {
+      this._setTeamDetailV2ShellActive(false);
+      return false;
+    }
+    const resolvedTeamId = teamId || this._teamDetailId || shell.getAttribute('data-team-id') || '';
+    this._setTeamDetailV2ShellActive(true);
+    if (!this._isTeamDetailV2RuntimeCurrent?.(resolvedTeamId)) {
+      this._syncTeamDetailV2RuntimeAfterBodyRender?.(resolvedTeamId, this._teamDetailRequestSeq);
+    }
+    return true;
+  },
+
+  _refreshTeamDetailV2ShellFromCache(teamId) {
+    const team = ApiService.getTeam?.(teamId);
+    const body = typeof document !== 'undefined' ? document.getElementById('team-detail-body') : null;
+    if (!team || !body || !body.querySelector('.td-v2-shell') || typeof this._buildTeamDetailV2BodyHtml !== 'function') return false;
+    const canManageMembers = typeof this._canManageTeamMembers === 'function' ? this._canManageTeamMembers(team) : false;
+    const memberEditMode = !!this._teamMemberEditModeByTeam?.[teamId];
+    const staffIdentity = typeof this._getTeamStaffIdentity === 'function'
+      ? this._getTeamStaffIdentity(team)
+      : { keys: new Set(), names: new Set() };
+    const totalGames = (team.wins || 0) + (team.draws || 0) + (team.losses || 0);
+    const winRate = totalGames > 0 ? Math.round((team.wins || 0) / totalGames * 100) : 0;
+    body.innerHTML = this._buildTeamDetailV2BodyHtml(team, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate);
+    this._syncTeamDetailV2RuntimeAfterBodyRender?.(teamId, this._teamDetailRequestSeq);
+    return true;
+  },
+
   _cleanupTeamDetailV2Runtime(expectedTeamId, expectedRequestSeq) {
     const rt = this._teamDetailV2Runtime;
     if (!rt) {

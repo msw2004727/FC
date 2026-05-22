@@ -23,8 +23,8 @@ Object.assign(App, {
     if (!t) return;
 
     var liffUrl = this._buildTeamLiffUrl(teamId);
-    var shareUrl = this._buildShareUrl('team', teamId);
-    var altText = this._buildTeamShareAltText(t, shareUrl);
+    var webShareUrl = this._buildTeamWebShareUrl?.(teamId) || ('https://toosterx.com/teams/' + encodeURIComponent(String(teamId || '').trim()));
+    var altText = this._buildTeamShareAltText(t, liffUrl);
     var canPicker = await this._canUseShareTargetPicker();
 
     if (canPicker || LineAuth.isLoggedIn()) {
@@ -58,7 +58,8 @@ Object.assign(App, {
       }
 
       if (choice === 'copy') {
-        var ok = await this._copyToClipboard(altText);
+        var copyText = this._buildTeamShareAltText(t, webShareUrl);
+        var ok = await this._copyToClipboard(copyText);
         this.showToast(ok ? '\u9023\u7D50\u5DF2\u8907\u88FD' : '\u8907\u88FD\u5931\u6557');
         return;
       }

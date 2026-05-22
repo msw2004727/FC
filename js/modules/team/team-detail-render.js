@@ -1578,6 +1578,9 @@ Object.assign(App, {
 
   _refreshTeamMembersCardFromCache(teamId) {
     const team = ApiService.getTeam?.(teamId);
+    if (team && typeof this._refreshTeamDetailV2ShellFromCache === 'function' && this._refreshTeamDetailV2ShellFromCache(teamId)) {
+      return true;
+    }
     const target = document.getElementById('team-members-section');
     if (!team || !target) return false;
     const canManageMembers = typeof this._canManageTeamMembers === 'function' ? this._canManageTeamMembers(team) : false;

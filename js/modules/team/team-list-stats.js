@@ -34,6 +34,7 @@ Object.assign(App, {
       const staffIdentity = this._buildTeamStaffIdentity(entry.team, userList);
       const memberKeys = memberKeysByTeam.get(entry.id) || new Set();
       staffIdentity.keys.forEach(key => memberKeys.add(key));
+      this._addTeamStudentIdentityKeys(entry.team, memberKeys);
     });
 
     const counts = new Map();
@@ -52,8 +53,63 @@ Object.assign(App, {
       const key = this._getUserIdentityKey(user);
       if (key) uniqueIdentities.add(key);
     });
+    this._addTeamStudentIdentityKeys(team, uniqueIdentities);
 
     return uniqueIdentities.size;
+  },
+
+  _isCountableTeamStudent(student) {
+    if (!student || typeof student !== 'object') return false;
+    const status = String(student.enrollStatus || student.status || student.approvalStatus || '').trim().toLowerCase();
+    return ![
+      'inactive',
+      'removed',
+      'cancelled',
+      'canceled',
+      'rejected',
+      'pending',
+      'review',
+      'reviewing',
+      'waiting',
+      'wait',
+      'unapproved',
+      'submitted',
+      'applied',
+      '\u5f85\u5be9\u6838',
+      '\u5be9\u6838\u4e2d',
+      '\u5f85\u78ba\u8a8d',
+    ].includes(status);
+  },
+
+  _getTeamStudentIdentityKey(student) {
+    if (!student || typeof student !== 'object') return null;
+    const uid = String(student.selfUid || student.uid || '').trim();
+    if (uid) return `uid:${uid}`;
+    const studentId = String(student.id || student._docId || student.studentId || '').trim();
+    if (studentId) return `student:${studentId}`;
+    const name = String(student.name || student.studentName || student.displayName || '').trim().toLowerCase();
+    return name ? `student-name:${name}` : null;
+  },
+
+  _addTeamStudentIdentityKeys(team, targetSet) {
+    if (!team || !targetSet) return;
+    const teamId = String(team.id || '');
+    const sources = [
+      team.students,
+      team.eduStudents,
+      team.educationStudents,
+      team.studentList,
+      team.eduSettings?.students,
+      this._eduStudentsCache?.[teamId],
+    ];
+    sources.forEach(list => {
+      if (!Array.isArray(list)) return;
+      list.forEach(student => {
+        if (!this._isCountableTeamStudent(student)) return;
+        const key = this._getTeamStudentIdentityKey(student);
+        if (key) targetSet.add(key);
+      });
+    });
   },
 
   _calcTeamMemberCount(teamId) {

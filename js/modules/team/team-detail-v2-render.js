@@ -34,8 +34,21 @@ Object.assign(App, {
 
   _getTeamDetailV2CourseCount(t) {
     if (!this._isTeamDetailSectionVisible?.(t, 'courses')) return 0;
+    return this._getTeamDetailV2CurrentCoursePlans(t).length;
+  },
+
+  _isTeamDetailV2CoursePlanEnded(plan) {
+    if (!plan || !plan.endDate) return false;
+    const today = new Date().toISOString().split('T')[0];
+    return String(plan.endDate) < today;
+  },
+
+  _getTeamDetailV2CurrentCoursePlans(t) {
+    if (!t) return [];
     const plans = typeof this.getEduCoursePlans === 'function' ? this.getEduCoursePlans(t.id) : [];
-    return (Array.isArray(plans) ? plans : []).filter(p => p && p.active !== false).length;
+    return (Array.isArray(plans) ? plans : []).filter(p =>
+      p && p.active !== false && !this._isTeamDetailV2CoursePlanEnded(p)
+    );
   },
 
   _getTeamDetailV2RecruitText(t) {

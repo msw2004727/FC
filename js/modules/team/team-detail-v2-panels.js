@@ -96,8 +96,9 @@ Object.assign(App, {
 
   _buildTeamDetailV2FeaturedCourses(t) {
     if (!this._isTeamDetailSectionVisible?.(t, 'courses')) return '';
-    const plans = typeof this.getEduCoursePlans === 'function' ? this.getEduCoursePlans(t.id) : [];
-    const activePlans = (Array.isArray(plans) ? plans : []).filter(p => p && p.active !== false).slice(0, 2);
+    const activePlans = (typeof this._getTeamDetailV2CurrentCoursePlans === 'function'
+      ? this._getTeamDetailV2CurrentCoursePlans(t)
+      : []).slice(0, 2);
     if (!activePlans.length) {
       return '<div class="td-v2-card"><div class="td-v2-section-head"><h3>熱門課程</h3><button type="button" data-td-v2-action="tab" data-tab="courses">課程</button></div><div class="td-v2-empty">課程資料載入後會顯示在這裡</div></div>';
     }

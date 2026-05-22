@@ -12,15 +12,17 @@ Object.assign(App, {
     // [備用] 舊 LIFF URL：'https://liff.line.me/' + LINE_CONFIG.LIFF_ID + '?team=' + encodeURIComponent(String(teamId || ''));
   },
 
-  _buildTeamShareAltText(team, liffUrl) {
+  _buildTeamWebShareUrl(teamId) {
+    return 'https://toosterx.com/teams/' + encodeURIComponent(String(teamId || '').trim());
+  },
+
+  _buildTeamShareAltText(team, shareUrl) {
     var lines = [
       '\u300C' + (team.name || '') + '\u300D\u7403\u968A',
-      '\u8A98\u60A8\u52A0\u5165\u7403\u968A\uFF0C\u8DDF\u6211\u5011\u4E00\u8D77\u4EAB\u53D7\u904B\u52D5\uFF01',
+      '\u9080\u8ACB\u60A8\u52A0\u5165\uFF0C\u8DDF\u6211\u5011\u4E00\u8D77\u4EAB\u53D7\u904B\u52D5\uFF01',
     ];
-    if (team.region) lines.push('\u5730\u5340\uFF1A' + team.region);
-    var members = typeof team.members === 'number' ? team.members : (Array.isArray(team.members) ? team.members.length : 0);
-    if (members > 0) lines.push('\u6210\u54E1\uFF1A' + members + ' \u4EBA');
-    lines.push(liffUrl);
+    lines.push('');
+    lines.push(shareUrl);
     var text = lines.join('\n');
     if (text.length > 400) {
       text = Array.from(text).slice(0, 397).join('') + '...';
