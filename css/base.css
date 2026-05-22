@@ -570,6 +570,26 @@ body.modal-open { overflow: hidden; }
   padding: .55rem .75rem;
   font-size: .93rem;
 }
+.ce-age-limit-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  width: 100%;
+}
+.ce-age-limit-header {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  flex-wrap: wrap;
+}
+.ce-age-limit-input-wrap {
+  width: 100%;
+}
+.ce-age-limit-input-wrap input {
+  width: 100%;
+  padding: .55rem .75rem;
+  font-size: .93rem;
+}
 .ce-field-note {
   font-size: .72rem;
   color: var(--text-muted);

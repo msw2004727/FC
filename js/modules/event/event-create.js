@@ -400,7 +400,8 @@ Object.assign(App, {
     this._setEventFeeFormState(false, 0);
     document.getElementById('ce-max').value = '20';
     document.getElementById('ce-waitlist').value = '0';
-    document.getElementById('ce-min-age').value = '0';
+    if (typeof this._setEventAgeLimitState === 'function') this._setEventAgeLimitState(false, 0);
+    else document.getElementById('ce-min-age').value = '0';
     document.getElementById('ce-notes').value = '';
     document.getElementById('ce-sport-tag').value = '';
     this._setEventRegOpenTimeValue('');
@@ -427,6 +428,7 @@ Object.assign(App, {
     this.bindEventImageVariantUpload?.('ce-image', 'ce-upload-preview');
     this.bindTeamOnlyToggle();
     this.bindEventFeeToggle();
+    this.bindEventAgeLimitToggle?.();
     this.bindGenderRestrictionToggle();
     this.bindPrivateEventToggle();
     this.bindTeamSplitToggle?.();
@@ -497,7 +499,9 @@ Object.assign(App, {
     let feeEnabled = !!document.getElementById('ce-fee-enabled')?.checked;
     let fee = feeEnabled ? (parseInt(document.getElementById('ce-fee').value, 10) || 0) : 0;
     const max = parseInt(document.getElementById('ce-max').value) || 20;
-    const minAge = parseInt(document.getElementById('ce-min-age').value) || 0;
+    const minAge = typeof this._getEventMinAgeFormValue === 'function'
+      ? this._getEventMinAgeFormValue()
+      : (parseInt(document.getElementById('ce-min-age').value, 10) || 0);
     const notes = document.getElementById('ce-notes').value.trim();
     const sportTag = getSportKeySafe(document.getElementById('ce-sport-tag')?.value || this._selectedSportTag || '');
     const regOpenTime = this._getEventRegOpenTimeValue();
@@ -892,7 +896,8 @@ Object.assign(App, {
     this._setEventFeeFormState(false, 0);
     document.getElementById('ce-max').value = '20';
     document.getElementById('ce-waitlist').value = '0';
-    document.getElementById('ce-min-age').value = '0';
+    if (typeof this._setEventAgeLimitState === 'function') this._setEventAgeLimitState(false, 0);
+    else document.getElementById('ce-min-age').value = '0';
     document.getElementById('ce-notes').value = '';
     document.getElementById('ce-sport-tag').value = '';
     this._setEventRegOpenTimeValue('');

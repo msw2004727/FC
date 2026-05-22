@@ -610,7 +610,19 @@
         <input type="hidden" id="ce-waitlist" value="0">
         <div class="ce-row">
           <div class="ce-label-row"><button class="edu-info-btn" onclick="App._showCeInfo('age')" title="說明" data-i18n-title="說明">?</button><label data-i18n="年齡限制">年齡限制</label>（歲以上，0 為不限）</div>
-          <input type="number" id="ce-min-age" placeholder="0" value="0" min="0">
+          <div class="ce-age-limit-wrap">
+            <div class="ce-age-limit-header">
+              <label class="toggle-switch" style="margin:0">
+                <input type="checkbox" id="ce-age-limit-enabled" aria-controls="ce-min-age-wrap">
+                <span class="toggle-slider"></span>
+              </label>
+              <span id="ce-age-limit-label" class="ce-toggle-status" data-i18n="關閉 — 不限制年齡">關閉 — 不限制年齡</span>
+            </div>
+            <div id="ce-min-age-wrap" class="ce-age-limit-input-wrap" style="display:none">
+              <input type="number" id="ce-min-age" placeholder="0" value="0" min="0" inputmode="numeric" disabled>
+            </div>
+            <div class="ce-field-note" data-i18n="開啟後填寫最低年齡；關閉送出 0 表示不限。">開啟後填寫最低年齡；關閉送出 0 表示不限。</div>
+          </div>
         </div>
 
         <div class="ce-row">

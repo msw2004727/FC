@@ -25,6 +25,7 @@ Object.assign(App, {
     this.bindEventImageVariantUpload?.('ce-image', 'ce-upload-preview');
     this.bindTeamOnlyToggle();
     this.bindEventFeeToggle?.();
+    this.bindEventAgeLimitToggle?.();
     this.bindGenderRestrictionToggle?.();
     this.bindPrivateEventToggle?.();
     this.bindTeamSplitToggle?.();
@@ -60,7 +61,12 @@ Object.assign(App, {
     );
     document.getElementById('ce-max').value = e.max || 20;
     document.getElementById('ce-waitlist').value = 0;
-    document.getElementById('ce-min-age').value = e.minAge || 0;
+    if (typeof this._setEventAgeLimitState === 'function') {
+      const minAge = Number(e.minAge || 0);
+      this._setEventAgeLimitState(minAge > 0, minAge);
+    } else {
+      document.getElementById('ce-min-age').value = e.minAge || 0;
+    }
     document.getElementById('ce-notes').value = e.notes || '';
     this._initSportTagPicker(e.sportTag || 'football');
     this._setGenderRestrictionState?.(!!e.genderRestrictionEnabled, e.allowedGender || '');

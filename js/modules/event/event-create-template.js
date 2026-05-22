@@ -139,6 +139,9 @@ Object.assign(App, {
     const earlyBirdData = canUseAddons
       ? (this._getEventEarlyBirdFormData?.({ validate: false }) || { enabled: false, cost: 0 })
       : { enabled: false, cost: 0 };
+    const minAge = typeof this._getEventMinAgeFormValue === 'function'
+      ? this._getEventMinAgeFormValue()
+      : (parseInt(document.getElementById('ce-min-age')?.value, 10) || 0);
     return {
       id: 'tpl_' + Date.now(),
       name,
@@ -149,7 +152,7 @@ Object.assign(App, {
       fee: feeEnabled ? (parseInt(document.getElementById('ce-fee')?.value, 10) || 0) : 0,
       feeEnabled,
       max: parseInt(document.getElementById('ce-max')?.value) || 20,
-      minAge: parseInt(document.getElementById('ce-min-age')?.value) || 0,
+      minAge,
       notes: document.getElementById('ce-notes')?.value?.trim() || '',
       sportTag: getSportKeySafe(document.getElementById('ce-sport-tag')?.value || '') || '',
       genderRestrictionEnabled,
@@ -248,7 +251,12 @@ Object.assign(App, {
     const feeEnabled = typeof tpl.feeEnabled === 'boolean' ? tpl.feeEnabled : Number(tpl.fee || 0) > 0;
     this._setEventFeeFormState(canUseAddons && feeEnabled, canUseAddons && Number(tpl.fee || 0) > 0 ? tpl.fee : 0);
     setVal('ce-max', tpl.max);
-    setVal('ce-min-age', tpl.minAge);
+    if (typeof this._setEventAgeLimitState === 'function') {
+      const minAge = Number(tpl.minAge || 0);
+      this._setEventAgeLimitState(minAge > 0, minAge);
+    } else {
+      setVal('ce-min-age', tpl.minAge);
+    }
     setVal('ce-notes', tpl.notes);
     this._initSportTagPicker(tpl.sportTag || '');
     this._setGenderRestrictionState(canUseAddons && !!tpl.genderRestrictionEnabled, canUseAddons ? (tpl.allowedGender || '') : '');

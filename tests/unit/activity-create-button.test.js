@@ -107,4 +107,24 @@ describe('activity create button', () => {
     expect(createSource).toContain("this.showToast('系統已在處理中');");
     expect(createSource).toContain('stopEarlyEditSubmitBusy();');
   });
+
+  test('activity age limit is controlled by a toggle and submits zero when disabled', () => {
+    const activityHtml = readProjectFile('pages/activity.html');
+    const createSource = readProjectFile('js/modules/event/event-create.js');
+    const optionsSource = readProjectFile('js/modules/event/event-create-options.js');
+    const lifecycleSource = readProjectFile('js/modules/event/event-manage-lifecycle.js');
+    const templateSource = readProjectFile('js/modules/event/event-create-template.js');
+
+    expect(activityHtml).toContain('id="ce-age-limit-enabled"');
+    expect(activityHtml).toContain('id="ce-age-limit-label"');
+    expect(activityHtml).toContain('id="ce-min-age-wrap"');
+    expect(optionsSource).toContain('_getEventAgeLimitFormNodes');
+    expect(optionsSource).toContain('_getEventMinAgeFormValue');
+    expect(optionsSource).toContain('if (toggle && !toggle.checked) return 0;');
+    expect(createSource).toContain('this.bindEventAgeLimitToggle?.();');
+    expect(createSource).toContain('this._getEventMinAgeFormValue()');
+    expect(lifecycleSource).toContain('this._setEventAgeLimitState(minAge > 0, minAge);');
+    expect(templateSource).toContain('this._getEventMinAgeFormValue()');
+    expect(templateSource).toContain('this._setEventAgeLimitState(minAge > 0, minAge);');
+  });
 });

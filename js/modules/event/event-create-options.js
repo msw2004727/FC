@@ -97,6 +97,72 @@ Object.assign(App, {
     this._updateEventFeeToggle();
   },
 
+  // ── Age Limit ──
+
+  _getEventAgeLimitFormNodes() {
+    return {
+      toggle: document.getElementById('ce-age-limit-enabled'),
+      label: document.getElementById('ce-age-limit-label'),
+      wrap: document.getElementById('ce-min-age-wrap'),
+      input: document.getElementById('ce-min-age'),
+    };
+  },
+
+  _normalizeEventMinAge(value) {
+    const normalized = Number(value);
+    if (!Number.isFinite(normalized) || normalized <= 0) return 0;
+    return Math.floor(normalized);
+  },
+
+  _updateEventAgeLimitUI() {
+    const { toggle, label, wrap, input } = this._getEventAgeLimitFormNodes();
+    if (!toggle || !input) return;
+
+    const enabled = !!toggle.checked;
+    if (!enabled) input.value = '0';
+    if (wrap) wrap.style.display = enabled ? '' : 'none';
+    input.disabled = !enabled;
+
+    if (!label) return;
+    if (!enabled) {
+      label.textContent = '關閉 — 不限制年齡';
+      label.style.color = 'var(--text-muted)';
+      return;
+    }
+
+    const minAge = this._normalizeEventMinAge(input.value);
+    label.textContent = minAge > 0 ? `已開啟 — ${minAge} 歲以上` : '已開啟 — 請填最低年齡';
+    label.style.color = minAge > 0 ? 'var(--accent)' : 'var(--warning)';
+  },
+
+  _setEventAgeLimitState(enabled, minAgeValue = 0) {
+    const { toggle, input } = this._getEventAgeLimitFormNodes();
+    const minAge = this._normalizeEventMinAge(minAgeValue);
+    const shouldEnable = !!enabled && minAge > 0;
+    if (input) input.value = shouldEnable ? String(minAge) : '0';
+    if (toggle) toggle.checked = shouldEnable;
+    this._updateEventAgeLimitUI();
+  },
+
+  _getEventMinAgeFormValue() {
+    const { toggle, input } = this._getEventAgeLimitFormNodes();
+    if (toggle && !toggle.checked) return 0;
+    return this._normalizeEventMinAge(input?.value);
+  },
+
+  bindEventAgeLimitToggle() {
+    const { toggle, input } = this._getEventAgeLimitFormNodes();
+    if (toggle && !toggle.dataset.bound) {
+      toggle.dataset.bound = '1';
+      toggle.addEventListener('change', () => this._updateEventAgeLimitUI());
+    }
+    if (input && !input.dataset.ageLimitBound) {
+      input.dataset.ageLimitBound = '1';
+      input.addEventListener('input', () => this._updateEventAgeLimitUI());
+    }
+    this._updateEventAgeLimitUI();
+  },
+
   // ── Gender Restriction ──
 
   _normalizeAllowedGender(value) {
