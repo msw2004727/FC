@@ -3888,6 +3888,8 @@ describe("event comments subcollections", () => {
     await assertSucceeds(
       setDoc(doc(memberB(), "events", "commentReply", "comments", "c1", "replies", "r1"), {
         ...replyData("commentReply", "c1", "uidB"),
+        likeCount: 0,
+        recentLikers: [],
       })
     );
     await assertSucceeds(
@@ -3926,6 +3928,36 @@ describe("event comments subcollections", () => {
         authorName: "x".repeat(81),
         authorPhoto: "",
         createdAt: serverTimestamp(),
+      })
+    );
+
+    const replyLikeDb = memberB();
+    const replyLikeBatch = writeBatch(replyLikeDb);
+    replyLikeBatch.set(doc(replyLikeDb, "events", "commentReply", "comments", "c1", "replies", "r1", "likes", "uidB"), {
+      eventId: "commentReply",
+      commentId: "c1",
+      replyId: "r1",
+      uid: "uidB",
+      authorName: "Reply User",
+      authorPhoto: "https://example.com/reply.png",
+      createdAt: serverTimestamp(),
+    });
+    replyLikeBatch.update(doc(replyLikeDb, "events", "commentReply", "comments", "c1", "replies", "r1"), {
+      likeCount: 1,
+      recentLikers: [{
+        uid: "uidB",
+        authorName: "Reply User",
+        authorPhoto: "https://example.com/reply.png",
+      }],
+      updatedAt: serverTimestamp(),
+    });
+    await assertSucceeds(replyLikeBatch.commit());
+
+    await assertFails(
+      updateDoc(doc(memberB(), "events", "commentReply", "comments", "c1", "replies", "r1"), {
+        likeCount: 9,
+        recentLikers: [],
+        updatedAt: serverTimestamp(),
       })
     );
 

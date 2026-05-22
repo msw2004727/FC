@@ -2516,7 +2516,8 @@ service cloud.firestore {
           let parent = parentCommentData();
           return request.resource.data.keys().hasOnly([
               'eventId', 'commentId', 'authorUid', 'authorName', 'authorPhoto',
-              'identitySnapshot', 'body', 'deleted', 'createdAt', 'updatedAt'
+              'identitySnapshot', 'body', 'deleted', 'likeCount', 'recentLikers',
+              'createdAt', 'updatedAt'
             ])
             && requestEventIdMatchesPath(eventId)
             && request.resource.data.commentId == commentId
@@ -2532,6 +2533,10 @@ service cloud.firestore {
             && request.resource.data.body.size() > 0
             && request.resource.data.body.size() <= 100
             && request.resource.data.deleted == false
+            && (!('likeCount' in request.resource.data) || request.resource.data.likeCount == 0)
+            && (!('recentLikers' in request.resource.data)
+              || (request.resource.data.recentLikers is list
+                && request.resource.data.recentLikers.size() == 0))
             && request.resource.data.createdAt == request.time
             && request.resource.data.updatedAt == request.time
             && parent != null
@@ -2554,15 +2559,105 @@ service cloud.firestore {
             && (!changed.hasAny(['deletedAt']) || request.resource.data.deletedAt == request.time)
             && (!changed.hasAny(['deletedByUid']) || request.resource.data.deletedByUid == request.auth.uid);
         }
+        function replyCoreFieldsUnchanged() {
+          return request.resource.data.eventId == resource.data.eventId
+            && request.resource.data.commentId == resource.data.commentId
+            && request.resource.data.authorUid == resource.data.authorUid
+            && request.resource.data.authorName == resource.data.authorName
+            && request.resource.data.authorPhoto == resource.data.authorPhoto
+            && identitySnapshotImmutable()
+            && request.resource.data.body == resource.data.body
+            && request.resource.data.deleted == resource.data.deleted
+            && request.resource.data.createdAt == resource.data.createdAt
+            && request.resource.data.updatedAt == request.time;
+        }
+        function replyLikeSummaryUpdateIsSafe() {
+          let changed = request.resource.data.diff(resource.data).affectedKeys();
+          let oldLikeCount = ('likeCount' in resource.data && resource.data.likeCount is int) ? resource.data.likeCount : 0;
+          let selfLikePath = /databases/$(database)/documents/events/$(eventId)/comments/$(commentId)/replies/$(replyId)/likes/$(request.auth.uid);
+          return isAuth()
+            && canReadParentComment()
+            && changed.hasOnly(['likeCount', 'recentLikers', 'updatedAt'])
+            && replyCoreFieldsUnchanged()
+            && request.resource.data.likeCount is int
+            && request.resource.data.likeCount >= 0
+            && request.resource.data.likeCount <= 100000
+            && request.resource.data.recentLikers is list
+            && request.resource.data.recentLikers.size() <= 32
+            && (
+              (!exists(selfLikePath)
+                && existsAfter(selfLikePath)
+                && request.resource.data.likeCount == oldLikeCount + 1)
+              || (exists(selfLikePath)
+                && !existsAfter(selfLikePath)
+                && ((oldLikeCount > 0 && request.resource.data.likeCount == oldLikeCount - 1)
+                  || (oldLikeCount == 0 && request.resource.data.likeCount == 0)))
+              || (exists(selfLikePath)
+                && existsAfter(selfLikePath)
+                && ((oldLikeCount == 0 && request.resource.data.likeCount == 1)
+                  || request.resource.data.likeCount == oldLikeCount))
+            );
+        }
 
         allow read: if canReadParentComment();
         allow create: if isAuth()
           && eventAcceptsCommentWrites()
           && canReadParentComment()
           && replyCreateIsSafe();
-        allow update: if isCommentManager()
-          && replyManagerUpdateIsSafe();
+        allow update: if isAuth()
+          && ((isCommentManager()
+              && replyManagerUpdateIsSafe())
+            || replyLikeSummaryUpdateIsSafe());
         allow delete: if isCommentManager();
+
+        match /likes/{uid} {
+          function replyLikeParentCommentData() {
+            return get(/databases/$(database)/documents/events/$(eventId)/comments/$(commentId)).data;
+          }
+          function replyLikeParentData() {
+            return get(/databases/$(database)/documents/events/$(eventId)/comments/$(commentId)/replies/$(replyId)).data;
+          }
+          function canReadReplyLikeParentComment() {
+            let data = replyLikeParentCommentData();
+            return isAuth()
+              && data != null
+              && (
+                data.visibility == 'public'
+                || data.authorUid == request.auth.uid
+                || isCommentManager()
+              );
+          }
+          function likeCreateIsSafe() {
+            let parent = replyLikeParentCommentData();
+            let reply = replyLikeParentData();
+            return uid == request.auth.uid
+              && request.resource.data.keys().hasOnly(['eventId', 'commentId', 'replyId', 'uid', 'authorName', 'authorPhoto', 'createdAt'])
+              && requestEventIdMatchesPath(eventId)
+              && request.resource.data.commentId == commentId
+              && request.resource.data.replyId == replyId
+              && request.resource.data.uid == request.auth.uid
+              && (!('authorName' in request.resource.data)
+                || (request.resource.data.authorName is string
+                  && request.resource.data.authorName.size() > 0
+                  && request.resource.data.authorName.size() <= 80))
+              && (!('authorPhoto' in request.resource.data)
+                || (request.resource.data.authorPhoto is string
+                  && request.resource.data.authorPhoto.size() <= 1200))
+              && request.resource.data.createdAt == request.time
+              && parent != null
+              && parent.deleted != true
+              && reply != null
+              && reply.deleted != true;
+          }
+
+          allow read: if canReadReplyLikeParentComment();
+          allow create: if isAuth()
+            && canReadReplyLikeParentComment()
+            && likeCreateIsSafe();
+          allow update: if false;
+          allow delete: if isAuth()
+            && uid == request.auth.uid;
+        }
       }
 
       match /likes/{uid} {

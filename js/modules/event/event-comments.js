@@ -212,6 +212,9 @@ Object.assign(App, {
   _mapEventCommentReplyDoc(docSnap) {
     const data = docSnap.data() || {};
     const display = this._resolveEventCommentDisplay(data);
+    const recentLikers = this._normalizeEventCommentLikers(data.recentLikers);
+    const rawLikeCount = Number(data.likeCount);
+    const user = ApiService.getCurrentUser?.();
     return {
       id: docSnap.id,
       authorUid: data.authorUid || '',
@@ -223,6 +226,10 @@ Object.assign(App, {
       body: data.body || '',
       deleted: data.deleted === true,
       createdAt: data.createdAt || null,
+      likeCount: Number.isFinite(rawLikeCount) ? Math.max(0, Math.floor(rawLikeCount)) : recentLikers.length,
+      likedByMe: !!user?.uid && recentLikers.some(liker => liker.uid === user.uid),
+      likers: recentLikers,
+      hasLikeSummary: Object.prototype.hasOwnProperty.call(data, 'likeCount') || Array.isArray(data.recentLikers),
     };
   },
 
@@ -270,7 +277,12 @@ Object.assign(App, {
       comments: Array.isArray(state?.comments)
         ? state.comments.map(comment => ({
           ...comment,
-          replies: Array.isArray(comment.replies) ? comment.replies.map(reply => ({ ...reply })) : [],
+          replies: Array.isArray(comment.replies)
+            ? comment.replies.map(reply => ({
+              ...reply,
+              likers: Array.isArray(reply.likers) ? reply.likers.map(liker => ({ ...liker })) : [],
+            }))
+            : [],
           likers: Array.isArray(comment.likers) ? comment.likers.map(liker => ({ ...liker })) : [],
         }))
         : [],
@@ -602,12 +614,35 @@ Object.assign(App, {
     const card = Array.from(document.querySelectorAll('.event-comment-card'))
       .find(el => el.getAttribute('data-comment-id') === commentId);
     if (!card) return;
-    const btn = card.querySelector('.event-comment-like');
+    const actions = Array.from(card.children || [])
+      .find(el => el.classList?.contains('event-comment-actions'));
+    const btn = actions?.querySelector('.event-comment-like') || null;
     const safeCount = Math.max(0, Number(likeCount) || 0);
     this._setEventCommentLikeButtonState?.(btn, !!likedByMe, safeCount);
 
     const normalizedLikers = this._normalizeEventCommentLikers(likers);
-    const stack = card.querySelector('.event-comment-like-avatars');
+    const stack = actions?.querySelector('.event-comment-like-avatars') || null;
+    const html = this._renderEventCommentLikeAvatars({ likers: normalizedLikers, likeCount: safeCount });
+    if (stack) {
+      if (html) stack.outerHTML = html;
+      else stack.remove();
+    } else if (html && btn) {
+      btn.insertAdjacentHTML('afterend', html);
+    }
+  },
+
+  _patchEventCommentReplyLikeUi(commentId, replyId, likedByMe, likeCount, likers) {
+    const reply = Array.from(document.querySelectorAll('.event-comment-reply'))
+      .find(el => el.getAttribute('data-comment-id') === commentId
+        && el.getAttribute('data-reply-id') === replyId);
+    if (!reply) return;
+    const actions = reply.querySelector('.event-comment-reply-actions');
+    const btn = actions?.querySelector('.event-comment-reply-like') || null;
+    const safeCount = Math.max(0, Number(likeCount) || 0);
+    this._setEventCommentLikeButtonState?.(btn, !!likedByMe, safeCount);
+
+    const normalizedLikers = this._normalizeEventCommentLikers(likers);
+    const stack = actions?.querySelector('.event-comment-like-avatars') || null;
     const html = this._renderEventCommentLikeAvatars({ likers: normalizedLikers, likeCount: safeCount });
     if (stack) {
       if (html) stack.outerHTML = html;
@@ -650,6 +685,37 @@ Object.assign(App, {
         }
         if (likedByMe) likeCount = Math.max(likeCount, 1);
         this._patchEventCommentLikeUi(comment.id, likedByMe, likeCount, likers);
+      }));
+    }
+
+    const replyTargets = [];
+    comments.forEach(comment => {
+      (comment.replies || []).forEach(reply => {
+        if (reply?.id && !reply.deleted && !reply.hasLikeSummary) {
+          replyTargets.push({ commentId: comment.id, reply });
+        }
+      });
+    });
+    for (let i = 0; i < replyTargets.length; i += 8) {
+      if (this.currentPage !== 'page-activity-detail' || this._currentDetailEventId !== eventId) return;
+      const batch = replyTargets.slice(i, i + 8);
+      await Promise.all(batch.map(async ({ commentId, reply }) => {
+        const likeRef = commentsRef.doc(commentId).collection('replies').doc(reply.id).collection('likes');
+        let likedByMe = !!reply.likedByMe;
+        let likers = Array.isArray(reply.likers) ? reply.likers : [];
+        let likeCount = Math.max(0, Number(reply.likeCount) || 0);
+
+        const legacyLikeSnap = await likeRef.orderBy('createdAt', 'desc').limit(32).get()
+          .catch(() => likeRef.limit(32).get().catch(() => null));
+        if (legacyLikeSnap?.docs?.length) {
+          likers = legacyLikeSnap.docs
+            .map(d => this._mapEventCommentLikeDoc(d))
+            .filter(liker => liker.uid);
+          likedByMe = likedByMe || likers.some(liker => liker.uid === user.uid);
+          likeCount = Math.max(likeCount, likers.length);
+        }
+        if (likedByMe) likeCount = Math.max(likeCount, 1);
+        this._patchEventCommentReplyLikeUi(commentId, reply.id, likedByMe, likeCount, likers);
       }));
     }
   },
@@ -744,9 +810,14 @@ Object.assign(App, {
     const eventId = escapeHTML(eventRecord.id || '');
     const commentId = escapeHTML(comment.id);
     return `<div class="event-comment-replies">${comment.replies.map(r => {
+      const safeReplyId = escapeHTML(r.id);
       const del = r.deleted ? '<span class="event-comment-deleted">回覆已刪除</span>' : escapeHTML(r.body);
-      const manage = ctx.canManage && !r.deleted ? `<button type="button" class="event-comment-mini-btn danger" onclick="App._deleteEventCommentReply('${eventId}','${commentId}','${escapeHTML(r.id)}')">刪除</button>` : '';
-      return `<div class="event-comment-reply">${this._renderEventCommentAvatar(r.authorName, r.authorPhoto)}<div class="event-comment-reply-main"><div class="event-comment-reply-meta"><span>${escapeHTML(r.authorName)}</span><small>${escapeHTML(this._eventCommentTimeLabel(r.createdAt))}</small>${manage}</div><div class="event-comment-reply-body">${del}</div></div></div>`;
+      const manage = ctx.canManage && !r.deleted ? `<button type="button" class="event-comment-mini-btn danger" onclick="App._deleteEventCommentReply('${eventId}','${commentId}','${safeReplyId}')">刪除</button>` : '';
+      const likeHtml = r.deleted ? '' : `<div class="event-comment-reply-actions">
+        <button type="button" class="event-comment-action event-comment-like event-comment-reply-like${r.likedByMe ? ' active' : ''}" onclick="App._toggleEventCommentReplyLike('${eventId}','${commentId}','${safeReplyId}')" aria-pressed="${r.likedByMe ? 'true' : 'false'}">${this._eventCommentLikeIcon()}<span>+${r.likeCount || 0}</span></button>
+        ${this._renderEventCommentLikeAvatars(r)}
+      </div>`;
+      return `<div class="event-comment-reply" data-comment-id="${commentId}" data-reply-id="${safeReplyId}">${this._renderEventCommentAvatar(r.authorName, r.authorPhoto)}<div class="event-comment-reply-main"><div class="event-comment-reply-meta"><span>${escapeHTML(r.authorName)}</span><small>${escapeHTML(this._eventCommentTimeLabel(r.createdAt))}</small>${manage}</div><div class="event-comment-reply-body">${del}</div>${likeHtml}</div></div>`;
     }).join('')}</div>`;
   },
 

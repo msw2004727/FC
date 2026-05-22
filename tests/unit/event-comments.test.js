@@ -46,7 +46,12 @@ describe('activity detail comments source contracts', () => {
     expect(comments).toContain('_mapEventCommentLikeDoc');
     expect(comments).toContain('_renderEventCommentLikeAvatars');
     expect(comments).toContain('comment.likers');
+    expect(comments).toContain('reply.likers');
     expect(comments).toContain('data-uid="${safeUid}"');
+    expect(comments).toContain('data-reply-id="${safeReplyId}"');
+    expect(comments).toContain('event-comment-reply-like');
+    expect(comments).toContain('_patchEventCommentReplyLikeUi');
+    expect(comments).toContain("collection('replies').doc(reply.id).collection('likes')");
     expect(comments).toContain('_hydrateEventCommentLikeState');
     expect(comments).toContain('_loadEventCommentRepliesForList');
     expect(comments).toContain('_eventCommentRepliesPerComment: 20');
@@ -75,6 +80,10 @@ describe('activity detail comments source contracts', () => {
     expect(actions).toContain('_writeEventCommentLikeWithSummary');
     expect(actions).toContain('_syncEventCommentLikeAvatars');
     expect(actions).toContain('_readEventCommentLikeAvatarsFromDom');
+    expect(actions).toContain('_toggleEventCommentReplyLike');
+    expect(actions).toContain("replyRef.collection('likes').doc(author.uid)");
+    expect(actions).toContain('if (safeReplyId) likePayload.replyId = safeReplyId');
+    expect(actions).toContain('if (safeReplyId) base.replyId = safeReplyId');
     expect(actions).toContain('_isEventCommentPermissionDenied');
     expect(actions).toContain('_normalizePublicIdentitySnapshot?.(author?.identitySnapshot)');
     expect(actions).toContain('identitySnapshot?.avatarUrl || author?.authorPhoto');
@@ -95,6 +104,8 @@ describe('activity detail comments source contracts', () => {
     expect(css).toContain('.event-comment-avatar');
     expect(css).toContain('.event-comment-like-avatars');
     expect(css).toContain('.event-comment-like-avatar');
+    expect(css).toContain('.event-comment-reply-actions');
+    expect(css).toContain('.event-comment-reply-like');
     expect(css).toContain('.event-comments-load-state');
     expect(css).toContain('.event-comment-retry-btn');
     expect(css).not.toContain('.event-comment-identity-picker');

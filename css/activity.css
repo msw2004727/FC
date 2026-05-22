@@ -2587,6 +2587,9 @@ body.activity-map-open{overflow:hidden}
 .event-comment-reply-meta span{font-size:.78rem;font-weight:800;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .event-comment-reply-meta small{font-size:.68rem;color:var(--text-muted);white-space:nowrap}
 .event-comment-reply-body{font-size:.8rem;line-height:1.55;color:var(--text-secondary);white-space:pre-wrap;margin-top:.12rem}
+.event-comment-reply-actions{display:flex;align-items:center;gap:.5rem;margin-top:.22rem;min-width:0}
+.event-comment-reply-like{font-size:.74rem}
+.event-comment-reply-actions .event-comment-like-avatars{--size:21px;min-width:var(--size);height:var(--size)}
 [data-theme="dark"] .event-comment-card{background:linear-gradient(135deg,rgba(59,130,246,.14),rgba(20,184,166,.09) 42%,var(--bg-card) 100%)}
 [data-theme="dark"] .event-comment-avatar{background:linear-gradient(135deg,#1e3a8a,#115e59);color:#dbeafe}
 [data-theme="dark"] .event-comment-like-avatar{border-color:var(--bg-card);background:linear-gradient(135deg,#1e3a8a,#115e59);color:#dbeafe;box-shadow:0 1px 4px rgba(0,0,0,.32)}

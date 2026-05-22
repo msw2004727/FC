@@ -111,7 +111,7 @@ Object.assign(App, {
     if (btn) { btn.disabled = true; btn.textContent = '送出中'; }
     try {
       const { commentRef, eventRecord: currentEvent } = await this._getEventCommentRefs(eventId, commentId);
-      await commentRef.collection('replies').add({
+      const replyPayload = {
         eventId: currentEvent?.id || eventId,
         commentId,
         authorUid: author.uid,
@@ -120,9 +120,18 @@ Object.assign(App, {
         identitySnapshot: author.identitySnapshot,
         body,
         deleted: false,
+        likeCount: 0,
+        recentLikers: [],
         createdAt: this._eventCommentServerTimestamp(),
         updatedAt: this._eventCommentServerTimestamp(),
-      });
+      };
+      try {
+        await commentRef.collection('replies').add(replyPayload);
+      } catch (err) {
+        if (!this._isEventCommentPermissionDenied(err)) throw err;
+        const { likeCount, recentLikers, ...legacyPayload } = replyPayload;
+        await commentRef.collection('replies').add(legacyPayload);
+      }
       if (input) input.value = '';
       if (form) form.hidden = true;
       this.showToast?.('回覆已送出');
@@ -163,12 +172,13 @@ Object.assign(App, {
     return Math.max(0, Math.floor(count));
   },
 
-  async _writeEventCommentLikeWithSummary(commentRef, likeRef, eventId, commentId, author, liked) {
+  async _writeEventCommentLikeWithSummary(commentRef, likeRef, eventId, commentId, author, liked, replyId = '') {
     const serverTimestamp = this._eventCommentServerTimestamp();
     const summaryLiker = this._buildEventCommentLikerSummary(author);
+    const safeReplyId = String(replyId || '').trim();
     await db.runTransaction(async tx => {
       const commentSnap = await tx.get(commentRef);
-      if (!commentSnap.exists) throw new Error('comment_missing');
+      if (!commentSnap.exists) throw new Error('like_target_missing');
       const likeSnap = await tx.get(likeRef);
       const commentData = commentSnap.data() || {};
       const currentLikers = this._normalizeEventCommentLikers?.(commentData.recentLikers) || [];
@@ -178,14 +188,16 @@ Object.assign(App, {
 
       if (liked) {
         if (!likeSnap.exists) {
-          tx.set(likeRef, {
+          const likePayload = {
             eventId,
             commentId,
             uid: author.uid,
             authorName: summaryLiker.authorName,
             authorPhoto: summaryLiker.authorPhoto,
             createdAt: serverTimestamp,
-          });
+          };
+          if (safeReplyId) likePayload.replyId = safeReplyId;
+          tx.set(likeRef, likePayload);
           nextCount += 1;
         } else if (nextCount === 0) {
           nextCount = 1;
@@ -220,8 +232,9 @@ Object.assign(App, {
     if (!card || typeof this._renderEventCommentLikeAvatars !== 'function') return;
     const btn = card.querySelector('.event-comment-like');
     if (!btn) return;
+    const actions = btn.parentElement;
     const uid = String(author?.uid || '').trim();
-    const stack = card.querySelector('.event-comment-like-avatars');
+    const stack = actions?.querySelector('.event-comment-like-avatars') || null;
     let likers = this._readEventCommentLikeAvatarsFromDom(stack)
       .filter(liker => liker.uid !== uid);
     if (liked && uid) {
@@ -245,13 +258,15 @@ Object.assign(App, {
     return code === 'permission-denied' || msg.includes('permission') || msg.includes('insufficient');
   },
 
-  async _setEventCommentLikeDoc(likeRef, eventId, commentId, author) {
+  async _setEventCommentLikeDoc(likeRef, eventId, commentId, author, replyId = '') {
     const summaryLiker = this._buildEventCommentLikerSummary(author);
+    const safeReplyId = String(replyId || '').trim();
     const base = {
       eventId,
       commentId,
       uid: author.uid,
     };
+    if (safeReplyId) base.replyId = safeReplyId;
     const snapshotPayload = {
       ...base,
       authorName: summaryLiker.authorName,
@@ -276,7 +291,9 @@ Object.assign(App, {
     if (this._eventCommentLikeBusy.has(key)) return;
     const card = Array.from(document.querySelectorAll('.event-comment-card'))
       .find(el => el.getAttribute('data-comment-id') === commentId);
-    const btn = card?.querySelector('.event-comment-like') || null;
+    const actions = Array.from(card?.children || [])
+      .find(el => el.classList?.contains('event-comment-actions'));
+    const btn = actions?.querySelector('.event-comment-like') || null;
     const wasLiked = btn?.classList.contains('active') || false;
     const countText = btn?.querySelector('span')?.textContent || '+0';
     const oldCount = parseInt(countText.replace(/[^\d]/g, ''), 10) || 0;
@@ -309,6 +326,55 @@ Object.assign(App, {
         }
       }
       console.error('[event-comments] like failed', err);
+      this._setEventCommentLikeButtonState(btn, wasLiked, oldCount);
+      this.showToast?.('按讚更新失敗，請稍後再試');
+    } finally {
+      this._eventCommentLikeBusy.delete(key);
+    }
+  },
+
+  async _toggleEventCommentReplyLike(eventId, commentId, replyId) {
+    const author = this._requireEventCommentUser();
+    if (!author) return;
+    const key = [eventId, commentId, replyId].join(':');
+    if (this._eventCommentLikeBusy.has(key)) return;
+    const reply = Array.from(document.querySelectorAll('.event-comment-reply'))
+      .find(el => el.getAttribute('data-comment-id') === commentId
+        && el.getAttribute('data-reply-id') === replyId);
+    const btn = reply?.querySelector('.event-comment-reply-like') || null;
+    const wasLiked = btn?.classList.contains('active') || false;
+    const countText = btn?.querySelector('span')?.textContent || '+0';
+    const oldCount = parseInt(countText.replace(/[^\d]/g, ''), 10) || 0;
+    const nextLiked = !wasLiked;
+    const nextCount = oldCount + (nextLiked ? 1 : -1);
+    this._setEventCommentLikeButtonState(btn, nextLiked, nextCount);
+    this._eventCommentLikeBusy.add(key);
+    let likeRef = null;
+    try {
+      const { eventRecord, replyRef } = await this._getEventCommentRefs(eventId, commentId, replyId);
+      if (!replyRef) throw new Error('reply_ref_missing');
+      likeRef = replyRef.collection('likes').doc(author.uid);
+      try {
+        await this._writeEventCommentLikeWithSummary(replyRef, likeRef, eventRecord?.id || eventId, commentId, author, nextLiked, replyId);
+      } catch (err) {
+        if (!this._isEventCommentPermissionDenied(err)) throw err;
+        if (nextLiked) {
+          await this._setEventCommentLikeDoc(likeRef, eventRecord?.id || eventId, commentId, author, replyId);
+        } else {
+          await likeRef.delete();
+        }
+      }
+      this._syncEventCommentLikeAvatars(reply, author, nextLiked, nextCount);
+      this._clearEventCommentsCacheForEvent?.(eventId);
+    } catch (err) {
+      if (nextLiked && likeRef && this._isEventCommentPermissionDenied(err)) {
+        const existing = await likeRef.get().catch(() => null);
+        if (existing?.exists) {
+          this._syncEventCommentLikeAvatars(reply, author, true, nextCount);
+          return;
+        }
+      }
+      console.error('[event-comments] reply like failed', err);
       this._setEventCommentLikeButtonState(btn, wasLiked, oldCount);
       this.showToast?.('按讚更新失敗，請稍後再試');
     } finally {
