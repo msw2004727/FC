@@ -572,6 +572,23 @@ a.social-btn { text-decoration: none; }
   gap: .25rem;
 }
 
+.profile-related-load-more {
+  padding: .7rem 0 .45rem;
+  text-align: center;
+}
+
+.profile-related-load-more-note {
+  margin-bottom: .42rem;
+  color: var(--text-muted);
+  font-size: .7rem;
+}
+
+.profile-related-load-more-btn {
+  min-width: 8rem;
+  padding: .42rem 1.15rem;
+  font-size: .78rem;
+}
+
 .profile-related-icon-btn {
   width: 28px;
   height: 28px;

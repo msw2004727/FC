@@ -4,6 +4,9 @@
    ================================================ */
 Object.assign(App, {
 
+  _profileHostedActivityPageSize: 10,
+  _profileHostedActivityVisibleLimit: 10,
+
   _getTeamApplicationTimeMs(msg) {
     const parseValue = (value) => {
       if (!value) return 0;
@@ -288,7 +291,27 @@ Object.assign(App, {
       list.innerHTML = `<div class="profile-related-empty">${isHosted ? '目前沒有你主辦的活動' : '目前沒有正取或候補中的報名活動'}</div>`;
       return;
     }
-    list.innerHTML = items.map(item => this._renderProfileRelatedActivityCard(item, kind)).join('');
+    const pageSize = Math.max(1, Number(this._profileHostedActivityPageSize) || 10);
+    const hostedLimit = Math.max(pageSize, Number(this._profileHostedActivityVisibleLimit) || pageSize);
+    const visibleItems = isHosted ? items.slice(0, hostedLimit) : items;
+    list.innerHTML = visibleItems.map(item => this._renderProfileRelatedActivityCard(item, kind)).join('');
+    if (isHosted && visibleItems.length < items.length) {
+      list.insertAdjacentHTML('beforeend', this._renderProfileHostedActivityLoadMore(visibleItems.length, items.length));
+    }
+  },
+
+  _renderProfileHostedActivityLoadMore(visibleCount, totalCount) {
+    return `<div class="profile-related-load-more">
+      <div class="profile-related-load-more-note">已顯示 ${visibleCount} / ${totalCount}</div>
+      <button type="button" class="outline-btn profile-related-load-more-btn" onclick="App.loadMoreProfileHostedActivities()">查看更多</button>
+    </div>`;
+  },
+
+  loadMoreProfileHostedActivities() {
+    const pageSize = Math.max(1, Number(this._profileHostedActivityPageSize) || 10);
+    const currentLimit = Math.max(pageSize, Number(this._profileHostedActivityVisibleLimit) || pageSize);
+    this._profileHostedActivityVisibleLimit = currentLimit + pageSize;
+    this.renderProfileRelatedActivities?.();
   },
 
   _renderProfileRelatedActivityCard(item, kind) {
