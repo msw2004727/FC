@@ -40,6 +40,9 @@ Object.assign(App, {
     const totalGames = (team.wins || 0) + (team.draws || 0) + (team.losses || 0);
     const winRate = totalGames > 0 ? Math.round((team.wins || 0) / totalGames * 100) : 0;
     body.innerHTML = this._buildTeamDetailV2BodyHtml(team, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate);
+    if (this._isTeamDetailSectionVisible?.(team, 'courses') !== false && typeof this._initEduClubDetailSection === 'function') {
+      this._initEduClubDetailSection(teamId);
+    }
     this._syncTeamDetailV2RuntimeAfterBodyRender?.(teamId, this._teamDetailRequestSeq);
     return true;
   },
@@ -168,7 +171,35 @@ Object.assign(App, {
     shell.querySelectorAll('.td-v2-panel').forEach(panel => {
       panel.classList.toggle('active', panel.getAttribute('data-panel') === tab);
     });
+    if (tab === 'courses') {
+      this._refreshTeamDetailV2CoursesPanel?.(teamId, { forceRefresh: true });
+    }
     try { shell.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (_) {}
+    return true;
+  },
+
+  _refreshTeamDetailV2CoursesPanel(teamId, options = {}) {
+    if (!teamId || typeof this._renderEduTabContent !== 'function') return false;
+    const team = ApiService.getTeam?.(teamId);
+    if (team && this._isTeamDetailSectionVisible?.(team, 'courses') === false) return false;
+    this._eduDetailTeamId = teamId;
+    this._eduActiveTab = 'course';
+    const panel = typeof document !== 'undefined'
+      ? document.querySelector?.('#team-detail-body .td-v2-panel-courses')
+      : null;
+    panel?.querySelectorAll?.('#edu-detail-tabs .tab')?.forEach(btn => {
+      const tabKey = typeof this._normalizeEduDetailTab === 'function'
+        ? this._normalizeEduDetailTab(btn.dataset?.edutab)
+        : (btn.dataset?.edutab || 'course');
+      btn.classList?.toggle?.('active', tabKey === 'course');
+    });
+    const result = this._renderEduTabContent(teamId, { forceRefresh: !!options.forceRefresh });
+    if (result && typeof result.catch === 'function') {
+      result.catch(err => {
+        console.error('[team-detail-v2] course refresh failed:', err);
+        this.showToast?.('課程狀態更新失敗，請稍後再試');
+      });
+    }
     return true;
   },
 

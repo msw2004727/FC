@@ -690,6 +690,17 @@ describe('team detail club activity section', () => {
     expect(featured).not.toContain('已結束');
   });
 
+  test('team detail v2 course tab forces latest course state refresh', () => {
+    const actionsSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-detail-v2-actions.js'), 'utf8');
+
+    expect(actionsSource).toContain("if (tab === 'courses')");
+    expect(actionsSource).toContain('_refreshTeamDetailV2CoursesPanel?.(teamId, { forceRefresh: true })');
+    expect(actionsSource).toContain('_refreshTeamDetailV2CoursesPanel(teamId, options = {})');
+    expect(actionsSource).toContain("this._eduActiveTab = 'course'");
+    expect(actionsSource).toContain('this._renderEduTabContent(teamId, { forceRefresh: !!options.forceRefresh })');
+    expect(actionsSource).toContain('_initEduClubDetailSection(teamId)');
+  });
+
   test('team detail v2 events and members use requested card and management-only layouts', () => {
     const app = makeApp([]);
     loadTeamDetailRender(app, [], {

@@ -11,7 +11,7 @@ Object.assign(App, {
   _eduDetailTeamId: null,
   _eduActiveTab: 'course',
 
-  _initEduClubDetailSection(teamId) {
+  _initEduClubDetailSection(teamId, options = {}) {
     this._eduDetailTeamId = teamId;
     this._eduActiveTab = 'course';
 
@@ -19,7 +19,7 @@ Object.assign(App, {
       btn.classList.toggle('active', btn.dataset.edutab === 'course');
     });
 
-    this._renderEduTabContent(teamId);
+    this._renderEduTabContent(teamId, options);
 
     if (typeof this._bindSwipeTabs === 'function') {
       this._bindSwipeTabs('edu-detail-tab-content', 'edu-detail-tabs',
@@ -121,31 +121,36 @@ Object.assign(App, {
   /**
    * 切換教學俱樂部頁籤
    */
-  switchEduTab(tab) {
+  switchEduTab(tab, options = {}) {
     const nextTab = this._normalizeEduDetailTab(tab);
     this._eduActiveTab = nextTab;
     document.querySelectorAll('#edu-detail-tabs .tab').forEach(btn => {
       btn.classList.toggle('active', this._normalizeEduDetailTab(btn.dataset.edutab) === nextTab);
     });
-    this._renderEduTabContent(this._eduDetailTeamId);
+    return this._renderEduTabContent(this._eduDetailTeamId, options);
   },
 
   _normalizeEduDetailTab(tab) {
     return tab === 'mine' ? 'student' : (tab || 'course');
   },
 
-  _refreshEduActiveTabContent(teamId) {
+  _refreshEduActiveTabContent(teamId, options = {}) {
     const tab = this._normalizeEduDetailTab(this._eduActiveTab);
     if (tab === 'student') this._renderEduMemberSection(teamId);
     else if (tab === 'group') this.renderEduGroupList(teamId);
     else if (tab === 'pending') this._renderEduPendingSection(teamId);
-    else if (typeof this.renderEduCoursePlanList === 'function') this.renderEduCoursePlanList(teamId, this.isEduClubStaff(teamId));
+    else if (typeof this.renderEduCoursePlanList === 'function') {
+      return options && Object.keys(options).length
+        ? this.renderEduCoursePlanList(teamId, this.isEduClubStaff(teamId), options)
+        : this.renderEduCoursePlanList(teamId, this.isEduClubStaff(teamId));
+    }
+    return undefined;
   },
 
   /**
    * 渲染當前頁籤內容
    */
-  _renderEduTabContent(teamId) {
+  _renderEduTabContent(teamId, options = {}) {
     const container = document.getElementById('edu-detail-tab-content');
     if (!container || !teamId) return;
 
@@ -163,7 +168,9 @@ Object.assign(App, {
         + '<div id="edu-course-plan-list"><div class="edu-loading"><div class="edu-loading-bar"><div class="edu-loading-fill"></div></div><div class="edu-loading-text">正在努力加載中請稍後</div></div></div>'
         + '</div>';
       if (typeof this.renderEduCoursePlanList === 'function') {
-        this.renderEduCoursePlanList(teamId, isStaff);
+        return options && Object.keys(options).length
+          ? this.renderEduCoursePlanList(teamId, isStaff, options)
+          : this.renderEduCoursePlanList(teamId, isStaff);
       }
     } else if (tab === 'group') {
       container.innerHTML = '<div class="' + panelClass + '">'
@@ -181,6 +188,7 @@ Object.assign(App, {
       container.innerHTML = '<div id="edu-pending-section"></div>';
       this._renderEduPendingSection(teamId);
     }
+    return undefined;
   },
 
   _renderEduPendingSection(teamId) {

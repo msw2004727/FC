@@ -137,6 +137,58 @@ describe('edu course plan render', () => {
     expect(endedHtml).toContain('edu-cp-status-ended');
   });
 
+  test('force refresh reloads students and cached enrollments before rendering counts', async () => {
+    const container = { innerHTML: '' };
+    const plans = [{
+      id: 'planA',
+      name: '最新課程',
+      planType: 'weekly',
+      weekdays: [2],
+      startDate: '2099-01-01',
+      endDate: '2099-02-01',
+      maxCapacity: 3,
+      allowSignup: true,
+    }];
+    const app = {
+      _courseEnrollCache: { 'teamA:planA': [{ studentId: 'old-student', status: 'approved' }] },
+      _eduCoursePlanTabByTeam: {},
+      isEduClubStaff: jest.fn(() => false),
+      _loadEduStudents: jest.fn(() => {
+        app._students = [{ id: 'fresh-student', enrollStatus: 'active' }];
+        return Promise.resolve(app._students);
+      }),
+      _loadEduCoursePlans: jest.fn(() => Promise.resolve(plans)),
+      _getCourseEnrollCacheKey: jest.fn((teamId, planId) => teamId + ':' + planId),
+      _loadCourseEnrollments: jest.fn(() => Promise.resolve([{ studentId: 'fresh-student', status: 'approved' }])),
+      getEduStudents: jest.fn(() => app._students || []),
+      _weekdayLabel: (day) => ['日', '一', '二', '三', '四', '五', '六'][day] || String(day),
+    };
+    const context = {
+      App: app,
+      ApiService: { getCurrentUser: jest.fn(() => ({ uid: 'viewer' })) },
+      document: {
+        getElementById: jest.fn((id) => id === 'edu-course-plan-list' ? container : null),
+      },
+      escapeHTML,
+      console,
+      Promise,
+      Date,
+      Number,
+      String,
+      Set,
+      Object,
+    };
+    vm.runInNewContext(source, context, { filename: 'edu-course-plan-render.js' });
+
+    await context.App.renderEduCoursePlanList('teamA', false, { forceRefresh: true });
+
+    expect(app._loadEduStudents).toHaveBeenCalledWith('teamA');
+    expect(app._loadCourseEnrollments).toHaveBeenCalledWith('teamA', 'planA');
+    expect(container.innerHTML).toContain('最新課程');
+    expect(container.innerHTML).toContain('1/3 人');
+    expect(container.innerHTML).not.toContain('old-student');
+  });
+
   test('course plan move uses the currently visible tab order', async () => {
     const app = {
       showToast: jest.fn(),

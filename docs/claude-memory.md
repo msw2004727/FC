@@ -3206,3 +3206,9 @@
 - **原因**：`.td-v2-hero-rank` 的 z-index 低於 `.td-v2-cta-bar`，封面與操作列負 margin 重疊時積分文字被蓋在下層。
 - **修復**：提高 `.td-v2-hero-rank` 層級並關閉 pointer events，補上單元測試鎖定 rank 必須高於 CTA bar。
 - **教訓**：hero 內會與浮動操作列重疊的資訊，層級要明確高於操作列，不能依賴 DOM 順序。
+
+### 2026-05-22 — Club Detail V2 Course Refresh [bugfix]
+- **問題**：新版俱樂部外層切到「課程」分頁時，課程方案區可能沒有重新載入，且報名人數/狀態可能沿用舊快取。
+- **原因**：v2 外層 tab 只切換 panel class，沒有觸發教育課程 tab 的重新渲染；`renderEduCoursePlanList()` 也會在已有報名快取時跳過重新讀取。
+- **修復**：切到 v2 課程分頁時強制切回教育內層課程 tab，重新載入學員、課程方案與報名紀錄；v2 shell 重建後也會重新初始化教育課程區塊。
+- **教訓**：包在新外層分頁中的舊流程不能只靠初次 render，使用者再次點分頁時應有明確 refresh path，且人數/狀態類資料不能永遠沿用 cache。

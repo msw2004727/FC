@@ -7,14 +7,23 @@
 
 Object.assign(App, {
 
-  async renderEduCoursePlanList(teamId, isStaff) {
+  async renderEduCoursePlanList(teamId, isStaff, options = {}) {
     const container = document.getElementById('edu-course-plan-list');
     if (!container) return;
+    const forceRefresh = !!options.forceRefresh;
 
     // 若未傳入 isStaff，自動判斷
     if (isStaff === undefined) isStaff = this.isEduClubStaff(teamId);
+    if (forceRefresh) {
+      container.innerHTML = '<div class="edu-loading"><div class="edu-loading-bar"><div class="edu-loading-fill"></div></div><div class="edu-loading-text">正在更新課程狀態</div></div>';
+      if (typeof this._loadEduStudents === 'function') {
+        await this._loadEduStudents(teamId);
+        if (document.getElementById('edu-course-plan-list') !== container) return false;
+      }
+    }
 
     const plans = await this._loadEduCoursePlans(teamId);
+    if (document.getElementById('edu-course-plan-list') !== container) return false;
     const activePlans = plans.filter(p => p.active !== false)
       .sort((a, b) => {
         if (a.pinned && !b.pinned) return -1;
@@ -44,7 +53,7 @@ Object.assign(App, {
     await Promise.all(activePlans.map(async (p) => {
       try {
         const key = this._getCourseEnrollCacheKey?.(teamId, p.id);
-        if (key && !this._courseEnrollCache?.[key]) {
+        if (key && (forceRefresh || !this._courseEnrollCache?.[key])) {
           p._enrollments = await this._loadCourseEnrollments?.(teamId, p.id) || [];
         } else {
           p._enrollments = (key && this._courseEnrollCache?.[key]) || [];
@@ -57,6 +66,7 @@ Object.assign(App, {
       }
       p._effectiveCount = enrolledIds.size;
     }));
+    if (document.getElementById('edu-course-plan-list') !== container) return false;
 
     const formatMoney = (value) => {
       const amount = Number(value || 0);
