@@ -698,7 +698,6 @@ describe('team detail club activity section', () => {
     expect(actionsSource).toContain('_refreshTeamDetailV2CoursesPanel(teamId, options = {})');
     expect(actionsSource).toContain("this._eduActiveTab = 'course'");
     expect(actionsSource).toContain('this._renderEduTabContent(teamId, { forceRefresh: !!options.forceRefresh })');
-    expect(actionsSource).toContain('_initEduClubDetailSection(teamId)');
   });
 
   test('team detail v2 events and members use requested card and management-only layouts', () => {
@@ -1984,6 +1983,51 @@ describe('team detail club activity section', () => {
     expect(refreshed).toBe(true);
     expect(target.outerHTML).toContain('小麥');
     expect(target.outerHTML).toContain('td-member-label-pill label-student');
+  });
+
+  test('team detail v2 member refresh updates member panel without rebuilding hero images', () => {
+    const membersPanel = { innerHTML: '<div>old members</div>' };
+    const statNum = { textContent: '0' };
+    const quickNum = { textContent: '0' };
+    const shell = {
+      getAttribute: jest.fn((name) => name === 'data-team-id' ? 'teamA' : ''),
+      querySelector: jest.fn((selector) => {
+        if (selector === '.td-v2-panel-members') return membersPanel;
+        if (selector === '.td-v2-stats .td-v2-stat:first-child .td-v2-stat-num') return statNum;
+        if (selector === '.td-v2-quick[data-tab="members"] strong') return quickNum;
+        return null;
+      }),
+    };
+    const bodyLookup = jest.fn();
+    const app = makeApp([]);
+    const team = { id: 'teamA', feed: [] };
+    loadTeamDetailRender(app, [], {
+      teams: { teamA: team },
+      adminUsers: [],
+      document: {
+        querySelector: (selector) => selector === '#team-detail-body .td-v2-shell' ? shell : null,
+        getElementById: bodyLookup,
+      },
+      extraFiles: [
+        'js/modules/team/team-detail-v2-lists.js',
+        'js/modules/team/team-detail-v2-actions.js',
+      ],
+    });
+    Object.assign(app, {
+      _canManageTeamMembers: () => false,
+      _getTeamStaffIdentity: () => ({ keys: new Set(), names: new Set() }),
+      getEduStudents: () => [{ id: 'stu-1', name: '小麥', enrollStatus: 'active' }],
+    });
+    const fullShellRefresh = jest.spyOn(app, '_refreshTeamDetailV2ShellFromCache');
+
+    const refreshed = app._refreshTeamMembersCardFromCache('teamA');
+
+    expect(refreshed).toBe(true);
+    expect(fullShellRefresh).not.toHaveBeenCalled();
+    expect(membersPanel.innerHTML).toContain('小麥');
+    expect(statNum.textContent).toBe('1');
+    expect(quickNum.textContent).toBe('1');
+    expect(bodyLookup).not.toHaveBeenCalledWith('team-members-section');
   });
 
   test('team detail v2 restores shell class on in-app back navigation', () => {

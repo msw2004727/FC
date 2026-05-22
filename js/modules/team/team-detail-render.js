@@ -1578,7 +1578,7 @@ Object.assign(App, {
 
   _refreshTeamMembersCardFromCache(teamId) {
     const team = ApiService.getTeam?.(teamId);
-    if (team && typeof this._refreshTeamDetailV2ShellFromCache === 'function' && this._refreshTeamDetailV2ShellFromCache(teamId)) {
+    if (team && typeof this._refreshTeamDetailV2MembersPanelFromCache === 'function' && this._refreshTeamDetailV2MembersPanelFromCache(teamId)) {
       return true;
     }
     const target = document.getElementById('team-members-section');

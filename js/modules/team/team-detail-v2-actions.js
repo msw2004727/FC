@@ -40,9 +40,6 @@ Object.assign(App, {
     const totalGames = (team.wins || 0) + (team.draws || 0) + (team.losses || 0);
     const winRate = totalGames > 0 ? Math.round((team.wins || 0) / totalGames * 100) : 0;
     body.innerHTML = this._buildTeamDetailV2BodyHtml(team, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate);
-    if (this._isTeamDetailSectionVisible?.(team, 'courses') !== false && typeof this._initEduClubDetailSection === 'function') {
-      this._initEduClubDetailSection(teamId);
-    }
     this._syncTeamDetailV2RuntimeAfterBodyRender?.(teamId, this._teamDetailRequestSeq);
     return true;
   },
@@ -175,6 +172,28 @@ Object.assign(App, {
       this._refreshTeamDetailV2CoursesPanel?.(teamId, { forceRefresh: true });
     }
     try { shell.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (_) {}
+    return true;
+  },
+
+  _refreshTeamDetailV2MembersPanelFromCache(teamId) {
+    const team = ApiService.getTeam?.(teamId);
+    const shell = typeof document !== 'undefined'
+      ? document.querySelector?.('#team-detail-body .td-v2-shell')
+      : null;
+    if (!team || !shell || String(shell.getAttribute?.('data-team-id') || '') !== String(teamId || '')) return false;
+    const panel = shell.querySelector?.('.td-v2-panel-members');
+    if (!panel || typeof this._buildTeamDetailV2MembersPanel !== 'function') return false;
+    const canManageMembers = typeof this._canManageTeamMembers === 'function' ? this._canManageTeamMembers(team) : false;
+    const memberEditMode = !!this._teamMemberEditModeByTeam?.[teamId];
+    const staffIdentity = typeof this._getTeamStaffIdentity === 'function'
+      ? this._getTeamStaffIdentity(team)
+      : { keys: new Set(), names: new Set() };
+    panel.innerHTML = this._buildTeamDetailV2MembersPanel(team, canManageMembers, memberEditMode, staffIdentity);
+    const memberCount = this._getTeamDetailMemberCount?.(team) || 0;
+    const statNum = shell.querySelector?.('.td-v2-stats .td-v2-stat:first-child .td-v2-stat-num');
+    if (statNum) statNum.textContent = String(memberCount);
+    const quickNum = shell.querySelector?.('.td-v2-quick[data-tab="members"] strong');
+    if (quickNum) quickNum.textContent = String(memberCount);
     return true;
   },
 

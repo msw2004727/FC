@@ -3212,3 +3212,9 @@
 - **原因**：v2 外層 tab 只切換 panel class，沒有觸發教育課程 tab 的重新渲染；`renderEduCoursePlanList()` 也會在已有報名快取時跳過重新讀取。
 - **修復**：切到 v2 課程分頁時強制切回教育內層課程 tab，重新載入學員、課程方案與報名紀錄；v2 shell 重建後也會重新初始化教育課程區塊。
 - **教訓**：包在新外層分頁中的舊流程不能只靠初次 render，使用者再次點分頁時應有明確 refresh path，且人數/狀態類資料不能永遠沿用 cache。
+
+### 2026-05-22 — Club Detail V2 Image Flicker Fix [bugfix]
+- **問題**：新版俱樂部頁面的封面、頭像或課程圖片會不斷閃爍。
+- **原因**：v2 成員快取刷新時走 `_refreshTeamDetailV2ShellFromCache()` 整個重建 `team-detail-body`，上一輪課程刷新又在這條重建路徑重新初始化教育 listener，造成「重建 → listener 觸發 → 再重建」循環。
+- **修復**：成員/學員資料刷新時改為只重畫 v2 成員分頁與成員數字，不再重建整個 shell；同時移除 shell 快取重建中的教育區塊初始化，避免 listener 反覆重啟。
+- **教訓**：即時資料刷新不能用整頁 `innerHTML` 當捷徑，尤其頁面含遠端圖片時會造成可見閃爍；v2 shell 內應採局部 panel 更新。
