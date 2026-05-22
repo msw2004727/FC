@@ -137,7 +137,6 @@ Object.assign(App, {
       + this._buildTeamDetailV2Stats(t, totalGames, winRate)
       + this._buildTeamDetailV2Tabs(t)
       + this._buildTeamDetailV2PanelsHtml(t, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate)
-      + '<button class="td-v2-fab" type="button" data-td-v2-action="fab" aria-label="快速操作">' + this._svgIcon('plus') + '</button>'
       + '<div class="td-v2-course-modal" hidden aria-hidden="true"><div class="td-v2-modal-backdrop" data-td-v2-action="close-course"></div><div class="td-v2-modal-card" role="dialog" aria-modal="true"><div class="td-v2-modal-handle"></div><div class="td-v2-course-modal-body"></div></div></div>'
       + '</div>';
   },

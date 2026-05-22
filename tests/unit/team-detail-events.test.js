@@ -600,11 +600,13 @@ describe('team detail club activity section', () => {
     expect(html.indexOf('td-v2-hero-status')).toBeLessThan(html.indexOf('td-v2-hero-rank'));
     expect(html).toContain('data-td-v2-action="more"');
     expect(html).not.toContain('data-td-v2-action="settings"');
+    expect(html).not.toContain('td-v2-fab');
+    expect(html).not.toContain('data-td-v2-action="fab"');
     expect(html).not.toContain('td-v2-hero-name');
     expect(html).not.toContain('td-v2-hero-name-en');
   });
 
-  test('team detail v2 info uses user capsules and aligned contact actions', () => {
+  test('team detail v2 info only shows manager, leaders, and aligned contact actions', () => {
     const app = makeApp([]);
     loadTeamDetailRender(app, [], {
       extraFiles: [
@@ -616,6 +618,8 @@ describe('team detail club activity section', () => {
     app._renderTeamContactLinksHtml = jest.fn(() => '<a class="event-social-link">LINE</a>');
 
     const html = app._buildTeamDetailV2InfoGrid({
+      sportTag: 'football',
+      region: '台中市',
       captain: '金小麥',
       leaders: ['張老榕'],
       coaches: ['雷兒'],
@@ -626,12 +630,39 @@ describe('team detail club activity section', () => {
 
     expect(app._userTag).toHaveBeenCalledWith('金小麥');
     expect(app._userTag).toHaveBeenCalledWith('張老榕');
-    expect(app._userTag).toHaveBeenCalledWith('雷兒');
+    expect(app._userTag).not.toHaveBeenCalledWith('雷兒');
     expect(html).toContain('td-v2-person-tags');
     expect(html).toContain('td-v2-info-card');
+    expect(html).toContain('td-v2-info-staff-grid');
     expect(html).toContain('td-v2-contact-actions');
     expect(html).toContain('event-social-link-list td-contact-link-list');
+    expect(html).not.toContain('>運動<');
+    expect(html).not.toContain('>地區<');
+    expect(html).not.toContain('>教練<');
+    expect(html).not.toContain('>成立<');
     expect(html).not.toContain('<strong><span class="event-social-link-list');
+  });
+
+  test('team detail v2 member tab does not show the total as a notification badge', () => {
+    const app = makeApp([]);
+    loadTeamDetailRender(app, [], {
+      extraFiles: [
+        'js/modules/team/team-detail-v2-panels.js',
+      ],
+    });
+    Object.assign(app, {
+      _isTeamDetailSectionVisible: (_team, key) => ['courses', 'events', 'members'].includes(key),
+      _getTeamDetailV2CourseCount: () => 6,
+      _getTeamDetailEventCount: () => 1,
+      _getTeamDetailMemberCount: () => 4,
+    });
+
+    const html = app._buildTeamDetailV2Tabs({ id: 'teamA' });
+
+    expect(html).toContain('課程<span class="td-v2-tab-badge">6</span>');
+    expect(html).toContain('活動<span class="td-v2-tab-badge">1</span>');
+    expect(html).toContain('成員</button>');
+    expect(html).not.toContain('成員<span class="td-v2-tab-badge">4</span>');
   });
 
   test('team detail v2 events and members use requested card and management-only layouts', () => {

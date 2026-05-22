@@ -26,7 +26,6 @@ Object.assign(App, {
     const countByKey = {
       courses: this._getTeamDetailV2CourseCount?.(t) || 0,
       events: this._getTeamDetailEventCount?.(t) || 0,
-      members: this._getTeamDetailMemberCount?.(t) || 0,
     };
     const buttons = this._getTeamDetailV2Tabs(t).map(tab => {
       const badge = countByKey[tab.key] ? '<span class="td-v2-tab-badge">' + countByKey[tab.key] + '</span>' : '';
@@ -61,7 +60,7 @@ Object.assign(App, {
     const quickItems = [];
     if (this._isTeamDetailSectionVisible?.(t, 'courses')) quickItems.push(this._buildTeamDetailV2QuickLink('courses', '課程方案', this._getTeamDetailV2CourseCount?.(t) || 0));
     if (this._isTeamDetailSectionVisible?.(t, 'events')) quickItems.push(this._buildTeamDetailV2QuickLink('events', '近期活動', this._getTeamDetailEventCount?.(t) || 0));
-    if (this._isTeamDetailSectionVisible?.(t, 'members')) quickItems.push(this._buildTeamDetailV2QuickLink('members', '成員名冊', this._getTeamDetailMemberCount?.(t) || 0));
+    if (this._isTeamDetailSectionVisible?.(t, 'members')) quickItems.push(this._buildTeamDetailV2QuickLink('members', '成員總數', this._getTeamDetailMemberCount?.(t) || 0));
     if (this._isTeamDetailSectionVisible?.(t, 'record')) quickItems.push(this._buildTeamDetailV2QuickLink('record', '勝率', totalGames > 0 ? winRate + '%' : '-'));
     const quickLinks = quickItems.join('');
     const bio = t.bio
@@ -76,28 +75,23 @@ Object.assign(App, {
   },
 
   _buildTeamDetailV2InfoGrid(t) {
-    const sportLabel = this._getTeamDetailV2SportLabel?.(t) || '';
     const leaders = (Array.isArray(t.leaders) ? t.leaders : (t.leader ? [t.leader] : [])).filter(Boolean);
-    const coaches = (Array.isArray(t.coaches) ? t.coaches : []).filter(Boolean);
     const contactLinks = t.contactLinksEnabled ? (this._renderTeamContactLinksHtml?.(t.contactLinks) || '') : '';
-    const textRow = (label, value) => '<div class="td-v2-kv"><span>' + escapeHTML(label) + '</span><strong>' + escapeHTML(value || '未設定') + '</strong></div>';
-    const htmlRow = (label, value) => '<div class="td-v2-kv"><span>' + escapeHTML(label) + '</span><div class="td-v2-person-tags">' + (value || '<strong>未設定</strong>') + '</div></div>';
+    const contactText = String(t.contact || '').trim();
+    const staffRow = (label, value) => '<div class="td-v2-staff-row"><span class="td-v2-staff-label">' + escapeHTML(label) + '</span><div class="td-v2-person-tags">' + (value || '<strong>未設定</strong>') + '</div></div>';
     const personTags = (names) => names.filter(Boolean).map(name => {
       if (typeof this._userTag === 'function') return this._userTag(name);
       return '<span class="user-capsule uc-user" data-no-translate>' + escapeHTML(name) + '</span>';
     }).join(' ');
-    const rows = [
-      textRow('運動', sportLabel || '未設定'),
-      textRow('地區', t.region || t.nationality || '未設定'),
-      htmlRow('經理', t.captain ? personTags([t.captain]) : ''),
-      htmlRow('領隊', personTags(leaders)),
-      htmlRow('教練', personTags(coaches)),
-      textRow('成立', t.founded ? `${t.founded}` : '未設定'),
-    ].join('');
-    const contact = contactLinks || t.contact
-      ? '<div class="td-v2-kv td-v2-contact-kv full"><span>聯繫方式</span><div class="td-v2-contact-actions">' + (contactLinks ? '<span class="event-social-link-list td-contact-link-list">' + contactLinks + '</span>' : '<strong>' + escapeHTML(t.contact || '') + '</strong>') + '</div></div>'
+    const rows = staffRow('經理', t.captain ? personTags([t.captain]) : '')
+      + staffRow('領隊', personTags(leaders));
+    const contactParts = [];
+    if (contactLinks) contactParts.push('<span class="event-social-link-list td-contact-link-list">' + contactLinks + '</span>');
+    if (contactText) contactParts.push('<span class="td-v2-contact-text">' + escapeHTML(contactText) + '</span>');
+    const contact = contactParts.length
+      ? '<div class="td-v2-contact-card"><span class="td-v2-contact-label">聯繫方式</span><div class="td-v2-contact-actions">' + contactParts.join('') + '</div></div>'
       : '';
-    return '<div class="td-v2-card td-v2-info-card"><div class="td-v2-section-head"><h3>俱樂部資訊</h3></div><div class="td-v2-kv-grid">' + rows + contact + '</div></div>';
+    return '<div class="td-v2-card td-v2-info-card"><div class="td-v2-section-head"><h3>俱樂部資訊</h3></div><div class="td-v2-info-staff-grid">' + rows + '</div>' + contact + '</div>';
   },
 
   _buildTeamDetailV2FeaturedCourses(t) {
