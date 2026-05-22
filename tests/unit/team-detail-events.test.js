@@ -1993,6 +1993,14 @@ describe('team detail club activity section', () => {
     expect(css).toContain('text-overflow:ellipsis');
   });
 
+  test('team detail v2 rank stays above overlapping cta bar', () => {
+    const css = fs.readFileSync(path.join(__dirname, '../../css/team-detail-v2.css'), 'utf8');
+
+    expect(css).toContain('.td-v2-cta-bar{position:relative;z-index:2');
+    expect(css).toContain('.td-v2-hero-rank{position:absolute;right:14px;bottom:10px;z-index:4');
+    expect(css).toContain('pointer-events:none');
+  });
+
   test('team record card renders compact equal cells without match history', () => {
     const app = makeApp([]);
     loadTeamDetailRender(app, []);

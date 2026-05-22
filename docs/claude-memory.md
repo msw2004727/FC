@@ -3200,3 +3200,9 @@
 - **原因**：v2 計數直接讀全部 active 課程；`goBack()` 只恢復舊 DOM，沒有把已 cleanup 的 v2 shell class 與 listener 補回；隊伍分享共用同一個 Mini App URL；成員唯一計數來源只納入正式用戶與幹部，未併入 `teams/{teamId}/students` 與學員快取。
 - **修復**：資訊卡膠囊加上 scoped ellipsis；v2 課程數與熱門課程改用未結束方案；返回 `page-team-detail` 時恢復 v2 shell 並重新綁定 runtime；LINE 分享保留 Mini App URL、複製連結改用 `https://toosterx.com/teams/{id}`；成員統計併入有效學員並排除待審/移除狀態。
 - **教訓**：詳情頁切回舊 DOM 時要同時恢復 facade class 與事件 runtime；分享動作的「給 LINE」與「給外部複製」應分開建 URL，避免為了一個平台犧牲另一個入口。
+
+### 2026-05-22 — Club Detail V2 Rank Layer Hotfix [bugfix]
+- **問題**：新版俱樂部封面右下角的俱樂部積分/評級會被下方白色操作列遮住。
+- **原因**：`.td-v2-hero-rank` 的 z-index 低於 `.td-v2-cta-bar`，封面與操作列負 margin 重疊時積分文字被蓋在下層。
+- **修復**：提高 `.td-v2-hero-rank` 層級並關閉 pointer events，補上單元測試鎖定 rank 必須高於 CTA bar。
+- **教訓**：hero 內會與浮動操作列重疊的資訊，層級要明確高於操作列，不能依賴 DOM 順序。
