@@ -108,6 +108,20 @@ describe('activity create button', () => {
     expect(createSource).toContain('stopEarlyEditSubmitBusy();');
   });
 
+  test('activity form title switches between create and edit modes', () => {
+    const activityHtml = readProjectFile('pages/activity.html');
+    const createSource = readProjectFile('js/modules/event/event-create.js');
+    const lifecycleSource = readProjectFile('js/modules/event/event-manage-lifecycle.js');
+    const i18nSource = readProjectFile('js/i18n.js');
+
+    expect(activityHtml).toContain('id="ce-modal-title"');
+    expect(createSource).toContain('_setCreateEventModalMode(isEdit)');
+    expect(createSource).toContain("const titleKey = isEdit ? '編輯活動' : '新增活動';");
+    expect(createSource).toContain('this._setCreateEventModalMode(false);');
+    expect(lifecycleSource).toContain('this._setCreateEventModalMode?.(true);');
+    expect(i18nSource).toContain('"編輯活動": "Edit activity"');
+  });
+
   test('activity age limit is controlled by a toggle and submits zero when disabled', () => {
     const activityHtml = readProjectFile('pages/activity.html');
     const createSource = readProjectFile('js/modules/event/event-create.js');

@@ -1838,6 +1838,7 @@ const STATIC_UI_SOURCE_TEXT_EN = {
   "新增同行者": "Add companion",
   "新增活動": "Add activity",
   "新增活動連結": "Add activity link",
+  "編輯活動": "Edit activity",
   "新增俱樂部": "Add club",
   "新增賽事": "Add tournament",
   "新舊程度": "Condition",
@@ -2263,6 +2264,7 @@ const STATIC_UI_SOURCE_TEXT_LOCALES = _parseStaticUiLocaleRows(`
 新增同行者	同行者を追加	동행자 추가	เพิ่มผู้ร่วมเดินทาง	Thêm người đi cùng
 新增活動	活動を追加	활동 추가	เพิ่มกิจกรรม	Thêm hoạt động
 新增活動連結	活動リンクを追加	활동 링크 추가	เพิ่มลิงก์กิจกรรม	Thêm liên kết hoạt động
+編輯活動	活動を編集	활동 편집	แก้ไขกิจกรรม	Sửa hoạt động
 新增俱樂部	クラブを追加	클럽 추가	เพิ่มคลับ	Thêm CLB
 新增賽事	大会を追加	대회 추가	เพิ่มการแข่งขัน	Thêm giải đấu
 新舊程度	状態	상태	สภาพสินค้า	Tình trạng

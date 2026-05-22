@@ -35,6 +35,7 @@ Object.assign(App, {
     this.bindReservedActivityAddonToggles?.();
     this.bindRegionToggle?.();
     this._bindCreateTimeSummary?.();
+    this._setCreateEventModalMode?.(true);
     this.showModal('create-event-modal');
     this._eventSubmitInFlight = false;
     this._setCreateEventSubmitIdleLabel('儲存修改');

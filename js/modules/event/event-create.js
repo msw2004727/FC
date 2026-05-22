@@ -28,6 +28,19 @@ Object.assign(App, {
     submitBtn.style.cursor = '';
   },
 
+  _setCreateEventModalMode(isEdit) {
+    const titleEl = document.getElementById('ce-modal-title');
+    if (!titleEl) return;
+    const titleKey = isEdit ? '編輯活動' : '新增活動';
+    titleEl.dataset.i18n = titleKey;
+    if (typeof t === 'function') {
+      const translated = t(titleKey);
+      titleEl.textContent = translated === titleKey ? titleKey : translated;
+    } else {
+      titleEl.textContent = titleKey;
+    }
+  },
+
   _setCreateEventSubmitting(isSubmitting) {
     const submitBtn = document.getElementById('ce-submit-btn');
     if (!submitBtn) return;
@@ -388,6 +401,7 @@ Object.assign(App, {
     this._editEventId = null;
     this._eventImageVariantsData = null;
     this._delegates = [];
+    this._setCreateEventModalMode(false);
     // 重置表單欄位，防止編輯後殘留資料
     document.getElementById('ce-title').value = '';
     document.getElementById('ce-type').value = 'play';
