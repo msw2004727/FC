@@ -329,15 +329,26 @@ describe('profile related activity shortcuts', () => {
     expect(profileHistorySource).toContain('renderProfileRelatedActivities()');
     expect(profileHistorySource).toContain('_getProfileRegisteredActivityItems()');
     expect(profileHistorySource).toContain('_getProfileHostedActivityItems()');
+    expect(profileHistorySource).toContain('const eventRecord = ApiService.getEvent?.(eventId);');
+    expect(profileHistorySource).toContain('if (!eventRecord) return;');
+    expect(profileHistorySource).not.toContain('未命名活動');
     expect(profileHistorySource).toContain('data-event-id="${safeId}" onclick="App.openProfileRelatedActivity(this.dataset.eventId)"');
     expect(profileHistorySource).toContain('App.cancelProfileRegisteredActivity(this.dataset.eventId)');
     expect(profileHistorySource).toContain('App.editProfileHostedActivity(this.dataset.eventId)');
     expect(profileHistorySource).toContain('App.cancelProfileHostedActivity(this.dataset.eventId)');
+    expect(profileHistorySource).toContain('_profileRelatedActionIcon(type)');
+    expect(profileHistorySource).toContain('profile-related-icon-btn');
+    expect(profileHistorySource).toContain('profile-related-registration-stamp');
+    expect(profileHistorySource).not.toContain('profile-related-event-progress');
     expect(profileHistorySource).toContain("ScriptLoader._groups.activity");
     expect(profileHistorySource).toContain("new Set(['confirmed', 'registered', 'waitlisted'])");
     expect(profileCss).toContain('.profile-related-activity-list');
     expect(profileCss).toContain('.profile-related-event-card');
     expect(profileCss).toContain('.profile-related-event-actions');
+    expect(profileCss).toContain('.profile-related-card-right');
+    expect(profileCss).toContain('.profile-related-icon-btn');
+    expect(profileCss).toContain('.profile-related-registration-stamp');
+    expect(profileCss).not.toContain('.profile-related-event-progress');
   });
 });
 

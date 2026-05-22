@@ -521,7 +521,7 @@ a.social-btn { text-decoration: none; }
 .profile-related-activity-list {
   display: flex;
   flex-direction: column;
-  gap: .45rem;
+  gap: .38rem;
 }
 
 .profile-related-empty {
@@ -532,81 +532,132 @@ a.social-btn { text-decoration: none; }
 }
 
 .profile-related-event-card {
-  align-items: flex-start;
-  gap: .5rem;
-  padding: .55rem .65rem .6rem;
+  align-items: center;
+  gap: .48rem;
+  padding: .38rem .52rem;
+  min-height: 58px;
 }
 
-.profile-related-event-card .tl-event-thumb {
-  margin-top: .05rem;
+.profile-related-event-card .tl-event-thumb.profile-related-thumb {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  margin-top: 0;
 }
 
-.profile-related-event-card .tl-event-status {
-  margin-top: .05rem;
+.profile-related-event-card .tl-event-title {
+  font-size: .8rem;
+  line-height: 1.25;
 }
 
 .profile-related-event-card .tl-event-meta {
-  white-space: normal;
-  line-height: 1.45;
-}
-
-.profile-related-event-progress {
-  display: flex;
-  align-items: center;
-  gap: .4rem;
-  margin-top: .25rem;
-}
-
-.profile-related-progress-track {
-  flex: 1;
-  min-width: 44px;
-  height: 5px;
-  border-radius: 999px;
-  overflow: hidden;
-  background: var(--border);
-}
-
-.profile-related-progress-fill {
-  height: 100%;
-  border-radius: inherit;
-  transition: width .25s ease;
-}
-
-.profile-related-event-progress span {
-  color: var(--text-muted);
-  font-size: .65rem;
+  margin-top: .12rem;
   white-space: nowrap;
+  line-height: 1.25;
+}
+
+.profile-related-card-right {
+  display: grid;
+  grid-template-columns: auto auto auto;
+  align-items: center;
+  gap: .34rem;
+  flex-shrink: 0;
+  margin-left: .2rem;
 }
 
 .profile-related-event-actions {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: .35rem;
-  margin-top: .45rem;
+  justify-content: flex-end;
+  gap: .25rem;
 }
 
-.profile-related-action {
-  min-height: 28px;
-  padding: .2rem .6rem;
-  font-size: .72rem;
-  line-height: 1.2;
+.profile-related-icon-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0;
+  transition: border-color .15s, color .15s, background .15s, transform .15s;
 }
 
-.profile-related-action.danger {
+.profile-related-icon-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.profile-related-icon-btn:active {
+  transform: scale(.94);
+}
+
+.profile-related-icon-btn.danger {
   color: var(--danger);
   border-color: color-mix(in srgb, var(--danger) 48%, var(--border));
 }
 
+.profile-related-icon-btn.danger:hover {
+  background: rgba(239, 68, 68, .1);
+  border-color: var(--danger);
+}
+
+.profile-related-icon-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.profile-related-registration-stamp {
+  position: absolute;
+  right: -7px;
+  bottom: -7px;
+  width: 31px;
+  height: 31px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255,255,255,.72);
+  border: 2px solid rgba(37,99,235,.78);
+  color: rgba(37,99,235,.88);
+  font-size: .66rem;
+  font-weight: 900;
+  letter-spacing: .04em;
+  transform: rotate(-12deg);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.profile-related-registration-stamp.waitlisted {
+  border-color: rgba(139,92,246,.78);
+  color: rgba(124,58,237,.9);
+}
+
 @media (max-width: 480px) {
   .profile-related-event-card {
-    gap: .45rem;
-    padding-right: .55rem;
+    gap: .42rem;
+    padding-right: .46rem;
   }
-  .profile-related-event-card .tl-event-status,
-  .profile-related-event-card .tl-event-arrow,
-  .profile-related-event-card .tl-event-icons {
-    align-self: flex-start;
+  .profile-related-card-right {
+    gap: .24rem;
+  }
+  .profile-related-event-card .tl-event-status {
+    font-size: .6rem;
+    padding-inline: .34rem;
+  }
+  .profile-related-icon-btn {
+    width: 26px;
+    height: 26px;
   }
 }
 

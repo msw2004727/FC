@@ -197,14 +197,8 @@ Object.assign(App, {
         const eventId = String(reg.eventId || reg.activityId || '').trim();
         if (!eventId) return;
 
-        const eventRecord = ApiService.getEvent?.(eventId) || {
-          id: eventId,
-          title: reg.eventTitle || reg.title || '未命名活動',
-          date: reg.eventDate || reg.date || '',
-          location: reg.eventLocation || reg.location || '',
-          type: reg.eventType || 'friendly',
-          status: reg.eventStatus || 'open',
-        };
+        const eventRecord = ApiService.getEvent?.(eventId);
+        if (!eventRecord) return;
         const effectiveStatus = this._getProfileActivityEffectiveStatus(eventRecord);
         if (effectiveStatus === 'cancelled' || effectiveStatus === 'ended') return;
 
@@ -305,63 +299,46 @@ Object.assign(App, {
     const typeConf = typeMap[e.type] || typeMap.friendly || { label: '活動' };
     const effectiveStatus = this._getProfileActivityEffectiveStatus(e);
     const statusConf = statusMap[effectiveStatus] || statusMap[e.status] || statusMap.open || { label: '開放', css: 'open' };
-    const isExternal = e.type === 'external';
     const isEnded = effectiveStatus === 'ended' || effectiveStatus === 'cancelled';
     const eventImage = this._getEventImageUrl?.(e, 'cover') || e.image || '';
-    const title = escapeHTML(e.title || '未命名活動');
+    const title = escapeHTML(e.title || '活動');
     const dateParts = String(e.date || '').split(' ');
     const dateText = dateParts[0] || '';
     const timeText = (dateParts[1] || '').trim();
     const locationText = String(e.location || '');
     const teamBadge = e.teamOnly ? '<span class="tl-teamonly-badge">限定</span>' : '';
-    const sportIcon = typeof this._renderEventSportIcon === 'function'
-      ? this._renderEventSportIcon(e, 'tl-event-sport-corner')
-      : '';
-    const iconStack = sportIcon ? `<div class="tl-event-icons">${sportIcon}</div>` : '';
     const rowBaseClass = e.teamOnly ? 'tl-type-teamonly' : `tl-type-${e.type || 'friendly'}`;
     const metaParts = [typeConf.label, timeText, locationText].filter(Boolean);
-    let progressHtml = '';
-
-    if (!isExternal) {
-      const stats = typeof this._getEventParticipantStats === 'function'
-        ? this._getEventParticipantStats(e)
-        : {
-            confirmedCount: Math.max(0, Number(e.current || 0) || 0),
-            occupiedCount: Math.max(0, Number(e.current || 0) || 0),
-            waitlistCount: Math.max(0, Number(e.waitlist || 0) || 0),
-            maxCount: Math.max(0, Number(e.max || 0) || 0),
-          };
-      const capacityText = `${stats.confirmedCount}/${stats.maxCount}人${stats.waitlistCount > 0 ? ` ・ 候補 ${stats.waitlistCount}` : ''}`;
-      metaParts.push(capacityText);
-      if (!isEnded) {
-        const progressBase = stats.occupiedCount ?? stats.confirmedCount;
-        const progressPct = stats.maxCount > 0 ? Math.min(100, Math.round(progressBase / stats.maxCount * 100)) : 0;
-        const progressColor = progressPct >= 100 ? 'var(--danger)' : progressPct >= 70 ? 'var(--warning)' : 'var(--success)';
-        progressHtml = `<div class="profile-related-event-progress"><div class="profile-related-progress-track"><div class="profile-related-progress-fill" style="width:${progressPct}%;background:${progressColor}"></div></div><span>${escapeHTML(capacityText)}</span></div>`;
-      }
-    }
-
-    const registrationStamp = kind === 'registered'
-      ? (item.registrationStatus === 'waitlisted'
-        ? '<span class="tl-stamp-waitlisted">候補</span>'
-        : '<span class="tl-stamp-confirmed">正取</span>')
-      : '';
+    const registrationStamp = kind === 'registered' ? this._renderProfileRegistrationStamp(item.registrationStatus) : '';
     const actionsHtml = this._renderProfileRelatedActivityActions(item, kind, effectiveStatus);
 
     return `
       <div class="tl-event-row profile-related-event-card ${rowBaseClass}${isEnded ? ' tl-past' : ''}" data-event-id="${safeId}" onclick="App.openProfileRelatedActivity(this.dataset.eventId)">
-        ${eventImage ? `<div class="tl-event-thumb"><img src="${escapeHTML(eventImage)}" alt="${title}" width="48" height="48" loading="lazy" decoding="async"></div>` : ''}
+        ${eventImage ? `<div class="tl-event-thumb profile-related-thumb"><img src="${escapeHTML(eventImage)}" alt="${title}" width="42" height="42" loading="lazy" decoding="async">${registrationStamp}</div>` : ''}
         <div class="tl-event-info">
           <div class="tl-event-title-row"><div class="tl-event-title">${title}${teamBadge}</div></div>
-          ${progressHtml}
           <div class="tl-event-meta">${dateText ? `${escapeHTML(dateText)} ・ ` : ''}${metaParts.map(escapeHTML).join(' ・ ')}</div>
-          ${actionsHtml}
         </div>
-        <span class="tl-event-status ${statusConf.css || 'open'}">${escapeHTML(statusConf.label || '開放')}</span>
-        ${iconStack}
-        <span class="tl-event-arrow">›</span>
-        ${registrationStamp}
+        <div class="profile-related-card-right">
+          <span class="tl-event-status ${statusConf.css || 'open'}">${escapeHTML(statusConf.label || '開放')}</span>
+          <div class="profile-related-event-actions">${actionsHtml}</div>
+          <span class="tl-event-arrow">›</span>
+        </div>
       </div>`;
+  },
+
+  _renderProfileRegistrationStamp(status) {
+    const isWaitlist = status === 'waitlisted';
+    return `<span class="profile-related-registration-stamp ${isWaitlist ? 'waitlisted' : 'confirmed'}">${isWaitlist ? '候補' : '正取'}</span>`;
+  },
+
+  _profileRelatedActionIcon(type) {
+    const icons = {
+      cancelRegistration: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/><path d="M9 12h11"/><path d="M4 5v14"/></svg>',
+      edit: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>',
+      cancelEvent: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 8l8 8"/><path d="M16 8l-8 8"/></svg>',
+    };
+    return icons[type] || '';
   },
 
   _renderProfileRelatedActivityActions(item, kind, effectiveStatus) {
@@ -370,12 +347,12 @@ Object.assign(App, {
     if (!safeId) return '';
     if (kind === 'registered') {
       const label = item.registrationStatus === 'waitlisted' ? '取消候補' : '取消報名';
-      return `<div class="profile-related-event-actions"><button type="button" class="outline-btn profile-related-action danger" data-event-id="${safeId}" onclick="event.stopPropagation();App.cancelProfileRegisteredActivity(this.dataset.eventId)">${label}</button></div>`;
+      return `<button type="button" class="profile-related-icon-btn danger" data-event-id="${safeId}" onclick="event.stopPropagation();App.cancelProfileRegisteredActivity(this.dataset.eventId)" aria-label="${label}" title="${label}">${this._profileRelatedActionIcon('cancelRegistration')}</button>`;
     }
 
     const isTerminal = effectiveStatus === 'cancelled' || effectiveStatus === 'ended';
-    const cancelBtn = isTerminal ? '' : `<button type="button" class="outline-btn profile-related-action danger" data-event-id="${safeId}" onclick="event.stopPropagation();App.cancelProfileHostedActivity(this.dataset.eventId)">取消活動</button>`;
-    return `<div class="profile-related-event-actions"><button type="button" class="outline-btn profile-related-action" data-event-id="${safeId}" onclick="event.stopPropagation();App.editProfileHostedActivity(this.dataset.eventId)">編輯</button>${cancelBtn}</div>`;
+    const cancelBtn = isTerminal ? '' : `<button type="button" class="profile-related-icon-btn danger" data-event-id="${safeId}" onclick="event.stopPropagation();App.cancelProfileHostedActivity(this.dataset.eventId)" aria-label="取消活動" title="取消活動">${this._profileRelatedActionIcon('cancelEvent')}</button>`;
+    return `<button type="button" class="profile-related-icon-btn" data-event-id="${safeId}" onclick="event.stopPropagation();App.editProfileHostedActivity(this.dataset.eventId)" aria-label="編輯活動" title="編輯活動">${this._profileRelatedActionIcon('edit')}</button>${cancelBtn}`;
   },
 
   async _ensureProfileActivityModulesReady() {
