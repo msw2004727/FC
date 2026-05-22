@@ -77,19 +77,25 @@ Object.assign(App, {
 
   _buildTeamDetailV2InfoGrid(t) {
     const sportLabel = this._getTeamDetailV2SportLabel?.(t) || '';
-    const leaders = (Array.isArray(t.leaders) ? t.leaders : (t.leader ? [t.leader] : [])).filter(Boolean).join('、');
-    const coaches = (Array.isArray(t.coaches) ? t.coaches : []).filter(Boolean).join('、');
+    const leaders = (Array.isArray(t.leaders) ? t.leaders : (t.leader ? [t.leader] : [])).filter(Boolean);
+    const coaches = (Array.isArray(t.coaches) ? t.coaches : []).filter(Boolean);
     const contactLinks = t.contactLinksEnabled ? (this._renderTeamContactLinksHtml?.(t.contactLinks) || '') : '';
+    const textRow = (label, value) => '<div class="td-v2-kv"><span>' + escapeHTML(label) + '</span><strong>' + escapeHTML(value || '未設定') + '</strong></div>';
+    const htmlRow = (label, value) => '<div class="td-v2-kv"><span>' + escapeHTML(label) + '</span><div class="td-v2-person-tags">' + (value || '<strong>未設定</strong>') + '</div></div>';
+    const personTags = (names) => names.filter(Boolean).map(name => {
+      if (typeof this._userTag === 'function') return this._userTag(name);
+      return '<span class="user-capsule uc-user" data-no-translate>' + escapeHTML(name) + '</span>';
+    }).join(' ');
     const rows = [
-      ['運動', sportLabel || '未設定'],
-      ['地區', t.region || t.nationality || '未設定'],
-      ['經理', t.captain || '未設定'],
-      ['領隊', leaders || '未設定'],
-      ['教練', coaches || '未設定'],
-      ['成立', t.founded ? `${t.founded}` : '未設定'],
-    ].map(row => '<div class="td-v2-kv"><span>' + escapeHTML(row[0]) + '</span><strong>' + escapeHTML(row[1]) + '</strong></div>').join('');
+      textRow('運動', sportLabel || '未設定'),
+      textRow('地區', t.region || t.nationality || '未設定'),
+      htmlRow('經理', t.captain ? personTags([t.captain]) : ''),
+      htmlRow('領隊', personTags(leaders)),
+      htmlRow('教練', personTags(coaches)),
+      textRow('成立', t.founded ? `${t.founded}` : '未設定'),
+    ].join('');
     const contact = contactLinks || t.contact
-      ? '<div class="td-v2-kv full"><span>聯繫方式</span><strong>' + (contactLinks ? '<span class="event-social-link-list td-contact-link-list">' + contactLinks + '</span>' : escapeHTML(t.contact || '')) + '</strong></div>'
+      ? '<div class="td-v2-kv td-v2-contact-kv full"><span>聯繫方式</span><div class="td-v2-contact-actions">' + (contactLinks ? '<span class="event-social-link-list td-contact-link-list">' + contactLinks + '</span>' : '<strong>' + escapeHTML(t.contact || '') + '</strong>') + '</div></div>'
       : '';
     return '<div class="td-v2-card"><div class="td-v2-section-head"><h3>俱樂部資訊</h3></div><div class="td-v2-kv-grid">' + rows + contact + '</div></div>';
   },

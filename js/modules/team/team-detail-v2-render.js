@@ -16,6 +16,7 @@ Object.assign(App, {
       qr: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h7v7H3z"></path><path d="M14 3h7v7h-7z"></path><path d="M3 14h7v7H3z"></path><path d="M14 14h3v3h-3z"></path><path d="M18 18h3v3h-3z"></path></svg>',
       contact: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path></svg>',
       settings: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z"></path><path d="M19.4 15a1.8 1.8 0 0 0 .36 2l.05.05a2.1 2.1 0 0 1-3 3l-.05-.05a1.8 1.8 0 0 0-2-.36 1.8 1.8 0 0 0-1.1 1.65V21a2.1 2.1 0 0 1-4.2 0v-.08A1.8 1.8 0 0 0 8.4 19.3a1.8 1.8 0 0 0-2 .36l-.05.05a2.1 2.1 0 0 1-3-3l.05-.05a1.8 1.8 0 0 0 .36-2A1.8 1.8 0 0 0 2 13.55V13a2.1 2.1 0 0 1 0-4.2h.08A1.8 1.8 0 0 0 3.7 7.6a1.8 1.8 0 0 0-.36-2l-.05-.05a2.1 2.1 0 0 1 3-3l.05.05a1.8 1.8 0 0 0 2 .36H8.4A1.8 1.8 0 0 0 9.5 1.3V1a2.1 2.1 0 0 1 4.2 0v.08a1.8 1.8 0 0 0 1.1 1.65 1.8 1.8 0 0 0 2-.36l.05-.05a2.1 2.1 0 0 1 3 3l-.05.05a1.8 1.8 0 0 0-.36 2v.05A1.8 1.8 0 0 0 21 8.5h.1a2.1 2.1 0 0 1 0 4.2H21a1.8 1.8 0 0 0-1.6 1.1Z"></path></svg>',
+      camera: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 4 16 7h3a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3l1.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg>',
       plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>',
     };
     return icons[name] || '';
@@ -47,15 +48,10 @@ Object.assign(App, {
 
   _buildTeamDetailV2Topbar(t) {
     const subtitle = t?.nameEn || this._getTeamDetailV2SportLabel(t) || t?.region || '';
-    const canEdit = !!this._canEditTeamByRoleOrCaptain?.(t);
-    const settings = canEdit
-      ? '<button class="td-v2-icon-btn" type="button" data-td-v2-action="settings" aria-label="俱樂部設定">' + this._svgIcon('settings') + '</button>'
-      : '<button class="td-v2-icon-btn" type="button" data-td-v2-action="share" aria-label="分享俱樂部">' + this._svgIcon('share') + '</button>';
     return '<div class="td-v2-topbar">'
       + '<button class="td-v2-icon-btn" type="button" data-td-v2-action="back" aria-label="返回">' + this._svgIcon('back') + '</button>'
       + '<div class="td-v2-title-wrap"><div class="td-v2-title">' + escapeHTML(t?.name || '俱樂部名稱') + '</div>'
       + '<div class="td-v2-subtitle">' + escapeHTML(subtitle || 'Club detail') + '</div></div>'
-      + settings
       + '<button class="td-v2-icon-btn" type="button" data-td-v2-action="more" aria-label="更多操作">' + this._svgIcon('more') + '</button>'
       + '</div>';
   },
@@ -63,10 +59,17 @@ Object.assign(App, {
   _buildTeamDetailV2Hero(t) {
     const sportLabel = this._getTeamDetailV2SportLabel(t);
     const logoUrl = this._getTeamDetailAvatarUrl?.(t) || '';
+    const coverUrl = this._getTeamCoverImageUrl?.(t, 'cover') || this._getTeamImageUrl?.(t, 'cover') || t?.image || '';
+    const canEdit = !!this._canEditTeamByRoleOrCaptain?.(t);
+    const detailRank = this._getTeamRank?.(Number(t?.teamExp || 0)) || { rank: 'E', color: '#94a3b8' };
+    const exp = Number(t?.teamExp || 0);
     const initial = escapeHTML(String(t?.name || 'T').trim().charAt(0) || 'T');
     const logo = logoUrl
       ? '<div class="td-v2-hero-logo has-img"><img src="' + escapeHTML(logoUrl) + '" alt="' + escapeHTML(t?.name || '') + '"></div>'
       : '<div class="td-v2-hero-logo"><span>' + initial + '</span></div>';
+    const logoWrap = '<div class="td-v2-hero-logo-wrap">' + logo
+      + (canEdit ? '<button class="td-v2-avatar-edit" type="button" data-td-v2-action="edit-avatar" aria-label="更換俱樂部頭像" title="更換俱樂部頭像">' + this._svgIcon('camera') + '</button>' : '')
+      + '</div>';
     const chips = [
       sportLabel,
       t?.region || t?.nationality || '',
@@ -74,10 +77,12 @@ Object.assign(App, {
       this._isTeamDetailTeachingEnabled?.(t) ? '教學俱樂部' : '',
     ].filter(Boolean).map(text => '<span class="td-v2-hero-chip">' + escapeHTML(text) + '</span>').join('');
     return '<section class="td-v2-hero">'
-      + '<div class="td-v2-hero-inner">' + logo
-      + '<div class="td-v2-hero-text"><div class="td-v2-hero-name">' + escapeHTML(t?.name || '俱樂部名稱') + '</div>'
-      + (t?.nameEn ? '<div class="td-v2-hero-name-en">' + escapeHTML(t.nameEn) + '</div>' : '')
-      + '<div class="td-v2-hero-meta">' + chips + '</div></div></div>'
+      + (coverUrl ? '<img class="td-v2-hero-cover" src="' + escapeHTML(coverUrl) + '" alt="" loading="eager" decoding="async" fetchpriority="high">' : '')
+      + '<div class="td-v2-hero-shade"></div>'
+      + (canEdit ? '<button class="td-v2-cover-edit" type="button" data-td-v2-action="edit-cover" aria-label="更換俱樂部封面" title="更換俱樂部封面">' + this._svgIcon('camera') + '</button>' : '')
+      + '<div class="td-v2-hero-rank" style="--td-v2-rank-color:' + escapeHTML(detailRank.color || '#94a3b8') + '"><span>' + exp.toLocaleString() + '</span><strong>' + escapeHTML(detailRank.rank || 'E') + '</strong></div>'
+      + '<div class="td-v2-hero-inner">' + logoWrap
+      + '<div class="td-v2-hero-text"><div class="td-v2-hero-meta">' + chips + '</div></div></div>'
       + '<div class="td-v2-hero-status"><span class="td-v2-pulse"></span><span>' + escapeHTML(this._getTeamDetailV2RecruitText(t)) + '</span></div>'
       + '</section>';
   },

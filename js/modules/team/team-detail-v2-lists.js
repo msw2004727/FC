@@ -46,24 +46,24 @@ Object.assign(App, {
       const statusKey = typeof this._getEventEffectiveStatus === 'function' ? this._getEventEffectiveStatus(e) : e.status;
       const status = statusKey === 'full' ? '已額滿' : (statusKey === 'upcoming' ? '即將開放' : '報名中');
       const countText = e.max > 0 ? ` · ${Number(e.current || 0)}/${Number(e.max || 0)} 名` : '';
-      return '<button class="td-v2-event-row" type="button" data-td-v2-action="event" data-event-id="' + escapeHTML(e.id || '') + '">'
-        + '<span class="td-v2-event-date"><em>' + escapeHTML(month) + '</em><strong>' + escapeHTML(day || '') + '</strong></span>'
+      const image = this._getEventImageUrl?.(e, 'cover') || e?.imageVariants?.cover || e?.coverImage || e?.image || '';
+      const cover = image
+        ? '<span class="td-v2-event-cover"><img src="' + escapeHTML(image) + '" alt="" loading="lazy" decoding="async"></span>'
+        : '<span class="td-v2-event-cover empty"><em>' + escapeHTML(month) + '</em><strong>' + escapeHTML(day || '') + '</strong></span>';
+      return '<button class="td-v2-event-card" type="button" data-td-v2-action="event" data-event-id="' + escapeHTML(e.id || '') + '">'
+        + cover
+        + '<span class="td-v2-event-card-body"><span class="td-v2-event-date"><em>' + escapeHTML(month) + '</em><strong>' + escapeHTML(day || '') + '</strong></span>'
         + '<span class="td-v2-event-main"><strong>' + escapeHTML(e.title || '未命名活動') + '<i class="' + (statusKey === 'full' ? 'full' : '') + '">' + escapeHTML(status) + '</i></strong>'
-        + '<em>' + escapeHTML([String(e.date || '').split(' ')[1] || '', e.location || ''].filter(Boolean).join(' · ') + countText) + '</em></span><b>›</b></button>';
+        + '<em>' + escapeHTML([String(e.date || '').split(' ')[1] || '', e.location || ''].filter(Boolean).join(' · ') + countText) + '</em></span><b>›</b></span></button>';
     }).join('');
   },
 
   _buildTeamDetailV2MembersPanel(t, canManageMembers, memberEditMode, staffIdentity) {
-    const roster = typeof this._getTeamDetailRoster === 'function' ? this._getTeamDetailRoster(t) : [];
-    const staff = roster.filter(row => row.roles?.has?.('經理') || row.roles?.has?.('領隊') || row.roles?.has?.('教練')).slice(0, 8);
-    const general = roster.filter(row => !staff.includes(row)).slice(0, 12);
     const management = canManageMembers
       ? '<div class="td-v2-card td-v2-member-management"><div class="td-v2-section-head"><h3>成員管理</h3><button type="button" data-td-v2-action="toggle-member-management">' + (memberEditMode ? '完成' : '管理') + '</button></div>'
         + this._buildTeamMembersCard(t, canManageMembers, memberEditMode, staffIdentity) + '</div>'
       : '<div class="td-v2-card td-v2-member-management">' + this._buildTeamMembersCard(t, canManageMembers, memberEditMode, staffIdentity) + '</div>';
-    return '<div class="td-v2-card"><div class="td-v2-section-head"><h3>核心成員</h3><span>' + staff.length + ' 人</span></div>' + this._buildTeamDetailV2MemberGrid(staff) + '</div>'
-      + '<div class="td-v2-card"><div class="td-v2-section-head"><h3>會員與學員</h3><span>共 ' + roster.length + ' 人</span></div>' + this._buildTeamDetailV2MemberGrid(general) + '</div>'
-      + management;
+    return management;
   },
 
   _buildTeamDetailV2MemberGrid(rows) {
@@ -73,9 +73,12 @@ Object.assign(App, {
       const role = row.tag || (row.roles ? Array.from(row.roles).join('、') : '') || (row.isStudent ? '學員' : '會員');
       const initial = String(name).trim().charAt(0) || '?';
       const uid = row.uid ? ' data-user-uid="' + escapeHTML(row.uid) + '"' : '';
+      const nameClass = typeof this._getTeamDetailMemberNameClass === 'function'
+        ? this._getTeamDetailMemberNameClass(row)
+        : 'td-member-name-pill uc-user';
       return '<button class="td-v2-member" type="button" data-td-v2-action="user" data-user-name="' + escapeHTML(name) + '"' + uid + '>'
         + '<span class="td-v2-member-av c' + ((idx % 5) + 1) + '">' + escapeHTML(initial) + '</span>'
-        + '<strong>' + escapeHTML(name) + '</strong><em>' + escapeHTML(role) + '</em></button>';
+        + '<strong><span class="' + escapeHTML(nameClass) + '">' + escapeHTML(name) + '</span></strong><em>' + escapeHTML(role) + '</em></button>';
     }).join('') + '</div>';
   },
 

@@ -6,6 +6,10 @@ const source = fs.readFileSync(
   path.join(__dirname, '../../js/modules/education/edu-course-plan-render.js'),
   'utf8'
 );
+const crudSource = fs.readFileSync(
+  path.join(__dirname, '../../js/modules/education/edu-course-plan.js'),
+  'utf8'
+);
 
 function escapeHTML(value) {
   return String(value ?? '')
@@ -131,5 +135,49 @@ describe('edu course plan render', () => {
     expect(endedHtml).toContain('Ended Plan');
     expect(endedHtml).not.toContain('Active Plan');
     expect(endedHtml).toContain('edu-cp-status-ended');
+  });
+
+  test('course plan move uses the currently visible tab order', async () => {
+    const app = {
+      showToast: jest.fn(),
+      renderEduCoursePlanList: jest.fn().mockResolvedValue(),
+    };
+    const updates = [];
+    const context = {
+      App: app,
+      FirebaseService: {
+        listEduCoursePlans: jest.fn(),
+        updateEduCoursePlan: jest.fn((teamId, planId, update) => {
+          updates.push({ teamId, planId, update });
+          return Promise.resolve();
+        }),
+      },
+      document: { getElementById: jest.fn(() => null) },
+      console,
+      Promise,
+      Date,
+      Number,
+      String,
+      Object,
+      Array,
+      Set,
+    };
+    vm.runInNewContext(crudSource, context, { filename: 'edu-course-plan.js' });
+    app._eduCoursePlanTabByTeam = { teamA: 'active' };
+    app._eduCoursePlansCache = {
+      teamA: [
+        { id: 'current-a', active: true, sortOrder: 10, endDate: '2099-01-01' },
+        { id: 'ended-hidden', active: true, sortOrder: 15, endDate: '2000-01-01' },
+        { id: 'current-b', active: true, sortOrder: 20, endDate: '2099-01-01' },
+      ],
+    };
+
+    await app._moveCoursePlan('teamA', 'current-b', -1);
+
+    expect(app._eduCoursePlansCache.teamA.find(p => p.id === 'current-a').sortOrder).toBe(20);
+    expect(app._eduCoursePlansCache.teamA.find(p => p.id === 'current-b').sortOrder).toBe(10);
+    expect(app._eduCoursePlansCache.teamA.find(p => p.id === 'ended-hidden').sortOrder).toBe(15);
+    expect(updates.map(item => item.planId)).toEqual(['current-a', 'current-b']);
+    expect(app.renderEduCoursePlanList).toHaveBeenCalledWith('teamA');
   });
 });

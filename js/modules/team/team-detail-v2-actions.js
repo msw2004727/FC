@@ -95,6 +95,8 @@ Object.assign(App, {
       return this.shareTeam?.(teamId);
     }
     if (action === 'share') return this.shareTeam?.(teamId);
+    if (action === 'edit-avatar') return this.openTeamAvatarUpload?.(target);
+    if (action === 'edit-cover') return this.openTeamCoverUpload?.(target);
     if (action === 'contact') {
       if (team.captain) return this.showUserProfile?.(team.captain);
       return this.showToast?.('此俱樂部尚未設定負責人');

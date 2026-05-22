@@ -3176,3 +3176,9 @@
 - **原因**：原本的 `_buildTeamDetailBodyHtml()` 同時承擔單一舊版 builder 與 runtime 綁定點，缺少可回退的 v2 facade、scoped listener cleanup，以及 body rebuild 後的重新同步流程。
 - **修復**：新增 `team-detail-v2-*` 四個拆分模組與 `css/team-detail-v2.css`，以 feature switch 接管新版 hero、CTA、資訊、課程、活動、成員、紀錄與動態面板；保留 v1 fallback，補上 script loader、Service Worker cache、加入狀態刷新、離頁 cleanup 與 `showTeamDetail` stale request 防護。
 - **教訓**：大型詳情頁改版要讓新版 UI 成為可切換 facade，而不是覆寫舊 builder；所有會重建 body 的入口都必須同步 runtime，避免 stale request 或殘留事件監聽器污染下一個詳情頁。
+
+### 2026-05-22 — Club Detail V2 Acceptance Fixes [ux]
+- **問題**：新版俱樂部頁首招收列被 CTA 遮蔽、封面重複顯示隊名、齒輪與更多操作重疊、頭像/封面無法從詳情頁裁切上傳、資訊卡姓名未套用暱稱膠囊、聯繫按鈕跑位、課程排序與封面遮罩不符合目前分頁、活動列表缺封面卡片、成員頁仍有多餘精選區，返回時也可能先閃出舊封面。
+- **原因**：v2 hero 沒有完整接回舊版媒體編輯與 fast shell 狀態；資訊、活動、成員面板仍混用 demo 版簡化 markup；課程排序按鈕沿用全部 activePlans 的索引，沒有依目前課程中/已結束分頁計算。
+- **修復**：將設定入口合併到更多按鈕，封面只保留頭像/標籤/招收列/積分；新增封面裁切上傳並沿用 image variant cropper；資訊卡改用 user capsule 與聯繫 action row；活動改封面卡片；成員分頁只保留成員管理；fast shell 在 v2 啟用時立即隱藏舊封面；課程排序改依目前可見分頁排序，並補上 light/dark 主題樣式。
+- **教訓**：v2 頁面不能只改 body builder；fast shell、舊版 placeholder、裁切上傳與原資料排序邏輯都要一起對齊，否則使用者在切頁或管理操作時會看到舊 UI 或隱藏資料影響目前畫面。

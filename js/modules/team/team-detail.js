@@ -363,6 +363,130 @@ Object.assign(App, {
     }
   },
 
+  _getTeamCoverUploadInput() {
+    if (typeof document === 'undefined') return null;
+    let input = document.getElementById('team-cover-upload-input');
+    if (input) return input;
+    if (typeof document.createElement !== 'function') return null;
+    input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.id = 'team-cover-upload-input';
+    input.style.display = 'none';
+    document.body?.appendChild(input);
+    return input;
+  },
+
+  openTeamCoverUpload(btn) {
+    const teamId = this._teamDetailId;
+    const team = teamId ? ApiService.getTeam(teamId) : null;
+    if (!team) return;
+    if (!this._canEditTeamByRoleOrCaptain?.(team)) {
+      this.showToast('您沒有編輯此俱樂部的權限');
+      return;
+    }
+    const input = this._getTeamCoverUploadInput();
+    if (!input) {
+      this.showToast('無法開啟圖片上傳，請重新整理後再試');
+      return;
+    }
+    input.value = '';
+    input.onchange = async () => {
+      const file = input.files && input.files[0];
+      input.value = '';
+      if (!file) return;
+      await this._uploadTeamCoverFile(btn, team, file);
+    };
+    input.click();
+  },
+
+  async _prepareTeamCoverPayload(file) {
+    const sourceDataURL = await this._readTeamAvatarFileAsDataUrl(file);
+    const targets = typeof this._getTeamImageVariantTargets === 'function'
+      ? this._getTeamImageVariantTargets()
+      : null;
+    if (typeof this._openImageVariantCropSequence === 'function' && Array.isArray(targets) && targets.length) {
+      return new Promise((resolve) => {
+        this._openImageVariantCropSequence(sourceDataURL, targets, {
+          onConfirm: (variants) => resolve({
+            imageVariants: variants,
+            image: variants?.cover || variants?.card || '',
+          }),
+          onCancel: () => resolve(null),
+        });
+      });
+    }
+    if (typeof this._compressImage === 'function') {
+      const image = await this._compressImage(file, 1200, 0.9, 'image/webp');
+      return { image, imageVariants: { cover: image } };
+    }
+    return { image: sourceDataURL, imageVariants: { cover: sourceDataURL } };
+  },
+
+  async _uploadTeamCoverFile(btn, team, file) {
+    const teamId = String(team?.id || this._teamDetailId || '').trim();
+    if (!teamId || !file) return;
+    const isAllowed = typeof this._isAllowedImageFile === 'function'
+      ? this._isAllowedImageFile(file)
+      : /^image\//.test(String(file.type || ''));
+    if (!isAllowed) {
+      this.showToast('請上傳 JPG / PNG / WebP 圖片');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      this.showToast('圖片太大，不能超過 5MB');
+      return;
+    }
+
+    let updates = null;
+    try {
+      updates = await this._prepareTeamCoverPayload(file);
+    } catch (cropErr) {
+      console.error('[TeamDetail] cover crop failed:', cropErr);
+      this.showToast('圖片處理失敗，請重試');
+      return;
+    }
+    if (!updates) return;
+
+    const run = async () => {
+      try {
+        if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._ensureAuth === 'function') {
+          const authed = await FirebaseService._ensureAuth();
+          if (!authed) {
+            this.showToast('登入已過期，請重新整理頁面後再試');
+            return;
+          }
+        }
+        if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._uploadTeamImageVariants === 'function') {
+          await FirebaseService._uploadTeamImageVariants(teamId, updates);
+        } else if (updates.image && typeof FirebaseService !== 'undefined' && typeof FirebaseService._uploadImage === 'function' && updates.image.startsWith('data:')) {
+          updates.image = await FirebaseService._uploadImage(updates.image, `teams/${teamId}_cover`);
+          updates.imageVariants = { cover: updates.image };
+        } else if (updates.image && updates.image.startsWith('data:')) {
+          throw new Error('TEAM_COVER_UPLOAD_UNAVAILABLE');
+        }
+        await ApiService.updateTeamAwait(teamId, updates);
+        Object.assign(team, updates);
+        this.renderTeamList?.();
+        this.renderTeamManage?.();
+        this.renderAdminTeams?.();
+        await this.showTeamDetail(teamId, { skipPageHistory: true, bypassPageLock: true });
+        this.showToast('俱樂部封面已更新');
+      } catch (err) {
+        console.error('[TeamDetail] cover upload failed:', err);
+        if (typeof ApiService._writeErrorLog === 'function') {
+          ApiService._writeErrorLog({ fn: 'uploadTeamCover', teamId }, err);
+        }
+        if (!err?._toasted) this.showToast('封面上傳失敗，請稍後再試');
+      }
+    };
+    if (typeof this._withButtonLoading === 'function' && btn) {
+      await this._withButtonLoading(btn, '上傳中', run);
+    } else {
+      await run();
+    }
+  },
+
   _getTeamDetailSettingsItems() {
     return [
       { key: 'events', label: '\u6d3b\u52d5', desc: '\u4ff1\u6a02\u90e8\u6d3b\u52d5\u5217\u8868' },
@@ -699,13 +823,19 @@ Object.assign(App, {
       nodes.nameEn.textContent = t.nameEn || '';
 
       const imgEl = nodes.image;
-      const detailRank = this._getTeamRank(t.teamExp);
-      const detailImage = this._getTeamCoverImageUrl?.(t, 'cover') || this._getTeamImageUrl?.(t, 'cover') || t.image || '';
-      imgEl.style.position = 'relative';
-      if (detailImage) {
-        imgEl.innerHTML = '<img src="' + escapeHTML(detailImage) + '" width="1200" height="450" loading="eager" decoding="async" fetchpriority="high" style="width:100%;height:100%;object-fit:cover"><span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
+      const useV2 = typeof isTeamDetailV2Enabled === 'function' && isTeamDetailV2Enabled();
+      this._setTeamDetailV2ShellActive?.(useV2);
+      if (useV2) {
+        imgEl.innerHTML = '';
       } else {
-        imgEl.innerHTML = '\u4ff1\u6a02\u90e8\u5c01\u9762 800 \u00d7 300<span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
+        const detailRank = this._getTeamRank(t.teamExp);
+        const detailImage = this._getTeamCoverImageUrl?.(t, 'cover') || this._getTeamImageUrl?.(t, 'cover') || t.image || '';
+        imgEl.style.position = 'relative';
+        if (detailImage) {
+          imgEl.innerHTML = '<img src="' + escapeHTML(detailImage) + '" width="1200" height="450" loading="eager" decoding="async" fetchpriority="high" style="width:100%;height:100%;object-fit:cover"><span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
+        } else {
+          imgEl.innerHTML = '\u4ff1\u6a02\u90e8\u5c01\u9762 800 \u00d7 300<span class="tc-rank-badge tc-rank-badge-lg" style="color:' + detailRank.color + '"><span class="tc-rank-score">' + (t.teamExp || 0).toLocaleString() + '</span>' + detailRank.rank + '</span>';
+        }
       }
 
       const totalGames = (t.wins || 0) + (t.draws || 0) + (t.losses || 0);

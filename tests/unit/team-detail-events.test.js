@@ -564,6 +564,105 @@ describe('team detail club activity section', () => {
     expect(html).not.toContain('<img src=x onerror=1>');
   });
 
+  test('team detail v2 hero removes duplicate names and exposes media edit actions', () => {
+    const app = makeApp([]);
+    loadTeamDetailRender(app, [], {
+      isTeamDetailV2Enabled: () => true,
+      extraFiles: [
+        'js/modules/team/team-detail-v2-render.js',
+        'js/modules/team/team-detail-v2-panels.js',
+        'js/modules/team/team-detail-v2-lists.js',
+        'js/modules/team/team-detail-v2-actions.js',
+      ],
+    });
+    Object.assign(app, {
+      _getTeamThemeColor: () => '',
+      _canEditTeamByRoleOrCaptain: () => true,
+      _getTeamCoverImageUrl: () => 'https://cdn.example/cover.webp',
+      _getTeamDetailAvatarUrl: () => 'https://cdn.example/avatar.webp',
+      _getTeamRank: () => ({ rank: 'A', color: '#f97316' }),
+      getEduCoursePlans: () => [],
+    });
+
+    const html = app._buildTeamDetailBodyHtml(
+      { id: 'teamA', name: '台中星期二足球俱樂部', nameEn: 'Taichung Tuesday football club', teamExp: 50, coaches: [] },
+      false,
+      false,
+      { keys: new Set(), names: new Set() },
+      0,
+      0
+    );
+
+    expect(html).toContain('td-v2-hero-cover');
+    expect(html).toContain('data-td-v2-action="edit-avatar"');
+    expect(html).toContain('data-td-v2-action="edit-cover"');
+    expect(html).toContain('td-v2-hero-rank');
+    expect(html).toContain('data-td-v2-action="more"');
+    expect(html).not.toContain('data-td-v2-action="settings"');
+    expect(html).not.toContain('td-v2-hero-name');
+    expect(html).not.toContain('td-v2-hero-name-en');
+  });
+
+  test('team detail v2 info uses user capsules and aligned contact actions', () => {
+    const app = makeApp([]);
+    loadTeamDetailRender(app, [], {
+      extraFiles: [
+        'js/modules/team/team-detail-v2-render.js',
+        'js/modules/team/team-detail-v2-panels.js',
+      ],
+    });
+    app._userTag = jest.fn((name) => '<span class="user-capsule uc-user">' + String(name) + '</span>');
+    app._renderTeamContactLinksHtml = jest.fn(() => '<a class="event-social-link">LINE</a>');
+
+    const html = app._buildTeamDetailV2InfoGrid({
+      captain: '金小麥',
+      leaders: ['張老榕'],
+      coaches: ['雷兒'],
+      contactLinksEnabled: true,
+      contactLinks: [{ type: 'line' }],
+      founded: 2026,
+    });
+
+    expect(app._userTag).toHaveBeenCalledWith('金小麥');
+    expect(app._userTag).toHaveBeenCalledWith('張老榕');
+    expect(app._userTag).toHaveBeenCalledWith('雷兒');
+    expect(html).toContain('td-v2-person-tags');
+    expect(html).toContain('td-v2-contact-actions');
+    expect(html).toContain('event-social-link-list td-contact-link-list');
+    expect(html).not.toContain('<strong><span class="event-social-link-list');
+  });
+
+  test('team detail v2 events and members use requested card and management-only layouts', () => {
+    const app = makeApp([]);
+    loadTeamDetailRender(app, [], {
+      extraFiles: [
+        'js/modules/team/team-detail-v2-render.js',
+        'js/modules/team/team-detail-v2-lists.js',
+      ],
+    });
+    Object.assign(app, {
+      _getTeamFutureEvents: () => [{
+        id: 'eventA',
+        title: '俱樂部測試活動',
+        date: '2099/01/31 14:00',
+        location: '火星',
+        max: 20,
+        current: 6,
+        imageVariants: { cover: 'https://cdn.example/event-cover.webp' },
+      }],
+      _buildTeamMembersCard: () => '<div class="td-card">成員管理</div>',
+    });
+
+    const eventsHtml = app._buildTeamDetailV2EventRows('teamA', 1);
+    const membersHtml = app._buildTeamDetailV2MembersPanel({ id: 'teamA' }, true, false, { keys: new Set(), names: new Set() });
+
+    expect(eventsHtml).toContain('td-v2-event-card');
+    expect(eventsHtml).toContain('https://cdn.example/event-cover.webp');
+    expect(membersHtml).toContain('成員管理');
+    expect(membersHtml).not.toContain('核心成員');
+    expect(membersHtml).not.toContain('會員與學員');
+  });
+
   test('team detail body facade keeps v1 fallback when v2 flag is off', () => {
     const app = makeApp([]);
     loadTeamDetailRender(app, [], {
@@ -1044,6 +1143,75 @@ describe('team detail club activity section', () => {
     expect(team.avatarUrl).toBe('https://cdn.example/uploaded-avatar.webp');
     expect(app.showTeamDetail).toHaveBeenCalledWith('teamA', { skipPageHistory: true, bypassPageLock: true });
     expect(app.showToast).toHaveBeenCalledWith('\u4ff1\u6a02\u90e8\u982d\u50cf\u5df2\u66f4\u65b0');
+  });
+
+  test('team cover upload reuses variant crop sequence and stores cover/card URLs', async () => {
+    const team = { id: 'teamA', _docId: 'teamA', name: 'Club A' };
+    const updateTeamAwait = jest.fn().mockImplementation(async (_teamId, updates) => {
+      Object.assign(team, updates);
+      return team;
+    });
+    const uploadInputs = [];
+    const uploadVariants = jest.fn().mockImplementation(async (_teamId, payload) => {
+      uploadInputs.push(JSON.parse(JSON.stringify(payload)));
+      payload.imageVariants = {
+        cover: 'https://cdn.example/team-cover.webp',
+        card: 'https://cdn.example/team-card.webp',
+      };
+      payload.image = payload.imageVariants.cover;
+    });
+    const app = {
+      _teamDetailId: 'teamA',
+      _canEditTeamByRoleOrCaptain: () => true,
+      _withButtonLoading: async (_btn, _text, fn) => fn(),
+      renderTeamList: jest.fn(),
+      renderTeamManage: jest.fn(),
+      renderAdminTeams: jest.fn(),
+      showTeamDetail: jest.fn().mockResolvedValue({ ok: true }),
+      showToast: jest.fn(),
+    };
+    loadTeamDetailCore(app, null, {
+      ApiService: {
+        getTeam: () => team,
+        updateTeamAwait,
+        _writeErrorLog: jest.fn(),
+      },
+      FirebaseService: {
+        _ensureAuth: jest.fn().mockResolvedValue(true),
+        _uploadTeamImageVariants: uploadVariants,
+      },
+    });
+    app._readTeamAvatarFileAsDataUrl = jest.fn().mockResolvedValue('data:image/png;base64,cover-source');
+    app._getTeamImageVariantTargets = jest.fn().mockReturnValue([{ key: 'cover' }, { key: 'card' }]);
+    app._openImageVariantCropSequence = jest.fn((_src, _targets, callbacks) => callbacks.onConfirm({
+      cover: 'data:image/webp;base64,cropped-cover',
+      card: 'data:image/webp;base64,cropped-card',
+    }));
+    app.showTeamDetail = jest.fn().mockResolvedValue({ ok: true });
+
+    await app._uploadTeamCoverFile({ disabled: false }, team, { type: 'image/png', size: 1024, name: 'cover.png' });
+
+    expect(app._openImageVariantCropSequence).toHaveBeenCalledWith(
+      'data:image/png;base64,cover-source',
+      [{ key: 'cover' }, { key: 'card' }],
+      expect.objectContaining({ onConfirm: expect.any(Function), onCancel: expect.any(Function) })
+    );
+    expect(uploadVariants).toHaveBeenCalledWith('teamA', expect.any(Object));
+    expect(uploadInputs[0]).toEqual(expect.objectContaining({
+      imageVariants: expect.objectContaining({
+        cover: 'data:image/webp;base64,cropped-cover',
+        card: 'data:image/webp;base64,cropped-card',
+      }),
+    }));
+    expect(updateTeamAwait).toHaveBeenCalledWith('teamA', {
+      imageVariants: {
+        cover: 'https://cdn.example/team-cover.webp',
+        card: 'https://cdn.example/team-card.webp',
+      },
+      image: 'https://cdn.example/team-cover.webp',
+    });
+    expect(app.showTeamDetail).toHaveBeenCalledWith('teamA', { skipPageHistory: true, bypassPageLock: true });
+    expect(app.showToast).toHaveBeenCalledWith('\u4ff1\u6a02\u90e8\u5c01\u9762\u5df2\u66f4\u65b0');
   });
 
   test('team member removal row accepts teamIds fallback and routes staff rows separately', () => {

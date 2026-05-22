@@ -578,16 +578,24 @@ Object.assign(App, {
   _renderFastTeamDetailShell(id) {
     const team = (typeof ApiService !== 'undefined' && ApiService.getTeam?.(id)) || null;
     this._teamDetailId = id;
+    const useV2 = typeof isTeamDetailV2Enabled === 'function' && isTeamDetailV2Enabled();
+    document.getElementById('page-team-detail')?.classList.toggle('td-v2-active', !!useV2);
     const title = document.getElementById('team-detail-title');
     if (title) title.textContent = team?.name || '俱樂部詳情';
     const nameEn = document.getElementById('team-detail-name-en');
     if (nameEn) nameEn.textContent = team?.nameEn || '';
     const img = document.getElementById('team-detail-img');
-    const imageUrl = team?.imageVariants?.cover || team?.image || '';
-    this._renderShellImage(img, imageUrl, team?.name || '俱樂部封面');
+    if (useV2) {
+      if (img) img.innerHTML = '';
+    } else {
+      const imageUrl = team?.imageVariants?.cover || team?.image || '';
+      this._renderShellImage(img, imageUrl, team?.name || '俱樂部封面');
+    }
     const body = document.getElementById('team-detail-body');
     if (body) {
-      body.innerHTML = '<div class="detail-section team-fast-loading"><div class="reg-loading team-fast-loading-status"><span class="team-fast-loading-text"><strong>資料更新中</strong><small>正在同步俱樂部最新資料</small></span></div><div class="reg-loading-skeleton team-fast-loading-skeleton"><div class="reg-loading-skeleton-row"></div><div class="reg-loading-skeleton-row"></div><div class="reg-loading-skeleton-row"></div></div></div>';
+      body.innerHTML = useV2
+        ? '<div class="td-v2-shell td-v2-fast-shell"><div class="td-v2-card td-v2-empty-card">資料更新中</div></div>'
+        : '<div class="detail-section team-fast-loading"><div class="reg-loading team-fast-loading-status"><span class="team-fast-loading-text"><strong>資料更新中</strong><small>正在同步俱樂部最新資料</small></span></div><div class="reg-loading-skeleton team-fast-loading-skeleton"><div class="reg-loading-skeleton-row"></div><div class="reg-loading-skeleton-row"></div><div class="reg-loading-skeleton-row"></div></div></div>';
     }
   },
 

@@ -131,14 +131,14 @@ Object.assign(App, {
       }
 
       // 管理按鈕（報名按鈕之下，左對齊 + 右側排序按鈕）
-      const idx = activePlans.indexOf(p);
+      const idx = displayPlans.indexOf(p);
       const manageHtml = isStaff
         ? '<div class="edu-cp-manage-left">'
           + '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem" onclick="event.stopPropagation();App.showEduCoursePlanForm(\'' + teamId + '\',\'' + p.id + '\')">編輯</button>'
           + '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem;color:var(--danger)" onclick="event.stopPropagation();App.deleteEduCoursePlan(\'' + teamId + '\',\'' + p.id + '\')">刪除</button>'
           + '<span style="margin-left:auto;display:flex;gap:.2rem">'
           + (idx > 0 ? '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .35rem" onclick="event.stopPropagation();App._moveCoursePlan(\'' + teamId + '\',\'' + p.id + '\',-1)" title="向上">▲</button>' : '')
-          + (idx < activePlans.length - 1 ? '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .35rem" onclick="event.stopPropagation();App._moveCoursePlan(\'' + teamId + '\',\'' + p.id + '\',1)" title="向下">▼</button>' : '')
+          + (idx < displayPlans.length - 1 ? '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .35rem" onclick="event.stopPropagation();App._moveCoursePlan(\'' + teamId + '\',\'' + p.id + '\',1)" title="向下">▼</button>' : '')
           + '<button class="' + (p.pinned ? 'edu-cp-pin-active' : 'outline-btn') + '" style="font-size:.68rem;padding:.15rem .35rem" onclick="event.stopPropagation();App._moveCoursePlan(\'' + teamId + '\',\'' + p.id + '\',0)" title="' + (p.pinned ? '取消置頂' : '置頂') + '">★</button>'
           + '</span>'
           + '</div>'

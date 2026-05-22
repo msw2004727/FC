@@ -287,8 +287,17 @@ Object.assign(App, {
   async _moveCoursePlan(teamId, planId, direction) {
     const cached = this._eduCoursePlansCache[teamId];
     if (!cached) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const isPlanEnded = (plan) => !!(plan && plan.endDate && plan.endDate < today);
+    const selectedTab = this._eduCoursePlanTabByTeam?.[teamId] === 'ended' ? 'ended' : 'active';
+    const comparePlans = (a, b) => {
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+      return (a.sortOrder || 0) - (b.sortOrder || 0);
+    };
     const active = cached.filter(p => p.active !== false)
-      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+      .filter(p => selectedTab === 'ended' ? isPlanEnded(p) : !isPlanEnded(p))
+      .sort(comparePlans);
     // 確保每個項目都有 sortOrder
     active.forEach((p, i) => { if (p.sortOrder == null) p.sortOrder = i * 10; });
     const idx = active.findIndex(p => p.id === planId);
