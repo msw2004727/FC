@@ -9,7 +9,7 @@
 - **成本控制**：查詢區間最多 180 天；回傳內容包含估算讀取量（`usersRead + auditEntryReads`），供營運判斷報表成本。
 - **檔案**：`ops-report.html`、`functions/ops-ltv-report.js`、`functions/index.js#getOpsLtvReport`、`_worker.js`、`_routes.json`、`_headers`。
 
-> Last audited: 2026-05-16
+> Last audited: 2026-05-20
 > 依據實際程式碼盤點：`index.html`、`app.js`、`js/`、`pages/`、`functions/index.js`、`firestore.rules`、`firebase.json`、`package.json`、`tests/`、近期 git history。
 > 本文件描述「目前專案真的怎麼運作」，不是未來計劃書。若與舊文件或記憶有衝突，以目前程式碼為準。
 
@@ -38,9 +38,20 @@ ToosterX 是一個 LINE LIFF + Firebase 的 buildless Vanilla JS SPA。前端由
 | 驗證 | LINE LIFF profile + Firebase Custom Token |
 | 佈署 | 前端 push `main` 後由 Cloudflare Pages / GitHub Pages 發佈；functions/rules 需 Firebase deploy |
 | 測試 | Jest unit、Firestore rules emulator、Playwright e2e smoke |
-| 目前快取版本 | `0.20260519zb` |
+| 目前快取版本 | `0.20260520` |
 
 近期身份、權限與錯誤診斷變更索引：`docs/specs/recent-updates-20260519.md`。
+
+### 2026-05-20 Mobile Low-End Runtime Snapshot
+
+- Current frontend cache version is `0.20260520` across `index.html`, `js/config.js`, and `sw.js`.
+- Production font loading keeps only Outfit from Google Fonts. Chinese body text uses system fonts through `--font-body`; `--font-display` uses Outfit first and falls back to system fonts.
+- Boot CDN load starts with Firebase app/firestore/auth plus LIFF only. Firebase Storage and Functions are loaded on demand through `ensureFirebaseStorageSdk()` and `ensureFirebaseFunctionsSdk()`.
+- Service Worker static assets use exact cache-key matching for versioned JS/CSS. The unversioned fallback is only used after network failure, so stale `?v=` assets should not shadow a newer HTML shell.
+- Legacy `js/modules/auto-exp.js` and `js/modules/auto-exp-rules.js` shims remain to protect users still controlled by an older loader.
+- Activity mobile layout keeps `#region-tab-nearby-activity` as the map entry id and places it in the region tab rail after `全部`; header actions stay reserved for primary activity commands.
+- Game score callables resolve display names from canonical `users/{uid}` before token/payload fallbacks; shot-game leaderboard UI also hydrates placeholder rows from cached/direct user lookups.
+- `createCustomToken` rejects localhost-style `Origin` / `Referer` requests with `LOCAL_DEVELOPMENT_ORIGIN_NOT_ALLOWED` before LINE token validation.
 
 ---
 
@@ -149,7 +160,7 @@ sequenceDiagram
 - `PageLoader._deferredPages`：`scan`、`shop`、admin 系列、`personal-dashboard`、`game`、`kickball`、`education` 等。
 - deep link 會讓 `PageLoader` 優先載入目標頁片段，例如活動、俱樂部、賽事。
 - `ScriptLoader._pageGroups` 把 page id 對應到模組群組，避免所有功能一次載完。
-- `Service Worker` 與目前 `CACHE_VERSION`（現行 `0.20260519zb`）控制前端快取更新。
+- `Service Worker` 與目前 `CACHE_VERSION`（現行 `0.20260520`）控制前端快取更新。
 
 ---
 
@@ -207,7 +218,7 @@ sequenceDiagram
 | 目錄 | JS 數 | 角色 |
 |---|---:|---|
 | `event/` | 46 | 活動列表、行事曆、詳情、建立、場地定位、附近活動地圖、報名、候補、同行者、團隊席位、分隊、簽到管理、活動生命週期 |
-| `team/` | 16 | 俱樂部列表、內頁、動態、俱樂部活動、邀請、分享、建立/編輯、職員與運動標籤 |
+| `team/` | 20 | 俱樂部列表、內頁 v1/v2、動態、俱樂部活動、邀請、分享、建立/編輯、職員與運動標籤 |
 | `tournament/` | 19 | 賽事列表、詳情、友誼賽隊伍報名、主辦俱樂部、運動標籤、委託人/裁判、roster、通知 |
 | `profile/` | 9 | 個人頁、資料編輯、頭像、統計、報名紀錄、個人卡分享 |
 | `message/` | 17 | 收件匣、私訊權限/入口/即時列表/對話窗/送出/搜尋/聊天室稽核、訊息動作、俱樂部邀請動作、後台發訊息、LINE push |
@@ -317,7 +328,7 @@ sequenceDiagram
 | `errorLogs/{docId}` | 前端錯誤 log | 使用者可寫，後台可讀 |
 | `siteConfig/realtimeConfig` | 即時監聽與資料同步設定 | 後端密碼保護寫入，前端讀 |
 | `participantQueryShares/{shareId}` | 儀表板臨時分享 | 7 天快照型報表 |
-| `shotGameScores` / `kickGameScores` | 遊戲分數 | callable 寫入，排行榜讀 |
+| `shotGameScores` / `kickGameScores` | 遊戲分數 | callable 寫入，排行榜讀；display name 優先從 canonical `users/{uid}` 解析，再退回 token / payload fallback |
 | `usageMetrics` / `translateUsage` | 用量統計 | schedule / callable 寫入，super_admin 讀 |
 | `seoSnapshots` / `ciUsageSnapshots` | SEO/CI snapshot | 後台讀，寫入由後端或工具負責 |
 | `inv_*` collections | inventory 子系統 | 獨立 rules 區塊，inventory admin 管理 |
@@ -553,13 +564,14 @@ current = realCurrent + sum(remainingSlots)
 
 ### 俱樂部內頁
 
-`team-detail-render.js` 負責內頁 UI：
+`team-detail-render.js` 保留內頁 v1 builder 與 v1/v2 facade；`team-detail-v2-render.js`、`team-detail-v2-panels.js`、`team-detail-v2-lists.js`、`team-detail-v2-actions.js` 負責新版 demo 風格 UI 與 scoped runtime：
 
 - 成員列表
 - 俱樂部動態
 - 俱樂部活動
 - 邀請 QR Code
 - 離開/聯繫/管理按鈕
+- sticky topbar、hero、CTA bar、stats、top-level tabs、課程 modal、FAB
 
 「俱樂部活動」區塊顯示該俱樂部限定活動的未來活動，最多先顯示 10 筆，點「查看更多」展開；卡片樣式與活動行事曆相同，點擊會到同一個活動報名頁。是否可報名仍由活動現有 team-only 規則與提示控制。
 
@@ -907,7 +919,8 @@ DATA_SYNC_SETTINGS_PASSWORD = process.env.DATA_SYNC_SETTINGS_PASSWORD || "1121"
 
 `sw.js` 現況：
 
-- `CACHE_NAME = sporthub-0.20260519zb`
+- `CACHE_NAME = sporthub-0.20260520`
+- Versioned JS/CSS cache lookup is exact (`cache.match(event.request)`); ignore-search fallback is only an offline recovery path for unversioned assets.
 - HTML：network-first。
 - JS/CSS：cache-first，靠 `?v=` cache busting。
 - `pages/*.html`、動態載入的 JS/CSS 都帶目前 `CACHE_VERSION`。

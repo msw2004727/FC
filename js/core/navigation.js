@@ -1020,6 +1020,7 @@ Object.assign(App, {
     // 教育子頁面（分組學員、簽到、行事曆等）保留 students listener
     if (this.currentPage === 'page-team-detail' && pageId !== 'page-team-detail') {
       this._completeTeamMemberManagement?.(this._teamDetailId);
+      this._cleanupTeamDetailV2Runtime?.(this._teamDetailId);
     }
     const eduSubPages = ['page-team-detail', 'page-edu-students', 'page-edu-checkin', 'page-edu-calendar', 'page-edu-course-plan', 'page-edu-course-enrollment', 'page-edu-groups', 'page-edu-student-apply'];
     if (eduSubPages.includes(this.currentPage) && !eduSubPages.includes(pageId)) {

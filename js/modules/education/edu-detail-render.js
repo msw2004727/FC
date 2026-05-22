@@ -61,6 +61,7 @@ Object.assign(App, {
       const winRate = totalGames > 0 ? Math.round((team.wins || 0) / totalGames * 100) : 0;
       bodyEl.innerHTML = this._buildTeamDetailBodyHtml(team, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate);
       this._initEduClubDetailSection(teamId);
+      this._syncTeamDetailV2RuntimeAfterBodyRender?.(teamId, this._teamDetailRequestSeq);
       return;
     }
 

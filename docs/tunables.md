@@ -3,7 +3,7 @@
 > 專案內所有可調設定（timing / limit / threshold）+ 關鍵流程的順序效果總覽。
 > **強制維護規則（CLAUDE.md §設定追蹤規範）**：修改檔案時若涉及任何可調設定 / 加載順序 / timing / 閾值，必須同步更新本檔對應條目；新增任何可調常數，必須在本檔登記。
 
-**Last Updated: 2026-05-18**（activity map venue picker lazy/manual-only path）
+**Last Updated: 2026-05-20**（mobile low-end perf final runtime, cache, font, and SDK loading snapshot）
 
 ## 目錄
 
@@ -56,6 +56,19 @@
 | `FirebaseService._LS_FRESH_TTL` | `30` 分鐘 | `js/firebase-service.js` | localStorage 快取在 30 分鐘內標記為 fresh；超過 30 分鐘但仍在可展示上限內，也會先進畫面並立刻背景刷新。 |
 | `FirebaseService._LS_TTL_LONG` | `7` 天 | `js/firebase-service.js` | 一般用戶的可展示快取上限。7 天內可直接先顯示舊列表降低冷啟動空白感；報名人數、名單與詳情仍由 realtime / 背景刷新校正。 |
 | `FirebaseService._LS_TTL` | `60` 分鐘 | `js/firebase-service.js` | admin / super_admin 的可展示快取上限較短，避免後台與權限資料長時間沿用舊狀態。 |
+
+### Mobile Low-End Perf Runtime（2026-05-20）
+
+| Item | Current value | Source | Note |
+|------|---------------|--------|------|
+| Frontend cache version | `0.20260520o` | `js/config.js`, `index.html`, `sw.js` | Must stay synchronized through `node scripts/bump-version.js` for JS/CSS/HTML/SW changes. |
+| Critical CSS | `base.css`, `layout.css`, `home.css`, `activity.css` render-blocking | `index.html` | Other app CSS uses `media="print"` + `onload` async loading to reduce first render cost. |
+| Google Font request | Outfit only | `index.html`, `css/base.css` | Body Chinese text uses system fonts; do not re-add Noto Sans TC unless the product accepts the network/paint cost. |
+| Firebase initial SDK set | app + firestore + auth + LIFF | `index.html`, `app.js` inline runtime | Storage and Functions are excluded from boot and load only through the ensure helpers. |
+| Firebase Storage SDK | lazy on first storage use | `ensureFirebaseStorageSdk()` | Required before upload/cropper commit flows that touch Firebase Storage. |
+| Firebase Functions SDK | lazy on first callable use | `ensureFirebaseFunctionsSdk("asia-east1")` | All callable clients should use this helper instead of direct `firebase.app().functions(...)` access. |
+| Versioned static cache | exact request match | `sw.js` | `?v=` JS/CSS must not use `ignoreSearch`; unversioned fallback is offline-only recovery. |
+| Legacy auto-exp shim | present | `js/modules/auto-exp.js`, `js/modules/auto-exp-rules.js` | Protects clients controlled by a stale script loader that still requests old module paths. |
 
 ### Visibility Change（背景/前景切換）
 
@@ -241,7 +254,7 @@
 | `activityMap` | manual-only | 使用者點「尋找附近活動」才執行；不進 `preloadAll()` / `preloadCorePages()`；Maps JS 載入帶 `auth_referrer_policy=origin`，避免 `/events/{id}` 等 clean path 被當成未授權 referrer |
 | `eventLocationPicker` | manual-only | 建立/編輯活動點「設定地圖位置」才執行；Google Maps JS 只在 picker 內搜尋且 key 存在時才動態載入，並帶 `auth_referrer_policy=origin` |
 | `teamList` | 4 | `page-teams` first screen only：helpers/stats/list/render |
-| `teamDetail` | 10 | `page-team-detail` lazy detail/share/join flow |
+| `teamDetail` | 14 | `page-team-detail` lazy detail/share/join flow；含 `team-detail-v2-*` demo 風格 render / panels / lists / runtime actions |
 | `teamForm` | 5 | create/edit modal lazy loaded from list/detail/manage |
 | `tournament` / `tournamentDetail` | 16 + `event-share` helper | `script-loader.js` |
 | `activityCalendar` | 4（lazy load） | `script-loader.js:306-311` |
@@ -439,7 +452,8 @@ showPage / showDetail
 
 ## 變更歷史
 
-- **2026-05-20**: activity clean URL boot mirrors shared filters into the activity shell and dismisses the boot overlay after activity scripts are ready, while Firestore/live data continues through the existing render path.
+- **2026-05-20**：activity clean URL boot now mirrors shared filters into the activity shell and dismisses the boot overlay after activity scripts are ready, while Firestore/live data continues through the existing render path.
+- **2026-05-20**：documented mobile low-end performance final runtime: `0.20260520`, critical/async CSS split, system Chinese font stack, lazy Firebase Storage/Functions SDK loading, exact versioned static cache matching, and legacy auto-exp shims.
 - **2026-04-25**：建立檔案。初始登錄 Boot Overlay / Route Loading / Visibility / LIFF / Instant Save / SW / Limit / Threshold / Load Order / Sequence Effects / Versioning 共 11 大類。
 - **2026-04-28**：boot overlay `MIN_VISIBLE_MS` 2500 → 0；hash reload 改由 early boot route + PageLoader priority 先定位目標頁，不再用固定遮罩等待掩蓋首頁跳轉。
 - **2026-04-28**：俱樂部 `page-teams` 改為 shell-first navigation，並將原 `team` script group 拆為 `teamList` / `teamDetail` / `teamForm`，列表第一屏只載列表必要模組。

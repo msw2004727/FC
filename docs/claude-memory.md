@@ -3170,3 +3170,9 @@
 - **原因**：課堂 UI 使用了大量 display 字重與獨立範本面板，學員備註被放進表格式欄位，窄版卡片動作只靠共用 icon mask 做區分。
 - **修復**：將俱樂部教學內容限定為原生系統字型與 regular 字重，刪除動作改為明確垃圾桶 icon，方案學員備註與編輯鈕移到暱稱右側，編輯課堂範本改成與新增活動一致的極簡 chip/input 模式，並把本堂學員包成清楚的可勾選名單區。
 - **驗證**：跑完整 `npm test`、針對修改檔執行 mojibake scan、快取版本 bump 至 `0.20260521s`，並用 Playwright 檢查窄版 light 與寬版 dark 的字重、icon 差異、範本區高度和備註按鈕定位。
+
+### 2026-05-22 — Club Detail Demo UI Revamp [ux]
+- **問題**：俱樂部詳細頁仍沿用舊版分散卡片與頁首結構，無法對齊 `docs/previews/demo.html` 的新版 demo 設計與改版計畫要求。
+- **原因**：原本的 `_buildTeamDetailBodyHtml()` 同時承擔單一舊版 builder 與 runtime 綁定點，缺少可回退的 v2 facade、scoped listener cleanup，以及 body rebuild 後的重新同步流程。
+- **修復**：新增 `team-detail-v2-*` 四個拆分模組與 `css/team-detail-v2.css`，以 feature switch 接管新版 hero、CTA、資訊、課程、活動、成員、紀錄與動態面板；保留 v1 fallback，補上 script loader、Service Worker cache、加入狀態刷新、離頁 cleanup 與 `showTeamDetail` stale request 防護。
+- **教訓**：大型詳情頁改版要讓新版 UI 成為可切換 facade，而不是覆寫舊 builder；所有會重建 body 的入口都必須同步 runtime，避免 stale request 或殘留事件監聽器污染下一個詳情頁。

@@ -152,7 +152,15 @@ Object.assign(App, {
     const target = typeof document !== 'undefined'
       ? document.querySelector?.('#page-team-detail .td-club-head-action')
       : null;
-    if (!team || !target || typeof this._buildTeamDetailPrimaryAction !== 'function') return false;
+    if (!team) return false;
+    const v2Target = typeof document !== 'undefined'
+      ? document.querySelector?.('#page-team-detail .td-v2-cta-primary')
+      : null;
+    if (v2Target && typeof this._buildTeamDetailV2PrimaryButton === 'function') {
+      v2Target.outerHTML = this._buildTeamDetailV2PrimaryButton(team);
+      return true;
+    }
+    if (!target || typeof this._buildTeamDetailPrimaryAction !== 'function') return false;
     target.innerHTML = this._buildTeamDetailPrimaryAction(team);
     return true;
   },

@@ -1645,7 +1645,7 @@ Object.assign(App, {
   //  Team Detail Body HTML Builder
   // ══════════════════════════════════
 
-  _buildTeamDetailBodyHtml(t, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate) {
+  _buildTeamDetailV1BodyHtml(t, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate) {
     const themeColor = this._getTeamThemeColor?.(t) || '';
     const themeOverlayEnabled = !themeColor || this._isTeamThemeOverlayEnabled?.(t) !== false;
     const themeClass = themeColor ? ' has-team-theme' + (themeOverlayEnabled ? '' : ' no-team-theme-overlay') : '';
@@ -1663,6 +1663,14 @@ Object.assign(App, {
       + (this._isTeamDetailSectionVisible(t, 'members') ? this._buildTeamMembersCard(t, canManageMembers, memberEditMode, staffIdentity) : '')
       + '</div>'
       + '<button type="button" class="td-floating-top-btn" aria-label="\u56de\u5230\u9802\u90e8" onclick="App._scrollTeamDetailToTop?.()">\u2191 \u56de\u5230\u9802\u90e8</button>';
+  },
+
+  _buildTeamDetailBodyHtml(t, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate) {
+    const useV2 = typeof isTeamDetailV2Enabled === 'function' && isTeamDetailV2Enabled();
+    if (useV2 && typeof this._buildTeamDetailV2BodyHtml === 'function') {
+      return this._buildTeamDetailV2BodyHtml(t, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate);
+    }
+    return this._buildTeamDetailV1BodyHtml(t, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate);
   },
 
   // ══════════════════════════════════

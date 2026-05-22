@@ -1,0 +1,129 @@
+/* ================================================
+   SportHub - Team Detail V2: Tabs / Panels
+   ================================================ */
+
+Object.assign(App, {
+
+  _getTeamDetailV2Tabs(t) {
+    const tabs = [{ key: 'overview', label: '總覽' }];
+    if (this._isTeamDetailSectionVisible?.(t, 'courses')) tabs.push({ key: 'courses', label: '課程' });
+    if (this._isTeamDetailSectionVisible?.(t, 'events')) tabs.push({ key: 'events', label: '活動' });
+    if (this._isTeamDetailSectionVisible?.(t, 'members')) tabs.push({ key: 'members', label: '成員' });
+    if (this._isTeamDetailSectionVisible?.(t, 'record') || this._isTeamDetailSectionVisible?.(t, 'matches')) tabs.push({ key: 'record', label: '戰績' });
+    tabs.push({ key: 'feed', label: '動態' });
+    return tabs;
+  },
+
+  _getTeamDetailV2ActiveTab(t) {
+    const tabs = this._getTeamDetailV2Tabs(t);
+    const keys = new Set(tabs.map(tab => tab.key));
+    const saved = this._teamDetailTabByTeam?.[t.id];
+    return keys.has(saved) ? saved : 'overview';
+  },
+
+  _buildTeamDetailV2Tabs(t) {
+    const active = this._getTeamDetailV2ActiveTab(t);
+    const countByKey = {
+      courses: this._getTeamDetailV2CourseCount?.(t) || 0,
+      events: this._getTeamDetailEventCount?.(t) || 0,
+      members: this._getTeamDetailMemberCount?.(t) || 0,
+    };
+    const buttons = this._getTeamDetailV2Tabs(t).map(tab => {
+      const badge = countByKey[tab.key] ? '<span class="td-v2-tab-badge">' + countByKey[tab.key] + '</span>' : '';
+      return '<button class="' + (active === tab.key ? 'active' : '') + '" type="button" data-td-v2-action="tab" data-tab="' + escapeHTML(tab.key) + '">'
+        + escapeHTML(tab.label) + badge + '</button>';
+    }).join('');
+    return '<div class="td-v2-tab-rail"><div class="td-v2-tab-list" role="tablist">' + buttons + '</div></div>';
+  },
+
+  _buildTeamDetailV2PanelsHtml(t, canManageMembers, memberEditMode, staffIdentity, totalGames, winRate) {
+    const active = this._getTeamDetailV2ActiveTab(t);
+    const panel = (key, html) => '<section class="td-v2-panel td-v2-panel-' + key + (active === key ? ' active' : '') + '" data-panel="' + key + '">' + html + '</section>';
+    const panels = [
+      panel('overview', this._buildTeamDetailV2OverviewPanel(t, totalGames, winRate)),
+    ];
+    if (this._isTeamDetailSectionVisible?.(t, 'courses')) panels.push(panel('courses', this._buildTeamDetailV2CoursesPanel(t)));
+    if (this._isTeamDetailSectionVisible?.(t, 'events')) panels.push(panel('events', this._buildTeamDetailV2EventsPanel(t)));
+    if (this._isTeamDetailSectionVisible?.(t, 'members')) panels.push(panel('members', this._buildTeamDetailV2MembersPanel(t, canManageMembers, memberEditMode, staffIdentity)));
+    if (this._isTeamDetailSectionVisible?.(t, 'record') || this._isTeamDetailSectionVisible?.(t, 'matches')) {
+      panels.push(panel('record', this._buildTeamDetailV2RecordPanel(t, totalGames, winRate)));
+    }
+    panels.push(panel('feed', this._buildTeamDetailV2FeedPanel(t)));
+    return '<main class="td-v2-content">' + panels.join('') + '</main>';
+  },
+
+  _buildTeamDetailV2QuickLink(key, label, value) {
+    return '<button class="td-v2-quick" type="button" data-td-v2-action="tab" data-tab="' + escapeHTML(key) + '">'
+      + '<strong>' + escapeHTML(value) + '</strong><span>' + escapeHTML(label) + '</span></button>';
+  },
+
+  _buildTeamDetailV2OverviewPanel(t, totalGames, winRate) {
+    const quickItems = [];
+    if (this._isTeamDetailSectionVisible?.(t, 'courses')) quickItems.push(this._buildTeamDetailV2QuickLink('courses', '課程方案', this._getTeamDetailV2CourseCount?.(t) || 0));
+    if (this._isTeamDetailSectionVisible?.(t, 'events')) quickItems.push(this._buildTeamDetailV2QuickLink('events', '近期活動', this._getTeamDetailEventCount?.(t) || 0));
+    if (this._isTeamDetailSectionVisible?.(t, 'members')) quickItems.push(this._buildTeamDetailV2QuickLink('members', '成員名冊', this._getTeamDetailMemberCount?.(t) || 0));
+    if (this._isTeamDetailSectionVisible?.(t, 'record')) quickItems.push(this._buildTeamDetailV2QuickLink('record', '勝率', totalGames > 0 ? winRate + '%' : '-'));
+    const quickLinks = quickItems.join('');
+    const bio = t.bio
+      ? '<div class="td-v2-card"><div class="td-v2-section-head"><h3>關於我們</h3></div><p class="td-v2-bio">' + escapeHTML(t.bio) + '</p></div>'
+      : '<div class="td-v2-card td-v2-empty-card">尚未填寫俱樂部簡介</div>';
+    const info = this._buildTeamDetailV2InfoGrid(t);
+    const featuredCourses = this._buildTeamDetailV2FeaturedCourses(t);
+    const upcoming = this._buildTeamDetailV2EventRows(t, 2);
+    return '<div class="td-v2-card"><div class="td-v2-section-head"><h3>快速導覽</h3><span>所有原有內容都保留在分頁內</span></div><div class="td-v2-quick-grid">' + quickLinks + '</div></div>'
+      + bio + info + featuredCourses
+      + '<div class="td-v2-card"><div class="td-v2-section-head"><h3>近期活動</h3><button type="button" data-td-v2-action="tab" data-tab="events">全部</button></div>' + upcoming + '</div>';
+  },
+
+  _buildTeamDetailV2InfoGrid(t) {
+    const sportLabel = this._getTeamDetailV2SportLabel?.(t) || '';
+    const leaders = (Array.isArray(t.leaders) ? t.leaders : (t.leader ? [t.leader] : [])).filter(Boolean).join('、');
+    const coaches = (Array.isArray(t.coaches) ? t.coaches : []).filter(Boolean).join('、');
+    const contactLinks = t.contactLinksEnabled ? (this._renderTeamContactLinksHtml?.(t.contactLinks) || '') : '';
+    const rows = [
+      ['運動', sportLabel || '未設定'],
+      ['地區', t.region || t.nationality || '未設定'],
+      ['經理', t.captain || '未設定'],
+      ['領隊', leaders || '未設定'],
+      ['教練', coaches || '未設定'],
+      ['成立', t.founded ? `${t.founded}` : '未設定'],
+    ].map(row => '<div class="td-v2-kv"><span>' + escapeHTML(row[0]) + '</span><strong>' + escapeHTML(row[1]) + '</strong></div>').join('');
+    const contact = contactLinks || t.contact
+      ? '<div class="td-v2-kv full"><span>聯繫方式</span><strong>' + (contactLinks ? '<span class="event-social-link-list td-contact-link-list">' + contactLinks + '</span>' : escapeHTML(t.contact || '')) + '</strong></div>'
+      : '';
+    return '<div class="td-v2-card"><div class="td-v2-section-head"><h3>俱樂部資訊</h3></div><div class="td-v2-kv-grid">' + rows + contact + '</div></div>';
+  },
+
+  _buildTeamDetailV2FeaturedCourses(t) {
+    if (!this._isTeamDetailSectionVisible?.(t, 'courses')) return '';
+    const plans = typeof this.getEduCoursePlans === 'function' ? this.getEduCoursePlans(t.id) : [];
+    const activePlans = (Array.isArray(plans) ? plans : []).filter(p => p && p.active !== false).slice(0, 2);
+    if (!activePlans.length) {
+      return '<div class="td-v2-card"><div class="td-v2-section-head"><h3>熱門課程</h3><button type="button" data-td-v2-action="tab" data-tab="courses">課程</button></div><div class="td-v2-empty">課程資料載入後會顯示在這裡</div></div>';
+    }
+    return '<div class="td-v2-card"><div class="td-v2-section-head"><h3>熱門課程</h3><button type="button" data-td-v2-action="tab" data-tab="courses">全部</button></div>'
+      + activePlans.map(p => this._buildTeamDetailV2CourseMiniRow(t.id, p)).join('') + '</div>';
+  },
+
+  _buildTeamDetailV2CourseMiniRow(teamId, plan) {
+    const typeLabel = plan.planType === 'weekly' ? '固定週期' : '堂數制';
+    const count = Number(plan._effectiveCount || 0);
+    const max = Number(plan.maxCapacity || 0);
+    const capacity = max > 0 ? `${count}/${max} 人` : `${count} 人`;
+    return '<button class="td-v2-course-row" type="button" data-td-v2-action="course" data-course-id="' + escapeHTML(plan.id || '') + '">'
+      + '<span class="td-v2-course-mark">' + escapeHTML(String(plan.name || '課').trim().charAt(0) || '課') + '</span>'
+      + '<span><strong>' + escapeHTML(plan.name || '未命名課程') + '</strong><em>' + escapeHTML(typeLabel + ' · ' + capacity) + '</em></span>'
+      + '<b>›</b></button>';
+  },
+
+  _buildTeamDetailV2CoursesPanel(t) {
+    const accepting = t?.eduSettings?.acceptingStudents !== false;
+    const banner = '<div class="td-v2-recruit-banner ' + (accepting ? 'open' : 'closed') + '"><div><strong>' + (accepting ? '接受新學員報名' : '暫停招收新學員') + '</strong><span>' + escapeHTML(this._getTeamDetailV2RecruitText(t)) + '</span></div></div>';
+    return banner
+      + '<div class="td-v2-card td-v2-edu-card">'
+      + '<div class="td-v2-section-head"><h3>課程方案</h3><span>報名、學員、分組與待審功能沿用原流程</span></div>'
+      + this._buildTeamEducationSection(t)
+      + '</div>';
+  },
+
+});

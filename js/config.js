@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260522e';
+const CACHE_VERSION = '0.20260522f';
 
 const GOOGLE_MAPS_BROWSER_API_KEY = '';
 
@@ -50,6 +50,26 @@ function isActivityMapLocationPickerEnabled() {
     ? FirebaseService.getCachedDoc('siteConfig', 'featureFlags')
     : null;
   return !!(flags && flags.activityMapLocationPickerEnabled === true);
+}
+
+const TEAM_DETAIL_V2_ENABLED = true;
+
+function isTeamDetailV2DiagnosticOverride() {
+  try {
+    if (typeof window === 'undefined') return false;
+    if (window.__TEAM_DETAIL_V2_TEST_OVERRIDE__ === true) return true;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('teamDetailV2') !== '1') return false;
+    const host = window.location.hostname || '';
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host.endsWith('.local');
+  } catch (_) {
+    return false;
+  }
+}
+
+function isTeamDetailV2Enabled() {
+  if (typeof window !== 'undefined' && window.__TEAM_DETAIL_V2_TEST_OVERRIDE__ === false) return false;
+  return TEAM_DETAIL_V2_ENABLED === true || isTeamDetailV2DiagnosticOverride();
 }
 
 // Temporary feature switch: no-show is paused and hidden, but historical data remains intact.

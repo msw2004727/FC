@@ -655,14 +655,17 @@ Object.assign(App, {
     if (!options.allowGuest && this._requireProtectedActionLogin({ type: 'showTeamDetail', teamId: id }, { suppressToast: true })) {
       return { ok: false, reason: 'auth' };
     }
+    const requestSeq = ++this._teamDetailRequestSeq;
     try {
       let t = ApiService.getTeam(id);
       if (!t) {
         // 快取 miss → 單筆查詢 Firestore（Phase 2A §7.4）
         t = await ApiService.getTeamAsync(id);
+        if (requestSeq !== this._teamDetailRequestSeq) {
+          return { ok: false, reason: 'stale' };
+        }
         if (!t) return { ok: false, reason: 'missing' };
       }
-      const requestSeq = ++this._teamDetailRequestSeq;
 
       // ── 確保頁面 HTML + Script 已載入（不切換顯示），避免空白模板閃現 ──
       if (typeof PageLoader !== 'undefined' && PageLoader.ensurePage) {
@@ -712,6 +715,7 @@ Object.assign(App, {
       if (this._isTeamDetailSectionVisible?.(t, 'courses') !== false && typeof this._initEduClubDetailSection === 'function') {
         this._initEduClubDetailSection(id);
       }
+      this._syncTeamDetailV2RuntimeAfterBodyRender?.(id, requestSeq);
 
       // ── 內容已渲染就緒，切換顯示頁面（避免空白模板閃現）──
       await this.showPage('page-team-detail', {
@@ -720,6 +724,7 @@ Object.assign(App, {
         skipPageHistory: options?.skipPageHistory,
       });
       if (requestSeq !== this._teamDetailRequestSeq || this.currentPage !== 'page-team-detail') {
+        this._cleanupTeamDetailV2Runtime?.(id, requestSeq);
         return { ok: false, reason: 'stale' };
       }
       this._setRouteUrl?.({ pageId: 'page-team-detail', id }, {

@@ -51,12 +51,16 @@ describe('team detail club activity section', () => {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;'),
+      isTeamDetailV2Enabled: options.isTeamDetailV2Enabled,
     };
-    const source = fs.readFileSync(
-      path.join(__dirname, '../../js/modules/team/team-detail-render.js'),
-      'utf8'
-    );
-    vm.runInNewContext(source, context);
+    const files = [
+      'js/modules/team/team-detail-render.js',
+      ...(options.extraFiles || []),
+    ];
+    files.forEach(file => {
+      const source = fs.readFileSync(path.join(__dirname, '../../', file), 'utf8');
+      vm.runInNewContext(source, context);
+    });
   }
 
   function loadTeamDetailCore(app, documentOverride, extraContext = {}) {
@@ -523,6 +527,63 @@ describe('team detail club activity section', () => {
     );
     expect(defaultHtml).not.toContain('has-team-theme');
     expect(defaultHtml).not.toContain('--team-theme-color');
+  });
+
+  test('team detail body facade can switch to v2 without recursive fallback', () => {
+    const app = makeApp([]);
+    loadTeamDetailRender(app, [], {
+      isTeamDetailV2Enabled: () => true,
+      extraFiles: [
+        'js/modules/team/team-detail-v2-render.js',
+        'js/modules/team/team-detail-v2-panels.js',
+        'js/modules/team/team-detail-v2-lists.js',
+        'js/modules/team/team-detail-v2-actions.js',
+      ],
+    });
+    Object.assign(app, {
+      _getTeamThemeColor: () => '',
+      _isTeamThemeOverlayEnabled: () => true,
+      _canEditTeamByRoleOrCaptain: () => false,
+      getEduCoursePlans: () => [],
+      _renderTeamContactLinksHtml: () => '',
+    });
+
+    const html = app._buildTeamDetailBodyHtml(
+      { id: 'teamA', name: '<script>alert(1)</script>', bio: '<img src=x onerror=1>', coaches: [] },
+      false,
+      false,
+      { keys: new Set(), names: new Set() },
+      0,
+      0
+    );
+
+    expect(html).toContain('td-v2-shell');
+    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(html).toContain('&lt;img src=x onerror=1&gt;');
+    expect(html).not.toContain('<script>alert(1)</script>');
+    expect(html).not.toContain('<img src=x onerror=1>');
+  });
+
+  test('team detail body facade keeps v1 fallback when v2 flag is off', () => {
+    const app = makeApp([]);
+    loadTeamDetailRender(app, [], {
+      isTeamDetailV2Enabled: () => false,
+      extraFiles: ['js/modules/team/team-detail-v2-render.js'],
+    });
+    app._getTeamThemeColor = () => '';
+    app._isTeamThemeOverlayEnabled = () => true;
+
+    const html = app._buildTeamDetailBodyHtml(
+      { id: 'teamA', name: 'Club A', coaches: [] },
+      false,
+      false,
+      { keys: new Set(), names: new Set() },
+      0,
+      0
+    );
+
+    expect(html).toContain('td-detail-shell');
+    expect(html).not.toContain('td-v2-shell');
   });
 
   test('team detail view count records once per device and updates teams viewCount', () => {
