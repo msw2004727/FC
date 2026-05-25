@@ -81,6 +81,11 @@ Object.assign(App, {
     const renderCompactPill = (label, value, className = '') => '<span class="edu-cp-compact-pill ' + className + '"><span>' + escapeHTML(label) + '</span><strong>' + escapeHTML(value || '未設定') + '</strong></span>';
     const jsArg = (value) => escapeHTML(String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' '));
     const renderPlanCard = (p) => {
+      const coverImage = String(this._getCoursePlanCoverUrl?.(p) || p.coverImage || p.coverUrl || p.imageUrl || p.image || p.imageVariants?.cover || '').trim();
+      const coverClass = coverImage ? ' has-cover' : '';
+      const coverHtml = coverImage
+        ? '<img class="edu-cp-compact-cover" src="' + escapeHTML(coverImage) + '" alt="" loading="lazy" decoding="async">'
+        : '';
       const planEnded = isPlanEnded(p);
       const statusBadge = planEnded
         ? '<span class="edu-cp-status edu-cp-status-ended">已結束</span>'
@@ -151,7 +156,8 @@ Object.assign(App, {
       const clickAction = ' onclick="App.showEduCoursePlanDetail(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')"';
       const detailBtn = '<button class="outline-btn edu-cp-detail-btn" onclick="event.stopPropagation();App.showEduCoursePlanDetail(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">詳細資訊</button>';
 
-      return '<div class="edu-course-card edu-cp-card-v3 edu-cp-card-compact edu-cp-card-' + (p.planType === 'weekly' ? 'weekly' : 'session') + '" data-course-plan-id="' + escapeHTML(p.id || '') + '"' + clickAction + '>'
+      return '<div class="edu-course-card edu-cp-card-v3 edu-cp-card-compact edu-cp-card-' + (p.planType === 'weekly' ? 'weekly' : 'session') + coverClass + '" data-course-plan-id="' + escapeHTML(p.id || '') + '"' + clickAction + '>'
+        + coverHtml
         + '<div class="edu-cp-compact-main">'
         + '<div class="edu-cp-compact-title">'
         + '<span class="edu-course-name">' + escapeHTML(p.name) + '</span>'

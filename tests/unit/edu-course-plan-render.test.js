@@ -10,6 +10,10 @@ const crudSource = fs.readFileSync(
   path.join(__dirname, '../../js/modules/education/edu-course-plan.js'),
   'utf8'
 );
+const cssSource = fs.readFileSync(
+  path.join(__dirname, '../../css/education.css'),
+  'utf8'
+);
 
 function escapeHTML(value) {
   return String(value ?? '')
@@ -89,6 +93,8 @@ describe('edu course plan render', () => {
     expect(html.indexOf('固定週期課程')).toBeLessThan(html.indexOf('堂數制課程'));
     expect(html).toContain('edu-cp-card-v3 edu-cp-card-compact edu-cp-card-weekly');
     expect(html).toContain('edu-cp-card-v3 edu-cp-card-compact edu-cp-card-session');
+    expect(html).toContain('has-cover');
+    expect(html).toContain('class="edu-cp-compact-cover"');
     expect(html).not.toContain('edu-cp-visual');
     expect(html).not.toContain('class="edu-cp-bg-img"');
     expect(html).toContain('成人固定班');
@@ -101,6 +107,13 @@ describe('edu course plan render', () => {
     expect(html).not.toContain('週一、週三 19:00-20:30');
     expect(html).not.toContain('共 8 堂');
     expect(html).not.toContain('個訓班');
+  });
+
+  test('compact course cards keep cover overlays and equal-width actions', () => {
+    expect(cssSource).toContain('.edu-cp-compact-cover');
+    expect(cssSource).toContain('.edu-course-card.edu-cp-card-compact.has-cover::before');
+    expect(cssSource).toContain('width: 5.8rem;');
+    expect(cssSource).toContain('min-width: 5.8rem;');
   });
 
   test('keeps existing empty state when there are no active plans', async () => {
