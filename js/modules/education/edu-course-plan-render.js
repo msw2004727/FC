@@ -366,7 +366,7 @@ Object.assign(App, {
     };
     const lessons = plan.planType === 'session' ? sessionLessons : weeklyLessons;
     const totalLessonCount = Number(plan.totalSessions || 0) || lessons.length;
-    const visibleLessons = lessons.slice(0, 12);
+    const visibleLessons = lessons;
     const priceAmount = Number(plan.price || 0);
     const priceSubText = priceAmount > 0 && totalLessonCount > 0
       ? totalLessonCount + ' 堂 · 約 $' + Math.round(priceAmount / totalLessonCount).toLocaleString() + '/堂'

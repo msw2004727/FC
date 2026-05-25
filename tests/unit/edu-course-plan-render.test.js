@@ -247,6 +247,76 @@ describe('edu course plan render', () => {
     expect(overlay.innerHTML).not.toContain('<script>bad</script>');
   });
 
+  test('course detail progress keeps upcoming lessons visible in long weekly plans', async () => {
+    const overlay = { className: '', innerHTML: '', onclick: null, remove: jest.fn() };
+    const appended = [];
+    const toDateString = (offsetDays) => {
+      const date = new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    const pastDates = Array.from({ length: 14 }, (_, index) => toDateString(-28 + index));
+    const upcomingDate = toDateString(2);
+    const lessonTitles = [
+      ...pastDates.map((_, index) => `Past Lesson ${index + 1}`),
+      'Upcoming Lesson',
+    ];
+    const app = {
+      getEduCoursePlans: jest.fn(() => [{
+        id: 'planLong',
+        name: 'Long Plan',
+        planType: 'weekly',
+        allowSignup: true,
+        price: 4500,
+        totalSessions: 15,
+        weekdays: [1],
+        timeSlot: '19:00-20:30',
+        lessonTitles,
+      }]),
+      isEduClubStaff: jest.fn(() => false),
+      generateWeeklyDates: jest.fn(() => [...pastDates, upcomingDate]),
+      _normalizeCoursePlanViewModel: jest.fn(() => ({
+        name: 'Long Plan',
+        typeLabel: 'Weekly',
+        groupName: 'U12',
+        coverUrl: '',
+        dateText: `${pastDates[0]} ~ ${upcomingDate}`,
+        scheduleText: 'Mon 19:00-20:30',
+        priceText: '$4,500',
+        countText: '2/12',
+        status: { label: 'Open' },
+        tags: [],
+      })),
+      _getCoursePlanNextWeeklyOccurrence: jest.fn(() => ({
+        label: `${upcomingDate} 19:00`,
+        timestamp: new Date(`${upcomingDate}T19:00:00`).getTime(),
+      })),
+      _isCoursePlanEnded: jest.fn(() => false),
+    };
+    const context = {
+      App: app,
+      document: {
+        querySelector: jest.fn(() => null),
+        createElement: jest.fn(() => overlay),
+        body: { appendChild: jest.fn((node) => appended.push(node)) },
+      },
+      escapeHTML,
+      Date,
+      console,
+    };
+    vm.runInNewContext(source, context, { filename: 'edu-course-plan-render.js' });
+
+    await context.App.showEduCoursePlanDetail('teamA', 'planLong');
+
+    expect(appended).toHaveLength(1);
+    expect(overlay.innerHTML).toContain('Upcoming Lesson');
+    expect(overlay.innerHTML).toContain('edu-course-progress-status is-soon');
+    expect((overlay.innerHTML.match(/edu-course-progress-row/g) || []).length).toBe(15);
+    expect(overlay.innerHTML).not.toContain('edu-course-progress-more');
+  });
+
   test('staff course detail uses shared content and compact management action', async () => {
     const overlay = { className: '', innerHTML: '', onclick: null, remove: jest.fn() };
     const appended = [];
