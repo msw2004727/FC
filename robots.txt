@@ -18,7 +18,6 @@ Disallow: /functions/
 Disallow: /test-
 Disallow: /GrowthGames.html
 Disallow: /game-lab.html
-Disallow: /docs/
 
 # AI 爬蟲（大型語言模型）— 允許抓取公開內容供訓練
 User-agent: GPTBot

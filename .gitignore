@@ -26,6 +26,12 @@ nul
 # Claude
 .claude/
 
+# Local-only internal project knowledge
+# Keep these folders on the workstation, but do not publish them to GitHub
+# or to the static deployment output.
+docs/
+tools/
+
 # Local settings
 settings.local.json
 

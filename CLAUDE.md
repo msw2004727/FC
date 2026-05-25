@@ -199,6 +199,10 @@ grep -rn "CACHE_VERSION\|CACHE_NAME\|var V='" js/config.js sw.js index.html
 
 ### 文件結構整理規則
 
+- `docs/` 是本機專案知識庫，包含架構、測試覆蓋、調校參數、SEO log、歷史教訓、規格、active workflow 與預覽檔；**不得追蹤到 Git，也不得發布到公開 GitHub 或靜態部署輸出**。
+- `tools/` 是本機或臨時診斷腳本資料夾；**不得追蹤到 Git，也不得發布到公開 GitHub 或靜態部署輸出**。需要瀏覽器 console 診斷時，只能由維護者在本機或受控環境手動載入。
+- 若發現 `docs/` 或 `tools/` 已被 Git 追蹤，必須用 `git rm --cached -r docs tools` 只移除追蹤，不得刪除本機檔案；`.gitignore` 必須保留 `docs/` 與 `tools/`。
+- 不要把需要 CI、正式站 runtime、後端部署或公開 SEO 的資料夾移成本機專用。目前 `tests/`、`.github/`、`functions/`、`scripts/`、`LOGO/`、`PWA/`、`permissions/`、`roles/`、`inventory/`、`valuation/`、`blog/`、`seo/` 都有測試、部署、runtime 或公開頁用途，必須保留在 Git。
 - `docs/` 根目錄只保留仍需優先閱讀的活躍文件、active workflow 或正在執行的計畫。
 - 已結束、歷史審計或暫不執行的計畫書放 `docs/archive/`，避免根目錄堆積。
 - 已實作完成但仍需保留驗收脈絡的計畫放 `docs/completed/`。

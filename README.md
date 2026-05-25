@@ -71,7 +71,7 @@ ToosterX 不是展示用 demo，而是面向實際運動社群營運的產品。
 | `firestore.rules` | Firestore security rules，目前約 2,725 行 |
 | `storage.rules` | Firebase Storage 圖片讀寫規則 |
 | `tests/` | Unit、Firestore rules、E2E 測試 |
-| `docs/` | 架構、測試覆蓋、調校參數、SEO log、活躍計畫、歸檔計畫與預覽檔 |
+| `docs/` | 本機專案知識庫，已改為 local-only，不追蹤到公開 GitHub |
 | `blog/` | SEO blog 文章頁 |
 | `seo/` | SEO landing pages |
 | `changelog/` | 公開更新紀錄（GitHub Actions 自動同步 commit 標題） |
@@ -82,19 +82,20 @@ ToosterX 不是展示用 demo，而是面向實際運動社群營運的產品。
 
 文件整理規則:
 
-- `docs/` 根目錄只放目前仍需要被優先閱讀的文件，例如架構、測試覆蓋、調校參數、SEO log、active workflow 或正在執行的計畫。
+- `docs/` 根目錄只放目前仍需要被優先閱讀的文件，例如架構、測試覆蓋、調校參數、SEO log、active workflow 或正在執行的計畫；此資料夾只保留在本機專案，已列入 `.gitignore`，不得發布到公開 GitHub。
 - `docs/archive/` 放已結束、歷史審計或不再主動執行的計畫書，保留追溯價值但不混在根目錄。
 - `docs/completed/` 放已完成且仍有驗收價值的修復計畫。
 - `docs/specs/` 放正式規格或長期設計文件。
 - `docs/previews/` 放 AI 或人工用來快速呈現視覺結果的 HTML 預覽檔，例如 `demo.html`，預覽檔需避免被當成正式入口。
+- `tools/` 放本機或臨時診斷腳本，只能在受控環境手動使用，已列入 `.gitignore`，不得發布到公開 GitHub。
 - 本機輸出如 `.gcloud/`、`debug.log`、`test-results/` 不進 Git。
 
 依目前 repo 盤點:
 
-- `git ls-files` 回傳 1,153 個受版控檔案。
-- `js/` 底下目前有 297 個 JavaScript 檔。
+- `git ls-files` 回傳 1,068 個受版控檔案。
+- `js/` 底下目前有 298 個 JavaScript 檔。
 - `js/modules/` 底下有 16 個主要功能模組資料夾與 31 個獨立模組檔。
-- `tests/unit/` 目前有 151 個 unit test 檔。
+- `tests/unit/` 目前有 152 個 unit test 檔。
 - `functions/index.js` 目前有 68 個 exported Cloud Functions。
 - `blog/` 目前有 23 個 HTML 文章 / 索引頁。
 - `seo/` 目前有 10 個 HTML landing pages。

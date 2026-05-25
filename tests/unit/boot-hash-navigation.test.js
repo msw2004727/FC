@@ -76,10 +76,8 @@ describe('boot hash navigation acceleration contract', () => {
 
   test('boot overlay no longer enforces the previous 2500ms minimum', () => {
     const appSource = readProjectFile('app.js');
-    const tunablesSource = readProjectFile('docs/tunables.md');
 
     expect(appSource).toContain('var MIN_VISIBLE_MS = 0;');
-    expect(tunablesSource).toContain('| **MIN_VISIBLE_MS** | `0` ms |');
-    expect(tunablesSource).toContain('hash reload 改由 early boot route + PageLoader priority');
+    expect(appSource).toContain('docs/tunables.md #boot-overlay-min-visible');
   });
 });
