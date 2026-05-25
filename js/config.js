@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260525c';
+const CACHE_VERSION = '0.20260525d';
 
 const GOOGLE_MAPS_BROWSER_API_KEY = '';
 
@@ -53,6 +53,8 @@ function isActivityMapLocationPickerEnabled() {
 }
 
 const TEAM_DETAIL_V2_ENABLED = true;
+const TEAM_COURSE_UI_V2_ENABLED = true;
+const ACTIVITY_CREATE_UI_V2_ENABLED = true;
 
 function isTeamDetailV2DiagnosticOverride() {
   try {
@@ -70,6 +72,46 @@ function isTeamDetailV2DiagnosticOverride() {
 function isTeamDetailV2Enabled() {
   if (typeof window !== 'undefined' && window.__TEAM_DETAIL_V2_TEST_OVERRIDE__ === false) return false;
   return TEAM_DETAIL_V2_ENABLED === true || isTeamDetailV2DiagnosticOverride();
+}
+
+function isLocalFeatureOverrideParam(paramName) {
+  try {
+    if (typeof window === 'undefined') return false;
+    const url = new URL(window.location.href);
+    const value = url.searchParams.get(paramName);
+    if (value !== '1' && value !== '0') return false;
+    const host = window.location.hostname || '';
+    if (!(host === 'localhost' || host === '127.0.0.1' || host === '::1' || host.endsWith('.local'))) return false;
+    return value;
+  } catch (_) {
+    return false;
+  }
+}
+
+function isTeamCourseUiV2Enabled() {
+  if (typeof window !== 'undefined' && window.__TEAM_COURSE_UI_V2_TEST_OVERRIDE__ === false) return false;
+  if (typeof window !== 'undefined' && window.__TEAM_COURSE_UI_V2_TEST_OVERRIDE__ === true) return true;
+  const localOverride = isLocalFeatureOverrideParam('teamCourseUiV2');
+  if (localOverride === '1') return true;
+  if (localOverride === '0') return false;
+  const flags = (typeof FirebaseService !== 'undefined' && typeof FirebaseService.getCachedDoc === 'function')
+    ? FirebaseService.getCachedDoc('siteConfig', 'featureFlags')
+    : null;
+  if (flags && flags.teamCourseUiV2Enabled === false) return false;
+  return TEAM_COURSE_UI_V2_ENABLED === true;
+}
+
+function isActivityCreateUiV2Enabled() {
+  if (typeof window !== 'undefined' && window.__ACTIVITY_CREATE_UI_V2_TEST_OVERRIDE__ === false) return false;
+  if (typeof window !== 'undefined' && window.__ACTIVITY_CREATE_UI_V2_TEST_OVERRIDE__ === true) return true;
+  const localOverride = isLocalFeatureOverrideParam('activityCreateUiV2');
+  if (localOverride === '1') return true;
+  if (localOverride === '0') return false;
+  const flags = (typeof FirebaseService !== 'undefined' && typeof FirebaseService.getCachedDoc === 'function')
+    ? FirebaseService.getCachedDoc('siteConfig', 'featureFlags')
+    : null;
+  if (flags && flags.activityCreateUiV2Enabled === false) return false;
+  return ACTIVITY_CREATE_UI_V2_ENABLED === true;
 }
 
 // Temporary feature switch: no-show is paused and hidden, but historical data remains intact.
