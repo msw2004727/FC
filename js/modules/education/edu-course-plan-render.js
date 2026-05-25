@@ -450,10 +450,10 @@ Object.assign(App, {
         + '</div>'
         + '<button class="modal-close-btn" onclick="this.closest(\'.edu-info-overlay\').remove()">×</button>'
       + '</div>'
-      + tagHtml
-      + extraTagsHtml
-      + '<div class="edu-course-detail-meta">' + metaHtml + '</div>'
       + '<div class="edu-course-detail-scroll">'
+        + tagHtml
+        + extraTagsHtml
+        + '<div class="edu-course-detail-meta">' + metaHtml + '</div>'
         + courseContentHtml
         + contactHtml
         + progressHtml

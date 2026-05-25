@@ -118,6 +118,14 @@ describe('edu course plan render', () => {
     expect(cssSource).toContain('min-width: 5.8rem;');
   });
 
+  test('course detail modal keeps growing fields inside a scrollable body', () => {
+    expect(cssSource).toContain('height: min(92dvh, 720px);');
+    expect(cssSource).toContain('grid-auto-rows: minmax(58px, auto);');
+    expect(cssSource).toContain('flex: 1 1 0;');
+    expect(cssSource).toContain('max-height: none;');
+    expect(cssSource).toContain('overflow-wrap: anywhere;');
+  });
+
   test('keeps existing empty state when there are no active plans', async () => {
     const html = await renderPlans([{ id: 'archived', name: '停用方案', active: false }], false);
 
@@ -245,6 +253,11 @@ describe('edu course plan render', () => {
     expect(overlay.innerHTML).toContain('contact &lt;line&gt;');
     expect((overlay.innerHTML.match(/需自備球鞋/g) || []).length).toBe(1);
     expect(overlay.innerHTML).not.toContain('<script>bad</script>');
+    const scrollIndex = overlay.innerHTML.indexOf('edu-course-detail-scroll');
+    expect(scrollIndex).toBeGreaterThan(-1);
+    expect(scrollIndex).toBeLessThan(overlay.innerHTML.indexOf('edu-course-detail-meta'));
+    expect(overlay.innerHTML.indexOf('edu-course-detail-meta')).toBeLessThan(overlay.innerHTML.indexOf('edu-course-detail-progress'));
+    expect(overlay.innerHTML.indexOf('edu-course-detail-progress')).toBeLessThan(overlay.innerHTML.indexOf('edu-course-detail-footer'));
   });
 
   test('course detail progress keeps upcoming lessons visible in long weekly plans', async () => {

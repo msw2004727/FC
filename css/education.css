@@ -3173,7 +3173,8 @@
   flex-direction: column;
   width: min(500px, calc(100vw - 20px));
   max-width: 500px;
-  max-height: min(92vh, 720px);
+  height: min(92dvh, 720px);
+  max-height: calc(100dvh - 1rem);
   min-height: 0;
   padding: 1rem;
   border-radius: 8px;
@@ -3202,6 +3203,7 @@
   flex: 0 0 auto;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(58px, auto);
   align-items: stretch;
   gap: .5rem;
   overflow: visible;
@@ -3224,7 +3226,7 @@
   font-size: .78rem;
   line-height: 1.25;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .72);
-  overflow: hidden;
+  overflow: visible;
 }
 .edu-course-detail-meta > span::before {
   content: '';
@@ -3246,6 +3248,7 @@
   line-height: 1.35;
   white-space: normal;
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 .edu-course-meta-period {
   background: linear-gradient(135deg, rgba(20, 184, 166, .16), rgba(240, 253, 250, .94)) !important;
@@ -3309,14 +3312,14 @@
   background: linear-gradient(180deg, #0d9488, #38bdf8) !important;
 }
 .edu-course-detail-scroll {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
   gap: .72rem;
   overflow-y: auto;
   min-height: 0;
-  max-height: min(58vh, 520px);
-  padding: .05rem .12rem .05rem 0;
+  max-height: none;
+  padding: .05rem .12rem .75rem 0;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
@@ -3327,7 +3330,7 @@
   border-radius: 8px;
   background: linear-gradient(90deg, rgba(236, 253, 245, .9), rgba(248, 250, 252, .96));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .72);
-  overflow: hidden;
+  overflow: visible;
 }
 .edu-course-detail-section::before {
   content: '';
@@ -3468,6 +3471,7 @@
 }
 .edu-course-contact-list > div {
   min-width: 0;
+  height: auto;
   display: flex;
   flex-direction: column;
   gap: .18rem;
@@ -3495,6 +3499,7 @@
   font-size: .86rem;
   line-height: 1.45;
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 .edu-course-contact-list a {
   color: var(--accent);
@@ -3765,7 +3770,8 @@
 @media (max-width: 420px) {
   .edu-course-detail-dialog {
     padding: .9rem .9rem .85rem;
-    max-height: calc(100vh - 1rem);
+    height: calc(100dvh - 1rem);
+    max-height: calc(100dvh - 1rem);
   }
   .edu-course-detail-meta {
     grid-template-columns: 1fr;
