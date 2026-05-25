@@ -299,4 +299,127 @@ describe('edu course plan render', () => {
     expect(updates.map(item => item.planId)).toEqual(['current-a', 'current-b']);
     expect(app.renderEduCoursePlanList).toHaveBeenCalledWith('teamA');
   });
+
+  test('course plan form renders optional display fields for editing', async () => {
+    const container = { innerHTML: '' };
+    const app = {
+      showPage: jest.fn(async () => { app.currentPage = 'page-edu-course-plan'; }),
+      _loadEduGroups: jest.fn(() => Promise.resolve([])),
+      _generateEduId: jest.fn(),
+    };
+    const context = {
+      App: app,
+      document: {
+        getElementById: jest.fn((id) => id === 'edu-course-plan-page' ? container : null),
+      },
+      escapeHTML,
+      console,
+      Promise,
+      Date,
+      Number,
+      String,
+      Object,
+      Array,
+    };
+    vm.runInNewContext(crudSource, context, { filename: 'edu-course-plan.js' });
+    app._eduCoursePlansCache = {
+      teamA: [{
+        id: 'planA',
+        name: 'Plan A',
+        categoryTags: ['fixed', 'beginner'],
+        levelLabel: 'U12',
+        featureTags: ['small group'],
+        requirementTags: ['shoes'],
+        includedTags: ['field'],
+        targetTags: ['newbie'],
+        signupDeadline: '2099-01-10',
+        coachName: 'Coach A',
+        location: 'Center A',
+        description: 'Safe description',
+        featured: true,
+      }],
+    };
+
+    await app.showEduCoursePlanForm('teamA', 'planA');
+
+    expect(container.innerHTML).toContain('id="edu-cp-category-tags"');
+    expect(container.innerHTML).toContain('value="fixed, beginner"');
+    expect(container.innerHTML).toContain('id="edu-cp-description"');
+    expect(container.innerHTML).toContain('Safe description');
+    expect(container.innerHTML).toContain('id="edu-cp-featured" checked');
+  });
+
+  test('course plan save preserves optional field payloads', async () => {
+    let savedPayload = null;
+    const elements = {
+      'edu-cp-name': { value: 'Plan A' },
+      'edu-cp-group': { value: 'groupA', selectedOptions: [{ dataset: { name: 'Group A' } }] },
+      'edu-cp-type': { value: 'weekly' },
+      'edu-cp-signup': { checked: true },
+      'edu-cp-capacity': { value: '12' },
+      'edu-cp-price': { value: '2400' },
+      'edu-cp-category-tags': { value: 'fixed, beginner' },
+      'edu-cp-level-label': { value: 'U12' },
+      'edu-cp-feature-tags': { value: 'small group, ball control' },
+      'edu-cp-requirement-tags': { value: 'shoes' },
+      'edu-cp-included-tags': { value: 'field, coach' },
+      'edu-cp-target-tags': { value: 'newbie' },
+      'edu-cp-signup-deadline': { value: '2099-01-10' },
+      'edu-cp-coach-name': { value: 'Coach A' },
+      'edu-cp-location': { value: 'Center A' },
+      'edu-cp-description': { value: 'Safe description' },
+      'edu-cp-featured': { checked: true },
+      'edu-cp-start': { value: '2099-01-01' },
+      'edu-cp-end': { value: '2099-03-01' },
+      'edu-cp-timeslot': { value: '09:00-10:30' },
+    };
+    const app = {
+      _eduCoursePlanEditTeamId: 'teamA',
+      _eduCoursePlanEditId: 'planA',
+      _eduCoursePlansCache: { teamA: [{ id: 'planA' }] },
+      _setEduBtnLoading: jest.fn(() => ({ restore: jest.fn() })),
+      showToast: jest.fn(),
+      goBack: jest.fn(),
+      renderEduCoursePlanList: jest.fn(),
+    };
+    const context = {
+      App: app,
+      FirebaseService: {
+        updateEduCoursePlan: jest.fn((_teamId, _planId, payload) => {
+          savedPayload = payload;
+          return Promise.resolve();
+        }),
+      },
+      document: {
+        getElementById: jest.fn((id) => elements[id] || null),
+        querySelectorAll: jest.fn((selector) => selector === '#edu-cp-weekdays .edu-wd-checked'
+          ? [{ dataset: { day: '1' } }, { dataset: { day: '3' } }]
+          : []),
+      },
+      escapeHTML,
+      console,
+      Promise,
+      Date,
+      Number,
+      String,
+      Object,
+      Array,
+      parseInt,
+    };
+    vm.runInNewContext(crudSource, context, { filename: 'edu-course-plan.js' });
+    context.App._eduCoursePlanEditTeamId = 'teamA';
+    context.App._eduCoursePlanEditId = 'planA';
+    context.App._eduCoursePlansCache = { teamA: [{ id: 'planA' }] };
+
+    await context.App.handleSaveEduCoursePlan();
+
+    expect(savedPayload.categoryTags).toEqual(['fixed', 'beginner']);
+    expect(savedPayload.featureTags).toEqual(['small group', 'ball control']);
+    expect(savedPayload.includedTags).toEqual(['field', 'coach']);
+    expect(savedPayload.signupDeadline).toBe('2099-01-10');
+    expect(savedPayload.coachName).toBe('Coach A');
+    expect(savedPayload.location).toBe('Center A');
+    expect(savedPayload.description).toBe('Safe description');
+    expect(savedPayload.featured).toBe(true);
+  });
 });

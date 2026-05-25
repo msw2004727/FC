@@ -62,6 +62,8 @@ Object.assign(App, {
       .join('');
 
     const isWeekly = plan ? plan.planType === 'weekly' : true;
+    const tagsValue = (key) => Array.isArray(plan?.[key]) ? plan[key].join(', ') : '';
+    const fieldValue = (key) => escapeHTML(plan?.[key] || '');
 
     container.innerHTML = '<div class="ce-form" style="padding:.5rem">' +
       // Fix 5: 開放報名開關最頂置左
@@ -79,6 +81,23 @@ Object.assign(App, {
         '</div></div>' +
       '<div class="ce-row"><label>對應分組</label>' +
         '<select id="edu-cp-group"><option value="">不綁定分組</option>' + groupOptions + '</select></div>' +
+      '<details class="edu-cp-extra-section" open>' +
+        '<summary>課程補充資訊</summary>' +
+        '<div class="edu-cp-extra-grid">' +
+          '<div class="ce-row"><label>課程分類</label><input type="text" id="edu-cp-category-tags" maxlength="80" placeholder="例：固定課, 入門" value="' + escapeHTML(tagsValue('categoryTags')) + '"></div>' +
+          '<div class="ce-row"><label>程度標籤</label><input type="text" id="edu-cp-level-label" maxlength="20" placeholder="例：初階 / U12" value="' + fieldValue('levelLabel') + '"></div>' +
+          '<div class="ce-row"><label>課程亮點</label><input type="text" id="edu-cp-feature-tags" maxlength="120" placeholder="例：小班制, 專項訓練" value="' + escapeHTML(tagsValue('featureTags')) + '"></div>' +
+          '<div class="ce-row"><label>報名要求</label><input type="text" id="edu-cp-requirement-tags" maxlength="120" placeholder="例：需自備球鞋" value="' + escapeHTML(tagsValue('requirementTags')) + '"></div>' +
+          '<div class="ce-row"><label>費用包含</label><input type="text" id="edu-cp-included-tags" maxlength="120" placeholder="例：場地, 教練費" value="' + escapeHTML(tagsValue('includedTags')) + '"></div>' +
+          '<div class="ce-row"><label>適合對象</label><input type="text" id="edu-cp-target-tags" maxlength="120" placeholder="例：新手, 親子" value="' + escapeHTML(tagsValue('targetTags')) + '"></div>' +
+          '<div class="ce-row"><label>報名截止日</label><input type="date" id="edu-cp-signup-deadline" value="' + fieldValue('signupDeadline') + '"></div>' +
+          '<div class="ce-row"><label>授課教練</label><input type="text" id="edu-cp-coach-name" maxlength="30" placeholder="例：王教練" value="' + fieldValue('coachName') + '"></div>' +
+          '<div class="ce-row"><label>上課地點</label><input type="text" id="edu-cp-location" maxlength="80" placeholder="例：台中市南屯運動中心" value="' + fieldValue('location') + '"></div>' +
+          '<div class="ce-row edu-cp-extra-featured"><label>精選顯示</label><label class="toggle-switch"><input type="checkbox" id="edu-cp-featured"' + (plan?.featured ? ' checked' : '') + '><span class="toggle-slider"></span></label></div>' +
+        '</div>' +
+        '<div class="ce-row"><label>課程說明</label><textarea id="edu-cp-description" maxlength="500" rows="3" placeholder="補充課程目標、注意事項或適合對象">' + fieldValue('description') + '</textarea></div>' +
+        '<div class="edu-cp-extra-hint">標籤請用逗號分隔；這些欄位會先用於卡片與詳情顯示，不會改變報名流程。</div>' +
+      '</details>' +
       '<div class="ce-row"><label>方案類型</label>' +
         '<select id="edu-cp-type" onchange="App._toggleCoursePlanType(this.value)">' +
           '<option value="weekly"' + (isWeekly ? ' selected' : '') + '>固定週期</option>' +
@@ -181,6 +200,14 @@ Object.assign(App, {
     if (sessionEl) sessionEl.style.display = type === 'session' ? '' : 'none';
   },
 
+  _getEduCpTagList(inputId) {
+    const raw = document.getElementById(inputId)?.value || '';
+    return raw.split(/[,\u3001]/)
+      .map(item => item.trim())
+      .filter(Boolean)
+      .slice(0, 8);
+  },
+
   async handleSaveEduCoursePlan() {
     const _btnState = this._setEduBtnLoading('#edu-cp-save-btn');
     const teamId = this._eduCoursePlanEditTeamId;
@@ -198,6 +225,7 @@ Object.assign(App, {
     const maxCapacity = capRaw ? parseInt(capRaw, 10) : null;
     const priceRaw = document.getElementById('edu-cp-price')?.value;
     const price = priceRaw ? parseInt(priceRaw, 10) : null;
+    const optionalText = (id, max = 120) => (document.getElementById(id)?.value || '').trim().slice(0, max);
 
     const data = {
       name,
@@ -208,6 +236,17 @@ Object.assign(App, {
       allowSignup,
       maxCapacity,
       price,
+      categoryTags: this._getEduCpTagList('edu-cp-category-tags'),
+      levelLabel: optionalText('edu-cp-level-label', 20),
+      featureTags: this._getEduCpTagList('edu-cp-feature-tags'),
+      requirementTags: this._getEduCpTagList('edu-cp-requirement-tags'),
+      includedTags: this._getEduCpTagList('edu-cp-included-tags'),
+      targetTags: this._getEduCpTagList('edu-cp-target-tags'),
+      signupDeadline: optionalText('edu-cp-signup-deadline', 10),
+      coachName: optionalText('edu-cp-coach-name', 30),
+      location: optionalText('edu-cp-location', 80),
+      description: optionalText('edu-cp-description', 500),
+      featured: !!document.getElementById('edu-cp-featured')?.checked,
     };
 
     // 共用日期欄位（兩種類型都有）

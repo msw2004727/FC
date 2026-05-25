@@ -109,6 +109,10 @@ Object.assign(App, {
         + renderMetric('人數', countText)
         + '</div>';
       const groupHtml = '<span class="edu-cp-group-pill">' + escapeHTML(p.groupName || '未分班') + '</span>';
+      const extraCardTags = [
+        p.levelLabel,
+        ...(Array.isArray(p.categoryTags) ? p.categoryTags : []),
+      ].filter(Boolean).slice(0, 2).map(tag => '<span class="edu-cp-extra-pill">' + escapeHTML(tag) + '</span>').join('');
 
       // 學員報名按鈕
       let signupBtn = '';
@@ -166,7 +170,7 @@ Object.assign(App, {
         + '<div class="edu-cp-title-wrap">'
         + '<div class="edu-cp-tags">'
         + '<span class="edu-cp-type-text ' + (p.planType === 'weekly' ? 'edu-cp-type-weekly' : 'edu-cp-type-session') + '">' + typeLabel + '</span>'
-        + statusBadge + groupHtml
+        + statusBadge + groupHtml + extraCardTags
         + '</div>'
         + '<span class="edu-course-name">' + escapeHTML(p.name) + '</span>'
         + '</div>'
