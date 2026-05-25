@@ -34,11 +34,14 @@
 .td-v2-pulse{width:8px;height:8px;border-radius:50%;background:#34d399;box-shadow:0 0 0 0 rgba(52,211,153,.55);animation:tdv2pulse 1.7s infinite}
 @keyframes tdv2pulse{70%{box-shadow:0 0 0 8px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}
 .td-v2-cta-bar{position:relative;z-index:2;display:grid;grid-template-columns:1fr 46px 46px 46px;gap:8px;margin:-8px 14px 0;padding:12px;border-radius:18px;background:#fff;box-shadow:0 8px 24px rgba(15,23,42,.08)}
+.td-v2-cta-bar.has-leave{grid-template-columns:1fr 46px 46px 46px 46px}
 .td-v2-cta-primary,.td-v2-cta-icon{border:0;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;background:#eef2f8;color:#334155}
 .td-v2-cta-primary{gap:7px;padding:11px 14px;background:var(--td-v2-theme);color:#fff;font-size:14.5px;font-weight:800}
 .td-v2-cta-primary.danger{background:#fff;color:#dc2626;border:1px solid #fecaca}
+.td-v2-cta-primary.joined{background:#ecfdf5;color:#047857;border:1px solid #a7f3d0}
 .td-v2-cta-primary.pending{background:#fef3c7;color:#92400e}
 .td-v2-cta-icon{height:46px}
+.td-v2-cta-icon.danger{background:#fff;color:#dc2626;border:1px solid #fecaca}
 .td-v2-cta-icon:disabled{opacity:.45}
 .td-v2-stats{display:grid;grid-template-columns:repeat(4,1fr);margin:16px 14px 6px;background:#fff;border:1px solid #eef2f7;border-radius:14px;overflow:hidden}
 .td-v2-stat{position:relative;text-align:center;padding:14px 4px}
@@ -200,4 +203,4 @@
 [data-theme="dark"] .td-v2-panel-courses .edu-course-card .edu-cp-visual.has-cover .edu-cp-status-ended,
 [data-theme="dark"] .td-v2-panel-courses .edu-course-card .edu-cp-visual.has-cover .edu-cp-group-pill{background:rgba(255,255,255,.14);color:rgba(255,255,255,.86);border-color:rgba(255,255,255,.16)}
 @media(max-width:520px){.td-v2-event-card{grid-template-columns:86px 1fr}.td-v2-event-card-body{gap:8px}.td-v2-event-date{display:none}}
-@media(max-width:420px){.td-v2-quick-grid,.td-v2-member-grid,.td-v2-info-staff-grid{grid-template-columns:repeat(2,1fr)}.td-v2-record-hero{grid-template-columns:1fr}.td-v2-donut{margin:auto}.td-v2-hero-name{font-size:21px}.td-v2-cta-bar{grid-template-columns:1fr repeat(3,42px)}.td-v2-hero-text{padding-right:58px}}
+@media(max-width:420px){.td-v2-quick-grid,.td-v2-member-grid,.td-v2-info-staff-grid{grid-template-columns:repeat(2,1fr)}.td-v2-record-hero{grid-template-columns:1fr}.td-v2-donut{margin:auto}.td-v2-hero-name{font-size:21px}.td-v2-cta-bar{grid-template-columns:1fr repeat(3,42px)}.td-v2-cta-bar.has-leave{grid-template-columns:1fr repeat(4,42px)}.td-v2-hero-text{padding-right:58px}}

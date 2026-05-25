@@ -606,6 +606,53 @@ describe('team detail club activity section', () => {
     expect(html).not.toContain('td-v2-hero-name-en');
   });
 
+  test('team detail v2 member cta keeps joined as status and places leave icon at the far right', () => {
+    const app = makeApp([]);
+    Object.assign(app, {
+      _isTeamMember: () => true,
+    });
+    loadTeamDetailRender(app, [], {
+      extraFiles: ['js/modules/team/team-detail-v2-render.js'],
+    });
+
+    const html = app._buildTeamDetailV2CtaBar({
+      id: 'teamA',
+      captain: '',
+      coaches: [],
+      allowMemberInvite: true,
+    });
+
+    expect(html).toContain('td-v2-cta-bar has-leave');
+    expect(html).toContain('td-v2-cta-primary joined');
+    expect(html).toContain('data-td-v2-action="joined"');
+    expect(html).toContain('td-v2-cta-icon danger');
+    expect(html).toContain('data-td-v2-action="leave"');
+    expect(html).toContain('M17 16l4-4-4-4');
+    expect(html.indexOf('data-td-v2-action="invite"')).toBeLessThan(
+      html.indexOf('data-td-v2-action="leave"')
+    );
+  });
+
+  test('team detail v2 joined status action does not trigger leave flow', () => {
+    const app = makeApp([]);
+    const showToast = jest.fn();
+    const handleLeaveTeam = jest.fn();
+    Object.assign(app, { showToast, handleLeaveTeam });
+    loadTeamDetailRender(app, [], {
+      teams: { teamA: { id: 'teamA' } },
+      extraFiles: ['js/modules/team/team-detail-v2-actions.js'],
+    });
+
+    app._runTeamDetailV2Action('joined', {}, 'teamA');
+
+    expect(showToast).toHaveBeenCalledWith(expect.any(String));
+    expect(handleLeaveTeam).not.toHaveBeenCalled();
+
+    app._runTeamDetailV2Action('leave', {}, 'teamA');
+
+    expect(handleLeaveTeam).toHaveBeenCalledWith('teamA');
+  });
+
   test('team detail v2 info only shows manager, leaders, and aligned contact actions', () => {
     const app = makeApp([]);
     loadTeamDetailRender(app, [], {
@@ -2054,6 +2101,14 @@ describe('team detail club activity section', () => {
     expect(css).toContain('.td-v2-cta-bar{position:relative;z-index:2');
     expect(css).toContain('.td-v2-hero-rank{position:absolute;right:14px;bottom:10px;z-index:4');
     expect(css).toContain('pointer-events:none');
+  });
+
+  test('team detail v2 leave icon keeps the icon-button sizing and red outline style', () => {
+    const css = fs.readFileSync(path.join(__dirname, '../../css/team-detail-v2.css'), 'utf8');
+
+    expect(css).toContain('.td-v2-cta-bar.has-leave{grid-template-columns:1fr 46px 46px 46px 46px}');
+    expect(css).toContain('.td-v2-cta-icon.danger{background:#fff;color:#dc2626;border:1px solid #fecaca}');
+    expect(css).toContain('.td-v2-cta-bar.has-leave{grid-template-columns:1fr repeat(4,42px)}');
   });
 
   test('team record card renders compact equal cells without match history', () => {

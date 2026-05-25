@@ -136,6 +136,7 @@ Object.assign(App, {
     }
     if (action === 'invite') return target.disabled ? null : this.showTeamInviteQR?.(teamId);
     if (action === 'join') return this.handleJoinTeam?.(teamId);
+    if (action === 'joined') return this.showToast?.('您已加入此俱樂部');
     if (action === 'leave') return this.handleLeaveTeam?.(teamId);
     if (action === 'join-pending') return this.showTeamJoinPendingToast?.(teamId);
     if (action === 'tab') return this.switchTeamDetailV2Tab(teamId, target.getAttribute('data-tab'));

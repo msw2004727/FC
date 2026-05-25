@@ -13,6 +13,7 @@ Object.assign(App, {
       more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg>',
       join: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><path d="M20 8v6"></path><path d="M23 11h-6"></path></svg>',
       check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>',
+      leave: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"></path><path d="M17 16l4-4-4-4"></path><path d="M21 12H9"></path></svg>',
       qr: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h7v7H3z"></path><path d="M14 3h7v7h-7z"></path><path d="M3 14h7v7H3z"></path><path d="M14 14h3v3h-3z"></path><path d="M18 18h3v3h-3z"></path></svg>',
       contact: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path></svg>',
       settings: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z"></path><path d="M19.4 15a1.8 1.8 0 0 0 .36 2l.05.05a2.1 2.1 0 0 1-3 3l-.05-.05a1.8 1.8 0 0 0-2-.36 1.8 1.8 0 0 0-1.1 1.65V21a2.1 2.1 0 0 1-4.2 0v-.08A1.8 1.8 0 0 0 8.4 19.3a1.8 1.8 0 0 0-2 .36l-.05.05a2.1 2.1 0 0 1-3-3l.05-.05a1.8 1.8 0 0 0 .36-2A1.8 1.8 0 0 0 2 13.55V13a2.1 2.1 0 0 1 0-4.2h.08A1.8 1.8 0 0 0 3.7 7.6a1.8 1.8 0 0 0-.36-2l-.05-.05a2.1 2.1 0 0 1 3-3l.05.05a1.8 1.8 0 0 0 2 .36H8.4A1.8 1.8 0 0 0 9.5 1.3V1a2.1 2.1 0 0 1 4.2 0v.08a1.8 1.8 0 0 0 1.1 1.65 1.8 1.8 0 0 0 2-.36l.05-.05a2.1 2.1 0 0 1 3 3l-.05.05a1.8 1.8 0 0 0-.36 2v.05A1.8 1.8 0 0 0 21 8.5h.1a2.1 2.1 0 0 1 0 4.2H21a1.8 1.8 0 0 0-1.6 1.1Z"></path></svg>',
@@ -109,21 +110,23 @@ Object.assign(App, {
       return '<button class="td-v2-cta-primary pending" type="button" data-td-v2-action="join-pending">' + this._svgIcon('check') + '<span>審核中</span></button>';
     }
     return isMember
-      ? '<button class="td-v2-cta-primary danger" type="button" data-td-v2-action="leave">' + this._svgIcon('check') + '<span>已加入</span></button>'
+      ? '<button class="td-v2-cta-primary joined" type="button" data-td-v2-action="joined">' + this._svgIcon('check') + '<span>已加入</span></button>'
       : '<button class="td-v2-cta-primary" type="button" data-td-v2-action="join">' + this._svgIcon('join') + '<span>加入俱樂部</span></button>';
   },
 
   _buildTeamDetailV2CtaBar(t) {
     const u = ApiService.getCurrentUser?.();
     const n = u?.displayName || '';
+    const isMember = this._isTeamMember(t.id);
     const isCaptainCoach = (t.captain === n || (t.coaches || []).includes(n));
-    const canInvite = isCaptainCoach || (this._isTeamMember(t.id) && t.allowMemberInvite !== false);
+    const canInvite = isCaptainCoach || (isMember && t.allowMemberInvite !== false);
     const disabled = canInvite ? '' : ' disabled aria-disabled="true"';
-    return '<div class="td-v2-cta-bar">'
+    return '<div class="td-v2-cta-bar' + (isMember ? ' has-leave' : '') + '">'
       + this._buildTeamDetailV2PrimaryButton(t)
       + '<button class="td-v2-cta-icon" type="button" data-td-v2-action="share" aria-label="分享俱樂部">' + this._svgIcon('share') + '</button>'
       + '<button class="td-v2-cta-icon" type="button" data-td-v2-action="contact" aria-label="聯繫負責人">' + this._svgIcon('contact') + '</button>'
       + '<button class="td-v2-cta-icon" type="button" data-td-v2-action="invite"' + disabled + ' aria-label="邀請 QR">' + this._svgIcon('qr') + '</button>'
+      + (isMember ? '<button class="td-v2-cta-icon danger" type="button" data-td-v2-action="leave" aria-label="退出俱樂部" title="退出俱樂部">' + this._svgIcon('leave') + '</button>' : '')
       + '</div>';
   },
 
