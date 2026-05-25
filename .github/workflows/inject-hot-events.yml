@@ -40,6 +40,40 @@ jobs:
       - name: Commit if changed
         run: |
           set -e
+          push_with_retry() {
+            local bot_prefix="[inject-bot]"
+            local max_attempts=4
+            local delay_seconds=10
+            local attempt=1
+            local push_log
+            push_log="$(mktemp)"
+            while [ "$attempt" -le "$max_attempts" ]; do
+              echo "$bot_prefix push attempt ${attempt}/${max_attempts}"
+              if git push origin HEAD:main >"$push_log" 2>&1; then
+                cat "$push_log"
+                rm -f "$push_log"
+                return 0
+              fi
+              cat "$push_log"
+              if ! grep -Eqi "Internal Server Error|HTTP 5[0-9][0-9]|remote end hung up|The remote end hung up unexpectedly|Connection timed out|Operation timed out|Could not resolve host|RPC failed" "$push_log"; then
+                rm -f "$push_log"
+                return 1
+              fi
+              if [ "$attempt" -eq "$max_attempts" ]; then
+                echo "$bot_prefix GitHub remote returned a transient error after ${max_attempts} attempts; skipping this best-effort update."
+                rm -f "$push_log"
+                return 2
+              fi
+              sleep "$delay_seconds"
+              delay_seconds=$((delay_seconds * 2))
+              git pull --rebase origin main || {
+                rm -f "$push_log"
+                return 1
+              }
+              attempt=$((attempt + 1))
+            done
+          }
+
           if git diff --quiet index.html; then
             echo "[inject-bot] index.html 內容未變、跳過 commit"
             exit 0
@@ -52,5 +86,11 @@ jobs:
           git commit -m "chore(perf): 自動 inline 首頁摘要 (UTC $(date -u +%Y-%m-%dT%H:%M)) [skip ci]"
           # 推前先 rebase，處理可能的並發 push（極少見，但安全）
           git pull --rebase origin main || (echo "[inject-bot] rebase 失敗、放棄本次 commit"; exit 1)
-          git push origin HEAD:main
+          push_status=0
+          push_with_retry || push_status=$?
+          if [ "$push_status" -eq 2 ]; then
+            exit 0
+          elif [ "$push_status" -ne 0 ]; then
+            exit "$push_status"
+          fi
           echo "[inject-bot] 已 push"
