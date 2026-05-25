@@ -2975,6 +2975,7 @@
   letter-spacing: 0;
 }
 .edu-course-detail-tags {
+  flex: 0 0 auto;
   display: flex;
   flex-wrap: wrap;
   gap: .35rem;
@@ -3172,11 +3173,19 @@
 
 .edu-course-detail-dialog {
   max-width: 460px;
+  max-height: min(92vh, 720px);
+  min-height: 0;
   padding: 1rem 1.05rem .95rem;
   border-radius: 8px;
   gap: .72rem;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "Noto Sans CJK TC", "Microsoft JhengHei", "Segoe UI", Arial, sans-serif !important;
+}
+.edu-course-detail-dialog :where(p, span, em, strong, small, button, a) {
+  font-family: inherit !important;
+  font-weight: 400 !important;
 }
 .edu-course-detail-dialog .edu-course-detail-head {
+  flex: 0 0 auto;
   margin-bottom: 0;
 }
 .edu-course-detail-dialog .edu-course-detail-head h3 {
@@ -3185,22 +3194,16 @@
   font-weight: 800 !important;
   letter-spacing: 0;
 }
-.edu-course-detail-dialog .edu-course-detail-eyebrow,
-.edu-course-detail-dialog .edu-course-detail-head p {
-  font-weight: 600 !important;
-}
 .edu-course-detail-meta {
-  display: flex;
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
+  align-items: stretch;
   gap: .35rem;
-  overflow-x: auto;
-  padding-bottom: .05rem;
-  scrollbar-width: none;
-}
-.edu-course-detail-meta::-webkit-scrollbar {
-  display: none;
+  overflow: visible;
+  padding-bottom: 0;
 }
 .edu-course-detail-meta span {
-  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   gap: .28rem;
@@ -3217,13 +3220,12 @@
 .edu-course-detail-meta em {
   color: var(--text-muted);
   font-style: normal;
-  font-weight: 700 !important;
 }
 .edu-course-detail-meta strong {
   min-width: 0;
   color: var(--text-primary);
-  font-weight: 700 !important;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
 }
 .edu-course-detail-scroll {
   flex: 1 1 auto;
@@ -3231,6 +3233,7 @@
   min-height: 0;
   padding-right: .1rem;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 .edu-course-detail-section {
   padding: .18rem 0 .86rem;
@@ -3283,7 +3286,6 @@
   color: var(--accent);
   font-size: .8rem;
   line-height: 1;
-  font-weight: 800 !important;
   font-variant-numeric: tabular-nums;
 }
 .edu-course-progress-main {
@@ -3296,7 +3298,6 @@
   color: var(--text-primary);
   font-size: .9rem;
   line-height: 1.25;
-  font-weight: 800 !important;
   word-break: break-word;
 }
 .edu-course-progress-main em {
@@ -3316,7 +3317,37 @@
   font-size: .72rem;
   line-height: 1;
   white-space: nowrap;
-  font-weight: 700 !important;
+}
+.edu-course-contact-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .55rem;
+}
+.edu-course-contact-list > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .18rem;
+  padding: .55rem .62rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+}
+.edu-course-contact-list span {
+  color: var(--text-muted);
+  font-size: .74rem;
+  line-height: 1.3;
+}
+.edu-course-contact-list strong,
+.edu-course-contact-list a {
+  color: var(--text-primary);
+  font-size: .86rem;
+  line-height: 1.45;
+  word-break: break-word;
+}
+.edu-course-contact-list a {
+  color: var(--accent);
+  text-decoration: none;
 }
 .edu-course-progress-status.is-done {
   background: rgba(13, 148, 136, .12);
@@ -3342,6 +3373,7 @@
   line-height: 1.5;
 }
 .edu-course-detail-footer {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3358,14 +3390,12 @@
   color: var(--text-primary);
   font-size: 1.5rem;
   line-height: 1;
-  font-weight: 900 !important;
   letter-spacing: 0;
 }
 .edu-course-price-block span {
   color: var(--text-secondary);
   font-size: .82rem;
   line-height: 1.35;
-  font-weight: 700 !important;
 }
 .edu-course-detail-footer-actions {
   flex: 0 0 auto;
@@ -3379,7 +3409,6 @@
   padding-inline: 1rem;
   border-radius: 10px;
   font-size: .92rem;
-  font-weight: 800 !important;
   box-shadow: 0 12px 26px rgba(13, 148, 136, .24);
 }
 .edu-course-detail-staff-actions {
@@ -3393,7 +3422,6 @@
   border-radius: 8px;
   background: var(--bg-elevated);
   color: var(--text-primary);
-  font-weight: 700 !important;
 }
 .edu-next-class-card {
   position: relative;
@@ -3476,6 +3504,9 @@
   .edu-course-progress-status {
     grid-column: 2;
     justify-self: start;
+  }
+  .edu-course-contact-list {
+    grid-template-columns: 1fr;
   }
   .edu-course-detail-footer {
     align-items: stretch;

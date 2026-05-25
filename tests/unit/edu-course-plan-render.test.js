@@ -193,6 +193,8 @@ describe('edu course plan render', () => {
         totalSessions: 12,
         location: '<script>bad</script>',
         coachName: 'Coach <A>',
+        managerName: 'Manager <B>',
+        managerContact: 'contact <line>',
         requirementTags: ['需自備球鞋'],
       }]),
       isEduClubStaff: jest.fn(() => false),
@@ -233,8 +235,70 @@ describe('edu course plan render', () => {
     expect(overlay.innerHTML).toContain('$3,600');
     expect(overlay.innerHTML).toContain('12 堂 · 約 $300/堂');
     expect(overlay.innerHTML).toContain('Coach &lt;A&gt;');
+    expect(overlay.innerHTML).toContain('Manager &lt;B&gt;');
+    expect(overlay.innerHTML).toContain('contact &lt;line&gt;');
     expect((overlay.innerHTML.match(/需自備球鞋/g) || []).length).toBe(1);
     expect(overlay.innerHTML).not.toContain('<script>bad</script>');
+  });
+
+  test('staff course detail uses shared content and compact management action', async () => {
+    const overlay = { className: '', innerHTML: '', onclick: null, remove: jest.fn() };
+    const appended = [];
+    const app = {
+      getEduCoursePlans: jest.fn(() => [{
+        id: 'planStaff',
+        name: 'Staff Plan',
+        planType: 'weekly',
+        allowSignup: true,
+        courseContent: 'Visible course content',
+        cancellationPolicy: '',
+        price: 0,
+        totalSessions: 4,
+        managerName: 'Team Manager',
+        managerContact: 'https://line.me/R/ti/p/%40safe',
+      }]),
+      isEduClubStaff: jest.fn(() => true),
+      _normalizeCoursePlanViewModel: jest.fn(() => ({
+        name: 'Staff Plan',
+        typeLabel: '每週課',
+        groupName: 'U12',
+        coverUrl: '',
+        dateText: '2026-05-01 ~ 2026-06-30',
+        scheduleText: '週三 09:00-10:30',
+        priceText: '免費',
+        countText: '0/8 人',
+        status: { label: '招生中' },
+        tags: [],
+      })),
+      _getCoursePlanNextWeeklyOccurrence: jest.fn(() => null),
+      _isCoursePlanEnded: jest.fn(() => false),
+    };
+    const context = {
+      App: app,
+      document: {
+        querySelector: jest.fn(() => null),
+        createElement: jest.fn(() => overlay),
+        body: { appendChild: jest.fn((node) => appended.push(node)) },
+      },
+      escapeHTML,
+      Date,
+      console,
+    };
+    vm.runInNewContext(source, context, { filename: 'edu-course-plan-render.js' });
+
+    await context.App.showEduCoursePlanDetail('teamA', 'planStaff');
+
+    expect(appended).toHaveLength(1);
+    expect(overlay.innerHTML).toContain('課程內容');
+    expect(overlay.innerHTML).toContain('課務聯繫');
+    expect(overlay.innerHTML).toContain('課程進度');
+    expect(overlay.innerHTML).toContain('Team Manager');
+    expect(overlay.innerHTML).toContain('href="https://line.me/R/ti/p/%40safe"');
+    expect(overlay.innerHTML).toContain('管理課程');
+    expect(overlay.innerHTML).not.toContain('管理名單');
+    expect(overlay.innerHTML).not.toContain('編輯課程');
+    expect(overlay.innerHTML).not.toContain('取消政策');
+    expect(overlay.innerHTML).not.toContain('開課前 7 日可全額退費');
   });
 
   test('force refresh reloads students and cached enrollments before rendering counts', async () => {
@@ -409,6 +473,8 @@ describe('edu course plan render', () => {
         signupDeadline: '2099-01-10',
         coachName: 'Coach A',
         location: 'Center A',
+        managerName: 'Manager A',
+        managerContact: 'line@example',
         courseContent: 'Safe course content',
         cancellationPolicy: 'Safe cancellation policy',
         description: 'Safe description',
@@ -421,6 +487,10 @@ describe('edu course plan render', () => {
     expect(container.innerHTML).toContain('id="edu-cp-category-tags"');
     expect(container.innerHTML).toContain('value="fixed, beginner"');
     expect(container.innerHTML).toContain('placeholder="例：純新手or會傳接球"');
+    expect(container.innerHTML).toContain('id="edu-cp-manager-name"');
+    expect(container.innerHTML).toContain('Manager A');
+    expect(container.innerHTML).toContain('id="edu-cp-manager-contact"');
+    expect(container.innerHTML).toContain('line@example');
     expect(container.innerHTML).toContain('id="edu-cp-course-content"');
     expect(container.innerHTML).toContain('Safe course content');
     expect(container.innerHTML).toContain('id="edu-cp-cancellation-policy"');
@@ -448,6 +518,8 @@ describe('edu course plan render', () => {
       'edu-cp-signup-deadline': { value: '2099-01-10' },
       'edu-cp-coach-name': { value: 'Coach A' },
       'edu-cp-location': { value: 'Center A' },
+      'edu-cp-manager-name': { value: 'Manager A' },
+      'edu-cp-manager-contact': { value: 'line@example' },
       'edu-cp-course-content': { value: 'Safe course content' },
       'edu-cp-cancellation-policy': { value: 'Safe cancellation policy' },
       'edu-cp-description': { value: 'Safe description' },
@@ -502,6 +574,8 @@ describe('edu course plan render', () => {
     expect(savedPayload.signupDeadline).toBe('2099-01-10');
     expect(savedPayload.coachName).toBe('Coach A');
     expect(savedPayload.location).toBe('Center A');
+    expect(savedPayload.managerName).toBe('Manager A');
+    expect(savedPayload.managerContact).toBe('line@example');
     expect(savedPayload.courseContent).toBe('Safe course content');
     expect(savedPayload.cancellationPolicy).toBe('Safe cancellation policy');
     expect(savedPayload.description).toBe('Safe description');

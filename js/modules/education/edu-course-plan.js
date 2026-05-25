@@ -93,6 +93,8 @@ Object.assign(App, {
           '<div class="ce-row"><label>費用包含</label><input type="text" id="edu-cp-included-tags" maxlength="120" placeholder="例：場地, 教練費" value="' + escapeHTML(tagsValue('includedTags')) + '"></div>' +
           '<div class="ce-row"><label>適合對象</label><input type="text" id="edu-cp-target-tags" maxlength="120" placeholder="例：新手, 親子" value="' + escapeHTML(tagsValue('targetTags')) + '"></div>' +
           '<div class="ce-row"><label>報名截止日</label><input type="date" id="edu-cp-signup-deadline" value="' + fieldValue('signupDeadline') + '"></div>' +
+          '<div class="ce-row"><label>負責人</label><input type="text" id="edu-cp-manager-name" maxlength="30" placeholder="例：課務窗口" value="' + fieldValue('managerName') + '"></div>' +
+          '<div class="ce-row"><label>負責人聯繫</label><input type="text" id="edu-cp-manager-contact" maxlength="160" placeholder="例：LINE ID / 電話 / 聯繫連結" value="' + fieldValue('managerContact') + '"></div>' +
           '<div class="ce-row"><label>授課教練</label><input type="text" id="edu-cp-coach-name" maxlength="30" placeholder="例：王教練" value="' + fieldValue('coachName') + '"></div>' +
           '<div class="ce-row"><label>上課地點</label><input type="text" id="edu-cp-location" maxlength="80" placeholder="例：台中市南屯運動中心" value="' + fieldValue('location') + '"></div>' +
           '<div class="ce-row edu-cp-extra-featured"><label>精選顯示</label><label class="toggle-switch"><input type="checkbox" id="edu-cp-featured"' + (plan?.featured ? ' checked' : '') + '><span class="toggle-slider"></span></label></div>' +
@@ -249,6 +251,8 @@ Object.assign(App, {
       includedTags: this._getEduCpTagList('edu-cp-included-tags'),
       targetTags: this._getEduCpTagList('edu-cp-target-tags'),
       signupDeadline: optionalText('edu-cp-signup-deadline', 10),
+      managerName: optionalText('edu-cp-manager-name', 30),
+      managerContact: optionalText('edu-cp-manager-contact', 160),
       coachName: optionalText('edu-cp-coach-name', 30),
       location: optionalText('edu-cp-location', 80),
       courseContent,

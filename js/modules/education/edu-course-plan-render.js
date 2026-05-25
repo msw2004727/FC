@@ -324,6 +324,47 @@ Object.assign(App, {
           : getDateTimeMs(session.date, session.startTime),
       };
     });
+    const referenceSession = sessions.map(session => ({
+      session,
+      timestamp: typeof this._getCourseSessionSortValue === 'function'
+        ? this._getCourseSessionSortValue(session)
+        : getDateTimeMs(session.date, session.startTime),
+    })).filter(item => item.timestamp)
+      .sort((a, b) => Math.abs(a.timestamp - Date.now()) - Math.abs(b.timestamp - Date.now()))[0]?.session
+      || sessions[0]
+      || null;
+    const teamRecord = (typeof this._getEduTeamRecord === 'function' ? this._getEduTeamRecord(teamId) : null)
+      || (typeof ApiService !== 'undefined' && ApiService.getTeam ? ApiService.getTeam(teamId) : null)
+      || {};
+    const leaderNames = Array.isArray(teamRecord.leaders)
+      ? teamRecord.leaders
+      : (teamRecord.leader ? [teamRecord.leader] : []);
+    const managerName = String(
+      plan.managerName
+      || plan.contactName
+      || referenceSession?.managerName
+      || teamRecord.captain
+      || teamRecord.captainName
+      || leaderNames[0]
+      || plan.coachName
+      || plan.coach
+      || ''
+    ).trim();
+    const managerContact = String(
+      plan.managerContact
+      || plan.contact
+      || referenceSession?.managerContact
+      || teamRecord.contact
+      || teamRecord.eduSettings?.contact
+      || ''
+    ).trim();
+    const renderContactValue = (value) => {
+      const raw = String(value || '').trim();
+      if (!raw) return '<span>未設定</span>';
+      const isUrl = /^https?:\/\//i.test(raw) || /^line:\/\//i.test(raw) || /^mailto:/i.test(raw) || /^tel:/i.test(raw);
+      if (!isUrl) return '<span>' + escapeHTML(raw) + '</span>';
+      return '<a href="' + escapeHTML(raw) + '" target="_blank" rel="noopener noreferrer">' + escapeHTML(raw) + '</a>';
+    };
     const lessons = plan.planType === 'session' ? sessionLessons : weeklyLessons;
     const totalLessonCount = Number(plan.totalSessions || 0) || lessons.length;
     const visibleLessons = lessons.slice(0, 12);
@@ -339,6 +380,7 @@ Object.assign(App, {
       ['上課安排', view.scheduleText],
       ['下一堂', nextWeekly?.label || '未排定'],
       ['地點', plan.location || '未設定'],
+      ['負責人', managerName || '未設定'],
       ['教練', plan.coachName || plan.coach || '未設定'],
       ['人數', view.countText],
     ].map(item => '<span><em>' + escapeHTML(item[0]) + '</em><strong>' + escapeHTML(item[1]) + '</strong></span>').join('');
@@ -378,15 +420,23 @@ Object.assign(App, {
       + '<h4>課程進度（共 ' + (totalLessonCount || 0) + ' 堂）</h4>'
       + '<div class="edu-course-progress-list">' + progressRowsHtml + '</div>'
       + '</section>';
-    const cancellationPolicy = String(plan.cancellationPolicy || '開課前 7 日可全額退費；開課前 3 日內取消，將收取 30% 行政費；開課後恕不退費，可申請 1 次延期。').trim();
-    const policyHtml = '<section class="edu-course-detail-section">'
-      + '<h4>取消政策</h4>'
-      + '<p class="edu-course-detail-copy">' + escapeHTML(cancellationPolicy) + '</p>'
+    const contactHtml = '<section class="edu-course-detail-section edu-course-detail-contact">'
+      + '<h4>課務聯繫</h4>'
+      + '<div class="edu-course-contact-list">'
+        + '<div><span>負責人</span><strong>' + escapeHTML(managerName || '未設定') + '</strong></div>'
+        + '<div><span>聯繫方式</span>' + renderContactValue(managerContact) + '</div>'
+      + '</div>'
       + '</section>';
+    const cancellationPolicy = String(plan.cancellationPolicy || '').trim();
+    const policyHtml = cancellationPolicy
+      ? '<section class="edu-course-detail-section">'
+        + '<h4>取消政策</h4>'
+        + '<p class="edu-course-detail-copy">' + escapeHTML(cancellationPolicy) + '</p>'
+        + '</section>'
+      : '';
     const staffActions = isStaff
       ? '<div class="edu-course-detail-staff-actions">'
-        + '<button type="button" class="outline-btn small" onclick="event.stopPropagation();this.closest(\'.edu-info-overlay\').remove();App.showCourseEnrollmentList(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\')">管理名單</button>'
-        + '<button type="button" class="outline-btn small" onclick="event.stopPropagation();this.closest(\'.edu-info-overlay\').remove();App.showEduCoursePlanForm(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\')">編輯課程</button>'
+        + '<button type="button" class="outline-btn small" onclick="event.stopPropagation();this.closest(\'.edu-info-overlay\').remove();App.showCourseEnrollmentList(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\')">管理課程</button>'
         + '</div>'
       : '';
     const signupActionHtml = !isStaff && plan.allowSignup && !this._isCoursePlanEnded?.(plan)
@@ -406,6 +456,7 @@ Object.assign(App, {
       + '<div class="edu-course-detail-meta">' + metaHtml + '</div>'
       + '<div class="edu-course-detail-scroll">'
         + courseContentHtml
+        + contactHtml
         + progressHtml
         + policyHtml
       + '</div>'
