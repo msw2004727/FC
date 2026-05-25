@@ -360,10 +360,10 @@ Object.assign(App, {
     ).trim();
     const renderContactValue = (value) => {
       const raw = String(value || '').trim();
-      if (!raw) return '<span>未設定</span>';
+      if (!raw) return '<span class="edu-course-contact-value">未設定</span>';
       const isUrl = /^https?:\/\//i.test(raw) || /^line:\/\//i.test(raw) || /^mailto:/i.test(raw) || /^tel:/i.test(raw);
-      if (!isUrl) return '<span>' + escapeHTML(raw) + '</span>';
-      return '<a href="' + escapeHTML(raw) + '" target="_blank" rel="noopener noreferrer">' + escapeHTML(raw) + '</a>';
+      if (!isUrl) return '<span class="edu-course-contact-value">' + escapeHTML(raw) + '</span>';
+      return '<a class="edu-course-contact-value" href="' + escapeHTML(raw) + '" target="_blank" rel="noopener noreferrer">' + escapeHTML(raw) + '</a>';
     };
     const lessons = plan.planType === 'session' ? sessionLessons : weeklyLessons;
     const totalLessonCount = Number(plan.totalSessions || 0) || lessons.length;
@@ -376,16 +376,16 @@ Object.assign(App, {
       ? '<div class="edu-course-detail-tags">' + view.tags.map(tag => '<span>' + escapeHTML(tag) + '</span>').join('') + '</div>'
       : '';
     const metaHtml = [
-      ['期間', view.dateText],
-      ['上課安排', view.scheduleText],
-      ['下一堂', nextWeekly?.label || '未排定'],
-      ['地點', plan.location || '未設定'],
-      ['負責人', managerName || '未設定'],
-      ['教練', plan.coachName || plan.coach || '未設定'],
-      ['人數', view.countText],
-    ].map(item => '<span><em>' + escapeHTML(item[0]) + '</em><strong>' + escapeHTML(item[1]) + '</strong></span>').join('');
+      { label: '期間', value: view.dateText, cls: 'period' },
+      { label: '上課安排', value: view.scheduleText, cls: 'schedule' },
+      { label: '下一堂', value: nextWeekly?.label || '未排定', cls: 'next' },
+      { label: '地點', value: plan.location || '未設定', cls: 'location' },
+      { label: '負責人', value: managerName || '未設定', cls: 'manager' },
+      { label: '教練', value: plan.coachName || plan.coach || '未設定', cls: 'coach' },
+      { label: '人數', value: view.countText, cls: 'capacity' },
+    ].map(item => '<span class="edu-course-meta-card edu-course-meta-' + item.cls + '"><em>' + escapeHTML(item.label) + '</em><strong>' + escapeHTML(item.value) + '</strong></span>').join('');
     const courseContent = String(plan.courseContent || plan.description || '').trim();
-    const courseContentHtml = '<section class="edu-course-detail-section">'
+    const courseContentHtml = '<section class="edu-course-detail-section edu-course-detail-content">'
       + '<h4>課程內容</h4>'
       + '<p class="edu-course-detail-copy">' + escapeHTML(courseContent || '尚未填寫課程內容。') + '</p>'
       + '</section>';
@@ -423,13 +423,13 @@ Object.assign(App, {
     const contactHtml = '<section class="edu-course-detail-section edu-course-detail-contact">'
       + '<h4>課務聯繫</h4>'
       + '<div class="edu-course-contact-list">'
-        + '<div><span>負責人</span><strong>' + escapeHTML(managerName || '未設定') + '</strong></div>'
-        + '<div><span>聯繫方式</span>' + renderContactValue(managerContact) + '</div>'
+        + '<div class="edu-course-contact-person"><span>負責人</span><strong>' + escapeHTML(managerName || '未設定') + '</strong></div>'
+        + '<div class="edu-course-contact-channel"><span>聯繫方式</span>' + renderContactValue(managerContact) + '</div>'
       + '</div>'
       + '</section>';
     const cancellationPolicy = String(plan.cancellationPolicy || '').trim();
     const policyHtml = cancellationPolicy
-      ? '<section class="edu-course-detail-section">'
+      ? '<section class="edu-course-detail-section edu-course-detail-policy">'
         + '<h4>取消政策</h4>'
         + '<p class="edu-course-detail-copy">' + escapeHTML(cancellationPolicy) + '</p>'
         + '</section>'

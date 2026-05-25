@@ -232,6 +232,10 @@ describe('edu course plan render', () => {
     expect(overlay.innerHTML).toContain('2026-05-27 09:00');
     expect(overlay.innerHTML).toContain('&lt;img src=x onerror=alert(1)&gt;Bring water');
     expect(overlay.innerHTML).toContain('Policy &lt;safe&gt;');
+    expect(overlay.innerHTML).toContain('edu-course-meta-period');
+    expect(overlay.innerHTML).toContain('edu-course-meta-schedule');
+    expect(overlay.innerHTML).toContain('edu-course-detail-content');
+    expect(overlay.innerHTML).toContain('edu-course-detail-policy');
     expect(overlay.innerHTML).toContain('$3,600');
     expect(overlay.innerHTML).toContain('12 堂 · 約 $300/堂');
     expect(overlay.innerHTML).toContain('Coach &lt;A&gt;');
@@ -292,6 +296,9 @@ describe('edu course plan render', () => {
     expect(overlay.innerHTML).toContain('課程內容');
     expect(overlay.innerHTML).toContain('課務聯繫');
     expect(overlay.innerHTML).toContain('課程進度');
+    expect(overlay.innerHTML).toContain('edu-course-meta-manager');
+    expect(overlay.innerHTML).toContain('edu-course-contact-person');
+    expect(overlay.innerHTML).toContain('edu-course-contact-value');
     expect(overlay.innerHTML).toContain('Team Manager');
     expect(overlay.innerHTML).toContain('href="https://line.me/R/ti/p/%40safe"');
     expect(overlay.innerHTML).toContain('管理課程');
