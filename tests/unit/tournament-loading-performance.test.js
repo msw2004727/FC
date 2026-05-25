@@ -128,18 +128,28 @@ describe('team loading performance contract', () => {
     expect(styleSource).toContain('linear-gradient(90deg, var(--primary), #60a5fa)');
   });
 
-  test('club detail fast loading shell keeps grey panel scoped below cover', () => {
+  test('club detail fast loading shell keeps active loading feedback scoped below cover', () => {
     const navigationSource = readProjectFile('js/core/navigation.js');
     const styleSource = readProjectFile('css/team.css');
+    const v2StyleSource = readProjectFile('css/team-detail-v2.css');
+    const baseStyleSource = readProjectFile('css/base.css');
     const shellBody = navigationSource.match(/_renderFastTeamDetailShell\(id\) \{([\s\S]*?)\n  \},/);
     const loadingStyle = styleSource.match(/\.team-fast-loading \{([\s\S]*?)\n\}/);
 
     expect(shellBody).not.toBeNull();
     expect(loadingStyle).not.toBeNull();
+    expect(shellBody[1]).toContain('aria-busy="true"');
+    expect(shellBody[1]).toContain('td-v2-fast-spinner');
+    expect(shellBody[1]).toContain('td-v2-fast-skeleton');
     expect(shellBody[1]).not.toContain('team?.region');
     expect(shellBody[1]).not.toContain('<div class="detail-row"');
     expect(loadingStyle[1]).toContain('margin: .9rem .35rem 0');
     expect(loadingStyle[1]).toContain('background: linear-gradient(180deg, rgba(148, 163, 184, .34), rgba(148, 163, 184, .24))');
     expect(loadingStyle[1]).toContain('box-shadow: none');
+    expect(v2StyleSource).toContain('.td-v2-fast-spinner');
+    expect(v2StyleSource).toContain('@keyframes td-v2-fast-spin');
+    expect(v2StyleSource).toContain('@keyframes td-v2-fast-shimmer');
+    expect(v2StyleSource).toContain('[data-theme="dark"] .td-v2-fast-loading-card');
+    expect(baseStyleSource).toContain('.td-v2-fast-spinner');
   });
 });

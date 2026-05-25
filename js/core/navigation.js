@@ -594,8 +594,8 @@ Object.assign(App, {
     const body = document.getElementById('team-detail-body');
     if (body) {
       body.innerHTML = useV2
-        ? '<div class="td-v2-shell td-v2-fast-shell"><div class="td-v2-card td-v2-empty-card">資料更新中</div></div>'
-        : '<div class="detail-section team-fast-loading"><div class="reg-loading team-fast-loading-status"><span class="team-fast-loading-text"><strong>資料更新中</strong><small>正在同步俱樂部最新資料</small></span></div><div class="reg-loading-skeleton team-fast-loading-skeleton"><div class="reg-loading-skeleton-row"></div><div class="reg-loading-skeleton-row"></div><div class="reg-loading-skeleton-row"></div></div></div>';
+        ? '<div class="td-v2-shell td-v2-fast-shell" aria-busy="true" aria-live="polite"><div class="td-v2-fast-loading-card"><span class="td-v2-fast-spinner" aria-hidden="true"></span><span class="td-v2-fast-copy"><strong>資料更新中</strong><small>正在同步俱樂部最新資料</small></span></div><div class="td-v2-fast-skeleton" aria-hidden="true"><span class="td-v2-fast-skeleton-row"></span><span class="td-v2-fast-skeleton-row"></span><span class="td-v2-fast-skeleton-row"></span></div></div>'
+        : '<div class="detail-section team-fast-loading" aria-busy="true" aria-live="polite"><div class="reg-loading team-fast-loading-status"><span class="team-fast-loading-text"><strong>資料更新中</strong><small>正在同步俱樂部最新資料</small></span></div><div class="reg-loading-skeleton team-fast-loading-skeleton" aria-hidden="true"><div class="reg-loading-skeleton-row"></div><div class="reg-loading-skeleton-row"></div><div class="reg-loading-skeleton-row"></div></div></div>';
     }
   },
 

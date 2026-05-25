@@ -69,6 +69,14 @@
 .td-v2-quick span{display:block;margin-top:2px;font-size:11px;color:#64748b}
 .td-v2-bio{margin:0;color:#334155;font-size:13.5px;line-height:1.75;white-space:pre-wrap;word-break:break-word}
 .td-v2-empty,.td-v2-empty-card{padding:16px;text-align:center;color:#64748b;font-size:13px;background:#f8fafc;border-radius:12px}
+.td-v2-fast-shell{min-height:100vh;padding:16px 14px calc(96px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;background:linear-gradient(180deg,#f8fafc,#eef6f8)}
+.td-v2-fast-loading-card{position:relative;overflow:hidden;display:flex;align-items:center;gap:11px;padding:16px;border:1px solid #99f6e4;border-radius:16px;background:linear-gradient(135deg,#fff,#ecfeff 52%,#f0fdfa);box-shadow:0 12px 28px rgba(15,23,42,.08)}
+.td-v2-fast-loading-card:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.58),transparent);transform:translateX(-100%);animation:td-v2-fast-shine 1.35s ease-in-out infinite;pointer-events:none}
+.td-v2-fast-spinner{position:relative;z-index:1;width:22px;height:22px;flex:0 0 auto;border:3px solid rgba(13,148,136,.18);border-top-color:#0d9488;border-radius:50%;animation:td-v2-fast-spin .8s linear infinite}
+.td-v2-fast-copy{position:relative;z-index:1;display:flex;flex-direction:column;gap:3px;min-width:0;line-height:1.25}.td-v2-fast-copy strong{font-size:15px;font-weight:900;color:#0f172a}.td-v2-fast-copy small{color:#64748b;font-size:12px;font-weight:700}
+.td-v2-fast-skeleton{display:flex;flex-direction:column;gap:9px;padding:14px;border:1px solid #e2e8f0;border-radius:16px;background:rgba(255,255,255,.78)}
+.td-v2-fast-skeleton-row{display:block;height:13px;border-radius:999px;background:linear-gradient(90deg,#e2e8f0 0%,#f8fafc 50%,#e2e8f0 100%);background-size:200% 100%;animation:td-v2-fast-shimmer 1.15s ease-in-out infinite}.td-v2-fast-skeleton-row:first-child{width:72%}.td-v2-fast-skeleton-row:nth-child(2){width:92%}.td-v2-fast-skeleton-row:last-child{width:84%}
+@keyframes td-v2-fast-spin{to{transform:rotate(360deg)}}@keyframes td-v2-fast-shine{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}@keyframes td-v2-fast-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 .td-v2-kv-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .td-v2-kv{min-width:0}
 .td-v2-kv.full{grid-column:1/-1}
@@ -187,6 +195,13 @@
 [data-theme="dark"] .td-v2-tab-list button{color:#94a3b8}
 [data-theme="dark"] .td-v2-tab-list button.active,[data-theme="dark"] .td-v2-day.active{background:#e5e7eb;color:#0f172a}
 [data-theme="dark"] .td-v2-quick,[data-theme="dark"] .td-v2-empty,[data-theme="dark"] .td-v2-empty-card,[data-theme="dark"] .td-v2-day,[data-theme="dark"] .td-v2-modal-grid div{background:#1e293b;color:#cbd5e1}
+[data-theme="dark"] .td-v2-fast-shell{background:linear-gradient(180deg,#0b1120,#111827)}
+[data-theme="dark"] .td-v2-fast-loading-card{border-color:rgba(45,212,191,.28);background:linear-gradient(135deg,#111827,#0f172a 52%,rgba(13,148,136,.18));box-shadow:0 14px 30px rgba(0,0,0,.32)}
+[data-theme="dark"] .td-v2-fast-loading-card:after{background:linear-gradient(90deg,transparent,rgba(148,163,184,.12),transparent)}
+[data-theme="dark"] .td-v2-fast-spinner{border-color:rgba(45,212,191,.18);border-top-color:#5eead4}
+[data-theme="dark"] .td-v2-fast-copy strong{color:#f8fafc}[data-theme="dark"] .td-v2-fast-copy small{color:#94a3b8}
+[data-theme="dark"] .td-v2-fast-skeleton{border-color:rgba(148,163,184,.18);background:rgba(15,23,42,.74)}
+[data-theme="dark"] .td-v2-fast-skeleton-row{background:linear-gradient(90deg,#1e293b 0%,#334155 50%,#1e293b 100%);background-size:200% 100%}
 [data-theme="dark"] .td-v2-quick strong,[data-theme="dark"] .td-v2-course-row strong,[data-theme="dark"] .td-v2-event-main strong,[data-theme="dark"] .td-v2-kv strong,[data-theme="dark"] .td-v2-post-head strong,[data-theme="dark"] .td-v2-modal-grid strong,[data-theme="dark"] .td-v2-contact-text{color:#e5e7eb}
 [data-theme="dark"] .td-v2-bio,[data-theme="dark"] .td-v2-post p,[data-theme="dark"] .td-v2-modal-desc{color:#cbd5e1}
 [data-theme="dark"] .td-v2-course-row,[data-theme="dark"] .td-v2-post,[data-theme="dark"] .td-v2-modal-head,[data-theme="dark"] .td-v2-modal-foot{border-color:rgba(148,163,184,.18)}

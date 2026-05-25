@@ -1311,7 +1311,10 @@ body.modal-open { overflow: hidden; }
   .status-hint__spinner,
   .deep-link-spinner,
   .reg-loading::before,
-  .tc-loading-spinner {
+  .tc-loading-spinner,
+  .td-v2-fast-spinner,
+  .td-v2-fast-loading-card::after,
+  .td-v2-fast-skeleton-row {
     animation: none !important;
   }
 }
