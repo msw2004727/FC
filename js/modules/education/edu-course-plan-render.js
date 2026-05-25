@@ -76,55 +76,37 @@ Object.assign(App, {
 
     const formatMoney = (value) => {
       const amount = Number(value || 0);
-      return Number.isFinite(amount) && amount > 0 ? 'NT$ ' + amount.toLocaleString() : '未設定';
+      return Number.isFinite(amount) && amount > 0 ? 'NT$ ' + amount.toLocaleString() : '免費';
     };
-    const renderMetric = (label, value) => '<div class="edu-cp-metric"><span>' + escapeHTML(label) + '</span><strong>' + escapeHTML(value) + '</strong></div>';
+    const renderCompactPill = (label, value, className = '') => '<span class="edu-cp-compact-pill ' + className + '"><span>' + escapeHTML(label) + '</span><strong>' + escapeHTML(value || '未設定') + '</strong></span>';
     const jsArg = (value) => escapeHTML(String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' '));
     const renderPlanCard = (p) => {
-      const typeLabel = p.planType === 'weekly' ? '固定週期' : '堂數制';
       const planEnded = isPlanEnded(p);
       const statusBadge = planEnded
         ? '<span class="edu-cp-status edu-cp-status-ended">已結束</span>'
         : p.allowSignup
           ? '<span class="edu-cp-status edu-cp-status-open">招生中</span>'
-          : '';
-
-      const coverImage = String(p.coverImage || p.coverUrl || p.imageUrl || p.image || p.imageVariants?.cover || '').trim();
-      const visualClass = 'edu-cp-visual' + (coverImage ? ' has-cover' : ' no-cover');
-      const bgHtml = coverImage
-        ? '<img class="edu-cp-bg-img" src="' + escapeHTML(coverImage) + '" alt="" loading="lazy" decoding="async">'
-        : '';
+          : '<span class="edu-cp-status edu-cp-status-closed">暫停報名</span>';
 
       // 課程是否已結束
       const isEnded = planEnded;
 
-      // 資訊小卡片（期間、週期/堂數、費用、人數）
+      // Compact card info: keep only the fields needed for scan-and-decide.
       const dateText = p.startDate ? p.startDate + ' ~ ' + (p.endDate || '') : '未設定';
-      let scheduleText = '';
-      if (p.planType === 'weekly') {
-        const wdNames = (p.weekdays || []).map(d => '週' + this._weekdayLabel(d)).join('、');
-        scheduleText = (wdNames || '未設定') + (p.timeSlot ? ' ' + p.timeSlot : '');
-      } else {
-        scheduleText = '共 ' + (p.totalSessions || 0) + ' 堂';
-      }
       const countText = (p._effectiveCount || 0) + (p.maxCapacity ? '/' + p.maxCapacity : '') + ' 人';
-      const infoHtml = '<div class="edu-cp-metrics">'
-        + renderMetric('期間', dateText)
-        + renderMetric(p.planType === 'weekly' ? '週期' : '堂數', scheduleText)
-        + renderMetric('費用', formatMoney(p.price))
-        + renderMetric('人數', countText)
+      const coachName = String(p.coachName || p.coach || '').trim() || '未指定教練';
+      const infoHtml = '<div class="edu-cp-compact-pills">'
+        + renderCompactPill('上課', dateText, 'edu-cp-date-pill')
+        + renderCompactPill('費用', formatMoney(p.price), 'edu-cp-fee-pill')
+        + renderCompactPill('人數', countText, 'edu-cp-count-pill')
+        + renderCompactPill('教練', coachName, 'edu-cp-coach-pill')
         + '</div>';
-      const groupHtml = '<span class="edu-cp-group-pill">' + escapeHTML(p.groupName || '未分班') + '</span>';
-      const extraCardTags = [
-        p.levelLabel,
-        ...(Array.isArray(p.categoryTags) ? p.categoryTags : []),
-      ].filter(Boolean).slice(0, 2).map(tag => '<span class="edu-cp-extra-pill">' + escapeHTML(tag) + '</span>').join('');
 
       // 學員報名按鈕
       let signupBtn = '';
       if (p.allowSignup) {
         if (isEnded) {
-          signupBtn = '<button class="primary-btn" style="width:100%;margin-top:.4rem;opacity:.45" disabled>課程已結束</button>';
+          signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-disabled" disabled>課程已結束</button>';
         } else {
         const isFull = p.maxCapacity && (p._effectiveCount || 0) >= p.maxCapacity;
         // 檢查用戶名下所有學員是否都已報名（含分組自動導入的）
@@ -142,11 +124,11 @@ Object.assign(App, {
         const allEnrolled = myStudents.length > 0 && myStudents.every(s => enrolledStudentIds.has(s.id));
 
         if (allEnrolled) {
-          signupBtn = '<button class="primary-btn" style="width:100%;margin-top:.4rem;opacity:.45" disabled>學員皆已報名</button>';
+          signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-disabled" disabled>學員皆已報名</button>';
         } else if (isFull) {
-          signupBtn = '<button class="primary-btn" style="width:100%;margin-top:.4rem;opacity:.45" disabled>已額滿</button>';
+          signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-disabled" disabled>已額滿</button>';
         } else {
-          signupBtn = '<button class="primary-btn" style="width:100%;margin-top:.4rem" onclick="event.stopPropagation();App.applyCourseEnrollment(\'' + teamId + '\',\'' + p.id + '\')">我要報名</button>';
+          signupBtn = '<button class="primary-btn edu-cp-signup-btn" onclick="event.stopPropagation();App.applyCourseEnrollment(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">我要報名</button>';
         }
         } // end else (not ended)
       }
@@ -167,27 +149,17 @@ Object.assign(App, {
         : '';
 
       const clickAction = ' onclick="App.showEduCoursePlanDetail(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')"';
+      const detailBtn = '<button class="outline-btn edu-cp-detail-btn" onclick="event.stopPropagation();App.showEduCoursePlanDetail(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">詳細資訊</button>';
 
-      return '<div class="edu-course-card edu-cp-card-v3 edu-cp-card-' + (p.planType === 'weekly' ? 'weekly' : 'session') + '" data-course-plan-id="' + escapeHTML(p.id || '') + '"' + clickAction + '>'
-        + '<div class="' + visualClass + '">'
-        + bgHtml
-        + '<div class="edu-cp-visual-content">'
-        + '<div class="edu-cp-card-head">'
-        + '<div class="edu-cp-title-wrap">'
-        + '<div class="edu-cp-tags">'
-        + '<span class="edu-cp-type-text ' + (p.planType === 'weekly' ? 'edu-cp-type-weekly' : 'edu-cp-type-session') + '">' + typeLabel + '</span>'
-        + statusBadge + groupHtml + extraCardTags
-        + '</div>'
+      return '<div class="edu-course-card edu-cp-card-v3 edu-cp-card-compact edu-cp-card-' + (p.planType === 'weekly' ? 'weekly' : 'session') + '" data-course-plan-id="' + escapeHTML(p.id || '') + '"' + clickAction + '>'
+        + '<div class="edu-cp-compact-main">'
+        + '<div class="edu-cp-compact-title">'
         + '<span class="edu-course-name">' + escapeHTML(p.name) + '</span>'
+        + statusBadge
         + '</div>'
-        + '<div class="edu-cp-price">' + formatMoney(p.price) + '</div>'
+        + infoHtml
         + '</div>'
-        + '<div class="edu-cp-body">'
-        + '<div class="edu-cp-left">' + infoHtml + '</div>'
-        + '</div>'
-        + signupBtn
-        + '</div>'
-        + '</div>'
+        + '<div class="edu-cp-card-actions">' + detailBtn + signupBtn + '</div>'
         + manageHtml
         + '</div>';
     };
@@ -297,11 +269,15 @@ Object.assign(App, {
     const descriptionHtml = description
       ? '<div class="edu-course-detail-description"><span>課程說明</span><p>' + escapeHTML(description) + '</p></div>'
       : '';
+    const primaryTagSet = new Set((view.tags || []).map(tag => String(tag || '').trim()).filter(Boolean));
+    const extraTagSet = new Set();
     const extraTags = [
       ...(Array.isArray(plan.targetTags) ? plan.targetTags : []),
       ...(Array.isArray(plan.includedTags) ? plan.includedTags : []),
       ...(Array.isArray(plan.requirementTags) ? plan.requirementTags : []),
-    ].filter(Boolean).slice(0, 9);
+    ].map(tag => String(tag || '').trim())
+      .filter(tag => tag && !primaryTagSet.has(tag) && !extraTagSet.has(tag) && extraTagSet.add(tag))
+      .slice(0, 9);
     const extraTagsHtml = extraTags.length
       ? '<div class="edu-course-detail-tags edu-course-detail-tags-secondary">' + extraTags.map(tag => '<span>' + escapeHTML(tag) + '</span>').join('') + '</div>'
       : '';

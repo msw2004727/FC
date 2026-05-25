@@ -126,7 +126,6 @@
         tags: [
           ...toArray(plan.categoryTags),
           ...toArray(plan.featureTags),
-          ...toArray(plan.requirementTags),
         ].slice(0, 6).map(toText),
         raw: plan,
       };

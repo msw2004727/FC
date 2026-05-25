@@ -31,6 +31,7 @@ describe('education course UI adapter', () => {
       _effectiveCount: 5,
       categoryTags: ['fixed'],
       featureTags: ['small-group'],
+      requirementTags: ['bring-shoes'],
       coverImage: 'javascript:alert(1)',
     });
 

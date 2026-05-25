@@ -68,6 +68,7 @@ describe('edu course plan render', () => {
         allowSignup: true,
         coverImage: 'https://example.com/course.jpg',
         groupName: '成人班',
+        coachName: '林教練',
       },
       {
         id: 's1',
@@ -78,6 +79,7 @@ describe('edu course plan render', () => {
         maxCapacity: 6,
         allowSignup: false,
         groupName: '個訓班',
+        coachName: '陳教練',
       },
     ]);
 
@@ -85,16 +87,20 @@ describe('edu course plan render', () => {
     expect(html).toContain('edu-course-plan-section-weekly');
     expect(html).toContain('edu-course-plan-section-session');
     expect(html.indexOf('固定週期課程')).toBeLessThan(html.indexOf('堂數制課程'));
-    expect(html).toContain('edu-cp-card-v3 edu-cp-card-weekly');
-    expect(html).toContain('edu-cp-card-v3 edu-cp-card-session');
-    expect(html).toContain('edu-cp-visual has-cover');
-    expect(html).toContain('class="edu-cp-bg-img"');
-    expect(html.indexOf('edu-cp-visual')).toBeLessThan(html.indexOf('edu-cp-manage-left'));
+    expect(html).toContain('edu-cp-card-v3 edu-cp-card-compact edu-cp-card-weekly');
+    expect(html).toContain('edu-cp-card-v3 edu-cp-card-compact edu-cp-card-session');
+    expect(html).not.toContain('edu-cp-visual');
+    expect(html).not.toContain('class="edu-cp-bg-img"');
     expect(html).toContain('成人固定班');
-    expect(html).toContain('週一、週三 19:00-20:30');
+    expect(html).toContain('詳細資訊');
+    expect(html).toContain('我要報名');
+    expect(html).toContain('2099-05-01 ~ 2099-06-30');
     expect(html).toContain('NT$ 2,400');
-    expect(html).toContain('共 8 堂');
-    expect(html).toContain('個訓班');
+    expect(html).toContain('0/12 人');
+    expect(html).toContain('林教練');
+    expect(html).not.toContain('週一、週三 19:00-20:30');
+    expect(html).not.toContain('共 8 堂');
+    expect(html).not.toContain('個訓班');
   });
 
   test('keeps existing empty state when there are no active plans', async () => {
@@ -165,6 +171,7 @@ describe('edu course plan render', () => {
         description: '<img src=x onerror=alert(1)>Bring water',
         location: '<script>bad</script>',
         coachName: 'Coach <A>',
+        requirementTags: ['需自備球鞋'],
       }]),
       isEduClubStaff: jest.fn(() => false),
       _normalizeCoursePlanViewModel: jest.fn(() => ({
@@ -177,7 +184,7 @@ describe('edu course plan render', () => {
         priceText: '免費',
         countText: '3/12 人',
         status: { label: '招生中' },
-        tags: ['tag<script>'],
+        tags: ['tag<script>', '需自備球鞋'],
       })),
       _getCoursePlanNextWeeklyOccurrence: jest.fn(() => ({ label: '2026-05-27 09:00' })),
       _isCoursePlanEnded: jest.fn(() => false),
@@ -201,6 +208,7 @@ describe('edu course plan render', () => {
     expect(overlay.innerHTML).toContain('2026-05-27 09:00');
     expect(overlay.innerHTML).toContain('&lt;img src=x onerror=alert(1)&gt;Bring water');
     expect(overlay.innerHTML).toContain('Coach &lt;A&gt;');
+    expect((overlay.innerHTML.match(/需自備球鞋/g) || []).length).toBe(1);
     expect(overlay.innerHTML).not.toContain('<script>bad</script>');
   });
 
@@ -385,6 +393,7 @@ describe('edu course plan render', () => {
 
     expect(container.innerHTML).toContain('id="edu-cp-category-tags"');
     expect(container.innerHTML).toContain('value="fixed, beginner"');
+    expect(container.innerHTML).toContain('placeholder="例：純新手or會傳接球"');
     expect(container.innerHTML).toContain('id="edu-cp-description"');
     expect(container.innerHTML).toContain('Safe description');
     expect(container.innerHTML).toContain('id="edu-cp-featured" checked');

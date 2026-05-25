@@ -85,7 +85,7 @@ Object.assign(App, {
         '<summary>課程補充資訊</summary>' +
         '<div class="edu-cp-extra-grid">' +
           '<div class="ce-row"><label>課程分類</label><input type="text" id="edu-cp-category-tags" maxlength="80" placeholder="例：固定課, 入門" value="' + escapeHTML(tagsValue('categoryTags')) + '"></div>' +
-          '<div class="ce-row"><label>程度標籤</label><input type="text" id="edu-cp-level-label" maxlength="20" placeholder="例：初階 / U12" value="' + fieldValue('levelLabel') + '"></div>' +
+          '<div class="ce-row"><label>程度標籤</label><input type="text" id="edu-cp-level-label" maxlength="20" placeholder="例：純新手or會傳接球" value="' + fieldValue('levelLabel') + '"></div>' +
           '<div class="ce-row"><label>課程亮點</label><input type="text" id="edu-cp-feature-tags" maxlength="120" placeholder="例：小班制, 專項訓練" value="' + escapeHTML(tagsValue('featureTags')) + '"></div>' +
           '<div class="ce-row"><label>報名要求</label><input type="text" id="edu-cp-requirement-tags" maxlength="120" placeholder="例：需自備球鞋" value="' + escapeHTML(tagsValue('requirementTags')) + '"></div>' +
           '<div class="ce-row"><label>費用包含</label><input type="text" id="edu-cp-included-tags" maxlength="120" placeholder="例：場地, 教練費" value="' + escapeHTML(tagsValue('includedTags')) + '"></div>' +
