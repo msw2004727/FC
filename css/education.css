@@ -329,8 +329,65 @@
 .edu-course-card .edu-cp-visual .edu-cp-metric strong {
   color: #fff;
 }
-.edu-cp-manage-left { display: flex; gap: .5rem; margin-top: .48rem; }
-.edu-cp-pin-active { font-size: .68rem; padding: .15rem .35rem; border: none; border-radius: var(--radius-sm); background: linear-gradient(135deg, #f59e0b, #fbbf24); color: #fff; font-weight: 700; cursor: pointer; box-shadow: 0 0 8px rgba(245,158,11,.5); }
+.edu-cp-manage-left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .38rem;
+  margin-top: .48rem;
+}
+.edu-cp-manage-btn,
+.edu-cp-manage-icon-btn {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(15, 23, 42, .12);
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, .94);
+  color: #0f172a;
+  font-size: .72rem;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .12);
+  cursor: pointer;
+}
+.edu-cp-manage-btn {
+  min-width: 3.35rem;
+  padding: .34rem .62rem;
+}
+.edu-cp-manage-icon-btn {
+  width: 1.9rem;
+  min-width: 1.9rem;
+  padding: 0;
+  font-size: .68rem;
+}
+.edu-cp-manage-btn:hover,
+.edu-cp-manage-icon-btn:hover {
+  border-color: rgba(13, 148, 136, .35);
+  color: #0f766e;
+}
+.edu-cp-manage-danger {
+  border-color: rgba(220, 38, 38, .22);
+  background: rgba(254, 242, 242, .96);
+  color: #b91c1c;
+}
+.edu-cp-manage-danger:hover {
+  border-color: rgba(220, 38, 38, .42);
+  color: #991b1b;
+}
+.edu-cp-manage-sort {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: .24rem;
+}
+.edu-cp-pin-active {
+  border-color: transparent;
+  background: linear-gradient(135deg, #f59e0b, #fbbf24);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, .38);
+}
 .edu-cp-enrolled-pending { text-align: center; padding: .4rem; font-size: .82rem; color: var(--warning); font-weight: 600; }
 .edu-cp-enrolled-ok { text-align: center; padding: .4rem; font-size: .82rem; color: var(--success); font-weight: 600; }
 .edu-cp-signup-status { text-align: center; margin-top: .4rem; }
@@ -2844,6 +2901,31 @@
   padding-top: .42rem;
   border-top: 1px solid var(--border);
 }
+.edu-course-card.edu-cp-card-compact.has-cover .edu-cp-manage-left {
+  border-top-color: rgba(255, 255, 255, .18);
+}
+.edu-course-card.edu-cp-card-compact.has-cover .edu-cp-manage-btn,
+.edu-course-card.edu-cp-card-compact.has-cover .edu-cp-manage-icon-btn {
+  border-color: rgba(255, 255, 255, .7);
+  background: rgba(255, 255, 255, .94);
+  color: #0f172a;
+  box-shadow: 0 2px 8px rgba(2, 6, 23, .26);
+}
+.edu-course-card.edu-cp-card-compact.has-cover .edu-cp-manage-btn:hover,
+.edu-course-card.edu-cp-card-compact.has-cover .edu-cp-manage-icon-btn:hover {
+  background: #fff;
+  color: #0f766e;
+}
+.edu-course-card.edu-cp-card-compact.has-cover .edu-cp-manage-danger {
+  border-color: rgba(254, 202, 202, .9);
+  background: rgba(255, 247, 247, .96);
+  color: #991b1b;
+}
+.edu-course-card.edu-cp-card-compact.has-cover .edu-cp-pin-active {
+  border-color: transparent;
+  background: linear-gradient(135deg, #f59e0b, #fbbf24);
+  color: #fff;
+}
 .edu-course-detail-head {
   display: flex;
   align-items: flex-start;
@@ -3039,6 +3121,18 @@
   .edu-cp-card-actions .outline-btn,
   .edu-cp-card-actions .primary-btn {
     flex: 1 1 0;
+  }
+  .edu-course-card.edu-cp-card-compact .edu-cp-manage-left {
+    gap: .3rem;
+  }
+  .edu-cp-manage-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: .44rem;
+  }
+  .edu-cp-manage-sort {
+    flex: 0 0 auto;
+    margin-left: 0;
   }
   .edu-cp-compact-pill {
     max-width: 100%;

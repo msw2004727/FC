@@ -142,13 +142,13 @@ Object.assign(App, {
       const idx = displayPlans.indexOf(p);
       const manageHtml = isStaff
         ? '<div class="edu-cp-manage-left">'
-          + '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem" onclick="event.stopPropagation();App.showCourseEnrollmentList(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">名單</button>'
-          + '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem" onclick="event.stopPropagation();App.showEduCoursePlanForm(\'' + teamId + '\',\'' + p.id + '\')">編輯</button>'
-          + '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem;color:var(--danger)" onclick="event.stopPropagation();App.deleteEduCoursePlan(\'' + teamId + '\',\'' + p.id + '\')">刪除</button>'
-          + '<span style="margin-left:auto;display:flex;gap:.2rem">'
-          + (idx > 0 ? '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .35rem" onclick="event.stopPropagation();App._moveCoursePlan(\'' + teamId + '\',\'' + p.id + '\',-1)" title="向上">▲</button>' : '')
-          + (idx < displayPlans.length - 1 ? '<button class="outline-btn" style="font-size:.68rem;padding:.15rem .35rem" onclick="event.stopPropagation();App._moveCoursePlan(\'' + teamId + '\',\'' + p.id + '\',1)" title="向下">▼</button>' : '')
-          + '<button class="' + (p.pinned ? 'edu-cp-pin-active' : 'outline-btn') + '" style="font-size:.68rem;padding:.15rem .35rem" onclick="event.stopPropagation();App._moveCoursePlan(\'' + teamId + '\',\'' + p.id + '\',0)" title="' + (p.pinned ? '取消置頂' : '置頂') + '">★</button>'
+          + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-list" onclick="event.stopPropagation();App.showCourseEnrollmentList(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">名單</button>'
+          + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-edit" onclick="event.stopPropagation();App.showEduCoursePlanForm(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">編輯</button>'
+          + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-danger" onclick="event.stopPropagation();App.deleteEduCoursePlan(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">刪除</button>'
+          + '<span class="edu-cp-manage-sort">'
+          + (idx > 0 ? '<button type="button" class="edu-cp-manage-icon-btn" onclick="event.stopPropagation();App._moveCoursePlan(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\',-1)" title="向上">▲</button>' : '')
+          + (idx < displayPlans.length - 1 ? '<button type="button" class="edu-cp-manage-icon-btn" onclick="event.stopPropagation();App._moveCoursePlan(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\',1)" title="向下">▼</button>' : '')
+          + '<button type="button" class="edu-cp-manage-icon-btn edu-cp-pin-btn' + (p.pinned ? ' edu-cp-pin-active' : '') + '" onclick="event.stopPropagation();App._moveCoursePlan(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\',0)" title="' + (p.pinned ? '取消置頂' : '置頂') + '">★</button>'
           + '</span>'
           + '</div>'
         : '';

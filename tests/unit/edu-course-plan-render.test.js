@@ -112,6 +112,8 @@ describe('edu course plan render', () => {
   test('compact course cards keep cover overlays and equal-width actions', () => {
     expect(cssSource).toContain('.edu-cp-compact-cover');
     expect(cssSource).toContain('.edu-course-card.edu-cp-card-compact.has-cover::before');
+    expect(cssSource).toContain('.edu-course-card.edu-cp-card-compact.has-cover .edu-cp-manage-btn');
+    expect(cssSource).toContain('.edu-cp-manage-danger');
     expect(cssSource).toContain('width: 5.8rem;');
     expect(cssSource).toContain('min-width: 5.8rem;');
   });
@@ -169,6 +171,10 @@ describe('edu course plan render', () => {
 
     expect(html).toContain('data-course-plan-id="planA" onclick="App.showEduCoursePlanDetail');
     expect(html).toContain('App.showCourseEnrollmentList');
+    expect(html).toContain('edu-cp-manage-btn edu-cp-manage-list');
+    expect(html).toContain('edu-cp-manage-btn edu-cp-manage-edit');
+    expect(html).toContain('edu-cp-manage-btn edu-cp-manage-danger');
+    expect(html).toContain('edu-cp-manage-sort');
     expect(html.indexOf('App.showEduCoursePlanDetail')).toBeLessThan(html.indexOf('App.showCourseEnrollmentList'));
   });
 
