@@ -267,7 +267,7 @@ Object.assign(App, {
       + '</table>';
   },
 
-  async _renderAttendanceTable(eventId, containerId) {
+  async _renderAttendanceTable(eventId, containerId, options = {}) {
     // 防抖：多條路徑（onSnapshot / showEventDetail / instant-save）可能連續觸發
     // 100ms 內同一 containerId 只執行最後一次，避免 DOM 連續替換導致名單閃現
     // 不同 containerId 的呼叫互不影響（waitlist 操作後需同時更新兩個容器）
@@ -275,6 +275,13 @@ Object.assign(App, {
     var key = containerId || 'attendance-table-container';
     // 啟用：window._perfAttLog = 1 或 localStorage.setItem('_perfAttLog','1')
     var _perfCallTs = (typeof window !== 'undefined' && (window._perfAttLog || (typeof localStorage !== 'undefined' && localStorage.getItem('_perfAttLog')))) ? performance.now() : 0;
+    if (options?.skipFetch) {
+      return Promise.resolve(self._doRenderAttendanceTable(eventId, key, _perfCallTs, options))
+        .catch(function(err) {
+          console.error('[AttendanceTable] render failed:', err);
+          return { ok: false, reason: 'error', error: err };
+        });
+    }
     self._attRenderJobs = self._attRenderJobs || {};
     var job = self._attRenderJobs[key];
     if (!job) {
@@ -284,6 +291,7 @@ Object.assign(App, {
     job.eventId = eventId;
     job.containerId = key;
     job.perfCallTs = _perfCallTs;
+    job.options = options || {};
     return new Promise(function (resolve) {
       job.waiters.push(resolve);
       clearTimeout(self._attRenderTimers[key]);
@@ -291,7 +299,7 @@ Object.assign(App, {
         var runJob = self._attRenderJobs[key] || job;
         delete self._attRenderJobs[key];
         self._attRenderTimers[key] = null;
-        Promise.resolve(self._doRenderAttendanceTable(runJob.eventId, runJob.containerId, runJob.perfCallTs))
+        Promise.resolve(self._doRenderAttendanceTable(runJob.eventId, runJob.containerId, runJob.perfCallTs, runJob.options))
           .then(function(result) {
             runJob.waiters.splice(0).forEach(function(done) { done(result); });
           })
@@ -305,7 +313,7 @@ Object.assign(App, {
     });
   },
 
-  async _doRenderAttendanceTable(eventId, containerId, _perfCallTs) {
+  async _doRenderAttendanceTable(eventId, containerId, _perfCallTs, options = {}) {
     const cId = containerId || 'attendance-table-container';
     const container = document.getElementById(cId);
     if (!container) return;
@@ -330,10 +338,12 @@ Object.assign(App, {
     }
 
     // 舊活動可能超出全站監聽器 limit → 一次性從子集合補查
-    await Promise.all([
-      ApiService.fetchAttendanceIfMissing(eventId),
-      ApiService.fetchRegistrationsIfMissing(eventId),
-    ]);
+    if (!options?.skipFetch) {
+      await Promise.all([
+        ApiService.fetchAttendanceIfMissing(eventId),
+        ApiService.fetchRegistrationsIfMissing(eventId),
+      ]);
+    }
     const _t1 = _perfLog ? performance.now() : 0;
 
     const canManage = this._canOperateEventSite?.(e) === true;
@@ -344,6 +354,7 @@ Object.assign(App, {
     // 放鴿子 🕊 欄位查看權：admin(event.edit_all) / 主辦人 / 委託人 / 查看權持有者 / 放鴿子修改權持有者
     // 顯示限制：只在「管理名單」模式（tableEditing=true）才顯示，平時瀏覽名單一律隱藏
     const tableEditing = canManage && this._attendanceEditingEventId === eventId;
+    const isSubmitting = canManage && this._attendanceSubmittingEventId === eventId;
     const noShowFeatureEnabled = typeof isNoShowFeatureEnabled === 'function'
       ? isNoShowFeatureEnabled()
       : true;
@@ -365,6 +376,13 @@ Object.assign(App, {
     const _t3 = _perfLog ? performance.now() : 0;
 
     if (people.length === 0) {
+      const emptyManageBtn = canManage ? (tableEditing
+        ? `<button style="font-size:.75rem;padding:.25rem .6rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);${isSubmitting ? 'cursor:not-allowed;opacity:.72' : 'cursor:pointer'}" ${isSubmitting ? 'disabled' : ''} onclick="App._finishRosterManagement('${escapeHTML(eventId)}')">${isSubmitting ? '儲存中...' : '完成'}</button>`
+        : `<button style="font-size:.75rem;padding:.25rem .6rem;background:#1565c0;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="App._startTableEdit('${escapeHTML(eventId)}')">管理名單</button>`
+      ) : '';
+      const emptyHeader = canManage
+        ? `<div style="display:flex;align-items:center;gap:.4rem;white-space:nowrap;margin:.2rem 0 .4rem;font-size:.8rem;font-weight:600">報名名單（0/${escapeHTML(e.max || 0)}）${emptyManageBtn}</div>`
+        : '';
       // 若 event.current > 0 或 participantsWithUid / participants 有人 → 視為「資料還在加載」
       // 顯示 spinner + skeleton，避免用戶誤以為沒人報名（2026-04-19 UX 改善）
       const expectedCount = Number(e.current || 0)
@@ -374,10 +392,10 @@ Object.assign(App, {
         // 根據預期人數產出 1-3 個 skeleton row（最多 3 個避免佔太大）
         const rowCount = Math.min(3, expectedCount);
         const skeletonRows = Array(rowCount).fill('<div class="reg-loading-skeleton-row"></div>').join('');
-        container.innerHTML = '<div class="reg-loading">報名名單載入中...</div>'
+        container.innerHTML = emptyHeader + '<div class="reg-loading">報名名單載入中...</div>'
           + '<div class="reg-loading-skeleton">' + skeletonRows + '</div>';
       } else {
-        container.innerHTML = '<div style="font-size:.8rem;color:var(--text-muted);padding:.3rem 0">尚無報名</div>';
+        container.innerHTML = emptyHeader + '<div style="font-size:.8rem;color:var(--text-muted);padding:.3rem 0">尚無報名</div>';
       }
       // 2026-04-20：移除「_scrollEl.scrollTop = _savedScrollY」還原邏輯
       // 原因：入口記錄的 _savedScrollY 在 await 期間若用戶主動滑動，會被此行覆蓋拉回舊位
@@ -399,7 +417,6 @@ Object.assign(App, {
     }
 
     // 整表編輯模式（編輯簽到）— tableEditing 已於本函式上方宣告
-    const isSubmitting = canManage && this._attendanceSubmittingEventId === eventId;
     const pendingStateByUid = (isSubmitting || this._attendancePendingStateByUid) ? (this._attendancePendingStateByUid || Object.create(null)) : null;
 
     const kickStyle = 'font-size:.7rem;padding:.2rem .4rem;border:1px solid var(--danger);color:var(--danger);background:transparent;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap'
@@ -535,8 +552,11 @@ Object.assign(App, {
         </tr>`;
         }
         const kickTd = `<td style="padding:.35rem .2rem;text-align:center"><button style="${kickStyle}" ${disabledAttr} onclick="App._removeParticipant('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">踢</button></td>`;
+        const demotePending = !!this._isWaitlistActionPending?.('demote', eventId, p.uid);
+        const demoteDisabledAttr = (isSubmitting || demotePending) ? 'disabled' : '';
+        const demoteBtnStyle = demoteStyle + (demotePending && !isSubmitting ? ';opacity:.65;cursor:not-allowed' : '');
         const demoteTd = hasDemote && !p.isCompanion
-          ? `<td style="padding:.35rem .2rem;text-align:center"><button style="${demoteStyle}" ${disabledAttr} onclick="App._forceDemoteToWaitlist('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">候</button></td>`
+          ? `<td style="padding:.35rem .2rem;text-align:center"><button style="${demoteBtnStyle}" ${demoteDisabledAttr} onclick="App._forceDemoteToWaitlist('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">${demotePending ? '...' : '候'}</button></td>`
           : (hasDemote ? `<td style="padding:.35rem .2rem"></td>` : '');
         return `<tr data-uid="${safeUid}"${teamReservationRowAttr} style="border-bottom:1px solid var(--border)">
           ${kickTd}${demoteTd}
@@ -577,7 +597,7 @@ Object.assign(App, {
 
     // 編輯 / 完成 按鈕（右上角，僅管理員）
     const topBtn = canManage ? (tableEditing
-      ? `<button style="font-size:.75rem;padding:.25rem .6rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);${isSubmitting ? 'cursor:not-allowed;opacity:.72' : 'cursor:pointer'}" ${isSubmitting ? 'disabled' : ''} onclick="App._confirmAllAttendance('${escapeHTML(eventId)}')">${isSubmitting ? '儲存中...' : '完成'}</button>`
+      ? `<button style="font-size:.75rem;padding:.25rem .6rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);${isSubmitting ? 'cursor:not-allowed;opacity:.72' : 'cursor:pointer'}" ${isSubmitting ? 'disabled' : ''} onclick="App._finishRosterManagement('${escapeHTML(eventId)}')">${isSubmitting ? '儲存中...' : '完成'}</button>`
       : `<button style="font-size:.75rem;padding:.25rem .6rem;background:#1565c0;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="App._startTableEdit('${escapeHTML(eventId)}')">管理名單</button>`
     ) : '';
 

@@ -1,5 +1,11 @@
 # ToosterX — Claude 修復日誌（濃縮版）
 
+### 2026-05-25 Activity roster management instant render [bugfix]
+- **Problem**: In activity detail roster management, manual "waitlist to confirmed" and "confirmed to waitlist" actions did not visibly move users until Firestore writes and later render paths completed. The waitlist also had a separate edit button from the main "管理名單" button.
+- **Cause**: `_forcePromoteWaitlist` and `_forceDemoteToWaitlist` waited for `batch.commit()` before re-rendering, and the attendance renderer always went through its normal fetch/debounce path.
+- **Fix**: Added optimistic local registration/activity/event occupancy updates with pending button state, immediate roster re-render using `skipFetch`, rollback on write failure, and post-save notification/log side effects that cannot leave the UI stuck. The waitlist edit controls now follow the shared roster-management editing state, so "管理名單" is the single entry point.
+- **Validation**: Added unit coverage for immediate `skipFetch` rendering and merged roster controls. Ran JS syntax checks, targeted roster/detail tests, full unit suite, and a local browser smoke test on a fresh localhost port.
+
 ### 2026-05-20 Activity site-operation scope guard [bugfix]
 - **Problem**: UID `U210473e818fbc6ce639606b9e83efdd1` could see the on-site check-in action on `ce_1779011299321_f46aob` even though the event owner is `U66498cff225aa900d73f390932af53fe` and there are no delegates.
 - **Cause**: The frontend treated legacy `event.scan` / `event.manual_checkin` role permissions as global site-operation scope. Public boot event snapshots also omitted `creatorUid`, leaving a risky name-based owner fallback.

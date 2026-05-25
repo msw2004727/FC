@@ -19,6 +19,8 @@ Object.assign(App, {
       return;
     }
     this._attendanceEditingEventId = eventId;
+    this._renderWaitlistContainers?.(eventId);
+    this._renderAttendanceTable?.(eventId, this._manualEditingContainerId, { skipFetch: true });
     const preload = [];
     if (typeof ApiService.fetchRegistrationsIfMissing === 'function') preload.push(ApiService.fetchRegistrationsIfMissing(eventId));
     if (typeof ApiService.fetchAttendanceIfMissing === 'function') preload.push(ApiService.fetchAttendanceIfMissing(eventId));
@@ -30,6 +32,12 @@ Object.assign(App, {
     }
     if (typeof this._initInstantSave === 'function') this._initInstantSave(eventId);
     await this._renderAttendanceTable(eventId, this._manualEditingContainerId);
+    this._renderWaitlistContainers?.(eventId);
+  },
+
+  async _finishRosterManagement(eventId) {
+    await this._confirmAllAttendance(eventId);
+    this._renderWaitlistContainers?.(eventId);
   },
 
   /**

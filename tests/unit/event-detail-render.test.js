@@ -388,6 +388,22 @@ describe('Team reservation button loading contract', () => {
     expect(activityCss).toContain('.event-detail-belowfold-loading .activity-list-loading-bar');
   });
 
+  test('roster management owns waitlist edit controls and instant roster refresh', () => {
+    const detailSource = readProjectFile('js/modules/event/event-detail.js');
+    const waitlistSource = readProjectFile('js/modules/event/event-manage-waitlist.js');
+    const attendanceSource = readProjectFile('js/modules/event/event-manage-attendance.js');
+    const confirmSource = readProjectFile('js/modules/event/event-manage-confirm.js');
+
+    expect(waitlistSource).toContain('_isRosterManagementEditing(eventId)');
+    expect(waitlistSource).toContain('_renderRosterTables(eventId, options = {})');
+    expect(waitlistSource).toContain('_renderRosterTables?.(eventId, { skipFetch: true })');
+    expect(waitlistSource).toContain("const editBtnHtml = '';");
+    expect(detailSource).toContain("const editBtnHtml = '';");
+    expect(attendanceSource).toContain("_finishRosterManagement('${escapeHTML(eventId)}')");
+    expect(confirmSource).toContain('this._renderWaitlistContainers?.(eventId);');
+    expect(confirmSource).toContain('async _finishRosterManagement(eventId)');
+  });
+
   test('team reservation modal does not close from backdrop clicks', () => {
     const signupSource = readProjectFile('js/modules/event/event-detail-signup.js');
 
@@ -542,9 +558,22 @@ describe('Attendance table debounce contract', () => {
     await Promise.resolve();
 
     expect(app._doRenderAttendanceTable).toHaveBeenCalledTimes(1);
-    expect(app._doRenderAttendanceTable).toHaveBeenCalledWith('new-event', 'detail-attendance-table', 0);
+    expect(app._doRenderAttendanceTable).toHaveBeenCalledWith('new-event', 'detail-attendance-table', 0, {});
     expect(firstDone).toHaveBeenCalledWith('new-event:detail-attendance-table');
     expect(secondDone).toHaveBeenCalledWith('new-event:detail-attendance-table');
+  });
+
+  test('renders skipFetch callers immediately without debounce', async () => {
+    jest.useFakeTimers();
+    const app = loadEventManageAttendanceModule();
+    app._doRenderAttendanceTable = jest.fn(async (eventId, containerId) => `${eventId}:${containerId}`);
+
+    const result = await app._renderAttendanceTable('event-1', 'detail-attendance-table', { skipFetch: true });
+
+    expect(app._doRenderAttendanceTable).toHaveBeenCalledTimes(1);
+    expect(app._doRenderAttendanceTable).toHaveBeenCalledWith('event-1', 'detail-attendance-table', 0, { skipFetch: true });
+    expect(result).toBe('event-1:detail-attendance-table');
+    expect(jest.getTimerCount()).toBe(0);
   });
 
   test('resolves callers when the debounced render throws', async () => {

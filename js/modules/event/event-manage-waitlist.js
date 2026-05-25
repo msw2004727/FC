@@ -5,6 +5,80 @@
 
 Object.assign(App, {
 
+  _waitlistActionPending: null,
+
+  _waitlistActionKey(action, eventId, userId) {
+    return `${action || ''}:${eventId || ''}:${userId || ''}`;
+  },
+
+  _isWaitlistActionPending(action, eventId, userId) {
+    const pending = this._waitlistActionPending || {};
+    return !!pending[this._waitlistActionKey(action, eventId, userId)];
+  },
+
+  _setWaitlistActionPending(action, eventId, userId, pending) {
+    if (!this._waitlistActionPending) this._waitlistActionPending = Object.create(null);
+    const key = this._waitlistActionKey(action, eventId, userId);
+    if (pending) this._waitlistActionPending[key] = true;
+    else delete this._waitlistActionPending[key];
+  },
+
+  _isRosterManagementEditing(eventId) {
+    return this._attendanceEditingEventId === eventId || this._waitlistEditingEventId === eventId;
+  },
+
+  _renderWaitlistContainers(eventId) {
+    this._renderWaitlistSection?.(eventId, 'waitlist-table-container');
+    this._renderGroupedWaitlistSection?.(eventId, 'detail-waitlist-container');
+  },
+
+  _renderRosterTables(eventId, options = {}) {
+    this._renderWaitlistContainers?.(eventId);
+    const tableOptions = options?.skipFetch ? { skipFetch: true } : undefined;
+    const tableIds = new Set([
+      this._manualEditingContainerId || 'attendance-table-container',
+      'detail-attendance-table',
+    ]);
+    tableIds.forEach(containerId => {
+      this._renderAttendanceTable?.(eventId, containerId, tableOptions);
+    });
+    this._patchDetailCount?.(eventId);
+    this._refreshSignupButton?.(eventId);
+  },
+
+  _snapshotEventOccupancy(event) {
+    if (!event) return null;
+    return {
+      current: event.current,
+      realCurrent: event.realCurrent,
+      waitlist: event.waitlist,
+      participants: event.participants,
+      waitlistNames: event.waitlistNames,
+      participantsWithUid: event.participantsWithUid,
+      waitlistWithUid: event.waitlistWithUid,
+      teamReservationSummaries: event.teamReservationSummaries,
+      status: event.status,
+    };
+  },
+
+  _applyEventOccupancy(event, occupancy) {
+    if (!event || !occupancy) return;
+    event.current = occupancy.current;
+    event.realCurrent = occupancy.realCurrent;
+    event.waitlist = occupancy.waitlist;
+    event.participants = occupancy.participants;
+    event.waitlistNames = occupancy.waitlistNames;
+    event.participantsWithUid = occupancy.participantsWithUid;
+    event.waitlistWithUid = occupancy.waitlistWithUid;
+    event.teamReservationSummaries = occupancy.teamReservationSummaries;
+    event.status = occupancy.status;
+  },
+
+  _restoreEventOccupancy(event, snapshot) {
+    if (!event || !snapshot) return;
+    Object.assign(event, snapshot);
+  },
+
   // ── 候補名單表格（管理模態 - 分組顯示 + 正取編輯模式）──
   _renderWaitlistSection(eventId, containerId) {
     const container = document.getElementById(containerId);
@@ -15,7 +89,7 @@ Object.assign(App, {
     if (!e) { container.innerHTML = ''; _wsScrollEl.scrollTop = _wsSavedScroll; return; }
 
     const canManage = this._canOperateEventSite?.(e);
-    const tableEditing = this._waitlistEditingEventId === eventId;
+    const tableEditing = this._isRosterManagementEditing?.(eventId) || this._waitlistEditingEventId === eventId;
     const allActiveRegs = ApiService.getRegistrationsByEvent(eventId);
     const _regTime = (r) => {
       const v = r && r.registeredAt;
@@ -91,19 +165,17 @@ Object.assign(App, {
     const colCount = tableEditing ? 3 : 2;
     const doneBtnStyle = 'font-size:.72rem;padding:.2rem .5rem;background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;color:var(--text-primary)';
     const editBtnStyle = 'font-size:.72rem;padding:.2rem .5rem;background:#8b5cf6;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer';
-    const editBtnHtml = canManage
-      ? (tableEditing
-          ? `<button style="${doneBtnStyle}" onclick="App._stopWaitlistEdit('${safeEId}','${safeCId}')">完成</button>`
-          : `<button style="${editBtnStyle}" onclick="App._startWaitlistEdit('${safeEId}','${safeCId}')">編輯</button>`)
-      : '';
+    const editBtnHtml = '';
     const promoteStyle = 'font-size:.72rem;padding:.2rem .45rem;background:#8b5cf6;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer';
 
     let rows = '';
     items.forEach((item, idx) => {
       const safeUid = item.userId ? escapeHTML(item.userId) : '';
+      const promotePending = item.userId && this._isWaitlistActionPending?.('promote', eventId, item.userId);
+      const promoteBtnStyle = promoteStyle + (promotePending ? ';opacity:.65;cursor:not-allowed' : '');
       const promoteTd = tableEditing
         ? (item.userId
-            ? `<td style="padding:.35rem .3rem;text-align:center;width:3rem"><button style="${promoteStyle}" onclick="App._forcePromoteWaitlist('${safeEId}','${safeUid}')">正取</button></td>`
+            ? `<td style="padding:.35rem .3rem;text-align:center;width:3rem"><button style="${promoteBtnStyle}" ${promotePending ? 'disabled' : ''} onclick="App._forcePromoteWaitlist('${safeEId}','${safeUid}')">${promotePending ? '...' : '正取'}</button></td>`
             : `<td></td>`)
         : '';
       rows += `<tr style="border-bottom:1px solid var(--border)">
@@ -166,6 +238,7 @@ Object.assign(App, {
       this.showToast('\u6b0a\u9650\u4e0d\u8db3');
       return;
     }
+    if (this._isWaitlistActionPending?.('promote', eventId, userId)) return;
     const allRegs = ApiService.getRegistrationsByEvent(eventId);
     const userWaitlisted = allRegs.filter(r => r.userId === userId && r.status === 'waitlisted');
     if (userWaitlisted.length === 0) { this.showToast('找不到候補紀錄'); return; }
@@ -183,6 +256,8 @@ Object.assign(App, {
       if (!ok) return;
     }
 
+    this._setWaitlistActionPending('promote', eventId, userId, true);
+
     // 蒐集 activityRecord
     const arSource = ApiService._src('activityRecords');
     const arRecords = [];
@@ -192,6 +267,10 @@ Object.assign(App, {
         if (ar && ar._docId) arRecords.push(ar);
       }
     }
+
+    const prevRegStates = userWaitlisted.map(reg => ({ ref: reg, prev: reg.status }));
+    const prevArStates = arRecords.map(record => ({ ref: record, prev: record.status }));
+    const prevEventState = this._snapshotEventOccupancy?.(e);
 
     // 先更新 registration status（本地快取）
     userWaitlisted.forEach(reg => { reg.status = 'confirmed'; });
@@ -216,6 +295,9 @@ Object.assign(App, {
         status: confirmed.length >= (e.max || 0) ? 'full' : 'open',
       };
     }
+
+    this._applyEventOccupancy?.(e, occupancy);
+    this._renderRosterTables?.(eventId, { skipFetch: true });
 
     try {
       const eventDocId = String(e._docId || '').trim();
@@ -252,8 +334,11 @@ Object.assign(App, {
     } catch (err) {
       console.error('[forcePromote]', err);
       // rollback local changes
-      userWaitlisted.forEach(reg => { reg.status = 'waitlisted'; });
-      arRecords.forEach(record => { record.status = 'waitlisted'; });
+      prevRegStates.forEach(state => { state.ref.status = state.prev; });
+      prevArStates.forEach(state => { state.ref.status = state.prev; });
+      this._restoreEventOccupancy?.(e, prevEventState);
+      this._setWaitlistActionPending('promote', eventId, userId, false);
+      this._renderRosterTables?.(eventId, { skipFetch: true });
       this.showToast('儲存失敗，請重試');
       return;
     }
@@ -275,27 +360,27 @@ Object.assign(App, {
       FirebaseService._saveToLS('events', FirebaseService._cache.events);
     }
 
-    const notifiedUsers = new Set();
-    userWaitlisted.forEach(reg => {
-      if (!reg?.userId || notifiedUsers.has(reg.userId)) return;
-      notifiedUsers.add(reg.userId);
-      this._sendNotifFromTemplate('waitlist_promoted', {
-        eventName: e.title,
-        date: e.date,
-        location: e.location,
-      }, reg.userId, 'activity', '活動');
-    });
-
-    var _promotedNames = userWaitlisted.map(function(r) { return r.participantType === 'companion' ? (r.companionName || r.userName) : r.userName; }).filter(Boolean);
-    ApiService._writeOpLog('force_promote', '手動正取', `活動「${e.title}」將 ${_promotedNames.join('、')} 從候補升為正取`, eventId);
-
-    // Re-render both possible containers (one will be absent = no-op)
-    this._renderWaitlistSection(eventId, 'waitlist-table-container');
-    this._renderGroupedWaitlistSection(eventId, 'detail-waitlist-container');
-    // Re-render attendance tables
-    this._renderAttendanceTable(eventId, this._manualEditingContainerId || 'attendance-table-container');
-    this._renderAttendanceTable(eventId, 'detail-attendance-table');
+    this._setWaitlistActionPending('promote', eventId, userId, false);
+    this._renderRosterTables?.(eventId, { skipFetch: true });
     this.showToast('已正取');
+
+    try {
+      const notifiedUsers = new Set();
+      userWaitlisted.forEach(reg => {
+        if (!reg?.userId || notifiedUsers.has(reg.userId)) return;
+        notifiedUsers.add(reg.userId);
+        this._sendNotifFromTemplate('waitlist_promoted', {
+          eventName: e.title,
+          date: e.date,
+          location: e.location,
+        }, reg.userId, 'activity', '活動');
+      });
+
+      var _promotedNames = userWaitlisted.map(function(r) { return r.participantType === 'companion' ? (r.companionName || r.userName) : r.userName; }).filter(Boolean);
+      ApiService._writeOpLog('force_promote', '手動正取', `活動「${e.title}」將 ${_promotedNames.join('、')} 從候補升為正取`, eventId);
+    } catch (err) {
+      console.warn('[forcePromote] post-save side effect failed:', err);
+    }
   },
 
   /** 強制將正取用戶下放至候補（含同行者），方案 A：自然排序 */
@@ -308,6 +393,7 @@ Object.assign(App, {
       this.showToast('\u6b0a\u9650\u4e0d\u8db3');
       return;
     }
+    if (this._isWaitlistActionPending?.('demote', eventId, userId)) return;
     if (!e.max || e.max <= 0) { this.showToast('此活動無名額上限，無法下放候補'); return; }
 
     const allRegs = ApiService.getRegistrationsByEvent(eventId);
@@ -321,6 +407,7 @@ Object.assign(App, {
     if (!await this.appConfirm(confirmMsg)) return;
 
     if (!await this._ensureActivityRecordsReady({ required: true })) return;
+    this._setWaitlistActionPending('demote', eventId, userId, true);
 
     // 蒐集 activityRecord（非同行者才有）
     const arSource = ApiService._src('activityRecords');
@@ -335,6 +422,7 @@ Object.assign(App, {
     // 模擬模式：先在副本上計算，commit 成功後才寫快取
     const prevRegStates = userConfirmed.map(r => ({ ref: r, prev: r.status }));
     const prevArStates = arRecords.map(r => ({ ref: r, prev: r.status }));
+    const prevEventState = this._snapshotEventOccupancy?.(e);
     userConfirmed.forEach(r => { r.status = 'waitlisted'; });
     arRecords.forEach(r => { r.status = 'waitlisted'; });
 
@@ -355,6 +443,9 @@ Object.assign(App, {
         status: confirmed.length >= (e.max || 0) ? 'full' : 'open',
       };
     }
+
+    this._applyEventOccupancy?.(e, occupancy);
+    this._renderRosterTables?.(eventId, { skipFetch: true });
 
     try {
       var eventDocId = String(e._docId || '').trim();
@@ -397,6 +488,9 @@ Object.assign(App, {
       // rollback
       prevRegStates.forEach(function (s) { s.ref.status = s.prev; });
       prevArStates.forEach(function (s) { s.ref.status = s.prev; });
+      this._restoreEventOccupancy?.(e, prevEventState);
+      this._setWaitlistActionPending('demote', eventId, userId, false);
+      this._renderRosterTables?.(eventId, { skipFetch: true });
       this.showToast('儲存失敗，請重試');
       return;
     }
@@ -418,21 +512,22 @@ Object.assign(App, {
       FirebaseService._saveToLS('events', FirebaseService._cache.events);
     }
 
-    // 通知被下放的用戶
-    this._sendNotifFromTemplate('waitlist_demoted', {
-      eventName: e.title,
-      date: e.date,
-      location: e.location,
-    }, userId, 'activity', '活動');
-
-    ApiService._writeOpLog('force_demote', '下放候補', `活動「${e.title}」將 ${userName} 下放至候補`, eventId);
-
-    // 重新渲染
-    this._renderWaitlistSection(eventId, 'waitlist-table-container');
-    this._renderGroupedWaitlistSection(eventId, 'detail-waitlist-container');
-    this._renderAttendanceTable(eventId, this._manualEditingContainerId || 'attendance-table-container');
-    this._renderAttendanceTable(eventId, 'detail-attendance-table');
+    this._setWaitlistActionPending('demote', eventId, userId, false);
+    this._renderRosterTables?.(eventId, { skipFetch: true });
     this.showToast(`已將 ${userName} 下放至候補`);
+
+    try {
+      // 通知被下放的用戶
+      this._sendNotifFromTemplate('waitlist_demoted', {
+        eventName: e.title,
+        date: e.date,
+        location: e.location,
+      }, userId, 'activity', '活動');
+
+      ApiService._writeOpLog('force_demote', '下放候補', `活動「${e.title}」將 ${userName} 下放至候補`, eventId);
+    } catch (err) {
+      console.warn('[forceDemote] post-save side effect failed:', err);
+    }
   },
 
 });

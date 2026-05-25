@@ -822,7 +822,7 @@ Object.assign(App, {
     if (!e) { container.innerHTML = ''; _wlScrollEl.scrollTop = _wlSavedScroll; return; }
 
     const canManage = this._canOperateEventSite?.(e);
-    const tableEditing = this._waitlistEditingEventId === eventId;
+    const tableEditing = this._isRosterManagementEditing?.(eventId) || this._waitlistEditingEventId === eventId;
     const allRegs = ApiService.getRegistrationsByEvent(eventId);
     const getRegTime = (r) => {
       const v = r && r.registeredAt;
@@ -902,11 +902,7 @@ Object.assign(App, {
     const safeCId = escapeHTML(containerId);
     const doneBtnStyle = 'font-size:.72rem;padding:.2rem .5rem;background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;color:var(--text-primary)';
     const editBtnStyle = 'font-size:.72rem;padding:.2rem .5rem;background:#8b5cf6;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer';
-    const editBtnHtml = canManage
-      ? (tableEditing
-          ? `<button style="${doneBtnStyle}" onclick="App._stopWaitlistDetailEdit('${safeEId}','${safeCId}')">完成</button>`
-          : `<button style="${editBtnStyle}" onclick="App._startWaitlistDetailEdit('${safeEId}','${safeCId}')">編輯</button>`)
-      : '';
+    const editBtnHtml = '';
     const titleHtml = `<div class="detail-section-title" style="display:flex;align-items:center;gap:.5rem"><span>候補名單 (${totalCount})</span>${editBtnHtml}</div>`;
 
     if (tableEditing) {
@@ -915,8 +911,10 @@ Object.assign(App, {
       let rows = '';
       items.forEach((item, idx) => {
         const safeUid = item.userId ? escapeHTML(item.userId) : '';
+        const promotePending = item.userId && this._isWaitlistActionPending?.('promote', eventId, item.userId);
+        const promoteBtnStyle = promoteStyle + (promotePending ? ';opacity:.65;cursor:not-allowed' : '');
         const promoteBtn = item.userId
-          ? `<button style="${promoteStyle}" onclick="App._forcePromoteWaitlist('${safeEId}','${safeUid}')">正取</button>`
+          ? `<button style="${promoteBtnStyle}" ${promotePending ? 'disabled' : ''} onclick="App._forcePromoteWaitlist('${safeEId}','${safeUid}')">${promotePending ? '...' : '正取'}</button>`
           : '';
         rows += `<tr style="border-bottom:1px solid var(--border)">
           <td style="padding:.35rem .3rem;text-align:center;width:2rem"><span class="wl-pos">${idx + 1}</span></td>
