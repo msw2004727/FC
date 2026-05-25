@@ -2820,6 +2820,48 @@
   line-height: 1.4;
   word-break: break-word;
 }
+.edu-next-class-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: .16rem .45rem;
+  align-items: center;
+  margin-top: .35rem;
+  padding: .48rem .58rem;
+  border: 1px solid rgba(13, 148, 136, .2);
+  border-radius: 8px;
+  background: rgba(13, 148, 136, .07);
+}
+.edu-next-class-card span {
+  grid-row: span 2;
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  color: var(--primary);
+  font-size: .72rem;
+  font-weight: 700;
+}
+.edu-next-class-card strong,
+.edu-next-class-card em,
+.edu-next-class-card small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.edu-next-class-card strong {
+  color: var(--text-primary);
+  font-size: .82rem;
+}
+.edu-next-class-card em,
+.edu-next-class-card small {
+  color: var(--text-secondary);
+  font-size: .74rem;
+  font-style: normal;
+}
+.edu-next-class-card small {
+  grid-column: 2;
+  color: var(--text-muted);
+}
 @media (max-width: 560px) {
   .edu-cp-extra-grid {
     grid-template-columns: 1fr;

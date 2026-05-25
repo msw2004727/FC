@@ -256,6 +256,47 @@ describe('edu course plan render', () => {
     expect(container.innerHTML).not.toContain('old-student');
   });
 
+  test('skips stale course plan list responses before rendering', async () => {
+    const container = { innerHTML: '' };
+    const app = {
+      _courseEnrollCache: {},
+      _eduCoursePlanTabByTeam: {},
+      isEduClubStaff: jest.fn(() => false),
+      _loadEduStudents: jest.fn(async () => {
+        app._eduCoursePlanListRequestSeq += 1;
+      }),
+      _loadEduCoursePlans: jest.fn(() => Promise.resolve([{ id: 'planA', name: 'Plan A', active: true }])),
+      _getCourseEnrollCacheKey: jest.fn(() => null),
+      _loadCourseEnrollments: jest.fn(() => Promise.resolve([])),
+      getEduStudents: jest.fn(() => []),
+      _weekdayLabel: (day) => ['日', '一', '二', '三', '四', '五', '六'][day] || String(day),
+      currentPage: 'page-team-detail',
+      _eduDetailTeamId: 'teamA',
+    };
+    const context = {
+      App: app,
+      ApiService: { getCurrentUser: jest.fn(() => ({ uid: 'viewer' })) },
+      document: {
+        getElementById: jest.fn((id) => id === 'edu-course-plan-list' ? container : null),
+      },
+      escapeHTML,
+      console,
+      Promise,
+      Date,
+      Number,
+      String,
+      Set,
+      Object,
+    };
+    vm.runInNewContext(source, context, { filename: 'edu-course-plan-render.js' });
+
+    const result = await context.App.renderEduCoursePlanList('teamA', false, { forceRefresh: true });
+
+    expect(result).toBe(false);
+    expect(app._loadEduCoursePlans).not.toHaveBeenCalled();
+    expect(container.innerHTML).toContain('edu-loading');
+  });
+
   test('course plan move uses the currently visible tab order', async () => {
     const app = {
       showToast: jest.fn(),

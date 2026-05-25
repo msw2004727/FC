@@ -228,6 +228,53 @@ describe('renderEduClubDetail info card', () => {
     expect(html.indexOf('領隊')).toBeLessThan(html.indexOf('教練'));
   });
 
+  test('derives my next class from approved weekly course enrollment', () => {
+    const app = {
+      _courseEnrollCache: {
+        'teamA:planA': [{ studentId: 'studentA', status: 'approved' }],
+      },
+      _getCourseEnrollCacheKey: (teamId, planId) => teamId + ':' + planId,
+      _getCoursePlanNextWeeklyOccurrence: jest.fn(() => ({
+        label: '2099-01-05 09:00',
+        timestamp: new Date('2099-01-05T09:00:00').getTime(),
+      })),
+    };
+    const context = {
+      App: app,
+      ApiService: {
+        getTeam: jest.fn(),
+        getCurrentUser: jest.fn(() => null),
+      },
+      document: {
+        getElementById: jest.fn(() => null),
+        querySelectorAll: jest.fn(() => []),
+      },
+      escapeHTML,
+      Promise,
+      Date,
+    };
+
+    vm.createContext(context);
+    vm.runInContext(source, context, { filename: 'edu-detail-render.js' });
+
+    const next = context.App._getEduNextClassForStudent('teamA', {
+      id: 'studentA',
+      enrollStatus: 'active',
+    }, [{
+      id: 'planA',
+      name: 'Weekly Plan',
+      planType: 'weekly',
+      active: true,
+      location: 'Center A',
+      coachName: 'Coach A',
+    }]);
+
+    expect(next.planName).toBe('Weekly Plan');
+    expect(next.dateLabel).toBe('2099-01-05 09:00');
+    expect(next.location).toBe('Center A');
+    expect(next.coachName).toBe('Coach A');
+  });
+
   test('falls back to not set when education club has no leader', () => {
     const html = renderWithTeam({
       id: 'edu-team-2',

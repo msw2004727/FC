@@ -275,6 +275,7 @@ Object.assign(App, {
         : '';
       // 當前所屬課程標籤（條件：在課程名單內 + 課程尚未結束）
       let courseTagsHtml = '';
+      let nextClassHtml = '';
       if (!isPending) {
         const myCourseTags = activePlans.filter(p => {
           // 分組匹配
@@ -290,6 +291,8 @@ Object.assign(App, {
               return '<span style="font-size:.68rem;padding:.1rem .4rem;border-radius:var(--radius-full);background:' + color + '22;color:' + color + ';font-weight:600">' + escapeHTML(cp.name) + '</span>';
             }).join('') + '</div>';
         }
+        const nextClass = this._getEduNextClassForStudent?.(teamId, s, activePlans);
+        if (nextClass) nextClassHtml = this._renderEduNextClassCard?.(nextClass) || '';
       }
       // 右側按鈕列
       let actionBtns = '';
@@ -310,6 +313,7 @@ Object.assign(App, {
         + '</div>'
         + groupHtml
         + courseTagsHtml
+        + nextClassHtml
         + timeHtml
         + '</div>';
     }).join('');
@@ -343,6 +347,75 @@ Object.assign(App, {
 
   _isEduStudentOrParent(teamId, curUser) {
     return this._getMyEduStudents(teamId, curUser).length > 0;
+  },
+
+  _getEduNextClassForStudent(teamId, student, plans = []) {
+    if (!student || student.enrollStatus !== 'active') return null;
+    const now = new Date();
+    const studentId = String(student.id || student._docId || '');
+    const candidates = [];
+    (plans || []).forEach(plan => {
+      if (!plan || plan.active === false) return;
+      const key = this._getCourseEnrollCacheKey?.(teamId, plan.id);
+      const enrollments = plan._enrollments || (key && this._courseEnrollCache?.[key]) || [];
+      const byEnrollment = enrollments.some(e => String(e.studentId || '') === studentId && e.status === 'approved');
+      const byGroup = !!(plan.groupId && (student.groupIds || []).includes(plan.groupId));
+      if (!byEnrollment && !byGroup) return;
+
+      if (plan.planType === 'weekly') {
+        const next = this._getCoursePlanNextWeeklyOccurrence?.(plan, now);
+        if (!next) return;
+        candidates.push({
+          timestamp: next.timestamp,
+          planId: plan.id,
+          planName: plan.name || '課程',
+          dateLabel: next.label,
+          location: plan.location || '',
+          coachName: plan.coachName || plan.coach || '',
+          source: 'weekly',
+        });
+        return;
+      }
+
+      const sessionKey = this._getCourseSessionCacheKey?.(teamId, plan.id);
+      const sessions = (sessionKey && this._courseSessionCache?.[sessionKey]) || [];
+      const nextSession = sessions
+        .filter(session => {
+          const ids = Array.isArray(session.studentIds) ? session.studentIds.map(String) : [];
+          return !ids.length || ids.includes(studentId);
+        })
+        .map(session => ({ session, timestamp: this._getCourseSessionSortValue?.(session) || 0 }))
+        .filter(item => item.timestamp >= now.getTime())
+        .sort((a, b) => a.timestamp - b.timestamp)[0];
+      if (nextSession) {
+        const session = nextSession.session;
+        const dateLabel = [
+          typeof this._formatCourseSessionDate === 'function' ? this._formatCourseSessionDate(session) : session.date,
+          typeof this._formatCourseSessionTime === 'function' ? this._formatCourseSessionTime(session) : [session.startTime, session.endTime].filter(Boolean).join('-'),
+        ].filter(Boolean).join(' ');
+        candidates.push({
+          timestamp: nextSession.timestamp,
+          planId: plan.id,
+          planName: plan.name || '課程',
+          dateLabel,
+          location: session.location || plan.location || '',
+          coachName: session.coachName || plan.coachName || '',
+          source: 'session',
+        });
+      }
+    });
+    return candidates.sort((a, b) => a.timestamp - b.timestamp)[0] || null;
+  },
+
+  _renderEduNextClassCard(nextClass) {
+    if (!nextClass) return '';
+    const meta = [nextClass.location, nextClass.coachName].filter(Boolean).join(' · ');
+    return '<div class="edu-next-class-card">'
+      + '<span>下一堂</span>'
+      + '<strong>' + escapeHTML(nextClass.planName) + '</strong>'
+      + '<em>' + escapeHTML(nextClass.dateLabel || '未排定') + '</em>'
+      + (meta ? '<small>' + escapeHTML(meta) + '</small>' : '')
+      + '</div>';
   },
 
   async _updateEduMineBadge(teamId) {

@@ -6,10 +6,16 @@
    ================================================ */
 
 Object.assign(App, {
+  _eduCoursePlanListRequestSeq: 0,
 
   async renderEduCoursePlanList(teamId, isStaff, options = {}) {
     const container = document.getElementById('edu-course-plan-list');
     if (!container) return;
+    const requestSeq = ++this._eduCoursePlanListRequestSeq;
+    const isStale = () => requestSeq !== this._eduCoursePlanListRequestSeq
+      || document.getElementById('edu-course-plan-list') !== container
+      || (this._eduDetailTeamId && this._eduDetailTeamId !== teamId)
+      || (this.currentPage && this.currentPage !== 'page-team-detail');
     const forceRefresh = !!options.forceRefresh;
 
     // 若未傳入 isStaff，自動判斷
@@ -18,12 +24,12 @@ Object.assign(App, {
       container.innerHTML = '<div class="edu-loading"><div class="edu-loading-bar"><div class="edu-loading-fill"></div></div><div class="edu-loading-text">正在更新課程狀態</div></div>';
       if (typeof this._loadEduStudents === 'function') {
         await this._loadEduStudents(teamId);
-        if (document.getElementById('edu-course-plan-list') !== container) return false;
+        if (isStale()) return false;
       }
     }
 
     const plans = await this._loadEduCoursePlans(teamId);
-    if (document.getElementById('edu-course-plan-list') !== container) return false;
+    if (isStale()) return false;
     const activePlans = plans.filter(p => p.active !== false)
       .sort((a, b) => {
         if (a.pinned && !b.pinned) return -1;
@@ -66,7 +72,7 @@ Object.assign(App, {
       }
       p._effectiveCount = enrolledIds.size;
     }));
-    if (document.getElementById('edu-course-plan-list') !== container) return false;
+    if (isStale()) return false;
 
     const formatMoney = (value) => {
       const amount = Number(value || 0);
