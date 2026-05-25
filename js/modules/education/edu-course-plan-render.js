@@ -153,10 +153,9 @@ Object.assign(App, {
           + '</div>'
         : '';
 
-      const clickAction = ' onclick="App.showEduCoursePlanDetail(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')"';
       const detailBtn = '<button class="outline-btn edu-cp-detail-btn" onclick="event.stopPropagation();App.showEduCoursePlanDetail(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">詳細資訊</button>';
 
-      return '<div class="edu-course-card edu-cp-card-v3 edu-cp-card-compact edu-cp-card-' + (p.planType === 'weekly' ? 'weekly' : 'session') + coverClass + '" data-course-plan-id="' + escapeHTML(p.id || '') + '"' + clickAction + '>'
+      return '<div class="edu-course-card edu-cp-card-v3 edu-cp-card-compact edu-cp-card-' + (p.planType === 'weekly' ? 'weekly' : 'session') + coverClass + '" data-course-plan-id="' + escapeHTML(p.id || '') + '">'
         + coverHtml
         + '<div class="edu-cp-compact-main">'
         + '<div class="edu-cp-compact-title">'

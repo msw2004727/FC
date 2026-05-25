@@ -158,7 +158,7 @@ describe('edu course plan render', () => {
     expect(endedHtml).toContain('edu-cp-status-ended');
   });
 
-  test('staff course cards open detail while roster management stays on an explicit button', async () => {
+  test('course cards require explicit buttons while roster management stays explicit', async () => {
     const html = await renderPlans([{
       id: 'planA',
       name: 'Plan A',
@@ -169,7 +169,9 @@ describe('edu course plan render', () => {
       allowSignup: true,
     }], true);
 
-    expect(html).toContain('data-course-plan-id="planA" onclick="App.showEduCoursePlanDetail');
+    expect(html).toContain('data-course-plan-id="planA"');
+    expect(html).not.toContain('data-course-plan-id="planA" onclick=');
+    expect(html).toContain('edu-cp-detail-btn');
     expect(html).toContain('App.showCourseEnrollmentList');
     expect(html).toContain('edu-cp-manage-btn edu-cp-manage-list');
     expect(html).toContain('edu-cp-manage-btn edu-cp-manage-edit');

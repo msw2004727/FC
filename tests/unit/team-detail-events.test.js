@@ -747,6 +747,14 @@ describe('team detail club activity section', () => {
     expect(actionsSource).toContain('this._renderEduTabContent(teamId, { forceRefresh: !!options.forceRefresh })');
   });
 
+  test('team detail v2 course cards only open details through explicit actions', () => {
+    const actionsSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-detail-v2-actions.js'), 'utf8');
+
+    expect(actionsSource).not.toContain('.td-v2-panel-courses .edu-cp-card-v3');
+    expect(actionsSource).not.toContain('this.openTeamDetailV2CourseModal(planId)');
+    expect(actionsSource).toContain("if (action === 'course') return this.openTeamDetailV2CourseModal");
+  });
+
   test('team detail v2 events and members use requested card and management-only layouts', () => {
     const app = makeApp([]);
     loadTeamDetailRender(app, [], {

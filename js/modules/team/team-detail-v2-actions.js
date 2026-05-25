@@ -99,16 +99,6 @@ Object.assign(App, {
 
   _handleTeamDetailV2Click(event, teamId, requestSeq) {
     if (!this._isTeamDetailV2RuntimeCurrent(teamId, requestSeq)) return;
-    const card = event.target?.closest?.('.td-v2-panel-courses .edu-cp-card-v3');
-    if (card && !event.target?.closest?.('button,a,input,select,textarea')) {
-      const planId = card.getAttribute('data-course-plan-id');
-      if (planId && !this.isEduClubStaff?.(teamId)) {
-        event.preventDefault();
-        event.stopPropagation();
-        this.openTeamDetailV2CourseModal(planId);
-        return;
-      }
-    }
     const target = event.target?.closest?.('[data-td-v2-action]');
     if (!target || !this._teamDetailV2Runtime?.shell?.contains(target)) return;
     const action = target.getAttribute('data-td-v2-action');

@@ -109,8 +109,8 @@
 .edu-course-card.edu-cp-card-v2,
 .edu-course-card.edu-cp-card-v3 {
   padding: .42rem;
-  cursor: pointer;
-  transition: border-color .15s, transform .15s, box-shadow .15s;
+  cursor: default;
+  transition: border-color .15s, box-shadow .15s;
   border-radius: var(--radius);
   margin-bottom: 0;
   background: var(--bg-card);
@@ -118,10 +118,7 @@
 }
 .edu-course-card.edu-cp-card-v2:hover,
 .edu-course-card.edu-cp-card-v3:hover {
-  border-color: var(--accent);
-}
-.edu-course-card.edu-cp-card-v3:active {
-  transform: scale(.995);
+  border-color: var(--border);
 }
 .edu-course-card.edu-cp-card-weekly {
   background: linear-gradient(135deg, rgba(13, 148, 136, .12), rgba(13, 148, 136, .035));
