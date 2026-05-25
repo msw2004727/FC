@@ -153,6 +153,57 @@ describe('edu course plan render', () => {
     expect(html.indexOf('App.showEduCoursePlanDetail')).toBeLessThan(html.indexOf('App.showCourseEnrollmentList'));
   });
 
+  test('course detail modal escapes plan copy and shows derived next class', async () => {
+    const overlay = { className: '', innerHTML: '', onclick: null, remove: jest.fn() };
+    const appended = [];
+    const app = {
+      getEduCoursePlans: jest.fn(() => [{
+        id: 'planX',
+        name: 'Safe Plan',
+        planType: 'weekly',
+        allowSignup: true,
+        description: '<img src=x onerror=alert(1)>Bring water',
+        location: '<script>bad</script>',
+        coachName: 'Coach <A>',
+      }]),
+      isEduClubStaff: jest.fn(() => false),
+      _normalizeCoursePlanViewModel: jest.fn(() => ({
+        name: 'Safe Plan',
+        typeLabel: '每週課',
+        groupName: 'U12',
+        coverUrl: '',
+        dateText: '2026-05-01 ~ 2026-06-30',
+        scheduleText: '週三 09:00-10:30',
+        priceText: '免費',
+        countText: '3/12 人',
+        status: { label: '招生中' },
+        tags: ['tag<script>'],
+      })),
+      _getCoursePlanNextWeeklyOccurrence: jest.fn(() => ({ label: '2026-05-27 09:00' })),
+      _isCoursePlanEnded: jest.fn(() => false),
+    };
+    const context = {
+      App: app,
+      document: {
+        querySelector: jest.fn(() => null),
+        createElement: jest.fn(() => overlay),
+        body: { appendChild: jest.fn((node) => appended.push(node)) },
+      },
+      escapeHTML,
+      Date,
+      console,
+    };
+    vm.runInNewContext(source, context, { filename: 'edu-course-plan-render.js' });
+
+    await context.App.showEduCoursePlanDetail('teamA', 'planX');
+
+    expect(appended).toHaveLength(1);
+    expect(overlay.innerHTML).toContain('2026-05-27 09:00');
+    expect(overlay.innerHTML).toContain('&lt;img src=x onerror=alert(1)&gt;Bring water');
+    expect(overlay.innerHTML).toContain('Coach &lt;A&gt;');
+    expect(overlay.innerHTML).not.toContain('<script>bad</script>');
+  });
+
   test('force refresh reloads students and cached enrollments before rendering counts', async () => {
     const container = { innerHTML: '' };
     const plans = [{

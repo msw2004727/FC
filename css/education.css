@@ -2690,6 +2690,32 @@
   color: var(--text-secondary);
   font-size: .74rem;
 }
+.edu-course-detail-tags-secondary span {
+  border-color: rgba(59, 130, 246, .2);
+  background: rgba(59, 130, 246, .07);
+}
+.edu-course-detail-description {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  padding: .65rem .75rem;
+  margin-bottom: .75rem;
+}
+.edu-course-detail-description span,
+.edu-course-detail-sessions > strong {
+  display: block;
+  color: var(--text-muted);
+  font-size: .72rem;
+  margin-bottom: .25rem;
+}
+.edu-course-detail-description p {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: .86rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 .edu-course-detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2716,9 +2742,41 @@
   line-height: 1.35;
   word-break: break-word;
 }
+.edu-course-detail-sessions {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  padding: .65rem .75rem;
+  margin-bottom: .85rem;
+}
+.edu-course-detail-sessions > div {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: .5rem;
+  padding: .38rem 0;
+  border-top: 1px solid var(--border);
+}
+.edu-course-detail-sessions > div:first-of-type {
+  border-top: 0;
+}
+.edu-course-detail-sessions span {
+  color: var(--text-muted);
+  font-size: .74rem;
+}
+.edu-course-detail-sessions em {
+  color: var(--text-primary);
+  font-size: .84rem;
+  font-style: normal;
+  line-height: 1.4;
+  word-break: break-word;
+}
 @media (max-width: 560px) {
   .edu-course-detail-grid {
     grid-template-columns: 1fr;
+  }
+  .edu-course-detail-sessions > div {
+    grid-template-columns: 1fr;
+    gap: .16rem;
   }
 }
 
