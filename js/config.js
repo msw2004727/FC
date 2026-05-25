@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260525t';
+const CACHE_VERSION = '0.20260525u';
 
 const GOOGLE_MAPS_BROWSER_API_KEY = '';
 
@@ -187,6 +187,19 @@ function shouldUseServerRegistration() {
 }
 
 function shouldUseServerRegistrationForCancel() {
+  try {
+    if (typeof ModeManager !== 'undefined'
+      && typeof ModeManager.getMode === 'function'
+      && ModeManager.getMode() === 'production') {
+      return true;
+    }
+  } catch (_err) {
+    // Fall back to the shared rollout helper below.
+  }
+  return typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration();
+}
+
+function shouldUseServerRegistrationForSignup() {
   try {
     if (typeof ModeManager !== 'undefined'
       && typeof ModeManager.getMode === 'function'

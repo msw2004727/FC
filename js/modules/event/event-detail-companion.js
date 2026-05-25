@@ -248,7 +248,9 @@ Object.assign(App, {
     this._closeCompanionSelectModal();
 
     try {
-      const useCF = typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration();
+      const useCF = typeof shouldUseServerRegistrationForSignup === 'function'
+        ? shouldUseServerRegistrationForSignup()
+        : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration());
 
       let regCount, wlCount, total;
 
@@ -887,7 +889,9 @@ Object.assign(App, {
       }
 
       if (toRegister.length > 0) {
-        const useRegisterCF = typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration();
+        const useRegisterCF = typeof shouldUseServerRegistrationForSignup === 'function'
+          ? shouldUseServerRegistrationForSignup()
+          : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration());
         if (useRegisterCF) {
           const cfPayload = {
             eventId,

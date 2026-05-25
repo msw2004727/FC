@@ -1855,7 +1855,7 @@ describe("/events/{eventId}", () => {
     );
   });
 
-  test("user owner/delegate can promote waitlisted registrations only when site_operate is enabled", async () => {
+  test("user owner needs site_operate but explicit delegate can promote waitlisted registrations", async () => {
     await seedDoc("events", "event_user_operator", {
       id: "event_user_operator",
       title: "User Operator",
@@ -1910,6 +1910,17 @@ describe("/events/{eventId}", () => {
     });
     await assertFails(
       updateDoc(doc(user(), "registrations", "reg_wait_cap_disabled"), {
+        status: "confirmed",
+      })
+    );
+    await seedDoc("registrations", "reg_wait_delegate_cap_disabled", {
+      id: "reg_wait_delegate_cap_disabled",
+      eventId: "event_user_operator",
+      userId: "uidB",
+      status: "waitlisted",
+    });
+    await assertSucceeds(
+      updateDoc(doc(roleContext("uidDelegate", "user"), "registrations", "reg_wait_delegate_cap_disabled"), {
         status: "confirmed",
       })
     );
@@ -1976,7 +1987,7 @@ describe("/events/{eventId}", () => {
     );
   });
 
-  test("user owner/delegate subcollection attendance writes require site_operate", async () => {
+  test("user owner attendance writes require site_operate but explicit delegate can write attendance", async () => {
     await seedDoc("events", "event_user_attendance", {
       id: "event_user_attendance",
       title: "User Attendance",
@@ -2035,8 +2046,20 @@ describe("/events/{eventId}", () => {
         type: "checkin",
       })
     );
+    await assertSucceeds(
+      setDoc(doc(roleContext("uidDelegate", "user"), "events", "event_user_attendance", "attendanceRecords", "att_delegate_disabled"), {
+        eventId: "event_user_attendance",
+        uid: "uidB",
+        type: "checkout",
+      })
+    );
     await assertFails(
       updateDoc(doc(user(), "events", "event_user_attendance", "attendanceRecords", "att_existing"), {
+        status: "removed",
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(roleContext("uidDelegate", "user"), "events", "event_user_attendance", "attendanceRecords", "att_existing"), {
         status: "removed",
       })
     );

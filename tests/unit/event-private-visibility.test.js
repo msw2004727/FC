@@ -181,6 +181,14 @@ describe('private activity visibility for admin-below managers', () => {
     expect(app._canDeleteActivity(privateDelegated)).toBe(false);
   });
 
+  test('explicit user delegate can operate assigned roster without global site_operate', () => {
+    const app = makeRuntime({ role: 'user', activityCaps: [] });
+
+    expect(app._canOperateEventSite(privateDelegated)).toBe(true);
+    expect(app._canOperateEventSite(privateOwn)).toBe(false);
+    expect(app._canRemoveConfirmedParticipant(privateDelegated)).toBe(false);
+  });
+
   test('_getVisibleEvents hides non-owned private activities but keeps public, own, and delegated private activities', () => {
     const events = [privateOther, privateOwn, privateDelegated, publicOther];
     const app = makeRuntime({ role: 'coach', events });

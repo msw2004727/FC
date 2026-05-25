@@ -1096,7 +1096,9 @@ Object.assign(App, {
       let result;
       const useCF = isEarlyBirdSignup && typeof shouldUseServerRegistrationForEarlyBird === 'function'
         ? shouldUseServerRegistrationForEarlyBird()
-        : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration());
+        : (typeof shouldUseServerRegistrationForSignup === 'function'
+          ? shouldUseServerRegistrationForSignup()
+          : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration()));
       signupUseCF = useCF;
       if (useCF) {
         signupRequestId = `${userId}_${id}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;

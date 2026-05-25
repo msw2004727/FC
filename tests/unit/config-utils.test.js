@@ -456,6 +456,19 @@ function shouldUseServerRegistrationForCancel() {
   return typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration();
 }
 
+function shouldUseServerRegistrationForSignup() {
+  try {
+    if (typeof ModeManager !== 'undefined'
+      && typeof ModeManager.getMode === 'function'
+      && ModeManager.getMode() === 'production') {
+      return true;
+    }
+  } catch (_err) {
+    // Fall back to the shared rollout helper below.
+  }
+  return typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration();
+}
+
 function shouldUseServerRegistrationForEarlyBird() {
   try {
     if (typeof ModeManager !== 'undefined'
@@ -1203,6 +1216,30 @@ describe('shouldUseServerRegistrationForCancel', () => {
     _serverRegistrationFallback = true;
 
     expect(shouldUseServerRegistrationForCancel()).toBe(true);
+  });
+});
+
+describe('shouldUseServerRegistrationForSignup', () => {
+  beforeEach(() => {
+    ModeManager = null;
+    _serverRegistrationFallback = false;
+  });
+
+  test('forces Cloud Function signup path in production even when rollout fallback is false', () => {
+    ModeManager = { getMode: () => 'production' };
+    _serverRegistrationFallback = false;
+
+    expect(shouldUseServerRegistrationForSignup()).toBe(true);
+  });
+
+  test('uses the shared rollout helper outside production', () => {
+    ModeManager = { getMode: () => 'demo' };
+
+    _serverRegistrationFallback = false;
+    expect(shouldUseServerRegistrationForSignup()).toBe(false);
+
+    _serverRegistrationFallback = true;
+    expect(shouldUseServerRegistrationForSignup()).toBe(true);
   });
 });
 

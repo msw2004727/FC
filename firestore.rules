@@ -324,12 +324,27 @@ service cloud.firestore {
         );
     }
 
+    function isEventSiteOperatorForData(eventData) {
+      return isEventOperatorForData(eventData)
+        || (
+          isAuth()
+          && eventData != null
+          && authRole() == 'user'
+          && canOperatePrivateEventData(eventData)
+          && eventDataHasDelegateUid(eventData, request.auth.uid)
+        );
+    }
+
     function pathEventData(eventDocId) {
       return get(/databases/$(database)/documents/events/$(eventDocId)).data;
     }
 
     function isEventOperatorForPath(eventDocId) {
       return isEventOperatorForData(pathEventData(eventDocId));
+    }
+
+    function isEventSiteOperatorForPath(eventDocId) {
+      return isEventSiteOperatorForData(pathEventData(eventDocId));
     }
 
     function requestEventIdMatchesPath(eventDocId) {
@@ -1487,7 +1502,7 @@ service cloud.firestore {
       allow create: if isAdmin() || isRegistrationOwnerRequest();
       allow update: if isAdmin()
         || (isRegistrationOwnerResource() && isRegistrationOwnerRequest() && isRegistrationOwnerSafeUpdate())
-        || (isWaitlistPromotion() && isEventOperatorForData(getRegEventData()))
+        || (isWaitlistPromotion() && isEventSiteOperatorForData(getRegEventData()))
         || (isWaitlistDemotion() && isEventOperatorForData(getRegEventData()))
         || (isManagerRegistrationRemoval() && isEventOperatorForData(getRegEventData()))
         || (isRegistrationOwnerResource() && isBadgeOnlyUpdate())
@@ -2309,7 +2324,7 @@ service cloud.firestore {
       allow create: if isAdmin() || isSubRegOwnerRequest();
       allow update: if isAdmin()
         || (isSubRegOwner() && isSubRegOwnerRequest() && isSubRegOwnerSafeUpdate())
-        || (isSubWaitlistPromotion() && isEventOperatorForData(getSubRegEventData()))
+        || (isSubWaitlistPromotion() && isEventSiteOperatorForData(getSubRegEventData()))
         || (isSubWaitlistDemotion() && isEventOperatorForData(getSubRegEventData()))
         || (isSubManagerRegistrationRemoval() && isEventOperatorForData(getSubRegEventData()))
         || (isSubRegOwner() && isSubBadgeOnlyUpdate())
@@ -2349,9 +2364,9 @@ service cloud.firestore {
       }
 
       allow read: if isAuth();
-      allow create: if isEventOperatorForPath(eventId)
+      allow create: if isEventSiteOperatorForPath(eventId)
         && requestEventIdMatchesPath(eventId);
-      allow update: if isEventOperatorForPath(eventId)
+      allow update: if isEventSiteOperatorForPath(eventId)
         && isSubAttendanceStatusUpdate();
       allow delete: if false;
     }
@@ -2364,9 +2379,9 @@ service cloud.firestore {
 
       allow read: if isAuth();
       allow create: if requestEventIdMatchesPath(eventId)
-        && (isUserFieldOwnerRequest() || isEventOperatorForPath(eventId));
+        && (isUserFieldOwnerRequest() || isEventSiteOperatorForPath(eventId));
       allow update: if isAuth()
-        && (isUserFieldOwnerResource() || isAdmin() || (isSubActivityStatusOnly() && isEventOperatorForPath(eventId)));
+        && (isUserFieldOwnerResource() || isAdmin() || (isSubActivityStatusOnly() && isEventSiteOperatorForPath(eventId)));
       allow delete: if isAdmin();
     }
 

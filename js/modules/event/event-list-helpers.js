@@ -385,6 +385,7 @@ Object.assign(App, {
     if (this._canManageAllActivities()) return true;
     if (this._hasActivityManageEntry() && this._canManageScopedActivity(e)) return true;
     if ((this.hasPermission('event.scan') || this.hasPermission('event.manual_checkin')) && this._canManageScopedActivity(e)) return true;
+    if (this._getCurrentActivityRoleKey() === 'user' && this._isEventDelegate(e)) return true;
     return this._getCurrentActivityRoleKey() === 'user'
       && this._canManageScopedActivity(e)
       && this._hasUserActivityCapability('user.activity.site_operate');
