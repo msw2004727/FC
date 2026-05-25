@@ -3,9 +3,10 @@
 ToosterX 是一套以 LINE LIFF 為主要入口的台灣運動社群平台，核心涵蓋活動報名、俱樂部、賽事、課程、通知、後台管理、日誌診斷與 SEO 內容。
 
 - 正式站: <https://toosterx.com>
-- 目前前端快取版本: `0.20260515e`
+- 目前前端快取版本: `0.20260525a`
 - 專案狀態: Source-available, All Rights Reserved
 - 主部署方式: push 到 `main` 後由 Cloudflare Pages / GitHub Pages 靜態部署流程發布
+- 主要入口: LINE Mini App URL (`https://miniapp.line.me/2009525300-AuPGQ0sh`)；網站 deep link (`?event=` / `?team=` / `?tournament=` / `?profile=`) 與 OG 中繼頁 (`/event-share/{id}`) 會自動橋接到 Mini App
 
 本 repo 是目前正式產品使用中的程式碼庫。主應用是無 bundler 的 Vanilla JavaScript SPA，搭配 Firebase Firestore、Firebase Storage、Firebase Cloud Functions、LINE LIFF、LINE Messaging API、Service Worker 與 GitHub Actions 測試流程。
 
@@ -17,14 +18,16 @@ ToosterX 不是展示用 demo，而是面向實際運動社群營運的產品。
 
 目前功能重點:
 
-- 活動探索、報名、取消、候補、同行者報名、團隊報名佔位、出席紀錄、未出席統計與活動管理。
-- 俱樂部列表、俱樂部內頁、成員角色、邀請 QR Code、俱樂部動態、俱樂部賽事紀錄與隊伍分享。
+- 活動探索、報名、取消、候補、同行者報名、團隊報名佔位、出席紀錄、放鴿子（未出席）統計與活動管理；活動詳情頁採用局部 DOM 更新，操作後不再跳頂。
+- 活動黑名單（`event-blocklist`）：管理者可隱藏特定使用者對該活動的可見性與寫入入口；曾報名者尊重歷史保留可見性，並含完整 audit log。
+- 俱樂部列表、俱樂部內頁（v2 版型）、成員角色、邀請 QR Code、俱樂部動態、俱樂部賽事紀錄與隊伍分享。
 - 友誼賽 / 賽事系統，包含隊伍申請、名單、審核、退出與分享內容。
-- 課程 / 教育功能，包含課程方案、報名、學生名單、家長綁定、簽到與課程通知。
-- 個人資料、頭像 / 圖片上傳、個人儀表板、出席統計、EXP、成就、排行榜與遊戲化頁面。
-- 後台使用者、角色、權限、活動紀錄、操作日誌、稽核日誌、錯誤日誌、通知模板、廣告、SEO 與系統診斷。
-- LINE Messaging API 推播、使用者 inbox、通知設定與可追蹤的稽核紀錄。
-- SEO landing pages、blog 文章、sitemap、robots、結構化資料與 GSC 輔助腳本。
+- 課程 / 教育功能，包含課程方案、報名、學生名單、家長綁定、簽到、月曆與課程通知。
+- 個人資料、頭像 / 圖片上傳、個人儀表板（含主辦活動分頁、相關活動捷徑）、出席統計、EXP、成就、排行榜與遊戲化頁面（kickball、shot-game、color-cat 養成）。
+- 後台使用者、角色、權限、活動紀錄、操作日誌、稽核日誌、錯誤日誌、通知模板、廣告、SEO 與系統診斷；含一次性權限稽核報告（`permission-audit`）。
+- LINE Messaging API 推播、使用者 inbox、私訊（PM）、通知設定與可追蹤的稽核紀錄。
+- SEO landing pages、blog 文章、多份動態 sitemap、robots、結構化資料、changelog 自動同步與 GSC 輔助腳本。
+- 子專案：`inventory/`（庫存管理 PWA）、`valuation/`（估值頁）、`game-lab.html` / `GrowthGames.html`（遊戲實驗室），維護各自獨立版號。
 
 ---
 
@@ -55,7 +58,7 @@ ToosterX 不是展示用 demo，而是面向實際運動社群營運的產品。
 | `index.html` | SPA 入口、boot overlay、CSS/JS 載入、LIFF/Firebase 啟動流程 |
 | `app.js` | 主要 `App` 物件、初始化流程、共用 UI helper、導航整合 |
 | `sw.js` | Service Worker、靜態快取、圖片快取與舊快取清理 |
-| `css/` | 依頁面 / 功能拆分的樣式，目前 17 個 CSS 檔 |
+| `css/` | 依頁面 / 功能拆分的樣式，目前 19 個 CSS 檔 |
 | `pages/` | 由 `PageLoader` 載入的 HTML page fragments，目前 20 個頁面檔 |
 | `js/config.js` | 全域常數、cache version、角色、權限、運動圖示、頁面載入策略 |
 | `js/firebase-config.js` | Firebase SDK 初始化 |
@@ -65,15 +68,17 @@ ToosterX 不是展示用 demo，而是面向實際運動社群營運的產品。
 | `js/core/` | page loader、script loader、navigation、theme、button loading |
 | `js/modules/` | 主要功能模組，多數以 `Object.assign(App, {...})` 掛入 |
 | `functions/` | Firebase Cloud Functions 原始碼與套件設定 |
-| `firestore.rules` | Firestore security rules，目前約 1,481 行 |
+| `firestore.rules` | Firestore security rules，目前約 2,725 行 |
 | `storage.rules` | Firebase Storage 圖片讀寫規則 |
 | `tests/` | Unit、Firestore rules、E2E 測試 |
 | `docs/` | 架構、測試覆蓋、調校參數、SEO log、活躍計畫、歸檔計畫與預覽檔 |
 | `blog/` | SEO blog 文章頁 |
 | `seo/` | SEO landing pages |
-| `scripts/` | 版本 bump、GSC、sitemap、migration、維護腳本 |
-| `_headers` | Cloudflare Pages cache 與 robots headers |
-| `robots.txt`、`sitemap.xml` | 搜尋引擎爬取控制 |
+| `changelog/` | 公開更新紀錄（GitHub Actions 自動同步 commit 標題） |
+| `inventory/`、`valuation/` | 獨立子專案（庫存管理 PWA、估值頁） |
+| `scripts/` | 版本 bump、GSC、sitemap、changelog、migration、維護腳本 |
+| `_headers`、`_routes.json`、`_worker.js` | Cloudflare Pages 設定（cache headers、路由、OG 中繼頁 worker） |
+| `robots.txt`、`sitemap.xml`、`sitemap-events.xml`、`sitemap-teams.xml`、`sitemap-tournaments.xml`、`sitemap-static.xml` | 搜尋引擎爬取控制（多份動態 sitemap，由 `scripts/build-sitemap.js` 維護） |
 
 文件整理規則:
 
@@ -86,12 +91,12 @@ ToosterX 不是展示用 demo，而是面向實際運動社群營運的產品。
 
 依目前 repo 盤點:
 
-- `rg --files` 回傳 1070 個專案檔案。
-- `js/` 底下目前有 282 個 JavaScript 檔。
-- `js/modules/` 底下有 16 個主要功能模組資料夾。
-- `tests/unit/` 目前有 126 個 unit test 檔。
-- `functions/index.js` 目前有 64 個 exported Cloud Functions。
-- `blog/` 目前有 22 個 HTML 文章 / 索引頁。
+- `git ls-files` 回傳 1,153 個受版控檔案。
+- `js/` 底下目前有 297 個 JavaScript 檔。
+- `js/modules/` 底下有 16 個主要功能模組資料夾與 31 個獨立模組檔。
+- `tests/unit/` 目前有 151 個 unit test 檔。
+- `functions/index.js` 目前有 68 個 exported Cloud Functions。
+- `blog/` 目前有 23 個 HTML 文章 / 索引頁。
 - `seo/` 目前有 10 個 HTML landing pages。
 
 ---
@@ -108,18 +113,18 @@ ToosterX 不是展示用 demo，而是面向實際運動社群營運的產品。
 | `auto-exp` | 2 | 自動 EXP 規則 |
 | `color-cat` | 45 | 個人場景、角色互動、MBTI 對話、場景 UI 與小遊戲邏輯 |
 | `dashboard` | 20 | 後台 / 個人 dashboard、drilldown、usage metrics |
-| `education` | 21 | 課程、報名、簽到、學生 / 家長 / 群組 / 月曆流程 |
-| `event` | 39 | 活動列表、詳情、建立、管理、報名、候補、同行者、出席、分享 |
+| `education` | 23 | 課程、報名、簽到、學生 / 家長 / 群組 / 月曆流程 |
+| `event` | 46 | 活動列表、詳情、建立、管理、報名、候補、同行者、出席、黑名單、分享、地圖、留言 |
 | `kickball` | 6 | 開球遊戲頁、物理、渲染、排行榜 |
-| `message` | 10 | Inbox、後台訊息、通知設定、LINE push helper |
+| `message` | 17 | Inbox、後台訊息、通知設定、私訊（PM）對話、LINE push helper |
 | `profile` | 9 | 個人資料、頭像、表單、卡片、歷史紀錄、統計、分享 |
 | `scan` | 5 | QR scan camera / UI / process / family flow |
 | `shot-game` | 10 | 蓄力射門 engine、renderer、physics、scoring、lab controls |
-| `team` | 16 | 俱樂部列表、詳情、表單、動態、邀請、分享、加入 |
+| `team` | 20 | 俱樂部列表、詳情（v2 版型）、表單、動態、邀請、分享、加入 |
 | `tournament` | 19 | 賽事核心、詳情、渲染、管理、友誼賽名單 / 申請 / 分享 |
-| `user-admin` | 10 | 使用者列表、角色、權限、EXP、修正、UID health、黑名單、權限測試報告 |
+| `user-admin` | 10 | 使用者列表、角色、權限、EXP、修正、UID health、活動黑名單、權限測試報告 |
 
-另有獨立模組，例如 `error-log`、`admin-log-tabs`、`favorites`、`image-upload`、`image-cropper`、`leaderboard`、`multi-tab-guard`、`pwa-install`、`registration-audit`、`role`、`shop`、`sync-status`、`translate`。
+另有 31 個獨立模組分散於 `js/modules/` 根目錄，例如 `error-log`、`error-log-insights`、`error-log-diagnostics`、`admin-log-tabs`、`audit-log`、`announcement`、`attendance-notify`、`auto-exp-rules`、`banner`、`data-sync`、`favorites`、`game-log-viewer`、`game-manage`、`home-dashboard`、`home-game-rank-preview`、`home-next-activity`、`image-upload`、`image-cropper`、`leaderboard`、`multi-tab-guard`、`news`、`popup-ad`、`pwa-install`、`registration-audit`、`role`、`shop`、`site-theme`、`sync-status`、`translate`。
 
 ---
 
@@ -142,6 +147,21 @@ Firestore 是主要資料來源，前端再搭配 local cache、realtime listene
 - `operationLogs`: 一般後台 / 系統操作紀錄。
 - `errorLogs`: 前端與系統錯誤診斷紀錄。
 - `auditLogsByDay/{dayKey}/auditEntries`: 敏感操作與關鍵行為稽核紀錄。
+
+---
+
+## 分享與 deep link 規則
+
+主要使用者群在 LINE 內，所有面向用戶的分享連結原則使用 LINE Mini App URL：
+
+```
+https://miniapp.line.me/2009525300-AuPGQ0sh?{event|team|tournament|profile}={id}
+```
+
+- 全域常數定義在 `js/config.js` 的 `MINI_APP_BASE_URL`。
+- 根網址 `toosterx.com/?event=` / `?team=` / `?tournament=` / `?profile=` 由 `index.html` 中繼跳轉到 Mini App URL，向後相容舊連結。
+- 活動「複製連結」例外採用 OG 中繼頁 `toosterx.com/event-share/{id}`：搜尋引擎與社群爬蟲停留讀取 OG 卡片，一般使用者自動進網站活動頁 `/events/{id}`，LINE 內開啟仍會進 Mini App。
+- 詳細規範與分享功能遷移狀態請見 `CLAUDE.md` 的「分享功能設計規範」章節。
 
 ---
 
@@ -249,6 +269,8 @@ CI 目前會跑:
 
 修改 rules、permissions、報名流程、team feed、audit/error logs、Cloud Functions 或資料契約時，先跑最小相關測試，再跑較完整的 suite 後再 push。
 
+`.github/workflows/` 內另有定期維護任務：`build-sitemap.yml`（動態 sitemap 重建）、`inject-hot-events.yml`（首頁摘要 inline）、`gsc-snapshot.yml` / `verify-gsc-read.yml`（Google Search Console 快照）、`submit-sitemap.yml`（sitemap 提交）、`sync-changelog.yml`（公開 changelog 同步）、`ci-usage-snapshot.yml`（用量快照）、`lighthouse.yml`（效能稽核）。這些工作流會自動 commit `[skip ci]` 結果，不會觸發測試循環。
+
 ---
 
 ## 部署
@@ -273,80 +295,3 @@ firebase deploy --only firestore:rules --project fc-football-6c8dc
 ```
 
 ### Cloud Functions
-
-只有在 `functions/` 或 callable / onRequest / onSchedule 行為有變更時才部署:
-
-```bash
-firebase deploy --only functions --project fc-football-6c8dc
-```
-
-低風險情境下可優先使用 targeted function deploy。
-
----
-
-## SEO 維護面
-
-公開 SEO 面包含:
-
-- `seo/*.html` 運動 / 地區 landing pages。
-- `blog/**/*.html` 規則、裝備、指南類內容。
-- `sitemap.xml`。
-- `robots.txt`。
-- `_headers`。
-- 靜態頁內的 JSON-LD。
-- `docs/seo-log.md`，用來記錄 SEO / GSC 修補與決策。
-- `scripts/gsc-snapshot.js`、`scripts/submit-sitemap.js` 等 GSC helper。
-
-修改 SEO 頁面時:
-
-- 驗證 JSON-LD，特別是 FAQ answer 內嵌引號。
-- 新增或移除公開頁時同步更新 `sitemap.xml`。
-- 維持 canonical URL 與 `hreflang` 一致。
-- 有意義的 SEO / GSC 修補要記錄到 `docs/seo-log.md`。
-
----
-
-## AI 與維護者工作規則
-
-開始任何分析、規劃、修改、測試、提交或回覆前，必須先閱讀 `CLAUDE.md`。`AGENTS.md` 只保留入口說明，主規則來源是 `CLAUDE.md`。
-
-維護原則:
-
-- 變更範圍要貼近需求，不順手重構無關區域。
-- 不要 revert 不屬於自己這次工作的既有變更。
-- 優先沿用既有 helper、資料契約與模組風格。
-- 搜尋檔案與內容優先使用 `rg`。
-- runtime 前端變更要使用 `scripts/bump-version.js`。
-- 修改行為、權限、rules、日誌、報名流程或資料契約時，要補或更新測試。
-- 避免用 shell 直接重寫 repo 檔案，手動編輯應使用 patch。
-- 編輯中文內容要保留 UTF-8，並檢查是否出現 mojibake。
-- 重要 bug 修補與長期教訓要更新 `docs/claude-memory.md`。
-- SEO 修補要更新 `docs/seo-log.md`。
-
-常用文件:
-
-- `CLAUDE.md`: 專案主規則與 SOP。
-- `docs/architecture.md`: 架構與模組說明。
-- `docs/structure-guide.md`: 功能模組拆分指南。
-- `docs/test-coverage.md`: 測試覆蓋參考。
-- `docs/tunables.md`: timing、limit、threshold、load order、sequence effects。
-- `docs/seo-log.md`: SEO 與 GSC 變更紀錄。
-- `docs/claude-memory.md`: 重要修補歷史與長期注意事項。
-- `docs/archive/`: 已結束或歷史審計計畫書。
-- `docs/completed/`: 已完成且仍需保留驗收脈絡的計畫。
-- `docs/specs/`: 正式規格與長期設計文件。
-- `docs/previews/`: 臨時或低風險的視覺預覽 HTML。
-
----
-
-## License
-
-本專案採 Source-available, All Rights Reserved。詳細條款請見 [`LICENSE`](LICENSE)。
-
-簡要說明：
-
-- 原始碼公開僅供檢視、參考、資安審查或合作評估。
-- GitHub 上可見、可閱讀、可使用 GitHub 平台內建 fork / view 機制，不代表授權重製、散布、商用、改作、重新部署、自架、白牌化、建立競品或取用程式碼片段到其他產品。
-- 任何外部使用都需要專案所有人的明確書面授權。
-
-Copyright 2024-2026 ToosterX. All rights reserved.
