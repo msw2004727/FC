@@ -122,6 +122,25 @@ describe('activity create button', () => {
     expect(i18nSource).toContain('"編輯活動": "Edit activity"');
   });
 
+  test('activity create/edit modal keeps shared DOM contract and safe preview rendering', () => {
+    const activityHtml = readProjectFile('pages/activity.html');
+    const activityCss = readProjectFile('css/activity.css');
+    const createSource = readProjectFile('js/modules/event/event-create.js');
+    const lifecycleSource = readProjectFile('js/modules/event/event-manage-lifecycle.js');
+    const contractSource = readProjectFile('js/modules/event/event-create-view-model.js');
+
+    expect(activityHtml).toContain('id="create-event-modal"');
+    expect(activityHtml).toContain('ce-form ce-form-v2');
+    expect(contractSource).toContain("'ce-title'");
+    expect(contractSource).toContain("'ce-submit-btn'");
+    expect(createSource).toContain('_ensureCreateEventDomContract()');
+    expect(createSource).toContain('this._getCreateEventDomContract?.()');
+    expect(createSource).toContain('_applyCreateEventUiVariant()');
+    expect(lifecycleSource).toContain('this._ensureCreateEventDomContract?.()');
+    expect(lifecycleSource).toContain('this._renderSafeImageTag?.(previewImage');
+    expect(activityCss).toContain('#create-event-modal.ce-v2-enabled .ce-form-v2');
+  });
+
   test('activity age limit is controlled by a toggle and submits zero when disabled', () => {
     const activityHtml = readProjectFile('pages/activity.html');
     const createSource = readProjectFile('js/modules/event/event-create.js');

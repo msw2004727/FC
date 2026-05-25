@@ -19,6 +19,7 @@ Object.assign(App, {
     if (!this._canEditOwnActivityBasic?.(e)) { this.showToast('您只能編輯自己的活動'); return; }
     // 外部活動走專用編輯流程
     if (e.type === 'external') { this.editExternalActivity(id); return; }
+    if (!this._ensureCreateEventDomContract?.()) return;
     this._editEventId = id;
     this._eventImageVariantsData = null;
     // 確保事件已綁定（防止 Phase 1 非同步時機導致未綁定）
@@ -36,6 +37,7 @@ Object.assign(App, {
     this.bindRegionToggle?.();
     this._bindCreateTimeSummary?.();
     this._setCreateEventModalMode?.(true);
+    this._applyCreateEventUiVariant?.();
     this.showModal('create-event-modal');
     this._eventSubmitInFlight = false;
     this._setCreateEventSubmitIdleLabel('儲存修改');
@@ -96,8 +98,18 @@ Object.assign(App, {
     const preview = document.getElementById('ce-upload-preview');
     const previewImage = this._getEventImageUrl?.(e, 'cover') || e.image;
     if (previewImage && preview) {
-      preview.innerHTML = `<img src="${previewImage}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">`;
-      preview.classList.add('has-image');
+      const imageHtml = this._renderSafeImageTag?.(previewImage, {
+        style: 'width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)',
+        alt: '',
+        loading: false,
+      }) || '';
+      if (imageHtml) {
+        preview.innerHTML = imageHtml;
+        preview.classList.add('has-image');
+      } else {
+        preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">點擊上傳圖片</span><span class="ce-upload-hint">建議尺寸 800 × 300 px｜JPG / PNG｜最大 2MB</span>';
+        preview.classList.remove('has-image');
+      }
     }
     // 委託人預填
     this._delegates = Array.isArray(e.delegates) ? [...e.delegates] : [];

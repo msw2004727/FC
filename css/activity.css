@@ -2508,6 +2508,69 @@ body.activity-map-open{overflow:hidden}
 .host-list-header{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1.2rem;border-bottom:1px solid var(--border);position:relative}
 .host-list-header h3{font-size:1rem;font-weight:700;color:var(--text-primary)}
 .host-list-header .modal-close{background:none;border:none;font-size:1.2rem;color:var(--text-muted);cursor:pointer;padding:.2rem}
+
+/* Activity create/edit V2 shell. Kept scoped to avoid changing tournament/team forms that share .ce-* classes. */
+#create-event-modal.ce-v2-enabled .modal-body {
+  padding: .85rem;
+}
+#create-event-modal.ce-v2-enabled .ce-form-v2 {
+  gap: .85rem;
+}
+#create-event-modal.ce-v2-enabled .ce-form-v2 > .ce-row,
+#create-event-modal.ce-v2-enabled .ce-value-section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  padding: .7rem .75rem;
+}
+#create-event-modal.ce-v2-enabled .ce-form-v2 > .ce-row {
+  margin: 0;
+}
+#create-event-modal.ce-v2-enabled .ce-label-row {
+  align-items: center;
+}
+#create-event-modal.ce-v2-enabled .ce-upload-placeholder {
+  min-height: 9rem;
+  border-radius: 8px;
+}
+#create-event-modal.ce-v2-enabled .ce-time-row {
+  gap: .45rem;
+}
+#create-event-modal.ce-v2-enabled .ce-value-section-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .6rem;
+}
+#create-event-modal.ce-v2-enabled .ce-value-section .ce-row {
+  margin: 0;
+  min-width: 0;
+}
+#create-event-modal.ce-v2-enabled .ce-value-section .ce-row + .ce-row {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+#create-event-modal.ce-v2-enabled .ce-value-item {
+  border: 1px solid rgba(13, 148, 136, .14);
+  border-radius: 8px;
+  background: var(--bg-card);
+  padding: .58rem .62rem;
+}
+#create-event-modal.ce-v2-enabled .ce-value-reserved {
+  opacity: .72;
+}
+@media (max-width: 640px) {
+  #create-event-modal.ce-v2-enabled .ce-value-section-body {
+    grid-template-columns: 1fr;
+  }
+  #create-event-modal.ce-v2-enabled .ce-time-row {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  #create-event-modal.ce-v2-enabled .ce-time-separator {
+    display: none;
+  }
+}
 .host-list-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:.5rem}
 .hl-table{width:100%;border-collapse:collapse;font-size:.8rem}
 .hl-table th,.hl-table td{padding:.45rem .4rem;border-bottom:1px solid var(--border)}

@@ -41,6 +41,20 @@ Object.assign(App, {
     }
   },
 
+  _ensureCreateEventDomContract() {
+    const contract = this._getCreateEventDomContract?.();
+    if (!contract || contract.ok) return true;
+    console.error('[EventCreate] missing required DOM ids:', contract.missing);
+    this.showToast?.('活動表單載入不完整，請重新整理後再試');
+    return false;
+  },
+
+  _applyCreateEventUiVariant() {
+    const modal = document.getElementById('create-event-modal');
+    if (!modal) return;
+    modal.classList.toggle('ce-v2-enabled', this._isActivityCreateUiV2Enabled?.() !== false);
+  },
+
   _setCreateEventSubmitting(isSubmitting) {
     const submitBtn = document.getElementById('ce-submit-btn');
     if (!submitBtn) return;
@@ -398,6 +412,7 @@ Object.assign(App, {
       this.showToast('權限不足：需要建立活動權限');
       return;
     }
+    if (!this._ensureCreateEventDomContract()) return;
     this._editEventId = null;
     this._eventImageVariantsData = null;
     this._delegates = [];
@@ -455,6 +470,7 @@ Object.assign(App, {
     this._resetMultiDates();
     this._initMultiDatePicker();
     this._initSportTagPicker('');
+    this._applyCreateEventUiVariant();
     this.showModal('create-event-modal');
     this._initDelegateSearch();
     this._renderHistoryChips('ce-location', 'ce-location');
