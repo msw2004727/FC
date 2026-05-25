@@ -137,6 +137,22 @@ describe('edu course plan render', () => {
     expect(endedHtml).toContain('edu-cp-status-ended');
   });
 
+  test('staff course cards open detail while roster management stays on an explicit button', async () => {
+    const html = await renderPlans([{
+      id: 'planA',
+      name: 'Plan A',
+      planType: 'weekly',
+      weekdays: [1],
+      startDate: '2099-01-01',
+      endDate: '2099-02-01',
+      allowSignup: true,
+    }], true);
+
+    expect(html).toContain('data-course-plan-id="planA" onclick="App.showEduCoursePlanDetail');
+    expect(html).toContain('App.showCourseEnrollmentList');
+    expect(html.indexOf('App.showEduCoursePlanDetail')).toBeLessThan(html.indexOf('App.showCourseEnrollmentList'));
+  });
+
   test('force refresh reloads students and cached enrollments before rendering counts', async () => {
     const container = { innerHTML: '' };
     const plans = [{

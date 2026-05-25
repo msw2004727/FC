@@ -73,6 +73,7 @@ Object.assign(App, {
       return Number.isFinite(amount) && amount > 0 ? 'NT$ ' + amount.toLocaleString() : '未設定';
     };
     const renderMetric = (label, value) => '<div class="edu-cp-metric"><span>' + escapeHTML(label) + '</span><strong>' + escapeHTML(value) + '</strong></div>';
+    const jsArg = (value) => escapeHTML(String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' '));
     const renderPlanCard = (p) => {
       const typeLabel = p.planType === 'weekly' ? '固定週期' : '堂數制';
       const planEnded = isPlanEnded(p);
@@ -144,6 +145,7 @@ Object.assign(App, {
       const idx = displayPlans.indexOf(p);
       const manageHtml = isStaff
         ? '<div class="edu-cp-manage-left">'
+          + '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem" onclick="event.stopPropagation();App.showCourseEnrollmentList(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">名單</button>'
           + '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem" onclick="event.stopPropagation();App.showEduCoursePlanForm(\'' + teamId + '\',\'' + p.id + '\')">編輯</button>'
           + '<button class="outline-btn" style="font-size:.72rem;padding:.2rem .5rem;color:var(--danger)" onclick="event.stopPropagation();App.deleteEduCoursePlan(\'' + teamId + '\',\'' + p.id + '\')">刪除</button>'
           + '<span style="margin-left:auto;display:flex;gap:.2rem">'
@@ -154,9 +156,7 @@ Object.assign(App, {
           + '</div>'
         : '';
 
-      const clickAction = isStaff
-        ? ' onclick="App.showCourseEnrollmentList(\'' + teamId + '\',\'' + p.id + '\')"'
-        : '';
+      const clickAction = ' onclick="App.showEduCoursePlanDetail(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')"';
 
       return '<div class="edu-course-card edu-cp-card-v3 edu-cp-card-' + (p.planType === 'weekly' ? 'weekly' : 'session') + '" data-course-plan-id="' + escapeHTML(p.id || '') + '"' + clickAction + '>'
         + '<div class="' + visualClass + '">'
@@ -219,6 +219,71 @@ Object.assign(App, {
     this._eduCoursePlanTabByTeam = this._eduCoursePlanTabByTeam || {};
     this._eduCoursePlanTabByTeam[teamId] = tab === 'ended' ? 'ended' : 'active';
     return this.renderEduCoursePlanList(teamId, this.isEduClubStaff?.(teamId));
+  },
+
+  showEduCoursePlanDetail(teamId, planId) {
+    const plan = (this.getEduCoursePlans?.(teamId) || []).find(item => String(item.id || item._docId || '') === String(planId || ''));
+    if (!plan) {
+      this.showToast?.('找不到課程資料');
+      return;
+    }
+    const jsArg = (value) => escapeHTML(String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' '));
+    const view = typeof this._normalizeCoursePlanViewModel === 'function'
+      ? this._normalizeCoursePlanViewModel(plan)
+      : {
+          name: plan.name || '未命名課程',
+          typeLabel: plan.planType === 'session' ? '堂數制' : '固定週期',
+          groupName: plan.groupName || '未分班',
+          coverUrl: String(plan.coverImage || plan.coverUrl || '').trim(),
+          dateText: plan.startDate ? plan.startDate + ' ~ ' + (plan.endDate || '') : '未設定',
+          scheduleText: plan.planType === 'weekly'
+            ? ((plan.weekdays || []).map(day => '週' + this._weekdayLabel(day)).join('、') || '未設定') + (plan.timeSlot ? ' ' + plan.timeSlot : '')
+            : '共 ' + (plan.totalSessions || 0) + ' 堂',
+          priceText: Number(plan.price || 0) > 0 ? 'NT$ ' + Number(plan.price || 0).toLocaleString() : '免費',
+          countText: (plan._effectiveCount || 0) + (plan.maxCapacity ? '/' + plan.maxCapacity : '') + ' 人',
+          status: { label: plan.endDate && plan.endDate < new Date().toISOString().slice(0, 10) ? '已結束' : (plan.allowSignup ? '招生中' : '暫停報名') },
+          tags: [],
+        };
+    const isStaff = !!this.isEduClubStaff?.(teamId);
+    const existing = document.querySelector?.('.edu-course-detail-overlay');
+    if (existing) existing.remove();
+    const overlay = document.createElement('div');
+    overlay.className = 'edu-info-overlay edu-course-detail-overlay';
+    overlay.onclick = (event) => { if (event.target === overlay) overlay.remove(); };
+
+    const coverHtml = view.coverUrl
+      ? '<div class="edu-course-detail-cover"><img src="' + escapeHTML(view.coverUrl) + '" alt="" loading="lazy" decoding="async"></div>'
+      : '<div class="edu-course-detail-cover edu-course-detail-cover-empty"><span>Course</span></div>';
+    const tagHtml = (view.tags || []).length
+      ? '<div class="edu-course-detail-tags">' + view.tags.map(tag => '<span>' + escapeHTML(tag) + '</span>').join('') + '</div>'
+      : '';
+    const staffActions = isStaff
+      ? '<button type="button" class="outline-btn small" onclick="event.stopPropagation();this.closest(\'.edu-info-overlay\').remove();App.showCourseEnrollmentList(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\')">管理名單</button>'
+        + '<button type="button" class="outline-btn small" onclick="event.stopPropagation();this.closest(\'.edu-info-overlay\').remove();App.showEduCoursePlanForm(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\')">編輯課程</button>'
+      : '';
+    overlay.innerHTML = '<div class="edu-info-dialog edu-course-detail-dialog">'
+      + '<div class="edu-course-detail-head">'
+        + '<div>'
+          + '<span class="edu-course-detail-eyebrow">' + escapeHTML(view.typeLabel) + ' · ' + escapeHTML(view.status?.label || '') + '</span>'
+          + '<h3>' + escapeHTML(view.name) + '</h3>'
+          + '<p>' + escapeHTML(view.groupName) + '</p>'
+        + '</div>'
+        + '<button class="modal-close-btn" onclick="this.closest(\'.edu-info-overlay\').remove()">×</button>'
+      + '</div>'
+      + coverHtml
+      + tagHtml
+      + '<div class="edu-course-detail-grid">'
+        + '<div><span>期間</span><strong>' + escapeHTML(view.dateText) + '</strong></div>'
+        + '<div><span>上課安排</span><strong>' + escapeHTML(view.scheduleText) + '</strong></div>'
+        + '<div><span>費用</span><strong>' + escapeHTML(view.priceText) + '</strong></div>'
+        + '<div><span>人數</span><strong>' + escapeHTML(view.countText) + '</strong></div>'
+      + '</div>'
+      + '<div class="modal-actions">'
+        + staffActions
+        + (!isStaff && plan.allowSignup && !this._isCoursePlanEnded?.(plan) ? '<button type="button" class="primary-btn" onclick="event.stopPropagation();this.closest(\'.edu-info-overlay\').remove();App.applyCourseEnrollment(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\')">我要報名</button>' : '')
+      + '</div>'
+      + '</div>';
+    document.body.appendChild(overlay);
   },
 
 });

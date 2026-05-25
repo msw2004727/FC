@@ -2623,11 +2623,112 @@
     var(--bg-elevated);
 }
 
+.edu-course-detail-dialog {
+  width: min(560px, calc(100vw - 1.5rem));
+  max-height: min(82vh, 760px);
+  overflow: auto;
+}
+.edu-course-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .75rem;
+  margin-bottom: .75rem;
+}
+.edu-course-detail-head h3 {
+  margin: .18rem 0 .1rem;
+  font-size: 1.2rem;
+  line-height: 1.25;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+.edu-course-detail-head p,
+.edu-course-detail-eyebrow {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: .82rem;
+}
+.edu-course-detail-eyebrow {
+  display: inline-flex;
+  gap: .25rem;
+  align-items: center;
+  font-weight: 700;
+}
+.edu-course-detail-cover {
+  width: 100%;
+  aspect-ratio: 8 / 3;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  margin-bottom: .75rem;
+}
+.edu-course-detail-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.edu-course-detail-cover-empty {
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  font-size: .78rem;
+  letter-spacing: 0;
+}
+.edu-course-detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  margin-bottom: .75rem;
+}
+.edu-course-detail-tags span {
+  padding: .18rem .5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(13, 148, 136, .24);
+  background: rgba(13, 148, 136, .08);
+  color: var(--text-secondary);
+  font-size: .74rem;
+}
+.edu-course-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .5rem;
+  margin-bottom: .85rem;
+}
+.edu-course-detail-grid > div {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  padding: .55rem .65rem;
+}
+.edu-course-detail-grid span {
+  display: block;
+  color: var(--text-muted);
+  font-size: .72rem;
+  margin-bottom: .18rem;
+}
+.edu-course-detail-grid strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: .86rem;
+  line-height: 1.35;
+  word-break: break-word;
+}
+@media (max-width: 560px) {
+  .edu-course-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Native, regular-weight typography for club education content. */
 .edu-course-plan-section,
 .edu-course-plan-section *,
 .edu-course-card,
 .edu-course-card *,
+.edu-course-detail-dialog,
+.edu-course-detail-dialog *,
 .edu-session-board,
 .edu-session-board *,
 .edu-session-form-dialog,
