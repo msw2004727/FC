@@ -64,6 +64,8 @@ Object.assign(App, {
     const isWeekly = plan ? plan.planType === 'weekly' : true;
     const tagsValue = (key) => Array.isArray(plan?.[key]) ? plan[key].join(', ') : '';
     const fieldValue = (key) => escapeHTML(plan?.[key] || '');
+    const courseContentValue = escapeHTML(plan?.courseContent || plan?.description || '');
+    const cancellationPolicyValue = escapeHTML(plan?.cancellationPolicy || '');
 
     container.innerHTML = '<div class="ce-form" style="padding:.5rem">' +
       // Fix 5: 開放報名開關最頂置左
@@ -95,7 +97,9 @@ Object.assign(App, {
           '<div class="ce-row"><label>上課地點</label><input type="text" id="edu-cp-location" maxlength="80" placeholder="例：台中市南屯運動中心" value="' + fieldValue('location') + '"></div>' +
           '<div class="ce-row edu-cp-extra-featured"><label>精選顯示</label><label class="toggle-switch"><input type="checkbox" id="edu-cp-featured"' + (plan?.featured ? ' checked' : '') + '><span class="toggle-slider"></span></label></div>' +
         '</div>' +
-        '<div class="ce-row"><label>課程說明</label><textarea id="edu-cp-description" maxlength="500" rows="3" placeholder="補充課程目標、注意事項或適合對象">' + fieldValue('description') + '</textarea></div>' +
+        '<div class="ce-row"><label>課程內容</label><textarea id="edu-cp-course-content" maxlength="900" rows="4" placeholder="介紹課程主軸、訓練內容、適合程度與學習目標">' + courseContentValue + '</textarea></div>' +
+        '<div class="ce-row"><label>取消政策</label><textarea id="edu-cp-cancellation-policy" maxlength="500" rows="3" placeholder="例：開課前 7 日可全額退費；開課前 3 日內取消，將收取 30% 行政費；開課後恕不退費。">' + cancellationPolicyValue + '</textarea></div>' +
+        '<div class="ce-row"><label>課程說明（卡片摘要）</label><textarea id="edu-cp-description" maxlength="500" rows="2" placeholder="補充課程目標、注意事項或適合對象">' + fieldValue('description') + '</textarea></div>' +
         '<div class="edu-cp-extra-hint">標籤請用逗號分隔；這些欄位會先用於卡片與詳情顯示，不會改變報名流程。</div>' +
       '</details>' +
       '<div class="ce-row"><label>方案類型</label>' +
@@ -129,7 +133,7 @@ Object.assign(App, {
       '<hr style="border:none;border-top:1px solid var(--border);margin:.8rem 0">' +
       '<div class="ce-row"><label>容納上限</label><input type="number" id="edu-cp-capacity" min="1" max="999" placeholder="不填則不限人數" value="' + (plan && plan.maxCapacity || '') + '">' +
         '<div style="font-size:.72rem;color:var(--text-muted);margin-top:.15rem">不填則不限制報名人數</div></div>' +
-      '<div class="ce-row"><label>費用（元）</label><input type="number" id="edu-cp-price" min="0" placeholder="選填，僅供顯示" value="' + (plan && plan.price || '') + '">' +
+      '<div class="ce-row"><label>課程價格（元）</label><input type="number" id="edu-cp-price" min="0" placeholder="選填，僅供顯示" value="' + (plan && plan.price || '') + '">' +
         '<div style="font-size:.72rem;color:var(--text-muted);margin-top:.15rem">僅供顯示與繳費記錄，不含線上付款功能</div></div>' +
       '<div style="display:flex;gap:.5rem;margin-top:1rem">' +
         '<button class="outline-btn" onclick="App.goBack()">取消</button>' +
@@ -226,6 +230,8 @@ Object.assign(App, {
     const priceRaw = document.getElementById('edu-cp-price')?.value;
     const price = priceRaw ? parseInt(priceRaw, 10) : null;
     const optionalText = (id, max = 120) => (document.getElementById(id)?.value || '').trim().slice(0, max);
+    const courseContent = optionalText('edu-cp-course-content', 900);
+    const descriptionText = optionalText('edu-cp-description', 500);
 
     const data = {
       name,
@@ -245,7 +251,9 @@ Object.assign(App, {
       signupDeadline: optionalText('edu-cp-signup-deadline', 10),
       coachName: optionalText('edu-cp-coach-name', 30),
       location: optionalText('edu-cp-location', 80),
-      description: optionalText('edu-cp-description', 500),
+      courseContent,
+      cancellationPolicy: optionalText('edu-cp-cancellation-policy', 500),
+      description: descriptionText || courseContent.slice(0, 500),
       featured: !!document.getElementById('edu-cp-featured')?.checked,
     };
 

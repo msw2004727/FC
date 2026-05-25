@@ -187,7 +187,10 @@ describe('edu course plan render', () => {
         name: 'Safe Plan',
         planType: 'weekly',
         allowSignup: true,
-        description: '<img src=x onerror=alert(1)>Bring water',
+        courseContent: '<img src=x onerror=alert(1)>Bring water',
+        cancellationPolicy: 'Policy <safe>',
+        price: 3600,
+        totalSessions: 12,
         location: '<script>bad</script>',
         coachName: 'Coach <A>',
         requirementTags: ['需自備球鞋'],
@@ -226,6 +229,9 @@ describe('edu course plan render', () => {
     expect(appended).toHaveLength(1);
     expect(overlay.innerHTML).toContain('2026-05-27 09:00');
     expect(overlay.innerHTML).toContain('&lt;img src=x onerror=alert(1)&gt;Bring water');
+    expect(overlay.innerHTML).toContain('Policy &lt;safe&gt;');
+    expect(overlay.innerHTML).toContain('$3,600');
+    expect(overlay.innerHTML).toContain('12 堂 · 約 $300/堂');
     expect(overlay.innerHTML).toContain('Coach &lt;A&gt;');
     expect((overlay.innerHTML.match(/需自備球鞋/g) || []).length).toBe(1);
     expect(overlay.innerHTML).not.toContain('<script>bad</script>');
@@ -403,6 +409,8 @@ describe('edu course plan render', () => {
         signupDeadline: '2099-01-10',
         coachName: 'Coach A',
         location: 'Center A',
+        courseContent: 'Safe course content',
+        cancellationPolicy: 'Safe cancellation policy',
         description: 'Safe description',
         featured: true,
       }],
@@ -413,6 +421,10 @@ describe('edu course plan render', () => {
     expect(container.innerHTML).toContain('id="edu-cp-category-tags"');
     expect(container.innerHTML).toContain('value="fixed, beginner"');
     expect(container.innerHTML).toContain('placeholder="例：純新手or會傳接球"');
+    expect(container.innerHTML).toContain('id="edu-cp-course-content"');
+    expect(container.innerHTML).toContain('Safe course content');
+    expect(container.innerHTML).toContain('id="edu-cp-cancellation-policy"');
+    expect(container.innerHTML).toContain('Safe cancellation policy');
     expect(container.innerHTML).toContain('id="edu-cp-description"');
     expect(container.innerHTML).toContain('Safe description');
     expect(container.innerHTML).toContain('id="edu-cp-featured" checked');
@@ -436,6 +448,8 @@ describe('edu course plan render', () => {
       'edu-cp-signup-deadline': { value: '2099-01-10' },
       'edu-cp-coach-name': { value: 'Coach A' },
       'edu-cp-location': { value: 'Center A' },
+      'edu-cp-course-content': { value: 'Safe course content' },
+      'edu-cp-cancellation-policy': { value: 'Safe cancellation policy' },
       'edu-cp-description': { value: 'Safe description' },
       'edu-cp-featured': { checked: true },
       'edu-cp-start': { value: '2099-01-01' },
@@ -488,7 +502,10 @@ describe('edu course plan render', () => {
     expect(savedPayload.signupDeadline).toBe('2099-01-10');
     expect(savedPayload.coachName).toBe('Coach A');
     expect(savedPayload.location).toBe('Center A');
+    expect(savedPayload.courseContent).toBe('Safe course content');
+    expect(savedPayload.cancellationPolicy).toBe('Safe cancellation policy');
     expect(savedPayload.description).toBe('Safe description');
+    expect(savedPayload.price).toBe(2400);
     expect(savedPayload.featured).toBe(true);
   });
 });

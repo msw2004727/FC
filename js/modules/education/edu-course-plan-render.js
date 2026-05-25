@@ -254,27 +254,99 @@ Object.assign(App, {
     overlay.className = 'edu-info-overlay edu-course-detail-overlay';
     overlay.onclick = (event) => { if (event.target === overlay) overlay.remove(); };
 
-    const coverHtml = view.coverUrl
-      ? '<div class="edu-course-detail-cover"><img src="' + escapeHTML(view.coverUrl) + '" alt="" loading="lazy" decoding="async"></div>'
-      : '<div class="edu-course-detail-cover edu-course-detail-cover-empty"><span>Course</span></div>';
+    const nextWeekly = this._getCoursePlanNextWeeklyOccurrence?.(plan);
+    const formatCurrency = (value) => {
+      const amount = Number(value || 0);
+      return Number.isFinite(amount) && amount > 0 ? '$' + amount.toLocaleString() : '免費';
+    };
+    const parseDateOnly = (value) => {
+      const parts = String(value || '').split('-').map(part => parseInt(part, 10));
+      if (parts.length !== 3 || parts.some(part => !Number.isFinite(part))) return null;
+      return new Date(parts[0], parts[1] - 1, parts[2]);
+    };
+    const getStartTime = (value) => String(value || '').split(/[-~]/)[0].trim();
+    const formatProgressDate = (dateValue, timeValue) => {
+      const parsed = parseDateOnly(dateValue);
+      const time = getStartTime(timeValue);
+      if (!parsed) return [String(dateValue || '').trim(), time].filter(Boolean).join(' ');
+      const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+      return (parsed.getMonth() + 1) + '/' + String(parsed.getDate()).padStart(2, '0')
+        + '（' + weekdays[parsed.getDay()] + '）' + (time ? ' ' + time : '');
+    };
+    const getDateTimeMs = (dateValue, timeValue) => {
+      const parsed = parseDateOnly(dateValue);
+      if (!parsed) return 0;
+      const match = getStartTime(timeValue).match(/^(\d{1,2}):(\d{2})/);
+      if (match) parsed.setHours(parseInt(match[1], 10), parseInt(match[2], 10), 0, 0);
+      return parsed.getTime();
+    };
+    const getLessonStatusMeta = (lesson) => {
+      const status = String(lesson?.status || '').trim();
+      if (status === 'cancelled') return { label: '已取消', cls: 'is-cancelled' };
+      if (status === 'done') return { label: '已上課', cls: 'is-done' };
+      const timestamp = Number(lesson?.timestamp || 0);
+      const now = Date.now();
+      if (timestamp && timestamp < now - 6 * 60 * 60 * 1000) return { label: '已上課', cls: 'is-done' };
+      if (timestamp && timestamp <= now + 7 * 24 * 60 * 60 * 1000) return { label: '即將上課', cls: 'is-soon' };
+      return { label: '未上課', cls: 'is-upcoming' };
+    };
+    const weeklyDates = plan.planType === 'weekly' && typeof this.generateWeeklyDates === 'function'
+      ? this.generateWeeklyDates(plan)
+      : [];
+    const weeklyStartTime = getStartTime(plan.timeSlot);
+    const weeklyLessons = weeklyDates.length
+      ? weeklyDates.map((date, index) => ({
+          title: Array.isArray(plan.lessonTitles) && plan.lessonTitles[index] ? plan.lessonTitles[index] : '第 ' + (index + 1) + ' 堂課',
+          dateLabel: formatProgressDate(date, weeklyStartTime),
+          timestamp: getDateTimeMs(date, weeklyStartTime),
+        }))
+      : (nextWeekly ? [{
+          title: '下一堂課',
+          dateLabel: nextWeekly.label || '',
+          timestamp: nextWeekly.timestamp || 0,
+        }] : []);
+    const sessionLessons = sessions.map((session, index) => {
+      const fallbackDate = typeof this._formatCourseSessionDate === 'function'
+        ? this._formatCourseSessionDate(session)
+        : (session.date || '');
+      const fallbackTime = typeof this._formatCourseSessionTime === 'function'
+        ? this._formatCourseSessionTime(session)
+        : [session.startTime, session.endTime].filter(Boolean).join(' - ');
+      return {
+        title: String(session.title || session.topic || session.focus || ('第 ' + (index + 1) + ' 堂課')).trim(),
+        dateLabel: session.date
+          ? formatProgressDate(session.date, session.startTime || fallbackTime)
+          : [fallbackDate, getStartTime(fallbackTime)].filter(Boolean).join(' '),
+        location: session.location || plan.location || '',
+        status: session.status,
+        timestamp: typeof this._getCourseSessionSortValue === 'function'
+          ? this._getCourseSessionSortValue(session)
+          : getDateTimeMs(session.date, session.startTime),
+      };
+    });
+    const lessons = plan.planType === 'session' ? sessionLessons : weeklyLessons;
+    const totalLessonCount = Number(plan.totalSessions || 0) || lessons.length;
+    const visibleLessons = lessons.slice(0, 12);
+    const priceAmount = Number(plan.price || 0);
+    const priceSubText = priceAmount > 0 && totalLessonCount > 0
+      ? totalLessonCount + ' 堂 · 約 $' + Math.round(priceAmount / totalLessonCount).toLocaleString() + '/堂'
+      : (totalLessonCount > 0 ? totalLessonCount + ' 堂' : '課程價格');
     const tagHtml = (view.tags || []).length
       ? '<div class="edu-course-detail-tags">' + view.tags.map(tag => '<span>' + escapeHTML(tag) + '</span>').join('') + '</div>'
       : '';
-    const nextWeekly = this._getCoursePlanNextWeeklyOccurrence?.(plan);
-    const fieldHtml = [
+    const metaHtml = [
       ['期間', view.dateText],
       ['上課安排', view.scheduleText],
       ['下一堂', nextWeekly?.label || '未排定'],
       ['地點', plan.location || '未設定'],
       ['教練', plan.coachName || plan.coach || '未設定'],
-      ['費用', view.priceText],
       ['人數', view.countText],
-      ['報名截止', plan.signupDeadline || '未設定'],
-    ].map(item => '<div><span>' + escapeHTML(item[0]) + '</span><strong>' + escapeHTML(item[1]) + '</strong></div>').join('');
-    const description = String(plan.description || '').trim();
-    const descriptionHtml = description
-      ? '<div class="edu-course-detail-description"><span>課程說明</span><p>' + escapeHTML(description) + '</p></div>'
-      : '';
+    ].map(item => '<span><em>' + escapeHTML(item[0]) + '</em><strong>' + escapeHTML(item[1]) + '</strong></span>').join('');
+    const courseContent = String(plan.courseContent || plan.description || '').trim();
+    const courseContentHtml = '<section class="edu-course-detail-section">'
+      + '<h4>課程內容</h4>'
+      + '<p class="edu-course-detail-copy">' + escapeHTML(courseContent || '尚未填寫課程內容。') + '</p>'
+      + '</section>';
     const primaryTagSet = new Set((view.tags || []).map(tag => String(tag || '').trim()).filter(Boolean));
     const extraTagSet = new Set();
     const extraTags = [
@@ -287,25 +359,38 @@ Object.assign(App, {
     const extraTagsHtml = extraTags.length
       ? '<div class="edu-course-detail-tags edu-course-detail-tags-secondary">' + extraTags.map(tag => '<span>' + escapeHTML(tag) + '</span>').join('') + '</div>'
       : '';
-    const sessionPreviewHtml = plan.planType === 'session'
-      ? '<div class="edu-course-detail-sessions">'
-        + '<strong>堂課摘要</strong>'
-        + (sessions.length
-          ? sessions.slice(0, 5).map((session, index) => {
-              const dateLabel = typeof this._formatCourseSessionDate === 'function'
-                ? this._formatCourseSessionDate(session)
-                : (session.date || '未設定日期');
-              const timeLabel = typeof this._formatCourseSessionTime === 'function'
-                ? this._formatCourseSessionTime(session)
-                : [session.startTime, session.endTime].filter(Boolean).join(' - ');
-              return '<div><span>第 ' + (index + 1) + ' 堂</span><em>' + escapeHTML([dateLabel, timeLabel, session.location].filter(Boolean).join(' · ')) + '</em></div>';
-            }).join('')
-          : '<div><span>尚未建立堂課</span><em>建立堂課後會顯示時間、地點與聯繫資訊</em></div>')
+    const progressRowsHtml = visibleLessons.length
+      ? visibleLessons.map((lesson, index) => {
+          const statusMeta = getLessonStatusMeta(lesson);
+          const lessonMeta = [lesson.dateLabel, lesson.location].filter(Boolean).join(' · ');
+          return '<div class="edu-course-progress-row">'
+            + '<span class="edu-course-progress-index">' + (index + 1) + '</span>'
+            + '<div class="edu-course-progress-main">'
+              + '<strong>' + escapeHTML(lesson.title || ('第 ' + (index + 1) + ' 堂課')) + '</strong>'
+              + '<em>' + escapeHTML(lessonMeta || '時間待排定') + '</em>'
+            + '</div>'
+            + '<span class="edu-course-progress-status ' + statusMeta.cls + '">' + escapeHTML(statusMeta.label) + '</span>'
+          + '</div>';
+        }).join('')
+        + (lessons.length > visibleLessons.length ? '<div class="edu-course-progress-more">還有 ' + (lessons.length - visibleLessons.length) + ' 堂課</div>' : '')
+      : '<div class="edu-course-progress-empty">尚未建立課堂，建立後會顯示課程日期、時間與狀態。</div>';
+    const progressHtml = '<section class="edu-course-detail-section edu-course-detail-progress">'
+      + '<h4>課程進度（共 ' + (totalLessonCount || 0) + ' 堂）</h4>'
+      + '<div class="edu-course-progress-list">' + progressRowsHtml + '</div>'
+      + '</section>';
+    const cancellationPolicy = String(plan.cancellationPolicy || '開課前 7 日可全額退費；開課前 3 日內取消，將收取 30% 行政費；開課後恕不退費，可申請 1 次延期。').trim();
+    const policyHtml = '<section class="edu-course-detail-section">'
+      + '<h4>取消政策</h4>'
+      + '<p class="edu-course-detail-copy">' + escapeHTML(cancellationPolicy) + '</p>'
+      + '</section>';
+    const staffActions = isStaff
+      ? '<div class="edu-course-detail-staff-actions">'
+        + '<button type="button" class="outline-btn small" onclick="event.stopPropagation();this.closest(\'.edu-info-overlay\').remove();App.showCourseEnrollmentList(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\')">管理名單</button>'
+        + '<button type="button" class="outline-btn small" onclick="event.stopPropagation();this.closest(\'.edu-info-overlay\').remove();App.showEduCoursePlanForm(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\')">編輯課程</button>'
         + '</div>'
       : '';
-    const staffActions = isStaff
-      ? '<button type="button" class="outline-btn small" onclick="event.stopPropagation();this.closest(\'.edu-info-overlay\').remove();App.showCourseEnrollmentList(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\')">管理名單</button>'
-        + '<button type="button" class="outline-btn small" onclick="event.stopPropagation();this.closest(\'.edu-info-overlay\').remove();App.showEduCoursePlanForm(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\')">編輯課程</button>'
+    const signupActionHtml = !isStaff && plan.allowSignup && !this._isCoursePlanEnded?.(plan)
+      ? '<button type="button" class="primary-btn edu-course-detail-signup-btn" onclick="event.stopPropagation();this.closest(\'.edu-info-overlay\').remove();App.applyCourseEnrollment(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\')">立即報名</button>'
       : '';
     overlay.innerHTML = '<div class="edu-info-dialog edu-course-detail-dialog">'
       + '<div class="edu-course-detail-head">'
@@ -316,17 +401,17 @@ Object.assign(App, {
         + '</div>'
         + '<button class="modal-close-btn" onclick="this.closest(\'.edu-info-overlay\').remove()">×</button>'
       + '</div>'
-      + coverHtml
       + tagHtml
       + extraTagsHtml
-      + descriptionHtml
-      + '<div class="edu-course-detail-grid">'
-        + fieldHtml
+      + '<div class="edu-course-detail-meta">' + metaHtml + '</div>'
+      + '<div class="edu-course-detail-scroll">'
+        + courseContentHtml
+        + progressHtml
+        + policyHtml
       + '</div>'
-      + sessionPreviewHtml
-      + '<div class="modal-actions">'
-        + staffActions
-        + (!isStaff && plan.allowSignup && !this._isCoursePlanEnded?.(plan) ? '<button type="button" class="primary-btn" onclick="event.stopPropagation();this.closest(\'.edu-info-overlay\').remove();App.applyCourseEnrollment(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\')">我要報名</button>' : '')
+      + '<div class="edu-course-detail-footer">'
+        + '<div class="edu-course-price-block"><strong>' + escapeHTML(formatCurrency(priceAmount)) + '</strong><span>' + escapeHTML(priceSubText) + '</span></div>'
+        + '<div class="edu-course-detail-footer-actions">' + staffActions + signupActionHtml + '</div>'
       + '</div>'
       + '</div>';
     document.body.appendChild(overlay);
