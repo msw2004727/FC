@@ -39,12 +39,7 @@ Object.assign(App, {
 
     const actionEl = document.getElementById('edu-ce-staff-actions');
     const isStaff = this.isEduClubStaff(teamId);
-    if (actionEl) actionEl.style.display = isStaff && plan?.planType !== 'session' ? '' : 'none';
-
-    if (plan?.planType === 'session' && typeof this._renderCourseSessionBoard === 'function') {
-      await this._renderCourseSessionBoard(teamId, planId, requestSeq);
-      return { ok: true };
-    }
+    if (actionEl) actionEl.style.display = isStaff ? '' : 'none';
 
     await this._renderCourseEnrollmentList(teamId, planId, requestSeq);
     return { ok: true };
