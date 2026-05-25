@@ -60,6 +60,92 @@ function loadEventManageAttendanceModule() {
   return app;
 }
 
+function loadEventManageWaitlistModule(context) {
+  const app = context.App || {};
+  vm.runInNewContext(readProjectFile('js/modules/event/event-manage-waitlist.js'), {
+    App: app,
+    ApiService: context.ApiService,
+    FirebaseService: context.FirebaseService,
+    db: context.db,
+    Object,
+    console,
+    setTimeout,
+    clearTimeout,
+    escapeHTML: (value) => String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;'),
+  });
+  return app;
+}
+
+function createRosterMutationContext({ event, registrations, activityRecords, batch }) {
+  const nameOf = (reg) => reg.participantType === 'companion'
+    ? (reg.companionName || reg.userName)
+    : reg.userName;
+  const rebuildOccupancy = (_event, activeRegs) => {
+    const confirmed = activeRegs.filter(r => r.status === 'confirmed');
+    const waitlisted = activeRegs.filter(r => r.status === 'waitlisted');
+    return {
+      current: confirmed.length,
+      realCurrent: confirmed.length,
+      waitlist: waitlisted.length,
+      participants: confirmed.map(nameOf).filter(Boolean),
+      waitlistNames: waitlisted.map(nameOf).filter(Boolean),
+      participantsWithUid: confirmed.map(r => ({ uid: r.userId, name: nameOf(r) })).filter(x => x.uid && x.name),
+      waitlistWithUid: waitlisted.map(r => ({ uid: r.userId, name: nameOf(r) })).filter(x => x.uid && x.name),
+      teamReservationSummaries: _event.teamReservationSummaries || [],
+      status: confirmed.length >= (_event.max || 0) ? 'full' : 'open',
+    };
+  };
+  const ApiService = {
+    getEvent: jest.fn(() => event),
+    getRegistrationsByEvent: jest.fn((eventId) => registrations
+      .filter(r => r.eventId === eventId && r.status !== 'cancelled' && r.status !== 'removed')
+      .map(r => ({ ...r }))),
+    _src: jest.fn((key) => {
+      if (key === 'registrations') return registrations;
+      if (key === 'activityRecords') return activityRecords;
+      return [];
+    }),
+    fetchRegistrationsIfMissing: jest.fn(() => Promise.resolve()),
+    _writeOpLog: jest.fn(),
+  };
+  const FirebaseService = {
+    _cache: { registrations, activityRecords, events: [event] },
+    _rebuildOccupancy: jest.fn(rebuildOccupancy),
+    _getEventDocIdAsync: jest.fn(() => Promise.resolve(event._docId)),
+    _saveToLS: jest.fn(),
+  };
+  const collection = jest.fn(() => ({
+    doc: jest.fn((id) => ({
+      id,
+      collection: jest.fn(() => ({
+        doc: jest.fn((childId) => ({ id: childId })),
+      })),
+    })),
+  }));
+  const db = {
+    batch: jest.fn(() => batch),
+    collection,
+  };
+  const App = {
+    currentPage: 'page-activity-detail',
+    _currentDetailEventId: event.id,
+    _canOperateEventSite: jest.fn(() => true),
+    _canRemoveConfirmedParticipant: jest.fn(() => true),
+    _ensureActivityRecordsReady: jest.fn(() => Promise.resolve(true)),
+    _getRegistrationParticipantName: nameOf,
+    appConfirm: jest.fn(() => Promise.resolve(true)),
+    showToast: jest.fn(),
+    _sendNotifFromTemplate: jest.fn(),
+    _patchDetailCount: jest.fn(),
+    _refreshSignupButton: jest.fn(),
+  };
+  return { App, ApiService, FirebaseService, db };
+}
+
 // ===========================================================================
 // Extracted logic: button state decision (event-detail.js:295-350)
 // ===========================================================================
@@ -402,6 +488,107 @@ describe('Team reservation button loading contract', () => {
     expect(attendanceSource).toContain("_finishRosterManagement('${escapeHTML(eventId)}')");
     expect(confirmSource).toContain('this._renderWaitlistContainers?.(eventId);');
     expect(confirmSource).toContain('async _finishRosterManagement(eventId)');
+  });
+
+  test('manual waitlist promotion mutates live registration cache before local roster render', async () => {
+    const event = {
+      id: 'evt-live',
+      _docId: 'evtDoc',
+      title: 'Live roster',
+      max: 2,
+      current: 1,
+      waitlist: 1,
+      teamReservationSummaries: [],
+    };
+    const registrations = [
+      {
+        eventId: event.id,
+        userId: 'u-confirmed',
+        userName: 'Confirmed',
+        participantType: 'self',
+        status: 'confirmed',
+        _docId: 'reg-confirmed',
+        _path: 'events/evtDoc/registrations/reg-confirmed',
+        registeredAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        eventId: event.id,
+        userId: 'u-waitlisted',
+        userName: 'Waitlisted',
+        participantType: 'self',
+        status: 'waitlisted',
+        _docId: 'reg-waitlisted',
+        _path: 'events/evtDoc/registrations/reg-waitlisted',
+        registeredAt: '2026-01-02T00:00:00.000Z',
+      },
+    ];
+    const activityRecords = [
+      { eventId: event.id, uid: 'u-waitlisted', status: 'waitlisted', _docId: 'ar-waitlisted' },
+    ];
+    const batch = { update: jest.fn(), commit: jest.fn(() => Promise.resolve()) };
+    const context = createRosterMutationContext({ event, registrations, activityRecords, batch });
+    const app = loadEventManageWaitlistModule(context);
+    app._renderRosterTables = jest.fn();
+
+    await app._forcePromoteWaitlist(event.id, 'u-waitlisted');
+
+    expect(registrations.find(r => r.userId === 'u-waitlisted').status).toBe('confirmed');
+    expect(activityRecords[0].status).toBe('registered');
+    expect(event.current).toBe(2);
+    expect(event.waitlist).toBe(0);
+    expect(app._renderRosterTables).toHaveBeenCalledWith(event.id, { skipFetch: true });
+    expect(batch.commit).toHaveBeenCalledTimes(1);
+  });
+
+  test('manual confirmed demotion mutates live registration cache before local roster render', async () => {
+    const event = {
+      id: 'evt-live',
+      _docId: 'evtDoc',
+      title: 'Live roster',
+      max: 2,
+      current: 2,
+      waitlist: 0,
+      teamReservationSummaries: [],
+    };
+    const registrations = [
+      {
+        eventId: event.id,
+        userId: 'u-demote',
+        userName: 'Demote',
+        participantType: 'self',
+        status: 'confirmed',
+        _docId: 'reg-demote',
+        _path: 'events/evtDoc/registrations/reg-demote',
+        registeredAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        eventId: event.id,
+        userId: 'u-keep',
+        userName: 'Keep',
+        participantType: 'self',
+        status: 'confirmed',
+        _docId: 'reg-keep',
+        _path: 'events/evtDoc/registrations/reg-keep',
+        registeredAt: '2026-01-02T00:00:00.000Z',
+      },
+    ];
+    const activityRecords = [
+      { eventId: event.id, uid: 'u-demote', status: 'registered', _docId: 'ar-demote' },
+    ];
+    const batch = { update: jest.fn(), commit: jest.fn(() => Promise.resolve()) };
+    const context = createRosterMutationContext({ event, registrations, activityRecords, batch });
+    const app = loadEventManageWaitlistModule(context);
+    app._renderRosterTables = jest.fn();
+
+    await app._forceDemoteToWaitlist(event.id, 'u-demote', 'Demote', false);
+
+    expect(registrations.find(r => r.userId === 'u-demote').status).toBe('waitlisted');
+    expect(registrations.find(r => r.userId === 'u-keep').status).toBe('confirmed');
+    expect(activityRecords[0].status).toBe('waitlisted');
+    expect(event.current).toBe(1);
+    expect(event.waitlist).toBe(1);
+    expect(app._renderRosterTables).toHaveBeenCalledWith(event.id, { skipFetch: true });
+    expect(batch.commit).toHaveBeenCalledTimes(1);
   });
 
   test('team reservation modal does not close from backdrop clicks', () => {

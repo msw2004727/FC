@@ -79,6 +79,77 @@ Object.assign(App, {
     Object.assign(event, snapshot);
   },
 
+  _findRosterLiveRegistrationRef(reg, source, usedRefs) {
+    if (!reg) return null;
+    const records = Array.isArray(source) ? source : (ApiService._src('registrations') || []);
+    const used = usedRefs || new Set();
+    const same = (a, b) => String(a || '').trim() === String(b || '').trim();
+    const targetEventId = String(reg.eventId || '').trim();
+    const targetPath = String(reg._path || '').trim();
+    if (targetPath) {
+      const byPath = records.find(r => !used.has(r) && same(r?._path, targetPath));
+      if (byPath) return byPath;
+    }
+    const targetDocId = String(reg._docId || reg.id || '').trim();
+    if (targetDocId) {
+      const byDocId = records.find(r =>
+        !used.has(r)
+        && same(r?._docId || r?.id, targetDocId)
+        && (!targetEventId || same(r?.eventId, targetEventId))
+      );
+      if (byDocId) return byDocId;
+    }
+    const targetUserId = String(reg.userId || reg.uid || '').trim();
+    const targetType = String(reg.participantType || 'self').trim();
+    const targetCompanionKey = targetType === 'companion'
+      ? String(reg.companionId || reg.companionName || reg._docId || reg.id || reg._path || '').trim()
+      : 'self';
+    const targetStatus = String(reg.status || '').trim();
+    return records.find(r => {
+      if (!r || used.has(r)) return false;
+      const type = String(r.participantType || 'self').trim();
+      const companionKey = type === 'companion'
+        ? String(r.companionId || r.companionName || r._docId || r.id || r._path || '').trim()
+        : 'self';
+      return same(r.eventId, targetEventId)
+        && same(r.userId || r.uid, targetUserId)
+        && type === targetType
+        && companionKey === targetCompanionKey
+        && same(r.status, targetStatus);
+    }) || null;
+  },
+
+  _getRosterLiveRegistrationRefs(regs, eventId) {
+    const source = ApiService._src('registrations') || [];
+    const used = new Set();
+    return (Array.isArray(regs) ? regs : []).map(reg => {
+      const live = this._findRosterLiveRegistrationRef(reg, source, used);
+      if (live) {
+        used.add(live);
+        return live;
+      }
+      console.warn('[roster] live registration ref not found', {
+        eventId,
+        regDocId: reg?._docId || reg?.id || '',
+        userId: reg?.userId || reg?.uid || '',
+        participantType: reg?.participantType || 'self',
+        status: reg?.status || '',
+      });
+      return null;
+    }).filter(Boolean);
+  },
+
+  _reconcileRosterRegistrationsAfterWrite(eventId) {
+    if (!eventId || typeof ApiService === 'undefined' || typeof ApiService.fetchRegistrationsIfMissing !== 'function') return;
+    ApiService.fetchRegistrationsIfMissing(eventId, { force: true })
+      .then(() => {
+        if (this.currentPage === 'page-activity-detail' && this._currentDetailEventId === eventId) {
+          this._renderRosterTables?.(eventId, { skipFetch: true });
+        }
+      })
+      .catch(err => console.warn('[roster] post-write registration reconcile failed:', err));
+  },
+
   // ── 候補名單表格（管理模態 - 分組顯示 + 正取編輯模式）──
   _renderWaitlistSection(eventId, containerId) {
     const container = document.getElementById(containerId);
@@ -240,13 +311,18 @@ Object.assign(App, {
     }
     if (this._isWaitlistActionPending?.('promote', eventId, userId)) return;
     const allRegs = ApiService.getRegistrationsByEvent(eventId);
-    const userWaitlisted = allRegs.filter(r => r.userId === userId && r.status === 'waitlisted');
-    if (userWaitlisted.length === 0) { this.showToast('找不到候補紀錄'); return; }
+    const userWaitlistedRecords = allRegs.filter(r => r.userId === userId && r.status === 'waitlisted');
+    if (userWaitlistedRecords.length === 0) { this.showToast('找不到候補紀錄'); return; }
+    const userWaitlisted = this._getRosterLiveRegistrationRefs?.(userWaitlistedRecords, eventId) || [];
+    if (userWaitlisted.length !== userWaitlistedRecords.length) {
+      this.showToast('名單資料同步中，請稍後重試');
+      return;
+    }
     if (!await this._ensureActivityRecordsReady({ required: true })) return;
 
     // 容量檢查：正取後是否超額
     const currentConfirmed = allRegs.filter(r => r.status === 'confirmed').length;
-    const afterCount = currentConfirmed + userWaitlisted.length;
+    const afterCount = currentConfirmed + userWaitlistedRecords.length;
     if (afterCount > (e.max || 0)) {
       if (!this._canRemoveConfirmedParticipant?.(e)) {
         this.showToast('\u6b0a\u9650\u4e0d\u8db3');
@@ -362,6 +438,7 @@ Object.assign(App, {
 
     this._setWaitlistActionPending('promote', eventId, userId, false);
     this._renderRosterTables?.(eventId, { skipFetch: true });
+    this._reconcileRosterRegistrationsAfterWrite?.(eventId);
     this.showToast('已正取');
 
     try {
@@ -397,10 +474,15 @@ Object.assign(App, {
     if (!e.max || e.max <= 0) { this.showToast('此活動無名額上限，無法下放候補'); return; }
 
     const allRegs = ApiService.getRegistrationsByEvent(eventId);
-    const userConfirmed = allRegs.filter(r => r.userId === userId && r.status === 'confirmed');
-    if (userConfirmed.length === 0) { this.showToast('找不到正取紀錄'); return; }
+    const userConfirmedRecords = allRegs.filter(r => r.userId === userId && r.status === 'confirmed');
+    if (userConfirmedRecords.length === 0) { this.showToast('找不到正取紀錄'); return; }
+    const userConfirmed = this._getRosterLiveRegistrationRefs?.(userConfirmedRecords, eventId) || [];
+    if (userConfirmed.length !== userConfirmedRecords.length) {
+      this.showToast('名單資料同步中，請稍後重試');
+      return;
+    }
 
-    const companionCount = userConfirmed.filter(r => r.participantType === 'companion').length;
+    const companionCount = userConfirmedRecords.filter(r => r.participantType === 'companion').length;
     const confirmMsg = companionCount > 0
       ? `確定將 ${userName}（含 ${companionCount} 位同行者）下放到候補嗎？`
       : `確定將 ${userName} 下放到候補嗎？`;
@@ -514,6 +596,7 @@ Object.assign(App, {
 
     this._setWaitlistActionPending('demote', eventId, userId, false);
     this._renderRosterTables?.(eventId, { skipFetch: true });
+    this._reconcileRosterRegistrationsAfterWrite?.(eventId);
     this.showToast(`已將 ${userName} 下放至候補`);
 
     try {
