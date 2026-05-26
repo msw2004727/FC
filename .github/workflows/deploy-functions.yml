@@ -16,6 +16,10 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   NO_UPDATE_NOTIFIER: '1'
   FIREBASE_SKIP_UPDATE_CHECK: 'true'
+  CLOUDSDK_CORE_PROJECT: fc-football-6c8dc
+  GCLOUD_PROJECT: fc-football-6c8dc
+  GOOGLE_CLOUD_PROJECT: fc-football-6c8dc
+  GOOGLE_CLOUD_QUOTA_PROJECT: fc-football-6c8dc
 
 concurrency:
   group: deploy-functions-main
