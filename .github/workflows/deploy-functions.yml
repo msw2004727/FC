@@ -30,6 +30,7 @@ permissions:
 
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch' || vars.ENABLE_FUNCTIONS_AUTO_DEPLOY == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
