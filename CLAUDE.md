@@ -687,6 +687,15 @@ https://miniapp.line.me/2009525300-AuPGQ0sh?{deepLinkParam}={id}
 4. **Transaction 必須處理 contention**：Firestore transaction 會因併發拋 `ABORTED`，必須允許 SDK 的自動重試或自行 retry。
 5. **部署後驗證**：`firebase deploy --only functions:xxx` 後必看 `firebase functions:log` 至少 5 分鐘，確認無 unhandled exception。
 
+### GitHub Actions 自動部署閘門（重要）
+
+- `.github/workflows/deploy-functions.yml` 目前只會在 `workflow_dispatch`，或 repo variable `ENABLE_FUNCTIONS_AUTO_DEPLOY == 'true'` 時真正部署 Cloud Functions。一般 push 後若看到 `Deploy Cloud Functions` 是 `skipped`，先檢查這個 gate；這是刻意的安全設計，不是 Cloud Functions 程式碼沒上。
+- 要開啟「push 到 `main` 後自動部署 Cloud Functions」，必須同時完成兩件事：
+  1. GitHub repo variable 設定 `ENABLE_FUNCTIONS_AUTO_DEPLOY=true`
+  2. `GCP_SERVICE_ACCOUNT_JSON` 內的 service account `sitemap-submitter@toosterx-seo.iam.gserviceaccount.com` 在 GCP project `fc-football-6c8dc` 具備 `roles/serviceusage.serviceUsageConsumer`
+- 若 IAM 權限未補齊就打開 gate，GitHub Actions 可能會在 Cloud Resource Manager / Service Usage / quota project 權限檢查失敗；不要誤判為 Firebase Functions 程式碼錯誤。
+- 除非使用者明確要求開啟 push 後自動部署 Cloud Functions，否則維持 gate 關閉。需要立即上線 Functions 時，仍可手動執行 `firebase deploy --only functions --project fc-football-6c8dc`。
+
 ### 歷史教訓（修改前查閱）
 
 - 一天內連犯兩次的 region/CORS 陷阱（`docs/claude-memory.md` 搜 `Callable`）

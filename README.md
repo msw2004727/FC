@@ -296,3 +296,22 @@ firebase deploy --only firestore:rules --project fc-football-6c8dc
 ```
 
 ### Cloud Functions
+
+Cloud Functions 可以本機手動部署：
+
+```bash
+firebase deploy --only functions --project fc-football-6c8dc
+```
+
+GitHub Actions 也有 `.github/workflows/deploy-functions.yml`，但 push 觸發的自動部署目前有安全閘門：
+
+- `workflow_dispatch` 手動執行可以走部署流程。
+- 一般 push 只有在 repo variable `ENABLE_FUNCTIONS_AUTO_DEPLOY=true` 時才會真的部署。
+- 若 GitHub Actions 顯示 `Deploy Cloud Functions` skipped，通常是這個 gate 關閉，不是 Functions 程式碼或測試壞掉。
+
+要開啟 push 後自動部署，必須同時確認：
+
+1. GitHub repo variable `ENABLE_FUNCTIONS_AUTO_DEPLOY=true`
+2. `GCP_SERVICE_ACCOUNT_JSON` 內的 service account `sitemap-submitter@toosterx-seo.iam.gserviceaccount.com` 在 GCP project `fc-football-6c8dc` 具備 `roles/serviceusage.serviceUsageConsumer`
+
+如果沒有補齊 IAM 權限就打開 gate，部署可能會在 Cloud Resource Manager / Service Usage / quota project 權限檢查失敗。這種失敗優先檢查 GitHub 變數與 service account IAM，不要先懷疑 Cloud Functions 程式碼。
