@@ -164,6 +164,40 @@ const PM_DEFAULT_SETTINGS = Object.freeze({
   allowUserToUserPm: false,
 });
 
+// Registration ops monitor settings.
+const OPS_MONITOR_COLLECTION = "opsMonitorState";
+const OPS_MONITOR_CONFIG_COLLECTION = "opsMonitorConfig";
+const REGISTRATION_CALLABLE_HEALTH_DOC_ID = "registrationCallableHealth";
+const REGISTRATION_SYNTHETIC_SMOKE_DOC_ID = "registrationSyntheticSmoke";
+const REGISTRATION_CALLABLE_NAMES = Object.freeze(["registerForEvent", "cancelRegistration"]);
+const REGISTRATION_ERROR_LOG_CONTEXTS = Object.freeze([
+  "handleSignup",
+  "_confirmCompanionRegister",
+  "_confirmCompanionCancel",
+]);
+const REGISTRATION_ERROR_LOG_ACTIONS = Object.freeze([
+  "event_signup_failed",
+  "event_cancel_failed",
+]);
+const REGISTRATION_IGNORED_ERROR_CODES = new Set([
+  "PROFILE_INCOMPLETE",
+  "ALREADY_REGISTERED",
+  "ALREADY_CANCELLED",
+]);
+const REGISTRATION_MONITOR_DEFAULTS = Object.freeze({
+  enabled: true,
+  windowMinutes: 15,
+  threshold: 3,
+  cooldownMinutes: 60,
+  maxSampleSize: 500,
+});
+const REGISTRATION_SMOKE_DEFAULTS = Object.freeze({
+  enabled: false,
+  mode: "dry_run",
+  eventId: "",
+  smokeUid: "",
+});
+
 // ── 翻譯配額設定（調整上限只需改這裡，重新 deploy 即可）──
 const TRANSLATE_QUOTA = Object.freeze({
   MONTHLY_CHAR_LIMIT: 5_000_000,   // 每月上限字元數（500 萬）
@@ -7416,7 +7450,410 @@ async function writeInboxNotification({ recipientUid, title, body, category, cat
   }
 }
 
-// ── Per-user inbox 寫入 helper（供 deliverToInbox CF 使用）──
+// Registration ops monitoring helpers.
+function timestampToMillis(value) {
+  if (!value) return 0;
+  if (typeof value.toMillis === "function") return value.toMillis();
+  if (typeof value.toDate === "function") return value.toDate().getTime();
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number") return value;
+  if (typeof value === "string") {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+  return 0;
+}
+
+function getRegistrationMonitorConfig(rawConfig = {}) {
+  return {
+    enabled: rawConfig.enabled !== false,
+    windowMinutes: clampInteger(rawConfig.windowMinutes, REGISTRATION_MONITOR_DEFAULTS.windowMinutes, 5, 120),
+    threshold: clampInteger(rawConfig.threshold, REGISTRATION_MONITOR_DEFAULTS.threshold, 1, 100),
+    cooldownMinutes: clampInteger(rawConfig.cooldownMinutes, REGISTRATION_MONITOR_DEFAULTS.cooldownMinutes, 5, 24 * 60),
+    maxSampleSize: clampInteger(rawConfig.maxSampleSize, REGISTRATION_MONITOR_DEFAULTS.maxSampleSize, 50, 1000),
+  };
+}
+
+async function readRegistrationMonitorConfig() {
+  const snap = await db.collection(OPS_MONITOR_CONFIG_COLLECTION).doc(REGISTRATION_CALLABLE_HEALTH_DOC_ID).get();
+  return getRegistrationMonitorConfig(snap.exists ? (snap.data() || {}) : {});
+}
+
+function parseErrorLogContext(value) {
+  if (!value) return {};
+  if (typeof value === "object") return value;
+  if (typeof value !== "string") return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function normalizeRegistrationErrorCode(logData, contextData) {
+  const values = [
+    contextData?.errCode,
+    logData?.errorCode,
+    logData?.errorMessage,
+  ];
+  for (const value of values) {
+    const text = String(value || "").trim();
+    if (!text) continue;
+    return text.replace(/^functions\//i, "").slice(0, 120);
+  }
+  return "";
+}
+
+function isRegistrationCallableErrorLog(logData = {}) {
+  if (logData.noise === true || logData.severityHint === "low") return false;
+  const contextData = parseErrorLogContext(logData.context);
+  const errCode = normalizeRegistrationErrorCode(logData, contextData);
+  if (REGISTRATION_IGNORED_ERROR_CODES.has(errCode)) return false;
+  const haystack = [
+    logData.context,
+    logData.errorMessage,
+    logData.errorCode,
+    contextData.fn,
+    contextData.action,
+    contextData.category,
+    contextData.stage,
+  ].map((item) => String(item || "")).join(" ");
+  const touchesRegistrationFlow =
+    REGISTRATION_ERROR_LOG_CONTEXTS.some((needle) => haystack.includes(needle))
+    || REGISTRATION_ERROR_LOG_ACTIONS.some((needle) => haystack.includes(needle))
+    || REGISTRATION_CALLABLE_NAMES.some((needle) => haystack.includes(needle));
+  if (!touchesRegistrationFlow) return false;
+  if (String(contextData.action || "") === "event_signup_profile_incomplete") return false;
+  if (REGISTRATION_IGNORED_ERROR_CODES.has(String(contextData.errCode || ""))) return false;
+  return true;
+}
+
+function buildRegistrationErrorSample(doc) {
+  const data = doc.data() || {};
+  const contextData = parseErrorLogContext(data.context);
+  return {
+    id: doc.id,
+    createdAt: timestampToMillis(data.createdAt) || timestampToMillis(data.clientTimeIso),
+    uid: String(data.uid || "").slice(0, 100),
+    page: String(data.page || "").slice(0, 80),
+    fn: String(contextData.fn || "").slice(0, 80),
+    action: String(contextData.action || "").slice(0, 80),
+    stage: String(contextData.stage || "").slice(0, 80),
+    eventId: String(contextData.eventId || "").slice(0, 120),
+    errCode: normalizeRegistrationErrorCode(data, contextData),
+    message: String(data.errorMessage || "").slice(0, 240),
+    appVersion: String(data.appVersion || "").slice(0, 40),
+  };
+}
+
+async function findRegistrationErrorLogs({ windowMinutes, maxSampleSize }) {
+  const cutoff = new Date(Date.now() - windowMinutes * 60 * 1000);
+  const snap = await db.collection("errorLogs")
+    .where("createdAt", ">=", Timestamp.fromDate(cutoff))
+    .limit(maxSampleSize)
+    .get();
+  const errors = [];
+  snap.forEach((doc) => {
+    const data = doc.data() || {};
+    if (isRegistrationCallableErrorLog(data)) errors.push(buildRegistrationErrorSample(doc));
+  });
+  errors.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  return errors;
+}
+
+async function listOpsAlertRecipientUids(limit = 20) {
+  const recipientUids = new Set();
+  const snapshots = await Promise.all([
+    db.collection("users").where("role", "==", "super_admin").limit(limit).get(),
+    db.collection("users").where("role", "==", "admin").limit(limit).get(),
+  ]);
+  for (const snap of snapshots) {
+    snap.forEach((doc) => {
+      const data = doc.data() || {};
+      const uid = String(data.uid || data.lineUserId || doc.id || "").trim();
+      if (uid) recipientUids.add(uid);
+    });
+  }
+  return Array.from(recipientUids).slice(0, limit);
+}
+
+async function notifyOpsRecipients({ title, body }) {
+  const recipientUids = await listOpsAlertRecipientUids();
+  if (recipientUids.length === 0) {
+    await writeOperationLog({
+      type: "ops_alert_no_recipient",
+      typeName: "Ops alert",
+      content: title,
+    });
+    return { recipientCount: 0 };
+  }
+  const results = await Promise.allSettled(recipientUids.map((recipientUid) => writeInboxNotification({
+    recipientUid,
+    title,
+    body,
+    category: "system",
+    categoryLabel: "Ops",
+  })));
+  const failedCount = results.filter((item) => item.status === "rejected").length;
+  return { recipientCount: recipientUids.length, failedCount };
+}
+
+async function writeRegistrationMonitorState(docId, payload) {
+  await db.collection(OPS_MONITOR_COLLECTION).doc(docId).set({
+    ...payload,
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
+function shouldSendOpsAlert(stateData, cooldownMinutes, now = new Date()) {
+  const lastAlertMs = timestampToMillis(stateData?.lastAlertAt) || timestampToMillis(stateData?.lastAlertIso);
+  if (!lastAlertMs) return true;
+  return now.getTime() - lastAlertMs >= cooldownMinutes * 60 * 1000;
+}
+
+function formatRegistrationHealthAlertBody({ errorCount, windowMinutes, threshold, errors }) {
+  const top = (errors || []).slice(0, 5).map((item) => {
+    const parts = [
+      item.fn || item.action || "registration",
+      item.errCode || "unknown",
+      item.eventId ? `event=${item.eventId}` : "",
+      item.appVersion ? `version=${item.appVersion}` : "",
+    ].filter(Boolean);
+    return `- ${parts.join(" | ")}`;
+  }).join("\n");
+  return [
+    `Registration Cloud Function failures reached ${errorCount}/${threshold} in ${windowMinutes} minutes.`,
+    `Functions: ${REGISTRATION_CALLABLE_NAMES.join(", ")}`,
+    top ? `Recent samples:\n${top}` : "Recent samples: none",
+  ].join("\n\n").slice(0, 2000);
+}
+
+async function checkRegistrationCallableHealth() {
+  const config = await readRegistrationMonitorConfig();
+  const stateRef = db.collection(OPS_MONITOR_COLLECTION).doc(REGISTRATION_CALLABLE_HEALTH_DOC_ID);
+  const stateSnap = await stateRef.get();
+  const stateData = stateSnap.exists ? (stateSnap.data() || {}) : {};
+  if (!config.enabled) {
+    await writeRegistrationMonitorState(REGISTRATION_CALLABLE_HEALTH_DOC_ID, {
+      status: "disabled",
+      lastCheckedAt: FieldValue.serverTimestamp(),
+      config,
+    });
+    return { success: true, status: "disabled", config };
+  }
+
+  const errors = await findRegistrationErrorLogs({
+    windowMinutes: config.windowMinutes,
+    maxSampleSize: config.maxSampleSize,
+  });
+  const errorCount = errors.length;
+  const status = errorCount >= config.threshold ? "alerting" : "ok";
+  const statePayload = {
+    status,
+    lastCheckedAt: FieldValue.serverTimestamp(),
+    windowMinutes: config.windowMinutes,
+    threshold: config.threshold,
+    cooldownMinutes: config.cooldownMinutes,
+    recentErrorCount: errorCount,
+    recentErrors: errors.slice(0, 10),
+    callableNames: REGISTRATION_CALLABLE_NAMES,
+  };
+
+  let alertResult = null;
+  if (status === "alerting" && shouldSendOpsAlert(stateData, config.cooldownMinutes)) {
+    const title = "Registration Cloud Function alert";
+    const body = formatRegistrationHealthAlertBody({
+      errorCount,
+      windowMinutes: config.windowMinutes,
+      threshold: config.threshold,
+      errors,
+    });
+    alertResult = await notifyOpsRecipients({ title, body });
+    Object.assign(statePayload, {
+      lastAlertAt: FieldValue.serverTimestamp(),
+      lastAlertIso: new Date().toISOString(),
+      lastAlertTitle: title,
+      lastAlertRecipientCount: alertResult.recipientCount || 0,
+      lastAlertFailedCount: alertResult.failedCount || 0,
+    });
+    await writeOperationLog({
+      type: "registration_callable_alert",
+      typeName: "Ops alert",
+      content: `${errorCount} registration callable failures in ${config.windowMinutes} minutes`,
+    });
+  }
+
+  await writeRegistrationMonitorState(REGISTRATION_CALLABLE_HEALTH_DOC_ID, statePayload);
+  return {
+    success: true,
+    status,
+    errorCount,
+    threshold: config.threshold,
+    windowMinutes: config.windowMinutes,
+    alerted: !!alertResult,
+  };
+}
+
+function getRegistrationSmokeConfig(rawConfig = {}, overrides = {}) {
+  const merged = { ...REGISTRATION_SMOKE_DEFAULTS, ...(rawConfig || {}), ...(overrides || {}) };
+  return {
+    enabled: merged.enabled === true,
+    mode: String(merged.mode || REGISTRATION_SMOKE_DEFAULTS.mode).trim() || REGISTRATION_SMOKE_DEFAULTS.mode,
+    eventId: String(merged.eventId || "").trim().slice(0, 120),
+    smokeUid: String(merged.smokeUid || "").trim().slice(0, 120),
+  };
+}
+
+async function readRegistrationSmokeConfig(overrides = {}) {
+  const snap = await db.collection(OPS_MONITOR_CONFIG_COLLECTION).doc(REGISTRATION_SYNTHETIC_SMOKE_DOC_ID).get();
+  return getRegistrationSmokeConfig(snap.exists ? (snap.data() || {}) : {}, overrides);
+}
+
+function buildRegistrationSmokeFailurePayload(err, source) {
+  return {
+    success: false,
+    status: "failed",
+    source,
+    errorCode: String(err?.code || "internal").replace(/^functions\//i, "").slice(0, 80),
+    errorMessage: String(err?.message || err || "Registration synthetic smoke failed").slice(0, 500),
+    checkedAtIso: new Date().toISOString(),
+  };
+}
+
+async function executeRegistrationSyntheticSmoke(config, source) {
+  if (config.mode !== "dry_run") {
+    throw new HttpsError("failed-precondition", "SMOKE_MODE_UNSUPPORTED");
+  }
+  if (!config.eventId) {
+    throw new HttpsError("failed-precondition", "SMOKE_EVENT_ID_REQUIRED");
+  }
+
+  const now = new Date();
+  const eventDoc = await getEventDocByPublicId(config.eventId);
+  if (!eventDoc) {
+    throw new HttpsError("not-found", "SMOKE_EVENT_NOT_FOUND");
+  }
+  const eventData = eventDoc.data() || {};
+  if (eventData.status === "cancelled") throw new HttpsError("failed-precondition", "SMOKE_EVENT_CANCELLED");
+  if (eventData.status === "ended") throw new HttpsError("failed-precondition", "SMOKE_EVENT_ENDED");
+  if (eventData.date) {
+    const startDate = parseEventStartDateInTaipei(eventData.date);
+    if (startDate && startDate <= now) {
+      throw new HttpsError("failed-precondition", "SMOKE_EVENT_STARTED");
+    }
+  }
+
+  const regsSnap = await eventDoc.ref.collection("registrations").limit(25).get();
+  let smokeUser = null;
+  let smokeProfileComplete = null;
+  if (config.smokeUid) {
+    const found = await findUserDocByUidOrLineUserId(config.smokeUid);
+    if (!found) {
+      throw new HttpsError("failed-precondition", "SMOKE_USER_NOT_FOUND");
+    }
+    smokeUser = found ? {
+      docId: found.docId,
+      uid: getAuthUidFromUserDoc(found, config.smokeUid),
+      role: normalizeRole(found.data?.role),
+    } : null;
+    smokeProfileComplete = !!(found?.data?.gender && found?.data?.birthday && found?.data?.region);
+    if (!smokeProfileComplete) {
+      throw new HttpsError("failed-precondition", "SMOKE_PROFILE_INCOMPLETE");
+    }
+  }
+
+  const registrationNotOpen = isEventRegistrationNotOpen(eventData, now);
+  const earlyBirdAvailable = isEventEarlyBirdAvailable(eventData, now);
+  if (registrationNotOpen && !earlyBirdAvailable) {
+    throw new HttpsError("failed-precondition", "SMOKE_REG_NOT_OPEN");
+  }
+  return {
+    success: true,
+    status: "ok",
+    source,
+    mode: config.mode,
+    eventId: config.eventId,
+    eventDocId: eventDoc.id,
+    eventStatus: String(eventData.status || ""),
+    registrationNotOpen,
+    earlyBirdAvailable,
+    registrationSampleCount: regsSnap.size,
+    smokeUidConfigured: !!config.smokeUid,
+    smokeUserFound: config.smokeUid ? !!smokeUser : null,
+    smokeProfileComplete,
+    checkedAtIso: now.toISOString(),
+  };
+}
+
+async function runRegistrationSyntheticSmokeInternal({ source = "manual", force = false, overrides = {} } = {}) {
+  const config = await readRegistrationSmokeConfig(overrides);
+  if (!config.enabled && !force) {
+    const disabledResult = {
+      success: true,
+      status: "disabled",
+      source,
+      mode: config.mode,
+      eventId: config.eventId,
+      checkedAtIso: new Date().toISOString(),
+    };
+    await writeRegistrationMonitorState(REGISTRATION_SYNTHETIC_SMOKE_DOC_ID, {
+      ...disabledResult,
+      lastCheckedAt: FieldValue.serverTimestamp(),
+      config,
+    });
+    return disabledResult;
+  }
+
+  try {
+    const result = await executeRegistrationSyntheticSmoke(config, source);
+    await writeRegistrationMonitorState(REGISTRATION_SYNTHETIC_SMOKE_DOC_ID, {
+      ...result,
+      lastCheckedAt: FieldValue.serverTimestamp(),
+      config,
+    });
+    return result;
+  } catch (err) {
+    const failure = buildRegistrationSmokeFailurePayload(err, source);
+    const stateRef = db.collection(OPS_MONITOR_COLLECTION).doc(REGISTRATION_SYNTHETIC_SMOKE_DOC_ID);
+    const stateSnap = await stateRef.get();
+    const stateData = stateSnap.exists ? (stateSnap.data() || {}) : {};
+    const shouldAlert = shouldSendOpsAlert(stateData, 60);
+    const statePayload = {
+      ...failure,
+      lastCheckedAt: FieldValue.serverTimestamp(),
+      config,
+    };
+    if (shouldAlert) {
+      const alertResult = await notifyOpsRecipients({
+        title: "Registration synthetic smoke failed",
+        body: [
+          `Source: ${source}`,
+          `Event: ${config.eventId || "(missing)"}`,
+          `Error: ${failure.errorCode} ${failure.errorMessage}`,
+        ].join("\n"),
+      });
+      Object.assign(statePayload, {
+        lastAlertAt: FieldValue.serverTimestamp(),
+        lastAlertIso: new Date().toISOString(),
+        lastAlertRecipientCount: alertResult.recipientCount || 0,
+        lastAlertFailedCount: alertResult.failedCount || 0,
+      });
+      await writeOperationLog({
+        type: "registration_smoke_alert",
+        typeName: "Ops alert",
+        content: `${failure.errorCode}: ${failure.errorMessage}`,
+      });
+    }
+    await writeRegistrationMonitorState(REGISTRATION_SYNTHETIC_SMOKE_DOC_ID, statePayload);
+    if (source === "manual") {
+      throw new HttpsError(failure.errorCode === "not-found" ? "not-found" : "failed-precondition", failure.errorMessage);
+    }
+    return failure;
+  }
+}
+
+// Per-user inbox helper for deliverToInbox.
 async function _writeToUserInbox(recipientUid, msgData) {
   const docId = msgData.id || `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   const doc = {
@@ -8303,6 +8740,83 @@ exports.cancelRegistration = onCall(
 //  定時從 Google Cloud Monitoring API 抓取 Firestore / Functions 用量
 //  寫入 usageMetrics/{date} 供前端儀表板顯示
 // ═══════════════════════════════════════════════════════════════
+
+exports.watchRegistrationCallableHealth = onSchedule(
+  {
+    region: "asia-east1",
+    schedule: "*/15 * * * *",
+    timeZone: "Asia/Taipei",
+    timeoutSeconds: 60,
+    memory: "256MiB",
+    maxInstances: 1,
+  },
+  async () => {
+    try {
+      const result = await checkRegistrationCallableHealth();
+      console.log("[watchRegistrationCallableHealth]", result);
+      return result;
+    } catch (err) {
+      const failure = {
+        success: false,
+        status: "failed",
+        errorCode: String(err?.code || "internal").replace(/^functions\//i, "").slice(0, 80),
+        errorMessage: String(err?.message || err || "Registration callable health check failed").slice(0, 500),
+        checkedAtIso: new Date().toISOString(),
+      };
+      console.error("[watchRegistrationCallableHealth]", failure);
+      try {
+        await writeRegistrationMonitorState(REGISTRATION_CALLABLE_HEALTH_DOC_ID, {
+          ...failure,
+          lastCheckedAt: FieldValue.serverTimestamp(),
+        });
+      } catch (stateErr) {
+        console.error("[watchRegistrationCallableHealth state]", stateErr);
+      }
+      try {
+        await notifyOpsRecipients({
+          title: "Registration callable monitor failed",
+          body: `${failure.errorCode}: ${failure.errorMessage}`,
+        });
+      } catch (notifyErr) {
+        console.error("[watchRegistrationCallableHealth notify]", notifyErr);
+      }
+      return failure;
+    }
+  },
+);
+
+exports.registrationSyntheticSmoke = onSchedule(
+  {
+    region: "asia-east1",
+    schedule: "*/30 * * * *",
+    timeZone: "Asia/Taipei",
+    timeoutSeconds: 60,
+    memory: "256MiB",
+    maxInstances: 1,
+  },
+  async () => {
+    const result = await runRegistrationSyntheticSmokeInternal({ source: "schedule" });
+    console.log("[registrationSyntheticSmoke]", result);
+  },
+);
+
+exports.runRegistrationSyntheticSmoke = onCall(
+  { region: "asia-east1", timeoutSeconds: 60, memory: "256MiB", maxInstances: 2 },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+    const access = await getCallerAccessContext(request);
+    if (!access.isSuperAdmin) {
+      throw new HttpsError("permission-denied", "super_admin only");
+    }
+    return runRegistrationSyntheticSmokeInternal({
+      source: "manual",
+      force: true,
+      overrides: request.data || {},
+    });
+  },
+);
 
 exports.adjustTeamReservation = onCall(
   { region: "asia-east1", timeoutSeconds: 30, memory: "512MiB", minInstances: 1 },

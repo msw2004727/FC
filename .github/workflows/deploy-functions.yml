@@ -1,0 +1,57 @@
+name: Deploy Cloud Functions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'functions/**'
+      - 'firebase.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/check-registration-ops-guard.js'
+      - '.github/workflows/deploy-functions.yml'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  NO_UPDATE_NOTIFIER: '1'
+  FIREBASE_SKIP_UPDATE_CHECK: 'true'
+
+concurrency:
+  group: deploy-functions-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+      - run: npm --prefix functions ci
+      - run: npm run check:registration-ops
+      - run: npm run test:functions
+
+      - name: Authenticate to Google Cloud
+        shell: bash
+        env:
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GCP_SERVICE_ACCOUNT_JSON:-}" ]; then
+            echo "GCP_SERVICE_ACCOUNT_JSON secret is required for functions deployment." >&2
+            exit 1
+          fi
+          printf '%s' "$GCP_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/gcp-service-account.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/gcp-service-account.json" >> "$GITHUB_ENV"
+
+      - name: Deploy functions
+        run: npx firebase deploy --only functions --project fc-football-6c8dc --non-interactive

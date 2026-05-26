@@ -8,6 +8,7 @@
     "test:unit": "jest tests/unit/",
     "test:unit:coverage": "jest tests/unit/ --coverage",
     "test:functions": "jest tests/unit/cloud-functions.test.js",
+    "check:registration-ops": "node scripts/check-registration-ops-guard.js",
     "test:e2e": "npx playwright test tests/e2e/",
     "test:e2e:smoke": "npx playwright test tests/e2e/ --project=chromium-desktop",
     "test:e2e:full": "npx playwright test tests/e2e/",

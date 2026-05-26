@@ -19,6 +19,7 @@ jobs:
           node-version: '24'
           cache: 'npm'
       - run: npm ci
+      - run: npm run check:registration-ops
       - run: npm run test:unit
       - run: npm run test:unit:coverage -- --coverageReporters=text-summary --coverageReporters=json-summary
       - uses: actions/upload-artifact@v4
