@@ -38,6 +38,28 @@ const ApiService = {
     return true;
   },
 
+  _withFirestoreFetchTimeout(promise, timeoutMs, label) {
+    const ms = Number(timeoutMs) || 0;
+    if (!promise || ms <= 0) return Promise.resolve(promise);
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        const err = new Error(`${label || 'firestore fetch'} timeout after ${ms}ms`);
+        err.code = 'firestore-fetch-timeout';
+        reject(err);
+      }, ms);
+      Promise.resolve(promise).then(
+        value => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        err => {
+          clearTimeout(timer);
+          reject(err);
+        },
+      );
+    });
+  },
+
   async _hasFreshFirebaseUser(forceRefreshToken = false) {
     if (typeof auth === 'undefined' || !auth) return false;
     // 等待 Firebase Auth 從持久化儲存恢復登入狀態（最多 5 秒）
@@ -1146,10 +1168,25 @@ const ApiService = {
     var cached = this.getRegistrationsByEvent(eventId);
     var ev = this._findById('events', eventId);
     const force = options === true || options?.force === true;
+    const timeoutMs = Number(options?.timeoutMs || 0) || 0;
     this._fetchingRegistrationPromises = this._fetchingRegistrationPromises || {};
     const inflightKey = String(eventId);
     if (!force && this._fetchingRegistrationPromises[inflightKey]) {
-      return this._fetchingRegistrationPromises[inflightKey];
+      const existingPromise = this._fetchingRegistrationPromises[inflightKey];
+      if (timeoutMs > 0) {
+        try {
+          const existingResult = await this._withFirestoreFetchTimeout(existingPromise, timeoutMs, 'fetchRegistrationsIfMissing');
+          return existingResult || { ok: true };
+        } catch (err) {
+          console.warn('[fetchRegistrationsIfMissing]', err);
+          if (err?.code === 'firestore-fetch-timeout'
+            && this._fetchingRegistrationPromises[inflightKey] === existingPromise) {
+            delete this._fetchingRegistrationPromises[inflightKey];
+          }
+          return { ok: false, reason: err?.code === 'firestore-fetch-timeout' ? 'timeout' : 'error', error: err };
+        }
+      }
+      return existingPromise;
     }
     if (!force && this._fetchedRegistrationIds.has(eventId)) {
       if (cached.length > 0 && this._registrationCacheCompleteForEvent(ev, cached)) return;
@@ -1167,7 +1204,7 @@ const ApiService = {
       if (ev) console.warn('[fetchRegistrationsIfMissing] missing _docId:', eventId);
       return;
     }
-    const loadPromise = (async () => {
+    const queryPromise = (async () => {
       var snap = await db.collection('events').doc(ev._docId)
         .collection('registrations').get();
       var fromCache = snap?.metadata?.fromCache === true;
@@ -1182,14 +1219,19 @@ const ApiService = {
         this._fetchedRegistrationServerIds.add(eventId);
       }
     })();
+    const loadPromise = timeoutMs > 0
+      ? this._withFirestoreFetchTimeout(queryPromise, timeoutMs, 'fetchRegistrationsIfMissing')
+      : queryPromise;
     if (!force) this._fetchingRegistrationPromises[inflightKey] = loadPromise;
     try {
       await loadPromise;
+      return { ok: true };
     } catch (err) {
       console.warn('[fetchRegistrationsIfMissing]', err);
       if (err && (err.code === 'permission-denied' || err.code === 'unauthenticated')) {
         this._fetchedRegistrationIds.add(eventId);
       }
+      return { ok: false, reason: err?.code === 'firestore-fetch-timeout' ? 'timeout' : 'error', error: err };
     } finally {
       if (this._fetchingRegistrationPromises[inflightKey] === loadPromise) {
         delete this._fetchingRegistrationPromises[inflightKey];
@@ -1311,14 +1353,16 @@ const ApiService = {
    * 2026-04-25：加 `_fetchedAttendanceIds` Set 去重；未結束活動（status !== 'ended'/'cancelled'）
    * 直接信任快取空值不觸發 fetch，因簽到記錄必然少於 onSnapshot limit。
    */
-  async fetchAttendanceIfMissing(eventId) {
+  async fetchAttendanceIfMissing(eventId, options = {}) {
     if (!eventId || typeof db === 'undefined') return;
 
     this._fetchedAttendanceIds = this._fetchedAttendanceIds || new Set();
-    if (this._fetchedAttendanceIds.has(eventId)) return;
+    const force = options === true || options?.force === true;
+    const timeoutMs = Number(options?.timeoutMs || 0) || 0;
+    if (!force && this._fetchedAttendanceIds.has(eventId)) return;
 
     var cached = this.getAttendanceRecords(eventId);
-    if (cached.length > 0) {
+    if (!force && cached.length > 0) {
       this._fetchedAttendanceIds.add(eventId);
       return;
     }
@@ -1326,15 +1370,16 @@ const ApiService = {
     var ev = this._findById('events', eventId);
     // 未結束活動（status in [upcoming, open, full]）不可能累積超過 onSnapshot
     // attendance limit（500 筆）的簽到記錄，信任快取空值。新增活動狀態時需同步評估此行。
-    if (ev && ev.status !== 'ended' && ev.status !== 'cancelled') return;
+    if (!force && ev && ev.status !== 'ended' && ev.status !== 'cancelled') return;
 
     if (!ev || !ev._docId) {
       if (ev) console.warn('[fetchAttendanceIfMissing] missing _docId:', eventId);
       return;
     }
     try {
-      var snap = await db.collection('events').doc(ev._docId)
+      var fetchPromise = db.collection('events').doc(ev._docId)
         .collection('attendanceRecords').get();
+      var snap = await this._withFirestoreFetchTimeout(fetchPromise, timeoutMs, 'fetchAttendanceIfMissing');
       var records = snap.docs.map(function(d) {
         return FirebaseService._mapSubcollectionDoc(d, 'attendanceRecords');
       });
@@ -1342,12 +1387,14 @@ const ApiService = {
         FirebaseService._upsertCanonicalCacheRecord('attendanceRecords', r);
       });
       this._fetchedAttendanceIds.add(eventId);
+      return { ok: true };
     } catch (err) {
       console.warn('[fetchAttendanceIfMissing]', err);
       // 權限/認證錯誤無法自行恢復，標記 Set 避免每次進頁都重試浪費
       if (err && (err.code === 'permission-denied' || err.code === 'unauthenticated')) {
         this._fetchedAttendanceIds.add(eventId);
       }
+      return { ok: false, reason: err?.code === 'firestore-fetch-timeout' ? 'timeout' : 'error', error: err };
     }
   },
 

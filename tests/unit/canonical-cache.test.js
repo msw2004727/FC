@@ -45,6 +45,11 @@ function mockSubcollectionDoc(data, docId = 'reg_sub', eventDocId = 'eventDocA',
 }
 
 describe('canonical registration/activity/attendance cache', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
   test('maps subcollection docs with source metadata and uid aliases', () => {
     const { FirebaseService } = loadServices();
     const doc = mockSubcollectionDoc({ eventId: 'e1', userId: 'u1', status: 'confirmed' });
@@ -200,6 +205,28 @@ describe('canonical registration/activity/attendance cache', () => {
 
     expect(ApiService._fetchedRegistrationIds.has('e-cache')).toBe(false);
     expect(ApiService._fetchedRegistrationServerIds.has('e-cache')).toBe(false);
+  });
+
+  test('fetchRegistrationsIfMissing releases an in-flight registration fetch after timeout', async () => {
+    jest.useFakeTimers();
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const sandbox = loadServices();
+    const { FirebaseService, ApiService } = sandbox;
+    FirebaseService._cache.events = [{ id: 'e-timeout', _docId: 'eventDocTimeout', current: 1, waitlist: 0 }];
+
+    const get = jest.fn(() => new Promise(() => {}));
+    const collection = jest.fn(() => ({ get }));
+    const doc = jest.fn(() => ({ collection }));
+    sandbox.db = { collection: jest.fn(() => ({ doc })) };
+
+    const promise = ApiService.fetchRegistrationsIfMissing('e-timeout', { timeoutMs: 50 });
+    await jest.advanceTimersByTimeAsync(60);
+    const result = await promise;
+
+    expect(result).toMatchObject({ ok: false, reason: 'timeout' });
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(ApiService._fetchingRegistrationPromises?.['e-timeout']).toBeUndefined();
+    expect(ApiService._fetchedRegistrationIds.has('e-timeout')).toBe(false);
   });
 
   test('limited registration snapshots preserve event-specific server-fetched rows', () => {

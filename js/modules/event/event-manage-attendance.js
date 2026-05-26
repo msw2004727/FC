@@ -8,6 +8,8 @@ Object.assign(App, {
   _attendanceEditingEventId: null,
   _unregEditingEventId: null,
   _manualEditingContainerId: null,
+  _attendanceTableFetchTimeoutMs: 9000,
+  _attendanceTableLatePatchTimers: null,
 
   _normalizeAttendanceSelection(state) {
     const normalized = {
@@ -51,6 +53,94 @@ Object.assign(App, {
   _isActiveAttendanceRegistration(reg) {
     const status = String(reg?.status || 'confirmed').toLowerCase();
     return status !== 'cancelled' && status !== 'removed';
+  },
+
+  _getAttendanceTableFetchTimeoutMs(options = {}) {
+    const fromOptions = Number(options?.timeoutMs || 0);
+    if (fromOptions > 0) return Math.max(1500, fromOptions);
+    return Math.max(3000, Number(this._attendanceTableFetchTimeoutMs) || 9000);
+  },
+
+  _getAttendanceTableFetchIssue(results) {
+    const list = Array.isArray(results) ? results : [];
+    const failed = list.find(r => r && r.ok === false);
+    if (!failed) return null;
+    return {
+      reason: failed.reason || 'error',
+      error: failed.error || null,
+    };
+  },
+
+  _getEventExpectedRosterCount(e) {
+    if (!e) return 0;
+    return Number(e.current || 0)
+      || (Array.isArray(e.participantsWithUid) ? e.participantsWithUid.length : 0)
+      || (Array.isArray(e.participants) ? e.participants.length : 0);
+  },
+
+  _isCurrentAttendanceTableTarget(eventId, containerId) {
+    if (containerId === 'detail-attendance-table') {
+      return this.currentPage === 'page-activity-detail'
+        && this._currentDetailEventId === eventId
+        && !!document.getElementById(containerId);
+    }
+    return !!document.getElementById(containerId);
+  },
+
+  _scheduleAttendanceTableLatePatch(eventId, containerId) {
+    const cId = containerId || 'attendance-table-container';
+    this._attendanceTableLatePatchTimers = this._attendanceTableLatePatchTimers || {};
+    const key = `${cId}:${eventId}`;
+    if (this._attendanceTableLatePatchTimers[key]) return;
+    const delays = [1800, 6000, 14000];
+    let index = 0;
+    const run = () => {
+      if (!this._attendanceTableLatePatchTimers?.[key]) return;
+      if (!this._isCurrentAttendanceTableTarget(eventId, cId)) {
+        clearTimeout(this._attendanceTableLatePatchTimers[key]);
+        delete this._attendanceTableLatePatchTimers[key];
+        return;
+      }
+      const e = ApiService.getEvent?.(eventId);
+      const regs = ApiService.getRegistrationsByEvent?.(eventId) || [];
+      const expectedCount = this._getEventExpectedRosterCount(e);
+      if (regs.length > 0 || expectedCount <= 0) {
+        clearTimeout(this._attendanceTableLatePatchTimers[key]);
+        delete this._attendanceTableLatePatchTimers[key];
+        this._renderAttendanceTable(eventId, cId, { skipFetch: true });
+        return;
+      }
+      index++;
+      if (index >= delays.length) {
+        clearTimeout(this._attendanceTableLatePatchTimers[key]);
+        delete this._attendanceTableLatePatchTimers[key];
+        return;
+      }
+      this._attendanceTableLatePatchTimers[key] = setTimeout(run, delays[index]);
+    };
+    this._attendanceTableLatePatchTimers[key] = setTimeout(run, delays[index]);
+  },
+
+  _renderAttendanceLoadIssue(eventId, containerId, issue = {}) {
+    const safeEventId = escapeHTML(eventId || '');
+    const safeContainerId = escapeHTML(containerId || 'attendance-table-container');
+    const isTimeout = issue?.reason === 'timeout';
+    const title = isTimeout ? '報名名單同步較久' : '報名名單暫時無法同步';
+    const note = isTimeout
+      ? '先顯示目前可用資料；系統會在背景補回最新名單。'
+      : '可以稍後重新同步，或先查看目前可用資料。';
+    return `<div class="reg-loading reg-loading-issue" style="align-items:flex-start;text-align:left;gap:.35rem">
+      <div style="font-weight:700;color:var(--text-primary)">${title}</div>
+      <div style="font-size:.78rem;color:var(--text-secondary);line-height:1.5">${note}</div>
+      <button type="button" style="font-size:.76rem;padding:.28rem .65rem;border:1px solid var(--border);background:var(--surface);color:var(--text-primary);border-radius:var(--radius-sm);cursor:pointer" onclick="App._retryAttendanceTableLoad('${safeEventId}','${safeContainerId}')">重新同步名單</button>
+    </div>`;
+  },
+
+  _retryAttendanceTableLoad(eventId, containerId) {
+    return this._renderAttendanceTable(eventId, containerId || 'attendance-table-container', {
+      forceFetch: true,
+      timeoutMs: this._getAttendanceTableFetchTimeoutMs(),
+    });
   },
 
   _getTeamReservationMarkerImage(teamId) {
@@ -238,17 +328,18 @@ Object.assign(App, {
    * 結構與 full render 類似（避免 swap 視覺跳動）但只顯示名字 + 候補標籤
    * 後續 _doRenderAttendanceTable 走 fetch + full render 會無聲替換此內容
    */
-  _renderAttendanceFastPreview(e) {
+  _renderAttendanceFastPreview(e, options = {}) {
     const escName = (n) => escapeHTML(String(n || '').trim());
     const confirmed = Array.isArray(e.participants) ? e.participants : [];
     const waitlist = Array.isArray(e.waitlistNames) ? e.waitlistNames : [];
+    const pendingText = options?.degraded ? '待同步' : '載入中...';
     const rows = [];
     confirmed.forEach((name) => {
       const safe = escName(name);
       if (!safe) return;
       rows.push('<tr class="reg-row reg-row-fast">'
         + '<td style="padding:.45rem .5rem"><span class="reg-name-text">' + safe + '</span></td>'
-        + '<td style="padding:.45rem .2rem;text-align:center;color:var(--text-muted);font-size:.72rem">載入中...</td>'
+        + '<td style="padding:.45rem .2rem;text-align:center;color:var(--text-muted);font-size:.72rem">' + pendingText + '</td>'
         + '</tr>');
     });
     waitlist.forEach((name) => {
@@ -338,11 +429,26 @@ Object.assign(App, {
     }
 
     // 舊活動可能超出全站監聽器 limit → 一次性從子集合補查
+    let fetchIssue = null;
     if (!options?.skipFetch) {
-      await Promise.all([
-        ApiService.fetchAttendanceIfMissing(eventId),
-        ApiService.fetchRegistrationsIfMissing(eventId),
-      ]);
+      const fetchOptions = {
+        timeoutMs: this._getAttendanceTableFetchTimeoutMs(options),
+      };
+      if (options?.forceFetch) fetchOptions.force = true;
+      try {
+        const fetchResults = await Promise.all([
+          ApiService.fetchAttendanceIfMissing(eventId, fetchOptions),
+          ApiService.fetchRegistrationsIfMissing(eventId, fetchOptions),
+        ]);
+        fetchIssue = this._getAttendanceTableFetchIssue(fetchResults);
+      } catch (err) {
+        console.warn('[AttendanceTable] fetch failed:', err);
+        fetchIssue = {
+          reason: err?.code === 'firestore-fetch-timeout' ? 'timeout' : 'error',
+          error: err,
+        };
+      }
+      if (fetchIssue) this._scheduleAttendanceTableLatePatch(eventId, cId);
     }
     const _t1 = _perfLog ? performance.now() : 0;
 
@@ -385,15 +491,19 @@ Object.assign(App, {
         : '';
       // 若 event.current > 0 或 participantsWithUid / participants 有人 → 視為「資料還在加載」
       // 顯示 spinner + skeleton，避免用戶誤以為沒人報名（2026-04-19 UX 改善）
-      const expectedCount = Number(e.current || 0)
-        || (Array.isArray(e.participantsWithUid) ? e.participantsWithUid.length : 0)
-        || (Array.isArray(e.participants) ? e.participants.length : 0);
+      const expectedCount = this._getEventExpectedRosterCount(e);
       if (expectedCount > 0) {
-        // 根據預期人數產出 1-3 個 skeleton row（最多 3 個避免佔太大）
-        const rowCount = Math.min(3, expectedCount);
-        const skeletonRows = Array(rowCount).fill('<div class="reg-loading-skeleton-row"></div>').join('');
-        container.innerHTML = emptyHeader + '<div class="reg-loading">報名名單載入中...</div>'
-          + '<div class="reg-loading-skeleton">' + skeletonRows + '</div>';
+        if (fetchIssue) {
+          container.innerHTML = emptyHeader
+            + (_hasFastData ? this._renderAttendanceFastPreview(e, { degraded: true }) : '')
+            + this._renderAttendanceLoadIssue(eventId, cId, fetchIssue);
+        } else {
+          // 根據預期人數產出 1-3 個 skeleton row（最多 3 個避免佔太大）
+          const rowCount = Math.min(3, expectedCount);
+          const skeletonRows = Array(rowCount).fill('<div class="reg-loading-skeleton-row"></div>').join('');
+          container.innerHTML = emptyHeader + '<div class="reg-loading">報名名單載入中...</div>'
+            + '<div class="reg-loading-skeleton">' + skeletonRows + '</div>';
+        }
       } else {
         container.innerHTML = emptyHeader + '<div style="font-size:.8rem;color:var(--text-muted);padding:.3rem 0">尚無報名</div>';
       }
@@ -631,12 +741,13 @@ Object.assign(App, {
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600;width:4.5rem">備註</th>
         </tr>`;
 
+    const fetchIssueHtml = fetchIssue ? this._renderAttendanceLoadIssue(eventId, cId, fetchIssue) : '';
     container.innerHTML = `<div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:.8rem;table-layout:fixed">
         <thead>${thead}</thead>
         <tbody>${rows}</tbody>
       </table>
-    </div>`;
+    </div>${fetchIssueHtml}`;
     // 2026-04-20：移除「_scrollEl.scrollTop = _savedScrollY」還原
     // （await 期間用戶滑走會被拉回的 bug）。_lockContainerHeight 已負責防 clamp
     this._bindAttendanceCheckboxLink(container, 'manual-checkin-', 'manual-checkout-');

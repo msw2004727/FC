@@ -6,6 +6,8 @@
 
 Object.assign(App, {
 
+  _eventSignupRegistrationHydrateTimeoutMs: 9000,
+
   _beginEventActionBusy(key, message = '系統已在處理中') {
     const busyKey = String(key || '').trim();
     if (!busyKey) return false;
@@ -66,6 +68,107 @@ Object.assign(App, {
     return code === 'ALREADY_CANCELLED'
       || message.includes('已取消此報名')
       || message.includes('ALREADY_CANCELLED');
+  },
+
+  _getEventSignupRegistrationHydrateTimeoutMs() {
+    return Math.max(3000, Number(this._eventSignupRegistrationHydrateTimeoutMs) || 9000);
+  },
+
+  _clearEventSignupRegistrationHydrateTimer(state) {
+    if (state?.timeoutId) {
+      clearTimeout(state.timeoutId);
+      state.timeoutId = null;
+    }
+  },
+
+  _sameEventSignupRegistrationHydrateState(state, eventId, uid) {
+    return !!state
+      && state.eventId === eventId
+      && state.uid === uid;
+  },
+
+  _markEventSignupRegistrationHydrateIssue(eventId, uid, promise, reason) {
+    const state = this._eventSignupRegistrationHydrateState;
+    if (!this._sameEventSignupRegistrationHydrateState(state, eventId, uid)) return false;
+    if (promise && state.promise !== promise) return false;
+    this._clearEventSignupRegistrationHydrateTimer(state);
+    state.pending = false;
+    state.promise = null;
+    state.timedOut = reason === 'timeout';
+    state.issue = reason || 'unverified';
+    if (this.currentPage === 'page-activity-detail'
+      && this._currentDetailEventId === eventId
+      && !this._flipAnimating) {
+      this._refreshSignupButton?.(eventId);
+    }
+    return true;
+  },
+
+  _isEventSignupRegistrationHydrateIssue(e) {
+    const eventId = String(e?.id || '').trim();
+    const uid = this._getCurrentSignupRegistrationUid?.() || '';
+    const state = this._eventSignupRegistrationHydrateState;
+    return this._sameEventSignupRegistrationHydrateState(state, eventId, uid)
+      && state.pending !== true
+      && !!state.issue
+      && this._shouldHoldSignupActionsForEventRegistrations?.(e) === true;
+  },
+
+  _buildEventSignupSyncIssueButton(eventId) {
+    const safeEventId = escapeHTML(eventId || '');
+    return `<button type="button" style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer" onclick="App._retryEventSignupRegistrationHydrate('${safeEventId}')">重新檢查報名狀態</button>`;
+  },
+
+  _retryEventSignupRegistrationHydrate(eventId) {
+    const e = ApiService.getEvent?.(eventId);
+    if (!e) return;
+    const state = this._eventSignupRegistrationHydrateState;
+    this._clearEventSignupRegistrationHydrateTimer(state);
+    this._eventSignupRegistrationHydrateState = null;
+    const uid = this._getCurrentSignupRegistrationUid?.() || '';
+    if (!uid) {
+      this._refreshSignupButton?.(eventId);
+      return;
+    }
+    if (typeof ApiService.fetchRegistrationsIfMissing !== 'function') {
+      this._refreshSignupButton?.(eventId);
+      return;
+    }
+    const timeoutMs = this._getEventSignupRegistrationHydrateTimeoutMs();
+    const fetchPromise = Promise.resolve(ApiService.fetchRegistrationsIfMissing(eventId, {
+      force: true,
+      timeoutMs,
+    })).catch(err => {
+      console.warn('[EventDetail] signup registration retry failed:', err);
+    });
+    const nextState = {
+      eventId,
+      uid,
+      pending: true,
+      promise: fetchPromise,
+      requestSeq: null,
+      startedAt: Date.now(),
+      timeoutId: null,
+      issue: '',
+      timedOut: false,
+    };
+    nextState.timeoutId = setTimeout(() => {
+      this._markEventSignupRegistrationHydrateIssue(eventId, uid, fetchPromise, 'timeout');
+    }, timeoutMs);
+    this._eventSignupRegistrationHydrateState = nextState;
+    this._refreshSignupButton?.(eventId);
+    fetchPromise.then(() => {
+      const current = this._eventSignupRegistrationHydrateState;
+      if (!this._sameEventSignupRegistrationHydrateState(current, eventId, uid)
+        || current.promise !== fetchPromise) return;
+      if (this._shouldHoldSignupActionsForEventRegistrations?.(e) === true) {
+        this._markEventSignupRegistrationHydrateIssue(eventId, uid, fetchPromise, 'unverified');
+      } else {
+        this._clearEventSignupRegistrationHydrateTimer(current);
+        this._eventSignupRegistrationHydrateState = null;
+        this._refreshSignupButton?.(eventId);
+      }
+    });
   },
 
   // ══════════════════════════════════
@@ -402,13 +505,24 @@ Object.assign(App, {
 
     const current = this._eventSignupRegistrationHydrateState;
     if (current?.pending === true && current.eventId === eventId && current.uid === uid) {
+      const startedAt = Number(current.startedAt || 0) || 0;
+      if (startedAt && Date.now() - startedAt > this._getEventSignupRegistrationHydrateTimeoutMs()) {
+        this._markEventSignupRegistrationHydrateIssue(eventId, uid, current.promise, 'timeout');
+        return false;
+      }
       return true;
+    }
+    if (this._sameEventSignupRegistrationHydrateState(current, eventId, uid)
+      && current?.pending !== true
+      && current?.issue) {
+      return false;
     }
 
     const promise = Promise.resolve(ApiService.fetchRegistrationsIfMissing(eventId))
       .catch(err => {
         console.warn('[EventDetail] signup registration hydrate failed:', err);
       });
+    const timeoutMs = this._getEventSignupRegistrationHydrateTimeoutMs();
 
     this._eventSignupRegistrationHydrateState = {
       eventId,
@@ -416,14 +530,21 @@ Object.assign(App, {
       pending: true,
       promise,
       requestSeq: opts?.requestSeq || null,
+      startedAt: Date.now(),
+      timeoutId: setTimeout(() => {
+        this._markEventSignupRegistrationHydrateIssue(eventId, uid, promise, 'timeout');
+      }, timeoutMs),
+      issue: '',
+      timedOut: false,
     };
 
     promise.then(() => {
       const state = this._eventSignupRegistrationHydrateState;
       if (state?.eventId === eventId && state?.uid === uid && state?.promise === promise) {
         if (this._shouldHoldSignupActionsForEventRegistrations?.(e) === true) {
-          state.promise = null;
+          this._markEventSignupRegistrationHydrateIssue(eventId, uid, promise, 'unverified');
         } else {
+          this._clearEventSignupRegistrationHydrateTimer(state);
           this._eventSignupRegistrationHydrateState = null;
         }
       }
@@ -1853,6 +1974,12 @@ Object.assign(App, {
       actionZone.innerHTML = this._buildEventSignupLoadingButton?.() || '<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>載入中…</button>';
       return;
     }
+    var registrationIdentityIssue = typeof this._isEventSignupRegistrationHydrateIssue === 'function'
+      && this._isEventSignupRegistrationHydrateIssue(e) === true;
+    if (registrationIdentityIssue) {
+      actionZone.innerHTML = this._buildEventSignupSyncIssueButton?.(eventId) || '<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>報名狀態同步中</button>';
+      return;
+    }
 
     var isEnded = e.status === 'ended' || e.status === 'cancelled';
     var isUpcoming = e.status === 'upcoming';
@@ -1918,6 +2045,7 @@ Object.assign(App, {
         isEnded,
         isUpcoming,
         registrationIdentityLoading,
+        registrationIdentityIssue,
         teamReservationIdentityLoading,
         teamBlocked,
       });

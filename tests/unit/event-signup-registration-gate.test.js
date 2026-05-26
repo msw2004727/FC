@@ -66,6 +66,7 @@ function loadSignupModule({
 
 describe('event detail signup registration loading gate', () => {
   afterEach(() => {
+    jest.useRealTimers();
     document.body.innerHTML = '';
     jest.restoreAllMocks();
   });
@@ -117,5 +118,46 @@ describe('event detail signup registration loading gate', () => {
 
     expect(document.querySelector('.detail-action-primary button')?.dataset.state).toBe('loading');
     expect(app._isUserSignedUp).not.toHaveBeenCalled();
+  });
+
+  test('turns unresolved hydrate into a retryable issue instead of staying pending forever', async () => {
+    jest.useFakeTimers();
+    const deferred = createDeferred();
+    const { app, event } = loadSignupModule({
+      fetchRegistrationsIfMissing: jest.fn(() => deferred.promise),
+    });
+    app._eventSignupRegistrationHydrateTimeoutMs = 3000;
+    app._refreshSignupButton = jest.fn();
+
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
+
+    await jest.advanceTimersByTimeAsync(3100);
+
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(false);
+    expect(app._isEventSignupRegistrationHydrateIssue(event)).toBe(true);
+    expect(app._eventSignupRegistrationHydrateState).toMatchObject({
+      pending: false,
+      issue: 'timeout',
+    });
+    expect(app._refreshSignupButton).toHaveBeenCalledWith(event.id);
+  });
+
+  test('marks hydrate as retryable when fetch resolves but registration absence is still unverified', async () => {
+    const { app, event } = loadSignupModule({
+      fetchRegistrationsIfMissing: jest.fn(() => Promise.resolve()),
+    });
+
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(false);
+    expect(app._isEventSignupRegistrationHydrateIssue(event)).toBe(true);
+    expect(app._eventSignupRegistrationHydrateState).toMatchObject({
+      pending: false,
+      issue: 'unverified',
+    });
   });
 });

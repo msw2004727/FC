@@ -443,9 +443,27 @@ describe('Team reservation button loading contract', () => {
     expect(signupSource).toContain('_shouldHoldSignupActionsForTeamReservationStaffHydrate');
     expect(signupSource).toContain('_isTeamReservationStaffTeamsHydratingForEvent(eventId)');
     expect(signupSource).toContain('_buildEventSignupLoadingButton');
+    expect(signupSource).toContain('_buildEventSignupSyncIssueButton');
+    expect(signupSource).toContain('_markEventSignupRegistrationHydrateIssue');
     expect(signupSource).toContain('opts.registrationIdentityLoading');
     expect(signupSource).toContain('opts.teamReservationIdentityLoading');
     expect(signupSource).toContain('this._ensureEventSignupRegistrationStateLoaded(e) === true');
+  });
+
+  test('activity detail roster loading has timeout fallback and manual force refresh', () => {
+    const detailSource = readProjectFile('js/modules/event/event-detail.js');
+    const attendanceSource = readProjectFile('js/modules/event/event-manage-attendance.js');
+
+    expect(attendanceSource).toContain('_attendanceTableFetchTimeoutMs');
+    expect(attendanceSource).toContain('_renderAttendanceLoadIssue');
+    expect(attendanceSource).toContain('_scheduleAttendanceTableLatePatch');
+    expect(attendanceSource).toContain('ApiService.fetchRegistrationsIfMissing(eventId, fetchOptions)');
+    expect(attendanceSource).toContain('ApiService.fetchAttendanceIfMissing(eventId, fetchOptions)');
+    expect(detailSource).toContain('_forceRefreshEventDetailRosterData');
+    expect(detailSource).toContain('fetchRegistrationsIfMissing(eventId, {');
+    expect(detailSource).toContain('fetchAttendanceIfMissing(eventId, {');
+    expect(detailSource).toContain('force: true');
+    expect(detailSource).toContain('await this._forceRefreshEventDetailRosterData?.(id);');
   });
 
   test('activity list ships and preserves an initial loading bar until events finish loading', () => {

@@ -81,7 +81,10 @@ Object.assign(App, {
         .catch(err => console.warn('[EventDetail] event detail prefetch failed:', err));
     }
     if (typeof ApiService !== 'undefined' && typeof ApiService.fetchRegistrationsIfMissing === 'function') {
-      ApiService.fetchRegistrationsIfMissing(id)
+      const timeoutMs = typeof this._getAttendanceTableFetchTimeoutMs === 'function'
+        ? this._getAttendanceTableFetchTimeoutMs()
+        : 9000;
+      ApiService.fetchRegistrationsIfMissing(id, { timeoutMs })
         .then(() => {
           if (this.currentPage !== 'page-activity-detail' || this._currentDetailEventId !== id) return;
           this._patchDetailTables?.(id);
@@ -470,6 +473,10 @@ Object.assign(App, {
     const registrationIdentityLoading = !isGuestView
       && typeof this._ensureEventSignupRegistrationStateLoaded === 'function'
       && this._ensureEventSignupRegistrationStateLoaded(e, { requestSeq }) === true;
+    const registrationIdentityIssue = !registrationIdentityLoading
+      && !isGuestView
+      && typeof this._isEventSignupRegistrationHydrateIssue === 'function'
+      && this._isEventSignupRegistrationHydrateIssue(e) === true;
     const teamReservationIdentityLoading = !isGuestView
       && typeof this._isTeamReservationStaffTeamsHydratingForEvent === 'function'
       && this._isTeamReservationStaffTeamsHydratingForEvent(id);
@@ -569,6 +576,8 @@ Object.assign(App, {
       signupBtn = this._buildGuestEventSignupButton(e, isUpcoming, isEnded, isMainFull);
     } else if (signupActionsLoading) {
       signupBtn = this._buildEventSignupLoadingButton?.() || `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>載入中…</button>`;
+    } else if (registrationIdentityIssue) {
+      signupBtn = this._buildEventSignupSyncIssueButton?.(e.id) || `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>報名狀態同步中</button>`;
     } else if (isEnded) {
       signupBtn = `<button style="background:#333;color:#999;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed" disabled>已結束</button>`;
     } else if (isOnWaitlist) {
@@ -596,6 +605,7 @@ Object.assign(App, {
         isUpcoming,
         regsLoading,
         registrationIdentityLoading,
+        registrationIdentityIssue,
         teamReservationIdentityLoading,
         teamBlocked: e.teamOnly && !canTeamOnlySignup,
       });
@@ -1018,6 +1028,36 @@ Object.assign(App, {
     wrap.innerHTML = '<button class="event-detail-refresh-btn" onclick="App._refreshEventDetail()" title="重新整理"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg></button>';
   },
 
+  async _forceRefreshEventDetailRosterData(eventId) {
+    if (!eventId || typeof ApiService === 'undefined') return [];
+    const timeoutMs = typeof this._getAttendanceTableFetchTimeoutMs === 'function'
+      ? this._getAttendanceTableFetchTimeoutMs({ timeoutMs: 12000 })
+      : 12000;
+    const tasks = [];
+    if (typeof ApiService.fetchRegistrationsIfMissing === 'function') {
+      tasks.push(Promise.resolve(ApiService.fetchRegistrationsIfMissing(eventId, {
+        force: true,
+        timeoutMs,
+      })).then(result => ({ type: 'registrations', result })));
+    }
+    if (typeof ApiService.fetchAttendanceIfMissing === 'function') {
+      tasks.push(Promise.resolve(ApiService.fetchAttendanceIfMissing(eventId, {
+        force: true,
+        timeoutMs,
+      })).then(result => ({ type: 'attendanceRecords', result })));
+    }
+    if (!tasks.length) return [];
+    const settled = await Promise.allSettled(tasks);
+    settled.forEach(item => {
+      const value = item.status === 'fulfilled' ? item.value : null;
+      const result = value?.result;
+      if (item.status === 'rejected' || result?.ok === false) {
+        console.warn('[EventDetail] force roster refresh issue:', item.reason || result?.error || result);
+      }
+    });
+    return settled;
+  },
+
   async _refreshEventDetail() {
     const id = this._currentDetailEventId;
     if (!id) return;
@@ -1038,6 +1078,7 @@ Object.assign(App, {
           }
         }
       }
+      await this._forceRefreshEventDetailRosterData?.(id);
       this.showEventDetail(id);
     } catch (err) {
       console.warn('[refreshEventDetail]', err);
