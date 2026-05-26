@@ -318,6 +318,21 @@ function cfAssignStatus(confirmedInput, maxCapacity) {
   return confirmedCount >= maxCapacity ? 'waitlisted' : 'confirmed';
 }
 
+function cfNormalizeBinaryGenderForRegistration(value) {
+  const raw = String(value || '').trim().slice(0, 20);
+  const lower = raw.toLowerCase();
+  if (raw === '\u7537' || lower === 'male' || lower === 'm') return 'male';
+  if (raw === '\u5973' || lower === 'female' || lower === 'f') return 'female';
+  return '';
+}
+
+function cfIsGenderRestricted(eventAllowedGender, userGender) {
+  const allowedGender = cfNormalizeBinaryGenderForRegistration(eventAllowedGender);
+  if (!allowedGender) return false;
+  const normalizedGender = cfNormalizeBinaryGenderForRegistration(userGender);
+  return !normalizedGender || normalizedGender !== allowedGender;
+}
+
 function getLineNotificationSettingsKey(category) {
   return category === "private" ? "system" : category;
 }
@@ -498,6 +513,14 @@ describe('registration callable source contracts', () => {
     expect(source).toContain('transaction.set(arRef, arData)');
     expect(source).toContain('reg.identitySnapshot = buildMainPublicIdentitySnapshot(callerUserDoc?.data || {}, callerUid)');
     expect(source).not.toContain('callerMainIdentitySnapshot');
+  });
+
+  test('registerForEvent normalizes both event and user gender before enforcing gender restriction', () => {
+    const source = readCloudFunctionSource('registerForEvent');
+    expect(source).toContain('const allowedGender = normalizeBinaryGenderForRegistration(ed.allowedGender)');
+    expect(source).toContain('const normalizedGender = normalizeBinaryGenderForRegistration(callerUserDoc?.data?.gender)');
+    expect(source).toContain('if (!normalizedGender || normalizedGender !== allowedGender)');
+    expect(source).not.toContain('normalizedGender !== ed.allowedGender');
   });
 
   test('cancelRegistration updates registrations, activityRecords, locks, and waitlist promotion in one transaction', () => {
@@ -1028,6 +1051,19 @@ describe('registerForEvent CF logic', () => {
 
   test('waitlisted when over capacity', () => {
     expect(cfAssignStatus(6, 5)).toBe('waitlisted');
+  });
+
+  test('gender restriction accepts Chinese and English values after normalization', () => {
+    expect(cfNormalizeBinaryGenderForRegistration('\u7537')).toBe('male');
+    expect(cfNormalizeBinaryGenderForRegistration('\u5973')).toBe('female');
+    expect(cfNormalizeBinaryGenderForRegistration('male')).toBe('male');
+    expect(cfNormalizeBinaryGenderForRegistration('female')).toBe('female');
+    expect(cfIsGenderRestricted('\u5973', '\u5973')).toBe(false);
+    expect(cfIsGenderRestricted('\u5973', 'female')).toBe(false);
+    expect(cfIsGenderRestricted('female', '\u5973')).toBe(false);
+    expect(cfIsGenderRestricted('\u5973', '\u7537')).toBe(true);
+    expect(cfIsGenderRestricted('\u5973', '\u5176\u4ed6')).toBe(true);
+    expect(cfIsGenderRestricted('', '\u7537')).toBe(false);
   });
 
   test('duplicate confirmed docs do not consume a unique capacity slot', () => {

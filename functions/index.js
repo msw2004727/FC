@@ -7461,6 +7461,14 @@ function sanitizeStr(val, maxLen) {
   return val.trim().slice(0, maxLen || 50);
 }
 
+function normalizeBinaryGenderForRegistration(value) {
+  const raw = sanitizeStr(value || "", 20);
+  const lower = raw.toLowerCase();
+  if (raw === "\u7537" || lower === "male" || lower === "m") return "male";
+  if (raw === "\u5973" || lower === "female" || lower === "f") return "female";
+  return "";
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  registerForEvent — 報名 callable（含同行者）
 // ═══════════════════════════════════════════════════════════════
@@ -7633,10 +7641,10 @@ exports.registerForEvent = onCall(
 
       // T3: 性別限制檢查（使用 Transaction 前預查的 callerUserDoc，避免 Transaction 內非交易讀取）
       if (participantsIncludeSelf && ed.genderRestrictionEnabled && ed.allowedGender) {
-        const callerGender = callerUserDoc?.data?.gender;
-        if (callerGender && ed.allowedGender !== "all") {
-          const normalizedGender = callerGender === "男" || callerGender === "male" ? "male" : callerGender === "女" || callerGender === "female" ? "female" : "";
-          if (normalizedGender && normalizedGender !== ed.allowedGender) {
+        const allowedGender = normalizeBinaryGenderForRegistration(ed.allowedGender);
+        if (allowedGender) {
+          const normalizedGender = normalizeBinaryGenderForRegistration(callerUserDoc?.data?.gender);
+          if (!normalizedGender || normalizedGender !== allowedGender) {
             throw new HttpsError("failed-precondition", "GENDER_RESTRICTED");
           }
         }
