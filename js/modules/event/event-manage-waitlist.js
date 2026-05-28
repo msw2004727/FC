@@ -333,6 +333,12 @@ Object.assign(App, {
     }
 
     this._setWaitlistActionPending('promote', eventId, userId, true);
+    const mutationSeq = ApiService.markEventMutationPending?.(eventId, {
+      mutationType: 'waitlist-promote',
+      source: 'firestore-batch',
+      affectedRegistrationIds: userWaitlisted.map(r => r._docId || r.id).filter(Boolean),
+      affectedProjectionFields: ['current', 'waitlist', 'participants', 'waitlistNames', 'participantsWithUid', 'waitlistWithUid', 'status'],
+    });
 
     // 蒐集 activityRecord
     const arSource = ApiService._src('activityRecords');
@@ -409,6 +415,10 @@ Object.assign(App, {
       await batch.commit();
     } catch (err) {
       console.error('[forcePromote]', err);
+      ApiService.markEventMutationError?.(eventId, mutationSeq, err, {
+        mutationType: 'waitlist-promote',
+        source: 'firestore-batch',
+      });
       // rollback local changes
       prevRegStates.forEach(state => { state.ref.status = state.prev; });
       prevArStates.forEach(state => { state.ref.status = state.prev; });
@@ -418,6 +428,10 @@ Object.assign(App, {
       this.showToast('儲存失敗，請重試');
       return;
     }
+    ApiService.markEventMutationServerConfirmed?.(eventId, mutationSeq, {
+      mutationType: 'waitlist-promote',
+      source: 'firestore-batch',
+    });
 
     // 套用投影到本地快取
     e.current = occupancy.current;
@@ -490,6 +504,12 @@ Object.assign(App, {
 
     if (!await this._ensureActivityRecordsReady({ required: true })) return;
     this._setWaitlistActionPending('demote', eventId, userId, true);
+    const mutationSeq = ApiService.markEventMutationPending?.(eventId, {
+      mutationType: 'waitlist-demote',
+      source: 'firestore-batch',
+      affectedRegistrationIds: userConfirmed.map(r => r._docId || r.id).filter(Boolean),
+      affectedProjectionFields: ['current', 'waitlist', 'participants', 'waitlistNames', 'participantsWithUid', 'waitlistWithUid', 'status'],
+    });
 
     // 蒐集 activityRecord（非同行者才有）
     const arSource = ApiService._src('activityRecords');
@@ -567,6 +587,10 @@ Object.assign(App, {
       await batch.commit();
     } catch (err) {
       console.error('[forceDemote]', err);
+      ApiService.markEventMutationError?.(eventId, mutationSeq, err, {
+        mutationType: 'waitlist-demote',
+        source: 'firestore-batch',
+      });
       // rollback
       prevRegStates.forEach(function (s) { s.ref.status = s.prev; });
       prevArStates.forEach(function (s) { s.ref.status = s.prev; });
@@ -576,6 +600,10 @@ Object.assign(App, {
       this.showToast('儲存失敗，請重試');
       return;
     }
+    ApiService.markEventMutationServerConfirmed?.(eventId, mutationSeq, {
+      mutationType: 'waitlist-demote',
+      source: 'firestore-batch',
+    });
 
     // commit 成功 → 套用投影
     e.current = occupancy.current;

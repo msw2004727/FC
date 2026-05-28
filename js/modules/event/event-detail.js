@@ -68,6 +68,22 @@ Object.assign(App, {
     return null;
   },
 
+  _getCurrentEventDetailPatchContext(containerId = '', options = {}) {
+    const container = containerId ? document.getElementById(containerId) : this._getEventDetailPatchContainer(options);
+    const dataset = container?.dataset || {};
+    const requestSeq = options?.requestSeq ?? (
+      dataset.detailRequestSeq ? Number(dataset.detailRequestSeq) : (this._eventDetailRequestSeq ?? null)
+    );
+    return {
+      ...options,
+      mode: options?.mode || 'detail',
+      requestSeq,
+      renderToken: options?.renderToken || dataset.detailRenderToken || null,
+      containerId: containerId || options?.containerId || '',
+      container: options?.container || container || null,
+    };
+  },
+
   _isCurrentEventDetailPatch(eventId, requestSeq = null, options = {}) {
     const result = (ok, reason) => ({ ok, reason: ok ? 'ok' : reason });
     if (this.currentPage !== 'page-activity-detail') return result(false, 'stale-page');
@@ -176,6 +192,139 @@ Object.assign(App, {
       return Promise.resolve({ ok: true, reason: 'scheduled' });
     }
     return render().catch(err => this._renderDetailCommentsLoadFailure(eventId, requestSeq, renderToken, err));
+  },
+
+  async _fetchEventDetailDocFromServer(eventId) {
+    const safeEventId = String(eventId || '').trim();
+    if (!safeEventId || typeof db === 'undefined' || !db) return null;
+    const requestedAt = Date.now();
+    if (typeof ApiService !== 'undefined') {
+      ApiService.markEventDocRefreshing?.(safeEventId, {
+        source: 'server',
+        requestedAt,
+      });
+    }
+
+    try {
+      const cached = (typeof ApiService !== 'undefined' ? ApiService.getEvent?.(safeEventId) : null)
+        || (typeof FirebaseService !== 'undefined' ? FirebaseService._getCachedDocByAnyId?.('events', safeEventId) : null)
+        || null;
+      const docIds = [
+        cached?._docId,
+        cached?.docId,
+        safeEventId,
+      ].map(v => String(v || '').trim()).filter(Boolean);
+      let snap = null;
+      for (const docId of [...new Set(docIds)]) {
+        const candidate = await db.collection('events').doc(docId).get({ source: 'server' });
+        if (candidate?.exists) {
+          snap = candidate;
+          break;
+        }
+      }
+      if (!snap) {
+        const query = await db.collection('events')
+          .where('id', '==', safeEventId)
+          .limit(1)
+          .get({ source: 'server' });
+        if (!query.empty) snap = query.docs[0];
+      }
+      if (!snap?.exists) {
+        if (typeof ApiService !== 'undefined') {
+          ApiService.markEventDocStaleError?.(safeEventId, new Error('EVENT_DOC_NOT_FOUND'), {
+            source: 'server',
+            requestedAt,
+          });
+        }
+        return null;
+      }
+      const data = snap.data?.() || {};
+      const record = { ...data, _docId: snap.id, id: data.id || snap.id };
+      const normalized = typeof FirebaseService !== 'undefined' && FirebaseService._upsertCollectionDoc
+        ? FirebaseService._upsertCollectionDoc('events', record)
+        : record;
+      if (typeof ApiService !== 'undefined') {
+        ApiService.markEventDocServerFresh?.(normalized?.id || record.id || safeEventId, {
+          source: 'server',
+          docId: snap.id,
+          fromCache: false,
+          requestedAt,
+          fulfilledAt: Date.now(),
+        });
+      }
+      return normalized || record;
+    } catch (err) {
+      if (typeof ApiService !== 'undefined') {
+        ApiService.markEventDocStaleError?.(safeEventId, err, {
+          source: 'server',
+          requestedAt,
+        });
+      }
+      throw err;
+    }
+  },
+
+  _patchDetailRowByField(fieldName, html) {
+    if (!fieldName) return false;
+    const body = document.getElementById('detail-body');
+    const target = body?.querySelector?.(`[data-detail-field="${fieldName}"]`);
+    if (!target) return false;
+    target.outerHTML = html || '';
+    return true;
+  },
+
+  _patchCurrentEventDetailInfoFromRecord(eventRecord, options = {}) {
+    const e = eventRecord;
+    if (!e?.id) return { ok: false, reason: 'missing-event' };
+    const nodes = this._getEventDetailNodes?.();
+    if (!nodes) return { ok: false, reason: 'missing-shell' };
+    const ctx = this._getCurrentEventDetailPatchContext?.('detail-body', options) || options;
+    const guard = this._isCurrentEventDetailPatch?.(e.id, ctx.requestSeq ?? null, {
+      container: nodes.body,
+      renderToken: ctx.renderToken || null,
+      patchType: 'event-doc-refresh',
+    });
+    if (guard && !guard.ok) return guard;
+
+    this._currentDetailEventRecord = e;
+    this._renderEventPublicToggle?.(e);
+    this._renderEventRefreshButton?.(e);
+    this._renderEventLogButton?.(e);
+    const favHtml = typeof this._favHeartHtml === 'function'
+      ? this._favHeartHtml(this.isEventFavorited?.(e.id), 'Event', e.id)
+      : '';
+    nodes.title.innerHTML = escapeHTML(e.title || '') + (favHtml ? ' ' + favHtml : '');
+    nodes.image.innerHTML = this._renderEventDetailCover(e);
+    if (this._getEventImageUrl?.(e, 'cover') || e.image) {
+      nodes.image.style.border = 'none';
+    } else {
+      nodes.image.style.border = '';
+    }
+
+    const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.location || '')}`;
+    const locationHtml = `<div class="detail-row detail-row-wide" data-detail-field="location"><span class="detail-label">\u5730\u9EDE</span><a href="${mapUrl}" target="sporthub_map" rel="noopener" style="color:var(--primary);text-decoration:none">${escapeHTML(e.location || '')} ??</a></div>`;
+    this._patchDetailRowByField('location', locationHtml);
+    this._patchDetailRowByField('date', `<div class="detail-row detail-row-wide" data-detail-field="date"><span class="detail-label">\u6642\u9593</span>${escapeHTML(e.date || '')}</div>`);
+    const notesHtml = e.notes
+      ? `<div class="detail-section" data-detail-field="notes">
+        <div class="detail-section-title">瘜冽?鈭?</div>
+        <p style="font-size:.85rem;color:var(--text-secondary);line-height:1.7;white-space:pre-wrap">${escapeHTML(e.notes)}</p>
+      </div>`
+      : '';
+    if (!this._patchDetailRowByField('notes', notesHtml) && notesHtml) {
+      const actionZone = nodes.body.querySelector?.('.detail-action-zone');
+      actionZone?.insertAdjacentHTML?.('beforebegin', notesHtml);
+    }
+
+    const patchOptions = {
+      requestSeq: ctx.requestSeq ?? null,
+      renderToken: ctx.renderToken || null,
+      skipFetch: true,
+    };
+    this._patchDetailCount?.(e.id, patchOptions);
+    this._refreshSignupButton?.(e.id, patchOptions);
+    this._patchDetailTables?.(e.id, patchOptions);
+    return { ok: true, reason: 'ok' };
   },
 
   _showFastEventDetailShellNow(id, options = {}) {
@@ -502,6 +651,7 @@ Object.assign(App, {
       }
 
       const requestSeq = ++this._eventDetailRequestSeq;
+      let detailRenderToken = null;
       // Pre-warm Firebase Auth（fire-and-forget），讓後續報名/取消寫入時免等 auth
       FirebaseService.ensureAuthReadyForWrite().catch(() => {});
       // ── 確保頁面 HTML + Script 已載入（不切換顯示），避免空白模板閃現 ──
@@ -695,8 +845,14 @@ Object.assign(App, {
               });
               // 2026-04-20：改用局部 patch 避免整頁重繪造成畫面跳動。
               // 快取已補齊，_refreshSignupButton 會正確顯示「取消報名」按鈕
-              _self._refreshSignupButton?.(_safetyEventId);
-              _self._patchDetailTables?.(_safetyEventId);
+              _self._refreshSignupButton?.(_safetyEventId, {
+                requestSeq,
+                renderToken: detailRenderToken,
+              });
+              _self._patchDetailTables?.(_safetyEventId, {
+                requestSeq,
+                renderToken: detailRenderToken,
+              });
             }
           })
           .catch(function() { /* 查詢失敗不影響主流程 */ });
@@ -813,7 +969,7 @@ Object.assign(App, {
 
       // ── 防跳頂：鎖定容器高度 + 保存 scroll ──
       var _savedScroll = window.scrollY || window.pageYOffset || (document.scrollingElement || document.documentElement).scrollTop || 0;
-      const detailRenderToken = this._createEventDetailRenderToken(id, requestSeq);
+      detailRenderToken = this._createEventDetailRenderToken(id, requestSeq);
       // 2026-04-19 UX：同活動 re-render 時捕獲舊名單 DOM，避免外框 innerHTML 改寫
       // + _renderAttendanceTable 100ms debounce + fetch 造成「名單 → 空白 → 名單」的生硬閃爍。
       // 稍後由 _renderAttendanceTable 做原子替換，舊 DOM 持續顯示直到新 DOM 組好。
@@ -826,8 +982,8 @@ Object.assign(App, {
       var _lockH = nodes.body.offsetHeight;
       if (_lockH > 0) nodes.body.style.minHeight = _lockH + 'px';
       nodes.body.innerHTML = `
-      <div class="detail-row detail-row-wide"><span class="detail-label">\u5730\u9EDE</span>${locationHtml}</div>
-      <div class="detail-row detail-row-wide"><span class="detail-label">\u6642\u9593</span>${escapeHTML(e.date)}</div>
+      <div class="detail-row detail-row-wide" data-detail-field="location"><span class="detail-label">\u5730\u9EDE</span>${locationHtml}</div>
+      <div class="detail-row detail-row-wide" data-detail-field="date"><span class="detail-label">\u6642\u9593</span>${escapeHTML(e.date)}</div>
       ${regOpenHtml ? regOpenHtml.replace('detail-row"', 'detail-row detail-row-wide"') : ''}
       <div class="detail-grid">${_shortCells.join('')}</div>
       <div class="detail-row detail-row-wide detail-host-row"><span class="detail-label">\u4E3B\u8FA6</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${this._userTag(e.creator, null, { uid: e.creatorUid || '' })}</span><button type="button" class="event-host-contact-pill" onclick="App.contactEventOrganizer(${escapeHTML(JSON.stringify({ eventId: e.id || '', uid: e.creatorUid || '', name: e.creator || '' }))})">\u806F\u7E6B\u4E3B\u8FA6</button></div>
@@ -837,7 +993,7 @@ Object.assign(App, {
       ${teamTag ? teamTag.replace('detail-row"', 'detail-row detail-row-wide"') : ''}
       ${privateTag ? privateTag.replace('detail-row"', 'detail-row detail-row-wide"') : ''}
       ${e.notes ? `
-      <div class="detail-section">
+      <div class="detail-section" data-detail-field="notes">
         <div class="detail-section-title">注意事項</div>
         <p style="font-size:.85rem;color:var(--text-secondary);line-height:1.7;white-space:pre-wrap">${escapeHTML(e.notes)}</p>
       </div>` : ''}
@@ -849,7 +1005,7 @@ Object.assign(App, {
           ${canScan ? `<button class="detail-toolbar-btn" onclick="App.goToScanForEvent('${escapeHTML(e.id || e._docId || e.docId || '')}')">\u73FE\u5834\u7C3D\u5230</button>` : ''}
         </div>
         ${(this._tsRenderTeamSelectUI?.(e, this._tsSelectedTeamKey) || '')}
-        <div class="detail-action-primary">${signupBtn}</div>
+        <div class="detail-action-primary" id="detail-action-primary">${signupBtn}</div>
       </div>
       <div class="detail-section">
         <div id="detail-attendance-table">${isGuestView ? '' : (_preservedAttHtml || this._renderEventDetailBelowFoldLoadingHtml())}</div>
@@ -872,6 +1028,7 @@ Object.assign(App, {
     this._markEventDetailContainerOwner('detail-unreg-table', id, requestSeq, detailRenderToken, 'unregistered');
     this._markEventDetailContainerOwner('detail-waitlist-container', id, requestSeq, detailRenderToken, 'waitlist');
     this._markEventDetailContainerOwner('detail-comments-container', id, requestSeq, detailRenderToken, 'comments');
+    this._markEventDetailContainerOwner('detail-action-primary', id, requestSeq, detailRenderToken, 'actions');
     requestAnimationFrame(function() { nodes.body.style.minHeight = ''; });
     // 多重恢復（覆蓋各瀏覽器/WebView 的不同 reflow 時機）
     if (_savedScroll > 0) {
@@ -897,8 +1054,16 @@ Object.assign(App, {
       this._renderGuestAttendanceTable(id, 'detail-attendance-table');
       this._renderGuestWaitlistSection(id, 'detail-waitlist-container');
     } else {
-      this._renderUnregTable(id, 'detail-unreg-table');
-      this._renderGroupedWaitlistSection(id, 'detail-waitlist-container');
+      this._renderUnregTable(id, 'detail-unreg-table', {
+        mode: 'detail',
+        requestSeq,
+        renderToken: detailRenderToken,
+      });
+      this._renderGroupedWaitlistSection(id, 'detail-waitlist-container', {
+        mode: 'detail',
+        requestSeq,
+        renderToken: detailRenderToken,
+      });
     }
       // ── 先切換頁面，讓用戶立即看到活動資訊 ──
       const _isReRender = this.currentPage === 'page-activity-detail' && this._currentDetailEventId === id;
@@ -924,7 +1089,10 @@ Object.assign(App, {
           if (requestSeq !== this._eventDetailRequestSeq
             || this.currentPage !== 'page-activity-detail'
             || this._currentDetailEventId !== id) return;
-          this._refreshSignupButton?.(id);
+          this._refreshSignupButton?.(id, {
+            requestSeq,
+            renderToken: detailRenderToken,
+          });
         });
       }
       // 2026-04-19 UX：attendance-table 初始狀態處理
@@ -964,10 +1132,20 @@ Object.assign(App, {
           this._afterDetailAttendanceRendered(id, e, requestSeq, detailRenderToken);
         }
       }
-      this._renderDetailComments(id, {
+      const commentsRender = this._renderDetailComments(id, {
         requestSeq,
         renderToken: detailRenderToken,
       });
+      if (!this._shouldUseActivityDetailOptimization('commentsNonBlocking')) {
+        await commentsRender;
+        const commentsGuard = this._isCurrentEventDetailPatch(id, requestSeq, {
+          containerId: 'detail-comments-container',
+          renderToken: detailRenderToken,
+        });
+        if (!commentsGuard.ok) {
+          return { ok: false, reason: commentsGuard.reason || 'stale' };
+        }
+      }
       this._setRouteUrl?.({ pageId: 'page-activity-detail', id }, {
         mode: this._hasLegacyRouteSignal?.() ? 'replace' : undefined,
       });
@@ -981,15 +1159,39 @@ Object.assign(App, {
     }
   },
 
-  _renderGroupedWaitlistSection(eventId, containerId) {
-    const container = document.getElementById(containerId);
+  _renderGroupedWaitlistSection(eventId, containerId, options = {}) {
+    const cId = containerId || 'detail-waitlist-container';
+    const container = document.getElementById(cId);
     if (!container) return;
+    const isDetailContainer = cId === 'detail-waitlist-container' || options?.mode === 'detail';
+    const patchOptions = isDetailContainer
+      ? (this._getCurrentEventDetailPatchContext?.(cId, options) || options)
+      : options;
+    const canPatchWaitlist = () => {
+      if (!isDetailContainer || typeof this._isCurrentEventDetailPatch !== 'function') {
+        return { ok: true, reason: 'ok' };
+      }
+      return this._isCurrentEventDetailPatch(eventId, patchOptions?.requestSeq ?? null, {
+        container,
+        containerId: cId,
+        renderToken: patchOptions?.renderToken || null,
+        patchType: 'waitlist',
+      });
+    };
+    let patchGuard = canPatchWaitlist();
+    if (!patchGuard.ok) return patchGuard;
     // 2026-04-20：鎖容器高度，防 innerHTML 替換期間頁面縮短導致 scrollTop 被 clamp
     App._lockContainerHeight?.(container);
     var _wlScrollEl = document.scrollingElement || document.documentElement;
     var _wlSavedScroll = _wlScrollEl.scrollTop;
     const e = ApiService.getEvent(eventId);
-    if (!e) { container.innerHTML = ''; _wlScrollEl.scrollTop = _wlSavedScroll; return; }
+    if (!e) {
+      patchGuard = canPatchWaitlist();
+      if (!patchGuard.ok) return patchGuard;
+      container.innerHTML = '';
+      _wlScrollEl.scrollTop = _wlSavedScroll;
+      return { ok: true, reason: 'ok' };
+    }
 
     const canManage = this._canOperateEventSite?.(e);
     const tableEditing = this._isRosterManagementEditing?.(eventId) || this._waitlistEditingEventId === eventId;
@@ -1065,7 +1267,13 @@ Object.assign(App, {
       });
     }
 
-    if (items.length === 0) { container.innerHTML = ''; _wlScrollEl.scrollTop = _wlSavedScroll; return; }
+    if (items.length === 0) {
+      patchGuard = canPatchWaitlist();
+      if (!patchGuard.ok) return patchGuard;
+      container.innerHTML = '';
+      _wlScrollEl.scrollTop = _wlSavedScroll;
+      return { ok: true, reason: 'ok' };
+    }
 
     const totalCount = items.reduce((sum, it) => sum + 1 + it.companions.length, 0);
     const safeEId = escapeHTML(eventId);
@@ -1100,6 +1308,8 @@ Object.assign(App, {
           </tr>`;
         });
       });
+      patchGuard = canPatchWaitlist();
+      if (!patchGuard.ok) return patchGuard;
       container.innerHTML = `<div class="detail-section">
         ${titleHtml}
         <div style="overflow-x:auto">
@@ -1114,7 +1324,7 @@ Object.assign(App, {
         </div>
       </div>`;
       _wlScrollEl.scrollTop = _wlSavedScroll;
-      return;
+      return { ok: true, reason: 'ok' };
     }
 
     // 一般模式：網格顯示
@@ -1148,6 +1358,8 @@ Object.assign(App, {
           <button class="outline-btn" style="font-size:.75rem;padding:.25rem .8rem" onclick="App._expandWaitlistGrid('${gridId}')">展開全部候補 (${items.length})</button>
         </div>`
       : '';
+    patchGuard = canPatchWaitlist();
+    if (!patchGuard.ok) return patchGuard;
     container.innerHTML = `<div class="detail-section">
       ${titleHtml}
       <div id="${gridId}" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:0 .8rem">
@@ -1156,6 +1368,7 @@ Object.assign(App, {
       ${expandBtn}
     </div>`;
     _wlScrollEl.scrollTop = _wlSavedScroll;
+    return { ok: true, reason: 'ok' };
   },
 
   _expandWaitlistGrid(gridId) {
@@ -1225,21 +1438,17 @@ Object.assign(App, {
     if (btn) { btn.disabled = true; btn.classList.add('spinning'); }
     try {
       // 從 Firestore 直接讀取最新 event 資料
-      if (typeof db !== 'undefined') {
-        const docId = (ApiService.getEvent(id) || {})?._docId;
-        if (docId) {
-          const doc = await db.collection('events').doc(docId).get();
-          if (doc.exists) {
-            const fresh = { ...doc.data(), _docId: doc.id };
-            const cached = (FirebaseService._cache.events || []);
-            const idx = cached.findIndex(e => e.id === fresh.id || e._docId === fresh._docId);
-            if (idx >= 0) Object.assign(cached[idx], fresh);
-            else cached.push(fresh);
-          }
-        }
-      }
+      const freshEvent = await this._fetchEventDetailDocFromServer?.(id);
       await this._forceRefreshEventDetailRosterData?.(id);
-      this.showEventDetail(id);
+      const latestEvent = freshEvent || ApiService.getEvent?.(id);
+      const patchResult = this._patchCurrentEventDetailInfoFromRecord?.(latestEvent, {
+        requestSeq: this._eventDetailRequestSeq,
+      });
+      if (patchResult && !patchResult.ok) {
+        console.warn('[refreshEventDetail] skipped stale local patch:', patchResult.reason);
+      }
+      this._updateRouteMetaTags?.('page-activity-detail', { id });
+      this._markPageSnapshotReady?.('page-activity-detail');
     } catch (err) {
       console.warn('[refreshEventDetail]', err);
       this.showToast?.('刷新失敗，請稍後再試');

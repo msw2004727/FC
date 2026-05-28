@@ -146,6 +146,9 @@ function createRosterMutationContext({ event, registrations, activityRecords, ba
     }),
     fetchRegistrationsIfMissing: jest.fn(() => Promise.resolve()),
     _writeOpLog: jest.fn(),
+    markEventMutationPending: jest.fn(() => 41),
+    markEventMutationServerConfirmed: jest.fn(),
+    markEventMutationError: jest.fn(),
   };
   const FirebaseService = {
     _cache: { registrations, activityRecords, events: [event] },
@@ -599,6 +602,15 @@ describe('Team reservation button loading contract', () => {
     expect(event.current).toBe(2);
     expect(event.waitlist).toBe(0);
     expect(app._renderRosterTables).toHaveBeenCalledWith(event.id, { skipFetch: true });
+    expect(context.ApiService.markEventMutationPending).toHaveBeenCalledWith(event.id, expect.objectContaining({
+      mutationType: 'waitlist-promote',
+      source: 'firestore-batch',
+      affectedRegistrationIds: ['reg-waitlisted'],
+    }));
+    expect(context.ApiService.markEventMutationServerConfirmed).toHaveBeenCalledWith(event.id, 41, expect.objectContaining({
+      mutationType: 'waitlist-promote',
+      source: 'firestore-batch',
+    }));
     expect(batch.commit).toHaveBeenCalledTimes(1);
   });
 
@@ -650,6 +662,15 @@ describe('Team reservation button loading contract', () => {
     expect(event.current).toBe(1);
     expect(event.waitlist).toBe(1);
     expect(app._renderRosterTables).toHaveBeenCalledWith(event.id, { skipFetch: true });
+    expect(context.ApiService.markEventMutationPending).toHaveBeenCalledWith(event.id, expect.objectContaining({
+      mutationType: 'waitlist-demote',
+      source: 'firestore-batch',
+      affectedRegistrationIds: ['reg-demote'],
+    }));
+    expect(context.ApiService.markEventMutationServerConfirmed).toHaveBeenCalledWith(event.id, 41, expect.objectContaining({
+      mutationType: 'waitlist-demote',
+      source: 'firestore-batch',
+    }));
     expect(batch.commit).toHaveBeenCalledTimes(1);
   });
 
@@ -847,6 +868,7 @@ describe('Attendance table debounce contract', () => {
 
 describe('Activity detail late patch guard', () => {
   afterEach(() => {
+    jest.useRealTimers();
     jest.restoreAllMocks();
     document.body.innerHTML = '';
   });
@@ -968,6 +990,141 @@ describe('Activity detail late patch guard', () => {
     expect(result).toMatchObject({ ok: false, reason: 'stale-render-token' });
     expect(renderSpy).not.toHaveBeenCalled();
     expect(document.getElementById('detail-attendance-table').innerHTML).toBe('current');
+  });
+
+  test('attendance late retry fallback keeps the original render token', async () => {
+    jest.useFakeTimers();
+    const { app, context } = loadEventDetailAndAttendanceModule();
+    document.body.innerHTML = '<div id="detail-attendance-table">current</div>';
+    app.currentPage = 'page-activity-detail';
+    app._currentDetailEventId = 'event-1';
+    app._eventDetailRequestSeq = 1;
+    app._markEventDetailContainerOwner('detail-attendance-table', 'event-1', 1, 'rt-current', 'attendance');
+    context.ApiService.getEvent = jest.fn(() => ({ id: 'event-1', current: 1, max: 8 }));
+    context.ApiService.getRegistrationsByEvent = jest.fn(() => [{ eventId: 'event-1', status: 'confirmed' }]);
+    const renderSpy = jest.spyOn(app, '_renderAttendanceTable');
+
+    app._scheduleAttendanceTableLatePatch('event-1', 'detail-attendance-table', {
+      mode: 'detail',
+      requestSeq: 1,
+      renderToken: 'rt-old',
+    });
+    await jest.advanceTimersByTimeAsync(1800);
+
+    expect(renderSpy).not.toHaveBeenCalled();
+    expect(document.getElementById('detail-attendance-table').innerHTML).toBe('current');
+  });
+
+  test('detail waitlist and unregistered patches refuse stale render tokens', () => {
+    const { app, context } = loadEventDetailAndAttendanceModule();
+    document.body.innerHTML = '<div id="detail-waitlist-container">waitlist-current</div><div id="detail-unreg-table">unreg-current</div>';
+    app.currentPage = 'page-activity-detail';
+    app._currentDetailEventId = 'event-1';
+    app._eventDetailRequestSeq = 1;
+    app._markEventDetailContainerOwner('detail-waitlist-container', 'event-1', 1, 'rt-current', 'waitlist');
+    app._markEventDetailContainerOwner('detail-unreg-table', 'event-1', 1, 'rt-current', 'unregistered');
+    context.ApiService.getEvent = jest.fn(() => ({ id: 'event-1', current: 1, waitlist: 1 }));
+
+    const waitlistResult = app._renderGroupedWaitlistSection('event-1', 'detail-waitlist-container', {
+      mode: 'detail',
+      requestSeq: 1,
+      renderToken: 'rt-old',
+    });
+    const unregResult = app._renderUnregTable('event-1', 'detail-unreg-table', {
+      mode: 'detail',
+      requestSeq: 1,
+      renderToken: 'rt-old',
+    });
+
+    expect(waitlistResult).toMatchObject({ ok: false, reason: 'stale-render-token' });
+    expect(unregResult).toMatchObject({ ok: false, reason: 'stale-render-token' });
+    expect(document.getElementById('detail-waitlist-container').innerHTML).toBe('waitlist-current');
+    expect(document.getElementById('detail-unreg-table').innerHTML).toBe('unreg-current');
+  });
+
+  test('detail signup action and count patches refuse stale render tokens', () => {
+    const { app, context } = loadEventDetailAndAttendanceModule();
+    vm.runInNewContext(readProjectFile('js/modules/event/event-detail-signup.js'), context, {
+      filename: 'js/modules/event/event-detail-signup.js',
+    });
+    document.body.innerHTML = `
+      <div id="detail-body"><div class="detail-grid"><div class="detail-row"><span class="detail-label">\u4EBA\u6578</span>old-count</div></div></div>
+      <div id="detail-action-primary" class="detail-action-primary">old-action</div>`;
+    app.currentPage = 'page-activity-detail';
+    app._currentDetailEventId = 'event-1';
+    app._eventDetailRequestSeq = 1;
+    app._markEventDetailContainerOwner('detail-body', 'event-1', 1, 'rt-current', 'body');
+    app._markEventDetailContainerOwner('detail-action-primary', 'event-1', 1, 'rt-current', 'actions');
+    context.ApiService.getEvent = jest.fn(() => ({ id: 'event-1', current: 2, max: 8, waitlist: 0, status: 'open' }));
+
+    const actionResult = app._refreshSignupButton('event-1', {
+      requestSeq: 1,
+      renderToken: 'rt-old',
+    });
+    const countResult = app._patchDetailCount('event-1', {
+      requestSeq: 1,
+      renderToken: 'rt-old',
+    });
+
+    expect(actionResult).toMatchObject({ ok: false, reason: 'stale-render-token' });
+    expect(countResult).toMatchObject({ ok: false, reason: 'stale-render-token' });
+    expect(document.getElementById('detail-action-primary').innerHTML).toBe('old-action');
+    expect(document.getElementById('detail-body').textContent).toContain('old-count');
+  });
+
+  test('manual refresh reads the event doc from server and patches locally', async () => {
+    const { app, context } = loadEventDetailAndAttendanceModule();
+    document.body.innerHTML = '<button class="event-detail-refresh-btn"></button>';
+    app._currentDetailEventId = 'event-1';
+    app._eventDetailRequestSeq = 3;
+    app._forceRefreshEventDetailRosterData = jest.fn(() => Promise.resolve([]));
+    app._patchCurrentEventDetailInfoFromRecord = jest.fn(() => ({ ok: true, reason: 'ok' }));
+    app._updateRouteMetaTags = jest.fn();
+    app._markPageSnapshotReady = jest.fn();
+    app.showEventDetail = jest.fn();
+    context.ApiService.getEvent = jest.fn(() => ({ id: 'event-1', _docId: 'event-doc-1' }));
+    context.ApiService.markEventDocRefreshing = jest.fn();
+    context.ApiService.markEventDocServerFresh = jest.fn();
+    const get = jest.fn(() => Promise.resolve({
+      exists: true,
+      id: 'event-doc-1',
+      data: () => ({ id: 'event-1', title: 'Fresh title' }),
+    }));
+    context.FirebaseService = {
+      _upsertCollectionDoc: jest.fn((_collection, record) => record),
+    };
+    context.db = {
+      collection: jest.fn(() => ({
+        doc: jest.fn(() => ({ get })),
+        where: jest.fn(),
+      })),
+    };
+
+    await app._refreshEventDetail();
+
+    expect(get).toHaveBeenCalledWith({ source: 'server' });
+    expect(context.ApiService.markEventDocServerFresh).toHaveBeenCalledWith('event-1', expect.objectContaining({
+      source: 'server',
+      docId: 'event-doc-1',
+      fromCache: false,
+    }));
+    expect(app._forceRefreshEventDetailRosterData).toHaveBeenCalledWith('event-1');
+    expect(app._patchCurrentEventDetailInfoFromRecord).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'event-1',
+      title: 'Fresh title',
+    }), expect.objectContaining({
+      requestSeq: 3,
+    }));
+    expect(app.showEventDetail).not.toHaveBeenCalled();
+  });
+
+  test('commentsNonBlocking flag off keeps comments in the awaited route-ready path', () => {
+    const detailSource = readProjectFile('js/modules/event/event-detail.js');
+    expect(detailSource).toContain('const commentsRender = this._renderDetailComments(id, {');
+    expect(detailSource).toContain("!this._shouldUseActivityDetailOptimization('commentsNonBlocking')");
+    expect(detailSource).toContain('await commentsRender;');
+    expect(detailSource.indexOf('await commentsRender;'))
+      .toBeLessThan(detailSource.indexOf("this._setRouteUrl?.({ pageId: 'page-activity-detail', id }"));
   });
 
   test('comments on-demand loader failure is isolated to the comments container', async () => {

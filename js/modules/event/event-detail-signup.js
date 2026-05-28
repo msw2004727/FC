@@ -2022,13 +2022,26 @@ Object.assign(App, {
    * snapshot 觸發時重新判斷按鈕狀態（不做全頁重繪）。
    * 必須涵蓋 showEventDetail 中所有按鈕分支，否則會回歸。
    */
-  _refreshSignupButton(eventId) {
+  _refreshSignupButton(eventId, options = {}) {
     if (this._flipAnimating) return; // 翻牌動畫中不干擾
     var e = ApiService.getEvent(eventId);
     if (!e) return;
     e = this._syncEventEffectiveStatus?.(e) || e;
-    var actionZone = document.querySelector('.detail-action-primary');
+    var actionZone = document.getElementById('detail-action-primary') || document.querySelector('.detail-action-primary');
     if (!actionZone) return;
+    if (this.currentPage === 'page-activity-detail' && typeof this._isCurrentEventDetailPatch === 'function') {
+      var actionContext = this._getCurrentEventDetailPatchContext?.(actionZone.id || 'detail-action-primary', {
+        ...options,
+        container: actionZone,
+      }) || options;
+      var actionGuard = this._isCurrentEventDetailPatch(eventId, actionContext?.requestSeq ?? null, {
+        container: actionZone,
+        containerId: actionZone.id || '',
+        renderToken: actionContext?.renderToken || null,
+        patchType: 'signup-action',
+      });
+      if (!actionGuard.ok) return actionGuard;
+    }
     var registrationIdentityLoading = typeof this._ensureEventSignupRegistrationStateLoaded === 'function'
       && this._ensureEventSignupRegistrationStateLoaded(e) === true;
     var teamReservationIdentityLoading = typeof this._isTeamReservationStaffTeamsHydratingForEvent === 'function'
@@ -2117,9 +2130,22 @@ Object.assign(App, {
   },
 
   /** 更新人數顯示（不重繪整頁） */
-  _patchDetailCount(eventId) {
+  _patchDetailCount(eventId, options = {}) {
     var e = ApiService.getEvent(eventId);
     if (!e) return;
+    var detailBody = document.getElementById('detail-body');
+    if (detailBody && this.currentPage === 'page-activity-detail' && typeof this._isCurrentEventDetailPatch === 'function') {
+      var countContext = this._getCurrentEventDetailPatchContext?.('detail-body', {
+        ...options,
+        container: detailBody,
+      }) || options;
+      var countGuard = this._isCurrentEventDetailPatch(eventId, countContext?.requestSeq ?? null, {
+        container: detailBody,
+        renderToken: countContext?.renderToken || null,
+        patchType: 'detail-count',
+      });
+      if (!countGuard.ok) return countGuard;
+    }
     var confirmedCount = (typeof this._buildConfirmedParticipantSummary === 'function')
       ? this._buildConfirmedParticipantSummary(eventId).count
       : Number(e.current || 0);
@@ -2150,17 +2176,25 @@ Object.assign(App, {
   },
 
   /** 更新報名名單 + 候補名單 + 人數（不重繪整頁） */
-  _patchDetailTables(eventId) {
-    if (typeof this._renderAttendanceTable === 'function') {
-      this._renderAttendanceTable(eventId, 'detail-attendance-table');
+  _patchDetailTables(eventId, options = {}) {
+    var attendanceContext = this._getCurrentEventDetailPatchContext?.('detail-attendance-table', options) || options;
+    if (typeof this._renderDetailAttendanceTable === 'function') {
+      this._renderDetailAttendanceTable(eventId, attendanceContext);
+    } else if (typeof this._renderAttendanceTable === 'function') {
+      this._renderAttendanceTable(eventId, 'detail-attendance-table', {
+        ...attendanceContext,
+        mode: 'detail',
+      });
     }
     if (typeof this._renderUnregTable === 'function') {
-      this._renderUnregTable(eventId, 'detail-unreg-table');
+      this._renderUnregTable(eventId, 'detail-unreg-table',
+        this._getCurrentEventDetailPatchContext?.('detail-unreg-table', options) || options);
     }
     if (typeof this._renderGroupedWaitlistSection === 'function') {
-      this._renderGroupedWaitlistSection(eventId, 'detail-waitlist-container');
+      this._renderGroupedWaitlistSection(eventId, 'detail-waitlist-container',
+        this._getCurrentEventDetailPatchContext?.('detail-waitlist-container', options) || options);
     }
-    this._patchDetailCount(eventId);
+    this._patchDetailCount(eventId, this._getCurrentEventDetailPatchContext?.('detail-body', options) || options);
   },
 
 });

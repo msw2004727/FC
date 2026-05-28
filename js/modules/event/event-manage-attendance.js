@@ -134,7 +134,7 @@ Object.assign(App, {
       .then((result) => {
         const issue = this._getAttendanceTableFetchIssue([result]);
         if (issue) {
-          this._scheduleAttendanceTableLatePatch(eventId, cId);
+          this._scheduleAttendanceTableLatePatch(eventId, cId, patchOptions);
           return { ok: false, reason: issue.reason || 'attendance-fetch-issue', error: issue.error || null };
         }
         const container = document.getElementById(cId);
@@ -144,21 +144,28 @@ Object.assign(App, {
       })
       .catch((err) => {
         console.warn('[AttendanceTable] attendance records background fetch failed:', err);
-        this._scheduleAttendanceTableLatePatch(eventId, cId);
+        this._scheduleAttendanceTableLatePatch(eventId, cId, patchOptions);
         return { ok: false, reason: err?.code === 'firestore-fetch-timeout' ? 'timeout' : 'error', error: err };
       });
   },
 
-  _scheduleAttendanceTableLatePatch(eventId, containerId) {
+  _scheduleAttendanceTableLatePatch(eventId, containerId, options = {}) {
     const cId = containerId || 'attendance-table-container';
     this._attendanceTableLatePatchTimers = this._attendanceTableLatePatchTimers || {};
-    const key = `${cId}:${eventId}`;
+    const patchOptions = {
+      ...options,
+      mode: options?.mode || (cId === 'detail-attendance-table' ? 'detail' : options?.mode),
+      skipFetch: true,
+    };
+    const key = `${cId}:${eventId}:${patchOptions?.renderToken || ''}`;
     if (this._attendanceTableLatePatchTimers[key]) return;
     const delays = [1800, 6000, 14000];
     let index = 0;
     const run = () => {
       if (!this._attendanceTableLatePatchTimers?.[key]) return;
-      if (!this._isCurrentAttendanceTableTarget(eventId, cId)) {
+      const container = document.getElementById(cId);
+      const guard = this._canPatchAttendanceTable(eventId, cId, container, patchOptions, 'late-patch');
+      if (!guard.ok || !this._isCurrentAttendanceTableTarget(eventId, cId)) {
         clearTimeout(this._attendanceTableLatePatchTimers[key]);
         delete this._attendanceTableLatePatchTimers[key];
         return;
@@ -169,7 +176,7 @@ Object.assign(App, {
       if (regs.length > 0 || expectedCount <= 0) {
         clearTimeout(this._attendanceTableLatePatchTimers[key]);
         delete this._attendanceTableLatePatchTimers[key];
-        this._renderAttendanceTable(eventId, cId, { skipFetch: true });
+        this._renderAttendanceTable(eventId, cId, patchOptions);
         return;
       }
       index++;
@@ -520,7 +527,7 @@ Object.assign(App, {
           error: err,
         };
       }
-      if (fetchIssue) this._scheduleAttendanceTableLatePatch(eventId, cId);
+      if (fetchIssue) this._scheduleAttendanceTableLatePatch(eventId, cId, options);
     }
     const _t1 = _perfLog ? performance.now() : 0;
 
@@ -889,10 +896,27 @@ Object.assign(App, {
   },
 
   // ── 未報名單表格（活動詳情頁用）──
-  _renderUnregTable(eventId, containerId) {
+  _renderUnregTable(eventId, containerId, options = {}) {
     const cId = containerId || 'detail-unreg-table';
     const container = document.getElementById(cId);
     if (!container) return;
+    const isDetailContainer = cId === 'detail-unreg-table' || options?.mode === 'detail';
+    const patchOptions = isDetailContainer
+      ? (this._getCurrentEventDetailPatchContext?.(cId, options) || options)
+      : options;
+    const canPatchUnreg = () => {
+      if (!isDetailContainer || typeof this._isCurrentEventDetailPatch !== 'function') {
+        return { ok: true, reason: 'ok' };
+      }
+      return this._isCurrentEventDetailPatch(eventId, patchOptions?.requestSeq ?? null, {
+        container,
+        containerId: cId,
+        renderToken: patchOptions?.renderToken || null,
+        patchType: 'unregistered',
+      });
+    };
+    let patchGuard = canPatchUnreg();
+    if (!patchGuard.ok) return patchGuard;
     // 2026-04-20：鎖容器高度，防 innerHTML='' 後頁面縮短導致 scrollTop 被 clamp
     App._lockContainerHeight?.(container);
     const _scrollEl = document.scrollingElement || document.documentElement;
@@ -913,11 +937,15 @@ Object.assign(App, {
     const section = document.getElementById('detail-unreg-section');
 
     if (unregMap.size === 0) {
+      patchGuard = canPatchUnreg();
+      if (!patchGuard.ok) return patchGuard;
       if (section) section.style.display = 'none';
       container.innerHTML = '';
       return;
     }
 
+    patchGuard = canPatchUnreg();
+    if (!patchGuard.ok) return patchGuard;
     if (section) section.style.display = '';
 
     const tableEditing = canManage && this._unregEditingEventId === eventId;
@@ -993,6 +1021,8 @@ Object.assign(App, {
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600;width:4.5rem">備註</th>
         </tr>`;
 
+    patchGuard = canPatchUnreg();
+    if (!patchGuard.ok) return patchGuard;
     container.innerHTML = `<div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:.8rem;table-layout:fixed">
         <thead>${thead}</thead>
