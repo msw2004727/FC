@@ -60,6 +60,246 @@ const ApiService = {
     });
   },
 
+  _isActivityDetailFreshnessShadowEnabled() {
+    try {
+      if (typeof shouldUseActivityDetailOptimization === 'function') {
+        return shouldUseActivityDetailOptimization('freshnessShadow');
+      }
+      if (typeof ACTIVITY_DETAIL_OPTIMIZATION_FLAGS !== 'undefined') {
+        return ACTIVITY_DETAIL_OPTIMIZATION_FLAGS?.freshnessShadow === true;
+      }
+    } catch (_) {}
+    return true;
+  },
+
+  _activityDetailFreshnessDebugEnabled() {
+    try {
+      return typeof localStorage !== 'undefined'
+        && localStorage.getItem('_activityDetailFreshnessDebug') === '1';
+    } catch (_) {
+      return false;
+    }
+  },
+
+  _activityDetailFreshnessLog(label, payload) {
+    if (!this._activityDetailFreshnessDebugEnabled()) return;
+    try {
+      console.info('[activity-detail:freshness]', label, payload);
+    } catch (_) {}
+  },
+
+  _normalizeActivityDetailEventId(eventId) {
+    return String(eventId || '').trim();
+  },
+
+  _getActivityDetailFreshnessShadowStore() {
+    if (!this._activityDetailFreshnessShadow) {
+      this._activityDetailFreshnessShadow = {
+        eventDoc: Object.create(null),
+        roster: Object.create(null),
+        mutations: Object.create(null),
+        mutationSeq: 0,
+      };
+    }
+    return this._activityDetailFreshnessShadow;
+  },
+
+  _cloneActivityDetailFreshnessState(state) {
+    if (!state || typeof state !== 'object') return null;
+    return JSON.parse(JSON.stringify(state));
+  },
+
+  _setActivityDetailFreshnessShadow(kind, eventId, patch = {}) {
+    if (!this._isActivityDetailFreshnessShadowEnabled()) return null;
+    const key = this._normalizeActivityDetailEventId(eventId);
+    if (!key) return null;
+    const store = this._getActivityDetailFreshnessShadowStore();
+    if (!store[kind]) store[kind] = Object.create(null);
+    const now = Date.now();
+    const prev = store[kind][key] || {};
+    const next = {
+      ...prev,
+      ...patch,
+      eventId: key,
+      updatedAt: patch.updatedAt || now,
+    };
+    store[kind][key] = next;
+    this._activityDetailFreshnessLog(`${kind}:${next.status || 'unknown'}`, next);
+    return next;
+  },
+
+  getActivityDetailFreshnessState(eventId) {
+    const key = this._normalizeActivityDetailEventId(eventId);
+    if (!key) return null;
+    const store = this._getActivityDetailFreshnessShadowStore();
+    const mutations = Object.values(store.mutations || {})
+      .filter(m => m && m.eventId === key && !m.clearedAt);
+    return this._cloneActivityDetailFreshnessState({
+      eventDoc: store.eventDoc?.[key] || null,
+      roster: store.roster?.[key] || null,
+      mutations,
+      legacyRosterServerSet: !!this._fetchedRegistrationServerIds?.has?.(key),
+    });
+  },
+
+  markEventDocPreview(eventId, meta = {}) {
+    return this._setActivityDetailFreshnessShadow('eventDoc', eventId, {
+      status: 'preview',
+      source: meta.source || 'cache',
+      error: null,
+      ...meta,
+    });
+  },
+
+  markEventDocRefreshing(eventId, meta = {}) {
+    const now = Date.now();
+    return this._setActivityDetailFreshnessShadow('eventDoc', eventId, {
+      status: 'refreshing',
+      source: meta.source || 'server',
+      requestedAt: meta.requestedAt || now,
+      error: null,
+      ...meta,
+    });
+  },
+
+  markEventDocServerFresh(eventId, meta = {}) {
+    const now = Date.now();
+    return this._setActivityDetailFreshnessShadow('eventDoc', eventId, {
+      status: 'server-fresh',
+      source: meta.source || 'server',
+      fulfilledAt: meta.fulfilledAt || now,
+      error: null,
+      ...meta,
+    });
+  },
+
+  markEventDocStaleError(eventId, error, meta = {}) {
+    return this._setActivityDetailFreshnessShadow('eventDoc', eventId, {
+      status: 'stale-error',
+      source: meta.source || 'server',
+      error: this._summarizeActivityDetailFreshnessError(error),
+      ...meta,
+    });
+  },
+
+  markEventRosterPreview(eventId, meta = {}) {
+    return this._setActivityDetailFreshnessShadow('roster', eventId, {
+      status: 'preview',
+      source: meta.source || 'projection',
+      error: null,
+      ...meta,
+    });
+  },
+
+  markEventRosterRefreshing(eventId, meta = {}) {
+    const now = Date.now();
+    return this._setActivityDetailFreshnessShadow('roster', eventId, {
+      status: 'refreshing',
+      source: meta.source || 'server',
+      requestedAt: meta.requestedAt || now,
+      error: null,
+      ...meta,
+    });
+  },
+
+  markEventRosterServerFresh(eventId, meta = {}) {
+    const now = Date.now();
+    return this._setActivityDetailFreshnessShadow('roster', eventId, {
+      status: 'server-fresh',
+      source: meta.source || 'server',
+      fulfilledAt: meta.fulfilledAt || now,
+      error: null,
+      ...meta,
+    });
+  },
+
+  markEventRosterStaleError(eventId, error, meta = {}) {
+    return this._setActivityDetailFreshnessShadow('roster', eventId, {
+      status: 'stale-error',
+      source: meta.source || 'server',
+      error: this._summarizeActivityDetailFreshnessError(error),
+      ...meta,
+    });
+  },
+
+  _summarizeActivityDetailFreshnessError(error) {
+    if (!error) return null;
+    return {
+      code: error.code || error.details || '',
+      message: String(error.message || error || '').slice(0, 240),
+    };
+  },
+
+  markEventMutationPending(eventId, mutation = {}) {
+    if (!this._isActivityDetailFreshnessShadowEnabled()) return null;
+    const key = this._normalizeActivityDetailEventId(eventId);
+    if (!key) return null;
+    const store = this._getActivityDetailFreshnessShadowStore();
+    const now = Date.now();
+    const seq = mutation.mutationSeq || ++store.mutationSeq;
+    const mutationKey = `${key}:${seq}`;
+    const next = {
+      eventId: key,
+      mutationSeq: seq,
+      mutationKey,
+      status: mutation.status || 'mutation-pending',
+      mutationType: mutation.mutationType || mutation.type || 'unknown',
+      source: mutation.source || 'client',
+      requestId: mutation.requestId || '',
+      affectedRegistrationIds: Array.isArray(mutation.affectedRegistrationIds)
+        ? mutation.affectedRegistrationIds.filter(Boolean)
+        : [],
+      affectedProjectionFields: Array.isArray(mutation.affectedProjectionFields)
+        ? mutation.affectedProjectionFields.filter(Boolean)
+        : [],
+      startedAt: mutation.startedAt || now,
+      timeoutAt: mutation.timeoutAt || (now + (Number(mutation.timeoutMs) || 30000)),
+      confirmedAt: null,
+      error: null,
+      ...mutation,
+      mutationSeq: seq,
+      mutationKey,
+    };
+    store.mutations[mutationKey] = next;
+    this._activityDetailFreshnessLog('mutation:pending', next);
+    return seq;
+  },
+
+  markEventMutationServerConfirmed(eventId, mutationSeq, meta = {}) {
+    return this._setEventMutationShadowStatus(eventId, mutationSeq, 'server-confirmed-own-mutation', {
+      confirmedAt: meta.confirmedAt || Date.now(),
+      error: null,
+      ...meta,
+    });
+  },
+
+  markEventMutationError(eventId, mutationSeq, error, meta = {}) {
+    return this._setEventMutationShadowStatus(eventId, mutationSeq, 'stale-error', {
+      error: this._summarizeActivityDetailFreshnessError(error),
+      ...meta,
+    });
+  },
+
+  _setEventMutationShadowStatus(eventId, mutationSeq, status, patch = {}) {
+    if (!this._isActivityDetailFreshnessShadowEnabled()) return null;
+    const key = this._normalizeActivityDetailEventId(eventId);
+    const seq = Number(mutationSeq) || 0;
+    if (!key || !seq) return null;
+    const store = this._getActivityDetailFreshnessShadowStore();
+    const mutationKey = `${key}:${seq}`;
+    const prev = store.mutations[mutationKey];
+    if (!prev) return null;
+    const next = {
+      ...prev,
+      ...patch,
+      status,
+      updatedAt: patch.updatedAt || Date.now(),
+    };
+    store.mutations[mutationKey] = next;
+    this._activityDetailFreshnessLog(`mutation:${status}`, next);
+    return next;
+  },
+
   async _hasFreshFirebaseUser(forceRefreshToken = false) {
     if (typeof auth === 'undefined' || !auth) return false;
     // 等待 Firebase Auth 從持久化儲存恢復登入狀態（最多 5 秒）
@@ -1192,6 +1432,11 @@ const ApiService = {
       if (cached.length > 0 && this._registrationCacheCompleteForEvent(ev, cached)) return;
       this._fetchedRegistrationIds.delete(eventId);
       this._fetchedRegistrationServerIds.delete(eventId);
+      this.markEventRosterPreview?.(eventId, {
+        source: 'cache',
+        reason: 'legacy-server-proof-invalidated',
+        cachedCount: cached.length,
+      });
     }
 
     const hasServerRegistrationSource = this._fetchedRegistrationServerIds.has(eventId);
@@ -1202,8 +1447,17 @@ const ApiService = {
 
     if (!ev || !ev._docId) {
       if (ev) console.warn('[fetchRegistrationsIfMissing] missing _docId:', eventId);
+      this.markEventRosterStaleError?.(eventId, new Error('event doc id missing'), {
+        reason: 'missing-event-doc-id',
+      });
       return;
     }
+    this.markEventRosterRefreshing?.(eventId, {
+      source: 'server',
+      force,
+      cachedCount: cached.length,
+      requestedAt: Date.now(),
+    });
     const queryPromise = (async () => {
       var snap = await db.collection('events').doc(ev._docId)
         .collection('registrations').get();
@@ -1217,6 +1471,17 @@ const ApiService = {
       if (!fromCache) {
         this._fetchedRegistrationIds.add(eventId);
         this._fetchedRegistrationServerIds.add(eventId);
+        this.markEventRosterServerFresh?.(eventId, {
+          source: 'server',
+          recordCount: records.length,
+          fromCache: false,
+        });
+      } else {
+        this.markEventRosterPreview?.(eventId, {
+          source: 'cache',
+          recordCount: records.length,
+          fromCache: true,
+        });
       }
     })();
     const loadPromise = timeoutMs > 0
@@ -1231,6 +1496,9 @@ const ApiService = {
       if (err && (err.code === 'permission-denied' || err.code === 'unauthenticated')) {
         this._fetchedRegistrationIds.add(eventId);
       }
+      this.markEventRosterStaleError?.(eventId, err, {
+        reason: err?.code === 'firestore-fetch-timeout' ? 'timeout' : 'error',
+      });
       return { ok: false, reason: err?.code === 'firestore-fetch-timeout' ? 'timeout' : 'error', error: err };
     } finally {
       if (this._fetchingRegistrationPromises[inflightKey] === loadPromise) {

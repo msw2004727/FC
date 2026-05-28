@@ -1371,7 +1371,23 @@ const FirebaseService = {
       if (query.empty) return null;
       snap = query.docs[0];
     }
-    return { ...snap.data(), _docId: snap.id, id: snap.data()?.id || snap.id };
+    const record = { ...snap.data(), _docId: snap.id, id: snap.data()?.id || snap.id };
+    if (collectionName === 'events' && typeof ApiService !== 'undefined') {
+      if (snap?.metadata?.fromCache === true) {
+        ApiService.markEventDocPreview?.(record.id, {
+          source: 'cache',
+          docId: snap.id,
+          fromCache: true,
+        });
+      } else {
+        ApiService.markEventDocServerFresh?.(record.id, {
+          source: 'server',
+          docId: snap.id,
+          fromCache: false,
+        });
+      }
+    }
+    return record;
   },
 
   _upsertCollectionDoc(collectionName, record) {
@@ -1387,6 +1403,12 @@ const FirebaseService = {
     const normalized = collectionName === 'events'
       ? { ...record, _bootSnapshot: false, _detailSnapshot: true, _detailSnapshotTs: nowTs }
       : { ...record, _bootSnapshot: false };
+    if (collectionName === 'events' && typeof ApiService !== 'undefined') {
+      ApiService.markEventDocPreview?.(normalized.id || key, {
+        source: 'detailSnapshot',
+        docId: normalized._docId || key,
+      });
+    }
     if (idx >= 0) source[idx] = { ...source[idx], ...normalized };
     else source.push(normalized);
 

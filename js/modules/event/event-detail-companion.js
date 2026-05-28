@@ -247,10 +247,22 @@ Object.assign(App, {
 
     this._closeCompanionSelectModal();
 
+    let companionSignupMutationSeq = null;
+    let companionSignupRequestId = '';
     try {
       const useCF = typeof shouldUseServerRegistrationForSignup === 'function'
         ? shouldUseServerRegistrationForSignup()
         : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration());
+      companionSignupRequestId = useCF
+        ? `${userId}_${eventId}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`
+        : `fallback_companion_signup_${userId}_${eventId}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
+      companionSignupMutationSeq = ApiService.markEventMutationPending?.(eventId, {
+        mutationType: 'companion-signup',
+        source: useCF ? 'callable' : 'firestore-fallback',
+        requestId: companionSignupRequestId,
+        timeoutMs: 15000,
+        affectedProjectionFields: ['current', 'realCurrent', 'waitlist', 'participants', 'waitlistNames'],
+      });
 
       let regCount, wlCount, total;
 
@@ -265,7 +277,7 @@ Object.assign(App, {
         const cfPayload = {
           eventId,
           participants: cfParticipants,
-          requestId: `${userId}_${eventId}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+          requestId: companionSignupRequestId,
         };
         // team-split: 傳入自選 teamKey（同行者跟主報名人同隊）
         const _pendingTk = this._tsPendingTeamKey;
@@ -325,12 +337,21 @@ Object.assign(App, {
           if (!isWl) this._grantAutoExp?.(userId, 'register_activity', e.title);
         }
       }
+      ApiService.markEventMutationServerConfirmed?.(eventId, companionSignupMutationSeq, {
+        mutationType: 'companion-signup',
+        source: useCF ? 'callable' : 'firestore-fallback',
+        requestId: companionSignupRequestId,
+      });
 
       this.invalidateHomeNextActivityCache?.(userId);
       const wlMsg = wlCount > 0 ? `（${wlCount} 人候補）` : '';
       this.showToast(`共 ${total} 人報名成功${wlMsg}`);
       this.showEventDetail(eventId);
     } catch (err) {
+      ApiService.markEventMutationError?.(eventId, companionSignupMutationSeq, err, {
+        mutationType: 'companion-signup',
+        requestId: companionSignupRequestId,
+      });
       console.error('[_confirmCompanionRegister]', err);
       const cfMsg = {
         ALREADY_REGISTERED: '已報名此活動',
@@ -487,7 +508,20 @@ Object.assign(App, {
       ? shouldUseServerRegistrationForCancel()
       : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration());
 
+    let companionCancelMutationSeq = null;
+    let companionCancelRequestId = '';
     try {
+      companionCancelRequestId = useCF
+        ? `cancel_companion_${userId}_${eventId}_${Date.now()}`
+        : `fallback_companion_cancel_${userId}_${eventId}_${Date.now()}`;
+      companionCancelMutationSeq = ApiService.markEventMutationPending?.(eventId, {
+        mutationType: 'companion-cancel',
+        source: useCF ? 'callable' : 'firestore-fallback',
+        requestId: companionCancelRequestId,
+        affectedRegistrationIds: checked,
+        timeoutMs: 15000,
+        affectedProjectionFields: ['current', 'realCurrent', 'waitlist', 'participants', 'waitlistNames'],
+      });
       if (useCF) {
         // ═══ CF 路徑 ═══
         const _cfCancelTimeout = new Promise((_, reject) =>
@@ -497,7 +531,7 @@ Object.assign(App, {
             eventId,
             registrationIds: checked,
             reason: 'user_cancel',
-            requestId: `cancel_companion_${userId}_${eventId}_${Date.now()}`,
+            requestId: companionCancelRequestId,
           }),
           _cfCancelTimeout,
         ]);
@@ -574,6 +608,12 @@ Object.assign(App, {
           }
         }
       }
+      ApiService.markEventMutationServerConfirmed?.(eventId, companionCancelMutationSeq, {
+        mutationType: 'companion-cancel',
+        source: useCF ? 'callable' : 'firestore-fallback',
+        requestId: companionCancelRequestId,
+        affectedRegistrationIds: checked,
+      });
       this.invalidateHomeNextActivityCache?.();
       this.showToast(`已取消 ${checked.length} 筆報名`);
       this.showEventDetail(eventId);
@@ -587,12 +627,25 @@ Object.assign(App, {
       };
       const errCode = err?.details || err?.message || '';
       if (this._isAlreadyCancelledRegistrationError?.(err)) {
+        ApiService.markEventMutationServerConfirmed?.(eventId, companionCancelMutationSeq, {
+          mutationType: 'companion-cancel',
+          source: useCF ? 'callable' : 'firestore-fallback',
+          requestId: companionCancelRequestId,
+          affectedRegistrationIds: checked,
+          reason: 'already-terminal',
+        });
         this._markLocalRegistrationsTerminal?.(eventId, checked, 'cancelled');
         try { await this._syncMyEventRegistrations?.(eventId, userId); } catch (_) {}
         this.showToast(`已取消 ${checked.length} 筆報名`);
         this.showEventDetail(eventId);
         return;
       }
+      ApiService.markEventMutationError?.(eventId, companionCancelMutationSeq, err, {
+        mutationType: 'companion-cancel',
+        source: useCF ? 'callable' : 'firestore-fallback',
+        requestId: companionCancelRequestId,
+        affectedRegistrationIds: checked,
+      });
       const isNetworkOrTimeout = /timeout|network|fetch|ECONNREFUSED|逾時/i.test(err?.message || '');
       this.showToast('取消失敗：' + (cfMsg[errCode] || (isNetworkOrTimeout ? '連線逾時，請檢查網路後重新整理再試' : err.message || '')));
       ApiService._writeErrorLog({
@@ -848,18 +901,33 @@ Object.assign(App, {
     let cancelled = 0;
     let confirmed = 0;
     let waitlisted = 0;
+    let toggleCancelMutationSeq = null;
+    let toggleCancelRequestId = '';
+    let toggleRegisterMutationSeq = null;
+    let toggleRegisterRequestId = '';
     try {
       if (toCancelIds.length > 0) {
         const useCancelCF = typeof shouldUseServerRegistrationForCancel === 'function'
           ? shouldUseServerRegistrationForCancel()
           : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration());
+        toggleCancelRequestId = useCancelCF
+          ? `cancel_companion_toggle_${userId}_${eventId}_${Date.now()}`
+          : `fallback_companion_toggle_cancel_${userId}_${eventId}_${Date.now()}`;
+        toggleCancelMutationSeq = ApiService.markEventMutationPending?.(eventId, {
+          mutationType: 'companion-toggle-cancel',
+          source: useCancelCF ? 'callable' : 'firestore-fallback',
+          requestId: toggleCancelRequestId,
+          affectedRegistrationIds: toCancelIds,
+          timeoutMs: 15000,
+          affectedProjectionFields: ['current', 'realCurrent', 'waitlist', 'participants', 'waitlistNames'],
+        });
         if (useCancelCF) {
           const cfResult = await Promise.race([
             (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('cancelRegistration')({
               eventId,
               registrationIds: toCancelIds,
               reason: 'companion_toggle',
-              requestId: `cancel_companion_toggle_${userId}_${eventId}_${Date.now()}`,
+              requestId: toggleCancelRequestId,
             }),
             new Promise((_, reject) => setTimeout(() => reject(new Error('cancel timeout')), 15000)),
           ]);
@@ -885,6 +953,12 @@ Object.assign(App, {
         } else {
           await FirebaseService.cancelCompanionRegistrations(toCancelIds);
         }
+        ApiService.markEventMutationServerConfirmed?.(eventId, toggleCancelMutationSeq, {
+          mutationType: 'companion-toggle-cancel',
+          source: useCancelCF ? 'callable' : 'firestore-fallback',
+          requestId: toggleCancelRequestId,
+          affectedRegistrationIds: toCancelIds,
+        });
         cancelled = toCancelIds.length;
       }
 
@@ -892,6 +966,16 @@ Object.assign(App, {
         const useRegisterCF = typeof shouldUseServerRegistrationForSignup === 'function'
           ? shouldUseServerRegistrationForSignup()
           : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration());
+        toggleRegisterRequestId = useRegisterCF
+          ? `${userId}_${eventId}_companions_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`
+          : `fallback_companion_toggle_register_${userId}_${eventId}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
+        toggleRegisterMutationSeq = ApiService.markEventMutationPending?.(eventId, {
+          mutationType: 'companion-toggle-register',
+          source: useRegisterCF ? 'callable' : 'firestore-fallback',
+          requestId: toggleRegisterRequestId,
+          timeoutMs: 15000,
+          affectedProjectionFields: ['current', 'realCurrent', 'waitlist', 'participants', 'waitlistNames'],
+        });
         if (useRegisterCF) {
           const cfPayload = {
             eventId,
@@ -901,7 +985,7 @@ Object.assign(App, {
               companionId: p.companionId,
               companionName: p.companionName,
             })),
-            requestId: `${userId}_${eventId}_companions_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+            requestId: toggleRegisterRequestId,
           };
           if (selectedTeamKey) cfPayload.teamKey = selectedTeamKey;
           const cfResult = await Promise.race([
@@ -932,6 +1016,11 @@ Object.assign(App, {
           confirmed = result.confirmed || 0;
           waitlisted = result.waitlisted || 0;
         }
+        ApiService.markEventMutationServerConfirmed?.(eventId, toggleRegisterMutationSeq, {
+          mutationType: 'companion-toggle-register',
+          source: useRegisterCF ? 'callable' : 'firestore-fallback',
+          requestId: toggleRegisterRequestId,
+        });
       }
 
       const parts = [];
@@ -966,12 +1055,27 @@ Object.assign(App, {
         ALREADY_CANCELLED: '\u5831\u540d\u72c0\u614b\u5df2\u66f4\u65b0',
       };
       if (this._isAlreadyCancelledRegistrationError?.(err) && toCancelIds.length > 0) {
+        ApiService.markEventMutationServerConfirmed?.(eventId, toggleCancelMutationSeq, {
+          mutationType: 'companion-toggle-cancel',
+          requestId: toggleCancelRequestId,
+          affectedRegistrationIds: toCancelIds,
+          reason: 'already-terminal',
+        });
         this._markLocalRegistrationsTerminal?.(eventId, toCancelIds, 'cancelled');
         try { await this._syncMyEventRegistrations?.(eventId, userId); } catch (_) {}
         this.showToast('\u5925\u4f34\u5831\u540d\u5df2\u66f4\u65b0');
         this.showEventDetail(eventId);
         return;
       }
+      ApiService.markEventMutationError?.(eventId, toggleCancelMutationSeq, err, {
+        mutationType: 'companion-toggle-cancel',
+        requestId: toggleCancelRequestId,
+        affectedRegistrationIds: toCancelIds,
+      });
+      ApiService.markEventMutationError?.(eventId, toggleRegisterMutationSeq, err, {
+        mutationType: 'companion-toggle-register',
+        requestId: toggleRegisterRequestId,
+      });
       this.showToast(msgMap[errCode] || err.message || '\u5925\u4f34\u5831\u540d\u8abf\u6574\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
     } finally {
       this._syncEventSignupScrollLock?.();

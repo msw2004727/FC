@@ -80,11 +80,73 @@ Object.assign(App, {
 
   _isCurrentAttendanceTableTarget(eventId, containerId) {
     if (containerId === 'detail-attendance-table') {
+      if (typeof this._isCurrentEventDetailPatch === 'function') {
+        return this._isCurrentEventDetailPatch(eventId, null, { containerId }).ok === true;
+      }
       return this.currentPage === 'page-activity-detail'
         && this._currentDetailEventId === eventId
         && !!document.getElementById(containerId);
     }
     return !!document.getElementById(containerId);
+  },
+
+  _canPatchAttendanceTable(eventId, containerId, container, options = {}, patchType = 'attendance') {
+    const cId = containerId || 'attendance-table-container';
+    if (cId !== 'detail-attendance-table') return { ok: true, reason: 'ok' };
+    if (typeof this._isCurrentEventDetailPatch !== 'function') return { ok: true, reason: 'ok' };
+    const guardEnabled = typeof this._shouldUseActivityDetailOptimization === 'function'
+      ? this._shouldUseActivityDetailOptimization('latePatchGuard')
+      : true;
+    if (!guardEnabled && options?.mode !== 'detail') return { ok: true, reason: 'ok' };
+    return this._isCurrentEventDetailPatch(eventId, options?.requestSeq ?? null, {
+      container,
+      containerId: cId,
+      renderToken: options?.renderToken || null,
+      patchType,
+    });
+  },
+
+  _shouldSplitDetailRosterFetch(containerId, options = {}) {
+    if ((containerId || '') !== 'detail-attendance-table') return false;
+    if (options?.mode !== 'detail') return false;
+    if (typeof this._shouldUseActivityDetailOptimization === 'function') {
+      return this._shouldUseActivityDetailOptimization('rosterSplitFetch');
+    }
+    try {
+      return typeof shouldUseActivityDetailOptimization === 'function'
+        && shouldUseActivityDetailOptimization('rosterSplitFetch') === true;
+    } catch (_) {
+      return false;
+    }
+  },
+
+  _scheduleDetailAttendanceRecordsPatch(eventId, containerId, fetchOptions, options = {}) {
+    if (typeof ApiService === 'undefined' || typeof ApiService.fetchAttendanceIfMissing !== 'function') {
+      return null;
+    }
+    const cId = containerId || 'detail-attendance-table';
+    const patchOptions = {
+      ...options,
+      mode: 'detail',
+      skipFetch: true,
+    };
+    return ApiService.fetchAttendanceIfMissing(eventId, fetchOptions)
+      .then((result) => {
+        const issue = this._getAttendanceTableFetchIssue([result]);
+        if (issue) {
+          this._scheduleAttendanceTableLatePatch(eventId, cId);
+          return { ok: false, reason: issue.reason || 'attendance-fetch-issue', error: issue.error || null };
+        }
+        const container = document.getElementById(cId);
+        const guard = this._canPatchAttendanceTable(eventId, cId, container, patchOptions, 'attendance-records');
+        if (!guard.ok) return guard;
+        return this._renderAttendanceTable(eventId, cId, patchOptions);
+      })
+      .catch((err) => {
+        console.warn('[AttendanceTable] attendance records background fetch failed:', err);
+        this._scheduleAttendanceTableLatePatch(eventId, cId);
+        return { ok: false, reason: err?.code === 'firestore-fetch-timeout' ? 'timeout' : 'error', error: err };
+      });
   },
 
   _scheduleAttendanceTableLatePatch(eventId, containerId) {
@@ -408,6 +470,8 @@ Object.assign(App, {
     const cId = containerId || 'attendance-table-container';
     const container = document.getElementById(cId);
     if (!container) return;
+    const startGuard = this._canPatchAttendanceTable(eventId, cId, container, options, 'start');
+    if (!startGuard.ok) return startGuard;
     const _perfLog = _perfCallTs > 0;
     const _t0 = _perfLog ? performance.now() : 0;
     // 2026-04-20：鎖容器高度，防 innerHTML 替換期間頁面縮短導致 scrollTop 被瀏覽器 clamp
@@ -425,6 +489,8 @@ Object.assign(App, {
     const _hasFastData = (Array.isArray(e.participants) && e.participants.length > 0)
       || (Array.isArray(e.waitlistNames) && e.waitlistNames.length > 0);
     if (_cachedRegsForFast.length === 0 && _hasFastData) {
+      const fastPreviewGuard = this._canPatchAttendanceTable(eventId, cId, container, options, 'fast-preview');
+      if (!fastPreviewGuard.ok) return fastPreviewGuard;
       container.innerHTML = this._renderAttendanceFastPreview(e);
     }
 
@@ -436,11 +502,17 @@ Object.assign(App, {
       };
       if (options?.forceFetch) fetchOptions.force = true;
       try {
-        const fetchResults = await Promise.all([
-          ApiService.fetchAttendanceIfMissing(eventId, fetchOptions),
-          ApiService.fetchRegistrationsIfMissing(eventId, fetchOptions),
-        ]);
-        fetchIssue = this._getAttendanceTableFetchIssue(fetchResults);
+        if (this._shouldSplitDetailRosterFetch(cId, options)) {
+          const registrationResult = await ApiService.fetchRegistrationsIfMissing(eventId, fetchOptions);
+          fetchIssue = this._getAttendanceTableFetchIssue([registrationResult]);
+          this._scheduleDetailAttendanceRecordsPatch(eventId, cId, fetchOptions, options);
+        } else {
+          const fetchResults = await Promise.all([
+            ApiService.fetchAttendanceIfMissing(eventId, fetchOptions),
+            ApiService.fetchRegistrationsIfMissing(eventId, fetchOptions),
+          ]);
+          fetchIssue = this._getAttendanceTableFetchIssue(fetchResults);
+        }
       } catch (err) {
         console.warn('[AttendanceTable] fetch failed:', err);
         fetchIssue = {
@@ -482,6 +554,8 @@ Object.assign(App, {
     const _t3 = _perfLog ? performance.now() : 0;
 
     if (people.length === 0) {
+      const emptyGuard = this._canPatchAttendanceTable(eventId, cId, container, options, 'empty');
+      if (!emptyGuard.ok) return emptyGuard;
       const emptyManageBtn = canManage ? (tableEditing
         ? `<button style="font-size:.75rem;padding:.25rem .6rem;background:#2e7d32;color:#fff;border:none;border-radius:var(--radius-sm);${isSubmitting ? 'cursor:not-allowed;opacity:.72' : 'cursor:pointer'}" ${isSubmitting ? 'disabled' : ''} onclick="App._finishRosterManagement('${escapeHTML(eventId)}')">${isSubmitting ? '儲存中...' : '完成'}</button>`
         : `<button style="font-size:.75rem;padding:.25rem .6rem;background:#1565c0;color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer" onclick="App._startTableEdit('${escapeHTML(eventId)}')">管理名單</button>`
@@ -742,6 +816,8 @@ Object.assign(App, {
         </tr>`;
 
     const fetchIssueHtml = fetchIssue ? this._renderAttendanceLoadIssue(eventId, cId, fetchIssue) : '';
+    const finalGuard = this._canPatchAttendanceTable(eventId, cId, container, options, 'final');
+    if (!finalGuard.ok) return finalGuard;
     container.innerHTML = `<div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:.8rem;table-layout:fixed">
         <thead>${thead}</thead>

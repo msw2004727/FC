@@ -157,6 +157,11 @@ describe('canonical registration/activity/attendance cache', () => {
     expect(get).toHaveBeenCalledTimes(1);
     expect(ApiService._fetchedRegistrationServerIds.has('e2')).toBe(true);
     expect(ApiService.getRegistrationsByEvent('e2').map(r => r._docId)).toEqual(['reg_server']);
+    expect(ApiService.getActivityDetailFreshnessState('e2').roster).toMatchObject({
+      status: 'server-fresh',
+      source: 'server',
+      recordCount: 1,
+    });
   });
 
   test('fetchRegistrationsIfMissing does not trust the limited all-registration listener as per-event proof', async () => {
@@ -205,6 +210,11 @@ describe('canonical registration/activity/attendance cache', () => {
 
     expect(ApiService._fetchedRegistrationIds.has('e-cache')).toBe(false);
     expect(ApiService._fetchedRegistrationServerIds.has('e-cache')).toBe(false);
+    expect(ApiService.getActivityDetailFreshnessState('e-cache').roster).toMatchObject({
+      status: 'preview',
+      source: 'cache',
+      fromCache: true,
+    });
   });
 
   test('fetchRegistrationsIfMissing releases an in-flight registration fetch after timeout', async () => {
@@ -227,6 +237,35 @@ describe('canonical registration/activity/attendance cache', () => {
     expect(get).toHaveBeenCalledTimes(1);
     expect(ApiService._fetchingRegistrationPromises?.['e-timeout']).toBeUndefined();
     expect(ApiService._fetchedRegistrationIds.has('e-timeout')).toBe(false);
+    expect(ApiService.getActivityDetailFreshnessState('e-timeout').roster).toMatchObject({
+      status: 'stale-error',
+      source: 'server',
+      reason: 'timeout',
+    });
+  });
+
+  test('activity detail mutation shadow state does not mark roster server-fresh', () => {
+    const { ApiService } = loadServices();
+
+    const seq = ApiService.markEventMutationPending('evt-mutation', {
+      mutationType: 'signup',
+      source: 'callable',
+      requestId: 'req-1',
+      affectedRegistrationIds: ['reg_1'],
+    });
+    ApiService.markEventMutationServerConfirmed('evt-mutation', seq, {
+      requestId: 'req-1',
+    });
+
+    const state = ApiService.getActivityDetailFreshnessState('evt-mutation');
+    expect(state.roster).toBeNull();
+    expect(state.mutations).toHaveLength(1);
+    expect(state.mutations[0]).toMatchObject({
+      mutationType: 'signup',
+      status: 'server-confirmed-own-mutation',
+      requestId: 'req-1',
+      affectedRegistrationIds: ['reg_1'],
+    });
   });
 
   test('limited registration snapshots preserve event-specific server-fetched rows', () => {

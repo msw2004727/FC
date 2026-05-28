@@ -8,6 +8,7 @@
 Object.assign(App, {
 
   _eventDetailRequestSeq: 0,
+  _eventDetailRenderSeq: 0,
   _regsLoadingRetryTimer: null,
   _regsLoadingRetryCount: 0,
   _teamReservationStaffTeamsHydrateState: null,
@@ -33,6 +34,148 @@ Object.assign(App, {
         <div class="reg-loading-skeleton-row"></div>
       </div>
     </div>`;
+  },
+
+  _shouldUseActivityDetailOptimization(flagName, fallback = false) {
+    try {
+      if (typeof shouldUseActivityDetailOptimization === 'function') {
+        return shouldUseActivityDetailOptimization(flagName);
+      }
+    } catch (_) {}
+    return fallback === true;
+  },
+
+  _createEventDetailRenderToken(eventId, requestSeq) {
+    this._eventDetailRenderSeq = (Number(this._eventDetailRenderSeq) || 0) + 1;
+    return `${String(eventId || '')}:${Number(requestSeq) || 0}:${this._eventDetailRenderSeq}`;
+  },
+
+  _markEventDetailContainerOwner(containerOrId, eventId, requestSeq, renderToken, ownerType = 'detail') {
+    const container = typeof containerOrId === 'string'
+      ? document.getElementById(containerOrId)
+      : containerOrId;
+    if (!container?.dataset) return null;
+    container.dataset.detailEventId = String(eventId || '');
+    container.dataset.detailRequestSeq = String(Number(requestSeq) || 0);
+    container.dataset.detailRenderToken = String(renderToken || '');
+    container.dataset.detailOwnerType = String(ownerType || 'detail');
+    return container;
+  },
+
+  _getEventDetailPatchContainer(options = {}) {
+    if (options.container) return options.container;
+    if (options.containerId) return document.getElementById(options.containerId);
+    return null;
+  },
+
+  _isCurrentEventDetailPatch(eventId, requestSeq = null, options = {}) {
+    const result = (ok, reason) => ({ ok, reason: ok ? 'ok' : reason });
+    if (this.currentPage !== 'page-activity-detail') return result(false, 'stale-page');
+    if (String(this._currentDetailEventId || '') !== String(eventId || '')) return result(false, 'stale-event');
+    if (requestSeq != null && Number(requestSeq) !== Number(this._eventDetailRequestSeq)) {
+      return result(false, 'stale-seq');
+    }
+    if (this._flipAnimating) return result(false, 'flip-animating');
+
+    const container = this._getEventDetailPatchContainer(options);
+    if ((options.containerId || options.container) && !container) return result(false, 'missing-container');
+    if (container?.dataset) {
+      const ownerEventId = container.dataset.detailEventId;
+      const ownerRequestSeq = container.dataset.detailRequestSeq;
+      const ownerRenderToken = container.dataset.detailRenderToken;
+      if (ownerEventId && String(ownerEventId) !== String(eventId || '')) {
+        return result(false, 'stale-owner-event');
+      }
+      if (requestSeq != null && ownerRequestSeq && Number(ownerRequestSeq) !== Number(requestSeq)) {
+        return result(false, 'stale-owner-seq');
+      }
+      if (options.renderToken && ownerRenderToken && String(ownerRenderToken) !== String(options.renderToken)) {
+        return result(false, 'stale-render-token');
+      }
+    }
+    return result(true, 'ok');
+  },
+
+  _renderDetailAttendanceTable(eventId, options = {}) {
+    if (typeof this._renderAttendanceTable !== 'function') {
+      return Promise.resolve({ ok: false, reason: 'missing-renderer' });
+    }
+    return this._renderAttendanceTable(eventId, 'detail-attendance-table', {
+      mode: 'detail',
+      requestSeq: options?.requestSeq ?? null,
+      renderToken: options?.renderToken || null,
+      forceFetch: options?.forceFetch === true,
+      skipFetch: options?.skipFetch === true,
+    });
+  },
+
+  _afterDetailAttendanceRendered(eventId, eventRecord, requestSeq, renderToken) {
+    const guard = this._isCurrentEventDetailPatch?.(eventId, requestSeq, {
+      containerId: 'detail-attendance-table',
+      renderToken,
+    });
+    if (guard && !guard.ok) return guard;
+    this._refreshRegistrationBadges?.(eventId, 'detail-attendance-table')?.catch?.(() => {});
+    this._tsPreloadWritableRegistrations?.(eventId, eventRecord);
+    const attTable = document.getElementById('detail-attendance-table');
+    this._markBadgeRowOverflow?.(attTable);
+    return { ok: true, reason: 'ok' };
+  },
+
+  _getActivityDetailCommentsLoadMode() {
+    try {
+      const flags = typeof getActivityDetailOptimizationFlags === 'function'
+        ? getActivityDetailOptimizationFlags()
+        : null;
+      const mode = String(flags?.commentsLoadMode || '').trim();
+      if (mode === 'on-demand' || mode === 'eager') return mode;
+    } catch (_) {}
+    return 'eager';
+  },
+
+  _renderDetailCommentsLoadFailure(eventId, requestSeq, renderToken, err) {
+    const guard = this._isCurrentEventDetailPatch?.(eventId, requestSeq, {
+      containerId: 'detail-comments-container',
+      renderToken,
+    });
+    if (guard && !guard.ok) return guard;
+    console.error('[EventDetail] detail comments render failed:', err);
+    if (typeof this._renderEventCommentsLoadIssue === 'function') {
+      this._renderEventCommentsLoadIssue(eventId, { final: true });
+      return { ok: false, reason: 'comments-load-failed', error: err };
+    }
+    const container = document.getElementById('detail-comments-container');
+    if (container) {
+      container.innerHTML = '<div class="detail-section event-comments-section"><div class="detail-section-title">留言</div><div class="event-comments-empty event-comments-load-state">留言暫時無法載入</div></div>';
+    }
+    return { ok: false, reason: 'comments-load-failed', error: err };
+  },
+
+  _renderDetailComments(eventId, options = {}) {
+    const requestSeq = options?.requestSeq ?? null;
+    const renderToken = options?.renderToken || null;
+    const render = async () => {
+      const mode = this._getActivityDetailCommentsLoadMode();
+      if (mode === 'on-demand' && typeof ScriptLoader !== 'undefined' && typeof ScriptLoader.ensureGroup === 'function') {
+        await ScriptLoader.ensureGroup('activityComments');
+      }
+      if (typeof this._renderEventComments !== 'function') {
+        throw new Error('event comments renderer unavailable');
+      }
+      const guard = this._isCurrentEventDetailPatch?.(eventId, requestSeq, {
+        containerId: 'detail-comments-container',
+        renderToken,
+      });
+      if (guard && !guard.ok) return guard;
+      await this._renderEventComments(eventId);
+      return { ok: true, reason: 'ok' };
+    };
+    const commentsNonBlocking = this._shouldUseActivityDetailOptimization('commentsNonBlocking');
+    if (commentsNonBlocking) {
+      render().catch(err => this._renderDetailCommentsLoadFailure(eventId, requestSeq, renderToken, err));
+      return Promise.resolve({ ok: true, reason: 'scheduled' });
+    }
+    return render().catch(err => this._renderDetailCommentsLoadFailure(eventId, requestSeq, renderToken, err));
   },
 
   _showFastEventDetailShellNow(id, options = {}) {
@@ -670,6 +813,7 @@ Object.assign(App, {
 
       // ── 防跳頂：鎖定容器高度 + 保存 scroll ──
       var _savedScroll = window.scrollY || window.pageYOffset || (document.scrollingElement || document.documentElement).scrollTop || 0;
+      const detailRenderToken = this._createEventDetailRenderToken(id, requestSeq);
       // 2026-04-19 UX：同活動 re-render 時捕獲舊名單 DOM，避免外框 innerHTML 改寫
       // + _renderAttendanceTable 100ms debounce + fetch 造成「名單 → 空白 → 名單」的生硬閃爍。
       // 稍後由 _renderAttendanceTable 做原子替換，舊 DOM 持續顯示直到新 DOM 組好。
@@ -723,6 +867,11 @@ Object.assign(App, {
     `;
     // ── 防跳頂：解鎖高度 + 多重 scroll 恢復 ──
     // 內容已填入，解鎖 minHeight
+    this._markEventDetailContainerOwner(nodes.body, id, requestSeq, detailRenderToken, 'body');
+    this._markEventDetailContainerOwner('detail-attendance-table', id, requestSeq, detailRenderToken, 'attendance');
+    this._markEventDetailContainerOwner('detail-unreg-table', id, requestSeq, detailRenderToken, 'unregistered');
+    this._markEventDetailContainerOwner('detail-waitlist-container', id, requestSeq, detailRenderToken, 'waitlist');
+    this._markEventDetailContainerOwner('detail-comments-container', id, requestSeq, detailRenderToken, 'comments');
     requestAnimationFrame(function() { nodes.body.style.minHeight = ''; });
     // 多重恢復（覆蓋各瀏覽器/WebView 的不同 reflow 時機）
     if (_savedScroll > 0) {
@@ -794,19 +943,31 @@ Object.assign(App, {
       }
       // ── 頁面可見後，背景載入簽到表格（不阻塞頁面顯示）──
       if (!isGuestView) {
-        await this._renderAttendanceTable(id, 'detail-attendance-table');
-        // 2026-04-19：await 期間用戶可能切到別的活動，需再次 stale check 避免覆蓋新內容
-        if (requestSeq !== this._eventDetailRequestSeq
-          || this.currentPage !== 'page-activity-detail'
-          || this._currentDetailEventId !== id) {
-          return { ok: false, reason: 'stale' };
+        const renderAttendance = this._renderDetailAttendanceTable(id, {
+          requestSeq,
+          renderToken: detailRenderToken,
+        });
+        const nonBlockingDetailRender = this._shouldUseActivityDetailOptimization('nonBlockingRender');
+        if (nonBlockingDetailRender) {
+          renderAttendance
+            .then(() => this._afterDetailAttendanceRendered(id, e, requestSeq, detailRenderToken))
+            .catch(err => console.error('[EventDetail] detail attendance background render failed:', err));
+        } else {
+          await renderAttendance;
+          const attendanceGuard = this._isCurrentEventDetailPatch(id, requestSeq, {
+            containerId: 'detail-attendance-table',
+            renderToken: detailRenderToken,
+          });
+          if (!attendanceGuard.ok) {
+            return { ok: false, reason: attendanceGuard.reason || 'stale' };
+          }
+          this._afterDetailAttendanceRendered(id, e, requestSeq, detailRenderToken);
         }
-        this._refreshRegistrationBadges?.(id, 'detail-attendance-table')?.catch?.(() => {});
-        this._tsPreloadWritableRegistrations?.(id, e);
       }
-      const attTable = document.getElementById('detail-attendance-table');
-      this._markBadgeRowOverflow?.(attTable);
-      this._renderEventComments?.(id);
+      this._renderDetailComments(id, {
+        requestSeq,
+        renderToken: detailRenderToken,
+      });
       this._setRouteUrl?.({ pageId: 'page-activity-detail', id }, {
         mode: this._hasLegacyRouteSignal?.() ? 'replace' : undefined,
       });
@@ -820,7 +981,6 @@ Object.assign(App, {
     }
   },
 
-  // ── 候補名單：分組網格顯示 + 正取編輯模式 ──
   _renderGroupedWaitlistSection(eventId, containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;

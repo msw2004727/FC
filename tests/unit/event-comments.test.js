@@ -16,8 +16,12 @@ describe('activity detail comments source contracts', () => {
     expect(loader).toContain('js/modules/event/event-comments-actions.js');
     expect(loader.indexOf('js/modules/event/event-detail-companion.js'))
       .toBeLessThan(loader.indexOf('js/modules/event/event-comments.js'));
+    expect(loader).toContain('activityComments: [');
     expect(detail).toContain('id="detail-comments-container"');
-    expect(detail).toContain('this._renderEventComments?.(id)');
+    expect(detail).toContain('this._renderDetailComments(id');
+    expect(detail).toContain("ScriptLoader.ensureGroup('activityComments')");
+    expect(detail).toContain("_shouldUseActivityDetailOptimization('commentsNonBlocking')");
+    expect(detail).toContain('_renderDetailCommentsLoadFailure');
   });
 
   test('comments support resolved author identity, private visibility, 300 limit, replies, and optimistic likes', () => {

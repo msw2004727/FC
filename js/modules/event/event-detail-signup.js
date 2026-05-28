@@ -1176,6 +1176,7 @@ Object.assign(App, {
     let reservationChoice;
     let signupUseCF = false;
     let signupRequestId = '';
+    let signupMutationSeq = null;
     try {
       reservationChoice = await this._resolveTeamReservationSignupChoice(e, opts);
     } catch (err) {
@@ -1221,8 +1222,17 @@ Object.assign(App, {
           ? shouldUseServerRegistrationForSignup()
           : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration()));
       signupUseCF = useCF;
+      signupRequestId = useCF
+        ? `${userId}_${id}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`
+        : `fallback_signup_${userId}_${id}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
+      signupMutationSeq = ApiService.markEventMutationPending?.(id, {
+        mutationType: isEarlyBirdSignup ? 'early-bird-signup' : 'signup',
+        source: useCF ? 'callable' : 'firestore-fallback',
+        requestId: signupRequestId,
+        timeoutMs: 15000,
+        affectedProjectionFields: ['current', 'realCurrent', 'waitlist', 'participants', 'waitlistNames'],
+      });
       if (useCF) {
-        signupRequestId = `${userId}_${id}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
         // ═══ CF 路徑：呼叫 Cloud Function ═══
         const cfPayload = {
           eventId: id,
@@ -1300,6 +1310,12 @@ Object.assign(App, {
           _signupTimeout,
         ]);
       }
+      ApiService.markEventMutationServerConfirmed?.(id, signupMutationSeq, {
+        mutationType: isEarlyBirdSignup ? 'early-bird-signup' : 'signup',
+        source: useCF ? 'callable' : 'firestore-fallback',
+        requestId: signupRequestId,
+        affectedRegistrationIds: [result?.registration?._docId || result?.registration?.id].filter(Boolean),
+      });
 
       // ── 即時回饋：翻牌動畫 + toast ──
       this.invalidateHomeNextActivityCache?.(userId);
@@ -1409,6 +1425,11 @@ Object.assign(App, {
       cfMsg.TEAM_RESERVATION_TEAM_NOT_AVAILABLE = '此俱樂部席位已變更，請重新選擇';
       // Plan C：PROFILE_INCOMPLETE → 自動彈出首登表單
       if (errCode === 'PROFILE_INCOMPLETE') {
+        ApiService.markEventMutationError?.(id, signupMutationSeq, err, {
+          mutationType: isEarlyBirdSignup ? 'early-bird-signup' : 'signup',
+          source: signupUseCF ? 'callable' : 'firestore-fallback',
+          requestId: signupRequestId,
+        });
         this._logEventRegistrationFailure('event_signup_profile_incomplete', id, err, {
           fn: 'handleSignup',
           severity: 'info',
@@ -1426,6 +1447,11 @@ Object.assign(App, {
         signupBtns.forEach(b => { b.disabled = false; b.style.opacity = ''; if (b === activeBtn && b._origText) b.textContent = b._origText; });
         return;
       }
+      ApiService.markEventMutationError?.(id, signupMutationSeq, err, {
+        mutationType: isEarlyBirdSignup ? 'early-bird-signup' : 'signup',
+        source: signupUseCF ? 'callable' : 'firestore-fallback',
+        requestId: signupRequestId,
+      });
       this._logEventRegistrationFailure('event_signup_failed', id, err, {
         fn: 'handleSignup',
         stage: signupUseCF ? 'cloud_function' : 'firestore_fallback',
@@ -1633,6 +1659,7 @@ Object.assign(App, {
       : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration());
     let cancelRequestId = '';
     let cancelRegistrationIds = [];
+    let cancelMutationSeq = null;
     // 若有重複的本人報名（資料不一致），直接清掉額外的（不觸發候補遞補）
     const extraRegs = myRegs.filter(r => r !== reg && r._docId && r.status !== 'cancelled' && r.status !== 'removed');
     for (const extra of extraRegs) {
@@ -1666,6 +1693,18 @@ Object.assign(App, {
       return;
     }
     if (reg) {
+      cancelRegistrationIds = [regCancelId, ...extraRegs.map(r => r.id || r._docId)].filter(Boolean).slice(0, 20);
+      cancelRequestId = useCF
+        ? `cancel_${userId}_${id}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`
+        : `fallback_cancel_${userId}_${id}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
+      cancelMutationSeq = ApiService.markEventMutationPending?.(id, {
+        mutationType: isWaitlist ? 'cancel-waitlist' : 'cancel-signup',
+        source: useCF ? 'callable' : 'firestore-fallback',
+        requestId: cancelRequestId,
+        affectedRegistrationIds: cancelRegistrationIds,
+        timeoutMs: 15000,
+        affectedProjectionFields: ['current', 'realCurrent', 'waitlist', 'participants', 'waitlistNames'],
+      });
       try {
         const _cancelTimeout = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('取消操作逾時，請重新整理後再試')), 15000));
@@ -1674,8 +1713,6 @@ Object.assign(App, {
 
         if (useCF) {
           // ═══ CF 路徑：呼叫 Cloud Function ═══
-          cancelRegistrationIds = [regCancelId, ...extraRegs.map(r => r.id || r._docId)].filter(Boolean).slice(0, 20);
-          cancelRequestId = `cancel_${userId}_${id}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
           const cfResult = await Promise.race([
             (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('cancelRegistration')({
               eventId: id,
@@ -1726,6 +1763,12 @@ Object.assign(App, {
             _cancelTimeout,
           ]);
         }
+        ApiService.markEventMutationServerConfirmed?.(id, cancelMutationSeq, {
+          mutationType: isWaitlist ? 'cancel-waitlist' : 'cancel-signup',
+          source: useCF ? 'callable' : 'firestore-fallback',
+          requestId: cancelRequestId,
+          affectedRegistrationIds: cancelRegistrationIds,
+        });
 
         if (!useCF && cancelledReg && cancelledReg._promotedUserId) {
           const ev = ApiService.getEvent(id);
@@ -1829,6 +1872,13 @@ Object.assign(App, {
       } catch (err) {
         const errCode = this._getEventRegistrationErrorCode(err);
         if (this._isAlreadyCancelledRegistrationError(err)) {
+          ApiService.markEventMutationServerConfirmed?.(id, cancelMutationSeq, {
+            mutationType: isWaitlist ? 'cancel-waitlist' : 'cancel-signup',
+            source: useCF ? 'callable' : 'firestore-fallback',
+            requestId: cancelRequestId,
+            affectedRegistrationIds: cancelRegistrationIds.length ? cancelRegistrationIds : [regCancelId].filter(Boolean),
+            reason: 'already-terminal',
+          });
           this._logEventRegistrationFailure('event_cancel_already_terminal', id, err, {
             fn: 'handleCancelSignup',
             severity: 'warning',
@@ -1858,6 +1908,13 @@ Object.assign(App, {
           return;
         }
         if (this._isMissingCancelRegistrationError(err)) {
+          ApiService.markEventMutationServerConfirmed?.(id, cancelMutationSeq, {
+            mutationType: isWaitlist ? 'cancel-waitlist' : 'cancel-signup',
+            source: useCF ? 'callable' : 'firestore-fallback',
+            requestId: cancelRequestId,
+            affectedRegistrationIds: cancelRegistrationIds.length ? cancelRegistrationIds : [regCancelId].filter(Boolean),
+            reason: 'missing-registration',
+          });
           this._logEventRegistrationFailure('event_cancel_missing_registration', id, err, {
             fn: 'handleCancelSignup',
             severity: 'warning',
@@ -1881,6 +1938,12 @@ Object.assign(App, {
           _restoreCancelUI();
           return;
         }
+        ApiService.markEventMutationError?.(id, cancelMutationSeq, err, {
+          mutationType: isWaitlist ? 'cancel-waitlist' : 'cancel-signup',
+          source: useCF ? 'callable' : 'firestore-fallback',
+          requestId: cancelRequestId,
+          affectedRegistrationIds: cancelRegistrationIds,
+        });
         console.error('[cancelSignup]', err);
         this._flipAnimating = false;
         const cfMsg = {

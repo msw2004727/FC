@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260526';
+const CACHE_VERSION = '0.20260528a';
 
 const GOOGLE_MAPS_BROWSER_API_KEY = '';
 
@@ -233,6 +233,52 @@ const PERFORMANCE_FLAGS = {
   visibleCardPrefetch: true,
   publicBootSnapshot: true,
 };
+
+// Activity detail optimization rollout switches.
+// Phase 1 is shadow-only: it records freshness/mutation state without changing UI.
+const ACTIVITY_DETAIL_OPTIMIZATION_FLAGS = {
+  freshnessShadow: true,
+  latePatchGuard: true,
+  rosterSplitFetch: true,
+  nonBlockingRender: true,
+  commentsNonBlocking: true,
+  commentsLoadMode: 'eager',
+  detailCoreSplit: false,
+};
+
+function getActivityDetailOptimizationFlags() {
+  const flags = { ...ACTIVITY_DETAIL_OPTIMIZATION_FLAGS };
+  try {
+    const runtimeFlags = (typeof FirebaseService !== 'undefined' && typeof FirebaseService.getCachedDoc === 'function')
+      ? FirebaseService.getCachedDoc('siteConfig', 'featureFlags')
+      : null;
+    const activityFlags = runtimeFlags?.activityDetailOptimization || runtimeFlags || null;
+    Object.keys(flags).forEach(key => {
+      const runtimeKey = `activityDetail${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+      if (typeof activityFlags?.[key] === 'boolean') flags[key] = activityFlags[key];
+      if (typeof activityFlags?.[runtimeKey] === 'boolean') flags[key] = activityFlags[runtimeKey];
+      if (key === 'commentsLoadMode') {
+        if (typeof activityFlags?.commentsLoadMode === 'string') flags[key] = activityFlags.commentsLoadMode;
+        if (typeof activityFlags?.activityDetailCommentsLoadMode === 'string') flags[key] = activityFlags.activityDetailCommentsLoadMode;
+      }
+    });
+  } catch (_) {}
+  return flags;
+}
+
+function shouldUseActivityDetailOptimization(flagName) {
+  const key = String(flagName || '').trim();
+  if (!key) return false;
+  try {
+    const localOverride = typeof isLocalFeatureOverrideParam === 'function'
+      ? isLocalFeatureOverrideParam(`activityDetail${key.charAt(0).toUpperCase()}${key.slice(1)}`)
+      : false;
+    if (localOverride === '1') return true;
+    if (localOverride === '0') return false;
+  } catch (_) {}
+  const flags = getActivityDetailOptimizationFlags();
+  return flags[key] === true;
+}
 
 const PERFORMANCE_LIMITS = {
   idlePreloadDelayMs: 900,

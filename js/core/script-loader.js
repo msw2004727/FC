@@ -12,6 +12,7 @@ const ScriptLoader = {
   _domPrimed: false,
   _manualOnlyGroups: {
     activityMap: true,
+    activityComments: true,
     eventLocationPicker: true,
   },
 
@@ -169,6 +170,10 @@ const ScriptLoader = {
       'js/modules/event/event-manage-visibility.js',
       'js/modules/event/event-manage.js',
       'js/modules/registration-audit.js',
+    ],
+    activityComments: [
+      'js/modules/event/event-comments.js',
+      'js/modules/event/event-comments-actions.js',
     ],
     teamList: [
       'js/modules/team/team-list-helpers.js',

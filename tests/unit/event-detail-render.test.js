@@ -60,6 +60,41 @@ function loadEventManageAttendanceModule() {
   return app;
 }
 
+function loadEventDetailAndAttendanceModule() {
+  const app = {};
+  const context = {
+    App: app,
+    ApiService: {
+      getCurrentUser: jest.fn(() => null),
+      getEvent: jest.fn(() => null),
+      getRegistrationsByEvent: jest.fn(() => []),
+      getAttendanceRecords: jest.fn(() => []),
+    },
+    TYPE_CONFIG: { friendly: { label: 'friendly' }, external: { label: 'external' } },
+    shouldUseActivityDetailOptimization: jest.fn(() => true),
+    document,
+    window,
+    performance,
+    requestAnimationFrame: cb => cb(),
+    Object,
+    console,
+    setTimeout,
+    clearTimeout,
+    escapeHTML: (value) => String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;'),
+  };
+  vm.runInNewContext(readProjectFile('js/modules/event/event-detail.js'), context, {
+    filename: 'js/modules/event/event-detail.js',
+  });
+  vm.runInNewContext(readProjectFile('js/modules/event/event-manage-attendance.js'), context, {
+    filename: 'js/modules/event/event-manage-attendance.js',
+  });
+  return { app, context };
+}
+
 function loadEventManageWaitlistModule(context) {
   const app = context.App || {};
   vm.runInNewContext(readProjectFile('js/modules/event/event-manage-waitlist.js'), {
@@ -414,7 +449,7 @@ describe('Team reservation button loading contract', () => {
     const detailSource = readProjectFile('js/modules/event/event-detail.js');
     const shellCall = detailSource.indexOf('_showFastEventDetailShellNow?.(id, options)');
     const staffHydrate = detailSource.indexOf('const _staffTeamsHydratePromise');
-    const rosterRender = detailSource.indexOf("await this._renderAttendanceTable(id, 'detail-attendance-table')");
+    const rosterRender = detailSource.indexOf('const renderAttendance = this._renderDetailAttendanceTable');
 
     expect(shellCall).toBeGreaterThan(-1);
     expect(staffHydrate).toBeGreaterThan(-1);
@@ -424,6 +459,15 @@ describe('Team reservation button loading contract', () => {
     expect(detailSource).toContain('_warmEventDetailFreshData?.(id)');
     expect(detailSource).not.toContain('await this._ensureTeamReservationStaffTeamsLoaded()');
     expect(detailSource).toContain('_staffTeamsHydratePromise.then');
+  });
+
+  test('activity detail roster non-blocking path is explicit detail-only opt-in', () => {
+    const detailSource = readProjectFile('js/modules/event/event-detail.js');
+
+    expect(detailSource).toContain('_renderDetailAttendanceTable(eventId, options = {})');
+    expect(detailSource).toContain("mode: 'detail'");
+    expect(detailSource).toContain("_shouldUseActivityDetailOptimization('nonBlockingRender')");
+    expect(detailSource).not.toContain("await this._renderAttendanceTable(id, 'detail-attendance-table')");
   });
 
   test('activity detail keeps signup actions loading until team staff identity resolves', () => {
@@ -745,6 +789,7 @@ describe('Attendance table debounce contract', () => {
   afterEach(() => {
     jest.useRealTimers();
     jest.restoreAllMocks();
+    document.body.innerHTML = '';
   });
 
   test('resolves superseded callers after the latest debounced render completes', async () => {
@@ -797,6 +842,161 @@ describe('Attendance table debounce contract', () => {
 
     expect(result).toMatchObject({ ok: false, reason: 'error', error: err });
     expect(errorSpy).toHaveBeenCalledWith('[AttendanceTable] render failed:', err);
+  });
+});
+
+describe('Activity detail late patch guard', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+    document.body.innerHTML = '';
+  });
+
+  test('accepts only the current page, event, request sequence, and render token', () => {
+    const { app } = loadEventDetailAndAttendanceModule();
+    document.body.innerHTML = '<div id="detail-attendance-table"></div>';
+    app.currentPage = 'page-activity-detail';
+    app._currentDetailEventId = 'event-1';
+    app._eventDetailRequestSeq = 7;
+    app._markEventDetailContainerOwner('detail-attendance-table', 'event-1', 7, 'rt-1', 'attendance');
+
+    expect(app._isCurrentEventDetailPatch('event-1', 7, {
+      containerId: 'detail-attendance-table',
+      renderToken: 'rt-1',
+    })).toMatchObject({ ok: true, reason: 'ok' });
+
+    expect(app._isCurrentEventDetailPatch('event-2', 7, {
+      containerId: 'detail-attendance-table',
+      renderToken: 'rt-1',
+    })).toMatchObject({ ok: false, reason: 'stale-event' });
+
+    expect(app._isCurrentEventDetailPatch('event-1', 6, {
+      containerId: 'detail-attendance-table',
+      renderToken: 'rt-1',
+    })).toMatchObject({ ok: false, reason: 'stale-seq' });
+
+    expect(app._isCurrentEventDetailPatch('event-1', 7, {
+      containerId: 'detail-attendance-table',
+      renderToken: 'rt-old',
+    })).toMatchObject({ ok: false, reason: 'stale-render-token' });
+
+    app.currentPage = 'page-home';
+    expect(app._isCurrentEventDetailPatch('event-1', 7, {
+      containerId: 'detail-attendance-table',
+      renderToken: 'rt-1',
+    })).toMatchObject({ ok: false, reason: 'stale-page' });
+  });
+
+  test('detail attendance render refuses stale container writes', async () => {
+    const { app } = loadEventDetailAndAttendanceModule();
+    document.body.innerHTML = '<div id="detail-attendance-table">keep</div>';
+    app.currentPage = 'page-activity-detail';
+    app._currentDetailEventId = 'event-current';
+    app._eventDetailRequestSeq = 2;
+    app._markEventDetailContainerOwner('detail-attendance-table', 'event-current', 2, 'rt-current', 'attendance');
+
+    const result = await app._doRenderAttendanceTable('event-old', 'detail-attendance-table', 0, {
+      mode: 'detail',
+      requestSeq: 1,
+      renderToken: 'rt-old',
+    });
+
+    expect(result).toMatchObject({ ok: false, reason: 'stale-event' });
+    expect(document.getElementById('detail-attendance-table').innerHTML).toBe('keep');
+  });
+
+  test('detail roster split renders server registrations without waiting for attendance records', async () => {
+    const { app, context } = loadEventDetailAndAttendanceModule();
+    document.body.innerHTML = '<div id="detail-attendance-table"></div>';
+    app.currentPage = 'page-activity-detail';
+    app._currentDetailEventId = 'event-1';
+    app._eventDetailRequestSeq = 1;
+    app._markEventDetailContainerOwner('detail-attendance-table', 'event-1', 1, 'rt-1', 'attendance');
+    app._canOperateEventSite = jest.fn(() => false);
+    app._buildConfirmedParticipantSummary = jest.fn(() => ({
+      count: regs.length,
+      people: regs.map(reg => ({
+        uid: reg.uid,
+        name: reg.name,
+        displayName: reg.name,
+        hasSelfReg: false,
+        displayBadges: [],
+      })),
+    }));
+
+    let regs = [];
+    context.ApiService.getEvent = jest.fn(() => ({ id: 'event-1', current: 1, max: 8 }));
+    context.ApiService.getRegistrationsByEvent = jest.fn(() => regs);
+    context.ApiService.getAttendanceRecords = jest.fn(() => []);
+    context.ApiService.fetchRegistrationsIfMissing = jest.fn(async () => {
+      regs = [{ uid: 'u1', userId: 'u1', name: 'Server User', status: 'confirmed' }];
+      return { ok: true, source: 'server' };
+    });
+    context.ApiService.fetchAttendanceIfMissing = jest.fn(() => new Promise(() => {}));
+
+    await app._doRenderAttendanceTable('event-1', 'detail-attendance-table', 0, {
+      mode: 'detail',
+      requestSeq: 1,
+      renderToken: 'rt-1',
+    });
+
+    expect(context.ApiService.fetchRegistrationsIfMissing).toHaveBeenCalledTimes(1);
+    expect(context.ApiService.fetchAttendanceIfMissing).toHaveBeenCalledTimes(1);
+    expect(document.getElementById('detail-attendance-table').textContent).toContain('Server User');
+  });
+
+  test('attendance records background patch respects the current render token', async () => {
+    const { app, context } = loadEventDetailAndAttendanceModule();
+    document.body.innerHTML = '<div id="detail-attendance-table">current</div>';
+    app.currentPage = 'page-activity-detail';
+    app._currentDetailEventId = 'event-1';
+    app._eventDetailRequestSeq = 1;
+    app._markEventDetailContainerOwner('detail-attendance-table', 'event-1', 1, 'rt-current', 'attendance');
+    let resolveAttendance;
+    context.ApiService.fetchAttendanceIfMissing = jest.fn(() => new Promise(resolve => {
+      resolveAttendance = resolve;
+    }));
+    const renderSpy = jest.spyOn(app, '_renderAttendanceTable');
+
+    const patchPromise = app._scheduleDetailAttendanceRecordsPatch('event-1', 'detail-attendance-table', {}, {
+      mode: 'detail',
+      requestSeq: 1,
+      renderToken: 'rt-old',
+    });
+    resolveAttendance({ ok: true });
+    const result = await patchPromise;
+
+    expect(result).toMatchObject({ ok: false, reason: 'stale-render-token' });
+    expect(renderSpy).not.toHaveBeenCalled();
+    expect(document.getElementById('detail-attendance-table').innerHTML).toBe('current');
+  });
+
+  test('comments on-demand loader failure is isolated to the comments container', async () => {
+    const { app, context } = loadEventDetailAndAttendanceModule();
+    document.body.innerHTML = '<div id="detail-comments-container">loading</div><div id="detail-attendance-table">roster</div>';
+    app.currentPage = 'page-activity-detail';
+    app._currentDetailEventId = 'event-1';
+    app._eventDetailRequestSeq = 1;
+    app._markEventDetailContainerOwner('detail-comments-container', 'event-1', 1, 'rt-1', 'comments');
+    context.getActivityDetailOptimizationFlags = jest.fn(() => ({ commentsLoadMode: 'on-demand' }));
+    context.ScriptLoader = {
+      ensureGroup: jest.fn(() => Promise.reject(new Error('chunk fail'))),
+    };
+    app._renderEventCommentsLoadIssue = jest.fn(() => {
+      document.getElementById('detail-comments-container').textContent = 'failed comments';
+    });
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    await app._renderDetailComments('event-1', {
+      requestSeq: 1,
+      renderToken: 'rt-1',
+    });
+    await Promise.resolve();
+
+    expect(context.ScriptLoader.ensureGroup).toHaveBeenCalledWith('activityComments');
+    expect(app._renderEventCommentsLoadIssue).toHaveBeenCalledWith('event-1', { final: true });
+    expect(document.getElementById('detail-comments-container').textContent).toBe('failed comments');
+    expect(document.getElementById('detail-attendance-table').textContent).toBe('roster');
+    errorSpy.mockRestore();
   });
 });
 
