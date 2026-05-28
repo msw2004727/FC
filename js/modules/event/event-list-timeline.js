@@ -10,6 +10,15 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   _tlCardLoadingState: null,
+  _activityCommentBadgeCache: new Map(),
+  _activityCommentBadgeQueue: [],
+  _activityCommentBadgeActiveCount: 0,
+  _activityCommentBadgeSeq: 0,
+  _activityCommentBadgeObserver: null,
+  _activityCommentBadgeIdleHandle: null,
+  _activityCommentBadgeCacheTtlMs: 300000,
+  _activityCommentBadgeMaxConcurrent: 2,
+  _activityCommentBadgeCommentLimit: 80,
 
   _clearTimelineCardNavigationState(reason = '') {
     const state = this._tlCardLoadingState;
@@ -248,6 +257,230 @@ Object.assign(App, {
     return tokens.every(token => this._fuzzyTextContains(text, token));
   },
 
+  _activityCommentBadgeHtml(eventId) {
+    const safeId = escapeHTML(eventId || '');
+    return `<span class="tl-comment-badge" data-comment-badge-for="${safeId}" hidden aria-hidden="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.9 8.9 0 0 1-3.6-.8L3 21l1.8-4.7A8.1 8.1 0 0 1 3 11.5 8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5Z"/><path d="M8 10h8M8 14h5"/></svg>
+      <span class="tl-comment-badge-count">0</span>
+    </span>`;
+  },
+
+  _activityCommentBadgeCacheKey(eventRecord) {
+    const user = (typeof ApiService !== 'undefined') ? ApiService.getCurrentUser?.() : null;
+    const uid = String(user?.uid || user?.lineUserId || '').trim();
+    if (!uid || !eventRecord?.id) return '';
+    const scope = this._canReadAllActivityComments(eventRecord) ? 'manage' : 'member';
+    return [eventRecord.id, uid, scope].join('|');
+  },
+
+  _getActivityCommentBadgeCachedCount(eventRecord) {
+    const key = this._activityCommentBadgeCacheKey(eventRecord);
+    if (!key || !(this._activityCommentBadgeCache instanceof Map)) return null;
+    const entry = this._activityCommentBadgeCache.get(key);
+    const ttl = Math.max(0, Number(this._activityCommentBadgeCacheTtlMs) || 0);
+    if (!entry || !ttl || (Date.now() - entry.cachedAt) > ttl) {
+      if (entry) this._activityCommentBadgeCache.delete(key);
+      return null;
+    }
+    return Math.max(0, Number(entry.count) || 0);
+  },
+
+  _setActivityCommentBadgeCachedCount(eventRecord, count) {
+    const key = this._activityCommentBadgeCacheKey(eventRecord);
+    if (!key || !(this._activityCommentBadgeCache instanceof Map)) return;
+    this._activityCommentBadgeCache.set(key, {
+      cachedAt: Date.now(),
+      eventId: String(eventRecord?.id || ''),
+      count: Math.max(0, Number(count) || 0),
+    });
+  },
+
+  _clearActivityCommentBadgeCacheForEvent(eventId) {
+    const target = String(eventId || '').trim();
+    if (!target || !(this._activityCommentBadgeCache instanceof Map)) return;
+    for (const [key, entry] of this._activityCommentBadgeCache.entries()) {
+      if (key.startsWith(target + '|') || entry?.eventId === target) {
+        this._activityCommentBadgeCache.delete(key);
+      }
+    }
+  },
+
+  _canReadAllActivityComments(eventRecord) {
+    if (typeof this._canManageEventComments === 'function') {
+      try { return !!this._canManageEventComments(eventRecord); } catch (_) {}
+    }
+    const user = (typeof ApiService !== 'undefined') ? ApiService.getCurrentUser?.() : null;
+    const uid = String(user?.uid || user?.lineUserId || '').trim();
+    if (!uid || !eventRecord) return false;
+    const role = this._getCurrentActivityRoleKey?.() || this.currentRole || user.role || 'user';
+    const adminLevel = (typeof ROLE_LEVEL_MAP !== 'undefined' && ROLE_LEVEL_MAP.admin) || 80;
+    const level = (typeof ROLE_LEVEL_MAP !== 'undefined' && ROLE_LEVEL_MAP[role]) || 0;
+    if (level >= adminLevel) return true;
+    if (String(eventRecord.creatorUid || '').trim() === uid) return true;
+    if (String(eventRecord.ownerUid || '').trim() === uid) return true;
+    if (String(eventRecord.captainUid || '').trim() === uid) return true;
+    if (Array.isArray(eventRecord.delegateUids) && eventRecord.delegateUids.map(String).includes(uid)) return true;
+    if (Array.isArray(eventRecord.delegates) && eventRecord.delegates.some(d => String(d?.uid || '').trim() === uid)) return true;
+    return false;
+  },
+
+  async _resolveActivityCommentBadgeEventDocId(eventRecord) {
+    if (eventRecord?._docId || eventRecord?.docId) return eventRecord._docId || eventRecord.docId;
+    if (eventRecord?.id && typeof FirebaseService !== 'undefined' && typeof FirebaseService._getEventDocIdAsync === 'function') {
+      return await FirebaseService._getEventDocIdAsync(eventRecord.id);
+    }
+    return eventRecord?.id || '';
+  },
+
+  _sumActivityCommentBadgeSnapshot(snapshot) {
+    let total = 0;
+    const seen = new Set();
+    (snapshot?.docs || []).forEach(docSnap => {
+      const id = String(docSnap?.id || '').trim();
+      if (id && seen.has(id)) return;
+      if (id) seen.add(id);
+      const data = typeof docSnap?.data === 'function' ? (docSnap.data() || {}) : {};
+      if (data.deleted === true) return;
+      total += 1 + Math.max(0, Math.floor(Number(data.replyCount) || 0));
+    });
+    return total;
+  },
+
+  async _fetchActivityCommentBadgeCount(eventRecord) {
+    const user = (typeof ApiService !== 'undefined') ? ApiService.getCurrentUser?.() : null;
+    const uid = String(user?.uid || user?.lineUserId || '').trim();
+    if (!uid || !eventRecord || eventRecord.type === 'external') return 0;
+    if (typeof db === 'undefined' || !db?.collection) return 0;
+    const eventDocId = await this._resolveActivityCommentBadgeEventDocId(eventRecord);
+    if (!eventDocId) return 0;
+
+    const limit = Math.max(1, Number(this._activityCommentBadgeCommentLimit) || 80);
+    const commentsRef = db.collection('events').doc(eventDocId).collection('comments');
+    if (this._canReadAllActivityComments(eventRecord)) {
+      const snap = await commentsRef.limit(limit).get();
+      return this._sumActivityCommentBadgeSnapshot(snap);
+    }
+
+    const [publicSnap, ownSnap] = await Promise.all([
+      commentsRef.where('visibility', '==', 'public').limit(Math.min(limit, 60)).get(),
+      commentsRef.where('authorUid', '==', uid).limit(Math.min(limit, 30)).get(),
+    ]);
+    const byId = new Map();
+    [publicSnap, ownSnap].forEach(snap => {
+      (snap?.docs || []).forEach(docSnap => byId.set(docSnap.id, docSnap));
+    });
+    return this._sumActivityCommentBadgeSnapshot({ docs: Array.from(byId.values()) });
+  },
+
+  _setActivityCommentBadgeCount(row, eventId, count) {
+    const badge = row?.querySelector?.('.tl-comment-badge');
+    if (!badge) return;
+    const safeCount = Math.max(0, Number(count) || 0);
+    if (safeCount <= 0) {
+      badge.hidden = true;
+      badge.setAttribute('aria-hidden', 'true');
+      return;
+    }
+    const label = safeCount > 99 ? '99+' : String(safeCount);
+    const countEl = badge.querySelector('.tl-comment-badge-count');
+    if (countEl) countEl.textContent = label;
+    badge.hidden = false;
+    badge.setAttribute('aria-hidden', 'false');
+    badge.setAttribute('aria-label', `${label} 則留言`);
+    badge.title = `${label} 則留言`;
+  },
+
+  _scheduleActivityCommentBadges(events) {
+    this._activityCommentBadgeSeq += 1;
+    const seq = this._activityCommentBadgeSeq;
+
+    if (this._activityCommentBadgeObserver) {
+      try { this._activityCommentBadgeObserver.disconnect(); } catch (_) {}
+      this._activityCommentBadgeObserver = null;
+    }
+    if (this._activityCommentBadgeIdleHandle && typeof cancelIdleCallback === 'function') {
+      try { cancelIdleCallback(this._activityCommentBadgeIdleHandle); } catch (_) {}
+    }
+    this._activityCommentBadgeIdleHandle = null;
+
+    if (this.currentPage !== 'page-activities' || this._activityActiveTab !== 'normal') return;
+    const user = (typeof ApiService !== 'undefined') ? ApiService.getCurrentUser?.() : null;
+    const uid = String(user?.uid || user?.lineUserId || '').trim();
+    if (!uid || !Array.isArray(events) || !events.length) return;
+
+    const run = () => this._observeActivityCommentBadgeRows(seq);
+    if (typeof requestIdleCallback === 'function') {
+      this._activityCommentBadgeIdleHandle = requestIdleCallback(run, { timeout: 1800 });
+    } else {
+      setTimeout(run, 800);
+    }
+  },
+
+  _observeActivityCommentBadgeRows(seq) {
+    if (seq !== this._activityCommentBadgeSeq) return;
+    if (this.currentPage !== 'page-activities' || this._activityActiveTab !== 'normal') return;
+    const rows = Array.from(document.querySelectorAll('#activity-list .tl-event-row[data-event-id]'));
+    if (!rows.length) return;
+
+    if (typeof IntersectionObserver !== 'function') {
+      rows.slice(0, 12).forEach(row => this._queueActivityCommentBadgeRow(row, seq));
+      return;
+    }
+
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        observer.unobserve(entry.target);
+        this._queueActivityCommentBadgeRow(entry.target, seq);
+      });
+    }, { root: null, rootMargin: '240px 0px', threshold: 0.01 });
+    this._activityCommentBadgeObserver = observer;
+    rows.forEach(row => observer.observe(row));
+  },
+
+  _queueActivityCommentBadgeRow(row, seq) {
+    const eventId = String(row?.dataset?.eventId || '').trim();
+    const queuedSeq = String(seq || '');
+    if (!eventId || row.dataset.commentBadgeQueued === queuedSeq) return;
+    row.dataset.commentBadgeQueued = queuedSeq;
+    this._activityCommentBadgeQueue.push({ row, eventId, seq });
+    this._drainActivityCommentBadgeQueue();
+  },
+
+  _drainActivityCommentBadgeQueue() {
+    const max = Math.max(1, Number(this._activityCommentBadgeMaxConcurrent) || 2);
+    while (this._activityCommentBadgeActiveCount < max && this._activityCommentBadgeQueue.length) {
+      const item = this._activityCommentBadgeQueue.shift();
+      this._activityCommentBadgeActiveCount += 1;
+      Promise.resolve()
+        .then(() => this._loadActivityCommentBadgeForRow(item))
+        .catch(err => console.warn('[activity-comment-badge] load failed', err))
+        .finally(() => {
+          this._activityCommentBadgeActiveCount = Math.max(0, this._activityCommentBadgeActiveCount - 1);
+          this._drainActivityCommentBadgeQueue();
+        });
+    }
+  },
+
+  async _loadActivityCommentBadgeForRow({ row, eventId, seq }) {
+    if (seq !== this._activityCommentBadgeSeq || !row?.isConnected) return;
+    if (this.currentPage !== 'page-activities' || this._activityActiveTab !== 'normal') return;
+    if (typeof ApiService === 'undefined') return;
+    const eventRecord = ApiService.getEvent?.(eventId) || (ApiService.getEvents?.() || []).find(e => e?.id === eventId);
+    if (!eventRecord) return;
+
+    const cachedCount = this._getActivityCommentBadgeCachedCount(eventRecord);
+    if (cachedCount != null) {
+      this._setActivityCommentBadgeCount(row, eventId, cachedCount);
+      return;
+    }
+
+    const count = await this._fetchActivityCommentBadgeCount(eventRecord);
+    this._setActivityCommentBadgeCachedCount(eventRecord, count);
+    if (seq !== this._activityCommentBadgeSeq || !row.isConnected) return;
+    this._setActivityCommentBadgeCount(row, eventId, count);
+  },
+
   renderActivityList() {
     // 防抖 + 頁面守衛：多條路徑（onSnapshot / seed / revalidate / visibilitychange）
     // 可能在短時間內連續觸發，統一收束為 100ms 內只渲染一次，避免 DOM 連續替換導致捲動跳頂
@@ -432,7 +665,8 @@ Object.assign(App, {
             : '';
           const sportIcon = this._renderEventSportIcon(e, 'tl-event-sport-corner');
           const favHeart = this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id);
-          const iconStack = `<div class="tl-event-icons">${favHeart}${sportIcon}</div>`;
+          const commentBadge = this._activityCommentBadgeHtml(e.id);
+          const iconStack = `<div class="tl-event-icons">${commentBadge}${favHeart}${sportIcon}</div>`;
           const eventImage = this._getEventImageUrl?.(e, 'cover') || e.image || '';
 
           // 報名狀態章
@@ -455,7 +689,7 @@ Object.assign(App, {
           }
 
           html += `
-            <div class="tl-event-row ${rowClass}${isEnded ? ' tl-past' : ''}" style="${rowStyle}" onclick="App.openTimelineEventDetail('${e.id}', this)">
+            <div class="tl-event-row ${rowClass}${isEnded ? ' tl-past' : ''}" data-event-id="${escapeHTML(e.id)}" style="${rowStyle}" onclick="App.openTimelineEventDetail('${e.id}', this)">
               ${genderRibbon}
               ${eventImage ? `<div class="tl-event-thumb"><img src="${escapeHTML(eventImage)}" alt="${escapeHTML(e.title || '')}" width="48" height="48" loading="lazy" decoding="async"></div>` : ''}
               <div class="tl-event-info">
@@ -483,7 +717,10 @@ Object.assign(App, {
         + '|sc:' + (s?.confirmedCount ?? '') + '|sw:' + (s?.waitlistCount ?? '') + '|sm:' + (s?.maxCount ?? '')
         + '|' + (e.pinned?1:0) + '|' + (e.title||'') + '|' + (this._getEventImageUrl?.(e, 'cover') || e.image || '');
     }).join(',') + '|tab:' + activeTab + '|f:' + filterType + '|k:' + filterKw + '|s:' + (App._activeSport || 'all');
-    if (this._activityListLastFp === _fp && container.children.length > 0) return;
+    if (this._activityListLastFp === _fp && container.children.length > 0) {
+      this._scheduleActivityCommentBadges(events);
+      return;
+    }
     this._activityListLastFp = _fp;
 
     // 方案 A：存 scrollTop
@@ -508,6 +745,7 @@ Object.assign(App, {
 
     this._markPageSnapshotReady?.('page-activities');
     this._scheduleVisibleDetailPrefetch?.('events', events.map(e => e.id || e._docId).filter(Boolean));
+    this._scheduleActivityCommentBadges(events);
 
     // 綁定左右滑動切換頁籤
     this._bindSwipeTabs('activity-list', 'activity-tabs',

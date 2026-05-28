@@ -93,6 +93,98 @@ describe('activity timeline effective status label', () => {
     expect(dom.window.document.querySelector('.tl-event-row').textContent).toContain('19/21人');
   });
 
+  test('renders activity card comment badge and updates count without opening comments', () => {
+    const dom = new JSDOM(`
+      <div id="page-activities"></div>
+      <select id="activity-filter-type"></select>
+      <input id="activity-filter-keyword" value="">
+      <div id="activity-list"></div>
+    `);
+    const event = {
+      id: 'e1',
+      title: 'Morning Match',
+      type: 'friendly',
+      status: 'open',
+      date: '2099/01/02 19:00',
+      location: 'Main Field',
+      current: 2,
+      max: 10,
+      waitlist: 0,
+    };
+    const app = {
+      currentPage: 'page-activities',
+      _activityActiveTab: 'normal',
+      _autoEndExpiredEvents: jest.fn(),
+      _getVisibleEvents: () => [event],
+      _filterByRegionTab: (events) => events,
+      _filterBySportTag: (events) => events,
+      _getEventParticipantStats: jest.fn(() => ({
+        confirmedCount: 2,
+        waitlistCount: 0,
+        maxCount: 10,
+        isCapacityFull: false,
+      })),
+      _getEventEffectiveStatus: jest.fn(() => 'open'),
+      _hasEventGenderRestriction: () => false,
+      _renderEventSportIcon: () => '',
+      _favHeartHtml: () => '',
+      isEventFavorited: () => false,
+      _isUserSignedUp: () => false,
+      _isUserOnWaitlist: () => false,
+      _bindSwipeTabs: jest.fn(),
+      _markPageSnapshotReady: jest.fn(),
+    };
+
+    loadTimelineModule(app, dom);
+    app._doRenderActivityList();
+
+    const row = dom.window.document.querySelector('.tl-event-row');
+    expect(row.dataset.eventId).toBe('e1');
+    const badge = row.querySelector('.tl-comment-badge');
+    expect(badge).not.toBe(null);
+    expect(badge.hidden).toBe(true);
+    expect(badge.querySelector('svg')).not.toBe(null);
+
+    app._setActivityCommentBadgeCount(row, 'e1', 4);
+
+    expect(badge.hidden).toBe(false);
+    expect(badge.querySelector('.tl-comment-badge-count').textContent).toBe('4');
+    expect(badge.getAttribute('aria-label')).toBe('4 則留言');
+  });
+
+  test('sums visible comment badge count with replies while skipping duplicate and deleted docs', () => {
+    const dom = new JSDOM('<div></div>');
+    const app = {};
+    loadTimelineModule(app, dom);
+    const doc = (id, data) => ({ id, data: () => data });
+
+    const total = app._sumActivityCommentBadgeSnapshot({
+      docs: [
+        doc('c1', { replyCount: 2 }),
+        doc('c2', { replyCount: '1' }),
+        doc('c1', { replyCount: 9 }),
+        doc('c3', { deleted: true, replyCount: 5 }),
+      ],
+    });
+
+    expect(total).toBe(5);
+  });
+
+  test('comment badge row queue can refresh on a newer render sequence', () => {
+    const dom = new JSDOM('<div class="tl-event-row" data-event-id="e1"></div>');
+    const app = {};
+    loadTimelineModule(app, dom);
+    app._drainActivityCommentBadgeQueue = jest.fn();
+    const row = dom.window.document.querySelector('.tl-event-row');
+
+    app._queueActivityCommentBadgeRow(row, 1);
+    app._queueActivityCommentBadgeRow(row, 1);
+    app._queueActivityCommentBadgeRow(row, 2);
+
+    expect(app._activityCommentBadgeQueue.map(item => item.seq)).toEqual([1, 2]);
+    expect(app._drainActivityCommentBadgeQueue).toHaveBeenCalledTimes(2);
+  });
+
   test('clears pending card loading state when returning to activity list', () => {
     const dom = new JSDOM(`
       <div id="activity-list">

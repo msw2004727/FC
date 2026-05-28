@@ -27,6 +27,7 @@ describe('activity detail comments source contracts', () => {
   test('comments support resolved author identity, private visibility, 300 limit, replies, and optimistic likes', () => {
     const comments = readProjectFile('js/modules/event/event-comments.js');
     const actions = readProjectFile('js/modules/event/event-comments-actions.js');
+    const timeline = readProjectFile('js/modules/event/event-list-timeline.js');
     const css = readProjectFile('css/activity.css');
 
     expect(comments).toContain("ApiService.getCurrentIdentity?.('comment')");
@@ -97,6 +98,7 @@ describe('activity detail comments source contracts', () => {
     expect(actions).toContain('_setEventCommentLikeButtonState(btn, nextLiked, nextCount)');
     expect(actions).toContain('_setEventCommentLikeButtonState(btn, wasLiked, oldCount)');
     expect(actions).toContain('_clearEventCommentsCacheForEvent?.(eventId)');
+    expect(actions).toContain('_clearActivityCommentBadgeCacheForEvent?.(eventId)');
     expect(actions).toContain('this._renderEventComments?.(eventId, { forceRefresh: true })');
     expect(actions).toContain("_requireEventCommentUser(requestedIdentityId = '')");
     expect(actions).toContain('const author = this._requireEventCommentUser();');
@@ -105,6 +107,16 @@ describe('activity detail comments source contracts', () => {
       .toBeLessThan(actions.indexOf('await this._writeEventCommentLikeWithSummary'));
     expect(actions.indexOf('await this._writeEventCommentLikeWithSummary'))
       .toBeLessThan(actions.indexOf('this._syncEventCommentLikeAvatars(card, author, nextLiked, nextCount)'));
+    expect(timeline).toContain('_scheduleActivityCommentBadges(events)');
+    expect(timeline).toContain('requestIdleCallback(run, { timeout: 1800 })');
+    expect(timeline).toContain('new IntersectionObserver');
+    expect(timeline).toContain('_activityCommentBadgeMaxConcurrent: 2');
+    expect(timeline).toContain("_activityActiveTab !== 'normal'");
+    expect(timeline).toContain("commentsRef.where('visibility', '==', 'public').limit(Math.min(limit, 60)).get()");
+    expect(timeline).toContain("commentsRef.where('authorUid', '==', uid).limit(Math.min(limit, 30)).get()");
+    expect(timeline).toContain('replyCount');
+    expect(timeline).not.toContain("collection('likes').limit");
+    expect(timeline).not.toContain("collection('replies').limit");
     expect(css).toContain('.event-comment-avatar');
     expect(css).toContain('.event-comment-like-avatars');
     expect(css).toContain('.event-comment-like-avatar');
@@ -117,6 +129,7 @@ describe('activity detail comments source contracts', () => {
     expect(css).toContain('.event-comment-audit-trace');
     expect(css).toContain('[data-theme="dark"] .event-comment-body');
     expect(css).toContain('[data-theme="dark"] .event-comment-card');
+    expect(css).toContain('.tl-comment-badge');
   });
 
   test('create/edit events persist start and end timestamps for rule-level close checks', () => {

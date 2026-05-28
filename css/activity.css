@@ -567,6 +567,11 @@
 [data-theme="dark"] .tl-event-row.tl-type-female-only:hover {
   background: linear-gradient(90deg, rgba(236,72,153,.30), rgba(244,114,182,.17));
 }
+[data-theme="dark"] .tl-comment-badge {
+  border-color: rgba(96,165,250,.28);
+  background: rgba(96,165,250,.14);
+  color: #93c5fd;
+}
 .tl-teamonly-badge { display:inline-block;font-size:.6rem;padding:.1rem .35rem;border-radius:3px;background:#e11d48;color:#fff;margin-left:.3rem;vertical-align:middle;font-weight:700 }
 .tl-almost-full-badge { display:inline-block;font-size:.6rem;padding:.1rem .35rem;border-radius:3px;background:#f59e0b;color:#fff;margin-left:.3rem;vertical-align:middle;font-weight:700;animation:almostFullPulse 1.5s ease-in-out infinite }
 @keyframes almostFullPulse { 0%,100%{opacity:1} 50%{opacity:.7} }
@@ -614,6 +619,40 @@
   padding: 0;
   width: 20px;
   height: 20px;
+}
+.tl-comment-badge {
+  width: auto;
+  min-width: 28px;
+  height: 20px;
+  padding: 0 .22rem;
+  box-sizing: border-box;
+  border-radius: 999px;
+  border: 1px solid rgba(37,99,235,.22);
+  background: rgba(37,99,235,.08);
+  color: var(--primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .12rem;
+  font-size: .62rem;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
+}
+.tl-comment-badge[hidden] { display: none; }
+.tl-comment-badge svg {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tl-comment-badge-count {
+  min-width: .45rem;
+  text-align: center;
 }
 .tl-event-sport-corner {
   width: 20px;
