@@ -43,6 +43,119 @@ function loadEventDetailModule({ currentUser = null, canEdit = false } = {}) {
   return app;
 }
 
+function loadEventDetailCompanionModule({
+  event,
+  currentUser = { uid: 'u1', displayName: 'Owner', gender: 'male' },
+  companions = [{ id: 'c1', name: 'Buddy', gender: 'male' }],
+  registerResult = null,
+  useServerRegistration = false,
+  cloudData = null,
+} = {}) {
+  const app = {
+    _cloudReady: true,
+    _requireProfileComplete: jest.fn(() => false),
+    _syncEventEffectiveStatus: jest.fn(e => e),
+    _isEventVisibleToUser: jest.fn(() => true),
+    _canEventGenderParticipantSignup: jest.fn(() => true),
+    _closeCompanionSelectModal: jest.fn(),
+    _syncEventSignupScrollLock: jest.fn(),
+    _releaseEventSignupScrollLock: jest.fn(),
+    invalidateHomeNextActivityCache: jest.fn(),
+    showToast: jest.fn(),
+    showEventDetail: jest.fn(),
+  };
+  const ApiService = {
+    getEvent: jest.fn(() => event),
+    getCurrentUser: jest.fn(() => currentUser),
+    getCompanions: jest.fn(() => companions),
+    markEventMutationPending: jest.fn(() => 73),
+    markEventMutationServerConfirmed: jest.fn(),
+    markEventMutationError: jest.fn(),
+    _writeErrorLog: jest.fn(),
+    registerEventWithCompanions: jest.fn(() => Promise.resolve(registerResult || {
+      confirmed: 1,
+      waitlisted: 0,
+      registrations: [{
+        eventId: event.id,
+        userId: currentUser.uid,
+        participantType: 'companion',
+        companionId: 'c1',
+        companionName: 'Buddy',
+        status: 'confirmed',
+        id: 'reg_public_1',
+        _docId: 'reg_doc_1',
+      }],
+    })),
+  };
+  const FirebaseService = {
+    _cache: { registrations: [], events: [event] },
+    _withSubcollectionMetadata: jest.fn((record, collectionName, eventDocIdOrPath) => ({
+      ...record,
+      _sourceKind: 'subcollection',
+      _sourceCollection: collectionName,
+      _parentPath: `events/${eventDocIdOrPath}`,
+      _path: `events/${eventDocIdOrPath}/${collectionName}/${record._docId || record.id}`,
+    })),
+    _upsertCanonicalCacheRecord: jest.fn((name, record) => {
+      FirebaseService._cache[name] = FirebaseService._cache[name] || [];
+      FirebaseService._cache[name].push(record);
+      return record;
+    }),
+    _saveToLS: jest.fn(),
+  };
+  const callable = jest.fn(() => Promise.resolve({
+    data: cloudData || {
+      confirmed: 1,
+      waitlisted: 0,
+      registrations: [{
+        docId: 'reg_cf_doc_1',
+        id: 'reg_cf_public_1',
+        userId: currentUser.uid,
+        participantType: 'companion',
+        status: 'confirmed',
+      }],
+      event: {
+        current: 1,
+        realCurrent: 1,
+        waitlist: 0,
+        participants: ['Buddy'],
+        waitlistNames: [],
+        participantsWithUid: [{ uid: currentUser.uid, name: 'Buddy' }],
+        waitlistWithUid: [],
+        status: 'open',
+      },
+    },
+  }));
+  const ensureFirebaseFunctionsSdk = jest.fn(() => Promise.resolve({
+    httpsCallable: jest.fn(() => callable),
+  }));
+  vm.runInNewContext(readProjectFile('js/modules/event/event-detail-companion.js'), {
+    App: app,
+    ApiService,
+    FirebaseService,
+    ensureFirebaseFunctionsSdk,
+    shouldUseServerRegistrationForSignup: jest.fn(() => useServerRegistration),
+    shouldUseServerRegistration: jest.fn(() => useServerRegistration),
+    document,
+    window,
+    Object,
+    console,
+    setTimeout,
+    clearTimeout,
+    Promise,
+    Date,
+    Math,
+    escapeHTML: (value) => String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;'),
+  }, {
+    filename: 'js/modules/event/event-detail-companion.js',
+  });
+  return { app, ApiService, FirebaseService, ensureFirebaseFunctionsSdk, callable };
+}
+
 function loadEventManageAttendanceModule() {
   const app = {};
   vm.runInNewContext(readProjectFile('js/modules/event/event-manage-attendance.js'), {
@@ -706,6 +819,63 @@ describe('Team reservation button loading contract', () => {
     expect(activityCss).toContain('-webkit-overflow-scrolling: touch');
   });
 
+  test('fallback companion toggle-register confirms mutation with affected registration ids', async () => {
+    document.body.innerHTML = `
+      <div id="companion-select-list">
+        <input type="checkbox" name="cs-participant" checked data-registered="0" data-companion-id="c1" data-name="Buddy">
+      </div>
+    `;
+    const event = { id: 'evt-companion', _docId: 'eventDocCompanion', status: 'open', max: 10, current: 0 };
+    const { app, ApiService } = loadEventDetailCompanionModule({ event });
+
+    await app._confirmCompanionRegisterUnlocked({}, event.id);
+
+    expect(ApiService.registerEventWithCompanions).toHaveBeenCalledWith(event.id, [{
+      type: 'companion',
+      companionId: 'c1',
+      companionName: 'Buddy',
+    }], expect.any(Object));
+    expect(ApiService.markEventMutationServerConfirmed).toHaveBeenCalledWith(event.id, 73, expect.objectContaining({
+      mutationType: 'companion-toggle-register',
+      source: 'firestore-fallback',
+      affectedRegistrationIds: expect.arrayContaining(['reg_doc_1', 'reg_public_1']),
+    }));
+  });
+
+  test('callable companion toggle-register upserts returned registrations and confirms affected ids', async () => {
+    document.body.innerHTML = `
+      <div id="companion-select-list">
+        <input type="checkbox" name="cs-participant" checked data-registered="0" data-companion-id="c1" data-name="Buddy">
+      </div>
+    `;
+    const event = { id: 'evt-companion-cf', _docId: 'eventDocCompanionCf', status: 'open', max: 10, current: 0 };
+    const { app, ApiService, FirebaseService } = loadEventDetailCompanionModule({
+      event,
+      useServerRegistration: true,
+    });
+
+    await app._confirmCompanionRegisterUnlocked({}, event.id);
+
+    expect(FirebaseService._upsertCanonicalCacheRecord).toHaveBeenCalledWith(
+      'registrations',
+      expect.objectContaining({
+        eventId: event.id,
+        _docId: 'reg_cf_doc_1',
+        id: 'reg_cf_public_1',
+        participantType: 'companion',
+        companionId: 'c1',
+        companionName: 'Buddy',
+        _sourceKind: 'subcollection',
+      }),
+      expect.objectContaining({ requireSubcollection: false })
+    );
+    expect(ApiService.markEventMutationServerConfirmed).toHaveBeenCalledWith(event.id, 73, expect.objectContaining({
+      mutationType: 'companion-toggle-register',
+      source: 'callable',
+      affectedRegistrationIds: expect.arrayContaining(['reg_cf_doc_1', 'reg_cf_public_1']),
+    }));
+  });
+
   test('personal signup busy state only disables primary signup buttons', () => {
     const signupSource = readProjectFile('js/modules/event/event-detail-signup.js');
     const handleSignupSource = signupSource.slice(
@@ -1072,6 +1242,148 @@ describe('Activity detail late patch guard', () => {
     expect(document.getElementById('detail-body').textContent).toContain('old-count');
   });
 
+  test('latePatchGuard flag off explicitly bypasses detail late patch guards', () => {
+    const { app, context } = loadEventDetailAndAttendanceModule();
+    vm.runInNewContext(readProjectFile('js/modules/event/event-detail-signup.js'), context, {
+      filename: 'js/modules/event/event-detail-signup.js',
+    });
+    context.shouldUseActivityDetailOptimization = jest.fn(flag => flag === 'latePatchGuard' ? false : true);
+    document.body.innerHTML = `
+      <div id="detail-body"><div class="detail-grid"><div class="detail-row"><span class="detail-label">\u4EBA\u6578</span>old-count</div></div></div>
+      <div id="detail-action-primary" class="detail-action-primary">old-action</div>
+      <div id="detail-attendance-table">attendance-current</div>
+      <div id="detail-unreg-section"><div id="detail-unreg-table">unreg-current</div></div>
+      <div id="detail-waitlist-container">waitlist-current</div>`;
+    app.currentPage = 'page-activity-detail';
+    app._currentDetailEventId = 'event-1';
+    app._eventDetailRequestSeq = 1;
+    app._markEventDetailContainerOwner('detail-body', 'event-1', 1, 'rt-current', 'body');
+    app._markEventDetailContainerOwner('detail-action-primary', 'event-1', 1, 'rt-current', 'actions');
+    app._markEventDetailContainerOwner('detail-attendance-table', 'event-1', 1, 'rt-current', 'attendance');
+    app._markEventDetailContainerOwner('detail-unreg-table', 'event-1', 1, 'rt-current', 'unregistered');
+    app._markEventDetailContainerOwner('detail-waitlist-container', 'event-1', 1, 'rt-current', 'waitlist');
+    context.ApiService.getEvent = jest.fn(() => ({ id: 'event-1', current: 2, max: 8, waitlist: 0, status: 'open', waitlistNames: [] }));
+    context.ApiService.getRegistrationsByEvent = jest.fn(() => []);
+    context.ApiService.getAttendanceRecords = jest.fn(() => []);
+    app._isUserSignedUp = jest.fn(() => false);
+    app._isUserOnWaitlist = jest.fn(() => false);
+    app._getEventGenderSignupState = jest.fn(() => ({ restricted: false, canSignup: true, requiresLogin: false, reason: '' }));
+    app._canSignupTeamOnlyEvent = jest.fn(() => true);
+    app._buildConfirmedParticipantSummary = jest.fn(() => ({ count: 2 }));
+
+    const attendanceGuard = app._canPatchAttendanceTable('event-1', 'detail-attendance-table', document.getElementById('detail-attendance-table'), {
+      mode: 'detail',
+      requestSeq: 1,
+      renderToken: 'rt-old',
+    });
+    const waitlistResult = app._renderGroupedWaitlistSection('event-1', 'detail-waitlist-container', {
+      mode: 'detail',
+      requestSeq: 1,
+      renderToken: 'rt-old',
+    });
+    app._renderUnregTable('event-1', 'detail-unreg-table', {
+      mode: 'detail',
+      requestSeq: 1,
+      renderToken: 'rt-old',
+    });
+    app._refreshSignupButton('event-1', {
+      requestSeq: 1,
+      renderToken: 'rt-old',
+    });
+    app._patchDetailCount('event-1', {
+      requestSeq: 1,
+      renderToken: 'rt-old',
+    });
+
+    expect(attendanceGuard).toMatchObject({ ok: true, reason: 'ok' });
+    expect(waitlistResult).toMatchObject({ ok: true, reason: 'ok' });
+    expect(document.getElementById('detail-waitlist-container').innerHTML).toBe('');
+    expect(document.getElementById('detail-unreg-table').innerHTML).toBe('');
+    expect(document.getElementById('detail-action-primary').textContent).toContain('立即報名');
+    expect(document.getElementById('detail-body').textContent).toContain('已報 2/8');
+  });
+
+  test('manual refresh patch updates mutable detail fields without full page rerender', () => {
+    const { app, context } = loadEventDetailAndAttendanceModule();
+    document.body.innerHTML = `
+      <div id="detail-title">Old title</div>
+      <div id="detail-public-toggle-wrap"></div>
+      <div id="detail-img-placeholder"></div>
+      <div id="detail-body">
+        <div class="detail-row detail-row-wide" data-detail-field="location"><span class="detail-label">\u5730\u9EDE</span>Old place</div>
+        <div class="detail-row detail-row-wide" data-detail-field="date"><span class="detail-label">\u6642\u9593</span>Old date</div>
+        <div class="detail-row detail-row-wide" data-detail-field="registration-open"><span class="detail-label">\u958B\u653E\u5831\u540D</span>old open</div>
+        <div class="detail-grid"><div class="detail-row"><span class="detail-label">\u8CBB\u7528</span>old fee</div><div class="detail-row"><span class="detail-label">\u4EBA\u6578</span>old-count</div></div>
+        <div class="detail-row detail-row-wide detail-host-row" data-detail-field="host"><span class="detail-label">\u4E3B\u8FA6</span>old host</div>
+        <div class="detail-row detail-row-wide" data-detail-field="contact"><span class="detail-label">\u806F\u7E6B</span>old contact</div>
+        <div class="detail-section" data-detail-field="notes"><div class="detail-section-title">old notes</div><p>old notes body</p></div>
+        <div class="detail-action-zone"><div id="detail-action-primary"></div></div>
+        <div id="detail-attendance-table"></div>
+        <div id="detail-unreg-table"></div>
+        <div id="detail-waitlist-container"></div>
+      </div>`;
+    app.currentPage = 'page-activity-detail';
+    app._currentDetailEventId = 'event-1';
+    app._eventDetailRequestSeq = 7;
+    app._markEventDetailContainerOwner('detail-body', 'event-1', 7, 'rt-1', 'body');
+    app._renderEventDetailCover = jest.fn(() => '<img alt="cover">');
+    app._renderEventPublicToggle = jest.fn();
+    app._renderEventRefreshButton = jest.fn();
+    app._renderEventLogButton = jest.fn();
+    app._favHeartHtml = jest.fn(() => '');
+    app.isEventFavorited = jest.fn(() => false);
+    app._userTag = jest.fn((name) => `<span>${name}</span>`);
+    app._calcCountdown = jest.fn(() => '5 天');
+    app._buildConfirmedParticipantSummary = jest.fn(() => ({ count: 4 }));
+    app._getEventWaitlistDisplayCount = jest.fn(() => 1);
+    app._isEventFeeEnabled = jest.fn(() => true);
+    app._getEventFeeAmount = jest.fn(() => 300);
+    app._patchDetailTables = jest.fn();
+    app._patchDetailCount = jest.fn();
+    app._refreshSignupButton = jest.fn();
+    app.showEventDetail = jest.fn();
+    context.ApiService.getEvent = jest.fn(() => null);
+
+    const result = app._patchCurrentEventDetailInfoFromRecord({
+      id: 'event-1',
+      title: 'Fresh title',
+      location: 'Fresh field',
+      date: '2026/06/01 19:00',
+      regOpenTime: '2026-05-30T10:00:00+08:00',
+      status: 'open',
+      max: 12,
+      fee: 300,
+      creator: 'Fresh Host',
+      creatorUid: 'host-1',
+      contact: 'Line: @fresh',
+      notes: 'Fresh notes',
+    }, {
+      requestSeq: 7,
+      renderToken: 'rt-1',
+    });
+
+    const text = document.getElementById('detail-body').textContent;
+    expect(result).toMatchObject({ ok: true, reason: 'ok' });
+    expect(document.getElementById('detail-title').textContent).toContain('Fresh title');
+    expect(text).toContain('Fresh field');
+    expect(text).toContain('2026/06/01 19:00');
+    expect(text).toContain('開放報名');
+    expect(text).toContain('NT$300');
+    expect(text).toContain('Line: @fresh');
+    expect(text).toContain('注意事項');
+    expect(text).toContain('Fresh notes');
+    expect(app.showEventDetail).not.toHaveBeenCalled();
+
+    const detailSource = readProjectFile('js/modules/event/event-detail.js');
+    const patchSource = detailSource.slice(
+      detailSource.indexOf('_patchCurrentEventDetailInfoFromRecord'),
+      detailSource.indexOf('_showFastEventDetailShellNow')
+    );
+    expect(patchSource).not.toContain('\u761c\u51bd');
+    expect(patchSource).not.toContain('${escapeHTML(e.location || \'\')} ??');
+    expect(patchSource).toContain('\\u6CE8\\u610F\\u4E8B\\u9805');
+  });
+
   test('manual refresh reads the event doc from server and patches locally', async () => {
     const { app, context } = loadEventDetailAndAttendanceModule();
     document.body.innerHTML = '<button class="event-detail-refresh-btn"></button>';
@@ -1100,8 +1412,9 @@ describe('Activity detail late patch guard', () => {
       })),
     };
 
-    await app._refreshEventDetail();
+    const result = await app._refreshEventDetail();
 
+    expect(result).toMatchObject({ ok: true, reason: 'ok' });
     expect(get).toHaveBeenCalledWith({ source: 'server' });
     expect(context.ApiService.markEventDocServerFresh).toHaveBeenCalledWith('event-1', expect.objectContaining({
       source: 'server',
@@ -1116,6 +1429,37 @@ describe('Activity detail late patch guard', () => {
       requestSeq: 3,
     }));
     expect(app.showEventDetail).not.toHaveBeenCalled();
+  });
+
+  test('manual refresh does not mark route ready when server doc is missing or patch is stale', async () => {
+    const { app } = loadEventDetailAndAttendanceModule();
+    document.body.innerHTML = '<button class="event-detail-refresh-btn"></button>';
+    app._currentDetailEventId = 'event-1';
+    app._eventDetailRequestSeq = 3;
+    app._fetchEventDetailDocFromServer = jest.fn(() => Promise.resolve(null));
+    app._forceRefreshEventDetailRosterData = jest.fn();
+    app._patchCurrentEventDetailInfoFromRecord = jest.fn();
+    app._updateRouteMetaTags = jest.fn();
+    app._markPageSnapshotReady = jest.fn();
+    app.showToast = jest.fn();
+
+    const missingResult = await app._refreshEventDetail();
+
+    expect(missingResult).toMatchObject({ ok: false, reason: 'event-doc-not-found' });
+    expect(app._forceRefreshEventDetailRosterData).not.toHaveBeenCalled();
+    expect(app._patchCurrentEventDetailInfoFromRecord).not.toHaveBeenCalled();
+    expect(app._updateRouteMetaTags).not.toHaveBeenCalled();
+    expect(app._markPageSnapshotReady).not.toHaveBeenCalled();
+
+    app._fetchEventDetailDocFromServer = jest.fn(() => Promise.resolve({ id: 'event-1', title: 'Fresh title' }));
+    app._forceRefreshEventDetailRosterData = jest.fn(() => Promise.resolve([]));
+    app._patchCurrentEventDetailInfoFromRecord = jest.fn(() => ({ ok: false, reason: 'stale-render-token' }));
+
+    const staleResult = await app._refreshEventDetail();
+
+    expect(staleResult).toMatchObject({ ok: false, reason: 'stale-render-token' });
+    expect(app._updateRouteMetaTags).not.toHaveBeenCalled();
+    expect(app._markPageSnapshotReady).not.toHaveBeenCalled();
   });
 
   test('commentsNonBlocking flag off keeps comments in the awaited route-ready path', () => {

@@ -136,6 +136,71 @@ Object.assign(App, {
     return this._startEventDetailGlowButton(button, '\u53D6\u6D88\u4E2D...');
   },
 
+  _collectRegistrationMutationIds(registrations = []) {
+    const ids = [];
+    const add = (value) => {
+      const normalized = String(value || '').trim();
+      if (normalized) ids.push(normalized);
+    };
+    (Array.isArray(registrations) ? registrations : []).forEach(reg => {
+      if (!reg) return;
+      add(reg._docId);
+      add(reg.docId);
+      add(reg.registrationDocId);
+      add(reg.id);
+      const path = String(reg._path || '').trim();
+      if (path) {
+        add(path);
+        add(path.split('/').filter(Boolean).pop());
+      }
+    });
+    return [...new Set(ids)];
+  },
+
+  _upsertCompanionSignupRegistrationsFromResult(eventId, registrations = [], eventRecord = null, participants = []) {
+    const source = Array.isArray(registrations) ? registrations : [];
+    if (!source.length || typeof FirebaseService === 'undefined' || typeof FirebaseService._upsertCanonicalCacheRecord !== 'function') {
+      return source;
+    }
+    const eventDocId = String(eventRecord?._docId || eventRecord?.docId || '').trim();
+    const companionParticipants = (Array.isArray(participants) ? participants : []).filter(p =>
+      String(p?.type || p?.participantType || '').trim() === 'companion'
+    );
+    let companionIndex = 0;
+    const upserted = [];
+    source.forEach(reg => {
+      if (!reg) return;
+      const docId = String(reg._docId || reg.docId || reg.registrationDocId || '').trim();
+      const publicId = String(reg.id || '').trim();
+      const path = String(reg._path || '').trim();
+      if (!docId && !publicId && !path) return;
+      const participantType = String(reg.participantType || reg.type || 'self').trim() || 'self';
+      const enriched = {
+        ...reg,
+        eventId,
+        participantType,
+        status: reg.status || 'confirmed',
+        registeredAt: reg.registeredAt || new Date().toISOString(),
+      };
+      if (docId) enriched._docId = docId;
+      if (publicId) enriched.id = publicId;
+      if (participantType === 'companion') {
+        const participant = companionParticipants[companionIndex++] || {};
+        if (!enriched.companionId && participant.companionId) enriched.companionId = participant.companionId;
+        if (!enriched.companionName && participant.companionName) enriched.companionName = participant.companionName;
+      }
+      const cacheRecord = eventDocId && typeof FirebaseService._withSubcollectionMetadata === 'function'
+        ? FirebaseService._withSubcollectionMetadata(enriched, 'registrations', eventDocId)
+        : enriched;
+      const saved = FirebaseService._upsertCanonicalCacheRecord('registrations', cacheRecord, {
+        requireSubcollection: false,
+      });
+      if (saved) upserted.push(saved);
+    });
+    if (upserted.length) FirebaseService._saveToLS?.('registrations', FirebaseService._cache?.registrations);
+    return upserted.length ? upserted : source;
+  },
+
   async _confirmCompanionRegister(opts = {}) {
     const eventId = this._companionSelectEventId;
     if (!eventId) return;
@@ -265,6 +330,7 @@ Object.assign(App, {
       });
 
       let regCount, wlCount, total;
+      let companionSignupRegistrationIds = [];
 
       if (useCF) {
         // ═══ CF 路徑 ═══
@@ -287,11 +353,19 @@ Object.assign(App, {
           (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('registerForEvent')(cfPayload),
           _cfTimeout,
         ]);
-        const data = cfResult.data;
+        const data = cfResult.data || {};
         if (data.deduplicated) { this.showToast('報名處理中，請稍候'); return; }
         regCount = data.confirmed || 0;
         wlCount = data.waitlisted || 0;
         total = regCount + wlCount;
+        const cfRegistrations = Array.isArray(data.registrations) ? data.registrations : [];
+        const cachedRegistrations = this._upsertCompanionSignupRegistrationsFromResult?.(
+          eventId,
+          cfRegistrations,
+          e,
+          participantList
+        ) || cfRegistrations;
+        companionSignupRegistrationIds = this._collectRegistrationMutationIds?.(cachedRegistrations) || [];
         // 樂觀更新本地快取
         if (data.event && e) {
           e.current = data.event.current;
@@ -313,6 +387,7 @@ Object.assign(App, {
         regCount = result.confirmed || 0;
         wlCount = result.waitlisted || 0;
         total = regCount + wlCount;
+        companionSignupRegistrationIds = this._collectRegistrationMutationIds?.(result.registrations || []) || [];
         // 背景 post-ops（僅 fallback 路徑）
         const selfSelected = participantList.find(p => p.type === 'self');
         if (selfSelected) {
@@ -341,6 +416,7 @@ Object.assign(App, {
         mutationType: 'companion-signup',
         source: useCF ? 'callable' : 'firestore-fallback',
         requestId: companionSignupRequestId,
+        affectedRegistrationIds: companionSignupRegistrationIds,
       });
 
       this.invalidateHomeNextActivityCache?.(userId);
@@ -905,6 +981,7 @@ Object.assign(App, {
     let toggleCancelRequestId = '';
     let toggleRegisterMutationSeq = null;
     let toggleRegisterRequestId = '';
+    let toggleRegisterRegistrationIds = [];
     try {
       if (toCancelIds.length > 0) {
         const useCancelCF = typeof shouldUseServerRegistrationForCancel === 'function'
@@ -996,6 +1073,14 @@ Object.assign(App, {
           if (!data.deduplicated) {
             confirmed = data.confirmed || 0;
             waitlisted = data.waitlisted || 0;
+            const cfRegistrations = Array.isArray(data.registrations) ? data.registrations : [];
+            const cachedRegistrations = this._upsertCompanionSignupRegistrationsFromResult?.(
+              eventId,
+              cfRegistrations,
+              e,
+              toRegister
+            ) || cfRegistrations;
+            toggleRegisterRegistrationIds = this._collectRegistrationMutationIds?.(cachedRegistrations) || [];
             if (data.event && e) {
               e.current = data.event.current;
               e.realCurrent = data.event.realCurrent;
@@ -1015,11 +1100,13 @@ Object.assign(App, {
           });
           confirmed = result.confirmed || 0;
           waitlisted = result.waitlisted || 0;
+          toggleRegisterRegistrationIds = this._collectRegistrationMutationIds?.(result.registrations || []) || [];
         }
         ApiService.markEventMutationServerConfirmed?.(eventId, toggleRegisterMutationSeq, {
           mutationType: 'companion-toggle-register',
           source: useRegisterCF ? 'callable' : 'firestore-fallback',
           requestId: toggleRegisterRequestId,
+          affectedRegistrationIds: toggleRegisterRegistrationIds,
         });
       }
 
@@ -1075,6 +1162,7 @@ Object.assign(App, {
       ApiService.markEventMutationError?.(eventId, toggleRegisterMutationSeq, err, {
         mutationType: 'companion-toggle-register',
         requestId: toggleRegisterRequestId,
+        affectedRegistrationIds: toggleRegisterRegistrationIds,
       });
       this.showToast(msgMap[errCode] || err.message || '\u5925\u4f34\u5831\u540d\u8abf\u6574\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
     } finally {

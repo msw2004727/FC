@@ -45,6 +45,10 @@ Object.assign(App, {
     return fallback === true;
   },
 
+  _isActivityDetailLatePatchGuardEnabled() {
+    return this._shouldUseActivityDetailOptimization?.('latePatchGuard', true) !== false;
+  },
+
   _createEventDetailRenderToken(eventId, requestSeq) {
     this._eventDetailRenderSeq = (Number(this._eventDetailRenderSeq) || 0) + 1;
     return `${String(eventId || '')}:${Number(requestSeq) || 0}:${this._eventDetailRenderSeq}`;
@@ -269,12 +273,117 @@ Object.assign(App, {
     const body = document.getElementById('detail-body');
     const target = body?.querySelector?.(`[data-detail-field="${fieldName}"]`);
     if (!target) return false;
-    target.outerHTML = html || '';
+    if (html) target.outerHTML = html;
+    else target.remove();
     return true;
   },
 
+  _setDetailFieldHtml(fieldName, html, anchorSelector = '.detail-action-zone') {
+    if (this._patchDetailRowByField(fieldName, html)) return true;
+    if (!html) return false;
+    const body = document.getElementById('detail-body');
+    const anchor = body?.querySelector?.(anchorSelector)
+      || body?.querySelector?.('[data-detail-field="notes"]')
+      || body?.lastElementChild;
+    if (!anchor?.insertAdjacentHTML) return false;
+    anchor.insertAdjacentHTML('beforebegin', html);
+    return true;
+  },
+
+  _buildEventDetailRegOpenHtml(e) {
+    if (!e?.regOpenTime) return '';
+    const regDate = new Date(e.regOpenTime);
+    if (!Number.isFinite(regDate.getTime())) return '';
+    const regStr = `${regDate.getFullYear()}/${String(regDate.getMonth()+1).padStart(2,'0')}/${String(regDate.getDate()).padStart(2,'0')} ${String(regDate.getHours()).padStart(2,'0')}:${String(regDate.getMinutes()).padStart(2,'0')}`;
+    if (e.status === 'upcoming') {
+      const diff = regDate - new Date();
+      const totalMin = Math.max(0, Math.floor(diff / 60000));
+      const days = Math.floor(totalMin / 1440);
+      const hours = Math.floor((totalMin % 1440) / 60);
+      const countdownTxt = days > 0
+        ? `${days}\u65E5${hours}\u6642\u5F8C\u958B\u653E`
+        : hours > 0
+          ? `${hours}\u6642${totalMin % 60}\u5206\u5F8C\u958B\u653E`
+          : `${totalMin}\u5206\u5F8C\u958B\u653E`;
+      return `<div class="detail-row detail-row-wide" data-detail-field="registration-open"><span class="detail-label">\u958B\u653E\u5831\u540D</span><span style="color:var(--info);font-weight:600">${regStr}\uFF08${countdownTxt}\uFF09</span></div>`;
+    }
+    return `<div class="detail-row detail-row-wide" data-detail-field="registration-open"><span class="detail-label">\u958B\u653E\u5831\u540D</span>${regStr}\uFF08\u5DF2\u958B\u653E\uFF09</div>`;
+  },
+
+  _buildEventDetailInfoGridHtml(e, options = {}) {
+    if (!e) return '';
+    const isGuestView = options?.isGuestView === true;
+    const confirmedSummary = isGuestView
+      ? {
+          count: Number((typeof this._getEventActualConfirmedCount === 'function' ? this._getEventActualConfirmedCount(e) : e.current)
+            || (Array.isArray(e.participantsWithUid) ? e.participantsWithUid.length : 0)
+            || (Array.isArray(e.participants) ? e.participants.length : 0)),
+        }
+      : (typeof this._buildConfirmedParticipantSummary === 'function'
+        ? this._buildConfirmedParticipantSummary(e.id)
+        : { count: Number(e.current || 0) });
+    const confirmedCount = Number(confirmedSummary?.count || 0);
+    const waitlistDisplayCount = isGuestView
+      ? ((typeof this._getWaitlistFallbackNames === 'function' ? this._getWaitlistFallbackNames(e.id, e, []) : (e.waitlistNames || [])).length)
+      : (typeof this._getEventWaitlistDisplayCount === 'function' ? this._getEventWaitlistDisplayCount(e.id, e) : Number(e.waitlist || 0));
+    const isEnded = e.status === 'ended' || e.status === 'cancelled';
+    const capacityStats = typeof this._getEventParticipantStats === 'function'
+      ? this._getEventParticipantStats(e)
+      : null;
+    const feeEnabled = this._isEventFeeEnabled?.(e) ?? Number(e?.fee || 0) > 0;
+    const fee = this._getEventFeeAmount?.(e) ?? (feeEnabled ? (Number(e?.fee || 0) || 0) : 0);
+    const rows = [];
+    if (feeEnabled) {
+      rows.push(`<div class="detail-row" data-detail-field="fee"><span class="detail-label">\u8CBB\u7528</span>${fee > 0 ? 'NT$' + fee : '\u514D\u8CBB'}</div>`);
+    }
+    const reservedDetailText = capacityStats?.reservedRemainingCount > 0 ? ` \u9810\u7559 ${capacityStats.reservedRemainingCount}` : '';
+    rows.push(`<div class="detail-row" data-detail-field="capacity-count"><span class="detail-label">\u4EBA\u6578</span>\u5DF2\u5831 ${confirmedCount}/${e.max || 0}${reservedDetailText}${waitlistDisplayCount > 0 ? ' \u5019\u88DC ' + waitlistDisplayCount : ''}</div>`);
+    rows.push(`<div class="detail-row" data-detail-field="countdown"><span class="detail-label">\u5012\u6578</span><span style="color:${isEnded ? 'var(--text-muted)' : 'var(--primary)'};font-weight:600">${this._calcCountdown?.(e) || ''}</span></div>`);
+    const heatHtml = this._renderHeatPrediction?.(e) || '';
+    if (heatHtml) rows.push(heatHtml);
+    if (e.minAge > 0) {
+      rows.push(`<div class="detail-row" data-detail-field="age-limit"><span class="detail-label">\u5E74\u9F61</span>${e.minAge} \u6B72\u4EE5\u4E0A</div>`);
+    }
+    if (this._hasEventGenderRestriction?.(e)) {
+      rows.push(`<div class="detail-row" data-detail-field="gender-limit"><span class="detail-label">\u6027\u5225</span><span style="color:#dc2626;font-weight:700">${escapeHTML(this._getEventGenderDetailText(e))}</span></div>`);
+    }
+    const teamInfoHtml = this._tsRenderTeamInfoCards?.(e) || '';
+    const teamBatchHtml = this._tsRenderBatchButtons?.(e) || '';
+    if (teamInfoHtml) rows.push(teamInfoHtml);
+    if (teamBatchHtml) rows.push(teamBatchHtml);
+    return rows.join('');
+  },
+
+  _buildEventDetailOwnerRowsHtml(e) {
+    const teamNameLink = e.creatorTeamId
+      ? `<a href="javascript:void(0)" onclick="App.showTeamDetail('${escapeHTML(e.creatorTeamId)}')" style="color:inherit;text-decoration:underline;text-underline-offset:2px">${escapeHTML(e.creatorTeamName || '\u4FF1\u6A02\u90E8')}</a>`
+      : escapeHTML(e.creatorTeamName || '\u4FF1\u6A02\u90E8');
+    const rows = {
+      host: `<div class="detail-row detail-row-wide detail-host-row" data-detail-field="host"><span class="detail-label">\u4E3B\u8FA6</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${this._userTag(e.creator, null, { uid: e.creatorUid || '' })}</span><button type="button" class="event-host-contact-pill" onclick="App.contactEventOrganizer(${escapeHTML(JSON.stringify({ eventId: e.id || '', uid: e.creatorUid || '', name: e.creator || '' }))})">\u806F\u7E6B\u4E3B\u8FA6</button></div>`,
+      delegates: (e.delegates && e.delegates.length)
+        ? `<div class="detail-row detail-row-wide" data-detail-field="delegates"><span class="detail-label">\u59D4\u8A17</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${e.delegates.map(d => this._userTag(d.name, null, { uid: d.uid || '' })).join('')}</span></div>`
+        : '',
+      social: e.socialLinksEnabled && typeof this._renderEventSocialLinksHtml === 'function'
+        ? (() => {
+            const links = this._renderEventSocialLinksHtml(e.socialLinks) || '';
+            return links ? `<div class="detail-row detail-row-wide detail-social-links-row" data-detail-field="social-links"><span class="detail-label">\u793E\u7FA4</span><span class="event-social-link-list">${links}</span></div>` : '';
+          })()
+        : '',
+      contact: e.contact
+        ? `<div class="detail-row detail-row-wide" data-detail-field="contact"><span class="detail-label">\u806F\u7E6B</span>${escapeHTML(e.contact)}</div>`
+        : '',
+      team: e.teamOnly
+        ? `<div class="detail-row detail-row-wide" data-detail-field="team-limit"><span class="detail-label">\u9650\u5B9A</span><span style="color:#e11d48;font-weight:600">${teamNameLink} \u5C08\u5C6C\u6D3B\u52D5</span></div>`
+        : '',
+      private: e.privateEvent
+        ? `<div class="detail-row detail-row-wide" data-detail-field="private-visibility"><span class="detail-label">\u53EF\u898B</span><span style="color:#7c3aed;font-weight:600">\uD83D\uDD12 \u79C1\u5BC6\u6D3B\u52D5 \u2014 \u50C5\u9650\u9023\u7D50\u5206\u4EAB</span></div>`
+        : '',
+    };
+    return rows;
+  },
+
   _patchCurrentEventDetailInfoFromRecord(eventRecord, options = {}) {
-    const e = eventRecord;
+    const e = this._syncEventEffectiveStatus?.(eventRecord) || eventRecord;
     if (!e?.id) return { ok: false, reason: 'missing-event' };
     const nodes = this._getEventDetailNodes?.();
     if (!nodes) return { ok: false, reason: 'missing-shell' };
@@ -302,19 +411,26 @@ Object.assign(App, {
     }
 
     const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.location || '')}`;
-    const locationHtml = `<div class="detail-row detail-row-wide" data-detail-field="location"><span class="detail-label">\u5730\u9EDE</span><a href="${mapUrl}" target="sporthub_map" rel="noopener" style="color:var(--primary);text-decoration:none">${escapeHTML(e.location || '')} ??</a></div>`;
-    this._patchDetailRowByField('location', locationHtml);
-    this._patchDetailRowByField('date', `<div class="detail-row detail-row-wide" data-detail-field="date"><span class="detail-label">\u6642\u9593</span>${escapeHTML(e.date || '')}</div>`);
+    const locationHtml = `<div class="detail-row detail-row-wide" data-detail-field="location"><span class="detail-label">\u5730\u9EDE</span><a href="${mapUrl}" target="sporthub_map" rel="noopener" style="color:var(--primary);text-decoration:none">${escapeHTML(e.location || '')} \uD83D\uDCCD</a></div>`;
+    this._setDetailFieldHtml('location', locationHtml);
+    this._setDetailFieldHtml('date', `<div class="detail-row detail-row-wide" data-detail-field="date"><span class="detail-label">\u6642\u9593</span>${escapeHTML(e.date || '')}</div>`);
+    this._setDetailFieldHtml('registration-open', this._buildEventDetailRegOpenHtml(e));
+    const detailGrid = nodes.body.querySelector?.('.detail-grid');
+    if (detailGrid) detailGrid.innerHTML = this._buildEventDetailInfoGridHtml(e);
+    const ownerRows = this._buildEventDetailOwnerRowsHtml(e);
+    this._setDetailFieldHtml('host', ownerRows.host);
+    this._setDetailFieldHtml('delegates', ownerRows.delegates);
+    this._setDetailFieldHtml('social-links', ownerRows.social);
+    this._setDetailFieldHtml('contact', ownerRows.contact);
+    this._setDetailFieldHtml('team-limit', ownerRows.team);
+    this._setDetailFieldHtml('private-visibility', ownerRows.private);
     const notesHtml = e.notes
       ? `<div class="detail-section" data-detail-field="notes">
-        <div class="detail-section-title">瘜冽?鈭?</div>
+        <div class="detail-section-title">\u6CE8\u610F\u4E8B\u9805</div>
         <p style="font-size:.85rem;color:var(--text-secondary);line-height:1.7;white-space:pre-wrap">${escapeHTML(e.notes)}</p>
       </div>`
       : '';
-    if (!this._patchDetailRowByField('notes', notesHtml) && notesHtml) {
-      const actionZone = nodes.body.querySelector?.('.detail-action-zone');
-      actionZone?.insertAdjacentHTML?.('beforebegin', notesHtml);
-    }
+    this._setDetailFieldHtml('notes', notesHtml);
 
     const patchOptions = {
       requestSeq: ctx.requestSeq ?? null,
@@ -913,11 +1029,11 @@ Object.assign(App, {
     const teamNameLink = e.creatorTeamId
       ? `<a href="javascript:void(0)" onclick="App.showTeamDetail('${e.creatorTeamId}')" style="color:inherit;text-decoration:underline;text-underline-offset:2px">${escapeHTML(e.creatorTeamName || '俱樂部')}</a>`
       : escapeHTML(e.creatorTeamName || '俱樂部');
-    const teamTag = e.teamOnly ? `<div class="detail-row"><span class="detail-label">限定</span><span style="color:#e11d48;font-weight:600">${teamNameLink} 專屬活動</span></div>` : '';
-    const privateTag = e.privateEvent ? `<div class="detail-row"><span class="detail-label">可見</span><span style="color:#7c3aed;font-weight:600">🔒 私密活動 — 僅限連結分享</span></div>` : '';
+    const teamTag = e.teamOnly ? `<div class="detail-row" data-detail-field="team-limit"><span class="detail-label">限定</span><span style="color:#e11d48;font-weight:600">${teamNameLink} 專屬活動</span></div>` : '';
+    const privateTag = e.privateEvent ? `<div class="detail-row" data-detail-field="private-visibility"><span class="detail-label">可見</span><span style="color:#7c3aed;font-weight:600">🔒 私密活動 — 僅限連結分享</span></div>` : '';
     const socialLinksHtml = e.socialLinksEnabled ? (this._renderEventSocialLinksHtml?.(e.socialLinks) || '') : '';
     const socialLinksRow = socialLinksHtml
-      ? `<div class="detail-row detail-row-wide detail-social-links-row"><span class="detail-label">社群</span><span class="event-social-link-list">${socialLinksHtml}</span></div>`
+      ? `<div class="detail-row detail-row-wide detail-social-links-row" data-detail-field="social-links"><span class="detail-label">社群</span><span class="event-social-link-list">${socialLinksHtml}</span></div>`
       : '';
     const genderTag = this._hasEventGenderRestriction?.(e)
       ? `<div class="detail-row"><span class="detail-label">性別</span><span style="color:#dc2626;font-weight:700">${escapeHTML(this._getEventGenderDetailText(e))}</span></div>`
@@ -984,12 +1100,12 @@ Object.assign(App, {
       nodes.body.innerHTML = `
       <div class="detail-row detail-row-wide" data-detail-field="location"><span class="detail-label">\u5730\u9EDE</span>${locationHtml}</div>
       <div class="detail-row detail-row-wide" data-detail-field="date"><span class="detail-label">\u6642\u9593</span>${escapeHTML(e.date)}</div>
-      ${regOpenHtml ? regOpenHtml.replace('detail-row"', 'detail-row detail-row-wide"') : ''}
+      ${regOpenHtml ? regOpenHtml.replace('detail-row"', 'detail-row detail-row-wide" data-detail-field="registration-open"') : ''}
       <div class="detail-grid">${_shortCells.join('')}</div>
-      <div class="detail-row detail-row-wide detail-host-row"><span class="detail-label">\u4E3B\u8FA6</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${this._userTag(e.creator, null, { uid: e.creatorUid || '' })}</span><button type="button" class="event-host-contact-pill" onclick="App.contactEventOrganizer(${escapeHTML(JSON.stringify({ eventId: e.id || '', uid: e.creatorUid || '', name: e.creator || '' }))})">\u806F\u7E6B\u4E3B\u8FA6</button></div>
-      ${(e.delegates && e.delegates.length) ? `<div class="detail-row detail-row-wide"><span class="detail-label">\u59D4\u8A17</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${e.delegates.map(d => this._userTag(d.name, null, { uid: d.uid || '' })).join('')}</span></div>` : ''}
+      <div class="detail-row detail-row-wide detail-host-row" data-detail-field="host"><span class="detail-label">\u4E3B\u8FA6</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${this._userTag(e.creator, null, { uid: e.creatorUid || '' })}</span><button type="button" class="event-host-contact-pill" onclick="App.contactEventOrganizer(${escapeHTML(JSON.stringify({ eventId: e.id || '', uid: e.creatorUid || '', name: e.creator || '' }))})">\u806F\u7E6B\u4E3B\u8FA6</button></div>
+      ${(e.delegates && e.delegates.length) ? `<div class="detail-row detail-row-wide" data-detail-field="delegates"><span class="detail-label">\u59D4\u8A17</span><span class="participant-list" style="display:inline-flex;gap:.3rem;flex-wrap:wrap">${e.delegates.map(d => this._userTag(d.name, null, { uid: d.uid || '' })).join('')}</span></div>` : ''}
       ${socialLinksRow}
-      ${e.contact ? `<div class="detail-row detail-row-wide"><span class="detail-label">\u806F\u7E6B</span>${escapeHTML(e.contact)}</div>` : ''}
+      ${e.contact ? `<div class="detail-row detail-row-wide" data-detail-field="contact"><span class="detail-label">\u806F\u7E6B</span>${escapeHTML(e.contact)}</div>` : ''}
       ${teamTag ? teamTag.replace('detail-row"', 'detail-row detail-row-wide"') : ''}
       ${privateTag ? privateTag.replace('detail-row"', 'detail-row detail-row-wide"') : ''}
       ${e.notes ? `
@@ -1168,7 +1284,9 @@ Object.assign(App, {
       ? (this._getCurrentEventDetailPatchContext?.(cId, options) || options)
       : options;
     const canPatchWaitlist = () => {
-      if (!isDetailContainer || typeof this._isCurrentEventDetailPatch !== 'function') {
+      if (!isDetailContainer
+        || typeof this._isCurrentEventDetailPatch !== 'function'
+        || this._isActivityDetailLatePatchGuardEnabled?.() === false) {
         return { ok: true, reason: 'ok' };
       }
       return this._isCurrentEventDetailPatch(eventId, patchOptions?.requestSeq ?? null, {
@@ -1439,19 +1557,25 @@ Object.assign(App, {
     try {
       // 從 Firestore 直接讀取最新 event 資料
       const freshEvent = await this._fetchEventDetailDocFromServer?.(id);
+      if (!freshEvent?.id) {
+        this.showToast?.('\u5237\u65B0\u5931\u6557\uFF0C\u627E\u4E0D\u5230\u6700\u65B0\u6D3B\u52D5\u8CC7\u6599');
+        return { ok: false, reason: 'event-doc-not-found' };
+      }
       await this._forceRefreshEventDetailRosterData?.(id);
-      const latestEvent = freshEvent || ApiService.getEvent?.(id);
-      const patchResult = this._patchCurrentEventDetailInfoFromRecord?.(latestEvent, {
+      const patchResult = this._patchCurrentEventDetailInfoFromRecord?.(freshEvent, {
         requestSeq: this._eventDetailRequestSeq,
       });
       if (patchResult && !patchResult.ok) {
         console.warn('[refreshEventDetail] skipped stale local patch:', patchResult.reason);
+        return patchResult;
       }
       this._updateRouteMetaTags?.('page-activity-detail', { id });
       this._markPageSnapshotReady?.('page-activity-detail');
+      return { ok: true, reason: 'ok' };
     } catch (err) {
       console.warn('[refreshEventDetail]', err);
       this.showToast?.('刷新失敗，請稍後再試');
+      return { ok: false, reason: 'error', error: err };
     } finally {
       if (btn) { btn.disabled = false; btn.classList.remove('spinning'); }
     }

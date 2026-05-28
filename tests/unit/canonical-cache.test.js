@@ -268,6 +268,209 @@ describe('canonical registration/activity/attendance cache', () => {
     });
   });
 
+  test('pending registration mutation protects optimistic status from equal-time stale snapshots', () => {
+    const { FirebaseService, ApiService } = loadServices();
+    const updatedAt = '2026-05-28T08:00:00.000Z';
+    const optimistic = {
+      eventId: 'evt-mutation',
+      userId: 'u1',
+      status: 'confirmed',
+      updatedAt,
+      registeredAt: updatedAt,
+      _docId: 'reg_1',
+      _path: 'events/eventDocMutation/registrations/reg_1',
+      _sourceKind: 'subcollection',
+    };
+    const staleSnapshot = {
+      ...optimistic,
+      status: 'waitlisted',
+    };
+    FirebaseService._cache.registrations = [optimistic];
+    ApiService.markEventMutationPending('evt-mutation', {
+      mutationType: 'waitlist-promote',
+      source: 'callable',
+      affectedRegistrationIds: ['reg_1'],
+      timeoutMs: 30000,
+    });
+
+    FirebaseService._replaceCanonicalCollectionCache('registrations', [staleSnapshot]);
+
+    expect(FirebaseService._cache.registrations).toHaveLength(1);
+    expect(FirebaseService._cache.registrations[0].status).toBe('confirmed');
+  });
+
+  test('server-confirmed companion signup mutation preserves newly added registration during stale snapshots', () => {
+    const { FirebaseService, ApiService } = loadServices();
+    const registeredAt = '2026-05-28T08:30:00.000Z';
+    const optimisticCompanion = {
+      eventId: 'evt-companion',
+      userId: 'u1',
+      participantType: 'companion',
+      companionId: 'c1',
+      companionName: 'Buddy',
+      status: 'confirmed',
+      registeredAt,
+      _docId: 'reg_companion_1',
+      id: 'reg_public_companion_1',
+      _path: 'events/eventDocCompanion/registrations/reg_companion_1',
+      _sourceKind: 'subcollection',
+    };
+    FirebaseService._cache.registrations = [optimisticCompanion];
+    const seq = ApiService.markEventMutationPending('evt-companion', {
+      mutationType: 'companion-toggle-register',
+      source: 'callable',
+      requestId: 'req-companion',
+      timeoutMs: 30000,
+    });
+    ApiService.markEventMutationServerConfirmed('evt-companion', seq, {
+      mutationType: 'companion-toggle-register',
+      requestId: 'req-companion',
+      affectedRegistrationIds: ['reg_companion_1', 'reg_public_companion_1'],
+      confirmedAt: Date.now(),
+    });
+
+    FirebaseService._replaceCanonicalCollectionCache('registrations', []);
+
+    expect(FirebaseService._cache.registrations).toHaveLength(1);
+    expect(FirebaseService._cache.registrations[0]).toMatchObject({
+      _docId: 'reg_companion_1',
+      companionId: 'c1',
+      status: 'confirmed',
+    });
+  });
+
+  test.each([
+    'cancel-signup',
+    'cancel-waitlist',
+    'companion-cancel',
+    'companion-toggle-cancel',
+  ])('%s mutation keeps a just-cancelled registration over stale active upserts', (mutationType) => {
+    const { FirebaseService, ApiService } = loadServices();
+    const now = Date.now();
+    const staleConfirmed = {
+      eventId: 'evt-cancel-race',
+      userId: 'u1',
+      participantType: mutationType.includes('companion') ? 'companion' : 'self',
+      companionId: mutationType.includes('companion') ? 'c1' : null,
+      companionName: mutationType.includes('companion') ? 'Buddy' : null,
+      status: 'confirmed',
+      registeredAt: '2026-05-28T08:00:00.000Z',
+      updatedAt: '2026-05-28T08:00:05.000Z',
+      _docId: 'reg_cancel_race_1',
+      id: 'reg_public_cancel_race_1',
+      _path: 'events/eventDocCancelRace/registrations/reg_cancel_race_1',
+      _sourceKind: 'subcollection',
+    };
+    const cancelled = {
+      ...staleConfirmed,
+      status: 'cancelled',
+      updatedAt: '2026-05-28T08:00:00.000Z',
+      cancelledAt: '2026-05-28T08:10:00.000Z',
+    };
+    FirebaseService._cache.registrations = [cancelled];
+    const signupSeq = ApiService.markEventMutationPending('evt-cancel-race', {
+      mutationType: 'signup',
+      source: 'callable',
+      requestId: 'signup-before-cancel',
+      affectedRegistrationIds: ['reg_cancel_race_1', 'reg_public_cancel_race_1'],
+      startedAt: now - 2000,
+      timeoutMs: 30000,
+    });
+    ApiService.markEventMutationServerConfirmed('evt-cancel-race', signupSeq, {
+      mutationType: 'signup',
+      requestId: 'signup-before-cancel',
+      affectedRegistrationIds: ['reg_cancel_race_1', 'reg_public_cancel_race_1'],
+      confirmedAt: now - 1500,
+    });
+    const cancelSeq = ApiService.markEventMutationPending('evt-cancel-race', {
+      mutationType,
+      source: 'callable',
+      requestId: 'cancel-after-signup',
+      affectedRegistrationIds: ['reg_cancel_race_1', 'reg_public_cancel_race_1'],
+      startedAt: now - 500,
+      timeoutMs: 30000,
+    });
+    ApiService.markEventMutationServerConfirmed('evt-cancel-race', cancelSeq, {
+      mutationType,
+      requestId: 'cancel-after-signup',
+      affectedRegistrationIds: ['reg_cancel_race_1', 'reg_public_cancel_race_1'],
+      confirmedAt: now - 100,
+    });
+
+    FirebaseService._upsertCanonicalCacheRecord('registrations', staleConfirmed, {
+      requireSubcollection: false,
+    });
+
+    expect(FirebaseService._cache.registrations).toHaveLength(1);
+    expect(FirebaseService._cache.registrations[0]).toMatchObject({
+      _docId: 'reg_cancel_race_1',
+      status: 'cancelled',
+    });
+  });
+
+  test('newer signup mutation can restore an active registration after a protected cancel', () => {
+    const { FirebaseService, ApiService } = loadServices();
+    const now = Date.now();
+    const cancelled = {
+      eventId: 'evt-resignup',
+      userId: 'u1',
+      participantType: 'self',
+      status: 'cancelled',
+      registeredAt: '2026-05-28T08:00:00.000Z',
+      cancelledAt: '2026-05-28T08:10:00.000Z',
+      _docId: 'reg_resignup_1',
+      id: 'reg_public_resignup_1',
+      _path: 'events/eventDocResignup/registrations/reg_resignup_1',
+      _sourceKind: 'subcollection',
+    };
+    const confirmedAgain = {
+      ...cancelled,
+      status: 'confirmed',
+      registeredAt: '2026-05-28T08:15:00.000Z',
+      updatedAt: '2026-05-28T08:15:00.000Z',
+      cancelledAt: null,
+    };
+    FirebaseService._cache.registrations = [cancelled];
+    const cancelSeq = ApiService.markEventMutationPending('evt-resignup', {
+      mutationType: 'cancel-signup',
+      source: 'callable',
+      requestId: 'cancel-before-resignup',
+      affectedRegistrationIds: ['reg_resignup_1', 'reg_public_resignup_1'],
+      startedAt: now - 2000,
+      timeoutMs: 30000,
+    });
+    ApiService.markEventMutationServerConfirmed('evt-resignup', cancelSeq, {
+      mutationType: 'cancel-signup',
+      requestId: 'cancel-before-resignup',
+      affectedRegistrationIds: ['reg_resignup_1', 'reg_public_resignup_1'],
+      confirmedAt: now - 1500,
+    });
+    const signupSeq = ApiService.markEventMutationPending('evt-resignup', {
+      mutationType: 'signup',
+      source: 'callable',
+      requestId: 'resignup-after-cancel',
+      affectedRegistrationIds: ['reg_resignup_1', 'reg_public_resignup_1'],
+      startedAt: now - 500,
+      timeoutMs: 30000,
+    });
+    ApiService.markEventMutationServerConfirmed('evt-resignup', signupSeq, {
+      mutationType: 'signup',
+      requestId: 'resignup-after-cancel',
+      affectedRegistrationIds: ['reg_resignup_1', 'reg_public_resignup_1'],
+      confirmedAt: now - 100,
+    });
+
+    FirebaseService._upsertCanonicalCacheRecord('registrations', confirmedAgain, {
+      requireSubcollection: false,
+    });
+
+    expect(FirebaseService._cache.registrations).toHaveLength(1);
+    expect(FirebaseService._cache.registrations[0]).toMatchObject({
+      _docId: 'reg_resignup_1',
+      status: 'confirmed',
+    });
+  });
+
   test('limited registration snapshots preserve event-specific server-fetched rows', () => {
     const sandbox = loadServices();
     const { FirebaseService, ApiService } = sandbox;

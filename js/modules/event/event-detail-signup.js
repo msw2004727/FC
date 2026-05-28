@@ -381,6 +381,7 @@ Object.assign(App, {
       const matched = candidates.some(value => ids.has(String(value || '').trim()));
       if (!matched) return;
       reg.status = terminalStatus;
+      reg.updatedAt = nowIso;
       if (!reg[timestampField]) reg[timestampField] = nowIso;
       changed++;
     });
@@ -2029,7 +2030,9 @@ Object.assign(App, {
     e = this._syncEventEffectiveStatus?.(e) || e;
     var actionZone = document.getElementById('detail-action-primary') || document.querySelector('.detail-action-primary');
     if (!actionZone) return;
-    if (this.currentPage === 'page-activity-detail' && typeof this._isCurrentEventDetailPatch === 'function') {
+    if (this.currentPage === 'page-activity-detail'
+      && typeof this._isCurrentEventDetailPatch === 'function'
+      && this._isActivityDetailLatePatchGuardEnabled?.() !== false) {
       var actionContext = this._getCurrentEventDetailPatchContext?.(actionZone.id || 'detail-action-primary', {
         ...options,
         container: actionZone,
@@ -2134,7 +2137,10 @@ Object.assign(App, {
     var e = ApiService.getEvent(eventId);
     if (!e) return;
     var detailBody = document.getElementById('detail-body');
-    if (detailBody && this.currentPage === 'page-activity-detail' && typeof this._isCurrentEventDetailPatch === 'function') {
+    if (detailBody
+      && this.currentPage === 'page-activity-detail'
+      && typeof this._isCurrentEventDetailPatch === 'function'
+      && this._isActivityDetailLatePatchGuardEnabled?.() !== false) {
       var countContext = this._getCurrentEventDetailPatchContext?.('detail-body', {
         ...options,
         container: detailBody,

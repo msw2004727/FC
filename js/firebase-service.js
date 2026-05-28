@@ -440,6 +440,121 @@ const FirebaseService = {
       || 0;
   },
 
+  _isTerminalRegistrationStatus(status) {
+    return ['cancelled', 'removed'].includes(String(status || '').trim());
+  },
+
+  _isActiveRegistrationStatus(status) {
+    return ['confirmed', 'waitlisted', 'registered'].includes(String(status || '').trim());
+  },
+
+  _isTerminalRegistrationMutation(mutation = {}) {
+    const type = String(mutation.mutationType || mutation.type || '').toLowerCase();
+    return type.includes('cancel') || type.includes('remove');
+  },
+
+  _registrationMutationOrderValue(mutation = {}) {
+    return {
+      time: Number(mutation.confirmedAt || mutation.updatedAt || mutation.startedAt || 0) || 0,
+      seq: Number(mutation.mutationSeq || 0) || 0,
+    };
+  },
+
+  _compareRegistrationMutations(a, b) {
+    if (!a && !b) return 0;
+    if (a && !b) return 1;
+    if (!a && b) return -1;
+    const av = this._registrationMutationOrderValue(a);
+    const bv = this._registrationMutationOrderValue(b);
+    if (av.time !== bv.time) return av.time - bv.time;
+    return av.seq - bv.seq;
+  },
+
+  _latestRegistrationMutation(mutations, predicate) {
+    return (Array.isArray(mutations) ? mutations : [])
+      .filter(mutation => !predicate || predicate(mutation))
+      .reduce((latest, mutation) => (
+        this._compareRegistrationMutations(mutation, latest) > 0 ? mutation : latest
+      ), null);
+  },
+
+  _getRegistrationMutationMatches(eventId, record = {}, options = {}) {
+    if (typeof ApiService === 'undefined') return [];
+    if (typeof ApiService._isActivityDetailFreshnessShadowEnabled === 'function'
+      && !ApiService._isActivityDetailFreshnessShadowEnabled()) {
+      return [];
+    }
+    const normalizeEventId = ApiService._normalizeActivityDetailEventId?.bind(ApiService);
+    const getIds = ApiService._getRegistrationMutationProtectionIds?.bind(ApiService);
+    const getStatuses = ApiService._getRegistrationMutationProtectedStatuses?.bind(ApiService);
+    const getStore = ApiService._getActivityDetailFreshnessShadowStore?.bind(ApiService);
+    if (!normalizeEventId || !getIds || !getStatuses || !getStore) return [];
+    const key = normalizeEventId(eventId || record.eventId);
+    const recordIds = new Set(getIds(record));
+    if (!key || !recordIds.size) return [];
+    const now = Number(options.now || Date.now());
+    const recentConfirmedMs = Number(options.recentConfirmedMs || 30000);
+    const recordStatus = String(record.status || '').trim();
+    const store = getStore();
+    return Object.values(store.mutations || {}).filter(mutation => {
+      if (!mutation || mutation.eventId !== key || mutation.clearedAt) return false;
+      const status = String(mutation.status || '');
+      const pendingActive = status === 'mutation-pending'
+        && (!mutation.timeoutAt || Number(mutation.timeoutAt) >= now);
+      const confirmedRecent = status === 'server-confirmed-own-mutation'
+        && mutation.confirmedAt
+        && (now - Number(mutation.confirmedAt)) <= recentConfirmedMs;
+      if (!pendingActive && !confirmedRecent) return false;
+      const affected = Array.isArray(mutation.affectedRegistrationIds)
+        ? mutation.affectedRegistrationIds
+        : [];
+      const matchesId = affected.some(id => {
+        const normalized = String(id || '').trim();
+        if (!normalized) return false;
+        return recordIds.has(normalized)
+          || recordIds.has(normalized.split('/').filter(Boolean).pop());
+      });
+      if (!matchesId) return false;
+      const protectedStatuses = getStatuses(mutation);
+      return !protectedStatuses.length || !recordStatus || protectedStatuses.includes(recordStatus);
+    });
+  },
+
+  _preferTerminalRegistrationMutationConflict(current, next, currentMatches = [], nextMatches = []) {
+    const currentTerminal = this._isTerminalRegistrationStatus(current?.status);
+    const nextTerminal = this._isTerminalRegistrationStatus(next?.status);
+    const currentActive = this._isActiveRegistrationStatus(current?.status);
+    const nextActive = this._isActiveRegistrationStatus(next?.status);
+    let terminalRecord = null;
+    let activeRecord = null;
+    let terminalMatches = [];
+    let activeMatches = [];
+    if (currentTerminal && nextActive) {
+      terminalRecord = current;
+      activeRecord = next;
+      terminalMatches = currentMatches;
+      activeMatches = nextMatches;
+    } else if (nextTerminal && currentActive) {
+      terminalRecord = next;
+      activeRecord = current;
+      terminalMatches = nextMatches;
+      activeMatches = currentMatches;
+    } else {
+      return false;
+    }
+    const terminalMutation = this._latestRegistrationMutation(terminalMatches, mutation =>
+      this._isTerminalRegistrationMutation(mutation)
+    );
+    if (!terminalMutation) return false;
+    const activeMutation = this._latestRegistrationMutation(activeMatches, mutation =>
+      !this._isTerminalRegistrationMutation(mutation)
+    );
+    if (activeMutation && this._compareRegistrationMutations(activeMutation, terminalMutation) > 0) {
+      return activeRecord;
+    }
+    return terminalRecord;
+  },
+
   _canonicalRecordKey(name, record = {}) {
     const eventId = String(record.eventId || '').trim();
     if (name === 'registrations') {
@@ -469,9 +584,32 @@ const FirebaseService = {
     return String(record._path || record._docId || record.id || Math.random());
   },
 
-  _preferCanonicalRecord(current, next) {
+  _preferRegistrationDuringMutation(current, next) {
+    if (!current || !next || current.status === next.status) return false;
+    const eventId = String(next.eventId || current.eventId || '').trim();
+    if (!eventId || typeof ApiService === 'undefined' || typeof ApiService.isEventRegistrationMutationProtected !== 'function') {
+      return false;
+    }
+    const currentProtected = ApiService.isEventRegistrationMutationProtected(eventId, current);
+    const nextProtected = ApiService.isEventRegistrationMutationProtected(eventId, next);
+    const currentMatches = currentProtected ? this._getRegistrationMutationMatches(eventId, current) : [];
+    const nextMatches = nextProtected ? this._getRegistrationMutationMatches(eventId, next) : [];
+    const terminalPreferred = this._preferTerminalRegistrationMutationConflict(current, next, currentMatches, nextMatches);
+    if (terminalPreferred) return terminalPreferred;
+    const currentTime = this._canonicalRecordTime(current);
+    const nextTime = this._canonicalRecordTime(next);
+    if (currentProtected && !nextProtected && nextTime <= currentTime) return current;
+    if (nextProtected && !currentProtected && currentTime <= nextTime) return next;
+    return false;
+  },
+
+  _preferCanonicalRecord(current, next, collectionName = '') {
     if (!current) return next;
     if (!next) return current;
+    if (collectionName === 'registrations') {
+      const mutationPreferred = this._preferRegistrationDuringMutation(current, next);
+      if (mutationPreferred) return mutationPreferred;
+    }
     const currentSub = this._isSubcollectionPath(current._path) || current._sourceKind === 'subcollection';
     const nextSub = this._isSubcollectionPath(next._path) || next._sourceKind === 'subcollection';
     if (nextSub && !currentSub) return next;
@@ -495,14 +633,14 @@ const FirebaseService = {
       }
       const docPath = this._isSubcollectionPath(normalized._path) ? String(normalized._path) : '';
       if (docPath) {
-        byDocPath.set(docPath, this._preferCanonicalRecord(byDocPath.get(docPath), normalized));
+        byDocPath.set(docPath, this._preferCanonicalRecord(byDocPath.get(docPath), normalized, name));
         return;
       }
       withoutDocPath.push(normalized);
     });
     [...byDocPath.values(), ...withoutDocPath].forEach(normalized => {
       const key = this._canonicalRecordKey(name, normalized);
-      byKey.set(key, this._preferCanonicalRecord(byKey.get(key), normalized));
+      byKey.set(key, this._preferCanonicalRecord(byKey.get(key), normalized, name));
     });
     return Array.from(byKey.values());
   },
@@ -519,7 +657,7 @@ const FirebaseService = {
     const key = this._canonicalRecordKey(name, normalized);
     const idx = source.findIndex(item => this._canonicalRecordKey(name, item) === key);
     if (idx >= 0) {
-      source[idx] = this._preferCanonicalRecord(source[idx], normalized);
+      source[idx] = this._preferCanonicalRecord(source[idx], normalized, name);
     } else if (options.prepend) {
       source.unshift(normalized);
     } else {
@@ -533,21 +671,26 @@ const FirebaseService = {
 
   _replaceCanonicalCollectionCache(name, records) {
     let nextRecords = records;
-    if (name === 'registrations'
-      && typeof ApiService !== 'undefined'
-      && ApiService._fetchedRegistrationServerIds
-      && typeof ApiService._fetchedRegistrationServerIds.has === 'function') {
+    if (name === 'registrations' && typeof ApiService !== 'undefined') {
       const source = Array.isArray(this._cache[name]) ? this._cache[name] : [];
       const activeDetailEventId = (typeof App !== 'undefined'
         && App.currentPage === 'page-activity-detail')
         ? String(App._currentDetailEventId || '').trim()
         : '';
       const appUnavailable = typeof App === 'undefined';
-      const preserved = source.filter(record =>
-        ApiService._fetchedRegistrationServerIds.has(String(record?.eventId || '').trim())
-        && (appUnavailable || (activeDetailEventId && String(record?.eventId || '').trim() === activeDetailEventId))
-      );
-      nextRecords = (records || []).concat(preserved);
+      const preserved = (ApiService._fetchedRegistrationServerIds && typeof ApiService._fetchedRegistrationServerIds.has === 'function')
+        ? source.filter(record =>
+            ApiService._fetchedRegistrationServerIds.has(String(record?.eventId || '').trim())
+            && (appUnavailable || (activeDetailEventId && String(record?.eventId || '').trim() === activeDetailEventId))
+          )
+        : [];
+      const mutationProtected = typeof ApiService.isEventRegistrationMutationProtected === 'function'
+        ? source.filter(record => {
+            const eventId = String(record?.eventId || '').trim();
+            return eventId && ApiService.isEventRegistrationMutationProtected(eventId, record);
+          })
+        : [];
+      nextRecords = (records || []).concat(preserved, mutationProtected);
     }
     this._cache[name] = this._canonicalizeRecordList(name, nextRecords);
     if (this._initialized) this._notifyCacheUpdated(name);

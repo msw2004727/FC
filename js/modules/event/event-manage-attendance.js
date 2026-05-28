@@ -97,7 +97,7 @@ Object.assign(App, {
     const guardEnabled = typeof this._shouldUseActivityDetailOptimization === 'function'
       ? this._shouldUseActivityDetailOptimization('latePatchGuard')
       : true;
-    if (!guardEnabled && options?.mode !== 'detail') return { ok: true, reason: 'ok' };
+    if (!guardEnabled) return { ok: true, reason: 'ok' };
     return this._isCurrentEventDetailPatch(eventId, options?.requestSeq ?? null, {
       container,
       containerId: cId,
@@ -905,7 +905,9 @@ Object.assign(App, {
       ? (this._getCurrentEventDetailPatchContext?.(cId, options) || options)
       : options;
     const canPatchUnreg = () => {
-      if (!isDetailContainer || typeof this._isCurrentEventDetailPatch !== 'function') {
+      if (!isDetailContainer
+        || typeof this._isCurrentEventDetailPatch !== 'function'
+        || this._isActivityDetailLatePatchGuardEnabled?.() === false) {
         return { ok: true, reason: 'ok' };
       }
       return this._isCurrentEventDetailPatch(eventId, patchOptions?.requestSeq ?? null, {

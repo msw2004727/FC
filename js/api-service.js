@@ -280,6 +280,63 @@ const ApiService = {
     });
   },
 
+  _getRegistrationMutationProtectionIds(record = {}) {
+    const ids = [
+      record._docId,
+      record.docId,
+      record.registrationDocId,
+      record.id,
+    ];
+    const path = String(record._path || '').trim();
+    if (path) ids.push(path, path.split('/').filter(Boolean).pop());
+    return [...new Set(ids.map(v => String(v || '').trim()).filter(Boolean))];
+  },
+
+  _getRegistrationMutationProtectedStatuses(mutation = {}) {
+    const explicit = mutation.targetStatus || mutation.targetRegistrationStatus || mutation.nextStatus;
+    if (explicit) return [String(explicit)];
+    const type = String(mutation.mutationType || mutation.type || '').toLowerCase();
+    if (type.includes('promote')) return ['confirmed'];
+    if (type.includes('demote')) return ['waitlisted'];
+    if (type.includes('cancel')) return ['cancelled', 'removed'];
+    if (type.includes('signup') || type.includes('register')) return ['confirmed', 'waitlisted'];
+    return [];
+  },
+
+  isEventRegistrationMutationProtected(eventId, record = {}, options = {}) {
+    if (!this._isActivityDetailFreshnessShadowEnabled()) return false;
+    const key = this._normalizeActivityDetailEventId(eventId || record.eventId);
+    if (!key) return false;
+    const recordIds = new Set(this._getRegistrationMutationProtectionIds(record));
+    if (!recordIds.size) return false;
+    const now = Number(options.now || Date.now());
+    const recentConfirmedMs = Number(options.recentConfirmedMs || 30000);
+    const store = this._getActivityDetailFreshnessShadowStore();
+    return Object.values(store.mutations || {}).some(mutation => {
+      if (!mutation || mutation.eventId !== key || mutation.clearedAt) return false;
+      const status = String(mutation.status || '');
+      const pendingActive = status === 'mutation-pending'
+        && (!mutation.timeoutAt || Number(mutation.timeoutAt) >= now);
+      const confirmedRecent = status === 'server-confirmed-own-mutation'
+        && mutation.confirmedAt
+        && (now - Number(mutation.confirmedAt)) <= recentConfirmedMs;
+      if (!pendingActive && !confirmedRecent) return false;
+      const affected = Array.isArray(mutation.affectedRegistrationIds)
+        ? mutation.affectedRegistrationIds
+        : [];
+      const matchesId = affected.some(id => {
+        const normalized = String(id || '').trim();
+        if (!normalized) return false;
+        return recordIds.has(normalized)
+          || recordIds.has(normalized.split('/').filter(Boolean).pop());
+      });
+      if (!matchesId) return false;
+      const protectedStatuses = this._getRegistrationMutationProtectedStatuses(mutation);
+      const recordStatus = String(record.status || '').trim();
+      return !protectedStatuses.length || !recordStatus || protectedStatuses.includes(recordStatus);
+    });
+  },
+
   _setEventMutationShadowStatus(eventId, mutationSeq, status, patch = {}) {
     if (!this._isActivityDetailFreshnessShadowEnabled()) return null;
     const key = this._normalizeActivityDetailEventId(eventId);
