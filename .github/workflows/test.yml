@@ -47,6 +47,7 @@ jobs:
 
   e2e-smoke-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -54,8 +55,16 @@ jobs:
           node-version: '24'
           cache: 'npm'
       - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
       - run: npx playwright install --with-deps chromium
+        timeout-minutes: 10
       - run: |
           node tests/e2e/static-server.cjs 3000 &
           sleep 2
           BASE_URL=http://127.0.0.1:3000 npm run test:e2e:smoke -- --workers=1
+        timeout-minutes: 20
