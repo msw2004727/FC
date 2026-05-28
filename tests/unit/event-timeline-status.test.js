@@ -140,10 +140,14 @@ describe('activity timeline effective status label', () => {
 
     const row = dom.window.document.querySelector('.tl-event-row');
     expect(row.dataset.eventId).toBe('e1');
-    const badge = row.querySelector('.tl-comment-badge');
+    const statusStack = row.querySelector('.tl-event-status-stack');
+    expect(statusStack).not.toBe(null);
+    expect(statusStack.querySelector('.tl-event-status')).not.toBe(null);
+    const badge = statusStack.querySelector('.tl-comment-badge');
     expect(badge).not.toBe(null);
     expect(badge.hidden).toBe(true);
     expect(badge.querySelector('svg')).not.toBe(null);
+    expect(row.querySelector('.tl-event-icons .tl-comment-badge')).toBe(null);
 
     app._setActivityCommentBadgeCount(row, 'e1', 4);
 

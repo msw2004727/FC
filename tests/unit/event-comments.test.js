@@ -108,6 +108,7 @@ describe('activity detail comments source contracts', () => {
     expect(actions.indexOf('await this._writeEventCommentLikeWithSummary'))
       .toBeLessThan(actions.indexOf('this._syncEventCommentLikeAvatars(card, author, nextLiked, nextCount)'));
     expect(timeline).toContain('_scheduleActivityCommentBadges(events)');
+    expect(timeline).toContain('tl-event-status-stack');
     expect(timeline).toContain('requestIdleCallback(run, { timeout: 1800 })');
     expect(timeline).toContain('new IntersectionObserver');
     expect(timeline).toContain('_activityCommentBadgeMaxConcurrent: 2');
@@ -129,6 +130,7 @@ describe('activity detail comments source contracts', () => {
     expect(css).toContain('.event-comment-audit-trace');
     expect(css).toContain('[data-theme="dark"] .event-comment-body');
     expect(css).toContain('[data-theme="dark"] .event-comment-card');
+    expect(css).toContain('.tl-event-status-stack');
     expect(css).toContain('.tl-comment-badge');
   });
 

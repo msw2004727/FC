@@ -666,7 +666,8 @@ Object.assign(App, {
           const sportIcon = this._renderEventSportIcon(e, 'tl-event-sport-corner');
           const favHeart = this._favHeartHtml(this.isEventFavorited(e.id), 'Event', e.id);
           const commentBadge = this._activityCommentBadgeHtml(e.id);
-          const iconStack = `<div class="tl-event-icons">${commentBadge}${favHeart}${sportIcon}</div>`;
+          const statusStack = `<div class="tl-event-status-stack"><span class="tl-event-status ${statusCss}">${statusLabel}</span>${commentBadge}</div>`;
+          const iconStack = `<div class="tl-event-icons">${favHeart}${sportIcon}</div>`;
           const eventImage = this._getEventImageUrl?.(e, 'cover') || e.image || '';
 
           // 報名狀態章
@@ -697,7 +698,7 @@ Object.assign(App, {
                 ${progressHtml}
                 <div class="tl-event-meta">${metaText}</div>
               </div>
-              <span class="tl-event-status ${statusCss}">${statusLabel}</span>
+              ${statusStack}
               ${iconStack}
               <span class="tl-event-arrow">›</span>
               ${privateStamp}${regStamp}
