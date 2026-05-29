@@ -61,12 +61,6 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://toosterx.com/events/ce_1779632765035_fqyjmc</loc>
-    <lastmod>2026-05-24</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://toosterx.com/events/ce_1779770383943_4nnt_0</loc>
     <lastmod>2026-05-26</lastmod>
     <changefreq>daily</changefreq>
@@ -147,6 +141,12 @@
   <url>
     <loc>https://toosterx.com/events/ce_1779771453582_w5a5_3</loc>
     <lastmod>2026-05-26</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://toosterx.com/events/ce_1779964030061_6skw5x</loc>
+    <lastmod>2026-05-28</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
