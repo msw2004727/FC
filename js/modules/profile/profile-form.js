@@ -24,6 +24,18 @@ Object.assign(App, {
     if (modal.dataset.relogin === '1') return;
     modal.dataset.relogin = '1';
 
+    const promptMessage = (reason === 'sdk_error')
+      ? '瀏覽器儲存空間異常，建議重新登入。若持續發生，請關閉所有分頁後重新開啟 APP。'
+      : '您的登入 session 已過期或不同步，請重新登入以繼續使用報名、發文、收藏等功能。';
+    this.logUserPrompt?.(promptMessage, {
+      force: true,
+      fn: '_showReLoginPrompt',
+      source: 'relogin_modal',
+      surface: 'relogin_modal',
+      promptKey: reason || 'session_expired',
+      reason: reason || '',
+    });
+
     const bodyHtml = (reason === 'sdk_error')
       ? '<div class="app-confirm-warning">⚠ 登入異常</div>'
         + '瀏覽器儲存空間異常，建議重新登入。<br>'

@@ -117,6 +117,23 @@ Object.assign(App, {
   },
 
   _buildErrorLogDiagnosticText(log) {
+    if (this._isUserPromptLog?.(log)) {
+      return [
+        'ToosterX 用戶提示診斷包',
+        `時間：${this._formatErrorLogTime(log) || ''}`,
+        `提示來源：${this._getUserPromptSurfaceInfo(log).label}`,
+        `提示分類：${this._getUserPromptKeyLabel(log)}`,
+        `提示內容：${this._getUserPromptMessage(log) || this._getErrorChineseMessage(log)}`,
+        `用戶：${log?.userName || ''} / ${log?.uid || ''}`,
+        `頁面/功能：${this._getErrorPage(log)} / ${this._getErrorFunctionName(log) || ''}`,
+        `版本/裝置：${this._getErrorVersion(log) || ''} / ${this._getErrorDeviceLabel(log) || ''}`,
+        `URL：${log?.url || ''}`,
+        `Context：${this._parseErrorContext(log?.context) || ''}`,
+        `原始訊息：${log?.errorMessage || ''}`,
+        `文件 ID：${log?._docId || ''}`,
+      ].join('\n');
+    }
+
     return [
       'ToosterX 錯誤診斷包',
       `時間：${this._formatErrorLogTime(log) || ''}`,
@@ -175,7 +192,7 @@ Object.assign(App, {
     if (!log) { this.showToast('找不到可複製的錯誤資料'); return; }
     try {
       await this._copyErrorLogText(this._buildErrorLogDiagnosticText(log));
-      this.showToast('已複製錯誤診斷包');
+      this.showToast(this._isUserPromptLog?.(log) ? '已複製用戶提示診斷包' : '已複製錯誤診斷包');
     } catch (err) {
       console.error('[copyErrorLogDiagnostic]', err);
       this.showToast('複製失敗，請展開技術細節手動複製');

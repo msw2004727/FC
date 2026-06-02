@@ -10,22 +10,30 @@
 .admin-filters select { flex: 1; min-width: 100px; }
 .admin-filters input[type="date"] { flex: 1; min-width: 130px; }
 #page-admin-error-logs .admin-search,
-.admin-log-panel[data-admin-log-panel="error"] .admin-search { display: grid; grid-template-columns: minmax(0,1fr); gap: .45rem; align-items: start; }
+.admin-log-panel[data-admin-log-panel="error"] .admin-search,
+.admin-log-panel[data-admin-log-panel="prompt"] .admin-search { display: grid; grid-template-columns: minmax(0,1fr); gap: .45rem; align-items: start; }
 #page-admin-error-logs #errlog-search,
-.admin-log-panel[data-admin-log-panel="error"] #errlog-search { width: 100%; min-width: 0; height: auto; min-height: 2.35rem; flex: none; align-self: start; }
+.admin-log-panel[data-admin-log-panel="error"] #errlog-search,
+.admin-log-panel[data-admin-log-panel="prompt"] #promptlog-search { width: 100%; min-width: 0; height: auto; min-height: 2.35rem; flex: none; align-self: start; }
 #page-admin-error-logs .admin-filters,
-.admin-log-panel[data-admin-log-panel="error"] .admin-filters { display: grid; grid-template-columns: repeat(auto-fit,minmax(130px,1fr)); gap: .35rem; width: 100%; flex: none; }
+.admin-log-panel[data-admin-log-panel="error"] .admin-filters,
+.admin-log-panel[data-admin-log-panel="prompt"] .admin-filters { display: grid; grid-template-columns: repeat(auto-fit,minmax(130px,1fr)); gap: .35rem; width: 100%; flex: none; }
 #page-admin-error-logs .admin-filters select,
 #page-admin-error-logs .admin-filters input[type="date"],
 .admin-log-panel[data-admin-log-panel="error"] .admin-filters select,
-.admin-log-panel[data-admin-log-panel="error"] .admin-filters input[type="date"] { width: 100%; min-width: 0; flex: none; }
+.admin-log-panel[data-admin-log-panel="error"] .admin-filters input[type="date"],
+.admin-log-panel[data-admin-log-panel="prompt"] .admin-filters select,
+.admin-log-panel[data-admin-log-panel="prompt"] .admin-filters input[type="date"] { width: 100%; min-width: 0; flex: none; }
 #page-admin-error-logs .error-log-clear-filter,
-.admin-log-panel[data-admin-log-panel="error"] .error-log-clear-filter { justify-self: start; }
+.admin-log-panel[data-admin-log-panel="error"] .error-log-clear-filter,
+.admin-log-panel[data-admin-log-panel="prompt"] .error-log-clear-filter { justify-self: start; }
 @media (max-width: 520px) {
   #page-admin-error-logs .admin-filters,
-  .admin-log-panel[data-admin-log-panel="error"] .admin-filters { grid-template-columns: 1fr; }
+  .admin-log-panel[data-admin-log-panel="error"] .admin-filters,
+  .admin-log-panel[data-admin-log-panel="prompt"] .admin-filters { grid-template-columns: 1fr; }
   #page-admin-error-logs .error-log-clear-filter,
-  .admin-log-panel[data-admin-log-panel="error"] .error-log-clear-filter { width: 100%; }
+  .admin-log-panel[data-admin-log-panel="error"] .error-log-clear-filter,
+  .admin-log-panel[data-admin-log-panel="prompt"] .error-log-clear-filter { width: 100%; }
 }
 .admin-card-list { display: flex; flex-direction: column; gap: .5rem; }
 .admin-log-tabs { margin-bottom: .7rem; }
@@ -84,6 +92,8 @@
 .error-log-details { border-top: 1px solid var(--border); padding-top: .45rem; }
 .error-log-details summary { cursor: pointer; color: var(--primary); font-size: .74rem; font-weight: 700; }
 .error-log-copy-btn { font-size: .68rem; padding: .18rem .45rem; margin-top: .4rem; }
+.user-prompt-log-copy { margin-top: 0; margin-left: auto; white-space: nowrap; }
+.user-prompt-log-group .error-log-message { color: var(--text-primary); }
 .error-log-detail-grid { margin-top: .5rem; display: flex; flex-direction: column; gap: .42rem; }
 .error-log-detail-row { display: grid; grid-template-columns: 76px minmax(0,1fr); gap: .5rem; align-items: start; }
 .error-log-detail-row span { color: var(--text-muted); font-size: .68rem; padding-top: .18rem; }

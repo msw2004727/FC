@@ -31,12 +31,54 @@ Object.assign(App, {
     return text.includes('PROFILE_INCOMPLETE');
   },
 
+  _isUserPromptLog(log) {
+    const code = this._normalizeErrorCode(log?.errorCode);
+    const context = this._getErrorContextObject(log?.context) || {};
+    const logType = String(context.logType || context.type || '').trim().toLowerCase();
+    return code === 'user-prompt'
+      || code === 'client-prompt'
+      || logType === 'user_prompt'
+      || logType === 'user-prompt';
+  },
+
+  _getUserPromptMessage(log) {
+    const context = this._getErrorContextObject(log?.context) || {};
+    return String(context.promptMessage || context.message || log?.errorMessage || '').trim();
+  },
+
+  _getUserPromptSurfaceInfo(log) {
+    const context = this._getErrorContextObject(log?.context) || {};
+    const key = String(context.surface || 'toast').trim() || 'toast';
+    const map = {
+      toast: 'Toast 提示',
+      relogin_modal: '重新登入彈窗',
+      manual: '手動紀錄',
+    };
+    return { key, label: map[key] || key };
+  },
+
+  _getUserPromptKeyLabel(log) {
+    const context = this._getErrorContextObject(log?.context) || {};
+    const key = String(context.promptKey || '').trim();
+    const map = {
+      session_expired: 'Session 過期/不同步',
+      sdk_error: '瀏覽器儲存異常',
+      auth_session_prompt: '登入狀態提示',
+      reauth_required_prompt: '要求重新登入',
+    };
+    return key ? (map[key] || key) : '未分類提示';
+  },
+
   _getErrorSeverity(log) {
     const code = this._normalizeErrorCode(log?.errorCode);
     const message = this._normalizeErrorMessage(log?.errorMessage).toLowerCase();
 
     if (this._isFirestoreIndexedDbTransientLog(log)) {
       return { key: 'info', label: '\u4f4e', className: 'severity-info' };
+    }
+
+    if (this._isUserPromptLog(log)) {
+      return { key: 'warn', label: '提示', className: 'severity-warn' };
     }
 
     if (this._isProfileIncompleteLog(log)) {
@@ -78,6 +120,8 @@ Object.assign(App, {
       'network-request-failed': '網路錯誤',
       'invalid-argument': '參數錯誤',
       profile_incomplete: '個人資料未補齊',
+      'user-prompt': '用戶提示',
+      'client-prompt': '用戶提示',
       internal: '系統錯誤',
       unknown: '未知錯誤',
       aborted: '流程中止',
@@ -86,11 +130,13 @@ Object.assign(App, {
   },
 
   _getErrorDisplayCode(log) {
+    if (this._isUserPromptLog(log)) return 'USER_PROMPT';
     if (this._isProfileIncompleteLog(log)) return 'PROFILE_INCOMPLETE';
     return this._normalizeErrorCode(log?.errorCode);
   },
 
   _getErrorDisplayCodeLabel(log) {
+    if (this._isUserPromptLog(log)) return '用戶提示';
     if (this._isProfileIncompleteLog(log)) return '個人資料未補齊';
     return this._getErrorCodeLabel(log?.errorCode);
   },
@@ -117,6 +163,7 @@ Object.assign(App, {
       aborted: '流程中止，請重新整理後再試。',
     };
     if (this._isFirestoreIndexedDbTransientLog(log)) return codeMap['firestore-indexeddb-transient'];
+    if (this._isUserPromptLog(log)) return this._getUserPromptMessage(log) || '用戶看到了系統提示，請展開技術細節確認提示內容。';
     if (this._isProfileIncompleteLog(log)) return '請先補齊個人資料（性別、生日、地區）後再報名。';
     if (codeMap[code]) return codeMap[code];
     if (/missing or insufficient permissions|the caller does not have permission|permission denied|insufficient permissions/.test(lower)) return codeMap['permission-denied'];
@@ -233,10 +280,14 @@ Object.assign(App, {
 
   _getErrorSearchText(log) {
     const contextSummary = this._parseErrorContext(log?.context);
+    const promptSearch = this._isUserPromptLog(log)
+      ? [this._getUserPromptSurfaceInfo(log).label, this._getUserPromptKeyLabel(log)]
+      : [];
     return [
       log?.userName, log?.uid, log?.role, this._getErrorPage(log),
       this._getErrorFunctionName(log), this._getErrorDisplayCodeLabel(log),
       this._getErrorDisplayCode(log), log?.errorCode, this._getErrorChineseMessage(log), log?.errorMessage,
+      ...promptSearch,
       contextSummary, log?.url, log?.hash, log?.appVersion,
       this._getErrorDeviceLabel(log), log?.userAgent, log?.errorStack,
     ].filter(Boolean).join(' ').toLowerCase();

@@ -63,6 +63,28 @@ describe('error-log-diagnostics helpers', () => {
     expect(App._getErrorChineseMessage(log)).toContain('\u8acb\u5148\u88dc\u9f4a\u500b\u4eba\u8cc7\u6599');
   });
 
+  test('recognizes user-facing prompt logs and exposes prompt metadata', () => {
+    const App = loadDiagnostics();
+    const log = {
+      errorCode: 'user-prompt',
+      errorMessage: '\u60a8\u7684\u767b\u5165 session \u5df2\u904e\u671f\u6216\u4e0d\u540c\u6b65',
+      context: JSON.stringify({
+        logType: 'user_prompt',
+        surface: 'relogin_modal',
+        promptKey: 'session_expired',
+        promptMessage: '\u60a8\u7684\u767b\u5165 session \u5df2\u904e\u671f\u6216\u4e0d\u540c\u6b65\uff0c\u8acb\u91cd\u65b0\u767b\u5165\u3002',
+      }),
+    };
+
+    expect(App._isUserPromptLog(log)).toBe(true);
+    expect(App._getErrorSeverity(log)).toMatchObject({ key: 'warn', label: '\u63d0\u793a' });
+    expect(App._getErrorDisplayCode(log)).toBe('USER_PROMPT');
+    expect(App._getErrorDisplayCodeLabel(log)).toBe('\u7528\u6236\u63d0\u793a');
+    expect(App._getUserPromptSurfaceInfo(log).label).toBe('\u91cd\u65b0\u767b\u5165\u5f48\u7a97');
+    expect(App._getUserPromptKeyLabel(log)).toBe('Session \u904e\u671f/\u4e0d\u540c\u6b65');
+    expect(App._getErrorChineseMessage(log)).toContain('session');
+  });
+
   test('parses browser, os, and device type from LINE iOS user agent', () => {
     const App = loadDiagnostics();
     const info = App._getErrorDeviceInfo('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Line/14.0.0');

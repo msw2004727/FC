@@ -93,4 +93,30 @@ describe('error-log insights helpers', () => {
     expect(text).toContain('\u767d\u8a71\u932f\u8aa4\uff1a\u8acb\u5148\u88dc\u9f4a\u500b\u4eba\u8cc7\u6599');
     expect(text).toContain('\u56b4\u91cd\u5ea6\uff1a\u4e00\u822c');
   });
+
+  test('diagnostic package for user prompts names prompt source and content', () => {
+    const App = loadInsights();
+    const text = App._buildErrorLogDiagnosticText({
+      errorCode: 'user-prompt',
+      errorMessage: '\u60a8\u7684\u767b\u5165 session \u5df2\u904e\u671f\u6216\u4e0d\u540c\u6b65',
+      page: 'page-profile',
+      context: JSON.stringify({
+        fn: '_showReLoginPrompt',
+        logType: 'user_prompt',
+        surface: 'relogin_modal',
+        promptKey: 'session_expired',
+        promptMessage: '\u60a8\u7684\u767b\u5165 session \u5df2\u904e\u671f\u6216\u4e0d\u540c\u6b65\uff0c\u8acb\u91cd\u65b0\u767b\u5165\u3002',
+      }),
+      uid: 'uidA',
+      userName: 'Tester',
+      appVersion: '0.test',
+      userAgent: 'Mozilla/5.0 (iPhone) Line/14.0.0',
+    });
+
+    expect(text).toContain('ToosterX \u7528\u6236\u63d0\u793a\u8a3a\u65b7\u5305');
+    expect(text).toContain('\u63d0\u793a\u4f86\u6e90\uff1a\u91cd\u65b0\u767b\u5165\u5f48\u7a97');
+    expect(text).toContain('\u63d0\u793a\u5206\u985e\uff1aSession \u904e\u671f/\u4e0d\u540c\u6b65');
+    expect(text).toContain('\u63d0\u793a\u5167\u5bb9\uff1a\u60a8\u7684\u767b\u5165 session');
+    expect(text).toContain('uidA');
+  });
 });

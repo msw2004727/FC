@@ -884,6 +884,78 @@ const App = {
     return release;
   },
 
+  _getTrackableUserPromptInfo(message, options = {}) {
+    const text = String(message || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!text) return null;
+
+    const forcedKey = String(options.promptKey || options.reason || '').trim();
+    const surface = String(options.surface || options.source || '').trim();
+    if (options.force || forcedKey || surface === 'relogin_modal') {
+      return {
+        key: forcedKey || 'manual_prompt',
+        category: 'auth_session',
+        surface: surface || 'manual',
+      };
+    }
+
+    const requiresReauth = /重新登入|重新整理|重整頁面|清除瀏覽器緩存|關閉所有分頁/.test(text);
+    const authStatePrompt = /session\s*已過期|登入狀態.*(異常|不同步|過期|失效)|登入已過期|LINE 登入已過期|Firebase 登入失敗|Firebase auth uid mismatch|身分不一致|uid mismatch/i.test(text);
+    if (authStatePrompt || (requiresReauth && /登入|LINE|Firebase|auth|uid|權限不足/i.test(text))) {
+      return {
+        key: authStatePrompt ? 'auth_session_prompt' : 'reauth_required_prompt',
+        category: text.includes('權限不足') ? 'permission_reauth' : 'auth_session',
+        surface: surface || 'toast',
+      };
+    }
+
+    return null;
+  },
+
+  logUserPrompt(message, options = {}) {
+    try {
+      const text = String(message || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      const info = this._getTrackableUserPromptInfo(text, options);
+      if (!info || !text || typeof ApiService === 'undefined' || typeof ApiService._writeErrorLog !== 'function') return false;
+
+      const curUser = ApiService.getCurrentUser?.() || this.currentUser || {};
+      const uid = curUser.uid || curUser.lineUserId || curUser.userId || '';
+      const page = this.currentPage || this._currentPage || document.querySelector('.page.active')?.id || 'unknown';
+      const now = Date.now();
+      if (!this._userPromptLogDedup) this._userPromptLogDedup = new Map();
+      const dedupKey = [uid, page, info.category, info.surface, info.key, text].join('|');
+      const lastMs = this._userPromptLogDedup.get(dedupKey) || 0;
+      if (now - lastMs < 2 * 60 * 1000) return false;
+      this._userPromptLogDedup.set(dedupKey, now);
+      if (this._userPromptLogDedup.size > 80) {
+        const cutoff = now - 10 * 60 * 1000;
+        this._userPromptLogDedup.forEach((value, key) => {
+          if (value < cutoff) this._userPromptLogDedup.delete(key);
+        });
+      }
+
+      const err = new Error(text);
+      err.name = 'UserPromptShown';
+      err.code = 'user-prompt';
+      err.stack = '';
+      ApiService._writeErrorLog({
+        fn: options.fn || 'showToast',
+        logType: 'user_prompt',
+        action: 'shown',
+        category: info.category,
+        promptKey: info.key,
+        surface: info.surface,
+        promptMessage: text,
+        dedupBucket: Math.floor(now / (2 * 60 * 1000)),
+        page,
+        route: typeof location !== 'undefined' ? (location.hash || '') : '',
+        reason: options.reason || '',
+      }, err);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  },
+
   showToast(msg, duration) {
     const toast = document.getElementById('toast');
     toast.textContent = msg;
@@ -892,6 +964,7 @@ const App = {
     const textLen = msg ? Array.from(String(msg).replace(/\s/g, '')).length : 0;
     const ms = duration || (msg && msg.includes('\n') ? 4000 : (textLen > 24 ? 3500 : 2500));
     this._toastTimer = setTimeout(() => toast.classList.remove('show'), ms);
+    this.logUserPrompt?.(msg, { source: 'toast' });
   },
 
   _getRouteLoadingCopy(pageId, phase = 'page') {
