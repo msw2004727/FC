@@ -435,7 +435,8 @@ Object.assign(App, {
       : '';
     const staffActions = isStaff
       ? '<div class="edu-course-detail-staff-actions">'
-        + '<button type="button" class="outline-btn small" onclick="event.stopPropagation();this.closest(\'.edu-info-overlay\').remove();App.showCourseEnrollmentList(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\')">管理課程</button>'
+        + '<button type="button" class="outline-btn small" onclick="event.stopPropagation();this.closest(\'.edu-info-overlay\').remove();App.showEduCoursePlanForm(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\')">編輯課程</button>'
+        + '<button type="button" class="outline-btn small" onclick="event.stopPropagation();this.closest(\'.edu-info-overlay\').remove();App.showCourseEnrollmentList(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\')">名單管理</button>'
         + '</div>'
       : '';
     const signupActionHtml = !isStaff && plan.allowSignup && !this._isCoursePlanEnded?.(plan)
