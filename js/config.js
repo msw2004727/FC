@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260603a';
+const CACHE_VERSION = '0.20260605';
 
 const GOOGLE_MAPS_BROWSER_API_KEY = '';
 
@@ -112,6 +112,18 @@ function isActivityCreateUiV2Enabled() {
     : null;
   if (flags && flags.activityCreateUiV2Enabled === false) return false;
   return ACTIVITY_CREATE_UI_V2_ENABLED === true;
+}
+
+function isCoursePlanFormV2Enabled() {
+  if (typeof window !== 'undefined' && window.__COURSE_PLAN_FORM_V2_TEST_OVERRIDE__ === false) return false;
+  if (typeof window !== 'undefined' && window.__COURSE_PLAN_FORM_V2_TEST_OVERRIDE__ === true) return true;
+  const localOverride = isLocalFeatureOverrideParam('cpFormV2');
+  if (localOverride === '1') return true;
+  if (localOverride === '0') return false;
+  const flags = (typeof FirebaseService !== 'undefined' && typeof FirebaseService.getCachedDoc === 'function')
+    ? FirebaseService.getCachedDoc('siteConfig', 'featureFlags')
+    : null;
+  return !!(flags && flags.coursePlanFormV2Enabled === true);
 }
 
 // Temporary feature switch: no-show is paused and hidden, but historical data remains intact.

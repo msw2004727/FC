@@ -395,6 +395,159 @@
 .edu-cp-cover-upload span { font-size: .82rem; color: var(--text-muted); }
 .edu-cp-cover-upload img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 
+/* ── Course Plan Form V2 ── */
+.edu-cp-form-v2 {
+  padding: .5rem;
+}
+.edu-cp-form-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  margin-bottom: .7rem;
+}
+.edu-cp-form-head h3 {
+  margin: .08rem 0 0;
+  font-size: 1.05rem;
+  line-height: 1.25;
+}
+.edu-cp-form-kicker {
+  color: var(--text-muted);
+  font-size: .72rem;
+  font-weight: 700;
+}
+.edu-cp-section {
+  background: var(--bg-elevated, var(--bg-card));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: .75rem .85rem;
+  margin-bottom: .75rem;
+}
+.edu-cp-core {
+  background: var(--bg-card);
+}
+.edu-cp-section-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .75rem;
+  margin-bottom: .55rem;
+}
+.edu-cp-section-title span,
+.edu-cp-advanced-section > summary span {
+  color: var(--text-primary);
+  font-size: .92rem;
+  font-weight: 800;
+}
+.edu-cp-section-title small {
+  color: var(--text-muted);
+  font-size: .72rem;
+  font-weight: 600;
+}
+.edu-cp-two-col,
+.edu-cp-extra-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .55rem;
+}
+.edu-cp-form-v2 .ce-row {
+  min-width: 0;
+}
+.edu-cp-field-hint {
+  margin-top: .15rem;
+  color: var(--text-muted);
+  font-size: .72rem;
+  line-height: 1.35;
+}
+.edu-cp-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .55rem .65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated, var(--bg-card));
+}
+.edu-cp-toggle-row label {
+  margin: 0;
+  font-weight: 800;
+}
+.edu-cp-toggle-row small {
+  display: block;
+  margin-top: .12rem;
+  color: var(--text-muted);
+  font-size: .72rem;
+  line-height: 1.35;
+}
+.edu-cp-advanced-section {
+  padding: 0;
+  overflow: hidden;
+}
+.edu-cp-advanced-section > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  cursor: pointer;
+  list-style: none;
+  padding: .72rem .85rem;
+}
+.edu-cp-advanced-section > summary::-webkit-details-marker {
+  display: none;
+}
+.edu-cp-advanced-section > summary::before {
+  content: '+';
+  flex: 0 0 auto;
+  width: 1.35rem;
+  height: 1.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-weight: 900;
+}
+.edu-cp-advanced-section[open] > summary::before {
+  content: '-';
+}
+.edu-cp-advanced-section[open] {
+  padding: 0 .85rem .85rem;
+}
+.edu-cp-advanced-section[open] > summary {
+  padding-left: 0;
+  padding-right: 0;
+}
+.edu-cp-fill-badge {
+  flex: 0 0 auto;
+  min-width: 4.85rem;
+  text-align: center;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: .12rem .45rem;
+  font-size: .72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.edu-cp-fill-badge.has-content {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-bg, rgba(13,148,136,.08));
+}
+.edu-cp-form-actions {
+  display: flex;
+  gap: .5rem;
+  margin-top: 1rem;
+}
+.edu-cp-form-actions .outline-btn,
+.edu-cp-form-actions .primary-btn {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 /* ── Course Enrollment List ── */
 .edu-ce-section-label { font-size: .88rem; font-weight: 700; margin: .8rem 0 .4rem; padding-left: .2rem; }
 .edu-ce-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .7rem .85rem; margin-bottom: .45rem; cursor: pointer; transition: border-color .15s; }
@@ -3109,6 +3262,25 @@
   color: var(--text-muted);
 }
 @media (max-width: 560px) {
+  .edu-cp-form-head,
+  .edu-cp-section-title,
+  .edu-cp-toggle-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .edu-cp-form-head .outline-btn {
+    width: 100%;
+  }
+  .edu-cp-two-col,
+  .edu-cp-form-v2 .edu-cp-extra-grid {
+    grid-template-columns: 1fr;
+  }
+  .edu-cp-advanced-section > summary {
+    align-items: flex-start;
+  }
+  .edu-cp-fill-badge {
+    min-width: 4.5rem;
+  }
   .edu-course-card.edu-cp-card-compact {
     grid-template-columns: 1fr;
     min-height: 0;

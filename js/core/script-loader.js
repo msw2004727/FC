@@ -13,6 +13,7 @@ const ScriptLoader = {
   _manualOnlyGroups: {
     activityMap: true,
     activityComments: true,
+    coursePlanForm: true,
     eventLocationPicker: true,
   },
 
@@ -498,6 +499,9 @@ const ScriptLoader = {
       'js/modules/education/edu-detail-realtime.js',
       'js/modules/education/edu-detail-withdraw.js',
       'js/modules/education/edu-detail-render.js',
+    ],
+    coursePlanForm: [
+      'js/modules/education/edu-course-plan-form-v2.js',
     ],
   },
 

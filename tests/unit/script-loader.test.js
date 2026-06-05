@@ -6,7 +6,7 @@
  */
 
 // ---------------------------------------------------------------------------
-// Extracted from script-loader.js:14-22
+// Extracted from script-loader.js:15-23
 // Adapted: accept a baseHref parameter instead of using window.location
 // ---------------------------------------------------------------------------
 function _normalizeLocalSrc(src, baseHref) {

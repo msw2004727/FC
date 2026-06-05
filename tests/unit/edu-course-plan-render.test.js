@@ -10,6 +10,10 @@ const crudSource = fs.readFileSync(
   path.join(__dirname, '../../js/modules/education/edu-course-plan.js'),
   'utf8'
 );
+const formV2Source = fs.readFileSync(
+  path.join(__dirname, '../../js/modules/education/edu-course-plan-form-v2.js'),
+  'utf8'
+);
 const cssSource = fs.readFileSync(
   path.join(__dirname, '../../css/education.css'),
   'utf8'
@@ -595,6 +599,60 @@ describe('edu course plan render', () => {
     expect(container.innerHTML).toContain('id="edu-cp-featured" checked');
   });
 
+  test('course plan form v2 keeps saved field ids while grouping advanced sections', () => {
+    const container = { innerHTML: '' };
+    const app = {
+      _updateCoursePlanPreview: jest.fn(),
+    };
+    const context = {
+      App: app,
+      document: { querySelector: jest.fn(() => null) },
+      escapeHTML,
+      console,
+      Object,
+      Array,
+      String,
+    };
+    vm.runInNewContext(formV2Source, context, { filename: 'edu-course-plan-form-v2.js' });
+
+    context.App._renderEduCoursePlanFormV2({
+      container,
+      plan: {
+        id: 'planA',
+        name: 'Plan A',
+        planType: 'weekly',
+        allowSignup: true,
+        maxCapacity: 12,
+        price: 0,
+        weekdays: [1, 3],
+        timeSlot: '09:00-10:30',
+        startDate: '2099-01-01',
+        endDate: '2099-03-01',
+        description: 'Safe description',
+        featured: true,
+      },
+      planId: 'planA',
+      groupOptions: '<option value="groupA" selected>Group A</option>',
+      isWeekly: true,
+      tagsValue: () => '',
+      fieldValue: (key) => escapeHTML({
+        description: 'Safe description',
+      }[key] || ''),
+      courseContentValue: '',
+      cancellationPolicyValue: '',
+    });
+
+    expect(container.innerHTML).toContain('edu-cp-form-v2');
+    expect(container.innerHTML).toContain('核心設定');
+    expect((container.innerHTML.match(/<details class="edu-cp-section edu-cp-advanced-section"/g) || [])).toHaveLength(4);
+    expect(container.innerHTML).toContain('id="edu-cp-name"');
+    expect(container.innerHTML).toContain('id="edu-cp-price"');
+    expect(container.innerHTML).toContain('value="0"');
+    expect(container.innerHTML).toContain('id="edu-cp-description"');
+    expect(container.innerHTML).toContain('id="edu-cp-save-btn"');
+    expect(app._updateCoursePlanPreview).toHaveBeenCalled();
+  });
+
   test('course plan save preserves optional field payloads', async () => {
     let savedPayload = null;
     const elements = {
@@ -676,5 +734,6 @@ describe('edu course plan render', () => {
     expect(savedPayload.description).toBe('Safe description');
     expect(savedPayload.price).toBe(2400);
     expect(savedPayload.featured).toBe(true);
+    expect(savedPayload).not.toHaveProperty('active');
   });
 });

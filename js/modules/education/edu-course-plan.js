@@ -67,6 +67,49 @@ Object.assign(App, {
     const courseContentValue = escapeHTML(plan?.courseContent || plan?.description || '');
     const cancellationPolicyValue = escapeHTML(plan?.cancellationPolicy || '');
 
+    const useV2 = typeof isCoursePlanFormV2Enabled === 'function' && isCoursePlanFormV2Enabled();
+    if (useV2) {
+      let fallbackError = null;
+      try {
+        if (typeof ScriptLoader !== 'undefined' && typeof ScriptLoader.ensureGroup === 'function') {
+          await ScriptLoader.ensureGroup('coursePlanForm');
+        }
+        if (requestSeq !== this._eduCoursePlanRequestSeq) {
+          if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
+            console.log('[race-skip]', { fn: 'showEduCoursePlanForm', seq: requestSeq, latest: this._eduCoursePlanRequestSeq, stage: 'after-coursePlanForm' });
+          }
+          return { ok: false, reason: 'stale' };
+        }
+        if (typeof this._renderEduCoursePlanFormV2 === 'function') {
+          this._renderEduCoursePlanFormV2({
+            container,
+            plan,
+            planId,
+            groupOptions,
+            isWeekly,
+            tagsValue,
+            fieldValue,
+            courseContentValue,
+            cancellationPolicyValue,
+          });
+          this._verifyEduCoursePlanRenderedFields?.(container, 'v2');
+          this._syncEduCoursePlanFormFillBadges?.();
+          return { ok: true };
+        }
+        fallbackError = new Error('course plan form v2 builder missing');
+      } catch (err) {
+        fallbackError = err;
+      }
+      console.warn('[coursePlanFormV2] fallback to v1:', fallbackError?.message || fallbackError);
+      if (typeof ApiService !== 'undefined' && typeof ApiService._writeErrorLog === 'function') ApiService._writeErrorLog({
+        fn: 'showEduCoursePlanForm',
+        reason: 'course_plan_form_v2_fallback',
+        flagResolved: true,
+        errorCategory: 'ui_fallback',
+        noise: true,
+      }, fallbackError || new Error('course plan form v2 fallback'));
+    }
+
     container.innerHTML = '<div class="ce-form" style="padding:.5rem">' +
       // Fix 5: 開放報名開關最頂置左
       '<div class="ce-row" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem">' +
@@ -142,7 +185,92 @@ Object.assign(App, {
         '<button class="primary-btn" id="edu-cp-save-btn" onclick="App.handleSaveEduCoursePlan()">' + (planId ? '儲存變更' : '建立方案') + '</button>' +
       '</div>' +
     '</div>';
+    this._verifyEduCoursePlanRenderedFields?.(container, 'v1');
     return { ok: true };
+  },
+
+  _getEduCoursePlanSaveFieldIds(planType) {
+    const ids = [
+      'edu-cp-name',
+      'edu-cp-group',
+      'edu-cp-type',
+      'edu-cp-signup',
+      'edu-cp-capacity',
+      'edu-cp-price',
+      'edu-cp-category-tags',
+      'edu-cp-level-label',
+      'edu-cp-feature-tags',
+      'edu-cp-requirement-tags',
+      'edu-cp-included-tags',
+      'edu-cp-target-tags',
+      'edu-cp-signup-deadline',
+      'edu-cp-manager-name',
+      'edu-cp-manager-contact',
+      'edu-cp-coach-name',
+      'edu-cp-location',
+      'edu-cp-course-content',
+      'edu-cp-cancellation-policy',
+      'edu-cp-description',
+      'edu-cp-featured',
+      'edu-cp-start',
+      'edu-cp-end',
+    ];
+    ids.push(planType === 'session' ? 'edu-cp-total' : 'edu-cp-timeslot');
+    return ids;
+  },
+
+  _verifyEduCoursePlanRenderedFields(container, variant) {
+    if (!container || typeof container.querySelector !== 'function') return true;
+    const ids = [
+      ...this._getEduCoursePlanSaveFieldIds('weekly'),
+      'edu-cp-total',
+      'edu-cp-weekly',
+      'edu-cp-session',
+      'edu-cp-weekdays',
+    ];
+    const missing = Array.from(new Set(ids)).filter(id => !container.querySelector('#' + id));
+    if (!missing.length) return true;
+    const saveBtn = container.querySelector('#edu-cp-save-btn');
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.title = '表單欄位載入不完整，請重新開啟';
+    }
+    console.error('[edu-course-plan] form field check failed:', { variant, missing });
+    if (typeof ApiService !== 'undefined' && typeof ApiService._writeErrorLog === 'function') ApiService._writeErrorLog({
+      fn: 'showEduCoursePlanForm',
+      reason: 'course_plan_form_missing_fields',
+      variant,
+      missing,
+      errorCategory: 'ui_fallback',
+      noise: true,
+    }, new Error('course plan form missing fields'));
+    return false;
+  },
+
+  _validateEduCoursePlanSaveFields() {
+    const planType = document.getElementById('edu-cp-type')?.value || 'weekly';
+    const missing = this._getEduCoursePlanSaveFieldIds(planType)
+      .filter(id => !document.getElementById(id));
+    if (!missing.length) return true;
+    const saveBtn = document.getElementById('edu-cp-save-btn');
+    if (saveBtn) saveBtn.disabled = true;
+    console.error('[edu-course-plan] save blocked: missing fields', missing);
+    this.showToast('表單欄位載入不完整，請重新開啟');
+    if (typeof ApiService !== 'undefined' && typeof ApiService._writeErrorLog === 'function') ApiService._writeErrorLog({
+      fn: 'handleSaveEduCoursePlan',
+      reason: 'course_plan_save_missing_fields',
+      missing,
+      errorCategory: 'ui_fallback',
+      noise: true,
+    }, new Error('course plan save missing fields'));
+    return false;
+  },
+
+  collapseEduCoursePlanSections() {
+    document.querySelectorAll('.edu-cp-form-v2 details[open]').forEach(section => {
+      section.removeAttribute('open');
+    });
+    this._syncEduCoursePlanFormFillBadges?.();
   },
 
   _eduCpCoverDataUrl: null,
@@ -216,6 +344,7 @@ Object.assign(App, {
 
   async handleSaveEduCoursePlan() {
     const _btnState = this._setEduBtnLoading('#edu-cp-save-btn');
+    if (!this._validateEduCoursePlanSaveFields?.()) { _btnState.restore(); return; }
     const teamId = this._eduCoursePlanEditTeamId;
     const planId = this._eduCoursePlanEditId;
     const name = document.getElementById('edu-cp-name').value.trim();
@@ -240,7 +369,6 @@ Object.assign(App, {
       groupId,
       groupName,
       planType,
-      active: true,
       allowSignup,
       maxCapacity,
       price,
@@ -297,6 +425,7 @@ Object.assign(App, {
         this.showToast('課程方案已更新');
       } else {
         data.id = this._generateEduId('cp');
+        data.active = true;
         data.currentCount = 0;
         const result = await FirebaseService.createEduCoursePlan(teamId, data);
         const cached = this._eduCoursePlansCache[teamId];
