@@ -11,7 +11,10 @@ Object.assign(App, {
     const session = sessionId ? sessions.find(s => s.id === sessionId) : null;
     const team = this._getEduTeamRecord(teamId);
     const curUser = ApiService.getCurrentUser?.();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = this._todayStr?.() || (() => {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    })();
     const defaultTitle = '第 ' + (sessions.length + 1) + ' 堂';
     const defaultManager = curUser?.displayName || curUser?.name || team?.leader || team?.captain || '';
     const defaultCoach = (team?.coaches && team.coaches[0]) || team?.leader || team?.captain || defaultManager;

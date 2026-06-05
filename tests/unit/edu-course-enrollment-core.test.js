@@ -1,5 +1,6 @@
 const {
   buildCourseEnrollmentPayload,
+  dateStringInTimeZone,
   decideCoursePlanApproval,
   decideCoursePlanRegistration,
   getApprovedStudentIdSet,
@@ -97,6 +98,21 @@ describe('edu course enrollment core decisions', () => {
       requestedStudentIds: ['stuA'],
       callerUid: 'uidA',
       now: new Date('2026-06-05T00:00:00.000Z'),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe('PLAN_ENDED');
+  });
+
+  test('uses Taipei date when checking ended course plan registration', () => {
+    expect(dateStringInTimeZone(new Date('2026-06-05T16:30:00.000Z'))).toBe('2026-06-06');
+    const result = decideCoursePlanRegistration({
+      plan: { ...basePlan, endDate: '2026-06-05' },
+      enrollments: [],
+      studentsById: studentMap([studentA]),
+      requestedStudentIds: ['stuA'],
+      callerUid: 'uidA',
+      now: new Date('2026-06-05T16:30:00.000Z'),
     });
 
     expect(result.ok).toBe(false);
@@ -376,6 +392,22 @@ describe('edu course enrollment core decisions', () => {
       studentName: 'Alice',
       selfUid: 'uidA',
       status: 'pending',
+      createdByUid: 'uidA',
+    });
+  });
+
+  test('buildCourseEnrollmentPayload preserves parent-only child linkage', () => {
+    const payload = buildCourseEnrollmentPayload({
+      id: 'enrChild',
+      student: studentB,
+      callerUid: 'uidA',
+      nowIso: '2026-06-05T00:00:00.000Z',
+    });
+
+    expect(payload).toMatchObject({
+      studentId: 'stuB',
+      selfUid: null,
+      parentUid: 'uidA',
       createdByUid: 'uidA',
     });
   });

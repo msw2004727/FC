@@ -8,6 +8,7 @@
 Object.assign(App, {
 
   _courseEnrollCache: {},  // { 'teamId:planId': [...] }
+  _courseEnrollSummaryCache: {},
 
   _getCourseEnrollCacheKey(teamId, planId) {
     return teamId + ':' + planId;
@@ -26,6 +27,7 @@ Object.assign(App, {
     try {
       const list = await FirebaseService.listCourseEnrollments(teamId, planId);
       this._courseEnrollCache[key] = list;
+      this._courseEnrollSummaryCache[key] = list?._summary || null;
       return list;
     } catch (err) {
       console.error('[edu-enrollment] load failed:', err);
@@ -156,6 +158,7 @@ Object.assign(App, {
         });
         const key = this._getCourseEnrollCacheKey(teamId, planId);
         delete this._courseEnrollCache[key];
+        delete this._courseEnrollSummaryCache[key];
         this.showToast('報名已送出，請等待審核');
         await this.renderEduCoursePlanList(teamId, undefined, { forceRefresh: true });
       } catch (err) {
@@ -180,6 +183,7 @@ Object.assign(App, {
       const key = this._getCourseEnrollCacheKey(teamId, planId);
       await FirebaseService.approveCourseEnrollment(teamId, planId, enrollId);
       delete this._courseEnrollCache[key];
+      delete this._courseEnrollSummaryCache[key];
       // 更新方案 currentCount
       // 學員狀態也更新為 active
       this.showToast('已通過');
@@ -200,6 +204,9 @@ Object.assign(App, {
         reviewerName: curUser?.displayName || curUser?.name || '',
         reviewedAt: new Date().toISOString(),
       });
+      const key = this._getCourseEnrollCacheKey(teamId, planId);
+      delete this._courseEnrollCache[key];
+      delete this._courseEnrollSummaryCache[key];
       this.showToast('已拒絕');
       await this._renderCourseEnrollmentList(teamId, planId);
     } finally { _b.restore(); }
@@ -229,7 +236,10 @@ Object.assign(App, {
       await FirebaseService.updateCourseEnrollment(teamId, planId, enrollId, { paidAt: null });
       this.showToast('已取消繳費標記');
     } else {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = this._todayStr?.() || (() => {
+        const d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      })();
       enr.paidAt = today;
       await FirebaseService.updateCourseEnrollment(teamId, planId, enrollId, { paidAt: today });
       this.showToast('已標記繳費');
@@ -267,7 +277,10 @@ Object.assign(App, {
       await FirebaseService.createCourseEnrollment(teamId, planId, doc);
       enr.id = realId; enrollId = realId;
     }
-    const current = enr?.paidAt || new Date().toISOString().slice(0, 10);
+    const current = enr?.paidAt || this._todayStr?.() || (() => {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    })();
     // 用 date input 彈窗取代 prompt
     const overlay = document.createElement('div');
     overlay.className = 'edu-info-overlay';

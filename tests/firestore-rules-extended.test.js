@@ -3435,79 +3435,80 @@ describe("/teams/{teamId}/coursePlans/{planId}/sessions/{sessionId}", () => {
 });
 
 describe("/teams/{teamId}/coursePlans/{planId}/enrollments/{enrollId}", () => {
+  const validEnrollment = {
+    id: "enr1",
+    studentId: "stuA",
+    studentName: "Alice",
+    selfUid: "uidA",
+    parentUid: null,
+    status: "approved",
+    paidAt: null,
+    coachNotes: "",
+  };
+
   beforeEach(async () => {
     await seedPath(["teams", "teamA", "coursePlans", "plan1"], {
       name: "Football 101",
     });
+    await seedPath(["teams", "teamA", "students", "stuA"], {
+      id: "stuA",
+      name: "Alice",
+      selfUid: "uidA",
+      enrollStatus: "active",
+    });
+    await seedPath(["teams", "teamA", "students", "stuB"], {
+      id: "stuB",
+      name: "Bob",
+      selfUid: "uidB",
+      enrollStatus: "active",
+    });
   });
 
-  test("read: authenticated can read", async () => {
+  test("read: owner can read own enrollment", async () => {
     await seedPath(
-      [
-        "teams",
-        "teamA",
-        "coursePlans",
-        "plan1",
-        "enrollments",
-        "enr1",
-      ],
-      { studentUid: "uidA", status: "enrolled" }
+      ["teams", "teamA", "coursePlans", "plan1", "enrollments", "enr1"],
+      validEnrollment
     );
     await assertSucceeds(
-      getDoc(
-        doc(
-          memberA(),
-          "teams",
-          "teamA",
-          "coursePlans",
-          "plan1",
-          "enrollments",
-          "enr1"
-        )
-      )
+      getDoc(doc(memberA(), "teams", "teamA", "coursePlans", "plan1", "enrollments", "enr1"))
+    );
+  });
+
+  test("read: authenticated non-owner cannot read another enrollment", async () => {
+    await seedPath(
+      ["teams", "teamA", "coursePlans", "plan1", "enrollments", "enr1"],
+      validEnrollment
+    );
+    await assertFails(
+      getDoc(doc(memberB(), "teams", "teamA", "coursePlans", "plan1", "enrollments", "enr1"))
+    );
+  });
+
+  test("read: team staff can read any enrollment", async () => {
+    await seedPath(
+      ["teams", "teamA", "coursePlans", "plan1", "enrollments", "enr1"],
+      validEnrollment
+    );
+    await assertSucceeds(
+      getDoc(doc(captain(), "teams", "teamA", "coursePlans", "plan1", "enrollments", "enr1"))
     );
   });
 
   test("read: guest cannot read", async () => {
     await seedPath(
-      [
-        "teams",
-        "teamA",
-        "coursePlans",
-        "plan1",
-        "enrollments",
-        "enr1",
-      ],
-      { studentUid: "uidA" }
+      ["teams", "teamA", "coursePlans", "plan1", "enrollments", "enr1"],
+      validEnrollment
     );
     await assertFails(
-      getDoc(
-        doc(
-          guest(),
-          "teams",
-          "teamA",
-          "coursePlans",
-          "plan1",
-          "enrollments",
-          "enr1"
-        )
-      )
+      getDoc(doc(guest(), "teams", "teamA", "coursePlans", "plan1", "enrollments", "enr1"))
     );
   });
 
   test("create: regular authenticated user cannot create directly", async () => {
     await assertFails(
       setDoc(
-        doc(
-          memberA(),
-          "teams",
-          "teamA",
-          "coursePlans",
-          "plan1",
-          "enrollments",
-          "enr_new"
-        ),
-        { studentUid: "uidA", status: "enrolled" }
+        doc(memberA(), "teams", "teamA", "coursePlans", "plan1", "enrollments", "enr_new"),
+        { studentId: "stuA", status: "pending" }
       )
     );
   });
@@ -3515,15 +3516,16 @@ describe("/teams/{teamId}/coursePlans/{planId}/enrollments/{enrollId}", () => {
   test("create: team staff can create manually", async () => {
     await assertSucceeds(
       setDoc(
-        doc(
-          captain(),
-          "teams",
-          "teamA",
-          "coursePlans",
-          "plan1",
-          "enrollments",
-          "enr_staff"
-        ),
+        doc(captain(), "teams", "teamA", "coursePlans", "plan1", "enrollments", "enr_staff"),
+        { id: "enr_staff", studentId: "stuA", studentName: "Alice", status: "approved" }
+      )
+    );
+  });
+
+  test("create: team staff cannot create malformed enrollment", async () => {
+    await assertFails(
+      setDoc(
+        doc(captain(), "teams", "teamA", "coursePlans", "plan1", "enrollments", "enr_bad"),
         { studentUid: "uidA", status: "enrolled" }
       )
     );
@@ -3531,84 +3533,37 @@ describe("/teams/{teamId}/coursePlans/{planId}/enrollments/{enrollId}", () => {
 
   test("update: captain/leader/admin can update", async () => {
     await seedPath(
-      [
-        "teams",
-        "teamA",
-        "coursePlans",
-        "plan1",
-        "enrollments",
-        "enr_upd",
-      ],
-      { studentUid: "uidA", status: "enrolled" }
+      ["teams", "teamA", "coursePlans", "plan1", "enrollments", "enr_upd"],
+      validEnrollment
     );
     await assertSucceeds(
       updateDoc(
-        doc(
-          captain(),
-          "teams",
-          "teamA",
-          "coursePlans",
-          "plan1",
-          "enrollments",
-          "enr_upd"
-        ),
-        { status: "completed" }
+        doc(captain(), "teams", "teamA", "coursePlans", "plan1", "enrollments", "enr_upd"),
+        { status: "rejected" }
       )
     );
   });
 
   test("update: regular user cannot update", async () => {
     await seedPath(
-      [
-        "teams",
-        "teamA",
-        "coursePlans",
-        "plan1",
-        "enrollments",
-        "enr_upd2",
-      ],
-      { studentUid: "uidUser", status: "enrolled" }
+      ["teams", "teamA", "coursePlans", "plan1", "enrollments", "enr_upd2"],
+      { ...validEnrollment, id: "enr_upd2", studentId: "stuB", selfUid: "uidB" }
     );
     await assertFails(
       updateDoc(
-        doc(
-          user(),
-          "teams",
-          "teamA",
-          "coursePlans",
-          "plan1",
-          "enrollments",
-          "enr_upd2"
-        ),
-        { status: "completed" }
+        doc(user("uidB"), "teams", "teamA", "coursePlans", "plan1", "enrollments", "enr_upd2"),
+        { status: "rejected" }
       )
     );
   });
 
   test("delete: captain/leader/admin can delete", async () => {
     await seedPath(
-      [
-        "teams",
-        "teamA",
-        "coursePlans",
-        "plan1",
-        "enrollments",
-        "enr_del",
-      ],
-      { studentUid: "uidA" }
+      ["teams", "teamA", "coursePlans", "plan1", "enrollments", "enr_del"],
+      validEnrollment
     );
     await assertSucceeds(
-      deleteDoc(
-        doc(
-          admin(),
-          "teams",
-          "teamA",
-          "coursePlans",
-          "plan1",
-          "enrollments",
-          "enr_del"
-        )
-      )
+      deleteDoc(doc(admin(), "teams", "teamA", "coursePlans", "plan1", "enrollments", "enr_del"))
     );
   });
 });

@@ -1584,10 +1584,74 @@ service cloud.firestore {
           allow create, update, delete: if isCurrentUserTeamStaff(teamId) || canManageAnyTeam();
         }
 
+        function isCourseEnrollmentNullableString(data, field) {
+          return !(field in data) || data[field] == null || data[field] is string;
+        }
+
+        function isCourseEnrollmentOwnedByAuth(data) {
+          return isAuth()
+            && (
+              (data.keys().hasAny(['selfUid']) && data.selfUid is string && data.selfUid == request.auth.uid)
+              || (data.keys().hasAny(['parentUid']) && data.parentUid is string && data.parentUid == request.auth.uid)
+              || (
+                data.keys().hasAny(['studentId'])
+                && data.studentId is string
+                && exists(/databases/$(database)/documents/teams/$(teamId)/students/$(data.studentId))
+                && (
+                  get(/databases/$(database)/documents/teams/$(teamId)/students/$(data.studentId)).data.selfUid == request.auth.uid
+                  || get(/databases/$(database)/documents/teams/$(teamId)/students/$(data.studentId)).data.parentUid == request.auth.uid
+                )
+              )
+            );
+        }
+
+        function isValidCourseEnrollmentCreate() {
+          let data = request.resource.data;
+          return data.keys().hasAll(['studentId', 'status'])
+            && data.keys().hasOnly([
+              'id',
+              'studentId',
+              'studentName',
+              'selfUid',
+              'parentUid',
+              'status',
+              'paidAt',
+              'coachNotes',
+              'reviewerName',
+              'reviewerUid',
+              'reviewedAt',
+              'createdByUid',
+              'createdAt',
+              'updatedAt',
+              'appliedAt',
+              'appliedAtIso',
+              'enrollmentType',
+              'migrationSource',
+              'sourceGroupId',
+              'migratedAt'
+            ])
+            && data.studentId is string
+            && data.studentId.size() > 0
+            && data.status in ['pending', 'approved', 'rejected', 'cancelled', 'removed']
+            && isCourseEnrollmentNullableString(data, 'id')
+            && isCourseEnrollmentNullableString(data, 'studentName')
+            && isCourseEnrollmentNullableString(data, 'selfUid')
+            && isCourseEnrollmentNullableString(data, 'parentUid')
+            && isCourseEnrollmentNullableString(data, 'paidAt')
+            && isCourseEnrollmentNullableString(data, 'coachNotes')
+            && isCourseEnrollmentNullableString(data, 'reviewerName')
+            && isCourseEnrollmentNullableString(data, 'reviewerUid')
+            && isCourseEnrollmentNullableString(data, 'createdByUid')
+            && isCourseEnrollmentNullableString(data, 'appliedAtIso')
+            && isCourseEnrollmentNullableString(data, 'enrollmentType')
+            && isCourseEnrollmentNullableString(data, 'migrationSource')
+            && isCourseEnrollmentNullableString(data, 'sourceGroupId');
+        }
+
         // ── 課程方案報名（一般學員走 callable；直寫限幹部 / 管理員）──
         match /enrollments/{enrollId} {
-          allow read: if isAuth();
-          allow create: if isCurrentUserTeamStaff(teamId) || canManageAnyTeam();
+          allow read: if isCurrentUserTeamStaff(teamId) || canManageAnyTeam() || isCourseEnrollmentOwnedByAuth(resource.data);
+          allow create: if (isCurrentUserTeamStaff(teamId) || canManageAnyTeam()) && isValidCourseEnrollmentCreate();
           allow update: if isCurrentUserTeamStaff(teamId) || canManageAnyTeam();
           allow delete: if isCurrentUserTeamStaff(teamId) || canManageAnyTeam();
         }

@@ -1,5 +1,7 @@
 "use strict";
 
+const COURSE_TIME_ZONE = "Asia/Taipei";
+
 function asString(value, maxLength = 120) {
   return String(value == null ? "" : value).trim().slice(0, maxLength);
 }
@@ -23,10 +25,25 @@ function isStudentOwnedByUid(student, uid) {
   return asId(student.selfUid, 128) === safeUid || asId(student.parentUid, 128) === safeUid;
 }
 
+function dateStringInTimeZone(now = new Date(), timeZone = COURSE_TIME_ZONE) {
+  const date = now instanceof Date ? now : new Date(now);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = {};
+  parts.forEach((part) => {
+    if (part.type !== "literal") values[part.type] = part.value;
+  });
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
 function isCoursePlanEnded(plan, now = new Date()) {
   const endDate = asString(plan && plan.endDate, 20);
   if (!endDate) return false;
-  const today = now.toISOString().slice(0, 10);
+  const today = dateStringInTimeZone(now);
   return endDate < today;
 }
 
@@ -182,7 +199,7 @@ function buildCourseEnrollmentPayload({ id, student, callerUid, nowIso }) {
     id: safeId,
     studentId,
     studentName: asString(student && student.name, 80),
-    selfUid: asId(student && student.selfUid, 128) || asId(callerUid, 128),
+    selfUid: asId(student && student.selfUid, 128) || null,
     parentUid: asId(student && student.parentUid, 128) || null,
     status: "pending",
     paidAt: null,
@@ -198,6 +215,7 @@ module.exports = {
   asId,
   asString,
   buildCourseEnrollmentPayload,
+  dateStringInTimeZone,
   decideCoursePlanApproval,
   decideCoursePlanRegistration,
   getApprovedStudentIdSet,

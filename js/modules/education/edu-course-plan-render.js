@@ -43,7 +43,10 @@ Object.assign(App, {
     }
 
     // 取得當前用戶的報名狀態（用於學員視角按鈕）
-    const today = new Date().toISOString().slice(0, 10);
+    const today = this._todayStr?.() || (() => {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    })();
     const isPlanEnded = (plan) => !!(plan && plan.endDate && plan.endDate < today);
     this._eduCoursePlanTabByTeam = this._eduCoursePlanTabByTeam || {};
     const selectedTab = this._eduCoursePlanTabByTeam[teamId] === 'ended' ? 'ended' : 'active';
@@ -63,13 +66,21 @@ Object.assign(App, {
         } else {
           p._enrollments = (key && this._courseEnrollCache?.[key]) || [];
         }
-      } catch (_) { p._enrollments = []; }
-      const enrolledIds = new Set(p._enrollments.filter(e => e.status === 'approved').map(e => e.studentId));
-      if (!autoMigrationCompleted && p.groupId) {
-        students.filter(s => s.enrollStatus === 'active' && (s.groupIds || []).includes(p.groupId))
-          .forEach(s => enrolledIds.add(s.id));
+        p._enrollmentSummary = p._enrollments?._summary
+          || (key && this._courseEnrollSummaryCache?.[key])
+          || null;
+      } catch (_) { p._enrollments = []; p._enrollmentSummary = null; }
+      const summaryCount = Number(p._enrollmentSummary?.effectiveApprovedCount);
+      if (Number.isFinite(summaryCount) && summaryCount >= 0) {
+        p._effectiveCount = summaryCount;
+      } else {
+        const enrolledIds = new Set(p._enrollments.filter(e => e.status === 'approved').map(e => e.studentId));
+        if (!autoMigrationCompleted && p.groupId) {
+          students.filter(s => s.enrollStatus === 'active' && (s.groupIds || []).includes(p.groupId))
+            .forEach(s => enrolledIds.add(s.id));
+        }
+        p._effectiveCount = enrolledIds.size;
       }
-      p._effectiveCount = enrolledIds.size;
     }));
     if (isStale()) return false;
 
@@ -129,6 +140,10 @@ Object.assign(App, {
         const enrolledStudentIds = new Set(
           (p._enrollments || []).filter(e => e.status !== 'rejected').map(e => e.studentId)
         );
+        const viewerStatuses = p._enrollmentSummary?.viewerStatuses || {};
+        Object.keys(viewerStatuses).forEach(studentId => {
+          if (viewerStatuses[studentId] !== 'rejected') enrolledStudentIds.add(studentId);
+        });
         if (!autoMigrationCompleted && p.groupId) {
           students.filter(s => s.enrollStatus === 'active' && (s.groupIds || []).includes(p.groupId))
             .forEach(s => enrolledStudentIds.add(s.id));
@@ -271,6 +286,10 @@ Object.assign(App, {
       if (this._eduCoursePlanDetailRequestKey !== requestKey) return;
     }
     const jsArg = (value) => escapeHTML(String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' '));
+    const detailToday = this._todayStr?.() || (() => {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    })();
     const view = typeof this._normalizeCoursePlanViewModel === 'function'
       ? this._normalizeCoursePlanViewModel(plan)
       : {
@@ -284,7 +303,7 @@ Object.assign(App, {
             : '共 ' + (plan.totalSessions || 0) + ' 堂',
           priceText: Number(plan.price || 0) > 0 ? 'NT$ ' + Number(plan.price || 0).toLocaleString() : '免費',
           countText: (plan._effectiveCount || 0) + (plan.maxCapacity ? '/' + plan.maxCapacity : '') + ' 人',
-          status: { label: plan.endDate && plan.endDate < new Date().toISOString().slice(0, 10) ? '已結束' : (plan.allowSignup ? '招生中' : '暫停報名') },
+          status: { label: plan.endDate && plan.endDate < detailToday ? '已結束' : (plan.allowSignup ? '招生中' : '暫停報名') },
           tags: [],
         };
     const existing = document.querySelector?.('.edu-course-detail-overlay');

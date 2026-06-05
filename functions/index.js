@@ -22,6 +22,7 @@ const {
   buildCourseEnrollmentPayload,
   decideCoursePlanApproval,
   decideCoursePlanRegistration,
+  getApprovedStudentIdSet,
 } = require("./edu-course-enrollment-core");
 // @line/bot-sdk: lazy-loaded — 只有 processLinePushQueue 使用
 let _messagingApi;
@@ -3636,6 +3637,91 @@ function courseEnrollmentDocId(studentId) {
   return `enr_${Date.now()}_${sanitizeStr(studentId, 40).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 18)}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function migrationCourseEnrollmentDocId(studentId) {
+  const safe = sanitizeStr(studentId, 80).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 60);
+  return `enr_mig_${safe || "student"}`;
+}
+
+function timestampToIso(value) {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value.toDate === "function") return value.toDate().toISOString();
+  if (Number.isFinite(value.seconds)) return new Date(value.seconds * 1000).toISOString();
+  return null;
+}
+
+function isCourseEnrollmentOwnedByCaller(enrollment, student, callerUid) {
+  const safeUid = sanitizeStr(callerUid, 128);
+  if (!safeUid) return false;
+  return sanitizeStr(enrollment.selfUid, 128) === safeUid
+    || sanitizeStr(enrollment.parentUid, 128) === safeUid
+    || sanitizeStr(student?.selfUid, 128) === safeUid
+    || sanitizeStr(student?.parentUid, 128) === safeUid;
+}
+
+function serializeCourseEnrollment(enrollment, { includePrivate = false } = {}) {
+  const item = {
+    id: sanitizeStr(enrollment.id || enrollment._docId, 100),
+    _docId: sanitizeStr(enrollment._docId || enrollment.id, 100),
+    studentId: sanitizeStr(enrollment.studentId, 100),
+    studentName: sanitizeStr(enrollment.studentName, 80),
+    status: sanitizeStr(enrollment.status, 32),
+    appliedAt: timestampToIso(enrollment.appliedAt || enrollment.appliedAtIso || enrollment.createdAt),
+    reviewedAt: timestampToIso(enrollment.reviewedAt),
+  };
+  if (includePrivate) {
+    item.selfUid = sanitizeStr(enrollment.selfUid, 128) || null;
+    item.parentUid = sanitizeStr(enrollment.parentUid, 128) || null;
+    item.paidAt = sanitizeStr(enrollment.paidAt, 40) || null;
+    item.coachNotes = sanitizeStr(enrollment.coachNotes, 2000);
+    item.reviewerName = sanitizeStr(enrollment.reviewerName, 80) || null;
+    item.reviewerUid = sanitizeStr(enrollment.reviewerUid, 128) || null;
+    item.createdByUid = sanitizeStr(enrollment.createdByUid, 128) || null;
+    item.enrollmentType = sanitizeStr(enrollment.enrollmentType, 80) || null;
+    item.migrationSource = sanitizeStr(enrollment.migrationSource, 80) || null;
+    item.sourceGroupId = sanitizeStr(enrollment.sourceGroupId, 100) || null;
+  }
+  return item;
+}
+
+function buildCourseEnrollmentSummary({ plan, enrollments, students, migrationCompleted, callerUid }) {
+  const approvedIds = getApprovedStudentIdSet({ plan, enrollments, students, migrationCompleted });
+  const viewerStudentIds = new Set();
+  students.forEach((student) => {
+    if (isCourseEnrollmentOwnedByCaller({}, student, callerUid)) {
+      const studentId = sanitizeStr(student.id || student._docId, 100);
+      if (studentId) viewerStudentIds.add(studentId);
+    }
+  });
+  const viewerStatuses = {};
+  enrollments.forEach((enrollment) => {
+    const studentId = sanitizeStr(enrollment.studentId, 100);
+    if (studentId && viewerStudentIds.has(studentId)) {
+      viewerStatuses[studentId] = sanitizeStr(enrollment.status, 32);
+    }
+  });
+  if (!migrationCompleted && sanitizeStr(plan.groupId, 100)) {
+    students.forEach((student) => {
+      const studentId = sanitizeStr(student.id || student._docId, 100);
+      const groupIds = Array.isArray(student.groupIds) ? student.groupIds.map((value) => sanitizeStr(value, 100)) : [];
+      if (studentId
+        && viewerStudentIds.has(studentId)
+        && sanitizeStr(student.enrollStatus, 32) === "active"
+        && groupIds.includes(sanitizeStr(plan.groupId, 100))
+        && !viewerStatuses[studentId]) {
+        viewerStatuses[studentId] = "approved";
+      }
+    });
+  }
+  return {
+    approvedCount: approvedIds.size,
+    effectiveApprovedCount: approvedIds.size,
+    viewerStudentIds: Array.from(viewerStudentIds),
+    viewerStatuses,
+  };
+}
+
 function normalizeEduCourseMigrationLimit(value, fallback, min, max) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return fallback;
@@ -3652,6 +3738,11 @@ function hasEduCourseMigrationAccess(access) {
 
 async function loadEduAutoMigrationCompletedInTransaction(tx) {
   const snap = await tx.get(db.collection("siteConfig").doc("featureFlags"));
+  return snap.exists && snap.data()?.eduAutoMigrationCompleted === true;
+}
+
+async function loadEduAutoMigrationCompleted() {
+  const snap = await db.collection("siteConfig").doc("featureFlags").get();
   return snap.exists && snap.data()?.eduAutoMigrationCompleted === true;
 }
 
@@ -3684,6 +3775,66 @@ async function resolveCourseCallerName(request, callerUid) {
     80
   );
 }
+
+exports.listEduCourseEnrollments = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 0 },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+    const callerUid = request.auth.uid;
+    const { teamId, planId } = normalizeEduCourseRequestIds(request.data || {});
+    const access = await getCallerAccessContext(request);
+    const teamDoc = await getTeamDocByTeamId(teamId);
+    if (!teamDoc) throw createEduCourseHttpsError("TEAM_NOT_FOUND");
+    const teamRef = teamDoc.ref;
+    const isStaff = isTeamStaffForData(teamDoc.data, callerUid)
+      || access.isSuperAdmin
+      || access.hasPermission("team.manage_all");
+    const planRef = teamRef.collection("coursePlans").doc(planId);
+    const [planSnap, enrollSnap, studentsSnap, migrationCompleted] = await Promise.all([
+      planRef.get(),
+      planRef.collection("enrollments").get(),
+      teamRef.collection("students").get(),
+      loadEduAutoMigrationCompleted(),
+    ]);
+    if (!planSnap.exists) throw createEduCourseHttpsError("PLAN_NOT_FOUND");
+
+    const plan = { id: planSnap.id, _docId: planSnap.id, ...(planSnap.data() || {}) };
+    const students = studentsSnap.docs.map((doc) => {
+      const data = doc.data() || {};
+      return { ...data, id: sanitizeStr(data.id || doc.id, 100), _docId: doc.id };
+    });
+    const studentsById = new Map(students.map((student) => [String(student.id || student._docId || ""), student]));
+    const enrollments = enrollSnap.docs.map((doc) => ({ id: doc.id, _docId: doc.id, ...(doc.data() || {}) }));
+    const summary = buildCourseEnrollmentSummary({
+      plan,
+      enrollments,
+      students,
+      migrationCompleted,
+      callerUid,
+    });
+    const visibleEnrollments = enrollments
+      .map((enrollment) => {
+        const studentId = sanitizeStr(enrollment.studentId, 100);
+        const student = studentsById.get(studentId);
+        const owned = isCourseEnrollmentOwnedByCaller(enrollment, student, callerUid);
+        if (!isStaff && !owned) return null;
+        return serializeCourseEnrollment(enrollment, { includePrivate: isStaff });
+      })
+      .filter(Boolean);
+
+    return {
+      success: true,
+      teamId,
+      planId,
+      isStaff,
+      migrationCompleted,
+      summary,
+      enrollments: visibleEnrollments,
+    };
+  }
+);
 
 exports.registerForEduCoursePlan = onCall(
   { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 0 },
@@ -3862,6 +4013,8 @@ exports.migrateEduCourseAutoEnrollments = onCall(
     const callerUid = request.auth.uid;
     const dryRun = request.data?.dryRun !== false;
     const markCompleted = request.data?.markCompleted === true;
+    const runId = sanitizeStr(request.data?.runId, 100)
+      || `edu_auto_${Date.now()}_${sanitizeStr(callerUid, 24).replace(/[^A-Za-z0-9_-]/g, "")}`;
     const teamId = sanitizeStr(request.data?.teamId, 100);
     const planId = sanitizeStr(request.data?.planId, 100);
     const limitTeams = normalizeEduCourseMigrationLimit(request.data?.limitTeams, teamId ? 1 : 20, 1, 100);
@@ -3880,6 +4033,7 @@ exports.migrateEduCourseAutoEnrollments = onCall(
     const nowTimestamp = Timestamp.now();
     const stats = {
       success: true,
+      runId,
       dryRun,
       markCompleted,
       completionFlagWritten: false,
@@ -3889,6 +4043,7 @@ exports.migrateEduCourseAutoEnrollments = onCall(
       candidates: 0,
       written: 0,
       truncated: false,
+      truncatedReasons: [],
       skipped: {
         noGroup: 0,
         inactiveStudent: 0,
@@ -3897,6 +4052,37 @@ exports.migrateEduCourseAutoEnrollments = onCall(
       },
       samples: [],
     };
+    const checkpointRef = db.collection("_eduCourseMigrationRuns").doc(runId);
+    const writeCheckpoint = async (status) => {
+      await checkpointRef.set({
+        runId,
+        status,
+        dryRun,
+        markCompleted,
+        teamId: teamId || null,
+        planId: planId || null,
+        limitTeams,
+        limitPlans,
+        limitCandidates,
+        callerUid,
+        stats,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    };
+    await checkpointRef.set({
+      runId,
+      status: "running",
+      dryRun,
+      markCompleted,
+      teamId: teamId || null,
+      planId: planId || null,
+      limitTeams,
+      limitPlans,
+      limitCandidates,
+      callerUid,
+      startedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
 
     let teamDocs = [];
     if (teamId) {
@@ -3904,8 +4090,12 @@ exports.migrateEduCourseAutoEnrollments = onCall(
       if (!teamDoc) throw createEduCourseHttpsError("TEAM_NOT_FOUND");
       teamDocs = [teamDoc];
     } else {
-      const teamSnap = await db.collection("teams").limit(limitTeams).get();
-      teamDocs = teamSnap.docs.map((doc) => ({ ref: doc.ref, docId: doc.id, data: doc.data() || {} }));
+      const teamSnap = await db.collection("teams").limit(limitTeams + 1).get();
+      if (teamSnap.docs.length > limitTeams) {
+        stats.truncated = true;
+        stats.truncatedReasons.push("teams_limit");
+      }
+      teamDocs = teamSnap.docs.slice(0, limitTeams).map((doc) => ({ ref: doc.ref, docId: doc.id, data: doc.data() || {} }));
     }
 
     let batch = db.batch();
@@ -3935,13 +4125,18 @@ exports.migrateEduCourseAutoEnrollments = onCall(
         const planSnap = await teamDoc.ref.collection("coursePlans").doc(planId).get();
         if (planSnap.exists) planDocs = [planSnap];
       } else {
-        const planSnap = await teamDoc.ref.collection("coursePlans").limit(limitPlans).get();
-        planDocs = planSnap.docs;
+        const planSnap = await teamDoc.ref.collection("coursePlans").limit(limitPlans + 1).get();
+        if (planSnap.docs.length > limitPlans) {
+          stats.truncated = true;
+          stats.truncatedReasons.push(`plans_limit:${safeTeamId}`);
+        }
+        planDocs = planSnap.docs.slice(0, limitPlans);
       }
 
       for (const planDoc of planDocs) {
         if (stats.candidates >= limitCandidates) {
           stats.truncated = true;
+          stats.truncatedReasons.push("candidates_limit");
           break outer;
         }
         stats.scannedPlans += 1;
@@ -3965,6 +4160,7 @@ exports.migrateEduCourseAutoEnrollments = onCall(
         for (const student of students) {
           if (stats.candidates >= limitCandidates) {
             stats.truncated = true;
+            stats.truncatedReasons.push("candidates_limit");
             break outer;
           }
           const studentId = sanitizeStr(student.id || student._docId, 100);
@@ -3996,7 +4192,7 @@ exports.migrateEduCourseAutoEnrollments = onCall(
           if (stats.samples.length < sampleLimit) stats.samples.push(sample);
           if (dryRun) continue;
 
-          const enrollRef = planDoc.ref.collection("enrollments").doc(courseEnrollmentDocId(studentId));
+          const enrollRef = planDoc.ref.collection("enrollments").doc(migrationCourseEnrollmentDocId(studentId));
           const payload = {
             id: enrollRef.id,
             studentId,
@@ -4035,6 +4231,7 @@ exports.migrateEduCourseAutoEnrollments = onCall(
           batchOps += 1;
         }
       }
+      await writeCheckpoint("running");
     }
 
     await flushBatch();
@@ -4051,6 +4248,7 @@ exports.migrateEduCourseAutoEnrollments = onCall(
       stats.completionFlagWritten = true;
     }
 
+    await writeCheckpoint(stats.completionFlagWritten ? "completed_with_flag" : "completed");
     return stats;
   }
 );

@@ -521,7 +521,10 @@ Object.assign(App, {
   async _moveCoursePlan(teamId, planId, direction) {
     const cached = this._eduCoursePlansCache[teamId];
     if (!cached) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = this._todayStr?.() || (() => {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    })();
     const isPlanEnded = (plan) => !!(plan && plan.endDate && plan.endDate < today);
     const selectedTab = this._eduCoursePlanTabByTeam?.[teamId] === 'ended' ? 'ended' : 'active';
     const comparePlans = (a, b) => {

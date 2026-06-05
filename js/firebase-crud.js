@@ -3695,10 +3695,28 @@ Object.assign(FirebaseService, {
   // ════════════════════════════════
 
   async listCourseEnrollments(teamId, planId) {
-    const teamRef = await this._getTeamDocRefById(teamId);
-    const snapshot = await teamRef.collection('coursePlans').doc(planId)
-      .collection('enrollments').get();
-    return this._mapCollectionDocs(snapshot);
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase 登入失敗');
+    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('listEduCourseEnrollments');
+    const result = await callable({ teamId, planId });
+    const data = result && result.data ? result.data : result;
+    const list = Array.isArray(data?.enrollments) ? data.enrollments : [];
+    Object.defineProperty(list, '_summary', {
+      value: data?.summary || null,
+      enumerable: false,
+      configurable: true,
+    });
+    Object.defineProperty(list, '_viewerIsStaff', {
+      value: data?.isStaff === true,
+      enumerable: false,
+      configurable: true,
+    });
+    Object.defineProperty(list, '_migrationCompleted', {
+      value: data?.migrationCompleted === true,
+      enumerable: false,
+      configurable: true,
+    });
+    return list;
   },
 
   async registerForEduCoursePlan(teamId, planId, studentIds, options = {}) {

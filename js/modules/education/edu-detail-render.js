@@ -240,7 +240,10 @@ Object.assign(App, {
     // 取得進行中的課程方案（用於標籤顯示）
     const activePlans = this.getEduCoursePlans(teamId).filter(p => {
       if (p.active === false) return false;
-      if (p.planType === 'weekly' && p.endDate && p.endDate < new Date().toISOString().slice(0, 10)) return false;
+      if (p.planType === 'weekly' && p.endDate && p.endDate < (this._todayStr?.() || (() => {
+        const d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      })())) return false;
       return true;
     });
     // 課程標籤顏色
