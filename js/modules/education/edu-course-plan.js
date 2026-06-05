@@ -219,10 +219,26 @@ Object.assign(App, {
     return ids;
   },
 
+  _getEduCoursePlanOptionalFieldIds() {
+    return [
+      'edu-cp-visible-on-team',
+      'edu-cp-makeup-policy',
+      'edu-cp-payment-method',
+      'edu-cp-payment-deadline',
+      'edu-cp-notify-targets',
+      'edu-cp-trial-info',
+      'edu-cp-min-capacity',
+      'edu-cp-min-age',
+      'edu-cp-max-age',
+      'edu-cp-gender',
+    ];
+  },
+
   _verifyEduCoursePlanRenderedFields(container, variant) {
     if (!container || typeof container.querySelector !== 'function') return true;
     const ids = [
       ...this._getEduCoursePlanSaveFieldIds('weekly'),
+      ...(variant === 'v2' ? this._getEduCoursePlanOptionalFieldIds() : []),
       'edu-cp-total',
       'edu-cp-weekly',
       'edu-cp-session',
@@ -361,6 +377,21 @@ Object.assign(App, {
     const priceRaw = document.getElementById('edu-cp-price')?.value;
     const price = priceRaw ? parseInt(priceRaw, 10) : null;
     const optionalText = (id, max = 120) => (document.getElementById(id)?.value || '').trim().slice(0, max);
+    const optionalNumber = (id) => {
+      const el = document.getElementById(id);
+      if (!el) return undefined;
+      const raw = String(el.value || '').trim();
+      if (!raw) return null;
+      const value = parseInt(raw, 10);
+      return Number.isFinite(value) ? value : null;
+    };
+    const assignOptionalText = (key, id, max) => {
+      if (document.getElementById(id)) data[key] = optionalText(id, max);
+    };
+    const assignOptionalNumber = (key, id) => {
+      const value = optionalNumber(id);
+      if (value !== undefined) data[key] = value;
+    };
     const courseContent = optionalText('edu-cp-course-content', 900);
     const descriptionText = optionalText('edu-cp-description', 500);
 
@@ -388,6 +419,27 @@ Object.assign(App, {
       description: descriptionText || courseContent.slice(0, 500),
       featured: !!document.getElementById('edu-cp-featured')?.checked,
     };
+
+    const visibleToggle = document.getElementById('edu-cp-visible-on-team');
+    if (visibleToggle) data.visibleOnTeamPage = !!visibleToggle.checked;
+    assignOptionalText('makeupPolicy', 'edu-cp-makeup-policy', 500);
+    assignOptionalText('paymentMethod', 'edu-cp-payment-method', 300);
+    assignOptionalText('paymentDeadline', 'edu-cp-payment-deadline', 60);
+    assignOptionalText('notifyTargets', 'edu-cp-notify-targets', 200);
+    assignOptionalText('trialSessionInfo', 'edu-cp-trial-info', 300);
+    assignOptionalNumber('minCapacity', 'edu-cp-min-capacity');
+    assignOptionalNumber('minAge', 'edu-cp-min-age');
+    assignOptionalNumber('maxAge', 'edu-cp-max-age');
+    const genderEl = document.getElementById('edu-cp-gender');
+    if (genderEl) {
+      const rawGender = String(genderEl.value || 'none');
+      data.genderRestriction = ['male', 'female'].includes(rawGender) ? rawGender : 'none';
+    }
+    if (data.minAge != null && data.maxAge != null && data.minAge > data.maxAge) {
+      _btnState.restore();
+      this.showToast('年齡限制的最小年齡不能大於最大年齡');
+      return;
+    }
 
     // 共用日期欄位（兩種類型都有）
     data.startDate = document.getElementById('edu-cp-start').value || '';

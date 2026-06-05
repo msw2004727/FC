@@ -459,6 +459,17 @@
   font-size: .72rem;
   line-height: 1.35;
 }
+.edu-cp-range-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: .38rem;
+}
+.edu-cp-range-row span {
+  color: var(--text-muted);
+  font-size: .78rem;
+  font-weight: 700;
+}
 .edu-cp-toggle-row {
   display: flex;
   align-items: center;
@@ -2907,6 +2918,29 @@
 .edu-course-card.edu-cp-card-compact.edu-cp-card-session {
   border-left-color: #7c3aed;
 }
+.edu-course-card.edu-cp-card-compact.edu-cp-card-hidden {
+  border-style: dashed;
+  border-left-style: solid;
+  opacity: .86;
+}
+.edu-cp-card-hidden-badge {
+  position: absolute;
+  top: .45rem;
+  right: .5rem;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: .12rem .48rem;
+  border: 1px solid rgba(100, 116, 139, .24);
+  border-radius: 999px;
+  background: rgba(248, 250, 252, .94);
+  color: #64748b;
+  font-size: .7rem;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, .08);
+}
 .edu-cp-compact-cover {
   position: absolute;
   inset: 0;
@@ -2939,6 +2973,9 @@
   display: flex;
   align-items: center;
   gap: .36rem;
+}
+.edu-course-card.edu-cp-card-hidden .edu-cp-compact-title {
+  padding-right: 4.5rem;
 }
 .edu-course-card.edu-cp-card-compact .edu-course-name {
   min-width: 0;
@@ -3317,6 +3354,10 @@
     grid-template-columns: 1fr;
     gap: .16rem;
   }
+  .edu-course-detail-field-row {
+    grid-template-columns: 1fr;
+    gap: .18rem;
+  }
 }
 
 /* Native, regular-weight typography for club education content. */
@@ -3573,6 +3614,36 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+.edu-course-detail-field-list {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: .45rem;
+}
+.edu-course-detail-field-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 5.2rem minmax(0, 1fr);
+  gap: .5rem;
+  align-items: start;
+  padding: .52rem .62rem;
+  border: 1px solid rgba(15, 23, 42, .08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .62);
+}
+.edu-course-detail-field-row span {
+  color: var(--text-muted);
+  font-size: .74rem;
+  line-height: 1.35;
+}
+.edu-course-detail-field-row strong {
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: .86rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .edu-course-progress-list {
   position: relative;
   display: flex;
@@ -3738,7 +3809,17 @@
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: .45rem;
+}
+.edu-course-detail-signup-note {
+  flex: 1 1 100%;
+  color: var(--text-muted);
+  font-size: .76rem;
+  line-height: 1.35;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 .edu-course-detail-signup-btn {
   min-width: 104px;
@@ -3863,6 +3944,7 @@
 }
 [data-theme="dark"] .edu-course-progress-row,
 [data-theme="dark"] .edu-course-contact-list > div,
+[data-theme="dark"] .edu-course-detail-field-row,
 [data-theme="dark"] .edu-course-progress-empty,
 [data-theme="dark"] .edu-course-progress-more {
   border-color: rgba(148, 163, 184, .16);

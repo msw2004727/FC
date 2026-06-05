@@ -22,6 +22,9 @@ Object.assign(App, {
     const sectionBadge = (ids) => '<span class="edu-cp-fill-badge" data-fill-ids="' + ids.join(',') + '">已填 0 / ' + ids.length + '</span>';
     const row = (label, html, className = '') => '<div class="ce-row ' + className + '"><label>' + label + '</label>' + html + '</div>';
     const hint = (text) => '<div class="edu-cp-field-hint">' + text + '</div>';
+    const genderValue = ['male', 'female'].includes(String(plan?.genderRestriction || '')) ? String(plan.genderRestriction) : 'none';
+    const genderSelected = (value) => genderValue === value ? ' selected' : '';
+    const visibleChecked = !plan || plan.visibleOnTeamPage !== false ? ' checked' : '';
 
     const weekdayHtml = ['一','二','三','四','五','六','日'].map((label, idx) => {
       const dayVal = idx < 6 ? idx + 1 : 0;
@@ -65,6 +68,10 @@ Object.assign(App, {
           '<div><label>開放學員報名</label><small>開啟後學員可在俱樂部頁面自助報名此方案</small></div>' +
           '<label class="toggle-switch"><input type="checkbox" id="edu-cp-signup"' + (plan?.allowSignup ? ' checked' : '') + '><span class="toggle-slider"></span></label>' +
         '</div>' +
+        '<div class="edu-cp-toggle-row">' +
+          '<div><label>在俱樂部頁公開顯示</label><small>關閉後一般使用者不會在課程清單看到，職員仍可管理。</small></div>' +
+          '<label class="toggle-switch"><input type="checkbox" id="edu-cp-visible-on-team"' + visibleChecked + '><span class="toggle-slider"></span></label>' +
+        '</div>' +
       '</section>' +
 
       '<details class="edu-cp-section edu-cp-advanced-section">' +
@@ -80,9 +87,13 @@ Object.assign(App, {
       '</details>' +
 
       '<details class="edu-cp-section edu-cp-advanced-section">' +
-        '<summary><span>報名資訊</span>' + sectionBadge(['edu-cp-signup-deadline','edu-cp-requirement-tags','edu-cp-included-tags','edu-cp-target-tags']) + '</summary>' +
+        '<summary><span>報名資訊</span>' + sectionBadge(['edu-cp-signup-deadline','edu-cp-min-capacity','edu-cp-min-age','edu-cp-max-age','edu-cp-gender','edu-cp-trial-info','edu-cp-requirement-tags','edu-cp-included-tags','edu-cp-target-tags']) + '</summary>' +
         '<div class="edu-cp-extra-grid">' +
           row('報名截止日', '<input type="date" id="edu-cp-signup-deadline" value="' + (fieldValue ? fieldValue('signupDeadline') : '') + '">') +
+          row('最低開班人數', '<input type="number" id="edu-cp-min-capacity" min="1" max="999" placeholder="例如 6" value="' + numericValue('minCapacity') + '">' + hint('只作為資訊提醒，不會自動阻擋報名。')) +
+          row('年齡限制', '<div class="edu-cp-range-row"><input type="number" id="edu-cp-min-age" min="0" max="99" placeholder="最小" value="' + numericValue('minAge') + '"><span>到</span><input type="number" id="edu-cp-max-age" min="0" max="99" placeholder="最大" value="' + numericValue('maxAge') + '"></div>' + hint('目前只顯示提醒，不自動判斷資格。')) +
+          row('性別限制', '<select id="edu-cp-gender"><option value="none"' + genderSelected('none') + '>不限</option><option value="male"' + genderSelected('male') + '>限男性</option><option value="female"' + genderSelected('female') + '>限女性</option></select>' + hint('目前只顯示提醒，不自動阻擋報名。')) +
+          row('試上說明', '<input type="text" id="edu-cp-trial-info" maxlength="300" placeholder="例如可預約一次試上，需先私訊確認" value="' + valueOf('trialSessionInfo') + '">') +
           row('報名要求', '<input type="text" id="edu-cp-requirement-tags" maxlength="120" placeholder="例：需自備球鞋" value="' + escapeHTML(tagsValue ? tagsValue('requirementTags') : '') + '">') +
           row('費用包含', '<input type="text" id="edu-cp-included-tags" maxlength="120" placeholder="例：場地, 教練費" value="' + escapeHTML(tagsValue ? tagsValue('includedTags') : '') + '">') +
           row('適合對象', '<input type="text" id="edu-cp-target-tags" maxlength="120" placeholder="例：新手, 親子" value="' + escapeHTML(tagsValue ? tagsValue('targetTags') : '') + '">') +
@@ -90,18 +101,22 @@ Object.assign(App, {
       '</details>' +
 
       '<details class="edu-cp-section edu-cp-advanced-section">' +
-        '<summary><span>聯絡與場地</span>' + sectionBadge(['edu-cp-manager-name','edu-cp-manager-contact','edu-cp-coach-name','edu-cp-location']) + '</summary>' +
+        '<summary><span>聯絡與場地</span>' + sectionBadge(['edu-cp-manager-name','edu-cp-manager-contact','edu-cp-notify-targets','edu-cp-coach-name','edu-cp-location']) + '</summary>' +
         '<div class="edu-cp-extra-grid">' +
           row('負責人', '<input type="text" id="edu-cp-manager-name" maxlength="30" placeholder="例：課務窗口" value="' + (fieldValue ? fieldValue('managerName') : '') + '">') +
           row('負責人聯繫', '<input type="text" id="edu-cp-manager-contact" maxlength="160" placeholder="例：LINE ID / 電話 / 聯繫連結" value="' + (fieldValue ? fieldValue('managerContact') : '') + '">') +
+          row('報名通知對象', '<input type="text" id="edu-cp-notify-targets" maxlength="200" placeholder="例如 課務群組、王教練、櫃台" value="' + valueOf('notifyTargets') + '">') +
           row('授課教練', '<input type="text" id="edu-cp-coach-name" maxlength="30" placeholder="例：王教練" value="' + (fieldValue ? fieldValue('coachName') : '') + '">') +
           row('上課地點', '<input type="text" id="edu-cp-location" maxlength="80" placeholder="例：台中市南屯運動中心" value="' + (fieldValue ? fieldValue('location') : '') + '">') +
         '</div>' +
       '</details>' +
 
       '<details class="edu-cp-section edu-cp-advanced-section">' +
-        '<summary><span>詳細說明</span>' + sectionBadge(['edu-cp-course-content','edu-cp-cancellation-policy']) + '</summary>' +
+        '<summary><span>詳細說明</span>' + sectionBadge(['edu-cp-course-content','edu-cp-payment-method','edu-cp-payment-deadline','edu-cp-makeup-policy','edu-cp-cancellation-policy']) + '</summary>' +
         row('課程內容', '<textarea id="edu-cp-course-content" maxlength="900" rows="4" placeholder="介紹課程主軸、訓練內容、適合程度與學習目標">' + (courseContentValue || '') + '</textarea>') +
+        row('付款方式', '<textarea id="edu-cp-payment-method" maxlength="300" rows="2" placeholder="例如 轉帳、現金、LINE Pay，請填寫付款資訊與備註">' + valueOf('paymentMethod') + '</textarea>') +
+        row('付款期限', '<input type="text" id="edu-cp-payment-deadline" maxlength="60" placeholder="例如 報名後 3 日內 / 開課前完成" value="' + valueOf('paymentDeadline') + '">') +
+        row('補課規則', '<textarea id="edu-cp-makeup-policy" maxlength="500" rows="3" placeholder="例如 請假需提前告知，可於同級班補課一次">' + valueOf('makeupPolicy') + '</textarea>') +
         row('取消政策', '<textarea id="edu-cp-cancellation-policy" maxlength="500" rows="3" placeholder="例：開課前 7 日可全額退費；開課前 3 日內取消，將收取 30% 行政費；開課後恕不退費。">' + (cancellationPolicyValue || '') + '</textarea>') +
         '<div class="edu-cp-extra-hint">標籤請用逗號分隔；這些欄位會先用於卡片與詳情顯示，不會改變報名流程。</div>' +
       '</details>' +
@@ -139,6 +154,7 @@ Object.assign(App, {
     const el = document.getElementById(id);
     if (!el) return false;
     if (el.type === 'checkbox') return !!el.checked;
+    if (id === 'edu-cp-gender') return el.value !== 'none';
     return !!String(el.value || '').trim();
   },
 });

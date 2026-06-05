@@ -47,8 +47,10 @@ Object.assign(App, {
   _getTeamDetailV2CurrentCoursePlans(t) {
     if (!t) return [];
     const plans = typeof this.getEduCoursePlans === 'function' ? this.getEduCoursePlans(t.id) : [];
+    const isStaff = !!this.isEduClubStaff?.(t.id);
     return (Array.isArray(plans) ? plans : []).filter(p =>
       p && p.active !== false && !this._isTeamDetailV2CoursePlanEnded(p)
+      && (isStaff || p.visibleOnTeamPage !== false)
     );
   },
 

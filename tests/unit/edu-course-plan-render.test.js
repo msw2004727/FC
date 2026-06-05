@@ -192,6 +192,41 @@ describe('edu course plan render', () => {
     expect(html.indexOf('App.showEduCoursePlanDetail')).toBeLessThan(html.indexOf('App.showCourseEnrollmentList'));
   });
 
+  test('hidden course plans are visible only to staff in the course list', async () => {
+    const plans = [
+      {
+        id: 'publicPlan',
+        name: 'Public Plan',
+        planType: 'weekly',
+        weekdays: [1],
+        startDate: '2099-01-01',
+        endDate: '2099-02-01',
+        allowSignup: true,
+      },
+      {
+        id: 'hiddenPlan',
+        name: 'Hidden Plan',
+        planType: 'weekly',
+        weekdays: [2],
+        startDate: '2099-01-01',
+        endDate: '2099-02-01',
+        allowSignup: true,
+        visibleOnTeamPage: false,
+      },
+    ];
+
+    const publicHtml = await renderPlans(plans, false);
+    const staffHtml = await renderPlans(plans, true);
+
+    expect(publicHtml).toContain('Public Plan');
+    expect(publicHtml).not.toContain('Hidden Plan');
+    expect(publicHtml).not.toContain('edu-cp-card-hidden-badge');
+    expect(staffHtml).toContain('Public Plan');
+    expect(staffHtml).toContain('Hidden Plan');
+    expect(staffHtml).toContain('edu-cp-card-hidden');
+    expect(staffHtml).toContain('未公開');
+  });
+
   test('course detail modal escapes plan copy and shows derived next class', async () => {
     const overlay = { className: '', innerHTML: '', onclick: null, remove: jest.fn() };
     const appended = [];
@@ -203,6 +238,14 @@ describe('edu course plan render', () => {
         allowSignup: true,
         courseContent: '<img src=x onerror=alert(1)>Bring water',
         cancellationPolicy: 'Policy <safe>',
+        makeupPolicy: 'Makeup <safe>',
+        paymentMethod: 'Bank <safe>',
+        paymentDeadline: 'Before start',
+        trialSessionInfo: 'Trial <safe>',
+        minCapacity: 6,
+        minAge: 8,
+        maxAge: 12,
+        genderRestriction: 'female',
         price: 3600,
         totalSessions: 12,
         location: '<script>bad</script>',
@@ -246,6 +289,13 @@ describe('edu course plan render', () => {
     expect(overlay.innerHTML).toContain('2026-05-27 09:00');
     expect(overlay.innerHTML).toContain('&lt;img src=x onerror=alert(1)&gt;Bring water');
     expect(overlay.innerHTML).toContain('Policy &lt;safe&gt;');
+    expect(overlay.innerHTML).toContain('Makeup &lt;safe&gt;');
+    expect(overlay.innerHTML).toContain('Bank &lt;safe&gt;');
+    expect(overlay.innerHTML).toContain('Before start');
+    expect(overlay.innerHTML).toContain('Trial &lt;safe&gt;');
+    expect(overlay.innerHTML).toContain('6 人開班');
+    expect(overlay.innerHTML).toContain('8 - 12 歲');
+    expect(overlay.innerHTML).toContain('限女性');
     expect(overlay.innerHTML).toContain('edu-course-meta-period');
     expect(overlay.innerHTML).toContain('edu-course-meta-schedule');
     expect(overlay.innerHTML).toContain('edu-course-detail-content');
@@ -262,6 +312,45 @@ describe('edu course plan render', () => {
     expect(scrollIndex).toBeLessThan(overlay.innerHTML.indexOf('edu-course-detail-meta'));
     expect(overlay.innerHTML.indexOf('edu-course-detail-meta')).toBeLessThan(overlay.innerHTML.indexOf('edu-course-detail-progress'));
     expect(overlay.innerHTML.indexOf('edu-course-detail-progress')).toBeLessThan(overlay.innerHTML.indexOf('edu-course-detail-footer'));
+  });
+
+  test('course detail blocks hidden plans for public viewers', async () => {
+    const overlay = { className: '', innerHTML: '', onclick: null, remove: jest.fn() };
+    const appended = [];
+    const app = {
+      getEduCoursePlans: jest.fn(() => [{
+        id: 'hiddenPlan',
+        name: 'Hidden Plan',
+        planType: 'weekly',
+        allowSignup: true,
+        visibleOnTeamPage: false,
+      }]),
+      isEduClubStaff: jest.fn(() => false),
+      _loadCourseEnrollments: jest.fn(() => Promise.resolve([])),
+      _isCoursePlanVisibleToUser: jest.fn(() => false),
+    };
+    const context = {
+      App: app,
+      ApiService: { getCurrentUser: jest.fn(() => ({ uid: 'viewer' })) },
+      document: {
+        querySelector: jest.fn(() => null),
+        createElement: jest.fn(() => overlay),
+        body: { appendChild: jest.fn((node) => appended.push(node)) },
+      },
+      escapeHTML,
+      Date,
+      console,
+      Promise,
+    };
+    vm.runInNewContext(source, context, { filename: 'edu-course-plan-render.js' });
+
+    await context.App.showEduCoursePlanDetail('teamA', 'hiddenPlan');
+
+    expect(app._loadCourseEnrollments).toHaveBeenCalledWith('teamA', 'hiddenPlan');
+    expect(appended).toHaveLength(1);
+    expect(overlay.className).toContain('edu-course-detail-hidden-overlay');
+    expect(overlay.innerHTML).toContain('課程尚未公開');
+    expect(overlay.innerHTML).not.toContain('立即報名');
   });
 
   test('course detail progress keeps upcoming lessons visible in long weekly plans', async () => {
@@ -622,6 +711,7 @@ describe('edu course plan render', () => {
         name: 'Plan A',
         planType: 'weekly',
         allowSignup: true,
+        visibleOnTeamPage: false,
         maxCapacity: 12,
         price: 0,
         weekdays: [1, 3],
@@ -629,6 +719,15 @@ describe('edu course plan render', () => {
         startDate: '2099-01-01',
         endDate: '2099-03-01',
         description: 'Safe description',
+        makeupPolicy: 'Makeup policy',
+        paymentMethod: 'Bank transfer',
+        paymentDeadline: 'Before first class',
+        notifyTargets: 'Ops team',
+        trialSessionInfo: 'One trial',
+        minCapacity: 6,
+        minAge: 8,
+        maxAge: 12,
+        genderRestriction: 'female',
         featured: true,
       },
       planId: 'planA',
@@ -648,6 +747,26 @@ describe('edu course plan render', () => {
     expect(container.innerHTML).toContain('id="edu-cp-name"');
     expect(container.innerHTML).toContain('id="edu-cp-price"');
     expect(container.innerHTML).toContain('value="0"');
+    expect(container.innerHTML).toContain('id="edu-cp-visible-on-team"');
+    expect(container.innerHTML).not.toContain('id="edu-cp-visible-on-team" checked');
+    expect(container.innerHTML).toContain('id="edu-cp-min-capacity"');
+    expect(container.innerHTML).toContain('value="6"');
+    expect(container.innerHTML).toContain('id="edu-cp-min-age"');
+    expect(container.innerHTML).toContain('value="8"');
+    expect(container.innerHTML).toContain('id="edu-cp-max-age"');
+    expect(container.innerHTML).toContain('value="12"');
+    expect(container.innerHTML).toContain('id="edu-cp-gender"');
+    expect(container.innerHTML).toContain('<option value="female" selected>');
+    expect(container.innerHTML).toContain('id="edu-cp-trial-info"');
+    expect(container.innerHTML).toContain('One trial');
+    expect(container.innerHTML).toContain('id="edu-cp-notify-targets"');
+    expect(container.innerHTML).toContain('Ops team');
+    expect(container.innerHTML).toContain('id="edu-cp-payment-method"');
+    expect(container.innerHTML).toContain('Bank transfer');
+    expect(container.innerHTML).toContain('id="edu-cp-payment-deadline"');
+    expect(container.innerHTML).toContain('Before first class');
+    expect(container.innerHTML).toContain('id="edu-cp-makeup-policy"');
+    expect(container.innerHTML).toContain('Makeup policy');
     expect(container.innerHTML).toContain('id="edu-cp-description"');
     expect(container.innerHTML).toContain('id="edu-cp-save-btn"');
     expect(app._updateCoursePlanPreview).toHaveBeenCalled();
@@ -660,6 +779,7 @@ describe('edu course plan render', () => {
       'edu-cp-group': { value: 'groupA', selectedOptions: [{ dataset: { name: 'Group A' } }] },
       'edu-cp-type': { value: 'weekly' },
       'edu-cp-signup': { checked: true },
+      'edu-cp-visible-on-team': { checked: false },
       'edu-cp-capacity': { value: '12' },
       'edu-cp-price': { value: '2400' },
       'edu-cp-category-tags': { value: 'fixed, beginner' },
@@ -669,11 +789,20 @@ describe('edu course plan render', () => {
       'edu-cp-included-tags': { value: 'field, coach' },
       'edu-cp-target-tags': { value: 'newbie' },
       'edu-cp-signup-deadline': { value: '2099-01-10' },
+      'edu-cp-min-capacity': { value: '6' },
+      'edu-cp-min-age': { value: '8' },
+      'edu-cp-max-age': { value: '12' },
+      'edu-cp-gender': { value: 'female' },
+      'edu-cp-trial-info': { value: 'Trial info' },
       'edu-cp-coach-name': { value: 'Coach A' },
       'edu-cp-location': { value: 'Center A' },
       'edu-cp-manager-name': { value: 'Manager A' },
       'edu-cp-manager-contact': { value: 'line@example' },
+      'edu-cp-notify-targets': { value: 'Ops team' },
       'edu-cp-course-content': { value: 'Safe course content' },
+      'edu-cp-payment-method': { value: 'Bank transfer' },
+      'edu-cp-payment-deadline': { value: 'Before class' },
+      'edu-cp-makeup-policy': { value: 'Makeup once' },
       'edu-cp-cancellation-policy': { value: 'Safe cancellation policy' },
       'edu-cp-description': { value: 'Safe description' },
       'edu-cp-featured': { checked: true },
@@ -725,11 +854,21 @@ describe('edu course plan render', () => {
     expect(savedPayload.featureTags).toEqual(['small group', 'ball control']);
     expect(savedPayload.includedTags).toEqual(['field', 'coach']);
     expect(savedPayload.signupDeadline).toBe('2099-01-10');
+    expect(savedPayload.visibleOnTeamPage).toBe(false);
+    expect(savedPayload.minCapacity).toBe(6);
+    expect(savedPayload.minAge).toBe(8);
+    expect(savedPayload.maxAge).toBe(12);
+    expect(savedPayload.genderRestriction).toBe('female');
+    expect(savedPayload.trialSessionInfo).toBe('Trial info');
     expect(savedPayload.coachName).toBe('Coach A');
     expect(savedPayload.location).toBe('Center A');
     expect(savedPayload.managerName).toBe('Manager A');
     expect(savedPayload.managerContact).toBe('line@example');
+    expect(savedPayload.notifyTargets).toBe('Ops team');
     expect(savedPayload.courseContent).toBe('Safe course content');
+    expect(savedPayload.paymentMethod).toBe('Bank transfer');
+    expect(savedPayload.paymentDeadline).toBe('Before class');
+    expect(savedPayload.makeupPolicy).toBe('Makeup once');
     expect(savedPayload.cancellationPolicy).toBe('Safe cancellation policy');
     expect(savedPayload.description).toBe('Safe description');
     expect(savedPayload.price).toBe(2400);

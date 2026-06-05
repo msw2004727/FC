@@ -723,8 +723,10 @@ describe('team detail club activity section', () => {
     Object.assign(app, {
       _isTeamDetailSectionVisible: (_team, key) => key === 'courses',
       _isTeamDetailTeachingEnabled: () => true,
+      isEduClubStaff: () => false,
       getEduCoursePlans: () => [
         { id: 'current', active: true, endDate: '2099-01-01', name: '進行中' },
+        { id: 'hidden', active: true, endDate: '2099-01-01', name: 'Hidden Course', visibleOnTeamPage: false },
         { id: 'ended', active: true, endDate: '2000-01-01', name: '已結束' },
         { id: 'inactive', active: false, endDate: '2099-01-01', name: '停用' },
       ],
@@ -734,6 +736,7 @@ describe('team detail club activity section', () => {
     expect(app._getTeamDetailV2RecruitText({ id: 'teamA', eduSettings: { acceptingStudents: true } })).toContain('1 個課程接受報名');
     const featured = app._buildTeamDetailV2FeaturedCourses({ id: 'teamA' });
     expect(featured).toContain('進行中');
+    expect(featured).not.toContain('Hidden Course');
     expect(featured).not.toContain('已結束');
   });
 

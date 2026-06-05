@@ -221,9 +221,21 @@ Object.assign(App, {
       this.showToast?.('課程資料載入後可查看詳細內容');
       return false;
     }
+    const isStaff = !!this.isEduClubStaff?.(teamId);
+    const curUser = typeof ApiService !== 'undefined' && typeof ApiService.getCurrentUser === 'function'
+      ? ApiService.getCurrentUser()
+      : null;
+    const canViewPlan = typeof this._isCoursePlanVisibleToUser === 'function'
+      ? this._isCoursePlanVisibleToUser(plan, { uid: curUser?.uid, teamId, isStaff })
+      : (isStaff || plan.visibleOnTeamPage !== false);
+    if (!canViewPlan) {
+      this.showToast?.('此課程尚未公開');
+      return false;
+    }
     const count = Number(plan._effectiveCount || 0);
     const max = Number(plan.maxCapacity || 0);
     const price = Number(plan.price || 0);
+    const canSignup = plan.allowSignup && (isStaff || plan.visibleOnTeamPage !== false);
     const schedule = plan.planType === 'weekly'
       ? ((plan.weekdays || []).map(d => '週' + this._weekdayLabel?.(d)).join('、') || '未設定')
       : `共 ${Number(plan.totalSessions || 0)} 堂`;
@@ -237,7 +249,7 @@ Object.assign(App, {
       + '</div>'
       + (plan.description ? '<p class="td-v2-modal-desc">' + escapeHTML(plan.description) + '</p>' : '')
       + '<div class="td-v2-modal-foot"><div><strong>' + escapeHTML(price > 0 ? 'NT$ ' + price.toLocaleString() : '費用未設定') + '</strong><span>課程費用</span></div>'
-      + (plan.allowSignup ? '<button type="button" onclick="App.applyCourseEnrollment(\'' + escapeHTML(teamId) + '\',\'' + escapeHTML(plan.id || '') + '\')">我要報名</button>' : '<button type="button" disabled>未開放報名</button>') + '</div>';
+      + (canSignup ? '<button type="button" onclick="App.applyCourseEnrollment(\'' + escapeHTML(teamId) + '\',\'' + escapeHTML(plan.id || '') + '\')">我要報名</button>' : '<button type="button" disabled>未開放報名</button>') + '</div>';
     rt.modal.hidden = false;
     rt.modal.setAttribute('aria-hidden', 'false');
     rt.modal.classList.add('open');

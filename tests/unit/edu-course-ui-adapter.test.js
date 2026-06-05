@@ -73,4 +73,34 @@ describe('education course UI adapter', () => {
     expect(next.date).toBe('2026-05-27');
     expect(next.startTime).toBe('09:00');
   });
+
+  test('allows staff and enrolled students to view hidden course plan details', () => {
+    const app = loadAdapter();
+    app.getEduStudents = jest.fn(() => [
+      { id: 'studentA', selfUid: 'viewer', enrollStatus: 'active', groupIds: [] },
+      { id: 'studentB', selfUid: 'other', enrollStatus: 'active', groupIds: ['groupA'] },
+    ]);
+
+    const hiddenPlan = {
+      id: 'planHidden',
+      visibleOnTeamPage: false,
+      _enrollments: [{ studentId: 'studentA', status: 'pending' }],
+    };
+
+    expect(app._isCoursePlanVisibleToUser(hiddenPlan, { teamId: 'teamA', uid: 'viewer', isStaff: false })).toBe(true);
+    expect(app._isCoursePlanVisibleToUser(hiddenPlan, { teamId: 'teamA', uid: 'stranger', isStaff: false })).toBe(false);
+    expect(app._isCoursePlanVisibleToUser(hiddenPlan, { teamId: 'teamA', uid: 'stranger', isStaff: true })).toBe(true);
+  });
+
+  test('does not treat rejected hidden-plan enrollments as view permission', () => {
+    const app = loadAdapter();
+    app.getEduStudents = jest.fn(() => [
+      { id: 'studentA', parentUid: 'viewer', enrollStatus: 'active', groupIds: [] },
+    ]);
+
+    expect(app._isCoursePlanVisibleToUser({
+      visibleOnTeamPage: false,
+      _enrollments: [{ studentId: 'studentA', status: 'rejected' }],
+    }, { teamId: 'teamA', uid: 'viewer', isStaff: false })).toBe(false);
+  });
 });

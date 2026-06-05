@@ -45,11 +45,8 @@ Object.assign(App, {
     // 取得當前用戶的報名狀態（用於學員視角按鈕）
     const today = new Date().toISOString().slice(0, 10);
     const isPlanEnded = (plan) => !!(plan && plan.endDate && plan.endDate < today);
-    const currentPlans = activePlans.filter(p => !isPlanEnded(p));
-    const endedPlans = activePlans.filter(isPlanEnded);
     this._eduCoursePlanTabByTeam = this._eduCoursePlanTabByTeam || {};
     const selectedTab = this._eduCoursePlanTabByTeam[teamId] === 'ended' ? 'ended' : 'active';
-    const displayPlans = selectedTab === 'ended' ? endedPlans : currentPlans;
 
     const curUser = ApiService.getCurrentUser();
     const myUid = curUser?.uid;
@@ -74,6 +71,11 @@ Object.assign(App, {
     }));
     if (isStale()) return false;
 
+    const listPlans = activePlans.filter(p => isStaff || p.visibleOnTeamPage !== false);
+    const currentPlans = listPlans.filter(p => !isPlanEnded(p));
+    const endedPlans = listPlans.filter(isPlanEnded);
+    const displayPlans = selectedTab === 'ended' ? endedPlans : currentPlans;
+
     const formatMoney = (value) => {
       const amount = Number(value || 0);
       return Number.isFinite(amount) && amount > 0 ? 'NT$ ' + amount.toLocaleString() : '免費';
@@ -86,6 +88,9 @@ Object.assign(App, {
       const coverHtml = coverImage
         ? '<img class="edu-cp-compact-cover" src="' + escapeHTML(coverImage) + '" alt="" loading="lazy" decoding="async">'
         : '';
+      const isHidden = p.visibleOnTeamPage === false;
+      const hiddenClass = isHidden ? ' edu-cp-card-hidden' : '';
+      const hiddenBadge = isStaff && isHidden ? '<span class="edu-cp-card-hidden-badge">未公開</span>' : '';
       const planEnded = isPlanEnded(p);
       const statusBadge = planEnded
         ? '<span class="edu-cp-status edu-cp-status-ended">已結束</span>'
@@ -155,8 +160,9 @@ Object.assign(App, {
 
       const detailBtn = '<button class="outline-btn edu-cp-detail-btn" onclick="event.stopPropagation();App.showEduCoursePlanDetail(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">詳細資訊</button>';
 
-      return '<div class="edu-course-card edu-cp-card-v3 edu-cp-card-compact edu-cp-card-' + (p.planType === 'weekly' ? 'weekly' : 'session') + coverClass + '" data-course-plan-id="' + escapeHTML(p.id || '') + '">'
+      return '<div class="edu-course-card edu-cp-card-v3 edu-cp-card-compact edu-cp-card-' + (p.planType === 'weekly' ? 'weekly' : 'session') + hiddenClass + coverClass + '" data-course-plan-id="' + escapeHTML(p.id || '') + '">'
         + coverHtml
+        + hiddenBadge
         + '<div class="edu-cp-compact-main">'
         + '<div class="edu-cp-compact-title">'
         + '<span class="edu-course-name">' + escapeHTML(p.name) + '</span>'
@@ -208,14 +214,47 @@ Object.assign(App, {
     return this.renderEduCoursePlanList(teamId, this.isEduClubStaff?.(teamId));
   },
 
+  _renderCoursePlanHiddenNotice(plan) {
+    const existing = document.querySelector?.('.edu-course-detail-overlay');
+    if (existing) existing.remove();
+    const overlay = document.createElement('div');
+    overlay.className = 'edu-info-overlay edu-course-detail-overlay edu-course-detail-hidden-overlay';
+    overlay.onclick = (event) => { if (event.target === overlay) overlay.remove(); };
+    overlay.innerHTML = '<div class="edu-info-dialog edu-course-detail-hidden-dialog">'
+      + '<div class="edu-info-dialog-title">課程尚未公開</div>'
+      + '<div class="edu-info-dialog-body">「' + escapeHTML(plan?.name || '此課程') + '」目前只開放俱樂部職員管理，尚未顯示在公開課程清單。</div>'
+      + '<button type="button" class="primary-btn" onclick="this.closest(\'.edu-info-overlay\').remove()">知道了</button>'
+      + '</div>';
+    document.body.appendChild(overlay);
+  },
+
   async showEduCoursePlanDetail(teamId, planId) {
     const plan = (this.getEduCoursePlans?.(teamId) || []).find(item => String(item.id || item._docId || '') === String(planId || ''));
     if (!plan) {
       this.showToast?.('找不到課程資料');
       return;
     }
+    const isStaff = !!this.isEduClubStaff?.(teamId);
+    const curUser = typeof ApiService !== 'undefined' && typeof ApiService.getCurrentUser === 'function'
+      ? ApiService.getCurrentUser()
+      : null;
     const requestKey = teamId + ':' + planId + ':' + Date.now();
     this._eduCoursePlanDetailRequestKey = requestKey;
+    if (plan.visibleOnTeamPage === false && !isStaff && !Array.isArray(plan._enrollments) && typeof this._loadCourseEnrollments === 'function') {
+      try {
+        plan._enrollments = await this._loadCourseEnrollments(teamId, plan.id);
+      } catch (_) {
+        plan._enrollments = [];
+      }
+      if (this._eduCoursePlanDetailRequestKey !== requestKey) return;
+    }
+    const canViewPlan = typeof this._isCoursePlanVisibleToUser === 'function'
+      ? this._isCoursePlanVisibleToUser(plan, { uid: curUser?.uid, teamId, isStaff })
+      : (isStaff || plan.visibleOnTeamPage !== false);
+    if (!canViewPlan) {
+      this._renderCoursePlanHiddenNotice?.(plan);
+      return;
+    }
     let sessions = [];
     if (plan.planType === 'session') {
       const cacheKey = this._getCourseSessionCacheKey?.(teamId, plan.id);
@@ -246,7 +285,6 @@ Object.assign(App, {
           status: { label: plan.endDate && plan.endDate < new Date().toISOString().slice(0, 10) ? '已結束' : (plan.allowSignup ? '招生中' : '暫停報名') },
           tags: [],
         };
-    const isStaff = !!this.isEduClubStaff?.(teamId);
     const existing = document.querySelector?.('.edu-course-detail-overlay');
     if (existing) existing.remove();
     const overlay = document.createElement('div');
@@ -364,6 +402,33 @@ Object.assign(App, {
       if (!isUrl) return '<span class="edu-course-contact-value">' + escapeHTML(raw) + '</span>';
       return '<a class="edu-course-contact-value" href="' + escapeHTML(raw) + '" target="_blank" rel="noopener noreferrer">' + escapeHTML(raw) + '</a>';
     };
+    const hasNumber = (value) => value !== null && value !== undefined && String(value).trim() !== '' && Number.isFinite(Number(value));
+    const renderOptionalRow = (label, value) => {
+      const raw = String(value == null ? '' : value).trim();
+      if (!raw) return '';
+      return '<div class="edu-course-detail-field-row"><span>' + escapeHTML(label) + '</span><strong>' + escapeHTML(raw) + '</strong></div>';
+    };
+    const renderOptionalSection = (className, title, rows) => {
+      const body = rows.map(row => renderOptionalRow(row.label, row.value)).filter(Boolean).join('');
+      return body
+        ? '<section class="edu-course-detail-section ' + className + '"><h4>' + escapeHTML(title) + '</h4><div class="edu-course-detail-field-list">' + body + '</div></section>'
+        : '';
+    };
+    const minAgeText = hasNumber(plan.minAge) ? String(Number(plan.minAge)) : '';
+    const maxAgeText = hasNumber(plan.maxAge) ? String(Number(plan.maxAge)) : '';
+    const ageRestrictionText = minAgeText && maxAgeText
+      ? minAgeText + ' - ' + maxAgeText + ' 歲'
+      : minAgeText
+        ? minAgeText + ' 歲以上'
+        : maxAgeText
+          ? maxAgeText + ' 歲以下'
+          : '';
+    const genderRestrictionText = plan.genderRestriction === 'male'
+      ? '限男性'
+      : plan.genderRestriction === 'female'
+        ? '限女性'
+        : '';
+    const minCapacityText = hasNumber(plan.minCapacity) ? String(Number(plan.minCapacity)) + ' 人開班' : '';
     const lessons = plan.planType === 'session' ? sessionLessons : weeklyLessons;
     const totalLessonCount = Number(plan.totalSessions || 0) || lessons.length;
     const visibleLessons = lessons;
@@ -419,19 +484,30 @@ Object.assign(App, {
       + '<h4>課程進度（共 ' + (totalLessonCount || 0) + ' 堂）</h4>'
       + '<div class="edu-course-progress-list">' + progressRowsHtml + '</div>'
       + '</section>';
+    const signupInfoHtml = renderOptionalSection('edu-course-detail-signup-info', '報名提醒', [
+      { label: '報名截止', value: plan.signupDeadline },
+      { label: '最低開班', value: minCapacityText },
+      { label: '年齡提醒', value: ageRestrictionText },
+      { label: '性別提醒', value: genderRestrictionText },
+      { label: '試上說明', value: plan.trialSessionInfo },
+    ]);
     const contactHtml = '<section class="edu-course-detail-section edu-course-detail-contact">'
       + '<h4>課務聯繫</h4>'
       + '<div class="edu-course-contact-list">'
         + '<div class="edu-course-contact-person"><span>負責人</span><strong>' + escapeHTML(managerName || '未設定') + '</strong></div>'
         + '<div class="edu-course-contact-channel"><span>聯繫方式</span>' + renderContactValue(managerContact) + '</div>'
+        + (isStaff && String(plan.notifyTargets || '').trim() ? '<div class="edu-course-contact-notify"><span>報名通知</span><strong>' + escapeHTML(String(plan.notifyTargets || '').trim()) + '</strong></div>' : '')
       + '</div>'
       + '</section>';
-    const cancellationPolicy = String(plan.cancellationPolicy || '').trim();
-    const policyHtml = cancellationPolicy
-      ? '<section class="edu-course-detail-section edu-course-detail-policy">'
-        + '<h4>取消政策</h4>'
-        + '<p class="edu-course-detail-copy">' + escapeHTML(cancellationPolicy) + '</p>'
-        + '</section>'
+    const policyHtml = renderOptionalSection('edu-course-detail-policy', '規則與付款', [
+      { label: '付款方式', value: plan.paymentMethod },
+      { label: '付款期限', value: plan.paymentDeadline },
+      { label: '補課規則', value: plan.makeupPolicy },
+      { label: '取消政策', value: plan.cancellationPolicy },
+    ]);
+    const signupReminderText = [ageRestrictionText, genderRestrictionText].filter(Boolean).join(' · ');
+    const signupReminderHtml = signupReminderText
+      ? '<div class="edu-course-detail-signup-note">提醒：' + escapeHTML(signupReminderText) + '</div>'
       : '';
     const staffActions = isStaff
       ? '<div class="edu-course-detail-staff-actions">'
@@ -439,7 +515,7 @@ Object.assign(App, {
         + '<button type="button" class="outline-btn small" onclick="event.stopPropagation();this.closest(\'.edu-info-overlay\').remove();App.showCourseEnrollmentList(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\')">名單管理</button>'
         + '</div>'
       : '';
-    const signupActionHtml = !isStaff && plan.allowSignup && !this._isCoursePlanEnded?.(plan)
+    const signupActionHtml = !isStaff && plan.visibleOnTeamPage !== false && plan.allowSignup && !this._isCoursePlanEnded?.(plan)
       ? '<button type="button" class="primary-btn edu-course-detail-signup-btn" onclick="event.stopPropagation();this.closest(\'.edu-info-overlay\').remove();App.applyCourseEnrollment(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\')">立即報名</button>'
       : '';
     overlay.innerHTML = '<div class="edu-info-dialog edu-course-detail-dialog">'
@@ -456,13 +532,14 @@ Object.assign(App, {
         + extraTagsHtml
         + '<div class="edu-course-detail-meta">' + metaHtml + '</div>'
         + courseContentHtml
+        + signupInfoHtml
         + contactHtml
         + progressHtml
         + policyHtml
       + '</div>'
       + '<div class="edu-course-detail-footer">'
         + '<div class="edu-course-price-block"><strong>' + escapeHTML(formatCurrency(priceAmount)) + '</strong><span>' + escapeHTML(priceSubText) + '</span></div>'
-        + '<div class="edu-course-detail-footer-actions">' + staffActions + signupActionHtml + '</div>'
+        + '<div class="edu-course-detail-footer-actions">' + signupReminderHtml + staffActions + signupActionHtml + '</div>'
       + '</div>'
       + '</div>';
     document.body.appendChild(overlay);

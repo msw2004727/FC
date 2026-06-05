@@ -13,6 +13,10 @@
     return Array.isArray(value) ? value.filter(item => item != null && String(item).trim() !== '') : [];
   }
 
+  function isRejectedStatus(value) {
+    return toText(value) === 'rejected';
+  }
+
   function todayString() {
     return new Date().toISOString().slice(0, 10);
   }
@@ -106,6 +110,38 @@
         return { key: 'open', label: '開放報名', className: 'edu-cp-status-open' };
       }
       return { key: 'closed', label: '暫停報名', className: 'edu-cp-status-closed' };
+    },
+
+    _isUserEnrolledInCoursePlan(plan, uid, teamId) {
+      const viewerUid = toText(uid);
+      if (!plan || !viewerUid) return false;
+      const students = typeof this.getEduStudents === 'function' ? this.getEduStudents(teamId) : [];
+      const myStudents = toArray(students).filter(student =>
+        toText(student.selfUid) === viewerUid || toText(student.parentUid) === viewerUid
+      );
+      if (!myStudents.length) return false;
+
+      const myStudentIds = new Set(myStudents.map(student => toText(student.id || student._docId)).filter(Boolean));
+      const enrollments = toArray(plan._enrollments);
+      if (enrollments.some(enrollment =>
+        myStudentIds.has(toText(enrollment.studentId)) && !isRejectedStatus(enrollment.status)
+      )) {
+        return true;
+      }
+
+      const groupId = toText(plan.groupId);
+      if (!groupId) return false;
+      return myStudents.some(student =>
+        toText(student.enrollStatus || 'active') === 'active'
+        && toArray(student.groupIds).map(toText).includes(groupId)
+      );
+    },
+
+    _isCoursePlanVisibleToUser(plan, context = {}) {
+      if (!plan) return false;
+      if (context.isStaff) return true;
+      if (plan.visibleOnTeamPage !== false) return true;
+      return this._isUserEnrolledInCoursePlan(plan, context.uid, context.teamId);
     },
 
     _normalizeCoursePlanViewModel(plan = {}, context = {}) {

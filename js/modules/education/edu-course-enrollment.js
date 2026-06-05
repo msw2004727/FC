@@ -34,6 +34,11 @@ Object.assign(App, {
     if (!plan) { this.showToast('找不到方案'); return; }
     const curUser = ApiService.getCurrentUser();
     if (!curUser) { this.showToast('請先登入'); return; }
+    const isStaff = !!this.isEduClubStaff?.(teamId);
+    if (plan.visibleOnTeamPage === false && !isStaff) {
+      this.showToast('此課程尚未公開，暫不開放報名');
+      return;
+    }
 
     // 載入該方案的報名紀錄（用於判斷已報名學員）
     const enrollments = await this._loadCourseEnrollments(teamId, planId);
