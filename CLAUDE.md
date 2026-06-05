@@ -561,6 +561,14 @@ https://miniapp.line.me/2009525300-AuPGQ0sh?{deepLinkParam}={id}
 | `js/modules/event/event-create-waitlist.js` | `_getNextWaitlistCandidate()` | 取得下一位候補遞補者（排序邏輯） |
 | `js/modules/event/event-create-waitlist.js` | `_promoteSingleCandidateLocal()` | 單人遞補本地狀態變更 + 通知 |
 | `js/modules/event/event-create-waitlist.js` | `_getPromotedArDocIds()` | 遞補時取得 activityRecord docId |
+| `functions/index.js` | `registerForEduCoursePlan()` | 課程方案報名 callable（server-side transaction + capacity guard） |
+| `functions/index.js` | `approveCourseEnrollment()` | 課程方案審核 callable（server-side transaction + student status sync） |
+| `functions/index.js` | `migrateEduCourseAutoEnrollments()` | 分組自動名單轉 enrollment 的 3.0 遷移 callable |
+| `functions/edu-course-enrollment-core.js` | `decideCoursePlanRegistration()` | 課程報名 eligibility / capacity 純函式 |
+| `functions/edu-course-enrollment-core.js` | `decideCoursePlanApproval()` | 課程審核 eligibility / capacity 純函式 |
+| `functions/edu-course-enrollment-core.js` | `getApprovedStudentIdSet()` | 課程方案核准人數來源（含 3.0 遷移旗標） |
+| `js/modules/education/edu-course-enrollment.js` | `applyCourseEnrollment()` | 課程報名 UI 入口（必須走 callable） |
+| `js/modules/education/edu-course-enrollment.js` | `_approveCourseEnrollment()` | 課程審核 UI 入口（必須走 callable） |
 
 ### 修改這些函式時的強制規則
 
@@ -579,6 +587,9 @@ https://miniapp.line.me/2009525300-AuPGQ0sh?{deepLinkParam}={id}
 10. **禁止在 batch.commit() 前修改本地快取**：`cancelRegistration` 和 `cancelCompanionRegistrations` 必須使用「模擬模式」— 在副本上計算結果，commit 成功後才寫入本地快取。違反此規則會導致 commit 失敗時快取汙染（假成功）。
 11. **Firestore 查詢結果的 Timestamp 必須轉換**：從 Firestore 讀取的 `registeredAt` 是 Timestamp 物件，必須透過 `data.registeredAt?.toDate?.()?.toISOString?.() || data.registeredAt` 轉換為 ISO 字串後才能用於排序。未轉換的 Timestamp 會導致 `new Date()` 回傳 NaN，遞補排序失效。
 12. **`_adjustWaitlistOnCapacityChange` 必須先查詢 Firestore**：函式開頭必須先從 Firestore 查詢最新報名資料並同步到快取，不得直接使用可能過時的快取資料進行遞補/降級判斷。
+13. **課程方案報名禁止前端直寫**：一般學員報名必須呼叫 `registerForEduCoursePlan`，審核必須呼叫 `approveCourseEnrollment`；`coursePlans/{planId}/enrollments` 的 Firestore 直寫只保留給 team staff / `team.manage_all` 手動維護。
+14. **課程方案容量必須在 Cloud Function transaction 內判斷**：不得用前端 `_effectiveCount`、本地 cache 或舊 `currentCount` 作為報名/審核的最終容量依據；批次報名必須檢查「已核准人數 + 本次 accepted 人數」是否超過 `maxCapacity`。
+15. **3.0 遷移完成旗標不可跳過 dry-run**：`eduAutoMigrationCompleted` 只能在 `migrateEduCourseAutoEnrollments({ dryRun:false, markCompleted:true })` 寫入完成後切換；切換後前端不得再建立 `_auto_` legacy enrollment。
 
 ### 子集合遷移後的查詢路徑（2026-04-12 Phase 4b 完成後強制）
 

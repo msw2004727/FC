@@ -18,6 +18,11 @@ const {
   listDateKeys,
   msToTaipeiDateKey,
 } = require("./ops-ltv-report");
+const {
+  buildCourseEnrollmentPayload,
+  decideCoursePlanApproval,
+  decideCoursePlanRegistration,
+} = require("./edu-course-enrollment-core");
 // @line/bot-sdk: lazy-loaded — 只有 processLinePushQueue 使用
 let _messagingApi;
 function getMessagingApi() {
@@ -3597,6 +3602,459 @@ exports.enqueuePrivilegedLineNotification = onCall(
  * processLinePushQueue
  * 監聽 linePushQueue 新文件，透過 LINE Messaging API 發送推播
  */
+function createEduCourseHttpsError(code, message, details = undefined) {
+  const map = {
+    PLAN_NOT_FOUND: "not-found",
+    PLAN_INACTIVE: "failed-precondition",
+    SIGNUP_CLOSED: "failed-precondition",
+    PLAN_ENDED: "failed-precondition",
+    PLAN_HIDDEN: "permission-denied",
+    NO_STUDENTS: "invalid-argument",
+    NO_ELIGIBLE_STUDENTS: "failed-precondition",
+    STUDENT_NOT_FOUND: "not-found",
+    STUDENT_FORBIDDEN: "permission-denied",
+    STUDENT_INACTIVE: "failed-precondition",
+    ALREADY_ENROLLED: "already-exists",
+    COURSE_FULL: "resource-exhausted",
+    ENROLLMENT_NOT_FOUND: "not-found",
+    ENROLLMENT_NOT_PENDING: "failed-precondition",
+    TEAM_NOT_FOUND: "not-found",
+    PERMISSION_DENIED: "permission-denied",
+  };
+  return new HttpsError(map[code] || "failed-precondition", message || code, details || { code });
+}
+
+function normalizeEduCourseRequestIds(data = {}) {
+  const teamId = sanitizeStr(data.teamId, 100);
+  const planId = sanitizeStr(data.planId, 100);
+  if (!teamId) throw new HttpsError("invalid-argument", "teamId is required");
+  if (!planId) throw new HttpsError("invalid-argument", "planId is required");
+  return { teamId, planId };
+}
+
+function courseEnrollmentDocId(studentId) {
+  return `enr_${Date.now()}_${sanitizeStr(studentId, 40).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 18)}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function normalizeEduCourseMigrationLimit(value, fallback, min, max) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.min(max, Math.max(min, Math.trunc(numeric)));
+}
+
+function hasEduCourseMigrationAccess(access) {
+  return !!access && (
+    access.isSuperAdmin
+    || access.hasPermission("team.manage_all")
+    || access.hasPermission("admin.repair.data_sync")
+  );
+}
+
+async function loadEduAutoMigrationCompletedInTransaction(tx) {
+  const snap = await tx.get(db.collection("siteConfig").doc("featureFlags"));
+  return snap.exists && snap.data()?.eduAutoMigrationCompleted === true;
+}
+
+async function loadCourseStudentsForDecision(tx, teamRef) {
+  const snap = await tx.get(teamRef.collection("students"));
+  return snap.docs.map((doc) => {
+    const data = doc.data() || {};
+    return { ...data, id: sanitizeStr(data.id || doc.id, 100), _docId: doc.id };
+  });
+}
+
+async function loadCourseEnrollmentsForDecision(tx, planRef) {
+  const snap = await tx.get(planRef.collection("enrollments"));
+  return snap.docs.map((doc) => ({ id: doc.id, _docId: doc.id, ...(doc.data() || {}) }));
+}
+
+async function resolveCourseCallerName(request, callerUid) {
+  const found = await findUserDocByUidOrLineUserId(callerUid);
+  let authDisplayName = "";
+  try {
+    const authUser = await authAdmin.getUser(callerUid);
+    authDisplayName = getDisplayNameFromAuthRecord(authUser, "");
+  } catch (_) {}
+  return normalizeAuditText(
+    found?.data?.displayName
+      || found?.data?.name
+      || authDisplayName
+      || request.auth?.token?.name
+      || callerUid,
+    80
+  );
+}
+
+exports.registerForEduCoursePlan = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 0 },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+    const callerUid = request.auth.uid;
+    const { teamId, planId } = normalizeEduCourseRequestIds(request.data || {});
+    const requestedStudentIds = Array.isArray(request.data?.studentIds)
+      ? request.data.studentIds
+      : [request.data?.studentId];
+    const access = await getCallerAccessContext(request);
+
+    return db.runTransaction(async (tx) => {
+      const teamDoc = await getTeamDocByTeamIdInTransaction(tx, teamId);
+      if (!teamDoc) throw createEduCourseHttpsError("TEAM_NOT_FOUND");
+      const teamRef = teamDoc.ref;
+      const isStaff = isTeamStaffForData(teamDoc.data, callerUid)
+        || access.isSuperAdmin
+        || access.hasPermission("team.manage_all");
+      const planRef = teamRef.collection("coursePlans").doc(planId);
+      const planSnap = await tx.get(planRef);
+      if (!planSnap.exists) throw createEduCourseHttpsError("PLAN_NOT_FOUND");
+      const plan = { id: planSnap.id, _docId: planSnap.id, ...(planSnap.data() || {}) };
+      const [enrollments, students, migrationCompleted] = await Promise.all([
+        loadCourseEnrollmentsForDecision(tx, planRef),
+        loadCourseStudentsForDecision(tx, teamRef),
+        loadEduAutoMigrationCompletedInTransaction(tx),
+      ]);
+      const studentsById = new Map(students.map((student) => [String(student.id || student._docId || ""), student]));
+      const decision = decideCoursePlanRegistration({
+        plan,
+        enrollments,
+        studentsById,
+        requestedStudentIds,
+        callerUid,
+        isStaff,
+        bypassCapacity: isStaff && request.data?.bypassCapacity === true,
+        migrationCompleted,
+        now: new Date(),
+      });
+      if (!decision.ok) throw createEduCourseHttpsError(decision.code, decision.code, decision);
+
+      const nowTimestamp = Timestamp.now();
+      const nowIso = nowTimestamp.toDate().toISOString();
+      const created = [];
+      decision.acceptedStudentIds.forEach((studentId) => {
+        const student = studentsById.get(studentId);
+        const enrollRef = planRef.collection("enrollments").doc(courseEnrollmentDocId(studentId));
+        const payload = buildCourseEnrollmentPayload({
+          id: enrollRef.id,
+          student,
+          callerUid,
+          nowIso,
+        });
+        tx.create(enrollRef, {
+          ...payload,
+          appliedAt: nowTimestamp,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        created.push({ ...payload, _docId: enrollRef.id, appliedAt: nowIso });
+      });
+      tx.update(planRef, {
+        occupancyTouchedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      return {
+        success: true,
+        teamId,
+        planId,
+        enrollments: created,
+        rejectedStudentIds: decision.rejectedStudentIds,
+        approvedCount: decision.approvedCount,
+        maxCapacity: decision.maxCapacity,
+      };
+    });
+  }
+);
+
+exports.approveCourseEnrollment = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 0 },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+    const callerUid = request.auth.uid;
+    const { teamId, planId } = normalizeEduCourseRequestIds(request.data || {});
+    const enrollId = sanitizeStr(request.data?.enrollId || request.data?.enrollmentId, 100);
+    if (!enrollId) throw new HttpsError("invalid-argument", "enrollId is required");
+    const access = await getCallerAccessContext(request);
+    const reviewerName = await resolveCourseCallerName(request, callerUid);
+
+    return db.runTransaction(async (tx) => {
+      const teamDoc = await getTeamDocByTeamIdInTransaction(tx, teamId);
+      if (!teamDoc) throw createEduCourseHttpsError("TEAM_NOT_FOUND");
+      const teamRef = teamDoc.ref;
+      const isStaff = isTeamStaffForData(teamDoc.data, callerUid)
+        || access.isSuperAdmin
+        || access.hasPermission("team.manage_all");
+      if (!isStaff) throw createEduCourseHttpsError("PERMISSION_DENIED");
+
+      const planRef = teamRef.collection("coursePlans").doc(planId);
+      const planSnap = await tx.get(planRef);
+      if (!planSnap.exists) throw createEduCourseHttpsError("PLAN_NOT_FOUND");
+      const plan = { id: planSnap.id, _docId: planSnap.id, ...(planSnap.data() || {}) };
+      const [enrollments, students, migrationCompleted] = await Promise.all([
+        loadCourseEnrollmentsForDecision(tx, planRef),
+        loadCourseStudentsForDecision(tx, teamRef),
+        loadEduAutoMigrationCompletedInTransaction(tx),
+      ]);
+      const decision = decideCoursePlanApproval({
+        plan,
+        enrollments,
+        students,
+        enrollmentId: enrollId,
+        migrationCompleted,
+      });
+      if (!decision.ok) throw createEduCourseHttpsError(decision.code, decision.code, decision);
+      if (decision.alreadyApproved) {
+        return { success: true, alreadyApproved: true, teamId, planId, enrollId };
+      }
+
+      const enrollRef = planRef.collection("enrollments").doc(enrollId);
+      const target = decision.target;
+      const reviewedAt = Timestamp.now();
+      tx.update(enrollRef, {
+        status: "approved",
+        reviewerName,
+        reviewerUid: callerUid,
+        reviewedAt,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      const studentId = sanitizeStr(target.studentId, 100);
+      if (studentId) {
+        const studentRef = teamRef.collection("students").doc(studentId);
+        const student = students.find((item) => String(item.id || item._docId || "") === studentId);
+        if (student && student.enrollStatus === "pending") {
+          tx.update(studentRef, {
+            enrollStatus: "active",
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        }
+      }
+      tx.update(planRef, {
+        occupancyTouchedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      return {
+        success: true,
+        alreadyApproved: false,
+        teamId,
+        planId,
+        enrollId,
+        approvedCountBefore: decision.approvedCount,
+        maxCapacity: decision.maxCapacity,
+      };
+    });
+  }
+);
+
+exports.migrateEduCourseAutoEnrollments = onCall(
+  { region: "asia-east1", timeoutSeconds: 300, memory: "512MiB", minInstances: 0 },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+    const access = await getCallerAccessContext(request);
+    if (!hasEduCourseMigrationAccess(access)) {
+      throw new HttpsError("permission-denied", "Permission denied");
+    }
+
+    const callerUid = request.auth.uid;
+    const dryRun = request.data?.dryRun !== false;
+    const markCompleted = request.data?.markCompleted === true;
+    const teamId = sanitizeStr(request.data?.teamId, 100);
+    const planId = sanitizeStr(request.data?.planId, 100);
+    const limitTeams = normalizeEduCourseMigrationLimit(request.data?.limitTeams, teamId ? 1 : 20, 1, 100);
+    const limitPlans = normalizeEduCourseMigrationLimit(request.data?.limitPlans, planId ? 1 : 100, 1, 300);
+    const limitCandidates = normalizeEduCourseMigrationLimit(request.data?.limitCandidates, dryRun ? 1000 : 400, 1, dryRun ? 5000 : 1000);
+    const sampleLimit = normalizeEduCourseMigrationLimit(request.data?.sampleLimit, 20, 0, 100);
+
+    if (markCompleted && dryRun) {
+      throw new HttpsError("failed-precondition", "markCompleted requires dryRun:false");
+    }
+    if (markCompleted && (teamId || planId)) {
+      throw new HttpsError("failed-precondition", "markCompleted must run without teamId/planId scope");
+    }
+
+    const reviewerName = await resolveCourseCallerName(request, callerUid);
+    const nowTimestamp = Timestamp.now();
+    const stats = {
+      success: true,
+      dryRun,
+      markCompleted,
+      completionFlagWritten: false,
+      scannedTeams: 0,
+      scannedPlans: 0,
+      plansWithGroup: 0,
+      candidates: 0,
+      written: 0,
+      truncated: false,
+      skipped: {
+        noGroup: 0,
+        inactiveStudent: 0,
+        existingEnrollment: 0,
+        invalidStudentId: 0,
+      },
+      samples: [],
+    };
+
+    let teamDocs = [];
+    if (teamId) {
+      const teamDoc = await getTeamDocByTeamId(teamId);
+      if (!teamDoc) throw createEduCourseHttpsError("TEAM_NOT_FOUND");
+      teamDocs = [teamDoc];
+    } else {
+      const teamSnap = await db.collection("teams").limit(limitTeams).get();
+      teamDocs = teamSnap.docs.map((doc) => ({ ref: doc.ref, docId: doc.id, data: doc.data() || {} }));
+    }
+
+    let batch = db.batch();
+    let batchOps = 0;
+    const flushBatch = async () => {
+      if (dryRun || batchOps <= 0) return;
+      await batch.commit();
+      batch = db.batch();
+      batchOps = 0;
+    };
+    const ensureBatchCapacity = async (ops = 1) => {
+      if (!dryRun && batchOps + ops >= 450) await flushBatch();
+    };
+
+    outer:
+    for (const teamDoc of teamDocs) {
+      stats.scannedTeams += 1;
+      const safeTeamId = sanitizeStr(teamDoc.data?.id || teamDoc.docId, 100);
+      const studentsSnap = await teamDoc.ref.collection("students").get();
+      const students = studentsSnap.docs.map((doc) => {
+        const data = doc.data() || {};
+        return { ...data, id: sanitizeStr(data.id || doc.id, 100), _docId: doc.id };
+      });
+
+      let planDocs = [];
+      if (planId) {
+        const planSnap = await teamDoc.ref.collection("coursePlans").doc(planId).get();
+        if (planSnap.exists) planDocs = [planSnap];
+      } else {
+        const planSnap = await teamDoc.ref.collection("coursePlans").limit(limitPlans).get();
+        planDocs = planSnap.docs;
+      }
+
+      for (const planDoc of planDocs) {
+        if (stats.candidates >= limitCandidates) {
+          stats.truncated = true;
+          break outer;
+        }
+        stats.scannedPlans += 1;
+        const plan = { id: planDoc.id, _docId: planDoc.id, ...(planDoc.data() || {}) };
+        const groupId = sanitizeStr(plan.groupId, 100);
+        if (!groupId) {
+          stats.skipped.noGroup += 1;
+          continue;
+        }
+        stats.plansWithGroup += 1;
+
+        const enrollSnap = await planDoc.ref.collection("enrollments").get();
+        const existingStudentIds = new Set();
+        enrollSnap.docs.forEach((doc) => {
+          const data = doc.data() || {};
+          const studentId = sanitizeStr(data.studentId, 100);
+          if (studentId) existingStudentIds.add(studentId);
+        });
+
+        let wrotePlan = false;
+        for (const student of students) {
+          if (stats.candidates >= limitCandidates) {
+            stats.truncated = true;
+            break outer;
+          }
+          const studentId = sanitizeStr(student.id || student._docId, 100);
+          if (!studentId) {
+            stats.skipped.invalidStudentId += 1;
+            continue;
+          }
+          const groupIds = Array.isArray(student.groupIds)
+            ? student.groupIds.map((value) => sanitizeStr(value, 100))
+            : [];
+          if (student.enrollStatus !== "active" || !groupIds.includes(groupId)) {
+            stats.skipped.inactiveStudent += 1;
+            continue;
+          }
+          if (existingStudentIds.has(studentId)) {
+            stats.skipped.existingEnrollment += 1;
+            continue;
+          }
+
+          stats.candidates += 1;
+          const sample = {
+            teamId: safeTeamId,
+            teamDocId: teamDoc.docId,
+            planId: planDoc.id,
+            groupId,
+            studentId,
+            studentName: sanitizeStr(student.name, 80),
+          };
+          if (stats.samples.length < sampleLimit) stats.samples.push(sample);
+          if (dryRun) continue;
+
+          const enrollRef = planDoc.ref.collection("enrollments").doc(courseEnrollmentDocId(studentId));
+          const payload = {
+            id: enrollRef.id,
+            studentId,
+            studentName: sanitizeStr(student.name, 80),
+            selfUid: sanitizeStr(student.selfUid, 128) || null,
+            parentUid: sanitizeStr(student.parentUid, 128) || null,
+            status: "approved",
+            enrollmentType: "auto_group_migrated",
+            migrationSource: "group_auto",
+            sourceGroupId: groupId,
+            paidAt: null,
+            coachNotes: "",
+            reviewerName,
+            reviewerUid: callerUid,
+            reviewedAt: nowTimestamp,
+            appliedAt: nowTimestamp,
+            migratedAt: nowTimestamp,
+            createdByUid: callerUid,
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          };
+          await ensureBatchCapacity(1);
+          batch.create(enrollRef, payload);
+          batchOps += 1;
+          stats.written += 1;
+          existingStudentIds.add(studentId);
+          wrotePlan = true;
+        }
+
+        if (!dryRun && wrotePlan) {
+          await ensureBatchCapacity(1);
+          batch.set(planDoc.ref, {
+            occupancyTouchedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+          batchOps += 1;
+        }
+      }
+    }
+
+    await flushBatch();
+
+    if (markCompleted) {
+      if (stats.truncated) {
+        throw new HttpsError("failed-precondition", "Cannot mark completed while migration scan is truncated", stats);
+      }
+      await db.collection("siteConfig").doc("featureFlags").set({
+        eduAutoMigrationCompleted: true,
+        eduAutoMigrationCompletedAt: FieldValue.serverTimestamp(),
+        eduAutoMigrationCompletedByUid: callerUid,
+      }, { merge: true });
+      stats.completionFlagWritten = true;
+    }
+
+    return stats;
+  }
+);
+
 exports.processLinePushQueue = onDocumentCreated(
   {
     document: "linePushQueue/{docId}",

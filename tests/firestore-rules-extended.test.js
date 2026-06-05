@@ -3495,8 +3495,8 @@ describe("/teams/{teamId}/coursePlans/{planId}/enrollments/{enrollId}", () => {
     );
   });
 
-  test("create: authenticated can create", async () => {
-    await assertSucceeds(
+  test("create: regular authenticated user cannot create directly", async () => {
+    await assertFails(
       setDoc(
         doc(
           memberA(),
@@ -3506,6 +3506,23 @@ describe("/teams/{teamId}/coursePlans/{planId}/enrollments/{enrollId}", () => {
           "plan1",
           "enrollments",
           "enr_new"
+        ),
+        { studentUid: "uidA", status: "enrolled" }
+      )
+    );
+  });
+
+  test("create: team staff can create manually", async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(
+          captain(),
+          "teams",
+          "teamA",
+          "coursePlans",
+          "plan1",
+          "enrollments",
+          "enr_staff"
         ),
         { studentUid: "uidA", status: "enrolled" }
       )

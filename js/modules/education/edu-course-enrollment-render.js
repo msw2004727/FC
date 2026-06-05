@@ -56,9 +56,11 @@ Object.assign(App, {
     const students = allStudents;
     const isStaff = this.isEduClubStaff(teamId);
 
-    // 將對應分組的 active 學員自動視為已通過（即使沒有 enrollment 記錄）
+    // 將對應分組的 active 學員自動視為已通過（遷移完成前的相容顯示）
     const enrolledIds = new Set(enrollments.map(e => e.studentId));
-    if (plan?.groupId) {
+    const autoMigrationCompleted = typeof isEduAutoMigrationCompleted === 'function'
+      && isEduAutoMigrationCompleted();
+    if (!autoMigrationCompleted && plan?.groupId) {
       const groupStudents = allStudents.filter(s =>
         s.enrollStatus === 'active' && (s.groupIds || []).includes(plan.groupId) && !enrolledIds.has(s.id)
       );

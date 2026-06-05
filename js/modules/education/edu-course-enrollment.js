@@ -13,6 +13,14 @@ Object.assign(App, {
     return teamId + ':' + planId;
   },
 
+  _isEduAutoEnrollmentMaterializationAllowed() {
+    return !(typeof isEduAutoMigrationCompleted === 'function' && isEduAutoMigrationCompleted());
+  },
+
+  _showEduAutoMigrationCompletedToast() {
+    this.showToast?.('報名資料已完成遷移，請重新整理名單後再操作');
+  },
+
   async _loadCourseEnrollments(teamId, planId) {
     const key = this._getCourseEnrollCacheKey(teamId, planId);
     try {
@@ -70,6 +78,15 @@ Object.assign(App, {
     enrollments.forEach(e => {
       if (e.status !== 'rejected') enrolledMap[e.studentId] = e;
     });
+    const autoMigrationCompleted = typeof isEduAutoMigrationCompleted === 'function'
+      && isEduAutoMigrationCompleted();
+    if (!autoMigrationCompleted && plan.groupId) {
+      students
+        .filter(s => s.enrollStatus === 'active' && (s.groupIds || []).includes(plan.groupId))
+        .forEach(s => {
+          enrolledMap[s.id] = enrolledMap[s.id] || { studentId: s.id, status: 'approved', appliedAt: null };
+        });
+    }
 
     // 顯示學員選擇彈窗
     const overlay = document.createElement('div');
@@ -133,18 +150,14 @@ Object.assign(App, {
       overlay.remove();
       const _btnState = this._setEduBtnLoading('[onclick*="applyCourseEnrollment"]');
       try {
-        for (const cb of checks) {
-          const sid = cb.value;
-          const sname = cb.dataset.name || '';
-          const enrollment = {
-            id: this._generateEduId('enr'), studentId: sid, studentName: sname,
-            selfUid: curUser.uid, parentUid: null, status: 'pending',
-            paidAt: null, coachNotes: '', reviewerName: null, reviewedAt: null,
-          };
-          await FirebaseService.createCourseEnrollment(teamId, planId, enrollment);
-        }
+        const studentIds = Array.from(checks).map(cb => cb.value).filter(Boolean);
+        await FirebaseService.registerForEduCoursePlan(teamId, planId, studentIds, {
+          requestId: 'edu_' + teamId + '_' + planId + '_' + curUser.uid + '_' + Date.now(),
+        });
+        const key = this._getCourseEnrollCacheKey(teamId, planId);
+        delete this._courseEnrollCache[key];
         this.showToast('報名已送出，請等待審核');
-        await this.renderEduCoursePlanList(teamId);
+        await this.renderEduCoursePlanList(teamId, undefined, { forceRefresh: true });
       } catch (err) {
         console.error('[applyCourseEnrollment]', err);
         this.showToast('報名失敗：' + (err.message || '請稍後再試'));
@@ -164,31 +177,16 @@ Object.assign(App, {
   async _approveCourseEnrollment(teamId, planId, enrollId, btnEl) {
     const _b = this._setEduBtnLoading(btnEl);
     try {
-      const curUser = ApiService.getCurrentUser();
-      await FirebaseService.updateCourseEnrollment(teamId, planId, enrollId, {
-        status: 'approved',
-        reviewerName: curUser?.displayName || curUser?.name || '',
-        reviewedAt: new Date().toISOString(),
-      });
-      // 更新方案 currentCount
-      const plan = this.getEduCoursePlans(teamId).find(p => p.id === planId);
-      if (plan) {
-        plan.currentCount = (plan.currentCount || 0) + 1;
-        FirebaseService.updateEduCoursePlan(teamId, planId, { currentCount: plan.currentCount }).catch(() => {});
-      }
-      // 學員狀態也更新為 active
       const key = this._getCourseEnrollCacheKey(teamId, planId);
-      const enrollments = this._courseEnrollCache[key] || [];
-      const enr = enrollments.find(e => e.id === enrollId);
-      if (enr) {
-        const stu = this.getEduStudents(teamId).find(s => s.id === enr.studentId);
-        if (stu && stu.enrollStatus === 'pending') {
-          stu.enrollStatus = 'active';
-          FirebaseService.updateEduStudent(teamId, enr.studentId, { enrollStatus: 'active' }).catch(() => {});
-        }
-      }
+      await FirebaseService.approveCourseEnrollment(teamId, planId, enrollId);
+      delete this._courseEnrollCache[key];
+      // 更新方案 currentCount
+      // 學員狀態也更新為 active
       this.showToast('已通過');
       await this._renderCourseEnrollmentList(teamId, planId);
+    } catch (err) {
+      console.error('[_approveCourseEnrollment]', err);
+      this.showToast((err && err.message) || '審核失敗');
     } finally { _b.restore(); }
   },
 
@@ -213,6 +211,11 @@ Object.assign(App, {
     if (!enr) return;
     // 虛擬記錄（分組自動導入）→ 先建立真實 enrollment 文件
     if (String(enrollId).startsWith('_auto_')) {
+      if (!this._isEduAutoEnrollmentMaterializationAllowed()) {
+        this._showEduAutoMigrationCompletedToast();
+        await this._renderCourseEnrollmentList(teamId, planId);
+        return;
+      }
       const realId = this._generateEduId('enr');
       const doc = { id: realId, studentId: enr.studentId, studentName: enr.studentName,
         selfUid: enr.selfUid || null, parentUid: enr.parentUid || null,
@@ -252,6 +255,11 @@ Object.assign(App, {
     const key = this._getCourseEnrollCacheKey(teamId, planId);
     const enr = (this._courseEnrollCache[key] || []).find(e => e.id === enrollId);
     if (enr && String(enrollId).startsWith('_auto_')) {
+      if (!this._isEduAutoEnrollmentMaterializationAllowed()) {
+        this._showEduAutoMigrationCompletedToast();
+        await this._renderCourseEnrollmentList(teamId, planId);
+        return;
+      }
       const realId = this._generateEduId('enr');
       const doc = { id: realId, studentId: enr.studentId, studentName: enr.studentName,
         selfUid: enr.selfUid || null, parentUid: enr.parentUid || null,
@@ -289,6 +297,11 @@ Object.assign(App, {
     const key = this._getCourseEnrollCacheKey(teamId, planId);
     const enr = (this._courseEnrollCache[key] || []).find(e => e.id === enrollId);
     if (enr && String(enrollId).startsWith('_auto_')) {
+      if (!this._isEduAutoEnrollmentMaterializationAllowed()) {
+        this._showEduAutoMigrationCompletedToast();
+        await this._renderCourseEnrollmentList(teamId, planId);
+        return;
+      }
       const realId = this._generateEduId('enr');
       const doc = { id: realId, studentId: enr.studentId, studentName: enr.studentName,
         selfUid: enr.selfUid || null, parentUid: enr.parentUid || null,

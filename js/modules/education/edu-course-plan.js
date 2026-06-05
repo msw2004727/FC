@@ -101,13 +101,15 @@ Object.assign(App, {
         fallbackError = err;
       }
       console.warn('[coursePlanFormV2] fallback to v1:', fallbackError?.message || fallbackError);
+      // _writeErrorLog 內部硬編 errorCategory/severityHint/noise，外部傳入無效；
+      // 改用 err.code 讓 errorLogs.errorCode === 'cp_form_v1_fallback' 可被退場監測 query 篩
+      const cpFallbackErr = fallbackError || new Error('course plan form v2 fallback');
+      if (!cpFallbackErr.code) cpFallbackErr.code = 'cp_form_v1_fallback';
       if (typeof ApiService !== 'undefined' && typeof ApiService._writeErrorLog === 'function') ApiService._writeErrorLog({
         fn: 'showEduCoursePlanForm',
         reason: 'course_plan_form_v2_fallback',
         flagResolved: true,
-        errorCategory: 'ui_fallback',
-        noise: true,
-      }, fallbackError || new Error('course plan form v2 fallback'));
+      }, cpFallbackErr);
     }
 
     container.innerHTML = '<div class="ce-form" style="padding:.5rem">' +

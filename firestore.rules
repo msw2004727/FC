@@ -488,11 +488,11 @@ service cloud.firestore {
         && teamId is string
         && exists(teamPath)
         && (
-          ((get(teamPath).data.captainUid is string) && get(teamPath).data.captainUid == request.auth.uid)
-          || ((get(teamPath).data.creatorUid is string) && get(teamPath).data.creatorUid == request.auth.uid)
-          || ((get(teamPath).data.ownerUid is string) && get(teamPath).data.ownerUid == request.auth.uid)
-          || ((get(teamPath).data.leaderUid is string) && get(teamPath).data.leaderUid == request.auth.uid)
-          || ((get(teamPath).data.leaderUids is list) && request.auth.uid in get(teamPath).data.leaderUids)
+          (get(teamPath).data.keys().hasAny(['captainUid']) && (get(teamPath).data.captainUid is string) && get(teamPath).data.captainUid == request.auth.uid)
+          || (get(teamPath).data.keys().hasAny(['creatorUid']) && (get(teamPath).data.creatorUid is string) && get(teamPath).data.creatorUid == request.auth.uid)
+          || (get(teamPath).data.keys().hasAny(['ownerUid']) && (get(teamPath).data.ownerUid is string) && get(teamPath).data.ownerUid == request.auth.uid)
+          || (get(teamPath).data.keys().hasAny(['leaderUid']) && (get(teamPath).data.leaderUid is string) && get(teamPath).data.leaderUid == request.auth.uid)
+          || (get(teamPath).data.keys().hasAny(['leaderUids']) && (get(teamPath).data.leaderUids is list) && request.auth.uid in get(teamPath).data.leaderUids)
         );
     }
 
@@ -503,6 +503,7 @@ service cloud.firestore {
         || (isAuth()
           && teamId is string
           && exists(/databases/$(database)/documents/teams/$(teamId))
+          && get(/databases/$(database)/documents/teams/$(teamId)).data.keys().hasAny(['coachUids'])
           && (get(/databases/$(database)/documents/teams/$(teamId)).data.coachUids is list)
           && request.auth.uid in get(/databases/$(database)/documents/teams/$(teamId)).data.coachUids
         );
@@ -1583,10 +1584,10 @@ service cloud.firestore {
           allow create, update, delete: if isCurrentUserTeamStaff(teamId) || canManageAnyTeam();
         }
 
-        // ── 課程方案報名（學員可建立，幹部可讀/更新）──
+        // ── 課程方案報名（一般學員走 callable；直寫限幹部 / 管理員）──
         match /enrollments/{enrollId} {
           allow read: if isAuth();
-          allow create: if isAuth();
+          allow create: if isCurrentUserTeamStaff(teamId) || canManageAnyTeam();
           allow update: if isCurrentUserTeamStaff(teamId) || canManageAnyTeam();
           allow delete: if isCurrentUserTeamStaff(teamId) || canManageAnyTeam();
         }

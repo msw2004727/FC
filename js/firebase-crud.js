@@ -3701,6 +3701,44 @@ Object.assign(FirebaseService, {
     return this._mapCollectionDocs(snapshot);
   },
 
+  async registerForEduCoursePlan(teamId, planId, studentIds, options = {}) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase auth failed');
+    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('registerForEduCoursePlan');
+    const result = await callable({
+      teamId,
+      planId,
+      studentIds: Array.isArray(studentIds) ? studentIds : [studentIds],
+      requestId: options.requestId || null,
+    });
+    return result && result.data ? result.data : result;
+  },
+
+  async approveCourseEnrollment(teamId, planId, enrollId) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase auth failed');
+    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('approveCourseEnrollment');
+    const result = await callable({ teamId, planId, enrollId });
+    return result && result.data ? result.data : result;
+  },
+
+  async migrateEduCourseAutoEnrollments(options = {}) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase auth failed');
+    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('migrateEduCourseAutoEnrollments');
+    const result = await callable({
+      dryRun: options.dryRun !== false,
+      markCompleted: options.markCompleted === true,
+      teamId: options.teamId || null,
+      planId: options.planId || null,
+      limitTeams: options.limitTeams || null,
+      limitPlans: options.limitPlans || null,
+      limitCandidates: options.limitCandidates || null,
+      sampleLimit: options.sampleLimit || null,
+    });
+    return result && result.data ? result.data : result;
+  },
+
   async createCourseEnrollment(teamId, planId, data) {
     const authed = await this.ensureAuthReadyForWrite();
     if (!authed) throw new Error('Firebase 登入失敗');

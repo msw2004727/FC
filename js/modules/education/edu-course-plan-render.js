@@ -51,6 +51,8 @@ Object.assign(App, {
     const curUser = ApiService.getCurrentUser();
     const myUid = curUser?.uid;
     const students = this.getEduStudents(teamId);
+    const autoMigrationCompleted = typeof isEduAutoMigrationCompleted === 'function'
+      && isEduAutoMigrationCompleted();
 
     // 平行載入各方案的報名紀錄（Promise.all 取代串行 for-await）
     await Promise.all(activePlans.map(async (p) => {
@@ -63,7 +65,7 @@ Object.assign(App, {
         }
       } catch (_) { p._enrollments = []; }
       const enrolledIds = new Set(p._enrollments.filter(e => e.status === 'approved').map(e => e.studentId));
-      if (p.groupId) {
+      if (!autoMigrationCompleted && p.groupId) {
         students.filter(s => s.enrollStatus === 'active' && (s.groupIds || []).includes(p.groupId))
           .forEach(s => enrolledIds.add(s.id));
       }
@@ -127,7 +129,7 @@ Object.assign(App, {
         const enrolledStudentIds = new Set(
           (p._enrollments || []).filter(e => e.status !== 'rejected').map(e => e.studentId)
         );
-        if (p.groupId) {
+        if (!autoMigrationCompleted && p.groupId) {
           students.filter(s => s.enrollStatus === 'active' && (s.groupIds || []).includes(p.groupId))
             .forEach(s => enrolledStudentIds.add(s.id));
         }

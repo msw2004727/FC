@@ -666,7 +666,7 @@ Object.assign(App, {
         await this._renderCourseSessionBoard(teamId, planId);
       } catch (err) {
         console.error('[editCourseSessionRosterNote]', err);
-        this.showToast?.('儲存備註失敗');
+        this.showToast?.((err && err.message) || '儲存備註失敗');
       } finally {
         buttonState.restore();
       }
@@ -681,6 +681,11 @@ Object.assign(App, {
       || null;
     const isAuto = enrollment && String(enrollment.id || '').startsWith('_auto_');
     if (!enrollment || isAuto) {
+      const canMaterializeAuto = !(typeof isEduAutoMigrationCompleted === 'function'
+        && isEduAutoMigrationCompleted());
+      if (!canMaterializeAuto) {
+        throw new Error('報名資料已完成遷移，請重新整理名單後再操作');
+      }
       const student = (this.getEduStudents(teamId) || []).find(s => String(s.id || s._docId || '') === String(studentId || '')) || {};
       const realId = this._generateEduId('enr');
       const doc = {

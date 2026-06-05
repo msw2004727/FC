@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260605a';
+const CACHE_VERSION = '0.20260605b';
 
 const GOOGLE_MAPS_BROWSER_API_KEY = '';
 
@@ -124,6 +124,13 @@ function isCoursePlanFormV2Enabled() {
     ? FirebaseService.getCachedDoc('siteConfig', 'featureFlags')
     : null;
   return !!(flags && flags.coursePlanFormV2Enabled === true);
+}
+
+function isEduAutoMigrationCompleted() {
+  const flags = (typeof FirebaseService !== 'undefined' && typeof FirebaseService.getCachedDoc === 'function')
+    ? FirebaseService.getCachedDoc('siteConfig', 'featureFlags')
+    : null;
+  return !!(flags && flags.eduAutoMigrationCompleted === true);
 }
 
 // Temporary feature switch: no-show is paused and hidden, but historical data remains intact.
