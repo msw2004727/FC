@@ -263,6 +263,9 @@ describe('edu course plan render', () => {
       isEduClubStaff: jest.fn(() => false),
       _loadEduCoursePlans: jest.fn(() => Promise.resolve(plans)),
       _getCourseEnrollCacheKey: jest.fn((teamId, planId) => teamId + ':' + planId),
+      _loadCourseEnrollmentSummaries: jest.fn((teamId, planIds) => Promise.resolve(
+        Object.fromEntries(planIds.map((planId) => [planId, { effectiveApprovedCount: 1, viewerStatuses: {} }]))
+      )),
       _loadCourseEnrollments: jest.fn(() => Promise.resolve([])),
       getEduStudents: jest.fn(() => []),
       _weekdayLabel: (day) => ['日', '一', '二', '三', '四', '五', '六'][day] || String(day),
@@ -287,22 +290,74 @@ describe('edu course plan render', () => {
     await context.App.renderEduCoursePlanList('teamA', false);
     await context.App._eduCoursePlanListRefreshPromise;
 
-    expect(app._loadCourseEnrollments).toHaveBeenCalledTimes(1);
-    expect(app._loadCourseEnrollments).toHaveBeenCalledWith('teamA', 'publicActive');
+    expect(app._loadCourseEnrollmentSummaries).toHaveBeenCalledTimes(1);
+    expect(app._loadCourseEnrollmentSummaries).toHaveBeenCalledWith('teamA', ['publicActive']);
+    expect(app._loadCourseEnrollments).not.toHaveBeenCalled();
     expect(container.innerHTML).toContain('Public Active');
     expect(container.innerHTML).not.toContain('Hidden Active');
     expect(container.innerHTML).not.toContain('Ended Plan');
 
     app._eduCoursePlanTabByTeam = { teamA: 'ended' };
+    app._loadCourseEnrollmentSummaries.mockClear();
     app._loadCourseEnrollments.mockClear();
     await context.App.renderEduCoursePlanList('teamA', false);
     await context.App._eduCoursePlanListRefreshPromise;
 
-    expect(app._loadCourseEnrollments).toHaveBeenCalledTimes(1);
-    expect(app._loadCourseEnrollments).toHaveBeenCalledWith('teamA', 'endedPlan');
+    expect(app._loadCourseEnrollmentSummaries).toHaveBeenCalledTimes(1);
+    expect(app._loadCourseEnrollmentSummaries).toHaveBeenCalledWith('teamA', ['endedPlan']);
+    expect(app._loadCourseEnrollments).not.toHaveBeenCalled();
     expect(container.innerHTML).toContain('Ended Plan');
     expect(container.innerHTML).not.toContain('Public Active');
     expect(container.innerHTML).not.toContain('Hidden Active');
+  });
+
+  test('course list falls back to enrollment refresh when batch summary fails', async () => {
+    const container = { innerHTML: '' };
+    const plans = [{
+      id: 'fallbackPlan',
+      name: 'Fallback Plan',
+      planType: 'weekly',
+      startDate: '2099-01-01',
+      endDate: '2099-02-01',
+      maxCapacity: 4,
+      allowSignup: true,
+    }];
+    const app = {
+      _courseEnrollCache: {},
+      _courseEnrollSummaryCache: {},
+      _eduCoursePlanTabByTeam: {},
+      isEduClubStaff: jest.fn(() => false),
+      _loadEduCoursePlans: jest.fn(() => Promise.resolve(plans)),
+      _getCourseEnrollCacheKey: jest.fn((teamId, planId) => teamId + ':' + planId),
+      _loadCourseEnrollmentSummaries: jest.fn(() => Promise.resolve(null)),
+      _loadCourseEnrollments: jest.fn(() => Promise.resolve([{ studentId: 'studentA', status: 'approved' }])),
+      getEduStudents: jest.fn(() => []),
+      _weekdayLabel: (day) => ['??', '1', '2', '3', '4', '5', '6'][day] || String(day),
+    };
+    const context = {
+      App: app,
+      ApiService: { getCurrentUser: jest.fn(() => ({ uid: 'viewer' })) },
+      document: {
+        getElementById: jest.fn((id) => id === 'edu-course-plan-list' ? container : null),
+      },
+      escapeHTML,
+      console,
+      Promise,
+      Date,
+      Number,
+      String,
+      Set,
+      Object,
+    };
+    vm.runInNewContext(source, context, { filename: 'edu-course-plan-render.js' });
+
+    await context.App.renderEduCoursePlanList('teamA', false);
+    await context.App._eduCoursePlanListRefreshPromise;
+
+    expect(app._loadCourseEnrollmentSummaries).toHaveBeenCalledWith('teamA', ['fallbackPlan']);
+    expect(app._loadCourseEnrollments).toHaveBeenCalledWith('teamA', 'fallbackPlan');
+    expect(plans[0]._effectiveCount).toBe(1);
+    expect(container.innerHTML).toContain('1/4');
   });
 
   test('course list paints cached summary without enrollment refresh', async () => {
@@ -328,6 +383,7 @@ describe('edu course plan render', () => {
       isEduClubStaff: jest.fn(() => false),
       _loadEduCoursePlans: jest.fn(() => Promise.resolve(plans)),
       _getCourseEnrollCacheKey: jest.fn((teamId, planId) => teamId + ':' + planId),
+      _loadCourseEnrollmentSummaries: jest.fn(() => Promise.resolve({})),
       _loadCourseEnrollments: jest.fn(() => Promise.resolve([])),
       getEduStudents: jest.fn(() => [{ id: 'studentA', enrollStatus: 'active', selfUid: 'viewer' }]),
       _weekdayLabel: (day) => ['日', '一', '二', '三', '四', '五', '六'][day] || String(day),
@@ -352,6 +408,7 @@ describe('edu course plan render', () => {
     await context.App.renderEduCoursePlanList('teamA', false);
     await context.App._eduCoursePlanListRefreshPromise;
 
+    expect(app._loadCourseEnrollmentSummaries).not.toHaveBeenCalled();
     expect(app._loadCourseEnrollments).not.toHaveBeenCalled();
     expect(plans[0]._effectiveCount).toBe(2);
     expect(container.innerHTML).toContain('2/5');
@@ -619,7 +676,7 @@ describe('edu course plan render', () => {
     expect(overlay.innerHTML).not.toContain('開課前 7 日可全額退費');
   });
 
-  test('force refresh reloads students and cached enrollments before rendering counts', async () => {
+  test('force refresh reloads students and batch summaries before rendering counts', async () => {
     const container = { innerHTML: '' };
     const plans = [{
       id: 'planA',
@@ -641,6 +698,9 @@ describe('edu course plan render', () => {
       }),
       _loadEduCoursePlans: jest.fn(() => Promise.resolve(plans)),
       _getCourseEnrollCacheKey: jest.fn((teamId, planId) => teamId + ':' + planId),
+      _loadCourseEnrollmentSummaries: jest.fn(() => Promise.resolve({
+        planA: { effectiveApprovedCount: 1, viewerStatuses: {} },
+      })),
       _loadCourseEnrollments: jest.fn(() => Promise.resolve([{ studentId: 'fresh-student', status: 'approved' }])),
       getEduStudents: jest.fn(() => app._students || []),
       _weekdayLabel: (day) => ['日', '一', '二', '三', '四', '五', '六'][day] || String(day),
@@ -665,7 +725,9 @@ describe('edu course plan render', () => {
     await context.App.renderEduCoursePlanList('teamA', false, { forceRefresh: true });
 
     expect(app._loadEduStudents).toHaveBeenCalledWith('teamA');
-    expect(app._loadCourseEnrollments).toHaveBeenCalledWith('teamA', 'planA');
+    await context.App._eduCoursePlanListRefreshPromise;
+    expect(app._loadCourseEnrollmentSummaries).toHaveBeenCalledWith('teamA', ['planA']);
+    expect(app._loadCourseEnrollments).not.toHaveBeenCalled();
     expect(container.innerHTML).toContain('最新課程');
     expect(container.innerHTML).toContain('1/3 人');
     expect(container.innerHTML).not.toContain('old-student');

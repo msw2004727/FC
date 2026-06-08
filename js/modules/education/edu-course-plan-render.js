@@ -240,18 +240,37 @@ Object.assign(App, {
       const cachedSummary = cachedEnrollments?._summary || this._courseEnrollSummaryCache?.[key];
       return forceRefresh || !cachedSummary;
     });
+    const refreshFromEnrollments = () => Promise.all(refreshPlans.map(async (p) => {
+      try {
+        const enrollments = await this._loadCourseEnrollments(teamId, p.id);
+        applyEnrollmentState(p, enrollments, enrollments?._summary || null);
+      } catch (_) {
+        applyCachedEnrollmentState(p);
+      }
+    }));
+    const renderAfterRefresh = () => {
+      if (!isStale()) renderCoursePlanSections();
+      return true;
+    };
     this._eduCoursePlanListRefreshPromise = refreshPlans.length
-      ? Promise.all(refreshPlans.map(async (p) => {
-          try {
-            const enrollments = await this._loadCourseEnrollments(teamId, p.id);
-            applyEnrollmentState(p, enrollments, enrollments?._summary || null);
-          } catch (_) {
-            applyCachedEnrollmentState(p);
+      ? (async () => {
+          if (typeof this._loadCourseEnrollmentSummaries === 'function') {
+            const summaries = await this._loadCourseEnrollmentSummaries(teamId, refreshPlans.map(p => p.id));
+            if (summaries) {
+              refreshPlans.forEach((p) => {
+                const key = this._getCourseEnrollCacheKey?.(teamId, p.id);
+                const cachedEnrollments = (key && this._courseEnrollCache?.[key]) || [];
+                const summary = summaries[p.id]
+                  || (key && this._courseEnrollSummaryCache?.[key])
+                  || null;
+                applyEnrollmentState(p, cachedEnrollments, summary);
+              });
+              return renderAfterRefresh();
+            }
           }
-        })).then(() => {
-          if (!isStale()) renderCoursePlanSections();
-          return true;
-        })
+          await refreshFromEnrollments();
+          return renderAfterRefresh();
+        })()
       : Promise.resolve(false);
   },
 

@@ -3633,6 +3633,18 @@ function normalizeEduCourseRequestIds(data = {}) {
   return { teamId, planId };
 }
 
+function normalizeEduCourseSummaryRequestIds(data = {}) {
+  const teamId = sanitizeStr(data.teamId, 100);
+  const rawPlanIds = Array.isArray(data.planIds) ? data.planIds : [];
+  const planIds = Array.from(new Set(
+    rawPlanIds.map((value) => sanitizeStr(value, 100)).filter(Boolean)
+  ));
+  if (!teamId) throw new HttpsError("invalid-argument", "teamId is required");
+  if (!planIds.length) throw new HttpsError("invalid-argument", "planIds is required");
+  if (planIds.length > 50) throw new HttpsError("invalid-argument", "planIds exceeds limit");
+  return { teamId, planIds };
+}
+
 function courseEnrollmentDocId(studentId) {
   return `enr_${Date.now()}_${sanitizeStr(studentId, 40).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 18)}_${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -3832,6 +3844,55 @@ exports.listEduCourseEnrollments = onCall(
       migrationCompleted,
       summary,
       enrollments: visibleEnrollments,
+    };
+  }
+);
+
+exports.listEduCourseEnrollmentSummaries = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+    const callerUid = request.auth.uid;
+    const { teamId, planIds } = normalizeEduCourseSummaryRequestIds(request.data || {});
+    const teamDoc = await getTeamDocByTeamId(teamId);
+    if (!teamDoc) throw createEduCourseHttpsError("TEAM_NOT_FOUND");
+    const teamRef = teamDoc.ref;
+    const planRefs = planIds.map((planId) => teamRef.collection("coursePlans").doc(planId));
+    const [planSnaps, enrollSnaps, studentsSnap, migrationCompleted] = await Promise.all([
+      Promise.all(planRefs.map((planRef) => planRef.get())),
+      Promise.all(planRefs.map((planRef) => planRef.collection("enrollments").get())),
+      teamRef.collection("students").get(),
+      loadEduAutoMigrationCompleted(),
+    ]);
+    const students = studentsSnap.docs.map((doc) => {
+      const data = doc.data() || {};
+      return { ...data, id: sanitizeStr(data.id || doc.id, 100), _docId: doc.id };
+    });
+    const summaries = {};
+    planIds.forEach((planId, index) => {
+      const planSnap = planSnaps[index];
+      if (!planSnap.exists) {
+        summaries[planId] = null;
+        return;
+      }
+      const plan = { id: planSnap.id, _docId: planSnap.id, ...(planSnap.data() || {}) };
+      const enrollments = enrollSnaps[index].docs.map((doc) => ({ id: doc.id, _docId: doc.id, ...(doc.data() || {}) }));
+      summaries[planId] = buildCourseEnrollmentSummary({
+        plan,
+        enrollments,
+        students,
+        migrationCompleted,
+        callerUid,
+      });
+    });
+    return {
+      success: true,
+      teamId,
+      planIds,
+      migrationCompleted,
+      summaries,
     };
   }
 );

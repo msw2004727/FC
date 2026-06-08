@@ -433,6 +433,20 @@ class TestHttpsError extends Error {
   }
 }
 
+describe('education course enrollment callable source contracts', () => {
+  test('batch summary callable returns summaries without serializing full enrollments', () => {
+    const source = readCloudFunctionSource('listEduCourseEnrollmentSummaries');
+    expect(source).toContain('if (!request.auth?.uid)');
+    expect(source).toContain('normalizeEduCourseSummaryRequestIds(request.data || {})');
+    expect(source).toContain('teamRef.collection("students").get()');
+    expect(source).toContain('planRef.collection("enrollments").get()');
+    expect(source).toContain('buildCourseEnrollmentSummary');
+    expect(source).toContain('summaries[planId]');
+    expect(source).not.toContain('serializeCourseEnrollment');
+    expect(source).not.toContain('visibleEnrollments');
+  });
+});
+
 function makeScoreboardDb({ usageData } = {}) {
   const calls = [];
   const makeRef = (collectionName, docId) => ({

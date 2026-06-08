@@ -39,6 +39,36 @@ Object.assign(App, {
   //  學員報名方案
   // ══════════════════════════════════
 
+  async _loadCourseEnrollmentSummaries(teamId, planIds) {
+    const ids = Array.from(new Set(
+      (Array.isArray(planIds) ? planIds : [planIds])
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+    ));
+    if (!ids.length) return {};
+    if (typeof FirebaseService.listCourseEnrollmentSummaries !== 'function') return null;
+    try {
+      const summaries = await FirebaseService.listCourseEnrollmentSummaries(teamId, ids);
+      ids.forEach((planId) => {
+        const key = this._getCourseEnrollCacheKey(teamId, planId);
+        const summary = summaries?.[planId] || null;
+        this._courseEnrollSummaryCache[key] = summary;
+        const cachedEnrollments = this._courseEnrollCache[key];
+        if (Array.isArray(cachedEnrollments)) {
+          Object.defineProperty(cachedEnrollments, '_summary', {
+            value: summary,
+            enumerable: false,
+            configurable: true,
+          });
+        }
+      });
+      return summaries || {};
+    } catch (err) {
+      console.warn('[edu-enrollment] summary batch load failed:', err);
+      return null;
+    }
+  },
+
   async applyCourseEnrollment(teamId, planId) {
     const plan = this.getEduCoursePlans(teamId).find(p => p.id === planId);
     if (!plan) { this.showToast('找不到方案'); return; }

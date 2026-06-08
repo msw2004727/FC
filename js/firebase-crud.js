@@ -3719,6 +3719,21 @@ Object.assign(FirebaseService, {
     return list;
   },
 
+  async listCourseEnrollmentSummaries(teamId, planIds) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase auth failed');
+    const ids = Array.from(new Set(
+      (Array.isArray(planIds) ? planIds : [planIds])
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+    ));
+    if (!ids.length) return {};
+    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('listEduCourseEnrollmentSummaries');
+    const result = await callable({ teamId, planIds: ids });
+    const data = result && result.data ? result.data : result;
+    return data?.summaries && typeof data.summaries === 'object' ? data.summaries : {};
+  },
+
   async registerForEduCoursePlan(teamId, planId, studentIds, options = {}) {
     const authed = await this.ensureAuthReadyForWrite();
     if (!authed) throw new Error('Firebase auth failed');
