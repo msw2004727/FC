@@ -249,7 +249,7 @@ Object.assign(App, {
       + '</div>'
       + (plan.description ? '<p class="td-v2-modal-desc">' + escapeHTML(plan.description) + '</p>' : '')
       + '<div class="td-v2-modal-foot"><div><strong>' + escapeHTML(price > 0 ? 'NT$ ' + price.toLocaleString() : '費用未設定') + '</strong><span>課程費用</span></div>'
-      + (canSignup ? '<button type="button" onclick="App.applyCourseEnrollment(\'' + escapeHTML(teamId) + '\',\'' + escapeHTML(plan.id || '') + '\')">我要報名</button>' : '<button type="button" disabled>未開放報名</button>') + '</div>';
+      + (canSignup ? '<button type="button" onclick="App.applyCourseEnrollment(\'' + escapeHTML(teamId) + '\',\'' + escapeHTML(plan.id || '') + '\',this)">我要報名</button>' : '<button type="button" disabled>未開放報名</button>') + '</div>';
     rt.modal.hidden = false;
     rt.modal.setAttribute('aria-hidden', 'false');
     rt.modal.classList.add('open');

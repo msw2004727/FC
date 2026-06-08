@@ -756,6 +756,7 @@ describe('team detail club activity section', () => {
     expect(actionsSource).not.toContain('.td-v2-panel-courses .edu-cp-card-v3');
     expect(actionsSource).not.toContain('this.openTeamDetailV2CourseModal(planId)');
     expect(actionsSource).toContain("if (action === 'course') return this.openTeamDetailV2CourseModal");
+    expect(actionsSource).toContain("App.applyCourseEnrollment(\\'' + escapeHTML(teamId) + '\\',\\'' + escapeHTML(plan.id || '') + '\\',this)");
   });
 
   test('team detail v2 events and members use requested card and management-only layouts', () => {

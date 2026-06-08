@@ -113,6 +113,58 @@ describe('edu course plan render', () => {
     expect(html).not.toContain('個訓班');
   });
 
+  test('shows a course loading shell before plan data resolves', async () => {
+    const container = { innerHTML: '' };
+    let resolvePlans;
+    const plansPromise = new Promise(resolve => { resolvePlans = resolve; });
+    const app = {
+      _courseEnrollCache: {},
+      _courseEnrollSummaryCache: {},
+      _eduCoursePlanTabByTeam: {},
+      isEduClubStaff: jest.fn(() => false),
+      _loadEduCoursePlans: jest.fn(() => plansPromise),
+      _getCourseEnrollCacheKey: jest.fn(() => null),
+      _loadCourseEnrollments: jest.fn(() => Promise.resolve([])),
+      getEduStudents: jest.fn(() => []),
+      _weekdayLabel: (day) => ['日', '一', '二', '三', '四', '五', '六'][day] || String(day),
+    };
+    const context = {
+      App: app,
+      ApiService: { getCurrentUser: jest.fn(() => ({ uid: 'viewer' })) },
+      document: {
+        getElementById: jest.fn((id) => id === 'edu-course-plan-list' ? container : null),
+      },
+      escapeHTML,
+      console,
+      Promise,
+      Date,
+      Number,
+      String,
+      Set,
+      Object,
+    };
+    vm.runInNewContext(source, context, { filename: 'edu-course-plan-render.js' });
+
+    const renderPromise = context.App.renderEduCoursePlanList('teamA', false);
+
+    expect(container.innerHTML).toContain('edu-course-plan-list-loading');
+    expect(container.innerHTML).toContain('aria-busy="true"');
+
+    resolvePlans([{
+      id: 'planA',
+      name: 'Course Plan',
+      active: true,
+      planType: 'weekly',
+      startDate: '2099-01-01',
+      endDate: '2099-02-01',
+      allowSignup: true,
+    }]);
+    await renderPromise;
+
+    expect(container.innerHTML).toContain('Course Plan');
+    expect(container.innerHTML).not.toContain('edu-course-plan-list-loading');
+  });
+
   test('compact course cards keep cover overlays and equal-width actions', () => {
     expect(cssSource).toContain('.edu-cp-compact-cover');
     expect(cssSource).toContain('.edu-course-card.edu-cp-card-compact.has-cover::before');
@@ -184,6 +236,7 @@ describe('edu course plan render', () => {
     expect(html).toContain('data-course-plan-id="planA"');
     expect(html).not.toContain('data-course-plan-id="planA" onclick=');
     expect(html).toContain('edu-cp-detail-btn');
+    expect(html).toContain("App.applyCourseEnrollment('teamA','planA',this)");
     expect(html).toContain('App.showCourseEnrollmentList');
     expect(html).toContain('edu-cp-manage-btn edu-cp-manage-list');
     expect(html).toContain('edu-cp-manage-btn edu-cp-manage-edit');

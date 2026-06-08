@@ -2840,6 +2840,61 @@
     linear-gradient(135deg, rgba(20,184,166,.14), rgba(96,165,250,.1)),
     var(--bg-elevated);
 }
+.edu-course-plan-list-loading {
+  min-height: 126px;
+}
+.edu-loading-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: .42rem;
+}
+.edu-loading-skeleton-row {
+  height: .74rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--bg-elevated) 0%, var(--border) 48%, var(--bg-elevated) 100%);
+  background-size: 210% 100%;
+  animation: edu-loading-shimmer 1.25s ease-in-out infinite;
+}
+.edu-loading-skeleton-row:first-child { width: 72%; }
+.edu-loading-skeleton-row:last-child { width: 88%; }
+@keyframes edu-loading-shimmer {
+  0% { background-position: 210% 0; }
+  100% { background-position: -210% 0; }
+}
+.edu-action-loading {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: .42rem;
+  cursor: progress;
+}
+.edu-inline-spinner {
+  width: 1em;
+  height: 1em;
+  flex: 0 0 auto;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  opacity: .9;
+  animation: edu-inline-spin .78s linear infinite;
+}
+.edu-action-loading > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@keyframes edu-inline-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .edu-loading-fill,
+  .edu-loading-skeleton-row,
+  .edu-inline-spinner {
+    animation-duration: 1ms;
+    animation-iteration-count: 1;
+  }
+}
 
 .edu-course-detail-dialog {
   width: min(560px, calc(100vw - 1.5rem));

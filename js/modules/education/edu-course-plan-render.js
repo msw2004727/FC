@@ -8,6 +8,18 @@
 Object.assign(App, {
   _eduCoursePlanListRequestSeq: 0,
 
+  _renderEduCoursePlanLoading(text) {
+    const label = escapeHTML(text || '\u8ab2\u7a0b\u8cc7\u6599\u8f09\u5165\u4e2d');
+    return '<div class="edu-loading edu-course-plan-list-loading" role="status" aria-live="polite" aria-busy="true">'
+      + '<div class="edu-loading-bar"><div class="edu-loading-fill"></div></div>'
+      + '<div class="edu-loading-text">' + label + '</div>'
+      + '<div class="edu-loading-skeleton" aria-hidden="true">'
+      + '<div class="edu-loading-skeleton-row"></div>'
+      + '<div class="edu-loading-skeleton-row"></div>'
+      + '</div>'
+      + '</div>';
+  },
+
   async renderEduCoursePlanList(teamId, isStaff, options = {}) {
     const container = document.getElementById('edu-course-plan-list');
     if (!container) return;
@@ -21,10 +33,15 @@ Object.assign(App, {
     // 若未傳入 isStaff，自動判斷
     if (isStaff === undefined) isStaff = this.isEduClubStaff(teamId);
     if (forceRefresh) {
-      container.innerHTML = '<div class="edu-loading"><div class="edu-loading-bar"><div class="edu-loading-fill"></div></div><div class="edu-loading-text">正在更新課程狀態</div></div>';
+      container.innerHTML = this._renderEduCoursePlanLoading('\u6b63\u5728\u66f4\u65b0\u8ab2\u7a0b\u72c0\u614b');
       if (typeof this._loadEduStudents === 'function') {
         await this._loadEduStudents(teamId);
         if (isStale()) return false;
+      }
+    } else {
+      const currentHtml = String(container.innerHTML || '').trim();
+      if (!currentHtml || currentHtml.indexOf('edu-loading') !== -1) {
+        container.innerHTML = this._renderEduCoursePlanLoading('\u8ab2\u7a0b\u8cc7\u6599\u8f09\u5165\u4e2d');
       }
     }
 
@@ -161,7 +178,7 @@ Object.assign(App, {
         } else if (isFull) {
           signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-disabled" disabled>已額滿</button>';
         } else {
-          signupBtn = '<button class="primary-btn edu-cp-signup-btn" onclick="event.stopPropagation();App.applyCourseEnrollment(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">我要報名</button>';
+          signupBtn = '<button class="primary-btn edu-cp-signup-btn" onclick="event.stopPropagation();App.applyCourseEnrollment(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\',this)">我要報名</button>';
         }
         } // end else (not ended)
       }
@@ -587,7 +604,7 @@ Object.assign(App, {
         + '</div>'
       : '';
     const signupActionHtml = !isStaff && plan.visibleOnTeamPage !== false && plan.allowSignup && !this._isCoursePlanEnded?.(plan)
-      ? '<button type="button" class="primary-btn edu-course-detail-signup-btn" onclick="event.stopPropagation();this.closest(\'.edu-info-overlay\').remove();App.applyCourseEnrollment(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\')">立即報名</button>'
+      ? '<button type="button" class="primary-btn edu-course-detail-signup-btn" onclick="event.stopPropagation();App.applyCourseEnrollment(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\',this)">立即報名</button>'
       : '';
     overlay.innerHTML = '<div class="edu-info-dialog edu-course-detail-dialog">'
       + '<div class="edu-course-detail-head">'

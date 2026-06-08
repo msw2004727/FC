@@ -69,7 +69,39 @@ Object.assign(App, {
     }
   },
 
-  async applyCourseEnrollment(teamId, planId) {
+  _setEduCourseActionLoading(actionButton, loadingText) {
+    const btn = actionButton && typeof actionButton === 'object' && actionButton.dataset
+      ? actionButton
+      : null;
+    if (!btn) return { active: true, restore() {} };
+    if (btn.dataset.eduActionLoading === '1') return { active: false, restore() {} };
+    const originalHtml = btn.innerHTML;
+    const originalDisabled = btn.disabled;
+    const originalAriaBusy = btn.getAttribute?.('aria-busy');
+    btn.dataset.eduActionLoading = '1';
+    btn.disabled = true;
+    btn.setAttribute?.('aria-busy', 'true');
+    btn.classList?.add('edu-action-loading');
+    btn.innerHTML = '<span class="edu-inline-spinner" aria-hidden="true"></span><span>'
+      + escapeHTML(loadingText || '\u8f09\u5165\u4e2d...')
+      + '</span>';
+    return {
+      active: true,
+      restore() {
+        try {
+          if (btn.isConnected === false) return;
+          btn.innerHTML = originalHtml;
+          btn.disabled = originalDisabled;
+          if (originalAriaBusy == null) btn.removeAttribute?.('aria-busy');
+          else btn.setAttribute?.('aria-busy', originalAriaBusy);
+          btn.classList?.remove('edu-action-loading');
+          delete btn.dataset.eduActionLoading;
+        } catch (_) { /* noop */ }
+      },
+    };
+  },
+
+  async applyCourseEnrollment(teamId, planId, actionButton) {
     const plan = this.getEduCoursePlans(teamId).find(p => p.id === planId);
     if (!plan) { this.showToast('找不到方案'); return; }
     const curUser = ApiService.getCurrentUser();
@@ -80,8 +112,17 @@ Object.assign(App, {
       return;
     }
 
+    const actionState = this._setEduCourseActionLoading(actionButton, '\u8f09\u5165\u4e2d...');
+    if (actionState.active === false) return;
+    const sourceOverlay = actionButton?.closest?.('.edu-course-detail-overlay, .td-v2-course-modal');
+    const isSourceOverlayClosed = () => !!(
+      sourceOverlay
+      && (sourceOverlay.isConnected === false || sourceOverlay.hidden === true || sourceOverlay.getAttribute?.('aria-hidden') === 'true')
+    );
+    try {
     // 載入該方案的報名紀錄（用於判斷已報名學員）
     const enrollments = await this._loadCourseEnrollments(teamId, planId);
+    if (isSourceOverlayClosed()) return;
 
     // 取得用戶名下的學員
     let students = this.getEduStudents(teamId);
@@ -91,6 +132,7 @@ Object.assign(App, {
 
     // 若無學員，自動建立本人
     if (!myStudents.length) {
+      if (isSourceOverlayClosed()) return;
       const stuData = {
         id: this._generateEduId('stu'),
         name: curUser.displayName || curUser.name || '',
@@ -100,6 +142,7 @@ Object.assign(App, {
         groupIds: [], groupNames: [], enrolledAt: new Date().toISOString(),
       };
       const created = await FirebaseService.createEduStudent(teamId, stuData);
+      if (isSourceOverlayClosed()) return;
       const cached = this._eduStudentsCache[teamId];
       if (cached) cached.push(created); else this._eduStudentsCache[teamId] = [created];
       myStudents = [created];
@@ -174,6 +217,12 @@ Object.assign(App, {
       + '<button class="outline-btn" style="flex:1" onclick="this.closest(\'.edu-info-overlay\').remove()">取消</button>'
       + '<button class="primary-btn" style="flex:1" id="_eduEnrollConfirmBtn"' + (count === 0 ? ' disabled style="flex:1;opacity:.5"' : '') + '>確認報名</button>'
       + '</div></div>';
+    if (isSourceOverlayClosed()) return;
+    if (sourceOverlay?.classList?.contains('edu-course-detail-overlay')) {
+      sourceOverlay.remove();
+    } else if (sourceOverlay?.classList?.contains('td-v2-course-modal')) {
+      this.closeTeamDetailV2CourseModal?.();
+    }
     document.body.appendChild(overlay);
 
     document.getElementById('_eduEnrollConfirmBtn').onclick = async () => {
@@ -196,6 +245,9 @@ Object.assign(App, {
         this.showToast('報名失敗：' + (err.message || '請稍後再試'));
       } finally { _btnState.restore(); }
     };
+    } finally {
+      actionState.restore();
+    }
   },
 
   _toggleEnrollExpand(id) {

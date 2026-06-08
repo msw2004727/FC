@@ -10,6 +10,14 @@
  * pure validation and decision logic and test it in isolation.
  */
 
+const fs = require('fs');
+const path = require('path');
+
+const enrollmentSource = fs.readFileSync(
+  path.join(__dirname, '../../js/modules/education/edu-course-enrollment.js'),
+  'utf8'
+);
+
 // Extracted from js/modules/education/edu-student-join.js:107-128
 // Duplicate detection logic for student applications
 function hasSelfDuplicate(existingStudents, uid) {
@@ -210,6 +218,13 @@ describe('Active student count', () => {
 });
 
 describe('Course enrollment', () => {
+  test('course enrollment signup action keeps button loading scoped and cancellable', () => {
+    expect(enrollmentSource).toContain('async applyCourseEnrollment(teamId, planId, actionButton)');
+    expect(enrollmentSource).toContain("btn.dataset.eduActionLoading === '1'");
+    expect(enrollmentSource).toContain("sourceOverlay.isConnected === false || sourceOverlay.hidden === true");
+    expect(enrollmentSource).toContain('edu-inline-spinner');
+  });
+
   test('detects enrolled student (pending)', () => {
     expect(isCourseEnrolled([{ studentId: 's1', status: 'pending' }], 's1')).toBe(true);
   });
