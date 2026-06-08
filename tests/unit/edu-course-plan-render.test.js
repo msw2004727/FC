@@ -167,9 +167,13 @@ describe('edu course plan render', () => {
 
   test('compact course cards keep cover overlays and equal-width actions', () => {
     expect(cssSource).toContain('.edu-cp-compact-cover');
+    expect(cssSource).toContain('width: 62%;');
+    expect(cssSource).toContain('object-position: center right;');
+    expect(cssSource).toContain('clip-path: polygon(32% 0, 100% 0, 100% 100%, 0 100%);');
     expect(cssSource).toContain('.edu-course-card.edu-cp-card-compact.has-cover::before');
     expect(cssSource).toContain('[data-theme="light"] .edu-course-card.edu-cp-card-compact.has-cover::before');
-    expect(cssSource).toContain('linear-gradient(90deg, rgba(255, 255, 255, .84)');
+    expect(cssSource).toContain('linear-gradient(112deg, var(--bg-card) 0%, var(--bg-card) 38%, rgba(15, 23, 42, .92)');
+    expect(cssSource).toContain('linear-gradient(112deg, var(--bg-card) 0%, var(--bg-card) 38%, rgba(255, 255, 255, .92)');
     expect(cssSource).toContain('[data-theme="light"] .edu-course-card.edu-cp-card-compact.has-cover .edu-course-name');
     expect(cssSource).toContain('[data-theme="light"] .edu-course-card.edu-cp-card-compact.has-cover .edu-cp-compact-pill');
     expect(cssSource).toContain('[data-theme="light"] .edu-course-card.edu-cp-card-compact.has-cover .edu-cp-card-actions .outline-btn');

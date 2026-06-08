@@ -2998,11 +2998,16 @@
 }
 .edu-cp-compact-cover {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
   z-index: 0;
-  width: 100%;
+  width: 62%;
   height: 100%;
   object-fit: cover;
+  object-position: center right;
+  -webkit-clip-path: polygon(32% 0, 100% 0, 100% 100%, 0 100%);
+  clip-path: polygon(32% 0, 100% 0, 100% 100%, 0 100%);
   transform: scale(1.02);
 }
 .edu-course-card.edu-cp-card-compact.has-cover::before {
@@ -3012,13 +3017,13 @@
   z-index: 1;
   pointer-events: none;
   background:
-    linear-gradient(90deg, rgba(2, 6, 23, .84), rgba(15, 23, 42, .58) 56%, rgba(15, 23, 42, .34)),
-    linear-gradient(180deg, rgba(2, 6, 23, .12), rgba(2, 6, 23, .58));
+    linear-gradient(112deg, var(--bg-card) 0%, var(--bg-card) 38%, rgba(15, 23, 42, .92) 50%, rgba(15, 23, 42, .58) 67%, rgba(15, 23, 42, .3) 100%),
+    linear-gradient(180deg, rgba(2, 6, 23, .04), rgba(2, 6, 23, .36));
 }
 [data-theme="light"] .edu-course-card.edu-cp-card-compact.has-cover::before {
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, .84), rgba(255, 255, 255, .62) 56%, rgba(255, 255, 255, .38)),
-    linear-gradient(180deg, rgba(255, 255, 255, .18), rgba(255, 255, 255, .66));
+    linear-gradient(112deg, var(--bg-card) 0%, var(--bg-card) 38%, rgba(255, 255, 255, .92) 50%, rgba(255, 255, 255, .64) 67%, rgba(255, 255, 255, .38) 100%),
+    linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .42));
 }
 .edu-cp-compact-main {
   position: relative;
