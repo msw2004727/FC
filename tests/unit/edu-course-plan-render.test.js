@@ -168,6 +168,12 @@ describe('edu course plan render', () => {
   test('compact course cards keep cover overlays and equal-width actions', () => {
     expect(cssSource).toContain('.edu-cp-compact-cover');
     expect(cssSource).toContain('.edu-course-card.edu-cp-card-compact.has-cover::before');
+    expect(cssSource).toContain('[data-theme="light"] .edu-course-card.edu-cp-card-compact.has-cover::before');
+    expect(cssSource).toContain('linear-gradient(90deg, rgba(255, 255, 255, .84)');
+    expect(cssSource).toContain('[data-theme="light"] .edu-course-card.edu-cp-card-compact.has-cover .edu-course-name');
+    expect(cssSource).toContain('[data-theme="light"] .edu-course-card.edu-cp-card-compact.has-cover .edu-cp-compact-pill');
+    expect(cssSource).toContain('[data-theme="light"] .edu-course-card.edu-cp-card-compact.has-cover .edu-cp-card-actions .outline-btn');
+    expect(cssSource).toContain('[data-theme="light"] .edu-course-card.edu-cp-card-compact.has-cover .edu-cp-manage-left');
     expect(cssSource).toContain('.edu-course-card.edu-cp-card-compact.has-cover .edu-cp-manage-btn');
     expect(cssSource).toContain('.edu-cp-manage-danger');
     expect(cssSource).toContain('width: 5.8rem;');

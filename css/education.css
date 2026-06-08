@@ -3015,6 +3015,11 @@
     linear-gradient(90deg, rgba(2, 6, 23, .84), rgba(15, 23, 42, .58) 56%, rgba(15, 23, 42, .34)),
     linear-gradient(180deg, rgba(2, 6, 23, .12), rgba(2, 6, 23, .58));
 }
+[data-theme="light"] .edu-course-card.edu-cp-card-compact.has-cover::before {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, .84), rgba(255, 255, 255, .62) 56%, rgba(255, 255, 255, .38)),
+    linear-gradient(180deg, rgba(255, 255, 255, .18), rgba(255, 255, 255, .66));
+}
 .edu-cp-compact-main {
   position: relative;
   z-index: 2;
@@ -3046,6 +3051,10 @@
 .edu-course-card.edu-cp-card-compact.has-cover .edu-course-name {
   color: #fff;
   text-shadow: 0 1px 2px rgba(2, 6, 23, .55);
+}
+[data-theme="light"] .edu-course-card.edu-cp-card-compact.has-cover .edu-course-name {
+  color: #0f172a;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, .72);
 }
 .edu-course-card.edu-cp-card-compact .edu-cp-status {
   flex: 0 0 auto;
@@ -3094,11 +3103,23 @@
   background: rgba(15, 23, 42, .58);
   backdrop-filter: blur(4px);
 }
+[data-theme="light"] .edu-course-card.edu-cp-card-compact.has-cover .edu-cp-compact-pill {
+  border-color: rgba(15, 23, 42, .14);
+  background: rgba(255, 255, 255, .78);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
 .edu-course-card.edu-cp-card-compact.has-cover .edu-cp-compact-pill span {
   color: rgba(226, 232, 240, .78);
 }
+[data-theme="light"] .edu-course-card.edu-cp-card-compact.has-cover .edu-cp-compact-pill span {
+  color: rgba(51, 65, 85, .76);
+}
 .edu-course-card.edu-cp-card-compact.has-cover .edu-cp-compact-pill strong {
   color: #fff;
+}
+[data-theme="light"] .edu-course-card.edu-cp-card-compact.has-cover .edu-cp-compact-pill strong {
+  color: #0f172a;
 }
 .edu-cp-date-pill {
   max-width: 15rem;
@@ -3132,6 +3153,13 @@
   color: #fff;
   backdrop-filter: blur(4px);
 }
+[data-theme="light"] .edu-course-card.edu-cp-card-compact.has-cover .edu-cp-card-actions .outline-btn {
+  border-color: rgba(15, 23, 42, .18);
+  background: rgba(255, 255, 255, .78);
+  color: #0f172a;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
 .edu-cp-signup-disabled {
   opacity: .45;
 }
@@ -3145,6 +3173,9 @@
 }
 .edu-course-card.edu-cp-card-compact.has-cover .edu-cp-manage-left {
   border-top-color: rgba(255, 255, 255, .18);
+}
+[data-theme="light"] .edu-course-card.edu-cp-card-compact.has-cover .edu-cp-manage-left {
+  border-top-color: rgba(15, 23, 42, .12);
 }
 .edu-course-card.edu-cp-card-compact.has-cover .edu-cp-manage-btn,
 .edu-course-card.edu-cp-card-compact.has-cover .edu-cp-manage-icon-btn {
