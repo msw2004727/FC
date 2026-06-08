@@ -124,9 +124,9 @@ describe('edu course plan render', () => {
 
   test('course detail modal keeps growing fields inside a scrollable body', () => {
     expect(cssSource).toContain('height: min(92dvh, 720px);');
-    expect(cssSource).toContain('grid-auto-rows: minmax(58px, auto);');
+    expect(cssSource).toContain('min-height: 56px;'); // Style A：meta 卡片以 min-height 成長（取代舊 grid-auto-rows）
     expect(cssSource).toContain('flex: 1 1 0;');
-    expect(cssSource).toContain('max-height: none;');
+    expect(cssSource).toContain('overscroll-behavior: contain;'); // Style A：捲動內文容器（取代舊 max-height: none）
     expect(cssSource).toContain('overflow-wrap: anywhere;');
   });
 
