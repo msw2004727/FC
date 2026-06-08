@@ -57,16 +57,13 @@ Object.assign(App, {
     const autoMigrationCompleted = typeof isEduAutoMigrationCompleted === 'function'
       && isEduAutoMigrationCompleted();
 
-    // 平行載入各方案的報名紀錄（Promise.all 取代串行 for-await）
-    await Promise.all(activePlans.map(async (p) => {
+    // Counts start from cache; background refresh updates only visible plans.
+    const applyEnrollmentState = (p, enrollments, summary) => {
       try {
         const key = this._getCourseEnrollCacheKey?.(teamId, p.id);
-        if (key && (forceRefresh || !this._courseEnrollCache?.[key])) {
-          p._enrollments = await this._loadCourseEnrollments?.(teamId, p.id) || [];
-        } else {
-          p._enrollments = (key && this._courseEnrollCache?.[key]) || [];
-        }
-        p._enrollmentSummary = p._enrollments?._summary
+        p._enrollments = Array.isArray(enrollments) ? enrollments : [];
+        p._enrollmentSummary = summary
+          || p._enrollments?._summary
           || (key && this._courseEnrollSummaryCache?.[key])
           || null;
       } catch (_) { p._enrollments = []; p._enrollmentSummary = null; }
@@ -81,13 +78,22 @@ Object.assign(App, {
         }
         p._effectiveCount = enrolledIds.size;
       }
-    }));
-    if (isStale()) return false;
+    };
+
+    const applyCachedEnrollmentState = (p) => {
+      const key = this._getCourseEnrollCacheKey?.(teamId, p.id);
+      const cachedEnrollments = (key && this._courseEnrollCache?.[key]) || [];
+      const cachedSummary = cachedEnrollments?._summary
+        || (key && this._courseEnrollSummaryCache?.[key])
+        || null;
+      applyEnrollmentState(p, cachedEnrollments, cachedSummary);
+    };
 
     const listPlans = activePlans.filter(p => isStaff || p.visibleOnTeamPage !== false);
     const currentPlans = listPlans.filter(p => !isPlanEnded(p));
     const endedPlans = listPlans.filter(isPlanEnded);
     const displayPlans = selectedTab === 'ended' ? endedPlans : currentPlans;
+    displayPlans.forEach(applyCachedEnrollmentState);
 
     const formatMoney = (value) => {
       const amount = Number(value || 0);
@@ -192,7 +198,8 @@ Object.assign(App, {
         + '</div>';
     };
 
-    const groupedPlans = [
+    const renderCoursePlanSections = () => {
+      const groupedPlans = [
       {
         type: 'weekly',
         title: '固定週期課程',
@@ -205,7 +212,7 @@ Object.assign(App, {
         hint: '依堂數安排，適合彈性訓練。',
         plans: displayPlans.filter(p => p.planType !== 'weekly'),
       },
-    ].filter(group => group.plans.length);
+      ].filter(group => group.plans.length);
 
     const tabHtml = '<div class="edu-cp-view-tabs">'
       + '<button type="button" class="' + (selectedTab === 'active' ? 'active' : '') + '" onclick="App.switchEduCoursePlanTab(\'' + teamId + '\',\'active\')">\u8ab2\u7a0b\u4e2d <span>' + currentPlans.length + '</span></button>'
@@ -222,6 +229,30 @@ Object.assign(App, {
     container.innerHTML = tabHtml + '<div class="edu-course-plan-sections">'
       + listHtml
       + '</div>';
+    };
+
+    renderCoursePlanSections();
+
+    const refreshPlans = displayPlans.filter((p) => {
+      const key = this._getCourseEnrollCacheKey?.(teamId, p.id);
+      if (!key || typeof this._loadCourseEnrollments !== 'function') return false;
+      const cachedEnrollments = this._courseEnrollCache?.[key];
+      const cachedSummary = cachedEnrollments?._summary || this._courseEnrollSummaryCache?.[key];
+      return forceRefresh || !cachedSummary;
+    });
+    this._eduCoursePlanListRefreshPromise = refreshPlans.length
+      ? Promise.all(refreshPlans.map(async (p) => {
+          try {
+            const enrollments = await this._loadCourseEnrollments(teamId, p.id);
+            applyEnrollmentState(p, enrollments, enrollments?._summary || null);
+          } catch (_) {
+            applyCachedEnrollmentState(p);
+          }
+        })).then(() => {
+          if (!isStale()) renderCoursePlanSections();
+          return true;
+        })
+      : Promise.resolve(false);
   },
 
   switchEduCoursePlanTab(teamId, tab) {

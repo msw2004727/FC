@@ -227,6 +227,136 @@ describe('edu course plan render', () => {
     expect(staffHtml).toContain('未公開');
   });
 
+  test('course list refreshes only visible plans in the selected tab', async () => {
+    const container = { innerHTML: '' };
+    const plans = [
+      {
+        id: 'publicActive',
+        name: 'Public Active',
+        planType: 'weekly',
+        startDate: '2099-01-01',
+        endDate: '2099-02-01',
+        allowSignup: true,
+      },
+      {
+        id: 'hiddenActive',
+        name: 'Hidden Active',
+        planType: 'weekly',
+        startDate: '2099-01-01',
+        endDate: '2099-02-01',
+        allowSignup: true,
+        visibleOnTeamPage: false,
+      },
+      {
+        id: 'endedPlan',
+        name: 'Ended Plan',
+        planType: 'session',
+        startDate: '2000-01-01',
+        endDate: '2000-02-01',
+        allowSignup: false,
+      },
+    ];
+    const app = {
+      _courseEnrollCache: {},
+      _courseEnrollSummaryCache: {},
+      _eduCoursePlanTabByTeam: {},
+      isEduClubStaff: jest.fn(() => false),
+      _loadEduCoursePlans: jest.fn(() => Promise.resolve(plans)),
+      _getCourseEnrollCacheKey: jest.fn((teamId, planId) => teamId + ':' + planId),
+      _loadCourseEnrollments: jest.fn(() => Promise.resolve([])),
+      getEduStudents: jest.fn(() => []),
+      _weekdayLabel: (day) => ['日', '一', '二', '三', '四', '五', '六'][day] || String(day),
+    };
+    const context = {
+      App: app,
+      ApiService: { getCurrentUser: jest.fn(() => ({ uid: 'viewer' })) },
+      document: {
+        getElementById: jest.fn((id) => id === 'edu-course-plan-list' ? container : null),
+      },
+      escapeHTML,
+      console,
+      Promise,
+      Date,
+      Number,
+      String,
+      Set,
+      Object,
+    };
+    vm.runInNewContext(source, context, { filename: 'edu-course-plan-render.js' });
+
+    await context.App.renderEduCoursePlanList('teamA', false);
+    await context.App._eduCoursePlanListRefreshPromise;
+
+    expect(app._loadCourseEnrollments).toHaveBeenCalledTimes(1);
+    expect(app._loadCourseEnrollments).toHaveBeenCalledWith('teamA', 'publicActive');
+    expect(container.innerHTML).toContain('Public Active');
+    expect(container.innerHTML).not.toContain('Hidden Active');
+    expect(container.innerHTML).not.toContain('Ended Plan');
+
+    app._eduCoursePlanTabByTeam = { teamA: 'ended' };
+    app._loadCourseEnrollments.mockClear();
+    await context.App.renderEduCoursePlanList('teamA', false);
+    await context.App._eduCoursePlanListRefreshPromise;
+
+    expect(app._loadCourseEnrollments).toHaveBeenCalledTimes(1);
+    expect(app._loadCourseEnrollments).toHaveBeenCalledWith('teamA', 'endedPlan');
+    expect(container.innerHTML).toContain('Ended Plan');
+    expect(container.innerHTML).not.toContain('Public Active');
+    expect(container.innerHTML).not.toContain('Hidden Active');
+  });
+
+  test('course list paints cached summary without enrollment refresh', async () => {
+    const container = { innerHTML: '' };
+    const plans = [{
+      id: 'planCached',
+      name: 'Cached Plan',
+      planType: 'weekly',
+      startDate: '2099-01-01',
+      endDate: '2099-02-01',
+      maxCapacity: 5,
+      allowSignup: true,
+    }];
+    const app = {
+      _courseEnrollCache: {},
+      _courseEnrollSummaryCache: {
+        'teamA:planCached': {
+          effectiveApprovedCount: 2,
+          viewerStatuses: { studentA: 'approved' },
+        },
+      },
+      _eduCoursePlanTabByTeam: {},
+      isEduClubStaff: jest.fn(() => false),
+      _loadEduCoursePlans: jest.fn(() => Promise.resolve(plans)),
+      _getCourseEnrollCacheKey: jest.fn((teamId, planId) => teamId + ':' + planId),
+      _loadCourseEnrollments: jest.fn(() => Promise.resolve([])),
+      getEduStudents: jest.fn(() => [{ id: 'studentA', enrollStatus: 'active', selfUid: 'viewer' }]),
+      _weekdayLabel: (day) => ['日', '一', '二', '三', '四', '五', '六'][day] || String(day),
+    };
+    const context = {
+      App: app,
+      ApiService: { getCurrentUser: jest.fn(() => ({ uid: 'viewer' })) },
+      document: {
+        getElementById: jest.fn((id) => id === 'edu-course-plan-list' ? container : null),
+      },
+      escapeHTML,
+      console,
+      Promise,
+      Date,
+      Number,
+      String,
+      Set,
+      Object,
+    };
+    vm.runInNewContext(source, context, { filename: 'edu-course-plan-render.js' });
+
+    await context.App.renderEduCoursePlanList('teamA', false);
+    await context.App._eduCoursePlanListRefreshPromise;
+
+    expect(app._loadCourseEnrollments).not.toHaveBeenCalled();
+    expect(plans[0]._effectiveCount).toBe(2);
+    expect(container.innerHTML).toContain('2/5');
+  });
+
   test('course detail modal escapes plan copy and shows derived next class', async () => {
     const overlay = { className: '', innerHTML: '', onclick: null, remove: jest.fn() };
     const appended = [];
