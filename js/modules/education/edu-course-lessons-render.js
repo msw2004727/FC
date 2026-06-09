@@ -97,6 +97,15 @@ Object.assign(App, {
       const safeStudentId = this._eduCourseLessonsJsArg(studentId);
       const signinId = 'edu-roster-signin-' + index;
       const leaveId = 'edu-roster-leave-' + index;
+      const statusHtml = '<span class="edu-course-roster-status edu-course-roster-status-' + escapeHTML(attendance.cls) + '">' + escapeHTML(attendance.label) + '</span>';
+      const selfLeaveActionHtml = (!context.isStaff && student.canSelfLeave === true)
+        ? '<div class="edu-course-roster-self-actions">'
+          + statusHtml
+          + '<button type="button" class="outline-btn small edu-roster-self-leave-btn" onclick="return App.saveCourseLessonSelfLeave(\'' + safeStudentId + '\',\'' + (draftKind === 'leave' ? '' : 'leave') + '\',this)">'
+          + (draftKind === 'leave' ? '取消請假' : '我要請假')
+          + '</button>'
+        + '</div>'
+        : '';
       const manageHtml = manageMode
         ? '<div class="edu-course-roster-manage" role="group" aria-label="出席狀態">'
           + '<span class="edu-roster-choice">'
@@ -108,7 +117,7 @@ Object.assign(App, {
             + '<label class="edu-roster-choice-label" for="' + leaveId + '"><span class="edu-roster-choice-box"></span><span>請假</span></label>'
           + '</span>'
         + '</div>'
-        : '<span class="edu-course-roster-status edu-course-roster-status-' + escapeHTML(attendance.cls) + '">' + escapeHTML(attendance.label) + '</span>';
+        : (selfLeaveActionHtml || statusHtml);
       const avatarHtml = this._renderCourseSessionStudentAvatar
         ? this._renderCourseSessionStudentAvatar({
             id: studentId,

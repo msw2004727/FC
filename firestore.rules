@@ -2158,12 +2158,24 @@ service cloud.firestore {
           );
       }
 
+      function isEduAttendanceStudentOwnedByAuth(data) {
+        let studentPath = /databases/$(database)/documents/teams/$(data.teamId)/students/$(data.studentId);
+        return hasNonEmptyStringInMap(data, 'teamId')
+          && hasNonEmptyStringInMap(data, 'studentId')
+          && exists(studentPath)
+          && (
+            get(studentPath).data.selfUid == request.auth.uid
+            || get(studentPath).data.parentUid == request.auth.uid
+          );
+      }
+
       function isOwnEduLeaveCreate() {
         return hasNonEmptyStringInMap(request.resource.data, 'teamId')
           && hasNonEmptyStringInMap(request.resource.data, 'studentId')
           && hasNonEmptyStringInMap(request.resource.data, 'date')
           && request.resource.data.kind == 'leave'
-          && isEduAttendanceOwnedByAuth(request.resource.data);
+          && isEduAttendanceOwnedByAuth(request.resource.data)
+          && isEduAttendanceStudentOwnedByAuth(request.resource.data);
       }
 
       function isOwnEduLeaveStatusUpdate() {
@@ -2172,6 +2184,7 @@ service cloud.firestore {
           && request.resource.data.kind == 'leave'
           && isEduAttendanceOwnedByAuth(resource.data)
           && isEduAttendanceOwnedByAuth(request.resource.data)
+          && isEduAttendanceStudentOwnedByAuth(resource.data)
           && request.resource.data.teamId == resource.data.teamId
           && request.resource.data.studentId == resource.data.studentId
           && changed.hasOnly(['status', 'updatedAt'])

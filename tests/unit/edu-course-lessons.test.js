@@ -77,6 +77,7 @@ function loadCourseLessonsContext(overrides = {}) {
         ],
       }),
       saveEduSessionAttendanceChanges: jest.fn(async () => ({ changed: 1 })),
+      saveEduCourseSelfLeave: jest.fn(async () => ({ changed: 1 })),
     },
     document: {
       getElementById: jest.fn((id) => {
@@ -169,5 +170,44 @@ describe('edu course lessons', () => {
       }],
     });
     expect(app.showToast).toHaveBeenCalledWith('名單已更新');
+  });
+
+  test('owned student can submit self leave from roster', async () => {
+    const { app, container, firebase } = loadCourseLessonsContext({
+      rosterPayload: {
+        rosterPublic: true,
+        session: {
+          id: 'sessionA',
+          title: '第一堂',
+          date: '2099-06-02',
+          startTime: '10:00',
+          endTime: '11:30',
+          status: 'scheduled',
+        },
+        students: [
+          { studentId: 'stu1', displayName: '小明', level: '3', attendanceKind: null, canSelfLeave: false },
+          { studentId: 'stu2', displayName: '小華', level: null, attendanceKind: null, canSelfLeave: true, selfUid: 'uidA', parentUid: null },
+        ],
+      },
+    });
+
+    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+
+    expect(container.innerHTML).toContain('我要請假');
+
+    await app.saveCourseLessonSelfLeave('stu2', 'leave', { dataset: {}, disabled: false, style: {}, isConnected: true });
+
+    expect(firebase.saveEduCourseSelfLeave).toHaveBeenCalledWith({
+      teamId: 'teamA',
+      planId: 'planA',
+      sessionId: 'sessionA',
+      date: '2099-06-02',
+      studentId: 'stu2',
+      studentName: '小華',
+      selfUid: 'uidA',
+      parentUid: null,
+      leave: true,
+    });
+    expect(app.showToast).toHaveBeenCalledWith('已登記請假');
   });
 });

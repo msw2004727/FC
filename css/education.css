@@ -618,6 +618,19 @@
   gap: .4rem;
   flex-wrap: wrap;
 }
+.edu-course-roster-self-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .4rem;
+  flex-wrap: wrap;
+}
+.edu-roster-self-leave-btn {
+  min-height: 30px;
+  padding: .22rem .58rem;
+  font-size: .72rem;
+  white-space: nowrap;
+}
 .edu-roster-choice {
   position: relative;
   display: inline-flex;
@@ -831,10 +844,12 @@
     grid-template-columns: auto minmax(0, 1fr);
   }
   .edu-course-roster-status,
+  .edu-course-roster-self-actions,
   .edu-course-roster-manage {
     grid-column: 2;
     justify-self: flex-start;
   }
+  .edu-course-roster-self-actions,
   .edu-course-roster-manage {
     justify-content: flex-start;
   }

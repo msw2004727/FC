@@ -2524,6 +2524,15 @@ describe("/eduAttendance/{recordId}", () => {
     kind: "signin",
     status: "active",
   };
+  async function seedAttendanceOwnerStudent() {
+    await seedPath(["teams", "teamA", "students", "stu1"], {
+      id: "stu1",
+      name: "Student One",
+      selfUid: "uidA",
+      parentUid: null,
+      enrollStatus: "active",
+    });
+  }
 
   test("read: authenticated can read", async () => {
     await seedDoc("eduAttendance", "edu1", {
@@ -2548,6 +2557,7 @@ describe("/eduAttendance/{recordId}", () => {
   });
 
   test("create: owner can create own leave but not own signin", async () => {
+    await seedAttendanceOwnerStudent();
     await assertFails(
       setDoc(doc(memberA(), "eduAttendance", "edu_owner_signin"), attendancePayload)
     );
@@ -2558,9 +2568,18 @@ describe("/eduAttendance/{recordId}", () => {
         kind: "leave",
       })
     );
+    await assertFails(
+      setDoc(doc(memberA(), "eduAttendance", "edu_owner_spoof_leave"), {
+        ...attendancePayload,
+        id: "edu_owner_spoof_leave",
+        studentId: "stu2",
+        kind: "leave",
+      })
+    );
   });
 
   test("update: staff can update signin records and owner can only remove own leave", async () => {
+    await seedAttendanceOwnerStudent();
     await seedDoc("eduAttendance", "edu_signin_update", attendancePayload);
     await seedDoc("eduAttendance", "edu_leave_update", {
       ...attendancePayload,

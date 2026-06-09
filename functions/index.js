@@ -4024,12 +4024,18 @@ exports.listEduCoursePublicRoster = onCall(
       const level = sanitizeStr(String(
         student.level ?? student.lv ?? student.gradeLevel ?? student.levelLabel ?? ""
       ), 20) || null;
+      const selfUid = sanitizeStr(student.selfUid, 128);
+      const parentUid = sanitizeStr(student.parentUid, 128);
+      const canSelfLeave = !!callerUid && (selfUid === callerUid || parentUid === callerUid);
       return {
         studentId,
         displayName,
         photoURL,
         level,
         attendanceKind: attendanceByStudentId[studentId] || null,
+        canSelfLeave,
+        selfUid: canSelfLeave ? selfUid || null : null,
+        parentUid: canSelfLeave ? parentUid || null : null,
       };
     });
 

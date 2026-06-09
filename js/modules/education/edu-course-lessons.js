@@ -158,6 +158,39 @@ Object.assign(App, {
     return run();
   },
 
+  async saveCourseLessonSelfLeave(studentId, kind, button) {
+    const ctx = this._eduCourseLessonsContext;
+    if (!ctx || ctx.mode !== 'roster' || ctx.isStaff) return;
+    const key = String(studentId || '').trim();
+    const students = Array.isArray(ctx.rosterPayload?.students) ? ctx.rosterPayload.students : [];
+    const student = students.find(item => String(item.studentId || '') === key);
+    if (!student || student.canSelfLeave !== true) {
+      this.showToast?.('權限不足');
+      return;
+    }
+    const leave = kind === 'leave';
+    const run = async () => {
+      await FirebaseService.saveEduCourseSelfLeave({
+        teamId: ctx.teamId,
+        planId: ctx.planId,
+        sessionId: ctx.sessionId,
+        date: ctx.rosterPayload?.session?.date,
+        studentId: key,
+        studentName: student.displayName || '',
+        selfUid: student.selfUid || null,
+        parentUid: student.parentUid || null,
+        leave,
+      });
+      this.showToast?.(leave ? '已登記請假' : '已取消請假');
+      await this.showCourseLessonRoster(ctx.teamId, ctx.planId, ctx.sessionId);
+    };
+
+    if (typeof this._withButtonLoading === 'function') {
+      return this._withButtonLoading(button, leave ? '請假中...' : '取消中...', run);
+    }
+    return run();
+  },
+
   async showCourseLessonRoster(teamId, planId, sessionId) {
     const requestSeq = ++this._eduCourseLessonsRequestSeq;
     this._eduCurrentTeamId = teamId;

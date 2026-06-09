@@ -3889,6 +3889,65 @@ Object.assign(FirebaseService, {
     return { changed: normalized.length };
   },
 
+  async saveEduCourseSelfLeave({ teamId, planId, sessionId, date, studentId, studentName, selfUid, parentUid, leave }) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase auth is not ready');
+    const targetStudentId = String(studentId || '').trim();
+    if (!teamId || !planId || !sessionId || !date || !targetStudentId) {
+      return { changed: 0 };
+    }
+
+    const existingSnap = await db.collection('eduAttendance')
+      .where('teamId', '==', teamId)
+      .where('coursePlanId', '==', planId)
+      .where('date', '==', date)
+      .where('sessionId', '==', sessionId)
+      .get();
+    const batch = db.batch();
+    const now = firebase.firestore.FieldValue.serverTimestamp();
+    let writeCount = 0;
+    let hasActiveLeave = false;
+
+    existingSnap.forEach(docSnap => {
+      const record = docSnap.data() || {};
+      if (String(record.studentId || '').trim() !== targetStudentId) return;
+      if ((record.kind || 'signin') !== 'leave') return;
+      if (record.status === 'removed') return;
+      hasActiveLeave = true;
+      if (leave === false) {
+        batch.update(docSnap.ref, { status: 'removed', updatedAt: now });
+        writeCount += 1;
+      }
+    });
+
+    if (leave !== false && !hasActiveLeave) {
+      const docRef = db.collection('eduAttendance').doc();
+      batch.set(docRef, {
+        id: docRef.id,
+        teamId,
+        groupId: '',
+        coursePlanId: planId,
+        sessionId,
+        studentId: targetStudentId,
+        studentName: String(studentName || '').trim(),
+        parentUid: parentUid || null,
+        selfUid: selfUid || null,
+        kind: 'leave',
+        date,
+        time: new Date().toTimeString().slice(0, 5),
+        sessionNumber: null,
+        status: 'active',
+        createdAt: now,
+        updatedAt: now,
+      });
+      writeCount += 1;
+    }
+
+    if (writeCount === 0) return { changed: 0 };
+    await batch.commit();
+    return { changed: writeCount };
+  },
+
   async queryEduAttendance(filters) {
     filters = filters || {};
     let query = db.collection('eduAttendance');
