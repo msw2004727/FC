@@ -725,7 +725,7 @@ describe('team detail club activity section', () => {
       _isTeamDetailTeachingEnabled: () => true,
       isEduClubStaff: () => false,
       getEduCoursePlans: () => [
-        { id: 'current', active: true, endDate: '2099-01-01', name: '進行中' },
+        { id: 'current', active: true, pinned: true, sortOrder: 10, endDate: '2099-01-01', name: '進行中' },
         { id: 'hidden', active: true, endDate: '2099-01-01', name: 'Hidden Course', visibleOnTeamPage: false },
         { id: 'ended', active: true, endDate: '2000-01-01', name: '已結束' },
         { id: 'inactive', active: false, endDate: '2099-01-01', name: '停用' },
@@ -738,6 +738,39 @@ describe('team detail club activity section', () => {
     expect(featured).toContain('進行中');
     expect(featured).not.toContain('Hidden Course');
     expect(featured).not.toContain('已結束');
+  });
+
+  test('team detail v2 featured courses renders all pinned current plans without default cap', () => {
+    const app = makeApp([]);
+    loadTeamDetailRender(app, [], {
+      extraFiles: [
+        'js/modules/team/team-detail-v2-render.js',
+        'js/modules/team/team-detail-v2-panels.js',
+      ],
+    });
+    Object.assign(app, {
+      _isTeamDetailSectionVisible: (_team, key) => key === 'courses',
+      isEduClubStaff: () => false,
+      getEduCoursePlans: () => [
+        { id: 'plain', active: true, endDate: '2099-01-01', name: 'Plain Course' },
+        { id: 'pin3', active: true, pinned: true, sortOrder: 30, endDate: '2099-01-01', name: 'Pinned Three' },
+        { id: 'pin1', active: true, pinned: true, sortOrder: 10, endDate: '2099-01-01', name: 'Pinned One' },
+        { id: 'pin2', active: true, pinned: true, sortOrder: 20, endDate: '2099-01-01', name: 'Pinned Two' },
+        { id: 'hiddenPin', active: true, pinned: true, sortOrder: 5, endDate: '2099-01-01', name: 'Hidden Pinned', visibleOnTeamPage: false },
+        { id: 'endedPin', active: true, pinned: true, sortOrder: 1, endDate: '2000-01-01', name: 'Ended Pinned' },
+      ],
+    });
+
+    const featured = app._buildTeamDetailV2FeaturedCourses({ id: 'teamA' });
+
+    expect(featured).toContain('Pinned One');
+    expect(featured).toContain('Pinned Two');
+    expect(featured).toContain('Pinned Three');
+    expect(featured).not.toContain('Plain Course');
+    expect(featured).not.toContain('Hidden Pinned');
+    expect(featured).not.toContain('Ended Pinned');
+    expect(featured.indexOf('Pinned One')).toBeLessThan(featured.indexOf('Pinned Two'));
+    expect(featured.indexOf('Pinned Two')).toBeLessThan(featured.indexOf('Pinned Three'));
   });
 
   test('team detail v2 course tab forces latest course state refresh', () => {

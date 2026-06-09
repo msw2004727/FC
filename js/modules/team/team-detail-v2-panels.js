@@ -96,14 +96,25 @@ Object.assign(App, {
 
   _buildTeamDetailV2FeaturedCourses(t) {
     if (!this._isTeamDetailSectionVisible?.(t, 'courses')) return '';
-    const activePlans = (typeof this._getTeamDetailV2CurrentCoursePlans === 'function'
+    const plans = (typeof this._getTeamDetailV2CurrentCoursePlans === 'function'
       ? this._getTeamDetailV2CurrentCoursePlans(t)
-      : []).slice(0, 2);
-    if (!activePlans.length) {
+      : []);
+    const pinnedPlans = (Array.isArray(plans) ? plans : [])
+      .map((plan, index) => ({ plan, index }))
+      .filter(({ plan }) => plan?.pinned === true)
+      .sort((a, b) => {
+        const av = Number(a.plan?.sortOrder);
+        const bv = Number(b.plan?.sortOrder);
+        const ao = Number.isFinite(av) ? av : a.index;
+        const bo = Number.isFinite(bv) ? bv : b.index;
+        return ao - bo || a.index - b.index;
+      })
+      .map(({ plan }) => plan);
+    if (!pinnedPlans.length) {
       return '<div class="td-v2-card"><div class="td-v2-section-head"><h3>熱門課程</h3><button type="button" data-td-v2-action="tab" data-tab="courses">課程</button></div><div class="td-v2-empty">課程資料載入後會顯示在這裡</div></div>';
     }
     return '<div class="td-v2-card"><div class="td-v2-section-head"><h3>熱門課程</h3><button type="button" data-td-v2-action="tab" data-tab="courses">全部</button></div>'
-      + activePlans.map(p => this._buildTeamDetailV2CourseMiniRow(t.id, p)).join('') + '</div>';
+      + pinnedPlans.map(p => this._buildTeamDetailV2CourseMiniRow(t.id, p)).join('') + '</div>';
   },
 
   _buildTeamDetailV2CourseMiniRow(teamId, plan) {
