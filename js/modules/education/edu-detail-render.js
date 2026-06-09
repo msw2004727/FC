@@ -453,7 +453,7 @@ Object.assign(App, {
         // 已結束：查簽到紀錄
         try {
           var records = await FirebaseService.queryEduAttendance({ teamId, coursePlanId: p.id, studentId: s.id });
-          if (records && records.length > 0) unpaid++;
+          if (records && records.some(r => (r.kind || 'signin') === 'signin')) unpaid++;
         } catch (_) {}
       }
     }

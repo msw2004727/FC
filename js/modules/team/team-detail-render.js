@@ -566,6 +566,7 @@ Object.assign(App, {
     records.forEach(r => {
       if (String(r.teamId || '') !== String(t.id)) return;
       if (r.status === 'removed' || r.status === 'cancelled') return;
+      if ((r.kind || 'signin') !== 'signin') return;
       const matched = (row.studentId && String(r.studentId || '') === String(row.studentId))
         || (row.uid && (String(r.selfUid || '') === row.uid || String(r.uid || '') === row.uid));
       if (matched) seen.add([r.coursePlanId || r.groupId || 'course', r.date || '', r.sessionNumber || ''].join(':'));

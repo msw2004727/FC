@@ -2505,13 +2505,29 @@ describe("/kickGameRankings/{periodBucket}/entries/{entryUid}", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-//  eduAttendance (auth read/write)
+//  eduAttendance (auth read, staff write, owner leave create/update)
 // ═══════════════════════════════════════════════════════════════
 describe("/eduAttendance/{recordId}", () => {
+  const attendancePayload = {
+    id: "edu1",
+    teamId: "teamA",
+    groupId: "grp1",
+    coursePlanId: "plan1",
+    sessionId: "session1",
+    studentId: "stu1",
+    studentName: "Student One",
+    selfUid: "uidA",
+    parentUid: null,
+    date: "2026-06-09",
+    time: "10:00",
+    sessionNumber: null,
+    kind: "signin",
+    status: "active",
+  };
+
   test("read: authenticated can read", async () => {
     await seedDoc("eduAttendance", "edu1", {
-      uid: "uidA",
-      status: "present",
+      ...attendancePayload,
     });
     await assertByRole(
       ({ db }) => getDoc(doc(db, "eduAttendance", "edu1")),
@@ -2519,40 +2535,70 @@ describe("/eduAttendance/{recordId}", () => {
     );
   });
 
-  test("create: authenticated can create", async () => {
-    await assertByRole(
-      ({ db, role }) =>
-        setDoc(doc(db, "eduAttendance", `edu_create_${role}`), {
-          uid: role,
-          status: "present",
-        }),
-      allowAuth
+  test("create: team staff can create signin records", async () => {
+    await assertFails(
+      setDoc(doc(guest(), "eduAttendance", "edu_guest_signin"), attendancePayload)
+    );
+    await assertFails(
+      setDoc(doc(memberA(), "eduAttendance", "edu_member_signin"), attendancePayload)
+    );
+    await assertSucceeds(
+      setDoc(doc(captain(), "eduAttendance", "edu_staff_signin"), attendancePayload)
     );
   });
 
-  test("update: authenticated can update", async () => {
-    await seedDoc("eduAttendance", "edu_upd", {
-      uid: "uidA",
-      status: "present",
+  test("create: owner can create own leave but not own signin", async () => {
+    await assertFails(
+      setDoc(doc(memberA(), "eduAttendance", "edu_owner_signin"), attendancePayload)
+    );
+    await assertSucceeds(
+      setDoc(doc(memberA(), "eduAttendance", "edu_owner_leave"), {
+        ...attendancePayload,
+        id: "edu_owner_leave",
+        kind: "leave",
+      })
+    );
+  });
+
+  test("update: staff can update signin records and owner can only remove own leave", async () => {
+    await seedDoc("eduAttendance", "edu_signin_update", attendancePayload);
+    await seedDoc("eduAttendance", "edu_leave_update", {
+      ...attendancePayload,
+      id: "edu_leave_update",
+      kind: "leave",
     });
     await assertFails(
-      updateDoc(doc(guest(), "eduAttendance", "edu_upd"), {
-        status: "absent",
+      updateDoc(doc(memberA(), "eduAttendance", "edu_signin_update"), {
+        status: "removed",
       })
     );
     await assertSucceeds(
-      updateDoc(doc(memberA(), "eduAttendance", "edu_upd"), {
-        status: "absent",
+      updateDoc(doc(captain(), "eduAttendance", "edu_signin_update"), {
+        status: "removed",
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(memberA(), "eduAttendance", "edu_leave_update"), {
+        status: "removed",
+      })
+    );
+    await assertFails(
+      updateDoc(doc(memberA(), "eduAttendance", "edu_leave_update"), {
+        studentId: "stu2",
       })
     );
   });
 
-  test("delete: authenticated can delete", async () => {
-    await seedDoc("eduAttendance", "edu_del", { uid: "uidA", status: "x" });
-    await assertFails(deleteDoc(doc(guest(), "eduAttendance", "edu_del")));
-    await assertSucceeds(
-      deleteDoc(doc(memberA(), "eduAttendance", "edu_del"))
-    );
+  test("delete: team staff only", async () => {
+    await seedDoc("eduAttendance", "edu_del_guest", attendancePayload);
+    await seedDoc("eduAttendance", "edu_del_member", attendancePayload);
+    await seedDoc("eduAttendance", "edu_del_staff", {
+      ...attendancePayload,
+      id: "edu_del_staff",
+    });
+    await assertFails(deleteDoc(doc(guest(), "eduAttendance", "edu_del_guest")));
+    await assertFails(deleteDoc(doc(memberA(), "eduAttendance", "edu_del_member")));
+    await assertSucceeds(deleteDoc(doc(captain(), "eduAttendance", "edu_del_staff")));
   });
 });
 

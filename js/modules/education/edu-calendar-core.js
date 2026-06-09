@@ -83,7 +83,8 @@ Object.assign(App, {
     try {
       const filters = { teamId };
       if (studentId) filters.studentId = studentId;
-      const records = await FirebaseService.queryEduAttendance(filters);
+      const records = (await FirebaseService.queryEduAttendance(filters))
+        .filter(r => (r.kind || 'signin') === 'signin');
       this._eduAttendanceCache[key] = records;
       return records;
     } catch (err) {

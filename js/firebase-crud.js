@@ -3823,15 +3823,88 @@ Object.assign(FirebaseService, {
     return payload;
   },
 
+  async saveEduSessionAttendanceChanges({ teamId, planId, sessionId, date, changes }) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase auth is not ready');
+    const normalized = (Array.isArray(changes) ? changes : [])
+      .map(change => ({
+        studentId: String(change?.studentId || '').trim(),
+        studentName: String(change?.studentName || change?.displayName || '').trim(),
+        kind: change?.kind === 'leave' ? 'leave' : change?.kind === 'signin' ? 'signin' : null,
+        parentUid: change?.parentUid || null,
+        selfUid: change?.selfUid || null,
+      }))
+      .filter(change => change.studentId);
+    if (!teamId || !planId || !sessionId || !date || !normalized.length) {
+      return { changed: 0 };
+    }
+
+    const byStudentId = new Map(normalized.map(change => [change.studentId, change]));
+    const existingSnap = await db.collection('eduAttendance')
+      .where('teamId', '==', teamId)
+      .where('coursePlanId', '==', planId)
+      .where('date', '==', date)
+      .get();
+    const batch = db.batch();
+    const now = firebase.firestore.FieldValue.serverTimestamp();
+    let writeCount = 0;
+
+    existingSnap.forEach(docSnap => {
+      const record = docSnap.data() || {};
+      const recordSessionId = String(record.sessionId || '').trim();
+      if (recordSessionId && recordSessionId !== String(sessionId)) return;
+      const studentId = String(record.studentId || '').trim();
+      if (!byStudentId.has(studentId)) return;
+      if (record.status === 'removed') return;
+      batch.update(docSnap.ref, { status: 'removed', updatedAt: now });
+      writeCount += 1;
+    });
+
+    normalized.forEach(change => {
+      if (!change.kind) return;
+      const docRef = db.collection('eduAttendance').doc();
+      batch.set(docRef, {
+        id: docRef.id,
+        teamId,
+        groupId: '',
+        coursePlanId: planId,
+        sessionId,
+        studentId: change.studentId,
+        studentName: change.studentName,
+        parentUid: change.parentUid,
+        selfUid: change.selfUid,
+        kind: change.kind,
+        date,
+        time: new Date().toTimeString().slice(0, 5),
+        sessionNumber: null,
+        status: 'active',
+        createdAt: now,
+        updatedAt: now,
+      });
+      writeCount += 1;
+    });
+
+    if (writeCount === 0) return { changed: 0 };
+    await batch.commit();
+    return { changed: normalized.length };
+  },
+
   async queryEduAttendance(filters) {
+    filters = filters || {};
     let query = db.collection('eduAttendance');
     if (filters.teamId) query = query.where('teamId', '==', filters.teamId);
     if (filters.groupId) query = query.where('groupId', '==', filters.groupId);
     if (filters.studentId) query = query.where('studentId', '==', filters.studentId);
     if (filters.coursePlanId) query = query.where('coursePlanId', '==', filters.coursePlanId);
+    if (filters.sessionId) query = query.where('sessionId', '==', filters.sessionId);
     if (filters.date) query = query.where('date', '==', filters.date);
     const snapshot = await query.get();
-    return this._mapCollectionDocs(snapshot).filter(r => r.status !== 'removed');
+    return this._mapCollectionDocs(snapshot).filter(r => {
+      if (r.status === 'removed') return false;
+      if (!filters.kind) return true;
+      const kind = r.kind || 'signin';
+      return kind === filters.kind;
+    });
   },
 
 });

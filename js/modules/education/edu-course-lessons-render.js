@@ -85,13 +85,33 @@ Object.assign(App, {
     const jsTeamId = this._eduCourseLessonsJsArg(context.teamId);
     const jsPlanId = this._eduCourseLessonsJsArg(context.planId);
     const status = this._getCourseLessonStatusMeta(session);
-    const rosterRows = students.map((student) => {
+    const manageMode = context.isStaff === true && context.manageMode === true;
+    const rosterRows = students.map((student, index) => {
       const name = student.displayName || '學員';
-      const attendance = this._getCourseLessonAttendanceMeta(student.attendanceKind);
+      const studentId = String(student.studentId || '').trim();
+      const draftKind = manageMode
+        ? (context.draftByStudentId?.[studentId] || null)
+        : student.attendanceKind;
+      const attendance = this._getCourseLessonAttendanceMeta(draftKind);
       const note = notesByStudentId[student.studentId] || '';
+      const safeStudentId = this._eduCourseLessonsJsArg(studentId);
+      const signinId = 'edu-roster-signin-' + index;
+      const leaveId = 'edu-roster-leave-' + index;
+      const manageHtml = manageMode
+        ? '<div class="edu-course-roster-manage" role="group" aria-label="出席狀態">'
+          + '<span class="edu-roster-choice">'
+            + '<input class="edu-roster-cb edu-roster-cb-signin" type="checkbox" id="' + signinId + '" ' + (draftKind === 'signin' ? 'checked ' : '') + 'onchange="App.setCourseLessonRosterDraft(\'' + safeStudentId + '\',this.checked?\'signin\':null)">'
+            + '<label class="edu-roster-choice-label" for="' + signinId + '"><span class="edu-roster-choice-box"></span><span>出席</span></label>'
+          + '</span>'
+          + '<span class="edu-roster-choice">'
+            + '<input class="edu-roster-cb edu-roster-cb-leave" type="checkbox" id="' + leaveId + '" ' + (draftKind === 'leave' ? 'checked ' : '') + 'onchange="App.setCourseLessonRosterDraft(\'' + safeStudentId + '\',this.checked?\'leave\':null)">'
+            + '<label class="edu-roster-choice-label" for="' + leaveId + '"><span class="edu-roster-choice-box"></span><span>請假</span></label>'
+          + '</span>'
+        + '</div>'
+        : '<span class="edu-course-roster-status edu-course-roster-status-' + escapeHTML(attendance.cls) + '">' + escapeHTML(attendance.label) + '</span>';
       const avatarHtml = this._renderCourseSessionStudentAvatar
         ? this._renderCourseSessionStudentAvatar({
-            id: student.studentId,
+            id: studentId,
             name,
             pictureUrl: student.photoURL,
             photoURL: student.photoURL,
@@ -109,9 +129,14 @@ Object.assign(App, {
           + '<div class="edu-course-roster-name-line"><strong>' + escapeHTML(name) + '</strong><span>Lv ' + escapeHTML(student.level || '-') + '</span></div>'
           + noteHtml
         + '</div>'
-        + '<span class="edu-course-roster-status edu-course-roster-status-' + escapeHTML(attendance.cls) + '">' + escapeHTML(attendance.label) + '</span>'
+        + manageHtml
       + '</article>';
     }).join('');
+    const staffActions = context.isStaff
+      ? (manageMode
+        ? '<div class="edu-course-roster-head-actions"><button type="button" class="outline-btn small" onclick="App.cancelCourseLessonRosterManage()">取消</button><button type="button" class="primary-btn small" onclick="return App.saveCourseLessonRosterManage(this)">完成</button></div>'
+        : '<button type="button" class="primary-btn small" onclick="App.startCourseLessonRosterManage()">管理名單</button>')
+      : '';
     return '<div class="edu-course-roster-shell">'
       + '<section class="edu-course-roster-head">'
         + '<button type="button" class="outline-btn small" onclick="App.showCourseLessons(\'' + jsTeamId + '\',\'' + jsPlanId + '\')">返回課堂</button>'
@@ -120,7 +145,7 @@ Object.assign(App, {
           + '<h3>' + escapeHTML(session.title || '課堂名單') + '</h3>'
           + '<p>' + escapeHTML(this._formatCourseLessonDateTime(session)) + '</p>'
         + '</div>'
-        + (context.isStaff ? '<button type="button" class="primary-btn small" disabled title="Phase 2 啟用">管理名單</button>' : '')
+        + staffActions
       + '</section>'
       + '<section class="edu-course-roster-list-panel">'
         + '<div class="edu-course-lessons-section-title"><strong>本堂名單</strong><span>' + students.length + ' 位</span></div>'

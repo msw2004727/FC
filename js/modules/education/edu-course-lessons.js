@@ -70,6 +70,94 @@ Object.assign(App, {
     return { ok: true };
   },
 
+  _getCourseLessonAttendanceMap(students) {
+    const map = {};
+    (students || []).forEach((student) => {
+      const studentId = String(student?.studentId || '').trim();
+      if (!studentId) return;
+      map[studentId] = student.attendanceKind === 'leave'
+        ? 'leave'
+        : student.attendanceKind === 'signin' ? 'signin' : null;
+    });
+    return map;
+  },
+
+  _renderCourseLessonRosterFromContext() {
+    const ctx = this._eduCourseLessonsContext;
+    const container = this._getEduCourseLessonsContainer();
+    if (!container || !ctx || ctx.mode !== 'roster' || !ctx.rosterPayload) return;
+    container.innerHTML = this._renderCourseLessonRosterView(ctx.rosterPayload, ctx);
+    this._bindCourseSessionStudentAvatarFallbacks?.(container);
+  },
+
+  startCourseLessonRosterManage() {
+    const ctx = this._eduCourseLessonsContext;
+    if (!ctx || ctx.mode !== 'roster' || !ctx.isStaff) return;
+    ctx.manageMode = true;
+    ctx.draftByStudentId = { ...(ctx.attendanceByStudentId || {}) };
+    this._renderCourseLessonRosterFromContext();
+  },
+
+  cancelCourseLessonRosterManage() {
+    const ctx = this._eduCourseLessonsContext;
+    if (!ctx || ctx.mode !== 'roster') return;
+    ctx.manageMode = false;
+    ctx.draftByStudentId = { ...(ctx.attendanceByStudentId || {}) };
+    this._renderCourseLessonRosterFromContext();
+  },
+
+  setCourseLessonRosterDraft(studentId, kind) {
+    const ctx = this._eduCourseLessonsContext;
+    if (!ctx || ctx.mode !== 'roster' || !ctx.isStaff || !ctx.manageMode) return;
+    const key = String(studentId || '').trim();
+    if (!key) return;
+    const normalized = kind === 'leave' ? 'leave' : kind === 'signin' ? 'signin' : null;
+    ctx.draftByStudentId = { ...(ctx.draftByStudentId || {}), [key]: normalized };
+    this._renderCourseLessonRosterFromContext();
+  },
+
+  async saveCourseLessonRosterManage(button) {
+    const ctx = this._eduCourseLessonsContext;
+    if (!ctx || ctx.mode !== 'roster' || !ctx.isStaff || !ctx.manageMode) return;
+    const students = Array.isArray(ctx.rosterPayload?.students) ? ctx.rosterPayload.students : [];
+    const original = ctx.attendanceByStudentId || {};
+    const draft = ctx.draftByStudentId || {};
+    const changes = students
+      .map(student => {
+        const studentId = String(student.studentId || '').trim();
+        if (!studentId) return null;
+        const nextKind = draft[studentId] || null;
+        if ((original[studentId] || null) === nextKind) return null;
+        return {
+          studentId,
+          studentName: student.displayName || '',
+          parentUid: student.parentUid || null,
+          selfUid: student.selfUid || null,
+          kind: nextKind,
+        };
+      })
+      .filter(Boolean);
+
+    const run = async () => {
+      if (changes.length) {
+        await FirebaseService.saveEduSessionAttendanceChanges({
+          teamId: ctx.teamId,
+          planId: ctx.planId,
+          sessionId: ctx.sessionId,
+          date: ctx.rosterPayload?.session?.date,
+          changes,
+        });
+      }
+      this.showToast?.(changes.length ? '名單已更新' : '沒有變更');
+      await this.showCourseLessonRoster(ctx.teamId, ctx.planId, ctx.sessionId);
+    };
+
+    if (typeof this._withButtonLoading === 'function') {
+      return this._withButtonLoading(button, '儲存中...', run);
+    }
+    return run();
+  },
+
   async showCourseLessonRoster(teamId, planId, sessionId) {
     const requestSeq = ++this._eduCourseLessonsRequestSeq;
     this._eduCurrentTeamId = teamId;
@@ -115,15 +203,21 @@ Object.assign(App, {
       container.innerHTML = '<div class="edu-course-lessons-empty"><strong>名單未公開</strong><span>此課堂名單目前僅職員可查看。</span></div>';
       return { ok: true, closed: true };
     }
-    container.innerHTML = this._renderCourseLessonRosterView(rosterPayload, {
+    const attendanceByStudentId = this._getCourseLessonAttendanceMap(rosterPayload?.students || []);
+    this._eduCourseLessonsContext = {
       teamId,
       planId,
       sessionId,
+      mode: 'roster',
       isStaff,
+      rosterPayload,
       notesByStudentId,
       enrollIdsByStudentId,
-    });
-    this._bindCourseSessionStudentAvatarFallbacks?.(container);
+      attendanceByStudentId,
+      draftByStudentId: { ...attendanceByStudentId },
+      manageMode: false,
+    };
+    this._renderCourseLessonRosterFromContext();
     return { ok: true };
   },
 });

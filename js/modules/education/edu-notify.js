@@ -147,7 +147,7 @@ Object.assign(App, {
     let records = [];
     try {
       records = await FirebaseService.queryEduAttendance({ teamId, groupId });
-      records = records.filter(r => r.date >= startDate);
+      records = records.filter(r => r.date >= startDate && (r.kind || 'signin') === 'signin');
     } catch (_) {}
 
     const notifiedUids = new Set();

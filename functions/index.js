@@ -3976,18 +3976,20 @@ exports.listEduCoursePublicRoster = onCall(
         const attendanceDocs = attendanceSnap.docs
           .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
           .filter((record) => sanitizeStr(record.status, 32) !== "removed");
-        const hasSessionScopedRecords = attendanceDocs.some((record) => sanitizeStr(record.sessionId, 100));
+        const legacyAttendanceByStudentId = {};
+        const sessionAttendanceByStudentId = {};
         attendanceDocs.forEach((record) => {
           const recordSessionId = sanitizeStr(record.sessionId, 100);
-          if (hasSessionScopedRecords && recordSessionId !== sessionId) return;
-          if (!hasSessionScopedRecords && recordSessionId && recordSessionId !== sessionId) return;
+          if (recordSessionId && recordSessionId !== sessionId) return;
           const studentId = sanitizeStr(record.studentId, 100);
           if (!studentId) return;
           const kind = sanitizeStr(record.kind, 20) === "leave" ? "leave" : "signin";
-          if (kind === "leave" || !attendanceByStudentId[studentId]) {
-            attendanceByStudentId[studentId] = kind;
+          const target = recordSessionId ? sessionAttendanceByStudentId : legacyAttendanceByStudentId;
+          if (kind === "leave" || !target[studentId]) {
+            target[studentId] = kind;
           }
         });
+        Object.assign(attendanceByStudentId, legacyAttendanceByStudentId, sessionAttendanceByStudentId);
       } catch (err) {
         console.warn("[listEduCoursePublicRoster] attendance query failed", {
           teamId,

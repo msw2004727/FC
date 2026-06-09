@@ -46,6 +46,7 @@ Object.assign(App, {
     let allRecords = [];
     try {
       allRecords = await FirebaseService.queryEduAttendance({ teamId, coursePlanId: planId });
+      allRecords = allRecords.filter(r => (r.kind || 'signin') === 'signin');
     } catch (_) {}
 
     // 按日期分組
@@ -100,6 +101,7 @@ Object.assign(App, {
     let records = [];
     try {
       records = await FirebaseService.queryEduAttendance({ teamId, coursePlanId: planId, date: dateStr });
+      records = records.filter(r => (r.kind || 'signin') === 'signin');
     } catch (_) {}
 
     let listHtml = records.length

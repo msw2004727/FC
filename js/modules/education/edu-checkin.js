@@ -119,7 +119,7 @@ Object.assign(App, {
       const existing = cached || await FirebaseService.queryEduAttendance({ teamId, coursePlanId: planId, date });
       if (requestSeq != null && requestSeq !== this._eduCheckinPageRequestSeq) return;
       if (!cached) this._setCheckinCache(cacheKey, existing);
-      existing.forEach(r => checkedIds.add(r.studentId));
+      existing.filter(r => (r.kind || 'signin') === 'signin').forEach(r => checkedIds.add(r.studentId));
     } catch (_) {}
 
     // 設定 groupId（取第一個學員的分組）
@@ -208,7 +208,7 @@ Object.assign(App, {
       const existing = cached || await FirebaseService.queryEduAttendance({ teamId, groupId, date });
       if (requestSeq !== this._eduCheckinPageRequestSeq) return;
       if (!cached) this._setCheckinCache(cacheKey, existing);
-      existing.forEach(r => checkedIds.add(r.studentId));
+      existing.filter(r => (r.kind || 'signin') === 'signin').forEach(r => checkedIds.add(r.studentId));
     } catch (_) {}
 
     // 表格式簽到列表
@@ -285,7 +285,7 @@ Object.assign(App, {
           id: docRef.id, teamId, groupId: groupId || '', coursePlanId: coursePlanId || null,
           studentId: r.studentId, studentName: r.studentName,
           parentUid: r.parentUid, selfUid: r.selfUid,
-          date, time, sessionNumber: null, status: 'active',
+          date, time, sessionNumber: null, kind: 'signin', status: 'active',
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
         });

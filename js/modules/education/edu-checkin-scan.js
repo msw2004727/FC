@@ -168,7 +168,7 @@ Object.assign(App, {
         id: docRef.id, teamId, groupId: groupId || '', coursePlanId: null,
         studentId, studentName: studentName || '',
         parentUid: student?.parentUid || null, selfUid: student?.selfUid || null,
-        date, time, sessionNumber: null, status: 'active',
+        date, time, sessionNumber: null, kind: 'signin', status: 'active',
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       });

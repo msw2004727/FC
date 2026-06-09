@@ -54,6 +54,8 @@ function loadCourseLessonsContext(overrides = {}) {
     _getCourseSessionStatusMeta: () => ({ label: '已排課', cls: 'scheduled' }),
     _renderCourseSessionStudentAvatar: (_student, name) => '<span class="avatar">' + escapeHTML(name) + '</span>',
     _bindCourseSessionStudentAvatarFallbacks: jest.fn(),
+    _withButtonLoading: jest.fn((_button, _text, fn) => fn()),
+    showToast: jest.fn(),
   };
   const context = {
     App: app,
@@ -74,6 +76,7 @@ function loadCourseLessonsContext(overrides = {}) {
           { studentId: 'stu2', displayName: '小華', level: null, attendanceKind: null },
         ],
       }),
+      saveEduSessionAttendanceChanges: jest.fn(async () => ({ changed: 1 })),
     },
     document: {
       getElementById: jest.fn((id) => {
@@ -135,5 +138,36 @@ describe('edu course lessons', () => {
     await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
 
     expect(container.innerHTML).toContain('名單未公開');
+  });
+
+  test('staff can draft and save lesson attendance changes', async () => {
+    const { app, container, firebase } = loadCourseLessonsContext({ isStaff: true });
+
+    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+    expect(container.innerHTML).toContain('管理名單');
+
+    app.startCourseLessonRosterManage();
+    expect(container.innerHTML).toContain('edu-roster-cb-signin');
+    expect(container.innerHTML).toContain('edu-roster-cb-leave');
+
+    app.setCourseLessonRosterDraft('stu2', 'leave');
+    expect(app._eduCourseLessonsContext.draftByStudentId.stu2).toBe('leave');
+
+    await app.saveCourseLessonRosterManage({ dataset: {}, disabled: false, style: {}, isConnected: true });
+
+    expect(firebase.saveEduSessionAttendanceChanges).toHaveBeenCalledWith({
+      teamId: 'teamA',
+      planId: 'planA',
+      sessionId: 'sessionA',
+      date: '2099-06-02',
+      changes: [{
+        studentId: 'stu2',
+        studentName: '小華',
+        parentUid: null,
+        selfUid: null,
+        kind: 'leave',
+      }],
+    });
+    expect(app.showToast).toHaveBeenCalledWith('名單已更新');
   });
 });

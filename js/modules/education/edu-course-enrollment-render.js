@@ -84,7 +84,7 @@ Object.assign(App, {
       const attendRecords = await FirebaseService.queryEduAttendance({ teamId, coursePlanId: planId });
       if (requestSeq != null && requestSeq !== this._eduCourseEnrollmentRequestSeq) return;
       if (isStaff) {
-        attendRecords.forEach(r => {
+        attendRecords.filter(r => (r.kind || 'signin') === 'signin').forEach(r => {
           this._courseAttendanceCount[r.studentId] = (this._courseAttendanceCount[r.studentId] || 0) + 1;
         });
       }

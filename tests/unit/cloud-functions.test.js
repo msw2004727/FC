@@ -454,6 +454,9 @@ describe('education course enrollment callable source contracts', () => {
     expect(source).toContain('planRef.collection("sessions").doc(sessionId)');
     expect(source).toContain('teamRef.collection("students").get()');
     expect(source).toContain('db.collection("eduAttendance")');
+    expect(source).toContain('legacyAttendanceByStudentId');
+    expect(source).toContain('sessionAttendanceByStudentId');
+    expect(source).toContain('Object.assign(attendanceByStudentId, legacyAttendanceByStudentId, sessionAttendanceByStudentId)');
     expect(source).toContain('rosterPublic');
     expect(source).not.toContain('serializeCourseEnrollment');
     expect(source).not.toContain('planRef.collection("enrollments").get()');

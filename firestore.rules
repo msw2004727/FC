@@ -2138,12 +2138,50 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════
     //  Education Attendance（教育簽到）
-    //  認證可讀寫（前端 Batch Write，比照活動簽到）
+    //  認證可讀；職員可寫；本人/家長僅可建立與移除自己的請假
     // ═══════════════════════════════════════════
     match /eduAttendance/{recordId} {
+      function canManageEduAttendance(data) {
+        return hasNonEmptyStringInMap(data, 'teamId')
+          && (
+            isCurrentUserTeamStaff(data.teamId)
+            || isSuperAdmin()
+            || hasPerm('team.manage_all')
+          );
+      }
+
+      function isEduAttendanceOwnedByAuth(data) {
+        return isAuth()
+          && (
+            (data.keys().hasAny(['selfUid']) && data.selfUid is string && data.selfUid == request.auth.uid)
+            || (data.keys().hasAny(['parentUid']) && data.parentUid is string && data.parentUid == request.auth.uid)
+          );
+      }
+
+      function isOwnEduLeaveCreate() {
+        return hasNonEmptyStringInMap(request.resource.data, 'teamId')
+          && hasNonEmptyStringInMap(request.resource.data, 'studentId')
+          && hasNonEmptyStringInMap(request.resource.data, 'date')
+          && request.resource.data.kind == 'leave'
+          && isEduAttendanceOwnedByAuth(request.resource.data);
+      }
+
+      function isOwnEduLeaveStatusUpdate() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return resource.data.kind == 'leave'
+          && request.resource.data.kind == 'leave'
+          && isEduAttendanceOwnedByAuth(resource.data)
+          && isEduAttendanceOwnedByAuth(request.resource.data)
+          && request.resource.data.teamId == resource.data.teamId
+          && request.resource.data.studentId == resource.data.studentId
+          && changed.hasOnly(['status', 'updatedAt'])
+          && request.resource.data.status in ['active', 'removed'];
+      }
+
       allow read: if isAuth();
-      allow create: if isAuth();
-      allow update, delete: if isAuth();
+      allow create: if canManageEduAttendance(request.resource.data) || isOwnEduLeaveCreate();
+      allow update: if canManageEduAttendance(resource.data) || isOwnEduLeaveStatusUpdate();
+      allow delete: if canManageEduAttendance(resource.data);
     }
 
     // ═══════════════════════════════════════════

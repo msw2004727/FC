@@ -587,6 +587,13 @@
   gap: .65rem;
   padding: .72rem;
 }
+.edu-course-roster-head-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .45rem;
+  flex: 0 0 auto;
+}
 .edu-course-roster-title-block {
   min-width: 0;
   flex: 1 1 auto;
@@ -604,6 +611,89 @@
 }
 .edu-course-roster-card-signin { border-left: 3px solid #0f766e; }
 .edu-course-roster-card-leave { border-left: 3px solid #b45309; }
+.edu-course-roster-manage {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .4rem;
+  flex-wrap: wrap;
+}
+.edu-roster-choice {
+  position: relative;
+  display: inline-flex;
+}
+.edu-roster-cb {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.edu-roster-choice-label {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .28rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elevated, var(--bg-card));
+  color: var(--text-muted);
+  padding: .16rem .48rem .16rem .28rem;
+  font-size: .72rem;
+  font-weight: 900;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color .16s, background .16s, color .16s, box-shadow .16s;
+}
+.edu-roster-choice-box {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-card);
+  position: relative;
+  flex: 0 0 auto;
+  transition: border-color .16s, background .16s;
+}
+.edu-roster-choice-box::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 6px;
+  height: 10px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) scale(0);
+  transition: transform .16s ease;
+}
+.edu-roster-cb:focus-visible + .edu-roster-choice-label {
+  outline: 3px solid rgba(13, 148, 136, .22);
+  outline-offset: 2px;
+}
+.edu-roster-cb-signin:checked + .edu-roster-choice-label {
+  border-color: rgba(15, 118, 110, .42);
+  background: rgba(13, 148, 136, .12);
+  color: #0f766e;
+}
+.edu-roster-cb-signin:checked + .edu-roster-choice-label .edu-roster-choice-box {
+  border-color: #0f766e;
+  background: #0f766e;
+}
+.edu-roster-cb-leave:checked + .edu-roster-choice-label {
+  border-color: rgba(180, 83, 9, .42);
+  background: rgba(217, 119, 6, .13);
+  color: #b45309;
+}
+.edu-roster-cb-leave:checked + .edu-roster-choice-label .edu-roster-choice-box {
+  border-color: #b45309;
+  background: #b45309;
+}
+.edu-roster-cb:checked + .edu-roster-choice-label .edu-roster-choice-box::after {
+  transform: rotate(45deg) scale(1);
+}
 .edu-course-roster-main {
   min-width: 0;
   display: flex;
@@ -693,6 +783,24 @@
 [data-theme="dark"] .edu-course-lesson-status-done { background: rgba(148, 163, 184, .18); color: #cbd5e1; }
 [data-theme="dark"] .edu-course-lesson-status-cancelled { background: rgba(248, 113, 113, .16); color: #fca5a5; }
 [data-theme="dark"] .edu-course-roster-status-signin { background: rgba(45, 212, 191, .16); color: #5eead4; }
+[data-theme="dark"] .edu-roster-cb-signin:checked + .edu-roster-choice-label {
+  border-color: rgba(45, 212, 191, .42);
+  background: rgba(45, 212, 191, .16);
+  color: #5eead4;
+}
+[data-theme="dark"] .edu-roster-cb-signin:checked + .edu-roster-choice-label .edu-roster-choice-box {
+  border-color: #14b8a6;
+  background: #14b8a6;
+}
+[data-theme="dark"] .edu-roster-cb-leave:checked + .edu-roster-choice-label {
+  border-color: rgba(251, 191, 36, .42);
+  background: rgba(251, 191, 36, .16);
+  color: #fcd34d;
+}
+[data-theme="dark"] .edu-roster-cb-leave:checked + .edu-roster-choice-label .edu-roster-choice-box {
+  border-color: #d97706;
+  background: #d97706;
+}
 
 @media (max-width: 640px) {
   .edu-course-lessons-shell,
@@ -714,12 +822,21 @@
   .edu-course-roster-head .primary-btn {
     width: 100%;
   }
+  .edu-course-roster-head-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
   .edu-course-roster-card {
     grid-template-columns: auto minmax(0, 1fr);
   }
-  .edu-course-roster-status {
+  .edu-course-roster-status,
+  .edu-course-roster-manage {
     grid-column: 2;
     justify-self: flex-start;
+  }
+  .edu-course-roster-manage {
+    justify-content: flex-start;
   }
 }
 
