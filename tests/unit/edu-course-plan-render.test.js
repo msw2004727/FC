@@ -28,7 +28,7 @@ function escapeHTML(value) {
     .replace(/'/g, '&#39;');
 }
 
-async function renderPlans(plans, isStaff = true, selectedTab = 'active') {
+async function renderPlans(plans, isStaff = true, selectedTab = 'active', overrides = {}) {
   const container = { innerHTML: '' };
   const app = {
     _courseEnrollCache: {},
@@ -37,6 +37,14 @@ async function renderPlans(plans, isStaff = true, selectedTab = 'active') {
     _loadEduCoursePlans: jest.fn(() => Promise.resolve(plans)),
     _getCourseEnrollCacheKey: jest.fn(() => null),
     _loadCourseEnrollments: jest.fn(() => Promise.resolve([])),
+    _loadCourseEnrollmentSummaries: overrides.loadCourseEnrollmentSummaries,
+    _loadCourseSessions: overrides.loadCourseSessions,
+    _isCourseSessionFrozenForRoster: overrides.isCourseSessionFrozenForRoster,
+    _getCourseSessionSortValue: overrides.getCourseSessionSortValue || ((session) => {
+      const date = String(session?.date || '');
+      return date ? new Date(date).getTime() : 0;
+    }),
+    _todayStr: overrides.todayStr,
     getEduStudents: jest.fn(() => []),
     _weekdayLabel: (day) => ['日', '一', '二', '三', '四', '五', '六'][day] || String(day),
   };
@@ -57,6 +65,9 @@ async function renderPlans(plans, isStaff = true, selectedTab = 'active') {
   };
   vm.runInNewContext(source, context, { filename: 'edu-course-plan-render.js' });
   await context.App.renderEduCoursePlanList('teamA', isStaff);
+  if (context.App._eduCoursePlanListRefreshPromise) {
+    await context.App._eduCoursePlanListRefreshPromise;
+  }
   return container.innerHTML;
 }
 
@@ -488,6 +499,33 @@ describe('edu course plan render', () => {
     expect(app._loadCourseEnrollments).not.toHaveBeenCalled();
     expect(plans[0]._effectiveCount).toBe(2);
     expect(container.innerHTML).toContain('2/5');
+  });
+
+  test('ended course cards keep frozen session count after summary refresh', async () => {
+    const plans = [{
+      id: 'endedPlan',
+      name: 'Ended Plan',
+      planType: 'session',
+      startDate: '2026-05-01',
+      endDate: '2026-05-31',
+      maxCapacity: 5,
+      allowSignup: true,
+    }];
+    const html = await renderPlans(plans, true, 'ended', {
+      todayStr: () => '2026-06-09',
+      loadCourseEnrollmentSummaries: jest.fn(() => Promise.resolve({
+        endedPlan: { effectiveApprovedCount: 4, viewerStatuses: {} },
+      })),
+      loadCourseSessions: jest.fn(() => Promise.resolve([
+        { id: 's1', status: 'done', date: '2026-05-08', studentIds: ['a'] },
+        { id: 's2', status: 'done', date: '2026-05-15', studentIds: ['a', 'b'] },
+      ])),
+      isCourseSessionFrozenForRoster: (session) => session.status === 'done',
+    });
+
+    expect(plans[0]._effectiveCount).toBe(2);
+    expect(html).toContain('2/5');
+    expect(html).not.toContain('4/5');
   });
 
   test('course detail modal escapes plan copy and shows derived next class', async () => {

@@ -34,6 +34,21 @@ Object.assign(App, {
     return { plan, sessions };
   },
 
+  async _getCourseLessonsCurrentStudentCount(teamId, plan) {
+    const planId = String(plan?.id || plan?._docId || '').trim();
+    if (!teamId || !planId) return null;
+    if (typeof this._loadCourseEnrollmentSummaries === 'function') {
+      const summaries = await this._loadCourseEnrollmentSummaries(teamId, [planId]);
+      const summaryCount = Number(summaries?.[planId]?.effectiveApprovedCount);
+      if (Number.isFinite(summaryCount) && summaryCount >= 0) {
+        plan._effectiveCount = summaryCount;
+        return summaryCount;
+      }
+    }
+    const cachedCount = Number(plan?._effectiveCount);
+    return Number.isFinite(cachedCount) && cachedCount >= 0 ? cachedCount : null;
+  },
+
   async showCourseLessons(teamId, planId) {
     const requestSeq = ++this._eduCourseLessonsRequestSeq;
     this._eduCurrentTeamId = teamId;
@@ -70,7 +85,9 @@ Object.assign(App, {
       }
       if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
     }
-    container.innerHTML = this._renderCourseLessonList(plan, sessions, { teamId, planId, isStaff });
+    const currentStudentCount = await this._getCourseLessonsCurrentStudentCount(teamId, plan);
+    if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
+    container.innerHTML = this._renderCourseLessonList(plan, sessions, { teamId, planId, isStaff, currentStudentCount });
     this._eduCourseLessonsContext = { teamId, planId, mode: 'list' };
     return { ok: true };
   },

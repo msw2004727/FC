@@ -28,6 +28,22 @@ Object.assign(App, {
     return this._getCourseSessionStatusMeta?.(session) || { label: '已排課', cls: 'scheduled' };
   },
 
+  _getCourseLessonStudentCount(session, context = {}, statusMeta) {
+    if (typeof this._getCourseSessionDisplayStudentCount === 'function') {
+      return this._getCourseSessionDisplayStudentCount(session, {
+        currentStudentCount: context.currentStudentCount,
+        statusMeta,
+      });
+    }
+    const frozenCount = Array.isArray(session?.studentIds) ? session.studentIds.length : 0;
+    const done = String(session?.status || '').trim() === 'done' || statusMeta?.cls === 'done';
+    const rawDynamicCount = context.currentStudentCount;
+    const dynamicCount = rawDynamicCount === null || rawDynamicCount === undefined || rawDynamicCount === ''
+      ? NaN
+      : Number(rawDynamicCount);
+    return !done && Number.isFinite(dynamicCount) && dynamicCount >= 0 ? dynamicCount : frozenCount;
+  },
+
   _getCourseLessonAttendanceMeta(kind) {
     if (kind === 'leave') return { label: '請假', cls: 'leave' };
     if (kind === 'signin') return { label: '已簽到', cls: 'signin' };
@@ -43,7 +59,7 @@ Object.assign(App, {
       const status = this._getCourseLessonStatusMeta(session);
       const location = String(session.location || plan?.location || '').trim() || '地點未設定';
       const capacity = session.capacity ? '/' + session.capacity : '';
-      const count = (session.studentIds || []).length + capacity + ' 人';
+      const count = this._getCourseLessonStudentCount(session, context, status) + capacity + ' 人';
       const jsSessionId = this._eduCourseLessonsJsArg(session.id || session._docId || '');
       return '<article class="edu-course-lesson-card edu-course-lesson-card-' + escapeHTML(status.cls) + '" role="button" tabindex="0" onclick="App.showCourseLessonRoster(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();App.showCourseLessonRoster(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\')}">'
         + '<div class="edu-course-lesson-index"><strong>' + (index + 1) + '</strong></div>'
@@ -66,11 +82,16 @@ Object.assign(App, {
       + (context.isStaff ? '<button class="primary-btn small" onclick="App.openCourseSessionForm(\'' + jsTeamId + '\',\'' + jsPlanId + '\')">＋ 新增課堂</button>' : '')
       + '</div>';
     const typeLabel = plan?.planType === 'weekly' ? '固定週期課程' : '堂數制課程';
+    const coverImage = String(plan?.coverImage || plan?.coverUrl || plan?.imageUrl || plan?.image || '').trim();
+    const heroClass = 'edu-course-lessons-hero' + (coverImage ? ' has-cover' : '');
+    const heroStyle = coverImage ? ' style="--edu-course-lessons-cover:url(\'' + escapeHTML(coverImage) + '\')"' : '';
     return '<div class="edu-course-lessons-shell">'
-      + '<section class="edu-course-lessons-hero">'
-        + '<span class="edu-course-lessons-eyebrow">' + escapeHTML(typeLabel) + '</span>'
-        + '<h3>' + escapeHTML(plan?.name || '課程方案') + '</h3>'
-        + '<p>' + escapeHTML((plan?.startDate || '未設定期間') + (plan?.endDate ? ' - ' + plan.endDate : '')) + '</p>'
+      + '<section class="' + heroClass + '"' + heroStyle + '>'
+        + '<div class="edu-course-lessons-hero-copy">'
+          + '<span class="edu-course-lessons-eyebrow">' + escapeHTML(typeLabel) + '</span>'
+          + '<h3>' + escapeHTML(plan?.name || '課程方案') + '</h3>'
+          + '<p>' + escapeHTML((plan?.startDate || '未設定期間') + (plan?.endDate ? ' - ' + plan.endDate : '')) + '</p>'
+        + '</div>'
       + '</section>'
       + '<section class="edu-course-lessons-list-panel">'
         + '<div class="edu-course-lessons-section-title"><strong>課堂列表</strong><span>' + (sessions || []).length + ' 堂</span></div>'

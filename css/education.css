@@ -416,10 +416,47 @@
   background: var(--bg-card);
 }
 .edu-course-lessons-hero {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  min-height: 88px;
   padding: .85rem .95rem;
   background:
     linear-gradient(135deg, rgba(13, 148, 136, .12), transparent 48%),
     linear-gradient(135deg, var(--bg-card), var(--bg-elevated, var(--bg-card)));
+}
+.edu-course-lessons-hero.has-cover::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 66%;
+  z-index: -2;
+  background-image: var(--edu-course-lessons-cover);
+  background-size: cover;
+  background-position: center;
+  clip-path: polygon(18% 0, 100% 0, 100% 100%, 0 100%);
+}
+.edu-course-lessons-hero.has-cover::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 72%;
+  z-index: -1;
+  background:
+    linear-gradient(100deg, var(--bg-card) 0%, rgba(255, 255, 255, .88) 16%, rgba(255, 255, 255, .58) 34%, rgba(255, 255, 255, .22) 58%, rgba(255, 255, 255, .02) 100%),
+    linear-gradient(180deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .42));
+  clip-path: polygon(16% 0, 100% 0, 100% 100%, 0 100%);
+}
+.edu-course-lessons-hero-copy {
+  position: relative;
+  z-index: 1;
+}
+.edu-course-lessons-hero.has-cover .edu-course-lessons-hero-copy {
+  max-width: 46%;
 }
 .edu-course-lessons-eyebrow {
   display: inline-flex;
@@ -850,6 +887,11 @@
     linear-gradient(135deg, rgba(45, 212, 191, .13), transparent 48%),
     linear-gradient(135deg, rgba(15, 23, 42, .96), rgba(30, 41, 59, .88));
 }
+[data-theme="dark"] .edu-course-lessons-hero.has-cover::after {
+  background:
+    linear-gradient(100deg, rgba(15, 23, 42, 1) 0%, rgba(15, 23, 42, .9) 16%, rgba(15, 23, 42, .64) 34%, rgba(15, 23, 42, .32) 58%, rgba(15, 23, 42, .04) 100%),
+    linear-gradient(180deg, rgba(15, 23, 42, .12), rgba(15, 23, 42, .64));
+}
 [data-theme="dark"] .edu-course-lesson-status-scheduled,
 [data-theme="dark"] .edu-course-roster-status-none { background: rgba(96, 165, 250, .16); color: #93c5fd; }
 [data-theme="dark"] .edu-course-lesson-status-soon,
@@ -880,6 +922,15 @@
   .edu-course-lessons-shell,
   .edu-course-roster-shell {
     padding: .35rem;
+  }
+  .edu-course-lessons-hero.has-cover .edu-course-lessons-hero-copy {
+    max-width: 54%;
+  }
+  .edu-course-lessons-hero.has-cover::before {
+    width: 62%;
+  }
+  .edu-course-lessons-hero.has-cover::after {
+    width: 70%;
   }
   .edu-course-lesson-card {
     grid-template-columns: 3.55rem minmax(0, 1fr);

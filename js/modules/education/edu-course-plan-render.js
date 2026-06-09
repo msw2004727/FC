@@ -20,6 +20,28 @@ Object.assign(App, {
       + '</div>';
   },
 
+  async _getCoursePlanFrozenSessionCount(teamId, plan) {
+    const planId = String(plan?.id || plan?._docId || '').trim();
+    if (!teamId || !planId || typeof this._loadCourseSessions !== 'function') return null;
+    try {
+      const sessions = await this._loadCourseSessions(teamId, planId);
+      const sorted = [...(Array.isArray(sessions) ? sessions : [])]
+        .filter(session => this._isCourseSessionFrozenForRoster?.(session) || String(session?.status || '').trim() === 'done')
+        .sort((a, b) => {
+          if (typeof this._getCourseSessionSortValue === 'function') {
+            return this._getCourseSessionSortValue(a) - this._getCourseSessionSortValue(b);
+          }
+          return String(a?.date || '').localeCompare(String(b?.date || ''));
+        });
+      const latest = sorted[sorted.length - 1];
+      const count = Array.isArray(latest?.studentIds) ? latest.studentIds.length : NaN;
+      return Number.isFinite(count) && count >= 0 ? count : null;
+    } catch (err) {
+      console.warn('[edu-course-plan] frozen session count failed:', err);
+      return null;
+    }
+  },
+
   async renderEduCoursePlanList(teamId, isStaff, options = {}) {
     const container = document.getElementById('edu-course-plan-list');
     if (!container) return;
@@ -111,6 +133,17 @@ Object.assign(App, {
     const endedPlans = listPlans.filter(isPlanEnded);
     const displayPlans = selectedTab === 'ended' ? endedPlans : currentPlans;
     displayPlans.forEach(applyCachedEnrollmentState);
+    const frozenCounts = {};
+    await Promise.all(displayPlans.filter(isPlanEnded).map(async (p) => {
+      const frozenCount = await this._getCoursePlanFrozenSessionCount?.(teamId, p);
+      const frozenKey = String(p.id || p._docId || '').trim();
+      if (frozenKey && Number.isFinite(frozenCount) && frozenCount >= 0) frozenCounts[frozenKey] = frozenCount;
+    }));
+    const applyFrozenCount = (p) => {
+      const frozenCount = frozenCounts[String(p.id || p._docId || '').trim()];
+      if (Number.isFinite(frozenCount) && frozenCount >= 0) p._effectiveCount = frozenCount;
+    };
+    displayPlans.forEach(applyFrozenCount);
 
     const formatMoney = (value) => {
       const amount = Number(value || 0);
@@ -282,11 +315,13 @@ Object.assign(App, {
                   || (key && this._courseEnrollSummaryCache?.[key])
                   || null;
                 applyEnrollmentState(p, cachedEnrollments, summary);
+                applyFrozenCount(p);
               });
               return renderAfterRefresh();
             }
           }
           await refreshFromEnrollments();
+          displayPlans.forEach(applyFrozenCount);
           return renderAfterRefresh();
         })()
       : Promise.resolve(false);

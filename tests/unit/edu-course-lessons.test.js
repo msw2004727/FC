@@ -49,10 +49,11 @@ function loadCourseLessonsContext(overrides = {}) {
     _loadCourseSessions: jest.fn(async () => sessions),
     isEduClubStaff: jest.fn(() => overrides.isStaff === true),
     _loadCourseEnrollments: jest.fn(async () => overrides.enrollments || []),
+    _loadCourseEnrollmentSummaries: jest.fn(async () => overrides.summaries || null),
     _ensureCoursePlanSessionsFromPlan: overrides.ensureCoursePlanSessionsFromPlan,
     _formatCourseSessionDate: (session) => session.date,
     _formatCourseSessionTime: (session) => [session.startTime, session.endTime].filter(Boolean).join(' - '),
-    _getCourseSessionStatusMeta: () => ({ label: '已排課', cls: 'scheduled' }),
+    _getCourseSessionStatusMeta: overrides.getCourseSessionStatusMeta || (() => ({ label: '已排課', cls: 'scheduled' })),
     _renderCourseSessionStudentAvatar: (_student, name) => '<span class="avatar">' + escapeHTML(name) + '</span>',
     _bindCourseSessionStudentAvatarFallbacks: jest.fn(),
     _withButtonLoading: jest.fn((_button, _text, fn) => fn()),
@@ -116,6 +117,68 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).toContain('第一堂');
     expect(container.innerHTML).toContain('2/6 人');
     expect(container.innerHTML).toContain("App.showCourseLessonRoster('teamA','planA','sessionA')");
+  });
+
+  test('lesson cards freeze done counts and use current enrollment count before completion', async () => {
+    const { app, container } = loadCourseLessonsContext({
+      sessions: [
+        {
+          id: 'doneA',
+          title: 'Done Lesson',
+          status: 'done',
+          date: '2099-06-01',
+          startTime: '10:00',
+          endTime: '11:30',
+          location: 'A',
+          studentIds: ['stu1', 'stu2'],
+          capacity: 6,
+        },
+        {
+          id: 'scheduledA',
+          title: 'Future Lesson',
+          status: 'scheduled',
+          date: '2099-06-08',
+          startTime: '10:00',
+          endTime: '11:30',
+          location: 'A',
+          studentIds: ['stu1'],
+          capacity: 6,
+        },
+      ],
+      summaries: {
+        planA: { effectiveApprovedCount: 4 },
+      },
+      getCourseSessionStatusMeta: (session) => session.status === 'done'
+        ? { label: '已完成', cls: 'done' }
+        : { label: '已排課', cls: 'scheduled' },
+    });
+
+    await app.showCourseLessons('teamA', 'planA');
+
+    expect(app._loadCourseEnrollmentSummaries).toHaveBeenCalledWith('teamA', ['planA']);
+    expect(container.innerHTML).toContain('Done Lesson');
+    expect(container.innerHTML).toContain('Future Lesson');
+    expect(container.innerHTML).toContain('2/6 人');
+    expect(container.innerHTML).toContain('4/6 人');
+  });
+
+  test('lesson list hero renders course cover as a clipped right-side visual', async () => {
+    const { app, container } = loadCourseLessonsContext({
+      plans: [{
+        id: 'planA',
+        name: 'Cover Plan',
+        planType: 'session',
+        startDate: '2099-06-01',
+        endDate: '2099-08-31',
+        coverImage: 'https://cdn.example/course-cover.webp',
+      }],
+    });
+
+    await app.showCourseLessons('teamA', 'planA');
+
+    expect(container.innerHTML).toContain('edu-course-lessons-hero has-cover');
+    expect(container.innerHTML).toContain("--edu-course-lessons-cover:url('https://cdn.example/course-cover.webp')");
+    expect(container.innerHTML).toContain('edu-course-lessons-hero-copy');
   });
 
   test('renders weekly lesson cards from course sessions', async () => {

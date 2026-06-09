@@ -122,9 +122,11 @@ Object.assign(App, {
     const count = Number(plan._effectiveCount || 0);
     const max = Number(plan.maxCapacity || 0);
     const capacity = max > 0 ? `${count}/${max} 人` : `${count} 人`;
-    return '<button class="td-v2-course-row" type="button" data-td-v2-action="course" data-course-id="' + escapeHTML(plan.id || '') + '">'
-      + '<span class="td-v2-course-mark">' + escapeHTML(String(plan.name || '課').trim().charAt(0) || '課') + '</span>'
-      + '<span><strong>' + escapeHTML(plan.name || '未命名課程') + '</strong><em>' + escapeHTML(typeLabel + ' · ' + capacity) + '</em></span>'
+    const coverImage = String(plan.coverImage || plan.coverUrl || plan.imageUrl || plan.image || plan.imageVariants?.card || plan.imageVariants?.cover || '').trim();
+    const rowClass = 'td-v2-course-row' + (coverImage ? ' has-cover' : '');
+    const rowStyle = coverImage ? ' style="--td-v2-course-cover:url(\'' + escapeHTML(coverImage) + '\')"' : '';
+    return '<button class="' + rowClass + '" type="button" data-td-v2-action="course" data-course-id="' + escapeHTML(plan.id || '') + '"' + rowStyle + '>'
+      + '<span class="td-v2-course-main"><strong>' + escapeHTML(plan.name || '未命名課程') + '</strong><em>' + escapeHTML(typeLabel + ' · ' + capacity) + '</em></span>'
       + '<b>›</b></button>';
   },
 

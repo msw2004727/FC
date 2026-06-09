@@ -754,7 +754,7 @@ describe('team detail club activity section', () => {
       getEduCoursePlans: () => [
         { id: 'plain', active: true, endDate: '2099-01-01', name: 'Plain Course' },
         { id: 'pin3', active: true, pinned: true, sortOrder: 30, endDate: '2099-01-01', name: 'Pinned Three' },
-        { id: 'pin1', active: true, pinned: true, sortOrder: 10, endDate: '2099-01-01', name: 'Pinned One' },
+        { id: 'pin1', active: true, pinned: true, sortOrder: 10, endDate: '2099-01-01', name: 'Pinned One', coverImage: 'https://cdn.example/pinned-one.webp' },
         { id: 'pin2', active: true, pinned: true, sortOrder: 20, endDate: '2099-01-01', name: 'Pinned Two' },
         { id: 'hiddenPin', active: true, pinned: true, sortOrder: 5, endDate: '2099-01-01', name: 'Hidden Pinned', visibleOnTeamPage: false },
         { id: 'endedPin', active: true, pinned: true, sortOrder: 1, endDate: '2000-01-01', name: 'Ended Pinned' },
@@ -769,6 +769,9 @@ describe('team detail club activity section', () => {
     expect(featured).not.toContain('Plain Course');
     expect(featured).not.toContain('Hidden Pinned');
     expect(featured).not.toContain('Ended Pinned');
+    expect(featured).not.toContain('td-v2-course-mark');
+    expect(featured).toContain('td-v2-course-row has-cover');
+    expect(featured).toContain("--td-v2-course-cover:url('https://cdn.example/pinned-one.webp')");
     expect(featured.indexOf('Pinned One')).toBeLessThan(featured.indexOf('Pinned Two'));
     expect(featured.indexOf('Pinned Two')).toBeLessThan(featured.indexOf('Pinned Three'));
   });
