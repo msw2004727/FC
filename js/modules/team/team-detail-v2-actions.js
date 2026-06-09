@@ -192,6 +192,38 @@ Object.assign(App, {
     return true;
   },
 
+  _refreshTeamDetailV2CourseSummaryFromCache(teamId) {
+    const team = typeof ApiService !== 'undefined' && typeof ApiService.getTeam === 'function'
+      ? ApiService.getTeam(teamId)
+      : null;
+    const shell = typeof document !== 'undefined'
+      ? document.querySelector?.('#team-detail-body .td-v2-shell')
+      : null;
+    if (!team || !shell || String(shell.getAttribute?.('data-team-id') || '') !== String(teamId || '')) return false;
+    if (this._isTeamDetailSectionVisible?.(team, 'courses') === false) return false;
+
+    const count = this._getTeamDetailV2CourseCount?.(team) || 0;
+    const featured = shell.querySelector?.('.td-v2-featured-courses-card');
+    if (featured && typeof this._buildTeamDetailV2FeaturedCourses === 'function') {
+      featured.outerHTML = this._buildTeamDetailV2FeaturedCourses(team);
+    }
+
+    const quickNum = shell.querySelector?.('.td-v2-quick[data-tab="courses"] strong');
+    if (quickNum) quickNum.textContent = String(count);
+
+    const tabBtn = shell.querySelector?.('.td-v2-tab-list button[data-tab="courses"]');
+    if (tabBtn) {
+      const badge = tabBtn.querySelector?.('.td-v2-tab-badge');
+      if (count > 0) {
+        if (badge) badge.textContent = String(count);
+        else tabBtn.insertAdjacentHTML?.('beforeend', '<span class="td-v2-tab-badge">' + escapeHTML(count) + '</span>');
+      } else if (badge) {
+        badge.remove?.();
+      }
+    }
+    return true;
+  },
+
   _refreshTeamDetailV2CoursesPanel(teamId, options = {}) {
     if (!teamId || typeof this._renderEduTabContent !== 'function') return false;
     const team = ApiService.getTeam?.(teamId);
@@ -209,10 +241,14 @@ Object.assign(App, {
     });
     const result = this._renderEduTabContent(teamId, { forceRefresh: !!options.forceRefresh });
     if (result && typeof result.catch === 'function') {
-      result.catch(err => {
-        console.error('[team-detail-v2] course refresh failed:', err);
-        this.showToast?.('課程狀態更新失敗，請稍後再試');
-      });
+      result
+        .then(() => this._refreshTeamDetailV2CourseSummaryFromCache?.(teamId))
+        .catch(err => {
+          console.error('[team-detail-v2] course refresh failed:', err);
+          this.showToast?.('課程狀態更新失敗，請稍後再試');
+        });
+    } else {
+      this._refreshTeamDetailV2CourseSummaryFromCache?.(teamId);
     }
     return true;
   },

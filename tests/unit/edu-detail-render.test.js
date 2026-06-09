@@ -175,6 +175,47 @@ describe('renderEduClubDetail info card', () => {
     expect(app._refreshTeamMembersCardFromCache).toHaveBeenCalledWith(team.id);
   });
 
+  test('refreshes v2 featured courses after async course plans load on direct team detail entry', async () => {
+    let resolveCourseRender;
+    const courseRenderPromise = new Promise(resolve => { resolveCourseRender = resolve; });
+    const tabEl = {
+      dataset: { edutab: 'course' },
+      classList: { toggle: jest.fn() },
+    };
+    const app = {
+      _bindSwipeTabs: jest.fn(),
+      _loadEduStudents: jest.fn(() => new Promise(() => {})),
+      _startEduStudentsListener: jest.fn(),
+      _refreshTeamDetailV2CourseSummaryFromCache: jest.fn(),
+    };
+    const context = {
+      App: app,
+      ApiService: {
+        getTeam: jest.fn(),
+        getCurrentUser: jest.fn(() => null),
+      },
+      document: {
+        getElementById: jest.fn(() => null),
+        querySelectorAll: jest.fn((selector) => selector === '#edu-detail-tabs .tab' ? [tabEl] : []),
+      },
+      escapeHTML,
+      Promise,
+      console,
+    };
+
+    vm.createContext(context);
+    vm.runInContext(source, context, { filename: 'edu-detail-render.js' });
+    context.App._renderEduTabContent = jest.fn(() => courseRenderPromise);
+    context.App._initEduClubDetailSection('teamA');
+
+    expect(app._refreshTeamDetailV2CourseSummaryFromCache).not.toHaveBeenCalled();
+    resolveCourseRender(true);
+    await courseRenderPromise;
+    await Promise.resolve();
+
+    expect(app._refreshTeamDetailV2CourseSummaryFromCache).toHaveBeenCalledWith('teamA');
+  });
+
   test('renders renamed education tabs and pending review tab content', () => {
     const contentEl = { innerHTML: '', closest: jest.fn(() => ({})) };
     const app = {

@@ -776,6 +776,53 @@ describe('team detail club activity section', () => {
     expect(featured.indexOf('Pinned Two')).toBeLessThan(featured.indexOf('Pinned Three'));
   });
 
+  test('team detail v2 course summary refresh repaints featured courses after async cache load', () => {
+    const app = makeApp([]);
+    const featuredEl = { outerHTML: '<div class="td-v2-featured-courses-card"></div>' };
+    const quickNum = { textContent: '0' };
+    const tabBtn = {
+      querySelector: jest.fn(() => null),
+      insertAdjacentHTML: jest.fn(),
+    };
+    const shell = {
+      getAttribute: jest.fn(() => 'teamA'),
+      querySelector: jest.fn((selector) => {
+        if (selector === '.td-v2-featured-courses-card') return featuredEl;
+        if (selector === '.td-v2-quick[data-tab="courses"] strong') return quickNum;
+        if (selector === '.td-v2-tab-list button[data-tab="courses"]') return tabBtn;
+        return null;
+      }),
+    };
+    loadTeamDetailRender(app, [], {
+      teams: { teamA: { id: 'teamA', feed: [] } },
+      document: {
+        getElementById: jest.fn(() => null),
+        querySelector: jest.fn((selector) => selector === '#team-detail-body .td-v2-shell' ? shell : null),
+      },
+      extraFiles: [
+        'js/modules/team/team-detail-v2-render.js',
+        'js/modules/team/team-detail-v2-panels.js',
+        'js/modules/team/team-detail-v2-actions.js',
+      ],
+    });
+    Object.assign(app, {
+      _isTeamDetailSectionVisible: (_team, key) => key === 'courses',
+      isEduClubStaff: () => false,
+      getEduCoursePlans: () => [
+        { id: 'pin1', active: true, pinned: true, sortOrder: 10, endDate: '2099-01-01', name: 'Pinned One' },
+        { id: 'plain', active: true, endDate: '2099-01-01', name: 'Plain Course' },
+      ],
+    });
+
+    expect(app._refreshTeamDetailV2CourseSummaryFromCache('teamA')).toBe(true);
+
+    expect(featuredEl.outerHTML).toContain('td-v2-featured-courses-card');
+    expect(featuredEl.outerHTML).toContain('Pinned One');
+    expect(featuredEl.outerHTML).not.toContain('Plain Course');
+    expect(quickNum.textContent).toBe('2');
+    expect(tabBtn.insertAdjacentHTML).toHaveBeenCalledWith('beforeend', '<span class="td-v2-tab-badge">2</span>');
+  });
+
   test('team detail v2 course tab forces latest course state refresh', () => {
     const actionsSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-detail-v2-actions.js'), 'utf8');
 
@@ -784,6 +831,7 @@ describe('team detail club activity section', () => {
     expect(actionsSource).toContain('_refreshTeamDetailV2CoursesPanel(teamId, options = {})');
     expect(actionsSource).toContain("this._eduActiveTab = 'course'");
     expect(actionsSource).toContain('this._renderEduTabContent(teamId, { forceRefresh: !!options.forceRefresh })');
+    expect(actionsSource).toContain('this._refreshTeamDetailV2CourseSummaryFromCache?.(teamId)');
   });
 
   test('team detail v2 course cards only open details through explicit actions', () => {

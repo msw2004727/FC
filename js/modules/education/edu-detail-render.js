@@ -19,7 +19,16 @@ Object.assign(App, {
       btn.classList.toggle('active', btn.dataset.edutab === 'course');
     });
 
-    this._renderEduTabContent(teamId, options);
+    const renderResult = this._renderEduTabContent(teamId, options);
+    if (renderResult && typeof renderResult.then === 'function') {
+      renderResult
+        .then(() => {
+          if (this._eduDetailTeamId === teamId) this._refreshTeamDetailV2CourseSummaryFromCache?.(teamId);
+        })
+        .catch(err => console.warn('[edu-detail] initial course render failed:', err));
+    } else {
+      this._refreshTeamDetailV2CourseSummaryFromCache?.(teamId);
+    }
 
     if (typeof this._bindSwipeTabs === 'function') {
       this._bindSwipeTabs('edu-detail-tab-content', 'edu-detail-tabs',
@@ -30,7 +39,16 @@ Object.assign(App, {
 
     this._loadEduStudents(teamId).then(() => {
       if (this._eduDetailTeamId === teamId) {
-        this._refreshEduActiveTabContent(teamId);
+        const refreshResult = this._refreshEduActiveTabContent(teamId);
+        if (refreshResult && typeof refreshResult.then === 'function') {
+          refreshResult
+            .then(() => {
+              if (this._eduDetailTeamId === teamId) this._refreshTeamDetailV2CourseSummaryFromCache?.(teamId);
+            })
+            .catch(err => console.warn('[edu-detail] active tab refresh failed:', err));
+        } else {
+          this._refreshTeamDetailV2CourseSummaryFromCache?.(teamId);
+        }
         this._updateEduMineBadge(teamId);
         this._refreshTeamMembersCardFromCache?.(teamId);
       }

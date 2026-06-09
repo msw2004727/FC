@@ -110,10 +110,11 @@ Object.assign(App, {
         return ao - bo || a.index - b.index;
       })
       .map(({ plan }) => plan);
+    const cardClass = 'td-v2-card td-v2-featured-courses-card';
     if (!pinnedPlans.length) {
-      return '<div class="td-v2-card"><div class="td-v2-section-head"><h3>熱門課程</h3><button type="button" data-td-v2-action="tab" data-tab="courses">課程</button></div><div class="td-v2-empty">課程資料載入後會顯示在這裡</div></div>';
+      return '<div class="' + cardClass + '"><div class="td-v2-section-head"><h3>熱門課程</h3><button type="button" data-td-v2-action="tab" data-tab="courses">課程</button></div><div class="td-v2-empty">課程資料載入後會顯示在這裡</div></div>';
     }
-    return '<div class="td-v2-card"><div class="td-v2-section-head"><h3>熱門課程</h3><button type="button" data-td-v2-action="tab" data-tab="courses">全部</button></div>'
+    return '<div class="' + cardClass + '"><div class="td-v2-section-head"><h3>熱門課程</h3><button type="button" data-td-v2-action="tab" data-tab="courses">全部</button></div>'
       + pinnedPlans.map(p => this._buildTeamDetailV2CourseMiniRow(t.id, p)).join('') + '</div>';
   },
 
