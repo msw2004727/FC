@@ -12,11 +12,30 @@
 
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 
 const enrollmentSource = fs.readFileSync(
   path.join(__dirname, '../../js/modules/education/edu-course-enrollment.js'),
   'utf8'
 );
+
+function loadCourseEnrollmentModule(app, extraContext = {}) {
+  const context = {
+    App: app,
+    FirebaseService: {},
+    ApiService: {},
+    document: { getElementById: jest.fn(() => null) },
+    window: {},
+    localStorage: { getItem: jest.fn(() => null) },
+    console,
+    Object,
+    String,
+    Date,
+    ...extraContext,
+  };
+  vm.runInNewContext(enrollmentSource, context, { filename: 'edu-course-enrollment.js' });
+  return context.App;
+}
 
 // Extracted from js/modules/education/edu-student-join.js:107-128
 // Duplicate detection logic for student applications
@@ -223,6 +242,34 @@ describe('Course enrollment', () => {
     expect(enrollmentSource).toContain("btn.dataset.eduActionLoading === '1'");
     expect(enrollmentSource).toContain("sourceOverlay.isConnected === false || sourceOverlay.hidden === true");
     expect(enrollmentSource).toContain('edu-inline-spinner');
+  });
+
+  test('coach notes save is capped to 15 characters and refreshes roster', async () => {
+    const input = { value: 'abcdefghijklmnop' };
+    const updateCourseEnrollment = jest.fn(async () => {});
+    const app = {
+      _isEduAutoEnrollmentMaterializationAllowed: jest.fn(() => true),
+      _renderCourseEnrollmentList: jest.fn(async () => {}),
+      showToast: jest.fn(),
+    };
+
+    const loaded = loadCourseEnrollmentModule(app, {
+      document: { getElementById: jest.fn(() => input) },
+      FirebaseService: { updateCourseEnrollment },
+    });
+    loaded._courseEnrollCache = {
+      'teamA:planA': [{ id: 'enrA', coachNotes: '' }],
+    };
+    loaded._renderCourseEnrollmentList = app._renderCourseEnrollmentList;
+
+    await loaded._saveEnrollNotes('teamA', 'planA', 'enrA', 'noteInput');
+
+    expect(updateCourseEnrollment).toHaveBeenCalledWith('teamA', 'planA', 'enrA', {
+      coachNotes: 'abcdefghijklmno',
+    });
+    expect(input.value).toBe('abcdefghijklmno');
+    expect(loaded._courseEnrollCache['teamA:planA'][0].coachNotes).toBe('abcdefghijklmno');
+    expect(app._renderCourseEnrollmentList).toHaveBeenCalledWith('teamA', 'planA');
   });
 
   test('detects enrolled student (pending)', () => {

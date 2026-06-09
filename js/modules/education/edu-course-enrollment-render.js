@@ -1,7 +1,7 @@
 /* ================================================
    SportHub — Education: Course Enrollment Render
    ================================================
-   名單頁渲染：待審核 / 已通過名單卡片、出勤、繳費
+   名單頁渲染：待審核 / 已通過名單卡片、繳費、備註
    ================================================ */
 
 Object.assign(App, {
@@ -78,18 +78,6 @@ Object.assign(App, {
       });
     }
 
-    // 載入出勤次數（per student）
-    this._courseAttendanceCount = {};
-    try {
-      const attendRecords = await FirebaseService.queryEduAttendance({ teamId, coursePlanId: planId });
-      if (requestSeq != null && requestSeq !== this._eduCourseEnrollmentRequestSeq) return;
-      if (isStaff) {
-        attendRecords.filter(r => (r.kind || 'signin') === 'signin').forEach(r => {
-          this._courseAttendanceCount[r.studentId] = (this._courseAttendanceCount[r.studentId] || 0) + 1;
-        });
-      }
-    } catch (_) {}
-
     const pending = enrollments.filter(e => e.status === 'pending');
     const approved = enrollments.filter(e => e.status === 'approved');
 
@@ -163,18 +151,7 @@ Object.assign(App, {
       else if (enrollDateRaw.seconds) enrollDate = new Date(enrollDateRaw.seconds * 1000).toISOString().slice(0, 10);
     }
 
-    // 出勤計算
-    const totalSessions = plan?.totalSessions || 0;
-    const attendCount = (this._courseAttendanceCount || {})[e.studentId] || 0;
-    let attendHtml = '';
-    if (plan?.planType === 'session' && totalSessions) {
-      const remaining = Math.max(0, totalSessions - attendCount);
-      attendHtml = '<span class="edu-ce-attend">出勤 ' + attendCount + '/' + totalSessions + ' 剩' + remaining + '堂</span>';
-    } else {
-      attendHtml = '<span class="edu-ce-attend">出勤 ' + attendCount + '次</span>';
-    }
-
-    // 繳費狀態（未繳費顯示勾選框；已繳費只顯示文字 + ✏️ 可改日期或取消）
+    // 繳費狀態（待繳費顯示勾選框；已繳費只顯示文字 + ✏️ 可改日期或取消）
     var paidHtml = '';
     if (e.paidAt) {
       paidHtml = '<span class="edu-ce-paid-label" onclick="event.stopPropagation()">'
@@ -184,31 +161,39 @@ Object.assign(App, {
     } else if (isStaff) {
       paidHtml = '<label class="edu-ce-paid-label" onclick="event.stopPropagation()">'
         + '<input type="checkbox" onchange="App._toggleEnrollPaid(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\')">'
-        + '<span class="edu-ce-paid-no">未繳費</span>'
+        + '<span class="edu-ce-paid-no">※繳費打勾</span>'
         + '</label>';
     } else {
-      paidHtml = '<span class="edu-ce-paid-label"><span class="edu-ce-paid-no">未繳費</span></span>';
+      paidHtml = '<span class="edu-ce-paid-label"><span class="edu-ce-paid-no">※繳費打勾</span></span>';
     }
 
-    // 備註區
     const notesId = 'ce-notes-' + e.id;
-    const expandId = 'ce-expand-' + e.id;
+    const notePanelId = 'ce-note-panel-' + e.id;
+    const notesValue = String(e.coachNotes || '').trim().slice(0, 15);
+    const noteHtml = isStaff ? '<div class="edu-ce-note-side" onclick="event.stopPropagation()">'
+      + '<button type="button" class="edu-ce-note-trigger' + (notesValue ? ' has-note' : '') + '" onclick="App._toggleEnrollNoteEditor(\'' + notePanelId + '\')">'
+      + '<span class="edu-ce-note-title">備註</span>'
+      + '<span class="edu-ce-note-preview">' + escapeHTML(notesValue || '點選填寫') + '</span>'
+      + '</button>'
+      + '<div class="edu-ce-note-editor" id="' + notePanelId + '" style="display:none">'
+      + '<input class="edu-ce-note-input" id="' + notesId + '" maxlength="15" value="' + escapeHTML(notesValue) + '" placeholder="15字內">'
+      + '<button type="button" class="primary-btn small" onclick="App._saveEnrollNotes(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\',\'' + notesId + '\')">儲存</button>'
+      + '</div>'
+      + '</div>' : '';
 
-    return '<div class="edu-ce-card"' + (isStaff ? ' onclick="App._toggleEnrollExpand(\'' + expandId + '\')"' : '') + '>'
+    return '<div class="edu-ce-card edu-ce-card-approved">'
+      + '<div class="edu-ce-card-main">'
       + '<div class="edu-ce-card-top">'
       + '<span class="edu-ce-name">' + escapeHTML(e.studentName) + '</span>'
       + '<span class="edu-ce-meta">' + gender + (age != null ? ' ' + age + '歲' : '') + '  ' + escapeHTML(groupNames) + '</span>'
       + (enrollDate ? '<span class="edu-ce-date">' + enrollDate + '</span>' : '')
       + '</div>'
       + '<div class="edu-ce-card-mid">'
-      + attendHtml + paidHtml
+      + paidHtml
       + '</div>'
-      + (isStaff ? '<div class="edu-ce-expand" id="' + expandId + '" style="display:none" onclick="event.stopPropagation()">'
-      + '<div class="edu-ce-notes-label">教練備註：</div>'
-      + '<textarea class="edu-ce-notes" id="' + notesId + '" rows="2" placeholder="輸入備註...">' + escapeHTML(e.coachNotes || '') + '</textarea>'
-      + '<button class="primary-btn small" style="margin-top:.3rem;float:right" onclick="App._saveEnrollNotes(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\',\'' + notesId + '\')">儲存備註</button>'
-      + '<div style="clear:both"></div>'
-      + '</div>' : '') + '</div>';
+      + '</div>'
+      + noteHtml
+      + '</div>';
   },
 
 });

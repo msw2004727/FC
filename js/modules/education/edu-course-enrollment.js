@@ -250,7 +250,7 @@ Object.assign(App, {
     }
   },
 
-  _toggleEnrollExpand(id) {
+  _toggleEnrollNoteEditor(id) {
     const el = document.getElementById(id);
     if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
   },
@@ -404,9 +404,12 @@ Object.assign(App, {
       await FirebaseService.createCourseEnrollment(teamId, planId, doc);
       enr.id = realId; enrollId = realId;
     }
-    const notes = textarea.value.trim();
+    const rawNotes = String(textarea.value || '').trim();
+    const notes = rawNotes.slice(0, 15);
+    if (textarea.value !== notes) textarea.value = notes;
     await FirebaseService.updateCourseEnrollment(teamId, planId, enrollId, { coachNotes: notes });
     if (enr) enr.coachNotes = notes;
     this.showToast('備註已儲存');
+    await this._renderCourseEnrollmentList(teamId, planId);
   },
 });

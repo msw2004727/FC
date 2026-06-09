@@ -1294,22 +1294,58 @@
 
 /* ── Course Enrollment List ── */
 .edu-ce-section-label { font-size: .88rem; font-weight: 700; margin: .8rem 0 .4rem; padding-left: .2rem; }
-.edu-ce-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .7rem .85rem; margin-bottom: .45rem; cursor: pointer; transition: border-color .15s; }
+.edu-ce-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .7rem .85rem; margin-bottom: .45rem; transition: border-color .15s; }
 .edu-ce-card:hover { border-color: var(--accent); }
 .edu-ce-card-pending { border-left: 3px solid var(--warning); }
+.edu-ce-card-approved { display: grid; grid-template-columns: minmax(0, 1fr) minmax(8rem, 10.5rem); gap: .65rem; align-items: stretch; }
+.edu-ce-card-main { min-width: 0; }
 .edu-ce-card-top { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; position: relative; }
 .edu-ce-date { font-size: .7rem; color: var(--text-muted); margin-left: auto; }
 .edu-ce-name { font-size: .95rem; font-weight: 700; }
 .edu-ce-meta { font-size: .82rem; color: var(--text-muted); }
 .edu-ce-card-mid { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; margin-top: .25rem; }
-.edu-ce-attend { font-size: .82rem; font-weight: 600; color: var(--accent); }
 .edu-ce-paid { font-size: .78rem; cursor: pointer; }
 .edu-ce-paid-yes { color: var(--success); }
 .edu-ce-paid-no { color: var(--text-muted); }
 .edu-ce-card-actions { display: flex; gap: .4rem; margin-top: .4rem; }
-.edu-ce-expand { padding-top: .5rem; margin-top: .4rem; border-top: 1px solid var(--border); }
-.edu-ce-notes-label { font-size: .78rem; font-weight: 600; margin-bottom: .25rem; color: var(--text-secondary); }
-.edu-ce-notes { width: 100%; border: 1px solid var(--border); border-radius: var(--radius); padding: .4rem .6rem; font-size: .82rem; resize: vertical; background: var(--bg-base); color: var(--text-primary); }
+.edu-ce-note-side { display: flex; flex-direction: column; gap: .35rem; min-width: 0; }
+.edu-ce-note-trigger {
+  width: 100%;
+  min-height: 3.05rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-subtle, var(--bg-base));
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: .16rem;
+  padding: .45rem .55rem;
+  cursor: pointer;
+}
+.edu-ce-note-trigger.has-note {
+  border-color: rgba(13, 148, 136, .36);
+  background: var(--accent-bg, rgba(13, 148, 136, .08));
+}
+.edu-ce-note-title { font-size: .68rem; font-weight: 800; color: var(--accent); line-height: 1; }
+.edu-ce-note-preview { width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .78rem; font-weight: 700; color: var(--text-secondary); text-align: left; }
+.edu-ce-note-editor { display: flex; align-items: center; gap: .35rem; }
+.edu-ce-note-input {
+  min-width: 0;
+  flex: 1 1 auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-base);
+  color: var(--text-primary);
+  padding: .42rem .5rem;
+  font-size: .78rem;
+}
+@media (max-width: 520px) {
+  .edu-ce-card-approved { grid-template-columns: 1fr; }
+  .edu-ce-note-side { width: 100%; }
+  .edu-ce-note-trigger { min-height: 2.75rem; }
+}
 
 /* ── Course Session Board (堂數制課堂) ── */
 .edu-session-board {
