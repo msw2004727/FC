@@ -333,9 +333,12 @@ grep -rn "CACHE_VERSION\|CACHE_NAME\|var V='" js/config.js sw.js index.html
 
 ### CI 自動驗證
 
-本專案已設定 GitHub Actions（`.github/workflows/test.yml`），在 push 或 PR 到 `main` 時自動跑兩組測試：
-- `npm run test:unit` — 純函式單元測試（~550 個）
-- `npm run test:rules` — Firestore 規則測試（~110 個，需 Java 21 + Firebase Emulator）
+本專案已設定 GitHub Actions（`.github/workflows/test.yml`），在 push 或 PR 到 `main` 時自動跑以下檢查：
+- `npm run check:registration-ops` — 報名操作鎖定檢查
+- `npm run test:unit` — 純函式單元測試
+- `npm run test:unit:coverage` — 單元測試覆蓋率摘要
+- `npm run test:rules` — Firestore 規則測試（需 Java 21 + Firebase Emulator）
+- `npm run test:e2e:smoke` — Playwright Chromium smoke test（CI 會啟動本地靜態站）
 
 **CI 失敗時 GitHub 會顯示紅色錯誤**（本專案直推 `main`，無分支保護，不會擋 push，但代表回歸失敗必須立即修復）。push 前應本地先跑，避免出錯後才來回補救。
 
@@ -346,6 +349,9 @@ grep -rn "CACHE_VERSION\|CACHE_NAME\|var V='" js/config.js sw.js index.html
 | `npm run test:unit` | 純函式單元測試（Jest，無需 emulator） |
 | `npm run test:rules` | Firestore 規則測試（自動啟 emulator） |
 | `npm run test:e2e` | Playwright E2E（需本地 `npx serve . -l 3000`） |
+| `npm run test:e2e:smoke` | Playwright Chromium desktop smoke test（CI 同步執行） |
+| `npm run test:e2e:visual` | Playwright mobile visual guard（適合 UI/版面回歸） |
+| `npm run test:e2e:admin` | Playwright admin desktop guard |
 | `npm run test:unit:coverage` | 單元測試 + 覆蓋率報告 |
 
 完整測試清單與對應來源檔案：見 `docs/test-coverage.md`。
@@ -358,8 +364,20 @@ grep -rn "CACHE_VERSION\|CACHE_NAME\|var V='" js/config.js sw.js index.html
 | `js/firebase-crud.js`（報名/取消/遞補鎖定函式，清單見 §報名系統保護規則） | `npm run test:unit` | 歷史多次回歸 bug，測試是最後防線 |
 | `js/modules/achievement/stats.js`（統計鎖定函式，清單見 §統計系統保護規則） | `npm run test:unit` | 同上 |
 | `js/modules/**` 其他模組 | `npm run test:unit` | CI 會失敗，本地先驗省來回補救 |
+| CSS / HTML / 前端 UI 呈現或互動 | 相關單元測試 + 本地瀏覽器 desktop/mobile 驗證；若有對應 E2E，跑 `npm run test:e2e:smoke` 或目標 Playwright 測試 | 單元測試看不到跑版、重疊、文字溢出、按鈕擠壓與 console error |
 | `functions/index.js`（Cloud Functions） | 手動測 + `firebase functions:log` 驗證 | 目前無 CF 自動化測試 |
 | 純文件變更（`*.md`、`docs/**`） | 無 | 不觸發測試 |
+
+### 前端 UI 本機瀏覽器驗證（強制）
+
+每次完成前端 UI 修改後（包含 CSS、HTML、DOM render、卡片/列表/彈窗/表單/按鈕/載入狀態、responsive layout、主題樣式或互動狀態），必須實際啟動本機頁面並用瀏覽器檢查，不得只靠單元測試或靜態 diff 判斷。
+
+驗證方式：
+1. 啟動本地靜態站，例如 `node tests/e2e/static-server.cjs 3000` 或 `npx serve . -l 3000`。
+2. 用 Browser / Playwright / Chrome 實際打開本機頁面，至少檢查 desktop 與 mobile viewport。建議基準：desktop `1280x720` 或 `1366x768`，mobile `390x844` 或 `375x812`；若修改特定斷點，必須加測該斷點。
+3. 檢查目標流程與鄰近 UI：不得跑版、重疊、文字溢出、按鈕擠壓、無法點擊、焦點/滾動異常，且 console 不得出現新的 error。
+4. 若發現視覺或互動問題，必須直接修正並重新跑同一組 viewport 驗證後再回報。
+5. 回報時列出實際檢查的頁面/流程、viewport、瀏覽器或 Playwright 指令，以及 console 是否乾淨。若因環境限制無法啟動本機頁面或瀏覽器，必須明確標註「UI 瀏覽器驗證未完成」與原因，不得用單元測試通過替代。
 
 ### 測試失敗的處理規則
 
