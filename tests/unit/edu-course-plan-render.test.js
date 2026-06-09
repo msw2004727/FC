@@ -31,11 +31,12 @@ function escapeHTML(value) {
 async function renderPlans(plans, isStaff = true, selectedTab = 'active', overrides = {}) {
   const container = { innerHTML: '' };
   const app = {
-    _courseEnrollCache: {},
+    _courseEnrollCache: overrides.courseEnrollCache || {},
+    _courseEnrollSummaryCache: overrides.courseEnrollSummaryCache || {},
     _eduCoursePlanTabByTeam: selectedTab === 'ended' ? { teamA: 'ended' } : {},
     isEduClubStaff: jest.fn(() => isStaff),
     _loadEduCoursePlans: jest.fn(() => Promise.resolve(plans)),
-    _getCourseEnrollCacheKey: jest.fn(() => null),
+    _getCourseEnrollCacheKey: overrides.getCourseEnrollCacheKey || jest.fn(() => null),
     _loadCourseEnrollments: jest.fn(() => Promise.resolve([])),
     _loadCourseEnrollmentSummaries: overrides.loadCourseEnrollmentSummaries,
     _loadCourseSessions: overrides.loadCourseSessions,
@@ -194,6 +195,8 @@ describe('edu course plan render', () => {
     expect(cssSource).toContain('[data-theme="light"] .edu-course-card.edu-cp-card-compact.has-cover .edu-cp-card-actions .outline-btn');
     expect(cssSource).toContain('[data-theme="light"] .edu-course-card.edu-cp-card-compact.has-cover .edu-cp-manage-left');
     expect(cssSource).toContain('.edu-course-card.edu-cp-card-compact.has-cover .edu-cp-manage-btn');
+    expect(cssSource).toContain('.edu-cp-pending-badge');
+    expect(cssSource).toContain('box-shadow: 0 2px 6px rgba(220, 38, 38, .35);');
     expect(cssSource).toContain('.edu-cp-manage-danger');
     expect(cssSource).toContain('width: 5.8rem;');
     expect(cssSource).toContain('min-width: 5.8rem;');
@@ -503,6 +506,45 @@ describe('edu course plan render', () => {
     expect(app._loadCourseEnrollments).not.toHaveBeenCalled();
     expect(plans[0]._effectiveCount).toBe(2);
     expect(container.innerHTML).toContain('2/5');
+  });
+
+  test('staff course cards show pending review badge from batch summary only when count is positive', async () => {
+    const plans = [
+      {
+        id: 'planPending',
+        name: 'Pending Plan',
+        planType: 'weekly',
+        startDate: '2099-01-01',
+        endDate: '2099-02-01',
+        maxCapacity: 8,
+        allowSignup: true,
+      },
+      {
+        id: 'planClear',
+        name: 'Clear Plan',
+        planType: 'weekly',
+        startDate: '2099-01-01',
+        endDate: '2099-02-01',
+        maxCapacity: 8,
+        allowSignup: true,
+      },
+    ];
+    const loadCourseEnrollmentSummaries = jest.fn(() => Promise.resolve({
+      planPending: { effectiveApprovedCount: 3, pendingReviewCount: 2, viewerStatuses: {} },
+      planClear: { effectiveApprovedCount: 1, pendingReviewCount: 0, viewerStatuses: {} },
+    }));
+    const html = await renderPlans(plans, true, 'active', {
+      getCourseEnrollCacheKey: jest.fn((teamId, planId) => teamId + ':' + planId),
+      loadCourseEnrollmentSummaries,
+    });
+
+    expect(loadCourseEnrollmentSummaries).toHaveBeenCalledWith('teamA', ['planPending', 'planClear']);
+    expect(html).toContain('aria-label="名單，2 筆待審核"');
+    expect(html).toContain('edu-cp-manage-list has-pending-review');
+    expect(html).toContain('edu-cp-pending-badge');
+    expect(html).toContain('>2</span>');
+    expect((html.match(/edu-cp-pending-badge/g) || []).length).toBe(1);
+    expect(html).not.toContain('aria-label="名單，0 筆待審核"');
   });
 
   test('ended course cards keep frozen session count after summary refresh', async () => {

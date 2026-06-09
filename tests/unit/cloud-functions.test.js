@@ -440,10 +440,24 @@ describe('education course enrollment callable source contracts', () => {
     expect(source).toContain('normalizeEduCourseSummaryRequestIds(request.data || {})');
     expect(source).toContain('teamRef.collection("students").get()');
     expect(source).toContain('planRef.collection("enrollments").get()');
+    expect(source).toContain('getCallerAccessContext(request)');
+    expect(source).toContain('isTeamStaffForData(teamDoc.data, callerUid)');
     expect(source).toContain('buildCourseEnrollmentSummary');
+    expect(source).toContain('includeReviewCounts: isStaff');
     expect(source).toContain('summaries[planId]');
     expect(source).not.toContain('serializeCourseEnrollment');
     expect(source).not.toContain('visibleEnrollments');
+  });
+
+  test('course enrollment summary exposes pending review count only through the summary contract', () => {
+    const source = readSourceBetween(
+      'function buildCourseEnrollmentSummary',
+      'function normalizeEduCourseMigrationLimit'
+    );
+    expect(source).toContain('includeReviewCounts = false');
+    expect(source).toContain('const pendingReviewCount = includeReviewCounts');
+    expect(source).toContain('sanitizeStr(enrollment.status, 32).toLowerCase() === "pending"');
+    expect(source).toContain('pendingReviewCount,');
   });
 
   test('public course roster callable projects sessions and students without requiring auth', () => {

@@ -120,8 +120,21 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).toContain('<div class="edu-course-lesson-index"><strong>1</strong></div>');
     expect(container.innerHTML).not.toContain('第</span><strong>1</strong><span>堂');
     expect(container.innerHTML).toContain('第一堂');
+    expect(container.innerHTML).toContain('edu-course-lesson-meta-time');
+    expect(container.innerHTML).toContain('edu-course-lesson-meta-location');
+    expect(container.innerHTML).toContain('edu-course-lesson-meta-count');
     expect(container.innerHTML).toContain('2/6 人');
     expect(container.innerHTML).toContain("App.showCourseLessonRoster('teamA','planA','sessionA')");
+  });
+
+  test('lesson card meta keeps location and count on one compact row with ellipsis support', () => {
+    expect(cssSource).toContain('grid-template-columns: minmax(0, 1fr) max-content;');
+    expect(cssSource).toContain('.edu-course-lesson-meta-time');
+    expect(cssSource).toContain('grid-column: 1 / -1;');
+    expect(cssSource).toContain('.edu-course-lesson-meta-location');
+    expect(cssSource).toContain('text-overflow: ellipsis;');
+    expect(cssSource).toContain('.edu-course-lesson-meta-count');
+    expect(cssSource).toContain('width: max-content;');
   });
 
   test('preloads course lesson sessions without duplicate pending requests', async () => {

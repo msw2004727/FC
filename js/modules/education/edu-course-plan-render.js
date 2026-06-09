@@ -151,6 +151,12 @@ Object.assign(App, {
     };
     const renderCompactPill = (label, value, className = '') => '<span class="edu-cp-compact-pill ' + className + '"><span>' + escapeHTML(label) + '</span><strong>' + escapeHTML(value || '未設定') + '</strong></span>';
     const jsArg = (value) => escapeHTML(String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' '));
+    const getPendingReviewCount = (p) => {
+      const summaryCount = Number(p?._enrollmentSummary?.pendingReviewCount);
+      if (Number.isFinite(summaryCount) && summaryCount >= 0) return Math.trunc(summaryCount);
+      const enrollments = Array.isArray(p?._enrollments) ? p._enrollments : [];
+      return enrollments.filter(e => String(e?.status || '').trim().toLowerCase() === 'pending').length;
+    };
     const renderPlanCard = (p) => {
       const coverImage = String(this._getCoursePlanCoverUrl?.(p) || p.coverImage || p.coverUrl || p.imageUrl || p.image || p.imageVariants?.cover || '').trim();
       const coverClass = coverImage ? ' has-cover' : '';
@@ -218,9 +224,15 @@ Object.assign(App, {
 
       // 管理按鈕（報名按鈕之下，左對齊 + 右側排序按鈕）
       const idx = displayPlans.indexOf(p);
+      const pendingReviewCount = isStaff ? getPendingReviewCount(p) : 0;
+      const pendingReviewText = pendingReviewCount > 99 ? '99+' : String(pendingReviewCount);
+      const pendingReviewBadge = pendingReviewCount > 0
+        ? '<span class="notif-badge edu-cp-pending-badge" aria-hidden="true">' + escapeHTML(pendingReviewText) + '</span>'
+        : '';
+      const manageListLabel = pendingReviewCount > 0 ? '名單，' + pendingReviewCount + ' 筆待審核' : '名單';
       const manageHtml = isStaff
         ? '<div class="edu-cp-manage-left">'
-          + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-list" onclick="event.stopPropagation();App.showCourseEnrollmentList(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">名單</button>'
+          + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-list' + (pendingReviewCount > 0 ? ' has-pending-review' : '') + '" aria-label="' + escapeHTML(manageListLabel) + '" onclick="event.stopPropagation();App.showCourseEnrollmentList(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">名單' + pendingReviewBadge + '</button>'
           + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-edit" onclick="event.stopPropagation();App.showEduCoursePlanForm(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">編輯</button>'
           + '<button type="button" class="edu-cp-manage-btn edu-cp-manage-danger" onclick="event.stopPropagation();App.deleteEduCoursePlan(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">刪除</button>'
           + '<span class="edu-cp-manage-sort">'

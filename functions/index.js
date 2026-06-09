@@ -3704,8 +3704,13 @@ function serializeCourseEnrollment(enrollment, { includePrivate = false } = {}) 
   return item;
 }
 
-function buildCourseEnrollmentSummary({ plan, enrollments, students, migrationCompleted, callerUid }) {
+function buildCourseEnrollmentSummary({ plan, enrollments, students, migrationCompleted, callerUid, includeReviewCounts = false }) {
   const approvedIds = getApprovedStudentIdSet({ plan, enrollments, students, migrationCompleted });
+  const pendingReviewCount = includeReviewCounts
+    ? enrollments.reduce((count, enrollment) => (
+      sanitizeStr(enrollment.status, 32).toLowerCase() === "pending" ? count + 1 : count
+    ), 0)
+    : 0;
   const viewerStudentIds = new Set();
   students.forEach((student) => {
     if (isCourseEnrollmentOwnedByCaller({}, student, callerUid)) {
@@ -3736,6 +3741,7 @@ function buildCourseEnrollmentSummary({ plan, enrollments, students, migrationCo
   return {
     approvedCount: approvedIds.size,
     effectiveApprovedCount: approvedIds.size,
+    pendingReviewCount,
     viewerStudentIds: Array.from(viewerStudentIds),
     viewerStatuses,
   };
@@ -3832,6 +3838,7 @@ exports.listEduCourseEnrollments = onCall(
       students,
       migrationCompleted,
       callerUid,
+      includeReviewCounts: isStaff,
     });
     const visibleEnrollments = enrollments
       .map((enrollment) => {
@@ -3866,6 +3873,10 @@ exports.listEduCourseEnrollmentSummaries = onCall(
     const teamDoc = await getTeamDocByTeamId(teamId);
     if (!teamDoc) throw createEduCourseHttpsError("TEAM_NOT_FOUND");
     const teamRef = teamDoc.ref;
+    const access = await getCallerAccessContext(request);
+    const isStaff = isTeamStaffForData(teamDoc.data, callerUid)
+      || access.isSuperAdmin
+      || access.hasPermission("team.manage_all");
     const planRefs = planIds.map((planId) => teamRef.collection("coursePlans").doc(planId));
     const [planSnaps, enrollSnaps, studentsSnap, migrationCompleted] = await Promise.all([
       Promise.all(planRefs.map((planRef) => planRef.get())),
@@ -3892,6 +3903,7 @@ exports.listEduCourseEnrollmentSummaries = onCall(
         students,
         migrationCompleted,
         callerUid,
+        includeReviewCounts: isStaff,
       });
     });
     return {

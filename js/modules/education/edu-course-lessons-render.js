@@ -69,9 +69,9 @@ Object.assign(App, {
             + '<span class="edu-course-lesson-status edu-course-lesson-status-' + escapeHTML(status.cls) + '">' + escapeHTML(status.label) + '</span>'
           + '</div>'
           + '<div class="edu-course-lesson-meta">'
-            + '<span><b>時間</b><em>' + escapeHTML(this._formatCourseLessonDateTime(session)) + '</em></span>'
-            + '<span><b>地點</b><em>' + escapeHTML(location) + '</em></span>'
-            + '<span><b>人數</b><em>' + escapeHTML(count) + '</em></span>'
+            + '<span class="edu-course-lesson-meta-time"><b>時間</b><em>' + escapeHTML(this._formatCourseLessonDateTime(session)) + '</em></span>'
+            + '<span class="edu-course-lesson-meta-location"><b>地點</b><em>' + escapeHTML(location) + '</em></span>'
+            + '<span class="edu-course-lesson-meta-count"><b>人數</b><em>' + escapeHTML(count) + '</em></span>'
           + '</div>'
         + '</div>'
       + '</article>';
