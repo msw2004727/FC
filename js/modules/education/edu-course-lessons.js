@@ -30,9 +30,7 @@ Object.assign(App, {
     await this._loadEduCoursePlans?.(teamId);
     const plan = this._findEduCoursePlan(teamId, planId);
     if (!plan) return { plan: null, sessions: [] };
-    const sessions = plan.planType === 'weekly'
-      ? []
-      : await this._loadCourseSessions(teamId, planId);
+    const sessions = await this._loadCourseSessions(teamId, planId);
     return { plan, sessions };
   },
 
@@ -53,18 +51,25 @@ Object.assign(App, {
     this._setEduCourseLessonsTitle('課堂列表');
     container.innerHTML = this._renderCourseLessonsLoading('課堂列表載入中');
 
-    const { plan, sessions } = await this._loadEduCourseLessonsState(teamId, planId);
+    const state = await this._loadEduCourseLessonsState(teamId, planId);
     if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
+    const plan = state.plan;
+    let sessions = state.sessions;
     if (!plan) {
       container.innerHTML = '<div class="edu-empty-state">找不到課程方案</div>';
       return { ok: false, reason: 'plan_not_found' };
     }
-    if (plan.planType === 'weekly') {
-      container.innerHTML = '<div class="edu-empty-state">固定週期課程維持方案層級顯示。</div>';
-      return { ok: false, reason: 'weekly_not_supported' };
-    }
 
     const isStaff = this.isEduClubStaff?.(teamId) === true;
+    if (isStaff && typeof this._ensureCoursePlanSessionsFromPlan === 'function') {
+      try {
+        const syncResult = await this._ensureCoursePlanSessionsFromPlan(teamId, plan);
+        if (Array.isArray(syncResult?.sessions)) sessions = syncResult.sessions;
+      } catch (err) {
+        console.warn('[edu-course-lessons] auto session sync failed:', err);
+      }
+      if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
+    }
     container.innerHTML = this._renderCourseLessonList(plan, sessions, { teamId, planId, isStaff });
     this._eduCourseLessonsContext = { teamId, planId, mode: 'list' };
     return { ok: true };
@@ -152,6 +157,41 @@ Object.assign(App, {
       await this.showCourseLessonRoster(ctx.teamId, ctx.planId, ctx.sessionId);
     };
 
+    if (typeof this._withButtonLoading === 'function') {
+      return this._withButtonLoading(button, '儲存中...', run);
+    }
+    return run();
+  },
+
+  startCourseLessonNotesEdit() {
+    const ctx = this._eduCourseLessonsContext;
+    if (!ctx || ctx.mode !== 'roster' || !ctx.isStaff) return;
+    ctx.notesEditMode = true;
+    ctx.draftSessionNotes = String(ctx.rosterPayload?.session?.notes || '');
+    this._renderCourseLessonRosterFromContext();
+  },
+
+  cancelCourseLessonNotesEdit() {
+    const ctx = this._eduCourseLessonsContext;
+    if (!ctx || ctx.mode !== 'roster') return;
+    ctx.notesEditMode = false;
+    ctx.draftSessionNotes = '';
+    this._renderCourseLessonRosterFromContext();
+  },
+
+  async saveCourseLessonNotes(button) {
+    const ctx = this._eduCourseLessonsContext;
+    if (!ctx || ctx.mode !== 'roster' || !ctx.isStaff) return;
+    const input = document.getElementById('edu-course-roster-notes-input');
+    const notes = String(input?.value || '').trim().slice(0, 500);
+    const run = async () => {
+      await FirebaseService.updateCourseSession(ctx.teamId, ctx.planId, ctx.sessionId, { notes });
+      if (ctx.rosterPayload?.session) ctx.rosterPayload.session.notes = notes;
+      ctx.notesEditMode = false;
+      ctx.draftSessionNotes = '';
+      this.showToast?.('課堂備註已更新');
+      await this.showCourseLessonRoster(ctx.teamId, ctx.planId, ctx.sessionId);
+    };
     if (typeof this._withButtonLoading === 'function') {
       return this._withButtonLoading(button, '儲存中...', run);
     }
@@ -249,6 +289,8 @@ Object.assign(App, {
       attendanceByStudentId,
       draftByStudentId: { ...attendanceByStudentId },
       manageMode: false,
+      notesEditMode: false,
+      draftSessionNotes: '',
     };
     this._renderCourseLessonRosterFromContext();
     return { ok: true };

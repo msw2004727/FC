@@ -291,6 +291,13 @@ Object.assign(App, {
     this._syncEduCoursePlanFormFillBadges?.();
   },
 
+  expandEduCoursePlanSections() {
+    document.querySelectorAll('.edu-cp-form-v2 details').forEach(section => {
+      section.setAttribute('open', '');
+    });
+    this._syncEduCoursePlanFormFillBadges?.();
+  },
+
   _eduCpCoverDataUrl: null,
   _onEduCpCoverChange(input) {
     const file = input.files && input.files[0];
@@ -469,14 +476,16 @@ Object.assign(App, {
     }
 
     try {
+      let savedPlan = null;
       if (planId) {
         await FirebaseService.updateEduCoursePlan(teamId, planId, data);
         const cached = this._eduCoursePlansCache[teamId];
         if (cached) {
           const existing = cached.find(p => p.id === planId);
           if (existing) Object.assign(existing, data);
+          savedPlan = existing || null;
         }
-        this.showToast('課程方案已更新');
+        savedPlan = savedPlan || { ...data, id: planId };
       } else {
         data.id = this._generateEduId('cp');
         data.active = true;
@@ -485,7 +494,23 @@ Object.assign(App, {
         const cached = this._eduCoursePlansCache[teamId];
         if (cached) cached.push(result);
         else this._eduCoursePlansCache[teamId] = [result];
-        this.showToast('課程方案已建立');
+        savedPlan = result;
+      }
+      let syncCreated = 0;
+      let syncFailed = false;
+      if (typeof this._ensureCoursePlanSessionsFromPlan === 'function' && savedPlan) {
+        try {
+          const syncResult = await this._ensureCoursePlanSessionsFromPlan(teamId, savedPlan);
+          syncCreated = Number(syncResult?.created || 0);
+        } catch (syncErr) {
+          console.error('[handleSaveEduCoursePlan] session sync failed:', syncErr);
+          syncFailed = true;
+          this.showToast('課程方案已儲存，但課堂同步失敗：' + (syncErr.message || '請稍後再試'));
+        }
+      }
+      if (!syncFailed) {
+        if (!syncCreated) this.showToast(planId ? '課程方案已更新' : '課程方案已建立');
+        else this.showToast((planId ? '課程方案已更新' : '課程方案已建立') + '，已補齊 ' + syncCreated + ' 堂課堂');
       }
       this.goBack();
       // 返回後即時重繪課程方案列表

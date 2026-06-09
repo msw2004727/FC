@@ -599,18 +599,24 @@
   flex: 1 1 auto;
 }
 .edu-course-roster-card {
-  min-height: 66px;
+  min-height: 58px;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: .6rem;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: .55rem;
   align-items: center;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-card);
-  padding: .55rem .62rem;
+  padding: .48rem .58rem;
 }
 .edu-course-roster-card-signin { border-left: 3px solid #0f766e; }
 .edu-course-roster-card-leave { border-left: 3px solid #b45309; }
+.edu-course-roster-side {
+  min-width: 7.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
 .edu-course-roster-manage {
   display: inline-flex;
   align-items: center;
@@ -720,20 +726,42 @@
   gap: .38rem;
   flex-wrap: wrap;
 }
-.edu-course-roster-name-line strong {
+.edu-course-roster-name-pill {
+  min-width: 0;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: .32rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elevated, var(--bg-card));
   color: var(--text-primary);
-  font-size: .94rem;
-  font-weight: 900;
-  overflow-wrap: anywhere;
+  padding: .12rem .48rem .12rem .16rem;
 }
-.edu-course-roster-name-line span {
+.edu-course-roster-name-pill .edu-session-avatar {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+}
+.edu-course-roster-name-line strong {
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: .86rem;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.edu-course-roster-name-line em {
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--text-muted);
-  background: var(--bg-elevated, var(--bg-card));
+  background: var(--bg-card);
   padding: .06rem .38rem;
   font-size: .66rem;
+  font-style: normal;
   font-weight: 900;
+  white-space: nowrap;
 }
 .edu-course-roster-note {
   display: inline-flex;
@@ -750,12 +778,17 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.edu-course-roster-notes-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .55rem;
+  margin-bottom: .28rem;
+}
 .edu-course-roster-notes strong {
-  display: block;
   color: var(--text-primary);
   font-size: .9rem;
   font-weight: 900;
-  margin-bottom: .28rem;
 }
 .edu-course-roster-notes p {
   margin: 0;
@@ -763,6 +796,18 @@
   font-size: .82rem;
   line-height: 1.55;
   overflow-wrap: anywhere;
+}
+.edu-course-roster-notes textarea {
+  width: 100%;
+  min-height: 7rem;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated, var(--bg-card));
+  color: var(--text-primary);
+  padding: .58rem .65rem;
+  font-size: .86rem;
+  line-height: 1.5;
 }
 .edu-course-lessons-empty {
   display: flex;
@@ -841,17 +886,24 @@
     grid-template-columns: 1fr 1fr;
   }
   .edu-course-roster-card {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) max-content;
   }
-  .edu-course-roster-status,
+  .edu-course-roster-side {
+    min-width: 0;
+    max-width: 8.8rem;
+    justify-content: flex-end;
+  }
   .edu-course-roster-self-actions,
   .edu-course-roster-manage {
-    grid-column: 2;
-    justify-self: flex-start;
+    width: 100%;
+    justify-content: flex-end;
   }
-  .edu-course-roster-self-actions,
-  .edu-course-roster-manage {
-    justify-content: flex-start;
+  .edu-course-roster-name-pill {
+    width: 100%;
+  }
+  .edu-course-roster-notes-head {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 
@@ -871,6 +923,13 @@
   justify-content: space-between;
   gap: .75rem;
   margin-bottom: .7rem;
+}
+.edu-cp-form-head-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .4rem;
+  flex: 0 0 auto;
 }
 .edu-cp-form-head h3 {
   margin: .08rem 0 0;

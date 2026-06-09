@@ -232,7 +232,7 @@ describe('edu course plan render', () => {
     expect(endedHtml).toContain('edu-cp-status-ended');
   });
 
-  test('session course cards open lessons while weekly cards keep explicit actions only', async () => {
+  test('course cards open lessons for weekly and session plans', async () => {
     const html = await renderPlans([
       {
         id: 'weeklyPlan',
@@ -254,7 +254,7 @@ describe('edu course plan render', () => {
     ], true);
 
     expect(html).toContain('data-course-plan-id="weeklyPlan"');
-    expect(html).not.toContain("App.showCourseLessons('teamA','weeklyPlan')");
+    expect(html).toContain("App.showCourseLessons('teamA','weeklyPlan')");
     expect(html).toContain('data-course-plan-id="sessionPlan"');
     expect(html).toContain('edu-cp-card-clickable');
     expect(html).toContain("App.showCourseLessons('teamA','sessionPlan')");
@@ -1010,6 +1010,7 @@ describe('edu course plan render', () => {
     });
 
     expect(container.innerHTML).toContain('edu-cp-form-v2');
+    expect(container.innerHTML).toContain('App.expandEduCoursePlanSections()');
     expect(container.innerHTML).toContain('核心設定');
     expect((container.innerHTML.match(/<details class="edu-cp-section edu-cp-advanced-section"/g) || [])).toHaveLength(4);
     expect(container.innerHTML).toContain('id="edu-cp-name"');
@@ -1086,6 +1087,7 @@ describe('edu course plan render', () => {
       showToast: jest.fn(),
       goBack: jest.fn(),
       renderEduCoursePlanList: jest.fn(),
+      _ensureCoursePlanSessionsFromPlan: jest.fn(async () => ({ created: 2, sessions: [] })),
     };
     const context = {
       App: app,
@@ -1142,5 +1144,10 @@ describe('edu course plan render', () => {
     expect(savedPayload.price).toBe(2400);
     expect(savedPayload.featured).toBe(true);
     expect(savedPayload).not.toHaveProperty('active');
+    expect(context.App._ensureCoursePlanSessionsFromPlan).toHaveBeenCalledWith('teamA', expect.objectContaining({
+      id: 'planA',
+      planType: 'weekly',
+    }));
+    expect(app.showToast).toHaveBeenCalledWith('課程方案已更新，已補齊 2 堂課堂');
   });
 });

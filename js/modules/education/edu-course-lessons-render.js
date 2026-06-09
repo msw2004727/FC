@@ -65,9 +65,10 @@ Object.assign(App, {
       + '<span>建立課堂後，這裡會顯示每一堂的日期、地點與本堂名單。</span>'
       + (context.isStaff ? '<button class="primary-btn small" onclick="App.openCourseSessionForm(\'' + jsTeamId + '\',\'' + jsPlanId + '\')">＋ 新增課堂</button>' : '')
       + '</div>';
+    const typeLabel = plan?.planType === 'weekly' ? '固定週期課程' : '堂數制課程';
     return '<div class="edu-course-lessons-shell">'
       + '<section class="edu-course-lessons-hero">'
-        + '<span class="edu-course-lessons-eyebrow">堂數制課程</span>'
+        + '<span class="edu-course-lessons-eyebrow">' + escapeHTML(typeLabel) + '</span>'
         + '<h3>' + escapeHTML(plan?.name || '課程方案') + '</h3>'
         + '<p>' + escapeHTML((plan?.startDate || '未設定期間') + (plan?.endDate ? ' - ' + plan.endDate : '')) + '</p>'
       + '</section>'
@@ -133,12 +134,13 @@ Object.assign(App, {
           + '</div>'
         : '';
       return '<article class="edu-course-roster-card edu-course-roster-card-' + escapeHTML(attendance.cls) + '">'
-        + avatarHtml
         + '<div class="edu-course-roster-main">'
-          + '<div class="edu-course-roster-name-line"><strong>' + escapeHTML(name) + '</strong><span>Lv ' + escapeHTML(student.level || '-') + '</span></div>'
+          + '<div class="edu-course-roster-name-line">'
+            + '<span class="edu-course-roster-name-pill">' + avatarHtml + '<strong>' + escapeHTML(name) + '</strong><em>Lv ' + escapeHTML(student.level || '-') + '</em></span>'
+          + '</div>'
           + noteHtml
         + '</div>'
-        + manageHtml
+        + '<div class="edu-course-roster-side">' + manageHtml + '</div>'
       + '</article>';
     }).join('');
     const staffActions = context.isStaff
@@ -146,6 +148,17 @@ Object.assign(App, {
         ? '<div class="edu-course-roster-head-actions"><button type="button" class="outline-btn small" onclick="App.cancelCourseLessonRosterManage()">取消</button><button type="button" class="primary-btn small" onclick="return App.saveCourseLessonRosterManage(this)">完成</button></div>'
         : '<button type="button" class="primary-btn small" onclick="App.startCourseLessonRosterManage()">管理名單</button>')
       : '';
+    const notesEditMode = context.isStaff === true && context.notesEditMode === true;
+    const notesValue = notesEditMode ? String(context.draftSessionNotes || session.notes || '') : String(session.notes || '');
+    const courseNotesHtml = notesEditMode
+      ? '<section class="edu-course-roster-notes edu-course-roster-notes-editing">'
+          + '<div class="edu-course-roster-notes-head"><strong>課堂備註</strong><div class="edu-course-roster-head-actions"><button type="button" class="outline-btn small" onclick="App.cancelCourseLessonNotesEdit()">取消</button><button type="button" class="primary-btn small" onclick="return App.saveCourseLessonNotes(this)">完成</button></div></div>'
+          + '<textarea id="edu-course-roster-notes-input" maxlength="500" rows="4">' + escapeHTML(notesValue) + '</textarea>'
+        + '</section>'
+      : '<section class="edu-course-roster-notes">'
+          + '<div class="edu-course-roster-notes-head"><strong>課堂備註</strong>' + (context.isStaff ? '<button type="button" class="outline-btn small" onclick="App.startCourseLessonNotesEdit()">編輯</button>' : '') + '</div>'
+          + '<p>' + escapeHTML(notesValue || '尚未填寫課堂備註。') + '</p>'
+        + '</section>';
     return '<div class="edu-course-roster-shell">'
       + '<section class="edu-course-roster-head">'
         + '<button type="button" class="outline-btn small" onclick="App.showCourseLessons(\'' + jsTeamId + '\',\'' + jsPlanId + '\')">返回課堂</button>'
@@ -160,7 +173,7 @@ Object.assign(App, {
         + '<div class="edu-course-lessons-section-title"><strong>本堂名單</strong><span>' + students.length + ' 位</span></div>'
         + '<div class="edu-course-roster-list">' + (rosterRows || '<div class="edu-course-lessons-empty"><strong>尚未安排學員</strong><span>職員可在課堂編輯中指定本堂學員。</span></div>') + '</div>'
       + '</section>'
-      + '<section class="edu-course-roster-notes"><strong>課堂備註</strong><p>' + escapeHTML(session.notes || '尚未填寫課堂備註。') + '</p></section>'
+      + courseNotesHtml
       + '</div>';
   },
 });

@@ -39,7 +39,10 @@ Object.assign(App, {
     container.innerHTML = '<div class="ce-form edu-cp-form-v2">' +
       '<div class="edu-cp-form-head">' +
         '<div><div class="edu-cp-form-kicker">課程方案</div><h3>' + (planId ? '編輯課程' : '建立課程') + '</h3></div>' +
-        '<button type="button" class="outline-btn small" onclick="App.collapseEduCoursePlanSections()">全部收起</button>' +
+        '<div class="edu-cp-form-head-actions">' +
+          '<button type="button" class="outline-btn small" onclick="App.expandEduCoursePlanSections()">全部展開</button>' +
+          '<button type="button" class="outline-btn small" onclick="App.collapseEduCoursePlanSections()">全部收起</button>' +
+        '</div>' +
       '</div>' +
 
       '<section class="edu-cp-section edu-cp-core">' +

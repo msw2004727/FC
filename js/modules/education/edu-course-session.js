@@ -25,6 +25,193 @@ Object.assign(App, {
     }
   },
 
+  _parseCoursePlanTimeSlot(timeSlot) {
+    const raw = String(timeSlot || '').trim();
+    const parts = raw.split(/\s*[-~–—]\s*/).map(part => part.trim()).filter(Boolean);
+    const normalize = (value, fallback) => {
+      const match = String(value || '').match(/^(\d{1,2}):(\d{2})/);
+      if (!match) return fallback;
+      const hour = Math.max(0, Math.min(23, parseInt(match[1], 10)));
+      const minute = Math.max(0, Math.min(59, parseInt(match[2], 10)));
+      return String(hour).padStart(2, '0') + ':' + String(minute).padStart(2, '0');
+    };
+    return {
+      startTime: normalize(parts[0], '19:00'),
+      endTime: normalize(parts[1], '20:30'),
+    };
+  },
+
+  _addDaysToCourseDate(dateStr, days) {
+    const parts = String(dateStr || '').split('-').map(value => parseInt(value, 10));
+    if (parts.length !== 3 || parts.some(value => !Number.isFinite(value))) return '';
+    const date = new Date(parts[0], parts[1] - 1, parts[2]);
+    date.setDate(date.getDate() + Number(days || 0));
+    return date.getFullYear() + '-'
+      + String(date.getMonth() + 1).padStart(2, '0') + '-'
+      + String(date.getDate()).padStart(2, '0');
+  },
+
+  _getSessionPlanAutoDate(plan, index, totalSessions) {
+    const startDate = String(plan?.startDate || '').trim();
+    const endDate = String(plan?.endDate || '').trim();
+    if (!startDate) return '';
+    if (!endDate || totalSessions <= 1) return this._addDaysToCourseDate(startDate, index * 7);
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffDays = Math.max(0, Math.round((end.getTime() - start.getTime()) / 86400000));
+    const offset = Math.round((diffDays * index) / Math.max(1, totalSessions - 1));
+    return this._addDaysToCourseDate(startDate, offset);
+  },
+
+  _getCoursePlanDefaultSessionStaff(teamId, plan = {}) {
+    const team = this._getEduTeamRecord?.(teamId) || {};
+    const user = typeof ApiService !== 'undefined' ? ApiService.getCurrentUser?.() : null;
+    const managerName = String(
+      plan.managerName
+      || user?.displayName
+      || user?.name
+      || team.leader
+      || team.captain
+      || team.captainName
+      || ''
+    ).trim();
+    const managerContact = String(
+      plan.managerContact
+      || team.contact
+      || team.eduSettings?.contact
+      || ''
+    ).trim();
+    const coachName = String(
+      plan.coachName
+      || plan.coach
+      || (Array.isArray(team.coaches) ? team.coaches[0] : '')
+      || team.leader
+      || team.captain
+      || managerName
+      || ''
+    ).trim();
+    return {
+      managerName,
+      managerContact,
+      coachName,
+      coachContact: String(plan.coachContact || managerContact || '').trim(),
+    };
+  },
+
+  async _getCoursePlanAutoSessionStudentIds(teamId, plan) {
+    if (!teamId || !plan || typeof this._loadCourseEnrollments !== 'function' || typeof this._getCourseApprovedRoster !== 'function') {
+      return [];
+    }
+    try {
+      const enrollments = await this._loadCourseEnrollments(teamId, plan.id || plan._docId);
+      return this._getCourseApprovedRoster(teamId, plan, enrollments)
+        .map(item => String(item?.student?.id || item?.student?._docId || '').trim())
+        .filter(Boolean);
+    } catch (err) {
+      console.warn('[course sessions] approved roster preload failed:', err);
+      return [];
+    }
+  },
+
+  _getCourseSessionExistingSlotMap(sessions) {
+    const sorted = [...(sessions || [])].sort((a, b) => this._getCourseSessionSortValue(a) - this._getCourseSessionSortValue(b));
+    const used = new Set();
+    const bySlot = new Map();
+    sorted.forEach((session) => {
+      const explicit = Number(session?.sessionNumber || session?.lessonNumber || 0);
+      let slot = Number.isInteger(explicit) && explicit > 0 ? explicit : 0;
+      while (!slot || used.has(slot)) slot = slot + 1;
+      used.add(slot);
+      bySlot.set(slot, session);
+    });
+    return bySlot;
+  },
+
+  _buildAutoCourseSessionPayload(teamId, plan, index, overrides = {}) {
+    const slot = index + 1;
+    const isWeekly = plan?.planType === 'weekly';
+    const time = this._parseCoursePlanTimeSlot(isWeekly ? plan?.timeSlot : '');
+    const staff = this._getCoursePlanDefaultSessionStaff(teamId, plan);
+    const date = overrides.date || (isWeekly ? '' : this._getSessionPlanAutoDate(plan, index, Number(plan?.totalSessions || 0)));
+    return {
+      id: overrides.id || (isWeekly ? 'auto_weekly_' + String(date || slot).replace(/[^0-9a-zA-Z_-]/g, '') : 'auto_session_' + slot),
+      title: overrides.title || (Array.isArray(plan?.lessonTitles) && plan.lessonTitles[index] ? plan.lessonTitles[index] : '第 ' + slot + ' 堂課'),
+      status: 'scheduled',
+      date,
+      startTime: overrides.startTime || time.startTime,
+      endTime: overrides.endTime || time.endTime,
+      location: String(plan?.location || '').trim(),
+      capacity: Number.isFinite(Number(plan?.maxCapacity)) && Number(plan.maxCapacity) > 0 ? Number(plan.maxCapacity) : null,
+      studentIds: Array.isArray(overrides.studentIds) ? overrides.studentIds : [],
+      managerName: staff.managerName,
+      managerContact: staff.managerContact,
+      coachName: staff.coachName,
+      coachContact: staff.coachContact,
+      assistantCoaches: [],
+      assistantCoachNames: [],
+      focus: '',
+      notes: '',
+      sessionNumber: slot,
+      autoGenerated: true,
+      autoSource: isWeekly ? 'weekly-plan' : 'session-plan',
+    };
+  },
+
+  _buildMissingAutoCourseSessions(teamId, plan, sessions, studentIds) {
+    if (!plan) return [];
+    const existing = Array.isArray(sessions) ? sessions : [];
+    const rosterIds = Array.isArray(studentIds) ? studentIds : [];
+    if (plan.planType === 'weekly') {
+      const dates = typeof this.generateWeeklyDates === 'function' ? this.generateWeeklyDates(plan) : [];
+      const existingByDate = new Map(existing.map(session => [String(session.date || ''), session]).filter(([date]) => date));
+      return dates.map((date, index) => {
+        if (existingByDate.has(date)) return null;
+        const time = this._parseCoursePlanTimeSlot(plan.timeSlot);
+        return this._buildAutoCourseSessionPayload(teamId, plan, index, {
+          id: 'auto_weekly_' + String(date).replace(/-/g, ''),
+          date,
+          startTime: time.startTime,
+          endTime: time.endTime,
+          studentIds: rosterIds,
+        });
+      }).filter(Boolean);
+    }
+    if (plan.planType !== 'session') return [];
+    const total = Number(plan.totalSessions || 0);
+    if (!Number.isInteger(total) || total < 1) return [];
+    const bySlot = this._getCourseSessionExistingSlotMap(existing);
+    const missing = [];
+    for (let index = 0; index < total; index += 1) {
+      const slot = index + 1;
+      if (bySlot.has(slot)) continue;
+      missing.push(this._buildAutoCourseSessionPayload(teamId, plan, index, {
+        id: 'auto_session_' + slot,
+        studentIds: rosterIds,
+      }));
+    }
+    return missing;
+  },
+
+  async _ensureCoursePlanSessionsFromPlan(teamId, plan, options = {}) {
+    const planId = String(plan?.id || plan?._docId || '').trim();
+    if (!teamId || !planId || typeof FirebaseService === 'undefined' || typeof FirebaseService.createCourseSession !== 'function') {
+      return { created: 0, sessions: [] };
+    }
+    const existing = await this._loadCourseSessions(teamId, planId);
+    const studentIds = options.includeApprovedRoster === false
+      ? []
+      : await this._getCoursePlanAutoSessionStudentIds(teamId, { ...plan, id: planId });
+    const missing = this._buildMissingAutoCourseSessions(teamId, { ...plan, id: planId }, existing, studentIds);
+    if (!missing.length) return { created: 0, sessions: existing };
+    const created = [];
+    for (const payload of missing) {
+      created.push(await FirebaseService.createCourseSession(teamId, planId, payload));
+    }
+    const sessions = [...existing, ...created].sort((a, b) => this._getCourseSessionSortValue(a) - this._getCourseSessionSortValue(b));
+    this._courseSessionCache[this._getCourseSessionCacheKey(teamId, planId)] = sessions;
+    return { created: created.length, sessions };
+  },
+
   _getCourseSessionSortValue(session) {
     if (!session) return 0;
     const raw = [session.date || '', session.startTime || '00:00'].filter(Boolean).join('T');

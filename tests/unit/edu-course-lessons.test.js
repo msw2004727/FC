@@ -49,6 +49,7 @@ function loadCourseLessonsContext(overrides = {}) {
     _loadCourseSessions: jest.fn(async () => sessions),
     isEduClubStaff: jest.fn(() => overrides.isStaff === true),
     _loadCourseEnrollments: jest.fn(async () => overrides.enrollments || []),
+    _ensureCoursePlanSessionsFromPlan: overrides.ensureCoursePlanSessionsFromPlan,
     _formatCourseSessionDate: (session) => session.date,
     _formatCourseSessionTime: (session) => [session.startTime, session.endTime].filter(Boolean).join(' - '),
     _getCourseSessionStatusMeta: () => ({ label: '已排課', cls: 'scheduled' }),
@@ -78,11 +79,13 @@ function loadCourseLessonsContext(overrides = {}) {
       }),
       saveEduSessionAttendanceChanges: jest.fn(async () => ({ changed: 1 })),
       saveEduCourseSelfLeave: jest.fn(async () => ({ changed: 1 })),
+      updateCourseSession: jest.fn(async () => ({ ok: true })),
     },
     document: {
       getElementById: jest.fn((id) => {
         if (id === 'edu-course-lessons-page') return container;
         if (id === 'edu-course-lessons-title') return title;
+        if (id === 'edu-course-roster-notes-input') return overrides.notesInput || null;
         return null;
       }),
     },
@@ -114,6 +117,63 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).toContain("App.showCourseLessonRoster('teamA','planA','sessionA')");
   });
 
+  test('renders weekly lesson cards from course sessions', async () => {
+    const { app, container } = loadCourseLessonsContext({
+      plans: [{
+        id: 'weeklyPlan',
+        name: '固定週期班',
+        planType: 'weekly',
+        weekdays: [1, 3],
+        timeSlot: '09:00-10:30',
+        startDate: '2099-06-01',
+        endDate: '2099-06-30',
+      }],
+      sessions: [{
+        id: 'weeklyA',
+        title: '第 1 堂課',
+        date: '2099-06-01',
+        startTime: '09:00',
+        endTime: '10:30',
+        location: '球場 B',
+        studentIds: ['stu1'],
+        capacity: 6,
+      }],
+    });
+
+    await app.showCourseLessons('teamA', 'weeklyPlan');
+
+    expect(container.innerHTML).toContain('固定週期課程');
+    expect(container.innerHTML).toContain('固定週期班');
+    expect(container.innerHTML).toContain('第 1 堂課');
+    expect(container.innerHTML).toContain("App.showCourseLessonRoster('teamA','weeklyPlan','weeklyA')");
+    expect(container.innerHTML).not.toContain('固定週期課程維持方案層級顯示');
+  });
+
+  test('staff lesson list uses auto session sync result', async () => {
+    const ensureCoursePlanSessionsFromPlan = jest.fn(async () => ({
+      created: 2,
+      sessions: [{
+        id: 'auto_session_1',
+        title: '第 1 堂課',
+        date: '2099-06-01',
+        startTime: '19:00',
+        endTime: '20:30',
+        studentIds: [],
+      }],
+    }));
+    const { app, container } = loadCourseLessonsContext({
+      isStaff: true,
+      sessions: [],
+      ensureCoursePlanSessionsFromPlan,
+    });
+
+    await app.showCourseLessons('teamA', 'planA');
+
+    expect(ensureCoursePlanSessionsFromPlan).toHaveBeenCalledWith('teamA', expect.objectContaining({ id: 'planA' }));
+    expect(container.innerHTML).toContain('auto_session_1');
+    expect(container.innerHTML).toContain('第 1 堂課');
+  });
+
   test('renders public roster without staff notes', async () => {
     const { app, container, title, firebase } = loadCourseLessonsContext();
 
@@ -122,6 +182,8 @@ describe('edu course lessons', () => {
     expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledWith('teamA', 'planA', 'sessionA');
     expect(title.textContent).toBe('課堂名單');
     expect(container.innerHTML).toContain('小明');
+    expect(container.innerHTML).toContain('edu-course-roster-name-pill');
+    expect(container.innerHTML).toContain('edu-course-roster-side');
     expect(container.innerHTML).toContain('Lv 3');
     expect(container.innerHTML).toContain('已簽到');
     expect(container.innerHTML).not.toContain('尚未填寫備註');
@@ -170,6 +232,23 @@ describe('edu course lessons', () => {
       }],
     });
     expect(app.showToast).toHaveBeenCalledWith('名單已更新');
+  });
+
+  test('staff can edit course lesson notes from roster', async () => {
+    const notesInput = { value: '新的課堂備註' };
+    const { app, container, firebase } = loadCourseLessonsContext({ isStaff: true, notesInput });
+
+    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+    expect(container.innerHTML).toContain('課堂備註');
+    expect(container.innerHTML).toContain('App.startCourseLessonNotesEdit()');
+
+    app.startCourseLessonNotesEdit();
+    expect(container.innerHTML).toContain('edu-course-roster-notes-input');
+
+    await app.saveCourseLessonNotes({ dataset: {}, disabled: false, style: {}, isConnected: true });
+
+    expect(firebase.updateCourseSession).toHaveBeenCalledWith('teamA', 'planA', 'sessionA', { notes: '新的課堂備註' });
+    expect(app.showToast).toHaveBeenCalledWith('課堂備註已更新');
   });
 
   test('owned student can submit self leave from roster', async () => {
