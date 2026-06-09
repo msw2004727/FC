@@ -160,7 +160,6 @@ Object.assign(App, {
         + '<div class="edu-course-roster-main">'
           + '<div class="edu-course-roster-name-line">'
             + studentPill
-            + '<em class="edu-course-roster-level-pill">Lv ' + escapeHTML(student.level || '-') + '</em>'
           + '</div>'
           + noteHtml
         + '</div>'

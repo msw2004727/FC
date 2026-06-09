@@ -508,6 +508,8 @@
   gap: .5rem;
 }
 .edu-course-lesson-card {
+  position: relative;
+  overflow: hidden;
   min-height: 92px;
   display: grid;
   grid-template-columns: 4rem minmax(0, 1fr);
@@ -519,6 +521,28 @@
   padding: .5rem;
   cursor: pointer;
   transition: border-color .16s, transform .16s, box-shadow .16s;
+}
+.edu-course-lesson-card-done {
+  border-color: rgba(148, 163, 184, .32);
+}
+.edu-course-lesson-card-done .edu-course-lesson-index,
+.edu-course-lesson-card-done .edu-course-lesson-main {
+  filter: grayscale(1);
+  opacity: .58;
+}
+.edu-course-lesson-card-done::after {
+  content: "\5DF2\7D50\675F";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(248, 250, 252, .62);
+  color: #64748b;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  pointer-events: none;
 }
 .edu-course-lesson-card:hover,
 .edu-course-lesson-card:focus-visible {
@@ -897,6 +921,13 @@
 [data-theme="dark"] .edu-course-lesson-status-soon,
 [data-theme="dark"] .edu-course-roster-status-leave { background: rgba(251, 191, 36, .16); color: #fcd34d; }
 [data-theme="dark"] .edu-course-lesson-status-done { background: rgba(52, 211, 153, .16); color: #6ee7b7; }
+[data-theme="dark"] .edu-course-lesson-card-done {
+  border-color: rgba(148, 163, 184, .22);
+}
+[data-theme="dark"] .edu-course-lesson-card-done::after {
+  background: rgba(15, 23, 42, .64);
+  color: #cbd5e1;
+}
 [data-theme="dark"] .edu-course-lesson-status-cancelled { background: rgba(248, 113, 113, .16); color: #fca5a5; }
 [data-theme="dark"] .edu-course-roster-status-signin { background: rgba(45, 212, 191, .16); color: #5eead4; }
 [data-theme="dark"] .edu-roster-cb-signin:checked + .edu-roster-choice-label {

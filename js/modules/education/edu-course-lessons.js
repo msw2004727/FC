@@ -5,6 +5,7 @@
 Object.assign(App, {
   _eduCourseLessonsRequestSeq: 0,
   _eduCourseLessonsContext: null,
+  _eduCourseLessonsPreloadPromises: {},
 
   _getEduCourseLessonsContainer() {
     return document.getElementById('edu-course-lessons-page');
@@ -26,11 +27,45 @@ Object.assign(App, {
       .find(plan => String(plan.id || plan._docId || '') === String(planId || '')) || null;
   },
 
+  _getCourseLessonsPreloadKey(teamId, planId) {
+    return String(teamId || '') + ':' + String(planId || '');
+  },
+
+  _getCourseLessonsCachedSessions(teamId, planId) {
+    const key = this._getCourseSessionCacheKey?.(teamId, planId) || this._getCourseLessonsPreloadKey(teamId, planId);
+    const cached = this._courseSessionCache?.[key];
+    return Array.isArray(cached) ? cached : null;
+  },
+
+  _preloadCourseLessonsForPlans(teamId, plans) {
+    if (!teamId || typeof this._loadCourseSessions !== 'function') return false;
+    (Array.isArray(plans) ? plans : []).forEach((plan) => {
+      const planId = String(plan?.id || plan?._docId || '').trim();
+      if (!planId) return;
+      const key = this._getCourseLessonsPreloadKey(teamId, planId);
+      if (this._eduCourseLessonsPreloadPromises?.[key]) return;
+      this._eduCourseLessonsPreloadPromises[key] = this._loadCourseSessions(teamId, planId)
+        .catch((err) => {
+          console.warn('[edu-course-lessons] preload failed:', err);
+          return [];
+        })
+        .finally(() => {
+          if (this._eduCourseLessonsPreloadPromises?.[key]) delete this._eduCourseLessonsPreloadPromises[key];
+        });
+    });
+    return true;
+  },
+
+  _loadCourseLessonsSessions(teamId, planId) {
+    const key = this._getCourseLessonsPreloadKey(teamId, planId);
+    return this._eduCourseLessonsPreloadPromises?.[key] || this._loadCourseSessions(teamId, planId);
+  },
+
   async _loadEduCourseLessonsState(teamId, planId) {
     await this._loadEduCoursePlans?.(teamId);
     const plan = this._findEduCoursePlan(teamId, planId);
     if (!plan) return { plan: null, sessions: [] };
-    const sessions = await this._loadCourseSessions(teamId, planId);
+    const sessions = await this._loadCourseLessonsSessions(teamId, planId);
     return { plan, sessions };
   },
 
@@ -65,6 +100,18 @@ Object.assign(App, {
     if (!container) return { ok: false, reason: 'missing_container' };
     this._setEduCourseLessonsTitle('課堂列表');
     container.innerHTML = this._renderCourseLessonsLoading('課堂列表載入中');
+
+    const cachedPlan = this._findEduCoursePlan(teamId, planId);
+    const cachedSessions = this._getCourseLessonsCachedSessions(teamId, planId);
+    if (cachedPlan && cachedSessions) {
+      const cachedCount = Number(cachedPlan._effectiveCount);
+      container.innerHTML = this._renderCourseLessonList(cachedPlan, cachedSessions, {
+        teamId,
+        planId,
+        isStaff: this.isEduClubStaff?.(teamId) === true,
+        currentStudentCount: Number.isFinite(cachedCount) && cachedCount >= 0 ? cachedCount : null,
+      });
+    }
 
     const state = await this._loadEduCourseLessonsState(teamId, planId);
     if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };

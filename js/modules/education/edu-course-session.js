@@ -262,11 +262,22 @@ Object.assign(App, {
     const existing = Array.isArray(sessions) ? sessions : [];
     const byDate = new Map(existing.map(session => [String(session.date || ''), session]).filter(([date]) => date));
     const bySlot = this._getCourseSessionExistingSlotMap(existing);
+    const autoBySlot = new Map();
+    existing
+      .filter(session => this._isAutoManagedCourseSession(session))
+      .sort((a, b) => this._getCourseSessionSortValue(a) - this._getCourseSessionSortValue(b))
+      .forEach((session, index) => {
+        const explicit = Number(session?.sessionNumber || session?.lessonNumber || 0);
+        const slot = Number.isInteger(explicit) && explicit > 0 ? explicit : index + 1;
+        if (!autoBySlot.has(slot)) autoBySlot.set(slot, session);
+      });
     let updated = 0;
-    for (const payload of expected) {
+    for (let index = 0; index < expected.length; index += 1) {
+      const payload = expected[index];
+      const slot = Number(payload.sessionNumber || 0);
       const target = plan?.planType === 'weekly'
-        ? byDate.get(String(payload.date || ''))
-        : bySlot.get(Number(payload.sessionNumber || 0));
+        ? (autoBySlot.get(slot) || byDate.get(String(payload.date || '')) || autoBySlot.get(index + 1))
+        : bySlot.get(slot);
       const sessionId = String(target?.id || target?._docId || '').trim();
       if (!target || !sessionId) continue;
       const updates = this._buildAutoCourseSessionUpdatePayload(target, payload);

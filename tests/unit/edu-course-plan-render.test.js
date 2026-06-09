@@ -72,6 +72,10 @@ async function renderPlans(plans, isStaff = true, selectedTab = 'active', overri
 }
 
 describe('edu course plan render', () => {
+  test('course tab preloads current lesson sessions after rendering active plans', () => {
+    expect(source).toContain('this._preloadCourseLessonsForPlans?.(teamId, currentPlans)');
+  });
+
   test('groups weekly and session plans into separate designed containers', async () => {
     const html = await renderPlans([
       {

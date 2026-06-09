@@ -10,6 +10,10 @@ const controllerSource = fs.readFileSync(
   path.join(__dirname, '../../js/modules/education/edu-course-lessons.js'),
   'utf8'
 );
+const cssSource = fs.readFileSync(
+  path.join(__dirname, '../../css/education.css'),
+  'utf8'
+);
 
 function escapeHTML(value) {
   return String(value ?? '')
@@ -43,10 +47,11 @@ function loadCourseLessonsContext(overrides = {}) {
   const app = {
     currentPage: 'page-team-detail',
     _eduCourseLessonsRequestSeq: 0,
+    _courseSessionCache: overrides.courseSessionCache || {},
     showPage: jest.fn(async () => { app.currentPage = 'page-edu-course-lessons'; }),
     _loadEduCoursePlans: jest.fn(async () => plans),
     getEduCoursePlans: jest.fn(() => plans),
-    _loadCourseSessions: jest.fn(async () => sessions),
+    _loadCourseSessions: overrides.loadCourseSessions || jest.fn(async () => sessions),
     isEduClubStaff: jest.fn(() => overrides.isStaff === true),
     _loadCourseEnrollments: jest.fn(async () => overrides.enrollments || []),
     _loadCourseEnrollmentSummaries: jest.fn(async () => overrides.summaries || null),
@@ -119,6 +124,65 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).toContain("App.showCourseLessonRoster('teamA','planA','sessionA')");
   });
 
+  test('preloads course lesson sessions without duplicate pending requests', async () => {
+    let resolveLoad;
+    const pending = new Promise(resolve => { resolveLoad = resolve; });
+    const loadCourseSessions = jest.fn(() => pending);
+    const { app } = loadCourseLessonsContext({ loadCourseSessions });
+
+    app._preloadCourseLessonsForPlans('teamA', [{ id: 'planA' }, { id: 'planB' }]);
+    app._preloadCourseLessonsForPlans('teamA', [{ id: 'planA' }]);
+
+    expect(loadCourseSessions).toHaveBeenCalledTimes(2);
+    expect(loadCourseSessions).toHaveBeenCalledWith('teamA', 'planA');
+    expect(loadCourseSessions).toHaveBeenCalledWith('teamA', 'planB');
+    resolveLoad([]);
+    await pending;
+  });
+
+  test('showCourseLessons paints cached sessions before slow refresh completes', async () => {
+    let resolveSessions;
+    const slowSessions = new Promise(resolve => { resolveSessions = resolve; });
+    const { app, container } = loadCourseLessonsContext({
+      courseSessionCache: {
+        'teamA:planA': [{
+          id: 'cachedA',
+          title: 'Cached Lesson',
+          date: '2099-06-01',
+          startTime: '10:00',
+          endTime: '11:30',
+          location: 'A',
+          studentIds: ['stu1'],
+          capacity: 6,
+        }],
+      },
+      loadCourseSessions: jest.fn(() => slowSessions),
+    });
+
+    const renderPromise = app.showCourseLessons('teamA', 'planA');
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(container.innerHTML).toContain('Cached Lesson');
+    expect(container.innerHTML).toContain('cachedA');
+
+    resolveSessions([{
+      id: 'freshA',
+      title: 'Fresh Lesson',
+      date: '2099-06-02',
+      startTime: '10:00',
+      endTime: '11:30',
+      location: 'A',
+      studentIds: ['stu1', 'stu2'],
+      capacity: 6,
+    }]);
+    await renderPromise;
+
+    expect(container.innerHTML).toContain('Fresh Lesson');
+    expect(container.innerHTML).not.toContain('Cached Lesson');
+  });
+
   test('lesson cards freeze done counts and use current enrollment count before completion', async () => {
     const { app, container } = loadCourseLessonsContext({
       sessions: [
@@ -179,6 +243,12 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).toContain('edu-course-lessons-hero has-cover');
     expect(container.innerHTML).toContain("--edu-course-lessons-cover:url('https://cdn.example/course-cover.webp')");
     expect(container.innerHTML).toContain('edu-course-lessons-hero-copy');
+  });
+
+  test('done lesson cards are visually greyed and covered', () => {
+    expect(cssSource).toContain('.edu-course-lesson-card-done::after');
+    expect(cssSource).toContain('content: "\\5DF2\\7D50\\675F"');
+    expect(cssSource).toContain('filter: grayscale(1)');
   });
 
   test('renders weekly lesson cards from course sessions', async () => {
@@ -250,7 +320,8 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).toContain('edu-course-member-pill');
     expect(container.innerHTML).toContain("App.showUserProfile('小明')");
     expect(container.innerHTML).toContain('edu-course-roster-side');
-    expect(container.innerHTML).toContain('Lv 3');
+    expect(container.innerHTML).not.toContain('edu-course-roster-level-pill');
+    expect(container.innerHTML).not.toContain('Lv 3');
     expect(container.innerHTML).toContain('已簽到');
     expect(container.innerHTML).not.toContain('尚未填寫備註');
   });

@@ -790,8 +790,9 @@ describe('team detail club activity section', () => {
     const actionsSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-detail-v2-actions.js'), 'utf8');
 
     expect(actionsSource).not.toContain('.td-v2-panel-courses .edu-cp-card-v3');
-    expect(actionsSource).not.toContain('this.openTeamDetailV2CourseModal(planId)');
-    expect(actionsSource).toContain("if (action === 'course') return this.openTeamDetailV2CourseModal");
+    expect(actionsSource).toContain("if (action === 'course')");
+    expect(actionsSource).toContain("if (typeof this.showEduCoursePlanDetail === 'function') return this.showEduCoursePlanDetail(teamId, planId)");
+    expect(actionsSource).toContain('return this.openTeamDetailV2CourseModal(planId)');
     expect(actionsSource).toContain("App.applyCourseEnrollment(\\'' + escapeHTML(teamId) + '\\',\\'' + escapeHTML(plan.id || '') + '\\',this)");
   });
 

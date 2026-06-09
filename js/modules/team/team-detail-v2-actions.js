@@ -138,7 +138,11 @@ Object.assign(App, {
       const uid = target.getAttribute('data-user-uid') || '';
       return this.showUserProfile?.(name, uid ? { uid } : undefined);
     }
-    if (action === 'course') return this.openTeamDetailV2CourseModal(target.getAttribute('data-course-id'));
+    if (action === 'course') {
+      const planId = target.getAttribute('data-course-id');
+      if (typeof this.showEduCoursePlanDetail === 'function') return this.showEduCoursePlanDetail(teamId, planId);
+      return this.openTeamDetailV2CourseModal(planId);
+    }
     if (action === 'close-course') return this.closeTeamDetailV2CourseModal();
     if (action === 'fab') return this.openTeamDetailV2Fab(teamId);
     return null;

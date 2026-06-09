@@ -283,6 +283,7 @@ Object.assign(App, {
     };
 
     renderCoursePlanSections();
+    this._preloadCourseLessonsForPlans?.(teamId, currentPlans);
 
     const refreshPlans = displayPlans.filter((p) => {
       const key = this._getCourseEnrollCacheKey?.(teamId, p.id);
@@ -300,7 +301,10 @@ Object.assign(App, {
       }
     }));
     const renderAfterRefresh = () => {
-      if (!isStale()) renderCoursePlanSections();
+      if (!isStale()) {
+        renderCoursePlanSections();
+        this._preloadCourseLessonsForPlans?.(teamId, currentPlans);
+      }
       return true;
     };
     this._eduCoursePlanListRefreshPromise = refreshPlans.length
