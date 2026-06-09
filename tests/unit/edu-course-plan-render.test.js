@@ -232,21 +232,34 @@ describe('edu course plan render', () => {
     expect(endedHtml).toContain('edu-cp-status-ended');
   });
 
-  test('course cards require explicit buttons while roster management stays explicit', async () => {
-    const html = await renderPlans([{
-      id: 'planA',
-      name: 'Plan A',
-      planType: 'weekly',
-      weekdays: [1],
-      startDate: '2099-01-01',
-      endDate: '2099-02-01',
-      allowSignup: true,
-    }], true);
+  test('session course cards open lessons while weekly cards keep explicit actions only', async () => {
+    const html = await renderPlans([
+      {
+        id: 'weeklyPlan',
+        name: 'Weekly Plan',
+        planType: 'weekly',
+        weekdays: [1],
+        startDate: '2099-01-01',
+        endDate: '2099-02-01',
+        allowSignup: true,
+      },
+      {
+        id: 'sessionPlan',
+        name: 'Session Plan',
+        planType: 'session',
+        startDate: '2099-01-01',
+        endDate: '2099-02-01',
+        allowSignup: true,
+      },
+    ], true);
 
-    expect(html).toContain('data-course-plan-id="planA"');
-    expect(html).not.toContain('data-course-plan-id="planA" onclick=');
+    expect(html).toContain('data-course-plan-id="weeklyPlan"');
+    expect(html).not.toContain("App.showCourseLessons('teamA','weeklyPlan')");
+    expect(html).toContain('data-course-plan-id="sessionPlan"');
+    expect(html).toContain('edu-cp-card-clickable');
+    expect(html).toContain("App.showCourseLessons('teamA','sessionPlan')");
     expect(html).toContain('edu-cp-detail-btn');
-    expect(html).toContain("App.applyCourseEnrollment('teamA','planA',this)");
+    expect(html).toContain("App.applyCourseEnrollment('teamA','weeklyPlan',this)");
     expect(html).toContain('App.showCourseEnrollmentList');
     expect(html).toContain('edu-cp-manage-btn edu-cp-manage-list');
     expect(html).toContain('edu-cp-manage-btn edu-cp-manage-edit');

@@ -2124,6 +2124,7 @@ const App = {
     'page-edu-groups': 'page-teams',
     'page-edu-students': 'page-teams',
     'page-edu-course-plan': 'page-teams',
+    'page-edu-course-lessons': 'page-teams',
     'page-edu-checkin': 'page-teams',
     'page-edu-calendar': 'page-teams',
     'page-edu-student-apply': 'page-teams',

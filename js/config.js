@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260609b';
+const CACHE_VERSION = '0.20260609c';
 
 const GOOGLE_MAPS_BROWSER_API_KEY = '';
 
@@ -353,6 +353,7 @@ const PAGE_STRATEGY = {
   'page-edu-checkin':             'stale-first',
   'page-edu-calendar':            'stale-first',
   'page-edu-course-plan':         'stale-first',
+  'page-edu-course-lessons':      'stale-first',
   'page-edu-course-enrollment':   'stale-first',
 
   // 遊戲
@@ -407,6 +408,7 @@ const PAGE_DATA_CONTRACT = {
   'page-edu-checkin':             { required: [], optional: ['events', 'attendanceRecords'], realtime: [] },
   'page-edu-calendar':            { required: [], optional: ['events'], realtime: [] },
   'page-edu-course-plan':         { required: [], optional: ['teams'], realtime: [] },
+  'page-edu-course-lessons':      { required: [], optional: ['teams'], realtime: [] },
   'page-edu-course-enrollment':   { required: [], optional: ['teams'], realtime: [] },
 
   // 遊戲 + 成就

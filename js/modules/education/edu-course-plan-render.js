@@ -199,8 +199,11 @@ Object.assign(App, {
         : '';
 
       const detailBtn = '<button class="outline-btn edu-cp-detail-btn" onclick="event.stopPropagation();App.showEduCoursePlanDetail(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">詳細資訊</button>';
+      const openLessonsAttrs = p.planType === 'weekly'
+        ? ''
+        : ' role="button" tabindex="0" onclick="App.showCourseLessons(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();App.showCourseLessons(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')}"';
 
-      return '<div class="edu-course-card edu-cp-card-v3 edu-cp-card-compact edu-cp-card-' + (p.planType === 'weekly' ? 'weekly' : 'session') + hiddenClass + coverClass + '" data-course-plan-id="' + escapeHTML(p.id || '') + '">'
+      return '<div class="edu-course-card edu-cp-card-v3 edu-cp-card-compact edu-cp-card-' + (p.planType === 'weekly' ? 'weekly' : 'session') + hiddenClass + coverClass + (p.planType === 'weekly' ? '' : ' edu-cp-card-clickable') + '" data-course-plan-id="' + escapeHTML(p.id || '') + '"' + openLessonsAttrs + '>'
         + coverHtml
         + hiddenBadge
         + '<div class="edu-cp-compact-main">'

@@ -445,6 +445,19 @@ describe('education course enrollment callable source contracts', () => {
     expect(source).not.toContain('serializeCourseEnrollment');
     expect(source).not.toContain('visibleEnrollments');
   });
+
+  test('public course roster callable projects sessions and students without requiring auth', () => {
+    const source = readCloudFunctionSource('listEduCoursePublicRoster');
+    expect(source).toContain('region: "asia-east1"');
+    expect(source).toContain('normalizeEduCourseSessionRequestIds(request.data || {})');
+    expect(source).not.toContain('if (!request.auth?.uid)');
+    expect(source).toContain('planRef.collection("sessions").doc(sessionId)');
+    expect(source).toContain('teamRef.collection("students").get()');
+    expect(source).toContain('db.collection("eduAttendance")');
+    expect(source).toContain('rosterPublic');
+    expect(source).not.toContain('serializeCourseEnrollment');
+    expect(source).not.toContain('planRef.collection("enrollments").get()');
+  });
 });
 
 function makeScoreboardDb({ usageData } = {}) {

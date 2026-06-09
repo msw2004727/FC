@@ -86,6 +86,7 @@ const PageLoader = {
     'page-edu-groups':         'education',
     'page-edu-students':       'education',
     'page-edu-course-plan':    'education',
+    'page-edu-course-lessons':  'education',
     'page-edu-course-enrollment': 'education',
     'page-edu-checkin':        'education',
     'page-edu-calendar':       'education',

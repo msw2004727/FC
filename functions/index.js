@@ -3645,6 +3645,13 @@ function normalizeEduCourseSummaryRequestIds(data = {}) {
   return { teamId, planIds };
 }
 
+function normalizeEduCourseSessionRequestIds(data = {}) {
+  const { teamId, planId } = normalizeEduCourseRequestIds(data);
+  const sessionId = sanitizeStr(data.sessionId, 100);
+  if (!sessionId) throw new HttpsError("invalid-argument", "sessionId is required");
+  return { teamId, planId, sessionId };
+}
+
 function courseEnrollmentDocId(studentId) {
   return `enr_${Date.now()}_${sanitizeStr(studentId, 40).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 18)}_${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -3893,6 +3900,146 @@ exports.listEduCourseEnrollmentSummaries = onCall(
       planIds,
       migrationCompleted,
       summaries,
+    };
+  }
+);
+
+exports.listEduCoursePublicRoster = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
+  async (request) => {
+    const callerUid = sanitizeStr(request.auth?.uid, 128);
+    const { teamId, planId, sessionId } = normalizeEduCourseSessionRequestIds(request.data || {});
+    const teamDoc = await getTeamDocByTeamId(teamId);
+    if (!teamDoc) throw createEduCourseHttpsError("TEAM_NOT_FOUND");
+    const teamRef = teamDoc.ref;
+    let isStaff = false;
+    if (callerUid) {
+      const access = await getCallerAccessContext(request);
+      isStaff = isTeamStaffForData(teamDoc.data, callerUid)
+        || access.isSuperAdmin
+        || access.hasPermission("team.manage_all");
+    }
+
+    const planRef = teamRef.collection("coursePlans").doc(planId);
+    const sessionRef = planRef.collection("sessions").doc(sessionId);
+    const [planSnap, sessionSnap, studentsSnap] = await Promise.all([
+      planRef.get(),
+      sessionRef.get(),
+      teamRef.collection("students").get(),
+    ]);
+    if (!planSnap.exists) throw createEduCourseHttpsError("PLAN_NOT_FOUND");
+    if (!sessionSnap.exists) throw new HttpsError("not-found", "SESSION_NOT_FOUND", { code: "SESSION_NOT_FOUND" });
+
+    const plan = { id: planSnap.id, _docId: planSnap.id, ...(planSnap.data() || {}) };
+    if (!isStaff && plan.active === false) throw createEduCourseHttpsError("PLAN_INACTIVE");
+    if (!isStaff && plan.visibleOnTeamPage === false) throw createEduCourseHttpsError("PLAN_HIDDEN");
+
+    const session = { id: sessionSnap.id, _docId: sessionSnap.id, ...(sessionSnap.data() || {}) };
+    const rosterPublic = plan.rosterPublic !== false;
+    const baseSession = {
+      id: sessionId,
+      title: sanitizeStr(session.title || session.topic || session.focus || "", 120),
+      date: sanitizeStr(session.date, 20),
+      startTime: sanitizeStr(session.startTime, 20),
+      endTime: sanitizeStr(session.endTime, 20),
+      location: sanitizeStr(session.location || plan.location || "", 160),
+      capacity: Number.isFinite(Number(session.capacity)) ? Number(session.capacity) : null,
+      notes: sanitizeStr(session.notes, 500),
+      status: sanitizeStr(session.status, 32) || "scheduled",
+    };
+    if (!rosterPublic && !isStaff) {
+      return {
+        success: true,
+        teamId,
+        planId,
+        sessionId,
+        rosterPublic,
+        isStaff,
+        session: baseSession,
+        students: [],
+      };
+    }
+
+    const students = studentsSnap.docs.map((doc) => {
+      const data = doc.data() || {};
+      return { ...data, id: sanitizeStr(data.id || doc.id, 100), _docId: doc.id };
+    });
+    const studentsById = new Map(students.map((student) => [String(student.id || student._docId || ""), student]));
+    const attendanceByStudentId = {};
+    if (baseSession.date) {
+      try {
+        const attendanceSnap = await db.collection("eduAttendance")
+          .where("teamId", "==", teamId)
+          .where("coursePlanId", "==", planId)
+          .where("date", "==", baseSession.date)
+          .get();
+        const attendanceDocs = attendanceSnap.docs
+          .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+          .filter((record) => sanitizeStr(record.status, 32) !== "removed");
+        const hasSessionScopedRecords = attendanceDocs.some((record) => sanitizeStr(record.sessionId, 100));
+        attendanceDocs.forEach((record) => {
+          const recordSessionId = sanitizeStr(record.sessionId, 100);
+          if (hasSessionScopedRecords && recordSessionId !== sessionId) return;
+          if (!hasSessionScopedRecords && recordSessionId && recordSessionId !== sessionId) return;
+          const studentId = sanitizeStr(record.studentId, 100);
+          if (!studentId) return;
+          const kind = sanitizeStr(record.kind, 20) === "leave" ? "leave" : "signin";
+          if (kind === "leave" || !attendanceByStudentId[studentId]) {
+            attendanceByStudentId[studentId] = kind;
+          }
+        });
+      } catch (err) {
+        console.warn("[listEduCoursePublicRoster] attendance query failed", {
+          teamId,
+          planId,
+          sessionId,
+          code: err?.code || "",
+          message: err?.message || "",
+        });
+      }
+    }
+
+    const studentIds = Array.isArray(session.studentIds)
+      ? session.studentIds.map((value) => sanitizeStr(value, 100)).filter(Boolean)
+      : [];
+    const roster = studentIds.map((studentId) => {
+      const student = studentsById.get(studentId) || {};
+      const displayName = sanitizeStr(
+        student.displayName || student.name || student.studentName || student.nickname || studentId,
+        80
+      ) || "學員";
+      const photoURL = sanitizeStr(
+        student.lineProfile?.pictureUrl
+          || student.lineProfile?.pictureURL
+          || student.pictureUrl
+          || student.photoURL
+          || student.photoUrl
+          || student.avatarUrl
+          || student.avatar
+          || "",
+        1200
+      ) || null;
+      const level = sanitizeStr(String(
+        student.level ?? student.lv ?? student.gradeLevel ?? student.levelLabel ?? ""
+      ), 20) || null;
+      return {
+        studentId,
+        displayName,
+        photoURL,
+        level,
+        attendanceKind: attendanceByStudentId[studentId] || null,
+      };
+    });
+
+    return {
+      success: true,
+      teamId,
+      planId,
+      sessionId,
+      rosterPublic,
+      isStaff,
+      session: baseSession,
+      students: roster,
     };
   }
 );
