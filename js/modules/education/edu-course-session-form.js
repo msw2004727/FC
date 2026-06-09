@@ -349,21 +349,34 @@ Object.assign(App, {
     const buttonState = this._setEduBtnLoading('#edu-session-save-btn');
     try {
       const key = this._getCourseSessionCacheKey(ctx.teamId, ctx.planId);
+      let savedSessionId = ctx.sessionId || '';
       if (ctx.sessionId) {
-        await FirebaseService.updateCourseSession(ctx.teamId, ctx.planId, ctx.sessionId, payload);
+        const updated = await FirebaseService.updateCourseSession(ctx.teamId, ctx.planId, ctx.sessionId, payload);
         const cached = this._courseSessionCache[key] || [];
-        const existing = cached.find(s => s.id === ctx.sessionId);
-        if (existing) Object.assign(existing, payload);
+        const existing = cached.find(s => String(s.id || s._docId || '') === String(ctx.sessionId));
+        const returnedSession = updated && typeof updated === 'object' && (updated.id || updated._docId) ? updated : null;
+        if (existing) Object.assign(existing, payload, returnedSession || {});
+        if (cached.length) {
+          cached.sort((a, b) => this._getCourseSessionSortValue(a) - this._getCourseSessionSortValue(b));
+          this._courseSessionCache[key] = cached;
+        }
         this.showToast('課堂已更新');
       } else {
         payload.id = this._generateEduId('cls');
         const created = await FirebaseService.createCourseSession(ctx.teamId, ctx.planId, payload);
+        savedSessionId = created?.id || created?._docId || payload.id;
         if (!this._courseSessionCache[key]) this._courseSessionCache[key] = [];
         this._courseSessionCache[key].push(created);
+        this._courseSessionCache[key].sort((a, b) => this._getCourseSessionSortValue(a) - this._getCourseSessionSortValue(b));
         this.showToast('課堂已建立');
       }
       document.querySelector('.edu-session-form-overlay')?.remove();
       await this._renderCourseSessionBoard(ctx.teamId, ctx.planId);
+      try {
+        await this._refreshCourseLessonsAfterSessionSave?.(ctx.teamId, ctx.planId, savedSessionId);
+      } catch (refreshErr) {
+        console.warn('[handleSaveCourseSession] course lessons refresh failed:', refreshErr);
+      }
     } catch (err) {
       console.error('[handleSaveCourseSession]', err);
       const code = String(err?.code || '');

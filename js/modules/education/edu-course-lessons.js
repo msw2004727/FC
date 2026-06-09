@@ -61,6 +61,29 @@ Object.assign(App, {
     return this._eduCourseLessonsPreloadPromises?.[key] || this._loadCourseSessions(teamId, planId);
   },
 
+  async _refreshCourseLessonsAfterSessionSave(teamId, planId, sessionId) {
+    const ctx = this._eduCourseLessonsContext;
+    if (!ctx || this.currentPage !== 'page-edu-course-lessons') return false;
+    if (String(ctx.teamId || '') !== String(teamId || '') || String(ctx.planId || '') !== String(planId || '')) {
+      return false;
+    }
+
+    if (ctx.mode === 'roster') {
+      if (String(ctx.sessionId || '') !== String(sessionId || '')) return false;
+      if (typeof this.showCourseLessonRoster !== 'function') return false;
+      await this.showCourseLessonRoster(teamId, planId, sessionId);
+      return true;
+    }
+
+    if (ctx.mode === 'list') {
+      if (typeof this.showCourseLessons !== 'function') return false;
+      await this.showCourseLessons(teamId, planId);
+      return true;
+    }
+
+    return false;
+  },
+
   async _loadEduCourseLessonsState(teamId, planId) {
     await this._loadEduCoursePlans?.(teamId);
     const plan = this._findEduCoursePlan(teamId, planId);

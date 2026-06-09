@@ -388,6 +388,30 @@ describe('edu course lessons', () => {
     expect(app.showToast).toHaveBeenCalledWith('課堂備註已更新');
   });
 
+  test('refreshes the visible lesson list after a course session save', async () => {
+    const { app } = loadCourseLessonsContext();
+    app.currentPage = 'page-edu-course-lessons';
+    app._eduCourseLessonsContext = { teamId: 'teamA', planId: 'planA', mode: 'list' };
+    app.showCourseLessons = jest.fn(async () => ({ ok: true }));
+
+    const refreshed = await app._refreshCourseLessonsAfterSessionSave('teamA', 'planA', 'sessionA');
+
+    expect(refreshed).toBe(true);
+    expect(app.showCourseLessons).toHaveBeenCalledWith('teamA', 'planA');
+  });
+
+  test('refreshes the visible lesson roster after the active course session save', async () => {
+    const { app } = loadCourseLessonsContext();
+    app.currentPage = 'page-edu-course-lessons';
+    app._eduCourseLessonsContext = { teamId: 'teamA', planId: 'planA', sessionId: 'sessionA', mode: 'roster' };
+    app.showCourseLessonRoster = jest.fn(async () => ({ ok: true }));
+
+    const refreshed = await app._refreshCourseLessonsAfterSessionSave('teamA', 'planA', 'sessionA');
+
+    expect(refreshed).toBe(true);
+    expect(app.showCourseLessonRoster).toHaveBeenCalledWith('teamA', 'planA', 'sessionA');
+  });
+
   test('owned student can submit self leave from roster', async () => {
     const { app, container, firebase } = loadCourseLessonsContext({
       rosterPayload: {
