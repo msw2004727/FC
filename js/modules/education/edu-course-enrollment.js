@@ -250,9 +250,17 @@ Object.assign(App, {
     }
   },
 
-  _toggleEnrollNoteEditor(id) {
+  _toggleEnrollNoteEditor(id, triggerId) {
     const el = document.getElementById(id);
-    if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+    if (!el) return;
+    const trigger = triggerId ? document.getElementById(triggerId) : null;
+    const shouldOpen = el.style.display === 'none';
+    el.style.display = shouldOpen ? '' : 'none';
+    if (trigger) trigger.style.display = shouldOpen ? 'none' : '';
+    if (shouldOpen) {
+      const input = el.querySelector?.('input');
+      input?.focus?.();
+    }
   },
 
   // ══════════════════════════════════

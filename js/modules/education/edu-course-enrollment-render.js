@@ -169,9 +169,10 @@ Object.assign(App, {
 
     const notesId = 'ce-notes-' + e.id;
     const notePanelId = 'ce-note-panel-' + e.id;
+    const noteTriggerId = 'ce-note-trigger-' + e.id;
     const notesValue = String(e.coachNotes || '').trim().slice(0, 15);
     const noteHtml = isStaff ? '<div class="edu-ce-note-side" onclick="event.stopPropagation()">'
-      + '<button type="button" class="edu-ce-note-trigger' + (notesValue ? ' has-note' : '') + '" onclick="App._toggleEnrollNoteEditor(\'' + notePanelId + '\')">'
+      + '<button type="button" id="' + noteTriggerId + '" class="edu-ce-note-trigger' + (notesValue ? ' has-note' : '') + '" onclick="App._toggleEnrollNoteEditor(\'' + notePanelId + '\',\'' + noteTriggerId + '\')">'
       + '<span class="edu-ce-note-title">備註</span>'
       + '<span class="edu-ce-note-preview">' + escapeHTML(notesValue || '點選填寫') + '</span>'
       + '</button>'
@@ -182,7 +183,6 @@ Object.assign(App, {
       + '</div>' : '';
 
     return '<div class="edu-ce-card edu-ce-card-approved">'
-      + '<div class="edu-ce-card-main">'
       + '<div class="edu-ce-card-top">'
       + '<span class="edu-ce-name">' + escapeHTML(e.studentName) + '</span>'
       + '<span class="edu-ce-meta">' + gender + (age != null ? ' ' + age + '歲' : '') + '  ' + escapeHTML(groupNames) + '</span>'
@@ -190,9 +190,8 @@ Object.assign(App, {
       + '</div>'
       + '<div class="edu-ce-card-mid">'
       + paidHtml
-      + '</div>'
-      + '</div>'
       + noteHtml
+      + '</div>'
       + '</div>';
   },
 

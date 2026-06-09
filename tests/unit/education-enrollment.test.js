@@ -272,6 +272,29 @@ describe('Course enrollment', () => {
     expect(app._renderCourseEnrollmentList).toHaveBeenCalledWith('teamA', 'planA');
   });
 
+  test('coach note editor replaces the trigger in-place', () => {
+    const input = { focus: jest.fn() };
+    const panel = {
+      style: { display: 'none' },
+      querySelector: jest.fn(() => input),
+    };
+    const trigger = { style: { display: '' } };
+    const documentMock = {
+      getElementById: jest.fn((id) => ({ notePanel: panel, noteTrigger: trigger }[id] || null)),
+    };
+
+    const loaded = loadCourseEnrollmentModule({}, { document: documentMock });
+
+    loaded._toggleEnrollNoteEditor('notePanel', 'noteTrigger');
+    expect(panel.style.display).toBe('');
+    expect(trigger.style.display).toBe('none');
+    expect(input.focus).toHaveBeenCalled();
+
+    loaded._toggleEnrollNoteEditor('notePanel', 'noteTrigger');
+    expect(panel.style.display).toBe('none');
+    expect(trigger.style.display).toBe('');
+  });
+
   test('detects enrolled student (pending)', () => {
     expect(isCourseEnrolled([{ studentId: 's1', status: 'pending' }], 's1')).toBe(true);
   });

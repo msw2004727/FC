@@ -114,6 +114,10 @@ describe('edu course enrollment render', () => {
     expect(cardHtml).not.toContain('edu-ce-expand');
     expect(cardHtml).not.toContain('_toggleEnrollExpand');
     expect(cardHtml).toContain('edu-ce-note-side');
+    expect(cardHtml).toContain('id="ce-note-trigger-enrA"');
+    expect(cardHtml).toContain("_toggleEnrollNoteEditor('ce-note-panel-enrA','ce-note-trigger-enrA')");
+    expect(cardHtml).toContain('</label><div class="edu-ce-note-side"');
+    expect(cardHtml).not.toContain('edu-ce-card-main');
     expect(cardHtml).toContain('maxlength="15"');
     expect(cardHtml).toContain('abcdefghijklmno');
     expect(cardHtml).not.toContain('abcdefghijklmnop');
