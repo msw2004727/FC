@@ -960,6 +960,7 @@ describe('edu course plan render', () => {
     const container = { innerHTML: '' };
     const app = {
       _updateCoursePlanPreview: jest.fn(),
+      _renderCoursePlanSessionScheduleFields: jest.fn(),
     };
     const context = {
       App: app,
@@ -1016,6 +1017,7 @@ describe('edu course plan render', () => {
     expect(container.innerHTML).toContain('id="edu-cp-name"');
     expect(container.innerHTML).toContain('id="edu-cp-price"');
     expect(container.innerHTML).toContain('value="0"');
+    expect(container.innerHTML).toContain('id="edu-cp-session-schedule-list"');
     expect(container.innerHTML).toContain('id="edu-cp-visible-on-team"');
     expect(container.innerHTML).not.toContain('id="edu-cp-visible-on-team" checked');
     expect(container.innerHTML).toContain('id="edu-cp-min-capacity"');
@@ -1039,6 +1041,7 @@ describe('edu course plan render', () => {
     expect(container.innerHTML).toContain('id="edu-cp-description"');
     expect(container.innerHTML).toContain('id="edu-cp-save-btn"');
     expect(app._updateCoursePlanPreview).toHaveBeenCalled();
+    expect(app._renderCoursePlanSessionScheduleFields).toHaveBeenCalled();
   });
 
   test('course plan save preserves optional field payloads', async () => {
@@ -1149,5 +1152,160 @@ describe('edu course plan render', () => {
       planType: 'weekly',
     }));
     expect(app.showToast).toHaveBeenCalledWith('課程方案已更新，已補齊 2 堂課堂');
+  });
+
+  test('session course plan save persists required per-session schedules', async () => {
+    let savedPayload = null;
+    const elements = {
+      'edu-cp-name': { value: '堂數班' },
+      'edu-cp-group': { value: '', selectedOptions: [{ dataset: { name: '' } }] },
+      'edu-cp-type': { value: 'session' },
+      'edu-cp-signup': { checked: true },
+      'edu-cp-capacity': { value: '6' },
+      'edu-cp-price': { value: '' },
+      'edu-cp-category-tags': { value: '' },
+      'edu-cp-level-label': { value: '' },
+      'edu-cp-feature-tags': { value: '' },
+      'edu-cp-requirement-tags': { value: '' },
+      'edu-cp-included-tags': { value: '' },
+      'edu-cp-target-tags': { value: '' },
+      'edu-cp-signup-deadline': { value: '' },
+      'edu-cp-manager-name': { value: '' },
+      'edu-cp-manager-contact': { value: '' },
+      'edu-cp-coach-name': { value: 'Coach A' },
+      'edu-cp-location': { value: 'Center A' },
+      'edu-cp-course-content': { value: '' },
+      'edu-cp-cancellation-policy': { value: '' },
+      'edu-cp-description': { value: '' },
+      'edu-cp-featured': { checked: false },
+      'edu-cp-start': { value: '' },
+      'edu-cp-end': { value: '' },
+      'edu-cp-total': { value: '2' },
+      'edu-cp-session-date-1': { value: '2099-06-03' },
+      'edu-cp-session-start-1': { value: '18:00' },
+      'edu-cp-session-end-1': { value: '19:00' },
+      'edu-cp-session-date-2': { value: '2099-06-10' },
+      'edu-cp-session-start-2': { value: '20:00' },
+      'edu-cp-session-end-2': { value: '21:30' },
+    };
+    const app = {
+      _eduCoursePlanEditTeamId: 'teamA',
+      _eduCoursePlanEditId: 'planA',
+      _eduCoursePlansCache: { teamA: [{ id: 'planA' }] },
+      _setEduBtnLoading: jest.fn(() => ({ restore: jest.fn() })),
+      showToast: jest.fn(),
+      goBack: jest.fn(),
+      renderEduCoursePlanList: jest.fn(),
+      _ensureCoursePlanSessionsFromPlan: jest.fn(async () => ({ created: 0, sessions: [] })),
+    };
+    const context = {
+      App: app,
+      FirebaseService: {
+        updateEduCoursePlan: jest.fn((_teamId, _planId, payload) => {
+          savedPayload = payload;
+          return Promise.resolve();
+        }),
+      },
+      document: {
+        getElementById: jest.fn((id) => elements[id] || null),
+        querySelectorAll: jest.fn(() => []),
+      },
+      escapeHTML,
+      console,
+      Promise,
+      Date,
+      Number,
+      String,
+      Object,
+      Array,
+      Math,
+      parseInt,
+    };
+    vm.runInNewContext(crudSource, context, { filename: 'edu-course-plan.js' });
+    context.App._eduCoursePlanEditTeamId = 'teamA';
+    context.App._eduCoursePlanEditId = 'planA';
+    context.App._eduCoursePlansCache = { teamA: [{ id: 'planA' }] };
+
+    await context.App.handleSaveEduCoursePlan();
+
+    expect(savedPayload.totalSessions).toBe(2);
+    expect(savedPayload.weekdays).toBeNull();
+    expect(savedPayload.timeSlot).toBeNull();
+    expect(savedPayload.startDate).toBe('2099-06-03');
+    expect(savedPayload.endDate).toBe('2099-06-10');
+    expect(savedPayload.sessionSchedules).toEqual([
+      { date: '2099-06-03', startTime: '18:00', endTime: '19:00' },
+      { date: '2099-06-10', startTime: '20:00', endTime: '21:30' },
+    ]);
+    expect(app.showToast).toHaveBeenCalledWith('課程方案已更新');
+  });
+
+  test('session course plan save blocks missing per-session schedule fields', async () => {
+    const elements = {
+      'edu-cp-name': { value: '堂數班' },
+      'edu-cp-group': { value: '', selectedOptions: [{ dataset: { name: '' } }] },
+      'edu-cp-type': { value: 'session' },
+      'edu-cp-signup': { checked: true },
+      'edu-cp-capacity': { value: '' },
+      'edu-cp-price': { value: '' },
+      'edu-cp-category-tags': { value: '' },
+      'edu-cp-level-label': { value: '' },
+      'edu-cp-feature-tags': { value: '' },
+      'edu-cp-requirement-tags': { value: '' },
+      'edu-cp-included-tags': { value: '' },
+      'edu-cp-target-tags': { value: '' },
+      'edu-cp-signup-deadline': { value: '' },
+      'edu-cp-manager-name': { value: '' },
+      'edu-cp-manager-contact': { value: '' },
+      'edu-cp-coach-name': { value: '' },
+      'edu-cp-location': { value: '' },
+      'edu-cp-course-content': { value: '' },
+      'edu-cp-cancellation-policy': { value: '' },
+      'edu-cp-description': { value: '' },
+      'edu-cp-featured': { checked: false },
+      'edu-cp-start': { value: '' },
+      'edu-cp-end': { value: '' },
+      'edu-cp-total': { value: '2' },
+      'edu-cp-session-date-1': { value: '2099-06-03' },
+      'edu-cp-session-start-1': { value: '18:00' },
+      'edu-cp-session-end-1': { value: '19:00' },
+      'edu-cp-session-date-2': { value: '' },
+      'edu-cp-session-start-2': { value: '20:00' },
+      'edu-cp-session-end-2': { value: '21:30' },
+    };
+    const app = {
+      _eduCoursePlanEditTeamId: 'teamA',
+      _eduCoursePlanEditId: 'planA',
+      _setEduBtnLoading: jest.fn(() => ({ restore: jest.fn() })),
+      showToast: jest.fn(),
+    };
+    const context = {
+      App: app,
+      FirebaseService: {
+        updateEduCoursePlan: jest.fn(() => Promise.resolve()),
+      },
+      document: {
+        getElementById: jest.fn((id) => elements[id] || null),
+        querySelectorAll: jest.fn(() => []),
+      },
+      escapeHTML,
+      console,
+      Promise,
+      Date,
+      Number,
+      String,
+      Object,
+      Array,
+      Math,
+      parseInt,
+    };
+    vm.runInNewContext(crudSource, context, { filename: 'edu-course-plan.js' });
+    context.App._eduCoursePlanEditTeamId = 'teamA';
+    context.App._eduCoursePlanEditId = 'planA';
+
+    await context.App.handleSaveEduCoursePlan();
+
+    expect(context.FirebaseService.updateEduCoursePlan).not.toHaveBeenCalled();
+    expect(app.showToast).toHaveBeenCalledWith('請填寫第 2 堂的日期與時段');
   });
 });

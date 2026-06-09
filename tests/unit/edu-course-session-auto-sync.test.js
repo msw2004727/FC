@@ -67,6 +67,32 @@ describe('edu course session auto sync helpers', () => {
     });
   });
 
+  test('session plan auto sessions use explicit session schedules', () => {
+    const app = loadCourseSessionApp();
+    const missing = app._buildMissingAutoCourseSessions('teamA', {
+      id: 'planA',
+      planType: 'session',
+      name: '堂數班',
+      totalSessions: 2,
+      startDate: '2099-06-01',
+      endDate: '2099-06-15',
+      sessionSchedules: [
+        { date: '2099-06-03', startTime: '18:00', endTime: '19:00' },
+        { date: '2099-06-10', startTime: '20:00', endTime: '21:30' },
+      ],
+    }, [], ['stu1']);
+
+    expect(missing).toHaveLength(2);
+    expect(missing.map(item => ({
+      date: item.date,
+      startTime: item.startTime,
+      endTime: item.endTime,
+    }))).toEqual([
+      { date: '2099-06-03', startTime: '18:00', endTime: '19:00' },
+      { date: '2099-06-10', startTime: '20:00', endTime: '21:30' },
+    ]);
+  });
+
   test('weekly plan creates missing sessions from generated course dates', () => {
     const app = loadCourseSessionApp({
       weeklyDates: ['2099-06-01', '2099-06-08'],

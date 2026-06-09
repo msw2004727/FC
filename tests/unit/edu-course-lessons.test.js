@@ -111,7 +111,8 @@ describe('edu course lessons', () => {
     expect(app.showPage).toHaveBeenCalledWith('page-edu-course-lessons');
     expect(title.textContent).toBe('課堂列表');
     expect(container.innerHTML).toContain('暑期堂數班');
-    expect(container.innerHTML).toContain('第</span><strong>1</strong><span>堂');
+    expect(container.innerHTML).toContain('<div class="edu-course-lesson-index"><strong>1</strong></div>');
+    expect(container.innerHTML).not.toContain('第</span><strong>1</strong><span>堂');
     expect(container.innerHTML).toContain('第一堂');
     expect(container.innerHTML).toContain('2/6 人');
     expect(container.innerHTML).toContain("App.showCourseLessonRoster('teamA','planA','sessionA')");
@@ -182,7 +183,9 @@ describe('edu course lessons', () => {
     expect(firebase.listEduCoursePublicRoster).toHaveBeenCalledWith('teamA', 'planA', 'sessionA');
     expect(title.textContent).toBe('課堂名單');
     expect(container.innerHTML).toContain('小明');
-    expect(container.innerHTML).toContain('edu-course-roster-name-pill');
+    expect(container.innerHTML).toContain('td-member-name-pill');
+    expect(container.innerHTML).toContain('edu-course-member-pill');
+    expect(container.innerHTML).toContain("App.showUserProfile('小明')");
     expect(container.innerHTML).toContain('edu-course-roster-side');
     expect(container.innerHTML).toContain('Lv 3');
     expect(container.innerHTML).toContain('已簽到');

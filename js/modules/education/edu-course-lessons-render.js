@@ -46,7 +46,7 @@ Object.assign(App, {
       const count = (session.studentIds || []).length + capacity + ' 人';
       const jsSessionId = this._eduCourseLessonsJsArg(session.id || session._docId || '');
       return '<article class="edu-course-lesson-card edu-course-lesson-card-' + escapeHTML(status.cls) + '" role="button" tabindex="0" onclick="App.showCourseLessonRoster(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();App.showCourseLessonRoster(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\')}">'
-        + '<div class="edu-course-lesson-index"><span>第</span><strong>' + (index + 1) + '</strong><span>堂</span></div>'
+        + '<div class="edu-course-lesson-index"><strong>' + (index + 1) + '</strong></div>'
         + '<div class="edu-course-lesson-main">'
           + '<div class="edu-course-lesson-head">'
             + '<h3>' + escapeHTML(session.title || session.topic || session.focus || '未命名課堂') + '</h3>'
@@ -119,15 +119,17 @@ Object.assign(App, {
           + '</span>'
         + '</div>'
         : (selfLeaveActionHtml || statusHtml);
-      const avatarHtml = this._renderCourseSessionStudentAvatar
-        ? this._renderCourseSessionStudentAvatar({
+      const studentPill = typeof this._renderCourseSessionMemberPill === 'function'
+        ? this._renderCourseSessionMemberPill({
             id: studentId,
             name,
-            pictureUrl: student.photoURL,
-            photoURL: student.photoURL,
-            avatarUrl: student.photoURL,
-          }, name)
-        : '<span class="edu-course-roster-avatar-fallback" aria-hidden="true"></span>';
+            displayName: name,
+            selfUid: student.selfUid,
+            parentUid: student.parentUid,
+            uid: student.uid,
+            lineUserId: student.lineUserId,
+          }, name, { link: true })
+        : '<span class="td-member-name-pill uc-user edu-course-member-pill" onclick="event.stopPropagation();App.showUserProfile(\'' + this._eduCourseLessonsJsArg(name) + '\')">' + escapeHTML(name) + '</span>';
       const noteHtml = context.isStaff
         ? '<div class="edu-course-roster-note"><span>' + escapeHTML(note || '尚未填寫備註') + '</span>'
           + '<button type="button" class="edu-session-note-edit" title="編輯備註" aria-label="編輯備註" onclick="event.stopPropagation();App.editCourseSessionRosterNote(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + this._eduCourseLessonsJsArg(student.studentId) + '\',\'' + this._eduCourseLessonsJsArg(context.enrollIdsByStudentId?.[student.studentId] || '') + '\')"></button>'
@@ -136,7 +138,8 @@ Object.assign(App, {
       return '<article class="edu-course-roster-card edu-course-roster-card-' + escapeHTML(attendance.cls) + '">'
         + '<div class="edu-course-roster-main">'
           + '<div class="edu-course-roster-name-line">'
-            + '<span class="edu-course-roster-name-pill">' + avatarHtml + '<strong>' + escapeHTML(name) + '</strong><em>Lv ' + escapeHTML(student.level || '-') + '</em></span>'
+            + studentPill
+            + '<em class="edu-course-roster-level-pill">Lv ' + escapeHTML(student.level || '-') + '</em>'
           + '</div>'
           + noteHtml
         + '</div>'
@@ -163,9 +166,11 @@ Object.assign(App, {
       + '<section class="edu-course-roster-head">'
         + '<button type="button" class="outline-btn small" onclick="App.showCourseLessons(\'' + jsTeamId + '\',\'' + jsPlanId + '\')">返回課堂</button>'
         + '<div class="edu-course-roster-title-block">'
-          + '<span class="edu-course-lesson-status edu-course-lesson-status-' + escapeHTML(status.cls) + '">' + escapeHTML(status.label) + '</span>'
-          + '<h3>' + escapeHTML(session.title || '課堂名單') + '</h3>'
-          + '<p>' + escapeHTML(this._formatCourseLessonDateTime(session)) + '</p>'
+          + '<div class="edu-course-roster-title-line">'
+            + '<span class="edu-course-lesson-status edu-course-lesson-status-' + escapeHTML(status.cls) + '">' + escapeHTML(status.label) + '</span>'
+            + '<h3>' + escapeHTML(session.title || '課堂名單') + '</h3>'
+            + '<p>' + escapeHTML(this._formatCourseLessonDateTime(session)) + '</p>'
+          + '</div>'
         + '</div>'
         + staffActions
       + '</section>'

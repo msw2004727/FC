@@ -171,11 +171,12 @@ Object.assign(App, {
         '<div id="edu-cp-preview" class="edu-cp-preview"></div>' +
       '</div>' +
       '<div id="edu-cp-session"' + (!isWeekly ? '' : ' style="display:none"') + '>' +
-        '<div class="ce-row"><label>總堂數</label><input type="number" id="edu-cp-total" min="1" max="999" value="' + (plan && plan.totalSessions || '') + '"></div>' +
+        '<div class="ce-row"><label>總堂數</label><input type="number" id="edu-cp-total" min="1" max="999" value="' + (plan && plan.totalSessions || '') + '" oninput="App._renderCoursePlanSessionScheduleFields()" onchange="App._renderCoursePlanSessionScheduleFields()"></div>' +
+        '<div class="edu-cp-session-schedule-list" id="edu-cp-session-schedule-list"></div>' +
       '</div>' +
       '<div class="ce-row" style="display:flex;gap:.5rem">' +
-        '<div style="flex:1"><label>課程開始日期</label><input type="date" id="edu-cp-start" value="' + (plan && plan.startDate || '') + '"></div>' +
-        '<div style="flex:1"><label>課程結束日期</label><input type="date" id="edu-cp-end" value="' + (plan && plan.endDate || '') + '"></div>' +
+        '<div style="flex:1"><label>課程開始日期</label><input type="date" id="edu-cp-start" value="' + (plan && plan.startDate || '') + '" onchange="App._renderCoursePlanSessionScheduleFields()"></div>' +
+        '<div style="flex:1"><label>課程結束日期</label><input type="date" id="edu-cp-end" value="' + (plan && plan.endDate || '') + '" onchange="App._renderCoursePlanSessionScheduleFields()"></div>' +
       '</div>' +
       '<hr style="border:none;border-top:1px solid var(--border);margin:.8rem 0">' +
       '<div class="ce-row"><label>容納上限</label><input type="number" id="edu-cp-capacity" min="1" max="999" placeholder="不填則不限人數" value="' + (plan && plan.maxCapacity || '') + '">' +
@@ -187,6 +188,8 @@ Object.assign(App, {
         '<button class="primary-btn" id="edu-cp-save-btn" onclick="App.handleSaveEduCoursePlan()">' + (planId ? '儲存變更' : '建立方案') + '</button>' +
       '</div>' +
     '</div>';
+    this._eduCoursePlanSessionScheduleDraft = this._normalizeCoursePlanSessionSchedules?.(plan?.sessionSchedules) || [];
+    this._renderCoursePlanSessionScheduleFields?.();
     this._verifyEduCoursePlanRenderedFields?.(container, 'v1');
     return { ok: true };
   },
@@ -357,6 +360,83 @@ Object.assign(App, {
     const sessionEl = document.getElementById('edu-cp-session');
     if (weeklyEl) weeklyEl.style.display = type === 'weekly' ? '' : 'none';
     if (sessionEl) sessionEl.style.display = type === 'session' ? '' : 'none';
+    if (type === 'session') this._renderCoursePlanSessionScheduleFields?.();
+  },
+
+  _normalizeCoursePlanSessionSchedules(value) {
+    return (Array.isArray(value) ? value : [])
+      .map(item => ({
+        date: String(item?.date || '').trim(),
+        startTime: String(item?.startTime || '').trim(),
+        endTime: String(item?.endTime || '').trim(),
+      }))
+      .filter(item => item.date || item.startTime || item.endTime)
+      .slice(0, 999);
+  },
+
+  _readCoursePlanSessionScheduleDraftFromDom(total) {
+    const limit = Math.max(0, Math.min(999, Number(total || 0)));
+    const rows = [];
+    for (let index = 0; index < limit; index += 1) {
+      const slot = index + 1;
+      rows.push({
+        date: String(document.getElementById('edu-cp-session-date-' + slot)?.value || '').trim(),
+        startTime: String(document.getElementById('edu-cp-session-start-' + slot)?.value || '').trim(),
+        endTime: String(document.getElementById('edu-cp-session-end-' + slot)?.value || '').trim(),
+      });
+    }
+    return rows;
+  },
+
+  _getCoursePlanSessionScheduleFallback(index, total) {
+    const startDate = document.getElementById('edu-cp-start')?.value || '';
+    const endDate = document.getElementById('edu-cp-end')?.value || '';
+    const date = typeof this._getSessionPlanAutoDate === 'function'
+      ? this._getSessionPlanAutoDate({ startDate, endDate }, index, total)
+      : '';
+    return { date, startTime: '19:00', endTime: '20:30' };
+  },
+
+  _renderCoursePlanSessionScheduleFields() {
+    const list = document.getElementById('edu-cp-session-schedule-list');
+    if (!list) return;
+    const total = parseInt(document.getElementById('edu-cp-total')?.value || '0', 10);
+    if (!Number.isInteger(total) || total < 1) {
+      list.innerHTML = '<div class="edu-cp-session-schedule-empty">輸入總堂數後，這裡會產生每堂日期與時段欄位。</div>';
+      this._eduCoursePlanSessionScheduleDraft = [];
+      return;
+    }
+    const normalizedTotal = Math.min(999, total);
+    const currentRows = list.querySelector?.('.edu-cp-session-schedule-row')
+      ? this._readCoursePlanSessionScheduleDraftFromDom(normalizedTotal)
+      : [];
+    const draft = currentRows.length
+      ? currentRows
+      : this._normalizeCoursePlanSessionSchedules(this._eduCoursePlanSessionScheduleDraft || []);
+    const rows = [];
+    for (let index = 0; index < normalizedTotal; index += 1) {
+      const slot = index + 1;
+      const fallback = this._getCoursePlanSessionScheduleFallback(index, normalizedTotal);
+      const item = draft[index] || {};
+      rows.push('<div class="edu-cp-session-schedule-row">'
+        + '<span class="edu-cp-session-schedule-index">' + slot + '</span>'
+        + '<label>日期<input type="date" id="edu-cp-session-date-' + slot + '" value="' + escapeHTML(item.date || fallback.date || '') + '"></label>'
+        + '<label>開始<input type="time" id="edu-cp-session-start-' + slot + '" value="' + escapeHTML(item.startTime || fallback.startTime) + '"></label>'
+        + '<label>結束<input type="time" id="edu-cp-session-end-' + slot + '" value="' + escapeHTML(item.endTime || fallback.endTime) + '"></label>'
+      + '</div>');
+    }
+    list.innerHTML = '<div class="edu-cp-session-schedule-head"><strong>逐堂上課時間</strong><span>依總堂數逐一填寫，儲存後會自動建立對應課堂。</span></div>' + rows.join('');
+    this._eduCoursePlanSessionScheduleDraft = this._readCoursePlanSessionScheduleDraftFromDom(normalizedTotal);
+  },
+
+  _collectCoursePlanSessionSchedules(total) {
+    const normalizedTotal = Math.max(0, Math.min(999, Number(total || 0)));
+    const rows = this._readCoursePlanSessionScheduleDraftFromDom(normalizedTotal);
+    return rows.map(item => ({
+      date: item.date,
+      startTime: item.startTime,
+      endTime: item.endTime,
+    }));
   },
 
   _getEduCpTagList(inputId) {
@@ -459,12 +539,33 @@ Object.assign(App, {
       data.weekdays = Array.from(weekdayCells).map(c => parseInt(c.dataset.day, 10));
       data.timeSlot = document.getElementById('edu-cp-timeslot').value.trim();
       data.totalSessions = null;
+      data.sessionSchedules = null;
       if (!data.weekdays.length) { _btnState.restore(); this.showToast('請選擇上課日'); return; }
       if (!data.startDate || !data.endDate) { _btnState.restore(); this.showToast('請設定開始和結束日期'); return; }
     } else {
       const total = parseInt(document.getElementById('edu-cp-total').value, 10);
       if (!total || total < 1) { _btnState.restore(); this.showToast('請輸入有效堂數'); return; }
+      const sessionSchedules = this._collectCoursePlanSessionSchedules(total);
+      const missingSlots = sessionSchedules
+        .map((item, index) => (!item.date || !item.startTime || !item.endTime) ? index + 1 : null)
+        .filter(Boolean);
+      if (missingSlots.length) {
+        _btnState.restore();
+        this.showToast('請填寫第 ' + missingSlots.join('、') + ' 堂的日期與時段');
+        return;
+      }
+      const invalidSlots = sessionSchedules
+        .map((item, index) => item.startTime >= item.endTime ? index + 1 : null)
+        .filter(Boolean);
+      if (invalidSlots.length) {
+        _btnState.restore();
+        this.showToast('第 ' + invalidSlots.join('、') + ' 堂的結束時間必須晚於開始時間');
+        return;
+      }
       data.totalSessions = total;
+      data.sessionSchedules = sessionSchedules;
+      if (!data.startDate && sessionSchedules[0]) data.startDate = sessionSchedules[0].date;
+      if (!data.endDate && sessionSchedules[sessionSchedules.length - 1]) data.endDate = sessionSchedules[sessionSchedules.length - 1].date;
       data.weekdays = null;
       data.timeSlot = null;
     }

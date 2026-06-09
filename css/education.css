@@ -473,7 +473,7 @@
 .edu-course-lesson-card {
   min-height: 92px;
   display: grid;
-  grid-template-columns: 4.4rem minmax(0, 1fr);
+  grid-template-columns: 4rem minmax(0, 1fr);
   gap: .62rem;
   align-items: stretch;
   border: 1px solid var(--border);
@@ -501,11 +501,7 @@
   line-height: 1;
 }
 .edu-course-lesson-index strong {
-  font-size: 1.55rem;
-  font-weight: 900;
-}
-.edu-course-lesson-index span {
-  font-size: .66rem;
+  font-size: 2rem;
   font-weight: 900;
 }
 .edu-course-lesson-main {
@@ -547,7 +543,7 @@
 .edu-course-lesson-status-scheduled,
 .edu-course-roster-status-none { background: rgba(37, 99, 235, .10); color: #2563eb; }
 .edu-course-lesson-status-soon { background: rgba(217, 119, 6, .13); color: #b45309; }
-.edu-course-lesson-status-done { background: rgba(100, 116, 139, .13); color: #64748b; }
+.edu-course-lesson-status-done { background: rgba(16, 185, 129, .15); color: #047857; }
 .edu-course-lesson-status-cancelled { background: rgba(220, 38, 38, .13); color: #dc2626; }
 .edu-course-roster-status-signin { background: rgba(13, 148, 136, .13); color: #0f766e; }
 .edu-course-roster-status-leave { background: rgba(217, 119, 6, .14); color: #b45309; }
@@ -597,6 +593,28 @@
 .edu-course-roster-title-block {
   min-width: 0;
   flex: 1 1 auto;
+}
+.edu-course-roster-title-line {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: .42rem;
+  flex-wrap: wrap;
+}
+.edu-course-roster-title-line h3,
+.edu-course-roster-title-line p {
+  margin: 0;
+}
+.edu-course-roster-title-line h3 {
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 950;
+  line-height: 1.2;
+}
+.edu-course-roster-title-line p {
+  color: var(--text-secondary);
+  font-size: .82rem;
+  font-weight: 800;
 }
 .edu-course-roster-card {
   min-height: 58px;
@@ -726,33 +744,31 @@
   gap: .38rem;
   flex-wrap: wrap;
 }
-.edu-course-roster-name-pill {
-  min-width: 0;
-  max-width: 100%;
-  display: inline-flex;
-  align-items: center;
-  gap: .32rem;
+.edu-course-member-pill.td-member-name-pill {
+  max-width: min(13em, 100%);
+  flex: 0 1 auto;
+}
+.edu-course-member-pill {
+  display: inline-block;
+  height: 20px;
+  padding: 0 .34rem;
   border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--bg-elevated, var(--bg-card));
-  color: var(--text-primary);
-  padding: .12rem .48rem .12rem .16rem;
-}
-.edu-course-roster-name-pill .edu-session-avatar {
-  width: 24px;
-  height: 24px;
-  flex: 0 0 24px;
-}
-.edu-course-roster-name-line strong {
-  min-width: 0;
-  color: var(--text-primary);
-  font-size: .86rem;
+  border-radius: var(--radius-full);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: .72rem;
   font-weight: 900;
+  line-height: 20px;
+  text-align: center;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  cursor: pointer;
 }
-.edu-course-roster-name-line em {
+.edu-course-member-pill.is-static {
+  cursor: default;
+}
+.edu-course-roster-level-pill {
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--text-muted);
@@ -838,7 +854,7 @@
 [data-theme="dark"] .edu-course-roster-status-none { background: rgba(96, 165, 250, .16); color: #93c5fd; }
 [data-theme="dark"] .edu-course-lesson-status-soon,
 [data-theme="dark"] .edu-course-roster-status-leave { background: rgba(251, 191, 36, .16); color: #fcd34d; }
-[data-theme="dark"] .edu-course-lesson-status-done { background: rgba(148, 163, 184, .18); color: #cbd5e1; }
+[data-theme="dark"] .edu-course-lesson-status-done { background: rgba(52, 211, 153, .16); color: #6ee7b7; }
 [data-theme="dark"] .edu-course-lesson-status-cancelled { background: rgba(248, 113, 113, .16); color: #fca5a5; }
 [data-theme="dark"] .edu-course-roster-status-signin { background: rgba(45, 212, 191, .16); color: #5eead4; }
 [data-theme="dark"] .edu-roster-cb-signin:checked + .edu-roster-choice-label {
@@ -898,7 +914,7 @@
     width: 100%;
     justify-content: flex-end;
   }
-  .edu-course-roster-name-pill {
+  .edu-course-roster-name-line .edu-course-member-pill {
     width: 100%;
   }
   .edu-course-roster-notes-head {
@@ -999,15 +1015,26 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: .75rem;
-  padding: .55rem .65rem;
+  gap: 1rem;
+  min-height: 64px;
+  padding: .72rem .78rem;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-elevated, var(--bg-card));
 }
+.edu-cp-toggle-row + .edu-cp-toggle-row {
+  margin-top: .55rem;
+}
+.edu-cp-toggle-row > div {
+  min-width: 0;
+  padding-right: .35rem;
+}
 .edu-cp-toggle-row label {
   margin: 0;
   font-weight: 800;
+}
+.edu-cp-toggle-row .toggle-switch {
+  flex: 0 0 auto;
 }
 .edu-cp-toggle-row small {
   display: block;
@@ -1015,6 +1042,66 @@
   color: var(--text-muted);
   font-size: .72rem;
   line-height: 1.35;
+}
+.edu-cp-session-schedule-list {
+  display: grid;
+  gap: .45rem;
+  margin-top: .55rem;
+}
+.edu-cp-session-schedule-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .5rem;
+  color: var(--text-primary);
+}
+.edu-cp-session-schedule-head strong {
+  font-size: .84rem;
+  font-weight: 900;
+}
+.edu-cp-session-schedule-head span,
+.edu-cp-session-schedule-empty {
+  color: var(--text-muted);
+  font-size: .72rem;
+  line-height: 1.4;
+}
+.edu-cp-session-schedule-empty {
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated, var(--bg-card));
+  padding: .62rem .7rem;
+}
+.edu-cp-session-schedule-row {
+  display: grid;
+  grid-template-columns: 2.15rem minmax(9rem, 1.2fr) minmax(6.5rem, .9fr) minmax(6.5rem, .9fr);
+  gap: .38rem;
+  align-items: end;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated, var(--bg-card));
+  padding: .48rem;
+}
+.edu-cp-session-schedule-index {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(13, 148, 136, .12);
+  color: #0f766e;
+  font-weight: 950;
+}
+.edu-cp-session-schedule-row label {
+  min-width: 0;
+  display: grid;
+  gap: .18rem;
+  color: var(--text-muted);
+  font-size: .66rem;
+  font-weight: 900;
+}
+.edu-cp-session-schedule-row input {
+  min-width: 0;
+  width: 100%;
 }
 .edu-cp-advanced-section {
   padding: 0;
@@ -1415,7 +1502,7 @@
 }
 .edu-session-status-scheduled { background: rgba(37, 99, 235, .12); color: #2563eb; }
 .edu-session-status-soon { background: rgba(217, 119, 6, .14); color: #b45309; }
-.edu-session-status-done { background: rgba(100, 116, 139, .13); color: #64748b; }
+.edu-session-status-done { background: rgba(16, 185, 129, .15); color: #047857; }
 .edu-session-status-cancelled { background: rgba(220, 38, 38, .13); color: #dc2626; }
 .edu-session-card h4 {
   min-width: 0;
@@ -1562,6 +1649,14 @@
   gap: var(--edu-roster-name-gap, .52rem);
   overflow: hidden;
 }
+.edu-session-list-main-pill {
+  grid-template-columns: minmax(92px, max-content) minmax(0, 1fr);
+}
+.edu-session-pick-main {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
 .edu-session-student strong,
 .edu-session-roster-item strong {
   display: block;
@@ -1580,9 +1675,6 @@
   align-items: center;
   gap: .3rem;
   overflow: hidden;
-}
-.edu-session-roster-name-line strong {
-  flex: 0 1 auto;
 }
 .edu-session-roster-note-inline {
   flex: 0 1 auto;
@@ -2106,16 +2198,6 @@
   height: 18px;
   margin: 0;
   flex: 0 0 auto;
-}
-.edu-session-pick-item strong {
-  display: block;
-  min-width: 72px;
-  color: var(--text-primary);
-  font-size: .86rem;
-  font-weight: 950;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .edu-session-pick-item em {
   width: 100%;
@@ -3149,6 +3231,20 @@
 [data-theme="dark"] .edu-course-plan-section {
   background: rgba(17, 24, 39, .72);
 }
+[data-theme="dark"] .edu-cp-session-schedule-row,
+[data-theme="dark"] .edu-cp-session-schedule-empty {
+  background: rgba(30, 41, 59, .68);
+  border-color: rgba(148, 163, 184, .22);
+}
+[data-theme="dark"] .edu-cp-session-schedule-index {
+  background: rgba(45, 212, 191, .14);
+  color: #5eead4;
+}
+[data-theme="dark"] .edu-course-member-pill.uc-user {
+  background: var(--bg-elevated);
+  border-color: var(--border);
+  color: var(--text-secondary);
+}
 [data-theme="dark"] .edu-cp-view-tabs button {
   background: rgba(30, 41, 59, .8);
   border-color: rgba(148, 163, 184, .28);
@@ -3312,7 +3408,7 @@
 }
 [data-theme="dark"] .edu-session-status-scheduled { background: rgba(96, 165, 250, .16); color: #93c5fd; }
 [data-theme="dark"] .edu-session-status-soon { background: rgba(251, 191, 36, .16); color: #fcd34d; }
-[data-theme="dark"] .edu-session-status-done { background: rgba(148, 163, 184, .18); color: #cbd5e1; }
+[data-theme="dark"] .edu-session-status-done { background: rgba(52, 211, 153, .16); color: #6ee7b7; }
 [data-theme="dark"] .edu-session-status-cancelled { background: rgba(248, 113, 113, .16); color: #fca5a5; }
 @media (max-width: 560px) {
   [data-theme="dark"] .edu-session-student-tags > span,
@@ -3920,6 +4016,31 @@
   .edu-cp-toggle-row {
     align-items: stretch;
     flex-direction: column;
+  }
+  .edu-cp-toggle-row {
+    gap: .58rem;
+  }
+  .edu-cp-toggle-row > div {
+    padding-right: 0;
+  }
+  .edu-cp-toggle-row .toggle-switch {
+    align-self: flex-end;
+  }
+  .edu-cp-session-schedule-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .edu-cp-session-schedule-row {
+    grid-template-columns: 2rem minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .edu-cp-session-schedule-row label:first-of-type {
+    grid-column: 2 / -1;
+  }
+  .edu-cp-session-schedule-row label:nth-of-type(2) {
+    grid-column: 2;
+  }
+  .edu-cp-session-schedule-row label:nth-of-type(3) {
+    grid-column: 3;
   }
   .edu-cp-form-head .outline-btn {
     width: 100%;

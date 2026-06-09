@@ -130,16 +130,20 @@ Object.assign(App, {
   _buildAutoCourseSessionPayload(teamId, plan, index, overrides = {}) {
     const slot = index + 1;
     const isWeekly = plan?.planType === 'weekly';
-    const time = this._parseCoursePlanTimeSlot(isWeekly ? plan?.timeSlot : '');
+    const sessionSchedule = !isWeekly && Array.isArray(plan?.sessionSchedules)
+      ? (plan.sessionSchedules[index] || {})
+      : {};
+    const scheduledTime = [sessionSchedule.startTime, sessionSchedule.endTime].filter(Boolean).join('-');
+    const time = this._parseCoursePlanTimeSlot(isWeekly ? plan?.timeSlot : scheduledTime);
     const staff = this._getCoursePlanDefaultSessionStaff(teamId, plan);
-    const date = overrides.date || (isWeekly ? '' : this._getSessionPlanAutoDate(plan, index, Number(plan?.totalSessions || 0)));
+    const date = overrides.date || (isWeekly ? '' : (sessionSchedule.date || this._getSessionPlanAutoDate(plan, index, Number(plan?.totalSessions || 0))));
     return {
       id: overrides.id || (isWeekly ? 'auto_weekly_' + String(date || slot).replace(/[^0-9a-zA-Z_-]/g, '') : 'auto_session_' + slot),
       title: overrides.title || (Array.isArray(plan?.lessonTitles) && plan.lessonTitles[index] ? plan.lessonTitles[index] : '第 ' + slot + ' 堂課'),
       status: 'scheduled',
       date,
-      startTime: overrides.startTime || time.startTime,
-      endTime: overrides.endTime || time.endTime,
+      startTime: overrides.startTime || sessionSchedule.startTime || time.startTime,
+      endTime: overrides.endTime || sessionSchedule.endTime || time.endTime,
       location: String(plan?.location || '').trim(),
       capacity: Number.isFinite(Number(plan?.maxCapacity)) && Number(plan.maxCapacity) > 0 ? Number(plan.maxCapacity) : null,
       studentIds: Array.isArray(overrides.studentIds) ? overrides.studentIds : [],
@@ -476,7 +480,7 @@ Object.assign(App, {
 
   _getCourseSessionStudentLinkedUser(student) {
     if (!student || typeof ApiService === 'undefined' || !ApiService.getUserByUid) return null;
-    const ids = [student.selfUid, student.uid, student.lineUserId, student.userId]
+    const ids = [student.selfUid, student.uid, student.lineUserId, student.userId, student.parentUid]
       .map(v => String(v || '').trim())
       .filter(Boolean);
     for (const id of ids) {
@@ -484,6 +488,55 @@ Object.assign(App, {
       if (user) return user;
     }
     return null;
+  },
+
+  _getCourseSessionStudentProfileMeta(student, name) {
+    const linkedUser = this._getCourseSessionStudentLinkedUser(student);
+    const displayName = String(
+      name
+      || student?.displayName
+      || student?.name
+      || student?.studentName
+      || linkedUser?.displayName
+      || linkedUser?.name
+      || '未命名學員'
+    ).trim();
+    const uid = [
+      student?.selfUid,
+      student?.uid,
+      student?.lineUserId,
+      student?.userId,
+      linkedUser?.uid,
+      linkedUser?.lineUserId,
+      linkedUser?._docId,
+      linkedUser?.id,
+      student?.parentUid,
+    ].map(value => String(value || '').trim()).find(Boolean) || '';
+    return { displayName, uid, user: linkedUser };
+  },
+
+  _getCourseSessionMemberPillClass(student, name, options = {}) {
+    if (options.link === false && options.staticClass) return options.staticClass;
+    const meta = this._getCourseSessionStudentProfileMeta(student, name);
+    const row = { name: meta.displayName, uid: meta.uid, user: meta.user, isMissingName: !meta.displayName };
+    const base = typeof this._getTeamDetailMemberNameClass === 'function'
+      ? this._getTeamDetailMemberNameClass(row)
+      : 'td-member-name-pill uc-user';
+    const classes = [base, 'edu-course-member-pill'];
+    if (options.link === false) classes.push('is-static');
+    return classes.join(' ');
+  },
+
+  _renderCourseSessionMemberPill(student, name, options = {}) {
+    const meta = this._getCourseSessionStudentProfileMeta(student, name);
+    const displayName = meta.displayName || '未命名學員';
+    const className = this._getCourseSessionMemberPillClass(student, displayName, options);
+    const profileNameArg = escapeHTML(JSON.stringify(displayName));
+    const profileUidArg = meta.uid ? ',{uid:' + escapeHTML(JSON.stringify(meta.uid)) + '}' : '';
+    const clickAttr = options.link === false
+      ? ''
+      : " onclick='event.stopPropagation();App.showUserProfile(" + profileNameArg + profileUidArg + ")'";
+    return '<span class="' + escapeHTML(className) + '" data-no-translate' + clickAttr + ' title="' + escapeHTML(displayName) + '">' + escapeHTML(displayName) + '</span>';
   },
 
   _getCourseSessionStudentAvatarUrl(student) {
@@ -806,9 +859,8 @@ Object.assign(App, {
       const student = item.student || {};
       const name = student.name || '未命名學員';
       return '<div class="edu-session-student">'
-        + this._renderCourseSessionStudentAvatar(student, name)
-        + '<span class="edu-session-list-main">'
-          + '<strong>' + escapeHTML(name) + '</strong>'
+        + '<span class="edu-session-list-main edu-session-list-main-pill">'
+          + this._renderCourseSessionMemberPill(student, name, { link: true })
           + '<span class="edu-session-student-tags">' + this._renderCourseSessionStudentTags(student, item.enrollment, plan) + '</span>'
         + '</span>'
       + '</div>';
@@ -974,9 +1026,8 @@ Object.assign(App, {
             const student = item.student || {};
             const name = student.name || '未命名學員';
             return '<div class="edu-session-roster-item">'
-              + this._renderCourseSessionStudentAvatar(student, name)
               + '<span class="edu-session-list-main">'
-                + '<span class="edu-session-roster-name-line"><strong>' + escapeHTML(name) + '</strong>' + this._renderCourseSessionRosterNoteCell(student, item.enrollment, { inline: true, isStaff, teamId, planId }) + '</span>'
+                + '<span class="edu-session-roster-name-line">' + this._renderCourseSessionMemberPill(student, name, { link: true }) + this._renderCourseSessionRosterNoteCell(student, item.enrollment, { inline: true, isStaff, teamId, planId }) + '</span>'
                 + '<span class="edu-session-student-tags edu-session-student-tags-notes">' + this._renderCourseSessionStudentTags(student, item.enrollment, plan, { isStaff, teamId, planId }) + '</span>'
               + '</span>'
             + '</div>';

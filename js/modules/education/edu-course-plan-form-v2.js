@@ -25,6 +25,14 @@ Object.assign(App, {
     const genderValue = ['male', 'female'].includes(String(plan?.genderRestriction || '')) ? String(plan.genderRestriction) : 'none';
     const genderSelected = (value) => genderValue === value ? ' selected' : '';
     const visibleChecked = !plan || plan.visibleOnTeamPage !== false ? ' checked' : '';
+    const normalizeSchedules = typeof this._normalizeCoursePlanSessionSchedules === 'function'
+      ? (value) => this._normalizeCoursePlanSessionSchedules(value)
+      : (value) => (Array.isArray(value) ? value : []).map(item => ({
+          date: String(item?.date || '').trim(),
+          startTime: String(item?.startTime || '').trim(),
+          endTime: String(item?.endTime || '').trim(),
+        }));
+    this._eduCoursePlanSessionScheduleDraft = normalizeSchedules(plan?.sessionSchedules);
 
     const weekdayHtml = ['一','二','三','四','五','六','日'].map((label, idx) => {
       const dayVal = idx < 6 ? idx + 1 : 0;
@@ -57,11 +65,12 @@ Object.assign(App, {
           row('時段', '<input type="text" id="edu-cp-timeslot" maxlength="20" placeholder="09:00-10:30" value="' + valueOf('timeSlot') + '"><div id="edu-cp-preview" class="edu-cp-preview"></div>') +
         '</div>' +
         '<div id="edu-cp-session"' + (!isWeekly ? '' : ' style="display:none"') + '>' +
-          row('總堂數 <span class="required">*必填</span>', '<input type="number" id="edu-cp-total" min="1" max="999" value="' + numericValue('totalSessions') + '">') +
+          row('總堂數 <span class="required">*必填</span>', '<input type="number" id="edu-cp-total" min="1" max="999" value="' + numericValue('totalSessions') + '" oninput="App._renderCoursePlanSessionScheduleFields()" onchange="App._renderCoursePlanSessionScheduleFields()">') +
+          '<div class="edu-cp-session-schedule-list" id="edu-cp-session-schedule-list"></div>' +
         '</div>' +
         '<div class="edu-cp-two-col">' +
-          row('課程開始日期', '<input type="date" id="edu-cp-start" value="' + valueOf('startDate') + '">') +
-          row('課程結束日期', '<input type="date" id="edu-cp-end" value="' + valueOf('endDate') + '">') +
+          row('課程開始日期', '<input type="date" id="edu-cp-start" value="' + valueOf('startDate') + '" onchange="App._renderCoursePlanSessionScheduleFields()">') +
+          row('課程結束日期', '<input type="date" id="edu-cp-end" value="' + valueOf('endDate') + '" onchange="App._renderCoursePlanSessionScheduleFields()">') +
         '</div>' +
         '<div class="edu-cp-two-col">' +
           row('容納上限', '<input type="number" id="edu-cp-capacity" min="1" max="999" placeholder="不填則不限人數" value="' + numericValue('maxCapacity') + '">' + hint('不填則不限制報名人數')) +
@@ -131,6 +140,7 @@ Object.assign(App, {
     '</div>';
 
     this._updateCoursePlanPreview?.();
+    this._renderCoursePlanSessionScheduleFields?.();
   },
 
   _syncEduCoursePlanFormFillBadges() {

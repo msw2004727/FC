@@ -31,9 +31,8 @@ Object.assign(App, {
           const name = student.name || '未命名學員';
           return '<label class="edu-session-pick-item">'
             + '<input type="checkbox" value="' + escapeHTML(id) + '"' + checked + '>'
-            + this._renderCourseSessionStudentAvatar(student, name)
-            + '<span class="edu-session-list-main">'
-              + '<strong>' + escapeHTML(name) + '</strong>'
+            + this._renderCourseSessionMemberPill(student, name, { link: false })
+            + '<span class="edu-session-pick-main">'
               + '<em class="edu-session-student-tags">' + this._renderCourseSessionStudentTags(student, item.enrollment, plan) + '</em>'
             + '</span>'
           + '</label>';
