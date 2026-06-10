@@ -619,10 +619,14 @@ describe('Team reservation button loading contract', () => {
     expect(detailSource).toContain('!registrationIdentityProved');
     expect(detailSource).toContain('const registrationIdentityLoading = !isGuestView');
     expect(detailSource).toContain('const signupActionsLoading = regsLoading || registrationIdentityLoading || teamReservationIdentityLoading');
+    expect(detailSource).toContain('const ageSyncing = !isGuestView');
+    expect(detailSource).toContain('signupActionsLoading || ageSyncing');
     expect(detailSource).toContain('this._isTeamReservationStaffTeamsHydratingForEvent(id)');
     expect(detailSource).toContain('!signupActionsLoading && !isSignedUp');
     expect(signupSource).toContain('_shouldHoldSignupActionsForEventRegistrations');
     expect(signupSource).toContain('_ensureEventSignupRegistrationStateLoaded');
+    expect(signupSource).toContain("reason: 'profile-syncing'");
+    expect(signupSource).toContain('this._getEventAgeRestrictionButtonText?.(e, ageState)');
     expect(signupSource).toContain('_fetchedRegistrationServerIds');
     expect(signupSource).toContain('_registrationsServerSnapshotReceived');
     expect(signupSource).toContain('_shouldHoldSignupActionsForTeamReservationStaffHydrate');

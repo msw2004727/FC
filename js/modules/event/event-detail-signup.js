@@ -650,6 +650,21 @@ Object.assign(App, {
     return age >= 0 && age < 130 ? age : null;
   },
 
+  _isEventSignupUserProfileStillSyncing(user = null) {
+    if (!user) return false;
+    if (this._pendingFirstLogin === true) return false;
+    const uid = String(user.uid || user.lineUserId || user._docId || user.userId || '').trim();
+    const hasName = !!String(user.displayName || user.name || '').trim();
+    const hasBirthday = !!String(user.birthday || '').trim();
+    if (hasBirthday) return false;
+    const hasOtherProfileField = ['gender', 'region'].some(key => String(user?.[key] || '').trim());
+    if (uid && hasName && !hasOtherProfileField) return true;
+    if (!hasOtherProfileField
+      && typeof this._isEventSignupAuthStillResolving === 'function'
+      && this._isEventSignupAuthStillResolving()) return true;
+    return false;
+  },
+
   _getEventAgeSignupState(e, user = null) {
     const minAge = Math.floor(Number(e?.minAge || 0));
     if (!Number.isFinite(minAge) || minAge <= 0) {
@@ -657,6 +672,9 @@ Object.assign(App, {
     }
     if (!user) {
       return { restricted: true, canSignup: false, requiresLogin: true, reason: 'login-required', minAge, age: null };
+    }
+    if (this._isEventSignupUserProfileStillSyncing?.(user)) {
+      return { restricted: true, canSignup: false, requiresLogin: false, reason: 'profile-syncing', minAge, age: null, syncing: true };
     }
     const birthday = this._parseEventSignupBirthday?.(user.birthday);
     const age = this._calculateEventSignupAge?.(birthday, this._getEventSignupReferenceDate?.(e));
@@ -672,14 +690,21 @@ Object.assign(App, {
   _getEventAgeRestrictionMessage(e, state = null) {
     const info = state || this._getEventAgeSignupState?.(e, ApiService.getCurrentUser?.() || null) || {};
     const minAge = Math.floor(Number(info.minAge || e?.minAge || 0));
+    if (info.reason === 'profile-syncing') return '\u7528\u6236\u8cc7\u6599\u540c\u6b65\u4e2d\uff0c\u8acb\u7a0d\u5019\u518d\u8a66';
     if (info.reason === 'birthday-missing') return '\u8acb\u5148\u88dc\u9f4a\u751f\u65e5\u8cc7\u6599\u5f8c\u518d\u5831\u540d';
     if (minAge > 0) return `\u6b64\u6d3b\u52d5\u9650 ${minAge} \u6b72\u4ee5\u4e0a\u5831\u540d`;
     return '\u6b64\u6d3b\u52d5\u6709\u5e74\u9f61\u9650\u5236';
   },
 
-  _getEventAgeRestrictionButtonText(e) {
+  _getEventAgeRestrictionButtonText(e, state = null) {
+    if (state?.reason === 'profile-syncing') return '\u7528\u6236\u8cc7\u6599\u540c\u6b65\u4e2d';
+    if (state?.reason === 'birthday-missing') return '\u88dc\u9f4a\u751f\u65e5';
     const minAge = Math.floor(Number(e?.minAge || 0));
     return minAge > 0 ? `${minAge}\u6b72\u4ee5\u4e0a` : '\u5e74\u9f61\u9650\u5236';
+  },
+
+  _isEventAgeSignupStateSyncing(state = null) {
+    return state?.syncing === true || state?.reason === 'profile-syncing';
   },
 
   _scheduleEventSignupRegistrationAuthRetry(eventId) {
@@ -2597,7 +2622,9 @@ Object.assign(App, {
     var ageState = (typeof this._getEventAgeSignupState === 'function')
       ? this._getEventAgeSignupState(e, ApiService.getCurrentUser?.() || null)
       : { restricted: false, canSignup: true, requiresLogin: false, reason: '' };
-    var ageBlocked = ageState.restricted && !ageState.requiresLogin && !ageState.canSignup;
+    var ageSyncing = typeof this._isEventAgeSignupStateSyncing === 'function'
+      && this._isEventAgeSignupStateSyncing(ageState);
+    var ageBlocked = !ageSyncing && ageState.restricted && !ageState.requiresLogin && !ageState.canSignup;
     var ageMsg = (typeof this._getEventAgeRestrictionMessage === 'function')
       ? this._getEventAgeRestrictionMessage(e, ageState) : '';
 
@@ -2631,9 +2658,11 @@ Object.assign(App, {
     } else if (genderBlocked) {
       html = '<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick=\'App._handleGenderRestrictedClick(' +
         JSON.stringify(genderMsg) + ')\'>' + escapeHTML(this._getEventGenderRibbonText?.(e) || '性別限定') + '</button>';
+    } else if (ageSyncing) {
+      html = this._buildEventSignupLoadingButton?.() || _btn('#64748b', '\u7528\u6236\u8cc7\u6599\u540c\u6b65\u4e2d', '', true);
     } else if (ageBlocked) {
       html = '<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick=\'App.showToast(' +
-        JSON.stringify(ageMsg) + ')\'>' + escapeHTML(this._getEventAgeRestrictionButtonText?.(e) || '年齡限制') + '</button>';
+        JSON.stringify(ageMsg) + ')\'>' + escapeHTML(this._getEventAgeRestrictionButtonText?.(e, ageState) || '年齡限制') + '</button>';
     } else if (isMainFull && hasTeamReservationSignup) {
       html = _gw('<button class="primary-btn" onclick="App.handleSignup(\'' + eventId + '\')">立即報名</button>', 'var(--accent)', 'var(--accent-hover)', '報名中');
     } else if (isMainFull) {
@@ -2650,6 +2679,7 @@ Object.assign(App, {
         teamReservationIdentityLoading,
         teamBlocked,
         ageBlocked,
+        ageSyncing,
       });
     }
     actionZone.innerHTML = html;

@@ -525,6 +525,106 @@ describe('event detail signup registration loading gate', () => {
       .toMatchObject({ restricted: false, canSignup: true, minAge: 13, age: 13 });
   });
 
+  test('age signup state waits for minimal LINE-primed users before showing an age verdict', () => {
+    const { app, event } = loadSignupModule({
+      event: {
+        id: 'evt-1',
+        _docId: 'evt-doc-1',
+        status: 'open',
+        max: 10,
+        current: 0,
+        date: '2026/06/12 20:00~22:00',
+        minAge: 13,
+      },
+      currentUser: { uid: 'user-1', displayName: 'User One' },
+    });
+
+    const state = app._getEventAgeSignupState(event, { uid: 'user-1', displayName: 'User One' });
+
+    expect(state).toMatchObject({
+      restricted: true,
+      canSignup: false,
+      requiresLogin: false,
+      reason: 'profile-syncing',
+      minAge: 13,
+      age: null,
+      syncing: true,
+    });
+    expect(app._isEventAgeSignupStateSyncing(state)).toBe(true);
+    expect(app._getEventAgeRestrictionMessage(event, state)).toBe('用戶資料同步中，請稍候再試');
+  });
+
+  test('age signup state still evaluates known birthdays while auth is resolving', () => {
+    const currentUser = { uid: 'user-1', displayName: 'User One', birthday: '2013/06/12' };
+    const { app, event } = loadSignupModule({
+      event: {
+        id: 'evt-1',
+        _docId: 'evt-doc-1',
+        status: 'open',
+        max: 10,
+        current: 0,
+        date: '2026/06/12 20:00~22:00',
+        minAge: 13,
+      },
+      currentUser,
+      authCurrentUid: null,
+      lineSessionResolving: true,
+    });
+    app._getEventSignupReferenceDate = jest.fn(() => app._parseEventSignupBirthday('2026/06/12'));
+
+    expect(app._getEventAgeSignupState(event, currentUser))
+      .toMatchObject({ restricted: false, canSignup: true, reason: '', minAge: 13, age: 13 });
+  });
+
+  test('age restriction button text does not show the threshold before birthday is known', () => {
+    const { app, event } = loadSignupModule({
+      event: {
+        id: 'evt-1',
+        _docId: 'evt-doc-1',
+        status: 'open',
+        max: 10,
+        current: 0,
+        date: '2026/06/12 20:00~22:00',
+        minAge: 13,
+      },
+    });
+
+    const missingBirthdayState = app._getEventAgeSignupState(event, { uid: 'user-1' });
+
+    expect(missingBirthdayState).toMatchObject({ reason: 'birthday-missing', age: null });
+    expect(app._getEventAgeRestrictionButtonText(event, missingBirthdayState)).toBe('補齊生日');
+    expect(app._getEventAgeRestrictionButtonText(event, { reason: 'underage' })).toBe('13歲以上');
+
+    app._pendingFirstLogin = true;
+    const pendingFirstLoginState = app._getEventAgeSignupState(event, { uid: 'user-1', displayName: 'User One' });
+    expect(pendingFirstLoginState).toMatchObject({ reason: 'birthday-missing', age: null });
+  });
+
+  test('refresh signup button renders profile syncing instead of an age threshold for minimal users', () => {
+    const { app } = loadSignupModule({
+      event: {
+        id: 'evt-1',
+        _docId: 'evt-doc-1',
+        status: 'open',
+        max: 10,
+        current: 0,
+        date: '2026/06/12 20:00~22:00',
+        minAge: 13,
+      },
+      currentUser: { uid: 'user-1', displayName: 'User One' },
+      currentRegistrationState: { signedUp: false },
+    });
+    app._isUserSignedUp = jest.fn(() => false);
+    document.body.innerHTML = '<div class="detail-action-primary"></div>';
+
+    app._refreshSignupButton('evt-1');
+
+    const button = document.querySelector('.detail-action-primary button');
+    expect(button?.textContent).toContain('用戶資料同步中');
+    expect(button?.textContent).not.toContain('13歲以上');
+    expect(button?.querySelector('.mini-spinner')).not.toBeNull();
+  });
+
   test('callable auth guard blocks writes and schedules a retry when Firebase auth is not ready', async () => {
     jest.useFakeTimers();
     const ensureAuthReadyForWrite = jest.fn(() => Promise.resolve(false));

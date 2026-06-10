@@ -997,13 +997,16 @@ Object.assign(App, {
     const ageBlockedMessage = (typeof this._getEventAgeRestrictionMessage === 'function')
       ? this._getEventAgeRestrictionMessage(e, ageSignupState)
       : '';
+    const ageSyncing = !isGuestView
+      && typeof this._isEventAgeSignupStateSyncing === 'function'
+      && this._isEventAgeSignupStateSyncing(ageSignupState);
     // 光跡效果包裝 helper（button 放在 flipper 裡，供翻牌 3D 旋轉使用）
     const _glowWrap = (btnHtml, glowC, glowCLight, hint) =>
       `<div class="signup-glow-wrap" style="--glow-c:${glowC};--glow-c-light:${glowCLight}"><div class="signup-glow-border"></div><div class="signup-glow-shadow"></div><div class="signup-flipper">${btnHtml}</div><div class="signup-loading-hint"><div class="mini-spinner"></div><span class="mini-text">${hint || '資料更新中'}</span></div></div>`;
     let signupBtn = '';
     if (isGuestView) {
       signupBtn = this._buildGuestEventSignupButton(e, isUpcoming, isEnded, isMainFull);
-    } else if (signupActionsLoading) {
+    } else if (signupActionsLoading || ageSyncing) {
       signupBtn = this._buildEventSignupLoadingButton?.() || `<button style="display:inline-flex;align-items:center;justify-content:center;gap:.45rem;min-height:2.1rem;background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.82" aria-busy="true" aria-live="polite" disabled><span class="mini-spinner" style="width:14px;height:14px;border:2px solid rgba(255,255,255,.38);border-top-color:#fff;border-radius:50%;animation:signup-mini-spin .7s linear infinite;display:inline-block;flex:0 0 auto" aria-hidden="true"></span><span>用戶資料同步中</span></button>`;
     } else if (registrationIdentityIssue) {
       signupBtn = this._buildEventSignupSyncIssueButton?.(e.id) || `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>報名狀態同步中</button>`;
@@ -1020,7 +1023,7 @@ Object.assign(App, {
     } else if (genderSignupState.restricted && !genderSignupState.requiresLogin && !genderSignupState.canSignup) {
       signupBtn = `<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick='App._handleGenderRestrictedClick(${JSON.stringify(genderBlockedMessage)})'>${escapeHTML(this._getEventGenderRibbonText?.(e) || '性別限定')}</button>`;
     } else if (ageSignupState.restricted && !ageSignupState.requiresLogin && !ageSignupState.canSignup) {
-      signupBtn = `<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick='App.showToast(${JSON.stringify(ageBlockedMessage)})'>${escapeHTML(this._getEventAgeRestrictionButtonText?.(e) || '年齡限制')}</button>`;
+      signupBtn = `<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick='App.showToast(${JSON.stringify(ageBlockedMessage)})'>${escapeHTML(this._getEventAgeRestrictionButtonText?.(e, ageSignupState) || '年齡限制')}</button>`;
     } else if (isMainFull && hasTeamReservationSignup) {
       signupBtn = _glowWrap(`<button class="primary-btn" onclick="App.handleSignup('${e.id}')">立即報名</button>`, 'var(--accent)', 'var(--accent-hover)', '報名中');
     } else if (isMainFull) {
@@ -1039,7 +1042,8 @@ Object.assign(App, {
         registrationIdentityIssue,
         teamReservationIdentityLoading,
         teamBlocked: e.teamOnly && !canTeamOnlySignup,
-        ageBlocked: ageSignupState.restricted && !ageSignupState.requiresLogin && !ageSignupState.canSignup,
+        ageBlocked: !ageSyncing && ageSignupState.restricted && !ageSignupState.requiresLogin && !ageSignupState.canSignup,
+        ageSyncing,
       });
     }
 
