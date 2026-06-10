@@ -200,6 +200,7 @@ describe('edu course plan render', () => {
     expect(cssSource).toContain('.edu-cp-manage-danger');
     expect(cssSource).toContain('width: 5.8rem;');
     expect(cssSource).toContain('min-width: 5.8rem;');
+    expect(cssSource).toMatch(/\.edu-cp-manage-btn\s*\{[^}]*font-size: \.78rem;[^}]*white-space: nowrap;/s);
   });
 
   test('course detail modal keeps growing fields inside a scrollable body', () => {

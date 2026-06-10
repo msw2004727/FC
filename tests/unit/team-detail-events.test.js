@@ -712,6 +712,24 @@ describe('team detail club activity section', () => {
     expect(html).not.toContain('成員<span class="td-v2-tab-badge">4</span>');
   });
 
+  test('team detail v2 courses panel omits the legacy flow helper copy', () => {
+    const app = makeApp([]);
+    loadTeamDetailRender(app, [], {
+      extraFiles: [
+        'js/modules/team/team-detail-v2-panels.js',
+      ],
+    });
+    Object.assign(app, {
+      _getTeamDetailV2RecruitText: () => '正在招收新學員',
+      _buildTeamEducationSection: () => '<div id="edu-detail-section"></div>',
+    });
+
+    const html = app._buildTeamDetailV2CoursesPanel({ id: 'teamA', eduSettings: { acceptingStudents: true } });
+
+    expect(html).toContain('<div class="td-v2-section-head"><h3>課程方案</h3></div>');
+    expect(html).not.toContain('報名、學員、分組與待審功能沿用原流程');
+  });
+
   test('team detail v2 course count only includes current plans', () => {
     const app = makeApp([]);
     loadTeamDetailRender(app, [], {

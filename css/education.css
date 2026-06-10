@@ -352,6 +352,9 @@
 .edu-cp-manage-btn {
   min-width: 3.35rem;
   padding: .34rem .62rem;
+  font-size: .78rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 .edu-cp-manage-list {
   position: relative;
