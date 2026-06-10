@@ -6,6 +6,10 @@ const source = fs.readFileSync(
   path.join(__dirname, '../../js/modules/education/edu-detail-render.js'),
   'utf8'
 );
+const cssSource = fs.readFileSync(
+  path.join(__dirname, '../../css/education.css'),
+  'utf8'
+);
 
 function escapeHTML(value) {
   return String(value || '')
@@ -326,5 +330,124 @@ describe('renderEduClubDetail info card', () => {
     });
 
     expect(html).toContain('<span class="td-card-label">領隊</span><span class="td-card-value">未設定</span>');
+  });
+
+  test('renders current-user unpaid reminder tag from grouped course summary', async () => {
+    const badgeEl = { textContent: '', style: {} };
+    const statusEl = { innerHTML: '', style: {} };
+    const app = {
+      _courseEnrollCache: {
+        'teamA:planA': [
+          { id: 'enroll-1', studentId: 'stu1', status: 'approved', paidAt: null },
+          { id: 'enroll-2', studentId: 'stu2', status: 'approved', paidAt: '2026-06-01' },
+        ],
+      },
+      _getCourseEnrollCacheKey: (teamId, planId) => teamId + ':' + planId,
+      getEduStudents: jest.fn(() => [
+        { id: 'stu1', name: '小明', enrollStatus: 'active', parentUid: 'parent-1', groupIds: ['g1'], groupNames: ['幼兒班'] },
+        { id: 'stu2', name: '小華', enrollStatus: 'active', parentUid: 'parent-1' },
+        { id: 'stu3', name: '小美', enrollStatus: 'active', parentUid: 'other-parent' },
+      ]),
+      _loadEduCoursePlans: jest.fn(() => Promise.resolve([
+        { id: 'planA', name: '週三足球', active: true, endDate: '2099-01-01' },
+        { id: 'planB', name: '已繳費課', active: true, endDate: '2099-01-01' },
+        { id: 'endedPlan', name: '結束課程', active: true, groupId: 'g1', endDate: '2026-01-01' },
+      ])),
+      _todayStr: jest.fn(() => '2026-06-10'),
+    };
+    const context = {
+      App: app,
+      ApiService: {
+        getTeam: jest.fn(),
+        getCurrentUser: jest.fn(() => ({ uid: 'parent-1' })),
+      },
+      FirebaseService: {
+        queryEduAttendance: jest.fn(() => Promise.resolve([{ kind: 'signin' }])),
+      },
+      document: {
+        getElementById: jest.fn((id) => {
+          if (id === 'edu-mine-badge') return badgeEl;
+          if (id === 'edu-mine-status') return statusEl;
+          return null;
+        }),
+        querySelectorAll: jest.fn(() => []),
+      },
+      escapeHTML,
+      Promise,
+      Date,
+      Map,
+    };
+
+    vm.createContext(context);
+    vm.runInContext(source, context, { filename: 'edu-detail-render.js' });
+    await context.App._updateEduMineBadge('teamA');
+
+    expect(badgeEl.textContent).toBe(2);
+    expect(statusEl.style.display).toBe('flex');
+    expect(statusEl.innerHTML).toContain('class="edu-unpaid-tag"');
+    expect(statusEl.innerHTML).toContain('您尚有 <strong>2</strong> 筆未繳費');
+    expect(app._eduUnpaidSummaryByTeam.teamA.total).toBe(2);
+    expect(app._eduUnpaidSummaryByTeam.teamA.plans.map(p => p.planName)).toEqual(['週三足球', '結束課程']);
+    expect(app._eduUnpaidSummaryByTeam.teamA.plans[1].students[0].studentName).toBe('小明');
+    expect(context.FirebaseService.queryEduAttendance).toHaveBeenCalledWith({ teamId: 'teamA', coursePlanId: 'endedPlan', studentId: 'stu1' });
+  });
+
+  test('unpaid summary modal groups courses, escapes names, and shows staff payment reminder', () => {
+    let appended = null;
+    const app = {};
+    const context = {
+      App: app,
+      ApiService: {
+        getTeam: jest.fn(),
+        getCurrentUser: jest.fn(() => null),
+      },
+      document: {
+        getElementById: jest.fn(() => null),
+        createElement: jest.fn(() => ({ id: '', className: '', innerHTML: '' })),
+        body: {
+          appendChild: jest.fn((node) => { appended = node; }),
+        },
+        querySelectorAll: jest.fn(() => []),
+      },
+      escapeHTML,
+      Promise,
+      Date,
+      Number,
+    };
+
+    vm.createContext(context);
+    vm.runInContext(source, context, { filename: 'edu-detail-render.js' });
+    context.App._renderEduUnpaidSummaryModal({
+      total: 2,
+      plans: [{
+        planId: 'planA',
+        planName: '足球 <基礎>',
+        students: [
+          { studentId: 'stu1', studentName: '小明 & 小華', groupNames: ['A <班>'] },
+          { studentId: 'stu2', studentName: '小美', groupNames: [] },
+        ],
+      }],
+    });
+
+    expect(appended.className).toContain('edu-unpaid-overlay');
+    expect(appended.innerHTML).toContain('您尚有 2 筆未繳費');
+    expect(appended.innerHTML).toContain('足球 &lt;基礎&gt;');
+    expect(appended.innerHTML).toContain('小明 &amp; 小華');
+    expect(appended.innerHTML).toContain('A &lt;班&gt;');
+    expect(appended.innerHTML).not.toContain('足球 <基礎>');
+    expect(appended.innerHTML).toContain('以下是尚未登記繳費的課堂與學員名單。');
+    expect(appended.innerHTML).toContain('如果已經繳費，請俱樂部職員協助在課堂名單內勾選已繳費。');
+    expect(appended.innerHTML).toContain('edu-unpaid-reflect-note');
+  });
+
+  test('unpaid reminder CSS includes tag, dialog, responsive layout, and reflective text', () => {
+    expect(cssSource).toContain('.edu-unpaid-tag');
+    expect(cssSource).toContain('.edu-unpaid-dialog');
+    expect(cssSource).toContain('.edu-unpaid-course-card');
+    expect(cssSource).toContain('.edu-unpaid-reflect-note');
+    expect(cssSource).toContain('@keyframes eduUnpaidReflect');
+    expect(cssSource).toContain('@media (prefers-reduced-motion: reduce)');
+    expect(cssSource).toContain('@supports not ((background-clip: text) or (-webkit-background-clip: text))');
+    expect(cssSource).toContain('@media (max-width: 560px)');
   });
 });

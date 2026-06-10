@@ -2696,12 +2696,195 @@
 .edu-attend-cal-badge-count { font-size: .62rem; font-weight: 700; color: #fff; line-height: 1; }
 
 /* ── 頁籤行（tabs + badge + 未繳費）── */
-.edu-tab-row { display: flex; align-items: baseline; gap: .3rem; }
+.edu-tab-row { display: flex; align-items: center; gap: .3rem; flex-wrap: wrap; }
 .edu-tab-row .tab-bar { overflow: visible; }
 .edu-tab-mine-wrap { position: relative; z-index: 2; overflow: visible; }
 .edu-tab-badge { display: none; position: absolute; top: -6px; right: -8px; min-width: 16px; height: 16px; border-radius: 50%; background: #10b981; color: #fff; font-size: .58rem; font-weight: 700; padding: 0 3px; text-align: center; line-height: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.15); z-index: 1; }
 .edu-mine-status { display: none; margin-left: auto; flex-shrink: 0; white-space: nowrap; }
 .edu-unpaid-hint { font-size: .7rem; color: var(--danger); font-weight: 600; }
+.edu-unpaid-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .22rem;
+  min-height: 30px;
+  padding: .24rem .58rem;
+  border: 1px solid rgba(220, 38, 38, .28);
+  border-radius: var(--radius-full, 999px);
+  background: linear-gradient(135deg, rgba(254, 242, 242, .98), rgba(255, 247, 237, .94));
+  color: #b91c1c;
+  box-shadow: 0 5px 16px rgba(220, 38, 38, .13);
+  cursor: pointer;
+  font-size: .74rem;
+  font-weight: 850;
+  line-height: 1.15;
+  white-space: nowrap;
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.edu-unpaid-tag strong {
+  color: #dc2626;
+  font-size: .82rem;
+  font-weight: 950;
+}
+.edu-unpaid-tag:hover,
+.edu-unpaid-tag:focus-visible {
+  border-color: rgba(220, 38, 38, .52);
+  box-shadow: 0 8px 22px rgba(220, 38, 38, .2);
+  outline: none;
+  transform: translateY(-1px);
+}
+.edu-unpaid-dialog {
+  max-width: 520px;
+  gap: .72rem;
+}
+.edu-unpaid-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .8rem;
+  padding-bottom: .72rem;
+  border-bottom: 1px solid var(--border);
+}
+.edu-unpaid-dialog-head span {
+  display: block;
+  color: var(--danger);
+  font-size: .72rem;
+  font-weight: 900;
+}
+.edu-unpaid-dialog-head h3 {
+  margin: .12rem 0 0;
+  color: var(--text-primary);
+  font-size: 1.12rem;
+  font-weight: 950;
+}
+.edu-unpaid-dialog .modal-close-btn {
+  flex: 0 0 auto;
+}
+.edu-unpaid-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: .62rem;
+  padding-right: .12rem;
+}
+.edu-unpaid-summary-copy {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: .82rem;
+}
+.edu-unpaid-course-card {
+  padding: .68rem .72rem;
+  border: 1px solid rgba(220, 38, 38, .16);
+  border-radius: var(--radius, 10px);
+  background: linear-gradient(135deg, rgba(254, 242, 242, .72), rgba(255, 255, 255, .82));
+}
+.edu-unpaid-course-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .6rem;
+  margin-bottom: .45rem;
+}
+.edu-unpaid-course-head strong {
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: .92rem;
+  font-weight: 950;
+  overflow-wrap: anywhere;
+}
+.edu-unpaid-course-head span {
+  flex: 0 0 auto;
+  color: #b91c1c;
+  font-size: .72rem;
+  font-weight: 900;
+}
+.edu-unpaid-student-list {
+  display: flex;
+  flex-direction: column;
+  gap: .34rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.edu-unpaid-student-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .55rem;
+  padding: .42rem .52rem;
+  border-radius: var(--radius-sm, 8px);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+}
+.edu-unpaid-student-list strong {
+  color: var(--text-primary);
+  font-size: .84rem;
+  font-weight: 900;
+}
+.edu-unpaid-student-list span {
+  color: var(--text-muted);
+  font-size: .72rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+.edu-unpaid-reflect-note {
+  margin: .1rem 0 0;
+  background: linear-gradient(100deg, #991b1b 0%, #ef4444 34%, #fff 48%, #b91c1c 62%, #991b1b 100%);
+  background-size: 230% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-size: .82rem;
+  font-weight: 950;
+  line-height: 1.55;
+  text-shadow: 0 8px 22px rgba(239, 68, 68, .16);
+  animation: eduUnpaidReflect 3.2s linear infinite;
+}
+@keyframes eduUnpaidReflect {
+  0% { background-position: 160% center; }
+  100% { background-position: -160% center; }
+}
+[data-theme="dark"] .edu-unpaid-tag {
+  border-color: rgba(248, 113, 113, .34);
+  background: linear-gradient(135deg, rgba(127, 29, 29, .42), rgba(120, 53, 15, .32));
+  color: #fecaca;
+}
+[data-theme="dark"] .edu-unpaid-tag strong {
+  color: #fca5a5;
+}
+[data-theme="dark"] .edu-unpaid-course-card {
+  border-color: rgba(248, 113, 113, .22);
+  background: linear-gradient(135deg, rgba(127, 29, 29, .24), rgba(30, 41, 59, .88));
+}
+[data-theme="dark"] .edu-unpaid-course-head span {
+  color: #fca5a5;
+}
+@media (max-width: 560px) {
+  .edu-mine-status {
+    flex: 1 1 100%;
+    margin-left: 0;
+  }
+  .edu-unpaid-tag {
+    width: 100%;
+  }
+  .edu-unpaid-course-head,
+  .edu-unpaid-student-list li {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .edu-unpaid-reflect-note {
+    animation: none;
+    background-position: center;
+  }
+}
+@supports not ((background-clip: text) or (-webkit-background-clip: text)) {
+  .edu-unpaid-reflect-note {
+    background: none;
+    color: #b91c1c;
+    animation: none;
+  }
+}
 
 /* ── Type Badge ── */
 .edu-type-badge {

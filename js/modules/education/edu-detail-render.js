@@ -10,6 +10,7 @@ Object.assign(App, {
 
   _eduDetailTeamId: null,
   _eduActiveTab: 'course',
+  _eduUnpaidSummaryByTeam: {},
 
   _initEduClubDetailSection(teamId, options = {}) {
     this._eduDetailTeamId = teamId;
@@ -439,6 +440,76 @@ Object.assign(App, {
       + '</div>';
   },
 
+  _escapeEduInlineArg(value) {
+    return escapeHTML(String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' '));
+  },
+
+  _getEduStudentDisplayName(student) {
+    return student?.name || student?.studentName || '未命名學員';
+  },
+
+  async _collectEduUnpaidSummary(teamId, students) {
+    const curUser = ApiService.getCurrentUser();
+    const myStudents = (students || this._getMyEduStudents(teamId, curUser))
+      .filter(s => s && s.enrollStatus === 'active');
+    const summary = { teamId, total: 0, plans: [] };
+    if (!myStudents.length) return summary;
+
+    const plans = await this._loadEduCoursePlans(teamId);
+    const today = typeof this._todayStr === 'function' ? this._todayStr() : (() => {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    })();
+    const planMap = new Map();
+
+    for (const s of myStudents) {
+      const studentId = String(s.id || s._docId || '');
+      if (!studentId) continue;
+      for (const p of plans || []) {
+        if (!p || p.active === false) continue;
+        let inPlan = false;
+        let enrollment = null;
+        const key = this._getCourseEnrollCacheKey?.(teamId, p.id);
+        const enrollments = p._enrollments || (key && this._courseEnrollCache?.[key]) || [];
+        enrollment = enrollments.find(e => String(e.studentId || '') === studentId && e.status === 'approved');
+        if (enrollment) inPlan = true;
+        if (!inPlan && p.groupId && (s.groupIds || []).includes(p.groupId)) inPlan = true;
+        if (!inPlan) continue;
+        if (enrollment && enrollment.paidAt) continue;
+
+        const ended = p.endDate && p.endDate < today;
+        if (ended) {
+          try {
+            const records = await FirebaseService.queryEduAttendance({ teamId, coursePlanId: p.id, studentId });
+            if (!records || !records.some(r => (r.kind || 'signin') === 'signin')) continue;
+          } catch (_) {
+            continue;
+          }
+        }
+
+        const planId = String(p.id || '');
+        if (!planId) continue;
+        if (!planMap.has(planId)) {
+          const row = {
+            planId,
+            planName: p.name || '未命名課堂',
+            students: [],
+          };
+          planMap.set(planId, row);
+          summary.plans.push(row);
+        }
+        planMap.get(planId).students.push({
+          studentId,
+          studentName: this._getEduStudentDisplayName(s),
+          groupNames: Array.isArray(s.groupNames) ? s.groupNames.filter(Boolean) : [],
+        });
+        summary.total++;
+      }
+    }
+
+    return summary;
+  },
+
   async _updateEduMineBadge(teamId) {
     const curUser = ApiService.getCurrentUser();
     const myStudents = this._getMyEduStudents(teamId, curUser).filter(s => s.enrollStatus === 'active');
@@ -447,40 +518,69 @@ Object.assign(App, {
     if (badge) { badge.textContent = myStudents.length || ''; badge.style.display = myStudents.length ? 'inline-block' : 'none'; }
     // 未繳費統計
     const statusEl = document.getElementById('edu-mine-status');
-    if (!statusEl || !myStudents.length) { if (statusEl) statusEl.style.display = 'none'; return; }
-    const plans = await this._loadEduCoursePlans(teamId);
-    const today = this._todayStr();
-    let unpaid = 0;
-    for (const s of myStudents) {
-      for (const p of plans) {
-        if (p.active === false) continue;
-        // 判斷學員是否在此方案內（enrollment 或分組）
-        var inPlan = false;
-        var enrollment = null;
-        var key = this._getCourseEnrollCacheKey?.(teamId, p.id);
-        var enrollments = (key && this._courseEnrollCache?.[key]) || [];
-        enrollment = enrollments.find(e => e.studentId === s.id && e.status === 'approved');
-        if (enrollment) inPlan = true;
-        if (!inPlan && p.groupId && (s.groupIds || []).includes(p.groupId)) { inPlan = true; }
-        if (!inPlan) continue;
-        // 已繳費則跳過
-        if (enrollment && enrollment.paidAt) continue;
-        // 判斷是否需繳費：課程未結束 OR 已結束但有簽到紀錄
-        var ended = p.endDate && p.endDate < today;
-        if (!ended) { unpaid++; continue; }
-        // 已結束：查簽到紀錄
-        try {
-          var records = await FirebaseService.queryEduAttendance({ teamId, coursePlanId: p.id, studentId: s.id });
-          if (records && records.some(r => (r.kind || 'signin') === 'signin')) unpaid++;
-        } catch (_) {}
-      }
+    if (!statusEl || !myStudents.length) {
+      if (this._eduUnpaidSummaryByTeam) delete this._eduUnpaidSummaryByTeam[teamId];
+      if (statusEl) statusEl.style.display = 'none';
+      return;
     }
-    if (unpaid > 0) {
-      statusEl.innerHTML = '<span class="edu-unpaid-hint">' + unpaid + ' 筆未繳費</span>';
-      statusEl.style.display = 'inline';
+    const summary = await this._collectEduUnpaidSummary(teamId, myStudents);
+    this._eduUnpaidSummaryByTeam[teamId] = summary;
+    if (summary.total > 0) {
+      statusEl.innerHTML = '<button type="button" class="edu-unpaid-tag" onclick="App.showEduUnpaidSummaryModal(\'' + this._escapeEduInlineArg(teamId) + '\')" aria-label="您尚有 ' + summary.total + ' 筆未繳費，點擊查看明細"><span>您尚有 <strong>' + summary.total + '</strong> 筆未繳費</span></button>';
+      statusEl.style.display = 'flex';
     } else {
       statusEl.style.display = 'none';
     }
+  },
+
+  async showEduUnpaidSummaryModal(teamId) {
+    let summary = this._eduUnpaidSummaryByTeam?.[teamId];
+    if (!summary) {
+      summary = await this._collectEduUnpaidSummary(teamId);
+      this._eduUnpaidSummaryByTeam[teamId] = summary;
+    }
+    this._renderEduUnpaidSummaryModal(summary);
+  },
+
+  _renderEduUnpaidSummaryModal(summary = {}) {
+    document.getElementById('edu-unpaid-summary-overlay')?.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'edu-unpaid-summary-overlay';
+    overlay.className = 'edu-info-overlay edu-unpaid-overlay';
+    const planHtml = (summary.plans || []).length
+      ? summary.plans.map(plan => {
+        const students = Array.isArray(plan.students) ? plan.students : [];
+        const studentHtml = students.map(s => {
+          const groups = s.groupNames?.length
+            ? '<span>' + s.groupNames.map(n => escapeHTML(n)).join('、') + '</span>'
+            : '';
+          return '<li><strong>' + escapeHTML(s.studentName || '未命名學員') + '</strong>' + groups + '</li>';
+        }).join('');
+        return '<section class="edu-unpaid-course-card">'
+          + '<div class="edu-unpaid-course-head">'
+          + '<strong>' + escapeHTML(plan.planName || '未命名課堂') + '</strong>'
+          + '<span>' + students.length + ' 位學員未繳費</span>'
+          + '</div>'
+          + '<ul class="edu-unpaid-student-list">' + studentHtml + '</ul>'
+          + '</section>';
+      }).join('')
+      : '<div class="edu-empty-state">目前沒有未繳費資料</div>';
+    overlay.innerHTML = '<div class="edu-info-dialog edu-unpaid-dialog" role="dialog" aria-modal="true" aria-labelledby="edu-unpaid-dialog-title">'
+      + '<div class="edu-unpaid-dialog-head">'
+      + '<div>'
+      + '<span>未繳費提醒</span>'
+      + '<h3 id="edu-unpaid-dialog-title">您尚有 ' + Number(summary.total || 0) + ' 筆未繳費</h3>'
+      + '</div>'
+      + '<button type="button" class="modal-close-btn" aria-label="關閉" onclick="this.closest(\'.edu-info-overlay\').remove()">×</button>'
+      + '</div>'
+      + '<div class="edu-info-dialog-body edu-unpaid-dialog-body">'
+      + '<p class="edu-unpaid-summary-copy">以下是尚未登記繳費的課堂與學員名單。</p>'
+      + planHtml
+      + '<p class="edu-unpaid-reflect-note">如果已經繳費，請俱樂部職員協助在課堂名單內勾選已繳費。</p>'
+      + '</div>'
+      + '<button type="button" class="primary-btn" onclick="this.closest(\'.edu-info-overlay\').remove()">知道了</button>'
+      + '</div>';
+    document.body.appendChild(overlay);
   },
 
 });
