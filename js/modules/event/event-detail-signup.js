@@ -13,6 +13,9 @@ Object.assign(App, {
   _eventSignupRegistrationAuthBypassUntil: new Map(),
   _eventSignupRegistrationAuthRetryLimit: 3,
   _eventSignupRegistrationAuthBypassMs: 30000,
+  // 2026-06-10：issue 後的自動重查退避（預設 10s、下限 3s）＋單槽 nudge timer
+  _eventSignupRegistrationIssueRetryDelayMs: 10000,
+  _eventSignupRegistrationIssueRetryTimer: null,
 
   _beginEventActionBusy(key, message = '系統已在處理中') {
     const busyKey = String(key || '').trim();
@@ -80,6 +83,25 @@ Object.assign(App, {
     return Math.max(3000, Number(this._eventSignupRegistrationHydrateTimeoutMs) || 9000);
   },
 
+  _getEventSignupRegistrationIssueRetryDelayMs() {
+    return Math.max(3000, Number(this._eventSignupRegistrationIssueRetryDelayMs) || 10000);
+  },
+
+  /** issue 後排程單槽自動重查 nudge（比照 _scheduleEventSignupRegistrationAuthRetry；離頁/換活動時 guard 自然失效） */
+  _scheduleEventSignupRegistrationIssueRetry(eventId) {
+    if (this._eventSignupRegistrationIssueRetryTimer) {
+      clearTimeout(this._eventSignupRegistrationIssueRetryTimer);
+    }
+    this._eventSignupRegistrationIssueRetryTimer = setTimeout(() => {
+      this._eventSignupRegistrationIssueRetryTimer = null;
+      if (this.currentPage === 'page-activity-detail'
+        && this._currentDetailEventId === eventId
+        && !this._flipAnimating) {
+        this._refreshSignupButton?.(eventId);
+      }
+    }, this._getEventSignupRegistrationIssueRetryDelayMs());
+  },
+
   _clearEventSignupRegistrationHydrateTimer(state) {
     if (state?.timeoutId) {
       clearTimeout(state.timeoutId);
@@ -129,6 +151,8 @@ Object.assign(App, {
     state.promise = null;
     state.timedOut = reason === 'timeout';
     state.issue = reason || 'unverified';
+    state.issueAt = Date.now();
+    this._scheduleEventSignupRegistrationIssueRetry?.(eventId);
     if (this.currentPage === 'page-activity-detail'
       && this._currentDetailEventId === eventId
       && !this._flipAnimating) {
@@ -158,6 +182,10 @@ Object.assign(App, {
     const state = this._eventSignupRegistrationHydrateState;
     this._clearEventSignupRegistrationHydrateTimer(state);
     this._eventSignupRegistrationHydrateState = null;
+    if (this._eventSignupRegistrationIssueRetryTimer) {
+      clearTimeout(this._eventSignupRegistrationIssueRetryTimer);
+      this._eventSignupRegistrationIssueRetryTimer = null;
+    }
     const uid = this._getCurrentSignupRegistrationUid?.() || '';
     if (!uid) {
       this._refreshSignupButton?.(eventId);
@@ -661,15 +689,17 @@ Object.assign(App, {
       if (!authReady) return { ok: false, reason: 'auth-not-ready' };
     }
     const regsRef = db.collection('events').doc(eventDocId).collection('registrations');
-    const readByField = (field) => regsRef
-      .where(field, '==', userId)
-      .limit(5)
-      .get({ source: 'server' });
+    // 2026-06-10：主查詢改預設 get()（伺服器優先、SDK 判定離線時回快取），
+    // 修復「快取名單看得到、按鈕卡在重新檢查報名狀態」的資料來源分裂（詳 docs/claude-memory.md 2026-06-10）
+    const readByField = (field, getOptions) => {
+      const query = regsRef.where(field, '==', userId).limit(5);
+      return getOptions ? query.get(getOptions) : query.get();
+    };
 
-    const queryPromise = (async () => {
-      let snap = await readByField('userId');
+    const runRegistrationProbe = async (getOptions) => {
+      let snap = await readByField('userId', getOptions);
       if (!snap || snap.empty || !snap.docs?.length) {
-        snap = await readByField('uid');
+        snap = await readByField('uid', getOptions);
       }
       const docs = Array.isArray(snap?.docs) ? snap.docs : [];
       let activeCount = 0;
@@ -688,8 +718,9 @@ Object.assign(App, {
         if (this._isActiveSelfRegistrationRecord?.(reg)) activeCount++;
       });
       this._markEventSignupRegistrationServerProof?.(eventId, userId);
-      return { ok: true, activeCount, recordCount: docs.length };
-    })();
+      return { ok: true, activeCount, recordCount: docs.length, fromCache: !!snap?.metadata?.fromCache };
+    };
+    const queryPromise = runRegistrationProbe();
     queryPromise.then(() => {
       const state = this._eventSignupRegistrationHydrateState;
       if (state?.eventId === eventId
@@ -705,7 +736,8 @@ Object.assign(App, {
     try {
       const startedAt = Number(options?.startedAt || fetchStartedAt || 0) || 0;
       const elapsedMs = startedAt ? Math.max(0, Date.now() - startedAt) : 0;
-      const queryTimeoutMs = Math.max(1500, timeoutMs - elapsedMs);
+      // 主查詢預留 1500ms 給下方快取兜底（兜底上限 1200ms），總和 < timeoutMs，避免與外層 hydrate timer 同時到期
+      const queryTimeoutMs = Math.max(1500, timeoutMs - elapsedMs - 1500);
       if (typeof ApiService !== 'undefined' && typeof ApiService._withFirestoreFetchTimeout === 'function') {
         return await ApiService._withFirestoreFetchTimeout(queryPromise, queryTimeoutMs, 'fetchCurrentUserRegistrationStateForEvent');
       }
@@ -713,6 +745,17 @@ Object.assign(App, {
     } catch (err) {
       console.warn('[EventDetail] current user registration proof failed:', err);
       const code = String(err?.code || '').trim();
+      if (code !== 'permission-denied' && code !== 'unauthenticated') {
+        // server 讀取逾時/失敗 → 以本地快取兜底（與名單同源同級），避免退化連線把按鈕釘死在「重新檢查報名狀態」
+        try {
+          const cacheProbe = runRegistrationProbe({ source: 'cache' });
+          return (typeof ApiService !== 'undefined' && typeof ApiService._withFirestoreFetchTimeout === 'function')
+            ? await ApiService._withFirestoreFetchTimeout(cacheProbe, 1200, 'fetchCurrentUserRegistrationStateForEvent.cache')
+            : await cacheProbe;
+        } catch (cacheErr) {
+          console.warn('[EventDetail] registration cache fallback failed:', cacheErr);
+        }
+      }
       return {
         ok: false,
         reason: code === 'firestore-fetch-timeout' || code === 'timeout'
@@ -776,7 +819,11 @@ Object.assign(App, {
     if (this._sameEventSignupRegistrationHydrateState(current, eventId, uid)
       && current?.pending !== true
       && current?.issue) {
-      return false;
+      const issueAt = Number(current.issueAt || 0) || 0;
+      // 退避未到期 → 維持 issue（按鈕顯示「重新檢查報名狀態」）；到期 → 放行往下自動重查
+      if (!issueAt || Date.now() - issueAt < this._getEventSignupRegistrationIssueRetryDelayMs()) {
+        return false;
+      }
     }
 
     const promise = Promise.resolve(this._fetchCurrentUserRegistrationStateForEvent(e, uid, opts))

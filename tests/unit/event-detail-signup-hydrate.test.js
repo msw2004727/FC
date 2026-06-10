@@ -100,7 +100,8 @@ describe('event signup registration hydrate', () => {
     expect(context.ApiService.fetchRegistrationsIfMissing).not.toHaveBeenCalled();
     expect(context.FirebaseService.ensureAuthReadyForWrite).toHaveBeenCalledWith('user-1');
     expect(queryCalls.map(call => call.field)).toEqual(['userId', 'uid']);
-    expect(queryCalls.every(call => call.options?.source === 'server')).toBe(true);
+    // 2026-06-10：主查詢改預設 get()（伺服器優先、SDK 離線時回快取），不再強制 source:'server'
+    expect(queryCalls.every(call => call.options === undefined)).toBe(true);
     expect(app._eventSignupRegistrationHydrateState).toBe(null);
     expect(app._shouldHoldSignupActionsForEventRegistrations(event)).toBe(false);
   });

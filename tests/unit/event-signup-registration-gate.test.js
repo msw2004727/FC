@@ -139,8 +139,9 @@ describe('event detail signup registration loading gate', () => {
       field: 'userId',
       value: 'user-1',
       limit: 5,
-      options: { source: 'server' },
     });
+    // 2026-06-10：主查詢改預設 get()（伺服器優先、SDK 離線時回快取），不再強制 source:'server'
+    expect(queryCalls[0].options).toBeUndefined();
   });
 
   test('does not hold or refetch when current cache already proves the user is registered', () => {
@@ -350,6 +351,98 @@ describe('event detail signup registration loading gate', () => {
     expect(app._isEventSignupRegistrationAuthBypassed(event.id, 'user-1')).toBe(true);
     expect(app._shouldHoldSignupActionsForEventRegistrations(event)).toBe(false);
 
+    jest.useRealTimers();
+  });
+
+  // ═══ 2026-06-10：快取兜底 + issue 退避自動重查（防止「重新檢查報名狀態」永久卡死）═══
+
+  test('server read failure falls back to local cache and releases the gate', async () => {
+    const unavailable = new Error('stream broken');
+    unavailable.code = 'unavailable';
+    const { app, event } = loadSignupModule({
+      registrationQueryImpl: ({ options }) => (options?.source === 'cache'
+        ? Promise.resolve({ empty: true, docs: [] })
+        : Promise.reject(unavailable)),
+    });
+
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
+    await flushMicrotasks(20);
+
+    expect(app._eventSignupRegistrationHydrateState).toBe(null);
+    expect(app._isEventSignupRegistrationHydrateIssue(event)).toBe(false);
+    expect(app._hasCurrentEventSignupRegistrationServerProof(event)).toBe(true);
+  });
+
+  test('cache fallback still surfaces an active registration when server reads fail', async () => {
+    const unavailable = new Error('stream broken');
+    unavailable.code = 'unavailable';
+    const regDoc = { eventId: 'evt-1', userId: 'user-1', status: 'confirmed', participantType: 'self' };
+    const { app, context, event } = loadSignupModule({
+      registrationQueryImpl: ({ field, options }) => {
+        if (options?.source !== 'cache') return Promise.reject(unavailable);
+        return Promise.resolve({
+          empty: field !== 'userId',
+          docs: field === 'userId' ? [{ id: 'reg-1', data: () => regDoc }] : [],
+        });
+      },
+    });
+
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
+    await flushMicrotasks(20);
+
+    expect(context.FirebaseService._upsertCanonicalCacheRecord).toHaveBeenCalledWith(
+      'registrations',
+      expect.objectContaining({ eventId: 'evt-1', userId: 'user-1', status: 'confirmed' })
+    );
+    expect(app._eventSignupRegistrationHydrateState).toBe(null);
+    expect(app._isEventSignupRegistrationHydrateIssue(event)).toBe(false);
+  });
+
+  test('sync issue auto-retries after the backoff window instead of pinning forever', async () => {
+    const failing = new Error('boom');
+    failing.code = 'internal';
+    let mode = 'fail-all';
+    const { app, event } = loadSignupModule({
+      registrationQueryImpl: () => (mode === 'fail-all'
+        ? Promise.reject(failing)
+        : Promise.resolve({ empty: true, docs: [] })),
+    });
+
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
+    await flushMicrotasks(20);
+
+    // 伺服器 + 快取兜底都失敗 → issue；退避期內維持 issue、不自動重查
+    expect(app._eventSignupRegistrationHydrateState).toMatchObject({ pending: false, issue: 'error' });
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(false);
+    expect(app._isEventSignupRegistrationHydrateIssue(event)).toBe(true);
+
+    // 退避期滿 → 放行自動重查；環境恢復後 gate 解鎖
+    mode = 'recover';
+    app._eventSignupRegistrationHydrateState.issueAt = Date.now() - 999999;
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
+    await flushMicrotasks(20);
+
+    expect(app._eventSignupRegistrationHydrateState).toBe(null);
+    expect(app._isEventSignupRegistrationHydrateIssue(event)).toBe(false);
+  });
+
+  test('marks issue with a scheduled nudge that refreshes the signup button after backoff', async () => {
+    jest.useFakeTimers();
+    const failing = new Error('boom');
+    failing.code = 'internal';
+    const { app, event } = loadSignupModule({
+      registrationQueryImpl: () => Promise.reject(failing),
+    });
+    app._refreshSignupButton = jest.fn();
+
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
+    await flushMicrotasks(20);
+    expect(app._eventSignupRegistrationHydrateState).toMatchObject({ pending: false, issue: 'error' });
+
+    app._refreshSignupButton.mockClear();
+    await jest.advanceTimersByTimeAsync(10000);
+
+    expect(app._refreshSignupButton).toHaveBeenCalledWith(event.id);
     jest.useRealTimers();
   });
 });
