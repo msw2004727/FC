@@ -515,7 +515,7 @@ Object.assign(App, {
   },
 
   _buildEventSignupLoadingButton() {
-    return '<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>載入中…</button>';
+    return '<button style="display:inline-flex;align-items:center;justify-content:center;gap:.45rem;min-height:2.1rem;background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.82" aria-busy="true" aria-live="polite" disabled><span class="mini-spinner" style="width:14px;height:14px;border:2px solid rgba(255,255,255,.38);border-top-color:#fff;border-radius:50%;animation:signup-mini-spin .7s linear infinite;display:inline-block;flex:0 0 auto" aria-hidden="true"></span><span>用戶資料同步中</span></button>';
   },
 
   _isTeamReservationStaffTeamsHydratingForEvent(eventId) {
@@ -1562,7 +1562,7 @@ Object.assign(App, {
   },
 
   async handleSignup(id, opts = {}) {
-    if (this._requireProtectedActionLogin({ type: 'eventSignup', eventId: id }, { suppressToast: true })) {
+    if (this._requireProtectedActionLogin({ type: 'eventSignup', eventId: id, returnPageId: 'page-activity-detail' }, { suppressToast: true })) {
       return;
     }
     // 2026-04-19 UX：寫入類動作必須先補齊個人資料（地區/性別/生日）
@@ -1993,7 +1993,7 @@ Object.assign(App, {
   },
 
   async handleCancelSignup(id) {
-    if (this._requireProtectedActionLogin({ type: 'eventCancelSignup', eventId: id }, { suppressToast: true })) {
+    if (this._requireProtectedActionLogin({ type: 'eventCancelSignup', eventId: id, returnPageId: 'page-activity-detail' }, { suppressToast: true })) {
       return;
     }
     if (!this._cloudReady) {
@@ -2563,7 +2563,7 @@ Object.assign(App, {
     var teamReservationIdentityLoading = typeof this._isTeamReservationStaffTeamsHydratingForEvent === 'function'
       && this._isTeamReservationStaffTeamsHydratingForEvent(eventId);
     if (registrationIdentityLoading || teamReservationIdentityLoading) {
-      actionZone.innerHTML = this._buildEventSignupLoadingButton?.() || '<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>載入中…</button>';
+      actionZone.innerHTML = this._buildEventSignupLoadingButton?.() || '<button style="display:inline-flex;align-items:center;justify-content:center;gap:.45rem;min-height:2.1rem;background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.82" aria-busy="true" aria-live="polite" disabled><span class="mini-spinner" style="width:14px;height:14px;border:2px solid rgba(255,255,255,.38);border-top-color:#fff;border-radius:50%;animation:signup-mini-spin .7s linear infinite;display:inline-block;flex:0 0 auto" aria-hidden="true"></span><span>用戶資料同步中</span></button>';
       return;
     }
     var registrationIdentityIssue = typeof this._isEventSignupRegistrationHydrateIssue === 'function'

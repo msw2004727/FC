@@ -1395,7 +1395,12 @@ const App = {
       case 'toggleFavoriteEvent':
       case 'goToScanForEvent': {
         const eventId = normalizeId(action.eventId || action.id);
-        return eventId ? { type, eventId } : null;
+        if (!eventId) return null;
+        const sanitized = { type, eventId };
+        if (normalizeId(action.returnPageId) === 'page-activity-detail') {
+          sanitized.returnPageId = 'page-activity-detail';
+        }
+        return sanitized;
       }
       case 'showTeamDetail': {
         const teamId = normalizeId(action.teamId || action.id);
@@ -1516,6 +1521,12 @@ const App = {
       if (action.teamId) sessionStorage.setItem('_pendingDeepTeam', action.teamId);
     } catch (_) {}
 
+    if (pending.returnPageId === 'page-activity-detail' && pending.eventId) {
+      try {
+        this._setRouteUrl?.({ pageId: 'page-activity-detail', id: pending.eventId }, { mode: 'replace' });
+      } catch (_) {}
+    }
+
     const loginCopy = String(options.toastMessage || '\u8acb\u5148\u767b\u5165 LINE \u5e33\u865f');
     const pendingCopy = String(options.pendingToastMessage || 'LINE \u767b\u5165\u8655\u7406\u4e2d...');
     const startLogin = () => {
@@ -1588,24 +1599,27 @@ const App = {
         if (needsEvents && action.eventId) {
           await this._waitForEventsLoaded();
         }
+        const eventDetailResumeOptions = action.returnPageId === 'page-activity-detail'
+          ? { bypassPageLock: true }
+          : undefined;
 
         switch (action.type) {
           case 'showPage':
             await this.showPage(action.pageId, { resetHistory: true });
             return true;
           case 'showEventDetail':
-            await this.showEventDetail(action.eventId);
+            await this.showEventDetail(action.eventId, eventDetailResumeOptions);
             return true;
           case 'eventSignup':
-            await this.showEventDetail(action.eventId);
+            await this.showEventDetail(action.eventId, eventDetailResumeOptions);
             await this.handleSignup?.(action.eventId);
             return true;
           case 'eventCancelSignup':
-            await this.showEventDetail(action.eventId);
+            await this.showEventDetail(action.eventId, eventDetailResumeOptions);
             await this.handleCancelSignup?.(action.eventId);
             return true;
           case 'toggleFavoriteEvent':
-            await this.showEventDetail(action.eventId);
+            await this.showEventDetail(action.eventId, eventDetailResumeOptions);
             this.toggleFavoriteEvent?.(action.eventId);
             return true;
           case 'goToScanForEvent':

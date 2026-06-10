@@ -331,7 +331,7 @@ function determineButtonState({
     return { type: 'guest', disabled: false, text: '立即報名' };
   }
   if (regsLoading) {
-    return { type: 'loading', disabled: true, text: '載入中…' };
+    return { type: 'loading', disabled: true, text: '用戶資料同步中' };
   }
   if (isEnded) {
     return { type: 'ended', disabled: true, text: '已結束' };
@@ -369,7 +369,7 @@ describe('Button state: regsLoading (Fix A + Fix 1)', () => {
     });
     expect(state.type).toBe('loading');
     expect(state.disabled).toBe(true);
-    expect(state.text).toBe('載入中…');
+    expect(state.text).toBe('用戶資料同步中');
   });
 
   test('shows loading at retry count 2 (still < 3)', () => {
@@ -531,13 +531,14 @@ describe('DOM rendering smoke test', () => {
 
   test('can create and query button elements', () => {
     const container = document.createElement('div');
-    container.innerHTML = '<button disabled>載入中…</button>';
+    container.innerHTML = '<button disabled><span class="mini-spinner"></span><span>用戶資料同步中</span></button>';
     document.body.appendChild(container);
 
     const btn = container.querySelector('button');
     expect(btn).not.toBeNull();
     expect(btn.disabled).toBe(true);
-    expect(btn.textContent).toBe('載入中…');
+    expect(btn.textContent).toBe('用戶資料同步中');
+    expect(btn.querySelector('.mini-spinner')).not.toBeNull();
 
     document.body.removeChild(container);
   });
@@ -633,6 +634,21 @@ describe('Team reservation button loading contract', () => {
     expect(signupSource).toContain('opts.registrationIdentityLoading');
     expect(signupSource).toContain('opts.teamReservationIdentityLoading');
     expect(signupSource).toContain('this._ensureEventSignupRegistrationStateLoaded(e) === true');
+  });
+
+  test('activity detail signup auth action returns to the event detail route after LINE login', () => {
+    const detailSource = readProjectFile('js/modules/event/event-detail.js');
+    const signupSource = readProjectFile('js/modules/event/event-detail-signup.js');
+    const appSource = readProjectFile('app.js');
+
+    expect(detailSource).toContain("eventSignup: { type: 'eventSignup', eventId: normalizedEventId, returnPageId: 'page-activity-detail' }");
+    expect(detailSource).toContain("eventCancelSignup: { type: 'eventCancelSignup', eventId: normalizedEventId, returnPageId: 'page-activity-detail' }");
+    expect(signupSource).toContain("{ type: 'eventSignup', eventId: id, returnPageId: 'page-activity-detail' }");
+    expect(signupSource).toContain("{ type: 'eventCancelSignup', eventId: id, returnPageId: 'page-activity-detail' }");
+    expect(appSource).toContain("if (normalizeId(action.returnPageId) === 'page-activity-detail')");
+    expect(appSource).toContain("this._setRouteUrl?.({ pageId: 'page-activity-detail', id: pending.eventId }, { mode: 'replace' });");
+    expect(appSource).toContain("const eventDetailResumeOptions = action.returnPageId === 'page-activity-detail'");
+    expect(appSource).toContain('await this.showEventDetail(action.eventId, eventDetailResumeOptions)');
   });
 
   test('instant event deep link primes auth before waiting for current-user registration proof', () => {

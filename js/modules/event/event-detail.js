@@ -614,8 +614,8 @@ Object.assign(App, {
     if (!normalizedType || !normalizedEventId) return;
 
     const actionMap = {
-      eventSignup: { type: 'eventSignup', eventId: normalizedEventId },
-      eventCancelSignup: { type: 'eventCancelSignup', eventId: normalizedEventId },
+      eventSignup: { type: 'eventSignup', eventId: normalizedEventId, returnPageId: 'page-activity-detail' },
+      eventCancelSignup: { type: 'eventCancelSignup', eventId: normalizedEventId, returnPageId: 'page-activity-detail' },
       toggleFavoriteEvent: { type: 'toggleFavoriteEvent', eventId: normalizedEventId },
     };
     const action = actionMap[normalizedType];
@@ -1004,7 +1004,7 @@ Object.assign(App, {
     if (isGuestView) {
       signupBtn = this._buildGuestEventSignupButton(e, isUpcoming, isEnded, isMainFull);
     } else if (signupActionsLoading) {
-      signupBtn = this._buildEventSignupLoadingButton?.() || `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>載入中…</button>`;
+      signupBtn = this._buildEventSignupLoadingButton?.() || `<button style="display:inline-flex;align-items:center;justify-content:center;gap:.45rem;min-height:2.1rem;background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.82" aria-busy="true" aria-live="polite" disabled><span class="mini-spinner" style="width:14px;height:14px;border:2px solid rgba(255,255,255,.38);border-top-color:#fff;border-radius:50%;animation:signup-mini-spin .7s linear infinite;display:inline-block;flex:0 0 auto" aria-hidden="true"></span><span>用戶資料同步中</span></button>`;
     } else if (registrationIdentityIssue) {
       signupBtn = this._buildEventSignupSyncIssueButton?.(e.id) || `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>報名狀態同步中</button>`;
     } else if (isEnded) {

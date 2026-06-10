@@ -121,6 +121,20 @@ describe('event detail signup registration loading gate', () => {
     jest.restoreAllMocks();
   });
 
+  test('renders user profile syncing CTA with a spinner while signup identity is loading', () => {
+    const { app } = loadSignupModule();
+    const container = document.createElement('div');
+
+    container.innerHTML = app._buildEventSignupLoadingButton();
+    const button = container.querySelector('button');
+
+    expect(button).not.toBeNull();
+    expect(button.disabled).toBe(true);
+    expect(button.getAttribute('aria-busy')).toBe('true');
+    expect(button.textContent).toContain('用戶資料同步中');
+    expect(button.querySelector('.mini-spinner')).not.toBeNull();
+  });
+
   test('starts a background user-scoped registration proof without holding when auth is ready', async () => {
     const deferred = createDeferred();
     const fetchRegistrationsIfMissing = jest.fn(() => Promise.resolve());
