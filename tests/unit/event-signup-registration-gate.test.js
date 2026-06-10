@@ -288,6 +288,30 @@ describe('event detail signup registration loading gate', () => {
     jest.useRealTimers();
   });
 
+  test('repeated auth-not-ready while LIFF is still resolving temporarily releases the signup gate', async () => {
+    jest.useFakeTimers();
+    const { app, event } = loadSignupModule({
+      ensureAuthReadyForWrite: jest.fn(() => Promise.resolve(false)),
+      authCurrentUid: null,
+      lineSessionResolving: true,
+    });
+    app._eventSignupRegistrationAuthRetryLimit = 2;
+    app._refreshSignupButton = jest.fn();
+
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
+    await flushMicrotasks(20);
+    expect(app._isEventSignupRegistrationAuthBypassed(event.id, 'user-1')).toBe(false);
+    expect(app._shouldHoldSignupActionsForEventRegistrations(event)).toBe(true);
+
+    jest.advanceTimersByTime(900);
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
+    await flushMicrotasks(20);
+
+    expect(app._isEventSignupRegistrationAuthBypassed(event.id, 'user-1')).toBe(true);
+    expect(app._shouldHoldSignupActionsForEventRegistrations(event)).toBe(false);
+    jest.useRealTimers();
+  });
+
   test('auth proof timeout recovers as auth-not-ready instead of surfacing a sync issue', async () => {
     jest.useFakeTimers();
     const { app, event } = loadSignupModule({

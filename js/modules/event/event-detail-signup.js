@@ -624,7 +624,7 @@ Object.assign(App, {
     this._eventSignupRegistrationHydrateState = null;
     const uid = String(state?.uid || this._getCurrentSignupRegistrationUid?.() || '').trim();
     const key = this._getEventSignupRegistrationProofKey?.(eventId, uid);
-    if (key && this._isEventSignupAuthStillResolving?.() !== true) {
+    if (key) {
       const nextCount = Number(this._eventSignupRegistrationAuthRetryCounts?.get?.(key) || 0) + 1;
       this._eventSignupRegistrationAuthRetryCounts?.set?.(key, nextCount);
       if (nextCount >= this._eventSignupRegistrationAuthRetryLimit) {
