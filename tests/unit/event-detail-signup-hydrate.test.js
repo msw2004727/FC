@@ -7,7 +7,13 @@ const source = fs.readFileSync(
   'utf8'
 );
 
-function loadSignupModule({ userIdDocs = [], uidDocs = [] } = {}) {
+function loadSignupModule({
+  userIdDocs = [],
+  uidDocs = [],
+  currentUser = { uid: 'user-1', displayName: 'Test User' },
+  firebaseCurrentUser = null,
+  authCurrentUid = 'user-1',
+} = {}) {
   const queryCalls = [];
   const cachedRegistrations = [];
   const event = { id: 'evt-1', _docId: 'event-doc-1', status: 'open' };
@@ -44,12 +50,13 @@ function loadSignupModule({ userIdDocs = [], uidDocs = [] } = {}) {
       }),
     },
     ApiService: {
-      getCurrentUser: jest.fn(() => ({ uid: 'user-1', displayName: 'Test User' })),
+      getCurrentUser: jest.fn(() => currentUser),
       getEvent: jest.fn(() => event),
       fetchRegistrationsIfMissing: jest.fn(() => Promise.resolve({ ok: true })),
       _withFirestoreFetchTimeout: jest.fn(promise => promise),
     },
     FirebaseService: {
+      _cache: { currentUser: firebaseCurrentUser },
       ensureAuthReadyForWrite: jest.fn(() => Promise.resolve(true)),
       _mapSubcollectionDoc: jest.fn((doc) => ({ ...doc.data(), _docId: doc.id, id: doc.id })),
       _upsertCanonicalCacheRecord: jest.fn((collection, reg) => {
@@ -58,6 +65,7 @@ function loadSignupModule({ userIdDocs = [], uidDocs = [] } = {}) {
       _registrationsServerSnapshotReceived: false,
       _registrationListenerKey: '',
     },
+    auth: authCurrentUid ? { currentUser: { uid: authCurrentUid } } : { currentUser: null },
     db: {
       collection: jest.fn(() => ({
         doc: jest.fn(() => ({
@@ -113,5 +121,42 @@ describe('event signup registration hydrate', () => {
     expect(cachedRegistrations).toHaveLength(1);
     expect(app._eventSignupRegistrationHydrateState).toBe(null);
     expect(app._shouldHoldSignupActionsForEventRegistrations(event)).toBe(false);
+  });
+
+  test('uses Firebase Auth uid before stale currentUser uid', async () => {
+    const { app, context, event, queryCalls } = loadSignupModule({
+      currentUser: { uid: 'stale-user', lineUserId: 'stale-line', displayName: 'Stale User' },
+      authCurrentUid: 'user-1',
+    });
+
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
+    await app._eventSignupRegistrationHydrateState.promise;
+    await Promise.resolve();
+
+    expect(context.FirebaseService.ensureAuthReadyForWrite).toHaveBeenCalledWith('user-1');
+    expect(queryCalls.map(call => call.value)).toEqual(['user-1', 'user-1']);
+  });
+
+  test('resolves signup write user from Firebase cache when ApiService user is not hydrated yet', () => {
+    const { app } = loadSignupModule({
+      currentUser: null,
+      firebaseCurrentUser: { uid: 'user-1', displayName: 'Cached User' },
+      authCurrentUid: 'user-1',
+    });
+
+    expect(app._getCurrentSignupUserForWrite()).toMatchObject({
+      uid: 'user-1',
+      displayName: 'Cached User',
+    });
+  });
+
+  test('does not resolve signup write user from nameless Firebase cache', () => {
+    const { app } = loadSignupModule({
+      currentUser: null,
+      firebaseCurrentUser: { uid: 'user-1' },
+      authCurrentUid: 'user-1',
+    });
+
+    expect(app._getCurrentSignupUserForWrite()).toBe(null);
   });
 });

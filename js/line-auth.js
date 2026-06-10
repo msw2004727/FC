@@ -81,6 +81,33 @@ const LineAuth = {
     }
   },
 
+  _matchesFirebaseCurrentUserCache() {
+    try {
+      if (typeof auth === 'undefined' || !auth?.currentUser?.uid) return false;
+      if (typeof FirebaseService === 'undefined' || !FirebaseService?._cache?.currentUser) return false;
+      const authUid = String(auth.currentUser.uid || '').trim();
+      const currentUser = FirebaseService._cache.currentUser;
+      const matches = [currentUser.uid, currentUser.lineUserId, currentUser._docId]
+        .map(v => String(v || '').trim())
+        .filter(Boolean)
+        .includes(authUid);
+      if (!matches) return false;
+      if (!this._profile) {
+        const displayName = String(currentUser.displayName || currentUser.name || '').trim();
+        if (!displayName) return false;
+        this._profile = {
+          userId: authUid,
+          displayName,
+          pictureUrl: currentUser.pictureUrl || currentUser.photoURL || null,
+          email: currentUser.email || null,
+        };
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  },
+
   isLoggedInWithLiff() {
     return this._ready && this._profile !== null && this.hasLiffSession();
   },
@@ -481,17 +508,19 @@ const LineAuth = {
   },
 
   isLoggedIn() {
-    if (!this._ready) return false;
-    // Tier 1：LIFF profile 存在（正常狀態）
-    if (this._profile !== null) return true;
-    // Tier 2：LIFF 過期但 Firebase Auth 還活著 + 快取 profile
-    if (this._firebaseSessionAlive()) {
+    const hasFirebaseUserFallback = () => {
+      if (!this._firebaseSessionAlive()) return false;
       const cached = this.restoreCachedProfile();
       if (cached && this._matchesFirebaseUid(cached)) {
         return true;
       }
-    }
-    return false;
+      return this._matchesFirebaseCurrentUserCache();
+    };
+    if (!this._ready) return hasFirebaseUserFallback();
+    // Tier 1：LIFF profile 存在（正常狀態）
+    if (this._profile !== null) return true;
+    // Tier 2：LIFF 過期但 Firebase Auth 還活著 + 快取 profile
+    return hasFirebaseUserFallback();
   },
 
   getProfile() {

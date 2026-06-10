@@ -8,6 +8,11 @@ Object.assign(App, {
 
   _eventSignupRegistrationHydrateTimeoutMs: 9000,
   _eventSignupRegistrationProofs: new Set(),
+  _eventSignupRegistrationAuthRetryTimer: null,
+  _eventSignupRegistrationAuthRetryCounts: new Map(),
+  _eventSignupRegistrationAuthBypassUntil: new Map(),
+  _eventSignupRegistrationAuthRetryLimit: 3,
+  _eventSignupRegistrationAuthBypassMs: 30000,
 
   _beginEventActionBusy(key, message = '系統已在處理中') {
     const busyKey = String(key || '').trim();
@@ -101,7 +106,18 @@ Object.assign(App, {
       this._eventSignupRegistrationProofs = new Set();
     }
     this._eventSignupRegistrationProofs.add(key);
+    this._eventSignupRegistrationAuthRetryCounts?.delete?.(key);
+    this._eventSignupRegistrationAuthBypassUntil?.delete?.(key);
     return true;
+  },
+
+  _isEventSignupRegistrationAuthBypassed(eventId, uid) {
+    const key = this._getEventSignupRegistrationProofKey?.(eventId, uid);
+    if (!key || !this._eventSignupRegistrationAuthBypassUntil?.get) return false;
+    const until = Number(this._eventSignupRegistrationAuthBypassUntil.get(key) || 0);
+    if (until > Date.now()) return true;
+    this._eventSignupRegistrationAuthBypassUntil.delete(key);
+    return false;
   },
 
   _markEventSignupRegistrationHydrateIssue(eventId, uid, promise, reason) {
@@ -174,10 +190,18 @@ Object.assign(App, {
     }, timeoutMs);
     this._eventSignupRegistrationHydrateState = nextState;
     this._refreshSignupButton?.(eventId);
-    fetchPromise.then(() => {
+    fetchPromise.then((result) => {
       const current = this._eventSignupRegistrationHydrateState;
       if (!this._sameEventSignupRegistrationHydrateState(current, eventId, uid)
         || current.promise !== fetchPromise) return;
+      if (result?.ok === false && result.reason === 'auth-not-ready') {
+        this._recoverEventSignupRegistrationAuthNotReady?.(eventId, current);
+        return;
+      }
+      if (result?.ok === false && result.reason && result.reason !== 'missing-context') {
+        this._markEventSignupRegistrationHydrateIssue(eventId, uid, fetchPromise, result.reason);
+        return;
+      }
       if (this._shouldHoldSignupActionsForEventRegistrations?.(e) === true) {
         this._markEventSignupRegistrationHydrateIssue(eventId, uid, fetchPromise, 'unverified');
       } else {
@@ -468,8 +492,115 @@ Object.assign(App, {
   },
 
   _getCurrentSignupRegistrationUid() {
+    const authUid = (typeof auth !== 'undefined' && auth?.currentUser?.uid)
+      ? String(auth.currentUser.uid || '').trim()
+      : '';
+    if (authUid) return authUid;
     const user = ApiService.getCurrentUser?.() || null;
-    return String(user?.uid || user?.lineUserId || '').trim();
+    const userUid = String(user?.uid || user?.lineUserId || '').trim();
+    if (userUid) return userUid;
+    try {
+      const profile = (typeof LineAuth !== 'undefined' && typeof LineAuth.getProfile === 'function')
+        ? LineAuth.getProfile()
+        : null;
+      return String(profile?.userId || '').trim();
+    } catch (_) {
+      return '';
+    }
+  },
+
+  _getCurrentSignupUserForWrite() {
+    const authUid = (typeof auth !== 'undefined' && auth?.currentUser?.uid)
+      ? String(auth.currentUser.uid || '').trim()
+      : '';
+    const candidates = [];
+    const pushCandidate = (value, source = 'api') => {
+      if (value && typeof value === 'object') candidates.push({ value, source });
+    };
+    pushCandidate(ApiService.getCurrentUser?.() || null, 'api');
+    pushCandidate((typeof FirebaseService !== 'undefined' && FirebaseService?._cache?.currentUser)
+      ? FirebaseService._cache.currentUser
+      : null, 'firebase-cache');
+    try {
+      const profile = (typeof LineAuth !== 'undefined' && typeof LineAuth.getProfile === 'function')
+        ? LineAuth.getProfile()
+        : null;
+      if (profile?.userId) {
+        pushCandidate({
+          uid: profile.userId,
+          lineUserId: profile.userId,
+          displayName: profile.displayName,
+          name: profile.displayName,
+          pictureUrl: profile.pictureUrl || null,
+        }, 'line-profile');
+      }
+    } catch (_) {}
+
+    const matchesAuthUid = (user) => {
+      if (!authUid) return true;
+      return [user?.uid, user?.lineUserId, user?._docId, user?.userId]
+        .map(v => String(v || '').trim())
+        .filter(Boolean)
+        .includes(authUid);
+    };
+    const hasUsableName = (user) => String(user?.displayName || user?.name || '').trim();
+    const candidateEntry = candidates.find(({ value: user, source }) => matchesAuthUid(user)
+      && String(user.uid || user.lineUserId || user._docId || user.userId || '').trim()
+      && (source === 'api' || hasUsableName(user)));
+    const candidate = candidateEntry?.value || null;
+    if (!candidate) return null;
+    const resolvedUid = authUid || String(candidate.uid || candidate.lineUserId || candidate._docId || candidate.userId || '').trim();
+    return {
+      ...candidate,
+      uid: resolvedUid,
+      lineUserId: candidate.lineUserId || resolvedUid,
+      displayName: candidate.displayName || candidate.name || '用戶',
+    };
+  },
+
+  _isEventSignupAuthStillResolving() {
+    if (typeof auth !== 'undefined' && auth?.currentUser?.uid) return false;
+    try {
+      if (typeof LineAuth !== 'undefined') {
+        if (typeof LineAuth.isPendingLogin === 'function' && LineAuth.isPendingLogin()) return true;
+        if (typeof LineAuth.hasLiffSession === 'function'
+          && LineAuth.hasLiffSession()
+          && !LineAuth._profileError) {
+          return true;
+        }
+      }
+    } catch (_) {}
+    try {
+      if (typeof _firebaseAuthReady !== 'undefined' && !_firebaseAuthReady) return true;
+    } catch (_) {}
+    return false;
+  },
+
+  _scheduleEventSignupRegistrationAuthRetry(eventId) {
+    if (this._eventSignupRegistrationAuthRetryTimer) {
+      clearTimeout(this._eventSignupRegistrationAuthRetryTimer);
+    }
+    this._eventSignupRegistrationAuthRetryTimer = setTimeout(() => {
+      this._eventSignupRegistrationAuthRetryTimer = null;
+      this._refreshSignupButton?.(eventId);
+    }, 900);
+  },
+
+  _recoverEventSignupRegistrationAuthNotReady(eventId, state) {
+    this._clearEventSignupRegistrationHydrateTimer(state);
+    this._eventSignupRegistrationHydrateState = null;
+    const uid = String(state?.uid || this._getCurrentSignupRegistrationUid?.() || '').trim();
+    const key = this._getEventSignupRegistrationProofKey?.(eventId, uid);
+    if (key && this._isEventSignupAuthStillResolving?.() !== true) {
+      const nextCount = Number(this._eventSignupRegistrationAuthRetryCounts?.get?.(key) || 0) + 1;
+      this._eventSignupRegistrationAuthRetryCounts?.set?.(key, nextCount);
+      if (nextCount >= this._eventSignupRegistrationAuthRetryLimit) {
+        const bypassMs = Number(this._eventSignupRegistrationAuthBypassMs || 30000) || 30000;
+        this._eventSignupRegistrationAuthBypassUntil?.set?.(key, Date.now() + bypassMs);
+        this._eventSignupRegistrationAuthRetryCounts?.delete?.(key);
+      }
+    }
+    this._scheduleEventSignupRegistrationAuthRetry?.(eventId);
   },
 
   _hasEventSignupRegistrationServerProof(e, uid) {
@@ -546,9 +677,12 @@ Object.assign(App, {
       return await queryPromise;
     } catch (err) {
       console.warn('[EventDetail] current user registration proof failed:', err);
+      const code = String(err?.code || '').trim();
       return {
         ok: false,
-        reason: err?.code === 'firestore-fetch-timeout' || err?.code === 'timeout' ? 'timeout' : 'error',
+        reason: code === 'firestore-fetch-timeout' || code === 'timeout'
+          ? 'timeout'
+          : ((code === 'permission-denied' || code === 'unauthenticated') ? 'auth-not-ready' : 'error'),
         error: err,
       };
     }
@@ -561,6 +695,12 @@ Object.assign(App, {
 
     const uid = this._getCurrentSignupRegistrationUid?.() || '';
     if (!uid) return false;
+    if (this._isEventSignupRegistrationAuthBypassed?.(e.id, uid)) return false;
+
+    const authUid = (typeof auth !== 'undefined' && auth?.currentUser?.uid)
+      ? String(auth.currentUser.uid || '').trim()
+      : '';
+    if (!authUid && this._isEventSignupAuthStillResolving?.() !== true) return false;
 
     const currentState = typeof this._getCurrentUserEventRegistrationState === 'function'
       ? this._getCurrentUserEventRegistrationState(e)
@@ -624,9 +764,17 @@ Object.assign(App, {
       timedOut: false,
     };
 
-    promise.then(() => {
+    promise.then((result) => {
       const state = this._eventSignupRegistrationHydrateState;
       if (state?.eventId === eventId && state?.uid === uid && state?.promise === promise) {
+        if (result?.ok === false && result.reason === 'auth-not-ready') {
+          this._recoverEventSignupRegistrationAuthNotReady?.(eventId, state);
+          return;
+        }
+        if (result?.ok === false && result.reason && result.reason !== 'missing-context') {
+          this._markEventSignupRegistrationHydrateIssue(eventId, uid, promise, result.reason);
+          return;
+        }
         if (this._shouldHoldSignupActionsForEventRegistrations?.(e) === true) {
           this._markEventSignupRegistrationHydrateIssue(eventId, uid, promise, 'unverified');
         } else {
@@ -1184,8 +1332,9 @@ Object.assign(App, {
       this.showToast('俱樂部限定活動，僅限該隊成員報名');
       return;
     }
+    const signupUser = this._getCurrentSignupUserForWrite?.() || ApiService.getCurrentUser?.() || null;
     const genderSignupState = typeof this._getEventGenderSignupState === 'function'
-      ? this._getEventGenderSignupState(e, ApiService.getCurrentUser?.() || null)
+      ? this._getEventGenderSignupState(e, signupUser)
       : { restricted: false, canSignup: true, requiresLogin: false, reason: '' };
     if (genderSignupState.restricted && !genderSignupState.requiresLogin && !genderSignupState.canSignup) {
       this.showToast(this._getEventGenderRestrictionMessage?.(e, genderSignupState.reason) || '此活動不符合目前性別限制');
@@ -1211,7 +1360,7 @@ Object.assign(App, {
       }
     }
 
-    const user = ApiService.getCurrentUser();
+    const user = signupUser;
     if (!user?.uid) { this.showToast('用戶資料載入中，請稍候再試'); return; }
     const userName = user.displayName || user.name || '用戶';
     const userId = user.uid;

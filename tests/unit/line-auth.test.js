@@ -59,6 +59,37 @@ function _matchesFirebaseUid(cachedProfile, firebaseUid) {
   return firebaseUid === cachedProfile.userId;
 }
 
+function _matchesFirebaseCurrentUserCache(currentUser, firebaseUid, hasExistingProfile = false) {
+  if (!currentUser || !firebaseUid) return false;
+  const matches = [currentUser.uid, currentUser.lineUserId, currentUser._docId]
+    .map(v => String(v || '').trim())
+    .filter(Boolean)
+    .includes(firebaseUid);
+  if (!matches) return false;
+  return hasExistingProfile || !!String(currentUser.displayName || currentUser.name || '').trim();
+}
+
+function _isLoggedIn({ ready, profile, firebaseUid, cachedProfile, currentUser }) {
+  const hasFirebaseUserFallback = () => {
+    if (!firebaseUid) return false;
+    if (cachedProfile && _matchesFirebaseUid(cachedProfile, firebaseUid)) return true;
+    return _matchesFirebaseCurrentUserCache(currentUser, firebaseUid);
+  };
+  if (!ready) return hasFirebaseUserFallback();
+  if (profile !== null && profile !== undefined) return true;
+  return hasFirebaseUserFallback();
+}
+
+function _profileFromCurrentUserCache(currentUser, firebaseUid) {
+  if (!_matchesFirebaseCurrentUserCache(currentUser, firebaseUid)) return null;
+  return {
+    userId: firebaseUid,
+    displayName: currentUser.displayName || currentUser.name || currentUser.email || '用戶',
+    pictureUrl: currentUser.pictureUrl || currentUser.photoURL || null,
+    email: currentUser.email || null,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Extracted from js/line-auth.js:38-46 (adapted)
 // _isValidProfileCache — checks if cached profile is valid
@@ -173,6 +204,68 @@ describe('_matchesFirebaseUid (line-auth.js:65-73)', () => {
   test('no firebase uid → false', () => {
     expect(_matchesFirebaseUid({ userId: 'u1' }, null)).toBe(false);
     expect(_matchesFirebaseUid({ userId: 'u1' }, '')).toBe(false);
+  });
+});
+
+describe('_matchesFirebaseCurrentUserCache', () => {
+  test('matches Firebase uid against currentUser uid', () => {
+    expect(_matchesFirebaseCurrentUserCache({ uid: 'u1', displayName: 'Alice' }, 'u1')).toBe(true);
+  });
+
+  test('matches Firebase uid against currentUser lineUserId or doc id', () => {
+    expect(_matchesFirebaseCurrentUserCache({ uid: 'legacy', lineUserId: 'u1', displayName: 'Alice' }, 'u1')).toBe(true);
+    expect(_matchesFirebaseCurrentUserCache({ _docId: 'u1', name: 'Alice' }, 'u1')).toBe(true);
+  });
+
+  test('does not match missing or unrelated currentUser cache', () => {
+    expect(_matchesFirebaseCurrentUserCache(null, 'u1')).toBe(false);
+    expect(_matchesFirebaseCurrentUserCache({ uid: 'u2', lineUserId: 'u3', displayName: 'Alice' }, 'u1')).toBe(false);
+    expect(_matchesFirebaseCurrentUserCache({ uid: 'u1', displayName: 'Alice' }, '')).toBe(false);
+    expect(_matchesFirebaseCurrentUserCache({ uid: 'u1' }, 'u1')).toBe(false);
+  });
+});
+
+describe('isLoggedIn fallback contract', () => {
+  test('accepts a restored Firebase user before LIFF is ready when cache matches', () => {
+    expect(_isLoggedIn({
+      ready: false,
+      profile: null,
+      firebaseUid: 'u1',
+      cachedProfile: null,
+      currentUser: { uid: 'u1', displayName: 'Alice' },
+    })).toBe(true);
+  });
+
+  test('does not accept unrelated cache before LIFF is ready', () => {
+    expect(_isLoggedIn({
+      ready: false,
+      profile: null,
+      firebaseUid: 'u1',
+      cachedProfile: null,
+      currentUser: { uid: 'u2', displayName: 'Alice' },
+    })).toBe(false);
+  });
+
+  test('does not accept Firebase cache without a real display name', () => {
+    expect(_isLoggedIn({
+      ready: false,
+      profile: null,
+      firebaseUid: 'u1',
+      cachedProfile: null,
+      currentUser: { uid: 'u1' },
+    })).toBe(false);
+  });
+
+  test('Firebase cache fallback can provide a minimal profile for logged-in callers', () => {
+    expect(_profileFromCurrentUserCache({
+      uid: 'u1',
+      displayName: 'Alice',
+      pictureUrl: 'https://example.test/a.png',
+    }, 'u1')).toMatchObject({
+      userId: 'u1',
+      displayName: 'Alice',
+      pictureUrl: 'https://example.test/a.png',
+    });
   });
 });
 

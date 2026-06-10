@@ -386,7 +386,11 @@ Object.assign(App, {
   // ══════════════════════════════════
 
   _getCurrentUserEventRegistrationState(e) {
-    const uid = String(ApiService.getCurrentUser?.()?.uid || '').trim();
+    const authUid = (typeof auth !== 'undefined' && auth?.currentUser?.uid)
+      ? String(auth.currentUser.uid || '').trim()
+      : '';
+    const currentUser = ApiService.getCurrentUser?.() || null;
+    const uid = String(authUid || currentUser?.uid || currentUser?.lineUserId || '').trim();
     if (!uid || !e?.id) return { signedUp: false, onWaitlist: false };
     const regs = ApiService.getRegistrationsByEvent?.(e.id) || [];
     const isActive = r => r && r.status !== 'cancelled' && r.status !== 'removed';

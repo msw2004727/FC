@@ -35,6 +35,8 @@ function loadSignupModule({
   registrationsServerSnapshotReceived = false,
   fetchRegistrationsIfMissing = jest.fn(() => Promise.resolve()),
   ensureAuthReadyForWrite = jest.fn(() => Promise.resolve(true)),
+  authCurrentUid = currentUser?.uid || null,
+  lineSessionResolving = false,
   registrationDocsByField = { userId: [], uid: [] },
   registrationQueryImpl = null,
   currentRegistrationState = { signedUp: false },
@@ -69,6 +71,13 @@ function loadSignupModule({
       _upsertCanonicalCacheRecord: jest.fn(),
       _registrationListenerKey: registrationListenerKey,
       _registrationsServerSnapshotReceived: registrationsServerSnapshotReceived,
+    },
+    auth: authCurrentUid ? { currentUser: { uid: authCurrentUid } } : { currentUser: null },
+    LineAuth: {
+      isPendingLogin: jest.fn(() => lineSessionResolving),
+      hasLiffSession: jest.fn(() => lineSessionResolving),
+      getProfile: jest.fn(() => null),
+      _profileError: null,
     },
     db: {
       collection: jest.fn(() => ({
@@ -139,6 +148,16 @@ describe('event detail signup registration loading gate', () => {
     expect(fetchRegistrationsIfMissing).not.toHaveBeenCalled();
   });
 
+  test('does not hold when only stale cached currentUser exists without auth or LINE session', () => {
+    const { app, event, queryCalls } = loadSignupModule({
+      authCurrentUid: null,
+      lineSessionResolving: false,
+    });
+
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(false);
+    expect(queryCalls).toHaveLength(0);
+  });
+
   test('uses a user-scoped server registrations snapshot as absence proof without fetching the whole event', () => {
     const fetchRegistrationsIfMissing = jest.fn(() => Promise.resolve());
     const { app, event } = loadSignupModule({
@@ -199,5 +218,66 @@ describe('event detail signup registration loading gate', () => {
     expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(false);
     expect(app._isEventSignupRegistrationHydrateIssue(event)).toBe(false);
     expect(app._eventSignupRegistrationHydrateState).toBe(null);
+  });
+
+  test('auth-not-ready keeps signup state retryable without showing sync issue', async () => {
+    jest.useFakeTimers();
+    const { app, event } = loadSignupModule({
+      ensureAuthReadyForWrite: jest.fn(() => Promise.resolve(false)),
+      authCurrentUid: null,
+      lineSessionResolving: true,
+    });
+    app._refreshSignupButton = jest.fn();
+
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
+    await flushMicrotasks();
+
+    expect(app._eventSignupRegistrationHydrateState).toBe(null);
+    expect(app._isEventSignupRegistrationHydrateIssue(event)).toBe(false);
+
+    jest.advanceTimersByTime(900);
+    expect(app._refreshSignupButton).toHaveBeenCalledWith(event.id);
+    jest.useRealTimers();
+  });
+
+  test('permission-denied during proof read delays retry instead of showing sync issue', async () => {
+    jest.useFakeTimers();
+    const denied = new Error('permission denied');
+    denied.code = 'permission-denied';
+    const { app, event } = loadSignupModule({
+      registrationQueryImpl: () => Promise.reject(denied),
+      authCurrentUid: 'user-1',
+      lineSessionResolving: false,
+    });
+    app._refreshSignupButton = jest.fn();
+
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
+    await flushMicrotasks();
+
+    expect(app._eventSignupRegistrationHydrateState).toBe(null);
+    expect(app._isEventSignupRegistrationHydrateIssue(event)).toBe(false);
+    expect(app._refreshSignupButton).not.toHaveBeenCalled();
+
+    jest.advanceTimersByTime(900);
+    expect(app._refreshSignupButton).toHaveBeenCalledWith(event.id);
+    jest.useRealTimers();
+  });
+
+  test('repeated auth proof failures temporarily release the signup gate', () => {
+    jest.useFakeTimers();
+    const { app, event } = loadSignupModule({
+      authCurrentUid: 'user-1',
+      lineSessionResolving: false,
+    });
+    app._eventSignupRegistrationAuthRetryLimit = 2;
+
+    app._recoverEventSignupRegistrationAuthNotReady(event.id, { eventId: event.id, uid: 'user-1' });
+    expect(app._isEventSignupRegistrationAuthBypassed(event.id, 'user-1')).toBe(false);
+
+    app._recoverEventSignupRegistrationAuthNotReady(event.id, { eventId: event.id, uid: 'user-1' });
+    expect(app._isEventSignupRegistrationAuthBypassed(event.id, 'user-1')).toBe(true);
+    expect(app._shouldHoldSignupActionsForEventRegistrations(event)).toBe(false);
+
+    jest.useRealTimers();
   });
 });
