@@ -4088,7 +4088,7 @@ function buildEduWeeklyAttendanceDates(plan, todayKey, attendanceStartKey) {
 }
 
 exports.getEduStudentAttendanceOverview = onCall(
-  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB" },
   async (request) => {
     if (!request.auth?.uid) {
       throw new HttpsError("unauthenticated", "Authentication required");
