@@ -121,7 +121,7 @@ describe('event detail signup registration loading gate', () => {
     jest.restoreAllMocks();
   });
 
-  test('holds signup actions and de-dupes user-scoped registration hydrate while event/user state is not server-confirmed', async () => {
+  test('starts a background user-scoped registration proof without holding when auth is ready', async () => {
     const deferred = createDeferred();
     const fetchRegistrationsIfMissing = jest.fn(() => Promise.resolve());
     const { app, event, queryCalls } = loadSignupModule({
@@ -129,12 +129,18 @@ describe('event detail signup registration loading gate', () => {
       registrationQueryImpl: () => deferred.promise,
     });
 
-    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
-    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(false);
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(false);
     await flushMicrotasks(3);
 
     expect(fetchRegistrationsIfMissing).not.toHaveBeenCalled();
     expect(queryCalls).toHaveLength(1);
+    expect(app._eventSignupRegistrationHydrateState).toBeFalsy();
+    expect(app._eventSignupRegistrationBackgroundProofState).toMatchObject({
+      eventId: event.id,
+      uid: 'user-1',
+      pending: true,
+    });
     expect(queryCalls[0]).toMatchObject({
       field: 'userId',
       value: 'user-1',
@@ -192,9 +198,9 @@ describe('event detail signup registration loading gate', () => {
     expect(fetchRegistrationsIfMissing).not.toHaveBeenCalled();
   });
 
-  test('keeps refreshSignupButton on loading and does not compute a signup CTA before registration proof', () => {
+  test('renders an optimistic signup CTA while registration proof runs in the background', async () => {
     const deferred = createDeferred();
-    const { app } = loadSignupModule({
+    const { app, queryCalls } = loadSignupModule({
       registrationQueryImpl: () => deferred.promise,
     });
     app._buildEventSignupLoadingButton = jest.fn(() => '<button data-state="loading" disabled>loading</button>');
@@ -202,9 +208,12 @@ describe('event detail signup registration loading gate', () => {
 
     document.body.innerHTML = '<div class="detail-action-primary"></div>';
     app._refreshSignupButton('evt-1');
+    await flushMicrotasks(3);
 
-    expect(document.querySelector('.detail-action-primary button')?.dataset.state).toBe('loading');
-    expect(app._isUserSignedUp).not.toHaveBeenCalled();
+    expect(document.querySelector('.detail-action-primary button')?.dataset.state).toBeUndefined();
+    expect(document.querySelector('.detail-action-primary button')?.textContent).toContain('立即報名');
+    expect(app._isUserSignedUp).toHaveBeenCalled();
+    expect(queryCalls).toHaveLength(1);
   });
 
   test('turns unresolved hydrate into a retryable issue instead of staying pending forever', async () => {
@@ -212,6 +221,8 @@ describe('event detail signup registration loading gate', () => {
     const deferred = createDeferred();
     const { app, event } = loadSignupModule({
       registrationQueryImpl: () => deferred.promise,
+      authCurrentUid: null,
+      lineSessionResolving: true,
     });
     app._eventSignupRegistrationHydrateTimeoutMs = 3000;
     app._refreshSignupButton = jest.fn();
@@ -237,6 +248,8 @@ describe('event detail signup registration loading gate', () => {
       registrationQueryImpl: ({ field }) => (field === 'userId'
         ? deferred.promise
         : Promise.resolve(emptySnap)),
+      authCurrentUid: null,
+      lineSessionResolving: true,
     });
     app._eventSignupRegistrationHydrateTimeoutMs = 3000;
     app._refreshSignupButton = jest.fn();
@@ -258,6 +271,8 @@ describe('event detail signup registration loading gate', () => {
   test('releases hydrate when server proves the current user has no registration', async () => {
     const { app, event } = loadSignupModule({
       registrationDocsByField: { userId: [], uid: [] },
+      authCurrentUid: null,
+      lineSessionResolving: true,
     });
 
     expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
@@ -316,7 +331,7 @@ describe('event detail signup registration loading gate', () => {
     jest.useFakeTimers();
     const { app, event } = loadSignupModule({
       ensureAuthReadyForWrite: jest.fn(() => new Promise(() => {})),
-      authCurrentUid: 'user-1',
+      authCurrentUid: null,
       lineSessionResolving: true,
       lineHasSession: true,
       lineReady: false,
@@ -343,8 +358,8 @@ describe('event detail signup registration loading gate', () => {
     denied.code = 'permission-denied';
     const { app, event } = loadSignupModule({
       registrationQueryImpl: () => Promise.reject(denied),
-      authCurrentUid: 'user-1',
-      lineSessionResolving: false,
+      authCurrentUid: null,
+      lineSessionResolving: true,
     });
     app._refreshSignupButton = jest.fn();
 
@@ -389,10 +404,11 @@ describe('event detail signup registration loading gate', () => {
         : Promise.reject(unavailable)),
     });
 
-    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(false);
     await flushMicrotasks(20);
 
-    expect(app._eventSignupRegistrationHydrateState).toBe(null);
+    expect(app._eventSignupRegistrationBackgroundProofState).toBe(null);
+    expect(app._eventSignupRegistrationHydrateState).toBeFalsy();
     expect(app._isEventSignupRegistrationHydrateIssue(event)).toBe(false);
     expect(app._hasCurrentEventSignupRegistrationServerProof(event)).toBe(true);
   });
@@ -411,14 +427,15 @@ describe('event detail signup registration loading gate', () => {
       },
     });
 
-    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(false);
     await flushMicrotasks(20);
 
     expect(context.FirebaseService._upsertCanonicalCacheRecord).toHaveBeenCalledWith(
       'registrations',
       expect.objectContaining({ eventId: 'evt-1', userId: 'user-1', status: 'confirmed' })
     );
-    expect(app._eventSignupRegistrationHydrateState).toBe(null);
+    expect(app._eventSignupRegistrationBackgroundProofState).toBe(null);
+    expect(app._eventSignupRegistrationHydrateState).toBeFalsy();
     expect(app._isEventSignupRegistrationHydrateIssue(event)).toBe(false);
   });
 
@@ -430,6 +447,8 @@ describe('event detail signup registration loading gate', () => {
       registrationQueryImpl: () => (mode === 'fail-all'
         ? Promise.reject(failing)
         : Promise.resolve({ empty: true, docs: [] })),
+      authCurrentUid: null,
+      lineSessionResolving: true,
     });
 
     expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
@@ -456,6 +475,8 @@ describe('event detail signup registration loading gate', () => {
     failing.code = 'internal';
     const { app, event } = loadSignupModule({
       registrationQueryImpl: () => Promise.reject(failing),
+      authCurrentUid: null,
+      lineSessionResolving: true,
     });
     app._refreshSignupButton = jest.fn();
 
@@ -467,6 +488,64 @@ describe('event detail signup registration loading gate', () => {
     await jest.advanceTimersByTimeAsync(10000);
 
     expect(app._refreshSignupButton).toHaveBeenCalledWith(event.id);
+    jest.useRealTimers();
+  });
+
+  test('age signup state blocks users below the event minimum age using the event date', () => {
+    const { app, event } = loadSignupModule({
+      event: {
+        id: 'evt-1',
+        _docId: 'evt-doc-1',
+        status: 'open',
+        max: 10,
+        current: 0,
+        date: '2026/06/12 20:00~22:00',
+        minAge: 13,
+      },
+    });
+    app._getEventSignupReferenceDate = jest.fn(() => app._parseEventSignupBirthday('2026/06/12'));
+
+    expect(app._getEventAgeSignupState(event, { uid: 'user-1', birthday: '2015/06/13' }))
+      .toMatchObject({ restricted: true, canSignup: false, reason: 'underage', minAge: 13, age: 10 });
+    expect(app._getEventAgeSignupState(event, { uid: 'user-1', birthday: '2013/06/12' }))
+      .toMatchObject({ restricted: false, canSignup: true, minAge: 13, age: 13 });
+  });
+
+  test('callable auth guard blocks writes and schedules a retry when Firebase auth is not ready', async () => {
+    jest.useFakeTimers();
+    const ensureAuthReadyForWrite = jest.fn(() => Promise.resolve(false));
+    const { app } = loadSignupModule({ ensureAuthReadyForWrite });
+    app.showToast = jest.fn();
+    app.ensureCloudReady = jest.fn(() => Promise.resolve(true));
+    app._refreshSignupButton = jest.fn();
+
+    const result = await app._ensureEventSignupCallableAuthReady('evt-1', 'user-1');
+    await flushMicrotasks();
+
+    expect(result).toBe(false);
+    expect(ensureAuthReadyForWrite).toHaveBeenCalledWith('user-1');
+    expect(app.showToast).toHaveBeenCalledWith('登入狀態同步中，請稍後再試');
+    expect(app.ensureCloudReady).toHaveBeenCalledWith({ reason: 'signup-auth' });
+
+    jest.advanceTimersByTime(900);
+    expect(app._refreshSignupButton).toHaveBeenCalledWith('evt-1');
+    jest.useRealTimers();
+  });
+
+  test('callable auth guard treats synchronous auth readiness errors as not ready', async () => {
+    jest.useFakeTimers();
+    const ensureAuthReadyForWrite = jest.fn(() => { throw new Error('sync auth failure'); });
+    const { app } = loadSignupModule({ ensureAuthReadyForWrite });
+    app.showToast = jest.fn();
+    app.ensureCloudReady = jest.fn(() => Promise.resolve(true));
+    app._refreshSignupButton = jest.fn();
+
+    await expect(app._ensureEventSignupCallableAuthReady('evt-1', 'user-1')).resolves.toBe(false);
+    expect(app.showToast).toHaveBeenCalledWith('登入狀態同步中，請稍後再試');
+    expect(app.ensureCloudReady).toHaveBeenCalledWith({ reason: 'signup-auth' });
+
+    jest.advanceTimersByTime(900);
+    expect(app._refreshSignupButton).toHaveBeenCalledWith('evt-1');
     jest.useRealTimers();
   });
 });

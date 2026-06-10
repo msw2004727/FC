@@ -16,6 +16,7 @@ Object.assign(App, {
   // 2026-06-10：issue 後的自動重查退避（預設 10s、下限 3s）＋單槽 nudge timer
   _eventSignupRegistrationIssueRetryDelayMs: 10000,
   _eventSignupRegistrationIssueRetryTimer: null,
+  _eventSignupRegistrationBackgroundProofState: null,
 
   _beginEventActionBusy(key, message = '系統已在處理中') {
     const busyKey = String(key || '').trim();
@@ -100,6 +101,11 @@ Object.assign(App, {
         this._refreshSignupButton?.(eventId);
       }
     }, this._getEventSignupRegistrationIssueRetryDelayMs());
+  },
+
+  _canOptimisticallyRenderEventSignupActions(e) {
+    if (!e) return false;
+    return this._isEventSignupAuthStillResolving?.() !== true;
   },
 
   _clearEventSignupRegistrationHydrateTimer(state) {
@@ -609,6 +615,73 @@ Object.assign(App, {
     return false;
   },
 
+  _parseEventSignupBirthday(value) {
+    const text = String(value || '').trim();
+    if (!text) return null;
+    const match = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    if (!year || !month || !day || month < 1 || month > 12 || day < 1 || day > 31) return null;
+    const date = new Date(year, month - 1, day);
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+    return date;
+  },
+
+  _getEventSignupReferenceDate(e) {
+    try {
+      const parsed = this._parseEventStartDate?.(e?.date);
+      if (parsed instanceof Date && !Number.isNaN(parsed.getTime())) return parsed;
+    } catch (_) {}
+    return new Date();
+  },
+
+  _calculateEventSignupAge(birthday, referenceDate) {
+    if (!(birthday instanceof Date) || Number.isNaN(birthday.getTime())) return null;
+    const ref = referenceDate instanceof Date && !Number.isNaN(referenceDate.getTime())
+      ? referenceDate
+      : new Date();
+    let age = ref.getFullYear() - birthday.getFullYear();
+    if (ref.getMonth() < birthday.getMonth()
+      || (ref.getMonth() === birthday.getMonth() && ref.getDate() < birthday.getDate())) {
+      age -= 1;
+    }
+    return age >= 0 && age < 130 ? age : null;
+  },
+
+  _getEventAgeSignupState(e, user = null) {
+    const minAge = Math.floor(Number(e?.minAge || 0));
+    if (!Number.isFinite(minAge) || minAge <= 0) {
+      return { restricted: false, canSignup: true, requiresLogin: false, reason: '', minAge: 0, age: null };
+    }
+    if (!user) {
+      return { restricted: true, canSignup: false, requiresLogin: true, reason: 'login-required', minAge, age: null };
+    }
+    const birthday = this._parseEventSignupBirthday?.(user.birthday);
+    const age = this._calculateEventSignupAge?.(birthday, this._getEventSignupReferenceDate?.(e));
+    if (age == null) {
+      return { restricted: true, canSignup: false, requiresLogin: false, reason: 'birthday-missing', minAge, age: null };
+    }
+    if (age < minAge) {
+      return { restricted: true, canSignup: false, requiresLogin: false, reason: 'underage', minAge, age };
+    }
+    return { restricted: false, canSignup: true, requiresLogin: false, reason: '', minAge, age };
+  },
+
+  _getEventAgeRestrictionMessage(e, state = null) {
+    const info = state || this._getEventAgeSignupState?.(e, ApiService.getCurrentUser?.() || null) || {};
+    const minAge = Math.floor(Number(info.minAge || e?.minAge || 0));
+    if (info.reason === 'birthday-missing') return '\u8acb\u5148\u88dc\u9f4a\u751f\u65e5\u8cc7\u6599\u5f8c\u518d\u5831\u540d';
+    if (minAge > 0) return `\u6b64\u6d3b\u52d5\u9650 ${minAge} \u6b72\u4ee5\u4e0a\u5831\u540d`;
+    return '\u6b64\u6d3b\u52d5\u6709\u5e74\u9f61\u9650\u5236';
+  },
+
+  _getEventAgeRestrictionButtonText(e) {
+    const minAge = Math.floor(Number(e?.minAge || 0));
+    return minAge > 0 ? `${minAge}\u6b72\u4ee5\u4e0a` : '\u5e74\u9f61\u9650\u5236';
+  },
+
   _scheduleEventSignupRegistrationAuthRetry(eventId) {
     if (this._eventSignupRegistrationAuthRetryTimer) {
       clearTimeout(this._eventSignupRegistrationAuthRetryTimer);
@@ -634,6 +707,110 @@ Object.assign(App, {
       }
     }
     this._scheduleEventSignupRegistrationAuthRetry?.(eventId);
+  },
+
+  _maybeStartEventSignupRegistrationProofRefresh(e, opts = {}) {
+    const eventId = String(e?.id || '').trim();
+    const uid = this._getCurrentSignupRegistrationUid?.() || '';
+    if (!eventId || !uid) return false;
+    if (this._isEventSignupAuthStillResolving?.() === true) return false;
+
+    const currentState = typeof this._getCurrentUserEventRegistrationState === 'function'
+      ? this._getCurrentUserEventRegistrationState(e)
+      : { signedUp: false };
+    if (currentState?.signedUp) return false;
+    if (this._hasEventSignupRegistrationServerProof?.(e, uid)) return false;
+    if (typeof this._fetchCurrentUserRegistrationStateForEvent !== 'function'
+      || typeof db === 'undefined') {
+      return false;
+    }
+
+    const eventDocId = String(e?._docId || ApiService.getEvent?.(eventId)?._docId || '').trim();
+    if (!eventDocId) return false;
+
+    const state = this._eventSignupRegistrationBackgroundProofState;
+    if (this._sameEventSignupRegistrationHydrateState?.(state, eventId, uid)) {
+      if (state?.pending === true) return true;
+      const issueAt = Number(state?.issueAt || 0) || 0;
+      if (issueAt && Date.now() - issueAt < this._getEventSignupRegistrationIssueRetryDelayMs()) {
+        return false;
+      }
+    }
+
+    const timeoutMs = Math.min(this._getEventSignupRegistrationHydrateTimeoutMs(), 5000);
+    const startedAt = Date.now();
+    const promise = Promise.resolve(this._fetchCurrentUserRegistrationStateForEvent(e, uid, {
+      ...opts,
+      timeoutMs,
+      startedAt,
+    })).catch(err => {
+      console.warn('[EventDetail] background signup registration proof failed:', err);
+      return { ok: false, reason: err?.code === 'firestore-fetch-timeout' ? 'timeout' : 'error', error: err };
+    });
+
+    this._eventSignupRegistrationBackgroundProofState = {
+      eventId,
+      uid,
+      pending: true,
+      promise,
+      startedAt,
+      issue: '',
+      issueAt: 0,
+    };
+
+    promise.then(result => {
+      const current = this._eventSignupRegistrationBackgroundProofState;
+      if (current?.eventId === eventId && current?.uid === uid && current?.promise === promise) {
+        if (result?.ok === false) {
+          current.pending = false;
+          current.issue = result.reason || 'error';
+          current.issueAt = Date.now();
+          if (result.reason === 'auth-not-ready') {
+            this._scheduleEventSignupRegistrationAuthRetry?.(eventId);
+          }
+        } else {
+          this._eventSignupRegistrationBackgroundProofState = null;
+        }
+      }
+      if (this.currentPage === 'page-activity-detail'
+        && this._currentDetailEventId === eventId
+        && !this._flipAnimating) {
+        this._refreshSignupButton?.(eventId);
+      }
+    });
+
+    return true;
+  },
+
+  async _ensureEventSignupCallableAuthReady(eventId, userId) {
+    if (typeof FirebaseService === 'undefined'
+      || typeof FirebaseService.ensureAuthReadyForWrite !== 'function') {
+      return true;
+    }
+    const safeUserId = String(userId || '').trim();
+    const authReady = await new Promise(resolve => {
+      const timer = setTimeout(() => resolve(false), 3000);
+      let authReadyPromise;
+      try {
+        authReadyPromise = FirebaseService.ensureAuthReadyForWrite(safeUserId);
+      } catch (_) {
+        clearTimeout(timer);
+        resolve(false);
+        return;
+      }
+      Promise.resolve(authReadyPromise)
+        .then(
+          value => { clearTimeout(timer); resolve(value === true); },
+          () => { clearTimeout(timer); resolve(false); }
+        );
+    });
+    if (authReady) return true;
+    this.showToast?.('\u767b\u5165\u72c0\u614b\u540c\u6b65\u4e2d\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+    void this.ensureCloudReady?.({ reason: 'signup-auth' })
+      ?.then?.(() => this._refreshSignupButton?.(eventId))
+      ?.catch?.(() => {});
+    this._scheduleEventSignupRegistrationAuthRetry?.(eventId);
+    return false;
   },
 
   _hasEventSignupRegistrationServerProof(e, uid) {
@@ -778,13 +955,15 @@ Object.assign(App, {
     const authUid = (typeof auth !== 'undefined' && auth?.currentUser?.uid)
       ? String(auth.currentUser.uid || '').trim()
       : '';
-    if (!authUid && this._isEventSignupAuthStillResolving?.() !== true) return false;
+    const authStillResolving = this._isEventSignupAuthStillResolving?.() === true;
+    if (!authUid && !authStillResolving) return false;
 
     const currentState = typeof this._getCurrentUserEventRegistrationState === 'function'
       ? this._getCurrentUserEventRegistrationState(e)
       : { signedUp: false };
     if (currentState?.signedUp) return false;
     if (this._hasEventSignupRegistrationServerProof?.(e, uid)) return false;
+    if (!authStillResolving) return false;
 
     if (typeof this._fetchCurrentUserRegistrationStateForEvent !== 'function'
       || typeof db === 'undefined') {
@@ -801,7 +980,9 @@ Object.assign(App, {
     const shouldHold = this._shouldHoldSignupActionsForEventRegistrations?.(e) === true;
 
     if (!shouldHold) {
+      this._maybeStartEventSignupRegistrationProofRefresh?.(e, opts);
       if (this._eventSignupRegistrationHydrateState?.eventId === eventId) {
+        this._clearEventSignupRegistrationHydrateTimer?.(this._eventSignupRegistrationHydrateState);
         this._eventSignupRegistrationHydrateState = null;
       }
       return false;
@@ -1446,6 +1627,13 @@ Object.assign(App, {
     if (!user?.uid) { this.showToast('用戶資料載入中，請稍候再試'); return; }
     const userName = user.displayName || user.name || '用戶';
     const userId = user.uid;
+    const ageSignupState = typeof this._getEventAgeSignupState === 'function'
+      ? this._getEventAgeSignupState(e, user)
+      : { restricted: false, canSignup: true, requiresLogin: false };
+    if (ageSignupState.restricted && !ageSignupState.requiresLogin && !ageSignupState.canSignup) {
+      this.showToast(this._getEventAgeRestrictionMessage?.(e, ageSignupState) || '\u6b64\u6d3b\u52d5\u6709\u5e74\u9f61\u9650\u5236');
+      return;
+    }
 
     if (this._hasActiveSelfRegistrationForEvent(id, userId)) {
       this.showToast('你已經報名這場活動');
@@ -1457,17 +1645,30 @@ Object.assign(App, {
     // 恢復報名 → 移除之前的取消紀錄
     this._removeCancelRecordOnResignup(id, userId);
 
+    const signupWillUseCF = isEarlyBirdSignup && typeof shouldUseServerRegistrationForEarlyBird === 'function'
+      ? shouldUseServerRegistrationForEarlyBird()
+      : (typeof shouldUseServerRegistrationForSignup === 'function'
+        ? shouldUseServerRegistrationForSignup()
+        : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration()));
+
     // 確保 Firebase SDK + Auth 已就緒（首次開啟或長時間未操作時可能未完成初始化）
     if (!this._cloudReady) {
       this.showToast('系統載入中，請稍候再試');
-      void this.ensureCloudReady?.({ reason: 'signup' });
+      void this.ensureCloudReady?.({ reason: 'signup' })
+        ?.then?.(() => this._refreshSignupButton?.(id))
+        ?.catch?.(() => {});
+      this._scheduleEventSignupRegistrationAuthRetry?.(id);
+      return;
+    }
+
+    if (signupWillUseCF
+      && typeof this._ensureEventSignupCallableAuthReady === 'function'
+      && await this._ensureEventSignupCallableAuthReady(id, userId) !== true) {
       return;
     }
 
     if (isEarlyBirdSignup) {
-      const useServerRegistration = typeof shouldUseServerRegistrationForEarlyBird === 'function'
-        ? shouldUseServerRegistrationForEarlyBird()
-        : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration());
+      const useServerRegistration = signupWillUseCF;
       if (!useServerRegistration) {
         this.showToast('早鳥報名需使用新版報名系統，請稍後再試');
         return;
@@ -1533,11 +1734,7 @@ Object.assign(App, {
         setTimeout(() => reject(new Error('報名操作逾時，請重新整理後再試')), 15000));
 
       let result;
-      const useCF = isEarlyBirdSignup && typeof shouldUseServerRegistrationForEarlyBird === 'function'
-        ? shouldUseServerRegistrationForEarlyBird()
-        : (typeof shouldUseServerRegistrationForSignup === 'function'
-          ? shouldUseServerRegistrationForSignup()
-          : (typeof shouldUseServerRegistration === 'function' && shouldUseServerRegistration()));
+      const useCF = signupWillUseCF;
       signupUseCF = useCF;
       signupRequestId = useCF
         ? `${userId}_${id}_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`
@@ -1614,7 +1811,7 @@ Object.assign(App, {
             earlyBirdCost: Number(selfReg?.earlyBirdCost || 0) || 0,
             earlyBirdRefunded: !!selfReg?.earlyBirdRefunded,
             registeredAt: new Date().toISOString(),
-            _docId: selfReg?._docId || selfReg?.id || ('reg_optimistic_' + Date.now()),
+            _docId: selfReg?.docId || selfReg?._docId || selfReg?.id || ('reg_optimistic_' + Date.now()),
           }, 'registrations', e?._docId || id), { requireSubcollection: false });
         }
         // CF 已完成 activityRecord / auditLog / EXP / 通知，前端不需要再做
@@ -1631,7 +1828,7 @@ Object.assign(App, {
         mutationType: isEarlyBirdSignup ? 'early-bird-signup' : 'signup',
         source: useCF ? 'callable' : 'firestore-fallback',
         requestId: signupRequestId,
-        affectedRegistrationIds: [result?.registration?._docId || result?.registration?.id].filter(Boolean),
+        affectedRegistrationIds: [result?.registration?.docId || result?.registration?._docId || result?.registration?.id].filter(Boolean),
       });
 
       // ── 即時回饋：翻牌動畫 + toast ──
@@ -2397,6 +2594,12 @@ Object.assign(App, {
     var genderBlocked = genderState.restricted && !genderState.requiresLogin && !genderState.canSignup;
     var genderMsg = (typeof this._getEventGenderRestrictionMessage === 'function')
       ? this._getEventGenderRestrictionMessage(e, genderState.reason) : '';
+    var ageState = (typeof this._getEventAgeSignupState === 'function')
+      ? this._getEventAgeSignupState(e, ApiService.getCurrentUser?.() || null)
+      : { restricted: false, canSignup: true, requiresLogin: false, reason: '' };
+    var ageBlocked = ageState.restricted && !ageState.requiresLogin && !ageState.canSignup;
+    var ageMsg = (typeof this._getEventAgeRestrictionMessage === 'function')
+      ? this._getEventAgeRestrictionMessage(e, ageState) : '';
 
     // 球隊限定
     var teamBlocked = e.teamOnly && (typeof this._canSignupTeamOnlyEvent === 'function') && !this._canSignupTeamOnlyEvent(e);
@@ -2428,6 +2631,9 @@ Object.assign(App, {
     } else if (genderBlocked) {
       html = '<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick=\'App._handleGenderRestrictedClick(' +
         JSON.stringify(genderMsg) + ')\'>' + escapeHTML(this._getEventGenderRibbonText?.(e) || '性別限定') + '</button>';
+    } else if (ageBlocked) {
+      html = '<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick=\'App.showToast(' +
+        JSON.stringify(ageMsg) + ')\'>' + escapeHTML(this._getEventAgeRestrictionButtonText?.(e) || '年齡限制') + '</button>';
     } else if (isMainFull && hasTeamReservationSignup) {
       html = _gw('<button class="primary-btn" onclick="App.handleSignup(\'' + eventId + '\')">立即報名</button>', 'var(--accent)', 'var(--accent-hover)', '報名中');
     } else if (isMainFull) {
@@ -2443,6 +2649,7 @@ Object.assign(App, {
         registrationIdentityIssue,
         teamReservationIdentityLoading,
         teamBlocked,
+        ageBlocked,
       });
     }
     actionZone.innerHTML = html;

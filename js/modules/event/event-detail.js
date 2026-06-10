@@ -897,8 +897,12 @@ Object.assign(App, {
     const registrationIdentityProved = !isGuestView
       && typeof this._hasCurrentEventSignupRegistrationServerProof === 'function'
       && this._hasCurrentEventSignupRegistrationServerProof(e);
+    const optimisticSignupActions = !isGuestView
+      && typeof this._canOptimisticallyRenderEventSignupActions === 'function'
+      && this._canOptimisticallyRenderEventSignupActions(e) === true;
     // Fix A+1：首次 snapshot 到達前視為「載入中」；9 秒（3 次重試）後強制解除
     const regsLoading = !isGuestView
+      && !optimisticSignupActions
       && !registrationIdentityProved
       && !FirebaseService._registrationsFirstSnapshotReceived
       && this._regsLoadingRetryCount < 3;
@@ -987,6 +991,12 @@ Object.assign(App, {
     const genderBlockedMessage = (typeof this._getEventGenderRestrictionMessage === 'function')
       ? this._getEventGenderRestrictionMessage(e, genderSignupState.reason)
       : '';
+    const ageSignupState = (typeof this._getEventAgeSignupState === 'function')
+      ? this._getEventAgeSignupState(e, isGuestView ? null : (ApiService.getCurrentUser?.() || null))
+      : { restricted: false, canSignup: true, requiresLogin: false, reason: '' };
+    const ageBlockedMessage = (typeof this._getEventAgeRestrictionMessage === 'function')
+      ? this._getEventAgeRestrictionMessage(e, ageSignupState)
+      : '';
     // 光跡效果包裝 helper（button 放在 flipper 裡，供翻牌 3D 旋轉使用）
     const _glowWrap = (btnHtml, glowC, glowCLight, hint) =>
       `<div class="signup-glow-wrap" style="--glow-c:${glowC};--glow-c-light:${glowCLight}"><div class="signup-glow-border"></div><div class="signup-glow-shadow"></div><div class="signup-flipper">${btnHtml}</div><div class="signup-loading-hint"><div class="mini-spinner"></div><span class="mini-text">${hint || '資料更新中'}</span></div></div>`;
@@ -1009,6 +1019,8 @@ Object.assign(App, {
       signupBtn = `<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>球隊限定</button>`;
     } else if (genderSignupState.restricted && !genderSignupState.requiresLogin && !genderSignupState.canSignup) {
       signupBtn = `<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick='App._handleGenderRestrictedClick(${JSON.stringify(genderBlockedMessage)})'>${escapeHTML(this._getEventGenderRibbonText?.(e) || '性別限定')}</button>`;
+    } else if (ageSignupState.restricted && !ageSignupState.requiresLogin && !ageSignupState.canSignup) {
+      signupBtn = `<button style="background:#dc2626;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:pointer;opacity:.95" onclick='App.showToast(${JSON.stringify(ageBlockedMessage)})'>${escapeHTML(this._getEventAgeRestrictionButtonText?.(e) || '年齡限制')}</button>`;
     } else if (isMainFull && hasTeamReservationSignup) {
       signupBtn = _glowWrap(`<button class="primary-btn" onclick="App.handleSignup('${e.id}')">立即報名</button>`, 'var(--accent)', 'var(--accent-hover)', '報名中');
     } else if (isMainFull) {
@@ -1027,6 +1039,7 @@ Object.assign(App, {
         registrationIdentityIssue,
         teamReservationIdentityLoading,
         teamBlocked: e.teamOnly && !canTeamOnlySignup,
+        ageBlocked: ageSignupState.restricted && !ageSignupState.requiresLogin && !ageSignupState.canSignup,
       });
     }
 

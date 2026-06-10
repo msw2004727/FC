@@ -93,8 +93,8 @@ describe('event signup registration hydrate', () => {
   test('cold unsigned user proof is user-scoped and does not fetch the whole roster', async () => {
     const { app, context, event, queryCalls } = loadSignupModule();
 
-    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
-    await app._eventSignupRegistrationHydrateState.promise;
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(false);
+    await app._eventSignupRegistrationBackgroundProofState.promise;
     await Promise.resolve();
 
     expect(context.ApiService.fetchRegistrationsIfMissing).not.toHaveBeenCalled();
@@ -102,7 +102,8 @@ describe('event signup registration hydrate', () => {
     expect(queryCalls.map(call => call.field)).toEqual(['userId', 'uid']);
     // 2026-06-10：主查詢改預設 get()（伺服器優先、SDK 離線時回快取），不再強制 source:'server'
     expect(queryCalls.every(call => call.options === undefined)).toBe(true);
-    expect(app._eventSignupRegistrationHydrateState).toBe(null);
+    expect(app._eventSignupRegistrationBackgroundProofState).toBe(null);
+    expect(app._eventSignupRegistrationHydrateState).toBeFalsy();
     expect(app._shouldHoldSignupActionsForEventRegistrations(event)).toBe(false);
   });
 
@@ -111,8 +112,8 @@ describe('event signup registration hydrate', () => {
       userIdDocs: [{ eventId: 'evt-1', userId: 'user-1', status: 'registered', participantType: 'self' }],
     });
 
-    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
-    await app._eventSignupRegistrationHydrateState.promise;
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(false);
+    await app._eventSignupRegistrationBackgroundProofState.promise;
     await Promise.resolve();
 
     expect(context.FirebaseService._upsertCanonicalCacheRecord).toHaveBeenCalledWith(
@@ -120,7 +121,8 @@ describe('event signup registration hydrate', () => {
       expect.objectContaining({ eventId: 'evt-1', userId: 'user-1', status: 'registered' })
     );
     expect(cachedRegistrations).toHaveLength(1);
-    expect(app._eventSignupRegistrationHydrateState).toBe(null);
+    expect(app._eventSignupRegistrationBackgroundProofState).toBe(null);
+    expect(app._eventSignupRegistrationHydrateState).toBeFalsy();
     expect(app._shouldHoldSignupActionsForEventRegistrations(event)).toBe(false);
   });
 
@@ -130,8 +132,8 @@ describe('event signup registration hydrate', () => {
       authCurrentUid: 'user-1',
     });
 
-    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
-    await app._eventSignupRegistrationHydrateState.promise;
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(false);
+    await app._eventSignupRegistrationBackgroundProofState.promise;
     await Promise.resolve();
 
     expect(context.FirebaseService.ensureAuthReadyForWrite).toHaveBeenCalledWith('user-1');

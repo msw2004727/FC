@@ -316,12 +316,14 @@ function determineButtonState({
   isUpcoming = false,
   isMainFull = false,
   registrationIdentityProved = false,
+  optimisticSignupActions = false,
   teamOnlyBlocked = false,
   genderBlocked = false,
 }) {
   // Fix A + Fix 1: regsLoading condition
   const regsLoading = !isGuestView && !isDemo
     && !registrationIdentityProved
+    && !optimisticSignupActions
     && !firstSnapshotReceived
     && retryCount < 3;
 
@@ -400,6 +402,15 @@ describe('Button state: regsLoading (Fix A + Fix 1)', () => {
       firstSnapshotReceived: false,
       retryCount: 0,
       registrationIdentityProved: true,
+    });
+    expect(state.type).toBe('signup');
+  });
+
+  test('not loading when signup actions can render optimistically while proof runs in background', () => {
+    const state = determineButtonState({
+      firstSnapshotReceived: false,
+      retryCount: 0,
+      optimisticSignupActions: true,
     });
     expect(state.type).toBe('signup');
   });
