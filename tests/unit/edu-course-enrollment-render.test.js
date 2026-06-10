@@ -23,6 +23,7 @@ function escapeHTML(value) {
 function loadModule(app, elements) {
   const context = {
     App: app,
+    ApiService: { getCurrentUser: jest.fn(() => ({ uid: 'viewer' })) },
     document: {
       getElementById: jest.fn((id) => elements[id] || null),
     },
@@ -84,6 +85,32 @@ describe('edu course enrollment render', () => {
     expect(enrollmentSection).not.toContain('手動簽到');
     expect(enrollmentSection).not.toContain('現場簽到');
     expect(enrollmentSection).not.toContain('簽到資訊');
+  });
+
+  test('render list can use optimistic enrollment cache without reloading', async () => {
+    const elements = {
+      'edu-ce-list': { innerHTML: '' },
+      'edu-ce-subtitle': { textContent: '' },
+    };
+    const app = {
+      _courseEnrollCache: {
+        'teamA:planA': [{ id: 'enrA', studentId: 'stuA', studentName: '小明', status: 'pending' }],
+      },
+      _getCourseEnrollCacheKey: jest.fn((teamId, planId) => teamId + ':' + planId),
+      _loadCourseEnrollments: jest.fn(async () => []),
+      getEduCoursePlans: jest.fn(() => [{ id: 'planA', name: 'Plan A', planType: 'weekly' }]),
+      getEduStudents: jest.fn(() => [{ id: 'stuA', name: '小明' }]),
+      isEduClubStaff: jest.fn(() => true),
+      calcAge: jest.fn(() => null),
+      _updateEnrollSubtitle: jest.fn(),
+    };
+    const loaded = loadModule(app, elements);
+
+    await loaded._renderCourseEnrollmentList('teamA', 'planA', { useCache: true });
+
+    expect(app._loadCourseEnrollments).not.toHaveBeenCalled();
+    expect(elements['edu-ce-list'].innerHTML).toContain('小明');
+    expect(elements['edu-ce-list'].innerHTML).toContain('edu-ce-card-pending');
   });
 
   test('approved enrollment card uses compact paid and 15-char note controls without attendance', () => {

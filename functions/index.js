@@ -23,6 +23,7 @@ const {
   decideCoursePlanApproval,
   decideCoursePlanRegistration,
   getApprovedStudentIdSet,
+  isStudentOwnedByUid,
 } = require("./edu-course-enrollment-core");
 // @line/bot-sdk: lazy-loaded — 只有 processLinePushQueue 使用
 let _messagingApi;
@@ -4060,6 +4061,117 @@ exports.listEduCoursePublicRoster = onCall(
       isStaff,
       session: baseSession,
       students: roster,
+    };
+  }
+);
+
+exports.saveEduCourseSelfLeave = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+    const callerUid = sanitizeStr(request.auth.uid, 128);
+    const { teamId, planId, sessionId } = normalizeEduCourseSessionRequestIds(request.data || {});
+    const targetStudentId = sanitizeStr(request.data?.studentId, 100);
+    if (!targetStudentId) throw new HttpsError("invalid-argument", "studentId is required");
+
+    const teamDoc = await getTeamDocByTeamId(teamId);
+    if (!teamDoc) throw createEduCourseHttpsError("TEAM_NOT_FOUND");
+    const teamRef = teamDoc.ref;
+    const planRef = teamRef.collection("coursePlans").doc(planId);
+    const sessionRef = planRef.collection("sessions").doc(sessionId);
+    const [planSnap, sessionSnap, studentsSnap] = await Promise.all([
+      planRef.get(),
+      sessionRef.get(),
+      teamRef.collection("students").get(),
+    ]);
+    if (!planSnap.exists) throw createEduCourseHttpsError("PLAN_NOT_FOUND");
+    if (!sessionSnap.exists) throw new HttpsError("not-found", "SESSION_NOT_FOUND", { code: "SESSION_NOT_FOUND" });
+
+    const plan = { id: planSnap.id, _docId: planSnap.id, ...(planSnap.data() || {}) };
+    if (plan.active === false) throw createEduCourseHttpsError("PLAN_INACTIVE");
+    if (plan.visibleOnTeamPage === false) throw createEduCourseHttpsError("PLAN_HIDDEN");
+
+    const session = { id: sessionSnap.id, _docId: sessionSnap.id, ...(sessionSnap.data() || {}) };
+    const rosterIds = Array.isArray(session.studentIds)
+      ? session.studentIds.map((value) => sanitizeStr(value, 100)).filter(Boolean)
+      : [];
+    if (!rosterIds.includes(targetStudentId)) {
+      throw new HttpsError("permission-denied", "STUDENT_NOT_IN_ROSTER", { code: "STUDENT_NOT_IN_ROSTER" });
+    }
+
+    const students = studentsSnap.docs.map((doc) => {
+      const data = doc.data() || {};
+      return { ...data, id: sanitizeStr(data.id || doc.id, 100), _docId: doc.id };
+    });
+    const student = students.find((item) => {
+      const id = sanitizeStr(item.id, 100);
+      const docId = sanitizeStr(item._docId, 100);
+      return id === targetStudentId || docId === targetStudentId;
+    });
+    if (!student || !isStudentOwnedByUid(student, callerUid)) {
+      throw new HttpsError("permission-denied", "STUDENT_FORBIDDEN", { code: "STUDENT_FORBIDDEN" });
+    }
+
+    const date = sanitizeStr(request.data?.date || session.date, 20);
+    if (!date) throw new HttpsError("invalid-argument", "date is required");
+    const leave = request.data?.leave !== false;
+    const existingSnap = await db.collection("eduAttendance")
+      .where("teamId", "==", teamId)
+      .where("coursePlanId", "==", planId)
+      .where("date", "==", date)
+      .where("sessionId", "==", sessionId)
+      .get();
+    const batch = db.batch();
+    const now = FieldValue.serverTimestamp();
+    let writeCount = 0;
+    let hasActiveLeave = false;
+
+    existingSnap.forEach((docSnap) => {
+      const record = docSnap.data() || {};
+      if (sanitizeStr(record.studentId, 100) !== targetStudentId) return;
+      if (sanitizeStr(record.kind, 20) !== "leave") return;
+      if (sanitizeStr(record.status, 32) === "removed") return;
+      hasActiveLeave = true;
+      if (!leave) {
+        batch.update(docSnap.ref, { status: "removed", updatedAt: now });
+        writeCount += 1;
+      }
+    });
+
+    if (leave && !hasActiveLeave) {
+      const docRef = db.collection("eduAttendance").doc();
+      batch.set(docRef, {
+        id: docRef.id,
+        teamId,
+        groupId: "",
+        coursePlanId: planId,
+        sessionId,
+        studentId: targetStudentId,
+        studentName: sanitizeStr(request.data?.studentName || student.displayName || student.name, 80),
+        parentUid: sanitizeStr(student.parentUid, 128) || null,
+        selfUid: sanitizeStr(student.selfUid, 128) || null,
+        kind: "leave",
+        date,
+        time: new Date().toISOString().slice(11, 16),
+        sessionNumber: Number.isFinite(Number(session.sessionNumber)) ? Number(session.sessionNumber) : null,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      writeCount += 1;
+    }
+
+    if (writeCount > 0) await batch.commit();
+    return {
+      success: true,
+      changed: writeCount,
+      leave,
+      teamId,
+      planId,
+      sessionId,
+      studentId: targetStudentId,
     };
   }
 );

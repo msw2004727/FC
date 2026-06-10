@@ -285,28 +285,95 @@ Object.assign(App, {
     return run();
   },
 
-  async saveCourseLessonSelfLeave(studentId, kind, button) {
+  showCourseLessonSelfLeaveDialog(studentId, kind, button) {
     const ctx = this._eduCourseLessonsContext;
-    if (!ctx || ctx.mode !== 'roster' || ctx.isStaff) return;
+    if (!ctx || ctx.mode !== 'roster' || ctx.isStaff) return false;
     const key = String(studentId || '').trim();
     const students = Array.isArray(ctx.rosterPayload?.students) ? ctx.rosterPayload.students : [];
-    const student = students.find(item => String(item.studentId || '') === key);
-    if (!student || student.canSelfLeave !== true) {
-      this.showToast?.('權限不足');
+    const leave = kind === 'leave';
+    const candidates = students.filter(item => item?.canSelfLeave === true);
+    const selectable = candidates.filter(item => leave
+      ? item.attendanceKind !== 'leave'
+      : item.attendanceKind === 'leave');
+    if (!selectable.length) {
+      this.showToast?.(leave ? '目前沒有可請假的學員' : '目前沒有可取消請假的學員');
+      return false;
+    }
+    const existing = document.querySelector?.('.edu-course-self-leave-overlay');
+    if (existing) existing.remove();
+    const overlay = document.createElement('div');
+    overlay.className = 'edu-info-overlay edu-course-self-leave-overlay';
+    overlay.onclick = (event) => { if (event.target === overlay) overlay.remove(); };
+    const renderItem = (student) => {
+      const id = String(student.studentId || '').trim();
+      const checked = id === key ? ' checked' : '';
+      const statusText = student.attendanceKind === 'leave' ? '已請假' : '未請假';
+      return '<label class="edu-ce-pick-item edu-course-self-leave-pick">'
+        + '<div class="edu-ce-pick-main"><span class="edu-ce-pick-name">' + escapeHTML(student.displayName || '學員') + '</span>'
+        + '<span class="edu-ce-pick-info">' + escapeHTML(statusText) + '</span></div>'
+        + '<input type="checkbox" value="' + escapeHTML(id) + '"' + checked + '></label>';
+    };
+    overlay.innerHTML = '<div class="edu-info-dialog">'
+      + '<div class="edu-info-dialog-title">' + (leave ? '請假登記' : '取消請假') + '</div>'
+      + '<div style="font-size:.85rem;color:var(--text-secondary);margin-bottom:.6rem">'
+      + (leave ? '選擇這堂課要請假的學員。' : '選擇這堂課要取消請假的學員。')
+      + '</div>'
+      + '<div class="edu-ce-pick-list">' + selectable.map(renderItem).join('') + '</div>'
+      + '<div style="display:flex;gap:.5rem;margin-top:.8rem">'
+      + '<button class="outline-btn" style="flex:1" onclick="this.closest(\'.edu-info-overlay\').remove()">取消</button>'
+      + '<button class="primary-btn" style="flex:1" id="_eduSelfLeaveConfirmBtn">' + (leave ? '確認請假' : '確認取消') + '</button>'
+      + '</div></div>';
+    document.body.appendChild(overlay);
+    document.getElementById('_eduSelfLeaveConfirmBtn').onclick = async () => {
+      const ids = Array.from(overlay.querySelectorAll('.edu-ce-pick-list input[type="checkbox"]:checked'))
+        .map(input => input.value)
+        .filter(Boolean);
+      if (!ids.length) {
+        this.showToast?.('請選擇至少一位學員');
+        return;
+      }
+      overlay.remove();
+      return this._saveCourseLessonSelfLeaveSelection(ids, leave, button);
+    };
+    return false;
+  },
+
+  async _saveCourseLessonSelfLeaveSelection(studentIds, leave, button) {
+    const ctx = this._eduCourseLessonsContext;
+    if (!ctx || ctx.mode !== 'roster' || ctx.isStaff) return;
+    const ids = Array.from(new Set((Array.isArray(studentIds) ? studentIds : [studentIds])
+      .map(value => String(value || '').trim())
+      .filter(Boolean)));
+    const students = Array.isArray(ctx.rosterPayload?.students) ? ctx.rosterPayload.students : [];
+    const selected = ids
+      .map(id => students.find(item => String(item.studentId || '') === id))
+      .filter(student => student && student.canSelfLeave === true);
+    if (!selected.length) {
+      this.showToast?.('目前沒有可處理的請假學員');
       return;
     }
-    const leave = kind === 'leave';
     const run = async () => {
-      await FirebaseService.saveEduCourseSelfLeave({
-        teamId: ctx.teamId,
-        planId: ctx.planId,
-        sessionId: ctx.sessionId,
-        date: ctx.rosterPayload?.session?.date,
-        studentId: key,
-        studentName: student.displayName || '',
-        selfUid: student.selfUid || null,
-        parentUid: student.parentUid || null,
-        leave,
+      try {
+        for (const student of selected) {
+          await FirebaseService.saveEduCourseSelfLeave({
+            teamId: ctx.teamId,
+            planId: ctx.planId,
+            sessionId: ctx.sessionId,
+            date: ctx.rosterPayload?.session?.date,
+            studentId: String(student.studentId || '').trim(),
+            studentName: student.displayName || '',
+            selfUid: student.selfUid || null,
+            parentUid: student.parentUid || null,
+            leave,
+          });
+        }
+      } catch (err) {
+        console.error('[saveCourseLessonSelfLeave]', err);
+        this.showToast?.('請假登記失敗，請重新開啟課堂名單後再試');
+        return;
+      }
+      selected.forEach((student) => {
+        student.attendanceKind = leave ? 'leave' : null;
       });
       this.showToast?.(leave ? '已登記請假' : '已取消請假');
       await this.showCourseLessonRoster(ctx.teamId, ctx.planId, ctx.sessionId);
@@ -316,6 +383,10 @@ Object.assign(App, {
       return this._withButtonLoading(button, leave ? '請假中...' : '取消中...', run);
     }
     return run();
+  },
+
+  async saveCourseLessonSelfLeave(studentId, kind, button) {
+    return this._saveCourseLessonSelfLeaveSelection([studentId], kind === 'leave', button);
   },
 
   async showCourseLessonRoster(teamId, planId, sessionId) {

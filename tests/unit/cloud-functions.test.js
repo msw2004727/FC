@@ -478,6 +478,19 @@ describe('education course enrollment callable source contracts', () => {
     expect(source).not.toContain('serializeCourseEnrollment');
     expect(source).not.toContain('planRef.collection("enrollments").get()');
   });
+
+  test('self leave callable validates owner and roster membership before writing attendance', () => {
+    const source = readCloudFunctionSource('saveEduCourseSelfLeave');
+    expect(source).toContain('if (!request.auth?.uid)');
+    expect(source).toContain('normalizeEduCourseSessionRequestIds(request.data || {})');
+    expect(source).toContain('planRef.collection("sessions").doc(sessionId)');
+    expect(source).toContain('teamRef.collection("students").get()');
+    expect(source).toContain('rosterIds.includes(targetStudentId)');
+    expect(source).toContain('isStudentOwnedByUid(student, callerUid)');
+    expect(source).toContain('db.collection("eduAttendance")');
+    expect(source).toContain('kind: "leave"');
+    expect(source).toContain('status: "active"');
+  });
 });
 
 function makeScoreboardDb({ usageData } = {}) {

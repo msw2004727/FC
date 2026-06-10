@@ -42,6 +42,61 @@ Object.assign(App, {
     }
   },
 
+  _getCoursePlanViewerEnrollmentState(teamId, plan, options = {}) {
+    const curUser = options.curUser || (typeof ApiService !== 'undefined' && typeof ApiService.getCurrentUser === 'function'
+      ? ApiService.getCurrentUser()
+      : null);
+    const myUid = options.myUid || curUser?.uid || '';
+    const students = Array.isArray(options.students)
+      ? options.students
+      : (this.getEduStudents?.(teamId) || []);
+    const autoMigrationCompleted = typeof options.autoMigrationCompleted === 'boolean'
+      ? options.autoMigrationCompleted
+      : (typeof isEduAutoMigrationCompleted === 'function' && isEduAutoMigrationCompleted());
+    const myStudents = students.filter(s =>
+      s?.enrollStatus !== 'inactive' && (s?.selfUid === myUid || s?.parentUid === myUid)
+    );
+    const enrollments = Array.isArray(options.enrollments)
+      ? options.enrollments
+      : (Array.isArray(plan?._enrollments) ? plan._enrollments : []);
+    const summary = options.summary || plan?._enrollmentSummary || null;
+    const enrolledStudentIds = new Set();
+    enrollments.forEach((enrollment) => {
+      const status = String(enrollment?.status || '').trim().toLowerCase();
+      const studentId = String(enrollment?.studentId || '').trim();
+      if (studentId && status !== 'rejected') enrolledStudentIds.add(studentId);
+    });
+    const viewerStatuses = summary?.viewerStatuses || {};
+    Object.keys(viewerStatuses).forEach((studentId) => {
+      const status = String(viewerStatuses[studentId] || '').trim().toLowerCase();
+      if (studentId && status !== 'rejected') enrolledStudentIds.add(studentId);
+    });
+    const groupId = String(plan?.groupId || '').trim();
+    if (!autoMigrationCompleted && groupId) {
+      students.filter(s => s?.enrollStatus === 'active' && (s?.groupIds || []).includes(groupId))
+        .forEach(s => {
+          const studentId = String(s?.id || s?._docId || '').trim();
+          if (studentId) enrolledStudentIds.add(studentId);
+        });
+    }
+    const summaryCount = Number(summary?.effectiveApprovedCount);
+    const effectiveCount = Number.isFinite(summaryCount)
+      ? summaryCount
+      : Number(plan?._effectiveCount || 0);
+    const maxCapacity = Number(plan?.maxCapacity || 0);
+    return {
+      myStudents,
+      enrolledStudentIds,
+      allEnrolled: myStudents.length > 0 && myStudents.every((student) => {
+        const studentId = String(student?.id || student?._docId || '').trim();
+        return !!studentId && enrolledStudentIds.has(studentId);
+      }),
+      isFull: Number.isFinite(maxCapacity) && maxCapacity > 0 && effectiveCount >= maxCapacity,
+      effectiveCount,
+      maxCapacity,
+    };
+  },
+
   async renderEduCoursePlanList(teamId, isStaff, options = {}) {
     const container = document.getElementById('edu-course-plan-list');
     if (!container) return;
@@ -193,28 +248,16 @@ Object.assign(App, {
         if (isEnded) {
           signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-disabled" disabled>課程已結束</button>';
         } else {
-        const isFull = p.maxCapacity && (p._effectiveCount || 0) >= p.maxCapacity;
-        // 檢查用戶名下所有學員是否都已報名（含分組自動導入的）
-        const myStudents = students.filter(s =>
-          s.enrollStatus !== 'inactive' && (s.selfUid === myUid || s.parentUid === myUid)
-        );
-        // 分組學員也視為已報名
-        const enrolledStudentIds = new Set(
-          (p._enrollments || []).filter(e => e.status !== 'rejected').map(e => e.studentId)
-        );
-        const viewerStatuses = p._enrollmentSummary?.viewerStatuses || {};
-        Object.keys(viewerStatuses).forEach(studentId => {
-          if (viewerStatuses[studentId] !== 'rejected') enrolledStudentIds.add(studentId);
+        const viewerEnrollmentState = this._getCoursePlanViewerEnrollmentState(teamId, p, {
+          curUser,
+          myUid,
+          students,
+          autoMigrationCompleted,
         });
-        if (!autoMigrationCompleted && p.groupId) {
-          students.filter(s => s.enrollStatus === 'active' && (s.groupIds || []).includes(p.groupId))
-            .forEach(s => enrolledStudentIds.add(s.id));
-        }
-        const allEnrolled = myStudents.length > 0 && myStudents.every(s => enrolledStudentIds.has(s.id));
 
-        if (allEnrolled) {
+        if (viewerEnrollmentState.allEnrolled) {
           signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-disabled" disabled>學員皆已報名</button>';
-        } else if (isFull) {
+        } else if (viewerEnrollmentState.isFull) {
           signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-disabled" disabled>已額滿</button>';
         } else {
           signupBtn = '<button class="primary-btn edu-cp-signup-btn" onclick="event.stopPropagation();App.applyCourseEnrollment(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\',this)">我要報名</button>';
@@ -390,6 +433,29 @@ Object.assign(App, {
     if (!canViewPlan) {
       this._renderCoursePlanHiddenNotice?.(plan);
       return;
+    }
+    const detailPlanId = String(plan.id || plan._docId || planId || '').trim();
+    const detailEnrollKey = this._getCourseEnrollCacheKey?.(teamId, detailPlanId);
+    if (detailEnrollKey && this._courseEnrollSummaryCache?.[detailEnrollKey]) {
+      plan._enrollmentSummary = this._courseEnrollSummaryCache[detailEnrollKey];
+    }
+    if (!isStaff && plan.visibleOnTeamPage !== false && plan.allowSignup && !this._isCoursePlanEnded?.(plan) && !plan._enrollmentSummary) {
+      try {
+        if (typeof this._loadCourseEnrollmentSummaries === 'function') {
+          const summaries = await this._loadCourseEnrollmentSummaries(teamId, [detailPlanId]);
+          plan._enrollmentSummary = summaries?.[detailPlanId]
+            || (detailEnrollKey && this._courseEnrollSummaryCache?.[detailEnrollKey])
+            || plan._enrollmentSummary
+            || null;
+        }
+        if (!plan._enrollmentSummary && typeof this._loadCourseEnrollments === 'function') {
+          plan._enrollments = await this._loadCourseEnrollments(teamId, detailPlanId);
+          plan._enrollmentSummary = plan._enrollments?._summary || null;
+        }
+      } catch (_) {
+        plan._enrollmentSummary = plan._enrollmentSummary || null;
+      }
+      if (this._eduCoursePlanDetailRequestKey !== requestKey) return;
     }
     let sessions = [];
     if (plan.planType === 'session') {
@@ -649,9 +715,19 @@ Object.assign(App, {
     const signupReminderHtml = signupReminderText
       ? '<div class="edu-course-detail-signup-note">提醒：' + escapeHTML(signupReminderText) + '</div>'
       : '';
-    const signupActionHtml = !isStaff && plan.visibleOnTeamPage !== false && plan.allowSignup && !this._isCoursePlanEnded?.(plan)
-      ? '<button type="button" class="primary-btn edu-course-detail-signup-btn" onclick="event.stopPropagation();App.applyCourseEnrollment(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\',this)">立即報名</button>'
-      : '';
+    const viewerEnrollmentState = this._getCoursePlanViewerEnrollmentState?.(teamId, plan) || {};
+    let signupActionHtml = '';
+    if (!isStaff && plan.visibleOnTeamPage !== false && plan.allowSignup) {
+      if (this._isCoursePlanEnded?.(plan)) {
+        signupActionHtml = '<button type="button" class="primary-btn edu-course-detail-signup-btn edu-cp-signup-disabled" disabled>課程已結束</button>';
+      } else if (viewerEnrollmentState.allEnrolled) {
+        signupActionHtml = '<button type="button" class="primary-btn edu-course-detail-signup-btn edu-cp-signup-disabled" disabled>學員皆已報名</button>';
+      } else if (viewerEnrollmentState.isFull) {
+        signupActionHtml = '<button type="button" class="primary-btn edu-course-detail-signup-btn edu-cp-signup-disabled" disabled>已額滿</button>';
+      } else {
+        signupActionHtml = '<button type="button" class="primary-btn edu-course-detail-signup-btn" onclick="event.stopPropagation();App.applyCourseEnrollment(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\',this)">立即報名</button>';
+      }
+    }
     const footerActionsHtml = signupReminderHtml + signupActionHtml;
     const footerActionsBlock = footerActionsHtml
       ? '<div class="edu-course-detail-footer-actions">' + footerActionsHtml + '</div>'

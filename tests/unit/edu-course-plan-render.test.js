@@ -701,6 +701,60 @@ describe('edu course plan render', () => {
     expect(overlay.innerHTML).not.toContain('立即報名');
   });
 
+  test('course detail disables signup when all viewer students already enrolled', async () => {
+    const overlay = { className: '', innerHTML: '', onclick: null, remove: jest.fn() };
+    const appended = [];
+    const app = {
+      _courseEnrollCache: {},
+      _courseEnrollSummaryCache: {},
+      getEduCoursePlans: jest.fn(() => [{
+        id: 'planEnrolled',
+        name: 'Already Enrolled Plan',
+        planType: 'weekly',
+        weekdays: [1],
+        startDate: '2099-01-01',
+        endDate: '2099-02-01',
+        allowSignup: true,
+        visibleOnTeamPage: true,
+        maxCapacity: 12,
+      }]),
+      getEduStudents: jest.fn(() => [{ id: 'stuA', name: '小明', enrollStatus: 'active', selfUid: 'viewer' }]),
+      isEduClubStaff: jest.fn(() => false),
+      _getCourseEnrollCacheKey: jest.fn((teamId, planId) => teamId + ':' + planId),
+      _loadCourseEnrollmentSummaries: jest.fn(async () => ({
+        planEnrolled: { effectiveApprovedCount: 1, viewerStatuses: { stuA: 'pending' } },
+      })),
+      _loadCourseEnrollments: jest.fn(async () => []),
+      _isCoursePlanEnded: jest.fn(() => false),
+      _weekdayLabel: (day) => ['日', '一', '二', '三', '四', '五', '六'][day] || String(day),
+    };
+    const context = {
+      App: app,
+      ApiService: { getCurrentUser: jest.fn(() => ({ uid: 'viewer' })) },
+      document: {
+        querySelector: jest.fn(() => null),
+        createElement: jest.fn(() => overlay),
+        body: { appendChild: jest.fn((node) => appended.push(node)) },
+      },
+      escapeHTML,
+      Date,
+      Promise,
+      Number,
+      String,
+      Set,
+      Object,
+      console,
+    };
+    vm.runInNewContext(source, context, { filename: 'edu-course-plan-render.js' });
+
+    await context.App.showEduCoursePlanDetail('teamA', 'planEnrolled');
+
+    expect(app._loadCourseEnrollmentSummaries).toHaveBeenCalledWith('teamA', ['planEnrolled']);
+    expect(appended).toHaveLength(1);
+    expect(overlay.innerHTML).toContain('學員皆已報名');
+    expect(overlay.innerHTML).not.toContain("App.applyCourseEnrollment('teamA','planEnrolled',this)");
+  });
+
   test('course detail progress keeps upcoming lessons visible in long weekly plans', async () => {
     const overlay = { className: '', innerHTML: '', onclick: null, remove: jest.fn() };
     const appended = [];

@@ -3893,59 +3893,22 @@ Object.assign(FirebaseService, {
     const authed = await this.ensureAuthReadyForWrite();
     if (!authed) throw new Error('Firebase auth is not ready');
     const targetStudentId = String(studentId || '').trim();
-    if (!teamId || !planId || !sessionId || !date || !targetStudentId) {
+    if (!teamId || !planId || !sessionId || !targetStudentId) {
       return { changed: 0 };
     }
-
-    const existingSnap = await db.collection('eduAttendance')
-      .where('teamId', '==', teamId)
-      .where('coursePlanId', '==', planId)
-      .where('date', '==', date)
-      .where('sessionId', '==', sessionId)
-      .get();
-    const batch = db.batch();
-    const now = firebase.firestore.FieldValue.serverTimestamp();
-    let writeCount = 0;
-    let hasActiveLeave = false;
-
-    existingSnap.forEach(docSnap => {
-      const record = docSnap.data() || {};
-      if (String(record.studentId || '').trim() !== targetStudentId) return;
-      if ((record.kind || 'signin') !== 'leave') return;
-      if (record.status === 'removed') return;
-      hasActiveLeave = true;
-      if (leave === false) {
-        batch.update(docSnap.ref, { status: 'removed', updatedAt: now });
-        writeCount += 1;
-      }
+    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('saveEduCourseSelfLeave');
+    const result = await callable({
+      teamId,
+      planId,
+      sessionId,
+      date,
+      studentId: targetStudentId,
+      studentName: String(studentName || '').trim(),
+      selfUid: selfUid || null,
+      parentUid: parentUid || null,
+      leave,
     });
-
-    if (leave !== false && !hasActiveLeave) {
-      const docRef = db.collection('eduAttendance').doc();
-      batch.set(docRef, {
-        id: docRef.id,
-        teamId,
-        groupId: '',
-        coursePlanId: planId,
-        sessionId,
-        studentId: targetStudentId,
-        studentName: String(studentName || '').trim(),
-        parentUid: parentUid || null,
-        selfUid: selfUid || null,
-        kind: 'leave',
-        date,
-        time: new Date().toTimeString().slice(0, 5),
-        sessionNumber: null,
-        status: 'active',
-        createdAt: now,
-        updatedAt: now,
-      });
-      writeCount += 1;
-    }
-
-    if (writeCount === 0) return { changed: 0 };
-    await batch.commit();
-    return { changed: writeCount };
+    return result && result.data ? result.data : result;
   },
 
   async queryEduAttendance(filters) {

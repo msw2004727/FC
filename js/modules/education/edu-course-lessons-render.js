@@ -123,7 +123,7 @@ Object.assign(App, {
       const selfLeaveActionHtml = (!context.isStaff && student.canSelfLeave === true)
         ? '<div class="edu-course-roster-self-actions">'
           + statusHtml
-          + '<button type="button" class="outline-btn small edu-roster-self-leave-btn" onclick="return App.saveCourseLessonSelfLeave(\'' + safeStudentId + '\',\'' + (draftKind === 'leave' ? '' : 'leave') + '\',this)">'
+          + '<button type="button" class="outline-btn small edu-roster-self-leave-btn" onclick="return App.showCourseLessonSelfLeaveDialog(\'' + safeStudentId + '\',\'' + (draftKind === 'leave' ? '' : 'leave') + '\',this)">'
           + (draftKind === 'leave' ? '取消請假' : '我要請假')
           + '</button>'
         + '</div>'

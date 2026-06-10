@@ -272,6 +272,35 @@ describe('Course enrollment', () => {
     expect(app._renderCourseEnrollmentList).toHaveBeenCalledWith('teamA', 'planA');
   });
 
+  test('register result is merged into enrollment cache before background refresh', () => {
+    const plan = { id: 'planA', name: 'Plan A' };
+    const loaded = loadCourseEnrollmentModule({
+      getEduCoursePlans: jest.fn(() => [plan]),
+    });
+    loaded._courseEnrollCache = {};
+    loaded._courseEnrollSummaryCache = {};
+    loaded._getCourseEnrollCacheKey = (teamId, planId) => teamId + ':' + planId;
+
+    const list = loaded._mergeCourseEnrollmentCacheAfterRegister(
+      'teamA',
+      'planA',
+      [{ id: 'enrA', studentId: 'stuA', status: 'pending', appliedAt: '2099-01-01T00:00:00.000Z' }],
+      [{ id: 'stuA', name: '小明', selfUid: 'viewer' }],
+      { uid: 'viewer' }
+    );
+
+    expect(list).toHaveLength(1);
+    expect(loaded._courseEnrollCache['teamA:planA'][0]).toMatchObject({
+      id: 'enrA',
+      studentId: 'stuA',
+      studentName: '小明',
+      status: 'pending',
+    });
+    expect(loaded._courseEnrollSummaryCache['teamA:planA'].viewerStatuses).toEqual({ stuA: 'pending' });
+    expect(plan._enrollments).toBe(loaded._courseEnrollCache['teamA:planA']);
+    expect(plan._enrollmentSummary.viewerStatuses.stuA).toBe('pending');
+  });
+
   test('coach note editor replaces the trigger in-place', () => {
     const input = { focus: jest.fn() };
     const panel = {

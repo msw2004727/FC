@@ -49,8 +49,14 @@ Object.assign(App, {
     const container = document.getElementById('edu-ce-list');
     if (!container) return;
 
-    const enrollments = await this._loadCourseEnrollments(teamId, planId);
-    if (requestSeq != null && requestSeq !== this._eduCourseEnrollmentRequestSeq) return;
+    const options = requestSeq && typeof requestSeq === 'object' ? requestSeq : {};
+    const seq = typeof requestSeq === 'number' ? requestSeq : options.requestSeq;
+    const cacheKey = this._getCourseEnrollCacheKey?.(teamId, planId);
+    const cachedEnrollments = cacheKey ? this._courseEnrollCache?.[cacheKey] : null;
+    const enrollments = options.useCache && Array.isArray(cachedEnrollments)
+      ? cachedEnrollments
+      : await this._loadCourseEnrollments(teamId, planId);
+    if (seq != null && seq !== this._eduCourseEnrollmentRequestSeq) return;
     const plan = this.getEduCoursePlans(teamId).find(p => p.id === planId);
     const allStudents = this.getEduStudents(teamId);
     const students = allStudents;

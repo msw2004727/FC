@@ -92,8 +92,12 @@ function loadCourseLessonsContext(overrides = {}) {
         if (id === 'edu-course-lessons-page') return container;
         if (id === 'edu-course-lessons-title') return title;
         if (id === 'edu-course-roster-notes-input') return overrides.notesInput || null;
+        if (id === '_eduSelfLeaveConfirmBtn') return overrides.selfLeaveConfirmBtn || null;
         return null;
       }),
+      querySelector: jest.fn(() => null),
+      createElement: jest.fn(() => overrides.selfLeaveOverlay || { className: '', innerHTML: '', onclick: null, remove: jest.fn(), querySelectorAll: jest.fn(() => []) }),
+      body: { appendChild: jest.fn(overrides.onAppendChild || (() => {})) },
     },
     escapeHTML,
     console,
@@ -447,6 +451,7 @@ describe('edu course lessons', () => {
     await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
 
     expect(container.innerHTML).toContain('我要請假');
+    expect(container.innerHTML).toContain('App.showCourseLessonSelfLeaveDialog');
 
     await app.saveCourseLessonSelfLeave('stu2', 'leave', { dataset: {}, disabled: false, style: {}, isConnected: true });
 
@@ -461,6 +466,59 @@ describe('edu course lessons', () => {
       parentUid: null,
       leave: true,
     });
+    expect(app.showToast).toHaveBeenCalledWith('已登記請假');
+  });
+
+  test('self leave button opens a student picker before submitting', async () => {
+    const confirmBtn = {};
+    const overlay = {
+      className: '',
+      innerHTML: '',
+      onclick: null,
+      remove: jest.fn(),
+      querySelectorAll: jest.fn(() => [{ value: 'stu2' }]),
+    };
+    const appended = [];
+    const { app, firebase } = loadCourseLessonsContext({
+      selfLeaveConfirmBtn: confirmBtn,
+      selfLeaveOverlay: overlay,
+      onAppendChild: (node) => appended.push(node),
+      rosterPayload: {
+        rosterPublic: true,
+        session: {
+          id: 'sessionA',
+          title: '第一堂',
+          date: '2099-06-02',
+          startTime: '10:00',
+          endTime: '11:30',
+          status: 'scheduled',
+        },
+        students: [
+          { studentId: 'stu2', displayName: '小華', level: null, attendanceKind: null, canSelfLeave: true, selfUid: 'uidA', parentUid: null },
+          { studentId: 'stu3', displayName: '小美', level: null, attendanceKind: null, canSelfLeave: true, selfUid: null, parentUid: 'uidA' },
+        ],
+      },
+    });
+
+    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+    app.showCourseLessonSelfLeaveDialog('stu2', 'leave', { dataset: {}, disabled: false, style: {}, isConnected: true });
+
+    expect(appended).toHaveLength(1);
+    expect(overlay.innerHTML).toContain('請假登記');
+    expect(overlay.innerHTML).toContain('小華');
+    expect(overlay.innerHTML).toContain('小美');
+    expect(typeof confirmBtn.onclick).toBe('function');
+
+    await confirmBtn.onclick();
+
+    expect(firebase.saveEduCourseSelfLeave).toHaveBeenCalledTimes(1);
+    expect(firebase.saveEduCourseSelfLeave).toHaveBeenCalledWith(expect.objectContaining({
+      teamId: 'teamA',
+      planId: 'planA',
+      sessionId: 'sessionA',
+      studentId: 'stu2',
+      leave: true,
+    }));
     expect(app.showToast).toHaveBeenCalledWith('已登記請假');
   });
 });

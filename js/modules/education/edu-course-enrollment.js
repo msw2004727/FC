@@ -69,6 +69,101 @@ Object.assign(App, {
     }
   },
 
+  _mergeCourseEnrollmentCacheAfterRegister(teamId, planId, createdEnrollments, selectedStudents = [], curUser = null) {
+    const key = this._getCourseEnrollCacheKey(teamId, planId);
+    this._courseEnrollCache = this._courseEnrollCache || {};
+    this._courseEnrollSummaryCache = this._courseEnrollSummaryCache || {};
+    const current = Array.isArray(this._courseEnrollCache[key]) ? [...this._courseEnrollCache[key]] : [];
+    const studentsById = new Map((Array.isArray(selectedStudents) ? selectedStudents : []).map(student => [
+      String(student?.id || student?._docId || '').trim(),
+      student,
+    ]));
+    const nowIso = new Date().toISOString();
+    const normalized = (Array.isArray(createdEnrollments) ? createdEnrollments : [])
+      .map((enrollment) => {
+        const studentId = String(enrollment?.studentId || '').trim();
+        if (!studentId) return null;
+        const student = studentsById.get(studentId) || {};
+        return {
+          id: enrollment.id || enrollment._docId || ('_optimistic_' + studentId),
+          _docId: enrollment._docId || enrollment.id || ('_optimistic_' + studentId),
+          studentId,
+          studentName: enrollment.studentName || student.name || student.displayName || '',
+          selfUid: enrollment.selfUid || student.selfUid || (student.parentUid ? null : curUser?.uid) || null,
+          parentUid: enrollment.parentUid || student.parentUid || null,
+          status: enrollment.status || 'pending',
+          paidAt: enrollment.paidAt || null,
+          coachNotes: enrollment.coachNotes || '',
+          reviewerName: enrollment.reviewerName || null,
+          reviewedAt: enrollment.reviewedAt || null,
+          appliedAt: enrollment.appliedAt || enrollment.appliedAtIso || nowIso,
+        };
+      })
+      .filter(Boolean);
+    if (!normalized.length) return current;
+
+    normalized.forEach((item) => {
+      const index = current.findIndex(existing => String(existing?.studentId || '') === item.studentId);
+      if (index >= 0) current[index] = { ...current[index], ...item };
+      else current.push(item);
+    });
+
+    const previousSummary = this._courseEnrollSummaryCache[key] || this._courseEnrollCache[key]?._summary || {};
+    const viewerStatuses = { ...(previousSummary.viewerStatuses || {}) };
+    normalized.forEach((item) => {
+      viewerStatuses[item.studentId] = item.status || 'pending';
+    });
+    const summary = {
+      ...previousSummary,
+      viewerStatuses,
+      viewerStudentIds: Array.from(new Set([
+        ...(Array.isArray(previousSummary.viewerStudentIds) ? previousSummary.viewerStudentIds : []),
+        ...normalized.map(item => item.studentId),
+      ])),
+    };
+    Object.defineProperty(current, '_summary', {
+      value: summary,
+      enumerable: false,
+      configurable: true,
+    });
+    this._courseEnrollCache[key] = current;
+    this._courseEnrollSummaryCache[key] = summary;
+    const plan = (this.getEduCoursePlans?.(teamId) || []).find(item => String(item.id || item._docId || '') === String(planId || ''));
+    if (plan) {
+      plan._enrollments = current;
+      plan._enrollmentSummary = summary;
+    }
+    return current;
+  },
+
+  async _refreshCourseViewsAfterEnrollmentChange(teamId, planId, options = {}) {
+    const force = options.force === true;
+    try {
+      if (force || !options.skipEnrollmentReload) {
+        await this._loadCourseEnrollments?.(teamId, planId);
+      }
+      if (this.currentPage === 'page-edu-course-enrollment'
+        && String(this._ceTeamId || '') === String(teamId || '')
+        && String(this._cePlanId || '') === String(planId || '')) {
+        await this._renderCourseEnrollmentList?.(teamId, planId, { useCache: true });
+      }
+      await this.renderEduCoursePlanList?.(teamId, undefined, { forceRefresh: !!force });
+    } catch (err) {
+      console.warn('[edu-enrollment] refresh after change failed:', err);
+    }
+  },
+
+  async _syncCourseSessionsAfterEnrollmentApproval(teamId, planId) {
+    const plan = (this.getEduCoursePlans?.(teamId) || []).find(item => String(item.id || item._docId || '') === String(planId || ''));
+    if (!plan || typeof this._ensureCoursePlanSessionsFromPlan !== 'function') return null;
+    try {
+      return await this._ensureCoursePlanSessionsFromPlan(teamId, plan);
+    } catch (err) {
+      console.warn('[edu-enrollment] session sync after approval failed:', err);
+      return null;
+    }
+  },
+
   _setEduCourseActionLoading(actionButton, loadingText) {
     const btn = actionButton && typeof actionButton === 'object' && actionButton.dataset
       ? actionButton
@@ -228,18 +323,23 @@ Object.assign(App, {
     document.getElementById('_eduEnrollConfirmBtn').onclick = async () => {
       const checks = overlay.querySelectorAll('.edu-ce-pick-list input[type="checkbox"]:checked:not(:disabled)');
       if (!checks.length) { this.showToast('請選擇至少一位學員'); return; }
+      const studentIds = Array.from(checks).map(cb => cb.value).filter(Boolean);
+      const selectedStudents = myStudents.filter(student => studentIds.includes(String(student.id || student._docId || '')));
       overlay.remove();
       const _btnState = this._setEduBtnLoading('[onclick*="applyCourseEnrollment"]');
       try {
-        const studentIds = Array.from(checks).map(cb => cb.value).filter(Boolean);
-        await FirebaseService.registerForEduCoursePlan(teamId, planId, studentIds, {
+        const result = await FirebaseService.registerForEduCoursePlan(teamId, planId, studentIds, {
           requestId: 'edu_' + teamId + '_' + planId + '_' + curUser.uid + '_' + Date.now(),
         });
-        const key = this._getCourseEnrollCacheKey(teamId, planId);
-        delete this._courseEnrollCache[key];
-        delete this._courseEnrollSummaryCache[key];
+        this._mergeCourseEnrollmentCacheAfterRegister(teamId, planId, result?.enrollments || [], selectedStudents, curUser);
         this.showToast('報名已送出，請等待審核');
-        await this.renderEduCoursePlanList(teamId, undefined, { forceRefresh: true });
+        if (this.currentPage === 'page-edu-course-enrollment'
+          && String(this._ceTeamId || '') === String(teamId || '')
+          && String(this._cePlanId || '') === String(planId || '')) {
+          await this._renderCourseEnrollmentList(teamId, planId, { useCache: true });
+        }
+        await this.renderEduCoursePlanList(teamId, undefined);
+        this._refreshCourseViewsAfterEnrollmentChange(teamId, planId, { force: true });
       } catch (err) {
         console.error('[applyCourseEnrollment]', err);
         this.showToast('報名失敗：' + (err.message || '請稍後再試'));
@@ -277,7 +377,9 @@ Object.assign(App, {
       // 更新方案 currentCount
       // 學員狀態也更新為 active
       this.showToast('已通過');
+      await this._syncCourseSessionsAfterEnrollmentApproval(teamId, planId);
       await this._renderCourseEnrollmentList(teamId, planId);
+      await this._refreshCourseViewsAfterEnrollmentChange(teamId, planId, { force: true });
     } catch (err) {
       console.error('[_approveCourseEnrollment]', err);
       this.showToast((err && err.message) || '審核失敗');
