@@ -51,6 +51,15 @@ const LineAuth = {
     } catch (_) {}
   },
 
+  _primeFirebaseCurrentUser() {
+    try {
+      if (typeof FirebaseService !== 'undefined'
+        && typeof FirebaseService.primeCurrentUserFromLineProfile === 'function') {
+        FirebaseService.primeCurrentUserFromLineProfile(this._profile);
+      }
+    } catch (_) {}
+  },
+
   _profileRefreshPending: false,
   _profileRefreshTimer: null,
 
@@ -192,6 +201,7 @@ const LineAuth = {
             email,
           };
           this._persistProfileCache(this._profile);
+          this._primeFirebaseCurrentUser();
           console.log('[LineAuth] 已登入:', this._profile.displayName);
           return this._profile;
         } catch (err) {
@@ -217,6 +227,7 @@ const LineAuth = {
             email,
           };
           this._persistProfileCache(this._profile);
+          this._primeFirebaseCurrentUser();
           console.log('[LineAuth] 已登入（直接 API fallback）:', this._profile.displayName);
           return this._profile;
         }
@@ -236,6 +247,7 @@ const LineAuth = {
             email: idToken.email || null,
           };
           this._persistProfileCache(this._profile);
+          this._primeFirebaseCurrentUser();
           console.log('[LineAuth] 已登入（ID Token fallback）:', this._profile.displayName);
           return this._profile;
         } else {
@@ -306,6 +318,7 @@ const LineAuth = {
         pictureUrl: typeof parsed.pictureUrl === 'string' ? parsed.pictureUrl : null,
         email: typeof parsed.email === 'string' ? parsed.email : null,
       };
+      this._primeFirebaseCurrentUser();
       return this._profile;
     } catch (e) {
       this._clearProfileCache();

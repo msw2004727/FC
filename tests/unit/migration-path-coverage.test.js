@@ -36,7 +36,7 @@ const KNOWN_REFERENCES = {
   'js/api-service.js': { registrations: 1, attendanceRecords: 2, activityRecords: 0 }, // fetchRegistrationsIfMissing + fetchAttendanceIfMissing
   'js/modules/achievement/batch.js': { registrations: 1, attendanceRecords: 0, activityRecords: 0 }, // Phase 4b: 寫入改子集合（2026-04-27 從 js/modules/achievement-batch.js 搬移）
   'js/modules/event/event-create-waitlist.js': { registrations: 3, attendanceRecords: 0, activityRecords: 2 }, // Phase 4b: 寫入改子集合
-  'js/modules/event/event-detail-signup.js': { registrations: 3, attendanceRecords: 0, activityRecords: 4 }, // Phase 4b: 寫入改子集合
+  'js/modules/event/event-detail-signup.js': { registrations: 4, attendanceRecords: 0, activityRecords: 4 }, // +1: 2026-06-10 user-scoped signup status proof query
   'js/modules/event/event-detail-companion.js': { registrations: 0, attendanceRecords: 0, activityRecords: 4 }, // Phase 4b: 寫入改子集合
   'js/modules/event/event-detail.js': { registrations: 2, attendanceRecords: 0, activityRecords: 0 }, // +1: Phase 3 安全網 subcollection fallback query
   'js/modules/event/event-manage-badges.js': { registrations: 2, attendanceRecords: 0, activityRecords: 0 }, // Phase 4b: 寫入改子集合

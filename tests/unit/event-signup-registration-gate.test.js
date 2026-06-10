@@ -22,6 +22,10 @@ function createDeferred() {
   return { promise, resolve, reject };
 }
 
+async function flushMicrotasks(count = 8) {
+  for (let i = 0; i < count; i++) await Promise.resolve();
+}
+
 function loadSignupModule({
   event = { id: 'evt-1', _docId: 'evt-doc-1', status: 'open', max: 10, current: 0 },
   currentUser = { uid: 'user-1' },
@@ -30,8 +34,19 @@ function loadSignupModule({
   registrationListenerKey = '',
   registrationsServerSnapshotReceived = false,
   fetchRegistrationsIfMissing = jest.fn(() => Promise.resolve()),
+  ensureAuthReadyForWrite = jest.fn(() => Promise.resolve(true)),
+  registrationDocsByField = { userId: [], uid: [] },
+  registrationQueryImpl = null,
   currentRegistrationState = { signedUp: false },
 } = {}) {
+  const queryCalls = [];
+  const makeSnap = docs => ({
+    empty: docs.length === 0,
+    docs: docs.map((data, index) => ({
+      id: data.id || `reg-${index + 1}`,
+      data: () => data,
+    })),
+  });
   const app = {
     currentPage: 'page-activity-detail',
     _currentDetailEventId: event.id,
@@ -49,8 +64,28 @@ function loadSignupModule({
       fetchRegistrationsIfMissing,
     },
     FirebaseService: {
+      ensureAuthReadyForWrite,
+      _mapSubcollectionDoc: jest.fn((doc) => ({ ...doc.data(), _docId: doc.id, id: doc.id })),
+      _upsertCanonicalCacheRecord: jest.fn(),
       _registrationListenerKey: registrationListenerKey,
       _registrationsServerSnapshotReceived: registrationsServerSnapshotReceived,
+    },
+    db: {
+      collection: jest.fn(() => ({
+        doc: jest.fn(() => ({
+          collection: jest.fn(() => ({
+            where: (field, op, value) => ({
+              limit: limit => ({
+                get: options => {
+                  queryCalls.push({ field, op, value, limit, options });
+                  if (registrationQueryImpl) return registrationQueryImpl({ field, op, value, limit, options });
+                  return Promise.resolve(makeSnap(registrationDocsByField[field] || []));
+                },
+              }),
+            }),
+          })),
+        })),
+      })),
     },
     console,
     document,
@@ -61,7 +96,7 @@ function loadSignupModule({
   vm.runInNewContext(readProjectFile('js/modules/event/event-detail-signup.js'), context, {
     filename: 'js/modules/event/event-detail-signup.js',
   });
-  return { app, context, event, fetchRegistrationsIfMissing };
+  return { app, context, event, fetchRegistrationsIfMissing, queryCalls };
 }
 
 describe('event detail signup registration loading gate', () => {
@@ -71,15 +106,26 @@ describe('event detail signup registration loading gate', () => {
     jest.restoreAllMocks();
   });
 
-  test('holds signup actions and de-dupes event registration hydrate while event/user state is not server-confirmed', () => {
+  test('holds signup actions and de-dupes user-scoped registration hydrate while event/user state is not server-confirmed', async () => {
     const deferred = createDeferred();
-    const fetchRegistrationsIfMissing = jest.fn(() => deferred.promise);
-    const { app, event } = loadSignupModule({ fetchRegistrationsIfMissing });
+    const fetchRegistrationsIfMissing = jest.fn(() => Promise.resolve());
+    const { app, event, queryCalls } = loadSignupModule({
+      fetchRegistrationsIfMissing,
+      registrationQueryImpl: () => deferred.promise,
+    });
 
     expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
     expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
-    expect(fetchRegistrationsIfMissing).toHaveBeenCalledTimes(1);
-    expect(fetchRegistrationsIfMissing).toHaveBeenCalledWith('evt-1');
+    await flushMicrotasks(3);
+
+    expect(fetchRegistrationsIfMissing).not.toHaveBeenCalled();
+    expect(queryCalls).toHaveLength(1);
+    expect(queryCalls[0]).toMatchObject({
+      field: 'userId',
+      value: 'user-1',
+      limit: 5,
+      options: { source: 'server' },
+    });
   });
 
   test('does not hold or refetch when current cache already proves the user is registered', () => {
@@ -108,7 +154,7 @@ describe('event detail signup registration loading gate', () => {
   test('keeps refreshSignupButton on loading and does not compute a signup CTA before registration proof', () => {
     const deferred = createDeferred();
     const { app } = loadSignupModule({
-      fetchRegistrationsIfMissing: jest.fn(() => deferred.promise),
+      registrationQueryImpl: () => deferred.promise,
     });
     app._buildEventSignupLoadingButton = jest.fn(() => '<button data-state="loading" disabled>loading</button>');
     app._isUserSignedUp = jest.fn(() => false);
@@ -124,7 +170,7 @@ describe('event detail signup registration loading gate', () => {
     jest.useFakeTimers();
     const deferred = createDeferred();
     const { app, event } = loadSignupModule({
-      fetchRegistrationsIfMissing: jest.fn(() => deferred.promise),
+      registrationQueryImpl: () => deferred.promise,
     });
     app._eventSignupRegistrationHydrateTimeoutMs = 3000;
     app._refreshSignupButton = jest.fn();
@@ -142,22 +188,16 @@ describe('event detail signup registration loading gate', () => {
     expect(app._refreshSignupButton).toHaveBeenCalledWith(event.id);
   });
 
-  test('marks hydrate as retryable when fetch resolves but registration absence is still unverified', async () => {
+  test('releases hydrate when server proves the current user has no registration', async () => {
     const { app, event } = loadSignupModule({
-      fetchRegistrationsIfMissing: jest.fn(() => Promise.resolve()),
+      registrationDocsByField: { userId: [], uid: [] },
     });
 
     expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushMicrotasks();
 
     expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(false);
-    expect(app._isEventSignupRegistrationHydrateIssue(event)).toBe(true);
-    expect(app._eventSignupRegistrationHydrateState).toMatchObject({
-      pending: false,
-      issue: 'unverified',
-    });
+    expect(app._isEventSignupRegistrationHydrateIssue(event)).toBe(false);
+    expect(app._eventSignupRegistrationHydrateState).toBe(null);
   });
 });

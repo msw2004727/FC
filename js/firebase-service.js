@@ -1923,6 +1923,50 @@ const FirebaseService = {
     if (shouldRefreshUI) this._debouncedSnapshotRender('tournaments');
   },
 
+  primeCurrentUserFromLineProfile(profile = null) {
+    const lineProfile = profile || (() => {
+      try {
+        return (typeof LineAuth !== 'undefined' && typeof LineAuth.getProfile === 'function')
+          ? LineAuth.getProfile()
+          : null;
+      } catch (_) {
+        return null;
+      }
+    })();
+    const authUid = (typeof auth !== 'undefined' && auth?.currentUser?.uid)
+      ? String(auth.currentUser.uid || '').trim()
+      : '';
+    const profileUid = String(lineProfile?.userId || '').trim();
+    const uid = authUid || profileUid;
+    if (!uid) return null;
+
+    const prev = this._cache.currentUser || null;
+    const prevIds = [prev?.uid, prev?.lineUserId, prev?._docId].map(v => String(v || '').trim()).filter(Boolean);
+    const sameUser = !!prev && prevIds.includes(uid);
+    const profileMatchesAuth = !authUid || !profileUid || authUid === profileUid;
+    const activeProfile = profileMatchesAuth ? lineProfile : null;
+    if (sameUser && prev?.uid === uid && (prev.displayName || prev.name)) return prev;
+
+    const base = sameUser ? prev : {};
+    const displayName = String(activeProfile?.displayName || base?.displayName || base?.name || 'LINE User').trim() || 'LINE User';
+    const next = {
+      ...(base || {}),
+      uid,
+      lineUserId: profileMatchesAuth ? (profileUid || uid) : uid,
+      displayName,
+      name: base?.name || displayName,
+      pictureUrl: activeProfile?.pictureUrl || base?.pictureUrl || null,
+      role: base?.role || 'user',
+    };
+
+    this._cache.currentUser = next;
+    try { this._saveToLS?.('currentUser', next); } catch (_) {}
+    if (!prev && typeof this._onUserChanged === 'function') {
+      try { this._onUserChanged(); } catch (_) {}
+    }
+    return next;
+  },
+
   _syncCurrentUserFromUsersSnapshot() {
     const authUid = (typeof auth !== 'undefined' && auth?.currentUser?.uid)
       ? auth.currentUser.uid
@@ -2959,6 +3003,7 @@ const FirebaseService = {
         return;
       }
 
+      this.primeCurrentUserFromLineProfile();
       this._startMessagesListener();
       this._startUsersListener();
       this._setupIdentityPrivateListener(authUid);

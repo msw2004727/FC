@@ -7,6 +7,7 @@
 Object.assign(App, {
 
   _eventSignupRegistrationHydrateTimeoutMs: 9000,
+  _eventSignupRegistrationProofs: new Set(),
 
   _beginEventActionBusy(key, message = '系統已在處理中') {
     const busyKey = String(key || '').trim();
@@ -87,6 +88,22 @@ Object.assign(App, {
       && state.uid === uid;
   },
 
+  _getEventSignupRegistrationProofKey(eventId, uid) {
+    const safeEventId = String(eventId || '').trim();
+    const safeUid = String(uid || '').trim();
+    return safeEventId && safeUid ? `${safeEventId}|${safeUid}` : '';
+  },
+
+  _markEventSignupRegistrationServerProof(eventId, uid) {
+    const key = this._getEventSignupRegistrationProofKey?.(eventId, uid);
+    if (!key) return false;
+    if (!this._eventSignupRegistrationProofs || typeof this._eventSignupRegistrationProofs.add !== 'function') {
+      this._eventSignupRegistrationProofs = new Set();
+    }
+    this._eventSignupRegistrationProofs.add(key);
+    return true;
+  },
+
   _markEventSignupRegistrationHydrateIssue(eventId, uid, promise, reason) {
     const state = this._eventSignupRegistrationHydrateState;
     if (!this._sameEventSignupRegistrationHydrateState(state, eventId, uid)) return false;
@@ -130,12 +147,12 @@ Object.assign(App, {
       this._refreshSignupButton?.(eventId);
       return;
     }
-    if (typeof ApiService.fetchRegistrationsIfMissing !== 'function') {
+    if (typeof this._fetchCurrentUserRegistrationStateForEvent !== 'function') {
       this._refreshSignupButton?.(eventId);
       return;
     }
     const timeoutMs = this._getEventSignupRegistrationHydrateTimeoutMs();
-    const fetchPromise = Promise.resolve(ApiService.fetchRegistrationsIfMissing(eventId, {
+    const fetchPromise = Promise.resolve(this._fetchCurrentUserRegistrationStateForEvent(e, uid, {
       force: true,
       timeoutMs,
     })).catch(err => {
@@ -460,6 +477,11 @@ Object.assign(App, {
     const userId = String(uid || '').trim();
     if (!eventId || !userId) return false;
 
+    const proofKey = this._getEventSignupRegistrationProofKey?.(eventId, userId);
+    if (proofKey && this._eventSignupRegistrationProofs?.has?.(proofKey)) {
+      return true;
+    }
+
     const fetchedEventIds = ApiService?._fetchedRegistrationServerIds;
     if (fetchedEventIds && typeof fetchedEventIds.has === 'function' && fetchedEventIds.has(eventId)) {
       return true;
@@ -468,6 +490,68 @@ Object.assign(App, {
     return !!(typeof FirebaseService !== 'undefined'
       && FirebaseService._registrationsServerSnapshotReceived
       && String(FirebaseService._registrationListenerKey || '') === `user:${userId}`);
+  },
+
+  async _fetchCurrentUserRegistrationStateForEvent(e, uid, options = {}) {
+    const eventId = String(e?.id || '').trim();
+    const userId = String(uid || '').trim();
+    const fallbackEvent = (typeof ApiService !== 'undefined' && typeof ApiService.getEvent === 'function')
+      ? ApiService.getEvent(eventId)
+      : null;
+    const eventDocId = String(e?._docId || fallbackEvent?._docId || '').trim();
+    if (!eventId || !userId || !eventDocId || typeof db === 'undefined') {
+      return { ok: false, reason: 'missing-context' };
+    }
+
+    const timeoutMs = Math.max(3000, Number(options?.timeoutMs) || this._getEventSignupRegistrationHydrateTimeoutMs());
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.ensureAuthReadyForWrite === 'function') {
+      const authReady = await FirebaseService.ensureAuthReadyForWrite(userId);
+      if (!authReady) return { ok: false, reason: 'auth-not-ready' };
+    }
+    const regsRef = db.collection('events').doc(eventDocId).collection('registrations');
+    const readByField = (field) => regsRef
+      .where(field, '==', userId)
+      .limit(5)
+      .get({ source: 'server' });
+
+    const queryPromise = (async () => {
+      let snap = await readByField('userId');
+      if (!snap || snap.empty || !snap.docs?.length) {
+        snap = await readByField('uid');
+      }
+      const docs = Array.isArray(snap?.docs) ? snap.docs : [];
+      let activeCount = 0;
+      docs.forEach(doc => {
+        const mapped = (typeof FirebaseService !== 'undefined' && typeof FirebaseService._mapSubcollectionDoc === 'function')
+          ? FirebaseService._mapSubcollectionDoc(doc, 'registrations')
+          : { ...(doc.data?.() || {}), _docId: doc.id, id: doc.id };
+        const reg = {
+          ...mapped,
+          eventId: mapped.eventId || eventId,
+          userId: mapped.userId || userId,
+        };
+        if (typeof FirebaseService !== 'undefined' && typeof FirebaseService._upsertCanonicalCacheRecord === 'function') {
+          FirebaseService._upsertCanonicalCacheRecord('registrations', reg);
+        }
+        if (this._isActiveSelfRegistrationRecord?.(reg)) activeCount++;
+      });
+      this._markEventSignupRegistrationServerProof?.(eventId, userId);
+      return { ok: true, activeCount, recordCount: docs.length };
+    })();
+
+    try {
+      if (typeof ApiService !== 'undefined' && typeof ApiService._withFirestoreFetchTimeout === 'function') {
+        return await ApiService._withFirestoreFetchTimeout(queryPromise, timeoutMs, 'fetchCurrentUserRegistrationStateForEvent');
+      }
+      return await queryPromise;
+    } catch (err) {
+      console.warn('[EventDetail] current user registration proof failed:', err);
+      return {
+        ok: false,
+        reason: err?.code === 'firestore-fetch-timeout' || err?.code === 'timeout' ? 'timeout' : 'error',
+        error: err,
+      };
+    }
   },
 
   _shouldHoldSignupActionsForEventRegistrations(e) {
@@ -484,7 +568,8 @@ Object.assign(App, {
     if (currentState?.signedUp) return false;
     if (this._hasEventSignupRegistrationServerProof?.(e, uid)) return false;
 
-    if (typeof ApiService === 'undefined' || typeof ApiService.fetchRegistrationsIfMissing !== 'function') {
+    if (typeof this._fetchCurrentUserRegistrationStateForEvent !== 'function'
+      || typeof db === 'undefined') {
       return false;
     }
 
@@ -519,7 +604,7 @@ Object.assign(App, {
       return false;
     }
 
-    const promise = Promise.resolve(ApiService.fetchRegistrationsIfMissing(eventId))
+    const promise = Promise.resolve(this._fetchCurrentUserRegistrationStateForEvent(e, uid, opts))
       .catch(err => {
         console.warn('[EventDetail] signup registration hydrate failed:', err);
       });
