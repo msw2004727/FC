@@ -46,7 +46,7 @@ async function renderPlans(plans, isStaff = true, selectedTab = 'active', overri
       return date ? new Date(date).getTime() : 0;
     }),
     _todayStr: overrides.todayStr,
-    getEduStudents: jest.fn(() => []),
+    getEduStudents: jest.fn(() => overrides.eduStudents || []),
     _weekdayLabel: (day) => ['日', '一', '二', '三', '四', '五', '六'][day] || String(day),
   };
   const context = {
@@ -198,8 +198,10 @@ describe('edu course plan render', () => {
     expect(cssSource).toContain('.edu-cp-pending-badge');
     expect(cssSource).toContain('box-shadow: 0 2px 6px rgba(220, 38, 38, .35);');
     expect(cssSource).toContain('.edu-cp-manage-danger');
-    expect(cssSource).toContain('width: 5.8rem;');
-    expect(cssSource).toContain('min-width: 5.8rem;');
+    expect(cssSource).toContain('flex-wrap: wrap;');
+    expect(cssSource).toContain('min-width: 5.05rem;');
+    expect(cssSource).toContain('.edu-cp-signup-pending');
+    expect(cssSource).toContain('.edu-cp-signup-enrolled');
     expect(cssSource).toMatch(/\.edu-cp-manage-btn\s*\{[^}]*font-size: \.78rem;[^}]*white-space: nowrap;/s);
   });
 
@@ -251,7 +253,7 @@ describe('edu course plan render', () => {
     expect(endedHtml).toContain('edu-cp-status-ended');
   });
 
-  test('course cards open lessons for weekly and session plans', async () => {
+  test('course cards use explicit lesson buttons for weekly and session plans', async () => {
     const html = await renderPlans([
       {
         id: 'weeklyPlan',
@@ -275,9 +277,13 @@ describe('edu course plan render', () => {
     expect(html).toContain('data-course-plan-id="weeklyPlan"');
     expect(html).toContain("App.showCourseLessons('teamA','weeklyPlan')");
     expect(html).toContain('data-course-plan-id="sessionPlan"');
-    expect(html).toContain('edu-cp-card-clickable');
+    expect(html).not.toContain('edu-cp-card-clickable');
+    expect(html).not.toContain('tabindex="0" onclick="App.showCourseLessons');
     expect(html).toContain("App.showCourseLessons('teamA','sessionPlan')");
     expect(html).toContain('edu-cp-detail-btn');
+    expect(html).toContain('edu-cp-lessons-btn');
+    expect(html.indexOf('App.showEduCoursePlanDetail')).toBeLessThan(html.indexOf("App.showCourseLessons('teamA','weeklyPlan')"));
+    expect(html.indexOf("App.showCourseLessons('teamA','weeklyPlan')")).toBeLessThan(html.indexOf("App.applyCourseEnrollment('teamA','weeklyPlan',this)"));
     expect(html).toContain("App.applyCourseEnrollment('teamA','weeklyPlan',this)");
     expect(html).toContain('App.showCourseEnrollmentList');
     expect(html).toContain('edu-cp-manage-btn edu-cp-manage-list');
@@ -285,6 +291,26 @@ describe('edu course plan render', () => {
     expect(html).toContain('edu-cp-manage-btn edu-cp-manage-danger');
     expect(html).toContain('edu-cp-manage-sort');
     expect(html.indexOf('App.showEduCoursePlanDetail')).toBeLessThan(html.indexOf('App.showCourseEnrollmentList'));
+  });
+
+  test('course card shows pending review cancel action for viewer students', async () => {
+    const html = await renderPlans([{
+      id: 'pendingPlan',
+      name: 'Pending Plan',
+      planType: 'weekly',
+      weekdays: [1],
+      startDate: '2099-01-01',
+      endDate: '2099-02-01',
+      allowSignup: true,
+      _enrollmentSummary: { effectiveApprovedCount: 0, viewerStatuses: { stuA: 'pending' } },
+    }], false, 'active', {
+      eduStudents: [{ id: 'stuA', name: 'Alice', enrollStatus: 'active', selfUid: 'viewer' }],
+    });
+
+    expect(html).toContain('1位學員審核中');
+    expect(html).toContain('edu-cp-signup-pending');
+    expect(html).toContain("App.showCourseEnrollmentPendingCancelDialog('teamA','pendingPlan',this)");
+    expect(html).not.toContain('學員皆已報名');
   });
 
   test('hidden course plans are visible only to staff in the course list', async () => {
@@ -722,7 +748,7 @@ describe('edu course plan render', () => {
       isEduClubStaff: jest.fn(() => false),
       _getCourseEnrollCacheKey: jest.fn((teamId, planId) => teamId + ':' + planId),
       _loadCourseEnrollmentSummaries: jest.fn(async () => ({
-        planEnrolled: { effectiveApprovedCount: 1, viewerStatuses: { stuA: 'pending' } },
+        planEnrolled: { effectiveApprovedCount: 1, viewerStatuses: { stuA: 'approved' } },
       })),
       _loadCourseEnrollments: jest.fn(async () => []),
       _isCoursePlanEnded: jest.fn(() => false),
@@ -753,6 +779,61 @@ describe('edu course plan render', () => {
     expect(appended).toHaveLength(1);
     expect(overlay.innerHTML).toContain('學員皆已報名');
     expect(overlay.innerHTML).not.toContain("App.applyCourseEnrollment('teamA','planEnrolled',this)");
+  });
+
+  test('course detail shows pending cancel action before all-enrolled state', async () => {
+    const overlay = { className: '', innerHTML: '', onclick: null, remove: jest.fn() };
+    const appended = [];
+    const app = {
+      _courseEnrollCache: {},
+      _courseEnrollSummaryCache: {},
+      getEduCoursePlans: jest.fn(() => [{
+        id: 'planPending',
+        name: 'Pending Detail Plan',
+        planType: 'weekly',
+        weekdays: [1],
+        startDate: '2099-01-01',
+        endDate: '2099-02-01',
+        allowSignup: true,
+        visibleOnTeamPage: true,
+        maxCapacity: 12,
+      }]),
+      getEduStudents: jest.fn(() => [{ id: 'stuA', name: 'Alice', enrollStatus: 'active', selfUid: 'viewer' }]),
+      isEduClubStaff: jest.fn(() => false),
+      _getCourseEnrollCacheKey: jest.fn((teamId, planId) => teamId + ':' + planId),
+      _loadCourseEnrollmentSummaries: jest.fn(async () => ({
+        planPending: { effectiveApprovedCount: 0, viewerStatuses: { stuA: 'pending' } },
+      })),
+      _loadCourseEnrollments: jest.fn(async () => []),
+      _isCoursePlanEnded: jest.fn(() => false),
+      _weekdayLabel: (day) => ['日', '一', '二', '三', '四', '五', '六'][day] || String(day),
+    };
+    const context = {
+      App: app,
+      ApiService: { getCurrentUser: jest.fn(() => ({ uid: 'viewer' })) },
+      document: {
+        querySelector: jest.fn(() => null),
+        createElement: jest.fn(() => overlay),
+        body: { appendChild: jest.fn((node) => appended.push(node)) },
+      },
+      escapeHTML,
+      Date,
+      Promise,
+      Number,
+      String,
+      Set,
+      Object,
+      console,
+    };
+    vm.runInNewContext(source, context, { filename: 'edu-course-plan-render.js' });
+
+    await context.App.showEduCoursePlanDetail('teamA', 'planPending');
+
+    expect(appended).toHaveLength(1);
+    expect(overlay.innerHTML).toContain('1位學員審核中');
+    expect(overlay.innerHTML).toContain('edu-cp-signup-pending');
+    expect(overlay.innerHTML).toContain("App.showCourseEnrollmentPendingCancelDialog('teamA','planPending',this)");
+    expect(overlay.innerHTML).not.toContain("App.applyCourseEnrollment('teamA','planPending',this)");
   });
 
   test('course detail progress keeps upcoming lessons visible in long weekly plans', async () => {

@@ -61,24 +61,38 @@ Object.assign(App, {
       : (Array.isArray(plan?._enrollments) ? plan._enrollments : []);
     const summary = options.summary || plan?._enrollmentSummary || null;
     const enrolledStudentIds = new Set();
+    const approvedStudentIds = new Set();
+    const pendingStudentIds = new Set();
+    const inactiveStatuses = new Set(['rejected', 'cancelled', 'canceled', 'removed']);
+    const addViewerEnrollmentStatus = (studentId, rawStatus) => {
+      const safeStudentId = String(studentId || '').trim();
+      if (!safeStudentId) return;
+      const status = String(rawStatus || 'approved').trim().toLowerCase();
+      if (inactiveStatuses.has(status)) return;
+      enrolledStudentIds.add(safeStudentId);
+      if (status === 'pending') pendingStudentIds.add(safeStudentId);
+      if (status === 'approved' || !status) approvedStudentIds.add(safeStudentId);
+    };
     enrollments.forEach((enrollment) => {
-      const status = String(enrollment?.status || '').trim().toLowerCase();
       const studentId = String(enrollment?.studentId || '').trim();
-      if (studentId && status !== 'rejected') enrolledStudentIds.add(studentId);
+      addViewerEnrollmentStatus(studentId, enrollment?.status);
     });
     const viewerStatuses = summary?.viewerStatuses || {};
     Object.keys(viewerStatuses).forEach((studentId) => {
-      const status = String(viewerStatuses[studentId] || '').trim().toLowerCase();
-      if (studentId && status !== 'rejected') enrolledStudentIds.add(studentId);
+      addViewerEnrollmentStatus(studentId, viewerStatuses[studentId]);
     });
     const groupId = String(plan?.groupId || '').trim();
     if (!autoMigrationCompleted && groupId) {
       students.filter(s => s?.enrollStatus === 'active' && (s?.groupIds || []).includes(groupId))
         .forEach(s => {
           const studentId = String(s?.id || s?._docId || '').trim();
-          if (studentId) enrolledStudentIds.add(studentId);
+          addViewerEnrollmentStatus(studentId, 'approved');
         });
     }
+    const pendingStudents = myStudents.filter((student) => {
+      const studentId = String(student?.id || student?._docId || '').trim();
+      return !!studentId && pendingStudentIds.has(studentId);
+    });
     const summaryCount = Number(summary?.effectiveApprovedCount);
     const effectiveCount = Number.isFinite(summaryCount)
       ? summaryCount
@@ -87,10 +101,14 @@ Object.assign(App, {
     return {
       myStudents,
       enrolledStudentIds,
+      approvedStudentIds,
+      pendingStudentIds,
+      pendingStudents,
+      pendingCount: pendingStudents.length,
       allEnrolled: myStudents.length > 0 && myStudents.every((student) => {
         const studentId = String(student?.id || student?._docId || '').trim();
         return !!studentId && enrolledStudentIds.has(studentId);
-      }),
+      }) && pendingStudents.length === 0,
       isFull: Number.isFinite(maxCapacity) && maxCapacity > 0 && effectiveCount >= maxCapacity,
       effectiveCount,
       maxCapacity,
@@ -176,9 +194,13 @@ Object.assign(App, {
 
     const applyCachedEnrollmentState = (p) => {
       const key = this._getCourseEnrollCacheKey?.(teamId, p.id);
-      const cachedEnrollments = (key && this._courseEnrollCache?.[key]) || [];
+      const hasCachedEnrollments = !!(key && Array.isArray(this._courseEnrollCache?.[key]));
+      const cachedEnrollments = hasCachedEnrollments
+        ? this._courseEnrollCache[key]
+        : (Array.isArray(p._enrollments) ? p._enrollments : []);
       const cachedSummary = cachedEnrollments?._summary
         || (key && this._courseEnrollSummaryCache?.[key])
+        || p._enrollmentSummary
         || null;
       applyEnrollmentState(p, cachedEnrollments, cachedSummary);
     };
@@ -255,8 +277,10 @@ Object.assign(App, {
           autoMigrationCompleted,
         });
 
-        if (viewerEnrollmentState.allEnrolled) {
-          signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-disabled" disabled>學員皆已報名</button>';
+        if (viewerEnrollmentState.pendingCount > 0) {
+          signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-pending" onclick="event.stopPropagation();App.showCourseEnrollmentPendingCancelDialog(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\',this)">' + viewerEnrollmentState.pendingCount + '位學員審核中</button>';
+        } else if (viewerEnrollmentState.allEnrolled) {
+          signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-disabled edu-cp-signup-enrolled" disabled>學員皆已報名</button>';
         } else if (viewerEnrollmentState.isFull) {
           signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-disabled" disabled>已額滿</button>';
         } else {
@@ -287,9 +311,9 @@ Object.assign(App, {
         : '';
 
       const detailBtn = '<button class="outline-btn edu-cp-detail-btn" onclick="event.stopPropagation();App.showEduCoursePlanDetail(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">詳細資訊</button>';
-      const openLessonsAttrs = ' role="button" tabindex="0" onclick="App.showCourseLessons(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();App.showCourseLessons(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')}"';
+      const lessonsBtn = '<button class="outline-btn edu-cp-lessons-btn" onclick="event.stopPropagation();App.showCourseLessons(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">課堂列表</button>';
 
-      return '<div class="edu-course-card edu-cp-card-v3 edu-cp-card-compact edu-cp-card-' + (p.planType === 'weekly' ? 'weekly' : 'session') + hiddenClass + coverClass + ' edu-cp-card-clickable" data-course-plan-id="' + escapeHTML(p.id || '') + '"' + openLessonsAttrs + '>'
+      return '<div class="edu-course-card edu-cp-card-v3 edu-cp-card-compact edu-cp-card-' + (p.planType === 'weekly' ? 'weekly' : 'session') + hiddenClass + coverClass + '" data-course-plan-id="' + escapeHTML(p.id || '') + '">'
         + coverHtml
         + hiddenBadge
         + '<div class="edu-cp-compact-main">'
@@ -299,7 +323,7 @@ Object.assign(App, {
         + '</div>'
         + infoHtml
         + '</div>'
-        + '<div class="edu-cp-card-actions">' + detailBtn + signupBtn + '</div>'
+        + '<div class="edu-cp-card-actions">' + detailBtn + lessonsBtn + signupBtn + '</div>'
         + manageHtml
         + '</div>';
     };
@@ -720,17 +744,21 @@ Object.assign(App, {
     if (!isStaff && plan.visibleOnTeamPage !== false && plan.allowSignup) {
       if (this._isCoursePlanEnded?.(plan)) {
         signupActionHtml = '<button type="button" class="primary-btn edu-course-detail-signup-btn edu-cp-signup-disabled" disabled>課程已結束</button>';
+      } else if (viewerEnrollmentState.pendingCount > 0) {
+        signupActionHtml = '<button type="button" class="primary-btn edu-course-detail-signup-btn edu-cp-signup-pending" onclick="event.stopPropagation();App.showCourseEnrollmentPendingCancelDialog(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\',this)">' + viewerEnrollmentState.pendingCount + '位學員審核中</button>';
       } else if (viewerEnrollmentState.allEnrolled) {
-        signupActionHtml = '<button type="button" class="primary-btn edu-course-detail-signup-btn edu-cp-signup-disabled" disabled>學員皆已報名</button>';
+        signupActionHtml = '<button type="button" class="primary-btn edu-course-detail-signup-btn edu-cp-signup-disabled edu-cp-signup-enrolled" disabled>學員皆已報名</button>';
       } else if (viewerEnrollmentState.isFull) {
         signupActionHtml = '<button type="button" class="primary-btn edu-course-detail-signup-btn edu-cp-signup-disabled" disabled>已額滿</button>';
       } else {
         signupActionHtml = '<button type="button" class="primary-btn edu-course-detail-signup-btn" onclick="event.stopPropagation();App.applyCourseEnrollment(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\',this)">立即報名</button>';
       }
     }
-    const footerActionsHtml = signupReminderHtml + signupActionHtml;
-    const footerActionsBlock = footerActionsHtml
-      ? '<div class="edu-course-detail-footer-actions">' + footerActionsHtml + '</div>'
+    const footerActionsBlock = signupActionHtml
+      ? '<div class="edu-course-detail-footer-actions"><div class="edu-course-detail-signup-stack">'
+        + signupReminderHtml
+        + '<div class="edu-course-detail-signup-button-wrap">' + signupActionHtml + '</div>'
+        + '</div></div>'
       : '';
     overlay.innerHTML = '<div class="edu-info-dialog edu-course-detail-dialog">'
       + '<div class="edu-course-detail-head">'

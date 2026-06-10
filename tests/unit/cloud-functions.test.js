@@ -460,6 +460,18 @@ describe('education course enrollment callable source contracts', () => {
     expect(source).toContain('pendingReviewCount,');
   });
 
+  test('course enrollment cancellation only cancels owned pending enrollments', () => {
+    const source = readCloudFunctionSource('cancelCourseEnrollment');
+    expect(source).toContain('if (!request.auth?.uid)');
+    expect(source).toContain('normalizeEduCourseRequestIds(request.data || {})');
+    expect(source).toContain('isStudentOwnedByUid(student, callerUid)');
+    expect(source).toContain('sanitizeStr(enrollment.status, 32).toLowerCase() === "pending"');
+    expect(source).toContain('sanitizeStr(enrollment._docId || enrollment.id, 100)');
+    expect(source).toContain('status: "cancelled"');
+    expect(source).toContain('cancelledByUid: callerUid');
+    expect(source).toContain('NO_PENDING_ENROLLMENTS');
+  });
+
   test('public course roster callable projects sessions and students without requiring auth', () => {
     const source = readCloudFunctionSource('listEduCoursePublicRoster');
     expect(source).toContain('region: "asia-east1"');

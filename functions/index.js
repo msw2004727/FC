@@ -3620,6 +3620,7 @@ function createEduCourseHttpsError(code, message, details = undefined) {
     COURSE_FULL: "resource-exhausted",
     ENROLLMENT_NOT_FOUND: "not-found",
     ENROLLMENT_NOT_PENDING: "failed-precondition",
+    NO_PENDING_ENROLLMENTS: "failed-precondition",
     TEAM_NOT_FOUND: "not-found",
     PERMISSION_DENIED: "permission-denied",
   };
@@ -4252,6 +4253,94 @@ exports.registerForEduCoursePlan = onCall(
         rejectedStudentIds: decision.rejectedStudentIds,
         approvedCount: decision.approvedCount,
         maxCapacity: decision.maxCapacity,
+      };
+    });
+  }
+);
+
+exports.cancelCourseEnrollment = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+    const callerUid = request.auth.uid;
+    const { teamId, planId } = normalizeEduCourseRequestIds(request.data || {});
+    const requestedStudentIds = Array.from(new Set(
+      (Array.isArray(request.data?.studentIds) ? request.data.studentIds : [request.data?.studentId])
+        .map((value) => sanitizeStr(value, 100))
+        .filter(Boolean)
+    )).slice(0, 10);
+    if (!requestedStudentIds.length) throw new HttpsError("invalid-argument", "studentIds is required");
+
+    return db.runTransaction(async (tx) => {
+      const teamDoc = await getTeamDocByTeamIdInTransaction(tx, teamId);
+      if (!teamDoc) throw createEduCourseHttpsError("TEAM_NOT_FOUND");
+      const teamRef = teamDoc.ref;
+      const planRef = teamRef.collection("coursePlans").doc(planId);
+      const planSnap = await tx.get(planRef);
+      if (!planSnap.exists) throw createEduCourseHttpsError("PLAN_NOT_FOUND");
+      const [enrollments, students] = await Promise.all([
+        loadCourseEnrollmentsForDecision(tx, planRef),
+        loadCourseStudentsForDecision(tx, teamRef),
+      ]);
+      const studentsById = new Map();
+      students.forEach((student) => {
+        const id = sanitizeStr(student.id, 100);
+        const docId = sanitizeStr(student._docId, 100);
+        if (id) studentsById.set(id, student);
+        if (docId) studentsById.set(docId, student);
+      });
+      const cancelledStudentIds = [];
+      const skippedStudentIds = [];
+      const nowTimestamp = Timestamp.now();
+
+      requestedStudentIds.forEach((studentId) => {
+        const student = studentsById.get(studentId);
+        if (!student) {
+          skippedStudentIds.push({ studentId, code: "STUDENT_NOT_FOUND" });
+          return;
+        }
+        if (!isStudentOwnedByUid(student, callerUid)) {
+          throw createEduCourseHttpsError("STUDENT_FORBIDDEN", "STUDENT_FORBIDDEN", { code: "STUDENT_FORBIDDEN", studentId });
+        }
+        const pendingEnrollments = enrollments.filter((enrollment) => (
+          sanitizeStr(enrollment.studentId, 100) === studentId
+          && sanitizeStr(enrollment.status, 32).toLowerCase() === "pending"
+        ));
+        if (!pendingEnrollments.length) {
+          skippedStudentIds.push({ studentId, code: "ENROLLMENT_NOT_PENDING" });
+          return;
+        }
+        pendingEnrollments.forEach((enrollment) => {
+          const enrollId = sanitizeStr(enrollment._docId || enrollment.id, 100);
+          if (!enrollId) return;
+          tx.update(planRef.collection("enrollments").doc(enrollId), {
+            status: "cancelled",
+            cancelledAt: nowTimestamp,
+            cancelledByUid: callerUid,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        });
+        cancelledStudentIds.push(studentId);
+      });
+
+      if (!cancelledStudentIds.length) {
+        throw createEduCourseHttpsError("NO_PENDING_ENROLLMENTS", "NO_PENDING_ENROLLMENTS", {
+          code: "NO_PENDING_ENROLLMENTS",
+          skippedStudentIds,
+        });
+      }
+      tx.update(planRef, {
+        occupancyTouchedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return {
+        success: true,
+        teamId,
+        planId,
+        cancelledStudentIds,
+        skippedStudentIds,
       };
     });
   }

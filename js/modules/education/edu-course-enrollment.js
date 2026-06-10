@@ -136,6 +136,148 @@ Object.assign(App, {
     return current;
   },
 
+  _isCourseEnrollmentActiveStatus(status) {
+    const normalized = String(status || 'approved').trim().toLowerCase();
+    return normalized !== 'rejected' && normalized !== 'cancelled' && normalized !== 'canceled' && normalized !== 'removed';
+  },
+
+  _mergeCourseEnrollmentCacheAfterCancel(teamId, planId, cancelledStudentIds = []) {
+    const ids = new Set((Array.isArray(cancelledStudentIds) ? cancelledStudentIds : [cancelledStudentIds])
+      .map(value => String(value || '').trim())
+      .filter(Boolean));
+    if (!ids.size) return [];
+    const key = this._getCourseEnrollCacheKey(teamId, planId);
+    this._courseEnrollCache = this._courseEnrollCache || {};
+    this._courseEnrollSummaryCache = this._courseEnrollSummaryCache || {};
+    const current = Array.isArray(this._courseEnrollCache[key]) ? this._courseEnrollCache[key] : [];
+    const next = current.filter((enrollment) => {
+      const studentId = String(enrollment?.studentId || '').trim();
+      const status = String(enrollment?.status || '').trim().toLowerCase();
+      return !(ids.has(studentId) && status === 'pending');
+    });
+    const previousSummary = this._courseEnrollSummaryCache[key] || current?._summary || {};
+    const viewerStatuses = { ...(previousSummary.viewerStatuses || {}) };
+    ids.forEach((studentId) => { delete viewerStatuses[studentId]; });
+    const summary = {
+      ...previousSummary,
+      viewerStatuses,
+      viewerStudentIds: Array.isArray(previousSummary.viewerStudentIds)
+        ? previousSummary.viewerStudentIds
+        : [],
+    };
+    Object.defineProperty(next, '_summary', {
+      value: summary,
+      enumerable: false,
+      configurable: true,
+    });
+    this._courseEnrollCache[key] = next;
+    this._courseEnrollSummaryCache[key] = summary;
+    const plan = (this.getEduCoursePlans?.(teamId) || []).find(item => String(item.id || item._docId || '') === String(planId || ''));
+    if (plan) {
+      plan._enrollments = next;
+      plan._enrollmentSummary = summary;
+    }
+    return next;
+  },
+
+  async showCourseEnrollmentPendingCancelDialog(teamId, planId, actionButton) {
+    const plan = this.getEduCoursePlans?.(teamId)?.find(p => String(p.id || p._docId || '') === String(planId || ''));
+    if (!plan) { this.showToast?.('找不到課程方案'); return; }
+    const curUser = ApiService.getCurrentUser();
+    if (!curUser) { this.showToast?.('請先登入'); return; }
+    const actionState = this._setEduCourseActionLoading(actionButton, '讀取中...');
+    if (actionState.active === false) return;
+    const sourceOverlay = actionButton?.closest?.('.edu-course-detail-overlay');
+    try {
+      const enrollments = await this._loadCourseEnrollments(teamId, planId);
+      const myStudents = (this.getEduStudents?.(teamId) || []).filter(student =>
+        student?.enrollStatus !== 'inactive' && (student?.selfUid === curUser.uid || student?.parentUid === curUser.uid)
+      );
+      const studentsById = new Map(myStudents.map(student => [
+        String(student?.id || student?._docId || '').trim(),
+        student,
+      ]));
+      const pendingItems = (Array.isArray(enrollments) ? enrollments : [])
+        .filter(enrollment => String(enrollment?.status || '').trim().toLowerCase() === 'pending')
+        .map((enrollment) => {
+          const studentId = String(enrollment?.studentId || '').trim();
+          const student = studentsById.get(studentId);
+          return student ? { enrollment, student, studentId } : null;
+        })
+        .filter(Boolean);
+      if (!pendingItems.length) {
+        this.showToast?.('目前沒有審核中的報名');
+        await this._refreshCourseViewsAfterEnrollmentChange?.(teamId, planId, { force: true });
+        return;
+      }
+
+      document.querySelector?.('.edu-course-pending-cancel-overlay')?.remove?.();
+      const overlay = document.createElement('div');
+      overlay.className = 'edu-info-overlay edu-course-pending-cancel-overlay';
+      overlay.onclick = (event) => { if (event.target === overlay) overlay.remove(); };
+      const formatDate = (value) => {
+        if (!value) return '';
+        if (typeof value === 'string') return value.slice(0, 10);
+        if (typeof value.toDate === 'function') return value.toDate().toISOString().slice(0, 10);
+        if (Number.isFinite(value.seconds)) return new Date(value.seconds * 1000).toISOString().slice(0, 10);
+        return '';
+      };
+      const itemHtml = pendingItems.map(({ enrollment, student, studentId }) => {
+        const appliedDate = formatDate(enrollment.appliedAt || enrollment.appliedAtIso || enrollment.createdAt);
+        const age = student?.birthday ? this.calcAge?.(student.birthday) : null;
+        const ageText = Number.isFinite(age) ? age + '歲' : '';
+        const subText = [ageText, appliedDate ? '送出日 ' + appliedDate : '審核中'].filter(Boolean).join(' · ');
+        return '<label class="edu-ce-pick-item edu-ce-pending-cancel-item">'
+          + '<div class="edu-ce-pick-main"><span class="edu-ce-pick-name">' + escapeHTML(student?.name || enrollment.studentName || '未命名學員') + '</span>'
+          + '<span class="edu-ce-pick-info">' + escapeHTML(subText) + '</span></div>'
+          + '<input type="checkbox" value="' + escapeHTML(studentId) + '" checked></label>';
+      }).join('');
+      overlay.innerHTML = '<div class="edu-info-dialog edu-course-pending-cancel-dialog">'
+        + '<div class="edu-info-dialog-title">取消審核中報名</div>'
+        + '<div class="edu-course-pending-cancel-copy">以下是你名下仍在等待俱樂部審核的學員。勾選後可取消報名，取消後若還要參加需重新送出報名。</div>'
+        + '<div class="edu-ce-pick-list">' + itemHtml + '</div>'
+        + '<div class="edu-course-pending-cancel-actions">'
+        + '<button type="button" class="outline-btn" onclick="this.closest(\'.edu-info-overlay\').remove()">返回</button>'
+        + '<button type="button" class="primary-btn danger" id="_eduPendingCancelConfirmBtn">取消報名</button>'
+        + '</div>'
+        + '</div>';
+      document.body.appendChild(overlay);
+      const confirmBtn = document.getElementById('_eduPendingCancelConfirmBtn');
+      if (!confirmBtn) return;
+      confirmBtn.onclick = async () => {
+        const checks = overlay.querySelectorAll('.edu-ce-pick-list input[type="checkbox"]:checked');
+        const studentIds = Array.from(checks).map(cb => cb.value).filter(Boolean);
+        if (!studentIds.length) { this.showToast?.('請先勾選要取消的學員'); return; }
+        const ok = typeof this.appConfirm === 'function'
+          ? await this.appConfirm('確定要取消 ' + studentIds.length + ' 位學員的審核中報名嗎？取消後如要參加需重新報名。')
+          : window.confirm('確定要取消 ' + studentIds.length + ' 位學員的審核中報名嗎？取消後如要參加需重新報名。');
+        if (!ok) return;
+        const btnState = this._setEduCourseActionLoading(confirmBtn, '取消中...');
+        if (btnState.active === false) return;
+        try {
+          const result = await FirebaseService.cancelCourseEnrollment(teamId, planId, studentIds);
+          const cancelledIds = Array.isArray(result?.cancelledStudentIds) ? result.cancelledStudentIds : studentIds;
+          this._mergeCourseEnrollmentCacheAfterCancel(teamId, planId, cancelledIds);
+          overlay.remove();
+          this.showToast?.('已取消審核中的報名');
+          if (sourceOverlay?.isConnected) {
+            sourceOverlay.remove();
+            await this.showEduCoursePlanDetail?.(teamId, planId);
+          }
+          await this.renderEduCoursePlanList?.(teamId, undefined);
+          this._refreshCourseViewsAfterEnrollmentChange?.(teamId, planId, { force: true });
+        } catch (err) {
+          console.error('[cancelCourseEnrollment]', err);
+          this.showToast?.('取消失敗：' + (err.message || '請稍後再試'));
+        } finally {
+          btnState.restore();
+        }
+      };
+    } finally {
+      actionState.restore();
+    }
+  },
+
   async _refreshCourseViewsAfterEnrollmentChange(teamId, planId, options = {}) {
     const force = options.force === true;
     try {
@@ -246,7 +388,7 @@ Object.assign(App, {
     // 標記已報名的學員
     const enrolledMap = {};
     enrollments.forEach(e => {
-      if (e.status !== 'rejected') enrolledMap[e.studentId] = e;
+      if (this._isCourseEnrollmentActiveStatus(e.status)) enrolledMap[e.studentId] = e;
     });
     const autoMigrationCompleted = typeof isEduAutoMigrationCompleted === 'function'
       && isEduAutoMigrationCompleted();

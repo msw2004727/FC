@@ -68,7 +68,8 @@ function validateStudentApply({ name, birthday, gender, teamId, relation, curUse
 
 // Extracted from js/modules/education/edu-course-enrollment.js:63-67
 function isCourseEnrolled(enrollments, studentId) {
-  return enrollments.some(e => e.studentId === studentId && e.status !== 'rejected');
+  const inactiveStatuses = new Set(['rejected', 'cancelled', 'canceled', 'removed']);
+  return enrollments.some(e => e.studentId === studentId && !inactiveStatuses.has(String(e.status || '').toLowerCase()));
 }
 
 // Extracted from js/modules/education/edu-course-enrollment.js:159-203
@@ -244,6 +245,13 @@ describe('Course enrollment', () => {
     expect(enrollmentSource).toContain('edu-inline-spinner');
   });
 
+  test('pending enrollment cancel action uses confirmation and callable cancellation', () => {
+    expect(enrollmentSource).toContain('async showCourseEnrollmentPendingCancelDialog(teamId, planId, actionButton)');
+    expect(enrollmentSource).toContain('FirebaseService.cancelCourseEnrollment(teamId, planId, studentIds)');
+    expect(enrollmentSource).toContain('await this.appConfirm');
+    expect(enrollmentSource).toContain('_mergeCourseEnrollmentCacheAfterCancel(teamId, planId, cancelledIds)');
+  });
+
   test('coach notes save is capped to 15 characters and refreshes roster', async () => {
     const input = { value: 'abcdefghijklmnop' };
     const updateCourseEnrollment = jest.fn(async () => {});
@@ -301,6 +309,32 @@ describe('Course enrollment', () => {
     expect(plan._enrollmentSummary.viewerStatuses.stuA).toBe('pending');
   });
 
+  test('cancel result removes pending enrollment from local cache before refresh', () => {
+    const plan = { id: 'planA', name: 'Plan A' };
+    const loaded = loadCourseEnrollmentModule({
+      getEduCoursePlans: jest.fn(() => [plan]),
+    });
+    loaded._getCourseEnrollCacheKey = (teamId, planId) => teamId + ':' + planId;
+    const cached = [
+      { id: 'enrA', studentId: 'stuA', status: 'pending' },
+      { id: 'enrB', studentId: 'stuB', status: 'approved' },
+    ];
+    Object.defineProperty(cached, '_summary', {
+      value: { viewerStatuses: { stuA: 'pending', stuB: 'approved' }, viewerStudentIds: ['stuA', 'stuB'] },
+      enumerable: false,
+      configurable: true,
+    });
+    loaded._courseEnrollCache = { 'teamA:planA': cached };
+    loaded._courseEnrollSummaryCache = { 'teamA:planA': cached._summary };
+
+    const next = loaded._mergeCourseEnrollmentCacheAfterCancel('teamA', 'planA', ['stuA']);
+
+    expect(next).toEqual([{ id: 'enrB', studentId: 'stuB', status: 'approved' }]);
+    expect(loaded._courseEnrollSummaryCache['teamA:planA'].viewerStatuses).toEqual({ stuB: 'approved' });
+    expect(plan._enrollments).toBe(next);
+    expect(plan._enrollmentSummary.viewerStatuses.stuA).toBeUndefined();
+  });
+
   test('coach note editor replaces the trigger in-place', () => {
     const input = { focus: jest.fn() };
     const panel = {
@@ -334,6 +368,10 @@ describe('Course enrollment', () => {
 
   test('rejected enrollment does NOT block re-enrollment', () => {
     expect(isCourseEnrolled([{ studentId: 's1', status: 'rejected' }], 's1')).toBe(false);
+  });
+
+  test('cancelled enrollment does NOT block re-enrollment', () => {
+    expect(isCourseEnrolled([{ studentId: 's1', status: 'cancelled' }], 's1')).toBe(false);
   });
 
   test('different student not detected', () => {

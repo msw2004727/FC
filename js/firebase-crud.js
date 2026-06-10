@@ -3753,6 +3753,18 @@ Object.assign(FirebaseService, {
     return result && result.data ? result.data : result;
   },
 
+  async cancelCourseEnrollment(teamId, planId, studentIds) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase auth failed');
+    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('cancelCourseEnrollment');
+    const result = await callable({
+      teamId,
+      planId,
+      studentIds: Array.isArray(studentIds) ? studentIds : [studentIds],
+    });
+    return result && result.data ? result.data : result;
+  },
+
   async approveCourseEnrollment(teamId, planId, enrollId) {
     const authed = await this.ensureAuthReadyForWrite();
     if (!authed) throw new Error('Firebase auth failed');
