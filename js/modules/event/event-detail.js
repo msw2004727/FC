@@ -879,10 +879,15 @@ Object.assign(App, {
       ? this._getEventParticipantStats(e)
       : null;
     const isMainFull = capacityStats ? capacityStats.isCapacityFull : confirmedCount >= e.max;
+    const optimisticSignupActions = !isGuestView
+      && typeof this._canOptimisticallyRenderEventSignupActions === 'function'
+      && this._canOptimisticallyRenderEventSignupActions(e) === true;
     const registrationIdentityLoading = !isGuestView
       && typeof this._ensureEventSignupRegistrationStateLoaded === 'function'
-      && this._ensureEventSignupRegistrationStateLoaded(e, { requestSeq }) === true;
+      && this._ensureEventSignupRegistrationStateLoaded(e, { requestSeq }) === true
+      && !optimisticSignupActions;
     const registrationIdentityIssue = !registrationIdentityLoading
+      && !optimisticSignupActions
       && !isGuestView
       && typeof this._isEventSignupRegistrationHydrateIssue === 'function'
       && this._isEventSignupRegistrationHydrateIssue(e) === true;
@@ -897,9 +902,6 @@ Object.assign(App, {
     const registrationIdentityProved = !isGuestView
       && typeof this._hasCurrentEventSignupRegistrationServerProof === 'function'
       && this._hasCurrentEventSignupRegistrationServerProof(e);
-    const optimisticSignupActions = !isGuestView
-      && typeof this._canOptimisticallyRenderEventSignupActions === 'function'
-      && this._canOptimisticallyRenderEventSignupActions(e) === true;
     // Fix A+1：首次 snapshot 到達前視為「載入中」；9 秒（3 次重試）後強制解除
     const regsLoading = !isGuestView
       && !optimisticSignupActions

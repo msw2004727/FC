@@ -105,7 +105,11 @@ Object.assign(App, {
 
   _canOptimisticallyRenderEventSignupActions(e) {
     if (!e) return false;
-    return this._isEventSignupAuthStillResolving?.() !== true;
+    // 2026-06-10（秒確認）：LIFF/Firebase auth 解析期間也以快取樂觀渲染 CTA——
+    // 有快取身分→直接算出已報名/未報名；完全無快取→必然未報名、顯示「立即報名」。
+    // 點擊時 _requireProtectedActionLogin 與 _ensureEventSignupCallableAuthReady 仍會把關，
+    // 寫入端另有 ALREADY_REGISTERED / REG_NOT_FOUND 伺服器防護；驗證一律走背景 proof 自我修正。
+    return true;
   },
 
   _clearEventSignupRegistrationHydrateTimer(state) {
@@ -2546,15 +2550,45 @@ Object.assign(App, {
   /** 報名成功後：更新按鈕 + 名單 + 人數 */
   _patchDetailAfterSignup(eventId) {
     this._refreshSignupButton(eventId);
-    this._patchDetailTables(eventId);
+    // 2026-06-10（名單秒更）：先用快取立即重繪名單/人數（含自己的樂觀 registration、
+    // 不觸發 fetch 的 server-proof 失效分支），再背景 force 重抓收斂伺服器真相；
+    // 修復「報名成功卻要等網路往返才看得到自己在名單上」
+    this._patchDetailTables(eventId, { skipFetch: true });
     this._syncEventSignupScrollLock?.();
+    this._revalidateDetailRosterAfterMutation?.(eventId);
   },
 
   /** 取消成功後：更新按鈕 + 名單 + 人數 */
   _patchDetailAfterCancel(eventId) {
     this._refreshSignupButton(eventId);
-    this._patchDetailTables(eventId);
+    this._patchDetailTables(eventId, { skipFetch: true });
     this._syncEventSignupScrollLock?.();
+    this._revalidateDetailRosterAfterMutation?.(eventId);
+  },
+
+  /** 報名/取消後：背景 force 重抓本活動報名名單並重繪（單槽 seq 防舊蓋新） */
+  _revalidateDetailRosterAfterMutation(eventId) {
+    const safeEventId = String(eventId || '').trim();
+    if (!safeEventId
+      || typeof ApiService === 'undefined'
+      || typeof ApiService.fetchRegistrationsIfMissing !== 'function') {
+      return;
+    }
+    const seq = (this._postMutationRosterRevalidateSeq || 0) + 1;
+    this._postMutationRosterRevalidateSeq = seq;
+    Promise.resolve(ApiService.fetchRegistrationsIfMissing(safeEventId, { force: true, timeoutMs: 8000 }))
+      .catch(err => {
+        console.warn('[EventDetail] post-mutation roster revalidate failed:', err);
+      })
+      .then(() => {
+        if (seq !== this._postMutationRosterRevalidateSeq) return;
+        if (this.currentPage === 'page-activity-detail'
+          && this._currentDetailEventId === safeEventId
+          && !this._flipAnimating) {
+          this._patchDetailTables?.(safeEventId, { skipFetch: true });
+          this._refreshSignupButton?.(safeEventId);
+        }
+      });
   },
 
   /**
@@ -2583,15 +2617,19 @@ Object.assign(App, {
       });
       if (!actionGuard.ok) return actionGuard;
     }
+    var optimisticSignupActions = typeof this._canOptimisticallyRenderEventSignupActions === 'function'
+      && this._canOptimisticallyRenderEventSignupActions(e) === true;
     var registrationIdentityLoading = typeof this._ensureEventSignupRegistrationStateLoaded === 'function'
-      && this._ensureEventSignupRegistrationStateLoaded(e) === true;
+      && this._ensureEventSignupRegistrationStateLoaded(e) === true
+      && !optimisticSignupActions;
     var teamReservationIdentityLoading = typeof this._isTeamReservationStaffTeamsHydratingForEvent === 'function'
       && this._isTeamReservationStaffTeamsHydratingForEvent(eventId);
     if (registrationIdentityLoading || teamReservationIdentityLoading) {
       actionZone.innerHTML = this._buildEventSignupLoadingButton?.() || '<button style="display:inline-flex;align-items:center;justify-content:center;gap:.45rem;min-height:2.1rem;background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.82" aria-busy="true" aria-live="polite" disabled><span class="mini-spinner" style="width:14px;height:14px;border:2px solid rgba(255,255,255,.38);border-top-color:#fff;border-radius:50%;animation:signup-mini-spin .7s linear infinite;display:inline-block;flex:0 0 auto" aria-hidden="true"></span><span>用戶資料同步中</span></button>';
       return;
     }
-    var registrationIdentityIssue = typeof this._isEventSignupRegistrationHydrateIssue === 'function'
+    var registrationIdentityIssue = !optimisticSignupActions
+      && typeof this._isEventSignupRegistrationHydrateIssue === 'function'
       && this._isEventSignupRegistrationHydrateIssue(e) === true;
     if (registrationIdentityIssue) {
       actionZone.innerHTML = this._buildEventSignupSyncIssueButton?.(eventId) || '<button style="background:#64748b;color:#fff;padding:.55rem 1.2rem;border-radius:var(--radius);border:none;font-size:.85rem;cursor:not-allowed;opacity:.7" disabled>報名狀態同步中</button>';

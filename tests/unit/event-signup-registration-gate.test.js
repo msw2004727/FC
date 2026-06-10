@@ -662,4 +662,89 @@ describe('event detail signup registration loading gate', () => {
     expect(app._refreshSignupButton).toHaveBeenCalledWith('evt-1');
     jest.useRealTimers();
   });
+
+  // ═══ 2026-06-10：deep-link 秒確認（auth 解析期間也樂觀渲染 CTA）＋ 名單秒更（快取先畫、背景收斂）═══
+
+  test('renders an optimistic signup CTA instead of profile syncing while LIFF auth is still resolving', () => {
+    const { app } = loadSignupModule({
+      authCurrentUid: null,
+      lineSessionResolving: true,
+      lineHasSession: true,
+      lineReady: false,
+      lineProfileLoading: true,
+    });
+    app._isUserSignedUp = jest.fn(() => false);
+    app._isUserOnWaitlist = jest.fn(() => false);
+
+    document.body.innerHTML = '<div class="detail-action-primary"></div>';
+    app._refreshSignupButton('evt-1');
+
+    const zone = document.querySelector('.detail-action-primary');
+    expect(zone.textContent).not.toContain('用戶資料同步中');
+    expect(zone.textContent).toContain('立即報名');
+  });
+
+  test('renders cancel CTA from cached registration state while auth is still resolving', () => {
+    const { app } = loadSignupModule({
+      authCurrentUid: null,
+      lineSessionResolving: true,
+      lineHasSession: true,
+      lineReady: false,
+      lineProfileLoading: true,
+      currentRegistrationState: { signedUp: true, onWaitlist: false },
+    });
+    app._isUserSignedUp = jest.fn(() => true);
+    app._isUserOnWaitlist = jest.fn(() => false);
+
+    document.body.innerHTML = '<div class="detail-action-primary"></div>';
+    app._refreshSignupButton('evt-1');
+
+    expect(document.querySelector('.detail-action-primary').textContent).toContain('取消報名');
+  });
+
+  test('post-mutation detail patch renders roster from cache first then revalidates in background', async () => {
+    const fetchRegistrationsIfMissing = jest.fn(() => Promise.resolve({ ok: true }));
+    const { app } = loadSignupModule({ fetchRegistrationsIfMissing });
+    app._refreshSignupButton = jest.fn();
+    app._patchDetailTables = jest.fn();
+    app._syncEventSignupScrollLock = jest.fn();
+
+    app._patchDetailAfterSignup('evt-1');
+
+    // 立即重繪走 skipFetch（不等網路、不觸發 server-proof 失效分支）
+    expect(app._patchDetailTables).toHaveBeenCalledWith('evt-1', { skipFetch: true });
+    expect(fetchRegistrationsIfMissing).toHaveBeenCalledWith('evt-1', { force: true, timeoutMs: 8000 });
+
+    app._patchDetailTables.mockClear();
+    app._refreshSignupButton.mockClear();
+    await flushMicrotasks(6);
+
+    // 背景重抓完成後再以快取重繪一次收斂
+    expect(app._patchDetailTables).toHaveBeenCalledWith('evt-1', { skipFetch: true });
+    expect(app._refreshSignupButton).toHaveBeenCalledWith('evt-1');
+  });
+
+  test('post-mutation revalidate ignores stale completions when a newer mutation supersedes it', async () => {
+    const first = createDeferred();
+    const second = createDeferred();
+    let call = 0;
+    const fetchRegistrationsIfMissing = jest.fn(() => (++call === 1 ? first.promise : second.promise));
+    const { app } = loadSignupModule({ fetchRegistrationsIfMissing });
+    app._refreshSignupButton = jest.fn();
+    app._patchDetailTables = jest.fn();
+    app._syncEventSignupScrollLock = jest.fn();
+
+    app._patchDetailAfterSignup('evt-1');
+    app._patchDetailAfterCancel('evt-1');
+    app._patchDetailTables.mockClear();
+
+    first.resolve({ ok: true });
+    await flushMicrotasks(6);
+    // 第一筆已被第二筆取代 → 不得觸發重繪
+    expect(app._patchDetailTables).not.toHaveBeenCalled();
+
+    second.resolve({ ok: true });
+    await flushMicrotasks(6);
+    expect(app._patchDetailTables).toHaveBeenCalledWith('evt-1', { skipFetch: true });
+  });
 });
