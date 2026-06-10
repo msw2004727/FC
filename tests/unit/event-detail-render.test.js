@@ -315,11 +315,13 @@ function determineButtonState({
   isEnded = false,
   isUpcoming = false,
   isMainFull = false,
+  registrationIdentityProved = false,
   teamOnlyBlocked = false,
   genderBlocked = false,
 }) {
   // Fix A + Fix 1: regsLoading condition
   const regsLoading = !isGuestView && !isDemo
+    && !registrationIdentityProved
     && !firstSnapshotReceived
     && retryCount < 3;
 
@@ -389,6 +391,15 @@ describe('Button state: regsLoading (Fix A + Fix 1)', () => {
     const state = determineButtonState({
       firstSnapshotReceived: true,
       retryCount: 0,
+    });
+    expect(state.type).toBe('signup');
+  });
+
+  test('not loading when current user registration proof is already server-confirmed', () => {
+    const state = determineButtonState({
+      firstSnapshotReceived: false,
+      retryCount: 0,
+      registrationIdentityProved: true,
     });
     expect(state.type).toBe('signup');
   });
@@ -592,6 +603,8 @@ describe('Team reservation button loading contract', () => {
 
     expect(detailSource).toContain('_teamReservationStaffTeamsHydrateState');
     expect(detailSource).toContain('_eventSignupRegistrationHydrateState');
+    expect(detailSource).toContain('registrationIdentityProved');
+    expect(detailSource).toContain('!registrationIdentityProved');
     expect(detailSource).toContain('const registrationIdentityLoading = !isGuestView');
     expect(detailSource).toContain('const signupActionsLoading = regsLoading || registrationIdentityLoading || teamReservationIdentityLoading');
     expect(detailSource).toContain('this._isTeamReservationStaffTeamsHydratingForEvent(id)');
@@ -605,6 +618,7 @@ describe('Team reservation button loading contract', () => {
     expect(signupSource).toContain('_buildEventSignupLoadingButton');
     expect(signupSource).toContain('_buildEventSignupSyncIssueButton');
     expect(signupSource).toContain('_markEventSignupRegistrationHydrateIssue');
+    expect(signupSource).toContain('_hasCurrentEventSignupRegistrationServerProof');
     expect(signupSource).toContain('opts.registrationIdentityLoading');
     expect(signupSource).toContain('opts.teamReservationIdentityLoading');
     expect(signupSource).toContain('this._ensureEventSignupRegistrationStateLoaded(e) === true');

@@ -894,8 +894,12 @@ Object.assign(App, {
       && !isGuestView
       && typeof this._hasAvailableTeamReservationSignup === 'function'
       && this._hasAvailableTeamReservationSignup(e);
+    const registrationIdentityProved = !isGuestView
+      && typeof this._hasCurrentEventSignupRegistrationServerProof === 'function'
+      && this._hasCurrentEventSignupRegistrationServerProof(e);
     // Fix A+1：首次 snapshot 到達前視為「載入中」；9 秒（3 次重試）後強制解除
     const regsLoading = !isGuestView
+      && !registrationIdentityProved
       && !FirebaseService._registrationsFirstSnapshotReceived
       && this._regsLoadingRetryCount < 3;
     // 載入中按鈕保護：3 秒後自動重繪，最多重試 3 次（9 秒兜底）

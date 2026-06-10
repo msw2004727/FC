@@ -623,6 +623,13 @@ Object.assign(App, {
       && String(FirebaseService._registrationListenerKey || '') === `user:${userId}`);
   },
 
+  _hasCurrentEventSignupRegistrationServerProof(e) {
+    const uid = this._getCurrentSignupRegistrationUid?.() || '';
+    return !!(uid
+      && typeof this._hasEventSignupRegistrationServerProof === 'function'
+      && this._hasEventSignupRegistrationServerProof(e, uid));
+  },
+
   async _fetchCurrentUserRegistrationStateForEvent(e, uid, options = {}) {
     const eventId = String(e?.id || '').trim();
     const userId = String(uid || '').trim();
@@ -669,6 +676,17 @@ Object.assign(App, {
       this._markEventSignupRegistrationServerProof?.(eventId, userId);
       return { ok: true, activeCount, recordCount: docs.length };
     })();
+    queryPromise.then(() => {
+      const state = this._eventSignupRegistrationHydrateState;
+      if (state?.eventId === eventId
+        && state?.uid === userId
+        && state.pending !== true
+        && this.currentPage === 'page-activity-detail'
+        && this._currentDetailEventId === eventId
+        && !this._flipAnimating) {
+        this._refreshSignupButton?.(eventId);
+      }
+    }).catch(() => {});
 
     try {
       if (typeof ApiService !== 'undefined' && typeof ApiService._withFirestoreFetchTimeout === 'function') {

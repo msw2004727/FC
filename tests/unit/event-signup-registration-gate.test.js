@@ -207,6 +207,32 @@ describe('event detail signup registration loading gate', () => {
     expect(app._refreshSignupButton).toHaveBeenCalledWith(event.id);
   });
 
+  test('late user-scoped proof refreshes a timed-out retry issue', async () => {
+    jest.useFakeTimers();
+    const deferred = createDeferred();
+    const emptySnap = { empty: true, docs: [] };
+    const { app, event } = loadSignupModule({
+      registrationQueryImpl: ({ field }) => (field === 'userId'
+        ? deferred.promise
+        : Promise.resolve(emptySnap)),
+    });
+    app._eventSignupRegistrationHydrateTimeoutMs = 3000;
+    app._refreshSignupButton = jest.fn();
+
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
+
+    await jest.advanceTimersByTimeAsync(3100);
+    expect(app._isEventSignupRegistrationHydrateIssue(event)).toBe(true);
+
+    app._refreshSignupButton.mockClear();
+    deferred.resolve(emptySnap);
+    await flushMicrotasks();
+
+    expect(app._hasCurrentEventSignupRegistrationServerProof(event)).toBe(true);
+    expect(app._isEventSignupRegistrationHydrateIssue(event)).toBe(false);
+    expect(app._refreshSignupButton).toHaveBeenCalledWith(event.id);
+  });
+
   test('releases hydrate when server proves the current user has no registration', async () => {
     const { app, event } = loadSignupModule({
       registrationDocsByField: { userId: [], uid: [] },
