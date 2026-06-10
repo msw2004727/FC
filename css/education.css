@@ -4810,18 +4810,6 @@
   border-radius: 12px;
   font-size: .92rem;
 }
-.edu-course-detail-staff-actions {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: .35rem;
-  justify-content: flex-end;
-}
-.edu-course-detail-staff-actions .outline-btn {
-  min-height: 36px;
-  border-radius: 8px;
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-}
 .edu-next-class-card {
   position: relative;
   grid-template-columns: 38px minmax(0, 1fr);

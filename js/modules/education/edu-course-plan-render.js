@@ -649,14 +649,12 @@ Object.assign(App, {
     const signupReminderHtml = signupReminderText
       ? '<div class="edu-course-detail-signup-note">提醒：' + escapeHTML(signupReminderText) + '</div>'
       : '';
-    const staffActions = isStaff
-      ? '<div class="edu-course-detail-staff-actions">'
-        + '<button type="button" class="outline-btn small" onclick="event.stopPropagation();this.closest(\'.edu-info-overlay\').remove();App.showEduCoursePlanForm(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\')">編輯課程</button>'
-        + '<button type="button" class="outline-btn small" onclick="event.stopPropagation();this.closest(\'.edu-info-overlay\').remove();App.showCourseEnrollmentList(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\')">名單管理</button>'
-        + '</div>'
-      : '';
     const signupActionHtml = !isStaff && plan.visibleOnTeamPage !== false && plan.allowSignup && !this._isCoursePlanEnded?.(plan)
       ? '<button type="button" class="primary-btn edu-course-detail-signup-btn" onclick="event.stopPropagation();App.applyCourseEnrollment(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\',this)">立即報名</button>'
+      : '';
+    const footerActionsHtml = signupReminderHtml + signupActionHtml;
+    const footerActionsBlock = footerActionsHtml
+      ? '<div class="edu-course-detail-footer-actions">' + footerActionsHtml + '</div>'
       : '';
     overlay.innerHTML = '<div class="edu-info-dialog edu-course-detail-dialog">'
       + '<div class="edu-course-detail-head">'
@@ -679,7 +677,7 @@ Object.assign(App, {
       + '</div>'
       + '<div class="edu-course-detail-footer">'
         + '<div class="edu-course-price-block"><strong>' + escapeHTML(formatCurrency(priceAmount)) + '</strong><span>' + escapeHTML(priceSubText) + '</span></div>'
-        + '<div class="edu-course-detail-footer-actions">' + signupReminderHtml + staffActions + signupActionHtml + '</div>'
+        + footerActionsBlock
       + '</div>'
       + '</div>';
     document.body.appendChild(overlay);

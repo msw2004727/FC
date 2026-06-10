@@ -771,7 +771,7 @@ describe('edu course plan render', () => {
     expect(overlay.innerHTML).not.toContain('edu-course-progress-more');
   });
 
-  test('staff course detail uses shared content and compact management action', async () => {
+  test('staff course detail uses shared content without duplicated management actions', async () => {
     const overlay = { className: '', innerHTML: '', onclick: null, remove: jest.fn() };
     const appended = [];
     const app = {
@@ -827,10 +827,11 @@ describe('edu course plan render', () => {
     expect(overlay.innerHTML).toContain('edu-course-contact-value');
     expect(overlay.innerHTML).toContain('Team Manager');
     expect(overlay.innerHTML).toContain('href="https://line.me/R/ti/p/%40safe"');
-    expect(overlay.innerHTML).toContain('編輯課程');
-    expect(overlay.innerHTML).toContain('名單管理');
-    expect(overlay.innerHTML).toContain("App.showEduCoursePlanForm('teamA','planStaff')");
-    expect(overlay.innerHTML).toContain("App.showCourseEnrollmentList('teamA','planStaff')");
+    expect(overlay.innerHTML).not.toContain('編輯課程');
+    expect(overlay.innerHTML).not.toContain('名單管理');
+    expect(overlay.innerHTML).not.toContain('edu-course-detail-staff-actions');
+    expect(overlay.innerHTML).not.toContain("App.showEduCoursePlanForm('teamA','planStaff')");
+    expect(overlay.innerHTML).not.toContain("App.showCourseEnrollmentList('teamA','planStaff')");
     expect(overlay.innerHTML).not.toContain('管理課程');
     expect(overlay.innerHTML).not.toContain('管理名單');
     expect(overlay.innerHTML).not.toContain('取消政策');
