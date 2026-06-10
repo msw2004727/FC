@@ -15,6 +15,11 @@ const ScriptLoader = {
     activityComments: true,
     coursePlanForm: true,
     eventLocationPicker: true,
+    // detailCoreSplit（Wave 2 拆包）三個新群組：內容皆為既有 activity group 的子集，
+    // 標記 manual-only 避免 preloadAll 重複列舉（idle 預載仍會經 page-activities 補齊完整 group）
+    activityDetailCore: true,
+    activityCreate: true,
+    activityManage: true,
   },
 
   _normalizeLocalSrc(src) {
@@ -90,8 +95,15 @@ const ScriptLoader = {
   async loadGroup(scripts) {
     const toLoad = scripts.filter(s => !this._loaded[s]);
     if (toLoad.length === 0) return;
-    // Dynamic groups are injected immediately below. Group-wide preload hints
-    // make Chrome warn when later modules are not consumed within a few seconds.
+    // 平行預載：先讓瀏覽器同時下載整組檔案，下方 for-await 仍嚴格依序「執行」。
+    // 消除逐檔「下載完→執行完→才開始下一支」的串行 RTT（冷啟最大瓶頸）。
+    // Chrome 可能對幾秒內未消費的 preload 印無害警告（純提示，非錯誤）。
+    // 回退：PERFORMANCE_FLAGS.parallelGroupPreload=false（config.js）；設計依據 docs/specs/活動詳細頁秒開_Wave2_7A依賴矩陣_v1.md
+    try {
+      if (typeof PERFORMANCE_FLAGS === 'undefined' || PERFORMANCE_FLAGS.parallelGroupPreload !== false) {
+        this._preloadFiles(toLoad);
+      }
+    } catch (_) {}
     for (const src of toLoad) {
       await this._load(src);
     }
@@ -171,6 +183,59 @@ const ScriptLoader = {
       'js/modules/event/event-manage-visibility.js',
       'js/modules/event/event-manage.js',
       'js/modules/registration-audit.js',
+    ],
+    // === detailCoreSplit（Wave 2 拆包）====================================
+    // 以下三組為既有 activity group 的「檔案級」三分拆（聯集=activity、互不重疊、保持原相對順序）。
+    // 僅 page-activity-detail 在 detailCoreSplit 開啟時改用 activityDetailCore；
+    // page-activities / page-my-activities 永遠維持完整 ['activity']（計畫書 §3-7）。
+    // 修改 activity group 內容時，必須同步維護這三組（tests/unit/script-loader.test.js 有分拆一致性測試把關）。
+    // 首屏必留核心依據：docs/specs/活動詳細頁秒開_Wave2_7A依賴矩陣_v1.md
+    //（attendance=名單渲染本體、badges/noshow/manage=首屏 helper、create-options=_renderEventSocialLinksHtml）
+    activityDetailCore: [
+      'js/modules/auto-exp/index.js',
+      'js/modules/auto-exp/rules.js',
+      'js/modules/event/event-list-helpers.js',
+      'js/modules/event/event-list-stats.js',
+      'js/modules/event/event-list-home.js',
+      'js/modules/event/event-list-timeline.js',
+      'js/modules/event/event-list-female-theme.js',
+      'js/modules/event/event-list.js',
+      'js/modules/event/event-share-builders.js',
+      'js/modules/event/event-share.js',
+      'js/modules/event/event-detail-calendar.js',
+      'js/modules/event/event-detail.js',
+      'js/modules/event/event-detail-signup.js',
+      'js/modules/event/event-detail-notify-prompt.js',
+      'js/modules/event/event-detail-companion.js',
+      'js/modules/event/event-comments.js',
+      'js/modules/event/event-comments-actions.js',
+      'js/modules/event/event-create-options.js',
+      'js/modules/event/event-team-split.js',
+      'js/modules/event/event-manage-noshow.js',
+      'js/modules/event/event-manage-attendance.js',
+      'js/modules/event/event-manage-badges.js',
+      'js/modules/event/event-manage.js',
+      'js/modules/registration-audit.js',
+    ],
+    activityCreate: [
+      'js/modules/event/event-create-input-history.js',
+      'js/modules/event/event-create-sport-picker.js',
+      'js/modules/event/event-create-delegates.js',
+      'js/modules/event/event-create-team-picker.js',
+      'js/modules/event/event-location-draft.js',
+      'js/modules/event/event-create-view-model.js',
+      'js/modules/event/event-create-external.js',
+      'js/modules/event/event-create-template.js',
+      'js/modules/event/event-create-waitlist.js',
+      'js/modules/event/event-create-multidate.js',
+      'js/modules/event/event-create.js',
+    ],
+    activityManage: [
+      'js/modules/event/event-manage-instant-save.js',
+      'js/modules/event/event-manage-confirm.js',
+      'js/modules/event/event-manage-lifecycle.js',
+      'js/modules/event/event-manage-waitlist.js',
+      'js/modules/event/event-manage-visibility.js',
     ],
     activityComments: [
       'js/modules/event/event-comments.js',
@@ -558,10 +623,29 @@ const ScriptLoader = {
     'page-edu-student-apply':  ['education'],
   },
 
+  /** detailCoreSplit（Wave 2 拆包）開關：flag 關閉或讀取失敗時一律退回現行完整行為 */
+  _detailCoreSplitEnabled() {
+    try {
+      if (typeof shouldUseActivityDetailOptimization === 'function') {
+        return shouldUseActivityDetailOptimization('detailCoreSplit');
+      }
+    } catch (_) {}
+    return false;
+  },
+
+  /** 解析頁面實際使用的群組（唯一的 split 映射點：詳情頁以 activityDetailCore 取代 activity） */
+  _resolvePageGroups(pageId) {
+    const groups = this._pageGroups[pageId] || [];
+    if (pageId === 'page-activity-detail' && this._detailCoreSplitEnabled()) {
+      return groups.map(g => (g === 'activity' ? 'activityDetailCore' : g));
+    }
+    return groups;
+  },
+
   /** 確保頁面需要的群組已載入 */
   async ensureForPage(pageId) {
     this._primeLoadedFromDom();
-    const groups = this._pageGroups[pageId] || [];
+    const groups = this._resolvePageGroups(pageId);
     if (groups.length === 0) return;
 
     const orderedScripts = [];
@@ -576,7 +660,20 @@ const ScriptLoader = {
       });
     });
 
-    await this.loadGroup(orderedScripts);
+    try {
+      await this.loadGroup(orderedScripts);
+    } catch (err) {
+      // detailCoreSplit fallback：核心拆包載入失敗 → 自動退回完整 legacy activity group 再 render
+      if (groups.includes('activityDetailCore')) {
+        console.warn('[ScriptLoader] activityDetailCore 載入失敗，fallback 至完整 activity group:', err);
+        await this.ensureGroup('activity');
+        for (const g of groups) {
+          if (g !== 'activityDetailCore') await this.ensureGroup(g);
+        }
+        return;
+      }
+      throw err;
+    }
   },
 
   async ensureGroup(groupName) {
@@ -587,10 +684,10 @@ const ScriptLoader = {
     await this.loadGroup(scripts);
   },
 
-  /** 檢查頁面所需腳本是否全部已載入（同步） */
+  /** 檢查頁面所需腳本是否全部已載入（同步；與 ensureForPage 共用同一套 split 映射） */
   isPageReady(pageId) {
     this._primeLoadedFromDom();
-    const groups = this._pageGroups[pageId] || [];
+    const groups = this._resolvePageGroups(pageId);
     for (const groupName of groups) {
       const scripts = this._groups[groupName] || [];
       for (const src of scripts) {

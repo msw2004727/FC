@@ -1744,3 +1744,55 @@ Object.assign(App, {
   },
 
 });
+
+/* === detailCoreSplit（Wave 2 拆包）— deferred handler stable wrappers ============
+   真身位於延後群組（activityManage / activityCreate）的 9 個詳情頁操作入口。
+   拆包模式下：點擊 → 先 ensureGroup 載入真身 → 轉呼真身（真身以 Object.assign 覆寫 wrapper）。
+   legacy 完整 activity group 模式下：後載的真身檔自然覆寫這些 wrapper，行為與現行完全相同
+   （本檔在群組內序位早於延後檔；且 _loaded 去重保證本檔不重執行、wrapper 不會回頭遮蔽真身）。
+   規則（計畫書 §4-8B）：只包「真身在延後檔」的 handler；禁包 _retryAttendanceTableLoad（真身留核心）。
+   清單依據：docs/specs/活動詳細頁秒開_Wave2_7A依賴矩陣_v1.md §3。 */
+Object.assign(App, {
+  // 一律「create 先、manage 後」整組載入（= legacy activity group 的完整非核心集合）。
+  // 不可只載 manage：activityManage 內含 event-manage-lifecycle.js，其 editMyActivity 真身
+  // 會覆寫 wrapper，而它依賴 create 檔（裸呼叫 bindTeamOnlyToggle 等）——若 create 未同載，
+  // 之後點「活動編輯」會 TypeError（Node 全真載入煙霧測試實證，2026-06-10）。
+  _deferredEventHandlerGroups: ['activityCreate', 'activityManage'],
+
+  _buildDeferredEventHandlerWrapper(groupNames, fnName) {
+    const wrapper = async function (...args) {
+      try {
+        for (const g of groupNames) {
+          await ScriptLoader.ensureGroup(g);
+        }
+      } catch (err) {
+        console.error('[detailCoreSplit] 延後群組載入失敗:', fnName, err);
+        App.showToast?.('管理功能載入失敗，請檢查網路後重試');
+        return undefined;
+      }
+      const real = App[fnName];
+      if (typeof real !== 'function' || real._detailCoreSplitWrapper) {
+        console.error('[detailCoreSplit] 群組載入後仍找不到真身（防自我遞迴攔下）:', fnName);
+        App.showToast?.('功能載入異常，請重新整理頁面後再試');
+        return undefined;
+      }
+      return real.apply(App, args);
+    };
+    wrapper._detailCoreSplitWrapper = true;
+    return wrapper;
+  },
+});
+
+[
+  '_forcePromoteWaitlist',
+  '_forceDemoteToWaitlist',
+  '_removeParticipant',
+  '_removeUnregUser',
+  '_startTableEdit',
+  '_finishRosterManagement',
+  '_startUnregTableEdit',
+  '_confirmAllUnregAttendance',
+  'editMyActivity',
+].forEach(function (fnName) {
+  App[fnName] = App._buildDeferredEventHandlerWrapper(App._deferredEventHandlerGroups, fnName);
+});

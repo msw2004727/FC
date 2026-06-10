@@ -386,3 +386,199 @@ describe('resolvePageScripts — real project groups', () => {
     expect(result.filter(s => s === 'js/modules/auto-exp/index.js')).toHaveLength(1);
   });
 });
+
+// ═══════════════════════════════════════════════════════
+//  detailCoreSplit（Wave 2 拆包）— 載入「真實 script-loader.js」驗證
+//  分拆一致性 / 映射 / fallback / 平行預載 flag
+// ═══════════════════════════════════════════════════════
+
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+
+function loadRealScriptLoader({ splitEnabled = false, performanceFlags = {} } = {}) {
+  const source = fs.readFileSync(path.join(__dirname, '../../js/core/script-loader.js'), 'utf8');
+  let SL = null;
+  const context = {
+    console,
+    setTimeout,
+    CACHE_VERSION: 'test',
+    PERFORMANCE_FLAGS: performanceFlags,
+    shouldUseActivityDetailOptimization: (k) => (k === 'detailCoreSplit' ? splitEnabled : false),
+    window: { location: { origin: 'https://example.com', href: 'https://example.com/' } },
+    document: {
+      querySelectorAll: () => [],
+      createElement: () => ({}),
+      head: { appendChild: () => {} },
+    },
+    __EXPORT__: (x) => { SL = x; },
+  };
+  vm.createContext(context);
+  vm.runInContext(source + '\n;__EXPORT__(ScriptLoader);', context);
+  SL._domPrimed = true; // 跳過 DOM priming
+  return SL;
+}
+
+describe('detailCoreSplit — 三分拆群組一致性（真實群組定義）', () => {
+  const SL = loadRealScriptLoader();
+  const a = SL._groups.activity;
+  const core = SL._groups.activityDetailCore;
+  const create = SL._groups.activityCreate;
+  const manage = SL._groups.activityManage;
+
+  test('聯集 = activity、互不重疊（檔案級三分拆）', () => {
+    const union = [...core, ...create, ...manage];
+    expect(union.length).toBe(a.length);
+    expect(new Set(union).size).toBe(union.length);
+    expect([...union].sort()).toEqual([...a].sort());
+  });
+
+  test('保持原 activity group 內的相對順序', () => {
+    const idx = (s) => a.indexOf(s);
+    [core, create, manage].forEach(arr => {
+      arr.forEach((s, i) => {
+        if (i > 0) expect(idx(arr[i - 1])).toBeLessThan(idx(s));
+      });
+    });
+  });
+
+  test('首屏必留核心檔在 activityDetailCore（7A 矩陣 §1/§2）', () => {
+    [
+      'js/modules/event/event-manage-attendance.js',
+      'js/modules/event/event-manage-badges.js',
+      'js/modules/event/event-manage-noshow.js',
+      'js/modules/event/event-manage.js',
+      'js/modules/event/event-create-options.js',
+      'js/modules/event/event-detail.js',
+      'js/modules/event/event-detail-signup.js',
+      'js/modules/event/event-detail-companion.js',
+    ].forEach(f => expect(core).toContain(f));
+  });
+
+  test('延後群組內容正確（create 11 檔 / manage 5 檔）', () => {
+    expect(create).toHaveLength(11);
+    expect(manage).toHaveLength(5);
+    expect(create).toContain('js/modules/event/event-create.js');
+    expect(create).toContain('js/modules/event/event-location-draft.js');
+    expect(create).not.toContain('js/modules/event/event-create-options.js');
+    expect(manage).toEqual([
+      'js/modules/event/event-manage-instant-save.js',
+      'js/modules/event/event-manage-confirm.js',
+      'js/modules/event/event-manage-lifecycle.js',
+      'js/modules/event/event-manage-waitlist.js',
+      'js/modules/event/event-manage-visibility.js',
+    ]);
+  });
+
+  test('新群組登記 manual-only，避免 preloadAll 重複列舉', () => {
+    expect(SL._manualOnlyGroups.activityDetailCore).toBe(true);
+    expect(SL._manualOnlyGroups.activityCreate).toBe(true);
+    expect(SL._manualOnlyGroups.activityManage).toBe(true);
+  });
+});
+
+describe('detailCoreSplit — 頁面映射（_resolvePageGroups）', () => {
+  test('flag 關閉：所有頁面映射與現行完全相同', () => {
+    const SL = loadRealScriptLoader({ splitEnabled: false });
+    expect(SL._resolvePageGroups('page-activity-detail')).toEqual(['activity', 'achievement', 'profileCard']);
+    expect(SL._resolvePageGroups('page-activities')).toEqual(['activity']);
+    expect(SL._resolvePageGroups('page-my-activities')).toEqual(['activity']);
+  });
+
+  test('flag 開啟：僅 page-activity-detail 換用 activityDetailCore，其餘頁不受影響', () => {
+    const SL = loadRealScriptLoader({ splitEnabled: true });
+    expect(SL._resolvePageGroups('page-activity-detail')).toEqual(['activityDetailCore', 'achievement', 'profileCard']);
+    expect(SL._resolvePageGroups('page-activities')).toEqual(['activity']);
+    expect(SL._resolvePageGroups('page-my-activities')).toEqual(['activity']);
+    expect(SL._resolvePageGroups('page-team-detail')).toEqual(['teamList', 'teamDetail', 'education']);
+  });
+
+  test('flag 讀取失敗（helper 不存在）→ 安全退回完整 activity', () => {
+    const SL = loadRealScriptLoader({ splitEnabled: true });
+    // 模擬 shouldUseActivityDetailOptimization 缺席（如測試環境 / 載入順序異常）
+    SL._detailCoreSplitEnabled = function () { return false; };
+    expect(SL._resolvePageGroups('page-activity-detail')).toEqual(['activity', 'achievement', 'profileCard']);
+  });
+});
+
+describe('detailCoreSplit — isPageReady 與 ensureForPage fallback', () => {
+  function markLoaded(SL, groups) {
+    groups.forEach(g => (SL._groups[g] || []).forEach(s => { SL._loaded[s] = true; }));
+  }
+
+  test('flag 開啟：核心三群組載完即 ready（不等 create/manage）', () => {
+    const SL = loadRealScriptLoader({ splitEnabled: true });
+    markLoaded(SL, ['activityDetailCore', 'achievement', 'profileCard']);
+    expect(SL.isPageReady('page-activity-detail')).toBe(true);
+  });
+
+  test('flag 關閉：同樣載入狀態下必須等完整 activity 才 ready（現行行為）', () => {
+    const SL = loadRealScriptLoader({ splitEnabled: false });
+    markLoaded(SL, ['activityDetailCore', 'achievement', 'profileCard']);
+    expect(SL.isPageReady('page-activity-detail')).toBe(false);
+    markLoaded(SL, ['activity']);
+    expect(SL.isPageReady('page-activity-detail')).toBe(true);
+  });
+
+  test('ensureForPage 成功路徑：split 開啟時不載入 create/manage 檔', async () => {
+    const SL = loadRealScriptLoader({ splitEnabled: true });
+    const loadedSrcs = [];
+    SL._load = (src) => { loadedSrcs.push(src); SL._loaded[src] = true; return Promise.resolve(); };
+    await SL.ensureForPage('page-activity-detail');
+    expect(loadedSrcs).toContain('js/modules/event/event-detail.js');
+    expect(loadedSrcs).toContain('js/modules/event/event-manage-attendance.js');
+    expect(loadedSrcs).not.toContain('js/modules/event/event-create.js');
+    expect(loadedSrcs).not.toContain('js/modules/event/event-manage-lifecycle.js');
+  });
+
+  test('ensureForPage fallback：核心載入失敗 → 自動退回完整 activity group，不拋錯', async () => {
+    const SL = loadRealScriptLoader({ splitEnabled: true });
+    let failedOnce = false;
+    SL._load = (src) => {
+      if (!failedOnce) { failedOnce = true; return Promise.reject(new Error('boom')); }
+      SL._loaded[src] = true; return Promise.resolve();
+    };
+    const ensured = [];
+    const origEnsureGroup = SL.ensureGroup.bind(SL);
+    SL.ensureGroup = (g) => { ensured.push(g); return origEnsureGroup(g); };
+    await expect(SL.ensureForPage('page-activity-detail')).resolves.toBeUndefined();
+    expect(ensured).toContain('activity');
+    expect(ensured).toContain('achievement');
+    expect(ensured).toContain('profileCard');
+  });
+
+  test('非詳情頁載入失敗：維持現行行為（直接拋錯，不誤觸 fallback）', async () => {
+    const SL = loadRealScriptLoader({ splitEnabled: true });
+    SL._load = () => Promise.reject(new Error('boom'));
+    await expect(SL.ensureForPage('page-teams')).rejects.toThrow('boom');
+  });
+});
+
+describe('parallelGroupPreload — loadGroup 平行預載 flag', () => {
+  test('預設（flag 未設或 true）：先 _preloadFiles 整組再依序執行', async () => {
+    const SL = loadRealScriptLoader({ performanceFlags: {} });
+    const preloaded = [];
+    SL._preloadFiles = (srcs) => preloaded.push(...srcs);
+    SL._load = (src) => { SL._loaded[src] = true; return Promise.resolve(); };
+    await SL.loadGroup(['x.js', 'y.js']);
+    expect(preloaded).toEqual(['x.js', 'y.js']);
+  });
+
+  test('flag=false：不做平行預載（秒回退路徑）', async () => {
+    const SL = loadRealScriptLoader({ performanceFlags: { parallelGroupPreload: false } });
+    const preloaded = [];
+    SL._preloadFiles = (srcs) => preloaded.push(...srcs);
+    SL._load = (src) => { SL._loaded[src] = true; return Promise.resolve(); };
+    await SL.loadGroup(['x.js']);
+    expect(preloaded).toEqual([]);
+  });
+
+  test('已載入檔案不重複預載（toLoad 為空直接返回）', async () => {
+    const SL = loadRealScriptLoader({ performanceFlags: {} });
+    SL._loaded['x.js'] = true;
+    const preloaded = [];
+    SL._preloadFiles = (srcs) => preloaded.push(...srcs);
+    await SL.loadGroup(['x.js']);
+    expect(preloaded).toEqual([]);
+  });
+});

@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260610f';
+const CACHE_VERSION = '0.20260610g';
 
 const GOOGLE_MAPS_BROWSER_API_KEY = '';
 
@@ -251,6 +251,8 @@ const PERFORMANCE_FLAGS = {
   idleModuleExecutionPreload: true,
   visibleCardPrefetch: true,
   publicBootSnapshot: true,
+  // 動態 group 載入時先平行預載（下載併行、執行仍依序），詳見 js/core/script-loader.js loadGroup 註解
+  parallelGroupPreload: true,
 };
 
 // Activity detail optimization rollout switches.
@@ -262,7 +264,7 @@ const ACTIVITY_DETAIL_OPTIMIZATION_FLAGS = {
   nonBlockingRender: true,
   commentsNonBlocking: true,
   commentsLoadMode: 'eager',
-  detailCoreSplit: false,
+  detailCoreSplit: true,
 };
 
 function getActivityDetailOptimizationFlags() {
