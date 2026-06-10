@@ -3923,6 +3923,17 @@ Object.assign(FirebaseService, {
     return result && result.data ? result.data : result;
   },
 
+  async getEduStudentAttendanceOverview({ teamId, studentId }) {
+    const authed = await this.ensureAuthReadyForWrite();
+    if (!authed) throw new Error('Firebase auth is not ready');
+    const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('getEduStudentAttendanceOverview');
+    const result = await callable({
+      teamId: String(teamId || '').trim(),
+      studentId: String(studentId || '').trim(),
+    });
+    return result && result.data ? result.data : result;
+  },
+
   async queryEduAttendance(filters) {
     filters = filters || {};
     let query = db.collection('eduAttendance');

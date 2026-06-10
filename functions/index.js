@@ -3918,6 +3918,432 @@ exports.listEduCourseEnrollmentSummaries = onCall(
   }
 );
 
+function normalizeEduDateKey(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return getTaipeiDateKey(value);
+  }
+  if (value && typeof value.toDate === "function") {
+    const date = value.toDate();
+    if (date instanceof Date && !Number.isNaN(date.getTime())) {
+      return getTaipeiDateKey(date);
+    }
+  }
+  if (value && Number.isFinite(Number(value.seconds))) {
+    return getTaipeiDateKey(new Date(Number(value.seconds) * 1000));
+  }
+  const raw = sanitizeStr(value, 24).replace(/\//g, "-");
+  const match = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (!match) return "";
+  return [
+    match[1],
+    String(Number(match[2])).padStart(2, "0"),
+    String(Number(match[3])).padStart(2, "0"),
+  ].join("-");
+}
+
+function getTaipeiDateKey(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = {};
+  parts.forEach((part) => {
+    if (part.type !== "literal") values[part.type] = part.value;
+  });
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function addDaysToDateKey(dateKey, days) {
+  const date = new Date(`${dateKey}T00:00:00+08:00`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return getTaipeiDateKey(date);
+}
+
+function sanitizeEduWeekdays(value) {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(value
+    .map((item) => Number(item))
+    .filter((item) => Number.isInteger(item) && item >= 0 && item <= 6)));
+}
+
+function getEduAttendanceRecordKind(record) {
+  return sanitizeStr(record?.kind, 20) === "leave" ? "leave" : "signin";
+}
+
+function setEduAttendanceMapValue(target, key, record) {
+  if (!key || !record) return;
+  const nextKind = getEduAttendanceRecordKind(record);
+  const existing = target.get(key);
+  if (!existing || nextKind === "leave") {
+    target.set(key, { kind: nextKind, record });
+  }
+}
+
+function getEduStudentIdAliases(student, fallbackId) {
+  return Array.from(new Set([
+    sanitizeStr(fallbackId, 100),
+    sanitizeStr(student?.id, 100),
+    sanitizeStr(student?._docId, 100),
+  ].filter(Boolean)));
+}
+
+function isEduStudentInPlan(student, plan, enrollments) {
+  const studentIdAliases = getEduStudentIdAliases(student);
+  if (!studentIdAliases.length || !plan) return false;
+  const groupIds = Array.isArray(student?.groupIds)
+    ? student.groupIds.map((value) => sanitizeStr(value, 100))
+    : [];
+  const groupId = sanitizeStr(plan.groupId, 100);
+  if (groupId && groupIds.includes(groupId)) return true;
+  return (enrollments || []).some((enrollment) =>
+    studentIdAliases.includes(sanitizeStr(enrollment.studentId, 100))
+      && sanitizeStr(enrollment.status, 32).toLowerCase() === "approved"
+  );
+}
+
+function getEduStudentPlanStartDate(student, enrollments) {
+  const studentIdAliases = getEduStudentIdAliases(student);
+  const candidateDates = [
+    normalizeEduDateKey(student?.enrolledAt),
+    normalizeEduDateKey(student?.joinedAt),
+    normalizeEduDateKey(student?.createdAt),
+  ];
+  (enrollments || []).forEach((enrollment) => {
+    if (!studentIdAliases.includes(sanitizeStr(enrollment.studentId, 100))) return;
+    if (sanitizeStr(enrollment.status, 32).toLowerCase() !== "approved") return;
+    candidateDates.push(
+      normalizeEduDateKey(enrollment.reviewedAt),
+      normalizeEduDateKey(enrollment.approvedAt),
+      normalizeEduDateKey(enrollment.enrolledAt),
+      normalizeEduDateKey(enrollment.appliedAt),
+      normalizeEduDateKey(enrollment.createdAt)
+    );
+  });
+  return candidateDates.filter(Boolean).sort()[0] || "";
+}
+
+function createEduAttendanceSummary() {
+  return {
+    total: 0,
+    pastTotal: 0,
+    attended: 0,
+    leave: 0,
+    missing: 0,
+    upcoming: 0,
+    attendanceRate: 0,
+  };
+}
+
+function bumpEduAttendanceSummary(summary, status) {
+  summary.total += 1;
+  if (status === "upcoming") {
+    summary.upcoming += 1;
+    return;
+  }
+  summary.pastTotal += 1;
+  if (status === "attended") summary.attended += 1;
+  else if (status === "leave") summary.leave += 1;
+  else summary.missing += 1;
+}
+
+function finalizeEduAttendanceSummary(summary) {
+  summary.attendanceRate = summary.pastTotal > 0
+    ? Math.round((summary.attended / summary.pastTotal) * 100)
+    : 0;
+  return summary;
+}
+
+function buildEduAttendanceLessonStatus({ date, todayKey, attendance }) {
+  if (date && date > todayKey) return "upcoming";
+  if (attendance?.kind === "leave") return "leave";
+  if (attendance?.kind === "signin") return "attended";
+  return "missing";
+}
+
+function buildEduWeeklyAttendanceDates(plan, todayKey, attendanceStartKey) {
+  const weekdays = sanitizeEduWeekdays(plan.weekdays);
+  if (!weekdays.length) return [];
+  const lowerBound = addDaysToDateKey(todayKey, -365);
+  const planStart = normalizeEduDateKey(plan.startDate);
+  const attendanceStart = normalizeEduDateKey(attendanceStartKey);
+  const startDate = [lowerBound, planStart, attendanceStart]
+    .filter(Boolean)
+    .sort()
+    .pop() || lowerBound;
+  const hardEnd = normalizeEduDateKey(plan.endDate);
+  const futureLimit = addDaysToDateKey(todayKey, 45);
+  const endDate = hardEnd && hardEnd < futureLimit ? hardEnd : futureLimit;
+  const dates = [];
+  let cursor = startDate;
+  let guard = 0;
+  while (cursor && cursor <= endDate && guard < 430) {
+    const day = new Date(`${cursor}T00:00:00+08:00`).getDay();
+    if (weekdays.includes(day)) dates.push(cursor);
+    cursor = addDaysToDateKey(cursor, 1);
+    guard += 1;
+  }
+  return dates;
+}
+
+exports.getEduStudentAttendanceOverview = onCall(
+  { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+    const callerUid = sanitizeStr(request.auth.uid, 128);
+    const teamId = sanitizeStr(request.data?.teamId, 100);
+    const targetStudentId = sanitizeStr(request.data?.studentId, 100);
+    if (!teamId) throw new HttpsError("invalid-argument", "teamId is required");
+    if (!targetStudentId) throw new HttpsError("invalid-argument", "studentId is required");
+
+    const [teamDoc, access] = await Promise.all([
+      getTeamDocByTeamId(teamId),
+      getCallerAccessContext(request),
+    ]);
+    if (!teamDoc) throw createEduCourseHttpsError("TEAM_NOT_FOUND");
+    const teamRef = teamDoc.ref;
+    const isStaff = isTeamStaffForData(teamDoc.data, callerUid)
+      || access.isSuperAdmin
+      || access.hasPermission("team.manage_all");
+
+    const [studentsSnap, plansSnap, attendanceSnap] = await Promise.all([
+      teamRef.collection("students").get(),
+      teamRef.collection("coursePlans").get(),
+      db.collection("eduAttendance")
+        .where("teamId", "==", teamId)
+        .where("studentId", "==", targetStudentId)
+        .get(),
+    ]);
+
+    const students = studentsSnap.docs.map((doc) => {
+      const data = doc.data() || {};
+      return { ...data, id: sanitizeStr(data.id || doc.id, 100), _docId: doc.id };
+    });
+    const student = students.find((item) => {
+      const id = sanitizeStr(item.id, 100);
+      const docId = sanitizeStr(item._docId, 100);
+      return id === targetStudentId || docId === targetStudentId;
+    });
+    if (!student) throw createEduCourseHttpsError("STUDENT_NOT_FOUND");
+    if (!isStaff && !isStudentOwnedByUid(student, callerUid)) {
+      throw createEduCourseHttpsError("STUDENT_FORBIDDEN");
+    }
+
+    const todayKey = getTaipeiDateKey();
+    const studentIdAliases = getEduStudentIdAliases(student, targetStudentId);
+    let attendanceDocs = attendanceSnap.docs;
+    const alternateStudentIds = studentIdAliases.filter((id) => id !== targetStudentId);
+    if (alternateStudentIds.length) {
+      const alternateSnaps = await Promise.all(alternateStudentIds.map((id) =>
+        db.collection("eduAttendance")
+          .where("teamId", "==", teamId)
+          .where("studentId", "==", id)
+          .get()
+      ));
+      attendanceDocs = attendanceDocs.concat(...alternateSnaps.map((snap) => snap.docs));
+    }
+
+    const planDocs = plansSnap.docs.map((doc) => ({ ref: doc.ref, id: doc.id, data: doc.data() || {} }));
+    const planDetailList = await Promise.all(planDocs.map(async (entry) => {
+      const [enrollSnap, sessionSnap] = await Promise.all([
+        entry.ref.collection("enrollments").get(),
+        entry.ref.collection("sessions").get(),
+      ]);
+      const plan = {
+        ...entry.data,
+        id: sanitizeStr(entry.data.id || entry.id, 100),
+        _docId: entry.id,
+      };
+      const enrollments = enrollSnap.docs.map((doc) => ({ id: doc.id, _docId: doc.id, ...(doc.data() || {}) }));
+      const sessions = sessionSnap.docs.map((doc) => ({ id: doc.id, _docId: doc.id, ...(doc.data() || {}) }));
+      return { plan, enrollments, sessions };
+    }));
+
+    const seenAttendanceDocIds = new Set();
+    const attendanceRecords = attendanceDocs
+      .map((doc) => ({ id: doc.id, _docId: doc.id, ...(doc.data() || {}) }))
+      .filter((record) => {
+        const id = sanitizeStr(record._docId || record.id, 100);
+        if (!id) return true;
+        if (seenAttendanceDocIds.has(id)) return false;
+        seenAttendanceDocIds.add(id);
+        return true;
+      })
+      .filter((record) => sanitizeStr(record.status, 32) !== "removed");
+    const bySession = new Map();
+    const byPlanDate = new Map();
+    const byGroupDate = new Map();
+    attendanceRecords.forEach((record) => {
+      const date = normalizeEduDateKey(record.date);
+      const planId = sanitizeStr(record.coursePlanId, 100);
+      const sessionId = sanitizeStr(record.sessionId, 100);
+      const groupId = sanitizeStr(record.groupId, 100);
+      if (!date) return;
+      if (planId && sessionId) setEduAttendanceMapValue(bySession, `${planId}|${sessionId}`, record);
+      if (planId) setEduAttendanceMapValue(byPlanDate, `${planId}|${date}`, record);
+      if (groupId) setEduAttendanceMapValue(byGroupDate, `${groupId}|${date}`, record);
+    });
+
+    const lessons = [];
+    const consumedRecordIds = new Set();
+    const planSummaries = new Map();
+    const ensurePlanSummary = (plan) => {
+      const planId = sanitizeStr(plan?.id || plan?._docId || "unknown", 100) || "unknown";
+      if (!planSummaries.has(planId)) {
+        planSummaries.set(planId, {
+          id: planId,
+          name: sanitizeStr(plan?.name, 120) || "未命名課程",
+          planType: sanitizeStr(plan?.planType, 32) || "session",
+          active: plan?.active !== false,
+          groupId: sanitizeStr(plan?.groupId, 100),
+          summary: createEduAttendanceSummary(),
+        });
+      }
+      return planSummaries.get(planId);
+    };
+    const addLesson = (lesson, plan) => {
+      if (!lesson.date) return;
+      lessons.push(lesson);
+      const planSummary = ensurePlanSummary(plan);
+      bumpEduAttendanceSummary(planSummary.summary, lesson.status);
+    };
+
+    planDetailList.forEach(({ plan, enrollments, sessions }) => {
+      const planId = sanitizeStr(plan.id || plan._docId, 100);
+      const studentInPlan = isEduStudentInPlan(student, plan, enrollments);
+      const studentPlanStartKey = getEduStudentPlanStartDate(student, enrollments);
+      if (!studentInPlan && !attendanceRecords.some((record) => sanitizeStr(record.coursePlanId, 100) === planId)) return;
+      if (!isStaff && plan.visibleOnTeamPage === false && !studentInPlan) return;
+
+      if (sanitizeStr(plan.planType, 32) === "weekly") {
+        buildEduWeeklyAttendanceDates(plan, todayKey, studentPlanStartKey).forEach((date) => {
+          const attendance = byPlanDate.get(`${planId}|${date}`)
+            || byGroupDate.get(`${sanitizeStr(plan.groupId, 100)}|${date}`);
+          if (attendance?.record?.id) consumedRecordIds.add(attendance.record.id);
+          const status = buildEduAttendanceLessonStatus({ date, todayKey, attendance });
+          addLesson({
+            id: `${planId}:${date}`,
+            planId,
+            planName: sanitizeStr(plan.name, 120) || "未命名課程",
+            planType: "weekly",
+            sessionId: "",
+            sessionTitle: "固定週期課",
+            date,
+            startTime: sanitizeStr(plan.startTime || plan.timeStart, 20),
+            endTime: sanitizeStr(plan.endTime || plan.timeEnd, 20),
+            location: sanitizeStr(plan.location, 160),
+            status,
+            attendanceKind: attendance?.kind || null,
+            source: "weekly",
+          }, plan);
+        });
+        return;
+      }
+
+      sessions.forEach((session) => {
+        const date = normalizeEduDateKey(session.date);
+        if (!date) return;
+        const rosterIds = Array.isArray(session.studentIds)
+          ? session.studentIds.map((value) => sanitizeStr(value, 100)).filter(Boolean)
+          : [];
+        const studentInRoster = studentIdAliases.some((id) => rosterIds.includes(id));
+        const sessionId = sanitizeStr(session.id || session._docId, 100);
+        const attendance = bySession.get(`${planId}|${sessionId}`)
+          || byPlanDate.get(`${planId}|${date}`)
+          || byGroupDate.get(`${sanitizeStr(plan.groupId, 100)}|${date}`);
+        if (rosterIds.length && !studentInRoster) return;
+        if (!rosterIds.length && !studentInPlan) return;
+        if (!studentInRoster && studentPlanStartKey && date < studentPlanStartKey && !attendance) return;
+        if (attendance?.record?.id) consumedRecordIds.add(attendance.record.id);
+        const status = buildEduAttendanceLessonStatus({ date, todayKey, attendance });
+        addLesson({
+          id: `${planId}:${sessionId || date}`,
+          planId,
+          planName: sanitizeStr(plan.name, 120) || "未命名課程",
+          planType: sanitizeStr(plan.planType, 32) || "session",
+          sessionId,
+          sessionTitle: sanitizeStr(session.title || session.topic || session.focus, 120) || "課堂",
+          date,
+          startTime: sanitizeStr(session.startTime, 20),
+          endTime: sanitizeStr(session.endTime, 20),
+          location: sanitizeStr(session.location || plan.location, 160),
+          status,
+          attendanceKind: attendance?.kind || null,
+          source: "session",
+        }, plan);
+      });
+    });
+
+    attendanceRecords.forEach((record) => {
+      const recordId = sanitizeStr(record.id || record._docId, 100);
+      if (recordId && consumedRecordIds.has(recordId)) return;
+      const date = normalizeEduDateKey(record.date);
+      if (!date) return;
+      const planId = sanitizeStr(record.coursePlanId, 100);
+      const planDetail = planDetailList.find((item) => sanitizeStr(item.plan.id || item.plan._docId, 100) === planId);
+      const plan = planDetail?.plan || {
+        id: planId || `record-${sanitizeStr(record.groupId, 100) || "general"}`,
+        name: planId ? "未命名課程" : "其他簽到",
+        planType: "record",
+        groupId: sanitizeStr(record.groupId, 100),
+      };
+      const attendance = { kind: getEduAttendanceRecordKind(record), record };
+      const status = attendance.kind === "leave" ? "leave" : "attended";
+      addLesson({
+        id: `record:${recordId || `${plan.id}:${date}`}`,
+        planId: sanitizeStr(plan.id || plan._docId, 100),
+        planName: sanitizeStr(plan.name, 120) || "其他簽到",
+        planType: sanitizeStr(plan.planType, 32) || "record",
+        sessionId: sanitizeStr(record.sessionId, 100),
+        sessionTitle: sanitizeStr(record.sessionTitle, 120) || "補登紀錄",
+        date,
+        startTime: sanitizeStr(record.time, 20),
+        endTime: "",
+        location: sanitizeStr(record.location, 160),
+        status,
+        attendanceKind: attendance.kind,
+        source: "record",
+      }, plan);
+    });
+
+    const summary = createEduAttendanceSummary();
+    lessons.forEach((lesson) => bumpEduAttendanceSummary(summary, lesson.status));
+    finalizeEduAttendanceSummary(summary);
+    const planList = Array.from(planSummaries.values())
+      .map((plan) => ({ ...plan, summary: finalizeEduAttendanceSummary(plan.summary) }))
+      .sort((a, b) => a.name.localeCompare(b.name, "zh-Hant"));
+    const months = Array.from(new Set(lessons
+      .map((lesson) => lesson.date ? lesson.date.slice(0, 7) : "")
+      .filter(Boolean)))
+      .sort()
+      .reverse();
+    lessons.sort((a, b) => {
+      const dateCompare = String(b.date || "").localeCompare(String(a.date || ""));
+      if (dateCompare) return dateCompare;
+      return String(b.startTime || "").localeCompare(String(a.startTime || ""));
+    });
+
+    return {
+      success: true,
+      teamId,
+      generatedAt: new Date().toISOString(),
+      student: {
+        id: sanitizeStr(student.id || student._docId, 100),
+        name: sanitizeStr(student.name || student.displayName || student.studentName, 80) || "學員",
+        groupIds: Array.isArray(student.groupIds) ? student.groupIds.map((value) => sanitizeStr(value, 100)).filter(Boolean) : [],
+        groupNames: Array.isArray(student.groupNames) ? student.groupNames.map((value) => sanitizeStr(value, 80)).filter(Boolean) : [],
+      },
+      summary: finalizeEduAttendanceSummary(summary),
+      plans: planList,
+      months,
+      lessons,
+    };
+  }
+);
+
 exports.listEduCoursePublicRoster = onCall(
   { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
   async (request) => {

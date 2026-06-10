@@ -503,6 +503,57 @@ describe('education course enrollment callable source contracts', () => {
     expect(source).toContain('kind: "leave"');
     expect(source).toContain('status: "active"');
   });
+
+  test('student attendance overview callable merges roster, leave, signin, and missing states behind ownership guard', () => {
+    const source = readCloudFunctionSource('getEduStudentAttendanceOverview');
+    expect(source).toContain('if (!request.auth?.uid)');
+    expect(source).toContain('getCallerAccessContext(request)');
+    expect(source).toContain('isTeamStaffForData(teamDoc.data, callerUid)');
+    expect(source).toContain('isStudentOwnedByUid(student, callerUid)');
+    expect(source).toContain('teamRef.collection("coursePlans").get()');
+    expect(source).toContain('entry.ref.collection("enrollments").get()');
+    expect(source).toContain('entry.ref.collection("sessions").get()');
+    expect(source).toContain('db.collection("eduAttendance")');
+    expect(source).toContain('bySession');
+    expect(source).toContain('byPlanDate');
+    expect(source).toContain('buildEduAttendanceLessonStatus');
+    expect(source).toContain('getEduStudentIdAliases(student, targetStudentId)');
+    expect(source).toContain('getEduStudentPlanStartDate(student, enrollments)');
+    expect(source).toContain('buildEduWeeklyAttendanceDates(plan, todayKey, studentPlanStartKey)');
+    expect(source).toContain('studentIdAliases.some((id) => rosterIds.includes(id))');
+    expect(source).toContain('date < studentPlanStartKey');
+    expect(source).toContain('finalizeEduAttendanceSummary(summary)');
+    expect(source).toContain('lessons.sort');
+    const startDateHelper = readSourceBetween(
+      'function getEduStudentPlanStartDate',
+      'function createEduAttendanceSummary'
+    );
+    expect(startDateHelper).toContain('student?.enrolledAt');
+    expect(startDateHelper).toContain('enrollment.reviewedAt');
+    expect(startDateHelper).toContain('enrollment.appliedAt');
+    const summaryHelper = readSourceBetween(
+      'function createEduAttendanceSummary',
+      'function buildEduAttendanceLessonStatus'
+    );
+    expect(summaryHelper).toContain('missing: 0');
+    expect(summaryHelper).toContain('attendanceRate: 0');
+    expect(summaryHelper).toContain('summary.missing += 1');
+    expect(summaryHelper).toContain('summary.attendanceRate');
+    const statusHelper = readSourceBetween(
+      'function buildEduAttendanceLessonStatus',
+      'function buildEduWeeklyAttendanceDates'
+    );
+    expect(statusHelper).toContain('return "upcoming"');
+    expect(statusHelper).toContain('return "leave"');
+    expect(statusHelper).toContain('return "attended"');
+    expect(statusHelper).toContain('return "missing"');
+    const weeklyHelper = readSourceBetween(
+      'function buildEduWeeklyAttendanceDates',
+      'exports.getEduStudentAttendanceOverview'
+    );
+    expect(weeklyHelper).toContain('attendanceStartKey');
+    expect(weeklyHelper).toContain('[lowerBound, planStart, attendanceStart]');
+  });
 });
 
 function makeScoreboardDb({ usageData } = {}) {
