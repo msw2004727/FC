@@ -563,9 +563,14 @@ Object.assign(App, {
     try {
       if (typeof LineAuth !== 'undefined') {
         if (typeof LineAuth.isPendingLogin === 'function' && LineAuth.isPendingLogin()) return true;
-        if (typeof LineAuth.hasLiffSession === 'function'
-          && LineAuth.hasLiffSession()
-          && !LineAuth._profileError) {
+        const hasLiffSession = typeof LineAuth.hasLiffSession === 'function'
+          && LineAuth.hasLiffSession();
+        const lineProfile = typeof LineAuth.getProfile === 'function'
+          ? LineAuth.getProfile()
+          : null;
+        if (hasLiffSession
+          && !LineAuth._profileError
+          && (LineAuth._profileLoading || !LineAuth._ready || !lineProfile?.userId)) {
           return true;
         }
       }
@@ -642,8 +647,17 @@ Object.assign(App, {
     }
 
     const timeoutMs = Math.max(3000, Number(options?.timeoutMs) || this._getEventSignupRegistrationHydrateTimeoutMs());
+    const fetchStartedAt = Date.now();
     if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.ensureAuthReadyForWrite === 'function') {
-      const authReady = await FirebaseService.ensureAuthReadyForWrite(userId);
+      const authTimeoutMs = Math.max(1200, Math.min(timeoutMs - 750, 5000));
+      const authReady = await new Promise(resolve => {
+        const timer = setTimeout(() => resolve(false), authTimeoutMs);
+        Promise.resolve(FirebaseService.ensureAuthReadyForWrite(userId))
+          .then(
+            value => { clearTimeout(timer); resolve(value); },
+            () => { clearTimeout(timer); resolve(false); }
+          );
+      });
       if (!authReady) return { ok: false, reason: 'auth-not-ready' };
     }
     const regsRef = db.collection('events').doc(eventDocId).collection('registrations');
@@ -689,8 +703,11 @@ Object.assign(App, {
     }).catch(() => {});
 
     try {
+      const startedAt = Number(options?.startedAt || fetchStartedAt || 0) || 0;
+      const elapsedMs = startedAt ? Math.max(0, Date.now() - startedAt) : 0;
+      const queryTimeoutMs = Math.max(1500, timeoutMs - elapsedMs);
       if (typeof ApiService !== 'undefined' && typeof ApiService._withFirestoreFetchTimeout === 'function') {
-        return await ApiService._withFirestoreFetchTimeout(queryPromise, timeoutMs, 'fetchCurrentUserRegistrationStateForEvent');
+        return await ApiService._withFirestoreFetchTimeout(queryPromise, queryTimeoutMs, 'fetchCurrentUserRegistrationStateForEvent');
       }
       return await queryPromise;
     } catch (err) {

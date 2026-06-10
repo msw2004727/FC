@@ -37,6 +37,10 @@ function loadSignupModule({
   ensureAuthReadyForWrite = jest.fn(() => Promise.resolve(true)),
   authCurrentUid = currentUser?.uid || null,
   lineSessionResolving = false,
+  lineHasSession = lineSessionResolving,
+  lineReady = !lineSessionResolving,
+  lineProfile = null,
+  lineProfileLoading = lineSessionResolving,
   registrationDocsByField = { userId: [], uid: [] },
   registrationQueryImpl = null,
   currentRegistrationState = { signedUp: false },
@@ -75,9 +79,11 @@ function loadSignupModule({
     auth: authCurrentUid ? { currentUser: { uid: authCurrentUid } } : { currentUser: null },
     LineAuth: {
       isPendingLogin: jest.fn(() => lineSessionResolving),
-      hasLiffSession: jest.fn(() => lineSessionResolving),
-      getProfile: jest.fn(() => null),
+      hasLiffSession: jest.fn(() => lineHasSession),
+      getProfile: jest.fn(() => lineProfile),
       _profileError: null,
+      _profileLoading: lineProfileLoading,
+      _ready: lineReady,
     },
     db: {
       collection: jest.fn(() => ({
@@ -154,6 +160,21 @@ describe('event detail signup registration loading gate', () => {
       lineSessionResolving: false,
     });
 
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(false);
+    expect(queryCalls).toHaveLength(0);
+  });
+
+  test('does not keep deep-link signup gate held after LIFF profile is ready but Firebase auth is absent', () => {
+    const { app, event, queryCalls } = loadSignupModule({
+      authCurrentUid: null,
+      lineSessionResolving: false,
+      lineHasSession: true,
+      lineReady: true,
+      lineProfile: { userId: 'user-1', displayName: 'User One' },
+      lineProfileLoading: false,
+    });
+
+    expect(app._isEventSignupAuthStillResolving()).toBe(false);
     expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(false);
     expect(queryCalls).toHaveLength(0);
   });
@@ -239,7 +260,7 @@ describe('event detail signup registration loading gate', () => {
     });
 
     expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
-    await flushMicrotasks();
+    await flushMicrotasks(20);
 
     expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(false);
     expect(app._isEventSignupRegistrationHydrateIssue(event)).toBe(false);
@@ -256,6 +277,31 @@ describe('event detail signup registration loading gate', () => {
     app._refreshSignupButton = jest.fn();
 
     expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
+    await flushMicrotasks(20);
+
+    expect(app._eventSignupRegistrationHydrateState).toBe(null);
+    expect(app._isEventSignupRegistrationHydrateIssue(event)).toBe(false);
+
+    jest.advanceTimersByTime(900);
+    expect(app._refreshSignupButton).toHaveBeenCalledWith(event.id);
+    jest.useRealTimers();
+  });
+
+  test('auth proof timeout recovers as auth-not-ready instead of surfacing a sync issue', async () => {
+    jest.useFakeTimers();
+    const { app, event } = loadSignupModule({
+      ensureAuthReadyForWrite: jest.fn(() => new Promise(() => {})),
+      authCurrentUid: 'user-1',
+      lineSessionResolving: true,
+      lineHasSession: true,
+      lineReady: false,
+      lineProfileLoading: true,
+    });
+    app._eventSignupRegistrationHydrateTimeoutMs = 4000;
+    app._refreshSignupButton = jest.fn();
+
+    expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
+    await jest.advanceTimersByTimeAsync(3300);
     await flushMicrotasks();
 
     expect(app._eventSignupRegistrationHydrateState).toBe(null);
@@ -278,7 +324,7 @@ describe('event detail signup registration loading gate', () => {
     app._refreshSignupButton = jest.fn();
 
     expect(app._ensureEventSignupRegistrationStateLoaded(event)).toBe(true);
-    await flushMicrotasks();
+    await flushMicrotasks(20);
 
     expect(app._eventSignupRegistrationHydrateState).toBe(null);
     expect(app._isEventSignupRegistrationHydrateIssue(event)).toBe(false);

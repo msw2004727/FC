@@ -3093,10 +3093,6 @@ const App = {
 
             // 2. 立即啟動 realtime listener（registrations + attendanceRecords）
             //    不走 schedulePageScopedRealtimeForPage 的 350ms 延遲
-            if (typeof FirebaseService !== 'undefined' && FirebaseService._startPageScopedRealtimeForPage) {
-              FirebaseService._startPageScopedRealtimeForPage(pageId);
-            }
-
             // 3. 用 SDK 重新取得完整事件資料（覆蓋 REST 簡略版）
             if (typeof db !== 'undefined') {
               try {
@@ -3119,9 +3115,48 @@ const App = {
             // 4. 等待 registrations 首次 onSnapshot（最多 3 秒）
             //    已登入才等（guest 的 listener 不會啟動）
             const isGuest = !(typeof LineAuth !== 'undefined' && LineAuth.isLoggedIn());
-            if (!isGuest && FirebaseService._cache.registrations.length === 0) {
+            const getSignupUidForDeepLinkRefresh = () => {
+              const authUid = (typeof auth !== 'undefined' && auth?.currentUser?.uid)
+                ? auth.currentUser.uid
+                : '';
+              const apiUid = (typeof ApiService !== 'undefined' && typeof ApiService.getCurrentUser === 'function')
+                ? ApiService.getCurrentUser()?.uid
+                : '';
+              return String(this._getCurrentSignupRegistrationUid?.() || authUid || apiUid || '').trim();
+            };
+            if (!isGuest
+              && typeof FirebaseService !== 'undefined'
+              && typeof FirebaseService.ensureAuthReadyForWrite === 'function') {
+              const signupUid = getSignupUidForDeepLinkRefresh();
+              if (signupUid) {
+                await new Promise(resolve => {
+                  const timer = setTimeout(() => resolve(false), 3500);
+                  Promise.resolve(FirebaseService.ensureAuthReadyForWrite(signupUid))
+                    .then(
+                      value => { clearTimeout(timer); resolve(value); },
+                      () => { clearTimeout(timer); resolve(false); }
+                    );
+                });
+              }
+            }
+
+            if (typeof FirebaseService !== 'undefined' && FirebaseService._startPageScopedRealtimeForPage) {
+              FirebaseService._startPageScopedRealtimeForPage(pageId);
+            }
+
+            if (!isGuest) {
               await new Promise(resolve => {
-                const check = () => FirebaseService._cache.registrations.length > 0;
+                const check = () => {
+                  const event = (typeof ApiService !== 'undefined' && typeof ApiService.getEvent === 'function')
+                    ? ApiService.getEvent(sdkEventId)
+                    : null;
+                  if (event && this._hasCurrentEventSignupRegistrationServerProof?.(event)) return true;
+                  const uid = getSignupUidForDeepLinkRefresh();
+                  return !!(uid
+                    && typeof FirebaseService !== 'undefined'
+                    && FirebaseService._registrationsServerSnapshotReceived
+                    && String(FirebaseService._registrationListenerKey || '') === `user:${uid}`);
+                };
                 if (check()) { resolve(); return; }
                 const interval = setInterval(() => { if (check()) { clearInterval(interval); resolve(); } }, 100);
                 setTimeout(() => { clearInterval(interval); resolve(); }, 3000);

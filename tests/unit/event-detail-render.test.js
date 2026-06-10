@@ -624,6 +624,25 @@ describe('Team reservation button loading contract', () => {
     expect(signupSource).toContain('this._ensureEventSignupRegistrationStateLoaded(e) === true');
   });
 
+  test('instant event deep link primes auth before waiting for current-user registration proof', () => {
+    const appSource = readProjectFile('app.js');
+    const start = appSource.indexOf('if (this._instantDeepLinkEventId && this.currentPage ===');
+    const end = appSource.indexOf("console.log('[DeepLink] SDK background refresh complete", start);
+    const block = appSource.slice(start, end);
+
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    expect(block).toContain('FirebaseService.ensureAuthReadyForWrite(signupUid)');
+    expect(block).toContain('FirebaseService._startPageScopedRealtimeForPage(pageId)');
+    expect(block).toContain('this._hasCurrentEventSignupRegistrationServerProof?.(event)');
+    expect(block).toContain("String(FirebaseService._registrationListenerKey || '') === `user:${uid}`");
+    expect(block).not.toContain('FirebaseService._cache.registrations.length > 0');
+    expect(block.indexOf('FirebaseService.ensureAuthReadyForWrite(signupUid)'))
+      .toBeLessThan(block.indexOf('FirebaseService._startPageScopedRealtimeForPage(pageId)'));
+    expect(block.indexOf('FirebaseService._startPageScopedRealtimeForPage(pageId)'))
+      .toBeLessThan(block.indexOf('this._hasCurrentEventSignupRegistrationServerProof?.(event)'));
+  });
+
   test('activity detail roster loading has timeout fallback and manual force refresh', () => {
     const detailSource = readProjectFile('js/modules/event/event-detail.js');
     const attendanceSource = readProjectFile('js/modules/event/event-manage-attendance.js');
