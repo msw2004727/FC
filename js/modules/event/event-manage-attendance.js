@@ -120,6 +120,49 @@ Object.assign(App, {
     }
   },
 
+  /** P1（rosterProjectionFirst）：是否在 fetch 前先畫投影快顯（docs/activity-roster-loading-optimization-plan-v0.1.md §7） */
+  _shouldPaintDetailRosterProjectionFirst(eventId, e, containerId, options = {}) {
+    if ((containerId || '') !== 'detail-attendance-table') return false;
+    if (options?.mode !== 'detail') return false;
+    if (options?.skipFetch) return false; // mutation/late patch 走快取優先，不得被投影覆蓋（計畫書約束 10）
+    let enabled = false;
+    try {
+      enabled = typeof shouldUseActivityDetailOptimization === 'function'
+        && shouldUseActivityDetailOptimization('rosterProjectionFirst') === true;
+    } catch (_) {
+      enabled = false;
+    }
+    if (!enabled) return false;
+    if (this._attendanceEditingEventId === eventId || this._unregEditingEventId === eventId) return false;
+    if (typeof ApiService !== 'undefined'
+      && ApiService._fetchedRegistrationServerIds?.has?.(eventId)) {
+      return false; // 已有本活動 server 證明 → 直接走完整名單
+    }
+    return true;
+  },
+
+  /** P2（deferAttendanceRecords）：本次詳情渲染是否需要載入出席資料（計畫書 §8） */
+  _shouldLoadDetailAttendanceData(e) {
+    let deferEnabled = false;
+    try {
+      deferEnabled = typeof shouldUseActivityDetailOptimization === 'function'
+        && shouldUseActivityDetailOptimization('deferAttendanceRecords') === true;
+    } catch (_) {
+      deferEnabled = false;
+    }
+    if (!deferEnabled) return true;
+    const status = String(e?.status || '');
+    if (status === 'ended' || status === 'cancelled') return true;
+    const eventId = String(e?.id || '');
+    if (this._attendanceEditingEventId === eventId || this._unregEditingEventId === eventId) return true;
+    if (typeof this._canOperateEventSite === 'function' && this._canOperateEventSite(e)) return true;
+    if (typeof this.hasPermission === 'function'
+      && (this.hasPermission('activity.view_noshow') || this.hasPermission('admin.repair.no_show_adjust'))) {
+      return true;
+    }
+    return false;
+  },
+
   _scheduleDetailAttendanceRecordsPatch(eventId, containerId, fetchOptions, options = {}) {
     if (typeof ApiService === 'undefined' || typeof ApiService.fetchAttendanceIfMissing !== 'function') {
       return null;
@@ -495,10 +538,15 @@ Object.assign(App, {
     const _cachedRegsForFast = ApiService.getRegistrationsByEvent(eventId);
     const _hasFastData = (Array.isArray(e.participants) && e.participants.length > 0)
       || (Array.isArray(e.waitlistNames) && e.waitlistNames.length > 0);
-    if (_cachedRegsForFast.length === 0 && _hasFastData) {
+    // P1（rosterProjectionFirst）：尚無本活動 server 證明前，即使快取已有部分列，
+    // detail 容器也先畫投影快顯，不讓登入用戶停在 skeleton 等網路往返
+    const _projectionFirst = _hasFastData
+      && this._shouldPaintDetailRosterProjectionFirst?.(eventId, e, cId, options) === true;
+    if ((_cachedRegsForFast.length === 0 && _hasFastData) || _projectionFirst) {
       const fastPreviewGuard = this._canPatchAttendanceTable(eventId, cId, container, options, 'fast-preview');
       if (!fastPreviewGuard.ok) return fastPreviewGuard;
       container.innerHTML = this._renderAttendanceFastPreview(e);
+      if (_perfLog) console.info('[perfAtt] roster preview painted +' + Math.round(performance.now() - _perfCallTs) + 'ms ' + (_projectionFirst ? 'projection-first' : 'empty-cache'));
     }
 
     // 舊活動可能超出全站監聽器 limit → 一次性從子集合補查
@@ -512,7 +560,15 @@ Object.assign(App, {
         if (this._shouldSplitDetailRosterFetch(cId, options)) {
           const registrationResult = await ApiService.fetchRegistrationsIfMissing(eventId, fetchOptions);
           fetchIssue = this._getAttendanceTableFetchIssue([registrationResult]);
-          this._scheduleDetailAttendanceRecordsPatch(eventId, cId, fetchOptions, options);
+          // P2（deferAttendanceRecords）：未結束活動的一般用戶不抓出席資料；
+          // 已結束/可管理/具出席查看權者照常載入，並按需啟動 attendanceRecords listener
+          if (this._shouldLoadDetailAttendanceData?.(e) !== false) {
+            if (typeof FirebaseService !== 'undefined'
+              && typeof FirebaseService.requestDetailAttendanceRealtime === 'function') {
+              FirebaseService.requestDetailAttendanceRealtime();
+            }
+            this._scheduleDetailAttendanceRecordsPatch(eventId, cId, fetchOptions, options);
+          }
         } else {
           const fetchResults = await Promise.all([
             ApiService.fetchAttendanceIfMissing(eventId, fetchOptions),

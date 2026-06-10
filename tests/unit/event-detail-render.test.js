@@ -1196,7 +1196,9 @@ describe('Activity detail late patch guard', () => {
     });
 
     expect(context.ApiService.fetchRegistrationsIfMissing).toHaveBeenCalledTimes(1);
-    expect(context.ApiService.fetchAttendanceIfMissing).toHaveBeenCalledTimes(1);
+    // 2026-06-11 P2（deferAttendanceRecords）：未結束活動的一般用戶首屏不抓出席資料
+    //（plan §8.5-1；管理/已結束/具出席查看權者見 roster-projection-defer.test.js）
+    expect(context.ApiService.fetchAttendanceIfMissing).not.toHaveBeenCalled();
     expect(document.getElementById('detail-attendance-table').textContent).toContain('Server User');
   });
 

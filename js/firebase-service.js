@@ -1074,6 +1074,35 @@ const FirebaseService = {
     return this._pageScopedRealtimeMap[pageId] || [];
   },
 
+  // ─── P2（deferAttendanceRecords，docs/activity-roster-loading-optimization-plan-v0.1.md §8）───
+  _detailAttendanceRealtimeRequested: false,
+
+  _shouldDeferDetailAttendanceRecords() {
+    try {
+      return typeof shouldUseActivityDetailOptimization === 'function'
+        && shouldUseActivityDetailOptimization('deferAttendanceRecords') === true;
+    } catch (_) {
+      return false;
+    }
+  },
+
+  _isDetailAttendanceDeferred(pageId, name) {
+    return pageId === 'page-activity-detail'
+      && name === 'attendanceRecords'
+      && !this._detailAttendanceRealtimeRequested
+      && this._shouldDeferDetailAttendanceRecords();
+  },
+
+  /** 管理/已結束/具出席查看權情境按需啟動詳情頁 attendanceRecords listener（冪等） */
+  requestDetailAttendanceRealtime() {
+    if (!this._shouldDeferDetailAttendanceRecords()) return;
+    if (this._detailAttendanceRealtimeRequested) return;
+    this._detailAttendanceRealtimeRequested = true;
+    if (typeof App !== 'undefined' && App.currentPage === 'page-activity-detail') {
+      try { this._startPageScopedRealtimeForPage('page-activity-detail'); } catch (_) {}
+    }
+  },
+
   _shouldReloadCollection(name) {
     if (!this._lazyLoaded[name]) return true;
     const ttl = this._staticReloadMaxAgeMs[name];
@@ -1320,9 +1349,15 @@ const FirebaseService = {
       console.warn('[FirebaseService] db not ready, skip _startPageScopedRealtimeForPage:', pageId);
       return;
     }
+    if (pageId !== 'page-activity-detail') {
+      // 離開詳情頁 → 重置按需旗標，下次進詳情頁恢復 P2 延後策略
+      this._detailAttendanceRealtimeRequested = false;
+    }
     const needed = new Set(this._getPageScopedRealtimeCollections(pageId));
     if (needed.has('registrations')) this._startRegistrationsListener();
-    if (needed.has('attendanceRecords')) this._startAttendanceRecordsListener();
+    if (needed.has('attendanceRecords') && !this._isDetailAttendanceDeferred(pageId, 'attendanceRecords')) {
+      this._startAttendanceRecordsListener();
+    }
     if (needed.has('events')) {
       const terminalMode = pageId === 'page-my-activities' ? 'history' : 'preview';
       this._startEventsRealtimeListener({ terminalMode });
