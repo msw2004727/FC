@@ -109,8 +109,19 @@
 .td-v2-recruit-banner.closed{border-color:#e2e8f0;background:#f8fafc}
 .td-v2-recruit-banner strong{display:block;color:#0d9488;font-size:14px}
 .td-v2-recruit-banner span{display:block;color:#64748b;font-size:12px}
+.td-v2-course-section-head{margin-bottom:12px}
+.td-v2-course-section-head .td-v2-course-info-btn{width:24px;height:24px;margin-left:0;border:1.5px solid #0d9488;background:#fff;color:#0d9488;font-size:12px;box-shadow:0 4px 10px rgba(13,148,136,.12)}
+.td-v2-course-section-head .td-v2-course-info-btn:hover{background:#0d9488;color:#fff}
 .td-v2-edu-card .td-card{box-shadow:none}
 .td-v2-edu-card #edu-detail-section{padding:0;border:0;box-shadow:none}
+.td-v2-edu-card .td-edu-unified{background:transparent}
+.td-v2-edu-card .td-edu-unified>.td-card-title{display:none}
+.td-v2-edu-card .td-edu-tab-row{margin-bottom:.6rem}
+.td-v2-edu-card .td-edu-tab-content{min-height:80px}
+.td-v2-panel-courses .td-edu-course-toolbar{margin-bottom:.55rem}
+.td-v2-panel-courses .edu-course-plan-list-inline{width:100%}
+.td-v2-panel-courses .edu-course-plan-section{border:0;background:transparent;padding:0}
+.td-v2-panel-courses .edu-course-plan-section-head{margin-bottom:.46rem}
 .td-v2-panel-courses .edu-cp-card-v3{border-radius:14px;overflow:hidden;box-shadow:0 8px 22px rgba(15,23,42,.06)}
 .td-v2-panel-courses .edu-cp-visual.has-cover::before{background:linear-gradient(90deg,rgba(255,255,255,.82),rgba(255,255,255,.62) 54%,rgba(255,255,255,.4)),linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.58))}
 .td-v2-panel-courses .edu-cp-visual.has-cover{color:#0f172a}
@@ -216,6 +227,8 @@
 [data-theme="dark"] .td-v2-stat+.td-v2-stat:before,[data-theme="dark"] .td-v2-record-row div,[data-theme="dark"] .td-v2-donut circle{background:#1e293b;stroke:#1e293b}
 [data-theme="dark"] .td-v2-recruit-banner{background:rgba(13,148,136,.16);border-color:rgba(45,212,191,.34)}
 [data-theme="dark"] .td-v2-recruit-banner.closed{background:#111827;border-color:rgba(148,163,184,.18)}
+[data-theme="dark"] .td-v2-course-section-head .td-v2-course-info-btn{background:#111827;color:#5eead4;border-color:rgba(45,212,191,.62);box-shadow:none}
+[data-theme="dark"] .td-v2-course-section-head .td-v2-course-info-btn:hover{background:#14b8a6;color:#0f172a}
 [data-theme="dark"] .td-v2-event-date,[data-theme="dark"] .td-v2-event-cover.empty{background:rgba(249,115,22,.16)}
 [data-theme="dark"] .td-v2-panel-courses .edu-cp-visual.has-cover::before{background:linear-gradient(90deg,rgba(2,6,23,.86),rgba(15,23,42,.62) 54%,rgba(15,23,42,.42)),linear-gradient(180deg,rgba(2,6,23,.12),rgba(2,6,23,.78))}
 [data-theme="dark"] .td-v2-panel-courses .edu-cp-visual.has-cover,[data-theme="dark"] .td-v2-panel-courses .edu-course-card .edu-cp-visual.has-cover .edu-course-name{color:#fff}

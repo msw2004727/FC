@@ -136,7 +136,7 @@ Object.assign(App, {
     const banner = '<div class="td-v2-recruit-banner ' + (accepting ? 'open' : 'closed') + '"><div><strong>' + (accepting ? '接受新學員報名' : '暫停招收新學員') + '</strong><span>' + escapeHTML(this._getTeamDetailV2RecruitText(t)) + '</span></div></div>';
     return banner
       + '<div class="td-v2-card td-v2-edu-card">'
-      + '<div class="td-v2-section-head"><h3>課程方案</h3></div>'
+      + '<div class="td-v2-section-head td-v2-course-section-head"><h3>課程方案</h3><button type="button" class="edu-info-btn td-v2-course-info-btn" onclick="App._showEduInfoPopup(\'course\')" title="課程方案說明" aria-label="課程方案說明">?</button></div>'
       + this._buildTeamEducationSection(t)
       + '</div>';
   },

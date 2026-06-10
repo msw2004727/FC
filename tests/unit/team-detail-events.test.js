@@ -726,8 +726,18 @@ describe('team detail club activity section', () => {
 
     const html = app._buildTeamDetailV2CoursesPanel({ id: 'teamA', eduSettings: { acceptingStudents: true } });
 
-    expect(html).toContain('<div class="td-v2-section-head"><h3>課程方案</h3></div>');
+    expect(html).toContain('td-v2-course-section-head');
+    expect(html).toContain("App._showEduInfoPopup('course')");
+    expect(html).toContain('aria-label="課程方案說明"');
     expect(html).not.toContain('報名、學員、分組與待審功能沿用原流程');
+  });
+
+  test('team detail v2 courses panel flattens nested education wrappers', () => {
+    const css = fs.readFileSync(path.join(__dirname, '../../css/team-detail-v2.css'), 'utf8');
+
+    expect(css).toMatch(/\.td-v2-edu-card \.td-edu-unified>\.td-card-title\{display:none\}/);
+    expect(css).toMatch(/\.td-v2-panel-courses \.edu-course-plan-section\{border:0;background:transparent;padding:0\}/);
+    expect(css).toContain('.td-v2-course-section-head .td-v2-course-info-btn');
   });
 
   test('team detail v2 course count only includes current plans', () => {

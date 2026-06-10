@@ -257,6 +257,45 @@ describe('renderEduClubDetail info card', () => {
     expect(app._renderPendingStudentRow).toHaveBeenCalledWith('teamA', '', { id: 'pending-1', name: '小麥', enrollStatus: 'pending' });
   });
 
+  test('flattens v2 course tab content without duplicate course containers', () => {
+    const contentEl = {
+      innerHTML: '',
+      closest: jest.fn((selector) => (
+        selector === '#edu-detail-section' || selector === '.td-v2-edu-card' ? {} : null
+      )),
+    };
+    const app = {
+      _eduDetailTeamId: 'teamA',
+      _eduActiveTab: 'course',
+      isEduClubStaff: jest.fn(() => true),
+      renderEduCoursePlanList: jest.fn(),
+    };
+    const context = {
+      App: app,
+      ApiService: {
+        getTeam: jest.fn(),
+        getCurrentUser: jest.fn(() => null),
+      },
+      document: {
+        getElementById: jest.fn((id) => id === 'edu-detail-tab-content' ? contentEl : null),
+        querySelectorAll: jest.fn(() => []),
+      },
+      escapeHTML,
+      Promise,
+    };
+
+    vm.createContext(context);
+    vm.runInContext(source, context, { filename: 'edu-detail-render.js' });
+    context.App._renderEduTabContent('teamA');
+
+    expect(contentEl.innerHTML).toContain('td-edu-course-toolbar');
+    expect(contentEl.innerHTML).toContain('edu-course-plan-list-inline');
+    expect(contentEl.innerHTML).not.toContain('td-edu-panel');
+    expect(contentEl.innerHTML).not.toContain('td-card-title');
+    expect(contentEl.innerHTML).not.toContain('App._showEduInfoPopup');
+    expect(app.renderEduCoursePlanList).toHaveBeenCalledWith('teamA', true);
+  });
+
   test('shows education club leaders between manager and coach', () => {
     const html = renderWithTeam({
       id: 'edu-team-1',

@@ -23,18 +23,15 @@ Object.assign(App, {
           + '<p style="color:var(--text-muted);font-size:.78rem;margin-top:.5rem">不符合任何分組條件的學員會自動歸入「待審核名單」，等待職員手動分配。</p>',
       },
       course: {
-        title: '課程方案說明',
-        body: '<p>課程方案分為兩種計費模式：</p>'
-          + '<div style="background:var(--accent-bg);border-radius:var(--radius);padding:.6rem .8rem;margin:.5rem 0">'
-          + '<b>堂數制</b>'
-          + '<p style="margin:.3rem 0 0;font-size:.82rem">購買固定堂數，在指定期間內自由安排上課時間，用完為止。適合時間不固定的學員，彈性較高。</p>'
-          + '<p style="margin:.2rem 0 0;font-size:.78rem;color:var(--text-muted)">例：購買 10 堂，3 個月內使用完畢。</p>'
-          + '</div>'
-          + '<div style="background:var(--accent-bg);border-radius:var(--radius);padding:.6rem .8rem;margin:.5rem 0">'
-          + '<b>固定週期制</b>'
-          + '<p style="margin:.3rem 0 0;font-size:.82rem">在指定期間內，每週固定星期上課。適合需要規律訓練節奏的學員，出席較穩定。</p>'
-          + '<p style="margin:.2rem 0 0;font-size:.78rem;color:var(--text-muted)">例：每週二、四上課，為期 3 個月。</p>'
-          + '</div>',
+        title: '課程方案怎麼看',
+        body: '<p>這裡列出俱樂部目前開放查看或管理的課程方案。學員可從卡片報名，職員可進入名單管理課堂學員。</p>'
+          + '<ul>'
+          + '<li><b>課程中</b>：尚未結束的方案，會出現在主要清單。</li>'
+          + '<li><b>已結束</b>：保留歷史課程、名單、簽到與繳費紀錄。</li>'
+          + '<li><b>週期課程</b>：固定每週上課，適合長期規律訓練。</li>'
+          + '<li><b>堂數課程</b>：依每堂課日期安排，適合短期班、專班或營隊。</li>'
+          + '</ul>'
+          + '<p style="color:var(--text-muted);font-size:.78rem;margin-top:.5rem">職員可使用「名單、編輯、刪除」管理方案；若學員已繳費，請在課堂名單內勾選已繳費，系統才會停止顯示未繳費提醒。</p>',
       },
       member: {
         title: '我們這一家',

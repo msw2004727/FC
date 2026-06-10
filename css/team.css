@@ -2042,6 +2042,11 @@
 .td-edu-tab-content {
   min-height: 96px;
 }
+.td-edu-course-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: .5rem;
+}
 .td-edu-panel {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
