@@ -199,6 +199,9 @@ describe('edu course plan render', () => {
     expect(cssSource).toContain('.edu-cp-next-lesson-badge');
     expect(cssSource).toContain('[data-theme="light"] .edu-cp-next-lesson-badge');
     expect(cssSource).toContain('[data-theme="dark"] .edu-cp-next-lesson-badge');
+    expect(cssSource).toContain('background: rgba(13, 148, 136, .34);');
+    expect(cssSource).toMatch(/@media \(max-width: 560px\)\s*\{[\s\S]*\.edu-cp-toggle-row\s*\{[^}]*flex-direction: row;[^}]*justify-content: space-between;/s);
+    expect(cssSource).toMatch(/@media \(max-width: 560px\)\s*\{[\s\S]*\.edu-cp-toggle-row \.toggle-switch\s*\{[^}]*align-self: flex-start;/s);
     expect(cssSource).toContain('[data-theme="dark"] .edu-cp-card-hidden-badge');
     expect(cssSource).toContain('.edu-cp-lessons-btn-enrolled');
     expect(cssSource).toContain('.edu-cp-lessons-check');
@@ -211,6 +214,44 @@ describe('edu course plan render', () => {
     expect(cssSource).toContain('.edu-cp-signup-enrolled');
     expect(cssSource).toMatch(/\.edu-course-card\.edu-cp-card-compact \.edu-course-name\s*\{[^}]*font-weight: 900;/s);
     expect(cssSource).toMatch(/\.edu-cp-manage-btn\s*\{[^}]*font-size: \.78rem;[^}]*white-space: nowrap;/s);
+  });
+
+  test('course cards hide blank price pills and show free only for zero price', async () => {
+    const html = await renderPlans([
+      {
+        id: 'blankPrice',
+        name: 'Blank Price Plan',
+        planType: 'weekly',
+        startDate: '2099-01-01',
+        endDate: '2099-02-01',
+        price: null,
+        allowSignup: true,
+      },
+      {
+        id: 'zeroPrice',
+        name: 'Zero Price Plan',
+        planType: 'weekly',
+        startDate: '2099-01-01',
+        endDate: '2099-02-01',
+        price: 0,
+        allowSignup: true,
+      },
+    ]);
+    const getCardHtml = (id) => {
+      const markerIndex = html.indexOf('data-course-plan-id="' + id + '"');
+      const start = html.lastIndexOf('<div class="edu-course-card', markerIndex);
+      const next = html.indexOf('<div class="edu-course-card', markerIndex + 1);
+      return html.slice(start, next === -1 ? html.length : next);
+    };
+    const blankCard = getCardHtml('blankPrice');
+    const zeroCard = getCardHtml('zeroPrice');
+
+    expect(blankCard).toContain('Blank Price Plan');
+    expect(blankCard).not.toContain('edu-cp-fee-pill');
+    expect(blankCard).not.toContain('\u514d\u8cbb');
+    expect(zeroCard).toContain('Zero Price Plan');
+    expect(zeroCard).toContain('edu-cp-fee-pill');
+    expect(zeroCard).toContain('\u514d\u8cbb');
   });
 
   test('course detail modal keeps growing fields inside a scrollable body', () => {

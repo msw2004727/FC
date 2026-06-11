@@ -125,6 +125,20 @@ Object.assign(App, {
     return generatedDateLabel ? '\u4e0b\u5802\u8ab2' + generatedDateLabel : '';
   },
 
+  _hasCoursePlanPriceValue(value) {
+    if (value === null || value === undefined) return false;
+    return String(value).trim() !== '';
+  },
+
+  _formatCoursePlanPriceLabel(value, options = {}) {
+    if (!this._hasCoursePlanPriceValue(value)) return options.emptyText || '';
+    const amount = Number(value);
+    if (!Number.isFinite(amount) || amount < 0) return options.emptyText || '';
+    if (amount === 0) return '\u514d\u8cbb';
+    const prefix = options.prefix === undefined ? 'NT$ ' : String(options.prefix || '');
+    return prefix + amount.toLocaleString();
+  },
+
   _getCoursePlanViewerEnrollmentState(teamId, plan, options = {}) {
     const curUser = options.curUser || (typeof ApiService !== 'undefined' && typeof ApiService.getCurrentUser === 'function'
       ? ApiService.getCurrentUser()
@@ -334,8 +348,7 @@ Object.assign(App, {
     if (isStale()) return false;
 
     const formatMoney = (value) => {
-      const amount = Number(value || 0);
-      return Number.isFinite(amount) && amount > 0 ? 'NT$ ' + amount.toLocaleString() : '免費';
+      return this._formatCoursePlanPriceLabel?.(value, { prefix: 'NT$ ', emptyText: '' }) || '';
     };
     const renderCompactPill = (label, value, className = '') => '<span class="edu-cp-compact-pill ' + className + '"><span>' + escapeHTML(label) + '</span><strong>' + escapeHTML(value || '未設定') + '</strong></span>';
     const jsArg = (value) => escapeHTML(String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' '));
@@ -373,9 +386,10 @@ Object.assign(App, {
       const dateText = p.startDate ? p.startDate + ' ~ ' + (p.endDate || '') : '未設定';
       const countText = (p._effectiveCount || 0) + (p.maxCapacity ? '/' + p.maxCapacity : '') + ' 人';
       const coachName = String(p.coachName || p.coach || '').trim() || '未指定教練';
+      const priceText = formatMoney(p.price);
       const infoHtml = '<div class="edu-cp-compact-pills">'
         + renderCompactPill('上課', dateText, 'edu-cp-date-pill')
-        + renderCompactPill('費用', formatMoney(p.price), 'edu-cp-fee-pill')
+        + (priceText ? renderCompactPill('費用', priceText, 'edu-cp-fee-pill') : '')
         + renderCompactPill('人數', countText, 'edu-cp-count-pill')
         + renderCompactPill('教練', coachName, 'edu-cp-coach-pill')
         + '</div>';
@@ -629,7 +643,7 @@ Object.assign(App, {
           scheduleText: plan.planType === 'weekly'
             ? ((plan.weekdays || []).map(day => '週' + this._weekdayLabel(day)).join('、') || '未設定') + (plan.timeSlot ? ' ' + plan.timeSlot : '')
             : '共 ' + (plan.totalSessions || 0) + ' 堂',
-          priceText: Number(plan.price || 0) > 0 ? 'NT$ ' + Number(plan.price || 0).toLocaleString() : '免費',
+          priceText: this._formatCoursePlanPriceLabel?.(plan.price, { prefix: 'NT$ ', emptyText: '未填寫' }) || '未填寫',
           countText: (plan._effectiveCount || 0) + (plan.maxCapacity ? '/' + plan.maxCapacity : '') + ' 人',
           status: { label: plan.endDate && plan.endDate < detailToday ? '已結束' : (plan.allowSignup ? '招生中' : '暫停報名') },
           tags: [],
@@ -642,8 +656,7 @@ Object.assign(App, {
 
     const nextWeekly = this._getCoursePlanNextWeeklyOccurrence?.(plan);
     const formatCurrency = (value) => {
-      const amount = Number(value || 0);
-      return Number.isFinite(amount) && amount > 0 ? '$' + amount.toLocaleString() : '免費';
+      return this._formatCoursePlanPriceLabel?.(value, { prefix: '$', emptyText: '未填寫' }) || '未填寫';
     };
     const parseDateOnly = (value) => {
       const parts = String(value || '').split('-').map(part => parseInt(part, 10));
@@ -781,10 +794,11 @@ Object.assign(App, {
     const lessons = plan.planType === 'session' ? sessionLessons : weeklyLessons;
     const totalLessonCount = Number(plan.totalSessions || 0) || lessons.length;
     const visibleLessons = lessons;
-    const priceAmount = Number(plan.price || 0);
-    const priceSubText = priceAmount > 0 && totalLessonCount > 0
+    const hasPriceValue = this._hasCoursePlanPriceValue?.(plan.price) === true;
+    const priceAmount = hasPriceValue ? Number(plan.price) : NaN;
+    const priceSubText = hasPriceValue && priceAmount > 0 && totalLessonCount > 0
       ? totalLessonCount + ' 堂 · 約 $' + Math.round(priceAmount / totalLessonCount).toLocaleString() + '/堂'
-      : (totalLessonCount > 0 ? totalLessonCount + ' 堂' : '課程價格');
+      : (!hasPriceValue ? '課程價格未填寫' : (totalLessonCount > 0 ? totalLessonCount + ' 堂' : '課程價格'));
     const tagHtml = (view.tags || []).length
       ? '<div class="edu-course-detail-tags">' + view.tags.map(tag => '<span>' + escapeHTML(tag) + '</span>').join('') + '</div>'
       : '';
@@ -899,7 +913,7 @@ Object.assign(App, {
         + policyHtml
       + '</div>'
       + '<div class="edu-course-detail-footer">'
-        + '<div class="edu-course-price-block"><strong>' + escapeHTML(formatCurrency(priceAmount)) + '</strong><span>' + escapeHTML(priceSubText) + '</span></div>'
+        + '<div class="edu-course-price-block"><strong>' + escapeHTML(formatCurrency(plan.price)) + '</strong><span>' + escapeHTML(priceSubText) + '</span></div>'
         + footerActionsBlock
       + '</div>'
       + '</div>';

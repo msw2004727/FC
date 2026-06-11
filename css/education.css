@@ -1131,7 +1131,7 @@
 }
 .edu-cp-toggle-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
   min-height: 64px;
@@ -1145,6 +1145,7 @@
 }
 .edu-cp-toggle-row > div {
   min-width: 0;
+  flex: 1 1 auto;
   padding-right: .35rem;
 }
 .edu-cp-toggle-row label {
@@ -1153,6 +1154,7 @@
 }
 .edu-cp-toggle-row .toggle-switch {
   flex: 0 0 auto;
+  margin-top: .08rem;
 }
 .edu-cp-toggle-row small {
   display: block;
@@ -3984,9 +3986,9 @@
   color: #0f766e;
 }
 [data-theme="dark"] .edu-cp-next-lesson-badge {
-  border-color: rgba(45, 212, 191, .28);
-  background: rgba(20, 184, 166, .16);
-  color: #5eead4;
+  border-color: rgba(45, 212, 191, .38);
+  background: rgba(13, 148, 136, .34);
+  color: #ccfbf1;
 }
 [data-theme="dark"] .edu-cp-card-hidden-badge {
   border-color: rgba(148, 163, 184, .28);
@@ -4445,19 +4447,21 @@
 }
 @media (max-width: 560px) {
   .edu-cp-form-head,
-  .edu-cp-section-title,
-  .edu-cp-toggle-row {
+  .edu-cp-section-title {
     align-items: stretch;
     flex-direction: column;
   }
   .edu-cp-toggle-row {
+    align-items: flex-start;
+    flex-direction: row;
+    justify-content: space-between;
     gap: .58rem;
   }
   .edu-cp-toggle-row > div {
-    padding-right: 0;
+    padding-right: .25rem;
   }
   .edu-cp-toggle-row .toggle-switch {
-    align-self: flex-end;
+    align-self: flex-start;
   }
   .edu-cp-session-schedule-head {
     align-items: flex-start;

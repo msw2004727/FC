@@ -84,9 +84,16 @@
       return '';
     },
 
+    _hasCoursePlanPriceValue(value) {
+      if (value === null || value === undefined) return false;
+      return String(value).trim() !== '';
+    },
+
     _formatCoursePlanPrice(value) {
-      const amount = Number(value || 0);
-      return Number.isFinite(amount) && amount > 0 ? `NT$ ${amount.toLocaleString()}` : '免費';
+      if (!this._hasCoursePlanPriceValue(value)) return '';
+      const amount = Number(value);
+      if (!Number.isFinite(amount) || amount < 0) return '';
+      return amount === 0 ? '免費' : `NT$ ${amount.toLocaleString()}`;
     },
 
     _getCoursePlanScheduleText(plan) {

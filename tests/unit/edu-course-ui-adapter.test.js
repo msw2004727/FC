@@ -46,6 +46,15 @@ describe('education course UI adapter', () => {
     expect(vmData.tags).toEqual(['fixed', 'small-group']);
   });
 
+  test('formats blank and zero course prices distinctly', () => {
+    const app = loadAdapter();
+
+    expect(app._formatCoursePlanPrice(null)).toBe('');
+    expect(app._formatCoursePlanPrice('')).toBe('');
+    expect(app._formatCoursePlanPrice(0)).toBe('\u514d\u8cbb');
+    expect(app._formatCoursePlanPrice('0')).toBe('\u514d\u8cbb');
+  });
+
   test('groups current and ended plans by selected tab', () => {
     const app = loadAdapter();
     const buckets = app._getCoursePlanDisplayBuckets([
