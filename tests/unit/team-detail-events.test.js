@@ -722,13 +722,18 @@ describe('team detail club activity section', () => {
     Object.assign(app, {
       _getTeamDetailV2RecruitText: () => '正在招收新學員',
       _buildTeamEducationSection: () => '<div id="edu-detail-section"></div>',
+      isEduClubStaff: () => true,
     });
 
     const html = app._buildTeamDetailV2CoursesPanel({ id: 'teamA', eduSettings: { acceptingStudents: true } });
 
     expect(html).toContain('td-v2-course-section-head');
+    expect(html).toContain('td-v2-course-title-wrap"><h3>課程方案</h3><button');
     expect(html).toContain("App._showEduInfoPopup('course')");
     expect(html).toContain('aria-label="課程方案說明"');
+    expect(html).toContain('td-v2-course-add-btn');
+    expect(html).toContain("App.showEduCoursePlanForm('teamA')");
+    expect(html.indexOf('td-v2-course-info-btn')).toBeLessThan(html.indexOf('td-v2-course-add-btn'));
     expect(html).not.toContain('報名、學員、分組與待審功能沿用原流程');
   });
 
@@ -738,6 +743,9 @@ describe('team detail club activity section', () => {
     expect(css).toMatch(/\.td-v2-edu-card \.td-edu-unified>\.td-card-title\{display:none\}/);
     expect(css).toMatch(/\.td-v2-panel-courses \.edu-course-plan-section\{border:0;background:transparent;padding:0\}/);
     expect(css).toContain('.td-v2-course-section-head .td-v2-course-info-btn');
+    expect(css).toContain('.td-v2-course-title-wrap');
+    expect(css).toContain('.td-v2-course-section-head .td-v2-course-add-btn');
+    expect(css).toContain('[data-theme="dark"] .td-v2-course-section-head .td-v2-course-add-btn');
   });
 
   test('team detail v2 course count only includes current plans', () => {

@@ -181,10 +181,7 @@ Object.assign(App, {
 
     if (tab === 'course') {
       if (inlineTeamDetailV2) {
-        container.innerHTML = (isStaff
-          ? '<div class="td-edu-course-toolbar"><button type="button" class="primary-btn small" onclick="App.showEduCoursePlanForm(\'' + teamId + '\')">＋ 新增</button></div>'
-          : '')
-          + '<div id="edu-course-plan-list" class="edu-course-plan-list-inline"><div class="edu-loading"><div class="edu-loading-bar"><div class="edu-loading-fill"></div></div><div class="edu-loading-text">載入課程方案中...</div></div></div>';
+        container.innerHTML = '<div id="edu-course-plan-list" class="edu-course-plan-list-inline"><div class="edu-loading"><div class="edu-loading-bar"><div class="edu-loading-fill"></div></div><div class="edu-loading-text">載入課程方案中...</div></div></div>';
         if (typeof this.renderEduCoursePlanList === 'function') {
           return options && Object.keys(options).length
             ? this.renderEduCoursePlanList(teamId, isStaff, options)

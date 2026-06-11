@@ -288,11 +288,12 @@ describe('renderEduClubDetail info card', () => {
     vm.runInContext(source, context, { filename: 'edu-detail-render.js' });
     context.App._renderEduTabContent('teamA');
 
-    expect(contentEl.innerHTML).toContain('td-edu-course-toolbar');
+    expect(contentEl.innerHTML).not.toContain('td-edu-course-toolbar');
     expect(contentEl.innerHTML).toContain('edu-course-plan-list-inline');
     expect(contentEl.innerHTML).not.toContain('td-edu-panel');
     expect(contentEl.innerHTML).not.toContain('td-card-title');
     expect(contentEl.innerHTML).not.toContain('App._showEduInfoPopup');
+    expect(contentEl.innerHTML).not.toContain('App.showEduCoursePlanForm');
     expect(app.renderEduCoursePlanList).toHaveBeenCalledWith('teamA', true);
   });
 
