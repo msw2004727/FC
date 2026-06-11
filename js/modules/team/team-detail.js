@@ -506,20 +506,57 @@ Object.assign(App, {
       '</label>';
   },
 
+  _getTeamDetailCategoryOptions() {
+    if (typeof this._getTeamCategoryOptions === 'function') return this._getTeamCategoryOptions();
+    return [
+      { key: 'competitive', label: '競技', formHint: '競技標籤只作為俱樂部分類，賽事系統設定已預留。' },
+      { key: 'education', label: '教學', formHint: '教學標籤會啟用課程、學員與待審核功能。' },
+      { key: 'leisure', label: '休閒', formHint: '休閒標籤只作為俱樂部分類，未來可銜接友誼賽或休閒賽事設定。' },
+    ];
+  },
+
+  _getTeamDetailCategoryKey(team) {
+    if (!team) return 'competitive';
+    if (typeof this._getTeamCategoryMeta === 'function') return this._getTeamCategoryMeta(team)?.key || 'competitive';
+    if (team.teachingEnabled === true || team.isTeaching === true || team.educationTag === true || team.eduSettings?.teachingEnabled === true) return 'education';
+    if (team.teachingEnabled === false && (!team.type || team.type === 'education')) return 'competitive';
+    if (team.type === 'education') return 'education';
+    if (team.type === 'leisure') return 'leisure';
+    return 'competitive';
+  },
+
+  _normalizeTeamDetailCategoryKey(type) {
+    if (typeof this._normalizeTeamCategory === 'function') return this._normalizeTeamCategory(type);
+    return type === 'education' ? 'education' : (type === 'leisure' ? 'leisure' : 'competitive');
+  },
+
+  _buildTeamDetailCategorySelector(team) {
+    const activeKey = this._getTeamDetailCategoryKey(team);
+    const options = this._getTeamDetailCategoryOptions();
+    const buttons = options.map(option => {
+      const active = option.key === activeKey;
+      return '<button type="button" class="td-category-tag-btn td-category-tag-' + escapeHTML(option.key) + (active ? ' active' : '') + '" aria-pressed="' + (active ? 'true' : 'false') + '" onclick="App.setTeamCategoryTag(\'' + escapeHTML(option.key) + '\', this)">' +
+        '<strong>' + escapeHTML(option.label) + '</strong>' +
+        '<span>' + escapeHTML(option.formHint || '') + '</span>' +
+        '</button>';
+    }).join('');
+    return '<div class="td-category-tag-group" role="radiogroup" aria-label="俱樂部分類標籤">' + buttons + '</div>';
+  },
+
   _renderTeamDetailSettingsBody(team) {
     const body = document.getElementById('team-detail-settings-body');
     if (!body || !team) return;
     const visibility = typeof this._getTeamDetailVisibility === 'function'
       ? this._getTeamDetailVisibility(team)
       : {};
-    const teachingChecked = typeof this._isTeamTeachingTagged === 'function'
-      ? this._isTeamTeachingTagged(team)
-      : team.type === 'education';
+    const categoryKey = this._getTeamDetailCategoryKey(team);
     const memberInviteChecked = team.allowMemberInvite !== false;
     const themeColor = this._getTeamThemeColor?.(team) || '';
     const themeOverlayChecked = this._isTeamThemeOverlayEnabled?.(team) !== false;
     const themePickerValue = themeColor || '#0d9488';
-    const rows = this._getTeamDetailSettingsItems().map(item => {
+    const rows = this._getTeamDetailSettingsItems().filter(item => {
+      return item.key !== 'courses' || categoryKey === 'education';
+    }).map(item => {
       const checked = visibility[item.key] !== false;
       return '<div class="td-settings-row">' +
         '<div><strong>' + item.label + '</strong><span>' + item.desc + '</span></div>' +
@@ -532,8 +569,8 @@ Object.assign(App, {
     }).join('');
     body.innerHTML = '<div class="td-settings-group">' +
       '<div class="td-settings-row td-settings-row-primary">' +
-      '<div><strong>\u6559\u5b78\u6a19\u7c64</strong><span>\u958b\u555f\u5f8c\u6703\u5728\u4ff1\u6a02\u90e8\u6e05\u55ae\u6b78\u985e\u70ba\u6559\u5b78\uff0c\u4e26\u5728\u5c01\u9762\u986f\u793a\u6559\u5b78\u7dde\u5e36\u3002</span></div>' +
-      this._buildTeamDetailSettingsSwitch(teachingChecked, 'App.toggleTeamTeachingTag(this.checked, this)', '\u6559\u5b78\u6a19\u7c64') +
+      '<div><strong>\u4ff1\u6a02\u90e8\u6a19\u7c64</strong><span>\u4e09\u7a2e\u6a19\u7c64\u50c5\u80fd\u64c7\u4e00\uff1b\u53ea\u6709\u6559\u5b78\u6a19\u7c64\u6703\u958b\u555f\u8ab2\u7a0b\u8207\u5b78\u54e1\u529f\u80fd\u3002</span></div>' +
+      this._buildTeamDetailCategorySelector(team) +
       '</div>' +
       '<div class="td-settings-row">' +
       '<div><strong>' + I18N.t('teamDetail.memberCanInvite') + '</strong><span>\u958b\u555f\u5f8c\uff0c\u73fe\u6709\u968a\u54e1\u53ef\u4ee5\u7522\u751f\u9080\u8acb QR Code\u3002</span></div>' +
@@ -598,8 +635,32 @@ Object.assign(App, {
     }
   },
 
+  setTeamCategoryTag(type, inputEl) {
+    const categoryKey = this._normalizeTeamDetailCategoryKey(type);
+    const teamId = this._teamDetailId;
+    const team = teamId ? ApiService.getTeam(teamId) : null;
+    const isTeaching = categoryKey === 'education';
+    const updates = {
+      type: categoryKey,
+      teachingEnabled: isTeaching,
+    };
+    if (isTeaching) {
+      updates.eduSettings = {
+        ...(team?.eduSettings || {}),
+        acceptingStudents: team?.eduSettings?.acceptingStudents !== false,
+        teachingEnabled: true,
+      };
+    } else {
+      const deleteField = typeof firebase !== 'undefined' && firebase.firestore?.FieldValue?.delete
+        ? firebase.firestore.FieldValue.delete()
+        : null;
+      updates.eduSettings = deleteField;
+    }
+    return this._saveTeamDetailSettingsPatch(updates, inputEl);
+  },
+
   toggleTeamTeachingTag(enabled, inputEl) {
-    return this._saveTeamDetailSettingsPatch({ teachingEnabled: !!enabled }, inputEl);
+    return this.setTeamCategoryTag(enabled ? 'education' : 'competitive', inputEl);
   },
 
   toggleTeamMemberInviteSetting(enabled, inputEl) {

@@ -278,6 +278,8 @@ describe('team pin management wiring', () => {
   const teamListRenderSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-list-render.js'), 'utf8');
   const teamListHelperSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-list-helpers.js'), 'utf8');
   const teamFormJoinSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-form-join.js'), 'utf8');
+  const teamFormInitSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-form-init.js'), 'utf8');
+  const teamFormSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-form.js'), 'utf8');
   const teamCss = fs.readFileSync(path.join(__dirname, '../../css/team.css'), 'utf8');
 
   test('club pin controls are visibly unavailable and toast only', () => {
@@ -367,6 +369,23 @@ describe('team pin management wiring', () => {
     expect(teamListRenderSource).toContain('this._syncTeamFilterPanelState?.();');
     expect(teamCss).toContain('.team-filter-toggle-btn');
     expect(teamCss).toContain('.team-search-bar[hidden]');
+  });
+
+  test('club category tags support competitive teaching and leisure as one active label', () => {
+    expect(teamPageSource).toContain('data-type="competitive"');
+    expect(teamPageSource).toContain('data-type="education"');
+    expect(teamPageSource).toContain('data-type="leisure"');
+    expect(teamPageSource).toContain('data-team-type-option="competitive"');
+    expect(teamPageSource).toContain('data-team-type-option="education"');
+    expect(teamPageSource).toContain('data-team-type-option="leisure"');
+    expect(teamListHelperSource).toContain('_getTeamCategoryOptions');
+    expect(teamListHelperSource).toContain("key: 'competitive'");
+    expect(teamListHelperSource).toContain("key: 'leisure'");
+    expect(teamListHelperSource).toContain('tournamentSettingsReserved: true');
+    expect(teamListRenderSource).toContain('_getTeamCategoryMeta(t)');
+    expect(teamListRenderSource).toContain('tc-type-ribbon');
+    expect(teamFormInitSource).toContain('_selectTeamTypeTag(type)');
+    expect(teamFormSource).toContain('teachingEnabled: isTeachingType');
   });
 });
 

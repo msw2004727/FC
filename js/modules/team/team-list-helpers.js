@@ -264,16 +264,80 @@ Object.assign(App, {
     return team.type === 'education';
   },
 
+  _getTeamCategoryOptions() {
+    return [
+      {
+        key: 'competitive',
+        label: '競技',
+        formHint: '競技標籤只作為俱樂部分類，賽事系統設定已預留。',
+        ribbonClass: 'tc-type-ribbon-competitive',
+        pillClass: 'td-category-pill-competitive',
+        showEduSettings: false,
+        coursesEnabled: false,
+        tournamentSettingsReserved: true,
+      },
+      {
+        key: 'education',
+        label: '教學',
+        formHint: '教學標籤會啟用課程、學員與待審核功能。',
+        ribbonClass: 'tc-type-ribbon-education',
+        pillClass: 'td-category-pill-education',
+        showEduSettings: true,
+        coursesEnabled: true,
+        tournamentSettingsReserved: false,
+      },
+      {
+        key: 'leisure',
+        label: '休閒',
+        formHint: '休閒標籤只作為俱樂部分類，未來可銜接友誼賽或休閒賽事設定。',
+        ribbonClass: 'tc-type-ribbon-leisure',
+        pillClass: 'td-category-pill-leisure',
+        showEduSettings: false,
+        coursesEnabled: false,
+        tournamentSettingsReserved: true,
+      },
+    ];
+  },
+
+  _normalizeTeamCategory(type) {
+    const key = String(type || '').trim().toLowerCase();
+    if (key === 'education' || key === 'teaching') return 'education';
+    if (key === 'leisure' || key === 'casual' || key === 'recreational') return 'leisure';
+    return 'competitive';
+  },
+
+  _getTeamTypeMeta(type) {
+    const normalized = this._normalizeTeamCategory(type);
+    const options = this._getTeamCategoryOptions();
+    return options.find(item => item.key === normalized) || options[0];
+  },
+
+  _getTeamCategoryMeta(teamOrType) {
+    if (teamOrType && typeof teamOrType === 'object') {
+      const team = teamOrType;
+      if (this._isTeamTeachingTagged(team)) return this._getTeamTypeMeta('education');
+      if ((team.teachingEnabled === false || team.eduSettings?.teachingEnabled === false)
+          && (!team.type || team.type === 'education')) {
+        return this._getTeamTypeMeta('competitive');
+      }
+      return this._getTeamTypeMeta(team.type);
+    }
+    return this._getTeamTypeMeta(teamOrType);
+  },
+
   /**
    * 依俱樂部類型回傳對應的 handler（Phase 4 §10.2 type handler pattern）。
    * 新增俱樂部類型時只需在此擴充，無需到各處加 if。
    */
   _getTeamTypeHandler(type) {
+    const meta = this._getTeamTypeMeta(type);
     return {
       memberCount: (teamId) => this._calcTeamMemberCount(teamId),
       detailRenderer: null,
       joinHandler: null,
-      showEduSettings: false,
+      showEduSettings: !!meta.showEduSettings,
+      coursesEnabled: !!meta.coursesEnabled,
+      tournamentSettingsReserved: !!meta.tournamentSettingsReserved,
     };
   },
 

@@ -62,7 +62,7 @@ Object.assign(App, {
       }
     }
     if (typeof this.showTeamForm === 'function') {
-      this._pendingTeamCreateType = 'general';
+      this._pendingTeamCreateType = 'competitive';
       this.showTeamForm(null);
     }
   },
@@ -71,7 +71,11 @@ Object.assign(App, {
   _teamFilterExpanded: false,
 
   switchTeamTypeTab(type) {
-    this._currentTeamTypeTab = type === 'education' ? 'education' : '';
+    const rawType = String(type || '');
+    const nextType = rawType
+      ? (typeof this._normalizeTeamCategory === 'function' ? this._normalizeTeamCategory(rawType) : rawType)
+      : '';
+    this._currentTeamTypeTab = ['competitive', 'education', 'leisure'].includes(nextType) ? nextType : '';
     document.querySelectorAll('.team-type-tab').forEach(btn => {
       btn.classList.toggle('active', (btn.dataset.type || '') === this._currentTeamTypeTab);
     });
@@ -166,11 +170,14 @@ Object.assign(App, {
       filtered = filtered.filter(t => t.sportTag === sport);
     }
     if (typeTab) {
+      const targetType = typeof this._normalizeTeamCategory === 'function'
+        ? this._normalizeTeamCategory(typeTab)
+        : typeTab;
       filtered = filtered.filter(t => {
-        const isTeaching = typeof this._isTeamTeachingTagged === 'function'
-          ? this._isTeamTeachingTagged(t)
-          : (t.type || 'general') === 'education';
-        return typeTab === 'education' ? isTeaching : !isTeaching;
+        const meta = typeof this._getTeamCategoryMeta === 'function'
+          ? this._getTeamCategoryMeta(t)
+          : { key: (t.type || 'competitive') === 'education' ? 'education' : 'competitive' };
+        return meta.key === targetType;
       });
     }
 

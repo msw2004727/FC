@@ -39,8 +39,8 @@ Object.assign(App, {
     if (sportSelect) sportSelect.value = '';
     // 俱樂部類型重置
     const typeSelect = document.getElementById('ct-team-type');
-    if (typeSelect) typeSelect.value = 'general';
-    this._onTeamTypeChange('general');
+    if (typeSelect) typeSelect.value = 'competitive';
+    this._onTeamTypeChange('competitive');
     const preview = document.getElementById('ct-team-preview');
     preview.innerHTML = '<span class="ce-upload-icon">+</span><span class="ce-upload-text">\u4e0a\u50b3\u4ff1\u6a02\u90e8\u5716\u7247</span><span class="ce-upload-hint">\u4e00\u5f35\u539f\u5716\u88c1\u5207\u5c01\u9762 800 x 300 \u8207\u5361\u7247 800 x 800</span>';
     preview.style.backgroundImage = '';
@@ -53,11 +53,33 @@ Object.assign(App, {
    * 俱樂部類型切換時顯示/隱藏教育型專屬欄位
    */
   _onTeamTypeChange(type) {
-    const handler = this._getTeamTypeHandler(type);
+    const meta = typeof this._getTeamTypeMeta === 'function'
+      ? this._getTeamTypeMeta(type)
+      : { key: type === 'education' ? 'education' : 'competitive', label: type === 'education' ? '教學' : '競技', formHint: '' };
+    const normalizedType = meta.key || 'competitive';
+    const typeInput = document.getElementById('ct-team-type');
+    if (typeInput) typeInput.value = normalizedType;
+    document.querySelectorAll('[data-team-type-option]').forEach(btn => {
+      const active = btn.getAttribute('data-team-type-option') === normalizedType;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    const typeLabel = document.getElementById('ct-team-type-label');
+    if (typeLabel) typeLabel.textContent = meta.label || '';
+    const typeHint = document.getElementById('ct-team-type-hint');
+    if (typeHint) typeHint.textContent = meta.formHint || '';
+    const handler = this._getTeamTypeHandler(normalizedType);
     const eduSection = document.getElementById('ct-edu-settings');
     if (eduSection) {
       eduSection.style.display = handler.showEduSettings ? '' : 'none';
     }
+  },
+
+  _selectTeamTypeTag(type) {
+    const normalizedType = typeof this._normalizeTeamCategory === 'function'
+      ? this._normalizeTeamCategory(type)
+      : (type === 'education' ? 'education' : 'competitive');
+    this._onTeamTypeChange(normalizedType);
   },
 
   /**
@@ -68,7 +90,7 @@ Object.assign(App, {
       this.showToast('目前未開啟建立俱樂部權限');
       return;
     }
-    this._pendingTeamCreateType = 'general';
+    this._pendingTeamCreateType = 'competitive';
     this.showTeamForm(null);
   },
 
@@ -77,7 +99,9 @@ Object.assign(App, {
    */
   _selectTeamCreateType(type) {
     this.closeModal();
-    this._pendingTeamCreateType = type;
+    this._pendingTeamCreateType = typeof this._normalizeTeamCategory === 'function'
+      ? this._normalizeTeamCategory(type)
+      : (type === 'education' ? 'education' : 'competitive');
     this.showTeamForm(null);
   },
 
@@ -187,15 +211,18 @@ Object.assign(App, {
       const sportSel = document.getElementById('ct-team-sport-tag');
       if (sportSel) sportSel.value = t.sportTag || '';
       // 編輯模式：載入俱樂部類型（隱藏欄位 + 顯示標籤）
+      const selectedType = typeof this._getTeamCategoryMeta === 'function'
+        ? this._getTeamCategoryMeta(t)?.key
+        : (t.type === 'education' ? 'education' : 'competitive');
       const typeInput = document.getElementById('ct-team-type');
-      if (typeInput) typeInput.value = t.type || 'general';
-      this._onTeamTypeChange(t.type || 'general');
+      if (typeInput) typeInput.value = selectedType || 'competitive';
+      this._onTeamTypeChange(selectedType || 'competitive');
       const typeDisplay = document.getElementById('ct-team-type-display');
       if (typeDisplay) typeDisplay.style.display = 'none';
       // 教育型設定
       const acceptToggle = document.getElementById('ct-edu-accepting');
-      if (acceptToggle && t.eduSettings) {
-        acceptToggle.checked = t.eduSettings.acceptingStudents !== false;
+      if (acceptToggle) {
+        acceptToggle.checked = !t.eduSettings || t.eduSettings.acceptingStudents !== false;
       }
 
       // 編輯模式：載入已有領隊（複數）
@@ -266,7 +293,9 @@ Object.assign(App, {
       }
     } else {
       // 新增模式：自動填入當前用戶為俱樂部經理，鎖定不可更改
-      const selectedType = this._pendingTeamCreateType || 'general';
+      const selectedType = typeof this._normalizeTeamCategory === 'function'
+        ? this._normalizeTeamCategory(this._pendingTeamCreateType || 'competitive')
+        : (this._pendingTeamCreateType === 'education' ? 'education' : 'competitive');
       this._pendingTeamCreateType = null;
       titleEl.textContent = '新增俱樂部';
       saveBtn.textContent = '建立俱樂部';

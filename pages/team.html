@@ -64,9 +64,17 @@
           <svg class="team-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
           <span data-i18n="全部">全部</span>
         </button>
+        <button class="team-type-tab" data-type="competitive" onclick="App.switchTeamTypeTab('competitive')">
+          <svg class="team-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v4a5 5 0 0 1-10 0z"/><path d="M5 5H3v2a3 3 0 0 0 3 3"/><path d="M19 5h2v2a3 3 0 0 1-3 3"/></svg>
+          <span data-i18n="競技">競技</span>
+        </button>
         <button class="team-type-tab" data-type="education" onclick="App.switchTeamTypeTab('education')">
           <svg class="team-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
           <span data-i18n="教學">教學</span>
+        </button>
+        <button class="team-type-tab" data-type="leisure" onclick="App.switchTeamTypeTab('leisure')">
+          <svg class="team-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M7 12a5 5 0 0 1 10 0"/><path d="M7 12a5 5 0 0 0 10 0"/><path d="M9 15l-2 4"/><path d="M15 15l2 4"/></svg>
+          <span data-i18n="休閒">休閒</span>
         </button>
       </div>
       <div class="team-grid" id="team-list">
@@ -131,15 +139,20 @@
     </div>
     <div class="modal-body">
       <div class="team-type-select-grid">
-        <div class="team-type-select-card" onclick="App._selectTeamCreateType('general')">
-          <div class="team-type-select-icon">⚽</div>
-          <div class="team-type-select-title" data-i18n="運動俱樂部">運動俱樂部</div>
+        <div class="team-type-select-card" onclick="App._selectTeamCreateType('competitive')">
+          <div class="team-type-select-icon">🏆</div>
+          <div class="team-type-select-title" data-i18n="競技俱樂部">競技俱樂部</div>
           <div class="team-type-select-desc" data-i18n="組建競技團隊，管理成員、賽事與戰績">組建競技團隊，管理成員、賽事與戰績</div>
         </div>
         <div class="team-type-select-card" onclick="App._selectTeamCreateType('education')">
           <div class="team-type-select-icon">📚</div>
           <div class="team-type-select-title" data-i18n="教學俱樂部">教學俱樂部</div>
           <div class="team-type-select-desc" data-i18n="開設課程教學，管理學員報名與課程排程">開設課程教學，管理學員報名與課程排程</div>
+        </div>
+        <div class="team-type-select-card" onclick="App._selectTeamCreateType('leisure')">
+          <div class="team-type-select-icon">☀️</div>
+          <div class="team-type-select-title" data-i18n="休閒俱樂部">休閒俱樂部</div>
+          <div class="team-type-select-desc" data-i18n="以休閒交流為主，保留未來賽事分類設定">以休閒交流為主，保留未來賽事分類設定</div>
         </div>
       </div>
     </div>
@@ -162,10 +175,28 @@
           </div>
           <input type="file" id="ct-team-image" accept=".jpg,.jpeg,.png,.webp" hidden>
         </div>
-        <input type="hidden" id="ct-team-type" value="general">
+        <input type="hidden" id="ct-team-type" value="competitive">
         <div class="ce-row" id="ct-team-type-display" style="display:none">
           <label data-i18n="俱樂部類型">俱樂部類型</label>
           <div id="ct-team-type-label" style="font-size:.85rem;font-weight:600;color:var(--accent);padding:.3rem 0"></div>
+        </div>
+        <div class="ce-row" id="ct-team-type-settings">
+          <label data-i18n="俱樂部標籤">俱樂部標籤</label>
+          <div class="ct-type-tag-group" id="ct-team-type-tags" role="radiogroup" aria-label="俱樂部標籤">
+            <button type="button" class="ct-type-tag-btn ct-type-tag-competitive" data-team-type-option="competitive" onclick="App._selectTeamTypeTag('competitive')" aria-pressed="false">
+              <span data-i18n="競技">競技</span>
+              <small data-i18n="賽事與戰績分類">賽事與戰績分類</small>
+            </button>
+            <button type="button" class="ct-type-tag-btn ct-type-tag-education" data-team-type-option="education" onclick="App._selectTeamTypeTag('education')" aria-pressed="false">
+              <span data-i18n="教學">教學</span>
+              <small data-i18n="啟用課程功能">啟用課程功能</small>
+            </button>
+            <button type="button" class="ct-type-tag-btn ct-type-tag-leisure" data-team-type-option="leisure" onclick="App._selectTeamTypeTag('leisure')" aria-pressed="false">
+              <span data-i18n="休閒">休閒</span>
+              <small data-i18n="休閒交流分類">休閒交流分類</small>
+            </button>
+          </div>
+          <div class="ct-type-tag-hint" id="ct-team-type-hint" data-i18n="競技標籤只作為俱樂部分類，賽事系統設定已預留。">競技標籤只作為俱樂部分類，賽事系統設定已預留。</div>
         </div>
         <div id="ct-edu-settings" class="ce-row" style="display:none">
           <label data-i18n="學員招募狀態">學員招募狀態</label>

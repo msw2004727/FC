@@ -65,9 +65,14 @@ Object.assign(App, {
     // ── 運動類型 ──
     const sportTag = document.getElementById('ct-team-sport-tag')?.value || '';
     // ── 俱樂部類型 ──
-    const teamType = document.getElementById('ct-team-type')?.value || 'general';
-    const eduSettings = teamType === 'education' ? {
+    const rawTeamType = document.getElementById('ct-team-type')?.value || 'competitive';
+    const teamType = typeof this._normalizeTeamCategory === 'function'
+      ? this._normalizeTeamCategory(rawTeamType)
+      : (rawTeamType === 'education' ? 'education' : 'competitive');
+    const isTeachingType = teamType === 'education';
+    const eduSettings = isTeachingType ? {
       acceptingStudents: document.getElementById('ct-edu-accepting')?.checked !== false,
+      teachingEnabled: true,
     } : null;
 
     const preview = document.getElementById('ct-team-preview');
@@ -101,7 +106,7 @@ Object.assign(App, {
           captain, captainUid: captainUidForSave, captainName: captain,
           coaches, coachUids: newCoachUids, coachNames: coaches,
           members,
-          type: teamType, sportTag,
+          type: teamType, sportTag, teachingEnabled: isTeachingType,
         };
         if (eduSettings) updates.eduSettings = eduSettings;
         else updates.eduSettings = firebase.firestore.FieldValue.delete();
@@ -164,7 +169,7 @@ Object.assign(App, {
           active: true, pinned: false, pinOrder: 0,
           wins: 0, draws: 0, losses: 0, gf: 0, ga: 0,
           history: [],
-          type: teamType, sportTag,
+          type: teamType, sportTag, teachingEnabled: isTeachingType,
         };
         if (eduSettings) data.eduSettings = eduSettings;
         if (imageVariants) data.imageVariants = imageVariants;

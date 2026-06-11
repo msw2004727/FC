@@ -300,11 +300,13 @@ describe('team detail club activity section', () => {
     expect(html).toContain('td-floating-top-btn');
   });
 
-  test('renders course section for every club type', () => {
+  test('renders course section only for teaching clubs', () => {
     const app = makeApp([]);
     loadTeamDetailRender(app, []);
 
-    expect(app._buildTeamEducationSection({ id: 'teamA', type: 'general' })).toContain('id="edu-detail-section"');
+    expect(app._isTeamDetailSectionVisible({ id: 'teamA', type: 'competitive' }, 'courses')).toBe(false);
+    expect(app._isTeamDetailSectionVisible({ id: 'teamB', type: 'education' }, 'courses')).toBe(true);
+    expect(app._isTeamDetailSectionVisible({ id: 'teamC', type: 'leisure' }, 'courses')).toBe(false);
     expect(app._buildTeamEducationSection({ id: 'teamB', type: 'education' })).toContain('id="edu-detail-section"');
     expect(app._buildTeamEducationSection({ id: 'teamA' })).toContain('俱樂部課程');
     expect(app._buildTeamEducationSection({ id: 'teamA' })).toContain('data-edutab="student"');
@@ -337,6 +339,24 @@ describe('team detail club activity section', () => {
     const disabledNav = app._buildTeamDetailSectionNav({ id: 'teamA', teachingEnabled: false });
     expect(disabledHtml).not.toContain('edu-detail-section');
     expect(disabledNav).not.toContain('edu-detail-section');
+    const competitiveHtml = app._buildTeamDetailBodyHtml(
+      { id: 'teamA', captain: '', coaches: [], type: 'competitive' },
+      false,
+      false,
+      { keys: new Set(), names: new Set() },
+      0,
+      0
+    );
+    const leisureHtml = app._buildTeamDetailBodyHtml(
+      { id: 'teamA', captain: '', coaches: [], type: 'leisure' },
+      false,
+      false,
+      { keys: new Set(), names: new Set() },
+      0,
+      0
+    );
+    expect(competitiveHtml).not.toContain('edu-detail-section');
+    expect(leisureHtml).not.toContain('edu-detail-section');
 
     const enabledHtml = app._buildTeamDetailBodyHtml(
       { id: 'teamA', captain: '', coaches: [], teachingEnabled: true },
@@ -476,6 +496,9 @@ describe('team detail club activity section', () => {
     app._renderTeamDetailSettingsBody({ id: 'teamA', allowMemberInvite: false, themeColor: '#336699' });
 
     expect(body.innerHTML).toContain('td-settings-switch');
+    expect(body.innerHTML).toContain('td-category-tag-competitive active');
+    expect(body.innerHTML).toContain("App.setTeamCategoryTag('education', this)");
+    expect(body.innerHTML).toContain("App.setTeamCategoryTag('leisure', this)");
     expect(body.innerHTML).toContain('App.toggleTeamMemberInviteSetting(this.checked, this)');
     expect(body.innerHTML).toContain('App.changeTeamThemeColor(this.value, this)');
     expect(body.innerHTML).toContain('App.clearTeamThemeColor(this)');
@@ -484,8 +507,48 @@ describe('team detail club activity section', () => {
     expect(body.innerHTML).toContain('\u6587\u5b57\u66f4\u6e05\u695a');
     expect(body.innerHTML).toContain('value="#336699"');
     expect(body.innerHTML).toContain('teamDetail.memberCanInvite');
+    expect(body.innerHTML).not.toContain('App.toggleTeamTeachingTag(this.checked, this)');
     expect(body.innerHTML).not.toContain('toggle-switch');
     expect(body.innerHTML).not.toContain('toggleMemberInvite');
+  });
+
+  test('team category setting writes one active tag and reserves non-teaching categories for tournaments', () => {
+    const patches = [];
+    const app = {};
+    loadTeamDetailCore(app, null, {
+      ApiService: {
+        getTeam: () => ({ id: 'teamA', eduSettings: { acceptingStudents: false } }),
+      },
+      firebase: {
+        firestore: {
+          FieldValue: {
+            delete: () => '__delete__',
+          },
+        },
+      },
+    });
+    app._teamDetailId = 'teamA';
+    app._saveTeamDetailSettingsPatch = (updates) => {
+      patches.push(updates);
+      return updates;
+    };
+
+    app.setTeamCategoryTag('leisure', {});
+    app.setTeamCategoryTag('education', {});
+
+    expect(patches[0]).toEqual({
+      type: 'leisure',
+      teachingEnabled: false,
+      eduSettings: '__delete__',
+    });
+    expect(patches[1]).toEqual({
+      type: 'education',
+      teachingEnabled: true,
+      eduSettings: {
+        acceptingStudents: false,
+        teachingEnabled: true,
+      },
+    });
   });
 
   test('team detail theme color adds scoped theme variables only when configured', () => {

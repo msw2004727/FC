@@ -9,10 +9,15 @@ Object.assign(App, {
     const pinnedClass = t.pinned ? ' tc-pinned' : '';
     const color = t.color || '#6b7280';
     const rank = this._getTeamRank(t.teamExp);
-    const isTeaching = typeof this._isTeamTeachingTagged === 'function'
-      ? this._isTeamTeachingTagged(t)
-      : t.type === 'education';
-    const eduRibbon = isTeaching ? '<span class="tc-edu-ribbon">教學</span>' : '';
+    const categoryMeta = typeof this._getTeamCategoryMeta === 'function'
+      ? this._getTeamCategoryMeta(t)
+      : { key: t.type === 'education' ? 'education' : 'competitive', label: t.type === 'education' ? '教學' : '競技', ribbonClass: t.type === 'education' ? 'tc-type-ribbon-education' : 'tc-type-ribbon-competitive' };
+    const categoryRibbonClass = categoryMeta.key === 'education'
+      ? 'tc-type-ribbon tc-edu-ribbon ' + categoryMeta.ribbonClass
+      : 'tc-type-ribbon ' + categoryMeta.ribbonClass;
+    const typeRibbon = categoryMeta
+      ? '<span class="' + categoryRibbonClass + '">' + escapeHTML(categoryMeta.label) + '</span>'
+      : '';
     const sportIcon = t.sportTag && typeof getSportIconSvg === 'function' ? getSportIconSvg(t.sportTag) : '';
     const sportBadge = sportIcon ? `<span class="tc-sport-badge">${sportIcon}</span>` : '';
     const attentionEnabled = t.attentionEffectEnabled === true;
@@ -36,8 +41,8 @@ Object.assign(App, {
       <div class="tc-card${pinnedClass}${attentionClass}${themeClass}"${cardStyle} data-team-id="${escapeHTML(t.id)}" onclick="App.openTeamDetailFromCard(this, this.dataset.teamId)">
         ${t.pinned ? '<div class="tc-pin-badge">置頂</div>' : ''}
         ${cardImage
-          ? `<div style="position:relative;width:100%;aspect-ratio:1;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0">${sportBadge}<img src="${escapeHTML(cardImage)}" width="1000" height="1000" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"><span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span>${eduRibbon}</div>`
-          : `<div class="tc-img-placeholder" style="position:relative">${sportBadge}俱樂部圖片<span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span>${eduRibbon}</div>`}
+          ? `<div style="position:relative;width:100%;aspect-ratio:1;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0">${sportBadge}<img src="${escapeHTML(cardImage)}" width="1000" height="1000" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"><span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span>${typeRibbon}</div>`
+          : `<div class="tc-img-placeholder" style="position:relative">${sportBadge}俱樂部圖片<span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span>${typeRibbon}</div>`}
         <div class="tc-body">
           <div class="tc-name">${escapeHTML(t.name)}</div>
           <div class="tc-info-row"><span class="tc-label">${memberLabel}</span><span>${memberCount} ${I18N.t('team.personUnit')}</span></div>
@@ -70,11 +75,14 @@ Object.assign(App, {
     let teams = ApiService.getActiveTeams();
     const typeTab = this._currentTeamTypeTab || '';
     if (typeTab) {
+      const targetType = typeof this._normalizeTeamCategory === 'function'
+        ? this._normalizeTeamCategory(typeTab)
+        : typeTab;
       teams = teams.filter(t => {
-        const isTeaching = typeof this._isTeamTeachingTagged === 'function'
-          ? this._isTeamTeachingTagged(t)
-          : (t.type || 'general') === 'education';
-        return typeTab === 'education' ? isTeaching : !isTeaching;
+        const meta = typeof this._getTeamCategoryMeta === 'function'
+          ? this._getTeamCategoryMeta(t)
+          : { key: (t.type || 'competitive') === 'education' ? 'education' : 'competitive' };
+        return meta.key === targetType;
       });
     }
     const activeTeamSport = this._syncTeamSportFilterWithGlobal?.() || this._getActiveTeamGlobalSport?.() || '';
@@ -89,8 +97,8 @@ Object.assign(App, {
       const memberCount = memberCountByTeam && memberCountByTeam.has(String(t.id || ''))
         ? memberCountByTeam.get(String(t.id || ''))
         : '';
-      const teachingTag = typeof this._isTeamTeachingTagged === 'function' && this._isTeamTeachingTagged(t) ? 1 : 0;
-      return t.id + '|' + (t.name || '') + '|' + (t.sportTag || '') + '|' + (t.image || '') + '|' + (t.imageVariants?.card || '') + '|' + (t.active ? 1 : 0) + '|' + (t.pinned ? 1 : 0) + '|' + teachingTag + '|' + (t.attentionEffectEnabled ? 1 : 0) + '|' + (t.attentionEffectColor || '') + '|' + (t.themeColor || '') + '|' + (t.themeOverlayEnabled === false ? 0 : 1) + '|' + (t.teamExp || 0) + '|' + memberCount;
+      const categoryKey = typeof this._getTeamCategoryMeta === 'function' ? (this._getTeamCategoryMeta(t)?.key || '') : (t.type || '');
+      return t.id + '|' + (t.name || '') + '|' + (t.sportTag || '') + '|' + (t.image || '') + '|' + (t.imageVariants?.card || '') + '|' + (t.active ? 1 : 0) + '|' + (t.pinned ? 1 : 0) + '|' + categoryKey + '|' + (t.attentionEffectEnabled ? 1 : 0) + '|' + (t.attentionEffectColor || '') + '|' + (t.themeColor || '') + '|' + (t.themeOverlayEnabled === false ? 0 : 1) + '|' + (t.teamExp || 0) + '|' + memberCount;
     }).join(',');
     if (this._teamListLastFp === fp && container.children.length > 0) return;
     this._teamListLastFp = fp;

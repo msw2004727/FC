@@ -1626,8 +1626,13 @@ Object.assign(App, {
       : sportKey;
     const metaParts = [t.region, sportLabel, t.nameEn].filter(Boolean);
     const logoHtml = this._buildTeamDetailLogoHtml(t);
-    const teachingBadge = (typeof this._isTeamTeachingTagged === 'function' && this._isTeamTeachingTagged(t))
-      ? '<span class="td-teaching-pill">\u6559\u5b78</span>'
+    const categoryMeta = typeof this._getTeamCategoryMeta === 'function'
+      ? this._getTeamCategoryMeta(t)
+      : ((typeof this._isTeamTeachingTagged === 'function' && this._isTeamTeachingTagged(t))
+        ? { key: 'education', label: '\u6559\u5b78', pillClass: 'td-category-pill-education' }
+        : { key: 'competitive', label: '\u7af6\u6280', pillClass: 'td-category-pill-competitive' });
+    const categoryBadge = categoryMeta
+      ? '<span class="td-category-pill ' + escapeHTML(categoryMeta.pillClass || '') + (categoryMeta.key === 'education' ? ' td-teaching-pill' : '') + '">' + escapeHTML(categoryMeta.label || '') + '</span>'
       : '';
     const viewHtml = '<div class="td-club-view-count" title="\u700f\u89bd\u6578"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path><circle cx="12" cy="12" r="2.8"></circle></svg><span>' + this._getTeamDetailViewCount(t).toLocaleString() + '</span></div>';
     const primaryAction = this._buildTeamDetailPrimaryAction(t);
@@ -1637,7 +1642,7 @@ Object.assign(App, {
       logoHtml +
       '<div class="td-club-title-block">' +
       viewHtml +
-      '<div class="td-club-title-row"><h1>' + escapeHTML(t.name || '') + '</h1>' + teachingBadge + '</div>' +
+      '<div class="td-club-title-row"><h1>' + escapeHTML(t.name || '') + '</h1>' + categoryBadge + '</div>' +
       '<div class="td-club-meta">' + escapeHTML(metaParts.join('｜')) + '</div>' +
       '</div>' +
       '</div>' +
