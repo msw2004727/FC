@@ -53,9 +53,9 @@ Object.assign(App, {
     const autoMigrationCompleted = typeof options.autoMigrationCompleted === 'boolean'
       ? options.autoMigrationCompleted
       : (typeof isEduAutoMigrationCompleted === 'function' && isEduAutoMigrationCompleted());
-    const myStudents = students.filter(s =>
+    const myStudents = myUid ? students.filter(s =>
       s?.enrollStatus !== 'inactive' && (s?.selfUid === myUid || s?.parentUid === myUid)
-    );
+    ) : [];
     const enrollments = Array.isArray(options.enrollments)
       ? options.enrollments
       : (Array.isArray(plan?._enrollments) ? plan._enrollments : []);
@@ -93,6 +93,10 @@ Object.assign(App, {
       const studentId = String(student?.id || student?._docId || '').trim();
       return !!studentId && pendingStudentIds.has(studentId);
     });
+    const approvedStudents = myStudents.filter((student) => {
+      const studentId = String(student?.id || student?._docId || '').trim();
+      return !!studentId && approvedStudentIds.has(studentId);
+    });
     const summaryCount = Number(summary?.effectiveApprovedCount);
     const effectiveCount = Number.isFinite(summaryCount)
       ? summaryCount
@@ -105,6 +109,9 @@ Object.assign(App, {
       pendingStudentIds,
       pendingStudents,
       pendingCount: pendingStudents.length,
+      approvedStudents,
+      approvedCount: approvedStudents.length,
+      hasApprovedEnrollment: approvedStudents.length > 0,
       allEnrolled: myStudents.length > 0 && myStudents.every((student) => {
         const studentId = String(student?.id || student?._docId || '').trim();
         return !!studentId && enrolledStudentIds.has(studentId);
@@ -160,6 +167,12 @@ Object.assign(App, {
       return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     })();
     const isPlanEnded = (plan) => !!(plan && plan.endDate && plan.endDate < today);
+    const isPlanRunning = (plan) => !!(
+      plan &&
+      plan.startDate &&
+      plan.startDate <= today &&
+      !isPlanEnded(plan)
+    );
     this._eduCoursePlanTabByTeam = this._eduCoursePlanTabByTeam || {};
     const selectedTab = this._eduCoursePlanTabByTeam[teamId] === 'ended' ? 'ended' : 'active';
 
@@ -244,6 +257,10 @@ Object.assign(App, {
       const hiddenClass = isHidden ? ' edu-cp-card-hidden' : '';
       const hiddenBadge = isStaff && isHidden ? '<span class="edu-cp-card-hidden-badge">未公開</span>' : '';
       const planEnded = isPlanEnded(p);
+      const runningBadge = isPlanRunning(p) ? '<span class="edu-cp-running-badge">上課中</span>' : '';
+      const topBadgeHtml = runningBadge || hiddenBadge
+        ? '<div class="edu-cp-top-badges">' + runningBadge + hiddenBadge + '</div>'
+        : '';
       const statusBadge = planEnded
         ? '<span class="edu-cp-status edu-cp-status-ended">已結束</span>'
         : p.allowSignup
@@ -265,18 +282,18 @@ Object.assign(App, {
         + '</div>';
 
       // 學員報名按鈕
+      const viewerEnrollmentState = this._getCoursePlanViewerEnrollmentState(teamId, p, {
+        curUser,
+        myUid,
+        students,
+        autoMigrationCompleted,
+      });
+      const hasApprovedEnrollment = viewerEnrollmentState.hasApprovedEnrollment === true;
       let signupBtn = '';
       if (p.allowSignup) {
         if (isEnded) {
           signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-disabled" disabled>課程已結束</button>';
         } else {
-        const viewerEnrollmentState = this._getCoursePlanViewerEnrollmentState(teamId, p, {
-          curUser,
-          myUid,
-          students,
-          autoMigrationCompleted,
-        });
-
         if (viewerEnrollmentState.pendingCount > 0) {
           signupBtn = '<button class="primary-btn edu-cp-signup-btn edu-cp-signup-pending" onclick="event.stopPropagation();App.showCourseEnrollmentPendingCancelDialog(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\',this)">' + viewerEnrollmentState.pendingCount + '位學員審核中</button>';
         } else if (viewerEnrollmentState.allEnrolled) {
@@ -311,11 +328,14 @@ Object.assign(App, {
         : '';
 
       const detailBtn = '<button class="outline-btn edu-cp-detail-btn" onclick="event.stopPropagation();App.showEduCoursePlanDetail(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">詳細資訊</button>';
-      const lessonsBtn = '<button class="outline-btn edu-cp-lessons-btn" onclick="event.stopPropagation();App.showCourseLessons(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">課堂列表</button>';
+      const lessonsBtnClass = 'outline-btn edu-cp-lessons-btn' + (hasApprovedEnrollment ? ' edu-cp-lessons-btn-enrolled' : '');
+      const lessonsBtnLabel = hasApprovedEnrollment ? '課堂列表（已報名）' : '課堂列表';
+      const lessonsBtnCheck = hasApprovedEnrollment ? '<span class="edu-cp-lessons-check" aria-hidden="true">✓</span>' : '';
+      const lessonsBtn = '<button class="' + lessonsBtnClass + '" aria-label="' + lessonsBtnLabel + '" onclick="event.stopPropagation();App.showCourseLessons(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">課堂列表' + lessonsBtnCheck + '</button>';
 
-      return '<div class="edu-course-card edu-cp-card-v3 edu-cp-card-compact edu-cp-card-' + (p.planType === 'weekly' ? 'weekly' : 'session') + hiddenClass + coverClass + '" data-course-plan-id="' + escapeHTML(p.id || '') + '">'
+      return '<div class="edu-course-card edu-cp-card-v3 edu-cp-card-compact edu-cp-card-' + (p.planType === 'weekly' ? 'weekly' : 'session') + hiddenClass + coverClass + (hasApprovedEnrollment ? ' edu-cp-card-enrolled' : '') + '" data-course-plan-id="' + escapeHTML(p.id || '') + '">'
         + coverHtml
-        + hiddenBadge
+        + topBadgeHtml
         + '<div class="edu-cp-compact-main">'
         + '<div class="edu-cp-compact-title">'
         + '<span class="edu-course-name">' + escapeHTML(p.name) + '</span>'

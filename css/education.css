@@ -3937,23 +3937,52 @@
   border-left-style: solid;
   opacity: .86;
 }
-.edu-cp-card-hidden-badge {
+.edu-cp-top-badges {
   position: absolute;
   top: .45rem;
   right: .5rem;
   z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: .28rem;
+  max-width: calc(100% - 1rem);
+  pointer-events: none;
+}
+.edu-cp-card-hidden-badge,
+.edu-cp-running-badge {
   display: inline-flex;
   align-items: center;
   min-height: 22px;
   padding: .12rem .48rem;
-  border: 1px solid rgba(100, 116, 139, .24);
   border-radius: 999px;
-  background: rgba(248, 250, 252, .94);
-  color: #64748b;
   font-size: .7rem;
   font-weight: 800;
   line-height: 1;
+  white-space: nowrap;
+}
+.edu-cp-card-hidden-badge {
+  border: 1px solid rgba(100, 116, 139, .24);
+  background: rgba(248, 250, 252, .94);
+  color: #64748b;
   box-shadow: 0 4px 12px rgba(15, 23, 42, .08);
+}
+.edu-cp-running-badge {
+  border: 1px solid rgba(13, 148, 136, .18);
+  background: linear-gradient(135deg, #0d9488, #16a34a);
+  color: #fff;
+  box-shadow: 0 6px 14px rgba(13, 148, 136, .24);
+}
+[data-theme="light"] .edu-cp-running-badge {
+  border-color: rgba(15, 118, 110, .22);
+  background: linear-gradient(135deg, #0f766e, #16a34a);
+  color: #fff;
+}
+[data-theme="dark"] .edu-cp-card-hidden-badge {
+  border-color: rgba(148, 163, 184, .28);
+  background: rgba(15, 23, 42, .82);
+  color: #cbd5e1;
 }
 .edu-cp-compact-cover {
   position: absolute;
@@ -3997,9 +4026,10 @@
   display: flex;
   align-items: center;
   gap: .36rem;
+  padding-right: 5.25rem;
 }
 .edu-course-card.edu-cp-card-hidden .edu-cp-compact-title {
-  padding-right: 4.5rem;
+  padding-right: 8.4rem;
 }
 .edu-course-card.edu-cp-card-compact .edu-course-name {
   min-width: 0;
@@ -4118,6 +4148,36 @@
 .edu-cp-card-actions .edu-cp-signup-pending {
   min-width: 6.8rem;
   font-size: .72rem;
+}
+.edu-cp-card-actions .edu-cp-lessons-btn {
+  position: relative;
+}
+.edu-cp-lessons-btn-enrolled {
+  border-color: rgba(13, 148, 136, .42);
+}
+.edu-cp-lessons-check {
+  position: absolute;
+  top: -.44rem;
+  right: -.38rem;
+  width: 1.12rem;
+  height: 1.12rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--bg-card);
+  border-radius: 999px;
+  background: #16a34a;
+  color: #fff;
+  font-size: .72rem;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 2px 7px rgba(22, 163, 74, .34);
+  pointer-events: none;
+}
+[data-theme="dark"] .edu-cp-lessons-check {
+  border-color: rgba(15, 23, 42, .95);
+  background: #22c55e;
+  color: #fff;
 }
 .edu-course-card.edu-cp-card-compact.has-cover .edu-cp-card-actions .outline-btn {
   border-color: rgba(255, 255, 255, .42);

@@ -469,6 +469,43 @@ describe('edu course lessons', () => {
     expect(app.showToast).toHaveBeenCalledWith('已登記請假');
   });
 
+  test('parent-owned student can submit self leave from roster', async () => {
+    const { app, container, firebase } = loadCourseLessonsContext({
+      rosterPayload: {
+        rosterPublic: true,
+        session: {
+          id: 'sessionA',
+          title: 'Session A',
+          date: '2099-06-02',
+          startTime: '10:00',
+          endTime: '11:30',
+          status: 'scheduled',
+        },
+        students: [
+          { studentId: 'stu3', displayName: 'Student C', level: null, attendanceKind: null, canSelfLeave: true, selfUid: null, parentUid: 'uidA' },
+        ],
+      },
+    });
+
+    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+
+    expect(container.innerHTML).toContain('App.showCourseLessonSelfLeaveDialog');
+
+    await app.saveCourseLessonSelfLeave('stu3', 'leave', { dataset: {}, disabled: false, style: {}, isConnected: true });
+
+    expect(firebase.saveEduCourseSelfLeave).toHaveBeenCalledWith({
+      teamId: 'teamA',
+      planId: 'planA',
+      sessionId: 'sessionA',
+      date: '2099-06-02',
+      studentId: 'stu3',
+      studentName: 'Student C',
+      selfUid: null,
+      parentUid: 'uidA',
+      leave: true,
+    });
+  });
+
   test('self leave button opens a student picker before submitting', async () => {
     const confirmBtn = {};
     const overlay = {

@@ -195,6 +195,12 @@ describe('edu course plan render', () => {
     expect(cssSource).toContain('[data-theme="light"] .edu-course-card.edu-cp-card-compact.has-cover .edu-cp-card-actions .outline-btn');
     expect(cssSource).toContain('[data-theme="light"] .edu-course-card.edu-cp-card-compact.has-cover .edu-cp-manage-left');
     expect(cssSource).toContain('.edu-course-card.edu-cp-card-compact.has-cover .edu-cp-manage-btn');
+    expect(cssSource).toContain('.edu-cp-top-badges');
+    expect(cssSource).toContain('.edu-cp-running-badge');
+    expect(cssSource).toContain('[data-theme="light"] .edu-cp-running-badge');
+    expect(cssSource).toContain('[data-theme="dark"] .edu-cp-card-hidden-badge');
+    expect(cssSource).toContain('.edu-cp-lessons-btn-enrolled');
+    expect(cssSource).toContain('.edu-cp-lessons-check');
     expect(cssSource).toContain('.edu-cp-pending-badge');
     expect(cssSource).toContain('box-shadow: 0 2px 6px rgba(220, 38, 38, .35);');
     expect(cssSource).toContain('.edu-cp-manage-danger');
@@ -227,6 +233,15 @@ describe('edu course plan render', () => {
         name: 'Active Plan',
         planType: 'weekly',
         weekdays: [2],
+        startDate: '2026-01-01',
+        endDate: '2099-02-01',
+        allowSignup: true,
+      },
+      {
+        id: 'future',
+        name: 'Future Plan',
+        planType: 'weekly',
+        weekdays: [3],
         startDate: '2099-01-01',
         endDate: '2099-02-01',
         allowSignup: true,
@@ -242,14 +257,20 @@ describe('edu course plan render', () => {
       },
     ];
 
-    const activeHtml = await renderPlans(plans, true, 'active');
-    const endedHtml = await renderPlans(plans, true, 'ended');
+    const activeHtml = await renderPlans(plans, true, 'active', { todayStr: () => '2026-06-11' });
+    const endedHtml = await renderPlans(plans, true, 'ended', { todayStr: () => '2026-06-11' });
 
     expect(activeHtml).toContain('edu-cp-view-tabs');
     expect(activeHtml).toContain('Active Plan');
+    expect(activeHtml).toContain('Future Plan');
+    expect(activeHtml).toContain('edu-cp-running-badge');
+    expect(activeHtml).toContain('上課中');
+    expect((activeHtml.match(/edu-cp-running-badge/g) || []).length).toBe(1);
     expect(activeHtml).not.toContain('Ended Plan');
     expect(endedHtml).toContain('Ended Plan');
     expect(endedHtml).not.toContain('Active Plan');
+    expect(endedHtml).not.toContain('Future Plan');
+    expect(endedHtml).not.toContain('edu-cp-running-badge');
     expect(endedHtml).toContain('edu-cp-status-ended');
   });
 
@@ -279,6 +300,7 @@ describe('edu course plan render', () => {
     expect(html).toContain('data-course-plan-id="sessionPlan"');
     expect(html).not.toContain('edu-cp-card-clickable');
     expect(html).not.toContain('tabindex="0" onclick="App.showCourseLessons');
+    expect(html).not.toContain('edu-cp-lessons-btn-enrolled');
     expect(html).toContain("App.showCourseLessons('teamA','sessionPlan')");
     expect(html).toContain('edu-cp-detail-btn');
     expect(html).toContain('edu-cp-lessons-btn');
@@ -533,6 +555,32 @@ describe('edu course plan render', () => {
     expect(app._loadCourseEnrollments).not.toHaveBeenCalled();
     expect(plans[0]._effectiveCount).toBe(2);
     expect(container.innerHTML).toContain('2/5');
+    expect(container.innerHTML).toContain('edu-cp-card-enrolled');
+    expect(container.innerHTML).toContain('edu-cp-lessons-btn-enrolled');
+    expect(container.innerHTML).toContain('edu-cp-lessons-check');
+    expect(container.innerHTML).toContain('aria-label="課堂列表（已報名）"');
+    expect(container.innerHTML).toContain('edu-cp-signup-enrolled');
+  });
+
+  test('course lesson button only marks plans approved for viewer-owned students', async () => {
+    const html = await renderPlans([{
+      id: 'otherPlan',
+      name: 'Other Plan',
+      planType: 'weekly',
+      startDate: '2099-01-01',
+      endDate: '2099-02-01',
+      allowSignup: true,
+      _enrollments: [{ studentId: 'otherStudent', status: 'approved' }],
+    }], false, 'active', {
+      eduStudents: [
+        { id: 'studentA', enrollStatus: 'active', selfUid: 'viewer' },
+        { id: 'otherStudent', enrollStatus: 'active', selfUid: 'other' },
+      ],
+    });
+
+    expect(html).not.toContain('edu-cp-card-enrolled');
+    expect(html).not.toContain('edu-cp-lessons-btn-enrolled');
+    expect(html).not.toContain('edu-cp-lessons-check');
   });
 
   test('staff course cards show pending review badge from batch summary only when count is positive', async () => {
