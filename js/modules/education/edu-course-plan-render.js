@@ -42,6 +42,89 @@ Object.assign(App, {
     }
   },
 
+  _formatCoursePlanCardNextDate(value) {
+    if (value === null || value === undefined || value === '') return '';
+    let parsed = null;
+    if (value instanceof Date) {
+      parsed = value;
+    } else if (typeof value === 'number') {
+      parsed = new Date(value);
+    } else {
+      const raw = String(value || '').trim();
+      const isoMatch = raw.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (isoMatch) {
+        parsed = new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]));
+      } else {
+        const shortMatch = raw.match(/(\d{1,2})\/(\d{1,2})/);
+        if (shortMatch) {
+          const month = Number(shortMatch[1]);
+          const day = Number(shortMatch[2]);
+          if (Number.isFinite(month) && Number.isFinite(day) && month >= 1 && day >= 1) {
+            return month + '/' + String(day).padStart(2, '0');
+          }
+        }
+        const fallback = new Date(raw);
+        if (Number.isFinite(fallback.getTime())) parsed = fallback;
+      }
+    }
+    if (!parsed || !Number.isFinite(parsed.getTime())) return '';
+    return (parsed.getMonth() + 1) + '/' + String(parsed.getDate()).padStart(2, '0');
+  },
+
+  _getCoursePlanCardNextLessonLabel(plan, sessions = [], options = {}) {
+    if (!plan) return '';
+    const today = String(options.today || this._todayStr?.() || '').trim();
+    const parseDateOnly = (value) => {
+      const match = String(value || '').trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if (!match) return null;
+      const parsed = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+      return Number.isFinite(parsed.getTime()) ? parsed : null;
+    };
+    const now = options.now instanceof Date ? options.now : new Date();
+    const todayStart = parseDateOnly(today) || new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayStartMs = todayStart.getTime();
+    const getSessionMs = (session) => {
+      const date = String(session?.date || '').trim();
+      const timeMatch = String(session?.startTime || '00:00').trim().match(/^(\d{1,2}):(\d{2})/);
+      const time = timeMatch ? timeMatch[0] : '00:00';
+      if (date) {
+        const ms = new Date(date + 'T' + time).getTime();
+        if (Number.isFinite(ms)) return ms;
+      }
+      if (typeof this._getCourseSessionSortValue === 'function') {
+        const sortValue = Number(this._getCourseSessionSortValue(session));
+        if (Number.isFinite(sortValue)) return sortValue;
+      }
+      return 0;
+    };
+    const inactiveStatuses = new Set(['cancelled', 'canceled', 'done', 'removed']);
+    const nextSession = [...(Array.isArray(sessions) ? sessions : [])]
+      .map(session => ({ session, timestamp: getSessionMs(session) }))
+      .filter(item => item.timestamp >= todayStartMs)
+      .filter(item => !inactiveStatuses.has(String(item.session?.status || '').trim().toLowerCase()))
+      .sort((a, b) => a.timestamp - b.timestamp)[0];
+    const sessionDateLabel = nextSession
+      ? this._formatCoursePlanCardNextDate(nextSession.session?.date || nextSession.timestamp)
+      : '';
+    if (sessionDateLabel) return '\u4e0b\u5802\u8ab2' + sessionDateLabel;
+
+    const nextWeekly = this._getCoursePlanNextWeeklyOccurrence?.(plan, now);
+    const weeklyDateLabel = nextWeekly
+      ? this._formatCoursePlanCardNextDate(nextWeekly.date || nextWeekly.label || nextWeekly.timestamp)
+      : '';
+    if (weeklyDateLabel) return '\u4e0b\u5802\u8ab2' + weeklyDateLabel;
+
+    const weeklyDates = plan.planType === 'weekly' && typeof this.generateWeeklyDates === 'function'
+      ? this.generateWeeklyDates(plan)
+      : [];
+    const nextWeeklyDate = weeklyDates.find(date => {
+      const parsed = parseDateOnly(date);
+      return parsed && parsed.getTime() >= todayStartMs;
+    });
+    const generatedDateLabel = this._formatCoursePlanCardNextDate(nextWeeklyDate);
+    return generatedDateLabel ? '\u4e0b\u5802\u8ab2' + generatedDateLabel : '';
+  },
+
   _getCoursePlanViewerEnrollmentState(teamId, plan, options = {}) {
     const curUser = options.curUser || (typeof ApiService !== 'undefined' && typeof ApiService.getCurrentUser === 'function'
       ? ApiService.getCurrentUser()
@@ -167,12 +250,6 @@ Object.assign(App, {
       return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     })();
     const isPlanEnded = (plan) => !!(plan && plan.endDate && plan.endDate < today);
-    const isPlanRunning = (plan) => !!(
-      plan &&
-      plan.startDate &&
-      plan.startDate <= today &&
-      !isPlanEnded(plan)
-    );
     this._eduCoursePlanTabByTeam = this._eduCoursePlanTabByTeam || {};
     const selectedTab = this._eduCoursePlanTabByTeam[teamId] === 'ended' ? 'ended' : 'active';
 
@@ -234,6 +311,27 @@ Object.assign(App, {
       if (Number.isFinite(frozenCount) && frozenCount >= 0) p._effectiveCount = frozenCount;
     };
     displayPlans.forEach(applyFrozenCount);
+    const nextLessonLabels = {};
+    const getPlanKey = (plan) => String(plan?.id || plan?._docId || '').trim();
+    await Promise.all(displayPlans.filter(p => !isPlanEnded(p)).map(async (p) => {
+      const planKey = getPlanKey(p);
+      if (!planKey) return;
+      const cacheKey = this._getCourseSessionCacheKey?.(teamId, planKey);
+      let sessions = cacheKey && Array.isArray(this._courseSessionCache?.[cacheKey])
+        ? this._courseSessionCache[cacheKey]
+        : [];
+      if (!sessions.length && typeof this._loadCourseSessions === 'function') {
+        try {
+          sessions = await this._loadCourseSessions(teamId, planKey);
+        } catch (err) {
+          console.warn('[edu-course-plan] next lesson badge sessions failed:', err);
+          sessions = [];
+        }
+      }
+      const label = this._getCoursePlanCardNextLessonLabel?.(p, sessions, { today }) || '';
+      if (label) nextLessonLabels[planKey] = label;
+    }));
+    if (isStale()) return false;
 
     const formatMoney = (value) => {
       const amount = Number(value || 0);
@@ -257,9 +355,10 @@ Object.assign(App, {
       const hiddenClass = isHidden ? ' edu-cp-card-hidden' : '';
       const hiddenBadge = isStaff && isHidden ? '<span class="edu-cp-card-hidden-badge">未公開</span>' : '';
       const planEnded = isPlanEnded(p);
-      const runningBadge = isPlanRunning(p) ? '<span class="edu-cp-running-badge">上課中</span>' : '';
-      const topBadgeHtml = runningBadge || hiddenBadge
-        ? '<div class="edu-cp-top-badges">' + runningBadge + hiddenBadge + '</div>'
+      const nextLessonLabel = nextLessonLabels[getPlanKey(p)] || '';
+      const nextLessonBadge = nextLessonLabel ? '<span class="edu-cp-next-lesson-badge">' + escapeHTML(nextLessonLabel) + '</span>' : '';
+      const topBadgeHtml = nextLessonBadge || hiddenBadge
+        ? '<div class="edu-cp-top-badges">' + nextLessonBadge + hiddenBadge + '</div>'
         : '';
       const statusBadge = planEnded
         ? '<span class="edu-cp-status edu-cp-status-ended">已結束</span>'

@@ -196,8 +196,9 @@ describe('edu course plan render', () => {
     expect(cssSource).toContain('[data-theme="light"] .edu-course-card.edu-cp-card-compact.has-cover .edu-cp-manage-left');
     expect(cssSource).toContain('.edu-course-card.edu-cp-card-compact.has-cover .edu-cp-manage-btn');
     expect(cssSource).toContain('.edu-cp-top-badges');
-    expect(cssSource).toContain('.edu-cp-running-badge');
-    expect(cssSource).toContain('[data-theme="light"] .edu-cp-running-badge');
+    expect(cssSource).toContain('.edu-cp-next-lesson-badge');
+    expect(cssSource).toContain('[data-theme="light"] .edu-cp-next-lesson-badge');
+    expect(cssSource).toContain('[data-theme="dark"] .edu-cp-next-lesson-badge');
     expect(cssSource).toContain('[data-theme="dark"] .edu-cp-card-hidden-badge');
     expect(cssSource).toContain('.edu-cp-lessons-btn-enrolled');
     expect(cssSource).toContain('.edu-cp-lessons-check');
@@ -208,6 +209,7 @@ describe('edu course plan render', () => {
     expect(cssSource).toContain('min-width: 5.05rem;');
     expect(cssSource).toContain('.edu-cp-signup-pending');
     expect(cssSource).toContain('.edu-cp-signup-enrolled');
+    expect(cssSource).toMatch(/\.edu-course-card\.edu-cp-card-compact \.edu-course-name\s*\{[^}]*font-weight: 900;/s);
     expect(cssSource).toMatch(/\.edu-cp-manage-btn\s*\{[^}]*font-size: \.78rem;[^}]*white-space: nowrap;/s);
   });
 
@@ -257,20 +259,26 @@ describe('edu course plan render', () => {
       },
     ];
 
-    const activeHtml = await renderPlans(plans, true, 'active', { todayStr: () => '2026-06-11' });
+    const activeHtml = await renderPlans(plans, true, 'active', {
+      todayStr: () => '2026-06-11',
+      loadCourseSessions: jest.fn(async (_teamId, planId) => (planId === 'active'
+        ? [{ id: 'nextA', date: '2026-06-18', startTime: '19:00', status: 'scheduled' }]
+        : [])),
+    });
     const endedHtml = await renderPlans(plans, true, 'ended', { todayStr: () => '2026-06-11' });
 
     expect(activeHtml).toContain('edu-cp-view-tabs');
     expect(activeHtml).toContain('Active Plan');
     expect(activeHtml).toContain('Future Plan');
-    expect(activeHtml).toContain('edu-cp-running-badge');
-    expect(activeHtml).toContain('上課中');
-    expect((activeHtml.match(/edu-cp-running-badge/g) || []).length).toBe(1);
+    expect(activeHtml).toContain('edu-cp-next-lesson-badge');
+    expect(activeHtml).toContain('\u4e0b\u5802\u8ab26/18');
+    expect(activeHtml).not.toContain('\u4e0a\u8ab2\u4e2d');
+    expect((activeHtml.match(/edu-cp-next-lesson-badge/g) || []).length).toBe(1);
     expect(activeHtml).not.toContain('Ended Plan');
     expect(endedHtml).toContain('Ended Plan');
     expect(endedHtml).not.toContain('Active Plan');
     expect(endedHtml).not.toContain('Future Plan');
-    expect(endedHtml).not.toContain('edu-cp-running-badge');
+    expect(endedHtml).not.toContain('edu-cp-next-lesson-badge');
     expect(endedHtml).toContain('edu-cp-status-ended');
   });
 

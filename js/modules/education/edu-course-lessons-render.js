@@ -160,8 +160,8 @@ Object.assign(App, {
         + '<div class="edu-course-roster-main">'
           + '<div class="edu-course-roster-name-line">'
             + studentPill
+            + noteHtml
           + '</div>'
-          + noteHtml
         + '</div>'
         + '<div class="edu-course-roster-side">' + manageHtml + '</div>'
       + '</article>';

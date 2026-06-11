@@ -141,6 +141,13 @@ describe('edu course lessons', () => {
     expect(cssSource).toContain('width: max-content;');
   });
 
+  test('roster cards keep student names and notes on one compact row', () => {
+    expect(cssSource).toMatch(/\.edu-course-roster-card\s*\{[^}]*min-height: 48px;[^}]*padding: \.36rem \.48rem;/s);
+    expect(cssSource).toMatch(/\.edu-course-roster-name-line\s*\{[^}]*flex-wrap: nowrap;/s);
+    expect(cssSource).toMatch(/\.edu-course-member-pill\.td-member-name-pill\s*\{[^}]*max-width: min\(6\.5em, 50%\);/s);
+    expect(cssSource).toMatch(/\.edu-course-roster-note\s*\{[^}]*flex: 1 1 auto;/s);
+  });
+
   test('preloads course lesson sessions without duplicate pending requests', async () => {
     let resolveLoad;
     const pending = new Promise(resolve => { resolveLoad = resolve; });
@@ -394,6 +401,7 @@ describe('edu course lessons', () => {
 
     await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
     expect(container.innerHTML).toContain('課堂備註');
+    expect(container.innerHTML).toMatch(/edu-course-roster-name-line[\s\S]*edu-course-member-pill[\s\S]*edu-course-roster-note/);
     expect(container.innerHTML).toContain('App.startCourseLessonNotesEdit()');
 
     app.startCourseLessonNotesEdit();

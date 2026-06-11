@@ -710,7 +710,7 @@
   font-weight: 800;
 }
 .edu-course-roster-card {
-  min-height: 58px;
+  min-height: 48px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) max-content;
   gap: .55rem;
@@ -718,7 +718,7 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-card);
-  padding: .48rem .58rem;
+  padding: .36rem .48rem;
 }
 .edu-course-roster-card-signin { border-left: 3px solid #0f766e; }
 .edu-course-roster-card-leave { border-left: 3px solid #b45309; }
@@ -828,17 +828,17 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: .24rem;
+  gap: 0;
 }
 .edu-course-roster-name-line {
   min-width: 0;
   display: flex;
   align-items: center;
   gap: .38rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 .edu-course-member-pill.td-member-name-pill {
-  max-width: min(13em, 100%);
+  max-width: min(6.5em, 50%);
   flex: 0 1 auto;
 }
 .edu-course-member-pill {
@@ -877,12 +877,15 @@
   align-items: center;
   gap: .25rem;
   min-width: 0;
+  flex: 1 1 auto;
+  max-width: 100%;
   color: var(--text-muted);
   font-size: .74rem;
   font-weight: 700;
 }
 .edu-course-roster-note span {
   min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1029,7 +1032,8 @@
     justify-content: flex-end;
   }
   .edu-course-roster-name-line .edu-course-member-pill {
-    width: 100%;
+    width: min(6.5em, 50%);
+    max-width: min(6.5em, 50%);
   }
   .edu-course-roster-notes-head {
     align-items: stretch;
@@ -3951,7 +3955,7 @@
   pointer-events: none;
 }
 .edu-cp-card-hidden-badge,
-.edu-cp-running-badge {
+.edu-cp-next-lesson-badge {
   display: inline-flex;
   align-items: center;
   min-height: 22px;
@@ -3968,16 +3972,21 @@
   color: #64748b;
   box-shadow: 0 4px 12px rgba(15, 23, 42, .08);
 }
-.edu-cp-running-badge {
-  border: 1px solid rgba(13, 148, 136, .18);
-  background: linear-gradient(135deg, #0d9488, #16a34a);
-  color: #fff;
-  box-shadow: 0 6px 14px rgba(13, 148, 136, .24);
+.edu-cp-next-lesson-badge {
+  border: 1px solid rgba(13, 148, 136, .22);
+  background: rgba(13, 148, 136, .1);
+  color: #0f766e;
+  box-shadow: 0 4px 12px rgba(13, 148, 136, .1);
 }
-[data-theme="light"] .edu-cp-running-badge {
+[data-theme="light"] .edu-cp-next-lesson-badge {
   border-color: rgba(15, 118, 110, .22);
-  background: linear-gradient(135deg, #0f766e, #16a34a);
-  color: #fff;
+  background: rgba(240, 253, 250, .94);
+  color: #0f766e;
+}
+[data-theme="dark"] .edu-cp-next-lesson-badge {
+  border-color: rgba(45, 212, 191, .28);
+  background: rgba(20, 184, 166, .16);
+  color: #5eead4;
 }
 [data-theme="dark"] .edu-cp-card-hidden-badge {
   border-color: rgba(148, 163, 184, .28);
@@ -4026,16 +4035,16 @@
   display: flex;
   align-items: center;
   gap: .36rem;
-  padding-right: 5.25rem;
+  padding-right: 6.9rem;
 }
 .edu-course-card.edu-cp-card-hidden .edu-cp-compact-title {
-  padding-right: 8.4rem;
+  padding-right: 10.2rem;
 }
 .edu-course-card.edu-cp-card-compact .edu-course-name {
   min-width: 0;
   color: var(--text-primary);
   font-size: .92rem;
-  font-weight: 700;
+  font-weight: 900;
   line-height: 1.25;
   text-shadow: none;
   white-space: nowrap;
