@@ -307,6 +307,7 @@ describe('team detail club activity section', () => {
     expect(app._isTeamDetailSectionVisible({ id: 'teamA', type: 'competitive' }, 'courses')).toBe(false);
     expect(app._isTeamDetailSectionVisible({ id: 'teamB', type: 'education' }, 'courses')).toBe(true);
     expect(app._isTeamDetailSectionVisible({ id: 'teamC', type: 'leisure' }, 'courses')).toBe(false);
+    expect(app._isTeamDetailSectionVisible({ id: 'teamD', type: 'none' }, 'courses')).toBe(false);
     expect(app._buildTeamEducationSection({ id: 'teamB', type: 'education' })).toContain('id="edu-detail-section"');
     expect(app._buildTeamEducationSection({ id: 'teamA' })).toContain('俱樂部課程');
     expect(app._buildTeamEducationSection({ id: 'teamA' })).toContain('data-edutab="student"');
@@ -355,8 +356,17 @@ describe('team detail club activity section', () => {
       0,
       0
     );
+    const noneHtml = app._buildTeamDetailBodyHtml(
+      { id: 'teamA', captain: '', coaches: [], type: 'none' },
+      false,
+      false,
+      { keys: new Set(), names: new Set() },
+      0,
+      0
+    );
     expect(competitiveHtml).not.toContain('edu-detail-section');
     expect(leisureHtml).not.toContain('edu-detail-section');
+    expect(noneHtml).not.toContain('edu-detail-section');
 
     const enabledHtml = app._buildTeamDetailBodyHtml(
       { id: 'teamA', captain: '', coaches: [], teachingEnabled: true },
@@ -497,6 +507,7 @@ describe('team detail club activity section', () => {
 
     expect(body.innerHTML).toContain('td-settings-switch');
     expect(body.innerHTML).toContain('td-category-tag-competitive active');
+    expect(body.innerHTML).toContain("App.setTeamCategoryTag('none', this)");
     expect(body.innerHTML).toContain("App.setTeamCategoryTag('education', this)");
     expect(body.innerHTML).toContain("App.setTeamCategoryTag('leisure', this)");
     expect(body.innerHTML).toContain('App.toggleTeamMemberInviteSetting(this.checked, this)');
@@ -535,6 +546,7 @@ describe('team detail club activity section', () => {
 
     app.setTeamCategoryTag('leisure', {});
     app.setTeamCategoryTag('education', {});
+    app.setTeamCategoryTag('none', {});
 
     expect(patches[0]).toEqual({
       type: 'leisure',
@@ -548,6 +560,11 @@ describe('team detail club activity section', () => {
         acceptingStudents: false,
         teachingEnabled: true,
       },
+    });
+    expect(patches[2]).toEqual({
+      type: 'none',
+      teachingEnabled: false,
+      eduSettings: '__delete__',
     });
   });
 

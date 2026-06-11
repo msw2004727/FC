@@ -48,4 +48,15 @@ describe('team sport icon rendering', () => {
     expect(teamCss).toContain('.tc-type-ribbon-leisure');
     expect(source).not.toContain('tc-edu-badge');
   });
+
+  test('none category suppresses card ribbons and detail pills', () => {
+    const listSource = readProjectFile('js/modules/team/team-list-render.js');
+    const detailSource = readProjectFile('js/modules/team/team-detail-render.js');
+
+    expect(listSource).toContain("t.type === 'none'");
+    expect(listSource).toContain('hasCategoryRibbon');
+    expect(listSource).toContain('categoryMeta.ribbonClass && categoryMeta.label');
+    expect(detailSource).toContain("t.type === 'none'");
+    expect(detailSource).toContain('categoryMeta.pillClass && categoryMeta.label');
+  });
 });

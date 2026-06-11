@@ -509,6 +509,7 @@ Object.assign(App, {
   _getTeamDetailCategoryOptions() {
     if (typeof this._getTeamCategoryOptions === 'function') return this._getTeamCategoryOptions();
     return [
+      { key: 'none', label: '無', formHint: '不顯示任何標籤與緞帶，也不啟用課程功能。' },
       { key: 'competitive', label: '競技', formHint: '競技標籤只作為俱樂部分類，賽事系統設定已預留。' },
       { key: 'education', label: '教學', formHint: '教學標籤會啟用課程、學員與待審核功能。' },
       { key: 'leisure', label: '休閒', formHint: '休閒標籤只作為俱樂部分類，未來可銜接友誼賽或休閒賽事設定。' },
@@ -520,6 +521,7 @@ Object.assign(App, {
     if (typeof this._getTeamCategoryMeta === 'function') return this._getTeamCategoryMeta(team)?.key || 'competitive';
     if (team.teachingEnabled === true || team.isTeaching === true || team.educationTag === true || team.eduSettings?.teachingEnabled === true) return 'education';
     if (team.teachingEnabled === false && (!team.type || team.type === 'education')) return 'competitive';
+    if (team.type === 'none') return 'none';
     if (team.type === 'education') return 'education';
     if (team.type === 'leisure') return 'leisure';
     return 'competitive';
@@ -527,7 +529,7 @@ Object.assign(App, {
 
   _normalizeTeamDetailCategoryKey(type) {
     if (typeof this._normalizeTeamCategory === 'function') return this._normalizeTeamCategory(type);
-    return type === 'education' ? 'education' : (type === 'leisure' ? 'leisure' : 'competitive');
+    return type === 'none' ? 'none' : (type === 'education' ? 'education' : (type === 'leisure' ? 'leisure' : 'competitive'));
   },
 
   _buildTeamDetailCategorySelector(team) {
@@ -569,7 +571,7 @@ Object.assign(App, {
     }).join('');
     body.innerHTML = '<div class="td-settings-group">' +
       '<div class="td-settings-row td-settings-row-primary">' +
-      '<div><strong>\u4ff1\u6a02\u90e8\u6a19\u7c64</strong><span>\u4e09\u7a2e\u6a19\u7c64\u50c5\u80fd\u64c7\u4e00\uff1b\u53ea\u6709\u6559\u5b78\u6a19\u7c64\u6703\u958b\u555f\u8ab2\u7a0b\u8207\u5b78\u54e1\u529f\u80fd\u3002</span></div>' +
+      '<div><strong>\u4ff1\u6a02\u90e8\u6a19\u7c64</strong><span>\u56db\u7a2e\u6a19\u7c64\u50c5\u80fd\u64c7\u4e00\uff1b\u300c\u7121\u300d\u4e0d\u986f\u793a\u6a19\u7c64\u8207\u7dde\u5e36\uff0c\u53ea\u6709\u6559\u5b78\u6a19\u7c64\u6703\u958b\u555f\u8ab2\u7a0b\u8207\u5b78\u54e1\u529f\u80fd\u3002</span></div>' +
       this._buildTeamDetailCategorySelector(team) +
       '</div>' +
       '<div class="td-settings-row">' +

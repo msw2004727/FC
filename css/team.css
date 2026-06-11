@@ -2259,7 +2259,7 @@
 }
 .ct-type-tag-group {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: .5rem;
 }
 .ct-type-tag-btn {
@@ -2298,6 +2298,9 @@
 .ct-type-tag-btn:active {
   transform: scale(.98);
 }
+.ct-type-tag-none.active {
+  background: linear-gradient(135deg, #64748b, #94a3b8);
+}
 .ct-type-tag-competitive.active {
   background: linear-gradient(135deg, #dc2626, #f97316);
 }
@@ -2317,7 +2320,7 @@
 /* ── Team Type Selection Cards ── */
 .team-type-select-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: .75rem;
   padding: .5rem 0;
 }
@@ -2465,6 +2468,9 @@
 }
 .td-category-tag-btn.active span {
   color: rgba(255, 255, 255, .84);
+}
+.td-category-tag-none.active {
+  background: linear-gradient(135deg, #64748b, #94a3b8);
 }
 .td-category-tag-competitive.active {
   background: linear-gradient(135deg, #dc2626, #f97316);

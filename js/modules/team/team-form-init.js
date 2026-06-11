@@ -55,7 +55,9 @@ Object.assign(App, {
   _onTeamTypeChange(type) {
     const meta = typeof this._getTeamTypeMeta === 'function'
       ? this._getTeamTypeMeta(type)
-      : { key: type === 'education' ? 'education' : 'competitive', label: type === 'education' ? '教學' : '競技', formHint: '' };
+      : (type === 'none'
+        ? { key: 'none', label: '無', formHint: '不顯示任何標籤與緞帶，也不啟用課程功能。' }
+        : { key: type === 'education' ? 'education' : 'competitive', label: type === 'education' ? '教學' : '競技', formHint: '' });
     const normalizedType = meta.key || 'competitive';
     const typeInput = document.getElementById('ct-team-type');
     if (typeInput) typeInput.value = normalizedType;
@@ -78,7 +80,7 @@ Object.assign(App, {
   _selectTeamTypeTag(type) {
     const normalizedType = typeof this._normalizeTeamCategory === 'function'
       ? this._normalizeTeamCategory(type)
-      : (type === 'education' ? 'education' : 'competitive');
+      : (type === 'none' ? 'none' : (type === 'education' ? 'education' : 'competitive'));
     this._onTeamTypeChange(normalizedType);
   },
 
@@ -101,7 +103,7 @@ Object.assign(App, {
     this.closeModal();
     this._pendingTeamCreateType = typeof this._normalizeTeamCategory === 'function'
       ? this._normalizeTeamCategory(type)
-      : (type === 'education' ? 'education' : 'competitive');
+      : (type === 'none' ? 'none' : (type === 'education' ? 'education' : 'competitive'));
     this.showTeamForm(null);
   },
 
@@ -213,7 +215,7 @@ Object.assign(App, {
       // 編輯模式：載入俱樂部類型（隱藏欄位 + 顯示標籤）
       const selectedType = typeof this._getTeamCategoryMeta === 'function'
         ? this._getTeamCategoryMeta(t)?.key
-        : (t.type === 'education' ? 'education' : 'competitive');
+        : (t.type === 'none' ? 'none' : (t.type === 'education' ? 'education' : 'competitive'));
       const typeInput = document.getElementById('ct-team-type');
       if (typeInput) typeInput.value = selectedType || 'competitive';
       this._onTeamTypeChange(selectedType || 'competitive');
@@ -295,7 +297,7 @@ Object.assign(App, {
       // 新增模式：自動填入當前用戶為俱樂部經理，鎖定不可更改
       const selectedType = typeof this._normalizeTeamCategory === 'function'
         ? this._normalizeTeamCategory(this._pendingTeamCreateType || 'competitive')
-        : (this._pendingTeamCreateType === 'education' ? 'education' : 'competitive');
+        : (this._pendingTeamCreateType === 'none' ? 'none' : (this._pendingTeamCreateType === 'education' ? 'education' : 'competitive'));
       this._pendingTeamCreateType = null;
       titleEl.textContent = '新增俱樂部';
       saveBtn.textContent = '建立俱樂部';

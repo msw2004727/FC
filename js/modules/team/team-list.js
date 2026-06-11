@@ -75,7 +75,7 @@ Object.assign(App, {
     const nextType = rawType
       ? (typeof this._normalizeTeamCategory === 'function' ? this._normalizeTeamCategory(rawType) : rawType)
       : '';
-    this._currentTeamTypeTab = ['competitive', 'education', 'leisure'].includes(nextType) ? nextType : '';
+    this._currentTeamTypeTab = ['none', 'competitive', 'education', 'leisure'].includes(nextType) ? nextType : '';
     document.querySelectorAll('.team-type-tab').forEach(btn => {
       btn.classList.toggle('active', (btn.dataset.type || '') === this._currentTeamTypeTab);
     });
@@ -176,7 +176,7 @@ Object.assign(App, {
       filtered = filtered.filter(t => {
         const meta = typeof this._getTeamCategoryMeta === 'function'
           ? this._getTeamCategoryMeta(t)
-          : { key: (t.type || 'competitive') === 'education' ? 'education' : 'competitive' };
+          : { key: t.type === 'none' ? 'none' : (t.type === 'education' ? 'education' : (t.type === 'leisure' ? 'leisure' : 'competitive')) };
         return meta.key === targetType;
       });
     }

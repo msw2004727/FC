@@ -11,11 +11,14 @@ Object.assign(App, {
     const rank = this._getTeamRank(t.teamExp);
     const categoryMeta = typeof this._getTeamCategoryMeta === 'function'
       ? this._getTeamCategoryMeta(t)
-      : { key: t.type === 'education' ? 'education' : 'competitive', label: t.type === 'education' ? '教學' : '競技', ribbonClass: t.type === 'education' ? 'tc-type-ribbon-education' : 'tc-type-ribbon-competitive' };
-    const categoryRibbonClass = categoryMeta.key === 'education'
+      : (t.type === 'none'
+        ? { key: 'none', label: '', ribbonClass: '' }
+        : { key: t.type === 'education' ? 'education' : 'competitive', label: t.type === 'education' ? '教學' : '競技', ribbonClass: t.type === 'education' ? 'tc-type-ribbon-education' : 'tc-type-ribbon-competitive' });
+    const hasCategoryRibbon = !!(categoryMeta && categoryMeta.ribbonClass && categoryMeta.label);
+    const categoryRibbonClass = hasCategoryRibbon && categoryMeta.key === 'education'
       ? 'tc-type-ribbon tc-edu-ribbon ' + categoryMeta.ribbonClass
-      : 'tc-type-ribbon ' + categoryMeta.ribbonClass;
-    const typeRibbon = categoryMeta
+      : (hasCategoryRibbon ? 'tc-type-ribbon ' + categoryMeta.ribbonClass : '');
+    const typeRibbon = hasCategoryRibbon
       ? '<span class="' + categoryRibbonClass + '">' + escapeHTML(categoryMeta.label) + '</span>'
       : '';
     const sportIcon = t.sportTag && typeof getSportIconSvg === 'function' ? getSportIconSvg(t.sportTag) : '';
@@ -81,7 +84,7 @@ Object.assign(App, {
       teams = teams.filter(t => {
         const meta = typeof this._getTeamCategoryMeta === 'function'
           ? this._getTeamCategoryMeta(t)
-          : { key: (t.type || 'competitive') === 'education' ? 'education' : 'competitive' };
+          : { key: t.type === 'none' ? 'none' : (t.type === 'education' ? 'education' : (t.type === 'leisure' ? 'leisure' : 'competitive')) };
         return meta.key === targetType;
       });
     }

@@ -371,16 +371,21 @@ describe('team pin management wiring', () => {
     expect(teamCss).toContain('.team-search-bar[hidden]');
   });
 
-  test('club category tags support competitive teaching and leisure as one active label', () => {
+  test('club category tags support none competitive teaching and leisure as one active label', () => {
+    expect(teamPageSource).toContain('data-type="none"');
     expect(teamPageSource).toContain('data-type="competitive"');
     expect(teamPageSource).toContain('data-type="education"');
     expect(teamPageSource).toContain('data-type="leisure"');
+    expect(teamPageSource).toContain('data-team-type-option="none"');
     expect(teamPageSource).toContain('data-team-type-option="competitive"');
     expect(teamPageSource).toContain('data-team-type-option="education"');
     expect(teamPageSource).toContain('data-team-type-option="leisure"');
     expect(teamListHelperSource).toContain('_getTeamCategoryOptions');
+    expect(teamListHelperSource).toContain("key: 'none'");
     expect(teamListHelperSource).toContain("key: 'competitive'");
     expect(teamListHelperSource).toContain("key: 'leisure'");
+    expect(teamListHelperSource).toContain("ribbonClass: ''");
+    expect(teamListHelperSource).toContain("pillClass: ''");
     expect(teamListHelperSource).toContain('tournamentSettingsReserved: true');
     expect(teamListRenderSource).toContain('_getTeamCategoryMeta(t)');
     expect(teamListRenderSource).toContain('tc-type-ribbon');

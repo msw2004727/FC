@@ -267,6 +267,16 @@ Object.assign(App, {
   _getTeamCategoryOptions() {
     return [
       {
+        key: 'none',
+        label: '無',
+        formHint: '不顯示任何標籤與緞帶，也不啟用課程功能。',
+        ribbonClass: '',
+        pillClass: '',
+        showEduSettings: false,
+        coursesEnabled: false,
+        tournamentSettingsReserved: false,
+      },
+      {
         key: 'competitive',
         label: '競技',
         formHint: '競技標籤只作為俱樂部分類，賽事系統設定已預留。',
@@ -301,6 +311,7 @@ Object.assign(App, {
 
   _normalizeTeamCategory(type) {
     const key = String(type || '').trim().toLowerCase();
+    if (key === 'none' || key === 'no' || key === 'untagged') return 'none';
     if (key === 'education' || key === 'teaching') return 'education';
     if (key === 'leisure' || key === 'casual' || key === 'recreational') return 'leisure';
     return 'competitive';

@@ -68,7 +68,7 @@ Object.assign(App, {
     const rawTeamType = document.getElementById('ct-team-type')?.value || 'competitive';
     const teamType = typeof this._normalizeTeamCategory === 'function'
       ? this._normalizeTeamCategory(rawTeamType)
-      : (rawTeamType === 'education' ? 'education' : 'competitive');
+      : (rawTeamType === 'none' ? 'none' : (rawTeamType === 'education' ? 'education' : 'competitive'));
     const isTeachingType = teamType === 'education';
     const eduSettings = isTeachingType ? {
       acceptingStudents: document.getElementById('ct-edu-accepting')?.checked !== false,
