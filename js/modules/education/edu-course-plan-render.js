@@ -7,6 +7,299 @@
 
 Object.assign(App, {
   _eduCoursePlanListRequestSeq: 0,
+  _eduCoursePlanShareFocusByTeam: {},
+
+  _buildEduCoursePlanShareSvg() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true">'
+      + '<path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"></path>'
+      + '<path d="M16 6l-4-4-4 4"></path>'
+      + '<path d="M12 2v14"></path>'
+      + '</svg>';
+  },
+
+  _buildEduCoursePlanShareQuery(teamId, planId, options = {}) {
+    const params = new URLSearchParams();
+    params.set('teamTab', 'courses');
+    params.set('course', String(planId || '').trim());
+    params.set('courseTab', options.courseTab === 'ended' ? 'ended' : 'active');
+    if (options.includeTeam !== false) params.set('team', String(teamId || '').trim());
+    return params.toString();
+  },
+
+  _buildEduCoursePlanMiniAppShareUrl(teamId, planId, options = {}) {
+    const base = typeof MINI_APP_BASE_URL !== 'undefined' ? MINI_APP_BASE_URL : 'https://toosterx.com';
+    const params = this._buildEduCoursePlanShareQuery(teamId, planId, {
+      ...options,
+      includeTeam: true,
+    });
+    return base + '?' + params;
+  },
+
+  _buildEduCoursePlanWebShareUrl(teamId, planId, options = {}) {
+    const safeTeamId = encodeURIComponent(String(teamId || '').trim());
+    const params = this._buildEduCoursePlanShareQuery(teamId, planId, {
+      ...options,
+      includeTeam: false,
+    });
+    return 'https://toosterx.com/teams/' + safeTeamId + '?' + params;
+  },
+
+  _buildEduCoursePlanShareAltText(team, plan, shareUrl) {
+    const lines = [
+      '「' + (plan?.name || '') + '」課程',
+      team?.name ? '俱樂部：' + team.name : '',
+      plan?.startDate ? '期間：' + plan.startDate + (plan.endDate ? ' ~ ' + plan.endDate : '') : '',
+      plan?.location ? '地點：' + plan.location : '',
+      '',
+      shareUrl,
+    ].filter((line, index) => index === 4 || String(line || '').trim());
+    let text = lines.join('\n');
+    if (text.length > 400) text = Array.from(text).slice(0, 397).join('') + '...';
+    return text;
+  },
+
+  _buildEduCoursePlanFlexMessage(team, plan, liffUrl) {
+    const brandColor = plan?.planType === 'session' ? '#7c3aed' : '#0d9488';
+    const typeLabel = plan?.planType === 'session' ? '堂數課程' : '週期課程';
+    const rows = [];
+    const addRow = (label, value) => {
+      const text = String(value || '').trim();
+      if (!text) return;
+      if (typeof this._buildFlexInfoRow === 'function') rows.push(this._buildFlexInfoRow(label, text));
+      else rows.push({
+        type: 'box',
+        layout: 'horizontal',
+        contents: [
+          { type: 'text', text: label, size: 'sm', color: '#888888', flex: 2 },
+          { type: 'text', text, size: 'sm', color: '#333333', flex: 5, wrap: true },
+        ],
+      });
+    };
+    addRow('俱樂部', team?.name || '');
+    addRow('日期', [plan?.startDate, plan?.endDate].filter(Boolean).join(' ~ '));
+    addRow('地點', plan?.location || '');
+    if (plan?.price !== undefined && plan?.price !== null && String(plan.price).trim() !== '') {
+      const price = Number(plan.price);
+      addRow('費用', Number.isFinite(price) && price > 0 ? 'NT$ ' + price.toLocaleString() : '免費');
+    }
+    const bodyContents = [
+      {
+        type: 'box',
+        layout: 'horizontal',
+        contents: [{
+          type: 'text',
+          text: '課程分享',
+          size: 'xs',
+          color: '#ffffff',
+          weight: 'bold',
+          align: 'center',
+          gravity: 'center',
+        }],
+        backgroundColor: brandColor,
+        cornerRadius: '12px',
+        paddingAll: '4px',
+        paddingStart: '10px',
+        paddingEnd: '10px',
+        width: '92px',
+      },
+      {
+        type: 'text',
+        text: plan?.name || '課程',
+        weight: 'bold',
+        size: 'lg',
+        wrap: true,
+        maxLines: 2,
+        margin: 'md',
+      },
+      {
+        type: 'text',
+        text: typeLabel,
+        size: 'sm',
+        color: '#64748b',
+        margin: 'sm',
+      },
+    ];
+    if (rows.length) {
+      bodyContents.push({
+        type: 'box',
+        layout: 'vertical',
+        contents: rows,
+        margin: 'lg',
+        spacing: 'sm',
+      });
+    }
+    const bubble = {
+      type: 'bubble',
+      size: 'mega',
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        contents: bodyContents,
+        paddingAll: '16px',
+      },
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [{
+          type: 'button',
+          style: 'primary',
+          color: brandColor,
+          action: { type: 'uri', label: '查看課程', uri: liffUrl },
+          height: 'sm',
+        }],
+        paddingAll: '12px',
+      },
+    };
+    const heroImage = String(this._getCoursePlanCoverUrl?.(plan) || plan?.coverImage || plan?.coverUrl || plan?.imageUrl || plan?.image || plan?.imageVariants?.cover || '').trim();
+    if (/^https?:\/\//i.test(heroImage)) {
+      bubble.hero = {
+        type: 'image',
+        url: heroImage,
+        size: 'full',
+        aspectRatio: '20:13',
+        aspectMode: 'cover',
+      };
+    }
+    return bubble;
+  },
+
+  async shareEduCoursePlan(teamId, planId, options = {}) {
+    if (this._shareInProgress) return;
+    this._shareInProgress = true;
+    try {
+      await this._doShareEduCoursePlan(teamId, planId, options);
+    } finally {
+      this._shareInProgress = false;
+    }
+  },
+
+  async _doShareEduCoursePlan(teamId, planId, options = {}) {
+    const team = ApiService.getTeam?.(teamId) || {};
+    const plan = (this.getEduCoursePlans?.(teamId) || [])
+      .find(item => String(item?.id || item?._docId || '') === String(planId || ''));
+    if (!plan) {
+      this.showToast?.('課程資料尚未載入，請稍後再試');
+      return;
+    }
+    if (plan.visibleOnTeamPage === false && !this.isEduClubStaff?.(teamId)) {
+      this.showToast?.('此課程尚未公開');
+      return;
+    }
+    const courseTab = options.courseTab === 'ended'
+      ? 'ended'
+      : (this._eduCoursePlanTabByTeam?.[teamId] === 'ended' ? 'ended' : 'active');
+    const liffUrl = this._buildEduCoursePlanMiniAppShareUrl(teamId, planId, { courseTab });
+    const webShareUrl = this._buildEduCoursePlanWebShareUrl(teamId, planId, { courseTab });
+    const altText = this._buildEduCoursePlanShareAltText(team, plan, liffUrl);
+    const canPicker = typeof this._canUseShareTargetPicker === 'function'
+      ? await this._canUseShareTargetPicker()
+      : false;
+    const lineLoggedIn = typeof LineAuth !== 'undefined'
+      && typeof LineAuth.isLoggedIn === 'function'
+      && LineAuth.isLoggedIn();
+
+    if ((canPicker || lineLoggedIn) && typeof this._showShareActionSheet === 'function') {
+      const choice = await this._showShareActionSheet(canPicker, '分享課程');
+      if (choice === 'line') {
+        if (!canPicker) {
+          this.showToast?.('請在 LINE 中開啟以使用此功能');
+          return;
+        }
+        try {
+          const flexMsg = this._buildEduCoursePlanFlexMessage(team, plan, liffUrl);
+          const res = await liff.shareTargetPicker([
+            { type: 'flex', altText, contents: flexMsg },
+          ]);
+          this.showToast?.(res ? '課程已分享到 LINE' : '分享已完成');
+        } catch (err) {
+          console.warn('[EduCourseShare] shareTargetPicker failed:', err);
+          this.showToast?.('分享失敗，請稍後再試');
+        }
+        return;
+      }
+      if (choice === 'line-share') {
+        if (typeof this._openLineRShare === 'function') this._openLineRShare(altText);
+        else window.open('https://line.me/R/share?text=' + encodeURIComponent(altText), '_blank');
+        return;
+      }
+      if (choice === 'copy') {
+        const copyText = this._buildEduCoursePlanShareAltText(team, plan, webShareUrl);
+        const ok = typeof this._copyToClipboard === 'function'
+          ? await this._copyToClipboard(copyText)
+          : false;
+        this.showToast?.(ok ? '連結已複製' : '複製失敗');
+      }
+      return;
+    }
+
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({ text: altText });
+        return;
+      } catch (err) {
+        if (err?.name === 'AbortError') return;
+      }
+    }
+    const copyOk = typeof this._copyToClipboard === 'function'
+      ? await this._copyToClipboard(this._buildEduCoursePlanShareAltText(team, plan, webShareUrl))
+      : false;
+    this.showToast?.(copyOk ? '課程連結已複製到剪貼簿' : '複製失敗，請手動複製');
+  },
+
+  _getEduCoursePlanShareIntent(teamId) {
+    try {
+      const url = new URL(window.location.href);
+      const params = url.searchParams;
+      const routeTeamId = String(params.get('team') || '').trim()
+        || String((url.pathname.match(/\/teams\/([^/?#]+)/) || [])[1] || '').trim();
+      const safeTeamId = String(teamId || '').trim();
+      if (routeTeamId && safeTeamId && decodeURIComponent(routeTeamId) !== safeTeamId) return null;
+      const teamTab = String(params.get('teamTab') || '').trim().toLowerCase();
+      const planId = String(params.get('course') || params.get('coursePlan') || params.get('plan') || '').trim();
+      if (teamTab !== 'courses' && !planId) return null;
+      const courseTab = String(params.get('courseTab') || '').trim().toLowerCase() === 'ended' ? 'ended' : 'active';
+      return { teamTab: 'courses', planId, courseTab };
+    } catch (_) {
+      return null;
+    }
+  },
+
+  _primeEduCoursePlanShareIntent(teamId) {
+    const intent = this._getEduCoursePlanShareIntent?.(teamId);
+    if (!intent) return null;
+    this._teamDetailTabByTeam = this._teamDetailTabByTeam || {};
+    this._eduCoursePlanTabByTeam = this._eduCoursePlanTabByTeam || {};
+    this._eduCoursePlanShareFocusByTeam = this._eduCoursePlanShareFocusByTeam || {};
+    this._teamDetailTabByTeam[teamId] = 'courses';
+    this._eduCoursePlanTabByTeam[teamId] = intent.courseTab;
+    this._eduActiveTab = 'course';
+    if (intent.planId) {
+      this._eduCoursePlanShareFocusByTeam[teamId] = {
+        planId: intent.planId,
+        createdAt: Date.now(),
+      };
+    }
+    return intent;
+  },
+
+  _applyEduCoursePlanShareFocus(teamId) {
+    const pending = this._eduCoursePlanShareFocusByTeam?.[teamId];
+    const planId = String(pending?.planId || '').trim();
+    if (!planId || typeof document === 'undefined') return false;
+    const cards = Array.from(document.querySelectorAll?.('[data-course-plan-id]') || []);
+    const card = cards.find(node => String(node.getAttribute?.('data-course-plan-id') || '') === planId);
+    if (!card) return false;
+    cards.forEach(node => node.classList?.remove('edu-cp-card-share-target'));
+    card.classList?.add('edu-cp-card-share-target');
+    delete this._eduCoursePlanShareFocusByTeam[teamId];
+    setTimeout(() => {
+      try { card.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) {}
+    }, 80);
+    setTimeout(() => {
+      try { card.classList?.remove('edu-cp-card-share-target'); } catch (_) {}
+    }, 4200);
+    return true;
+  },
 
   _renderEduCoursePlanLoading(text) {
     const label = escapeHTML(text || '\u8ab2\u7a0b\u8cc7\u6599\u8f09\u5165\u4e2d');
@@ -440,6 +733,9 @@ Object.assign(App, {
           + '</div>'
         : '';
 
+      const shareHtml = !isHidden
+        ? '<button type="button" class="edu-cp-share-btn" aria-label="分享課程 ' + escapeHTML(p.name || '') + '" title="分享課程" onclick="event.stopPropagation();App.shareEduCoursePlan(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\',{courseTab:\'' + selectedTab + '\'})">' + this._buildEduCoursePlanShareSvg() + '</button>'
+        : '';
       const detailBtn = '<button class="outline-btn edu-cp-detail-btn" onclick="event.stopPropagation();App.showEduCoursePlanDetail(\'' + jsArg(teamId) + '\',\'' + jsArg(p.id) + '\')">詳細資訊</button>';
       const lessonsBtnClass = 'outline-btn edu-cp-lessons-btn' + (hasApprovedEnrollment ? ' edu-cp-lessons-btn-enrolled' : '');
       const lessonsBtnLabel = hasApprovedEnrollment ? '課堂列表（已報名）' : '課堂列表';
@@ -451,6 +747,7 @@ Object.assign(App, {
         + topBadgeHtml
         + '<div class="edu-cp-compact-main">'
         + '<div class="edu-cp-compact-title">'
+        + shareHtml
         + '<span class="edu-course-name">' + escapeHTML(p.name) + '</span>'
         + statusBadge
         + '</div>'
@@ -492,6 +789,7 @@ Object.assign(App, {
     container.innerHTML = tabHtml + '<div class="edu-course-plan-sections">'
       + listHtml
       + '</div>';
+    this._applyEduCoursePlanShareFocus?.(teamId);
     };
 
     renderCoursePlanSections();

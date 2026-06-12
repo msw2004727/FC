@@ -882,6 +882,7 @@ Object.assign(App, {
       const canManageMembers = this._canManageTeamMembers(t);
       const memberEditMode = !!this._teamMemberEditModeByTeam[t.id];
       const staffIdentity = this._getTeamStaffIdentity(t);
+      this._primeEduCoursePlanShareIntent?.(id);
       nodes.title.textContent = t.name;
       nodes.nameEn.textContent = t.nameEn || '';
 
@@ -924,6 +925,7 @@ Object.assign(App, {
         mode: this._hasLegacyRouteSignal?.() ? 'replace' : undefined,
       });
       this._updateRouteMetaTags?.('page-team-detail', { id });
+      this._applyEduCoursePlanShareFocus?.(id);
       this._markPageSnapshotReady?.('page-team-detail');
       return { ok: true, reason: 'ok' };
     } catch (err) {

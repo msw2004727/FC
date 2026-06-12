@@ -4345,8 +4345,61 @@
   gap: .36rem;
   padding-right: 6.9rem;
 }
+.edu-cp-share-btn {
+  flex: 0 0 auto;
+  width: 1.78rem;
+  height: 1.78rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .9);
+  color: #0f766e;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, .08);
+  cursor: pointer;
+  transition: transform .15s ease, border-color .15s ease, background .15s ease, color .15s ease;
+}
+.edu-cp-share-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(13, 148, 136, .38);
+  background: #fff;
+  color: #0d9488;
+}
+.edu-cp-share-btn svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.edu-course-card.edu-cp-card-compact.has-cover .edu-cp-share-btn {
+  border-color: rgba(255, 255, 255, .24);
+  background: rgba(15, 23, 42, .52);
+  color: #fff;
+  backdrop-filter: blur(5px);
+}
+[data-theme="light"] .edu-course-card.edu-cp-card-compact.has-cover .edu-cp-share-btn {
+  border-color: rgba(15, 23, 42, .12);
+  background: rgba(255, 255, 255, .82);
+  color: #0f766e;
+}
 .edu-course-card.edu-cp-card-hidden .edu-cp-compact-title {
   padding-right: 10.2rem;
+}
+.edu-course-card.edu-cp-card-share-target {
+  border-color: rgba(13, 148, 136, .72);
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, .18), 0 18px 42px rgba(15, 23, 42, .14);
+}
+.edu-course-card.edu-cp-card-share-target::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 2px solid rgba(13, 148, 136, .5);
+  border-radius: calc(var(--radius-lg) - 2px);
+  pointer-events: none;
 }
 .edu-course-card.edu-cp-card-compact .edu-course-name {
   min-width: 0;

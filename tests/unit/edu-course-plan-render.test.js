@@ -353,6 +353,8 @@ describe('edu course plan render', () => {
     expect(html).toContain("App.showCourseLessons('teamA','sessionPlan')");
     expect(html).toContain('edu-cp-detail-btn');
     expect(html).toContain('edu-cp-lessons-btn');
+    expect(html).toContain('edu-cp-share-btn');
+    expect(html).toContain("App.shareEduCoursePlan('teamA','weeklyPlan',{courseTab:'active'})");
     expect(html.indexOf('App.showEduCoursePlanDetail')).toBeLessThan(html.indexOf("App.showCourseLessons('teamA','weeklyPlan')"));
     expect(html.indexOf("App.showCourseLessons('teamA','weeklyPlan')")).toBeLessThan(html.indexOf("App.applyCourseEnrollment('teamA','weeklyPlan',this)"));
     expect(html).toContain("App.applyCourseEnrollment('teamA','weeklyPlan',this)");
@@ -417,6 +419,39 @@ describe('edu course plan render', () => {
     expect(staffHtml).toContain('Hidden Plan');
     expect(staffHtml).toContain('edu-cp-card-hidden');
     expect(staffHtml).toContain('未公開');
+    const hiddenCardStart = staffHtml.indexOf('data-course-plan-id="hiddenPlan"');
+    const hiddenCardEnd = staffHtml.indexOf('<div class="edu-course-card', hiddenCardStart + 1);
+    const hiddenCardHtml = staffHtml.slice(hiddenCardStart, hiddenCardEnd === -1 ? staffHtml.length : hiddenCardEnd);
+    expect(hiddenCardHtml).not.toContain('edu-cp-share-btn');
+  });
+
+  test('course plan share links target the club course tab and selected plan', () => {
+    const app = {};
+    const context = {
+      App: app,
+      ApiService: {},
+      document: {},
+      window: { location: { href: 'https://toosterx.com/teams/teamA?teamTab=courses&course=planA&courseTab=ended' } },
+      MINI_APP_BASE_URL: 'https://miniapp.line.me/demo',
+      URL,
+      URLSearchParams,
+      escapeHTML,
+      console,
+      Promise,
+      Date,
+      Number,
+      String,
+      Set,
+      Object,
+    };
+    vm.runInNewContext(source, context, { filename: 'edu-course-plan-render.js' });
+
+    expect(app._buildEduCoursePlanMiniAppShareUrl('teamA', 'planA', { courseTab: 'ended' }))
+      .toBe('https://miniapp.line.me/demo?teamTab=courses&course=planA&courseTab=ended&team=teamA');
+    expect(app._buildEduCoursePlanWebShareUrl('teamA', 'planA', { courseTab: 'ended' }))
+      .toBe('https://toosterx.com/teams/teamA?teamTab=courses&course=planA&courseTab=ended');
+    expect(app._getEduCoursePlanShareIntent('teamA'))
+      .toEqual({ teamTab: 'courses', planId: 'planA', courseTab: 'ended' });
   });
 
   test('course list refreshes only visible plans in the selected tab', async () => {

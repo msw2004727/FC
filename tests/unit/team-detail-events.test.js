@@ -1077,6 +1077,19 @@ describe('team detail club activity section', () => {
     expect(actionsSource).toContain('this._refreshTeamDetailV2CourseSummaryFromCache?.(teamId)');
   });
 
+  test('team detail primes course share intent before rendering the v2 shell', () => {
+    const detailSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-detail.js'), 'utf8');
+    const primeIndex = detailSource.indexOf('this._primeEduCoursePlanShareIntent?.(id);');
+    const renderIndex = detailSource.indexOf('nodes.body.innerHTML = this._buildTeamDetailBodyHtml');
+    const focusIndex = detailSource.indexOf('this._applyEduCoursePlanShareFocus?.(id);');
+
+    expect(primeIndex).toBeGreaterThan(-1);
+    expect(renderIndex).toBeGreaterThan(-1);
+    expect(focusIndex).toBeGreaterThan(-1);
+    expect(primeIndex).toBeLessThan(renderIndex);
+    expect(focusIndex).toBeGreaterThan(renderIndex);
+  });
+
   test('team detail v2 course cards only open details through explicit actions', () => {
     const actionsSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-detail-v2-actions.js'), 'utf8');
 
