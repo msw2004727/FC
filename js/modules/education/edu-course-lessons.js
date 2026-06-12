@@ -415,16 +415,22 @@ Object.assign(App, {
     const isStaff = this.isEduClubStaff?.(teamId) === true;
     const notesByStudentId = {};
     const enrollIdsByStudentId = {};
+    let paidByStudentId = null;
     if (isStaff) {
       try {
         const enrollments = await this._loadCourseEnrollments(teamId, planId);
         if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
+        const paidMap = {};
         (enrollments || []).forEach((enrollment) => {
           const studentId = String(enrollment.studentId || '').trim();
           if (!studentId || enrollment.status === 'rejected') return;
+          if (String(enrollment.status || 'approved').trim().toLowerCase() === 'approved' && enrollment.paidAt) {
+            paidMap[studentId] = true;
+          }
           if (enrollment.coachNotes) notesByStudentId[studentId] = String(enrollment.coachNotes || '');
           enrollIdsByStudentId[studentId] = enrollment.id || enrollment._docId || '';
         });
+        paidByStudentId = paidMap;
       } catch (err) {
         console.warn('[edu-course-lessons] staff notes load failed:', err);
       }
@@ -444,6 +450,7 @@ Object.assign(App, {
       rosterPayload,
       notesByStudentId,
       enrollIdsByStudentId,
+      paidByStudentId,
       attendanceByStudentId,
       draftByStudentId: { ...attendanceByStudentId },
       manageMode: false,

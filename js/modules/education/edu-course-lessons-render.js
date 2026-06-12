@@ -108,7 +108,20 @@ Object.assign(App, {
     const jsPlanId = this._eduCourseLessonsJsArg(context.planId);
     const status = this._getCourseLessonStatusMeta(session);
     const manageMode = context.isStaff === true && context.manageMode === true;
-    const rosterRows = students.map((student, index) => {
+    const paidByStudentId = context.paidByStudentId && typeof context.paidByStudentId === 'object'
+      ? context.paidByStudentId
+      : null;
+    const shouldSplitUnpaid = context.isStaff === true && paidByStudentId !== null;
+    const paidStudents = [];
+    const unpaidStudents = [];
+    students.forEach((student) => {
+      const studentId = String(student?.studentId || '').trim();
+      if (shouldSplitUnpaid && studentId && paidByStudentId[studentId] !== true) unpaidStudents.push(student);
+      else paidStudents.push(student);
+    });
+    let rosterRowIndex = 0;
+    const renderRosterCard = (student, unpaid = false) => {
+      const index = rosterRowIndex++;
       const name = student.displayName || '學員';
       const studentId = String(student.studentId || '').trim();
       const draftKind = manageMode
@@ -156,16 +169,34 @@ Object.assign(App, {
           + '<button type="button" class="edu-session-note-edit" title="編輯備註" aria-label="編輯備註" onclick="event.stopPropagation();App.editCourseSessionRosterNote(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + this._eduCourseLessonsJsArg(student.studentId) + '\',\'' + this._eduCourseLessonsJsArg(context.enrollIdsByStudentId?.[student.studentId] || '') + '\')"></button>'
           + '</div>'
         : '';
-      return '<article class="edu-course-roster-card edu-course-roster-card-' + escapeHTML(attendance.cls) + '">'
+      const paymentBadgeHtml = unpaid
+        ? '<span class="edu-course-roster-payment edu-course-roster-payment-unpaid">未繳費</span>'
+        : '';
+      return '<article class="edu-course-roster-card edu-course-roster-card-' + escapeHTML(attendance.cls) + (unpaid ? ' edu-course-roster-card-unpaid' : '') + '">'
         + '<div class="edu-course-roster-main">'
           + '<div class="edu-course-roster-name-line">'
             + studentPill
+            + paymentBadgeHtml
             + noteHtml
           + '</div>'
         + '</div>'
         + '<div class="edu-course-roster-side">' + manageHtml + '</div>'
       + '</article>';
-    }).join('');
+    };
+    const paidRows = paidStudents.map(student => renderRosterCard(student, false)).join('');
+    const unpaidRows = unpaidStudents.map(student => renderRosterCard(student, true)).join('');
+    const emptyRosterHtml = '<div class="edu-course-lessons-empty"><strong>尚未安排學員</strong><span>職員可在課堂編輯中指定本堂學員。</span></div>';
+    const renderRosterSection = (title, list, rows, key, emptyHtml = '') => {
+      if (!rows && !emptyHtml) return '';
+      return '<div class="edu-course-roster-section edu-course-roster-section-' + escapeHTML(key) + '">'
+        + '<div class="edu-course-roster-section-head"><strong>' + escapeHTML(title) + '</strong><span>' + list.length + ' 位</span></div>'
+        + '<div class="edu-course-roster-list">' + (rows || emptyHtml) + '</div>'
+        + '</div>';
+    };
+    const rosterListHtml = shouldSplitUnpaid
+      ? renderRosterSection('本堂名單', paidStudents, paidRows, 'main', students.length ? '' : emptyRosterHtml)
+        + renderRosterSection('未繳費區', unpaidStudents, unpaidRows, 'unpaid')
+      : '<div class="edu-course-roster-list">' + (paidRows || emptyRosterHtml) + '</div>';
     const staffActions = context.isStaff
       ? (manageMode
         ? '<div class="edu-course-roster-head-actions"><button type="button" class="outline-btn small" onclick="App.cancelCourseLessonRosterManage()">取消</button><button type="button" class="primary-btn small" onclick="return App.saveCourseLessonRosterManage(this)">完成</button></div>'
@@ -196,7 +227,7 @@ Object.assign(App, {
       + '</section>'
       + '<section class="edu-course-roster-list-panel">'
         + '<div class="edu-course-lessons-section-title"><strong>本堂名單</strong><span>' + students.length + ' 位</span></div>'
-        + '<div class="edu-course-roster-list">' + (rosterRows || '<div class="edu-course-lessons-empty"><strong>尚未安排學員</strong><span>職員可在課堂編輯中指定本堂學員。</span></div>') + '</div>'
+        + rosterListHtml
       + '</section>'
       + courseNotesHtml
       + '</div>';

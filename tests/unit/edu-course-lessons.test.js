@@ -53,7 +53,7 @@ function loadCourseLessonsContext(overrides = {}) {
     getEduCoursePlans: jest.fn(() => plans),
     _loadCourseSessions: overrides.loadCourseSessions || jest.fn(async () => sessions),
     isEduClubStaff: jest.fn(() => overrides.isStaff === true),
-    _loadCourseEnrollments: jest.fn(async () => overrides.enrollments || []),
+    _loadCourseEnrollments: overrides.loadCourseEnrollments || jest.fn(async () => overrides.enrollments || []),
     _loadCourseEnrollmentSummaries: jest.fn(async () => overrides.summaries || null),
     _ensureCoursePlanSessionsFromPlan: overrides.ensureCoursePlanSessionsFromPlan,
     _formatCourseSessionDate: (session) => session.date,
@@ -146,6 +146,8 @@ describe('edu course lessons', () => {
     expect(cssSource).toMatch(/\.edu-course-roster-name-line\s*\{[^}]*flex-wrap: nowrap;/s);
     expect(cssSource).toMatch(/\.edu-course-member-pill\.td-member-name-pill\s*\{[^}]*max-width: min\(6\.5em, 50%\);/s);
     expect(cssSource).toMatch(/\.edu-course-roster-note\s*\{[^}]*flex: 1 1 auto;/s);
+    expect(cssSource).toContain('.edu-course-roster-section-unpaid');
+    expect(cssSource).toContain('.edu-course-roster-payment-unpaid');
   });
 
   test('preloads course lesson sessions without duplicate pending requests', async () => {
@@ -348,6 +350,48 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).not.toContain('Lv 3');
     expect(container.innerHTML).toContain('已簽到');
     expect(container.innerHTML).not.toContain('尚未填寫備註');
+    expect(container.innerHTML).not.toContain('未繳費區');
+  });
+
+  test('staff roster separates unpaid students from paid lesson roster', async () => {
+    const { app, container } = loadCourseLessonsContext({
+      isStaff: true,
+      enrollments: [
+        { id: 'enr1', studentId: 'stu1', status: 'approved', paidAt: '2099-06-01', coachNotes: '' },
+        { id: 'enr2', studentId: 'stu2', status: 'approved', paidAt: null, coachNotes: '' },
+      ],
+    });
+
+    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+
+    const html = container.innerHTML;
+    expect(app._loadCourseEnrollments).toHaveBeenCalledWith('teamA', 'planA');
+    expect(html).toContain('本堂名單');
+    expect(html).toContain('未繳費區');
+    expect(html).toContain('edu-course-roster-section-unpaid');
+    expect(html).toContain('edu-course-roster-card-unpaid');
+    expect(html).toContain('edu-course-roster-payment-unpaid">未繳費</span>');
+    expect(html.indexOf('小明')).toBeLessThan(html.indexOf('未繳費區'));
+    expect(html.indexOf('小華')).toBeGreaterThan(html.indexOf('未繳費區'));
+  });
+
+  test('staff roster keeps the normal list when payment data cannot load', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const { app, container } = loadCourseLessonsContext({
+      isStaff: true,
+      loadCourseEnrollments: jest.fn(async () => { throw new Error('load failed'); }),
+    });
+
+    try {
+      await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+    } finally {
+      warnSpy.mockRestore();
+    }
+
+    expect(container.innerHTML).toContain('小明');
+    expect(container.innerHTML).toContain('小華');
+    expect(container.innerHTML).not.toContain('未繳費區');
+    expect(container.innerHTML).not.toContain('edu-course-roster-card-unpaid');
   });
 
   test('shows closed roster state for non-staff when rosterPublic is false', async () => {

@@ -526,6 +526,41 @@
   flex-direction: column;
   gap: .5rem;
 }
+.edu-course-roster-section {
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+}
+.edu-course-roster-section + .edu-course-roster-section {
+  margin-top: .68rem;
+  padding-top: .68rem;
+  border-top: 1px dashed var(--border);
+}
+.edu-course-roster-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+}
+.edu-course-roster-section-head strong {
+  color: var(--text-primary);
+  font-size: .86rem;
+  font-weight: 950;
+}
+.edu-course-roster-section-head span {
+  color: var(--text-muted);
+  font-size: .72rem;
+  font-weight: 850;
+}
+.edu-course-roster-section-unpaid {
+  border: 1px solid rgba(220, 38, 38, .18);
+  border-radius: 8px;
+  background: rgba(254, 242, 242, .58);
+  padding: .58rem;
+}
+.edu-course-roster-section-unpaid .edu-course-roster-section-head strong {
+  color: #b91c1c;
+}
 .edu-course-lesson-card {
   position: relative;
   overflow: hidden;
@@ -722,6 +757,27 @@
 }
 .edu-course-roster-card-signin { border-left: 3px solid #0f766e; }
 .edu-course-roster-card-leave { border-left: 3px solid #b45309; }
+.edu-course-roster-card-unpaid {
+  border-left: 3px solid #dc2626;
+  background: rgba(255, 247, 247, .96);
+}
+.edu-course-roster-payment {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  border-radius: 999px;
+  padding: 0 .38rem;
+  font-size: .66rem;
+  font-weight: 950;
+  line-height: 1;
+  white-space: nowrap;
+}
+.edu-course-roster-payment-unpaid {
+  border: 1px solid rgba(220, 38, 38, .28);
+  background: rgba(220, 38, 38, .09);
+  color: #dc2626;
+}
 .edu-course-roster-side {
   min-width: 7.8rem;
   display: flex;
@@ -965,6 +1021,21 @@
 }
 [data-theme="dark"] .edu-course-lesson-status-cancelled { background: rgba(248, 113, 113, .16); color: #fca5a5; }
 [data-theme="dark"] .edu-course-roster-status-signin { background: rgba(45, 212, 191, .16); color: #5eead4; }
+[data-theme="dark"] .edu-course-roster-section-unpaid {
+  border-color: rgba(248, 113, 113, .28);
+  background: rgba(127, 29, 29, .16);
+}
+[data-theme="dark"] .edu-course-roster-section-unpaid .edu-course-roster-section-head strong {
+  color: #fca5a5;
+}
+[data-theme="dark"] .edu-course-roster-card-unpaid {
+  background: rgba(127, 29, 29, .12);
+}
+[data-theme="dark"] .edu-course-roster-payment-unpaid {
+  border-color: rgba(248, 113, 113, .36);
+  background: rgba(248, 113, 113, .13);
+  color: #fca5a5;
+}
 [data-theme="dark"] .edu-roster-cb-signin:checked + .edu-roster-choice-label {
   border-color: rgba(45, 212, 191, .42);
   background: rgba(45, 212, 191, .16);
