@@ -45,14 +45,34 @@ Object.assign(App, {
   },
 
   _getFriendlyTournamentTeamLimit(t) {
-    const limit = Number(t?.friendlyConfig?.teamLimit ?? t?.teamLimit ?? t?.maxTeams ?? t?.teams ?? 4);
-    return this._sanitizeFriendlyTournamentTeamLimit(limit);
+    const mode = this._getTournamentMode(t);
+    const range = this._getTournamentModeTeamLimitRange(mode);
+    const limit = Number(t?.friendlyConfig?.teamLimit ?? t?.teamLimit ?? t?.maxTeams ?? t?.teams ?? range.fallback);
+    return this._sanitizeTournamentTeamLimitByMode(limit, mode, range.fallback);
   },
 
   _sanitizeFriendlyTournamentTeamLimit(value, fallback = 4) {
     const limit = Number(value);
     if (!Number.isFinite(limit)) return fallback;
     return Math.min(4, Math.max(2, Math.floor(limit)));
+  },
+
+  // 2026-06-12 盃賽/聯賽：隊數上限依賽制分級（友誼賽維持 2-4 不變）
+  _getTournamentModeTeamLimitRange(mode) {
+    const map = {
+      friendly: { min: 2, max: 4, fallback: 4 },
+      cup: { min: 2, max: 32, fallback: 8 },
+      league: { min: 2, max: 20, fallback: 6 },
+    };
+    return map[mode] || map.friendly;
+  },
+
+  _sanitizeTournamentTeamLimitByMode(value, mode, fallback) {
+    const range = this._getTournamentModeTeamLimitRange(mode);
+    const safeFallback = Number.isFinite(Number(fallback)) ? Number(fallback) : range.fallback;
+    const limit = Number(value);
+    if (!Number.isFinite(limit)) return safeFallback;
+    return Math.min(range.max, Math.max(range.min, Math.floor(limit)));
   },
 
   _getTournamentModeLabel(modeOrRecord = 'friendly') {
@@ -121,6 +141,10 @@ Object.assign(App, {
     }
     if (raw.includes('tournament_registration_not_open')) {
       this.showToast?.('賽事報名尚未開放或已截止');
+      return;
+    }
+    if (raw.includes('tournament_roster_full')) {
+      this.showToast?.('此隊參賽名單已達上限，無法再加入。');
       return;
     }
     if (raw.includes('tournament_sport_required')) {
@@ -243,6 +267,10 @@ Object.assign(App, {
     const delegateUids = this._getTournamentDelegateUids({ ...base, delegates });
     const referees = this._normalizeTournamentReferees(base.referees);
     const refereeUids = this._getTournamentRefereeUids({ ...base, referees });
+    const refereeHead = base.refereeHead && typeof base.refereeHead === 'object'
+      ? { uid: String(base.refereeHead.uid || '').trim(), name: String(base.refereeHead.name || '').trim() }
+      : null;
+    const refereeHeadUid = String(base.refereeHeadUid || refereeHead?.uid || '').trim();
     const teamLimit = this._getFriendlyTournamentTeamLimit(base);
     const hostParticipates = this._isTournamentHostParticipating(base);
     const feeEnabled = typeof base.feeEnabled === 'boolean'
@@ -274,6 +302,10 @@ Object.assign(App, {
       delegateUids,
       referees,
       refereeUids,
+      refereeHead: refereeHead && refereeHead.uid ? refereeHead : null,
+      refereeHeadUid,
+      competitionConfig: this._sanitizeTournamentCompetitionConfig?.(base.competitionConfig)
+        || (base.competitionConfig && typeof base.competitionConfig === 'object' ? base.competitionConfig : {}),
       hostParticipates,
       feeEnabled,
       fee,

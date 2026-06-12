@@ -221,4 +221,48 @@ Object.assign(App, {
     return this._getFriendlyResponsibleTeams(currentUser).some(team => team.id === hostTeamId);
   },
 
+  // ── 2026-06-12 盃賽/聯賽：裁判職務（賽事內名單，非全站權限角色）──
+
+  _getTournamentRefereeHeadUid(tournament) {
+    return String(tournament?.refereeHeadUid || tournament?.refereeHead?.uid || '').trim();
+  },
+
+  _isTournamentRefereeHeadUser(tournament, user = null) {
+    const currentUser = user || ApiService.getCurrentUser?.();
+    if (!tournament || !currentUser) return false;
+    const uid = String(currentUser.uid || currentUser.lineUserId || '').trim();
+    const headUid = this._getTournamentRefereeHeadUid(tournament);
+    return !!uid && !!headUid && uid === headUid;
+  },
+
+  _isTournamentRefereeUser(tournament, user = null) {
+    const currentUser = user || ApiService.getCurrentUser?.();
+    if (!tournament || !currentUser) return false;
+    const uid = String(currentUser.uid || currentUser.lineUserId || '').trim();
+    if (!uid) return false;
+    return this._getTournamentRefereeUids(tournament).includes(uid);
+  },
+
+  /**
+   * 比分記錄權限（與 firestore.rules matches 子集合規則對齊）：
+   * 管理者（主辦/委託/全域）隨時可記錄與更正；
+   * 裁判長可記錄全部場次；裁判僅能記錄被指派場次，
+   * 該場未指派裁判的場次開放賽事裁判名單內所有人；賽事結束後裁判鎖定。
+   */
+  _canRecordTournamentMatch(tournament, match, user = null) {
+    const currentUser = user || ApiService.getCurrentUser?.();
+    if (!tournament || !match || !currentUser) return false;
+    if (match.status === 'bye') return false;
+    if (this._canManageTournamentRecord(tournament, currentUser)) return true;
+    if (this.isTournamentEnded?.(tournament) || tournament.ended === true) return false;
+    if (this._isTournamentRefereeHeadUser(tournament, currentUser)) return true;
+    if (!this._isTournamentRefereeUser(tournament, currentUser)) return false;
+    const assigned = Array.isArray(match.refereeUids)
+      ? match.refereeUids.map(uid => String(uid || '').trim()).filter(Boolean)
+      : [];
+    if (assigned.length === 0) return true;
+    const uid = String(currentUser.uid || currentUser.lineUserId || '').trim();
+    return assigned.includes(uid);
+  },
+
 });

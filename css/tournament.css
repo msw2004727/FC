@@ -790,3 +790,121 @@
 .ce-row.tf-field-error .tf-error-msg {
   display: block;
 }
+
+/* ═══ 2026-06-12 盃賽/聯賽升級（competition）═══ */
+
+/* ─── 賽制徽章 ─── */
+.td-mode-badge {
+  display: inline-block; font-size: .68rem; font-weight: 800; letter-spacing: .04em;
+  padding: .14rem .55rem; border-radius: 20px; color: #fff;
+  background: linear-gradient(135deg, #0d9488, #065f46);
+}
+.td-mode-cup { background: linear-gradient(135deg, #d97706, #b45309); }
+.td-mode-league { background: linear-gradient(135deg, #2563eb, #1e40af); }
+
+/* ─── 詳情工具列：賽程管理按鈕（比照 td-edit-btn）─── */
+.td-schedule-btn {
+  font-size: .72rem; padding: .3rem .7rem; border-radius: 8px; border: none;
+  background: #1d4ed8; color: #fff; cursor: pointer; font-weight: 700;
+}
+.td-schedule-btn:hover { background: #1e40af; }
+[data-theme="dark"] .td-schedule-btn { background: #1e3a8a; }
+
+/* ─── 賽程列表 ─── */
+.tc-schedule { padding: .6rem; }
+.tc-round-card { margin-bottom: .6rem; }
+.tc-match-row { position: relative; margin-bottom: .2rem; }
+.tc-match-row .mc-team { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tc-match-bye { opacity: .65; }
+.tc-match-meta { margin: -.1rem .2rem .45rem; }
+.tc-winner { color: var(--accent); font-weight: 800; }
+.tc-pending { color: var(--text-muted); font-style: italic; font-weight: 500; }
+.tc-pk { display: block; font-size: .58rem; color: var(--text-muted); font-weight: 600; }
+.tc-wo {
+  display: inline-block; font-size: .6rem; font-weight: 800; color: #b45309;
+  background: rgba(251, 191, 36, .18); border-radius: 6px; padding: .05rem .35rem;
+}
+.tc-record-btn {
+  flex-shrink: 0; font-size: .66rem; font-weight: 700; padding: .22rem .55rem;
+  border-radius: 8px; border: 1px solid var(--primary); background: transparent;
+  color: var(--primary); cursor: pointer;
+}
+.tc-record-btn:hover { background: var(--primary); color: #fff; }
+
+/* ─── 積分榜 ─── */
+.tc-standings-note { font-size: .64rem; color: var(--text-muted); padding: .4rem .5rem 0; line-height: 1.5; }
+
+/* ─── 射手榜 / 紅黃牌 ─── */
+.tc-stat-row {
+  display: flex; align-items: center; gap: .45rem;
+  padding: .32rem .5rem; border-bottom: 1px solid var(--border); font-size: .76rem;
+}
+.tc-stat-row:last-child { border-bottom: none; }
+.tc-stat-rank { width: 1.4rem; text-align: center; font-weight: 800; color: var(--text-muted); flex-shrink: 0; }
+.tc-stat-name { flex: 1; min-width: 0; }
+.tc-stat-team { font-size: .64rem; color: var(--text-muted); max-width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tc-stat-num { font-weight: 800; white-space: nowrap; }
+.tc-suspend-hint { font-size: .6rem; color: #dc2626; font-weight: 700; }
+
+/* ─── 賽程管理 Modal ─── */
+.tc-schedule-modal, .tc-record-modal { max-height: 86vh; display: flex; flex-direction: column; }
+.tc-schedule-modal .modal-body, .tc-record-modal .modal-body { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.tc-schedule-actions { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin: .4rem 0 .6rem; }
+.tc-schedule-warn { font-size: .66rem; color: #d97706; font-weight: 600; }
+.tc-manage-row {
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: .5rem .55rem; margin-bottom: .45rem; background: var(--bg-card);
+}
+.tc-manage-title { font-size: .76rem; font-weight: 700; margin-bottom: .35rem; line-height: 1.4; }
+.tc-manage-lock { font-size: .62rem; color: var(--text-muted); font-weight: 600; margin-left: .4rem; }
+.tc-manage-fields { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: .35rem; }
+.tc-manage-fields input { flex: 1; min-width: 130px; font-size: .76rem; }
+.tc-manage-refs { display: flex; gap: .35rem .7rem; flex-wrap: wrap; margin-bottom: .35rem; }
+.tc-ref-check { display: inline-flex; align-items: center; gap: .25rem; font-size: .7rem; color: var(--text-secondary); }
+.tc-manage-actions { display: flex; gap: .4rem; justify-content: flex-end; }
+.tc-manage-delete { color: var(--danger); border-color: var(--danger); }
+
+/* ─── 比分記錄 Modal ─── */
+.tc-score-grid { display: flex; align-items: flex-end; justify-content: center; gap: .6rem; margin: .5rem 0; }
+.tc-score-side { flex: 1; text-align: center; min-width: 0; }
+.tc-score-team {
+  font-size: .72rem; font-weight: 700; margin-bottom: .3rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tc-score-side input, .tc-pk-grid input {
+  width: 100%; max-width: 90px; text-align: center; font-size: 1.15rem; font-weight: 800;
+  font-family: var(--font-display); padding: .35rem .2rem;
+}
+.tc-score-divider { font-size: 1.1rem; font-weight: 800; padding-bottom: .45rem; }
+.tc-pk-row { margin: .2rem 0 .5rem; }
+.tc-pk-row > label { font-size: .7rem; color: var(--text-muted); display: block; text-align: center; margin-bottom: .15rem; }
+.tc-pk-grid { margin: 0; justify-content: center; }
+.tc-pk-grid input { max-width: 64px; font-size: .9rem; }
+.tc-events-section { border-top: 1px dashed var(--border); margin-top: .5rem; padding-top: .5rem; }
+.tc-events-header { font-size: .72rem; font-weight: 700; color: var(--text-secondary); margin-bottom: .35rem; }
+.tc-events-empty { font-size: .7rem; color: var(--text-muted); text-align: center; padding: .4rem 0; }
+.tc-event-add { display: flex; gap: .3rem; flex-wrap: wrap; align-items: center; margin-top: .4rem; }
+.tc-event-add select, .tc-event-add input { font-size: .72rem; padding: .28rem .35rem; }
+.tc-event-add select#tmr-event-player { flex: 1; min-width: 90px; }
+.tc-event-add input#tmr-event-minute { width: 52px; }
+.tc-event-add input#tmr-event-player-custom { flex: 1; min-width: 90px; }
+.tc-event-row {
+  display: flex; align-items: center; gap: .4rem; font-size: .72rem;
+  padding: .25rem .3rem; border-bottom: 1px solid var(--border);
+}
+.tc-event-row:last-child { border-bottom: none; }
+.tc-event-player { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.tc-event-team { font-size: .62rem; color: var(--text-muted); max-width: 28%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tc-event-remove { border: none; background: transparent; color: var(--text-muted); cursor: pointer; font-size: .72rem; padding: .1rem .25rem; }
+.tc-clear-btn { color: var(--danger); border-color: var(--danger); margin-right: auto; }
+
+/* ─── 建立 / 編輯表單：賽制設定 ─── */
+.tc-config-row { background: var(--surface-alt, var(--bg-elevated)); border-radius: var(--radius-sm); padding: .5rem .6rem; }
+.tc-config-item { display: flex; align-items: center; gap: .4rem; font-size: .78rem; margin: .25rem 0; }
+.tc-config-points {
+  display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+  font-size: .74rem; color: var(--text-secondary); margin: .3rem 0;
+}
+.tc-config-points input { width: 58px; text-align: center; font-size: .78rem; padding: .25rem .2rem; }
+.tc-config-tiebreak { font-size: .74rem; color: var(--text-secondary); margin: .3rem 0; }
+.tc-config-tiebreak select { width: 100%; margin-top: .25rem; font-size: .76rem; }

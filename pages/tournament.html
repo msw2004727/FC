@@ -117,6 +117,45 @@
         <label data-i18n="參賽隊伍數">參賽隊伍數</label>
         <input type="number" id="tf-teams" value="8" min="2">
       </div>
+      <div class="ce-row tc-config-row" id="tf-league-config" style="display:none">
+        <label data-i18n="聯賽設定">聯賽設定</label>
+        <label class="tc-config-item"><input type="checkbox" id="tf-double-round"><span data-i18n="雙循環（主客各一場）">雙循環（主客各一場）</span></label>
+        <div class="tc-config-points">
+          <span data-i18n="積分">積分</span>
+          <span>勝 <input type="number" id="tf-points-win" value="3" min="0" max="10" inputmode="numeric"></span>
+          <span>平 <input type="number" id="tf-points-draw" value="1" min="0" max="10" inputmode="numeric"></span>
+          <span>負 <input type="number" id="tf-points-loss" value="0" min="0" max="10" inputmode="numeric"></span>
+        </div>
+        <div class="tc-config-tiebreak">
+          <span data-i18n="排名依據（積分相同時）">排名依據（積分相同時）</span>
+          <select id="tf-tiebreakers">
+            <option value="gd,gf,h2h" data-i18n="淨勝球 → 進球 → 對戰成績">淨勝球 → 進球 → 對戰成績</option>
+            <option value="h2h,gd,gf" data-i18n="對戰成績 → 淨勝球 → 進球">對戰成績 → 淨勝球 → 進球</option>
+            <option value="gd,h2h,gf" data-i18n="淨勝球 → 對戰成績 → 進球">淨勝球 → 對戰成績 → 進球</option>
+            <option value="wins,gd,gf" data-i18n="勝場 → 淨勝球 → 進球">勝場 → 淨勝球 → 進球</option>
+          </select>
+        </div>
+      </div>
+      <div class="ce-row tc-config-row" id="tf-cup-config" style="display:none">
+        <label data-i18n="盃賽設定">盃賽設定</label>
+        <label class="tc-config-item"><input type="checkbox" id="tf-third-place" checked><span data-i18n="加入季軍戰">加入季軍戰</span></label>
+        <div class="ce-field-note" data-i18n="單淘汰制；隊伍數非 2 的次方時，部分隊伍首輪自動輪空晉級">單淘汰制；隊伍數非 2 的次方時，部分隊伍首輪自動輪空晉級</div>
+      </div>
+      <div class="ce-row tc-config-row" id="tf-competition-common" style="display:none">
+        <label data-i18n="進階賽制設定">進階賽制設定</label>
+        <div class="tc-config-points">
+          <span data-i18n="棄權判定比分">棄權判定比分</span>
+          <span><input type="number" id="tf-wo-win" value="3" min="0" max="20" inputmode="numeric"> : <input type="number" id="tf-wo-lose" value="0" min="0" max="20" inputmode="numeric"></span>
+        </div>
+        <div class="tc-config-points">
+          <span data-i18n="黃牌停賽提醒門檻">黃牌停賽提醒門檻</span>
+          <span><input type="number" id="tf-yellow-limit" value="0" min="0" max="20" inputmode="numeric"> 張（0＝不提示）</span>
+        </div>
+        <div class="tc-config-points">
+          <span data-i18n="每隊參賽名單上限">每隊參賽名單上限</span>
+          <span><input type="number" id="tf-roster-limit" value="0" min="0" max="99" inputmode="numeric"> 人（0＝不限）</span>
+        </div>
+      </div>
       <div class="ce-row">
         <label data-i18n="比賽日期（可複選）">比賽日期（可複選）</label>
         <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.3rem" data-i18n="點擊月曆勾選所有比賽日">點擊月曆勾選所有比賽日</div>
@@ -150,7 +189,15 @@
         </div>
       </div>
       <div class="ce-row">
-        <label data-i18n="裁判（最多 10 人）">裁判（最多 10 人）</label>
+        <label data-i18n="裁判長（1 人，可記錄與更正全部場次比分）">裁判長（1 人，可記錄與更正全部場次比分）</label>
+        <div class="ce-delegate-wrap">
+          <div class="ce-delegate-tags" id="tf-referee-head-tags"></div>
+          <input type="text" id="tf-referee-head-search" placeholder="搜尋用戶..." autocomplete="off" data-i18n-placeholder="搜尋用戶...">
+          <div class="ce-delegate-dropdown" id="tf-referee-head-dropdown"></div>
+        </div>
+      </div>
+      <div class="ce-row">
+        <label data-i18n="裁判（最多 10 人，可記錄被指派場次比分）">裁判（最多 10 人，可記錄被指派場次比分）</label>
         <div class="ce-delegate-wrap">
           <div class="ce-delegate-tags" id="tf-referee-tags"></div>
           <input type="text" id="tf-referee-search" placeholder="搜尋用戶..." autocomplete="off" data-i18n-placeholder="搜尋用戶...">

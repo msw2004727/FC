@@ -215,16 +215,19 @@ Object.assign(App, {
 
     const typeSelect = document.getElementById(`${p}-type`);
     if (typeSelect) {
+      // 2026-06-12：盃賽 / 聯賽正式開放（建立後賽制不可變更）
       // Note: innerHTML usage is safe — no user content in this template
       typeSelect.innerHTML = `
-        <option value="friendly">友誼賽</option>
-        <option value="cup">盃賽（預留）</option>
-        <option value="league">聯賽（預留）</option>
+        <option value="friendly">友誼賽（小型交流）</option>
+        <option value="cup">盃賽（單淘汰）</option>
+        <option value="league">聯賽（循環積分）</option>
       `;
-      typeSelect.value = 'friendly';
-      typeSelect.disabled = true;
-      typeSelect.classList.add('ce-static-select');
-      this._ensureTournamentFieldNote(typeSelect.closest('.ce-row'), `tournament-mode-note-${p}`, '第一階段先開放友誼賽，盃賽與聯賽欄位位置先保留。');
+      typeSelect.disabled = false;
+      typeSelect.classList.remove('ce-static-select');
+      if (!typeSelect.dataset.modeBound) {
+        typeSelect.dataset.modeBound = 'true';
+        typeSelect.addEventListener('change', () => this._syncTournamentFormModeFields(p));
+      }
     }
 
     this._ensureTournamentSportRow(p);
@@ -234,20 +237,17 @@ Object.assign(App, {
 
     const teamsInput = document.getElementById(`${p}-teams`);
     if (teamsInput) {
-      teamsInput.value = String(this._sanitizeFriendlyTournamentTeamLimit?.(teamsInput.value, 4) ?? 4);
-      teamsInput.min = '2';
-      teamsInput.max = '4';
       teamsInput.step = '1';
       teamsInput.readOnly = false;
       teamsInput.classList.remove('ce-readonly-input');
       if (!teamsInput.dataset.teamLimitBound) {
         teamsInput.dataset.teamLimitBound = 'true';
         teamsInput.addEventListener('change', () => {
-          teamsInput.value = String(this._getTournamentTeamLimitValue(p, 4));
+          teamsInput.value = String(this._getTournamentTeamLimitValue(p, this._getTournamentModeTeamLimitRange?.(this._getTournamentFormModeValue?.(p))?.fallback ?? 4));
         });
       }
-      this._ensureTournamentFieldNote(teamsInput.closest('.ce-row'), `tournament-team-limit-note-${p}`, '第一階段上限四隊，資料結構已保留後續擴充空間');
     }
+    this._syncTournamentFormModeFields(p);
 
     const regStartInput = document.getElementById(`${p}-reg-start`);
     const regStartWrap = regStartInput?.parentElement || null;
@@ -271,6 +271,36 @@ Object.assign(App, {
       regRow.classList.add('tournament-reg-period-row');
       regRow.querySelector(`.tournament-reg-period-note-${p}`)?.remove();
     }
+  },
+
+  /** 依賽制同步表單欄位（隊數範圍、聯賽/盃賽設定區塊顯示）。 */
+  _syncTournamentFormModeFields(prefix) {
+    const p = prefix || 'tf';
+    const mode = this._getTournamentFormModeValue?.(p) || 'friendly';
+    const range = this._getTournamentModeTeamLimitRange?.(mode) || { min: 2, max: 4, fallback: 4 };
+
+    const teamsInput = document.getElementById(`${p}-teams`);
+    if (teamsInput) {
+      teamsInput.min = String(range.min);
+      teamsInput.max = String(range.max);
+      const current = Number(teamsInput.value);
+      if (!Number.isFinite(current) || current < range.min || current > range.max) {
+        teamsInput.value = String(range.fallback);
+      }
+      const noteMap = {
+        friendly: `友誼賽 ${range.min}-${range.max} 隊`,
+        cup: `盃賽 ${range.min}-${range.max} 隊；非 2 的次方時部分隊伍首輪輪空`,
+        league: `聯賽 ${range.min}-${range.max} 隊；賽程由系統自動排定`,
+      };
+      this._ensureTournamentFieldNote(teamsInput.closest('.ce-row'), `tournament-team-limit-note-${p}`, noteMap[mode] || noteMap.friendly);
+    }
+
+    const leagueConfig = document.getElementById(`${p}-league-config`);
+    const cupConfig = document.getElementById(`${p}-cup-config`);
+    const commonConfig = document.getElementById(`${p}-competition-common`);
+    if (leagueConfig) leagueConfig.style.display = mode === 'league' ? '' : 'none';
+    if (cupConfig) cupConfig.style.display = mode === 'cup' ? '' : 'none';
+    if (commonConfig) commonConfig.style.display = mode === 'friendly' ? 'none' : '';
   },
 
   // ══════════════════════════════════

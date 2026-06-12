@@ -864,10 +864,49 @@ function validateClientTournamentId(id) {
   return safeId;
 }
 
-function sanitizeTournamentTeamLimit(value, fallback = 4) {
+// 2026-06-12 盃賽/聯賽：隊數上限依賽制分級（友誼賽維持 2-4 不變）
+const TOURNAMENT_MODE_TEAM_LIMITS = {
+  friendly: { min: 2, max: 4, fallback: 4 },
+  cup: { min: 2, max: 32, fallback: 8 },
+  league: { min: 2, max: 20, fallback: 6 },
+};
+
+function getTournamentModeFromData(tournament) {
+  const raw = String(tournament?.mode || tournament?.typeCode || "").trim().toLowerCase();
+  return ["friendly", "cup", "league"].includes(raw) ? raw : "friendly";
+}
+
+function sanitizeTournamentTeamLimit(value, fallback = 4, mode = "friendly") {
+  const range = TOURNAMENT_MODE_TEAM_LIMITS[mode] || TOURNAMENT_MODE_TEAM_LIMITS.friendly;
   const raw = Number(value);
   if (!Number.isFinite(raw)) return fallback;
-  return Math.min(4, Math.max(2, Math.floor(raw)));
+  return Math.min(range.max, Math.max(range.min, Math.floor(raw)));
+}
+
+// 賽制設定（盃賽/聯賽）— 與前端 _sanitizeTournamentCompetitionConfig 對齊
+function sanitizeTournamentCompetitionConfig(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  const num = (value, fallback, min, max) => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.min(max, Math.max(min, Math.floor(n)));
+  };
+  const allowedTiebreakers = ["gd", "gf", "h2h", "wins"];
+  const tiebreakers = Array.isArray(src.tiebreakers)
+    ? src.tiebreakers.map(key => String(key || "").trim().toLowerCase()).filter(key => allowedTiebreakers.includes(key))
+    : [];
+  return {
+    pointsWin: num(src.pointsWin, 3, 0, 10),
+    pointsDraw: num(src.pointsDraw, 1, 0, 10),
+    pointsLoss: num(src.pointsLoss, 0, 0, 10),
+    doubleRound: src.doubleRound === true,
+    thirdPlace: src.thirdPlace === true,
+    walkoverWinScore: num(src.walkoverWinScore, 3, 0, 20),
+    walkoverLoseScore: num(src.walkoverLoseScore, 0, 0, 20),
+    tiebreakers: tiebreakers.length ? [...new Set(tiebreakers)] : ["gd", "gf", "h2h"],
+    yellowLimit: num(src.yellowLimit, 0, 0, 20),
+    maxRosterSize: num(src.maxRosterSize, 0, 0, 99),
+  };
 }
 
 function getTimestampMillis(value) {
@@ -903,6 +942,13 @@ function getLegacyTaipeiLocalDateTimeMillis(value) {
 function isFriendlyTournamentData(tournament) {
   const mode = String(tournament?.mode || tournament?.typeCode || "").trim().toLowerCase();
   return mode === "" || mode === "friendly";
+}
+
+// 2026-06-12：friendly / cup / league 共用同一條俱樂部報名管線
+// （申請 → 審核 → 參賽名單）。報名相關 callable 一律用此判斷。
+function isTeamFlowTournamentData(tournament) {
+  const mode = String(tournament?.mode || tournament?.typeCode || "").trim().toLowerCase();
+  return mode === "" || ["friendly", "cup", "league"].includes(mode);
 }
 
 function isTournamentRegistrationOpenForData(tournament, now = new Date()) {
@@ -1135,9 +1181,22 @@ function buildTournamentRootForCreate({ input, tournamentId, hostTeamId, teamDat
   const refereeUids = Array.isArray(allowed.refereeUids)
     ? allowed.refereeUids.map(item => String(item || "").trim()).filter(Boolean).slice(0, 10)
     : referees.map(item => item.uid).filter(Boolean);
+  // 2026-06-12 盃賽/聯賽：賽制 + 裁判長 + 賽制設定
+  const mode = getTournamentModeFromData(input);
+  const modeLabelMap = { friendly: "友誼賽", cup: "盃賽", league: "聯賽" };
+  const refereeHeadInput = input.refereeHead && typeof input.refereeHead === "object" ? input.refereeHead : null;
+  const refereeHeadUid = String(input.refereeHeadUid || refereeHeadInput?.uid || "").trim();
+  const refereeHead = refereeHeadUid
+    ? { uid: refereeHeadUid, name: String(refereeHeadInput?.name || "").trim().slice(0, 50) }
+    : null;
+  const competitionConfig = mode !== "friendly"
+    ? sanitizeTournamentCompetitionConfig(input.competitionConfig)
+    : null;
+  const range = TOURNAMENT_MODE_TEAM_LIMITS[mode] || TOURNAMENT_MODE_TEAM_LIMITS.friendly;
   const teamLimit = sanitizeTournamentTeamLimit(
     input?.friendlyConfig?.teamLimit ?? input.teamLimit ?? input.maxTeams ?? input.teams,
-    4
+    range.fallback,
+    mode
   );
   const safeHostTeamId = String(hostTeamId || "").trim();
   const hostParticipates = hostParticipatesAllowed === true
@@ -1158,9 +1217,12 @@ function buildTournamentRootForCreate({ input, tournamentId, hostTeamId, teamDat
     ...allowed,
     id: tournamentId,
     name: String(input.name || "").trim(),
-    type: "友誼賽",
-    typeCode: "friendly",
-    mode: "friendly",
+    type: modeLabelMap[mode] || modeLabelMap.friendly,
+    typeCode: mode,
+    mode,
+    ...(competitionConfig ? { competitionConfig } : {}),
+    refereeHead,
+    refereeHeadUid,
     schemaVersion: 2,
     dataModel: "tournament_v2",
     teams: teamLimit,
@@ -1976,7 +2038,7 @@ exports.applyFriendlyTournament = onCall(
       }
 
       const tournament = tournamentSnap.data() || {};
-      if (!isFriendlyTournamentData(tournament)) {
+      if (!isTeamFlowTournamentData(tournament)) {
         throw new HttpsError("failed-precondition", "TOURNAMENT_NOT_FRIENDLY");
       }
       if (!isTournamentRegistrationOpenForData(tournament)) {
@@ -2013,7 +2075,8 @@ exports.applyFriendlyTournament = onCall(
       const registeredTeams = buildRegisteredTeamIdsFromEntries(entriesSnap.docs);
       const teamLimit = sanitizeTournamentTeamLimit(
         tournament?.friendlyConfig?.teamLimit ?? tournament.teamLimit ?? tournament.maxTeams ?? tournament.teams,
-        4
+        4,
+        getTournamentModeFromData(tournament)
       );
       if (registeredTeams.length >= teamLimit) {
         throw new HttpsError("failed-precondition", "TOURNAMENT_TEAM_LIMIT_REACHED");
@@ -2089,7 +2152,7 @@ exports.withdrawFriendlyTournamentTeam = onCall(
       }
 
       const tournament = tournamentSnap.data() || {};
-      if (!isFriendlyTournamentData(tournament)) {
+      if (!isTeamFlowTournamentData(tournament)) {
         throw new HttpsError("failed-precondition", "TOURNAMENT_NOT_FRIENDLY");
       }
       if (tournament.ended === true) {
@@ -2248,7 +2311,8 @@ exports.reviewFriendlyTournamentApplication = onCall(
         let registeredTeams = buildRegisteredTeamIdsFromEntries(entriesSnap.docs);
         const teamLimit = sanitizeTournamentTeamLimit(
           tournament?.friendlyConfig?.teamLimit ?? tournament.teamLimit ?? tournament.maxTeams ?? tournament.teams,
-          4
+          4,
+          getTournamentModeFromData(tournament)
         );
         const applicationTeamId = String(application.teamId || "").trim();
         if (!applicationTeamId) {
@@ -2387,7 +2451,7 @@ exports.joinFriendlyTournamentRoster = onCall(
         throw new HttpsError("not-found", "TOURNAMENT_NOT_FOUND");
       }
       const tournament = tournamentSnap.data() || {};
-      if (!isFriendlyTournamentData(tournament)) {
+      if (!isTeamFlowTournamentData(tournament)) {
         throw new HttpsError("failed-precondition", "TOURNAMENT_NOT_FRIENDLY");
       }
       if (!isTournamentRegistrationOpenForData(tournament)) {
@@ -2401,6 +2465,16 @@ exports.joinFriendlyTournamentRoster = onCall(
       const entryStatus = String(entry.entryStatus || "").trim().toLowerCase();
       if (entryStatus !== "host" && entryStatus !== "approved") {
         throw new HttpsError("failed-precondition", "TOURNAMENT_ENTRY_NOT_APPROVED");
+      }
+
+      // 2026-06-12 盃賽/聯賽：每隊參賽名單上限（competitionConfig.maxRosterSize，0 = 不限）
+      const rosterMode = getTournamentModeFromData(tournament);
+      const rosterConfig = sanitizeTournamentCompetitionConfig(tournament.competitionConfig);
+      if (rosterMode !== "friendly" && rosterConfig.maxRosterSize > 0) {
+        const rosterSnap = await tx.get(entryRef.collection("members"));
+        if (rosterSnap.size >= rosterConfig.maxRosterSize) {
+          throw new HttpsError("failed-precondition", "TOURNAMENT_ROSTER_FULL");
+        }
       }
 
       const teamDoc = await getTeamDocByTeamIdInTransaction(tx, teamId);
@@ -2465,7 +2539,7 @@ exports.leaveFriendlyTournamentRoster = onCall(
         throw new HttpsError("not-found", "TOURNAMENT_NOT_FOUND");
       }
       const tournament = tournamentSnap.data() || {};
-      if (!isFriendlyTournamentData(tournament)) {
+      if (!isTeamFlowTournamentData(tournament)) {
         throw new HttpsError("failed-precondition", "TOURNAMENT_NOT_FRIENDLY");
       }
       if (!isTournamentRegistrationOpenForData(tournament)) {
@@ -2538,7 +2612,7 @@ exports.removeFriendlyTournamentEntry = onCall(
         throw new HttpsError("not-found", "TOURNAMENT_NOT_FOUND");
       }
       const tournament = tournamentSnap.data() || {};
-      if (!isFriendlyTournamentData(tournament)) {
+      if (!isTeamFlowTournamentData(tournament)) {
         throw new HttpsError("failed-precondition", "TOURNAMENT_NOT_FRIENDLY");
       }
       if (tournament.ended === true) {

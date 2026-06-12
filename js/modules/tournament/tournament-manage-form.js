@@ -6,6 +6,7 @@ Object.assign(App, {
     venues: [],
     delegates: [],
     referees: [],
+    refereeHeads: [],
     personSearchBound: {},
     matchDates: [],
   },
@@ -143,7 +144,59 @@ Object.assign(App, {
   _getTournamentTeamLimitValue(prefix, fallback = 4) {
     const p = prefix || 'tf';
     const rawValue = document.getElementById(`${p}-teams`)?.value;
-    return this._sanitizeFriendlyTournamentTeamLimit?.(rawValue, fallback) ?? fallback;
+    const mode = this._getTournamentFormModeValue(p);
+    return this._sanitizeTournamentTeamLimitByMode?.(rawValue, mode, fallback)
+      ?? this._sanitizeFriendlyTournamentTeamLimit?.(rawValue, fallback)
+      ?? fallback;
+  },
+
+  // ── 賽制（mode）與賽制設定表單存取（2026-06-12 盃賽/聯賽）──
+  _getTournamentFormModeValue(prefix) {
+    const p = prefix || 'tf';
+    const raw = String(document.getElementById(`${p}-type`)?.value || 'friendly').trim().toLowerCase();
+    return ['friendly', 'cup', 'league'].includes(raw) ? raw : 'friendly';
+  },
+
+  _getTournamentCompetitionConfigFromForm(prefix) {
+    const p = prefix || 'tf';
+    const mode = this._getTournamentFormModeValue(p);
+    if (mode === 'friendly') return null;
+    const val = id => document.getElementById(`${p}-${id}`)?.value;
+    const checked = id => document.getElementById(`${p}-${id}`)?.checked === true;
+    return this._sanitizeTournamentCompetitionConfig({
+      pointsWin: val('points-win'),
+      pointsDraw: val('points-draw'),
+      pointsLoss: val('points-loss'),
+      doubleRound: checked('double-round'),
+      thirdPlace: checked('third-place'),
+      walkoverWinScore: val('wo-win'),
+      walkoverLoseScore: val('wo-lose'),
+      yellowLimit: val('yellow-limit'),
+      maxRosterSize: val('roster-limit'),
+      tiebreakers: String(val('tiebreakers') || 'gd,gf,h2h').split(','),
+    });
+  },
+
+  _setTournamentCompetitionConfigFormState(prefix, rawConfig) {
+    const p = prefix || 'tf';
+    const config = this._sanitizeTournamentCompetitionConfig?.(rawConfig) || {};
+    const setVal = (id, value) => { const el = document.getElementById(`${p}-${id}`); if (el) el.value = String(value); };
+    const setChecked = (id, value) => { const el = document.getElementById(`${p}-${id}`); if (el) el.checked = value === true; };
+    setVal('points-win', config.pointsWin ?? 3);
+    setVal('points-draw', config.pointsDraw ?? 1);
+    setVal('points-loss', config.pointsLoss ?? 0);
+    setChecked('double-round', config.doubleRound);
+    setChecked('third-place', config.thirdPlace);
+    setVal('wo-win', config.walkoverWinScore ?? 3);
+    setVal('wo-lose', config.walkoverLoseScore ?? 0);
+    setVal('yellow-limit', config.yellowLimit ?? 0);
+    setVal('roster-limit', config.maxRosterSize ?? 0);
+    const tiebreakerSelect = document.getElementById(`${p}-tiebreakers`);
+    if (tiebreakerSelect) {
+      const joined = (config.tiebreakers || ['gd', 'gf', 'h2h']).join(',');
+      const hasOption = [...tiebreakerSelect.options].some(option => option.value === joined);
+      tiebreakerSelect.value = hasOption ? joined : 'gd,gf,h2h';
+    }
   },
   _getTournamentSportPickerNodes(prefix = 'tf') {
     const p = prefix || 'tf';

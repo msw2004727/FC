@@ -1801,6 +1801,64 @@ service cloud.firestore {
           allow delete: if false;
         }
       }
+
+      // ═══ 2026-06-12 盃賽/聯賽：比賽（賽程 + 比分）═══
+      // 賽程建立 / 編輯 / 刪除：賽事管理範圍（主辦/委託/主辦隊幹部）或全域管理。
+      // 比分記錄：裁判長可記錄全部場次；裁判僅能更新比分相關欄位，
+      // 且僅限被指派場次（該場未指派裁判時開放賽事裁判名單）；賽事結束後裁判鎖定。
+      match /matches/{matchId} {
+        function tournamentRootData() {
+          return get(/databases/$(database)/documents/tournaments/$(tournamentId)).data;
+        }
+
+        function isTournamentRefereeHead() {
+          return isAuth()
+            && tournamentExists()
+            && hasNonEmptyStringInMap(tournamentRootData(), 'refereeHeadUid')
+            && tournamentRootData().refereeHeadUid == request.auth.uid;
+        }
+
+        function isTournamentListedReferee() {
+          return isAuth()
+            && tournamentExists()
+            && (tournamentRootData().refereeUids is list)
+            && request.auth.uid in tournamentRootData().refereeUids;
+        }
+
+        function matchHasAssignedReferees() {
+          return (resource.data.refereeUids is list)
+            && resource.data.refereeUids.size() > 0;
+        }
+
+        function isAllowedMatchReferee() {
+          return matchHasAssignedReferees()
+            ? (isAuth() && (request.auth.uid in resource.data.refereeUids))
+            : isTournamentListedReferee();
+        }
+
+        function tournamentNotEnded() {
+          return tournamentExists() && tournamentRootData().ended != true;
+        }
+
+        function isRefereeScoreOnlyUpdate() {
+          return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'scoreHome', 'scoreAway', 'pkHome', 'pkAway',
+            'walkoverWinnerTeamId', 'events',
+            'recordedByUid', 'recordedByName', 'recordedAt', 'updatedAt'
+          ]);
+        }
+
+        allow read: if true;
+        allow create: if canManageAllTournaments()
+          || (tournamentExists() && canManageTournamentScope());
+        allow update: if canManageAllTournaments()
+          || (tournamentExists() && canManageTournamentScope())
+          || (tournamentNotEnded()
+            && isRefereeScoreOnlyUpdate()
+            && (isTournamentRefereeHead() || isAllowedMatchReferee()));
+        allow delete: if canManageAllTournaments()
+          || (tournamentExists() && canManageTournamentScope());
+      }
     }
 
     // ═══════════════════════════════════════════

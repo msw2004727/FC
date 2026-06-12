@@ -42,7 +42,15 @@ Object.assign(App, {
     this._editTournamentId = safeId;
     this._ensureTournamentFormLayout('tf');
     document.getElementById('tf-name').value = editRecord.name || '';
-    document.getElementById('tf-type').value = 'friendly';
+    // 賽制建立後不可變更（Firestore Rules mode 為 immutable 欄位）
+    const editModeValue = this._getTournamentMode?.(editRecord) || 'friendly';
+    const editTypeSelect = document.getElementById('tf-type');
+    if (editTypeSelect) {
+      editTypeSelect.value = editModeValue;
+      editTypeSelect.disabled = true;
+    }
+    this._setTournamentCompetitionConfigFormState?.('tf', editRecord.competitionConfig);
+    this._syncTournamentFormModeFields?.('tf');
     document.getElementById('tf-teams').value = this._getFriendlyTournamentTeamLimit?.(editRecord) || 4;
     document.getElementById('tf-region').value = editRecord.region || '';
     document.getElementById('tf-reg-start').value = this._toTournamentDateTimeInputValue?.(editRecord.regStart) || editRecord.regStart || '';
@@ -53,10 +61,15 @@ Object.assign(App, {
     document.getElementById('tf-venue-input').value = '';
     document.getElementById('tf-delegate-search').value = '';
     document.getElementById('tf-referee-search').value = '';
+    const editRefereeHeadSearch = document.getElementById('tf-referee-head-search');
+    if (editRefereeHeadSearch) editRefereeHeadSearch.value = '';
     this._initTournamentSportTagPicker('tf', this._getTournamentSportTag?.(editRecord) || '');
     this._tournamentFormState.venues = [...(editRecord.venues || [])];
     this._tournamentFormState.delegates = [...(editRecord.delegates || [])];
     this._tournamentFormState.referees = [...(editRecord.referees || [])];
+    this._tournamentFormState.refereeHeads = editRecord.refereeHead && editRecord.refereeHead.uid
+      ? [{ uid: editRecord.refereeHead.uid, name: editRecord.refereeHead.name || '' }]
+      : [];
     this._tournamentFormState.matchDates = [...(editRecord.matchDates || [])];
     this._renderVenueTags('tf');
     this._renderTournamentDelegateTags('tf');
@@ -65,6 +78,9 @@ Object.assign(App, {
     this._renderTournamentRefereeTags('tf');
     this._updateTournamentRefereeInput('tf');
     this._initTournamentRefereeSearch('tf');
+    this._renderTournamentRefereeHeadTags?.('tf');
+    this._updateTournamentRefereeHeadInput?.('tf');
+    this._initTournamentRefereeHeadSearch?.('tf');
     this._renderMatchDateTags('tf');
     this._renderTournamentHostTeamOptions('tf', editRecord.hostTeamId || '', {
       locked: !!editRecord.hostTeamId,
@@ -119,8 +135,12 @@ Object.assign(App, {
     const editFeeEnabled = !!document.getElementById('tf-fee-enabled')?.checked;
     const editFeeInput = parseInt(document.getElementById('tf-fee').value, 10) || 0;
     const editFee = editFeeEnabled ? Math.max(0, editFeeInput) : 0;
+    const editMode = this._getTournamentMode?.(editTournament) || 'friendly';
+    const editTeamRange = this._getTournamentModeTeamLimitRange?.(editMode) || { min: 2, max: 4, fallback: 4 };
     const editTeamLimitRaw = Number(document.getElementById('tf-teams')?.value);
-    const editTeamLimit = this._getTournamentTeamLimitValue('tf', 4);
+    const editTeamLimit = this._getTournamentTeamLimitValue('tf', editTeamRange.fallback);
+    const editCompetitionConfig = editMode !== 'friendly' ? this._getTournamentCompetitionConfigFromForm?.('tf') : null;
+    const editRefereeHead = (this._tournamentFormState.refereeHeads || [])[0] || null;
     const hostTeamId = String(document.getElementById('tf-host-team')?.value || '').trim();
     const hostTeam = hostTeamId
       ? (this._getTournamentSelectedHostTeam?.('tf') || ApiService.getTeam?.(hostTeamId))
@@ -136,8 +156,8 @@ Object.assign(App, {
     if (editTournament.hostTeamId && hostTeam && hostTeam.id !== editTournament.hostTeamId) {
       this._tfSetError('tf-host-team', '主辦俱樂部建立後暫不開放更換。'); hasError = true;
     }
-    if (!Number.isFinite(editTeamLimitRaw) || editTeamLimitRaw < 2 || editTeamLimitRaw > 4) {
-      this._tfSetError('tf-teams', '參賽隊伍數需介於 2 到 4 隊。'); hasError = true;
+    if (!Number.isFinite(editTeamLimitRaw) || editTeamLimitRaw < editTeamRange.min || editTeamLimitRaw > editTeamRange.max) {
+      this._tfSetError('tf-teams', `參賽隊伍數需介於 ${editTeamRange.min} 到 ${editTeamRange.max} 隊。`); hasError = true;
     }
     if (!editRegEnd) {
       this._tfSetError('tf-reg-end', '請填寫報名截止時間。'); hasError = true;
@@ -180,9 +200,12 @@ Object.assign(App, {
       : false;
     const editUpdates = {
       name: editName,
-      type: this._getTournamentModeLabel('friendly'),
-      typeCode: 'friendly',
-      mode: 'friendly',
+      type: this._getTournamentModeLabel(editMode),
+      typeCode: editMode,
+      mode: editMode,
+      ...(editCompetitionConfig ? { competitionConfig: editCompetitionConfig } : {}),
+      refereeHead: editRefereeHead ? { uid: editRefereeHead.uid, name: editRefereeHead.name } : null,
+      refereeHeadUid: editRefereeHead?.uid || '',
       teams: editTeamLimit,
       maxTeams: editTeamLimit,
       teamLimit: editTeamLimit,

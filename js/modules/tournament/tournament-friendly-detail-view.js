@@ -417,7 +417,7 @@ Object.assign(App, {
           <div class="tfd-team-thumb tfd-team-thumb-slot"><span>+</span></div>
           <div class="tfd-team-meta">
             <div class="tfd-team-name">待報名俱樂部</div>
-            <div class="tfd-team-status">保留友誼賽名額</div>
+            <div class="tfd-team-status">保留${escapeHTML(this._getTournamentModeLabel?.(tournament) || '友誼賽')}名額</div>
           </div>
         </div>
         <div class="tfd-team-roster"><span class="tfd-empty-text">核准後顯示</span></div>

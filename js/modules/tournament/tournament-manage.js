@@ -222,6 +222,7 @@ Object.assign(App, {
     }
     this._tournamentFormState.delegates = [];
     this._tournamentFormState.referees = [];
+    this._tournamentFormState.refereeHeads = [];
     this._tournamentFormState.venues = [];
     this._tournamentFormState.matchDates = [];
     document.getElementById('tf-name').value = '';
@@ -235,6 +236,12 @@ Object.assign(App, {
     document.getElementById('tf-venue-input').value = '';
     document.getElementById('tf-delegate-search').value = '';
     document.getElementById('tf-referee-search').value = '';
+    const createRefereeHeadSearch = document.getElementById('tf-referee-head-search');
+    if (createRefereeHeadSearch) createRefereeHeadSearch.value = '';
+    const createTypeSelect = document.getElementById('tf-type');
+    if (createTypeSelect) { createTypeSelect.value = 'friendly'; createTypeSelect.disabled = false; }
+    this._setTournamentCompetitionConfigFormState?.('tf', null);
+    this._syncTournamentFormModeFields?.('tf');
     this._initTournamentSportTagPicker('tf', '');
     this._renderTournamentHostTeamOptions('tf', '');
     this._setTournamentHostParticipationFormState('tf', false);
@@ -246,10 +253,13 @@ Object.assign(App, {
     this._updateTournamentDelegateInput('tf');
     this._renderTournamentRefereeTags('tf');
     this._updateTournamentRefereeInput('tf');
+    this._renderTournamentRefereeHeadTags?.('tf');
+    this._updateTournamentRefereeHeadInput?.('tf');
     this._resetTournamentImagePreview('tf');
     this._resetTournamentImagePreview('tf', true);
     this._initTournamentDelegateSearch('tf');
     this._initTournamentRefereeSearch('tf');
+    this._initTournamentRefereeHeadSearch?.('tf');
     document.getElementById('tf-image').value = '';
     document.getElementById('tf-content-image').value = '';
     this._bindTournamentImageUploads('tf');
@@ -273,8 +283,12 @@ Object.assign(App, {
     const createFeeEnabled = !!document.getElementById('tf-fee-enabled')?.checked;
     const createFeeInput = parseInt(document.getElementById('tf-fee').value, 10) || 0;
     const createFee = createFeeEnabled ? Math.max(0, createFeeInput) : 0;
+    const createMode = this._getTournamentFormModeValue?.('tf') || 'friendly';
+    const createTeamRange = this._getTournamentModeTeamLimitRange?.(createMode) || { min: 2, max: 4, fallback: 4 };
     const createTeamLimitRaw = Number(document.getElementById('tf-teams')?.value);
-    const createTeamLimit = this._getTournamentTeamLimitValue('tf', 4);
+    const createTeamLimit = this._getTournamentTeamLimitValue('tf', createTeamRange.fallback);
+    const createCompetitionConfig = this._getTournamentCompetitionConfigFromForm?.('tf');
+    const createRefereeHead = (this._tournamentFormState.refereeHeads || [])[0] || null;
     const hostTeamId = String(document.getElementById('tf-host-team')?.value || '').trim();
     const hostTeam = hostTeamId
       ? (this._getTournamentSelectedHostTeam?.('tf') || ApiService.getTeam?.(hostTeamId))
@@ -296,8 +310,8 @@ Object.assign(App, {
       this._tfSetError('tf-host-team', '請先選擇主辦俱樂部。');
       hasError = true;
     }
-    if (!Number.isFinite(createTeamLimitRaw) || createTeamLimitRaw < 2 || createTeamLimitRaw > 4) {
-      this._tfSetError('tf-teams', '參賽隊伍數需介於 2 到 4 隊。'); hasError = true;
+    if (!Number.isFinite(createTeamLimitRaw) || createTeamLimitRaw < createTeamRange.min || createTeamLimitRaw > createTeamRange.max) {
+      this._tfSetError('tf-teams', `參賽隊伍數需介於 ${createTeamRange.min} 到 ${createTeamRange.max} 隊。`); hasError = true;
     }
     if (!createRegEnd) { this._tfSetError('tf-reg-end', '請填寫報名截止時間。'); hasError = true; }
     // 2026-04-25：地區必填、必須在清單內（22 縣市 + 「其他」）
@@ -330,9 +344,12 @@ Object.assign(App, {
     const createData = {
       id: generateId('ct_'),
       name: createName,
-      type: this._getTournamentModeLabel('friendly'),
-      typeCode: 'friendly',
-      mode: 'friendly',
+      type: this._getTournamentModeLabel(createMode),
+      typeCode: createMode,
+      mode: createMode,
+      ...(createCompetitionConfig ? { competitionConfig: createCompetitionConfig } : {}),
+      refereeHead: createRefereeHead ? { uid: createRefereeHead.uid, name: createRefereeHead.name } : null,
+      refereeHeadUid: createRefereeHead?.uid || '',
       teams: createTeamLimit,
       maxTeams: createTeamLimit,
       teamLimit: createTeamLimit,
@@ -368,7 +385,7 @@ Object.assign(App, {
         hostParticipates: createHostParticipates,
       },
       ended: false,
-      gradient: GRADIENT_MAP?.friendly || 'linear-gradient(135deg,#0d9488,#065f46)',
+      gradient: GRADIENT_MAP?.[createMode] || GRADIENT_MAP?.friendly || 'linear-gradient(135deg,#0d9488,#065f46)',
     };
     createData.status = this.getTournamentStatus(createData);
     try {
@@ -404,12 +421,15 @@ Object.assign(App, {
     this._tournamentFormState.venues = [];
     this._tournamentFormState.delegates = [];
     this._tournamentFormState.referees = [];
+    this._tournamentFormState.refereeHeads = [];
     this._renderMatchDateTags('tf');
     this._renderVenueTags('tf');
     this._renderTournamentDelegateTags('tf');
     this._updateTournamentDelegateInput('tf');
     this._renderTournamentRefereeTags('tf');
     this._updateTournamentRefereeInput('tf');
+    this._renderTournamentRefereeHeadTags?.('tf');
+    this._updateTournamentRefereeHeadInput?.('tf');
     this._renderTournamentHostTeamOptions('tf');
     this._setTournamentHostParticipationFormState('tf', false);
     this._syncTournamentHostParticipationAvailability?.('tf');

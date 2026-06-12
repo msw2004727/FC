@@ -87,11 +87,17 @@ Object.assign(App, {
       ));
       return [...fallbackApplications, ...fetched.filter(Boolean)];
     })();
-    const [rawApplications, rawEntries] = await Promise.all([
+    // 盃賽/聯賽：同步載入賽程比賽（友誼賽無賽程，跳過）
+    const isCompetitionMode = ['cup', 'league'].includes(this._getTournamentMode?.(base) || 'friendly');
+    const matchesPromise = isCompetitionMode && typeof ApiService.listTournamentMatches === 'function'
+      ? ApiService.listTournamentMatches(tournamentId).catch(() => [])
+      : Promise.resolve([]);
+    const [rawApplications, rawEntries, rawMatches] = await Promise.all([
       applicationPromise,
       ApiService.listTournamentEntries(tournamentId).catch(() => fallbackEntries),
+      matchesPromise,
       teamHydrationPromise,
-    ]).then(([applications, entries]) => [applications, entries]);
+    ]).then(([applications, entries, matches]) => [applications, entries, matches]);
 
     const applicationMap = new Map();
     [...fallbackApplications, ...rawApplications].forEach(item => {
@@ -132,11 +138,15 @@ Object.assign(App, {
       registeredTeams: this._getFriendlyTournamentRegisteredTeamIdsFromEntries?.(entries, base) || [],
     });
 
+    const matches = (Array.isArray(rawMatches) ? rawMatches : [])
+      .map(match => this._buildTournamentMatchRecord?.(match) || match);
+
     this._syncFriendlyTournamentCacheRecord(tournamentId, applications, entries);
     this._friendlyTournamentDetailStateById[tournamentId] = {
       tournament,
       applications,
       entries,
+      matches,
       rosterHydrated: false,
     };
     return this._friendlyTournamentDetailStateById[tournamentId];

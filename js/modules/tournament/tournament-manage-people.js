@@ -15,6 +15,12 @@ Object.assign(App, {
       limit: 10,
       removeMethod: '_removeTournamentReferee',
     },
+    refereeHead: {
+      stateKey: 'refereeHeads',
+      suffix: 'referee-head',
+      limit: 1,
+      removeMethod: '_removeTournamentRefereeHead',
+    },
   },
 
   _getTournamentPersonPickerConfig(kind) {
@@ -148,5 +154,10 @@ Object.assign(App, {
   _removeTournamentReferee(uid, prefix) { this._removeTournamentPerson('referee', uid, prefix); },
   _renderTournamentRefereeTags(prefix) { this._renderTournamentPersonTags('referee', prefix); },
   _updateTournamentRefereeInput(prefix) { this._updateTournamentPersonInput('referee', prefix); },
+
+  _initTournamentRefereeHeadSearch(prefix) { this._initTournamentPersonSearch('refereeHead', prefix); },
+  _removeTournamentRefereeHead(uid, prefix) { this._removeTournamentPerson('refereeHead', uid, prefix); },
+  _renderTournamentRefereeHeadTags(prefix) { this._renderTournamentPersonTags('refereeHead', prefix); },
+  _updateTournamentRefereeHeadInput(prefix) { this._updateTournamentPersonInput('refereeHead', prefix); },
 
 });

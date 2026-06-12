@@ -87,8 +87,10 @@ Object.assign(App, {
 
     // Safety: tournament.id is escaped
     const safeId = escapeHTML(tournament.id);
+    const isCompetitionMode = ['cup', 'league'].includes(this._getTournamentMode?.(tournament) || 'friendly');
     toolbar.innerHTML = `
       ${canManage ? `<button class="td-edit-btn" onclick="App.openEditTournamentSafe('${safeId}')">編輯</button>` : ''}
+      ${canManage && isCompetitionMode ? `<button class="td-schedule-btn" onclick="App.openTournamentScheduleManager('${safeId}')">賽程管理</button>` : ''}
       ${canDelete ? `<button class="td-delete-btn" onclick="App.openDeleteTournamentSafe('${safeId}', this)">刪除</button>` : ''}
     `;
     toolbar.style.display = 'flex';
@@ -339,21 +341,39 @@ Object.assign(App, {
     const organizerDisplay = this._getTournamentOrganizerDisplayText?.(infoTournament) || infoTournament.organizer || '主辦俱樂部';
     infoRows.push(`<div class="td-info-row"><span class="td-info-label">主辦單位</span><div class="td-info-value">${escapeHTML(organizerDisplay)}</div></div>`);
 
+    // 賽制（盃賽 / 聯賽顯著標示；友誼賽維持原樣不顯示）
+    const infoMode = this._getTournamentMode?.(infoTournament) || 'friendly';
+    if (infoMode !== 'friendly') {
+      const modeLabel = this._getTournamentModeLabel?.(infoTournament) || '';
+      const cfg = this._getTournamentCompetitionConfig?.(infoTournament);
+      const modeHints = [];
+      if (infoMode === 'league' && cfg) modeHints.push(cfg.doubleRound ? '雙循環' : '單循環', `勝${cfg.pointsWin}平${cfg.pointsDraw}負${cfg.pointsLoss}`);
+      if (infoMode === 'cup' && cfg) modeHints.push('單淘汰', cfg.thirdPlace ? '含季軍戰' : '');
+      const hintText = modeHints.filter(Boolean).join('・');
+      infoRows.push(`<div class="td-info-row"><span class="td-info-label">賽制</span><div class="td-info-value"><span class="td-mode-badge td-mode-${escapeHTML(infoMode)}">${escapeHTML(modeLabel)}</span>${hintText ? `<span style="font-size:.74rem;color:var(--text-muted);margin-left:.4rem">${escapeHTML(hintText)}</span>` : ''}</div></div>`);
+    }
+
     const infoDelegates = Array.isArray(infoTournament.delegates) ? infoTournament.delegates : [];
     if (infoDelegates.length > 0) {
-      const delegateTags = infoDelegates.map(d => this._userTag(d.name)).join(' ');
+      const delegateTags = infoDelegates.map(d => this._userTag(d.name, null, { uid: d.uid || '' })).join(' ');
       infoRows.push(`<div class="td-info-row"><span class="td-info-label">委託人</span><div class="td-info-value" style="display:flex;flex-wrap:wrap;gap:.3rem">${delegateTags}</div></div>`);
+    }
+
+    const infoRefereeHead = infoTournament.refereeHead && infoTournament.refereeHead.uid ? infoTournament.refereeHead : null;
+    if (infoRefereeHead) {
+      infoRows.push(`<div class="td-info-row"><span class="td-info-label">裁判長</span><div class="td-info-value" style="display:flex;flex-wrap:wrap;gap:.3rem">${this._userTag(infoRefereeHead.name, null, { uid: infoRefereeHead.uid || '' })}</div></div>`);
     }
 
     const infoReferees = Array.isArray(infoTournament.referees) ? infoTournament.referees : [];
     if (infoReferees.length > 0) {
-      const refereeTags = infoReferees.map(r => this._userTag(r.name)).join(' ');
+      const refereeTags = infoReferees.map(r => this._userTag(r.name, null, { uid: r.uid || '' })).join(' ');
       infoRows.push(`<div class="td-info-row"><span class="td-info-label">裁判</span><div class="td-info-value" style="display:flex;flex-wrap:wrap;gap:.3rem">${refereeTags}</div></div>`);
     }
 
     // Safety: infoRows contains escaped values; _renderTournamentDetailToolbar uses escapeHTML
     container.innerHTML = `<div class="td-info-card">${infoRows.join('')}</div>`;
     this._renderTournamentDetailToolbar(infoTournament);
+    this._syncTournamentDetailTabsForMode?.(infoTournament);
   },
 
   renderTournamentTab(tab) {
