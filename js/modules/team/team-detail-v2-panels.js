@@ -68,10 +68,13 @@ Object.assign(App, {
       : '<div class="td-v2-card td-v2-empty-card">尚未填寫俱樂部簡介</div>';
     const info = this._buildTeamDetailV2InfoGrid(t);
     const featuredCourses = this._buildTeamDetailV2FeaturedCourses(t);
-    const upcoming = this._buildTeamDetailV2EventRows(t, 2);
+    const eventCount = this._getTeamDetailEventCount?.(t) || 0;
+    const upcoming = this._isTeamDetailSectionVisible?.(t, 'events') && eventCount > 0
+      ? '<div class="td-v2-card"><div class="td-v2-section-head"><h3>近期活動</h3><button type="button" data-td-v2-action="tab" data-tab="events">全部</button></div>' + this._buildTeamDetailV2EventRows(t, 2) + '</div>'
+      : '';
     return '<div class="td-v2-card"><div class="td-v2-section-head"><h3>快速導覽</h3><span>所有原有內容都保留在分頁內</span></div><div class="td-v2-quick-grid">' + quickLinks + '</div></div>'
       + bio + info + featuredCourses
-      + '<div class="td-v2-card"><div class="td-v2-section-head"><h3>近期活動</h3><button type="button" data-td-v2-action="tab" data-tab="events">全部</button></div>' + upcoming + '</div>';
+      + upcoming;
   },
 
   _buildTeamDetailV2InfoGrid(t) {
@@ -112,7 +115,7 @@ Object.assign(App, {
       .map(({ plan }) => plan);
     const cardClass = 'td-v2-card td-v2-featured-courses-card';
     if (!pinnedPlans.length) {
-      return '<div class="' + cardClass + '"><div class="td-v2-section-head"><h3>熱門課程</h3><button type="button" data-td-v2-action="tab" data-tab="courses">課程</button></div><div class="td-v2-empty">課程資料載入後會顯示在這裡</div></div>';
+      return '';
     }
     return '<div class="' + cardClass + '"><div class="td-v2-section-head"><h3>熱門課程</h3><button type="button" data-td-v2-action="tab" data-tab="courses">全部</button></div>'
       + pinnedPlans.map(p => this._buildTeamDetailV2CourseMiniRow(t.id, p)).join('') + '</div>';

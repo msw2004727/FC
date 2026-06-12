@@ -793,6 +793,33 @@ describe('team detail club activity section', () => {
     expect(html).not.toContain('成員<span class="td-v2-tab-badge">4</span>');
   });
 
+  test('team detail v2 overview hides empty activity and featured course sections', () => {
+    const app = makeApp([]);
+    const eventRows = jest.fn(() => '<button class="td-v2-event-card">Event</button>');
+    loadTeamDetailRender(app, [], {
+      extraFiles: [
+        'js/modules/team/team-detail-v2-panels.js',
+      ],
+    });
+    Object.assign(app, {
+      _isTeamDetailSectionVisible: (_team, key) => ['courses', 'events', 'members'].includes(key),
+      _getTeamDetailV2CourseCount: () => 0,
+      _getTeamDetailEventCount: () => 0,
+      _getTeamDetailMemberCount: () => 3,
+      _getTeamDetailV2CurrentCoursePlans: () => [],
+      _buildTeamDetailV2EventRows: eventRows,
+    });
+
+    const html = app._buildTeamDetailV2OverviewPanel({ id: 'teamA', name: 'Club A', coaches: [] }, 0, 0);
+
+    expect(html).toContain('快速導覽');
+    expect(html).not.toContain('<h3>近期活動</h3>');
+    expect(html).not.toContain('<h3>熱門課程</h3>');
+    expect(html).not.toContain('td-v2-featured-courses-card');
+    expect(html).not.toContain('目前沒有即將開始的俱樂部活動');
+    expect(eventRows).not.toHaveBeenCalled();
+  });
+
   test('team detail v2 courses panel omits the legacy flow helper copy', () => {
     const app = makeApp([]);
     loadTeamDetailRender(app, [], {
@@ -938,6 +965,52 @@ describe('team detail club activity section', () => {
     expect(featuredEl.outerHTML).not.toContain('Plain Course');
     expect(quickNum.textContent).toBe('2');
     expect(tabBtn.insertAdjacentHTML).toHaveBeenCalledWith('beforeend', '<span class="td-v2-tab-badge">2</span>');
+  });
+
+  test('team detail v2 course summary refresh inserts featured courses when hidden before async load', () => {
+    const app = makeApp([]);
+    const infoCard = { insertAdjacentHTML: jest.fn() };
+    const quickNum = { textContent: '0' };
+    const tabBtn = {
+      querySelector: jest.fn(() => null),
+      insertAdjacentHTML: jest.fn(),
+    };
+    const shell = {
+      getAttribute: jest.fn(() => 'teamA'),
+      querySelector: jest.fn((selector) => {
+        if (selector === '.td-v2-featured-courses-card') return null;
+        if (selector === '.td-v2-panel-overview .td-v2-info-card') return infoCard;
+        if (selector === '.td-v2-quick[data-tab="courses"] strong') return quickNum;
+        if (selector === '.td-v2-tab-list button[data-tab="courses"]') return tabBtn;
+        return null;
+      }),
+    };
+    loadTeamDetailRender(app, [], {
+      teams: { teamA: { id: 'teamA', feed: [] } },
+      document: {
+        getElementById: jest.fn(() => null),
+        querySelector: jest.fn((selector) => selector === '#team-detail-body .td-v2-shell' ? shell : null),
+      },
+      extraFiles: [
+        'js/modules/team/team-detail-v2-render.js',
+        'js/modules/team/team-detail-v2-panels.js',
+        'js/modules/team/team-detail-v2-actions.js',
+      ],
+    });
+    Object.assign(app, {
+      _isTeamDetailSectionVisible: (_team, key) => key === 'courses',
+      isEduClubStaff: () => false,
+      getEduCoursePlans: () => [
+        { id: 'pin1', active: true, pinned: true, sortOrder: 10, endDate: '2099-01-01', name: 'Pinned One' },
+      ],
+    });
+
+    expect(app._refreshTeamDetailV2CourseSummaryFromCache('teamA')).toBe(true);
+
+    expect(infoCard.insertAdjacentHTML).toHaveBeenCalledWith('afterend', expect.stringContaining('td-v2-featured-courses-card'));
+    expect(infoCard.insertAdjacentHTML).toHaveBeenCalledWith('afterend', expect.stringContaining('Pinned One'));
+    expect(quickNum.textContent).toBe('1');
+    expect(tabBtn.insertAdjacentHTML).toHaveBeenCalledWith('beforeend', '<span class="td-v2-tab-badge">1</span>');
   });
 
   test('team detail v2 course tab forces latest course state refresh', () => {

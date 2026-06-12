@@ -204,8 +204,15 @@ Object.assign(App, {
 
     const count = this._getTeamDetailV2CourseCount?.(team) || 0;
     const featured = shell.querySelector?.('.td-v2-featured-courses-card');
+    const featuredHtml = typeof this._buildTeamDetailV2FeaturedCourses === 'function'
+      ? this._buildTeamDetailV2FeaturedCourses(team)
+      : '';
     if (featured && typeof this._buildTeamDetailV2FeaturedCourses === 'function') {
-      featured.outerHTML = this._buildTeamDetailV2FeaturedCourses(team);
+      if (featuredHtml) featured.outerHTML = featuredHtml;
+      else featured.remove?.();
+    } else if (featuredHtml) {
+      const infoCard = shell.querySelector?.('.td-v2-panel-overview .td-v2-info-card');
+      infoCard?.insertAdjacentHTML?.('afterend', featuredHtml);
     }
 
     const quickNum = shell.querySelector?.('.td-v2-quick[data-tab="courses"] strong');
