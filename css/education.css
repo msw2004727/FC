@@ -1118,6 +1118,19 @@
   font-size: .72rem;
   line-height: 1.35;
 }
+.edu-cp-payment-method-control {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  gap: .42rem;
+}
+.edu-cp-payment-type-select {
+  width: max-content;
+  min-width: 8.4em;
+}
+.edu-cp-payment-method-control input[type="text"] {
+  min-width: 0;
+}
 .edu-cp-range-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -1314,6 +1327,12 @@
 .edu-ce-card-actions { display: flex; gap: .4rem; margin-top: .4rem; }
 .edu-ce-card-mid .edu-ce-paid-label { flex: 0 0 auto; white-space: nowrap; }
 .edu-ce-note-side { flex: 1 1 9rem; min-width: 0; max-width: 17rem; }
+.edu-ce-note-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2.08rem;
+  align-items: center;
+  gap: .35rem;
+}
 .edu-ce-note-trigger {
   width: 100%;
   height: 2.08rem;
@@ -1335,6 +1354,22 @@
 }
 .edu-ce-note-title { flex: 0 0 auto; font-size: .68rem; font-weight: 800; color: var(--accent); line-height: 1; }
 .edu-ce-note-preview { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .78rem; font-weight: 700; color: var(--text-secondary); text-align: left; }
+.edu-ce-remove-approved-btn {
+  width: 2.08rem;
+  height: 2.08rem;
+  border: 1px solid rgba(220, 38, 38, .36);
+  border-radius: 999px;
+  background: rgba(220, 38, 38, .08);
+  color: #dc2626;
+  font-size: 1.06rem;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+.edu-ce-remove-approved-btn:hover {
+  background: rgba(220, 38, 38, .14);
+  border-color: rgba(220, 38, 38, .58);
+}
 .edu-ce-note-editor { display: flex; width: 100%; align-items: center; gap: .35rem; }
 .edu-ce-note-input {
   min-width: 0;
@@ -1353,7 +1388,9 @@
   .edu-ce-card-mid { gap: .4rem; }
   .edu-ce-note-title { display: none; }
   .edu-ce-note-side { flex-basis: 7rem; }
+  .edu-ce-note-actions { grid-template-columns: minmax(0, 1fr) 1.95rem; }
   .edu-ce-note-trigger,
+  .edu-ce-remove-approved-btn,
   .edu-ce-note-input,
   .edu-ce-note-editor .primary-btn.small { height: 1.95rem; }
 }
@@ -2687,7 +2724,21 @@
 .edu-ce-pick-item input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; flex-shrink: 0; }
 .edu-ce-paid-label { display: flex; align-items: center; gap: .3rem; cursor: pointer; font-size: .78rem; }
 .edu-ce-paid-label input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
-.edu-ce-paid-edit { cursor: pointer; font-size: .72rem; }
+.edu-ce-paid-edit {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elevated, var(--bg-card));
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: .68rem;
+  font-weight: 850;
+  line-height: 1;
+  padding: .18rem .42rem;
+}
+.edu-ce-paid-edit:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 
 /* ── Attend Info Calendar ── */
 .edu-attend-cal-cell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 8px; padding: 2px; position: relative; min-width: 40px; }
@@ -3919,6 +3970,15 @@
   align-items: center;
   justify-content: space-between;
   gap: .75rem;
+}
+.edu-cp-featured-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: .25rem;
+  color: #f59e0b;
+  font-size: .86em;
+  line-height: 1;
 }
 .edu-cp-extra-hint {
   margin-top: .35rem;

@@ -25,6 +25,9 @@ Object.assign(App, {
     const genderValue = ['male', 'female'].includes(String(plan?.genderRestriction || '')) ? String(plan.genderRestriction) : 'none';
     const genderSelected = (value) => genderValue === value ? ' selected' : '';
     const visibleChecked = !plan || plan.visibleOnTeamPage !== false ? ' checked' : '';
+    const paymentMethodHtml = typeof this._buildCoursePlanPaymentMethodField === 'function'
+      ? this._buildCoursePlanPaymentMethodField(plan?.paymentMethod || '')
+      : '<textarea id="edu-cp-payment-method" maxlength="300" rows="2" placeholder="例如 轉帳、現金、LINE Pay，請填寫付款資訊與備註">' + valueOf('paymentMethod') + '</textarea>';
     const normalizeSchedules = typeof this._normalizeCoursePlanSessionSchedules === 'function'
       ? (value) => this._normalizeCoursePlanSessionSchedules(value)
       : (value) => (Array.isArray(value) ? value : []).map(item => ({
@@ -94,7 +97,7 @@ Object.assign(App, {
           row('課程分類', '<input type="text" id="edu-cp-category-tags" maxlength="80" placeholder="例：固定課, 入門" value="' + escapeHTML(tagsValue ? tagsValue('categoryTags') : '') + '">') +
           row('程度標籤', '<input type="text" id="edu-cp-level-label" maxlength="20" placeholder="例：純新手or會傳接球" value="' + (fieldValue ? fieldValue('levelLabel') : '') + '">') +
           row('課程亮點', '<input type="text" id="edu-cp-feature-tags" maxlength="120" placeholder="例：小班制, 專項訓練" value="' + escapeHTML(tagsValue ? tagsValue('featureTags') : '') + '">') +
-          '<div class="ce-row edu-cp-extra-featured"><label>精選顯示</label><label class="toggle-switch"><input type="checkbox" id="edu-cp-featured"' + (plan?.featured ? ' checked' : '') + '><span class="toggle-slider"></span></label></div>' +
+          '<div class="ce-row edu-cp-extra-featured"><label><span class="edu-cp-featured-icon">★</span>精選顯示</label><label class="toggle-switch"><input type="checkbox" id="edu-cp-featured"' + (plan?.featured ? ' checked' : '') + '><span class="toggle-slider"></span></label></div>' +
         '</div>' +
       '</details>' +
 
@@ -115,10 +118,10 @@ Object.assign(App, {
       '<details class="edu-cp-section edu-cp-advanced-section">' +
         '<summary><span>聯絡與場地</span>' + sectionBadge(['edu-cp-manager-name','edu-cp-manager-contact','edu-cp-notify-targets','edu-cp-coach-name','edu-cp-location']) + '</summary>' +
         '<div class="edu-cp-extra-grid">' +
-          row('負責人', '<input type="text" id="edu-cp-manager-name" maxlength="30" placeholder="例：課務窗口" value="' + (fieldValue ? fieldValue('managerName') : '') + '">') +
+          row('負責人', '<div class="edu-session-staff-field edu-cp-staff-field"><input type="text" id="edu-cp-manager-name" maxlength="30" placeholder="輸入姓名或暱稱搜尋" value="' + (fieldValue ? fieldValue('managerName') : '') + '" oninput="App.searchCoursePlanStaff(\'manager\')" onfocus="App.searchCoursePlanStaff(\'manager\')"><div id="edu-cp-manager-suggest" class="team-user-suggest edu-session-staff-suggest"></div></div>') +
           row('負責人聯繫', '<input type="text" id="edu-cp-manager-contact" maxlength="160" placeholder="例：LINE ID / 電話 / 聯繫連結" value="' + (fieldValue ? fieldValue('managerContact') : '') + '">') +
           row('報名通知對象', '<input type="text" id="edu-cp-notify-targets" maxlength="200" placeholder="例如 課務群組、王教練、櫃台" value="' + valueOf('notifyTargets') + '">') +
-          row('授課教練', '<input type="text" id="edu-cp-coach-name" maxlength="30" placeholder="例：王教練" value="' + (fieldValue ? fieldValue('coachName') : '') + '">') +
+          row('授課教練', '<div class="edu-session-staff-field edu-cp-staff-field"><input type="text" id="edu-cp-coach-name" maxlength="30" placeholder="輸入姓名或暱稱搜尋" value="' + (fieldValue ? fieldValue('coachName') : '') + '" oninput="App.searchCoursePlanStaff(\'coach\')" onfocus="App.searchCoursePlanStaff(\'coach\')"><div id="edu-cp-coach-suggest" class="team-user-suggest edu-session-staff-suggest"></div></div>') +
           row('上課地點', '<input type="text" id="edu-cp-location" maxlength="80" placeholder="例：台中市南屯運動中心" value="' + (fieldValue ? fieldValue('location') : '') + '">') +
         '</div>' +
       '</details>' +
@@ -126,12 +129,20 @@ Object.assign(App, {
       '<details class="edu-cp-section edu-cp-advanced-section">' +
         '<summary><span>詳細說明</span>' + sectionBadge(['edu-cp-course-content','edu-cp-payment-method','edu-cp-payment-deadline','edu-cp-makeup-policy','edu-cp-cancellation-policy']) + '</summary>' +
         row('課程內容', '<textarea id="edu-cp-course-content" maxlength="900" rows="4" placeholder="介紹課程主軸、訓練內容、適合程度與學習目標">' + (courseContentValue || '') + '</textarea>') +
-        row('付款方式', '<textarea id="edu-cp-payment-method" maxlength="300" rows="2" placeholder="例如 轉帳、現金、LINE Pay，請填寫付款資訊與備註">' + valueOf('paymentMethod') + '</textarea>') +
+        row('付款方式', paymentMethodHtml, 'edu-cp-payment-method-row') +
         row('付款期限', '<input type="text" id="edu-cp-payment-deadline" maxlength="60" placeholder="例如 報名後 3 日內 / 開課前完成" value="' + valueOf('paymentDeadline') + '">') +
         row('補課規則', '<textarea id="edu-cp-makeup-policy" maxlength="500" rows="3" placeholder="例如 請假需提前告知，可於同級班補課一次">' + valueOf('makeupPolicy') + '</textarea>') +
         row('取消政策', '<textarea id="edu-cp-cancellation-policy" maxlength="500" rows="3" placeholder="例：開課前 7 日可全額退費；開課前 3 日內取消，將收取 30% 行政費；開課後恕不退費。">' + (cancellationPolicyValue || '') + '</textarea>') +
         '<div class="edu-cp-extra-hint">標籤請用逗號分隔；這些欄位會先用於卡片與詳情顯示，不會改變報名流程。</div>' +
       '</details>' +
+
+      '<section class="edu-cp-section edu-cp-template-section">' +
+        '<div class="ce-row edu-session-template-panel">' +
+          '<div class="ce-label-row"><label>從範本建立</label></div>' +
+          '<div class="edu-session-template-list" id="edu-cp-template-selector"><span>載入範本中...</span></div>' +
+        '</div>' +
+        '<div class="ce-row edu-session-template-save-row"><label>儲存為範本</label><div class="edu-session-template-save"><input id="edu-cp-template-name" type="text" maxlength="24" placeholder="範本名稱"><button class="outline-btn small" type="button" onclick="App._saveCoursePlanTemplate()">儲存</button></div></div>' +
+      '</section>' +
 
       '<div class="edu-cp-form-actions">' +
         '<button class="outline-btn" onclick="App.goBack()">取消</button>' +
@@ -141,6 +152,9 @@ Object.assign(App, {
 
     this._updateCoursePlanPreview?.();
     this._renderCoursePlanSessionScheduleFields?.();
+    this._syncEduCoursePlanPaymentMethodField?.();
+    this._renderCoursePlanTemplateSelector?.();
+    this._ensureCoursePlanTemplatesReady?.();
   },
 
   _syncEduCoursePlanFormFillBadges() {

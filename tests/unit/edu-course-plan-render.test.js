@@ -1281,8 +1281,12 @@ describe('edu course plan render', () => {
   test('course plan form v2 keeps saved field ids while grouping advanced sections', () => {
     const container = { innerHTML: '' };
     const app = {
+      _buildCoursePlanPaymentMethodField: jest.fn(() => '<div class="edu-cp-payment-method-control"><select id="edu-cp-payment-method-type"><option value="轉帳">轉帳</option><option value="LINE Pay">LINE Pay</option><option value="">空白</option></select><input type="text" id="edu-cp-payment-method-note" value="Bank transfer"><input type="hidden" id="edu-cp-payment-method" value="Bank transfer"></div>'),
       _updateCoursePlanPreview: jest.fn(),
       _renderCoursePlanSessionScheduleFields: jest.fn(),
+      _syncEduCoursePlanPaymentMethodField: jest.fn(),
+      _renderCoursePlanTemplateSelector: jest.fn(),
+      _ensureCoursePlanTemplatesReady: jest.fn(),
     };
     const context = {
       App: app,
@@ -1355,17 +1359,187 @@ describe('edu course plan render', () => {
     expect(container.innerHTML).toContain('id="edu-cp-notify-targets"');
     expect(container.innerHTML).toContain('Ops team');
     expect(container.innerHTML).toContain('id="edu-cp-payment-method"');
+    expect(container.innerHTML).toContain('id="edu-cp-payment-method-type"');
+    expect(container.innerHTML).toContain('id="edu-cp-payment-method-note"');
+    expect(container.innerHTML).toContain('<option value="LINE Pay">LINE Pay</option>');
+    expect(container.innerHTML).toContain('<option value="">空白</option>');
     expect(container.innerHTML).toContain('Bank transfer');
     expect(container.innerHTML).toContain('id="edu-cp-payment-deadline"');
     expect(container.innerHTML).toContain('Before first class');
     expect(container.innerHTML).toContain('id="edu-cp-makeup-policy"');
     expect(container.innerHTML).toContain('Makeup policy');
     expect(container.innerHTML).toContain('id="edu-cp-description"');
+    expect(container.innerHTML).toContain('edu-cp-featured-icon');
+    expect(container.innerHTML).toContain('★');
+    expect(container.innerHTML).toContain('id="edu-cp-manager-suggest"');
+    expect(container.innerHTML).toContain("App.searchCoursePlanStaff('manager')");
+    expect(container.innerHTML).toContain('id="edu-cp-coach-suggest"');
+    expect(container.innerHTML).toContain('id="edu-cp-template-selector"');
+    expect(container.innerHTML).toContain('id="edu-cp-template-name"');
+    expect(container.innerHTML).toContain('App._saveCoursePlanTemplate()');
     expect(container.innerHTML).toContain('id="edu-cp-save-btn"');
     expect(app._updateCoursePlanPreview).toHaveBeenCalled();
     expect(app._renderCoursePlanSessionScheduleFields).toHaveBeenCalled();
+    expect(app._syncEduCoursePlanPaymentMethodField).toHaveBeenCalled();
+    expect(app._renderCoursePlanTemplateSelector).toHaveBeenCalled();
+    expect(app._ensureCoursePlanTemplatesReady).toHaveBeenCalled();
   });
 
+  test('course plan payment helper keeps dropdown value and manual note in the saved field', () => {
+    const elements = {
+      'edu-cp-payment-method-type': { value: 'LINE Pay' },
+      'edu-cp-payment-method-note': { value: '付款連結' },
+      'edu-cp-payment-method': { value: '' },
+    };
+    const context = {
+      App: {},
+      document: { getElementById: jest.fn((id) => elements[id] || null) },
+      escapeHTML,
+      console,
+      Object,
+      String,
+      Array,
+      Date,
+      Math,
+    };
+    vm.runInNewContext(crudSource, context, { filename: 'edu-course-plan.js' });
+
+    const html = context.App._buildCoursePlanPaymentMethodField('轉帳：台新 123');
+    expect(html).toContain('id="edu-cp-payment-method-type"');
+    expect(html).toContain('<option value="轉帳" selected>');
+    expect(html).toContain('value="台新 123"');
+    expect(html).toContain('<option value="">空白</option>');
+
+    expect(context.App._syncEduCoursePlanPaymentMethodField()).toBe('LINE Pay 付款連結');
+    expect(elements['edu-cp-payment-method'].value).toBe('LINE Pay 付款連結');
+  });
+
+  test('course plan staff search matches user nicknames with fuzzy matching', () => {
+    const suggest = { innerHTML: '', classList: { add: jest.fn(), remove: jest.fn() } };
+    const elements = {
+      'edu-cp-coach-name': { value: '阿球' },
+      'edu-cp-coach-suggest': suggest,
+    };
+    const app = {
+      _eduCoursePlanEditTeamId: 'teamA',
+    };
+    const context = {
+      App: app,
+      ApiService: {
+        getTeams: jest.fn(() => [{
+          id: 'teamA',
+          coachUids: ['coachA'],
+          coachNames: ['王教練'],
+        }]),
+        getAdminUsers: jest.fn(() => [{
+          uid: 'coachA',
+          displayName: '王大明',
+          nickname: '阿球',
+        }]),
+      },
+      document: { getElementById: jest.fn((id) => elements[id] || null) },
+      escapeHTML,
+      console,
+      Object,
+      String,
+      Array,
+      Date,
+      Map,
+      Set,
+      encodeURIComponent,
+      decodeURIComponent,
+    };
+    vm.runInNewContext(crudSource, context, { filename: 'edu-course-plan.js' });
+    context.App._eduCoursePlanEditTeamId = 'teamA';
+
+    context.App.searchCoursePlanStaff('coach');
+
+    expect(suggest.innerHTML).toContain('王大明');
+    expect(suggest.innerHTML).toContain('教練');
+    expect(suggest.classList.add).toHaveBeenCalledWith('show');
+  });
+
+  test('course plan templates save reusable fields but omit date fields', () => {
+    const elements = {
+      'edu-cp-group': { value: 'groupA', selectedOptions: [{ dataset: { name: 'Group A' } }] },
+      'edu-cp-name': { value: '春季班' },
+      'edu-cp-type': { value: 'session' },
+      'edu-cp-signup': { checked: true },
+      'edu-cp-visible-on-team': { checked: true },
+      'edu-cp-capacity': { value: '12' },
+      'edu-cp-price': { value: '2400' },
+      'edu-cp-category-tags': { value: 'fixed, beginner' },
+      'edu-cp-level-label': { value: 'U12' },
+      'edu-cp-feature-tags': { value: 'small group' },
+      'edu-cp-requirement-tags': { value: 'shoes' },
+      'edu-cp-included-tags': { value: 'field' },
+      'edu-cp-target-tags': { value: 'newbie' },
+      'edu-cp-signup-deadline': { value: '2099-01-10' },
+      'edu-cp-manager-name': { value: 'Manager A' },
+      'edu-cp-manager-contact': { value: 'line@example' },
+      'edu-cp-notify-targets': { value: 'Ops team' },
+      'edu-cp-coach-name': { value: 'Coach A' },
+      'edu-cp-location': { value: 'Center A' },
+      'edu-cp-course-content': { value: 'Safe course content' },
+      'edu-cp-description': { value: 'Safe description' },
+      'edu-cp-payment-method-type': { value: '轉帳' },
+      'edu-cp-payment-method-note': { value: '台新 123' },
+      'edu-cp-payment-method': { value: '' },
+      'edu-cp-payment-deadline': { value: 'Before class' },
+      'edu-cp-makeup-policy': { value: 'Makeup once' },
+      'edu-cp-cancellation-policy': { value: 'Safe cancellation policy' },
+      'edu-cp-trial-info': { value: 'Trial info' },
+      'edu-cp-min-capacity': { value: '6' },
+      'edu-cp-min-age': { value: '8' },
+      'edu-cp-max-age': { value: '12' },
+      'edu-cp-gender': { value: 'female' },
+      'edu-cp-featured': { checked: true },
+      'edu-cp-start': { value: '2099-01-01' },
+      'edu-cp-end': { value: '2099-03-01' },
+      'edu-cp-timeslot': { value: '09:00-10:30' },
+      'edu-cp-total': { value: '2' },
+      'edu-cp-session-date-1': { value: '2099-06-03' },
+      'edu-cp-session-start-1': { value: '18:00' },
+      'edu-cp-session-end-1': { value: '19:00' },
+      'edu-cp-session-date-2': { value: '2099-06-10' },
+      'edu-cp-session-start-2': { value: '20:00' },
+      'edu-cp-session-end-2': { value: '21:30' },
+      'edu-cp-cover-preview': { querySelector: jest.fn(() => null) },
+    };
+    const context = {
+      App: {},
+      document: {
+        getElementById: jest.fn((id) => elements[id] || null),
+        querySelectorAll: jest.fn((selector) => selector === '#edu-cp-weekdays .edu-wd-checked'
+          ? [{ dataset: { day: '1' } }, { dataset: { day: '3' } }]
+          : []),
+      },
+      escapeHTML,
+      console,
+      Object,
+      String,
+      Array,
+      Date,
+      Math,
+      Number,
+      parseInt,
+    };
+    vm.runInNewContext(crudSource, context, { filename: 'edu-course-plan.js' });
+
+    const tpl = context.App._buildCurrentCoursePlanTemplate('常用堂數班');
+
+    expect(tpl.templateType).toBe('coursePlan');
+    expect(tpl.name).toBe('常用堂數班');
+    expect(tpl.planName).toBe('春季班');
+    expect(tpl.paymentMethod).toBe('轉帳 台新 123');
+    expect(tpl.sessionSchedules).toEqual([
+      { date: '', startTime: '18:00', endTime: '19:00' },
+      { date: '', startTime: '20:00', endTime: '21:30' },
+    ]);
+    expect(tpl).not.toHaveProperty('startDate');
+    expect(tpl).not.toHaveProperty('endDate');
+    expect(tpl).not.toHaveProperty('signupDeadline');
+  });
 
   test('session schedule fields show and update selected time preview', () => {
     const list = { innerHTML: '', querySelector: jest.fn(() => null) };
@@ -1446,7 +1620,9 @@ describe('edu course plan render', () => {
       'edu-cp-manager-contact': { value: 'line@example' },
       'edu-cp-notify-targets': { value: 'Ops team' },
       'edu-cp-course-content': { value: 'Safe course content' },
-      'edu-cp-payment-method': { value: 'Bank transfer' },
+      'edu-cp-payment-method-type': { value: 'LINE Pay' },
+      'edu-cp-payment-method-note': { value: '付款連結' },
+      'edu-cp-payment-method': { value: '' },
       'edu-cp-payment-deadline': { value: 'Before class' },
       'edu-cp-makeup-policy': { value: 'Makeup once' },
       'edu-cp-cancellation-policy': { value: 'Safe cancellation policy' },
@@ -1513,7 +1689,8 @@ describe('edu course plan render', () => {
     expect(savedPayload.managerContact).toBe('line@example');
     expect(savedPayload.notifyTargets).toBe('Ops team');
     expect(savedPayload.courseContent).toBe('Safe course content');
-    expect(savedPayload.paymentMethod).toBe('Bank transfer');
+    expect(savedPayload.paymentMethod).toBe('LINE Pay 付款連結');
+    expect(elements['edu-cp-payment-method'].value).toBe('LINE Pay 付款連結');
     expect(savedPayload.paymentDeadline).toBe('Before class');
     expect(savedPayload.makeupPolicy).toBe('Makeup once');
     expect(savedPayload.cancellationPolicy).toBe('Safe cancellation policy');

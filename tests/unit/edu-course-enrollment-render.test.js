@@ -141,12 +141,34 @@ describe('edu course enrollment render', () => {
     expect(cardHtml).not.toContain('edu-ce-expand');
     expect(cardHtml).not.toContain('_toggleEnrollExpand');
     expect(cardHtml).toContain('edu-ce-note-side');
+    expect(cardHtml).toContain('edu-ce-note-actions');
     expect(cardHtml).toContain('id="ce-note-trigger-enrA"');
     expect(cardHtml).toContain("_toggleEnrollNoteEditor('ce-note-panel-enrA','ce-note-trigger-enrA')");
-    expect(cardHtml).toContain('</label><div class="edu-ce-note-side"');
+    expect(cardHtml).toContain("App._removeApprovedCourseEnrollment('teamA','planA','enrA',this)");
+    expect(cardHtml).toContain('class="edu-ce-remove-approved-btn"');
     expect(cardHtml).not.toContain('edu-ce-card-main');
     expect(cardHtml).toContain('maxlength="15"');
     expect(cardHtml).toContain('abcdefghijklmno');
     expect(cardHtml).not.toContain('abcdefghijklmnop');
+  });
+
+  test('approved paid card uses setting button instead of pencil icon', () => {
+    const app = {
+      calcAge: jest.fn(() => 10),
+    };
+    const loaded = loadModule(app, {});
+
+    const cardHtml = loaded._renderApprovedEnrollmentCard({
+      id: 'enrPaid',
+      studentId: 'stuA',
+      studentName: '小客',
+      paidAt: '2099-01-02',
+      coachNotes: '',
+    }, {}, [{ id: 'stuA', birthday: '2016-01-01' }], 'teamA', 'planA', true);
+
+    expect(cardHtml).toContain('已繳費 2099-01-02');
+    expect(cardHtml).toContain('class="edu-ce-paid-edit"');
+    expect(cardHtml).toContain('>設定</button>');
+    expect(cardHtml).not.toContain('✏️');
   });
 });

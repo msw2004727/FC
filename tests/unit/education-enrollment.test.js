@@ -280,6 +280,45 @@ describe('Course enrollment', () => {
     expect(app._renderCourseEnrollmentList).toHaveBeenCalledWith('teamA', 'planA');
   });
 
+  test('approved enrollment removal marks roster entry removed and refreshes views', async () => {
+    const updateCourseEnrollment = jest.fn(async () => {});
+    const refreshCourseViewsAfterEnrollmentChange = jest.fn(async () => {});
+    const restore = jest.fn();
+    const app = {
+      appConfirm: jest.fn(async () => true),
+      _setEduBtnLoading: jest.fn(() => ({ restore })),
+      _renderCourseEnrollmentList: jest.fn(async () => {}),
+      showToast: jest.fn(),
+    };
+    const loaded = loadCourseEnrollmentModule(app, {
+      FirebaseService: { updateCourseEnrollment },
+      ApiService: { getCurrentUser: jest.fn(() => ({ uid: 'staffA', displayName: 'Staff A' })) },
+    });
+    loaded._getCourseEnrollCacheKey = (teamId, planId) => teamId + ':' + planId;
+    loaded._courseEnrollCache = {
+      'teamA:planA': [{ id: 'enrA', studentId: 'stuA', status: 'approved' }],
+    };
+    loaded._courseEnrollSummaryCache = {
+      'teamA:planA': { effectiveApprovedCount: 1 },
+    };
+    loaded._refreshCourseViewsAfterEnrollmentChange = refreshCourseViewsAfterEnrollmentChange;
+
+    await loaded._removeApprovedCourseEnrollment('teamA', 'planA', 'enrA', {});
+
+    expect(app.appConfirm).toHaveBeenCalledWith('確定刪除此學員的課程報名？一旦確認就無法還原，學員需要重新申請。');
+    expect(updateCourseEnrollment).toHaveBeenCalledWith('teamA', 'planA', 'enrA', expect.objectContaining({
+      status: 'removed',
+      removedByUid: 'staffA',
+      removedByName: 'Staff A',
+      previousStatus: 'approved',
+    }));
+    expect(loaded._courseEnrollCache['teamA:planA']).toBeUndefined();
+    expect(loaded._courseEnrollSummaryCache['teamA:planA']).toBeUndefined();
+    expect(app._renderCourseEnrollmentList).toHaveBeenCalledWith('teamA', 'planA');
+    expect(refreshCourseViewsAfterEnrollmentChange).toHaveBeenCalledWith('teamA', 'planA', { force: true });
+    expect(restore).toHaveBeenCalled();
+  });
+
   test('register result is merged into enrollment cache before background refresh', () => {
     const plan = { id: 'planA', name: 'Plan A' };
     const loaded = loadCourseEnrollmentModule({

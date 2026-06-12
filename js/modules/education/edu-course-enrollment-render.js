@@ -162,7 +162,7 @@ Object.assign(App, {
     if (e.paidAt) {
       paidHtml = '<span class="edu-ce-paid-label" onclick="event.stopPropagation()">'
         + '<span class="edu-ce-paid-yes">已繳費 ' + escapeHTML(e.paidAt) + '</span>'
-        + (isStaff ? ' <span class="edu-ce-paid-edit" onclick="event.stopPropagation();App._showPaidEditMenu(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\')">✏️</span>' : '')
+        + (isStaff ? ' <button type="button" class="edu-ce-paid-edit" onclick="event.stopPropagation();App._showPaidEditMenu(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\')">設定</button>' : '')
         + '</span>';
     } else if (isStaff) {
       paidHtml = '<label class="edu-ce-paid-label" onclick="event.stopPropagation()">'
@@ -177,11 +177,17 @@ Object.assign(App, {
     const notePanelId = 'ce-note-panel-' + e.id;
     const noteTriggerId = 'ce-note-trigger-' + e.id;
     const notesValue = String(e.coachNotes || '').trim().slice(0, 15);
+    const removeHtml = isStaff
+      ? '<button type="button" class="edu-ce-remove-approved-btn" title="刪除學員" aria-label="刪除學員" onclick="event.stopPropagation();App._removeApprovedCourseEnrollment(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\',this)">×</button>'
+      : '';
     const noteHtml = isStaff ? '<div class="edu-ce-note-side" onclick="event.stopPropagation()">'
+      + '<div class="edu-ce-note-actions">'
       + '<button type="button" id="' + noteTriggerId + '" class="edu-ce-note-trigger' + (notesValue ? ' has-note' : '') + '" onclick="App._toggleEnrollNoteEditor(\'' + notePanelId + '\',\'' + noteTriggerId + '\')">'
       + '<span class="edu-ce-note-title">備註</span>'
       + '<span class="edu-ce-note-preview">' + escapeHTML(notesValue || '點選填寫') + '</span>'
       + '</button>'
+      + removeHtml
+      + '</div>'
       + '<div class="edu-ce-note-editor" id="' + notePanelId + '" style="display:none">'
       + '<input class="edu-ce-note-input" id="' + notesId + '" maxlength="15" value="' + escapeHTML(notesValue) + '" placeholder="15字內">'
       + '<button type="button" class="primary-btn small" onclick="App._saveEnrollNotes(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\',\'' + notesId + '\')">儲存</button>'

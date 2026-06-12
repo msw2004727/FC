@@ -142,7 +142,7 @@ Object.assign(App, {
           '<div class="ce-row"><label>負責人聯繫</label><input type="text" id="edu-cp-manager-contact" maxlength="160" placeholder="例：LINE ID / 電話 / 聯繫連結" value="' + fieldValue('managerContact') + '"></div>' +
           '<div class="ce-row"><label>授課教練</label><input type="text" id="edu-cp-coach-name" maxlength="30" placeholder="例：王教練" value="' + fieldValue('coachName') + '"></div>' +
           '<div class="ce-row"><label>上課地點</label><input type="text" id="edu-cp-location" maxlength="80" placeholder="例：台中市南屯運動中心" value="' + fieldValue('location') + '"></div>' +
-          '<div class="ce-row edu-cp-extra-featured"><label>精選顯示</label><label class="toggle-switch"><input type="checkbox" id="edu-cp-featured"' + (plan?.featured ? ' checked' : '') + '><span class="toggle-slider"></span></label></div>' +
+          '<div class="ce-row edu-cp-extra-featured"><label><span class="edu-cp-featured-icon">★</span>精選顯示</label><label class="toggle-switch"><input type="checkbox" id="edu-cp-featured"' + (plan?.featured ? ' checked' : '') + '><span class="toggle-slider"></span></label></div>' +
         '</div>' +
         '<div class="ce-row"><label>課程內容</label><textarea id="edu-cp-course-content" maxlength="900" rows="4" placeholder="介紹課程主軸、訓練內容、適合程度與學習目標">' + courseContentValue + '</textarea></div>' +
         '<div class="ce-row"><label>取消政策</label><textarea id="edu-cp-cancellation-policy" maxlength="500" rows="3" placeholder="例：開課前 7 日可全額退費；開課前 3 日內取消，將收取 30% 行政費；開課後恕不退費。">' + cancellationPolicyValue + '</textarea></div>' +
@@ -237,6 +237,588 @@ Object.assign(App, {
       'edu-cp-max-age',
       'edu-cp-gender',
     ];
+  },
+
+  _getCoursePlanPaymentOptions() {
+    return ['轉帳', '現金', 'LINE Pay', '線上支付', '信用卡', '皆可', ''];
+  },
+
+  _splitCoursePlanPaymentMethod(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return { type: '', note: '' };
+    const normalizedRaw = raw.toLowerCase();
+    const options = this._getCoursePlanPaymentOptions()
+      .filter(Boolean)
+      .sort((a, b) => b.length - a.length);
+    for (const option of options) {
+      const normalizedOption = option.toLowerCase();
+      if (normalizedRaw === normalizedOption) return { type: option, note: '' };
+      if (!normalizedRaw.startsWith(normalizedOption)) continue;
+      const nextChar = raw.charAt(option.length);
+      if (nextChar && !/[\s:：,，/／-]/.test(nextChar)) continue;
+      const note = raw.slice(option.length).replace(/^[\s:：,，/／-]+/, '').trim();
+      return { type: option, note };
+    }
+    return { type: '', note: raw };
+  },
+
+  _buildCoursePlanPaymentMethodField(value) {
+    const parsed = this._splitCoursePlanPaymentMethod(value);
+    const optionHtml = this._getCoursePlanPaymentOptions().map(option => {
+      const label = option || '空白';
+      const selected = parsed.type === option ? ' selected' : '';
+      return '<option value="' + escapeHTML(option) + '"' + selected + '>' + escapeHTML(label) + '</option>';
+    }).join('');
+    const combined = this._composeCoursePlanPaymentMethodValue(parsed.type, parsed.note);
+    return '<div class="edu-cp-payment-method-control">'
+      + '<select id="edu-cp-payment-method-type" class="edu-cp-payment-type-select" onchange="App._syncEduCoursePlanPaymentMethodField()">'
+      + optionHtml
+      + '</select>'
+      + '<input type="text" id="edu-cp-payment-method-note" maxlength="260" placeholder="補充帳號、連結或備註" value="' + escapeHTML(parsed.note) + '" oninput="App._syncEduCoursePlanPaymentMethodField()">'
+      + '<input type="hidden" id="edu-cp-payment-method" value="' + escapeHTML(combined) + '">'
+      + '</div>';
+  },
+
+  _composeCoursePlanPaymentMethodValue(type, note) {
+    const paymentType = String(type || '').trim();
+    const paymentNote = String(note || '').trim();
+    if (paymentType && paymentNote) return (paymentType + ' ' + paymentNote).slice(0, 300);
+    return (paymentType || paymentNote).slice(0, 300);
+  },
+
+  _syncEduCoursePlanPaymentMethodField() {
+    const hidden = document.getElementById('edu-cp-payment-method');
+    if (!hidden) return '';
+    hidden.value = this._getEduCoursePlanPaymentMethodValue();
+    return hidden.value;
+  },
+
+  _getEduCoursePlanPaymentMethodValue() {
+    const typeEl = document.getElementById('edu-cp-payment-method-type');
+    const noteEl = document.getElementById('edu-cp-payment-method-note');
+    if (typeEl || noteEl) {
+      return this._composeCoursePlanPaymentMethodValue(typeEl?.value || '', noteEl?.value || '');
+    }
+    return String(document.getElementById('edu-cp-payment-method')?.value || '').trim().slice(0, 300);
+  },
+
+  _getCoursePlanTeamRecord(teamId) {
+    if (typeof this._getEduTeamRecord === 'function') return this._getEduTeamRecord(teamId);
+    const teams = typeof ApiService !== 'undefined' && ApiService.getTeams ? (ApiService.getTeams() || []) : [];
+    return teams.find(t => String(t.id || t._docId || '') === String(teamId)) || null;
+  },
+
+  _getCoursePlanStaffUserByUidOrName(uidLike, nameLike, users) {
+    const normalize = value => String(value || '').trim();
+    const uid = normalize(uidLike);
+    const name = normalize(nameLike).toLowerCase();
+    const userList = Array.isArray(users) ? users : [];
+    if (uid) {
+      const found = userList.find(user => [user.uid, user.lineUserId, user._docId, user.id]
+        .map(normalize)
+        .filter(Boolean)
+        .includes(uid));
+      if (found) return found;
+    }
+    if (name) {
+      return userList.find(user => this._getCourseStaffSearchAliases(user)
+        .map(value => normalize(value).toLowerCase())
+        .some(value => value && value === name)) || null;
+    }
+    return null;
+  },
+
+  _getCourseStaffSearchAliases(user) {
+    if (!user || typeof user !== 'object') return [];
+    return [
+      user.displayName,
+      user.name,
+      user.nickname,
+      user.nickName,
+      user.alias,
+      user.lineDisplayName,
+      user.lineName,
+      user.lineUserName,
+      user.uid,
+      user.lineUserId,
+      user._docId,
+      user.id,
+    ].map(value => String(value || '').trim()).filter(Boolean);
+  },
+
+  _getCourseStaffContact(user) {
+    if (typeof this._getCourseSessionStaffContact === 'function') return this._getCourseSessionStaffContact(user);
+    if (!user || typeof user !== 'object') return '';
+    const direct = [
+      user.contactUrl, user.lineUrl, user.lineLink, user.lineLinkUrl, user.socialUrl, user.website,
+      user.phone, user.mobile, user.email,
+    ].map(value => String(value || '').trim()).find(Boolean);
+    if (direct) return direct;
+    const socialLinks = user.socialLinks || {};
+    const platformMap = this._socialPlatforms || {
+      fb: { prefix: 'https://www.facebook.com/' },
+      ig: { prefix: 'https://www.instagram.com/' },
+      threads: { prefix: 'https://www.threads.net/@' },
+      yt: { prefix: 'https://www.youtube.com/@' },
+      twitter: { prefix: 'https://x.com/' },
+      line: { prefix: 'https://line.me/ti/p/' },
+    };
+    for (const key of ['line', 'ig', 'fb', 'threads', 'twitter', 'yt']) {
+      const value = String(socialLinks[key] || '').trim();
+      if (!value) continue;
+      if (/^https?:\/\//i.test(value)) return value;
+      const prefix = platformMap[key]?.prefix || '';
+      if (prefix) return prefix + encodeURIComponent(value.replace(/^@/, ''));
+    }
+    return '';
+  },
+
+  _buildCourseStaffSearchText(candidate, user) {
+    return [
+      candidate?.name,
+      candidate?.uid,
+      candidate?.roleLabel,
+      ...(this._getCourseStaffSearchAliases(user) || []),
+    ].map(value => String(value || '').trim().toLowerCase()).filter(Boolean).join(' ');
+  },
+
+  _matchesCourseStaffCandidate(candidate, query) {
+    const rawQuery = String(query || '').trim().toLowerCase();
+    if (!rawQuery) return true;
+    const compactQuery = rawQuery.replace(/\s+/g, '');
+    if (!compactQuery) return true;
+    const searchText = String(candidate?.searchText || '').toLowerCase();
+    const compactText = searchText.replace(/\s+/g, '');
+    if (searchText.includes(rawQuery) || compactText.includes(compactQuery)) return true;
+    let textIndex = 0;
+    for (const ch of compactQuery) {
+      textIndex = compactText.indexOf(ch, textIndex);
+      if (textIndex === -1) return false;
+      textIndex += 1;
+    }
+    return true;
+  },
+
+  _getCoursePlanStaffCandidates(teamId) {
+    if (typeof this._getCourseSessionStaffCandidates === 'function') {
+      return this._getCourseSessionStaffCandidates(teamId);
+    }
+    const team = this._getCoursePlanTeamRecord(teamId);
+    if (!team) return [];
+    const users = typeof ApiService !== 'undefined' && ApiService.getAdminUsers ? (ApiService.getAdminUsers() || []) : [];
+    const map = new Map();
+    const normalize = value => String(value || '').trim();
+    const add = (uidLike, nameLike, roleLabel, roleRank) => {
+      const user = this._getCoursePlanStaffUserByUidOrName(uidLike, nameLike, users);
+      const uid = normalize(user?.uid || user?.lineUserId || uidLike);
+      const name = normalize(user?.displayName || user?.name || user?.nickname || nameLike || uid);
+      if (!name && !uid) return;
+      const key = uid ? 'uid:' + uid : 'name:' + name.toLowerCase();
+      const existing = map.get(key);
+      const candidate = existing || {
+        key,
+        uid,
+        name,
+        roleLabel,
+        roleRank,
+        contact: this._getCourseStaffContact(user),
+        searchText: '',
+      };
+      if (!existing || roleRank > candidate.roleRank) {
+        candidate.roleLabel = roleLabel;
+        candidate.roleRank = roleRank;
+      }
+      candidate.searchText = this._buildCourseStaffSearchText(candidate, user);
+      map.set(key, candidate);
+    };
+
+    add(team.captainUid, team.captain || team.captainName, '負責人', 3);
+    const leaderUids = Array.isArray(team.leaderUids) ? team.leaderUids : (team.leaderUid ? [team.leaderUid] : []);
+    const leaderNames = Array.isArray(team.leaderNames) ? team.leaderNames : (Array.isArray(team.leaders) ? team.leaders : (team.leader ? [team.leader] : []));
+    leaderUids.forEach((uid, index) => add(uid, leaderNames[index], '領隊', 2));
+    leaderNames.forEach(name => add(null, name, '領隊', 2));
+    const coachUids = Array.isArray(team.coachUids) ? team.coachUids : [];
+    const coachNames = Array.isArray(team.coachNames) ? team.coachNames : (Array.isArray(team.coaches) ? team.coaches : []);
+    coachUids.forEach((uid, index) => add(uid, coachNames[index], '教練', 1));
+    coachNames.forEach(name => add(null, name, '教練', 1));
+
+    return Array.from(map.values())
+      .filter(item => item.roleRank >= 1)
+      .sort((a, b) => b.roleRank - a.roleRank || a.name.localeCompare(b.name, 'zh-Hant'));
+  },
+
+  _renderCoursePlanStaffSuggestList(kind, results) {
+    const container = document.getElementById('edu-cp-' + kind + '-suggest');
+    if (!container) return;
+    if (!results.length) {
+      container.innerHTML = '';
+      container.classList.remove('show');
+      return;
+    }
+    container.innerHTML = results.map(item => {
+      const role = item.roleLabel ? '<span class="tus-uid">' + escapeHTML(item.roleLabel) + '</span>' : '';
+      return '<div class="team-user-suggest-item" onmousedown="event.preventDefault();App.selectCoursePlanStaff(\'' + kind + '\',\'' + encodeURIComponent(item.key) + '\')">'
+        + '<span class="tus-name">' + escapeHTML(item.name) + '</span>'
+        + role
+        + '</div>';
+    }).join('');
+    container.classList.add('show');
+  },
+
+  searchCoursePlanStaff(kind) {
+    const teamId = this._eduCoursePlanEditTeamId;
+    if (!teamId) return;
+    const inputId = kind === 'coach' ? 'edu-cp-coach-name' : 'edu-cp-manager-name';
+    const query = document.getElementById(inputId)?.value || '';
+    const container = document.getElementById('edu-cp-' + kind + '-suggest');
+    if (!String(query || '').trim()) {
+      if (container) {
+        container.innerHTML = '';
+        container.classList.remove('show');
+      }
+      return;
+    }
+    const results = this._getCoursePlanStaffCandidates(teamId)
+      .filter(item => this._matchesCourseStaffCandidate(item, query))
+      .slice(0, 6);
+    this._renderCoursePlanStaffSuggestList(kind, results);
+  },
+
+  selectCoursePlanStaff(kind, encodedKey) {
+    const teamId = this._eduCoursePlanEditTeamId;
+    const key = decodeURIComponent(encodedKey || '');
+    const candidate = this._getCoursePlanStaffCandidates(teamId).find(item => item.key === key);
+    if (!candidate) return;
+    const inputId = kind === 'coach' ? 'edu-cp-coach-name' : 'edu-cp-manager-name';
+    const input = document.getElementById(inputId);
+    if (input) input.value = candidate.name || '';
+    if (kind === 'manager') {
+      const contact = document.getElementById('edu-cp-manager-contact');
+      if (contact && candidate.contact && !contact.value.trim()) contact.value = candidate.contact;
+    }
+    const container = document.getElementById('edu-cp-' + kind + '-suggest');
+    if (container) {
+      container.innerHTML = '';
+      container.classList.remove('show');
+    }
+    this._syncEduCoursePlanFormFillBadges?.();
+  },
+
+  _coursePlanTemplateKey() {
+    return 'sporthub_course_plan_templates_' + ModeManager.getMode();
+  },
+
+  _getCoursePlanTemplateOwnerUid() {
+    const user = ApiService.getCurrentUser?.();
+    return String(user?.uid || user?.lineUserId || user?._docId || '').trim();
+  },
+
+  _getCoursePlanTemplateOwnerName() {
+    const user = ApiService.getCurrentUser?.();
+    return String(user?.displayName || user?.name || user?.nickname || '').trim();
+  },
+
+  _isCoursePlanCloudTemplateEnabled() {
+    return !!this._getCoursePlanTemplateOwnerUid();
+  },
+
+  _getCoursePlanTemplatesFromLocal() {
+    try {
+      const data = JSON.parse(localStorage.getItem(this._coursePlanTemplateKey()) || '[]');
+      return Array.isArray(data) ? data.filter(t => t.templateType === 'coursePlan') : [];
+    } catch {
+      return [];
+    }
+  },
+
+  _setCoursePlanTemplatesToLocal(templates) {
+    localStorage.setItem(this._coursePlanTemplateKey(), JSON.stringify(templates));
+  },
+
+  _saveCoursePlanTemplateToLocal(template) {
+    let templates = this._getCoursePlanTemplatesFromLocal().filter(t => t.id !== template.id);
+    const max = this._MAX_TEMPLATES || 30;
+    if (templates.length >= max) return { ok: false, reason: 'limit' };
+    templates.unshift({ ...template });
+    templates = templates.slice(0, max);
+    try {
+      this._setCoursePlanTemplatesToLocal(templates);
+      return { ok: true, imageDropped: false };
+    } catch {
+      try {
+        const compact = templates.map(t => ({ ...t, coverImage: null }));
+        this._setCoursePlanTemplatesToLocal(compact);
+        return { ok: true, imageDropped: true };
+      } catch {
+        return { ok: false, reason: 'quota' };
+      }
+    }
+  },
+
+  _removeCoursePlanTemplateFromLocal(id) {
+    try {
+      this._setCoursePlanTemplatesToLocal(this._getCoursePlanTemplatesFromLocal().filter(t => String(t.id) !== String(id)));
+    } catch {}
+  },
+
+  _getCoursePlanTemplates() {
+    const isCoursePlan = template => template?.templateType === 'coursePlan';
+    if (this._isCoursePlanCloudTemplateEnabled()) {
+      const cloud = (ApiService.getEventTemplates?.() || []).filter(isCoursePlan);
+      if (cloud.length > 0 || this._templatesLoadedUid === this._getCoursePlanTemplateOwnerUid()) return cloud;
+    }
+    return this._getCoursePlanTemplatesFromLocal();
+  },
+
+  async _ensureCoursePlanTemplatesReady(force = false) {
+    if (!this._isCoursePlanCloudTemplateEnabled()) {
+      this._renderCoursePlanTemplateSelector();
+      return;
+    }
+    const uid = this._getCoursePlanTemplateOwnerUid();
+    if (!uid) return;
+    if (!force && this._templatesLoadedUid === uid) {
+      this._renderCoursePlanTemplateSelector();
+      return;
+    }
+    try {
+      await ApiService.loadMyEventTemplates(uid);
+      this._templatesLoadedUid = uid;
+    } catch (err) {
+      console.warn('[course plan template] load failed, fallback to local:', err);
+    }
+    this._renderCoursePlanTemplateSelector();
+  },
+
+  _getCoursePlanTemplateCoverImage() {
+    if (this._eduCpCoverDataUrl) return this._eduCpCoverDataUrl;
+    const img = document.getElementById('edu-cp-cover-preview')?.querySelector?.('img');
+    return img?.src || null;
+  },
+
+  _buildCurrentCoursePlanTemplate(name) {
+    const planType = document.getElementById('edu-cp-type')?.value || 'weekly';
+    const groupSelect = document.getElementById('edu-cp-group');
+    const totalRaw = document.getElementById('edu-cp-total')?.value || '';
+    const total = totalRaw ? parseInt(totalRaw, 10) : null;
+    const sessionSchedules = planType === 'session' && Number.isFinite(total)
+      ? this._readCoursePlanSessionScheduleDraftFromDom(total).map(item => ({
+          date: '',
+          startTime: item.startTime,
+          endTime: item.endTime,
+        }))
+      : [];
+    return {
+      id: 'tpl_cp_' + Date.now(),
+      name,
+      templateType: 'coursePlan',
+      planName: document.getElementById('edu-cp-name')?.value.trim() || '',
+      groupId: groupSelect?.value || '',
+      groupName: groupSelect?.selectedOptions?.[0]?.dataset?.name || '',
+      planType,
+      allowSignup: !!document.getElementById('edu-cp-signup')?.checked,
+      visibleOnTeamPage: !!document.getElementById('edu-cp-visible-on-team')?.checked,
+      maxCapacity: (() => {
+        const raw = document.getElementById('edu-cp-capacity')?.value || '';
+        const value = raw ? parseInt(raw, 10) : null;
+        return Number.isFinite(value) ? value : null;
+      })(),
+      price: (() => {
+        const raw = document.getElementById('edu-cp-price')?.value || '';
+        const value = raw ? parseInt(raw, 10) : null;
+        return Number.isFinite(value) ? value : null;
+      })(),
+      categoryTags: this._getEduCpTagList('edu-cp-category-tags'),
+      levelLabel: document.getElementById('edu-cp-level-label')?.value.trim() || '',
+      featureTags: this._getEduCpTagList('edu-cp-feature-tags'),
+      requirementTags: this._getEduCpTagList('edu-cp-requirement-tags'),
+      includedTags: this._getEduCpTagList('edu-cp-included-tags'),
+      targetTags: this._getEduCpTagList('edu-cp-target-tags'),
+      managerName: document.getElementById('edu-cp-manager-name')?.value.trim() || '',
+      managerContact: document.getElementById('edu-cp-manager-contact')?.value.trim() || '',
+      notifyTargets: document.getElementById('edu-cp-notify-targets')?.value.trim() || '',
+      coachName: document.getElementById('edu-cp-coach-name')?.value.trim() || '',
+      location: document.getElementById('edu-cp-location')?.value.trim() || '',
+      courseContent: document.getElementById('edu-cp-course-content')?.value.trim() || '',
+      description: document.getElementById('edu-cp-description')?.value.trim() || '',
+      paymentMethod: this._getEduCoursePlanPaymentMethodValue(),
+      paymentDeadline: document.getElementById('edu-cp-payment-deadline')?.value.trim() || '',
+      makeupPolicy: document.getElementById('edu-cp-makeup-policy')?.value.trim() || '',
+      cancellationPolicy: document.getElementById('edu-cp-cancellation-policy')?.value.trim() || '',
+      trialSessionInfo: document.getElementById('edu-cp-trial-info')?.value.trim() || '',
+      minCapacity: (() => {
+        const raw = document.getElementById('edu-cp-min-capacity')?.value || '';
+        const value = raw ? parseInt(raw, 10) : null;
+        return Number.isFinite(value) ? value : null;
+      })(),
+      minAge: (() => {
+        const raw = document.getElementById('edu-cp-min-age')?.value || '';
+        const value = raw ? parseInt(raw, 10) : null;
+        return Number.isFinite(value) ? value : null;
+      })(),
+      maxAge: (() => {
+        const raw = document.getElementById('edu-cp-max-age')?.value || '';
+        const value = raw ? parseInt(raw, 10) : null;
+        return Number.isFinite(value) ? value : null;
+      })(),
+      genderRestriction: document.getElementById('edu-cp-gender')?.value || 'none',
+      featured: !!document.getElementById('edu-cp-featured')?.checked,
+      coverImage: this._getCoursePlanTemplateCoverImage(),
+      weekdays: Array.from(document.querySelectorAll('#edu-cp-weekdays .edu-wd-checked')).map(c => parseInt(c.dataset.day, 10)),
+      timeSlot: document.getElementById('edu-cp-timeslot')?.value.trim() || '',
+      totalSessions: Number.isFinite(total) ? total : null,
+      sessionSchedules,
+      updatedAt: new Date().toISOString(),
+    };
+  },
+
+  async _saveCoursePlanTemplate() {
+    const nameInput = document.getElementById('edu-cp-template-name');
+    const name = (nameInput?.value || '').trim();
+    if (!name) {
+      this.showToast('請輸入範本名稱');
+      return;
+    }
+    this._syncEduCoursePlanPaymentMethodField?.();
+    const tpl = this._buildCurrentCoursePlanTemplate(name);
+    const max = this._MAX_TEMPLATES || 30;
+    if (this._isCoursePlanCloudTemplateEnabled()) {
+      const uid = this._getCoursePlanTemplateOwnerUid();
+      try {
+        await this._ensureCoursePlanTemplatesReady();
+        if (this._getCoursePlanTemplates().length >= max) {
+          this.showToast(`範本數量已達上限 ${max} 組`);
+          return;
+        }
+        await ApiService.createEventTemplate({
+          ...tpl,
+          ownerUid: uid,
+          ownerName: this._getCoursePlanTemplateOwnerName(),
+        });
+        await ApiService.loadMyEventTemplates(uid);
+        this._templatesLoadedUid = uid;
+        this._saveCoursePlanTemplateToLocal(tpl);
+        if (nameInput) nameInput.value = '';
+        this._renderCoursePlanTemplateSelector();
+        this.showToast(`範本「${name}」已儲存到雲端`);
+        return;
+      } catch (err) {
+        console.warn('[course plan template] cloud save failed:', err);
+      }
+    }
+    const result = this._saveCoursePlanTemplateToLocal(tpl);
+    if (!result.ok) {
+      this.showToast(result.reason === 'limit' ? `範本數量已達上限 ${max} 組` : '範本儲存失敗');
+      return;
+    }
+    if (nameInput) nameInput.value = '';
+    this._renderCoursePlanTemplateSelector();
+    this.showToast(result.imageDropped ? `圖片太大，已省略圖片後儲存範本「${name}」` : `範本「${name}」已儲存`);
+  },
+
+  _loadCoursePlanTemplate(id) {
+    const tpl = this._getCoursePlanTemplates().find(t => String(t.id) === String(id))
+      || this._getCoursePlanTemplatesFromLocal().find(t => String(t.id) === String(id));
+    if (!tpl) return;
+    const setVal = (elId, value) => {
+      const el = document.getElementById(elId);
+      if (el && value !== undefined && value !== null) el.value = value;
+    };
+    const setChecked = (elId, value) => {
+      const el = document.getElementById(elId);
+      if (el) el.checked = !!value;
+    };
+    setVal('edu-cp-group', tpl.groupId);
+    setVal('edu-cp-name', tpl.planName);
+    setVal('edu-cp-type', tpl.planType || 'weekly');
+    this._toggleCoursePlanType?.(tpl.planType || 'weekly');
+    setChecked('edu-cp-signup', tpl.allowSignup);
+    setChecked('edu-cp-visible-on-team', tpl.visibleOnTeamPage !== false);
+    setVal('edu-cp-capacity', tpl.maxCapacity);
+    setVal('edu-cp-price', tpl.price);
+    setVal('edu-cp-category-tags', Array.isArray(tpl.categoryTags) ? tpl.categoryTags.join(', ') : tpl.categoryTags);
+    setVal('edu-cp-level-label', tpl.levelLabel);
+    setVal('edu-cp-feature-tags', Array.isArray(tpl.featureTags) ? tpl.featureTags.join(', ') : tpl.featureTags);
+    setVal('edu-cp-requirement-tags', Array.isArray(tpl.requirementTags) ? tpl.requirementTags.join(', ') : tpl.requirementTags);
+    setVal('edu-cp-included-tags', Array.isArray(tpl.includedTags) ? tpl.includedTags.join(', ') : tpl.includedTags);
+    setVal('edu-cp-target-tags', Array.isArray(tpl.targetTags) ? tpl.targetTags.join(', ') : tpl.targetTags);
+    setVal('edu-cp-manager-name', tpl.managerName);
+    setVal('edu-cp-manager-contact', tpl.managerContact);
+    setVal('edu-cp-notify-targets', tpl.notifyTargets);
+    setVal('edu-cp-coach-name', tpl.coachName);
+    setVal('edu-cp-location', tpl.location);
+    setVal('edu-cp-course-content', tpl.courseContent);
+    setVal('edu-cp-description', tpl.description);
+    setVal('edu-cp-payment-deadline', tpl.paymentDeadline);
+    setVal('edu-cp-makeup-policy', tpl.makeupPolicy);
+    setVal('edu-cp-cancellation-policy', tpl.cancellationPolicy);
+    setVal('edu-cp-trial-info', tpl.trialSessionInfo);
+    setVal('edu-cp-min-capacity', tpl.minCapacity);
+    setVal('edu-cp-min-age', tpl.minAge);
+    setVal('edu-cp-max-age', tpl.maxAge);
+    setVal('edu-cp-gender', tpl.genderRestriction || 'none');
+    setChecked('edu-cp-featured', tpl.featured);
+    const parsedPayment = this._splitCoursePlanPaymentMethod(tpl.paymentMethod || '');
+    setVal('edu-cp-payment-method-type', parsedPayment.type);
+    setVal('edu-cp-payment-method-note', parsedPayment.note);
+    this._syncEduCoursePlanPaymentMethodField?.();
+    document.querySelectorAll('#edu-cp-weekdays .edu-wd-cell').forEach(cell => {
+      const day = parseInt(cell.dataset.day, 10);
+      const checked = Array.isArray(tpl.weekdays) && tpl.weekdays.includes(day);
+      cell.classList.toggle('edu-wd-checked', checked);
+      const mark = cell.querySelector('.edu-wd-check');
+      if (mark) mark.textContent = checked ? '✓' : '';
+    });
+    setVal('edu-cp-timeslot', tpl.timeSlot);
+    setVal('edu-cp-total', tpl.totalSessions);
+    this._eduCoursePlanSessionScheduleDraft = this._normalizeCoursePlanSessionSchedules((tpl.sessionSchedules || []).map(item => ({
+      date: '',
+      startTime: item?.startTime || '',
+      endTime: item?.endTime || '',
+    })));
+    this._renderCoursePlanSessionScheduleFields?.();
+    if (tpl.coverImage) {
+      const preview = document.getElementById('edu-cp-cover-preview');
+      if (preview) preview.innerHTML = '<img src="' + escapeHTML(tpl.coverImage) + '">';
+      this._eduCpCoverDataUrl = null;
+    }
+    this._updateCoursePlanPreview?.();
+    this._syncEduCoursePlanFormFillBadges?.();
+    this.showToast(`已載入範本「${tpl.name}」`);
+  },
+
+  async _deleteCoursePlanTemplate(id) {
+    const cloudEnabled = this._isCoursePlanCloudTemplateEnabled();
+    if (cloudEnabled) {
+      const uid = this._getCoursePlanTemplateOwnerUid();
+      try {
+        await ApiService.deleteEventTemplate(id);
+        await ApiService.loadMyEventTemplates(uid);
+        this._templatesLoadedUid = uid;
+      } catch (err) {
+        console.warn('[course plan template] cloud delete failed:', err);
+      }
+    }
+    this._removeCoursePlanTemplateFromLocal(id);
+    this._renderCoursePlanTemplateSelector();
+    this.showToast('範本已刪除');
+  },
+
+  _renderCoursePlanTemplateSelector() {
+    const container = document.getElementById('edu-cp-template-selector');
+    if (!container) return;
+    const cloud = this._getCoursePlanTemplates();
+    const local = this._getCoursePlanTemplatesFromLocal();
+    const seen = new Set(cloud.map(t => t.id));
+    const templates = [...cloud, ...local.filter(t => !seen.has(t.id))];
+    if (!templates.length) {
+      container.innerHTML = '<span class="edu-session-template-empty">尚無範本</span>';
+      return;
+    }
+    container.innerHTML = templates.map(t => '<span class="edu-session-template-chip" onclick="App._loadCoursePlanTemplate(\'' + escapeHTML(t.id) + '\')">'
+      + escapeHTML(t.name)
+      + '<button type="button" onclick="event.stopPropagation();App._deleteCoursePlanTemplate(\'' + escapeHTML(t.id) + '\')" title="刪除範本">×</button>'
+      + '</span>').join('');
   },
 
   _verifyEduCoursePlanRenderedFields(container, variant) {
@@ -533,7 +1115,10 @@ Object.assign(App, {
     const visibleToggle = document.getElementById('edu-cp-visible-on-team');
     if (visibleToggle) data.visibleOnTeamPage = !!visibleToggle.checked;
     assignOptionalText('makeupPolicy', 'edu-cp-makeup-policy', 500);
-    assignOptionalText('paymentMethod', 'edu-cp-payment-method', 300);
+    if (document.getElementById('edu-cp-payment-method')) {
+      this._syncEduCoursePlanPaymentMethodField?.();
+      data.paymentMethod = this._getEduCoursePlanPaymentMethodValue?.() || optionalText('edu-cp-payment-method', 300);
+    }
     assignOptionalText('paymentDeadline', 'edu-cp-payment-deadline', 60);
     assignOptionalText('notifyTargets', 'edu-cp-notify-targets', 200);
     assignOptionalText('trialSessionInfo', 'edu-cp-trial-info', 300);

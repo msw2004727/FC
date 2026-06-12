@@ -340,7 +340,7 @@ Object.assign(App, {
       if (found) return found;
     }
     if (name) {
-      return userList.find(user => [user.displayName, user.name, user.nickname]
+      return userList.find(user => [user.displayName, user.name, user.nickname, user.nickName, user.alias, user.lineDisplayName, user.lineName, user.lineUserName]
         .map(value => normalize(value).toLowerCase())
         .some(value => value && value === name)) || null;
     }
@@ -399,7 +399,10 @@ Object.assign(App, {
         candidate.roleLabel = roleLabel;
         candidate.roleRank = roleRank;
       }
-      candidate.searchText = [candidate.name, candidate.uid, candidate.roleLabel]
+      const aliases = typeof this._getCourseStaffSearchAliases === 'function'
+        ? this._getCourseStaffSearchAliases(user)
+        : [user?.displayName, user?.name, user?.nickname, user?.nickName, user?.alias, user?.lineDisplayName, user?.lineName, user?.lineUserName];
+      candidate.searchText = [candidate.name, candidate.uid, candidate.roleLabel, ...aliases]
         .map(value => String(value || '').toLowerCase())
         .join(' ');
       map.set(key, candidate);
@@ -456,7 +459,11 @@ Object.assign(App, {
       ? new Set((this._eduCourseSessionAssistantCoaches || []).map(item => item.key || (item.uid ? 'uid:' + item.uid : 'name:' + String(item.name || '').toLowerCase())))
       : new Set();
     const results = candidates
-      .filter(item => !exclude.has(item.key) && item.searchText.includes(query))
+      .filter(item => !exclude.has(item.key) && (
+        typeof this._matchesCourseStaffCandidate === 'function'
+          ? this._matchesCourseStaffCandidate(item, query)
+          : item.searchText.includes(query)
+      ))
       .slice(0, 6);
     this._renderCourseSessionStaffSuggestList(kind, results);
   },

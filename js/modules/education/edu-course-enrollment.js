@@ -546,6 +546,38 @@ Object.assign(App, {
     } finally { _b.restore(); }
   },
 
+  async _removeApprovedCourseEnrollment(teamId, planId, enrollId, btnEl) {
+    const key = this._getCourseEnrollCacheKey(teamId, planId);
+    if (String(enrollId || '').startsWith('_auto_')) {
+      this.showToast?.('這是分組自動名單，請先到分組移除此學員');
+      return;
+    }
+    const ok = typeof this.appConfirm === 'function'
+      ? await this.appConfirm('確定刪除此學員的課程報名？一旦確認就無法還原，學員需要重新申請。')
+      : window.confirm('確定刪除此學員的課程報名？一旦確認就無法還原，學員需要重新申請。');
+    if (!ok) return;
+    const _b = this._setEduBtnLoading(btnEl);
+    try {
+      const enr = (this._courseEnrollCache[key] || []).find(e => e.id === enrollId);
+      const curUser = ApiService.getCurrentUser?.();
+      await FirebaseService.updateCourseEnrollment(teamId, planId, enrollId, {
+        status: 'removed',
+        removedAt: new Date().toISOString(),
+        removedByUid: curUser?.uid || '',
+        removedByName: curUser?.displayName || curUser?.name || '',
+        previousStatus: enr?.status || 'approved',
+      });
+      delete this._courseEnrollCache[key];
+      delete this._courseEnrollSummaryCache[key];
+      this.showToast?.('已刪除學員，若要加入需重新申請');
+      await this._renderCourseEnrollmentList(teamId, planId);
+      await this._refreshCourseViewsAfterEnrollmentChange?.(teamId, planId, { force: true });
+    } catch (err) {
+      console.error('[_removeApprovedCourseEnrollment]', err);
+      this.showToast?.('刪除失敗：' + (err.message || '請稍後再試'));
+    } finally { _b.restore(); }
+  },
+
   async _toggleEnrollPaid(teamId, planId, enrollId) {
     const key = this._getCourseEnrollCacheKey(teamId, planId);
     const enr = (this._courseEnrollCache[key] || []).find(e => e.id === enrollId);
