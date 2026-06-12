@@ -3193,16 +3193,16 @@
 }
 .edu-member-inline-actions {
   align-items: center;
-  gap: .12rem;
+  gap: .16rem;
 }
 .edu-member-inline-actions .edu-attendance-btn,
 .edu-member-inline-actions .edu-withdraw-btn {
-  min-height: 1.05rem;
-  padding: .18rem .36rem;
+  min-height: 1.42rem;
+  padding: .24rem .48rem;
   border-radius: 4px;
   border-width: 1px;
-  font-size: .41rem;
-  line-height: 1;
+  font-size: .62rem;
+  line-height: 1.05;
   white-space: nowrap;
 }
 .edu-attendance-btn {

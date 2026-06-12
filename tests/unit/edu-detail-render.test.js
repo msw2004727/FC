@@ -433,7 +433,7 @@ describe('renderEduClubDetail info card', () => {
     );
     expect(cssSource).toMatch(/\.edu-student-header\s*\{[^}]*flex-wrap: nowrap;[^}]*min-width: 0;/s);
     expect(cssSource).toMatch(/\.edu-student-name\s*\{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/s);
-    expect(cssSource).toMatch(/\.edu-member-inline-actions \.edu-attendance-btn,\s*\.edu-member-inline-actions \.edu-withdraw-btn\s*\{[^}]*font-size: \.41rem;/s);
+    expect(cssSource).toMatch(/\.edu-member-inline-actions \.edu-attendance-btn,\s*\.edu-member-inline-actions \.edu-withdraw-btn\s*\{[^}]*font-size: \.62rem;/s);
   });
 
   test('shows education club leaders between manager and coach', () => {
