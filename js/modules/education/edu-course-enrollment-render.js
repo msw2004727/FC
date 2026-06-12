@@ -192,15 +192,6 @@ Object.assign(App, {
     const age = stu && stu.birthday ? this.calcAge(stu.birthday) : null;
     const gender = stu?.gender === 'male' ? '♂' : stu?.gender === 'female' ? '♀' : '';
     const groupNames = (stu?.groupNames || []).join('、') || '未分組';
-    // 報名日期（右上角）— 處理 Firestore Timestamp / ISO string / Date
-    const enrollDateRaw = e.appliedAt || e.reviewedAt || '';
-    let enrollDate = '';
-    if (enrollDateRaw) {
-      if (typeof enrollDateRaw === 'string') enrollDate = enrollDateRaw.slice(0, 10);
-      else if (enrollDateRaw.toDate) enrollDate = enrollDateRaw.toDate().toISOString().slice(0, 10);
-      else if (enrollDateRaw.seconds) enrollDate = new Date(enrollDateRaw.seconds * 1000).toISOString().slice(0, 10);
-    }
-
     // 繳費狀態（待繳費顯示勾選框；已繳費只顯示文字 + ✏️ 可改日期或取消）
     var paidHtml = '';
     if (e.paidAt) {
@@ -217,37 +208,47 @@ Object.assign(App, {
       paidHtml = '<span class="edu-ce-paid-label"><span class="edu-ce-paid-no">※繳費打勾</span></span>';
     }
 
-    const notesId = 'ce-notes-' + e.id;
-    const notePanelId = 'ce-note-panel-' + e.id;
-    const noteTriggerId = 'ce-note-trigger-' + e.id;
-    const notesValue = String(e.coachNotes || '').trim().slice(0, 15);
+    const safeEnrollId = String(e.id || '').replace(/[^A-Za-z0-9_-]/g, '_');
+    const notesId = 'ce-notes-' + safeEnrollId;
+    const notePanelId = 'ce-note-panel-' + safeEnrollId;
+    const noteTriggerId = 'ce-note-trigger-' + safeEnrollId;
+    const notesValue = String(e.coachNotes || '').trim().slice(0, 30);
+    const noteActionLabel = notesValue ? '編輯備註' : '新增備註';
+    const noteIconSvg = '<svg class="edu-ce-note-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+      + '<path d="M7 3.75h9.25A2.75 2.75 0 0 1 19 6.5v12.25a1.5 1.5 0 0 1-1.5 1.5H7A2.75 2.75 0 0 1 4.25 17.5v-11A2.75 2.75 0 0 1 7 3.75Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>'
+      + '<path d="M7.25 3.9v16.2M10 8h5.5M10 11.5h5.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>'
+      + '</svg>';
     const removeHtml = isStaff
       ? '<button type="button" class="edu-ce-remove-approved-btn" title="刪除學員" aria-label="刪除學員" onclick="event.stopPropagation();App._removeApprovedCourseEnrollment(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\',this)">×</button>'
       : '';
-    const noteHtml = isStaff ? '<div class="edu-ce-note-side" onclick="event.stopPropagation()">'
-      + '<div class="edu-ce-note-actions">'
-      + '<button type="button" id="' + noteTriggerId + '" class="edu-ce-note-trigger' + (notesValue ? ' has-note' : '') + '" onclick="App._toggleEnrollNoteEditor(\'' + notePanelId + '\',\'' + noteTriggerId + '\')">'
-      + '<span class="edu-ce-note-title">備註</span>'
-      + '<span class="edu-ce-note-preview">' + escapeHTML(notesValue || '點選填寫') + '</span>'
+    const noteActionsHtml = isStaff ? '<div class="edu-ce-note-actions" onclick="event.stopPropagation()">'
+      + '<button type="button" id="' + noteTriggerId + '" class="edu-ce-note-trigger' + (notesValue ? ' has-note' : '') + '" title="' + noteActionLabel + '" aria-label="' + noteActionLabel + '" aria-expanded="false" onclick="App._toggleEnrollNoteEditor(\'' + notePanelId + '\',\'' + noteTriggerId + '\')">'
+      + noteIconSvg
       + '</button>'
       + removeHtml
-      + '</div>'
-      + '<div class="edu-ce-note-editor" id="' + notePanelId + '" style="display:none">'
-      + '<input class="edu-ce-note-input" id="' + notesId + '" maxlength="15" value="' + escapeHTML(notesValue) + '" placeholder="15字內">'
+      + '</div>' : '';
+    const noteEditorHtml = isStaff ? '<div class="edu-ce-note-editor" id="' + notePanelId + '" style="display:none" onclick="event.stopPropagation()">'
+      + '<input class="edu-ce-note-input" id="' + notesId + '" maxlength="30" value="' + escapeHTML(notesValue) + '" data-original="' + escapeHTML(notesValue) + '" placeholder="備註30字內">'
+      + '<div class="edu-ce-note-editor-actions">'
       + '<button type="button" class="primary-btn small" onclick="App._saveEnrollNotes(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\',\'' + notesId + '\')">儲存</button>'
+      + '<button type="button" class="outline-btn small" onclick="App._cancelEnrollNotes(\'' + notePanelId + '\',\'' + noteTriggerId + '\')">取消</button>'
       + '</div>'
       + '</div>' : '';
+    const noteRowHtml = notesValue
+      ? '<div class="edu-ce-note-row"><span>備註</span><p>' + escapeHTML(notesValue) + '</p></div>'
+      : '';
 
     return '<div class="edu-ce-card edu-ce-card-approved">'
       + '<div class="edu-ce-card-top">'
       + '<span class="edu-ce-name">' + escapeHTML(e.studentName) + '</span>'
       + '<span class="edu-ce-meta">' + gender + (age != null ? ' ' + age + '歲' : '') + '  ' + escapeHTML(groupNames) + '</span>'
-      + (enrollDate ? '<span class="edu-ce-date">' + enrollDate + '</span>' : '')
       + '</div>'
       + '<div class="edu-ce-card-mid">'
       + paidHtml
-      + noteHtml
+      + noteActionsHtml
       + '</div>'
+      + noteEditorHtml
+      + noteRowHtml
       + '</div>';
   },
 

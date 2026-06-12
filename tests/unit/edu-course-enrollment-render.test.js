@@ -167,7 +167,7 @@ describe('edu course enrollment render', () => {
     expect(classList.add).toHaveBeenCalledWith('edu-ce-section-focus');
   });
 
-  test('approved enrollment card uses compact paid and 15-char note controls without attendance', () => {
+  test('approved enrollment card hides approval date and uses notebook note controls', () => {
     const app = {
       calcAge: jest.fn(() => 10),
     };
@@ -178,7 +178,9 @@ describe('edu course enrollment render', () => {
       studentId: 'stuA',
       studentName: '小客',
       paidAt: null,
-      coachNotes: 'abcdefghijklmnop',
+      coachNotes: 'abcdefghijklmnopqrstuvwxyzABCDE',
+      appliedAt: '2099-01-02T00:00:00.000Z',
+      reviewedAt: '2099-01-03T00:00:00.000Z',
     }, {
       planType: 'session',
       totalSessions: 8,
@@ -194,16 +196,22 @@ describe('edu course enrollment render', () => {
     expect(cardHtml).not.toContain('出勤');
     expect(cardHtml).not.toContain('edu-ce-expand');
     expect(cardHtml).not.toContain('_toggleEnrollExpand');
-    expect(cardHtml).toContain('edu-ce-note-side');
     expect(cardHtml).toContain('edu-ce-note-actions');
     expect(cardHtml).toContain('id="ce-note-trigger-enrA"');
+    expect(cardHtml).toContain('edu-ce-note-icon');
+    expect(cardHtml).toContain('aria-label="編輯備註"');
     expect(cardHtml).toContain("_toggleEnrollNoteEditor('ce-note-panel-enrA','ce-note-trigger-enrA')");
     expect(cardHtml).toContain("App._removeApprovedCourseEnrollment('teamA','planA','enrA',this)");
     expect(cardHtml).toContain('class="edu-ce-remove-approved-btn"');
     expect(cardHtml).not.toContain('edu-ce-card-main');
-    expect(cardHtml).toContain('maxlength="15"');
-    expect(cardHtml).toContain('abcdefghijklmno');
-    expect(cardHtml).not.toContain('abcdefghijklmnop');
+    expect(cardHtml).not.toContain('edu-ce-date');
+    expect(cardHtml).not.toContain('2099-01-02');
+    expect(cardHtml).not.toContain('2099-01-03');
+    expect(cardHtml).toContain('maxlength="30"');
+    expect(cardHtml).toContain('abcdefghijklmnopqrstuvwxyzABCD');
+    expect(cardHtml).not.toContain('abcdefghijklmnopqrstuvwxyzABCDE');
+    expect(cardHtml).toContain('edu-ce-note-row');
+    expect(cardHtml).toContain("App._cancelEnrollNotes('ce-note-panel-enrA','ce-note-trigger-enrA')");
   });
 
   test('approved paid card uses setting button instead of pencil icon', () => {
@@ -224,5 +232,7 @@ describe('edu course enrollment render', () => {
     expect(cardHtml).toContain('class="edu-ce-paid-edit"');
     expect(cardHtml).toContain('>設定</button>');
     expect(cardHtml).not.toContain('✏️');
+    expect(cardHtml).toContain('aria-label="新增備註"');
+    expect(cardHtml).not.toContain('edu-ce-note-row');
   });
 });

@@ -252,8 +252,8 @@ describe('Course enrollment', () => {
     expect(enrollmentSource).toContain('_mergeCourseEnrollmentCacheAfterCancel(teamId, planId, cancelledIds)');
   });
 
-  test('coach notes save is capped to 15 characters and refreshes roster', async () => {
-    const input = { value: 'abcdefghijklmnop' };
+  test('coach notes save is capped to 30 characters and refreshes roster', async () => {
+    const input = { value: 'abcdefghijklmnopqrstuvwxyzABCDE' };
     const updateCourseEnrollment = jest.fn(async () => {});
     const app = {
       _isEduAutoEnrollmentMaterializationAllowed: jest.fn(() => true),
@@ -273,10 +273,10 @@ describe('Course enrollment', () => {
     await loaded._saveEnrollNotes('teamA', 'planA', 'enrA', 'noteInput');
 
     expect(updateCourseEnrollment).toHaveBeenCalledWith('teamA', 'planA', 'enrA', {
-      coachNotes: 'abcdefghijklmno',
+      coachNotes: 'abcdefghijklmnopqrstuvwxyzABCD',
     });
-    expect(input.value).toBe('abcdefghijklmno');
-    expect(loaded._courseEnrollCache['teamA:planA'][0].coachNotes).toBe('abcdefghijklmno');
+    expect(input.value).toBe('abcdefghijklmnopqrstuvwxyzABCD');
+    expect(loaded._courseEnrollCache['teamA:planA'][0].coachNotes).toBe('abcdefghijklmnopqrstuvwxyzABCD');
     expect(app._renderCourseEnrollmentList).toHaveBeenCalledWith('teamA', 'planA');
   });
 
@@ -374,13 +374,16 @@ describe('Course enrollment', () => {
     expect(plan._enrollmentSummary.viewerStatuses.stuA).toBeUndefined();
   });
 
-  test('coach note editor replaces the trigger in-place', () => {
+  test('coach note editor expands below controls and keeps the trigger visible', () => {
     const input = { focus: jest.fn() };
     const panel = {
       style: { display: 'none' },
       querySelector: jest.fn(() => input),
     };
-    const trigger = { style: { display: '' } };
+    const trigger = {
+      setAttribute: jest.fn(),
+      classList: { toggle: jest.fn(), remove: jest.fn() },
+    };
     const documentMock = {
       getElementById: jest.fn((id) => ({ notePanel: panel, noteTrigger: trigger }[id] || null)),
     };
@@ -389,12 +392,41 @@ describe('Course enrollment', () => {
 
     loaded._toggleEnrollNoteEditor('notePanel', 'noteTrigger');
     expect(panel.style.display).toBe('');
-    expect(trigger.style.display).toBe('none');
+    expect(trigger.setAttribute).toHaveBeenCalledWith('aria-expanded', 'true');
+    expect(trigger.classList.toggle).toHaveBeenCalledWith('is-open', true);
     expect(input.focus).toHaveBeenCalled();
 
     loaded._toggleEnrollNoteEditor('notePanel', 'noteTrigger');
     expect(panel.style.display).toBe('none');
-    expect(trigger.style.display).toBe('');
+    expect(trigger.setAttribute).toHaveBeenCalledWith('aria-expanded', 'false');
+    expect(trigger.classList.toggle).toHaveBeenCalledWith('is-open', false);
+  });
+
+  test('coach note cancel closes editor and restores unsaved text', () => {
+    const input = {
+      value: 'unsaved',
+      getAttribute: jest.fn(() => 'saved'),
+    };
+    const panel = {
+      style: { display: '' },
+      querySelector: jest.fn(() => input),
+    };
+    const trigger = {
+      setAttribute: jest.fn(),
+      classList: { remove: jest.fn() },
+    };
+    const documentMock = {
+      getElementById: jest.fn((id) => ({ notePanel: panel, noteTrigger: trigger }[id] || null)),
+    };
+
+    const loaded = loadCourseEnrollmentModule({}, { document: documentMock });
+
+    loaded._cancelEnrollNotes('notePanel', 'noteTrigger');
+
+    expect(input.value).toBe('saved');
+    expect(panel.style.display).toBe('none');
+    expect(trigger.setAttribute).toHaveBeenCalledWith('aria-expanded', 'false');
+    expect(trigger.classList.remove).toHaveBeenCalledWith('is-open');
   });
 
   test('detects enrolled student (pending)', () => {

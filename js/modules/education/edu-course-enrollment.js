@@ -14,6 +14,30 @@ Object.assign(App, {
     return teamId + ':' + planId;
   },
 
+  _formatCourseEnrollmentDateLocal(value) {
+    if (!value) return '';
+    if (typeof value === 'string') {
+      const raw = value.trim();
+      if (!raw) return '';
+      const dateOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (dateOnly && !/[tTzZ]/.test(raw)) {
+        return dateOnly[1] + '-' + dateOnly[2] + '-' + dateOnly[3];
+      }
+      const parsed = new Date(raw);
+      if (!Number.isNaN(parsed.getTime())) return this._formatCourseEnrollmentDateLocal(parsed);
+      return dateOnly ? dateOnly[1] + '-' + dateOnly[2] + '-' + dateOnly[3] : '';
+    }
+    const date = value instanceof Date
+      ? value
+      : (typeof value.toDate === 'function'
+        ? value.toDate()
+        : (Number.isFinite(value.seconds) ? new Date(value.seconds * 1000) : null));
+    if (!date || Number.isNaN(date.getTime())) return '';
+    return date.getFullYear() + '-'
+      + String(date.getMonth() + 1).padStart(2, '0') + '-'
+      + String(date.getDate()).padStart(2, '0');
+  },
+
   _isEduAutoEnrollmentMaterializationAllowed() {
     return !(typeof isEduAutoMigrationCompleted === 'function' && isEduAutoMigrationCompleted());
   },
@@ -215,13 +239,7 @@ Object.assign(App, {
       const overlay = document.createElement('div');
       overlay.className = 'edu-info-overlay edu-course-pending-cancel-overlay';
       overlay.onclick = (event) => { if (event.target === overlay) overlay.remove(); };
-      const formatDate = (value) => {
-        if (!value) return '';
-        if (typeof value === 'string') return value.slice(0, 10);
-        if (typeof value.toDate === 'function') return value.toDate().toISOString().slice(0, 10);
-        if (Number.isFinite(value.seconds)) return new Date(value.seconds * 1000).toISOString().slice(0, 10);
-        return '';
-      };
+      const formatDate = (value) => this._formatCourseEnrollmentDateLocal?.(value) || '';
       const itemHtml = pendingItems.map(({ enrollment, student, studentId }) => {
         const appliedDate = formatDate(enrollment.appliedAt || enrollment.appliedAtIso || enrollment.createdAt);
         const age = student?.birthday ? this.calcAge?.(student.birthday) : null;
@@ -419,13 +437,7 @@ Object.assign(App, {
         + '</span>';
       const existing = enrolledMap[s.id];
       if (existing) {
-        const rawDate = existing.appliedAt || '';
-        let dateStr = '';
-        if (rawDate) {
-          if (typeof rawDate === 'string') dateStr = rawDate.slice(0, 10);
-          else if (rawDate.toDate) dateStr = rawDate.toDate().toISOString().slice(0, 10);
-          else if (rawDate.seconds) dateStr = new Date(rawDate.seconds * 1000).toISOString().slice(0, 10);
-        }
+        const dateStr = this._formatCourseEnrollmentDateLocal?.(existing.appliedAt || existing.createdAt) || '';
         return '<label class="edu-ce-pick-item edu-ce-pick-disabled">'
           + '<div class="edu-ce-pick-main"><span class="edu-ce-pick-name">' + escapeHTML(s.name) + '</span>' + infoLine + '</div>'
           + '<span class="edu-ce-pick-hint">已於 ' + dateStr + ' 報名</span>'
@@ -498,10 +510,26 @@ Object.assign(App, {
     const trigger = triggerId ? document.getElementById(triggerId) : null;
     const shouldOpen = el.style.display === 'none';
     el.style.display = shouldOpen ? '' : 'none';
-    if (trigger) trigger.style.display = shouldOpen ? 'none' : '';
+    if (trigger) {
+      trigger.setAttribute?.('aria-expanded', shouldOpen ? 'true' : 'false');
+      trigger.classList?.toggle?.('is-open', shouldOpen);
+    }
     if (shouldOpen) {
       const input = el.querySelector?.('input');
       input?.focus?.();
+    }
+  },
+
+  _cancelEnrollNotes(panelId, triggerId) {
+    const el = document.getElementById(panelId);
+    if (!el) return;
+    const input = el.querySelector?.('input');
+    if (input) input.value = input.getAttribute?.('data-original') || '';
+    el.style.display = 'none';
+    const trigger = triggerId ? document.getElementById(triggerId) : null;
+    if (trigger) {
+      trigger.setAttribute?.('aria-expanded', 'false');
+      trigger.classList?.remove?.('is-open');
     }
   },
 
@@ -689,7 +717,7 @@ Object.assign(App, {
       enr.id = realId; enrollId = realId;
     }
     const rawNotes = String(textarea.value || '').trim();
-    const notes = rawNotes.slice(0, 15);
+    const notes = rawNotes.slice(0, 30);
     if (textarea.value !== notes) textarea.value = notes;
     await FirebaseService.updateCourseEnrollment(teamId, planId, enrollId, { coachNotes: notes });
     if (enr) enr.coachNotes = notes;

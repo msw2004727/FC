@@ -1470,7 +1470,6 @@
 .edu-ce-card:hover { border-color: var(--accent); }
 .edu-ce-card-pending { border-left: 3px solid var(--warning); }
 .edu-ce-card-top { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; position: relative; }
-.edu-ce-date { font-size: .7rem; color: var(--text-muted); margin-left: auto; }
 .edu-ce-name { font-size: .95rem; font-weight: 700; }
 .edu-ce-meta { font-size: .82rem; color: var(--text-muted); }
 .edu-ce-card-mid { display: flex; align-items: center; gap: .55rem; flex-wrap: nowrap; margin-top: .3rem; min-width: 0; }
@@ -1479,15 +1478,17 @@
 .edu-ce-paid-no { color: var(--text-muted); }
 .edu-ce-card-actions { display: flex; gap: .4rem; margin-top: .4rem; }
 .edu-ce-card-mid .edu-ce-paid-label { flex: 0 0 auto; white-space: nowrap; }
-.edu-ce-note-side { flex: 1 1 9rem; min-width: 0; max-width: 17rem; }
 .edu-ce-note-actions {
+  margin-left: auto;
+  flex: 0 0 auto;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 2.08rem;
+  grid-template-columns: 2.08rem 2.08rem;
   align-items: center;
+  justify-content: end;
   gap: .35rem;
 }
 .edu-ce-note-trigger {
-  width: 100%;
+  width: 2.08rem;
   height: 2.08rem;
   box-sizing: border-box;
   border: 1px solid var(--border);
@@ -1496,17 +1497,23 @@
   color: var(--text-primary);
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: .38rem;
-  padding: .32rem .52rem;
+  justify-content: center;
+  padding: 0;
   cursor: pointer;
 }
 .edu-ce-note-trigger.has-note {
   border-color: rgba(13, 148, 136, .36);
   background: var(--accent-bg, rgba(13, 148, 136, .08));
 }
-.edu-ce-note-title { flex: 0 0 auto; font-size: .68rem; font-weight: 800; color: var(--accent); line-height: 1; }
-.edu-ce-note-preview { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .78rem; font-weight: 700; color: var(--text-secondary); text-align: left; }
+.edu-ce-note-trigger.is-open {
+  border-color: rgba(13, 148, 136, .55);
+  box-shadow: 0 0 0 2px rgba(13, 148, 136, .12);
+}
+.edu-ce-note-icon {
+  width: 1.12rem;
+  height: 1.12rem;
+  display: block;
+}
 .edu-ce-remove-approved-btn {
   width: 2.08rem;
   height: 2.08rem;
@@ -1523,7 +1530,18 @@
   background: rgba(220, 38, 38, .14);
   border-color: rgba(220, 38, 38, .58);
 }
-.edu-ce-note-editor { display: flex; width: 100%; align-items: center; gap: .35rem; }
+.edu-ce-note-editor {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: .42rem;
+  margin-top: .48rem;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-subtle, var(--bg-base));
+  padding: .42rem;
+}
 .edu-ce-note-input {
   min-width: 0;
   flex: 1 1 auto;
@@ -1536,16 +1554,55 @@
   padding: .2rem .48rem;
   font-size: .78rem;
 }
-.edu-ce-note-editor .primary-btn.small { height: 2.08rem; box-sizing: border-box; padding: .2rem .55rem; white-space: nowrap; }
+.edu-ce-note-editor-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+}
+.edu-ce-note-editor .primary-btn.small,
+.edu-ce-note-editor .outline-btn.small { height: 2.08rem; box-sizing: border-box; padding: .2rem .55rem; white-space: nowrap; }
+.edu-ce-note-row {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: .45rem;
+  margin-top: .48rem;
+  border-left: 3px solid rgba(13, 148, 136, .45);
+  border-radius: 6px;
+  background: var(--bg-subtle, var(--bg-base));
+  padding: .42rem .55rem;
+}
+.edu-ce-note-row span {
+  color: var(--accent);
+  font-size: .72rem;
+  font-weight: 900;
+}
+.edu-ce-note-row p {
+  min-width: 0;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: .8rem;
+  font-weight: 750;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
 @media (max-width: 420px) {
   .edu-ce-card-mid { gap: .4rem; }
-  .edu-ce-note-title { display: none; }
-  .edu-ce-note-side { flex-basis: 7rem; }
-  .edu-ce-note-actions { grid-template-columns: minmax(0, 1fr) 1.95rem; }
+  .edu-ce-note-actions { grid-template-columns: 1.95rem 1.95rem; gap: .3rem; }
   .edu-ce-note-trigger,
   .edu-ce-remove-approved-btn,
   .edu-ce-note-input,
-  .edu-ce-note-editor .primary-btn.small { height: 1.95rem; }
+  .edu-ce-note-editor .primary-btn.small,
+  .edu-ce-note-editor .outline-btn.small { height: 1.95rem; }
+  .edu-ce-note-trigger,
+  .edu-ce-remove-approved-btn { width: 1.95rem; }
+  .edu-ce-note-editor {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .edu-ce-note-editor-actions { width: 100%; }
+  .edu-ce-note-editor-actions .primary-btn,
+  .edu-ce-note-editor-actions .outline-btn { flex: 1 1 0; }
   .edu-ce-jump-nav { padding: .32rem; }
   .edu-ce-jump-btn {
     min-height: 1.85rem;
