@@ -1063,6 +1063,8 @@ describe('edu course plan render', () => {
     expect(overlay.innerHTML).toContain('edu-course-contact-value');
     expect(overlay.innerHTML).toContain('Team Manager');
     expect(overlay.innerHTML).toContain('href="https://line.me/R/ti/p/%40safe"');
+    expect(overlay.innerHTML).toContain('我要報名');
+    expect(overlay.innerHTML).toContain("App.applyCourseEnrollment('teamA','planStaff',this)");
     expect(overlay.innerHTML).not.toContain('編輯課程');
     expect(overlay.innerHTML).not.toContain('名單管理');
     expect(overlay.innerHTML).not.toContain('edu-course-detail-staff-actions');
@@ -1584,7 +1586,6 @@ describe('edu course plan render', () => {
 
     expect(preview.textContent).toBe('已選時間：10:15~11:45');
   });
-
 
   test('session schedule selected time preview has responsive styling', () => {
     expect(cssSource).toContain('.edu-cp-session-time-preview');

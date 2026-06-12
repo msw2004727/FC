@@ -592,11 +592,12 @@ Object.assign(App, {
       return;
     }
     const detailPlanId = String(plan.id || plan._docId || planId || '').trim();
+    const canShowSignupForViewer = !!plan.allowSignup && (isStaff || plan.visibleOnTeamPage !== false);
     const detailEnrollKey = this._getCourseEnrollCacheKey?.(teamId, detailPlanId);
     if (detailEnrollKey && this._courseEnrollSummaryCache?.[detailEnrollKey]) {
       plan._enrollmentSummary = this._courseEnrollSummaryCache[detailEnrollKey];
     }
-    if (!isStaff && plan.visibleOnTeamPage !== false && plan.allowSignup && !this._isCoursePlanEnded?.(plan) && !plan._enrollmentSummary) {
+    if (canShowSignupForViewer && !this._isCoursePlanEnded?.(plan) && !plan._enrollmentSummary) {
       try {
         if (typeof this._loadCourseEnrollmentSummaries === 'function') {
           const summaries = await this._loadCourseEnrollmentSummaries(teamId, [detailPlanId]);
@@ -874,7 +875,7 @@ Object.assign(App, {
       : '';
     const viewerEnrollmentState = this._getCoursePlanViewerEnrollmentState?.(teamId, plan) || {};
     let signupActionHtml = '';
-    if (!isStaff && plan.visibleOnTeamPage !== false && plan.allowSignup) {
+    if (canShowSignupForViewer) {
       if (this._isCoursePlanEnded?.(plan)) {
         signupActionHtml = '<button type="button" class="primary-btn edu-course-detail-signup-btn edu-cp-signup-disabled" disabled>課程已結束</button>';
       } else if (viewerEnrollmentState.pendingCount > 0) {
