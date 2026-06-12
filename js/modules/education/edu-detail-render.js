@@ -436,6 +436,7 @@ Object.assign(App, {
       } else {
         actionBtns = '<button class="outline-btn small edu-withdraw-btn" onclick="App._confirmEduCancelApply(\'' + teamId + '\',\'' + s.id + '\',this)" data-name="' + escapeHTML(s.name) + '">取消申請</button>';
       }
+      const actionWrapClass = isPending ? 'edu-header-actions' : 'edu-header-actions edu-member-inline-actions';
 
       return '<div class="edu-student-card">'
         + '<div class="edu-student-header">'
@@ -443,7 +444,7 @@ Object.assign(App, {
         + (genderIcon ? '<span class="edu-student-gender' + genderClass + '">' + genderIcon + '</span>' : '')
         + (ageLabel ? '<span class="edu-student-age">' + ageLabel + '</span>' : '')
         + statusHtml
-        + '<span class="edu-header-actions">' + actionBtns + '</span>'
+        + '<span class="' + actionWrapClass + '">' + actionBtns + '</span>'
         + '</div>'
         + groupHtml
         + courseTagsHtml

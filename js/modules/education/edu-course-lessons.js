@@ -162,10 +162,14 @@ Object.assign(App, {
     return { ok: true };
   },
 
+  _getCourseLessonRosterStudentId(student) {
+    return String(student?.studentId || student?.id || student?._docId || '').trim();
+  },
+
   _getCourseLessonAttendanceMap(students) {
     const map = {};
     (students || []).forEach((student) => {
-      const studentId = String(student?.studentId || '').trim();
+      const studentId = this._getCourseLessonRosterStudentId(student);
       if (!studentId) return;
       map[studentId] = student.attendanceKind === 'leave'
         ? 'leave'
@@ -216,7 +220,7 @@ Object.assign(App, {
     const draft = ctx.draftByStudentId || {};
     const changes = students
       .map(student => {
-        const studentId = String(student.studentId || '').trim();
+        const studentId = this._getCourseLessonRosterStudentId(student);
         if (!studentId) return null;
         const nextKind = draft[studentId] || null;
         if ((original[studentId] || null) === nextKind) return null;
@@ -305,7 +309,7 @@ Object.assign(App, {
     overlay.className = 'edu-info-overlay edu-course-self-leave-overlay';
     overlay.onclick = (event) => { if (event.target === overlay) overlay.remove(); };
     const renderItem = (student) => {
-      const id = String(student.studentId || '').trim();
+      const id = this._getCourseLessonRosterStudentId(student);
       const checked = id === key ? ' checked' : '';
       const statusText = student.attendanceKind === 'leave' ? '已請假' : '未請假';
       return '<label class="edu-ce-pick-item edu-course-self-leave-pick">'
@@ -346,7 +350,7 @@ Object.assign(App, {
       .filter(Boolean)));
     const students = Array.isArray(ctx.rosterPayload?.students) ? ctx.rosterPayload.students : [];
     const selected = ids
-      .map(id => students.find(item => String(item.studentId || '') === id))
+      .map(id => students.find(item => this._getCourseLessonRosterStudentId(item) === id))
       .filter(student => student && student.canSelfLeave === true);
     if (!selected.length) {
       this.showToast?.('目前沒有可處理的請假學員');
@@ -355,12 +359,13 @@ Object.assign(App, {
     const run = async () => {
       try {
         for (const student of selected) {
+          const studentId = this._getCourseLessonRosterStudentId(student);
           await FirebaseService.saveEduCourseSelfLeave({
             teamId: ctx.teamId,
             planId: ctx.planId,
             sessionId: ctx.sessionId,
             date: ctx.rosterPayload?.session?.date,
-            studentId: String(student.studentId || '').trim(),
+            studentId,
             studentName: student.displayName || '',
             selfUid: student.selfUid || null,
             parentUid: student.parentUid || null,

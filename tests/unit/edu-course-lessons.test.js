@@ -375,6 +375,57 @@ describe('edu course lessons', () => {
     expect(html.indexOf('小華')).toBeGreaterThan(html.indexOf('未繳費區'));
   });
 
+  test('staff roster matches payment data when roster students use id fields', async () => {
+    const { app, container, firebase } = loadCourseLessonsContext({
+      isStaff: true,
+      rosterPayload: {
+        rosterPublic: true,
+        session: {
+          id: 'sessionA',
+          title: 'Session A',
+          date: '2099-06-02',
+          startTime: '10:00',
+          endTime: '11:30',
+          status: 'scheduled',
+        },
+        students: [
+          { id: 'stu1', displayName: 'Paid Id Student', attendanceKind: 'signin' },
+          { _docId: 'stu2', displayName: 'Unpaid Doc Student', attendanceKind: null },
+        ],
+      },
+      enrollments: [
+        { id: 'enr1', studentId: 'stu1', status: 'approved', paidAt: '2099-06-01', coachNotes: 'paid note' },
+        { id: 'enr2', studentId: 'stu2', status: 'approved', paidAt: null, coachNotes: 'unpaid note' },
+      ],
+    });
+
+    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+
+    const html = container.innerHTML;
+    expect(html).toContain('未繳費區');
+    expect(html.indexOf('Paid Id Student')).toBeLessThan(html.indexOf('未繳費區'));
+    expect(html.indexOf('Unpaid Doc Student')).toBeGreaterThan(html.indexOf('未繳費區'));
+    expect(html).toContain("App.editCourseSessionRosterNote('teamA','planA','stu2','enr2')");
+
+    app.startCourseLessonRosterManage();
+    app.setCourseLessonRosterDraft('stu2', 'leave');
+    await app.saveCourseLessonRosterManage({ dataset: {}, disabled: false, style: {}, isConnected: true });
+
+    expect(firebase.saveEduSessionAttendanceChanges).toHaveBeenCalledWith({
+      teamId: 'teamA',
+      planId: 'planA',
+      sessionId: 'sessionA',
+      date: '2099-06-02',
+      changes: [{
+        studentId: 'stu2',
+        studentName: 'Unpaid Doc Student',
+        parentUid: null,
+        selfUid: null,
+        kind: 'leave',
+      }],
+    });
+  });
+
   test('staff roster keeps the normal list when payment data cannot load', async () => {
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     const { app, container } = loadCourseLessonsContext({

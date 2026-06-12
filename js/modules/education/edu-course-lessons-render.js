@@ -112,23 +112,28 @@ Object.assign(App, {
       ? context.paidByStudentId
       : null;
     const shouldSplitUnpaid = context.isStaff === true && paidByStudentId !== null;
+    const getRosterStudentId = (student) => (
+      typeof this._getCourseLessonRosterStudentId === 'function'
+        ? this._getCourseLessonRosterStudentId(student)
+        : String(student?.studentId || student?.id || student?._docId || '').trim()
+    );
     const paidStudents = [];
     const unpaidStudents = [];
     students.forEach((student) => {
-      const studentId = String(student?.studentId || '').trim();
-      if (shouldSplitUnpaid && studentId && paidByStudentId[studentId] !== true) unpaidStudents.push(student);
+      const studentId = getRosterStudentId(student);
+      if (shouldSplitUnpaid && (!studentId || paidByStudentId[studentId] !== true)) unpaidStudents.push(student);
       else paidStudents.push(student);
     });
     let rosterRowIndex = 0;
     const renderRosterCard = (student, unpaid = false) => {
       const index = rosterRowIndex++;
       const name = student.displayName || '學員';
-      const studentId = String(student.studentId || '').trim();
+      const studentId = getRosterStudentId(student);
       const draftKind = manageMode
         ? (context.draftByStudentId?.[studentId] || null)
         : student.attendanceKind;
       const attendance = this._getCourseLessonAttendanceMeta(draftKind);
-      const note = notesByStudentId[student.studentId] || '';
+      const note = notesByStudentId[studentId] || '';
       const safeStudentId = this._eduCourseLessonsJsArg(studentId);
       const signinId = 'edu-roster-signin-' + index;
       const leaveId = 'edu-roster-leave-' + index;
@@ -166,7 +171,7 @@ Object.assign(App, {
         : '<span class="td-member-name-pill uc-user edu-course-member-pill" onclick="event.stopPropagation();App.showUserProfile(\'' + this._eduCourseLessonsJsArg(name) + '\')">' + escapeHTML(name) + '</span>';
       const noteHtml = context.isStaff
         ? '<div class="edu-course-roster-note"><span>' + escapeHTML(note || '尚未填寫備註') + '</span>'
-          + '<button type="button" class="edu-session-note-edit" title="編輯備註" aria-label="編輯備註" onclick="event.stopPropagation();App.editCourseSessionRosterNote(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + this._eduCourseLessonsJsArg(student.studentId) + '\',\'' + this._eduCourseLessonsJsArg(context.enrollIdsByStudentId?.[student.studentId] || '') + '\')"></button>'
+          + '<button type="button" class="edu-session-note-edit" title="編輯備註" aria-label="編輯備註" onclick="event.stopPropagation();App.editCourseSessionRosterNote(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + this._eduCourseLessonsJsArg(studentId) + '\',\'' + this._eduCourseLessonsJsArg(context.enrollIdsByStudentId?.[studentId] || '') + '\')"></button>'
           + '</div>'
         : '';
       const paymentBadgeHtml = unpaid

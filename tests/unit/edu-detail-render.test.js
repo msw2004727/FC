@@ -389,6 +389,53 @@ describe('renderEduClubDetail info card', () => {
     expect(app.renderEduCoursePlanList).toHaveBeenCalledWith('teamA', true);
   });
 
+  test('keeps active student attendance and withdraw actions compact inline', () => {
+    const contentEl = { innerHTML: '', closest: jest.fn(() => ({})) };
+    const app = {
+      _eduDetailTeamId: 'teamA',
+      _eduActiveTab: 'student',
+      isEduClubStaff: jest.fn(() => false),
+      getEduStudents: jest.fn(() => [
+        { id: 'studentA', name: 'Very Long Student Nickname', enrollStatus: 'active', parentUid: 'viewer', birthday: '2015-01-01' },
+      ]),
+      getEduCoursePlans: jest.fn(() => []),
+      calcAge: jest.fn(() => 11),
+      _getEduNextClassForStudent: jest.fn(() => null),
+    };
+    const context = {
+      App: app,
+      ApiService: {
+        getTeam: jest.fn(),
+        getCurrentUser: jest.fn(() => ({ uid: 'viewer' })),
+      },
+      document: {
+        getElementById: jest.fn((id) => (
+          id === 'edu-detail-tab-content' || id === 'edu-member-section' ? contentEl : null
+        )),
+        querySelectorAll: jest.fn(() => []),
+      },
+      escapeHTML,
+      Promise,
+      Date,
+    };
+
+    vm.createContext(context);
+    vm.runInContext(source, context, { filename: 'edu-detail-render.js' });
+    context.App._eduActiveTab = 'student';
+    context.App._renderEduTabContent('teamA');
+
+    expect(contentEl.innerHTML).toContain('Very Long Student Nickname');
+    expect(contentEl.innerHTML).toContain('edu-header-actions edu-member-inline-actions');
+    expect(contentEl.innerHTML).toContain('edu-attendance-btn');
+    expect(contentEl.innerHTML).toContain('edu-withdraw-btn');
+    expect(contentEl.innerHTML.indexOf('Very Long Student Nickname')).toBeLessThan(
+      contentEl.innerHTML.indexOf('edu-header-actions edu-member-inline-actions')
+    );
+    expect(cssSource).toMatch(/\.edu-student-header\s*\{[^}]*flex-wrap: nowrap;[^}]*min-width: 0;/s);
+    expect(cssSource).toMatch(/\.edu-student-name\s*\{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/s);
+    expect(cssSource).toMatch(/\.edu-member-inline-actions \.edu-attendance-btn,\s*\.edu-member-inline-actions \.edu-withdraw-btn\s*\{[^}]*font-size: \.41rem;/s);
+  });
+
   test('shows education club leaders between manager and coach', () => {
     const html = renderWithTeam({
       id: 'edu-team-1',
