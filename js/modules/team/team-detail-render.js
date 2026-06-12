@@ -887,7 +887,7 @@ Object.assign(App, {
 
   _buildEduDetailTabControlsHtml(teamId) {
     const isStaff = this._isEduPendingTabStaff(teamId);
-    const pendingCount = isStaff ? 0 : this._getEduPendingStudentsForViewer(teamId).length;
+    const pendingCount = this._getEduPendingStudentsForViewer(teamId).length;
     const pendingVisible = isStaff || pendingCount > 0;
     const pendingBadge = '<span id="edu-pending-badge" class="edu-tab-badge"'
       + (pendingCount > 0 ? ' style="display:inline-block"' : '')

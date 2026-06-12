@@ -299,7 +299,7 @@ describe('renderEduClubDetail info card', () => {
     expect(app._renderPendingStudentRow).not.toHaveBeenCalled();
   });
 
-  test('shows pending review tab badge only for non staff with own pending students', () => {
+  test('shows pending review tab badge for staff and non staff own pending students', () => {
     const app = {
       isEduClubStaff: jest.fn(() => false),
       getEduStudents: jest.fn(() => [
@@ -336,6 +336,17 @@ describe('renderEduClubDetail info card', () => {
     const hiddenHtml = context.App._buildEduDetailTabControlsHtml('teamA');
     expect(hiddenHtml).toContain('id="edu-pending-tab-wrap" class="edu-tab-mine-wrap" style="display:none"');
     expect(hiddenHtml).toContain('id="edu-pending-badge" class="edu-tab-badge"></span>');
+
+    app.isEduClubStaff.mockReturnValue(true);
+    app.getEduStudents.mockReturnValue([
+      { id: 'pending-student-1', enrollStatus: 'pending', selfUid: 'student-1' },
+      { id: 'pending-student-2', enrollStatus: 'pending', selfUid: 'student-2' },
+      { id: 'active-student', enrollStatus: 'active', selfUid: 'student-3' },
+    ]);
+    const staffHtml = context.App._buildEduDetailTabControlsHtml('teamA');
+    expect(staffHtml).toContain('id="edu-pending-tab-wrap" class="edu-tab-mine-wrap"');
+    expect(staffHtml).not.toContain('id="edu-pending-tab-wrap" class="edu-tab-mine-wrap" style="display:none"');
+    expect(staffHtml).toContain('id="edu-pending-badge" class="edu-tab-badge" style="display:inline-block">2</span>');
   });
 
   test('flattens v2 course tab content without duplicate course containers', () => {
