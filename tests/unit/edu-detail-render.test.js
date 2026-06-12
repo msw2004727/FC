@@ -257,6 +257,88 @@ describe('renderEduClubDetail info card', () => {
     expect(app._renderPendingStudentRow).toHaveBeenCalledWith('teamA', '', { id: 'pending-1', name: '小麥', enrollStatus: 'pending' });
   });
 
+  test('filters pending review tab to current viewer students for non staff', () => {
+    const contentEl = { innerHTML: '', closest: jest.fn(() => ({})) };
+    const app = {
+      _eduDetailTeamId: 'teamA',
+      _eduActiveTab: 'pending',
+      isEduClubStaff: jest.fn(() => false),
+      getEduStudents: jest.fn(() => [
+        { id: 'pending-own', name: '自己的待審核', enrollStatus: 'pending', parentUid: 'viewer' },
+        { id: 'pending-other', name: '別人的待審核', enrollStatus: 'pending', parentUid: 'other' },
+        { id: 'active-own', name: '自己的已通過', enrollStatus: 'active', parentUid: 'viewer' },
+      ]),
+      _renderPendingStudentRow: jest.fn((teamId, groupId, student) => '<div class="pending-row">' + escapeHTML(student.name) + '</div>'),
+    };
+    const context = {
+      App: app,
+      ApiService: {
+        getTeam: jest.fn(),
+        getCurrentUser: jest.fn(() => ({ uid: 'viewer' })),
+      },
+      document: {
+        getElementById: jest.fn((id) => id === 'edu-detail-tab-content' || id === 'edu-pending-section' ? contentEl : null),
+        querySelectorAll: jest.fn(() => []),
+      },
+      escapeHTML,
+      Promise,
+    };
+
+    vm.createContext(context);
+    vm.runInContext(source, context, { filename: 'edu-detail-render.js' });
+    context.App._eduActiveTab = 'pending';
+    context.App._renderEduTabContent('teamA');
+
+    expect(contentEl.innerHTML).toContain('自己的待審核');
+    expect(contentEl.innerHTML).not.toContain('別人的待審核');
+    expect(contentEl.innerHTML).not.toContain('自己的已通過');
+    expect(app._renderPendingStudentRow).toHaveBeenCalledTimes(1);
+    expect(app._renderPendingStudentRow).toHaveBeenCalledWith(
+      'teamA',
+      '',
+      { id: 'pending-own', name: '自己的待審核', enrollStatus: 'pending', parentUid: 'viewer' }
+    );
+  });
+
+  test('shows pending review tab badge only for non staff with own pending students', () => {
+    const app = {
+      isEduClubStaff: jest.fn(() => false),
+      getEduStudents: jest.fn(() => [
+        { id: 'pending-own-1', enrollStatus: 'pending', selfUid: 'viewer' },
+        { id: 'pending-own-2', enrollStatus: 'pending', parentUid: 'viewer' },
+        { id: 'pending-other', enrollStatus: 'pending', selfUid: 'other' },
+      ]),
+    };
+    const context = {
+      App: app,
+      ApiService: {
+        getTeam: jest.fn(),
+        getCurrentUser: jest.fn(() => ({ uid: 'viewer' })),
+      },
+      document: {
+        getElementById: jest.fn(() => null),
+        querySelectorAll: jest.fn(() => []),
+      },
+      escapeHTML,
+      Promise,
+    };
+
+    vm.createContext(context);
+    vm.runInContext(source, context, { filename: 'edu-detail-render.js' });
+
+    const visibleHtml = context.App._buildEduDetailTabControlsHtml('teamA');
+    expect(visibleHtml).toContain('id="edu-pending-tab-wrap" class="edu-tab-mine-wrap"');
+    expect(visibleHtml).toContain('id="edu-pending-badge" class="edu-tab-badge" style="display:inline-block">2</span>');
+
+    app.getEduStudents.mockReturnValue([
+      { id: 'pending-other', enrollStatus: 'pending', selfUid: 'other' },
+      { id: 'active-own', enrollStatus: 'active', selfUid: 'viewer' },
+    ]);
+    const hiddenHtml = context.App._buildEduDetailTabControlsHtml('teamA');
+    expect(hiddenHtml).toContain('id="edu-pending-tab-wrap" class="edu-tab-mine-wrap" style="display:none"');
+    expect(hiddenHtml).toContain('id="edu-pending-badge" class="edu-tab-badge"></span>');
+  });
+
   test('flattens v2 course tab content without duplicate course containers', () => {
     const contentEl = {
       innerHTML: '',

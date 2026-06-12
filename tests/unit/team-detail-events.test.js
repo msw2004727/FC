@@ -316,6 +316,41 @@ describe('team detail club activity section', () => {
     expect(app._buildTeamEducationSection({ id: 'teamA' })).not.toContain('班級');
   });
 
+  test('hides education pending tab for non staff without own pending students', () => {
+    const app = makeApp([]);
+    Object.assign(app, {
+      isEduClubStaff: () => false,
+      getEduStudents: () => [
+        { id: 'pending-other', enrollStatus: 'pending', selfUid: 'someone-else' },
+        { id: 'active-viewer', enrollStatus: 'active', selfUid: 'viewer' },
+      ],
+    });
+    loadTeamDetailRender(app, []);
+
+    const html = app._buildTeamEducationSection({ id: 'teamA' });
+    expect(html).toContain('data-edutab="pending"');
+    expect(html).toContain('id="edu-pending-tab-wrap" class="edu-tab-mine-wrap" style="display:none"');
+    expect(html).not.toContain('style="display:inline-block">1</span>');
+  });
+
+  test('shows education pending tab badge for non staff own pending students', () => {
+    const app = makeApp([]);
+    Object.assign(app, {
+      isEduClubStaff: () => false,
+      getEduStudents: () => [
+        { id: 'pending-self', enrollStatus: 'pending', selfUid: 'viewer' },
+        { id: 'pending-child', enrollStatus: 'pending', parentUid: 'viewer' },
+        { id: 'pending-other', enrollStatus: 'pending', selfUid: 'someone-else' },
+      ],
+    });
+    loadTeamDetailRender(app, []);
+
+    const html = app._buildTeamEducationSection({ id: 'teamA' });
+    expect(html).toContain('id="edu-pending-tab-wrap" class="edu-tab-mine-wrap"');
+    expect(html).not.toContain('id="edu-pending-tab-wrap" class="edu-tab-mine-wrap" style="display:none"');
+    expect(html).toContain('id="edu-pending-badge" class="edu-tab-badge" style="display:inline-block">2</span>');
+  });
+
   test('teaching tag controls course and student section visibility', () => {
     const app = makeApp([]);
     loadTeamDetailRender(app, []);

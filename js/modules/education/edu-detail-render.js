@@ -16,9 +16,8 @@ Object.assign(App, {
     this._eduDetailTeamId = teamId;
     this._eduActiveTab = 'course';
 
-    document.querySelectorAll('#edu-detail-tabs .tab').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.edutab === 'course');
-    });
+    this._refreshEduPendingTabState(teamId);
+    this._setEduDetailTabActiveState('course');
 
     const renderResult = this._renderEduTabContent(teamId, options);
     if (renderResult && typeof renderResult.then === 'function') {
@@ -40,6 +39,7 @@ Object.assign(App, {
 
     this._loadEduStudents(teamId).then(() => {
       if (this._eduDetailTeamId === teamId) {
+        this._refreshEduPendingTabState(teamId);
         const refreshResult = this._refreshEduActiveTabContent(teamId);
         if (refreshResult && typeof refreshResult.then === 'function') {
           refreshResult
@@ -105,12 +105,7 @@ Object.assign(App, {
 
     // ── 頁籤列（課程 | 分組 | 我的 + badge + 未繳費提示）──
     const tabBar = '<div class="edu-tab-row">'
-      + '<div class="tab-bar" id="edu-detail-tabs" style="flex:0 0 auto">'
-      + '<button class="tab active" data-edutab="course" onclick="App.switchEduTab(\'course\')">課程</button>'
-      + '<button class="tab" data-edutab="group" onclick="App.switchEduTab(\'group\')">分組</button>'
-      + '<span class="edu-tab-mine-wrap"><button class="tab" data-edutab="student" onclick="App.switchEduTab(\'student\')">學員</button><span id="edu-mine-badge" class="edu-tab-badge"></span></span>'
-      + '<button class="tab" data-edutab="pending" onclick="App.switchEduTab(\'pending\')">待審核</button>'
-      + '</div>'
+      + this._buildEduDetailTabControlsHtml(teamId)
       + '<span id="edu-mine-status" class="edu-mine-status"></span>'
       + '</div>';
 
@@ -129,6 +124,7 @@ Object.assign(App, {
     // ★ Phase 2：背景 fetch + 即時監聽
     this._loadEduStudents(teamId).then(() => {
       if (this._eduDetailTeamId === teamId) {
+        this._refreshEduPendingTabState(teamId);
         this._refreshEduActiveTabContent(teamId);
         this._updateEduMineBadge(teamId);
         this._refreshTeamMembersCardFromCache?.(teamId);
@@ -141,11 +137,11 @@ Object.assign(App, {
    * 切換教學俱樂部頁籤
    */
   switchEduTab(tab, options = {}) {
-    const nextTab = this._normalizeEduDetailTab(tab);
+    let nextTab = this._normalizeEduDetailTab(tab);
+    this._refreshEduPendingTabState(this._eduDetailTeamId);
+    if (nextTab === 'pending' && !this._shouldShowEduPendingTab(this._eduDetailTeamId)) nextTab = 'course';
     this._eduActiveTab = nextTab;
-    document.querySelectorAll('#edu-detail-tabs .tab').forEach(btn => {
-      btn.classList.toggle('active', this._normalizeEduDetailTab(btn.dataset.edutab) === nextTab);
-    });
+    this._setEduDetailTabActiveState(nextTab);
     return this._renderEduTabContent(this._eduDetailTeamId, options);
   },
 
@@ -154,7 +150,13 @@ Object.assign(App, {
   },
 
   _refreshEduActiveTabContent(teamId, options = {}) {
-    const tab = this._normalizeEduDetailTab(this._eduActiveTab);
+    this._refreshEduPendingTabState(teamId);
+    let tab = this._normalizeEduDetailTab(this._eduActiveTab);
+    if (tab === 'pending' && !this._shouldShowEduPendingTab(teamId)) {
+      tab = 'course';
+      this._eduActiveTab = tab;
+      this._setEduDetailTabActiveState(tab);
+    }
     if (tab === 'student') this._renderEduMemberSection(teamId);
     else if (tab === 'group') this.renderEduGroupList(teamId);
     else if (tab === 'pending') this._renderEduPendingSection(teamId);
@@ -164,6 +166,72 @@ Object.assign(App, {
         : this.renderEduCoursePlanList(teamId, this.isEduClubStaff(teamId));
     }
     return undefined;
+  },
+
+  _isEduPendingTabStaff(teamId) {
+    if (typeof this.isEduClubStaff !== 'function') return true;
+    return !!this.isEduClubStaff(teamId);
+  },
+
+  _getEduPendingStudentsForViewer(teamId, curUser) {
+    const students = typeof this.getEduStudents === 'function' ? (this.getEduStudents(teamId) || []) : [];
+    const pending = students.filter(s => s && s.enrollStatus === 'pending');
+    if (this._isEduPendingTabStaff(teamId)) return pending;
+    const viewer = curUser || ApiService.getCurrentUser?.();
+    if (!viewer?.uid) return [];
+    if (typeof this._getMyEduStudents === 'function') {
+      return this._getMyEduStudents(teamId, viewer).filter(s => s.enrollStatus === 'pending');
+    }
+    return pending.filter(s =>
+      (s.parentUid && s.parentUid === viewer.uid) || (s.selfUid && s.selfUid === viewer.uid)
+    );
+  },
+
+  _shouldShowEduPendingTab(teamId, curUser) {
+    if (this._isEduPendingTabStaff(teamId)) return true;
+    return this._getEduPendingStudentsForViewer(teamId, curUser).length > 0;
+  },
+
+  _buildEduDetailTabControlsHtml(teamId) {
+    const isStaff = this._isEduPendingTabStaff(teamId);
+    const pendingCount = isStaff ? 0 : this._getEduPendingStudentsForViewer(teamId).length;
+    const pendingVisible = isStaff || pendingCount > 0;
+    const pendingBadge = '<span id="edu-pending-badge" class="edu-tab-badge"'
+      + (pendingCount > 0 ? ' style="display:inline-block"' : '')
+      + '>' + (pendingCount > 0 ? pendingCount : '') + '</span>';
+    return '<div class="tab-bar" id="edu-detail-tabs" style="flex:0 0 auto">'
+      + '<button class="tab active" data-edutab="course" onclick="App.switchEduTab(\'course\')">課程</button>'
+      + '<button class="tab" data-edutab="group" onclick="App.switchEduTab(\'group\')">分組</button>'
+      + '<span class="edu-tab-mine-wrap"><button class="tab" data-edutab="student" onclick="App.switchEduTab(\'student\')">學員</button><span id="edu-mine-badge" class="edu-tab-badge"></span></span>'
+      + '<span id="edu-pending-tab-wrap" class="edu-tab-mine-wrap"'
+      + (pendingVisible ? '' : ' style="display:none"')
+      + '><button class="tab" data-edutab="pending" onclick="App.switchEduTab(\'pending\')">待審核</button>' + pendingBadge + '</span>'
+      + '</div>';
+  },
+
+  _setEduDetailTabActiveState(activeTab) {
+    const nextTab = this._normalizeEduDetailTab(activeTab);
+    document.querySelectorAll('#edu-detail-tabs .tab').forEach(btn => {
+      btn.classList.toggle('active', this._normalizeEduDetailTab(btn.dataset.edutab) === nextTab);
+    });
+  },
+
+  _refreshEduPendingTabState(teamId) {
+    const isStaff = this._isEduPendingTabStaff(teamId);
+    const count = isStaff ? 0 : this._getEduPendingStudentsForViewer(teamId).length;
+    const shouldShow = isStaff || count > 0;
+    const wrap = document.getElementById?.('edu-pending-tab-wrap');
+    if (wrap) wrap.style.display = shouldShow ? '' : 'none';
+    const badge = document.getElementById?.('edu-pending-badge');
+    if (badge) {
+      badge.textContent = count || '';
+      badge.style.display = count > 0 ? 'inline-block' : 'none';
+    }
+    if (!shouldShow && this._normalizeEduDetailTab(this._eduActiveTab) === 'pending') {
+      this._eduActiveTab = 'course';
+      this._setEduDetailTabActiveState('course');
+    }
+    return { shouldShow, count };
   },
 
   /**
@@ -225,12 +293,7 @@ Object.assign(App, {
     if (!container) return;
     const inlineUnified = !!container.closest?.('#edu-detail-section');
     const panelClass = inlineUnified ? 'td-edu-panel' : 'td-card';
-    const isStaff = this.isEduClubStaff(teamId);
-    if (!isStaff) {
-      container.innerHTML = '<div class="' + panelClass + '"><div class="edu-empty-state">僅俱樂部管理者可查看待審核名單</div></div>';
-      return;
-    }
-    const pending = (this.getEduStudents(teamId) || []).filter(s => s.enrollStatus === 'pending');
+    const pending = this._getEduPendingStudentsForViewer(teamId);
     const rows = pending.length
       ? pending.map(s => {
         if (typeof this._renderPendingStudentRow === 'function') return this._renderPendingStudentRow(teamId, '', s);
@@ -521,6 +584,7 @@ Object.assign(App, {
   },
 
   async _updateEduMineBadge(teamId) {
+    this._refreshEduPendingTabState(teamId);
     const curUser = ApiService.getCurrentUser();
     const myStudents = this._getMyEduStudents(teamId, curUser).filter(s => s.enrollStatus === 'active');
     // 綠圈：學員數

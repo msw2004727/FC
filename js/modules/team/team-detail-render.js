@@ -866,17 +866,46 @@ Object.assign(App, {
       '</div>';
   },
 
+  _isEduPendingTabStaff(teamId) {
+    if (typeof this.isEduClubStaff !== 'function') return true;
+    return !!this.isEduClubStaff(teamId);
+  },
+
+  _getEduPendingStudentsForViewer(teamId, curUser) {
+    const students = typeof this.getEduStudents === 'function' ? (this.getEduStudents(teamId) || []) : [];
+    const pending = students.filter(s => s && s.enrollStatus === 'pending');
+    if (this._isEduPendingTabStaff(teamId)) return pending;
+    const viewer = curUser || ApiService.getCurrentUser?.();
+    if (!viewer?.uid) return [];
+    if (typeof this._getMyEduStudents === 'function') {
+      return this._getMyEduStudents(teamId, viewer).filter(s => s.enrollStatus === 'pending');
+    }
+    return pending.filter(s =>
+      (s.parentUid && s.parentUid === viewer.uid) || (s.selfUid && s.selfUid === viewer.uid)
+    );
+  },
+
+  _buildEduDetailTabControlsHtml(teamId) {
+    const isStaff = this._isEduPendingTabStaff(teamId);
+    const pendingCount = isStaff ? 0 : this._getEduPendingStudentsForViewer(teamId).length;
+    const pendingVisible = isStaff || pendingCount > 0;
+    const pendingBadge = '<span id="edu-pending-badge" class="edu-tab-badge"'
+      + (pendingCount > 0 ? ' style="display:inline-block"' : '')
+      + '>' + (pendingCount > 0 ? pendingCount : '') + '</span>';
+    return '<div class="tab-bar" id="edu-detail-tabs" style="flex:0 0 auto">' +
+      '<button class="tab active" data-edutab="course" onclick="App.switchEduTab(\'course\')">\u8ab2\u7a0b</button>' +
+      '<button class="tab" data-edutab="group" onclick="App.switchEduTab(\'group\')">\u5206\u7d44</button>' +
+      '<span class="edu-tab-mine-wrap"><button class="tab" data-edutab="student" onclick="App.switchEduTab(\'student\')">\u5b78\u54e1</button><span id="edu-mine-badge" class="edu-tab-badge"></span></span>' +
+      '<span id="edu-pending-tab-wrap" class="edu-tab-mine-wrap"' + (pendingVisible ? '' : ' style="display:none"') + '><button class="tab" data-edutab="pending" onclick="App.switchEduTab(\'pending\')">\u5f85\u5be9\u6838</button>' + pendingBadge + '</span>' +
+      '</div>';
+  },
+
   _buildTeamEducationSection(t) {
     if (!t) return '';
     return '<div class="td-card td-section-card td-edu-unified" id="edu-detail-section">' +
       '<div class="td-card-title td-card-title-row"><span>\u4ff1\u6a02\u90e8\u8ab2\u7a0b</span></div>' +
       '<div class="edu-tab-row td-edu-tab-row">' +
-      '<div class="tab-bar" id="edu-detail-tabs" style="flex:0 0 auto">' +
-      '<button class="tab active" data-edutab="course" onclick="App.switchEduTab(\'course\')">\u8ab2\u7a0b</button>' +
-      '<button class="tab" data-edutab="group" onclick="App.switchEduTab(\'group\')">\u5206\u7d44</button>' +
-      '<span class="edu-tab-mine-wrap"><button class="tab" data-edutab="student" onclick="App.switchEduTab(\'student\')">\u5b78\u54e1</button><span id="edu-mine-badge" class="edu-tab-badge"></span></span>' +
-      '<button class="tab" data-edutab="pending" onclick="App.switchEduTab(\'pending\')">\u5f85\u5be9\u6838</button>' +
-      '</div>' +
+      this._buildEduDetailTabControlsHtml(t.id) +
       '<span id="edu-mine-status" class="edu-mine-status"></span>' +
       '</div>' +
       '<div id="edu-detail-tab-content" class="edu-tab-content td-edu-tab-content"></div>' +
