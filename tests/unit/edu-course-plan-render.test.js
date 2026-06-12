@@ -778,6 +778,9 @@ describe('edu course plan render', () => {
     expect(overlay.innerHTML).toContain('contact &lt;line&gt;');
     expect((overlay.innerHTML.match(/需自備球鞋/g) || []).length).toBe(1);
     expect(overlay.innerHTML).not.toContain('<script>bad</script>');
+    expect(overlay.innerHTML).toContain("App.applyCourseEnrollment('teamA','planX',this)");
+    expect(overlay.innerHTML).toContain('我要報名');
+    expect(overlay.innerHTML).not.toContain('立即報名');
     const scrollIndex = overlay.innerHTML.indexOf('edu-course-detail-scroll');
     expect(scrollIndex).toBeGreaterThan(-1);
     expect(scrollIndex).toBeLessThan(overlay.innerHTML.indexOf('edu-course-detail-meta'));
@@ -822,6 +825,7 @@ describe('edu course plan render', () => {
     expect(overlay.className).toContain('edu-course-detail-hidden-overlay');
     expect(overlay.innerHTML).toContain('課程尚未公開');
     expect(overlay.innerHTML).not.toContain('立即報名');
+    expect(overlay.innerHTML).not.toContain('我要報名');
   });
 
   test('course detail disables signup when all viewer students already enrolled', async () => {
@@ -1360,6 +1364,58 @@ describe('edu course plan render', () => {
     expect(container.innerHTML).toContain('id="edu-cp-save-btn"');
     expect(app._updateCoursePlanPreview).toHaveBeenCalled();
     expect(app._renderCoursePlanSessionScheduleFields).toHaveBeenCalled();
+  });
+
+
+  test('session schedule fields show and update selected time preview', () => {
+    const list = { innerHTML: '', querySelector: jest.fn(() => null) };
+    const elements = {
+      'edu-cp-session-schedule-list': list,
+      'edu-cp-total': { value: '2' },
+      'edu-cp-start': { value: '2099-06-01' },
+      'edu-cp-end': { value: '2099-06-08' },
+    };
+    const app = {
+      _eduCoursePlanSessionScheduleDraft: [
+        { date: '2099-06-03', startTime: '18:00', endTime: '19:00' },
+      ],
+      _getSessionPlanAutoDate: jest.fn((_range, index) => index === 0 ? '2099-06-03' : '2099-06-10'),
+    };
+    const context = {
+      App: app,
+      document: { getElementById: jest.fn((id) => elements[id] || null) },
+      escapeHTML,
+      console,
+      Number,
+      String,
+      Array,
+      Math,
+      parseInt,
+    };
+    vm.runInNewContext(crudSource, context, { filename: 'edu-course-plan.js' });
+
+    context.App._renderCoursePlanSessionScheduleFields();
+
+    expect(list.innerHTML).toContain('id="edu-cp-session-time-preview-1"');
+    expect(list.innerHTML).toContain('已選時間：18:00~19:00');
+    expect(list.innerHTML).toContain('已選時間：19:00~20:30');
+    expect(list.innerHTML).toContain('oninput="App._updateCoursePlanSessionTimePreview(1)"');
+
+    const preview = { textContent: '' };
+    elements['edu-cp-session-time-preview-1'] = preview;
+    elements['edu-cp-session-start-1'] = { value: '10:15' };
+    elements['edu-cp-session-end-1'] = { value: '11:45' };
+
+    context.App._updateCoursePlanSessionTimePreview(1);
+
+    expect(preview.textContent).toBe('已選時間：10:15~11:45');
+  });
+
+
+  test('session schedule selected time preview has responsive styling', () => {
+    expect(cssSource).toContain('.edu-cp-session-time-preview');
+    expect(cssSource).toContain('grid-column: 3 / -1');
+    expect(cssSource).toContain('grid-column: 2 / -1');
   });
 
   test('course plan save preserves optional field payloads', async () => {

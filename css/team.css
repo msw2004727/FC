@@ -1225,8 +1225,9 @@
 }
 .td-member-joined {
   color: var(--text-muted);
-  font-size: .78rem;
+  font-size: .72rem;
   font-weight: 800;
+  white-space: nowrap;
 }
 .td-member-name-cell {
   min-width: 0;
@@ -1929,10 +1930,27 @@
   font-size: .78rem;
   font-weight: 900;
 }
-.td-team-tournament-tab span {
-  margin-left: .25rem;
-  color: var(--text-muted);
+.td-team-tournament-tab-count {
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  margin-left: .32rem;
+  border-radius: var(--radius-full);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: .68rem;
+  font-weight: 950;
+  line-height: 1;
+}
+.td-team-tournament-tab-active .td-team-tournament-tab-count {
+  background: #f97316;
+  color: #fff;
+  box-shadow: 0 6px 14px rgba(249, 115, 22, .28);
+}
+.td-team-tournament-tab-ended .td-team-tournament-tab-count {
+  background: #e2e8f0;
+  color: #64748b;
 }
 .td-team-tournament-tab.active {
   border-color: rgba(15, 23, 42, .18);
@@ -1940,8 +1958,8 @@
   color: #111827;
   box-shadow: 0 6px 16px rgba(247, 198, 0, .22);
 }
-.td-team-tournament-tab.active span {
-  color: rgba(17, 24, 39, .72);
+.td-team-tournament-tab.active .td-team-tournament-tab-count {
+  border: 1px solid rgba(255, 255, 255, .55);
 }
 .td-team-tournament-card {
   width: 100%;
@@ -2762,6 +2780,14 @@
 [data-theme="dark"] .td-team-tournament-tab.active {
   background: var(--td-club-accent);
   color: #111827;
+}
+[data-theme="dark"] .td-team-tournament-tab-active .td-team-tournament-tab-count {
+  background: #fb923c;
+  color: #111827;
+}
+[data-theme="dark"] .td-team-tournament-tab-ended .td-team-tournament-tab-count {
+  background: rgba(148, 163, 184, .22);
+  color: #cbd5e1;
 }
 [data-theme="dark"] .td-member-tab.active {
   border-color: rgba(255,255,255,.16);

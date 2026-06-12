@@ -255,6 +255,10 @@ describe('team detail club activity section', () => {
     expect(html).toContain('td-team-tournament-thumb');
     expect(html).toContain('https://cdn.test/tour-host.jpg');
     expect(html.indexOf('td-team-tournament-status')).toBeLessThan(html.indexOf('td-team-tournament-thumb'));
+    expect(html).toContain('td-team-tournament-tab td-team-tournament-tab-active active');
+    expect(html).toContain('td-team-tournament-tab td-team-tournament-tab-ended');
+    expect(html).toContain('<span class="td-team-tournament-tab-count">2</span>');
+    expect(html).toContain('<span class="td-team-tournament-tab-count">1</span>');
     expect(html).toContain('參賽中');
     expect(html).toContain('已結束');
     expect(html).toContain('主辦盃');
@@ -2445,6 +2449,15 @@ describe('team detail club activity section', () => {
     expect(css).toContain('.td-v2-cta-bar.has-leave{grid-template-columns:1fr 46px 46px 46px 46px}');
     expect(css).toContain('.td-v2-cta-icon.danger{background:#fff;color:#dc2626;border:1px solid #fecaca}');
     expect(css).toContain('.td-v2-cta-bar.has-leave{grid-template-columns:1fr repeat(4,42px)}');
+  });
+
+
+  test('team detail v2 joined cta keeps status text compact on narrow screens', () => {
+    const css = fs.readFileSync(path.join(__dirname, '../../css/team-detail-v2.css'), 'utf8');
+
+    expect(css).toContain('.td-v2-cta-primary.joined span{font-size:12.5px;line-height:1;white-space:nowrap}');
+    expect(css).toContain('.td-v2-cta-primary.joined{gap:5px;padding-left:10px;padding-right:10px}');
+    expect(css).toContain('.td-v2-cta-primary.joined span{font-size:11.5px}');
   });
 
   test('team record card renders compact equal cells without match history', () => {

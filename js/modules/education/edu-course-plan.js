@@ -397,6 +397,24 @@ Object.assign(App, {
     return { date, startTime: '19:00', endTime: '20:30' };
   },
 
+  _formatCoursePlanSessionSelectedTimePreview(startTime, endTime) {
+    const start = String(startTime || '').trim();
+    const end = String(endTime || '').trim();
+    return start && end
+      ? '已選時間：' + start + '~' + end
+      : '已選時間：請選擇開始與結束時間';
+  },
+
+  _updateCoursePlanSessionTimePreview(slot) {
+    const index = Number(slot || 0);
+    if (!Number.isFinite(index) || index < 1) return;
+    const preview = document.getElementById('edu-cp-session-time-preview-' + index);
+    if (!preview) return;
+    const start = document.getElementById('edu-cp-session-start-' + index)?.value || '';
+    const end = document.getElementById('edu-cp-session-end-' + index)?.value || '';
+    preview.textContent = this._formatCoursePlanSessionSelectedTimePreview(start, end);
+  },
+
   _renderCoursePlanSessionScheduleFields() {
     const list = document.getElementById('edu-cp-session-schedule-list');
     if (!list) return;
@@ -418,11 +436,14 @@ Object.assign(App, {
       const slot = index + 1;
       const fallback = this._getCoursePlanSessionScheduleFallback(index, normalizedTotal);
       const item = draft[index] || {};
+      const selectedStartTime = item.startTime || fallback.startTime;
+      const selectedEndTime = item.endTime || fallback.endTime;
       rows.push('<div class="edu-cp-session-schedule-row">'
         + '<span class="edu-cp-session-schedule-index">' + slot + '</span>'
         + '<label>日期<input type="date" id="edu-cp-session-date-' + slot + '" value="' + escapeHTML(item.date || fallback.date || '') + '"></label>'
-        + '<label>開始<input type="time" id="edu-cp-session-start-' + slot + '" value="' + escapeHTML(item.startTime || fallback.startTime) + '"></label>'
-        + '<label>結束<input type="time" id="edu-cp-session-end-' + slot + '" value="' + escapeHTML(item.endTime || fallback.endTime) + '"></label>'
+        + '<label>開始<input type="time" id="edu-cp-session-start-' + slot + '" value="' + escapeHTML(selectedStartTime) + '" oninput="App._updateCoursePlanSessionTimePreview(' + slot + ')" onchange="App._updateCoursePlanSessionTimePreview(' + slot + ')"></label>'
+        + '<label>結束<input type="time" id="edu-cp-session-end-' + slot + '" value="' + escapeHTML(selectedEndTime) + '" oninput="App._updateCoursePlanSessionTimePreview(' + slot + ')" onchange="App._updateCoursePlanSessionTimePreview(' + slot + ')"></label>'
+        + '<div class="edu-cp-session-time-preview" id="edu-cp-session-time-preview-' + slot + '" aria-live="polite">' + escapeHTML(this._formatCoursePlanSessionSelectedTimePreview(selectedStartTime, selectedEndTime)) + '</div>'
       + '</div>');
     }
     list.innerHTML = '<div class="edu-cp-session-schedule-head"><strong>逐堂上課時間</strong><span>依總堂數逐一填寫，儲存後會自動建立對應課堂。</span></div>' + rows.join('');

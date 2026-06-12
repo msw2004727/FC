@@ -884,7 +884,7 @@ Object.assign(App, {
       } else if (viewerEnrollmentState.isFull) {
         signupActionHtml = '<button type="button" class="primary-btn edu-course-detail-signup-btn edu-cp-signup-disabled" disabled>已額滿</button>';
       } else {
-        signupActionHtml = '<button type="button" class="primary-btn edu-course-detail-signup-btn" onclick="event.stopPropagation();App.applyCourseEnrollment(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\',this)">立即報名</button>';
+        signupActionHtml = '<button type="button" class="primary-btn edu-course-detail-signup-btn" onclick="event.stopPropagation();App.applyCourseEnrollment(\'' + jsArg(teamId) + '\',\'' + jsArg(plan.id) + '\',this)">我要報名</button>';
       }
     }
     const footerActionsBlock = signupActionHtml

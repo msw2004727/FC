@@ -1090,7 +1090,7 @@ Object.assign(App, {
     const activeTournaments = tournaments.filter(t => !this._isTeamTournamentEnded(t));
     const endedTournaments = tournaments.filter(t => this._isTeamTournamentEnded(t));
     const visibleTournaments = activeTab === 'ended' ? endedTournaments : activeTournaments;
-    const tabBtn = (key, label, count) => '<button type="button" class="td-team-tournament-tab' + (activeTab === key ? ' active' : '') + '" onclick="App.switchTeamTournamentTab(\'' + teamId + '\',\'' + key + '\')">' + label + '<span>' + count + '</span></button>';
+    const tabBtn = (key, label, count) => '<button type="button" class="td-team-tournament-tab td-team-tournament-tab-' + key + (activeTab === key ? ' active' : '') + '" onclick="App.switchTeamTournamentTab(\'' + teamId + '\',\'' + key + '\')">' + label + '<span class="td-team-tournament-tab-count">' + count + '</span></button>';
     const emptyText = activeTab === 'ended'
       ? '\u76ee\u524d\u6c92\u6709\u5df2\u7d50\u675f\u7684\u4ff1\u6a02\u90e8\u8cfd\u4e8b'
       : '\u76ee\u524d\u6c92\u6709\u53c3\u8cfd\u4e2d\u7684\u4ff1\u6a02\u90e8\u8cfd\u4e8b';

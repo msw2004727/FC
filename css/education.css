@@ -1223,6 +1223,13 @@
   min-width: 0;
   width: 100%;
 }
+.edu-cp-session-time-preview {
+  grid-column: 3 / -1;
+  color: var(--text-muted);
+  font-size: .72rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
 .edu-cp-advanced-section {
   padding: 0;
   overflow: hidden;
@@ -3584,6 +3591,9 @@
   background: rgba(45, 212, 191, .14);
   color: #5eead4;
 }
+[data-theme="dark"] .edu-cp-session-time-preview {
+  color: #94a3b8;
+}
 [data-theme="dark"] .edu-course-member-pill.uc-user {
   background: var(--bg-elevated);
   border-color: var(--border);
@@ -4478,6 +4488,9 @@
   }
   .edu-cp-session-schedule-row label:nth-of-type(3) {
     grid-column: 3;
+  }
+  .edu-cp-session-time-preview {
+    grid-column: 2 / -1;
   }
   .edu-cp-form-head .outline-btn {
     width: 100%;
