@@ -113,6 +113,60 @@ describe('edu course enrollment render', () => {
     expect(elements['edu-ce-list'].innerHTML).toContain('edu-ce-card-pending');
   });
 
+  test('splits approved enrollment list by payment status with jump buttons', async () => {
+    const elements = {
+      'edu-ce-list': { innerHTML: '' },
+      'edu-ce-subtitle': { textContent: '' },
+    };
+    const app = {
+      _courseEnrollCache: {},
+      _courseEnrollSummaryCache: {},
+      _getCourseEnrollCacheKey: jest.fn((teamId, planId) => teamId + ':' + planId),
+      _loadCourseEnrollments: jest.fn(async () => [
+        { id: 'pendingA', studentId: 'stuPending', studentName: 'Pending Student', status: 'pending' },
+        { id: 'unpaidA', studentId: 'stuUnpaid', studentName: 'Unpaid Student', status: 'approved', paidAt: null },
+        { id: 'paidA', studentId: 'stuPaid', studentName: 'Paid Student', status: 'approved', paidAt: '2099-01-02' },
+      ]),
+      getEduCoursePlans: jest.fn(() => [{ id: 'planA', name: 'Plan A', planType: 'weekly' }]),
+      getEduStudents: jest.fn(() => [
+        { id: 'stuPending', name: 'Pending Student' },
+        { id: 'stuUnpaid', name: 'Unpaid Student' },
+        { id: 'stuPaid', name: 'Paid Student' },
+      ]),
+      isEduClubStaff: jest.fn(() => true),
+      calcAge: jest.fn(() => null),
+      _updateEnrollSubtitle: jest.fn(),
+    };
+    const loaded = loadModule(app, elements);
+
+    await loaded._renderCourseEnrollmentList('teamA', 'planA');
+
+    const html = elements['edu-ce-list'].innerHTML;
+    expect(html).toContain('edu-ce-jump-nav');
+    expect(html).toContain('edu-ce-jump-btn-pending');
+    expect(html).toContain('edu-ce-jump-btn-unpaid');
+    expect(html).toContain('edu-ce-jump-btn-paid');
+    expect(html).toContain('data-ce-jump-target="edu-ce-section-teamA-planA-unpaid"');
+    expect(html).toContain('id="edu-ce-section-teamA-planA-pending"');
+    expect(html).toContain('id="edu-ce-section-teamA-planA-unpaid"');
+    expect(html).toContain('id="edu-ce-section-teamA-planA-paid"');
+    expect(html.indexOf('edu-ce-section-pending')).toBeLessThan(html.indexOf('edu-ce-section-unpaid'));
+    expect(html.indexOf('edu-ce-section-unpaid')).toBeLessThan(html.indexOf('edu-ce-section-paid'));
+    expect(html.indexOf('Unpaid Student')).toBeGreaterThan(html.indexOf('edu-ce-section-unpaid'));
+    expect(html.indexOf('Paid Student')).toBeGreaterThan(html.indexOf('edu-ce-section-paid'));
+  });
+
+  test('course enrollment section jump helper scrolls and highlights the target', () => {
+    const classList = { add: jest.fn(), remove: jest.fn() };
+    const target = { scrollIntoView: jest.fn(), classList };
+    const loaded = loadModule({}, { 'edu-ce-section-teamA-planA-paid': target });
+
+    loaded._scrollCourseEnrollmentSection('edu-ce-section-teamA-planA-paid');
+
+    expect(target.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+    expect(classList.add).toHaveBeenCalledWith('edu-ce-section-focus');
+  });
+
   test('approved enrollment card uses compact paid and 15-char note controls without attendance', () => {
     const app = {
       calcAge: jest.fn(() => 10),

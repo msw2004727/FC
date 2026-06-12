@@ -86,13 +86,40 @@ Object.assign(App, {
 
     const pending = enrollments.filter(e => e.status === 'pending');
     const approved = enrollments.filter(e => e.status === 'approved');
+    const approvedUnpaid = approved.filter(e => !e.paidAt);
+    const approvedPaid = approved.filter(e => !!e.paidAt);
 
     let html = '';
+    const sectionBaseId = 'edu-ce-section-' + String(teamId || '').replace(/[^A-Za-z0-9_-]/g, '_')
+      + '-' + String(planId || '').replace(/[^A-Za-z0-9_-]/g, '_');
+    const sectionId = key => sectionBaseId + '-' + key;
+    const jsArg = value => String(value ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const renderJumpButton = (key, label, count) => {
+      const targetId = sectionId(key);
+      return '<button type="button" class="edu-ce-jump-btn edu-ce-jump-btn-' + key + '" data-ce-jump-target="' + escapeHTML(targetId) + '" onclick="event.stopPropagation();App._scrollCourseEnrollmentSection(\'' + jsArg(targetId) + '\')">'
+        + '<span>' + escapeHTML(label) + '</span>'
+        + '<strong>' + count + '</strong>'
+        + '</button>';
+    };
+    const renderSection = (key, label, count, rowsHtml, emptyText) => {
+      return '<section class="edu-ce-section edu-ce-section-' + key + '" id="' + escapeHTML(sectionId(key)) + '">'
+        + '<div class="edu-ce-section-label"><span>' + escapeHTML(label) + '</span><strong>' + count + '人</strong></div>'
+        + (rowsHtml || '<div class="edu-ce-section-empty">' + escapeHTML(emptyText) + '</div>')
+        + '</section>';
+    };
+    const jumpButtons = [];
+    if (isStaff && pending.length) jumpButtons.push(renderJumpButton('pending', '待審核', pending.length));
+    if (approved.length) {
+      jumpButtons.push(renderJumpButton('unpaid', '未繳費', approvedUnpaid.length));
+      jumpButtons.push(renderJumpButton('paid', '已繳費', approvedPaid.length));
+    }
+    if (jumpButtons.length > 1) {
+      html += '<div class="edu-ce-jump-nav" aria-label="名單快速定位">' + jumpButtons.join('') + '</div>';
+    }
 
     // 待審核區塊
     if (isStaff && pending.length) {
-      html += '<div class="edu-ce-section-label">⏳ 待審核（' + pending.length + '人）</div>';
-      html += pending.map(e => {
+      const pendingRows = pending.map(e => {
         const stu = students.find(s => s.id === e.studentId);
         const age = stu && stu.birthday ? this.calcAge(stu.birthday) : null;
         const gender = stu?.gender === 'male' ? '♂' : stu?.gender === 'female' ? '♀' : '';
@@ -106,12 +133,19 @@ Object.assign(App, {
           + '<button class="edu-reject-btn" onclick="App._rejectCourseEnrollment(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\',this)">拒絕</button>'
           + '</div></div>';
       }).join('');
+      html += renderSection('pending', '待審核', pending.length, pendingRows, '目前沒有待審核學員');
     }
 
-    // 已通過區塊
+    // 已通過區塊：依繳費狀態分區，方便職員快速處理。
     if (approved.length) {
-      html += '<div class="edu-ce-section-label">✅ 已通過（' + approved.length + '人）</div>';
-      html += approved.map(e => this._renderApprovedEnrollmentCard(e, plan, students, teamId, planId, isStaff)).join('');
+      const unpaidRows = approvedUnpaid
+        .map(e => this._renderApprovedEnrollmentCard(e, plan, students, teamId, planId, isStaff))
+        .join('');
+      const paidRows = approvedPaid
+        .map(e => this._renderApprovedEnrollmentCard(e, plan, students, teamId, planId, isStaff))
+        .join('');
+      html += renderSection('unpaid', '已通過・未繳費', approvedUnpaid.length, unpaidRows, '目前沒有未繳費學員');
+      html += renderSection('paid', '已通過・已繳費', approvedPaid.length, paidRows, '目前沒有已繳費學員');
     }
 
     if (!pending.length && !approved.length) {
@@ -123,6 +157,16 @@ Object.assign(App, {
     // 即時更新 subtitle 人數
     var stEl = document.getElementById('edu-ce-subtitle');
     if (stEl && plan) this._updateEnrollSubtitle(stEl, plan, teamId, planId);
+  },
+
+  _scrollCourseEnrollmentSection(sectionId) {
+    const target = document.getElementById(sectionId);
+    if (!target) return;
+    target.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    target.classList?.add?.('edu-ce-section-focus');
+    if (typeof window !== 'undefined' && typeof window.setTimeout === 'function') {
+      window.setTimeout(() => target.classList?.remove?.('edu-ce-section-focus'), 1000);
+    }
   },
 
   _updateEnrollSubtitle(el, plan, teamId, planId) {

@@ -1384,6 +1384,88 @@
 
 /* ── Course Enrollment List ── */
 .edu-ce-section-label { font-size: .88rem; font-weight: 700; margin: .8rem 0 .4rem; padding-left: .2rem; }
+.edu-ce-jump-nav {
+  display: flex;
+  gap: .42rem;
+  overflow-x: auto;
+  margin: .25rem 0 .7rem;
+  padding: .38rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
+.edu-ce-jump-btn {
+  flex: 0 0 auto;
+  min-height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  gap: .32rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-subtle, var(--bg-base));
+  color: var(--text-primary);
+  padding: .28rem .58rem;
+  font-size: .78rem;
+  font-weight: 850;
+  line-height: 1;
+  cursor: pointer;
+}
+.edu-ce-jump-btn strong {
+  min-width: 1.28rem;
+  height: 1.28rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(15, 118, 110, .12);
+  color: #0f766e;
+  font-size: .72rem;
+  font-weight: 950;
+  line-height: 1;
+}
+.edu-ce-jump-btn-unpaid strong {
+  background: rgba(220, 38, 38, .12);
+  color: #dc2626;
+}
+.edu-ce-jump-btn-paid strong {
+  background: rgba(22, 163, 74, .13);
+  color: #16a34a;
+}
+.edu-ce-section {
+  scroll-margin-top: 5.75rem;
+  border-radius: var(--radius);
+  transition: box-shadow .18s ease, background-color .18s ease;
+}
+.edu-ce-section-focus {
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, .18);
+  background: rgba(13, 148, 136, .045);
+}
+.edu-ce-section-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+}
+.edu-ce-section-label strong {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: .72rem;
+  font-weight: 850;
+}
+.edu-ce-section-unpaid .edu-ce-section-label span { color: #dc2626; }
+.edu-ce-section-paid .edu-ce-section-label span { color: #15803d; }
+.edu-ce-section-unpaid .edu-ce-card-approved { border-left: 3px solid #dc2626; }
+.edu-ce-section-paid .edu-ce-card-approved { border-left: 3px solid #16a34a; }
+.edu-ce-section-empty {
+  margin-bottom: .45rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-subtle, var(--bg-base));
+  color: var(--text-muted);
+  padding: .72rem .85rem;
+  font-size: .82rem;
+  font-weight: 750;
+}
 .edu-ce-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: .7rem .85rem; margin-bottom: .45rem; transition: border-color .15s; }
 .edu-ce-card:hover { border-color: var(--accent); }
 .edu-ce-card-pending { border-left: 3px solid var(--warning); }
@@ -1464,6 +1546,12 @@
   .edu-ce-remove-approved-btn,
   .edu-ce-note-input,
   .edu-ce-note-editor .primary-btn.small { height: 1.95rem; }
+  .edu-ce-jump-nav { padding: .32rem; }
+  .edu-ce-jump-btn {
+    min-height: 1.85rem;
+    padding: .24rem .5rem;
+    font-size: .74rem;
+  }
 }
 
 /* ── Course Session Board (堂數制課堂) ── */
