@@ -263,12 +263,13 @@ describe('renderEduClubDetail info card', () => {
       _eduDetailTeamId: 'teamA',
       _eduActiveTab: 'pending',
       isEduClubStaff: jest.fn(() => false),
+      calcAge: jest.fn(() => null),
       getEduStudents: jest.fn(() => [
-        { id: 'pending-own', name: '自己的待審核', enrollStatus: 'pending', parentUid: 'viewer' },
+        { id: 'pending-own', name: '自己的待審核', enrollStatus: 'pending', parentUid: 'viewer', createdAt: '2026-06-12T03:04:05Z' },
         { id: 'pending-other', name: '別人的待審核', enrollStatus: 'pending', parentUid: 'other' },
         { id: 'active-own', name: '自己的已通過', enrollStatus: 'active', parentUid: 'viewer' },
       ]),
-      _renderPendingStudentRow: jest.fn((teamId, groupId, student) => '<div class="pending-row">' + escapeHTML(student.name) + '</div>'),
+      _renderPendingStudentRow: jest.fn((teamId, groupId, student) => '<div class="pending-row"><button>通過</button><button>拒絕</button>' + escapeHTML(student.name) + '</div>'),
     };
     const context = {
       App: app,
@@ -290,14 +291,12 @@ describe('renderEduClubDetail info card', () => {
     context.App._renderEduTabContent('teamA');
 
     expect(contentEl.innerHTML).toContain('自己的待審核');
+    expect(contentEl.innerHTML).toContain('2026/06/12提交中');
     expect(contentEl.innerHTML).not.toContain('別人的待審核');
     expect(contentEl.innerHTML).not.toContain('自己的已通過');
-    expect(app._renderPendingStudentRow).toHaveBeenCalledTimes(1);
-    expect(app._renderPendingStudentRow).toHaveBeenCalledWith(
-      'teamA',
-      '',
-      { id: 'pending-own', name: '自己的待審核', enrollStatus: 'pending', parentUid: 'viewer' }
-    );
+    expect(contentEl.innerHTML).not.toContain('通過');
+    expect(contentEl.innerHTML).not.toContain('拒絕');
+    expect(app._renderPendingStudentRow).not.toHaveBeenCalled();
   });
 
   test('shows pending review tab badge only for non staff with own pending students', () => {

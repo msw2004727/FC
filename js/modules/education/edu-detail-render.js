@@ -234,6 +234,43 @@ Object.assign(App, {
     return { shouldShow, count };
   },
 
+  _formatEduPendingSubmitDate(student) {
+    const raw = student?.createdAt || student?.submittedAt || student?.appliedAt || student?.enrolledAt || '';
+    if (!raw) return '';
+    if (typeof raw === 'string') {
+      const m = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+      if (m) return m[1] + '/' + String(m[2]).padStart(2, '0') + '/' + String(m[3]).padStart(2, '0');
+    }
+    let d = null;
+    try {
+      if (raw instanceof Date) d = raw;
+      else if (typeof raw.toDate === 'function') d = raw.toDate();
+      else if (typeof raw.seconds === 'number') d = new Date(raw.seconds * 1000);
+      else d = new Date(raw);
+    } catch (_) {
+      return '';
+    }
+    if (!d || Number.isNaN(d.getTime())) return '';
+    return d.getFullYear() + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getDate()).padStart(2, '0');
+  },
+
+  _renderPendingStudentStatusRow(s) {
+    const age = this.calcAge(s.birthday);
+    const ageLabel = age != null ? age + ' 歲' : '';
+    const genderIcon = s.gender === 'male' ? '♂' : s.gender === 'female' ? '♀' : '';
+    const genderClass = s.gender === 'male' ? ' edu-gender-male' : s.gender === 'female' ? ' edu-gender-female' : '';
+    const dateLabel = this._formatEduPendingSubmitDate(s);
+    const statusText = (dateLabel ? dateLabel : '') + '提交中';
+    return '<div class="edu-student-card edu-pending-card">'
+      + '<div class="edu-student-header">'
+      + '<span class="edu-student-name">' + escapeHTML(s.name || '未命名學員') + '</span>'
+      + (genderIcon ? '<span class="edu-student-gender' + genderClass + '">' + genderIcon + '</span>' : '')
+      + (ageLabel ? '<span class="edu-student-age">' + ageLabel + '</span>' : '')
+      + '<span class="edu-header-actions"><span class="edu-status-pending">' + escapeHTML(statusText) + '</span></span>'
+      + '</div>'
+      + '</div>';
+  },
+
   /**
    * 渲染當前頁籤內容
    */
@@ -293,10 +330,12 @@ Object.assign(App, {
     if (!container) return;
     const inlineUnified = !!container.closest?.('#edu-detail-section');
     const panelClass = inlineUnified ? 'td-edu-panel' : 'td-card';
+    const isStaff = this._isEduPendingTabStaff(teamId);
     const pending = this._getEduPendingStudentsForViewer(teamId);
     const rows = pending.length
       ? pending.map(s => {
-        if (typeof this._renderPendingStudentRow === 'function') return this._renderPendingStudentRow(teamId, '', s);
+        if (isStaff && typeof this._renderPendingStudentRow === 'function') return this._renderPendingStudentRow(teamId, '', s);
+        if (!isStaff) return this._renderPendingStudentStatusRow(s);
         return '<div class="edu-student-card edu-pending-card"><div class="edu-student-header"><span class="edu-student-name">' + escapeHTML(s.name || '未命名學員') + '</span></div></div>';
       }).join('')
       : '<div class="edu-empty-state">目前沒有待審核學員</div>';
