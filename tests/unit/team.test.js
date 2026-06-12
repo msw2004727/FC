@@ -391,6 +391,10 @@ describe('team pin management wiring', () => {
     expect(teamListRenderSource).toContain('tc-type-ribbon');
     expect(teamFormInitSource).toContain('_selectTeamTypeTag(type)');
     expect(teamFormSource).toContain('teachingEnabled: isTeachingType');
+    expect(teamCss).toContain('.td-category-settings-row');
+    expect(teamCss).toMatch(/\.td-category-settings-row\s*\{[\s\S]*flex-direction:\s*column/);
+    expect(teamCss).toMatch(/\.td-category-settings-row \.td-category-tag-group\s*\{[\s\S]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+    expect(teamCss).toMatch(/@media \(max-width: 520px\)\s*\{[\s\S]*\.td-category-settings-row \.td-category-tag-group\s*\{[\s\S]*grid-template-columns:\s*1fr/);
   });
 });
 

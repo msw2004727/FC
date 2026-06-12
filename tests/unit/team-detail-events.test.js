@@ -506,6 +506,7 @@ describe('team detail club activity section', () => {
     app._renderTeamDetailSettingsBody({ id: 'teamA', allowMemberInvite: false, themeColor: '#336699' });
 
     expect(body.innerHTML).toContain('td-settings-switch');
+    expect(body.innerHTML).toContain('td-category-settings-row');
     expect(body.innerHTML).toContain('td-category-tag-competitive active');
     expect(body.innerHTML).toContain("App.setTeamCategoryTag('none', this)");
     expect(body.innerHTML).toContain("App.setTeamCategoryTag('education', this)");

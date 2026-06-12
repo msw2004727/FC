@@ -2415,6 +2415,10 @@
   align-items: stretch;
   background: var(--bg-elevated);
 }
+.td-category-settings-row {
+  flex-direction: column;
+  gap: .62rem;
+}
 .td-settings-row strong {
   display: block;
   color: var(--text-primary);
@@ -2437,6 +2441,11 @@
   display: grid;
   grid-template-columns: 1fr;
   gap: .36rem;
+}
+.td-category-settings-row .td-category-tag-group {
+  flex: 0 0 auto;
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .td-category-tag-btn {
   display: flex;
@@ -2799,6 +2808,9 @@
   .td-category-tag-group {
     flex-basis: auto;
     width: 100%;
+  }
+  .td-category-settings-row .td-category-tag-group {
+    grid-template-columns: 1fr;
   }
 }
 

@@ -570,7 +570,7 @@ Object.assign(App, {
         '</div>';
     }).join('');
     body.innerHTML = '<div class="td-settings-group">' +
-      '<div class="td-settings-row td-settings-row-primary">' +
+      '<div class="td-settings-row td-settings-row-primary td-category-settings-row">' +
       '<div><strong>\u4ff1\u6a02\u90e8\u6a19\u7c64</strong><span>\u56db\u7a2e\u6a19\u7c64\u50c5\u80fd\u64c7\u4e00\uff1b\u300c\u7121\u300d\u4e0d\u986f\u793a\u6a19\u7c64\u8207\u7dde\u5e36\uff0c\u53ea\u6709\u6559\u5b78\u6a19\u7c64\u6703\u958b\u555f\u8ab2\u7a0b\u8207\u5b78\u54e1\u529f\u80fd\u3002</span></div>' +
       this._buildTeamDetailCategorySelector(team) +
       '</div>' +
