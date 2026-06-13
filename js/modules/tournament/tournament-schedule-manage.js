@@ -142,7 +142,11 @@ Object.assign(App, {
       }
       const assigned = new Set(match.refereeUids || []);
       const refereeChecks = refereeOptions.map(ref => `
-        <label class="tc-ref-check"><input type="checkbox" data-ref-uid="${escapeHTML(ref.uid)}" data-ref-name="${escapeHTML(ref.name)}" ${assigned.has(ref.uid) ? 'checked' : ''}><span>${escapeHTML(ref.name)}${ref.isHead ? '（裁判長）' : ''}</span></label>`).join('');
+        <label class="tc-ref-check">
+          <input type="checkbox" data-ref-uid="${escapeHTML(ref.uid)}" data-ref-name="${escapeHTML(ref.name)}" ${assigned.has(ref.uid) ? 'checked' : ''}>
+          <span class="tc-ref-name">${escapeHTML(ref.name)}</span>
+          ${ref.isHead ? '<span class="tc-ref-role">裁判長</span>' : ''}
+        </label>`).join('');
       const timeValue = this._toTournamentDateTimeInputValue?.(match.scheduledAt) || '';
       const statusText = locked
         ? `已完賽 ${match.status === 'walkover' ? '（棄權）' : `${match.scoreHome}:${match.scoreAway}`}`

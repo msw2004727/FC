@@ -84,17 +84,31 @@ Object.assign(App, {
     if (!recordState || !body || !actions) return;
     const config = this._getTournamentCompetitionConfig?.(tournament) || {};
     const isWalkover = match.status === 'walkover';
+    const walkoverScoreText = `${config.walkoverWinScore}:${config.walkoverLoseScore}`;
     if (title) title.textContent = `${recordState.homeName} vs ${recordState.awayName}`;
     body.innerHTML = `
-      <div class="ce-row">
-        <label>結果類型</label>
-        <select id="tmr-result-type" onchange="App._syncTournamentMatchRecordResultType()">
-          <option value="finished" ${!isWalkover ? 'selected' : ''}>正常完賽</option>
-          <option value="walkover" ${isWalkover ? 'selected' : ''}>棄權（判 ${config.walkoverWinScore}:${config.walkoverLoseScore}）</option>
-        </select>
+      <div class="tmr-result-switch" role="radiogroup" aria-label="結果類型">
+        <label class="tmr-result-card">
+          <input type="radio" name="tmr-result-type" value="finished" onchange="App._syncTournamentMatchRecordResultType()" ${!isWalkover ? 'checked' : ''}>
+          <span class="tmr-result-card-copy">
+            <strong>正常完賽</strong>
+            <small>輸入比分，可補上進球與紅黃牌</small>
+          </span>
+        </label>
+        <label class="tmr-result-card">
+          <input type="radio" name="tmr-result-type" value="walkover" onchange="App._syncTournamentMatchRecordResultType()" ${isWalkover ? 'checked' : ''}>
+          <span class="tmr-result-card-copy">
+            <strong>棄權判定</strong>
+            <small>依賽事設定判 ${escapeHTML(walkoverScoreText)}</small>
+          </span>
+        </label>
       </div>
-      <div id="tmr-score-section">
-        <div class="tc-score-grid">
+      <div id="tmr-score-section" class="tmr-score-card">
+        <div class="tmr-section-head">
+          <strong>比分</strong>
+          <small>左右隊伍對應賽程卡片順序</small>
+        </div>
+        <div class="tc-score-grid tmr-score-grid">
           <div class="tc-score-side">
             <div class="tc-score-team">${escapeHTML(recordState.homeName)}</div>
             <input type="number" id="tmr-score-home" min="0" max="99" inputmode="numeric" value="${Number.isFinite(Number(match.scoreHome)) && match.scoreHome !== null ? match.scoreHome : 0}">
@@ -115,27 +129,42 @@ Object.assign(App, {
           </div>
         </div>` : ''}
         <div class="tc-events-section">
-          <div class="tc-events-header">比賽事件（進球 / 紅黃牌，選填）</div>
+          <div class="tmr-section-head">
+            <strong>比賽事件</strong>
+            <small>進球、烏龍、紅黃牌可選填</small>
+          </div>
           <div id="tmr-events-list"></div>
-          <div class="tc-event-add">
-            <select id="tmr-event-type">
-              <option value="goal">⚽ 進球</option>
-              <option value="own_goal">🥅 烏龍球</option>
-              <option value="yellow">🟨 黃牌</option>
-              <option value="red">🟥 紅牌</option>
-            </select>
-            <select id="tmr-event-team" onchange="App._syncTournamentMatchRecordPlayers()">
-              <option value="${escapeHTML(recordState.homeTeamId)}">${escapeHTML(recordState.homeName)}</option>
-              <option value="${escapeHTML(recordState.awayTeamId)}">${escapeHTML(recordState.awayName)}</option>
-            </select>
-            <select id="tmr-event-player"></select>
-            <input type="text" id="tmr-event-player-custom" placeholder="輸入球員名" style="display:none">
-            <input type="number" id="tmr-event-minute" min="1" max="150" placeholder="分" inputmode="numeric">
-            <button type="button" class="outline-btn small" onclick="App._addTournamentMatchRecordEvent()">＋</button>
+          <div class="tc-event-add tmr-event-add-grid">
+            <label class="tmr-event-control">
+              <span>事件</span>
+              <select id="tmr-event-type">
+                <option value="goal">⚽ 進球</option>
+                <option value="own_goal">🥅 烏龍球</option>
+                <option value="yellow">🟨 黃牌</option>
+                <option value="red">🟥 紅牌</option>
+              </select>
+            </label>
+            <label class="tmr-event-control">
+              <span>隊伍</span>
+              <select id="tmr-event-team" onchange="App._syncTournamentMatchRecordPlayers()">
+                <option value="${escapeHTML(recordState.homeTeamId)}">${escapeHTML(recordState.homeName)}</option>
+                <option value="${escapeHTML(recordState.awayTeamId)}">${escapeHTML(recordState.awayName)}</option>
+              </select>
+            </label>
+            <label class="tmr-event-control tmr-event-control-player">
+              <span>球員</span>
+              <select id="tmr-event-player"></select>
+              <input type="text" id="tmr-event-player-custom" placeholder="輸入球員名" style="display:none">
+            </label>
+            <label class="tmr-event-control tmr-event-control-minute">
+              <span>時間</span>
+              <input type="number" id="tmr-event-minute" min="1" max="150" placeholder="分" inputmode="numeric">
+            </label>
+            <button type="button" class="outline-btn small tmr-event-add-btn" onclick="App._addTournamentMatchRecordEvent()">加入</button>
           </div>
         </div>
       </div>
-      <div id="tmr-walkover-section" style="display:none">
+      <div id="tmr-walkover-section" class="tmr-walkover-card" style="display:none">
         <div class="ce-row">
           <label>棄權方（判負）</label>
           <select id="tmr-walkover-loser">
@@ -156,7 +185,9 @@ Object.assign(App, {
   },
 
   _syncTournamentMatchRecordResultType() {
-    const type = document.getElementById('tmr-result-type')?.value || 'finished';
+    const type = document.querySelector('input[name="tmr-result-type"]:checked')?.value
+      || document.getElementById('tmr-result-type')?.value
+      || 'finished';
     const scoreSection = document.getElementById('tmr-score-section');
     const walkoverSection = document.getElementById('tmr-walkover-section');
     if (scoreSection) scoreSection.style.display = type === 'walkover' ? 'none' : '';
@@ -245,7 +276,9 @@ Object.assign(App, {
   async saveTournamentMatchResult(actionButton = null) {
     const recordState = this._tournamentMatchRecordState;
     if (!recordState) return;
-    const type = document.getElementById('tmr-result-type')?.value || 'finished';
+    const type = document.querySelector('input[name="tmr-result-type"]:checked')?.value
+      || document.getElementById('tmr-result-type')?.value
+      || 'finished';
     const user = ApiService.getCurrentUser?.();
     let updates;
     if (type === 'walkover') {
