@@ -59,6 +59,19 @@ Object.assign(App, {
     this._renderTournamentScheduleManager();
   },
 
+  _getTournamentScheduleRepeatDefault(matches = [], config = {}) {
+    const totals = (Array.isArray(matches) ? matches : []).map(match => Number(match.seriesTotal) || 1);
+    const existing = totals.length ? Math.max(1, ...totals) : 1;
+    const fallback = config.matchRepeatCount || (config.doubleRound === true ? 2 : 1);
+    return this._normalizeTournamentMatchRepeatCount(existing > 1 ? existing : fallback, 1);
+  },
+
+  _readTournamentScheduleRepeatCount(config = {}) {
+    const input = document.getElementById('tc-schedule-repeat-count');
+    const fallback = config.matchRepeatCount || (config.doubleRound === true ? 2 : 1);
+    return this._normalizeTournamentMatchRepeatCount(input?.value, fallback);
+  },
+
   _renderTournamentScheduleManager() {
     const managerState = this._tournamentScheduleManagerState;
     if (!managerState) return;
@@ -75,6 +88,7 @@ Object.assign(App, {
     const countingEntries = (state.entries || []).filter(entry => this._friendlyTournamentEntryCountsTowardLimit?.(entry, tournament));
     const matches = state.matches || [];
     const finishedCount = matches.filter(m => m.status === 'finished' || m.status === 'walkover').length;
+    const repeatDefault = this._getTournamentScheduleRepeatDefault(matches, config);
     const modeText = mode === 'league'
       ? `聯賽（${config.doubleRound ? '雙循環' : '單循環'}）`
       : `盃賽（單淘汰${config.thirdPlace ? '＋季軍戰' : ''}）`;
@@ -93,11 +107,18 @@ Object.assign(App, {
         <span><b>${configuredTimeCount}</b>有時間</span>
         <span><b>${configuredVenueCount}</b>有場地</span>
       </div>
-      <div class="tc-manager-summary-note">棄權比分 ${escapeHTML(String(config.walkoverWinScore))}:${escapeHTML(String(config.walkoverLoseScore))}</div>`;
+      <div class="tc-manager-summary-note">棄權比分 ${escapeHTML(String(config.walkoverWinScore))}:${escapeHTML(String(config.walkoverLoseScore))} · 每組對戰 ${escapeHTML(String(repeatDefault))} 場</div>`;
 
     const regenWarn = matches.length > 0;
     actions.innerHTML = `
-      <button type="button" class="primary-btn small tc-schedule-generate-btn" onclick="return App.generateTournamentSchedule('${escapeHTML(managerState.tournamentId)}', this)">${regenWarn ? '重新產生賽程' : '產生賽程'}</button>
+      <div class="tc-schedule-generate-controls">
+        <label class="tc-schedule-repeat-control" for="tc-schedule-repeat-count">
+          <span>每組對戰場數</span>
+          <input id="tc-schedule-repeat-count" type="number" min="1" max="20" step="1" inputmode="numeric" value="${escapeHTML(String(repeatDefault))}">
+          <small>預設 1 場，可設定 3、4 場後再產生賽程。</small>
+        </label>
+        <button type="button" class="primary-btn small tc-schedule-generate-btn" onclick="return App.generateTournamentSchedule('${escapeHTML(managerState.tournamentId)}', this)">${regenWarn ? '重新產生賽程' : '產生賽程'}</button>
+      </div>
       ${this.getTournamentStatus?.(tournament) === TOURNAMENT_STATUS.REG_OPEN ? '<span class="tc-schedule-warn">報名仍開放中，隊伍若有變動需重新產生</span>' : ''}
     `;
 
@@ -116,7 +137,7 @@ Object.assign(App, {
       ...(tournament.referees || []),
     ];
     const cupMatches = matches.filter(m => m.stage === 'cup');
-    const bracketSize = cupMatches.filter(m => m.round === 1).length * 2;
+    const bracketSize = this._getTournamentBracketSize?.(cupMatches) || cupMatches.filter(m => m.round === 1).length * 2;
     const orderedMatches = [...matches].sort((a, b) => {
       const stageOrder = { cup: 0, third: 1, league: 2 };
       const stageA = stageOrder[a.stage] ?? 9;
@@ -128,12 +149,15 @@ Object.assign(App, {
       const away = this._renderTournamentMatchSideLabel(match, 'away', matchesBySlot, nameById);
       const locked = match.status === 'finished' || match.status === 'walkover';
       const roundLabel = this._getTournamentRoundLabel(match, bracketSize);
+      const seriesTotal = Math.max(1, Number(match.seriesTotal) || 1);
+      const seriesGame = Math.max(1, Number(match.seriesGame) || 1);
+      const seriesLabel = seriesTotal > 1 ? ` · 第 ${seriesGame}/${seriesTotal} 場` : '';
       if (match.status === 'bye') {
         return `
           <div class="tc-manage-row tc-manage-row-bye tc-match-bye">
             <div class="tc-manage-card-head">
               <div class="tc-manage-title-block">
-                <span class="tc-manage-round">${escapeHTML(roundLabel)}</span>
+                <span class="tc-manage-round">${escapeHTML(roundLabel + seriesLabel)}</span>
                 <div class="tc-manage-title">${escapeHTML(home.label)} 輪空晉級</div>
               </div>
               <span class="tc-manage-status tc-manage-status-bye">輪空</span>
@@ -155,7 +179,7 @@ Object.assign(App, {
         <div class="tc-manage-row" data-match-id="${escapeHTML(match.id)}">
           <div class="tc-manage-card-head">
             <div class="tc-manage-title-block">
-              <span class="tc-manage-round">${escapeHTML(roundLabel)}</span>
+              <span class="tc-manage-round">${escapeHTML(roundLabel + seriesLabel)}</span>
               <div class="tc-manage-title">
                 <span title="${escapeHTML(home.label)}">${escapeHTML(home.label)}</span>
                 <b>VS</b>
@@ -209,11 +233,16 @@ Object.assign(App, {
         : `將刪除既有 ${existing.length} 場賽程並重新產生。確定？`;
       if (!(await this.appConfirm(warnText))) return;
     }
+    const repeatCount = this._readTournamentScheduleRepeatCount(config);
     const fixtures = mode === 'league'
-      ? this._generateLeagueFixtures(teamIds, { doubleRound: config.doubleRound === true })
-      : this._generateCupBracket(teamIds, { thirdPlace: config.thirdPlace === true });
+      ? this._generateLeagueFixtures(teamIds, { doubleRound: config.doubleRound === true, matchRepeatCount: repeatCount })
+      : this._generateCupBracket(teamIds, { thirdPlace: config.thirdPlace === true, matchRepeatCount: repeatCount });
     if (fixtures.length === 0) {
       this.showToast('無法產生賽程，請確認隊伍數');
+      return;
+    }
+    if (fixtures.length > 400) {
+      this.showToast(`產生後會有 ${fixtures.length} 場，已超過 400 場上限，請降低每組對戰場數`);
       return;
     }
     const generate = async () => {

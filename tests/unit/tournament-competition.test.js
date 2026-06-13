@@ -43,6 +43,7 @@ describe('競賽設定 sanitize', () => {
     expect(cfg.pointsDraw).toBe(1);
     expect(cfg.pointsLoss).toBe(0);
     expect(cfg.doubleRound).toBe(false);
+    expect(cfg.matchRepeatCount).toBe(1);
     expect(cfg.thirdPlace).toBe(false);
     expect(cfg.walkoverWinScore).toBe(3);
     expect(cfg.walkoverLoseScore).toBe(0);
@@ -54,12 +55,14 @@ describe('競賽設定 sanitize', () => {
   test('clamp 與非法 tiebreaker 過濾', () => {
     const cfg = App._sanitizeTournamentCompetitionConfig({
       pointsWin: 99, pointsDraw: -5, walkoverWinScore: 50,
+      matchRepeatCount: 99,
       tiebreakers: ['gd', 'hack', 'h2h', 'gd'],
       yellowLimit: '5', maxRosterSize: 200,
     });
     expect(cfg.pointsWin).toBe(10);
     expect(cfg.pointsDraw).toBe(0);
     expect(cfg.walkoverWinScore).toBe(20);
+    expect(cfg.matchRepeatCount).toBe(20);
     expect(cfg.tiebreakers).toEqual(['gd', 'h2h']);
     expect(cfg.yellowLimit).toBe(5);
     expect(cfg.maxRosterSize).toBe(99);
@@ -94,6 +97,15 @@ describe('聯賽循環賽程', () => {
     expect(mirror.awayTeamId).toBe(first.homeTeamId);
   });
 
+  test('matchRepeatCount creates multiple league games per pair', () => {
+    const fx = App._generateLeagueFixtures(['a', 'b'], { matchRepeatCount: 3 });
+    expect(fx).toHaveLength(3);
+    expect(fx.map(m => m.seriesKey)).toEqual(['lr1m0', 'lr1m0', 'lr1m0']);
+    expect(fx.map(m => m.seriesGame)).toEqual([1, 2, 3]);
+    expect(fx.every(m => m.seriesTotal === 3)).toBe(true);
+    expect(fx.map(m => `${m.homeTeamId}-${m.awayTeamId}`)).toEqual(['a-b', 'b-a', 'a-b']);
+  });
+
   test('少於 2 隊回傳空', () => {
     expect(App._generateLeagueFixtures(['a'])).toEqual([]);
   });
@@ -119,6 +131,22 @@ describe('盃賽對戰表', () => {
     expect(r2[0].awaySourceSlot).toBe('r1m1');
     const final = cup.find(m => m.round === 3);
     expect(final.homeSourceSlot).toBe('r2m0');
+  });
+
+  test('cup matchRepeatCount creates a series and resolves downstream winner after majority', () => {
+    const cup = App._generateCupBracket(['a', 'b', 'c', 'd'], { matchRepeatCount: 3 });
+    expect(cup.filter(m => m.seriesKey === 'r1m0')).toHaveLength(3);
+    const matches = cup.map(m => ({ ...m }));
+    matches.filter(m => m.seriesKey === 'r1m0').slice(0, 2).forEach(m => {
+      m.status = 'finished';
+      m.scoreHome = m.homeTeamId === 'a' ? 1 : 0;
+      m.scoreAway = m.awayTeamId === 'a' ? 1 : 0;
+    });
+    const bySlot = App._buildTournamentMatchesBySlot(matches);
+    expect(bySlot.r1m0.seriesMatches).toHaveLength(3);
+    expect(App._getTournamentMatchWinnerTeamId(bySlot.r1m0, bySlot)).toBe('a');
+    const final = matches.find(m => m.slotKey === 'r2m0');
+    expect(App._resolveTournamentMatchSide(final, 'home', bySlot).teamId).toBe('a');
   });
 
   test('輪次標籤', () => {
@@ -292,6 +320,7 @@ describe('比賽記錄資料形狀', () => {
   test('_buildTournamentMatchRecord 正規化', () => {
     const m = App._buildTournamentMatchRecord({
       id: 'cm_1', stage: 'hack', round: '2', scoreHome: '3', scoreAway: null,
+      seriesKey: 'r1m0', seriesGame: '2', seriesTotal: '3',
       events: [{ type: 'goal', teamId: 't1', minute: '15.7' }, { type: 'bad', teamId: 't1' }, { type: 'goal' }],
       refereeUids: ['u1', '', null],
       status: 'weird',
@@ -301,6 +330,9 @@ describe('比賽記錄資料形狀', () => {
     expect(m.status).toBe('scheduled');
     expect(m.scoreHome).toBe(3);
     expect(m.scoreAway).toBeNull();
+    expect(m.seriesKey).toBe('r1m0');
+    expect(m.seriesGame).toBe(2);
+    expect(m.seriesTotal).toBe(3);
     expect(m.events).toHaveLength(1);
     expect(m.events[0].minute).toBe(15);
     expect(m.refereeUids).toEqual(['u1']);

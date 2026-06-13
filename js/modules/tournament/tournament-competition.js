@@ -25,6 +25,7 @@ Object.assign(App, {
       pointsDraw: num(src.pointsDraw, 1, 0, 10),
       pointsLoss: num(src.pointsLoss, 0, 0, 10),
       doubleRound: src.doubleRound === true,
+      matchRepeatCount: num(src.matchRepeatCount ?? src.pairRepeatCount, src.doubleRound === true ? 2 : 1, 1, 20),
       thirdPlace: src.thirdPlace === true,
       walkoverWinScore: num(src.walkoverWinScore, 3, 0, 20),
       walkoverLoseScore: num(src.walkoverLoseScore, 0, 0, 20),
@@ -36,6 +37,13 @@ Object.assign(App, {
 
   _getTournamentCompetitionConfig(tournament) {
     return this._sanitizeTournamentCompetitionConfig(tournament?.competitionConfig);
+  },
+
+  _normalizeTournamentMatchRepeatCount(value, fallback = 1) {
+    const n = Number(value);
+    const base = Number.isFinite(n) ? n : Number(fallback);
+    if (!Number.isFinite(base)) return 1;
+    return Math.min(20, Math.max(1, Math.floor(base)));
   },
 
   _buildTournamentMatchRecord(data = {}) {
@@ -63,6 +71,9 @@ Object.assign(App, {
       slot: Math.max(0, Math.floor(Number(data.slot) || 0)),
       slotKey: String(data.slotKey || '').trim(),
       matchNo: Math.max(0, Math.floor(Number(data.matchNo) || 0)),
+      seriesKey: String(data.seriesKey || '').trim(),
+      seriesGame: Math.max(1, Math.floor(Number(data.seriesGame) || 1)),
+      seriesTotal: Math.max(1, Math.floor(Number(data.seriesTotal) || 1)),
       homeTeamId: String(data.homeTeamId || '').trim(),
       awayTeamId: String(data.awayTeamId || '').trim(),
       homeSourceSlot: String(data.homeSourceSlot || '').trim(),
@@ -85,6 +96,60 @@ Object.assign(App, {
   },
 
   /** 聯賽循環賽程（circle method）。回傳尚未含 id 的 match payload 陣列。 */
+  _repeatTournamentFixtureSeries(fixtures, repeatCount, options = {}) {
+    const repeat = this._normalizeTournamentMatchRepeatCount(repeatCount, 1);
+    const list = Array.isArray(fixtures) ? fixtures : [];
+    if (repeat <= 1) {
+      return list.map((match, index) => ({
+        ...match,
+        matchNo: index + 1,
+        seriesKey: match.seriesKey || match.slotKey || '',
+        seriesGame: 1,
+        seriesTotal: 1,
+      }));
+    }
+    const repeated = [];
+    let matchNo = 0;
+    const leagueRoundsTotal = Math.max(0, Math.floor(Number(options.leagueRoundsTotal) || 0));
+    list.forEach(match => {
+      const baseSeriesKey = match.seriesKey || match.slotKey || '';
+      if (match.status === 'bye') {
+        repeated.push({
+          ...match,
+          matchNo: ++matchNo,
+          seriesKey: baseSeriesKey,
+          seriesGame: 1,
+          seriesTotal: 1,
+        });
+        return;
+      }
+      for (let game = 1; game <= repeat; game++) {
+        const swapSides = game % 2 === 0;
+        const nextRound = leagueRoundsTotal > 0 ? match.round + leagueRoundsTotal * (game - 1) : match.round;
+        const nextSlot = leagueRoundsTotal > 0 ? match.slot : match.slot * repeat + (game - 1);
+        const nextSlotKey = leagueRoundsTotal > 0
+          ? `lr${nextRound}m${match.slot}`
+          : (game === 1 ? match.slotKey : `${match.slotKey}g${game}`);
+        const clone = {
+          ...match,
+          round: nextRound,
+          slot: nextSlot,
+          slotKey: nextSlotKey,
+          matchNo: ++matchNo,
+          seriesKey: baseSeriesKey,
+          seriesGame: game,
+          seriesTotal: repeat,
+        };
+        if (swapSides) {
+          [clone.homeTeamId, clone.awayTeamId] = [clone.awayTeamId, clone.homeTeamId];
+          [clone.homeSourceSlot, clone.awaySourceSlot] = [clone.awaySourceSlot, clone.homeSourceSlot];
+        }
+        repeated.push(clone);
+      }
+    });
+    return repeated;
+  },
+
   _generateLeagueFixtures(teamIds, options = {}) {
     const ids = (Array.isArray(teamIds) ? teamIds : []).map(id => String(id || '').trim()).filter(Boolean);
     if (ids.length < 2) return [];
@@ -107,16 +172,11 @@ Object.assign(App, {
       }
       rotation.splice(1, 0, rotation.pop());
     }
-    if (options.doubleRound === true) {
-      const firstLeg = [...fixtures];
-      firstLeg.forEach(match => {
-        fixtures.push({
-          ...match, round: match.round + roundsTotal, slotKey: `lr${match.round + roundsTotal}m${match.slot}`,
-          matchNo: ++matchNo, homeTeamId: match.awayTeamId, awayTeamId: match.homeTeamId,
-        });
-      });
-    }
-    return fixtures;
+    const repeat = this._normalizeTournamentMatchRepeatCount(
+      options.matchRepeatCount ?? options.pairRepeatCount,
+      options.doubleRound === true ? 2 : 1
+    );
+    return this._repeatTournamentFixtureSeries(fixtures, repeat, { leagueRoundsTotal: roundsTotal });
   },
 
   /** 標準種子序（1-indexed），size 必須為 2 的次方。 */
@@ -169,7 +229,11 @@ Object.assign(App, {
         sourceType: 'loser', status: 'scheduled',
       });
     }
-    return matches;
+    const repeat = this._normalizeTournamentMatchRepeatCount(
+      options.matchRepeatCount ?? options.pairRepeatCount,
+      1
+    );
+    return this._repeatTournamentFixtureSeries(matches, repeat);
   },
 
   _getTournamentRoundLabel(match, bracketSize = 0) {
@@ -185,6 +249,14 @@ Object.assign(App, {
 
   /** 取得單場勝方 teamId；無法判定回傳 ''。盃賽平手以 PK 判定。 */
   _getTournamentMatchWinnerTeamId(match, matchesBySlot = {}) {
+    if (!match) return '';
+    if (Array.isArray(match.seriesMatches) && match.seriesMatches.length > 0) {
+      return this._getTournamentSeriesWinnerTeamId(match, matchesBySlot);
+    }
+    return this._getTournamentSingleMatchWinnerTeamId(match, matchesBySlot);
+  },
+
+  _getTournamentSingleMatchWinnerTeamId(match, matchesBySlot = {}) {
     if (!match) return '';
     if (match.status === 'bye') return match.homeTeamId || match.awayTeamId || '';
     if (match.status === 'walkover') return String(match.walkoverWinnerTeamId || '').trim();
@@ -202,6 +274,37 @@ Object.assign(App, {
     if (Number.isFinite(pkHome) && Number.isFinite(pkAway) && pkHome !== pkAway) {
       return pkHome > pkAway ? home.teamId : away.teamId;
     }
+    return '';
+  },
+
+  _getTournamentSeriesWinnerTeamId(series, matchesBySlot = {}) {
+    const items = Array.isArray(series.seriesMatches) ? series.seriesMatches : [];
+    if (items.length === 0) return '';
+    const total = Math.max(1, ...items.map(item => Number(item.seriesTotal) || 1));
+    const threshold = Math.floor(total / 2) + 1;
+    const wins = new Map();
+    let completed = 0;
+    items.forEach(item => {
+      if (!['finished', 'walkover', 'bye'].includes(String(item.status || ''))) return;
+      completed += 1;
+      const winner = this._getTournamentSingleMatchWinnerTeamId(item, matchesBySlot);
+      if (!winner) return;
+      wins.set(winner, (wins.get(winner) || 0) + 1);
+    });
+    let leader = '';
+    let leaderWins = 0;
+    let tied = false;
+    wins.forEach((count, teamId) => {
+      if (count > leaderWins) {
+        leader = teamId;
+        leaderWins = count;
+        tied = false;
+      } else if (count === leaderWins) {
+        tied = true;
+      }
+    });
+    if (leader && leaderWins >= threshold) return leader;
+    if (completed >= total && leader && !tied) return leader;
     return '';
   },
 
@@ -226,8 +329,34 @@ Object.assign(App, {
 
   _buildTournamentMatchesBySlot(matches) {
     const bySlot = {};
+    const groups = {};
     (Array.isArray(matches) ? matches : []).forEach(match => {
-      if (match?.slotKey) bySlot[match.slotKey] = match;
+      if (!match?.slotKey) return;
+      bySlot[match.slotKey] = match;
+      const seriesKey = String(match.seriesKey || match.slotKey || '').trim();
+      if (!seriesKey) return;
+      if (!groups[seriesKey]) groups[seriesKey] = [];
+      groups[seriesKey].push(match);
+    });
+    Object.entries(groups).forEach(([seriesKey, items]) => {
+      const ordered = [...items].sort((a, b) =>
+        (Number(a.seriesGame || 1) - Number(b.seriesGame || 1))
+        || (Number(a.matchNo || 0) - Number(b.matchNo || 0))
+      );
+      const seriesTotal = Math.max(1, ...ordered.map(item => Number(item.seriesTotal) || 1));
+      if (ordered.length > 1 || seriesTotal > 1) {
+        bySlot[seriesKey] = {
+          ...ordered[0],
+          id: `series:${seriesKey}`,
+          slotKey: seriesKey,
+          seriesKey,
+          seriesGame: 1,
+          seriesTotal,
+          seriesMatches: ordered,
+        };
+      } else {
+        bySlot[seriesKey] = ordered[0];
+      }
     });
     return bySlot;
   },

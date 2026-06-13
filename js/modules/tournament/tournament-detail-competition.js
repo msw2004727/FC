@@ -74,6 +74,42 @@ Object.assign(App, {
     return `${dt.getMonth() + 1}/${dt.getDate()} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
   },
 
+  _getTournamentBracketSize(cupMatches) {
+    const firstRoundKeys = new Set((Array.isArray(cupMatches) ? cupMatches : [])
+      .filter(match => Number(match?.round) === 1)
+      .map(match => String(match.seriesKey || match.slotKey || '').trim())
+      .filter(Boolean));
+    return firstRoundKeys.size * 2;
+  },
+
+  _renderTournamentMatchEventsSummaryHtml(match, home, away) {
+    const events = Array.isArray(match?.events) ? match.events : [];
+    if (!events.length || match.status !== 'finished') return '';
+    const teamNames = {
+      [home.teamId]: home.label,
+      [away.teamId]: away.label,
+    };
+    const iconMap = { goal: '⚽', own_goal: 'OG', yellow: 'YC', red: 'RC' };
+    const labelMap = { goal: '進球', own_goal: '烏龍球', yellow: '黃牌', red: '紅牌' };
+    const shown = events.slice(0, 6).map(ev => {
+      const type = String(ev?.type || '').trim();
+      const safeType = type.replace(/[^a-z0-9_-]/gi, '') || 'event';
+      const label = labelMap[type] || type || '事件';
+      const icon = iconMap[type] || label;
+      const minute = Number.isFinite(Number(ev?.minute)) && Number(ev.minute) > 0 ? `${Math.floor(Number(ev.minute))}'` : '';
+      const player = String(ev?.name || ev?.uid || '').trim();
+      const team = teamNames[String(ev?.teamId || '').trim()] || '';
+      const title = [label, minute, player, team].filter(Boolean).join(' · ');
+      return `<span class="tc-match-event-chip tc-match-event-${escapeHTML(safeType)}" title="${escapeHTML(title)}">
+        <b>${escapeHTML(icon)}</b>
+        ${minute ? `<em>${escapeHTML(minute)}</em>` : ''}
+        <span>${escapeHTML(player || label)}</span>
+      </span>`;
+    }).join('');
+    const more = events.length > 6 ? `<span class="tc-match-event-more">+${events.length - 6}</span>` : '';
+    return `<div class="tc-match-events-summary">${shown}${more}</div>`;
+  },
+
   _renderTournamentMatchSideLabel(match, side, matchesBySlot, nameById) {
     const resolved = this._resolveTournamentMatchSide(match, side, matchesBySlot);
     if (resolved.teamId) return { teamId: resolved.teamId, label: nameById[resolved.teamId] || resolved.teamId, pending: false };
@@ -118,7 +154,11 @@ Object.assign(App, {
         <span class="tc-match-team-score">${escapeHTML(sideScore(info, side))}</span>
       </div>`;
     const matchNumber = Number.isFinite(Number(match.slot)) ? Number(match.slot) + 1 : '';
-    const matchLabel = match.stage === 'third' ? '季軍戰' : matchNumber ? `第 ${matchNumber} 場` : '場次';
+    const seriesTotal = Math.max(1, Number(match.seriesTotal) || 1);
+    const seriesGame = Math.max(1, Number(match.seriesGame) || 1);
+    const seriesLabel = seriesTotal > 1 ? `第 ${seriesGame}/${seriesTotal} 場` : '';
+    const matchLabel = match.stage === 'third' ? (seriesLabel || '季軍戰') : seriesLabel || (matchNumber ? `第 ${matchNumber} 場` : '場次');
+    const eventsSummaryHtml = this._renderTournamentMatchEventsSummaryHtml(match, home, away);
     const matchTime = this._formatTournamentMatchTime(match.scheduledAt);
     const refereeNames = (match.referees || []).map(ref => ref?.name || '').filter(Boolean).join('、');
     const metaParts = [
@@ -144,6 +184,7 @@ Object.assign(App, {
           ${teamHtml(home, 'home')}
           <div class="tc-match-scoreline">${scoreText}</div>
           ${teamHtml(away, 'away')}
+          ${eventsSummaryHtml}
         </div>
         <div class="tc-match-detail">
           ${metaHtml}
@@ -174,7 +215,7 @@ Object.assign(App, {
     const mode = this._getTournamentMode?.(tournament);
     const modeText = mode === 'league' ? '聯賽' : '盃賽';
     const cupMatches = matches.filter(m => m.stage === 'cup');
-    const bracketSize = cupMatches.filter(m => m.round === 1).length * 2;
+    const bracketSize = this._getTournamentBracketSize(cupMatches);
     const finishedCount = matches.filter(m => m.status === 'finished' || m.status === 'walkover').length;
     const scheduledCount = matches.filter(m => m.scheduledAt).length;
     const venueCount = matches.filter(m => String(m.venue || '').trim()).length;
@@ -237,9 +278,15 @@ Object.assign(App, {
 
   _renderTournamentBracketHtml(cupMatches, matchesBySlot, nameById, bracketSize) {
     const rounds = new Map();
+    const seenSeries = new Set();
     cupMatches.forEach(match => {
-      if (!rounds.has(match.round)) rounds.set(match.round, []);
-      rounds.get(match.round).push(match);
+      const seriesKey = String(match.seriesKey || match.slotKey || '').trim();
+      const dedupeKey = `${match.round}:${seriesKey || match.slotKey || match.id || ''}`;
+      if (seenSeries.has(dedupeKey)) return;
+      seenSeries.add(dedupeKey);
+      const displayMatch = seriesKey && matchesBySlot[seriesKey]?.seriesMatches ? matchesBySlot[seriesKey] : match;
+      if (!rounds.has(displayMatch.round)) rounds.set(displayMatch.round, []);
+      rounds.get(displayMatch.round).push(displayMatch);
     });
     const roundKeys = [...rounds.keys()].sort((a, b) => a - b);
     const columns = roundKeys.map(round => {
@@ -249,7 +296,19 @@ Object.assign(App, {
         const home = this._renderTournamentMatchSideLabel(match, 'home', matchesBySlot, nameById);
         const away = this._renderTournamentMatchSideLabel(match, 'away', matchesBySlot, nameById);
         const winnerTeamId = this._getTournamentMatchWinnerTeamId(match, matchesBySlot);
+        const seriesScore = Array.isArray(match.seriesMatches) && match.seriesMatches.length > 1
+          ? match.seriesMatches.reduce((acc, item) => {
+              const winner = this._getTournamentSingleMatchWinnerTeamId(item, matchesBySlot);
+              if (!winner) return acc;
+              const itemHome = this._resolveTournamentMatchSide(item, 'home', matchesBySlot).teamId;
+              const itemAway = this._resolveTournamentMatchSide(item, 'away', matchesBySlot).teamId;
+              if (winner === itemHome) acc.home += 1;
+              if (winner === itemAway) acc.away += 1;
+              return acc;
+            }, { home: 0, away: 0 })
+          : null;
         const scoreOf = side => {
+          if (seriesScore) return side === 'home' ? seriesScore.home : seriesScore.away;
           if (match.status === 'finished') return side === 'home' ? (match.scoreHome ?? '') : (match.scoreAway ?? '');
           if (match.status === 'walkover') return match.walkoverWinnerTeamId === (side === 'home' ? home.teamId : away.teamId) ? '勝' : '棄';
           if (match.status === 'bye') return side === 'home' ? '晉級' : '';
