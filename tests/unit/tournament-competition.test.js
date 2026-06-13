@@ -331,7 +331,21 @@ describe('比賽記錄資料形狀', () => {
     const m = App._buildTournamentMatchRecord({
       id: 'cm_1', stage: 'hack', round: '2', scoreHome: '3', scoreAway: null,
       seriesKey: 'r1m0', seriesGame: '2', seriesTotal: '3',
-      events: [{ type: 'goal', teamId: 't1', minute: '15.7' }, { type: 'bad', teamId: 't1' }, { type: 'goal' }],
+      events: [
+        { type: 'goal', teamId: 't1', minute: '15.7' },
+        { type: 'yellow', teamId: 't2', uid: 'u2', name: 'Card Player', note: 'late tackle' },
+        { type: 'stoppage_time', minute: '45', note: 'first half +3' },
+        {
+          type: 'substitution',
+          teamId: 't1',
+          minute: '60',
+          playersIn: ['In 1', 'In 2', 'In 3', 'In 4', 'In 5', 'In 6', 'In 7', 'In 8', 'In 9', 'In 10', 'In 11'],
+          playersOut: ['Out 1'],
+          note: 'mass change',
+        },
+        { type: 'bad', teamId: 't1' },
+        { type: 'goal' },
+      ],
       refereeUids: ['u1', '', null],
       status: 'weird',
     });
@@ -343,8 +357,13 @@ describe('比賽記錄資料形狀', () => {
     expect(m.seriesKey).toBe('r1m0');
     expect(m.seriesGame).toBe(2);
     expect(m.seriesTotal).toBe(3);
-    expect(m.events).toHaveLength(1);
+    expect(m.events).toHaveLength(4);
     expect(m.events[0].minute).toBe(15);
+    expect(m.events[1]).toMatchObject({ type: 'yellow', teamId: 't2', uid: 'u2', name: 'Card Player', note: 'late tackle' });
+    expect(m.events[2]).toMatchObject({ type: 'stoppage_time', teamId: '', minute: 45, note: 'first half +3' });
+    expect(m.events[3]).toMatchObject({ type: 'substitution', teamId: 't1', minute: 60, note: 'mass change' });
+    expect(m.events[3].playersIn).toHaveLength(11);
+    expect(m.events[3].playersOut).toEqual(['Out 1']);
     expect(m.refereeUids).toEqual(['u1']);
   });
 });

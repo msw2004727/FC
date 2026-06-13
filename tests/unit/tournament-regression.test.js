@@ -124,9 +124,11 @@ function _getFriendlyTournamentRegisteredTeamIdsFromEntries(entries, tournament 
 // Extracted from tournament-core.js:256-269 — entry record builder with roster dedup
 // ---------------------------------------------------------------------------
 function _buildFriendlyTournamentRosterMemberRecord(data = {}) {
+  const jerseyNumber = String(data.jerseyNumber || data.number || '').trim();
   return {
     uid: String(data.uid || '').trim(),
     name: String(data.name || data.displayName || '').trim(),
+    jerseyNumber: /^\d{1,3}$/.test(jerseyNumber) ? jerseyNumber : '',
     joinedAt: data.joinedAt || null,
   };
 }

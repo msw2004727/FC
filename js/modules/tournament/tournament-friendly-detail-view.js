@@ -215,6 +215,90 @@ Object.assign(App, {
     return `<button type="button" class="${fullWidth ? 'primary-btn full-width ' : ''}tfd-roster-join-btn" onclick="${stop}return App.joinFriendlyTournamentRoster('${safeTournamentId}','${safeTeamId}', this)">參賽</button>`;
   },
 
+  _normalizeFriendlyTournamentJerseyNumber(value) {
+    const safeValue = String(value || '').trim();
+    if (!safeValue) return '';
+    return /^\d{1,3}$/.test(safeValue) ? safeValue : null;
+  },
+
+  _formatFriendlyTournamentRosterMemberName(member) {
+    const rawName = String(member?.name || member?.displayName || member?.uid || '成員').trim();
+    const baseName = this._displayNameOrUidFallback?.(member?.name || member?.displayName, member?.uid, rawName || '成員') || rawName || '成員';
+    const jerseyNumber = this._normalizeFriendlyTournamentJerseyNumber(member?.jerseyNumber);
+    return jerseyNumber ? `${jerseyNumber}-${baseName}` : baseName;
+  },
+
+  _renderFriendlyTournamentRosterMemberChip(tournamentId, entry, member, canEditJersey) {
+    const safeTournamentId = escapeHTML(String(tournamentId || '').trim());
+    const safeTeamId = escapeHTML(String(entry?.teamId || entry?.id || '').trim());
+    const safeUid = escapeHTML(String(member?.uid || '').trim());
+    const displayName = this._formatFriendlyTournamentRosterMemberName(member);
+    const editButton = canEditJersey && safeTournamentId && safeTeamId && safeUid
+      ? `<button type="button" class="tfd-jersey-btn" title="登入背號" onclick="event.stopPropagation();return App.promptFriendlyTournamentMemberJersey('${safeTournamentId}','${safeTeamId}','${safeUid}', this)">背號</button>`
+      : '';
+    return `<span class="tfd-member-chip${editButton ? ' tfd-member-chip-editable' : ''}"><span class="tfd-member-name">${escapeHTML(displayName)}</span>${editButton}</span>`;
+  },
+
+  async promptFriendlyTournamentMemberJersey(tournamentId, teamId, memberUid, actionButton = null) {
+    const safeTournamentId = String(tournamentId || '').trim();
+    const safeTeamId = String(teamId || '').trim();
+    const safeUid = String(memberUid || '').trim();
+    const viewer = ApiService.getCurrentUser?.();
+    if (!safeTournamentId || !safeTeamId || !safeUid || !viewer?.uid) {
+      this.showToast('無法更新背號');
+      return false;
+    }
+
+    try {
+      const state = await (this._hydrateFriendlyTournamentRosterState?.(safeTournamentId)
+        || this._loadFriendlyTournamentDetailState?.(safeTournamentId));
+      const entry = (state?.entries || []).find(item =>
+        String(item?.teamId || item?.id || '').trim() === safeTeamId
+        || this._isSameFriendlyTournamentEntry?.(item, { teamId: safeTeamId, id: safeTeamId })
+      );
+      const team = ApiService.getTeam?.(safeTeamId);
+      if (!entry || !this._isTournamentTeamOfficerForTeam?.(team, viewer)) {
+        this.showToast('只有該俱樂部職員可以登入背號');
+        return false;
+      }
+      const member = (entry.memberRoster || []).find(item => String(item?.uid || '').trim() === safeUid);
+      if (!member) {
+        this.showToast('找不到球員名單');
+        return false;
+      }
+      const currentNumber = this._normalizeFriendlyTournamentJerseyNumber(member.jerseyNumber) || '';
+      const promptFn = (typeof window !== 'undefined' && typeof window.prompt === 'function')
+        ? window.prompt.bind(window)
+        : (typeof prompt === 'function' ? prompt : null);
+      if (!promptFn) {
+        this.showToast('目前無法開啟背號輸入');
+        return false;
+      }
+      const input = promptFn('輸入球員背號（1-3 位數字；留空可清除）', currentNumber);
+      if (input === null) return false;
+      const jerseyNumber = this._normalizeFriendlyTournamentJerseyNumber(input);
+      if (jerseyNumber === null) {
+        this.showToast('背號只能輸入 1-3 位數字');
+        return false;
+      }
+      const save = async () => {
+        await ApiService.updateTournamentEntryMemberJersey(safeTournamentId, safeTeamId, safeUid, jerseyNumber);
+        await this._hydrateFriendlyTournamentRosterState?.(safeTournamentId);
+        this._refreshFriendlyTournamentRosterUi?.(safeTournamentId);
+        this.showToast(jerseyNumber ? '背號已更新' : '背號已清除');
+      };
+      if (typeof this._withButtonLoading === 'function') {
+        await this._withButtonLoading(actionButton, '儲存中...', save);
+      } else {
+        await save();
+      }
+      return true;
+    } catch (err) {
+      this._showTournamentActionError?.('更新背號', err);
+      return false;
+    }
+  },
+
   _buildFriendlyTournamentWithdrawControl(tournamentId, teams, label) {
     const safeTournamentId = String(tournamentId || '').trim();
     const options = (teams || [])
@@ -353,12 +437,13 @@ Object.assign(App, {
 
     const entryRows = approvedEntries.map(entry => {
       const teamName = entry.teamName || '未命名俱樂部';
+      const isViewerTeamOfficer = this._isFriendlyTournamentViewerTeamOfficer?.(entry.teamId, viewer);
+      const canEditRosterJersey = isRosterHydrated && isViewerTeamOfficer;
       const roster = !isRosterHydrated
         ? '<span class="tfd-empty-text">隊員名單載入中</span>'
         : Array.isArray(entry.memberRoster) && entry.memberRoster.length
-        ? entry.memberRoster.map(member => `<span class="tfd-member-chip">${escapeHTML(this._displayNameOrUidFallback?.(member.name, member.uid, '成員') || '成員')}</span>`).join('')
+        ? entry.memberRoster.map(member => this._renderFriendlyTournamentRosterMemberChip(tournament.id, entry, member, canEditRosterJersey)).join('')
         : '<span class="tfd-empty-text">尚無隊員報名</span>';
-      const isViewerTeamOfficer = this._isFriendlyTournamentViewerTeamOfficer?.(entry.teamId, viewer);
       const rosterAction = this._isFriendlyTournamentViewerOnEntryTeam(entry, viewer)
         ? (isRosterHydrated
           ? this._buildFriendlyTournamentRosterActionButton(tournament.id, entry, rosterMembership, status, { stopPropagation: true })

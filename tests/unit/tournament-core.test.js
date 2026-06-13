@@ -136,9 +136,11 @@ function _isTournamentCaptainForTeam(team, user) {
 // Extracted from tournament-core.js:258-264
 // ---------------------------------------------------------------------------
 function _buildFriendlyTournamentRosterMemberRecord(data = {}) {
+  const jerseyNumber = String(data.jerseyNumber || data.number || '').trim();
   return {
     uid: String(data.uid || '').trim(),
     name: String(data.name || data.displayName || '').trim(),
+    jerseyNumber: /^\d{1,3}$/.test(jerseyNumber) ? jerseyNumber : '',
     joinedAt: data.joinedAt || null,
   };
 }
@@ -566,20 +568,28 @@ describe('_buildFriendlyTournamentApplicationRecord', () => {
 
 describe('_buildFriendlyTournamentRosterMemberRecord', () => {
   test('extracts uid and name', () => {
-    const result = _buildFriendlyTournamentRosterMemberRecord({ uid: 'u1', name: 'Alice' });
+    const result = _buildFriendlyTournamentRosterMemberRecord({ uid: 'u1', name: 'Alice', jerseyNumber: '11' });
     expect(result.uid).toBe('u1');
     expect(result.name).toBe('Alice');
+    expect(result.jerseyNumber).toBe('11');
   });
 
   test('falls back to displayName', () => {
-    const result = _buildFriendlyTournamentRosterMemberRecord({ uid: 'u1', displayName: 'Bob' });
+    const result = _buildFriendlyTournamentRosterMemberRecord({ uid: 'u1', displayName: 'Bob', number: '7' });
     expect(result.name).toBe('Bob');
+    expect(result.jerseyNumber).toBe('7');
+  });
+
+  test('drops invalid jersey numbers', () => {
+    const result = _buildFriendlyTournamentRosterMemberRecord({ uid: 'u1', name: 'Alice', jerseyNumber: '1234' });
+    expect(result.jerseyNumber).toBe('');
   });
 
   test('empty → empty strings with null joinedAt', () => {
     const result = _buildFriendlyTournamentRosterMemberRecord({});
     expect(result.uid).toBe('');
     expect(result.name).toBe('');
+    expect(result.jerseyNumber).toBe('');
     expect(result.joinedAt).toBeNull();
   });
 });

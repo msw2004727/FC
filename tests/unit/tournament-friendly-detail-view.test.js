@@ -437,6 +437,7 @@ describe('friendly tournament teams tab actions', () => {
       _buildFriendlyTournamentRosterMemberRecord: member => ({
         uid: String(member.uid || ''),
         name: String(member.name || ''),
+        jerseyNumber: String(member.jerseyNumber || ''),
         joinedAt: member.joinedAt || null,
       }),
       _buildFriendlyTournamentEntryRecord: entry => ({
@@ -444,6 +445,7 @@ describe('friendly tournament teams tab actions', () => {
         memberRoster: (entry.memberRoster || []).map(member => ({
           uid: String(member.uid || ''),
           name: String(member.name || ''),
+          jerseyNumber: String(member.jerseyNumber || ''),
           joinedAt: member.joinedAt || null,
         })),
       }),
@@ -455,7 +457,7 @@ describe('friendly tournament teams tab actions', () => {
     const nextState = await global.App._hydrateFriendlyTournamentRosterState('ct_test');
 
     expect(nextState.rosterHydrated).toBe(true);
-    expect(nextState.entries[0].memberRoster).toEqual([{ uid: 'player_uid', name: 'Player', joinedAt: null }]);
+    expect(nextState.entries[0].memberRoster).toEqual([{ uid: 'player_uid', name: 'Player', jerseyNumber: '', joinedAt: null }]);
     expect(global.App._friendlyTournamentDetailStateById.ct_test).toBe(nextState);
   });
 
@@ -482,6 +484,102 @@ describe('friendly tournament teams tab actions', () => {
     expect(html).toContain('tfd-roster-join-btn');
     expect(html).toContain('tfd-entry-remove-btn');
     expect(html).toContain("return App.joinFriendlyTournamentRoster('ct_test','tm_guest', this)");
+  });
+
+  test('team officers can edit jersey numbers on their own friendly tournament club card', () => {
+    global.ApiService = {
+      getCurrentUser: () => ({ uid: 'manager_uid', role: 'user', teamIds: ['tm_guest'] }),
+      getTeam: teamId => ({ id: teamId, captainUid: 'manager_uid' }),
+    };
+    global.TOURNAMENT_STATUS = { REG_OPEN: 'open' };
+    global.App._canManageTournamentRecord = jest.fn(() => false);
+    global.App._getUserTeamIds = jest.fn(user => user?.teamIds || []);
+    global.App._isTournamentTeamOfficerForTeam = jest.fn((team, user) => team?.captainUid === user?.uid);
+    global.App._displayNameOrUidFallback = jest.fn((name, uid, fallback) => name || uid || fallback);
+    global.App.getTournamentStatus = jest.fn(() => 'open');
+    require('../../js/modules/tournament/tournament-friendly-detail-view.js');
+
+    const html = global.App._renderFriendlyTournamentTeamsTab({
+      tournament: { id: 'ct_test', hostTeamId: 'tm_host' },
+      rosterHydrated: true,
+      entries: [
+        {
+          teamId: 'tm_guest',
+          teamName: 'Guest Team',
+          entryStatus: 'approved',
+          memberRoster: [{ uid: 'player_uid', name: 'AAA', jerseyNumber: '11' }],
+        },
+      ],
+      applications: [],
+    });
+
+    expect(html).toContain('11-AAA');
+    expect(html).toContain('tfd-jersey-btn');
+    expect(html).toContain("return App.promptFriendlyTournamentMemberJersey('ct_test','tm_guest','player_uid', this)");
+  });
+
+  test('non-officers cannot edit jersey numbers on friendly tournament club cards', () => {
+    global.ApiService = {
+      getCurrentUser: () => ({ uid: 'viewer_uid', role: 'user', teamIds: [] }),
+      getTeam: teamId => ({ id: teamId, captainUid: 'manager_uid' }),
+    };
+    global.TOURNAMENT_STATUS = { REG_OPEN: 'open' };
+    global.App._canManageTournamentRecord = jest.fn(() => false);
+    global.App._getUserTeamIds = jest.fn(user => user?.teamIds || []);
+    global.App._isTournamentTeamOfficerForTeam = jest.fn(() => false);
+    global.App._displayNameOrUidFallback = jest.fn((name, uid, fallback) => name || uid || fallback);
+    global.App.getTournamentStatus = jest.fn(() => 'open');
+    require('../../js/modules/tournament/tournament-friendly-detail-view.js');
+
+    const html = global.App._renderFriendlyTournamentTeamsTab({
+      tournament: { id: 'ct_test', hostTeamId: 'tm_host' },
+      rosterHydrated: true,
+      entries: [
+        {
+          teamId: 'tm_guest',
+          teamName: 'Guest Team',
+          entryStatus: 'approved',
+          memberRoster: [{ uid: 'player_uid', name: 'AAA', jerseyNumber: '11' }],
+        },
+      ],
+      applications: [],
+    });
+
+    expect(html).toContain('11-AAA');
+    expect(html).not.toContain('tfd-jersey-btn');
+    expect(html).not.toContain('promptFriendlyTournamentMemberJersey');
+  });
+
+  test('promptFriendlyTournamentMemberJersey saves a sanitized jersey number', async () => {
+    const state = {
+      tournament: { id: 'ct_test', hostTeamId: 'tm_host' },
+      entries: [
+        {
+          teamId: 'tm_guest',
+          teamName: 'Guest Team',
+          memberRoster: [{ uid: 'player_uid', name: 'AAA', jerseyNumber: '' }],
+        },
+      ],
+    };
+    global.ApiService = {
+      getCurrentUser: () => ({ uid: 'manager_uid', role: 'user' }),
+      getTeam: teamId => ({ id: teamId, captainUid: 'manager_uid' }),
+      updateTournamentEntryMemberJersey: jest.fn().mockResolvedValue(),
+    };
+    global.window = global.window || {};
+    global.window.prompt = jest.fn(() => '07');
+    global.App._hydrateFriendlyTournamentRosterState = jest.fn().mockResolvedValue(state);
+    global.App._refreshFriendlyTournamentRosterUi = jest.fn();
+    global.App._isTournamentTeamOfficerForTeam = jest.fn((team, user) => team?.captainUid === user?.uid);
+    global.App.showToast = jest.fn();
+    global.App._showTournamentActionError = jest.fn();
+    require('../../js/modules/tournament/tournament-friendly-detail-view.js');
+
+    await global.App.promptFriendlyTournamentMemberJersey('ct_test', 'tm_guest', 'player_uid');
+
+    expect(global.ApiService.updateTournamentEntryMemberJersey).toHaveBeenCalledWith('ct_test', 'tm_guest', 'player_uid', '07');
+    expect(global.App._refreshFriendlyTournamentRosterUi).toHaveBeenCalledWith('ct_test');
+    expect(global.App.showToast).toHaveBeenCalled();
   });
 
   test('keeps roster join visible but blocked when player already joined another team', () => {

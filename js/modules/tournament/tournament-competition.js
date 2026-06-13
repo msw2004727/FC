@@ -59,16 +59,50 @@ Object.assign(App, {
       if (value instanceof Date || typeof value === 'number' || typeof value?.toDate === 'function' || typeof value?.toMillis === 'function') return value;
       return String(value || '').trim();
     };
+    const text = (value, limit = 60) => String(value || '').trim().slice(0, limit);
+    const playerList = value => {
+      const source = Array.isArray(value)
+        ? value
+        : String(value || '').split(/[\n,，、/]+/);
+      return source
+        .map(item => text(item, 30))
+        .filter(Boolean)
+        .slice(0, 20);
+    };
+    const validEventTypes = ['goal', 'own_goal', 'yellow', 'red', 'stoppage_time', 'substitution'];
     const events = Array.isArray(data.events)
       ? data.events
-          .map(ev => ({
-            type: ['goal', 'own_goal', 'yellow', 'red'].includes(String(ev?.type || '').trim()) ? String(ev.type).trim() : '',
-            teamId: String(ev?.teamId || '').trim(),
-            uid: String(ev?.uid || '').trim(),
-            name: String(ev?.name || '').trim(),
-            minute: Number.isFinite(Number(ev?.minute)) && Number(ev.minute) > 0 ? Math.floor(Number(ev.minute)) : null,
-          }))
-          .filter(ev => ev.type && ev.teamId)
+          .map(ev => {
+            const type = validEventTypes.includes(String(ev?.type || '').trim()) ? String(ev.type).trim() : '';
+            const minute = Number.isFinite(Number(ev?.minute)) && Number(ev.minute) > 0 ? Math.floor(Number(ev.minute)) : null;
+            const base = {
+              type,
+              teamId: String(ev?.teamId || '').trim(),
+              uid: String(ev?.uid || '').trim(),
+              name: text(ev?.name, 40),
+              minute,
+              note: text(ev?.note || ev?.reason, 60),
+            };
+            if (type === 'stoppage_time') {
+              return { ...base, teamId: '', uid: '', name: '' };
+            }
+            if (type === 'substitution') {
+              return {
+                ...base,
+                uid: '',
+                name: '',
+                playersIn: playerList(ev?.playersIn || ev?.inPlayers || ev?.subIn),
+                playersOut: playerList(ev?.playersOut || ev?.outPlayers || ev?.subOut),
+              };
+            }
+            return base;
+          })
+          .filter(ev => {
+            if (!ev.type) return false;
+            if (ev.type === 'stoppage_time') return !!(ev.minute || ev.note);
+            if (ev.type === 'substitution') return !!(ev.teamId && (ev.playersIn.length || ev.playersOut.length));
+            return !!ev.teamId;
+          })
       : [];
     return {
       id: String(data.id || data._docId || '').trim(),

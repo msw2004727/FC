@@ -84,22 +84,29 @@ Object.assign(App, {
 
   _renderTournamentMatchEventsSummaryHtml(match, home, away) {
     const events = Array.isArray(match?.events) ? match.events : [];
-    if (!events.length || match.status !== 'finished') return '';
+    if (!events.length) return '';
     const teamNames = {
       [home.teamId]: home.label,
       [away.teamId]: away.label,
     };
-    const iconMap = { goal: '⚽', own_goal: 'OG', yellow: 'YC', red: 'RC' };
-    const labelMap = { goal: '進球', own_goal: '烏龍球', yellow: '黃牌', red: '紅牌' };
+    const iconMap = { goal: '⚽', own_goal: 'OG', yellow: 'YC', red: 'RC', stoppage_time: 'ET', substitution: 'SUB' };
+    const labelMap = { goal: '進球', own_goal: '烏龍球', yellow: '黃牌', red: '紅牌', stoppage_time: '補時公告', substitution: '換人' };
     const shown = events.slice(0, 6).map(ev => {
       const type = String(ev?.type || '').trim();
       const safeType = type.replace(/[^a-z0-9_-]/gi, '') || 'event';
       const label = labelMap[type] || type || '事件';
       const icon = iconMap[type] || label;
       const minute = Number.isFinite(Number(ev?.minute)) && Number(ev.minute) > 0 ? `${Math.floor(Number(ev.minute))}'` : '';
-      const player = String(ev?.name || ev?.uid || '').trim();
+      const note = String(ev?.note || '').trim();
+      const substitutionText = type === 'substitution'
+        ? [
+            Array.isArray(ev?.playersIn) && ev.playersIn.length ? `上 ${ev.playersIn.join('、')}` : '',
+            Array.isArray(ev?.playersOut) && ev.playersOut.length ? `下 ${ev.playersOut.join('、')}` : '',
+          ].filter(Boolean).join(' / ')
+        : '';
+      const player = String(substitutionText || ev?.name || ev?.uid || note || '').trim();
       const team = teamNames[String(ev?.teamId || '').trim()] || '';
-      const title = [label, minute, player, team].filter(Boolean).join(' · ');
+      const title = [label, minute, player, team, (type === 'yellow' || type === 'red') ? note : ''].filter(Boolean).join(' · ');
       return `<span class="tc-match-event-chip tc-match-event-${escapeHTML(safeType)}" title="${escapeHTML(title)}">
         <b>${escapeHTML(icon)}</b>
         ${minute ? `<em>${escapeHTML(minute)}</em>` : ''}
@@ -123,11 +130,15 @@ Object.assign(App, {
     const finished = match.status === 'finished';
     const walkover = match.status === 'walkover';
     const bye = match.status === 'bye';
+    const hasDraftScore = !finished && !walkover && !bye
+      && match.scoreHome !== null && match.scoreHome !== undefined
+      && match.scoreAway !== null && match.scoreAway !== undefined;
+    const hasDraftWalkover = !finished && !walkover && !bye && !!match.walkoverWinnerTeamId;
     const statusClass = bye ? 'bye' : walkover ? 'walkover' : finished ? 'finished' : 'scheduled';
     const statusLabel = {
       bye: '輪空',
       finished: '已結束',
-      scheduled: '待開賽',
+      scheduled: hasDraftScore || hasDraftWalkover ? '暫存' : '待開賽',
       walkover: '棄權',
     }[statusClass] || '待開賽';
     let scoreText = 'VS';
@@ -138,6 +149,12 @@ Object.assign(App, {
     } else if (walkover) {
       const winnerName = nameById[match.walkoverWinnerTeamId] || '';
       scoreText = `<span class="tc-wo" title="${escapeHTML(winnerName)} 獲勝">棄權</span>`;
+    } else if (hasDraftScore) {
+      const pkText = Number.isFinite(Number(match.pkHome)) && Number.isFinite(Number(match.pkAway)) && match.pkHome !== null && match.pkHome !== undefined && match.pkAway !== null && match.pkAway !== undefined
+        ? `<span class="tc-pk">PK ${match.pkHome}:${match.pkAway}</span>` : '';
+      scoreText = `${match.scoreHome ?? '-'} : ${match.scoreAway ?? '-'}${pkText}`;
+    } else if (hasDraftWalkover) {
+      scoreText = '<span class="tc-wo">棄權暫存</span>';
     } else if (bye) {
       scoreText = '<span class="tc-wo">輪空</span>';
     }
@@ -145,6 +162,7 @@ Object.assign(App, {
     const sideScore = (info, side) => {
       if (finished) return side === 'home' ? (match.scoreHome ?? '-') : (match.scoreAway ?? '-');
       if (walkover && match.walkoverWinnerTeamId) return match.walkoverWinnerTeamId === info.teamId ? '勝' : '棄';
+      if (hasDraftScore) return side === 'home' ? (match.scoreHome ?? '-') : (match.scoreAway ?? '-');
       if (bye && side === 'home') return '晉';
       return '';
     };
@@ -295,11 +313,15 @@ Object.assign(App, {
         const home = this._renderTournamentMatchSideLabel(match, 'home', matchesBySlot, nameById);
         const away = this._renderTournamentMatchSideLabel(match, 'away', matchesBySlot, nameById);
         const winnerTeamId = this._getTournamentMatchWinnerTeamId(match, matchesBySlot);
+        const hasDraftScore = match.status === 'scheduled'
+          && match.scoreHome !== null && match.scoreHome !== undefined
+          && match.scoreAway !== null && match.scoreAway !== undefined;
+        const hasDraftWalkover = match.status === 'scheduled' && !!match.walkoverWinnerTeamId;
         const statusClass = match.status === 'bye' ? 'bye' : match.status === 'walkover' ? 'walkover' : match.status === 'finished' ? 'finished' : 'scheduled';
         const statusLabel = {
           bye: '輪空',
           finished: '已結束',
-          scheduled: '待賽',
+          scheduled: hasDraftScore || hasDraftWalkover ? '暫存' : '待賽',
           walkover: '棄權',
         }[statusClass] || '待賽';
         const seriesKey = String(match.seriesKey || match.slotKey || '').trim();
@@ -323,6 +345,7 @@ Object.assign(App, {
         const scoreOf = side => {
           if (match.status === 'finished') return side === 'home' ? (match.scoreHome ?? '') : (match.scoreAway ?? '');
           if (match.status === 'walkover') return match.walkoverWinnerTeamId === (side === 'home' ? home.teamId : away.teamId) ? '勝' : '棄';
+          if (hasDraftScore) return side === 'home' ? (match.scoreHome ?? '') : (match.scoreAway ?? '');
           if (match.status === 'bye') return side === 'home' ? '晉級' : '';
           return '';
         };

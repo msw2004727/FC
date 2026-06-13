@@ -84,6 +84,7 @@ Object.assign(App, {
     if (!recordState || !body || !actions) return;
     const config = this._getTournamentCompetitionConfig?.(tournament) || {};
     const isWalkover = match.status === 'walkover';
+    const isCompleted = match.status === 'finished' || match.status === 'walkover';
     const walkoverScoreText = `${config.walkoverWinScore}:${config.walkoverLoseScore}`;
     if (title) title.textContent = `${recordState.homeName} vs ${recordState.awayName}`;
     body.innerHTML = `
@@ -91,8 +92,8 @@ Object.assign(App, {
         <label class="tmr-result-card">
           <input type="radio" name="tmr-result-type" value="finished" onchange="App._syncTournamentMatchRecordResultType()" ${!isWalkover ? 'checked' : ''}>
           <span class="tmr-result-card-copy">
-            <strong>正常完賽</strong>
-            <small>輸入比分，可補上進球與紅黃牌</small>
+            <strong>一般比分</strong>
+            <small>輸入比分，可補上事件與牌卡原因</small>
           </span>
         </label>
         <label class="tmr-result-card">
@@ -103,6 +104,13 @@ Object.assign(App, {
           </span>
         </label>
       </div>
+      <label class="tmr-complete-toggle">
+        <input type="checkbox" id="tmr-result-completed" ${isCompleted ? 'checked' : ''}>
+        <span>
+          <strong>已完賽</strong>
+          <small>開啟後儲存才會計入完賽、積分榜與淘汰賽晉級；未開啟只會暫存目前結果。</small>
+        </span>
+      </label>
       <div id="tmr-score-section" class="tmr-score-card">
         <div class="tmr-section-head">
           <strong>比分</strong>
@@ -131,20 +139,22 @@ Object.assign(App, {
         <div class="tc-events-section">
           <div class="tmr-section-head">
             <strong>比賽事件</strong>
-            <small>進球、烏龍、紅黃牌可選填</small>
+            <small>進球、烏龍、紅黃牌、補時與換人可選填</small>
           </div>
           <div id="tmr-events-list"></div>
           <div class="tc-event-add tmr-event-add-grid">
             <label class="tmr-event-control">
               <span>事件</span>
-              <select id="tmr-event-type">
+              <select id="tmr-event-type" onchange="App._syncTournamentMatchRecordEventFields()">
                 <option value="goal">⚽ 進球</option>
                 <option value="own_goal">🥅 烏龍球</option>
                 <option value="yellow">🟨 黃牌</option>
                 <option value="red">🟥 紅牌</option>
+                <option value="stoppage_time">⏱ 補時公告</option>
+                <option value="substitution">↔ 換人</option>
               </select>
             </label>
-            <label class="tmr-event-control">
+            <label class="tmr-event-control tmr-event-control-team">
               <span>隊伍</span>
               <select id="tmr-event-team" onchange="App._syncTournamentMatchRecordPlayers()">
                 <option value="${escapeHTML(recordState.homeTeamId)}">${escapeHTML(recordState.homeName)}</option>
@@ -156,9 +166,21 @@ Object.assign(App, {
               <select id="tmr-event-player"></select>
               <input type="text" id="tmr-event-player-custom" placeholder="輸入球員名" style="display:none">
             </label>
+            <label class="tmr-event-control tmr-event-control-sub tmr-event-control-sub-out" style="display:none">
+              <span>下場球員</span>
+              <textarea id="tmr-event-sub-out" rows="2" maxlength="240" placeholder="可用逗號或換行，最多20人"></textarea>
+            </label>
+            <label class="tmr-event-control tmr-event-control-sub tmr-event-control-sub-in" style="display:none">
+              <span>上場球員</span>
+              <textarea id="tmr-event-sub-in" rows="2" maxlength="240" placeholder="可用逗號或換行，最多20人"></textarea>
+            </label>
             <label class="tmr-event-control tmr-event-control-minute">
               <span>時間</span>
               <input type="number" id="tmr-event-minute" min="1" max="150" placeholder="分" inputmode="numeric">
+            </label>
+            <label class="tmr-event-control tmr-event-control-note" style="display:none">
+              <span>備註</span>
+              <input type="text" id="tmr-event-note" maxlength="60" placeholder="原因或補時時間">
             </label>
             <button type="button" class="outline-btn small tmr-event-add-btn" onclick="App._addTournamentMatchRecordEvent()">加入</button>
           </div>
@@ -181,6 +203,7 @@ Object.assign(App, {
       <button class="primary-btn" type="button" id="tmr-save-btn" onclick="return App.saveTournamentMatchResult(this)">儲存結果</button>`;
     this._syncTournamentMatchRecordResultType();
     this._syncTournamentMatchRecordPlayers();
+    this._syncTournamentMatchRecordEventFields();
     this._renderTournamentMatchRecordEvents();
   },
 
@@ -194,17 +217,45 @@ Object.assign(App, {
     if (walkoverSection) walkoverSection.style.display = type === 'walkover' ? '' : 'none';
   },
 
+  _syncTournamentMatchRecordEventFields() {
+    const type = document.getElementById('tmr-event-type')?.value || 'goal';
+    const teamControl = document.querySelector('.tmr-event-control-team');
+    const playerControl = document.querySelector('.tmr-event-control-player');
+    const subControls = document.querySelectorAll('.tmr-event-control-sub');
+    const noteControl = document.querySelector('.tmr-event-control-note');
+    const minuteLabel = document.querySelector('.tmr-event-control-minute span');
+    const noteInput = document.getElementById('tmr-event-note');
+    const isSinglePlayer = ['goal', 'own_goal', 'yellow', 'red'].includes(type);
+    const isSubstitution = type === 'substitution';
+    const isStoppage = type === 'stoppage_time';
+    if (teamControl) teamControl.style.display = isStoppage ? 'none' : '';
+    if (playerControl) playerControl.style.display = isSinglePlayer ? '' : 'none';
+    subControls.forEach(node => { node.style.display = isSubstitution ? '' : 'none'; });
+    if (noteControl) noteControl.style.display = (type === 'yellow' || type === 'red' || isStoppage || isSubstitution) ? '' : 'none';
+    if (minuteLabel) minuteLabel.textContent = isStoppage ? '公告時間' : '時間';
+    if (noteInput) {
+      noteInput.placeholder = isStoppage
+        ? '例如：補時 5 分鐘'
+        : isSubstitution
+          ? '換人備註'
+          : '吃牌原因';
+    }
+    this._syncTournamentMatchRecordPlayers();
+  },
+
   _syncTournamentMatchRecordPlayers() {
     const recordState = this._tournamentMatchRecordState;
     const teamSelect = document.getElementById('tmr-event-team');
     const playerSelect = document.getElementById('tmr-event-player');
     const customInput = document.getElementById('tmr-event-player-custom');
     if (!recordState || !teamSelect || !playerSelect) return;
+    const type = document.getElementById('tmr-event-type')?.value || 'goal';
+    if (!['goal', 'own_goal', 'yellow', 'red'].includes(type)) return;
     const state = this._getFriendlyTournamentState?.(recordState.tournamentId);
     const entry = (state?.entries || []).find(item => item.teamId === teamSelect.value);
     const roster = Array.isArray(entry?.memberRoster) ? entry.memberRoster : [];
     playerSelect.innerHTML = [
-      ...roster.map(member => `<option value="${escapeHTML(member.uid)}" data-name="${escapeHTML(member.name || '')}">${escapeHTML(member.name || member.uid)}</option>`),
+      ...roster.map(member => `<option value="${escapeHTML(member.uid)}" data-name="${escapeHTML(member.name || '')}">${escapeHTML(this._formatFriendlyTournamentRosterMemberName?.(member) || member.name || member.uid)}</option>`),
       '<option value="__custom__">其他（手動輸入）</option>',
     ].join('');
     playerSelect.onchange = () => {
@@ -212,6 +263,16 @@ Object.assign(App, {
     };
     if (customInput) customInput.style.display = roster.length === 0 ? '' : 'none';
     if (roster.length === 0) playerSelect.value = '__custom__';
+  },
+
+  _parseTournamentEventPlayerList(value) {
+    const rawItems = Array.isArray(value)
+      ? value
+      : String(value || '').split(/[\n,，、/]+/);
+    return rawItems
+      .map(item => String(item || '').trim().slice(0, 30))
+      .filter(Boolean)
+      .slice(0, 20);
   },
 
   _addTournamentMatchRecordEvent() {
@@ -222,6 +283,36 @@ Object.assign(App, {
     const playerSelect = document.getElementById('tmr-event-player');
     const customInput = document.getElementById('tmr-event-player-custom');
     const minuteRaw = Number(document.getElementById('tmr-event-minute')?.value);
+    const minute = Number.isFinite(minuteRaw) && minuteRaw > 0 ? Math.floor(minuteRaw) : null;
+    const note = String(document.getElementById('tmr-event-note')?.value || '').trim().slice(0, 60);
+    if (type === 'stoppage_time') {
+      if (!minute && !note) {
+        this.showToast('請填寫補時公告時間或補時內容');
+        return;
+      }
+      recordState.events.push({ type, teamId: '', uid: '', name: '', minute, note });
+      const minuteInput = document.getElementById('tmr-event-minute');
+      const noteInput = document.getElementById('tmr-event-note');
+      if (minuteInput) minuteInput.value = '';
+      if (noteInput) noteInput.value = '';
+      this._renderTournamentMatchRecordEvents();
+      return;
+    }
+    if (type === 'substitution') {
+      const playersOut = this._parseTournamentEventPlayerList(document.getElementById('tmr-event-sub-out')?.value);
+      const playersIn = this._parseTournamentEventPlayerList(document.getElementById('tmr-event-sub-in')?.value);
+      if (!teamId || playersOut.length === 0 || playersIn.length === 0) {
+        this.showToast('請選擇隊伍並填寫上場與下場球員');
+        return;
+      }
+      recordState.events.push({ type, teamId, uid: '', name: '', minute, note, playersOut, playersIn });
+      ['tmr-event-sub-out', 'tmr-event-sub-in', 'tmr-event-minute', 'tmr-event-note'].forEach(id => {
+        const input = document.getElementById(id);
+        if (input) input.value = '';
+      });
+      this._renderTournamentMatchRecordEvents();
+      return;
+    }
     let uid = '';
     let name = '';
     if (playerSelect?.value && playerSelect.value !== '__custom__') {
@@ -236,11 +327,14 @@ Object.assign(App, {
     }
     recordState.events.push({
       type, teamId, uid, name,
-      minute: Number.isFinite(minuteRaw) && minuteRaw > 0 ? Math.floor(minuteRaw) : null,
+      minute,
+      note: (type === 'yellow' || type === 'red') ? note : '',
     });
     if (customInput) customInput.value = '';
     const minuteInput = document.getElementById('tmr-event-minute');
+    const noteInput = document.getElementById('tmr-event-note');
     if (minuteInput) minuteInput.value = '';
+    if (noteInput) noteInput.value = '';
     this._renderTournamentMatchRecordEvents();
   },
 
@@ -255,19 +349,31 @@ Object.assign(App, {
     const recordState = this._tournamentMatchRecordState;
     const list = document.getElementById('tmr-events-list');
     if (!recordState || !list) return;
-    const iconMap = { goal: '⚽', own_goal: '🥅', yellow: '🟨', red: '🟥' };
-    const labelMap = { goal: '進球', own_goal: '烏龍球', yellow: '黃牌', red: '紅牌' };
+    const iconMap = { goal: '⚽', own_goal: '🥅', yellow: '🟨', red: '🟥', stoppage_time: '⏱', substitution: '↔' };
+    const labelMap = { goal: '進球', own_goal: '烏龍球', yellow: '黃牌', red: '紅牌', stoppage_time: '補時公告', substitution: '換人' };
     if (recordState.events.length === 0) {
       list.innerHTML = '<div class="tc-events-empty">尚未新增事件</div>';
       return;
     }
     list.innerHTML = recordState.events.map((ev, index) => {
       const teamName = ev.teamId === recordState.homeTeamId ? recordState.homeName : recordState.awayName;
+      const note = String(ev.note || '').trim();
+      const eventText = `${iconMap[ev.type] || ''} ${labelMap[ev.type] || ev.type}${ev.minute ? ` ${ev.minute}'` : ''}`;
+      let playerText = ev.name || ev.uid || '';
+      if (ev.type === 'stoppage_time') {
+        playerText = note || '補時時間待補';
+      } else if (ev.type === 'substitution') {
+        const playersIn = Array.isArray(ev.playersIn) ? ev.playersIn.join('、') : '';
+        const playersOut = Array.isArray(ev.playersOut) ? ev.playersOut.join('、') : '';
+        playerText = [`上場：${playersIn || '-'}`, `下場：${playersOut || '-'}`].join(' / ');
+      } else if ((ev.type === 'yellow' || ev.type === 'red') && note) {
+        playerText = `${playerText}（${note}）`;
+      }
       return `
       <div class="tc-event-row">
-        <span>${iconMap[ev.type] || ''} ${labelMap[ev.type] || ev.type}${ev.minute ? ` ${ev.minute}'` : ''}</span>
-        <span class="tc-event-player">${escapeHTML(ev.name || ev.uid)}</span>
-        <span class="tc-event-team">${escapeHTML(teamName)}</span>
+        <span>${escapeHTML(eventText)}</span>
+        <span class="tc-event-player">${escapeHTML(playerText)}</span>
+        <span class="tc-event-team">${escapeHTML(ev.type === 'stoppage_time' ? '全場' : teamName)}</span>
         <button type="button" class="tc-event-remove" onclick="App._removeTournamentMatchRecordEvent(${index})">✕</button>
       </div>`;
     }).join('');
@@ -279,13 +385,14 @@ Object.assign(App, {
     const type = document.querySelector('input[name="tmr-result-type"]:checked')?.value
       || document.getElementById('tmr-result-type')?.value
       || 'finished';
+    const isCompleted = document.getElementById('tmr-result-completed')?.checked === true;
     const user = ApiService.getCurrentUser?.();
     let updates;
     if (type === 'walkover') {
       const loserTeamId = document.getElementById('tmr-walkover-loser')?.value || '';
       const winnerTeamId = loserTeamId === recordState.homeTeamId ? recordState.awayTeamId : recordState.homeTeamId;
       updates = {
-        status: 'walkover', walkoverWinnerTeamId: winnerTeamId,
+        status: isCompleted ? 'walkover' : 'scheduled', walkoverWinnerTeamId: winnerTeamId,
         scoreHome: null, scoreAway: null, pkHome: null, pkAway: null, events: [],
       };
     } else {
@@ -295,7 +402,7 @@ Object.assign(App, {
       const pkAwayRaw = document.getElementById('tmr-pk-away')?.value;
       const pkHome = pkHomeRaw !== '' && pkHomeRaw !== undefined ? Math.max(0, Math.floor(Number(pkHomeRaw) || 0)) : null;
       const pkAway = pkAwayRaw !== '' && pkAwayRaw !== undefined ? Math.max(0, Math.floor(Number(pkAwayRaw) || 0)) : null;
-      if (recordState.isCup && scoreHome === scoreAway) {
+      if (isCompleted && recordState.isCup && scoreHome === scoreAway) {
         if (pkHome === null || pkAway === null || pkHome === pkAway) {
           this.showToast('淘汰賽平手需填寫 PK 結果（不可同分）');
           return;
@@ -309,7 +416,7 @@ Object.assign(App, {
           && !(await this.appConfirm(`事件統計（${homeGoals}:${awayGoals}）與比分（${scoreHome}:${scoreAway}）不一致，仍要儲存？`))) return;
       }
       updates = {
-        status: 'finished', scoreHome, scoreAway,
+        status: isCompleted ? 'finished' : 'scheduled', scoreHome, scoreAway,
         pkHome: recordState.isCup ? pkHome : null, pkAway: recordState.isCup ? pkAway : null,
         walkoverWinnerTeamId: '', events: recordState.events,
       };
@@ -319,13 +426,13 @@ Object.assign(App, {
     updates.recordedAt = new Date().toISOString();
     const save = async () => {
       await ApiService.updateTournamentMatchAwait(recordState.tournamentId, recordState.matchId, updates);
-      ApiService._writeOpLog?.('tourn_score', '記錄比分', `賽事 ${recordState.tournamentId} 比賽 ${recordState.matchId} → ${type === 'walkover' ? '棄權' : `${updates.scoreHome}:${updates.scoreAway}`}`);
+      ApiService._writeOpLog?.('tourn_score', isCompleted ? '記錄完賽結果' : '暫存比賽結果', `賽事 ${recordState.tournamentId} 比賽 ${recordState.matchId} → ${type === 'walkover' ? '棄權' : `${updates.scoreHome}:${updates.scoreAway}`}`);
       this.closeTournamentMatchRecordModal();
       await this._refreshTournamentCompetitionMatches?.(recordState.tournamentId);
       if (document.getElementById('tournament-schedule-overlay')?.classList.contains('open')) {
         this._renderTournamentScheduleManager?.();
       }
-      this.showToast('比賽結果已儲存');
+      this.showToast(isCompleted ? '比賽已完賽並儲存' : '比賽結果已暫存');
     };
     try {
       if (typeof this._withButtonLoading === 'function') {

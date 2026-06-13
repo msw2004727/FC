@@ -961,6 +961,13 @@ const ApiService = {
     return await FirebaseService.upsertTournamentEntryMember(tournamentId, teamId, payload);
   },
 
+  async updateTournamentEntryMemberJersey(tournamentId, teamId, memberUid, jerseyNumber) {
+    const safeNumber = String(jerseyNumber || '').trim();
+    if (!/^\d{0,3}$/.test(safeNumber)) throw new Error('INVALID_TOURNAMENT_JERSEY_NUMBER');
+    if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
+    return await FirebaseService.updateTournamentEntryMemberJersey(tournamentId, teamId, memberUid, safeNumber);
+  },
+
   async joinFriendlyTournamentRosterAtomic(tournamentId, teamId) {
     if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
     return await FirebaseService.joinFriendlyTournamentRosterAtomic(tournamentId, teamId);

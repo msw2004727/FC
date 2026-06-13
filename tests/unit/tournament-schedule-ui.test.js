@@ -65,6 +65,33 @@ describe('tournament bracket UI', () => {
     expect(html).toContain('第 4/4 場');
   });
 
+  test('renders draft score without resolving a winner before completion', () => {
+    const App = buildCompetitionApp();
+    const match = App._buildTournamentMatchRecord({
+      id: 'm_draft',
+      stage: 'league',
+      status: 'scheduled',
+      homeTeamId: 'a',
+      awayTeamId: 'b',
+      scoreHome: 2,
+      scoreAway: 1,
+      events: [{ type: 'stoppage_time', minute: 45, note: '+3' }],
+    });
+    const html = App._renderTournamentMatchRowHtml(
+      { id: 'ct_test' },
+      match,
+      {},
+      { a: 'Alpha', b: 'Beta' },
+      { canRecord: false }
+    );
+
+    expect(App._getTournamentMatchWinnerTeamId(match)).toBe('');
+    expect(html).toContain('tc-match-scheduled');
+    expect(html).toContain('tc-match-status-scheduled');
+    expect(html).toContain('2 : 1');
+    expect(html).not.toContain('tc-winner');
+  });
+
   test('closes the schedule manager after bulk save succeeds', async () => {
     const ApiService = {
       batchUpdateTournamentMatchesMetaAwait: jest.fn().mockResolvedValue([]),

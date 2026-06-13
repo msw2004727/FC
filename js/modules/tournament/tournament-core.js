@@ -260,9 +260,11 @@ Object.assign(App, {
   },
 
   _buildFriendlyTournamentRosterMemberRecord(data = {}) {
+    const jerseyNumber = String(data.jerseyNumber || data.number || '').trim();
     return {
       uid: String(data.uid || '').trim(),
       name: String(data.name || data.displayName || '').trim(),
+      jerseyNumber: /^\d{1,3}$/.test(jerseyNumber) ? jerseyNumber : '',
       joinedAt: data.joinedAt || null,
     };
   },

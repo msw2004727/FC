@@ -1795,9 +1795,20 @@ service cloud.firestore {
         allow delete: if false;
 
         match /members/{memberUid} {
+          function isTournamentEntryMemberJerseyOnlyUpdate() {
+            let changed = request.resource.data.diff(resource.data).affectedKeys();
+            return changed.hasOnly(['jerseyNumber', 'updatedAt'])
+              && (!('jerseyNumber' in request.resource.data)
+                || request.resource.data.jerseyNumber == null
+                || (request.resource.data.jerseyNumber is string
+                  && request.resource.data.jerseyNumber.matches('^[0-9]{0,3}$')));
+          }
+
           allow read: if isAuth();
           allow create: if tournamentExists() && canManageAllTournaments();
-          allow update: if tournamentExists() && canManageAllTournaments();
+          allow update: if tournamentExists()
+            && (canManageAllTournaments()
+              || (isCurrentUserTeamStaff(teamId) && isTournamentEntryMemberJerseyOnlyUpdate()));
           allow delete: if false;
         }
       }

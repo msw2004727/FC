@@ -21,13 +21,16 @@ const [EMULATOR_HOST, EMULATOR_PORT] = (
 
 let testEnv;
 
+jest.setTimeout(30000);
+
 const TOURNAMENT_ID = "ct_test_tournament_001";
 const CREATOR_UID = "creator_uid_001";
 const DELEGATE_UID = "delegate_uid_002";
 const RANDOM_UID = "random_uid_003";
+const ENTRY_STAFF_UID = "entry_staff_uid_004";
 const HOST_TEAM_ID = "tm_host_team_001";
 const ENTRY_TEAM_ID = "tm_entry_team_001";
-const MEMBER_UID = "member_uid_004";
+const MEMBER_UID = "member_uid_005";
 
 function guest() {
   return testEnv.unauthenticatedContext().firestore();
@@ -40,6 +43,9 @@ function delegate() {
 }
 function randomUser() {
   return testEnv.authenticatedContext(RANDOM_UID).firestore();
+}
+function entryStaff() {
+  return testEnv.authenticatedContext(ENTRY_STAFF_UID).firestore();
 }
 
 beforeAll(async () => {
@@ -76,6 +82,13 @@ beforeEach(async () => {
       mode: "friendly",
     });
     // Entry team
+    await setDoc(doc(db, "teams", ENTRY_TEAM_ID), {
+      id: ENTRY_TEAM_ID,
+      name: "Entry Team",
+      captainUid: "entry_captain_uid",
+      leaderUids: [],
+      coachUids: [ENTRY_STAFF_UID],
+    });
     await setDoc(doc(db, "tournaments", TOURNAMENT_ID, "entries", ENTRY_TEAM_ID), {
       teamId: ENTRY_TEAM_ID,
       teamName: "Entry Team",
@@ -89,11 +102,12 @@ beforeEach(async () => {
     await setDoc(doc(db, "users", CREATOR_UID), { uid: CREATOR_UID, role: "captain" });
     await setDoc(doc(db, "users", DELEGATE_UID), { uid: DELEGATE_UID, role: "user" });
     await setDoc(doc(db, "users", RANDOM_UID), { uid: RANDOM_UID, role: "user" });
+    await setDoc(doc(db, "users", ENTRY_STAFF_UID), { uid: ENTRY_STAFF_UID, role: "coach" });
   });
 });
 
 afterAll(async () => {
-  await testEnv.cleanup();
+  if (testEnv) await testEnv.cleanup();
 });
 
 describe("Tournament Entries/Members Read Rules (Phase 0)", () => {
@@ -112,6 +126,41 @@ describe("Tournament Entries/Members Read Rules (Phase 0)", () => {
   test("9. 登入用戶可讀 entries", async () => {
     await assertSucceeds(
       getDoc(doc(randomUser(), "tournaments", TOURNAMENT_ID, "entries", ENTRY_TEAM_ID))
+    );
+  });
+});
+
+describe("Tournament entry member jersey updates", () => {
+  test("team staff can update only jerseyNumber and updatedAt", async () => {
+    await assertSucceeds(
+      updateDoc(doc(entryStaff(), "tournaments", TOURNAMENT_ID, "entries", ENTRY_TEAM_ID, "members", MEMBER_UID), {
+        jerseyNumber: "11",
+        updatedAt: "2026-06-13T00:00:00.000Z",
+      })
+    );
+  });
+
+  test("team staff cannot update member identity fields", async () => {
+    await assertFails(
+      updateDoc(doc(entryStaff(), "tournaments", TOURNAMENT_ID, "entries", ENTRY_TEAM_ID, "members", MEMBER_UID), {
+        name: "Changed",
+      })
+    );
+  });
+
+  test("non-staff cannot update jerseyNumber", async () => {
+    await assertFails(
+      updateDoc(doc(randomUser(), "tournaments", TOURNAMENT_ID, "entries", ENTRY_TEAM_ID, "members", MEMBER_UID), {
+        jerseyNumber: "7",
+      })
+    );
+  });
+
+  test("team staff cannot save invalid jerseyNumber", async () => {
+    await assertFails(
+      updateDoc(doc(entryStaff(), "tournaments", TOURNAMENT_ID, "entries", ENTRY_TEAM_ID, "members", MEMBER_UID), {
+        jerseyNumber: "1234",
+      })
     );
   });
 });
