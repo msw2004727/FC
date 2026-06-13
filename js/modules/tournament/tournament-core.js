@@ -265,6 +265,8 @@ Object.assign(App, {
       uid: String(data.uid || '').trim(),
       name: String(data.name || data.displayName || '').trim(),
       jerseyNumber: /^\d{1,3}$/.test(jerseyNumber) ? jerseyNumber : '',
+      position: String(data.position || '').trim().slice(0, 20),
+      note: String(data.note || data.remark || '').trim().slice(0, 30),
       joinedAt: data.joinedAt || null,
     };
   },

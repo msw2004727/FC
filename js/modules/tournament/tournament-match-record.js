@@ -34,6 +34,7 @@ Object.assign(App, {
   },
 
   closeTournamentMatchRecordModal() {
+    this.closeTournamentMatchBriefingModal?.();
     document.getElementById('tournament-match-record-overlay')?.classList.remove('open');
     document.getElementById('tournament-match-record-modal')?.classList.remove('open');
     this._tournamentMatchRecordState = null;
@@ -60,13 +61,21 @@ Object.assign(App, {
       this.showToast('此場對戰隊伍尚未確定（前一輪未完成）');
       return;
     }
+    const [homeTeam, awayTeam] = await Promise.all([
+      this._loadTournamentMatchRecordTeamInfo(home.teamId),
+      this._loadTournamentMatchRecordTeamInfo(away.teamId),
+    ]);
     this._tournamentMatchRecordState = {
       tournamentId: safeId,
       matchId: match.id,
+      tournament: { ...tournament },
+      match: { ...match },
       homeTeamId: home.teamId,
       awayTeamId: away.teamId,
       homeName: home.label,
       awayName: away.label,
+      homeTeam: homeTeam || {},
+      awayTeam: awayTeam || {},
       events: (match.events || []).map(ev => ({ ...ev })),
       isCup: match.stage !== 'league',
     };
@@ -74,6 +83,367 @@ Object.assign(App, {
     this._renderTournamentMatchRecordBody(tournament, match);
     overlay.classList.add('open');
     document.getElementById('tournament-match-record-modal')?.classList.add('open');
+  },
+
+  async _loadTournamentMatchRecordTeamInfo(teamId) {
+    const safeId = String(teamId || '').trim();
+    if (!safeId || typeof ApiService.getTeam !== 'function') return null;
+    try {
+      return await ApiService.getTeam(safeId);
+    } catch (_) {
+      return null;
+    }
+  },
+
+  _ensureTournamentMatchBriefingModal() {
+    let overlay = document.getElementById('tournament-match-briefing-overlay');
+    if (overlay) return overlay;
+    overlay = document.createElement('div');
+    overlay.id = 'tournament-match-briefing-overlay';
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal tc-briefing-modal" id="tournament-match-briefing-modal">
+        <div class="modal-header">
+          <h3 id="tmr-briefing-title">賽事簡報</h3>
+          <button class="modal-close" type="button" data-action="close">×</button>
+        </div>
+        <div class="modal-body" id="tmr-briefing-body"></div>
+        <div class="modal-actions tmr-briefing-actions">
+          <button class="outline-btn" type="button" data-action="close">關閉</button>
+        </div>
+      </div>`;
+    overlay.addEventListener('click', event => {
+      if (event.target === overlay || event.target?.dataset?.action === 'close') {
+        this.closeTournamentMatchBriefingModal();
+      }
+    });
+    document.body.appendChild(overlay);
+    return overlay;
+  },
+
+  closeTournamentMatchBriefingModal() {
+    document.getElementById('tournament-match-briefing-overlay')?.classList.remove('open');
+    document.getElementById('tournament-match-briefing-modal')?.classList.remove('open');
+  },
+
+  openTournamentMatchEventBriefing() {
+    const recordState = this._tournamentMatchRecordState;
+    if (!recordState) {
+      this.showToast?.('尚未載入賽事紀錄');
+      return;
+    }
+    const overlay = this._ensureTournamentMatchBriefingModal();
+    const title = document.getElementById('tmr-briefing-title');
+    const body = document.getElementById('tmr-briefing-body');
+    if (title) title.textContent = `${recordState.homeName || '主隊'} vs ${recordState.awayName || '客隊'} 賽事簡報`;
+    if (body) body.innerHTML = this._buildTournamentMatchBriefingHtml(recordState);
+    overlay.classList.add('open');
+    document.getElementById('tournament-match-briefing-modal')?.classList.add('open');
+  },
+
+  _escapeTournamentMatchBriefingText(value) {
+    const text = String(value ?? '');
+    if (typeof escapeHTML === 'function') return escapeHTML(text);
+    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+    return text.replace(/[&<>"']/g, ch => map[ch]);
+  },
+
+  _getTournamentMatchBriefingTeamName(teamId, recordState = this._tournamentMatchRecordState) {
+    const safeId = String(teamId || '').trim();
+    if (!safeId) return '全場';
+    if (safeId === String(recordState?.homeTeamId || '')) return recordState?.homeName || '主隊';
+    if (safeId === String(recordState?.awayTeamId || '')) return recordState?.awayName || '客隊';
+    return '未知隊伍';
+  },
+
+  _getTournamentMatchBriefingScoreText(recordState = this._tournamentMatchRecordState) {
+    const match = recordState?.match || {};
+    const doc = typeof document !== 'undefined' ? document : null;
+    const resultType = doc?.querySelector?.('input[name="tmr-result-type"]:checked')?.value
+      || (match.status === 'walkover' ? 'walkover' : 'finished');
+    if (resultType === 'walkover') return '棄賽判定';
+    const domHome = doc?.getElementById?.('tmr-score-home')?.value;
+    const domAway = doc?.getElementById?.('tmr-score-away')?.value;
+    const home = domHome !== undefined && domHome !== null && domHome !== '' ? domHome : match.scoreHome;
+    const away = domAway !== undefined && domAway !== null && domAway !== '' ? domAway : match.scoreAway;
+    if (home === undefined || home === null || away === undefined || away === null) return '尚未輸入';
+    return `${home} : ${away}`;
+  },
+
+  _getTournamentMatchBriefingStatusText(recordState = this._tournamentMatchRecordState) {
+    const match = recordState?.match || {};
+    const doc = typeof document !== 'undefined' ? document : null;
+    const completedInput = doc?.getElementById?.('tmr-result-completed');
+    const completed = completedInput ? completedInput.checked === true : (match.status === 'finished' || match.status === 'walkover');
+    if (match.status === 'walkover') return completed ? '棄賽完賽' : '棄賽草稿';
+    return completed ? '已完賽' : '暫存結果';
+  },
+
+  _getTournamentMatchBriefingRoster(teamId, recordState = this._tournamentMatchRecordState) {
+    const state = this._getFriendlyTournamentState?.(recordState?.tournamentId);
+    const entry = (state?.entries || []).find(item => String(item?.teamId || item?.id || '').trim() === String(teamId || '').trim());
+    const roster = Array.isArray(entry?.memberRoster) ? entry.memberRoster : [];
+    return roster
+      .map(member => this._formatFriendlyTournamentRosterMemberName?.(member)
+        || (member?.jerseyNumber || member?.number ? `${member.jerseyNumber || member.number}-${member.name || member.displayName || member.nickname || member.uid || ''}` : member?.name || member?.displayName || member?.nickname || member?.uid || ''))
+      .map(item => String(item || '').trim())
+      .filter(Boolean)
+      .slice(0, 40);
+  },
+
+  _formatTournamentMatchBriefingPerson(value) {
+    if (value === undefined || value === null) return '';
+    if (typeof value === 'string' || typeof value === 'number') return String(value).trim();
+    if (typeof value !== 'object') return '';
+    const jersey = String(value.jerseyNumber || value.number || '').trim();
+    const name = String(value.name || value.displayName || value.nickname || value.nickName || value.title || value.uid || value.id || '').trim();
+    return jersey && name ? `${jersey}-${name}` : name;
+  },
+
+  _collectTournamentMatchBriefingPeople(...values) {
+    const labels = [];
+    const visit = value => {
+      if (value === undefined || value === null || value === '') return;
+      if (Array.isArray(value)) {
+        value.forEach(visit);
+        return;
+      }
+      if (typeof value === 'object') {
+        const label = this._formatTournamentMatchBriefingPerson(value);
+        if (label) {
+          labels.push(label);
+          return;
+        }
+        Object.values(value).forEach(visit);
+        return;
+      }
+      const label = this._formatTournamentMatchBriefingPerson(value);
+      if (label) labels.push(label);
+    };
+    values.forEach(visit);
+    return [...new Set(labels.map(item => String(item).trim()).filter(Boolean))].slice(0, 30);
+  },
+
+  _renderTournamentMatchBriefingPersonChips(labels, emptyText = '尚未設定') {
+    const safe = value => this._escapeTournamentMatchBriefingText(value);
+    if (!Array.isArray(labels) || labels.length === 0) {
+      return `<span class="tmr-briefing-empty">${safe(emptyText)}</span>`;
+    }
+    return labels.map(label => `<span class="tmr-briefing-chip">${safe(label)}</span>`).join('');
+  },
+
+  _renderTournamentMatchBriefingStaff(teamInfo) {
+    const roles = [
+      {
+        label: '教練',
+        people: this._collectTournamentMatchBriefingPeople(teamInfo?.coaches, teamInfo?.coachNames, teamInfo?.coachName, teamInfo?.coachUids, teamInfo?.coachUid, teamInfo?.coach),
+      },
+      {
+        label: '領隊',
+        people: this._collectTournamentMatchBriefingPeople(teamInfo?.leaders, teamInfo?.leaderNames, teamInfo?.leaderName, teamInfo?.leaderUids, teamInfo?.leaderUid, teamInfo?.leader),
+      },
+      {
+        label: '隊長',
+        people: this._collectTournamentMatchBriefingPeople(teamInfo?.captains, teamInfo?.captainName, teamInfo?.captainUid, teamInfo?.captain),
+      },
+    ];
+    const safe = value => this._escapeTournamentMatchBriefingText(value);
+    return roles.map(role => `
+      <div class="tmr-briefing-info-row">
+        <span>${safe(role.label)}</span>
+        <div>${this._renderTournamentMatchBriefingPersonChips(role.people, '未登錄')}</div>
+      </div>`).join('');
+  },
+
+  _renderTournamentMatchBriefingReferees(recordState = this._tournamentMatchRecordState) {
+    const match = recordState?.match || {};
+    const tournament = recordState?.tournament || {};
+    const assignedRefs = this._collectTournamentMatchBriefingPeople(match.referees, match.refereeNames, match.refereeName, match.refereeUids, match.refereeUid);
+    const heads = this._collectTournamentMatchBriefingPeople(match.refereeHead, match.refereeHeadName, match.refereeHeadUid, tournament.refereeHead, tournament.refereeHeadName, tournament.refereeHeadUid);
+    const poolRefs = this._collectTournamentMatchBriefingPeople(tournament.referees, tournament.refereeNames, tournament.refereeUids, tournament.refereeUid);
+    const safe = value => this._escapeTournamentMatchBriefingText(value);
+    return `
+      <section class="tmr-briefing-section">
+        <div class="tmr-briefing-section-title">
+          <strong>裁判資訊</strong>
+          <span>本場指派與賽事裁判</span>
+        </div>
+        <div class="tmr-briefing-info-row">
+          <span>裁判長</span>
+          <div>${this._renderTournamentMatchBriefingPersonChips(heads, '未設定')}</div>
+        </div>
+        <div class="tmr-briefing-info-row">
+          <span>本場裁判</span>
+          <div>${this._renderTournamentMatchBriefingPersonChips(assignedRefs, '未指派')}</div>
+        </div>
+        <div class="tmr-briefing-info-row">
+          <span>裁判名單</span>
+          <div>${this._renderTournamentMatchBriefingPersonChips(poolRefs, '未建立')}</div>
+        </div>
+      </section>`;
+  },
+
+  _renderTournamentMatchBriefingTeamCard(teamId, teamName, teamInfo, recordState = this._tournamentMatchRecordState) {
+    const safe = value => this._escapeTournamentMatchBriefingText(value);
+    const roster = this._getTournamentMatchBriefingRoster(teamId, recordState);
+    return `
+      <article class="tmr-briefing-team-card">
+        <div class="tmr-briefing-team-head">
+          <strong>${safe(teamName)}</strong>
+          <span>${roster.length} 人登錄</span>
+        </div>
+        ${this._renderTournamentMatchBriefingStaff(teamInfo || {})}
+        <div class="tmr-briefing-roster">
+          ${this._renderTournamentMatchBriefingPersonChips(roster, '尚無登錄球員')}
+        </div>
+      </article>`;
+  },
+
+  _getTournamentMatchEventLabel(type) {
+    return {
+      goal: '進球',
+      own_goal: '烏龍球',
+      yellow: '黃牌',
+      red: '紅牌',
+      stoppage_time: '補時公告',
+      substitution: '換人',
+    }[type] || String(type || '事件');
+  },
+
+  _getTournamentMatchEventIcon(type) {
+    return {
+      goal: '⚽',
+      own_goal: '🥅',
+      yellow: '🟨',
+      red: '🟥',
+      stoppage_time: '⏱',
+      substitution: '↔',
+    }[type] || '•';
+  },
+
+  _getTournamentMatchEventBriefingDetail(ev, recordState = this._tournamentMatchRecordState) {
+    const safe = value => this._escapeTournamentMatchBriefingText(value);
+    const playerName = String(ev?.name || ev?.uid || '').trim();
+    const note = String(ev?.note || '').trim();
+    if (ev?.type === 'substitution') {
+      const playersOut = Array.isArray(ev.playersOut) ? ev.playersOut.filter(Boolean) : [];
+      const playersIn = Array.isArray(ev.playersIn) ? ev.playersIn.filter(Boolean) : [];
+      return `
+        <div class="tmr-briefing-event-lines">
+          <span>下場：${safe(playersOut.join('、') || '-')}</span>
+          <span>上場：${safe(playersIn.join('、') || '-')}</span>
+          ${note ? `<span>備註：${safe(note)}</span>` : ''}
+        </div>`;
+    }
+    if (ev?.type === 'stoppage_time') {
+      return `
+        <div class="tmr-briefing-event-lines">
+          <span>宣布補時：${ev.minute ? `${safe(ev.minute)} 分鐘` : '未填分鐘'}</span>
+          ${note ? `<span>備註：${safe(note)}</span>` : ''}
+        </div>`;
+    }
+    const teamName = this._getTournamentMatchBriefingTeamName(ev?.teamId, recordState);
+    return `
+      <div class="tmr-briefing-event-lines">
+        <span>隊伍：${safe(teamName)}</span>
+        <span>球員：${safe(playerName || '未填球員')}</span>
+        ${(ev?.type === 'yellow' || ev?.type === 'red') && note ? `<span>原因：${safe(note)}</span>` : ''}
+      </div>`;
+  },
+
+  _renderTournamentMatchEventBriefingTimeline(recordState = this._tournamentMatchRecordState) {
+    const safe = value => this._escapeTournamentMatchBriefingText(value);
+    const events = Array.isArray(recordState?.events) ? recordState.events : [];
+    if (!events.length) {
+      return '<div class="tmr-briefing-empty-panel">尚未新增比賽事件</div>';
+    }
+    return events
+      .map((event, index) => ({ event, index }))
+      .sort((a, b) => {
+        const minuteA = Number.isFinite(Number(a.event?.minute)) ? Number(a.event.minute) : 9999;
+        const minuteB = Number.isFinite(Number(b.event?.minute)) ? Number(b.event.minute) : 9999;
+        return minuteA === minuteB ? a.index - b.index : minuteA - minuteB;
+      })
+      .map(({ event, index }) => {
+        const label = this._getTournamentMatchEventLabel(event?.type);
+        const icon = this._getTournamentMatchEventIcon(event?.type);
+        const teamName = event?.type === 'stoppage_time'
+          ? '全場'
+          : this._getTournamentMatchBriefingTeamName(event?.teamId, recordState);
+        const time = event?.type === 'stoppage_time'
+          ? (event?.minute ? `補時 ${event.minute} 分鐘` : '未填補時')
+          : (event?.minute ? `第 ${event.minute} 分鐘` : '未填時間');
+        return `
+          <article class="tmr-briefing-event">
+            <div class="tmr-briefing-event-time">${safe(time)}</div>
+            <div class="tmr-briefing-event-card">
+              <div class="tmr-briefing-event-title">
+                <span>${safe(icon)}</span>
+                <strong>${safe(label)}</strong>
+                <em>${safe(teamName)}</em>
+                <small>#${index + 1}</small>
+              </div>
+              ${this._getTournamentMatchEventBriefingDetail(event, recordState)}
+            </div>
+          </article>`;
+      }).join('');
+  },
+
+  _buildTournamentMatchBriefingHtml(recordState = this._tournamentMatchRecordState) {
+    const safe = value => this._escapeTournamentMatchBriefingText(value);
+    if (!recordState) {
+      return '<div class="tmr-briefing-empty-panel">尚未載入賽事資料</div>';
+    }
+    const events = Array.isArray(recordState.events) ? recordState.events : [];
+    const scoreText = this._getTournamentMatchBriefingScoreText(recordState);
+    const statusText = this._getTournamentMatchBriefingStatusText(recordState);
+    return `
+      <div class="tmr-briefing-shell">
+        <section class="tmr-briefing-hero">
+          <div>
+            <span>賽事總結</span>
+            <strong>${safe(recordState.homeName || '主隊')} vs ${safe(recordState.awayName || '客隊')}</strong>
+          </div>
+          <div class="tmr-briefing-score">
+            <b>${safe(scoreText)}</b>
+            <small>${safe(statusText)}</small>
+          </div>
+        </section>
+        <section class="tmr-briefing-stats">
+          <article>
+            <span>事件數</span>
+            <strong>${events.length}</strong>
+          </article>
+          <article>
+            <span>牌卡</span>
+            <strong>${events.filter(ev => ev.type === 'yellow' || ev.type === 'red').length}</strong>
+          </article>
+          <article>
+            <span>換人</span>
+            <strong>${events.filter(ev => ev.type === 'substitution').length}</strong>
+          </article>
+        </section>
+        <section class="tmr-briefing-section">
+          <div class="tmr-briefing-section-title">
+            <strong>事件時間軸</strong>
+            <span>依發生分鐘排序</span>
+          </div>
+          <div class="tmr-briefing-timeline">
+            ${this._renderTournamentMatchEventBriefingTimeline(recordState)}
+          </div>
+        </section>
+        <section class="tmr-briefing-section">
+          <div class="tmr-briefing-section-title">
+            <strong>參賽隊伍</strong>
+            <span>登錄球員與俱樂部職務</span>
+          </div>
+          <div class="tmr-briefing-teams">
+            ${this._renderTournamentMatchBriefingTeamCard(recordState.homeTeamId, recordState.homeName || '主隊', recordState.homeTeam || {}, recordState)}
+            ${this._renderTournamentMatchBriefingTeamCard(recordState.awayTeamId, recordState.awayName || '客隊', recordState.awayTeam || {}, recordState)}
+          </div>
+        </section>
+        ${this._renderTournamentMatchBriefingReferees(recordState)}
+      </div>`;
   },
 
   _renderTournamentMatchRecordBody(tournament, match) {
@@ -141,6 +511,7 @@ Object.assign(App, {
             <strong>比賽事件</strong>
             <small>進球、烏龍、紅黃牌、補時與換人可選填</small>
           </div>
+          <button type="button" class="outline-btn small tmr-briefing-open-btn" onclick="App.openTournamentMatchEventBriefing()">查看簡報</button>
           <div id="tmr-events-list"></div>
           <div class="tc-event-add tmr-event-add-grid">
             <label class="tmr-event-control">
@@ -156,7 +527,7 @@ Object.assign(App, {
             </label>
             <label class="tmr-event-control tmr-event-control-team">
               <span>隊伍</span>
-              <select id="tmr-event-team" onchange="App._syncTournamentMatchRecordPlayers()">
+              <select id="tmr-event-team" onchange="App._syncTournamentMatchRecordTeamSelection()">
                 <option value="${escapeHTML(recordState.homeTeamId)}">${escapeHTML(recordState.homeName)}</option>
                 <option value="${escapeHTML(recordState.awayTeamId)}">${escapeHTML(recordState.awayName)}</option>
               </select>
@@ -168,10 +539,14 @@ Object.assign(App, {
             </label>
             <label class="tmr-event-control tmr-event-control-sub tmr-event-control-sub-out" style="display:none">
               <span>下場球員</span>
+              <input type="search" id="tmr-event-sub-out-search" class="tmr-event-sub-search" placeholder="搜尋背號或暱稱" autocomplete="off" oninput="App._renderTournamentSubstitutionSearch('out')" onfocus="App._renderTournamentSubstitutionSearch('out')">
+              <div id="tmr-event-sub-out-suggestions" class="tmr-sub-suggestions"></div>
               <textarea id="tmr-event-sub-out" rows="2" maxlength="240" placeholder="可用逗號或換行，最多20人"></textarea>
             </label>
             <label class="tmr-event-control tmr-event-control-sub tmr-event-control-sub-in" style="display:none">
               <span>上場球員</span>
+              <input type="search" id="tmr-event-sub-in-search" class="tmr-event-sub-search" placeholder="搜尋背號或暱稱" autocomplete="off" oninput="App._renderTournamentSubstitutionSearch('in')" onfocus="App._renderTournamentSubstitutionSearch('in')">
+              <div id="tmr-event-sub-in-suggestions" class="tmr-sub-suggestions"></div>
               <textarea id="tmr-event-sub-in" rows="2" maxlength="240" placeholder="可用逗號或換行，最多20人"></textarea>
             </label>
             <label class="tmr-event-control tmr-event-control-minute">
@@ -217,6 +592,11 @@ Object.assign(App, {
     if (walkoverSection) walkoverSection.style.display = type === 'walkover' ? '' : 'none';
   },
 
+  _syncTournamentMatchRecordTeamSelection() {
+    this._syncTournamentMatchRecordPlayers();
+    this._syncTournamentMatchRecordSubstitutionSearches();
+  },
+
   _syncTournamentMatchRecordEventFields() {
     const type = document.getElementById('tmr-event-type')?.value || 'goal';
     const teamControl = document.querySelector('.tmr-event-control-team');
@@ -241,6 +621,7 @@ Object.assign(App, {
           : '吃牌原因';
     }
     this._syncTournamentMatchRecordPlayers();
+    this._syncTournamentMatchRecordSubstitutionSearches();
   },
 
   _syncTournamentMatchRecordPlayers() {
@@ -263,6 +644,105 @@ Object.assign(App, {
     };
     if (customInput) customInput.style.display = roster.length === 0 ? '' : 'none';
     if (roster.length === 0) playerSelect.value = '__custom__';
+  },
+
+  _normalizeTournamentMatchRecordSearchText(value) {
+    return String(value || '').normalize('NFKC').toLowerCase().replace(/\s+/g, '');
+  },
+
+  _isTournamentMatchRecordFuzzyMatch(text, query) {
+    const safeText = this._normalizeTournamentMatchRecordSearchText(text);
+    const safeQuery = this._normalizeTournamentMatchRecordSearchText(query);
+    if (!safeQuery) return true;
+    if (safeText.includes(safeQuery)) return true;
+    let cursor = 0;
+    for (const char of safeText) {
+      if (char === safeQuery[cursor]) cursor += 1;
+      if (cursor >= safeQuery.length) return true;
+    }
+    return false;
+  },
+
+  _getTournamentSubstitutionRosterOptions(teamId = null) {
+    const recordState = this._tournamentMatchRecordState;
+    if (!recordState) return [];
+    const selectedTeamId = String(teamId || document.getElementById('tmr-event-team')?.value || '').trim();
+    if (!selectedTeamId) return [];
+    const state = this._getFriendlyTournamentState?.(recordState.tournamentId);
+    const entry = (state?.entries || []).find(item => String(item?.teamId || item?.id || '').trim() === selectedTeamId);
+    const roster = Array.isArray(entry?.memberRoster) ? entry.memberRoster : [];
+    return roster
+      .map(member => {
+        const uid = String(member?.uid || '').trim();
+        const rawName = String(member?.name || member?.displayName || member?.nickname || member?.nickName || uid || '').trim();
+        const jerseyNumber = String(member?.jerseyNumber || member?.number || '').trim();
+        const displayName = this._formatFriendlyTournamentRosterMemberName?.(member)
+          || (jerseyNumber ? `${jerseyNumber}-${rawName || uid}` : rawName || uid);
+        const searchText = [
+          displayName,
+          rawName,
+          member?.displayName,
+          member?.nickname,
+          member?.nickName,
+          jerseyNumber,
+          uid,
+        ].filter(Boolean).join(' ');
+        return { uid, label: String(displayName || rawName || uid || '').trim(), searchText };
+      })
+      .filter(item => item.label);
+  },
+
+  _getTournamentSubstitutionPlayerSuggestions(side = 'out') {
+    const safeSide = side === 'in' ? 'in' : 'out';
+    const query = document.getElementById(`tmr-event-sub-${safeSide}-search`)?.value || '';
+    const options = this._getTournamentSubstitutionRosterOptions();
+    const normalizedQuery = this._normalizeTournamentMatchRecordSearchText(query);
+    return options
+      .filter(option => !normalizedQuery || this._isTournamentMatchRecordFuzzyMatch(option.searchText, normalizedQuery))
+      .slice(0, 8);
+  },
+
+  _renderTournamentSubstitutionSearch(side = 'out') {
+    const safeSide = side === 'in' ? 'in' : 'out';
+    const box = document.getElementById(`tmr-event-sub-${safeSide}-suggestions`);
+    if (!box) return;
+    const suggestions = this._getTournamentSubstitutionPlayerSuggestions(safeSide);
+    if (!suggestions.length) {
+      box.innerHTML = '<span class="tmr-sub-empty">無符合名單</span>';
+      return;
+    }
+    box.innerHTML = suggestions.map(option => {
+      const safeLabel = escapeHTML(option.label);
+      const jsLabel = escapeHTML(JSON.stringify(option.label));
+      return `<button type="button" class="tmr-sub-suggestion" onclick="App._appendTournamentSubstitutionPlayer('${safeSide}', ${jsLabel})">${safeLabel}</button>`;
+    }).join('');
+  },
+
+  _syncTournamentMatchRecordSubstitutionSearches() {
+    const type = document.getElementById('tmr-event-type')?.value || 'goal';
+    if (type !== 'substitution') {
+      ['out', 'in'].forEach(side => {
+        const box = document.getElementById(`tmr-event-sub-${side}-suggestions`);
+        if (box) box.innerHTML = '';
+      });
+      return;
+    }
+    this._renderTournamentSubstitutionSearch('out');
+    this._renderTournamentSubstitutionSearch('in');
+  },
+
+  _appendTournamentSubstitutionPlayer(side = 'out', playerName = '') {
+    const safeSide = side === 'in' ? 'in' : 'out';
+    const value = String(playerName || '').trim().slice(0, 30);
+    const target = document.getElementById(`tmr-event-sub-${safeSide}`);
+    if (!target || !value) return;
+    const players = this._parseTournamentEventPlayerList(target.value);
+    if (!players.includes(value)) players.push(value);
+    target.value = players.slice(0, 20).join('\n');
+    const searchInput = document.getElementById(`tmr-event-sub-${safeSide}-search`);
+    const box = document.getElementById(`tmr-event-sub-${safeSide}-suggestions`);
+    if (searchInput) searchInput.value = '';
+    if (box) box.innerHTML = '';
   },
 
   _parseTournamentEventPlayerList(value) {
@@ -306,9 +786,13 @@ Object.assign(App, {
         return;
       }
       recordState.events.push({ type, teamId, uid: '', name: '', minute, note, playersOut, playersIn });
-      ['tmr-event-sub-out', 'tmr-event-sub-in', 'tmr-event-minute', 'tmr-event-note'].forEach(id => {
+      ['tmr-event-sub-out', 'tmr-event-sub-in', 'tmr-event-sub-out-search', 'tmr-event-sub-in-search', 'tmr-event-minute', 'tmr-event-note'].forEach(id => {
         const input = document.getElementById(id);
         if (input) input.value = '';
+      });
+      ['tmr-event-sub-out-suggestions', 'tmr-event-sub-in-suggestions'].forEach(id => {
+        const box = document.getElementById(id);
+        if (box) box.innerHTML = '';
       });
       this._renderTournamentMatchRecordEvents();
       return;
@@ -370,11 +854,11 @@ Object.assign(App, {
         playerText = `${playerText}（${note}）`;
       }
       return `
-      <div class="tc-event-row">
+      <div class="tc-event-row tc-event-row-briefing" role="button" tabindex="0" onclick="App.openTournamentMatchEventBriefing()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();App.openTournamentMatchEventBriefing();}">
         <span>${escapeHTML(eventText)}</span>
         <span class="tc-event-player">${escapeHTML(playerText)}</span>
         <span class="tc-event-team">${escapeHTML(ev.type === 'stoppage_time' ? '全場' : teamName)}</span>
-        <button type="button" class="tc-event-remove" onclick="App._removeTournamentMatchRecordEvent(${index})">✕</button>
+        <button type="button" class="tc-event-remove" onclick="event.stopPropagation();App._removeTournamentMatchRecordEvent(${index})">✕</button>
       </div>`;
     }).join('');
   },

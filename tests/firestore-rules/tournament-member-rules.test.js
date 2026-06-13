@@ -7,6 +7,7 @@ const {
 } = require("@firebase/rules-unit-testing");
 const {
   doc,
+  deleteDoc,
   getDoc,
   setDoc,
   updateDoc,
@@ -131,10 +132,12 @@ describe("Tournament Entries/Members Read Rules (Phase 0)", () => {
 });
 
 describe("Tournament entry member jersey updates", () => {
-  test("team staff can update only jerseyNumber and updatedAt", async () => {
+  test("team staff can update roster profile fields and updatedAt", async () => {
     await assertSucceeds(
       updateDoc(doc(entryStaff(), "tournaments", TOURNAMENT_ID, "entries", ENTRY_TEAM_ID, "members", MEMBER_UID), {
         jerseyNumber: "11",
+        position: "FW",
+        note: "Starter",
         updatedAt: "2026-06-13T00:00:00.000Z",
       })
     );
@@ -161,6 +164,28 @@ describe("Tournament entry member jersey updates", () => {
       updateDoc(doc(entryStaff(), "tournaments", TOURNAMENT_ID, "entries", ENTRY_TEAM_ID, "members", MEMBER_UID), {
         jerseyNumber: "1234",
       })
+    );
+  });
+
+  test("team staff cannot save overlong position or note", async () => {
+    await assertFails(
+      updateDoc(doc(entryStaff(), "tournaments", TOURNAMENT_ID, "entries", ENTRY_TEAM_ID, "members", MEMBER_UID), {
+        position: "123456789012345678901",
+      })
+    );
+    await assertFails(
+      updateDoc(doc(entryStaff(), "tournaments", TOURNAMENT_ID, "entries", ENTRY_TEAM_ID, "members", MEMBER_UID), {
+        note: "1234567890123456789012345678901",
+      })
+    );
+  });
+
+  test("team staff can delete a roster member but non-staff cannot", async () => {
+    await assertFails(
+      deleteDoc(doc(randomUser(), "tournaments", TOURNAMENT_ID, "entries", ENTRY_TEAM_ID, "members", MEMBER_UID))
+    );
+    await assertSucceeds(
+      deleteDoc(doc(entryStaff(), "tournaments", TOURNAMENT_ID, "entries", ENTRY_TEAM_ID, "members", MEMBER_UID))
     );
   });
 });

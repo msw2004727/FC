@@ -1561,12 +1561,12 @@ describe("/tournaments/{id}/entries/{teamId}/members/{memberUid}", () => {
     );
   });
 
-  test("delete: admin direct delete is blocked (callable-only)", async () => {
+  test("delete: admin can remove roster members", async () => {
     await seedPath(
       ["tournaments", "tourA", "entries", "teamA", "members", "uidDel"],
       { name: "Del Member" }
     );
-    await assertFails(
+    await assertSucceeds(
       deleteDoc(
         doc(admin(), "tournaments", "tourA", "entries", "teamA", "members", "uidDel")
       )

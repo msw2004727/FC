@@ -482,6 +482,203 @@
 .tfd-jersey-btn:hover {
   background: rgba(20, 184, 166, .14);
 }
+.tfd-roster-summary {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .45rem;
+  min-width: 0;
+}
+.tfd-roster-summary > span {
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: .74rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.tfd-roster-list-btn {
+  min-height: 30px;
+  padding: .26rem .58rem;
+  border: 1.5px solid rgba(20, 184, 166, .32);
+  border-radius: 8px;
+  background: rgba(20, 184, 166, .08);
+  color: #0f766e;
+  cursor: pointer;
+  font-size: .72rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+.tfd-roster-list-btn:hover {
+  background: rgba(20, 184, 166, .14);
+}
+.tfd-roster-list-modal {
+  width: min(720px, calc(100vw - 24px));
+  max-height: min(82vh, 760px);
+}
+.tfd-roster-list-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .7rem .78rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  margin-bottom: .72rem;
+}
+.tfd-roster-list-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: .16rem;
+  min-width: 0;
+}
+.tfd-roster-list-summary strong {
+  color: var(--text-primary);
+  font-size: .88rem;
+  line-height: 1.25;
+}
+.tfd-roster-list-summary span {
+  color: var(--text-muted);
+  font-size: .72rem;
+  font-weight: 700;
+}
+.tfd-roster-list-mode {
+  flex: 0 0 auto;
+  padding: .18rem .48rem;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, .08);
+  color: #1d4ed8 !important;
+}
+.tfd-roster-list-table {
+  display: grid;
+  gap: .42rem;
+}
+.tfd-roster-list-head,
+.tfd-roster-list-row {
+  display: grid;
+  grid-template-columns: 68px minmax(130px, 1.15fr) minmax(86px, .7fr) minmax(120px, 1fr) minmax(88px, auto);
+  align-items: center;
+  gap: .5rem;
+}
+.tfd-roster-list-head {
+  padding: 0 .28rem;
+  color: var(--text-muted);
+  font-size: .66rem;
+  font-weight: 900;
+}
+.tfd-roster-list-row {
+  padding: .52rem .56rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+  font-size: .76rem;
+}
+.tfd-roster-list-row-edit {
+  align-items: end;
+  background: var(--bg-elevated);
+}
+.tfd-roster-list-row label {
+  display: flex;
+  flex-direction: column;
+  gap: .18rem;
+  min-width: 0;
+}
+.tfd-roster-list-row label span {
+  color: var(--text-muted);
+  font-size: .62rem;
+  font-weight: 800;
+}
+.tfd-roster-list-row input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: .34rem .45rem;
+  font-size: .74rem;
+}
+.tfd-roster-cell {
+  min-width: 0;
+}
+.tfd-roster-cell-label {
+  display: none;
+  margin-bottom: .16rem;
+  color: var(--text-muted);
+  font-size: .6rem;
+  font-weight: 900;
+}
+.tfd-roster-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  width: fit-content;
+  max-width: 100%;
+  padding: .18rem .45rem;
+  border-radius: 999px;
+  background: rgba(15, 118, 110, .10);
+  color: #0f766e;
+  font-weight: 900;
+}
+.tfd-roster-name-pill {
+  width: fit-content;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tfd-roster-note {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+.tfd-roster-list-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .34rem;
+}
+.tfd-roster-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1.5px solid rgba(239, 68, 68, .48);
+  border-radius: 999px;
+  background: rgba(239, 68, 68, .08);
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1;
+}
+.tfd-roster-delete-btn:hover {
+  background: rgba(239, 68, 68, .14);
+}
+.tfd-roster-delete-btn[data-btn-loading="1"] {
+  font-size: 0;
+  pointer-events: none;
+}
+.tfd-roster-delete-btn[data-btn-loading="1"]::before {
+  content: "";
+  width: .72rem;
+  height: .72rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  animation: tfd-entry-remove-spin .72s linear infinite;
+}
+.tfd-roster-list-empty {
+  padding: 1.4rem .8rem;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  color: var(--text-muted);
+  font-size: .82rem;
+  text-align: center;
+}
 .tfd-empty-text {
   display: block;
   max-width: 100%;
@@ -626,6 +823,29 @@
   }
   .tfd-picker-option {
     padding: .72rem;
+  }
+  .tfd-roster-list-head {
+    display: none;
+  }
+  .tfd-roster-list-row {
+    grid-template-columns: minmax(58px, .42fr) minmax(0, 1fr);
+    gap: .44rem .56rem;
+    align-items: start;
+  }
+  .tfd-roster-cell-label {
+    display: block;
+  }
+  .tfd-roster-list-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+  .tfd-roster-list-row-edit label {
+    grid-column: span 1;
+  }
+  .tfd-roster-list-row-edit .tfd-roster-name-pill,
+  .tfd-roster-list-row-edit label:nth-of-type(3),
+  .tfd-roster-list-row-edit .tfd-roster-list-actions {
+    grid-column: 1 / -1;
   }
 }
 
@@ -2037,6 +2257,39 @@
   resize: vertical;
   line-height: 1.35;
 }
+.tmr-event-sub-search {
+  margin-bottom: .28rem;
+}
+.tmr-sub-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .28rem;
+  min-height: 0;
+  margin-bottom: .3rem;
+}
+.tmr-sub-suggestion {
+  max-width: 100%;
+  padding: .18rem .42rem;
+  border: 1px solid rgba(37, 99, 235, .18);
+  border-radius: 999px;
+  background: rgba(37, 99, 235, .08);
+  color: #1d4ed8;
+  cursor: pointer;
+  font-size: .68rem;
+  font-weight: 800;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tmr-sub-suggestion:hover {
+  background: rgba(37, 99, 235, .14);
+}
+.tmr-sub-empty {
+  color: var(--text-muted);
+  font-size: .68rem;
+  font-weight: 700;
+}
 .tc-event-add select#tmr-event-player { flex: 1; min-width: 90px; }
 .tc-event-add input#tmr-event-minute { width: 52px; }
 .tmr-event-control-minute input#tmr-event-minute { width: 100%; }
@@ -2083,6 +2336,252 @@
 #tmr-save-btn {
   min-width: 112px;
 }
+.tmr-briefing-open-btn {
+  width: 100%;
+  margin: .2rem 0 .45rem;
+  min-height: 34px;
+  font-size: .74rem;
+  font-weight: 800;
+}
+.tc-event-row-briefing {
+  cursor: pointer;
+  border-radius: 8px;
+}
+.tc-event-row-briefing:hover {
+  background: var(--bg-elevated);
+}
+.tc-briefing-modal {
+  width: min(760px, calc(100vw - 24px));
+  max-height: min(86vh, 820px);
+}
+.tmr-briefing-shell {
+  display: grid;
+  gap: .78rem;
+}
+.tmr-briefing-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .8rem;
+  padding: .82rem .9rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+}
+.tmr-briefing-hero > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: .18rem;
+  min-width: 0;
+}
+.tmr-briefing-hero span {
+  color: var(--text-muted);
+  font-size: .68rem;
+  font-weight: 900;
+}
+.tmr-briefing-hero strong {
+  color: var(--text-primary);
+  font-size: .98rem;
+  line-height: 1.35;
+}
+.tmr-briefing-score {
+  flex: 0 0 auto;
+  min-width: 104px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .12rem;
+  padding: .38rem .64rem;
+  border-radius: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+}
+.tmr-briefing-score b {
+  font-family: var(--font-display);
+  font-size: 1rem;
+}
+.tmr-briefing-score small {
+  color: var(--text-muted);
+  font-size: .66rem;
+  font-weight: 800;
+}
+.tmr-briefing-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: .48rem;
+}
+.tmr-briefing-stats article {
+  padding: .58rem .62rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+}
+.tmr-briefing-stats span {
+  display: block;
+  color: var(--text-muted);
+  font-size: .64rem;
+  font-weight: 900;
+}
+.tmr-briefing-stats strong {
+  display: block;
+  margin-top: .16rem;
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: 1.06rem;
+}
+.tmr-briefing-section {
+  display: grid;
+  gap: .48rem;
+}
+.tmr-briefing-section-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .6rem;
+}
+.tmr-briefing-section-title strong {
+  font-size: .86rem;
+  color: var(--text-primary);
+}
+.tmr-briefing-section-title span {
+  color: var(--text-muted);
+  font-size: .66rem;
+  font-weight: 800;
+}
+.tmr-briefing-timeline {
+  display: grid;
+  gap: .46rem;
+}
+.tmr-briefing-event {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: .48rem;
+  align-items: start;
+}
+.tmr-briefing-event-time {
+  padding-top: .44rem;
+  color: var(--text-muted);
+  font-size: .68rem;
+  font-weight: 900;
+  text-align: right;
+}
+.tmr-briefing-event-card {
+  padding: .58rem .64rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+}
+.tmr-briefing-event-title {
+  display: flex;
+  align-items: center;
+  gap: .36rem;
+  min-width: 0;
+}
+.tmr-briefing-event-title strong {
+  font-size: .8rem;
+  color: var(--text-primary);
+}
+.tmr-briefing-event-title em {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-style: normal;
+  font-size: .68rem;
+  font-weight: 800;
+}
+.tmr-briefing-event-title small {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: .62rem;
+  font-weight: 800;
+}
+.tmr-briefing-event-lines {
+  display: grid;
+  gap: .22rem;
+  margin-top: .42rem;
+  color: var(--text-secondary);
+  font-size: .74rem;
+  line-height: 1.45;
+}
+.tmr-briefing-teams {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .56rem;
+}
+.tmr-briefing-team-card {
+  display: grid;
+  gap: .44rem;
+  padding: .66rem .7rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+}
+.tmr-briefing-team-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+}
+.tmr-briefing-team-head strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .82rem;
+}
+.tmr-briefing-team-head span {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: .64rem;
+  font-weight: 900;
+}
+.tmr-briefing-info-row {
+  display: grid;
+  grid-template-columns: 50px minmax(0, 1fr);
+  gap: .45rem;
+  align-items: start;
+  font-size: .72rem;
+}
+.tmr-briefing-info-row > span {
+  color: var(--text-muted);
+  font-weight: 900;
+}
+.tmr-briefing-info-row > div,
+.tmr-briefing-roster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .28rem;
+  min-width: 0;
+}
+.tmr-briefing-chip {
+  max-width: 100%;
+  padding: .18rem .42rem;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, .08);
+  color: #1d4ed8;
+  font-size: .68rem;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tmr-briefing-empty,
+.tmr-briefing-empty-panel {
+  color: var(--text-muted);
+  font-size: .72rem;
+  font-weight: 700;
+}
+.tmr-briefing-empty-panel {
+  padding: .9rem;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  text-align: center;
+}
+.tmr-briefing-actions {
+  justify-content: flex-end;
+}
 
 @media (max-width: 560px) {
   .tmr-result-switch {
@@ -2106,6 +2605,30 @@
   .tc-record-modal .modal-actions .outline-btn:not(.tc-clear-btn),
   .tc-record-modal .modal-actions .primary-btn {
     flex: 1 1 120px;
+  }
+  .tmr-briefing-hero {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .tmr-briefing-score {
+    width: 100%;
+  }
+  .tmr-briefing-stats,
+  .tmr-briefing-teams {
+    grid-template-columns: 1fr;
+  }
+  .tmr-briefing-section-title {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: .12rem;
+  }
+  .tmr-briefing-event {
+    grid-template-columns: 1fr;
+    gap: .2rem;
+  }
+  .tmr-briefing-event-time {
+    padding-top: 0;
+    text-align: left;
   }
 }
 

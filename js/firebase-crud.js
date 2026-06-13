@@ -402,6 +402,26 @@ Object.assign(FirebaseService, {
     return { uid: safeUid, jerseyNumber: safeNumber };
   },
 
+  async updateTournamentEntryMemberProfile(tournamentId, teamId, memberUid, profile = {}) {
+    const safeTeamId = String(teamId || '').trim();
+    const safeUid = String(memberUid || '').trim();
+    const safeNumber = String(profile.jerseyNumber || '').trim();
+    const position = String(profile.position || '').trim().slice(0, 20);
+    const note = String(profile.note || '').trim().slice(0, 30);
+    if (!safeTeamId) throw new Error('TOURNAMENT_ENTRY_TEAM_ID_REQUIRED');
+    if (!safeUid) throw new Error('TOURNAMENT_ENTRY_MEMBER_UID_REQUIRED');
+    if (!/^\d{0,3}$/.test(safeNumber)) throw new Error('INVALID_TOURNAMENT_JERSEY_NUMBER');
+
+    const entryRef = (await this._getTournamentSubcollectionRef(tournamentId, 'entries')).doc(safeTeamId);
+    await entryRef.collection('members').doc(safeUid).update({
+      jerseyNumber: safeNumber,
+      position,
+      note,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    return { uid: safeUid, jerseyNumber: safeNumber, position, note };
+  },
+
   async joinFriendlyTournamentRosterAtomic(tournamentId, teamId) {
     await this.ensureAuthReadyForWrite();
     const callable = (await ensureFirebaseFunctionsSdk('asia-east1')).httpsCallable('joinFriendlyTournamentRoster');

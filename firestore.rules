@@ -1795,21 +1795,30 @@ service cloud.firestore {
         allow delete: if false;
 
         match /members/{memberUid} {
-          function isTournamentEntryMemberJerseyOnlyUpdate() {
+          function isTournamentEntryMemberProfileUpdate() {
             let changed = request.resource.data.diff(resource.data).affectedKeys();
-            return changed.hasOnly(['jerseyNumber', 'updatedAt'])
+            return changed.hasOnly(['jerseyNumber', 'position', 'note', 'updatedAt'])
               && (!('jerseyNumber' in request.resource.data)
                 || request.resource.data.jerseyNumber == null
                 || (request.resource.data.jerseyNumber is string
-                  && request.resource.data.jerseyNumber.matches('^[0-9]{0,3}$')));
+                  && request.resource.data.jerseyNumber.matches('^[0-9]{0,3}$')))
+              && (!('position' in request.resource.data)
+                || request.resource.data.position == null
+                || (request.resource.data.position is string
+                  && request.resource.data.position.size() <= 20))
+              && (!('note' in request.resource.data)
+                || request.resource.data.note == null
+                || (request.resource.data.note is string
+                  && request.resource.data.note.size() <= 30));
           }
 
           allow read: if isAuth();
           allow create: if tournamentExists() && canManageAllTournaments();
           allow update: if tournamentExists()
             && (canManageAllTournaments()
-              || (isCurrentUserTeamStaff(teamId) && isTournamentEntryMemberJerseyOnlyUpdate()));
-          allow delete: if false;
+              || (isCurrentUserTeamStaff(teamId) && isTournamentEntryMemberProfileUpdate()));
+          allow delete: if tournamentExists()
+            && (canManageAllTournaments() || isCurrentUserTeamStaff(teamId));
         }
       }
 

@@ -11,6 +11,7 @@ const _tournamentFriendlyDetailViewLegacy = {
 Object.assign(App, {
 
   _friendlyTournamentSelectedActionTeamById: {},
+  _friendlyTournamentRosterListState: null,
 
   _getFriendlyTournamentWithdrawSelection(selectId, fallbackTeamId) {
     return document.getElementById(selectId)?.value || fallbackTeamId;
@@ -239,6 +240,307 @@ Object.assign(App, {
     return `<span class="tfd-member-chip${editButton ? ' tfd-member-chip-editable' : ''}"><span class="tfd-member-name">${escapeHTML(displayName)}</span>${editButton}</span>`;
   },
 
+  _getFriendlyTournamentEntryRosterCount(entry) {
+    return Array.isArray(entry?.memberRoster) ? entry.memberRoster.length : 0;
+  },
+
+  _getFriendlyTournamentEntryClubMemberTotal(entry) {
+    const teamId = String(entry?.teamId || entry?.id || '').trim();
+    const team = teamId ? ApiService.getTeam?.(teamId) : null;
+    const candidates = [
+      entry?.teamMemberCount,
+      entry?.clubMemberCount,
+      entry?.memberCount,
+      entry?.membersCount,
+      team?.memberCount,
+      team?.membersCount,
+      team?.playerCount,
+      Array.isArray(team?.members) ? team.members.length : null,
+      typeof team?.members === 'number' ? team.members : null,
+    ];
+    const rosterCount = this._getFriendlyTournamentEntryRosterCount(entry);
+    const total = candidates
+      .map(value => Number(value))
+      .find(value => Number.isFinite(value) && value > 0);
+    return Math.max(rosterCount, Math.floor(total || rosterCount || 0));
+  },
+
+  _getFriendlyTournamentRosterSummaryText(entry) {
+    const rosterCount = this._getFriendlyTournamentEntryRosterCount(entry);
+    const total = this._getFriendlyTournamentEntryClubMemberTotal(entry);
+    return `${rosterCount}/${total}`;
+  },
+
+  _canEditFriendlyTournamentRosterEntry(entry, viewer = ApiService.getCurrentUser?.()) {
+    const teamId = String(entry?.teamId || entry?.id || '').trim();
+    if (teamId && typeof this._isFriendlyTournamentViewerTeamOfficer === 'function') {
+      return !!this._isFriendlyTournamentViewerTeamOfficer(teamId, viewer);
+    }
+    const team = teamId ? ApiService.getTeam?.(teamId) : null;
+    return !!(teamId && viewer?.uid && this._isTournamentTeamOfficerForTeam?.(team, viewer));
+  },
+
+  _getFriendlyTournamentRosterListEntry(tournamentId, teamId) {
+    const state = this._getFriendlyTournamentState?.(tournamentId);
+    const safeTeamId = String(teamId || '').trim();
+    return (state?.entries || []).find(entry =>
+      String(entry?.teamId || entry?.id || '').trim() === safeTeamId
+      || this._isSameFriendlyTournamentEntry?.(entry, { teamId: safeTeamId, id: safeTeamId })
+    ) || null;
+  },
+
+  _getFriendlyTournamentRosterMemberInputId(memberUid, field) {
+    const key = String(memberUid || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+    return `tfd-roster-${field}-${key}`;
+  },
+
+  _ensureFriendlyTournamentRosterListModal() {
+    let overlay = document.getElementById('friendly-roster-list-overlay');
+    if (overlay) return overlay;
+    overlay = document.createElement('div');
+    overlay.id = 'friendly-roster-list-overlay';
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal tfd-roster-list-modal" id="friendly-roster-list-modal">
+        <div class="modal-header">
+          <h3 id="friendly-roster-list-title">參賽球員名單</h3>
+          <button class="modal-close" type="button" data-action="close">×</button>
+        </div>
+        <div class="modal-body" id="friendly-roster-list-body"></div>
+        <div class="modal-actions">
+          <button class="outline-btn" type="button" data-action="close">關閉</button>
+        </div>
+      </div>`;
+    overlay.addEventListener('click', event => {
+      if (event.target === overlay || event.target?.dataset?.action === 'close') {
+        this.closeFriendlyTournamentRosterList();
+      }
+    });
+    document.body.appendChild(overlay);
+    return overlay;
+  },
+
+  closeFriendlyTournamentRosterList() {
+    document.getElementById('friendly-roster-list-overlay')?.classList.remove('open');
+    document.getElementById('friendly-roster-list-modal')?.classList.remove('open');
+    this._friendlyTournamentRosterListState = null;
+  },
+
+  async openFriendlyTournamentRosterList(tournamentId, teamId) {
+    const safeTournamentId = String(tournamentId || '').trim();
+    const safeTeamId = String(teamId || '').trim();
+    if (!safeTournamentId || !safeTeamId) return false;
+    try {
+      const state = await (this._hydrateFriendlyTournamentRosterState?.(safeTournamentId)
+        || this._loadFriendlyTournamentDetailState?.(safeTournamentId));
+      const entry = (state?.entries || []).find(item =>
+        String(item?.teamId || item?.id || '').trim() === safeTeamId
+        || this._isSameFriendlyTournamentEntry?.(item, { teamId: safeTeamId, id: safeTeamId })
+      );
+      if (!entry) {
+        this.showToast?.('找不到此俱樂部參賽名單');
+        return false;
+      }
+      this._friendlyTournamentRosterListState = {
+        tournamentId: safeTournamentId,
+        teamId: safeTeamId,
+        editingUid: null,
+      };
+      const overlay = this._ensureFriendlyTournamentRosterListModal();
+      this._renderFriendlyTournamentRosterListModal();
+      overlay.classList.add('open');
+      document.getElementById('friendly-roster-list-modal')?.classList.add('open');
+      return true;
+    } catch (err) {
+      this._showTournamentActionError?.('開啟參賽球員名單', err);
+      return false;
+    }
+  },
+
+  _renderFriendlyTournamentRosterListModal() {
+    const state = this._friendlyTournamentRosterListState;
+    const title = document.getElementById('friendly-roster-list-title');
+    const body = document.getElementById('friendly-roster-list-body');
+    if (!state || !body) return;
+    const entry = this._getFriendlyTournamentRosterListEntry(state.tournamentId, state.teamId);
+    if (!entry) {
+      body.innerHTML = '<div class="tfd-empty-state">找不到此俱樂部參賽名單</div>';
+      return;
+    }
+    const canEdit = this._canEditFriendlyTournamentRosterEntry(entry);
+    const roster = Array.isArray(entry.memberRoster) ? entry.memberRoster : [];
+    if (title) title.textContent = `${entry.teamName || '俱樂部'} 參賽球員名單`;
+    const summary = this._getFriendlyTournamentRosterSummaryText(entry);
+    body.innerHTML = `
+      <div class="tfd-roster-list-summary">
+        <div>
+          <strong>${escapeHTML(entry.teamName || '俱樂部')}</strong>
+          <span>參賽 / 俱樂部球員：${escapeHTML(summary)}</span>
+        </div>
+        <span class="tfd-roster-list-mode">${canEdit ? '可編輯' : '僅查看'}</span>
+      </div>
+      <div class="tfd-roster-list-table" role="table" aria-label="參賽球員名單">
+        <div class="tfd-roster-list-head" role="row">
+          <span>背號</span>
+          <span>球員暱稱</span>
+          <span>位置</span>
+          <span>備註</span>
+          <span>操作</span>
+        </div>
+        ${roster.length
+          ? roster.map(member => this._renderFriendlyTournamentRosterListRow(state.tournamentId, entry, member, canEdit, state.editingUid === String(member?.uid || '').trim())).join('')
+          : '<div class="tfd-roster-list-empty">尚無球員登錄參賽</div>'}
+      </div>`;
+  },
+
+  _renderFriendlyTournamentRosterListRow(tournamentId, entry, member, canEdit, isEditing) {
+    const safeTournamentId = escapeHTML(String(tournamentId || '').trim());
+    const safeTeamId = escapeHTML(String(entry?.teamId || entry?.id || '').trim());
+    const uid = String(member?.uid || '').trim();
+    const safeUid = escapeHTML(uid);
+    const displayName = this._displayNameOrUidFallback?.(member?.name || member?.displayName, uid, member?.name || uid || '球員') || member?.name || uid || '球員';
+    const jerseyNumber = this._normalizeFriendlyTournamentJerseyNumber(member?.jerseyNumber) || '';
+    const position = String(member?.position || '').trim();
+    const note = String(member?.note || '').trim();
+    if (isEditing && canEdit) {
+      const jerseyId = this._getFriendlyTournamentRosterMemberInputId(uid, 'jersey');
+      const positionId = this._getFriendlyTournamentRosterMemberInputId(uid, 'position');
+      const noteId = this._getFriendlyTournamentRosterMemberInputId(uid, 'note');
+      return `
+        <div class="tfd-roster-list-row tfd-roster-list-row-edit" role="row">
+          <label><span>背號</span><input id="${escapeHTML(jerseyId)}" type="text" inputmode="numeric" maxlength="3" value="${escapeHTML(jerseyNumber)}" placeholder="1-999"></label>
+          <span class="user-capsule tfd-roster-name-pill">${escapeHTML(displayName)}</span>
+          <label><span>位置</span><input id="${escapeHTML(positionId)}" type="text" maxlength="20" value="${escapeHTML(position)}" placeholder="例：前鋒"></label>
+          <label><span>備註</span><input id="${escapeHTML(noteId)}" type="text" maxlength="30" value="${escapeHTML(note)}" placeholder="最多 30 字"></label>
+          <div class="tfd-roster-list-actions">
+            <button type="button" class="primary-btn small" onclick="return App.saveFriendlyTournamentRosterMemberProfile('${safeTournamentId}','${safeTeamId}','${safeUid}', this)">儲存</button>
+            <button type="button" class="outline-btn small" onclick="App.cancelFriendlyTournamentRosterMemberEdit();return false;">取消</button>
+          </div>
+        </div>`;
+    }
+    return `
+      <div class="tfd-roster-list-row" role="row">
+        <div class="tfd-roster-cell">
+          <span class="tfd-roster-cell-label">背號</span>
+          <span class="tfd-roster-number">${escapeHTML(jerseyNumber || '-')}</span>
+        </div>
+        <div class="tfd-roster-cell">
+          <span class="tfd-roster-cell-label">球員暱稱</span>
+          <span class="user-capsule tfd-roster-name-pill">${escapeHTML(displayName)}</span>
+        </div>
+        <div class="tfd-roster-cell">
+          <span class="tfd-roster-cell-label">位置</span>
+          <span>${escapeHTML(position || '-')}</span>
+        </div>
+        <div class="tfd-roster-cell">
+          <span class="tfd-roster-cell-label">備註</span>
+          <span class="tfd-roster-note">${escapeHTML(note || '-')}</span>
+        </div>
+        <div class="tfd-roster-list-actions">
+          ${canEdit ? `<button type="button" class="outline-btn small" onclick="App.editFriendlyTournamentRosterMember('${safeTournamentId}','${safeTeamId}','${safeUid}');return false;">編輯</button>` : ''}
+          ${canEdit ? `<button type="button" class="tfd-roster-delete-btn" aria-label="刪除 ${escapeHTML(displayName)}" onclick="return App.deleteFriendlyTournamentRosterMember('${safeTournamentId}','${safeTeamId}','${safeUid}', this)">×</button>` : ''}
+        </div>
+      </div>`;
+  },
+
+  editFriendlyTournamentRosterMember(tournamentId, teamId, memberUid) {
+    const safeTournamentId = String(tournamentId || '').trim();
+    const safeTeamId = String(teamId || '').trim();
+    const safeUid = String(memberUid || '').trim();
+    if (!safeTournamentId || !safeTeamId || !safeUid) return false;
+    this._friendlyTournamentRosterListState = {
+      tournamentId: safeTournamentId,
+      teamId: safeTeamId,
+      editingUid: safeUid,
+    };
+    this._renderFriendlyTournamentRosterListModal();
+    return false;
+  },
+
+  cancelFriendlyTournamentRosterMemberEdit() {
+    if (!this._friendlyTournamentRosterListState) return false;
+    this._friendlyTournamentRosterListState.editingUid = null;
+    this._renderFriendlyTournamentRosterListModal();
+    return false;
+  },
+
+  async saveFriendlyTournamentRosterMemberProfile(tournamentId, teamId, memberUid, actionButton = null) {
+    const safeTournamentId = String(tournamentId || '').trim();
+    const safeTeamId = String(teamId || '').trim();
+    const safeUid = String(memberUid || '').trim();
+    const entry = this._getFriendlyTournamentRosterListEntry(safeTournamentId, safeTeamId);
+    const member = (entry?.memberRoster || []).find(item => String(item?.uid || '').trim() === safeUid);
+    if (!entry || !member || !this._canEditFriendlyTournamentRosterEntry(entry)) {
+      this.showToast?.('只有該俱樂部職員可以編輯參賽球員');
+      return false;
+    }
+    const jerseyId = this._getFriendlyTournamentRosterMemberInputId(safeUid, 'jersey');
+    const positionId = this._getFriendlyTournamentRosterMemberInputId(safeUid, 'position');
+    const noteId = this._getFriendlyTournamentRosterMemberInputId(safeUid, 'note');
+    const jerseyNumber = this._normalizeFriendlyTournamentJerseyNumber(document.getElementById(jerseyId)?.value);
+    if (jerseyNumber === null) {
+      this.showToast?.('背號只能輸入 1-3 位數字');
+      return false;
+    }
+    const profile = {
+      jerseyNumber,
+      position: String(document.getElementById(positionId)?.value || '').trim().slice(0, 20),
+      note: String(document.getElementById(noteId)?.value || '').trim().slice(0, 30),
+    };
+    const save = async () => {
+      await ApiService.updateTournamentEntryMemberProfile(safeTournamentId, safeTeamId, safeUid, profile);
+      await this._hydrateFriendlyTournamentRosterState?.(safeTournamentId);
+      this._friendlyTournamentRosterListState = { tournamentId: safeTournamentId, teamId: safeTeamId, editingUid: null };
+      this._renderFriendlyTournamentRosterListModal();
+      this._refreshFriendlyTournamentRosterUi?.(safeTournamentId);
+      this.showToast?.('球員資料已更新');
+    };
+    try {
+      if (typeof this._withButtonLoading === 'function') {
+        await this._withButtonLoading(actionButton, '儲存中...', save);
+      } else {
+        await save();
+      }
+      return true;
+    } catch (err) {
+      this._showTournamentActionError?.('更新參賽球員', err);
+      return false;
+    }
+  },
+
+  async deleteFriendlyTournamentRosterMember(tournamentId, teamId, memberUid, actionButton = null) {
+    const safeTournamentId = String(tournamentId || '').trim();
+    const safeTeamId = String(teamId || '').trim();
+    const safeUid = String(memberUid || '').trim();
+    const entry = this._getFriendlyTournamentRosterListEntry(safeTournamentId, safeTeamId);
+    const member = (entry?.memberRoster || []).find(item => String(item?.uid || '').trim() === safeUid);
+    if (!entry || !member || !this._canEditFriendlyTournamentRosterEntry(entry)) {
+      this.showToast?.('只有該俱樂部職員可以刪除參賽球員');
+      return false;
+    }
+    const displayName = this._displayNameOrUidFallback?.(member?.name || member?.displayName, safeUid, member?.name || safeUid) || member?.name || safeUid;
+    if (!(await this.appConfirm?.(`確定刪除 ${displayName} 的參賽資格？確認後無法還原，需要球員重新申請參賽。`))) return false;
+    const remove = async () => {
+      await ApiService.removeTournamentEntryMember(safeTournamentId, safeTeamId, safeUid);
+      await this._hydrateFriendlyTournamentRosterState?.(safeTournamentId);
+      this._friendlyTournamentRosterListState = { tournamentId: safeTournamentId, teamId: safeTeamId, editingUid: null };
+      this._renderFriendlyTournamentRosterListModal();
+      this._refreshFriendlyTournamentRosterUi?.(safeTournamentId);
+      this.showToast?.('已刪除參賽球員');
+    };
+    try {
+      if (typeof this._withButtonLoading === 'function') {
+        await this._withButtonLoading(actionButton, '刪除中...', remove);
+      } else {
+        await remove();
+      }
+      return true;
+    } catch (err) {
+      this._showTournamentActionError?.('刪除參賽球員', err);
+      return false;
+    }
+  },
+
   async promptFriendlyTournamentMemberJersey(tournamentId, teamId, memberUid, actionButton = null) {
     const safeTournamentId = String(tournamentId || '').trim();
     const safeTeamId = String(teamId || '').trim();
@@ -438,12 +740,16 @@ Object.assign(App, {
     const entryRows = approvedEntries.map(entry => {
       const teamName = entry.teamName || '未命名俱樂部';
       const isViewerTeamOfficer = this._isFriendlyTournamentViewerTeamOfficer?.(entry.teamId, viewer);
-      const canEditRosterJersey = isRosterHydrated && isViewerTeamOfficer;
-      const roster = !isRosterHydrated
-        ? '<span class="tfd-empty-text">隊員名單載入中</span>'
-        : Array.isArray(entry.memberRoster) && entry.memberRoster.length
-        ? entry.memberRoster.map(member => this._renderFriendlyTournamentRosterMemberChip(tournament.id, entry, member, canEditRosterJersey)).join('')
-        : '<span class="tfd-empty-text">尚無隊員報名</span>';
+      const rosterSummary = isRosterHydrated ? this._getFriendlyTournamentRosterSummaryText(entry) : '-';
+      const rosterTeamId = String(entry.teamId || entry.id || '').trim();
+      const rosterListButton = isRosterHydrated
+        ? `<button type="button" class="tfd-roster-list-btn" onclick="event.stopPropagation();return App.openFriendlyTournamentRosterList('${escapeHTML(tournament.id)}','${escapeHTML(rosterTeamId)}')">${isViewerTeamOfficer ? '管理名單' : '球員名單'}</button>`
+        : '<button type="button" class="tfd-roster-loading-btn" disabled>載入中</button>';
+      const roster = `
+        <div class="tfd-roster-summary">
+          <span>球員 ${escapeHTML(rosterSummary)}</span>
+          ${rosterListButton}
+        </div>`;
       const rosterAction = this._isFriendlyTournamentViewerOnEntryTeam(entry, viewer)
         ? (isRosterHydrated
           ? this._buildFriendlyTournamentRosterActionButton(tournament.id, entry, rosterMembership, status, { stopPropagation: true })

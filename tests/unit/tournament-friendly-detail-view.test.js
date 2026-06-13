@@ -373,7 +373,8 @@ describe('friendly tournament teams tab actions', () => {
     });
 
     expect(html).toContain('tfd-roster-loading-btn');
-    expect(html).toContain('隊員名單載入中');
+    expect(html).toContain('球員 -');
+    expect(html).toContain('載入中');
     expect(html).not.toContain('tfd-roster-join-btn');
     expect(html).not.toContain('joinFriendlyTournamentRoster');
   });
@@ -486,10 +487,10 @@ describe('friendly tournament teams tab actions', () => {
     expect(html).toContain("return App.joinFriendlyTournamentRoster('ct_test','tm_guest', this)");
   });
 
-  test('team officers can edit jersey numbers on their own friendly tournament club card', () => {
+  test('team officers open roster management from their friendly tournament club card', () => {
     global.ApiService = {
       getCurrentUser: () => ({ uid: 'manager_uid', role: 'user', teamIds: ['tm_guest'] }),
-      getTeam: teamId => ({ id: teamId, captainUid: 'manager_uid' }),
+      getTeam: teamId => ({ id: teamId, captainUid: 'manager_uid', members: 12 }),
     };
     global.TOURNAMENT_STATUS = { REG_OPEN: 'open' };
     global.App._canManageTournamentRecord = jest.fn(() => false);
@@ -513,15 +514,18 @@ describe('friendly tournament teams tab actions', () => {
       applications: [],
     });
 
-    expect(html).toContain('11-AAA');
-    expect(html).toContain('tfd-jersey-btn');
-    expect(html).toContain("return App.promptFriendlyTournamentMemberJersey('ct_test','tm_guest','player_uid', this)");
+    expect(html).toContain('球員 1/12');
+    expect(html).toContain('tfd-roster-list-btn');
+    expect(html).toContain('管理名單');
+    expect(html).toContain("return App.openFriendlyTournamentRosterList('ct_test','tm_guest')");
+    expect(html).not.toContain('11-AAA');
+    expect(html).not.toContain('tfd-jersey-btn');
   });
 
-  test('non-officers cannot edit jersey numbers on friendly tournament club cards', () => {
+  test('non-officers only see roster list entry from friendly tournament club cards', () => {
     global.ApiService = {
       getCurrentUser: () => ({ uid: 'viewer_uid', role: 'user', teamIds: [] }),
-      getTeam: teamId => ({ id: teamId, captainUid: 'manager_uid' }),
+      getTeam: teamId => ({ id: teamId, captainUid: 'manager_uid', members: 12 }),
     };
     global.TOURNAMENT_STATUS = { REG_OPEN: 'open' };
     global.App._canManageTournamentRecord = jest.fn(() => false);
@@ -545,9 +549,125 @@ describe('friendly tournament teams tab actions', () => {
       applications: [],
     });
 
-    expect(html).toContain('11-AAA');
+    expect(html).toContain('球員 1/12');
+    expect(html).toContain('球員名單');
     expect(html).not.toContain('tfd-jersey-btn');
     expect(html).not.toContain('promptFriendlyTournamentMemberJersey');
+  });
+
+  test('roster list modal shows roster fields and officer edit controls', () => {
+    const body = { innerHTML: '' };
+    const title = { textContent: '' };
+    const state = {
+      entries: [
+        {
+          teamId: 'tm_guest',
+          teamName: 'Guest Team',
+          memberRoster: [{ uid: 'player_uid', name: 'AAA', jerseyNumber: '11', position: 'FW', note: 'captain' }],
+        },
+      ],
+    };
+    global.document = {
+      getElementById: jest.fn(id => ({ 'friendly-roster-list-body': body, 'friendly-roster-list-title': title }[id] || null)),
+    };
+    global.ApiService = {
+      getCurrentUser: () => ({ uid: 'manager_uid' }),
+      getTeam: () => ({ id: 'tm_guest', captainUid: 'manager_uid', members: 12 }),
+    };
+    global.App._getFriendlyTournamentState = jest.fn(() => state);
+    global.App._isTournamentTeamOfficerForTeam = jest.fn((team, user) => team?.captainUid === user?.uid);
+    global.App._displayNameOrUidFallback = jest.fn((name, uid, fallback) => name || uid || fallback);
+    require('../../js/modules/tournament/tournament-friendly-detail-view.js');
+
+    global.App._friendlyTournamentRosterListState = { tournamentId: 'ct_test', teamId: 'tm_guest', editingUid: null };
+    global.App._renderFriendlyTournamentRosterListModal();
+
+    expect(title.textContent).toBe('Guest Team 參賽球員名單');
+    expect(body.innerHTML).toContain('參賽 / 俱樂部球員：1/12');
+    expect(body.innerHTML).toContain('11');
+    expect(body.innerHTML).toContain('AAA');
+    expect(body.innerHTML).toContain('FW');
+    expect(body.innerHTML).toContain('captain');
+    expect(body.innerHTML).toContain('editFriendlyTournamentRosterMember');
+    expect(body.innerHTML).toContain('deleteFriendlyTournamentRosterMember');
+  });
+
+  test('saving roster member profile persists jersey position and note', async () => {
+    const state = {
+      entries: [
+        {
+          teamId: 'tm_guest',
+          teamName: 'Guest Team',
+          memberRoster: [{ uid: 'player_uid', name: 'AAA', jerseyNumber: '11', position: '', note: '' }],
+        },
+      ],
+    };
+    const inputs = {
+      'tfd-roster-jersey-player_uid': { value: '07' },
+      'tfd-roster-position-player_uid': { value: '前鋒' },
+      'tfd-roster-note-player_uid': { value: '左腳' },
+      'friendly-roster-list-body': { innerHTML: '' },
+      'friendly-roster-list-title': { textContent: '' },
+    };
+    global.document = { getElementById: jest.fn(id => inputs[id] || null) };
+    global.ApiService = {
+      getCurrentUser: () => ({ uid: 'manager_uid' }),
+      getTeam: () => ({ id: 'tm_guest', captainUid: 'manager_uid' }),
+      updateTournamentEntryMemberProfile: jest.fn().mockResolvedValue(),
+    };
+    global.App._getFriendlyTournamentState = jest.fn(() => state);
+    global.App._hydrateFriendlyTournamentRosterState = jest.fn().mockResolvedValue(state);
+    global.App._refreshFriendlyTournamentRosterUi = jest.fn();
+    global.App._isTournamentTeamOfficerForTeam = jest.fn((team, user) => team?.captainUid === user?.uid);
+    global.App.showToast = jest.fn();
+    global.App._showTournamentActionError = jest.fn();
+    require('../../js/modules/tournament/tournament-friendly-detail-view.js');
+    global.App._friendlyTournamentRosterListState = { tournamentId: 'ct_test', teamId: 'tm_guest', editingUid: 'player_uid' };
+
+    await global.App.saveFriendlyTournamentRosterMemberProfile('ct_test', 'tm_guest', 'player_uid');
+
+    expect(global.ApiService.updateTournamentEntryMemberProfile).toHaveBeenCalledWith('ct_test', 'tm_guest', 'player_uid', expect.objectContaining({
+      jerseyNumber: '07',
+      position: '前鋒',
+      note: '左腳',
+    }));
+    expect(global.App._refreshFriendlyTournamentRosterUi).toHaveBeenCalledWith('ct_test');
+  });
+
+  test('deleting roster member asks confirmation before removal', async () => {
+    const state = {
+      entries: [
+        {
+          teamId: 'tm_guest',
+          teamName: 'Guest Team',
+          memberRoster: [{ uid: 'player_uid', name: 'AAA', jerseyNumber: '11' }],
+        },
+      ],
+    };
+    global.document = {
+      getElementById: jest.fn(id => ({ 'friendly-roster-list-body': { innerHTML: '' }, 'friendly-roster-list-title': { textContent: '' } }[id] || null)),
+    };
+    global.ApiService = {
+      getCurrentUser: () => ({ uid: 'manager_uid' }),
+      getTeam: () => ({ id: 'tm_guest', captainUid: 'manager_uid' }),
+      removeTournamentEntryMember: jest.fn().mockResolvedValue(),
+    };
+    global.App._getFriendlyTournamentState = jest.fn(() => state);
+    global.App._hydrateFriendlyTournamentRosterState = jest.fn().mockResolvedValue(state);
+    global.App._refreshFriendlyTournamentRosterUi = jest.fn();
+    global.App._isTournamentTeamOfficerForTeam = jest.fn((team, user) => team?.captainUid === user?.uid);
+    global.App._displayNameOrUidFallback = jest.fn((name, uid, fallback) => name || uid || fallback);
+    global.App.appConfirm = jest.fn().mockResolvedValue(true);
+    global.App.showToast = jest.fn();
+    global.App._showTournamentActionError = jest.fn();
+    require('../../js/modules/tournament/tournament-friendly-detail-view.js');
+    global.App._friendlyTournamentRosterListState = { tournamentId: 'ct_test', teamId: 'tm_guest', editingUid: null };
+
+    await global.App.deleteFriendlyTournamentRosterMember('ct_test', 'tm_guest', 'player_uid');
+
+    expect(global.App.appConfirm).toHaveBeenCalledWith(expect.stringContaining('確認後無法還原'));
+    expect(global.ApiService.removeTournamentEntryMember).toHaveBeenCalledWith('ct_test', 'tm_guest', 'player_uid');
+    expect(global.App._refreshFriendlyTournamentRosterUi).toHaveBeenCalledWith('ct_test');
   });
 
   test('promptFriendlyTournamentMemberJersey saves a sanitized jersey number', async () => {
