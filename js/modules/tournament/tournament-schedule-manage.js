@@ -20,8 +20,8 @@ Object.assign(App, {
           <h3>賽程管理</h3>
           <button class="modal-close" type="button" data-action="close">✕</button>
         </div>
-        <div class="modal-body">
-          <div id="tournament-schedule-summary" class="tfd-picker-meta"></div>
+        <div class="modal-body tc-schedule-manager-body">
+          <div id="tournament-schedule-summary" class="tc-manager-summary"></div>
           <div id="tournament-schedule-actions" class="tc-schedule-actions"></div>
           <div id="tournament-schedule-list" class="tc-schedule-manage-list"></div>
         </div>
@@ -78,16 +78,35 @@ Object.assign(App, {
     const modeText = mode === 'league'
       ? `聯賽（${config.doubleRound ? '雙循環' : '單循環'}）`
       : `盃賽（單淘汰${config.thirdPlace ? '＋季軍戰' : ''}）`;
-    summary.textContent = `${modeText}・參賽 ${countingEntries.length} 隊・已建立 ${matches.length} 場（完賽 ${finishedCount} 場）・棄權判 ${config.walkoverWinScore}:${config.walkoverLoseScore}`;
+    const configuredTimeCount = matches.filter(m => m.scheduledAt).length;
+    const configuredVenueCount = matches.filter(m => String(m.venue || '').trim()).length;
+    summary.innerHTML = `
+      <div class="tc-manager-summary-copy">
+        <span class="tc-manager-kicker">賽程管理</span>
+        <strong>${escapeHTML(modeText)}</strong>
+        <small>調整單場時間、場地與裁判；已完賽場次仍可保留結果並更新基本資訊。</small>
+      </div>
+      <div class="tc-manager-summary-stats">
+        <span><b>${countingEntries.length}</b>參賽隊伍</span>
+        <span><b>${matches.length}</b>場次</span>
+        <span><b>${finishedCount}</b>已完賽</span>
+        <span><b>${configuredTimeCount}</b>有時間</span>
+        <span><b>${configuredVenueCount}</b>有場地</span>
+      </div>
+      <div class="tc-manager-summary-note">棄權比分 ${escapeHTML(String(config.walkoverWinScore))}:${escapeHTML(String(config.walkoverLoseScore))}</div>`;
 
     const regenWarn = matches.length > 0;
     actions.innerHTML = `
-      <button type="button" class="primary-btn small" onclick="return App.generateTournamentSchedule('${escapeHTML(managerState.tournamentId)}', this)">${regenWarn ? '重新產生賽程' : '產生賽程'}</button>
+      <button type="button" class="primary-btn small tc-schedule-generate-btn" onclick="return App.generateTournamentSchedule('${escapeHTML(managerState.tournamentId)}', this)">${regenWarn ? '重新產生賽程' : '產生賽程'}</button>
       ${this.getTournamentStatus?.(tournament) === TOURNAMENT_STATUS.REG_OPEN ? '<span class="tc-schedule-warn">報名仍開放中，隊伍若有變動需重新產生</span>' : ''}
     `;
 
     if (matches.length === 0) {
-      list.innerHTML = '<div class="tfd-empty-state">尚未產生賽程。確認參賽隊伍後點擊「產生賽程」。</div>';
+      list.innerHTML = `
+        <div class="tc-manager-empty">
+          <div class="tc-manager-empty-title">尚未產生賽程</div>
+          <div class="tc-manager-empty-body">確認參賽隊伍後點擊「產生賽程」，系統會依目前賽制建立場次。</div>
+        </div>`;
       return;
     }
     const matchesBySlot = this._buildTournamentMatchesBySlot(matches);
@@ -98,25 +117,60 @@ Object.assign(App, {
     ];
     const cupMatches = matches.filter(m => m.stage === 'cup');
     const bracketSize = cupMatches.filter(m => m.round === 1).length * 2;
-    list.innerHTML = matches.map(match => {
+    const orderedMatches = [...matches].sort((a, b) => {
+      const stageOrder = { cup: 0, third: 1, league: 2 };
+      const stageA = stageOrder[a.stage] ?? 9;
+      const stageB = stageOrder[b.stage] ?? 9;
+      return stageA - stageB || Number(a.round || 0) - Number(b.round || 0) || Number(a.slot || 0) - Number(b.slot || 0);
+    });
+    list.innerHTML = orderedMatches.map(match => {
       const home = this._renderTournamentMatchSideLabel(match, 'home', matchesBySlot, nameById);
       const away = this._renderTournamentMatchSideLabel(match, 'away', matchesBySlot, nameById);
       const locked = match.status === 'finished' || match.status === 'walkover';
+      const roundLabel = this._getTournamentRoundLabel(match, bracketSize);
       if (match.status === 'bye') {
-        return `<div class="tc-manage-row tc-match-bye"><div class="tc-manage-title">${escapeHTML(this._getTournamentRoundLabel(match, bracketSize))}｜${escapeHTML(home.label)} 輪空晉級</div></div>`;
+        return `
+          <div class="tc-manage-row tc-manage-row-bye tc-match-bye">
+            <div class="tc-manage-card-head">
+              <div class="tc-manage-title-block">
+                <span class="tc-manage-round">${escapeHTML(roundLabel)}</span>
+                <div class="tc-manage-title">${escapeHTML(home.label)} 輪空晉級</div>
+              </div>
+              <span class="tc-manage-status tc-manage-status-bye">輪空</span>
+            </div>
+          </div>`;
       }
       const assigned = new Set(match.refereeUids || []);
       const refereeChecks = refereeOptions.map(ref => `
-        <label class="tc-ref-check"><input type="checkbox" data-ref-uid="${escapeHTML(ref.uid)}" data-ref-name="${escapeHTML(ref.name)}" ${assigned.has(ref.uid) ? 'checked' : ''}>${escapeHTML(ref.name)}${ref.isHead ? '（裁判長）' : ''}</label>`).join('');
+        <label class="tc-ref-check"><input type="checkbox" data-ref-uid="${escapeHTML(ref.uid)}" data-ref-name="${escapeHTML(ref.name)}" ${assigned.has(ref.uid) ? 'checked' : ''}><span>${escapeHTML(ref.name)}${ref.isHead ? '（裁判長）' : ''}</span></label>`).join('');
       const timeValue = this._toTournamentDateTimeInputValue?.(match.scheduledAt) || '';
+      const statusText = locked
+        ? `已完賽 ${match.status === 'walkover' ? '（棄權）' : `${match.scoreHome}:${match.scoreAway}`}`
+        : '待設定';
       return `
         <div class="tc-manage-row" data-match-id="${escapeHTML(match.id)}">
-          <div class="tc-manage-title">${escapeHTML(this._getTournamentRoundLabel(match, bracketSize))}｜${escapeHTML(home.label)} vs ${escapeHTML(away.label)}${locked ? `<span class="tc-manage-lock">已完賽 ${match.status === 'walkover' ? '（棄權）' : `${match.scoreHome}:${match.scoreAway}`}</span>` : ''}</div>
-          <div class="tc-manage-fields">
-            <input type="datetime-local" class="tc-manage-time" value="${escapeHTML(timeValue)}">
-            <input type="text" class="tc-manage-venue" placeholder="場地" value="${escapeHTML(match.venue || '')}">
+          <div class="tc-manage-card-head">
+            <div class="tc-manage-title-block">
+              <span class="tc-manage-round">${escapeHTML(roundLabel)}</span>
+              <div class="tc-manage-title">
+                <span title="${escapeHTML(home.label)}">${escapeHTML(home.label)}</span>
+                <b>VS</b>
+                <span title="${escapeHTML(away.label)}">${escapeHTML(away.label)}</span>
+              </div>
+            </div>
+            <span class="tc-manage-status${locked ? ' tc-manage-status-locked' : ''}">${escapeHTML(statusText)}</span>
           </div>
-          ${refereeOptions.length ? `<div class="tc-manage-refs">${refereeChecks}</div>` : ''}
+          <div class="tc-manage-fields">
+            <label class="tc-manage-field">
+              <span>開賽時間</span>
+              <input type="datetime-local" class="tc-manage-time" value="${escapeHTML(timeValue)}">
+            </label>
+            <label class="tc-manage-field">
+              <span>場地</span>
+              <input type="text" class="tc-manage-venue" placeholder="輸入場地" value="${escapeHTML(match.venue || '')}">
+            </label>
+          </div>
+          ${refereeOptions.length ? `<div class="tc-manage-ref-panel"><div class="tc-manage-section-title">裁判指派</div><div class="tc-manage-refs">${refereeChecks}</div></div>` : '<div class="tc-manage-ref-panel"><div class="tc-manage-refs-empty">尚未設定裁判名單</div></div>'}
           <div class="tc-manage-actions">
             <button type="button" class="outline-btn small" onclick="return App.saveTournamentMatchMeta('${escapeHTML(managerState.tournamentId)}','${escapeHTML(match.id)}', this)">儲存</button>
             ${match.stage === 'league' && !locked ? `<button type="button" class="outline-btn small tc-manage-delete" onclick="return App.deleteTournamentScheduleMatch('${escapeHTML(managerState.tournamentId)}','${escapeHTML(match.id)}', this)">刪除</button>` : ''}

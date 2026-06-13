@@ -87,9 +87,16 @@ Object.assign(App, {
     const finished = match.status === 'finished';
     const walkover = match.status === 'walkover';
     const bye = match.status === 'bye';
+    const statusClass = bye ? 'bye' : walkover ? 'walkover' : finished ? 'finished' : 'scheduled';
+    const statusLabel = {
+      bye: '輪空',
+      finished: '已結束',
+      scheduled: '待開賽',
+      walkover: '棄權',
+    }[statusClass] || '待開賽';
     let scoreText = 'VS';
     if (finished) {
-      const pkText = Number.isFinite(Number(match.pkHome)) && Number.isFinite(Number(match.pkAway)) && match.pkHome !== null && match.pkAway !== null
+      const pkText = Number.isFinite(Number(match.pkHome)) && Number.isFinite(Number(match.pkAway)) && match.pkHome !== null && match.pkHome !== undefined && match.pkAway !== null && match.pkAway !== undefined
         ? `<span class="tc-pk">PK ${match.pkHome}:${match.pkAway}</span>` : '';
       scoreText = `${match.scoreHome ?? '-'} : ${match.scoreAway ?? '-'}${pkText}`;
     } else if (walkover) {
@@ -99,24 +106,50 @@ Object.assign(App, {
       scoreText = '<span class="tc-wo">輪空</span>';
     }
     const winnerTeamId = this._getTournamentMatchWinnerTeamId(match, matchesBySlot);
+    const sideScore = (info, side) => {
+      if (finished) return side === 'home' ? (match.scoreHome ?? '-') : (match.scoreAway ?? '-');
+      if (walkover && match.walkoverWinnerTeamId) return match.walkoverWinnerTeamId === info.teamId ? '勝' : '棄';
+      if (bye && side === 'home') return '晉';
+      return '';
+    };
+    const teamHtml = (info, side) => `
+      <div class="tc-match-team${side === 'away' ? ' away' : ''}${winnerTeamId && winnerTeamId === info.teamId ? ' tc-winner' : ''}${info.pending ? ' tc-pending' : ''}">
+        <span class="tc-match-team-name" title="${escapeHTML(info.label)}">${escapeHTML(info.label)}</span>
+        <span class="tc-match-team-score">${escapeHTML(sideScore(info, side))}</span>
+      </div>`;
+    const matchNumber = Number.isFinite(Number(match.slot)) ? Number(match.slot) + 1 : '';
+    const matchLabel = match.stage === 'third' ? '季軍戰' : matchNumber ? `第 ${matchNumber} 場` : '場次';
+    const matchTime = this._formatTournamentMatchTime(match.scheduledAt);
+    const refereeNames = (match.referees || []).map(ref => ref?.name || '').filter(Boolean).join('、');
     const metaParts = [
-      this._formatTournamentMatchTime(match.scheduledAt),
-      match.venue ? escapeHTML(match.venue) : '',
-      (match.referees || []).length ? `裁判 ${escapeHTML(match.referees.map(r => r.name).join('、'))}` : '',
+      matchTime ? `<span><b>時間</b>${escapeHTML(matchTime)}</span>` : '',
+      match.venue ? `<span><b>場地</b>${escapeHTML(match.venue)}</span>` : '',
+      refereeNames ? `<span><b>裁判</b>${escapeHTML(refereeNames)}</span>` : '',
     ].filter(Boolean);
+    const metaHtml = metaParts.length
+      ? `<div class="tc-match-meta">${metaParts.join('')}</div>`
+      : `<div class="tc-match-meta tc-match-meta-empty">時間與場地待公布</div>`;
     const canRecord = options.canRecord === true && !bye;
-    const recordLabel = finished || walkover ? '更正' : '記錄';
+    const recordLabel = finished || walkover ? '編輯結果' : '登錄結果';
     const recordBtn = canRecord
       ? `<button type="button" class="tc-record-btn" onclick="event.stopPropagation();App.openTournamentMatchRecordModal('${escapeHTML(tournament.id)}','${escapeHTML(match.id)}')">${recordLabel}</button>`
       : '';
     return `
-      <div class="match-card-compact tc-match-row${bye ? ' tc-match-bye' : ''}" data-match-id="${escapeHTML(match.id)}">
-        <div class="mc-team${winnerTeamId && winnerTeamId === home.teamId ? ' tc-winner' : ''}${home.pending ? ' tc-pending' : ''}">${escapeHTML(home.label)}</div>
-        <div class="mc-score">${scoreText}</div>
-        <div class="mc-team away${winnerTeamId && winnerTeamId === away.teamId ? ' tc-winner' : ''}${away.pending ? ' tc-pending' : ''}">${escapeHTML(away.label)}</div>
-        ${recordBtn}
-      </div>
-      ${metaParts.length ? `<div class="mc-meta tc-match-meta">${metaParts.join(' · ')}</div>` : ''}`;
+      <article class="tc-match-row tc-match-card tc-match-${statusClass}${bye ? ' tc-match-bye' : ''}" data-match-id="${escapeHTML(match.id)}">
+        <div class="tc-match-state">
+          <span class="tc-match-status tc-match-status-${statusClass}">${statusLabel}</span>
+          <span class="tc-match-number">${escapeHTML(matchLabel)}</span>
+        </div>
+        <div class="tc-match-main">
+          ${teamHtml(home, 'home')}
+          <div class="tc-match-scoreline">${scoreText}</div>
+          ${teamHtml(away, 'away')}
+        </div>
+        <div class="tc-match-detail">
+          ${metaHtml}
+          ${recordBtn ? `<div class="tc-match-action">${recordBtn}</div>` : ''}
+        </div>
+      </article>`;
   },
 
   _renderTournamentCompetitionScheduleHtml(state) {
@@ -127,31 +160,76 @@ Object.assign(App, {
       const hint = canManage
         ? '尚未產生賽程。請先完成俱樂部審核，再從上方「賽程管理」產生賽程。'
         : '主辦方尚未公布賽程。';
-      return `<div style="padding:2rem;text-align:center;color:var(--text-muted);font-size:.85rem">${hint}</div>`;
+      return `
+        <div class="tc-schedule">
+          <div class="tc-schedule-empty">
+            <div class="tc-schedule-empty-title">賽程尚未公布</div>
+            <div class="tc-schedule-empty-body">${escapeHTML(hint)}</div>
+          </div>
+        </div>`;
     }
     const user = ApiService.getCurrentUser?.();
     const matchesBySlot = this._buildTournamentMatchesBySlot(matches);
     const nameById = this._getTournamentTeamNameMap(state);
     const mode = this._getTournamentMode?.(tournament);
+    const modeText = mode === 'league' ? '聯賽' : '盃賽';
     const cupMatches = matches.filter(m => m.stage === 'cup');
     const bracketSize = cupMatches.filter(m => m.round === 1).length * 2;
+    const finishedCount = matches.filter(m => m.status === 'finished' || m.status === 'walkover').length;
+    const scheduledCount = matches.filter(m => m.scheduledAt).length;
+    const venueCount = matches.filter(m => String(m.venue || '').trim()).length;
+    const orderedMatches = [...matches].sort((a, b) => {
+      const stageOrder = { cup: 0, third: 1, league: 2 };
+      const stageA = stageOrder[a.stage] ?? 9;
+      const stageB = stageOrder[b.stage] ?? 9;
+      return stageA - stageB || Number(a.round || 0) - Number(b.round || 0) || Number(a.slot || 0) - Number(b.slot || 0);
+    });
     const groups = new Map();
-    matches.forEach(match => {
+    orderedMatches.forEach(match => {
       const key = match.stage === 'third' ? 'third' : `${match.stage}-${match.round}`;
       if (!groups.has(key)) groups.set(key, { label: this._getTournamentRoundLabel(match, bracketSize), items: [] });
       groups.get(key).items.push(match);
     });
-    let html = '<div class="tc-schedule">';
+    let html = `<div class="tc-schedule">
+      <div class="tc-schedule-head">
+        <div class="tc-schedule-title-block">
+          <span class="tc-schedule-kicker">${escapeHTML(modeText)}賽程</span>
+          <h3>賽程總覽</h3>
+          <p>依輪次整理場次、比分、時間、場地與裁判資訊。</p>
+        </div>
+        <div class="tc-schedule-stats" aria-label="賽程摘要">
+          <span><b>${matches.length}</b>總場次</span>
+          <span><b>${finishedCount}</b>已結束</span>
+          <span><b>${scheduledCount}</b>有時間</span>
+          <span><b>${venueCount}</b>有場地</span>
+        </div>
+      </div>`;
     if (mode === 'cup' && cupMatches.length > 0) {
-      html += this._renderTournamentBracketHtml(cupMatches, matchesBySlot, nameById, bracketSize);
+      html += `<section class="tc-bracket-section">
+        <div class="tc-bracket-section-head">
+          <span>淘汰賽對戰表</span>
+          <small>橫向滑動查看完整晉級路徑</small>
+        </div>
+        ${this._renderTournamentBracketHtml(cupMatches, matchesBySlot, nameById, bracketSize)}
+      </section>`;
     }
     groups.forEach(group => {
-      html += `<div class="td-card tc-round-card"><div class="td-card-title">${escapeHTML(group.label)}</div>`;
+      const groupFinished = group.items.filter(match => match.status === 'finished' || match.status === 'walkover' || match.status === 'bye').length;
+      html += `
+        <section class="td-card tc-round-card">
+          <div class="tc-round-head">
+            <div>
+              <span class="tc-round-kicker">${escapeHTML(modeText)}</span>
+              <h4>${escapeHTML(group.label)}</h4>
+            </div>
+            <span class="tc-round-count">${groupFinished}/${group.items.length} 完成</span>
+          </div>
+          <div class="tc-round-match-list">`;
       group.items.forEach(match => {
         const canRecord = this._canRecordTournamentMatch?.(tournament, match, user);
         html += this._renderTournamentMatchRowHtml(tournament, match, matchesBySlot, nameById, { canRecord });
       });
-      html += '</div>';
+      html += '</div></section>';
     });
     html += '</div>';
     return html;
