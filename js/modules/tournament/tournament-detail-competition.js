@@ -249,7 +249,7 @@ Object.assign(App, {
       html += `<section class="tc-bracket-section">
         <div class="tc-bracket-section-head">
           <span>淘汰賽對戰表</span>
-          <small>橫向滑動查看完整晉級路徑</small>
+          <small>依輪次分組，自動並排顯示場次</small>
         </div>
         ${this._renderTournamentBracketHtml(cupMatches, matchesBySlot, nameById, bracketSize)}
       </section>`;

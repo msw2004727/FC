@@ -24,14 +24,30 @@ function buildCompetitionApp() {
   return App;
 }
 
-function buildScheduleApp() {
+function buildScheduleApp(apiOverrides = {}) {
   const App = {};
-  const ApiService = {};
+  const ApiService = apiOverrides;
   loadModule('js/modules/tournament/tournament-schedule-manage.js', { App, ApiService, escapeHTML });
   return App;
 }
 
 describe('tournament bracket UI', () => {
+  test('keeps timestamp-like match times parseable when normalizing records', () => {
+    const App = buildCompetitionApp();
+    const timestampLike = {
+      toMillis: () => new Date('2026-06-13T02:00:00.000Z').getTime(),
+      toDate: () => new Date('2026-06-13T02:00:00.000Z'),
+    };
+
+    const record = App._buildTournamentMatchRecord({
+      id: 'm1',
+      stage: 'cup',
+      scheduledAt: timestampLike,
+    });
+
+    expect(record.scheduledAt).toBe(timestampLike);
+  });
+
   test('renders every repeated cup game instead of collapsing the series', () => {
     const App = buildCompetitionApp();
     const matches = App._generateCupBracket(['a', 'b'], { matchRepeatCount: 4 })
@@ -47,6 +63,27 @@ describe('tournament bracket UI', () => {
     expect((html.match(/class="bracket-match /g) || [])).toHaveLength(4);
     expect(html).toContain('data-series-game="4"');
     expect(html).toContain('第 4/4 場');
+  });
+
+  test('closes the schedule manager after bulk save succeeds', async () => {
+    const ApiService = {
+      batchUpdateTournamentMatchesMetaAwait: jest.fn().mockResolvedValue([]),
+    };
+    const App = buildScheduleApp(ApiService);
+    App._collectTournamentScheduleMetaUpdates = jest.fn(() => [
+      { id: 'm1', updates: { scheduledAt: '2026-06-13T02:00:00.000Z' } },
+    ]);
+    App._refreshTournamentCompetitionMatches = jest.fn().mockResolvedValue();
+    App._closeTournamentScheduleManager = jest.fn();
+    App.showToast = jest.fn();
+
+    await App.saveAllTournamentMatchMeta('t1');
+
+    expect(ApiService.batchUpdateTournamentMatchesMetaAwait).toHaveBeenCalledWith('t1', [
+      { id: 'm1', updates: { scheduledAt: '2026-06-13T02:00:00.000Z' } },
+    ]);
+    expect(App._refreshTournamentCompetitionMatches).toHaveBeenCalledWith('t1');
+    expect(App._closeTournamentScheduleManager).toHaveBeenCalledTimes(1);
   });
 });
 

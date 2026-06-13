@@ -36,4 +36,20 @@ describe('tournament datetime normalization', () => {
 
     expect(inputValue).toBe(expected);
   });
+
+  test('converts Firestore timestamp-like values back to datetime-local input format', () => {
+    require('../../js/modules/tournament/tournament-manage-form.js');
+
+    const iso = '2026-06-13T02:30:00.000Z';
+    const timestampLike = {
+      toMillis: () => new Date(iso).getTime(),
+      toDate: () => new Date(iso),
+    };
+    const inputValue = global.App._toTournamentDateTimeInputValue(timestampLike);
+    const parsed = new Date(iso);
+    const expected = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
+    expect(global.App._normalizeTournamentDateTimeValue(timestampLike)).toBe(iso);
+    expect(inputValue).toBe(expected);
+  });
 });

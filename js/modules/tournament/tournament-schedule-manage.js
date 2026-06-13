@@ -8,6 +8,13 @@ Object.assign(App, {
 
   _tournamentScheduleManagerState: null,
 
+  _closeTournamentScheduleManager() {
+    document.getElementById('tournament-schedule-overlay')?.classList.remove('open');
+    document.getElementById('tournament-schedule-modal')?.classList.remove('open');
+    document.body?.classList?.remove('modal-open');
+    this._tournamentScheduleManagerState = null;
+  },
+
   _ensureTournamentScheduleModal() {
     let overlay = document.getElementById('tournament-schedule-overlay');
     if (overlay) return overlay;
@@ -32,9 +39,7 @@ Object.assign(App, {
       </div>`;
     overlay.addEventListener('click', event => {
       if (event.target === overlay || event.target?.dataset?.action === 'close') {
-        overlay.classList.remove('open');
-        document.getElementById('tournament-schedule-modal')?.classList.remove('open');
-        this._tournamentScheduleManagerState = null;
+        this._closeTournamentScheduleManager();
       }
     });
     document.body.appendChild(overlay);
@@ -57,6 +62,7 @@ Object.assign(App, {
     const overlay = this._ensureTournamentScheduleModal();
     overlay.classList.add('open');
     document.getElementById('tournament-schedule-modal')?.classList.add('open');
+    document.body?.classList?.add('modal-open');
     this._renderTournamentScheduleManager();
   },
 
@@ -157,10 +163,10 @@ Object.assign(App, {
     stickyActions.innerHTML = editableCount > 0 ? `
       <div class="tc-schedule-sticky-inner">
         <div class="tc-schedule-sticky-copy">
-          <strong>場次設定</strong>
-          <span>一次儲存 ${escapeHTML(String(editableCount))} 場的時間、場地與裁判</span>
+          <strong>儲存全部</strong>
+          <span>${escapeHTML(String(editableCount))} 場設定</span>
         </div>
-        <button type="button" class="primary-btn tc-save-all-btn" onclick="return App.saveAllTournamentMatchMeta('${escapeHTML(managerState.tournamentId)}', this)">儲存全部</button>
+        <button type="button" class="primary-btn tc-save-all-btn" onclick="return App.saveAllTournamentMatchMeta('${escapeHTML(managerState.tournamentId)}', this)">儲存</button>
       </div>` : '';
     list.innerHTML = orderedMatches.map(match => {
       const home = this._renderTournamentMatchSideLabel(match, 'home', matchesBySlot, nameById);
@@ -311,7 +317,7 @@ Object.assign(App, {
     const save = async () => {
       await ApiService.batchUpdateTournamentMatchesMetaAwait(safeId, updates);
       await this._refreshTournamentCompetitionMatches?.(safeId);
-      this._renderTournamentScheduleManager();
+      this._closeTournamentScheduleManager();
       this.showToast(`已儲存 ${updates.length} 場場次設定`);
     };
     try {

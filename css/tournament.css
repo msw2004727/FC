@@ -668,30 +668,35 @@
 /* ─── Bracket (Cup) ─── */
 .bracket-container {
   overflow-x: auto;
-  padding: .5rem 0 1rem;
+  padding: .35rem 0 .6rem;
   -webkit-overflow-scrolling: touch;
 }
 .bracket {
-  display: flex;
-  gap: 1rem;
-  min-width: max-content;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: .7rem;
+  width: 100%;
+  min-width: 0;
+  align-items: start;
 }
 .bracket-round {
-  display: flex;
-  flex-direction: column;
-  gap: .68rem;
-  min-width: 190px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(148px, 100%), 1fr));
+  gap: .48rem;
+  min-width: 0;
+  align-items: start;
 }
 .bracket-round-title {
+  grid-column: 1 / -1;
   text-align: center;
-  font-size: .68rem;
-  font-weight: 700;
+  font-size: .64rem;
+  font-weight: 800;
   color: var(--text-muted);
-  margin-bottom: .3rem;
+  margin-bottom: -.1rem;
   text-transform: uppercase;
 }
 .bracket-match {
+  min-width: 0;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -702,8 +707,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: .45rem;
-  padding: .38rem .5rem;
+  gap: .32rem;
+  padding: .28rem .42rem;
   border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, #0f766e 6%, var(--bg-card));
 }
@@ -711,11 +716,11 @@
   display: inline-flex;
   align-items: center;
   min-width: 0;
-  padding: .12rem .38rem;
+  padding: .1rem .32rem;
   border-radius: 999px;
   background: rgba(37, 99, 235, .1);
   color: #1d4ed8;
-  font-size: .6rem;
+  font-size: .58rem;
   font-weight: 800;
   line-height: 1.2;
   white-space: nowrap;
@@ -727,7 +732,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--text-secondary);
-  font-size: .62rem;
+  font-size: .58rem;
   font-weight: 800;
   line-height: 1.25;
   text-overflow: ellipsis;
@@ -736,9 +741,9 @@
 .bracket-team {
   display: flex;
   align-items: center;
-  gap: .35rem;
-  padding: .42rem .5rem;
-  font-size: .74rem;
+  gap: .28rem;
+  padding: .34rem .42rem;
+  font-size: .7rem;
   font-weight: 650;
   border-bottom: 1px solid var(--border);
 }
@@ -758,22 +763,22 @@
 .bracket-match-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: .25rem .38rem;
-  padding: .34rem .5rem .42rem;
+  gap: .2rem .3rem;
+  padding: .26rem .42rem .32rem;
   border-top: 1px solid var(--border);
   color: var(--text-muted);
-  font-size: .62rem;
+  font-size: .58rem;
   font-weight: 700;
   line-height: 1.35;
 }
 .bracket-series-badge {
   display: inline-flex;
   align-items: center;
-  padding: .1rem .36rem;
+  padding: .08rem .3rem;
   border-radius: 999px;
   background: rgba(13, 148, 136, .11);
   color: #0f766e;
-  font-size: .6rem;
+  font-size: .56rem;
   font-weight: 900;
   white-space: nowrap;
 }
@@ -1387,11 +1392,12 @@
 .tc-schedule-modal .modal-body, .tc-record-modal .modal-body {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 .tc-schedule-manager-body {
   display: flex;
   flex-direction: column;
-  gap: .65rem;
+  gap: .52rem;
 }
 .tc-manager-summary {
   display: grid;
@@ -1498,43 +1504,46 @@
   position: sticky;
   bottom: 0;
   z-index: 4;
-  margin-top: -.1rem;
-  padding-top: .2rem;
-  background: linear-gradient(180deg, rgba(255,255,255,0), var(--bg-primary) 28%, var(--bg-primary));
+  margin-top: -.18rem;
+  padding-top: .12rem;
+  background: linear-gradient(180deg, rgba(255,255,255,0), var(--bg-primary) 36%, var(--bg-primary));
 }
 .tc-schedule-sticky-inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: .65rem;
-  padding: .62rem .68rem;
+  gap: .48rem;
+  min-height: 42px;
+  padding: .38rem .48rem;
   border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
   border-radius: var(--radius-sm);
   background: var(--bg-card);
-  box-shadow: 0 -8px 22px rgba(15, 23, 42, .08);
+  box-shadow: 0 -5px 14px rgba(15, 23, 42, .07);
 }
 .tc-schedule-sticky-copy {
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: .1rem;
+  align-items: center;
+  gap: .36rem;
 }
 .tc-schedule-sticky-copy strong {
   color: var(--text-primary);
-  font-size: .82rem;
+  font-size: .78rem;
   line-height: 1.25;
+  white-space: nowrap;
 }
 .tc-schedule-sticky-copy span {
   color: var(--text-muted);
-  font-size: .68rem;
+  font-size: .64rem;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.25;
+  white-space: nowrap;
 }
 .tc-save-all-btn {
   flex: 0 0 auto;
-  min-height: 38px;
-  padding: .42rem .9rem;
-  font-size: .78rem;
+  min-height: 32px;
+  padding: .32rem .72rem;
+  font-size: .74rem;
   font-weight: 800;
   white-space: nowrap;
 }
@@ -1818,11 +1827,12 @@
     width: 100%;
   }
   .tc-schedule-sticky-inner {
-    align-items: stretch;
-    flex-direction: column;
+    align-items: center;
+    flex-direction: row;
   }
   .tc-save-all-btn {
-    width: 100%;
+    width: auto;
+    min-width: 72px;
   }
   .tc-record-btn,
   .tc-manage-actions .outline-btn.small {

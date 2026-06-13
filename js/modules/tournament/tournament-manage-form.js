@@ -127,21 +127,45 @@ Object.assign(App, {
     return new Date().toISOString();
   },
   _normalizeTournamentDateTimeValue(rawValue = '') {
-    const safeValue = String(rawValue || '').trim();
-    if (!safeValue) return '';
-    const millis = typeof this._getTournamentDateTimeMillis === 'function'
-      ? this._getTournamentDateTimeMillis(safeValue)
-      : new Date(safeValue).getTime();
+    if (rawValue === null || rawValue === undefined || rawValue === '') return '';
+    const isDateLike = rawValue instanceof Date
+      || typeof rawValue === 'number'
+      || typeof rawValue?.toDate === 'function'
+      || typeof rawValue?.toMillis === 'function';
+    const safeValue = isDateLike ? rawValue : String(rawValue || '').trim();
+    if (!isDateLike && !safeValue) return '';
+    let millis;
+    if (typeof this._getTournamentDateTimeMillis === 'function') {
+      millis = this._getTournamentDateTimeMillis(safeValue);
+    } else if (typeof safeValue?.toMillis === 'function') {
+      millis = safeValue.toMillis();
+    } else if (typeof safeValue?.toDate === 'function') {
+      millis = safeValue.toDate().getTime();
+    } else {
+      millis = new Date(safeValue).getTime();
+    }
     if (!Number.isFinite(millis)) return safeValue;
     return new Date(millis).toISOString();
   },
   _toTournamentDateTimeInputValue(rawValue = '') {
-    const safeValue = String(rawValue || '').trim();
-    if (!safeValue) return '';
-    const millis = typeof this._getTournamentDateTimeMillis === 'function'
-      ? this._getTournamentDateTimeMillis(safeValue)
-      : new Date(safeValue).getTime();
-    if (!Number.isFinite(millis)) return safeValue.slice(0, 16);
+    if (rawValue === null || rawValue === undefined || rawValue === '') return '';
+    const isDateLike = rawValue instanceof Date
+      || typeof rawValue === 'number'
+      || typeof rawValue?.toDate === 'function'
+      || typeof rawValue?.toMillis === 'function';
+    const safeValue = isDateLike ? rawValue : String(rawValue || '').trim();
+    if (!isDateLike && !safeValue) return '';
+    let millis;
+    if (typeof this._getTournamentDateTimeMillis === 'function') {
+      millis = this._getTournamentDateTimeMillis(safeValue);
+    } else if (typeof safeValue?.toMillis === 'function') {
+      millis = safeValue.toMillis();
+    } else if (typeof safeValue?.toDate === 'function') {
+      millis = safeValue.toDate().getTime();
+    } else {
+      millis = new Date(safeValue).getTime();
+    }
+    if (!Number.isFinite(millis)) return String(safeValue || '').slice(0, 16);
     const parsed = new Date(millis);
     const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000);
     return local.toISOString().slice(0, 16);

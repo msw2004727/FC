@@ -53,6 +53,12 @@ Object.assign(App, {
       const n = Number(value);
       return Number.isFinite(n) ? n : null;
     };
+    const dateTimeValue = value => {
+      if (value === null || value === undefined || value === '') return '';
+      if (typeof value === 'string') return value.trim();
+      if (value instanceof Date || typeof value === 'number' || typeof value?.toDate === 'function' || typeof value?.toMillis === 'function') return value;
+      return String(value || '').trim();
+    };
     const events = Array.isArray(data.events)
       ? data.events
           .map(ev => ({
@@ -79,7 +85,7 @@ Object.assign(App, {
       homeSourceSlot: String(data.homeSourceSlot || '').trim(),
       awaySourceSlot: String(data.awaySourceSlot || '').trim(),
       sourceType: data.sourceType === 'loser' ? 'loser' : 'winner',
-      scheduledAt: String(data.scheduledAt || '').trim(),
+      scheduledAt: dateTimeValue(data.scheduledAt),
       venue: String(data.venue || '').trim(),
       referees: this._normalizeTournamentReferees?.(data.referees) || [],
       refereeUids: Array.isArray(data.refereeUids) ? data.refereeUids.map(uid => String(uid || '').trim()).filter(Boolean) : [],
