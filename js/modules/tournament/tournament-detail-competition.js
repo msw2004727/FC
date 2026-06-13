@@ -278,37 +278,49 @@ Object.assign(App, {
 
   _renderTournamentBracketHtml(cupMatches, matchesBySlot, nameById, bracketSize) {
     const rounds = new Map();
-    const seenSeries = new Set();
-    cupMatches.forEach(match => {
-      const seriesKey = String(match.seriesKey || match.slotKey || '').trim();
-      const dedupeKey = `${match.round}:${seriesKey || match.slotKey || match.id || ''}`;
-      if (seenSeries.has(dedupeKey)) return;
-      seenSeries.add(dedupeKey);
-      const displayMatch = seriesKey && matchesBySlot[seriesKey]?.seriesMatches ? matchesBySlot[seriesKey] : match;
-      if (!rounds.has(displayMatch.round)) rounds.set(displayMatch.round, []);
-      rounds.get(displayMatch.round).push(displayMatch);
+    (Array.isArray(cupMatches) ? cupMatches : []).forEach(match => {
+      const round = Math.max(1, Number(match?.round) || 1);
+      if (!rounds.has(round)) rounds.set(round, []);
+      rounds.get(round).push(match);
     });
     const roundKeys = [...rounds.keys()].sort((a, b) => a - b);
     const columns = roundKeys.map(round => {
-      const items = rounds.get(round).sort((a, b) => a.slot - b.slot);
+      const items = rounds.get(round).sort((a, b) =>
+        Number(a.slot || 0) - Number(b.slot || 0)
+        || Number(a.seriesGame || 1) - Number(b.seriesGame || 1)
+        || Number(a.matchNo || 0) - Number(b.matchNo || 0)
+      );
       const title = this._getTournamentRoundLabel(items[0], bracketSize);
       const cells = items.map(match => {
         const home = this._renderTournamentMatchSideLabel(match, 'home', matchesBySlot, nameById);
         const away = this._renderTournamentMatchSideLabel(match, 'away', matchesBySlot, nameById);
         const winnerTeamId = this._getTournamentMatchWinnerTeamId(match, matchesBySlot);
-        const seriesScore = Array.isArray(match.seriesMatches) && match.seriesMatches.length > 1
-          ? match.seriesMatches.reduce((acc, item) => {
+        const statusClass = match.status === 'bye' ? 'bye' : match.status === 'walkover' ? 'walkover' : match.status === 'finished' ? 'finished' : 'scheduled';
+        const statusLabel = {
+          bye: '輪空',
+          finished: '已結束',
+          scheduled: '待賽',
+          walkover: '棄權',
+        }[statusClass] || '待賽';
+        const seriesKey = String(match.seriesKey || match.slotKey || '').trim();
+        const seriesGroup = seriesKey ? matchesBySlot?.[seriesKey] : null;
+        const seriesItems = Array.isArray(seriesGroup?.seriesMatches) ? seriesGroup.seriesMatches : [];
+        const seriesTotal = Math.max(1, Number(match.seriesTotal) || seriesItems.length || 1);
+        const seriesGame = Math.max(1, Number(match.seriesGame) || 1);
+        const hasSeries = seriesTotal > 1;
+        const seriesScore = hasSeries
+          ? seriesItems.reduce((acc, item) => {
               const winner = this._getTournamentSingleMatchWinnerTeamId(item, matchesBySlot);
               if (!winner) return acc;
-              const itemHome = this._resolveTournamentMatchSide(item, 'home', matchesBySlot).teamId;
-              const itemAway = this._resolveTournamentMatchSide(item, 'away', matchesBySlot).teamId;
-              if (winner === itemHome) acc.home += 1;
-              if (winner === itemAway) acc.away += 1;
+              if (winner === home.teamId) acc.home += 1;
+              if (winner === away.teamId) acc.away += 1;
               return acc;
             }, { home: 0, away: 0 })
           : null;
+        const completedInSeries = hasSeries
+          ? seriesItems.filter(item => ['finished', 'walkover', 'bye'].includes(String(item.status || ''))).length
+          : 0;
         const scoreOf = side => {
-          if (seriesScore) return side === 'home' ? seriesScore.home : seriesScore.away;
           if (match.status === 'finished') return side === 'home' ? (match.scoreHome ?? '') : (match.scoreAway ?? '');
           if (match.status === 'walkover') return match.walkoverWinnerTeamId === (side === 'home' ? home.teamId : away.teamId) ? '勝' : '棄';
           if (match.status === 'bye') return side === 'home' ? '晉級' : '';
@@ -319,7 +331,21 @@ Object.assign(App, {
             <span class="${info.pending ? 'tc-pending' : ''}">${escapeHTML(info.label)}</span>
             <span class="bt-score">${scoreOf(side)}</span>
           </div>`;
-        return `<div class="bracket-match">${sideHtml(home, 'home')}${away.label || match.status !== 'bye' ? sideHtml(away, 'away') : ''}</div>`;
+        const seriesBadge = hasSeries
+          ? `<span class="bracket-series-badge">系列 ${seriesScore.home}:${seriesScore.away} · ${completedInSeries}/${seriesTotal} 完成</span>`
+          : '';
+        const timeText = this._formatTournamentMatchTime(match.scheduledAt);
+        const venueText = String(match.venue || '').trim();
+        const metaText = [timeText, venueText].filter(Boolean).join(' · ');
+        return `<div class="bracket-match bracket-match-${statusClass}" data-match-id="${escapeHTML(match.id || '')}" data-series-key="${escapeHTML(seriesKey)}" data-series-game="${escapeHTML(String(seriesGame))}">
+          <div class="bracket-match-head">
+            <span class="bracket-match-status bracket-match-status-${statusClass}">${escapeHTML(statusLabel)}</span>
+            <span class="bracket-game-label">${hasSeries ? `第 ${seriesGame}/${seriesTotal} 場` : `第 ${Number(match.slot || 0) + 1} 場`}</span>
+          </div>
+          ${sideHtml(home, 'home')}
+          ${away.label || match.status !== 'bye' ? sideHtml(away, 'away') : ''}
+          ${seriesBadge || metaText ? `<div class="bracket-match-meta">${seriesBadge}${metaText ? `<span>${escapeHTML(metaText)}</span>` : ''}</div>` : ''}
+        </div>`;
       }).join('');
       return `<div class="bracket-round"><div class="bracket-round-title">${escapeHTML(title)}</div>${cells}</div>`;
     }).join('');

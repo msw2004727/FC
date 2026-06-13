@@ -68,6 +68,35 @@ Object.assign(ApiService, {
     return saved;
   },
 
+  async batchUpdateTournamentMatchesMetaAwait(tournamentId, updatesList) {
+    if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
+    const list = Array.isArray(updatesList) ? updatesList : [];
+    if (list.length > 400) throw new Error('TOURNAMENT_MATCHES_TOO_MANY');
+    if (list.length === 0) return [];
+    const collectionRef = await FirebaseService._getTournamentSubcollectionRef(tournamentId, 'matches');
+    const batch = db.batch();
+    const now = firebase.firestore.FieldValue.serverTimestamp();
+    const saved = [];
+    list.forEach(item => {
+      const safeMatchId = String(item?.id || item?.matchId || '').trim();
+      if (!safeMatchId) return;
+      const rawUpdates = item.updates && typeof item.updates === 'object' ? item.updates : item;
+      const payload = this._stripUndefinedTournamentMatchPayload(this._stripTournamentMatchDocId({ ...rawUpdates })) || {};
+      delete payload.id;
+      delete payload.matchId;
+      delete payload.createdAt;
+      batch.update(collectionRef.doc(safeMatchId), {
+        ...payload,
+        updatedAt: now,
+      });
+      saved.push({ id: safeMatchId, ...payload, _docId: safeMatchId });
+    });
+    if (saved.length === 0) return [];
+    await batch.commit();
+    ApiService._writeOpLog?.('tourn_schedule', '批次儲存場次設定', `賽事 ${tournamentId} 更新 ${saved.length} 場`);
+    return saved;
+  },
+
   async updateTournamentMatchAwait(tournamentId, matchId, updates) {
     if (!(await FirebaseService.ensureAuthReadyForWrite())) throw new Error('AUTH_NOT_READY');
     const safeMatchId = String(matchId || '').trim();

@@ -24,6 +24,7 @@ Object.assign(App, {
           <div id="tournament-schedule-summary" class="tc-manager-summary"></div>
           <div id="tournament-schedule-actions" class="tc-schedule-actions"></div>
           <div id="tournament-schedule-list" class="tc-schedule-manage-list"></div>
+          <div id="tournament-schedule-sticky-actions" class="tc-schedule-sticky-actions"></div>
         </div>
         <div class="modal-actions">
           <button class="outline-btn" type="button" data-action="close">關閉</button>
@@ -81,7 +82,14 @@ Object.assign(App, {
     const summary = document.getElementById('tournament-schedule-summary');
     const actions = document.getElementById('tournament-schedule-actions');
     const list = document.getElementById('tournament-schedule-list');
+    let stickyActions = document.getElementById('tournament-schedule-sticky-actions');
     if (!summary || !actions || !list) return;
+    if (!stickyActions) {
+      stickyActions = document.createElement('div');
+      stickyActions.id = 'tournament-schedule-sticky-actions';
+      stickyActions.className = 'tc-schedule-sticky-actions';
+      list.insertAdjacentElement('afterend', stickyActions);
+    }
 
     const mode = this._getTournamentMode?.(tournament);
     const config = this._getTournamentCompetitionConfig?.(tournament) || {};
@@ -123,6 +131,7 @@ Object.assign(App, {
     `;
 
     if (matches.length === 0) {
+      stickyActions.innerHTML = '';
       list.innerHTML = `
         <div class="tc-manager-empty">
           <div class="tc-manager-empty-title">尚未產生賽程</div>
@@ -144,6 +153,15 @@ Object.assign(App, {
       const stageB = stageOrder[b.stage] ?? 9;
       return stageA - stageB || Number(a.round || 0) - Number(b.round || 0) || Number(a.slot || 0) - Number(b.slot || 0);
     });
+    const editableCount = orderedMatches.filter(match => match.status !== 'bye').length;
+    stickyActions.innerHTML = editableCount > 0 ? `
+      <div class="tc-schedule-sticky-inner">
+        <div class="tc-schedule-sticky-copy">
+          <strong>場次設定</strong>
+          <span>一次儲存 ${escapeHTML(String(editableCount))} 場的時間、場地與裁判</span>
+        </div>
+        <button type="button" class="primary-btn tc-save-all-btn" onclick="return App.saveAllTournamentMatchMeta('${escapeHTML(managerState.tournamentId)}', this)">儲存全部</button>
+      </div>` : '';
     list.innerHTML = orderedMatches.map(match => {
       const home = this._renderTournamentMatchSideLabel(match, 'home', matchesBySlot, nameById);
       const away = this._renderTournamentMatchSideLabel(match, 'away', matchesBySlot, nameById);
@@ -199,10 +217,7 @@ Object.assign(App, {
             </label>
           </div>
           ${refereeOptions.length ? `<div class="tc-manage-ref-panel"><div class="tc-manage-section-title">裁判指派</div><div class="tc-manage-refs">${refereeChecks}</div></div>` : '<div class="tc-manage-ref-panel"><div class="tc-manage-refs-empty">尚未設定裁判名單</div></div>'}
-          <div class="tc-manage-actions">
-            <button type="button" class="outline-btn small" onclick="return App.saveTournamentMatchMeta('${escapeHTML(managerState.tournamentId)}','${escapeHTML(match.id)}', this)">儲存</button>
-            ${match.stage === 'league' && !locked ? `<button type="button" class="outline-btn small tc-manage-delete" onclick="return App.deleteTournamentScheduleMatch('${escapeHTML(managerState.tournamentId)}','${escapeHTML(match.id)}', this)">刪除</button>` : ''}
-          </div>
+          ${match.stage === 'league' && !locked ? `<div class="tc-manage-actions"><button type="button" class="outline-btn small tc-manage-delete" onclick="return App.deleteTournamentScheduleMatch('${escapeHTML(managerState.tournamentId)}','${escapeHTML(match.id)}', this)">刪除</button></div>` : ''}
         </div>`;
     }).join('');
   },
@@ -263,25 +278,41 @@ Object.assign(App, {
     }
   },
 
-  async saveTournamentMatchMeta(tournamentId, matchId, actionButton = null) {
-    const row = actionButton?.closest?.('.tc-manage-row') || document.querySelector(`.tc-manage-row[data-match-id="${CSS.escape(String(matchId || ''))}"]`);
-    if (!row) return;
-    const timeValue = row.querySelector('.tc-manage-time')?.value || '';
-    const venue = row.querySelector('.tc-manage-venue')?.value.trim() || '';
-    const referees = [...row.querySelectorAll('.tc-ref-check input:checked')].map(input => ({
-      uid: input.dataset.refUid || '',
-      name: input.dataset.refName || '',
-    })).filter(ref => ref.uid);
+  _collectTournamentScheduleMetaUpdates() {
+    const rows = [...document.querySelectorAll('#tournament-schedule-list .tc-manage-row[data-match-id]')];
+    return rows.map(row => {
+      const matchId = String(row.dataset.matchId || '').trim();
+      if (!matchId) return null;
+      const timeValue = row.querySelector('.tc-manage-time')?.value || '';
+      const venue = row.querySelector('.tc-manage-venue')?.value.trim() || '';
+      const referees = [...row.querySelectorAll('.tc-ref-check input:checked')].map(input => ({
+        uid: input.dataset.refUid || '',
+        name: input.dataset.refName || '',
+      })).filter(ref => ref.uid);
+      return {
+        id: matchId,
+        updates: {
+          scheduledAt: timeValue ? (this._normalizeTournamentDateTimeValue?.(timeValue) || timeValue) : '',
+          venue,
+          referees,
+          refereeUids: referees.map(ref => ref.uid),
+        },
+      };
+    }).filter(Boolean);
+  },
+
+  async saveAllTournamentMatchMeta(tournamentId, actionButton = null) {
+    const safeId = String(tournamentId || '').trim();
+    const updates = this._collectTournamentScheduleMetaUpdates();
+    if (updates.length === 0) {
+      this.showToast('沒有可儲存的場次設定');
+      return;
+    }
     const save = async () => {
-      await ApiService.updateTournamentMatchAwait(tournamentId, matchId, {
-        scheduledAt: timeValue ? (this._normalizeTournamentDateTimeValue?.(timeValue) || timeValue) : '',
-        venue,
-        referees,
-        refereeUids: referees.map(ref => ref.uid),
-      });
-      await this._refreshTournamentCompetitionMatches?.(tournamentId);
+      await ApiService.batchUpdateTournamentMatchesMetaAwait(safeId, updates);
+      await this._refreshTournamentCompetitionMatches?.(safeId);
       this._renderTournamentScheduleManager();
-      this.showToast('已儲存比賽設定');
+      this.showToast(`已儲存 ${updates.length} 場場次設定`);
     };
     try {
       if (typeof this._withButtonLoading === 'function') {
@@ -290,8 +321,12 @@ Object.assign(App, {
         await save();
       }
     } catch (err) {
-      this._showTournamentActionError?.('儲存比賽設定', err);
+      this._showTournamentActionError?.('儲存全部場次設定', err);
     }
+  },
+
+  async saveTournamentMatchMeta(tournamentId, matchId, actionButton = null) {
+    return this.saveAllTournamentMatchMeta(tournamentId, actionButton);
   },
 
   async deleteTournamentScheduleMatch(tournamentId, matchId, actionButton = null) {
