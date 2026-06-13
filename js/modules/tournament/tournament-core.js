@@ -15,13 +15,39 @@ const TOURNAMENT_STATUS = {
 
 Object.assign(App, {
 
+  _getTournamentDateTimeMillis(value, options = {}) {
+    if (!value) return NaN;
+    if (typeof value.toMillis === 'function') return value.toMillis();
+    if (typeof value.toDate === 'function') return value.toDate().getTime();
+    if (value instanceof Date) return value.getTime();
+    if (typeof value === 'number') return value;
+    const raw = String(value || '').trim();
+    if (!raw) return NaN;
+    const localDate = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (localDate) {
+      const endOfDay = options?.endOfDay === true;
+      return new Date(
+        Number(localDate[1]),
+        Number(localDate[2]) - 1,
+        Number(localDate[3]),
+        endOfDay ? 23 : 0,
+        endOfDay ? 59 : 0,
+        endOfDay ? 59 : 0,
+        endOfDay ? 999 : 0
+      ).getTime();
+    }
+    return new Date(raw).getTime();
+  },
+
   getTournamentStatus(t) {
-    if (!t || !t.regStart || !t.regEnd) return (t && t.status) || TOURNAMENT_STATUS.PREPARING;
+    if (!t || !t.regEnd) return (t && t.status) || TOURNAMENT_STATUS.PREPARING;
     const now = new Date();
-    const start = new Date(t.regStart);
-    const end = new Date(t.regEnd);
-    if (now < start) return TOURNAMENT_STATUS.PREPARING;
-    if (now >= start && now <= end) return TOURNAMENT_STATUS.REG_OPEN;
+    const startMs = t.regStart ? this._getTournamentDateTimeMillis(t.regStart) : Number.NEGATIVE_INFINITY;
+    const endMs = this._getTournamentDateTimeMillis(t.regEnd, { endOfDay: true });
+    const nowMs = now.getTime();
+    if (!Number.isFinite(endMs)) return (t && t.status) || TOURNAMENT_STATUS.PREPARING;
+    if (Number.isFinite(startMs) && nowMs < startMs) return TOURNAMENT_STATUS.PREPARING;
+    if (nowMs <= endMs) return TOURNAMENT_STATUS.REG_OPEN;
     return TOURNAMENT_STATUS.REG_CLOSED;
   },
 

@@ -270,6 +270,10 @@ Object.assign(App, {
     if (regRow?.classList.contains('ce-row-half')) {
       regRow.classList.add('tournament-reg-period-row');
       regRow.querySelector(`.tournament-reg-period-note-${p}`)?.remove();
+      const periodHelper = regRow.nextElementSibling;
+      if (periodHelper && !periodHelper.classList.contains('ce-row')) {
+        periodHelper.classList.add('tournament-reg-period-helper');
+      }
     }
   },
 

@@ -129,15 +129,20 @@ Object.assign(App, {
   _normalizeTournamentDateTimeValue(rawValue = '') {
     const safeValue = String(rawValue || '').trim();
     if (!safeValue) return '';
-    const parsed = new Date(safeValue);
-    if (Number.isNaN(parsed.getTime())) return safeValue;
-    return parsed.toISOString();
+    const millis = typeof this._getTournamentDateTimeMillis === 'function'
+      ? this._getTournamentDateTimeMillis(safeValue)
+      : new Date(safeValue).getTime();
+    if (!Number.isFinite(millis)) return safeValue;
+    return new Date(millis).toISOString();
   },
   _toTournamentDateTimeInputValue(rawValue = '') {
     const safeValue = String(rawValue || '').trim();
     if (!safeValue) return '';
-    const parsed = new Date(safeValue);
-    if (Number.isNaN(parsed.getTime())) return safeValue.slice(0, 16);
+    const millis = typeof this._getTournamentDateTimeMillis === 'function'
+      ? this._getTournamentDateTimeMillis(safeValue)
+      : new Date(safeValue).getTime();
+    if (!Number.isFinite(millis)) return safeValue.slice(0, 16);
+    const parsed = new Date(millis);
     const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000);
     return local.toISOString().slice(0, 16);
   },

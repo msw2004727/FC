@@ -325,7 +325,13 @@ Object.assign(App, {
     }
     if (hasError) { this.showToast('請修正標記欄位。'); return; }
     const createRegStart = this._getTournamentImmediateRegStartValue(createRegStartInput);
-    if (new Date(createRegStart) >= new Date(createRegEnd)) {
+    const createRegStartMs = typeof this._getTournamentDateTimeMillis === 'function'
+      ? this._getTournamentDateTimeMillis(createRegStart)
+      : new Date(createRegStart).getTime();
+    const createRegEndMs = typeof this._getTournamentDateTimeMillis === 'function'
+      ? this._getTournamentDateTimeMillis(createRegEnd, { endOfDay: true })
+      : new Date(createRegEnd).getTime();
+    if (!Number.isFinite(createRegStartMs) || !Number.isFinite(createRegEndMs) || createRegStartMs >= createRegEndMs) {
       this._tfSetError('tf-reg-start', '報名開始時間不能晚於或等於截止時間。');
       this.showToast('報名開始時間不能晚於或等於截止時間。'); return;
     }
