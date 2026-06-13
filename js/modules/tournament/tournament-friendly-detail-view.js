@@ -299,7 +299,7 @@ Object.assign(App, {
     if (overlay) return overlay;
     overlay = document.createElement('div');
     overlay.id = 'friendly-roster-list-overlay';
-    overlay.className = 'modal-overlay';
+    overlay.className = 'modal-overlay tfd-roster-list-overlay';
     overlay.innerHTML = `
       <div class="modal tfd-roster-list-modal" id="friendly-roster-list-modal">
         <div class="modal-header">
@@ -323,6 +323,7 @@ Object.assign(App, {
   closeFriendlyTournamentRosterList() {
     document.getElementById('friendly-roster-list-overlay')?.classList.remove('open');
     document.getElementById('friendly-roster-list-modal')?.classList.remove('open');
+    document.body?.classList?.remove('modal-open');
     this._friendlyTournamentRosterListState = null;
   },
 
@@ -350,6 +351,7 @@ Object.assign(App, {
       this._renderFriendlyTournamentRosterListModal();
       overlay.classList.add('open');
       document.getElementById('friendly-roster-list-modal')?.classList.add('open');
+      document.body?.classList?.add('modal-open');
       return true;
     } catch (err) {
       this._showTournamentActionError?.('開啟參賽球員名單', err);
@@ -770,8 +772,10 @@ Object.assign(App, {
               <div class="tfd-team-status">${entry.entryStatus === 'host' ? (this._friendlyTournamentEntryCountsTowardLimit?.(entry, tournament) ? '主辦俱樂部・參賽' : '主辦俱樂部・未參賽') : '已核准參賽'}</div>
             </div>
           </div>
-          <div class="tfd-team-roster">${roster}</div>
-          ${rowActions ? `<div class="tfd-team-action${rowActions.includes('</button><button') ? ' tfd-team-action-multi' : ''}">${rowActions}</div>` : ''}
+          <div class="tfd-team-footer">
+            <div class="tfd-team-roster">${roster}</div>
+            ${rowActions ? `<div class="tfd-team-action${rowActions.includes('</button><button') ? ' tfd-team-action-multi' : ''}">${rowActions}</div>` : ''}
+          </div>
         </div>`;
     }).join('');
 
