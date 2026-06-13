@@ -16,6 +16,26 @@ Object.assign(ApiService, {
     return clone;
   },
 
+  _stripUndefinedTournamentMatchPayload(value) {
+    if (value === undefined) return undefined;
+    if (Array.isArray(value)) {
+      return value
+        .map(item => this._stripUndefinedTournamentMatchPayload(item))
+        .filter(item => item !== undefined);
+    }
+    if (value && typeof value === 'object') {
+      if (value instanceof Date || typeof value.toDate === 'function') return value;
+      const proto = Object.getPrototypeOf(value);
+      if (proto && proto !== Object.prototype) return value;
+      return Object.entries(value).reduce((acc, [key, item]) => {
+        const clean = this._stripUndefinedTournamentMatchPayload(item);
+        if (clean !== undefined) acc[key] = clean;
+        return acc;
+      }, {});
+    }
+    return value;
+  },
+
   async listTournamentMatches(tournamentId) {
     const collectionRef = await FirebaseService._getTournamentSubcollectionRef(tournamentId, 'matches');
     const snapshot = await collectionRef.get();
@@ -39,7 +59,7 @@ Object.assign(ApiService, {
     const now = firebase.firestore.FieldValue.serverTimestamp();
     const saved = list.map(match => {
       const id = String(match.id || '').trim() || generateId('cm_');
-      const payload = this._stripTournamentMatchDocId({ ...match, id });
+      const payload = this._stripUndefinedTournamentMatchPayload(this._stripTournamentMatchDocId({ ...match, id })) || {};
       batch.set(collectionRef.doc(id), { ...payload, createdAt: now, updatedAt: now });
       return { ...payload, _docId: id };
     });
@@ -53,7 +73,7 @@ Object.assign(ApiService, {
     const safeMatchId = String(matchId || '').trim();
     if (!safeMatchId) throw new Error('TOURNAMENT_MATCH_ID_REQUIRED');
     const collectionRef = await FirebaseService._getTournamentSubcollectionRef(tournamentId, 'matches');
-    const payload = this._stripTournamentMatchDocId({ ...updates });
+    const payload = this._stripUndefinedTournamentMatchPayload(this._stripTournamentMatchDocId({ ...updates })) || {};
     delete payload.id;
     delete payload.createdAt;
     await collectionRef.doc(safeMatchId).update({

@@ -149,6 +149,16 @@ describe('盃賽對戰表', () => {
     expect(App._resolveTournamentMatchSide(final, 'home', bySlot).teamId).toBe('a');
   });
 
+  test('cup repeated direct matches do not create undefined source slots', () => {
+    const cup = App._generateCupBracket(['a', 'b'], { matchRepeatCount: 4 });
+    expect(cup).toHaveLength(4);
+    cup.forEach(match => {
+      expect(Object.prototype.hasOwnProperty.call(match, 'homeSourceSlot')).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(match, 'awaySourceSlot')).toBe(false);
+      expect(Object.values(match).some(value => value === undefined)).toBe(false);
+    });
+  });
+
   test('輪次標籤', () => {
     expect(App._getTournamentRoundLabel({ stage: 'cup', round: 1 }, 8)).toBe('8 強');
     expect(App._getTournamentRoundLabel({ stage: 'cup', round: 2 }, 8)).toBe('準決賽');

@@ -234,9 +234,10 @@ Object.assign(App, {
       if (!(await this.appConfirm(warnText))) return;
     }
     const repeatCount = this._readTournamentScheduleRepeatCount(config);
-    const fixtures = mode === 'league'
+    const rawFixtures = mode === 'league'
       ? this._generateLeagueFixtures(teamIds, { doubleRound: config.doubleRound === true, matchRepeatCount: repeatCount })
       : this._generateCupBracket(teamIds, { thirdPlace: config.thirdPlace === true, matchRepeatCount: repeatCount });
+    const fixtures = rawFixtures.map(match => this._buildTournamentMatchRecord?.(match) || match);
     if (fixtures.length === 0) {
       this.showToast('無法產生賽程，請確認隊伍數');
       return;

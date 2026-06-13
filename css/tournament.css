@@ -3,6 +3,17 @@
    ================================================ */
 
 /* ─── Tournament Detail ─── */
+#page-tournaments #tournament-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: .6rem;
+  padding-bottom: .4rem;
+}
+
+#page-tournaments #tournament-timeline > .tl-event-row {
+  margin: 0;
+}
+
 .td-img-placeholder {
   width: 100%;
   aspect-ratio: 2.5/1;

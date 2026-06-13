@@ -142,7 +142,12 @@ Object.assign(App, {
         };
         if (swapSides) {
           [clone.homeTeamId, clone.awayTeamId] = [clone.awayTeamId, clone.homeTeamId];
-          [clone.homeSourceSlot, clone.awaySourceSlot] = [clone.awaySourceSlot, clone.homeSourceSlot];
+          const nextHomeSourceSlot = String(clone.awaySourceSlot || '').trim();
+          const nextAwaySourceSlot = String(clone.homeSourceSlot || '').trim();
+          if (nextHomeSourceSlot) clone.homeSourceSlot = nextHomeSourceSlot;
+          else delete clone.homeSourceSlot;
+          if (nextAwaySourceSlot) clone.awaySourceSlot = nextAwaySourceSlot;
+          else delete clone.awaySourceSlot;
         }
         repeated.push(clone);
       }
