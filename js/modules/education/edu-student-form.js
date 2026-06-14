@@ -7,6 +7,8 @@ Object.assign(App, {
   _eduStudentEditTeamId: null,
   _eduStudentEditId: null,
   _eduStudentDefaultGroupId: null,
+  _eduAssignCandidates: [],
+  _eduAssignCandidateMap: null,
 
   /**
    * 顯示學員編輯表單
@@ -177,9 +179,8 @@ Object.assign(App, {
 
     const allStudents = await this._loadEduStudents(teamId);
     // 只列 active 且尚未在此分組的學員（不限年齡，職員特例）
-    const candidates = allStudents.filter(s =>
-      s.enrollStatus === 'active' && !(s.groupIds || []).includes(groupId)
-    );
+    const candidates = this._buildEduAssignStudentCandidates(teamId, groupId, allStudents);
+    this._setEduAssignStudentCandidates(candidates);
 
     // 搜尋框 + 列表
     container.innerHTML = '<div style="margin-bottom:.4rem">'
@@ -195,14 +196,193 @@ Object.assign(App, {
     const teamId = this._eduAssignTeamId;
     const groupId = this._eduAssignGroupId;
     const allStudents = this.getEduStudents(teamId);
-    let candidates = allStudents.filter(s =>
-      s.enrollStatus === 'active' && !(s.groupIds || []).includes(groupId)
-    );
+    let candidates = this._buildEduAssignStudentCandidates(teamId, groupId, allStudents);
     if (query) {
       candidates = candidates.filter(s => (s.name || '').toLowerCase().includes(query));
     }
+    this._setEduAssignStudentCandidates(candidates);
     const resultsEl = document.getElementById('edu-assign-results');
     if (resultsEl) resultsEl.innerHTML = this._buildAssignStudentRows(candidates, teamId, groupId);
+  },
+
+  _setEduAssignStudentCandidates(candidates) {
+    this._eduAssignCandidates = Array.isArray(candidates) ? candidates : [];
+    this._eduAssignCandidateMap = new Map();
+    this._eduAssignCandidates.forEach(candidate => {
+      const id = String(candidate?.id || '').trim();
+      if (id) this._eduAssignCandidateMap.set(id, candidate);
+    });
+  },
+
+  _getEduAssignPersonName(source, fallback) {
+    if (!source || typeof source !== 'object') return fallback || '未命名學員';
+    if (typeof this._getTeamDetailPersonName === 'function') {
+      const name = this._getTeamDetailPersonName(source, fallback || '未命名學員');
+      if (String(name || '').trim()) return name;
+    }
+    const fields = [
+      'name', 'displayName', 'nickname', 'nickName', 'lineName', 'profileName',
+      'userName', 'realName', 'studentName', 'selfName', 'childName',
+    ];
+    for (const field of fields) {
+      const value = String(source[field] || '').trim();
+      if (value) return value;
+    }
+    return fallback || '未命名學員';
+  },
+
+  _getEduAssignStudentIdentityKeys(student) {
+    const keys = [];
+    const push = (prefix, value) => {
+      const text = String(value || '').trim();
+      if (text) keys.push(prefix + ':' + text);
+    };
+    push('uid', student?.selfUid || student?.uid);
+    push('student', student?.id || student?._docId || student?.studentId);
+    const name = String(student?.name || student?.studentName || '').trim().toLowerCase();
+    if (name) keys.push('student-name:' + name);
+    return keys;
+  },
+
+  _getEduAssignUserIdentityKeys(user) {
+    const keys = [];
+    const push = (prefix, value) => {
+      const text = String(value || '').trim();
+      if (text) keys.push(prefix + ':' + text);
+    };
+    push('uid', user?.uid || user?._docId);
+    push('doc', user?._docId);
+    const name = this._getEduAssignPersonName(user, '').trim().toLowerCase();
+    if (name) {
+      keys.push('name:' + name);
+      keys.push('student-name:' + name);
+    }
+    return keys;
+  },
+
+  _isEduAssignUserInTeamScope(user, teamId) {
+    if (!user || !teamId) return false;
+    if (typeof this._isUserInTeam === 'function' && this._isUserInTeam(user, teamId)) return true;
+    if (String(user?.teamId || '') === String(teamId)) return true;
+    if (Array.isArray(user?.teamIds) && user.teamIds.map(String).includes(String(teamId))) return true;
+    const team = (typeof ApiService !== 'undefined' && typeof ApiService.getTeam === 'function')
+      ? ApiService.getTeam(teamId)
+      : null;
+    if (!team) return false;
+    const userIds = [user.uid, user._docId].map(value => String(value || '').trim()).filter(Boolean);
+    if (!userIds.length) return false;
+    const staffIds = [
+      team.captainUid,
+      team.leaderUid,
+      ...(Array.isArray(team.leaderUids) ? team.leaderUids : []),
+      ...(Array.isArray(team.coachUids) ? team.coachUids : []),
+    ].map(value => String(value || '').trim()).filter(Boolean);
+    return userIds.some(uid => staffIds.includes(uid));
+  },
+
+  _isEduAssignStudentInGroup(student, groupId) {
+    if (!student || !groupId) return false;
+    return (student.groupIds || []).map(String).includes(String(groupId));
+  },
+
+  _isEduAssignStudentVisible(student, groupId) {
+    if (!student || typeof student !== 'object') return false;
+    const status = String(student.enrollStatus || student.status || '').trim().toLowerCase();
+    if (['inactive', 'removed', 'cancelled', 'canceled', 'deleted', 'rejected'].includes(status)) return false;
+    return !this._isEduAssignStudentInGroup(student, groupId);
+  },
+
+  _buildEduAssignMemberCandidateId(user, index) {
+    const raw = String(user?.uid || user?._docId || this._getEduAssignPersonName(user, '') || index || '').trim();
+    const safe = raw.replace(/[^a-zA-Z0-9_-]/g, '_') || 'user';
+    return 'member-' + index + '-' + safe;
+  },
+
+  _buildEduAssignStudentCandidates(teamId, groupId, students) {
+    const studentList = Array.isArray(students) ? students : [];
+    const users = (typeof ApiService !== 'undefined' && typeof ApiService.getAdminUsers === 'function')
+      ? (ApiService.getAdminUsers() || [])
+      : [];
+    const blockedKeys = new Set();
+    const candidatesByKey = new Map();
+
+    studentList.forEach(student => {
+      if (this._isEduAssignStudentInGroup(student, groupId)) {
+        this._getEduAssignStudentIdentityKeys(student).forEach(key => blockedKeys.add(key));
+        return;
+      }
+      if (!this._isEduAssignStudentVisible(student, groupId)) return;
+      const keys = this._getEduAssignStudentIdentityKeys(student);
+      const key = keys[0];
+      if (!key || blockedKeys.has(key)) return;
+      const id = String(student.id || student._docId || student.studentId || '').trim();
+      if (!id) return;
+      const candidate = {
+        ...student,
+        id,
+        name: this._getEduAssignPersonName(student, '未命名學員'),
+        sourceType: 'student',
+        isStudent: true,
+        isMember: false,
+        student,
+        user: null,
+      };
+      candidatesByKey.set(key, candidate);
+      keys.forEach(alias => {
+        if (alias && alias !== key && !candidatesByKey.has(alias)) candidatesByKey.set(alias, candidate);
+      });
+    });
+
+    users.forEach((user, index) => {
+      if (!this._isEduAssignUserInTeamScope(user, teamId)) return;
+      const keys = this._getEduAssignUserIdentityKeys(user);
+      if (!keys.length || keys.some(key => blockedKeys.has(key))) return;
+      const existingKey = keys.find(key => candidatesByKey.has(key));
+      if (existingKey) {
+        const existing = candidatesByKey.get(existingKey);
+        existing.isMember = true;
+        existing.user = user;
+        existing.sourceType = existing.isStudent ? 'both' : 'member';
+        keys.forEach(alias => {
+          if (alias && !candidatesByKey.has(alias)) candidatesByKey.set(alias, existing);
+        });
+        return;
+      }
+      const id = this._buildEduAssignMemberCandidateId(user, index);
+      const candidate = {
+        id,
+        name: this._getEduAssignPersonName(user, '未命名隊員'),
+        birthday: user.birthday || user.birthdate || user.birthDate || null,
+        gender: user.gender || null,
+        groupIds: [],
+        groupNames: [],
+        enrollStatus: 'active',
+        sourceType: 'member',
+        isStudent: false,
+        isMember: true,
+        student: null,
+        user,
+      };
+      candidatesByKey.set(keys[0], candidate);
+      keys.slice(1).forEach(alias => {
+        if (alias && !candidatesByKey.has(alias)) candidatesByKey.set(alias, candidate);
+      });
+    });
+
+    const seenIds = new Set();
+    return Array.from(candidatesByKey.values())
+      .filter(candidate => {
+        const id = String(candidate?.id || '').trim();
+        if (!id || seenIds.has(id)) return false;
+        seenIds.add(id);
+        return true;
+      })
+      .sort((a, b) => {
+        const rankA = a.isStudent && a.isMember ? 0 : (a.isStudent ? 1 : 2);
+        const rankB = b.isStudent && b.isMember ? 0 : (b.isStudent ? 1 : 2);
+        if (rankA !== rankB) return rankA - rankB;
+        return String(a.name || '').localeCompare(String(b.name || ''), 'zh-Hant');
+      });
   },
 
   _buildAssignStudentRows(candidates, teamId, groupId) {
@@ -215,13 +395,20 @@ Object.assign(App, {
       const genderIcon = s.gender === 'male' ? '♂' : s.gender === 'female' ? '♀' : '';
       const genderClass = s.gender === 'male' ? ' edu-gender-male' : s.gender === 'female' ? ' edu-gender-female' : '';
       const existingGroups = (s.groupNames && s.groupNames.length)
-        ? '<span style="font-size:.68rem;color:var(--text-muted);margin-left:.3rem">' + s.groupNames.join('、') + '</span>'
+        ? '<span style="font-size:.68rem;color:var(--text-muted);margin-left:.3rem">' + s.groupNames.map(name => escapeHTML(name)).join('、') + '</span>'
+        : '';
+      const sourceLabels = [];
+      if (s.isMember) sourceLabels.push('隊員');
+      if (s.isStudent) sourceLabels.push('學員');
+      const sourceLabel = sourceLabels.length
+        ? '<span style="font-size:.66rem;color:var(--text-muted);font-weight:800;margin-left:.3rem">' + sourceLabels.join(' / ') + '</span>'
         : '';
 
       return '<div class="edu-assign-row" id="edu-assign-row-' + s.id + '">'
         + '<div style="flex:1;min-width:0">'
         + '<div class="edu-student-header">'
         + '<span class="edu-student-name">' + escapeHTML(s.name) + '</span>'
+        + sourceLabel
         + (genderIcon ? '<span class="edu-student-gender' + genderClass + '">' + genderIcon + '</span>' : '')
         + (ageLabel ? '<span class="edu-student-age">' + ageLabel + '</span>' : '')
         + '</div>'
@@ -237,16 +424,30 @@ Object.assign(App, {
    */
   async _assignStudentToGroup(teamId, studentId, groupId) {
     // 防連點：先停用該按鈕
-    const row = document.getElementById('edu-assign-row-' + studentId);
+    const assignRowId = studentId;
+    const row = document.getElementById('edu-assign-row-' + assignRowId);
     const btn = row && row.querySelector('button');
     if (btn) { btn.disabled = true; btn.textContent = '處理中…'; }
 
     const students = this.getEduStudents(teamId);
-    const student = students.find(s => s.id === studentId);
-    if (!student) { this.showToast('找不到學員'); if (btn) { btn.disabled = false; btn.textContent = '加入'; } return; }
-
+    let student = students.find(s => String(s.id || s._docId || s.studentId || '') === String(studentId));
+    const candidate = student ? null : this._eduAssignCandidateMap?.get(String(studentId));
     const groups = this.getEduGroups(teamId);
     const group = groups.find(g => g.id === groupId);
+    let createdFromMember = false;
+    try {
+      if (!student && candidate?.sourceType === 'member' && candidate.user) {
+        student = await this._createEduStudentFromAssignMember(teamId, candidate, groupId, group);
+        studentId = student.id || student._docId || student.studentId || studentId;
+        createdFromMember = true;
+      }
+    } catch (err) {
+      console.error('[_assignStudentToGroup:createMemberStudent]', err);
+      this.showToast('加入失敗：' + (err.message || '請稍後再試'));
+      if (btn) { btn.disabled = false; btn.textContent = '加入'; }
+      return;
+    }
+    if (!student) { this.showToast('找不到學員'); if (btn) { btn.disabled = false; btn.textContent = '加入'; } return; }
 
     const newGroupIds = [...(student.groupIds || [])];
     const newGroupNames = [...(student.groupNames || [])];
@@ -266,16 +467,18 @@ Object.assign(App, {
         updates.enrolledAt = new Date().toISOString();
       }
 
-      await FirebaseService.updateEduStudent(teamId, studentId, updates);
-      student.groupIds = newGroupIds;
-      if (updates.enrollStatus) {
-        student.enrollStatus = 'active';
-        student.enrolledAt = updates.enrolledAt;
+      if (!createdFromMember) {
+        await FirebaseService.updateEduStudent(teamId, studentId, updates);
+        student.groupIds = newGroupIds;
+        if (updates.enrollStatus) {
+          student.enrollStatus = 'active';
+          student.enrolledAt = updates.enrolledAt;
+        }
+        student.groupNames = newGroupNames;
       }
-      student.groupNames = newGroupNames;
 
       // 移除該行（視覺回饋）
-      const row = document.getElementById('edu-assign-row-' + studentId);
+      const row = document.getElementById('edu-assign-row-' + assignRowId);
       if (row) row.remove();
 
       // 檢查是否還有候選
@@ -295,6 +498,35 @@ Object.assign(App, {
       this.showToast('操作失敗：' + (err.message || '請稍後再試'));
       if (btn) { btn.disabled = false; btn.textContent = '加入'; }
     }
+  },
+
+  /**
+   * 將俱樂部隊員建立為學員後加入指定分組
+   */
+  async _createEduStudentFromAssignMember(teamId, candidate, groupId, group) {
+    const user = candidate?.user || {};
+    const groupIds = groupId ? [groupId] : [];
+    const groupNames = groupId ? [group?.name || groupId] : [];
+    const data = {
+      id: this._generateEduId('stu'),
+      name: candidate?.name || this._getEduAssignPersonName(user, '未命名學員'),
+      birthday: candidate?.birthday || user.birthday || user.birthdate || user.birthDate || null,
+      gender: candidate?.gender || user.gender || null,
+      groupIds,
+      groupNames,
+      parentUid: null,
+      selfUid: String(user.uid || user._docId || '').trim() || null,
+      enrollStatus: 'active',
+      enrolledAt: new Date().toISOString(),
+      coachNotes: '',
+      positionTags: [],
+    };
+    const result = await FirebaseService.createEduStudent(teamId, data);
+    const student = result || data;
+    const cached = this._eduStudentsCache[teamId];
+    if (cached) cached.push(student);
+    else this._eduStudentsCache[teamId] = [student];
+    return student;
   },
 
   /**
