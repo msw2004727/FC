@@ -53,6 +53,11 @@ describe('education course UI adapter', () => {
     expect(app._formatCoursePlanPrice('')).toBe('');
     expect(app._formatCoursePlanPrice(0)).toBe('\u514d\u8cbb');
     expect(app._formatCoursePlanPrice('0')).toBe('\u514d\u8cbb');
+    expect(app._isEduCoursePaymentRequired(null)).toBe(false);
+    expect(app._isEduCoursePaymentRequired('')).toBe(false);
+    expect(app._isEduCoursePaymentRequired(0)).toBe(false);
+    expect(app._isEduCoursePaymentRequired({ price: '0' })).toBe(false);
+    expect(app._isEduCoursePaymentRequired({ price: '1200' })).toBe(true);
   });
 
   test('groups current and ended plans by selected tab', () => {

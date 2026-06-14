@@ -96,6 +96,15 @@
       return amount === 0 ? '免費' : `NT$ ${amount.toLocaleString()}`;
     },
 
+    _isEduCoursePaymentRequired(planOrPrice) {
+      const value = planOrPrice && typeof planOrPrice === 'object' && !Array.isArray(planOrPrice)
+        ? planOrPrice.price
+        : planOrPrice;
+      if (!this._hasCoursePlanPriceValue(value)) return false;
+      const amount = Number(value);
+      return Number.isFinite(amount) && amount > 0;
+    },
+
     _getCoursePlanScheduleText(plan) {
       if (!plan) return '未設定';
       if (plan.planType === 'weekly') {

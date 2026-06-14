@@ -237,6 +237,7 @@ Object.assign(App, {
         }
       }
       this._updateGroupMemberCounts(teamId);
+      this._refreshEduDetailStudentState?.(teamId);
 
       // 若當前用戶是家長，同步綁定到 eduChildren
       if (typeof this.syncEduChildBinding === 'function') {
@@ -260,6 +261,8 @@ Object.assign(App, {
         const s = cached.find(s => s.id === studentId);
         if (s) s.enrollStatus = 'inactive';
       }
+      this._updateGroupMemberCounts?.(teamId);
+      this._refreshEduDetailStudentState?.(teamId);
       this.showToast('已拒絕此學員申請');
     } catch (err) {
       console.error('[rejectEduStudent]', err);

@@ -28,9 +28,13 @@ Object.assign(App, {
           const page = this.currentPage;
           // 俱樂部詳情頁：重繪學員區塊 + 分組人數
           if (page === 'page-team-detail' && this._eduDetailTeamId === teamId) {
-            this._refreshEduActiveTabContent?.(teamId);
-            this._updateGroupMemberCounts(teamId);
-            this._refreshTeamMembersCardFromCache?.(teamId);
+            if (typeof this._refreshEduDetailStudentState === 'function') {
+              this._refreshEduDetailStudentState(teamId);
+            } else {
+              this._refreshEduActiveTabContent?.(teamId);
+              this._updateGroupMemberCounts(teamId);
+              this._refreshTeamMembersCardFromCache?.(teamId);
+            }
           }
           // 分組學員列表頁：即時重繪（快取已更新，直接渲染不需再 fetch）
           if (page === 'page-edu-students' && this._eduCurrentGroupId) {

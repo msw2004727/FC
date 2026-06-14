@@ -98,7 +98,7 @@ describe('edu course enrollment render', () => {
       },
       _getCourseEnrollCacheKey: jest.fn((teamId, planId) => teamId + ':' + planId),
       _loadCourseEnrollments: jest.fn(async () => []),
-      getEduCoursePlans: jest.fn(() => [{ id: 'planA', name: 'Plan A', planType: 'weekly' }]),
+      getEduCoursePlans: jest.fn(() => [{ id: 'planA', name: 'Plan A', planType: 'weekly', price: 1200 }]),
       getEduStudents: jest.fn(() => [{ id: 'stuA', name: '小明' }]),
       isEduClubStaff: jest.fn(() => true),
       calcAge: jest.fn(() => null),
@@ -127,7 +127,7 @@ describe('edu course enrollment render', () => {
         { id: 'unpaidA', studentId: 'stuUnpaid', studentName: 'Unpaid Student', status: 'approved', paidAt: null },
         { id: 'paidA', studentId: 'stuPaid', studentName: 'Paid Student', status: 'approved', paidAt: '2099-01-02' },
       ]),
-      getEduCoursePlans: jest.fn(() => [{ id: 'planA', name: 'Plan A', planType: 'weekly' }]),
+      getEduCoursePlans: jest.fn(() => [{ id: 'planA', name: 'Plan A', planType: 'weekly', price: 1200 }]),
       getEduStudents: jest.fn(() => [
         { id: 'stuPending', name: 'Pending Student' },
         { id: 'stuUnpaid', name: 'Unpaid Student' },
@@ -154,6 +154,46 @@ describe('edu course enrollment render', () => {
     expect(html.indexOf('edu-ce-section-unpaid')).toBeLessThan(html.indexOf('edu-ce-section-paid'));
     expect(html.indexOf('Unpaid Student')).toBeGreaterThan(html.indexOf('edu-ce-section-unpaid'));
     expect(html.indexOf('Paid Student')).toBeGreaterThan(html.indexOf('edu-ce-section-paid'));
+  });
+
+  test('free course approved list stays a normal approved roster without payment controls', async () => {
+    const elements = {
+      'edu-ce-list': { innerHTML: '' },
+      'edu-ce-subtitle': { textContent: '' },
+    };
+    const app = {
+      _courseEnrollCache: {},
+      _courseEnrollSummaryCache: {},
+      _getCourseEnrollCacheKey: jest.fn((teamId, planId) => teamId + ':' + planId),
+      _loadCourseEnrollments: jest.fn(async () => [
+        { id: 'unpaidA', studentId: 'stuUnpaid', studentName: 'Free Student A', status: 'approved', paidAt: null },
+        { id: 'paidA', studentId: 'stuPaid', studentName: 'Free Student B', status: 'approved', paidAt: '2099-01-02' },
+      ]),
+      getEduCoursePlans: jest.fn(() => [{ id: 'planA', name: 'Plan A', planType: 'weekly', price: 0 }]),
+      getEduStudents: jest.fn(() => [
+        { id: 'stuUnpaid', name: 'Free Student A' },
+        { id: 'stuPaid', name: 'Free Student B' },
+      ]),
+      isEduClubStaff: jest.fn(() => true),
+      calcAge: jest.fn(() => null),
+      _updateEnrollSubtitle: jest.fn(),
+    };
+    const loaded = loadModule(app, elements);
+
+    await loaded._renderCourseEnrollmentList('teamA', 'planA');
+
+    const html = elements['edu-ce-list'].innerHTML;
+    expect(html).toContain('edu-ce-section-approved');
+    expect(html).toContain('Free Student A');
+    expect(html).toContain('Free Student B');
+    expect(html).not.toContain('edu-ce-section-unpaid');
+    expect(html).not.toContain('edu-ce-section-paid');
+    expect(html).not.toContain('edu-ce-jump-btn-unpaid');
+    expect(html).not.toContain('edu-ce-jump-btn-paid');
+    expect(html).not.toContain('edu-ce-paid-label');
+    expect(html).not.toContain('edu-ce-paid-no');
+    expect(html).not.toContain('edu-ce-paid-yes');
+    expect(html).not.toContain('edu-ce-paid-edit');
   });
 
   test('course enrollment section jump helper scrolls and highlights the target', () => {

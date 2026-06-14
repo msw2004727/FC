@@ -63,6 +63,14 @@ Object.assign(App, {
     const isStaff = this.isEduClubStaff(teamId);
     const curUser = ApiService.getCurrentUser();
     const myUid = curUser?.uid || '';
+    const paymentRequired = typeof this._isEduCoursePaymentRequired === 'function'
+      ? this._isEduCoursePaymentRequired(plan)
+      : (() => {
+          const value = plan?.price;
+          if (value === null || value === undefined || String(value).trim() === '') return false;
+          const amount = Number(value);
+          return Number.isFinite(amount) && amount > 0;
+        })();
 
     // 將對應分組的 active 學員自動視為已通過（遷移完成前的相容顯示）
     const enrolledIds = new Set(enrollments.map(e => e.studentId));
@@ -86,8 +94,8 @@ Object.assign(App, {
 
     const pending = enrollments.filter(e => e.status === 'pending');
     const approved = enrollments.filter(e => e.status === 'approved');
-    const approvedUnpaid = approved.filter(e => !e.paidAt);
-    const approvedPaid = approved.filter(e => !!e.paidAt);
+    const approvedUnpaid = paymentRequired ? approved.filter(e => !e.paidAt) : [];
+    const approvedPaid = paymentRequired ? approved.filter(e => !!e.paidAt) : [];
 
     let html = '';
     const sectionBaseId = 'edu-ce-section-' + String(teamId || '').replace(/[^A-Za-z0-9_-]/g, '_')
@@ -110,8 +118,12 @@ Object.assign(App, {
     const jumpButtons = [];
     if (isStaff && pending.length) jumpButtons.push(renderJumpButton('pending', '待審核', pending.length));
     if (approved.length) {
-      jumpButtons.push(renderJumpButton('unpaid', '未繳費', approvedUnpaid.length));
-      jumpButtons.push(renderJumpButton('paid', '已繳費', approvedPaid.length));
+      if (paymentRequired) {
+        jumpButtons.push(renderJumpButton('unpaid', '未繳費', approvedUnpaid.length));
+        jumpButtons.push(renderJumpButton('paid', '已繳費', approvedPaid.length));
+      } else {
+        jumpButtons.push(renderJumpButton('approved', '已通過', approved.length));
+      }
     }
     if (jumpButtons.length > 1) {
       html += '<div class="edu-ce-jump-nav" aria-label="名單快速定位">' + jumpButtons.join('') + '</div>';
@@ -138,14 +150,21 @@ Object.assign(App, {
 
     // 已通過區塊：依繳費狀態分區，方便職員快速處理。
     if (approved.length) {
-      const unpaidRows = approvedUnpaid
-        .map(e => this._renderApprovedEnrollmentCard(e, plan, students, teamId, planId, isStaff))
-        .join('');
-      const paidRows = approvedPaid
-        .map(e => this._renderApprovedEnrollmentCard(e, plan, students, teamId, planId, isStaff))
-        .join('');
-      html += renderSection('unpaid', '已通過・未繳費', approvedUnpaid.length, unpaidRows, '目前沒有未繳費學員');
-      html += renderSection('paid', '已通過・已繳費', approvedPaid.length, paidRows, '目前沒有已繳費學員');
+      if (paymentRequired) {
+        const unpaidRows = approvedUnpaid
+          .map(e => this._renderApprovedEnrollmentCard(e, plan, students, teamId, planId, isStaff, paymentRequired))
+          .join('');
+        const paidRows = approvedPaid
+          .map(e => this._renderApprovedEnrollmentCard(e, plan, students, teamId, planId, isStaff, paymentRequired))
+          .join('');
+        html += renderSection('unpaid', '已通過・未繳費', approvedUnpaid.length, unpaidRows, '目前沒有未繳費學員');
+        html += renderSection('paid', '已通過・已繳費', approvedPaid.length, paidRows, '目前沒有已繳費學員');
+      } else {
+        const approvedRows = approved
+          .map(e => this._renderApprovedEnrollmentCard(e, plan, students, teamId, planId, isStaff, paymentRequired))
+          .join('');
+        html += renderSection('approved', '已通過', approved.length, approvedRows, '目前沒有已通過學員');
+      }
     }
 
     if (!pending.length && !approved.length) {
@@ -187,14 +206,16 @@ Object.assign(App, {
     el.textContent = parts.join(' ｜ ');
   },
 
-  _renderApprovedEnrollmentCard(e, plan, students, teamId, planId, isStaff) {
+  _renderApprovedEnrollmentCard(e, plan, students, teamId, planId, isStaff, paymentRequired = true) {
     const stu = students.find(s => s.id === e.studentId);
     const age = stu && stu.birthday ? this.calcAge(stu.birthday) : null;
     const gender = stu?.gender === 'male' ? '♂' : stu?.gender === 'female' ? '♀' : '';
     const groupNames = (stu?.groupNames || []).join('、') || '未分組';
     // 繳費狀態（待繳費顯示勾選框；已繳費只顯示文字 + ✏️ 可改日期或取消）
     var paidHtml = '';
-    if (e.paidAt) {
+    if (!paymentRequired) {
+      paidHtml = '';
+    } else if (e.paidAt) {
       paidHtml = '<span class="edu-ce-paid-label" onclick="event.stopPropagation()">'
         + '<span class="edu-ce-paid-yes">已繳費 ' + escapeHTML(e.paidAt) + '</span>'
         + (isStaff ? ' <button type="button" class="edu-ce-paid-edit" onclick="event.stopPropagation();App._showPaidEditMenu(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\')">設定</button>' : '')

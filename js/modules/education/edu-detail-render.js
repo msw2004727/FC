@@ -38,21 +38,7 @@ Object.assign(App, {
     }
 
     this._loadEduStudents(teamId).then(() => {
-      if (this._eduDetailTeamId === teamId) {
-        this._refreshEduPendingTabState(teamId);
-        const refreshResult = this._refreshEduActiveTabContent(teamId);
-        if (refreshResult && typeof refreshResult.then === 'function') {
-          refreshResult
-            .then(() => {
-              if (this._eduDetailTeamId === teamId) this._refreshTeamDetailV2CourseSummaryFromCache?.(teamId);
-            })
-            .catch(err => console.warn('[edu-detail] active tab refresh failed:', err));
-        } else {
-          this._refreshTeamDetailV2CourseSummaryFromCache?.(teamId);
-        }
-        this._updateEduMineBadge(teamId);
-        this._refreshTeamMembersCardFromCache?.(teamId);
-      }
+      if (this._eduDetailTeamId === teamId) this._refreshEduDetailStudentState(teamId);
     });
     this._startEduStudentsListener(teamId);
   },
@@ -123,12 +109,7 @@ Object.assign(App, {
 
     // ★ Phase 2：背景 fetch + 即時監聽
     this._loadEduStudents(teamId).then(() => {
-      if (this._eduDetailTeamId === teamId) {
-        this._refreshEduPendingTabState(teamId);
-        this._refreshEduActiveTabContent(teamId);
-        this._updateEduMineBadge(teamId);
-        this._refreshTeamMembersCardFromCache?.(teamId);
-      }
+      if (this._eduDetailTeamId === teamId) this._refreshEduDetailStudentState(teamId);
     });
     this._startEduStudentsListener(teamId);
   },
@@ -165,6 +146,27 @@ Object.assign(App, {
         ? this.renderEduCoursePlanList(teamId, this.isEduClubStaff(teamId), options)
         : this.renderEduCoursePlanList(teamId, this.isEduClubStaff(teamId));
     }
+    return undefined;
+  },
+
+  _refreshEduDetailStudentState(teamId, options = {}) {
+    if (!teamId || this._eduDetailTeamId !== teamId) return undefined;
+    if (this.currentPage && this.currentPage !== 'page-team-detail') return undefined;
+    this._refreshEduPendingTabState(teamId);
+    const refreshResult = this._refreshEduActiveTabContent(teamId, options);
+    const finalize = () => {
+      if (this._eduDetailTeamId !== teamId) return;
+      this._updateGroupMemberCounts?.(teamId);
+      this._updateEduMineBadge?.(teamId);
+      this._refreshTeamMembersCardFromCache?.(teamId);
+      this._refreshTeamDetailV2CourseSummaryFromCache?.(teamId);
+    };
+    if (refreshResult && typeof refreshResult.then === 'function') {
+      return refreshResult
+        .then(finalize)
+        .catch(err => console.warn('[edu-detail] student state refresh failed:', err));
+    }
+    finalize();
     return undefined;
   },
 
@@ -580,6 +582,15 @@ Object.assign(App, {
       if (!studentId) continue;
       for (const p of plans || []) {
         if (!p || p.active === false) continue;
+        const paymentRequired = typeof this._isEduCoursePaymentRequired === 'function'
+          ? this._isEduCoursePaymentRequired(p)
+          : (() => {
+              const value = p.price;
+              if (value === null || value === undefined || String(value).trim() === '') return false;
+              const amount = Number(value);
+              return Number.isFinite(amount) && amount > 0;
+            })();
+        if (!paymentRequired) continue;
         let inPlan = false;
         let enrollment = null;
         const key = this._getCourseEnrollCacheKey?.(teamId, p.id);

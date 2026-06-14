@@ -283,7 +283,10 @@ Object.assign(App, {
     try {
       await this.approveEduStudent(teamId, studentId);
       const groupId = this._eduCurrentGroupId;
-      if (groupId) await this.renderEduStudentList(teamId, groupId);
+      if (groupId) {
+        if (typeof this._renderEduStudentListFromCache === 'function') this._renderEduStudentListFromCache(teamId, groupId);
+        else await this.renderEduStudentList(teamId, groupId);
+      }
     } finally { _btnState.restore(); }
   },
 
@@ -294,7 +297,10 @@ Object.assign(App, {
     try {
       await this.rejectEduStudent(teamId, studentId);
       const groupId = this._eduCurrentGroupId;
-      if (groupId) await this.renderEduStudentList(teamId, groupId);
+      if (groupId) {
+        if (typeof this._renderEduStudentListFromCache === 'function') this._renderEduStudentListFromCache(teamId, groupId);
+        else await this.renderEduStudentList(teamId, groupId);
+      }
     } finally { _btnState.restore(); }
   },
 

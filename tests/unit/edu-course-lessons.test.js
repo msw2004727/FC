@@ -356,6 +356,14 @@ describe('edu course lessons', () => {
   test('staff roster separates unpaid students from paid lesson roster', async () => {
     const { app, container } = loadCourseLessonsContext({
       isStaff: true,
+      plans: [{
+        id: 'planA',
+        name: 'Paid Plan',
+        planType: 'session',
+        startDate: '2099-06-01',
+        endDate: '2099-08-31',
+        price: 1200,
+      }],
       enrollments: [
         { id: 'enr1', studentId: 'stu1', status: 'approved', paidAt: '2099-06-01', coachNotes: '' },
         { id: 'enr2', studentId: 'stu2', status: 'approved', paidAt: null, coachNotes: '' },
@@ -378,6 +386,14 @@ describe('edu course lessons', () => {
   test('staff roster matches payment data when roster students use id fields', async () => {
     const { app, container, firebase } = loadCourseLessonsContext({
       isStaff: true,
+      plans: [{
+        id: 'planA',
+        name: 'Paid Plan',
+        planType: 'session',
+        startDate: '2099-06-01',
+        endDate: '2099-08-31',
+        price: 1200,
+      }],
       rosterPayload: {
         rosterPublic: true,
         session: {
@@ -424,6 +440,32 @@ describe('edu course lessons', () => {
         kind: 'leave',
       }],
     });
+  });
+
+  test('staff roster keeps free course students in the normal list without payment labels', async () => {
+    const { app, container } = loadCourseLessonsContext({
+      isStaff: true,
+      plans: [{
+        id: 'planA',
+        name: 'Free Plan',
+        planType: 'session',
+        startDate: '2099-06-01',
+        endDate: '2099-08-31',
+        price: 0,
+      }],
+      enrollments: [
+        { id: 'enr1', studentId: 'stu1', status: 'approved', paidAt: null, coachNotes: '' },
+        { id: 'enr2', studentId: 'stu2', status: 'approved', paidAt: '2099-06-01', coachNotes: '' },
+      ],
+    });
+
+    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+
+    const html = container.innerHTML;
+    expect(app._loadCourseEnrollments).toHaveBeenCalledWith('teamA', 'planA');
+    expect(html).not.toContain('edu-course-roster-section-unpaid');
+    expect(html).not.toContain('edu-course-roster-card-unpaid');
+    expect(html).not.toContain('edu-course-roster-payment-unpaid');
   });
 
   test('staff roster keeps the normal list when payment data cannot load', async () => {

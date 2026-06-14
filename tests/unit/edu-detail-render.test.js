@@ -220,6 +220,47 @@ describe('renderEduClubDetail info card', () => {
     expect(app._refreshTeamDetailV2CourseSummaryFromCache).toHaveBeenCalledWith('teamA');
   });
 
+  test('shared student refresh updates the active tab and related education summaries', async () => {
+    const courseRender = Promise.resolve();
+    const app = {
+      isEduClubStaff: jest.fn(() => true),
+      getEduStudents: jest.fn(() => []),
+      renderEduCoursePlanList: jest.fn(() => courseRender),
+      _updateGroupMemberCounts: jest.fn(),
+      _updateEduMineBadge: jest.fn(),
+      _refreshTeamMembersCardFromCache: jest.fn(),
+      _refreshTeamDetailV2CourseSummaryFromCache: jest.fn(),
+    };
+    const context = {
+      App: app,
+      ApiService: {
+        getTeam: jest.fn(),
+        getCurrentUser: jest.fn(() => null),
+      },
+      document: {
+        getElementById: jest.fn(() => null),
+        querySelectorAll: jest.fn(() => []),
+      },
+      escapeHTML,
+      Promise,
+      console,
+    };
+
+    vm.createContext(context);
+    vm.runInContext(source, context, { filename: 'edu-detail-render.js' });
+    context.App._updateEduMineBadge = jest.fn();
+    context.App._eduDetailTeamId = 'teamA';
+    context.App._eduActiveTab = 'course';
+
+    await context.App._refreshEduDetailStudentState('teamA');
+
+    expect(app.renderEduCoursePlanList).toHaveBeenCalledWith('teamA', true);
+    expect(app._updateGroupMemberCounts).toHaveBeenCalledWith('teamA');
+    expect(context.App._updateEduMineBadge).toHaveBeenCalledWith('teamA');
+    expect(app._refreshTeamMembersCardFromCache).toHaveBeenCalledWith('teamA');
+    expect(app._refreshTeamDetailV2CourseSummaryFromCache).toHaveBeenCalledWith('teamA');
+  });
+
   test('renders renamed education tabs and pending review tab content', () => {
     const contentEl = { innerHTML: '', closest: jest.fn(() => ({})) };
     const app = {
@@ -528,9 +569,9 @@ describe('renderEduClubDetail info card', () => {
         { id: 'stu3', name: '小美', enrollStatus: 'active', parentUid: 'other-parent' },
       ]),
       _loadEduCoursePlans: jest.fn(() => Promise.resolve([
-        { id: 'planA', name: '週三足球', active: true, endDate: '2099-01-01' },
-        { id: 'planB', name: '已繳費課', active: true, endDate: '2099-01-01' },
-        { id: 'endedPlan', name: '結束課程', active: true, groupId: 'g1', endDate: '2026-01-01' },
+        { id: 'planA', name: '週三足球', active: true, endDate: '2099-01-01', price: 1200 },
+        { id: 'planB', name: '已繳費課', active: true, endDate: '2099-01-01', price: 1200 },
+        { id: 'endedPlan', name: '結束課程', active: true, groupId: 'g1', endDate: '2026-01-01', price: 1200 },
       ])),
       _todayStr: jest.fn(() => '2026-06-10'),
     };
@@ -569,6 +610,50 @@ describe('renderEduClubDetail info card', () => {
     expect(app._eduUnpaidSummaryByTeam.teamA.plans.map(p => p.planName)).toEqual(['週三足球', '結束課程']);
     expect(app._eduUnpaidSummaryByTeam.teamA.plans[1].students[0].studentName).toBe('小明');
     expect(context.FirebaseService.queryEduAttendance).toHaveBeenCalledWith({ teamId: 'teamA', coursePlanId: 'endedPlan', studentId: 'stu1' });
+  });
+
+  test('unpaid reminder ignores free and unpriced course plans', async () => {
+    const app = {
+      _courseEnrollCache: {
+        'teamA:freePlan': [{ id: 'enroll-free', studentId: 'stu1', status: 'approved', paidAt: null }],
+        'teamA:blankPlan': [{ id: 'enroll-blank', studentId: 'stu1', status: 'approved', paidAt: null }],
+        'teamA:paidPlan': [{ id: 'enroll-paid-required', studentId: 'stu1', status: 'approved', paidAt: null }],
+      },
+      _getCourseEnrollCacheKey: (teamId, planId) => teamId + ':' + planId,
+      _loadEduCoursePlans: jest.fn(() => Promise.resolve([
+        { id: 'freePlan', name: 'Free Plan', active: true, endDate: '2099-01-01', price: 0 },
+        { id: 'blankPlan', name: 'Blank Plan', active: true, endDate: '2099-01-01' },
+        { id: 'paidPlan', name: 'Paid Plan', active: true, endDate: '2099-01-01', price: '800' },
+      ])),
+      _todayStr: jest.fn(() => '2026-06-10'),
+    };
+    const context = {
+      App: app,
+      ApiService: {
+        getTeam: jest.fn(),
+        getCurrentUser: jest.fn(() => ({ uid: 'parent-1' })),
+      },
+      FirebaseService: {
+        queryEduAttendance: jest.fn(() => Promise.resolve([])),
+      },
+      document: {
+        getElementById: jest.fn(() => null),
+        querySelectorAll: jest.fn(() => []),
+      },
+      escapeHTML,
+      Promise,
+      Date,
+      Map,
+    };
+
+    vm.createContext(context);
+    vm.runInContext(source, context, { filename: 'edu-detail-render.js' });
+    const summary = await context.App._collectEduUnpaidSummary('teamA', [
+      { id: 'stu1', name: 'Student One', enrollStatus: 'active', parentUid: 'parent-1' },
+    ]);
+
+    expect(summary.total).toBe(1);
+    expect(summary.plans.map(p => p.planName)).toEqual(['Paid Plan']);
   });
 
   test('unpaid summary modal groups courses, escapes names, and shows staff payment reminder', () => {

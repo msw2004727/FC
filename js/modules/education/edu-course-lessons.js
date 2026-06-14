@@ -418,6 +418,14 @@ Object.assign(App, {
     }
 
     const isStaff = this.isEduClubStaff?.(teamId) === true;
+    const paymentRequired = typeof this._isEduCoursePaymentRequired === 'function'
+      ? this._isEduCoursePaymentRequired(plan)
+      : (() => {
+          const value = plan?.price;
+          if (value === null || value === undefined || String(value).trim() === '') return false;
+          const amount = Number(value);
+          return Number.isFinite(amount) && amount > 0;
+        })();
     const notesByStudentId = {};
     const enrollIdsByStudentId = {};
     let paidByStudentId = null;
@@ -429,13 +437,13 @@ Object.assign(App, {
         (enrollments || []).forEach((enrollment) => {
           const studentId = String(enrollment.studentId || '').trim();
           if (!studentId || enrollment.status === 'rejected') return;
-          if (String(enrollment.status || 'approved').trim().toLowerCase() === 'approved' && enrollment.paidAt) {
+          if (paymentRequired && String(enrollment.status || 'approved').trim().toLowerCase() === 'approved' && enrollment.paidAt) {
             paidMap[studentId] = true;
           }
           if (enrollment.coachNotes) notesByStudentId[studentId] = String(enrollment.coachNotes || '');
           enrollIdsByStudentId[studentId] = enrollment.id || enrollment._docId || '';
         });
-        paidByStudentId = paidMap;
+        paidByStudentId = paymentRequired ? paidMap : null;
       } catch (err) {
         console.warn('[edu-course-lessons] staff notes load failed:', err);
       }
