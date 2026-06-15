@@ -1537,6 +1537,27 @@ describe('Activity detail late patch guard', () => {
       .toBeLessThan(detailSource.indexOf("this._setRouteUrl?.({ pageId: 'page-activity-detail', id }"));
   });
 
+  test('detail comments renderer passes detail owner token to comments module', async () => {
+    const { app } = loadEventDetailAndAttendanceModule();
+    document.body.innerHTML = '<div id="detail-comments-container">loading</div>';
+    app.currentPage = 'page-activity-detail';
+    app._currentDetailEventId = 'event-1';
+    app._eventDetailRequestSeq = 1;
+    app._markEventDetailContainerOwner('detail-comments-container', 'event-1', 1, 'rt-1', 'comments');
+    app._shouldUseActivityDetailOptimization = jest.fn(() => false);
+    app._renderEventComments = jest.fn(() => Promise.resolve({ ok: true }));
+
+    await app._renderDetailComments('event-1', {
+      requestSeq: 1,
+      renderToken: 'rt-1',
+    });
+
+    expect(app._renderEventComments).toHaveBeenCalledWith('event-1', {
+      detailRequestSeq: 1,
+      detailRenderToken: 'rt-1',
+    });
+  });
+
   test('comments on-demand loader failure is isolated to the comments container', async () => {
     const { app, context } = loadEventDetailAndAttendanceModule();
     document.body.innerHTML = '<div id="detail-comments-container">loading</div><div id="detail-attendance-table">roster</div>';

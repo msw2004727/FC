@@ -187,7 +187,10 @@ Object.assign(App, {
         renderToken,
       });
       if (guard && !guard.ok) return guard;
-      await this._renderEventComments(eventId);
+      await this._renderEventComments(eventId, {
+        detailRequestSeq: requestSeq,
+        detailRenderToken: renderToken,
+      });
       return { ok: true, reason: 'ok' };
     };
     const commentsNonBlocking = this._shouldUseActivityDetailOptimization('commentsNonBlocking');
@@ -767,6 +770,7 @@ Object.assign(App, {
       }
 
       const requestSeq = ++this._eventDetailRequestSeq;
+      const routeTransitionSeq = Number(this._pageTransitionSeq) || 0;
       let detailRenderToken = null;
       // Pre-warm Firebase Auth（fire-and-forget），讓後續報名/取消寫入時免等 auth
       FirebaseService.ensureAuthReadyForWrite().catch(() => {});
@@ -1209,7 +1213,10 @@ Object.assign(App, {
       // re-render 同一活動時跳過 showPage（避免跳頂）
       if (!_isReRender) {
         // stale 檢查：用戶可能在 await 期間已導航到其他頁面，不可再拉回
-        if (requestSeq !== this._eventDetailRequestSeq) return { ok: false, reason: 'stale' };
+        if (requestSeq !== this._eventDetailRequestSeq
+          || (Number(this._pageTransitionSeq) || 0) !== routeTransitionSeq) {
+          return { ok: false, reason: 'stale' };
+        }
         await this.showPage('page-activity-detail', {
           suppressHashSync: true,
           bypassPageLock: options?.bypassPageLock,

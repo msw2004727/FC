@@ -444,6 +444,38 @@ Object.assign(App, {
       && this._currentDetailEventId === eventId;
   },
 
+  _getEventCommentPatchContainer(options = {}) {
+    if (options?.container) return options.container;
+    return document.getElementById('detail-comments-container');
+  },
+
+  _isCurrentEventCommentPatch(eventId, requestSeq = null, options = {}) {
+    const result = (ok, reason, container = null) => ({ ok, reason: ok ? 'ok' : reason, container });
+    if (requestSeq != null && requestSeq !== this._eventCommentLoadSeq) {
+      return result(false, 'stale-comment-seq');
+    }
+    if (this.currentPage !== 'page-activity-detail') return result(false, 'stale-page');
+    if (String(this._currentDetailEventId || '') !== String(eventId || '')) {
+      return result(false, 'stale-event');
+    }
+
+    const container = this._getEventCommentPatchContainer(options);
+    if (!container) return result(false, 'missing-container');
+    const dataset = container.dataset || {};
+    if (dataset.detailEventId && String(dataset.detailEventId) !== String(eventId || '')) {
+      return result(false, 'stale-owner-event');
+    }
+    if (options.detailRequestSeq != null && dataset.detailRequestSeq
+      && Number(dataset.detailRequestSeq) !== Number(options.detailRequestSeq)) {
+      return result(false, 'stale-owner-seq');
+    }
+    if (options.detailRenderToken && dataset.detailRenderToken
+      && String(dataset.detailRenderToken) !== String(options.detailRenderToken)) {
+      return result(false, 'stale-render-token');
+    }
+    return result(true, 'ok', container);
+  },
+
   _clearEventCommentRetryTimer() {
     if (this._eventCommentRetryTimer) {
       clearTimeout(this._eventCommentRetryTimer);
@@ -472,9 +504,9 @@ Object.assign(App, {
   },
 
   _renderLoadedEventComments(eventId, eventRecord, requestSeq, state, options = {}) {
-    if (!this._isCurrentEventCommentLoad(eventId, requestSeq)) return false;
-    const container = document.getElementById('detail-comments-container');
-    if (!container) return false;
+    const guard = this._isCurrentEventCommentPatch(eventId, requestSeq, options);
+    if (!guard.ok) return false;
+    const container = guard.container;
     this._clearEventCommentRetryTimer();
     container.innerHTML = this._renderEventCommentsHtml(eventRecord, state?.comments || []);
     if (options.hydrateLikes !== false) {
@@ -484,8 +516,9 @@ Object.assign(App, {
   },
 
   _renderEventCommentsLoadIssue(eventId, options = {}) {
-    const container = document.getElementById('detail-comments-container');
-    if (!container) return;
+    const guard = this._isCurrentEventCommentPatch(eventId, options?.requestSeq ?? null, options);
+    if (!guard.ok) return false;
+    const container = guard.container;
     const final = options.final === true;
     const safeEventId = escapeHTML(eventId || '');
     const title = final
@@ -504,15 +537,16 @@ Object.assign(App, {
         </div>
       </div>
     </div>`;
+    return true;
   },
 
-  _scheduleEventCommentAutoRetry(eventId, requestSeq, attempt, startedAt) {
+  _scheduleEventCommentAutoRetry(eventId, requestSeq, attempt, startedAt, options = {}) {
     const delays = Array.isArray(this._eventCommentRetryDelaysMs) ? this._eventCommentRetryDelaysMs : [];
     const hardStopMs = Number(this._eventCommentHardStopMs) || 45000;
     const elapsed = Date.now() - startedAt;
     if (attempt >= delays.length || elapsed >= hardStopMs) {
-      if (this._isCurrentEventCommentLoad(eventId, requestSeq)) {
-        this._renderEventCommentsLoadIssue(eventId, { final: true });
+      if (this._isCurrentEventCommentPatch(eventId, requestSeq, options).ok) {
+        this._renderEventCommentsLoadIssue(eventId, { ...options, requestSeq, final: true });
       }
       return;
     }
@@ -521,12 +555,14 @@ Object.assign(App, {
     const delay = Math.min(Math.max(0, Number(delays[attempt]) || 0), remaining);
     this._eventCommentRetryTimer = setTimeout(() => {
       this._eventCommentRetryTimer = null;
-      if (!this._isCurrentEventCommentLoad(eventId, requestSeq)) return;
+      if (!this._isCurrentEventCommentPatch(eventId, requestSeq, options).ok) return;
       if ((Date.now() - startedAt) >= hardStopMs) {
-        this._renderEventCommentsLoadIssue(eventId, { final: true });
+        this._renderEventCommentsLoadIssue(eventId, { ...options, requestSeq, final: true });
         return;
       }
       this._renderEventComments(eventId, {
+        detailRequestSeq: options?.detailRequestSeq ?? null,
+        detailRenderToken: options?.detailRenderToken || null,
         autoRetryAttempt: attempt + 1,
         startedAt,
       });
@@ -539,13 +575,20 @@ Object.assign(App, {
   },
 
   async _renderEventComments(eventId, options = {}) {
-    const container = document.getElementById('detail-comments-container');
     const eventRecord = ApiService.getEvent?.(eventId);
-    if (!container || !eventRecord) return;
+    if (!eventRecord) return;
     const requestSeq = ++this._eventCommentLoadSeq;
+    const patchOptions = {
+      detailRequestSeq: options?.detailRequestSeq ?? null,
+      detailRenderToken: options?.detailRenderToken || null,
+    };
+    const initialGuard = this._isCurrentEventCommentPatch(eventId, requestSeq, patchOptions);
+    if (!initialGuard.ok) return initialGuard;
+    const container = initialGuard.container;
     this._clearEventCommentRetryTimer();
     const user = ApiService.getCurrentUser?.();
     if (!user?.uid) {
+      if (!this._isCurrentEventCommentPatch(eventId, requestSeq, patchOptions).ok) return;
       container.innerHTML = '<div class="detail-section event-comments-section"><div class="detail-section-title">留言</div><div class="event-comments-empty">登入後可查看與留言</div></div>';
       return;
     }
@@ -555,7 +598,10 @@ Object.assign(App, {
     const cacheKey = this._getEventCommentsCacheKey(eventRecord);
     const cachedState = forceRefresh ? null : this._getEventCommentsCachedState(cacheKey);
     if (cachedState) {
-      this._renderLoadedEventComments(eventId, eventRecord, requestSeq, cachedState, { hydrateLikes: false });
+      this._renderLoadedEventComments(eventId, eventRecord, requestSeq, cachedState, {
+        ...patchOptions,
+        hydrateLikes: false,
+      });
       this._logEventCommentPerf('cache-hit', {
         eventId,
         comments: cachedState.comments?.length || 0,
@@ -563,16 +609,16 @@ Object.assign(App, {
       const refreshPromise = Promise.resolve().then(() => this._loadEventComments(eventRecord, { forceRefresh: true }));
       try {
         const freshState = await this._waitForEventCommentsLoad(refreshPromise, Number(this._eventCommentLoadTimeoutMs) || 9000);
-        this._renderLoadedEventComments(eventId, eventRecord, requestSeq, freshState);
+        this._renderLoadedEventComments(eventId, eventRecord, requestSeq, freshState, patchOptions);
       } catch (err) {
-        if (!this._isCurrentEventCommentLoad(eventId, requestSeq)) return;
+        if (!this._isCurrentEventCommentPatch(eventId, requestSeq, patchOptions).ok) return;
         if (err?.code === 'event-comments-timeout') {
           console.warn('[event-comments] background refresh timeout', {
             eventId,
             timeoutMs: this._eventCommentLoadTimeoutMs,
           });
           refreshPromise.then(
-            state => this._renderLoadedEventComments(eventId, eventRecord, requestSeq, state),
+            state => this._renderLoadedEventComments(eventId, eventRecord, requestSeq, state, patchOptions),
             lateErr => console.error('[event-comments] late background refresh failed', lateErr),
           );
           return;
@@ -584,29 +630,30 @@ Object.assign(App, {
     const loadingText = retryAttempt > 0 || options?.manualRetry
       ? '\u7559\u8a00\u91cd\u65b0\u8f09\u5165\u4e2d...'
       : '\u7559\u8a00\u8f09\u5165\u4e2d...';
+    if (!this._isCurrentEventCommentPatch(eventId, requestSeq, patchOptions).ok) return;
     container.innerHTML = `<div class="detail-section event-comments-section"><div class="detail-section-title">\u7559\u8a00</div><div class="reg-loading">${loadingText}</div></div>`;
     const loadPromise = Promise.resolve().then(() => this._loadEventComments(eventRecord, { forceRefresh }));
     try {
       const state = await this._waitForEventCommentsLoad(loadPromise, Number(this._eventCommentLoadTimeoutMs) || 9000);
-      this._renderLoadedEventComments(eventId, eventRecord, requestSeq, state);
+      this._renderLoadedEventComments(eventId, eventRecord, requestSeq, state, patchOptions);
     } catch (err) {
-      if (!this._isCurrentEventCommentLoad(eventId, requestSeq)) return;
+      if (!this._isCurrentEventCommentPatch(eventId, requestSeq, patchOptions).ok) return;
       if (err?.code === 'event-comments-timeout') {
         console.warn('[event-comments] load timeout', {
           eventId,
           attempt: retryAttempt,
           timeoutMs: this._eventCommentLoadTimeoutMs,
         });
-        this._renderEventCommentsLoadIssue(eventId);
+        this._renderEventCommentsLoadIssue(eventId, { ...patchOptions, requestSeq });
         loadPromise.then(
-          state => this._renderLoadedEventComments(eventId, eventRecord, requestSeq, state),
+          state => this._renderLoadedEventComments(eventId, eventRecord, requestSeq, state, patchOptions),
           lateErr => console.error('[event-comments] late load failed', lateErr),
         );
-        this._scheduleEventCommentAutoRetry(eventId, requestSeq, retryAttempt, startedAt);
+        this._scheduleEventCommentAutoRetry(eventId, requestSeq, retryAttempt, startedAt, patchOptions);
         return;
       }
       console.error('[event-comments] render failed', err);
-      this._renderEventCommentsLoadIssue(eventId, { final: true });
+      this._renderEventCommentsLoadIssue(eventId, { ...patchOptions, requestSeq, final: true });
     }
   },
 

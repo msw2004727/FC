@@ -1,5 +1,10 @@
+/**
+ * @jest-environment jsdom
+ */
+
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 
 const ROOT = path.join(__dirname, '../..');
 
@@ -7,10 +12,51 @@ function readProjectFile(file) {
   return fs.readFileSync(path.join(ROOT, file), 'utf8');
 }
 
+function loadEventCommentsModule({ eventRecord, currentUser } = {}) {
+  const app = {
+    currentPage: 'page-activity-detail',
+    _currentDetailEventId: eventRecord?.id || 'event-1',
+    _logEventCommentPerf: jest.fn(),
+  };
+  const context = {
+    App: app,
+    ApiService: {
+      getEvent: jest.fn(() => eventRecord || { id: 'event-1', _docId: 'doc-1' }),
+      getCurrentUser: jest.fn(() => currentUser || { uid: 'user-1', displayName: 'User' }),
+    },
+    IdentityResolver: {
+      getMainIdentity: jest.fn(user => user || {}),
+      buildPublicSnapshot: jest.fn(() => ({ displayName: 'User' })),
+    },
+    ROLE_LEVEL_MAP: { admin: 100, user: 0 },
+    ROLES: {},
+    document,
+    window,
+    console,
+    setTimeout,
+    clearTimeout,
+    Date,
+    Promise,
+    Object,
+    escapeHTML: (value) => String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;'),
+  };
+  vm.runInNewContext(readProjectFile('js/modules/event/event-comments.js'), context, {
+    filename: 'js/modules/event/event-comments.js',
+  });
+  app._renderEventCommentsHtml = jest.fn(() => '<div class="loaded-comments">Loaded comments</div>');
+  app._hydrateEventCommentLikeState = jest.fn();
+  return { app, context };
+}
+
 describe('activity detail comments source contracts', () => {
   test('activity detail loads comment modules and renders a comments mount point', () => {
     const loader = readProjectFile('js/core/script-loader.js');
     const detail = readProjectFile('js/modules/event/event-detail.js');
+    const navigation = readProjectFile('js/core/navigation.js');
 
     expect(loader).toContain('js/modules/event/event-comments.js');
     expect(loader).toContain('js/modules/event/event-comments-actions.js');
@@ -22,6 +68,35 @@ describe('activity detail comments source contracts', () => {
     expect(detail).toContain("ScriptLoader.ensureGroup('activityComments')");
     expect(detail).toContain("_shouldUseActivityDetailOptimization('commentsNonBlocking')");
     expect(detail).toContain('_renderDetailCommentsLoadFailure');
+    expect(detail).toContain('detailRequestSeq: requestSeq');
+    expect(detail).toContain('detailRenderToken: renderToken');
+    expect(navigation).toContain('this._eventDetailRequestSeq = (Number(this._eventDetailRequestSeq) || 0) + 1');
+    expect(navigation).toContain('this._eventCommentLoadSeq = (Number(this._eventCommentLoadSeq) || 0) + 1');
+  });
+
+  test('late comments load does not patch DOM after user leaves activity detail', async () => {
+    document.body.innerHTML = '<div id="detail-comments-container" data-detail-event-id="event-1" data-detail-request-seq="7" data-detail-render-token="rt-7">initial</div>';
+    const { app } = loadEventCommentsModule({
+      eventRecord: { id: 'event-1', _docId: 'doc-1' },
+      currentUser: { uid: 'user-1', displayName: 'User' },
+    });
+    let resolveLoad;
+    const loadPromise = new Promise(resolve => { resolveLoad = resolve; });
+    app._loadEventComments = jest.fn(() => loadPromise);
+
+    const renderPromise = app._renderEventComments('event-1', {
+      detailRequestSeq: 7,
+      detailRenderToken: 'rt-7',
+    });
+    await Promise.resolve();
+    expect(document.getElementById('detail-comments-container').textContent).toContain('留言載入中');
+
+    app.currentPage = 'page-home';
+    resolveLoad({ eventDocId: 'doc-1', comments: [{ id: 'comment-1', body: 'late' }] });
+    await renderPromise;
+
+    expect(app._renderEventCommentsHtml).not.toHaveBeenCalled();
+    expect(document.getElementById('detail-comments-container').innerHTML).toContain('留言載入中');
   });
 
   test('comments support resolved author identity, private visibility, 300 limit, replies, and optimistic likes', () => {
