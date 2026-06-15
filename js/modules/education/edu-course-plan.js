@@ -140,10 +140,9 @@ Object.assign(App, {
           '<div class="ce-row"><label>報名截止日</label><input type="date" id="edu-cp-signup-deadline" value="' + fieldValue('signupDeadline') + '"></div>' +
           '<div class="ce-row"><label>負責人</label><input type="text" id="edu-cp-manager-name" maxlength="30" placeholder="例：課務窗口" value="' + fieldValue('managerName') + '"></div>' +
           '<div class="ce-row"><label>負責人聯繫</label><input type="text" id="edu-cp-manager-contact" maxlength="160" placeholder="例：LINE ID / 電話 / 聯繫連結" value="' + fieldValue('managerContact') + '"></div>' +
-          '<div class="ce-row edu-cp-roster-agent-row"><label>負責代理人</label><div class="edu-session-staff-field edu-cp-staff-field edu-cp-agent-field"><input type="text" id="edu-cp-roster-agent-name" maxlength="30" placeholder="搜尋任一用戶，授權管理課堂名單" value="' + fieldValue('rosterAgentName') + '" oninput="App.clearCoursePlanRosterAgentSelection();App.searchCoursePlanStaff(\'agent\')" onfocus="App.searchCoursePlanStaff(\'agent\')"><input type="hidden" id="edu-cp-roster-agent-uid" value="' + fieldValue('rosterAgentUid') + '"><div id="edu-cp-agent-suggest" class="team-user-suggest edu-session-staff-suggest"></div></div><div class="edu-cp-field-hint">指定後該用戶可使用本課程每堂課的「管理名單」，不會取得課程編輯或刪除權限。</div></div>' +
           '<div class="ce-row"><label>授課教練</label><input type="text" id="edu-cp-coach-name" maxlength="30" placeholder="例：王教練" value="' + fieldValue('coachName') + '"></div>' +
           '<div class="ce-row"><label>上課地點</label><input type="text" id="edu-cp-location" maxlength="80" placeholder="例：台中市南屯運動中心" value="' + fieldValue('location') + '"></div>' +
-          '<div class="ce-row edu-cp-extra-featured edu-cp-featured-card"><div class="edu-cp-featured-copy"><span class="edu-cp-featured-icon">★</span><div><label for="edu-cp-featured">精選顯示</label><small>開啟後可出現在俱樂部總覽的精選/熱門課程位置，仍會受公開顯示設定影響。</small></div></div><label class="edu-cp-featured-switch" aria-label="精選顯示"><input type="checkbox" id="edu-cp-featured"' + (plan?.featured ? ' checked' : '') + '><span></span></label></div>' +
+          '<div class="ce-row edu-cp-extra-featured"><label><span class="edu-cp-featured-icon">★</span>精選顯示</label><label class="toggle-switch"><input type="checkbox" id="edu-cp-featured"' + (plan?.featured ? ' checked' : '') + '><span class="toggle-slider"></span></label></div>' +
         '</div>' +
         '<div class="ce-row"><label>課程內容</label><textarea id="edu-cp-course-content" maxlength="900" rows="4" placeholder="介紹課程主軸、訓練內容、適合程度與學習目標">' + courseContentValue + '</textarea></div>' +
         '<div class="ce-row"><label>取消政策</label><textarea id="edu-cp-cancellation-policy" maxlength="500" rows="3" placeholder="例：開課前 7 日可全額退費；開課前 3 日內取消，將收取 30% 行政費；開課後恕不退費。">' + cancellationPolicyValue + '</textarea></div>' +
@@ -212,8 +211,6 @@ Object.assign(App, {
       'edu-cp-signup-deadline',
       'edu-cp-manager-name',
       'edu-cp-manager-contact',
-      'edu-cp-roster-agent-name',
-      'edu-cp-roster-agent-uid',
       'edu-cp-coach-name',
       'edu-cp-location',
       'edu-cp-course-content',
@@ -230,18 +227,36 @@ Object.assign(App, {
   _getEduCoursePlanOptionalFieldIds() {
     return [
       'edu-cp-visible-on-team',
+      'edu-cp-per-session-billing',
       'edu-cp-makeup-policy',
       'edu-cp-payment-method',
       'edu-cp-payment-deadline',
       'edu-cp-notify-targets',
-      'edu-cp-roster-agent-name',
-      'edu-cp-roster-agent-uid',
       'edu-cp-trial-info',
       'edu-cp-min-capacity',
       'edu-cp-min-age',
       'edu-cp-max-age',
       'edu-cp-gender',
     ];
+  },
+
+  _isCoursePlanPerSessionBilling(plan) {
+    if (!plan) return false;
+    const mode = String(plan.billingMode || plan.paymentMode || '').trim().toLowerCase();
+    return plan.perSessionBilling === true
+      || plan.chargePerSession === true
+      || plan.payPerSession === true
+      || mode === 'per_session'
+      || mode === 'per-session'
+      || mode === 'session';
+  },
+
+  _shouldTrackCoursePlanPayment(plan) {
+    return !this._isCoursePlanPerSessionBilling(plan);
+  },
+
+  _shouldShowCoursePlanAttendanceStats(plan) {
+    return this._isCoursePlanPerSessionBilling(plan) || String(plan?.planType || '').trim() === 'weekly';
   },
 
   _getCoursePlanPaymentOptions() {
@@ -404,35 +419,7 @@ Object.assign(App, {
     return true;
   },
 
-  _getCoursePlanStaffCandidates(teamId, kind = 'staff') {
-    if (kind === 'agent') {
-      const users = typeof ApiService !== 'undefined' && ApiService.getAdminUsers ? [...(ApiService.getAdminUsers() || [])] : [];
-      const currentUser = typeof ApiService !== 'undefined' && ApiService.getCurrentUser ? ApiService.getCurrentUser() : null;
-      if (currentUser) users.push(currentUser);
-      const seen = new Set();
-      const normalize = value => String(value || '').trim();
-      return users.map(user => {
-        const uid = normalize(user?.uid || user?.lineUserId || user?._docId || user?.id);
-        const name = normalize(user?.displayName || user?.name || user?.nickname || user?.lineDisplayName || uid);
-        if (!uid || !name) return null;
-        const key = 'uid:' + uid;
-        if (seen.has(key)) return null;
-        seen.add(key);
-        const roleLabel = normalize(user?.roleLabel || user?.roleName || user?.role || '用戶');
-        const candidate = {
-          key,
-          uid,
-          name,
-          roleLabel,
-          roleRank: 0,
-          contact: this._getCourseStaffContact(user),
-          searchText: '',
-        };
-        candidate.searchText = this._buildCourseStaffSearchText(candidate, user);
-        return candidate;
-      }).filter(Boolean)
-        .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
-    }
+  _getCoursePlanStaffCandidates(teamId) {
     if (typeof this._getCourseSessionStaffCandidates === 'function') {
       return this._getCourseSessionStaffCandidates(teamId);
     }
@@ -498,15 +485,10 @@ Object.assign(App, {
     container.classList.add('show');
   },
 
-  clearCoursePlanRosterAgentSelection() {
-    const hidden = document.getElementById('edu-cp-roster-agent-uid');
-    if (hidden) hidden.value = '';
-  },
-
   searchCoursePlanStaff(kind) {
     const teamId = this._eduCoursePlanEditTeamId;
     if (!teamId) return;
-    const inputId = kind === 'agent' ? 'edu-cp-roster-agent-name' : (kind === 'coach' ? 'edu-cp-coach-name' : 'edu-cp-manager-name');
+    const inputId = kind === 'coach' ? 'edu-cp-coach-name' : 'edu-cp-manager-name';
     const query = document.getElementById(inputId)?.value || '';
     const container = document.getElementById('edu-cp-' + kind + '-suggest');
     if (!String(query || '').trim()) {
@@ -516,7 +498,7 @@ Object.assign(App, {
       }
       return;
     }
-    const results = this._getCoursePlanStaffCandidates(teamId, kind)
+    const results = this._getCoursePlanStaffCandidates(teamId)
       .filter(item => this._matchesCourseStaffCandidate(item, query))
       .slice(0, 6);
     this._renderCoursePlanStaffSuggestList(kind, results);
@@ -525,15 +507,11 @@ Object.assign(App, {
   selectCoursePlanStaff(kind, encodedKey) {
     const teamId = this._eduCoursePlanEditTeamId;
     const key = decodeURIComponent(encodedKey || '');
-    const candidate = this._getCoursePlanStaffCandidates(teamId, kind).find(item => item.key === key);
+    const candidate = this._getCoursePlanStaffCandidates(teamId).find(item => item.key === key);
     if (!candidate) return;
-    const inputId = kind === 'agent' ? 'edu-cp-roster-agent-name' : (kind === 'coach' ? 'edu-cp-coach-name' : 'edu-cp-manager-name');
+    const inputId = kind === 'coach' ? 'edu-cp-coach-name' : 'edu-cp-manager-name';
     const input = document.getElementById(inputId);
     if (input) input.value = candidate.name || '';
-    if (kind === 'agent') {
-      const hidden = document.getElementById('edu-cp-roster-agent-uid');
-      if (hidden) hidden.value = candidate.uid || '';
-    }
     if (kind === 'manager') {
       const contact = document.getElementById('edu-cp-manager-contact');
       if (contact && candidate.contact && !contact.value.trim()) contact.value = candidate.contact;
@@ -660,6 +638,7 @@ Object.assign(App, {
       planType,
       allowSignup: !!document.getElementById('edu-cp-signup')?.checked,
       visibleOnTeamPage: !!document.getElementById('edu-cp-visible-on-team')?.checked,
+      perSessionBilling: !!document.getElementById('edu-cp-per-session-billing')?.checked,
       maxCapacity: (() => {
         const raw = document.getElementById('edu-cp-capacity')?.value || '';
         const value = raw ? parseInt(raw, 10) : null;
@@ -678,8 +657,6 @@ Object.assign(App, {
       targetTags: this._getEduCpTagList('edu-cp-target-tags'),
       managerName: document.getElementById('edu-cp-manager-name')?.value.trim() || '',
       managerContact: document.getElementById('edu-cp-manager-contact')?.value.trim() || '',
-      rosterAgentUid: document.getElementById('edu-cp-roster-agent-uid')?.value.trim() || '',
-      rosterAgentName: document.getElementById('edu-cp-roster-agent-name')?.value.trim() || '',
       notifyTargets: document.getElementById('edu-cp-notify-targets')?.value.trim() || '',
       coachName: document.getElementById('edu-cp-coach-name')?.value.trim() || '',
       location: document.getElementById('edu-cp-location')?.value.trim() || '',
@@ -778,6 +755,7 @@ Object.assign(App, {
     this._toggleCoursePlanType?.(tpl.planType || 'weekly');
     setChecked('edu-cp-signup', tpl.allowSignup);
     setChecked('edu-cp-visible-on-team', tpl.visibleOnTeamPage !== false);
+    setChecked('edu-cp-per-session-billing', tpl.perSessionBilling);
     setVal('edu-cp-capacity', tpl.maxCapacity);
     setVal('edu-cp-price', tpl.price);
     setVal('edu-cp-category-tags', Array.isArray(tpl.categoryTags) ? tpl.categoryTags.join(', ') : tpl.categoryTags);
@@ -788,8 +766,6 @@ Object.assign(App, {
     setVal('edu-cp-target-tags', Array.isArray(tpl.targetTags) ? tpl.targetTags.join(', ') : tpl.targetTags);
     setVal('edu-cp-manager-name', tpl.managerName);
     setVal('edu-cp-manager-contact', tpl.managerContact);
-    setVal('edu-cp-roster-agent-uid', tpl.rosterAgentUid);
-    setVal('edu-cp-roster-agent-name', tpl.rosterAgentName);
     setVal('edu-cp-notify-targets', tpl.notifyTargets);
     setVal('edu-cp-coach-name', tpl.coachName);
     setVal('edu-cp-location', tpl.location);
@@ -1110,6 +1086,7 @@ Object.assign(App, {
     const planType = document.getElementById('edu-cp-type').value;
 
     const allowSignup = document.getElementById('edu-cp-signup')?.checked || false;
+    const perSessionBillingEl = document.getElementById('edu-cp-per-session-billing');
     const capRaw = document.getElementById('edu-cp-capacity')?.value;
     const maxCapacity = capRaw ? parseInt(capRaw, 10) : null;
     const priceRaw = document.getElementById('edu-cp-price')?.value;
@@ -1132,13 +1109,6 @@ Object.assign(App, {
     };
     const courseContent = optionalText('edu-cp-course-content', 900);
     const descriptionText = optionalText('edu-cp-description', 500);
-    const rosterAgentUid = optionalText('edu-cp-roster-agent-uid', 128);
-    const rosterAgentName = rosterAgentUid ? optionalText('edu-cp-roster-agent-name', 30) : '';
-    if (optionalText('edu-cp-roster-agent-name', 30) && !rosterAgentUid) {
-      _btnState.restore();
-      this.showToast('請從搜尋結果選擇負責代理人');
-      return;
-    }
 
     const data = {
       name,
@@ -1157,9 +1127,6 @@ Object.assign(App, {
       signupDeadline: optionalText('edu-cp-signup-deadline', 10),
       managerName: optionalText('edu-cp-manager-name', 30),
       managerContact: optionalText('edu-cp-manager-contact', 160),
-      rosterAgentUid,
-      rosterAgentName,
-      rosterAgentUids: rosterAgentUid ? [rosterAgentUid] : [],
       coachName: optionalText('edu-cp-coach-name', 30),
       location: optionalText('edu-cp-location', 80),
       courseContent,
@@ -1170,6 +1137,7 @@ Object.assign(App, {
 
     const visibleToggle = document.getElementById('edu-cp-visible-on-team');
     if (visibleToggle) data.visibleOnTeamPage = !!visibleToggle.checked;
+    if (perSessionBillingEl) data.perSessionBilling = !!perSessionBillingEl.checked;
     assignOptionalText('makeupPolicy', 'edu-cp-makeup-policy', 500);
     if (document.getElementById('edu-cp-payment-method')) {
       this._syncEduCoursePlanPaymentMethodField?.();

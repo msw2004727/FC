@@ -432,6 +432,15 @@ Object.assign(App, {
     return prefix + amount.toLocaleString();
   },
 
+  _formatCoursePlanBillingLabel(plan, options = {}) {
+    const isPerSession = typeof this._isCoursePlanPerSessionBilling === 'function'
+      ? this._isCoursePlanPerSessionBilling(plan)
+      : plan?.perSessionBilling === true;
+    const priceText = this._formatCoursePlanPriceLabel(plan?.price, options);
+    if (!isPerSession) return priceText;
+    return priceText ? priceText + '/堂' : '隨堂收費';
+  },
+
   _getCoursePlanViewerEnrollmentState(teamId, plan, options = {}) {
     const curUser = options.curUser || (typeof ApiService !== 'undefined' && typeof ApiService.getCurrentUser === 'function'
       ? ApiService.getCurrentUser()
@@ -679,7 +688,9 @@ Object.assign(App, {
       const dateText = p.startDate ? p.startDate + ' ~ ' + (p.endDate || '') : '未設定';
       const countText = (p._effectiveCount || 0) + (p.maxCapacity ? '/' + p.maxCapacity : '') + ' 人';
       const coachName = String(p.coachName || p.coach || '').trim() || '未指定教練';
-      const priceText = formatMoney(p.price);
+      const priceText = typeof this._formatCoursePlanBillingLabel === 'function'
+        ? this._formatCoursePlanBillingLabel(p, { prefix: 'NT$ ' })
+        : formatMoney(p.price);
       const infoHtml = '<div class="edu-cp-compact-pills">'
         + renderCompactPill('上課', dateText, 'edu-cp-date-pill')
         + (priceText ? renderCompactPill('費用', priceText, 'edu-cp-fee-pill') : '')

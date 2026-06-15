@@ -409,6 +409,133 @@ Object.assign(App, {
     return map;
   },
 
+  _getCourseLessonDateStartValue(value) {
+    if (!value) return null;
+    const source = typeof value.toDate === 'function' ? value.toDate() : value;
+    if (source instanceof Date) {
+      const ms = new Date(source.getFullYear(), source.getMonth(), source.getDate()).getTime();
+      return Number.isFinite(ms) ? ms : null;
+    }
+    const raw = String(source || '').trim();
+    const match = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (match) {
+      const ms = new Date(
+        parseInt(match[1], 10),
+        parseInt(match[2], 10) - 1,
+        parseInt(match[3], 10)
+      ).getTime();
+      return Number.isFinite(ms) ? ms : null;
+    }
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()).getTime();
+  },
+
+  _getCourseLessonEnrollmentJoinValue(enrollment) {
+    const candidates = [
+      enrollment?.reviewedAt,
+      enrollment?.approvedAt,
+      enrollment?.appliedAt,
+      enrollment?.appliedAtIso,
+      enrollment?.createdAt,
+      enrollment?.createdAtIso,
+    ];
+    for (const value of candidates) {
+      const ms = this._getCourseLessonDateStartValue(value);
+      if (ms !== null) return ms;
+    }
+    return null;
+  },
+
+  _isCourseLessonStatsEligibleSession(session, joinStartMs, nowMs) {
+    if (!session) return false;
+    const status = String(session.status || '').trim().toLowerCase();
+    if (status === 'cancelled') return false;
+    const dateStartMs = this._getCourseLessonDateStartValue(session.date);
+    if (joinStartMs !== null && dateStartMs !== null && dateStartMs < joinStartMs) return false;
+    const sessionMs = typeof this._getCourseSessionSortValue === 'function'
+      ? this._getCourseSessionSortValue(session)
+      : this._getCourseLessonDateTimeValue(session.date, session.startTime);
+    const done = status === 'done' || (Number.isFinite(sessionMs) && sessionMs < nowMs - 6 * 60 * 60 * 1000);
+    return done === true;
+  },
+
+  _buildCourseLessonAttendanceStatsByStudent(sessions, enrollments, attendanceRecords, rosterStudents) {
+    const rosterIds = (Array.isArray(rosterStudents) ? rosterStudents : [])
+      .map(student => this._getCourseLessonRosterStudentId(student))
+      .filter(Boolean);
+    if (!rosterIds.length) return {};
+
+    const enrollmentByStudentId = new Map();
+    (Array.isArray(enrollments) ? enrollments : []).forEach((enrollment) => {
+      const studentId = String(enrollment?.studentId || '').trim();
+      if (!studentId || String(enrollment?.status || 'approved').trim().toLowerCase() !== 'approved') return;
+      if (!enrollmentByStudentId.has(studentId)) enrollmentByStudentId.set(studentId, enrollment);
+    });
+
+    const recordsByStudentId = new Map();
+    (Array.isArray(attendanceRecords) ? attendanceRecords : []).forEach((record) => {
+      const recordStatus = String(record?.status || '').trim();
+      if (!record || recordStatus === 'removed' || recordStatus === 'cancelled') return;
+      const studentId = String(record.studentId || '').trim();
+      if (!studentId) return;
+      const kind = String(record.kind || 'signin').trim();
+      if (kind !== 'signin') return;
+      if (!recordsByStudentId.has(studentId)) recordsByStudentId.set(studentId, []);
+      recordsByStudentId.get(studentId).push(record);
+    });
+
+    const nowMs = Date.now();
+    const sortedSessions = [...(Array.isArray(sessions) ? sessions : [])]
+      .filter(Boolean)
+      .sort((a, b) => {
+        const aMs = typeof this._getCourseSessionSortValue === 'function'
+          ? this._getCourseSessionSortValue(a)
+          : this._getCourseLessonDateTimeValue(a?.date, a?.startTime);
+        const bMs = typeof this._getCourseSessionSortValue === 'function'
+          ? this._getCourseSessionSortValue(b)
+          : this._getCourseLessonDateTimeValue(b?.date, b?.startTime);
+        return (Number.isFinite(aMs) ? aMs : 0) - (Number.isFinite(bMs) ? bMs : 0);
+      });
+
+    return rosterIds.reduce((map, studentId) => {
+      const joinStartMs = this._getCourseLessonEnrollmentJoinValue(enrollmentByStudentId.get(studentId));
+      const eligible = sortedSessions.filter((session) => {
+        if (!this._isCourseLessonStatsEligibleSession(session, joinStartMs, nowMs)) return false;
+        const ids = Array.isArray(session.studentIds) ? session.studentIds.map(value => String(value || '').trim()) : [];
+        return !ids.length || ids.includes(studentId);
+      });
+      const eligibleSessionIds = new Set();
+      const eligibleDates = new Set();
+      eligible.forEach((session) => {
+        const sessionId = this._getCourseLessonSessionId(session);
+        if (sessionId) eligibleSessionIds.add(sessionId);
+        const date = String(session.date || '').trim();
+        if (date) eligibleDates.add(date);
+      });
+      const signedKeys = new Set();
+      (recordsByStudentId.get(studentId) || []).forEach((record) => {
+        const recordSessionId = String(record.sessionId || '').trim();
+        const recordDate = String(record.date || '').trim();
+        if (recordSessionId && eligibleSessionIds.has(recordSessionId)) {
+          signedKeys.add('session:' + recordSessionId);
+          return;
+        }
+        if (!recordSessionId && recordDate && eligibleDates.has(recordDate)) {
+          signedKeys.add('date:' + recordDate);
+        }
+      });
+      const total = eligible.length;
+      const signed = signedKeys.size;
+      map[studentId] = {
+        signed,
+        total,
+        rate: total > 0 ? Math.round((signed / total) * 100) : null,
+      };
+      return map;
+    }, {});
+  },
+
   _renderCourseLessonRosterFromContext() {
     const ctx = this._eduCourseLessonsContext;
     const container = this._getEduCourseLessonsContainer();
@@ -651,10 +778,18 @@ Object.assign(App, {
     const isStaff = this.isEduClubStaff?.(teamId) === true;
     const notesByStudentId = {};
     const enrollIdsByStudentId = {};
+    const tracksPayment = typeof this._shouldTrackCoursePlanPayment === 'function'
+      ? this._shouldTrackCoursePlanPayment(plan)
+      : plan?.perSessionBilling !== true;
+    const shouldShowAttendanceStats = isStaff && (typeof this._shouldShowCoursePlanAttendanceStats === 'function'
+      ? this._shouldShowCoursePlanAttendanceStats(plan)
+      : (plan?.perSessionBilling === true || String(plan?.planType || '').trim() === 'weekly'));
+    let enrollments = [];
     let paidByStudentId = null;
+    let attendanceStatsByStudentId = null;
     if (isStaff) {
       try {
-        const enrollments = await this._loadCourseEnrollments(teamId, planId);
+        enrollments = await this._loadCourseEnrollments(teamId, planId);
         if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
         const paidMap = {};
         (enrollments || []).forEach((enrollment) => {
@@ -666,9 +801,26 @@ Object.assign(App, {
           if (enrollment.coachNotes) notesByStudentId[studentId] = String(enrollment.coachNotes || '');
           enrollIdsByStudentId[studentId] = enrollment.id || enrollment._docId || '';
         });
-        paidByStudentId = paidMap;
+        paidByStudentId = tracksPayment ? paidMap : null;
       } catch (err) {
         console.warn('[edu-course-lessons] staff notes load failed:', err);
+      }
+    }
+
+    if (shouldShowAttendanceStats) {
+      try {
+        const attendanceRecords = typeof FirebaseService.queryEduAttendance === 'function'
+          ? await FirebaseService.queryEduAttendance({ teamId, coursePlanId: planId })
+          : [];
+        if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
+        attendanceStatsByStudentId = this._buildCourseLessonAttendanceStatsByStudent(
+          state.sessions,
+          enrollments,
+          attendanceRecords,
+          rosterPayload?.students || []
+        );
+      } catch (err) {
+        console.warn('[edu-course-lessons] attendance stats load failed:', err);
       }
     }
 
@@ -687,6 +839,7 @@ Object.assign(App, {
       notesByStudentId,
       enrollIdsByStudentId,
       paidByStudentId,
+      attendanceStatsByStudentId,
       attendanceByStudentId,
       draftByStudentId: { ...attendanceByStudentId },
       manageMode: false,

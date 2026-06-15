@@ -139,6 +139,7 @@ Object.assign(App, {
         : student.attendanceKind;
       const attendance = this._getCourseLessonAttendanceMeta(draftKind);
       const note = notesByStudentId[studentId] || '';
+      const stats = context.attendanceStatsByStudentId?.[studentId] || null;
       const safeStudentId = this._eduCourseLessonsJsArg(studentId);
       const signinId = 'edu-roster-signin-' + index;
       const leaveId = 'edu-roster-leave-' + index;
@@ -182,11 +183,15 @@ Object.assign(App, {
       const paymentBadgeHtml = unpaid
         ? '<span class="edu-course-roster-payment edu-course-roster-payment-unpaid">未繳費</span>'
         : '';
+      const statsHtml = stats
+        ? '<span class="edu-course-roster-stat-pill">簽到 ' + escapeHTML(stats.signed || 0) + '/' + escapeHTML(stats.total || 0) + ' · 出席率 ' + escapeHTML(stats.rate == null ? '--' : stats.rate + '%') + '</span>'
+        : '';
       return '<article class="edu-course-roster-card edu-course-roster-card-' + escapeHTML(attendance.cls) + (unpaid ? ' edu-course-roster-card-unpaid' : '') + '">'
         + '<div class="edu-course-roster-main">'
           + '<div class="edu-course-roster-name-line">'
             + studentPill
             + paymentBadgeHtml
+            + statsHtml
             + noteHtml
           + '</div>'
         + '</div>'

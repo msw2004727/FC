@@ -90,6 +90,7 @@ function loadCourseLessonsContext(overrides = {}) {
       saveEduSessionAttendanceChanges: jest.fn(async () => ({ changed: 1 })),
       saveEduCourseSelfLeave: jest.fn(async () => ({ changed: 1 })),
       updateCourseSession: jest.fn(async () => ({ ok: true })),
+      queryEduAttendance: jest.fn(async () => overrides.attendanceRecords || []),
     },
     document: {
       getElementById: jest.fn((id) => {
@@ -527,6 +528,103 @@ describe('edu course lessons', () => {
         kind: 'leave',
       }],
     });
+  });
+
+  test('per-session billing roster disables payment split and shows attendance stats from join date', async () => {
+    const { app, container, firebase } = loadCourseLessonsContext({
+      isStaff: true,
+      plans: [{
+        id: 'planA',
+        name: 'Per Session Course',
+        planType: 'session',
+        perSessionBilling: true,
+      }],
+      sessions: [
+        { id: 's0', title: 'Lesson 0', status: 'done', date: '2026-05-01', startTime: '10:00', studentIds: ['stu1', 'stu2'] },
+        { id: 's1', title: 'Lesson 1', status: 'done', date: '2026-05-08', startTime: '10:00', studentIds: ['stu1', 'stu2'] },
+        { id: 'sessionA', title: 'Lesson 2', status: 'done', date: '2026-05-15', startTime: '10:00', studentIds: ['stu1', 'stu2'] },
+      ],
+      rosterPayload: {
+        rosterPublic: true,
+        session: {
+          id: 'sessionA',
+          title: 'Lesson 2',
+          date: '2026-05-15',
+          startTime: '10:00',
+          endTime: '11:30',
+          status: 'done',
+        },
+        students: [
+          { studentId: 'stu1', displayName: 'Student A', attendanceKind: 'signin' },
+          { studentId: 'stu2', displayName: 'Student B', attendanceKind: null },
+        ],
+      },
+      enrollments: [
+        { id: 'enr1', studentId: 'stu1', status: 'approved', paidAt: null, reviewedAt: '2026-04-20', coachNotes: '' },
+        { id: 'enr2', studentId: 'stu2', status: 'approved', paidAt: null, reviewedAt: '2026-05-08', coachNotes: '' },
+      ],
+      attendanceRecords: [
+        { studentId: 'stu1', sessionId: 's0', date: '2026-05-01', kind: 'signin', status: 'active' },
+        { studentId: 'stu1', sessionId: 's1', date: '2026-05-08', kind: 'signin', status: 'active' },
+        { studentId: 'stu2', sessionId: 's1', date: '2026-05-08', kind: 'signin', status: 'active' },
+        { studentId: 'stu2', sessionId: 'sessionA', date: '2026-05-15', kind: 'leave', status: 'active' },
+      ],
+    });
+
+    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+
+    const html = container.innerHTML;
+    expect(firebase.queryEduAttendance).toHaveBeenCalledWith({ teamId: 'teamA', coursePlanId: 'planA' });
+    expect(html).not.toContain('未繳費區');
+    expect(html).not.toContain('edu-course-roster-payment-unpaid');
+    expect(html).toContain('簽到 2/3 · 出席率 67%');
+    expect(html).toContain('簽到 1/2 · 出席率 50%');
+  });
+
+  test('weekly roster adds attendance stats while keeping payment split', async () => {
+    const { app, container } = loadCourseLessonsContext({
+      isStaff: true,
+      plans: [{
+        id: 'planA',
+        name: 'Weekly Course',
+        planType: 'weekly',
+      }],
+      sessions: [
+        { id: 's0', status: 'done', date: '2026-05-01', startTime: '10:00', studentIds: ['stu1', 'stu2'] },
+        { id: 'sessionA', status: 'done', date: '2026-05-08', startTime: '10:00', studentIds: ['stu1', 'stu2'] },
+      ],
+      rosterPayload: {
+        rosterPublic: true,
+        session: {
+          id: 'sessionA',
+          title: 'Weekly Lesson',
+          date: '2026-05-08',
+          startTime: '10:00',
+          endTime: '11:30',
+          status: 'done',
+        },
+        students: [
+          { studentId: 'stu1', displayName: 'Paid Weekly', attendanceKind: 'signin' },
+          { studentId: 'stu2', displayName: 'Unpaid Weekly', attendanceKind: null },
+        ],
+      },
+      enrollments: [
+        { id: 'enr1', studentId: 'stu1', status: 'approved', paidAt: '2026-05-01', reviewedAt: '2026-04-20', coachNotes: '' },
+        { id: 'enr2', studentId: 'stu2', status: 'approved', paidAt: null, reviewedAt: '2026-04-20', coachNotes: '' },
+      ],
+      attendanceRecords: [
+        { studentId: 'stu1', sessionId: 's0', date: '2026-05-01', kind: 'signin', status: 'active' },
+        { studentId: 'stu1', sessionId: 'sessionA', date: '2026-05-08', kind: 'signin', status: 'active' },
+      ],
+    });
+
+    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+
+    const html = container.innerHTML;
+    expect(html).toContain('未繳費區');
+    expect(html).toContain('edu-course-roster-payment-unpaid">未繳費</span>');
+    expect(html).toContain('簽到 2/2 · 出席率 100%');
+    expect(html).toContain('簽到 0/2 · 出席率 0%');
   });
 
   test('staff roster keeps the normal list when payment data cannot load', async () => {

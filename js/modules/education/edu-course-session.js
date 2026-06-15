@@ -922,18 +922,47 @@ Object.assign(App, {
     const gender = student?.gender === 'male' ? '男' : student?.gender === 'female' ? '女' : '';
     const age = student?.birthday ? this.calcAge(student.birthday) : null;
     const group = (student?.groupNames || []).join('、');
-    const attended = (this._courseAttendanceCount || {})[student?.id] || 0;
+    const studentId = String(student?.id || student?._docId || enrollment?.studentId || '').trim();
+    const attended = (this._courseAttendanceCount || {})[studentId] || 0;
     const remaining = plan?.planType === 'session' && plan.totalSessions
       ? Math.max(0, (plan.totalSessions || 0) - attended) + '堂'
       : '—';
     const paidStatus = enrollment?.paidAt ? '已繳費' : (enrollment ? '未繳' : '—');
-    const fields = [
-      { cls: 'gender', label: '性別', value: gender || '—' },
-      { cls: 'age', label: '年齡', value: age != null ? age + '歲' : '—' },
-      { cls: 'group', label: '分組', value: group || '未分組' },
-      { cls: 'paid', label: '繳費', value: paidStatus },
-      { cls: 'remain', label: '剩餘', value: remaining },
-    ];
+    const tracksPayment = typeof this._shouldTrackCoursePlanPayment === 'function'
+      ? this._shouldTrackCoursePlanPayment(plan)
+      : plan?.perSessionBilling !== true;
+    const showStats = typeof this._shouldShowCoursePlanAttendanceStats === 'function'
+      ? this._shouldShowCoursePlanAttendanceStats(plan)
+      : (plan?.perSessionBilling === true || String(plan?.planType || '').trim() === 'weekly');
+    const stats = options.attendanceStatsByStudentId?.[studentId] || null;
+    const signedText = stats ? ((stats.signed || 0) + '/' + (stats.total || 0)) : (attended + '次');
+    const rateText = stats ? (stats.rate == null ? '—' : stats.rate + '%') : '—';
+    let fields;
+    if (showStats && tracksPayment) {
+      fields = [
+        { cls: 'gender', label: '性別', value: gender || '—' },
+        { cls: 'group', label: '分組', value: group || '未分組' },
+        { cls: 'paid', label: '繳費', value: paidStatus },
+        { cls: 'signin', label: '簽到', value: signedText },
+        { cls: 'rate', label: '出席率', value: rateText },
+      ];
+    } else if (showStats) {
+      fields = [
+        { cls: 'gender', label: '性別', value: gender || '—' },
+        { cls: 'age', label: '年齡', value: age != null ? age + '歲' : '—' },
+        { cls: 'group', label: '分組', value: group || '未分組' },
+        { cls: 'signin', label: '簽到', value: signedText },
+        { cls: 'rate', label: '出席率', value: rateText },
+      ];
+    } else {
+      fields = [
+        { cls: 'gender', label: '性別', value: gender || '—' },
+        { cls: 'age', label: '年齡', value: age != null ? age + '歲' : '—' },
+        { cls: 'group', label: '分組', value: group || '未分組' },
+        { cls: 'paid', label: '繳費', value: paidStatus },
+        { cls: 'remain', label: '剩餘', value: remaining },
+      ];
+    }
     let html = fields.map(field => '<span class="edu-session-student-slot edu-session-student-slot-' + field.cls + '" aria-label="' + escapeHTML(field.label) + '">'
       + escapeHTML(field.value)
       + '</span>').join('');
@@ -943,13 +972,18 @@ Object.assign(App, {
     return html;
   },
 
-  _renderCourseSessionRosterHeader() {
+  _renderCourseSessionRosterHeader(plan) {
+    const tracksPayment = typeof this._shouldTrackCoursePlanPayment === 'function'
+      ? this._shouldTrackCoursePlanPayment(plan)
+      : plan?.perSessionBilling !== true;
+    const showStats = typeof this._shouldShowCoursePlanAttendanceStats === 'function'
+      ? this._shouldShowCoursePlanAttendanceStats(plan)
+      : (plan?.perSessionBilling === true || String(plan?.planType || '').trim() === 'weekly');
+    const labels = showStats && tracksPayment
+      ? ['性別', '分組', '繳費', '簽到', '出席率']
+      : (showStats ? ['性別', '年齡', '分組', '簽到', '出席率'] : ['性別', '年齡', '分組', '繳費', '剩餘']);
     return '<div class="edu-session-roster-head" aria-hidden="true">'
-      + '<span>性別</span>'
-      + '<span>年齡</span>'
-      + '<span>分組</span>'
-      + '<span>繳費</span>'
-      + '<span>剩餘</span>'
+      + labels.map(label => '<span>' + escapeHTML(label) + '</span>').join('')
       + '</div>';
   },
 
@@ -1068,8 +1102,10 @@ Object.assign(App, {
     if (requestSeq != null && requestSeq !== this._eduCourseEnrollmentRequestSeq) return;
 
     this._courseAttendanceCount = {};
+    let attendRecords = [];
     try {
-      const attendRecords = await FirebaseService.queryEduAttendance({ teamId, coursePlanId: planId });
+      attendRecords = await FirebaseService.queryEduAttendance({ teamId, coursePlanId: planId });
+      if (!Array.isArray(attendRecords)) attendRecords = [];
       if (requestSeq != null && requestSeq !== this._eduCourseEnrollmentRequestSeq) return;
       attendRecords.filter(r => (r.kind || 'signin') === 'signin').forEach(r => {
         this._courseAttendanceCount[r.studentId] = (this._courseAttendanceCount[r.studentId] || 0) + 1;
@@ -1084,6 +1120,17 @@ Object.assign(App, {
     const rosterCountText = roster.length + ' 位核准學員' + (pendingCount ? '，' + pendingCount + ' 位待審核' : '');
     const planCover = String(plan?.coverImage || plan?.coverUrl || plan?.imageUrl || plan?.image || '').trim();
     const heroStyle = planCover ? ' style="--edu-session-cover:url(\'' + escapeHTML(planCover) + '\')"' : '';
+    const shouldShowAttendanceStats = typeof this._shouldShowCoursePlanAttendanceStats === 'function'
+      ? this._shouldShowCoursePlanAttendanceStats(plan)
+      : (plan?.perSessionBilling === true || String(plan?.planType || '').trim() === 'weekly');
+    const attendanceStatsByStudentId = shouldShowAttendanceStats && typeof this._buildCourseLessonAttendanceStatsByStudent === 'function'
+      ? this._buildCourseLessonAttendanceStatsByStudent(
+          sessions,
+          enrollments,
+          attendRecords,
+          roster.map(item => item.student || {})
+        )
+      : null;
 
     const sessionCards = sessions.length
       ? sessions.map((session, idx) => this._renderCourseSessionCard(session, {
@@ -1127,14 +1174,14 @@ Object.assign(App, {
         + '<div class="edu-session-list">' + sessionCards + '</div>'
       + '</section>'
       + '<section class="edu-session-roster-panel">'
-        + '<div class="edu-session-section-title edu-session-roster-title"><div class="edu-session-roster-title-copy"><strong>方案學員</strong><span>(' + escapeHTML(rosterCountText) + ')</span></div>' + this._renderCourseSessionRosterHeader() + '</div>'
+        + '<div class="edu-session-section-title edu-session-roster-title"><div class="edu-session-roster-title-copy"><strong>方案學員</strong><span>(' + escapeHTML(rosterCountText) + ')</span></div>' + this._renderCourseSessionRosterHeader(plan) + '</div>'
         + '<div class="edu-session-roster">' + (roster.length ? roster.map(item => {
             const student = item.student || {};
             const name = student.name || '未命名學員';
             return '<div class="edu-session-roster-item">'
               + '<span class="edu-session-list-main">'
                 + '<span class="edu-session-roster-name-line">' + this._renderCourseSessionMemberPill(student, name, { link: true }) + this._renderCourseSessionRosterNoteCell(student, item.enrollment, { inline: true, isStaff, teamId, planId }) + '</span>'
-                + '<span class="edu-session-student-tags edu-session-student-tags-notes">' + this._renderCourseSessionStudentTags(student, item.enrollment, plan, { isStaff, teamId, planId }) + '</span>'
+                + '<span class="edu-session-student-tags edu-session-student-tags-notes">' + this._renderCourseSessionStudentTags(student, item.enrollment, plan, { isStaff, teamId, planId, attendanceStatsByStudentId }) + '</span>'
               + '</span>'
             + '</div>';
           }).join('') : '<div class="edu-session-empty-students">尚未有核准學員</div>') + '</div>'

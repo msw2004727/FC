@@ -607,6 +607,12 @@ Object.assign(App, {
   },
 
   async _toggleEnrollPaid(teamId, planId, enrollId) {
+    const plan = this.getEduCoursePlans?.(teamId)?.find(p => String(p.id || p._docId || '') === String(planId || ''));
+    if (plan && typeof this._shouldTrackCoursePlanPayment === 'function' && !this._shouldTrackCoursePlanPayment(plan)) {
+      this.showToast?.('此方案為隨堂單獨收費，不使用整期繳費標記');
+      await this._renderCourseEnrollmentList(teamId, planId);
+      return;
+    }
     const key = this._getCourseEnrollCacheKey(teamId, planId);
     const enr = (this._courseEnrollCache[key] || []).find(e => e.id === enrollId);
     if (!enr) return;
@@ -656,6 +662,12 @@ Object.assign(App, {
   },
 
   async _editEnrollPaidDate(teamId, planId, enrollId) {
+    const plan = this.getEduCoursePlans?.(teamId)?.find(p => String(p.id || p._docId || '') === String(planId || ''));
+    if (plan && typeof this._shouldTrackCoursePlanPayment === 'function' && !this._shouldTrackCoursePlanPayment(plan)) {
+      this.showToast?.('此方案為隨堂單獨收費，不使用整期繳費標記');
+      await this._renderCourseEnrollmentList(teamId, planId);
+      return;
+    }
     const key = this._getCourseEnrollCacheKey(teamId, planId);
     const enr = (this._courseEnrollCache[key] || []).find(e => e.id === enrollId);
     if (enr && String(enrollId).startsWith('_auto_')) {
