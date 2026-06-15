@@ -27,6 +27,38 @@ Object.assign(App, {
       .find(plan => String(plan.id || plan._docId || '') === String(planId || '')) || null;
   },
 
+  _getEduCoursePlanRosterAgentUids(plan) {
+    const uids = new Set();
+    const add = (value) => {
+      const uid = String(value || '').trim();
+      if (uid) uids.add(uid);
+    };
+    add(plan?.rosterAgentUid);
+    add(plan?.responsibleAgentUid);
+    if (Array.isArray(plan?.rosterAgentUids)) plan.rosterAgentUids.forEach(add);
+    if (Array.isArray(plan?.responsibleAgentUids)) plan.responsibleAgentUids.forEach(add);
+    return uids;
+  },
+
+  _isEduCoursePlanRosterAgent(plan, user) {
+    if (!plan) return false;
+    const current = user || (typeof ApiService !== 'undefined' && ApiService.getCurrentUser ? ApiService.getCurrentUser() : null);
+    const currentIds = [current?.uid, current?.lineUserId, current?._docId, current?.id]
+      .map(value => String(value || '').trim())
+      .filter(Boolean);
+    if (!currentIds.length) return false;
+    const agentUids = this._getEduCoursePlanRosterAgentUids(plan);
+    return currentIds.some(uid => agentUids.has(uid));
+  },
+
+  _canManageCourseLessonRoster(teamId, plan) {
+    return this.isEduClubStaff?.(teamId) === true || this._isEduCoursePlanRosterAgent(plan);
+  },
+
+  _canUseCourseLessonRosterManage(ctx) {
+    return !!ctx && (ctx.isStaff === true || ctx.canManageRoster === true);
+  },
+
   _getCourseLessonsPreloadKey(teamId, planId) {
     return String(teamId || '') + ':' + String(planId || '');
   },
@@ -188,7 +220,7 @@ Object.assign(App, {
 
   startCourseLessonRosterManage() {
     const ctx = this._eduCourseLessonsContext;
-    if (!ctx || ctx.mode !== 'roster' || !ctx.isStaff) return;
+    if (!ctx || ctx.mode !== 'roster' || !this._canUseCourseLessonRosterManage(ctx)) return;
     ctx.manageMode = true;
     ctx.draftByStudentId = { ...(ctx.attendanceByStudentId || {}) };
     this._renderCourseLessonRosterFromContext();
@@ -204,7 +236,7 @@ Object.assign(App, {
 
   setCourseLessonRosterDraft(studentId, kind) {
     const ctx = this._eduCourseLessonsContext;
-    if (!ctx || ctx.mode !== 'roster' || !ctx.isStaff || !ctx.manageMode) return;
+    if (!ctx || ctx.mode !== 'roster' || !this._canUseCourseLessonRosterManage(ctx) || !ctx.manageMode) return;
     const key = String(studentId || '').trim();
     if (!key) return;
     const normalized = kind === 'leave' ? 'leave' : kind === 'signin' ? 'signin' : null;
@@ -214,7 +246,7 @@ Object.assign(App, {
 
   async saveCourseLessonRosterManage(button) {
     const ctx = this._eduCourseLessonsContext;
-    if (!ctx || ctx.mode !== 'roster' || !ctx.isStaff || !ctx.manageMode) return;
+    if (!ctx || ctx.mode !== 'roster' || !this._canUseCourseLessonRosterManage(ctx) || !ctx.manageMode) return;
     const students = Array.isArray(ctx.rosterPayload?.students) ? ctx.rosterPayload.students : [];
     const original = ctx.attendanceByStudentId || {};
     const draft = ctx.draftByStudentId || {};
@@ -418,6 +450,7 @@ Object.assign(App, {
     }
 
     const isStaff = this.isEduClubStaff?.(teamId) === true;
+    const canManageRoster = isStaff || this._canManageCourseLessonRoster(teamId, plan) || rosterPayload?.canManageRoster === true;
     const paymentRequired = typeof this._isEduCoursePaymentRequired === 'function'
       ? this._isEduCoursePaymentRequired(plan)
       : (() => {
@@ -449,7 +482,7 @@ Object.assign(App, {
       }
     }
 
-    if (rosterPayload && rosterPayload.rosterPublic === false && !isStaff) {
+    if (rosterPayload && rosterPayload.rosterPublic === false && !canManageRoster) {
       container.innerHTML = '<div class="edu-course-lessons-empty"><strong>名單未公開</strong><span>此課堂名單目前僅職員可查看。</span></div>';
       return { ok: true, closed: true };
     }
@@ -460,6 +493,7 @@ Object.assign(App, {
       sessionId,
       mode: 'roster',
       isStaff,
+      canManageRoster,
       rosterPayload,
       notesByStudentId,
       enrollIdsByStudentId,

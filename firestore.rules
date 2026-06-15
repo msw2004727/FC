@@ -2223,8 +2223,23 @@ service cloud.firestore {
         return hasNonEmptyStringInMap(data, 'teamId')
           && (
             isCurrentUserTeamStaff(data.teamId)
+            || isEduCourseRosterAgent(data)
             || isSuperAdmin()
             || hasPerm('team.manage_all')
+          );
+      }
+
+      function isEduCourseRosterAgent(data) {
+        let planPath = /databases/$(database)/documents/teams/$(data.teamId)/coursePlans/$(data.coursePlanId);
+        return isAuth()
+          && hasNonEmptyStringInMap(data, 'teamId')
+          && hasNonEmptyStringInMap(data, 'coursePlanId')
+          && exists(planPath)
+          && (
+            get(planPath).data.rosterAgentUid == request.auth.uid
+            || get(planPath).data.responsibleAgentUid == request.auth.uid
+            || (get(planPath).data.rosterAgentUids is list && request.auth.uid in get(planPath).data.rosterAgentUids)
+            || (get(planPath).data.responsibleAgentUids is list && request.auth.uid in get(planPath).data.responsibleAgentUids)
           );
       }
 

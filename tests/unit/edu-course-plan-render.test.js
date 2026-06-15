@@ -1361,6 +1361,8 @@ describe('edu course plan render', () => {
         maxAge: 12,
         genderRestriction: 'female',
         featured: true,
+        rosterAgentUid: 'uidAgent',
+        rosterAgentName: 'Agent User',
       },
       planId: 'planA',
       groupOptions: '<option value="groupA" selected>Group A</option>',
@@ -1407,6 +1409,12 @@ describe('edu course plan render', () => {
     expect(container.innerHTML).toContain('Makeup policy');
     expect(container.innerHTML).toContain('id="edu-cp-description"');
     expect(container.innerHTML).toContain('edu-cp-featured-icon');
+    expect(container.innerHTML).toContain('edu-cp-featured-card');
+    expect(container.innerHTML).toContain('開啟後可出現在俱樂部總覽');
+    expect(container.innerHTML).toContain('id="edu-cp-roster-agent-name"');
+    expect(container.innerHTML).toContain('value="Agent User"');
+    expect(container.innerHTML).toContain('id="edu-cp-roster-agent-uid" value="uidAgent"');
+    expect(container.innerHTML).toContain("App.searchCoursePlanStaff('agent')");
     expect(container.innerHTML).toContain('★');
     expect(container.innerHTML).toContain('id="edu-cp-manager-suggest"');
     expect(container.innerHTML).toContain("App.searchCoursePlanStaff('manager')");
@@ -1496,6 +1504,57 @@ describe('edu course plan render', () => {
     expect(suggest.classList.add).toHaveBeenCalledWith('show');
   });
 
+  test('course plan roster agent search accepts any cached user and stores uid on select', () => {
+    const suggest = { innerHTML: '', classList: { add: jest.fn(), remove: jest.fn() } };
+    const agentInput = { value: 'proxy' };
+    const agentUid = { value: '' };
+    const elements = {
+      'edu-cp-roster-agent-name': agentInput,
+      'edu-cp-roster-agent-uid': agentUid,
+      'edu-cp-agent-suggest': suggest,
+    };
+    const app = {
+      _eduCoursePlanEditTeamId: 'teamA',
+    };
+    const context = {
+      App: app,
+      ApiService: {
+        getAdminUsers: jest.fn(() => [{
+          uid: 'uidAgent',
+          displayName: 'Agent User',
+          nickname: 'proxy helper',
+          role: 'user',
+        }]),
+        getCurrentUser: jest.fn(() => null),
+      },
+      document: { getElementById: jest.fn((id) => elements[id] || null) },
+      escapeHTML,
+      console,
+      Object,
+      String,
+      Array,
+      Date,
+      Map,
+      Set,
+      encodeURIComponent,
+      decodeURIComponent,
+    };
+    vm.runInNewContext(crudSource, context, { filename: 'edu-course-plan.js' });
+    context.App._eduCoursePlanEditTeamId = 'teamA';
+
+    context.App.searchCoursePlanStaff('agent');
+
+    expect(suggest.innerHTML).toContain('Agent User');
+    expect(suggest.innerHTML).toContain('user');
+    expect(suggest.classList.add).toHaveBeenCalledWith('show');
+
+    context.App.selectCoursePlanStaff('agent', encodeURIComponent('uid:uidAgent'));
+
+    expect(agentInput.value).toBe('Agent User');
+    expect(agentUid.value).toBe('uidAgent');
+    expect(suggest.classList.remove).toHaveBeenCalledWith('show');
+  });
+
   test('course plan templates save reusable fields but omit date fields', () => {
     const elements = {
       'edu-cp-group': { value: 'groupA', selectedOptions: [{ dataset: { name: 'Group A' } }] },
@@ -1514,6 +1573,8 @@ describe('edu course plan render', () => {
       'edu-cp-signup-deadline': { value: '2099-01-10' },
       'edu-cp-manager-name': { value: 'Manager A' },
       'edu-cp-manager-contact': { value: 'line@example' },
+      'edu-cp-roster-agent-uid': { value: 'uidAgent' },
+      'edu-cp-roster-agent-name': { value: 'Agent User' },
       'edu-cp-notify-targets': { value: 'Ops team' },
       'edu-cp-coach-name': { value: 'Coach A' },
       'edu-cp-location': { value: 'Center A' },
@@ -1569,6 +1630,8 @@ describe('edu course plan render', () => {
     expect(tpl.name).toBe('常用堂數班');
     expect(tpl.planName).toBe('春季班');
     expect(tpl.paymentMethod).toBe('轉帳 台新 123');
+    expect(tpl.rosterAgentUid).toBe('uidAgent');
+    expect(tpl.rosterAgentName).toBe('Agent User');
     expect(tpl.sessionSchedules).toEqual([
       { date: '', startTime: '18:00', endTime: '19:00' },
       { date: '', startTime: '20:00', endTime: '21:30' },
@@ -1654,6 +1717,8 @@ describe('edu course plan render', () => {
       'edu-cp-location': { value: 'Center A' },
       'edu-cp-manager-name': { value: 'Manager A' },
       'edu-cp-manager-contact': { value: 'line@example' },
+      'edu-cp-roster-agent-uid': { value: 'uidAgent' },
+      'edu-cp-roster-agent-name': { value: 'Agent User' },
       'edu-cp-notify-targets': { value: 'Ops team' },
       'edu-cp-course-content': { value: 'Safe course content' },
       'edu-cp-payment-method-type': { value: 'LINE Pay' },
@@ -1723,6 +1788,9 @@ describe('edu course plan render', () => {
     expect(savedPayload.location).toBe('Center A');
     expect(savedPayload.managerName).toBe('Manager A');
     expect(savedPayload.managerContact).toBe('line@example');
+    expect(savedPayload.rosterAgentUid).toBe('uidAgent');
+    expect(savedPayload.rosterAgentName).toBe('Agent User');
+    expect(savedPayload.rosterAgentUids).toEqual(['uidAgent']);
     expect(savedPayload.notifyTargets).toBe('Ops team');
     expect(savedPayload.courseContent).toBe('Safe course content');
     expect(savedPayload.paymentMethod).toBe('LINE Pay 付款連結');
@@ -1759,6 +1827,8 @@ describe('edu course plan render', () => {
       'edu-cp-signup-deadline': { value: '' },
       'edu-cp-manager-name': { value: '' },
       'edu-cp-manager-contact': { value: '' },
+      'edu-cp-roster-agent-uid': { value: '' },
+      'edu-cp-roster-agent-name': { value: '' },
       'edu-cp-coach-name': { value: 'Coach A' },
       'edu-cp-location': { value: 'Center A' },
       'edu-cp-course-content': { value: '' },
@@ -1844,6 +1914,8 @@ describe('edu course plan render', () => {
       'edu-cp-signup-deadline': { value: '' },
       'edu-cp-manager-name': { value: '' },
       'edu-cp-manager-contact': { value: '' },
+      'edu-cp-roster-agent-uid': { value: '' },
+      'edu-cp-roster-agent-name': { value: '' },
       'edu-cp-coach-name': { value: '' },
       'edu-cp-location': { value: '' },
       'edu-cp-course-content': { value: '' },

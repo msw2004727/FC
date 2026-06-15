@@ -107,7 +107,8 @@ Object.assign(App, {
     const jsTeamId = this._eduCourseLessonsJsArg(context.teamId);
     const jsPlanId = this._eduCourseLessonsJsArg(context.planId);
     const status = this._getCourseLessonStatusMeta(session);
-    const manageMode = context.isStaff === true && context.manageMode === true;
+    const canManageRoster = context.isStaff === true || context.canManageRoster === true;
+    const manageMode = canManageRoster && context.manageMode === true;
     const paidByStudentId = context.paidByStudentId && typeof context.paidByStudentId === 'object'
       ? context.paidByStudentId
       : null;
@@ -138,7 +139,7 @@ Object.assign(App, {
       const signinId = 'edu-roster-signin-' + index;
       const leaveId = 'edu-roster-leave-' + index;
       const statusHtml = '<span class="edu-course-roster-status edu-course-roster-status-' + escapeHTML(attendance.cls) + '">' + escapeHTML(attendance.label) + '</span>';
-      const selfLeaveActionHtml = (!context.isStaff && student.canSelfLeave === true)
+      const selfLeaveActionHtml = (!context.isStaff && !canManageRoster && student.canSelfLeave === true)
         ? '<div class="edu-course-roster-self-actions">'
           + statusHtml
           + '<button type="button" class="outline-btn small edu-roster-self-leave-btn" onclick="return App.showCourseLessonSelfLeaveDialog(\'' + safeStudentId + '\',\'' + (draftKind === 'leave' ? '' : 'leave') + '\',this)">'
@@ -202,7 +203,7 @@ Object.assign(App, {
       ? renderRosterSection('本堂名單', paidStudents, paidRows, 'main', students.length ? '' : emptyRosterHtml)
         + renderRosterSection('未繳費區', unpaidStudents, unpaidRows, 'unpaid')
       : '<div class="edu-course-roster-list">' + (paidRows || emptyRosterHtml) + '</div>';
-    const staffActions = context.isStaff
+    const staffActions = canManageRoster
       ? (manageMode
         ? '<div class="edu-course-roster-head-actions"><button type="button" class="outline-btn small" onclick="App.cancelCourseLessonRosterManage()">取消</button><button type="button" class="primary-btn small" onclick="return App.saveCourseLessonRosterManage(this)">完成</button></div>'
         : '<button type="button" class="primary-btn small" onclick="App.startCourseLessonRosterManage()">管理名單</button>')

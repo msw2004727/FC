@@ -28,6 +28,12 @@ Object.assign(App, {
     const paymentMethodHtml = typeof this._buildCoursePlanPaymentMethodField === 'function'
       ? this._buildCoursePlanPaymentMethodField(plan?.paymentMethod || '')
       : '<textarea id="edu-cp-payment-method" maxlength="300" rows="2" placeholder="例如 轉帳、現金、LINE Pay，請填寫付款資訊與備註">' + valueOf('paymentMethod') + '</textarea>';
+    const rosterAgentUid = escapeHTML(plan?.rosterAgentUid || (Array.isArray(plan?.rosterAgentUids) ? plan.rosterAgentUids[0] : '') || '');
+    const rosterAgentName = escapeHTML(plan?.rosterAgentName || plan?.responsibleAgentName || '');
+    const featuredControlHtml = '<div class="ce-row edu-cp-extra-featured edu-cp-featured-card">'
+      + '<div class="edu-cp-featured-copy"><span class="edu-cp-featured-icon">★</span><div><label for="edu-cp-featured">精選顯示</label><small>開啟後可出現在俱樂部總覽的精選/熱門課程位置，仍會受公開顯示設定影響。</small></div></div>'
+      + '<label class="edu-cp-featured-switch" aria-label="精選顯示"><input type="checkbox" id="edu-cp-featured"' + (plan?.featured ? ' checked' : '') + '><span></span></label>'
+      + '</div>';
     const normalizeSchedules = typeof this._normalizeCoursePlanSessionSchedules === 'function'
       ? (value) => this._normalizeCoursePlanSessionSchedules(value)
       : (value) => (Array.isArray(value) ? value : []).map(item => ({
@@ -79,6 +85,7 @@ Object.assign(App, {
           row('容納上限', '<input type="number" id="edu-cp-capacity" min="1" max="999" placeholder="不填則不限人數" value="' + numericValue('maxCapacity') + '">' + hint('不填則不限制報名人數')) +
           row('課程價格（元）', '<input type="number" id="edu-cp-price" min="0" placeholder="選填，僅供顯示" value="' + numericValue('price') + '">' + hint('僅供顯示與繳費記錄，不含線上付款功能')) +
         '</div>' +
+        row('負責代理人', '<div class="edu-session-staff-field edu-cp-staff-field edu-cp-agent-field"><input type="text" id="edu-cp-roster-agent-name" maxlength="30" placeholder="搜尋任一用戶，授權管理課堂名單" value="' + rosterAgentName + '" oninput="App.clearCoursePlanRosterAgentSelection();App.searchCoursePlanStaff(\'agent\')" onfocus="App.searchCoursePlanStaff(\'agent\')"><input type="hidden" id="edu-cp-roster-agent-uid" value="' + rosterAgentUid + '"><div id="edu-cp-agent-suggest" class="team-user-suggest edu-session-staff-suggest"></div></div>' + hint('指定後該用戶可使用本課程每堂課的「管理名單」，不會取得課程編輯或刪除權限。'), 'edu-cp-roster-agent-row') +
         '<div class="edu-cp-toggle-row">' +
           '<div><label>開放學員報名</label><small>開啟後學員可在俱樂部頁面自助報名此方案</small></div>' +
           '<label class="toggle-switch"><input type="checkbox" id="edu-cp-signup"' + (plan?.allowSignup ? ' checked' : '') + '><span class="toggle-slider"></span></label>' +
@@ -97,7 +104,7 @@ Object.assign(App, {
           row('課程分類', '<input type="text" id="edu-cp-category-tags" maxlength="80" placeholder="例：固定課, 入門" value="' + escapeHTML(tagsValue ? tagsValue('categoryTags') : '') + '">') +
           row('程度標籤', '<input type="text" id="edu-cp-level-label" maxlength="20" placeholder="例：純新手or會傳接球" value="' + (fieldValue ? fieldValue('levelLabel') : '') + '">') +
           row('課程亮點', '<input type="text" id="edu-cp-feature-tags" maxlength="120" placeholder="例：小班制, 專項訓練" value="' + escapeHTML(tagsValue ? tagsValue('featureTags') : '') + '">') +
-          '<div class="ce-row edu-cp-extra-featured"><label><span class="edu-cp-featured-icon">★</span>精選顯示</label><label class="toggle-switch"><input type="checkbox" id="edu-cp-featured"' + (plan?.featured ? ' checked' : '') + '><span class="toggle-slider"></span></label></div>' +
+          featuredControlHtml +
         '</div>' +
       '</details>' +
 

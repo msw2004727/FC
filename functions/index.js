@@ -842,6 +842,25 @@ function isTeamStaffForData(team, uid) {
     || coachUids.includes(safeUid);
 }
 
+function getEduCourseRosterAgentUids(plan = {}) {
+  const uids = new Set();
+  const addUid = (value) => {
+    const safeUid = sanitizeStr(value, 128);
+    if (safeUid) uids.add(safeUid);
+  };
+  addUid(plan.rosterAgentUid);
+  addUid(plan.responsibleAgentUid);
+  if (Array.isArray(plan.rosterAgentUids)) plan.rosterAgentUids.forEach(addUid);
+  if (Array.isArray(plan.responsibleAgentUids)) plan.responsibleAgentUids.forEach(addUid);
+  return uids;
+}
+
+function isEduCourseRosterAgentForData(plan, uid) {
+  const safeUid = sanitizeStr(uid, 128);
+  if (!safeUid) return false;
+  return getEduCourseRosterAgentUids(plan).has(safeUid);
+}
+
 function addTeamStaffUidsToSet(targetSet, teamData = {}) {
   if (!targetSet || typeof targetSet.add !== "function") return;
   const addUid = (value) => {
@@ -4445,8 +4464,9 @@ exports.listEduCoursePublicRoster = onCall(
     if (!sessionSnap.exists) throw new HttpsError("not-found", "SESSION_NOT_FOUND", { code: "SESSION_NOT_FOUND" });
 
     const plan = { id: planSnap.id, _docId: planSnap.id, ...(planSnap.data() || {}) };
-    if (!isStaff && plan.active === false) throw createEduCourseHttpsError("PLAN_INACTIVE");
-    if (!isStaff && plan.visibleOnTeamPage === false) throw createEduCourseHttpsError("PLAN_HIDDEN");
+    const canManageRoster = isStaff || isEduCourseRosterAgentForData(plan, callerUid);
+    if (!canManageRoster && plan.active === false) throw createEduCourseHttpsError("PLAN_INACTIVE");
+    if (!canManageRoster && plan.visibleOnTeamPage === false) throw createEduCourseHttpsError("PLAN_HIDDEN");
 
     const session = { id: sessionSnap.id, _docId: sessionSnap.id, ...(sessionSnap.data() || {}) };
     const rosterPublic = plan.rosterPublic !== false;
@@ -4461,7 +4481,7 @@ exports.listEduCoursePublicRoster = onCall(
       notes: sanitizeStr(session.notes, 500),
       status: sanitizeStr(session.status, 32) || "scheduled",
     };
-    if (!rosterPublic && !isStaff) {
+    if (!rosterPublic && !canManageRoster) {
       return {
         success: true,
         teamId,
@@ -4469,6 +4489,7 @@ exports.listEduCoursePublicRoster = onCall(
         sessionId,
         rosterPublic,
         isStaff,
+        canManageRoster,
         session: baseSession,
         students: [],
       };
@@ -4560,6 +4581,7 @@ exports.listEduCoursePublicRoster = onCall(
       sessionId,
       rosterPublic,
       isStaff,
+      canManageRoster,
       session: baseSession,
       students: roster,
     };

@@ -87,6 +87,9 @@ function loadCourseLessonsContext(overrides = {}) {
       saveEduCourseSelfLeave: jest.fn(async () => ({ changed: 1 })),
       updateCourseSession: jest.fn(async () => ({ ok: true })),
     },
+    ApiService: {
+      getCurrentUser: jest.fn(() => overrides.currentUser || null),
+    },
     document: {
       getElementById: jest.fn((id) => {
         if (id === 'edu-course-lessons-page') return container;
@@ -499,6 +502,62 @@ describe('edu course lessons', () => {
     await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
 
     expect(container.innerHTML).toContain('名單未公開');
+  });
+
+  test('assigned roster agent can manage a closed lesson roster without staff role', async () => {
+    const { app, container, firebase } = loadCourseLessonsContext({
+      isStaff: false,
+      currentUser: { uid: 'uidAgent', displayName: 'Agent User' },
+      plans: [{
+        id: 'planA',
+        name: 'Agent Plan',
+        planType: 'session',
+        startDate: '2099-06-01',
+        endDate: '2099-08-31',
+        rosterAgentUid: 'uidAgent',
+      }],
+      rosterPayload: {
+        rosterPublic: false,
+        session: {
+          id: 'sessionA',
+          title: 'Session A',
+          date: '2099-06-02',
+          startTime: '10:00',
+          endTime: '11:30',
+          status: 'scheduled',
+        },
+        students: [
+          { studentId: 'stu1', displayName: 'Student A', level: '3', attendanceKind: 'signin' },
+          { studentId: 'stu2', displayName: 'Student B', level: null, attendanceKind: null },
+        ],
+      },
+    });
+
+    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
+
+    expect(container.innerHTML).toContain("App.startCourseLessonRosterManage()");
+    expect(container.innerHTML).not.toContain('edu-course-roster-section-unpaid');
+
+    app.startCourseLessonRosterManage();
+    expect(container.innerHTML).toContain('edu-roster-cb-signin');
+    expect(container.innerHTML).toContain('edu-roster-cb-leave');
+
+    app.setCourseLessonRosterDraft('stu2', 'leave');
+    await app.saveCourseLessonRosterManage({ dataset: {}, disabled: false, style: {}, isConnected: true });
+
+    expect(firebase.saveEduSessionAttendanceChanges).toHaveBeenCalledWith({
+      teamId: 'teamA',
+      planId: 'planA',
+      sessionId: 'sessionA',
+      date: '2099-06-02',
+      changes: [{
+        studentId: 'stu2',
+        studentName: 'Student B',
+        parentUid: null,
+        selfUid: null,
+        kind: 'leave',
+      }],
+    });
   });
 
   test('staff can draft and save lesson attendance changes', async () => {

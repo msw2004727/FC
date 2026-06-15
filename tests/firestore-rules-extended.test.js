@@ -2556,6 +2556,36 @@ describe("/eduAttendance/{recordId}", () => {
     );
   });
 
+  test("create/update: course roster agent can manage assigned course attendance", async () => {
+    await seedPath(["teams", "teamA", "coursePlans", "plan1"], {
+      name: "Agent Managed Plan",
+      rosterAgentUid: "uidB",
+      rosterAgentUids: ["uidB"],
+    });
+    await assertSucceeds(
+      setDoc(doc(memberB(), "eduAttendance", "edu_agent_signin"), {
+        ...attendancePayload,
+        id: "edu_agent_signin",
+      })
+    );
+    await assertFails(
+      setDoc(doc(memberA(), "eduAttendance", "edu_non_agent_signin"), {
+        ...attendancePayload,
+        id: "edu_non_agent_signin",
+      })
+    );
+
+    await seedDoc("eduAttendance", "edu_agent_update", {
+      ...attendancePayload,
+      id: "edu_agent_update",
+    });
+    await assertSucceeds(
+      updateDoc(doc(memberB(), "eduAttendance", "edu_agent_update"), {
+        status: "removed",
+      })
+    );
+  });
+
   test("create: owner can create own leave but not own signin", async () => {
     await seedAttendanceOwnerStudent();
     await assertFails(

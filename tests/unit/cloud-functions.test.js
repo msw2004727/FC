@@ -487,8 +487,24 @@ describe('education course enrollment callable source contracts', () => {
     expect(source).toContain('selfUid: canSelfLeave ? selfUid || null : null');
     expect(source).toContain('parentUid: canSelfLeave ? parentUid || null : null');
     expect(source).toContain('rosterPublic');
+    expect(source).toContain('const canManageRoster = isStaff || isEduCourseRosterAgentForData(plan, callerUid)');
+    expect(source).toContain('!canManageRoster && plan.visibleOnTeamPage === false');
+    expect(source).toContain('!rosterPublic && !canManageRoster');
+    expect(source).toContain('canManageRoster,');
     expect(source).not.toContain('serializeCourseEnrollment');
     expect(source).not.toContain('planRef.collection("enrollments").get()');
+  });
+
+  test('course roster agent helper accepts singular and list fields', () => {
+    const source = readSourceBetween(
+      'function getEduCourseRosterAgentUids',
+      'function addTeamStaffUidsToSet'
+    );
+    expect(source).toContain('plan.rosterAgentUid');
+    expect(source).toContain('plan.responsibleAgentUid');
+    expect(source).toContain('Array.isArray(plan.rosterAgentUids)');
+    expect(source).toContain('Array.isArray(plan.responsibleAgentUids)');
+    expect(source).toContain('function isEduCourseRosterAgentForData');
   });
 
   test('self leave callable validates owner and roster membership before writing attendance', () => {
