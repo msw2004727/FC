@@ -65,7 +65,7 @@ describe('tournament bracket UI', () => {
     expect(html).toContain('第 4/4 場');
   });
 
-  test('renders draft score without resolving a winner before completion', () => {
+  test('renders draft score as live update without resolving a winner before completion', () => {
     const App = buildCompetitionApp();
     const match = App._buildTournamentMatchRecord({
       id: 'm_draft',
@@ -86,10 +86,46 @@ describe('tournament bracket UI', () => {
     );
 
     expect(App._getTournamentMatchWinnerTeamId(match)).toBe('');
-    expect(html).toContain('tc-match-scheduled');
-    expect(html).toContain('tc-match-status-scheduled');
+    expect(html).toContain('tc-match-live');
+    expect(html).toContain('tc-match-status-live');
     expect(html).toContain('2 : 1');
     expect(html).not.toContain('tc-winner');
+  });
+
+  test('renders scrollable schedule summary with teams, time, and score', () => {
+    const App = buildCompetitionApp();
+    const matches = [
+      App._buildTournamentMatchRecord({
+        id: 'm1',
+        stage: 'league',
+        round: 1,
+        slot: 0,
+        status: 'finished',
+        homeTeamId: 'de',
+        awayTeamId: 'cw',
+        scoreHome: 7,
+        scoreAway: 1,
+        scheduledAt: '2026-06-13T10:30',
+        venue: 'Main',
+      }),
+    ];
+    const html = App._renderTournamentCompetitionScheduleHtml({
+      tournament: { id: 'ct_test', friendlyConfig: { mode: 'league' } },
+      entries: [
+        { teamId: 'de', teamName: '德國' },
+        { teamId: 'cw', teamName: '庫拉索' },
+      ],
+      matches,
+    });
+
+    expect(html).toContain('tc-schedule-summary-list');
+    expect(html).toContain('tc-summary-match tc-summary-match-finished');
+    expect(html).toContain('賽程摘要列');
+    expect(html).toContain('德國');
+    expect(html).toContain('庫拉索');
+    expect(html).toContain('2026/06/13 10:30');
+    expect(html).toContain('<b>7</b>');
+    expect(html).toContain('<b>1</b>');
   });
 
   test('closes the schedule manager after bulk save succeeds', async () => {

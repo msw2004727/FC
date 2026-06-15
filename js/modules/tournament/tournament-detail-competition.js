@@ -512,6 +512,85 @@ Object.assign(App, {
       </div>`;
   },
 
+  _renderTournamentScheduleSummaryHtml(tournament, matches, matchesBySlot, nameById, bracketSize, stats = {}) {
+    const rows = (Array.isArray(matches) ? matches : []).map(match => {
+      const home = this._renderTournamentMatchSideLabel(match, 'home', matchesBySlot, nameById);
+      const away = this._renderTournamentMatchSideLabel(match, 'away', matchesBySlot, nameById);
+      const finished = match.status === 'finished';
+      const walkover = match.status === 'walkover';
+      const bye = match.status === 'bye';
+      const eventCount = Array.isArray(match.events) ? match.events.length : 0;
+      const hasScore = match.scoreHome !== null && match.scoreHome !== undefined
+        && match.scoreAway !== null && match.scoreAway !== undefined;
+      const hasDraftScore = !finished && !walkover && !bye && hasScore;
+      const hasDraftWalkover = !finished && !walkover && !bye && !!match.walkoverWinnerTeamId;
+      const isLiveUpdating = !finished && !walkover && !bye && (hasDraftScore || hasDraftWalkover || eventCount > 0);
+      const statusClass = bye ? 'bye' : walkover ? 'walkover' : finished ? 'finished' : isLiveUpdating ? 'live' : 'scheduled';
+      const statusLabel = {
+        bye: '輪空',
+        finished: '已結束',
+        live: '更新中',
+        scheduled: '待開賽',
+        walkover: '棄權',
+      }[statusClass] || '待開賽';
+      const winnerTeamId = this._getTournamentMatchWinnerTeamId(match, matchesBySlot);
+      const dateParts = this._formatTournamentMatchDateParts(match.scheduledAt);
+      const timeLabel = match.scheduledAt ? `${dateParts.date} ${dateParts.time}` : '時間待定';
+      const roundLabel = this._getTournamentRoundLabel(match, bracketSize);
+      const scoreOf = (info, side) => {
+        if (finished || hasDraftScore) return side === 'home' ? (match.scoreHome ?? '-') : (match.scoreAway ?? '-');
+        if (walkover && match.walkoverWinnerTeamId) return match.walkoverWinnerTeamId === info.teamId ? '勝' : '棄';
+        if (hasDraftWalkover && match.walkoverWinnerTeamId) return match.walkoverWinnerTeamId === info.teamId ? '勝' : '待';
+        if (bye && side === 'home') return '晉';
+        return '-';
+      };
+      const teamRow = (info, side) => {
+        const isWinner = !!winnerTeamId && !!info.teamId && winnerTeamId === info.teamId;
+        return `<div class="tc-summary-team tc-summary-team-${side}${isWinner ? ' is-winner' : ''}${info.pending ? ' tc-pending' : ''}">
+          <i aria-hidden="true"></i>
+          <span title="${escapeHTML(info.label)}">${escapeHTML(info.label)}</span>
+          <b>${escapeHTML(scoreOf(info, side))}</b>
+        </div>`;
+      };
+      return `<button type="button" class="tc-summary-match tc-summary-match-${statusClass}" onclick="App.openTournamentMatchDetailModal('${escapeHTML(tournament.id)}','${escapeHTML(match.id)}')">
+        <div class="tc-summary-match-head">
+          <span>${escapeHTML(roundLabel)}</span>
+          <time datetime="${escapeHTML(dateParts.iso || '')}">${escapeHTML(timeLabel)}</time>
+        </div>
+        <div class="tc-summary-scoreboard">
+          ${teamRow(home, 'home')}
+          ${away.label || !bye ? teamRow(away, 'away') : ''}
+        </div>
+        <div class="tc-summary-match-foot">
+          <span class="tc-summary-status tc-summary-status-${statusClass}">${escapeHTML(statusLabel)}</span>
+          ${eventCount ? `<span>${eventCount} 個事件</span>` : ''}
+        </div>
+      </button>`;
+    }).join('');
+    const total = Number(stats.total || matches?.length || 0);
+    const finished = Number(stats.finished || 0);
+    const scheduled = Number(stats.scheduled || 0);
+    const venue = Number(stats.venue || 0);
+    return `<div class="tc-schedule-summary-head">
+        <div>
+          <strong>賽程摘要列</strong>
+          <span>兩隊、時間與比分</span>
+        </div>
+        <div class="tc-summary-totals" aria-label="摘要統計">
+          <b>${finished}/${total}</b>
+          <span>完成</span>
+        </div>
+      </div>
+      <div class="tc-summary-meta">
+        <span>${escapeHTML(String(total))} 場</span>
+        <span>${escapeHTML(String(scheduled))} 有時間</span>
+        <span>${escapeHTML(String(venue))} 有場地</span>
+      </div>
+      <div class="tc-schedule-summary-list" tabindex="0" aria-label="可上下滑動的賽程摘要">
+        ${rows}
+      </div>`;
+  },
+
   _renderTournamentCompetitionScheduleHtml(state) {
     const tournament = state.tournament;
     const matches = state.matches || [];
@@ -558,10 +637,12 @@ Object.assign(App, {
           <p>依輪次整理場次、比分、時間、場地與裁判資訊。</p>
         </div>
         <div class="tc-schedule-stats" aria-label="賽程摘要">
-          <span><b>${matches.length}</b>總場次</span>
-          <span><b>${finishedCount}</b>已結束</span>
-          <span><b>${scheduledCount}</b>有時間</span>
-          <span><b>${venueCount}</b>有場地</span>
+          ${this._renderTournamentScheduleSummaryHtml(tournament, orderedMatches, matchesBySlot, nameById, bracketSize, {
+            total: matches.length,
+            finished: finishedCount,
+            scheduled: scheduledCount,
+            venue: venueCount,
+          })}
         </div>
       </div>`;
     if (mode === 'cup' && cupMatches.length > 0) {
