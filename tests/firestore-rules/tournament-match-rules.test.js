@@ -54,6 +54,7 @@ const baseMatch = {
 const scorePatch = {
   status: "finished", scoreHome: 2, scoreAway: 1,
   events: [{ type: "goal", teamId: "tm_x", uid: "player_1", name: "球員一", minute: 10 }],
+  liveUrl: "https://www.youtube.com/watch?v=match001",
   recordedByUid: "x", recordedByName: "x", recordedAt: "2026-06-12T10:00:00.000Z",
   updatedAt: "2026-06-12T10:00:00.000Z",
 };
@@ -162,7 +163,7 @@ describe("matches 比分記錄（裁判）", () => {
   test("棄權判定（walkover）欄位裁判可寫", async () => {
     const woPatch = {
       status: "walkover", walkoverWinnerTeamId: "tm_x",
-      scoreHome: null, scoreAway: null, events: [],
+      scoreHome: null, scoreAway: null, events: [], liveUrl: "https://www.youtube.com/watch?v=walkover001",
       recordedByUid: "x", recordedByName: "x", recordedAt: "t", updatedAt: "t",
     };
     await assertSucceeds(updateDoc(doc(ctx(REFEREE_HEAD_UID), "tournaments", TOURNAMENT_ID, "matches", MATCH_OPEN_ID), woPatch));

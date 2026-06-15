@@ -347,6 +347,8 @@ describe('比賽記錄資料形狀', () => {
         { type: 'goal' },
       ],
       refereeUids: ['u1', '', null],
+      liveUrl: '  https://www.youtube.com/watch?v=test-live  ',
+      recordedAt: '  2026-06-15T08:00:00.000Z  ',
       status: 'weird',
     });
     expect(m.stage).toBe('league');
@@ -357,6 +359,8 @@ describe('比賽記錄資料形狀', () => {
     expect(m.seriesKey).toBe('r1m0');
     expect(m.seriesGame).toBe(2);
     expect(m.seriesTotal).toBe(3);
+    expect(m.liveUrl).toBe('https://www.youtube.com/watch?v=test-live');
+    expect(m.recordedAt).toBe('2026-06-15T08:00:00.000Z');
     expect(m.events).toHaveLength(4);
     expect(m.events[0].minute).toBe(15);
     expect(m.events[1]).toMatchObject({ type: 'yellow', teamId: 't2', uid: 'u2', name: 'Card Player', note: 'late tackle' });

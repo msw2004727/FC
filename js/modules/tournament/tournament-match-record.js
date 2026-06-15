@@ -18,7 +18,7 @@ Object.assign(App, {
     overlay.innerHTML = `
       <div class="modal tc-record-modal" id="tournament-match-record-modal">
         <div class="modal-header">
-          <h3 id="tmr-title">記錄比賽結果</h3>
+          <h3 id="tmr-title">更新賽況</h3>
           <button class="modal-close" type="button" data-action="close">✕</button>
         </div>
         <div class="modal-body" id="tmr-body"></div>
@@ -77,6 +77,7 @@ Object.assign(App, {
       homeTeam: homeTeam || {},
       awayTeam: awayTeam || {},
       events: (match.events || []).map(ev => ({ ...ev })),
+      liveUrl: String(match.liveUrl || '').trim(),
       isCup: match.stage !== 'league',
     };
     const overlay = this._ensureTournamentMatchRecordModal();
@@ -160,8 +161,13 @@ Object.assign(App, {
     const match = recordState?.match || {};
     const doc = typeof document !== 'undefined' ? document : null;
     const resultType = doc?.querySelector?.('input[name="tmr-result-type"]:checked')?.value
-      || (match.status === 'walkover' ? 'walkover' : 'finished');
+      || (match.status === 'walkover' ? 'walkover' : match.status === 'finished' ? 'finished' : 'scheduled');
     if (resultType === 'walkover') return '棄賽判定';
+    if (resultType === 'scheduled') {
+      const domHome = doc?.getElementById?.('tmr-score-home')?.value;
+      const domAway = doc?.getElementById?.('tmr-score-away')?.value;
+      if (!domHome && !domAway && match.scoreHome == null && match.scoreAway == null) return '即時更新';
+    }
     const domHome = doc?.getElementById?.('tmr-score-home')?.value;
     const domAway = doc?.getElementById?.('tmr-score-away')?.value;
     const home = domHome !== undefined && domHome !== null && domHome !== '' ? domHome : match.scoreHome;
@@ -173,10 +179,10 @@ Object.assign(App, {
   _getTournamentMatchBriefingStatusText(recordState = this._tournamentMatchRecordState) {
     const match = recordState?.match || {};
     const doc = typeof document !== 'undefined' ? document : null;
-    const completedInput = doc?.getElementById?.('tmr-result-completed');
-    const completed = completedInput ? completedInput.checked === true : (match.status === 'finished' || match.status === 'walkover');
-    if (match.status === 'walkover') return completed ? '棄賽完賽' : '棄賽草稿';
-    return completed ? '已完賽' : '暫存結果';
+    const resultType = doc?.querySelector?.('input[name="tmr-result-type"]:checked')?.value
+      || (match.status === 'walkover' ? 'walkover' : match.status === 'finished' ? 'finished' : 'scheduled');
+    if (resultType === 'walkover') return '棄賽完賽';
+    return resultType === 'finished' ? '已完賽' : '即時更新中';
   },
 
   _getTournamentMatchBriefingRoster(teamId, recordState = this._tournamentMatchRecordState) {
@@ -454,16 +460,23 @@ Object.assign(App, {
     if (!recordState || !body || !actions) return;
     const config = this._getTournamentCompetitionConfig?.(tournament) || {};
     const isWalkover = match.status === 'walkover';
-    const isCompleted = match.status === 'finished' || match.status === 'walkover';
+    const isFinished = match.status === 'finished';
     const walkoverScoreText = `${config.walkoverWinScore}:${config.walkoverLoseScore}`;
-    if (title) title.textContent = `${recordState.homeName} vs ${recordState.awayName}`;
+    if (title) title.textContent = `更新賽況：${recordState.homeName} vs ${recordState.awayName}`;
     body.innerHTML = `
       <div class="tmr-result-switch" role="radiogroup" aria-label="結果類型">
         <label class="tmr-result-card">
-          <input type="radio" name="tmr-result-type" value="finished" onchange="App._syncTournamentMatchRecordResultType()" ${!isWalkover ? 'checked' : ''}>
+          <input type="radio" name="tmr-result-type" value="scheduled" onchange="App._syncTournamentMatchRecordResultType()" ${!isWalkover && !isFinished ? 'checked' : ''}>
           <span class="tmr-result-card-copy">
-            <strong>一般比分</strong>
-            <small>輸入比分，可補上事件與牌卡原因</small>
+            <strong>即時更新</strong>
+            <small>更新比分、事件或直播，不計入積分榜</small>
+          </span>
+        </label>
+        <label class="tmr-result-card">
+          <input type="radio" name="tmr-result-type" value="finished" onchange="App._syncTournamentMatchRecordResultType()" ${isFinished ? 'checked' : ''}>
+          <span class="tmr-result-card-copy">
+            <strong>正常完賽</strong>
+            <small>儲存後計入積分榜與淘汰賽晉級</small>
           </span>
         </label>
         <label class="tmr-result-card">
@@ -474,13 +487,13 @@ Object.assign(App, {
           </span>
         </label>
       </div>
-      <label class="tmr-complete-toggle">
-        <input type="checkbox" id="tmr-result-completed" ${isCompleted ? 'checked' : ''}>
-        <span>
-          <strong>已完賽</strong>
-          <small>開啟後儲存才會計入完賽、積分榜與淘汰賽晉級；未開啟只會暫存目前結果。</small>
-        </span>
-      </label>
+      <div class="tmr-live-card">
+        <div class="tmr-section-head">
+          <strong>直播網址</strong>
+          <small>YouTube / Twitch 可嵌入，其他網址會提供外開連結</small>
+        </div>
+        <input type="url" id="tmr-live-url" inputmode="url" placeholder="https://www.youtube.com/watch?v=..." value="${escapeHTML(recordState.liveUrl || '')}">
+      </div>
       <div id="tmr-score-section" class="tmr-score-card">
         <div class="tmr-section-head">
           <strong>比分</strong>
@@ -489,12 +502,12 @@ Object.assign(App, {
         <div class="tc-score-grid tmr-score-grid">
           <div class="tc-score-side">
             <div class="tc-score-team">${escapeHTML(recordState.homeName)}</div>
-            <input type="number" id="tmr-score-home" min="0" max="99" inputmode="numeric" value="${Number.isFinite(Number(match.scoreHome)) && match.scoreHome !== null ? match.scoreHome : 0}">
+            <input type="number" id="tmr-score-home" min="0" max="99" inputmode="numeric" value="${Number.isFinite(Number(match.scoreHome)) && match.scoreHome !== null ? match.scoreHome : ''}" placeholder="0">
           </div>
           <div class="tc-score-divider">:</div>
           <div class="tc-score-side">
             <div class="tc-score-team">${escapeHTML(recordState.awayName)}</div>
-            <input type="number" id="tmr-score-away" min="0" max="99" inputmode="numeric" value="${Number.isFinite(Number(match.scoreAway)) && match.scoreAway !== null ? match.scoreAway : 0}">
+            <input type="number" id="tmr-score-away" min="0" max="99" inputmode="numeric" value="${Number.isFinite(Number(match.scoreAway)) && match.scoreAway !== null ? match.scoreAway : ''}" placeholder="0">
           </div>
         </div>
         ${recordState.isCup ? `
@@ -575,7 +588,7 @@ Object.assign(App, {
     actions.innerHTML = `
       ${canClear ? `<button class="outline-btn tc-clear-btn" type="button" onclick="return App.clearTournamentMatchResult(this)">清除結果</button>` : ''}
       <button class="outline-btn" type="button" data-action="close" onclick="App.closeTournamentMatchRecordModal()">取消</button>
-      <button class="primary-btn" type="button" id="tmr-save-btn" onclick="return App.saveTournamentMatchResult(this)">儲存結果</button>`;
+      <button class="primary-btn" type="button" id="tmr-save-btn" onclick="return App.saveTournamentMatchResult(this)">儲存賽況</button>`;
     this._syncTournamentMatchRecordResultType();
     this._syncTournamentMatchRecordPlayers();
     this._syncTournamentMatchRecordEventFields();
@@ -585,7 +598,7 @@ Object.assign(App, {
   _syncTournamentMatchRecordResultType() {
     const type = document.querySelector('input[name="tmr-result-type"]:checked')?.value
       || document.getElementById('tmr-result-type')?.value
-      || 'finished';
+      || 'scheduled';
     const scoreSection = document.getElementById('tmr-score-section');
     const walkoverSection = document.getElementById('tmr-walkover-section');
     if (scoreSection) scoreSection.style.display = type === 'walkover' ? 'none' : '';
@@ -868,24 +881,33 @@ Object.assign(App, {
     if (!recordState) return;
     const type = document.querySelector('input[name="tmr-result-type"]:checked')?.value
       || document.getElementById('tmr-result-type')?.value
-      || 'finished';
-    const isCompleted = document.getElementById('tmr-result-completed')?.checked === true;
+      || 'scheduled';
+    const isCompleted = type === 'finished' || type === 'walkover';
+    const liveUrl = String(document.getElementById('tmr-live-url')?.value || '').trim();
     const user = ApiService.getCurrentUser?.();
     let updates;
     if (type === 'walkover') {
       const loserTeamId = document.getElementById('tmr-walkover-loser')?.value || '';
       const winnerTeamId = loserTeamId === recordState.homeTeamId ? recordState.awayTeamId : recordState.homeTeamId;
       updates = {
-        status: isCompleted ? 'walkover' : 'scheduled', walkoverWinnerTeamId: winnerTeamId,
-        scoreHome: null, scoreAway: null, pkHome: null, pkAway: null, events: [],
+        status: 'walkover', walkoverWinnerTeamId: winnerTeamId,
+        scoreHome: null, scoreAway: null, pkHome: null, pkAway: null, events: [], liveUrl,
       };
     } else {
-      const scoreHome = Math.max(0, Math.floor(Number(document.getElementById('tmr-score-home')?.value) || 0));
-      const scoreAway = Math.max(0, Math.floor(Number(document.getElementById('tmr-score-away')?.value) || 0));
+      const scoreHomeRaw = document.getElementById('tmr-score-home')?.value;
+      const scoreAwayRaw = document.getElementById('tmr-score-away')?.value;
+      const hasHomeScore = scoreHomeRaw !== '' && scoreHomeRaw !== undefined && scoreHomeRaw !== null;
+      const hasAwayScore = scoreAwayRaw !== '' && scoreAwayRaw !== undefined && scoreAwayRaw !== null;
+      const scoreHome = hasHomeScore ? Math.max(0, Math.floor(Number(scoreHomeRaw) || 0)) : null;
+      const scoreAway = hasAwayScore ? Math.max(0, Math.floor(Number(scoreAwayRaw) || 0)) : null;
       const pkHomeRaw = document.getElementById('tmr-pk-home')?.value;
       const pkAwayRaw = document.getElementById('tmr-pk-away')?.value;
       const pkHome = pkHomeRaw !== '' && pkHomeRaw !== undefined ? Math.max(0, Math.floor(Number(pkHomeRaw) || 0)) : null;
       const pkAway = pkAwayRaw !== '' && pkAwayRaw !== undefined ? Math.max(0, Math.floor(Number(pkAwayRaw) || 0)) : null;
+      if (isCompleted && (scoreHome === null || scoreAway === null)) {
+        this.showToast('完賽需要填寫雙方比分');
+        return;
+      }
       if (isCompleted && recordState.isCup && scoreHome === scoreAway) {
         if (pkHome === null || pkAway === null || pkHome === pkAway) {
           this.showToast('淘汰賽平手需填寫 PK 結果（不可同分）');
@@ -893,7 +915,7 @@ Object.assign(App, {
         }
       }
       const goalEvents = recordState.events.filter(ev => ev.type === 'goal' || ev.type === 'own_goal');
-      if (goalEvents.length > 0) {
+      if (isCompleted && goalEvents.length > 0) {
         const homeGoals = recordState.events.filter(ev => (ev.type === 'goal' && ev.teamId === recordState.homeTeamId) || (ev.type === 'own_goal' && ev.teamId === recordState.awayTeamId)).length;
         const awayGoals = recordState.events.filter(ev => (ev.type === 'goal' && ev.teamId === recordState.awayTeamId) || (ev.type === 'own_goal' && ev.teamId === recordState.homeTeamId)).length;
         if ((homeGoals !== scoreHome || awayGoals !== scoreAway)
@@ -902,7 +924,7 @@ Object.assign(App, {
       updates = {
         status: isCompleted ? 'finished' : 'scheduled', scoreHome, scoreAway,
         pkHome: recordState.isCup ? pkHome : null, pkAway: recordState.isCup ? pkAway : null,
-        walkoverWinnerTeamId: '', events: recordState.events,
+        walkoverWinnerTeamId: '', events: recordState.events, liveUrl,
       };
     }
     updates.recordedByUid = user?.uid || '';
@@ -910,13 +932,13 @@ Object.assign(App, {
     updates.recordedAt = new Date().toISOString();
     const save = async () => {
       await ApiService.updateTournamentMatchAwait(recordState.tournamentId, recordState.matchId, updates);
-      ApiService._writeOpLog?.('tourn_score', isCompleted ? '記錄完賽結果' : '暫存比賽結果', `賽事 ${recordState.tournamentId} 比賽 ${recordState.matchId} → ${type === 'walkover' ? '棄權' : `${updates.scoreHome}:${updates.scoreAway}`}`);
+      ApiService._writeOpLog?.('tourn_score', '更新賽況', `賽事 ${recordState.tournamentId} 比賽 ${recordState.matchId} → ${type === 'walkover' ? '棄權' : `${updates.scoreHome ?? '-'}:${updates.scoreAway ?? '-'}`}`);
       this.closeTournamentMatchRecordModal();
       await this._refreshTournamentCompetitionMatches?.(recordState.tournamentId);
       if (document.getElementById('tournament-schedule-overlay')?.classList.contains('open')) {
         this._renderTournamentScheduleManager?.();
       }
-      this.showToast(isCompleted ? '比賽已完賽並儲存' : '比賽結果已暫存');
+      this.showToast('賽況已儲存');
     };
     try {
       if (typeof this._withButtonLoading === 'function') {
@@ -925,7 +947,7 @@ Object.assign(App, {
         await save();
       }
     } catch (err) {
-      this._showTournamentActionError?.('記錄比賽結果', err);
+      this._showTournamentActionError?.('更新賽況', err);
     }
   },
 

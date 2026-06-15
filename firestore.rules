@@ -1863,7 +1863,7 @@ service cloud.firestore {
         function isRefereeScoreOnlyUpdate() {
           return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'status', 'scoreHome', 'scoreAway', 'pkHome', 'pkAway',
-            'walkoverWinnerTeamId', 'events',
+            'walkoverWinnerTeamId', 'events', 'liveUrl',
             'recordedByUid', 'recordedByName', 'recordedAt', 'updatedAt'
           ]);
         }

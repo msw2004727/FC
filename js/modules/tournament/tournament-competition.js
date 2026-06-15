@@ -130,8 +130,10 @@ Object.assign(App, {
       pkAway: num(data.pkAway),
       walkoverWinnerTeamId: String(data.walkoverWinnerTeamId || '').trim(),
       events,
+      liveUrl: String(data.liveUrl || data.streamUrl || '').trim(),
       recordedByUid: String(data.recordedByUid || '').trim(),
       recordedByName: String(data.recordedByName || '').trim(),
+      recordedAt: String(data.recordedAt || '').trim(),
     };
   },
 
