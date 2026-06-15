@@ -923,3 +923,82 @@ describe('getUserAchievementProgressMap (firebase-service.js:1813-1821)', () => 
     expect(map.size).toBe(1);
   });
 });
+
+describe('visibility resume public events refresh', () => {
+  function loadVisibilityHarness(authUser = null) {
+    const { FirebaseService, sandbox } = loadFirebaseServiceWithStorage();
+    sandbox.auth = { currentUser: authUser };
+    sandbox.App = {
+      currentPage: 'page-activities',
+      renderActivityList: jest.fn(),
+      renderMyActivities: jest.fn(),
+    };
+    sandbox.window = { scrollY: 0, pageYOffset: 0 };
+    sandbox.requestAnimationFrame = fn => fn();
+
+    FirebaseService._initialized = true;
+    FirebaseService._visibilityLastEventsRefreshAt = 0;
+    FirebaseService._refreshEventsOnResume = jest.fn();
+    FirebaseService._getRegistrationsVisibilityContext = jest.fn(() => ({
+      uid: authUser?.uid || null,
+      canReadAll: false,
+    }));
+    FirebaseService._replaceCanonicalCollectionCache = jest.fn();
+    FirebaseService._debouncedPersistCache = jest.fn();
+    return { FirebaseService, sandbox };
+  }
+
+  test('guest resume refreshes events without registrations revalidation', () => {
+    const { FirebaseService } = loadVisibilityHarness(null);
+
+    FirebaseService._handleVisibilityResume();
+
+    expect(FirebaseService._refreshEventsOnResume).toHaveBeenCalledTimes(1);
+    expect(FirebaseService._getRegistrationsVisibilityContext).not.toHaveBeenCalled();
+    expect(FirebaseService._registrationsRevalidating).toBe(false);
+  });
+
+  test('guest resume does not restart private auth listeners', () => {
+    const { FirebaseService } = loadVisibilityHarness(null);
+    FirebaseService._listenersSuspended = true;
+    FirebaseService._startUsersListener = jest.fn();
+    FirebaseService._startMessagesListener = jest.fn();
+    FirebaseService._setupIdentityPrivateListener = jest.fn();
+    FirebaseService.ensureCurrentIdentitySettingsLoaded = jest.fn();
+
+    FirebaseService._resumeListeners();
+
+    expect(FirebaseService._listenersSuspended).toBe(false);
+    expect(FirebaseService._startUsersListener).not.toHaveBeenCalled();
+    expect(FirebaseService._startMessagesListener).not.toHaveBeenCalled();
+    expect(FirebaseService._setupIdentityPrivateListener).not.toHaveBeenCalled();
+    expect(FirebaseService.ensureCurrentIdentitySettingsLoaded).not.toHaveBeenCalled();
+  });
+
+  test('event resume refresh is rate limited to sixty seconds', () => {
+    const { FirebaseService } = loadVisibilityHarness(null);
+    FirebaseService._visibilityResumeMinIntervalMs = 60 * 1000;
+    FirebaseService._visibilityLastEventsRefreshAt = 1000;
+
+    expect(FirebaseService._shouldRefreshEventsOnVisibilityResume(60 * 1000)).toBe(false);
+    expect(FirebaseService._shouldRefreshEventsOnVisibilityResume(61 * 1000)).toBe(true);
+  });
+
+  test('authenticated resume still revalidates registrations after events refresh', async () => {
+    const { FirebaseService } = loadVisibilityHarness({ uid: 'user-1' });
+    const getRegistrations = jest.fn(() => Promise.resolve({ docs: [] }));
+    FirebaseService._getRegistrationsListenerQuery = jest.fn(() => ({ get: getRegistrations }));
+
+    FirebaseService._handleVisibilityResume();
+    await Promise.resolve();
+
+    expect(FirebaseService._refreshEventsOnResume).toHaveBeenCalledTimes(1);
+    expect(FirebaseService._getRegistrationsVisibilityContext).toHaveBeenCalledTimes(1);
+    expect(FirebaseService._getRegistrationsListenerQuery).toHaveBeenCalledWith({
+      uid: 'user-1',
+      canReadAll: false,
+    });
+    expect(getRegistrations).toHaveBeenCalledTimes(1);
+    expect(FirebaseService._registrationsRevalidating).toBe(false);
+  });
+});

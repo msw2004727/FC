@@ -234,6 +234,8 @@ const FirebaseService = {
   _LS_TTL_LONG: 7 * 24 * 60 * 60 * 1000, // normal user display cache TTL: 7 days
   _LS_FRESH_TTL: 30 * 60 * 1000, // fresh cache fast path: 30 minutes
   _visibilityRefreshDebounce: null, // visibilitychange 防抖 timer
+  _visibilityResumeMinIntervalMs: 60 * 1000,
+  _visibilityLastEventsRefreshAt: 0,
   _snapshotReconnectAttempts: {},   // onSnapshot 重連計數
   _reconnectTimers: {},             // onSnapshot 重連 setTimeout ID
   _realtimeLimits: null,            // 從 siteConfig/realtimeConfig 讀取，null 表示尚未載入
@@ -4091,12 +4093,13 @@ const FirebaseService = {
   _resumeListeners() {
     if (!this._listenersSuspended) return;
     this._listenersSuspended = false;
-    if (!auth?.currentUser) return;
+    const authUser = (typeof auth !== 'undefined' && auth?.currentUser) ? auth.currentUser : null;
+    if (!authUser) return;
     // 重啟全域 listeners
     this._startUsersListener();
     this._startMessagesListener();
-    this._setupIdentityPrivateListener(auth.currentUser.uid);
-    this.ensureCurrentIdentitySettingsLoaded({ uid: auth.currentUser.uid, force: true, maxAgeMs: 0 })
+    this._setupIdentityPrivateListener(authUser.uid);
+    this.ensureCurrentIdentitySettingsLoaded({ uid: authUser.uid, force: true, maxAgeMs: 0 })
       .catch(err => console.warn('[FirebaseService] identityPrivate/settings resume load failed:', err?.code || err?.message || err));
     // 重啟當前頁面需要的 page-scoped listeners
     if (typeof App !== 'undefined') {
@@ -4131,14 +4134,25 @@ const FirebaseService = {
     });
   },
 
+  _shouldRefreshEventsOnVisibilityResume(now = Date.now()) {
+    const minIntervalMs = Number(this._visibilityResumeMinIntervalMs || 0);
+    if (!minIntervalMs || !this._visibilityLastEventsRefreshAt) return true;
+    return now - this._visibilityLastEventsRefreshAt >= minIntervalMs;
+  },
+
   _handleVisibilityResume() {
-    if (!this._initialized || !auth?.currentUser) return;
+    if (!this._initialized) return;
     console.log('[FirebaseService] 頁面切回，觸發 stale-while-revalidate');
 
-    // ── events 刷新（首頁 + 所有需要活動人數的頁面）──
-    // Safari PWA 凍結/恢復後 onSnapshot 可能已失效（zombie listener），
-    // 一律做一次性查詢確保 event.current / event.waitlist 是最新的
-    this._refreshEventsOnResume();
+    // Public-safe events refresh: guests can recover stale event lists without private listeners.
+    const now = Date.now();
+    if (this._shouldRefreshEventsOnVisibilityResume(now)) {
+      this._visibilityLastEventsRefreshAt = now;
+      this._refreshEventsOnResume();
+    }
+
+    const authUser = (typeof auth !== 'undefined' && auth?.currentUser) ? auth.currentUser : null;
+    if (!authUser) return;
 
     // 如果 registrations listener 存活 → 已有即時同步，不需額外操作
     if (this._pageScopedRealtimeListeners.registrations) return;
@@ -4509,6 +4523,7 @@ const FirebaseService = {
     this._eventsTerminalUnsub = null;
     this._eventsTerminalMode = 'none';
     this._terminalLoadedMode = 'none';
+    this._visibilityLastEventsRefreshAt = 0;
     // RC3：清除 visibilitychange listener + debounce timer
     clearTimeout(this._visibilityRefreshDebounce);
     if (this._visibilityRefreshHandler) {

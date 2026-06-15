@@ -245,7 +245,7 @@ describe('secondary identity profile controls', () => {
     expect(firebaseSource).toContain('ensureCurrentIdentitySettingsLoaded(options = {})');
     expect(firebaseSource).toContain("ref.get({ source: options.source || 'server' })");
     expect(firebaseSource).toContain('_applyIdentityPrivateSettingsSnapshot(snapshot');
-    expect(firebaseSource).toContain('this._setupIdentityPrivateListener(auth.currentUser.uid);');
+    expect(firebaseSource).toContain('this._setupIdentityPrivateListener(authUser.uid);');
     expect(firebaseSource).toContain("identityPrivate/settings resume load failed");
     expect(roleSource).toContain("document.querySelectorAll('[data-permission-code]')");
     expect(roleSource).toContain('this.hasPermission(code, role)');
