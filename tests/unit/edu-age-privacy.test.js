@@ -27,6 +27,6 @@ describe('education age privacy gates', () => {
     expect(attendanceSource).toContain('const isStaff = this.isEduClubStaff?.(teamId) === true;');
     expect(attendanceSource).toContain('const age = isStaff && stu && stu.birthday ? this.calcAge(stu.birthday) : null;');
     expect(sessionSource).toContain('const age = options.isStaff === true && student?.birthday ? this.calcAge(student.birthday) : null;');
-    expect(sessionSource).toContain("if (options.isStaff === true) {\n      fields.splice(1, 0, { cls: 'age'");
+    expect(sessionSource).toMatch(/if \(options\.isStaff === true\) \{\s+fields\.splice\(1, 0, \{ cls: 'age'/);
   });
 });

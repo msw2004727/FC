@@ -56,7 +56,7 @@ describe('activity detail comments source contracts', () => {
   test('activity detail loads comment modules and renders a comments mount point', () => {
     const loader = readProjectFile('js/core/script-loader.js');
     const detail = readProjectFile('js/modules/event/event-detail.js');
-    const navigation = readProjectFile('js/core/navigation.js');
+    const comments = readProjectFile('js/modules/event/event-comments.js');
 
     expect(loader).toContain('js/modules/event/event-comments.js');
     expect(loader).toContain('js/modules/event/event-comments-actions.js');
@@ -70,8 +70,8 @@ describe('activity detail comments source contracts', () => {
     expect(detail).toContain('_renderDetailCommentsLoadFailure');
     expect(detail).toContain('detailRequestSeq: requestSeq');
     expect(detail).toContain('detailRenderToken: renderToken');
-    expect(navigation).toContain('this._eventDetailRequestSeq = (Number(this._eventDetailRequestSeq) || 0) + 1');
-    expect(navigation).toContain('this._eventCommentLoadSeq = (Number(this._eventCommentLoadSeq) || 0) + 1');
+    expect(detail).toContain('const requestSeq = ++this._eventDetailRequestSeq;');
+    expect(comments).toContain('const requestSeq = ++this._eventCommentLoadSeq;');
   });
 
   test('late comments load does not patch DOM after user leaves activity detail', async () => {

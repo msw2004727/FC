@@ -780,7 +780,7 @@ Object.assign(App, {
     const enrollIdsByStudentId = {};
     const tracksPayment = typeof this._shouldTrackCoursePlanPayment === 'function'
       ? this._shouldTrackCoursePlanPayment(plan)
-      : plan?.perSessionBilling !== true;
+      : (plan?.perSessionBilling !== true && Number(plan?.price) > 0);
     let enrollments = [];
     let paidByStudentId = null;
     if (isStaff) {

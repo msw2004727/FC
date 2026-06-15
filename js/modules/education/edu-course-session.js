@@ -930,7 +930,7 @@ Object.assign(App, {
     const paidStatus = enrollment?.paidAt ? '已繳費' : (enrollment ? '未繳' : '—');
     const tracksPayment = typeof this._shouldTrackCoursePlanPayment === 'function'
       ? this._shouldTrackCoursePlanPayment(plan)
-      : plan?.perSessionBilling !== true;
+      : (plan?.perSessionBilling !== true && Number(plan?.price) > 0);
     const fields = [
       { cls: 'gender', label: '性別', value: gender || '—' },
       { cls: 'group', label: '分組', value: group || '未分組' },
@@ -952,7 +952,7 @@ Object.assign(App, {
   _renderCourseSessionRosterHeader(plan) {
     const tracksPayment = typeof this._shouldTrackCoursePlanPayment === 'function'
       ? this._shouldTrackCoursePlanPayment(plan)
-      : plan?.perSessionBilling !== true;
+      : (plan?.perSessionBilling !== true && Number(plan?.price) > 0);
     const labels = ['性別', '年齡', '分組', tracksPayment ? '繳費' : '收費', '剩餘'];
     return '<div class="edu-session-roster-head" aria-hidden="true">'
       + labels.map(label => '<span>' + escapeHTML(label) + '</span>').join('')

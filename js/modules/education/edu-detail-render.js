@@ -124,10 +124,7 @@ Object.assign(App, {
     // ★ Phase 2：背景 fetch + 即時監聽
     this._loadEduStudents(teamId).then(() => {
       if (this._eduDetailTeamId === teamId) {
-        this._refreshEduPendingTabState(teamId);
-        this._refreshEduActiveTabContent(teamId);
-        this._updateEduMineBadge(teamId);
-        this._refreshTeamMembersCardFromCache?.(teamId);
+        this._refreshEduDetailStudentState(teamId);
       }
     });
     this._startEduStudentsListener(teamId);
@@ -166,6 +163,20 @@ Object.assign(App, {
         : this.renderEduCoursePlanList(teamId, this.isEduClubStaff(teamId));
     }
     return undefined;
+  },
+
+  async _refreshEduDetailStudentState(teamId, options = {}) {
+    if (!teamId) return undefined;
+    this._refreshEduPendingTabState?.(teamId);
+    const refreshResult = this._refreshEduActiveTabContent(teamId, options);
+    if (refreshResult && typeof refreshResult.then === 'function') {
+      await refreshResult;
+    }
+    this._updateGroupMemberCounts?.(teamId);
+    this._updateEduMineBadge?.(teamId);
+    this._refreshTeamMembersCardFromCache?.(teamId);
+    this._refreshTeamDetailV2CourseSummaryFromCache?.(teamId);
+    return refreshResult;
   },
 
   _isEduPendingTabStaff(teamId) {
@@ -579,7 +590,7 @@ Object.assign(App, {
         if (!p || p.active === false) continue;
         const tracksPayment = typeof this._shouldTrackCoursePlanPayment === 'function'
           ? this._shouldTrackCoursePlanPayment(p)
-          : p.perSessionBilling !== true;
+          : (p.perSessionBilling !== true && Number(p.price) > 0);
         if (!tracksPayment) continue;
         let inPlan = false;
         let enrollment = null;

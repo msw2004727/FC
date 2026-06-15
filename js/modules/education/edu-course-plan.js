@@ -252,7 +252,7 @@ Object.assign(App, {
   },
 
   _shouldTrackCoursePlanPayment(plan) {
-    return !this._isCoursePlanPerSessionBilling(plan);
+    return !this._isCoursePlanPerSessionBilling(plan) && Number(plan?.price) > 0;
   },
 
   _shouldShowCoursePlanAttendanceStats(plan) {

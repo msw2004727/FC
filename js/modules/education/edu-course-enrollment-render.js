@@ -88,7 +88,7 @@ Object.assign(App, {
     const approved = enrollments.filter(e => e.status === 'approved');
     const tracksPayment = typeof this._shouldTrackCoursePlanPayment === 'function'
       ? this._shouldTrackCoursePlanPayment(plan)
-      : plan?.perSessionBilling !== true;
+      : (plan?.perSessionBilling !== true && Number(plan?.price) > 0);
     const shouldShowAttendanceStats = isStaff && (typeof this._shouldShowCoursePlanAttendanceStats === 'function'
       ? this._shouldShowCoursePlanAttendanceStats(plan)
       : (plan?.perSessionBilling === true || String(plan?.planType || '').trim() === 'weekly'));
@@ -244,7 +244,7 @@ Object.assign(App, {
     var paidHtml = '';
     const tracksPayment = typeof this._shouldTrackCoursePlanPayment === 'function'
       ? this._shouldTrackCoursePlanPayment(plan)
-      : plan?.perSessionBilling !== true;
+      : (plan?.perSessionBilling !== true && Number(plan?.price) > 0);
     if (!tracksPayment) {
       paidHtml = '';
     } else if (e.paidAt) {

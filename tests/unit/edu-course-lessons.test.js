@@ -33,6 +33,7 @@ function loadCourseLessonsContext(overrides = {}) {
     planType: 'session',
     startDate: '2099-06-01',
     endDate: '2099-08-31',
+    price: 1200,
   }];
   const sessions = overrides.sessions || [{
     id: 'sessionA',
@@ -588,6 +589,7 @@ describe('edu course lessons', () => {
         id: 'planA',
         name: 'Weekly Course',
         planType: 'weekly',
+        price: 1200,
       }],
       sessions: [
         { id: 's0', status: 'done', date: '2026-05-01', startTime: '10:00', studentIds: ['stu1', 'stu2'] },

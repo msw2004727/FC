@@ -99,7 +99,7 @@ describe('edu course enrollment render', () => {
       },
       _getCourseEnrollCacheKey: jest.fn((teamId, planId) => teamId + ':' + planId),
       _loadCourseEnrollments: jest.fn(async () => []),
-      getEduCoursePlans: jest.fn(() => [{ id: 'planA', name: 'Plan A', planType: 'weekly' }]),
+      getEduCoursePlans: jest.fn(() => [{ id: 'planA', name: 'Plan A', planType: 'weekly', price: 1200 }]),
       getEduStudents: jest.fn(() => [{ id: 'stuA', name: '小明' }]),
       isEduClubStaff: jest.fn(() => true),
       calcAge: jest.fn(() => null),
@@ -128,7 +128,7 @@ describe('edu course enrollment render', () => {
         { id: 'unpaidA', studentId: 'stuUnpaid', studentName: 'Unpaid Student', status: 'approved', paidAt: null },
         { id: 'paidA', studentId: 'stuPaid', studentName: 'Paid Student', status: 'approved', paidAt: '2099-01-02' },
       ]),
-      getEduCoursePlans: jest.fn(() => [{ id: 'planA', name: 'Plan A', planType: 'weekly' }]),
+      getEduCoursePlans: jest.fn(() => [{ id: 'planA', name: 'Plan A', planType: 'weekly', price: 1200 }]),
       getEduStudents: jest.fn(() => [
         { id: 'stuPending', name: 'Pending Student', birthday: '2015-01-01' },
         { id: 'stuUnpaid', name: 'Unpaid Student', birthday: '2016-01-01' },
@@ -241,6 +241,7 @@ describe('edu course enrollment render', () => {
     }, {
       planType: 'session',
       totalSessions: 8,
+      price: 1200,
     }, [{
       id: 'stuA',
       birthday: '2016-01-01',
@@ -285,7 +286,7 @@ describe('edu course enrollment render', () => {
       studentName: '小客',
       paidAt: '2099-01-02',
       coachNotes: '',
-    }, {}, [{ id: 'stuA', birthday: '2016-01-01' }], 'teamA', 'planA', true);
+    }, { price: 1200 }, [{ id: 'stuA', birthday: '2016-01-01' }], 'teamA', 'planA', true);
 
     expect(cardHtml).toContain('已繳費 2099-01-02');
     expect(cardHtml).toContain('class="edu-ce-paid-edit"');
