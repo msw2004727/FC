@@ -20,10 +20,11 @@ function escapeHTML(value) {
     .replace(/'/g, '&#39;');
 }
 
-function loadModule(app, elements) {
+function loadModule(app, elements, globals = {}) {
   const context = {
     App: app,
     ApiService: { getCurrentUser: jest.fn(() => ({ uid: 'viewer' })) },
+    FirebaseService: globals.FirebaseService || { queryEduAttendance: jest.fn(async () => []) },
     document: {
       getElementById: jest.fn((id) => elements[id] || null),
     },
@@ -165,9 +166,16 @@ describe('edu course enrollment render', () => {
       _courseEnrollCache: {},
       _courseEnrollSummaryCache: {},
       _getCourseEnrollCacheKey: jest.fn((teamId, planId) => teamId + ':' + planId),
+      _loadCourseSessions: jest.fn(async () => [
+        { id: 's1', status: 'done', date: '2099-01-01', startTime: '10:00' },
+      ]),
+      _buildCourseLessonAttendanceStatsByStudent: jest.fn(() => ({
+        stuUnpaid: { signed: 2, total: 3, rate: 67 },
+        stuPaid: { signed: 1, total: 2, rate: 50 },
+      })),
       _loadCourseEnrollments: jest.fn(async () => [
-        { id: 'unpaidA', studentId: 'stuUnpaid', studentName: 'Unpaid Student', status: 'approved', paidAt: null },
-        { id: 'paidA', studentId: 'stuPaid', studentName: 'Paid Student', status: 'approved', paidAt: '2099-01-02' },
+        { id: 'unpaidA', studentId: 'stuUnpaid', studentName: 'Unpaid Student', status: 'approved', paidAt: null, reviewedAt: '2098-12-31' },
+        { id: 'paidA', studentId: 'stuPaid', studentName: 'Paid Student', status: 'approved', paidAt: '2099-01-02', reviewedAt: '2098-12-31' },
       ]),
       getEduCoursePlans: jest.fn(() => [{ id: 'planA', name: 'Plan A', planType: 'weekly', perSessionBilling: true }]),
       getEduStudents: jest.fn(() => [
@@ -178,7 +186,12 @@ describe('edu course enrollment render', () => {
       calcAge: jest.fn(() => null),
       _updateEnrollSubtitle: jest.fn(),
     };
-    const loaded = loadModule(app, elements);
+    const firebase = {
+      queryEduAttendance: jest.fn(async () => [
+        { studentId: 'stuUnpaid', sessionId: 's1', date: '2099-01-01', kind: 'signin' },
+      ]),
+    };
+    const loaded = loadModule(app, elements, { FirebaseService: firebase });
 
     await loaded._renderCourseEnrollmentList('teamA', 'planA');
 
@@ -190,6 +203,10 @@ describe('edu course enrollment render', () => {
     expect(html).not.toContain('edu-ce-section-paid');
     expect(html).not.toContain('※繳費打勾');
     expect(html).not.toContain('已繳費 2099-01-02');
+    expect(html).toContain('簽到 2/3 · 出席率 67%');
+    expect(html).toContain('簽到 1/2 · 出席率 50%');
+    expect(firebase.queryEduAttendance).toHaveBeenCalledWith({ teamId: 'teamA', coursePlanId: 'planA' });
+    expect(app._buildCourseLessonAttendanceStatsByStudent).toHaveBeenCalled();
   });
 
   test('course enrollment section jump helper scrolls and highlights the target', () => {

@@ -781,12 +781,8 @@ Object.assign(App, {
     const tracksPayment = typeof this._shouldTrackCoursePlanPayment === 'function'
       ? this._shouldTrackCoursePlanPayment(plan)
       : plan?.perSessionBilling !== true;
-    const shouldShowAttendanceStats = isStaff && (typeof this._shouldShowCoursePlanAttendanceStats === 'function'
-      ? this._shouldShowCoursePlanAttendanceStats(plan)
-      : (plan?.perSessionBilling === true || String(plan?.planType || '').trim() === 'weekly'));
     let enrollments = [];
     let paidByStudentId = null;
-    let attendanceStatsByStudentId = null;
     if (isStaff) {
       try {
         enrollments = await this._loadCourseEnrollments(teamId, planId);
@@ -807,23 +803,6 @@ Object.assign(App, {
       }
     }
 
-    if (shouldShowAttendanceStats) {
-      try {
-        const attendanceRecords = typeof FirebaseService.queryEduAttendance === 'function'
-          ? await FirebaseService.queryEduAttendance({ teamId, coursePlanId: planId })
-          : [];
-        if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
-        attendanceStatsByStudentId = this._buildCourseLessonAttendanceStatsByStudent(
-          state.sessions,
-          enrollments,
-          attendanceRecords,
-          rosterPayload?.students || []
-        );
-      } catch (err) {
-        console.warn('[edu-course-lessons] attendance stats load failed:', err);
-      }
-    }
-
     if (rosterPayload && rosterPayload.rosterPublic === false && !isStaff) {
       container.innerHTML = '<div class="edu-course-lessons-empty"><strong>名單未公開</strong><span>此課堂名單目前僅職員可查看。</span></div>';
       return { ok: true, closed: true };
@@ -839,7 +818,6 @@ Object.assign(App, {
       notesByStudentId,
       enrollIdsByStudentId,
       paidByStudentId,
-      attendanceStatsByStudentId,
       attendanceByStudentId,
       draftByStudentId: { ...attendanceByStudentId },
       manageMode: false,

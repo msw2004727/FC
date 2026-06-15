@@ -89,8 +89,41 @@ Object.assign(App, {
     const tracksPayment = typeof this._shouldTrackCoursePlanPayment === 'function'
       ? this._shouldTrackCoursePlanPayment(plan)
       : plan?.perSessionBilling !== true;
+    const shouldShowAttendanceStats = isStaff && (typeof this._shouldShowCoursePlanAttendanceStats === 'function'
+      ? this._shouldShowCoursePlanAttendanceStats(plan)
+      : (plan?.perSessionBilling === true || String(plan?.planType || '').trim() === 'weekly'));
     const approvedUnpaid = tracksPayment ? approved.filter(e => !e.paidAt) : [];
     const approvedPaid = tracksPayment ? approved.filter(e => !!e.paidAt) : [];
+    let attendanceStatsByStudentId = null;
+    if (shouldShowAttendanceStats && typeof this._buildCourseLessonAttendanceStatsByStudent === 'function') {
+      try {
+        const [sessions, attendanceRecords] = await Promise.all([
+          typeof this._loadCourseSessions === 'function' ? this._loadCourseSessions(teamId, planId) : [],
+          (typeof FirebaseService !== 'undefined' && typeof FirebaseService.queryEduAttendance === 'function')
+            ? FirebaseService.queryEduAttendance({ teamId, coursePlanId: planId })
+            : [],
+        ]);
+        if (seq != null && seq !== this._eduCourseEnrollmentRequestSeq) return;
+        const rosterStudents = approved.map((e) => {
+          const studentId = String(e.studentId || '').trim();
+          return students.find(s => String(s.id || s._docId || '') === studentId) || {
+            id: studentId,
+            studentId,
+            displayName: e.studentName || '',
+            name: e.studentName || '',
+          };
+        });
+        attendanceStatsByStudentId = this._buildCourseLessonAttendanceStatsByStudent(
+          sessions,
+          enrollments,
+          Array.isArray(attendanceRecords) ? attendanceRecords : [],
+          rosterStudents
+        );
+      } catch (err) {
+        console.warn('[edu-course-enrollment] attendance stats load failed:', err);
+      }
+    }
+    const approvedCardContext = { attendanceStatsByStudentId };
 
     let html = '';
     const sectionBaseId = 'edu-ce-section-' + String(teamId || '').replace(/[^A-Za-z0-9_-]/g, '_')
@@ -146,15 +179,15 @@ Object.assign(App, {
     if (approved.length) {
       if (!tracksPayment) {
         const approvedRows = approved
-          .map(e => this._renderApprovedEnrollmentCard(e, plan, students, teamId, planId, isStaff))
+          .map(e => this._renderApprovedEnrollmentCard(e, plan, students, teamId, planId, isStaff, approvedCardContext))
           .join('');
         html += renderSection('approved', '已通過', approved.length, approvedRows, '目前沒有已通過學員');
       } else {
         const unpaidRows = approvedUnpaid
-          .map(e => this._renderApprovedEnrollmentCard(e, plan, students, teamId, planId, isStaff))
+          .map(e => this._renderApprovedEnrollmentCard(e, plan, students, teamId, planId, isStaff, approvedCardContext))
           .join('');
         const paidRows = approvedPaid
-          .map(e => this._renderApprovedEnrollmentCard(e, plan, students, teamId, planId, isStaff))
+          .map(e => this._renderApprovedEnrollmentCard(e, plan, students, teamId, planId, isStaff, approvedCardContext))
           .join('');
         html += renderSection('unpaid', '已通過・未繳費', approvedUnpaid.length, unpaidRows, '目前沒有未繳費學員');
         html += renderSection('paid', '已通過・已繳費', approvedPaid.length, paidRows, '目前沒有已繳費學員');
@@ -200,7 +233,7 @@ Object.assign(App, {
     el.textContent = parts.join(' ｜ ');
   },
 
-  _renderApprovedEnrollmentCard(e, plan, students, teamId, planId, isStaff) {
+  _renderApprovedEnrollmentCard(e, plan, students, teamId, planId, isStaff, options = {}) {
     const stu = students.find(s => s.id === e.studentId);
     const age = stu && stu.birthday ? this.calcAge(stu.birthday) : null;
     const gender = stu?.gender === 'male' ? '♂' : stu?.gender === 'female' ? '♀' : '';
@@ -239,6 +272,10 @@ Object.assign(App, {
     const removeHtml = isStaff
       ? '<button type="button" class="edu-ce-remove-approved-btn" title="刪除學員" aria-label="刪除學員" onclick="event.stopPropagation();App._removeApprovedCourseEnrollment(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\',this)">×</button>'
       : '';
+    const stats = options.attendanceStatsByStudentId?.[String(e.studentId || '').trim()] || null;
+    const statsHtml = stats
+      ? '<span class="edu-ce-attendance-stat">簽到 ' + escapeHTML(stats.signed || 0) + '/' + escapeHTML(stats.total || 0) + ' · 出席率 ' + escapeHTML(stats.rate == null ? '--' : stats.rate + '%') + '</span>'
+      : '';
     const noteActionsHtml = isStaff ? '<div class="edu-ce-note-actions" onclick="event.stopPropagation()">'
       + '<button type="button" id="' + noteTriggerId + '" class="edu-ce-note-trigger' + (notesValue ? ' has-note' : '') + '" title="' + noteActionLabel + '" aria-label="' + noteActionLabel + '" aria-expanded="false" onclick="App._toggleEnrollNoteEditor(\'' + notePanelId + '\',\'' + noteTriggerId + '\')">'
       + noteIconSvg
@@ -263,6 +300,7 @@ Object.assign(App, {
       + '</div>'
       + '<div class="edu-ce-card-mid">'
       + paidHtml
+      + statsHtml
       + noteActionsHtml
       + '</div>'
       + noteEditorHtml

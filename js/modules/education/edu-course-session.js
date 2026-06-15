@@ -931,38 +931,13 @@ Object.assign(App, {
     const tracksPayment = typeof this._shouldTrackCoursePlanPayment === 'function'
       ? this._shouldTrackCoursePlanPayment(plan)
       : plan?.perSessionBilling !== true;
-    const showStats = typeof this._shouldShowCoursePlanAttendanceStats === 'function'
-      ? this._shouldShowCoursePlanAttendanceStats(plan)
-      : (plan?.perSessionBilling === true || String(plan?.planType || '').trim() === 'weekly');
-    const stats = options.attendanceStatsByStudentId?.[studentId] || null;
-    const signedText = stats ? ((stats.signed || 0) + '/' + (stats.total || 0)) : (attended + '次');
-    const rateText = stats ? (stats.rate == null ? '—' : stats.rate + '%') : '—';
-    let fields;
-    if (showStats && tracksPayment) {
-      fields = [
-        { cls: 'gender', label: '性別', value: gender || '—' },
-        { cls: 'group', label: '分組', value: group || '未分組' },
-        { cls: 'paid', label: '繳費', value: paidStatus },
-        { cls: 'signin', label: '簽到', value: signedText },
-        { cls: 'rate', label: '出席率', value: rateText },
-      ];
-    } else if (showStats) {
-      fields = [
-        { cls: 'gender', label: '性別', value: gender || '—' },
-        { cls: 'age', label: '年齡', value: age != null ? age + '歲' : '—' },
-        { cls: 'group', label: '分組', value: group || '未分組' },
-        { cls: 'signin', label: '簽到', value: signedText },
-        { cls: 'rate', label: '出席率', value: rateText },
-      ];
-    } else {
-      fields = [
-        { cls: 'gender', label: '性別', value: gender || '—' },
-        { cls: 'age', label: '年齡', value: age != null ? age + '歲' : '—' },
-        { cls: 'group', label: '分組', value: group || '未分組' },
-        { cls: 'paid', label: '繳費', value: paidStatus },
-        { cls: 'remain', label: '剩餘', value: remaining },
-      ];
-    }
+    const fields = [
+      { cls: 'gender', label: '性別', value: gender || '—' },
+      { cls: 'age', label: '年齡', value: age != null ? age + '歲' : '—' },
+      { cls: 'group', label: '分組', value: group || '未分組' },
+      { cls: 'paid', label: tracksPayment ? '繳費' : '收費', value: tracksPayment ? paidStatus : '隨堂' },
+      { cls: 'remain', label: '剩餘', value: remaining },
+    ];
     let html = fields.map(field => '<span class="edu-session-student-slot edu-session-student-slot-' + field.cls + '" aria-label="' + escapeHTML(field.label) + '">'
       + escapeHTML(field.value)
       + '</span>').join('');
@@ -976,12 +951,7 @@ Object.assign(App, {
     const tracksPayment = typeof this._shouldTrackCoursePlanPayment === 'function'
       ? this._shouldTrackCoursePlanPayment(plan)
       : plan?.perSessionBilling !== true;
-    const showStats = typeof this._shouldShowCoursePlanAttendanceStats === 'function'
-      ? this._shouldShowCoursePlanAttendanceStats(plan)
-      : (plan?.perSessionBilling === true || String(plan?.planType || '').trim() === 'weekly');
-    const labels = showStats && tracksPayment
-      ? ['性別', '分組', '繳費', '簽到', '出席率']
-      : (showStats ? ['性別', '年齡', '分組', '簽到', '出席率'] : ['性別', '年齡', '分組', '繳費', '剩餘']);
+    const labels = ['性別', '年齡', '分組', tracksPayment ? '繳費' : '收費', '剩餘'];
     return '<div class="edu-session-roster-head" aria-hidden="true">'
       + labels.map(label => '<span>' + escapeHTML(label) + '</span>').join('')
       + '</div>';
@@ -1120,17 +1090,6 @@ Object.assign(App, {
     const rosterCountText = roster.length + ' 位核准學員' + (pendingCount ? '，' + pendingCount + ' 位待審核' : '');
     const planCover = String(plan?.coverImage || plan?.coverUrl || plan?.imageUrl || plan?.image || '').trim();
     const heroStyle = planCover ? ' style="--edu-session-cover:url(\'' + escapeHTML(planCover) + '\')"' : '';
-    const shouldShowAttendanceStats = typeof this._shouldShowCoursePlanAttendanceStats === 'function'
-      ? this._shouldShowCoursePlanAttendanceStats(plan)
-      : (plan?.perSessionBilling === true || String(plan?.planType || '').trim() === 'weekly');
-    const attendanceStatsByStudentId = shouldShowAttendanceStats && typeof this._buildCourseLessonAttendanceStatsByStudent === 'function'
-      ? this._buildCourseLessonAttendanceStatsByStudent(
-          sessions,
-          enrollments,
-          attendRecords,
-          roster.map(item => item.student || {})
-        )
-      : null;
 
     const sessionCards = sessions.length
       ? sessions.map((session, idx) => this._renderCourseSessionCard(session, {
@@ -1181,7 +1140,7 @@ Object.assign(App, {
             return '<div class="edu-session-roster-item">'
               + '<span class="edu-session-list-main">'
                 + '<span class="edu-session-roster-name-line">' + this._renderCourseSessionMemberPill(student, name, { link: true }) + this._renderCourseSessionRosterNoteCell(student, item.enrollment, { inline: true, isStaff, teamId, planId }) + '</span>'
-                + '<span class="edu-session-student-tags edu-session-student-tags-notes">' + this._renderCourseSessionStudentTags(student, item.enrollment, plan, { isStaff, teamId, planId, attendanceStatsByStudentId }) + '</span>'
+                + '<span class="edu-session-student-tags edu-session-student-tags-notes">' + this._renderCourseSessionStudentTags(student, item.enrollment, plan, { isStaff, teamId, planId }) + '</span>'
               + '</span>'
             + '</div>';
           }).join('') : '<div class="edu-session-empty-students">尚未有核准學員</div>') + '</div>'

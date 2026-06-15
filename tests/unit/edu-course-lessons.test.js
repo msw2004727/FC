@@ -530,7 +530,7 @@ describe('edu course lessons', () => {
     });
   });
 
-  test('per-session billing roster disables payment split and shows attendance stats from join date', async () => {
+  test('per-session billing roster disables payment split without plan attendance stats', async () => {
     const { app, container, firebase } = loadCourseLessonsContext({
       isStaff: true,
       plans: [{
@@ -574,15 +574,15 @@ describe('edu course lessons', () => {
     await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
 
     const html = container.innerHTML;
-    expect(firebase.queryEduAttendance).toHaveBeenCalledWith({ teamId: 'teamA', coursePlanId: 'planA' });
+    expect(firebase.queryEduAttendance).not.toHaveBeenCalled();
     expect(html).not.toContain('未繳費區');
     expect(html).not.toContain('edu-course-roster-payment-unpaid');
-    expect(html).toContain('簽到 2/3 · 出席率 67%');
-    expect(html).toContain('簽到 1/2 · 出席率 50%');
+    expect(html).not.toContain('簽到 2/3 · 出席率 67%');
+    expect(html).not.toContain('簽到 1/2 · 出席率 50%');
   });
 
-  test('weekly roster adds attendance stats while keeping payment split', async () => {
-    const { app, container } = loadCourseLessonsContext({
+  test('weekly roster keeps payment split without plan attendance stats', async () => {
+    const { app, container, firebase } = loadCourseLessonsContext({
       isStaff: true,
       plans: [{
         id: 'planA',
@@ -623,8 +623,9 @@ describe('edu course lessons', () => {
     const html = container.innerHTML;
     expect(html).toContain('未繳費區');
     expect(html).toContain('edu-course-roster-payment-unpaid">未繳費</span>');
-    expect(html).toContain('簽到 2/2 · 出席率 100%');
-    expect(html).toContain('簽到 0/2 · 出席率 0%');
+    expect(firebase.queryEduAttendance).not.toHaveBeenCalled();
+    expect(html).not.toContain('簽到 2/2 · 出席率 100%');
+    expect(html).not.toContain('簽到 0/2 · 出席率 0%');
   });
 
   test('staff roster keeps the normal list when payment data cannot load', async () => {

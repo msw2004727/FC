@@ -920,7 +920,7 @@
   background: rgba(220, 38, 38, .09);
   color: #dc2626;
 }
-.edu-course-roster-stat-pill {
+.edu-ce-attendance-stat {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -1213,7 +1213,7 @@
   background: rgba(248, 113, 113, .13);
   color: #fca5a5;
 }
-[data-theme="dark"] .edu-course-roster-stat-pill {
+[data-theme="dark"] .edu-ce-attendance-stat {
   border-color: rgba(45, 212, 191, .34);
   background: rgba(45, 212, 191, .14);
   color: #5eead4;
@@ -1654,7 +1654,7 @@
 .edu-ce-card-top { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; position: relative; }
 .edu-ce-name { font-size: .95rem; font-weight: 700; }
 .edu-ce-meta { font-size: .82rem; color: var(--text-muted); }
-.edu-ce-card-mid { display: flex; align-items: center; gap: .55rem; flex-wrap: nowrap; margin-top: .3rem; min-width: 0; }
+.edu-ce-card-mid { display: flex; align-items: center; gap: .55rem; flex-wrap: wrap; margin-top: .3rem; min-width: 0; }
 .edu-ce-paid { font-size: .78rem; cursor: pointer; }
 .edu-ce-paid-yes { color: var(--success); }
 .edu-ce-paid-no { color: var(--text-muted); }
