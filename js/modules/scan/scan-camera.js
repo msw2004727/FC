@@ -230,18 +230,23 @@ Object.assign(App, {
   },
 
   _stopCamera() {
+    const hadScanner = !!this._scannerInstance;
+    const retryDeferredReload = () => this._maybeRunDeferredSwReload?.('scanner-stop');
     if (this._scannerInstance) {
       this._scannerInstance.stop().then(() => {
         this._scannerInstance.clear();
         this._scannerInstance = null;
+        retryDeferredReload();
       }).catch(() => {
         this._scannerInstance = null;
+        retryDeferredReload();
       });
     }
     const btn = document.getElementById('scan-camera-btn');
     if (btn) btn.textContent = '開啟相機掃碼';
     const readerEl = document.getElementById('scan-qr-reader');
     if (readerEl) readerEl.innerHTML = '<span style="color:var(--text-muted);font-size:.85rem;">點擊下方按鈕開啟相機</span>';
+    if (!hadScanner) retryDeferredReload();
   },
 
 });

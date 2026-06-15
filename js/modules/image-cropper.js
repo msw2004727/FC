@@ -465,6 +465,7 @@ Object.assign(App, {
     if (viewport && viewport._cropCleanup) viewport._cropCleanup();
     overlay.remove();
     document.body.classList.remove('image-cropper-open');
+    this._maybeRunDeferredSwReload?.('image-cropper-close');
   },
 
 });

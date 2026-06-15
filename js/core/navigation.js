@@ -832,6 +832,8 @@ Object.assign(App, {
     // 若 await ensureCloudReady 期間用戶主動導航（例如 boot hash 卡住時用戶點其他頁），
     // 需放棄本次切頁，不可強制拉回。
     const _showPageStartingPage = this.currentPage;
+    const routeTransitionPendingSeq = ++this._routeTransitionPendingSeq;
+    this._routeTransitionPending = true;
 
     try {
       // 非 stale 路徑：需要雲端 + 登入 + 權限檢查
@@ -895,6 +897,10 @@ Object.assign(App, {
       return await this._showPageFreshFirst(pageId, transitionSeq, options);
     } finally {
       this._endRouteLoading?.(routeLoadingSeq);
+      if (this._routeTransitionPendingSeq === routeTransitionPendingSeq) {
+        this._routeTransitionPending = false;
+      }
+      this._maybeRunDeferredSwReload?.('route-complete');
     }
   },
 
@@ -1004,9 +1010,6 @@ Object.assign(App, {
     if (this.currentPage === 'page-activity-detail' && pageId !== 'page-activity-detail') {
       this._flipAnimating = false;
       this._flipAnimatingAt = 0;
-      this._eventDetailRequestSeq = (Number(this._eventDetailRequestSeq) || 0) + 1;
-      this._eventCommentLoadSeq = (Number(this._eventCommentLoadSeq) || 0) + 1;
-      this._clearEventCommentRetryTimer?.();
       // 離開活動詳細頁 → 自動退出編輯模式（報名 / 候補 / 未報名掃碼）
       // instant save 已逐筆寫入、flush 處理剩餘 debounce、候補無待存資料
       if (typeof this._autoExitDetailEdits === 'function') this._autoExitDetailEdits();
@@ -1391,6 +1394,7 @@ Object.assign(App, {
     if (overlay && overlay.dataset.locked === '1') return;
     document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open'));
     if (overlay) overlay.classList.remove('open');
+    this._maybeRunDeferredSwReload?.('modal-close');
   },
 
   /**

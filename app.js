@@ -310,6 +310,8 @@ const App = {
   _pendingAuthActionPromise: null,
   _pendingAuthActionStorageKey: '_pendingAuthAction',
   _pageSnapshotReady: {},
+  _routeTransitionPending: false,
+  _routeTransitionPendingSeq: 0,
 
   _qrPopupLoading: false,
 
@@ -965,6 +967,164 @@ const App = {
     const ms = duration || (msg && msg.includes('\n') ? 4000 : (textLen > 24 ? 3500 : 2500));
     this._toastTimer = setTimeout(() => toast.classList.remove('show'), ms);
     this.logUserPrompt?.(msg, { source: 'toast' });
+  },
+
+  _isSafeToAutoReload() {
+    const root = typeof window !== 'undefined' ? window : globalThis;
+    const doc = typeof document !== 'undefined' ? document : null;
+    const blocked = (reason, canPrompt = true) => ({ safe: false, reason, canPrompt });
+    const ok = () => ({ safe: true, reason: 'safe', canPrompt: false });
+    const hasEntries = (value) => {
+      if (!value) return false;
+      if (typeof value.size === 'number') return value.size > 0;
+      if (Array.isArray(value)) return value.length > 0;
+      if (typeof value === 'object') return Object.keys(value).length > 0;
+      return Boolean(value);
+    };
+
+    if (root._swReloading) return blocked('already-reloading', false);
+    if (root._swJustCleared) return blocked('just-cleared', false);
+    if (root._appInitializing) return blocked('initializing', false);
+    if (root._contentReady === false) return blocked('boot-pending', false);
+    if (this._cloudReadyPromise && !this._cloudReady && !this._cloudReadyError) return blocked('boot-pending', false);
+    if (this._pendingProtectedBootRoutePromise || this._pendingDeepLinkOpenPromise || root._bootHistoryNavPending) {
+      return blocked('route-pending');
+    }
+    if (this._routeTransitionPending) return blocked('route-pending');
+
+    const pageLoader = root.PageLoader || (typeof PageLoader !== 'undefined' ? PageLoader : null);
+    if (pageLoader && hasEntries(pageLoader._loading)) return blocked('page-loader-pending');
+
+    if (doc) {
+      if (doc.body?.classList?.contains('image-cropper-open')) return blocked('image-cropper-open');
+      const modalSelector = [
+        '.modal.open',
+        '#modal-overlay.open',
+        '#app-confirm-modal.open',
+        '#uid-qr-modal.open',
+        '#scan-result-modal.open',
+        '#scan-family-modal.open',
+        '#mobile-line-login-hint-modal.open',
+        '#pwa-android-modal.open',
+        '#pwa-ios-modal.open',
+        '.pwa-modal-overlay.open',
+        '.pwa-modal-overlay.show',
+        '.edu-session-form-overlay',
+        '.edu-cp-form-v2',
+      ].join(',');
+      if (doc.querySelector(modalSelector)) return blocked('modal-open');
+    }
+
+    const lineAuth = root.LineAuth || (typeof LineAuth !== 'undefined' ? LineAuth : null);
+    const lineAuthPending = lineAuth
+      && (
+        (typeof lineAuth.isPendingLogin === 'function' && lineAuth.isPendingLogin())
+        || (typeof lineAuth.hasLiffSession === 'function' && lineAuth.hasLiffSession() && !lineAuth._ready)
+      );
+    if (this._pendingAuthAction || this._pendingAuthActionPromise || this._pendingLineLoginAfterHint || lineAuthPending) {
+      return blocked('auth-pending');
+    }
+
+    if (this._attendanceEditingEventId || this._unregEditingEventId || this._waitlistEditingEventId) {
+      return blocked('roster-editing');
+    }
+    if (this._attendanceSubmittingEventId || this._unregSubmittingEventId) return blocked('write-pending');
+    if (hasEntries(this._waitlistActionPending) || hasEntries(this._tsTeamSplitPendingOps) || hasEntries(this._tsTeamSplitPendingTokens)) {
+      return blocked('write-pending');
+    }
+    if (this._scannerInstance) return blocked('scanner-active');
+
+    const safePages = new Set(['page-home', 'page-activities', 'page-teams', 'page-profile']);
+    if (!safePages.has(this.currentPage || '')) return blocked('unsafe-page');
+    return ok();
+  },
+
+  _showSwReloadPrompt(decision = {}) {
+    const root = typeof window !== 'undefined' ? window : globalThis;
+    const doc = typeof document !== 'undefined' ? document : null;
+    if (!doc || !doc.body || root._swReloadPromptShown) return;
+    root._swReloadPromptShown = true;
+
+    const prompt = doc.createElement('div');
+    prompt.id = 'sw-reload-deferred-prompt';
+    prompt.setAttribute('role', 'status');
+    prompt.setAttribute('aria-live', 'polite');
+    prompt.style.cssText = [
+      'position:fixed',
+      'left:50%',
+      'bottom:calc(72px + env(safe-area-inset-bottom, 0px))',
+      'transform:translateX(-50%)',
+      'z-index:100000',
+      'width:min(420px, calc(100vw - 32px))',
+      'background:#111827',
+      'color:#fff',
+      'border:1px solid rgba(255,255,255,.16)',
+      'border-radius:12px',
+      'box-shadow:0 16px 40px rgba(0,0,0,.28)',
+      'padding:12px',
+      'display:flex',
+      'align-items:center',
+      'gap:10px',
+      'font-size:14px',
+      'line-height:1.35',
+    ].join(';');
+    prompt.innerHTML =
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-weight:700;margin-bottom:2px">有新版本可用</div>' +
+        '<div style="opacity:.84">完成目前操作後會自動更新。</div>' +
+      '</div>' +
+      '<button type="button" data-sw-reload-now style="' +
+        'border:0;border-radius:8px;background:#0d9488;color:#fff;' +
+        'font-weight:700;padding:8px 10px;cursor:pointer;white-space:nowrap' +
+      '">現在更新</button>' +
+      '<button type="button" data-sw-reload-later aria-label="稍後" style="' +
+        'border:0;border-radius:8px;background:rgba(255,255,255,.12);color:#fff;' +
+        'font-weight:700;padding:8px 9px;cursor:pointer' +
+      '">稍後</button>';
+
+    prompt.querySelector('[data-sw-reload-now]')?.addEventListener('click', () => {
+      const result = this._maybeRunDeferredSwReload('user-click');
+      if (!result?.reloaded) this.showToast?.('目前操作尚未完成，稍後再更新', 3000);
+    });
+    prompt.querySelector('[data-sw-reload-later]')?.addEventListener('click', () => {
+      prompt.remove();
+    });
+
+    doc.body.appendChild(prompt);
+    if (decision.reason) root._swReloadDeferredReason = decision.reason;
+  },
+
+  _deferSwReload(reason = 'unsafe-page', decision = null) {
+    const root = typeof window !== 'undefined' ? window : globalThis;
+    root._swReloadDeferred = true;
+    root._swReloadDeferredReason = reason;
+    if (!decision || decision.canPrompt !== false) this._showSwReloadPrompt(decision || { reason, canPrompt: true });
+    return { reloaded: false, deferred: true, reason };
+  },
+
+  _reloadForServiceWorkerUpdate() {
+    const root = typeof window !== 'undefined' ? window : globalThis;
+    root._swReloading = true;
+    root._swReloadDeferred = false;
+    root._swReloadDeferredReason = '';
+    if (root.location && typeof root.location.reload === 'function') root.location.reload();
+    return { reloaded: true, reason: 'safe' };
+  },
+
+  _maybeRunDeferredSwReload(trigger = '') {
+    const root = typeof window !== 'undefined' ? window : globalThis;
+    if (!root._swReloadDeferred || root._swReloading) return { reloaded: false, deferred: false, reason: 'none' };
+    const decision = this._isSafeToAutoReload();
+    if (decision.safe) return this._reloadForServiceWorkerUpdate();
+    root._swReloadDeferredReason = decision.reason || trigger || 'unsafe-page';
+    if (decision.canPrompt !== false) this._showSwReloadPrompt(decision);
+    return { reloaded: false, deferred: true, reason: root._swReloadDeferredReason };
+  },
+
+  _handleSwControllerChange() {
+    const decision = this._isSafeToAutoReload();
+    if (decision.safe) return this._reloadForServiceWorkerUpdate();
+    return this._deferSwReload(decision.reason, decision);
   },
 
   _getRouteLoadingCopy(pageId, phase = 'page') {
@@ -1684,6 +1844,7 @@ const App = {
       if (this._pendingAuthActionPromise === actionPromise) {
         this._pendingAuthActionPromise = null;
       }
+      this._maybeRunDeferredSwReload?.('auth-complete');
     });
 
     return await this._pendingAuthActionPromise;
