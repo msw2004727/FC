@@ -23,8 +23,8 @@ function buildApp() {
 }
 
 function renderScoreForm({ completed = false } = {}) {
+  const resultType = completed ? 'finished' : 'scheduled';
   const elements = {
-    'tmr-result-completed': { checked: completed },
     'tmr-score-home': { value: '2' },
     'tmr-score-away': { value: '1' },
     'tmr-pk-home': null,
@@ -34,7 +34,7 @@ function renderScoreForm({ completed = false } = {}) {
   global.document = {
     getElementById: jest.fn(id => elements[id] || null),
     querySelector: jest.fn(selector => {
-      if (selector === 'input[name="tmr-result-type"]:checked') return { value: 'finished' };
+      if (selector === 'input[name="tmr-result-type"]:checked') return { value: resultType };
       return null;
     }),
   };
@@ -65,7 +65,7 @@ describe('tournament match result recording', () => {
       scoreAway: 1,
       events: App._tournamentMatchRecordState.events,
     }));
-    expect(App.showToast).toHaveBeenCalledWith('比賽結果已暫存');
+    expect(App.showToast).toHaveBeenCalledWith('賽況已儲存');
   });
 
   test('saving with completion switch marks the match finished', async () => {
@@ -87,7 +87,7 @@ describe('tournament match result recording', () => {
       scoreHome: 2,
       scoreAway: 1,
     }));
-    expect(App.showToast).toHaveBeenCalledWith('比賽已完賽並儲存');
+    expect(App.showToast).toHaveBeenCalledWith('賽況已儲存');
   });
 
   test('substitution search matches selected club roster by jersey number or nickname', () => {
