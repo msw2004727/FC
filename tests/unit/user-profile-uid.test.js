@@ -33,6 +33,12 @@ function resolveUser(name, uidHint, users) {
   return _findUserByUid(uidHint, users) || _findUserByName(name, users);
 }
 
+function resolveDisplayName(name, user, uidHint, isSelf = false, currentIdentity = null) {
+  return isSelf && currentIdentity?.displayName
+    ? currentIdentity.displayName
+    : (name || user?.displayName || user?.name || uidHint || '');
+}
+
 // ---------------------------------------------------------------------------
 // Extracted from js/config.js:444-452 — escapeHTML
 // ---------------------------------------------------------------------------
@@ -122,6 +128,22 @@ describe('UID-first User Profile Lookup', () => {
       const result = resolveUser('', 'U_charlie_003', mockUsers);
       expect(result).not.toBeNull();
       expect(result.uid).toBe('U_charlie_003');
+    });
+  });
+
+  describe('displayName fallback for UID-only profile navigation', () => {
+    test('uses user displayName when popstate provides only uid', () => {
+      const user = resolveUser(null, 'U_charlie_003', mockUsers);
+      expect(resolveDisplayName(null, user, 'U_charlie_003')).toBe('小華');
+    });
+
+    test('falls back to uid when neither name nor user display fields exist', () => {
+      expect(resolveDisplayName(null, null, 'U_missing_999')).toBe('U_missing_999');
+    });
+
+    test('current identity displayName still wins for self profile', () => {
+      const user = resolveUser('小明', 'U_alice_001', mockUsers);
+      expect(resolveDisplayName('小明', user, 'U_alice_001', true, { displayName: '分身名稱' })).toBe('分身名稱');
     });
   });
 

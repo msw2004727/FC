@@ -248,7 +248,10 @@
           if (updateUrl) {
             var url = new URL(location.href);
             url.searchParams.set(tokenQueryKey, rawToken.trim());
-            history.replaceState(null, '', url.pathname + url.search + url.hash);
+            var routeState = (history.state && history.state.source === 'sportshub')
+              ? history.state
+              : { source: 'sportshub', pageId: 'page-game' };
+            history.replaceState(routeState, '', url.pathname + url.search + url.hash);
           }
           if (typeof _firebaseAuthReadyPromise !== 'undefined') {
             try { await Promise.race([_firebaseAuthReadyPromise, new Promise(function (r) { setTimeout(r, 5000); })]); } catch (_) {}

@@ -6,6 +6,15 @@
  * Strategy: extract the fetch-then-check logic and test with mock responses.
  */
 
+const fs = require('fs');
+const path = require('path');
+
+const ROOT = path.resolve(__dirname, '../..');
+
+function readProjectFile(file) {
+  return fs.readFileSync(path.join(ROOT, file), 'utf8');
+}
+
 // ═══════════════════════════════════════════════════════
 //  Extracted: fetch + response.ok check pattern
 //  This is the pattern that Step 7 will add to page-loader.js
@@ -164,5 +173,26 @@ describe('Step 7: multiple pages (loadAll pattern)', () => {
       pages.map(name => fetchPageFragment(name, mockFetchNetworkError()))
     );
     expect(results).toEqual(['', '', '']);
+  });
+});
+
+describe('PageLoader fragment timeout contract', () => {
+  test('source-level: page fragments use timeout helper with abort support', () => {
+    const source = readProjectFile('js/core/page-loader.js');
+
+    expect(source).toContain('_fetchPageFragment(fileName, options = {})');
+    expect(source).toContain('AbortController');
+    expect(source).toContain('Promise.race([request, timeout])');
+    expect(source).toContain("err.name = 'TimeoutError'");
+  });
+
+  test('source-level: loading and boot fetches can retry after failure', () => {
+    const source = readProjectFile('js/core/page-loader.js');
+
+    expect(source).toContain('delete this._loading[fileName]');
+    expect(source).toContain('_queueBootFetch(name)');
+    expect(source).toContain('delete this._bootFetchMap[name]');
+    expect(source).toContain('this._bootFetchMap[fileName] || this._queueBootFetch(fileName)');
+    expect(source).toContain('fetchMap[name] || this._queueBootFetch(name)');
   });
 });

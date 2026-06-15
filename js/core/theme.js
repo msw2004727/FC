@@ -5,18 +5,27 @@
 Object.assign(App, {
 
   bindTheme() {
-    const saved = localStorage.getItem('sporthub_theme');
-    const theme = saved
-      || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    let saved = '';
+    try {
+      const raw = localStorage.getItem('sporthub_theme');
+      saved = (raw === 'dark' || raw === 'light') ? raw : '';
+    } catch (_) {}
+    let prefersDark = false;
+    try {
+      prefersDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    } catch (_) {}
+    const theme = saved || (prefersDark ? 'dark' : 'light');
     document.documentElement.dataset.theme = theme;
     const initToggle = document.querySelector('#theme-toggle .toggle-switch');
     if (theme === 'dark' && initToggle) initToggle.classList.add('active');
 
-    document.getElementById('theme-toggle').addEventListener('click', () => {
+    const themeToggle = document.getElementById('theme-toggle');
+    if (!themeToggle) return;
+    themeToggle.addEventListener('click', () => {
       const html = document.documentElement;
       const isDark = html.dataset.theme === 'dark';
       html.dataset.theme = isDark ? 'light' : 'dark';
-      localStorage.setItem('sporthub_theme', html.dataset.theme);
+      try { localStorage.setItem('sporthub_theme', html.dataset.theme); } catch (_) {}
       const toggle = document.querySelector('#theme-toggle .toggle-switch');
       if (toggle) toggle.classList.toggle('active', !isDark);
     });

@@ -187,7 +187,9 @@ Object.assign(App, {
     const user = isSelf
       ? currentUser
       : (this._findUserByUid(uidHint) || this._findUserByName(name));
-    const displayName = isSelf && currentIdentity?.displayName ? currentIdentity.displayName : name;
+    const displayName = isSelf && currentIdentity?.displayName
+      ? currentIdentity.displayName
+      : (name || user?.displayName || user?.name || uidHint || '');
     const isSecondaryIdentity = isSelf && currentIdentity?.identityId === 'secondary';
     const rawRole = user ? user.role : ApiService.getUserRole(name);
     const role = this._stealthRole(displayName, rawRole, user);
@@ -319,7 +321,11 @@ Object.assign(App, {
     }
     // 顯示頁面（若 cache 命中則直接渲染；否則由毛玻璃遮蔽提示用戶點擊載入）
     this._ucRecordUid = isSecondaryIdentity ? null : (targetUid || null);
-    await this.showPage('page-user-card');
+    await this.showPage('page-user-card', {
+      bypassPageLock: options?.bypassPageLock,
+      skipPageHistory: options?.skipPageHistory,
+      suppressHashSync: options?.suppressHashSync,
+    });
     if (requestSeq !== this._userProfileRequestSeq || this.currentPage !== 'page-user-card') {
       if (window._raceDebug || (typeof localStorage !== 'undefined' && localStorage.getItem('_raceLog'))) {
         console.log('[race-skip]', { fn: 'showUserProfile', seq: requestSeq, latest: this._userProfileRequestSeq, currentPage: this.currentPage });

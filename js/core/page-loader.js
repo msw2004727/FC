@@ -37,6 +37,9 @@ const PageLoader = {
   _bootFetchMap: null,
   _bootModalFetch: null,
 
+  _pageFragmentTimeoutMs: 12000,
+  _bootPageFragmentTimeoutMs: 15000,
+
   /** 頁面 ID → 片段檔名映射 */
   _pageFileMap: {
     'page-home':               'home',
@@ -112,14 +115,52 @@ const PageLoader = {
     }
   },
 
+  async _fetchPageFragment(fileName, options = {}) {
+    const timeoutMs = Math.max(1000, Number(options.timeoutMs) || this._pageFragmentTimeoutMs);
+    let timer = null;
+    let controller = null;
+    try {
+      const requestOptions = {};
+      if (typeof AbortController !== 'undefined') {
+        controller = new AbortController();
+        requestOptions.signal = controller.signal;
+      }
+      const request = fetch(`pages/${fileName}.html?v=${CACHE_VERSION}`, requestOptions)
+        .then(async (r) => {
+          if (!r.ok) {
+            console.warn(`[PageLoader] ${fileName} HTTP ${r.status}`);
+            return '';
+          }
+          return await r.text();
+        });
+      request.catch(() => {});
+      const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          try { controller?.abort?.(); } catch (_) {}
+          const err = new Error(`Page fragment timeout after ${timeoutMs}ms`);
+          err.name = 'TimeoutError';
+          reject(err);
+        }, timeoutMs);
+      });
+      return await Promise.race([request, timeout]);
+    } catch (err) {
+      console.warn(`[PageLoader] ${fileName} 載入失敗:`, err);
+      return '';
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  },
+
   async _loadSingleFile(fileName, reason = '按需載入') {
     if (!fileName || this._loaded[fileName]) return;
     if (this._loading[fileName]) return this._loading[fileName];
 
     this._loading[fileName] = (async () => {
-      const r = await fetch(`pages/${fileName}.html?v=${CACHE_VERSION}`);
-      if (!r.ok) { console.warn(`[PageLoader] ${fileName} HTTP ${r.status}`); return; }
-      const html = await r.text();
+      const html = await this._fetchPageFragment(fileName, {
+        reason,
+        timeoutMs: this._pageFragmentTimeoutMs,
+      });
+      if (!html) return;
       this._appendToMainContent(html);
       this._loaded[fileName] = true;
       console.log(`[PageLoader] ${reason}: ${fileName}`);
@@ -162,21 +203,31 @@ const PageLoader = {
     }
   },
 
+  _queueBootFetch(name) {
+    this._bootFetchMap[name] = this._fetchPageFragment(name, {
+      reason: 'boot page',
+      timeoutMs: this._bootPageFragmentTimeoutMs,
+    }).then((html) => {
+      if (!html) delete this._bootFetchMap[name];
+      return html;
+    });
+    return this._bootFetchMap[name];
+  },
+
   _startBootFetches() {
     if (this._bootFetchMap) return;
 
     this._bootFetchMap = {};
     for (const name of this._bootPages) {
-      this._bootFetchMap[name] = fetch(`pages/${name}.html?v=${CACHE_VERSION}`)
-        .then(r => { if (!r.ok) { console.warn(`[PageLoader] pages/${name}.html HTTP ${r.status}`); return ''; } return r.text(); })
-        .catch(err => { console.warn(`[PageLoader] pages/${name}.html 載入失敗:`, err); return ''; });
+      this._queueBootFetch(name);
     }
 
     this._bootModalFetch = Promise.all(
       this._modals.map(name =>
-        fetch(`pages/${name}.html?v=${CACHE_VERSION}`)
-          .then(r => { if (!r.ok) { console.warn(`[PageLoader] pages/${name}.html HTTP ${r.status}`); return ''; } return r.text(); })
-          .catch(err => { console.warn(`[PageLoader] pages/${name}.html 載入失敗:`, err); return ''; })
+        this._fetchPageFragment(name, {
+          reason: 'boot modal',
+          timeoutMs: this._bootPageFragmentTimeoutMs,
+        })
       )
     );
   },
@@ -197,7 +248,7 @@ const PageLoader = {
     }
 
     this._startBootFetches();
-    const html = await this._bootFetchMap[fileName];
+    const html = await (this._bootFetchMap[fileName] || this._queueBootFetch(fileName));
     if (html && !this._loaded[fileName]) {
       this._appendToMainContent(html);
       this._loaded[fileName] = true;
@@ -227,8 +278,8 @@ const PageLoader = {
       const modalFetch = this._bootModalFetch;
 
       // Priority page：先 await → 立即 append → 觸發 instant deep link
-      if (priorityFile && fetchMap[priorityFile]) {
-        const html = await fetchMap[priorityFile];
+      if (priorityFile) {
+        const html = await (fetchMap[priorityFile] || this._queueBootFetch(priorityFile));
         if (html && !this._loaded[priorityFile]) {
           this._appendToMainContent(html);
           this._loaded[priorityFile] = true;
@@ -245,7 +296,7 @@ const PageLoader = {
       // 其餘 boot pages 逐一 append（fetch 早已並行啟動，這裡只是 await 結果）
       for (const name of this._bootPages) {
         if (this._loaded[name]) continue;
-        const html = await fetchMap[name];
+        const html = await (fetchMap[name] || this._queueBootFetch(name));
         if (html && !this._loaded[name]) {
           this._appendToMainContent(html);
           this._loaded[name] = true;

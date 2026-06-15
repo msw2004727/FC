@@ -1257,12 +1257,12 @@ const App = {
       if (flags.writeDetailPaths
         && !this._shouldDisableHistoryPathWrite?.(flags)
         && /^\/tournaments\/[A-Za-z0-9_-]{3,80}\/?$/.test(url.pathname || '')) {
-        history.replaceState(null, '', '/');
+        history.replaceState(this._buildRouteStateForCurrentPage?.('page-home') || { source: 'sportshub', pageId: 'page-home' }, '', '/');
         return;
       }
       if (!url.searchParams.has('tournament')) return;
       url.searchParams.delete('tournament');
-      history.replaceState(null, '', url.pathname + (url.search || '') + (url.hash || ''));
+      history.replaceState(this._buildRouteStateForCurrentPage?.() || { source: 'sportshub', pageId: this.currentPage || 'page-home' }, '', url.pathname + (url.search || '') + (url.hash || ''));
     } catch (_) {}
   },
 
@@ -1285,7 +1285,8 @@ const App = {
         changed = true;
       });
       if (changed) {
-        history.replaceState(null, '', url.pathname + (url.search || '') + (url.hash || ''));
+        const state = this._buildRouteStateForCurrentPage?.() || this._buildCurrentRouteState?.() || { source: 'sportshub', pageId: this.currentPage || 'page-home' };
+        history.replaceState(state, '', url.pathname + (url.search || '') + (url.hash || ''));
       }
     } catch (_) {}
   },
@@ -2361,6 +2362,24 @@ const App = {
     };
   },
 
+  _buildRouteStateForCurrentPage(pageId = this.currentPage || 'page-home') {
+    const safePageId = String(pageId || 'page-home').trim() || 'page-home';
+    const state = { source: 'sportshub', pageId: safePageId };
+    let id = '';
+    if (safePageId === 'page-activity-detail') id = this._currentDetailEventId || '';
+    else if (safePageId === 'page-team-detail') id = this._teamDetailId || '';
+    else if (safePageId === 'page-tournament-detail') id = this.currentTournament || '';
+    else if (safePageId === 'page-user-card') id = this._ucRecordUid || '';
+    try {
+      const existing = history.state;
+      if (!id && existing?.source === 'sportshub' && existing.pageId === safePageId && existing.id) {
+        id = existing.id;
+      }
+    } catch (_) {}
+    if (id && this._isSafeHistoryRouteSegment?.(id)) state.id = String(id).trim();
+    return state;
+  },
+
   /** D11 觸發條件:只在 LIFF / Mini App / PWA standalone 內安裝 sentinel */
   _shouldInstallSentinel() {
     try {
@@ -2700,7 +2719,12 @@ const App = {
       if (!raw || raw.charAt(0) !== '/' || raw.startsWith('//')) return false;
       const target = new URL(raw, window.location.origin);
       if (target.origin !== window.location.origin) return false;
-      history.replaceState(null, '', target.pathname + (target.search || '') + (target.hash || ''));
+      const intent = this._resolveRouteIntent?.({ skipState: true, loc: target }) || { pageId: 'page-home', id: null };
+      history.replaceState({
+        source: 'sportshub',
+        pageId: intent.pageId || 'page-home',
+        ...(intent.id ? { id: intent.id } : {}),
+      }, '', target.pathname + (target.search || '') + (target.hash || ''));
       return true;
     } catch (err) {
       console.warn('[HistoryRoute] restore _spa_redirect failed:', err && err.message || err);
@@ -2879,7 +2903,7 @@ const App = {
     try {
       const url = new URL(window.location.href);
       url.hash = '';
-      history.replaceState(null, '', url.pathname + (url.search || ''));
+      history.replaceState(this._buildRouteStateForCurrentPage?.(pageId || this.currentPage) || { source: 'sportshub', pageId: pageId || this.currentPage || 'page-home' }, '', url.pathname + (url.search || ''));
     } catch (_) {}
   },
 
@@ -3784,6 +3808,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           const fallback = isDetailPage ? 'page-home' : requestedFallback;
           await App.showPage(fallback, {
             bypassPageLock: true,
+            allowGuest: true,
             skipPageHistory: true,
             suppressHashSync: true,
           });
@@ -3810,9 +3835,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           await App.showTeamDetail(targetId, detailOptions);
         } else if (targetPageId === 'page-tournament-detail' && targetId) {
           await App.showTournamentDetail(targetId, detailOptions);
+        } else if (targetPageId === 'page-user-card' && targetId) {
+          const targetUser = App._findUserByUid?.(targetId);
+          const targetName = targetUser?.displayName || targetUser?.name || targetId;
+          await App.showUserProfile?.(targetName, { ...detailOptions, uid: targetId });
         } else {
           await App.showPage(targetPageId, {
             bypassPageLock: true,
+            allowGuest: true,
             skipPageHistory: true,
             suppressHashSync: true,
           });

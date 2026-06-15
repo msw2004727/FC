@@ -378,6 +378,22 @@ describe('Phase 6 — popstate handler source-level contract', () => {
     expect(appSource).toMatch(/showEventDetail\(targetId,\s*detailOptions\)/);
     expect(appSource).toMatch(/showTeamDetail\(targetId,\s*detailOptions\)/);
     expect(appSource).toMatch(/showTournamentDetail\(targetId,\s*detailOptions\)/);
+    expect(appSource).toMatch(/targetPageId === 'page-user-card' && targetId/);
+    expect(appSource).toMatch(/showUserProfile\?\.\(targetName,\s*\{\s*\.\.\.detailOptions,\s*uid:\s*targetId\s*\}\)/);
+  });
+
+  test('runtime source does not write null History API state', () => {
+    const runtimeFiles = [
+      'app.js',
+      'index.html',
+      'js/core/navigation.js',
+      'js/modules/shot-game/shot-game-lab-page.js',
+    ];
+
+    for (const file of runtimeFiles) {
+      const source = readProjectFile(file);
+      expect(source).not.toMatch(/history\.(?:replaceState|pushState)\(null/);
+    }
   });
 
   test('hashchange listener 開頭含 _suppressNextHashchange 攔截 (D10)', () => {

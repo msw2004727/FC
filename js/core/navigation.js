@@ -190,7 +190,8 @@ Object.assign(App, {
         const _u = new URL(window.location.href);
         if (_u.searchParams.has('rid')) {
           _u.searchParams.delete('rid');
-          history.replaceState(null, '', _u.pathname + (_u.search || '') + (_u.hash || ''));
+          const routeState = this._buildRouteStateForCurrentPage?.(pageId) || { source: 'sportshub', pageId };
+          history.replaceState(routeState, '', _u.pathname + (_u.search || '') + (_u.hash || ''));
         }
       } catch (_) {}
     }
@@ -1236,7 +1237,7 @@ Object.assign(App, {
         if (typeof this._setRouteUrl === 'function') {
           this._setRouteUrl(prev, { mode: 'replace' });
         } else {
-          history.replaceState(null, '', '#' + prev);
+          history.replaceState({ source: 'sportshub', pageId: prev }, '', '#' + prev);
         }
       }
       this._syncBottomTabForPage?.(prev);
