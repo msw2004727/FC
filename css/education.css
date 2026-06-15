@@ -747,6 +747,13 @@
 .edu-course-lesson-adjust-dialog {
   max-width: 460px;
 }
+.edu-course-lesson-adjust-loading-dialog {
+  max-width: 360px;
+  padding: .9rem;
+}
+.edu-course-lesson-adjust-loading-dialog .edu-loading {
+  margin: 0;
+}
 .edu-course-lesson-adjust-head {
   display: flex;
   align-items: flex-start;

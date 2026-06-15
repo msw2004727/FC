@@ -154,31 +154,77 @@ Object.assign(App, {
     return [dateText, timeText].filter(Boolean).join(' ');
   },
 
+  _renderCourseLessonAdjustLoading() {
+    const existing = document.querySelector?.('.edu-course-lesson-adjust-overlay');
+    if (existing) existing.remove();
+    const overlay = document.createElement('div');
+    overlay.className = 'edu-info-overlay edu-course-lesson-adjust-overlay';
+    overlay._eduDismissed = false;
+    overlay.setAttribute?.('aria-busy', 'true');
+    overlay.onclick = (event) => {
+      if (event.target === overlay) {
+        overlay._eduDismissed = true;
+        overlay.remove();
+      }
+    };
+    const loadingHtml = typeof this._renderCourseLessonsLoading === 'function'
+      ? this._renderCourseLessonsLoading('課堂資料讀取中')
+      : '<div class="edu-loading" role="status" aria-live="polite" aria-busy="true">'
+        + '<div class="edu-loading-bar"><div class="edu-loading-fill"></div></div>'
+        + '<div class="edu-loading-text">課堂資料讀取中</div>'
+      + '</div>';
+    overlay.innerHTML = '<div class="edu-info-dialog edu-course-lesson-adjust-dialog edu-course-lesson-adjust-loading-dialog">'
+      + loadingHtml
+    + '</div>';
+    document.body.appendChild(overlay);
+    return overlay;
+  },
+
   async openCourseLessonQuickAdjust(teamId, planId, sessionId) {
     if (this.isEduClubStaff?.(teamId) !== true) {
       this.showToast?.('僅俱樂部職員可以調整課堂');
       return false;
     }
-    const state = await this._loadEduCourseLessonsState(teamId, planId);
+    let overlay = this._renderCourseLessonAdjustLoading();
+    let state;
+    try {
+      state = await this._loadEduCourseLessonsState(teamId, planId);
+    } catch (err) {
+      overlay?.remove?.();
+      console.error('[openCourseLessonQuickAdjust]', err);
+      this.showToast?.('課堂資料讀取失敗，請稍後再試');
+      return false;
+    }
+    if (overlay?._eduDismissed) return false;
     const plan = state.plan;
     const sessions = Array.isArray(state.sessions) ? state.sessions : [];
     const session = sessions.find(item => this._getCourseLessonSessionId(item) === String(sessionId || '').trim());
     if (!plan || !session) {
+      overlay?.remove?.();
       this.showToast?.('找不到這堂課，請重新開啟課堂列表');
       return false;
     }
-    const existing = document.querySelector?.('.edu-course-lesson-adjust-overlay');
-    if (existing) existing.remove();
     const status = this._getCourseLessonStatusMeta(session);
-    const currentStudentCount = await this._getCourseLessonsCurrentStudentCount(teamId, plan);
+    let currentStudentCount;
+    try {
+      currentStudentCount = await this._getCourseLessonsCurrentStudentCount(teamId, plan);
+    } catch (err) {
+      overlay?.remove?.();
+      console.error('[openCourseLessonQuickAdjust]', err);
+      this.showToast?.('課堂資料讀取失敗，請稍後再試');
+      return false;
+    }
+    if (overlay?._eduDismissed) return false;
     const studentCount = this._getCourseLessonStudentCount(session, { currentStudentCount }, status);
     const nextSession = this._getCourseLessonNextSession(sessions, sessionId);
     const nextStartMs = nextSession ? this._getCourseLessonDateTimeValue(nextSession.date, nextSession.startTime) : NaN;
     const nextLabel = this._formatCourseLessonAdjustLimit(nextSession);
     const capacityValue = session.capacity || plan.maxCapacity || '';
     const isCancelled = String(session.status || '').trim() === 'cancelled';
-    const overlay = document.createElement('div');
+    overlay = overlay || document.createElement('div');
     overlay.className = 'edu-info-overlay edu-course-lesson-adjust-overlay';
+    overlay._eduDismissed = false;
+    overlay.removeAttribute?.('aria-busy');
     overlay.onclick = (event) => { if (event.target === overlay) overlay.remove(); };
     overlay.innerHTML = '<div class="edu-info-dialog edu-course-lesson-adjust-dialog">'
       + '<div class="edu-course-lesson-adjust-head">'
@@ -202,7 +248,7 @@ Object.assign(App, {
         + '<button class="primary-btn" type="button" id="edu-lesson-adjust-save" onclick="return App.saveCourseLessonQuickAdjust(this)">儲存調整</button>'
       + '</div>'
     + '</div>';
-    document.body.appendChild(overlay);
+    if (!overlay.isConnected) document.body.appendChild(overlay);
     this._eduCourseLessonAdjustContext = {
       teamId,
       planId,

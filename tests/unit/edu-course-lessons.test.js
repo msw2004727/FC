@@ -103,7 +103,11 @@ function loadCourseLessonsContext(overrides = {}) {
       querySelector: jest.fn((selector) => (
         typeof overrides.querySelector === 'function' ? overrides.querySelector(selector) : null
       )),
-      createElement: jest.fn(() => overrides.selfLeaveOverlay || { className: '', innerHTML: '', onclick: null, remove: jest.fn(), querySelectorAll: jest.fn(() => []) }),
+      createElement: jest.fn(() => (
+        typeof overrides.createElement === 'function'
+          ? overrides.createElement()
+          : overrides.selfLeaveOverlay || { className: '', innerHTML: '', onclick: null, remove: jest.fn(), querySelectorAll: jest.fn(() => []) }
+      )),
       body: { appendChild: jest.fn(overrides.onAppendChild || (() => {})) },
     },
     escapeHTML,
@@ -155,12 +159,85 @@ describe('edu course lessons', () => {
     expect(viewer.container.innerHTML).not.toContain('App.openCourseLessonQuickAdjust');
   });
 
+  test('quick adjust shows shared loading animation before lesson data resolves', async () => {
+    let resolveSessions;
+    const sessionsPromise = new Promise(resolve => { resolveSessions = resolve; });
+    const overlay = {
+      className: '',
+      innerHTML: '',
+      onclick: null,
+      isConnected: true,
+      remove: jest.fn(),
+      setAttribute: jest.fn(),
+      removeAttribute: jest.fn(),
+    };
+    const appendSpy = jest.fn();
+    const { app } = loadCourseLessonsContext({
+      isStaff: true,
+      loadCourseSessions: jest.fn(() => sessionsPromise),
+      createElement: () => overlay,
+      onAppendChild: appendSpy,
+    });
+
+    const opening = app.openCourseLessonQuickAdjust('teamA', 'planA', 'sessionA');
+
+    expect(appendSpy).toHaveBeenCalledWith(overlay);
+    expect(overlay.setAttribute).toHaveBeenCalledWith('aria-busy', 'true');
+    expect(overlay.innerHTML).toContain('edu-course-lesson-adjust-loading-dialog');
+    expect(overlay.innerHTML).toContain('edu-loading');
+
+    resolveSessions([{
+      id: 'sessionA',
+      title: 'Session A',
+      date: '2099-06-02',
+      startTime: '10:00',
+      endTime: '11:30',
+      location: 'Court A',
+      studentIds: ['stu1', 'stu2'],
+      capacity: 6,
+    }]);
+    await opening;
+
+    expect(overlay.removeAttribute).toHaveBeenCalledWith('aria-busy');
+    expect(overlay.innerHTML).toContain('edu-course-lesson-adjust-grid');
+  });
+
+  test('quick adjust does not reopen when loading overlay is dismissed', async () => {
+    let resolveSessions;
+    const sessionsPromise = new Promise(resolve => { resolveSessions = resolve; });
+    const overlay = {
+      className: '',
+      innerHTML: '',
+      onclick: null,
+      isConnected: false,
+      remove: jest.fn(),
+      setAttribute: jest.fn(),
+      removeAttribute: jest.fn(),
+    };
+    const { app } = loadCourseLessonsContext({
+      isStaff: true,
+      loadCourseSessions: jest.fn(() => sessionsPromise),
+      createElement: () => overlay,
+    });
+
+    const opening = app.openCourseLessonQuickAdjust('teamA', 'planA', 'sessionA');
+    overlay.onclick({ target: overlay });
+
+    resolveSessions([{ id: 'sessionA', date: '2099-06-02', startTime: '10:00', endTime: '11:30' }]);
+    await opening;
+
+    expect(overlay.remove).toHaveBeenCalled();
+    expect(overlay.removeAttribute).not.toHaveBeenCalledWith('aria-busy');
+    expect(overlay.innerHTML).not.toContain('edu-course-lesson-adjust-grid');
+  });
+
   test('lesson card meta keeps location and count on one compact row with ellipsis support', () => {
     expect(cssSource).toContain('grid-template-columns: minmax(0, 1fr) max-content;');
     expect(cssSource).toContain('.edu-course-lesson-meta-time');
     expect(cssSource).toContain('grid-column: 1 / -1;');
     expect(cssSource).toContain('.edu-course-lesson-meta-time.has-adjust');
     expect(cssSource).toContain('.edu-course-lesson-adjust-btn svg');
+    expect(cssSource).toContain('.edu-course-lesson-adjust-loading-dialog');
     expect(cssSource).toContain('.edu-course-lesson-meta-location');
     expect(cssSource).toContain('text-overflow: ellipsis;');
     expect(cssSource).toContain('.edu-course-lesson-meta-count');
