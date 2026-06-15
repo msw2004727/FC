@@ -5,6 +5,7 @@
 Object.assign(App, {
   _eduCourseLessonsRequestSeq: 0,
   _eduCourseLessonsContext: null,
+  _eduCourseLessonAdjustContext: null,
   _eduCourseLessonsPreloadPromises: {},
 
   _getEduCourseLessonsContainer() {
@@ -25,38 +26,6 @@ Object.assign(App, {
   _findEduCoursePlan(teamId, planId) {
     return (this.getEduCoursePlans?.(teamId) || [])
       .find(plan => String(plan.id || plan._docId || '') === String(planId || '')) || null;
-  },
-
-  _getEduCoursePlanRosterAgentUids(plan) {
-    const uids = new Set();
-    const add = (value) => {
-      const uid = String(value || '').trim();
-      if (uid) uids.add(uid);
-    };
-    add(plan?.rosterAgentUid);
-    add(plan?.responsibleAgentUid);
-    if (Array.isArray(plan?.rosterAgentUids)) plan.rosterAgentUids.forEach(add);
-    if (Array.isArray(plan?.responsibleAgentUids)) plan.responsibleAgentUids.forEach(add);
-    return uids;
-  },
-
-  _isEduCoursePlanRosterAgent(plan, user) {
-    if (!plan) return false;
-    const current = user || (typeof ApiService !== 'undefined' && ApiService.getCurrentUser ? ApiService.getCurrentUser() : null);
-    const currentIds = [current?.uid, current?.lineUserId, current?._docId, current?.id]
-      .map(value => String(value || '').trim())
-      .filter(Boolean);
-    if (!currentIds.length) return false;
-    const agentUids = this._getEduCoursePlanRosterAgentUids(plan);
-    return currentIds.some(uid => agentUids.has(uid));
-  },
-
-  _canManageCourseLessonRoster(teamId, plan) {
-    return this.isEduClubStaff?.(teamId) === true || this._isEduCoursePlanRosterAgent(plan);
-  },
-
-  _canUseCourseLessonRosterManage(ctx) {
-    return !!ctx && (ctx.isStaff === true || ctx.canManageRoster === true);
   },
 
   _getCourseLessonsPreloadKey(teamId, planId) {
@@ -139,6 +108,190 @@ Object.assign(App, {
     return Number.isFinite(cachedCount) && cachedCount >= 0 ? cachedCount : null;
   },
 
+  _getCourseLessonSessionId(session) {
+    return String(session?.id || session?._docId || '').trim();
+  },
+
+  _getCourseLessonDateTimeValue(dateValue, timeValue) {
+    const date = String(dateValue || '').trim();
+    const time = String(timeValue || '00:00').trim();
+    const dateMatch = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!dateMatch) return NaN;
+    const timeMatch = time.match(/^(\d{1,2}):(\d{2})/);
+    const hour = timeMatch ? Math.max(0, Math.min(23, parseInt(timeMatch[1], 10))) : 0;
+    const minute = timeMatch ? Math.max(0, Math.min(59, parseInt(timeMatch[2], 10))) : 0;
+    return new Date(
+      parseInt(dateMatch[1], 10),
+      parseInt(dateMatch[2], 10) - 1,
+      parseInt(dateMatch[3], 10),
+      hour,
+      minute
+    ).getTime();
+  },
+
+  _getCourseLessonNextSession(sessions, sessionId) {
+    const currentId = String(sessionId || '').trim();
+    if (!currentId) return null;
+    const sorted = [...(Array.isArray(sessions) ? sessions : [])]
+      .filter(Boolean)
+      .sort((a, b) => {
+        const aSort = typeof this._getCourseSessionSortValue === 'function'
+          ? this._getCourseSessionSortValue(a)
+          : this._getCourseLessonDateTimeValue(a?.date, a?.startTime);
+        const bSort = typeof this._getCourseSessionSortValue === 'function'
+          ? this._getCourseSessionSortValue(b)
+          : this._getCourseLessonDateTimeValue(b?.date, b?.startTime);
+        return (Number.isFinite(aSort) ? aSort : 0) - (Number.isFinite(bSort) ? bSort : 0);
+      });
+    const index = sorted.findIndex(session => this._getCourseLessonSessionId(session) === currentId);
+    return index >= 0 ? (sorted[index + 1] || null) : null;
+  },
+
+  _formatCourseLessonAdjustLimit(session) {
+    if (!session) return '';
+    const dateText = this._formatCourseSessionDate?.(session) || session.date || '';
+    const timeText = this._formatCourseSessionTime?.(session) || [session.startTime, session.endTime].filter(Boolean).join(' - ');
+    return [dateText, timeText].filter(Boolean).join(' ');
+  },
+
+  async openCourseLessonQuickAdjust(teamId, planId, sessionId) {
+    if (this.isEduClubStaff?.(teamId) !== true) {
+      this.showToast?.('僅俱樂部職員可以調整課堂');
+      return false;
+    }
+    const state = await this._loadEduCourseLessonsState(teamId, planId);
+    const plan = state.plan;
+    const sessions = Array.isArray(state.sessions) ? state.sessions : [];
+    const session = sessions.find(item => this._getCourseLessonSessionId(item) === String(sessionId || '').trim());
+    if (!plan || !session) {
+      this.showToast?.('找不到這堂課，請重新開啟課堂列表');
+      return false;
+    }
+    const existing = document.querySelector?.('.edu-course-lesson-adjust-overlay');
+    if (existing) existing.remove();
+    const status = this._getCourseLessonStatusMeta(session);
+    const currentStudentCount = await this._getCourseLessonsCurrentStudentCount(teamId, plan);
+    const studentCount = this._getCourseLessonStudentCount(session, { currentStudentCount }, status);
+    const nextSession = this._getCourseLessonNextSession(sessions, sessionId);
+    const nextStartMs = nextSession ? this._getCourseLessonDateTimeValue(nextSession.date, nextSession.startTime) : NaN;
+    const nextLabel = this._formatCourseLessonAdjustLimit(nextSession);
+    const capacityValue = session.capacity || plan.maxCapacity || '';
+    const isCancelled = String(session.status || '').trim() === 'cancelled';
+    const overlay = document.createElement('div');
+    overlay.className = 'edu-info-overlay edu-course-lesson-adjust-overlay';
+    overlay.onclick = (event) => { if (event.target === overlay) overlay.remove(); };
+    overlay.innerHTML = '<div class="edu-info-dialog edu-course-lesson-adjust-dialog">'
+      + '<div class="edu-course-lesson-adjust-head">'
+        + '<div><span>單堂調整</span><strong>' + escapeHTML(session.title || session.topic || session.focus || '課堂') + '</strong></div>'
+        + '<button class="modal-close-btn" type="button" aria-label="關閉" onclick="this.closest(\'.edu-info-overlay\').remove()">×</button>'
+      + '</div>'
+      + '<div class="edu-course-lesson-adjust-grid">'
+        + '<label><span>日期</span><input id="edu-lesson-adjust-date" type="date" value="' + escapeHTML(session.date || '') + '"' + (nextSession?.date ? ' max="' + escapeHTML(nextSession.date) + '"' : '') + '></label>'
+        + '<label><span>開始</span><input id="edu-lesson-adjust-start" type="time" value="' + escapeHTML(session.startTime || '') + '"></label>'
+        + '<label><span>結束</span><input id="edu-lesson-adjust-end" type="time" value="' + escapeHTML(session.endTime || '') + '"></label>'
+        + '<label><span>人數</span><input id="edu-lesson-adjust-capacity" type="number" min="1" max="999" inputmode="numeric" value="' + escapeHTML(capacityValue) + '"></label>'
+        + '<label class="edu-course-lesson-adjust-wide"><span>地點</span><input id="edu-lesson-adjust-location" type="text" maxlength="60" value="' + escapeHTML(session.location || plan.location || '') + '"></label>'
+      + '</div>'
+      + '<label class="edu-course-lesson-cancel-toggle">'
+        + '<input id="edu-lesson-adjust-cancelled" type="checkbox"' + (isCancelled ? ' checked' : '') + '>'
+        + '<span><strong>停課</strong><em>這堂課會顯示為停課，原名單保留。</em></span>'
+      + '</label>'
+      + (nextSession && Number.isFinite(nextStartMs) ? '<div class="edu-course-lesson-adjust-limit">下一堂課：' + escapeHTML(nextLabel) + '</div>' : '')
+      + '<div class="modal-actions">'
+        + '<button class="outline-btn" type="button" onclick="this.closest(\'.edu-info-overlay\').remove()">取消</button>'
+        + '<button class="primary-btn" type="button" id="edu-lesson-adjust-save" onclick="return App.saveCourseLessonQuickAdjust(this)">儲存調整</button>'
+      + '</div>'
+    + '</div>';
+    document.body.appendChild(overlay);
+    this._eduCourseLessonAdjustContext = {
+      teamId,
+      planId,
+      sessionId: this._getCourseLessonSessionId(session),
+      session,
+      sessions,
+      studentCount,
+      nextStartMs: Number.isFinite(nextStartMs) ? nextStartMs : null,
+      nextLabel,
+    };
+    document.getElementById('edu-lesson-adjust-date')?.focus?.();
+    return false;
+  },
+
+  async saveCourseLessonQuickAdjust(button) {
+    const ctx = this._eduCourseLessonAdjustContext;
+    if (!ctx || this.isEduClubStaff?.(ctx.teamId) !== true) return false;
+    const getValue = id => String(document.getElementById(id)?.value || '').trim();
+    const date = getValue('edu-lesson-adjust-date');
+    const startTime = getValue('edu-lesson-adjust-start');
+    const endTime = getValue('edu-lesson-adjust-end');
+    const location = getValue('edu-lesson-adjust-location');
+    const capacityRaw = getValue('edu-lesson-adjust-capacity');
+    const cancelled = document.getElementById('edu-lesson-adjust-cancelled')?.checked === true;
+    const missing = [
+      ['日期', date],
+      ['開始時間', startTime],
+      ['結束時間', endTime],
+      ['地點', location],
+    ].filter(item => !item[1]).map(item => item[0]);
+    if (missing.length) {
+      this.showToast?.('請填寫' + missing.join('、'));
+      return false;
+    }
+    const startMs = this._getCourseLessonDateTimeValue(date, startTime);
+    const endMs = this._getCourseLessonDateTimeValue(date, endTime);
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+      this.showToast?.('課堂結束時間需晚於開始時間');
+      return false;
+    }
+    if (ctx.nextStartMs && endMs > ctx.nextStartMs) {
+      this.showToast?.('本堂課不可超過下一堂課：' + (ctx.nextLabel || ''));
+      return false;
+    }
+    const capacity = capacityRaw ? parseInt(capacityRaw, 10) : null;
+    if (capacityRaw && (!Number.isFinite(capacity) || capacity < 1 || capacity > 999)) {
+      this.showToast?.('人數需為 1 到 999');
+      return false;
+    }
+    if (capacity && Number(ctx.studentCount || 0) > capacity) {
+      this.showToast?.('人數不可少於目前本堂名單人數');
+      return false;
+    }
+    const previousStatus = String(ctx.session?.status || 'scheduled').trim();
+    const payload = {
+      date,
+      startTime,
+      endTime,
+      location,
+      capacity: Number.isFinite(capacity) ? capacity : null,
+      status: cancelled ? 'cancelled' : (previousStatus === 'cancelled' ? 'scheduled' : (previousStatus || 'scheduled')),
+    };
+    const run = async () => {
+      try {
+        const updated = await FirebaseService.updateCourseSession(ctx.teamId, ctx.planId, ctx.sessionId, payload);
+        const key = this._getCourseSessionCacheKey?.(ctx.teamId, ctx.planId);
+        const cached = key && Array.isArray(this._courseSessionCache?.[key]) ? this._courseSessionCache[key] : null;
+        const applyUpdate = (list) => {
+          const item = Array.isArray(list) ? list.find(session => this._getCourseLessonSessionId(session) === ctx.sessionId) : null;
+          if (item) Object.assign(item, payload, updated || {});
+        };
+        applyUpdate(cached);
+        applyUpdate(ctx.sessions);
+        if (cached) cached.sort((a, b) => this._getCourseSessionSortValue(a) - this._getCourseSessionSortValue(b));
+        document.querySelector?.('.edu-course-lesson-adjust-overlay')?.remove();
+        this.showToast?.('課堂調整已儲存');
+        await this._refreshCourseLessonsAfterSessionSave?.(ctx.teamId, ctx.planId, ctx.sessionId);
+      } catch (err) {
+        console.error('[saveCourseLessonQuickAdjust]', err);
+        this.showToast?.('課堂調整失敗，請稍後再試');
+      }
+      return false;
+    };
+    if (typeof this._withButtonLoading === 'function') {
+      return this._withButtonLoading(button, '儲存中...', run);
+    }
+    return run();
+  },
+
   async showCourseLessons(teamId, planId) {
     const requestSeq = ++this._eduCourseLessonsRequestSeq;
     this._eduCurrentTeamId = teamId;
@@ -190,7 +343,7 @@ Object.assign(App, {
     const currentStudentCount = await this._getCourseLessonsCurrentStudentCount(teamId, plan);
     if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
     container.innerHTML = this._renderCourseLessonList(plan, sessions, { teamId, planId, isStaff, currentStudentCount });
-    this._eduCourseLessonsContext = { teamId, planId, mode: 'list' };
+    this._eduCourseLessonsContext = { teamId, planId, mode: 'list', plan, sessions, currentStudentCount };
     return { ok: true };
   },
 
@@ -220,7 +373,7 @@ Object.assign(App, {
 
   startCourseLessonRosterManage() {
     const ctx = this._eduCourseLessonsContext;
-    if (!ctx || ctx.mode !== 'roster' || !this._canUseCourseLessonRosterManage(ctx)) return;
+    if (!ctx || ctx.mode !== 'roster' || !ctx.isStaff) return;
     ctx.manageMode = true;
     ctx.draftByStudentId = { ...(ctx.attendanceByStudentId || {}) };
     this._renderCourseLessonRosterFromContext();
@@ -236,7 +389,7 @@ Object.assign(App, {
 
   setCourseLessonRosterDraft(studentId, kind) {
     const ctx = this._eduCourseLessonsContext;
-    if (!ctx || ctx.mode !== 'roster' || !this._canUseCourseLessonRosterManage(ctx) || !ctx.manageMode) return;
+    if (!ctx || ctx.mode !== 'roster' || !ctx.isStaff || !ctx.manageMode) return;
     const key = String(studentId || '').trim();
     if (!key) return;
     const normalized = kind === 'leave' ? 'leave' : kind === 'signin' ? 'signin' : null;
@@ -246,7 +399,7 @@ Object.assign(App, {
 
   async saveCourseLessonRosterManage(button) {
     const ctx = this._eduCourseLessonsContext;
-    if (!ctx || ctx.mode !== 'roster' || !this._canUseCourseLessonRosterManage(ctx) || !ctx.manageMode) return;
+    if (!ctx || ctx.mode !== 'roster' || !ctx.isStaff || !ctx.manageMode) return;
     const students = Array.isArray(ctx.rosterPayload?.students) ? ctx.rosterPayload.students : [];
     const original = ctx.attendanceByStudentId || {};
     const draft = ctx.draftByStudentId || {};
@@ -450,15 +603,6 @@ Object.assign(App, {
     }
 
     const isStaff = this.isEduClubStaff?.(teamId) === true;
-    const canManageRoster = isStaff || this._canManageCourseLessonRoster(teamId, plan) || rosterPayload?.canManageRoster === true;
-    const paymentRequired = typeof this._isEduCoursePaymentRequired === 'function'
-      ? this._isEduCoursePaymentRequired(plan)
-      : (() => {
-          const value = plan?.price;
-          if (value === null || value === undefined || String(value).trim() === '') return false;
-          const amount = Number(value);
-          return Number.isFinite(amount) && amount > 0;
-        })();
     const notesByStudentId = {};
     const enrollIdsByStudentId = {};
     let paidByStudentId = null;
@@ -470,19 +614,19 @@ Object.assign(App, {
         (enrollments || []).forEach((enrollment) => {
           const studentId = String(enrollment.studentId || '').trim();
           if (!studentId || enrollment.status === 'rejected') return;
-          if (paymentRequired && String(enrollment.status || 'approved').trim().toLowerCase() === 'approved' && enrollment.paidAt) {
+          if (String(enrollment.status || 'approved').trim().toLowerCase() === 'approved' && enrollment.paidAt) {
             paidMap[studentId] = true;
           }
           if (enrollment.coachNotes) notesByStudentId[studentId] = String(enrollment.coachNotes || '');
           enrollIdsByStudentId[studentId] = enrollment.id || enrollment._docId || '';
         });
-        paidByStudentId = paymentRequired ? paidMap : null;
+        paidByStudentId = paidMap;
       } catch (err) {
         console.warn('[edu-course-lessons] staff notes load failed:', err);
       }
     }
 
-    if (rosterPayload && rosterPayload.rosterPublic === false && !canManageRoster) {
+    if (rosterPayload && rosterPayload.rosterPublic === false && !isStaff) {
       container.innerHTML = '<div class="edu-course-lessons-empty"><strong>名單未公開</strong><span>此課堂名單目前僅職員可查看。</span></div>';
       return { ok: true, closed: true };
     }
@@ -493,7 +637,6 @@ Object.assign(App, {
       sessionId,
       mode: 'roster',
       isStaff,
-      canManageRoster,
       rosterPayload,
       notesByStudentId,
       enrollIdsByStudentId,

@@ -56,6 +56,10 @@ function loadCourseLessonsContext(overrides = {}) {
     _loadCourseEnrollments: overrides.loadCourseEnrollments || jest.fn(async () => overrides.enrollments || []),
     _loadCourseEnrollmentSummaries: jest.fn(async () => overrides.summaries || null),
     _ensureCoursePlanSessionsFromPlan: overrides.ensureCoursePlanSessionsFromPlan,
+    _getCourseSessionSortValue: overrides.getCourseSessionSortValue || ((session) => {
+      const ms = new Date(`${session?.date || ''}T${session?.startTime || '00:00'}`).getTime();
+      return Number.isFinite(ms) ? ms : 0;
+    }),
     _formatCourseSessionDate: (session) => session.date,
     _formatCourseSessionTime: (session) => [session.startTime, session.endTime].filter(Boolean).join(' - '),
     _getCourseSessionStatusMeta: overrides.getCourseSessionStatusMeta || (() => ({ label: '已排課', cls: 'scheduled' })),
@@ -87,18 +91,18 @@ function loadCourseLessonsContext(overrides = {}) {
       saveEduCourseSelfLeave: jest.fn(async () => ({ changed: 1 })),
       updateCourseSession: jest.fn(async () => ({ ok: true })),
     },
-    ApiService: {
-      getCurrentUser: jest.fn(() => overrides.currentUser || null),
-    },
     document: {
       getElementById: jest.fn((id) => {
+        if (overrides.elements && overrides.elements[id]) return overrides.elements[id];
         if (id === 'edu-course-lessons-page') return container;
         if (id === 'edu-course-lessons-title') return title;
         if (id === 'edu-course-roster-notes-input') return overrides.notesInput || null;
         if (id === '_eduSelfLeaveConfirmBtn') return overrides.selfLeaveConfirmBtn || null;
         return null;
       }),
-      querySelector: jest.fn(() => null),
+      querySelector: jest.fn((selector) => (
+        typeof overrides.querySelector === 'function' ? overrides.querySelector(selector) : null
+      )),
       createElement: jest.fn(() => overrides.selfLeaveOverlay || { className: '', innerHTML: '', onclick: null, remove: jest.fn(), querySelectorAll: jest.fn(() => []) }),
       body: { appendChild: jest.fn(overrides.onAppendChild || (() => {})) },
     },
@@ -107,7 +111,9 @@ function loadCourseLessonsContext(overrides = {}) {
     Promise,
     Date,
     String,
+    Number,
     Object,
+    parseInt,
     localStorage: { getItem: jest.fn(() => null) },
   };
   vm.runInNewContext(renderSource, context, { filename: 'edu-course-lessons-render.js' });
@@ -134,10 +140,27 @@ describe('edu course lessons', () => {
     expect(container.innerHTML).toContain("App.showCourseLessonRoster('teamA','planA','sessionA')");
   });
 
+  test('lesson quick adjust edit button is visible only to club staff', async () => {
+    const staff = loadCourseLessonsContext({ isStaff: true });
+    await staff.app.showCourseLessons('teamA', 'planA');
+
+    expect(staff.container.innerHTML).toContain('edu-course-lesson-adjust-btn');
+    expect(staff.container.innerHTML).toContain('App.openCourseLessonQuickAdjust');
+    expect(staff.container.innerHTML).toContain('<svg viewBox="0 0 24 24"');
+
+    const viewer = loadCourseLessonsContext({ isStaff: false });
+    await viewer.app.showCourseLessons('teamA', 'planA');
+
+    expect(viewer.container.innerHTML).not.toContain('edu-course-lesson-adjust-btn');
+    expect(viewer.container.innerHTML).not.toContain('App.openCourseLessonQuickAdjust');
+  });
+
   test('lesson card meta keeps location and count on one compact row with ellipsis support', () => {
     expect(cssSource).toContain('grid-template-columns: minmax(0, 1fr) max-content;');
     expect(cssSource).toContain('.edu-course-lesson-meta-time');
     expect(cssSource).toContain('grid-column: 1 / -1;');
+    expect(cssSource).toContain('.edu-course-lesson-meta-time.has-adjust');
+    expect(cssSource).toContain('.edu-course-lesson-adjust-btn svg');
     expect(cssSource).toContain('.edu-course-lesson-meta-location');
     expect(cssSource).toContain('text-overflow: ellipsis;');
     expect(cssSource).toContain('.edu-course-lesson-meta-count');
@@ -359,14 +382,6 @@ describe('edu course lessons', () => {
   test('staff roster separates unpaid students from paid lesson roster', async () => {
     const { app, container } = loadCourseLessonsContext({
       isStaff: true,
-      plans: [{
-        id: 'planA',
-        name: 'Paid Plan',
-        planType: 'session',
-        startDate: '2099-06-01',
-        endDate: '2099-08-31',
-        price: 1200,
-      }],
       enrollments: [
         { id: 'enr1', studentId: 'stu1', status: 'approved', paidAt: '2099-06-01', coachNotes: '' },
         { id: 'enr2', studentId: 'stu2', status: 'approved', paidAt: null, coachNotes: '' },
@@ -389,14 +404,6 @@ describe('edu course lessons', () => {
   test('staff roster matches payment data when roster students use id fields', async () => {
     const { app, container, firebase } = loadCourseLessonsContext({
       isStaff: true,
-      plans: [{
-        id: 'planA',
-        name: 'Paid Plan',
-        planType: 'session',
-        startDate: '2099-06-01',
-        endDate: '2099-08-31',
-        price: 1200,
-      }],
       rosterPayload: {
         rosterPublic: true,
         session: {
@@ -445,32 +452,6 @@ describe('edu course lessons', () => {
     });
   });
 
-  test('staff roster keeps free course students in the normal list without payment labels', async () => {
-    const { app, container } = loadCourseLessonsContext({
-      isStaff: true,
-      plans: [{
-        id: 'planA',
-        name: 'Free Plan',
-        planType: 'session',
-        startDate: '2099-06-01',
-        endDate: '2099-08-31',
-        price: 0,
-      }],
-      enrollments: [
-        { id: 'enr1', studentId: 'stu1', status: 'approved', paidAt: null, coachNotes: '' },
-        { id: 'enr2', studentId: 'stu2', status: 'approved', paidAt: '2099-06-01', coachNotes: '' },
-      ],
-    });
-
-    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
-
-    const html = container.innerHTML;
-    expect(app._loadCourseEnrollments).toHaveBeenCalledWith('teamA', 'planA');
-    expect(html).not.toContain('edu-course-roster-section-unpaid');
-    expect(html).not.toContain('edu-course-roster-card-unpaid');
-    expect(html).not.toContain('edu-course-roster-payment-unpaid');
-  });
-
   test('staff roster keeps the normal list when payment data cannot load', async () => {
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     const { app, container } = loadCourseLessonsContext({
@@ -502,62 +483,6 @@ describe('edu course lessons', () => {
     await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
 
     expect(container.innerHTML).toContain('名單未公開');
-  });
-
-  test('assigned roster agent can manage a closed lesson roster without staff role', async () => {
-    const { app, container, firebase } = loadCourseLessonsContext({
-      isStaff: false,
-      currentUser: { uid: 'uidAgent', displayName: 'Agent User' },
-      plans: [{
-        id: 'planA',
-        name: 'Agent Plan',
-        planType: 'session',
-        startDate: '2099-06-01',
-        endDate: '2099-08-31',
-        rosterAgentUid: 'uidAgent',
-      }],
-      rosterPayload: {
-        rosterPublic: false,
-        session: {
-          id: 'sessionA',
-          title: 'Session A',
-          date: '2099-06-02',
-          startTime: '10:00',
-          endTime: '11:30',
-          status: 'scheduled',
-        },
-        students: [
-          { studentId: 'stu1', displayName: 'Student A', level: '3', attendanceKind: 'signin' },
-          { studentId: 'stu2', displayName: 'Student B', level: null, attendanceKind: null },
-        ],
-      },
-    });
-
-    await app.showCourseLessonRoster('teamA', 'planA', 'sessionA');
-
-    expect(container.innerHTML).toContain("App.startCourseLessonRosterManage()");
-    expect(container.innerHTML).not.toContain('edu-course-roster-section-unpaid');
-
-    app.startCourseLessonRosterManage();
-    expect(container.innerHTML).toContain('edu-roster-cb-signin');
-    expect(container.innerHTML).toContain('edu-roster-cb-leave');
-
-    app.setCourseLessonRosterDraft('stu2', 'leave');
-    await app.saveCourseLessonRosterManage({ dataset: {}, disabled: false, style: {}, isConnected: true });
-
-    expect(firebase.saveEduSessionAttendanceChanges).toHaveBeenCalledWith({
-      teamId: 'teamA',
-      planId: 'planA',
-      sessionId: 'sessionA',
-      date: '2099-06-02',
-      changes: [{
-        studentId: 'stu2',
-        studentName: 'Student B',
-        parentUid: null,
-        selfUid: null,
-        kind: 'leave',
-      }],
-    });
   });
 
   test('staff can draft and save lesson attendance changes', async () => {
@@ -607,6 +532,119 @@ describe('edu course lessons', () => {
 
     expect(firebase.updateCourseSession).toHaveBeenCalledWith('teamA', 'planA', 'sessionA', { notes: '新的課堂備註' });
     expect(app.showToast).toHaveBeenCalledWith('課堂備註已更新');
+  });
+
+  test('quick adjust blocks a lesson time that exceeds the next lesson', async () => {
+    const sessions = [
+      {
+        id: 'sessionA',
+        title: 'Session A',
+        date: '2099-06-02',
+        startTime: '10:00',
+        endTime: '11:00',
+        location: 'Court A',
+        studentIds: ['stu1', 'stu2'],
+        capacity: 6,
+      },
+      {
+        id: 'sessionB',
+        title: 'Session B',
+        date: '2099-06-02',
+        startTime: '12:00',
+        endTime: '13:00',
+        location: 'Court A',
+        studentIds: ['stu1', 'stu2'],
+        capacity: 6,
+      },
+    ];
+    const elements = {
+      'edu-lesson-adjust-date': { value: '2099-06-02' },
+      'edu-lesson-adjust-start': { value: '11:30' },
+      'edu-lesson-adjust-end': { value: '12:30' },
+      'edu-lesson-adjust-location': { value: 'Court B' },
+      'edu-lesson-adjust-capacity': { value: '6' },
+      'edu-lesson-adjust-cancelled': { checked: false },
+    };
+    const { app, firebase } = loadCourseLessonsContext({ isStaff: true, sessions, elements });
+    app._eduCourseLessonAdjustContext = {
+      teamId: 'teamA',
+      planId: 'planA',
+      sessionId: 'sessionA',
+      session: sessions[0],
+      sessions,
+      studentCount: 2,
+      nextStartMs: app._getCourseLessonDateTimeValue('2099-06-02', '12:00'),
+      nextLabel: '2099-06-02 12:00',
+    };
+
+    await app.saveCourseLessonQuickAdjust({ dataset: {}, disabled: false, style: {}, isConnected: true });
+
+    expect(firebase.updateCourseSession).not.toHaveBeenCalled();
+    expect(app.showToast).toHaveBeenCalledWith(expect.stringContaining('下一堂課'));
+  });
+
+  test('quick adjust saves date location capacity and cancelled status', async () => {
+    const overlay = { remove: jest.fn() };
+    const sessions = [
+      {
+        id: 'sessionA',
+        title: 'Session A',
+        status: 'scheduled',
+        date: '2099-06-02',
+        startTime: '10:00',
+        endTime: '11:00',
+        location: 'Court A',
+        studentIds: ['stu1', 'stu2'],
+        capacity: 6,
+      },
+    ];
+    const elements = {
+      'edu-lesson-adjust-date': { value: '2099-06-03' },
+      'edu-lesson-adjust-start': { value: '09:00' },
+      'edu-lesson-adjust-end': { value: '10:30' },
+      'edu-lesson-adjust-location': { value: 'Court C' },
+      'edu-lesson-adjust-capacity': { value: '5' },
+      'edu-lesson-adjust-cancelled': { checked: true },
+    };
+    const { app, firebase } = loadCourseLessonsContext({
+      isStaff: true,
+      sessions,
+      elements,
+      querySelector: selector => selector === '.edu-course-lesson-adjust-overlay' ? overlay : null,
+    });
+    app._refreshCourseLessonsAfterSessionSave = jest.fn(async () => true);
+    app._eduCourseLessonAdjustContext = {
+      teamId: 'teamA',
+      planId: 'planA',
+      sessionId: 'sessionA',
+      session: sessions[0],
+      sessions,
+      studentCount: 2,
+      nextStartMs: null,
+      nextLabel: '',
+    };
+
+    await app.saveCourseLessonQuickAdjust({ dataset: {}, disabled: false, style: {}, isConnected: true });
+
+    expect(firebase.updateCourseSession).toHaveBeenCalledWith('teamA', 'planA', 'sessionA', {
+      date: '2099-06-03',
+      startTime: '09:00',
+      endTime: '10:30',
+      location: 'Court C',
+      capacity: 5,
+      status: 'cancelled',
+    });
+    expect(sessions[0]).toMatchObject({
+      date: '2099-06-03',
+      startTime: '09:00',
+      endTime: '10:30',
+      location: 'Court C',
+      capacity: 5,
+      status: 'cancelled',
+    });
+    expect(overlay.remove).toHaveBeenCalled();
+    expect(app._refreshCourseLessonsAfterSessionSave).toHaveBeenCalledWith('teamA', 'planA', 'sessionA');
+    expect(app.showToast).toHaveBeenCalledWith('課堂調整已儲存');
   });
 
   test('refreshes the visible lesson list after a course session save', async () => {

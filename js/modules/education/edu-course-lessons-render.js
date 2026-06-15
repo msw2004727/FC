@@ -61,6 +61,11 @@ Object.assign(App, {
       const capacity = session.capacity ? '/' + session.capacity : '';
       const count = this._getCourseLessonStudentCount(session, context, status) + capacity + ' 人';
       const jsSessionId = this._eduCourseLessonsJsArg(session.id || session._docId || '');
+      const quickAdjustBtn = context.isStaff
+        ? '<button type="button" class="edu-course-lesson-adjust-btn" aria-label="調整課堂" title="調整課堂" onclick="event.stopPropagation();return App.openCourseLessonQuickAdjust(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\',this)">'
+          + '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>'
+        + '</button>'
+        : '';
       return '<article class="edu-course-lesson-card edu-course-lesson-card-' + escapeHTML(status.cls) + '" role="button" tabindex="0" onclick="App.showCourseLessonRoster(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();App.showCourseLessonRoster(\'' + jsTeamId + '\',\'' + jsPlanId + '\',\'' + jsSessionId + '\')}">'
         + '<div class="edu-course-lesson-index"><strong>' + (index + 1) + '</strong></div>'
         + '<div class="edu-course-lesson-main">'
@@ -69,7 +74,7 @@ Object.assign(App, {
             + '<span class="edu-course-lesson-status edu-course-lesson-status-' + escapeHTML(status.cls) + '">' + escapeHTML(status.label) + '</span>'
           + '</div>'
           + '<div class="edu-course-lesson-meta">'
-            + '<span class="edu-course-lesson-meta-time"><b>時間</b><em>' + escapeHTML(this._formatCourseLessonDateTime(session)) + '</em></span>'
+            + '<span class="edu-course-lesson-meta-time' + (quickAdjustBtn ? ' has-adjust' : '') + '"><b>時間</b><em>' + escapeHTML(this._formatCourseLessonDateTime(session)) + '</em>' + quickAdjustBtn + '</span>'
             + '<span class="edu-course-lesson-meta-location"><b>地點</b><em>' + escapeHTML(location) + '</em></span>'
             + '<span class="edu-course-lesson-meta-count"><b>人數</b><em>' + escapeHTML(count) + '</em></span>'
           + '</div>'
@@ -107,8 +112,7 @@ Object.assign(App, {
     const jsTeamId = this._eduCourseLessonsJsArg(context.teamId);
     const jsPlanId = this._eduCourseLessonsJsArg(context.planId);
     const status = this._getCourseLessonStatusMeta(session);
-    const canManageRoster = context.isStaff === true || context.canManageRoster === true;
-    const manageMode = canManageRoster && context.manageMode === true;
+    const manageMode = context.isStaff === true && context.manageMode === true;
     const paidByStudentId = context.paidByStudentId && typeof context.paidByStudentId === 'object'
       ? context.paidByStudentId
       : null;
@@ -139,7 +143,7 @@ Object.assign(App, {
       const signinId = 'edu-roster-signin-' + index;
       const leaveId = 'edu-roster-leave-' + index;
       const statusHtml = '<span class="edu-course-roster-status edu-course-roster-status-' + escapeHTML(attendance.cls) + '">' + escapeHTML(attendance.label) + '</span>';
-      const selfLeaveActionHtml = (!context.isStaff && !canManageRoster && student.canSelfLeave === true)
+      const selfLeaveActionHtml = (!context.isStaff && student.canSelfLeave === true)
         ? '<div class="edu-course-roster-self-actions">'
           + statusHtml
           + '<button type="button" class="outline-btn small edu-roster-self-leave-btn" onclick="return App.showCourseLessonSelfLeaveDialog(\'' + safeStudentId + '\',\'' + (draftKind === 'leave' ? '' : 'leave') + '\',this)">'
@@ -203,7 +207,7 @@ Object.assign(App, {
       ? renderRosterSection('本堂名單', paidStudents, paidRows, 'main', students.length ? '' : emptyRosterHtml)
         + renderRosterSection('未繳費區', unpaidStudents, unpaidRows, 'unpaid')
       : '<div class="edu-course-roster-list">' + (paidRows || emptyRosterHtml) + '</div>';
-    const staffActions = canManageRoster
+    const staffActions = context.isStaff
       ? (manageMode
         ? '<div class="edu-course-roster-head-actions"><button type="button" class="outline-btn small" onclick="App.cancelCourseLessonRosterManage()">取消</button><button type="button" class="primary-btn small" onclick="return App.saveCourseLessonRosterManage(this)">完成</button></div>'
         : '<button type="button" class="primary-btn small" onclick="App.startCourseLessonRosterManage()">管理名單</button>')
