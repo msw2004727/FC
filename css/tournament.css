@@ -2155,7 +2155,14 @@
 .tc-record-btn:hover { background: var(--primary); color: #fff; }
 
 .tc-match-info-modal {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   width: min(760px, calc(100vw - 1.5rem));
+}
+.tc-match-info-modal .modal-body {
+  min-height: 0;
+  overflow-y: auto;
 }
 .tc-match-detail-shell {
   display: grid;
@@ -3347,7 +3354,27 @@
 
 @media (max-width: 560px) {
   .tc-match-info-modal {
-    width: min(100%, calc(100vw - .75rem));
+    top: max(.6rem, env(safe-area-inset-top));
+    right: max(.6rem, env(safe-area-inset-right));
+    bottom: max(.6rem, env(safe-area-inset-bottom));
+    left: max(.6rem, env(safe-area-inset-left));
+    width: auto;
+    max-width: none;
+    max-height: none;
+    height: auto;
+    border-radius: 12px;
+    transform: translateY(calc(100% + .75rem));
+  }
+  .tc-match-info-modal.open {
+    transform: translateY(0);
+  }
+  .tc-match-info-modal .modal-header {
+    flex: 0 0 auto;
+    padding: .82rem .95rem;
+  }
+  .tc-match-info-modal .modal-body {
+    flex: 1 1 auto;
+    padding: .82rem .9rem;
   }
   .tc-match-detail-score {
     grid-template-columns: 1fr;

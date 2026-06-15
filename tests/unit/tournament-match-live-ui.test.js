@@ -42,6 +42,11 @@ describe('tournament live match schedule UI contract', () => {
     expect(cssSource).toContain('.tc-match-live-frame');
     expect(cssSource).toContain('aspect-ratio: 16 / 9');
     expect(cssSource).toContain('.tc-match-info-modal');
+    expect(cssSource).toContain('.tc-match-info-modal .modal-body');
+    expect(cssSource).toContain('env(safe-area-inset-top)');
+    expect(cssSource).toContain('max-height: none');
+    expect(detailSource).toContain("document.body?.classList?.add('modal-open')");
+    expect(detailSource).toContain("document.body?.classList?.remove('modal-open')");
     expect(cssSource).toContain('.tc-match-staff-panel');
     expect(cssSource).toContain('.tmr-live-card');
   });

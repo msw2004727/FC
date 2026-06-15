@@ -438,6 +438,7 @@ Object.assign(App, {
   closeTournamentMatchDetailModal() {
     document.getElementById('tournament-match-detail-overlay')?.classList.remove('open');
     document.getElementById('tournament-match-detail-modal')?.classList.remove('open');
+    document.body?.classList?.remove('modal-open');
   },
 
   async openTournamentMatchDetailModal(tournamentId, matchId) {
@@ -460,6 +461,7 @@ Object.assign(App, {
     if (body) body.innerHTML = this._renderTournamentMatchDetailModalBody(tournament, match, matchesBySlot, nameById);
     overlay.classList.add('open');
     document.getElementById('tournament-match-detail-modal')?.classList.add('open');
+    document.body?.classList?.add('modal-open');
   },
 
   _renderTournamentMatchDetailModalBody(tournament, match, matchesBySlot, nameById) {
