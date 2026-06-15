@@ -242,9 +242,7 @@ Object.assign(App, {
       const formatDate = (value) => this._formatCourseEnrollmentDateLocal?.(value) || '';
       const itemHtml = pendingItems.map(({ enrollment, student, studentId }) => {
         const appliedDate = formatDate(enrollment.appliedAt || enrollment.appliedAtIso || enrollment.createdAt);
-        const age = student?.birthday ? this.calcAge?.(student.birthday) : null;
-        const ageText = Number.isFinite(age) ? age + '歲' : '';
-        const subText = [ageText, appliedDate ? '送出日 ' + appliedDate : '審核中'].filter(Boolean).join(' · ');
+        const subText = appliedDate ? '送出日 ' + appliedDate : '審核中';
         return '<label class="edu-ce-pick-item edu-ce-pending-cancel-item">'
           + '<div class="edu-ce-pick-main"><span class="edu-ce-pick-name">' + escapeHTML(student?.name || enrollment.studentName || '未命名學員') + '</span>'
           + '<span class="edu-ce-pick-info">' + escapeHTML(subText) + '</span></div>'
@@ -426,13 +424,11 @@ Object.assign(App, {
     const available = myStudents.filter(s => !enrolledMap[s.id]);
     const enrolled = myStudents.filter(s => enrolledMap[s.id]);
     const renderPickItem = (s) => {
-      const age = s.birthday ? this.calcAge(s.birthday) : null;
       const gender = s.gender === 'male' ? '♂' : s.gender === 'female' ? '♀' : '';
       const genderClass = s.gender === 'male' ? ' edu-gender-male' : s.gender === 'female' ? ' edu-gender-female' : '';
       const groupLabel = (s.groupNames || []).join('、') || '未分組';
       const infoLine = '<span class="edu-ce-pick-info">'
         + (gender ? '<span class="edu-student-gender' + genderClass + '">' + gender + '</span> ' : '')
-        + (age != null ? age + '歲 ' : '')
         + '<span style="color:var(--text-muted)">' + escapeHTML(groupLabel) + '</span>'
         + '</span>';
       const existing = enrolledMap[s.id];

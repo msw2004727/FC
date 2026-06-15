@@ -130,12 +130,12 @@ describe('edu course enrollment render', () => {
       ]),
       getEduCoursePlans: jest.fn(() => [{ id: 'planA', name: 'Plan A', planType: 'weekly' }]),
       getEduStudents: jest.fn(() => [
-        { id: 'stuPending', name: 'Pending Student' },
-        { id: 'stuUnpaid', name: 'Unpaid Student' },
-        { id: 'stuPaid', name: 'Paid Student' },
+        { id: 'stuPending', name: 'Pending Student', birthday: '2015-01-01' },
+        { id: 'stuUnpaid', name: 'Unpaid Student', birthday: '2016-01-01' },
+        { id: 'stuPaid', name: 'Paid Student', birthday: '2017-01-01' },
       ]),
       isEduClubStaff: jest.fn(() => true),
-      calcAge: jest.fn(() => null),
+      calcAge: jest.fn(() => 12),
       _updateEnrollSubtitle: jest.fn(),
     };
     const loaded = loadModule(app, elements);
@@ -155,6 +155,9 @@ describe('edu course enrollment render', () => {
     expect(html.indexOf('edu-ce-section-unpaid')).toBeLessThan(html.indexOf('edu-ce-section-paid'));
     expect(html.indexOf('Unpaid Student')).toBeGreaterThan(html.indexOf('edu-ce-section-unpaid'));
     expect(html.indexOf('Paid Student')).toBeGreaterThan(html.indexOf('edu-ce-section-paid'));
+    expect(html).not.toContain('12\u6b72');
+    expect(html).not.toContain('\u6b72');
+    expect(app.calcAge).not.toHaveBeenCalled();
   });
 
   test('per-session billing keeps approved enrollments in one list without payment controls', async () => {
@@ -179,11 +182,11 @@ describe('edu course enrollment render', () => {
       ]),
       getEduCoursePlans: jest.fn(() => [{ id: 'planA', name: 'Plan A', planType: 'weekly', perSessionBilling: true }]),
       getEduStudents: jest.fn(() => [
-        { id: 'stuUnpaid', name: 'Unpaid Student' },
-        { id: 'stuPaid', name: 'Paid Student' },
+        { id: 'stuUnpaid', name: 'Unpaid Student', birthday: '2016-01-01' },
+        { id: 'stuPaid', name: 'Paid Student', birthday: '2017-01-01' },
       ]),
       isEduClubStaff: jest.fn(() => true),
-      calcAge: jest.fn(() => null),
+      calcAge: jest.fn(() => 12),
       _updateEnrollSubtitle: jest.fn(),
     };
     const firebase = {
@@ -205,6 +208,9 @@ describe('edu course enrollment render', () => {
     expect(html).not.toContain('已繳費 2099-01-02');
     expect(html).toContain('簽到 2/3 · 出席率 67%');
     expect(html).toContain('簽到 1/2 · 出席率 50%');
+    expect(html).not.toContain('12\u6b72');
+    expect(html).not.toContain('\u6b72');
+    expect(app.calcAge).not.toHaveBeenCalled();
     expect(firebase.queryEduAttendance).toHaveBeenCalledWith({ teamId: 'teamA', coursePlanId: 'planA' });
     expect(app._buildCourseLessonAttendanceStatsByStudent).toHaveBeenCalled();
   });
@@ -260,6 +266,9 @@ describe('edu course enrollment render', () => {
     expect(cardHtml).not.toContain('edu-ce-date');
     expect(cardHtml).not.toContain('2099-01-02');
     expect(cardHtml).not.toContain('2099-01-03');
+    expect(cardHtml).not.toContain('10\u6b72');
+    expect(cardHtml).not.toContain('\u6b72');
+    expect(app.calcAge).not.toHaveBeenCalled();
     expect(cardHtml).toContain('maxlength="30"');
     expect(cardHtml).toContain('abcdefghijklmnopqrstuvwxyzABCD');
     expect(cardHtml).not.toContain('abcdefghijklmnopqrstuvwxyzABCDE');
@@ -286,6 +295,9 @@ describe('edu course enrollment render', () => {
     expect(cardHtml).toContain('>設定</button>');
     expect(cardHtml).not.toContain('✏️');
     expect(cardHtml).toContain('aria-label="新增備註"');
+    expect(cardHtml).not.toContain('10\u6b72');
+    expect(cardHtml).not.toContain('\u6b72');
+    expect(app.calcAge).not.toHaveBeenCalled();
     expect(cardHtml).not.toContain('edu-ce-note-row');
   });
 });
