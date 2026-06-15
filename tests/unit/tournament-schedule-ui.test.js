@@ -16,9 +16,9 @@ function escapeHTML(value) {
     .replace(/'/g, '&#39;');
 }
 
-function buildCompetitionApp() {
+function buildCompetitionApp(apiOverrides = {}) {
   const App = { renderTournamentTab: jest.fn() };
-  const ApiService = { getCurrentUser: () => null };
+  const ApiService = { getCurrentUser: () => null, ...apiOverrides };
   loadModule('js/modules/tournament/tournament-competition.js', { App, ApiService });
   loadModule('js/modules/tournament/tournament-detail-competition.js', { App, ApiService, escapeHTML });
   return App;
@@ -93,7 +93,12 @@ describe('tournament bracket UI', () => {
   });
 
   test('renders scrollable schedule summary with teams, time, and score', () => {
-    const App = buildCompetitionApp();
+    const App = buildCompetitionApp({
+      getTeam: id => ({
+        de: { name: '德國', avatarUrl: 'https://cdn.example/de-avatar.png' },
+        cw: { name: '庫拉索', avatarUrl: 'https://cdn.example/cw-avatar.png' },
+      }[id] || null),
+    });
     const matches = [
       App._buildTournamentMatchRecord({
         id: 'm1',
@@ -112,8 +117,8 @@ describe('tournament bracket UI', () => {
     const html = App._renderTournamentCompetitionScheduleHtml({
       tournament: { id: 'ct_test', friendlyConfig: { mode: 'league' } },
       entries: [
-        { teamId: 'de', teamName: '德國' },
-        { teamId: 'cw', teamName: '庫拉索' },
+        { teamId: 'de', teamName: '德國', teamImage: 'https://cdn.example/de-cover.png' },
+        { teamId: 'cw', teamName: '庫拉索', teamImage: 'https://cdn.example/cw-cover.png' },
       ],
       matches,
     });
@@ -121,6 +126,10 @@ describe('tournament bracket UI', () => {
     expect(html).toContain('tc-schedule-summary-list');
     expect(html).toContain('tc-summary-match tc-summary-match-finished');
     expect(html).toContain('賽程摘要列');
+    expect(html).toContain('tc-summary-team-logo has-img');
+    expect(html).toContain('src="https://cdn.example/de-avatar.png"');
+    expect(html).toContain('src="https://cdn.example/cw-avatar.png"');
+    expect(html).not.toContain('src="https://cdn.example/de-cover.png"');
     expect(html).toContain('德國');
     expect(html).toContain('庫拉索');
     expect(html).toContain('2026/06/13 10:30');

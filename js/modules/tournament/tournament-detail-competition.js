@@ -66,6 +66,44 @@ Object.assign(App, {
     return nameById;
   },
 
+  _getTournamentTeamLogoMap(state) {
+    const logoById = {};
+    const readPreferredLogo = item => String(
+      item?.teamLogo
+      || item?.teamAvatar
+      || item?.avatarUrl
+      || item?.logoUrl
+      || item?.logo
+      || item?.avatar
+      || ''
+    ).trim();
+    const readAnyLogo = item => String(
+      readPreferredLogo(item)
+      || item?.teamImage
+      || item?.image
+      || item?.imageUrl
+      || item?.coverImage
+      || item?.coverUrl
+      || ''
+    ).trim();
+    const writeLogo = (teamId, item, preferredOnly = false) => {
+      const safeId = String(teamId || '').trim();
+      if (!safeId || logoById[safeId]) return;
+      const logo = preferredOnly ? readPreferredLogo(item) : readAnyLogo(item);
+      if (logo) logoById[safeId] = logo;
+    };
+    (state?.entries || []).forEach(entry => writeLogo(entry?.teamId || entry?.id, entry, true));
+    const collect = teamId => {
+      const safeId = String(teamId || '').trim();
+      if (!safeId || logoById[safeId]) return;
+      const team = ApiService.getTeam?.(safeId);
+      writeLogo(safeId, team);
+    };
+    (state?.matches || []).forEach(match => { collect(match.homeTeamId); collect(match.awayTeamId); });
+    (state?.entries || []).forEach(entry => writeLogo(entry?.teamId || entry?.id, entry));
+    return logoById;
+  },
+
   _formatTournamentMatchTime(value) {
     if (!value) return '';
     const dt = new Date(value);
@@ -512,7 +550,7 @@ Object.assign(App, {
       </div>`;
   },
 
-  _renderTournamentScheduleSummaryHtml(tournament, matches, matchesBySlot, nameById, bracketSize, stats = {}) {
+  _renderTournamentScheduleSummaryHtml(tournament, matches, matchesBySlot, nameById, bracketSize, stats = {}, logoById = {}) {
     const rows = (Array.isArray(matches) ? matches : []).map(match => {
       const home = this._renderTournamentMatchSideLabel(match, 'home', matchesBySlot, nameById);
       const away = this._renderTournamentMatchSideLabel(match, 'away', matchesBySlot, nameById);
@@ -546,9 +584,14 @@ Object.assign(App, {
       };
       const teamRow = (info, side) => {
         const isWinner = !!winnerTeamId && !!info.teamId && winnerTeamId === info.teamId;
+        const logoUrl = info.teamId ? String(logoById?.[info.teamId] || '').trim() : '';
+        const initial = String(info.label || '?').trim().charAt(0) || '?';
+        const logoHtml = logoUrl
+          ? `<span class="tc-summary-team-logo has-img" aria-hidden="true"><img src="${escapeHTML(logoUrl)}" alt="" loading="lazy" decoding="async"></span>`
+          : `<span class="tc-summary-team-logo tc-summary-team-logo-fallback" aria-hidden="true">${escapeHTML(initial)}</span>`;
         return `<div class="tc-summary-team tc-summary-team-${side}${isWinner ? ' is-winner' : ''}${info.pending ? ' tc-pending' : ''}">
-          <i aria-hidden="true"></i>
-          <span title="${escapeHTML(info.label)}">${escapeHTML(info.label)}</span>
+          ${logoHtml}
+          <span class="tc-summary-team-name" title="${escapeHTML(info.label)}">${escapeHTML(info.label)}</span>
           <b>${escapeHTML(scoreOf(info, side))}</b>
         </div>`;
       };
@@ -610,6 +653,7 @@ Object.assign(App, {
     const user = ApiService.getCurrentUser?.();
     const matchesBySlot = this._buildTournamentMatchesBySlot(matches);
     const nameById = this._getTournamentTeamNameMap(state);
+    const logoById = this._getTournamentTeamLogoMap(state);
     const mode = this._getTournamentMode?.(tournament);
     const modeText = mode === 'league' ? '聯賽' : '盃賽';
     const cupMatches = matches.filter(m => m.stage === 'cup');
@@ -642,7 +686,7 @@ Object.assign(App, {
             finished: finishedCount,
             scheduled: scheduledCount,
             venue: venueCount,
-          })}
+          }, logoById)}
         </div>
       </div>`;
     if (mode === 'cup' && cupMatches.length > 0) {
