@@ -20,6 +20,7 @@ function loadCourseSessionApp(overrides = {}) {
   const context = {
     App: app,
     FirebaseService: overrides.FirebaseService || {},
+    escapeHTML,
     console,
     Date,
     String,
@@ -35,7 +36,31 @@ function loadCourseSessionApp(overrides = {}) {
   return context.App;
 }
 
+function escapeHTML(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 describe('edu course session auto sync helpers', () => {
+  test('course session student tags hide age for non staff viewers', () => {
+    const app = loadCourseSessionApp();
+    app.calcAge = jest.fn(() => 11);
+    const student = { id: 'stuA', gender: 'female', birthday: '2015-01-01', groupNames: ['Group A'] };
+
+    const viewerHtml = app._renderCourseSessionStudentTags(student, {}, {}, { isStaff: false });
+    const staffHtml = app._renderCourseSessionStudentTags(student, {}, {}, { isStaff: true });
+
+    expect(viewerHtml).not.toContain('edu-session-student-slot-age');
+    expect(viewerHtml).not.toContain('11歲');
+    expect(staffHtml).toContain('edu-session-student-slot-age');
+    expect(staffHtml).toContain('11歲');
+    expect(app.calcAge).toHaveBeenCalledTimes(1);
+  });
+
   test('session plan creates only missing numbered sessions', () => {
     const app = loadCourseSessionApp();
     const missing = app._buildMissingAutoCourseSessions('teamA', {

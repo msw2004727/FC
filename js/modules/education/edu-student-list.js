@@ -135,7 +135,7 @@ Object.assign(App, {
    * 正式學員行（編輯/移除 置右）
    */
   _renderActiveStudentRow(teamId, groupId, s, isStaff) {
-    const age = this.calcAge(s.birthday);
+    const age = isStaff ? this.calcAge(s.birthday) : null;
     const ageLabel = age != null ? age + ' 歲' : '';
     const genderIcon = s.gender === 'male' ? '♂' : s.gender === 'female' ? '♀' : '';
     const genderClass = s.gender === 'male' ? ' edu-gender-male' : s.gender === 'female' ? ' edu-gender-female' : '';

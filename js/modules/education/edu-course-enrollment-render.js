@@ -160,11 +160,12 @@ Object.assign(App, {
     if (isStaff && pending.length) {
       const pendingRows = pending.map(e => {
         const stu = students.find(s => s.id === e.studentId);
+        const age = stu && stu.birthday ? this.calcAge(stu.birthday) : null;
         const gender = stu?.gender === 'male' ? '♂' : stu?.gender === 'female' ? '♀' : '';
         return '<div class="edu-ce-card edu-ce-card-pending">'
           + '<div class="edu-ce-card-top">'
           + '<span class="edu-ce-name">' + escapeHTML(e.studentName) + '</span>'
-          + '<span class="edu-ce-meta">' + gender + '</span>'
+          + '<span class="edu-ce-meta">' + gender + (age != null ? ' ' + age + '歲' : '') + '</span>'
           + '</div>'
           + '<div class="edu-ce-card-actions">'
           + '<button class="edu-approve-btn" onclick="App._approveCourseEnrollment(\'' + teamId + '\',\'' + planId + '\',\'' + e.id + '\',this)">同意</button>'
@@ -234,9 +235,11 @@ Object.assign(App, {
 
   _renderApprovedEnrollmentCard(e, plan, students, teamId, planId, isStaff, options = {}) {
     const stu = students.find(s => s.id === e.studentId);
+    const age = stu && stu.birthday ? this.calcAge(stu.birthday) : null;
     const gender = stu?.gender === 'male' ? '♂' : stu?.gender === 'female' ? '♀' : '';
     const groupNames = (stu?.groupNames || []).join('、') || '未分組';
-    const metaText = [gender, groupNames].filter(Boolean).join(' ');
+    const ageText = age != null ? age + '歲' : '';
+    const metaText = [gender, ageText, groupNames].filter(Boolean).join(' ');
     // 繳費狀態（隨堂收費方案不追蹤整期繳費）
     var paidHtml = '';
     const tracksPayment = typeof this._shouldTrackCoursePlanPayment === 'function'

@@ -255,8 +255,6 @@ Object.assign(App, {
   },
 
   _renderPendingStudentStatusRow(s) {
-    const age = this.calcAge(s.birthday);
-    const ageLabel = age != null ? age + ' 歲' : '';
     const genderIcon = s.gender === 'male' ? '♂' : s.gender === 'female' ? '♀' : '';
     const genderClass = s.gender === 'male' ? ' edu-gender-male' : s.gender === 'female' ? ' edu-gender-female' : '';
     const dateLabel = this._formatEduPendingSubmitDate(s);
@@ -265,7 +263,6 @@ Object.assign(App, {
       + '<div class="edu-student-header">'
       + '<span class="edu-student-name">' + escapeHTML(s.name || '未命名學員') + '</span>'
       + (genderIcon ? '<span class="edu-student-gender' + genderClass + '">' + genderIcon + '</span>' : '')
-      + (ageLabel ? '<span class="edu-student-age">' + ageLabel + '</span>' : '')
       + '<span class="edu-header-actions"><span class="edu-status-pending">' + escapeHTML(statusText) + '</span></span>'
       + '</div>'
       + '</div>';
@@ -386,7 +383,7 @@ Object.assign(App, {
       + '</div>';
 
     html += myStudents.map(s => {
-      const age = this.calcAge(s.birthday);
+      const age = isStaff ? this.calcAge(s.birthday) : null;
       const ageLabel = age != null ? age + ' 歲' : '';
       const genderIcon = s.gender === 'male' ? '♂' : s.gender === 'female' ? '♀' : '';
       const genderClass = s.gender === 'male' ? ' edu-gender-male' : s.gender === 'female' ? ' edu-gender-female' : '';

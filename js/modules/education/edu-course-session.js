@@ -920,7 +920,7 @@ Object.assign(App, {
 
   _renderCourseSessionStudentTags(student, enrollment, plan, options = {}) {
     const gender = student?.gender === 'male' ? '男' : student?.gender === 'female' ? '女' : '';
-    const age = student?.birthday ? this.calcAge(student.birthday) : null;
+    const age = options.isStaff === true && student?.birthday ? this.calcAge(student.birthday) : null;
     const group = (student?.groupNames || []).join('、');
     const studentId = String(student?.id || student?._docId || enrollment?.studentId || '').trim();
     const attended = (this._courseAttendanceCount || {})[studentId] || 0;
@@ -933,11 +933,13 @@ Object.assign(App, {
       : plan?.perSessionBilling !== true;
     const fields = [
       { cls: 'gender', label: '性別', value: gender || '—' },
-      { cls: 'age', label: '年齡', value: age != null ? age + '歲' : '—' },
       { cls: 'group', label: '分組', value: group || '未分組' },
       { cls: 'paid', label: tracksPayment ? '繳費' : '收費', value: tracksPayment ? paidStatus : '隨堂' },
       { cls: 'remain', label: '剩餘', value: remaining },
     ];
+    if (options.isStaff === true) {
+      fields.splice(1, 0, { cls: 'age', label: '年齡', value: age != null ? age + '歲' : '—' });
+    }
     let html = fields.map(field => '<span class="edu-session-student-slot edu-session-student-slot-' + field.cls + '" aria-label="' + escapeHTML(field.label) + '">'
       + escapeHTML(field.value)
       + '</span>').join('');

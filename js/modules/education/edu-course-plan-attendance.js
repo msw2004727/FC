@@ -98,6 +98,7 @@ Object.assign(App, {
     const teamId = this._attendInfoTeamId;
     const planId = this._attendInfoPlanId;
     const students = this.getEduStudents(teamId);
+    const isStaff = this.isEduClubStaff?.(teamId) === true;
     let records = [];
     try {
       records = await FirebaseService.queryEduAttendance({ teamId, coursePlanId: planId, date: dateStr });
@@ -107,7 +108,7 @@ Object.assign(App, {
     let listHtml = records.length
       ? records.map(r => {
           const stu = students.find(s => s.id === r.studentId);
-          const age = stu && stu.birthday ? this.calcAge(stu.birthday) : null;
+          const age = isStaff && stu && stu.birthday ? this.calcAge(stu.birthday) : null;
           const gender = stu?.gender === 'male' ? '♂' : stu?.gender === 'female' ? '♀' : '';
           const groupLabel = (stu?.groupNames || []).join('、') || '';
           return '<div style="padding:.4rem .5rem;border-bottom:1px solid var(--border);font-size:.85rem;display:flex;align-items:center;gap:.4rem">'
