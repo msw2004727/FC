@@ -144,9 +144,9 @@ const PROFILE_FEATURE_PERMISSION_CATEGORY = Object.freeze({
 });
 
 const INHERENT_ROLE_PERMISSIONS = Object.freeze({
-  coach:       ['activity.manage.entry', 'admin.tournaments.entry'],
-  captain:     ['activity.manage.entry', 'admin.tournaments.entry', 'team.manage.entry'],
-  venue_owner: ['activity.manage.entry', 'admin.tournaments.entry', 'team.manage.entry'],
+  coach:       [],
+  captain:     [],
+  venue_owner: [],
   super_admin: ['admin.repair.event_blocklist', 'admin.seo.entry'],
 });
 
@@ -819,19 +819,16 @@ describe('Permission System', () => {
   });
 
   describe('getInherentRolePermissions', () => {
-    test('returns permissions for coach', () => {
-      const perms = getInherentRolePermissions('coach');
-      expect(perms).toEqual(['activity.manage.entry', 'admin.tournaments.entry']);
+    test('coach permissions are fully configurable', () => {
+      expect(getInherentRolePermissions('coach')).toEqual([]);
     });
 
-    test('returns permissions for captain', () => {
-      const perms = getInherentRolePermissions('captain');
-      expect(perms).toEqual(['activity.manage.entry', 'admin.tournaments.entry', 'team.manage.entry']);
+    test('captain permissions are fully configurable', () => {
+      expect(getInherentRolePermissions('captain')).toEqual([]);
     });
 
-    test('returns permissions for venue_owner', () => {
-      const perms = getInherentRolePermissions('venue_owner');
-      expect(perms).toEqual(['activity.manage.entry', 'admin.tournaments.entry', 'team.manage.entry']);
+    test('venue_owner permissions are fully configurable', () => {
+      expect(getInherentRolePermissions('venue_owner')).toEqual([]);
     });
 
     test('returns empty array for user role', () => {
@@ -1055,6 +1052,14 @@ describe('Permission System', () => {
       expect(Array.isArray(perms)).toBe(true);
       expect(perms).toContain('activity.manage.entry');
       expect(perms).toContain('admin.tournaments.entry');
+      expect(getInherentRolePermissions('coach')).toEqual([]);
+    });
+
+    test('staff defaults stay removable through rolePermissions', () => {
+      expect(getDefaultRolePermissions('captain')).toContain('team.manage.entry');
+      expect(getDefaultRolePermissions('venue_owner')).toContain('team.manage.entry');
+      expect(getInherentRolePermissions('captain')).not.toContain('team.manage.entry');
+      expect(getInherentRolePermissions('venue_owner')).not.toContain('team.manage.entry');
     });
 
     test('returns more permissions for admin than coach', () => {

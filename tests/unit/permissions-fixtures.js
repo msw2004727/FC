@@ -16,9 +16,9 @@ const BUILTIN_ROLE_KEYS = ['user', 'coach', 'captain', 'venue_owner', 'admin', '
 const ROLE_LEVEL_MAP = { user: 0, coach: 1, captain: 2, venue_owner: 3, admin: 4, super_admin: 5 };
 
 const INHERENT_ROLE_PERMISSIONS = Object.freeze({
-  coach:       ['activity.manage.entry', 'admin.tournaments.entry'],
-  captain:     ['activity.manage.entry', 'admin.tournaments.entry', 'team.manage.entry'],
-  venue_owner: ['activity.manage.entry', 'admin.tournaments.entry', 'team.manage.entry'],
+  coach:       [],
+  captain:     [],
+  venue_owner: [],
   super_admin: ['admin.repair.event_blocklist', 'admin.seo.entry'],
 });
 

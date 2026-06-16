@@ -115,11 +115,9 @@ describe('getDefaultRolePermissions', () => {
 // =========================================================================
 
 describe('inherent permissions', () => {
-  test('coach/captain/venue_owner have activity + tournament inherent', () => {
+  test('coach/captain/venue_owner have no non-removable inherent permissions', () => {
     ['coach', 'captain', 'venue_owner'].forEach(role => {
-      const inherent = getInherentRolePermissions(role);
-      expect(inherent).toContain('activity.manage.entry');
-      expect(inherent).toContain('admin.tournaments.entry');
+      expect(getInherentRolePermissions(role)).toEqual([]);
     });
   });
 
@@ -135,12 +133,13 @@ describe('inherent permissions', () => {
     ]);
   });
 
-  test('inherent permissions survive even with empty stored permissions', () => {
-    ['coach', 'captain', 'venue_owner'].forEach(role => {
-      const perms = getRolePermissions(role, []);
-      expect(perms).toContain('activity.manage.entry');
-      expect(perms).toContain('admin.tournaments.entry');
-    });
+  test('staff defaults are granted only by defaults, not inherent permissions', () => {
+    expect(getDefaultRolePermissions('coach')).toEqual(expect.arrayContaining([
+      'activity.manage.entry',
+      'admin.tournaments.entry',
+    ]));
+    expect(getDefaultRolePermissions('captain')).toContain('team.manage.entry');
+    expect(getDefaultRolePermissions('venue_owner')).toContain('team.manage.entry');
   });
 });
 
@@ -246,11 +245,11 @@ describe('hasPermission — custom permission granting', () => {
     expect(hasPermission('admin', adminPermsNoTeamCreate, 'team.create')).toBe(false);
   });
 
-  test('revoking an inherent permission has no effect for coach/captain/venue_owner', () => {
-    // Coach with empty stored — still has inherent
-    expect(hasPermission('coach', [], 'activity.manage.entry')).toBe(true);
-    expect(hasPermission('captain', [], 'admin.tournaments.entry')).toBe(true);
-    expect(hasPermission('venue_owner', [], 'activity.manage.entry')).toBe(true);
+  test('revoking staff entry permissions works for coach/captain/venue_owner', () => {
+    // Empty stored permissions mean the permission was explicitly revoked.
+    expect(hasPermission('coach', [], 'activity.manage.entry')).toBe(false);
+    expect(hasPermission('captain', [], 'admin.tournaments.entry')).toBe(false);
+    expect(hasPermission('venue_owner', [], 'team.manage.entry')).toBe(false);
   });
 });
 

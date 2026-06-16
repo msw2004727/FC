@@ -34,8 +34,8 @@ function loadHarness() {
       if (roleKey === 'coach') return ['activity.manage.entry'];
       return [];
     },
-    getInherentRolePermissions(roleKey) {
-      return roleKey === 'coach' ? ['activity.manage.entry'] : [];
+    getInherentRolePermissions() {
+      return [];
     },
     getAllPermissionCodes() {
       return Array.from(KNOWN_PERMS);

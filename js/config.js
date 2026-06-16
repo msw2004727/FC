@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260616c';
+const CACHE_VERSION = '0.20260616d';
 
 const GOOGLE_MAPS_BROWSER_API_KEY = '';
 
@@ -1091,14 +1091,15 @@ const ADMIN_PAGE_EXTRA_PERMISSION_ITEMS = {
   ],
 };
 
-// ─── 身分不可剝奪權限（取得身分即自動擁有，不受 rolePermissions 覆蓋）───
-// coach/captain/venue_owner 的活動管理與賽事為身分核心功能，不可拔除
-// admin 以上的所有權限由 super_admin 在權限管理 UI 自由啟閉
+// ─── 身分不可剝奪權限（只放真正不能由 rolePermissions 關閉的安全保護）───
+// coach/captain/venue_owner 只保留可移除的預設權限，必須能在權限管理中關閉
+// admin 以上的普通權限由 super_admin 在權限管理 UI 自由啟閉
 // ⚠️ 同步規則：修改此常數時必須同步更新 functions/index.js 中的同名常數 INHERENT_ROLE_PERMISSIONS
+// Staff roles are intentionally empty here: their defaults are removable via rolePermissions.
 const INHERENT_ROLE_PERMISSIONS = Object.freeze({
-  coach:       ['activity.manage.entry', 'admin.tournaments.entry'],
-  captain:     ['activity.manage.entry', 'admin.tournaments.entry', 'team.manage.entry'],
-  venue_owner: ['activity.manage.entry', 'admin.tournaments.entry', 'team.manage.entry'],
+  coach:       [],
+  captain:     [],
+  venue_owner: [],
   super_admin: ['admin.repair.event_blocklist', 'admin.seo.entry'],
 });
 

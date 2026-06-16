@@ -94,12 +94,43 @@ const ROLE_LEVELS = Object.freeze({
   user: 0, coach: 1, captain: 2, venue_owner: 3, admin: 4, super_admin: 5,
 });
 // ⚠️ 同步規則：修改此常數時必須同步更新 js/config.js 中的同名常數 INHERENT_ROLE_PERMISSIONS
+// Staff role defaults are removable; only super_admin keeps non-removable safeguards here.
 const INHERENT_ROLE_PERMISSIONS = Object.freeze({
-  coach:       ["activity.manage.entry", "admin.tournaments.entry"],
-  captain:     ["activity.manage.entry", "admin.tournaments.entry", "team.manage.entry"],
-  venue_owner: ["activity.manage.entry", "admin.tournaments.entry", "team.manage.entry"],
+  coach:       [],
+  captain:     [],
+  venue_owner: [],
   super_admin: ["admin.repair.event_blocklist", "admin.seo.entry"],
 });
+const DEFAULT_ROLE_ENTRY_PERMISSION_RULES = Object.freeze([
+  { code: "activity.manage.entry", minRole: "coach" },
+  { code: "admin.tournaments.entry", minRole: "coach" },
+  { code: "team.manage.entry", minRole: "captain" },
+  { code: "admin.games.entry", minRole: "admin" },
+  { code: "admin.users.entry", minRole: "admin" },
+  { code: "admin.banners.entry", minRole: "admin" },
+  { code: "admin.shop.entry", minRole: "admin" },
+  { code: "admin.messages.entry", minRole: "admin" },
+  { code: "admin.seo.entry", minRole: "admin" },
+  { code: "admin.repair.entry", minRole: "admin" },
+  { code: "admin.dashboard.entry", minRole: "super_admin" },
+  { code: "admin.themes.entry", minRole: "super_admin" },
+  { code: "admin.exp.entry", minRole: "super_admin" },
+  { code: "admin.auto_exp.entry", minRole: "super_admin" },
+  { code: "admin.notif.entry", minRole: "super_admin" },
+  { code: "admin.announcements.entry", minRole: "super_admin" },
+  { code: "admin.achievements.entry", minRole: "super_admin" },
+  { code: "admin.logs.entry", minRole: "super_admin" },
+  { code: "admin.inactive.entry", minRole: "super_admin" },
+]);
+const DEFAULT_ADMIN_PERMISSION_CODES = Object.freeze([
+  "team.create",
+  "team.manage_all",
+  "event.edit_all",
+  "admin.tournaments.manage_all",
+  "admin.tournaments.end",
+  "admin.tournaments.reopen",
+  "admin.tournaments.delete",
+]);
 const ROLE_ACTIVITY_CAPABILITY_CODES = new Set([
   "user.activity.basic_create",
   "user.activity.external_create",
@@ -454,6 +485,34 @@ function sanitizePermissionCodeList(codes) {
       .map(code => normalizePermissionCode(code))
       .filter(Boolean)
   ));
+}
+
+function getDefaultRolePermissions(roleKey) {
+  const safeRole = normalizeBuiltInRole(roleKey);
+  if (safeRole === "user") return [];
+
+  const roleLevel = ROLE_LEVELS[safeRole] || 0;
+  const defaults = [];
+
+  DEFAULT_ROLE_ENTRY_PERMISSION_RULES.forEach(rule => {
+    if (roleLevel >= (ROLE_LEVELS[rule.minRole] || 0)) {
+      defaults.push(rule.code);
+    }
+  });
+
+  if (roleLevel >= ROLE_LEVELS.coach) {
+    defaults.push("activity.view_noshow");
+  }
+
+  if (roleLevel >= ROLE_LEVELS.admin) {
+    defaults.push(...DEFAULT_ADMIN_PERMISSION_CODES);
+  }
+
+  if (roleLevel >= ROLE_LEVELS.super_admin) {
+    defaults.push("admin.notif.toggle");
+  }
+
+  return sanitizePermissionCodeList(defaults);
 }
 
 function sanitizeAdminManagedProfileUpdates(rawUpdates) {
@@ -1511,8 +1570,12 @@ async function getRolePermissionsFromFirestore(roleKey) {
   const safeRole = normalizeRole(roleKey);
   if (safeRole === "user" || safeRole === "super_admin") return [];
   const snapshot = await db.collection("rolePermissions").doc(safeRole).get();
-  if (!snapshot.exists) return [];
-  return sanitizePermissionCodeList(snapshot.data()?.permissions);
+  if (!snapshot.exists) return getDefaultRolePermissions(safeRole);
+  const data = snapshot.data() || {};
+  if (!Object.prototype.hasOwnProperty.call(data, "permissions")) {
+    return getDefaultRolePermissions(safeRole);
+  }
+  return sanitizePermissionCodeList(data.permissions);
 }
 
 function sanitizeRoleActivityCapabilityList(capabilities) {

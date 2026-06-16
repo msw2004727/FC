@@ -26,11 +26,41 @@ const ROLE_LEVELS = Object.freeze({
   user: 0, coach: 1, captain: 2, venue_owner: 3, admin: 4, super_admin: 5,
 });
 const INHERENT_ROLE_PERMISSIONS = Object.freeze({
-  coach:       ["activity.manage.entry", "admin.tournaments.entry"],
-  captain:     ["activity.manage.entry", "admin.tournaments.entry"],
-  venue_owner: ["activity.manage.entry", "admin.tournaments.entry"],
-  super_admin: ["admin.repair.event_blocklist"],
+  coach:       [],
+  captain:     [],
+  venue_owner: [],
+  super_admin: ["admin.repair.event_blocklist", "admin.seo.entry"],
 });
+const DEFAULT_ROLE_ENTRY_PERMISSION_RULES = Object.freeze([
+  { code: "activity.manage.entry", minRole: "coach" },
+  { code: "admin.tournaments.entry", minRole: "coach" },
+  { code: "team.manage.entry", minRole: "captain" },
+  { code: "admin.games.entry", minRole: "admin" },
+  { code: "admin.users.entry", minRole: "admin" },
+  { code: "admin.banners.entry", minRole: "admin" },
+  { code: "admin.shop.entry", minRole: "admin" },
+  { code: "admin.messages.entry", minRole: "admin" },
+  { code: "admin.seo.entry", minRole: "admin" },
+  { code: "admin.repair.entry", minRole: "admin" },
+  { code: "admin.dashboard.entry", minRole: "super_admin" },
+  { code: "admin.themes.entry", minRole: "super_admin" },
+  { code: "admin.exp.entry", minRole: "super_admin" },
+  { code: "admin.auto_exp.entry", minRole: "super_admin" },
+  { code: "admin.notif.entry", minRole: "super_admin" },
+  { code: "admin.announcements.entry", minRole: "super_admin" },
+  { code: "admin.achievements.entry", minRole: "super_admin" },
+  { code: "admin.logs.entry", minRole: "super_admin" },
+  { code: "admin.inactive.entry", minRole: "super_admin" },
+]);
+const DEFAULT_ADMIN_PERMISSION_CODES = Object.freeze([
+  "team.create",
+  "team.manage_all",
+  "event.edit_all",
+  "admin.tournaments.manage_all",
+  "admin.tournaments.end",
+  "admin.tournaments.reopen",
+  "admin.tournaments.delete",
+]);
 const ALLOWED_AUDIT_ACTIONS = new Set([
   "login_success", "login_failure", "logout",
   "event_signup", "event_cancel_signup",
@@ -106,6 +136,51 @@ function validateAdjustExp(data) {
   if (typeof data.amount !== 'number' || !Number.isFinite(data.amount))
     return { error: 'invalid-argument', msg: 'Invalid amount' };
   return null;
+}
+
+function normalizePermissionCode(code) {
+  if (typeof code !== 'string') return '';
+  const trimmed = code.trim();
+  if (!trimmed || DISABLED_PERMISSION_CODES.has(trimmed)) return '';
+  return trimmed;
+}
+
+function sanitizePermissionCodeList(codes) {
+  return Array.from(new Set(
+    (Array.isArray(codes) ? codes : [])
+      .map(code => normalizePermissionCode(code))
+      .filter(Boolean)
+  ));
+}
+
+function getDefaultRolePermissions(roleKey) {
+  const safeRole = normalizeRole(roleKey);
+  if (safeRole === 'user') return [];
+  const roleLevel = ROLE_LEVELS[safeRole] || 0;
+  const defaults = [];
+
+  DEFAULT_ROLE_ENTRY_PERMISSION_RULES.forEach(rule => {
+    if (roleLevel >= (ROLE_LEVELS[rule.minRole] || 0)) {
+      defaults.push(rule.code);
+    }
+  });
+
+  if (roleLevel >= ROLE_LEVELS.coach) defaults.push('activity.view_noshow');
+  if (roleLevel >= ROLE_LEVELS.admin) defaults.push(...DEFAULT_ADMIN_PERMISSION_CODES);
+  if (roleLevel >= ROLE_LEVELS.super_admin) defaults.push('admin.notif.toggle');
+
+  return sanitizePermissionCodeList(defaults);
+}
+
+function resolveStoredRolePermissions(roleKey, snapshot) {
+  const safeRole = normalizeRole(roleKey);
+  if (safeRole === 'user' || safeRole === 'super_admin') return [];
+  if (!snapshot?.exists) return getDefaultRolePermissions(safeRole);
+  const data = snapshot.data || {};
+  if (!Object.prototype.hasOwnProperty.call(data, 'permissions')) {
+    return getDefaultRolePermissions(safeRole);
+  }
+  return sanitizePermissionCodeList(data.permissions);
 }
 
 /** Permission check: inherent + dynamic */
@@ -951,12 +1026,12 @@ describe('privileged LINE notification toggles', () => {
 });
 
 describe('Permission check (inherent + dynamic)', () => {
-  test('coach has inherent activity.manage.entry', () => {
-    expect(hasPermission('coach', [], 'activity.manage.entry')).toBe(true);
+  test('coach has no inherent activity.manage.entry', () => {
+    expect(hasPermission('coach', [], 'activity.manage.entry')).toBe(false);
   });
 
-  test('captain has inherent admin.tournaments.entry', () => {
-    expect(hasPermission('captain', [], 'admin.tournaments.entry')).toBe(true);
+  test('captain has no inherent admin.tournaments.entry', () => {
+    expect(hasPermission('captain', [], 'admin.tournaments.entry')).toBe(false);
   });
 
   test('user has no inherent permissions', () => {
@@ -971,9 +1046,21 @@ describe('Permission check (inherent + dynamic)', () => {
     expect(hasPermission('admin', ['admin.roles.entry'], 'admin.roles.entry')).toBe(false);
   });
 
-  test('inherent + dynamic do not conflict', () => {
-    expect(hasPermission('coach', ['admin.shop.entry'], 'activity.manage.entry')).toBe(true);
+  test('dynamic staff permissions grant access', () => {
+    expect(hasPermission('coach', ['activity.manage.entry', 'admin.shop.entry'], 'activity.manage.entry')).toBe(true);
     expect(hasPermission('coach', ['admin.shop.entry'], 'admin.shop.entry')).toBe(true);
+  });
+
+  test('missing rolePermissions document falls back to defaults', () => {
+    const defaults = resolveStoredRolePermissions('captain', { exists: false });
+    expect(defaults).toContain('activity.manage.entry');
+    expect(defaults).toContain('admin.tournaments.entry');
+    expect(defaults).toContain('team.manage.entry');
+  });
+
+  test('explicitly empty rolePermissions document revokes staff defaults', () => {
+    expect(resolveStoredRolePermissions('coach', { exists: true, data: { permissions: [] } })).toEqual([]);
+    expect(hasPermission('coach', [], 'activity.manage.entry')).toBe(false);
   });
 });
 

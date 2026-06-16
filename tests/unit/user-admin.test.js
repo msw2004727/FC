@@ -192,6 +192,10 @@ describe('_isLockedPermissionRole (user-admin-roles.js:58-60)', () => {
     expect(_isLockedPermissionRole('captain')).toBe(false);
   });
 
+  test('venue_owner permissions are configurable', () => {
+    expect(_isLockedPermissionRole('venue_owner')).toBe(false);
+  });
+
   test('null → false', () => {
     expect(_isLockedPermissionRole(null)).toBe(false);
   });
