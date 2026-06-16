@@ -24,6 +24,7 @@ Updated: 2026-06-16
 - Local Firebase Functions dry-run passed.
 - GitHub secret `GCP_SERVICE_ACCOUNT_JSON` exists.
 - GitHub dry-run passed on run `27630483024` with `dry_run=true`.
+- GitHub dry-run passed again on run `27631535325` after updating `actions/checkout` and `actions/setup-node` to v6 and removing `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24`.
 - GitHub deploy service account currently has these project-level roles:
   - `roles/datastore.owner`
   - `roles/datastore.user`
@@ -58,9 +59,10 @@ Updated: 2026-06-16
 
 ### H2: Update GitHub Actions Runtime
 
-- Update `actions/checkout` and `actions/setup-node` after H1 is proven.
-- Remove `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24` only in the same small action-runtime commit.
-- Manually dispatch `dry_run=true` again.
+- Completed in commit `84936752`.
+- `actions/checkout` and `actions/setup-node` are on v6.
+- `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24` has been removed.
+- Manual dispatch `dry_run=true` passed on run `27631535325`.
 
 ### H3: Fix Deploy Readiness
 
