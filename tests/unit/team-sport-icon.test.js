@@ -33,8 +33,18 @@ describe('team sport icon rendering', () => {
     expect(ribbonRule).toContain('right: -26px');
     expect(ribbonRule).toContain('top: 12px');
     expect(ribbonRule).toContain('transform: rotate(35deg)');
+    expect(ribbonRule).toContain('z-index: 3');
     expect(ribbonRule).not.toContain('bottom: 6px');
     expect(ribbonRule).not.toContain('transform: rotate(-35deg)');
+  });
+
+  test('team card sport image badges stay bounded like emoji badges', () => {
+    const teamCss = readProjectFile('css/team.css');
+    const badgeImageRule = teamCss.match(/\.tc-card-media \.tc-sport-badge img,[\s\S]*?\.tc-sport-badge svg\s*\{[\s\S]*?\n\}/)?.[0] || '';
+
+    expect(badgeImageRule).toContain('width: 1em');
+    expect(badgeImageRule).toContain('height: 1em');
+    expect(badgeImageRule).toContain('object-fit: contain');
   });
 
   test('club category cards keep only the diagonal ribbon and do not render the purple text badge', () => {

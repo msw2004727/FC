@@ -292,13 +292,20 @@ describe('team pin management wiring', () => {
     expect(teamCss).toContain('.team-pin-btn.is-pinned');
   });
 
-  test('club list pinned state uses a top rail instead of overlaying media badges', () => {
+  test('club list pinned state overlays media without changing card height', () => {
+    const pinRailRule = teamCss.match(/\.tc-card > \.tc-pin-rail\s*\{[\s\S]*?\n\}/)?.[0] || '';
+    const ribbonRule = teamCss.match(/\.tc-type-ribbon,[\s\S]*?\.tc-edu-ribbon\s*\{[\s\S]*?\n\}/)?.[0] || '';
+
     expect(teamListRenderSource).toContain('tc-pin-rail');
     expect(teamListRenderSource).toContain('tc-card-media');
     expect(teamListRenderSource).not.toContain('tc-pin-badge');
-    expect(teamCss).toContain('.tc-pin-rail');
+    expect(teamCss).toContain('.tc-card > .tc-pin-rail');
+    expect(pinRailRule).toContain('position: absolute');
+    expect(pinRailRule).toContain('z-index: 2');
+    expect(ribbonRule).toContain('z-index: 3');
     expect(teamCss).toContain('.tc-card.is-pending .tc-card-media::after');
     expect(teamCss).not.toContain('.tc-card.is-pending > div:first-child::after');
+    expect(teamCss).not.toContain('border-bottom: 1px solid rgba(217, 119, 6, .18)');
   });
 
   test('club manage page sorts pinned active and inactive teams before rendering', () => {
