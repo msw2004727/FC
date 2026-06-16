@@ -1,8 +1,6 @@
 name: GSC Daily Snapshot
 
-# 每日抓 Google Search Console 資料寫入 Firestore seoSnapshots
-# - 自動：每日 03:00 UTC（台北 11:00）
-# - 手動：Actions 頁面可隨時觸發
+# Takes a daily or manual Google Search Console snapshot and writes it to Firestore seoSnapshots.
 on:
   workflow_dispatch:
   push:
@@ -33,7 +31,7 @@ jobs:
           GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
         run: |
           if [ -z "$GCP_SERVICE_ACCOUNT_JSON" ]; then
-            echo "✗ GCP_SERVICE_ACCOUNT_JSON secret 未設定"
+            echo "GCP_SERVICE_ACCOUNT_JSON secret is missing."
             exit 1
           fi
           node scripts/gsc-snapshot.js

@@ -1,8 +1,6 @@
 name: Verify GSC Read Permission
 
-# 一次性驗證 Service Account 是否有 GSC 讀取權限
-# 成功後此 workflow 可以留著當健康檢查，或刪除
-
+# Manual check for whether the service account can read Google Search Console data.
 on:
   workflow_dispatch:
 
@@ -22,7 +20,7 @@ jobs:
           GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
         run: |
           if [ -z "$GCP_SERVICE_ACCOUNT_JSON" ]; then
-            echo "✗ GCP_SERVICE_ACCOUNT_JSON secret 未設定"
+            echo "GCP_SERVICE_ACCOUNT_JSON secret is missing."
             exit 1
           fi
           node scripts/verify-gsc-read.js
