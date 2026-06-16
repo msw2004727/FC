@@ -8,14 +8,11 @@ on:
   schedule:
     - cron: '0 2 * * 1'
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   lighthouse:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Run Lighthouse on key pages
         uses: treosh/lighthouse-ci-action@v12
