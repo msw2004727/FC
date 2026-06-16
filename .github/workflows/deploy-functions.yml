@@ -11,6 +11,12 @@ on:
       - 'scripts/check-registration-ops-guard.js'
       - '.github/workflows/deploy-functions.yml'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Validate functions deploy without applying changes'
+        required: false
+        default: true
+        type: boolean
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -66,4 +72,14 @@ jobs:
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/gcp-service-account.json" >> "$GITHUB_ENV"
 
       - name: Deploy functions
-        run: npx firebase deploy --only functions --project fc-football-6c8dc --non-interactive
+        shell: bash
+        env:
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}
+        run: |
+          set -euo pipefail
+          echo "Dry-run mode: ${DRY_RUN}"
+          if [ "${DRY_RUN}" = "true" ]; then
+            npx firebase deploy --only functions --project fc-football-6c8dc --non-interactive --dry-run
+          else
+            npx firebase deploy --only functions --project fc-football-6c8dc --non-interactive
+          fi
