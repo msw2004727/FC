@@ -7,6 +7,12 @@ on:
   schedule:
     - cron: '17 * * * *'    # hourly, offset to avoid top-of-hour queueing
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run homepage summary injection and show index.html diff without committing.'
+        required: false
+        default: false
+        type: boolean
 
 # 並發保護：上次還沒結束時，本次自動跳過（避免 push 競爭）
 concurrency:
@@ -37,7 +43,20 @@ jobs:
         run: node scripts/inject-hot-events.js
         continue-on-error: true   # 失敗（API quota / Firestore down）不阻塞 workflow
 
+      - name: Report index changes (dry run)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}
+        run: |
+          set -e
+          if git diff --quiet -- index.html; then
+            echo "[inject-bot] dry-run: no index.html changes"
+            exit 0
+          fi
+          echo "[inject-bot] dry-run: index.html changes detected"
+          git diff --stat -- index.html
+          git diff --name-only -- index.html
+
       - name: Commit if changed
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
         run: |
           set -e
           push_with_retry() {
