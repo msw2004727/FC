@@ -19,7 +19,6 @@ on:
         type: boolean
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   NO_UPDATE_NOTIFIER: '1'
   FIREBASE_SKIP_UPDATE_CHECK: 'true'
   CLOUDSDK_CORE_PROJECT: fc-football-6c8dc
@@ -40,15 +39,13 @@ jobs:
     # Push-triggered Cloud Functions deployment is intentionally disabled unless
     # the repo variable ENABLE_FUNCTIONS_AUTO_DEPLOY is "true". A skipped deploy
     # job usually means this gate is closed, not that functions code failed.
-    # Before enabling the gate, ensure the service account in GCP_SERVICE_ACCOUNT_JSON
-    # (currently sitemap-submitter@toosterx-seo.iam.gserviceaccount.com) has
-    # roles/serviceusage.serviceUsageConsumer on project fc-football-6c8dc.
+    # Before enabling the gate, review .github/functions-deploy-runbook.md.
     if: github.event_name == 'workflow_dispatch' || vars.ENABLE_FUNCTIONS_AUTO_DEPLOY == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: 'npm'
