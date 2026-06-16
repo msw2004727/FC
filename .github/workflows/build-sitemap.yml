@@ -7,6 +7,12 @@ on:
   schedule:
     - cron: '17 3 * * *'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run sitemap generation and show file diffs without committing.'
+        required: false
+        default: false
+        type: boolean
 
 # 並發保護：上次還沒結束時，本次自動跳過
 concurrency:
@@ -36,7 +42,20 @@ jobs:
         run: node scripts/build-sitemap.js
         continue-on-error: true   # 失敗（API quota / Firestore down）不阻塞 workflow
 
+      - name: Report sitemap changes (dry run)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}
+        run: |
+          set -e
+          if git diff --quiet -- sitemap-events.xml sitemap-teams.xml sitemap-tournaments.xml; then
+            echo "[sitemap-bot] dry-run: no sitemap changes"
+            exit 0
+          fi
+          echo "[sitemap-bot] dry-run: sitemap changes detected"
+          git diff --stat -- sitemap-events.xml sitemap-teams.xml sitemap-tournaments.xml
+          git diff --name-only -- sitemap-events.xml sitemap-teams.xml sitemap-tournaments.xml
+
       - name: Commit if changed
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run != true }}
         run: |
           set -e
           push_with_retry() {
