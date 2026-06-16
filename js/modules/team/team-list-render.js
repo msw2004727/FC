@@ -40,12 +40,15 @@ Object.assign(App, {
     const memberCount = memberCountMap && memberCountMap.has(memberCountKey)
       ? memberCountMap.get(memberCountKey)
       : this._calcTeamMemberCount(t.id);
+    const pinRail = t.pinned
+      ? '<div class="tc-pin-rail" aria-label="置頂俱樂部"><span class="tc-pin-mark" aria-hidden="true"></span><span>置頂</span></div>'
+      : '';
     return `
       <div class="tc-card${pinnedClass}${attentionClass}${themeClass}"${cardStyle} data-team-id="${escapeHTML(t.id)}" onclick="App.openTeamDetailFromCard(this, this.dataset.teamId)">
-        ${t.pinned ? '<div class="tc-pin-badge">置頂</div>' : ''}
+        ${pinRail}
         ${cardImage
-          ? `<div style="position:relative;width:100%;aspect-ratio:1;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0">${sportBadge}<img src="${escapeHTML(cardImage)}" width="1000" height="1000" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"><span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span>${typeRibbon}</div>`
-          : `<div class="tc-img-placeholder" style="position:relative">${sportBadge}俱樂部圖片<span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span>${typeRibbon}</div>`}
+          ? `<div class="tc-card-media">${sportBadge}<img src="${escapeHTML(cardImage)}" width="1000" height="1000" loading="lazy" decoding="async"><span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span>${typeRibbon}</div>`
+          : `<div class="tc-card-media tc-img-placeholder">${sportBadge}俱樂部圖片<span class="tc-rank-badge" style="color:${rank.color}"><span class="tc-rank-score">${(t.teamExp || 0).toLocaleString()}</span>${rank.rank}</span>${typeRibbon}</div>`}
         <div class="tc-body">
           <div class="tc-name">${escapeHTML(t.name)}</div>
           <div class="tc-info-row"><span class="tc-label">${memberLabel}</span><span>${memberCount} ${I18N.t('team.personUnit')}</span></div>
@@ -288,8 +291,8 @@ Object.assign(App, {
     if (!cardEl || !cardEl.classList) return;
     cardEl.classList.add('is-pending');
     cardEl.setAttribute('aria-busy', 'true');
-    // Inject bar into first child (image area)
-    var imgArea = cardEl.querySelector('[style*="aspect-ratio"]') || cardEl.querySelector('.tc-img-placeholder');
+    // Inject the progress bar into the media area so status rails stay untouched.
+    var imgArea = cardEl.querySelector('.tc-card-media') || cardEl.querySelector('[style*="aspect-ratio"]') || cardEl.querySelector('.tc-img-placeholder');
     if (imgArea && !imgArea.querySelector('.tc-loading-bar')) {
       var bar = document.createElement('div');
       bar.className = 'tc-loading-bar';

@@ -292,6 +292,15 @@ describe('team pin management wiring', () => {
     expect(teamCss).toContain('.team-pin-btn.is-pinned');
   });
 
+  test('club list pinned state uses a top rail instead of overlaying media badges', () => {
+    expect(teamListRenderSource).toContain('tc-pin-rail');
+    expect(teamListRenderSource).toContain('tc-card-media');
+    expect(teamListRenderSource).not.toContain('tc-pin-badge');
+    expect(teamCss).toContain('.tc-pin-rail');
+    expect(teamCss).toContain('.tc-card.is-pending .tc-card-media::after');
+    expect(teamCss).not.toContain('.tc-card.is-pending > div:first-child::after');
+  });
+
   test('club manage page sorts pinned active and inactive teams before rendering', () => {
     expect(teamListRenderSource).toContain('const activeTeams = this._sortTeams(teams.filter(t => t.active));');
     expect(teamListRenderSource).toContain('const inactiveTeams = this._sortTeams(teams.filter(t => !t.active));');
