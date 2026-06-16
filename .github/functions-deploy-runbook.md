@@ -23,9 +23,21 @@ Updated: 2026-06-16
 - Local `npm run test:functions` passed.
 - Local Firebase Functions dry-run passed.
 - GitHub secret `GCP_SERVICE_ACCOUNT_JSON` exists.
-- GitHub deploy service account currently has datastore roles only; `roles/serviceusage.serviceUsageConsumer` is missing.
+- GitHub dry-run passed on run `27630483024` with `dry_run=true`.
+- GitHub deploy service account currently has these project-level roles:
+  - `roles/datastore.owner`
+  - `roles/datastore.user`
+  - `roles/firebase.viewer`
+  - `roles/serviceusage.serviceUsageConsumer`
+- GitHub deploy service account has `roles/iam.serviceAccountUser` only on `fc-football-6c8dc@appspot.gserviceaccount.com`.
+- GitHub deploy service account has `roles/secretmanager.viewer` only on Functions-used secrets:
+  - `LINE_CHANNEL_ACCESS_TOKEN`
+  - `NEWS_API_KEY`
+  - `GOOGLE_MAPS_BROWSER_API_KEY`
+  - `SPORTSAPI_PRO_API_KEY`
 - Production currently has 84 `gcfv2` Node.js 22 functions in `asia-east1`, so real deploys have broad impact.
 - `firebase-functions` patch update `7.1.0 -> 7.2.5` is recommended before real deploy.
+- No real Cloud Functions deploy has been run from this workflow cleanup.
 
 ## Stop Conditions
 
@@ -52,7 +64,9 @@ Updated: 2026-06-16
 
 ### H3: Fix Deploy Readiness
 
-- Add the missing IAM role to the deploy service account.
+- Add IAM roles only when a dry-run log proves the exact missing permission.
+- Keep `roles/iam.serviceAccountUser` scoped to the runtime service account, not project-wide.
+- Keep Secret Manager grants scoped to the Functions-used secrets, not project-wide.
 - Consider patch-level dependency updates separately from workflow edits.
 - Re-run local tests and GitHub dry-run after each change.
 
