@@ -120,6 +120,55 @@ describe('Service Worker reload gate helper', () => {
     App._handleSwControllerChange();
     expect(document.querySelectorAll('#sw-reload-deferred-prompt')).toHaveLength(1);
   });
+
+  test('user-click can force deferred reload from a non-safe page', () => {
+    const { App, window } = loadApp();
+    App.currentPage = 'page-game';
+
+    expect(App._handleSwControllerChange()).toMatchObject({
+      reloaded: false,
+      deferred: true,
+      reason: 'unsafe-page',
+    });
+    expect(window._swReloadDeferred).toBe(true);
+
+    App._reloadForServiceWorkerUpdate = jest.fn(() => ({ reloaded: true, reason: 'safe' }));
+
+    const result = App._maybeRunDeferredSwReload('user-click', { force: true });
+
+    expect(App._reloadForServiceWorkerUpdate).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ reloaded: true, reason: 'safe' });
+  });
+
+  test('user-click still blocks hard reload risks', () => {
+    const { App, window } = loadApp();
+    App.currentPage = 'page-home';
+    App._waitlistActionPending = { 'event-1:user-1': true };
+    window._swReloadDeferred = true;
+    App._reloadForServiceWorkerUpdate = jest.fn(() => ({ reloaded: true, reason: 'safe' }));
+
+    const result = App._maybeRunDeferredSwReload('user-click', { force: true });
+
+    expect(App._reloadForServiceWorkerUpdate).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      reloaded: false,
+      deferred: true,
+      reason: 'write-pending',
+    });
+  });
+
+  test('later button clears prompt flag so the prompt can be shown again', () => {
+    const { App, window, document } = loadApp();
+
+    App._showSwReloadPrompt({ reason: 'unsafe-page' });
+    document.querySelector('[data-sw-reload-later]').click();
+
+    expect(document.querySelectorAll('#sw-reload-deferred-prompt')).toHaveLength(0);
+    expect(window._swReloadPromptShown).toBe(false);
+
+    App._showSwReloadPrompt({ reason: 'unsafe-page' });
+    expect(document.querySelectorAll('#sw-reload-deferred-prompt')).toHaveLength(1);
+  });
 });
 
 describe('Service Worker reload gate source wiring', () => {
@@ -128,6 +177,7 @@ describe('Service Worker reload gate source wiring', () => {
     expect(source).toContain("navigator.serviceWorker.addEventListener('controllerchange'");
     expect(source).toContain("window.App._handleSwControllerChange()");
     expect(source).toContain("!window._swReloading && !window._appInitializing && !window._swJustCleared");
+    expect(source).toContain("_maybeRunDeferredSwReload('user-click', { force: true })");
   });
 
   test('deferred reload is retried after route, modal, scanner and cropper completion', () => {

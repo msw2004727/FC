@@ -1083,11 +1083,12 @@ const App = {
       '">稍後</button>';
 
     prompt.querySelector('[data-sw-reload-now]')?.addEventListener('click', () => {
-      const result = this._maybeRunDeferredSwReload('user-click');
+      const result = this._maybeRunDeferredSwReload('user-click', { force: true });
       if (!result?.reloaded) this.showToast?.('目前操作尚未完成，稍後再更新', 3000);
     });
     prompt.querySelector('[data-sw-reload-later]')?.addEventListener('click', () => {
       prompt.remove();
+      root._swReloadPromptShown = false;
     });
 
     doc.body.appendChild(prompt);
@@ -1107,15 +1108,33 @@ const App = {
     root._swReloading = true;
     root._swReloadDeferred = false;
     root._swReloadDeferredReason = '';
+    root._swReloadPromptShown = false;
     if (root.location && typeof root.location.reload === 'function') root.location.reload();
     return { reloaded: true, reason: 'safe' };
   },
 
-  _maybeRunDeferredSwReload(trigger = '') {
+  _isHardSwReloadBlock(reason) {
+    return [
+      'already-reloading',
+      'just-cleared',
+      'initializing',
+      'boot-pending',
+      'auth-pending',
+      'roster-editing',
+      'write-pending',
+      'scanner-active',
+      'image-cropper-open',
+    ].includes(reason);
+  },
+
+  _maybeRunDeferredSwReload(trigger = '', options = {}) {
     const root = typeof window !== 'undefined' ? window : globalThis;
     if (!root._swReloadDeferred || root._swReloading) return { reloaded: false, deferred: false, reason: 'none' };
     const decision = this._isSafeToAutoReload();
     if (decision.safe) return this._reloadForServiceWorkerUpdate();
+    if (options?.force && !this._isHardSwReloadBlock(decision.reason)) {
+      return this._reloadForServiceWorkerUpdate();
+    }
     root._swReloadDeferredReason = decision.reason || trigger || 'unsafe-page';
     if (decision.canPrompt !== false) this._showSwReloadPrompt(decision);
     return { reloaded: false, deferred: true, reason: root._swReloadDeferredReason };
