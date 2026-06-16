@@ -1,6 +1,6 @@
 # Cloud Functions Deploy Runbook
 
-Updated: 2026-06-16
+Updated: 2026-06-17
 
 ## Scope
 
@@ -25,6 +25,9 @@ Updated: 2026-06-16
 - GitHub secret `GCP_SERVICE_ACCOUNT_JSON` exists.
 - GitHub dry-run passed on run `27630483024` with `dry_run=true`.
 - GitHub dry-run passed again on run `27631535325` after updating `actions/checkout` and `actions/setup-node` to v6 and removing `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24`.
+- `firebase-functions` patch update `7.1.0 -> 7.2.5` completed in commit `0db29dbf`.
+- Push CI after the dependency patch passed on Test Suite run `27632540949`; push-triggered Deploy Cloud Functions run `27632540954` was skipped by the auto-deploy gate.
+- GitHub dry-run passed after the dependency patch on run `27632812942` with `dry_run=true`; the previous `firebase-functions` outdated warning was no longer present.
 - GitHub deploy service account currently has these project-level roles:
   - `roles/datastore.owner`
   - `roles/datastore.user`
@@ -37,7 +40,6 @@ Updated: 2026-06-16
   - `GOOGLE_MAPS_BROWSER_API_KEY`
   - `SPORTSAPI_PRO_API_KEY`
 - Production currently has 84 `gcfv2` Node.js 22 functions in `asia-east1`, so real deploys have broad impact.
-- `firebase-functions` patch update `7.1.0 -> 7.2.5` is recommended before real deploy.
 - No real Cloud Functions deploy has been run from this workflow cleanup.
 
 ## Stop Conditions
@@ -69,7 +71,7 @@ Updated: 2026-06-16
 - Add IAM roles only when a dry-run log proves the exact missing permission.
 - Keep `roles/iam.serviceAccountUser` scoped to the runtime service account, not project-wide.
 - Keep Secret Manager grants scoped to the Functions-used secrets, not project-wide.
-- Consider patch-level dependency updates separately from workflow edits.
+- Patch-level `firebase-functions` update completed separately from workflow edits.
 - Re-run local tests and GitHub dry-run after each change.
 
 ### H4: Manual Real Deploy
