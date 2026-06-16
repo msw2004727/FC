@@ -210,14 +210,54 @@ Object.assign(App, {
 
   _pinCounter: 100,
 
+  _getNextTeamPinOrder() {
+    const teams = typeof ApiService?.getTeams === 'function' ? (ApiService.getTeams() || []) : [];
+    const maxOrder = teams.reduce((max, team) => {
+      const value = Number(team?.pinOrder || 0);
+      return Number.isFinite(value) && value > max ? value : max;
+    }, 0);
+    this._pinCounter = Math.max(this._pinCounter || 100, maxOrder + 1);
+    return this._pinCounter++;
+  },
+
   filterAdminTeams() {
     const q = (document.getElementById('team-search-input')?.value || '').trim().toLowerCase();
     this.renderAdminTeams(q);
   },
 
-  toggleTeamPin(id) {
-    this.showToast('功能未開放');
-    return false;
+  async toggleTeamPin(id) {
+    const t = ApiService.getTeam(id);
+    if (!t) return false;
+    if (!this.hasPermission('team.manage_all')) {
+      this.showToast('\u6b0a\u9650\u4e0d\u8db3');
+      this.renderTeamManage();
+      return false;
+    }
+    const pinned = t.pinned !== true;
+    const updates = {
+      pinned,
+      pinOrder: pinned ? this._getNextTeamPinOrder() : 0,
+    };
+    try {
+      await ApiService.updateTeamAwait(id, updates);
+      Object.assign(t, updates);
+      this.renderAdminTeams();
+      this.renderTeamManage();
+      this.renderTeamList();
+      ApiService._writeOpLog?.(
+        'team_pin',
+        '\u4ff1\u6a02\u90e8\u7f6e\u9802',
+        (pinned ? '\u7f6e\u9802' : '\u53d6\u6d88\u7f6e\u9802') + '\u300c' + (t.name || id) + '\u300d'
+      );
+      this.showToast(pinned ? '\u5df2\u7f6e\u9802\u4ff1\u6a02\u90e8' : '\u5df2\u53d6\u6d88\u7f6e\u9802');
+      return true;
+    } catch (err) {
+      console.error('[toggleTeamPin]', err);
+      if (!err?._toasted) this.showToast('\u7f6e\u9802\u66f4\u65b0\u5931\u6557\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66');
+      this.renderAdminTeams();
+      this.renderTeamManage();
+      return false;
+    }
   },
 
   toggleTeamActive(id) {

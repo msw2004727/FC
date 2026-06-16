@@ -191,7 +191,7 @@ Object.assign(App, {
           ${this._renderTeamAttentionEffectControls(t, isAdmin)}
           <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem" onclick="event.stopPropagation()">
             ${canEdit ? `<button class="primary-btn small" onclick="App.showTeamForm('${t.id}')">編輯</button>` : ''}
-            ${isAdmin ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;opacity:.6;cursor:not-allowed" title="功能未開放" onclick="App.toggleTeamPin('${t.id}')">${t.pinned ? '已置頂' : '置頂'}</button>` : ''}
+            ${isAdmin ? `<button class="outline-btn team-pin-btn${t.pinned ? ' is-pinned' : ''}" type="button" onclick="App.toggleTeamPin('${t.id}')">${t.pinned ? '已置頂' : '置頂'}</button>` : ''}
             ${isAdmin ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.toggleTeamActive('${t.id}')">${t.active ? '下架' : '上架'}</button>` : ''}
             ${canEdit ? `<button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.removeTeam(this, '${t.id}')">刪除</button>` : ''}
           </div>
@@ -247,7 +247,7 @@ Object.assign(App, {
           ${this._renderTeamAttentionEffectControls(t, true)}
           <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.5rem" onclick="event.stopPropagation()">
             <button class="primary-btn small" onclick="App.showTeamForm('${t.id}')">編輯</button>
-            <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;opacity:.6;cursor:not-allowed" title="功能未開放" onclick="App.toggleTeamPin('${t.id}')">${t.pinned ? '已置頂' : '置頂'}</button>
+            <button class="outline-btn team-pin-btn${t.pinned ? ' is-pinned' : ''}" type="button" onclick="App.toggleTeamPin('${t.id}')">${t.pinned ? '已置頂' : '置頂'}</button>
             <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.toggleTeamActive('${t.id}')">${t.active ? '下架' : '上架'}</button>
             <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem" onclick="App.showTeamDetail('${t.id}')">查看</button>
             <button class="outline-btn" style="font-size:.75rem;padding:.3rem .6rem;color:var(--danger)" onclick="App.removeTeam(this, '${t.id}')">刪除</button>

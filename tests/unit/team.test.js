@@ -282,11 +282,14 @@ describe('team pin management wiring', () => {
   const teamFormSource = fs.readFileSync(path.join(__dirname, '../../js/modules/team/team-form.js'), 'utf8');
   const teamCss = fs.readFileSync(path.join(__dirname, '../../css/team.css'), 'utf8');
 
-  test('club pin controls are visibly unavailable and toast only', () => {
-    expect(teamListRenderSource).toContain('opacity:.6;cursor:not-allowed');
-    expect(teamListRenderSource).toContain('title="功能未開放" onclick="App.toggleTeamPin');
+  test('club pin controls are enabled for admins and write pinned order', () => {
+    expect(teamListRenderSource).toContain('team-pin-btn');
+    expect(teamListRenderSource).toContain('onclick="App.toggleTeamPin');
     expect(teamListRenderSource).toContain("${t.pinned ? '已置頂' : '置頂'}");
-    expect(teamListSource).toMatch(/toggleTeamPin\(id\)\s*\{\s*this\.showToast\('功能未開放'\);\s*return false;\s*\},/);
+    expect(teamListSource).toContain('_getNextTeamPinOrder');
+    expect(teamListSource).toMatch(/toggleTeamPin\(id\)[\s\S]*hasPermission\('team\.manage_all'\)[\s\S]*ApiService\.updateTeamAwait\(id, updates\)/);
+    expect(teamListSource).toContain("'team_pin'");
+    expect(teamCss).toContain('.team-pin-btn.is-pinned');
   });
 
   test('club manage page sorts pinned active and inactive teams before rendering', () => {
@@ -341,7 +344,7 @@ describe('team pin management wiring', () => {
     expect(teamListHelperSource).toContain('_canAccessTeamManageRecord');
     expect(teamListRenderSource).toContain('this._canAccessTeamManageRecord?.(t)');
     expect(teamListRenderSource).toContain('this._canEditTeamByRoleOrCaptain?.(t)');
-    expect(teamListSource).toMatch(/toggleTeamPin\(id\)[\s\S]*showToast\('功能未開放'\)/);
+    expect(teamListSource).toMatch(/toggleTeamPin\(id\)[\s\S]*hasPermission\('team\.manage_all'\)/);
     expect(teamListSource).toMatch(/toggleTeamActive\(id\)[\s\S]*hasPermission\('team\.manage_all'\)/);
     expect(teamListSource).toMatch(/removeTeam\(btn, id\)[\s\S]*_canEditTeamByRoleOrCaptain\?\.\(t\)/);
   });
