@@ -27,6 +27,26 @@ Purpose: Phase A inventory for the Node 24 / workflow cleanup plan. This file is
 | `lighthouse.yml` | weekly schedule, `workflow_dispatch` | `checkout@v4`, `treosh/lighthouse-ci-action@v12` | `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` | implicit default | No | Lighthouse against production URLs; temporary public storage | Medium | Phase D |
 | `deploy-functions.yml` | path-limited push, `workflow_dispatch` | Node 22; `checkout@v4`, `setup-node@v4`, Firebase CLI via `npx` | `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true`, `GCP_SERVICE_ACCOUNT_JSON`, Firebase/GCP project env | `contents: read` | No | Cloud Functions deploy | High | Excluded from medium-risk implementation |
 
+## Status After Phase B/C/D
+
+Updated: 2026-06-16
+
+Phase B/C/D medium-risk cleanup has been implemented and verified in small commits. The inventory table above remains the original Phase A baseline for audit history.
+
+Completed:
+
+- `test.yml`: official actions updated to `checkout@v6`, `setup-node@v6`, `upload-artifact@v7`, `setup-java@v5`, `cache@v5`; `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24` removed.
+- `build-sitemap.yml`: dry-run dispatch added; official actions updated to `checkout@v6`, `setup-node@v6`; dry-run verified.
+- `inject-hot-events.yml`: dry-run dispatch added; official actions updated to `checkout@v6`, `setup-node@v6`; dry-run verified.
+- `gsc-snapshot.yml` and `verify-gsc-read.yml`: hard-fail missing-secret policy preserved; log messages cleaned; official actions updated to `checkout@v6`, `setup-node@v6`; GSC snapshot verified.
+- `submit-sitemap.yml` and `sync-changelog.yml`: soft-skip missing-secret policy preserved; log messages cleaned; official actions updated to `checkout@v6`, `setup-node@v6`; sync workflow verified.
+- `ci-usage-snapshot.yml`: official actions updated to `checkout@v6`, `setup-node@v6`; manual dispatch verified.
+- `lighthouse.yml`: `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24` removed; `checkout@v6` used; `treosh/lighthouse-ci-action@v12` kept because its current action metadata runs on `node24`; manual dispatch verified.
+
+Remaining:
+
+- `deploy-functions.yml` is still intentionally excluded. It remains on `checkout@v4`, `setup-node@v4`, and `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` because it deploys Cloud Functions and should be handled as a separate high-risk change.
+
 ## Findings For Later Phases
 
 1. `test.yml` is the first medium-risk implementation target because it is the main CI gate and does not write to external services.
