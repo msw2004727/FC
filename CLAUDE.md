@@ -87,20 +87,20 @@ FC-github/
 │   ├── line-auth.js        # LINE LIFF 登入
 │   ├── core/               # 基礎設施（4 個）
 │   └── modules/            # 功能模組（16 子資料夾 + 31 獨立檔案）
-│       ├── event/          # 活動系統（42）：列表、詳情、報名、建立、管理、分享、terminal 載入
-│       ├── team/           # 俱樂部系統（16）：列表、詳情、表單、動態牆、分享、helpers/stats/builders/validate/roles/invite
-│       ├── tournament/     # 賽事系統（19）：渲染、詳情、管理、友誼賽、helpers/builders/state
+│       ├── event/          # 活動系統（47）：列表、詳情、報名、建立、管理、分享、terminal 載入
+│       ├── team/           # 俱樂部系統（20）：列表、詳情、表單、動態牆、分享、helpers/stats/builders/validate/roles/invite
+│       ├── tournament/     # 賽事系統（24）：渲染、詳情、管理、友誼賽、helpers/builders/state
 │       ├── profile/        # 個人資料（9）：核心、資料、名片、分享
 │       ├── message/        # 訊息系統（17）：渲染、操作、收件匣、私訊、聊天室稽核、管理員
-│       ├── achievement/    # 成就系統（10）：registry / evaluator / badges 等
-│       ├── education/      # 教育型俱樂部（21）：分組、學員、課程、報名、簽到、行事曆
-│       ├── color-cat/      # 養成角色系統（45）：角色、戰鬥、敵人、場景、AI、MBTI、對話
+│       ├── achievement/    # 成就系統（11）：registry / evaluator / badges 等
+│       ├── education/      # 教育型俱樂部（27）：分組、學員、課程、報名、簽到、行事曆
+│       ├── color-cat/      # 養成角色系統（40）：角色、戰鬥、敵人、場景、AI、MBTI、對話
 │       ├── shot-game/      # 射門遊戲（10）：引擎、物理、渲染、計分
 │       ├── kickball/       # 踢球遊戲（6）：物理、渲染、排行榜
 │       ├── scan/           # QR 掃描（5）：掃描、處理、家庭成員
-│       ├── dashboard/      # 儀表板（6）：管理員、個人、報表分享、用量
+│       ├── dashboard/      # 儀表板（20）：管理員、個人、報表分享、用量
 │       ├── ad-manage/      # 廣告管理（6）：輪播、浮動、贊助、小遊戲、品牌開機
-│       ├── user-admin/     # 用戶後台（10）：列表、EXP、角色、補正、權限說明、UID 檢查、權限測試
+│       ├── user-admin/     # 用戶後台（8）：列表、EXP、角色、補正、權限說明、UID 檢查、權限測試
 │       └── [31 獨立模組]   # banner / home-dashboard / shop / leaderboard / role / pwa-install 等
 ├── pages/                  # HTML 片段（20 個）
 ├── docs/                   # 專案文件
@@ -672,7 +672,7 @@ https://miniapp.line.me/2009525300-AuPGQ0sh?{deepLinkParam}={id}
 
 ## Firestore Rules 修改規則（強制）
 
-`firestore.rules` 約 1500 行，近 2 個月被修改 80 次，是 CI 會擋的檔案。修改前必讀：
+`firestore.rules` 約 2,949 行，近 2 個月被修改 80 次，是 CI 會擋的檔案。修改前必讀：
 
 ### 強制規則
 
