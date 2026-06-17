@@ -19,6 +19,7 @@
 | ⛓️ **開發守則** | 除錯規則 · 開發守則（4 子節：編碼風格 / 實作前思考 / 程式碼精簡 / 外科手術式修改） |
 | 🔒 **鎖定保護** | 報名系統 · 統計系統 · Firestore Rules · Cloud Functions |
 | 🌐 **業務規範** | 分享功能 · 活動可見性 |
+| 🎨 **設計系統** | UI/UX 設計原則 · 設計 token（明暗主題）· 共用動畫規範 · 名單暱稱膠囊 |
 | 📝 **流程** | 修復日誌 · SEO 日誌 · 自動部署 · 計劃與建議回覆 · 回覆結尾白話總結 |
 | 🛠️ **編碼** | 編碼與亂碼規範 |
 
@@ -328,6 +329,118 @@ grep -rn "CACHE_VERSION\|CACHE_NAME\|var V='" js/config.js sw.js index.html
 - 前台只載入少量 terminal preview（目前 50 筆）維持 6 小時判定與最近狀態，不可為了活動頁全量載入歷史已結束/已取消活動。
 - 活動管理仍可看已結束/已取消歷史；需要完整歷史時由 `FirebaseService.ensureTerminalEventsLoaded({ mode: 'history' })` 升級，並用 `loadMoreTerminalEvents()` 分頁。
 - 修改活動列表、取消活動、auto-end、或 terminal event cache 時，必須同步跑 `tests/unit/activity-terminal-events-loading.test.js`、`tests/unit/event-ended-tab-delay.test.js` 與活動列表相關測試。
+
+---
+
+## UI/UX 設計系統規範（強制，2026-06-17）
+
+> 目的：讓未來所有新頁面與改版維持一致的視覺語言與「去 AI 感」的業界級質感。新增或重構任何前台 UI 前必讀本節。參考實作見本機 `docs/previews/member-management-redesign-demo.html`（local-only 預覽）。
+
+### 設計原則（去 AI 感）
+
+- **單一主色 + 中性色階**：主色只用一個（emerald），其餘以中性 slate 表達；禁止多種高彩度顏色互相競爭。
+- **低飽和 tinted 徽章**：角色／狀態標籤用「淺底深字」（深色主題反轉為深底亮字），不用糖果色。
+- **hairline 分隔取代厚框卡**：列表項以 1px 細線分隔，不要每項一個外框，提高密度與閱讀連貫性。
+- **線性 SVG 圖示取代 emoji**：功能性圖示（編輯、更多、備註…）一律用 16–18px 線性 SVG ＋ hover 態；**禁止用 emoji（✎ ⋮ 📝）當功能按鈕**。
+- **8pt 間距系統 + 統一圓角**；數字（背號、統計）用 `font-variant-numeric: tabular-nums` 對齊。
+- **明確空狀態文案**：用「未設背號／未分組」取代「-」「#-」這類 placeholder 感字樣。
+- **頭像**：優先 LINE 大頭照（`pictureUrl`／`avatarUrl`，見 `identity-resolver.js`），無照片才用「姓名首字 ＋ 色塊」fallback。
+
+### 設計 token（對應明暗主題）
+
+沿用既有 `css/base.css` 的主題變數機制；新元件一律吃 CSS 變數，**不寫死色碼**。
+
+| Token | 用途 | Light | Dark |
+|------|------|------|------|
+| `surface` | 面板／卡片底 | `#ffffff` | `#12161d` |
+| `ink` | 主要文字 | `#0f172a` | `#e7ebf1` |
+| `ink-2` | 次要文字 | `#475569` | `#9aa6b4` |
+| `ink-3` | 弱化文字 | `#94a3b8` | `#69727f` |
+| `line` | 分隔線 | `#eef1f4` | `#1e242d` |
+| `accent` | 強調主色 | `#0b7a5c` | `#5fe0b0` |
+| `chip` | 晶片／備註底 | `#f1f5f9` | `#1b222c` |
+
+- 間距：4 / 8 / 12 / 16 / 20（以 8pt 為基準）。圓角：列表／晶片 8–9px、卡片／面板 14–22px。
+- 角色色票（依主題「淺底深字／深底亮字」）：球經 indigo、領隊 amber、教練 violet、學員 teal/cyan。
+
+### 深色主題準則
+
+- **不用純黑**：底 `#12161d`、分隔 `#1e242d`，避免純黑刺眼與邊界消失。
+- **文字分三階對比**（主／次／弱），不要全部死白。
+- **角色色票深底亮字**；選取態／實心元件做「亮底深字」反轉，確保兩主題都夠醒目。
+- **主色於暗背景需提亮**（`#0b7a5c → #5fe0b0`）。
+
+### 共用動畫規範（強制 — 加載動畫一致性）
+
+- **現況問題（2026-06-17 盤點）**：`css/` 內已有 **60+ 個各自定義的 `@keyframes`**（`spin` 重複定義、`*-loading-spin`、`*-shimmer`、`skel-*`、`signup-*-spin`…），散落 12+ 個 css 檔，導致載入動畫速度／節奏不一致、維護困難。
+- **規則**：
+  1. 共用動畫一律集中定義在 `css/base.css`，以 `ui-` 命名前綴提供「標準 keyframes ＋ utility class」。
+  2. 新功能的 loading / skeleton / spinner / 進場動畫**必須複用**共用集合，**禁止**再為個別模組複製同義的 keyframes。
+  3. 動畫時長／緩動使用統一 token，不分散寫死數值。
+  4. 必須支援 `prefers-reduced-motion: reduce`（關閉或大幅減弱動畫）。
+  5. 既有重複動畫採「**逐步收斂**」：新代碼走共用集合；舊的在重構該模組時才改名／移除（外科手術式，不一次性大搬）。
+- **標準 token 與集合（可直接放進 `css/base.css`）**：
+
+```css
+:root{
+  --ui-dur-fast:150ms; --ui-dur:220ms; --ui-dur-slow:400ms;
+  --ui-ease:cubic-bezier(.2,.8,.2,1);
+  --ui-spin-dur:.9s; --ui-shimmer-dur:1.2s;
+}
+@keyframes ui-spin{to{transform:rotate(360deg)}}
+@keyframes ui-pulse{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes ui-shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes ui-fade-in{from{opacity:0}to{opacity:1}}
+@keyframes ui-slide-up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+.ui-spin{animation:ui-spin var(--ui-spin-dur) linear infinite}
+.ui-pulse{animation:ui-pulse 1.4s var(--ui-ease) infinite}
+.ui-fade-in{animation:ui-fade-in var(--ui-dur) var(--ui-ease) both}
+.ui-slide-up{animation:ui-slide-up var(--ui-dur) var(--ui-ease) both}
+.ui-skeleton{
+  background:linear-gradient(90deg,var(--chip) 25%,rgba(148,163,184,.18) 37%,var(--chip) 63%);
+  background-size:200% 100%;
+  animation:ui-shimmer var(--ui-shimmer-dur) linear infinite;
+  border-radius:8px;
+}
+@media (prefers-reduced-motion:reduce){
+  .ui-spin,.ui-pulse,.ui-fade-in,.ui-slide-up,.ui-skeleton{animation:none}
+}
+```
+
+- 動畫時長屬可調 timing：若日後調整這些 token，依 §每次新增功能時的規範 第 8 條同步 `docs/tunables.md`。
+
+### 名單暱稱膠囊（user-capsule）統一規範（強制，2026-06-17）
+
+> 凡是會「列出用戶」的畫面——活動報名／簽到名單、成員管理、學員名單、隊員／賽事名單、排行榜、後台用戶列表、動態牆作者、訊息列表等——暱稱一律使用共用元件 `.user-capsule` 呈現，不得自行拼裝名稱樣式。目的：讓全專案所有名單的暱稱呈現完全一致。
+
+- **必須走中央產生器**：暱稱膠囊一律由 `App._userTag(name, forceRole, options)`（`js/modules/profile/profile-core.js`）輸出；**禁止**在各模組自行手寫 `<span class="user-capsule …">` 或寫死 `uc-user`（會導致層級底色、`Lv`、出席率等資訊失效並造成各頁不一致）。
+- **底色語意 ＝ 角色／權限身分（非等級）**：產生器依角色給 `uc-<role>` 底色；等級由左上 `Lv` badge 表示，兩者分開。角色色票（含深色主題）定義於 `css/profile.css`：
+
+  | class | 身分 | 淺色底 |
+  |------|------|------|
+  | `uc-user` | 一般用戶 | 中性 |
+  | `uc-coach` | 教練 | 琥珀 |
+  | `uc-captain` | 隊長 | 紫 |
+  | `uc-team-leader` | 領隊 | 藍 |
+  | `uc-venue_owner` | 場地主 | 橘 |
+  | `uc-admin` | 管理員 | 藍 |
+  | `uc-super_admin` | 超級管理員 | 紅 |
+
+- **附掛資訊由產生器負責**（依 `options` 帶入，不得自行另作）：左上 `Lv` 等級 badge、出席率（放鴿子）染色 `uc-att-warn`、最近放鴿子 🕊 `uc-recent-noshow`、右上色衣背號 `uc-team-jersey`。
+- **點擊行為一致**：膠囊點擊一律導向用戶名片 `App.showUserProfile(name, { uid })`。
+- **身分以 UID 為準**：傳入 `options.uid`（＝ LINE userId，見 §實體 ID 統一規範）；名稱僅供顯示，不可用名稱做身分查詢。
+- **不適用情境**：純文字輸入欄位、需要 inline 編輯的儲存格等「非展示用名稱」情境。
+- **既有未照做的名單**：不在本規範回溯範圍；待各該畫面重構時再依 §模組化演進「逐步收斂」回中央產生器，不一次性大改。
+- **驗收**：新增或改動名單畫面後，依下節「套用範圍與驗證」跑 desktop ＋ mobile ＋ 明暗主題瀏覽器檢查，確認膠囊底色、`Lv`、點擊名片皆正常。
+
+### 套用範圍與驗證
+
+- 適用於所有新前台頁面與既有 UI 改版；屬純前端，不動後端。
+- 改 CSS／HTML 後須跑 §前端 UI 本機瀏覽器驗證（desktop ＋ mobile ＋ 明暗主題各看一輪）。
+- **將共用動畫實作進 `css/base.css` 屬 runtime 變更**：需 bump 版號、跑相關測試、依 §部署前審查流程(SOP) 過 Codex review 再 push（本節僅為文件規範，尚未動到 `css/base.css`）。
+
+---
 
 ## 測試與 CI 規範（強制）
 

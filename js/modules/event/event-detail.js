@@ -116,17 +116,16 @@ Object.assign(App, {
     const canViewRecords = this._canViewDetailAttendanceRecordDetails?.(e) === true;
     const title = canManage || canViewRecords ? '\u51fa\u5e2d\u7ba1\u7406' : '\u51fa\u5e2d\u540d\u55ae';
     const actionLabel = canManage ? '\u7ba1\u7406\u540d\u55ae / \u51fa\u5e2d\u7d00\u9304' : (canViewRecords ? '\u67e5\u770b\u51fa\u5e2d\u7d00\u9304' : '\u67e5\u770b\u51fa\u5e2d\u540d\u55ae');
-    const pendingLabel = canViewRecords ? '\u5c1a\u672a\u8f09\u5165\u5b8c\u6574\u540d\u55ae\u8207\u51fa\u5e2d\u7d00\u9304' : '\u5c1a\u672a\u8f09\u5165\u5b8c\u6574\u540d\u55ae';
+    const waitlistHtml = counts.waitlistCount > 0
+      ? `<span style="font-size:.78rem;color:var(--text-secondary);background:var(--bg-elevated, var(--bg-card));border-radius:999px;padding:.1rem .45rem;white-space:nowrap;">\u5019\u88dc ${counts.waitlistCount}</span>`
+      : '';
     const actionHtml = `<button type="button" class="detail-toolbar-btn" data-detail-attendance-open-button="${escapeHTML(safeId)}" onclick="App.openDetailAttendanceRecords('${escapeHTML(safeId)}')">${actionLabel}</button>`;
     return `
-      <div class="detail-attendance-summary" data-attendance-on-demand="true" style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;padding:.75rem;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);">
-        <div style="min-width:0">
-          <div class="detail-section-title" style="margin:0 0 .25rem">${title}</div>
-          <div style="display:flex;gap:.5rem;flex-wrap:wrap;font-size:.82rem;color:var(--text-secondary)">
-            <span>\u5df2\u5831 ${counts.confirmedCount}/${counts.max}</span>
-            ${counts.waitlistCount > 0 ? `<span>\u5019\u88dc ${counts.waitlistCount}</span>` : ''}
-            <span>${pendingLabel}</span>
-          </div>
+      <div class="detail-attendance-summary" data-attendance-on-demand="true" style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;padding:.55rem .75rem;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface, var(--bg-card));">
+        <div style="min-width:0;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+          <div class="detail-section-title" style="margin:0;border-bottom:0;padding-bottom:0;">${title}</div>
+          <span style="font-size:.9rem;font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums;white-space:nowrap;">${counts.confirmedCount}/${counts.max}</span>
+          ${waitlistHtml}
         </div>
         <div style="display:flex;gap:.4rem;flex-wrap:wrap">${actionHtml}</div>
       </div>`;

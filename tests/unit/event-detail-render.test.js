@@ -646,7 +646,9 @@ describe('Team reservation button loading contract', () => {
     expect(app._renderAttendanceTable).not.toHaveBeenCalled();
     const shell = document.querySelector('.detail-attendance-summary');
     expect(shell.dataset.attendanceOnDemand).toBe('true');
-    expect(document.getElementById('detail-attendance-table').textContent).toContain('已報 2/10');
+    expect(document.getElementById('detail-attendance-table').textContent).toContain('2/10');
+    expect(document.getElementById('detail-attendance-table').textContent).toContain('候補 1');
+    expect(document.getElementById('detail-attendance-table').textContent).not.toContain('尚未載入完整名單');
     expect(document.getElementById('detail-attendance-table').textContent).toContain('管理名單 / 出席紀錄');
   });
 
@@ -664,7 +666,9 @@ describe('Team reservation button loading contract', () => {
     expect(result).toEqual({ ok: true, reason: 'on-demand-summary' });
     expect(app._renderAttendanceTable).not.toHaveBeenCalled();
     expect(document.querySelector('.detail-attendance-summary')?.dataset.attendanceOnDemand).toBe('true');
-    expect(document.getElementById('detail-attendance-table').textContent).toContain('已報 2/10');
+    expect(document.getElementById('detail-attendance-table').textContent).toContain('2/10');
+    expect(document.getElementById('detail-attendance-table').textContent).toContain('候補 1');
+    expect(document.getElementById('detail-attendance-table').textContent).not.toContain('尚未載入完整名單');
     expect(document.getElementById('detail-attendance-table').textContent).toContain('查看出席名單');
   });
 
