@@ -59,11 +59,9 @@ Object.assign(App, {
   },
 
   _buildTeamDetailV2MembersPanel(t, canManageMembers, memberEditMode, staffIdentity) {
-    const management = canManageMembers
-      ? '<div class="td-v2-card td-v2-member-management"><div class="td-v2-section-head"><h3>成員管理</h3><button type="button" data-td-v2-action="toggle-member-management">' + (memberEditMode ? '完成' : '管理') + '</button></div>'
-        + this._buildTeamMembersCard(t, canManageMembers, memberEditMode, staffIdentity) + '</div>'
-      : '<div class="td-v2-card td-v2-member-management">' + this._buildTeamMembersCard(t, canManageMembers, memberEditMode, staffIdentity) + '</div>';
-    return management;
+    return '<div class="td-v2-member-management">'
+      + this._buildTeamMembersCard(t, canManageMembers, memberEditMode, staffIdentity)
+      + '</div>';
   },
 
   _buildTeamDetailV2MemberGrid(rows) {

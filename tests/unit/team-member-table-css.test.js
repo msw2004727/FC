@@ -14,6 +14,22 @@ function ruleBlock(css, selector) {
 }
 
 describe('team member list CSS contract', () => {
+  test('member management panel owns demo-like local structure and tokens', () => {
+    const css = readCss();
+    const panelBlock = ruleBlock(css, '.td-member-management-panel');
+
+    expect(panelBlock).toContain('--td-mm-surface: #ffffff');
+    expect(panelBlock).toContain('--td-mm-selected-bg: #0f172a');
+    expect(panelBlock).toContain('width: min(100%, 430px)');
+    expect(panelBlock).toContain('border-radius: 22px');
+    expect(css).toContain('.td-member-panel-pad');
+    expect(css).toContain('.td-member-top h3');
+    expect(css).toContain('.td-member-filters');
+    expect(css).toContain('.td-member-filter-chip');
+    expect(css).toContain('.td-member-view-row');
+    expect(css).toContain('.td-member-sort-hint');
+  });
+
   test('member list fills the card with stable row and avatar sizing', () => {
     const css = readCss();
     const shellBlock = ruleBlock(css, '.td-member-list-shell');
@@ -47,17 +63,19 @@ describe('team member list CSS contract', () => {
   test('member role action controls keep stable widths before avatars', () => {
     const css = readCss();
 
-    expect(css).toMatch(/\.td-member-manage-actions\s*\{[\s\S]*display: inline-flex[\s\S]*gap: \.08rem/);
-    expect(css).toMatch(/\.td-member-remove-cell\s*\{[\s\S]*flex: 0 0 48px[\s\S]*width: 48px/);
-    expect(css).toMatch(/\.td-member-role-action-cell\s*\{[\s\S]*flex: 0 0 44px[\s\S]*width: 44px/);
+    expect(css).toMatch(/\.td-member-management-panel \.td-member-row,[\s\S]*\.td-member-management-panel \.td-member-list-shell\.is-editing \.td-member-row\s*\{[\s\S]*flex-wrap: nowrap/);
+    expect(css).toMatch(/\.td-member-management-panel \.td-member-action-cell\s*\{[\s\S]*justify-content: flex-end[\s\S]*gap: 2px/);
+    expect(css).toMatch(/\.td-member-management-panel \.td-member-remove-cell,[\s\S]*\.td-member-management-panel \.td-member-role-action-cell\s*\{[\s\S]*flex: 0 0 auto[\s\S]*width: auto/);
     expect(css).toMatch(/\.td-member-role-action-btn,\s*\.td-member-promote-btn\s*\{[\s\S]*display: inline-flex[\s\S]*width: 28px[\s\S]*height: 28px/);
-    expect(css).toMatch(/\.td-member-role-action-btn svg,\s*\.td-member-promote-btn svg\s*\{[\s\S]*width: 15px[\s\S]*stroke: currentColor/);
+    expect(css).toMatch(/\.td-member-management-panel \.td-mm-icon-btn,[\s\S]*\.td-member-management-panel \.td-member-row-edit-btn,[\s\S]*\.td-member-management-panel \.td-member-role-action-btn,[\s\S]*\.td-member-management-panel \.td-member-remove-btn\s*\{[\s\S]*width: 30px[\s\S]*height: 30px/);
   });
 
   test('member name wrappers size central user capsules without replacing them', () => {
     const css = readCss();
 
     expect(css).toMatch(/\.td-member-name-wrap \.user-capsule\s*\{[\s\S]*max-width: min\(12em, 48vw\)[\s\S]*text-overflow: ellipsis/);
+    expect(css).toMatch(/\.td-member-management-panel \.td-member-name-wrap \.user-capsule\s*\{[\s\S]*background: transparent[\s\S]*font-size: 14\.5px/);
+    expect(css).toMatch(/\.td-member-management-panel \.td-member-name-wrap \.user-capsule \.uc-lv\s*\{[\s\S]*position: static[\s\S]*height: 14px/);
     expect(css).toMatch(/\.td-member-name-static\s*\{[\s\S]*background: var\(--bg-elevated\)[\s\S]*white-space: nowrap/);
     expect(css).toContain('.td-member-name-static.external-student');
   });
