@@ -303,7 +303,11 @@ describe('team pin management wiring', () => {
     expect(teamCss).toContain('.tc-card > .tc-pin-rail');
     expect(pinRailRule).toContain('position: absolute');
     expect(pinRailRule).toContain('left: 38px');
-    expect(pinRailRule).toContain('max-width: calc(100% - 90px)');
+    expect(pinRailRule).toContain('width: max-content');
+    expect(pinRailRule).toContain('max-width: none');
+    expect(pinRailRule).toContain('flex-shrink: 0');
+    expect(pinRailRule).toContain('white-space: nowrap');
+    expect(teamCss).toMatch(/\.tc-card > \.tc-pin-rail span:last-child\s*\{[\s\S]*flex: 0 0 auto[\s\S]*white-space: nowrap/);
     expect(pinRailRule).toContain('z-index: 2');
     expect(sportBadgeRule).toContain('top: 6px; left: 6px');
     expect(teamCss).not.toContain('.tc-card.tc-pinned .tc-sport-badge');

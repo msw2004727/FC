@@ -216,8 +216,10 @@
   display: inline-flex;
   align-items: center;
   gap: .28rem;
+  width: max-content;
   min-height: 18px;
-  max-width: calc(100% - 90px);
+  max-width: none;
+  flex-shrink: 0;
   padding: .16rem .42rem;
   border: 1px solid rgba(217, 119, 6, .22);
   border-radius: 999px;
@@ -227,8 +229,13 @@
   font-weight: 900;
   line-height: 1;
   letter-spacing: 0;
+  white-space: nowrap;
   box-shadow: 0 2px 7px rgba(146, 64, 14, .12);
   pointer-events: none;
+}
+.tc-card > .tc-pin-rail span:last-child {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 .tc-pin-mark {
   width: 6px;
