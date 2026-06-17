@@ -142,7 +142,7 @@ describe('P1/P2 wiring — source contracts', () => {
     const configSource = readProjectFile('js/config.js');
     expect(configSource).toContain('rosterProjectionFirst: true');
     expect(configSource).toContain('deferAttendanceRecords: true');
-    expect(configSource).toContain('detailAttendanceOnDemand: false');
+    expect(configSource).toContain('detailAttendanceOnDemand: true');
   });
 
   test('attendance table render path consumes both helpers', () => {

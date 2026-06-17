@@ -28,16 +28,23 @@ function loadEventDetailModule({
   canEdit = false,
   event = null,
   flags = {},
+  firebaseService = null,
+  hasPermission = null,
 } = {}) {
   const app = {
     _canEditOwnActivityBasic: jest.fn(() => canEdit),
     _canEditExternalActivity: jest.fn(() => canEdit),
+    showToast: jest.fn(),
   };
+  if (hasPermission) app.hasPermission = jest.fn(hasPermission);
   vm.runInNewContext(readProjectFile('js/modules/event/event-detail.js'), {
     App: app,
     ApiService: {
       getCurrentUser: jest.fn(() => currentUser),
       getEvent: jest.fn(() => event),
+    },
+    FirebaseService: firebaseService || {
+      requestDetailAttendanceRealtime: jest.fn(),
     },
     TYPE_CONFIG: { friendly: { label: '友誼賽' }, external: { label: '外部活動' } },
     shouldUseActivityDetailOptimization: jest.fn((name) => flags[name] === true),
@@ -639,6 +646,65 @@ describe('Team reservation button loading contract', () => {
     expect(shell.dataset.attendanceOnDemand).toBe('true');
     expect(document.getElementById('detail-attendance-table').textContent).toContain('已報 2/10');
     expect(document.getElementById('detail-attendance-table').textContent).toContain('管理名單 / 出席紀錄');
+  });
+
+  test('activity detail attendance on-demand hides the below-fold roster panel from normal users', async () => {
+    document.body.innerHTML = '<div id="detail-attendance-table"></div>';
+    const app = loadEventDetailModule({
+      event: { id: 'event-1', current: 2, max: 10, waitlist: 1, status: 'open' },
+      flags: { detailAttendanceOnDemand: true },
+    });
+    app._renderAttendanceTable = jest.fn(() => Promise.resolve({ ok: true }));
+    app._buildConfirmedParticipantSummary = jest.fn(() => ({ count: 2, people: [] }));
+
+    const result = await app._renderDetailAttendanceTable('event-1', { mode: 'detail' });
+
+    expect(result).toEqual({ ok: true, reason: 'on-demand-summary' });
+    expect(app._renderAttendanceTable).not.toHaveBeenCalled();
+    expect(document.getElementById('detail-attendance-table').innerHTML).toBe('');
+  });
+
+  test('openDetailAttendanceRecords starts realtime loading and renders the full detail table for staff', async () => {
+    document.body.innerHTML = '<div id="detail-attendance-table"></div>';
+    const firebaseService = { requestDetailAttendanceRealtime: jest.fn() };
+    const app = loadEventDetailModule({
+      event: { id: 'event-1', current: 2, max: 10, status: 'open' },
+      flags: { detailAttendanceOnDemand: true },
+      firebaseService,
+    });
+    app._canOperateEventSite = jest.fn(() => true);
+    app._renderAttendanceTable = jest.fn(() => Promise.resolve({ ok: true, reason: 'full' }));
+    app._afterDetailAttendanceRendered = jest.fn();
+
+    const result = await app.openDetailAttendanceRecords('event-1');
+
+    expect(result).toEqual({ ok: true, reason: 'full' });
+    expect(app._detailAttendanceOnDemandEventId).toBe('event-1');
+    expect(firebaseService.requestDetailAttendanceRealtime).toHaveBeenCalledTimes(1);
+    expect(app._renderAttendanceTable).toHaveBeenCalledWith('event-1', 'detail-attendance-table', expect.objectContaining({
+      mode: 'detail',
+      forceFullAttendance: true,
+      forceFetch: true,
+    }));
+    expect(app._afterDetailAttendanceRendered).toHaveBeenCalledWith('event-1', expect.objectContaining({ id: 'event-1' }), 0, null);
+  });
+
+  test('openDetailAttendanceRecords refuses unauthorized manual calls', async () => {
+    document.body.innerHTML = '<div id="detail-attendance-table"></div>';
+    const firebaseService = { requestDetailAttendanceRealtime: jest.fn() };
+    const app = loadEventDetailModule({
+      event: { id: 'event-1', current: 2, max: 10, status: 'open' },
+      flags: { detailAttendanceOnDemand: true },
+      firebaseService,
+    });
+    app._renderAttendanceTable = jest.fn(() => Promise.resolve({ ok: true, reason: 'full' }));
+
+    const result = await app.openDetailAttendanceRecords('event-1');
+
+    expect(result).toEqual({ ok: false, reason: 'not-authorized' });
+    expect(firebaseService.requestDetailAttendanceRealtime).not.toHaveBeenCalled();
+    expect(app._renderAttendanceTable).not.toHaveBeenCalled();
+    expect(app.showToast).toHaveBeenCalledWith('權限不足');
   });
 
   test('activity detail attendance on-demand keeps legacy render path when the flag is off', async () => {

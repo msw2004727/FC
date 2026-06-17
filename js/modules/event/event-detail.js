@@ -91,35 +91,52 @@ Object.assign(App, {
     };
   },
 
+  _canViewDetailAttendanceRecords(eventRecord = null) {
+    const canManage = typeof this._canOperateEventSite === 'function'
+      ? this._canOperateEventSite(eventRecord)
+      : false;
+    if (canManage) return true;
+    return (typeof this.hasPermission === 'function' && this.hasPermission('activity.view_noshow'))
+      || (typeof this.hasPermission === 'function' && this.hasPermission('admin.repair.no_show_adjust'));
+  },
+
   _renderDetailAttendanceSummaryShell(eventId, eventRecord = null) {
     const e = eventRecord || (typeof ApiService !== 'undefined' ? ApiService.getEvent?.(eventId) : null);
     const safeId = String(eventId || e?.id || '').trim();
     const counts = this._getDetailAttendanceSummaryCounts(safeId, e);
-    const canManage = typeof this._canOperateEventSite === 'function'
-      ? this._canOperateEventSite(e)
-      : false;
-    const canViewNoShow = canManage
-      || (typeof this.hasPermission === 'function' && this.hasPermission('activity.view_noshow'))
-      || (typeof this.hasPermission === 'function' && this.hasPermission('admin.repair.no_show_adjust'));
-    const actionHtml = canViewNoShow
-      ? `<button type="button" class="detail-toolbar-btn" onclick="App.openDetailAttendanceRecords('${escapeHTML(safeId)}')">\u7ba1\u7406\u540d\u55ae / \u51fa\u5e2d\u7d00\u9304</button>`
-      : '';
+    if (this._canViewDetailAttendanceRecords?.(e) !== true) return '';
+    const actionHtml = `<button type="button" class="detail-toolbar-btn" data-detail-attendance-open-button="${escapeHTML(safeId)}" onclick="App.openDetailAttendanceRecords('${escapeHTML(safeId)}')">\u7ba1\u7406\u540d\u55ae / \u51fa\u5e2d\u7d00\u9304</button>`;
     return `
       <div class="detail-attendance-summary" data-attendance-on-demand="true" style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;padding:.75rem;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);">
         <div style="min-width:0">
-          <div class="detail-section-title" style="margin:0 0 .25rem">\u51fa\u5e2d\u6458\u8981</div>
+          <div class="detail-section-title" style="margin:0 0 .25rem">\u51fa\u5e2d\u7ba1\u7406</div>
           <div style="display:flex;gap:.5rem;flex-wrap:wrap;font-size:.82rem;color:var(--text-secondary)">
             <span>\u5df2\u5831 ${counts.confirmedCount}/${counts.max}</span>
             ${counts.waitlistCount > 0 ? `<span>\u5019\u88dc ${counts.waitlistCount}</span>` : ''}
+            <span>\u5c1a\u672a\u8f09\u5165\u5b8c\u6574\u540d\u55ae</span>
           </div>
         </div>
-        ${actionHtml ? `<div style="display:flex;gap:.4rem;flex-wrap:wrap">${actionHtml}</div>` : ''}
+        <div style="display:flex;gap:.4rem;flex-wrap:wrap">${actionHtml}</div>
       </div>`;
+  },
+
+  _renderDetailAttendanceLoadingHtml() {
+    return `<div class="detail-attendance-summary" data-attendance-loading="true" aria-live="polite" aria-busy="true" style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;padding:.75rem;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);">
+      <div style="min-width:0">
+        <div class="detail-section-title" style="margin:0 0 .25rem">\u51fa\u5e2d\u7ba1\u7406</div>
+        <div class="reg-loading" style="padding:0;text-align:left">\u51fa\u5e2d\u7d00\u9304\u8f09\u5165\u4e2d...</div>
+      </div>
+    </div>`;
   },
 
   async openDetailAttendanceRecords(eventId) {
     const safeId = String(eventId || this._currentDetailEventId || '').trim();
     if (!safeId) return { ok: false, reason: 'missing-event-id' };
+    const e = typeof ApiService !== 'undefined' ? ApiService.getEvent?.(safeId) : null;
+    if (this._canViewDetailAttendanceRecords?.(e) !== true) {
+      this.showToast?.('\u6b0a\u9650\u4e0d\u8db3');
+      return { ok: false, reason: 'not-authorized' };
+    }
     this._detailAttendanceOnDemandEventId = safeId;
     if (typeof FirebaseService !== 'undefined'
       && typeof FirebaseService.requestDetailAttendanceRealtime === 'function') {
@@ -130,9 +147,8 @@ Object.assign(App, {
       forceFetch: true,
     }) || { forceFullAttendance: true, forceFetch: true };
     const container = document.getElementById('detail-attendance-table');
-    if (container) container.innerHTML = this._renderEventDetailBelowFoldLoadingHtml();
+    if (container) container.innerHTML = this._renderDetailAttendanceLoadingHtml?.() || this._renderEventDetailBelowFoldLoadingHtml();
     const result = await this._renderDetailAttendanceTable(safeId, context);
-    const e = typeof ApiService !== 'undefined' ? ApiService.getEvent?.(safeId) : null;
     this._afterDetailAttendanceRendered?.(safeId, e, context?.requestSeq ?? null, context?.renderToken || null);
     return result;
   },
