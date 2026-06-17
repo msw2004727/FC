@@ -20,6 +20,10 @@ describe('team member list CSS contract', () => {
 
     expect(panelBlock).toContain('--td-mm-surface: #ffffff');
     expect(panelBlock).toContain('--td-mm-selected-bg: #0f172a');
+    expect(panelBlock).toContain('--td-mm-row-bg: #fbfcfe');
+    expect(panelBlock).toContain('--td-mm-jersey-bg: #eef2ff');
+    expect(panelBlock).toContain('--td-mm-position-bg: #ecfdf5');
+    expect(css).toMatch(/\[data-theme="dark"\] \.td-member-management-panel\s*\{[\s\S]*--td-mm-row-bg: #151a22[\s\S]*--td-mm-jersey-bg: #202545[\s\S]*--td-mm-position-bg: #143326/);
     expect(panelBlock).toContain('width: min(100%, 430px)');
     expect(panelBlock).toContain('border-radius: 22px');
     expect(css).toContain('.td-member-panel-pad');
@@ -40,8 +44,9 @@ describe('team member list CSS contract', () => {
     expect(shellBlock).toContain('display: block');
     expect(shellBlock).toContain('min-width: 0');
     expect(listBlock).toContain('grid-template-columns: minmax(0, 1fr)');
-    expect(css).toMatch(/\.td-member-management-panel \.td-member-row,[\s\S]*\.td-member-management-panel \.td-member-list-shell\.is-editing \.td-member-row\s*\{[\s\S]*display: flex[\s\S]*flex-wrap: nowrap[\s\S]*padding: 11px 4px/);
-    expect(css).toMatch(/\.td-member-management-panel \.td-member-row \+ \.td-member-row::before\s*\{[\s\S]*left: 4px/);
+    expect(listBlock).toContain('gap: 7px');
+    expect(css).toMatch(/\.td-member-management-panel \.td-member-row,[\s\S]*\.td-member-management-panel \.td-member-list-shell\.is-editing \.td-member-row\s*\{[\s\S]*display: flex[\s\S]*flex-wrap: nowrap[\s\S]*padding: 10px 8px[\s\S]*background: var\(--td-mm-row-bg\)/);
+    expect(css).toMatch(/\.td-member-management-panel \.td-member-row \+ \.td-member-row::before\s*\{[\s\S]*content: none/);
     expect(css).not.toContain('.td-member-management-panel .td-member-avatar');
   });
 
@@ -61,7 +66,9 @@ describe('team member list CSS contract', () => {
     expect(css).toContain('.td-member-management-panel .td-member-roster-code');
     expect(css).toContain('.td-member-management-panel .td-member-roster-no');
     expect(css).toContain('.td-member-management-panel .td-member-roster-pos');
-    expect(css).toMatch(/\.td-member-management-panel \.td-member-roster-code\s*\{[\s\S]*flex: 0 0 64px[\s\S]*width: 64px[\s\S]*min-width: 64px/);
+    expect(css).toMatch(/\.td-member-management-panel \.td-member-roster-code\s*\{[\s\S]*grid-template-columns: 36px 36px[\s\S]*flex: 0 0 76px[\s\S]*width: 76px[\s\S]*min-width: 76px/);
+    expect(css).toMatch(/\.td-member-management-panel \.td-member-roster-no\s*\{[\s\S]*background: var\(--td-mm-jersey-bg\)[\s\S]*color: var\(--td-mm-jersey-ink\)/);
+    expect(css).toMatch(/\.td-member-management-panel \.td-member-roster-pos\s*\{[\s\S]*background: var\(--td-mm-position-bg\)[\s\S]*color: var\(--td-mm-position-ink\)/);
     expect(metaBlock).toContain('text-overflow: ellipsis');
     expect(noteBlock).toContain('border-radius: 6px');
     expect(noteBlock).toContain('background: var(--bg-elevated)');
@@ -73,6 +80,8 @@ describe('team member list CSS contract', () => {
     const css = readCss();
 
     expect(css).toMatch(/\.td-member-management-panel \.td-member-row,[\s\S]*\.td-member-management-panel \.td-member-list-shell\.is-editing \.td-member-row\s*\{[\s\S]*flex-wrap: nowrap/);
+    expect(css).toMatch(/@media \(max-width: 430px\)[\s\S]*\.td-member-management-panel \.td-member-list-shell\.is-editing \.td-member-row\s*\{[\s\S]*display: grid[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
+    expect(css).toMatch(/@media \(max-width: 430px\)[\s\S]*\.td-member-management-panel \.td-member-list-shell\.is-editing \.td-member-action-cell\s*\{[\s\S]*justify-self: end[\s\S]*width: auto[\s\S]*margin-left: 0/);
     expect(css).toMatch(/\.td-member-management-panel \.td-member-action-cell\s*\{[\s\S]*justify-content: flex-end[\s\S]*gap: 2px/);
     expect(css).toMatch(/\.td-member-management-panel \.td-member-action-cell\.td-member-manage-actions\s*\{[\s\S]*width: 94px[\s\S]*flex-wrap: wrap/);
     expect(css).toMatch(/\.td-member-management-panel \.td-member-remove-cell,[\s\S]*\.td-member-management-panel \.td-member-role-action-cell\s*\{[\s\S]*flex: 0 0 auto[\s\S]*width: auto/);

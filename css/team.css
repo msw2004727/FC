@@ -2973,6 +2973,12 @@
   --td-mm-line-2: #e2e8f0;
   --td-mm-hover: #f1f5f9;
   --td-mm-chip: #f1f5f9;
+  --td-mm-row-bg: #fbfcfe;
+  --td-mm-row-border: rgba(148, 163, 184, .18);
+  --td-mm-jersey-bg: #eef2ff;
+  --td-mm-jersey-ink: #4338ca;
+  --td-mm-position-bg: #ecfdf5;
+  --td-mm-position-ink: #047857;
   --td-mm-accent-ink: #0b7a5c;
   --td-mm-accent-bg: #e7f6f0;
   --td-mm-selected-bg: #0f172a;
@@ -3180,8 +3186,9 @@
 .td-member-management-panel .td-member-list {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  gap: 7px;
   min-width: 0;
-  padding: 2px 0 6px;
+  padding: 4px 0 6px;
   overflow: visible;
 }
 
@@ -3194,19 +3201,15 @@
   gap: 12px;
   min-width: 0;
   min-height: 0;
-  padding: 11px 4px;
+  padding: 10px 8px;
   overflow: visible;
+  border: 1px solid var(--td-mm-row-border);
+  border-radius: 14px;
+  background: var(--td-mm-row-bg);
 }
 
 .td-member-management-panel .td-member-row + .td-member-row::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 4px;
-  left: 4px;
-  height: 1px;
-  background: var(--td-mm-line);
-  opacity: 1;
+  content: none;
 }
 
 .td-member-management-panel .td-member-row-main {
@@ -3259,38 +3262,48 @@
 
 .td-member-management-panel .td-member-roster-code {
   display: grid;
-  flex: 0 0 64px;
-  width: 64px;
-  min-width: 64px;
-  gap: 2px;
+  grid-template-columns: 36px 36px;
+  flex: 0 0 76px;
+  width: 76px;
+  min-width: 76px;
+  gap: 4px;
   margin-top: 7px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .td-member-management-panel .td-member-roster-no,
 .td-member-management-panel .td-member-roster-pos {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   min-width: 0;
-  padding: 1px 5px;
+  height: 18px;
+  padding: 0 5px;
   overflow: hidden;
-  border-radius: 5px;
-  background: var(--td-mm-chip);
-  color: var(--td-mm-ink-2);
+  border-radius: var(--radius-full);
   font-size: 10.5px;
   font-weight: 800;
-  line-height: 1.15;
+  line-height: 18px;
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .td-member-management-panel .td-member-roster-no {
+  background: var(--td-mm-jersey-bg);
+  color: var(--td-mm-jersey-ink);
   font-variant-numeric: tabular-nums;
+}
+
+.td-member-management-panel .td-member-roster-pos {
+  background: var(--td-mm-position-bg);
+  color: var(--td-mm-position-ink);
 }
 
 .td-member-management-panel .td-member-roster-code.is-empty .td-member-roster-no,
 .td-member-management-panel .td-member-roster-code.is-empty .td-member-roster-pos {
+  background: var(--td-mm-chip);
   color: var(--td-mm-ink-3);
   font-weight: 700;
 }
@@ -3536,6 +3549,12 @@
   --td-mm-line-2: #283039;
   --td-mm-hover: #1b222c;
   --td-mm-chip: #1b222c;
+  --td-mm-row-bg: #151a22;
+  --td-mm-row-border: rgba(148, 163, 184, .1);
+  --td-mm-jersey-bg: #202545;
+  --td-mm-jersey-ink: #a5b4fc;
+  --td-mm-position-bg: #143326;
+  --td-mm-position-ink: #6ee7b7;
   --td-mm-accent-ink: #5fe0b0;
   --td-mm-accent-bg: #10241d;
   --td-mm-selected-bg: #e7ebf1;
@@ -3560,7 +3579,25 @@
   }
 
   .td-member-management-panel .td-member-row + .td-member-row::before {
-    left: 4px;
+    content: none;
+  }
+
+  .td-member-management-panel .td-member-list-shell.is-editing .td-member-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 7px;
+  }
+
+  .td-member-management-panel .td-member-list-shell.is-editing .td-member-row-main {
+    width: 100%;
+  }
+
+  .td-member-management-panel .td-member-list-shell.is-editing .td-member-action-cell {
+    justify-self: end;
+    width: auto;
+    max-width: 100%;
+    margin-left: 0;
   }
 
   .td-member-management-panel .td-member-line2 {
@@ -3577,9 +3614,10 @@
   }
 
   .td-member-management-panel .td-member-roster-code {
-    flex-basis: 60px;
-    width: 60px;
-    min-width: 60px;
+    grid-template-columns: 34px 34px;
+    flex-basis: 72px;
+    width: 72px;
+    min-width: 72px;
   }
 }
 
@@ -3596,9 +3634,10 @@
   }
 
   .td-member-management-panel .td-member-roster-code {
-    flex-basis: 56px;
-    width: 56px;
-    min-width: 56px;
+    grid-template-columns: 32px 32px;
+    flex-basis: 68px;
+    width: 68px;
+    min-width: 68px;
   }
 
   .td-member-management-panel .td-member-roster-no,
