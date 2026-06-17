@@ -162,10 +162,7 @@ Object.assign(App, {
     }
     const onDemandOpen = this._isDetailAttendanceOnDemandOpen?.(eventId) === true
       || (!!eventId && String(this._detailAttendanceOnDemandEventId || '') === eventId);
-    if (onDemandEnabled
-      && !onDemandOpen
-      && this._attendanceEditingEventId !== eventId
-      && this._unregEditingEventId !== eventId) {
+    if (onDemandEnabled && !onDemandOpen) {
       return false;
     }
     const status = String(e?.status || '');

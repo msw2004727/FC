@@ -111,6 +111,24 @@ describe('P2 deferAttendanceRecords — attendance data load decision', () => {
     expect(app._shouldLoadDetailAttendanceData({ id: 'evt-1', status: 'ended' })).toBe(true);
   });
 
+  test('detail attendance on-demand ignores editing state until the roster panel is opened', () => {
+    const { app } = loadAttendanceModule({
+      flags: {
+        rosterProjectionFirst: true,
+        deferAttendanceRecords: true,
+        detailAttendanceOnDemand: true,
+      },
+      canOperateEventSite: () => true,
+    });
+    app._attendanceEditingEventId = 'evt-1';
+    app._unregEditingEventId = 'evt-1';
+
+    expect(app._shouldLoadDetailAttendanceData({ id: 'evt-1', status: 'open' })).toBe(false);
+
+    app._detailAttendanceOnDemandEventId = 'evt-1';
+    expect(app._shouldLoadDetailAttendanceData({ id: 'evt-1', status: 'open' })).toBe(true);
+  });
+
   test('ended or cancelled events still load attendance data', () => {
     const { app } = loadAttendanceModule();
     expect(app._shouldLoadDetailAttendanceData({ id: 'evt-1', status: 'ended' })).toBe(true);

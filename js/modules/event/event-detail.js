@@ -61,11 +61,8 @@ Object.assign(App, {
   _shouldRenderDetailAttendanceTable(eventId, eventRecord = null, options = {}) {
     if (!this._isActivityDetailAttendanceOnDemandEnabled?.()) return true;
     const safeId = String(eventId || eventRecord?.id || '').trim();
-    if (!safeId) return true;
-    if (options?.forceFullAttendance === true || options?.forceFetch === true) return true;
+    if (!safeId) return false;
     if (this._isDetailAttendanceOnDemandOpen?.(safeId)) return true;
-    if (String(this._attendanceEditingEventId || '') === safeId) return true;
-    if (String(this._unregEditingEventId || '') === safeId) return true;
     return false;
   },
 
@@ -194,6 +191,13 @@ Object.assign(App, {
     }
     const publicRosterOnly = this._canViewDetailAttendanceRecordDetails?.(e) !== true;
     this._detailAttendanceOnDemandEventId = safeId;
+    if (String(this._currentDetailEventId || '') === safeId && this._currentDetailIsGuestView === true) {
+      const result = this._renderGuestAttendanceTable?.(safeId, 'detail-attendance-table', {
+        forceFullAttendance: true,
+      }) || { ok: true, reason: 'guest-full' };
+      this._renderGuestWaitlistSection?.(safeId, 'detail-waitlist-container');
+      return result;
+    }
     if (!publicRosterOnly
       && typeof FirebaseService !== 'undefined'
       && typeof FirebaseService.requestDetailAttendanceRealtime === 'function') {
@@ -870,23 +874,31 @@ Object.assign(App, {
       }));
   },
 
-  _renderGuestAttendanceTable(eventId, containerId) {
+  _renderGuestAttendanceTable(eventId, containerId, options = {}) {
     const container = document.getElementById(containerId);
-    if (!container) return;
+    if (!container) return { ok: false, reason: 'missing-container' };
     const eventRecord = ApiService.getEvent(eventId);
     if (!eventRecord) {
       container.innerHTML = '';
-      return;
+      return { ok: false, reason: 'missing-event' };
+    }
+    if (this._shouldRenderDetailAttendanceTable?.(eventId, eventRecord, options) === false) {
+      container.innerHTML = this._renderDetailAttendanceSummaryShell?.(eventId, eventRecord, {
+        ...options,
+        publicRosterOnly: true,
+      }) || '';
+      return { ok: true, reason: 'on-demand-summary' };
     }
     const people = this._buildGuestEventPeople(eventRecord, 'participants');
     if (!people.length) {
       container.innerHTML = '<div style="font-size:.8rem;color:var(--text-muted);padding:.3rem 0">\u5c1a\u7121\u5831\u540d</div>';
-      return;
+      return { ok: true, reason: 'empty' };
     }
     container.innerHTML = `
       <div style="display:flex;flex-wrap:wrap;gap:.4rem">
         ${people.map(person => `<span class="user-capsule uc-user" onclick="App.showUserProfile('${escapeHTML(person.displayName)}',{uid:'${escapeHTML(person.userId || person.uid || '')}'})"> ${escapeHTML(person.displayName)}</span>`).join('')}
       </div>`;
+    return { ok: true, reason: 'guest-full' };
   },
 
   _renderGuestWaitlistSection(eventId, containerId) {
@@ -931,6 +943,7 @@ Object.assign(App, {
       if (this._currentDetailEventId !== id) {
         this._regsLoadingRetryCount = 0;
         clearTimeout(this._regsLoadingRetryTimer);
+        this._detailAttendanceOnDemandEventId = null;
       }
       const isGuestView = this._isGuestEventDetailView(options);
       let e = ApiService.getEvent(id);
@@ -1029,6 +1042,7 @@ Object.assign(App, {
 
       this._currentDetailEventId = id;
       this._currentDetailEventRecord = e;
+      this._currentDetailIsGuestView = isGuestView;
     // ── 瀏覽數：顯示當前值 + 觸發 +1（登入用戶同日去重，僅正式詳情頁，不含 guest）──
     if (!isGuestView) {
       const _vcSpan = document.getElementById('detail-view-count-num');

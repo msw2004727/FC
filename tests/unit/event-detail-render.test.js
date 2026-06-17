@@ -672,6 +672,68 @@ describe('Team reservation button loading contract', () => {
     expect(document.getElementById('detail-attendance-table').textContent).toContain('查看出席名單');
   });
 
+  test('activity detail attendance on-demand ignores force render options until manually opened', async () => {
+    document.body.innerHTML = '<div id="detail-attendance-table"></div>';
+    const app = loadEventDetailModule({
+      event: { id: 'event-1', current: 2, max: 10, status: 'open' },
+      flags: { detailAttendanceOnDemand: true },
+    });
+    app._renderAttendanceTable = jest.fn(() => Promise.resolve({ ok: true, reason: 'forced-full' }));
+
+    const result = await app._renderDetailAttendanceTable('event-1', {
+      mode: 'detail',
+      forceFullAttendance: true,
+      forceFetch: true,
+    });
+
+    expect(result).toEqual({ ok: true, reason: 'on-demand-summary' });
+    expect(app._renderAttendanceTable).not.toHaveBeenCalled();
+    expect(document.querySelector('.detail-attendance-summary')?.dataset.attendanceOnDemand).toBe('true');
+  });
+
+  test('activity detail attendance on-demand ignores stale editing state until manually opened', async () => {
+    document.body.innerHTML = '<div id="detail-attendance-table"></div>';
+    const app = loadEventDetailModule({
+      event: { id: 'event-1', current: 2, max: 10, status: 'open' },
+      flags: { detailAttendanceOnDemand: true },
+    });
+    app._attendanceEditingEventId = 'event-1';
+    app._unregEditingEventId = 'event-1';
+    app._renderAttendanceTable = jest.fn(() => Promise.resolve({ ok: true, reason: 'editing-full' }));
+
+    const result = await app._renderDetailAttendanceTable('event-1', { mode: 'detail' });
+
+    expect(result).toEqual({ ok: true, reason: 'on-demand-summary' });
+    expect(app._renderAttendanceTable).not.toHaveBeenCalled();
+  });
+
+  test('guest attendance roster stays collapsed until manually opened', () => {
+    document.body.innerHTML = '<div id="detail-attendance-table"></div>';
+    const app = loadEventDetailModule({
+      event: {
+        id: 'event-1',
+        current: 1,
+        max: 10,
+        status: 'open',
+        participantsWithUid: [{ uid: 'u1', name: 'Alice' }],
+        participants: ['Alice'],
+      },
+      flags: { detailAttendanceOnDemand: true },
+    });
+
+    const result = app._renderGuestAttendanceTable('event-1', 'detail-attendance-table');
+
+    expect(result).toEqual({ ok: true, reason: 'on-demand-summary' });
+    expect(document.querySelector('.detail-attendance-summary')?.dataset.attendanceOnDemand).toBe('true');
+    expect(document.querySelector('.user-capsule')).toBeNull();
+
+    app._detailAttendanceOnDemandEventId = 'event-1';
+    const opened = app._renderGuestAttendanceTable('event-1', 'detail-attendance-table');
+
+    expect(opened).toEqual({ ok: true, reason: 'guest-full' });
+    expect(document.querySelector('.user-capsule')?.textContent).toContain('Alice');
+  });
+
   test('openDetailAttendanceRecords starts realtime loading and renders the full detail table for staff', async () => {
     document.body.innerHTML = '<div id="detail-attendance-table"></div>';
     const firebaseService = { requestDetailAttendanceRealtime: jest.fn() };
@@ -826,6 +888,34 @@ describe('Team reservation button loading contract', () => {
     expect(app._renderUnregTable).not.toHaveBeenCalled();
     expect(document.getElementById('detail-unreg-section').style.display).toBe('none');
     expect(app.showToast).not.toHaveBeenCalledWith('權限不足');
+  });
+
+  test('openDetailAttendanceRecords opens guest roster without loading staff attendance modules', async () => {
+    document.body.innerHTML = '<div id="detail-attendance-table"></div><div id="detail-waitlist-container"></div>';
+    const firebaseService = { requestDetailAttendanceRealtime: jest.fn() };
+    const app = loadEventDetailModule({
+      currentUser: null,
+      event: {
+        id: 'event-1',
+        current: 1,
+        max: 10,
+        status: 'open',
+        participantsWithUid: [{ uid: 'u1', name: 'Alice' }],
+      },
+      flags: { detailAttendanceOnDemand: true },
+      firebaseService,
+    });
+    app._currentDetailEventId = 'event-1';
+    app._currentDetailIsGuestView = true;
+    app._renderAttendanceTable = jest.fn(() => Promise.resolve({ ok: true, reason: 'staff-full' }));
+
+    const result = await app.openDetailAttendanceRecords('event-1');
+
+    expect(result).toEqual({ ok: true, reason: 'guest-full' });
+    expect(app._detailAttendanceOnDemandEventId).toBe('event-1');
+    expect(firebaseService.requestDetailAttendanceRealtime).not.toHaveBeenCalled();
+    expect(app._renderAttendanceTable).not.toHaveBeenCalled();
+    expect(document.querySelector('.user-capsule')?.textContent).toContain('Alice');
   });
 
   test('after public roster render skips badge refresh to preserve public-only columns', () => {
