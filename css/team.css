@@ -3011,17 +3011,12 @@
   gap: 12px;
 }
 
-.td-member-top h3 {
-  margin: 0;
-  color: var(--td-mm-ink);
-  font-size: 19px;
-  font-weight: 800;
-  letter-spacing: 0;
-  line-height: 1.2;
+.td-member-head-copy {
+  min-width: 0;
 }
 
 .td-member-total {
-  margin-top: 3px;
+  margin-top: 0;
   color: var(--td-mm-ink-3);
   font-size: 12.5px;
   font-weight: 600;
@@ -3224,7 +3219,7 @@
 
 .td-member-management-panel .td-member-line1 {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   min-width: 0;
   overflow: visible;
@@ -3255,10 +3250,49 @@
 }
 
 .td-member-management-panel .td-member-name-cell {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: visible;
   position: relative;
   z-index: 5;
+}
+
+.td-member-management-panel .td-member-roster-code {
+  display: grid;
+  flex: 0 0 64px;
+  width: 64px;
+  min-width: 64px;
+  gap: 2px;
+  margin-top: 7px;
+  overflow: hidden;
+}
+
+.td-member-management-panel .td-member-roster-no,
+.td-member-management-panel .td-member-roster-pos {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 1px 5px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: var(--td-mm-chip);
+  color: var(--td-mm-ink-2);
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.td-member-management-panel .td-member-roster-no {
+  font-variant-numeric: tabular-nums;
+}
+
+.td-member-management-panel .td-member-roster-code.is-empty .td-member-roster-no,
+.td-member-management-panel .td-member-roster-code.is-empty .td-member-roster-pos {
+  color: var(--td-mm-ink-3);
+  font-weight: 700;
 }
 
 .td-member-management-panel .td-member-name-wrap,
@@ -3319,6 +3353,7 @@
   display: inline-flex;
   align-items: center;
   height: 24px;
+  margin-top: 7px;
   padding: 0 8px;
   overflow: visible;
   border: 1px solid rgba(20, 184, 166, .28);
@@ -3415,6 +3450,12 @@
 
 .td-member-management-panel .td-member-edit-actions {
   gap: 1px;
+}
+
+.td-member-management-panel .td-member-action-cell.td-member-manage-actions {
+  width: 94px;
+  flex-wrap: wrap;
+  row-gap: 2px;
 }
 
 .td-member-management-panel .td-member-remove-cell,
@@ -3534,6 +3575,12 @@
   .td-member-management-panel .td-member-note {
     max-width: 32vw;
   }
+
+  .td-member-management-panel .td-member-roster-code {
+    flex-basis: 60px;
+    width: 60px;
+    min-width: 60px;
+  }
 }
 
 @media (max-width: 380px) {
@@ -3546,5 +3593,18 @@
   .td-member-management-panel .td-member-name-wrap .user-capsule,
   .td-member-management-panel .td-member-name-static {
     max-width: 132px;
+  }
+
+  .td-member-management-panel .td-member-roster-code {
+    flex-basis: 56px;
+    width: 56px;
+    min-width: 56px;
+  }
+
+  .td-member-management-panel .td-member-roster-no,
+  .td-member-management-panel .td-member-roster-pos {
+    padding-right: 4px;
+    padding-left: 4px;
+    font-size: 10px;
   }
 }

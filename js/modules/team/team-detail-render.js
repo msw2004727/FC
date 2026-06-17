@@ -1531,6 +1531,28 @@ Object.assign(App, {
     return text.startsWith('#') ? text : '#' + text;
   },
 
+  _formatTeamMemberRosterJersey(value) {
+    const text = String(value == null ? '' : value).trim();
+    if (!text || text === '-') return '--';
+    return text.startsWith('#') ? text : '#' + text;
+  },
+
+  _formatTeamMemberRosterPosition(value) {
+    const text = String(value == null ? '' : value).trim();
+    if (!text || text === '-') return '--';
+    return text;
+  },
+
+  _buildTeamMemberRosterCode(match) {
+    const jersey = this._formatTeamMemberRosterJersey(match?.jerseyNumber);
+    const position = this._formatTeamMemberRosterPosition(match?.position);
+    const emptyClass = (jersey === '--' && position === '--') ? ' is-empty' : '';
+    return '<span class="td-member-roster-code' + emptyClass + '" aria-label="\u80cc\u865f\u8207\u4f4d\u7f6e">'
+      + '<span class="td-member-roster-no">' + escapeHTML(jersey) + '</span>'
+      + '<span class="td-member-roster-pos">' + escapeHTML(position) + '</span>'
+      + '</span>';
+  },
+
   _buildTeamMemberMetaLine(t, row, activeTab) {
     const items = [];
     const push = html => { if (html) items.push(html); };
@@ -1568,7 +1590,7 @@ Object.assign(App, {
   _buildTeamMemberIntegratedMeta(t, row, options) {
     const opts = options || {};
     const course = this._getTeamDetailMemberCourseData(t, row);
-    const match = this._getTeamDetailMemberMatchData(t, row);
+    const match = opts.matchData || this._getTeamDetailMemberMatchData(t, row);
     const activity = this._getTeamDetailMemberActivityData(t, row);
     const showCourse = this._shouldShowTeamMemberCourseSummary(course, opts.showCourseSection);
     const primaryItems = [];
@@ -1579,8 +1601,6 @@ Object.assign(App, {
     if (showCourse) {
       pushPrimary(this._buildTeamMemberMetaItem(course.group === '-' ? '\u672a\u5206\u7d44' : course.group, 'td-member-compact td-member-group'));
     }
-    pushPrimary(this._buildTeamMemberMetaItem(this._formatTeamMemberJerseyNumber(match.jerseyNumber), 'td-member-compact td-member-jersey'));
-    pushPrimary(this._buildTeamMemberMetaItem(match.position === '-' ? '\u672a\u8a2d\u4f4d\u7f6e' : match.position, 'td-member-compact td-member-position'));
     pushPrimary(this._buildTeamMemberMetaItem('\u51fa\u8cfd ' + String(match.count || 0) + ' \u6b21', 'td-member-num td-member-match-count'));
     if (showCourse) {
       pushPrimary(this._buildTeamMemberMetaItem('\u8ab2\u7a0b ' + String(course.count || 0) + ' \u6b21', 'td-member-num td-member-course-count'));
@@ -1697,7 +1717,8 @@ Object.assign(App, {
       ? '<span class="td-member-list-note-hint">\u5099\u8a3b\u50c5\u8077\u54e1\u53ef\u898b</span>'
       : '';
     const rows = visibleRoster.length ? visibleRoster.map(row => {
-      const editActionBtns = memberEditMode ? '' : this._buildTeamMemberRowEditActions(t, row, showEditColumn, showCourseSection);
+      const matchData = this._getTeamDetailMemberMatchData(t, row);
+      const editActionBtns = memberEditMode ? this._buildTeamMemberRowEditActions(t, row, showEditColumn, showCourseSection) : '';
       const removalKind = this._getTeamDetailRemovalKind(t, row, staffIdentity);
       const removeBtn = (canManageMembers && memberEditMode && removalKind)
         ? '<button class="td-member-remove-btn td-mm-icon-btn td-mm-danger" type="button" title="\u5254\u9664\u6210\u54e1" aria-label="\u5254\u9664\u6210\u54e1" onclick="event.stopPropagation();App.removeTeamRosterRow(this, ' + escapeHTML(JSON.stringify(t.id)) + ', ' + escapeHTML(JSON.stringify(row.key)) + ')">' + this._buildTeamMemberSvgIcon('trash') + '<span class="td-mm-sr-only">\u5254\u9664</span></button>'
@@ -1710,8 +1731,8 @@ Object.assign(App, {
       const actions = rowActions ? '<div class="td-member-action-cell td-mm-actions' + actionModeClass + '">' + rowActions + '</div>' : '';
       return '<div class="td-member-row" data-member-key="' + escapeHTML(row.key || '') + '" data-member-filter="' + escapeHTML(activeFilter) + '">'
         + '<div class="td-member-row-main">'
-        + '<div class="td-member-line1"><span class="td-member-name-cell">' + this._buildTeamDetailMemberNameTag(row) + '</span></div>'
-        + this._buildTeamMemberIntegratedMeta(t, row, { showCourseSection, showPrivateNotes })
+        + '<div class="td-member-line1">' + this._buildTeamMemberRosterCode(matchData) + '<span class="td-member-name-cell">' + this._buildTeamDetailMemberNameTag(row) + '</span></div>'
+        + this._buildTeamMemberIntegratedMeta(t, row, { showCourseSection, showPrivateNotes, matchData })
         + '</div>'
         + actions
         + '</div>';
@@ -1721,7 +1742,7 @@ Object.assign(App, {
     const editBtn = canManageMembers ? '<button class="td-member-edit-btn' + (memberEditMode ? ' is-active' : '') + '" type="button" aria-pressed="' + (memberEditMode ? 'true' : 'false') + '" onclick="event.stopPropagation();App.toggleTeamMemberEditMode(' + escapeHTML(JSON.stringify(t.id)) + ')"><span class="td-member-edit-icon">' + editBtnIcon + '</span><span class="td-member-edit-text">' + editBtnLabel + '</span></button>' : '';
     return '<section class="td-member-management-panel" id="team-members-section">'
       + '<div class="td-member-panel-pad">'
-      + '<div id="team-members-toggle" class="td-member-top"><div><h3>\u6210\u54e1\u7ba1\u7406</h3><div class="td-member-total">' + roster.length + ' \u4f4d\u6210\u54e1</div></div>' + editBtn + '</div>'
+      + '<div id="team-members-toggle" class="td-member-top"><div class="td-member-head-copy"><div class="td-member-total">' + roster.length + ' \u4f4d\u6210\u54e1</div></div>' + editBtn + '</div>'
       + '<div class="td-member-filters">' + this._buildTeamMemberFilterChips(t, filterOptions, activeFilter) + '</div>'
       + '<div class="td-member-list-shell td-member-list-shell-summary' + (memberEditMode ? ' is-editing' : '') + ' td-member-filter-' + activeFilter + '"><div class="td-member-list-head"><span class="td-member-list-label">\u6210\u54e1\u8cc7\u6599</span>' + listHint + '</div><div class="td-member-list">' + rows + '</div></div>'
       + '</div></section>';

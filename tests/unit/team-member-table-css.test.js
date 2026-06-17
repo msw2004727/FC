@@ -23,7 +23,7 @@ describe('team member list CSS contract', () => {
     expect(panelBlock).toContain('width: min(100%, 430px)');
     expect(panelBlock).toContain('border-radius: 22px');
     expect(css).toContain('.td-member-panel-pad');
-    expect(css).toContain('.td-member-top h3');
+    expect(css).toContain('.td-member-head-copy');
     expect(css).toContain('.td-member-filters');
     expect(css).toContain('.td-member-filter-chip');
     expect(css).toContain('.td-member-view-row');
@@ -58,7 +58,10 @@ describe('team member list CSS contract', () => {
     expect(css).toContain('.td-member-management-panel .td-member-line3');
     expect(css).toContain('.td-member-management-panel .td-member-note-label');
     expect(css).toContain('.td-member-management-panel .td-member-group');
-    expect(css).toContain('.td-member-management-panel .td-member-jersey');
+    expect(css).toContain('.td-member-management-panel .td-member-roster-code');
+    expect(css).toContain('.td-member-management-panel .td-member-roster-no');
+    expect(css).toContain('.td-member-management-panel .td-member-roster-pos');
+    expect(css).toMatch(/\.td-member-management-panel \.td-member-roster-code\s*\{[\s\S]*flex: 0 0 64px[\s\S]*width: 64px[\s\S]*min-width: 64px/);
     expect(metaBlock).toContain('text-overflow: ellipsis');
     expect(noteBlock).toContain('border-radius: 6px');
     expect(noteBlock).toContain('background: var(--bg-elevated)');
@@ -71,6 +74,7 @@ describe('team member list CSS contract', () => {
 
     expect(css).toMatch(/\.td-member-management-panel \.td-member-row,[\s\S]*\.td-member-management-panel \.td-member-list-shell\.is-editing \.td-member-row\s*\{[\s\S]*flex-wrap: nowrap/);
     expect(css).toMatch(/\.td-member-management-panel \.td-member-action-cell\s*\{[\s\S]*justify-content: flex-end[\s\S]*gap: 2px/);
+    expect(css).toMatch(/\.td-member-management-panel \.td-member-action-cell\.td-member-manage-actions\s*\{[\s\S]*width: 94px[\s\S]*flex-wrap: wrap/);
     expect(css).toMatch(/\.td-member-management-panel \.td-member-remove-cell,[\s\S]*\.td-member-management-panel \.td-member-role-action-cell\s*\{[\s\S]*flex: 0 0 auto[\s\S]*width: auto/);
     expect(css).toMatch(/\.td-member-role-action-btn,\s*\.td-member-promote-btn\s*\{[\s\S]*display: inline-flex[\s\S]*width: 28px[\s\S]*height: 28px/);
     expect(css).toMatch(/\.td-member-management-panel \.td-mm-icon-btn,[\s\S]*\.td-member-management-panel \.td-member-row-edit-btn,[\s\S]*\.td-member-management-panel \.td-member-role-action-btn,[\s\S]*\.td-member-management-panel \.td-member-remove-btn\s*\{[\s\S]*width: 30px[\s\S]*height: 30px/);
