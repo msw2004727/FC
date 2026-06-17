@@ -27,6 +27,7 @@ describe('team member list CSS contract', () => {
     expect(css).toContain('.td-member-filters');
     expect(css).toContain('.td-member-filter-chip');
     expect(css).toContain('.td-member-view-row');
+    expect(css).toContain('.td-member-list-note-hint');
     expect(css).not.toContain('.td-member-sort-hint');
     expect(css).not.toContain('.td-member-view-hint');
   });
@@ -48,8 +49,16 @@ describe('team member list CSS contract', () => {
     const css = readCss();
     const metaBlock = ruleBlock(css, '.td-member-meta-item');
     const noteBlock = ruleBlock(css, '.td-member-note');
+    const panelLine2Block = ruleBlock(css, '.td-member-management-panel .td-member-line2');
 
     expect(css).toMatch(/\.td-member-line2\s*\{[\s\S]*gap: \.34rem[\s\S]*overflow: hidden[\s\S]*white-space: nowrap/);
+    expect(panelLine2Block).toContain('flex-wrap: wrap');
+    expect(panelLine2Block).toContain('overflow: visible');
+    expect(panelLine2Block).toContain('white-space: normal');
+    expect(css).toContain('.td-member-management-panel .td-member-line3');
+    expect(css).toContain('.td-member-management-panel .td-member-note-label');
+    expect(css).toContain('.td-member-management-panel .td-member-group');
+    expect(css).toContain('.td-member-management-panel .td-member-jersey');
     expect(metaBlock).toContain('text-overflow: ellipsis');
     expect(noteBlock).toContain('border-radius: 6px');
     expect(noteBlock).toContain('background: var(--bg-elevated)');
@@ -80,9 +89,11 @@ describe('team member list CSS contract', () => {
     expect(managementCapsuleBlock).toContain('padding: 0 8px');
     expect(managementCapsuleBlock).toContain('border-radius: var(--radius-full)');
     expect(managementCapsuleBlock).toContain('font-size: .75rem');
+    expect(managementCapsuleBlock).toContain('overflow: visible');
     expect(managementCapsuleBlock).not.toContain('background: transparent');
     expect(managementCapsuleBlock).not.toContain('border: 0');
-    expect(css).not.toContain('.td-member-management-panel .td-member-name-wrap .user-capsule .uc-lv');
+    expect(css).toMatch(/\.td-member-management-panel \.td-member-name-wrap \.user-capsule \.uc-lv\s*\{[\s\S]*z-index: 90/);
+    expect(css).toMatch(/\.td-member-management-panel \.td-member-name-wrap \.user-capsule \.td-member-name-text\s*\{[\s\S]*overflow: hidden[\s\S]*text-overflow: ellipsis/);
     expect(managementStaticBlock).toContain('background: var(--td-mm-role-student-bg)');
     expect(managementStaticBlock).toContain('border-radius: var(--radius-full)');
     expect(managementStaticBlock).toContain('white-space: nowrap');

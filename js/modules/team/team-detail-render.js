@@ -1447,6 +1447,9 @@ Object.assign(App, {
       check: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 6 9 17l-5-5"></path></svg>',
       manage: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="9.5" cy="7" r="4"></circle><path d="M19 8v6"></path><path d="M22 11h-6"></path></svg>',
       sort: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"></path></svg>',
+      note: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M8 13h8"></path><path d="M8 17h5"></path></svg>',
+      course: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z"></path></svg>',
+      match: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 4h12l-2 7 2 9H6l2-9-2-7Z"></path><path d="M9 4c0 2 1.5 4 3 4s3-2 3-4"></path><path d="M10 14h4"></path></svg>',
     };
     return icons[name] || '';
   },
@@ -1492,7 +1495,16 @@ Object.assign(App, {
     const stateClass = (row?.isMissingName ? ' missing-name' : '');
     if (row?.uid && !row?.isExternalStudent && typeof this._userTag === 'function') {
       const role = String(this._getTeamDetailMemberUserRoleClass(row) || 'uc-user').replace(/^uc-/, '') || 'user';
-      return '<span class="td-member-name-wrap' + stateClass + '">' + this._userTag(name, role, { uid: row.uid }) + '</span>';
+      let capsuleHtml = this._userTag(name, role, { uid: row.uid });
+      const escapedName = escapeHTML(name);
+      const marker = escapedName + '</span>';
+      const markerIndex = capsuleHtml.lastIndexOf(marker);
+      if (markerIndex !== -1) {
+        capsuleHtml = capsuleHtml.slice(0, markerIndex)
+          + '<span class="td-member-name-text">' + escapedName + '</span></span>'
+          + capsuleHtml.slice(markerIndex + marker.length);
+      }
+      return '<span class="td-member-name-wrap' + stateClass + '">' + capsuleHtml + '</span>';
     }
     const classes = ['td-member-name-static'];
     if (row?.isExternalStudent) classes.push('external-student');
@@ -1506,10 +1518,11 @@ Object.assign(App, {
     return '<span class="td-member-meta-item' + (className ? ' ' + className : '') + '">' + escapeHTML(text) + '</span>';
   },
 
-  _buildTeamMemberMetaNote(value) {
+  _buildTeamMemberMetaNote(value, label) {
     const text = String(value == null ? '' : value).trim();
     if (!text || text === '-') return '';
-    return '<span class="td-member-meta-item td-member-note"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M8 13h8"></path><path d="M8 17h5"></path></svg>' + escapeHTML(text) + '</span>';
+    const prefix = label ? '<span class="td-member-note-label">' + escapeHTML(label) + '</span>' : '';
+    return '<span class="td-member-meta-item td-member-note"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M8 13h8"></path><path d="M8 17h5"></path></svg>' + prefix + escapeHTML(text) + '</span>';
   },
 
   _formatTeamMemberJerseyNumber(value) {
@@ -1540,6 +1553,57 @@ Object.assign(App, {
       push(this._buildTeamMemberMetaNote(activity.notes));
     }
     return items.length ? items.join('<span class="td-member-meta-sep"></span>') : '<span class="td-member-meta-muted">-</span>';
+  },
+
+  _shouldShowTeamMemberCourseSummary(course, showCourseSection) {
+    if (showCourseSection) return true;
+    return !!(course && (
+      (course.group && course.group !== '-') ||
+      (course.payment && course.payment !== '-') ||
+      Number(course.count || 0) > 0 ||
+      (course.notes && course.notes !== '-')
+    ));
+  },
+
+  _buildTeamMemberIntegratedMeta(t, row, options) {
+    const opts = options || {};
+    const course = this._getTeamDetailMemberCourseData(t, row);
+    const match = this._getTeamDetailMemberMatchData(t, row);
+    const activity = this._getTeamDetailMemberActivityData(t, row);
+    const showCourse = this._shouldShowTeamMemberCourseSummary(course, opts.showCourseSection);
+    const primaryItems = [];
+    const noteItems = [];
+    const pushPrimary = html => { if (html) primaryItems.push(html); };
+    const pushNote = html => { if (html) noteItems.push(html); };
+
+    if (showCourse) {
+      pushPrimary(this._buildTeamMemberMetaItem(course.group === '-' ? '\u672a\u5206\u7d44' : course.group, 'td-member-compact td-member-group'));
+    }
+    pushPrimary(this._buildTeamMemberMetaItem(this._formatTeamMemberJerseyNumber(match.jerseyNumber), 'td-member-compact td-member-jersey'));
+    pushPrimary(this._buildTeamMemberMetaItem(match.position === '-' ? '\u672a\u8a2d\u4f4d\u7f6e' : match.position, 'td-member-compact td-member-position'));
+    pushPrimary(this._buildTeamMemberMetaItem('\u51fa\u8cfd ' + String(match.count || 0) + ' \u6b21', 'td-member-num td-member-match-count'));
+    if (showCourse) {
+      pushPrimary(this._buildTeamMemberMetaItem('\u8ab2\u7a0b ' + String(course.count || 0) + ' \u6b21', 'td-member-num td-member-course-count'));
+      pushPrimary(this._buildTeamMemberMetaItem(course.payment, 'td-member-compact td-member-payment'));
+    }
+    pushPrimary(this._buildTeamMemberMetaItem('\u6d3b\u52d5 ' + String(activity.count || 0) + ' \u6b21', 'td-member-num td-member-activity-count'));
+    if (row.joinTime && row.joinTime !== '-') {
+      pushPrimary(this._buildTeamMemberMetaItem('\u52a0\u5165 ' + row.joinTime, 'td-member-joined'));
+    }
+
+    if (opts.showPrivateNotes) {
+      pushNote(this._buildTeamMemberMetaNote(activity.notes, '\u6d3b\u52d5'));
+      if (showCourse) pushNote(this._buildTeamMemberMetaNote(course.notes, '\u8ab2\u7a0b'));
+      pushNote(this._buildTeamMemberMetaNote(match.notes, '\u8cfd\u4e8b'));
+    }
+
+    const primary = primaryItems.length
+      ? primaryItems.join('<span class="td-member-meta-sep"></span>')
+      : '<span class="td-member-meta-muted">-</span>';
+    const notes = noteItems.length
+      ? '<div class="td-member-line3">' + noteItems.join('') + '</div>'
+      : '';
+    return '<div class="td-member-line2">' + primary + '</div>' + notes;
   },
 
   _teamMemberMatchesFilter(row, filter) {
@@ -1578,30 +1642,45 @@ Object.assign(App, {
     let label = '';
     let action = '';
     let className = 'td-member-note-edit-btn';
+    let iconName = 'note';
     if (activeTab === 'match' && this._isTeamDetailMatchDataEditableRow(row)) {
       label = '\u7de8\u8f2f\u8cfd\u4e8b\u8cc7\u6599';
       action = 'App.editTeamMemberMatchData(this,' + escapeHTML(JSON.stringify(t.id)) + ',' + escapeHTML(JSON.stringify(row.key)) + ')';
       className = 'td-member-match-edit-btn';
+      iconName = 'match';
     } else if (this._isTeamDetailMemberNoteEditableRow(row)) {
-      label = '\u7de8\u8f2f\u5099\u8a3b';
+      label = activeTab === 'course' ? '\u7de8\u8f2f\u8ab2\u7a0b\u5099\u8a3b' : '\u7de8\u8f2f\u6d3b\u52d5\u5099\u8a3b';
       action = 'App.editTeamMemberNote(this,' + escapeHTML(JSON.stringify(t.id)) + ',' + escapeHTML(JSON.stringify(row.key)) + ',' + escapeHTML(JSON.stringify(activeTab)) + ')';
+      if (activeTab === 'course') {
+        className = 'td-member-course-edit-btn';
+        iconName = 'course';
+      }
     }
     if (!action) return '';
     return '<button class="td-member-row-edit-btn td-mm-icon-btn ' + className + '" type="button" title="' + escapeHTML(label) + '" aria-label="' + escapeHTML(label) + '" onclick="event.stopPropagation();' + action + '">'
-      + this._buildTeamMemberSvgIcon('edit')
+      + this._buildTeamMemberSvgIcon(iconName)
       + '<span class="td-mm-sr-only">' + escapeHTML(label) + '</span></button>';
+  },
+
+  _buildTeamMemberRowEditActions(t, row, showEditColumn, showCourseSection) {
+    if (!showEditColumn) return '';
+    const buttons = [];
+    const push = html => { if (html) buttons.push(html); };
+    push(this._buildTeamMemberRowEditButton(t, row, 'activity', showEditColumn));
+    const course = this._getTeamDetailMemberCourseData(t, row);
+    if (this._shouldShowTeamMemberCourseSummary(course, showCourseSection)) {
+      push(this._buildTeamMemberRowEditButton(t, row, 'course', showEditColumn));
+    }
+    push(this._buildTeamMemberRowEditButton(t, row, 'match', showEditColumn));
+    return buttons.join('');
   },
 
   _buildTeamMembersCard(t, canManageMembers, memberEditMode, staffIdentity) {
     this._teamMemberTabByTeam = this._teamMemberTabByTeam || {};
     this._teamMemberFilterByTeam = this._teamMemberFilterByTeam || {};
-    const showCourseTab = typeof this._isTeamDetailSectionVisible === 'function'
+    const showCourseSection = typeof this._isTeamDetailSectionVisible === 'function'
       ? this._isTeamDetailSectionVisible(t, 'courses')
       : this._isTeamDetailTeachingEnabled?.(t) !== false;
-    const allowedTabs = new Set(['activity', 'course', 'match']);
-    const rawActiveTab = this._teamMemberTabByTeam[t.id] || 'activity';
-    let activeTab = allowedTabs.has(rawActiveTab) ? rawActiveTab : 'activity';
-    if (activeTab === 'course' && !showCourseTab) activeTab = 'activity';
     const roster = this._getTeamDetailRoster(t);
     const filterOptions = this._getTeamMemberFilterOptions(roster);
     const allowedFilters = new Set(filterOptions.map(item => item.key));
@@ -1611,16 +1690,14 @@ Object.assign(App, {
       ? roster
       : roster.filter(row => this._teamMemberMatchesFilter(row, activeFilter));
     const showEditColumn = !!canManageMembers;
-    const tabBtn = (key, label) => '<button type="button" class="td-member-tab' + (activeTab === key ? ' active' : '') + '" aria-pressed="' + (activeTab === key ? 'true' : 'false') + '" onclick="App.switchTeamMemberTab(' + escapeHTML(JSON.stringify(t.id || '')) + ',' + escapeHTML(JSON.stringify(key)) + ')">' + label + '</button>';
-    const tabsHtml = tabBtn('activity', '\u6d3b\u52d5')
-      + (showCourseTab ? tabBtn('course', '\u8ab2\u7a0b') : '')
-      + tabBtn('match', '\u8cfd\u4e8b');
     const showRoleActionColumns = !!(canManageMembers && memberEditMode);
-    const activeTabLabel = activeTab === 'course'
-      ? '\u8ab2\u7a0b\u8cc7\u6599'
-      : (activeTab === 'match' ? '\u8cfd\u4e8b\u8cc7\u6599' : '\u6d3b\u52d5\u7d00\u9304');
+    const showPrivateNotes = !!canManageMembers
+      || !!(staffIdentity?.keys?.size || staffIdentity?.names?.size);
+    const listHint = showPrivateNotes
+      ? '<span class="td-member-list-note-hint">\u5099\u8a3b\u50c5\u8077\u54e1\u53ef\u898b</span>'
+      : '';
     const rows = visibleRoster.length ? visibleRoster.map(row => {
-      const editActionBtn = this._buildTeamMemberRowEditButton(t, row, activeTab, showEditColumn);
+      const editActionBtns = memberEditMode ? '' : this._buildTeamMemberRowEditActions(t, row, showEditColumn, showCourseSection);
       const removalKind = this._getTeamDetailRemovalKind(t, row, staffIdentity);
       const removeBtn = (canManageMembers && memberEditMode && removalKind)
         ? '<button class="td-member-remove-btn td-mm-icon-btn td-mm-danger" type="button" title="\u5254\u9664\u6210\u54e1" aria-label="\u5254\u9664\u6210\u54e1" onclick="event.stopPropagation();App.removeTeamRosterRow(this, ' + escapeHTML(JSON.stringify(t.id)) + ', ' + escapeHTML(JSON.stringify(row.key)) + ')">' + this._buildTeamMemberSvgIcon('trash') + '<span class="td-mm-sr-only">\u5254\u9664</span></button>'
@@ -1628,12 +1705,13 @@ Object.assign(App, {
       const managementActions = showRoleActionColumns
         ? this._buildTeamMemberRemoveActionCell(removeBtn) + this._buildTeamMemberRoleActionCell(t, row, 'promote') + this._buildTeamMemberRoleActionCell(t, row, 'demote')
         : '';
-      const rowActions = editActionBtn + managementActions;
-      const actions = rowActions ? '<div class="td-member-action-cell td-mm-actions">' + rowActions + '</div>' : '';
+      const rowActions = editActionBtns + managementActions;
+      const actionModeClass = memberEditMode ? ' td-member-manage-actions' : ' td-member-edit-actions';
+      const actions = rowActions ? '<div class="td-member-action-cell td-mm-actions' + actionModeClass + '">' + rowActions + '</div>' : '';
       return '<div class="td-member-row" data-member-key="' + escapeHTML(row.key || '') + '" data-member-filter="' + escapeHTML(activeFilter) + '">'
         + '<div class="td-member-row-main">'
         + '<div class="td-member-line1"><span class="td-member-name-cell">' + this._buildTeamDetailMemberNameTag(row) + '</span></div>'
-        + '<div class="td-member-line2">' + this._buildTeamMemberMetaLine(t, row, activeTab) + '</div>'
+        + this._buildTeamMemberIntegratedMeta(t, row, { showCourseSection, showPrivateNotes })
         + '</div>'
         + actions
         + '</div>';
@@ -1645,8 +1723,7 @@ Object.assign(App, {
       + '<div class="td-member-panel-pad">'
       + '<div id="team-members-toggle" class="td-member-top"><div><h3>\u6210\u54e1\u7ba1\u7406</h3><div class="td-member-total">' + roster.length + ' \u4f4d\u6210\u54e1</div></div>' + editBtn + '</div>'
       + '<div class="td-member-filters">' + this._buildTeamMemberFilterChips(t, filterOptions, activeFilter) + '</div>'
-      + '<div class="td-member-view-row"><div class="td-member-tabs">' + tabsHtml + '</div></div>'
-      + '<div class="td-member-list-shell td-member-list-shell-' + activeTab + (memberEditMode ? ' is-editing' : '') + ' td-member-filter-' + activeFilter + '"><div class="td-member-list-head"><span class="td-member-list-label">' + activeTabLabel + '</span></div><div class="td-member-list">' + rows + '</div></div>'
+      + '<div class="td-member-list-shell td-member-list-shell-summary' + (memberEditMode ? ' is-editing' : '') + ' td-member-filter-' + activeFilter + '"><div class="td-member-list-head"><span class="td-member-list-label">\u6210\u54e1\u8cc7\u6599</span>' + listHint + '</div><div class="td-member-list">' + rows + '</div></div>'
       + '</div></section>';
   },
 

@@ -2990,7 +2990,8 @@
   --td-mm-danger: #dc2626;
   width: min(100%, 430px);
   margin: 0 auto .75rem;
-  overflow: hidden;
+  overflow: visible;
+  isolation: isolate;
   border: 1px solid var(--td-mm-line-2);
   border-radius: 22px;
   background: var(--td-mm-surface);
@@ -3000,6 +3001,7 @@
 
 .td-member-panel-pad {
   padding: 18px 15px 10px;
+  overflow: visible;
 }
 
 .td-member-top {
@@ -3152,12 +3154,13 @@
 .td-member-management-panel .td-member-list-shell {
   display: block;
   min-width: 0;
+  overflow: visible;
 }
 
 .td-member-management-panel .td-member-list-head {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
   gap: 8px;
   padding: 2px 2px 4px;
   color: var(--td-mm-ink-3);
@@ -3172,11 +3175,19 @@
   white-space: nowrap;
 }
 
+.td-member-list-note-hint {
+  flex: 0 0 auto;
+  color: var(--td-mm-ink-3);
+  font-size: 11px;
+  font-weight: 600;
+}
+
 .td-member-management-panel .td-member-list {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   padding: 2px 0 6px;
+  overflow: visible;
 }
 
 .td-member-management-panel .td-member-row,
@@ -3189,6 +3200,7 @@
   min-width: 0;
   min-height: 0;
   padding: 11px 4px;
+  overflow: visible;
 }
 
 .td-member-management-panel .td-member-row + .td-member-row::before {
@@ -3204,9 +3216,10 @@
 
 .td-member-management-panel .td-member-row-main {
   display: grid;
-  gap: 4px;
+  gap: 5px;
   flex: 1 1 auto;
   min-width: 0;
+  overflow: visible;
 }
 
 .td-member-management-panel .td-member-line1 {
@@ -3214,30 +3227,47 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
+  overflow: visible;
+  position: relative;
+  z-index: 3;
 }
 
 .td-member-management-panel .td-member-line2 {
   display: flex;
   align-items: center;
-  gap: 7px;
+  flex-wrap: wrap;
+  gap: 4px 7px;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   color: var(--td-mm-ink-3);
   font-size: 12px;
   font-weight: 600;
   line-height: 1.35;
-  white-space: nowrap;
+  white-space: normal;
+}
+
+.td-member-management-panel .td-member-line3 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+  overflow: visible;
 }
 
 .td-member-management-panel .td-member-name-cell {
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
+  position: relative;
+  z-index: 5;
 }
 
 .td-member-management-panel .td-member-name-wrap,
 .td-member-management-panel .td-member-name-static {
   min-width: 0;
   max-width: 180px;
+  overflow: visible;
+  position: relative;
+  z-index: 6;
 }
 
 .td-member-management-panel .td-member-name-wrap .user-capsule {
@@ -3248,14 +3278,35 @@
   height: 24px;
   margin-top: 7px;
   padding: 0 8px;
-  overflow: hidden;
+  overflow: visible;
   border-radius: var(--radius-full);
   font-size: .75rem;
   font-weight: 800;
   line-height: 24px;
-  text-overflow: ellipsis;
+  text-overflow: clip;
   vertical-align: middle;
   white-space: nowrap;
+  position: relative;
+  z-index: 8;
+}
+
+.td-member-management-panel .td-member-name-wrap .user-capsule .uc-lv {
+  z-index: 90;
+}
+
+.td-member-management-panel .td-member-name-wrap .user-capsule .td-member-name-text {
+  display: inline-block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.td-member-management-panel .td-member-name-wrap .user-capsule .uc-recent-noshow,
+.td-member-management-panel .td-member-name-wrap .user-capsule .uc-team-jersey,
+.td-member-management-panel .td-member-name-wrap .user-capsule .uc-jersey-tap {
+  z-index: 80;
 }
 
 .td-member-management-panel .td-member-name-wrap .user-capsule:hover {
@@ -3269,7 +3320,7 @@
   align-items: center;
   height: 24px;
   padding: 0 8px;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid rgba(20, 184, 166, .28);
   border-radius: var(--radius-full);
   background: var(--td-mm-role-student-bg);
@@ -3297,12 +3348,28 @@
   max-width: 12em;
   color: inherit;
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .td-member-management-panel .td-member-num,
 .td-member-management-panel .td-member-compact {
   color: var(--td-mm-ink-2);
   font-weight: 700;
+}
+
+.td-member-management-panel .td-member-group,
+.td-member-management-panel .td-member-jersey,
+.td-member-management-panel .td-member-position,
+.td-member-management-panel .td-member-payment {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--td-mm-chip);
+}
+
+.td-member-management-panel .td-member-jersey {
+  font-variant-numeric: tabular-nums;
 }
 
 .td-member-management-panel .td-member-meta-sep {
@@ -3323,6 +3390,11 @@
   font-weight: 700;
 }
 
+.td-member-management-panel .td-member-note-label {
+  color: var(--td-mm-ink-3);
+  font-weight: 800;
+}
+
 .td-member-management-panel .td-member-note svg {
   width: 11px;
   height: 11px;
@@ -3337,6 +3409,12 @@
   gap: 2px;
   min-width: 0;
   margin-left: auto;
+  position: relative;
+  z-index: 2;
+}
+
+.td-member-management-panel .td-member-edit-actions {
+  gap: 1px;
 }
 
 .td-member-management-panel .td-member-remove-cell,

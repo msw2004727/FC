@@ -1428,7 +1428,7 @@ describe('team detail club activity section', () => {
     expect(app._refreshTeamDetailAfterEventSave).toHaveBeenCalledWith(['teamA']);
   });
 
-  test('team member list merges players, staff, and students into compact tabs', () => {
+  test('team member list merges players, staff, students, and member data into an integrated list', () => {
     const app = makeApp([]);
     const team = {
       id: 'teamA',
@@ -1476,17 +1476,21 @@ describe('team detail club activity section', () => {
     expect(html).toContain('td-member-filters');
     expect(html).toContain('App.switchTeamMemberFilter(&quot;teamA&quot;,&quot;manager&quot;)');
     expect(html).toContain('App.switchTeamMemberFilter(&quot;teamA&quot;,&quot;student&quot;)');
-    expect(html).toContain('td-member-tabs');
+    expect(html).not.toContain('td-member-tabs');
     expect(html).toContain('td-member-list-shell');
-    expect(html).toContain('td-member-list-shell-activity');
+    expect(html).toContain('td-member-list-shell-summary');
     expect(html).toContain('td-member-row');
     expect(html).not.toContain('td-member-avatar');
     expect(html).not.toContain('td-member-tag-cell');
     expect(html).not.toContain('td-member-view-hint');
     expect(html).not.toContain('td-member-sort-hint');
     expect(html).toContain('td-member-line2');
+    expect(html).toContain('td-member-match-count');
+    expect(html).toContain('td-member-course-count');
+    expect(html).toContain('td-member-activity-count');
     expect(html).toContain('td-member-num');
     expect(html).toContain('user-capsule');
+    expect(html).toContain('td-member-name-text');
     expect(html).toContain('user-capsule uc-user');
     expect(html).toContain('user-capsule uc-captain');
     expect(html).toContain('user-capsule uc-team-leader');
@@ -1494,15 +1498,11 @@ describe('team detail club activity section', () => {
     expect(html).toContain('user-capsule uc-venue_owner');
     expect(html).toContain('td-member-name-static external-student');
     expect(app._userTag).toHaveBeenCalledWith('Amy', 'user', { uid: 'member' });
-    expect(html).toContain('App.switchTeamMemberTab(&quot;teamA&quot;,&quot;activity&quot;)');
-    expect(html).toContain('App.switchTeamMemberTab(&quot;teamA&quot;,&quot;course&quot;)');
-    expect(html).toContain('App.switchTeamMemberTab(&quot;teamA&quot;,&quot;match&quot;)');
+    expect(html).not.toContain('App.switchTeamMemberTab');
     app._teamMemberTabByTeam = { teamA: 'course' };
     const noTeachingHtml = app._buildTeamMembersCard({ ...team, teachingEnabled: false }, false, false, staffIdentity);
-    expect(noTeachingHtml).toContain('App.switchTeamMemberTab(&quot;teamA&quot;,&quot;activity&quot;)');
-    expect(noTeachingHtml).not.toContain('App.switchTeamMemberTab(&quot;teamA&quot;,&quot;course&quot;)');
-    expect(noTeachingHtml).toContain('App.switchTeamMemberTab(&quot;teamA&quot;,&quot;match&quot;)');
-    expect(noTeachingHtml).toContain('td-member-list-shell-activity');
+    expect(noTeachingHtml).not.toContain('App.switchTeamMemberTab');
+    expect(noTeachingHtml).toContain('td-member-list-shell-summary');
     expect(noTeachingHtml).not.toContain('td-member-list-shell-course');
     expect(html).toContain('missing-name');
     expect(html).toContain('未設定暱稱');
@@ -1530,23 +1530,27 @@ describe('team detail club activity section', () => {
     expect(manageHtml).toContain('td-member-edit-btn');
     expect(manageHtml).toContain('aria-pressed="false"');
     expect(manageHtml).toContain('td-member-note-edit-btn');
+    expect(manageHtml).toContain('td-member-course-edit-btn');
+    expect(manageHtml).toContain('td-member-match-edit-btn');
     expect(manageHtml).toContain('App.editTeamMemberNote');
+    expect(manageHtml).toContain('App.editTeamMemberMatchData');
+    expect(manageHtml).toContain('td-member-list-note-hint');
     expect(courseHtml).toContain('td-member-note-edit-btn');
+    expect(courseHtml).toContain('td-member-course-edit-btn');
     expect(courseHtml).toContain('App.editTeamMemberNote');
     expect(activityEditHtml).toContain('App.removeTeamRosterRow');
     expect(activityEditHtml).toContain('td-member-edit-btn is-active');
     expect(activityEditHtml).toContain('aria-pressed="true"');
-    expect(activityEditHtml).toContain('td-member-list-shell-activity is-editing');
-    expect(activityEditHtml).toContain('td-member-action-cell td-mm-actions');
+    expect(activityEditHtml).toContain('td-member-list-shell-summary is-editing');
+    expect(activityEditHtml).toContain('td-member-action-cell td-mm-actions td-member-manage-actions');
     expect(activityEditHtml.indexOf('td-member-name-cell')).toBeLessThan(activityEditHtml.indexOf('td-member-action-cell td-mm-actions'));
     expect(activityEditHtml).not.toContain('td-member-name-cell"><button class="td-member-remove-btn');
     expect((activityEditHtml.match(/td-member-remove-btn/g) || []).length).toBe(7);
     expect(matchHtml).toContain('td-member-match-edit-btn');
     expect(matchHtml).not.toContain('is-editing');
     expect(editHtml).toContain('\u5254\u9664');
-    expect(editHtml).toContain('td-member-list-shell-match is-editing');
-    expect(editHtml).toContain('td-member-match-edit-btn');
-    expect(editHtml).toContain('td-member-action-cell td-mm-actions');
+    expect(editHtml).toContain('td-member-list-shell-summary is-editing');
+    expect(editHtml).toContain('td-member-action-cell td-mm-actions td-member-manage-actions');
     expect(editHtml).toContain('App.removeTeamRosterRow');
     expect((editHtml.match(/td-member-remove-btn/g) || []).length).toBe(7);
     expect(app._isTeamDetailRemovableMemberRow(team, roster.find(row => row.name === 'Amy'), staffIdentity)).toBe(true);
