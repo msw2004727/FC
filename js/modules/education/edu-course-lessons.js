@@ -8,6 +8,11 @@ Object.assign(App, {
   _eduCourseLessonAdjustContext: null,
   _eduCourseLessonsPreloadPromises: {},
   _eduCourseLessonsPreloadLimit: 3,
+  _eduCourseRosterPayloadCache: {},
+  _eduCourseRosterInvalidatedAt: {},
+  _eduCourseRosterRefreshSatisfiedAt: {},
+  _eduCourseRosterPublicTtlMs: 30000,
+  _eduCourseRosterStaffTtlMs: 15000,
 
   _getEduCourseLessonsContainer() {
     return document.getElementById('edu-course-lessons-page');
@@ -31,6 +36,120 @@ Object.assign(App, {
 
   _getCourseLessonsPreloadKey(teamId, planId) {
     return String(teamId || '') + ':' + String(planId || '');
+  },
+
+  _getCourseLessonRosterViewerUid() {
+    try {
+      const uid = firebase?.auth?.()?.currentUser?.uid;
+      return uid ? String(uid) : 'guest';
+    } catch (_) {
+      return 'guest';
+    }
+  },
+
+  _getCourseLessonRosterPayloadVersion(payload) {
+    return String(payload?.cacheMeta?.payloadVersion || payload?.payloadVersion || '');
+  },
+
+  _getCourseLessonRosterCacheScope(teamId, payload) {
+    if (payload?.canManageRoster === true) return 'staff';
+    return this.isEduClubStaff?.(teamId) === true ? 'staff' : 'public';
+  },
+
+  _getCourseLessonRosterCacheKey(teamId, planId, sessionId, scope, viewerUid = this._getCourseLessonRosterViewerUid()) {
+    return [
+      String(teamId || '').trim(),
+      String(planId || '').trim(),
+      String(sessionId || '').trim(),
+      String(scope || 'public'),
+      String(viewerUid || 'guest'),
+    ].join('|');
+  },
+
+  _getCourseLessonRosterInvalidationKey(teamId, planId, sessionId = '') {
+    return [
+      String(teamId || '').trim(),
+      String(planId || '').trim(),
+      String(sessionId || '').trim(),
+    ].join('|');
+  },
+
+  _getCourseLessonRosterInvalidatedAt(teamId, planId, sessionId) {
+    const planKey = this._getCourseLessonRosterInvalidationKey(teamId, planId);
+    const sessionKey = this._getCourseLessonRosterInvalidationKey(teamId, planId, sessionId);
+    return Math.max(
+      Number(this._eduCourseRosterInvalidatedAt?.[planKey] || 0),
+      Number(this._eduCourseRosterInvalidatedAt?.[sessionKey] || 0),
+    );
+  },
+
+  _shouldForceCourseLessonRosterRefresh(teamId, planId, sessionId) {
+    const invalidatedAt = this._getCourseLessonRosterInvalidatedAt(teamId, planId, sessionId);
+    if (!invalidatedAt) return false;
+    const sessionKey = this._getCourseLessonRosterInvalidationKey(teamId, planId, sessionId);
+    return Number(this._eduCourseRosterRefreshSatisfiedAt?.[sessionKey] || 0) < invalidatedAt;
+  },
+
+  _markCourseLessonRosterRefreshNeeded(teamId, planId, sessionId = '') {
+    const key = this._getCourseLessonRosterInvalidationKey(teamId, planId, sessionId);
+    this._eduCourseRosterInvalidatedAt = this._eduCourseRosterInvalidatedAt || {};
+    this._eduCourseRosterInvalidatedAt[key] = Date.now();
+    this._clearCourseLessonRosterPayloadCache(teamId, planId, sessionId);
+    return this._eduCourseRosterInvalidatedAt[key];
+  },
+
+  _markCourseLessonRosterRefreshSatisfied(teamId, planId, sessionId) {
+    if (!sessionId) return false;
+    const key = this._getCourseLessonRosterInvalidationKey(teamId, planId, sessionId);
+    this._eduCourseRosterRefreshSatisfiedAt = this._eduCourseRosterRefreshSatisfiedAt || {};
+    this._eduCourseRosterRefreshSatisfiedAt[key] = Date.now();
+    return true;
+  },
+
+  _getCourseLessonRosterCachedPayload(teamId, planId, sessionId, scope, viewerUid = this._getCourseLessonRosterViewerUid()) {
+    const key = this._getCourseLessonRosterCacheKey(teamId, planId, sessionId, scope, viewerUid);
+    const entry = this._eduCourseRosterPayloadCache?.[key];
+    if (!entry || !entry.payload || Number(entry.expiresAtMs || 0) <= Date.now()) return null;
+    if (Number(entry.storedAtMs || 0) <= this._getCourseLessonRosterInvalidatedAt(teamId, planId, sessionId)) {
+      return null;
+    }
+    if (entry.payload?.canManageRoster === true && scope !== 'staff') return null;
+    return entry.payload;
+  },
+
+  _rememberCourseLessonRosterPayload(teamId, planId, sessionId, payload, viewerUid = this._getCourseLessonRosterViewerUid()) {
+    if (!payload || typeof payload !== 'object') return false;
+    const scope = this._getCourseLessonRosterCacheScope(teamId, payload);
+    if (scope === 'staff' && payload.canManageRoster === true && this.isEduClubStaff?.(teamId) !== true) {
+      return false;
+    }
+    const ttl = Number(payload?.cacheMeta?.cacheTtlMs)
+      || (scope === 'staff' ? this._eduCourseRosterStaffTtlMs : this._eduCourseRosterPublicTtlMs);
+    const key = this._getCourseLessonRosterCacheKey(teamId, planId, sessionId, scope, viewerUid);
+    this._eduCourseRosterPayloadCache = this._eduCourseRosterPayloadCache || {};
+    this._eduCourseRosterPayloadCache[key] = {
+      payload,
+      storedAtMs: Date.now(),
+      expiresAtMs: Date.now() + Math.max(1000, ttl),
+      version: this._getCourseLessonRosterPayloadVersion(payload),
+    };
+    return true;
+  },
+
+  _clearCourseLessonRosterPayloadCache(teamId, planId, sessionId) {
+    const parts = [
+      String(teamId || '').trim(),
+      String(planId || '').trim(),
+    ];
+    if (sessionId) parts.push(String(sessionId || '').trim());
+    const prefix = parts.join('|') + '|';
+    Object.keys(this._eduCourseRosterPayloadCache || {}).forEach((key) => {
+      if (key.startsWith(prefix)) delete this._eduCourseRosterPayloadCache[key];
+    });
+  },
+
+  _hasCourseLessonRosterBlockingOverlay() {
+    return !!document.querySelector?.('.edu-course-self-leave-overlay');
   },
 
   _getCourseLessonsCachedSessions(teamId, planId) {
@@ -81,7 +200,7 @@ Object.assign(App, {
     if (ctx.mode === 'roster') {
       if (String(ctx.sessionId || '') !== String(sessionId || '')) return false;
       if (typeof this.showCourseLessonRoster !== 'function') return false;
-      await this.showCourseLessonRoster(teamId, planId, sessionId);
+      await this.showCourseLessonRoster(teamId, planId, sessionId, { forceRefresh: true });
       return true;
     }
 
@@ -612,7 +731,7 @@ Object.assign(App, {
         });
       }
       this.showToast?.(changes.length ? '名單已更新' : '沒有變更');
-      await this.showCourseLessonRoster(ctx.teamId, ctx.planId, ctx.sessionId);
+      await this.showCourseLessonRoster(ctx.teamId, ctx.planId, ctx.sessionId, { forceRefresh: true });
     };
 
     if (typeof this._withButtonLoading === 'function') {
@@ -648,7 +767,7 @@ Object.assign(App, {
       ctx.notesEditMode = false;
       ctx.draftSessionNotes = '';
       this.showToast?.('課堂備註已更新');
-      await this.showCourseLessonRoster(ctx.teamId, ctx.planId, ctx.sessionId);
+      await this.showCourseLessonRoster(ctx.teamId, ctx.planId, ctx.sessionId, { forceRefresh: true });
     };
     if (typeof this._withButtonLoading === 'function') {
       return this._withButtonLoading(button, '儲存中...', run);
@@ -748,7 +867,7 @@ Object.assign(App, {
         student.attendanceKind = leave ? 'leave' : null;
       });
       this.showToast?.(leave ? '已登記請假' : '已取消請假');
-      await this.showCourseLessonRoster(ctx.teamId, ctx.planId, ctx.sessionId);
+      await this.showCourseLessonRoster(ctx.teamId, ctx.planId, ctx.sessionId, { forceRefresh: true });
     };
 
     if (typeof this._withButtonLoading === 'function') {
@@ -761,31 +880,12 @@ Object.assign(App, {
     return this._saveCourseLessonSelfLeaveSelection([studentId], kind === 'leave', button);
   },
 
-  async showCourseLessonRoster(teamId, planId, sessionId) {
-    const requestSeq = ++this._eduCourseLessonsRequestSeq;
-    this._eduCurrentTeamId = teamId;
-    this._eduCourseLessonsContext = { teamId, planId, sessionId, mode: 'roster' };
-    await this.showPage('page-edu-course-lessons');
-    if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
-
+  async _applyCourseLessonRosterPayload(teamId, planId, sessionId, plan, rosterPayload, localStaff, requestSeq, options = {}) {
     const container = this._getEduCourseLessonsContainer();
-    if (!container) return { ok: false, reason: 'missing_container' };
-    this._setEduCourseLessonsTitle('課堂名單');
-    container.innerHTML = this._renderCourseLessonsLoading('課堂名單載入中');
+    if (!container || !plan) return { ok: false, reason: !container ? 'missing_container' : 'plan_not_found' };
 
-    const localStaff = this.isEduClubStaff?.(teamId) === true;
-    const [state, rosterPayload] = await Promise.all([
-      this._loadEduCourseLessonsState(teamId, planId),
-      FirebaseService.listEduCoursePublicRoster(teamId, planId, sessionId),
-    ]);
-    if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
-    const plan = state.plan;
-    if (!plan) {
-      container.innerHTML = '<div class="edu-empty-state">找不到課程方案</div>';
-      return { ok: false, reason: 'plan_not_found' };
-    }
-
-    const canManageRoster = rosterPayload?.canManageRoster === true || localStaff;
+    const hasServerManageFlag = rosterPayload && Object.prototype.hasOwnProperty.call(rosterPayload, 'canManageRoster');
+    const canManageRoster = hasServerManageFlag ? rosterPayload.canManageRoster === true : localStaff;
     const notesByStudentId = {};
     const enrollIdsByStudentId = {};
     const tracksPayment = typeof this._shouldTrackCoursePlanPayment === 'function'
@@ -829,9 +929,12 @@ Object.assign(App, {
     }
 
     if (rosterPayload && rosterPayload.rosterPublic === false && !canManageRoster) {
-      container.innerHTML = '<div class="edu-course-lessons-empty"><strong>名單未公開</strong><span>此課堂名單目前僅職員可查看。</span></div>';
+      if (options.render !== false) {
+        container.innerHTML = '<div class="edu-course-lessons-empty"><strong>名單未公開</strong><span>此課堂名單目前未公開，請聯繫俱樂部職員。</span></div>';
+      }
       return { ok: true, closed: true };
     }
+
     const attendanceByStudentId = this._getCourseLessonAttendanceMap(rosterPayload?.students || []);
     this._eduCourseLessonsContext = {
       teamId,
@@ -850,7 +953,101 @@ Object.assign(App, {
       notesEditMode: false,
       draftSessionNotes: '',
     };
-    this._renderCourseLessonRosterFromContext();
+    if (options.render !== false) this._renderCourseLessonRosterFromContext();
     return { ok: true };
+  },
+
+  async _refreshCourseLessonRosterInBackground(
+    requestSeq,
+    teamId,
+    planId,
+    sessionId,
+    plan,
+    localStaff,
+    previousVersion,
+    viewerUidAtStart = this._getCourseLessonRosterViewerUid(),
+  ) {
+    try {
+      const rosterPayload = await FirebaseService.listEduCoursePublicRoster(teamId, planId, sessionId);
+      if (this._getCourseLessonRosterViewerUid() !== viewerUidAtStart) {
+        return { ok: false, reason: 'viewer_changed' };
+      }
+      this._rememberCourseLessonRosterPayload(teamId, planId, sessionId, rosterPayload, viewerUidAtStart);
+      if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
+      const ctx = this._eduCourseLessonsContext;
+      const editing = ctx?.mode === 'roster' && (ctx.manageMode === true || ctx.notesEditMode === true);
+      if (editing || this._hasCourseLessonRosterBlockingOverlay()) return { ok: true, deferred: true };
+      const nextVersion = this._getCourseLessonRosterPayloadVersion(rosterPayload);
+      if (previousVersion && nextVersion && previousVersion === nextVersion) return { ok: true, unchanged: true };
+      return this._applyCourseLessonRosterPayload(teamId, planId, sessionId, plan, rosterPayload, localStaff, requestSeq);
+    } catch (err) {
+      console.warn('[edu-course-lessons] roster background refresh failed:', err);
+      return { ok: false, reason: 'refresh_failed' };
+    }
+  },
+
+  async showCourseLessonRoster(teamId, planId, sessionId, options = {}) {
+    const requestSeq = ++this._eduCourseLessonsRequestSeq;
+    this._eduCurrentTeamId = teamId;
+    this._eduCourseLessonsContext = { teamId, planId, sessionId, mode: 'roster' };
+    await this.showPage('page-edu-course-lessons');
+    if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
+
+    const container = this._getEduCourseLessonsContainer();
+    if (!container) return { ok: false, reason: 'missing_container' };
+    this._setEduCourseLessonsTitle('課堂名單');
+    container.innerHTML = this._renderCourseLessonsLoading('課堂名單載入中');
+
+    const localStaff = this.isEduClubStaff?.(teamId) === true;
+    const viewerUidAtStart = this._getCourseLessonRosterViewerUid();
+    const explicitForceRefresh = options?.forceRefresh === true;
+    const markedForceRefresh = this._shouldForceCourseLessonRosterRefresh(teamId, planId, sessionId);
+    const forceRefresh = explicitForceRefresh || markedForceRefresh;
+    const cacheScope = localStaff ? 'staff' : 'public';
+    const cachedPayload = forceRefresh || localStaff
+      ? null
+      : this._getCourseLessonRosterCachedPayload(teamId, planId, sessionId, cacheScope, viewerUidAtStart);
+    const lessonState = await this._loadEduCourseLessonsState(teamId, planId);
+    if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
+    if (this._getCourseLessonRosterViewerUid() !== viewerUidAtStart) {
+      return { ok: false, reason: 'viewer_changed' };
+    }
+    const lessonPlan = lessonState.plan;
+    if (!lessonPlan) {
+      container.innerHTML = '<div class="edu-empty-state">找不到課程方案</div>';
+      return { ok: false, reason: 'plan_not_found' };
+    }
+    if (cachedPayload) {
+      const result = await this._applyCourseLessonRosterPayload(
+        teamId,
+        planId,
+        sessionId,
+        lessonPlan,
+        cachedPayload,
+        localStaff,
+        requestSeq,
+      );
+      this._refreshCourseLessonRosterInBackground(
+        requestSeq,
+        teamId,
+        planId,
+        sessionId,
+        lessonPlan,
+        localStaff,
+        this._getCourseLessonRosterPayloadVersion(cachedPayload),
+        viewerUidAtStart,
+      );
+      return result;
+    }
+    const freshRosterPayload = forceRefresh
+      ? await FirebaseService.listEduCoursePublicRoster(teamId, planId, sessionId, { forceRefresh: true })
+      : await FirebaseService.listEduCoursePublicRoster(teamId, planId, sessionId);
+    if (this._getCourseLessonRosterViewerUid() !== viewerUidAtStart) {
+      return { ok: false, reason: 'viewer_changed' };
+    }
+    this._rememberCourseLessonRosterPayload(teamId, planId, sessionId, freshRosterPayload, viewerUidAtStart);
+    if (forceRefresh) this._markCourseLessonRosterRefreshSatisfied(teamId, planId, sessionId);
+    if (this._isEduCourseLessonsStale(requestSeq, teamId)) return { ok: false, reason: 'stale' };
+    return this._applyCourseLessonRosterPayload(teamId, planId, sessionId, lessonPlan, freshRosterPayload, localStaff, requestSeq);
   },
 });

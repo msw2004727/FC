@@ -333,6 +333,7 @@ Object.assign(App, {
 
   async _refreshCourseViewsAfterEnrollmentChange(teamId, planId, options = {}) {
     const force = options.force === true;
+    this._markCourseLessonRosterRefreshNeeded?.(teamId, planId);
     try {
       if (force || !options.skipEnrollmentReload) {
         await this._loadCourseEnrollments?.(teamId, planId);
@@ -662,6 +663,7 @@ Object.assign(App, {
     if (enr.paidAt) {
       enr.paidAt = null;
       await FirebaseService.updateCourseEnrollment(teamId, planId, enrollId, { paidAt: null });
+      this._markCourseLessonRosterRefreshNeeded?.(teamId, planId);
       this.showToast('已取消繳費標記');
     } else {
       const today = this._todayStr?.() || (() => {
@@ -670,6 +672,7 @@ Object.assign(App, {
       })();
       enr.paidAt = today;
       await FirebaseService.updateCourseEnrollment(teamId, planId, enrollId, { paidAt: today });
+      this._markCourseLessonRosterRefreshNeeded?.(teamId, planId);
       this.showToast('已標記繳費');
     }
     await this._renderCourseEnrollmentList(teamId, planId);
@@ -733,6 +736,7 @@ Object.assign(App, {
       overlay.remove();
       if (enr) enr.paidAt = newDate;
       await FirebaseService.updateCourseEnrollment(teamId, planId, enrollId, { paidAt: newDate });
+      this._markCourseLessonRosterRefreshNeeded?.(teamId, planId);
       await this._renderCourseEnrollmentList(teamId, planId);
       this.showToast('繳費日期已更新');
     };
@@ -760,6 +764,7 @@ Object.assign(App, {
     const notes = rawNotes.slice(0, 30);
     if (textarea.value !== notes) textarea.value = notes;
     await FirebaseService.updateCourseEnrollment(teamId, planId, enrollId, { coachNotes: notes });
+    this._markCourseLessonRosterRefreshNeeded?.(teamId, planId);
     if (enr) enr.coachNotes = notes;
     this.showToast('備註已儲存');
     await this._renderCourseEnrollmentList(teamId, planId);

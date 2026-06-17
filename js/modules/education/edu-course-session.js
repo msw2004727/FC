@@ -1044,7 +1044,15 @@ Object.assign(App, {
         await this._saveCourseSessionRosterNote(teamId, planId, studentId, enrollId, notes);
         overlay.remove();
         this.showToast?.('備註已更新');
-        await this._renderCourseSessionBoard(teamId, planId);
+        const rosterCtx = this._eduCourseLessonsContext;
+        if (rosterCtx?.mode === 'roster'
+          && String(rosterCtx.teamId || '') === String(teamId || '')
+          && String(rosterCtx.planId || '') === String(planId || '')
+          && rosterCtx.sessionId) {
+          await this.showCourseLessonRoster?.(teamId, planId, rosterCtx.sessionId, { forceRefresh: true });
+        } else {
+          await this._renderCourseSessionBoard(teamId, planId);
+        }
       } catch (err) {
         console.error('[editCourseSessionRosterNote]', err);
         this.showToast?.((err && err.message) || '儲存備註失敗');
@@ -1086,10 +1094,12 @@ Object.assign(App, {
       if (autoIndex >= 0) enrollments[autoIndex] = created;
       else enrollments.push(created);
       this._courseEnrollCache[key] = enrollments;
+      this._markCourseLessonRosterRefreshNeeded?.(teamId, planId);
       return created;
     }
     await FirebaseService.updateCourseEnrollment(teamId, planId, enrollment.id, { coachNotes: notes });
     enrollment.coachNotes = notes;
+    this._markCourseLessonRosterRefreshNeeded?.(teamId, planId);
     return enrollment;
   },
 

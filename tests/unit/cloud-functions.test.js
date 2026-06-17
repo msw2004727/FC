@@ -557,17 +557,84 @@ describe('education course enrollment callable source contracts', () => {
     expect(source).toContain('fetchEduRosterStudentsByIds(teamRef, studentIds)');
     expect(source).toContain('fetchEduRosterAttendanceByStudentId({ teamId, planId, sessionId, date: baseSession.date })');
     expect(source).toContain('canManageRoster ? fetchEduRosterStaffEnrollmentByStudentId(planRef, studentIds) : Promise.resolve(null)');
-    expect(source).toContain('canSelfLeave');
-    expect(source).toContain('selfUid: canSelfLeave ? selfUid || null : null');
-    expect(source).toContain('parentUid: canSelfLeave ? parentUid || null : null');
+    expect(source).toContain('const attendanceRevision = eduRosterHash(attendanceByStudentId || {})');
+    expect(source).toContain('const staffEnrollmentRevision = canManageRoster ? eduRosterHash(staffEnrollmentByStudentId || {}) : ""');
+    expect(source).toContain('const forceRefresh = request.data?.forceRefresh === true && canManageRoster');
+    expect(source).not.toContain('const forceRefresh = request.data?.forceRefresh === true;');
+    expect(source).toContain('if (!forceRefresh) {');
+    expect(source).toContain('readEduRosterSnapshot({');
+    expect(source).toContain('attendanceRevision,');
+    expect(source).toContain('staffEnrollmentRevision,');
+    expect(source).toContain('buildEduRosterSnapshotPayload({');
+    expect(source).toContain('writeEduRosterSnapshot({');
+    expect(source).toContain('return finalizeEduRosterResponse({');
     expect(source).toContain('rosterPublic');
     expect(source).toContain('const canManageRoster = isStaff || isEduCourseRosterAgentForData(plan, callerUid)');
     expect(source).toContain('!canManageRoster && plan.visibleOnTeamPage === false');
     expect(source).toContain('!rosterPublic && !canManageRoster');
     expect(source).toContain('canManageRoster,');
-    expect(source).toContain('staffEnrollmentByStudentId: canManageRoster ? staffEnrollmentByStudentId || {} : null');
+    expect(source).toContain('cacheSource: forceRefresh ? "refresh" : "live"');
     expect(source).not.toContain('serializeCourseEnrollment');
     expect(source).not.toContain('planRef.collection("enrollments").get()');
+
+    const overlaySource = readSourceBetween(
+      'async function applyEduRosterCallerOverlay',
+      'async function finalizeEduRosterResponse'
+    );
+    expect(overlaySource).toContain('canSelfLeave: false');
+    expect(overlaySource).toContain('canSelfLeave: true');
+    expect(overlaySource).toContain('delete clean.selfUid');
+    expect(overlaySource).toContain('delete clean.parentUid');
+
+    const finalizeSource = readSourceBetween(
+      'async function finalizeEduRosterResponse',
+      'exports.listEduCoursePublicRoster'
+    );
+    expect(finalizeSource).toContain('staffEnrollmentByStudentId: canManageRoster ? payload.staffEnrollmentByStudentId || {} : null');
+  });
+
+  test('course roster snapshot freshness rejects stale source revisions', () => {
+    const helperSource = readSourceBetween(
+      'function isEduRosterSnapshotFresh',
+      'async function readEduRosterSnapshot'
+    );
+    const isEduRosterSnapshotFresh = new Function(
+      'EDU_ROSTER_SNAPSHOT_SCHEMA_VERSION',
+      `${helperSource}; return isEduRosterSnapshotFresh;`
+    )(1);
+    const expected = {
+      scope: 'staffBase',
+      studentIdsDigest: 'students-v1',
+      planRevision: 'plan-v1',
+      sessionRevision: 'session-v1',
+      attendanceRevision: 'attendance-v1',
+      staffEnrollmentRevision: 'staff-v1',
+      nowMs: 1000,
+    };
+    const makeSnapshot = (metaOverrides = {}) => ({
+      exists: true,
+      data: () => ({
+        schemaVersion: 1,
+        scope: 'staffBase',
+        payload: { students: [] },
+        meta: {
+          schemaVersion: 1,
+          scope: 'staffBase',
+          studentIdsDigest: 'students-v1',
+          planRevision: 'plan-v1',
+          sessionRevision: 'session-v1',
+          attendanceRevision: 'attendance-v1',
+          staffEnrollmentRevision: 'staff-v1',
+          expiresAtMs: 2000,
+          ...metaOverrides,
+        },
+      }),
+    });
+
+    expect(isEduRosterSnapshotFresh(makeSnapshot(), expected)).toBe(true);
+    expect(isEduRosterSnapshotFresh(makeSnapshot({ attendanceRevision: 'attendance-v2' }), expected)).toBe(false);
+    expect(isEduRosterSnapshotFresh(makeSnapshot({ staffEnrollmentRevision: 'staff-v2' }), expected)).toBe(false);
+    expect(isEduRosterSnapshotFresh(makeSnapshot({ expiresAtMs: 999 }), expected)).toBe(false);
   });
 
   test('public course roster helpers avoid full scans and keep legacy fallbacks', () => {

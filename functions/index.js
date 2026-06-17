@@ -4500,6 +4500,195 @@ exports.getEduStudentAttendanceOverview = onCall(
   }
 );
 
+const EDU_ROSTER_SNAPSHOT_SCHEMA_VERSION = 1;
+const EDU_ROSTER_PUBLIC_SCOPE = "publicBase";
+const EDU_ROSTER_STAFF_SCOPE = "staffBase";
+const EDU_ROSTER_PUBLIC_TTL_MS = 30 * 1000;
+const EDU_ROSTER_STAFF_TTL_MS = 15 * 1000;
+
+function normalizeEduRosterHashValue(value) {
+  if (Array.isArray(value)) return value.map(normalizeEduRosterHashValue);
+  if (value && typeof value === "object") {
+    return Object.keys(value).sort().reduce((acc, key) => {
+      acc[key] = normalizeEduRosterHashValue(value[key]);
+      return acc;
+    }, {});
+  }
+  return value;
+}
+
+function eduRosterHash(value) {
+  return crypto.createHash("sha256")
+    .update(JSON.stringify(normalizeEduRosterHashValue(value)))
+    .digest("hex");
+}
+
+function normalizeEduRosterRevisionValue(value) {
+  const ms = getTimestampMillis(value);
+  if (Number.isFinite(ms)) return String(ms);
+  const raw = sanitizeStr(value, 120);
+  return raw || "";
+}
+
+function getEduRosterSourceRevision(data, fallbackId) {
+  const src = data && typeof data === "object" ? data : {};
+  return normalizeEduRosterRevisionValue(
+    src.updatedAt || src.modifiedAt || src.touchedAt || src.occupancyTouchedAt || src.createdAt
+  ) || sanitizeStr(fallbackId, 100);
+}
+
+function getEduRosterSnapshotTtlMs(scope) {
+  return scope === EDU_ROSTER_STAFF_SCOPE ? EDU_ROSTER_STAFF_TTL_MS : EDU_ROSTER_PUBLIC_TTL_MS;
+}
+
+function buildEduRosterStudentIdsDigest(studentIds) {
+  return eduRosterHash((Array.isArray(studentIds) ? studentIds : []).map((value) => sanitizeStr(value, 100)));
+}
+
+function buildEduRosterBasePayloadVersion({
+  scope,
+  payload,
+  studentIdsDigest,
+  planRevision,
+  sessionRevision,
+  attendanceRevision,
+  staffEnrollmentRevision,
+}) {
+  const rows = Array.isArray(payload?.students) ? payload.students : [];
+  return eduRosterHash({
+    scope,
+    studentIdsDigest,
+    planRevision,
+    sessionRevision,
+    attendanceRevision,
+    staffEnrollmentRevision: scope === EDU_ROSTER_STAFF_SCOPE ? staffEnrollmentRevision : "",
+    rosterPublic: payload?.rosterPublic === true,
+    session: payload?.session || null,
+    students: rows,
+    staffEnrollmentByStudentId: scope === EDU_ROSTER_STAFF_SCOPE ? (payload?.staffEnrollmentByStudentId || {}) : null,
+  });
+}
+
+function buildEduRosterSnapshotMeta({
+  scope,
+  payload,
+  studentIdsDigest,
+  planRevision,
+  sessionRevision,
+  attendanceRevision,
+  staffEnrollmentRevision,
+  nowMs,
+}) {
+  const ttlMs = getEduRosterSnapshotTtlMs(scope);
+  return {
+    schemaVersion: EDU_ROSTER_SNAPSHOT_SCHEMA_VERSION,
+    scope,
+    builtAtIso: new Date(nowMs).toISOString(),
+    builtAtMs: nowMs,
+    expiresAtMs: nowMs + ttlMs,
+    cacheTtlMs: ttlMs,
+    studentIdsDigest,
+    planRevision,
+    sessionRevision,
+    attendanceRevision,
+    staffEnrollmentRevision: scope === EDU_ROSTER_STAFF_SCOPE ? staffEnrollmentRevision : "",
+    payloadVersion: buildEduRosterBasePayloadVersion({
+      scope,
+      payload,
+      studentIdsDigest,
+      planRevision,
+      sessionRevision,
+      attendanceRevision,
+      staffEnrollmentRevision,
+    }),
+  };
+}
+
+function getEduRosterSnapshotRef(sessionRef, scope) {
+  if (scope !== EDU_ROSTER_PUBLIC_SCOPE && scope !== EDU_ROSTER_STAFF_SCOPE) return null;
+  return sessionRef.collection("rosterSnapshots").doc(scope);
+}
+
+function isEduRosterSnapshotFresh(snapshotDoc, expected) {
+  if (!snapshotDoc?.exists) return false;
+  const data = snapshotDoc.data() || {};
+  const meta = data.meta || {};
+  return data.schemaVersion === EDU_ROSTER_SNAPSHOT_SCHEMA_VERSION
+    && data.scope === expected.scope
+    && meta.schemaVersion === EDU_ROSTER_SNAPSHOT_SCHEMA_VERSION
+    && meta.scope === expected.scope
+    && meta.studentIdsDigest === expected.studentIdsDigest
+    && meta.planRevision === expected.planRevision
+    && meta.sessionRevision === expected.sessionRevision
+    && meta.attendanceRevision === expected.attendanceRevision
+    && meta.staffEnrollmentRevision === expected.staffEnrollmentRevision
+    && Number(meta.expiresAtMs || 0) > expected.nowMs
+    && data.payload
+    && typeof data.payload === "object";
+}
+
+async function readEduRosterSnapshot({
+  sessionRef,
+  scope,
+  studentIdsDigest,
+  planRevision,
+  sessionRevision,
+  attendanceRevision,
+  staffEnrollmentRevision,
+  nowMs,
+}) {
+  const snapshotRef = getEduRosterSnapshotRef(sessionRef, scope);
+  if (!snapshotRef) return null;
+  try {
+    const snap = await snapshotRef.get();
+    if (!isEduRosterSnapshotFresh(snap, {
+      scope,
+      studentIdsDigest,
+      planRevision,
+      sessionRevision,
+      attendanceRevision,
+      staffEnrollmentRevision,
+      nowMs,
+    })) {
+      return null;
+    }
+    const data = snap.data() || {};
+    return {
+      payload: data.payload || {},
+      meta: data.meta || {},
+    };
+  } catch (err) {
+    console.warn("[listEduCoursePublicRoster] snapshot read failed", {
+      scope,
+      code: err?.code || "",
+      message: err?.message || "",
+    });
+    return null;
+  }
+}
+
+async function writeEduRosterSnapshot({ sessionRef, scope, payload, meta }) {
+  const snapshotRef = getEduRosterSnapshotRef(sessionRef, scope);
+  if (!snapshotRef) return false;
+  try {
+    await snapshotRef.set({
+      schemaVersion: EDU_ROSTER_SNAPSHOT_SCHEMA_VERSION,
+      scope,
+      meta,
+      payload,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return true;
+  } catch (err) {
+    console.warn("[listEduCoursePublicRoster] snapshot write failed", {
+      scope,
+      code: err?.code || "",
+      message: err?.message || "",
+    });
+    return false;
+  }
+}
+
 function mapEduRosterStudentDoc(doc) {
   const data = doc.data() || {};
   return { ...data, id: sanitizeStr(data.id || doc.id, 100), _docId: doc.id };
@@ -4662,6 +4851,144 @@ async function fetchEduRosterStaffEnrollmentByStudentId(planRef, studentIds) {
   return staffEnrollmentByStudentId;
 }
 
+function buildEduRosterBaseSession(plan, session, sessionId) {
+  return {
+    id: sessionId,
+    title: sanitizeStr(session.title || session.topic || session.focus || "", 120),
+    date: sanitizeStr(session.date, 20),
+    startTime: sanitizeStr(session.startTime, 20),
+    endTime: sanitizeStr(session.endTime, 20),
+    location: sanitizeStr(session.location || plan.location || "", 160),
+    capacity: Number.isFinite(Number(session.capacity)) ? Number(session.capacity) : null,
+    notes: sanitizeStr(session.notes, 500),
+    status: sanitizeStr(session.status, 32) || "scheduled",
+  };
+}
+
+function buildEduRosterRows({ studentIds, studentsById, attendanceByStudentId, includeStaffFields }) {
+  return (Array.isArray(studentIds) ? studentIds : []).map((studentId) => {
+    const student = studentsById.get(studentId) || {};
+    const displayName = sanitizeStr(
+      student.displayName || student.name || student.studentName || student.nickname || studentId,
+      80
+    ) || "學員";
+    const row = {
+      studentId,
+      displayName,
+      photoURL: sanitizeStr(
+        student.lineProfile?.pictureUrl
+          || student.lineProfile?.pictureURL
+          || student.pictureUrl
+          || student.photoURL
+          || student.photoUrl
+          || student.avatarUrl
+          || student.avatar
+          || "",
+        1200
+      ) || null,
+      level: sanitizeStr(String(
+        student.level ?? student.lv ?? student.gradeLevel ?? student.levelLabel ?? ""
+      ), 20) || null,
+      attendanceKind: attendanceByStudentId[studentId] || null,
+    };
+    if (includeStaffFields) {
+      row.selfUid = sanitizeStr(student.selfUid, 128) || null;
+      row.parentUid = sanitizeStr(student.parentUid, 128) || null;
+    }
+    return row;
+  });
+}
+
+function buildEduRosterSnapshotPayload({ teamId, planId, sessionId, rosterPublic, session, students, staffEnrollmentByStudentId }) {
+  const payload = {
+    success: true,
+    teamId,
+    planId,
+    sessionId,
+    rosterPublic,
+    session,
+    students,
+  };
+  if (staffEnrollmentByStudentId && typeof staffEnrollmentByStudentId === "object") {
+    payload.staffEnrollmentByStudentId = staffEnrollmentByStudentId;
+  }
+  return payload;
+}
+
+async function fetchEduRosterOwnedStudentsByCaller(teamRef, callerUid, studentIds) {
+  const uid = sanitizeStr(callerUid, 128);
+  const rosterIds = new Set((Array.isArray(studentIds) ? studentIds : []).map((value) => sanitizeStr(value, 100)).filter(Boolean));
+  const ownedByRosterId = new Map();
+  if (!uid || !rosterIds.size) return ownedByRosterId;
+
+  const addOwnedStudent = (doc) => {
+    const student = mapEduRosterStudentDoc(doc);
+    const aliases = [student.id, student._docId].map((value) => sanitizeStr(value, 100)).filter(Boolean);
+    aliases.forEach((alias) => {
+      if (!rosterIds.has(alias)) return;
+      ownedByRosterId.set(alias, {
+        selfUid: sanitizeStr(student.selfUid, 128) || null,
+        parentUid: sanitizeStr(student.parentUid, 128) || null,
+      });
+    });
+  };
+
+  try {
+    const [selfSnap, parentSnap] = await Promise.all([
+      teamRef.collection("students").where("selfUid", "==", uid).get(),
+      teamRef.collection("students").where("parentUid", "==", uid).get(),
+    ]);
+    selfSnap.docs.forEach(addOwnedStudent);
+    parentSnap.docs.forEach(addOwnedStudent);
+  } catch (err) {
+    console.warn("[listEduCoursePublicRoster] caller overlay lookup failed", {
+      code: err?.code || "",
+      message: err?.message || "",
+    });
+  }
+  return ownedByRosterId;
+}
+
+async function applyEduRosterCallerOverlay({ teamRef, callerUid, payload, studentIds }) {
+  const baseStudents = Array.isArray(payload?.students) ? payload.students : [];
+  const ownedByRosterId = await fetchEduRosterOwnedStudentsByCaller(teamRef, callerUid, studentIds);
+  return baseStudents.map((row) => {
+    const studentId = sanitizeStr(row?.studentId, 100);
+    const owned = studentId ? ownedByRosterId.get(studentId) : null;
+    if (!owned) {
+      const clean = { ...row, canSelfLeave: false };
+      if (!payload?.staffEnrollmentByStudentId) {
+        delete clean.selfUid;
+        delete clean.parentUid;
+      }
+      return clean;
+    }
+    return {
+      ...row,
+      canSelfLeave: true,
+      selfUid: owned.selfUid,
+      parentUid: owned.parentUid,
+    };
+  });
+}
+
+async function finalizeEduRosterResponse({ teamRef, callerUid, payload, studentIds, isStaff, canManageRoster, cacheMeta, cacheSource }) {
+  const students = await applyEduRosterCallerOverlay({ teamRef, callerUid, payload, studentIds });
+  return {
+    success: true,
+    teamId: payload.teamId,
+    planId: payload.planId,
+    sessionId: payload.sessionId,
+    rosterPublic: payload.rosterPublic,
+    isStaff,
+    canManageRoster,
+    session: payload.session,
+    staffEnrollmentByStudentId: canManageRoster ? payload.staffEnrollmentByStudentId || {} : null,
+    students,
+    cacheMeta: cacheMeta ? { ...cacheMeta, source: cacheSource || "live" } : null,
+  };
+}
+
 exports.listEduCoursePublicRoster = onCall(
   { region: "asia-east1", timeoutSeconds: 30, memory: "256MiB", minInstances: 1 },
   async (request) => {
@@ -4693,18 +5020,9 @@ exports.listEduCoursePublicRoster = onCall(
     if (!canManageRoster && plan.visibleOnTeamPage === false) throw createEduCourseHttpsError("PLAN_HIDDEN");
 
     const session = { id: sessionSnap.id, _docId: sessionSnap.id, ...(sessionSnap.data() || {}) };
+    const forceRefresh = request.data?.forceRefresh === true && canManageRoster;
     const rosterPublic = plan.rosterPublic !== false;
-    const baseSession = {
-      id: sessionId,
-      title: sanitizeStr(session.title || session.topic || session.focus || "", 120),
-      date: sanitizeStr(session.date, 20),
-      startTime: sanitizeStr(session.startTime, 20),
-      endTime: sanitizeStr(session.endTime, 20),
-      location: sanitizeStr(session.location || plan.location || "", 160),
-      capacity: Number.isFinite(Number(session.capacity)) ? Number(session.capacity) : null,
-      notes: sanitizeStr(session.notes, 500),
-      status: sanitizeStr(session.status, 32) || "scheduled",
-    };
+    const baseSession = buildEduRosterBaseSession(plan, session, sessionId);
     if (!rosterPublic && !canManageRoster) {
       return {
         success: true,
@@ -4716,64 +5034,128 @@ exports.listEduCoursePublicRoster = onCall(
         canManageRoster,
         session: baseSession,
         students: [],
+        cacheMeta: null,
       };
     }
 
     const studentIds = Array.isArray(session.studentIds)
       ? session.studentIds.map((value) => sanitizeStr(value, 100)).filter(Boolean)
       : [];
-    const [studentsById, attendanceByStudentId, staffEnrollmentByStudentId] = await Promise.all([
-      fetchEduRosterStudentsByIds(teamRef, studentIds),
+    const nowMs = Date.now();
+    const snapshotScope = canManageRoster ? EDU_ROSTER_STAFF_SCOPE : EDU_ROSTER_PUBLIC_SCOPE;
+    const studentIdsDigest = buildEduRosterStudentIdsDigest(studentIds);
+    const planRevision = getEduRosterSourceRevision(plan, planSnap.id);
+    const sessionRevision = getEduRosterSourceRevision(session, sessionSnap.id);
+    const [attendanceByStudentId, staffEnrollmentByStudentId] = await Promise.all([
       fetchEduRosterAttendanceByStudentId({ teamId, planId, sessionId, date: baseSession.date }),
       canManageRoster ? fetchEduRosterStaffEnrollmentByStudentId(planRef, studentIds) : Promise.resolve(null),
     ]);
-    const roster = studentIds.map((studentId) => {
-      const student = studentsById.get(studentId) || {};
-      const displayName = sanitizeStr(
-        student.displayName || student.name || student.studentName || student.nickname || studentId,
-        80
-      ) || "學員";
-      const photoURL = sanitizeStr(
-        student.lineProfile?.pictureUrl
-          || student.lineProfile?.pictureURL
-          || student.pictureUrl
-          || student.photoURL
-          || student.photoUrl
-          || student.avatarUrl
-          || student.avatar
-          || "",
-        1200
-      ) || null;
-      const level = sanitizeStr(String(
-        student.level ?? student.lv ?? student.gradeLevel ?? student.levelLabel ?? ""
-      ), 20) || null;
-      const selfUid = sanitizeStr(student.selfUid, 128);
-      const parentUid = sanitizeStr(student.parentUid, 128);
-      const canSelfLeave = !!callerUid && (selfUid === callerUid || parentUid === callerUid);
-      return {
-        studentId,
-        displayName,
-        photoURL,
-        level,
-        attendanceKind: attendanceByStudentId[studentId] || null,
-        canSelfLeave,
-        selfUid: canSelfLeave ? selfUid || null : null,
-        parentUid: canSelfLeave ? parentUid || null : null,
-      };
-    });
+    const attendanceRevision = eduRosterHash(attendanceByStudentId || {});
+    const staffEnrollmentRevision = canManageRoster ? eduRosterHash(staffEnrollmentByStudentId || {}) : "";
 
-    return {
-      success: true,
+    if (!forceRefresh) {
+      const snapshot = await readEduRosterSnapshot({
+        sessionRef,
+        scope: snapshotScope,
+        studentIdsDigest,
+        planRevision,
+        sessionRevision,
+        attendanceRevision,
+        staffEnrollmentRevision,
+        nowMs,
+      });
+      if (snapshot?.payload) {
+        return finalizeEduRosterResponse({
+          teamRef,
+          callerUid,
+          payload: snapshot.payload,
+          studentIds,
+          isStaff,
+          canManageRoster,
+          cacheMeta: snapshot.meta,
+          cacheSource: "snapshot",
+        });
+      }
+    }
+    const studentsById = await fetchEduRosterStudentsByIds(teamRef, studentIds);
+
+    const publicPayload = buildEduRosterSnapshotPayload({
       teamId,
       planId,
       sessionId,
       rosterPublic,
+      session: baseSession,
+      students: buildEduRosterRows({
+        studentIds,
+        studentsById,
+        attendanceByStudentId,
+        includeStaffFields: false,
+      }),
+    });
+    const publicMeta = buildEduRosterSnapshotMeta({
+      scope: EDU_ROSTER_PUBLIC_SCOPE,
+      payload: publicPayload,
+      studentIdsDigest,
+      planRevision,
+      sessionRevision,
+      attendanceRevision,
+      staffEnrollmentRevision: "",
+      nowMs,
+    });
+    await writeEduRosterSnapshot({
+      sessionRef,
+      scope: EDU_ROSTER_PUBLIC_SCOPE,
+      payload: publicPayload,
+      meta: publicMeta,
+    });
+
+    let responsePayload = publicPayload;
+    let responseMeta = publicMeta;
+    if (canManageRoster) {
+      const staffPayload = buildEduRosterSnapshotPayload({
+        teamId,
+        planId,
+        sessionId,
+        rosterPublic,
+        session: baseSession,
+        students: buildEduRosterRows({
+          studentIds,
+          studentsById,
+          attendanceByStudentId,
+          includeStaffFields: true,
+        }),
+        staffEnrollmentByStudentId: staffEnrollmentByStudentId || {},
+      });
+      const staffMeta = buildEduRosterSnapshotMeta({
+        scope: EDU_ROSTER_STAFF_SCOPE,
+        payload: staffPayload,
+        studentIdsDigest,
+        planRevision,
+        sessionRevision,
+        attendanceRevision,
+        staffEnrollmentRevision,
+        nowMs,
+      });
+      await writeEduRosterSnapshot({
+        sessionRef,
+        scope: EDU_ROSTER_STAFF_SCOPE,
+        payload: staffPayload,
+        meta: staffMeta,
+      });
+      responsePayload = staffPayload;
+      responseMeta = staffMeta;
+    }
+
+    return finalizeEduRosterResponse({
+      teamRef,
+      callerUid,
+      payload: responsePayload,
+      studentIds,
       isStaff,
       canManageRoster,
-      session: baseSession,
-      staffEnrollmentByStudentId: canManageRoster ? staffEnrollmentByStudentId || {} : null,
-      students: roster,
-    };
+      cacheMeta: responseMeta,
+      cacheSource: forceRefresh ? "refresh" : "live",
+    });
   }
 );
 
