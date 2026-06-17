@@ -20,7 +20,7 @@
 | 🔒 **鎖定保護** | 報名系統 · 統計系統 · Firestore Rules · Cloud Functions |
 | 🌐 **業務規範** | 分享功能 · 活動可見性 |
 | 🎨 **設計系統** | UI/UX 設計原則 · 設計 token（明暗主題）· 共用動畫規範 · 名單暱稱膠囊 |
-| 📝 **流程** | 修復日誌 · SEO 日誌 · 自動部署 · 計劃與建議回覆 · 回覆結尾白話總結 |
+| 📝 **流程** | 修復日誌 · SEO 日誌 · 獨立自我稽核 · 部署前 SOP · 自動部署 · 計劃與建議回覆 · 回覆結尾白話總結 |
 | 🛠️ **編碼** | 編碼與亂碼規範 |
 
 ## 永久地雷清單（讀前必看）
@@ -350,29 +350,31 @@ grep -rn "CACHE_VERSION\|CACHE_NAME\|var V='" js/config.js sw.js index.html
 
 沿用既有 `css/base.css` 的主題變數機制；新元件一律吃 CSS 變數，**不寫死色碼**。
 
-| Token | 用途 | Light | Dark |
+> 以下為 `css/base.css` **實際存在**的主題變數（已逐一核對），新元件一律用這些變數，禁止寫死色碼或自創不存在的變數名。
+
+| 變數 | 用途 | Light | Dark |
 |------|------|------|------|
-| `surface` | 面板／卡片底 | `#ffffff` | `#12161d` |
-| `ink` | 主要文字 | `#0f172a` | `#e7ebf1` |
-| `ink-2` | 次要文字 | `#475569` | `#9aa6b4` |
-| `ink-3` | 弱化文字 | `#94a3b8` | `#69727f` |
-| `line` | 分隔線 | `#eef1f4` | `#1e242d` |
-| `accent` | 強調主色 | `#0b7a5c` | `#5fe0b0` |
-| `chip` | 晶片／備註底 | `#f1f5f9` | `#1b222c` |
+| `--bg-card` | 面板／卡片底 | `#ffffff` | `#181d27` |
+| `--bg-elevated` | 次層／晶片底 | `#f0f2f5` | `#222838` |
+| `--text-primary` | 主要文字 | `#1a1d24` | `#f5f7fa` |
+| `--text-secondary` | 次要文字 | `#5a6478` | `#e8ecf2` |
+| `--text-muted` | 弱化文字 | `#8892a4` | `#cdd3de` |
+| `--border` | 分隔線／邊框 | `#dfe3ea` | `#323a4e` |
+| `--accent` | 強調主色 | `#0d9488` | `#34d399` |
 
 - 間距：4 / 8 / 12 / 16 / 20（以 8pt 為基準）。圓角：列表／晶片 8–9px、卡片／面板 14–22px。
 - 角色色票（依主題「淺底深字／深底亮字」）：球經 indigo、領隊 amber、教練 violet、學員 teal/cyan。
 
 ### 深色主題準則
 
-- **不用純黑**：底 `#12161d`、分隔 `#1e242d`，避免純黑刺眼與邊界消失。
-- **文字分三階對比**（主／次／弱），不要全部死白。
+- **不用純黑**：深色底用 `--bg-card`（`#181d27`）、分隔用 `--border`（`#323a4e`），避免純黑刺眼與邊界消失。
+- **文字分三階對比**（`--text-primary` / `--text-secondary` / `--text-muted`），不要全部死白。
 - **角色色票深底亮字**；選取態／實心元件做「亮底深字」反轉，確保兩主題都夠醒目。
-- **主色於暗背景需提亮**（`#0b7a5c → #5fe0b0`）。
+- **主色於暗背景自動提亮**（`--accent` 由 Light `#0d9488` → Dark `#34d399`，由主題變數負責，不自行寫死）。
 
 ### 共用動畫規範（強制 — 加載動畫一致性）
 
-- **現況問題（2026-06-17 盤點）**：`css/` 內已有 **60+ 個各自定義的 `@keyframes`**（`spin` 重複定義、`*-loading-spin`、`*-shimmer`、`skel-*`、`signup-*-spin`…），散落 12+ 個 css 檔，導致載入動畫速度／節奏不一致、維護困難。
+- **現況問題（2026-06-17 盤點）**：`css/` 內已有 **約 60 個（實測 59）各自定義的 `@keyframes`**（`spin` 在 `base.css` 與 `profile.css` 重複定義、`*-loading-spin`、`*-shimmer`、`skel-*`、`signup-*-spin`…），散落 12 個 css 檔，導致載入動畫速度／節奏不一致、維護困難。
 - **規則**：
   1. 共用動畫一律集中定義在 `css/base.css`，以 `ui-` 命名前綴提供「標準 keyframes ＋ utility class」。
   2. 新功能的 loading / skeleton / spinner / 進場動畫**必須複用**共用集合，**禁止**再為個別模組複製同義的 keyframes。
@@ -398,7 +400,7 @@ grep -rn "CACHE_VERSION\|CACHE_NAME\|var V='" js/config.js sw.js index.html
 .ui-fade-in{animation:ui-fade-in var(--ui-dur) var(--ui-ease) both}
 .ui-slide-up{animation:ui-slide-up var(--ui-dur) var(--ui-ease) both}
 .ui-skeleton{
-  background:linear-gradient(90deg,var(--chip) 25%,rgba(148,163,184,.18) 37%,var(--chip) 63%);
+  background:linear-gradient(90deg,var(--bg-elevated) 25%,rgba(148,163,184,.18) 37%,var(--bg-elevated) 63%);
   background-size:200% 100%;
   animation:ui-shimmer var(--ui-shimmer-dur) linear infinite;
   border-radius:8px;
@@ -1026,16 +1028,47 @@ Phase 6 已啟用瀏覽器返回鍵接管(`HISTORY_ROUTE_FLAGS.popstateTakeover 
 
 ---
 
+## 完成改碼後的獨立自我稽核（強制）
+
+> 目的：任何 AI 完成「改動程式碼」後，必須以「全新、無對話記憶的客觀專業角度」重新審計本次修改，避免被對話過程的假設與記憶汙染判斷。審計一律對照**實際檔案／執行結果／git diff**，不得只憑對話記憶下結論。
+
+### 適用範圍
+
+- **適用**：任何非 trivial 的程式碼變更（JS / HTML / CSS / `firestore.rules` / Cloud Functions / Service Worker / 快取行為）。
+- **免除**：純文件變更（`CLAUDE.md`、`docs/*.md`、純註解）、純版號 bump、用戶明確指示跳過、或只動 1–3 行的緊急 hotfix（事後可補審）。與 §部署前審查流程 SOP 的「例外」表一致。
+
+### Claude 執行改碼時
+
+1. 完成修改後，**先用獨立審查子代理（Task / subagent，全新脈絡、看不到本對話推理）**，對照實際程式碼／diff 獨立審查本次修改是否正確、有無瑕疵或與現況不符。
+2. 子代理回報若有瑕疵 → **自主修正**。
+3. 修正後**再次**用獨立審查子代理複審。
+4. 重複 2–3 直到確認無 P1 / P2 問題；若連續複審仍無法收斂，**停止並回報用戶，不得無限循環**。
+5. 確認完成才回到原對話回報結果（修改檔案、發現與修正、殘餘風險、驗證指令）。
+
+### Codex 執行改碼時
+
+1. 完成修改後，**開啟全新對話自我 review**（不沿用原對話脈絡），對照實際程式碼審計。
+2. 有瑕疵 → 修正 → 再以全新角度複審，直到確認完成。
+3. 回到原對話回報結果。
+
+### 與既有流程的關係
+
+- 此自我稽核是「交付 / push 前」的**內部品質步驟**，置於 §完成後自動部署規範、§部署前審查流程 SOP **之前**：先自我稽核到無 P1 / P2 → 再 commit → 再依 SOP 處理 push。
+- 不取代 §Codex Review 轉交規範（三方協作）；用戶仍要求跨 AI 互審時照舊執行。
+- 子代理／新對話的審計**必須讀真實檔案或跑測試**，禁止憑記憶背書「應該沒問題」。
+
+---
+
 ## 部署前審查流程(SOP, 強制)
 
-本專案部署機制：`git push origin main` → Cloudflare Pages + GitHub Pages 自動部署（無 Cloud Run / gcloud / 預發環境）。一旦 push，分鐘內就會推到所有用戶。因此 **push 等於 deploy**，必須在 push 前完成 Codex review。
+本專案部署機制：`git push origin main` → Cloudflare Pages + GitHub Pages 自動部署（無 Cloud Run / gcloud / 預發環境）。一旦 push，分鐘內就會推到所有用戶。因此 **push 等於 deploy**，必須在 push 前完成自我稽核（見 §完成改碼後的獨立自我稽核），並視需要做 Codex 跨 AI 互審。
 
 每次要 `git push origin main` 前，必須照以下順序：
 
-1. 改完 code → 跑相關測試（依 §測試與 CI 規範對照表）→ 本地通過
+1. 改完 code → **先完成 §完成改碼後的獨立自我稽核（獨立子代理審計＋自修＋複審至無 P1／P2）** → 跑相關測試（依 §測試與 CI 規範對照表）→ 本地通過
 2. `git add` → `git commit`（訊息要清楚，遵循既有規範）
 3. **暫停，不要 push**
-4. 主動建議用戶跑 `/codex:review`（一句話即可，例如：「已 commit，建議跑 `/codex:review` 後再 push」）
+4. 自我稽核已完成；可再視情況建議用戶跑 `/codex:review` 做跨 AI 互審（一句話即可，例如：「已自我稽核並 commit，建議跑 `/codex:review` 後再 push」）
 5. 等用戶看完 Codex 的意見，用戶會說「OK 部署 / OK push」或「先改 XXX」
 6. 用戶說 OK 才開始 `git push origin main`
 
