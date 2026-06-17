@@ -30,6 +30,7 @@ function loadEventDetailModule({
   flags = {},
   firebaseService = null,
   hasPermission = null,
+  scriptLoader = null,
 } = {}) {
   const app = {
     _canEditOwnActivityBasic: jest.fn(() => canEdit),
@@ -46,6 +47,7 @@ function loadEventDetailModule({
     FirebaseService: firebaseService || {
       requestDetailAttendanceRealtime: jest.fn(),
     },
+    ScriptLoader: scriptLoader,
     TYPE_CONFIG: { friendly: { label: '友誼賽' }, external: { label: '外部活動' } },
     shouldUseActivityDetailOptimization: jest.fn((name) => flags[name] === true),
     escapeHTML: (value) => String(value ?? '')
@@ -648,7 +650,7 @@ describe('Team reservation button loading contract', () => {
     expect(document.getElementById('detail-attendance-table').textContent).toContain('管理名單 / 出席紀錄');
   });
 
-  test('activity detail attendance on-demand hides the below-fold roster panel from normal users', async () => {
+  test('activity detail attendance on-demand shows a public roster shell for normal users', async () => {
     document.body.innerHTML = '<div id="detail-attendance-table"></div>';
     const app = loadEventDetailModule({
       event: { id: 'event-1', current: 2, max: 10, waitlist: 1, status: 'open' },
@@ -661,7 +663,9 @@ describe('Team reservation button loading contract', () => {
 
     expect(result).toEqual({ ok: true, reason: 'on-demand-summary' });
     expect(app._renderAttendanceTable).not.toHaveBeenCalled();
-    expect(document.getElementById('detail-attendance-table').innerHTML).toBe('');
+    expect(document.querySelector('.detail-attendance-summary')?.dataset.attendanceOnDemand).toBe('true');
+    expect(document.getElementById('detail-attendance-table').textContent).toContain('已報 2/10');
+    expect(document.getElementById('detail-attendance-table').textContent).toContain('查看出席名單');
   });
 
   test('openDetailAttendanceRecords starts realtime loading and renders the full detail table for staff', async () => {
@@ -685,12 +689,117 @@ describe('Team reservation button loading contract', () => {
       mode: 'detail',
       forceFullAttendance: true,
       forceFetch: true,
+      publicRosterOnly: false,
     }));
-    expect(app._afterDetailAttendanceRendered).toHaveBeenCalledWith('event-1', expect.objectContaining({ id: 'event-1' }), 0, null);
+    expect(app._afterDetailAttendanceRendered).toHaveBeenCalledWith(
+      'event-1',
+      expect.objectContaining({ id: 'event-1' }),
+      0,
+      null,
+      expect.objectContaining({
+        mode: 'detail',
+        forceFullAttendance: true,
+        forceFetch: true,
+        publicRosterOnly: false,
+      })
+    );
   });
 
-  test('openDetailAttendanceRecords refuses unauthorized manual calls', async () => {
+  test('openDetailAttendanceRecords lazy-loads attendance modules before rendering', async () => {
+    document.body.innerHTML = '<div id="detail-attendance-table"></div><div id="detail-unreg-table"></div>';
+    const firebaseService = { requestDetailAttendanceRealtime: jest.fn() };
+    let app;
+    const scriptLoader = {
+      ensureGroup: jest.fn(async (groupName) => {
+        if (groupName === 'activityDetailAttendance') {
+          app._renderAttendanceTable = jest.fn(() => Promise.resolve({ ok: true, reason: 'lazy-full' }));
+          app._renderUnregTable = jest.fn(() => ({ ok: true, reason: 'unreg-rendered' }));
+        }
+      }),
+    };
+    app = loadEventDetailModule({
+      event: { id: 'event-1', current: 2, max: 10, status: 'open' },
+      flags: { detailAttendanceOnDemand: true },
+      firebaseService,
+      scriptLoader,
+    });
+    app._canOperateEventSite = jest.fn(() => true);
+    app._afterDetailAttendanceRendered = jest.fn();
+
+    const result = await app.openDetailAttendanceRecords('event-1');
+
+    expect(result).toEqual({ ok: true, reason: 'lazy-full' });
+    expect(scriptLoader.ensureGroup).toHaveBeenNthCalledWith(1, 'activityDetailAttendance');
+    expect(scriptLoader.ensureGroup).toHaveBeenNthCalledWith(2, 'achievement');
+    expect(app._renderAttendanceTable).toHaveBeenCalled();
+    expect(app._renderUnregTable).toHaveBeenCalledWith('event-1', 'detail-unreg-table', expect.objectContaining({
+      mode: 'detail',
+      forceFullAttendance: true,
+      forceFetch: true,
+    }));
+  });
+
+  test('openDetailAttendanceRecords still lazy-loads achievement when attendance renderer is already loaded', async () => {
+    document.body.innerHTML = '<div id="detail-attendance-table"></div><div id="detail-unreg-table"></div>';
+    const firebaseService = { requestDetailAttendanceRealtime: jest.fn() };
+    const scriptLoader = { ensureGroup: jest.fn(async () => {}) };
+    const app = loadEventDetailModule({
+      event: { id: 'event-1', current: 2, max: 10, status: 'open' },
+      flags: { detailAttendanceOnDemand: true },
+      firebaseService,
+      scriptLoader,
+    });
+    app._canOperateEventSite = jest.fn(() => true);
+    app._renderAttendanceTable = jest.fn(() => Promise.resolve({ ok: true, reason: 'full' }));
+    app._renderUnregTable = jest.fn(() => ({ ok: true, reason: 'unreg-rendered' }));
+    app._afterDetailAttendanceRendered = jest.fn();
+
+    const result = await app.openDetailAttendanceRecords('event-1');
+
+    expect(result).toEqual({ ok: true, reason: 'full' });
+    expect(scriptLoader.ensureGroup).toHaveBeenCalledTimes(1);
+    expect(scriptLoader.ensureGroup).toHaveBeenCalledWith('achievement');
+    expect(app._renderAttendanceTable).toHaveBeenCalled();
+  });
+
+  test('openDetailAttendanceRecords restores the summary shell when attendance modules fail to load', async () => {
     document.body.innerHTML = '<div id="detail-attendance-table"></div>';
+    const firebaseService = { requestDetailAttendanceRealtime: jest.fn() };
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const scriptLoader = {
+      ensureGroup: jest.fn(async () => {
+        throw new Error('load failed');
+      }),
+    };
+    const app = loadEventDetailModule({
+      event: { id: 'event-1', current: 2, max: 10, status: 'open' },
+      flags: { detailAttendanceOnDemand: true },
+      firebaseService,
+      scriptLoader,
+    });
+    app._canOperateEventSite = jest.fn(() => true);
+    app._renderAttendanceTable = undefined;
+
+    try {
+      const result = await app.openDetailAttendanceRecords('event-1');
+
+      expect(result).toEqual(expect.objectContaining({ ok: false, reason: 'load-failed' }));
+      expect(app._detailAttendanceOnDemandEventId).toBeNull();
+      expect(scriptLoader.ensureGroup).toHaveBeenCalledWith('activityDetailAttendance');
+      expect(document.querySelector('.detail-attendance-summary')?.dataset.attendanceOnDemand).toBe('true');
+      expect(document.querySelector('[data-detail-attendance-open-button="event-1"]')).not.toBeNull();
+      expect(app.showToast).toHaveBeenCalledWith('\u540d\u55ae\u8f09\u5165\u5931\u6557\uff0c\u8acb\u91cd\u65b0\u6574\u7406');
+      expect(errorSpy).toHaveBeenCalledWith(
+        '[EventDetail] detail attendance modules failed to load:',
+        expect.any(Error)
+      );
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  test('openDetailAttendanceRecords opens public roster without staff attendance records', async () => {
+    document.body.innerHTML = '<div id="detail-attendance-table"></div><div id="detail-unreg-section"><div id="detail-unreg-table"></div></div>';
     const firebaseService = { requestDetailAttendanceRealtime: jest.fn() };
     const app = loadEventDetailModule({
       event: { id: 'event-1', current: 2, max: 10, status: 'open' },
@@ -698,13 +807,88 @@ describe('Team reservation button loading contract', () => {
       firebaseService,
     });
     app._renderAttendanceTable = jest.fn(() => Promise.resolve({ ok: true, reason: 'full' }));
+    app._renderUnregTable = jest.fn(() => ({ ok: true, reason: 'unreg' }));
 
     const result = await app.openDetailAttendanceRecords('event-1');
 
-    expect(result).toEqual({ ok: false, reason: 'not-authorized' });
+    expect(result).toEqual({ ok: true, reason: 'full' });
     expect(firebaseService.requestDetailAttendanceRealtime).not.toHaveBeenCalled();
-    expect(app._renderAttendanceTable).not.toHaveBeenCalled();
-    expect(app.showToast).toHaveBeenCalledWith('權限不足');
+    expect(app._renderAttendanceTable).toHaveBeenCalledWith('event-1', 'detail-attendance-table', expect.objectContaining({
+      mode: 'detail',
+      forceFullAttendance: true,
+      forceFetch: true,
+      publicRosterOnly: true,
+    }));
+    expect(app._renderUnregTable).not.toHaveBeenCalled();
+    expect(document.getElementById('detail-unreg-section').style.display).toBe('none');
+    expect(app.showToast).not.toHaveBeenCalledWith('權限不足');
+  });
+
+  test('after public roster render skips badge refresh to preserve public-only columns', () => {
+    document.body.innerHTML = '<div id="detail-attendance-table"></div>';
+    const event = { id: 'event-1', current: 2, max: 10, status: 'open' };
+    const app = loadEventDetailModule({
+      event,
+      flags: { detailAttendanceOnDemand: true },
+    });
+    app._detailAttendanceOnDemandEventId = 'event-1';
+    app.currentPage = 'page-activity-detail';
+    app._currentDetailEventId = 'event-1';
+    app._eventDetailRequestSeq = 1;
+    app._refreshRegistrationBadges = jest.fn(() => Promise.resolve());
+
+    const result = app._afterDetailAttendanceRendered('event-1', event, 1, 'token-1', {
+      mode: 'detail',
+      forceFullAttendance: true,
+      forceFetch: true,
+      publicRosterOnly: true,
+    });
+
+    expect(result).toEqual({ ok: true, reason: 'ok' });
+    expect(app._refreshRegistrationBadges).not.toHaveBeenCalled();
+  });
+
+  test('after staff roster render keeps detail context for badge refresh rerender', () => {
+    document.body.innerHTML = '<div id="detail-attendance-table"></div>';
+    const event = { id: 'event-1', current: 2, max: 10, status: 'open' };
+    const app = loadEventDetailModule({
+      event,
+      flags: { detailAttendanceOnDemand: true },
+    });
+    app._detailAttendanceOnDemandEventId = 'event-1';
+    app.currentPage = 'page-activity-detail';
+    app._currentDetailEventId = 'event-1';
+    app._eventDetailRequestSeq = 3;
+    app._refreshRegistrationBadges = jest.fn(() => Promise.resolve());
+
+    const result = app._afterDetailAttendanceRendered('event-1', event, 3, 'token-3', {
+      mode: 'detail',
+      forceFullAttendance: true,
+      forceFetch: true,
+      publicRosterOnly: false,
+    });
+
+    expect(result).toEqual({ ok: true, reason: 'ok' });
+    expect(app._refreshRegistrationBadges).toHaveBeenCalledWith(
+      'event-1',
+      'detail-attendance-table',
+      expect.objectContaining({
+        mode: 'detail',
+        requestSeq: 3,
+        renderToken: 'token-3',
+        forceFullAttendance: true,
+        forceFetch: true,
+        publicRosterOnly: false,
+      })
+    );
+  });
+
+  test('badge refresh rerender preserves public roster render options contract', () => {
+    const badgeSource = readProjectFile('js/modules/event/event-manage-badges.js');
+
+    expect(badgeSource).toContain('async _refreshRegistrationBadges(eventId, containerId, renderOptions = {})');
+    expect(badgeSource).toContain('if (renderOptions?.publicRosterOnly === true) return;');
+    expect(badgeSource).toContain("this._renderAttendanceTable(eventId, containerId || 'detail-attendance-table', renderOptions || {});");
   });
 
   test('activity detail attendance on-demand keeps legacy render path when the flag is off', async () => {
@@ -1313,6 +1497,52 @@ describe('Activity detail late patch guard', () => {
     //（plan §8.5-1；管理/已結束/具出席查看權者見 roster-projection-defer.test.js）
     expect(context.ApiService.fetchAttendanceIfMissing).not.toHaveBeenCalled();
     expect(document.getElementById('detail-attendance-table').textContent).toContain('Server User');
+  });
+
+  test('public roster mode hides staff attendance record columns and does not fetch records', async () => {
+    const { app, context } = loadEventDetailAndAttendanceModule();
+    document.body.innerHTML = '<div id="detail-attendance-table"></div>';
+    app.currentPage = 'page-activity-detail';
+    app._currentDetailEventId = 'event-1';
+    app._eventDetailRequestSeq = 1;
+    app._markEventDetailContainerOwner('detail-attendance-table', 'event-1', 1, 'rt-1', 'attendance');
+    app._canOperateEventSite = jest.fn(() => false);
+    app._buildConfirmedParticipantSummary = jest.fn(() => ({
+      count: 1,
+      people: [{
+        uid: 'u1',
+        name: 'Public User',
+        displayName: 'Public User',
+        hasSelfReg: false,
+        displayBadges: [],
+      }],
+    }));
+    context.ApiService.getEvent = jest.fn(() => ({ id: 'event-1', current: 1, max: 8, status: 'ended' }));
+    context.ApiService.getAttendanceRecords = jest.fn(() => [
+      { uid: 'u1', type: 'checkin' },
+      { uid: 'u1', type: 'note', note: 'private note' },
+    ]);
+    context.ApiService.fetchRegistrationsIfMissing = jest.fn(() => Promise.resolve({ ok: true }));
+    context.ApiService.fetchAttendanceIfMissing = jest.fn(() => Promise.resolve({ ok: true }));
+    context.FirebaseService = { requestDetailAttendanceRealtime: jest.fn() };
+
+    await app._doRenderAttendanceTable('event-1', 'detail-attendance-table', 0, {
+      mode: 'detail',
+      requestSeq: 1,
+      renderToken: 'rt-1',
+      forceFetch: true,
+      publicRosterOnly: true,
+    });
+
+    const text = document.getElementById('detail-attendance-table').textContent;
+    expect(context.ApiService.fetchRegistrationsIfMissing).toHaveBeenCalledTimes(1);
+    expect(context.ApiService.fetchAttendanceIfMissing).not.toHaveBeenCalled();
+    expect(context.FirebaseService.requestDetailAttendanceRealtime).not.toHaveBeenCalled();
+    expect(text).toContain('Public User');
+    expect(text).not.toContain('簽到');
+    expect(text).not.toContain('簽退');
+    expect(text).not.toContain('備註');
+    expect(text).not.toContain('private note');
   });
 
   test('attendance records background patch respects the current render token', async () => {

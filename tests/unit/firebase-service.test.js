@@ -924,6 +924,50 @@ describe('getUserAchievementProgressMap (firebase-service.js:1813-1821)', () => 
   });
 });
 
+describe('ensureUserStatsLoaded degraded Firestore support', () => {
+  test('uses an empty stats cache in forced demo when Firestore is unavailable', async () => {
+    const { FirebaseService, sandbox } = loadFirebaseServiceWithStorage();
+    sandbox.window = { __FORCE_DEMO: true };
+
+    await FirebaseService.ensureUserStatsLoaded('uid-demo');
+
+    expect(FirebaseService.getUserStatsCache()).toEqual({
+      uid: 'uid-demo',
+      activityRecords: [],
+      attendanceRecords: [],
+    });
+    expect(sandbox.console.warn).not.toHaveBeenCalled();
+  });
+
+  test('keeps stats retryable when production Firestore is not ready yet', async () => {
+    const { FirebaseService, sandbox } = loadFirebaseServiceWithStorage();
+    sandbox.window = {};
+
+    await FirebaseService.ensureUserStatsLoaded('uid-prod');
+
+    expect(FirebaseService.getUserStatsCache()).toEqual({
+      uid: null,
+      activityRecords: null,
+      attendanceRecords: null,
+    });
+    expect(sandbox.console.warn).not.toHaveBeenCalled();
+  });
+
+  test('keeps stats retryable when db exists but collectionGroup is unsupported in production', async () => {
+    const { FirebaseService, sandbox } = loadFirebaseServiceWithStorage();
+    sandbox.db = {};
+
+    await FirebaseService.ensureUserStatsLoaded('uid-prod-legacy');
+
+    expect(FirebaseService.getUserStatsCache()).toEqual({
+      uid: null,
+      activityRecords: null,
+      attendanceRecords: null,
+    });
+    expect(sandbox.console.warn).not.toHaveBeenCalled();
+  });
+});
+
 describe('visibility resume public events refresh', () => {
   function loadVisibilityHarness(authUser = null) {
     const { FirebaseService, sandbox } = loadFirebaseServiceWithStorage();

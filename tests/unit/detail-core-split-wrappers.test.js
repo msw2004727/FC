@@ -81,7 +81,7 @@ describe('detailCoreSplit — deferred handler wrappers（真實 event-detail.js
       },
     });
     const result = await app._startTableEdit('evt-1');
-    expect(ensureCalls).toEqual(['activityCreate', 'activityManage']);
+    expect(ensureCalls).toEqual(['activityDetailAttendance', 'activityCreate', 'activityManage']);
     expect(app._startTableEdit).toHaveBeenCalledWith('evt-1');
     expect(result).toBe('real-result');
   });
@@ -94,13 +94,13 @@ describe('detailCoreSplit — deferred handler wrappers（真實 event-detail.js
       },
     });
     const result = await app.editMyActivity('evt-9');
-    expect(ensureCalls).toEqual(['activityCreate', 'activityManage']);
+    expect(ensureCalls).toEqual(['activityDetailAttendance', 'activityCreate', 'activityManage']);
     expect(result).toBe('edited');
   });
 
   test('任一 wrapper 都不可只載 manage（lifecycle 覆寫 editMyActivity 後需 create 在場）', () => {
     const { app } = loadEventDetail();
-    expect(app._deferredEventHandlerGroups).toEqual(['activityCreate', 'activityManage']);
+    expect(app._deferredEventHandlerGroups).toEqual(['activityDetailAttendance', 'activityCreate', 'activityManage']);
   });
 
   test('群組載入失敗：Toast 提示、不拋錯、不呼叫真身', async () => {
@@ -114,7 +114,7 @@ describe('detailCoreSplit — deferred handler wrappers（真實 event-detail.js
   test('防自我遞迴：群組載入後真身仍缺席 → 攔下並提示，不無限遞迴', async () => {
     const { app, scriptLoader } = loadEventDetail(); // ensureGroup resolve 但不覆寫真身
     await expect(app._forcePromoteWaitlist('evt-1', 'uid-1')).resolves.toBeUndefined();
-    expect(scriptLoader.ensureGroup).toHaveBeenCalledTimes(2); // create + manage 各一次，無遞迴
+    expect(scriptLoader.ensureGroup).toHaveBeenCalledTimes(3); // attendance + create + manage 各一次，無遞迴
     expect(app.showToast).toHaveBeenCalled();
   });
 });

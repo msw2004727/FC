@@ -16,8 +16,9 @@ const ScriptLoader = {
     coursePlanForm: true,
     eventLocationPicker: true,
     // detailCoreSplit（Wave 2 拆包）三個新群組：內容皆為既有 activity group 的子集，
-    // 標記 manual-only 避免 preloadAll 重複列舉（idle 預載仍會經 page-activities 補齊完整 group）
+    // 標記 manual-only 避免 preloadAll 重複列舉；on-demand 預載路徑另會過濾延後載入模組。
     activityDetailCore: true,
+    activityDetailAttendance: true,
     activityCreate: true,
     activityManage: true,
   },
@@ -211,11 +212,13 @@ const ScriptLoader = {
       'js/modules/event/event-comments-actions.js',
       'js/modules/event/event-create-options.js',
       'js/modules/event/event-team-split.js',
+      'js/modules/event/event-manage.js',
+      'js/modules/registration-audit.js',
+    ],
+    activityDetailAttendance: [
       'js/modules/event/event-manage-noshow.js',
       'js/modules/event/event-manage-attendance.js',
       'js/modules/event/event-manage-badges.js',
-      'js/modules/event/event-manage.js',
-      'js/modules/registration-audit.js',
     ],
     activityCreate: [
       'js/modules/event/event-create-input-history.js',
@@ -644,11 +647,52 @@ const ScriptLoader = {
     return false;
   },
 
+  _detailAuxModulesOnDemandEnabled() {
+    try {
+      if (typeof shouldUseActivityDetailOptimization === 'function') {
+        return shouldUseActivityDetailOptimization('detailAuxModulesOnDemand');
+      }
+    } catch (_) {}
+    return false;
+  },
+
   /** 解析頁面實際使用的群組（唯一的 split 映射點：詳情頁以 activityDetailCore 取代 activity） */
+  _filterOnDemandPreloadScripts(scripts = []) {
+    if (!this._detailAuxModulesOnDemandEnabled()) return scripts;
+    const deferred = new Set(this._groups.activityDetailAttendance || []);
+    return scripts.filter(src => !deferred.has(src));
+  },
+
+  _resolvePagePreloadScripts(pageId) {
+    const groups = this._resolvePageGroups(pageId);
+    const orderedScripts = [];
+    const seen = new Set();
+
+    groups.forEach(groupName => {
+      const scripts = this._groups[groupName] || [];
+      scripts.forEach(src => {
+        if (seen.has(src)) return;
+        seen.add(src);
+        orderedScripts.push(src);
+      });
+    });
+
+    return this._filterOnDemandPreloadScripts(orderedScripts);
+  },
+
   _resolvePageGroups(pageId) {
     const groups = this._pageGroups[pageId] || [];
     if (pageId === 'page-activity-detail' && this._detailCoreSplitEnabled()) {
-      return groups.map(g => (g === 'activity' ? 'activityDetailCore' : g));
+      const resolved = groups.map(g => (g === 'activity' ? 'activityDetailCore' : g));
+      if (this._detailAuxModulesOnDemandEnabled()) {
+        return resolved.filter(g => g !== 'achievement' && g !== 'profileCard');
+      }
+      const withAttendance = [];
+      resolved.forEach(g => {
+        withAttendance.push(g);
+        if (g === 'activityDetailCore') withAttendance.push('activityDetailAttendance');
+      });
+      return withAttendance;
     }
     return groups;
   },
@@ -715,7 +759,8 @@ const ScriptLoader = {
     const allScripts = Object.entries(this._groups)
       .filter(([groupName]) => !manualOnly[groupName])
       .flatMap(([, scripts]) => scripts);
-    const toLoad = allScripts.filter(s => !this._loaded[s]);
+    const toLoad = this._filterOnDemandPreloadScripts(allScripts)
+      .filter(s => !this._loaded[s]);
     if (toLoad.length === 0) return;
     // 用低優先級預載入
     const load = () => this.loadGroup(toLoad).catch(() => {});
@@ -743,11 +788,11 @@ const ScriptLoader = {
     const allScripts = [];
     const seen = new Set();
     corePages.forEach(pageId => {
-      const groups = this._pageGroups[pageId] || [];
-      groups.forEach(g => {
-        (this._groups[g] || []).forEach(src => {
-          if (!seen.has(src) && !this._loaded[src]) { seen.add(src); allScripts.push(src); }
-        });
+      this._resolvePagePreloadScripts(pageId).forEach(src => {
+        if (!seen.has(src) && !this._loaded[src]) {
+          seen.add(src);
+          allScripts.push(src);
+        }
       });
     });
     if (allScripts.length > 0) this._prefetchFiles(allScripts);
@@ -800,11 +845,13 @@ const ScriptLoader = {
     const loadNext = () => {
       if (index >= pages.length) return;
       const pageId = pages[index++];
-      if (this.isPageReady(pageId)) {
+      const scripts = this._resolvePagePreloadScripts(pageId)
+        .filter(src => !this._loaded[src]);
+      if (scripts.length === 0) {
         schedule(loadNext, gapMs);
         return;
       }
-      this.ensureForPage(pageId)
+      this.loadGroup(scripts)
         .catch(err => console.warn('[ScriptLoader] idle page preload failed:', pageId, err))
         .finally(() => schedule(loadNext, gapMs));
     };

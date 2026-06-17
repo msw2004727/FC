@@ -1659,6 +1659,16 @@ const FirebaseService = {
     if (!uid) return;
     if (this._userStatsCache.uid === uid && this._userStatsCache.activityRecords !== null) return;
 
+    const hasCollectionGroup = typeof db !== 'undefined' && db && typeof db.collectionGroup === 'function';
+    if (!hasCollectionGroup) {
+      const canUseEmptyStatsFallback = typeof window !== 'undefined'
+        && (window.__FORCE_DEMO === true || !!window.__E2E_TEST_HARNESS__);
+      if (canUseEmptyStatsFallback) {
+        this._userStatsCache = { uid, activityRecords: [], attendanceRecords: [] };
+      }
+      return;
+    }
+
     try {
       const [actSnap, attSnap] = await Promise.all([
         db.collectionGroup('activityRecords').where('uid', '==', uid).get(),

@@ -583,12 +583,13 @@ Object.assign(App, {
       };
       if (options?.forceFetch) fetchOptions.force = true;
       try {
-        if (this._shouldSplitDetailRosterFetch(cId, options)) {
+        const publicRosterOnly = options?.publicRosterOnly === true;
+        if (this._shouldSplitDetailRosterFetch(cId, options) || publicRosterOnly) {
           const registrationResult = await ApiService.fetchRegistrationsIfMissing(eventId, fetchOptions);
           fetchIssue = this._getAttendanceTableFetchIssue([registrationResult]);
           // P2（deferAttendanceRecords）：未結束活動的一般用戶不抓出席資料；
           // 已結束/可管理/具出席查看權者照常載入，並按需啟動 attendanceRecords listener
-          if (this._shouldLoadDetailAttendanceData?.(e) !== false) {
+          if (!publicRosterOnly && this._shouldLoadDetailAttendanceData?.(e) !== false) {
             if (typeof FirebaseService !== 'undefined'
               && typeof FirebaseService.requestDetailAttendanceRealtime === 'function') {
               FirebaseService.requestDetailAttendanceRealtime();
@@ -614,7 +615,9 @@ Object.assign(App, {
     const _t1 = _perfLog ? performance.now() : 0;
 
     const canManage = this._canOperateEventSite?.(e) === true;
-    const records = ApiService.getAttendanceRecords(eventId);
+    const publicRosterOnly = options?.publicRosterOnly === true;
+    const showAttendanceRecordColumns = publicRosterOnly !== true;
+    const records = showAttendanceRecordColumns ? ApiService.getAttendanceRecords(eventId) : [];
     const summary = this._buildConfirmedParticipantSummary(eventId);
     const people = summary.people;
     const _t2 = _perfLog ? performance.now() : 0;
@@ -629,10 +632,10 @@ Object.assign(App, {
       || (typeof this.hasPermission === 'function' && this.hasPermission('activity.view_noshow'))
       || (typeof this.hasPermission === 'function' && this.hasPermission('admin.repair.no_show_adjust'));
     // 🕊 次數欄位：只在「管理名單」模式（tableEditing）才顯示，避免平時佔位
-    const showNoShowColumn = noShowFeatureEnabled && cId === 'detail-attendance-table' && canViewNoShow && tableEditing;
+    const showNoShowColumn = showAttendanceRecordColumns && noShowFeatureEnabled && cId === 'detail-attendance-table' && canViewNoShow && tableEditing;
     const noShowCountByUid = showNoShowColumn ? this._buildNoShowCountByUid() : null;
     // 膠囊出席率染色：權限同步綁定（canViewNoShow），**不**受 tableEditing 限制 — 平時瀏覽名單時也染色
-    const showAttendanceFill = noShowFeatureEnabled && canViewNoShow;
+    const showAttendanceFill = showAttendanceRecordColumns && noShowFeatureEnabled && canViewNoShow;
     const endedRegCountByUid = showAttendanceFill ? this._buildEndedRegCountByUid() : null;
     // 膠囊染色獨立於欄位：即使欄位收起，仍需 noShow map 作為染色資料來源
     const noShowCountByUidForFill = showAttendanceFill
@@ -702,9 +705,10 @@ Object.assign(App, {
     const disabledAttr = isSubmitting ? 'disabled' : '';
     const _attCb = (id, checked) =>
       `<input type="checkbox" id="${id}" class="att-cb" ${checked ? 'checked' : ''} ${disabledAttr}><label for="${id}" class="att-lbl"><span class="att-box"></span></label>`;
+    const attendanceRecordColumnCount = showAttendanceRecordColumns ? 3 : 0;
     const tableColspan = (tableEditing ? (1 + (hasDemote ? 1 : 0) + 1) : 1)
       + (showNoShowColumn ? 1 : 0)
-      + 3;
+      + attendanceRecordColumnCount;
     let rows = people.map(p => {
       if (p.isTeamGeneralSeparator) {
         return `<tr class="team-reservation-general-row"><td colspan="${tableColspan}">
@@ -754,6 +758,21 @@ Object.assign(App, {
         : '';
       const autoNote = p.proxyOnly ? '僅代報' : '';
       const combinedNote = [autoNote, noteText].filter(Boolean).join('・');
+      const emptyAttendanceRecordCells = (label) => showAttendanceRecordColumns
+        ? `<td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>
+          <td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>
+          <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">${label}</td>`
+        : '';
+      const editAttendanceRecordCells = showAttendanceRecordColumns
+        ? `<td style="padding:.35rem .2rem;text-align:center">${_attCb('manual-checkin-' + escapeHTML(p.uid), hasCheckin)}</td>
+          <td style="padding:.35rem .2rem;text-align:center">${_attCb('manual-checkout-' + escapeHTML(p.uid), hasCheckout)}</td>
+          <td style="padding:.35rem .3rem"><input type="text" maxlength="20" value="${escapeHTML(noteText)}" id="manual-note-${escapeHTML(p.uid)}" placeholder="備註" ${disabledAttr} style="${noteInputStyle}"></td>`
+        : '';
+      const readAttendanceRecordCells = showAttendanceRecordColumns
+        ? `<td style="padding:.35rem .2rem;text-align:center">${hasCheckin ? '<span style="color:var(--success);font-size:1rem">✓</span>' : ''}</td>
+          <td style="padding:.35rem .2rem;text-align:center">${hasCheckout ? '<span style="color:var(--success);font-size:1rem">✓</span>' : ''}</td>
+          <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">${escapeHTML(combinedNote)}</td>`
+        : '';
 
       // 徽章縮圖
       const badges = p.displayBadges || [];
@@ -808,9 +827,7 @@ Object.assign(App, {
           <td style="padding:.35rem .2rem"></td>${emptyDemoteTd}
           <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
           ${showNoShowColumn ? '<td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>' : ''}
-          <td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>
-          <td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>
-          <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">僅代報</td>
+          ${emptyAttendanceRecordCells('僅代報')}
         </tr>`;
         }
         if (p.isTeamPlaceholder) {
@@ -819,9 +836,7 @@ Object.assign(App, {
           <td style="padding:.35rem .2rem"></td>${emptyDemoteTd}
           <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
           ${showNoShowColumn ? '<td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>' : ''}
-          <td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>
-          <td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>
-          <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">保留席位</td>
+          ${emptyAttendanceRecordCells('保留席位')}
         </tr>`;
         }
         const kickTd = `<td style="padding:.35rem .2rem;text-align:center"><button style="${kickStyle}" ${disabledAttr} onclick="App._removeParticipant('${escapeHTML(eventId)}','${safeUid}','${safeName}',${p.isCompanion})">踢</button></td>`;
@@ -835,35 +850,27 @@ Object.assign(App, {
           ${kickTd}${demoteTd}
           <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
           ${noShowCell}
-          <td style="padding:.35rem .2rem;text-align:center">${_attCb('manual-checkin-' + safeUid, hasCheckin)}</td>
-          <td style="padding:.35rem .2rem;text-align:center">${_attCb('manual-checkout-' + safeUid, hasCheckout)}</td>
-          <td style="padding:.35rem .3rem"><input type="text" maxlength="20" value="${escapeHTML(noteText)}" id="manual-note-${safeUid}" placeholder="備註" ${disabledAttr} style="${noteInputStyle}"></td>
+          ${editAttendanceRecordCells}
         </tr>`;
       }
       if (p.isTeamPlaceholder) {
         return `<tr class="team-reservation-placeholder-row">
         <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
         ${showNoShowColumn ? '<td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>' : ''}
-        <td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>
-        <td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>
-        <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">保留席位</td>
+        ${emptyAttendanceRecordCells('保留席位')}
       </tr>`;
       }
       if (isProxyOnly) {
         return `<tr style="border-bottom:1px solid var(--border);background:linear-gradient(90deg, rgba(148,163,184,.16), rgba(148,163,184,.04) 55%, transparent)">
         <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
         ${showNoShowColumn ? '<td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>' : ''}
-        <td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>
-        <td style="padding:.35rem .2rem;text-align:center;color:var(--text-muted)">--</td>
-        <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">僅代報</td>
+        ${emptyAttendanceRecordCells('僅代報')}
       </tr>`;
       }
       return `<tr${teamReservationRowAttr} style="border-bottom:1px solid var(--border)">
         <td style="padding:.35rem .3rem;text-align:left">${nameHtml}</td>
         ${noShowCell}
-        <td style="padding:.35rem .2rem;text-align:center">${hasCheckin ? '<span style="color:var(--success);font-size:1rem">✓</span>' : ''}</td>
-        <td style="padding:.35rem .2rem;text-align:center">${hasCheckout ? '<span style="color:var(--success);font-size:1rem">✓</span>' : ''}</td>
-        <td style="padding:.35rem .3rem;font-size:.72rem;color:var(--text-muted)">${escapeHTML(combinedNote)}</td>
+        ${readAttendanceRecordCells}
       </tr>`;
     }).join('');
     const _t4 = _perfLog ? performance.now() : 0;
@@ -886,22 +893,23 @@ Object.assign(App, {
       ? `<th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:3rem" title="放鴿子次數（已結束、正式報名且未完成簽到）">🕊</th>`
       : '';
     const demoteTh = hasDemote ? '<th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2rem">候</th>' : '';
+    const attendanceRecordHeaderTh = showAttendanceRecordColumns
+      ? `<th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽到</th>
+          <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽退</th>
+          <th style="text-align:left;padding:.4rem .3rem;font-weight:600;width:4.5rem">備註</th>`
+      : '';
     const thead = tableEditing
       ? `<tr style="border-bottom:2px solid var(--border)">
           <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2rem">踢</th>
           ${demoteTh}
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600">${nameThContent}</th>
           ${noShowTh}
-          <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽到</th>
-          <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽退</th>
-          <th style="text-align:left;padding:.4rem .3rem;font-weight:600;width:4.5rem">備註</th>
+          ${attendanceRecordHeaderTh}
         </tr>`
       : `<tr style="border-bottom:2px solid var(--border)">
           <th style="text-align:left;padding:.4rem .3rem;font-weight:600">${nameThContent}</th>
           ${noShowTh}
-          <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽到</th>
-          <th style="text-align:center;padding:.4rem .2rem;font-weight:600;width:2.5rem">簽退</th>
-          <th style="text-align:left;padding:.4rem .3rem;font-weight:600;width:4.5rem">備註</th>
+          ${attendanceRecordHeaderTh}
         </tr>`;
 
     const fetchIssueHtml = fetchIssue ? this._renderAttendanceLoadIssue(eventId, cId, fetchIssue) : '';

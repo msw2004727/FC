@@ -148,7 +148,7 @@ describe('P1/P2 wiring — source contracts', () => {
   test('attendance table render path consumes both helpers', () => {
     const source = readProjectFile('js/modules/event/event-manage-attendance.js');
     expect(source).toContain('_shouldPaintDetailRosterProjectionFirst?.(eventId, e, cId, options) === true');
-    expect(source).toContain("if (this._shouldLoadDetailAttendanceData?.(e) !== false) {");
+    expect(source).toContain("if (!publicRosterOnly && this._shouldLoadDetailAttendanceData?.(e) !== false) {");
     expect(source).toContain("key === 'detail-attendance-table'");
     expect(source).toContain('FirebaseService.requestDetailAttendanceRealtime()');
   });

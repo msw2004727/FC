@@ -396,15 +396,24 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-function loadRealScriptLoader({ splitEnabled = false, performanceFlags = {} } = {}) {
+function loadRealScriptLoader({
+  splitEnabled = false,
+  auxOnDemand = true,
+  performanceFlags = {},
+  immediateTimers = false,
+} = {}) {
   const source = fs.readFileSync(path.join(__dirname, '../../js/core/script-loader.js'), 'utf8');
   let SL = null;
   const context = {
     console,
-    setTimeout,
+    setTimeout: immediateTimers ? ((fn) => { fn(); return 0; }) : setTimeout,
     CACHE_VERSION: 'test',
     PERFORMANCE_FLAGS: performanceFlags,
-    shouldUseActivityDetailOptimization: (k) => (k === 'detailCoreSplit' ? splitEnabled : false),
+    shouldUseActivityDetailOptimization: (k) => {
+      if (k === 'detailCoreSplit') return splitEnabled;
+      if (k === 'detailAuxModulesOnDemand') return auxOnDemand;
+      return false;
+    },
     window: { location: { origin: 'https://example.com', href: 'https://example.com/' } },
     document: {
       querySelectorAll: () => [],
@@ -423,11 +432,12 @@ describe('detailCoreSplit — 三分拆群組一致性（真實群組定義）',
   const SL = loadRealScriptLoader();
   const a = SL._groups.activity;
   const core = SL._groups.activityDetailCore;
+  const attendance = SL._groups.activityDetailAttendance;
   const create = SL._groups.activityCreate;
   const manage = SL._groups.activityManage;
 
   test('聯集 = activity、互不重疊（檔案級三分拆）', () => {
-    const union = [...core, ...create, ...manage];
+    const union = [...core, ...attendance, ...create, ...manage];
     expect(union.length).toBe(a.length);
     expect(new Set(union).size).toBe(union.length);
     expect([...union].sort()).toEqual([...a].sort());
@@ -435,7 +445,7 @@ describe('detailCoreSplit — 三分拆群組一致性（真實群組定義）',
 
   test('保持原 activity group 內的相對順序', () => {
     const idx = (s) => a.indexOf(s);
-    [core, create, manage].forEach(arr => {
+    [core, attendance, create, manage].forEach(arr => {
       arr.forEach((s, i) => {
         if (i > 0) expect(idx(arr[i - 1])).toBeLessThan(idx(s));
       });
@@ -444,19 +454,25 @@ describe('detailCoreSplit — 三分拆群組一致性（真實群組定義）',
 
   test('首屏必留核心檔在 activityDetailCore（7A 矩陣 §1/§2）', () => {
     [
-      'js/modules/event/event-manage-attendance.js',
-      'js/modules/event/event-manage-badges.js',
-      'js/modules/event/event-manage-noshow.js',
       'js/modules/event/event-manage.js',
       'js/modules/event/event-create-options.js',
       'js/modules/event/event-detail.js',
       'js/modules/event/event-detail-signup.js',
       'js/modules/event/event-detail-companion.js',
     ].forEach(f => expect(core).toContain(f));
+    [
+      'js/modules/event/event-manage-attendance.js',
+      'js/modules/event/event-manage-badges.js',
+      'js/modules/event/event-manage-noshow.js',
+    ].forEach(f => {
+      expect(core).not.toContain(f);
+      expect(attendance).toContain(f);
+    });
   });
 
   test('延後群組內容正確（create 11 檔 / manage 5 檔）', () => {
     expect(create).toHaveLength(11);
+    expect(attendance).toHaveLength(3);
     expect(manage).toHaveLength(5);
     expect(create).toContain('js/modules/event/event-create.js');
     expect(create).toContain('js/modules/event/event-location-draft.js');
@@ -472,6 +488,7 @@ describe('detailCoreSplit — 三分拆群組一致性（真實群組定義）',
 
   test('新群組登記 manual-only，避免 preloadAll 重複列舉', () => {
     expect(SL._manualOnlyGroups.activityDetailCore).toBe(true);
+    expect(SL._manualOnlyGroups.activityDetailAttendance).toBe(true);
     expect(SL._manualOnlyGroups.activityCreate).toBe(true);
     expect(SL._manualOnlyGroups.activityManage).toBe(true);
   });
@@ -487,10 +504,20 @@ describe('detailCoreSplit — 頁面映射（_resolvePageGroups）', () => {
 
   test('flag 開啟：僅 page-activity-detail 換用 activityDetailCore，其餘頁不受影響', () => {
     const SL = loadRealScriptLoader({ splitEnabled: true });
-    expect(SL._resolvePageGroups('page-activity-detail')).toEqual(['activityDetailCore', 'achievement', 'profileCard']);
+    expect(SL._resolvePageGroups('page-activity-detail')).toEqual(['activityDetailCore']);
     expect(SL._resolvePageGroups('page-activities')).toEqual(['activity']);
     expect(SL._resolvePageGroups('page-my-activities')).toEqual(['activity']);
     expect(SL._resolvePageGroups('page-team-detail')).toEqual(['teamList', 'teamDetail', 'education']);
+  });
+
+  test('aux on-demand flag off keeps detail attendance/profile/achievement in the detail page load', () => {
+    const SL = loadRealScriptLoader({ splitEnabled: true, auxOnDemand: false });
+    expect(SL._resolvePageGroups('page-activity-detail')).toEqual([
+      'activityDetailCore',
+      'activityDetailAttendance',
+      'achievement',
+      'profileCard',
+    ]);
   });
 
   test('flag 讀取失敗（helper 不存在）→ 安全退回完整 activity', () => {
@@ -501,6 +528,71 @@ describe('detailCoreSplit — 頁面映射（_resolvePageGroups）', () => {
   });
 });
 
+describe('detailCoreSplit — on-demand modules are excluded from preload paths', () => {
+  const deferredAttendanceScripts = [
+    'js/modules/event/event-manage-attendance.js',
+    'js/modules/event/event-manage-badges.js',
+    'js/modules/event/event-manage-noshow.js',
+  ];
+
+  test('page-activities preload scripts skip attendance/no-show/badge when aux on-demand is enabled', () => {
+    const SL = loadRealScriptLoader({ splitEnabled: true, auxOnDemand: true });
+    const scripts = SL._resolvePagePreloadScripts('page-activities');
+
+    deferredAttendanceScripts.forEach(src => expect(scripts).not.toContain(src));
+    expect(scripts).toContain('js/modules/event/event-detail.js');
+  });
+
+  test('page-activities preload scripts keep attendance/no-show/badge when aux on-demand is disabled', () => {
+    const SL = loadRealScriptLoader({ splitEnabled: true, auxOnDemand: false });
+    const scripts = SL._resolvePagePreloadScripts('page-activities');
+
+    deferredAttendanceScripts.forEach(src => expect(scripts).toContain(src));
+  });
+
+  test('preloadAll does not execute deferred attendance scripts', () => {
+    const SL = loadRealScriptLoader({
+      splitEnabled: true,
+      auxOnDemand: true,
+      immediateTimers: true,
+    });
+    const loadedScripts = [];
+    SL.loadGroup = async (scripts) => {
+      loadedScripts.push(...scripts);
+      scripts.forEach(src => { SL._loaded[src] = true; });
+    };
+
+    SL.preloadAll();
+
+    deferredAttendanceScripts.forEach(src => expect(loadedScripts).not.toContain(src));
+    expect(loadedScripts).toContain('js/modules/event/event-detail.js');
+  });
+
+  test('executable idle preload does not execute deferred attendance scripts', async () => {
+    const SL = loadRealScriptLoader({
+      splitEnabled: true,
+      auxOnDemand: true,
+      immediateTimers: true,
+    });
+    const loadedScripts = [];
+    SL.loadGroup = async (scripts) => {
+      loadedScripts.push(...scripts);
+      scripts.forEach(src => { SL._loaded[src] = true; });
+    };
+    SL._load = (src) => {
+      loadedScripts.push(src);
+      SL._loaded[src] = true;
+      return Promise.resolve();
+    };
+
+    SL.preloadCorePagesExecutable();
+    await Promise.resolve();
+
+    deferredAttendanceScripts.forEach(src => expect(loadedScripts).not.toContain(src));
+    expect(loadedScripts).toContain('js/modules/event/event-detail.js');
+  });
+});
+
 describe('detailCoreSplit — isPageReady 與 ensureForPage fallback', () => {
   function markLoaded(SL, groups) {
     groups.forEach(g => (SL._groups[g] || []).forEach(s => { SL._loaded[s] = true; }));
@@ -508,7 +600,7 @@ describe('detailCoreSplit — isPageReady 與 ensureForPage fallback', () => {
 
   test('flag 開啟：核心三群組載完即 ready（不等 create/manage）', () => {
     const SL = loadRealScriptLoader({ splitEnabled: true });
-    markLoaded(SL, ['activityDetailCore', 'achievement', 'profileCard']);
+    markLoaded(SL, ['activityDetailCore']);
     expect(SL.isPageReady('page-activity-detail')).toBe(true);
   });
 
@@ -526,9 +618,21 @@ describe('detailCoreSplit — isPageReady 與 ensureForPage fallback', () => {
     SL._load = (src) => { loadedSrcs.push(src); SL._loaded[src] = true; return Promise.resolve(); };
     await SL.ensureForPage('page-activity-detail');
     expect(loadedSrcs).toContain('js/modules/event/event-detail.js');
-    expect(loadedSrcs).toContain('js/modules/event/event-manage-attendance.js');
+    expect(loadedSrcs).not.toContain('js/modules/event/event-manage-attendance.js');
+    expect(loadedSrcs).not.toContain('js/modules/achievement/index.js');
+    expect(loadedSrcs).not.toContain('js/modules/profile/profile-card.js');
     expect(loadedSrcs).not.toContain('js/modules/event/event-create.js');
     expect(loadedSrcs).not.toContain('js/modules/event/event-manage-lifecycle.js');
+  });
+
+  test('ensureForPage aux off loads the detail attendance/profile/achievement groups', async () => {
+    const SL = loadRealScriptLoader({ splitEnabled: true, auxOnDemand: false });
+    const loadedSrcs = [];
+    SL._load = (src) => { loadedSrcs.push(src); SL._loaded[src] = true; return Promise.resolve(); };
+    await SL.ensureForPage('page-activity-detail');
+    expect(loadedSrcs).toContain('js/modules/event/event-manage-attendance.js');
+    expect(loadedSrcs).toContain('js/modules/achievement/index.js');
+    expect(loadedSrcs).toContain('js/modules/profile/profile-card.js');
   });
 
   test('ensureForPage fallback：核心載入失敗 → 自動退回完整 activity group，不拋錯', async () => {
@@ -543,8 +647,8 @@ describe('detailCoreSplit — isPageReady 與 ensureForPage fallback', () => {
     SL.ensureGroup = (g) => { ensured.push(g); return origEnsureGroup(g); };
     await expect(SL.ensureForPage('page-activity-detail')).resolves.toBeUndefined();
     expect(ensured).toContain('activity');
-    expect(ensured).toContain('achievement');
-    expect(ensured).toContain('profileCard');
+    expect(ensured).not.toContain('achievement');
+    expect(ensured).not.toContain('profileCard');
   });
 
   test('非詳情頁載入失敗：維持現行行為（直接拋錯，不誤觸 fallback）', async () => {

@@ -92,10 +92,18 @@ Object.assign(App, {
   },
 
   _canViewDetailAttendanceRecords(eventRecord = null) {
+    return true;
+  },
+
+  _canManageDetailAttendanceRecords(eventRecord = null) {
     const canManage = typeof this._canOperateEventSite === 'function'
       ? this._canOperateEventSite(eventRecord)
       : false;
-    if (canManage) return true;
+    return canManage === true;
+  },
+
+  _canViewDetailAttendanceRecordDetails(eventRecord = null) {
+    if (this._canManageDetailAttendanceRecords?.(eventRecord) === true) return true;
     return (typeof this.hasPermission === 'function' && this.hasPermission('activity.view_noshow'))
       || (typeof this.hasPermission === 'function' && this.hasPermission('admin.repair.no_show_adjust'));
   },
@@ -104,16 +112,20 @@ Object.assign(App, {
     const e = eventRecord || (typeof ApiService !== 'undefined' ? ApiService.getEvent?.(eventId) : null);
     const safeId = String(eventId || e?.id || '').trim();
     const counts = this._getDetailAttendanceSummaryCounts(safeId, e);
-    if (this._canViewDetailAttendanceRecords?.(e) !== true) return '';
-    const actionHtml = `<button type="button" class="detail-toolbar-btn" data-detail-attendance-open-button="${escapeHTML(safeId)}" onclick="App.openDetailAttendanceRecords('${escapeHTML(safeId)}')">\u7ba1\u7406\u540d\u55ae / \u51fa\u5e2d\u7d00\u9304</button>`;
+    const canManage = this._canManageDetailAttendanceRecords?.(e) === true;
+    const canViewRecords = this._canViewDetailAttendanceRecordDetails?.(e) === true;
+    const title = canManage || canViewRecords ? '\u51fa\u5e2d\u7ba1\u7406' : '\u51fa\u5e2d\u540d\u55ae';
+    const actionLabel = canManage ? '\u7ba1\u7406\u540d\u55ae / \u51fa\u5e2d\u7d00\u9304' : (canViewRecords ? '\u67e5\u770b\u51fa\u5e2d\u7d00\u9304' : '\u67e5\u770b\u51fa\u5e2d\u540d\u55ae');
+    const pendingLabel = canViewRecords ? '\u5c1a\u672a\u8f09\u5165\u5b8c\u6574\u540d\u55ae\u8207\u51fa\u5e2d\u7d00\u9304' : '\u5c1a\u672a\u8f09\u5165\u5b8c\u6574\u540d\u55ae';
+    const actionHtml = `<button type="button" class="detail-toolbar-btn" data-detail-attendance-open-button="${escapeHTML(safeId)}" onclick="App.openDetailAttendanceRecords('${escapeHTML(safeId)}')">${actionLabel}</button>`;
     return `
       <div class="detail-attendance-summary" data-attendance-on-demand="true" style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;padding:.75rem;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);">
         <div style="min-width:0">
-          <div class="detail-section-title" style="margin:0 0 .25rem">\u51fa\u5e2d\u7ba1\u7406</div>
+          <div class="detail-section-title" style="margin:0 0 .25rem">${title}</div>
           <div style="display:flex;gap:.5rem;flex-wrap:wrap;font-size:.82rem;color:var(--text-secondary)">
             <span>\u5df2\u5831 ${counts.confirmedCount}/${counts.max}</span>
             ${counts.waitlistCount > 0 ? `<span>\u5019\u88dc ${counts.waitlistCount}</span>` : ''}
-            <span>\u5c1a\u672a\u8f09\u5165\u5b8c\u6574\u540d\u55ae</span>
+            <span>${pendingLabel}</span>
           </div>
         </div>
         <div style="display:flex;gap:.4rem;flex-wrap:wrap">${actionHtml}</div>
@@ -123,10 +135,54 @@ Object.assign(App, {
   _renderDetailAttendanceLoadingHtml() {
     return `<div class="detail-attendance-summary" data-attendance-loading="true" aria-live="polite" aria-busy="true" style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;padding:.75rem;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);">
       <div style="min-width:0">
-        <div class="detail-section-title" style="margin:0 0 .25rem">\u51fa\u5e2d\u7ba1\u7406</div>
-        <div class="reg-loading" style="padding:0;text-align:left">\u51fa\u5e2d\u7d00\u9304\u8f09\u5165\u4e2d...</div>
+        <div class="detail-section-title" style="margin:0 0 .25rem">\u51fa\u5e2d\u540d\u55ae</div>
+        <div class="reg-loading" style="padding:0;text-align:left">\u540d\u55ae\u8f09\u5165\u4e2d...</div>
       </div>
     </div>`;
+  },
+
+  async _ensureDetailAttendanceModulesLoaded(options = {}) {
+    const hasRenderer = typeof this._renderAttendanceTable === 'function';
+    const hasLoader = typeof ScriptLoader !== 'undefined' && ScriptLoader && typeof ScriptLoader.ensureGroup === 'function';
+    if (!hasRenderer && !hasLoader) {
+      return { ok: false, reason: 'missing-script-loader' };
+    }
+    if (!hasRenderer) {
+      try {
+        await ScriptLoader.ensureGroup('activityDetailAttendance');
+      } catch (err) {
+        console.error('[EventDetail] detail attendance modules failed to load:', err);
+        this.showToast?.('\u540d\u55ae\u8f09\u5165\u5931\u6557\uff0c\u8acb\u91cd\u65b0\u6574\u7406');
+        return { ok: false, reason: 'load-failed', error: err };
+      }
+    }
+    if (typeof this._renderAttendanceTable !== 'function') {
+      return { ok: false, reason: 'missing-renderer' };
+    }
+    if (hasLoader && options?.includeAchievement !== false) {
+      try {
+        await ScriptLoader.ensureGroup('achievement');
+      } catch (err) {
+        console.warn('[EventDetail] achievement modules failed to load for badge refresh:', err);
+      }
+    }
+    return { ok: true, reason: hasRenderer ? 'already-loaded' : 'loaded' };
+  },
+
+  _renderDetailRosterManagementTables(eventId, options = {}) {
+    const e = typeof ApiService !== 'undefined' ? ApiService.getEvent?.(eventId) : null;
+    if (this._canManageDetailAttendanceRecords?.(e) !== true) {
+      const section = document.getElementById('detail-unreg-section');
+      const container = document.getElementById('detail-unreg-table');
+      if (section) section.style.display = 'none';
+      if (container) container.innerHTML = '';
+      return { ok: true, reason: 'not-staff' };
+    }
+    if (typeof this._renderUnregTable !== 'function') return { ok: false, reason: 'missing-unreg-renderer' };
+    return this._renderUnregTable(eventId, 'detail-unreg-table', {
+      mode: 'detail',
+      ...options,
+    }) || { ok: true, reason: 'ok' };
   },
 
   async openDetailAttendanceRecords(eventId) {
@@ -137,19 +193,31 @@ Object.assign(App, {
       this.showToast?.('\u6b0a\u9650\u4e0d\u8db3');
       return { ok: false, reason: 'not-authorized' };
     }
+    const publicRosterOnly = this._canViewDetailAttendanceRecordDetails?.(e) !== true;
     this._detailAttendanceOnDemandEventId = safeId;
-    if (typeof FirebaseService !== 'undefined'
+    if (!publicRosterOnly
+      && typeof FirebaseService !== 'undefined'
       && typeof FirebaseService.requestDetailAttendanceRealtime === 'function') {
       FirebaseService.requestDetailAttendanceRealtime();
     }
     const context = this._getCurrentEventDetailPatchContext?.('detail-attendance-table', {
       forceFullAttendance: true,
       forceFetch: true,
-    }) || { forceFullAttendance: true, forceFetch: true };
+      publicRosterOnly,
+    }) || { forceFullAttendance: true, forceFetch: true, publicRosterOnly };
     const container = document.getElementById('detail-attendance-table');
     if (container) container.innerHTML = this._renderDetailAttendanceLoadingHtml?.() || this._renderEventDetailBelowFoldLoadingHtml();
+    const moduleLoad = await this._ensureDetailAttendanceModulesLoaded?.({
+      includeAchievement: publicRosterOnly !== true,
+    });
+    if (moduleLoad && moduleLoad.ok === false) {
+      if (this._detailAttendanceOnDemandEventId === safeId) this._detailAttendanceOnDemandEventId = null;
+      if (container) container.innerHTML = this._renderDetailAttendanceSummaryShell?.(safeId, e) || '';
+      return moduleLoad;
+    }
     const result = await this._renderDetailAttendanceTable(safeId, context);
-    this._afterDetailAttendanceRendered?.(safeId, e, context?.requestSeq ?? null, context?.renderToken || null);
+    this._renderDetailRosterManagementTables?.(safeId, context);
+    this._afterDetailAttendanceRendered?.(safeId, e, context?.requestSeq ?? null, context?.renderToken || null, context);
     return result;
   },
 
@@ -237,11 +305,12 @@ Object.assign(App, {
       forceFullAttendance: options?.forceFullAttendance === true,
       forceFetch: options?.forceFetch === true,
       skipFetch: options?.skipFetch === true,
+      publicRosterOnly: options?.publicRosterOnly === true,
     });
   },
 
-  _afterDetailAttendanceRendered(eventId, eventRecord, requestSeq, renderToken) {
-    if (this._shouldRenderDetailAttendanceTable?.(eventId, eventRecord, {}) === false) {
+  _afterDetailAttendanceRendered(eventId, eventRecord, requestSeq, renderToken, options = {}) {
+    if (this._shouldRenderDetailAttendanceTable?.(eventId, eventRecord, options) === false) {
       return { ok: true, reason: 'on-demand-summary' };
     }
     const guard = this._isCurrentEventDetailPatch?.(eventId, requestSeq, {
@@ -249,7 +318,17 @@ Object.assign(App, {
       renderToken,
     });
     if (guard && !guard.ok) return guard;
-    this._refreshRegistrationBadges?.(eventId, 'detail-attendance-table')?.catch?.(() => {});
+    if (options?.publicRosterOnly !== true) {
+      this._refreshRegistrationBadges?.(eventId, 'detail-attendance-table', {
+        mode: 'detail',
+        requestSeq,
+        renderToken,
+        forceFullAttendance: options?.forceFullAttendance === true,
+        forceFetch: options?.forceFetch === true,
+        skipFetch: options?.skipFetch === true,
+        publicRosterOnly: false,
+      })?.catch?.(() => {});
+    }
     this._tsPreloadWritableRegistrations?.(eventId, eventRecord);
     const attTable = document.getElementById('detail-attendance-table');
     this._markBadgeRowOverflow?.(attTable);
@@ -1311,11 +1390,16 @@ Object.assign(App, {
       this._renderGuestAttendanceTable(id, 'detail-attendance-table');
       this._renderGuestWaitlistSection(id, 'detail-waitlist-container');
     } else {
-      this._renderUnregTable(id, 'detail-unreg-table', {
-        mode: 'detail',
+      const shouldRenderRosterManagement = this._shouldRenderDetailAttendanceTable?.(id, e, {
         requestSeq,
         renderToken: detailRenderToken,
-      });
+      }) !== false;
+      if (shouldRenderRosterManagement) {
+        this._renderDetailRosterManagementTables?.(id, {
+          requestSeq,
+          renderToken: detailRenderToken,
+        });
+      }
       this._renderGroupedWaitlistSection(id, 'detail-waitlist-container', {
         mode: 'detail',
         requestSeq,
@@ -1901,7 +1985,7 @@ Object.assign(App, {
   // 不可只載 manage：activityManage 內含 event-manage-lifecycle.js，其 editMyActivity 真身
   // 會覆寫 wrapper，而它依賴 create 檔（裸呼叫 bindTeamOnlyToggle 等）——若 create 未同載，
   // 之後點「活動編輯」會 TypeError（Node 全真載入煙霧測試實證，2026-06-10）。
-  _deferredEventHandlerGroups: ['activityCreate', 'activityManage'],
+  _deferredEventHandlerGroups: ['activityDetailAttendance', 'activityCreate', 'activityManage'],
 
   _buildDeferredEventHandlerWrapper(groupNames, fnName) {
     const wrapper = async function (...args) {

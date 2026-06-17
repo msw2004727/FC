@@ -7,10 +7,11 @@ Object.assign(App, {
   _badgeRefreshCache: {},
   _eventBadgeCache: {},
 
-  async _refreshRegistrationBadges(eventId, containerId) {
+  async _refreshRegistrationBadges(eventId, containerId, renderOptions = {}) {
     const REFRESH_INTERVAL = 30 * 60 * 1000;
     const lastRefresh = this._badgeRefreshCache[eventId] || 0;
     if (Date.now() - lastRefresh < REFRESH_INTERVAL) return;
+    if (renderOptions?.publicRosterOnly === true) return;
 
     try {
       if (typeof db === 'undefined') return;
@@ -108,7 +109,7 @@ Object.assign(App, {
       // Step 4：存入 badge cache + 重新渲染表格
       this._eventBadgeCache[eventId] = badgeMap;
       this._badgeRefreshCache[eventId] = Date.now();
-      this._renderAttendanceTable(eventId, containerId || 'detail-attendance-table');
+      this._renderAttendanceTable(eventId, containerId || 'detail-attendance-table', renderOptions || {});
     } catch (err) {
       console.warn('[Badges] refresh failed:', err);
     }
