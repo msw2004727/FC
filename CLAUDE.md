@@ -76,7 +76,7 @@ FC-github/
 ├── index.html              # 主入口
 ├── app.js                  # App 核心物件
 ├── sw.js                   # Service Worker
-├── css/                    # 樣式（14 個 CSS）
+├── css/                    # 樣式（19 個 CSS）
 ├── js/
 │   ├── config.js           # 全域常數、ModeManager
 │   ├── i18n.js             # 多語系
@@ -86,7 +86,7 @@ FC-github/
 │   ├── api-service.js      # Demo / Prod 抽象層
 │   ├── line-auth.js        # LINE LIFF 登入
 │   ├── core/               # 基礎設施（4 個）
-│   └── modules/            # 功能模組（16 子資料夾 + 29 獨立檔案）
+│   └── modules/            # 功能模組（16 子資料夾 + 31 獨立檔案）
 │       ├── event/          # 活動系統（42）：列表、詳情、報名、建立、管理、分享、terminal 載入
 │       ├── team/           # 俱樂部系統（16）：列表、詳情、表單、動態牆、分享、helpers/stats/builders/validate/roles/invite
 │       ├── tournament/     # 賽事系統（19）：渲染、詳情、管理、友誼賽、helpers/builders/state
@@ -101,7 +101,7 @@ FC-github/
 │       ├── dashboard/      # 儀表板（6）：管理員、個人、報表分享、用量
 │       ├── ad-manage/      # 廣告管理（6）：輪播、浮動、贊助、小遊戲、品牌開機
 │       ├── user-admin/     # 用戶後台（10）：列表、EXP、角色、補正、權限說明、UID 檢查、權限測試
-│       └── [29 獨立模組]   # banner / home-dashboard / shop / leaderboard / role / pwa-install 等
+│       └── [31 獨立模組]   # banner / home-dashboard / shop / leaderboard / role / pwa-install 等
 ├── pages/                  # HTML 片段（20 個）
 ├── docs/                   # 專案文件
 │   ├── archive/            # 歷史/已結束計畫書歸檔
@@ -365,7 +365,7 @@ grep -rn "CACHE_VERSION\|CACHE_NAME\|var V='" js/config.js sw.js index.html
 | `js/modules/achievement/stats.js`（統計鎖定函式，清單見 §統計系統保護規則） | `npm run test:unit` | 同上 |
 | `js/modules/**` 其他模組 | `npm run test:unit` | CI 會失敗，本地先驗省來回補救 |
 | CSS / HTML / 前端 UI 呈現或互動 | 相關單元測試 + 本地瀏覽器 desktop/mobile 驗證；若有對應 E2E，跑 `npm run test:e2e:smoke` 或目標 Playwright 測試 | 單元測試看不到跑版、重疊、文字溢出、按鈕擠壓與 console error |
-| `functions/index.js`（Cloud Functions） | 手動測 + `firebase functions:log` 驗證 | 目前無 CF 自動化測試 |
+| `functions/index.js`（Cloud Functions） | `npm run test:functions` + 部署後 `firebase functions:log` 驗證 | Functions 有基礎 source contract 測試，但 production 仍需部署後觀察 |
 | 純文件變更（`*.md`、`docs/**`） | 無 | 不觸發測試 |
 
 ### 前端 UI 本機瀏覽器驗證（強制）
@@ -691,7 +691,7 @@ https://miniapp.line.me/2009525300-AuPGQ0sh?{deepLinkParam}={id}
 
 ## Cloud Functions 修改規則（強制）
 
-`functions/index.js` 約 6200 行、36 個 exports，近 2 個月被修改 90 次，**目前無自動化測試**，出錯直接影響 prod。
+`functions/index.js` 約 14k 行、80 個 source exports；GCP 目前有 84 個 `asia-east1` Gen2 Functions 為 `ACTIVE`。Cloud Functions 有 `npm run test:functions` 基礎測試，但真部署會直接影響 production，仍需小步驗證與部署後觀察。
 
 ### 強制規則
 
@@ -719,11 +719,17 @@ https://miniapp.line.me/2009525300-AuPGQ0sh?{deepLinkParam}={id}
 ### GitHub Actions 自動部署閘門（重要）
 
 - `.github/workflows/deploy-functions.yml` 目前只會在 `workflow_dispatch`，或 repo variable `ENABLE_FUNCTIONS_AUTO_DEPLOY == 'true'` 時真正部署 Cloud Functions。一般 push 後若看到 `Deploy Cloud Functions` 是 `skipped`，先檢查這個 gate；這是刻意的安全設計，不是 Cloud Functions 程式碼沒上。
+- workflow 使用 Node.js 22、`actions/checkout@v6`、`actions/setup-node@v6`，流程為 root `npm ci` → `npm --prefix functions ci` → `npm run check:registration-ops` → `npm run test:functions` → Firebase deploy。
 - 要開啟「push 到 `main` 後自動部署 Cloud Functions」，必須同時完成兩件事：
   1. GitHub repo variable 設定 `ENABLE_FUNCTIONS_AUTO_DEPLOY=true`
-  2. `GCP_SERVICE_ACCOUNT_JSON` 內的 service account `sitemap-submitter@toosterx-seo.iam.gserviceaccount.com` 在 GCP project `fc-football-6c8dc` 具備 `roles/serviceusage.serviceUsageConsumer`
-- 若 IAM 權限未補齊就打開 gate，GitHub Actions 可能會在 Cloud Resource Manager / Service Usage / quota project 權限檢查失敗；不要誤判為 Firebase Functions 程式碼錯誤。
+  2. `GCP_SERVICE_ACCOUNT_JSON` 內的 service account `sitemap-submitter@toosterx-seo.iam.gserviceaccount.com` 在 GCP project `fc-football-6c8dc` 保持下列部署 IAM：
+     - project-level `roles/serviceusage.serviceUsageConsumer`
+     - project-level `roles/cloudfunctions.developer`
+     - project-level `roles/cloudscheduler.admin`（scheduled functions upsert Cloud Scheduler jobs 需要）
+     - service-account-level `roles/iam.serviceAccountUser` on `468419387978-compute@developer.gserviceaccount.com`（Gen2 Functions runtime service account，勿改成 project-wide）
+- 若 IAM 權限未補齊就打開 gate，GitHub Actions 可能依序在 `GenerateUploadUrl`、`iam.serviceaccounts.actAs`、`cloudscheduler.jobs.update` 等步驟失敗；不要誤判為 Firebase Functions 程式碼錯誤。
 - 除非使用者明確要求開啟 push 後自動部署 Cloud Functions，否則維持 gate 關閉。需要立即上線 Functions 時，仍可手動執行 `firebase deploy --only functions --project fc-football-6c8dc`。
+- 2026-06-17 已驗證手動 GitHub Actions 真部署成功：run `27656909219`，head `29b44a24`；部署後 84 個 Gen2 Functions 皆 `ACTIVE`，且近期 Cloud Run / Cloud Scheduler 無新錯誤。
 
 ### 歷史教訓（修改前查閱）
 

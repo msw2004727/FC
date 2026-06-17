@@ -92,11 +92,11 @@ ToosterX 不是展示用 demo，而是面向實際運動社群營運的產品。
 
 依目前 repo 盤點:
 
-- `git ls-files` 回傳 1,068 個受版控檔案。
-- `js/` 底下目前有 298 個 JavaScript 檔。
+- `git ls-files` 回傳 1,106 個受版控檔案。
+- `js/` 底下目前有 307 個 JavaScript 檔。
 - `js/modules/` 底下有 16 個主要功能模組資料夾與 31 個獨立模組檔。
-- `tests/unit/` 目前有 152 個 unit test 檔。
-- `functions/index.js` 目前有 68 個 exported Cloud Functions。
+- `tests/unit/` 目前有 174 個 unit test 檔。
+- `functions/index.js` 目前有 80 個 source exports；GCP `asia-east1` Gen2 目前有 84 個 `ACTIVE` functions（包含歷史部署留存/排程相關項目）。
 - `blog/` 目前有 23 個 HTML 文章 / 索引頁。
 - `seo/` 目前有 10 個 HTML landing pages。
 
@@ -306,12 +306,19 @@ firebase deploy --only functions --project fc-football-6c8dc
 GitHub Actions 也有 `.github/workflows/deploy-functions.yml`，但 push 觸發的自動部署目前有安全閘門：
 
 - `workflow_dispatch` 手動執行可以走部署流程。
+- workflow 目前使用 Node.js 22，並在部署前跑 `npm run check:registration-ops` 與 `npm run test:functions`。
 - 一般 push 只有在 repo variable `ENABLE_FUNCTIONS_AUTO_DEPLOY=true` 時才會真的部署。
 - 若 GitHub Actions 顯示 `Deploy Cloud Functions` skipped，通常是這個 gate 關閉，不是 Functions 程式碼或測試壞掉。
 
 要開啟 push 後自動部署，必須同時確認：
 
 1. GitHub repo variable `ENABLE_FUNCTIONS_AUTO_DEPLOY=true`
-2. `GCP_SERVICE_ACCOUNT_JSON` 內的 service account `sitemap-submitter@toosterx-seo.iam.gserviceaccount.com` 在 GCP project `fc-football-6c8dc` 具備 `roles/serviceusage.serviceUsageConsumer`
+2. `GCP_SERVICE_ACCOUNT_JSON` 內的 service account `sitemap-submitter@toosterx-seo.iam.gserviceaccount.com` 在 GCP project `fc-football-6c8dc` 具備部署所需 IAM：
+   - `roles/serviceusage.serviceUsageConsumer`
+   - `roles/cloudfunctions.developer`
+   - `roles/cloudscheduler.admin`
+   - `roles/iam.serviceAccountUser` scoped to `468419387978-compute@developer.gserviceaccount.com`
 
-如果沒有補齊 IAM 權限就打開 gate，部署可能會在 Cloud Resource Manager / Service Usage / quota project 權限檢查失敗。這種失敗優先檢查 GitHub 變數與 service account IAM，不要先懷疑 Cloud Functions 程式碼。
+如果沒有補齊 IAM 權限就打開 gate，部署可能會在 Cloud Resource Manager / Service Usage / quota project、Cloud Functions upload/update、runtime service account actAs、Cloud Scheduler job upsert 等步驟失敗。這種失敗優先檢查 GitHub 變數與 service account IAM，不要先懷疑 Cloud Functions 程式碼。
+
+最近一次 GitHub Actions 真部署已於 2026-06-17 成功：run `27656909219`，head `29b44a24`。
