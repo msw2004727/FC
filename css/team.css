@@ -3575,7 +3575,7 @@
 
 @media (max-width: 430px) {
   .td-member-management-panel {
-    width: calc(100% - 32px);
+    width: 100%;
   }
 
   .td-member-management-panel .td-member-row + .td-member-row::before {

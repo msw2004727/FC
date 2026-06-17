@@ -80,6 +80,8 @@ describe('team member list CSS contract', () => {
     const css = readCss();
 
     expect(css).toMatch(/\.td-member-management-panel \.td-member-row,[\s\S]*\.td-member-management-panel \.td-member-list-shell\.is-editing \.td-member-row\s*\{[\s\S]*flex-wrap: nowrap/);
+    expect(css).toMatch(/@media \(max-width: 430px\)[\s\S]*\.td-member-management-panel\s*\{[\s\S]*width: 100%/);
+    expect(css).not.toContain('width: calc(100% - 32px)');
     expect(css).toMatch(/@media \(max-width: 430px\)[\s\S]*\.td-member-management-panel \.td-member-list-shell\.is-editing \.td-member-row\s*\{[\s\S]*display: grid[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
     expect(css).toMatch(/@media \(max-width: 430px\)[\s\S]*\.td-member-management-panel \.td-member-list-shell\.is-editing \.td-member-action-cell\s*\{[\s\S]*justify-self: end[\s\S]*width: auto[\s\S]*margin-left: 0/);
     expect(css).toMatch(/\.td-member-management-panel \.td-member-action-cell\s*\{[\s\S]*justify-content: flex-end[\s\S]*gap: 2px/);
