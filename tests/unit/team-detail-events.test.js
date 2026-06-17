@@ -1387,6 +1387,7 @@ describe('team detail club activity section', () => {
     loadTeamDetailRender(app, [], { adminUsers: users, teams: { teamA: team } });
     Object.assign(app, {
       _isUserInTeam: (u, id) => u.teamId === id,
+      _userTag: jest.fn((name, role, options) => '<span class="user-capsule uc-' + String(role || 'user') + '" data-uid="' + String(options?.uid || '') + '">' + String(name) + '</span>'),
     });
 
     const roster = app._getTeamDetailRoster(team);
@@ -1406,15 +1407,19 @@ describe('team detail club activity section', () => {
     expect(roster.some(row => row.name === 'Pending Kid' && row.label === '待審核' && row.isPendingStudent)).toBe(true);
     expect(roster.some(row => row.uid === 'U196b342b78abcdefabcdefabcdefabcd' && row.name === '未設定暱稱')).toBe(true);
     expect(html).toContain('td-member-tabs');
-    expect(html).toContain('td-member-table');
-    expect(html).toContain('td-member-table-activity');
+    expect(html).toContain('td-member-list-shell');
+    expect(html).toContain('td-member-list-shell-activity');
+    expect(html).toContain('td-member-row');
+    expect(html).toContain('td-member-avatar');
+    expect(html).toContain('td-member-line2');
     expect(html).toContain('td-member-num');
-    expect(html).toContain('td-member-name-pill');
-    expect(html).toContain('td-member-name-pill uc-user');
-    expect(html).toContain('td-member-name-pill uc-captain');
-    expect(html).toContain('td-member-name-pill uc-coach');
-    expect(html).toContain('td-member-name-pill uc-venue_owner');
-    expect(html).toContain('td-member-name-pill external-student');
+    expect(html).toContain('user-capsule');
+    expect(html).toContain('user-capsule uc-user');
+    expect(html).toContain('user-capsule uc-captain');
+    expect(html).toContain('user-capsule uc-coach');
+    expect(html).toContain('user-capsule uc-venue_owner');
+    expect(html).toContain('td-member-name-static external-student');
+    expect(app._userTag).toHaveBeenCalledWith('Amy', 'user', { uid: 'member' });
     expect(html).toContain('App.switchTeamMemberTab(\'teamA\',\'activity\')');
     expect(html).toContain('App.switchTeamMemberTab(\'teamA\',\'course\')');
     expect(html).toContain('App.switchTeamMemberTab(\'teamA\',\'match\')');
@@ -1423,8 +1428,8 @@ describe('team detail club activity section', () => {
     expect(noTeachingHtml).toContain('App.switchTeamMemberTab(\'teamA\',\'activity\')');
     expect(noTeachingHtml).not.toContain('App.switchTeamMemberTab(\'teamA\',\'course\')');
     expect(noTeachingHtml).toContain('App.switchTeamMemberTab(\'teamA\',\'match\')');
-    expect(noTeachingHtml).toContain('td-member-table-activity');
-    expect(noTeachingHtml).not.toContain('td-member-table-course');
+    expect(noTeachingHtml).toContain('td-member-list-shell-activity');
+    expect(noTeachingHtml).not.toContain('td-member-list-shell-course');
     expect(html).toContain('missing-name');
     expect(html).toContain('未設定暱稱');
     expect(html).not.toContain('td-member-label-pill label-all');
@@ -1439,6 +1444,7 @@ describe('team detail club activity section', () => {
     expect(html).toContain('td-member-label-pill tag-role role-coach');
     expect(html).not.toContain('App.toggleProfileSection');
 
+    app._teamMemberTabByTeam = { teamA: 'activity' };
     const manageHtml = app._buildTeamMembersCard(team, true, false, staffIdentity);
     const activityEditHtml = app._buildTeamMembersCard(team, true, true, staffIdentity);
     app._teamMemberTabByTeam = { teamA: 'course' };
@@ -1456,17 +1462,18 @@ describe('team detail club activity section', () => {
     expect(activityEditHtml).toContain('App.removeTeamRosterRow');
     expect(activityEditHtml).toContain('td-member-edit-btn is-active');
     expect(activityEditHtml).toContain('aria-pressed="true"');
-    expect(activityEditHtml).toContain('<th class="td-member-remove-head">\u5254\u9664</th><th class="td-member-role-action-head">\u6649\u5347</th><th class="td-member-role-action-head">\u964d\u7d1a</th>');
+    expect(activityEditHtml).toContain('td-member-list-shell-activity is-editing');
+    expect(activityEditHtml).toContain('td-member-manage-actions');
     expect(activityEditHtml.indexOf('td-member-remove-cell')).toBeLessThan(activityEditHtml.indexOf('td-member-promote-cell'));
-    expect(activityEditHtml.indexOf('td-member-promote-cell')).toBeLessThan(activityEditHtml.indexOf('td-member-name-cell'));
+    expect(activityEditHtml.indexOf('td-member-promote-cell')).toBeLessThan(activityEditHtml.indexOf('td-member-avatar'));
     expect(activityEditHtml).not.toContain('td-member-name-cell"><button class="td-member-remove-btn');
     expect((activityEditHtml.match(/td-member-remove-btn/g) || []).length).toBe(7);
     expect(matchHtml).toContain('td-member-match-edit-btn');
     expect(matchHtml).not.toContain('is-editing');
     expect(editHtml).toContain('\u5254\u9664');
-    expect(editHtml).toContain('td-member-table-match is-editing');
+    expect(editHtml).toContain('td-member-list-shell-match is-editing');
     expect(editHtml).toContain('td-member-match-edit-btn');
-    expect(editHtml).toContain('<td class="td-member-action-cell">');
+    expect(editHtml).toContain('<div class="td-member-action-cell">');
     expect(editHtml).toContain('App.removeTeamRosterRow');
     expect((editHtml.match(/td-member-remove-btn/g) || []).length).toBe(7);
     expect(app._isTeamDetailRemovableMemberRow(team, roster.find(row => row.name === 'Amy'), staffIdentity)).toBe(true);

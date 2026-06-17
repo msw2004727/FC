@@ -1456,11 +1456,11 @@ Object.assign(App, {
 
   _buildTeamMemberRoleActionCell(t, row, direction) {
     const cellClass = direction === 'demote' ? 'td-member-demote-cell' : 'td-member-promote-cell';
-    return '<td class="td-member-role-action-cell ' + cellClass + '">' + this._buildTeamMemberRoleActionButton(t, row, direction) + '</td>';
+    return '<span class="td-member-role-action-cell ' + cellClass + '">' + this._buildTeamMemberRoleActionButton(t, row, direction) + '</span>';
   },
 
   _buildTeamMemberRemoveActionCell(removeBtn) {
-    return '<td class="td-member-remove-cell">' + (removeBtn || '<span class="td-member-role-empty">-</span>') + '</td>';
+    return '<span class="td-member-remove-cell">' + (removeBtn || '<span class="td-member-role-empty">-</span>') + '</span>';
   },
 
   _buildTeamMemberQuickPromoteControls(t, row) {
@@ -1475,8 +1475,83 @@ Object.assign(App, {
     return !!(row?.user?._docId || (row?.studentId && row?.student));
   },
 
-  _buildTeamMemberCell(value, className) {
-    return '<td' + (className ? ' class="' + className + '"' : '') + '>' + escapeHTML(value == null || value === '' ? '-' : value) + '</td>';
+  _buildTeamDetailMemberNameTag(row) {
+    const name = String(row?.name || '-').trim() || '-';
+    const stateClass = (row?.isMissingName ? ' missing-name' : '');
+    if (row?.uid && !row?.isExternalStudent && typeof this._userTag === 'function') {
+      const role = String(this._getTeamDetailMemberUserRoleClass(row) || 'uc-user').replace(/^uc-/, '') || 'user';
+      return '<span class="td-member-name-wrap' + stateClass + '">' + this._userTag(name, role, { uid: row.uid }) + '</span>';
+    }
+    const classes = ['td-member-name-static'];
+    if (row?.isExternalStudent) classes.push('external-student');
+    if (row?.isMissingName) classes.push('missing-name');
+    return '<span class="' + classes.join(' ') + '">' + escapeHTML(name) + '</span>';
+  },
+
+  _getTeamDetailMemberAvatarUrl(row) {
+    const source = Object.assign({}, row?.student || {}, row?.user || {});
+    return this._readTeamDetailTextValue(source, [
+      'pictureUrl',
+      'photoURL',
+      'photoUrl',
+      'linePictureUrl',
+      'avatarUrl',
+      'avatar',
+      'imageUrl',
+      'image',
+    ]);
+  },
+
+  _buildTeamDetailMemberAvatar(row, index) {
+    const name = String(row?.name || '').trim();
+    const initial = escapeHTML((Array.from(name)[0] || '?').toUpperCase());
+    const imageUrl = this._getTeamDetailMemberAvatarUrl(row);
+    const image = imageUrl
+      ? '<img class="td-member-avatar-img img-loaded" src="' + escapeHTML(imageUrl) + '" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">'
+      : '';
+    return '<span class="td-member-avatar c' + ((index % 5) + 1) + (imageUrl ? ' has-img' : '') + '">' + image + '<span class="td-member-avatar-initial">' + initial + '</span></span>';
+  },
+
+  _buildTeamMemberMetaItem(value, className) {
+    const text = String(value == null ? '' : value).trim();
+    if (!text || text === '-') return '';
+    return '<span class="td-member-meta-item' + (className ? ' ' + className : '') + '">' + escapeHTML(text) + '</span>';
+  },
+
+  _buildTeamMemberMetaNote(value) {
+    const text = String(value == null ? '' : value).trim();
+    if (!text || text === '-') return '';
+    return '<span class="td-member-meta-item td-member-note"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M8 13h8"></path><path d="M8 17h5"></path></svg>' + escapeHTML(text) + '</span>';
+  },
+
+  _formatTeamMemberJerseyNumber(value) {
+    const text = String(value == null ? '' : value).trim();
+    if (!text || text === '-') return '\u672a\u8a2d\u80cc\u865f';
+    return text.startsWith('#') ? text : '#' + text;
+  },
+
+  _buildTeamMemberMetaLine(t, row, activeTab) {
+    const items = [];
+    const push = html => { if (html) items.push(html); };
+    if (activeTab === 'course') {
+      const course = this._getTeamDetailMemberCourseData(t, row);
+      push(this._buildTeamMemberMetaItem(course.group === '-' ? '\u672a\u5206\u7d44' : course.group, 'td-member-compact'));
+      push(this._buildTeamMemberMetaItem(course.payment, 'td-member-compact'));
+      push(this._buildTeamMemberMetaItem(String(course.count || 0) + ' \u6b21\u8ab2\u7a0b', 'td-member-num'));
+      push(this._buildTeamMemberMetaNote(course.notes));
+    } else if (activeTab === 'match') {
+      const match = this._getTeamDetailMemberMatchData(t, row);
+      push(this._buildTeamMemberMetaItem(this._formatTeamMemberJerseyNumber(match.jerseyNumber), 'td-member-compact'));
+      push(this._buildTeamMemberMetaItem(match.position === '-' ? '\u672a\u8a2d\u4f4d\u7f6e' : match.position, 'td-member-compact'));
+      push(this._buildTeamMemberMetaItem(String(match.count || 0) + ' \u6b21\u8cfd\u4e8b', 'td-member-num'));
+      push(this._buildTeamMemberMetaNote(match.notes));
+    } else {
+      const activity = this._getTeamDetailMemberActivityData(t, row);
+      push(this._buildTeamMemberMetaItem(String(activity.count || 0) + ' \u6b21\u6d3b\u52d5', 'td-member-num'));
+      push(this._buildTeamMemberMetaItem(row.joinTime && row.joinTime !== '-' ? '\u52a0\u5165 ' + row.joinTime : '', 'td-member-joined'));
+      push(this._buildTeamMemberMetaNote(activity.notes));
+    }
+    return items.length ? items.join('<span class="td-member-meta-sep"></span>') : '<span class="td-member-meta-muted">-</span>';
   },
 
   _buildTeamMembersCard(t, canManageMembers, memberEditMode, staffIdentity) {
@@ -1495,65 +1570,10 @@ Object.assign(App, {
       + (showCourseTab ? tabBtn('course', '\u8ab2\u7a0b') : '')
       + tabBtn('match', '\u8cfd\u4e8b');
     const showRoleActionColumns = !!(canManageMembers && memberEditMode);
-    const columns = activeTab === 'course'
-      ? [
-        { label: '\u66b1\u7a31', className: 'td-member-name-head' },
-        { label: '\u6a19\u7c64', className: 'td-member-tag-head' },
-        { label: '\u5206\u7d44', className: 'td-member-compact-head' },
-        { label: '\u7e73\u8cbb', className: 'td-member-compact-head' },
-        { label: '\u6b21\u6578', className: 'td-member-num-head' },
-        { label: '\u5099\u8a3b', className: 'td-member-note-head' },
-      ]
-      : (activeTab === 'match'
-        ? [
-          { label: '\u66b1\u7a31', className: 'td-member-name-head' },
-          { label: '\u6a19\u7c64', className: 'td-member-tag-head' },
-          { label: '\u6b21\u6578', className: 'td-member-num-head' },
-          { label: '\u80cc\u865f', className: 'td-member-compact-head' },
-          { label: '\u4f4d\u7f6e', className: 'td-member-compact-head' },
-          { label: '\u5099\u8a3b', className: 'td-member-note-head' },
-        ]
-        : [
-          { label: '\u66b1\u7a31', className: 'td-member-name-head' },
-          { label: '\u6a19\u7c64', className: 'td-member-tag-head' },
-          { label: '\u6b21\u6578', className: 'td-member-num-head' },
-          { label: '\u5099\u8a3b', className: 'td-member-note-head' },
-        ]);
-    if (showRoleActionColumns) {
-      columns.unshift(
-        { label: '\u5254\u9664', className: 'td-member-remove-head' },
-        { label: '\u6649\u5347', className: 'td-member-role-action-head' },
-        { label: '\u964d\u7d1a', className: 'td-member-role-action-head' }
-      );
-    }
-    if (showEditColumn) columns.push({ label: '\u7de8\u8f2f', className: 'td-member-action-head' });
-    const header = columns.map(col => '<th' + (col.className ? ' class="' + col.className + '"' : '') + '>' + col.label + '</th>').join('');
-    const rows = roster.length ? roster.map(row => {
-      const safeName = escapeHTML(row.name || '未命名');
-      const profileNameArg = escapeHTML(JSON.stringify(row.name || '未命名'));
-      const profileUidArg = row.uid ? ',{uid:' + escapeHTML(JSON.stringify(row.uid)) + '}' : '';
-      const profileClick = row.uid || (!row.isExternalStudent && !row.isMissingName)
-        ? " onclick='App.showUserProfile(" + profileNameArg + profileUidArg + ")'"
-        : '';
-      const nameClass = this._getTeamDetailMemberNameClass(row);
-      let dataCells = '';
-      if (activeTab === 'course') {
-        const course = this._getTeamDetailMemberCourseData(t, row);
-        dataCells = this._buildTeamMemberCell(course.group, 'td-member-compact')
-          + this._buildTeamMemberCell(course.payment, 'td-member-compact')
-          + this._buildTeamMemberCell(course.count, 'td-member-num')
-          + this._buildTeamMemberCell(course.notes, 'td-member-note');
-      } else if (activeTab === 'match') {
-        const match = this._getTeamDetailMemberMatchData(t, row);
-        dataCells = this._buildTeamMemberCell(match.count, 'td-member-num')
-          + this._buildTeamMemberCell(match.jerseyNumber, 'td-member-compact')
-          + this._buildTeamMemberCell(match.position, 'td-member-compact')
-          + this._buildTeamMemberCell(match.notes, 'td-member-note');
-      } else {
-        const activity = this._getTeamDetailMemberActivityData(t, row);
-        dataCells = this._buildTeamMemberCell(activity.count, 'td-member-num')
-          + this._buildTeamMemberCell(activity.notes, 'td-member-note');
-      }
+    const activeTabLabel = activeTab === 'course'
+      ? '\u8ab2\u7a0b\u8cc7\u6599'
+      : (activeTab === 'match' ? '\u8cfd\u4e8b\u8cc7\u6599' : '\u6d3b\u52d5\u7d00\u9304');
+    const rows = roster.length ? roster.map((row, index) => {
       let editActionBtn = '';
       if (showEditColumn && activeTab === 'match' && this._isTeamDetailMatchDataEditableRow(row)) {
         editActionBtn = '<button class="td-member-row-edit-btn td-member-match-edit-btn" type="button" onclick="event.stopPropagation();App.editTeamMemberMatchData(this,' + escapeHTML(JSON.stringify(t.id)) + ',' + escapeHTML(JSON.stringify(row.key)) + ')">\u7de8\u8f2f</button>';
@@ -1568,16 +1588,18 @@ Object.assign(App, {
         ? this._buildTeamMemberRemoveActionCell(removeBtn) + this._buildTeamMemberRoleActionCell(t, row, 'promote') + this._buildTeamMemberRoleActionCell(t, row, 'demote')
         : '';
       const actions = showEditColumn
-        ? '<td class="td-member-action-cell">' + (editActionBtn || '<span class="td-member-role-empty">-</span>') + '</td>'
+        ? '<div class="td-member-action-cell">' + (editActionBtn || '<span class="td-member-role-empty">-</span>') + '</div>'
         : '';
-      return '<tr>'
-        + managementActionCells
-        + '<td class="td-member-name-cell"><span class="' + nameClass + '"' + profileClick + '>' + safeName + '</span></td>'
-        + '<td class="td-member-tag-cell">' + this._buildTeamDetailMemberTagPill(row) + '</td>'
-        + dataCells
+      return '<div class="td-member-row" data-member-key="' + escapeHTML(row.key || '') + '">'
+        + (showRoleActionColumns ? '<div class="td-member-manage-actions">' + managementActionCells + '</div>' : '')
+        + this._buildTeamDetailMemberAvatar(row, index)
+        + '<div class="td-member-row-main">'
+        + '<div class="td-member-line1"><span class="td-member-name-cell">' + this._buildTeamDetailMemberNameTag(row) + '</span><span class="td-member-tag-cell">' + this._buildTeamDetailMemberTagPill(row) + '</span></div>'
+        + '<div class="td-member-line2">' + this._buildTeamMemberMetaLine(t, row, activeTab) + '</div>'
+        + '</div>'
         + actions
-        + '</tr>';
-    }).join('') : '<tr><td colspan="' + columns.length + '" class="td-member-empty">' + I18N.t('teamDetail.none') + '</td></tr>';
+        + '</div>';
+    }).join('') : '<div class="td-member-empty">' + I18N.t('teamDetail.none') + '</div>';
     const editBtnIcon = memberEditMode
       ? '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 6L9 17l-5-5"></path></svg>'
       : '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="9.5" cy="7" r="4"></circle><path d="M19 8v6"></path><path d="M22 11h-6"></path></svg>';
@@ -1586,7 +1608,7 @@ Object.assign(App, {
     return '<div class="td-card td-section-card" id="team-members-section">'
       + '<div id="team-members-toggle" class="td-card-title td-card-title-row"><span>' + I18N.t('teamDetail.memberList') + '</span><span class="td-card-title-right">' + editBtn + '</span></div>'
       + '<div class="td-member-tabs">' + tabsHtml + '</div>'
-      + '<div class="td-member-table-scroll"><table class="td-member-table td-member-table-' + activeTab + (memberEditMode ? ' is-editing' : '') + '"><thead><tr>' + header + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
+      + '<div class="td-member-list-shell td-member-list-shell-' + activeTab + (memberEditMode ? ' is-editing' : '') + '"><div class="td-member-list-head"><span>' + activeTabLabel + '</span><span class="td-member-list-count">' + roster.length + ' \u4f4d\u6210\u54e1</span></div><div class="td-member-list">' + rows + '</div></div>'
       + '</div>';
   },
 
