@@ -1626,6 +1626,47 @@ Object.assign(App, {
     return '<div class="td-member-line2">' + primary + '</div>' + notes;
   },
 
+  _canViewTeamMemberPrivateNotes(t, canManageMembers, staffIdentity) {
+    if (canManageMembers) return true;
+    const currentUser = ApiService.getCurrentUser?.();
+    if (!currentUser) return false;
+    const normalize = value => {
+      if (typeof this._normalizeIdentityValue === 'function') return this._normalizeIdentityValue(value);
+      return String(value || '').trim();
+    };
+    const currentIds = [currentUser.uid, currentUser._docId]
+      .map(normalize)
+      .filter(Boolean);
+    const staffIds = [
+      t?.captainUid,
+      t?.creatorUid,
+      t?.ownerUid,
+      t?.leaderUid,
+      ...(Array.isArray(t?.leaderUids) ? t.leaderUids : []),
+      ...(Array.isArray(t?.coachUids) ? t.coachUids : []),
+    ].map(normalize).filter(Boolean);
+    if (currentIds.some(uid => staffIds.includes(uid))) return true;
+
+    const staffKeys = staffIdentity?.keys instanceof Set ? staffIdentity.keys : new Set();
+    const currentKeys = [];
+    const userKey = typeof this._getTeamDetailIdentityKeyFromUser === 'function'
+      ? this._getTeamDetailIdentityKeyFromUser(currentUser)
+      : '';
+    if (userKey) currentKeys.push(userKey);
+    currentIds.forEach(uid => {
+      currentKeys.push(`uid:${uid}`);
+      currentKeys.push(`doc:${uid}`);
+    });
+    if (currentKeys.some(key => staffKeys.has(key))) return true;
+
+    const staffNames = staffIdentity?.names instanceof Set ? staffIdentity.names : new Set();
+    const currentNames = [currentUser.name, currentUser.displayName]
+      .map(normalize)
+      .filter(Boolean)
+      .map(name => name.toLowerCase());
+    return currentNames.some(name => staffNames.has(name));
+  },
+
   _teamMemberMatchesFilter(row, filter) {
     const key = String(filter || 'all');
     if (key === 'all') return true;
@@ -1711,8 +1752,9 @@ Object.assign(App, {
       : roster.filter(row => this._teamMemberMatchesFilter(row, activeFilter));
     const showEditColumn = !!canManageMembers;
     const showRoleActionColumns = !!(canManageMembers && memberEditMode);
-    const showPrivateNotes = !!canManageMembers
-      || !!(staffIdentity?.keys?.size || staffIdentity?.names?.size);
+    const showPrivateNotes = typeof this._canViewTeamMemberPrivateNotes === 'function'
+      ? this._canViewTeamMemberPrivateNotes(t, canManageMembers, staffIdentity)
+      : !!canManageMembers;
     const listHint = showPrivateNotes
       ? '<span class="td-member-list-note-hint">\u5099\u8a3b\u50c5\u8077\u54e1\u53ef\u898b</span>'
       : '';

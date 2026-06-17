@@ -11,7 +11,7 @@ describe('team detail club activity section', () => {
     const context = {
       App: app,
       ApiService: {
-        getCurrentUser: () => ({ uid: 'viewer' }),
+        getCurrentUser: () => options.currentUser || ({ uid: 'viewer' }),
         getEvents: () => events,
         getTeam: (id) => teams[id] || { id: 'teamA', feed: [] },
         getTournaments: () => tournaments,
@@ -1436,6 +1436,9 @@ describe('team detail club activity section', () => {
       captainUid: 'captain',
       leaderUids: ['leader'],
       coachUids: ['coach'],
+      memberActivityData: { member: { notes: 'hidden activity note' } },
+      memberCourseData: { member: { group: 'U10', notes: 'hidden course note' } },
+      memberMatchData: { member: { jerseyNumber: '87', position: 'ST', notes: 'hidden match note' } },
       students: [
         { id: 'stu-child', name: 'Child', enrollStatus: 'active', courseAttendanceCount: 2, createdAt: '2026/04/20' },
         { id: 'stu-amy', name: 'Amy', selfUid: 'member', enrollStatus: 'active' },
@@ -1459,6 +1462,10 @@ describe('team detail club activity section', () => {
     const roster = app._getTeamDetailRoster(team);
     const staffIdentity = { keys: new Set(), names: new Set() };
     const html = app._buildTeamMembersCard(team, false, false, staffIdentity);
+    const nonStaffHtmlWithClubStaff = app._buildTeamMembersCard(team, false, false, {
+      keys: new Set(['uid:captain', 'uid:leader', 'uid:coach']),
+      names: new Set(['captain', 'leader', 'coach']),
+    });
 
     expect(app._getTeamDetailMemberCount(team)).toBe(6);
     expect(app._getTeamDetailCoachCount(team)).toBe(1);
@@ -1480,6 +1487,10 @@ describe('team detail club activity section', () => {
     expect(html).toContain('td-member-list-shell');
     expect(html).toContain('td-member-list-shell-summary');
     expect(html).toContain('td-member-row');
+    expect(nonStaffHtmlWithClubStaff).not.toContain('td-member-list-note-hint');
+    expect(nonStaffHtmlWithClubStaff).not.toContain('hidden activity note');
+    expect(nonStaffHtmlWithClubStaff).not.toContain('hidden course note');
+    expect(nonStaffHtmlWithClubStaff).not.toContain('hidden match note');
     expect(html).not.toContain('td-member-avatar');
     expect(html).not.toContain('td-member-tag-cell');
     expect(html).not.toContain('td-member-view-hint');
@@ -1534,6 +1545,9 @@ describe('team detail club activity section', () => {
     expect(manageHtml).not.toContain('<h3>\u6210\u54e1\u7ba1\u7406</h3>');
     expect(manageHtml).toContain('td-member-edit-btn');
     expect(manageHtml).toContain('aria-pressed="false"');
+    expect(manageHtml).toContain('hidden activity note');
+    expect(manageHtml).toContain('hidden course note');
+    expect(manageHtml).toContain('hidden match note');
     expect(manageHtml).not.toContain('td-member-note-edit-btn');
     expect(manageHtml).not.toContain('td-member-course-edit-btn');
     expect(manageHtml).not.toContain('td-member-match-edit-btn');
