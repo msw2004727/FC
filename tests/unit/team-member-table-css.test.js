@@ -27,24 +27,21 @@ describe('team member list CSS contract', () => {
     expect(css).toContain('.td-member-filters');
     expect(css).toContain('.td-member-filter-chip');
     expect(css).toContain('.td-member-view-row');
-    expect(css).toContain('.td-member-sort-hint');
+    expect(css).not.toContain('.td-member-sort-hint');
+    expect(css).not.toContain('.td-member-view-hint');
   });
 
-  test('member list fills the card with stable row and avatar sizing', () => {
+  test('member list fills the card with stable row sizing and no avatar lane', () => {
     const css = readCss();
-    const shellBlock = ruleBlock(css, '.td-member-list-shell');
-    const listBlock = ruleBlock(css, '.td-member-list');
-    const rowBlock = ruleBlock(css, '.td-member-row');
-    const avatarBlock = ruleBlock(css, '.td-member-avatar');
+    const shellBlock = ruleBlock(css, '.td-member-management-panel .td-member-list-shell');
+    const listBlock = ruleBlock(css, '.td-member-management-panel .td-member-list');
 
-    expect(shellBlock).toContain('display: grid');
+    expect(shellBlock).toContain('display: block');
     expect(shellBlock).toContain('min-width: 0');
     expect(listBlock).toContain('grid-template-columns: minmax(0, 1fr)');
-    expect(rowBlock).toContain('display: flex');
-    expect(rowBlock).toContain('min-height: 58px');
-    expect(avatarBlock).toContain('flex: 0 0 40px');
-    expect(avatarBlock).toContain('width: 40px');
-    expect(avatarBlock).toContain('height: 40px');
+    expect(css).toMatch(/\.td-member-management-panel \.td-member-row,[\s\S]*\.td-member-management-panel \.td-member-list-shell\.is-editing \.td-member-row\s*\{[\s\S]*display: flex[\s\S]*flex-wrap: nowrap[\s\S]*padding: 11px 4px/);
+    expect(css).toMatch(/\.td-member-management-panel \.td-member-row \+ \.td-member-row::before\s*\{[\s\S]*left: 4px/);
+    expect(css).not.toContain('.td-member-management-panel .td-member-avatar');
   });
 
   test('metadata line truncates safely and note becomes an inline chip', () => {
@@ -60,7 +57,7 @@ describe('team member list CSS contract', () => {
     expect(noteBlock).not.toContain('display: block');
   });
 
-  test('member role action controls keep stable widths before avatars', () => {
+  test('member role action controls keep stable widths after the name capsule', () => {
     const css = readCss();
 
     expect(css).toMatch(/\.td-member-management-panel \.td-member-row,[\s\S]*\.td-member-management-panel \.td-member-list-shell\.is-editing \.td-member-row\s*\{[\s\S]*flex-wrap: nowrap/);
@@ -72,11 +69,23 @@ describe('team member list CSS contract', () => {
 
   test('member name wrappers size central user capsules without replacing them', () => {
     const css = readCss();
+    const managementCapsuleBlock = ruleBlock(css, '.td-member-management-panel .td-member-name-wrap .user-capsule');
+    const managementStaticBlock = Array.from(css.matchAll(/(?:^|\n)\.td-member-management-panel \.td-member-name-static\s*\{([\s\S]*?)\n\}/g))
+      .map(match => match[1])
+      .find(block => block.includes('display: inline-flex')) || '';
 
     expect(css).toMatch(/\.td-member-name-wrap \.user-capsule\s*\{[\s\S]*max-width: min\(12em, 48vw\)[\s\S]*text-overflow: ellipsis/);
-    expect(css).toMatch(/\.td-member-management-panel \.td-member-name-wrap \.user-capsule\s*\{[\s\S]*background: transparent[\s\S]*font-size: 14\.5px/);
-    expect(css).toMatch(/\.td-member-management-panel \.td-member-name-wrap \.user-capsule \.uc-lv\s*\{[\s\S]*position: static[\s\S]*height: 14px/);
-    expect(css).toMatch(/\.td-member-name-static\s*\{[\s\S]*background: var\(--bg-elevated\)[\s\S]*white-space: nowrap/);
+    expect(managementCapsuleBlock).toContain('max-width: 180px');
+    expect(managementCapsuleBlock).toContain('margin-top: 7px');
+    expect(managementCapsuleBlock).toContain('padding: 0 8px');
+    expect(managementCapsuleBlock).toContain('border-radius: var(--radius-full)');
+    expect(managementCapsuleBlock).toContain('font-size: .75rem');
+    expect(managementCapsuleBlock).not.toContain('background: transparent');
+    expect(managementCapsuleBlock).not.toContain('border: 0');
+    expect(css).not.toContain('.td-member-management-panel .td-member-name-wrap .user-capsule .uc-lv');
+    expect(managementStaticBlock).toContain('background: var(--td-mm-role-student-bg)');
+    expect(managementStaticBlock).toContain('border-radius: var(--radius-full)');
+    expect(managementStaticBlock).toContain('white-space: nowrap');
     expect(css).toContain('.td-member-name-static.external-student');
   });
 

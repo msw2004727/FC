@@ -1195,13 +1195,12 @@ Object.assign(App, {
     };
   },
 
-  _buildTeamDetailMemberTagPill(row) {
-    const tag = this._getTeamDetailMemberPrimaryTag(row);
-    return '<span class="td-member-label-pill ' + tag.className + '">' + escapeHTML(tag.label) + '</span>';
-  },
-
   _getTeamDetailMemberUserRoleClass(row) {
     if (row?.isExternalStudent && !row?.user) return 'external-student';
+    const roles = row?.roles instanceof Set ? row.roles : new Set();
+    if (roles.has('\u7403\u7d93')) return 'uc-captain';
+    if (roles.has('\u9818\u968a')) return 'uc-team-leader';
+    if (roles.has('\u6559\u7df4')) return 'uc-coach';
     const rawRole = String(row?.user?.role || 'user').trim() || 'user';
     const displayName = row?.name || row?.user?.displayName || row?.user?.name || '';
     let effectiveRole = rawRole;
@@ -1501,30 +1500,6 @@ Object.assign(App, {
     return '<span class="' + classes.join(' ') + '">' + escapeHTML(name) + '</span>';
   },
 
-  _getTeamDetailMemberAvatarUrl(row) {
-    const source = Object.assign({}, row?.student || {}, row?.user || {});
-    return this._readTeamDetailTextValue(source, [
-      'pictureUrl',
-      'photoURL',
-      'photoUrl',
-      'linePictureUrl',
-      'avatarUrl',
-      'avatar',
-      'imageUrl',
-      'image',
-    ]);
-  },
-
-  _buildTeamDetailMemberAvatar(row, index) {
-    const name = String(row?.name || '').trim();
-    const initial = escapeHTML((Array.from(name)[0] || '?').toUpperCase());
-    const imageUrl = this._getTeamDetailMemberAvatarUrl(row);
-    const image = imageUrl
-      ? '<img class="td-member-avatar-img img-loaded" src="' + escapeHTML(imageUrl) + '" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">'
-      : '';
-    return '<span class="td-member-avatar c' + ((index % 5) + 1) + (imageUrl ? ' has-img' : '') + '">' + image + '<span class="td-member-avatar-initial">' + initial + '</span></span>';
-  },
-
   _buildTeamMemberMetaItem(value, className) {
     const text = String(value == null ? '' : value).trim();
     if (!text || text === '-') return '';
@@ -1644,7 +1619,7 @@ Object.assign(App, {
     const activeTabLabel = activeTab === 'course'
       ? '\u8ab2\u7a0b\u8cc7\u6599'
       : (activeTab === 'match' ? '\u8cfd\u4e8b\u8cc7\u6599' : '\u6d3b\u52d5\u7d00\u9304');
-    const rows = visibleRoster.length ? visibleRoster.map((row, index) => {
+    const rows = visibleRoster.length ? visibleRoster.map(row => {
       const editActionBtn = this._buildTeamMemberRowEditButton(t, row, activeTab, showEditColumn);
       const removalKind = this._getTeamDetailRemovalKind(t, row, staffIdentity);
       const removeBtn = (canManageMembers && memberEditMode && removalKind)
@@ -1656,9 +1631,8 @@ Object.assign(App, {
       const rowActions = editActionBtn + managementActions;
       const actions = rowActions ? '<div class="td-member-action-cell td-mm-actions">' + rowActions + '</div>' : '';
       return '<div class="td-member-row" data-member-key="' + escapeHTML(row.key || '') + '" data-member-filter="' + escapeHTML(activeFilter) + '">'
-        + this._buildTeamDetailMemberAvatar(row, index)
         + '<div class="td-member-row-main">'
-        + '<div class="td-member-line1"><span class="td-member-name-cell">' + this._buildTeamDetailMemberNameTag(row) + '</span><span class="td-member-tag-cell">' + this._buildTeamDetailMemberTagPill(row) + '</span></div>'
+        + '<div class="td-member-line1"><span class="td-member-name-cell">' + this._buildTeamDetailMemberNameTag(row) + '</span></div>'
         + '<div class="td-member-line2">' + this._buildTeamMemberMetaLine(t, row, activeTab) + '</div>'
         + '</div>'
         + actions
@@ -1671,8 +1645,8 @@ Object.assign(App, {
       + '<div class="td-member-panel-pad">'
       + '<div id="team-members-toggle" class="td-member-top"><div><h3>\u6210\u54e1\u7ba1\u7406</h3><div class="td-member-total">' + roster.length + ' \u4f4d\u6210\u54e1</div></div>' + editBtn + '</div>'
       + '<div class="td-member-filters">' + this._buildTeamMemberFilterChips(t, filterOptions, activeFilter) + '</div>'
-      + '<div class="td-member-view-row"><div class="td-member-tabs">' + tabsHtml + '</div><span class="td-member-view-hint">\u5207\u63db\u8cc7\u6599</span></div>'
-      + '<div class="td-member-list-shell td-member-list-shell-' + activeTab + (memberEditMode ? ' is-editing' : '') + ' td-member-filter-' + activeFilter + '"><div class="td-member-list-head"><span class="td-member-list-label">' + activeTabLabel + '</span><span class="td-member-sort-hint">\u4f9d\u8eab\u5206\u6392\u5e8f ' + this._buildTeamMemberSvgIcon('sort') + '</span></div><div class="td-member-list">' + rows + '</div></div>'
+      + '<div class="td-member-view-row"><div class="td-member-tabs">' + tabsHtml + '</div></div>'
+      + '<div class="td-member-list-shell td-member-list-shell-' + activeTab + (memberEditMode ? ' is-editing' : '') + ' td-member-filter-' + activeFilter + '"><div class="td-member-list-head"><span class="td-member-list-label">' + activeTabLabel + '</span></div><div class="td-member-list">' + rows + '</div></div>'
       + '</div></section>';
   },
 

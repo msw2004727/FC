@@ -1414,12 +1414,16 @@ describe('team detail club activity section', () => {
     expect(html).toContain('td-member-list-shell');
     expect(html).toContain('td-member-list-shell-activity');
     expect(html).toContain('td-member-row');
-    expect(html).toContain('td-member-avatar');
+    expect(html).not.toContain('td-member-avatar');
+    expect(html).not.toContain('td-member-tag-cell');
+    expect(html).not.toContain('td-member-view-hint');
+    expect(html).not.toContain('td-member-sort-hint');
     expect(html).toContain('td-member-line2');
     expect(html).toContain('td-member-num');
     expect(html).toContain('user-capsule');
     expect(html).toContain('user-capsule uc-user');
     expect(html).toContain('user-capsule uc-captain');
+    expect(html).toContain('user-capsule uc-team-leader');
     expect(html).toContain('user-capsule uc-coach');
     expect(html).toContain('user-capsule uc-venue_owner');
     expect(html).toContain('td-member-name-static external-student');
@@ -1441,11 +1445,11 @@ describe('team detail club activity section', () => {
     expect(app._getTeamDetailMemberPrimaryTag({ roles: new Set(['\u6559\u7df4', '\u9818\u968a']), isMember: true }).label).toBe('\u9818\u968a');
     expect(app._getTeamDetailMemberPrimaryTag({ roles: new Set(), isMember: true, isStudent: true }).label).toBe('\u968a\u54e1');
     expect(app._getTeamDetailMemberPrimaryTag({ roles: new Set(), isStudent: true }).label).toBe('\u5b78\u54e1');
-    expect(html).toContain('td-member-label-pill label-student');
-    expect(html).toContain('td-member-label-pill label-pending');
-    expect(html).toContain('td-member-label-pill tag-role role-manager');
-    expect(html).toContain('td-member-label-pill tag-role role-leader');
-    expect(html).toContain('td-member-label-pill tag-role role-coach');
+    expect(html).not.toContain('td-member-label-pill label-student');
+    expect(html).not.toContain('td-member-label-pill label-pending');
+    expect(html).not.toContain('td-member-label-pill tag-role role-manager');
+    expect(html).not.toContain('td-member-label-pill tag-role role-leader');
+    expect(html).not.toContain('td-member-label-pill tag-role role-coach');
     expect(html).not.toContain('App.toggleProfileSection');
 
     app._teamMemberTabByTeam = { teamA: 'activity' };
@@ -1468,7 +1472,7 @@ describe('team detail club activity section', () => {
     expect(activityEditHtml).toContain('aria-pressed="true"');
     expect(activityEditHtml).toContain('td-member-list-shell-activity is-editing');
     expect(activityEditHtml).toContain('td-member-action-cell td-mm-actions');
-    expect(activityEditHtml.indexOf('td-member-avatar')).toBeLessThan(activityEditHtml.indexOf('td-member-action-cell td-mm-actions'));
+    expect(activityEditHtml.indexOf('td-member-name-cell')).toBeLessThan(activityEditHtml.indexOf('td-member-action-cell td-mm-actions'));
     expect(activityEditHtml).not.toContain('td-member-name-cell"><button class="td-member-remove-btn');
     expect((activityEditHtml.match(/td-member-remove-btn/g) || []).length).toBe(7);
     expect(matchHtml).toContain('td-member-match-edit-btn');
@@ -2392,7 +2396,8 @@ describe('team detail club activity section', () => {
 
     expect(refreshed).toBe(true);
     expect(target.outerHTML).toContain('小麥');
-    expect(target.outerHTML).toContain('td-member-label-pill label-student');
+    expect(target.outerHTML).toContain('td-member-name-static external-student');
+    expect(target.outerHTML).not.toContain('td-member-label-pill');
   });
 
   test('team detail v2 member refresh updates member panel without rebuilding hero images', () => {

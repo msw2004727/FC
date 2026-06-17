@@ -1560,32 +1560,6 @@
   color: var(--text-muted);
   cursor: default;
 }
-.td-member-label-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 34px;
-  padding: .11rem .3rem;
-  border-radius: 6px;
-  font-size: .72rem;
-  font-weight: 900;
-}
-.td-member-label-pill.label-all {
-  background: rgba(14, 165, 233, .14);
-  color: #0284c7;
-}
-.td-member-label-pill.label-member {
-  background: rgba(16, 185, 129, .14);
-  color: #059669;
-}
-.td-member-label-pill.label-student {
-  background: rgba(245, 158, 11, .16);
-  color: #b45309;
-}
-.td-member-label-pill.label-pending {
-  background: rgba(148, 163, 184, .18);
-  color: #475569;
-}
 .td-member-identity {
   color: var(--text-secondary);
   font-weight: 800;
@@ -1745,29 +1719,6 @@
   padding: .7rem .4rem;
   color: var(--text-muted);
   text-align: center !important;
-}
-.td-member-tag-cell {
-  display: inline-flex;
-  flex: 0 0 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.td-member-label-pill.tag-role {
-  min-width: 42px;
-  padding: .14rem .36rem;
-  font-size: .72rem;
-}
-.td-member-label-pill.tag-role.role-coach {
-  background: rgba(124, 58, 237, .14);
-  color: #7c3aed;
-}
-.td-member-label-pill.tag-role.role-leader {
-  background: rgba(245, 158, 11, .16);
-  color: #b45309;
-}
-.td-member-label-pill.tag-role.role-manager {
-  background: rgba(236, 72, 153, .13);
-  color: #db2777;
 }
 .td-member-num {
   color: var(--text-primary);
@@ -2686,10 +2637,6 @@
 /* Dark theme */
 [data-theme="dark"] .td-member-role.captain { background: rgba(251,191,36,.18); color: #fcd34d; }
 [data-theme="dark"] .td-member-role.coach { background: rgba(124,58,237,.18); color: #c4b5fd; }
-[data-theme="dark"] .td-member-label-pill.label-all { background: rgba(56, 189, 248, .18); color: #7dd3fc; }
-[data-theme="dark"] .td-member-label-pill.label-member { background: rgba(52, 211, 153, .18); color: #6ee7b7; }
-[data-theme="dark"] .td-member-label-pill.label-student { background: rgba(251, 191, 36, .18); color: #fcd34d; }
-[data-theme="dark"] .td-member-label-pill.label-pending { background: rgba(148, 163, 184, .2); color: #cbd5e1; }
 [data-theme="dark"] .td-member-role-pill.role-coach { background: rgba(167, 139, 250, .18); color: #c4b5fd; }
 [data-theme="dark"] .td-member-role-pill.role-leader { background: rgba(251, 191, 36, .18); color: #fcd34d; }
 [data-theme="dark"] .td-member-role-pill.role-manager { background: rgba(244, 114, 182, .18); color: #f9a8d4; }
@@ -2740,9 +2687,6 @@
   border-color: rgba(251, 191, 36, .52);
   background: rgba(245, 158, 11, .28);
 }
-[data-theme="dark"] .td-member-label-pill.tag-role.role-coach { background: rgba(167, 139, 250, .18); color: #c4b5fd; }
-[data-theme="dark"] .td-member-label-pill.tag-role.role-leader { background: rgba(251, 191, 36, .18); color: #fcd34d; }
-[data-theme="dark"] .td-member-label-pill.tag-role.role-manager { background: rgba(244, 114, 182, .18); color: #f9a8d4; }
 [data-theme="dark"] .td-member-avatar.c1 { background: rgba(56, 189, 248, .18); color: #7dd3fc; }
 [data-theme="dark"] .td-member-avatar.c2 { background: rgba(45, 212, 191, .18); color: #5eead4; }
 [data-theme="dark"] .td-member-avatar.c3 { background: rgba(251, 191, 36, .18); color: #fcd34d; }
@@ -3173,7 +3117,7 @@
 .td-member-view-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px;
   padding: 0 2px 8px;
 }
@@ -3208,13 +3152,6 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, .16);
 }
 
-.td-member-view-hint {
-  flex: 0 0 auto;
-  color: var(--td-mm-ink-3);
-  font-size: 11px;
-  font-weight: 600;
-}
-
 .td-member-management-panel .td-member-list-shell {
   display: block;
   min-width: 0;
@@ -3223,7 +3160,7 @@
 .td-member-management-panel .td-member-list-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px;
   padding: 2px 2px 4px;
   color: var(--td-mm-ink-3);
@@ -3236,26 +3173,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.td-member-sort-hint {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--td-mm-ink-2);
-  font-size: 12.5px;
-  font-weight: 700;
-}
-
-.td-member-sort-hint svg {
-  width: 14px;
-  height: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
 .td-member-management-panel .td-member-list {
@@ -3282,27 +3199,11 @@
   position: absolute;
   top: 0;
   right: 4px;
-  left: 52px;
+  left: 4px;
   height: 1px;
   background: var(--td-mm-line);
   opacity: 1;
 }
-
-.td-member-management-panel .td-member-avatar {
-  flex: 0 0 40px;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, .06);
-  font-size: 15px;
-  font-weight: 800;
-}
-
-.td-member-management-panel .td-member-avatar.c1 { background: #d8f2fb; color: #0369a1; }
-.td-member-management-panel .td-member-avatar.c2 { background: #d8f5ef; color: #0f766e; }
-.td-member-management-panel .td-member-avatar.c3 { background: #f8e6b7; color: #6b3f00; }
-.td-member-management-panel .td-member-avatar.c4 { background: #eadffd; color: #5b21b6; }
-.td-member-management-panel .td-member-avatar.c5 { background: #e9edf2; color: #334155; }
 
 .td-member-management-panel .td-member-row-main {
   display: grid;
@@ -3339,27 +3240,25 @@
 .td-member-management-panel .td-member-name-wrap,
 .td-member-management-panel .td-member-name-static {
   min-width: 0;
-  max-width: 155px;
+  max-width: 180px;
 }
 
 .td-member-management-panel .td-member-name-wrap .user-capsule {
   display: inline-flex;
   align-items: center;
-  max-width: 155px;
-  min-height: 0;
-  height: 22px;
-  margin-top: 0;
-  padding: 0;
+  max-width: 180px;
+  min-height: 24px;
+  height: 24px;
+  margin-top: 7px;
+  padding: 0 8px;
   overflow: hidden;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--td-mm-ink);
-  font-size: 14.5px;
+  border-radius: var(--radius-full);
+  font-size: .75rem;
   font-weight: 800;
-  line-height: 22px;
+  line-height: 24px;
   text-overflow: ellipsis;
   vertical-align: middle;
+  white-space: nowrap;
 }
 
 .td-member-management-panel .td-member-name-wrap .user-capsule:hover {
@@ -3368,83 +3267,33 @@
   filter: none;
 }
 
-.td-member-management-panel .td-member-name-wrap .user-capsule .uc-lv {
-  position: static;
-  display: inline-flex;
-  align-items: center;
-  height: 14px;
-  margin: 0 4px 0 0;
-  padding: 0 4px;
-  border-radius: var(--radius-full);
-  background: var(--td-mm-chip);
-  color: var(--td-mm-ink-3);
-  font-size: 9px;
-  line-height: 1;
-  transform: none;
-}
-
 .td-member-management-panel .td-member-name-static {
   display: inline-flex;
   align-items: center;
-  height: 22px;
-  padding: 0;
+  height: 24px;
+  padding: 0 8px;
   overflow: hidden;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--td-mm-ink);
-  font-size: 14.5px;
+  border: 1px solid rgba(20, 184, 166, .28);
+  border-radius: var(--radius-full);
+  background: var(--td-mm-role-student-bg);
+  color: var(--td-mm-role-student);
+  font-size: .75rem;
   font-weight: 800;
-  line-height: 22px;
+  line-height: 24px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .td-member-management-panel .td-member-name-static.external-student {
-  color: var(--td-mm-ink);
-  background: transparent;
+  border-color: rgba(20, 184, 166, .28);
+  background: var(--td-mm-role-student-bg);
+  color: var(--td-mm-role-student);
 }
 
 .td-member-management-panel .td-member-name-static.missing-name,
 .td-member-management-panel .td-member-name-wrap.missing-name .user-capsule {
   color: var(--td-mm-ink-2);
   opacity: .76;
-}
-
-.td-member-management-panel .td-member-label-pill {
-  flex: 0 0 auto;
-  min-width: 0;
-  padding: 2px 8px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 800;
-  line-height: 1.3;
-}
-
-.td-member-management-panel .td-member-label-pill.tag-role.role-manager {
-  background: var(--td-mm-role-manager-bg);
-  color: var(--td-mm-role-manager);
-}
-
-.td-member-management-panel .td-member-label-pill.tag-role.role-leader {
-  background: var(--td-mm-role-leader-bg);
-  color: var(--td-mm-role-leader);
-}
-
-.td-member-management-panel .td-member-label-pill.tag-role.role-coach {
-  background: var(--td-mm-role-coach-bg);
-  color: var(--td-mm-role-coach);
-}
-
-.td-member-management-panel .td-member-label-pill.label-student,
-.td-member-management-panel .td-member-label-pill.label-member {
-  background: var(--td-mm-role-student-bg);
-  color: var(--td-mm-role-student);
-}
-
-.td-member-management-panel .td-member-label-pill.label-pending {
-  background: var(--td-mm-chip);
-  color: var(--td-mm-ink-2);
 }
 
 .td-member-management-panel .td-member-meta-item {
@@ -3589,29 +3438,13 @@
   box-shadow: 0 10px 28px rgba(0, 0, 0, .24);
 }
 
-[data-theme="dark"] .td-member-management-panel .td-member-avatar {
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08);
-}
-
-[data-theme="dark"] .td-member-management-panel .td-member-avatar.c1 { background: rgba(56, 189, 248, .18); color: #7dd3fc; }
-[data-theme="dark"] .td-member-management-panel .td-member-avatar.c2 { background: rgba(45, 212, 191, .18); color: #5eead4; }
-[data-theme="dark"] .td-member-management-panel .td-member-avatar.c3 { background: rgba(251, 191, 36, .18); color: #fcd34d; }
-[data-theme="dark"] .td-member-management-panel .td-member-avatar.c4 { background: rgba(167, 139, 250, .18); color: #c4b5fd; }
-[data-theme="dark"] .td-member-management-panel .td-member-avatar.c5 { background: rgba(148, 163, 184, .18); color: #cbd5e1; }
-
 @media (max-width: 430px) {
   .td-member-management-panel {
     width: calc(100% - 32px);
   }
 
-  .td-member-management-panel .td-member-avatar {
-    flex-basis: 40px;
-    width: 40px;
-    height: 40px;
-  }
-
   .td-member-management-panel .td-member-row + .td-member-row::before {
-    left: 52px;
+    left: 4px;
   }
 
   .td-member-management-panel .td-member-line2 {
@@ -3632,10 +3465,6 @@
   .td-member-panel-pad {
     padding-left: 13px;
     padding-right: 13px;
-  }
-
-  .td-member-view-hint {
-    display: none;
   }
 
   .td-member-management-panel .td-member-name-wrap,
