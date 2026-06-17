@@ -58,6 +58,13 @@ Object.assign(App, {
     return !!safeId && String(this._detailAttendanceOnDemandEventId || '') === safeId;
   },
 
+  _resetDetailAttendanceOnDemandForFreshEntry(eventId, isSameEventRerender) {
+    if (isSameEventRerender === true) return false;
+    if (this._detailAttendanceOnDemandEventId == null) return false;
+    this._detailAttendanceOnDemandEventId = null;
+    return true;
+  },
+
   _shouldRenderDetailAttendanceTable(eventId, eventRecord = null, options = {}) {
     if (!this._isActivityDetailAttendanceOnDemandEnabled?.()) return true;
     const safeId = String(eventId || eventRecord?.id || '').trim();
@@ -943,8 +950,8 @@ Object.assign(App, {
       if (this._currentDetailEventId !== id) {
         this._regsLoadingRetryCount = 0;
         clearTimeout(this._regsLoadingRetryTimer);
-        this._detailAttendanceOnDemandEventId = null;
       }
+      this._resetDetailAttendanceOnDemandForFreshEntry?.(id, _isSameEventRerender);
       const isGuestView = this._isGuestEventDetailView(options);
       let e = ApiService.getEvent(id);
       // stale-first：快取有活動資料時跳過登入擋板（報名按鈕已有「載入中」保護）
@@ -1327,6 +1334,14 @@ Object.assign(App, {
       var _preservedAttHtml = (_isSameEventRerender && !isGuestView)
         ? (document.getElementById('detail-attendance-table')?.innerHTML || '')
         : '';
+      const _attendanceInitialHtml = (this._isActivityDetailAttendanceOnDemandEnabled?.() === true
+        && this._isDetailAttendanceOnDemandOpen?.(id) !== true)
+        ? this._renderDetailAttendanceSummaryShell(id, e, {
+            publicRosterOnly: isGuestView,
+            requestSeq,
+            renderToken: detailRenderToken,
+          })
+        : (isGuestView ? '' : (_preservedAttHtml || this._renderEventDetailBelowFoldLoadingHtml()));
       // 鎖住容器高度，防止 innerHTML 清空時頁面高度塌縮導致 scroll 被 clamp
       var _lockH = nodes.body.offsetHeight;
       if (_lockH > 0) nodes.body.style.minHeight = _lockH + 'px';
@@ -1357,7 +1372,7 @@ Object.assign(App, {
         <div class="detail-action-primary" id="detail-action-primary">${signupBtn}</div>
       </div>
       <div class="detail-section">
-        <div id="detail-attendance-table">${isGuestView ? '' : (_preservedAttHtml || this._renderEventDetailBelowFoldLoadingHtml())}</div>
+        <div id="detail-attendance-table">${_attendanceInitialHtml}</div>
       </div>
       <div class="detail-section" id="detail-unreg-section" style="display:none">
         <div id="detail-unreg-table"></div>

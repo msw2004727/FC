@@ -734,6 +734,30 @@ describe('Team reservation button loading contract', () => {
     expect(document.querySelector('.user-capsule')?.textContent).toContain('Alice');
   });
 
+  test('fresh activity detail entry resets a previously opened attendance roster', () => {
+    const app = loadEventDetailModule({
+      event: { id: 'event-1', current: 1, max: 10, status: 'open' },
+      flags: { detailAttendanceOnDemand: true },
+    });
+
+    app._detailAttendanceOnDemandEventId = 'event-1';
+    expect(app._resetDetailAttendanceOnDemandForFreshEntry('event-1', false)).toBe(true);
+    expect(app._detailAttendanceOnDemandEventId).toBeNull();
+
+    app._detailAttendanceOnDemandEventId = 'event-1';
+    expect(app._resetDetailAttendanceOnDemandForFreshEntry('event-1', true)).toBe(false);
+    expect(app._detailAttendanceOnDemandEventId).toBe('event-1');
+  });
+
+  test('activity detail initial attendance area renders the collapsed shell before auth settles', () => {
+    const detailSource = readProjectFile('js/modules/event/event-detail.js');
+
+    expect(detailSource).toContain('const _attendanceInitialHtml =');
+    expect(detailSource).toContain('this._renderDetailAttendanceSummaryShell(id, e, {');
+    expect(detailSource).toContain('publicRosterOnly: isGuestView');
+    expect(detailSource).toContain('<div id="detail-attendance-table">${_attendanceInitialHtml}</div>');
+  });
+
   test('openDetailAttendanceRecords starts realtime loading and renders the full detail table for staff', async () => {
     document.body.innerHTML = '<div id="detail-attendance-table"></div>';
     const firebaseService = { requestDetailAttendanceRealtime: jest.fn() };
