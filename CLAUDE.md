@@ -1,6 +1,6 @@
 # ToosterX — Claude Code 專案指引
 
-> **Last Reviewed: 2026-05-15**（每 2 個月審閱一次，或重大架構重構時立即審閱）
+> **Last Reviewed: 2026-06-17**（每 2 個月審閱一次，或重大架構重構時立即審閱）
 
 <!--
   結構文件交叉引用（任一檔案的結構描述更新時，必須同步更新以下所有檔案）：
@@ -1048,8 +1048,10 @@ Phase 6 已啟用瀏覽器返回鍵接管(`HISTORY_ROUTE_FLAGS.popstateTakeover 
 ### Codex 執行改碼時
 
 1. 完成修改後，**開啟全新對話自我 review**（不沿用原對話脈絡），對照實際程式碼審計。
-2. 有瑕疵 → 修正 → 再以全新角度複審，直到確認完成。
-3. 回到原對話回報結果。
+2. 新對話只負責 review：必須讀取實際檔案、git diff、測試結果與相關呼叫鏈；不得直接修改檔案、commit、push 或 deploy。
+3. review 完成後，不論結果是「通過」或「需要修改」，都必須回到原對話繼續後續作業。
+4. 若 review 發現瑕疵，原對話完成修正後，再另開全新對話複審；重複到無 P1 / P2 問題為止。
+5. 若 review 通過，原對話才可依使用者授權進入 commit / push / deploy 流程。
 
 ### 與既有流程的關係
 
@@ -1091,6 +1093,8 @@ Phase 6 已啟用瀏覽器返回鍵接管(`HISTORY_ROUTE_FLAGS.popstateTakeover 
 ## Codex Review 轉交規範
 
 當 Claude Code 完成修改並產生 commit 後，使用者可能會要求 Codex 審查最新 commit。此流程屬於三方協作品質門檻，必須維持可追溯、可複製、可驗收。
+
+> **Codex review 執行規則（2026-06-17）**：Codex review 一律使用另開新對話 / 新 thread 的方式執行。review 對話只做審查與 findings 回報，不直接改檔、不 commit、不 push、不 deploy。review 結束後必須回到原對話繼續：若通過，原對話依授權處理後續 commit / push / deploy；若需要修改，原對話修正後再次另開新 review 對話複審，直到沒有 P1 / P2 問題。
 
 ### Codex 審查最新 commit 時
 
