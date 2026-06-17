@@ -211,13 +211,13 @@
 .tc-card > .tc-pin-rail {
   position: absolute;
   top: 6px;
-  left: 6px;
+  left: 38px;
   z-index: 2;
   display: inline-flex;
   align-items: center;
   gap: .28rem;
   min-height: 18px;
-  max-width: calc(100% - 58px);
+  max-width: calc(100% - 90px);
   padding: .16rem .42rem;
   border: 1px solid rgba(217, 119, 6, .22);
   border-radius: 999px;
@@ -275,9 +275,6 @@
   -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
   box-shadow: 0 1px 4px rgba(17, 24, 39, .18);
-}
-.tc-card.tc-pinned .tc-sport-badge {
-  top: 29px;
 }
 [data-theme="dark"] .tc-sport-badge {
   background: rgba(15, 23, 42, .7);

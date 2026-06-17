@@ -294,6 +294,7 @@ describe('team pin management wiring', () => {
 
   test('club list pinned state overlays media without changing card height', () => {
     const pinRailRule = teamCss.match(/\.tc-card > \.tc-pin-rail\s*\{[\s\S]*?\n\}/)?.[0] || '';
+    const sportBadgeRule = teamCss.match(/\.tc-sport-badge\s*\{[\s\S]*?\n\}/)?.[0] || '';
     const ribbonRule = teamCss.match(/\.tc-type-ribbon,[\s\S]*?\.tc-edu-ribbon\s*\{[\s\S]*?\n\}/)?.[0] || '';
 
     expect(teamListRenderSource).toContain('tc-pin-rail');
@@ -301,7 +302,11 @@ describe('team pin management wiring', () => {
     expect(teamListRenderSource).not.toContain('tc-pin-badge');
     expect(teamCss).toContain('.tc-card > .tc-pin-rail');
     expect(pinRailRule).toContain('position: absolute');
+    expect(pinRailRule).toContain('left: 38px');
+    expect(pinRailRule).toContain('max-width: calc(100% - 90px)');
     expect(pinRailRule).toContain('z-index: 2');
+    expect(sportBadgeRule).toContain('top: 6px; left: 6px');
+    expect(teamCss).not.toContain('.tc-card.tc-pinned .tc-sport-badge');
     expect(ribbonRule).toContain('z-index: 3');
     expect(teamCss).toContain('.tc-card.is-pending .tc-card-media::after');
     expect(teamCss).not.toContain('.tc-card.is-pending > div:first-child::after');

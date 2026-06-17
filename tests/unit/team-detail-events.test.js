@@ -787,6 +787,59 @@ describe('team detail club activity section', () => {
     expect(handleLeaveTeam).toHaveBeenCalledWith('teamA');
   });
 
+  test('team detail v2 week strip starts on today and lazy-loads horizontal days', () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 5, 17, 12, 0, 0));
+    try {
+      const app = makeApp([]);
+      loadTeamDetailRender(app, [], {
+        extraFiles: ['js/modules/team/team-detail-v2-lists.js'],
+      });
+
+      const html = app._buildTeamDetailV2WeekStrip([{ date: '2026/06/20 10:00' }]);
+
+      expect(html).toContain('role="list"');
+      expect(html).toContain('data-range-start="0"');
+      expect(html).toContain('data-range-end="13"');
+      expect(html).toContain('data-date="2026-06-17"');
+      expect(html.indexOf('data-date="2026-06-17"')).toBeLessThan(html.indexOf('data-date="2026-06-18"'));
+      expect(html).toContain('weekend-sat');
+      expect(html).toContain('weekend-sun');
+      expect(html).toContain('data-event-days="2026-06-20"');
+      expect(html).toContain('onscroll="App._handleTeamDetailV2WeekScroll(this)"');
+      expect(html).toContain('onwheel="App._wheelTeamDetailV2Week(this,event)"');
+      expect(html).toContain('onpointerdown="App._startTeamDetailV2WeekDrag(this,event)"');
+
+      const edgeEl = {
+        dataset: { rangeStart: '0', rangeEnd: '13', eventDays: '2026-06-20' },
+        scrollLeft: 0,
+        clientWidth: 320,
+        scrollWidth: 1000,
+        insertAdjacentHTML: jest.fn(),
+      };
+      app._handleTeamDetailV2WeekScroll(edgeEl);
+      expect(edgeEl.insertAdjacentHTML).not.toHaveBeenCalled();
+      expect(edgeEl.dataset.rangeStart).toBe('0');
+
+      const el = {
+        dataset: { rangeStart: '0', rangeEnd: '13', eventDays: '2026-06-20' },
+        scrollLeft: 0,
+        clientWidth: 320,
+        scrollWidth: 800,
+        insertAdjacentHTML: jest.fn(() => { el.scrollWidth += 728; }),
+      };
+      app._extendTeamDetailV2WeekRange(el, 'next');
+      expect(el.dataset.rangeEnd).toBe('27');
+      expect(el.insertAdjacentHTML).toHaveBeenLastCalledWith('beforeend', expect.stringContaining('data-date="2026-07-01"'));
+
+      app._extendTeamDetailV2WeekRange(el, 'prev');
+      expect(el.dataset.rangeStart).toBe('-14');
+      expect(el.insertAdjacentHTML).toHaveBeenLastCalledWith('afterbegin', expect.stringContaining('data-date="2026-06-03"'));
+      expect(el.scrollLeft).toBeGreaterThan(0);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   test('team detail v2 info only shows manager, leaders, and aligned contact actions', () => {
     const app = makeApp([]);
     loadTeamDetailRender(app, [], {
@@ -907,6 +960,19 @@ describe('team detail club activity section', () => {
     expect(css).toContain('.td-v2-course-title-wrap');
     expect(css).toContain('.td-v2-course-section-head .td-v2-course-add-btn');
     expect(css).toContain('[data-theme="dark"] .td-v2-course-section-head .td-v2-course-add-btn');
+  });
+
+  test('team detail v2 week strip uses horizontal weekend calendar styling', () => {
+    const css = fs.readFileSync(path.join(__dirname, '../../css/team-detail-v2.css'), 'utf8');
+
+    expect(css).toContain('.td-v2-week{display:flex');
+    expect(css).toContain('overflow-x:auto');
+    expect(css).toContain('cursor:grab');
+    expect(css).toContain('.td-v2-week.dragging');
+    expect(css).toContain('.td-v2-day.weekend-sat');
+    expect(css).toContain('color-mix(in srgb,#10b981 11%,transparent)');
+    expect(css).toContain('.td-v2-day.weekend-sun');
+    expect(css).toContain('color-mix(in srgb,#ef4444 11%,transparent)');
   });
 
   test('team detail v2 course count only includes current plans', () => {

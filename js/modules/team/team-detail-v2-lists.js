@@ -17,21 +17,149 @@ Object.assign(App, {
 
   _buildTeamDetailV2WeekStrip(events) {
     const now = new Date();
-    const start = new Date(now);
-    start.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-    const eventDays = new Set((events || []).map(e => {
+    const eventDays = this._getTeamDetailV2EventDaySet(events);
+    const todayKey = this._getTeamDetailV2DateKey(now);
+    const startOffset = 0;
+    const endOffset = 13;
+    const days = this._renderTeamDetailV2WeekDays(startOffset, endOffset, eventDays, todayKey);
+    return '<div class="td-v2-week" role="list" tabindex="0" aria-label="Activity calendar" data-range-start="' + startOffset + '" data-range-end="' + endOffset + '" data-event-days="' + escapeHTML(Array.from(eventDays).join('|')) + '" onscroll="App._handleTeamDetailV2WeekScroll(this)" onwheel="App._wheelTeamDetailV2Week(this,event)" onpointerdown="App._startTeamDetailV2WeekDrag(this,event)" onpointermove="App._moveTeamDetailV2WeekDrag(this,event)" onpointerup="App._endTeamDetailV2WeekDrag(this,event)" onpointercancel="App._endTeamDetailV2WeekDrag(this,event)" onpointerleave="App._endTeamDetailV2WeekDrag(this,event)">' + days + '</div>';
+  },
+
+  _getTeamDetailV2EventDaySet(events) {
+    return new Set((events || []).map(e => {
       const date = typeof this._parseEventStartDate === 'function' ? this._parseEventStartDate(e.date) : null;
-      return date ? date.toISOString().slice(0, 10) : '';
+      return this._getTeamDetailV2DateKey(date);
     }).filter(Boolean));
-    const labels = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
-    const todayKey = now.toISOString().slice(0, 10);
-    const days = labels.map((label, idx) => {
-      const date = new Date(start);
-      date.setDate(start.getDate() + idx);
-      const key = date.toISOString().slice(0, 10);
-      return '<div class="td-v2-day ' + (key === todayKey ? 'active' : '') + '"><span>' + label + '</span><strong>' + date.getDate() + '</strong>' + (eventDays.has(key) ? '<i></i>' : '') + '</div>';
-    }).join('');
-    return '<div class="td-v2-week">' + days + '</div>';
+  },
+
+  _getTeamDetailV2DateKey(date) {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  },
+
+  _getTeamDetailV2DateFromOffset(offset) {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() + Number(offset || 0));
+    return date;
+  },
+
+  _renderTeamDetailV2WeekDays(startOffset, endOffset, eventDays, todayKey) {
+    const days = [];
+    for (let offset = Number(startOffset); offset <= Number(endOffset); offset += 1) {
+      days.push(this._buildTeamDetailV2WeekDay(this._getTeamDetailV2DateFromOffset(offset), eventDays, todayKey));
+    }
+    return days.join('');
+  },
+
+  _buildTeamDetailV2WeekDay(date, eventDays, todayKey) {
+    const key = this._getTeamDetailV2DateKey(date);
+    const labels = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    const weekday = date.getDay();
+    const weekendClass = weekday === 6 ? ' weekend-sat' : (weekday === 0 ? ' weekend-sun' : '');
+    const activeClass = key === todayKey ? ' active' : '';
+    const dot = eventDays?.has(key) ? '<i></i>' : '';
+    return '<div class="td-v2-day' + weekendClass + activeClass + '" data-date="' + escapeHTML(key) + '" role="listitem"><span>' + labels[weekday] + '</span><strong>' + date.getDate() + '</strong>' + dot + '</div>';
+  },
+
+  _readTeamDetailV2WeekEventDays(el) {
+    return new Set(String(el?.dataset?.eventDays || '').split('|').filter(Boolean));
+  },
+
+  _extendTeamDetailV2WeekRange(el, direction) {
+    if (!el?.dataset) return;
+    const blockSize = 14;
+    const eventDays = this._readTeamDetailV2WeekEventDays(el);
+    const todayKey = this._getTeamDetailV2DateKey(new Date());
+    const rangeStart = Number(el.dataset.rangeStart || 0);
+    const rangeEnd = Number(el.dataset.rangeEnd || 0);
+    if (direction === 'next') {
+      const nextStart = rangeEnd + 1;
+      const nextEnd = rangeEnd + blockSize;
+      el.insertAdjacentHTML('beforeend', this._renderTeamDetailV2WeekDays(nextStart, nextEnd, eventDays, todayKey));
+      el.dataset.rangeEnd = String(nextEnd);
+      return;
+    }
+    const prevStart = rangeStart - blockSize;
+    const prevEnd = rangeStart - 1;
+    const previousWidth = el.scrollWidth || 0;
+    el.insertAdjacentHTML('afterbegin', this._renderTeamDetailV2WeekDays(prevStart, prevEnd, eventDays, todayKey));
+    el.dataset.rangeStart = String(prevStart);
+    el.scrollLeft += Math.max(0, (el.scrollWidth || 0) - previousWidth);
+  },
+
+  _handleTeamDetailV2WeekScroll(el) {
+    this._loadTeamDetailV2WeekNext(el);
+  },
+
+  _loadTeamDetailV2WeekPrevious(el) {
+    if (!el || el.dataset?.loadingWeek === '1' || Number(el.dataset?.rangeStart || 0) <= -182) return false;
+    if ((el.scrollLeft || 0) > 1) return false;
+    el.dataset.loadingWeek = '1';
+    this._extendTeamDetailV2WeekRange(el, 'prev');
+    delete el.dataset.loadingWeek;
+    return true;
+  },
+
+  _wheelTeamDetailV2Week(el, event) {
+    if (!el || !event) return;
+    if ((event.deltaX || 0) < -12) {
+      this._loadTeamDetailV2WeekPrevious(el);
+      return;
+    }
+    if ((event.deltaX || 0) > 12) {
+      this._handleTeamDetailV2WeekScroll(el);
+    }
+  },
+
+  _maybeLoadTeamDetailV2WeekPreviousFromDrag(el, dragDistance, event) {
+    if (dragDistance <= 24) return false;
+    const loaded = this._loadTeamDetailV2WeekPrevious(el);
+    if (!loaded) return false;
+    el.dataset.dragStartX = String(event?.clientX || 0);
+    el.dataset.dragStartScroll = String(el.scrollLeft || 0);
+    return true;
+  },
+
+  _loadTeamDetailV2WeekNext(el) {
+    if (!el || el.dataset?.loadingWeek === '1') return;
+    const threshold = Math.max(80, (el.clientWidth || 0) * 0.65);
+    const scrollRight = (el.scrollLeft || 0) + (el.clientWidth || 0);
+    if (scrollRight >= (el.scrollWidth || 0) - threshold) {
+      el.dataset.loadingWeek = '1';
+      this._extendTeamDetailV2WeekRange(el, 'next');
+      delete el.dataset.loadingWeek;
+    }
+  },
+
+  _startTeamDetailV2WeekDrag(el, event) {
+    if (!el || !event || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    el.dataset.dragging = '1';
+    el.dataset.dragStartX = String(event.clientX || 0);
+    el.dataset.dragStartScroll = String(el.scrollLeft || 0);
+    el.classList?.add('dragging');
+    try { el.setPointerCapture?.(event.pointerId); } catch (_) {}
+  },
+
+  _moveTeamDetailV2WeekDrag(el, event) {
+    if (!el || el.dataset?.dragging !== '1' || !event) return;
+    const dragDistance = (event.clientX || 0) - Number(el.dataset.dragStartX || 0);
+    el.scrollLeft = Number(el.dataset.dragStartScroll || 0) - dragDistance;
+    event.preventDefault?.();
+    if (this._maybeLoadTeamDetailV2WeekPreviousFromDrag(el, dragDistance, event)) return;
+    this._loadTeamDetailV2WeekNext(el);
+  },
+
+  _endTeamDetailV2WeekDrag(el, event) {
+    if (!el) return;
+    delete el.dataset.dragging;
+    delete el.dataset.dragStartX;
+    delete el.dataset.dragStartScroll;
+    el.classList?.remove('dragging');
+    try { el.releasePointerCapture?.(event?.pointerId); } catch (_) {}
   },
 
   _buildTeamDetailV2EventRows(t, limit = 3) {
