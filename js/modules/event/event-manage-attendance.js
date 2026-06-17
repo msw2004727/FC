@@ -151,9 +151,25 @@ Object.assign(App, {
       deferEnabled = false;
     }
     if (!deferEnabled) return true;
+    const eventId = String(e?.id || '');
+    let onDemandEnabled = false;
+    try {
+      onDemandEnabled = this._isActivityDetailAttendanceOnDemandEnabled?.() === true
+        || (typeof shouldUseActivityDetailOptimization === 'function'
+          && shouldUseActivityDetailOptimization('detailAttendanceOnDemand') === true);
+    } catch (_) {
+      onDemandEnabled = false;
+    }
+    const onDemandOpen = this._isDetailAttendanceOnDemandOpen?.(eventId) === true
+      || (!!eventId && String(this._detailAttendanceOnDemandEventId || '') === eventId);
+    if (onDemandEnabled
+      && !onDemandOpen
+      && this._attendanceEditingEventId !== eventId
+      && this._unregEditingEventId !== eventId) {
+      return false;
+    }
     const status = String(e?.status || '');
     if (status === 'ended' || status === 'cancelled') return true;
-    const eventId = String(e?.id || '');
     if (this._attendanceEditingEventId === eventId || this._unregEditingEventId === eventId) return true;
     if (typeof this._canOperateEventSite === 'function' && this._canOperateEventSite(e)) return true;
     if (typeof this.hasPermission === 'function'
@@ -476,6 +492,16 @@ Object.assign(App, {
     // 不同 containerId 的呼叫互不影響（waitlist 操作後需同時更新兩個容器）
     var self = this;
     var key = containerId || 'attendance-table-container';
+    if (key === 'detail-attendance-table'
+      && typeof self._shouldRenderDetailAttendanceTable === 'function'
+      && typeof self._renderDetailAttendanceSummaryShell === 'function') {
+      var detailEvent = typeof ApiService !== 'undefined' ? ApiService.getEvent?.(eventId) : null;
+      if (self._shouldRenderDetailAttendanceTable(eventId, detailEvent, options) === false) {
+        var detailContainer = document.getElementById(key);
+        if (detailContainer) detailContainer.innerHTML = self._renderDetailAttendanceSummaryShell(eventId, detailEvent, options);
+        return Promise.resolve({ ok: true, reason: 'on-demand-summary' });
+      }
+    }
     // 啟用：window._perfAttLog = 1 或 localStorage.setItem('_perfAttLog','1')
     var _perfCallTs = (typeof window !== 'undefined' && (window._perfAttLog || (typeof localStorage !== 'undefined' && localStorage.getItem('_perfAttLog')))) ? performance.now() : 0;
     if (options?.skipFetch) {

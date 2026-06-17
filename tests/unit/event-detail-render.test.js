@@ -23,15 +23,24 @@ function readProjectFile(file) {
   return fs.readFileSync(path.join(root, file), 'utf8');
 }
 
-function loadEventDetailModule({ currentUser = null, canEdit = false } = {}) {
+function loadEventDetailModule({
+  currentUser = null,
+  canEdit = false,
+  event = null,
+  flags = {},
+} = {}) {
   const app = {
     _canEditOwnActivityBasic: jest.fn(() => canEdit),
     _canEditExternalActivity: jest.fn(() => canEdit),
   };
   vm.runInNewContext(readProjectFile('js/modules/event/event-detail.js'), {
     App: app,
-    ApiService: { getCurrentUser: jest.fn(() => currentUser) },
+    ApiService: {
+      getCurrentUser: jest.fn(() => currentUser),
+      getEvent: jest.fn(() => event),
+    },
     TYPE_CONFIG: { friendly: { label: '友誼賽' }, external: { label: '外部活動' } },
+    shouldUseActivityDetailOptimization: jest.fn((name) => flags[name] === true),
     escapeHTML: (value) => String(value ?? '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -39,6 +48,8 @@ function loadEventDetailModule({ currentUser = null, canEdit = false } = {}) {
       .replace(/"/g, '&quot;'),
     Object,
     console,
+    document,
+    window,
   });
   return app;
 }
@@ -607,6 +618,42 @@ describe('Team reservation button loading contract', () => {
     expect(detailSource).toContain("mode: 'detail'");
     expect(detailSource).toContain("_shouldUseActivityDetailOptimization('nonBlockingRender')");
     expect(detailSource).not.toContain("await this._renderAttendanceTable(id, 'detail-attendance-table')");
+  });
+
+  test('activity detail attendance on-demand flag renders only the summary shell until opened', async () => {
+    document.body.innerHTML = '<div id="detail-attendance-table"></div>';
+    const app = loadEventDetailModule({
+      event: { id: 'event-1', current: 2, max: 10, waitlist: 1, status: 'open' },
+      flags: { detailAttendanceOnDemand: true },
+    });
+    app._renderAttendanceTable = jest.fn(() => Promise.resolve({ ok: true }));
+    app._buildConfirmedParticipantSummary = jest.fn(() => ({ count: 2, people: [] }));
+    app._getEventWaitlistDisplayCount = jest.fn(() => 1);
+    app._canOperateEventSite = jest.fn(() => true);
+
+    const result = await app._renderDetailAttendanceTable('event-1', { mode: 'detail' });
+
+    expect(result).toEqual({ ok: true, reason: 'on-demand-summary' });
+    expect(app._renderAttendanceTable).not.toHaveBeenCalled();
+    const shell = document.querySelector('.detail-attendance-summary');
+    expect(shell.dataset.attendanceOnDemand).toBe('true');
+    expect(document.getElementById('detail-attendance-table').textContent).toContain('已報 2/10');
+    expect(document.getElementById('detail-attendance-table').textContent).toContain('管理名單 / 出席紀錄');
+  });
+
+  test('activity detail attendance on-demand keeps legacy render path when the flag is off', async () => {
+    document.body.innerHTML = '<div id="detail-attendance-table"></div>';
+    const app = loadEventDetailModule({
+      event: { id: 'event-1', current: 2, max: 10, status: 'open' },
+      flags: { detailAttendanceOnDemand: false },
+    });
+    app._renderAttendanceTable = jest.fn(() => Promise.resolve({ ok: true, reason: 'legacy' }));
+
+    await expect(app._renderDetailAttendanceTable('event-1', { mode: 'detail' }))
+      .resolves.toEqual({ ok: true, reason: 'legacy' });
+    expect(app._renderAttendanceTable).toHaveBeenCalledWith('event-1', 'detail-attendance-table', expect.objectContaining({
+      mode: 'detail',
+    }));
   });
 
   test('activity detail keeps signup actions loading until team staff identity resolves', () => {

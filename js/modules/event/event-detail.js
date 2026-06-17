@@ -49,6 +49,94 @@ Object.assign(App, {
     return this._shouldUseActivityDetailOptimization?.('latePatchGuard', true) !== false;
   },
 
+  _isActivityDetailAttendanceOnDemandEnabled() {
+    return this._shouldUseActivityDetailOptimization?.('detailAttendanceOnDemand', false) === true;
+  },
+
+  _isDetailAttendanceOnDemandOpen(eventId) {
+    const safeId = String(eventId || '').trim();
+    return !!safeId && String(this._detailAttendanceOnDemandEventId || '') === safeId;
+  },
+
+  _shouldRenderDetailAttendanceTable(eventId, eventRecord = null, options = {}) {
+    if (!this._isActivityDetailAttendanceOnDemandEnabled?.()) return true;
+    const safeId = String(eventId || eventRecord?.id || '').trim();
+    if (!safeId) return true;
+    if (options?.forceFullAttendance === true || options?.forceFetch === true) return true;
+    if (this._isDetailAttendanceOnDemandOpen?.(safeId)) return true;
+    if (String(this._attendanceEditingEventId || '') === safeId) return true;
+    if (String(this._unregEditingEventId || '') === safeId) return true;
+    return false;
+  },
+
+  _getDetailAttendanceSummaryCounts(eventId, eventRecord = null) {
+    const e = eventRecord || (typeof ApiService !== 'undefined' ? ApiService.getEvent?.(eventId) : null);
+    let confirmedCount = Number(e?.current || 0);
+    try {
+      if (typeof this._buildConfirmedParticipantSummary === 'function') {
+        const summary = this._buildConfirmedParticipantSummary(eventId);
+        if (Number.isFinite(Number(summary?.count))) confirmedCount = Number(summary.count);
+      }
+    } catch (_) {}
+    let waitlistCount = Number(e?.waitlist || 0);
+    try {
+      if (typeof this._getEventWaitlistDisplayCount === 'function') {
+        waitlistCount = Number(this._getEventWaitlistDisplayCount(eventId, e)) || 0;
+      }
+    } catch (_) {}
+    return {
+      confirmedCount: Math.max(0, confirmedCount || 0),
+      waitlistCount: Math.max(0, waitlistCount || 0),
+      max: Math.max(0, Number(e?.max || 0)),
+    };
+  },
+
+  _renderDetailAttendanceSummaryShell(eventId, eventRecord = null) {
+    const e = eventRecord || (typeof ApiService !== 'undefined' ? ApiService.getEvent?.(eventId) : null);
+    const safeId = String(eventId || e?.id || '').trim();
+    const counts = this._getDetailAttendanceSummaryCounts(safeId, e);
+    const canManage = typeof this._canOperateEventSite === 'function'
+      ? this._canOperateEventSite(e)
+      : false;
+    const canViewNoShow = canManage
+      || (typeof this.hasPermission === 'function' && this.hasPermission('activity.view_noshow'))
+      || (typeof this.hasPermission === 'function' && this.hasPermission('admin.repair.no_show_adjust'));
+    const actionHtml = canViewNoShow
+      ? `<button type="button" class="detail-toolbar-btn" onclick="App.openDetailAttendanceRecords('${escapeHTML(safeId)}')">\u7ba1\u7406\u540d\u55ae / \u51fa\u5e2d\u7d00\u9304</button>`
+      : '';
+    return `
+      <div class="detail-attendance-summary" data-attendance-on-demand="true" style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;padding:.75rem;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);">
+        <div style="min-width:0">
+          <div class="detail-section-title" style="margin:0 0 .25rem">\u51fa\u5e2d\u6458\u8981</div>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap;font-size:.82rem;color:var(--text-secondary)">
+            <span>\u5df2\u5831 ${counts.confirmedCount}/${counts.max}</span>
+            ${counts.waitlistCount > 0 ? `<span>\u5019\u88dc ${counts.waitlistCount}</span>` : ''}
+          </div>
+        </div>
+        ${actionHtml ? `<div style="display:flex;gap:.4rem;flex-wrap:wrap">${actionHtml}</div>` : ''}
+      </div>`;
+  },
+
+  async openDetailAttendanceRecords(eventId) {
+    const safeId = String(eventId || this._currentDetailEventId || '').trim();
+    if (!safeId) return { ok: false, reason: 'missing-event-id' };
+    this._detailAttendanceOnDemandEventId = safeId;
+    if (typeof FirebaseService !== 'undefined'
+      && typeof FirebaseService.requestDetailAttendanceRealtime === 'function') {
+      FirebaseService.requestDetailAttendanceRealtime();
+    }
+    const context = this._getCurrentEventDetailPatchContext?.('detail-attendance-table', {
+      forceFullAttendance: true,
+      forceFetch: true,
+    }) || { forceFullAttendance: true, forceFetch: true };
+    const container = document.getElementById('detail-attendance-table');
+    if (container) container.innerHTML = this._renderEventDetailBelowFoldLoadingHtml();
+    const result = await this._renderDetailAttendanceTable(safeId, context);
+    const e = typeof ApiService !== 'undefined' ? ApiService.getEvent?.(safeId) : null;
+    this._afterDetailAttendanceRendered?.(safeId, e, context?.requestSeq ?? null, context?.renderToken || null);
+    return result;
+  },
+
   _createEventDetailRenderToken(eventId, requestSeq) {
     this._eventDetailRenderSeq = (Number(this._eventDetailRenderSeq) || 0) + 1;
     return `${String(eventId || '')}:${Number(requestSeq) || 0}:${this._eventDetailRenderSeq}`;
@@ -117,6 +205,12 @@ Object.assign(App, {
   },
 
   _renderDetailAttendanceTable(eventId, options = {}) {
+    const eventRecord = typeof ApiService !== 'undefined' ? ApiService.getEvent?.(eventId) : null;
+    if (this._shouldRenderDetailAttendanceTable?.(eventId, eventRecord, options) === false) {
+      const container = document.getElementById('detail-attendance-table');
+      if (container) container.innerHTML = this._renderDetailAttendanceSummaryShell(eventId, eventRecord, options);
+      return Promise.resolve({ ok: true, reason: 'on-demand-summary' });
+    }
     if (typeof this._renderAttendanceTable !== 'function') {
       return Promise.resolve({ ok: false, reason: 'missing-renderer' });
     }
@@ -124,12 +218,16 @@ Object.assign(App, {
       mode: 'detail',
       requestSeq: options?.requestSeq ?? null,
       renderToken: options?.renderToken || null,
+      forceFullAttendance: options?.forceFullAttendance === true,
       forceFetch: options?.forceFetch === true,
       skipFetch: options?.skipFetch === true,
     });
   },
 
   _afterDetailAttendanceRendered(eventId, eventRecord, requestSeq, renderToken) {
+    if (this._shouldRenderDetailAttendanceTable?.(eventId, eventRecord, {}) === false) {
+      return { ok: true, reason: 'on-demand-summary' };
+    }
     const guard = this._isCurrentEventDetailPatch?.(eventId, requestSeq, {
       containerId: 'detail-attendance-table',
       renderToken,

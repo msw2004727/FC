@@ -96,6 +96,21 @@ describe('P2 deferAttendanceRecords — attendance data load decision', () => {
     expect(app._shouldLoadDetailAttendanceData({ id: 'evt-1', status: 'open' })).toBe(false);
   });
 
+  test('detail attendance on-demand suppresses attendance data until the roster panel is opened', () => {
+    const { app } = loadAttendanceModule({
+      flags: {
+        rosterProjectionFirst: true,
+        deferAttendanceRecords: true,
+        detailAttendanceOnDemand: true,
+      },
+      canOperateEventSite: () => true,
+    });
+    expect(app._shouldLoadDetailAttendanceData({ id: 'evt-1', status: 'ended' })).toBe(false);
+
+    app._detailAttendanceOnDemandEventId = 'evt-1';
+    expect(app._shouldLoadDetailAttendanceData({ id: 'evt-1', status: 'ended' })).toBe(true);
+  });
+
   test('ended or cancelled events still load attendance data', () => {
     const { app } = loadAttendanceModule();
     expect(app._shouldLoadDetailAttendanceData({ id: 'evt-1', status: 'ended' })).toBe(true);
@@ -127,12 +142,14 @@ describe('P1/P2 wiring — source contracts', () => {
     const configSource = readProjectFile('js/config.js');
     expect(configSource).toContain('rosterProjectionFirst: true');
     expect(configSource).toContain('deferAttendanceRecords: true');
+    expect(configSource).toContain('detailAttendanceOnDemand: false');
   });
 
   test('attendance table render path consumes both helpers', () => {
     const source = readProjectFile('js/modules/event/event-manage-attendance.js');
     expect(source).toContain('_shouldPaintDetailRosterProjectionFirst?.(eventId, e, cId, options) === true');
     expect(source).toContain("if (this._shouldLoadDetailAttendanceData?.(e) !== false) {");
+    expect(source).toContain("key === 'detail-attendance-table'");
     expect(source).toContain('FirebaseService.requestDetailAttendanceRealtime()');
   });
 
@@ -142,5 +159,25 @@ describe('P1/P2 wiring — source contracts', () => {
     expect(source).toContain("needed.has('attendanceRecords') && !this._isDetailAttendanceDeferred(pageId, 'attendanceRecords')");
     expect(source).toContain('requestDetailAttendanceRealtime()');
     expect(source).toContain('this._detailAttendanceRealtimeRequested = false;');
+  });
+});
+
+describe('Phase A detail attendance on-demand guard', () => {
+  test('direct detail table render returns the summary shell while the full roster is closed', async () => {
+    const { app } = loadAttendanceModule({
+      flags: {
+        rosterProjectionFirst: true,
+        deferAttendanceRecords: true,
+        detailAttendanceOnDemand: true,
+      },
+    });
+    document.body.innerHTML = '<div id="detail-attendance-table"></div>';
+    app._shouldRenderDetailAttendanceTable = jest.fn(() => false);
+    app._renderDetailAttendanceSummaryShell = jest.fn(() => '<div data-attendance-on-demand="true">summary</div>');
+
+    await expect(app._renderAttendanceTable('evt-1', 'detail-attendance-table', { mode: 'detail' }))
+      .resolves.toEqual({ ok: true, reason: 'on-demand-summary' });
+    expect(app._renderDetailAttendanceSummaryShell).toHaveBeenCalledWith('evt-1', null, { mode: 'detail' });
+    expect(document.getElementById('detail-attendance-table').innerHTML).toContain('summary');
   });
 });

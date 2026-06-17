@@ -4,7 +4,7 @@
 
 // ─── Cache Version（更新此值以清除瀏覽器快取）───
 // 變更日誌已移除，請用 git log 查閱歷史部署記錄。
-const CACHE_VERSION = '0.20260616f';
+const CACHE_VERSION = '0.20260617';
 
 const GOOGLE_MAPS_BROWSER_API_KEY = '';
 
@@ -268,6 +268,7 @@ const ACTIVITY_DETAIL_OPTIMIZATION_FLAGS = {
   // 2026-06-11 名單加速第一輪（docs/activity-roster-loading-optimization-plan-v0.1.md §7/§8）
   rosterProjectionFirst: true,
   deferAttendanceRecords: true,
+  detailAttendanceOnDemand: false,
 };
 
 function getActivityDetailOptimizationFlags() {
